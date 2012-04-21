@@ -3,6 +3,7 @@ module Binop (binops) where
 import Ast
 import Combinators
 import Control.Monad (liftM,guard)
+import Control.Monad.Error
 import Data.List (foldl',splitAt,elemIndices,group,groupBy,sortBy,find)
 import Data.Map as Map
 import Data.Maybe (mapMaybe)
