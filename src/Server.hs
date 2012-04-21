@@ -13,12 +13,6 @@ import Text.Blaze.Html5.Attributes hiding (title,span,dir,style)
 import Text.Blaze.Internal
 import ToHtml
 
-serverConf = Conf { port = 80
-                  , validator = validator nullConf
-                  , tls = tls nullConf
-                  , logAccess = logAccess nullConf
-                  , timeout = timeout nullConf }
-
 serve :: String -> IO ()
 serve libLoc = do
   putStrLn "Elm Server 0.1: running at <http://localhost:8000>"
