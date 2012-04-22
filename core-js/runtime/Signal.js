@@ -1,5 +1,12 @@
 
 var Signal = function() {
+  function toElmString(str) {
+      var out = ["Nil"];
+      for (var i = str.length; i--; ) {
+	  out = ["Cons", str[i], out];
+      }
+      return out;
+  }
   var addListener = function() {
 	  if(document.addEventListener) {
 	      return function(element, event, handler) {
@@ -91,23 +98,19 @@ var Signal = function() {
 
   var HTTP = function() {
       var fetch = function(how) { return function(url) {
-	      var thread = Elm.Input("Requesting Data...");
-	      if (window.XMLHttpRequest) {
-		  request = new XMLHttpRequest();
-	      } else if (window.ActiveXObject) {
-		  request = new ActiveXObject("Microsoft.XMLHTTP");
-	      }
+	      var thread = Elm.Input(["Waiting"]);
+	      var request = {};
+	      if (window.XMLHttpRequest) { request = new XMLHttpRequest(); }
+	      else if (window.ActiveXObject) { request = new ActiveXObject("Microsoft.XMLHTTP"); }
 	      request.onreadystatechange = function(e) {
-		  var result = "";
 		  if (request.readyState === 4) {
-		      result = request.status === 200 ? request.responseText
-			                              : request.statusText;
-		  } else { 
-		      result = 'Request Failed';
+		      Dispatcher.notify(thread.id,
+					request.status === 200
+					? ["Success", toElmString(request.responseText)]
+					: ["Failure", request.status, toElmString(request.statusText)]);
 		  }
-		  Dispatcher.notify(thread.id, result);
 	      };
-	      request.open(how, String.toText(url), true);  
+	      request.open(how, String.toText(url), true);
 	      request.send(null);
 	      return thread;
 	  };
@@ -127,13 +130,6 @@ var Signal = function() {
       return { inRange:inRange, randomize:randomize };
   }();
   var Input = function() {
-      function toElmString(str) {
-	  var out = ["Nil"];
-	  for (var i = str.length; i--; ) {
-	      out = ["Cons", str[i], out];
-	  }
-	  return out;
-      }
       var newTextInput = function(elem, ghostText) {
 	  elem.isElmLeaf = true;
 	  var str = Elm.Input(["Nil"]);
