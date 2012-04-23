@@ -19,6 +19,9 @@ var asin = Math.asin, acos = Math.acos, atan = Math.atan;
 
 var flip = function(f){return function(x){return function(y){return f(y)(x);};};};
 
+var Just = function(x) { return ["Just",x]; };
+var Nothing = ["Nothing"];
+
 function constant(v) { return Elm.Input(v); }
 function lift(f) { return function(e) { return Elm.Lift(f, [e]); }; }
 function lift2(f) { return function(e1) { return function(e2) {

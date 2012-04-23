@@ -83,6 +83,7 @@ binop (o:p) e1 e2
                     "++" -> append e1 e2
                     "$" -> e1 ++ parens e2
                     "." -> jsFunc "x" . ret $ e1 ++ parens (e2 ++ parens "x")
+                    "/=" -> e1 ++ "!==" ++ e2
                     _ -> e1 ++ (o:p) ++ e2
 
 append e1 e2 = "Value.append" ++ parens (e1 ++ "," ++ e2)

@@ -115,7 +115,38 @@ var Signal = function() {
 	      return thread;
 	  };
       };
-      return { get : fetch("GET"), post : fetch("POST") };
+      var fetches = function(how) { return function(input) {
+	      var output = Elm.Input(["Nothing"]);
+	      var fetcher = Elm.Lift(update, [input]);
+	      var combine = Elm.Lift(function(x) { return function(y) { return x; } }, [output,fetcher]);
+	      function update(strOpt) {
+		  if (strOpt[0] !== "Just") {
+		      try { Dispatcher.notify(output.id, ["Nothing"]); } catch(e) {}
+		      return [];
+		  }
+		  try {
+		      Dispatcher.notify(output.id, ["Just", ["Waiting"]]);
+		  } catch(e) { output.value = ["Just", ["Waiting"]]; }
+		  var request = {};
+		  if (window.XMLHttpRequest) { request = new XMLHttpRequest(); }
+		  else if (window.ActiveXObject) { request = new ActiveXObject("Microsoft.XMLHTTP"); }
+		  request.onreadystatechange = function(e) {
+		      if (request.readyState === 4) {
+			  Dispatcher.notify(output.id,
+					    ["Just", request.status === 200
+					     ? ["Success", toElmString(request.responseText)]
+					     : ["Failure", request.status, toElmString(request.statusText)]]);
+		      }
+		  };
+		  request.open(how, String.toText(strOpt[1]), true);
+		  request.send(null);
+		  return [];
+	      }
+	      return combine;
+	  };
+      };
+      return {get : fetch("GET"), post : fetch("POST"),
+	      gets : fetches("GET"), posts : fetches("POST") };
   }();
   var Random = function() {
       var inRange = function(min) { return function(max) {
@@ -166,7 +197,6 @@ var Signal = function() {
 	  box.type = 'checkbox';
 	  box.checked = checked;
 	  var status = Elm.Input(checked);
-	  console.log(checked, box);
 	  addListener(box, 'change', function(e) {
 		  Dispatcher.notify(status.id, box.checked);
 	      });
