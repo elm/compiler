@@ -6,7 +6,7 @@ Name:                Elm
 -- The package version. See the Haskell package versioning policy
 -- (http://www.haskell.org/haskellwiki/Package_versioning_policy) for
 -- standards guiding when and how versions should be incremented.
-Version:             0.1
+Version:             0.1.0
 
 -- A short (one-line) description of the package.
 Synopsis:            The Elm compiler: compiles a statically/strongly typed, functional reactive language to HTML, CSS, and JS.
