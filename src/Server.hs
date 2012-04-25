@@ -15,7 +15,7 @@ import ToHtml
 
 serve :: String -> IO ()
 serve libLoc = do
-  putStrLn "Elm Server 0.1: running at <http://localhost:8000>"
+  putStrLn "Elm Server 0.1.0: running at <http://localhost:8000>"
   simpleHTTP nullConf $ do
          compressedResponseFilter
          msum [ uriRest (serveElm libLoc)
@@ -32,7 +32,7 @@ serveElm libLoc fp = do
 main = getArgs >>= parse
 
 parse ("--help":_) = putStrLn usage
-parse ("--version":_) = putStrLn "The Elm Server 0.1"
+parse ("--version":_) = putStrLn "The Elm Server 0.1.0"
 parse [] = serve "/elm-mini.js"
 parse [arg]
     | "--runtime-location=" `isPrefixOf` arg =

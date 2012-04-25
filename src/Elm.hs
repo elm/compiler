@@ -10,7 +10,7 @@ import Text.Blaze.Renderer.String
 main = getArgs >>= parse
 
 parse ("--help":_) = putStrLn usage
-parse ("--version":_) = putStrLn "The Elm Compiler 0.1"
+parse ("--version":_) = putStrLn "The Elm Compiler 0.1.0"
 parse [loc,file]
   | "--runtime-location=" `isPrefixOf` loc =
       produceHtml (tail $ dropWhile (/='=') loc) file
@@ -33,7 +33,7 @@ usageMini =
 usage =
   "Usage: elm [OPTIONS] FILE\n\
   \Compile .elm files to .html files.\n\
-  \Example: elm main.elm\n\
+  \Example: elm --runtime-location=../elm-mini.js main.elm\n\
   \\n\
   \Resource Locations:\n\
   \  --runtime-location   set the location of the Elm runtime (elm-mini.js)\n\
