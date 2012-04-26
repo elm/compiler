@@ -1,7 +1,10 @@
 Elm
 ===
 
-The source code is available at [github](https://github.com/evancz/Elm), and the compiler/dev-server is available through [Hackage](http://hackage.haskell.org/package/Elm). I have only tested the following installation process on a fresh copy of Ubuntu 11.10, so please comment here if you are having any trouble or have some additional tips. Here is the process:
+This is the Elm compiler and server, allowing you to develop Elm applications that run in any modern browser.
+
+Installation Process
+--------------------
 
 Download the [Haskell Platform](http://hackage.haskell.org/platform/). This will give you access to the Haskell compiler (needed to build Elm) and Haskell's package distrubution system (to make installation of Elm easier). If you already have this installed, just make sure you update your listing of packages with:
 
@@ -25,7 +28,16 @@ That is almost everything. Create a new directory that contains only the [elm-mi
 
 Now start up "elm-server" in this directory and navigate to your [localhost](http://localhost:8000/). You should see a directory listing. Navigate to "main.elm" to see your first Elm program in action. Note that elm-mini.js is required for this to work!
 
+Areas for further work:
+-----------------------
+
+Error messages need work in general. Syntax and Parsing errors are reported, but the messages are not very helpful. Type errors currently go unreported. I hope to fix this as soon as possible.
+
+If you are interested in contributing, please contact me at info (at) elm-lang (dot) org.
+
+
 Potential problems and their solutions:
+---------------------------------------
 
 * HAppStack has trouble installing because of issues with the "network" package. I struggled with this problem on Windows 7 until I found the suggestion at the bottom of [this page](http://hackage.haskell.org/trac/ghc/ticket/5159).
 * Likely more to come...
