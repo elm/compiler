@@ -5,7 +5,6 @@ import Combinators
 import Data.Char (isUpper)
 import ParserLib
 import Tokens
-import Types
 
 pattern_basic =
     (t UNDERSCORE >> return PAnything) +|+
