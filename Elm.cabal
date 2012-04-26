@@ -21,8 +21,11 @@ Category:            Compiler
 Build-type:          Simple
 
 Extra-source-files:  README, elm-mini.js
-Cabal-version:       >=1.2
+Cabal-version:       >=1.6
 
+source-repository head
+  type:     git
+  location: git://github.com/evancz/Elm.git
 
 Executable elm
   -- .hs or .lhs file containing the Main module.
@@ -30,7 +33,7 @@ Executable elm
   Hs-Source-Dirs:      src, src/Parse, src/Types
   
   -- Packages needed in order to build this package.
-  Build-depends:       base >= 4.2.0.2, containers >= 0.3.0.0, transformers >= 0.2.2.0, mtl >= 1.1.0.2,
+  Build-depends:       base >= 4.2 && < 5, containers >= 0.3.0.0, transformers >= 0.2.2.0, mtl >= 1.1.0.2,
                        parsec >= 3.1.1, blaze-html >= 0.4.1.6
   
   -- Modules not exported by this package.
@@ -42,5 +45,5 @@ Executable elm
 Executable elm-server
   Main-is:             Server.hs
   Hs-Source-Dirs:      src, src/Parse, src/Types
-  Build-depends:       base >= 4.2.0.2, containers >= 0.3.0.0, transformers >= 0.2.2.0, mtl >= 1.1.0.2,
+  Build-depends:       base >= 4.2 && < 5, containers >= 0.3.0.0, transformers >= 0.2.2.0, mtl >= 1.1.0.2,
                        blaze-html >= 0.4.1.6, HTTP >= 4000.0.9, happstack-server >= 6.2.4
