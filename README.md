@@ -22,11 +22,15 @@ Assuming everything goes correctly (potential problems are discussed later), thi
 
 To use these executables you may need to add a new directory to your PATH. For me, the executables were placed in /home/evan/.cabal/bin which I appended to the end of my PATH variable in my .bashrc file. Cabal should tell you where your executables are located, so you can make a similar addition.
 
-That is almost everything. Create a new directory that contains only the [elm-mini.js](https://raw.github.com/evancz/Elm/master/elm-mini.js) file. elm-mini.js is the Elm runtime system, and it is separate from the compiler for now. In this directory, create the file "main.elm" with the contents:
+That is almost everything. Create a new directory and navigate into it. Download the [elm-mini.js](https://raw.github.com/evancz/Elm/master/elm-mini.js) file which is the Elm runtime system. It is separate from the compiler for now. You can use the command
+
+    wget https://raw.github.com/evancz/Elm/master/elm-mini.js
+
+to download "elm-mini.js" from the command line. In the same directory, create the file "main.elm" with the contents:
 
     main = lift asText Mouse.position
 
-Now start up "elm-server" in this directory and navigate to your [localhost](http://localhost:8000/). You should see a directory listing. Navigate to "main.elm" to see your first Elm program in action. Note that elm-mini.js is required for this to work!
+Now start up "elm-server" in this directory and navigate to your [localhost](http://localhost:8000/). You should see a directory listing. Navigate to "main.elm" to see your first Elm program in action! Remember that "elm-mini.js" must be in the same directory as "main.elm".
 
 Areas for further work:
 -----------------------
@@ -39,5 +43,6 @@ If you are interested in contributing, please contact me at info (at) elm-lang (
 Potential problems and their solutions:
 ---------------------------------------
 
-* HAppStack has trouble installing because of issues with the "network" package. I struggled with this problem on Windows 7 until I found the suggestion at the bottom of [this page](http://hackage.haskell.org/trac/ghc/ticket/5159).
+* On Windows, HAppStack has trouble installing because of issues with the "network" package. I struggled with this problem on Windows 7 until I found the suggestion at the bottom of [this page](http://hackage.haskell.org/trac/ghc/ticket/5159).
+* When installing on Debian, "blaze-html-0.4.3.2" fails to compile. You must install "blaze-html-0.4.3.1" instead.
 * Likely more to come...
