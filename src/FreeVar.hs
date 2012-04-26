@@ -1,7 +1,7 @@
 module FreeVar (freeIn) where
 
 import Ast
-import Data.Set hiding (map)
+import Data.Set (union, unions, delete, singleton, empty, difference, member)
 
 x `freeIn` expr = member x $ freeVars expr
 
