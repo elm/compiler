@@ -6,7 +6,7 @@ This is the Elm compiler and server, allowing you to develop Elm applications th
 Installation Process
 --------------------
 
-Download the [Haskell Platform](http://hackage.haskell.org/platform/). This will give you access to the Haskell compiler (needed to build Elm) and Haskell's package distrubution system (to make installation of Elm easier). Once installed (even if it already was), you must update your listing of Haskell packages with:
+Download the [Haskell Platform](http://hackage.haskell.org/platform/). This will give you access to the Haskell compiler (needed to build Elm) and Haskell's package distribution system (to make installation of Elm easier). Once installed (even if it already was), you must update your listing of Haskell packages with:
 
     cabal update
 
