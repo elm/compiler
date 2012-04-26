@@ -22,7 +22,7 @@ Assuming everything goes correctly (potential problems are discussed later), thi
 
 To use these executables you may need to add a new directory to your PATH. For me, the executables were placed in /home/evan/.cabal/bin which I appended to the end of my PATH variable in my .bashrc file. Cabal should tell you where your executables are located, so you can make a similar addition.
 
-That is almost everything. Create a new directory that contains only the [elm-mini.js](http://elm-lang.org/Library/elm-mini.js) file. elm-mini.js is the Elm runtime system, and it is separate from the compiler for now. In this directory, create the file "main.elm" with the contents:
+That is almost everything. Create a new directory that contains only the [elm-mini.js](https://raw.github.com/evancz/Elm/master/elm-mini.js) file. elm-mini.js is the Elm runtime system, and it is separate from the compiler for now. In this directory, create the file "main.elm" with the contents:
 
     main = lift asText Mouse.position
 
