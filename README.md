@@ -20,7 +20,7 @@ Assuming everything goes correctly (potential problems are discussed later), thi
 
 * elm-server :: This is both a compiler and server, allowing you to develop without designing and setting up a server yourself. Running the "elm-server" program starts a server in the current directory. It will compile and serve any .elm files in the current directory and its sub-directories. This is how I prefer to develop Elm programs.
 
-To use these executables you may need to add a new directory to your PATH. For me, the executables were placed in /home/evan/.cabal/bin which I appended to the end of my PATH variable in my .bashrc file. Cabal should tell you where your executables are located, so you can make a similar addition.
+To use these executables you need to add a new directory to your PATH. For me, the executables were placed in /home/evan/.cabal/bin which I appended to the end of my PATH variable in my .bashrc file. Cabal should tell you where your executables are located, so you can make a similar addition (see this tutorial if you are new to changing your PATH in [Unix/Linux](http://www.cyberciti.biz/faq/unix-linux-adding-path/)).
 
 That is almost everything. Create a new directory and navigate into it. Download the [elm-mini.js](https://raw.github.com/evancz/Elm/master/elm-mini.js) file which is the Elm runtime system. It is separate from the compiler for now. You can use the command
 
