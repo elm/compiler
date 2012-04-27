@@ -43,6 +43,7 @@ If you are interested in contributing, please contact me at info (at) elm-lang (
 Potential problems and their solutions:
 ---------------------------------------
 
-* On Windows, HAppStack has trouble installing because of issues with the "network" package. I struggled with this problem on Windows 7 until I found the suggestion at the bottom of [this page](http://hackage.haskell.org/trac/ghc/ticket/5159).
 * When installing on Debian, "blaze-html-0.4.3.2" fails to compile. You must install "blaze-html-0.4.3.1" instead.
+* Elm does not appear to work with the latest versions of "containers" (i.e. 0.4.2.*). I know it works with containers-0.3.0.0, so you can use "cabal install elm --constrain="containers=0.3.0.0".
+* On Windows, HAppStack has trouble installing because of issues with the "network" package. I struggled with this problem on Windows 7 until I found the suggestion at the bottom of [this page](http://hackage.haskell.org/trac/ghc/ticket/5159).
 * Likely more to come...
