@@ -20,7 +20,7 @@ Category:            Compiler
 
 Build-type:          Simple
 
-Extra-source-files:  README, elm-mini.js
+Extra-source-files:  README.md
 Cabal-version:       >=1.6
 
 source-repository head
