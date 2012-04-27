@@ -30,7 +30,7 @@ That is almost everything. Now, we will create a simple Elm project. The followi
     echo main = lift asText Mouse.position > main.elm
     elm-server
 
-The first two commands create a new directory and navigate into it. Then next command (wget) downloads the [elm-mini.js](https://raw.github.com/evancz/Elm/master/elm-mini.js) file which is the Elm runtime system. It is separate from the compiler for now. If you do not have wget, just follow [this link](https://raw.github.com/evancz/Elm/master/elm-mini.js) and download it directly. The 'echo' command places a simple program into 'main.elm'. The final command starts the Elm server at [localhost](http://localhost:8000/), allowing you to navigate to 'main.elm' and see your first program in action.
+The first two commands create a new directory and navigate into it. Then next command (wget) downloads the [elm-mini.js](https://raw.github.com/evancz/Elm/master/elm-mini.js) file which is the Elm runtime system and must be in the root directory of your Elm project. If you do not have wget, just follow [this link](https://raw.github.com/evancz/Elm/master/elm-mini.js) and download it directly. The 'echo' command places a simple program into 'main.elm'. The final command starts the Elm server at [localhost](http://localhost:8000/), allowing you to navigate to 'main.elm' and see your first program in action.
 
 Areas for further work:
 -----------------------
