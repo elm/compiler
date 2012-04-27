@@ -1,73 +1,97 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Rename (rename) where
 
 import Ast
 import Control.Arrow (first)
-import Control.Monad.State
+import Control.Monad (ap, liftM, foldM, mapM, Monad)
+import Control.Monad.State (evalState, State, get, put)
 import Data.Char (isLower)
-import Data.List (mapAccumL)
-import Data.Functor.Identity
 
-rename expr = evalState (rename' id expr) 0
+-- Wrapper around State monad.
+newtype GuidCounter a = GC { runGC :: State Int a }
+    deriving (Monad)
 
-guid :: State Int Int
-guid = do n <- get
-          put (n+1)
-          return n
+-- Get the next GUID, incrementing the counter.
+guid :: GuidCounter Int
+guid = GC $ do n <- get
+               put (n + 1)
+               return n
 
+rename :: Expr -> Expr
+rename expr = evalState (runGC $ rename' id expr) 0
+
+rename' :: (String -> String) -> Expr -> GuidCounter Expr
 rename' env expr =
     case expr of
-      Range e1 e2 -> do
-        re1 <- rename' env e1; re2 <- rename' env e2
-        return $ Range re1 re2
-      Access e x -> do
-                re <- rename' env e
-                return $ Access re x
-      Binop op e1 e2 ->
-          do let rop = if isLower (head op) || '_' == head op then env op else op
-             re1 <- rename' env e1; re2 <- rename' env e2
-             return $ Binop rop re1 re2
-      Lambda x e -> do (rx, env') <- extend env x
-                       rename' env' e >>= return . Lambda rx
-      App e1 e2 -> do
-        re1 <- rename' env e1; re2 <- rename' env e2
-        return $ App re1 re2
-      If e1 e2 e3 -> do
-        re1 <- rename' env e1; re2 <- rename' env e2; re3 <- rename' env e3
-        return $ If re1 re2 re3
-      Lift e es -> do
-        re <- rename' env e
-        mapM (rename' env) es >>= return . Lift re
-      Fold e1 e2 e3 -> do
-        re1 <- rename' env e1; re2 <- rename' env e2; re3 <- rename' env e3
-        return $ Fold re1 re2 re3
-      Async e -> rename' env e >>= return . Async
+
+      Range e1 e2 -> Range `liftM` rnm e1
+                              `ap` rnm e2
+      
+      Access e x -> Access `liftM` rnm e
+                              `ap` return x
+
+      Binop op@(h:_) e1 e2 ->
+        let rop = if isLower h || '_' == h
+                  then env op
+                  else op
+        in Binop rop `liftM` rnm e1
+                        `ap` rnm e2
+
+      Lambda x e -> do
+          (rx, env') <- extend env x
+          Lambda rx `liftM` rename' env' e
+
+      App e1 e2 -> App `liftM` rnm e1
+                          `ap` rnm e2
+
+      If e1 e2 e3 -> If `liftM` rnm e1
+                           `ap` rnm e2
+                           `ap` rnm e3
+
+      Lift e es -> Lift `liftM` rnm e
+                           `ap` mapM rnm es
+
+      Fold e1 e2 e3 -> Fold `liftM` rnm e1
+                               `ap` rnm e2
+                               `ap` rnm e3
+
+      Async e -> Async `liftM` rnm e
+
       Let defs e -> do
                 let (vs,es) = unzip defs
-                env' <- foldM (\acc x -> extend acc x >>= return . snd) env vs
+                env' <- foldM (\acc x -> snd `liftM` extend acc x) env vs
                 es' <- mapM (rename' env') es; re <- rename' env' e
                 return $ Let (zip (map env' vs) es') re
+
       Var x -> return . Var $ env x
-      Data name es -> mapM (rename' env) es >>= return . Data name
-      Case e cases -> do
-                re <- rename' env e
-                mapM (pattern_rename env) cases >>= return . (Case re)
+
+      Data name es -> Data name `liftM` mapM rnm es
+
+      Case e cases -> Case `liftM` rnm e
+                              `ap` mapM (patternRename env) cases
+
       _ -> return expr
 
+  where rnm = rename' env
+
+extend :: (String -> String) -> String -> GuidCounter (String, String -> String)
 extend env x = do
   n <- guid
   let rx = x ++ "_" ++ show n
-  return (rx, (\y -> if y == x then rx else env y))
+  return (rx, \y -> if y == x then rx else env y)
 
-pattern_extend pattern env =
+patternExtend :: Pattern -> (String -> String) -> GuidCounter (Pattern, String -> String)
+patternExtend pattern env =
     case pattern of
       PAnything -> return (PAnything, env)
-      PVar x -> extend env x >>= return . first PVar
+      PVar x -> first PVar `liftM` extend env x
       PData name ps ->
-          foldM f ([],env) ps >>= return . first (PData name . reverse)
-                 where f (rps,env') p = do (rp,env'') <- pattern_extend p env'
+          first (PData name . reverse) `liftM` foldM f ([], env) ps
+                 where f (rps,env') p = do (rp,env'') <- patternExtend p env'
                                            return (rp:rps, env'')
 
-pattern_rename env (p,e) = do
-  (rp,env') <- pattern_extend p env
+patternRename :: (String -> String) -> (Pattern, Expr) -> GuidCounter (Pattern, Expr)
+patternRename env (p,e) = do
+  (rp,env') <- patternExtend p env
   re <- rename' env' e
   return (rp,re)

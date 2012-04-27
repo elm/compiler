@@ -2,7 +2,7 @@
 module ExtractNoscript (extract) where
 
 import Ast
-import List (isPrefixOf)
+import Data.List (isPrefixOf)
 
 extract = extract'
 
@@ -35,7 +35,7 @@ toString _ = []
 makeLinks (a:b:[]) = linkify a b
 makeLinks xs       = xs
 
-linkish s = not (isPrefixOf "<a" s) && all (/=' ') s && any (=='/') s
+linkish s = not ("<a" `isPrefixOf` s) && notElem ' ' s && elem '/' s
 
 linkify a b
     | linkish a = [ "<a href=\"" ++ a ++ "\">" ++ b ++ "</a>" ]
