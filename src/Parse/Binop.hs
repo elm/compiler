@@ -5,7 +5,7 @@ import Combinators
 import Control.Monad (liftM,guard)
 import Control.Monad.Error
 import Data.List (foldl',splitAt,elemIndices,group,groupBy,sortBy,find)
-import Data.Map as Map
+import qualified Data.Map as Map
 import Data.Maybe (mapMaybe)
 
 data Assoc = L | Non | R deriving (Eq,Show)
@@ -45,14 +45,14 @@ binopOf seen (tbl@((lvl, L, op):rest)) ops es =
     case elemIndices op ops of
       [] -> binopOf seen rest ops es
       is -> case Map.lookup lvl seen of
-              Nothing -> binopSplit (insert lvl (L,op) seen) tbl (last is) ops es
+              Nothing -> binopSplit (Map.insert lvl (L,op) seen) tbl (last is) ops es
               Just (L,_) -> binopSplit seen tbl (last is) ops es
               Just (assoc,op') -> Left $ errorMessage lvl op L op' assoc
 binopOf seen (tbl@((lvl, assoc, op):rest)) ops es =
     case elemIndices op ops of
       [] -> binopOf seen rest ops es
       i:_ -> case Map.lookup lvl seen of
-               Nothing -> binopSplit (insert lvl (R,op) seen) tbl i ops es
+               Nothing -> binopSplit (Map.insert lvl (R,op) seen) tbl i ops es
                Just (assoc',op') ->
                    if assoc == assoc' && assoc /= Non then
                        binopSplit seen tbl i ops es
