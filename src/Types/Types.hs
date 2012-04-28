@@ -28,7 +28,7 @@ instance Show Type where
         ; LambdaT t1 t2 -> show t1 ++ " -> " ++ show t2
         ; VarT x -> x
         ; ForallT x t' -> "forall " ++ x ++ ". " ++ show t'
-        ; AppT name args -> name ++ " " ++ intercalate " " (map show args)
+        ; AppT name args -> name ++ " " ++ unwords (map show args)
         ; ADT name constrs ->
             name ++ " = " ++ intercalate " | " (map show constrs)
         }

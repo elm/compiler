@@ -1,30 +1,31 @@
-module ParsePatterns (pattern_term, pattern_expr) where
+module ParsePatterns (patternTerm, patternExpr) where
 
 import Ast
 import Combinators
 import Data.Char (isUpper)
 import ParserLib
 import Tokens
+import Control.Monad (liftM)
 
-pattern_basic =
+patternBasic =
     (t UNDERSCORE >> return PAnything) +|+
     (do { x@(c:_) <- var ;
-          if isUpper c then star pattern_term >>= return . PData x
+          if isUpper c then PData x `liftM` star patternTerm
                        else return $ PVar x })
 
-pattern_tuple = do
-  t LPAREN; ps <- sepBy1 (t COMMA) pattern_expr; t RPAREN
+patternTuple = do
+  t LPAREN; ps <- sepBy1 (t COMMA) patternExpr; t RPAREN
   return $ case ps of { [p] -> p; _ -> ptuple ps }
 
-pattern_cons = do
-  p <- pattern_term
-  colon <- optional $ op_parser (==":")
+patternCons = do
+  p <- patternTerm
+  colon <- optional $ opParser (==":")
   case colon of
-    Just ":" -> pattern_expr >>= return . pcons p
+    Just ":" -> pcons p `liftM` patternExpr
     Nothing -> return p
 
-pattern_list = do
-  t LBRACKET; ps <- sepBy (t COMMA) pattern_expr; t RBRACKET; return (plist ps)
+patternList = do
+  t LBRACKET; ps <- sepBy (t COMMA) patternExpr; t RBRACKET; return (plist ps)
 
-pattern_term = pattern_tuple +|+ pattern_list +|+ pattern_basic
-pattern_expr = pattern_tuple +|+ pattern_list +|+ pattern_cons
+patternTerm = patternTuple +|+ patternList +|+ patternBasic
+patternExpr = patternTuple +|+ patternList +|+ patternCons

@@ -13,7 +13,7 @@ instance Monad (Parser from) where
     p >>= f  = Parser (\cs -> concat [parse (f a) cs' | (a,cs') <- parse p cs])
 
 instance MonadPlus (Parser from) where
-   mzero = Parser (\cs -> [])
+   mzero = Parser $ const []
    mplus p q = Parser (\cs -> parse p cs ++ parse q cs)
 
 -- True recursive descent, tries everything.
@@ -24,7 +24,7 @@ p +|+ q = Parser (\cs -> case parse (mplus p q) cs of
                            [] -> []
                            (x:xs) -> [x])
 
-zero = Parser (\cs -> [])
+zero = Parser $ const []
 
 item  = Parser (\cs -> case cs of
                          [] -> []
@@ -40,7 +40,7 @@ string (c:cs) = do {char c; string cs; return (c:cs)}
 star p = plus p +++ return []
 plus p = do {a <- p; as <- star p; return (a:as)}
 
-optional p = do { p >>= return . Just } +++ return Nothing
+optional p = (Just `liftM` p) +++ return Nothing
 
 nospace = guard . (==0) . length =<< space
 space = star $ sat isSpace
@@ -66,9 +66,9 @@ sepBy1 sep p = do
   xs <- star (sep >> p)
   return $ x:xs
 
-select ps = foldl1 (+|+) ps
+select = foldl1 (+|+)
 
-chainl p op a = (chainl1 p op) +++ return a
+chainl p op a = chainl1 p op +++ return a
 chainl1 p op = do {a <- p; rest a}
                 where
                   rest a = (do f <- op

@@ -6,8 +6,9 @@ import Text.Parsec.Char
 import Text.Parsec.Combinator
 import Text.ParserCombinators.Parsec.Prim (parse,(<|>),many,try)
 import Tokens
+import Control.Monad (liftM)
 
-token = do { integer >>= return . NUMBER }
+token = NUMBER `liftM` integer
     <|> whitespace
     <|> chrs [ ('(',LPAREN)  , (')',RPAREN)
              , ('{',LBRACE)  , ('}',RBRACE)
@@ -24,7 +25,7 @@ token = do { integer >>= return . NUMBER }
            ; return $ STRING s}
     <|> do { char '\''; c <- backslashed <|> satisfy (/='\''); char '\''
            ; return $ CHAR c}
-    <|> do { variable >>= return . ID }
+    <|> (ID `liftM` variable)
     <|> typeVar
     <|> do { try $ string "\r\n" <|> string "\n"; return NEWLINE }
 
@@ -39,7 +40,7 @@ anyOp = do op <- many1 (satisfy isSymbol <|> oneOf "+-/*=.$<>:&|^?%#@~!")
                       ; "->" -> return ARROW; "\8594" -> return ARROW
                       ; _ -> return $ OP op }
 
-backslashed = do { char '\\'; c <- satisfy (\x -> True)
+backslashed = do { char '\\'; c <- satisfy $ const True
                  ; return . read $ ['\'','\\',c,'\''] }
 
 integer = return . read =<< many1 digit
@@ -66,8 +67,8 @@ closeComment = manyTill anyChar . choice $
                , do { try $ string "{-"; closeComment; closeComment }
                ]
 
-token_parser = many1 token
+tokenParser = many1 token
 
-tokenize s = case parse token_parser "" s of
+tokenize s = case parse tokenParser "" s of
                Right ts -> Right ts
                Left err -> Left $ "Syntax error: " ++ show err
