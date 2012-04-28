@@ -26,7 +26,7 @@ sortOps = sortBy (\(i,_,_) (j,_,_) -> compare i j)
 binops term anyOp = do
   e <- term
   (ops,es) <- liftM unzip $ star (do { op <- anyOp; e <- term; return (op,e) })
-  case binopOf (Map.empty) (sortOps table) ops (e:es) of
+  case binopOf Map.empty (sortOps table) ops (e:es) of
     Right e -> return e
     Left msg -> zero
 

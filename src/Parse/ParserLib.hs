@@ -3,18 +3,19 @@ module ParserLib where
 import Ast
 import Combinators
 import Data.Char (isUpper)
+import Control.Monad (liftM)
 import Tokens
 
-var_noSpace = do { t <- item; case t of { ID v -> return v; _ -> zero } }
-var = whitespace >> var_noSpace
-cap_var = do
+varNoSpace = do { t <- item; case t of { ID v -> return v; _ -> zero } }
+var = whitespace >> varNoSpace
+capVar = do
   whitespace; t <- item
   case t of { ID (v:vs) -> if isUpper v then return (v:vs) else zero }
 
 chr = do { whitespace; t <- item; case t of { CHAR c -> return c; _ -> zero } }
 
-t_noSpace token = sat (==token)
-t_withSpace token = forcedWS >> sat (==token)
+tNoSpace token = sat (==token)
+tWithSpace token = forcedWS >> sat (==token)
 t token = whitespace >> sat (==token)
 
 forcedWS = do { sat (==SPACES); star nl_space } +|+ plus nl_space
@@ -23,14 +24,14 @@ whitespace = optional forcedWS
 
 accessible exp = do
   e <- exp
-  access <- optional $ op_parser_nospace (==".")
+  access <- optional $ opParserNospace (==".")
   case access of
-    Just "." -> accessible (var >>= return . Access e)
+    Just "." -> accessible (Access e `liftM` var)
     Nothing -> return e
 
-op_parser_nospace pred =
+opParserNospace pred =
     do { t <- item
        ; case t of { OP op -> if pred op then return op else zero; _ -> zero } }
-op_parser pred = whitespace >> op_parser_nospace pred
-anyOp  = op_parser (const True)
-assign = op_parser (=="=")
+opParser pred = whitespace >> opParserNospace pred
+anyOp  = opParser (const True)
+assign = opParser (=="=")
