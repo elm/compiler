@@ -6,40 +6,41 @@ import Data.Char (isUpper)
 import ParserLib
 import Tokens
 import Types
+import Control.Monad (liftM)
 
-type_var = do whitespace; t <- item
-              case t of
-                ID "Int" -> return IntT
-                ID "String" -> return StringT
-                ID "Char" -> return CharT
-                ID "Bool" -> return BoolT
-                ID (v:vs) -> return (if isUpper v then ADT (v:vs) []
-                                     else VarT (v:vs))
-                _ -> zero
+typeVar = do whitespace; t <- item
+             case t of
+               ID "Int" -> return IntT
+               ID "String" -> return StringT
+               ID "Char" -> return CharT
+               ID "Bool" -> return BoolT
+               ID (v:vs) -> return (if isUpper v then ADT (v:vs) []
+                                    else VarT (v:vs))
+               _ -> zero
 
-type_list = do t LBRACKET; ti <- type_expr; t RBRACKET; return $ ADT "List" []
-type_tuple = do { t LPAREN; ts <- sepBy (t COMMA) type_expr; t RPAREN
+typeList = do t LBRACKET; ti <- typeExpr; t RBRACKET; return $ ADT "List" []
+typeTuple = do { t LPAREN; ts <- sepBy (t COMMA) typeExpr; t RPAREN
                 ; return $ case ts of { [t] -> t; _ -> ADT "Tuple" [] } }
 
-type_unamb = type_list +|+ type_tuple
+typeUnamb = typeList +|+ typeTuple
 
-type_term = type_app +|+ type_unamb
+typeTerm = typeApp +|+ typeUnamb
 
-type_app = do
-  tipe <- type_var
+typeApp = do
+  tipe <- typeVar
   case tipe of
-    ADT name _ -> star type_term >>= return . AppT name
+    ADT name _ -> AppT name `liftM` star typeTerm
     _  -> return tipe
 
-type_expr = do t1 <- type_term
-               arrow <- optional $ t ARROW
-               case arrow of
-                 Just ARROW -> type_term >>= return . LambdaT t1
-                 Nothing -> return t1
+typeExpr = do t1 <- typeTerm
+              arrow <- optional $ t ARROW
+              case arrow of
+                Just ARROW -> LambdaT t1 `liftM` typeTerm
+                Nothing -> return t1
 
-type_constr = do
-  name <- cap_var
-  args <- star (type_var +|+ type_unamb)
+typeConstr = do
+  name <- capVar
+  args <- star (typeVar +|+ typeUnamb)
   return (Constructor name args)
 
 constr (Constructor name args) =
@@ -48,9 +49,9 @@ constr (Constructor name args) =
 
 datatype = do
   t DATA
-  adt <- cap_var
+  adt <- capVar
   vs <- star var
   assign
-  ts <- sepBy1 (op_parser (=="|")) type_constr
+  ts <- sepBy1 (opParser (=="|")) typeConstr
   -- (adt, foldr ForallT (ADT adt ts) vs)
   return (map constr ts)

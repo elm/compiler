@@ -9,48 +9,49 @@ import ParserLib
 import ParseTypes (datatype)
 import ParsePatterns
 import Tokens
+import Control.Monad (liftM)
 
 --------  Basic Terms  --------
 
-num_term = do { whitespace; t <- item
+numTerm = do { whitespace; t <- item
               ; case t of { NUMBER n -> return $ Number n; _ -> zero } }
-str_term = do { whitespace; t <- item
+strTerm = do { whitespace; t <- item
               ; case t of { STRING cs -> return . list $ map Chr cs
                           ; _ -> zero } }
 
-var_term = do var >>= return . Var
-chr_term = do chr >>= return . Chr
+varTerm = Var `liftM` var
+chrTerm = Chr `liftM` chr
 
-true_term = do { t TRUE; return $ Boolean True }
-false_term = do { t FALSE; return $ Boolean False }
+trueTerm = do { t TRUE; return $ Boolean True }
+falseTerm = do { t FALSE; return $ Boolean False }
 
 
 --------  Complex Terms  --------
 
-list_term = (do { t LBRACKET; start <- expr; t DOT2; end <- expr; t RBRACKET
+listTerm = (do { t LBRACKET; start <- expr; t DOT2; end <- expr; t RBRACKET
                 ; return $ Range start end }) +|+
             (do { t LBRACKET; es <- sepBy (t COMMA) expr; t RBRACKET
                 ; return $ list es })
 
-parens_term = (do { t LPAREN; op <- anyOp; t RPAREN
+parensTerm = (do { t LPAREN; op <- anyOp; t RPAREN
                   ; return . Lambda "x" . Lambda "y" $
                            Binop op (Var "x") (Var "y") }) +|+
               (do { t LPAREN; es <- sepBy (t COMMA) expr; t RPAREN
                   ; return $ case es of { [e] -> e; _ -> tuple es } })
 
-term = select [ num_term
-              , str_term
-              , accessible var_term
-              , chr_term
-              , true_term
-              , false_term
-              , list_term 
-              , accessible parens_term
+term = select [ numTerm
+              , strTerm
+              , accessible varTerm
+              , chrTerm
+              , trueTerm
+              , falseTerm
+              , listTerm 
+              , accessible parensTerm
               ]
 
 --------  Applications  --------
 
-app_expr = do
+appExpr = do
   tlist <- plus term
   return $ case tlist of
              t:[] -> t
@@ -59,20 +60,20 @@ app_expr = do
 
 --------  Expressions with infix operators  --------
 
-binary_expr = binops app_expr anyOp
+binaryExpr = binops appExpr anyOp
 
 
 --------  Normal Expressions  --------
 
-if_expr = do { t IF; e1 <- expr; t THEN; e2 <- expr; t ELSE; e3 <- expr
+ifExpr = do { t IF; e1 <- expr; t THEN; e2 <- expr; t ELSE; e3 <- expr
              ; return $ If e1 e2 e3 }
 
-lambda_expr = do { t LAMBDA; vs <- plus var; t ARROW; e <- expr
-                 ; return $ foldr (\x e -> Lambda x e) e vs }
+lambdaExpr = do { t LAMBDA; vs <- plus var; t ARROW; e <- expr
+                 ; return $ foldr Lambda e vs }
 
-assign_expr = whitespace >> assign_expr_nospace
-assign_expr_nospace = do
-  p:ps <- plus pattern_term; assign; e <- expr
+assignExpr = whitespace >> assignExprNospace
+assignExprNospace = do
+  p:ps <- plus patternTerm; assign; e <- expr
   case p:ps of
     PVar x : _ -> return (x, foldr func e ps)
         where func PAnything e' = Lambda "_" e'
@@ -81,30 +82,30 @@ assign_expr_nospace = do
 --    _ : [] -> return $ \hole -> Case e [(p,hole)]
     _ -> zero
 
-let_expr = do
+letExpr = do
   t LET; brace <- optional $ t LBRACE
   case brace of
-    Nothing -> do f <- assign_expr; t IN; e <- expr; return (Let [f] e)
-    Just LBRACE -> do fs <- sepBy1 (t SEMI) assign_expr; t RBRACE; t IN;
+    Nothing -> do f <- assignExpr; t IN; e <- expr; return (Let [f] e)
+    Just LBRACE -> do fs <- sepBy1 (t SEMI) assignExpr; t RBRACE; t IN;
                       e <- expr; return (Let fs e)
 
-case_expr = do
+caseExpr = do
   t CASE; e <- expr; t OF; t LBRACE
   cases <- sepBy1 (t SEMI)
-           (do { p <- pattern_expr; t ARROW; e <- expr; return (p,e) })
+           (do { p <- patternExpr; t ARROW; e <- expr; return (p,e) })
   t RBRACE
   return $ Case e cases
 
 --------  All Expressions  --------
 
-expr = select [ let_expr
-              , binary_expr
-              , if_expr
-              , case_expr
-              , lambda_expr
+expr = select [ letExpr
+              , binaryExpr
+              , ifExpr
+              , caseExpr
+              , lambdaExpr
               ]
 
-def = assign_expr_nospace >>= return . (:[])
+def = (:[]) `liftM` assignExprNospace
 
 defs = do
   ds <- plus (whitespace >> plus (sat (==NEWLINE)) >> def +|+ datatype)

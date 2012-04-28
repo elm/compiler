@@ -32,7 +32,7 @@ guess = liftM GuessT (newIORef Nothing)
 varType env x =
     case Map.lookup x env of
       Just t -> return $ Right t
-      Nothing -> liftM Right $ guess
+      Nothing -> liftM Right guess
       -- return . Left $ "Variable '" ++ x ++ "' is not bound to a value!"
       -- This is no good because some fundamental functions are only
       -- defined in JS, but it is the right thing to do.
@@ -115,11 +115,11 @@ checkBinop Compose t1 t2 = do
 checkBinop Apply t1 t2 = do { g <- guess
                             ; check [unify t1 (LambdaT t2 g), tipe g] }
 checkBinop op t1 t2
-    | elem op [And, Or] = check [unify BoolT t1, unify BoolT t2]
-    | elem op [Equ, Neq] = check [guess >>= unify t1, unify t1 t2, tipe BoolT]
-    | elem op [Lt, Lte, Gt, Gte] =
+    | op `elem` [And, Or] = check [unify BoolT t1, unify BoolT t2]
+    | op `elem` [Equ, Neq] = check [guess >>= unify t1, unify t1 t2, tipe BoolT]
+    | op `elem` [Lt, Lte, Gt, Gte] =
         check [unify NumberT t1, unify NumberT t2, tipe BoolT]
-    | elem op [Add, Sub, Mul, Div] = check [unify NumberT t1, unify NumberT t2]
+    | op `elem` [Add, Sub, Mul, Div] = check [unify NumberT t1, unify NumberT t2]
 
 unify t1 t2
     | t1 == t2 = tipe t1

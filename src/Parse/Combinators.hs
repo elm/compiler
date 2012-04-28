@@ -68,7 +68,7 @@ sepBy1 sep p = do
 
 select = foldl1 (+|+)
 
-chainl p op a = (chainl1 p op) +++ return a
+chainl p op a = chainl1 p op +++ return a
 chainl1 p op = do {a <- p; rest a}
                 where
                   rest a = (do f <- op
