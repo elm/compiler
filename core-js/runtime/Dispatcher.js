@@ -27,7 +27,9 @@ var Elm = function() {
 	    if (this.hasOwnProperty(id)) return false;
 	    var changed = false;
 	    for (var i = args.length; i--; ) {
-		changed = changed || args[i].step(id,v);
+		// Must not short-circuit!
+		// All arguments need to be steped forward!
+		changed = args[i].step(id,v) || changed;
 	    }
 	    changed ? (this.recalc()) : (this[id] = true);
 	    return changed;
