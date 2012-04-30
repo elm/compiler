@@ -120,8 +120,10 @@ var Dispatcher = function() {
     };
 
     var initialize = function() {
-	/*try {*/ program = main(); //}
-	//catch (e) { program = text("An Error Occured: Better Messages to come."); }
+	try { program = main(); } catch (e) {
+	    document.body.innerHTML = "An Error Occured: Better Messages to come.";
+	    throw e;
+	}
 	if (!program.hasOwnProperty('step')) {
 	    program = Elm.Input(program);
 	}

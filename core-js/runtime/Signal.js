@@ -51,11 +51,20 @@ var Signal = function() {
 	    Dispatcher.notify(isDown.id, false); });
     addListener(document, 'mousemove', function(e) {
 	    Dispatcher.notify(position.id, getXY(e)); });
+    var clickedOn = function(elem) {
+	var click = Elm.Input(false);
+	addListener(elem, 'click', function(e) {
+		Dispatcher.notify(click.id, true);
+		Dispatcher.notify(click.id, false);
+	    });
+	return Value.Tuple(elem, click);
+    };
     return {position: position,
 	    x: Elm.Lift(function(p){return p[1];},[position]),
 	    y: Elm.Lift(function(p){return p[2];},[position]),
 	    isClicked: isClicked,
-	    isDown: isDown
+	    isDown: isDown,
+	    clickedOn: clickedOn
 	    };
   }();
 
