@@ -1,14 +1,16 @@
 
 module Lexer (tokenize) where
 
+import Control.Applicative ((<|>), (<$>), (<*>))
 import Data.Char (isSymbol)
-import Text.Parsec.Char
-import Text.Parsec.Combinator
-import Text.ParserCombinators.Parsec.Prim (parse,(<|>),many,try)
+import Text.Parsec (Parsec, alphaNum, anyChar, char, choice, digit, eof, letter,
+                    many, many1, manyTill, newline, notFollowedBy, oneOf, parse,
+                    satisfy, string, try, upper)
 import Tokens
 import Control.Monad (liftM)
 
-token = NUMBER `liftM` integer
+token :: Parsec String u Token
+token = NUMBER <$> integer
     <|> whitespace
     <|> chrs [ ('(',LPAREN)  , (')',RPAREN)
              , ('{',LBRACE)  , ('}',RBRACE)
@@ -25,34 +27,40 @@ token = NUMBER `liftM` integer
            ; return $ STRING s}
     <|> do { char '\''; c <- backslashed <|> satisfy (/='\''); char '\''
            ; return $ CHAR c}
-    <|> (ID `liftM` variable)
+    <|> (ID <$> variable)
     <|> typeVar
     <|> do { try $ string "\r\n" <|> string "\n"; return NEWLINE }
 
-str s t = do { try $ string s; return t }
-chrs = choice . map (uncurry chr)
-chr c t = do { char c; return t }
-reserveds = choice . map (uncurry reserved)
-reserved str token =
-    try $ do {string str; notFollowedBy $ alphaNum <|> char '_'; return token }
+chrs :: [(Char, Token)] -> Parsec String u Token
+chrs = choice . map chr
+    where chr (c, t) = char c >> return t
+
+reserveds :: [(String, Token)] -> Parsec String u Token
+reserveds = choice . map reserved
+    where reserved (s, t) = try $ string s >>
+                                  notFollowedBy (alphaNum <|> char '_') >>
+                                  return t
+
 anyOp = do op <- many1 (satisfy isSymbol <|> oneOf "+-/*=.$<>:&|^?%#@~!")
            case op of { ".." -> return DOT2
                       ; "->" -> return ARROW; "\8594" -> return ARROW
                       ; _ -> return $ OP op }
 
-backslashed = do { char '\\'; c <- satisfy $ const True
+backslashed :: Parsec String u Char
+backslashed = do { char '\\'; c <- anyChar
                  ; return . read $ ['\'','\\',c,'\''] }
 
-integer = return . read =<< many1 digit
-variable = do
-  shd <- letter <|> char '_'
-  stl <- many $ alphaNum <|> char '_' <|> char '\''
-  return $ shd:stl
-typeVar = do
-  shd <- upper
-  stl <- many $ alphaNum <|> char '_' <|> char '\''
-  return . TYPE $ shd:stl
+integer :: Parsec String u Int
+integer = read <$> many1 digit
 
+variable :: Parsec String u String
+variable = identifier $ letter <|> char '_'
+
+typeVar :: Parsec String u Token
+typeVar = TYPE <$> identifier upper
+
+identifier :: Parsec String u Char -> Parsec String u String
+identifier c = (:) <$> c <*> (many $ alphaNum <|> oneOf "_\'")
 
 ----  White Space and comments  ----
 
@@ -67,8 +75,10 @@ closeComment = manyTill anyChar . choice $
                , do { try $ string "{-"; closeComment; closeComment }
                ]
 
+tokenParser :: Parsec String u [Token]
 tokenParser = many1 token
 
+tokenize :: String -> Either String [Token]
 tokenize s = case parse tokenParser "" s of
                Right ts -> Right ts
                Left err -> Left $ "Syntax error: " ++ show err
