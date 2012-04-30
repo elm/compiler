@@ -223,9 +223,21 @@ var Signal = function() {
       var stringDropDown = function(opts) {
 	  return dropDown(List.map (function(x) {return Value.Tuple(x,x);}) (opts));
       };
+      var button = function(name) {
+	  var b = newElement('input');
+	  b.type = "button";
+	  b.value = Text.toText(name);
+	  var press = Elm.Input(false);
+	  addListener(b, 'click', function(e) {
+		  Dispatcher.notify(press.id, true);
+		  Dispatcher.notify(press.id, false);
+	      });
+	  return Value.Tuple(b,press);
+      };
       return {textArea:textArea, textField:textField,
 	      password:password, checkbox:checkbox,
-	      dropDown:dropDown, stringDropDown:stringDropDown};
+	      dropDown:dropDown, stringDropDown:stringDropDown,
+	      button:button};
   }();
 
   return {Mouse:Mouse, Time:Time, Window:Window,
