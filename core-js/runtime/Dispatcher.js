@@ -54,34 +54,6 @@ var Elm = function() {
 
 var Dispatcher = function() {
     var program = null;
-    var update = function(context, newNode, oldNode) {
- 	if (oldNode.style && newNode.style) {
-	    oldNode.style.width = newNode.style.width;
-	    oldNode.style.height = newNode.style.height;
-	}
-	if (newNode.hasOwnProperty('isElmLeaf') &&
-	    oldNode.hasOwnProperty('isElmLeaf')) {
-	    newNode.id = oldNode.id;
-	    if (!newNode.isEqualNode(oldNode)) {
-		context.replaceChild(newNode, oldNode);
-	    }
-	    return;
-	}
-	if (newNode.nodeName === "CANVAS") {
-	    context.replaceChild(newNode, oldNode);
-	    return;
-	}
-	var nlist = newNode.childNodes;
-	var olist = oldNode.childNodes;
-	if (nlist.length !== olist.length) {
-	    context.replaceChild(newNode, oldNode);
-	    return;
-	}
-	for (var i = nlist.length; i--; ) {
-	    update(oldNode, nlist[i], olist[i]);
-	}
-    };
-
     var correctSize = function(e) {
 	var kids = e.childNodes;
 	var len = kids.length;
@@ -142,7 +114,7 @@ var Dispatcher = function() {
     var notify = function(id, v) {
 	if (program.step(id,v)) {
 	    var content = document.getElementById('content');
-	    update(content, program.value, content.children[0]);
+	    content.replaceChild(program.value, content.children[0]);
 	    correctSize(content);
 	}
     };
