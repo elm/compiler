@@ -76,7 +76,6 @@ jsRange e1 e2 = (++"()") . jsFunc "" $
                 ret "lst"
 
 binop (o:p) e1 e2
-    | (o:p) == "mod" = e1 ++ "%" ++ e2
     | isAlpha o || '_' == o = (o:p) ++ parens e1 ++ parens e2
     | otherwise = case o:p of
                     ":" -> jsCons e1 e2

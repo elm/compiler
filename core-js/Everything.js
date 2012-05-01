@@ -5,7 +5,10 @@ var not = function(exp) { return !exp; };
 var sqrt = function(x) { return Math.sqrt(x); };
 var rem = function(x) { return function(y) { return x % y; }; };
 var mod = function(x) { return function(y) {
-  return y>0 ? (x>0 ? x % y : y + (x%y)) : -mod(-x)(-y); }; };
+  var r = x % y;
+  var m = x==0 ? 0 : (y>0 ? (x>=0 ? r : r+y) : -mod(-x)(-y));
+  return m == y ? 0 : m;
+}; };
 var abs = function(x) { return Math.abs(x); };
 var logBase = function(base) { return function(x) { return Math.log(x) / Math.log(base); }; };
 
