@@ -3,7 +3,9 @@ var id  = function(x) { return x; };
 var not = function(exp) { return !exp; };
 
 var sqrt = function(x) { return Math.sqrt(x); };
-var mod = function(x) { return function(y) { return x % y; }; };
+var rem = function(x) { return function(y) { return x % y; }; };
+var mod = function(x) { return function(y) {
+  return y>0 ? (x>0 ? x % y : y + (x%y)) : -mod(-x)(-y); }; };
 var abs = function(x) { return Math.abs(x); };
 var logBase = function(base) { return function(x) { return Math.log(x) / Math.log(base); }; };
 
