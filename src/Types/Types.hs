@@ -2,19 +2,21 @@
 module Types where
 
 import Data.List (intercalate)
-import Data.IORef
-import System.IO.Unsafe
+import qualified Data.Set as Set
+
+type X = Int
 
 data Type = IntT
           | StringT
           | CharT
           | BoolT
           | LambdaT Type Type
-          | VarT String
-          | ForallT String Type
+          | VarT X
           | AppT String [Type]
           | ADT String [Type]
-            deriving (Eq)
+            deriving (Eq, Ord)
+
+data Scheme = Forall (Set.Set X) Type deriving (Eq, Ord, Show)
 
 data Constructor = Constructor String [Type] deriving (Eq, Show)
 
@@ -26,9 +28,7 @@ instance Show Type where
         ; CharT -> "Char"
         ; BoolT -> "Bool"
         ; LambdaT t1 t2 -> show t1 ++ " -> " ++ show t2
-        ; VarT x -> x
-        ; ForallT x t' -> "forall " ++ x ++ ". " ++ show t'
+        ; VarT x -> show x
         ; AppT name args -> name ++ " " ++ unwords (map show args)
-        ; ADT name constrs ->
-            name ++ " = " ++ intercalate " | " (map show constrs)
+        ; ADT name constrs -> name
         }

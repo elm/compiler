@@ -15,7 +15,7 @@ typeVar = do whitespace; t <- item
                ID "Char" -> return CharT
                ID "Bool" -> return BoolT
                ID (v:vs) -> return (if isUpper v then ADT (v:vs) []
-                                    else VarT (v:vs))
+                                    else VarT 0) --(v:vs))
                _ -> zero
 
 typeList = do t LBRACKET; ti <- typeExpr; t RBRACKET; return $ ADT "List" []
