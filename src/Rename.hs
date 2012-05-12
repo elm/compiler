@@ -6,19 +6,10 @@ import Control.Arrow (first)
 import Control.Monad (ap, liftM, foldM, mapM, Monad)
 import Control.Monad.State (evalState, State, get, put)
 import Data.Char (isLower)
-
--- Wrapper around State monad.
-newtype GuidCounter a = GC { runGC :: State Int a }
-    deriving (Monad)
-
--- Get the next GUID, incrementing the counter.
-guid :: GuidCounter Int
-guid = GC $ do n <- get
-               put (n + 1)
-               return n
+import Guid
 
 rename :: Expr -> Expr
-rename expr = evalState (runGC $ rename' id expr) 0
+rename = run . rename' id
 
 rename' :: (String -> String) -> Expr -> GuidCounter Expr
 rename' env expr =

@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Constrain where
 
 import Ast
@@ -6,29 +6,24 @@ import Types
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Control.Monad (liftM,mapM)
-import Control.Monad.State (evalState, State, get, put)
+import Control.Monad.State (evalState)
+import Guid
+import Hints
 
 data Constraint = Type :=: Type
                 | Type :<: Type
                 | Type :<<: Scheme
                   deriving (Eq, Ord, Show)
 
--- Wrapper around State monad.
-newtype GuidCounter a = GC { runGC :: State Int a }
-    deriving (Monad)
-
--- Get the next GUID, incrementing the counter.
-guid :: GuidCounter Int
-guid = GC $ do n <- get
-               put (n + 1)
-               return n
-
 beta = VarT `liftM` guid
 unionA = Map.unionWith (++)
 unionsA = Map.unionsWith (++)
 
-constrain expr = Set.toList cs
-    where (as,cs,t) = evalState (runGC $ inference expr) 0
+constrain expr = run $ do
+    (as,cs,t) <- inference expr
+    hs <- hints
+    let cMap = Map.intersectionWith (\t -> map (:<: t)) (Map.fromList hs) as
+    return $ Set.toList cs ++ (concat . map snd $ Map.toList cMap)
 
 inference (Var x) =
     do b <- beta
@@ -69,6 +64,8 @@ inference (If e1 e2 e3) =
 inference (Data name es) =
     do (as,cs,ts) <- unzip3 `liftM` mapM inference es
        return ( unionsA as, Set.unions cs, ADT name ts )
+
+inference (Binop op e1 e2) = inference (Var op `App` e1 `App` e2)
 
 inference other =
     case other of

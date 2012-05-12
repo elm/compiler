@@ -13,7 +13,12 @@ import Rename (rename)
 import Replace
 import System.IO.Unsafe
 
-initialize str = do
+import Unify
+
+initialize str = unify =<< toDefs =<< tokenize str
+
+
+initialize' str = do
    expr <- toDefs =<< tokenize str
 --   let rexpr = rename expr
 --   let init = simp_loop rexpr

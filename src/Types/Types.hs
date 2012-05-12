@@ -20,6 +20,8 @@ data Scheme = Forall (Set.Set X) Type deriving (Eq, Ord, Show)
 
 data Constructor = Constructor String [Type] deriving (Eq, Show)
 
+parens = ("("++) . (++")")
+
 instance Show Type where
   show t =
       case t of
@@ -27,8 +29,10 @@ instance Show Type where
         ; StringT -> "String"
         ; CharT -> "Char"
         ; BoolT -> "Bool"
-        ; LambdaT t1 t2 -> show t1 ++ " -> " ++ show t2
+        ; LambdaT t1 t2 -> parens $ show t1 ++ " -> " ++ show t2
         ; VarT x -> show x
         ; AppT name args -> name ++ " " ++ unwords (map show args)
-        ; ADT name constrs -> name
+        ; ADT "List" [tipe] -> "[" ++ show tipe ++ "]"
+        ; ADT name [] -> name
+        ; ADT name cs -> parens $ name ++ " " ++ unwords (map show cs)
         }
