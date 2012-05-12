@@ -1,7 +1,6 @@
 
-module TypeHints (typeHints) where
+module Hints where
 
-import qualified Data.Map as Map
 import Types
 
 elementT = ADT "Element" []
