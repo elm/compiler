@@ -61,11 +61,10 @@ inference (If e1 e2 e3) =
               , Set.unions [c1,c2,c3, Set.fromList [ t1 :=: BoolT, t2 :=: t3 ] ]
               , t2 )
 
-inference (Data name es) =
-    do (as,cs,ts) <- unzip3 `liftM` mapM inference es
-       return ( unionsA as, Set.unions cs, ADT name ts )
-
+inference (Data name es) = inference $ foldl App (Var name) es
 inference (Binop op e1 e2) = inference (Var op `App` e1 `App` e2)
+inference (Access (Var x) y) = inference . Var $ x ++ "." ++ y
+inference (Range e1 e2) = inference (Var "elmRange" `App` e1 `App` e2)
 
 inference other =
     case other of
