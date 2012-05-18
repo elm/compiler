@@ -12,13 +12,25 @@ data Type = IntT
           | BoolT
           | LambdaT Type Type
           | VarT X
-          | AppT String [Type]
           | ADT String [Type]
             deriving (Eq, Ord)
 
 data Scheme = Forall (Set.Set X) Type deriving (Eq, Ord, Show)
 
-data Constructor = Constructor String [Type] deriving (Eq, Show)
+element = ADT "Element" []
+direction = ADT "Direction" []
+text = ADT "Text" []
+listOf t = ADT "List" [t]
+tupleOf ts = ADT ("Tuple" ++ show (length ts)) ts
+string = listOf CharT
+
+infixr ==>
+t1 ==> t2 = LambdaT t1 t2
+
+infix 8 -:
+name -: tipe = (,) name tipe
+
+hasType t = map (-: t)
 
 parens = ("("++) . (++")")
 
@@ -29,9 +41,9 @@ instance Show Type where
         ; StringT -> "String"
         ; CharT -> "Char"
         ; BoolT -> "Bool"
-        ; LambdaT t1 t2 -> parens $ show t1 ++ " -> " ++ show t2
+        ; LambdaT t1@(LambdaT _ _) t2 -> parens (show t1) ++ " -> " ++ show t2
+        ; LambdaT t1 t2 -> show t1 ++ " -> " ++ show t2
         ; VarT x -> show x
-        ; AppT name args -> name ++ " " ++ unwords (map show args)
         ; ADT "List" [tipe] -> "[" ++ show tipe ++ "]"
         ; ADT name [] -> name
         ; ADT name cs -> parens $ name ++ " " ++ unwords (map show cs)

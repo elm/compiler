@@ -8,7 +8,6 @@ import qualified Data.Map as Map
 import Control.Monad (liftM,mapM)
 import Control.Monad.State (evalState)
 import Guid
-import Hints
 
 data Constraint = Type :=: Type
                 | Type :<: Type
@@ -19,7 +18,7 @@ beta = VarT `liftM` guid
 unionA = Map.unionWith (++)
 unionsA = Map.unionsWith (++)
 
-constrain expr = run $ do
+constrain hints expr = do
     (as,cs,t) <- inference expr
     hs <- hints
     let cMap = Map.intersectionWith (\t -> map (:<: t)) (Map.fromList hs) as

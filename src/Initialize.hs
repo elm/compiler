@@ -11,19 +11,23 @@ import Lexer
 import Parser (toExpr,toDefs)
 import Rename (rename)
 import Replace
-import System.IO.Unsafe
 
 import Unify
+import Hints
 
-initialize str = unify =<< toDefs =<< tokenize str
+initialize str = do
+ (expr, hints') <- toDefs =<< tokenize str
+ subs <- unify (liftM2 (++) hints hints') (rename expr)
+ return (seq subs expr)
 
-
+{--
 initialize' str = do
    expr <- toDefs =<< tokenize str
 --   let rexpr = rename expr
 --   let init = simp_loop rexpr
 --   return $ if depth init < depth rexpr then init else rexpr
    return $ rename expr
+--}
 {--
 simp_loop exp = if exp == exp' then exp' else simp_loop exp'
     where exp' = simp exp

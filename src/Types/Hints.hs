@@ -6,20 +6,6 @@ import Control.Arrow (first)
 import Types
 import Guid
 
-element = ADT "Element" []
-direction = ADT "Direction" []
-text = ADT "Text" []
-listOf t = ADT "List" [t]
-tuple2 a b = ADT "Tuple2" [a,b]
-string = listOf CharT
-
-infixr ==>
-t1 ==> t2 = LambdaT t1 t2
-
-infix 8 -:
-name -: tipe = (,) name tipe
-
-hasType t = map (-: t)
 
 --------  Text and Elements  --------
 
@@ -30,11 +16,12 @@ textToText = ["header", "italic", "bold", "underline"
 
 textAttrs = [ "toText" -: string ==> text
             , "link"   -: string ==> text ==> text
-            , "height" -: IntT ==> text ==> text
+--            , "height" -: IntT ==> text ==> text
             ] ++ hasType (text ==> text) textToText
 
 elements = let iee = IntT ==> element ==> element in
            [ "flow"    -: direction ==> listOf element ==> element
+           , "layers"  -: listOf element ==> element
            , "opacity" -: iee
            , "width"   -: iee
            , "height"  -: iee
@@ -100,7 +87,7 @@ lists = liftM (map (first ("List."++)) . (++ints)) . sequence $
     , do a <- var ; "reverse" -:: listOf a ==> listOf a
     , do a <- var ; "intersperse"  -:: a ==> listOf a ==> listOf a
     , do a <- var ; "intercalate"  -:: listOf a ==> listOf(listOf a) ==> listOf a
-    , do [a,b] <- vars 2 ; "zip"   -:: listOf a ==>listOf b ==>listOf(tuple2 a b)
+    , do [a,b] <- vars 2 ; "zip"   -:: listOf a ==>listOf b ==>listOf(tupleOf [a,b])
     , do [a,b] <- vars 2 ; "map"   -:: (a ==> b) ==> listOf a ==> listOf b
     , do [a,b] <- vars 2 ; "foldr" -:: (a ==> b ==> b) ==> b ==> listOf a ==> b
     , do [a,b] <- vars 2 ; "foldl" -:: (a ==> b ==> b) ==> b ==> listOf a ==> b
@@ -113,5 +100,7 @@ lists = liftM (map (first ("List."++)) . (++ints)) . sequence $
 
 --------  Everything  --------
 
-hints = do fs <- funcs ; ls <- lists
-           return $ fs ++ ls ++ str2elem ++ textAttrs ++ elements ++ math ++ bool
+hints = do
+  fs <- funcs ; ls <- lists
+  return $ fs ++ ls ++ math ++ bool
+  {--++ str2elem ++ textAttrs ++ elements--}

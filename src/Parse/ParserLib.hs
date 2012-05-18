@@ -2,15 +2,16 @@ module ParserLib where
 
 import Ast
 import Combinators
-import Data.Char (isUpper)
-import Control.Monad (liftM)
+import Data.Char (isUpper,isLower)
+import Control.Monad (liftM,guard)
 import Tokens
 
 varNoSpace = do { t <- item; case t of { ID v -> return v; _ -> zero } }
 var = whitespace >> varNoSpace
-capVar = do
-  whitespace; t <- item
-  case t of { ID (v:vs) -> if isUpper v then return (v:vs) else zero }
+capVar = do whitespace; t <- item
+            case t of { ID (v:vs) -> guard (isUpper v) >> return (v:vs) ; _ -> zero }
+lowVar = do whitespace; t <- item
+            case t of { ID (v:vs) -> guard (isLower v) >> return (v:vs) ; _ -> zero }
 
 chr = do { whitespace; t <- item; case t of { CHAR c -> return c; _ -> zero } }
 

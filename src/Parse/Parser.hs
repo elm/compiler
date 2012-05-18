@@ -3,21 +3,23 @@ module Parser where
 import Ast
 import Binop (binops)
 import Combinators
+import Control.Monad (liftM)
 import Data.List (foldl')
+import Guid
 import Lexer
 import ParserLib
 import ParseTypes (datatype)
 import ParsePatterns
 import Tokens
-import Control.Monad (liftM)
+import Types (Type (VarT))
 
 --------  Basic Terms  --------
 
 numTerm = do { whitespace; t <- item
-              ; case t of { NUMBER n -> return $ Number n; _ -> zero } }
+             ; case t of { NUMBER n -> return $ Number n; _ -> zero } }
 strTerm = do { whitespace; t <- item
-              ; case t of { STRING cs -> return . list $ map Chr cs
-                          ; _ -> zero } }
+             ; case t of { STRING cs -> return . list $ map Chr cs
+                         ; _ -> zero } }
 
 varTerm = Var `liftM` var
 chrTerm = Chr `liftM` chr
@@ -105,12 +107,14 @@ expr = select [ letExpr
               , lambdaExpr
               ]
 
-def = (:[]) `liftM` assignExprNospace
+def = do (f,e) <- assignExprNospace
+         return ([f], [e], guid >>= \x -> return [VarT x])
 
 defs = do
-  ds <- plus (whitespace >> plus (sat (==NEWLINE)) >> def +|+ datatype)
+  (fss,ess,tss) <- unzip3 `liftM` plus (whitespace >> plus (sat (==NEWLINE)) >> def +|+ datatype)
+  let (fs,es,ts) = (concat fss, concat ess, concat `liftM` sequence tss)
   star $ sat (==NEWLINE) +|+ sat (==SPACES)
-  return $ Let (concat ds) (Var "main")
+  return (Let (zip fs es) (Var "main"), liftM (zip fs) ts)
 
 err = "Parse Error: Better error messages to come!"
 toExpr = extractResult err . parse expr

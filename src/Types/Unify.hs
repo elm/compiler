@@ -3,35 +3,25 @@ module Unify where
 
 import Constrain
 import Control.Arrow (second)
+import Control.Monad (liftM)
+import qualified Data.Set as Set
 import Types
 
-unify expr = const expr `fmap` solver (constrain expr) []
+import Guid
 
-solver [] subs = Right subs
+unify hints expr = run $ do
+  cs <- constrain hints expr
+  solver cs []
+
+solver [] subs = return $ Right subs
 
 --------  Destruct Type-constructors  --------
 
-solver ((t1@(ADT n1 ts1) :<: t2@(ADT n2 ts2)) : cs) subs =
-    solver cs subs
---    if n1 /= n2 then uniError t1 t2 else
---        solver (zipWith (:<:) ts1 ts2 ++ cs) subs
-
 solver ((t1@(ADT n1 ts1) :=: t2@(ADT n2 ts2)) : cs) subs =
-    solver cs subs
---    if n1 /= n2 then uniError t1 t2 else
---        solver (zipWith (:=:) ts1 ts2 ++ cs) subs
-
-solver ((LambdaT t1 t2 :<: LambdaT t1' t2') : cs) subs =
-    solver ([ t1 :<: t1', t2 :<: t2' ] ++ cs) subs
-
+    if n1 /= n2 then uniError t1 t2 else
+        solver (zipWith (:=:) ts1 ts2 ++ cs) subs
 solver ((LambdaT t1 t2 :=: LambdaT t1' t2') : cs) subs =
     solver ([ t1 :=: t1', t2 :=: t2' ] ++ cs) subs
-
---------  subtypes  --------
-
-solver ((t :<: VarT x) : cs) subs = solver cs' subs
-    where cs' = if all isSubtype cs then (t :=: VarT x : cs) else (cs ++ [t :<: VarT x])
-solver ((t1 :<: t2) : cs) subs = solver ((t1 :=: t2) : cs) subs
 
 --------  Type-equality  --------
 
@@ -42,16 +32,26 @@ solver ((t :=: VarT x) : cs) subs =
 solver ((t1 :=: t2) : cs) subs =
     if t1 /= t2 then uniError t1 t2 else solver cs subs
 
+--------  subtypes  --------
+
+solver ((t1 :<: t2) : cs) subs = do
+  let f x = do y <- guid ; return (x,VarT y)
+  t2' <- foldr (uncurry tSub) t2 `liftM` (mapM f . Set.toList $ getVars t2)
+  solver ((t1 :=: t2') : cs) subs
+
 
 cSub k v (t1 :=: t2) = tSub k v t1 :=: tSub k v t2
 cSub k v (t1 :<: t2) = tSub k v t1 :<: tSub k v t2
 
 tSub k v (VarT x) = if k == x then v else (VarT x)
 tSub k v (LambdaT t1 t2) = LambdaT (tSub k v t1) (tSub k v t2)
+tSub k v (ADT name ts) = ADT name (map (tSub k v) ts)
 tSub _ _ t = t
 
-isSubtype (_ :<: _) = True
-isSubtype     _     = False
+getVars (VarT x)        = Set.singleton x
+getVars (LambdaT t1 t2) = Set.union (getVars t1) (getVars t2)
+getVars (ADT name ts)   = Set.unions $ map getVars ts
+getVars _               = Set.empty
 
 uniError t1 t2 =
-    Left $ "Type error: " ++ show t1 ++ " is not equal to " ++ show t2
+    return . Left $ "Type error: " ++ show t1 ++ " is not equal to " ++ show t2
