@@ -17,8 +17,9 @@ import Hints
 
 initialize str = do
  (expr, hints') <- toDefs =<< tokenize str
- subs <- unify (liftM2 (++) hints hints') (rename expr)
- return (seq subs expr)
+ let expr' = rename expr
+ subs <- unify (liftM2 (++) hints hints') expr'
+ return (seq subs expr')
 
 {--
 initialize' str = do
