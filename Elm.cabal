@@ -37,15 +37,18 @@ Executable elm
                        Types
   
   -- Packages needed in order to build this package.
-  Build-depends:       base >=4.2 && <5, containers >= 0.3, transformers >= 0.2,
-                       mtl >= 2, parsec >= 3.1.1, blaze-html >=0.4 && <0.5
+  ghc-options:	       -O3 -rtsopts -auto-all -caf-all
+  Build-depends:       base >=4.2 && <5, containers >= 0.3,
+                       transformers >= 0.2, mtl >= 2, parsec >= 3.1.1,
+                       blaze-html == 0.5.0.*, blaze-markup == 0.5.1.*, deepseq
   
   -- Modules not exported by this package.
   -- Other-modules:       
   
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         
-  
+
+
 Executable elm-server
   Main-is:             Server.hs
   Hs-Source-Dirs:      src, src/Parse, src/Types
@@ -53,6 +56,7 @@ Executable elm-server
                        Rename, Replace, ToHtml, Binop, Combinators, Lexer,
                        ParsePatterns, Parser, ParserLib, ParseTypes, Tokens,
                        Types
+  ghc-options:	       -O3 -rtsopts -auto-all -caf-all
   Build-depends:       base >=4.2 && <5, containers >= 0.3, transformers >= 0.2,
-                       mtl >= 2, parsec >= 3.1.1, blaze-html >=0.4 && <0.5,
-                       HTTP >= 4000, happstack-server >= 6.2.4
+                       mtl >= 2, parsec >= 3.1.1, blaze-html == 0.5.0.*,
+                       HTTP >= 4000, happstack-server == 7.0.2
