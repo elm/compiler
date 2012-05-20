@@ -4,10 +4,23 @@ module Unify where
 import Constrain
 import Control.Arrow (second)
 import Control.Monad (liftM)
+import Data.List (foldl')
 import qualified Data.Set as Set
+import Guid
 import Types
 
-import Guid
+import Control.DeepSeq
+
+force x = x `deepseq` x
+
+instance NFData Constraint where
+  rnf (t1 :=: t2) = t1 `deepseq` t2 `deepseq` ()
+  rnf (t1 :<: t2) = t1 `deepseq` t2 `deepseq` ()
+
+instance NFData Type where
+  rnf (LambdaT t1 t2) = t1 `deepseq` t2 `deepseq` ()
+  rnf (ADT _ ts) =  foldl' (\acc x -> x `deepseq` acc) () ts
+  rnf t = t `seq` ()
 
 unify hints expr = run $ do
   cs <- constrain hints expr
@@ -36,16 +49,16 @@ solver ((t1 :=: t2) : cs) subs =
 
 solver ((t1 :<: t2) : cs) subs = do
   let f x = do y <- guid ; return (x,VarT y)
-  t2' <- foldr (uncurry tSub) t2 `liftM` (mapM f . Set.toList $ getVars t2)
+  t2' <- foldl' (uncurry . flip tSub) t2 `liftM` (mapM f . Set.toList $ getVars t2)
   solver ((t1 :=: t2') : cs) subs
 
 
-cSub k v (t1 :=: t2) = tSub k v t1 :=: tSub k v t2
-cSub k v (t1 :<: t2) = tSub k v t1 :<: tSub k v t2
+cSub k v (t1 :=: t2) = force $ tSub k v t1 :=: tSub k v t2
+cSub k v (t1 :<: t2) = force $ tSub k v t1 :<: tSub k v t2
 
-tSub k v (VarT x) = if k == x then v else (VarT x)
-tSub k v (LambdaT t1 t2) = LambdaT (tSub k v t1) (tSub k v t2)
-tSub k v (ADT name ts) = ADT name (map (tSub k v) ts)
+tSub k v t@(VarT x) = if k == x then v else t
+tSub k v (LambdaT t1 t2) = force $ LambdaT (tSub k v t1) (tSub k v t2)
+tSub k v (ADT name ts) = ADT name (map (force . tSub k v) ts)
 tSub _ _ t = t
 
 getVars (VarT x)        = Set.singleton x
