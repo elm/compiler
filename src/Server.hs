@@ -1,16 +1,12 @@
-{-# LANGUAGE OverloadedStrings #-}
+
 module Main where
 
-import Prelude hiding (head,span,id)
 import Control.Monad (msum,guard)
 import Control.Monad.Trans (MonadIO(liftIO))
 import Data.List (isPrefixOf, isSuffixOf)
-import Happstack.Server hiding (body)
+import Happstack.Server
 import Happstack.Server.Compression
 import System.Environment
-import Text.Blaze.Html5 hiding (map)
-import Text.Blaze.Html5.Attributes hiding (title,span,dir,style)
-import Text.Blaze.Internal
 import ToHtml
 
 serve :: String -> IO ()

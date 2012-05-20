@@ -5,7 +5,7 @@ import System.Environment
 import CompileToJS
 import Data.List (isPrefixOf)
 import GenerateHtml
-import Text.Blaze.Renderer.String
+import Text.Blaze.Html.Renderer.String (renderHtml)
 
 main = getArgs >>= parse
 

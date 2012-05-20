@@ -1,7 +1,7 @@
 module Combinators where
 import Control.Monad
 import Data.Char
-import Data.List (sortBy)
+import Data.List (sortBy,foldl',foldl1')
 
 newtype Parser from to = Parser ([from] -> [(to,[from])])
 --newtype Parser a = Parser (String -> [(a,String)])
@@ -52,7 +52,7 @@ newline = do
   return ""
 
 digit = do {x <- sat isDigit; return (ord x - ord '0')}
-integer = do {i <- plus digit; return $ foldl (\a d -> 10 * a + d) 0 i}
+integer = do {i <- plus digit; return $ foldl' (\a d -> 10 * a + d) 0 i}
 
 variable = do
   shd <- sat isLower;
@@ -66,7 +66,7 @@ sepBy1 sep p = do
   xs <- star (sep >> p)
   return $ x:xs
 
-select = foldl1 (+|+)
+select = foldl1' (+|+)
 
 chainl p op a = chainl1 p op +++ return a
 chainl1 p op = do {a <- p; rest a}

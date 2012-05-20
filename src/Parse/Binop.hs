@@ -39,7 +39,7 @@ binopSplit seen opTable i ops es =
 
 binopOf _ _ _ [e] = return e
 binopOf _ [] ops es =
-    return $ foldl (flip ($)) (head es) $ zipWith Binop ops (tail es)
+    return $ foldl' (flip ($)) (head es) $ zipWith Binop ops (tail es)
 
 binopOf seen (tbl@((lvl, L, op):rest)) ops es =
     case elemIndices op ops of
