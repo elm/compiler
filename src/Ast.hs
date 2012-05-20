@@ -1,3 +1,4 @@
+
 module Ast where
 
 data Pattern = PData String [Pattern] | PVar String | PAnything
@@ -5,6 +6,7 @@ data Pattern = PData String [Pattern] | PVar String | PAnything
 
 data Expr = Number Int
           | Chr Char
+          | Str String
           | Boolean Bool
           | Range Expr Expr
           | Access Expr String

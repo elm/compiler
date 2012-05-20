@@ -27,6 +27,7 @@ toJS expr =
       Number n -> show n
       Var x -> x
       Chr c -> show c
+      Str s -> toJS . list $ map Chr s
       Boolean b -> if b then "true" else "false"
       Range lo hi -> jsRange (toJS lo) (toJS hi)
       Access e lbl -> toJS e ++ "." ++ lbl

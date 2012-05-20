@@ -3,6 +3,7 @@ module Constrain where
 
 import Ast
 import Types
+import Data.List (foldl')
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Control.Monad (liftM,mapM)
@@ -60,7 +61,7 @@ inference (If e1 e2 e3) =
               , Set.unions [c1,c2,c3, Set.fromList [ t1 :=: BoolT, t2 :=: t3 ] ]
               , t2 )
 
-inference (Data name es) = inference $ foldl App (Var name) es
+inference (Data name es) = inference $ foldl' App (Var name) es
 inference (Binop op e1 e2) = inference (Var op `App` e1 `App` e2)
 inference (Access (Var x) y) = inference . Var $ x ++ "." ++ y
 inference (Range e1 e2) = inference (Var "elmRange" `App` e1 `App` e2)
@@ -69,16 +70,8 @@ inference other =
     case other of
       Number _ -> primitive IntT
       Chr _ -> primitive CharT
+      Str _ -> primitive string
       Boolean _ -> primitive BoolT
       _ -> beta >>= primitive 
 
 primitive t = return (Map.empty, Set.empty, t)
-{--
-      Let x e1 e2 ->
-          do (a1,c1,t1) <- inference e1
-             (a2,c2,t2) <- inference e2
-             let ts = Map.findWithDefault (error "inference") x a
-             return ( unionA a1 $ Map.delete x a2
-                    , Set.unions [ c1, c2, Set.fromList $ map (:<: t1) ts ]
-                    , t2 )
---}
