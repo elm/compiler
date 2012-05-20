@@ -18,7 +18,7 @@ import Types (Type (VarT))
 numTerm = do { whitespace; t <- item
              ; case t of { NUMBER n -> return $ Number n; _ -> zero } }
 strTerm = do { whitespace; t <- item
-             ; case t of { STRING cs -> return . list $ map Chr cs
+             ; case t of { STRING cs -> return $ Str cs
                          ; _ -> zero } }
 
 varTerm = Var `liftM` var
