@@ -36,6 +36,7 @@ The first two commands create a new directory and navigate into it. Then next co
 Potential problems and their solutions:
 ---------------------------------------
 
+* Install errors having to do with `happstack-server-7.0.2`. This version of `happstack-server` has stricter dependency restrictions that conflict with other libraries required by Elm. Try installing with an earlier version of `happstack-server` with the following command: `cabal install elm --constrain="happstack-server<7.0.2"`
 * When installing on Debian, `blaze-html-0.4.3.2` fails to compile. You must install `blaze-html-0.4.3.1` instead.
 * Elm does not appear to work with the latest versions of `containers` (i.e. 0.4.2.*). I know it works with earlier versions of containers, so to avoid this problem, you can try: `cabal install elm --constrain="containers==0.4.1.0" --force-reinstall`
 * On Windows, HAppStack has trouble installing because of issues with the "network" package. I struggled with this problem on Windows 7 until I found the suggestion at the bottom of [this page](http://hackage.haskell.org/trac/ghc/ticket/5159).
