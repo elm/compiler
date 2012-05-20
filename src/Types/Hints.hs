@@ -11,7 +11,7 @@ import Guid
 
 str2elem = hasType (string ==> element) [ "image","video","plainText" ]
 
-textToText = ["header", "italic", "bold", "underline"
+textToText = [ "header", "italic", "bold", "underline"
              , "overline", "strikeThrough", "monospace" ]
 
 textAttrs = [ "toText" -: string ==> text
@@ -102,5 +102,4 @@ lists = liftM (map (first ("List."++)) . (++ints)) . sequence $
 
 hints = do
   fs <- funcs ; ls <- lists
-  return $ fs ++ ls ++ math ++ bool
-  {--++ str2elem ++ textAttrs ++ elements--}
+  return $ fs ++ ls ++ math ++ bool ++ str2elem ++ textAttrs ++ elements

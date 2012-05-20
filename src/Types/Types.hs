@@ -19,7 +19,7 @@ data Scheme = Forall (Set.Set X) Type deriving (Eq, Ord, Show)
 
 element = ADT "Element" []
 direction = ADT "Direction" []
-text = ADT "Text" []
+text = ADT "List" [ADT "text" []]
 listOf t = ADT "List" [t]
 tupleOf ts = ADT ("Tuple" ++ show (length ts)) ts
 string = listOf CharT
