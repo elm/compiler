@@ -22,6 +22,7 @@ textAttrs = [ "toText" -: string ==> text
 elements = let iee = IntT ==> element ==> element in
            [ "flow"    -: direction ==> listOf element ==> element
            , "layers"  -: listOf element ==> element
+           , "text"    -: text ==> element
            , "opacity" -: iee
            , "width"   -: iee
            , "height"  -: iee
