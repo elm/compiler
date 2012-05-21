@@ -76,6 +76,7 @@ concreteSignals =
     , "Input.textField"   -: string ==> tupleOf [element, signalOf string]
     , "Input.password"    -: string ==> tupleOf [element, signalOf string]
     , "Input.textArea"    -: IntT ==> IntT ==> tupleOf [element, signalOf string]
+    , "Input.stringDropDown" -: listOf string ==> tupleOf [element, signalOf string]
     ]
 
 --------  Math and Binops  --------
