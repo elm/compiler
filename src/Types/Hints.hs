@@ -73,6 +73,9 @@ concreteSignals =
     , "Window.dimensions" -: signalOf point
     , "Window.width"      -: signalOf IntT
     , "Window.height"     -: signalOf IntT
+    , "Input.textField"   -: string ==> tulpeOf [element, signalOf string]
+    , "Input.password"    -: string ==> tulpeOf [element, signalOf string]
+    , "Input.textArea"    -: IntT ==> IntT ==> tulpeOf [element, signalOf string]
     ]
 
 --------  Math and Binops  --------
