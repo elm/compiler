@@ -11,17 +11,6 @@ import Types
 
 import Control.DeepSeq
 
-force x = x `deepseq` x
-
-instance NFData Constraint where
-  rnf (t1 :=: t2) = t1 `deepseq` t2 `deepseq` ()
-  rnf (t1 :<: t2) = t1 `deepseq` t2 `deepseq` ()
-
-instance NFData Type where
-  rnf (LambdaT t1 t2) = t1 `deepseq` t2 `deepseq` ()
-  rnf (ADT _ ts) =  foldl' (\acc x -> x `deepseq` acc) () ts
-  rnf t = t `seq` ()
-
 unify hints expr = run $ do
   cs <- constrain hints expr
   solver cs []
@@ -49,7 +38,8 @@ solver ((t1 :=: t2) : cs) subs =
 
 solver ((t1 :<: t2) : cs) subs = do
   let f x = do y <- guid ; return (x,VarT y)
-  t2' <- foldl' (uncurry . flip tSub) t2 `liftM` (mapM f . Set.toList $ getVars t2)
+  pairs <- mapM f . Set.toList $ getVars t2
+  let t2' = foldr (uncurry tSub) t2 pairs
   solver ((t1 :=: t2') : cs) subs
 
 
@@ -68,3 +58,14 @@ getVars _               = Set.empty
 
 uniError t1 t2 =
     return . Left $ "Type error: " ++ show t1 ++ " is not equal to " ++ show t2
+
+force x = x `deepseq` x
+
+instance NFData Constraint where
+  rnf (t1 :=: t2) = t1 `deepseq` t2 `deepseq` ()
+  rnf (t1 :<: t2) = t1 `deepseq` t2 `deepseq` ()
+
+instance NFData Type where
+  rnf (LambdaT t1 t2) = t1 `deepseq` t2 `deepseq` ()
+  rnf (ADT _ ts) =  foldl' (\acc x -> x `deepseq` acc) () ts
+  rnf t = t `seq` ()
