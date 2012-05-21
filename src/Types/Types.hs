@@ -17,12 +17,20 @@ data Type = IntT
 
 data Scheme = Forall (Set.Set X) Type deriving (Eq, Ord, Show)
 
-element = ADT "Element" []
+element   = ADT "Element" []
 direction = ADT "Direction" []
-text = ADT "List" [ADT "text" []]
-listOf t = ADT "List" [t]
+
+form  = ADT "Form" []
+line  = ADT "Line" []
+shape = ADT "Shape" []
+color = ADT "Color" []
+text  = ADT "List" [ADT "Text" []]
+point = tupleOf [IntT,IntT]
+
+listOf t   = ADT "List" [t]
+signalOf t = ADT "Signal" [t]
 tupleOf ts = ADT ("Tuple" ++ show (length ts)) ts
-string = listOf CharT
+string     = listOf CharT
 
 infixr ==>
 t1 ==> t2 = LambdaT t1 t2

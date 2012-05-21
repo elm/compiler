@@ -16,7 +16,7 @@ textToText = [ "header", "italic", "bold", "underline"
 
 textAttrs = [ "toText" -: string ==> text
             , "link"   -: string ==> text ==> text
---            , "height" -: IntT ==> text ==> text
+            , "Text.height" -: IntT ==> text ==> text
             ] ++ hasType (text ==> text) textToText
 
 elements = let iee = IntT ==> element ==> element in
@@ -28,8 +28,52 @@ elements = let iee = IntT ==> element ==> element in
            , "height"  -: iee
            , "size"    -: IntT ==> iee
            , "box"     -: iee
+           , "centeredText"  -: text ==> element
+           , "justifiedText" -: text ==> element
+           , "collage" -: IntT ==> IntT ==> listOf form ==> element
            ]
 
+directions = hasType direction ["up","down","left","right","inward","outward"]
+colors = [ "rgb"  -: IntT ==> IntT ==> IntT ==> color
+         , "rgba" -: IntT ==> IntT ==> IntT ==> IntT ==> color
+         ] ++ hasType color ["red","green","blue","black","white"]
+
+lineTypes = [ "line"       -: listOf point ==> line
+            , "customLine" -: listOf IntT ==> color ==> line ==> form
+            ] ++ hasType (color ==> line ==> form) ["solid","dashed","dotted"]
+
+shapes = [ "polygon"       -: listOf point ==> point ==> shape
+         , "filled"        -: color ==> shape ==> form
+         , "outlined"      -: color ==> shape ==> form
+         , "customOutline" -: listOf IntT ==> color ==> shape ==> form
+         ] ++ hasType (IntT ==> IntT ==> point ==> shape) ["ngon","rect","oval"]
+
+
+--------  Signals  --------
+
+sig ts = fn ts ==> fn (map signalOf ts)
+    where fn = foldr1 (==>)
+
+signals = sequence
+    [ do ts <- vars 1 ; "constant" -:: sig ts
+    , do ts <- vars 2 ; "lift"     -:: sig ts
+    , do ts <- vars 3 ; "lift2"    -:: sig ts
+    , do ts <- vars 4 ; "lift3"    -:: sig ts
+    , do ts <- vars 5 ; "lift4"    -:: sig ts
+    , do [a,b] <- vars 2 
+         "foldp" -:: (a ==> b ==> b) ==> b ==> signalOf a ==> signalOf b
+    ]
+
+concreteSignals =
+    [ "Mouse.position"    -: signalOf point
+    , "Mouse.x"           -: signalOf IntT
+    , "Mouse.y"           -: signalOf IntT
+    , "Mouse.isDown"      -: signalOf BoolT
+    , "Mouse.isClicked"   -: signalOf BoolT
+    , "Window.dimensions" -: signalOf point
+    , "Window.width"      -: signalOf IntT
+    , "Window.height"     -: signalOf IntT
+    ]
 
 --------  Math and Binops  --------
 
@@ -102,5 +146,8 @@ lists = liftM (map (first ("List."++)) . (++ints)) . sequence $
 --------  Everything  --------
 
 hints = do
-  fs <- funcs ; ls <- lists
-  return $ fs ++ ls ++ math ++ bool ++ str2elem ++ textAttrs ++ elements
+  fs <- funcs ; ls <- lists ; ss <- signals
+  return $ concat [ fs, ls, ss, math, bool, str2elem, textAttrs
+                  , elements, directions, colors, lineTypes, shapes
+                  , concreteSignals
+                  ]
