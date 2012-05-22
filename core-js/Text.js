@@ -1,6 +1,7 @@
 
 var Text = function() {
   var fromString = function(elmList) {
+    if (typeof elmList === "string") return elmList;
     var a = [];
     while (elmList[0] === "Cons") {
       a.push(elmList[1]);
