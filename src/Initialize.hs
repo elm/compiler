@@ -6,11 +6,9 @@ import Control.Monad
 import Data.Char (isAlpha)
 import Data.Maybe (mapMaybe)
 import Data.Either (rights)
-import FreeVar
 import Lexer
 import Parser (toExpr,toDefs)
 import Rename (rename)
-import Replace
 
 import Unify
 import Hints

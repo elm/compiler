@@ -7,28 +7,31 @@ import Data.List (isPrefixOf, isSuffixOf)
 import Happstack.Server
 import Happstack.Server.Compression
 import System.Environment
-import ToHtml
+import Language.Elm
 
 serve :: String -> IO ()
 serve libLoc = do
-  putStrLn "Elm Server 0.1.0: running at <http://localhost:8000>"
+  putStrLn "Elm Server 0.1.1.1: running at <http://localhost:8000>"
   simpleHTTP nullConf $ do
          compressedResponseFilter
          msum [ uriRest (serveElm libLoc)
               , serveDirectory EnableBrowsing [] "."
               ]
 
+pageTitle fp =
+    reverse . takeWhile (/='/') . drop 1 . dropWhile (/='.') $ reverse fp
+
 serveElm libLoc fp = do
   let ('/':path) = fp
   guard (".elm" `isSuffixOf` path)
   content <- liftIO (readFile path)
-  ok . toResponse $ compileToHtml libLoc path content
+  ok . toResponse $ compileToHtml libLoc (pageTitle path) content
 
 
 main = getArgs >>= parse
 
 parse ("--help":_) = putStrLn usage
-parse ("--version":_) = putStrLn "The Elm Server 0.1.0"
+parse ("--version":_) = putStrLn "The Elm Server 0.1.1.1"
 parse [] = serve "/elm-mini.js"
 parse [arg]
     | "--runtime-location=" `isPrefixOf` arg =

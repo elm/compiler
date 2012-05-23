@@ -10,7 +10,7 @@ import Text.Blaze.Html.Renderer.String (renderHtml)
 main = getArgs >>= parse
 
 parse ("--help":_) = putStrLn usage
-parse ("--version":_) = putStrLn "The Elm Compiler 0.1.0"
+parse ("--version":_) = putStrLn "The Elm Compiler 0.1.1.1"
 parse [loc,file]
   | "--runtime-location=" `isPrefixOf` loc =
       produceHtml (tail $ dropWhile (/='=') loc) file
