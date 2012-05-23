@@ -9,7 +9,7 @@ import qualified Data.Set as Set
 import Guid
 import Types
 
-import Control.DeepSeq
+import Control.DeepSeq (NFData (..), deepseq)
 
 unify hints expr = run $ do
   cs <- constrain hints expr
