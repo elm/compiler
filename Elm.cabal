@@ -1,6 +1,6 @@
 
 Name:                Elm
-Version:             0.1.1.4
+Version:             0.1.1.6
 Synopsis:            The Elm compiler and server.
 Description:         Elm aims to make client-side web-development more pleasant.
                      It is a statically/strongly typed, functional reactive
@@ -34,7 +34,7 @@ Executable elm
   other-modules:       Ast, CompileToJS, GenerateHtml, Guid, Initialize,
                        Rename, Language.Elm, Binop, Combinators, Lexer,
                        ParsePatterns, Parser, ParserLib, ParseTypes, Tokens,
-                       Types, Constrain, Hints, Types, Unify
+                       Types, Constrain, Hints, Types, Unify, ExtractNoscript
   
   -- Packages needed in order to build this package.
   ghc-options:	       -O3
@@ -56,7 +56,7 @@ Executable elm-server
   other-modules:       Ast, CompileToJS, GenerateHtml, Guid, Initialize,
                        Rename, Language.Elm, Binop, Combinators, Lexer,
                        ParsePatterns, Parser, ParserLib, ParseTypes, Tokens,
-                       Types, Constrain, Hints, Types, Unify
+                       Types, Constrain, Hints, Types, Unify, ExtractNoscript
   ghc-options:	       -O3
   Build-depends:       base >=4.2 && <5, containers >= 0.3, transformers >= 0.2,
                        mtl >= 2, parsec >= 3.1.1, blaze-html == 0.5.0.*,
@@ -69,4 +69,4 @@ Library
   other-modules:       Ast, CompileToJS, GenerateHtml, Guid, Initialize,
                        Rename, Binop, Combinators, Lexer,
                        ParsePatterns, Parser, ParserLib, ParseTypes, Tokens,
-                       Types, Constrain, Hints, Types, Unify
+                       Types, Constrain, Hints, Types, Unify, ExtractNoscript
