@@ -46,6 +46,6 @@ Potential problems and their solutions:
 Areas for further work:
 -----------------------
 
-Error messages need work in general. Syntax and Parsing errors are reported, but the messages are not very helpful. Type errors currently go unreported. I hope to fix this as soon as possible.
+Error messages need work in general. Syntax, Parsing, and Type errors are reported, but the messages are not very specific. I hope to fix this as soon as possible.
 
 If you are interested in making a large contribution, please contact me at `info (at) elm-lang (dot) org` so that we do not duplicate any work!
