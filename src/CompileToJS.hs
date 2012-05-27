@@ -11,7 +11,7 @@ import Initialize
 
 
 compile = (return . addMain . toJS) <=< initialize
-compileToJS = addMain . either (\err -> "text('"++err++"')") toJS . initialize
+compileToJS = addMain . either (\err -> "text('"++err++"')") toJS
 addMain body = "function main(){return " ++ body ++ ";}"
 
 parens = ("("++) . (++")")
