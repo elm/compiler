@@ -13,15 +13,29 @@ data ElmTest = ElmTest
 -- embedding an external elm file (note: no spaces!)
 mousePage = [elmFile|elm_source/mouse.elm|]
 
--- embedding elm code in our Haskell file
-rootPage = [elm|
-main = plainText "Welcome!"
+rootPage = [elmFile|elm_source/index.elm|]
+
+clockPage = [elmFile|elm_source/clock.elm|]
+
+-- embedding elm code inside Haskell using the QuasiQuoter:
+shapesPage = [elm|
+square   = rect 200 200 (150,150)
+circle   = oval 140 140 (150,150)
+pentagon = ngon   5  60 (150,150)
+
+main = collage 300 300
+         [ outlined black square
+         , filled green pentagon
+         , customOutline [8,4] blue circle
+         ]
 |]
 
 -- our Yesod App
 mkYesod "ElmTest" [parseRoutes|
 / RootR GET
 /mouse MouseR GET
+/clock ClockR GET
+/shapes ShapesR GET
 |]
 
 -- generateWidget is called with the result of an Elm QuasiQuoter (which is just a 
@@ -31,11 +45,24 @@ getMouseR = defaultLayout $ do
     setTitle "Mouse position demo"
     generateWidget mousePage
 
+getClockR :: Handler RepHtml
+getClockR = defaultLayout $ do
+    setTitle "A clock"
+    generateWidget clockPage
+
+getShapesR :: Handler RepHtml
+getShapesR = defaultLayout $ do
+    setTitle "Simple shapes"
+    generateWidget shapesPage
+
 getRootR :: Handler RepHtml
 getRootR = defaultLayout $ do
     setTitle "Welcome!"
     generateWidget rootPage
 
+
+-- Our Yesod instance contains the default layout, which inserts the elm-min.js
+-- file in the site's <head> tag.
 instance Yesod ElmTest where
     jsLoader _ = BottomOfHeadBlocking
     defaultLayout widget = do
