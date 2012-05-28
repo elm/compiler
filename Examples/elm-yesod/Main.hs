@@ -10,35 +10,26 @@ import Text.Julius
 
 data ElmTest = ElmTest
 
--- our Elm code
-mousePage = [elm|
-niceBlue   = rgb    0   (1/3) (2/3)
-clearGreen = rgba (1/9) (8/9) (3/9) (1/2)
+-- embedding an external elm file (note: no spaces!)
+mousePage = [elmFile|elm_source/mouse.elm|]
 
-scene (x,y) (w,h) =
-  collage w h [ filled niceBlue . rotate ((x+y)/1000) $ ngon 4 100 (200,200)
-              , filled clearGreen $ ngon 5 30 (x,y)
-              ]
-
-main = lift2 scene Mouse.position Window.dimensions
-|]
-
+-- embedding elm code in our Haskell file
 rootPage = [elm|
 main = plainText "Welcome!"
 |]
 
 -- our Yesod App
-
 mkYesod "ElmTest" [parseRoutes|
 / RootR GET
 /mouse MouseR GET
 |]
 
+-- generateWidget is called with the result of an Elm QuasiQuoter (which is just a 
+-- string containing some Elm code, with proper newline escaping)
 getMouseR :: Handler RepHtml
 getMouseR = defaultLayout $ do
     setTitle "Mouse position demo"
     generateWidget mousePage
-
 
 getRootR :: Handler RepHtml
 getRootR = defaultLayout $ do

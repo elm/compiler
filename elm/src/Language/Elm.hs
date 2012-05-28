@@ -5,7 +5,8 @@ module Language.Elm (
     module Language.Elm.CompileToJS,
     module Language.Elm.ExtractNoscript,
     generateHtml,
-    elm) where
+    elm,
+    elmFile) where
 
 import Language.Elm.CompileToJS
 import Language.Elm.ExtractNoscript
@@ -16,3 +17,6 @@ import Language.Haskell.TH.Quote
 
 elm :: QuasiQuoter
 elm = QuasiQuoter {quoteExp = \s -> [|s|] }
+
+elmFile :: QuasiQuoter
+elmFile = quoteFile elm
