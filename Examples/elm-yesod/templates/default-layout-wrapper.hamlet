@@ -1,0 +1,8 @@
+$doctype 5
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>#{pageTitle pc}
+    ^{pageHead pc}
+  <body>
+    ^{pageBody pc}

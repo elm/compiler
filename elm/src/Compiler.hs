@@ -1,10 +1,9 @@
-
 module Main where
 
-import System.Environment
-import CompileToJS
 import Data.List (isPrefixOf)
-import GenerateHtml
+import Language.Elm.CompileToJS
+import Language.Elm.GenerateHtml
+import System.Environment
 import Text.Blaze.Html.Renderer.String (renderHtml)
 
 main = getArgs >>= parse

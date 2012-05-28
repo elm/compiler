@@ -11,7 +11,7 @@ import Language.Elm
 
 serve :: String -> IO ()
 serve libLoc = do
-  putStrLn "Elm Server 0.1.1.7: running at <http://localhost:8000>"
+  putStrLn "Elm Server 0.1.1.8: running at <http://localhost:8000>"
   simpleHTTP nullConf $ do
          compressedResponseFilter
          msum [ uriRest (serveElm libLoc)
@@ -25,7 +25,7 @@ serveElm libLoc fp = do
   let ('/':path) = fp
   guard (".elm" `isSuffixOf` path)
   content <- liftIO (readFile path)
-  ok . toResponse $ compileToHtml libLoc (pageTitle path) content
+  ok . toResponse $ generateHtml libLoc (pageTitle path) content
 
 
 main = getArgs >>= parse

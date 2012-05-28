@@ -1,5 +1,5 @@
 
-module ExtractNoscript (extract) where
+module Language.Elm.ExtractNoscript (extract) where
 
 import Ast
 
