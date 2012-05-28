@@ -1,9 +1,9 @@
 {-# LANGUAGE QuasiQuotes, TemplateHaskell, OverloadedStrings, TypeFamilies, MultiParamTypeClasses #-}
 
 import Data.Text (Text)
+import Language.Elm
 import Language.Elm.Yesod
 import Yesod
-import Yesod.Static
 import Yesod.Default.Util
 import Text.Hamlet
 import Text.Julius
