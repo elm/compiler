@@ -1,4 +1,4 @@
-module Initialize (initialize) where
+module Language.Elm.Initialize (initialize) where
 
 import Ast
 import Control.Arrow (first, second)
