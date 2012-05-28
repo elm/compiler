@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes, TemplateHaskell #-}
 
-module Language.Elm.Yesod (elm, generateWidget) where
+module Language.Elm.Yesod (generateWidget) where
 
 import Language.Haskell.TH.Quote
 import Language.Haskell.TH
@@ -13,9 +13,6 @@ import Yesod.Widget
 import Initialize
 import CompileToJS
 import ExtractNoscript
-
-elm :: QuasiQuoter
-elm = QuasiQuoter {quoteExp = \s -> [|s|] }
 
 css = [lucius|
 * { padding:0; margin:0;

@@ -1,5 +1,5 @@
 
-module CompileToJS (compile, compileToJS) where
+module Language.Elm.CompileToJS (compile, compileToJS) where
 
 import Ast
 import Control.Monad (liftM,(<=<),join)
@@ -7,7 +7,7 @@ import Data.Char (isAlpha)
 import Data.List (intercalate,sortBy)
 import Data.Map (toList)
 
-import Initialize
+import Language.Elm.Initialize
 
 
 compile = (return . addMain . toJS) <=< initialize
