@@ -2,6 +2,7 @@
 module Language.Elm.GenerateHtml (generateHtml) where
 
 import Text.Blaze (preEscapedToMarkup)
+import Text.Blaze.Html (Html)
 import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5 ((!))
 import qualified Text.Blaze.Html5.Attributes as A
@@ -23,6 +24,15 @@ css = preEscapedToMarkup $
 makeScript :: String -> H.Html
 makeScript s = H.script ! A.type_ "text/javascript" ! A.src (H.toValue s) $ ""
 
+-- |This function compiles Elm code into simple HTML.
+--
+--  Usage example:
+--
+-- > generateHtml "/elm-min.js" "Some title" [elmFile|elm-source/somePage.elm|]
+generateHtml :: String -- ^ Location of elm-min.js as expected by the browser
+             -> String -- ^ The page title
+             -> String -- ^ The elm source code.
+             -> Html
 generateHtml libLoc title source =
     let expr = initialize source
         js = compileToJS expr
