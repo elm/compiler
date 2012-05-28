@@ -4,6 +4,8 @@
 
      It also provides a predefined generateHtml function for use with the Blaze markup library
      as well as a simple QuasiQuoter for embedding literal elm code in a Haskell file.
+
+     The documentation for the Elm language is available at <http://elm-lang.org/Documentation.elm>
 -}
 module Language.Elm (
     module Language.Elm.Initialize,
