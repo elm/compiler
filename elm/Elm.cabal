@@ -63,7 +63,8 @@ Library
   exposed-modules:     Language.Elm,
                        Language.Elm.CompileToJS,
                        Language.Elm.ExtractNoscript,
-                       Language.Elm.Initialize
+                       Language.Elm.Initialize,
+                       Language.Elm.GenerateHtml
   Hs-Source-Dirs:      src, src/Parse, src/Types
   other-modules:       Ast,
                        Guid,
