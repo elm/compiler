@@ -61,10 +61,11 @@ Executable elm-server
   Build-depends:       base >=4.2 && <5, containers >= 0.3, transformers >= 0.2,
                        mtl >= 2, parsec >= 3.1.1, blaze-html == 0.5.0.*,
                        HTTP >= 4000, happstack-server == 7.0.2,
-                       deepseq
+                       deepseq, yesod-core, shakespeare-css, shakespeare-js, hamlet,
+                       template-haskell
 
 Library
-  exposed-modules:     Language.Elm
+  exposed-modules:     Language.Elm, Language.Elm.Yesod
   Hs-Source-Dirs:      src, src/Parse, src/Types
   other-modules:       Ast, CompileToJS, GenerateHtml, Guid, Initialize,
                        Rename, Binop, Combinators, Lexer,
