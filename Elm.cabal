@@ -1,6 +1,6 @@
 
 Name:                Elm
-Version:             0.1.1.6
+Version:             0.1.1.7
 Synopsis:            The Elm compiler and server.
 Description:         Elm aims to make client-side web-development more pleasant.
                      It is a statically/strongly typed, functional reactive
