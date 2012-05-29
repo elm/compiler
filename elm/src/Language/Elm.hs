@@ -8,13 +8,17 @@
 -}
 module Language.Elm (
     toHtml,
-    toParts) where
+    toParts,
+    elm,
+    elmFile) where
 
 import CompileToJS
 import ExtractNoscript
 import GenerateHtml
 import Initialize
 import Text.Blaze.Html (Html)
+import Language.Elm.Quasi
+
 
 -- |This function compiles Elm code into a full HTML page.
 --

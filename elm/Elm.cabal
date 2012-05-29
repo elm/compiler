@@ -29,8 +29,9 @@ source-repository head
   location: git://github.com/evancz/Elm.git
 
 Library
-  exposed-modules:     Language.Elm
-  ghc-options:         -O2
+  exposed-modules:     Language.Elm,
+                       Language.Elm.Quasi
+  ghc-options:         -O2 -Wall
   Hs-Source-Dirs:      src, src/Parse, src/Types
   other-modules:       Ast,
                        CompileToJS,
@@ -60,11 +61,15 @@ Library
                        parsec >= 3.1.1,
                        blaze-html == 0.5.0.*,
                        blaze-markup == 0.5.1.*,
-                       deepseq
+                       deepseq,
+                       text,
+                       attoparsec >= 0.10,
+                       template-haskell,
+                       haskell-src-meta
 
 Executable elm
   Main-is:             Compiler.hs
-  ghc-options:         -O2
+  ghc-options:         -O2 -Wall
   Hs-Source-Dirs:      src, src/Parse, src/Types
   other-modules:       Ast,
                        CompileToJS,
