@@ -1,6 +1,6 @@
 
 Name:                Elm
-Version:             0.1.1.8
+Version:             0.1.2
 Synopsis:            The Elm language module.
 Description:         Elm aims to make client-side web-development more pleasant.
                      It is a statically/strongly typed, functional reactive
@@ -64,7 +64,8 @@ Library
                        Language.Elm.CompileToJS,
                        Language.Elm.ExtractNoscript,
                        Language.Elm.Initialize,
-                       Language.Elm.GenerateHtml
+                       Language.Elm.GenerateHtml,
+                       Language.Elm.Quasi
   Hs-Source-Dirs:      src, src/Parse, src/Types
   other-modules:       Ast,
                        Guid,
@@ -91,4 +92,7 @@ Library
                        blaze-html == 0.5.0.*,
                        blaze-markup == 0.5.1.*,
                        deepseq,
-                       template-haskell
+                       template-haskell,
+                       haskell-src-meta == 0.5.*,
+                       text,
+                       attoparsec == 0.10.*
