@@ -9,8 +9,8 @@ Homepage:            http://elm-lang.org
 License:             BSD3
 License-file:        LICENSE
 
-Author:              Evan Czaplicki
-Maintainer:          info@elm-lang.org
+Author:              Vincent Ambo
+Maintainer:          geva@humac.com
 Copyright:           Copyright: (c) 2011-2012 Evan Czaplicki
 
 Category:            Compiler, Language
