@@ -15,21 +15,20 @@
 
      A full example implementation is provided in the examples folder of the Elm github repository.
 -}
-module Language.Elm.Yesod (toWidget) where
+module Language.Elm.Yesod (elmWidget) where
 
 import Text.Blaze (preEscapedToMarkup)
-import Text.Hamlet
 import Text.Julius
-import Yesod.Widget (toWidgetHead, whamlet, GWidget)
+import Yesod.Widget (toWidgetHead, toWidgetBody, GWidget)
 import Language.Elm
 
 -- |toWidget takes some Elm code in String format and produces a widget. Usage example:
 -- 
 -- > toWidget [elmFile|elm-source/somePage.elm|]
-toWidget :: String -- ^ The Elm source code
-         -> GWidget sub master ()
-toWidget source =
+elmWidget :: String -- ^ The Elm source code
+          -> GWidget sub master ()
+elmWidget source =
   let (html, css, js) = toParts source in
-  do toWidgetHead [hamlet| #{css} |]
+  do toWidgetHead css
      toWidgetHead [julius| #{js} |]
-     [whamlet| ^{html} |]
+     toWidgetBody html
