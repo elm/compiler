@@ -1,8 +1,8 @@
 module Main where
 
 import Data.List (isPrefixOf)
-import Language.Elm.CompileToJS
-import Language.Elm.GenerateHtml
+import CompileToJS
+import GenerateHtml
 import System.Environment
 import Text.Blaze.Html.Renderer.String (renderHtml)
 

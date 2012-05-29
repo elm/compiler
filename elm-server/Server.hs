@@ -7,7 +7,7 @@ import Data.List (isPrefixOf, isSuffixOf)
 import Happstack.Server
 import Happstack.Server.Compression
 import System.Environment
-import Language.Elm
+import qualified Language.Elm as Elm
 
 serve :: String -> IO ()
 serve libLoc = do
@@ -25,7 +25,7 @@ serveElm libLoc fp = do
   let ('/':path) = fp
   guard (".elm" `isSuffixOf` path)
   content <- liftIO (readFile path)
-  ok . toResponse $ generateHtml libLoc (pageTitle path) content
+  ok . toResponse $ Elm.toHtml libLoc (pageTitle path) content
 
 
 main = getArgs >>= parse

@@ -22,34 +22,37 @@ Category:            Compiler, Language
 Build-type:          Simple
 
 Extra-source-files:  README.md
-Cabal-version:       >=1.6
+Cabal-version:       >=1.8
 
 source-repository head
   type:     git
   location: git://github.com/evancz/Elm.git
 
-Executable elm
-  -- .hs or .lhs file containing the Main module.
-  Main-is:             Compiler.hs
-  Hs-Source-Dirs:      src, src/Parse, src/Types, src/Language
+Library
+  exposed-modules:     Language.Elm
+  ghc-options:         -O2
+  Hs-Source-Dirs:      src, src/Parse, src/Types
   other-modules:       Ast,
+                       CompileToJS,
+                       ExtractNoscript,
+                       GenerateHtml,
+                       Guid,
+                       Initialize,
+                       Rename,
                        Binop,
                        Combinators,
-                       Constrain,
-                       Guid,
-                       Hints,
                        Lexer,
                        ParsePatterns,
                        Parser,
                        ParserLib,
                        ParseTypes,
-                       Rename,
                        Tokens,
                        Types,
+                       Constrain,
+                       Hints,
                        Types,
                        Unify
-  
-  ghc-options:         -O2
+
   Build-depends:       base >=4.2 && <5,
                        containers >= 0.3,
                        transformers >= 0.2,
@@ -59,16 +62,16 @@ Executable elm
                        blaze-markup == 0.5.1.*,
                        deepseq
 
-Library
-  exposed-modules:     Language.Elm,
-                       Language.Elm.CompileToJS,
-                       Language.Elm.ExtractNoscript,
-                       Language.Elm.Initialize,
-                       Language.Elm.GenerateHtml,
-                       Language.Elm.Quasi
+Executable elm
+  Main-is:             Compiler.hs
+  ghc-options:         -O2
   Hs-Source-Dirs:      src, src/Parse, src/Types
   other-modules:       Ast,
+                       CompileToJS,
+                       ExtractNoscript,
+                       GenerateHtml,
                        Guid,
+                       Initialize,
                        Rename,
                        Binop,
                        Combinators,
@@ -91,8 +94,4 @@ Library
                        parsec >= 3.1.1,
                        blaze-html == 0.5.0.*,
                        blaze-markup == 0.5.1.*,
-                       deepseq,
-                       template-haskell,
-                       haskell-src-meta == 0.5.*,
-                       text,
-                       attoparsec == 0.10.*
+                       deepseq

@@ -15,42 +15,22 @@
 
      A full example implementation is provided in the examples folder of the Elm github repository.
 -}
-module Language.Elm.Yesod (generateWidget) where
+module Language.Elm.Yesod (toWidget) where
 
 import Text.Blaze (preEscapedToMarkup)
 import Text.Hamlet
 import Text.Julius
-import Text.Lucius
+import Text.Cassius
 import Yesod.Widget
+import Language.Elm
 
-import Language.Elm.Initialize
-import Language.Elm.CompileToJS
-import Language.Elm.ExtractNoscript
-
-css = [lucius|
-* { padding:0; margin:0;
-hyphens: auto; -moz-hyphens: auto;
--webkit-hyphens: auto; -ms-hyphens: auto;}
-body { font-family: Arial; }
-a:link, a:visited, a:active { text-decoration: none}
-a:hover {text-decoration: underline; color: #ff8f12;}
-|]
-
--- |generateWidget takes some Elm code in String format and produces a widget. Usage example:
+-- |toWidget takes some Elm code in String format and produces a widget. Usage example:
 -- 
--- > generateWidget [elmFile|elm-source/somePage.elm|]
-generateWidget :: String -- ^ The Elm source code
-               -> GWidget sub master ()
-generateWidget source =
-  let expr = initialize source
-      js = compileToJS expr
-      noscript = either id extract expr
-  in do toWidgetHead css
+-- > toWidget [elmFile|elm-source/somePage.elm|]
+toWidget :: String -- ^ The Elm source code
+         -> GWidget sub master ()
+toWidget source =
+  let (html, css, js) = toParts source
+  in do toWidgetHead [cassius| css |]
         toWidgetHead [julius| #{js} |]
-        [whamlet|
-<div #widthChecker style="width:100%; height:1px; position:absolute; top:-1px;">
-<span #content>
-<script type="text/javascript">
- Dispatcher.initialize()
-<noscript>^{preEscapedToMarkup noscript}
-|]
+        [whamlet| ^{html} |]
