@@ -20,8 +20,7 @@ module Language.Elm.Yesod (toWidget) where
 import Text.Blaze (preEscapedToMarkup)
 import Text.Hamlet
 import Text.Julius
-import Text.Cassius
-import Yesod.Widget
+import Yesod.Widget (toWidgetHead, whamlet, GWidget)
 import Language.Elm
 
 -- |toWidget takes some Elm code in String format and produces a widget. Usage example:
@@ -30,7 +29,7 @@ import Language.Elm
 toWidget :: String -- ^ The Elm source code
          -> GWidget sub master ()
 toWidget source =
-  let (html, css, js) = toParts source
-  in do toWidgetHead [cassius| css |]
-        toWidgetHead [julius| #{js} |]
-        [whamlet| ^{html} |]
+  let (html, css, js) = toParts source in
+  do toWidgetHead [hamlet| #{css} |]
+     toWidgetHead [julius| #{js} |]
+     [whamlet| ^{html} |]

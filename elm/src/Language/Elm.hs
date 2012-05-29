@@ -31,7 +31,7 @@ toHtml = generateHtml
 --  and JavaScript. The HTML is only the contents of the body, so the three
 --  parts must be combined in a basic HTML skeleton.
 toParts :: String -- ^ The Elm source code.
-        -> (Html, String, String) -- ^ HTML, CSS, and JavaScript in that order.
+        -> (Html, Html, String) -- ^ HTML, CSS, and JavaScript in that order.
 toParts source = (html, css, js)
     where expr = initialize source
           js = compileToJS expr

@@ -11,14 +11,15 @@ import Initialize
 import CompileToJS
 import ExtractNoscript
 
-css = "* { padding:0; margin:0; \
-      \hyphens: auto; -moz-hyphens: auto;\
-      \ -webkit-hyphens: auto; -ms-hyphens: auto; }\
-      \body { font-family: Arial; }\
-      \a:link {text-decoration: none}\
-      \a:visited {text-decoration: none}\
-      \a:active {text-decoration: none}\
-      \a:hover {text-decoration: underline; color: #ff8f12;}"
+css = H.style ! A.type_ "text/css" $ preEscapedToMarkup
+      ("* { padding:0; margin:0; \
+       \hyphens: auto; -moz-hyphens: auto;\
+       \ -webkit-hyphens: auto; -ms-hyphens: auto; }\
+       \body { font-family: Arial; }\
+       \a:link {text-decoration: none}\
+       \a:visited {text-decoration: none}\
+       \a:active {text-decoration: none}\
+       \a:hover {text-decoration: underline; color: #ff8f12;}" :: String)
 
 makeScript :: String -> H.Html
 makeScript s = H.script ! A.type_ "text/javascript" ! A.src (H.toValue s) $ ""
@@ -43,7 +44,7 @@ generateHtml libLoc title source =
         H.title . H.toHtml $ title
         makeScript libLoc
         H.script ! A.type_ "text/javascript" $ preEscapedToMarkup js
-        H.style ! A.type_ "text/css" $ preEscapedToMarkup (css :: String)
+        css
       H.body $ body noscript
 
 body noscript = do
