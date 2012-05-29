@@ -26,9 +26,9 @@ info w = List.map (\f -> f ()) . List.intersperse (\x -> plainText "&nbsp;") . L
   , text $ toText "Rendering Yesod's type-safe URLs is not yet possible, but will be implemented as the currently " ++
            toText "very simple QuasiQuoter is extended."
   , section "More examples:"
-  , text $ toText "- " ++ link "/mouse" (toText "A simple mouse input example")
-  , text $ toText "- " ++ link "/clock" (toText "An animated analog clock")
-  , text $ toText "- " ++ link "/shapes" (toText "Some simple rendered shapes")
+  , text $ toText "- " ++ link ^{mouse} (toText "A simple mouse input example")
+  , text $ toText "- " ++ link ^{clock} (toText "An animated analog clock")
+  , text $ toText "- " ++ link ^{shapes} (toText "Some simple rendered shapes")
   ]
  
 body outer inner = width outer . box 2 . flow down . (:) (plainText "&nbsp;") $ info inner
