@@ -1,19 +1,17 @@
 {-# LANGUAGE QuasiQuotes, TemplateHaskell, OverloadedStrings, TypeFamilies, MultiParamTypeClasses #-}
 
-import Data.Text (Text)
 import Language.Elm
 import Language.Elm.Yesod
 import Yesod
---import Yesod.Default.Util
 import Text.Hamlet
-import Text.Julius
 
 data ElmTest = ElmTest
 
 -- embedding an external elm file (note: no spaces!)
-mousePage = [elmFile|elm_source/mouse.elm|]
-
+rootPage :: Show a => a -> a -> a -> String
 rootPage mouse clock shapes = [elmFile|elm_source/index.elm|]
+
+mousePage = [elmFile|elm_source/mouse.elm|]
 
 clockPage = [elmFile|elm_source/clock.elm|]
 
