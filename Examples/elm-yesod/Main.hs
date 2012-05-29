@@ -4,7 +4,7 @@ import Data.Text (Text)
 import Language.Elm
 import Language.Elm.Yesod
 import Yesod
-import Yesod.Default.Util
+--import Yesod.Default.Util
 import Text.Hamlet
 import Text.Julius
 
@@ -43,17 +43,17 @@ mkYesod "ElmTest" [parseRoutes|
 getMouseR :: Handler RepHtml
 getMouseR = defaultLayout $ do
     setTitle "Mouse position demo"
-    generateWidget mousePage
+    elmWidget mousePage
 
 getClockR :: Handler RepHtml
 getClockR = defaultLayout $ do
     setTitle "A clock"
-    generateWidget clockPage
+    elmWidget clockPage
 
 getShapesR :: Handler RepHtml
 getShapesR = defaultLayout $ do
     setTitle "Simple shapes"
-    generateWidget shapesPage
+    elmWidget shapesPage
 
 -- URLs are rendered manually and then passed on to the function containing
 -- the elm QuasiQuoter.
@@ -65,7 +65,7 @@ getRootR = do
           clock = render ClockR
           shapes = render ShapesR
       setTitle "Welcome!"
-      generateWidget $ rootPage mouse clock shapes
+      elmWidget $ rootPage mouse clock shapes
 
 
 -- Our Yesod instance contains the default layout, which inserts the elm-min.js
