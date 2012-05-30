@@ -43,9 +43,15 @@ instance ElmSource TL.Text where
   toParts = toPartsHelper . TL.unpack
   toHtml elmL title = generateHtml elmL title . TL.unpack
 
+-- | (urlRenderFn, urlRenderFn -> Elm)
+instance ElmSource (t, t -> Elm) where
+  toParts (f, s) = toPartsHelper $ TL.unpack $ renderElm $ s f  
+  toHtml elmL title (f, s) = generateHtml elmL title $ TL.unpack $ renderElm $ s f
+
+-- | to be used without URL interpolation
 instance ElmSource (t -> Elm) where
-  toParts s = toPartsHelper $ TL.unpack $ renderElm $ s undefined  
-  toHtml elmL title s = generateHtml elmL title $ TL.unpack $ renderElm $ s undefined
+  toParts s = toPartsHelper $ TL.unpack $ renderElm $ s undefined
+  toHtml l t s = generateHtml l t $ TL.unpack $ renderElm $ s undefined
 
 
 -- build helper to avoid boilerplate repetition
