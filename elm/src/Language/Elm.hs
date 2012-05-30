@@ -19,6 +19,7 @@ import Initialize
 import Text.Blaze.Html (Html)
 import Language.Elm.Quasi
 
+import qualified Data.Text as TS
 import qualified Data.Text.Lazy as TL
 
 class ElmSource a where
@@ -41,6 +42,12 @@ instance ElmSource Elm where
   toParts = toPartsHelper . TL.unpack . renderElm
   toHtml elmL title  = generateHtml elmL title  . TL.unpack . renderElm
 
+-- |Strict text
+instance ElmSource TS.Text where
+  toParts = toPartsHelper . TS.unpack
+  toHtml elmL title = generateHtml elmL title . TS.unpack
+
+-- |Lazy text
 instance ElmSource TL.Text where
   toParts = toPartsHelper . TL.unpack
   toHtml elmL title = generateHtml elmL title . TL.unpack
