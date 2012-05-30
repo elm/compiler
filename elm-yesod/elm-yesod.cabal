@@ -32,4 +32,5 @@ Library
                        yesod-core >= 1,
                        hamlet,
                        shakespeare-css,
-                       shakespeare-js
+                       shakespeare-js,
+                       text

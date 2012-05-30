@@ -1,19 +1,17 @@
 {-# LANGUAGE QuasiQuotes, TemplateHaskell, OverloadedStrings, TypeFamilies, MultiParamTypeClasses #-}
 
 import Language.Elm
+import Language.Elm.Quasi
 import Language.Elm.Yesod
 import Yesod
 import Text.Hamlet
 
 data ElmTest = ElmTest
 
--- embedding an external elm file (note: no spaces!)
-rootPage :: Show a => a -> a -> a -> String
-rootPage mouse clock shapes = [elmFile|elm_source/index.elm|]
+-- loading external elm code
+mousePage = $(elmFile "elm_source/mouse.elm")
 
-mousePage = [elmFile|elm_source/mouse.elm|]
-
-clockPage = [elmFile|elm_source/clock.elm|]
+clockPage = $(elmFile "elm_source/clock.elm")
 
 -- embedding elm code inside Haskell using the QuasiQuoter:
 shapesPage = [elm|
@@ -36,34 +34,36 @@ mkYesod "ElmTest" [parseRoutes|
 /shapes ShapesR GET
 |]
 
--- generateWidget is called with the result of an Elm QuasiQuoter (which is just a 
--- string containing some Elm code, with proper newline escaping)
+-- elmWidget takes some elm source code and returns the finished elm widget
+-- inside the GHandler monad. URL interpolation is done automatically, all
+-- interpolated variables have to be in scope when the elmWidget call happens.
 getMouseR :: Handler RepHtml
-getMouseR = defaultLayout $ do
-    setTitle "Mouse position demo"
-    elmWidget mousePage
+getMouseR = do
+    widget <- elmWidget mousePage
+    defaultLayout $ do
+      setTitle "Mouse position demo"
+      widget
 
 getClockR :: Handler RepHtml
-getClockR = defaultLayout $ do
-    setTitle "A clock"
-    elmWidget clockPage
+getClockR = do 
+    widget <- elmWidget clockPage
+    defaultLayout $ do
+      setTitle "A clock"
+      widget
 
 getShapesR :: Handler RepHtml
-getShapesR = defaultLayout $ do
-    setTitle "Simple shapes"
-    elmWidget shapesPage
+getShapesR = do
+    widget <- elmWidget shapesPage
+    defaultLayout $ do
+      setTitle "Simple shapes"
+      widget
 
--- URLs are rendered manually and then passed on to the function containing
--- the elm QuasiQuoter.
 getRootR :: Handler RepHtml
 getRootR = do
-    render <- getUrlRender
+    widget <- elmWidget $(elmFile "elm_source/index.elm")
     defaultLayout $ do
-      let mouse = render MouseR
-          clock = render ClockR
-          shapes = render ShapesR
       setTitle "Welcome!"
-      elmWidget $ rootPage mouse clock shapes
+      widget
 
 
 -- Our Yesod instance contains the default layout, which inserts the elm-min.js
