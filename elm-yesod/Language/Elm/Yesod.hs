@@ -31,6 +31,8 @@ import Language.Elm.Quasi
 import qualified Data.Text as TS
 import qualified Data.Text.Lazy as TL
 
+-- |elmWidget returns a Yesod widget from some Elm source code
+--  with URL interpolation.
 elmWidget :: ElmUrl (Route master) -- ^ Elm source code
           -> GHandler sub master (GWidget sub master())
 elmWidget source = do

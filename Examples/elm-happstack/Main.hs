@@ -8,6 +8,9 @@ import Language.Elm.Quasi
 elmLoc :: String
 elmLoc = "http://f.cl.ly/items/2e3Z3r3v29263U393c3x/elm-min.js"
 
+-- elmResponse is a "nice to have" helper function for compiling
+-- Elm code when using Elm with Happstack. At some point this might
+-- be moved to an elm-happstack package.
 elmResponse :: ElmSource a
             => String -- ^ Page title
             -> a      -- ^ elm source

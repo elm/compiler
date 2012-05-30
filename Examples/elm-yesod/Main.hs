@@ -8,6 +8,7 @@ import Text.Hamlet
 
 data ElmTest = ElmTest
 
+-- loading external elm code
 mousePage = $(elmFile "elm_source/mouse.elm")
 
 clockPage = $(elmFile "elm_source/clock.elm")
@@ -33,8 +34,9 @@ mkYesod "ElmTest" [parseRoutes|
 /shapes ShapesR GET
 |]
 
--- generateWidget is called with the result of an Elm QuasiQuoter (which is just a 
--- string containing some Elm code, with proper newline escaping)
+-- elmWidget takes some elm source code and returns the finished elm widget
+-- inside the GHandler monad. URL interpolation is done automatically, all
+-- interpolated variables have to be in scope when the elmWidget call happens.
 getMouseR :: Handler RepHtml
 getMouseR = do
     widget <- elmWidget mousePage
@@ -56,8 +58,6 @@ getShapesR = do
       setTitle "Simple shapes"
       widget
 
--- URLs are rendered manually and then passed on to the function containing
--- the elm QuasiQuoter.
 getRootR :: Handler RepHtml
 getRootR = do
     widget <- elmWidget $(elmFile "elm_source/index.elm")

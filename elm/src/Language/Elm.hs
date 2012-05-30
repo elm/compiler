@@ -2,8 +2,9 @@
 {- | This module exports the functions necessary for compiling Elm code into the
      respective HTML, JS and CSS code.
 
-     It also provides a predefined compileToHtml function for use with the Blaze markup library
-     as well as a simple QuasiQuoter for embedding literal elm code in a Haskell file.
+     The type class @'ElmSource'@ requires an instance for all types that the Elm compiler
+     understands. The provided instances for String, Text and QuasiQuoted Elm source code 
+     should be sufficient.
 
      The documentation for the Elm language is available at <http://elm-lang.org/Documentation.elm>
 -}
@@ -25,6 +26,7 @@ class ElmSource a where
   --  and JavaScript. The HTML is only the contents of the body, so the three
   --  parts must be combined in a basic HTML skeleton.
   toParts :: a -> (Html, Html, String)
+
   -- |This function compiles Elm code into a full HTML page.
   toHtml :: String -- ^ Location of elm-min.js as expected by the browser
          -> String -- ^ The page title
