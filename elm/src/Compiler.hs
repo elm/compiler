@@ -6,10 +6,12 @@ import GenerateHtml
 import System.Environment
 import Text.Blaze.Html.Renderer.String (renderHtml)
 
+main :: IO ()
 main = getArgs >>= parse
 
+parse :: [String] -> IO ()
 parse ("--help":_) = putStrLn usage
-parse ("--version":_) = putStrLn "The Elm Compiler 0.1.1.7"
+parse ("--version":_) = putStrLn "The Elm Compiler 0.1.2"
 parse [loc,file]
   | "--runtime-location=" `isPrefixOf` loc =
       produceHtml (tail $ dropWhile (/='=') loc) file
@@ -17,6 +19,7 @@ parse [loc,file]
 parse [file] = produceHtml "elm-mini.js" file
 parse _ = putStrLn usageMini
 
+produceHtml :: String -> FilePath -> IO ()
 produceHtml libLoc file = do
   code <- readFile file
   let name = takeWhile (/='.') file
@@ -25,10 +28,12 @@ produceHtml libLoc file = do
     Right jsCode -> writeFile (name ++ ".html") . renderHtml $
                     generateHtml libLoc name jsCode
 
+usageMini :: String
 usageMini =
   "Usage: elm [OPTIONS] FILE\n\
   \Try `elm --help' for more information."
 
+usage :: String
 usage =
   "Usage: elm [OPTIONS] FILE\n\
   \Compile .elm files to .html files.\n\
