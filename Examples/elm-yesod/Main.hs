@@ -1,19 +1,16 @@
 {-# LANGUAGE QuasiQuotes, TemplateHaskell, OverloadedStrings, TypeFamilies, MultiParamTypeClasses #-}
 
 import Language.Elm
+import Language.Elm.Quasi
 import Language.Elm.Yesod
 import Yesod
 import Text.Hamlet
 
 data ElmTest = ElmTest
 
--- embedding an external elm file (note: no spaces!)
-rootPage :: Show a => a -> a -> a -> String
-rootPage mouse clock shapes = [elmFile|elm_source/index.elm|]
+mousePage = $(elmFile "elm_source/mouse.elm")
 
-mousePage = [elmFile|elm_source/mouse.elm|]
-
-clockPage = [elmFile|elm_source/clock.elm|]
+clockPage = $(elmFile "elm_source/clock.elm")
 
 -- embedding elm code inside Haskell using the QuasiQuoter:
 shapesPage = [elm|
@@ -63,7 +60,7 @@ getRootR = do
           clock = render ClockR
           shapes = render ShapesR
       setTitle "Welcome!"
-      elmWidget $ rootPage mouse clock shapes
+      elmWidget $(elmFile "elm_source/index.elm")
 
 
 -- Our Yesod instance contains the default layout, which inserts the elm-min.js

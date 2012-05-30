@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 {- | This module exports the functions necessary for compiling Elm code into the
      respective HTML, JS and CSS code.
 
@@ -42,6 +42,11 @@ instance ElmSource Elm where
 instance ElmSource TL.Text where
   toParts = toPartsHelper . TL.unpack
   toHtml elmL title = generateHtml elmL title . TL.unpack
+
+instance ElmSource (t -> Elm) where
+  toParts s = toPartsHelper $ TL.unpack $ renderElm $ s undefined  
+  toHtml elmL title s = generateHtml elmL title $ TL.unpack $ renderElm $ s undefined
+
 
 -- build helper to avoid boilerplate repetition
 toPartsHelper :: String -> (Html, Html, String)
