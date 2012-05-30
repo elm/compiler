@@ -1,93 +1,96 @@
-{-# LANGUAGE TemplateHaskell, OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -fno-warn-missing-fields #-}
 
-module Language.Elm.Quasi (elm, elmFile) where
+-- | This module contains Shakespearean (see "Text.Shakespeare") templates for Elm.
+--   It introduces type-safe compile-time variable and URL interpolation. A typeclass
+--   'ToElm' is provided for interpolated variables.
+--
+--   Further reading on Shakespearean templates: <http://www.yesodweb.com/book/templates>
+--
+--   Further reading on Elm: <http://elm-lang.org> 
+module Language.Elm.Quasi
+    ( -- * Functions
+      -- ** Template-Reading Functions
+      -- | These QuasiQuoter and Template Haskell methods return values of
+      -- type @'ElmUrl' url@. See the Yesod book for details.
+      elm
+    , elmFile
+    , elmFileReload
 
-import Language.Haskell.TH.Quote
-import Language.Haskell.TH
-import Language.Haskell.Meta (parseExp)
+      -- * Datatypes
+    , ElmUrl
+    , Elm (..)
 
-import Data.Attoparsec.Text
-import Data.Text as T (Text, pack, unpack, strip)
+      -- * Typeclass for interpolated variables
+    , ToElm (..)
 
-{- | This QuasiQuoter allows for literal embedding of elm source code within
-     Haskell files. It is not responsible for the actual compilation Process.
-     Usage:
+      -- ** Rendering Functions
+    , renderElm
+    , renderElmUrl
 
-   @
-     elmPage = [elm|
-      main = image \"someImage.jpg\"
-     |]
-   @
+    ) where
 
-     It also allows for simple variable interpolation using the ^{...} syntax.
-     This is intended for e.g. embedding pre-rendered type-safe URLs.
-     All interpolated variables must be a member of the Show typeclass. This
-     is not tested with more complicated expressions, so it is recommended to
-     restrict usage of interpolation to pre-calculated variables.
+import Language.Haskell.TH.Quote (QuasiQuoter (..))
+import Language.Haskell.TH.Syntax
+import Data.Text.Lazy.Builder (Builder, fromText, toLazyText, fromLazyText)
+import Data.Monoid
+import qualified Data.Text as TS
+import qualified Data.Text.Lazy as TL
+import Text.Shakespeare
 
-     Example:
+-- | Render Elm to lazy Text without route interpolation.
+renderElm :: Elm -> TL.Text
+renderElm (Elm b) = toLazyText b
 
-   > let google = "http://google.com"
-   > in [elm|
-   > main = text $ link ^{google} (toText "Google")
-   > |]
+-- | render with route interpolation. If using this module standalone, apart
+-- from type-safe routes, a dummy renderer can be used:
+-- 
+-- > renderElmUrl (\_ _ -> undefined) elmUrl
+--
+-- When using Yesod, a renderer is generated for you, which can be accessed
+-- within the GHandler monad: 'Yesod.Handler.getUrlRenderParams'.
+renderElmUrl :: (url -> [(TS.Text, TS.Text)] -> TS.Text) -> ElmUrl url -> TL.Text
+renderElmUrl r s = renderElm $ s r
 
+-- | Newtype wrapper of 'Builder'.
+newtype Elm = Elm { unElm :: Builder }
+    deriving Monoid
 
-     How the elm code is compiled depends on how you intend to use it.
-     Example uses are the included 'generateHtml' function as well as the
-     "Language.Elm.Yesod" module.
--}
-elm :: QuasiQuoter
-elm = QuasiQuoter
-  { quoteExp = \s ->
-        let chunks = flip map (getQChunks s) $ \c ->
-                        case c of
-                            S t -> [| t |]
-                            E t -> let Right e = parseExp t in appE [| show |] (return e)
-        in appE [| concat |] (listE chunks)
+-- | Return type of template-reading functions.
+type ElmUrl url = (url -> [(TS.Text, TS.Text)] -> TS.Text) -> Elm
+
+-- | A typeclass for types that can be interpolated in CoffeeScript templates.
+class ToElm a where
+    toElm :: a -> Builder
+instance ToElm [Char]  where toElm = fromLazyText . TL.pack
+instance ToElm TS.Text where toElm = fromText
+instance ToElm TL.Text where toElm = fromLazyText
+
+elmSettings :: Q ShakespeareSettings
+elmSettings = do
+  toJExp <- [|toElm|]
+  wrapExp <- [|Elm|]
+  unWrapExp <- [|unElm|]
+  return $ defaultShakespeareSettings { toBuilder = toJExp
+  , wrap = wrapExp
+  , unwrap = unWrapExp
   }
 
-{- | elmFile is a quoteFile wrapper around the 'elm' QuasiQuoter and allows for
-     external elm source files to be embedded.
-     Usage:
+elm :: QuasiQuoter
+elm = QuasiQuoter { quoteExp = \s -> do
+    rs <- elmSettings
+    quoteExp (shakespeare rs) s
+    }
 
-   @
-     [elmFile|elm-source/page.elm|]
-   @
+elmFile :: FilePath -> Q Exp
+elmFile fp = do
+    rs <- elmSettings
+    shakespeareFile rs fp
 
-     Please note that no spaces should be added before and after the filename.
--}
-elmFile :: QuasiQuoter
-elmFile = quoteFile elm
-
-data QChunk =
-      S String -- ^ A literal string
-    | E String -- ^ An expression (must be of the Show typeclass)
-    deriving (Show, Eq)
-
-
-{- thanks to mikeplus64 for providing an example QuasiQuoter that I could look at while writing this :) -}
-getQChunks :: String -> [QChunk]
-getQChunks si = let i = T.pack si 
-                    Right m = parseOnly parser (strip i) in m
-  where
-    parser = go []
-
-    go s = do
-        txt <- takeTill (== '^')
-        evt <- choice [expression, fmap (S . T.unpack) takeText]
-        end <- atEnd
-        if end
-            then return $ filter (not . blank) $ reverse (evt:(S . T.unpack) txt:s)
-            else go (evt:(S . T.unpack) txt:s)
-
-    blank (S "") = True
-    blank (E "") = True
-    blank _      = False
-
-    expression = do
-        string "^{"
-        expr <- takeTill (== '}')
-        char '}'
-        return $ (E . T.unpack) expr
+elmFileReload :: FilePath -> Q Exp
+elmFileReload fp = do
+    rs <- elmSettings
+    shakespeareFileReload rs fp

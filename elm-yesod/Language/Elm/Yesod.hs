@@ -25,7 +25,8 @@ import Language.Elm
 -- |toWidget takes some Elm code in String format and produces a widget. Usage example:
 -- 
 -- > toWidget [elmFile|elm-source/somePage.elm|]
-elmWidget :: String -- ^ The Elm source code
+elmWidget :: ElmSource a
+          => a  -- ^ The Elm source code
           -> GWidget sub master ()
 elmWidget source =
   let (html, css, js) = toParts source in
