@@ -7,6 +7,8 @@
      should be sufficient.
 
      The documentation for the Elm language is available at <http://elm-lang.org/Documentation.elm>
+
+     Example implementations using Yesod and Happstack are available at <https://github.com/tazjin/Elm/tree/master/Examples>
 -}
 module Language.Elm (
     ElmSource (..)
