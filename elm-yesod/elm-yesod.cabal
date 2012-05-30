@@ -11,7 +11,7 @@ License-file:        LICENSE
 
 Author:              Vincent Ambo
 Maintainer:          geva@humac.com
-Copyright:           Copyright: (c) 2011-2012 Evan Czaplicki
+Copyright:           Copyright: (c) 2011-2012 Vincent Ambo
 
 Category:            Compiler, Language
 
@@ -28,7 +28,7 @@ Library
   exposed-modules:     Language.Elm.Yesod
   Build-depends:       base >=4.2 && <5,
                        blaze-markup == 0.5.*,
-                       Elm >= 0.1.2,
+                       Elm == 0.1.2,
                        yesod-core >= 1,
                        hamlet,
                        shakespeare-css,
