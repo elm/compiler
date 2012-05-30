@@ -22,8 +22,8 @@ module Language.Elm.Yesod (
 import Control.Monad (liftM)
 import Text.Blaze (preEscapedToMarkup)
 import Text.Julius
-import Yesod.Core
-import Yesod.Handler
+import Yesod.Core (Route (..))
+import Yesod.Handler (getUrlRenderParams, GHandler (..))
 import Yesod.Widget
 import Language.Elm
 import Language.Elm.Quasi
