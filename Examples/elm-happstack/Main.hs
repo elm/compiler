@@ -1,18 +1,18 @@
-{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE QuasiQuotes, TemplateHaskell #-}
 
 import Control.Monad (msum)
 import Happstack.Server
-import Language.Elm (elmFile, elm)
-
-import qualified Language.Elm as Elm
+import Language.Elm
+import Language.Elm.Quasi
 
 elmLoc :: String
 elmLoc = "http://f.cl.ly/items/2e3Z3r3v29263U393c3x/elm-min.js"
 
-elmResponse :: String -- ^ Page title
-            -> String -- ^ elm source
+elmResponse :: ElmSource a
+            => String -- ^ Page title
+            -> a      -- ^ elm source
             -> Response
-elmResponse title = toResponse . Elm.toHtml elmLoc title
+elmResponse title = toResponse . toHtml elmLoc title
 
 -- embedding variables (in this case URLs)
 rootHandler :: ServerPart Response
@@ -21,16 +21,16 @@ rootHandler = ok $ elmResponse "Welcome!" $ elmIndex
     mouse = "/mouse"
     clock = "/clock"
     shapes = "/shapes"
-    elmIndex = [elmFile|elm_source/index.elm|] 
+    elmIndex = $(elmFile "elm_source/index.elm")
 
 -- loading elm source from file
 
 mouseHandler :: ServerPart Response
-mouseHandler = ok $ elmResponse "Mouse position demo" $ 
-                        [elmFile|elm_source/mouse.elm|]
+mouseHandler = ok $ elmResponse "Mouse position demo" 
+                        $(elmFile "elm_source/mouse.elm")
 
 clockHandler :: ServerPart Response
-clockHandler = ok $ elmResponse "A clock" $ [elmFile|elm_source/clock.elm|]
+clockHandler = ok $ elmResponse "A clock" $(elmFile "elm_source/clock.elm")
 
 -- embedding elm code inside Haskell using the QuasiQuoter:
 shapesPage = [elm|

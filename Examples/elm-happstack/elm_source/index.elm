@@ -25,9 +25,9 @@ info w = List.map (\f -> f ()) . List.intersperse (\x -> plainText "&nbsp;") . L
            toText ". Since you are looking at this page it is safe to assume that you already have the example code. "
   , text $ toText "A second Happstack example using web-routes will be added later on."
   , section "More examples:"
-  , text $ toText "- " ++ link ^{mouse} (toText "A simple mouse input example")
-  , text $ toText "- " ++ link ^{clock} (toText "An animated analog clock")
-  , text $ toText "- " ++ link ^{shapes} (toText "Some simple rendered shapes")
+  , text $ toText "- " ++ link "#{mouse}" (toText "A simple mouse input example")
+  , text $ toText "- " ++ link "#{clock}" (toText "An animated analog clock")
+  , text $ toText "- " ++ link "#{shapes}" (toText "Some simple rendered shapes")
   ]
  
 body outer inner = width outer . box 2 . flow down . (:) (plainText "&nbsp;") $ info inner
