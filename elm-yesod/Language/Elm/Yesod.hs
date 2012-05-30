@@ -31,11 +31,6 @@ import Language.Elm.Quasi
 import qualified Data.Text as TS
 import qualified Data.Text.Lazy as TL
 
-instance ElmSource (ElmUrl url) where
-  toHtml = undefined
-  toParts = undefined
-
-
 elmWidget :: ElmUrl (Route master) -- ^ Elm source code
           -> GHandler sub master (GWidget sub master())
 elmWidget source = do
