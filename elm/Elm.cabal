@@ -63,9 +63,8 @@ Library
                        blaze-markup == 0.5.1.*,
                        deepseq,
                        text,
-                       attoparsec >= 0.10,
                        template-haskell,
-                       haskell-src-meta
+                       shakespeare
 
 Executable elm
   Main-is:             Compiler.hs
