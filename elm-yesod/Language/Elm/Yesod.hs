@@ -21,6 +21,10 @@ import Text.Blaze (preEscapedToMarkup)
 import Text.Julius
 import Yesod.Widget (toWidgetHead, toWidgetBody, GWidget)
 import Language.Elm
+import Language.Elm.Quasi
+
+import qualified Data.Text as TS
+import qualified Data.Text.Lazy as TL
 
 -- |toWidget takes some Elm code in String format and produces a widget. Usage example:
 -- 
@@ -33,3 +37,10 @@ elmWidget source =
   do toWidgetHead css
      toWidgetHead [julius| #{js} |]
      toWidgetBody html
+
+-- | Return type of template-reading functions.
+type ElmUrl url = (url -> [(TS.Text, TS.Text)] -> TS.Text) -> Elm
+
+-- | render with route interpolation
+renderElmUrl :: (url -> [(TS.Text, TS.Text)] -> TS.Text) -> ElmUrl url -> TL.Text
+renderElmUrl r s = renderElm $ s r

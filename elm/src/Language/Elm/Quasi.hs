@@ -21,7 +21,6 @@ module Language.Elm.Quasi
     , elmFileReload
 
       -- * Datatypes
-    , ElmUrl
     , Elm (..)
 
       -- * Typeclass for interpolated variables
@@ -29,7 +28,6 @@ module Language.Elm.Quasi
 
       -- ** Rendering Functions
     , renderElm
-    , renderElmUrl
 
     ) where
 
@@ -45,22 +43,9 @@ import Text.Shakespeare
 renderElm :: Elm -> TL.Text
 renderElm (Elm b) = toLazyText b
 
--- | render with route interpolation. If using this module standalone, apart
--- from type-safe routes, a dummy renderer can be used:
--- 
--- > renderElmUrl (\_ _ -> undefined) elmUrl
---
--- When using Yesod, a renderer is generated for you, which can be accessed
--- within the GHandler monad: 'Yesod.Handler.getUrlRenderParams'.
-renderElmUrl :: (url -> [(TS.Text, TS.Text)] -> TS.Text) -> ElmUrl url -> TL.Text
-renderElmUrl r s = renderElm $ s r
-
 -- | Newtype wrapper of 'Builder'.
 newtype Elm = Elm { unElm :: Builder }
     deriving Monoid
-
--- | Return type of template-reading functions.
-type ElmUrl url = (url -> [(TS.Text, TS.Text)] -> TS.Text) -> Elm
 
 -- | A typeclass for types that can be interpolated in CoffeeScript templates.
 class ToElm a where
