@@ -1,7 +1,10 @@
 Elm
 ===
 
-This is the Elm compiler and server, allowing you to develop Elm applications that run in any modern browser. If you intend to serve Elm with a Haskell backend, be sure to read the Elm+Haskell section.
+This is the Elm compiler and server, allowing you to develop Elm applications that run in any modern browser.
+
+If you intend to serve Elm code with a Haskell backend, be sure to read all the way to the "Installation for Haskell-Users" section.
+
 
 Installation for General Use
 ----------------------------
@@ -30,13 +33,13 @@ That is almost everything. Now, we will create a simple Elm project. The followi
     echo main = lift asText Mouse.position > main.elm
     elm-server
 
-The first two commands create a new directory and navigate into it. Then next command (`wget`) downloads the [elm-mini.js](https://raw.github.com/evancz/Elm/master/elm-mini.js) file which is the Elm runtime system and must be in the root directory of your Elm project. If you do not have wget, just follow [this link](https://raw.github.com/evancz/Elm/master/elm-mini.js) and download it directly. The `echo` command places a simple program into `main.elm`. The final command starts the Elm server at [localhost](http://localhost:8000/), allowing you to navigate to `main.elm` and see your first program in action.
+The first two commands create a new directory and navigate into it. Then next command (`wget`) downloads the [elm-mini.js](https://raw.github.com/evancz/Elm/master/elm-mini.js) file which is the Elm runtime system and must be in the root directory of your Elm project. If you do not have wget, just follow [this link](https://raw.github.com/evancz/Elm/master/elm-mini.js) and download it directly. The `echo` command places a simple program into `main.elm` (do this manually if you do not have `echo`). The final command starts the Elm server at [localhost](http://localhost:8000/), allowing you to navigate to `main.elm` and see your first program in action.
 
 
 Installation for Haskell-users
 ------------------------------
 
-Elm as described in the previous section is actually split into two packages: `elm` which contains the guts of the compiler and `elm-server` which provides a simple HAppStack based server to simplify development. Those of you looking to avoid the dependency on HAppStack only need the `elm` package.
+Elm as described in the previous section is actually split into two packages: `elm` which contains the guts of the compiler and `elm-server` which provides a simple HAppStack-based server to simplify development. Those of you planning to write your own server in Haskell only need the `elm` package:
 
     cabal install elm
 
