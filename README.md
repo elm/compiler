@@ -12,9 +12,9 @@ Download the [Haskell Platform](http://hackage.haskell.org/platform/). This will
 
 This will ensure that the elm package is available. Then install Elm with:
 
-    cabal install elm
+    cabal install elm-server
 
-Assuming everything goes correctly (potential problems are discussed later), this will build two executables on your machine:
+Assuming everything goes correctly (potential problems are discussed later, Yesod and HAppStack users should read on as well), this will build two executables on your machine:
 
 * `elm` is a standard compiler that takes `.elm` files and produces `.html` files. You can then use these HTML files with your favorite web-framework.
 
@@ -31,6 +31,18 @@ That is almost everything. Now, we will create a simple Elm project. The followi
     elm-server
 
 The first two commands create a new directory and navigate into it. Then next command (`wget`) downloads the [elm-mini.js](https://raw.github.com/evancz/Elm/master/elm-mini.js) file which is the Elm runtime system and must be in the root directory of your Elm project. If you do not have wget, just follow [this link](https://raw.github.com/evancz/Elm/master/elm-mini.js) and download it directly. The `echo` command places a simple program into `main.elm`. The final command starts the Elm server at [localhost](http://localhost:8000/), allowing you to navigate to `main.elm` and see your first program in action.
+
+
+Elm + Haskell:
+--------------------------------------
+
+For Yesod users who want to avoid the HAppStack dependency, you can install with:
+
+    cabal install elm-yesod
+
+This will give you everything except `elm-server` which is HAppStack based. The `elm` package (a dependency for `elm-yesod` and `elm-server`) provides support for [compilation directly in Haskell](http://hackage.haskell.org/packages/archive/Elm/0.1.2/doc/html/Language-Elm.html) and [QuasiQuoting](http://hackage.haskell.org/packages/archive/Elm/0.1.2/doc/html/Language-Elm-Quasi.html). `elm-yesod` uses these functions to provide more idiomatic ways to embed Elm in Yesod.
+
+For both HappStack and Yesod users, see the [Examples/](https://github.com/evancz/Elm/tree/master/Examples) directory for information and examples on how to get started with Elm+Haskell.
 
 
 Potential problems and their solutions:
