@@ -1,7 +1,7 @@
 Elm
 ===
 
-This is the Elm compiler and server, allowing you to develop Elm applications that run in any modern browser.
+This is the Elm compiler and server, allowing you to develop Elm applications that run in any modern browser. If you intend to serve Elm with a Haskell backend, be sure to read the Elm+Haskell section.
 
 Installation Process
 --------------------
@@ -14,7 +14,7 @@ This will ensure that the elm package is available. Then install Elm with:
 
     cabal install elm-server
 
-Assuming everything goes correctly (potential problems are discussed later, Yesod and HAppStack users should read on as well), this will build two executables on your machine:
+Assuming everything goes correctly (potential problems are discussed later), this will build two executables on your machine:
 
 * `elm` is a standard compiler that takes `.elm` files and produces `.html` files. You can then use these HTML files with your favorite web-framework.
 
