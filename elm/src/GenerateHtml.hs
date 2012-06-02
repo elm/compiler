@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module GenerateHtml (generateHtml, body, css) where
+module GenerateHtml (generateHtml, body, css, widgetBody) where
 
 import Text.Blaze (preEscapedToMarkup)
 import Text.Blaze.Html (Html)
@@ -51,4 +51,9 @@ body noscript = do
   H.div ! A.id "widthChecker" ! A.style "width:100%; height:1px; position:absolute; top:-1px;" $ ""
   H.span ! A.id "content" $ ""
   H.script ! A.type_ "text/javascript" $ "Dispatcher.initialize()"
-  H.noscript $ preEscapedToMarkup noscript 
+  H.noscript $ preEscapedToMarkup noscript
+
+widgetBody noscript = do
+  H.div ! A.id "widthChecker" ! A.style "width:100%; height:1px; position:absolute; top:-1px;" $ ""
+  H.span ! A.id "content" $ ""
+  H.noscript $ preEscapedToMarkup noscript
