@@ -70,7 +70,7 @@ elmSettings = do
 -- |QuasiQuoter for embedding Elm code inside of Haskell code.
 --
 --  Usage:
--- @[elm|main = plaintext "Some elm code"|]@
+-- @[elm|main = plaintext \"Some elm code\"|]@
 elm :: QuasiQuoter
 elm = QuasiQuoter { quoteExp = \s -> do
     rs <- elmSettings
@@ -81,7 +81,7 @@ elm = QuasiQuoter { quoteExp = \s -> do
 --  .elm files.
 --
 --  Usage:
--- @$(elmFile "elm_source/index.elm")@
+-- @$(elmFile \"elm_source/index.elm\")@
 elmFile :: FilePath -> Q Exp
 elmFile fp = do
     rs <- elmSettings
