@@ -3,8 +3,11 @@ Elm
 
 This is the Elm compiler and server, allowing you to develop Elm applications that run in any modern browser.
 
-Installation Process
---------------------
+If you intend to serve Elm code with a Haskell backend, be sure to read all the way to the "Installation for Haskell-Users" section.
+
+
+Installation for General Use
+----------------------------
 
 Download the [Haskell Platform](http://hackage.haskell.org/platform/). This will give you access to the Haskell compiler (needed to build Elm) and Haskell's package distribution system (to make installation of Elm easier). Once installed (even if it already was), you must update your listing of Haskell packages with:
 
@@ -12,7 +15,7 @@ Download the [Haskell Platform](http://hackage.haskell.org/platform/). This will
 
 This will ensure that the elm package is available. Then install Elm with:
 
-    cabal install elm
+    cabal install elm-server
 
 Assuming everything goes correctly (potential problems are discussed later), this will build two executables on your machine:
 
@@ -30,11 +33,29 @@ That is almost everything. Now, we will create a simple Elm project. The followi
     echo main = lift asText Mouse.position > main.elm
     elm-server
 
-The first two commands create a new directory and navigate into it. Then next command (`wget`) downloads the [elm-mini.js](https://raw.github.com/evancz/Elm/master/elm-mini.js) file which is the Elm runtime system and must be in the root directory of your Elm project. If you do not have wget, just follow [this link](https://raw.github.com/evancz/Elm/master/elm-mini.js) and download it directly. The `echo` command places a simple program into `main.elm`. The final command starts the Elm server at [localhost](http://localhost:8000/), allowing you to navigate to `main.elm` and see your first program in action.
+The first two commands create a new directory and navigate into it. Then next command (`wget`) downloads the [elm-mini.js](https://raw.github.com/evancz/Elm/master/elm-mini.js) file which is the Elm runtime system and must be in the root directory of your Elm project. If you do not have wget, just follow [this link](https://raw.github.com/evancz/Elm/master/elm-mini.js) and download it directly. The `echo` command places a simple program into `main.elm` (do this manually if you do not have `echo`). The final command starts the Elm server at [localhost](http://localhost:8000/), allowing you to navigate to `main.elm` and see your first program in action.
 
 
-Potential problems and their solutions:
----------------------------------------
+Installation for Haskell-users
+------------------------------
+
+Elm as described in the previous section is actually split into two packages: `elm` which contains the guts of the compiler and `elm-server` which provides a simple HAppStack-based server to simplify development. Those of you planning to write your own server in Haskell only need the `elm` package:
+
+    cabal install elm
+
+The `elm` package provides support for [compilation of Elm code directly in Haskell](http://hackage.haskell.org/packages/archive/Elm/0.1.2/doc/html/Language-Elm.html) and [QuasiQuoting](http://hackage.haskell.org/packages/archive/Elm/0.1.2/doc/html/Language-Elm-Quasi.html). See the [Examples/](https://github.com/evancz/Elm/tree/master/Examples) directory for information and examples on how to get started with Elm+Haskell.
+
+Yesod users should also install the `elm-yesod` package which provides functions for idiomatically embedding Elm in Yesod:
+
+    cabal install elm-yesod
+
+
+Potential problems and their solutions
+--------------------------------------
+
+* Try `cabal install elm`. This will give you access to the `elm` executable (but not `elm-server`).
+
+These problems all appeared before Elm version 0.1.1.4:
 
 * Install errors having to do with `happstack-server-7.0.2`. This version of `happstack-server` has stricter dependency restrictions that conflict with other libraries required by Elm. Try installing with an earlier version of `happstack-server` with the following command: `cabal install elm --constrain="happstack-server<7.0.2"`
 * When installing on Debian, `blaze-html-0.4.3.2` fails to compile. You must install `blaze-html-0.4.3.1` instead.

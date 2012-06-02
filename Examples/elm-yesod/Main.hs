@@ -17,7 +17,7 @@ clockPage = $(elmFile "elm_source/clock.elm")
 shapesPage = [elm|
 square   = rect 200 200 (150,150)
 circle   = oval 140 140 (150,150)
-pentagon = ngon   5  60 (150,150)
+pentagon = ngon   5  60 (150,150) --@
 
 main = collage 300 300
          [ outlined black square
@@ -34,48 +34,48 @@ mkYesod "ElmTest" [parseRoutes|
 /shapes ShapesR GET
 |]
 
--- elmWidget takes some elm source code and returns the finished elm widget
--- inside the GHandler monad. URL interpolation is done automatically, all
--- interpolated variables have to be in scope when the elmWidget call happens.
+-- Your App data type needs to have an instance of YesodElm (see line 75&76)
+-- so that toWidget can work with QuasiQuoted elm code. All URL interpolation
+-- is done automatically. (e.g. lines 28-30 in elm_source/index.elm)
 getMouseR :: Handler RepHtml
-getMouseR = do
-    widget <- elmWidget mousePage
-    defaultLayout $ do
+getMouseR = 
+  defaultLayout $ do
       setTitle "Mouse position demo"
-      widget
+      toWidget mousePage
 
 getClockR :: Handler RepHtml
-getClockR = do 
-    widget <- elmWidget clockPage
+getClockR =
     defaultLayout $ do
       setTitle "A clock"
-      widget
+      toWidget clockPage
 
 getShapesR :: Handler RepHtml
-getShapesR = do
-    widget <- elmWidget shapesPage
+getShapesR =
     defaultLayout $ do
       setTitle "Simple shapes"
-      widget
+      toWidget shapesPage
 
 getRootR :: Handler RepHtml
-getRootR = do
-    widget <- elmWidget $(elmFile "elm_source/index.elm")
+getRootR =
     defaultLayout $ do
       setTitle "Welcome!"
-      widget
+      toWidget $(elmFile "elm_source/index.elm")
 
 
 -- Our Yesod instance contains the default layout, which inserts the elm-min.js
--- file in the site's <head> tag.
+-- file in the site's <head> tag. The YesodElm instance defines the location of
+-- elm-min.js
+
 instance Yesod ElmTest where
     jsLoader _ = BottomOfHeadBlocking
     defaultLayout widget = do
         mmsg <- getMessage
         pc <- widgetToPageContent $ do
-            addScriptRemote $ "http://f.cl.ly/items/2e3Z3r3v29263U393c3x/elm-min.js"
             $(whamletFile "templates/default-layout.hamlet")
         hamletToRepHtml $(hamletFile "templates/default-layout-wrapper.hamlet")
+
+instance YesodElm ElmTest where
+  urlElmJs _ = Right $ "http://f.cl.ly/items/2e3Z3r3v29263U393c3x/elm-min.js"
 
 main :: IO ()
 main = warpDebug 3000 ElmTest
