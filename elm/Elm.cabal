@@ -68,7 +68,7 @@ Library
 
 Executable elm
   Main-is:             Compiler.hs
-  ghc-options:         -O2 -Wall
+  ghc-options:         -O2
   Hs-Source-Dirs:      src, src/Parse, src/Types
   other-modules:       Ast,
                        CompileToJS,
