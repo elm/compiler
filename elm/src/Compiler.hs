@@ -26,7 +26,7 @@ produceHtml libLoc file = do
   case compile code of
     Left err -> putStrLn err
     Right jsCode -> writeFile (name ++ ".html") . renderHtml $
-                    generateHtml libLoc name jsCode
+                    generateHtml libLoc name code
 
 usageMini :: String
 usageMini =
