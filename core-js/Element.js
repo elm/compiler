@@ -116,13 +116,11 @@ var Element = function() {
                sWidth = this.height * w / h;
 	       sx = (this.width - sWidth) / 2
 	     }
-	     console.log(sWidth,sHeight);
 	     ctx.drawImage(img, sx, sy, sWidth, sHeight,
 			   0,0, canvas.width, canvas.height);
 	   }
 	};
 	img.src = String.toText(src);
-	img.name = img.src;
 	return canvas;
       };
     };
