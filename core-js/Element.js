@@ -95,6 +95,39 @@ var Element = function() {
     img.name = img.src;
     return img;
   };
+  var fittedImage = function(w) { return function(h) { return function(src) {
+        var canvas = newElement('canvas');
+	canvas.style.width  = w + 'px';
+	canvas.style.height = h + 'px';
+	canvas.width  = w;
+	canvas.height = h;
+	canvas.innerHTML = "Your browser does not support the canvas element.";
+	canvas.isElmLeaf = true;
+
+        var img = newElement('img');
+	img.onload = function() {
+           if (canvas.getContext) {
+	     var ctx = canvas.getContext('2d');
+	     var sx = 0, sy = 0, sWidth = this.width, sHeight = this.height;
+	     if (w / h > this.width / this.height) {
+	       sHeight = this.width * h / w;
+	       sy = (this.height - sHeight) / 2
+	     } else {
+               sWidth = this.height * w / h;
+	       sx = (this.width - sWidth) / 2
+	     }
+	     console.log(sWidth,sHeight);
+	     ctx.drawImage(img, sx, sy, sWidth, sHeight,
+			   0,0, canvas.width, canvas.height);
+	   }
+	};
+	img.src = String.toText(src);
+	img.name = img.src;
+	return canvas;
+      };
+    };
+  };
+
   var video = function(src) {
     src = String.toText(src);
     var e = newElement('video');
@@ -238,6 +271,7 @@ var Element = function() {
 
   return {text : text,
 	  image : image,
+	  fittedImage : fittedImage,
 	  video : video,
 	  audio : audio,
 	  collage : collage,
