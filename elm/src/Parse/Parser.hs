@@ -32,14 +32,14 @@ falseTerm = do { t FALSE; return $ Boolean False }
 
 listTerm = (do { t LBRACKET; start <- expr; t DOT2; end <- expr; t RBRACKET
                 ; return $ Range start end }) +|+
-            (do { t LBRACKET; es <- sepBy (t COMMA) expr; t RBRACKET
-                ; return $ list es })
+           (do { t LBRACKET; es <- sepBy (t COMMA) expr; t RBRACKET
+               ; return $ list es })
 
 parensTerm = (do { t LPAREN; op <- anyOp; t RPAREN
                   ; return . Lambda "x" . Lambda "y" $
                            Binop op (Var "x") (Var "y") }) +|+
-              (do { t LPAREN; es <- sepBy (t COMMA) expr; t RPAREN
-                  ; return $ case es of { [e] -> e; _ -> tuple es } })
+             (do { t LPAREN; es <- sepBy (t COMMA) expr; t RPAREN
+                 ; return $ case es of { [e] -> e; _ -> tuple es } })
 
 term = select [ numTerm
               , strTerm
