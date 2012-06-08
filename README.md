@@ -49,6 +49,7 @@ Yesod users should also install the `elm-yesod` package which provides functions
 
     cabal install elm-yesod
 
+Some extra tips on Elm+Yesod can be found [here](https://github.com/evancz/Elm/wiki/Elm-with-Yesod:-Getting-Started).
 
 Potential problems and their solutions
 --------------------------------------
