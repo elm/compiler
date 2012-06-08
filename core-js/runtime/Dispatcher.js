@@ -1,17 +1,26 @@
 
 var Elm = function() {
+    var send = function(kids, timestep, changed) {
+	for (var i = kids.length; i--; ) {
+	    kids[i].recv(timestep, changed);
+	}
+    };
     var input = function(base) {
 	this.id = Guid.guid();
 	this.value = base;
-	this.step = function(eid,v) {
+	this.kids = [];
+	this.recv = function(timestep, eid, v) {
 	    var changed = eid === this.id;
 	    if (changed) { this.value = v; }
-	    return changed;
+	    send(this.kids, timestep, changed);
 	};
+	Dispatcher.inputs.push(this);
     };
     var lift = function(func,args) {
 	this.id = Guid.guid();
 	this.value = null;
+	this.kids = [];
+	this.inbox = {};
 
 	args.reverse();
 	this.recalc = function() {
@@ -23,28 +32,32 @@ var Elm = function() {
 	};
 	this.recalc();
 
-	this.step = function(id,v) {
-	    if (this.hasOwnProperty(id)) return false;
-	    var changed = false;
-	    for (var i = args.length; i--; ) {
-		// Must not short-circuit!
-		// All arguments need to be steped forward!
-		changed = args[i].step(id,v) || changed;
+	this.recv = function(timestep, changed) {
+	    if (!this.inbox.hasOwnProperty(timestep)) {
+		this.inbox[timestep] = { changed: false, count: 0 };
 	    }
-	    changed ? (this.recalc()) : (this[id] = true);
-	    return changed;
+	    var box = this.inbox[timestep];
+	    box.count += 1;
+	    if (changed) { box.changed = true; }
+	    if (box.count == args.length) {
+		if (box.changed) { this.recalc() }
+		send(this.kids, timestep, box.changed);
+		delete this.inbox[timestep];
+	    }
 	};
+	for (var i = args.length; i--; ) {
+	    args[i].kids.push(this);
+	}
     };
     var fold = function(func,base,input) {
 	this.id = Guid.guid();
 	this.value = base;
-	this.step = function(id,v) {
-	    if (this.hasOwnProperty(id)) return false;
-	    var changed = input.step(id,v);
+	this.kids = [];
+	this.recv = function(timestep, changed) {
 	    if (changed) { this.value = func(input.value)(this.value); }
-	    else { this[id] = true; }
-	    return changed;
+	    send(this.kids, timestep, changed);
 	};
+	input.kids.push(this);
     };
     return {Input: function(x) {return new input(x);},
 	    Lift:  function(f,xs){return new lift(f,xs);},
@@ -54,6 +67,9 @@ var Elm = function() {
 
 var Dispatcher = function() {
     var program = null;
+    var timestep = 0;
+    var inputs = [];
+
     var correctSize = function(e) {
 	var kids = e.childNodes;
 	var len = kids.length;
@@ -96,7 +112,7 @@ var Dispatcher = function() {
 	    document.body.innerHTML = "An Error Occured: Better Messages to come.";
 	    throw e;
 	}
-	if (!program.hasOwnProperty('step')) {
+	if (!program.hasOwnProperty('recv')) {
 	    program = Elm.Input(program);
 	}
 	var content = document.getElementById('content');
@@ -106,17 +122,22 @@ var Dispatcher = function() {
 	if (w !== window.innerWidth) {
 	    Dispatcher.notify(Window.dimensions.id, Value.Tuple(w, window.innerHeight));
 	}
+	program = Elm.Lift(function(value) {
+		var content = document.getElementById('content');
+		content.replaceChild(value, content.children[0]);
+		correctSize(content);
+		return value;
+	    }, [program]);
     };
     var adjust = function() {
 	var content = document.getElementById('content');
 	correctSize(content);
     }
     var notify = function(id, v) {
-	if (program.step(id,v)) {
-	    var content = document.getElementById('content');
-	    content.replaceChild(program.value, content.children[0]);
-	    correctSize(content);
+	timestep += 1;
+	for (var i = inputs.length; i--; ) {
+	    inputs[i].recv(timestep, id, v);
 	}
     };
-    return {initialize:initialize, notify:notify, adjust:adjust};
+    return {initialize:initialize, notify:notify, adjust:adjust, inputs:inputs};
 }();
