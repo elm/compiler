@@ -27,10 +27,14 @@ sortOps = sortBy (\(i,_,_) (j,_,_) -> compare i j)
 
 binops term anyOp = do
   e <- term
-  (ops,es) <- liftM unzip $ many (do { op <- lexeme anyOp; e <- term; return (op,e) })
+  (ops,es) <- liftM unzip $
+                    many (try $ do { whitespace
+                                   ; op <- anyOp
+                                   ; whitespace
+                                   ; e <- term; return (op,e) })
   case binopOf Map.empty (sortOps table) ops (e:es) of
     Right e -> return e
-    Left msg -> mzero
+    Left msg -> fail msg
 
 binopSplit seen opTable i ops es =
     case (splitAt i ops, splitAt (i+1) es) of
@@ -40,8 +44,7 @@ binopSplit seen opTable i ops es =
              return $ Binop op e1 e2
 
 binopOf _ _ _ [e] = return e
-binopOf _ [] ops es =
-    return $ foldl' (flip ($)) (head es) $ zipWith Binop ops (tail es)
+binopOf seen [] ops es = binopOf seen [(9,L,head ops)] ops es
 
 binopOf seen (tbl@((lvl, L, op):rest)) ops es =
     case elemIndices op ops of
@@ -54,7 +57,7 @@ binopOf seen (tbl@((lvl, assoc, op):rest)) ops es =
     case elemIndices op ops of
       [] -> binopOf seen rest ops es
       i:_ -> case Map.lookup lvl seen of
-               Nothing -> binopSplit (Map.insert lvl (R,op) seen) tbl i ops es
+               Nothing -> binopSplit (Map.insert lvl (assoc,op) seen) tbl i ops es
                Just (assoc',op') ->
                    if assoc == assoc' && assoc /= N then
                        binopSplit seen tbl i ops es

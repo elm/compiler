@@ -9,7 +9,7 @@ import Data.List (lookup)
 import Text.Parsec
 
 import ParseLib
-import Types
+import Types hiding (string,parens)
 import Guid
 
 data ParseType = VarPT String
@@ -23,10 +23,10 @@ typeVar :: (Monad m) => ParsecT [Char] u m ParseType
 typeVar = VarPT <$> lowVar <?> "type variable"
 
 typeList :: (Monad m) => ParsecT [Char] u m ParseType
-typeList  = listPT <$> betwixtSpcs '[' ']' typeExpr
+typeList  = listPT <$> braces typeExpr
 
 typeTuple :: (Monad m) => ParsecT [Char] u m ParseType
-typeTuple = do ts <- betwixtSpcs '(' ')' (commaSep typeExpr)
+typeTuple = do ts <- parens (commaSep typeExpr)
                return $ case ts of { [t] -> t ; _ -> tuplePT ts }
 
 typeUnambiguous :: (Monad m) => ParsecT [Char] u m ParseType
@@ -44,22 +44,23 @@ typeApp = do name <- capVar
 
 typeExpr :: (Monad m) => ParsecT [Char] u m ParseType
 typeExpr = do
-  whitespace
   t1 <- typeVar <|> typeApp <|> typeUnambiguous
-  arrow <- optionMaybe arrow
+  whitespace ; arrow <- optionMaybe arrow ; whitespace
   case arrow of Just _  -> LambdaPT t1 <$> typeExpr
                 Nothing -> return t1
 
 typeConstructor :: (Monad m) => ParsecT [Char] u m (String, [ParseType])
-typeConstructor = do name <- capVar
-                     args <- many (typeSimple <|> typeUnambiguous)
-                     return $ (,) name args
+typeConstructor = do
+  name <- capVar
+  args <- many (try (forcedWS >> (typeSimple <|> typeUnambiguous)))
+  return $ (,) name args
 
 datatype :: (Monad m) => ParsecT [Char] u m ([String], [Expr], GuidCounter [Type])
 datatype = do
-  symbol "data" <?> "datatype definition"
-  name <- capVar ; args <- many lowVar ; symbol "="
-  tcs <- typeConstructor `sepBy1` symbol "|"
+  string "data" <?> "datatype definition (data T = A | B | ...)"
+  forcedWS ; name <- capVar ; args <- many (try (forcedWS >> lowVar))
+  whitespace ; string "=" ; whitespace
+  tcs <- pipeSep1 typeConstructor
   return $ (map fst tcs , map toFunc tcs , toTypes name args tcs)
 
 beta = liftM VarT guid
