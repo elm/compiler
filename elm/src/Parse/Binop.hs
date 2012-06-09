@@ -1,21 +1,23 @@
 module Binop (binops) where
 
 import Ast
-import Combinators
 import Control.Monad (liftM,guard)
 import Control.Monad.Error
 import Data.List (foldl',splitAt,elemIndices,group,groupBy,sortBy,find)
 import qualified Data.Map as Map
 import Data.Maybe (mapMaybe)
 
-data Assoc = L | Non | R deriving (Eq,Show)
+import Text.Parsec
+import ParseLib
+
+data Assoc = L | N | R deriving (Eq,Show)
 
 table = [ (9, R, ".")
         , (7, L, "*"), (7, L, "/"), (7, L, "mod")
         , (6, L, "+"), (6, L, "-")
         , (5, R, ":" ), (5, R, "++")
-        , (4, Non, "<="), (4, Non, ">="), (4, Non, "<")
-        , (4, Non, "=="), (4, Non, "/="), (4, Non, ">")
+        , (4, N, "<="), (4, N, ">="), (4, N, "<")
+        , (4, N, "=="), (4, N, "/="), (4, N, ">")
         , (3, R, "&&")
         , (2, R, "||")
         , (0, R, "$")
@@ -25,10 +27,10 @@ sortOps = sortBy (\(i,_,_) (j,_,_) -> compare i j)
 
 binops term anyOp = do
   e <- term
-  (ops,es) <- liftM unzip $ star (do { op <- anyOp; e <- term; return (op,e) })
+  (ops,es) <- liftM unzip $ many (do { op <- lexeme anyOp; e <- term; return (op,e) })
   case binopOf Map.empty (sortOps table) ops (e:es) of
     Right e -> return e
-    Left msg -> zero
+    Left msg -> mzero
 
 binopSplit seen opTable i ops es =
     case (splitAt i ops, splitAt (i+1) es) of
@@ -54,7 +56,7 @@ binopOf seen (tbl@((lvl, assoc, op):rest)) ops es =
       i:_ -> case Map.lookup lvl seen of
                Nothing -> binopSplit (Map.insert lvl (R,op) seen) tbl i ops es
                Just (assoc',op') ->
-                   if assoc == assoc' && assoc /= Non then
+                   if assoc == assoc' && assoc /= N then
                        binopSplit seen tbl i ops es
                    else Left $ errorMessage lvl op assoc op' assoc'
 

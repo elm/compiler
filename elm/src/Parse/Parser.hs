@@ -1,115 +1,114 @@
 module Parser where
 
 import Ast
-import Binop (binops)
-import Combinators
-import Control.Monad (liftM)
+import Control.Applicative ((<$>), (<*>))
+import Control.Monad
+import Data.Char (isSymbol, isDigit)
 import Data.List (foldl')
-import Guid
-import Lexer
-import ParserLib
-import ParseTypes (datatype)
-import ParsePatterns
-import Tokens
-import Types (Type (VarT))
+import Text.Parsec
+
+import ParseLib
+import Patterns
+import Binop
 
 --------  Basic Terms  --------
 
-numTerm = do { whitespace; t <- item
-             ; case t of { NUMBER n -> return $ Number n; _ -> zero } }
-strTerm = do { whitespace; t <- item
-             ; case t of { STRING cs -> return $ Str cs
-                         ; _ -> zero } }
+numTerm :: (Monad m) => ParsecT [Char] u m Expr
+numTerm = liftM (Number . read) (many1 digit) <?> "number"
 
-varTerm = Var `liftM` var
-chrTerm = Chr `liftM` chr
+strTerm :: (Monad m) => ParsecT [Char] u m Expr
+strTerm = expecting "string" . liftM Str . betwixt '"' '"' . many $ noneOf "\""
 
-trueTerm = do { t TRUE; return $ Boolean True }
-falseTerm = do { t FALSE; return $ Boolean False }
+varTerm :: (Monad m) => ParsecT [Char] u m Expr
+varTerm = toVar <$> var <?> "variable"
+
+toVar v = case v of "True"  -> Boolean True
+                    "False" -> Boolean False
+                    _       -> Var v
+
+chrTerm :: (Monad m) => ParsecT [Char] u m Expr
+chrTerm = Chr <$> betwixt '\'' '\'' anyChar <?> "character"
 
 
 --------  Complex Terms  --------
 
-listTerm = (do { t LBRACKET; start <- expr; t DOT2; end <- expr; t RBRACKET
-                ; return $ Range start end }) +|+
-           (do { t LBRACKET; es <- sepBy (t COMMA) expr; t RBRACKET
-               ; return $ list es })
+listTerm = expecting "list" . betwixtSpcs '[' ']' $ choice
+           [ try $ do { lo <- expr; string ".." ; Range lo <$> expr }
+           , list <$> expr `sepBy` lexeme (char ',')
+           ]
 
-parensTerm = (do { t LPAREN; op <- anyOp; t RPAREN
-                  ; return . Lambda "x" . Lambda "y" $
-                           Binop op (Var "x") (Var "y") }) +|+
-             (do { t LPAREN; es <- sepBy (t COMMA) expr; t RPAREN
-                 ; return $ case es of { [e] -> e; _ -> tuple es } })
+parensTerm = expecting "parenthesized expression" . betwixtSpcs '(' ')' $ choice 
+             [ do op <- anyOp
+                  return . Lambda "x" . Lambda "y" $ Binop op (Var "x") (Var "y")
+             , do es <- expr `sepBy` lexeme (char ',')
+                  return $ case es of { [e] -> e; _ -> tuple es }
+             ]
 
-term = select [ numTerm
-              , strTerm
-              , accessible varTerm
-              , chrTerm
-              , trueTerm
-              , falseTerm
-              , listTerm 
-              , accessible parensTerm
-              ]
+term = lexeme (choice [ numTerm, strTerm, chrTerm
+                      , accessible varTerm
+                      , listTerm, parensTerm ])
+       <?> "basic term (number, variable, etc.)"
 
 --------  Applications  --------
 
 appExpr = do
-  tlist <- plus term
+  tlist <- many1 (try term)
   return $ case tlist of
              t:[] -> t
              t:ts -> foldl' App t ts
 
-
---------  Expressions with infix operators  --------
+--------  Normal Expressions  --------
 
 binaryExpr = binops appExpr anyOp
 
+ifExpr = expecting "if expression" $
+         do symbol "if"   ; e1 <- expr
+            symbol "then" ; e2 <- expr
+            expecting "else branch" $ do
+              symbol "else" ; If e1 e2 <$> expr
 
---------  Normal Expressions  --------
+lambdaExpr = do lexeme $ oneOf "\\\x03BB"
+                args <- patternTerm `endBy1` whitespace
+                arrow
+                e <- expr
+                return $ makeFunction args e
 
-ifExpr = do { t IF; e1 <- expr; t THEN; e2 <- expr; t ELSE; e3 <- expr
-             ; return $ If e1 e2 e3 }
-
-lambdaExpr = do { t LAMBDA; vs <- plus var; t ARROW; e <- expr
-                 ; return $ foldr Lambda e vs }
-
-assignExpr = whitespace >> assignExprNospace
-assignExprNospace = do
-  p:ps <- plus patternTerm; assign; e <- expr
-  case p:ps of
-    PVar x : _ -> return (x, foldr func e ps)
-        where func PAnything e' = Lambda "_" e'
-              func (PVar x)  e' = Lambda x e'
-              func p' e' = Lambda "_temp" (Case (Var "_temp") [(p', e')])
---    _ : [] -> return $ \hole -> Case e [(p,hole)]
-    _ -> zero
+assignExpr = do
+  patterns <- patternTerm `endBy1` whitespace; symbol "="; exp <- expr
+  case patterns of
+    PVar f : args -> return (f, makeFunction args exp)
+    [PData x ps] -> if "Tuple" == take 5 x && all isDigit (drop 5 x) then
+                        fail "matching tuples is not yet supported in this context"
+                    else fail $ "Only tuples can be matched in this context, " ++
+                                "not other abstract data types such as lists."
+    _ -> fail $ "Variables in assign statement are not acceptable: " ++
+                "only named variables, named functions, and tuples are okay."
 
 letExpr = do
-  t LET; brace <- optional $ t LBRACE
+  symbol "let"; brace <- optionMaybe . lexeme $ char '{'
   case brace of
-    Nothing -> do f <- assignExpr; t IN; e <- expr; return (Let [f] e)
-    Just LBRACE -> do fs <- sepBy1 (t SEMI) assignExpr; t RBRACE; t IN;
-                      e <- expr; return (Let fs e)
+    Nothing -> do f <- assignExpr; symbol "in"; e <- expr; return (Let [f] e)
+    Just '{' -> do fs <- assignExpr `sepBy1` symbol ";"
+                   symbol "}" ; symbol "in"; e <- expr
+                   return (Let fs e)
 
 caseExpr = do
-  t CASE; e <- expr; t OF; t LBRACE
-  cases <- sepBy1 (t SEMI)
-           (do { p <- patternExpr; t ARROW; e <- expr; return (p,e) })
-  t RBRACE
-  return $ Case e cases
+  symbol "case"; e <- expr; symbol "of"
+  betwixtSpcs '{' '}' $ Case e <$> case_ `sepBy1` symbol ";"
+    where case_ = do p <- patternExpr; whitespace; arrow; e <- expr; return (p,e)
 
---------  All Expressions  --------
 
-expr = select [ letExpr
-              , binaryExpr
-              , ifExpr
-              , caseExpr
-              , lambdaExpr
-              ]
+expr = choice [ ifExpr, letExpr, caseExpr, lambdaExpr, binaryExpr ]
 
-def = do (f,e) <- assignExprNospace
+aoeu = parse (between whitespace eof expr) ""
+
+symbol = lexeme . try . string 
+arrow  = symbol "->" <|> symbol "\8594"
+
+def = do (f,e) <- assignExpr
          return ([f], [e], guid >>= \x -> return [VarT x])
 
+{--
 defs = do
   (fss,ess,tss) <- unzip3 `liftM` plus (whitespace >> plus (sat (==NEWLINE)) >> def +|+ datatype)
   let (fs,es,ts) = (concat fss, concat ess, concat `liftM` sequence tss)
@@ -117,5 +116,5 @@ defs = do
   return (Let (zip fs es) (Var "main"), liftM (zip fs) ts)
 
 err = "Parse Error: Better error messages to come!"
-toExpr = extractResult err . parse expr
-toDefs = extractResult err . parse defs . (NEWLINE:)
+toDefs = parse defs . ('\n':)
+--}
