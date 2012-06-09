@@ -9,9 +9,12 @@ import Data.Map (toList)
 
 import Initialize
 
+showErr :: String -> String
+showErr err = "text(monospace(" ++ msg ++ "))"
+    where msg = show . concatMap (++"<br>") . lines $ err
 
 compile = (return . addMain . toJS) <=< initialize
-compileToJS = addMain . either (\err -> "text('"++err++"')") toJS
+compileToJS = addMain . either showErr toJS
 addMain body = "function main(){return " ++ body ++ ";}"
 
 parens = ("("++) . (++")")

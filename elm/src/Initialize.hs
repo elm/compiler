@@ -6,23 +6,16 @@ import Control.Monad
 import Data.Char (isAlpha)
 import Data.Maybe (mapMaybe)
 import Data.Either (rights)
-import Lexer
-import Parser (toExpr,toDefs)
+
+import Parser (toDefs)
 import Rename (rename)
 
 import Unify
 import Hints
 
-{--
-initialize str = do
- (expr, hints') <- toDefs =<< tokenize str
- let expr' = rename expr
- subs <- unify (liftM2 (++) hints hints') expr'
- return (seq subs expr')
---}
 
 initialize str = do
- (expr, hints') <- toDefs =<< tokenize str
+ (expr, hints') <- toDefs str
  let expr' = rename expr
  subs <- unify (liftM2 (++) hints hints') expr'
  let init = simp_loop expr'

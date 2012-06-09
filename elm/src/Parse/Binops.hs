@@ -1,4 +1,4 @@
-module Binop (binops) where
+module Binops (binops) where
 
 import Ast
 import Control.Monad (liftM,guard)

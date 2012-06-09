@@ -1,15 +1,19 @@
-module Parser where
+module Parser (toDefs) where
 
 import Ast
 import Control.Applicative ((<$>), (<*>))
 import Control.Monad
 import Data.Char (isSymbol, isDigit)
 import Data.List (foldl')
-import Text.Parsec
+import Text.Parsec hiding (newline,spaces)
 
 import ParseLib
 import Patterns
-import Binop
+import Binops
+import ParseTypes
+
+import Guid
+import Types (Type (VarT))
 
 --------  Basic Terms  --------
 
@@ -17,7 +21,8 @@ numTerm :: (Monad m) => ParsecT [Char] u m Expr
 numTerm = liftM (Number . read) (many1 digit) <?> "number"
 
 strTerm :: (Monad m) => ParsecT [Char] u m Expr
-strTerm = expecting "string" . liftM Str . betwixt '"' '"' . many $ noneOf "\""
+strTerm = liftM Str . expecting "string" . betwixt '"' '"' . many $
+          backslashed <|> satisfy (/='"')
 
 varTerm :: (Monad m) => ParsecT [Char] u m Expr
 varTerm = toVar <$> var <?> "variable"
@@ -27,20 +32,20 @@ toVar v = case v of "True"  -> Boolean True
                     _       -> Var v
 
 chrTerm :: (Monad m) => ParsecT [Char] u m Expr
-chrTerm = Chr <$> betwixt '\'' '\'' anyChar <?> "character"
+chrTerm = Chr <$> betwixt '\'' '\'' (backslashed <|> satisfy (/='\'')) <?> "character"
 
 
 --------  Complex Terms  --------
 
 listTerm = expecting "list" . betwixtSpcs '[' ']' $ choice
-           [ try $ do { lo <- expr; string ".." ; Range lo <$> expr }
-           , list <$> expr `sepBy` lexeme (char ',')
+           [ try $ do { lo <- expr; symbol ".." ; Range lo <$> expr }
+           , list <$> commaSep expr
            ]
 
 parensTerm = expecting "parenthesized expression" . betwixtSpcs '(' ')' $ choice 
              [ do op <- anyOp
                   return . Lambda "x" . Lambda "y" $ Binop op (Var "x") (Var "y")
-             , do es <- expr `sepBy` lexeme (char ',')
+             , do es <- commaSep expr
                   return $ case es of { [e] -> e; _ -> tuple es }
              ]
 
@@ -74,7 +79,7 @@ lambdaExpr = do lexeme $ oneOf "\\\x03BB"
                 return $ makeFunction args e
 
 assignExpr = do
-  patterns <- patternTerm `endBy1` whitespace; symbol "="; exp <- expr
+  patterns <- (patternTerm <?> "definition") `endBy1` whitespace; symbol "="; exp <- expr
   case patterns of
     PVar f : args -> return (f, makeFunction args exp)
     [PData x ps] -> if "Tuple" == take 5 x && all isDigit (drop 5 x) then
@@ -100,21 +105,21 @@ caseExpr = do
 
 expr = choice [ ifExpr, letExpr, caseExpr, lambdaExpr, binaryExpr ]
 
-aoeu = parse (between whitespace eof expr) ""
-
-symbol = lexeme . try . string 
-arrow  = symbol "->" <|> symbol "\8594"
-
 def = do (f,e) <- assignExpr
          return ([f], [e], guid >>= \x -> return [VarT x])
 
-{--
+manyDefs = try (do { d <- anyDef ; ds <- many freshDef ; return (d:ds) })
+           <|> try (many1 freshDef)
+    where freshDef = try $ many1 freshLine >> anyDef
+          anyDef = def <|> datatype
+
 defs = do
-  (fss,ess,tss) <- unzip3 `liftM` plus (whitespace >> plus (sat (==NEWLINE)) >> def +|+ datatype)
+  ds <- manyDefs
+  let (fss,ess,tss) = unzip3 ds
   let (fs,es,ts) = (concat fss, concat ess, concat `liftM` sequence tss)
-  star $ sat (==NEWLINE) +|+ sat (==SPACES)
+  optional freshLine ; optional whitespace ; eof
   return (Let (zip fs es) (Var "main"), liftM (zip fs) ts)
 
-err = "Parse Error: Better error messages to come!"
-toDefs = parse defs . ('\n':)
---}
+toDefs source = case parse defs "Elm code" source of
+                  Right result -> Right result
+                  Left err -> Left $ show err
