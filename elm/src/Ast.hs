@@ -1,8 +1,11 @@
 
 module Ast where
 
+import Data.Char (isDigit)
+import Data.List (intercalate)
+
 data Pattern = PData String [Pattern] | PVar String | PAnything
-               deriving (Show, Eq)
+               deriving (Eq)
 
 data Expr = Number Int
           | Chr Char
@@ -37,3 +40,17 @@ pcons h t = PData "Cons" [h,t]
 pnil      = PData "Nil" []
 plist     = foldr pcons pnil
 ptuple es = PData ("Tuple" ++ show (length es)) es
+
+parens s = "(" ++ s ++ ")"
+
+instance Show Pattern where
+    show (PVar x)  = x
+    show PAnything = "_"
+    show (PData "Cons" [hd@(PData "Cons" _),tl]) =
+        parens (show hd) ++ " : " ++ show tl
+    show (PData "Cons" [hd,tl]) = show hd ++ " : " ++ show tl
+    show (PData "Nil" []) = "[]"
+    show (PData name ps) =
+        if take 5 name == "Tuple" && all isDigit (drop 5 name) then
+            parens . intercalate ", " $ map show ps
+        else (if null ps then id else parens) $ unwords (name : map show ps)

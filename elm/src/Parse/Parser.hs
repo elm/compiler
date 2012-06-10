@@ -54,7 +54,7 @@ parensTerm = parens $ choice
 term = choice [ numTerm, strTerm, chrTerm
               , accessible varTerm
               , listTerm, parensTerm ]
-       <?> "basic term (number, variable, etc.)"
+       <?> "basic term (4, x, 'c', etc.)"
 
 --------  Applications  --------
 
