@@ -1,15 +1,16 @@
 module ParseTypes where
 
 import Ast
-import Combinators
+import Control.Applicative ((<$>),(<*>))
+import Control.Monad (liftM)
 import Data.Char (isUpper,isLower)
 import Data.Maybe (fromMaybe)
 import Data.List (lookup)
-import ParserLib
-import Tokens
-import Types
+import Text.Parsec
+
+import ParseLib
+import Types hiding (string,parens)
 import Guid
-import Control.Monad (liftM)
 
 data ParseType = VarPT String
                | LambdaPT ParseType ParseType
@@ -18,35 +19,48 @@ data ParseType = VarPT String
 listPT t = ADTPT "List" [t]
 tuplePT ts = ADTPT ("Tuple" ++ show (length ts)) ts
 
-typeVar = liftM VarPT lowVar
-typeList  = do t LBRACKET; te <- typeExpr; t RBRACKET; return $ listPT te
-typeTuple = do { t LPAREN; ts <- sepBy (t COMMA) typeExpr; t RPAREN
-               ; return $ case ts of { [t] -> t ; _ -> tuplePT ts } }
-typeUnambiguous = typeList +|+ typeTuple
+typeVar :: (Monad m) => ParsecT [Char] u m ParseType
+typeVar = VarPT <$> lowVar <?> "type variable"
 
-typeSimple = liftM VarPT var
+typeList :: (Monad m) => ParsecT [Char] u m ParseType
+typeList  = listPT <$> braces typeExpr
+
+typeTuple :: (Monad m) => ParsecT [Char] u m ParseType
+typeTuple = do ts <- parens (commaSep typeExpr)
+               return $ case ts of { [t] -> t ; _ -> tuplePT ts }
+
+typeUnambiguous :: (Monad m) => ParsecT [Char] u m ParseType
+typeUnambiguous = typeList <|> typeTuple
+
+typeSimple :: (Monad m) => ParsecT [Char] u m ParseType
+typeSimple = VarPT <$> var
+
+typeApp :: (Monad m) => ParsecT [Char] u m ParseType
 typeApp = do name <- capVar
-             args <- star (typeSimple +|+ typeUnambiguous)
+             args <- spacePrefix (typeUnambiguous <|> typeSimple)
              return $ case args of
                         [] -> VarPT name
                         _  -> ADTPT name args
-                     
+
+typeExpr :: (Monad m) => ParsecT [Char] u m ParseType
 typeExpr = do
-  t1 <- typeVar +|+ typeApp +|+ typeUnambiguous
-  arrow <- optional $ t ARROW
-  case arrow of Just ARROW -> LambdaPT t1 `liftM` typeExpr
-                Nothing -> return t1
+  t1 <- typeVar <|> typeApp <|> typeUnambiguous
+  whitespace ; arr <- optionMaybe arrow ; whitespace
+  case arr of Just _  -> LambdaPT t1 <$> typeExpr
+              Nothing -> return t1
 
-typeConstructor = do name <- capVar
-                     args <- star (typeSimple +|+ typeUnambiguous)
-                     return $ (,) name args
+typeConstructor :: (Monad m) => ParsecT [Char] u m (String, [ParseType])
+typeConstructor = (,) <$> capVar <*> spacePrefix (typeSimple <|> typeUnambiguous)
 
+datatype :: (Monad m) => ParsecT [Char] u m ([String], [Expr], GuidCounter [Type])
 datatype = do
-  t DATA ; name <- capVar ; args <- star lowVar ; assign
-  tcs <- sepBy1 (opParser (=="|")) typeConstructor
+  reserved "data" <?> "datatype definition (data T = A | B | ...)"
+  forcedWS ; name <- capVar ; args <- spacePrefix lowVar
+  whitespace ; string "=" ; whitespace
+  tcs <- pipeSep1 typeConstructor
   return $ (map fst tcs , map toFunc tcs , toTypes name args tcs)
 
-beta = VarT `liftM` guid
+beta = liftM VarT guid
 
 toFunc (name,args) = foldr Lambda (Data name $ map Var argNames) argNames
     where argNames = map (("a"++) . show) [1..length args]
