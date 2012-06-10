@@ -1,5 +1,5 @@
 Name:                elm-server
-Version:             0.1.2
+Version:             0.2
 Synopsis:            The Elm language server.
 Description:         This package provides a standalone, Happstack-based Elm server.
 
@@ -25,7 +25,6 @@ source-repository head
 
 Executable elm-server
   Main-is:             Server.hs
-  ghc-options:         -Wall
   Build-depends:       base >=4.2 && <5,
                        containers >= 0.3,
                        transformers >= 0.2,
@@ -35,4 +34,4 @@ Executable elm-server
                        HTTP >= 4000,
                        happstack-server == 7.0.2,
                        deepseq,
-                       Elm == 0.1.2.*
+                       Elm >= 0.2
