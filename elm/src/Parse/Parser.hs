@@ -32,7 +32,8 @@ toVar v = case v of "True"  -> Boolean True
                     _       -> Var v
 
 chrTerm :: (Monad m) => ParsecT [Char] u m Expr
-chrTerm = Chr <$> betwixt '\'' '\'' (backslashed <|> satisfy (/='\'')) <?> "character"
+chrTerm = Chr <$> betwixt '\'' '\'' (backslashed <|> satisfy (/='\''))
+          <?> "character"
 
 
 --------  Complex Terms  --------
@@ -67,9 +68,9 @@ appExpr = do
 
 binaryExpr = binops appExpr anyOp
 
-ifExpr = do string "if"   ; forcedWS ; e1 <- expr ; forcedWS
-            string "then" ; forcedWS ; e2 <- expr ; (forcedWS <?> "an 'else' branch")
-            string "else" <?> "an 'else' branch" ; forcedWS ; If e1 e2 <$> expr
+ifExpr = do reserved "if"   ; whitespace ; e1 <- expr ; whitespace
+            reserved "then" ; whitespace ; e2 <- expr ; (whitespace <?> "an 'else' branch")
+            reserved "else" <?> "an 'else' branch" ; whitespace ; If e1 e2 <$> expr
 
 lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
                 whitespace
@@ -87,24 +88,24 @@ assignExpr = do
                         fail "matching tuples is not yet supported in this context"
                     else fail $ "Only tuples can be matched in this context, " ++
                                 "not other abstract data types such as lists."
-    _ -> fail $ "Variables in assign statement are not acceptable: " ++
+    _ -> fail $ "Left-hand side of assign statement is not acceptable: " ++
                 "only named variables, named functions, and tuples are okay."
 
 letExpr = do
-  string "let"
+  reserved "let"
   brace <- optionMaybe . try $ do
              whitespace
              char '{' <?> "a set of definitions { x = ... ; y = ... }"
   case brace of
-    Nothing -> do forcedWS; f <- assignExpr; forcedWS; string "in"; forcedWS;
+    Nothing -> do whitespace; f <- assignExpr; whitespace; reserved "in"; whitespace
                   Let [f] <$> expr
     Just '{' -> do whitespace ; fs <- semiSep1 assignExpr ; whitespace
                    string "}" <?> "closing bracket '}'"
-                   whitespace; string "in"; forcedWS; e <- expr
+                   whitespace; reserved "in"; whitespace; e <- expr
                    return (Let fs e)
 
 caseExpr = do
-  string "case"; forcedWS; e <- expr; forcedWS; string "of"; whitespace
+  reserved "case"; whitespace; e <- expr; whitespace; reserved "of"; whitespace
   Case e <$> brackets (semiSep1 (case_ <?> "cases { x -> ... }"))
     where case_ = do p <- patternExpr; whitespace; arrow; whitespace
                      (,) p <$> expr
@@ -117,14 +118,14 @@ def = do (f,e) <- assignExpr
 
 defs1 = do optional freshLine
            d <- datatype <|> def
-           (d:) <$> many (try (freshLine >> (datatype <|> def)))
+           (d:) <$> many (try (try freshLine >> (datatype <|> def)))
 
 defs = do
   (fss,ess,tss) <- unzip3 <$> defs1
   let (fs,es,ts) = (concat fss, concat ess, concat `liftM` sequence tss)
-  optional freshLine ; optional whitespace ; eof
+  optional freshLine ; optional spaces ; eof
   return (Let (zip fs es) (Var "main"), liftM (zip fs) ts)
 
-toDefs source = case parse defs "Elm code" source of
+toDefs source = case parse defs "" source of
                   Right result -> Right result
-                  Left err -> Left $ show err
+                  Left err -> Left $ "Parse error at " ++ show err

@@ -16,21 +16,13 @@ patternBasic :: Monad m => ParsecT [Char] u m Pattern
 patternBasic =
     choice [ char '_' >> return PAnything
            , do x@(c:_) <- var
-                if isUpper c then PData x <$> patternTerm `endBy` whitespace
+                if isUpper c then PData x <$> spacePrefix patternTerm
                              else return $ PVar x
            ]
 
 patternTuple :: Monad m => ParsecT [Char] u m Pattern
 patternTuple = do ps <- parens (commaSep patternExpr)
                   return $ case ps of { [p] -> p; _ -> ptuple ps }
-
-patternCons :: Monad m => ParsecT [Char] u m Pattern
-patternCons = do
-  p <- patternTerm
-  colon <- optionMaybe (char ':' <?> "more complicated pattern")
-  case colon of
-    Just ':' -> pcons p <$> patternExpr
-    Nothing -> return p
 
 patternList :: Monad m => ParsecT [Char] u m Pattern
 patternList = plist <$> braces (commaSep patternExpr)
@@ -39,4 +31,4 @@ patternTerm :: Monad m => ParsecT [Char] u m Pattern
 patternTerm = patternTuple <|> patternList <|> patternBasic <?> "pattern"
 
 patternExpr :: Monad m => ParsecT [Char] u m Pattern
-patternExpr = patternTuple <|> patternList <|> patternCons <?> "pattern"
+patternExpr = foldl1 pcons <$> consSep1 patternTerm <?> "pattern"

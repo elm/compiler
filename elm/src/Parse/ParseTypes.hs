@@ -1,7 +1,7 @@
 module ParseTypes where
 
 import Ast
-import Control.Applicative ((<$>))
+import Control.Applicative ((<$>),(<*>))
 import Control.Monad (liftM)
 import Data.Char (isUpper,isLower)
 import Data.Maybe (fromMaybe)
@@ -37,7 +37,7 @@ typeSimple = VarPT <$> var
 
 typeApp :: (Monad m) => ParsecT [Char] u m ParseType
 typeApp = do name <- capVar
-             args <- many (typeSimple <|> typeUnambiguous)
+             args <- spacePrefix (typeUnambiguous <|> typeSimple)
              return $ case args of
                         [] -> VarPT name
                         _  -> ADTPT name args
@@ -45,20 +45,17 @@ typeApp = do name <- capVar
 typeExpr :: (Monad m) => ParsecT [Char] u m ParseType
 typeExpr = do
   t1 <- typeVar <|> typeApp <|> typeUnambiguous
-  whitespace ; arrow <- optionMaybe arrow ; whitespace
-  case arrow of Just _  -> LambdaPT t1 <$> typeExpr
-                Nothing -> return t1
+  whitespace ; arr <- optionMaybe arrow ; whitespace
+  case arr of Just _  -> LambdaPT t1 <$> typeExpr
+              Nothing -> return t1
 
 typeConstructor :: (Monad m) => ParsecT [Char] u m (String, [ParseType])
-typeConstructor = do
-  name <- capVar
-  args <- many (try (forcedWS >> (typeSimple <|> typeUnambiguous)))
-  return $ (,) name args
+typeConstructor = (,) <$> capVar <*> spacePrefix (typeSimple <|> typeUnambiguous)
 
 datatype :: (Monad m) => ParsecT [Char] u m ([String], [Expr], GuidCounter [Type])
 datatype = do
-  string "data" <?> "datatype definition (data T = A | B | ...)"
-  forcedWS ; name <- capVar ; args <- many (try (forcedWS >> lowVar))
+  reserved "data" <?> "datatype definition (data T = A | B | ...)"
+  forcedWS ; name <- capVar ; args <- spacePrefix lowVar
   whitespace ; string "=" ; whitespace
   tcs <- pipeSep1 typeConstructor
   return $ (map fst tcs , map toFunc tcs , toTypes name args tcs)

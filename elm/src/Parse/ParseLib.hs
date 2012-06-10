@@ -2,12 +2,12 @@
 module ParseLib where
 
 import Ast
-import Control.Applicative ((<$>))
+import Control.Applicative ((<$>),(<*>))
 import Control.Monad
 import Data.Char (isSymbol)
 import Text.Parsec hiding (newline,spaces)
 
-reserved = [ "if", "then", "else"
+reserveds = [ "if", "then", "else"
            , "case", "of", "data"
            , "let", "in" ]
 
@@ -25,18 +25,22 @@ lowVar = makeVar (lower <?> "lower case variable")
 capVar :: (Monad m) => ParsecT [Char] u m String
 capVar = makeVar (upper <?> "upper case variable")
 
-makeVar p = do
-  c <- p
-  cs <- many (alphaNum <|> char '_' <|> char '\'' <?> "")
-  guard $ c:cs `notElem` reserved
-  return $ c:cs
+innerVarChar :: (Monad m) => ParsecT [Char] u m Char
+innerVarChar = alphaNum <|> char '_' <|> char '\'' <?> "" 
 
+makeVar p = do v <- (:) <$> p <*> many innerVarChar
+               guard (v `notElem` reserveds)
+               return v
+
+reserved word =
+  try (string word >> notFollowedBy innerVarChar) >> return word
+  <?> "reserved word '" ++ word ++ "'"
 
 anyOp :: (Monad m) => ParsecT [Char] u m String
 anyOp = betwixt '`' '`' var <|>
         (do op <- many1 (satisfy isSymbol <|> oneOf "+-/*=.$<>:&|^?%#@~!")
             guard (op `notElem` [ "=", "..", "->", "--" ])
-            return op) <?> "infix operator"
+            return op) <?> "infix operator (e.g. x + y)"
 
 arrow :: (Monad m) => ParsecT [Char] u m String
 arrow = string "->" <|> string "\8594" <?> "arrow (->)"
@@ -45,20 +49,32 @@ commaSep :: (Monad m) => ParsecT [Char] u m a -> ParsecT [Char] u m [a]
 commaSep p = do
   x <- optionMaybe p
   case x of
-    Just a  -> (a:) <$> many (try (whitespace >> char ',' >> whitespace >> p))
+    Just a  -> (a:) <$> many (try (whitespace >> (char ',' <?> "comma ','")) >>
+                              whitespace >> p)
     Nothing -> return []
 
 semiSep1 :: (Monad m) => ParsecT [Char] u m a -> ParsecT [Char] u m [a]
-semiSep1 p = do a <- p
-                (a:) <$> many (try (whitespace >> char ';' >> whitespace >> p))
+semiSep1 p = do
+  a <- p
+  (a:) <$> many (try (whitespace >> (char ';' <?> "semicolon ';'")) >>
+                 whitespace >> p)
 
 pipeSep1 :: (Monad m) => ParsecT [Char] u m a -> ParsecT [Char] u m [a]
-pipeSep1 p = do a <- p
-                (a:) <$> many (try (whitespace >> char '|' >> whitespace >> p))
+pipeSep1 p = do
+  a <- p
+  (a:) <$> many (try (whitespace >> (char '|' <?> "type divider '|'")) >>
+                 whitespace >> p)
+
+consSep1 :: (Monad m) => ParsecT [Char] u m a -> ParsecT [Char] u m [a]
+consSep1 p = do
+  a <- p
+  (a:) <$> many (try (whitespace >> (char ':' <?> "cons operator ':'")) >>
+                 whitespace >> p)
 
 spaceSep1 :: (Monad m) => ParsecT [Char] u m a -> ParsecT [Char] u m [a]
-spaceSep1 p = do a <- p
-                 (a:) <$> many (try (forcedWS >> p))
+spaceSep1 p =  (:) <$> p <*> spacePrefix p
+
+spacePrefix p = many (try (whitespace >> p))
 
 betwixt a b c = do char a ; out <- c
                    char b <?> "closing '" ++ [b] ++ "'" ; return out
