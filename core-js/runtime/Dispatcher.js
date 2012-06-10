@@ -109,7 +109,7 @@ var Dispatcher = function() {
 
     var initialize = function() {
 	try { program = main(); } catch (e) {
-	    document.body.innerHTML = "An Error Occured: Better Messages to come.";
+	    document.body.innerHTML = monospace("Runtime Error:<br>JavaScript " + e);
 	    throw e;
 	}
 	if (!program.hasOwnProperty('recv')) {

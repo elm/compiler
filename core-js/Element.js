@@ -207,11 +207,11 @@ var Element = function() {
   };
 
   var beside = function(a) { return function(b) {
-	  return flow(1)(["Cons",a,["Cons",b,["Nil"]]]); }; };
+	  return flow(4)(["Cons",a,["Cons",b,["Nil"]]]); }; };
   var above = function(a) { return function(b) {
-	  return flow(0)(["Cons",a,["Cons",b,["Nil"]]]); }; };
-  var below = function(a) { return function(b) {
 	  return flow(3)(["Cons",a,["Cons",b,["Nil"]]]); }; };
+  var below = function(a) { return function(b) {
+	  return flow(0)(["Cons",a,["Cons",b,["Nil"]]]); }; };
 
   var box = function(pos) { return function(e) {
 	  e.style.position = "absolute";
