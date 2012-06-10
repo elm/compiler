@@ -92,7 +92,7 @@ math =
 bool =
   [ "not" -: BoolT ==> BoolT ] ++
   hasType (xxb BoolT) ["&&","||"] ++
-  hasType (xxb IntT)  ["==","/=","<",">","<=",">="]
+  hasType (xxb IntT)  ["<",">","<=",">="]
 
 
 --------  Polymorphic Functions  --------
@@ -105,6 +105,8 @@ name -:: tipe = return $ name -: tipe
 
 funcs = sequence
     [ do a <- var          ; "id"   -:: a ==> a
+    , do a <- var          ; "=="   -:: a ==> a ==> BoolT
+    , do a <- var          ; "/="   -:: a ==> a ==> BoolT
     , do [a,b,c] <- vars 3 ; "flip" -:: (a ==> b ==> c) ==> (b ==> a ==> c)
     , do [a,b,c] <- vars 3 ; "."    -:: (b ==> c) ==> (a ==> b) ==> (a ==> c)
     , do [a,b] <- vars 2   ; "$"    -:: (a ==> b) ==> a ==> b

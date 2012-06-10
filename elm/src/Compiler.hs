@@ -11,7 +11,7 @@ main = getArgs >>= parse
 
 parse :: [String] -> IO ()
 parse ("--help":_) = putStrLn usage
-parse ("--version":_) = putStrLn "The Elm Compiler 0.2"
+parse ("--version":_) = putStrLn "The Elm Compiler 0.2.0.1"
 parse [loc,file]
   | "--runtime-location=" `isPrefixOf` loc =
       produceHtml (tail $ dropWhile (/='=') loc) file

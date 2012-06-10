@@ -27,6 +27,18 @@ var flip = function(f){return function(x){return function(y){return f(y)(x);};};
 var Just = function(x) { return ["Just",x]; };
 var Nothing = ["Nothing"];
 
+var eq = function(x,y) {
+    if (typeof x === "object") {
+	if (x === y) return true;
+	if (x.length !== y.length) return false;
+	for (var i = x.length; i--; ) {
+	    if (!eq(x[i],y[i])) return false;
+	}
+	return true;
+    }
+    return x === y;
+};
+
 function constant(v) { return Elm.Input(v); }
 function lift(f) { return function(e) { return Elm.Lift(f, [e]); }; }
 function lift2(f) { return function(e1) { return function(e2) {
