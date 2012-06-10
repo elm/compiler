@@ -68,7 +68,7 @@ rename' env expr =
 extend :: (String -> String) -> String -> GuidCounter (String, String -> String)
 extend env x = do
   n <- guid
-  let rx = x ++ "_" ++ show n
+  let rx = map (\c -> if c == '\'' then '_' else c) $ x ++ "_" ++ show n
   return (rx, \y -> if y == x then rx else env y)
 
 patternExtend :: Pattern -> (String -> String) -> GuidCounter (Pattern, String -> String)
