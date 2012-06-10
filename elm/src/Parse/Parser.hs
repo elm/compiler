@@ -80,7 +80,12 @@ lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
                 return $ makeFunction args e
 
 assignExpr = do
-  patterns <- spaceSep1 (patternTerm <?> "the definition of a variable (x = ...)")
+  patterns <-
+      choice [ try $ do v <- PVar <$> lowVar
+                        notFollowedBy (whitespace >> char ':')
+                        (v:) <$> spacePrefix patternTerm
+             , (:[]) <$> patternExpr
+             ] <?> "the definition of a variable (x = ...)"
   whitespace; string "="; whitespace; exp <- expr
   flattenPatterns patterns exp
 
