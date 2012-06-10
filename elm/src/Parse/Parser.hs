@@ -82,14 +82,7 @@ lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
 assignExpr = do
   patterns <- spaceSep1 (patternTerm <?> "the definition of a variable (x = ...)")
   whitespace; string "="; whitespace; exp <- expr
-  case patterns of
-    PVar f : args -> return (f, makeFunction args exp)
-    [PData x ps] -> if "Tuple" == take 5 x && all isDigit (drop 5 x) then
-                        fail "matching tuples is not yet supported in this context"
-                    else fail $ "Only tuples can be matched in this context, " ++
-                                "not other abstract data types such as lists."
-    _ -> fail $ "Left-hand side of assign statement is not acceptable: " ++
-                "only named variables, named functions, and tuples are okay."
+  flattenPatterns patterns exp
 
 letExpr = do
   reserved "let"
@@ -97,12 +90,12 @@ letExpr = do
              whitespace
              char '{' <?> "a set of definitions { x = ... ; y = ... }"
   case brace of
-    Nothing -> do whitespace; f <- assignExpr; whitespace; reserved "in"; whitespace
-                  Let [f] <$> expr
-    Just '{' -> do whitespace ; fs <- semiSep1 assignExpr ; whitespace
+    Nothing -> do whitespace; ds <- assignExpr
+                  whitespace; reserved "in"; whitespace; Let ds <$> expr
+    Just '{' -> do whitespace ; dss <- semiSep1 assignExpr ; whitespace
                    string "}" <?> "closing bracket '}'"
                    whitespace; reserved "in"; whitespace; e <- expr
-                   return (Let fs e)
+                   return $ Let (concat dss) e
 
 caseExpr = do
   reserved "case"; whitespace; e <- expr; whitespace; reserved "of"; whitespace
@@ -113,8 +106,8 @@ caseExpr = do
 
 expr = choice [ ifExpr, letExpr, caseExpr, lambdaExpr, binaryExpr ] <?> "expression"
 
-def = do (f,e) <- assignExpr
-         return ([f], [e], guid >>= \x -> return [VarT x])
+def = do (fs,es) <- unzip <$> assignExpr
+         return (fs, es, mapM (\_ -> liftM VarT guid) fs)
 
 defs1 = do optional freshLine
            d <- datatype <|> def
