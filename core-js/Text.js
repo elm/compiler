@@ -7,7 +7,7 @@ var Text = function() {
       a.push(elmList[1]);
       elmList = elmList[2];
     }
-    return String.properEscape(a.join(''));
+    return Data.String.properEscape(a.join(''));
   };
 
   var addTag = function(tag) { return function(text) {

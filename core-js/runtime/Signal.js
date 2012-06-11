@@ -105,6 +105,41 @@ var Signal = function() {
 	    height: Elm.Lift(function(p){return p[2];},[dimensions]) };
   }();
 
+  var Keyboard = { Raw : function() {
+    var keysDown = Elm.Input(["Nil"]);
+    var charPressed = Elm.Input(["Nothing"]);
+    function remove(x,xs) {
+	if (xs[0] === "Nil") return xs;
+	if (xs[1] === x) return xs[2];
+	return ["Cons", xs[1], remove(x,xs[2])];
+    }
+    function has(x,xs) {
+	while (xs[0] !== "Nil") {
+	    if (xs[1] === x) return true;
+	    xs = xs[2];
+	}
+	return false;
+    }
+    addListener(document, 'keydown', function(e) {
+	    if (has(e.keyCode, keysDown.value)) return;
+	    Dispatcher.notify(keysDown.id, ["Cons", e.keyCode, keysDown.value]);
+	});
+    addListener(document, 'keyup', function(e) {
+	    var codes = remove(e.keyCode, keysDown.value)
+	    Dispatcher.notify(keysDown.id, codes);
+	});
+    addListener(window, 'blur', function(e) {
+	    Dispatcher.notify(keysDown.id, ["Nil"]);
+	});
+    addListener(document, 'keypress', function(e) {
+	    Dispatcher.notify(charPressed.id, ["Just",e.charCode || e.keyCode]);
+	    Dispatcher.notify(charPressed.id, ["Nothing"]);
+	});
+    return {keysDown:keysDown,
+	    charPressed:charPressed};
+      }()
+  };
+
   var HTTP = function() {
       var fetch = function(how) { return function(url) {
 	      var thread = Elm.Input(["Waiting"]);
@@ -119,7 +154,7 @@ var Signal = function() {
 					: ["Failure", request.status, toElmString(request.statusText)]);
 		  }
 	      };
-	      request.open(how, String.toText(url), true);
+	      request.open(how, Data.String.toText(url), true);
 	      request.send(null);
 	      return thread;
 	  };
@@ -147,7 +182,7 @@ var Signal = function() {
 					     : ["Failure", request.status, toElmString(request.statusText)]]);
 		      }
 		  };
-		  request.open(how, String.toText(strOpt[1]), true);
+		  request.open(how, Data.String.toText(strOpt[1]), true);
 		  request.send(null);
 		  return [];
 	      }
@@ -249,6 +284,11 @@ var Signal = function() {
 	      button:button};
   }();
 
-  return {Mouse:Mouse, Time:Time, Window:Window,
-	  HTTP:HTTP, Random:Random, Input:Input };
+  return {Mouse:Mouse,
+	  Keyboard:Keyboard,
+	  Time:Time,
+	  Window:Window,
+	  HTTP:HTTP,
+	  Random:Random,
+	  Input:Input };
 }();

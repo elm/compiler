@@ -10,6 +10,25 @@ var Value = function(){
       return arr;
   };
 
+  var properEscape = function(str) {
+    str.replace('"', "&#34;");
+    str.replace("&", "&#38;");
+    str.replace("'", "&#39;");
+    str.replace("<", "&#60;");
+    str.replace(">", "&#62;");
+    return str;
+  };
+
+  var toText = function(elmList) {
+    if (typeof elmList === "string") return elmList;
+    var a = [];
+    while (elmList[0] === "Cons") {
+      a.push(elmList[1]);
+      elmList = elmList[2];
+    }
+    return properEscape(a.join(''));
+  };
+
   var toString = function(v) {
     if (typeof v === "boolean") {
 	return v ? "True" : "False";
@@ -51,7 +70,7 @@ var Value = function(){
     return v+"";
   };
   var show = function(v) {
-      return Text.monospace(String.properEscape(toString(v)));
+      return Text.monospace(properEscape(toString(v)));
   };
   var append = function(xs,ys) {
     if (typeof xs === "string" && typeof ys === "string") {
@@ -71,5 +90,10 @@ var Value = function(){
     curr[2] = ys;
     return root;
   };
-  return {show:show, Tuple:Tuple, append:append};
+  
+  return {show:show,
+	  Tuple:Tuple,
+	  append:append,
+	  toText : toText,
+	  properEscape : properEscape};
 }();

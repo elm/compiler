@@ -83,12 +83,13 @@ var includeGlobal = this;
   height = Element.height;
   show = Value.show;
 
-  includeAs ('Time')   (Signal.Time);
-  includeAs ('Mouse')  (Signal.Mouse);
-  includeAs ('Window') (Signal.Window);
-  includeAs ('HTTP')   (Signal.HTTP);
-  includeAs ('Input')  (Signal.Input);
-  includeAs ('Random') (Signal.Random);
+  includeAs ('Time')     (Signal.Time);
+  includeAs ('Mouse')    (Signal.Mouse);
+  includeAs ('Keyboard') (Signal.Keyboard);
+  includeAs ('Window')   (Signal.Window);
+  includeAs ('HTTP')     (Signal.HTTP);
+  includeAs ('Input')    (Signal.Input);
+  includeAs ('Random')   (Signal.Random);
   
   include (Color);
   include (Shape);

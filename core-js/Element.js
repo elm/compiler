@@ -74,7 +74,7 @@ var Element = function() {
 
   var text = makeText(0)('left');
   var plainText = function(str) {
-      return makeText(0)("left")(String.toText(str)); };
+      return makeText(0)("left")(Data.String.toText(str)); };
   var justifiedText = makeText(0)('justify');
   var centeredText = makeText(0)('center');
   var asText = function(v) { return makeText(0)("left")(Value.show(v)); };
@@ -91,7 +91,7 @@ var Element = function() {
 	}
 	Dispatcher.adjust()
     };
-    img.src = String.toText(src);
+    img.src = Data.String.toText(src);
     img.name = img.src;
     return img;
   };
@@ -120,14 +120,14 @@ var Element = function() {
 			   0,0, canvas.width, canvas.height);
 	   }
 	};
-	img.src = String.toText(src);
+	img.src = Data.String.toText(src);
 	return canvas;
       };
     };
   };
 
   var video = function(src) {
-    src = String.toText(src);
+    src = Data.String.toText(src);
     var e = newElement('video');
     e.controls = "controls";
     var source = newElement('source');
@@ -138,7 +138,7 @@ var Element = function() {
     return e;
   };
   var audio = function(src) {
-    src = String.toString(src);
+    src = Data.String.toString(src);
     var e = newElement('video');
     e.controls = "controls";
     var source = newElement('source');
