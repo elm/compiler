@@ -3,6 +3,18 @@ module Ast where
 
 import Data.Char (isDigit)
 import Data.List (intercalate)
+import Types
+import Guid
+
+data Module = Module String Exports Imports Defs
+
+type Exports = [String]
+
+data Imports = Imports [(String, ImportMethod)]
+data ImportMethod = As String | Hiding [String] | Importing [String]
+
+type Defs = [(String,Expr)]
+
 
 data Pattern = PData String [Pattern] | PVar String | PAnything
                deriving (Eq)

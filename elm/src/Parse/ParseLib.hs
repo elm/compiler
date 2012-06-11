@@ -8,8 +8,10 @@ import Data.Char (isSymbol)
 import Text.Parsec hiding (newline,spaces)
 
 reserveds = [ "if", "then", "else"
-           , "case", "of", "data"
-           , "let", "in" ]
+            , "case", "of", "data"
+            , "let", "in"
+            , "module", "where"
+            , "import", "as", "hiding" ]
 
 expecting = flip (<?>)
 
@@ -46,12 +48,12 @@ arrow :: (Monad m) => ParsecT [Char] u m String
 arrow = string "->" <|> string "\8594" <?> "arrow (->)"
 
 commaSep :: (Monad m) => ParsecT [Char] u m a -> ParsecT [Char] u m [a]
-commaSep p = do
-  x <- optionMaybe p
-  case x of
-    Just a  -> (a:) <$> many (try (whitespace >> (char ',' <?> "comma ','")) >>
-                              whitespace >> p)
-    Nothing -> return []
+commaSep p = option [] (commaSep1 p)
+
+commaSep1 :: (Monad m) => ParsecT [Char] u m a -> ParsecT [Char] u m [a]
+commaSep1 p =
+    (:) <$> p <*> many (try (whitespace >> (char ',' <?> "comma ','")) >>
+                        whitespace >> p)
 
 semiSep1 :: (Monad m) => ParsecT [Char] u m a -> ParsecT [Char] u m [a]
 semiSep1 p = do
@@ -70,6 +72,9 @@ consSep1 p = do
   a <- p
   (a:) <$> many (try (whitespace >> (char ':' <?> "cons operator ':'")) >>
                  whitespace >> p)
+
+dotSep1 :: (Monad m) => ParsecT [Char] u m a -> ParsecT [Char] u m [a]
+dotSep1 p = (:) <$> p <*> many (try (char '.') >> p)
 
 spaceSep1 :: (Monad m) => ParsecT [Char] u m a -> ParsecT [Char] u m [a]
 spaceSep1 p =  (:) <$> p <*> spacePrefix p
