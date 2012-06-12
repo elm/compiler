@@ -3,27 +3,70 @@ module CompileToJS (compile, compileToJS) where
 
 import Ast
 import Control.Monad (liftM,(<=<),join)
-import Data.Char (isAlpha)
-import Data.List (intercalate,sortBy)
+import Data.Char (isAlpha,isDigit)
+import Data.List (intercalate,sortBy,inits)
 import Data.Map (toList)
+import Data.Maybe (mapMaybe)
 
 import Initialize
 
 showErr :: String -> String
-showErr err = "text(monospace(" ++ msg ++ "))"
+showErr err = mainEquals $ "text(monospace(" ++ msg ++ "))"
     where msg = show . concatMap (++"<br>") . lines $ err
 
-compile = (return . addMain . toJS) <=< initialize
-compileToJS = addMain . either showErr toJS
-addMain body = "function main(){return " ++ body ++ ";}"
+compile str = jsModule `liftM` initialize str
+compileToJS = either showErr jsModule
 
 parens = ("("++) . (++")")
 braces = ("{"++) . (++"}")
 jsList = ("["++) . (++"]") . intercalate ","
 jsFunc args body = "function(" ++ args ++ "){" ++ body ++ "}"
-assign x e = "var " ++ x ++ "=" ++ e ++ ";"
-ret e = "return "++ e ++";"
+assign x e = "\nvar " ++ x ++ "=" ++ e ++ ";"
+ret e = "\nreturn "++ e ++";"
 iff a b c = a ++ "?" ++ b ++ ":" ++ c
+
+mainEquals s = globalAssign "ElmCode.main" (jsFunc "" (ret s))
+globalAssign m s = "\n" ++ m ++ "=" ++ s ++ ";"
+
+tryBlock e = 
+    unlines [ "\ntry{\n" ++ e ++ "\n\n} catch (e) {"
+            , "ElmCode.main=function() {"
+	    , "var msg = ('<br><h2>Your browser may not be supported. Are you using a modern browser?</h2>' +" ++
+              " '<br><span style=\"grey\">Runtime Error:<br>' + e + '</span>')"
+	    , "document.body.innerHTML = Text.monospace(msg);"
+            , "throw e;"
+            , "};}"
+            ]
+
+
+jsModule (Module names exports imports defs) =
+    tryBlock $ unwords
+                 [ concatMap (\n -> globalAssign n $ n ++ " || {}") . map (intercalate ".") . drop 2 . inits $ take (length modNames - 1) modNames
+                 , "\nif (" ++ modName ++ ") throw 'Module name collision, " ++ intercalate "." names ++ " is already defined.'; "
+                 , globalAssign modName $ jsFunc "" (includes ++ body ++ export) ++ "()"
+                 , mainEquals $ modName ++ ".main" ]
+        where modNames = if null names then ["ElmCode", "Main"] else "ElmCode" : names
+              modName  = intercalate "." modNames
+              includes = concatMap jsImport $
+                         map (\(x,y) -> ("ElmCode." ++ x,y)) imports
+              body = jsDefs defs
+              export = ret . braces . intercalate "," $ mapMaybe getNames defs
+              exps = if null exports then ["main"] else exports
+              getNames (x,_) =
+                  let y = reverse . tail . dropWhile isDigit $ reverse x in
+                  if y `elem` exps then Just $ y ++ ":" ++ x else Nothing
+
+jsImport (modul, As name) = assign name modul
+jsImport (modul, Importing []) = jsImport (modul, Hiding [])
+jsImport (modul, Importing vs) =
+    concatMap (\v -> assign v $ modul ++ "." ++ v) vs
+jsImport (modul, Hiding vs) =
+    unwords [ "\nfor(var i in " ++ modul ++ "){"
+            , assign "hiddenVars" . jsList $ map (\v -> "'" ++ v ++ "'") vs
+            , "\nif (hiddenVars.indexOf(i) >= 0) continue;"
+            , globalAssign "this[i]" $ modul ++ "[i]"
+            , "}" ]
+
 
 toJS expr =
     case expr of
@@ -45,13 +88,14 @@ toJS expr =
       Case e cases -> jsCase e cases
       Data name es -> jsList $ show name : map toJS es
 
-jsLet defs e' = jsFunc "" (defs' ++ ret (toJS e')) ++ "()"
-    where defs' = concatMap toDef $ sortBy f defs
-          f a b = compare (isLambda a) (isLambda b)
+jsLet defs e' = jsFunc "" (jsDefs defs ++ ret (toJS e')) ++ "()"
+
+jsDefs defs = concatMap toDef $ sortBy f defs
+    where f a b = compare (isLambda a) (isLambda b)
           isLambda (_, Lambda _ _) = 1
           isLambda _ = 0
           toDef (f, Lambda x e) =
-              "function " ++ f ++ parens x ++ braces (ret $ toJS e) ++ ";"
+              "\nfunction " ++ f ++ parens x ++ braces (ret $ toJS e) ++ ";"
           toDef (x, e) = assign x (toJS e)
 
 jsCase e  [c]  = jsMatch c ++ parens (toJS e)

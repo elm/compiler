@@ -7,6 +7,7 @@ import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5 ((!))
 import qualified Text.Blaze.Html5.Attributes as A
 
+import Ast
 import Initialize
 import CompileToJS
 import ExtractNoscript
@@ -34,9 +35,9 @@ generateHtml :: String -- ^ Location of elm-min.js as expected by the browser
              -> String -- ^ The elm source code.
              -> Html
 generateHtml libLoc title source =
-    let expr = initialize source
-        js = compileToJS expr
-        noscript = either id extract expr
+    let modul = initialize source
+        js = compileToJS modul
+        noscript = either id extract modul
     in
     H.docTypeHtml $ do 
       H.head $ do
@@ -49,11 +50,11 @@ generateHtml libLoc title source =
 
 body noscript = do
   H.div ! A.id "widthChecker" ! A.style "width:100%; height:1px; position:absolute; top:-1px;" $ ""
-  H.span ! A.id "content" $ ""
+  H.div ! A.id "content" $ ""
   H.script ! A.type_ "text/javascript" $ "Dispatcher.initialize()"
   H.noscript $ preEscapedToMarkup noscript
 
 widgetBody noscript = do
   H.div ! A.id "widthChecker" ! A.style "width:100%; height:1px; position:absolute; top:-1px;" $ ""
-  H.span ! A.id "content" $ ""
+  H.div ! A.id "content" $ ""
   H.noscript $ preEscapedToMarkup noscript

@@ -6,11 +6,11 @@ import Data.List (intercalate)
 import Types
 import Guid
 
-data Module = Module String Exports Imports Defs
+data Module = Module [String] Exports Imports Defs
 
 type Exports = [String]
 
-data Imports = Imports [(String, ImportMethod)]
+type Imports = [(String, ImportMethod)]
 data ImportMethod = As String | Hiding [String] | Importing [String]
 
 type Defs = [(String,Expr)]

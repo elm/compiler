@@ -28,10 +28,9 @@ sortOps = sortBy (\(i,_,_) (j,_,_) -> compare i j)
 binops term anyOp = do
   e <- term
   (ops,es) <- liftM unzip $
-                    many (try $ do { whitespace
-                                   ; op <- anyOp
-                                   ; whitespace
-                                   ; e <- term; return (op,e) })
+                    many (commitIf (whitespace >> anyOp) $ do { whitespace ; op <- anyOp
+                                   ; whitespace ; e <- term
+                                   ; return (op,e) })
   case binopOf Map.empty (sortOps table) ops (e:es) of
     Right e -> return e
     Left msg -> fail msg

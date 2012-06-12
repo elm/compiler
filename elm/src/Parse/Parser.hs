@@ -13,24 +13,25 @@ import ParseTypes
 import ParseModules
 
 
+freshDef = commitIf (freshLine >> (letter <|> char '_')) $ do
+             freshLine
+             datatype <|> def <?> "another datatype or variable definition"
 
-defs1 = do d <- datatype <|> def <?> "at least one definition"
-           (d:) <$> many (try (try freshLine >> (datatype <|> def)))
+defs1 = do d <- datatype <|> def <?> "at least one datatype or variable definition"
+           (d:) <$> many freshDef
 
 defs = do
   (fss,ess,tss) <- unzip3 <$> defs1
   return (concat fss, concat ess, concat `liftM` sequence tss)
 
-
 program = do
   optional freshLine
-  (name,exports) <- option ("",[]) moduleDef
-  freshLine
-  is <- imports
-  freshLine
-  ds <- defs
+  (names,exports) <- option ([],[]) (moduleDef `followedBy` freshLine)
+  is <- (do try (lookAhead $ reserved "import")
+            imports `followedBy` freshLine) <|> return []
+  (vs,es,ts) <- defs
   optional freshLine ; optional spaces ; eof
-  return (Module name exports is, ds)
+  return (Module names exports is $ zip vs es, zip vs `liftM` ts)
 
 parseProgram source = 
     case parse program "" source of

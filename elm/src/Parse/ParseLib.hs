@@ -42,36 +42,35 @@ anyOp :: (Monad m) => ParsecT [Char] u m String
 anyOp = betwixt '`' '`' var <|>
         (do op <- many1 (satisfy isSymbol <|> oneOf "+-/*=.$<>:&|^?%#@~!")
             guard (op `notElem` [ "=", "..", "->", "--" ])
-            return op) <?> "infix operator (e.g. x + y)"
+            return op) <?> "infix operator (e.g. +, *, ||)"
 
 arrow :: (Monad m) => ParsecT [Char] u m String
 arrow = string "->" <|> string "\8594" <?> "arrow (->)"
 
-commaSep :: (Monad m) => ParsecT [Char] u m a -> ParsecT [Char] u m [a]
-commaSep p = option [] (commaSep1 p)
+
+commitIf check p = commit <|> try p
+    where commit = do (try $ lookAhead check) >> p
+
+spaceySepBy1 :: (Monad m) => ParsecT [Char] u m b -> ParsecT [Char] u m a -> ParsecT [Char] u m [a]
+spaceySepBy1 sep p = do
+  a <- p
+  (a:) <$> many (commitIf (whitespace >> sep) (whitespace >> sep >> whitespace >> p))
+
 
 commaSep1 :: (Monad m) => ParsecT [Char] u m a -> ParsecT [Char] u m [a]
-commaSep1 p =
-    (:) <$> p <*> many (try (whitespace >> (char ',' <?> "comma ','")) >>
-                        whitespace >> p)
+commaSep1 = spaceySepBy1 (char ',' <?> "comma ','")
+
+commaSep :: (Monad m) => ParsecT [Char] u m a -> ParsecT [Char] u m [a]
+commaSep = option [] . commaSep1
 
 semiSep1 :: (Monad m) => ParsecT [Char] u m a -> ParsecT [Char] u m [a]
-semiSep1 p = do
-  a <- p
-  (a:) <$> many (try (whitespace >> (char ';' <?> "semicolon ';'")) >>
-                 whitespace >> p)
+semiSep1 = spaceySepBy1 (char ';' <?> "semicolon ';'")
 
 pipeSep1 :: (Monad m) => ParsecT [Char] u m a -> ParsecT [Char] u m [a]
-pipeSep1 p = do
-  a <- p
-  (a:) <$> many (try (whitespace >> (char '|' <?> "type divider '|'")) >>
-                 whitespace >> p)
+pipeSep1 = spaceySepBy1 (char '|' <?> "type divider '|'")
 
 consSep1 :: (Monad m) => ParsecT [Char] u m a -> ParsecT [Char] u m [a]
-consSep1 p = do
-  a <- p
-  (a:) <$> many (try (whitespace >> (char ':' <?> "cons operator ':'")) >>
-                 whitespace >> p)
+consSep1 = spaceySepBy1 (char ':' <?> "cons operator ':'")
 
 dotSep1 :: (Monad m) => ParsecT [Char] u m a -> ParsecT [Char] u m [a]
 dotSep1 p = (:) <$> p <*> many (try (char '.') >> p)
@@ -79,7 +78,9 @@ dotSep1 p = (:) <$> p <*> many (try (char '.') >> p)
 spaceSep1 :: (Monad m) => ParsecT [Char] u m a -> ParsecT [Char] u m [a]
 spaceSep1 p =  (:) <$> p <*> spacePrefix p
 
-spacePrefix p = many (try (whitespace >> p))
+spacePrefix p = many (commitIf (whitespace >> (char '[' <|> char '(')) (whitespace >> p))
+
+followedBy a b = do x <- a ; b ; return x
 
 betwixt a b c = do char a ; out <- c
                    char b <?> "closing '" ++ [b] ++ "'" ; return out

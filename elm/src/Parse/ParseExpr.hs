@@ -79,16 +79,6 @@ lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
                 e <- expr
                 return $ makeFunction args e
 
-assignExpr = do
-  patterns <-
-      choice [ try $ do v <- PVar <$> lowVar
-                        notFollowedBy (whitespace >> char ':')
-                        (v:) <$> spacePrefix patternTerm
-             , (:[]) <$> patternExpr
-             ] <?> "the definition of a variable (x = ...)"
-  whitespace; string "="; whitespace; exp <- expr
-  flattenPatterns patterns exp
-
 letExpr = do
   reserved "let"
   brace <- optionMaybe . try $ do
@@ -108,13 +98,24 @@ caseExpr = do
     where case_ = do p <- patternExpr; whitespace; arrow; whitespace
                      (,) p <$> expr
 
+expr = choice [ ifExpr, letExpr, caseExpr
+              , lambdaExpr, binaryExpr ] <?> "an expression"
 
-expr = choice [ ifExpr, letExpr, caseExpr, lambdaExpr, binaryExpr ] <?> "expression"
+assignExpr = do
+  patterns <-
+      choice [ try $ do v <- PVar <$> lowVar
+                        notFollowedBy (whitespace >> char ':')
+                        (v:) <$> spacePrefix patternTerm
+             , (:[]) <$> patternExpr
+             ] <?> "the definition of a variable (x = ...)"
+  whitespace; string "="; whitespace; exp <- expr
+  flattenPatterns patterns exp
+
 
 def = do (fs,es) <- unzip <$> assignExpr
          return (fs, es, mapM (\_ -> liftM VarT guid) fs)
 
-parseDef str = 
+parseDef str =
     case parse def "" str of
       Right result -> Right result
       Left err -> Left $ "Parse error at " ++ show err

@@ -36,7 +36,7 @@ typeSimple :: (Monad m) => ParsecT [Char] u m ParseType
 typeSimple = VarPT <$> var
 
 typeApp :: (Monad m) => ParsecT [Char] u m ParseType
-typeApp = do name <- capVar
+typeApp = do name <- capVar <?> "type constructor"
              args <- spacePrefix (typeUnambiguous <|> typeSimple)
              return $ case args of
                         [] -> VarPT name
@@ -50,12 +50,12 @@ typeExpr = do
               Nothing -> return t1
 
 typeConstructor :: (Monad m) => ParsecT [Char] u m (String, [ParseType])
-typeConstructor = (,) <$> capVar <*> spacePrefix (typeSimple <|> typeUnambiguous)
+typeConstructor = (,) <$> (capVar <?> "another type constructor") <*> spacePrefix (typeSimple <|> typeUnambiguous)
 
 datatype :: (Monad m) => ParsecT [Char] u m ([String], [Expr], GuidCounter [Type])
 datatype = do
   reserved "data" <?> "datatype definition (data T = A | B | ...)"
-  forcedWS ; name <- capVar ; args <- spacePrefix lowVar
+  forcedWS ; name <- capVar <?> "name of data-type" ; args <- spacePrefix lowVar
   whitespace ; string "=" ; whitespace
   tcs <- pipeSep1 typeConstructor
   return $ (map fst tcs , map toFunc tcs , toTypes name args tcs)
