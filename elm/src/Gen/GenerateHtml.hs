@@ -25,6 +25,18 @@ css = H.style ! A.type_ "text/css" $ preEscapedToMarkup
 makeScript :: String -> H.Html
 makeScript s = H.script ! A.type_ "text/javascript" ! A.src (H.toValue s) $ ""
 
+scriptForModule :: String -> H.Html
+scriptForModule modul =
+    makeScript $ "/" ++ map (\c -> if c == '.' then '/' else c) modul ++ ".js"
+
+builtInModules =
+    concat [ map ("Data."++)   [ "List", "Char", "Maybe" ]
+           , map ("Signal."++) [ "Mouse", "Keyboard.Raw"
+                               , "Window", "Time", "HTTP", "Input", "Random" ]
+           , [ "Element", "Text", "Color", "Line" ]
+           , [ "Prelude" ]
+           ]
+
 -- |This function compiles Elm code into simple HTML.
 --
 --  Usage example:
@@ -36,6 +48,8 @@ generateHtml :: String -- ^ Location of elm-min.js as expected by the browser
              -> Html
 generateHtml libLoc title source =
     let modul = initialize source
+        imports = filter (`notElem` builtInModules) $
+                  either (const []) (\(Module _ _ is _) -> map fst is) modul
         js = compileToJS modul
         noscript = either id extract modul
     in
@@ -44,6 +58,7 @@ generateHtml libLoc title source =
         H.meta ! A.charset "UTF-8"
         H.title . H.toHtml $ title
         makeScript libLoc
+        mapM scriptForModule imports
         H.script ! A.type_ "text/javascript" $ preEscapedToMarkup js
         css
       H.body $ body noscript
