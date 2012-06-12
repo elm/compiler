@@ -42,28 +42,46 @@ var Element = function() {
     addTo(div, e);
     return div;
   };
+
+  var rectangle = function(w) { return function(h) {
+	  var e = newElement('div');
+	  e.isElmLeaf = true;
+	  e.style.width = w + "px";
+	  e.style.height = h + "px";
+	  return e;
+      };
+  };
+
   var makeText = function(w) { return function(pos) { return function(txt) {
 	var e = newElement('div');
+	e.isElmLeaf = true;
 	e.isElmText = true;
 	e.innerHTML = txt;
 	e.style.textAlign = pos;
 	if (w > 0) e.style.width = w + "px";
-	e.isElmLeaf = true;
-	e.style.visibility = "hidden";
-	e.style.styleFloat = "left";
-	e.style.cssFloat = "left";
-	document.body.appendChild(e);
-	var cStyle = window.getComputedStyle(e);
-	if (w <= 0) e.style.width  = cStyle.getPropertyValue("width");
-	e.style.height = cStyle.getPropertyValue("height");
-	document.body.removeChild(e);
-	e.style.visibility = "visible"
-	e.style.styleFloat = "none";
-	e.style.cssFloat = "none";
 	return e;
       };
     };
   };
+  var correctTextSize = function(e) {
+    var w = e.style.width ? e.style.width.slice(0,-2) : 0;
+
+    var t = newElement('div');
+    t.innerHTML = "&nbsp;" + e.innerHTML;
+    t.style.textAlign = e.style.textAlign;
+    if (w > 0) { t.style.width = w + "px"; }
+    
+    t.style.visibility = "hidden";
+    t.style.styleFloat = "left";
+    t.style.cssFloat = "left";
+    
+    document.body.appendChild(t);
+    var cStyle = window.getComputedStyle(t);
+    if (w <= 0) e.style.width = cStyle.getPropertyValue("width");
+    e.style.height = cStyle.getPropertyValue("height");
+    document.body.removeChild(t);
+  };
+
   var link = function (href) { return function (e) {
 	  var a = newElement('a');
 	  a.href = Text.fromString(href);
@@ -77,6 +95,7 @@ var Element = function() {
       return makeText(0)("left")(Data.String.toText(str)); };
   var justifiedText = makeText(0)('justify');
   var centeredText = makeText(0)('center');
+  var rightedText = makeText(0)('right');
   var asText = function(v) { return makeText(0)("left")(Value.show(v)); };
 
   var image = function(src) {
@@ -275,6 +294,7 @@ var Element = function() {
 	  collage : collage,
 	  flow : flow,
 	  layers : flow(2),
+	  rectangle : rectangle,
 
 	  beside : beside,
 	  above : above,
@@ -292,6 +312,7 @@ var Element = function() {
 	  plainText : plainText,
 	  justifiedText : justifiedText,
 	  centeredText : centeredText,
+	  rightedText : rightedText,
 
 	  // directions
 	  up : 0,
@@ -299,7 +320,9 @@ var Element = function() {
 	  inward : 2,
 	  down : 3,
 	  right : 4,
-	  outward : 5
+	  outward : 5,
+
+	  correctTextSize : correctTextSize
 	  };
 }();
 	  

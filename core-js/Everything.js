@@ -94,4 +94,10 @@ var includeGlobal = this;
   include (Color);
   include (Shape);
   include (Line);
+
 }());
+
+var ElmCode = {};
+ElmCode.Data = Data;
+ElmCode.Signal = Signal;
+ElmCode.Data.List = List;

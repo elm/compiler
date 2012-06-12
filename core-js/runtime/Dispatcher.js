@@ -74,6 +74,7 @@ var Dispatcher = function() {
 	var kids = e.childNodes;
 	var len = kids.length;
 	if (e.hasOwnProperty('isElmLeaf')) {
+	    if (e.hasOwnProperty('isElmText')) { Element.correctTextSize(e); }
 	    var w = e.style.width === "" ?
 		0 : e.style.width.slice(0,-2) - 0;
 	    var h = e.style.height === "" ?
@@ -108,8 +109,11 @@ var Dispatcher = function() {
     };
 
     var initialize = function() {
-	try { program = main(); } catch (e) {
-	    document.body.innerHTML = monospace("Runtime Error:<br>JavaScript " + e);
+	var prog = ElmCode.hasOwnProperty("main") ? ElmCode.main : main;
+	try { program = prog(); } catch (e) {
+	    var msg = ("<br><h2>Your browser may not be supported. Are you using a modern browser?</h2>" +
+		       "<br><span style=\"grey\">Runtime Error:<br>" + e + "</span>")
+	    document.body.innerHTML = Text.monospace(msg);
 	    throw e;
 	}
 	if (!program.hasOwnProperty('recv')) {
