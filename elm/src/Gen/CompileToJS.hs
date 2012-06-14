@@ -1,5 +1,5 @@
 
-module CompileToJS (compile, compileToJS) where
+module CompileToJS (showErr, jsModule) where
 
 import Ast
 import Control.Monad (liftM,(<=<),join)
@@ -14,9 +14,6 @@ showErr :: String -> String
 showErr err = mainEquals $ "text(monospace(" ++ msg ++ "))"
     where msg = show . concatMap (++"<br>") . lines $ err
 
-compile str = jsModule `liftM` initialize str
-compileToJS = either showErr jsModule
-
 parens = ("("++) . (++")")
 braces = ("{"++) . (++"}")
 jsList = ("["++) . (++"]") . intercalate ","
@@ -28,11 +25,13 @@ iff a b c = a ++ "?" ++ b ++ ":" ++ c
 mainEquals s = globalAssign "ElmCode.main" (jsFunc "" (ret s))
 globalAssign m s = "\n" ++ m ++ "=" ++ s ++ ";"
 
-tryBlock e = 
+tryBlock names e = 
     unlines [ "\ntry{\n" ++ e ++ "\n\n} catch (e) {"
             , "ElmCode.main=function() {"
-	    , "var msg = ('<br><h2>Your browser may not be supported. Are you using a modern browser?</h2>' +" ++
-              " '<br><span style=\"grey\">Runtime Error:<br>' + e + '</span>')"
+	    , "var msg = ('<br><h2>Your browser may not be supported. " ++
+              "Are you using a modern browser?</h2>' +" ++
+              " '<br><span style=\"color:grey\">Runtime Error in " ++
+              intercalate "." names ++ " module:<br>' + e + '</span>')"
 	    , "document.body.innerHTML = Text.monospace(msg);"
             , "throw e;"
             , "};}"
@@ -40,7 +39,7 @@ tryBlock e =
 
 
 jsModule (Module names exports imports defs) =
-    tryBlock $ unwords
+    tryBlock (tail modNames) $ unwords
                  [ concatMap (\n -> globalAssign n $ n ++ " || {}") . map (intercalate ".") . drop 2 . inits $ take (length modNames - 1) modNames
                  , "\nif (" ++ modName ++ ") throw 'Module name collision, " ++ intercalate "." names ++ " is already defined.'; "
                  , globalAssign modName $ jsFunc "" (includes ++ body ++ export) ++ "()"

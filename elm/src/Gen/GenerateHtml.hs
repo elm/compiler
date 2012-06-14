@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
-module GenerateHtml (generateHtml, body, css, widgetBody) where
+module GenerateHtml (generateHtml, body, css, widgetBody, modulesToHtml) where
 
+import Data.List (intercalate)
 import Text.Blaze (preEscapedToMarkup)
 import Text.Blaze.Html (Html)
 import qualified Text.Blaze.Html5 as H
@@ -25,17 +26,6 @@ css = H.style ! A.type_ "text/css" $ preEscapedToMarkup
 makeScript :: String -> H.Html
 makeScript s = H.script ! A.type_ "text/javascript" ! A.src (H.toValue s) $ ""
 
-scriptForModule :: String -> H.Html
-scriptForModule modul =
-    makeScript $ "/" ++ map (\c -> if c == '.' then '/' else c) modul ++ ".js"
-
-builtInModules =
-    concat [ map ("Data."++)   [ "List", "Char", "Maybe" ]
-           , map ("Signal."++) [ "Mouse", "Keyboard.Raw"
-                               , "Window", "Time", "HTTP", "Input", "Random" ]
-           , [ "Element", "Text", "Color", "Line" ]
-           , [ "Prelude" ]
-           ]
 
 -- |This function compiles Elm code into simple HTML.
 --
@@ -47,18 +37,22 @@ generateHtml :: String -- ^ Location of elm-min.js as expected by the browser
              -> String -- ^ The elm source code.
              -> Html
 generateHtml libLoc title source =
-    let modul = initialize source
-        imports = filter (`notElem` builtInModules) $
-                  either (const []) (\(Module _ _ is _) -> map fst is) modul
-        js = compileToJS modul
-        noscript = either id extract modul
-    in
+    case initialize source of
+      Left err -> createHtml libLoc title (showErr err) (H.noscript "")
+      Right modul -> modulesToHtml libLoc [modul]
+
+
+modulesToHtml libLoc modules = createHtml libLoc title js noscript
+    where title = (\(Module names _ _ _) -> intercalate "." names) $ last modules
+          js = concatMap jsModule modules
+          noscript = extract $ last modules
+
+createHtml libLoc title js noscript =
     H.docTypeHtml $ do 
       H.head $ do
         H.meta ! A.charset "UTF-8"
         H.title . H.toHtml $ title
         makeScript libLoc
-        mapM scriptForModule imports
         H.script ! A.type_ "text/javascript" $ preEscapedToMarkup js
         css
       H.body $ body noscript

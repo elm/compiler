@@ -1,49 +1,83 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 module Main where
 
-import Data.List (isPrefixOf)
-import CompileToJS
-import GenerateHtml
-import System.Environment
+import Data.Either (lefts, rights)
+import Data.List (intersect, intercalate)
+import Data.Maybe (fromMaybe)
+import System.Console.CmdArgs
 import Text.Blaze.Html.Renderer.String (renderHtml)
 
-main :: IO ()
-main = getArgs >>= parse
+import Ast
+import Initialize
+import CompileToJS
+import GenerateHtml
+import Paths_Elm
 
-parse :: [String] -> IO ()
-parse ("--help":_) = putStrLn usage
-parse ("--version":_) = putStrLn "The Elm Compiler 0.2.0.1"
-parse [loc,file]
-  | "--runtime-location=" `isPrefixOf` loc =
-      produceHtml (tail $ dropWhile (/='=') loc) file
-  | otherwise = putStrLn usageMini
-parse [file] = produceHtml "elm-mini.js" file
-parse _ = putStrLn usageMini
 
-produceHtml :: String -> FilePath -> IO ()
-produceHtml libLoc file = do
+data ELM =
+    ELM { make :: Bool
+        , files :: [FilePath]
+        , runtime :: Maybe FilePath
+--        , separate_js :: Bool
+--        , only_js :: Bool
+--        , verbose_js :: Bool
+        }
+    deriving (Data,Typeable,Show,Eq)
+
+elm = ELM { make = False &= help "automatically compile dependencies."
+          , files = def &= args &= typ "FILES"
+          , runtime = Nothing &= typ "FILE" &=
+            help "Specify a custom location for Elm's runtime system."
+--          , separate_js = False &= help "Compile to separate HTML and JS files."
+--          , only_js = False &= help "Compile only to JavaScript."
+--          , verbose_js = False &= help "Produce JavaScript that may be easier to debug."
+          } &=
+    help "Compile Elm programs to HTML, CSS, and JavaScript." &=
+    summary "The Elm Compiler v0.3.0, (c) Evan Czaplicki"
+
+main = do
+  args <- cmdArgs elm
+  mini <- getDataFileName "elm-runtime-0.3.0.js"
+  compileArgs mini args
+
+compileArgs mini (ELM _ [] _) =
+    putStrLn "Usage: elm [OPTIONS] [FILES]\nFor more help: elm --help"
+compileArgs mini (ELM make files rtLoc) =
+    mapM_ (fileToHtml $ fromMaybe mini rtLoc) files
+
+fileToHtml rtLoc file = do
+  ems <- getModules [] file
+  case ems of
+    Left err -> putStrLn $ "Error while compiling " ++ file ++ ":\n" ++ err
+    Right ms ->
+        let name = reverse . tail . dropWhile (/='.') $ reverse file in
+        writeFile (name ++ ".html") . renderHtml $
+        modulesToHtml rtLoc ms
+
+
+getModules :: [String] -> FilePath -> IO (Either String [Module])
+getModules uses file = do
   code <- readFile file
-  let name = takeWhile (/='.') file
-  case compile code of
-    Left err -> putStrLn err
-    Right jsCode -> writeFile (name ++ ".html") . renderHtml $
-                    generateHtml libLoc name code
+  case initialize code of
+    Left err -> return . Left $ "Error in " ++ file ++ ":\n" ++ err
+    Right modul@(Module _ _ imports _) ->
+        let imps = filter (`notElem` builtInModules) $ map fst imports in
+        case intersect uses imps of
+          x:_ -> return . Left $ "Error: Cyclic dependency. Module " ++
+                                 x ++ " depends on itself."
+          [] -> do
+            ems <- mapM (getModules (uses ++ imps) . toFilePath) imps
+            return $ case lefts ems of
+              [] -> Right $ concat (rights ems) ++ [modul]
+              errs -> Left $ intercalate "\n" errs
 
-usageMini :: String
-usageMini =
-  "Usage: elm [OPTIONS] FILE\n\
-  \Try `elm --help' for more information."
+toFilePath :: String -> FilePath
+toFilePath modul = map (\c -> if c == '.' then '/' else c) modul ++ ".elm"
 
-usage :: String
-usage =
-  "Usage: elm [OPTIONS] FILE\n\
-  \Compile .elm files to .html files.\n\
-  \Example: elm --runtime-location=../elm-mini.js main.elm\n\
-  \\n\
-  \Resource Locations:\n\
-  \  --runtime-location   set the location of the Elm runtime (elm-mini.js)\n\
-  \\n\
-  \Compiler Information:\n\
-  \  --version            print the version information and exit\n\
-  \  --help               display this help and exit\n\
-  \\n\
-  \Elm home page: <http://elm-lang.org>"
+builtInModules =
+    concat [ map ("Data."++)   [ "List", "Char", "Maybe" ]
+           , map ("Signal."++) [ "Mouse", "Keyboard.Raw"
+                               , "Window", "Time", "HTTP", "Input", "Random" ]
+           , [ "Element", "Text", "Color", "Line" ]
+           , [ "Prelude" ]
+           ]
