@@ -41,7 +41,7 @@ tryBlock names e =
 jsModule (Module names exports imports defs) =
     tryBlock (tail modNames) $ unwords
                  [ concatMap (\n -> globalAssign n $ n ++ " || {}") . map (intercalate ".") . drop 2 . inits $ take (length modNames - 1) modNames
-                 , "\nif (" ++ modName ++ ") throw 'Module name collision, " ++ intercalate "." names ++ " is already defined.'; "
+                 , "\nif (" ++ modName ++ ") throw 'Module name collision, " ++ intercalate "." (tail modNames) ++ " is already defined.'; "
                  , globalAssign modName $ jsFunc "" (includes ++ body ++ export) ++ "()"
                  , mainEquals $ modName ++ ".main" ]
         where modNames = if null names then ["ElmCode", "Main"] else "ElmCode" : names
@@ -55,11 +55,17 @@ jsModule (Module names exports imports defs) =
                   let y = reverse . tail . dropWhile isDigit $ reverse x in
                   if y `elem` exps then Just $ y ++ ":" ++ x else Nothing
 
-jsImport (modul, As name) = assign name modul
-jsImport (modul, Importing []) = jsImport (modul, Hiding [])
-jsImport (modul, Importing vs) =
+jsImport (modul, how) =
+  unwords [ "\ntry{" ++ modul ++ "} catch(e) {throw 'Module "
+          , drop 1 (dropWhile (/='.') modul)
+          , " is missing. Compile with --make flag or load missing "
+          , "module in a separate JS file.';}" ] ++ jsImport' (modul, how)
+
+jsImport' (modul, As name) = assign name modul
+jsImport' (modul, Importing []) = jsImport' (modul, Hiding [])
+jsImport' (modul, Importing vs) =
     concatMap (\v -> assign v $ modul ++ "." ++ v) vs
-jsImport (modul, Hiding vs) =
+jsImport' (modul, Hiding vs) =
     unwords [ "\nfor(var i in " ++ modul ++ "){"
             , assign "hiddenVars" . jsList $ map (\v -> "'" ++ v ++ "'") vs
             , "\nif (hiddenVars.indexOf(i) >= 0) continue;"

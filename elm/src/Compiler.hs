@@ -18,8 +18,8 @@ data ELM =
     ELM { make :: Bool
         , files :: [FilePath]
         , runtime :: Maybe FilePath
---        , separate_js :: Bool
---        , only_js :: Bool
+        , separate_js :: Bool
+        , only_js :: Bool
 --        , verbose_js :: Bool
         }
     deriving (Data,Typeable,Show,Eq)
@@ -28,8 +28,8 @@ elm = ELM { make = False &= help "automatically compile dependencies."
           , files = def &= args &= typ "FILES"
           , runtime = Nothing &= typ "FILE" &=
             help "Specify a custom location for Elm's runtime system."
---          , separate_js = False &= help "Compile to separate HTML and JS files."
---          , only_js = False &= help "Compile only to JavaScript."
+          , separate_js = False &= help "Compile to separate HTML and JS files."
+          , only_js = False &= help "Compile only to JavaScript."
 --          , verbose_js = False &= help "Produce JavaScript that may be easier to debug."
           } &=
     help "Compile Elm programs to HTML, CSS, and JavaScript." &=
@@ -40,20 +40,30 @@ main = do
   mini <- getDataFileName "elm-runtime-0.3.0.js"
   compileArgs mini args
 
-compileArgs mini (ELM _ [] _) =
+compileArgs mini (ELM _ [] _ _ _) =
     putStrLn "Usage: elm [OPTIONS] [FILES]\nFor more help: elm --help"
-compileArgs mini (ELM make files rtLoc) =
-    mapM_ (fileToHtml $ fromMaybe mini rtLoc) files
+compileArgs mini (ELM make files rtLoc split only) =
+    mapM_ (fileTo get what $ fromMaybe mini rtLoc) files
+        where get = if make then getModules [] else getModule
+              what = if only then JS else
+                         if split then Split else HTML
 
-fileToHtml rtLoc file = do
-  ems <- getModules [] file
+data What = JS | HTML | Split
+
+fileTo get what rtLoc file = do
+  ems <- get file
   case ems of
     Left err -> putStrLn $ "Error while compiling " ++ file ++ ":\n" ++ err
     Right ms ->
-        let name = reverse . tail . dropWhile (/='.') $ reverse file in
-        writeFile (name ++ ".html") . renderHtml $
-        modulesToHtml rtLoc ms
-
+        let name = reverse . tail . dropWhile (/='.') $ reverse file
+            js = name ++ ".js"
+            html = name ++ ".html"
+        in  case what of
+              JS -> writeFile js $ concatMap jsModule ms
+              HTML -> writeFile html . renderHtml $ modulesToHtml rtLoc ms
+              Split -> do
+                  writeFile html . renderHtml $ linkedHtml rtLoc js ms
+                  writeFile js $ concatMap jsModule ms
 
 getModules :: [String] -> FilePath -> IO (Either String [Module])
 getModules uses file = do
@@ -70,6 +80,11 @@ getModules uses file = do
             return $ case lefts ems of
               [] -> Right $ concat (rights ems) ++ [modul]
               errs -> Left $ intercalate "\n" errs
+
+getModule :: FilePath -> IO (Either String [Module])
+getModule file = do
+  code <- readFile file
+  return . fmap (:[]) $ initialize code
 
 toFilePath :: String -> FilePath
 toFilePath modul = map (\c -> if c == '.' then '/' else c) modul ++ ".elm"

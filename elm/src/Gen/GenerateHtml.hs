@@ -1,5 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
-module GenerateHtml (generateHtml, body, css, widgetBody, modulesToHtml) where
+module GenerateHtml (generateHtml,
+                     body, css, widgetBody,
+                     modulesToHtml, linkedHtml
+                    ) where
 
 import Data.List (intercalate)
 import Text.Blaze (preEscapedToMarkup)
@@ -23,9 +26,11 @@ css = H.style ! A.type_ "text/css" $ preEscapedToMarkup
        \a:active {text-decoration: none}\
        \a:hover {text-decoration: underline; color: #ff8f12;}" :: String)
 
-makeScript :: String -> H.Html
-makeScript s = H.script ! A.type_ "text/javascript" ! A.src (H.toValue s) $ ""
-
+makeScript :: Either String String -> H.Html
+makeScript (Left s) =
+    H.script ! A.type_ "text/javascript" ! A.src (H.toValue s) $ ""
+makeScript (Right s) = 
+    H.script ! A.type_ "text/javascript" $ preEscapedToMarkup s
 
 -- |This function compiles Elm code into simple HTML.
 --
@@ -38,22 +43,27 @@ generateHtml :: String -- ^ Location of elm-min.js as expected by the browser
              -> Html
 generateHtml libLoc title source =
     case initialize source of
-      Left err -> createHtml libLoc title (showErr err) (H.noscript "")
+      Left err -> createHtml libLoc title (Right $ showErr err) (H.noscript "")
       Right modul -> modulesToHtml libLoc [modul]
 
 
 modulesToHtml libLoc modules = createHtml libLoc title js noscript
     where title = (\(Module names _ _ _) -> intercalate "." names) $ last modules
-          js = concatMap jsModule modules
+          js = Right $ concatMap jsModule modules
           noscript = extract $ last modules
+
+linkedHtml rtLoc jsLoc modules =
+    createHtml rtLoc title (Left jsLoc) (H.noscript "")
+    where title = (\(Module names _ _ _) -> intercalate "." names) $ last modules
+
 
 createHtml libLoc title js noscript =
     H.docTypeHtml $ do 
       H.head $ do
         H.meta ! A.charset "UTF-8"
         H.title . H.toHtml $ title
-        makeScript libLoc
-        H.script ! A.type_ "text/javascript" $ preEscapedToMarkup js
+        makeScript (Left libLoc)
+        makeScript js
         css
       H.body $ body noscript
 
