@@ -67,7 +67,7 @@ var Element = function() {
     var w = e.style.width ? e.style.width.slice(0,-2) : 0;
 
     var t = newElement('div');
-    t.innerHTML = "&nbsp;" + e.innerHTML;
+    t.innerHTML = e.innerHTML;
     t.style.textAlign = e.style.textAlign;
     if (w > 0) { t.style.width = w + "px"; }
     

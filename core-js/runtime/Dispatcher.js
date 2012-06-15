@@ -110,18 +110,13 @@ var Dispatcher = function() {
 
     var initialize = function() {
 	var prog = ElmCode.hasOwnProperty("main") ? ElmCode.main : main;
-	try { program = prog(); } catch (e) {
-	    var msg = ("<br><h2>Your browser may not be supported. Are you using a modern browser?</h2>" +
-		       "<br><span style=\"grey\">Runtime Error:<br>" + e + "</span>")
-	    document.body.innerHTML = Text.monospace(msg);
-	    throw e;
-	}
+	try { program = prog(); } catch (e) { throw e; }
 	if (!program.hasOwnProperty('recv')) {
 	    program = Elm.Input(program);
 	}
 	var content = document.getElementById('content');
 	content.appendChild(program.value);
-	correctSize(content);
+	adjust();
 	var w = document.getElementById('widthChecker').offsetWidth;
 	if (w !== window.innerWidth) {
 	    Dispatcher.notify(Window.dimensions.id, Value.Tuple(w, window.innerHeight));
@@ -129,13 +124,13 @@ var Dispatcher = function() {
 	program = Elm.Lift(function(value) {
 		var content = document.getElementById('content');
 		content.replaceChild(value, content.children[0]);
-		correctSize(content);
+		adjust();
 		return value;
 	    }, [program]);
     };
     var adjust = function() {
 	var content = document.getElementById('content');
-	correctSize(content);
+	correctSize(content.children[0]);
     }
     var notify = function(id, v) {
 	timestep += 1;
