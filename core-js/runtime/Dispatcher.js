@@ -123,7 +123,9 @@ var Dispatcher = function() {
 	}
 	program = Elm.Lift(function(value) {
 		var content = document.getElementById('content');
-		content.replaceChild(value, content.children[0]);
+		var kid = content.children[0]
+		content.replaceChild(value, kid);
+		delete kid;
 		adjust();
 		return value;
 	    }, [program]);

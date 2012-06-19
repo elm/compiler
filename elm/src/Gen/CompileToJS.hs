@@ -26,22 +26,22 @@ mainEquals s = globalAssign "ElmCode.main" (jsFunc "" (ret s))
 globalAssign m s = "\n" ++ m ++ "=" ++ s ++ ";"
 
 tryBlock names e = 
-    unlines [ "\ntry{\n" ++ e ++ "\n\n} catch (e) {"
-            , "ElmCode.main=function() {"
-	    , "var msg = ('<br><h2>Your browser may not be supported. " ++
-              "Are you using a modern browser?</h2>' +" ++
-              " '<br><span style=\"color:grey\">Runtime Error in " ++
-              intercalate "." names ++ " module:<br>' + e + '</span>')"
-	    , "document.body.innerHTML = Text.monospace(msg);"
-            , "throw e;"
-            , "};}"
-            ]
+    concat [ "\ntry{\n" ++ e ++ "\n\n} catch (e) {"
+           , "ElmCode.main=function() {"
+	   , "var msg = ('<br><h2>Your browser may not be supported. " ++
+             "Are you using a modern browser?</h2>' +" ++
+             " '<br><span style=\"color:grey\">Runtime Error in " ++
+             intercalate "." names ++ " module:<br>' + e + '</span>');"
+	   , "document.body.innerHTML = Text.monospace(msg);"
+           , "throw e;"
+           , "};}"
+           ]
 
 
 jsModule (Module names exports imports defs) =
-    tryBlock (tail modNames) $ unwords
+    tryBlock (tail modNames) $ concat
                  [ concatMap (\n -> globalAssign n $ n ++ " || {}") . map (intercalate ".") . drop 2 . inits $ take (length modNames - 1) modNames
-                 , "\nif (" ++ modName ++ ") throw 'Module name collision, " ++ intercalate "." (tail modNames) ++ " is already defined.'; "
+                 , "\nif (" ++ modName ++ ") throw \"Module name collision, '" ++ intercalate "." (tail modNames) ++ "' is already defined.\"; "
                  , globalAssign modName $ jsFunc "" (includes ++ body ++ export) ++ "()"
                  , mainEquals $ modName ++ ".main" ]
         where modNames = if null names then ["ElmCode", "Main"] else "ElmCode" : names
@@ -56,21 +56,21 @@ jsModule (Module names exports imports defs) =
                   if y `elem` exps then Just $ y ++ ":" ++ x else Nothing
 
 jsImport (modul, how) =
-  unwords [ "\ntry{" ++ modul ++ "} catch(e) {throw 'Module "
-          , drop 1 (dropWhile (/='.') modul)
-          , " is missing. Compile with --make flag or load missing "
-          , "module in a separate JS file.';}" ] ++ jsImport' (modul, how)
-
+  concat [ "\ntry{" ++ modul ++ "} catch(e) {throw \"Module '"
+         , drop 1 (dropWhile (/='.') modul)
+         , "' is missing. Compile with --make flag or load missing "
+         , "module in a separate JavaScript file.\";}" ] ++ jsImport' (modul, how)
+  
 jsImport' (modul, As name) = assign name modul
 jsImport' (modul, Importing []) = jsImport' (modul, Hiding [])
 jsImport' (modul, Importing vs) =
     concatMap (\v -> assign v $ modul ++ "." ++ v) vs
 jsImport' (modul, Hiding vs) =
-    unwords [ "\nfor(var i in " ++ modul ++ "){"
-            , assign "hiddenVars" . jsList $ map (\v -> "'" ++ v ++ "'") vs
-            , "\nif (hiddenVars.indexOf(i) >= 0) continue;"
-            , globalAssign "this[i]" $ modul ++ "[i]"
-            , "}" ]
+    concat [ "\nfor(var i in " ++ modul ++ "){"
+           , assign "hiddenVars" . jsList $ map (\v -> "'" ++ v ++ "'") vs
+           , "\nif (hiddenVars.indexOf(i) >= 0) continue;"
+           , globalAssign "this[i]" $ modul ++ "[i]"
+           , "}" ]
 
 
 toJS expr =
