@@ -21,7 +21,7 @@ Category:            Compiler, Language
 
 Build-type:          Simple
 
-Extra-source-files:  README.md
+Extra-source-files:  changelog.md
 Data-files:          elm-runtime-0.3.0.js
 Cabal-version:       >=1.8
 
