@@ -2,9 +2,9 @@
 var Color = function() {
 
  var create = function(r,g,b,a) {
-    return { r: Math.round(255*r),
-	     g: Math.round(255*g),
-	     b: Math.round(255*b),
+    return { r: r,
+	     g: g,
+	     b: b,
 	     a: a };
  };
 
@@ -22,11 +22,19 @@ var Color = function() {
  var rgb = function(r) { return function(g) { return function(b) {
 	    return create(r,g,b,1); }; };
  };
- return {black: create(0,0,0,1),
-	 white: create(1,1,1,1),
-	 red  : create(1,0,0,1),
-	 green: create(0,1,0,1),
-	 blue : create(0,0,1,1),
+ return {black: create(  0,  0,  0,1),
+	 white: create(255,255,255,1),
+	 red  : create(255,  0,  0,1),
+	 green: create(  0,255,  0,1),
+	 blue : create(  0,  0,255,1),
+
+	 gray : create(128,128,128,1),
+	 grey : create(128,128,128,1),
+
+	 yellow  : create(255,255,  0,1),
+	 cyan    : create(  0,255,255,1),
+	 magenta : create(255,  0,255,1),
+
 	 rgba : rgba,
 	 rgb  : rgb,
 	 Internal : { extract:extract }
