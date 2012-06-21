@@ -1,0 +1,34 @@
+Release 0.3.0
+=============
+
+Major Changes (Read this part!)
+-------------------------------
+
+* Add a basic module system.
+* Elm's JavaScript runtime is now distributed with the elm package.
+  Previously it was available for download as an unversioned JavaScript
+  file (elm-mini.js). It is now installed with the elm compiler as
+  elm-runtime-0.3.0.js. Be sure to serve the Elm runtime system that matches
+  the version of the compiler used to generate JavaScript. When working
+  locally, the compiler will automatically use your local copy of this file.
+* BREAKING CHANGE: rgb and rgba (in the color module) now take their red,
+  green, and blue components as integers between 0 and 255 inclusive.
+* Improve error messages for parse errors and runtime errors.
+
+
+New Functions and Other Additions
+---------------------------------
+
+* Add support for keyboard events: Keyboard.Raw
+* Add buttons in Signal.Input:
+  button :: String -> (Element, Signal Bool)
+* Add new basic element (an empty rectangle, good for adding spaces):
+  rectangle :: Int -> Int -> Element
+* Add (an awkwardly named) way to display right justified text: rightedText
+* Add two basic libraries: Data.Char and Data.Maybe
+* Add some new colors: magenta, yellow, cyan, gray, grey
+* Add functions to Data.List module: take, drop
+* Add functions to Prelude (the default imports):
+  fst, snd, curry, uncurry, and a bunch of list functions
+* Add --make, --separate-js, and --only-js flags to help compile
+  with the new module system.
