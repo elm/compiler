@@ -290,5 +290,17 @@ var Signal = function() {
 	  Window:Window,
 	  HTTP:HTTP,
 	  Random:Random,
-	  Input:Input };
+	  Input:Input,
+	  constant : function(v) { return Elm.Input(v); },
+	  lift  : function(f){return function(e){return Elm.Lift(f,[e]);};},
+	  lift2 : function(f) { return function(e1) { return function(e2) {
+		  return Elm.Lift(f, [e1,e2]); }; }; },
+	  lift3 : function(f) { return function(e1) { return function(e2) {
+		  return function(e3){return Elm.Lift(f,[e1,e2,e3]);};};};},
+	  lift4 : function(f) { return function(e1) { return function(e2) {
+		  return function(e3) { return function(e4) {
+			  return Elm.Lift(f, [e1,e2,e3,e4]); }; }; }; }; },
+	  foldp : function(f) { return function(b) { return function(e) {
+		  return Elm.Fold(f,b,e); }; }; }
+  };
 }();

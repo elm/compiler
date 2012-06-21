@@ -1,32 +1,4 @@
 
-var id  = function(x) { return x; };
-var not = function(exp) { return !exp; };
-
-var sqrt = function(x) { return Math.sqrt(x); };
-var rem = function(x) { return function(y) { return x % y; }; };
-var mod = function(x) { return function(y) {
-  var r = x % y;
-  var m = x==0 ? 0 : (y>0 ? (x>=0 ? r : r+y) : -mod(-x)(-y));
-  return m == y ? 0 : m;
-}; };
-var abs = function(x) { return Math.abs(x); };
-var logBase = function(base) { return function(x) { return Math.log(x) / Math.log(base); }; };
-
-var min = function(x) { return function(y) { return Math.min(x,y); }; };
-var max = function(x) { return function(y) { return Math.max(x,y); }; };
-var clamp = function(lo) { return function(hi) {
-	return function(x) { return Math.min(hi, Math.max(lo, x)); }; 
-    };
-};
-
-var sin = Math.sin, cos = Math.cos, tan = Math.tan;
-var asin = Math.asin, acos = Math.acos, atan = Math.atan;
-
-var flip = function(f){return function(x){return function(y){return f(y)(x);};};};
-
-var Just = function(x) { return ["Just",x]; };
-var Nothing = ["Nothing"];
-
 var eq = function(x,y) {
     if (typeof x === "object") {
 	if (x === y) return true;
@@ -38,19 +10,6 @@ var eq = function(x,y) {
     }
     return x === y;
 };
-
-function constant(v) { return Elm.Input(v); }
-function lift(f) { return function(e) { return Elm.Lift(f, [e]); }; }
-function lift2(f) { return function(e1) { return function(e2) {
-	    return Elm.Lift(f, [e1,e2]); }; }; }
-function lift3(f) { return function(e1) { return function(e2) {
-	    return function(e3) { return Elm.Lift(f, [e1,e2,e3]); }; }; }; }
-function lift4(f) { return function(e1) { return function(e2) {
-	    return function(e3) { return function(e4) {
-		    return Elm.Lift(f, [e1,e2,e3,e4]); }; }; }; }; }
-function foldp(f) { return function(b) { return function(e) {
-	    return Elm.Fold(f,b,e); }; }; }
-
 
 var includeGlobal = this;
 (function() {
@@ -82,6 +41,10 @@ var includeGlobal = this;
   color = Element.color;
   height = Element.height;
   show = Value.show;
+  
+  include (Color);
+  include (Shape);
+  include (Line);
 
   includeAs ('Time')     (Signal.Time);
   includeAs ('Mouse')    (Signal.Mouse);
@@ -90,10 +53,6 @@ var includeGlobal = this;
   includeAs ('HTTP')     (Signal.HTTP);
   includeAs ('Input')    (Signal.Input);
   includeAs ('Random')   (Signal.Random);
-  
-  include (Color);
-  include (Shape);
-  include (Line);
 
 }());
 
@@ -101,3 +60,4 @@ var ElmCode = {};
 ElmCode.Data = Data;
 ElmCode.Signal = Signal;
 ElmCode.Data.List = List;
+ElmCode.Prelude = Prelude;

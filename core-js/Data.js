@@ -28,14 +28,23 @@ var Maybe = function() {
 		return xs;
 	    };
 	};
-    };
+    }
+    function maybe(b) { return function(f) { return function(m) {
+		if (m[0] === "Just") return f(m[1]);
+		return b;
+	    };
+	};
+    }
 
-    return {catMaybes : List.foldr(consMaybe)(["Nil"]),
+    return {Just : function(x) { return ["Just",x]; },
+	    Nothing : ["Nothing"],
+	    catMaybes : List.foldr(consMaybe)(["Nil"]),
 	    isJust : function(m) { return m[0] === "Just"; },
 	    isNothing : function(m) { return m[0] === "Nothing"; },
 	    fromMaybe : fromMaybe,
 	    consMaybe : consMaybe,
-	    mapMaybe : function(f) { return List.foldr(mapCons(f))(["Nil"]); }
+	    mapMaybe : function(f) { return List.foldr(mapCons(f))(["Nil"]); },
+	    maybe : maybe
     };
 }();
 

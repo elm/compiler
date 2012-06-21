@@ -1,6 +1,8 @@
 var List = function() {
 
-    var throwError = function() { throw "Function expecting a list!"; }
+    var throwError = function(f) {
+	throw "Function '" + f + "' expecting a list!";
+    }
 
     function length(xs) {
 	var out = 0;
@@ -57,7 +59,7 @@ var List = function() {
     function map(f) {
       return function(xs) {
 	  if (xs[0] === "Nil") { return xs; }
-	  if (xs[0] !== "Cons") { throwError(); }
+	  if (xs[0] !== "Cons") { throwError('map'); }
 	  var root = ["Cons", f(xs[1]), ["Nil"]];
 	  var curr = root;
 	  xs = xs[2];
@@ -74,7 +76,7 @@ var List = function() {
         return function(xs) {
           var acc = b;
 	  if (xs[0] === "Nil") { return acc; }
-	  if (xs[0] !== "Cons") { throwError(); }
+	  if (xs[0] !== "Cons") { throwError('foldl'); }
 	  while (xs[0] === "Cons") {
 	      acc = f(xs[1])(acc);
 	      xs = xs[2];
@@ -88,7 +90,7 @@ var List = function() {
         return function(xs) {
           var acc = b;
 	  if (xs[0] === "Nil") { return acc; }
-	  if (xs[0] !== "Cons") { throwError(); }
+	  if (xs[0] !== "Cons") { throwError('foldr'); }
 	  var arr = [];
 	  while (xs[0] === "Cons") {
 	      arr.push(xs[1]);
@@ -131,7 +133,7 @@ var List = function() {
       return function(b) {
         return function(xs) {
           if (xs[0] === "Nil") { return ["Cons",b,["Nil"]]; }
-	  if (xs[0] !== "Cons") { throwError(); }
+	  if (xs[0] !== "Cons") { throwError('scanl'); }
 	  var arr = [b];
 	  while (xs[0] === "Cons") {
 	      b = f(xs[1])(b);
@@ -157,7 +159,7 @@ var List = function() {
     function filter(pred) {
       return function(xs) {
         if (xs[0] === "Nil") { return xs; }
-	if (xs[0] !== "Cons") { throwError(); }
+	if (xs[0] !== "Cons") { throwError('filter'); }
 	var arr = [];
 	while (xs[0] === "Cons") {
           if (pred(xs[1])) { arr.push(xs[1]); }
@@ -224,8 +226,8 @@ var List = function() {
     function zipWith(f) {
       return function(listA) {
 	  return function(listB) {
-	  if (listA[0] === "Nil" || listB[0] === "Nil") { return listA; }
-	  if (listA[0] !== "Cons" || listB[0] !== "Cons") { throwError(); }
+	  if (listA[0] === "Nil" || listB[0] === "Nil") { return ["Nil"]; }
+	  if (listA[0] !== "Cons" || listB[0] !== "Cons") { throwError('zipWith'); }
 	  var arr = [];
 	  while (listA[0] === "Cons" && listB[0] === "Cons") {
 	      arr.push(f(listA[1])(listB[1]));
@@ -242,8 +244,8 @@ var List = function() {
     }
     function zip(listA) {
       return function(listB) {
-	  if (listA[0] === "Nil" || listB[0] === "Nil") { return listA; }
-	  if (listA[0] !== "Cons" || listB[0] !== "Cons") { throwError(); }
+	  if (listA[0] === "Nil" || listB[0] === "Nil") { return ["Nil"]; }
+	  if (listA[0] !== "Cons" || listB[0] !== "Cons") { throwError('zip'); }
 	  var arr = [];
 	  while (listA[0] === "Cons" && listB[0] === "Cons") {
 	      arr.push(["Tuple2", listA[1], listB[1]]);
@@ -391,7 +393,7 @@ var List = function() {
     }
     function sort(xs) {
       if (xs[0] === "Nil") { return xs; }
-      if (xs[0] !== "Cons") { throwError(); }
+      if (xs[0] !== "Cons") { throwError('sort'); }
       var arr = [];
       while (xs[0] === "Cons") {
 	  arr.push(xs[1]);
@@ -403,6 +405,33 @@ var List = function() {
 	  out = [ "Cons", arr[i], out ];
       }
       return out;
+    }
+    function take(n) { return function(xs) {
+        if (n <= 0) { return ["Nil"]; }
+	if (xs[0] === "Nil") { return xs; }
+	if (xs[0] !== "Cons") { throwError('take'); }
+	var out = [ "Cons", xs[1], ["Nil"] ];
+	var temp = out;
+	xs = xs[2];
+	--n;
+	while (xs[0] === "Cons" && n > 0) {
+	    temp[2] = [ "Cons", xs[1], ["Nil"] ];
+	    temp = temp[2];
+	    xs = xs[2];
+	    --n;
+	}
+	return out;
+      };
+    }
+    function drop(n) { return function(xs) {
+	if (xs[0] === "Nil") { return xs; }
+	if (xs[0] !== "Cons") { throwError('drop'); }
+	while (xs[0] === "Cons" && n > 0) {
+	    xs = xs[2];
+	    --n;
+	}
+	return xs;
+      };
     }
     return {head:head,
 	    tail:tail,
@@ -432,5 +461,7 @@ var List = function() {
 	    unzip:unzip,
 	    intersperse:intersperse,
 	    intercalate:intercalate,
-	    sort:sort};
+	    sort:sort,
+	    take:take,
+	    drop:drop};
 }();
