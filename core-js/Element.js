@@ -286,6 +286,17 @@ var Element = function() {
     };
   };
 
+  var jsElement = function(w) { return function(h) { return function(elem) {
+        var e = newElement('div');
+	e.isElmLeaf = true;
+	e.style.width = w + "px";
+	e.style.height = h + "px";
+	addTo(e,elem);
+	return e;
+      };
+    };
+  };
+  
   return {text : text,
 	  image : image,
 	  fittedImage : fittedImage,
@@ -322,7 +333,8 @@ var Element = function() {
 	  right : 4,
 	  outward : 5,
 
-	  correctTextSize : correctTextSize
+	  correctTextSize : correctTextSize,
+	  jsElement : jsElement
 	  };
 }();
 	  
