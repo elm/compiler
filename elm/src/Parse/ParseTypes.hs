@@ -82,14 +82,14 @@ toType pairs outType (name,args) =
                                       "Bool" -> BoolT
                                       _ -> ADT x []
 
-toForiegnType (LambdaPT t1 t2) =
-    LambdaT <$> toForiegnType t1 <*> toForiegnType t2
-toForiegnType (ADTPT name args) = do
+toForeignType (LambdaPT t1 t2) =
+    LambdaT <$> toForeignType t1 <*> toForeignType t2
+toForeignType (ADTPT name args) = do
     case name == "JSArray" of
-      True -> ADT name <$> mapM toForiegnType args
+      True -> ADT name <$> mapM toForeignType args
       False -> Left $ "'" ++ name ++
                "' is not an exportable type constructor. Only 'JSArray' is exportable."
-toForiegnType (VarPT x@(c:_))
+toForeignType (VarPT x@(c:_))
     | isLower c =
         Left "All exported types must be concrete types (JSNumber, JSString, etc.)"
     | x `elem` [ "JSString", "JSNumber", "JSElement" ] = Right (ADT x [])
