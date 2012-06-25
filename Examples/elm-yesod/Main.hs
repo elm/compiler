@@ -17,7 +17,7 @@ clockPage = $(elmFile "elm_source/clock.elm")
 shapesPage = [elm|
 square   = rect 200 200 (150,150)
 circle   = oval 140 140 (150,150)
-pentagon = ngon   5  60 (150,150) --@
+pentagon = ngon   5  60 (150,150)
 
 main = collage 300 300
          [ outlined black square
@@ -75,7 +75,7 @@ instance Yesod ElmTest where
         hamletToRepHtml $(hamletFile "templates/default-layout-wrapper.hamlet")
 
 instance YesodElm ElmTest where
-  urlElmJs _ = Right $ "http://f.cl.ly/items/2e3Z3r3v29263U393c3x/elm-min.js"
+  urlElmJs _ = Right $ "https://raw.github.com/evancz/Elm/master/elm/elm-runtime-0.3.0.js"
 
 main :: IO ()
 main = warpDebug 3000 ElmTest
