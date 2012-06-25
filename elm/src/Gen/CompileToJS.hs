@@ -38,12 +38,15 @@ tryBlock names e =
            ]
 
 
-jsModule (Module names exports imports defs) =
+jsModule (Module names exports imports defs (ims,exs)) =
     tryBlock (tail modNames) $ concat
-                 [ concatMap (\n -> globalAssign n $ n ++ " || {}") . map (intercalate ".") . drop 2 . inits $ take (length modNames - 1) modNames
-                 , "\nif (" ++ modName ++ ") throw \"Module name collision, '" ++ intercalate "." (tail modNames) ++ "' is already defined.\"; "
-                 , globalAssign modName $ jsFunc "" (includes ++ body ++ export) ++ "()"
-                 , mainEquals $ modName ++ ".main" ]
+           [ concatMap (\n -> globalAssign n $ n ++ " || {}") .
+             map (intercalate ".") . drop 2 . inits $
+             take (length modNames - 1) modNames
+           , "\nif (" ++ modName ++ ") throw \"Module name collision, '" ++
+             intercalate "." (tail modNames) ++ "' is already defined.\"; "
+           , globalAssign modName $ jsFunc "" (includes++body++export)++"()"
+           , mainEquals $ modName ++ ".main" ]
         where modNames = if null names then ["ElmCode", "Main"] else "ElmCode" : names
               modName  = intercalate "." modNames
               includes = concatMap jsImport $
@@ -55,11 +58,26 @@ jsModule (Module names exports imports defs) =
                   let y = reverse . tail . dropWhile isDigit $ reverse x in
                   if y `elem` exps then Just $ y ++ ":" ++ x else Nothing
 
+ffi (ImportValue js elm _) = assign elm js
+ffi (ExportValue js elm _) = assign js elm
+ffi (ImportEvent js elm base _) =
+    concat [ "var " ++ elm ++ " = Elm.Input(" ++ toJS base ++ ");"
+           , "Signal.addListener(document, '" ++ js
+           , "', function(e) { Dispatcher.notify(" ++ elm
+           , ".id, e); });" ]
+ffi (ExportEvent js elm base _) =
+    concat [ "lift (function(v) { var e = document.createEvent('Event');"
+           , "e.initEvent('" ++ js ++ "', true, true);"
+           , "e.elmValue = v;"
+           , "document.disspatchEvent(e); return v; })(" ++ elm ++ ")"
+           ]
+
 jsImport (modul, how) =
   concat [ "\ntry{" ++ modul ++ "} catch(e) {throw \"Module '"
          , drop 1 (dropWhile (/='.') modul)
          , "' is missing. Compile with --make flag or load missing "
-         , "module in a separate JavaScript file.\";}" ] ++ jsImport' (modul, how)
+         , "module in a separate JavaScript file.\";}" ] ++
+     jsImport' (modul, how)
   
 jsImport' (modul, As name) = assign name modul
 jsImport' (modul, Importing []) = jsImport' (modul, Hiding [])

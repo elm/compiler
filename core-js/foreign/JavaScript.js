@@ -1,5 +1,5 @@
 
-var Foriegn = function() {
+var Foreign = function() {
   var JavaScript = function() {
     function castJSNumberToFloat(n) { return n; }
     function castFloatToJSNumber(n) { return n; }

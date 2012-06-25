@@ -1,6 +1,6 @@
 
 Name:                Elm
-Version:             0.3.0
+Version:             0.3.5
 Synopsis:            The Elm language module.
 Description:         Elm aims to make client-side web-development more pleasant.
                      It is a statically/strongly typed, functional reactive
@@ -21,8 +21,8 @@ Category:            Compiler, Language
 
 Build-type:          Simple
 
-Extra-source-files:  changelog.md
-Data-files:          elm-runtime-0.3.0.js
+Extra-source-files:  changelog.txt
+Data-files:          elm-runtime-0.3.5.js
 Cabal-version:       >=1.8
 
 source-repository head
@@ -48,6 +48,7 @@ Library
                        ParseExpr,
                        ParseTypes,
                        ParseModules,
+                       ParseForeign,
                        Types,
                        Constrain,
                        Hints,
@@ -84,6 +85,7 @@ Executable elm
                        ParseExpr,
                        ParseTypes,
                        ParseModules,
+                       ParseForeign,
                        Types,
                        Constrain,
                        Hints,

@@ -81,3 +81,16 @@ toType pairs outType (name,args) =
                                       "Char" -> CharT
                                       "Bool" -> BoolT
                                       _ -> ADT x []
+
+toForiegnType (LambdaPT t1 t2) =
+    LambdaT <$> toForiegnType t1 <*> toForiegnType t2
+toForiegnType (ADTPT name args) = do
+    case name == "JSArray" of
+      True -> ADT name <$> mapM toForiegnType args
+      False -> Left $ "'" ++ name ++
+               "' is not an exportable type constructor. Only 'JSArray' is exportable."
+toForiegnType (VarPT x@(c:_))
+    | isLower c =
+        Left "All exported types must be concrete types (JSNumber, JSString, etc.)"
+    | x `elem` [ "JSString", "JSNumber", "JSElement" ] = Right (ADT x [])
+    | otherwise = Left $ "'" ++ x ++ "' is not an exportable type. JSNumber, JSString, JSElement, and (JSArray a) are exportable."

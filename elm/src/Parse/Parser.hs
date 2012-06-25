@@ -11,6 +11,7 @@ import ParseLib
 import ParseExpr
 import ParseTypes
 import ParseModules
+import ParseForeign
 
 
 freshDef = commitIf (freshLine >> (letter <|> char '_')) $ do
@@ -29,9 +30,11 @@ program = do
   (names,exports) <- option ([],[]) (moduleDef `followedBy` freshLine)
   is <- (do try (lookAhead $ reserved "import")
             imports `followedBy` freshLine) <|> return []
+  jsffi <- foreignDefs
+  freshLine
   (vs,es,ts) <- defs
   optional freshLine ; optional spaces ; eof
-  return (Module names exports is $ zip vs es, zip vs `liftM` ts)
+  return (Module names exports is (zip vs es) jsffi, zip vs `liftM` ts)
 
 parseProgram source = 
     case parse program "" source of

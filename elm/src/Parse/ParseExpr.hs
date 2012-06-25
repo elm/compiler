@@ -1,4 +1,4 @@
-module ParseExpr (def) where
+module ParseExpr (def,term) where
 
 import Ast
 import Control.Applicative ((<$>), (<*>))

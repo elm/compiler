@@ -3,7 +3,7 @@ module ExtractNoscript (extract) where
 
 import Ast
 
-extract (Module _ _ _ defs) =
+extract (Module _ _ _ defs _) =
     concatMap (\s -> "<p>" ++ s ++ "</p>") $ concatMap (extract' . snd) defs
 
 extract' expr =
