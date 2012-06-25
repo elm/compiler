@@ -1,6 +1,9 @@
 
 var Foreign = function() {
   var JavaScript = function() {
+    function castJSBoolToBool(b) { return b; }
+    function castBoolToJSBool(b) { return b; }
+
     function castJSNumberToFloat(n) { return n; }
     function castFloatToJSNumber(n) { return n; }
 
@@ -32,7 +35,9 @@ var Foreign = function() {
 	return castListToJSArray(str).join('');
     }
 
-    return {castJSNumberToFloat:castJSNumberToFloat,
+    return {castJSBoolToBool:castJSBoolToBool,
+	    castBoolToJSBool:castBoolToJSBool,
+	    castJSNumberToFloat:castJSNumberToFloat,
 	    castFloatToJSNumber:castFloatToJSNumber,
 	    castJSNumberToInt:castJSNumberToInt,
 	    castIntToJSNumber:castIntToJSNumber,
