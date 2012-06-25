@@ -19,21 +19,22 @@ This will ensure that the elm package is available. Then install Elm with:
 
 Assuming everything goes correctly (potential problems are discussed later), this will build two executables on your machine:
 
-* `elm` is a standard compiler that takes `.elm` files and produces `.html` files. You can then use these HTML files with your favorite web-framework.
+* `elm` is a standard compiler that takes `.elm` files and produces `.html` and/or `.js` files. You can then use these files with your favorite web-framework.
 
 * `elm-server` is both a compiler and server, allowing you to develop without designing and setting up a server yourself. Running `elm-server` starts a server in the current directory. It will compile and serve any `.elm` files in the current directory and its sub-directories. This is how I prefer to develop Elm programs.
 
-To use these executables you need to add a new directory to your PATH. For me, the executables were placed in /home/evan/.cabal/bin which I appended to the end of my PATH variable in my .bashrc file. Cabal should tell you where your executables are located, so you can make a similar addition (see this tutorial if you are new to changing your PATH in [Unix/Linux](http://www.cyberciti.biz/faq/unix-linux-adding-path/)).
+To use these executables you need to add a new directory to your PATH. For me, the executables were placed in `/home/evan/.cabal/bin` which I appended to the end of my PATH variable in my .bashrc file. Cabal should tell you where your executables are located upon successful installation, so you can make a similar addition (see this tutorial if you are new to changing your PATH in [Unix/Linux](http://www.cyberciti.biz/faq/unix-linux-adding-path/)).
 
 That is almost everything. Now, we will create a simple Elm project. The following commands will set-up a very basic project and start the Elm server.
 
     mkdir helloElm
     cd helloElm
-    wget https://raw.github.com/evancz/Elm/master/elm-mini.js
     echo main = lift asText Mouse.position > main.elm
     elm-server
 
-The first two commands create a new directory and navigate into it. Then next command (`wget`) downloads the [elm-mini.js](https://raw.github.com/evancz/Elm/master/elm-mini.js) file which is the Elm runtime system and must be in the root directory of your Elm project. If you do not have wget, just follow [this link](https://raw.github.com/evancz/Elm/master/elm-mini.js) and download it directly. The `echo` command places a simple program into `main.elm` (do this manually if you do not have `echo`). The final command starts the Elm server at [localhost](http://localhost:8000/), allowing you to navigate to `main.elm` and see your first program in action.
+The first two commands create a new directory and navigate into it. The `echo` command places a simple program into `main.elm` (do this manually if you do not have `echo`). The final command starts the Elm server at [localhost](http://localhost:8000/), allowing you to navigate to `main.elm` and see your first program in action.
+
+An important note: When you install the `elm` compiler, it automatically downloads Elm's JavaScript runtime system and places it in the same place as the `elm` executable (`/home/evan/.cabal/bin` or wherever it happens to be on your system). The runtime system will follow the name scheme `elm-runtime-x.y.z.js` where `x.y.z` matches the version number of the compiler. If you want to serve this file from a different location, *copy* it from its home and always be sure that code compiled with version `x.y.z` of the compiler is served with version `x.y.z` of the runtime system.
 
 
 Installation for Haskell-users
