@@ -1,7 +1,7 @@
-title w = size w 60 . box 4 . text . header . toText $ "Elm-Happstack"
+title w = size w 60 . box 4 . text . header . toText $ "Elm-Yesod"
 
-lightGrey = rgb (240/255) (241/255) (244/255)
-mediumGrey = rgb (216/255) (221/255) (225/255)
+lightGrey = rgb 240 241 244
+mediumGrey = rgb 216 221 225
 heading outer inner =
   color mediumGrey . size outer 61 . box 1 .
   color  lightGrey . size outer 60 . box 5 .
@@ -18,16 +18,16 @@ skeleton body outer =
 section = text . bold . Text.height (5/4) . toText
 
 info w = List.map (\f -> f ()) . List.intersperse (\x -> plainText "&nbsp;") . List.map ((\e x -> e) . width w) $
-  [ section "Written in Elm, served with Happstack"
+  [ section "Written in Elm, served with Yesod"
   , text $ toText "This page is written in " ++ link "http://elm-lang.org/" (toText "Elm") ++
            toText " and served using the " ++ 
-           link "http://happstack.com/" (toText "Happstack Web Framework") ++
+           link "http://yesodweb.com/" (toText "Yesod Web Framework") ++
            toText ". Since you are looking at this page it is safe to assume that you already have the example code. "
-  , text $ toText "A second Happstack example using web-routes will be added later on."
+  , text $ toText "Type-safe URLs are rendered using simple QuasiQuoter variable interpolation."
   , section "More examples:"
-  , text $ toText "- " ++ link "#{mouse}" (toText "A simple mouse input example")
-  , text $ toText "- " ++ link "#{clock}" (toText "An animated analog clock")
-  , text $ toText "- " ++ link "#{shapes}" (toText "Some simple rendered shapes")
+  , text $ toText "- " ++ link "@{MouseR}" (toText "A simple mouse input example")
+  , text $ toText "- " ++ link "@{ClockR}" (toText "An animated analog clock")
+  , text $ toText "- " ++ link "@{ShapesR}" (toText "Some simple rendered shapes")
   ]
  
 body outer inner = width outer . box 2 . flow down . (:) (plainText "&nbsp;") $ info inner
