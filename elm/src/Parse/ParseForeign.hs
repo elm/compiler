@@ -9,6 +9,7 @@ import Ast
 import ParseLib
 import ParseExpr (term)
 import ParseTypes
+import Types (signalOf)
 
 
 foreignDefs = do
@@ -28,7 +29,7 @@ exportEvent = do
   tipe <- typeExpr
   case tipe of
     ADTPT "Signal" [pt] ->
-        either fail (return . (,,) js elm) (toForeignType pt)
+        either fail (return . (,,) js elm . signalOf) (toForeignType pt)
     _ -> fail "When exporting events, the exported value must be a Signal."
 
 importEvent = do
@@ -41,7 +42,7 @@ importEvent = do
   tipe <- typeExpr
   case tipe of
     ADTPT "Signal" [pt] ->
-        either fail (return . (,,,) js base elm) (toForeignType pt)
+        either fail (return . (,,,) js base elm . signalOf) (toForeignType pt)
     _ -> fail "When importing events, the imported value must be a Signal."
 
 

@@ -56,7 +56,7 @@ casts =
   , "castBoolToJSBool"       -: BoolT ==> jsBool
   , "castJSNumberToInt"      -: jsNumber ==> IntT
   , "castIntToJSNumber"      -: IntT ==> jsNumber
-  , "castJSElementToElement" -: jsElement ==> element
+  , "castJSElementToElement" -: IntT ==> IntT ==> jsElement ==> element
   , "castElementToJSElement" -: element ==> jsElement
   , "castJSStringToString"   -: jsString ==> string
   , "castStringToJSString"   -: string ==> jsString
@@ -92,6 +92,12 @@ signals = sequence
     , do [a,b] <- vars 2 
          "foldp" -:: (a ==> b ==> b) ==> b ==> signalOf a ==> signalOf b
     , do a <- var ; "randomize" -:: IntT ==> IntT ==> signalOf a ==> signalOf IntT
+    , do a <- var ; "count"     -:: signalOf a ==> signalOf IntT
+    , do a <- var ; "keepIf"    -:: (a==>BoolT) ==> a ==> signalOf a ==> signalOf a
+    , do a <- var ; "dropIf"    -:: (a==>BoolT) ==> a ==> signalOf a ==> signalOf a
+    , do a <- var ; "keepWhen"  -:: signalOf BoolT ==>a==> signalOf a ==> signalOf a
+    , do a <- var ; "dropWhen"  -:: signalOf BoolT ==>a==> signalOf a ==> signalOf a
+    , do a <- var ; "dropRepeats" -:: signalOf a ==> signalOf a
     ]
 
 concreteSignals = 

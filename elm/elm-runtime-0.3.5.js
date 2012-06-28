@@ -255,6 +255,17 @@ var Value = function(){
 	}
 	return v[2];
     }
+    function last(v) {
+	if (v[0] !== "Cons") {
+	    throw "Error: 'last' only accepts lists of length greater than one.";
+	}
+	var out = v[1];
+	while (v[0] === "Cons") {
+	    out = v[1];
+	    v = v[2];
+	}
+	return out;
+    }
     function map(f) {
       return function(xs) {
 	  if (xs[0] === "Nil") { return xs; }
@@ -634,6 +645,7 @@ var Value = function(){
     }
     return {head:head,
 	    tail:tail,
+	    last:last,
 	    map:map,
 	    foldl:foldl,
 	    foldr:foldr,
@@ -713,6 +725,7 @@ var Maybe = function() {
     };
 }();
 
+/*
 var String = function() {
 
   function append(s1) { return function(s2) {
@@ -784,16 +797,14 @@ var String = function() {
 	  concatMap : concatMap,
 	  forall : forall,
 	  exists : exists,
-	  /*
-	  filter : filter,
-	  take:,
-	  drop:,
-	  */
+	  //filter : filter,
+	  //take:,
+	  //drop:,
 	  toText : Value.toText, 
 	  properEscape : Value.properEscape
     };
 }();
-
+*/
 return {String: {toText:Value.toText, properEscape:Value.properEscape},
 	Char:Char,
 	Maybe:Maybe,
@@ -1910,7 +1921,8 @@ var Signal = function() {
 	      button:button};
   }();
 
-  return {Mouse:Mouse,
+  return {addListener:addListener,
+	  Mouse:Mouse,
 	  Keyboard:Keyboard,
 	  Time:Time,
 	  Window:Window,
@@ -1992,6 +2004,7 @@ var Prelude = function() {
 	    filter  : Data.List.filter,
 	    head    : Data.List.head,
 	    tail    : Data.List.tail,
+	    last    : Data.List.last,
 	    length  : Data.List.length,
 	    reverse : Data.List.reverse,
 	    foldr   : Data.List.foldr,
@@ -2027,6 +2040,12 @@ var Prelude = function() {
 	    };
 }();
 var eq = Value.eq;
+
+Signal.addListener(document, 'elm_log', function(e) { console.log(e.value); });
+Signal.addListener(document, 'elm_title', function(e) { document.title = e.value; });
+Signal.addListener(document, 'elm_redirect', function(e) {
+	if (e.value.length > 0) { window.location = e.value; }
+    });
 
 var includeGlobal = this;
 (function() {

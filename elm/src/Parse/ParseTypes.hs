@@ -99,4 +99,4 @@ toForeignType (VarPT x@(c:_))
     | otherwise = Left $ "'" ++ x ++ "' is not an exportable type. Only JSTypes are exportable."
 
 isJsStructure name = name == "JSArray" || isTuple
-    where isTuple = "JSTuple" == take 7 name && name `elem` map show [2..5]
+    where isTuple = "JSTuple" == take 7 name && drop 7 name `elem` map show [2..5]

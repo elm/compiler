@@ -1,17 +1,44 @@
+
 Release 0.3.5
 =============
 
 * Add JavaScript event interface. Allows Elm to import and export JS values
   and events. This makes it possible to import and export Elements, so users
   can use JS techniques and libraries if necessary.
+
 * Add new flags to help with JavaScript event interface.
+
+* Add three built-in event listeners (elm_title, elm_log, elm_redirect) that
+  make it possible to make some common/simple imperative actions without
+  having to worry about writing the JS yourself. For example:
+        foreign export jsevent "elm_title"
+            title :: Signal JSString
+  will update the page's title to the current value of the title signal.
+  Empty strings are ignored. "elm_redirect" and "elm_log" events work much
+  the same way, except that "elm_log" does not skip empty strings.
+
 * Add new Signal functions:
-    count  :: Signal a -> Signal Int
-    keepIf :: a -> (a -> Bool) -> Signal a -> Signal a
-    dropIf :: a -> (a -> Bool) -> Signal a -> Signal a
+    count       :: Signal a -> Signal Int
+    keepIf      :: (a -> Bool) -> a -> Signal a -> Signal a
+    dropIf      :: (a -> Bool) -> a -> Signal a -> Signal a
+    keepWhen    :: Signal Bool -> a -> Signal a -> Signal a
+    dropWhen    :: Signal Bool -> a -> Signal a -> Signal a
     dropRepeats :: Signal a -> Signal a
   The keep and drop functions make it possible to filter events, which
-  was not possible in prior releases.
+  was not possible in prior releases. More documentation:
+  http://elm-lang.org/docs/Signal/Signal.elm
+
+* Add examples of JS event interface and new signal functions:
+  https://github.com/evancz/Elm/tree/master/Examples/elm-js
+
+* Use more compressed format for strings. Should make strings 10-12 times
+  more space efficient than in previous releases. Anecdotal evidence:
+  Elm's home page is now 70% of its previous size.
+
+* Add new function to Data.List:
+    last :: [a] -> a
+
+* Fix parenthesization bug with binary operators.
 
 
 

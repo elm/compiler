@@ -61,15 +61,15 @@ jsModule (Module names exports imports defs foreigns) =
                           (concatMap importEvent i, concatMap exportEvent e)
 
 importEvent (js,base,elm,_) =
-    concat [ "var " ++ elm ++ " = Elm.Input(" ++ toJS base ++ ");"
-           , "Signal.addListener(document, '" ++ js
+    concat [ "\nvar " ++ elm ++ " = Elm.Input(" ++ toJS base ++ ");"
+           , "\nSignal.addListener(document, '" ++ js
            , "', function(e) { Dispatcher.notify(" ++ elm
            , ".id, e.value); });" ]
 exportEvent (js,elm,_) =
-    concat [ "lift (function(v) { var e = document.createEvent('Event');"
+    concat [ "\nlift(function(v) { var e = document.createEvent('Event');"
            , "e.initEvent('" ++ js ++ "', true, true);"
            , "e.value = v;"
-           , "document.dispatchEvent(e); return v; })(" ++ elm ++ ")"
+           , "document.dispatchEvent(e); return v; })(" ++ elm ++ ");"
            ]
 
 jsImport (modul, how) =
@@ -158,6 +158,6 @@ binop (o:p) e1 e2
                     "." -> jsFunc "x" . ret $ e1 ++ parens (e2 ++ parens "x")
                     "==" -> "eq(" ++ e1 ++ "," ++ e2 ++ ")"
                     "/=" -> "not(eq(" ++ e1 ++ "," ++ e2 ++ "))"
-                    _ -> e1 ++ (o:p) ++ e2
+                    _ -> parens (e1 ++ (o:p) ++ e2)
 
 append e1 e2 = "Value.append" ++ parens (e1 ++ "," ++ e2)

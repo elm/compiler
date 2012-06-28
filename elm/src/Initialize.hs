@@ -10,6 +10,7 @@ import Unify
 import Rename
 import Optimize
 
+
 initialize str = do
   (Module name ex im defs (ims,exs), tipes) <- parseProgram str
   let (Let ds _) = rename . Let defs $ Var "_"
