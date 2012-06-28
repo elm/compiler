@@ -15,7 +15,7 @@ var Foreign = function() {
     function castJSNumberToInt(n) { return ~~n; }
     function castIntToJSNumber(n) { return n; }
 
-    var castJSElementToElement = Element.jsElement;
+    function castJSElementToElement(w) { return Element.jsElement(w); }
     function castElementToJSElement(elem) { return elem; }
 
     function castJSArrayToList(arr) {
