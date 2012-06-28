@@ -56,6 +56,17 @@ var List = function() {
 	}
 	return v[2];
     }
+    function last(v) {
+	if (v[0] !== "Cons") {
+	    throw "Error: 'last' only accepts lists of length greater than one.";
+	}
+	var out = v[1];
+	while (v[0] === "Cons") {
+	    out = v[1];
+	    v = v[2];
+	}
+	return out;
+    }
     function map(f) {
       return function(xs) {
 	  if (xs[0] === "Nil") { return xs; }
@@ -435,6 +446,7 @@ var List = function() {
     }
     return {head:head,
 	    tail:tail,
+	    last:last,
 	    map:map,
 	    foldl:foldl,
 	    foldr:foldr,

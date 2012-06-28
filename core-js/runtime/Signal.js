@@ -284,7 +284,8 @@ var Signal = function() {
 	      button:button};
   }();
 
-  return {Mouse:Mouse,
+  return {addListener:addListener,
+	  Mouse:Mouse,
 	  Keyboard:Keyboard,
 	  Time:Time,
 	  Window:Window,

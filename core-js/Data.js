@@ -48,6 +48,7 @@ var Maybe = function() {
     };
 }();
 
+/*
 var String = function() {
 
   function append(s1) { return function(s2) {
@@ -119,16 +120,14 @@ var String = function() {
 	  concatMap : concatMap,
 	  forall : forall,
 	  exists : exists,
-	  /*
-	  filter : filter,
-	  take:,
-	  drop:,
-	  */
+	  //filter : filter,
+	  //take:,
+	  //drop:,
 	  toText : Value.toText, 
 	  properEscape : Value.properEscape
     };
 }();
-
+*/
 return {String: {toText:Value.toText, properEscape:Value.properEscape},
 	Char:Char,
 	Maybe:Maybe,

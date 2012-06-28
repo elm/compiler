@@ -1,6 +1,12 @@
 
 var eq = Value.eq;
 
+Signal.addListener(document, 'elm_log', function(e) { console.log(e.value); });
+Signal.addListener(document, 'elm_title', function(e) { document.title = e.value; });
+Signal.addListener(document, 'elm_redirect', function(e) {
+	if (e.value.length > 0) { window.location = e.value; }
+    });
+
 var includeGlobal = this;
 (function() {
   var include = function(library) {

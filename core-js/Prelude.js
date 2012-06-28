@@ -55,6 +55,7 @@ var Prelude = function() {
 	    filter  : Data.List.filter,
 	    head    : Data.List.head,
 	    tail    : Data.List.tail,
+	    last    : Data.List.last,
 	    length  : Data.List.length,
 	    reverse : Data.List.reverse,
 	    foldr   : Data.List.foldr,
