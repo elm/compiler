@@ -1,14 +1,10 @@
 
 To compile this example yourself use:
 
-    elm --import-js="LogHelp.js" Log.elm
+    elm --import-js="FormHelp.js" Form.elm
 
 This compiles the Elm file and includes the necessary JavaScript code.
 It produces a self-contained HTML file.
-
-
-You can see the logged messages in the developer console of your browser.
-The keyboard shortcut is F12 in many browsers.
 
 
 Note: Not all browsers like reading the elm-runtime-x.y.z.js file from
