@@ -17,14 +17,16 @@ import CompileToJS
 import ExtractNoscript
 
 css = H.style ! A.type_ "text/css" $ preEscapedToMarkup
-      ("* { padding:0; margin:0; \
-       \hyphens: auto; -moz-hyphens: auto;\
-       \ -webkit-hyphens: auto; -ms-hyphens: auto; }\
+      ("* { padding:0; margin:0; }\
        \body { font-family: Arial; }\
        \a:link {text-decoration: none}\
        \a:visited {text-decoration: none}\
        \a:active {text-decoration: none}\
        \a:hover {text-decoration: underline; color: #ff8f12;}" :: String)
+{--
+       \hyphens: auto; -moz-hyphens: auto;\
+       \ -webkit-hyphens: auto; -ms-hyphens: auto; }\
+--}
 
 makeScript :: Either String String -> H.Html
 makeScript (Left s) =
