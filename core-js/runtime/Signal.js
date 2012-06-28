@@ -301,6 +301,12 @@ var Signal = function() {
 		  return function(e3) { return function(e4) {
 			  return Elm.Lift(f, [e1,e2,e3,e4]); }; }; }; }; },
 	  foldp : function(f) { return function(b) { return function(e) {
-		  return Elm.Fold(f,b,e); }; }; }
+		  return Elm.Fold(f,b,e); }; }; },
+	  count : function(sig){return Elm.fold(function(c){return c+1},0,sig)},
+	  keepIf : Elm.keepIf,
+	  dropIf : Elm.dropIf,
+	  keepWhen : Elm.keepWhen,
+	  dropWhen : Elm.dropWhen,
+	  dropRepeats : Elm.dropRepeats
   };
 }();

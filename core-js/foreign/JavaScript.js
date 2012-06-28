@@ -29,12 +29,15 @@ var Foreign = function() {
 	return a;
     }
 
-    var castJSStringToString = castJSArrayToList
+    var castJSStringToString = castJSArrayToList;
     function castStringToJSString(str) {
 	if (typeof str === "string") return str;
 	return castListToJSArray(str).join('');
     }
 
+    function fromTuple(t) { return t.slice(1); }
+    function toTuple(a) { return a.unshift("Tuple" + a.length); }
+    
     return {castJSBoolToBool:castJSBoolToBool,
 	    castBoolToJSBool:castBoolToJSBool,
 	    castJSNumberToFloat:castJSNumberToFloat,
@@ -46,7 +49,15 @@ var Foreign = function() {
 	    castJSArrayToList:castJSArrayToList,
 	    castListToJSArray:castListToJSArray,
 	    castJSStringToString:castJSStringToString,
-	    castStringToJSString:castStringToJSString
+	    castStringToJSString:castStringToJSString,
+ 	    castTupleToJSTuple2:fromTuple,
+	    castTupleToJSTuple3:fromTuple,
+	    castTupleToJSTuple4:fromTuple,
+	    castTupleToJSTuple5:fromTuple,
+ 	    castJSTupleToTuple2:toTuple,
+	    castJSTupleToTuple3:toTuple,
+	    castJSTupleToTuple4:toTuple,
+	    castJSTupleToTuple5:toTuple
     };
   }();
   return {JavaScript:JavaScript};

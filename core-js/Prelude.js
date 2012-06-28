@@ -80,6 +80,12 @@ var Prelude = function() {
 	    lift3 : Signal.lift3,
 	    lift4 : Signal.lift4,
 	    foldp : Signal.foldp,
-	    constant : Signal.constant
+	    constant : Signal.constant,
+	    count : Signal.count,
+	    keepIf : Signal.keepIf,
+	    dropIf : Signal.dropIf,
+	    keepWhen : Signal.keepWhen,
+	    dropWhen : Signal.dropWhen,
+	    dropRepeats : Signal.dropRepeats
 	    };
 }();

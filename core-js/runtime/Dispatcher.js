@@ -59,9 +59,46 @@ var Elm = function() {
 	};
 	input.kids.push(this);
     };
+
+    var dropIf = function(pred,base,input) {
+	this.id = Guid.guid();
+	this.value = pred(input.value) ? base : input.value;
+	this.kids = [];
+	this.recv = function(timestep, changed) {
+	    var chng = changed && !pred(input.value);
+	    if (chng) { this.value = input.value; }
+	    send(this.kids, timestep, chng);
+	};
+	input.kids.push(this);
+    };
+    var dropRepeats = function(input) {
+	this.id = Guid.guid();
+	this.value = input.value;
+	this.kids = [];
+	this.recv = function(timestep, changed) {
+	    var chng = changed && !eq(this.value,input.value);
+	    if (chng) { this.value = input.value; }
+	    send(this.kids, timestep, chng);
+	};
+	input.kids.push(this);
+    };
+
+    var dropWhen = function(s1) { return function(b) { return function(s2) {
+          var pairs = new lift(function(x){return function(y){return [x,y];};},[s1,s2]);
+	  var dropped = new dropIf(function(p){return p[0];},[true,b],pairs);
+	  return new lift(function(p){return p[1];},[dropped]); }; };
+    };
+
     return {Input: function(x) {return new input(x);},
 	    Lift:  function(f,xs){return new lift(f,xs);},
-	    Fold:  function(f,b,x){return new fold(f,b,x);}
+	    Fold:  function(f,b,x){return new fold(f,b,x);},
+	    keepIf : function(pred) { return function(base) { return function(sig) {
+		    return new dropIf(function(x) { return !pred(x)},base,sig); }; }; },
+	    dropIf : function(pred) { return function(base) { return function(sig) {
+		    return new dropIf(pred,base,sig); }; }; },
+	    keepWhen : function(s) { return dropWhen(new lift(function(b){return !b;},[s])); },
+	    dropWhen : dropWhen,
+	    dropRepeats : function(s) { return new dropRepeats(s);}
     };
 }();
 
@@ -109,8 +146,7 @@ var Dispatcher = function() {
     };
 
     var initialize = function() {
-	var prog = ElmCode.hasOwnProperty("main") ? ElmCode.main : main;
-	try { program = prog(); } catch (e) { throw e; }
+	program = ElmCode.main();
 	if (!program.hasOwnProperty('recv')) {
 	    program = Elm.Input(program);
 	}

@@ -1,11 +1,33 @@
 
 var Value = function(){
+
+  var eq = function(x,y) {
+    if (typeof x === "object") {
+	if (x === y) return true;
+	if (x.length !== y.length) return false;
+	for (var i = x.length; i--; ) {
+	    if (!eq(x[i],y[i])) return false;
+	}
+	return true;
+    }
+    return x === y;
+  };
+
   var Tuple = function() {
       var len = arguments.length;
       var arr = new Array(len+1);
       arr[0] = "Tuple" + arguments.length;
       for (var i = len; i--; ) {
 	  arr[i+1] = arguments[i];
+      }
+      return arr;
+  };
+
+  var listToArray = function(list) {
+      var arr = [];
+      while (list[0] === "Cons") {
+        arr.push(list[1]);
+	list = list[2];
       }
       return arr;
   };
@@ -90,10 +112,21 @@ var Value = function(){
     curr[2] = ys;
     return root;
   };
+
+  var str = function(s) {
+    var out = ["Nil"];
+    for (var i = s.length; i--; ) {
+      out = ["Cons", s[i], out];
+    }
+    return out;
+  };
   
-  return {show:show,
+  return {eq:eq,
+	  str:str,
+	  show:show,
 	  Tuple:Tuple,
 	  append:append,
+	  listToArray:listToArray,
 	  toText : toText,
 	  properEscape : properEscape};
 }();
