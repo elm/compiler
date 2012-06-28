@@ -29,7 +29,7 @@ document.addEventListener('finished', function(evt) {
 	timeoutID = setTimeout(function() {
 		date = new Date();
 		frameStart = date.getTime();
-		e = document.createEvent('Event');
+		var e = document.createEvent('Event');
 		e.initEvent('trigger', true, true);
 		e.value = (frameStart - startTime) / 1000;
 		document.dispatchEvent(e);
