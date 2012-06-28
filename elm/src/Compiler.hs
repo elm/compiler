@@ -20,38 +20,39 @@ data ELM =
         , runtime :: Maybe FilePath
         , separate_js :: Bool
         , only_js :: Bool
---        , verbose_js :: Bool
+        , import_js :: [FilePath]
         }
     deriving (Data,Typeable,Show,Eq)
 
 elm = ELM { make = False &= help "automatically compile dependencies."
           , files = def &= args &= typ "FILES"
-          , runtime = Nothing &= typ "FILE" &=
+          , runtime = Nothing &= typFile &=
             help "Specify a custom location for Elm's runtime system."
           , separate_js = False &= help "Compile to separate HTML and JS files."
           , only_js = False &= help "Compile only to JavaScript."
---          , verbose_js = False &= help "Produce JavaScript that may be easier to debug."
+          , import_js = [] &= typFile &= help "Include a JavaScript file before the body of the Elm program. Can be used many times. Files will be included in the given order."
           } &=
     help "Compile Elm programs to HTML, CSS, and JavaScript." &=
-    summary "The Elm Compiler v0.3.0, (c) Evan Czaplicki"
+    summary "The Elm Compiler v0.3.5, (c) Evan Czaplicki"
 
 main = do
   args <- cmdArgs elm
-  mini <- getDataFileName "elm-runtime-0.3.0.js"
+  mini <- getDataFileName "elm-runtime-0.3.5.js"
   compileArgs mini args
 
-compileArgs mini (ELM _ [] _ _ _) =
+compileArgs mini (ELM _ [] _ _ _ _) =
     putStrLn "Usage: elm [OPTIONS] [FILES]\nFor more help: elm --help"
-compileArgs mini (ELM make files rtLoc split only) =
-    mapM_ (fileTo get what $ fromMaybe mini rtLoc) files
+compileArgs mini (ELM make files rtLoc split only js) =
+    mapM_ (fileTo get what js $ fromMaybe mini rtLoc) files
         where get = if make then getModules [] else getModule
               what = if only then JS else
                          if split then Split else HTML
 
 data What = JS | HTML | Split
 
-fileTo get what rtLoc file = do
+fileTo get what jsFiles rtLoc file = do
   ems <- get file
+  jss <- concat `fmap` mapM readFile jsFiles
   case ems of
     Left err -> putStrLn $ "Error while compiling " ++ file ++ ":\n" ++ err
     Right ms ->
@@ -59,18 +60,18 @@ fileTo get what rtLoc file = do
             js = name ++ ".js"
             html = name ++ ".html"
         in  case what of
-              JS -> writeFile js $ concatMap jsModule ms
-              HTML -> writeFile html . renderHtml $ modulesToHtml rtLoc ms
+              JS -> writeFile js $ jss ++ concatMap jsModule ms
+              HTML -> writeFile html . renderHtml $ modulesToHtml "" rtLoc jss ms
               Split -> do
                   writeFile html . renderHtml $ linkedHtml rtLoc js ms
-                  writeFile js $ concatMap jsModule ms
+                  writeFile js $ jss ++ concatMap jsModule ms
 
 getModules :: [String] -> FilePath -> IO (Either String [Module])
 getModules uses file = do
   code <- readFile file
   case initialize code of
     Left err -> return . Left $ "Error in " ++ file ++ ":\n" ++ err
-    Right modul@(Module _ _ imports _) ->
+    Right modul@(Module _ _ imports _ _) ->
         let imps = filter (`notElem` builtInModules) $ map fst imports in
         case intersect uses imps of
           x:_ -> return . Left $ "Error: Cyclic dependency. Module " ++

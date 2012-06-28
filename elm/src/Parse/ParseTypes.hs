@@ -83,14 +83,20 @@ toType pairs outType (name,args) =
                                       _ -> ADT x []
 
 toForeignType (LambdaPT t1 t2) =
-    LambdaT <$> toForeignType t1 <*> toForeignType t2
-toForeignType (ADTPT name args) = do
-    case name == "JSArray" of
-      True -> ADT name <$> mapM toForeignType args
-      False -> Left $ "'" ++ name ++
-               "' is not an exportable type constructor. Only 'JSArray' is exportable."
+    fail $ "Elm's JavaScript event interface does not yet handle functions. " ++
+           "Only simple values can be imported and exported in this release."
+    --LambdaT <$> toForeignType t1 <*> toForeignType t2
+toForeignType (ADTPT name args)
+    | isJsStructure name =  ADT name <$> mapM toForeignType args
+    | otherwise =
+        Left $ "'" ++ name ++ "' is not an exportable type " ++
+               "constructor. Only 'JSArray' and 'JSTupleN' are exportable."
+
 toForeignType (VarPT x@(c:_))
     | isLower c =
         Left "All exported types must be concrete types (JSNumber, JSString, etc.)"
-    | x `elem` [ "JSString", "JSNumber", "JSElement" ] = Right (ADT x [])
-    | otherwise = Left $ "'" ++ x ++ "' is not an exportable type. JSNumber, JSString, JSElement, and (JSArray a) are exportable."
+    | x `elem` ["JSString","JSNumber","JSElement","JSBool"] = Right (ADT x [])
+    | otherwise = Left $ "'" ++ x ++ "' is not an exportable type. Only JSTypes are exportable."
+
+isJsStructure name = name == "JSArray" || isTuple
+    where isTuple = "JSTuple" == take 7 name && name `elem` map show [2..5]

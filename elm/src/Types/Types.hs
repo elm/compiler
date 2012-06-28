@@ -30,7 +30,16 @@ point = tupleOf [IntT,IntT]
 listOf t   = ADT "List" [t]
 signalOf t = ADT "Signal" [t]
 tupleOf ts = ADT ("Tuple" ++ show (length ts)) ts
+maybeOf t  = ADT "Maybe" [t]
 string     = listOf CharT
+time       = IntT
+
+jsBool     = ADT "JSBool" []
+jsNumber   = ADT "JSNumber" []
+jsString   = ADT "JSString" []
+jsElement  = ADT "JSElement" []
+jsArray t  = ADT "JSArray" [t]
+jsTuple ts = ADT ("JSTuple" ++ show (length ts)) ts
 
 infixr ==>
 t1 ==> t2 = LambdaT t1 t2

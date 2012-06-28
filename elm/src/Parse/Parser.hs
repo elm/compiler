@@ -27,11 +27,10 @@ defs = do
 
 program = do
   optional freshLine
-  (names,exports) <- option ([],[]) (moduleDef `followedBy` freshLine)
+  (names,exports) <- option (["Main"],[]) (moduleDef `followedBy` freshLine)
   is <- (do try (lookAhead $ reserved "import")
             imports `followedBy` freshLine) <|> return []
-  jsffi <- foreignDefs
-  freshLine
+  jsffi <- foreignDefs `followedBy` freshLine <|> return ([],[])
   (vs,es,ts) <- defs
   optional freshLine ; optional spaces ; eof
   return (Module names exports is (zip vs es) jsffi, zip vs `liftM` ts)

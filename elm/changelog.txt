@@ -1,3 +1,20 @@
+Release 0.3.5
+=============
+
+* Add JavaScript event interface. Allows Elm to import and export JS values
+  and events. This makes it possible to import and export Elements, so users
+  can use JS techniques and libraries if necessary.
+* Add new flags to help with JavaScript event interface.
+* Add new Signal functions:
+    count  :: Signal a -> Signal Int
+    keepIf :: a -> (a -> Bool) -> Signal a -> Signal a
+    dropIf :: a -> (a -> Bool) -> Signal a -> Signal a
+    dropRepeats :: Signal a -> Signal a
+  The keep and drop functions make it possible to filter events, which
+  was not possible in prior releases.
+
+
+
 Release 0.3.0
 =============
 

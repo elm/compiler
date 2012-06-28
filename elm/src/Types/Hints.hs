@@ -49,6 +49,35 @@ shapes = [ "polygon"       -: listOf point ==> point ==> shape
          ] ++ hasType (IntT ==> IntT ==> point ==> shape) ["ngon","rect","oval"]
 
 
+--------  Foreign  --------
+
+casts =
+  [ "castJSBoolToBool"       -: jsBool ==> BoolT
+  , "castBoolToJSBool"       -: BoolT ==> jsBool
+  , "castJSNumberToInt"      -: jsNumber ==> IntT
+  , "castIntToJSNumber"      -: IntT ==> jsNumber
+  , "castJSElementToElement" -: jsElement ==> element
+  , "castElementToJSElement" -: element ==> jsElement
+  , "castJSStringToString"   -: jsString ==> string
+  , "castStringToJSString"   -: string ==> jsString
+  --  , "castJSNumberToFloat -: 
+  --  , "castFloatToJSNumber -:
+  ]
+
+polyCasts = sequence
+  [ do a <- var     ; "castJSArrayToList"   -:: jsArray a ==> listOf a
+  , do a <- var     ; "castListToJSArray"   -:: listOf a ==> jsArray a
+  , do vs <- vars 2 ; "castTupleToJSTuple2" -:: tupleOf vs ==> jsTuple vs
+  , do vs <- vars 3 ; "castTupleToJSTuple3" -:: tupleOf vs ==> jsTuple vs
+  , do vs <- vars 4 ; "castTupleToJSTuple4" -:: tupleOf vs ==> jsTuple vs
+  , do vs <- vars 5 ; "castTupleToJSTuple5" -:: tupleOf vs ==> jsTuple vs
+  , do vs <- vars 2 ; "castJSTupleToTuple2" -:: jsTuple vs ==> tupleOf vs
+  , do vs <- vars 3 ; "castJSTupleToTuple3" -:: jsTuple vs ==> tupleOf vs
+  , do vs <- vars 4 ; "castJSTupleToTuple4" -:: jsTuple vs ==> tupleOf vs
+  , do vs <- vars 5 ; "castJSTupleToTuple5" -:: jsTuple vs ==> tupleOf vs
+  ]
+
+
 --------  Signals  --------
 
 sig ts = fn ts ==> fn (map signalOf ts)
@@ -62,22 +91,29 @@ signals = sequence
     , do ts <- vars 5 ; "lift4"    -:: sig ts
     , do [a,b] <- vars 2 
          "foldp" -:: (a ==> b ==> b) ==> b ==> signalOf a ==> signalOf b
+    , do a <- var ; "randomize" -:: IntT ==> IntT ==> signalOf a ==> signalOf IntT
     ]
 
-concreteSignals =
-    [ "Mouse.position"    -: signalOf point
-    , "Mouse.x"           -: signalOf IntT
-    , "Mouse.y"           -: signalOf IntT
-    , "Mouse.isDown"      -: signalOf BoolT
-    , "Mouse.isClicked"   -: signalOf BoolT
-    , "Window.dimensions" -: signalOf point
-    , "Window.width"      -: signalOf IntT
-    , "Window.height"     -: signalOf IntT
-    , "Input.textField"   -: string ==> tupleOf [element, signalOf string]
-    , "Input.password"    -: string ==> tupleOf [element, signalOf string]
-    , "Input.textArea"    -: IntT ==> IntT ==> tupleOf [element, signalOf string]
-    , "Input.stringDropDown" -: listOf string ==> tupleOf [element, signalOf string]
-    ]
+concreteSignals = 
+  [ "keysDown"    -: signalOf (listOf IntT)
+  , "charPressed" -: signalOf (maybeOf IntT)
+  , "inRange"     -: IntT ==> IntT ==> signalOf IntT
+  , "every"       -: time ==> signalOf time
+  , "before"      -: time ==> signalOf BoolT
+  , "after"       -: time ==> signalOf BoolT
+  , "dimensions"  -: signalOf point
+  , "position"    -: signalOf point
+  , "x"           -: signalOf IntT
+  , "y"           -: signalOf IntT
+  , "isDown"      -: signalOf BoolT
+  , "isClicked"   -: signalOf BoolT
+  , "textField"   -: string ==> tupleOf [element, signalOf string]
+  , "password"    -: string ==> tupleOf [element, signalOf string]
+  , "textArea"    -: IntT ==> IntT ==> tupleOf [element, signalOf string]
+  , "checkBox"    -: BoolT ==> tupleOf [element, signalOf BoolT]
+  , "button"      -: string ==> tupleOf [element, signalOf BoolT]
+  , "stringDropDown" -: listOf string ==> tupleOf [element, signalOf string]
+  ]
 
 --------  Math and Binops  --------
 
@@ -111,7 +147,7 @@ funcs = sequence
     , do [a,b,c] <- vars 3 ; "."    -:: (b ==> c) ==> (a ==> b) ==> (a ==> c)
     , do [a,b] <- vars 2   ; "$"    -:: (a ==> b) ==> a ==> b
     , do a <- var ; ":"       -:: a ==> listOf a ==> listOf a
-    , do a <- var ; "++"      -:: listOf a ==> listOf a ==> listOf a
+    , do a <- var ; "++"      -:: a ==> a ==> a
     , do a <- var ; "Cons"    -:: a ==> listOf a ==> listOf a 
     , do a <- var ; "Nil"     -:: listOf a
     , do a <- var ; "Just"    -:: a ==> ADT "Maybe" [a]
@@ -121,7 +157,7 @@ funcs = sequence
 
 ints = map (-: (listOf IntT ==> IntT)) [ "sum","product","maximum","minimum" ]
 
-lists = liftM (map (first ("List."++)) . (++ints)) . sequence $
+lists = liftM (++ints) . sequence $
     [ "and"  -:: listOf BoolT ==> BoolT
     , "or"   -:: listOf BoolT ==> BoolT
     , "sort" -:: listOf IntT ==> listOf IntT
@@ -136,6 +172,9 @@ lists = liftM (map (first ("List."++)) . (++ints)) . sequence $
     , do a <- var ; "exists"  -:: (a ==> BoolT) ==> listOf a ==> BoolT
     , do a <- var ; "concat"  -:: listOf (listOf a) ==> listOf a
     , do a <- var ; "reverse" -:: listOf a ==> listOf a
+    , do a <- var ; "take"    -:: IntT ==> listOf a ==> listOf a
+    , do a <- var ; "drop"    -:: IntT ==> listOf a ==> listOf a
+    , do a <- var ; "partition"    -:: (a==>BoolT)==>listOf a==>tupleOf [listOf a,listOf a]
     , do a <- var ; "intersperse"  -:: a ==> listOf a ==> listOf a
     , do a <- var ; "intercalate"  -:: listOf a ==> listOf(listOf a) ==> listOf a
     , do [a,b] <- vars 2 ; "zip"   -:: listOf a ==>listOf b ==>listOf(tupleOf [a,b])
@@ -152,8 +191,8 @@ lists = liftM (map (first ("List."++)) . (++ints)) . sequence $
 --------  Everything  --------
 
 hints = do
-  fs <- funcs ; ls <- lists ; ss <- signals
+  fs <- funcs ; ls <- lists ; ss <- signals ; pcasts <- polyCasts
   return $ concat [ fs, ls, ss, math, bool, str2elem, textAttrs
                   , elements, directions, colors, lineTypes, shapes
-                  , concreteSignals
+                  , concreteSignals, casts, pcasts
                   ]

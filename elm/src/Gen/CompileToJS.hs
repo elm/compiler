@@ -14,9 +14,9 @@ showErr :: String -> String
 showErr err = mainEquals $ "text(monospace(" ++ msg ++ "))"
     where msg = show . concatMap (++"<br>") . lines $ err
 
-parens = ("("++) . (++")")
-braces = ("{"++) . (++"}")
-jsList = ("["++) . (++"]") . intercalate ","
+parens s  = "(" ++ s ++ ")"
+braces s  = "{" ++ s ++ "}"
+jsList ss = "["++ intercalate "," ss ++"]"
 jsFunc args body = "function(" ++ args ++ "){" ++ body ++ "}"
 assign x e = "\nvar " ++ x ++ "=" ++ e ++ ";"
 ret e = "\nreturn "++ e ++";"
@@ -38,14 +38,14 @@ tryBlock names e =
            ]
 
 
-jsModule (Module names exports imports defs (ims,exs)) =
+jsModule (Module names exports imports defs foreigns) =
     tryBlock (tail modNames) $ concat
            [ concatMap (\n -> globalAssign n $ n ++ " || {}") .
              map (intercalate ".") . drop 2 . inits $
              take (length modNames - 1) modNames
            , "\nif (" ++ modName ++ ") throw \"Module name collision, '" ++
              intercalate "." (tail modNames) ++ "' is already defined.\"; "
-           , globalAssign modName $ jsFunc "" (includes++body++export)++"()"
+           , globalAssign modName $ jsFunc "" (includes++ims++body++exs++export)++"()"
            , mainEquals $ modName ++ ".main" ]
         where modNames = if null names then ["ElmCode", "Main"] else "ElmCode" : names
               modName  = intercalate "." modNames
@@ -57,23 +57,23 @@ jsModule (Module names exports imports defs (ims,exs)) =
               getNames (x,_) =
                   let y = reverse . tail . dropWhile isDigit $ reverse x in
                   if y `elem` exps then Just $ y ++ ":" ++ x else Nothing
+              (ims,exs) = let (i,e) = foreigns in
+                          (concatMap importEvent i, concatMap exportEvent e)
 
-ffi (ImportValue js elm _) = assign elm js
-ffi (ExportValue js elm _) = assign js elm
-ffi (ImportEvent js elm base _) =
+importEvent (js,base,elm,_) =
     concat [ "var " ++ elm ++ " = Elm.Input(" ++ toJS base ++ ");"
            , "Signal.addListener(document, '" ++ js
            , "', function(e) { Dispatcher.notify(" ++ elm
-           , ".id, e); });" ]
-ffi (ExportEvent js elm base _) =
+           , ".id, e.value); });" ]
+exportEvent (js,elm,_) =
     concat [ "lift (function(v) { var e = document.createEvent('Event');"
            , "e.initEvent('" ++ js ++ "', true, true);"
-           , "e.elmValue = v;"
-           , "document.disspatchEvent(e); return v; })(" ++ elm ++ ")"
+           , "e.value = v;"
+           , "document.dispatchEvent(e); return v; })(" ++ elm ++ ")"
            ]
 
 jsImport (modul, how) =
-  concat [ "\ntry{" ++ modul ++ "} catch(e) {throw \"Module '"
+  concat [ "\ntry{" ++ modul ++ " instanceof Object} catch(e) {throw \"Module '"
          , drop 1 (dropWhile (/='.') modul)
          , "' is missing. Compile with --make flag or load missing "
          , "module in a separate JavaScript file.\";}" ] ++
@@ -96,7 +96,7 @@ toJS expr =
       Number n -> show n
       Var x -> x
       Chr c -> show c
-      Str s -> toJS . list $ map Chr s
+      Str s -> "Value.str" ++ parens (show s)
       Boolean b -> if b then "true" else "false"
       Range lo hi -> jsRange (toJS lo) (toJS hi)
       Access e lbl -> toJS e ++ "." ++ lbl

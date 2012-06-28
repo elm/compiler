@@ -6,3 +6,6 @@ cabal-dev
 *.chs.h
 *.aes
 .DS_Store
+/Examples/elm-js/ChangeTitle/ChangeTitle.html
+/Examples/elm-js/ConsoleLog/Log.html
+/Examples/elm-js/Redirect/Redirect.html

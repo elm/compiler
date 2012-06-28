@@ -6,7 +6,7 @@ import Data.List (intercalate)
 import Types
 import Guid
 
-data Module = Module [String] Exports Imports Defs [JSFFI]
+data Module = Module [String] Exports Imports Defs JSFFI
 
 type Exports = [String]
 
@@ -15,10 +15,8 @@ data ImportMethod = As String | Hiding [String] | Importing [String]
 
 type Defs = [(String,Expr)]
 
-data JSFFI = ImportValue String String Type
-           | ExportValue String String Type
-           | ImportEvent String String Expr Type
-           | ExportEvent String String Type
+type JSFFI = ( [(String, Expr, String, Type)]
+             , [(String, String, Type)] )
 
 
 data Pattern = PData String [Pattern] | PVar String | PAnything
