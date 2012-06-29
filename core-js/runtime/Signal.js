@@ -311,6 +311,7 @@ var Signal = function() {
 	  dropIf : Elm.dropIf,
 	  keepWhen : Elm.keepWhen,
 	  dropWhen : Elm.dropWhen,
-	  dropRepeats : Elm.dropRepeats
+	  dropRepeats : Elm.dropRepeats,
+	  sampleOn : Elm.sampleOn
   };
 }();

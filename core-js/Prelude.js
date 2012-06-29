@@ -87,6 +87,7 @@ var Prelude = function() {
 	    dropIf : Signal.dropIf,
 	    keepWhen : Signal.keepWhen,
 	    dropWhen : Signal.dropWhen,
-	    dropRepeats : Signal.dropRepeats
+	    dropRepeats : Signal.dropRepeats,
+	    sampleOn : Signal.sampleOn
 	    };
 }();

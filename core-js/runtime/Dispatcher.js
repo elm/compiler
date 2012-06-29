@@ -115,7 +115,7 @@ var Elm = function() {
 	    keepWhen : function(s) { return dropWhen(new lift(function(b){return !b;},[s])); },
 	    dropWhen : dropWhen,
 	    dropRepeats : function(s) { return new dropRepeats(s);},
-	    sampleOn : sampleOn
+	    sampleOn : function(s1) { return function(s2) { return new sampleOn(s1,s2); }; }
     };
 }();
 
