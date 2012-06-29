@@ -2,7 +2,7 @@
 module Map where
 
 import Signal.Window as Win
-import Foreign.JavaScript
+import Foreign.JavaScript.Experimental
 
 foreign import jsevent "provideMap"
   (castElementToJSElement $ rectangle 640 360)

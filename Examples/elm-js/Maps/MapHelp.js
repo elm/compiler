@@ -19,5 +19,5 @@ lib.addEventListener('load', function() {
 	    }, 0);
     });
 
-lib.src = "http://www.openlayers.org/api/OpenLayers.js";s
+lib.src = "http://www.openlayers.org/api/OpenLayers.js";
 document.head.appendChild(lib);
