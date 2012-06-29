@@ -21,6 +21,7 @@ data ELM =
         , separate_js :: Bool
         , only_js :: Bool
         , import_js :: [FilePath]
+        , generate_noscript :: Bool
         }
     deriving (Data,Typeable,Show,Eq)
 
@@ -31,6 +32,7 @@ elm = ELM { make = False &= help "automatically compile dependencies."
           , separate_js = False &= help "Compile to separate HTML and JS files."
           , only_js = False &= help "Compile only to JavaScript."
           , import_js = [] &= typFile &= help "Include a JavaScript file before the body of the Elm program. Can be used many times. Files will be included in the given order."
+          , generate_noscript = False &= help "Add generated <noscript> tag to HTML output."
           } &=
     help "Compile Elm programs to HTML, CSS, and JavaScript." &=
     summary "The Elm Compiler v0.3.5, (c) Evan Czaplicki"
@@ -40,17 +42,17 @@ main = do
   mini <- getDataFileName "elm-runtime-0.3.5.js"
   compileArgs mini args
 
-compileArgs mini (ELM _ [] _ _ _ _) =
+compileArgs mini (ELM _ [] _ _ _ _ _) =
     putStrLn "Usage: elm [OPTIONS] [FILES]\nFor more help: elm --help"
-compileArgs mini (ELM make files rtLoc split only js) =
-    mapM_ (fileTo get what js $ fromMaybe mini rtLoc) files
+compileArgs mini (ELM make files rtLoc split only js nscrpt) =
+    mapM_ (fileTo get what js nscrpt $ fromMaybe mini rtLoc) files
         where get = if make then getModules [] else getModule
               what = if only then JS else
                          if split then Split else HTML
 
 data What = JS | HTML | Split
 
-fileTo get what jsFiles rtLoc file = do
+fileTo get what jsFiles noscript rtLoc file = do
   ems <- get file
   jss <- concat `fmap` mapM readFile jsFiles
   case ems of
@@ -61,7 +63,7 @@ fileTo get what jsFiles rtLoc file = do
             html = name ++ ".html"
         in  case what of
               JS -> writeFile js $ jss ++ concatMap jsModule ms
-              HTML -> writeFile html . renderHtml $ modulesToHtml "" rtLoc jss ms
+              HTML -> writeFile html . renderHtml $ modulesToHtml "" rtLoc jss noscript ms
               Split -> do
                   writeFile html . renderHtml $ linkedHtml rtLoc js ms
                   writeFile js $ jss ++ concatMap jsModule ms

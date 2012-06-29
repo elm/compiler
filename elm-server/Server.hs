@@ -11,7 +11,7 @@ import qualified Language.Elm as Elm
 
 serve :: String -> IO ()
 serve libLoc = do
-  putStrLn "Elm Server 0.3.0.1: running at <http://localhost:8000>"
+  putStrLn "Elm Server 0.3.5: running at <http://localhost:8000>"
   simpleHTTP nullConf $ do
          _ <- compressedResponseFilter
          msum [ uriRest (serveElm libLoc)
@@ -34,7 +34,7 @@ main = getArgs >>= parse
 
 parse :: [String] -> IO ()
 parse ("--help":_) = putStrLn usage
-parse ("--version":_) = putStrLn "The Elm Server 0.3.0.1"
+parse ("--version":_) = putStrLn "The Elm Server 0.3.5"
 parse [] = serve "/elm-mini.js"
 parse [arg]
     | "--runtime-location=" `isPrefixOf` arg =
