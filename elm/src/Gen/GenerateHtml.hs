@@ -17,7 +17,7 @@ import CompileToJS
 import ExtractNoscript
 
 css = H.style ! A.type_ "text/css" $ preEscapedToMarkup
-      ("* { padding:0; margin:0; }\
+      ("html,head,body { padding:0; margin:0; }\
        \body { font-family: Arial; }\
        \a:link {text-decoration: none}\
        \a:visited {text-decoration: none}\

@@ -4,7 +4,10 @@ Release 0.3.5
 
 * Add JavaScript event interface. Allows Elm to import and export JS values
   and events. This makes it possible to import and export Elements, so users
-  can use JS techniques and libraries if necessary.
+  can use JS techniques and libraries if necessary. Conversion between JS
+  and Elm values happens with functions from here:
+    http://localhost:8000/docs/Foreign/JavaScript.elm
+    http://localhost:8000/docs/Foreign/JavaScript/Experimental.elm
 
 * Add new flags to help with JavaScript event interface.
 
@@ -24,6 +27,8 @@ Release 0.3.5
     keepWhen    :: Signal Bool -> a -> Signal a -> Signal a
     dropWhen    :: Signal Bool -> a -> Signal a -> Signal a
     dropRepeats :: Signal a -> Signal a
+    sampleOn    :: Signal a -> Signal b -> Signal b
+    clicks      :: Signal ()
   The keep and drop functions make it possible to filter events, which
   was not possible in prior releases. More documentation:
   http://elm-lang.org/docs/Signal/Signal.elm

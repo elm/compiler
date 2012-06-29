@@ -98,6 +98,7 @@ signals = sequence
     , do a <- var ; "keepWhen"  -:: signalOf BoolT ==>a==> signalOf a ==> signalOf a
     , do a <- var ; "dropWhen"  -:: signalOf BoolT ==>a==> signalOf a ==> signalOf a
     , do a <- var ; "dropRepeats" -:: signalOf a ==> signalOf a
+    , do [a,b] <- vars 2 ; "sampleOn" -:: signalOf a ==> signalOf b ==> signalOf b
     ]
 
 concreteSignals = 
