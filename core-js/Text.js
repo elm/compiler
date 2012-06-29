@@ -11,7 +11,7 @@ var Text = function() {
   };
 
   var addTag = function(tag) { return function(text) {
-	return '<' + tag + '>' + text + '</' + tag + '>';
+	return '<' + tag + ' style="padding:0;margin:0">' + text + '</' + tag + '>';
     };
   };
   var addStyle = function(style, value) { return function(text) {

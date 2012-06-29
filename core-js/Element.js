@@ -3,39 +3,15 @@ var Element = function() {
   var newElement = function(elementType) {
     var e = document.createElement(elementType);    
     e.id = Guid.guid();
-    //e.timesAdded = 0;
+    e.style.padding = "0";
+    e.style.margin = "0";
     return e;
   };
   var addTo = function(container, elem) {
       container.appendChild(clone(elem));
-      //elem.timesAdded += 1;
   };
   var clone = function(e) {
     return e;
-    /*if (e.timesAdded === 0) { return e; }
-    if (e.tagName === "CANVAS") {
-	var newCanvas = e.cloneNode(true);
-	var ctx = newCanvas.getContext('2d');
-	ctx.drawImage(e, 0, 0);
-	return newCanvas;
-    } else if (e.tagName === "IMG") {
-	d = image([]);
-	d.src = e.src;
-	d.name = e.name;
-	if (e.style.width !== "") { d.style.width = d.width = e.style.width; }
-	if (e.style.height !== ""){d.style.height = d.height = e.style.height;}
-	return d;
-    } else if (e.hasOwnProperty('isElmLeaf')) {
-	return e.cloneNode(true);
-    } else {
-	d = e.cloneNode(false);
-	var kids = e.childNodes;
-	var len = kids.length;
-	for (var i = 0; i < len; i++) {
-	    d.appendChild(clone(kids[i]));
-	}
-	return d;
-	}*/
   };
   var divify = function(e) {
     var div = newElement('div');

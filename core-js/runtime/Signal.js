@@ -24,6 +24,7 @@ var Signal = function() {
     var position  = Elm.Input(Value.Tuple(0,0));
     var isDown    = Elm.Input(false);
     var isClicked = Elm.Input(false);
+    var clicks = Elm.Input(Value.Tuple());
     
     function getXY(e) {
       var posx = 0;
@@ -43,6 +44,7 @@ var Signal = function() {
 
     addListener(document, 'click', function(e) {
 	    Dispatcher.notify(isClicked.id, true);
+	    Dispatcher.notify(clicks.id, Value.Tuple());
 	    Dispatcher.notify(isClicked.id, false);
 	});
     addListener(document, 'mousedown', function(e) {
@@ -64,7 +66,8 @@ var Signal = function() {
 	    y: Elm.Lift(function(p){return p[2];},[position]),
 	    isClicked: isClicked,
 	    isDown: isDown,
-	    clickedOn: clickedOn
+	    clicks: clicks
+	    //clickedOn: clickedOn
 	    };
   }();
 
@@ -303,7 +306,7 @@ var Signal = function() {
 			  return Elm.Lift(f, [e1,e2,e3,e4]); }; }; }; }; },
 	  foldp : function(f) { return function(b) { return function(e) {
 		  return Elm.Fold(f,b,e); }; }; },
-	  count : function(sig){return Elm.fold(function(c){return c+1},0,sig)},
+	  count : function(sig){return Elm.Fold(function(_){return function(c){return c+1;};},0,sig)},
 	  keepIf : Elm.keepIf,
 	  dropIf : Elm.dropIf,
 	  keepWhen : Elm.keepWhen,

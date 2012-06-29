@@ -1,8 +1,9 @@
 
 var Elm = function() {
-    var send = function(kids, timestep, changed) {
+    var send = function(node, timestep, changed) {
+	var kids = node.kids;
 	for (var i = kids.length; i--; ) {
-	    kids[i].recv(timestep, changed);
+	    kids[i].recv(timestep, changed, node.id);
 	}
     };
     var input = function(base) {
@@ -12,7 +13,7 @@ var Elm = function() {
 	this.recv = function(timestep, eid, v) {
 	    var changed = eid === this.id;
 	    if (changed) { this.value = v; }
-	    send(this.kids, timestep, changed);
+	    send(this, timestep, changed);
 	};
 	Dispatcher.inputs.push(this);
     };
@@ -32,7 +33,7 @@ var Elm = function() {
 	};
 	this.recalc();
 
-	this.recv = function(timestep, changed) {
+	this.recv = function(timestep, changed, parentID) {
 	    if (!this.inbox.hasOwnProperty(timestep)) {
 		this.inbox[timestep] = { changed: false, count: 0 };
 	    }
@@ -41,7 +42,7 @@ var Elm = function() {
 	    if (changed) { box.changed = true; }
 	    if (box.count == args.length) {
 		if (box.changed) { this.recalc() }
-		send(this.kids, timestep, box.changed);
+		send(this, timestep, box.changed);
 		delete this.inbox[timestep];
 	    }
 	};
@@ -53,9 +54,9 @@ var Elm = function() {
 	this.id = Guid.guid();
 	this.value = base;
 	this.kids = [];
-	this.recv = function(timestep, changed) {
+	this.recv = function(timestep, changed, parentID) {
 	    if (changed) { this.value = func(input.value)(this.value); }
-	    send(this.kids, timestep, changed);
+	    send(this, timestep, changed);
 	};
 	input.kids.push(this);
     };
@@ -64,10 +65,10 @@ var Elm = function() {
 	this.id = Guid.guid();
 	this.value = pred(input.value) ? base : input.value;
 	this.kids = [];
-	this.recv = function(timestep, changed) {
+	this.recv = function(timestep, changed, parentID) {
 	    var chng = changed && !pred(input.value);
 	    if (chng) { this.value = input.value; }
-	    send(this.kids, timestep, chng);
+	    send(this, timestep, chng);
 	};
 	input.kids.push(this);
     };
@@ -75,10 +76,10 @@ var Elm = function() {
 	this.id = Guid.guid();
 	this.value = input.value;
 	this.kids = [];
-	this.recv = function(timestep, changed) {
+	this.recv = function(timestep, changed, parentID) {
 	    var chng = changed && !eq(this.value,input.value);
 	    if (chng) { this.value = input.value; }
-	    send(this.kids, timestep, chng);
+	    send(this, timestep, chng);
 	};
 	input.kids.push(this);
     };
@@ -87,6 +88,21 @@ var Elm = function() {
           var pairs = new lift(function(x){return function(y){return [x,y];};},[s1,s2]);
 	  var dropped = new dropIf(function(p){return p[0];},[true,b],pairs);
 	  return new lift(function(p){return p[1];},[dropped]); }; };
+    };
+
+    var sampleOn = function(s1,s2) {
+	this.id = Guid.guid();
+	this.value = s2.value;
+	this.kids = [];
+	this.inbox = {};
+
+	this.recv = function(timestep, changed, parentID) {
+	    var chng = changed && parentID === s1.id;
+	    if (chng) { this.value = s2.value; }
+	    send(this, timestep, chng);
+	};
+	s1.kids.push(this);
+	s2.kids.push(this);
     };
 
     return {Input: function(x) {return new input(x);},
@@ -98,7 +114,8 @@ var Elm = function() {
 		    return new dropIf(pred,base,sig); }; }; },
 	    keepWhen : function(s) { return dropWhen(new lift(function(b){return !b;},[s])); },
 	    dropWhen : dropWhen,
-	    dropRepeats : function(s) { return new dropRepeats(s);}
+	    dropRepeats : function(s) { return new dropRepeats(s);},
+	    sampleOn : sampleOn
     };
 }();
 
