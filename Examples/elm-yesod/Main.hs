@@ -75,7 +75,7 @@ instance Yesod ElmTest where
         hamletToRepHtml $(hamletFile "templates/default-layout-wrapper.hamlet")
 
 instance YesodElm ElmTest where
-  urlElmJs _ = Right $ "https://raw.github.com/evancz/Elm/master/elm/elm-runtime-0.3.0.js"
+  urlElmJs _ = Right $ "https://raw.github.com/evancz/Elm/master/elm/elm-runtime-0.3.5.js"
 
 main :: IO ()
 main = warpDebug 3000 ElmTest
