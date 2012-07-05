@@ -6,7 +6,7 @@ import Language.Elm
 import Language.Elm.Quasi
 
 elmLoc :: String
-elmLoc = "https://raw.github.com/evancz/Elm/master/elm/elm-runtime-0.3.0.js"
+elmLoc = "https://raw.github.com/evancz/Elm/master/elm/elm-runtime-0.3.5.js"
 
 -- elmResponse is a "nice to have" helper function for compiling
 -- Elm code when using Elm with Happstack. At some point this might
