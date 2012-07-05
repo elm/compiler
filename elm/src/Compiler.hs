@@ -35,11 +35,11 @@ elm = ELM { make = False &= help "automatically compile dependencies."
           , generate_noscript = False &= help "Add generated <noscript> tag to HTML output."
           } &=
     help "Compile Elm programs to HTML, CSS, and JavaScript." &=
-    summary "The Elm Compiler v0.3.5, (c) Evan Czaplicki"
+    summary "The Elm Compiler v0.3.5.1, (c) Evan Czaplicki"
 
 main = do
   args <- cmdArgs elm
-  mini <- getDataFileName "elm-runtime-0.3.5.js"
+  mini <- getDataFileName "elm-runtime-0.3.5.1.js"
   compileArgs mini args
 
 compileArgs mini (ELM _ [] _ _ _ _ _) =

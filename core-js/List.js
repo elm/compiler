@@ -127,17 +127,20 @@ var List = function() {
         }(_temp_50)
       }
     }
-    function foldr1(f_53) {
-      return function(_temp_54) {
-        return function(v) {
-          if("Cons" !== v[0]) {
-            return undefined
-          }else {
-            var x_55 = v[1];
-            var xs_56 = v[2];
-            return foldr(f_53)(x_55)(xs_56)
-          }
-        }(_temp_54)
+    function foldr1(f) {
+      return function(xs) {
+	if (xs[0] === "Nil") { throw "'foldr1' requires an non-empty list." }
+	if (xs[0] !== "Cons") { throwError('foldr1'); }
+	var arr = [];
+	while (xs[0] === "Cons") {
+	    arr.push(xs[1]);
+	    xs = xs[2];
+	}
+        var acc = arr.pop();
+	for (var i = arr.length; i--; ) {
+	    acc = f(arr[i])(acc);
+	}
+	return acc;
       }
     }
     function scanl(f) {

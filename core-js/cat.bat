@@ -2,6 +2,6 @@ copy /B Guid.js+foreign\JavaScript.js+Value.js+List.js+Data.js+collage\Color.js+
 
 cd ..\elm
 
-copy /B ..\elm-mini.js elm-runtime-0.3.5.js
+copy /B ..\elm-mini.js elm-runtime-0.3.5.1.js
 
 cabal install

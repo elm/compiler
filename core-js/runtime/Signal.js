@@ -66,8 +66,8 @@ var Signal = function() {
 	    y: Elm.Lift(function(p){return p[2];},[position]),
 	    isClicked: isClicked,
 	    isDown: isDown,
-	    clicks: clicks
-	    //clickedOn: clickedOn
+	    clicks: clicks,
+	    isClickedOn: clickedOn
 	    };
   }();
 
@@ -193,7 +193,8 @@ var Signal = function() {
 	  };
       };
       return {get : fetch("GET"), post : fetch("POST"),
-	      gets : fetches("GET"), posts : fetches("POST") };
+	      gets : fetches("GET"), posts : fetches("POST")
+	      };
   }();
   var Random = function() {
       var inRange = function(min) { return function(max) {
