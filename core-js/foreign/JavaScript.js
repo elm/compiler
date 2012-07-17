@@ -36,7 +36,7 @@ var Foreign = function() {
     }
 
     function fromTuple(t) { return t.slice(1); }
-    function toTuple(a) { return a.unshift("Tuple" + a.length); }
+    function toTuple(a) { return ["Tuple" + a.length].concat(a); }
     
     return {castJSBoolToBool:castJSBoolToBool,
 	    castBoolToJSBool:castBoolToJSBool,
