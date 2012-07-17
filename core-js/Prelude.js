@@ -31,6 +31,7 @@ var Prelude = function() {
 	    fst  : function(p) { return p[1]; },
 	    snd  : function(p) { return p[2]; },
 	    rem  : function(x) { return function(y) { return x % y; }; },
+	    div  : function(x) { return function(y) { return x / y; }; },
 	    sqrt : Math.sqrt,
 	    abs  : Math.abs,
 	    pi   : Math.PI,
