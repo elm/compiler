@@ -47,9 +47,9 @@ shapes = [ numScheme (\n -> listOf (pairOf n) ==> pairOf n ==> shape) "polygon"
          , "filled"        -: color ==> shape ==> form
          , "outlined"      -: color ==> shape ==> form
          , "customOutline" -: listOf int ==> color ==> shape ==> form
-         ] ++ map (numScheme (\n -> n ==> n ==> pairOf n ==> shape) [ "ngon"
-                                                                    , "rect"
-                                                                    , "oval" ]
+         ] ++ map (numScheme (\n -> n ==> n ==> pairOf n ==> shape)) [ "ngon"
+                                                                     , "rect"
+                                                                     , "oval" ]
 
 
 --------  Foreign  --------
@@ -137,7 +137,7 @@ math =
   [ numScheme (\t -> t ==> t) "abs" ] ++
   hasType (binop float) [ "/", "logBase" ] ++
   hasType (binop int) ["rem","div","mod"] ++
-  hasType (float ==> float) ["sin","cos","tan","asin","acos","atan","sqrt"] ++
+  hasType (float ==> float) ["sin","cos","tan","asin","acos","atan","sqrt"]
 
 bools =
   [ "not" -: bool ==> bool ] ++
