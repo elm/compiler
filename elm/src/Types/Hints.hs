@@ -16,14 +16,14 @@ textToText = [ "header", "italic", "bold", "underline"
 
 textAttrs = [ "toText" -: string ==> text
             , "link"   -: string ==> text ==> text
-            , "Text.height" -: int ==> text ==> text
+            , numScheme (\t -> t ==> text ==> text) "Text.height"
             ] ++ hasType (text ==> text) textToText
 
 elements = let iee = int ==> element ==> element in
            [ "flow"    -: direction ==> listOf element ==> element
            , "layers"  -: listOf element ==> element
            , "text"    -: text ==> element
-           , "opacity" -: iee
+           , "opacity" -: float ==> element ==> element
            , "width"   -: iee
            , "height"  -: iee
            , "size"    -: int ==> iee
@@ -34,19 +34,22 @@ elements = let iee = int ==> element ==> element in
            ]
 
 directions = hasType direction ["up","down","left","right","inward","outward"]
-colors = [ "rgb"  -: int ==> int ==> int ==> color
-         , "rgba" -: int ==> int ==> int ==> int ==> color
-         ] ++ hasType color ["red","green","blue","black","white"]
+colors = [ numScheme (\n -> n ==> n ==> n ==> color) "rgb"
+         , numScheme (\n -> n ==> n ==> n ==> n ==> color) "rgba"
+         ] ++ hasType color ["red","green","blue","black","white"
+                            ,"yellow","cyan","magenta","grey","gray"]
 
-lineTypes = [ "line"       -: listOf point ==> line
+lineTypes = [ numScheme (\n -> listOf (pairOf n) ==> line) "line"
             , "customLine" -: listOf int ==> color ==> line ==> form
             ] ++ hasType (color ==> line ==> form) ["solid","dashed","dotted"]
 
-shapes = [ "polygon"       -: listOf point ==> point ==> shape
+shapes = [ numScheme (\n -> listOf (pairOf n) ==> pairOf n ==> shape) "polygon"
          , "filled"        -: color ==> shape ==> form
          , "outlined"      -: color ==> shape ==> form
          , "customOutline" -: listOf int ==> color ==> shape ==> form
-         ] ++ hasType (int ==> int ==> point ==> shape) ["ngon","rect","oval"]
+         ] ++ map (numScheme (\n -> n ==> n ==> pairOf n ==> shape) [ "ngon"
+                                                                    , "rect"
+                                                                    , "oval" ]
 
 
 --------  Foreign  --------
@@ -132,14 +135,14 @@ math =
   map (numScheme (\t -> t ==> binop t)) ["clamp"] ++
   map (numScheme (\t -> binop t)) ["+","-","*","max","min"] ++
   [ numScheme (\t -> t ==> t) "abs" ] ++
-  [ "/" -: binop float ] ++
-  hasType (binop int) ["rem","div","mod","logBase"] ++
-  hasType (float ==> float) ["sin","cos","tan","asin","acos","atan","sqrt"]
+  hasType (binop float) [ "/", "logBase" ] ++
+  hasType (binop int) ["rem","div","mod"] ++
+  hasType (float ==> float) ["sin","cos","tan","asin","acos","atan","sqrt"] ++
 
 bools =
   [ "not" -: bool ==> bool ] ++
   hasType (binop bool) ["&&","||"] ++
-  hasType (int ==> int ==> bool)  ["<",">","<=",">="]
+  map (numScheme (\n -> n ==> n ==> bool))  ["<",">","<=",">="]
 
 
 --------  Polymorphic Functions  --------
@@ -171,7 +174,7 @@ funcs =
 lists =
   [ "and"  -:: listOf bool ==> bool
   , "or"   -:: listOf bool ==> bool
-  , "sort" -:: listOf int ==> listOf int
+  , numScheme (\n -> listOf n ==> listOf n) "sort"
   , "head"    -:: listOf a ==> a
   , "tail"    -:: listOf a ==> listOf a
   , "length"  -:: listOf a ==> int
@@ -195,7 +198,8 @@ lists =
   , "scanl" -:: (a ==> b ==> b) ==> b ==> listOf a ==> listOf b
   , "concatMap" -:: (a ==> listOf b) ==> listOf a ==> listOf b
   , "zipWith" -:: (a ==> b ==> c) ==> listOf a ==> listOf b ==> listOf c
-  ] ++ map (-: (listOf int ==> int)) [ "sum","product","maximum","minimum" ]
+  ] ++ map (numScheme (\n -> listOf n ==> n)) [ "sum", "product"
+                                              , "maximum", "minimum" ]
 
 
 --------  Everything  --------

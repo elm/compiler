@@ -42,12 +42,13 @@ form  = tipe "Form"
 line  = tipe "Line"
 shape = tipe "Shape"
 color = tipe "Color"
-point = tupleOf [int,int]
 
 listOf t   = ADT "List" [t]
 signalOf t = ADT "Signal" [t]
 tupleOf ts = ADT ("Tuple" ++ show (length ts)) ts
 maybeOf t  = ADT "Maybe" [t]
+pairOf t = tupleOf [t,t]
+point = pairOf int
 
 jsBool     = tipe "JSBool"
 jsNumber   = tipe "JSNumber"
