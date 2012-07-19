@@ -22,7 +22,8 @@ type JSFFI = ( [(String, Expr, String, Type)]
 data Pattern = PData String [Pattern] | PVar String | PAnything
                deriving (Eq)
 
-data Expr = Number Int
+data Expr = IntNum Int
+          | FloatNum Float
           | Chr Char
           | Str String
           | Boolean Bool

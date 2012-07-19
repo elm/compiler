@@ -12,13 +12,19 @@ import Patterns
 import Binops
 
 import Guid
-import Types (Type (VarT))
+import Types (Type (VarT), Scheme (Forall))
 
 
 --------  Basic Terms  --------
 
 numTerm :: (Monad m) => ParsecT [Char] u m Expr
-numTerm = liftM (Number . read) (many1 digit) <?> "number"
+numTerm = toExpr <$> (preNum <?> "number")
+    where toExpr n | '.' `elem` n = FloatNum (read n)
+                   | otherwise = IntNum (read n)
+          preNum  = (++) <$> many1 digit <*> option "" postNum
+          postNum = do try $ lookAhead (string "." >> digit)
+                       string "."
+                       ('.':) <$> many1 digit
 
 strTerm :: (Monad m) => ParsecT [Char] u m Expr
 strTerm = liftM Str . expecting "string" . betwixt '"' '"' . many $
@@ -113,7 +119,7 @@ assignExpr = do
 
 
 def = do (fs,es) <- unzip <$> assignExpr
-         return (fs, es, mapM (\_ -> liftM VarT guid) fs)
+         return (fs, es, map (\_ -> Forall [0] [] (VarT 0)) fs)
 
 parseDef str =
     case parse def "" str of

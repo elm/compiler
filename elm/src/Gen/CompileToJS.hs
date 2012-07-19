@@ -93,7 +93,8 @@ jsImport' (modul, Hiding vs) =
 
 toJS expr =
     case expr of
-      Number n -> show n
+      IntNum n -> show n
+      FloatNum n -> show n
       Var x -> x
       Chr c -> show c
       Str s -> "Value.str" ++ parens (show s)
