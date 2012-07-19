@@ -21,9 +21,8 @@ freshDef = commitIf (freshLine >> (letter <|> char '_')) $ do
 defs1 = do d <- datatype <|> def <?> "at least one datatype or variable definition"
            (d:) <$> many freshDef
 
-defs = do
-  (fss,ess,tss) <- unzip3 <$> defs1
-  return (concat fss, concat ess, concat `liftM` sequence tss)
+defs = do (fss,ess,tss) <- unzip3 <$> defs1
+          return (concat fss, concat ess, concat tss)
 
 program = do
   optional freshLine
@@ -33,7 +32,7 @@ program = do
   jsffi <- foreignDefs `followedBy` freshLine <|> return ([],[])
   (vs,es,ts) <- defs
   optional freshLine ; optional spaces ; eof
-  return (Module names exports is (zip vs es) jsffi, zip vs `liftM` ts)
+  return (Module names exports is (zip vs es) jsffi, zip vs ts)
 
 parseProgram source = 
     case parse program "" source of

@@ -52,7 +52,7 @@ typeExpr = do
 typeConstructor :: (Monad m) => ParsecT [Char] u m (String, [ParseType])
 typeConstructor = (,) <$> (capVar <?> "another type constructor") <*> spacePrefix (typeSimple <|> typeUnambiguous)
 
-datatype :: (Monad m) => ParsecT [Char] u m ([String], [Expr], GuidCounter [Type])
+datatype :: (Monad m) => ParsecT [Char] u m ([String], [Expr], [Scheme])
 datatype = do
   reserved "data" <?> "datatype definition (data T = A | B | ...)"
   forcedWS ; name <- capVar <?> "name of data-type" ; args <- spacePrefix lowVar
@@ -65,22 +65,21 @@ beta = liftM VarT guid
 toFunc (name,args) = foldr Lambda (Data name $ map Var argNames) argNames
     where argNames = map (("a"++) . show) [1..length args]
 
-toTypes name args constructors = do
-  pairs <- mapM (\x -> (,) x `liftM` guid) args
-  return $ map (toType pairs . ADT name $ map (VarT . snd) pairs) constructors
+toTypes name args constructors =
+    map (toType pairs . ADT name $ map (VarT . snd) pairs) constructors
+        where pairs = zip args [1..length args]
 
 toType pairs outType (name,args) =
-    foldr (==>) outType (map toT args)
-    where toT (LambdaPT t1 t2)  = toT t1 ==> toT t2
+    Forall [1..n+2] cs $ foldr (==>) outType (map toT args)
+    where n = length pairs
+          cs = [ VarT (n+1) :<: time, VarT (n+2) :<: number ]
+          toT (LambdaPT t1 t2)  = toT t1 ==> toT t2
           toT (ADTPT name args) = ADT name $ map toT args
           toT (VarPT x@(c:_))
               | isLower c = VarT . fromMaybe (-1) $ lookup x pairs
-              | otherwise = case x of "Int" -> IntT
-                                      "Number" -> IntT
-                                      "String" -> StringT
-                                      "Char" -> CharT
-                                      "Bool" -> BoolT
-                                      _ -> ADT x []
+              | x == "Time" = VarT (n+1)
+              | x == "Number" = VarT (n+2)
+              | otherwise = ADT x []
 
 toForeignType (LambdaPT t1 t2) =
     fail $ "Elm's JavaScript event interface does not yet handle functions. " ++

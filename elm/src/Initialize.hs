@@ -8,6 +8,7 @@ import Parser (parseProgram)
 import Hints
 import Unify
 import Rename
+import Types ((-:))
 import Optimize
 
 
@@ -15,7 +16,7 @@ initialize str = do
   (Module name ex im defs (ims,exs), tipes) <- parseProgram str
   let (Let ds _) = rename . Let defs $ Var "_"
   let dict n = maybe n id . lookup n $ zip (map fst defs) (map fst ds)
-  let allHints = liftM2 (\a b -> a ++ b ++ ffiHints (ims,exs)) hints tipes
+  let allHints = hints ++ tipes ++ ffiHints (ims,exs)
   subs <- unify allHints . Let ds $ checkFFI dict ims exs
   let Let defs' _ = optimize (Let ds $ Var "_")
   let im' = if any ((=="Prelude") . fst) im then im else
@@ -25,7 +26,7 @@ initialize str = do
 
 
 ffiHints (ims,exs) =
-    map (\(_,_,n,t) -> (n,t)) ims ++ map (\(_,n,t) -> (n,t)) exs
+    map (\(_,_,n,t) -> n -: t) ims ++ map (\(_,n,t) -> n -: t) exs
 
 checkFFI dict ims exs = list $ ims' ++ exs'
   where ims' = map (\(_,b,n,_)-> Binop "==" (Var n) (App (Var "constant") b)) ims
