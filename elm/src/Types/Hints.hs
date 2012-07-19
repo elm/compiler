@@ -16,126 +16,130 @@ textToText = [ "header", "italic", "bold", "underline"
 
 textAttrs = [ "toText" -: string ==> text
             , "link"   -: string ==> text ==> text
-            , "Text.height" -: IntT ==> text ==> text
+            , "Text.height" -: int ==> text ==> text
             ] ++ hasType (text ==> text) textToText
 
-elements = let iee = IntT ==> element ==> element in
+elements = let iee = int ==> element ==> element in
            [ "flow"    -: direction ==> listOf element ==> element
            , "layers"  -: listOf element ==> element
            , "text"    -: text ==> element
            , "opacity" -: iee
            , "width"   -: iee
            , "height"  -: iee
-           , "size"    -: IntT ==> iee
+           , "size"    -: int ==> iee
            , "box"     -: iee
            , "centeredText"  -: text ==> element
            , "justifiedText" -: text ==> element
-           , "collage" -: IntT ==> IntT ==> listOf form ==> element
+           , "collage" -: int ==> int ==> listOf form ==> element
            ]
 
 directions = hasType direction ["up","down","left","right","inward","outward"]
-colors = [ "rgb"  -: IntT ==> IntT ==> IntT ==> color
-         , "rgba" -: IntT ==> IntT ==> IntT ==> IntT ==> color
+colors = [ "rgb"  -: int ==> int ==> int ==> color
+         , "rgba" -: int ==> int ==> int ==> int ==> color
          ] ++ hasType color ["red","green","blue","black","white"]
 
 lineTypes = [ "line"       -: listOf point ==> line
-            , "customLine" -: listOf IntT ==> color ==> line ==> form
+            , "customLine" -: listOf int ==> color ==> line ==> form
             ] ++ hasType (color ==> line ==> form) ["solid","dashed","dotted"]
 
 shapes = [ "polygon"       -: listOf point ==> point ==> shape
          , "filled"        -: color ==> shape ==> form
          , "outlined"      -: color ==> shape ==> form
-         , "customOutline" -: listOf IntT ==> color ==> shape ==> form
-         ] ++ hasType (IntT ==> IntT ==> point ==> shape) ["ngon","rect","oval"]
+         , "customOutline" -: listOf int ==> color ==> shape ==> form
+         ] ++ hasType (int ==> int ==> point ==> shape) ["ngon","rect","oval"]
 
 
 --------  Foreign  --------
 
 casts =
-  [ "castJSBoolToBool"       -: jsBool ==> BoolT
-  , "castBoolToJSBool"       -: BoolT ==> jsBool
-  , "castJSNumberToInt"      -: jsNumber ==> IntT
-  , "castIntToJSNumber"      -: IntT ==> jsNumber
-  , "castJSElementToElement" -: IntT ==> IntT ==> jsElement ==> element
+  [ "castJSBoolToBool"       -: jsBool ==> bool
+  , "castBoolToJSBool"       -: bool ==> jsBool
+  , "castJSNumberToInt"      -: jsNumber ==> int
+  , "castIntToJSNumber"      -: int ==> jsNumber
+  , "castJSElementToElement" -: int ==> int ==> jsElement ==> element
   , "castElementToJSElement" -: element ==> jsElement
   , "castJSStringToString"   -: jsString ==> string
   , "castStringToJSString"   -: string ==> jsString
-  --  , "castJSNumberToFloat -: 
-  --  , "castFloatToJSNumber -:
+  , "castJSNumberToFloat"    -: jsNumber ==> float 
+  , "castFloatToJSNumber"    -: float ==> jsNumber
   ]
 
-polyCasts = sequence
-  [ do a <- var     ; "castJSArrayToList"   -:: jsArray a ==> listOf a
-  , do a <- var     ; "castListToJSArray"   -:: listOf a ==> jsArray a
-  , do vs <- vars 2 ; "castTupleToJSTuple2" -:: tupleOf vs ==> jsTuple vs
-  , do vs <- vars 3 ; "castTupleToJSTuple3" -:: tupleOf vs ==> jsTuple vs
-  , do vs <- vars 4 ; "castTupleToJSTuple4" -:: tupleOf vs ==> jsTuple vs
-  , do vs <- vars 5 ; "castTupleToJSTuple5" -:: tupleOf vs ==> jsTuple vs
-  , do vs <- vars 2 ; "castJSTupleToTuple2" -:: jsTuple vs ==> tupleOf vs
-  , do vs <- vars 3 ; "castJSTupleToTuple3" -:: jsTuple vs ==> tupleOf vs
-  , do vs <- vars 4 ; "castJSTupleToTuple4" -:: jsTuple vs ==> tupleOf vs
-  , do vs <- vars 5 ; "castJSTupleToTuple5" -:: jsTuple vs ==> tupleOf vs
+castToTuple n = (,) name $ Forall [1..n] [] (jsTuple vs ==> tupleOf vs)
+    where vs = map VarT [1..n]
+          name = "castJSTupleToTuple" ++ show n
+castToJSTuple n = (,) name $ Forall [1..n] [] (tupleOf vs ==> jsTuple vs)
+    where vs = map VarT [1..n]
+          name = "castTupleToJSTuple" ++ show n
+
+polyCasts =
+  map castToTuple [2..5] ++ map castToJSTuple [2..5] ++
+  [ "castJSArrayToList"   -:: jsArray a ==> listOf a
+  , "castListToJSArray"   -:: listOf a ==> jsArray a
   ]
 
 
 --------  Signals  --------
 
-sig ts = fn ts ==> fn (map signalOf ts)
+sig n name = (,) name $ Forall [1..n] [] (fn ts ==> fn (map signalOf ts))
     where fn = foldr1 (==>)
+          ts = map VarT [1..n]
 
-signals = sequence
-    [ do ts <- vars 1 ; "constant" -:: sig ts
-    , do ts <- vars 2 ; "lift"     -:: sig ts
-    , do ts <- vars 3 ; "lift2"    -:: sig ts
-    , do ts <- vars 4 ; "lift3"    -:: sig ts
-    , do ts <- vars 5 ; "lift4"    -:: sig ts
-    , do [a,b] <- vars 2 
-         "foldp" -:: (a ==> b ==> b) ==> b ==> signalOf a ==> signalOf b
-    , do a <- var ; "randomize" -:: IntT ==> IntT ==> signalOf a ==> signalOf IntT
-    , do a <- var ; "count"     -:: signalOf a ==> signalOf IntT
-    , do a <- var ; "keepIf"    -:: (a==>BoolT) ==> a ==> signalOf a ==> signalOf a
-    , do a <- var ; "dropIf"    -:: (a==>BoolT) ==> a ==> signalOf a ==> signalOf a
-    , do a <- var ; "keepWhen"  -:: signalOf BoolT ==>a==> signalOf a ==> signalOf a
-    , do a <- var ; "dropWhen"  -:: signalOf BoolT ==>a==> signalOf a ==> signalOf a
-    , do a <- var ; "dropRepeats" -:: signalOf a ==> signalOf a
-    , do [a,b] <- vars 2 ; "sampleOn" -:: signalOf a ==> signalOf b ==> signalOf b
+signals =
+    [ sig 1 "constant"
+    , sig 2 "lift" 
+    , sig 3 "lift2"
+    , sig 4 "lift3"
+    , sig 5 "lift4"
+    , "foldp" -:: (a ==> b ==> b) ==> b ==> signalOf a ==> signalOf b
+    , "randomize" -:: int ==> int ==> signalOf a ==> signalOf int
+    , "count"     -:: signalOf a ==> signalOf int
+    , "keepIf"    -:: (a==>bool) ==> a ==> signalOf a ==> signalOf a
+    , "dropIf"    -:: (a==>bool) ==> a ==> signalOf a ==> signalOf a
+    , "keepWhen"  -:: signalOf bool ==>a==> signalOf a ==> signalOf a
+    , "dropWhen"  -:: signalOf bool ==>a==> signalOf a ==> signalOf a
+    , "dropRepeats" -:: signalOf a ==> signalOf a
+    , "sampleOn" -:: signalOf a ==> signalOf b ==> signalOf b
     ]
 
 concreteSignals = 
-  [ "keysDown"    -: signalOf (listOf IntT)
-  , "charPressed" -: signalOf (maybeOf IntT)
-  , "inRange"     -: IntT ==> IntT ==> signalOf IntT
-  , "every"       -: time ==> signalOf time
-  , "before"      -: time ==> signalOf BoolT
-  , "after"       -: time ==> signalOf BoolT
+  [ "keysDown"    -: signalOf (listOf int)
+  , "charPressed" -: signalOf (maybeOf int)
+  , "inRange"     -: int ==> int ==> signalOf int
+  , timeScheme "every"  (\t -> t ==> signalOf t)
+  , timeScheme "before" (\t -> t ==> signalOf bool)
+  , timeScheme "after"  (\t -> t ==> signalOf bool)
   , "dimensions"  -: signalOf point
   , "position"    -: signalOf point
-  , "x"           -: signalOf IntT
-  , "y"           -: signalOf IntT
-  , "isDown"      -: signalOf BoolT
-  , "isClicked"   -: signalOf BoolT
+  , "x"           -: signalOf int
+  , "y"           -: signalOf int
+  , "isDown"      -: signalOf bool
+  , "isClicked"   -: signalOf bool
   , "textField"   -: string ==> tupleOf [element, signalOf string]
   , "password"    -: string ==> tupleOf [element, signalOf string]
-  , "textArea"    -: IntT ==> IntT ==> tupleOf [element, signalOf string]
-  , "checkBox"    -: BoolT ==> tupleOf [element, signalOf BoolT]
-  , "button"      -: string ==> tupleOf [element, signalOf BoolT]
+  , "textArea"    -: int ==> int ==> tupleOf [element, signalOf string]
+  , "checkBox"    -: bool ==> tupleOf [element, signalOf bool]
+  , "button"      -: string ==> tupleOf [element, signalOf bool]
   , "stringDropDown" -: listOf string ==> tupleOf [element, signalOf string]
   ]
 
 --------  Math and Binops  --------
 
-iii = IntT ==> IntT ==> IntT
-xxb x = x ==> x ==> BoolT
+binop t = t ==> t ==> t
+numScheme t name = (name, Forall [0] [VarT 0 :<: number] (t (VarT 0)))
+timeScheme name t = (name, Forall [0] [VarT 0 :<: time] (t (VarT 0)))
 
 math =
-  hasType (IntT ==> iii) ["clamp"] ++
-  hasType iii ["+", "-", "*", "/","rem","mod","logBase","max","min"] ++
-  hasType (IntT ==> IntT) ["sin","cos","tan","asin","acos","atan","sqrt","abs"]
+  map (numScheme (\t -> t ==> binop t)) ["clamp"] ++
+  map (numScheme (\t -> binop t)) ["+","-","*","max","min"] ++
+  [ numScheme (\t -> t ==> t) "abs" ] ++
+  [ "/" -: binop float ] ++
+  hasType (binop int) ["rem","div","mod","logBase"] ++
+  hasType (float ==> float) ["sin","cos","tan","asin","acos","atan","sqrt"]
 
-bool =
-  [ "not" -: BoolT ==> BoolT ] ++
-  hasType (xxb BoolT) ["&&","||"] ++
-  hasType (xxb IntT)  ["<",">","<=",">="]
+bools =
+  [ "not" -: bool ==> bool ] ++
+  hasType (binop bool) ["&&","||"] ++
+  hasType (int ==> int ==> bool)  ["<",">","<=",">="]
 
 
 --------  Polymorphic Functions  --------
@@ -144,62 +148,60 @@ var = VarT `liftM` guid
 vars n = mapM (const var) [1..n]
 
 infix 8 -::
-name -:: tipe = return $ name -: tipe
+name -:: tipe = (name, Forall [1,2,3] [] tipe)
 
-funcs = sequence
-    [ do a <- var          ; "id"   -:: a ==> a
-    , do a <- var          ; "=="   -:: a ==> a ==> BoolT
-    , do a <- var          ; "/="   -:: a ==> a ==> BoolT
-    , do [a,b,c] <- vars 3 ; "flip" -:: (a ==> b ==> c) ==> (b ==> a ==> c)
-    , do [a,b,c] <- vars 3 ; "."    -:: (b ==> c) ==> (a ==> b) ==> (a ==> c)
-    , do [a,b] <- vars 2   ; "$"    -:: (a ==> b) ==> a ==> b
-    , do a <- var ; ":"       -:: a ==> listOf a ==> listOf a
-    , do a <- var ; "++"      -:: a ==> a ==> a
-    , do a <- var ; "Cons"    -:: a ==> listOf a ==> listOf a 
-    , do a <- var ; "Nil"     -:: listOf a
-    , do a <- var ; "Just"    -:: a ==> ADT "Maybe" [a]
-    , do a <- var ; "Nothing" -:: ADT "Maybe" [a]
-    , "elmRange" -:: IntT ==> IntT ==> listOf IntT
+[a,b,c] = map VarT [1,2,3]
+
+funcs =
+    [ "id"   -:: a ==> a
+    , "=="   -:: a ==> a ==> bool
+    , "/="   -:: a ==> a ==> bool
+    , "flip" -:: (a ==> b ==> c) ==> (b ==> a ==> c)
+    , "."    -:: (b ==> c) ==> (a ==> b) ==> (a ==> c)
+    , "$"    -:: (a ==> b) ==> a ==> b
+    , ":"       -:: a ==> listOf a ==> listOf a
+    , "++"      -:: a ==> a ==> a
+    , "Cons"    -:: a ==> listOf a ==> listOf a 
+    , "Nil"     -:: listOf a
+    , "Just"    -:: a ==> maybeOf a
+    , "Nothing" -:: maybeOf a
+    , "elmRange" -:: int ==> int ==> listOf int
     ]
 
-ints = map (-: (listOf IntT ==> IntT)) [ "sum","product","maximum","minimum" ]
-
-lists = liftM (++ints) . sequence $
-    [ "and"  -:: listOf BoolT ==> BoolT
-    , "or"   -:: listOf BoolT ==> BoolT
-    , "sort" -:: listOf IntT ==> listOf IntT
-    , do a <- var ; "head"    -:: listOf a ==> a
-    , do a <- var ; "tail"    -:: listOf a ==> listOf a
-    , do a <- var ; "length"  -:: listOf a ==> IntT
-    , do a <- var ; "filter"  -:: (a ==> BoolT) ==> listOf a ==> listOf a
-    , do a <- var ; "foldr1"  -:: (a ==> a ==> a) ==> listOf a ==> a
-    , do a <- var ; "foldl1"  -:: (a ==> a ==> a) ==> listOf a ==> a
-    , do a <- var ; "scanl1"  -:: (a ==> a ==> a) ==> listOf a ==> a
-    , do a <- var ; "forall"  -:: (a ==> BoolT) ==> listOf a ==> BoolT
-    , do a <- var ; "exists"  -:: (a ==> BoolT) ==> listOf a ==> BoolT
-    , do a <- var ; "concat"  -:: listOf (listOf a) ==> listOf a
-    , do a <- var ; "reverse" -:: listOf a ==> listOf a
-    , do a <- var ; "take"    -:: IntT ==> listOf a ==> listOf a
-    , do a <- var ; "drop"    -:: IntT ==> listOf a ==> listOf a
-    , do a <- var ; "partition"    -:: (a==>BoolT)==>listOf a==>tupleOf [listOf a,listOf a]
-    , do a <- var ; "intersperse"  -:: a ==> listOf a ==> listOf a
-    , do a <- var ; "intercalate"  -:: listOf a ==> listOf(listOf a) ==> listOf a
-    , do [a,b] <- vars 2 ; "zip"   -:: listOf a ==>listOf b ==>listOf(tupleOf [a,b])
-    , do [a,b] <- vars 2 ; "map"   -:: (a ==> b) ==> listOf a ==> listOf b
-    , do [a,b] <- vars 2 ; "foldr" -:: (a ==> b ==> b) ==> b ==> listOf a ==> b
-    , do [a,b] <- vars 2 ; "foldl" -:: (a ==> b ==> b) ==> b ==> listOf a ==> b
-    , do [a,b] <- vars 2 ; "scanl" -:: (a==>b==>b)==>b==>listOf a==>listOf b
-    , do [a,b] <- vars 2 ; "concatMap" -:: (a==>listOf b)==>listOf a ==> listOf b
-    , do [a,b,c] <- vars 3
-         "zipWith" -:: (a ==> b ==> c) ==> listOf a ==> listOf b ==> listOf c
-    ]
+lists =
+  [ "and"  -:: listOf bool ==> bool
+  , "or"   -:: listOf bool ==> bool
+  , "sort" -:: listOf int ==> listOf int
+  , "head"    -:: listOf a ==> a
+  , "tail"    -:: listOf a ==> listOf a
+  , "length"  -:: listOf a ==> int
+  , "filter"  -:: (a ==> bool) ==> listOf a ==> listOf a
+  , "foldr1"  -:: (a ==> a ==> a) ==> listOf a ==> a
+  , "foldl1"  -:: (a ==> a ==> a) ==> listOf a ==> a
+  , "scanl1"  -:: (a ==> a ==> a) ==> listOf a ==> a
+  , "forall"  -:: (a ==> bool) ==> listOf a ==> bool
+  , "exists"  -:: (a ==> bool) ==> listOf a ==> bool
+  , "concat"  -:: listOf (listOf a) ==> listOf a
+  , "reverse" -:: listOf a ==> listOf a
+  , "take"    -:: int ==> listOf a ==> listOf a
+  , "drop"    -:: int ==> listOf a ==> listOf a
+  , "partition"    -:: (a ==> bool) ==> listOf a ==> tupleOf [listOf a,listOf a]
+  , "intersperse"  -:: a ==> listOf a ==> listOf a
+  , "intercalate"  -:: listOf a ==> listOf(listOf a) ==> listOf a
+  , "zip"   -:: listOf a ==>listOf b ==>listOf(tupleOf [a,b])
+  , "map"   -:: (a ==> b) ==> listOf a ==> listOf b
+  , "foldr" -:: (a ==> b ==> b) ==> b ==> listOf a ==> b
+  , "foldl" -:: (a ==> b ==> b) ==> b ==> listOf a ==> b
+  , "scanl" -:: (a ==> b ==> b) ==> b ==> listOf a ==> listOf b
+  , "concatMap" -:: (a ==> listOf b) ==> listOf a ==> listOf b
+  , "zipWith" -:: (a ==> b ==> c) ==> listOf a ==> listOf b ==> listOf c
+  ] ++ map (-: (listOf int ==> int)) [ "sum","product","maximum","minimum" ]
 
 
 --------  Everything  --------
 
-hints = do
-  fs <- funcs ; ls <- lists ; ss <- signals ; pcasts <- polyCasts
-  return $ concat [ fs, ls, ss, math, bool, str2elem, textAttrs
-                  , elements, directions, colors, lineTypes, shapes
-                  , concreteSignals, casts, pcasts
-                  ]
+hints =
+  concat [ funcs, lists, signals, math, bools, str2elem, textAttrs
+         , elements, directions, colors, lineTypes, shapes
+         , concreteSignals, casts, polyCasts
+         ]
