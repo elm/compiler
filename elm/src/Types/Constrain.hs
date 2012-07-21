@@ -38,15 +38,22 @@ inference (Lambda x e) =
                           Map.findWithDefault [] x a
               , LambdaT b t )
 inference (Let defs e) =
-    do (a,c,t) <- inference e
-       let (xs,es) = unzip defs
-       (as,cs,ts) <- unzip3 `liftM` mapM inference es
-       let assumptions = unionsA (a:as)
-       let f x t = map (:=: t) . map VarT $ Map.findWithDefault [] x assumptions
-       let constraints = Set.fromList . concat $ zipWith f xs ts
-       return ( foldr Map.delete assumptions xs
-              , Set.unions $ c:constraints:cs
+    do (as,cs,t) <- inference e
+       (ass, schemes) <- liftM unzip (mapM defScheme defs)
+       let assumptions = unionsA (as:ass)
+       let names = map (\(Definition x _ _) -> x) defs
+       let genCs name s = map (\x -> VarT x :<<: s) $ Map.findWithDefault [] name assumptions
+       let cs' = Set.fromList . concat $ zipWith genCs names schemes
+       return ( foldr Map.delete assumptions names
+              , Set.union cs' cs
               , t )
+
+inference (Case e cases) =
+    do (as,cs,t) <- inference e
+       (ass,css,ts) <- liftM unzip3 $ mapM (caseInference t) cases
+       return ( unionsA $ as:ass
+              , Set.unions $ Set.fromList (zipWith (:=:) ts $ tail ts) : cs : css
+              , head ts)
 
 inference (If e1 e2 e3) =
     do (a1,c1,t1) <- inference e1
@@ -72,3 +79,22 @@ inference other =
       _ -> beta >>= primitive 
 
 primitive t = return (Map.empty, Set.empty, t)
+
+caseInference tipe (p,e) = do
+  (as,cs,t) <- inference e
+  return ( foldr Map.delete as (namesIn p)
+         , cs
+         , t)
+
+namesIn PAnything = []
+namesIn (PVar v)  = [v]
+namesIn (PData name ps) = concatMap namesIn ps
+
+defScheme (Definition name args e) =
+    do argDict <- mapM (\a -> liftM ((,) a) guid) args 
+       (as,cs,t) <- inference e
+       let genCs (arg,x) = map (\y -> VarT x :=: VarT y) $ Map.findWithDefault [] arg as
+       let cs' = concatMap genCs argDict
+       let tipe = foldr (==>) t $ map (VarT . snd) argDict
+       return (foldr Map.delete as args
+              , Forall (map snd argDict) (cs' ++ Set.toList cs) tipe)

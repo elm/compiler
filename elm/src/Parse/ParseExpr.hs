@@ -80,10 +80,10 @@ ifExpr = do reserved "if"   ; whitespace ; e1 <- expr ; whitespace
 
 lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
                 whitespace
-                args <- spaceSep1 patternTerm
+                pats <- spaceSep1 patternTerm
                 whitespace ; arrow ; whitespace
                 e <- expr
-                return $ makeFunction args e
+                return $ makeLambda pats e
 
 letExpr = do
   reserved "let"
@@ -118,8 +118,12 @@ assignExpr = do
   flattenPatterns patterns exp
 
 
-def = do (fs,es) <- unzip <$> assignExpr
+def = do ds <- assignExpr
+         return (ds,[])
+{--
+      do (fs,es) <- unzip <$> assignExpr
          return (fs, es, map (\_ -> Forall [0] [] (VarT 0)) fs)
+--}
 
 parseDef str =
     case parse def "" str of

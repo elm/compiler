@@ -16,7 +16,8 @@ simp expr =
       Lambda x e -> Lambda x (f e)
       App e1 e2 -> App (f e1) (f e2)
       If e1 e2 e3 -> simp_if (f e1) (f e2) (f e3)
-      Let defs e -> Let (map (second f) defs) (f e)
+      Let defs e -> Let (map simpDef defs) (f e)
+              where simpDef (Definition func args e) = Definition func args (f e)
       Data name es -> Data name (map f es)
       Case e cases -> Case (f e) (map (second f) cases)
       _ -> expr

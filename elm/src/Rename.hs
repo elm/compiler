@@ -48,11 +48,11 @@ rename' env expr =
 
       Async e -> Async `liftM` rnm e
 
-      Let defs e -> do
-                let (vs,es) = unzip defs
-                env' <- foldM (\acc x -> snd `liftM` extend acc x) env vs
-                es' <- mapM (rename' env') es; re <- rename' env' e
-                return $ Let (zip (map env' vs) es') re
+      Let defs e ->
+          let (fs,argss,es) = unzip3 $ map (\(Definition a b c) -> (a,b,c)) defs in
+          do env' <- foldM (\acc x -> snd `liftM` extend acc x) env fs
+             es' <- mapM (rename' env') es; re <- rename' env' e
+             return $ Let (zipWith3 Definition (map env' fs) argss es') re
 
       Var x -> return . Var $ env x
 

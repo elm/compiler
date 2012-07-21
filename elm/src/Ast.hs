@@ -6,14 +6,12 @@ import Data.List (intercalate)
 import Types
 import Guid
 
-data Module = Module [String] Exports Imports Defs JSFFI
+data Module = Module [String] Exports Imports [Definition] JSFFI
 
 type Exports = [String]
 
 type Imports = [(String, ImportMethod)]
 data ImportMethod = As String | Hiding [String] | Importing [String]
-
-type Defs = [(String,Expr)]
 
 type JSFFI = ( [(String, Expr, String, Type)]
              , [(String, String, Type)] )
@@ -37,11 +35,14 @@ data Expr = IntNum Int
           | Fold Expr Expr Expr
           | Async Expr
           | Input String
-          | Let [(String,Expr)] Expr
+          | Let [Definition] Expr
           | Var String
           | Case Expr [(Pattern,Expr)]
           | Data String [Expr]
             deriving (Show, Eq)
+
+data Definition = Definition String [String] Expr
+                  deriving (Show, Eq)
 
 cons h t = Data "Cons" [h,t]
 nil      = Data "Nil" []

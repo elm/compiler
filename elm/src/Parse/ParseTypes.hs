@@ -52,34 +52,40 @@ typeExpr = do
 typeConstructor :: (Monad m) => ParsecT [Char] u m (String, [ParseType])
 typeConstructor = (,) <$> (capVar <?> "another type constructor") <*> spacePrefix (typeSimple <|> typeUnambiguous)
 
-datatype :: (Monad m) => ParsecT [Char] u m ([String], [Expr], [Scheme])
+datatype :: (Monad m) => ParsecT [Char] u m ([Definition], [(String,Scheme)])
 datatype = do
   reserved "data" <?> "datatype definition (data T = A | B | ...)"
   forcedWS ; name <- capVar <?> "name of data-type" ; args <- spacePrefix lowVar
   whitespace ; string "=" ; whitespace
   tcs <- pipeSep1 typeConstructor
-  return $ (map fst tcs , map toFunc tcs , toTypes name args tcs)
+  case getConstraints name args tcs of
+    Right cs -> return (map toDef tcs, cs)
+    Left msg -> fail msg
 
 beta = liftM VarT guid
 
-toFunc (name,args) = foldr Lambda (Data name $ map Var argNames) argNames
-    where argNames = map (("a"++) . show) [1..length args]
+toDef (name,types) = Definition name args (Data name (map Var args))
+    where args = map (('a':) . show) [1..length types]
 
-toTypes name args constructors =
-    map (toType pairs . ADT name $ map (VarT . snd) pairs) constructors
-        where pairs = zip args [1..length args]
+getConstraints name args constructors =
+    mapM (toConstraint tvarDict . ADT name $ map (VarT . snd) tvarDict) constructors
+        where tvarDict = zip args [1..length args]
 
-toType pairs outType (name,args) =
-    Forall [1..n+2] cs $ foldr (==>) outType (map toT args)
-    where n = length pairs
+toConstraint tvarDict outType (name,args) =
+    ((,) name . Forall [1..n+2] cs . foldr (==>) outType) <$> mapM toT args
+    where n = length tvarDict
           cs = [ VarT (n+1) :<: time, VarT (n+2) :<: number ]
-          toT (LambdaPT t1 t2)  = toT t1 ==> toT t2
-          toT (ADTPT name args) = ADT name $ map toT args
+          toT (LambdaPT t1 t2)  = (==>) <$> toT t1 <*> toT t2
+          toT (ADTPT name args) = ADT name <$> mapM toT args
           toT (VarPT x@(c:_))
-              | isLower c = VarT . fromMaybe (-1) $ lookup x pairs
-              | x == "Time" = VarT (n+1)
-              | x == "Number" = VarT (n+2)
-              | otherwise = ADT x []
+              | isLower c = VarT <$> case lookup x tvarDict of
+                                       Just v -> Right v
+                                       Nothing -> Left $ msg x
+              | x == "Time" = return $ VarT (n+1)
+              | x == "Number" = return $ VarT (n+2)
+              | otherwise = return $ ADT x []
+          msg x = "Type variable '" ++ x ++
+                  "' is unbound in type constructor '" ++ name ++ "'."
 
 toForeignType (LambdaPT t1 t2) =
     fail $ "Elm's JavaScript event interface does not yet handle functions. " ++

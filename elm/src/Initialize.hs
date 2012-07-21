@@ -12,17 +12,18 @@ import Types ((-:))
 import Optimize
 
 
-initialize str = do
-  (Module name ex im defs (ims,exs), tipes) <- parseProgram str
-  let (Let ds _) = rename . Let defs $ Var "_"
-  let dict n = maybe n id . lookup n $ zip (map fst defs) (map fst ds)
-  let allHints = hints ++ tipes ++ ffiHints (ims,exs)
-  subs <- unify allHints . Let ds $ checkFFI dict ims exs
-  let Let defs' _ = optimize (Let ds $ Var "_")
-  let im' = if any ((=="Prelude") . fst) im then im else
-                ("Prelude", Importing []):im
-  let exs' = map (\(js,n,t) -> (js,dict n,t)) exs
-  return (subs `seq` Module name ex im' defs' (ims,exs'))
+initialize str =
+    let nameOf (Definition n _ _) = n in
+    do (Module name ex im defs (ims,exs), tipes) <- parseProgram str
+       let (Let ds _) = rename . Let defs $ Var "_"
+       let dict n = maybe n id . lookup n $ zip (map nameOf defs) (map nameOf ds)
+       let allHints = hints ++ tipes ++ ffiHints (ims,exs)
+       subs <- unify allHints . Let ds $ checkFFI dict ims exs
+       let Let defs' _ = optimize (Let ds $ Var "_")
+       let im' = if any ((=="Prelude") . fst) im then im else
+                     ("Prelude", Importing []):im
+       let exs' = map (\(js,n,t) -> (js,dict n,t)) exs
+       return (subs `seq` Module name ex im' defs' (ims,exs'))
 
 
 ffiHints (ims,exs) =

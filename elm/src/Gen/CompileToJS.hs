@@ -54,7 +54,7 @@ jsModule (Module names exports imports defs foreigns) =
               body = jsDefs defs
               export = ret . braces . intercalate "," $ mapMaybe getNames defs
               exps = if null exports then ["main"] else exports
-              getNames (x,_) =
+              getNames (Definition x _ _) =
                   let y = reverse . tail . dropWhile isDigit $ reverse x in
                   if y `elem` exps then Just $ y ++ ":" ++ x else Nothing
               (ims,exs) = let (i,e) = foreigns in
@@ -115,12 +115,11 @@ toJS expr =
 jsLet defs e' = jsFunc "" (jsDefs defs ++ ret (toJS e')) ++ "()"
 
 jsDefs defs = concatMap toDef $ sortBy f defs
-    where f a b = compare (isLambda a) (isLambda b)
-          isLambda (_, Lambda _ _) = 1
-          isLambda _ = 0
-          toDef (f, Lambda x e) =
-              "\nfunction " ++ f ++ parens x ++ braces (ret $ toJS e) ++ ";"
-          toDef (x, e) = assign x (toJS e)
+    where f a b = compare (valueOf a) (valueOf b)
+          valueOf (Definition _ args _) = min 1 (length args)
+          toDef (Definition x [] e) = assign x (toJS e)
+          toDef (Definition f (a:as) e) = 
+              "\nfunction " ++ f ++ parens a ++ braces (ret . toJS $ foldr Lambda e as) ++ ";"
 
 jsCase e  [c]  = jsMatch c ++ parens (toJS e)
 jsCase e cases = "(function(){" ++

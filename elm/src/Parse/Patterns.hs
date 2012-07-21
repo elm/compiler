@@ -1,4 +1,4 @@
-module Patterns (patternTerm, patternExpr, makeFunction, flattenPatterns) where
+module Patterns (patternTerm, patternExpr, makeLambda, flattenPatterns) where
 
 import Ast
 import Data.Char (isUpper)
@@ -29,25 +29,28 @@ patternExpr :: Monad m => ParsecT [Char] u m Pattern
 patternExpr = foldl1 pcons <$> consSep1 patternTerm <?> "pattern"
 
 
+makeLambda pats body = foldr Lambda (makeBody pats body) (map getName pats)
 
-makeFunction args body = foldr func body args
-    where func PAnything e = Lambda "_" e
-          func (PVar x)  e = Lambda x e
-          func p e = "t" `Lambda` Case (Var "t") [(p,e)]
+makeBody pats body = foldr func body pats
+    where func PAnything e = e
+          func (PVar x)  e = e
+          func p e = Case (Var $ getName p) [(p,e)]
 
-flattenPatterns (PVar f : args) exp = return [(f, makeFunction args exp)]
+flattenPatterns (PVar f : args) exp =
+    return [ Definition f (map getName args) (makeBody args exp) ]
 flattenPatterns [p] exp = return $ matchSingle p exp p
 flattenPatterns ps _ = 
     fail $ "Pattern (" ++ unwords (map show ps) ++
            ") cannot be used on the left-hand side of an assign statement."
 
 matchSingle pat exp p@(PData _ ps) =
-    (v, exp) : concatMap (matchSingle p $ Var v) ps
-        where v = "'" ++ getName p
-matchSingle pat exp (PVar x)  = [ (x, Case exp [(pat,Var x)]) ]
+    (Definition v [] exp) : concatMap (matchSingle p $ Var v) ps
+        where v = getName p
+matchSingle pat exp (PVar x)  = [ Definition x [] (Case exp [(pat,Var x)]) ]
 matchSingle pat exp PAnything = []
 
-getName (PData n ps) = n ++ concatMap getName ps
-getName (PAnything)  = "_"
-getName (PVar x)     = x
+getName p = f p
+    where f (PData n ps) = n ++ "$" ++ concatMap getName ps
+          f (PAnything)  = "_"
+          f (PVar x)     = x
 
