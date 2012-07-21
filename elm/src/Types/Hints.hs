@@ -43,11 +43,11 @@ lineTypes = [ numScheme (\n -> listOf (pairOf n) ==> line) "line"
             , "customLine" -: listOf int ==> color ==> line ==> form
             ] ++ hasType (color ==> line ==> form) ["solid","dashed","dotted"]
 
-shapes = [ numScheme (\n -> listOf (pairOf n) ==> pairOf n ==> shape) "polygon"
+shapes = [ twoNums (\n m -> listOf (pairOf n) ==> pairOf m ==> shape) "polygon"
          , "filled"        -: color ==> shape ==> form
          , "outlined"      -: color ==> shape ==> form
          , "customOutline" -: listOf int ==> color ==> shape ==> form
-         ] ++ map (numScheme (\n -> n ==> n ==> pairOf n ==> shape)) [ "ngon"
+         ] ++ map (twoNums (\n m -> n ==> n ==> pairOf m ==> shape)) [ "ngon"
                                                                      , "rect"
                                                                      , "oval" ]
 
@@ -130,6 +130,9 @@ concreteSignals =
 binop t = t ==> t ==> t
 numScheme t name = (name, Forall [0] [VarT 0 :<: number] (t (VarT 0)))
 timeScheme name t = (name, Forall [0] [VarT 0 :<: time] (t (VarT 0)))
+twoNums f name =
+    (,) name . Forall [0,1] [ VarT 0 :<: number, VarT 1 :<: number ] $
+        f (VarT 0) (VarT 1)
 
 math =
   map (numScheme (\t -> t ==> binop t)) ["clamp"] ++
@@ -137,7 +140,10 @@ math =
   [ numScheme (\t -> t ==> t) "abs" ] ++
   hasType (binop float) [ "/", "logBase" ] ++
   hasType (binop int) ["rem","div","mod"] ++
-  hasType (float ==> float) ["sin","cos","tan","asin","acos","atan","sqrt"]
+  hasType (float ==> float) ["sin","cos","tan","asin","acos","atan","sqrt"] ++
+  hasType float ["pi","e"] ++
+  hasType (int ==> float) ["toFloat","castIntToFloat"] ++
+  hasType (float ==> int) ["round","floor","ceiling","truncate"]
 
 bools =
   [ "not" -: bool ==> bool ] ++
@@ -163,7 +169,7 @@ funcs =
     , "."    -:: (b ==> c) ==> (a ==> b) ==> (a ==> c)
     , "$"    -:: (a ==> b) ==> a ==> b
     , ":"       -:: a ==> listOf a ==> listOf a
-    , "++"      -:: a ==> a ==> a
+    , (,) "++" . Forall [0,1] [ VarT 0 :<: appendable (VarT 1) ] $ VarT 0 ==> VarT 0 ==> VarT 0
     , "Cons"    -:: a ==> listOf a ==> listOf a 
     , "Nil"     -:: listOf a
     , "Just"    -:: a ==> maybeOf a
@@ -184,19 +190,22 @@ lists =
   , "scanl1"  -:: (a ==> a ==> a) ==> listOf a ==> a
   , "forall"  -:: (a ==> bool) ==> listOf a ==> bool
   , "exists"  -:: (a ==> bool) ==> listOf a ==> bool
-  , "concat"  -:: listOf (listOf a) ==> listOf a
   , "reverse" -:: listOf a ==> listOf a
   , "take"    -:: int ==> listOf a ==> listOf a
   , "drop"    -:: int ==> listOf a ==> listOf a
   , "partition"    -:: (a ==> bool) ==> listOf a ==> tupleOf [listOf a,listOf a]
   , "intersperse"  -:: a ==> listOf a ==> listOf a
-  , "intercalate"  -:: listOf a ==> listOf(listOf a) ==> listOf a
   , "zip"   -:: listOf a ==>listOf b ==>listOf(tupleOf [a,b])
   , "map"   -:: (a ==> b) ==> listOf a ==> listOf b
   , "foldr" -:: (a ==> b ==> b) ==> b ==> listOf a ==> b
   , "foldl" -:: (a ==> b ==> b) ==> b ==> listOf a ==> b
   , "scanl" -:: (a ==> b ==> b) ==> b ==> listOf a ==> listOf b
-  , "concatMap" -:: (a ==> listOf b) ==> listOf a ==> listOf b
+  , (,) "concat"      . Forall [0,1]   [ VarT 0 :<: appendable (VarT 1) ] $
+        listOf (VarT 0) ==> VarT 0
+  , (,) "concatMap"   . Forall [0,1,2] [ VarT 0 :<: appendable (VarT 1) ] $
+        (VarT 2 ==> VarT 0) ==> listOf (VarT 2) ==> VarT 0
+  , (,) "intercalate" . Forall [0,1]   [ VarT 0 :<: appendable (VarT 1) ] $
+        VarT 0 ==> listOf (VarT 0) ==> VarT 0
   , "zipWith" -:: (a ==> b ==> c) ==> listOf a ==> listOf b ==> listOf c
   ] ++ map (numScheme (\n -> listOf n ==> n)) [ "sum", "product"
                                               , "maximum", "minimum" ]

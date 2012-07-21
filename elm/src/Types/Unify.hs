@@ -30,8 +30,9 @@ solver ((LambdaT t1 t2 :=: LambdaT t1' t2') : cs) subs =
 solver ((VarT x :=: t) : cs) subs =
     solver (map (cSub x t) cs) . map (second $ tSub x t) $ (x,t):subs
 solver ((t :=: VarT x) : cs) subs = solver ((VarT x :=: t) : cs) subs
-solver ((t1 :=: t2) : cs) subs =
-    if t1 /= t2 then uniError t1 t2 else solver cs subs
+solver ((t1 :=: t2) : cs) subs
+    | t1 == t2  = solver cs subs
+    | otherwise = uniError t1 t2
 
 --------  subtypes  --------
 
@@ -43,11 +44,18 @@ solver (c@(VarT x :<: SuperType n ts) : cs) subs
 solver ((t@(ADT n1 []) :<: st@(SuperType n2 ts)) : cs) subs
     | n1 == n2 || Set.member t ts = solver cs subs
     | otherwise = return . Left $ "Type error: " ++ show t ++
-                                  " is not a subtype of " ++ show st
+                                  " is not a " ++ show st
+solver ((t@(ADT "List" [_]) :<: st@(SuperType n' ts')) : cs) subs
+    | any f (Set.toList ts') = solver cs subs
+    | otherwise = return . Left $ "Type error: " ++ show t ++
+                                  " is not a " ++ show st 
+        where f (ADT "List" [VarT _]) = True
+              f _ = False
+
 solver ((t :<: st@(SuperType n ts)) : cs) subs
     | Set.member t ts = solver cs subs
     | otherwise = return . Left $ "Type error: " ++ show t ++
-                                  " is not a subtype of " ++ show st
+                                  " is not a " ++ show st
 
 solver ((t1 :<<: Forall xs cs' t2) : cs) subs = do
   pairs <- mapM (\x -> liftM ((,) x . VarT) guid) xs
@@ -63,7 +71,6 @@ cSub k v (t :<<: poly) = force $ tSub k v t :<<: poly
 tSub k v t@(VarT x) = if k == x then v else t
 tSub k v (LambdaT t1 t2) = force $ LambdaT (tSub k v t1) (tSub k v t2)
 tSub k v (ADT name ts) = ADT name (map (force . tSub k v) ts)
-tSub _ _ t = t
 
 uniError t1 t2 =
     return . Left $ "Type error: " ++ show t1 ++ " is not equal to " ++ show t2

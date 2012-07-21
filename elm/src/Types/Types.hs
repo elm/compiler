@@ -31,10 +31,10 @@ number = SuperType "Number" (Set.fromList [ int, float ])
 char = tipe "Char"
 bool = tipe "Bool"
 
-string = tipe "String"
+string = listOf char -- tipe "String"
 text  = tipe "Text"
 
-time = SuperType "Time" (Set.fromList [ int, float ])
+time = SuperType "Time" (Set.fromList [ int, float, tipe "Number" ])
 
 element   = tipe "Element"
 direction = tipe "Direction"
@@ -49,6 +49,7 @@ tupleOf ts = ADT ("Tuple" ++ show (length ts)) ts
 maybeOf t  = ADT "Maybe" [t]
 pairOf t = tupleOf [t,t]
 point = pairOf int
+appendable t = SuperType "Appendable" (Set.fromList [ string, text, listOf t ])
 
 jsBool     = tipe "JSBool"
 jsNumber   = tipe "JSNumber"
@@ -72,7 +73,8 @@ instance Show Type where
       case t of
         { LambdaT t1@(LambdaT _ _) t2 -> parens (show t1) ++ " -> " ++ show t2
         ; LambdaT t1 t2 -> show t1 ++ " -> " ++ show t2
-        ; VarT x -> show x
+        ; VarT x -> 't' : show x
+        ; ADT "List" [ADT "Char" []] -> "String"
         ; ADT "List" [tipe] -> "[" ++ show tipe ++ "]"
         ; ADT name cs ->
             if isTupleString name
