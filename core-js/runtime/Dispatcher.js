@@ -137,8 +137,8 @@ var Dispatcher = function() {
 	}
 	if (len === 1) {
 	    var dim = correctSize(kids[0]);
-	    if (e.style.width !== "") { dim[0] = e.style.width.slice(0,-2) - 0; }
-	    if (e.style.height !== "") { dim[1] = e.style.height.slice(0,-2) - 0; }
+	    if (e.style.hasOwnProperty('width') && e.style.width.length > 0) { dim[0] = e.style.width.slice(0,-2) - 0; }
+	    if (e.style.hasOwnProperty('height') && e.style.height.length > 0) { dim[1] = e.style.height.slice(0,-2) - 0; }
 	    if (dim[0] !== 0) { e.style.width = dim[0] + "px"; }
 	    if (dim[1] !== 0) { e.style.height = dim[1] + "px"; }
 	    return dim;
