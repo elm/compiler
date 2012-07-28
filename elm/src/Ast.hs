@@ -39,10 +39,10 @@ data Expr = IntNum Int
           | Var String
           | Case Expr [(Pattern,Expr)]
           | Data String [Expr]
-            deriving (Show, Eq)
+            deriving (Eq)
 
 data Definition = Definition String [String] Expr
-                  deriving (Show, Eq)
+                  deriving (Eq)
 
 cons h t = Data "Cons" [h,t]
 nil      = Data "Nil" []
@@ -71,3 +71,50 @@ instance Show Pattern where
             parens . intercalate ", " $ map show ps
         else (if null ps then id else parens) $ unwords (name : map show ps)
             where parens s = "(" ++ s ++ ")"
+
+instance Show Expr where
+  show (IntNum n) = show n
+  show (FloatNum n) = show n
+  show (Chr c) = show c
+  show (Str s) = show s
+  show (Boolean b) = show b
+  show (Range e1 e2) = "[" ++ show e1 ++ ".." ++ show e2 ++ "]"
+  show (Access e x) = show' e ++ "." ++ x
+  show (Binop op e1 e2) = show' e1 ++ " " ++ op ++ " " ++ show' e2
+  show (Lambda x e) = let (xs,e') = getLambdas (Lambda x e) in
+                      concat [ "\\", intercalate " " xs, " -> ", show e' ]
+  show (App e1 e2) = show' e1 ++ " " ++ show' e2
+  show (If e1 e2 e3) = concat [ "if ", show e1, " then ", show e2, " else ", show e3 ]
+  show (Let defs e) = "let { " ++ intercalate " ; " (map show defs) ++ " } in " ++ show e
+  show (Var x) = x
+  show (Case e pats) = "case " ++ show e ++ " of { " ++ intercalate " ; " (map (\(p,e) -> show p ++ " -> " ++ show e) pats) ++ " }"
+  show (Data name es)
+      | name == "Cons" = ("["++) . (++"]") . intercalate "," . map show $ delist (Data "Cons" es)
+      | name == "Nil" = "[]"
+      | otherwise = name ++ " " ++ intercalate " " (map show' es)
+  show (Lift f es) = concat [ "lift", show $ length es, " ", show' f, " ", intercalate " " (map show' es) ]
+  show (Fold e1 e2 e3) = concat [ "foldp ", show' e1, " ", show' e2, " ", show' e3 ]
+  show (Async e) = "async " ++ show' e
+  show (Input i) = i
+
+instance Show Definition where
+  show (Definition v [] e) = v ++ " = " ++ show e
+  show (Definition f args e) = f ++ " " ++ intercalate " " args ++ " = " ++ show e
+
+getLambdas (Lambda x e) = (x:xs,e')
+    where (xs,e') = getLambdas e
+getLambdas e = ([],e)
+
+show' e = if needsParens e then "(" ++ show e ++ ")" else show e
+
+needsParens (Binop _ _ _) = True
+needsParens (Lambda _ _) = True
+needsParens (App _ _) = True
+needsParens (If _ _ _) = True
+needsParens (Let _ _) = True
+needsParens (Case _ _) = True
+needsParens (Data name (x:xs)) = name /= "Cons"
+needsParens (Lift _ _) = True
+needsParens (Fold _ _ _) = True
+needsParens (Async _) = True
+needsParens _ = False
