@@ -80,6 +80,18 @@ polyCasts =
   , "castListToJSArray"   -:: listOf a ==> jsArray a
   ]
 
+json =
+  [ "JsonString" -: string ==> jsonValue
+  , "JsonBool"   -: bool   ==> jsonValue
+  , "JsonNull"   -: jsonValue
+  , "JsonArray"  -: listOf jsonValue ==> jsonValue
+  , "JsonObject" -: jsonObject ==> jsonValue
+  , numScheme (\n -> n ==> jsonValue) "JsonNumber"
+  , "toPrettyString" -: string ==> jsonObject ==> string
+  , "toPrettyJSString" -: string ==> jsonObject ==> jsString
+  , "toJSString" -: jsonObject ==> jsString
+  ]
+
 
 --------  Signals  --------
 
@@ -219,5 +231,5 @@ lists =
 hints =
   concat [ funcs, lists, signals, math, bools, str2elem, textAttrs
          , elements, directions, colors, lineTypes, shapes
-         , concreteSignals, casts, polyCasts
+         , concreteSignals, casts, polyCasts, json
          ]

@@ -58,6 +58,8 @@ jsString   = tipe "JSString"
 jsElement  = tipe "JSElement"
 jsArray t  = ADT "JSArray" [t]
 jsTuple ts = ADT ("JSTuple" ++ show (length ts)) ts
+jsonValue = tipe "JsonValue"
+jsonObject = tipe "JsonObject"
 
 infixr ==>
 t1 ==> t2 = LambdaT t1 t2
