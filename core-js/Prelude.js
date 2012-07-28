@@ -31,10 +31,22 @@ var Prelude = function() {
 	    fst  : function(p) { return p[1]; },
 	    snd  : function(p) { return p[2]; },
 	    rem  : function(x) { return function(y) { return x % y; }; },
-	    div  : function(x) { return function(y) { return x / y; }; },
+	    div  : function(x) { return function(y) { return ~~(x / y); }; },
+	    compare : function(x) { return function (y) {
+		x = (typeof x === "object") ? toText(x) : x;
+		y = (typeof y === "object") ? toText(y) : y;
+		return [ x === y ? 'EQ' : (x < y ? 'LT' : 'GT') ];
+	      };
+	    },
+	    toFloat : function(x) { return x; },
+	    round : function(n) { return Math.round(n); },
+	    floor : function(n) { return Math.floor(n); },
+	    ceiling : function(n) { return Math.ceil(n); },
+	    truncate : function(n) { return ~~n; },
 	    sqrt : Math.sqrt,
 	    abs  : Math.abs,
 	    pi   : Math.PI,
+	    e    : Math.E,
 	    sin  : Math.sin,
 	    cos  : Math.cos,
 	    tan  : Math.tan,
