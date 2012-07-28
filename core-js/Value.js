@@ -80,6 +80,8 @@ var Value = function(){
 	    }
 	} else if (v[0] === "Nil") {
 	    return "[]";
+	} else if (v[0] === "JSON") {
+	    return "JSON " + ElmJSON.toJSString(v);
 	} else {
 	    var output = "";
 	    for (var i = v.length; --i; ) {
