@@ -3,7 +3,7 @@ module Rename (rename) where
 
 import Ast
 import Control.Arrow (first)
-import Control.Monad (ap, liftM, foldM, mapM, Monad)
+import Control.Monad (ap, liftM, foldM, mapM, Monad, zipWithM)
 import Control.Monad.State (evalState, State, get, put)
 import Data.Char (isLower)
 import Guid
@@ -50,9 +50,13 @@ rename' env expr =
 
       Let defs e ->
           let (fs,argss,es) = unzip3 $ map (\(Definition a b c) -> (a,b,c)) defs in
-          do env' <- foldM (\acc x -> snd `liftM` extend acc x) env fs
-             es' <- mapM (rename' env') es; re <- rename' env' e
-             return $ Let (zipWith3 Definition (map env' fs) argss es') re
+          do env' <- extends env fs
+             let combine args e = do env'' <- extends env' args
+                                     re <- rename' env'' e
+                                     return (map env'' args, re)
+             defs' <- zipWith (\f -> uncurry $ Definition f) (map env' fs) `liftM` zipWithM combine argss es
+             re <- rename' env' e
+             return $ Let defs' re
 
       Var x -> return . Var $ env x
 
@@ -70,6 +74,9 @@ extend env x = do
   n <- guid
   let rx = map (\c -> if c == '\'' then '_' else c) $ x ++ "_" ++ show n
   return (rx, \y -> if y == x then rx else env y)
+
+extends :: (String -> String) -> [String] -> GuidCounter (String -> String)
+extends env xs = foldM (\e x -> liftM snd $ extend e x) env xs
 
 patternExtend :: Pattern -> (String -> String) -> GuidCounter (Pattern, String -> String)
 patternExtend pattern env =
