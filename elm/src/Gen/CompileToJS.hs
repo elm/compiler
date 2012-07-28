@@ -152,12 +152,17 @@ jsRange e1 e2 = (++"()") . jsFunc "" $
 binop (o:p) e1 e2
     | isAlpha o || '_' == o = (o:p) ++ parens e1 ++ parens e2
     | otherwise = case o:p of
-                    ":" -> jsCons e1 e2
+                    ":"  -> jsCons e1 e2
                     "++" -> append e1 e2
-                    "$" -> e1 ++ parens e2
-                    "." -> jsFunc "x" . ret $ e1 ++ parens (e2 ++ parens "x")
+                    "$"  -> e1 ++ parens e2
+                    "."  -> jsFunc "x" . ret $ e1 ++ parens (e2 ++ parens "x")
+                    "^"  -> "Math.pow(" ++ e1 ++ "," ++ e2 ++ ")"
                     "==" -> "eq(" ++ e1 ++ "," ++ e2 ++ ")"
                     "/=" -> "not(eq(" ++ e1 ++ "," ++ e2 ++ "))"
-                    _ -> parens (e1 ++ (o:p) ++ e2)
+                    "<"  -> "(compare(" ++ e1 ++ ")(" ++ e2 ++ ")[0] === 'LT')"
+                    ">"  -> "(compare(" ++ e1 ++ ")(" ++ e2 ++ ")[0] === 'GT')"
+                    "<=" -> "function() { var ord = compare(" ++ e1 ++ ")(" ++ e2 ++ ")[0]; return ord === 'LT' || ord === 'EQ'; }()"
+                    ">=" -> "function() { var ord = compare(" ++ e1 ++ ")(" ++ e2 ++ ")[0]; return ord === 'GT' || ord === 'EQ'; }()"
+                    _    -> parens (e1 ++ (o:p) ++ e2)
 
 append e1 e2 = "Value.append" ++ parens (e1 ++ "," ++ e2)
