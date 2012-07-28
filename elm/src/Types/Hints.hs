@@ -128,8 +128,9 @@ concreteSignals =
 --------  Math and Binops  --------
 
 binop t = t ==> t ==> t
-numScheme t name = (name, Forall [0] [VarT 0 :<: number] (t (VarT 0)))
-timeScheme name t = (name, Forall [0] [VarT 0 :<: time] (t (VarT 0)))
+scheme1 super t name = (name, Forall [0] [VarT 0 :<: super] (t (VarT 0)))
+numScheme t name = scheme1 number t name
+timeScheme name t = scheme1 time t name
 twoNums f name =
     (,) name . Forall [0,1] [ VarT 0 :<: number, VarT 1 :<: number ] $
         f (VarT 0) (VarT 1)
@@ -148,8 +149,10 @@ math =
 bools =
   [ "not" -: bool ==> bool ] ++
   hasType (binop bool) ["&&","||"] ++
-  map (numScheme (\n -> n ==> n ==> bool))  ["<",">","<=",">="]
-
+  map (scheme1 comparable (\t -> t ==> t ==> bool))  ["<",">","<=",">="] ++
+  [ ( "compare"
+    , Forall [0,1] [ VarT 0 :<: comparable ] (VarT 0 ==> VarT 0 ==> VarT 1) )
+  ]
 
 --------  Polymorphic Functions  --------
 
