@@ -41,12 +41,12 @@ var ElmJSON = function() {
       };
     }
 
-    function JSString(v) { return [ "JSString", v ]; }
-    function JSNumber(v) { return [ "JSNumber", v ]; }
-    function JSBool(v) { return [ "JSBool", v ]; }
-    var JSNull = [ "JSNull" ];
-    function JSArray(v) { return [ "JSArray", v ]; }
-    function JSObject(v) { return [ "JSObject", v ]; }
+    function JsonString(v) { return [ "JsonString", v ]; }
+    function JsonNumber(v) { return [ "JsonNumber", v ]; }
+    function JsonBool(v) { return [ "JsonBool", v ]; }
+    var JsonNull = [ "JsonNull" ];
+    function JsonArray(v) { return [ "JsonArray", v ]; }
+    function JsonObject(v) { return [ "JsonObject", v ]; }
 
     function toList(json) {
 	var obj = json[1];
@@ -68,16 +68,16 @@ var ElmJSON = function() {
     function toPrettyJSString(sep) { return function (obj) {
 	function fromValue(v) {
 	    switch (v[0]) {
-	    case 'JSNull'   : return null;
-	    case 'JSString' : return JS.castStringToJSString(v[1]);
-	    case 'JSObject' :
+	    case 'JsonNull'   : return null;
+	    case 'JsonString' : return JS.castStringToJSString(v[1]);
+	    case 'JsonObject' :
 	    var o = {};
 	    var from = v[1][1];
 	    for (var i in from) {
 		o[i] = fromValue(from[i]);
 	    }
 	    return o;
-	    case 'JSArray'  :
+	    case 'JsonArray'  :
 	    var a = JS.castListToJSArray(v[1]);
 	    for (var i = a.length; i--; ) {
 		a[i] = fromValue(a[i]);
@@ -87,23 +87,23 @@ var ElmJSON = function() {
 	    return v[1];
 	    }
 	}
-	return JSON.stringify(fromValue([ 'JSObject', obj ]), null, JS.castStringToJSString(sep));
+	return JSON.stringify(fromValue([ 'JsonObject', obj ]), null, JS.castStringToJSString(sep));
       };
     }
     function fromJSString(str) {
 	var obj = JSON.parse(str);
 	function toValue(v) {
 	    switch (typeof v) {
-	    case 'string'  : return [ "JSString", JS.castJSStringToString(v) ];
-	    case 'number'  : return [ "JSNumber", JS.castJSNumberToFloat(v) ];
-	    case 'boolean' : return [ "JSBool", JS.castJSBoolToBool(v) ];
+	    case 'string'  : return [ "JsonString", JS.castJSStringToString(v) ];
+	    case 'number'  : return [ "JsonNumber", JS.castJSNumberToFloat(v) ];
+	    case 'boolean' : return [ "JsonBool", JS.castJSBoolToBool(v) ];
 	    case 'object'  :
-		if (v === null) return [ "JSNull" ];
+		if (v === null) return [ "JsonNull" ];
 		for (var i in v) {
 		    v[i] = toValue(v[i]);
 		}
-		if (v instanceof Array) return [ "JSArray", JS.castJSArrayToList(v) ];
-		return [ "JSObject",  [ "JSON", v ] ];
+		if (v instanceof Array) return [ "JsonArray", JS.castJSArrayToList(v) ];
+		return [ "JsonObject",  [ "JSON", v ] ];
 	    }
 	}
 	for (var i in obj) {
@@ -126,12 +126,12 @@ var ElmJSON = function() {
 	    fromString : function(v) { return fromJSString(JS.castStringToJSString(v)); },
 	    toList : toList,
 	    fromList : fromList,
-	    JSString : JSString,
-	    JSNumber : JSNumber,
-	    JSBool : JSBool,
-	    JSNull : JSNull,
-	    JSArray : JSArray,
-	    JSObject : JSObject
+	    JsonString : JsonString,
+	    JsonNumber : JsonNumber,
+	    JsonBool : JsonBool,
+	    JsonNull : JsonNull,
+	    JsonArray : JsonArray,
+	    JsonObject : JsonObject
     };
 }();
 

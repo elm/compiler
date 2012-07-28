@@ -81,7 +81,7 @@ var Value = function(){
 	} else if (v[0] === "Nil") {
 	    return "[]";
 	} else if (v[0] === "JSON") {
-	    return "JSON " + ElmJSON.toJSString(v);
+	    return "(JSON.fromList " + toString(ElmJSON.toList(v)) + ")";
 	} else {
 	    var output = "";
 	    for (var i = v.length; --i; ) {
