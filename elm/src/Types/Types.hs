@@ -51,6 +51,7 @@ pairOf t = tupleOf [t,t]
 point = pairOf int
 appendable t = SuperType "Appendable" (Set.fromList [ string, text, listOf t ])
 comparable = SuperType "Comparable" (Set.fromList [ int, float, char, string, tipe "Number", tipe "Time"  ])
+transformable = SuperType "Transformable" (Set.fromList [ shape, line  ])
 
 jsBool     = tipe "JSBool"
 jsNumber   = tipe "JSNumber"

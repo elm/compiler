@@ -47,6 +47,9 @@ shapes = [ twoNums (\n m -> listOf (pairOf n) ==> pairOf m ==> shape) "polygon"
          , "filled"        -: color ==> shape ==> form
          , "outlined"      -: color ==> shape ==> form
          , "customOutline" -: listOf int ==> color ==> shape ==> form
+         , scheme2 number transformable (\n t -> n ==> n ==> t ==> t) "move"
+         , scheme2 number transformable (\n t -> n ==> t ==> t) "rotate"
+         , scheme2 number transformable (\n t -> n ==> t ==> t) "scale"
          ] ++ map (twoNums (\n m -> n ==> n ==> pairOf m ==> shape)) [ "ngon"
                                                                      , "rect"
                                                                      , "oval" ]
@@ -141,11 +144,11 @@ concreteSignals =
 
 binop t = t ==> t ==> t
 scheme1 super t name = (name, Forall [0] [VarT 0 :<: super] (t (VarT 0)))
+scheme2 s1 s2 t name =
+    (name, Forall [0,1] [VarT 0 :<: s1, VarT 1 :<: s2] (t (VarT 0) (VarT 1)))
 numScheme t name = scheme1 number t name
 timeScheme name t = scheme1 time t name
-twoNums f name =
-    (,) name . Forall [0,1] [ VarT 0 :<: number, VarT 1 :<: number ] $
-        f (VarT 0) (VarT 1)
+twoNums f name = scheme2 number number f name
 
 math =
   map (numScheme (\t -> t ==> binop t)) ["clamp"] ++
