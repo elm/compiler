@@ -11,8 +11,8 @@ import Types
 
 import Control.DeepSeq (NFData (..), deepseq)
 
-unify hints expr = run $ do
-  cs <- constrain hints expr
+unify hints modul = run $ do
+  cs <- constrain hints modul
   solver cs []
 
 eq ctx t1 t2 = Context ctx (t1 :=: t2)

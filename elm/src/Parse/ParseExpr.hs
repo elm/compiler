@@ -117,13 +117,8 @@ assignExpr = do
   whitespace; string "="; whitespace; exp <- expr
   flattenPatterns patterns exp
 
+def = map (\(Definition n as e) -> Def n as e) <$> assignExpr
 
-def = do ds <- assignExpr
-         return (ds,[])
-{--
-      do (fs,es) <- unzip <$> assignExpr
-         return (fs, es, map (\_ -> Forall [0] [] (VarT 0)) fs)
---}
 
 parseDef str =
     case parse def "" str of

@@ -6,15 +6,12 @@ import Data.List (intercalate)
 import Types
 import Guid
 
-data Module = Module [String] Exports Imports [Definition] JSFFI
+data Module = Module [String] Exports Imports [Statement]
 
 type Exports = [String]
 
 type Imports = [(String, ImportMethod)]
 data ImportMethod = As String | Hiding [String] | Importing [String]
-
-type JSFFI = ( [(String, Expr, String, Type)]
-             , [(String, String, Type)] )
 
 
 data Pattern = PData String [Pattern] | PVar String | PAnything
@@ -43,6 +40,12 @@ data Expr = IntNum Int
 
 data Definition = Definition String [String] Expr
                   deriving (Eq)
+
+data Statement = Def String [String] Expr
+               | Datatype String [X] [(String,[Type])]
+               | ImportEvent String Expr String Type
+               | ExportEvent String String Type
+                 deriving (Eq)
 
 cons h t = Data "Cons" [h,t]
 nil      = Data "Nil" []

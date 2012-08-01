@@ -3,8 +3,10 @@ module ExtractNoscript (extract) where
 
 import Ast
 
-extract (Module _ _ _ defs _) =
-    concatMap (\s -> "<p>" ++ s ++ "</p>") $ concatMap (\(Definition _ _ e) -> extract' e) defs
+extract (Module _ _ _ stmts) =
+    concatMap (\s -> "<p>" ++ s ++ "</p>") (concatMap stmtExtract stmts)
+        where stmtExtract (Def _ _ e) = extract' e
+              stmtExtract _ = []
 
 extract' expr =
     let f = extract' in

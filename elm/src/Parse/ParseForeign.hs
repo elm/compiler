@@ -1,5 +1,5 @@
 
-module ParseForeign (foreignDefs) where
+module ParseForeign (foreignDef) where
 
 import Control.Applicative ((<$>), (<*>))
 import Data.Either (partitionEithers)
@@ -12,14 +12,8 @@ import ParseTypes
 import Types (signalOf)
 
 
-foreignDefs = do
-  f  <- foreign --commitIf (reserved "foreign") foreign
-  fs <- many (commitIf (freshLine >> reserved "foreign") (freshLine >> foreign))
-  return . partitionEithers $ f:fs
-
-
-foreign = do try (reserved "foreign") ; whitespace
-             Left <$> importEvent <|> Right <$> exportEvent
+foreignDef = do try (reserved "foreign") ; whitespace
+                importEvent <|> exportEvent
 
 exportEvent = do
   try (reserved "export" >> whitespace >> reserved "jsevent" >> whitespace)
@@ -29,7 +23,7 @@ exportEvent = do
   tipe <- typeExpr
   case tipe of
     ADTPT "Signal" [pt] ->
-        either fail (return . (,,) js elm . signalOf) (toForeignType pt)
+        either fail (return . ExportEvent js elm . signalOf) (toForeignType pt)
     _ -> fail "When exporting events, the exported value must be a Signal."
 
 importEvent = do
@@ -42,7 +36,7 @@ importEvent = do
   tipe <- typeExpr
   case tipe of
     ADTPT "Signal" [pt] ->
-        either fail (return . (,,,) js base elm . signalOf) (toForeignType pt)
+        either fail (return . ImportEvent js base elm . signalOf) (toForeignType pt)
     _ -> fail "When importing events, the imported value must be a Signal."
 
 

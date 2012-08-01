@@ -1,4 +1,4 @@
-module FreeVar (freeIn) where
+module FreeVar (freeIn,freeVars) where
 
 import Ast
 import Data.Set (union, unions, delete, singleton, empty, difference, member)

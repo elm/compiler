@@ -2,7 +2,7 @@ module ParseTypes where
 
 import Ast
 import Control.Applicative ((<$>),(<*>))
-import Control.Monad (liftM)
+import Control.Monad (liftM,mapM)
 import Data.Char (isUpper,isLower)
 import Data.Maybe (fromMaybe)
 import Data.List (lookup)
@@ -52,40 +52,32 @@ typeExpr = do
 typeConstructor :: (Monad m) => ParsecT [Char] u m (String, [ParseType])
 typeConstructor = (,) <$> (capVar <?> "another type constructor") <*> spacePrefix (typeSimple <|> typeUnambiguous)
 
-datatype :: (Monad m) => ParsecT [Char] u m ([Definition], [(String,Scheme)])
+datatype :: (Monad m) => ParsecT [Char] u m Statement
 datatype = do
   reserved "data" <?> "datatype definition (data T = A | B | ...)"
   forcedWS ; name <- capVar <?> "name of data-type" ; args <- spacePrefix lowVar
   whitespace ; string "=" ; whitespace
   tcs <- pipeSep1 typeConstructor
-  case getConstraints name args tcs of
-    Right cs -> return (map toDef tcs, cs)
+  case toDatatype name args tcs of
+    Right dt -> return dt
     Left msg -> fail msg
 
 beta = liftM VarT guid
 
-toDef (name,types) = Definition name args (Data name (map Var args))
-    where args = map (('a':) . show) [1..length types]
-
-getConstraints name args constructors =
-    mapM (toConstraint tvarDict . ADT name $ map (VarT . snd) tvarDict) constructors
-        where tvarDict = zip args [1..length args]
-
-toConstraint tvarDict outType (name,args) =
-    ((,) name . Forall [1..n+2] cs . foldr (==>) outType) <$> mapM toT args
-    where n = length tvarDict
-          cs = [ VarT (n+1) :<: time, VarT (n+2) :<: number ]
+toDatatype name args tcs = Datatype name [1..n] <$> mapM toC tcs
+    where n = length args
+          tvarDict = zip args [1..n]
+          toC (name,pt) = (,) name <$> mapM toT pt
           toT (LambdaPT t1 t2)  = (==>) <$> toT t1 <*> toT t2
           toT (ADTPT name args) = ADT name <$> mapM toT args
           toT (VarPT x@(c:_))
               | isLower c = VarT <$> case lookup x tvarDict of
                                        Just v -> Right v
                                        Nothing -> Left $ msg x
-              | x == "Time" = return $ VarT (n+1)
-              | x == "Number" = return $ VarT (n+2)
               | otherwise = return $ ADT x []
           msg x = "Type variable '" ++ x ++
                   "' is unbound in type constructor '" ++ name ++ "'."
+
 
 toForeignType (LambdaPT t1 t2) =
     fail $ "Elm's JavaScript event interface does not yet handle functions. " ++

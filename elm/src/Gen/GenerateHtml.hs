@@ -53,13 +53,13 @@ modulesToHtml title libLoc jss nscrpt modules = createHtml libLoc title' js nosc
     where js = Right $ jss ++ concatMap jsModule modules
           noscript = if nscrpt then extract $ last modules else ""
           title' = if null title then altTitle else title
-          altTitle = (\(Module names _ _ _ _) -> intercalate "." names) $
+          altTitle = (\(Module names _ _ _) -> intercalate "." names) $
                      last modules
                   
 
 linkedHtml rtLoc jsLoc modules =
     createHtml rtLoc title (Left jsLoc) (H.noscript "")
-    where title = (\(Module names _ _ _ _) -> intercalate "." names) $
+    where title = (\(Module names _ _ _) -> intercalate "." names) $
                   last modules
 
 

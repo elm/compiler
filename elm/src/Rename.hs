@@ -8,8 +8,26 @@ import Control.Monad.State (evalState, State, get, put)
 import Data.Char (isLower)
 import Guid
 
-rename :: Expr -> Expr
-rename = run . rename' id
+rename :: Module -> Module
+rename (Module name ex im stmts) =
+    Module name ex im . run $ renameStatements id stmts
+
+renameStatements env stmts = do env' <- extends env $ concatMap getNames stmts
+                                mapM (renameStmt env') stmts
+    where getNames stmt = case stmt of Def n _ _ -> [n]
+                                       Datatype _ _ tcs -> map fst tcs
+                                       ImportEvent _ _ n _ -> [n]
+                                       ExportEvent _ _ _ -> []
+          renameStmt env (Def name args e) =
+              do env' <- extends env args
+                 Def (env name) (map env' args) `liftM` rename' env' e
+          renameStmt env (Datatype name args tcs) =
+              return $ Datatype name args $ map (first env) tcs
+          renameStmt env (ImportEvent js base elm tipe) =
+              do base' <- rename' env base
+                 return $ ImportEvent js base' (env elm) tipe
+          renameStmt env (ExportEvent js elm tipe) =
+                 return $ ExportEvent js (env elm) tipe
 
 rename' :: (String -> String) -> Expr -> GuidCounter Expr
 rename' env expr =
@@ -48,15 +66,7 @@ rename' env expr =
 
       Async e -> Async `liftM` rnm e
 
-      Let defs e ->
-          let (fs,argss,es) = unzip3 $ map (\(Definition a b c) -> (a,b,c)) defs in
-          do env' <- extends env fs
-             let combine args e = do env'' <- extends env' args
-                                     re <- rename' env'' e
-                                     return (map env'' args, re)
-             defs' <- zipWith (\f -> uncurry $ Definition f) (map env' fs) `liftM` zipWithM combine argss es
-             re <- rename' env' e
-             return $ Let defs' re
+      Let defs e -> renameLet env defs e
 
       Var x -> return . Var $ env x
 
@@ -93,3 +103,11 @@ patternRename env (p,e) = do
   (rp,env') <- patternExtend p env
   re <- rename' env' e
   return (rp,re)
+
+renameLet env defs e = do env' <- extends env $ map getNames defs
+                          defs' <- mapM (renameDef env') defs
+                          Let defs' `liftM` rename' env' e
+    where getNames (Definition n _ _) = n
+          renameDef env (Definition name args e) =
+              do env' <- extends env args
+                 Definition (env name) (map env' args) `liftM` rename' env' e

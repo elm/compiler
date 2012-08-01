@@ -73,7 +73,7 @@ getModules uses file = do
   code <- readFile file
   case initialize code of
     Left err -> return . Left $ "Error in " ++ file ++ ":\n" ++ err
-    Right modul@(Module _ _ imports _ _) ->
+    Right modul@(Module _ _ imports _) ->
         let imps = filter (`notElem` builtInModules) $ map fst imports in
         case intersect uses imps of
           x:_ -> return . Left $ "Error: Cyclic dependency. Module " ++

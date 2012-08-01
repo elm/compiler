@@ -2,6 +2,7 @@
 module CompileToJS (showErr, jsModule) where
 
 import Ast
+import Control.Arrow (first)
 import Control.Monad (liftM,(<=<),join)
 import Data.Char (isAlpha,isDigit)
 import Data.List (intercalate,sortBy,inits)
@@ -38,39 +39,36 @@ tryBlock names e =
            ]
 
 
-jsModule (Module names exports imports defs foreigns) =
+jsModule (Module names exports imports stmts) =
     tryBlock (tail modNames) $ concat
            [ concatMap (\n -> globalAssign n $ n ++ " || {}") .
              map (intercalate ".") . drop 2 . inits $
              take (length modNames - 1) modNames
            , "\nif (" ++ modName ++ ") throw \"Module name collision, '" ++
              intercalate "." (tail modNames) ++ "' is already defined.\"; "
-           , globalAssign modName $ jsFunc "" (includes++ims++body++exs++export)++"()"
+           , globalAssign modName $ jsFunc "" (includes ++body++ export) ++ "()"
            , mainEquals $ modName ++ ".main" ]
-        where modNames = if null names then ["ElmCode", "Main"] else "ElmCode" : names
+        where modNames = if null names then ["ElmCode", "Main"]
+                                       else  "ElmCode" : names
               modName  = intercalate "." modNames
-              includes = concatMap jsImport $
-                         map (\(x,y) -> ("ElmCode." ++ x,y)) imports
-              body = jsDefs defs
-              export = ret . braces . intercalate "," $ mapMaybe getNames defs
+              includes = concatMap jsImport $ map (first ("ElmCode."++)) imports
+              body = stmtsToJS stmts
+              export = getExports exps stmts
               exps = if null exports then ["main"] else exports
-              getNames (Definition x _ _) =
-                  let y = reverse . tail . dropWhile isDigit $ reverse x in
-                  if y `elem` exps then Just $ y ++ ":" ++ x else Nothing
-              (ims,exs) = let (i,e) = foreigns in
-                          (concatMap importEvent i, concatMap exportEvent e)
 
-importEvent (js,base,elm,_) =
-    concat [ "\nvar " ++ elm ++ " = Elm.Input(" ++ toJS base ++ ");"
-           , "\nSignal.addListener(document, '" ++ js
-           , "', function(e) { Dispatcher.notify(" ++ elm
-           , ".id, e.value); });" ]
-exportEvent (js,elm,_) =
-    concat [ "\nlift(function(v) { var e = document.createEvent('Event');"
-           , "e.initEvent('" ++ js ++ "', true, true);"
-           , "e.value = v;"
-           , "document.dispatchEvent(e); return v; })(" ++ elm ++ ");"
-           ]
+stripID var
+    | isDigit (last var) = reverse . tail . dropWhile isDigit $ reverse var
+    | otherwise = var
+
+getExports names stmts = ret . braces $ intercalate "," pairs
+    where pairs = mapMaybe pair $ concatMap get stmts
+          pair x = if y `elem` names then Just $ y ++ ":" ++ x else Nothing
+              where y = stripID x
+          get s = case s of Def x _ _           -> [x]
+                            Datatype _ _ tcs    -> map fst tcs
+                            ImportEvent _ _ x _ -> [x]
+                            ExportEvent _ _ _   -> []
+
 
 jsImport (modul, how) =
   concat [ "\ntry{" ++ modul ++ " instanceof Object} catch(e) {throw \"Module '"
@@ -90,7 +88,37 @@ jsImport' (modul, Hiding vs) =
            , globalAssign "this[i]" $ modul ++ "[i]"
            , "}" ]
 
+stmtsToJS :: [Statement] -> String
+stmtsToJS stmts = concatMap stmtToJS (sortBy cmpStmt stmts)
+    where cmpStmt s1 s2 = compare (valueOf s1) (valueOf s2)
+          valueOf s = case s of Datatype _ _ _      -> 1
+                                ImportEvent _ _ _ _ -> 3
+                                Def _ [] _          -> 3
+                                Def _ _ _           -> 4
+                                ExportEvent _ _ _   -> 5
 
+stmtToJS :: Statement -> String
+stmtToJS (Def name [] e) = assign name (toJS e)
+stmtToJS (Def name (a:as) e) = "\nfunction " ++ name ++ parens a ++
+                               braces (ret . toJS $ foldr Lambda e as) ++ ";"
+stmtToJS (Datatype _ _ tcs) = concatMap (stmtToJS . toDef) tcs
+    where toDef (name,args) = Def name vars $ Data (stripID name) (map Var vars)
+              where vars = map (('a':) . show) [1..length args]
+stmtToJS (ImportEvent js base elm _) =
+    concat [ "\nvar " ++ elm ++ " = Elm.Input(" ++ toJS base ++ ");"
+           , "\nSignal.addListener(document, '" ++ js
+           , "', function(e) { Dispatcher.notify(" ++ elm
+           , ".id, e.value); });" ]
+stmtToJS (ExportEvent js elm _) =
+    concat [ "\nlift(function(v) { var e = document.createEvent('Event');"
+           , "e.initEvent('" ++ js ++ "', true, true);"
+           , "e.value = v;"
+           , "document.dispatchEvent(e); return v; })(" ++ elm ++ ");"
+           ]
+
+
+
+toJS :: Expr -> String
 toJS expr =
     case expr of
       IntNum n -> show n

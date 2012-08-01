@@ -14,22 +14,26 @@ import ParseModules
 import ParseForeign
 
 
+statement =  (:[]) <$> foreignDef
+         <|> (:[]) <$> datatype
+         <|> def
+         <?> "datatype or variable definition"
+
 freshDef = commitIf (freshLine >> (letter <|> char '_')) $ do
              freshLine
-             datatype <|> def <?> "another datatype or variable definition"
+             statement <?> "another datatype or variable definition"
 
-defs1 = do d <- datatype <|> def <?> "at least one datatype or variable definition"
-           (d:) <$> many freshDef
+defs1 = do d <- statement <?> "at least one datatype or variable definition"
+           concat <$> (d:) <$> many freshDef
 
 program = do
   optional freshLine
   (names,exports) <- option (["Main"],[]) (moduleDef `followedBy` freshLine)
   is <- (do try (lookAhead $ reserved "import")
             imports `followedBy` freshLine) <|> return []
-  jsffi <- foreignDefs `followedBy` freshLine <|> return ([],[])
-  (defss, schemess) <- unzip <$> defs1
+  statements <- defs1
   optional freshLine ; optional spaces ; eof
-  return (Module names exports is (concat defss) jsffi, concat schemess)
+  return $ Module names exports is statements
 
 parseProgram source = 
     case parse program "" source of

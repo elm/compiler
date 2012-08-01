@@ -5,9 +5,16 @@ import Control.Arrow (second)
 import Data.Char (isAlpha)
 
 
-optimize exp = if exp == exp' then exp' else optimize exp'
-    where exp' = simp exp
+optimize (Module name ims exs stmts) =
+    Module name ims exs (map optimizeStmt stmts)
 
+optimizeStmt stmt = if stmt == stmt' then stmt' else optimizeStmt stmt'
+    where stmt' = simpStmt stmt
+          simpStmt (Def name args e) = Def name args (simp e)
+          simpStmt (ImportEvent js b elm t) = ImportEvent js (simp b) elm t
+          simpStmt stmt = stmt
+
+simp :: Expr -> Expr
 simp expr =
     let f = simp in
     case expr of
