@@ -56,6 +56,8 @@ var Value = function(){
 	return v ? "True" : "False";
     } else if (typeof v === "number") {
 	return v+"";
+    } else if (typeof v === "string") {
+	return "'"+v+"'";
     } else if (v[0]) {
 	if (v[0].substring(0,5) === "Tuple") {
 	    var output = "";
@@ -68,11 +70,12 @@ var Value = function(){
 	    var start = (typeof v[1] === "string") ? '"' : "[";
 	    var  end  = (typeof v[1] === "string") ? '"' : "]";
 	    var  div  = (typeof v[1] === "string") ?  "" : ",";
-	    var output = start + toString(v[1]);
+	    var   f   = (typeof v[1] === "string") ? function(x){return x} : toString;
+	    var output = start + f(v[1]);
 	    v = v[2];
 	    while (true) {
 		if (v[0] === "Cons") {
-		    output += div + toString(v[1]);
+		    output += div + f(v[1]);
 		    v = v[2];
 		} else {
 		    return output + end;
