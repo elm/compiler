@@ -1,10 +1,10 @@
 
-module Hints (hints) where
+module Types.Hints (hints) where
 
 import Control.Monad (liftM,mapM)
 import Control.Arrow (first)
 import Types
-import Guid
+import Types.Substitutions (rescheme)
 
 
 --------  Text and Elements  --------
@@ -28,8 +28,11 @@ elements = let iee = int ==> element ==> element in
            , "height"  -: iee
            , "size"    -: int ==> iee
            , "box"     -: iee
+           , "rightedText"  -: text ==> element
            , "centeredText"  -: text ==> element
            , "justifiedText" -: text ==> element
+           , "asText" -:: a ==> element 
+           , "show" -:: a ==> text
            , "collage" -: int ==> int ==> listOf form ==> element
            ]
 
@@ -143,9 +146,13 @@ concreteSignals =
 --------  Math and Binops  --------
 
 binop t = t ==> t ==> t
-scheme1 super t name = (name, Forall [0] [VarT 0 :<: super] (t (VarT 0)))
+scheme1 super t name =
+    (name, Forall [0] [ Context ("`" ++ name ++ "'") $ VarT 0 :<: super
+                      ] (t (VarT 0)))
 scheme2 s1 s2 t name =
-    (name, Forall [0,1] [VarT 0 :<: s1, VarT 1 :<: s2] (t (VarT 0) (VarT 1)))
+    (name, Forall [0,1] [ Context ("`" ++ name ++ "'") $ VarT 0 :<: s1
+                        , Context ("`" ++ name ++ "'") $ VarT 1 :<: s2
+                        ] (t (VarT 0) (VarT 1)))
 numScheme t name = scheme1 number t name
 timeScheme name t = scheme1 time t name
 twoNums f name = scheme2 number number f name
@@ -166,18 +173,15 @@ bools =
   hasType (binop bool) ["&&","||"] ++
   map (scheme1 comparable (\t -> t ==> t ==> bool))  ["<",">","<=",">="] ++
   [ ( "compare"
-    , Forall [0,1] [ VarT 0 :<: comparable ] (VarT 0 ==> VarT 0 ==> VarT 1) )
+    , Forall [0,1] [ Context "`compare'" $ VarT 0 :<: comparable ] (VarT 0 ==> VarT 0 ==> VarT 1) )
   ]
 
 --------  Polymorphic Functions  --------
 
-var = VarT `liftM` guid
-vars n = mapM (const var) [1..n]
+[a,b,c] = map VarT [1,2,3]
 
 infix 8 -::
 name -:: tipe = (name, Forall [1,2,3] [] tipe)
-
-[a,b,c] = map VarT [1,2,3]
 
 funcs =
     [ "id"   -:: a ==> a
@@ -187,7 +191,7 @@ funcs =
     , "."    -:: (b ==> c) ==> (a ==> b) ==> (a ==> c)
     , "$"    -:: (a ==> b) ==> a ==> b
     , ":"       -:: a ==> listOf a ==> listOf a
-    , (,) "++" . Forall [0,1] [ VarT 0 :<: appendable (VarT 1) ] $ VarT 0 ==> VarT 0 ==> VarT 0
+    , (,) "++" . Forall [0,1] [ Context "`++'" $ VarT 0 :<: appendable (VarT 1) ] $ VarT 0 ==> VarT 0 ==> VarT 0
     , "Cons"    -:: a ==> listOf a ==> listOf a 
     , "Nil"     -:: listOf a
     , "Just"    -:: a ==> maybeOf a
@@ -218,11 +222,11 @@ lists =
   , "foldr" -:: (a ==> b ==> b) ==> b ==> listOf a ==> b
   , "foldl" -:: (a ==> b ==> b) ==> b ==> listOf a ==> b
   , "scanl" -:: (a ==> b ==> b) ==> b ==> listOf a ==> listOf b
-  , (,) "concat"      . Forall [0,1]   [ VarT 0 :<: appendable (VarT 1) ] $
+  , (,) "concat"      . Forall [0,1]   [ Context "`concat'" $ VarT 0 :<: appendable (VarT 1) ] $
         listOf (VarT 0) ==> VarT 0
-  , (,) "concatMap"   . Forall [0,1,2] [ VarT 0 :<: appendable (VarT 1) ] $
+  , (,) "concatMap"   . Forall [0,1,2] [ Context "`concatMap'" $ VarT 0 :<: appendable (VarT 1) ] $
         (VarT 2 ==> VarT 0) ==> listOf (VarT 2) ==> VarT 0
-  , (,) "intercalate" . Forall [0,1]   [ VarT 0 :<: appendable (VarT 1) ] $
+  , (,) "intercalate" . Forall [0,1]   [ Context "`intercalate'" $ VarT 0 :<: appendable (VarT 1) ] $
         VarT 0 ==> listOf (VarT 0) ==> VarT 0
   , "zipWith" -:: (a ==> b ==> c) ==> listOf a ==> listOf b ==> listOf c
   ] ++ map (numScheme (\n -> listOf n ==> n)) [ "sum", "product"
@@ -231,8 +235,8 @@ lists =
 
 --------  Everything  --------
 
-hints =
-  concat [ funcs, lists, signals, math, bools, str2elem, textAttrs
-         , elements, directions, colors, lineTypes, shapes
-         , concreteSignals, casts, polyCasts, json
-         ]
+hints = mapM (\(n,s) -> (,) n `liftM` rescheme s) hs
+    where hs = concat [ funcs, lists, signals, math, bools, str2elem, textAttrs
+                      , elements, directions, colors, lineTypes, shapes
+                      , concreteSignals, casts, polyCasts, json
+                      ]

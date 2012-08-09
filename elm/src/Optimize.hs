@@ -32,11 +32,7 @@ simp expr =
 simp_if (Boolean b) e2 e3 = if b then e2 else e3
 simp_if a b c = If a b c
 
-simp_binop "mod" (IntNum n) (IntNum m) = IntNum (mod n m)
-simp_binop "mod" e1 e2 = Binop "mod" e1 e2
-simp_binop str e1 e2
-    | isAlpha (head str) || '_' == head str = App (App (Var str) e1) e2
-    | otherwise = binop str e1 e2
+simp_binop = binop
 
 binop op (IntNum n) (IntNum m) = f n m
     where f a b = case op of
@@ -44,6 +40,7 @@ binop op (IntNum n) (IntNum m) = f n m
                     ; "-" -> IntNum $ (-) a b
                     ; "*" -> IntNum $ (*) a b
                     ; "div" -> IntNum $ div a b
+                    ; "mod" -> IntNum $ mod a b
                     ; "<" -> Boolean $ a < b
                     ; ">" -> Boolean $ a < b
                     ; "<=" -> Boolean $ a <= b
@@ -54,6 +51,7 @@ binop op (IntNum n) (IntNum m) = f n m
 
 binop "-" e (IntNum 0) = e
 binop "+" (IntNum 0) e = e
+binop "+" e (IntNum 0) = e
 binop "+" (IntNum n) (Binop "+" (IntNum m) e) = binop "+" (IntNum (n+m)) e
 binop "+" (IntNum n) (Binop "+" e (IntNum m)) = binop "+" (IntNum (n+m)) e
 
@@ -77,7 +75,8 @@ binop "&&" (Boolean False) e = Boolean False
 binop "||" (Boolean  True) e = Boolean True
 binop "||" (Boolean False) e = e
 
-binop op e (Boolean n) = binop op (Boolean n) e
+binop "&&" e (Boolean n) = binop "&&" (Boolean n) e
+binop "||" e (Boolean n) = binop "||" (Boolean n) e
 
 binop ":" h t = cons h t
 binop "++" (Str s1) (Str s2) = Str $ s1 ++ s2
@@ -89,5 +88,6 @@ binop "++" (Data "Cons" [h,t]) e = Data "Cons" [h, binop "++" t e]
 
 binop "$" e1 e2 = App e1 e2
 
-binop op e1 e2 = Binop op e1 e2
---}
+binop op e1 e2
+    | isAlpha (head op) || '_' == head op = App (App (Var op) e1) e2
+    | otherwise = Binop op e1 e2

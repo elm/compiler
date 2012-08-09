@@ -45,7 +45,7 @@ data Statement = Def String [String] Expr
                | Datatype String [X] [(String,[Type])]
                | ImportEvent String Expr String Type
                | ExportEvent String String Type
-                 deriving (Eq)
+                 deriving (Eq,Show)
 
 cons h t = Data "Cons" [h,t]
 nil      = Data "Nil" []
@@ -99,6 +99,7 @@ instance Show Expr where
   show (Fold e1 e2 e3) = concat [ "foldp ", show' e1, " ", show' e2, " ", show' e3 ]
   show (Async e) = "async " ++ show' e
   show (Input i) = i
+
 
 instance Show Definition where
   show (Definition v [] e) = v ++ " = " ++ show e

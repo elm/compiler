@@ -1,12 +1,16 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Rename (rename) where
+module Rename (rename, derename) where
 
 import Ast
 import Control.Arrow (first)
 import Control.Monad (ap, liftM, foldM, mapM, Monad, zipWithM)
 import Control.Monad.State (evalState, State, get, put)
-import Data.Char (isLower)
+import Data.Char (isLower,isDigit)
 import Guid
+
+derename var
+    | isDigit (last var) = reverse . tail . dropWhile isDigit $ reverse var
+    | otherwise = var
 
 rename :: Module -> Module
 rename (Module name ex im stmts) =

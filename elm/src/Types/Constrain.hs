@@ -1,5 +1,5 @@
 
-module Constrain (constrain, Context (..)) where
+module Types.Constrain (constrain) where
 
 import Ast
 import Types
@@ -7,28 +7,29 @@ import Data.List (foldl')
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Control.Arrow (second)
-import Control.Monad (liftM,mapM,zipWithM)
+import Control.Monad (liftM,mapM,zipWithM,foldM)
 import Control.Monad.State (evalState)
 import Guid
+import Types.Substitutions
+
+--import System.IO.Unsafe
+
+prints xs v = v --unsafePerformIO (putStrLn "~~~~~~~~~~" >> mapM print xs) `seq` v
 
 beta = VarT `liftM` guid
 unionA = Map.unionWith (++)
 unionsA = Map.unionsWith (++)
 
-data Context a b = Context a b deriving (Eq, Show)
-ctx e = Context e
-
-instance (Ord a, Eq c) => Ord (Context c a) where
-    compare (Context _ x) (Context _ y) = compare x y
-
 constrain hints (Module _ _ _ stmts) = do
     (ass,css,schemess) <- unzip3 `liftM` mapM stmtGen stmts
-    let allHints = Map.fromList $ hints ++ concat schemess
-    let combine k s vs = map (\v -> ctx (Var k) $ VarT v :<<: s) vs
-    let cMap = Map.intersectionWithKey combine allHints (unionsA ass)
-    return (Set.toList (Set.unions css) ++ (concatMap snd $ Map.toList cMap))
+    allHints <-  liftM (Map.fromList . (++ concat schemess)) hints
+    let insert as n = do v <- guid; return $ Map.insertWith' (\_ x -> x) n [v] as
+    assumptions <- foldM insert (unionsA ass) $ map fst (concat schemess)
+    let cs = let f k s vs = map (\v -> Context k $ v :<<: s) vs in
+             concat . Map.elems $ Map.intersectionWithKey f allHints assumptions
+    return $ cs ++ Set.toList (Set.unions css)
 
-gen :: Expr -> GuidCounter (Map.Map String [X], Set.Set (Context Expr Constraint), Type)
+gen :: Expr -> GuidCounter (Map.Map String [X], Set.Set (Context String Constraint), Type)
 
 gen (Var x) =
     do b <- guid
@@ -56,7 +57,8 @@ gen (Let defs e) =
        let names = map (\(Definition x _ _) -> x) defs
        let genCs name s = do
              v <- guid
-             return . map (\x -> ctx (Var name) $ VarT x :<<: s) $ Map.findWithDefault [v] name assumptions
+             let vs = Map.findWithDefault [v] name assumptions
+             return $ map (\x -> ctx (Var name) $ x :<<: s) vs
        cs' <- zipWithM genCs names schemes
        return ( foldr Map.delete assumptions names
               , Set.union (Set.fromList . concat $ cs') cs
@@ -96,50 +98,62 @@ gen other =
 primitive t = return (Map.empty, Set.empty, t)
 
 caseGen tipe (p,e) = do
-  (as,cs,t) <- gen e
-  return ( foldr Map.delete as (namesIn p)
-         , cs
-         , t)
+  (as ,cs , t  ) <- gen e
+  (as',cs',[t']) <- patternGen (as,cs,[]) p
+  let cs'' = Set.union cs' . Set.singleton . ctx p $ t' :=: tipe
+  return ( as', cs'', t )
 
-namesIn PAnything = []
-namesIn (PVar v)  = [v]
-namesIn (PData name ps) = concatMap namesIn ps
+patternGen (as,cs,ts) PAnything = ((,,) as cs . (\t -> ts++[t])) `liftM` beta
+patternGen (as,cs,ts) (PVar v) = do
+  b <- beta
+  let cs' = map (\x -> ctx (Var v) $ VarT x :=: b) $ Map.findWithDefault [] v as
+  return ( Map.delete v as, Set.union cs $ Set.fromList cs', ts ++ [b] )
+patternGen (as,cs,ts) p@(PData name ps) = do
+  constr <- guid
+  output <- beta
+  (as',cs',ts') <- foldM patternGen (as,cs,[]) ps
+  let t = foldr (==>) output ts'
+  let getC | isTupleString name = do
+        vs <- mapM (\_ -> beta) ps
+        return . Set.singleton . ctx p $ output :=: ADT name vs
+           | otherwise = return Set.empty
+  cs'' <- getC
+  return ( unionA as' (Map.singleton name [constr])
+         , Set.unions [cs',cs'', Set.singleton . ctx p $ VarT constr :=: t]
+         , ts ++ [output] )
 
-defScheme (Definition name args e) =
-    do argDict <- mapM (\a -> liftM ((,) a) guid) args 
-       (as,cs,t) <- gen e
-       let genCs (arg,x) = do
-             v <- guid
-             return . map (\y -> VarT x :=: VarT y) $ Map.findWithDefault [v] arg as
-       cs' <- concat `liftM` mapM genCs argDict
-       let cs'' = map (\(Context _ c) -> c) (Set.toList cs)
-       let tipe = foldr (==>) t $ map (VarT . snd) argDict
-       return ( foldr Map.delete as args
-              , Forall (map snd argDict) (cs' ++ cs'') tipe)
 
-stmtGen (Def name args e) = do
+defScheme :: Definition -> GuidCounter (Map.Map String [X], Scheme)
+defScheme (Definition name args e) = do
+  (as,cs,hint) <- defGen name args e
+  return ( as, snd hint )
+
+defGen name args e = do
   argDict <- mapM (\a -> liftM ((,) a) guid) args 
   (as,cs,t) <- gen e
   let genCs (arg,x) = do
         v <- guid
-        return . map (\y -> VarT x :=: VarT y) $ Map.findWithDefault [v] arg as
+        return . map (\y -> Context arg $ VarT x :=: VarT y) $ Map.findWithDefault [v] arg as
   cs' <- concat `liftM` mapM genCs argDict
-  let cs'' = map (\(Context _ c) -> c) (Set.toList cs)
+  let as' = foldr Map.delete as args
   let tipe = foldr (==>) t $ map (VarT . snd) argDict
-  return ( foldr Map.delete as args
-         , Set.empty
-         , [ (name, Forall (map snd argDict) (cs' ++ cs'') tipe) ] )
+  scheme <- generalize (concat $ Map.elems as') $
+            Forall (map snd argDict) (cs' ++ Set.toList cs) tipe
+  return ( as', Set.empty, (name, scheme) )
+
+stmtGen (Def name args e) = do (as,cs,hint) <- defGen name args e
+                               return ( as, cs, [hint] )
 
 stmtGen (Datatype name xs tcs) = do schemes <- mapM gen' tcs'
                                     return (Map.empty, Set.empty, schemes)
     where names = map (+ (length xs)) [1..5]
           tcs' = map (second . map $ rnm names) tcs
-          supers t = zipWith (:<:) (map VarT names)
+          supers t = map (Context name) $ zipWith (:<:) (map VarT names)
                      [ number, time, appendable t, comparable, transformable ]
-          gen' (n,ts) = do
-            t <- beta
-            return . (,) n . Forall (xs ++ names) (supers t) $
-                   foldr (==>) (ADT name $ map VarT xs) ts
+          gen' (n,ts) = do t <- beta
+                           let s = Forall (xs ++ names) (supers t) $
+                                   foldr (==>) (ADT name $ map VarT xs) ts
+                           (,) n `liftM` generalize [] s
           rnm [a,b,c,d,e] (ADT n []) | n == "Number" = VarT a
                                      | n == "Time"  = VarT b
                                      | n == "Appendable"  = VarT c
@@ -156,12 +170,10 @@ stmtGen (ExportEvent js elm tipe) = do
 stmtGen (ImportEvent js base elm tipe) = do
   (as,cs,t) <- gen base
   return ( as
-         , Set.insert (ctx (Var elm) (t :=: tipe)) cs
+         , Set.insert (ctx base (signalOf t :=: tipe)) cs
          , [ (elm, Forall [] [] tipe) ] )
 
-ffiHints (ims,exs) =
-    map (\(_,_,n,t) -> n -: t) ims ++ map (\(_,n,t) -> n -: t) exs
+getDatatypeInfo (Datatype name args tcs) =
+    Just (name, args, tcs)
+getDatatypeInfo _ = Nothing
 
-checkFFI dict ims exs = list $ ims' ++ exs'
-  where ims' = map (\(_,b,n,_)-> Binop "==" (Var n) (App (Var "constant") b)) ims
-        exs' = map (\(_,n,_)  -> Binop "==" (Var n) (Var $ dict n)) exs

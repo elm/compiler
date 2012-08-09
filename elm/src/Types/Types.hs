@@ -10,23 +10,31 @@ type X = Int
 data Type = LambdaT Type Type
           | VarT X
           | ADT String [Type]
+          | Super (Set.Set Type)
             deriving (Eq, Ord)
 
-data Scheme = Forall [X] [Constraint] Type deriving (Eq, Ord, Show)
-
-data SuperType = SuperType String (Set.Set Type) deriving (Eq, Ord)
+data Scheme = Forall [X] [Context String Constraint] Type deriving (Eq, Ord)
 
 data Constraint = Type :=: Type
-                | Type :<: SuperType
-                | Type :<<: Scheme
+                | Type :<: Type
+                | X :<<: Scheme
                   deriving (Eq, Ord, Show)
+
+data Context c v = Context c v deriving (Eq, Show)
+
+ctx c = Context ("`" ++ show c ++ "'")
+extendCtx ctx2 (Context ctx1 c) = Context (ctx1 ++ " in " ++ ctx2) c
+
+instance (Ord a, Eq c) => Ord (Context c a) where
+    compare (Context _ x) (Context _ y) = compare x y
+
 
 tipe t = ADT t []
 
 
 int = tipe "Int"
 float = tipe "Float"
-number = SuperType "Number" (Set.fromList [ int, float ])
+number = Super (Set.fromList [ int, float ])
 
 char = tipe "Char"
 bool = tipe "Bool"
@@ -34,7 +42,7 @@ bool = tipe "Bool"
 string = listOf char -- tipe "String"
 text  = tipe "Text"
 
-time = SuperType "Time" (Set.fromList [ int, float, tipe "Number" ])
+time = Super (Set.fromList [ int, float ])
 
 element   = tipe "Element"
 direction = tipe "Direction"
@@ -49,9 +57,9 @@ tupleOf ts = ADT ("Tuple" ++ show (length ts)) ts
 maybeOf t  = ADT "Maybe" [t]
 pairOf t = tupleOf [t,t]
 point = pairOf int
-appendable t = SuperType "Appendable" (Set.fromList [ string, text, listOf t ])
-comparable = SuperType "Comparable" (Set.fromList [ int, float, char, string, tipe "Number", tipe "Time"  ])
-transformable = SuperType "Transformable" (Set.fromList [ shape, line  ])
+appendable t = Super (Set.fromList [ string, text, listOf t ])
+comparable = Super (Set.fromList [ int, float, char, string ])
+transformable = Super (Set.fromList [ shape, line ])
 
 jsBool     = tipe "JSBool"
 jsNumber   = tipe "JSNumber"
@@ -85,10 +93,11 @@ instance Show Type where
                 then parens . intercalate "," $ map show cs
                 else case cs of [] -> name
                                 _ -> parens $ name ++ " " ++ unwords (map show cs)
+        ; Super ts -> "{" ++ (intercalate "," . map show $ Set.toList ts) ++ "}"
         }
 
-instance Show SuperType where
-  show (SuperType n ts) = "" ++ n ++ " (a type in {" ++ subs ++ "})"
-      where subs = intercalate "," . map show $ Set.toList ts
+instance Show Scheme where
+  show (Forall xs cs t) = "Forall " ++ show xs ++ cs' ++ "\n  " ++ show t
+      where cs' = concatMap (concatMap ("\n  "++) . lines . show) cs
 
 isTupleString str = "Tuple" `isPrefixOf` str && all isDigit (drop 5 str)

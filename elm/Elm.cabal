@@ -50,10 +50,10 @@ Library
                        ParseModules,
                        ParseForeign,
                        Types,
-                       Constrain,
-                       Hints,
-                       Types,
-                       Unify
+                       Types.Constrain,
+                       Types.Hints,
+                       Types.Substitutions,
+                       Types.Unify
 
   Build-depends:       base >=4.2 && <5,
                        containers >= 0.3,
@@ -87,10 +87,10 @@ Executable elm
                        ParseModules,
                        ParseForeign,
                        Types,
-                       Constrain,
-                       Hints,
-                       Types,
-                       Unify
+                       Types.Constrain,
+                       Types.Hints,
+                       Types.Substitutions,
+                       Types.Unify
 
   Build-depends:       base >=4.2 && <5,
                        containers >= 0.3,

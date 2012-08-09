@@ -10,6 +10,7 @@ import Data.Map (toList)
 import Data.Maybe (mapMaybe)
 
 import Initialize
+import Rename (derename)
 
 showErr :: String -> String
 showErr err = mainEquals $ "text(monospace(" ++ msg ++ "))"
@@ -56,14 +57,10 @@ jsModule (Module names exports imports stmts) =
               export = getExports exps stmts
               exps = if null exports then ["main"] else exports
 
-stripID var
-    | isDigit (last var) = reverse . tail . dropWhile isDigit $ reverse var
-    | otherwise = var
-
 getExports names stmts = ret . braces $ intercalate "," pairs
     where pairs = mapMaybe pair $ concatMap get stmts
           pair x = if y `elem` names then Just $ y ++ ":" ++ x else Nothing
-              where y = stripID x
+              where y = derename x
           get s = case s of Def x _ _           -> [x]
                             Datatype _ _ tcs    -> map fst tcs
                             ImportEvent _ _ x _ -> [x]
@@ -102,7 +99,7 @@ stmtToJS (Def name [] e) = assign name (toJS e)
 stmtToJS (Def name (a:as) e) = "\nfunction " ++ name ++ parens a ++
                                braces (ret . toJS $ foldr Lambda e as) ++ ";"
 stmtToJS (Datatype _ _ tcs) = concatMap (stmtToJS . toDef) tcs
-    where toDef (name,args) = Def name vars $ Data (stripID name) (map Var vars)
+    where toDef (name,args) = Def name vars $ Data (derename name) (map Var vars)
               where vars = map (('a':) . show) [1..length args]
 stmtToJS (ImportEvent js base elm _) =
     concat [ "\nvar " ++ elm ++ " = Elm.Input(" ++ toJS base ++ ");"
