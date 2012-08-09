@@ -14,7 +14,7 @@ import Types.Substitutions
 
 --import System.IO.Unsafe
 
-prints xs v = v --unsafePerformIO (putStrLn "~~~~~~~~~~" >> mapM print xs) `seq` v
+prints xs v = v --} unsafePerformIO (putStrLn "~~~~~~~~~~" >> mapM print xs) `seq` v
 
 beta = VarT `liftM` guid
 unionA = Map.unionWith (++)

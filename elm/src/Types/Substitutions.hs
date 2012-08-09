@@ -69,15 +69,15 @@ cSubNoContext k v (x :<<: poly@(Forall vs cs tipe)) = force $ x :<<: poly'
 
 concretize (Forall xs cs t) = do
   pairs <- mapM (\x -> liftM ((,) x) guid) xs
-  return ( foldl' (\t'  (k,v) -> tSub k (VarT v) t) t pairs
+  return ( foldl' (\t'  (k,v) -> tSub k (VarT v) t') t pairs
          , foldl' (\cs' (k,v) -> map (cSub k $ VarT v) cs') cs pairs )
 
 rescheme :: Scheme -> GuidCounter Scheme
 rescheme (Forall xs cs t) = do
   pairs <- mapM (\x -> liftM ((,) x) guid) xs
-  let t'  = foldl' (\t'  (k,v) -> tSub k (VarT v) t') t pairs
-  let cs' = foldl' (\cs' (k,v) -> map (cSub k $ VarT v) cs') cs pairs
-  return $ Forall (map snd pairs) cs' t'
+  let tipe = foldl' (\t'  (k,v) -> tSub k (VarT v) t') t pairs
+  let cs'  = foldl' (\cs' (k,v) -> map (cSub k $ VarT v) cs') cs pairs
+  return $ Forall (map snd pairs) cs' tipe
 
 freeVars (VarT v) = [v]
 freeVars (LambdaT t1 t2) = freeVars t1 ++ freeVars t2

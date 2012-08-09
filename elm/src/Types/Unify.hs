@@ -13,8 +13,7 @@ import Types.Substitutions
 
 --import System.IO.Unsafe
 
-prints xs v = v --unsafePerformIO (putStrLn "----------" >> mapM print xs) `seq` v
-prints' xs v = v --prints (Map.toList xs) v
+prints xs v = v --} unsafePerformIO (putStrLn "----------" >> mapM print xs) `seq` v
 
 unify hints modul = run $ do
   cs <- constrain hints modul
@@ -91,10 +90,11 @@ solver (Context ctx (t :<: Super ts) : cs) subs
 solver (Context ctx (x :<<: s) : cs) subs
     | any (\(Context _ c) -> x `elem` cFreeVars c) cs =
         do cs' <- concat `liftM` mapM (schemeSub x s) cs
-           solver cs' subs
+           prints cs' $ solver cs' subs
     | otherwise =
         do (t,cs') <- concretize s
-           solver (Context ctx (VarT x :=: t) : map (extendCtx ctx) cs' ++ cs) subs
+           let cs'' = (cs ++ Context ctx (VarT x :=: t) : map (extendCtx ctx) cs')
+           prints cs'' $ solver cs'' subs
 
 
 uniError ctx t1 t2 =
