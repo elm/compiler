@@ -27,7 +27,9 @@ elements = let iee = int ==> element ==> element in
            , "width"   -: iee
            , "height"  -: iee
            , "size"    -: int ==> iee
+           , "color"   -: color ==> element ==> element
            , "box"     -: iee
+           , "rectangle" -: int ==> int ==> element
            , "rightedText"  -: text ==> element
            , "centeredText"  -: text ==> element
            , "justifiedText" -: text ==> element
@@ -196,8 +198,12 @@ funcs =
     , "Nil"     -:: listOf a
     , "Just"    -:: a ==> maybeOf a
     , "Nothing" -:: maybeOf a
-    , "elmRange" -:: int ==> int ==> listOf int
-    ]
+    , "curry"   -:: (tupleOf [a,b] ==> c) ==> a ==> b ==> c
+    , "uncurry" -:: (a ==> b ==> c) ==> tupleOf [a,b] ==> c
+    ] ++ map tuple [0..8]
+
+tuple n = ("Tuple" ++ show n, Forall [1..n] [] $ foldr (==>) (tupleOf vs) vs)
+    where vs = map VarT [1..n]
 
 lists =
   [ "and"  -:: listOf bool ==> bool
@@ -232,11 +238,20 @@ lists =
   ] ++ map (numScheme (\n -> listOf n ==> n)) [ "sum", "product"
                                               , "maximum", "minimum" ]
 
+maybeFuncs =
+  [ "maybe" -:: b ==> (a ==> b) ==> maybeOf a ==> b
+  , "isJust" -:: maybeOf a ==> bool
+  , "isNothing" -:: maybeOf a ==> bool
+  , "fromMaybe" -:: a ==> maybeOf a ==> a
+  , "consMaybe" -:: maybeOf a ==> listOf a ==> listOf a
+  , "catMaybes" -:: listOf (maybeOf a) ==> listOf a
+  , "catMaybes" -:: (a ==> maybeOf b) ==> listOf a ==> listOf b
+  ]
 
 --------  Everything  --------
 
 hints = mapM (\(n,s) -> (,) n `liftM` rescheme s) hs
     where hs = concat [ funcs, lists, signals, math, bools, str2elem, textAttrs
                       , elements, directions, colors, lineTypes, shapes
-                      , concreteSignals, casts, polyCasts, json
+                      , concreteSignals, casts, polyCasts, json, maybeFuncs
                       ]

@@ -12,7 +12,7 @@ import Control.Monad.State (evalState)
 import Guid
 import Types.Substitutions
 
---import System.IO.Unsafe
+import System.IO.Unsafe
 
 prints xs v = v --} unsafePerformIO (putStrLn "~~~~~~~~~~" >> mapM print xs) `seq` v
 
@@ -27,7 +27,8 @@ constrain hints (Module _ _ _ stmts) = do
     assumptions <- foldM insert (unionsA ass) $ map fst (concat schemess)
     let cs = let f k s vs = map (\v -> Context k $ v :<<: s) vs in
              concat . Map.elems $ Map.intersectionWithKey f allHints assumptions
-    return $ cs ++ Set.toList (Set.unions css)
+    let p = unsafePerformIO (mapM print . Map.toList $ Map.difference assumptions allHints)
+    seq p . return $ cs ++ Set.toList (Set.unions css)
 
 gen :: Expr -> GuidCounter (Map.Map String [X], Set.Set (Context String Constraint), Type)
 
