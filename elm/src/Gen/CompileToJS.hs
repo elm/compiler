@@ -171,7 +171,7 @@ jsNil         = "[\"Nil\"]"
 jsCons  e1 e2 = jsList [ show "Cons", e1, e2 ]
 jsRange e1 e2 = (++"()") . jsFunc "" $
                 assign "lo" e1 ++ assign "hi" e2 ++ assign "lst" jsNil ++
-                "do{" ++ assign "lst" (jsCons "hi" "lst") ++ "}while(hi-->lo)" ++
+                "if(lo<=hi){do{" ++ assign "lst" (jsCons "hi" "lst") ++ "}while(hi-->lo)}" ++
                 ret "lst"
 
 binop (o:p) e1 e2
