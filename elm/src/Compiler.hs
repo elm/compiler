@@ -68,12 +68,12 @@ fileTo get what jsFiles noscript rtLoc file = do
                   writeFile html . renderHtml $ linkedHtml rtLoc js ms
                   writeFile js $ jss ++ concatMap jsModule ms
 
-getModules :: [String] -> FilePath -> IO (Either String [Module])
+getModules :: [String] -> FilePath -> IO (Either String [([String],Module)])
 getModules uses file = do
   code <- readFile file
   case initialize code of
     Left err -> return . Left $ "Error in " ++ file ++ ":\n" ++ err
-    Right modul@(Module _ _ imports _) ->
+    Right (escs, modul@(Module _ _ imports _)) ->
         let imps = filter (`notElem` builtInModules) $ map fst imports in
         case intersect uses imps of
           x:_ -> return . Left $ "Error: Cyclic dependency. Module " ++
@@ -81,10 +81,10 @@ getModules uses file = do
           [] -> do
             ems <- mapM (getModules (uses ++ imps) . toFilePath) imps
             return $ case lefts ems of
-              [] -> Right $ concat (rights ems) ++ [modul]
+              [] -> Right $ concat (rights ems) ++ [(escs,modul)]
               errs -> Left $ intercalate "\n" errs
 
-getModule :: FilePath -> IO (Either String [Module])
+getModule :: FilePath -> IO (Either String [([String],Module)])
 getModule file = do
   code <- readFile file
   return . fmap (:[]) $ initialize code

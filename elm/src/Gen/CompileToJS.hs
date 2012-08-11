@@ -27,21 +27,23 @@ iff a b c = a ++ "?" ++ b ++ ":" ++ c
 mainEquals s = globalAssign "ElmCode.main" (jsFunc "" (ret s))
 globalAssign m s = "\n" ++ m ++ "=" ++ s ++ ";"
 
-tryBlock names e = 
+tryBlock escapees names e = 
     concat [ "\ntry{\n" ++ e ++ "\n\n} catch (e) {"
            , "ElmCode.main=function() {"
-	   , "var msg = ('<br><h2>Your browser may not be supported. " ++
+	   , "var msg = ('<br/><h2>Your browser may not be supported. " ++
              "Are you using a modern browser?</h2>' +" ++
-             " '<br><span style=\"color:grey\">Runtime Error in " ++
-             intercalate "." names ++ " module:<br>' + e + '</span>');"
+             " '<br/><span style=\"color:grey\">Runtime Error in " ++
+             intercalate "." names ++ " module:<br/>' + e + '" ++ msg ++ "</span>');"
 	   , "document.body.innerHTML = Text.monospace(msg);"
            , "throw e;"
            , "};}"
            ]
+    where msg | escapees /= [] = concat [ "<br/><br/>The problem may stem from an improper usage of:<br/>"
+                                        ,  intercalate ", " escapees ]
+              | otherwise = ""
 
-
-jsModule (Module names exports imports stmts) =
-    tryBlock (tail modNames) $ concat
+jsModule (escapees, Module names exports imports stmts) =
+    tryBlock escapees (tail modNames) $ concat
            [ concatMap (\n -> globalAssign n $ n ++ " || {}") .
              map (intercalate ".") . drop 2 . inits $
              take (length modNames - 1) modNames

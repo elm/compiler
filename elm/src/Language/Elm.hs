@@ -71,4 +71,4 @@ toPartsHelper :: String -> (Html, Html, String)
 toPartsHelper source = (html, css, js)
   where modul = initialize source
         js = either showErr jsModule modul
-        html = widgetBody $ either id extract modul
+        html = widgetBody $ either id (extract . snd) modul

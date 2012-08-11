@@ -16,8 +16,9 @@ import Types.Substitutions
 prints xs v = v --} unsafePerformIO (putStrLn "----------" >> mapM print xs) `seq` v
 
 unify hints modul = run $ do
-  cs <- constrain hints modul
-  prints cs $ solver cs Map.empty
+  (escapees, cs) <- constrain hints modul
+  subs <- solver cs Map.empty
+  prints cs $ return ((,) escapees `liftM` subs)
 
 eq ctx t1 t2 = Context ctx (t1 :=: t2)
 
