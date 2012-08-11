@@ -1,18 +1,35 @@
 
-Release Next
-============
+Release 0.3.6
+=============
 
 * Add JSON support.
+
+* Type-error messages improved. Gives better context for error, making them
+  easier to find. Better messages for runtime errors as well (errors that
+  the type checker cannot find yet).
 
 * Add Comparable super-type which allows the comparision of any values
   of type {Int,Float,Char,String}.
 
 * Parser now handles decimal numbers.
 
-* Type error messages improved. Gives better context for error, making them
-  easier to find.
+* Added many new functions for manipulating numbers:
+  - truncate, round, floor, ceiling :: Float -> Int
+  - toFloat :: Int -> Float
+  - (^) :: Number -> Number -> Number
+  - e :: Float
 
-* Part of adding decimal numbers is a move towards more sensible types for
+* Foreign import/export statements no longer have to preceed all other
+  variable and datatype definitions. They can be mixed in, making things
+  a bit more readable/natural.
+
+* Bug fixes:
+  - Correct castJSTupleToTupleN
+  - foldr1 took the leftmost element as the base case instead of the rightmost
+  - Fix minor display issue in latest version of Chrome.
+  - Fix behavior of [ lo .. hi ] syntax (now [4..0] == [], not [0]).
+
++ Part of adding decimal numbers is a move towards more sensible types for
   numbers (i.e. integers and floats). This may cause errors in code that was
   previously correct. I believe any broken code can pass type checking by
   replacing all uses of (/) with `div`. I apologize for any pain this causes,
@@ -21,16 +38,6 @@ Release Next
   Some new functions have been added to make conversions between ints and
   floats easier (detailed in next section).
 
-* Added many new functions for manipulating numbers:
-  - truncate, round, floor, ceiling :: Float -> Int
-  - toFloat :: Int -> Float
-  - (^) :: Number -> Number -> Number
-  - e :: Float
-
-* Bug fixes:
-  - Correct castJSTupleToTupleN
-  - foldr1 took the leftmost element as the base case instead of the rightmost
-  - Fix minor display issue in latest version of Chrome.
 
 
 Release 0.3.5
