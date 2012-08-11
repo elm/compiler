@@ -32,7 +32,7 @@ elm = ELM { make = False &= help "automatically compile dependencies."
           , separate_js = False &= help "Compile to separate HTML and JS files."
           , only_js = False &= help "Compile only to JavaScript."
           , import_js = [] &= typFile &= help "Include a JavaScript file before the body of the Elm program. Can be used many times. Files will be included in the given order."
-          , generate_noscript = False &= help "Add generated <noscript> tag to HTML output."
+          , generate_noscript = True &= help "Add generated <noscript> tag to HTML output."
           } &=
     help "Compile Elm programs to HTML, CSS, and JavaScript." &=
     summary "The Elm Compiler v0.3.6, (c) Evan Czaplicki"
