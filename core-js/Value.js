@@ -38,12 +38,11 @@ var Value = function(){
               .replace(/'/g, /*'*/  "&#39;")
               .replace(/</g,  "&#60;")
               .replace(/>/g,  "&#62;")
-              .replace(/ /g,  "&nbsp;")
               .replace(/\n/g, "<br/>");
   };
 
   var toText = function(elmList) {
-    if (typeof elmList === "string") return elmList;
+    if (typeof elmList === "string") return properEscape(elmList);
     var a = [];
     while (elmList[0] === "Cons") {
       a.push(elmList[1]);

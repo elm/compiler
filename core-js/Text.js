@@ -1,14 +1,6 @@
 
 var Text = function() {
-  var fromString = function(elmList) {
-    if (typeof elmList === "string") return elmList;
-    var a = [];
-    while (elmList[0] === "Cons") {
-      a.push(elmList[1]);
-      elmList = elmList[2];
-    }
-    return Value.properEscape(a.join(''));
-  };
+  function fromString(s) { return Value.toText(s); }
 
   var addTag = function(tag) { return function(text) {
 	return '<' + tag + ' style="padding:0;margin:0">' + text + '</' + tag + '>';
@@ -48,6 +40,7 @@ var Text = function() {
 	  overline : overline,
 	  strikeThrough : strikeThrough,
 	  monospace : typeface('monospace'),
+	  typeface : typeface,
 	  color : color,
 	  link : link };
 }();

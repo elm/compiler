@@ -157,7 +157,7 @@ var Signal = function() {
 					: ["Failure", request.status, toElmString(request.statusText)]);
 		  }
 	      };
-	      request.open(how, Data.String.toText(url), true);
+	      request.open(how, Value.toText(url), true);
 	      request.send(null);
 	      return thread;
 	  };
@@ -185,7 +185,7 @@ var Signal = function() {
 					     : ["Failure", request.status, toElmString(request.statusText)]]);
 		      }
 		  };
-		  request.open(how, Data.String.toText(strOpt[1]), true);
+		  request.open(how, Value.toText(strOpt[1]), true);
 		  request.send(null);
 		  return [];
 	      }
