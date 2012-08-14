@@ -274,7 +274,7 @@ var Signal = function() {
       var button = function(name) {
 	  var b = newElement('input');
 	  b.type = "button";
-	  b.value = Text.toText(name);
+	  b.value = Foreign.JavaScript.castStringToJSString(name);
 	  var press = Elm.Input(false);
 	  addListener(b, 'click', function(e) {
 		  Dispatcher.notify(press.id, true);

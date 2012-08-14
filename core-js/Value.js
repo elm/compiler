@@ -32,14 +32,41 @@ var Value = function(){
       return arr;
   };
 
-  var properEscape = function(str) {
-    return str.replace(/&/g,  "&#38;")
-              .replace(/"/g, /*"*/  "&#34;")
-              .replace(/'/g, /*'*/  "&#39;")
-              .replace(/</g,  "&#60;")
-              .replace(/>/g,  "&#62;")
-              .replace(/\n/g, "<br/>");
-  };
+  function makeSpaces(s) {
+    var arr = s.split('');
+    if (arr[0] == ' ') { arr[0] = "&nbsp;" }      
+    for (var i = arr.length; --i; ) {
+      if (arr[i][0] == ' ' && arr[i-1] == ' ') {
+        arr[i-1] = arr[i-1] + arr[i];
+        arr[i] = '';
+      }
+    }
+    for (var i = arr.length; i--; ) {
+      if (arr[i].length > 1 && arr[i][0] == ' ') {
+        var spaces = arr[i].split('');
+        for (var j = spaces.length - 2; j >= 0; j -= 2) {
+          spaces[j] = '&nbsp;';
+        }
+        arr[i] = spaces.join('');
+      }
+    }
+    return arr.join('');
+  }
+
+  function properEscape(str) {
+    if (str.length == 0) return str;
+    str = str //.replace(/&/g,  "&#38;")
+             .replace(/"/g, /*"*/  "&#34;")
+             .replace(/'/g, /*'*/  "&#39;")
+             .replace(/</g,  "&#60;")
+             .replace(/>/g,  "&#62;")
+             .replace(/\n/g, "<br/>");
+    var arr = str.split('<br/>');
+    for (var i = arr.length; i--; ) {
+	arr[i] = makeSpaces(arr[i]);
+    }
+    return arr.join('<br/>');
+  }
 
   var toText = function(elmList) {
     if (typeof elmList === "string") return properEscape(elmList);
