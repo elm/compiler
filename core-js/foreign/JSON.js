@@ -87,7 +87,7 @@ var ElmJSON = function() {
 	    return v[1];
 	    }
 	}
-	return JSON.stringify(fromValue([ 'JsonObject', obj ]), null, JS.castStringToJSString(sep));
+	return Value.toText(JSON.stringify(fromValue([ 'JsonObject', obj ]), null, JS.castStringToJSString(sep)));
       };
     }
     function fromJSString(str) {
@@ -115,7 +115,7 @@ var ElmJSON = function() {
 	    singleton : singleton,
 	    insert : insert,
 	    lookup : lookup,
-	    lookupWithDefault : lookupWithDefault,
+	    findWithDefault : lookupWithDefault,
 	    remove : remove,
 	    toPrettyJSString : toPrettyJSString,
 	    toJSString : toPrettyJSString(''),

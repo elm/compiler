@@ -33,12 +33,13 @@ var Value = function(){
   };
 
   var properEscape = function(str) {
-    str.replace('"', "&#34;");
-    str.replace("&", "&#38;");
-    str.replace("'", "&#39;");
-    str.replace("<", "&#60;");
-    str.replace(">", "&#62;");
-    return str;
+    return str.replace(/&/g,  "&#38;")
+              .replace(/"/g, /*"*/  "&#34;")
+              .replace(/'/g, /*'*/  "&#39;")
+              .replace(/</g,  "&#60;")
+              .replace(/>/g,  "&#62;")
+              .replace(/ /g,  "&nbsp;")
+              .replace(/\n/g, "<br/>");
   };
 
   var toText = function(elmList) {
@@ -56,7 +57,7 @@ var Value = function(){
 	return v ? "True" : "False";
     } else if (typeof v === "number") {
 	return v+"";
-    } else if (typeof v === "string") {
+    } else if (typeof v === "string" && v.length < 2) {
 	return "'"+v+"'";
     } else if (v[0]) {
 	if (v[0].substring(0,5) === "Tuple") {
