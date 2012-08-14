@@ -2,14 +2,14 @@
 Release 0.3.6
 =============
 
-* Add JSON support.
+* Add JSON library.
 
 * Type-error messages improved. Gives better context for error, making them
   easier to find. Better messages for runtime errors as well (errors that
   the type checker cannot find yet).
 
 * Add Comparable super-type which allows the comparision of any values
-  of type {Int,Float,Char,String}.
+  of type {Int,Float,Char,String}. Now possible to make Set and Map libraries.
 
 * Parser now handles decimal numbers.
 
@@ -24,19 +24,11 @@ Release 0.3.6
   a bit more readable/natural.
 
 * Bug fixes:
-  - Correct castJSTupleToTupleN
-  - foldr1 took the leftmost element as the base case instead of the rightmost
+  - The `toText` function did not escape strings properly
+  - Correct `castJSTupleToTupleN` family of functions
+  - `foldr1` took the leftmost element as the base case instead of the rightmost
   - Fix minor display issue in latest version of Chrome.
   - Fix behavior of [ lo .. hi ] syntax (now [4..0] == [], not [0]).
-
-+ Part of adding decimal numbers is a move towards more sensible types for
-  numbers (i.e. integers and floats). This may cause errors in code that was
-  previously correct. I believe any broken code can pass type checking by
-  replacing all uses of (/) with `div`. I apologize for any pain this causes,
-  but I think it is for the best. I think the main issues will come from
-  functions like `size` and `width` which require integer arguments.
-  Some new functions have been added to make conversions between ints and
-  floats easier (detailed in next section).
 
 
 
