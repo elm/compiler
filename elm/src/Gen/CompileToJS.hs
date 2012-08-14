@@ -131,7 +131,7 @@ toJS expr =
       Binop op e1 e2 -> binop op (toJS e1) (toJS e2)
       If eb et ef -> parens $ iff (toJS eb) (toJS et) (toJS ef)
       Lambda v e -> jsFunc v $ ret (toJS e)
-      App (Var "toText") (Str s) -> show s
+      App (Var "toText") (Str s) -> "toText" ++ parens (show s)
       App (Var "link") (Str s) -> "link(" ++ show s ++ ")"
       App (Var "plainText") (Str s) -> "plainText(" ++ show s ++ ")"
       App e1 e2 -> toJS e1 ++ parens (toJS e2)
