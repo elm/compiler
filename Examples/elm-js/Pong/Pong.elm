@@ -10,17 +10,30 @@ import Signal.Window as Win
 ------            Extracting timesteps from JavaScript            ------
 ------------------------------------------------------------------------
 
+-- Export our desired FPS to JavaScript. We just want a steady 30 frames
+-- per second for this game.
+
 desiredFPS = constant (castIntToJSNumber 30)
 
 foreign export jsevent "desiredFPS"
   desiredFPS :: Signal JSNumber
+
+
+-- Import the current time from JavaScript. Events will come in roughly
+-- 30 times per second.
 
 foreign import jsevent "trigger" (castIntToJSNumber 0)
   jsTime :: Signal JSNumber
 
 time = lift castJSNumberToFloat jsTime
 
+
+-- Determine the time that has elapsed since the last event. This is
+-- our timestep, telling us how far everything should move in the next
+-- frame.
+
 delta = lift snd $ foldp (\t1 (t0,d) -> (t1, t1-t0)) (0,0) time
+
 
 
 ------------------------------------------------------------------------
@@ -34,13 +47,19 @@ data Direction = Up | Neutral | Down
 
 -- During gameplay, all keyboard input is about the position of the two
 -- paddles. So the keyboard input can be reduced to two `Directions'.
+-- Furthermore, the SPACE key is used to start the game between rounds,
+-- so we also need a boolean value to represent whether it is pressed.
 
 data KeyInput = KeyInput Bool Direction Direction
+
+defaultKeyInput = KeyInput False Neutral Neutral
 
 
 -- Now we determine how to update the direction of a paddle based on
 -- keyboard input. The first two args of `updatePaddle` are the key
--- codes of the up and down keys.
+-- codes of the up and down keys. The next argument is the key that
+-- has been pressed. The last argument is the previously calculated
+-- direction of the paddle, which is getting updated.
 
 updateDirection upKey downKey key direction =
   case direction of
@@ -53,16 +72,25 @@ updateDirection upKey downKey key direction =
 updateDirection1 = updateDirection 87 83 -- 'w' for up and 's' for down
 updateDirection2 = updateDirection 38 40 -- 'UP' for up and 'DOWN' for down
 
+
+-- Update the keyboard input representation based on a particular key press.
+
 updateInput key (KeyInput space dir1 dir2) =
   KeyInput (space || key == 32)
     (updateDirection1 key dir1)
     (updateDirection2 key dir2)
 
-keyInput = lift (foldl updateInput (KeyInput False Neutral Neutral)) keysDown
+
+-- `keysDown` has type (Signal [Int]) so we need to fold `updateInput`
+-- over all of the keys that are currently pressed to get the current
+-- keyboard state.
+
+keyInput = lift (foldl updateInput defaultKeyInput) keysDown
+
 
 
 ------------------------------------------------------------------------
-------              Combining all inputs to game                  ------
+------                  Combining all inputs                      ------
 ------------------------------------------------------------------------
 
 -- The inputs to this game include a timestep (which we extracted from
@@ -70,25 +98,48 @@ keyInput = lift (foldl updateInput (KeyInput False Neutral Neutral)) keysDown
 
 data Input = Input Float KeyInput
 
-input = lift2 Input delta keyInput
+-- Combine both kinds of inputs and filter out keyboard events. We only
+-- want the game to refresh on clock-ticks, not key presses too.
+
+input = sampleOn delta (lift2 Input delta keyInput)
+
 
 
 ------------------------------------------------------------------------
 ------            Modelling Pong / a State Machine                ------
 ------------------------------------------------------------------------
 
+-- Pong has two obvious components: the ball and two paddles.
+
 data Paddle = Paddle Float                      -- y-position
 data Ball   = Ball (Float,Float) (Float,Float)  -- position and velocity
+
+-- But we also want to keep track of the current score and whether
+-- the ball is currently in play. This will allow us to have rounds
+-- of play rather than just having the ball move around continuously.
 
 data Score = Score Int Int
 data State = Play | BetweenRounds
 
+-- Together, this information makes up the state of the game. We model
+-- Pong by using the inputs (defined above) to update the state of the
+-- game!
+
 data GameState = GameState State Score Ball Paddle Paddle
+
+
+-- I have chosen to parameterize the size of the board, so it can
+-- be changed with minimal effort.
 
 gameWidth  = 600
 gameHeight = 400
 halfWidth  = gameWidth  / 2
 halfHeight = gameHeight / 2
+
+
+-- Before we can update anything, we must first define the default
+-- configuration of the game. In our case we want to start between
+-- rounds with a score of zero to zero.
 
 defaultGame = GameState BetweenRounds
                         (Score 0 0)
@@ -96,12 +147,36 @@ defaultGame = GameState BetweenRounds
                         (Paddle halfHeight)
                         (Paddle halfHeight)
 
+
+
+------------------------------------------------------------------------
+------               Stepping from State to State                 ------
+------------------------------------------------------------------------
+
+-- Now to step the game from one state to another. We can break this up
+-- into smaller components.
+
+-- First, we define a step function for updating the position of
+-- paddles. It depends on our timestep and a desired direction (given
+-- by keyboard input).
+
 stepPaddle delta dir (Paddle y) =
   case dir of
   { Up      -> Paddle . clamp 20 (gameHeight-20) $ y - 200 * delta
   ; Down    -> Paddle . clamp 20 (gameHeight-20) $ y + 200 * delta
   ; Neutral -> Paddle y
   }
+
+
+-- We must also step the ball forward. This is more complicated due to
+-- the many kinds of collisions that can happen. All together, this
+-- function figures out the new velocity of the ball based on 
+-- collisions with the top and bottom borders and collisions with the
+-- paddles. This new velocity is used to calculate a new position.
+
+-- This function also determines whether a point has been scored and
+-- who receives the point. Thus, its output is a new Ball and points
+-- to be added to each player.
 
 stepBall delta (Ball (x,y) (vx,vy)) (Paddle y1) (Paddle y2) =
   let { makePositive n = if n > 0 then n else 0-n
@@ -123,23 +198,43 @@ stepBall delta (Ball (x,y) (vx,vy)) (Paddle y1) (Paddle y2) =
      )
 
 
+-- Finally, we define a step function for the entire game. This steps from state to
+-- state based on the inputs to the game.
+
 stepGame (Input delta (KeyInput space dir1 dir2))
          (GameState state (Score s1 s2) ball paddle1 paddle2) =
-  let { (ball',s1',s2') = if state == Play
-                             then stepBall delta ball paddle1 paddle2
-                             else (ball, 0, 0)
+  let { (ball',s1',s2') = if state == Play then stepBall delta ball paddle1 paddle2
+                                           else (ball, 0, 0)
       ; state' = case state of { Play -> if s1' /= s2' then BetweenRounds else state
                                ; BetweenRounds -> if space then Play else state }
-      }
-  in GameState state'
-               (Score (s1+s1') (s2+s2'))
-               ball'
-               (stepPaddle delta dir1 paddle1)
-               (stepPaddle delta dir2 paddle2)
+  } in  GameState state'
+                  (Score (s1+s1') (s2+s2'))
+                  ball'
+                  (stepPaddle delta dir1 paddle1)
+                  (stepPaddle delta dir2 paddle2)
+
+
+-- Now we put it all together. We have a signal of inputs that changes whenever there
+-- is a clock tick. This input signal carries the all the information we need about
+-- the keyboard. We also have a step function that steps from one game-state to the
+-- next based on some inputs.
+
+-- The `gameState` signal steps forward every time a new input comes in. It starts
+-- as the default game and progresses based on user behavior.
 
 gameState = foldp stepGame defaultGame input
 
 
+
+------------------------------------------------------------------------
+------                    Displaying the Game                     ------
+------------------------------------------------------------------------
+
+-- This function takes a GameState and turns it into something a user
+-- can see and understand. It is totally independent of how the game
+-- updates, it only needs to know the current game state. This allows us
+-- to change how the game looks without changing any of the logic of the
+-- game.
 
 display (w,h) (GameState state (Score p1 p2) (Ball pos _) (Paddle y1) (Paddle y2)) =
   let score = width w . centeredText . Text.height 4 $
@@ -156,10 +251,34 @@ display (w,h) (GameState state (Score p1 p2) (Ball pos _) (Paddle y1) (Paddle y2
         ]
     ]
 
+-- We can now define a view of the game (a signal of Elements) that changes
+-- as the GameState changes. This is what the users will see.
+
 view = lift2 display Win.dimensions gameState
+
+
+-- Here we tell the JavaScript FPS manager that all of the computations for
+-- this frame are complete. This allows the manager to calculate when the next
+-- step should happen.
 
 done = lift (\_ -> castBoolToJSBool True) view
 foreign export jsevent "finished"
   done :: Signal JSBool
 
+
+-- And finally, we display the view of the game to the user: Pong in Elm!
+
 main = view
+
+
+-- Note that the structure of this game neatly divides Pong into three major
+-- parts: modeling the game, updating the game, and viewing the game. It may
+-- be helpful to think of it as a more functional (i.e. less imperative)
+-- version of the Model-View-Controller paradigm.
+
+-- Hopefully this game also displays some of the strengths of Functional
+-- Reactive Programming. We have written an entire GUI/game without any
+-- imperative code! No global mutable state, no flipping pixels, no
+-- destructive updates. In fact, Elm disallows all of these things at the
+-- language level. Thus, good design is a requirement, not just a self-inforced
+-- suggestion.
