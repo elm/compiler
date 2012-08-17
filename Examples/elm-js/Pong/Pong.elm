@@ -6,6 +6,32 @@ import Signal.Keyboard.Raw
 import Signal.Window as Win
 
 
+{-----------------------------------------------------------------------
+
+  This code neatly divides Pong into three major parts: modeling the
+  game, updating the game, and viewing the game. It may be helpful to
+  think of it as a more functional (i.e. less imperative) version of
+  the Model-View-Controller paradigm.
+
+  Hopefully this game also displays some of the strengths of Functional
+  Reactive Programming. By the end of this file we will have written an
+  entire GUI/game without any imperative code! No global mutable state,
+  no flipping pixels, no destructive updates. In fact, Elm disallows all
+  of these things at the language level. So good design and safe coding
+  practices are a requirement, not just self-inforced suggestions.
+
+  The following code is structured as follows:
+    1. Models of game inputs (clock-ticks and keyboard input) and the
+       game itself (paddles, ball, score, etc.)
+    2. A step function that updates the game based on the inputs
+    3. A display function that defines the user's view of the game
+
+  Let's get started!
+
+-----------------------------------------------------------------------}
+
+
+
 ------------------------------------------------------------------------
 ------            Extracting timesteps from JavaScript            ------
 ------------------------------------------------------------------------
@@ -269,16 +295,3 @@ foreign export jsevent "finished"
 -- And finally, we display the view of the game to the user: Pong in Elm!
 
 main = view
-
-
--- Note that the structure of this game neatly divides Pong into three major
--- parts: modeling the game, updating the game, and viewing the game. It may
--- be helpful to think of it as a more functional (i.e. less imperative)
--- version of the Model-View-Controller paradigm.
-
--- Hopefully this game also displays some of the strengths of Functional
--- Reactive Programming. We have written an entire GUI/game without any
--- imperative code! No global mutable state, no flipping pixels, no
--- destructive updates. In fact, Elm disallows all of these things at the
--- language level. Thus, good design is a requirement, not just a self-inforced
--- suggestion.
