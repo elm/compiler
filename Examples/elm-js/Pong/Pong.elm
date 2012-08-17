@@ -1,4 +1,3 @@
-
 module Pong where
 
 import Foreign.JavaScript
@@ -6,7 +5,7 @@ import Signal.Keyboard.Raw
 import Signal.Window as Win
 
 
-{-----------------------------------------------------------------------
+{-----  Overview  ------------------------------------------------------
 
   This code neatly divides Pong into three major parts: modeling the
   game, updating the game, and viewing the game. It may be helpful to
