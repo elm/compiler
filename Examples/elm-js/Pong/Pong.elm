@@ -1,5 +1,5 @@
 
-{-----------------------------------------------------------------------
+{-----  Overview  ------------------------------------------------------
 
   This game displays some of the strengths of Functional Reactive
   Programming (FRP). By the end of this file we will have written an
