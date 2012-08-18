@@ -1,35 +1,63 @@
 
-module Pong where
-
-import Foreign.JavaScript
-import Signal.Keyboard.Raw
-import Signal.Window as Win
-
-
 {-----------------------------------------------------------------------
 
-  This code neatly divides Pong into three major parts: modeling the
-  game, updating the game, and viewing the game. It may be helpful to
-  think of it as a more functional (i.e. less imperative) version of
-  the Model-View-Controller paradigm.
-
-  Hopefully this game also displays some of the strengths of Functional
-  Reactive Programming. By the end of this file we will have written an
+  This game displays some of the strengths of Functional Reactive
+  Programming (FRP). By the end of this file we will have written an
   entire GUI/game without any imperative code! No global mutable state,
   no flipping pixels, no destructive updates. In fact, Elm disallows all
   of these things at the language level. So good design and safe coding
   practices are a requirement, not just self-inforced suggestions.
 
-  The following code is structured as follows:
-    1. Models of game inputs (clock-ticks and keyboard input) and the
-       game itself (paddles, ball, score, etc.)
-    2. A step function that updates the game based on the inputs
-    3. A display function that defines the user's view of the game
+  This code neatly divides Pong into three major parts: modeling the
+  game, updating the game, and viewing the game. It may be helpful to
+  think of it as a functional variation on the Model-View-Controller
+  paradigm.
+
+  The code for Pong is structured as follows:
+
+    1. MODEL:
+       First we need to define Pong. We do this by modelling Pong with
+       simple data structures. We need two categories of model:
+         - Inputs to the game. For Pong, this is keyboard input from
+           users and clock-ticks from the frame rate manager.
+         - A model of the game itself: paddles, ball, score, etc.
+           Without a model of the game we would have nothing to update
+           or display!
+       These models are the basis for the next two sections, holding
+       all of the information about Pong that we will need.
+
+    2. UPDATE:
+       When new inputs come in, we need to update the current state
+       of the game. Without updates, this version of Pong would be very
+       very boring! This section defines a number of 'step functions'
+       that step the game forward based on our inputs. By separating
+       this from the model and display code, we can change how the game
+       works (how it steps forward) without changing anything else: the
+       underlying model and the display code need not be touched.
+
+    3. VIEW:
+       Finally, we need a display function that defines the user's view
+       of the game. This code is separate from the game logic, so like
+       the update logic, it can be modified without affecting any other
+       part of the program. We can also define many different views
+       of the same underlying model. In Pong there's not much need for
+       this, but as your model becomes more complex this may be very
+       useful!
+
+  If you would like to make a game or larger application in Elm, use
+  this structure! Maybe even use this file as a starting point for
+  playing around with your own ideas.
 
   Let's get started!
 
 -----------------------------------------------------------------------}
 
+
+module Pong where
+
+import Foreign.JavaScript
+import Signal.Keyboard.Raw
+import Signal.Window as Win
 
 
 ------------------------------------------------------------------------
