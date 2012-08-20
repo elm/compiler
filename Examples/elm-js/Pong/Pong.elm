@@ -296,7 +296,7 @@ gameState = foldp stepGame defaultGame input
 scoreBoard w inPlay p1 p2 =
   let { code = text . monospace . toText
       ; stack top bottom = flow down [ code " ", code top, code bottom ]
-      ; msg = width w . box 2 . text . monospace $ toText "Press SPACE to begin"
+      ; msg = width w . centeredText . monospace $ toText "Press SPACE to begin"
       ; score = width w . box 2 $ flow right
                   [ stack "W" "S", rectangle 20 1
                   , text . Text.height 4 $ show p1 ++ toText "    " ++ show p2
