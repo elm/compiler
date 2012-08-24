@@ -236,13 +236,15 @@ makePositive n = if n > 0 then n else 0-n
 makeNegative n = if n > 0 then 0-n else n
 within epsilon n x = x > n - epsilon && x < n + epsilon
 
+stepVelocity velocity lowerCollision upperCollision =
+  if lowerCollision then makePositive velocity else
+  if upperCollision then makeNegative velocity else velocity
+
 stepBall delta (Ball (x,y) (vx,vy)) (Paddle y1) (Paddle y2) =
-  let { vx' = if within 20 y1 y && within 8 25 x
-                  then makePositive vx else
-              if within 20 y2 y && within 8 (gameWidth - 25) x
-                  then makeNegative vx else vx
-      ; vy' = if y < 7 then makePositive vy else
-              if y > gameHeight - 7 then makeNegative vy else vy
+  let { hitPaddle1 = within 20 y1 y && within 8 25 x
+      ; hitPaddle2 = within 20 y2 y && within 8 (gameWidth - 25) x
+      ; vx' = stepVelocity vx hitPaddle1 hitPaddle2
+      ; vy' = stepVelocity vy (y < 7) (y > gameHeight - 7)
       ; scored = x > gameWidth || x < 0
       ; x' = if scored then halfWidth  else x + vx' * delta
       ; y' = if scored then halfHeight else y + vy' * delta
