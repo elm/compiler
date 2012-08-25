@@ -3,7 +3,7 @@ module CompileToJS (showErr, jsModule) where
 
 import Ast
 import Control.Arrow (first)
-import Control.Monad (liftM,(<=<),join)
+import Control.Monad (liftM,(<=<),join,ap)
 import Data.Char (isAlpha,isDigit)
 import Data.List (intercalate,sortBy,inits)
 import Data.Map (toList)
@@ -11,6 +11,8 @@ import Data.Maybe (mapMaybe)
 
 import Initialize
 import Rename (derename)
+import Cases
+import Guid
 
 showErr :: String -> String
 showErr err = mainEquals $ "text(monospace(" ++ msg ++ "))"
@@ -116,58 +118,67 @@ stmtToJS (ExportEvent js elm _) =
            ]
 
 
+toJS = run . toJS'
 
-toJS :: Expr -> String
-toJS expr =
+toJS' :: Expr -> GuidCounter String
+toJS' expr =
     case expr of
-      IntNum n -> show n
-      FloatNum n -> show n
-      Var x -> x
-      Chr c -> show c
-      Str s -> "Value.str" ++ parens (show s)
-      Boolean b -> if b then "true" else "false"
-      Range lo hi -> jsRange (toJS lo) (toJS hi)
-      Access e lbl -> toJS e ++ "." ++ lbl
-      Binop op e1 e2 -> binop op (toJS e1) (toJS e2)
-      If eb et ef -> parens $ iff (toJS eb) (toJS et) (toJS ef)
-      Lambda v e -> jsFunc v $ ret (toJS e)
-      App (Var "toText") (Str s) -> "toText" ++ parens (show s)
-      App (Var "link") (Str s) -> "link(" ++ show s ++ ")"
-      App (Var "plainText") (Str s) -> "plainText(" ++ show s ++ ")"
-      App e1 e2 -> toJS e1 ++ parens (toJS e2)
+      IntNum n -> return $ show n
+      FloatNum n -> return $ show n
+      Var x -> return $ x
+      Chr c -> return $ show c
+      Str s -> return $ "Value.str" ++ parens (show s)
+      Boolean b -> return $ if b then "true" else "false"
+      Range lo hi -> jsRange `liftM` toJS' lo `ap` toJS' hi
+      Access e lbl -> (\s -> s ++ "." ++ lbl) `liftM` toJS' e
+      Binop op e1 e2 -> binop op `liftM` toJS' e1 `ap` toJS' e2
+      If eb et ef -> parens `liftM` (iff `liftM` toJS' eb `ap` toJS' et `ap` toJS' ef)
+      Lambda v e -> liftM (jsFunc v . ret) (toJS' e)
+      App (Var "toText") (Str s) -> return $ "toText" ++ parens (show s)
+      App (Var "link") (Str s) -> return $ "link(" ++ show s ++ ")"
+      App (Var "plainText") (Str s) -> return $ "plainText(" ++ show s ++ ")"
+      App e1 e2 -> (++) `liftM` (toJS' e1) `ap` (parens `liftM` toJS' e2)
       Let defs e -> jsLet defs e
-      Case e cases -> jsCase e cases
-      Data name es -> jsList $ show name : map toJS es
+      Case e cases -> caseToJS e cases
+      Data name es -> (\ss -> jsList $ show name : ss) `liftM` mapM toJS' es
 
-jsLet defs e' = jsFunc "" (jsDefs defs ++ ret (toJS e')) ++ "()"
+jsLet defs e' = do
+  body <- (++) `liftM` jsDefs defs `ap` (ret `liftM` toJS' e')
+  return $ jsFunc "" body ++ "()"
 
-jsDefs defs = concatMap toDef $ sortBy f defs
+jsDefs defs = concat `liftM` mapM toDef (sortBy f defs)
     where f a b = compare (valueOf a) (valueOf b)
           valueOf (Definition _ args _) = min 1 (length args)
-          toDef (Definition x [] e) = assign x (toJS e)
-          toDef (Definition f (a:as) e) = 
-              "\nfunction " ++ f ++ parens a ++ braces (ret . toJS $ foldr Lambda e as) ++ ";"
+          toDef (Definition x [] e) = assign x `liftM` toJS' e
+          toDef (Definition f (a:as) e) = do
+            out <- toJS' $ foldr Lambda e as
+            return $ "\nfunction " ++ f ++ parens a ++ braces (ret out) ++ ";"
 
-jsCase e  [c]  = jsMatch c ++ parens (toJS e)
-jsCase e cases = "(function(){" ++
-                 assign "v" (toJS e) ++
-                 assign "c" jsCases  ++
-                 "for(var i=c.length;i--;){" ++
-                 assign "r" "c[i](v)" ++
-                 "if(r!==undefined){return r;}}}())"
-    where jsCases = jsList $ map jsMatch (reverse cases)
+caseToJS e ps = do
+  match <- caseToMatch ps
+  var <- liftM (\n -> "vv" ++ show n) guid
+  matches <- matchToJS var match
+  e' <- toJS' e
+  return $ concat [ "function(", var, "){"
+                  , case match of { Match name _ _ -> assign name var ; _ -> "" }
+                  , matches
+                  , "}", parens e' ]
 
-jsMatch (p,e) = jsFunc "v" . match p "v" . ret $ toJS e
-match p v hole =
-    case p of
-      PAnything -> hole
-      PVar x -> assign x v ++ hole
-      PData name ps ->
-          "if(" ++ show name ++ "!==" ++ v ++
-          "[0]){return undefined;}else{"++body++"}"
-              where matches = zipWith match ps vs
-                    vs = map (\i -> v++"["++show (i+1)++"]") [0..length ps-1]
-                    body = foldr ($) hole matches
+matchToJS v (Match name clauses def) = do
+  cases <- concat `liftM` mapM (clauseToJS name) clauses
+  finally <- matchToJS v def
+  return $ concat [ "\nswitch(", name, "[0]){", cases, "\n}", finally ]
+matchToJS _ Fail  = return "\nthrow \"Non-exhaustive pattern match in case\";"
+matchToJS _ Break = return "break;"
+matchToJS _ (Other e) = ret `liftM` toJS' e
+matchToJS v (Seq ms) = concat `liftM` mapM (matchToJS v) ms
+
+clauseToJS var (Clause name vars e) = do
+  s <- matchToJS var e
+  return $ concat [ "\ncase ", show name, ":"
+                  , concat $ zipWith toDef vars [ 1 .. length vars ]
+                  , s ]
+        where toDef v n = assign v (var ++ "[" ++ show n ++ "]")
 
 jsNil         = "[\"Nil\"]"
 jsCons  e1 e2 = jsList [ show "Cons", e1, e2 ]

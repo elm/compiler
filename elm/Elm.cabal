@@ -1,6 +1,6 @@
 
 Name:                Elm
-Version:             0.3.6.2
+Version:             0.4.0
 Synopsis:            The Elm language module.
 Description:         Elm aims to make client-side web-development more pleasant.
                      It is a statically/strongly typed, functional reactive
@@ -22,7 +22,7 @@ Category:            Compiler, Language
 Build-type:          Simple
 
 Extra-source-files:  changelog.txt
-Data-files:          elm-runtime-0.3.6.2.js
+Data-files:          elm-runtime-0.4.0.js
 Cabal-version:       >=1.8
 
 source-repository head
@@ -35,6 +35,8 @@ Library
   Hs-Source-Dirs:      src, src/Parse, src/Types, src/Gen
   other-modules:       Ast,
                        CompileToJS,
+                       Cases,
+                       Substitute,
                        ExtractNoscript,
                        GenerateHtml,
                        Guid,
@@ -72,6 +74,8 @@ Executable elm
   Hs-Source-Dirs:      src, src/Parse, src/Types, src/Gen
   other-modules:       Ast,
                        CompileToJS,
+                       Cases,
+                       Substitute,
                        ExtractNoscript,
                        GenerateHtml,
                        Guid,
