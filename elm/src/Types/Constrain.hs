@@ -84,7 +84,13 @@ gen e@(If e1 e2 e3) =
 gen (Data name es) = gen $ foldl' App (Var name) es
 gen (Binop op e1 e2) = gen (Var op `App` e1 `App` e2)
 gen (Access (Var x) y) = gen . Var $ x ++ "." ++ y
-gen (Range e1 e2) = gen (Var "elmRange" `App` e1 `App` e2)
+gen (Range e1 e2) =
+    do (a1,c1,t1) <- gen e1
+       (a2,c2,t2) <- gen e2
+       return ( unionsA [a1,a2]
+              , Set.unions [ c1, c2, Set.fromList [ ctx e1 (t1 :=: int)
+                                                  , ctx e2 (t2 :=: int) ] ]
+              , listOf int )
 
 gen other =
     case other of
