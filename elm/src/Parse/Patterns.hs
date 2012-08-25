@@ -26,7 +26,7 @@ patternTerm :: Monad m => ParsecT [Char] u m Pattern
 patternTerm = patternTuple <|> patternList <|> patternBasic <?> "pattern"
 
 patternExpr :: Monad m => ParsecT [Char] u m Pattern
-patternExpr = foldl1 pcons <$> consSep1 patternTerm <?> "pattern"
+patternExpr = foldr1 pcons <$> consSep1 patternTerm <?> "pattern"
 
 
 makeLambda pats body = foldr Lambda (makeBody pats body) (map getName pats)
