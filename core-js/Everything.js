@@ -38,9 +38,7 @@ var includeGlobal = this;
   height = Element.height;
   show = Value.show;
   
-  include (Color);
-  include (Shape);
-  include (Line);
+  include (ElmCode.Graphics.Color);
 
   includeAs ('Time')     (Signal.Time);
   includeAs ('Mouse')    (Signal.Mouse);
@@ -52,7 +50,7 @@ var includeGlobal = this;
 
 }());
 
-var ElmCode = {};
+var ElmCode = ElmCode || {};
 ElmCode.Data = Data;
 ElmCode.Signal = Signal;
 ElmCode.Data.List = List;

@@ -78,6 +78,46 @@ var Value = function(){
     return properEscape(a.join(''));
   };
 
+  function getTextSize(w,h,txt) {
+    var t = document.createElement('div');
+    t.innerHTML = txt;
+    t.style.width  = w + "px";
+    //t.style.height = h + 'px';
+    
+    t.style.visibility = "hidden";
+    t.style.styleFloat = "left";
+    t.style.cssFloat   = "left";
+    
+    document.body.appendChild(t);
+    var cStyle = window.getComputedStyle(t);
+    var realW = cStyle.getPropertyValue("width").slice(0,-2) - 0;
+    var realH = cStyle.getPropertyValue("height").slice(0,-2) - 0;
+    document.body.removeChild(t);
+    return [realW,Math.max(h,realH)];
+  }
+
+  function groupForms(forms) {
+    forms = Foreign.JavaScript.castListToJSArray(forms);
+    var groups = [];
+    var arr = [];
+    for (var i = forms.length; i--; ) {
+	var f = forms[i];
+	switch(f[4][0]) {
+	case "FElement":
+	    if (arr.length > 0) {
+		groups.push(arr);
+		arr = [];
+	    }
+	    groups.push(f);
+	    break;
+	default:
+	    arr.push(f);
+	}
+    }
+    if (arr.length > 0) groups.push(arr);
+    return groups;
+  }
+
   var toString = function(v) {
     if (typeof v === "boolean") {
 	return v ? "True" : "False";
@@ -160,5 +200,7 @@ var Value = function(){
 	  append:append,
 	  listToArray:listToArray,
 	  toText : toText,
-	  properEscape : properEscape};
+	  properEscape : properEscape,
+	  getTextSize : getTextSize,
+	  groupForms : groupForms };
 }();

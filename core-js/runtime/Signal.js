@@ -22,6 +22,13 @@ var Signal = function() {
 
   var Mouse = function() {
     var position  = Elm.Input(Value.Tuple(0,0));
+    position.defaultNumberOfKids = 2;
+
+    var x = Elm.Lift(function(p){return p[1];},[position]);
+    x.defaultNumberOfKids = 0;
+    var y = Elm.Lift(function(p){return p[2];},[position]);
+    y.defaultNumberOfKids = 0;
+
     var isDown    = Elm.Input(false);
     var isClicked = Elm.Input(false);
     var clicks = Elm.Input(Value.Tuple());
@@ -43,16 +50,27 @@ var Signal = function() {
     }
 
     addListener(document, 'click', function(e) {
-	    Dispatcher.notify(isClicked.id, true);
-	    Dispatcher.notify(clicks.id, Value.Tuple());
+	    var hasListener1 = Dispatcher.notify(isClicked.id, true);
+	    var hasListener2 = Dispatcher.notify(clicks.id, Value.Tuple());
 	    Dispatcher.notify(isClicked.id, false);
+	    if (!hasListener1 && !hasListener2)
+		this.removeEventListener('click',arguments.callee,false);
 	});
     addListener(document, 'mousedown', function(e) {
-	    Dispatcher.notify(isDown.id, true); });
+	    var hasListener = Dispatcher.notify(isDown.id, true);
+	    if (!hasListener)
+		this.removeEventListener('mousedown',arguments.callee,false);
+	});
     addListener(document, 'mouseup', function(e) {
-	    Dispatcher.notify(isDown.id, false); });
+	    var hasListener = Dispatcher.notify(isDown.id, false);
+	    if (!hasListener)
+		this.removeEventListener('mouseup',arguments.callee,false);
+	});
     addListener(document, 'mousemove', function(e) {
-	    Dispatcher.notify(position.id, getXY(e)); });
+	    var hasListener = Dispatcher.notify(position.id, getXY(e));
+	    if (!hasListener)
+		this.removeEventListener('mousemove',arguments.callee,false);
+	});
     var clickedOn = function(elem) {
 	var click = Elm.Input(false);
 	addListener(elem, 'click', function(e) {
@@ -62,8 +80,8 @@ var Signal = function() {
 	return Value.Tuple(elem, click);
     };
     return {position: position,
-	    x: Elm.Lift(function(p){return p[1];},[position]),
-	    y: Elm.Lift(function(p){return p[2];},[position]),
+	    x:x,
+	    y:y,
 	    isClicked: isClicked,
 	    isDown: isDown,
 	    clicks: clicks,
@@ -99,13 +117,20 @@ var Signal = function() {
 
   var Window = function() {
     var dimensions = Elm.Input(Value.Tuple(window.innerWidth,window.innerHeight));
+    dimensions.defaultNumberOfKids = 2;
+
+    var width  = Elm.Lift(function(p){return p[1];},[dimensions]);
+    width.defaultNumberOfKids = 0;
+    var height = Elm.Lift(function(p){return p[2];},[dimensions]);
+    height.defaultNumberOfKids = 0;
+
     addListener(window, 'resize', function(e) {
 	    var w = document.getElementById('widthChecker').offsetWidth;
-	    Dispatcher.notify(dimensions.id, Value.Tuple(w, window.innerHeight));
+	    var hasListener = Dispatcher.notify(dimensions.id, Value.Tuple(w, window.innerHeight));
+	    if (!hasListener)
+		this.removeEventListener('resize',arguments.callee,false);
 	});
-    return {dimensions:dimensions,
-	    width : Elm.Lift(function(p){return p[1];},[dimensions]),
-	    height: Elm.Lift(function(p){return p[2];},[dimensions]) };
+    return {dimensions:dimensions,width:width,height:height};
   }();
 
   var Keyboard = { Raw : function() {
@@ -125,18 +150,26 @@ var Signal = function() {
     }
     addListener(document, 'keydown', function(e) {
 	    if (has(e.keyCode, keysDown.value)) return;
-	    Dispatcher.notify(keysDown.id, ["Cons", e.keyCode, keysDown.value]);
+	    var hasListener = Dispatcher.notify(keysDown.id, ["Cons", e.keyCode, keysDown.value]);
+	    if (!hasListener)
+		this.removeEventListener('keydown',arguments.callee,false);
 	});
     addListener(document, 'keyup', function(e) {
-	    var codes = remove(e.keyCode, keysDown.value)
-	    Dispatcher.notify(keysDown.id, codes);
+	    var codes = remove(e.keyCode, keysDown.value);
+	    var hasListener = Dispatcher.notify(keysDown.id, codes);
+	    if (!hasListener)
+		this.removeEventListener('keyup',arguments.callee,false);
 	});
     addListener(window, 'blur', function(e) {
-	    Dispatcher.notify(keysDown.id, ["Nil"]);
+	    var hasListener = Dispatcher.notify(keysDown.id, ["Nil"]);
+	    if (!hasListener)
+		this.removeEventListener('blur',arguments.callee,false);
 	});
     addListener(document, 'keypress', function(e) {
-	    Dispatcher.notify(charPressed.id, ["Just",e.charCode || e.keyCode]);
+	    var hasListener = Dispatcher.notify(charPressed.id, ["Just",e.charCode || e.keyCode]);
 	    Dispatcher.notify(charPressed.id, ["Nothing"]);
+	    if (!hasListener)
+		this.removeEventListener('keypress',arguments.callee,false);
 	});
     return {keysDown:keysDown,
 	    charPressed:charPressed};

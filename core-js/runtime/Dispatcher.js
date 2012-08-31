@@ -10,10 +10,12 @@ var Elm = function() {
 	this.id = Guid.guid();
 	this.value = base;
 	this.kids = [];
+	this.defaultNumberOfKids = 0;
 	this.recv = function(timestep, eid, v) {
 	    var changed = eid === this.id;
 	    if (changed) { this.value = v; }
 	    send(this, timestep, changed);
+	    return changed;
 	};
 	Dispatcher.inputs.push(this);
     };
@@ -123,75 +125,58 @@ var Dispatcher = function() {
     var program = null;
     var timestep = 0;
     var inputs = [];
-
-    var correctSize = function(e) {
-	var kids = e.childNodes;
-	var len = kids.length;
-	if (e.hasOwnProperty('isElmLeaf')) {
-	    if (e.hasOwnProperty('isElmText')) { Element.correctTextSize(e); }
-	    var w = e.style.width === "" ?
-		0 : e.style.width.slice(0,-2) - 0;
-	    var h = e.style.height === "" ?
-		0 : e.style.height.slice(0,-2) - 0;
-	    return [w, h];
-	}
-	if (len === 1) {
-	    var dim = correctSize(kids[0]);
-	    if (e.style.width  !== "") { dim[0] = e.style.width.slice(0,-2) - 0; }
-	    if (e.style.height !== "") { dim[1] = e.style.height.slice(0,-2) - 0; }
-	    if (dim[0] !== 0) { e.style.width = dim[0] + "px"; }
-	    if (dim[1] !== 0) { e.style.height = dim[1] + "px"; }
-	    return dim;
-	}
-	var wmax = 0, hmax = 0, wsum = 0, hsum = 0;
-	var hasWidth = true, hasHeight = true, dim = null;
-	while (len--) {
-	    dim = correctSize(kids[len]);
-	    wmax = Math.max(wmax, dim[0]);
-	    hmax = Math.max(hmax, dim[1]);
-	    wsum += dim[0];
-	    hsum += dim[1];
-	    hasWidth  = hasWidth  && dim[0] > 0;
-	    hasHeight = hasHeight && dim[1] > 0;
-	}
-	var w = wmax, h = hmax, dir = e.elmFlowDirection;
-	if (dir === "X") { w = hasWidth ? wsum : 0; }
-	if (dir === "Y") { h = hasHeight ? hsum : 0; }
-	if (w > 0) e.style.width  = w + "px";
-	if (h > 0) e.style.height = h + "px";
-	return [w,h];
-    };
+    var currentElement = null;
 
     var initialize = function() {
 	program = ElmCode.main();
 	if (!program.hasOwnProperty('recv')) {
 	    program = Elm.Input(program);
 	}
+
+	currentElement = program.value;
+	filterDeadInputs();
+
 	var content = document.getElementById('content');
-	content.appendChild(program.value);
-	adjust();
+	content.appendChild(Render.render(currentElement));
 	var w = document.getElementById('widthChecker').offsetWidth;
 	if (w !== window.innerWidth) {
 	    Dispatcher.notify(Window.dimensions.id, Value.Tuple(w, window.innerHeight));
 	}
 	program = Elm.Lift(function(value) {
 		var content = document.getElementById('content');
-		var kid = content.children[0]
-		content.replaceChild(value, kid);
-		delete kid;
-		adjust();
+		Render.update(content.firstChild,currentElement,value);
+		currentElement = value;
 		return value;
 	    }, [program]);
     };
-    var adjust = function() {
-	var content = document.getElementById('content');
-	correctSize(content.children[0]);
-    }
     var notify = function(id, v) {
 	timestep += 1;
+	//console.log(timestep);
+	var hasListener = false;
 	for (var i = inputs.length; i--; ) {
-	    inputs[i].recv(timestep, id, v);
+	    hasListener = inputs[i].recv(timestep, id, v) || hasListener;
 	}
+	return hasListener;
     };
-    return {initialize:initialize, notify:notify, adjust:adjust, inputs:inputs};
+
+    function isAlive(input) {
+	if (!input.hasOwnProperty('defaultNumberOfKids')) return true;
+	var len = input.kids.length;
+	if (len == 0) return false;
+	if (len > input.defaultNumberOfKids) return true;
+	var alive = false;
+	for (var i = len; i--; ) {
+	    alive = alive || isAlive(input.kids[i]);
+	}
+	return alive;
+    }
+    function filterDeadInputs() {
+	var temp = [];
+	for (var i = inputs.length; i--; ) {
+	    if (isAlive(inputs[i])) temp.push(inputs[i]);
+	}
+	inputs = temp;
+    }
+
+    return {initialize:initialize, notify:notify, inputs:inputs};
 }();
