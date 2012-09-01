@@ -21,8 +21,8 @@ function makeText(pos,txt) {
 
 function image(src) {
     var img = newElement('img');
-    img.src = Value.toText(src);
-    img.name = img.src;
+    img.src = src;
+    img.name = src;
     return img;
 }
 
@@ -50,7 +50,7 @@ function fittedImage(w,h,src) {
 			  0,0, canvas.width, canvas.height);
 	}
     };
-    img.src = Value.toText(src);
+    img.src = src;
     return canvas;
 };
 
@@ -102,6 +102,49 @@ function flow(dir,elist) {
     };
 };
 
+function toPos(pos) {
+    switch(pos[0]) {
+    case "Absolute": return  pos[1] + "px";
+    case "Relative": return (pos[1] * 100) + "%";
+    }
+}
+
+function setPos(pos,e) {
+  e.style.position = 'absolute';
+  e.style.margin = 'auto';
+  switch(pos[0]) {
+  case "Position":
+      if (pos[1][0] !== "Far")  e.style.left = 0;
+      if (pos[1][0] !== "Near") e.style.right = 0;
+      if (pos[2][0] !== "Far")  e.style.top = 0;
+      if (pos[2][0] !== "Near") e.style.bottom = 0;
+      break;
+  case "PositionAt":
+      e.style.top  = toPos(pos[2]);
+      e.style.left = toPos(pos[1]);
+      var shift = "translate(" + (-elem[3]/2) + "px," + (-elem[4]/2) + "px)";
+      e.style.transform       = shift;
+      e.style.msTransform     = shift;
+      e.style.MozTransform    = shift;
+      e.style.webkitTransform = shift;
+      e.style.OTransform      = shift;
+      break;
+  default:
+      var p = pos[0].slice(-2);
+      e.style[p[0] === "T" ? 'top' : 'bottom'] = toPos(pos[2]);
+      e.style[p[1] === "L" ? 'left' : 'right'] = toPos(pos[1]);
+  }
+}
+
+function container(pos,elem) {
+    var e = render(elem);
+    setPos(pos,e);
+    var div = newElement('div');
+    div.style.position = "relative";
+    addTo(div,e);
+    return div;
+};
+
 function render(elem) {
     var e = {};
     switch(elem[2][0]) {
@@ -112,15 +155,14 @@ function render(elem) {
     case "EFlow":        e = flow(elem[2][1][0],elem[2][2]); break;
     case "ECollage":     e = Collage.collage(elem[2][1],elem[2][2],elem[2][3]); break;
     case "EEmpty":       e = newElement('div'); break;
-    case "EContainer":
-	e = newElement('div');
+    case "EContainer":   e = container(elem[2][1],elem[2][2]); break;
     }
     e.id = elem[1];
     e.style.width  = (~~elem[3]) + 'px';
     e.style.height = (~~elem[4]) + 'px';
     if (elem[5] !== 1) { e.style.opacity = elem[5]; }
     if (elem[6][0] === "Just") {
-	e.style.color = ElmCode.Graphics.Color.extract(elem[6][1]);
+	e.style.backgroundColor = ElmCode.Graphics.Color.extract(elem[6][1]);
     }
     return e;
 };
@@ -159,7 +201,11 @@ function update(node,curr,next) {
 	for (var i = kids.length ; i-- ; ) {
 	    update(kids[i],currs[i],nexts[i]);
 	}
+	break;
     case "EContainer":
+	update(node.childNodes[0],currE[2],nextE[2]);
+	setPos(nextE[1],node.childNodes[0]);
+	break;
     case "EEmpty":
     }
     if (next[3] !== curr[3]) node.style.width   = (~~next[3]) + 'px';

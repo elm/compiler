@@ -146,11 +146,11 @@ function collageElement(w,h,theta,scale,x,y,elem) {
     var r = theta === (~~theta) ? "" : "rotate(" + theta*360 + "deg)";
     var s = scale === 1 ? "" : "scale(" + scale + "," + scale + ")";
     var transforms = t + " " + s + " " + r;
-    e.style['-ms-transform']     = transforms;
-    e.style['-webkit-transform'] = transforms;
-    e.style['-o-transform']      = transforms;
-    e.style['-moz-transform']    = transforms;
-    e.style['transform']         = transforms;
+    e.style.transform       = transforms;
+    e.style.msTransform     = transforms;
+    e.style.MozTransform    = transforms;
+    e.style.webkitTransform = transforms;
+    e.style.OTransform      = transforms;
     var div = Render.newElement('div');
     Render.addTo(div,e);
     div.style.width = (~~w) + "px";
