@@ -55,7 +55,6 @@ function fittedImage(w,h,src) {
 };
 
 var video = function(src) {
-    src = Value.toText(src);
     var e = newElement('video');
     e.controls = "controls";
     var source = newElement('source');

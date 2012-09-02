@@ -39,6 +39,7 @@ var includeGlobal = this;
   show = Value.show;
   
   include (ElmCode.Graphics.Color);
+  include (ElmCode.Graphics.Element);
 
   includeAs ('Time')     (Signal.Time);
   includeAs ('Mouse')    (Signal.Mouse);

@@ -63,10 +63,10 @@ ElmCode.Graphics.Element = function() {
     return["EImage", Foreign.JavaScript.castStringToJSString(a1)]
   }
   function EVideo_41(a1) {
-    return["EVideo", a1]
+    return["EVideo", Foreign.JavaScript.castStringToJSString(a1)]
   }
   function EFittedImage_42(a1) {
-    return["EFittedImage", a1]
+    return["EFittedImage", Foreign.JavaScript.castStringToJSString(a1)]
   }
   function EFlow_43(a1) {
     return function(a2) {
