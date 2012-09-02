@@ -79,14 +79,14 @@ solver (Context ctx (VarT x :<: Super ts) : cs) subs =
 
 solver (Context ctx (ADT "List" [t] :<: Super ts) : cs) subs
     | any f (Set.toList ts) = solver cs subs
-    | otherwise = subtypeError ("aoeu" ++ ctx) (ADT "List" [t]) (Super ts)
+    | otherwise = subtypeError ctx (ADT "List" [t]) (Super ts)
         where f (ADT "List" [VarT _]) = True
               f (ADT "List" [t']) = t == t'
               f _ = False
 
 solver (Context ctx (t :<: Super ts) : cs) subs
     | Set.member t ts = solver cs subs
-    | otherwise = subtypeError ("htns" ++ ctx) t (Super ts)
+    | otherwise = subtypeError ctx t (Super ts)
 
 solver (Context ctx (x :<<: s) : cs) subs
     | any (\(Context _ c) -> x `elem` cFreeVars c) cs =

@@ -9,7 +9,7 @@ import Types.Substitutions (rescheme)
 
 --------  Text and Elements  --------
 
-str2elem = hasType (string ==> element) [ "image","video","plainText" ]
+str2elem = hasType (string ==> element) [ "plainText" ]
 
 textToText = [ "header", "italic", "bold", "underline"
              , "overline", "strikeThrough", "monospace" ]
@@ -23,6 +23,8 @@ elements = let iee = int ==> element ==> element in
            [ "flow"    -: direction ==> listOf element ==> element
            , "layers"  -: listOf element ==> element
            , "text"    -: text ==> element
+           , "image"   -: int ==> int ==> string ==> element
+           , "video"   -: int ==> int ==> string ==> element
            , "opacity" -: float ==> element ==> element
            , "width"   -: iee
            , "height"  -: iee
@@ -52,9 +54,9 @@ shapes = [ twoNums (\n m -> listOf (pairOf n) ==> pairOf m ==> shape) "polygon"
          , "filled"        -: color ==> shape ==> form
          , "outlined"      -: color ==> shape ==> form
          , "customOutline" -: listOf int ==> color ==> shape ==> form
-         , scheme2 number transformable (\n t -> n ==> n ==> t ==> t) "move"
-         , scheme2 number transformable (\n t -> n ==> t ==> t) "rotate"
-         , scheme2 number transformable (\n t -> n ==> t ==> t) "scale"
+         , numScheme (\n -> n ==> n ==> form ==> form) "move"
+         , numScheme (\n -> n ==> form ==> form) "rotate"
+         , numScheme (\n -> n ==> form ==> form) "scale"
          ] ++ map (twoNums (\n m -> n ==> n ==> pairOf m ==> shape)) [ "ngon"
                                                                      , "rect"
                                                                      , "oval" ]

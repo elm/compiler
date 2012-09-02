@@ -8,6 +8,7 @@ import Data.Char (isAlpha,isDigit)
 import Data.List (intercalate,sortBy,inits)
 import Data.Map (toList)
 import Data.Maybe (mapMaybe)
+import qualified Text.Pandoc as Pan
 
 import Initialize
 import Rename (derename)
@@ -141,6 +142,10 @@ toJS' expr =
       Let defs e -> jsLet defs e
       Case e cases -> caseToJS e cases
       Data name es -> (\ss -> jsList $ show name : ss) `liftM` mapM toJS' es
+      Markdown doc ->
+          return $ concat [ "text('<div style=\"height:0;width:0;\">&nbsp;</div>"
+                          , filter (/='\n') $ Pan.writeHtmlString Pan.defaultWriterOptions doc
+                          , "<div style=\"height:0;width:0;\">&nbsp;</div>')" ]
 
 jsLet defs e' = do
   body <- (++) `liftM` jsDefs defs `ap` (ret `liftM` toJS' e')
@@ -156,7 +161,7 @@ jsDefs defs = concat `liftM` mapM toDef (sortBy f defs)
 
 caseToJS e ps = do
   match <- caseToMatch ps
-  var <- liftM (\n -> "vv" ++ show n) guid
+  var <- liftM (\n -> "case" ++ show n) guid
   matches <- matchToJS var match
   e' <- toJS' e
   return $ concat [ "function(", var, "){"
@@ -176,9 +181,12 @@ matchToJS v (Seq ms) = concat `liftM` mapM (matchToJS v) ms
 clauseToJS var (Clause name vars e) = do
   s <- matchToJS var e
   return $ concat [ "\ncase ", show name, ":"
-                  , concat $ zipWith toDef vars [ 1 .. length vars ]
+                  , defs
                   , s ]
-        where toDef v n = assign v (var ++ "[" ++ show n ++ "]")
+        where toDef v n = v ++ "=" ++ var ++ "[" ++ show n ++ "]"
+              defs = case vars of [] -> ""
+                                  _ -> ("\nvar "++) . (++";") . intercalate "," $
+                                         zipWith toDef vars [ 1 .. length vars ]
 
 jsNil         = "[\"Nil\"]"
 jsCons  e1 e2 = jsList [ show "Cons", e1, e2 ]

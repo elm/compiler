@@ -67,7 +67,8 @@ Library
                        deepseq,
                        text,
                        template-haskell,
-                       shakespeare
+                       shakespeare,
+                       pandoc
 
 Executable elm
   Main-is:             Compiler.hs
@@ -104,4 +105,5 @@ Executable elm
                        blaze-html == 0.5.0.*,
                        blaze-markup == 0.5.1.*,
                        deepseq,
-                       cmdargs
+                       cmdargs,
+                       pandoc

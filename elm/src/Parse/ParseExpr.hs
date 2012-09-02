@@ -6,6 +6,7 @@ import Control.Monad
 import Data.Char (isSymbol, isDigit)
 import Data.List (foldl')
 import Text.Parsec hiding (newline,spaces)
+import qualified Text.Pandoc as Pan
 
 import ParseLib
 import Patterns
@@ -13,6 +14,8 @@ import Binops
 
 import Guid
 import Types (Type (VarT), Scheme (Forall))
+
+import System.IO.Unsafe
 
 
 --------  Basic Terms  --------
@@ -44,11 +47,13 @@ chrTerm = Chr <$> betwixt '\'' '\'' (backslashed <|> satisfy (/='\''))
 
 --------  Complex Terms  --------
 
-listTerm = braces $ choice
-           [ try $ do { lo <- expr; whitespace; string ".." ; whitespace
-                      ; Range lo <$> expr }
-           , list <$> commaSep expr
-           ]
+listTerm = (do { try $ string "[markdown|"
+               ; md <- filter (/='\r') <$> manyTill anyChar (try $ string "|]")
+               ; return . Markdown $ Pan.readMarkdown Pan.defaultParserState md })
+           <|> (braces $ choice
+                [ try $ do { lo <- expr; whitespace; string ".." ; whitespace
+                           ; Range lo <$> expr }
+                , list <$> commaSep expr ])
 
 parensTerm = parens $ choice
              [ do op <- anyOp

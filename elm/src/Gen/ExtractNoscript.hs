@@ -2,6 +2,7 @@
 module ExtractNoscript (extract) where
 
 import Ast
+import qualified Text.Pandoc as Pan
 
 extract (Module _ _ _ stmts) =
     concatMap (\s -> "<p>" ++ s ++ "</p>") (concatMap stmtExtract stmts)
@@ -30,6 +31,7 @@ extract' expr =
       Var _ -> []
       Case e cases -> concatMap (f . snd) cases
       Data _ es -> concatMap f es
+      Markdown doc -> [ Pan.writeHtmlString Pan.defaultWriterOptions doc ]
       _ -> []
 
 tag t e = map (\s -> concat [ "<", t, ">", s, "</", t, ">" ]) (extract' e)

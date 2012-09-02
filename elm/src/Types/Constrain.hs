@@ -100,6 +100,7 @@ gen other =
       Chr _ -> primitive char
       Str _ -> primitive string
       Boolean _ -> primitive bool
+      Markdown _ -> primitive element
       _ -> beta >>= primitive 
 
 primitive t = return (Map.empty, Set.empty, t)

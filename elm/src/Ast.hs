@@ -5,6 +5,7 @@ import Data.Char (isDigit)
 import Data.List (intercalate)
 import Types
 import Guid
+import qualified Text.Pandoc as Pandoc
 
 data Module = Module [String] Exports Imports [Statement]
 
@@ -36,6 +37,7 @@ data Expr = IntNum Int
           | Var String
           | Case Expr [(Pattern,Expr)]
           | Data String [Expr]
+          | Markdown Pandoc.Pandoc
             deriving (Eq)
 
 data Definition = Definition String [String] Expr
