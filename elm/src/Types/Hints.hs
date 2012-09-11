@@ -15,7 +15,7 @@ textToText = [ "header", "italic", "bold", "underline"
              , "overline", "strikeThrough", "monospace" ]
 
 textAttrs = [ "toText" -: string ==> text
-            , "link"   -: string ==> text ==> text
+            --, "link"   -: string ==> text ==> text
             , numScheme (\t -> t ==> text ==> text) "Text.height"
             ] ++ hasType (text ==> text) textToText
 

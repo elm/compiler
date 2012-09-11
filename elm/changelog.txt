@@ -1,4 +1,25 @@
 
+Release 0.4.0
+=============
+
+This version is all about graphics: nicer API with more features and major
+efficiency improvements. I am really excited about this release!
+
+* Add native Markdown support. You can now embed markdown directly in .elm files
+  and it is used as an `Element`. Syntax is `[markdown| ... |]` where `...` is
+  formatted as described [here](http://daringfireball.net/projects/markdown/).
+  Content can span multiple lines too.
+
+* Drastically improve the `collage` interface. You can now move, rotate, and scale
+  the following forms:
+  - Lines
+  - Shapes (shapes can be textured now too)
+  - Images
+  - Elements (any Element you want can be turned into a Form with `toForm`)
+  This will make it way easier to make games in Elm.
+
+* Add `--minify` flag, to minify JS code.
+
 Release 0.3.6
 =============
 

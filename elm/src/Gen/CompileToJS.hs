@@ -5,7 +5,7 @@ import Ast
 import Control.Arrow (first)
 import Control.Monad (liftM,(<=<),join,ap)
 import Data.Char (isAlpha,isDigit)
-import Data.List (intercalate,sortBy,inits)
+import Data.List (intercalate,sortBy,inits,foldl')
 import Data.Map (toList)
 import Data.Maybe (mapMaybe)
 import qualified Text.Pandoc as Pan
@@ -84,8 +84,8 @@ jsImport' (modul, Importing []) = jsImport' (modul, Hiding [])
 jsImport' (modul, Importing vs) =
     concatMap (\v -> assign v $ modul ++ "." ++ v) vs
 jsImport' (modul, Hiding vs) =
-    concat [ "\nfor(var i in " ++ modul ++ "){"
-           , assign "hiddenVars" . jsList $ map (\v -> "'" ++ v ++ "'") vs
+    concat [ assign "hiddenVars" . jsList $ map (\v -> "'" ++ v ++ "'") vs
+           , "\nfor(var i in " ++ modul ++ "){"
            , "\nif (hiddenVars.indexOf(i) >= 0) continue;"
            , globalAssign "this[i]" $ modul ++ "[i]"
            , "}" ]
@@ -142,10 +142,15 @@ toJS' expr =
       Let defs e -> jsLet defs e
       Case e cases -> caseToJS e cases
       Data name es -> (\ss -> jsList $ show name : ss) `liftM` mapM toJS' es
-      Markdown doc ->
-          return $ concat [ "text('<div style=\"height:0;width:0;\">&nbsp;</div>"
-                          , filter (/='\n') $ Pan.writeHtmlString Pan.defaultWriterOptions doc
-                          , "<div style=\"height:0;width:0;\">&nbsp;</div>')" ]
+      Markdown doc -> return $ "text('" ++ pad ++ md ++ pad ++ "')"
+          where md = formatMarkdown $ Pan.writeHtmlString Pan.defaultWriterOptions doc
+                pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
+
+formatMarkdown = concatMap f
+    where f '\'' = "\\'"
+          f '\n' = ""
+          f '"'  = "\""
+          f c = [c]
 
 jsLet defs e' = do
   body <- (++) `liftM` jsDefs defs `ap` (ret `liftM` toJS' e')

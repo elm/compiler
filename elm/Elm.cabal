@@ -68,7 +68,9 @@ Library
                        text,
                        template-haskell,
                        shakespeare,
-                       pandoc
+                       pandoc,
+                       bytestring,
+                       hjsmin
 
 Executable elm
   Main-is:             Compiler.hs
@@ -106,4 +108,6 @@ Executable elm
                        blaze-markup == 0.5.1.*,
                        deepseq,
                        cmdargs,
-                       pandoc
+                       pandoc,
+                       bytestring,
+                       hjsmin

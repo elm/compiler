@@ -7,6 +7,9 @@ import Data.Maybe (fromMaybe)
 import System.Console.CmdArgs
 import Text.Blaze.Html.Renderer.String (renderHtml)
 
+import qualified Text.Jasmine as JS
+import qualified Data.ByteString.Lazy.Char8 as BS
+
 import Ast
 import Initialize
 import CompileToJS
@@ -22,6 +25,7 @@ data ELM =
         , only_js :: Bool
         , import_js :: [FilePath]
         , generate_noscript :: Bool
+        , minify :: Bool
         }
     deriving (Data,Typeable,Show,Eq)
 
@@ -33,26 +37,29 @@ elm = ELM { make = False &= help "automatically compile dependencies."
           , only_js = False &= help "Compile only to JavaScript."
           , import_js = [] &= typFile &= help "Include a JavaScript file before the body of the Elm program. Can be used many times. Files will be included in the given order."
           , generate_noscript = True &= help "Add generated <noscript> tag to HTML output."
+          , minify = False &= help "Minify generated JavaScript"
           } &=
     help "Compile Elm programs to HTML, CSS, and JavaScript." &=
-    summary "The Elm Compiler v0.3.6.2, (c) Evan Czaplicki"
+    summary "The Elm Compiler v0.4.0, (c) Evan Czaplicki"
 
 main = do
   args <- cmdArgs elm
-  mini <- getDataFileName "elm-runtime-0.3.6.2.js"
+  mini <- getDataFileName "elm-runtime-0.4.0.js"
   compileArgs mini args
 
-compileArgs mini (ELM _ [] _ _ _ _ _) =
+compileArgs mini (ELM _ [] _ _ _ _ _ _) =
     putStrLn "Usage: elm [OPTIONS] [FILES]\nFor more help: elm --help"
-compileArgs mini (ELM make files rtLoc split only js nscrpt) =
-    mapM_ (fileTo get what js nscrpt $ fromMaybe mini rtLoc) files
+compileArgs mini (ELM make files rtLoc split only js nscrpt isMini) =
+    mapM_ (fileTo isMini get what js nscrpt $ fromMaybe mini rtLoc) files
         where get = if make then getModules [] else getModule
               what = if only then JS else
                          if split then Split else HTML
 
 data What = JS | HTML | Split
 
-fileTo get what jsFiles noscript rtLoc file = do
+fileTo isMini get what jsFiles noscript rtLoc file = do
+  let jsStyle = if isMini then Minified else Readable
+  let formatJS = if isMini then BS.unpack . JS.minify . BS.pack else id
   ems <- get file
   jss <- concat `fmap` mapM readFile jsFiles
   case ems of
@@ -62,11 +69,11 @@ fileTo get what jsFiles noscript rtLoc file = do
             js = name ++ ".js"
             html = name ++ ".html"
         in  case what of
-              JS -> writeFile js $ jss ++ concatMap jsModule ms
-              HTML -> writeFile html . renderHtml $ modulesToHtml "" rtLoc jss noscript ms
+              JS -> writeFile js . formatJS $ jss ++ concatMap jsModule ms
+              HTML -> writeFile html . renderHtml $ modulesToHtml jsStyle "" rtLoc jss noscript ms
               Split -> do
                   writeFile html . renderHtml $ linkedHtml rtLoc js ms
-                  writeFile js $ jss ++ concatMap jsModule ms
+                  writeFile js . formatJS $ jss ++ concatMap jsModule ms
 
 getModules :: [String] -> FilePath -> IO (Either String [([String],Module)])
 getModules uses file = do
