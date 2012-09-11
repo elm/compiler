@@ -223,29 +223,29 @@ ElmCode.Graphics.Element = function() {
   function heightOf_53(e) { return ~~e[4]; }
   function sizeOf_54(e)   { return["Tuple2", ~~e[3], ~~e[4]] }
   function text_56(txt) {
-    var p = Value.getTextSize(-1,-1,txt);
+    var p = Value.getTextSize(0,0,txt);
     return basicNewElement(EText_39("left")(txt), p[0], p[1])
   }
   function plainText(str) {
     var txt = Value.toText(str);
-    var p = Value.getTextSize(-1,-1,txt);
+    var p = Value.getTextSize(0,0,txt);
     return basicNewElement(EText_39("left")(txt),p[0],p[1])
   }
   function asText(v) {
     var txt = Value.show(v);
-    var p = Value.getTextSize(-1,-1,txt);
+    var p = Value.getTextSize(0,0,txt);
     return basicNewElement(EText_39("left")(txt),p[0],p[1])
   }
   function centeredText(txt) {
-    var p = Value.getTextSize(-1,-1,txt);
+    var p = Value.getTextSize(0,0,txt);
     return basicNewElement(EText_39("center")(txt),p[0],p[1])
   }
   function justifiedText(txt) {
-    var p = Value.getTextSize(-1,-1,txt);
+    var p = Value.getTextSize(0,0,txt);
     return basicNewElement(EText_39("justify")(txt),p[0],p[1])
   }
   function rightedText(txt) {
-    var p = Value.getTextSize(-1,-1,txt);
+    var p = Value.getTextSize(0,0,txt);
     return basicNewElement(EText_39("right")(txt),p[0],p[1])
   }
   function image_57(w) {

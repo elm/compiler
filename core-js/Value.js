@@ -81,8 +81,8 @@ var Value = function(){
   function getTextSize(w,h,txt) {
     var t = document.createElement('div');
     t.innerHTML = txt;
-    t.style.width  = w + "px";
-    //t.style.height = h + 'px';
+    t.style.textAlign = 'left';
+    if (w > 0) { t.style.width  = w + "px"; }
     
     t.style.visibility = "hidden";
     t.style.styleFloat = "left";
@@ -94,7 +94,7 @@ var Value = function(){
     var realH = cStyle.getPropertyValue("height").slice(0,-2) - 0;
     document.body.removeChild(t);
     delete t;
-    return [realW,Math.max(h,realH)];
+    return [Math.ceil(realW),Math.ceil(Math.max(h,realH))];
   }
 
   function getSize(e) {
