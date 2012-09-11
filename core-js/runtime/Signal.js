@@ -1,5 +1,9 @@
 
 var Signal = function() {
+  function wrap(elem) {
+    var p = Value.getSize(elem);
+    return ["Element", Guid.guid(), ["EHtml",elem], p[0], p[1], 1, Nothing, Nothing];
+  }
   function toElmString(str) {
       var out = ["Nil"];
       for (var i = str.length; i--; ) {
@@ -72,12 +76,13 @@ var Signal = function() {
 		this.removeEventListener('mousemove',arguments.callee,false);
 	});
     var clickedOn = function(elem) {
+	var node = Render.render(elem);
 	var click = Elm.Input(false);
-	addListener(elem, 'click', function(e) {
+	addListener(node, 'click', function(e) {
 		Dispatcher.notify(click.id, true);
 		Dispatcher.notify(click.id, false);
 	    });
-	return Value.Tuple(elem, click);
+	return Value.Tuple(wrap(node), click);
     };
     return {position: position,
 	    x:x,
@@ -242,10 +247,6 @@ var Signal = function() {
       return { inRange:inRange, randomize:randomize };
   }();
   var Input = function() {
-      function wrap(elem) {
-	  var p = Value.getSize(elem);
-	  return ["Element", Guid.guid(), ["EHtml",elem], p[0], p[1], 1, Nothing, Nothing];
-      }
       var newTextInput = function(elem, ghostText) {
 	  elem.placeholder = Foreign.JavaScript.castStringToJSString(ghostText);
 	  var str = Elm.Input(["Nil"]);
