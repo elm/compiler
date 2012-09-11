@@ -23,7 +23,8 @@ var Elm = function() {
 	this.id = Guid.guid();
 	this.value = null;
 	this.kids = [];
-	this.inbox = {};
+	this.count = 0;
+	this.changed = false;
 
 	args.reverse();
 	this.recalc = function() {
@@ -36,16 +37,13 @@ var Elm = function() {
 	this.recalc();
 
 	this.recv = function(timestep, changed, parentID) {
-	    if (!this.inbox.hasOwnProperty(timestep)) {
-		this.inbox[timestep] = { changed: false, count: 0 };
-	    }
-	    var box = this.inbox[timestep];
-	    box.count += 1;
-	    if (changed) { box.changed = true; }
-	    if (box.count == args.length) {
-		if (box.changed) { this.recalc() }
-		send(this, timestep, box.changed);
-		delete this.inbox[timestep];
+	    this.count += 1;
+	    if (changed) { this.changed = true; }
+	    if (this.count == args.length) {
+		if (this.changed) { this.recalc() }
+		send(this, timestep, this.changed);
+		this.changed = false;
+		this.count = 0;
 	    }
 	};
 	for (var i = args.length; i--; ) {
@@ -96,12 +94,16 @@ var Elm = function() {
 	this.id = Guid.guid();
 	this.value = s2.value;
 	this.kids = [];
-	this.inbox = {};
+	this.count = 0;
 
 	this.recv = function(timestep, changed, parentID) {
 	    var chng = changed && parentID === s1.id;
 	    if (chng) { this.value = s2.value; }
-	    send(this, timestep, chng);
+	    this.count += 1;
+	    if (this.count == 2) {
+		send(this, timestep, chng);
+		this.count = 0;
+	    }
 	};
 	s1.kids.push(this);
 	s2.kids.push(this);
