@@ -105,7 +105,7 @@ function renderForm(redo,ctx,theta,scale,x,y,form) {
     ctx.save();
     if (x !== 0 || y !== 0) ctx.translate(x,y);
     if (theta !== ~~theta)  ctx.rotate(2*Math.PI*theta);
-    if (scale !== 1)        ctx.scale(scale);
+    if (scale !== 1)        ctx.scale(scale,scale);
     ctx.beginPath();
     switch(form[0]) {
     case "FLine":  drawLine(ctx,form); break;
@@ -127,6 +127,7 @@ function collageForms(w,h,forms) {
     var canvas = Render.newElement('canvas');
     canvas.style.width  = (~~w) + 'px';
     canvas.style.height = (~~h) + 'px';
+    canvas.style.display = "block";
     canvas.width  = ~~w;
     canvas.height = ~~h;
     if (canvas.getContext) {
@@ -137,7 +138,7 @@ function collageForms(w,h,forms) {
 	return canvas;
     }
     canvas.innerHTML = "Your browser does not support the canvas element.";
-    return canvas;  
+    return canvas;
 };
 
 function collageElement(w,h,theta,scale,x,y,elem) {
@@ -155,6 +156,7 @@ function collageElement(w,h,theta,scale,x,y,elem) {
     Render.addTo(div,e);
     div.style.width = (~~w) + "px";
     div.style.height = (~~h) + "px";
+    div.style.overflow = "hidden";
     return div;
 }
 
@@ -195,9 +197,8 @@ function updateFormSet(node,currSet,nextSet) {
     return node.parentNode.replaceChild(newNode,node);
 }
 
+// assumes that the form sets are the same length.
 function updateCollage(node,currs,nexts) {
-    if (currs.length !== nexts.length) {
-	return node.parentNode.replaceChild(render(next),node); }
     if (nexts.length === 1) {
 	return updateFormSet(node,currs[0],nexts[0]);
     }

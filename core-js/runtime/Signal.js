@@ -242,18 +242,24 @@ var Signal = function() {
       return { inRange:inRange, randomize:randomize };
   }();
   var Input = function() {
+      function wrap(elem) {
+	  var p = Value.getSize(elem);
+	  return ["Element", Guid.guid(), ["EHtml",elem], p[0], p[1], 1, Nothing, Nothing];
+      }
       var newTextInput = function(elem, ghostText) {
-	  elem.isElmLeaf = true;
+	  elem.placeholder = Foreign.JavaScript.castStringToJSString(ghostText);
 	  var str = Elm.Input(["Nil"]);
 	  addListener(elem, 'keyup', function(e) {
 		  Dispatcher.notify(str.id, toElmString(elem.value));
 		  elem.focus();
 	      });
-	  return Value.Tuple(elem, str);
+	  elem.style.padding = "1px";
+	  return Value.Tuple(wrap(elem), str);
       };
       var newElement = function(name) {
 	  var e = document.createElement(name);
-	  e.id = Guid.guid();
+	  e.style.padding = "0";
+	  e.style.margin = "0";
 	  return e;
       };
       var textArea = function(cols) { return function(rows) {
@@ -281,7 +287,7 @@ var Signal = function() {
 	  addListener(box, 'change', function(e) {
 		  Dispatcher.notify(status.id, box.checked);
 	      });
-	  return Value.Tuple(box, status);
+	  return Value.Tuple(wrap(box), status);
       };
       var dropDown = function(options) {
 	  var slct = newElement('select');
@@ -299,7 +305,7 @@ var Signal = function() {
 	  addListener(slct, 'change', function(e) {
 		  Dispatcher.notify(status.id, opts[slct.selectedIndex]);
 	      });
-	  return Value.Tuple(slct, status);
+	  return Value.Tuple(wrap(slct), status);
       };
       var stringDropDown = function(opts) {
 	  return dropDown(List.map (function(x) {return Value.Tuple(x,x);}) (opts));
@@ -313,7 +319,7 @@ var Signal = function() {
 		  Dispatcher.notify(press.id, true);
 		  Dispatcher.notify(press.id, false);
 	      });
-	  return Value.Tuple(b,press);
+	  return Value.Tuple(wrap(b),press);
       };
       return {textArea:textArea, textField:textField,
 	      password:password, checkbox:checkbox,

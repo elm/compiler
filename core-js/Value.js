@@ -93,8 +93,43 @@ var Value = function(){
     var realW = cStyle.getPropertyValue("width").slice(0,-2) - 0;
     var realH = cStyle.getPropertyValue("height").slice(0,-2) - 0;
     document.body.removeChild(t);
+    delete t;
     return [realW,Math.max(h,realH)];
   }
+
+  function getSize(e) {
+    var t = e.cloneNode(true);
+    
+    t.style.visibility = "hidden";
+    t.style.styleFloat = "left";
+    t.style.cssFloat   = "left";
+    
+    document.body.appendChild(t);
+    var w = t.offsetWidth;
+    var h = t.offsetHeight;
+    document.body.removeChild(t);
+    delete t;
+    return [w,h];
+  }
+
+  function getExcess(e) {
+    var t = e.cloneNode(true);
+    
+    t.style.visibility = "hidden";
+    t.style.styleFloat = "left";
+    t.style.cssFloat   = "left";
+    
+    document.body.appendChild(t);
+    var ow = t.offsetWidth;
+    var oh = t.offsetHeight;
+    var cStyle = window.getComputedStyle(t);
+    var w = cStyle.getPropertyValue("width").slice(0,-2) - 0;
+    var h = cStyle.getPropertyValue("height").slice(0,-2) - 0;
+    document.body.removeChild(t);
+    delete t;
+    return [ow-w,oh-h];
+  }
+
 
   function groupForms(forms) {
     forms = Foreign.JavaScript.castListToJSArray(forms);
@@ -202,5 +237,7 @@ var Value = function(){
 	  toText : toText,
 	  properEscape : properEscape,
 	  getTextSize : getTextSize,
+	  getSize : getSize,
+	  getExcess : getExcess,
 	  groupForms : groupForms };
 }();

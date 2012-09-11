@@ -10,8 +10,14 @@ var Foreign = function() {
     function castJSNumberToInt(n) { return ~~n; }
     function castIntToJSNumber(n) { return n; }
 
-    function castJSElementToElement(w) { return Element.jsElement(w); }
-    function castElementToJSElement(elem) { return elem; }
+    function castJSElementToElement(w) {
+      return function(h) {
+	return function(node) {
+	  return ["Element",Guid.guid(),["EHtml",node],w,h,1,Nothing,Nothing];
+	}
+      }
+    }
+    function castElementToJSElement(elem) { return Render.render(elem); }
 
     function castJSArrayToList(arr) {
 	var list = ["Nil"];

@@ -23,11 +23,13 @@ function image(src) {
     var img = newElement('img');
     img.src = src;
     img.name = src;
+    img.style.display = "block";
     return img;
 }
 
 function fittedImage(w,h,src) {
     var canvas = newElement('canvas');
+    canvas.style.display = "block";
     canvas.style.width  = w + 'px';
     canvas.style.height = h + 'px';
     canvas.width  = w;
@@ -62,6 +64,7 @@ var video = function(src) {
     var segs = src.split('.');
     source.type = "video/" + segs[segs.length-1];
     addTo(e, source);
+    e.style.display = "block";
     return e;
 };
 
@@ -140,6 +143,7 @@ function container(pos,elem) {
     setPos(pos,e);
     var div = newElement('div');
     div.style.position = "relative";
+    div.style.overflow = "hidden";
     addTo(div,e);
     return div;
 };
@@ -155,6 +159,12 @@ function render(elem) {
     case "ECollage":     e = Collage.collage(elem[2][1],elem[2][2],elem[2][3]); break;
     case "EEmpty":       e = newElement('div'); break;
     case "EContainer":   e = container(elem[2][1],elem[2][2]); break;
+    case "EHtml":
+	e = elem[2][1];
+	var p = Value.getExcess(e);
+	elem[3] -= p[0];
+	elem[4] -= p[1];
+	break;
     }
     e.id = elem[1];
     e.style.width  = (~~elem[3]) + 'px';
@@ -163,42 +173,61 @@ function render(elem) {
     if (elem[6][0] === "Just") {
 	e.style.backgroundColor = ElmCode.Graphics.Color.extract(elem[6][1]);
     }
+    if (elem[7][0] === "Just") {
+	var a = newElement('a');
+	a.href = elem[7][1];
+	addTo(a,e);
+	return a;
+    }
     return e;
 };
 
 function update(node,curr,next) {
+    if (node.tagName === 'A') { node = node.firstChild; }
     if (curr[1] === next[1]) return;
     if (curr[2][0] !== next[2][0]) {
-	node.parentNode.replaceChild(render(next),node);
+	return node.parentNode.replaceChild(render(next),node);
     }
     var nextE = next[2], currE = curr[2];
     switch(nextE[0]) {
     case "EText":
-	if (nextE[1] !== currE[1]) node.innerHTML = Value.toText(nextE[1]);
+	if (nextE[1] !== currE[1]) node.style.textAlign = nextE[1];
+	if (nextE[2] !== currE[2]) node.innerHTML = nextE[2];
 	break;
     case "EImage":
 	if (nextE[1] !== currE[1]) node.src = nextE[1];
 	break;
     case "EVideo":
     case "EFittedImage":
-	if (Value.eq(nextE,currE)) break;
-	return node.parentNode.replaceChild(render(next),node);
+	if (!Value.eq(nextE,currE) || next[3]!==curr[3] || next[4]!==curr[4]) {
+	    return node.parentNode.replaceChild(render(next),node);
+	}
+    break;
     case "ECollage":
-	if (nextE[1] !== currE[1] || nextE[2] !== currE[2]) {
-	  return node.parentNode.replaceChild(render(nextE),node);
+	if (nextE[1] !== currE[1] || nextE[2] !== currE[2] || nextE[3].length !== currE[3].length) {
+	    return node.parentNode.replaceChild(render(next),node);
 	}
 	Collage.updateCollage(node,currE[3],nextE[3]);
 	break;
     case "EFlow":
-	if (nextE[1] !== currE[1])
+	if (nextE[1] !== currE[1]) {
 	    return node.parentNode.replaceChild(render(next),node);
+	}
 	var nexts = nextE[2];
 	var kids = node.childNodes;
-	if (nexts.length !== kids.length)
+	if (nexts.length !== kids.length) {
 	    return node.parentNode.replaceChild(render(next),node);
+	}
 	var currs = currE[2];
-	for (var i = kids.length ; i-- ; ) {
+	var goDir = {};
+	switch(nextE[1][0]) {
+	case "DDown":  case "DUp":   goDir = goDown; break;
+	case "DRight": case "DLeft": goDir = goRight; break;
+	case "DOut":   case "DIn":   goDir = goIn; break;
+	}
+	for (var i = kids.length; i-- ;) {
 	    update(kids[i],currs[i],nexts[i]);
+	    goDir(kids[i]);
 	}
 	break;
     case "EContainer":
@@ -206,13 +235,21 @@ function update(node,curr,next) {
 	setPos(nextE[1],node.childNodes[0]);
 	break;
     case "EEmpty":
+	break;
+    case "EHtml":
+	var p = Value.getExcess(node);
+	next[3] -= p[0];
+	next[4] -= p[1];
     }
     if (next[3] !== curr[3]) node.style.width   = (~~next[3]) + 'px';
     if (next[4] !== curr[4]) node.style.height  = (~~next[4]) + 'px';
     if (next[5] !== curr[5]) node.style.opacity = next[5];
     if (next[6].length === 2) {
 	var clr = ElmCode.Graphics.Color.extract(next[6][1]);
-	if (clr !== node.style.color) node.style.color = clr;
+	if (clr !== node.style.backgroundColor) node.style.backgroundColor = clr;
+    }
+    if (next[7].length === 2) {
+	if (curr[7].length === 1 || next[7][1] !== curr[7][1]) node.parentNode.href = next[7][1];
     }
     next[1] = curr[1];
 }
