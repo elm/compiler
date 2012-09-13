@@ -20,6 +20,10 @@ efficiency improvements. I am really excited about this release!
 
 * Add `--minify` flag, to minify JS code.
 
+* Significantly improve performance of pattern matching.
+
+
+
 Release 0.3.6
 =============
 

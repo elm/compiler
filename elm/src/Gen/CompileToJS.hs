@@ -148,7 +148,7 @@ toJS' expr =
 
 formatMarkdown = concatMap f
     where f '\'' = "\\'"
-          f '\n' = ""
+          f '\n' = "\\n"
           f '"'  = "\""
           f c = [c]
 
