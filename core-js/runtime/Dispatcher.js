@@ -95,14 +95,16 @@ var Elm = function() {
 	this.value = s2.value;
 	this.kids = [];
 	this.count = 0;
+	this.changed = false;
 
 	this.recv = function(timestep, changed, parentID) {
-	    var chng = changed && parentID === s1.id;
-	    if (chng) { this.value = s2.value; }
+	    if (parentID === s1.id) this.changed = changed;
 	    this.count += 1;
 	    if (this.count == 2) {
-		send(this, timestep, chng);
+		if (this.changed) { this.value = s2.value; }
+		send(this, timestep, this.changed);
 		this.count = 0;
+		this.changed = false;
 	    }
 	};
 	s1.kids.push(this);
