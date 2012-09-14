@@ -11,7 +11,7 @@ import qualified Language.Elm as Elm
 
 serve :: String -> IO ()
 serve libLoc = do
-  putStrLn "Elm Server 0.3.5: running at <http://localhost:8000>"
+  putStrLn "Elm Server 0.4.0: running at <http://localhost:8000>"
   simpleHTTP nullConf $ do
          _ <- compressedResponseFilter
          msum [ uriRest (serveElm libLoc)
