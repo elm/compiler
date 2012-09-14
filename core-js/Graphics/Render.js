@@ -161,9 +161,15 @@ function render(elem) {
     case "EContainer":   e = container(elem[2][1],elem[2][2]); break;
     case "EHtml":
 	e = elem[2][1];
-	var p = Value.getExcess(e);
-	elem[3] -= p[0];
-	elem[4] -= p[1];
+	if (e.type !== 'button') {
+	    var p = Value.getExcess(e);
+	    elem[3] -= p[0];
+	    elem[4] -= p[1];
+	}
+	break;
+    case "EExternalHtml":
+	e = newElement('div');
+	addTo(e, elem[2][1]);
 	break;
     }
     e.id = elem[1];
@@ -237,9 +243,21 @@ function update(node,curr,next) {
     case "EEmpty":
 	break;
     case "EHtml":
-	var p = Value.getExcess(node);
-	next[3] -= p[0];
-	next[4] -= p[1];
+	if (next[1] !== curr[1]) {
+	    var e = render(next);
+	    node.parentNode.replaceChild(e,node);
+	    node = e;
+	}
+	if (e.type !== 'button') {
+	    var p = Value.getExcess(node);
+	    next[3] -= p[0];
+	    next[4] -= p[1];
+	}
+	break;
+    case "EExternalHtml":
+	if (next[1] !== curr[1])
+	    node.parentNode.replaceChild(render(next),node);
+	break;
     }
     if (next[3] !== curr[3]) node.style.width   = (~~next[3]) + 'px';
     if (next[4] !== curr[4]) node.style.height  = (~~next[4]) + 'px';

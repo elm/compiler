@@ -13,7 +13,9 @@ var Foreign = function() {
     function castJSElementToElement(w) {
       return function(h) {
 	return function(node) {
-	  return ["Element",Guid.guid(),["EHtml",node],w,h,1,Nothing,Nothing];
+	  return ["Element",Guid.guid(),
+		  ["EExternalHtml",node],
+		  w,h,1,Nothing,Nothing];
 	}
       }
     }
