@@ -18,7 +18,9 @@ var Foreign = function() {
     function castJSElementToElement(w) {
       return function(h) {
 	return function(node) {
-	  return ["Element",Guid.guid(),["EHtml",node],w,h,1,Nothing,Nothing];
+	  return ["Element",Guid.guid(),
+		  ["EExternalHtml",node],
+		  w,h,1,Nothing,Nothing];
 	}
       }
     }
@@ -292,8 +294,8 @@ var Value = function(){
   function getTextSize(w,h,txt) {
     var t = document.createElement('div');
     t.innerHTML = txt;
-    t.style.width  = w + "px";
-    //t.style.height = h + 'px';
+    t.style.textAlign = 'left';
+    if (w > 0) { t.style.width  = w + "px"; }
     
     t.style.visibility = "hidden";
     t.style.styleFloat = "left";
@@ -305,7 +307,7 @@ var Value = function(){
     var realH = cStyle.getPropertyValue("height").slice(0,-2) - 0;
     document.body.removeChild(t);
     delete t;
-    return [realW,Math.max(h,realH)];
+    return [Math.ceil(realW),Math.ceil(Math.max(h,realH))];
   }
 
   function getSize(e) {
@@ -1540,29 +1542,29 @@ ElmCode.Graphics.Element = function() {
   function heightOf_53(e) { return ~~e[4]; }
   function sizeOf_54(e)   { return["Tuple2", ~~e[3], ~~e[4]] }
   function text_56(txt) {
-    var p = Value.getTextSize(-1,-1,txt);
+    var p = Value.getTextSize(0,0,txt);
     return basicNewElement(EText_39("left")(txt), p[0], p[1])
   }
   function plainText(str) {
     var txt = Value.toText(str);
-    var p = Value.getTextSize(-1,-1,txt);
+    var p = Value.getTextSize(0,0,txt);
     return basicNewElement(EText_39("left")(txt),p[0],p[1])
   }
   function asText(v) {
     var txt = Value.show(v);
-    var p = Value.getTextSize(-1,-1,txt);
+    var p = Value.getTextSize(0,0,txt);
     return basicNewElement(EText_39("left")(txt),p[0],p[1])
   }
   function centeredText(txt) {
-    var p = Value.getTextSize(-1,-1,txt);
+    var p = Value.getTextSize(0,0,txt);
     return basicNewElement(EText_39("center")(txt),p[0],p[1])
   }
   function justifiedText(txt) {
-    var p = Value.getTextSize(-1,-1,txt);
+    var p = Value.getTextSize(0,0,txt);
     return basicNewElement(EText_39("justify")(txt),p[0],p[1])
   }
   function rightedText(txt) {
-    var p = Value.getTextSize(-1,-1,txt);
+    var p = Value.getTextSize(0,0,txt);
     return basicNewElement(EText_39("right")(txt),p[0],p[1])
   }
   function image_57(w) {
@@ -1571,6 +1573,22 @@ ElmCode.Graphics.Element = function() {
 	  return basicNewElement(EImage_40(src),w,h)
       }
     }
+  }
+  function images(srcs) {
+      var pics = Elm.Input(spacer_66(0)(0));
+      var update = Elm.Lift(function(src) {
+	      src = Foreign.JavaScript.castStringToJSString(src);
+	      var img = new Image();
+	      img.onload = function() {
+		  console.log('loaded');
+		  Dispatcher.notify(pics.id,
+				    image_57(this.width)(this.height)(src));
+	      };
+	      img.src = src;
+	  }, [srcs]);
+      var combine = Elm.Lift(function(x) { return function(y) { return x; } },
+			     [pics,update]);
+      return combine;
   }
   function video_58(w) {
     return function(h) {
@@ -1806,7 +1824,7 @@ ElmCode.Graphics.Element = function() {
     }
   }
   return{left:left_6, right:right_7, down:down_8, up:up_9, inward:inward_10, outward:outward_11, topLeft:topLeft_22, topRight:topRight_23, bottomLeft:bottomLeft_24, bottomRight:bottomRight_25, midLeft:midLeft_26, midRight:midRight_27, midTop:midTop_28, midBottom:midBottom_29, middle:middle_30, middleAt:middleAt, topLeftAt:topLeftAt_31, topRightAt:topRightAt_32, bottomLeftAt:bottomLeftAt_33, bottomRightAt:bottomRightAt_34, absolute:absolute_35, relative:relative_36, width:width_47, height:height_48, size:size_49, opacity:opacity_50, 
-	 color:color_51, link:link, widthOf:widthOf_52, heightOf:heightOf_53, sizeOf:sizeOf_54, text:text_56, asText:asText, plainText:plainText, centeredText:centeredText, justifiedText:justifiedText, rightedText:rightedText, image:image_57, video:video_58, fittedImage:fittedImage_59, flow:flow_60, above:above_61, below:below_62, beside:beside_63, layers:layers_64, collage:collage_65, spacer:spacer_66, container:container_67, line:line_76, segment:segment_77, polygon:polygon_79, rect:rect_80, oval:oval_81, circle:circle_82, ngon:ngon_83, solid:solid_89, dotted:dotted_90, dashed:dashed_91, customLine:customLine_92, filled:filled_93, 
+	 color:color_51, link:link, widthOf:widthOf_52, heightOf:heightOf_53, sizeOf:sizeOf_54, text:text_56, asText:asText, plainText:plainText, centeredText:centeredText, justifiedText:justifiedText, rightedText:rightedText, image:image_57, images:images, video:video_58, fittedImage:fittedImage_59, flow:flow_60, above:above_61, below:below_62, beside:beside_63, layers:layers_64, collage:collage_65, spacer:spacer_66, container:container_67, line:line_76, segment:segment_77, polygon:polygon_79, rect:rect_80, oval:oval_81, circle:circle_82, ngon:ngon_83, solid:solid_89, dotted:dotted_90, dashed:dashed_91, customLine:customLine_92, filled:filled_93, 
 	 outlined:outlined_94, customOutline:customOutline_95, textured:textured, sprite:sprite_96, toForm:toForm_97, rotate:rotate_98, scale:scale_99, move:move_100}
 }();
 var Text = function() {
@@ -2016,9 +2034,15 @@ function render(elem) {
     case "EContainer":   e = container(elem[2][1],elem[2][2]); break;
     case "EHtml":
 	e = elem[2][1];
-	var p = Value.getExcess(e);
-	elem[3] -= p[0];
-	elem[4] -= p[1];
+	if (e.type !== 'button') {
+	    var p = Value.getExcess(e);
+	    elem[3] -= p[0];
+	    elem[4] -= p[1];
+	}
+	break;
+    case "EExternalHtml":
+	e = newElement('div');
+	addTo(e, elem[2][1]);
 	break;
     }
     e.id = elem[1];
@@ -2092,9 +2116,21 @@ function update(node,curr,next) {
     case "EEmpty":
 	break;
     case "EHtml":
-	var p = Value.getExcess(node);
-	next[3] -= p[0];
-	next[4] -= p[1];
+	if (next[1] !== curr[1]) {
+	    var e = render(next);
+	    node.parentNode.replaceChild(e,node);
+	    node = e;
+	}
+	if (e.type !== 'button') {
+	    var p = Value.getExcess(node);
+	    next[3] -= p[0];
+	    next[4] -= p[1];
+	}
+	break;
+    case "EExternalHtml":
+	if (next[1] !== curr[1])
+	    node.parentNode.replaceChild(render(next),node);
+	break;
     }
     if (next[3] !== curr[3]) node.style.width   = (~~next[3]) + 'px';
     if (next[4] !== curr[4]) node.style.height  = (~~next[4]) + 'px';
@@ -2136,7 +2172,8 @@ var Elm = function() {
 	this.id = Guid.guid();
 	this.value = null;
 	this.kids = [];
-	this.inbox = {};
+	this.count = 0;
+	this.changed = false;
 
 	args.reverse();
 	this.recalc = function() {
@@ -2149,16 +2186,13 @@ var Elm = function() {
 	this.recalc();
 
 	this.recv = function(timestep, changed, parentID) {
-	    if (!this.inbox.hasOwnProperty(timestep)) {
-		this.inbox[timestep] = { changed: false, count: 0 };
-	    }
-	    var box = this.inbox[timestep];
-	    box.count += 1;
-	    if (changed) { box.changed = true; }
-	    if (box.count == args.length) {
-		if (box.changed) { this.recalc() }
-		send(this, timestep, box.changed);
-		delete this.inbox[timestep];
+	    this.count += 1;
+	    if (changed) { this.changed = true; }
+	    if (this.count == args.length) {
+		if (this.changed) { this.recalc() }
+		send(this, timestep, this.changed);
+		this.changed = false;
+		this.count = 0;
 	    }
 	};
 	for (var i = args.length; i--; ) {
@@ -2209,12 +2243,18 @@ var Elm = function() {
 	this.id = Guid.guid();
 	this.value = s2.value;
 	this.kids = [];
-	this.inbox = {};
+	this.count = 0;
+	this.changed = false;
 
 	this.recv = function(timestep, changed, parentID) {
-	    var chng = changed && parentID === s1.id;
-	    if (chng) { this.value = s2.value; }
-	    send(this, timestep, chng);
+	    if (parentID === s1.id) this.changed = changed;
+	    this.count += 1;
+	    if (this.count == 2) {
+		if (this.changed) { this.value = s2.value; }
+		send(this, timestep, this.changed);
+		this.count = 0;
+		this.changed = false;
+	    }
 	};
 	s1.kids.push(this);
 	s2.kids.push(this);
@@ -2294,6 +2334,10 @@ var Dispatcher = function() {
     return {initialize:initialize, notify:notify, inputs:inputs};
 }();
 var Signal = function() {
+  function wrap(elem) {
+    var p = Value.getSize(elem);
+    return ["Element", Guid.guid(), ["EHtml",elem], p[0], p[1], 1, Nothing, Nothing];
+  }
   function toElmString(str) {
       var out = ["Nil"];
       for (var i = str.length; i--; ) {
@@ -2366,12 +2410,13 @@ var Signal = function() {
 		this.removeEventListener('mousemove',arguments.callee,false);
 	});
     var clickedOn = function(elem) {
+	var node = Render.render(elem);
 	var click = Elm.Input(false);
-	addListener(elem, 'click', function(e) {
+	addListener(node, 'click', function(e) {
 		Dispatcher.notify(click.id, true);
 		Dispatcher.notify(click.id, false);
 	    });
-	return Value.Tuple(elem, click);
+	return Value.Tuple(wrap(node), click);
     };
     return {position: position,
 	    x:x,
@@ -2536,10 +2581,6 @@ var Signal = function() {
       return { inRange:inRange, randomize:randomize };
   }();
   var Input = function() {
-      function wrap(elem) {
-	  var p = Value.getSize(elem);
-	  return ["Element", Guid.guid(), ["EHtml",elem], p[0], p[1], 1, Nothing, Nothing];
-      }
       var newTextInput = function(elem, ghostText) {
 	  elem.placeholder = Foreign.JavaScript.castStringToJSString(ghostText);
 	  var str = Elm.Input(["Nil"]);
