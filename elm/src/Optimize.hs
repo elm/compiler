@@ -3,7 +3,7 @@ module Optimize (optimize) where
 import Ast
 import Control.Arrow (second)
 import Data.Char (isAlpha)
-
+import Substitute
 
 optimize (Module name ims exs stmts) =
     Module name ims exs (map optimizeStmt stmts)
@@ -21,6 +21,9 @@ simp expr =
       Range e1 e2 -> Range (f e1) (f e2)
       Binop op e1 e2 -> simp_binop op (f e1) (f e2)
       Lambda x e -> Lambda x (f e)
+      App (Lambda x e1) e2 -> 
+          if isValue e2' then subst x e2' e1' else App (Lambda x e1') e2'
+              where { e1' = f e1 ; e2' = f e2 }
       App e1 e2 -> App (f e1) (f e2)
       If e1 e2 e3 -> simp_if (f e1) (f e2) (f e3)
       Let defs e -> Let (map simpDef defs) (f e)
@@ -31,6 +34,15 @@ simp expr =
 
 simp_if (Boolean b) e2 e3 = if b then e2 else e3
 simp_if a b c = If a b c
+
+isValue e = case e of { IntNum _  -> True
+                      ; FloatNum _ -> True
+                      ; Chr _ -> True
+                      ; Str _ -> True
+                      ; Boolean _ -> True
+                      ; Var _ -> True
+                      ; Data _ _ -> True
+                      ; _ -> False }
 
 simp_binop = binop
 
@@ -87,6 +99,7 @@ binop "++" e (Data "Nil" []) = e
 binop "++" (Data "Cons" [h,t]) e = Data "Cons" [h, binop "++" t e]
 
 binop "$" e1 e2 = App e1 e2
+binop "." e1 e2 = Lambda "x" (App e1 (App e2 (Var "x")))
 
 binop op e1 e2
     | isAlpha (head op) || '_' == head op = App (App (Var op) e1) e2

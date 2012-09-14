@@ -4,9 +4,9 @@ import Control.Arrow (second)
 
 import Ast
 
-subst :: String -> String -> Expr -> Expr
-subst new old expr =
-    let f = subst new old in
+subst :: String -> Expr -> Expr -> Expr
+subst old new expr =
+    let f = subst old new in
     case expr of
       Range e1 e2 -> Range (f e1) (f e2)
       Access e x -> Access (f e) x
@@ -20,7 +20,7 @@ subst new old expr =
       Input _ -> expr
       Let defs e -> Let (map substDef defs) (f e)
               where substDef (Definition name vs e) = Definition name vs (f e)
-      Var x -> if x == old then Var new else expr
+      Var x -> if x == old then new else expr
       Case e cases -> Case (f e) $ map (second f) cases
       Data name es -> Data name (map f es)
       _ -> expr

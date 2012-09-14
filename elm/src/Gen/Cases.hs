@@ -45,7 +45,7 @@ match vs cs def
 
 matchVar :: [String] -> [([Pattern],Expr)] -> Match -> GuidCounter Match
 matchVar (v:vs) cs def = match vs (map subVar cs) def
-    where subVar (PVar x    : ps, e) = (ps, subst v x e)
+    where subVar (PVar x    : ps, e) = (ps, subst x (Var v) e)
           subVar (PAnything : ps, e) = (ps, e)
 
 matchCon :: [String] -> [([Pattern],Expr)] -> Match -> GuidCounter Match
