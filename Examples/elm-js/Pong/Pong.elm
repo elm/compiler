@@ -299,10 +299,10 @@ scoreBoard w inPlay p1 p2 =
   let { code = text . monospace . toText
       ; stack top bottom = flow down [ code " ", code top, code bottom ]
       ; msg = width w . centeredText . monospace $ toText "Press SPACE to begin"
-      ; score = width w . box 2 $ flow right
-                  [ stack "W" "S", rectangle 20 1
-                  , text . Text.height 4 $ show p1 ++ toText "    " ++ show p2
-                  , rectangle 20 1, stack "&uarr;" "&darr;" ]
+      ; board = flow right [ stack "W" "S", spacer 20 1
+                           , text . Text.height 4 $ show p1 ++ toText "    " ++ show p2
+                           , spacer 20 1, stack "&uarr;" "&darr;" ]
+      ; score = container w (heightOf board) midTop board
       }
   in  if inPlay then score else score `above` msg
 
@@ -311,14 +311,14 @@ scoreBoard w inPlay p1 p2 =
 
 display (w,h) (GameState state (Score p1 p2) (Ball pos _) (Paddle y1) (Paddle y2)) =
   layers
-    [ scoreBoard w (state == Play) p1 p2
-    , let pongGreen = rgb 60 100 60 in
-      size w h . box 5 $ collage gameWidth gameHeight
+    [ let pongGreen = rgb 60 100 60 in
+      container w h middle $ collage gameWidth gameHeight
         [ filled pongGreen (rect gameWidth gameHeight (halfWidth,halfHeight))
         , filled white (oval 15 15 pos)                    -- ball
         , filled white (rect 10 40 (            20, y1))   -- first paddle
         , filled white (rect 10 40 (gameWidth - 20, y2))   -- second paddle
         ]
+    , scoreBoard w (state == Play) p1 p2
     ]
 
 -- We can now define a view of the game (a signal of Elements) that changes

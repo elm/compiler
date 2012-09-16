@@ -6,17 +6,20 @@ import Foreign.JavaScript
 import Signal.Keyboard.Raw
 import Signal.Input
 
+(drop,dFPS) = dropDown
+  [ ( "30",  30)
+  , (  "4",   4)
+  , ( "10",  10)
+  , ( "60",  60)
+  , ("100", 100) ]
 
-foreign import jsevent "trigger" (castIntToJSNumber 0)
-  jsTime :: Signal JSNumber
-
-foreign export jsevent "finished"
-  done :: Signal JSBool
-
+desiredFPS = lift castIntToJSNumber dFPS
 foreign export jsevent "desiredFPS"
   desiredFPS :: Signal JSNumber
 
-desiredFPS = constant (castIntToJSNumber 30)
+
+foreign import jsevent "trigger" (castIntToJSNumber 0)
+  jsTime :: Signal JSNumber
 
 time = lift castJSNumberToFloat jsTime
 
@@ -26,7 +29,6 @@ time = lift castJSNumberToFloat jsTime
 getFPS ts =
   let len = length ts in
   if len > 1 then (len-1) / (head ts - last ts) else 0
-truncate n = castJSNumberToInt (castFloatToJSNumber $ 100 * n) / 100
 fps = lift (truncate . getFPS) (foldp (\t ts -> take 10 (t:ts)) [0] time)
 
 
@@ -45,7 +47,7 @@ velocity = lift (foldl addKey (0,0)) keysDown
 
 timestep = lift snd $ foldp (\t1 (t0,d) -> (t1, t1-t0)) (0,0) time
 
-delta = dropIf (\(x,y) -> x == 0 && y == 0) (0,0) $
+delta = dropIf (\(x,y) -> x == 0 && y == 0) (0,0) . sampleOn timestep $
         lift (scaleBy 100) (lift2 scaleBy timestep velocity)
 
 position = foldp addVecs (0,0) delta
@@ -53,15 +55,18 @@ position = foldp addVecs (0,0) delta
 
 -- Display moving square and FPS on screen.
 
-screen pos actual desired =
+screen pos actual =
   flow down [ collage 400 400 [ outlined black (rect 40 40 pos) ]
             , plainText "Move the square around with the arrow keys."
             , text $ toText "Actual frames per second: " ++ show actual
-            , text $ toText "Desired frames per second: " ++ show desired
+            , plainText "Desired frames per second: " `beside` drop
             ]
 
 
-game = lift3 screen position fps desiredFPS
+game = lift2 screen position fps
+
 done = lift (\_ -> castBoolToJSBool True) game
+foreign export jsevent "finished"
+  done :: Signal JSBool
 
 main = game

@@ -1,6 +1,7 @@
 
-var lib = document.createElement('script');
+document.body.onload = function() {
 
+var lib = document.createElement('script');
 lib.addEventListener('load', function() {
 	var div = document.createElement('div');
 	div.id = "demoMap";
@@ -18,6 +19,7 @@ lib.addEventListener('load', function() {
 		map.zoomToMaxExtent();
 	    }, 0);
     });
-
 lib.src = "http://www.openlayers.org/api/OpenLayers.js";
 document.head.appendChild(lib);
+
+}
