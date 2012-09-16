@@ -22,7 +22,7 @@ import ExtractNoscript
 
 css = H.style ! A.type_ "text/css" $ preEscapedToMarkup
       ("html,head,body { padding:0; margin:0; }\
-       \body { font-family: Arial; }\
+       \body { font-family: helvetica, arial, sans-serif; }\
        \a:link {text-decoration: none}\
        \a:visited {text-decoration: none}\
        \a:active {text-decoration: none}\
