@@ -33,6 +33,7 @@ var Value = function(){
   };
 
   function makeSpaces(s) {
+    if (s.length == 0) { return s; }
     var arr = s.split('');
     if (arr[0] == ' ') { arr[0] = "&nbsp;" }      
     for (var i = arr.length; --i; ) {

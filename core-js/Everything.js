@@ -57,3 +57,4 @@ ElmCode.Signal = Signal;
 ElmCode.Data.List = List;
 ElmCode.Foreign = Foreign;
 ElmCode.Prelude = Prelude;
+ElmCode.Graphics.Text = Text;

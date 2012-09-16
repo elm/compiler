@@ -11,7 +11,10 @@ var Text = function() {
     };
   };
 
-  var typeface = function(name) { return addStyle('font-family', name); };
+  var typeface = function(name) {
+      name = Foreign.JavaScript.castStringToJSString(name);
+      return addStyle('font-family', name);
+  };
   var size = function(px) {
     return addStyle('font-size', px + 'px');
   };
