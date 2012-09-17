@@ -12,15 +12,21 @@ efficiency improvements. I am really excited about this release!
 
 * Drastically improve the `collage` interface. You can now move, rotate, and scale
   the following forms:
-  - Lines
-  - Shapes (shapes can be textured now too)
-  - Images
   - Elements (any Element you want can be turned into a Form with `toForm`)
-  This will make it way easier to make games in Elm.
+  - Images
+  - Shapes (shapes can be textured now too)
+  - Lines
+  This will make it way easier to make games in Elm. Games can now include text,
+  gifs, videos, and any other Element you can think of.
 
 * Add `--minify` flag, to minify JS code.
 
 * Significantly improve performance of pattern matching.
+
+* Compiler performs beta-reduction in some simple cases.
+
+* The rendering section of the Elm runtume-system (RTS) has been totally rewritten,
+  making screen refreshes use fewer cycles, less memory, and cause less garbage-collection.
 
 
 
