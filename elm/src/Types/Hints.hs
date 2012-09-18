@@ -15,7 +15,8 @@ textToText = [ "header", "italic", "bold", "underline"
              , "overline", "strikeThrough", "monospace" ]
 
 textAttrs = [ "toText" -: string ==> text
-            --, "link"   -: string ==> text ==> text
+            , "typeface" -: string ==> text ==> text
+            , "link"   -:: string ==> a ==> a
             , numScheme (\t -> t ==> text ==> text) "Text.height"
             ] ++ hasType (text ==> text) textToText
 
@@ -29,38 +30,53 @@ elements = let iee = int ==> element ==> element in
            , "width"   -: iee
            , "height"  -: iee
            , "size"    -: int ==> iee
+           , "widthOf" -: element ==> int
+           , "heightOf"-: element ==> int
+           , "sizeOf"  -: element ==> pairOf int
            , "color"   -: color ==> element ==> element
-           , "box"     -: iee
-           , "rectangle" -: int ==> int ==> element
+           , "container" -: int ==> int ==> position ==> element ==> element
+           , "spacer" -: int ==> int ==> element
            , "rightedText"  -: text ==> element
            , "centeredText"  -: text ==> element
            , "justifiedText" -: text ==> element
            , "asText" -:: a ==> element 
            , "show" -:: a ==> text
            , "collage" -: int ==> int ==> listOf form ==> element
+           , "fittedImage" -: int ==> int ==> string ==> element
            ]
 
 directions = hasType direction ["up","down","left","right","inward","outward"]
+positions =
+    hasType position ["topLeft","midLeft","bottomLeft","midTop","middle"
+                     ,"midBottom","topRight","midRight","bottomRight"] ++
+    hasType (location ==> position)
+                ["topLeftAt","bottomLeftAt","middleAt","topRightAt","bottomRightAt"] ++
+    [ "absolute" -: int ==> location, "relative" -: float ==> location ]
 colors = [ numScheme (\n -> n ==> n ==> n ==> color) "rgb"
          , numScheme (\n -> n ==> n ==> n ==> n ==> color) "rgba"
          ] ++ hasType color ["red","green","blue","black","white"
                             ,"yellow","cyan","magenta","grey","gray"]
 
 lineTypes = [ numScheme (\n -> listOf (pairOf n) ==> line) "line"
+            , numScheme (\n -> pairOf n ==> pairOf n ==> line) "segment"
             , "customLine" -: listOf int ==> color ==> line ==> form
             ] ++ hasType (color ==> line ==> form) ["solid","dashed","dotted"]
 
 shapes = [ twoNums (\n m -> listOf (pairOf n) ==> pairOf m ==> shape) "polygon"
          , "filled"        -: color ==> shape ==> form
          , "outlined"      -: color ==> shape ==> form
+         , "textured"      -: string ==> shape ==> form
          , "customOutline" -: listOf int ==> color ==> shape ==> form
-         , numScheme (\n -> n ==> n ==> form ==> form) "move"
-         , numScheme (\n -> n ==> form ==> form) "rotate"
-         , numScheme (\n -> n ==> form ==> form) "scale"
          ] ++ map (twoNums (\n m -> n ==> n ==> pairOf m ==> shape)) [ "ngon"
                                                                      , "rect"
                                                                      , "oval" ]
 
+collages = [ numScheme (\n -> pairOf n ==> element ==> form) "toForm"
+           , numScheme (\n -> string ==> n ==> n ==> pairOf n ==> form) "sprite"
+           , numScheme (\n -> n ==> n ==> form ==> form) "move"
+           , numScheme (\n -> n ==> form ==> form) "rotate"
+           , numScheme (\n -> n ==> form ==> form) "scale"
+           ]
 
 --------  Foreign  --------
 
@@ -256,4 +272,5 @@ hints = mapM (\(n,s) -> (,) n `liftM` rescheme s) hs
     where hs = concat [ funcs, lists, signals, math, bools, str2elem, textAttrs
                       , elements, directions, colors, lineTypes, shapes
                       , concreteSignals, casts, polyCasts, json, maybeFuncs
+                      , positions, collages
                       ]

@@ -40,11 +40,11 @@ elm = ELM { make = False &= help "automatically compile dependencies."
           , minify = False &= help "Minify generated JavaScript"
           } &=
     help "Compile Elm programs to HTML, CSS, and JavaScript." &=
-    summary "The Elm Compiler v0.4.0, (c) Evan Czaplicki"
+    summary "The Elm Compiler v0.4.0.1, (c) Evan Czaplicki"
 
 main = do
   args <- cmdArgs elm
-  mini <- getDataFileName "elm-runtime-0.4.0.js"
+  mini <- getDataFileName "elm-runtime-0.4.0.1.js"
   compileArgs mini args
 
 compileArgs mini (ELM _ [] _ _ _ _ _ _) =

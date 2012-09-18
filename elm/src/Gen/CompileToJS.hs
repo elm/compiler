@@ -73,7 +73,7 @@ getExports names stmts = ret . braces $ intercalate "," pairs
 
 
 jsImport (modul, how) =
-  concat [ "\ntry{" ++ modul ++ " instanceof Object} catch(e) {throw \"Module '"
+  concat [ "\ntry{if (!(" ++ modul ++ " instanceof Object)) throw 'module not found'; } catch(e) {throw \"Module '"
          , drop 1 (dropWhile (/='.') modul)
          , "' is missing. Compile with --make flag or load missing "
          , "module in a separate JavaScript file.\";}" ] ++

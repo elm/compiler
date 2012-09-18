@@ -1,6 +1,6 @@
 
 Name:                Elm
-Version:             0.4.0
+Version:             0.4.0.1
 Synopsis:            The Elm language module.
 Description:         Elm aims to make client-side web-development more pleasant.
                      It is a statically/strongly typed, functional reactive
@@ -22,7 +22,7 @@ Category:            Compiler, Language
 Build-type:          Simple
 
 Extra-source-files:  changelog.txt
-Data-files:          elm-runtime-0.4.0.js
+Data-files:          elm-runtime-0.4.0.1.js
 Cabal-version:       >=1.8
 
 source-repository head
@@ -67,7 +67,7 @@ Library
                        deepseq,
                        text,
                        template-haskell,
-                       shakespeare,
+                       shakespeare >= 1,
                        pandoc,
                        bytestring,
                        hjsmin

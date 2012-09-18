@@ -50,6 +50,8 @@ form  = tipe "Form"
 line  = tipe "Line"
 shape = tipe "Shape"
 color = tipe "Color"
+position = tipe "Position"
+location = tipe "Location"
 
 listOf t   = ADT "List" [t]
 signalOf t = ADT "Signal" [t]
