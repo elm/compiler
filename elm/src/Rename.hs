@@ -14,7 +14,7 @@ derename var
 
 rename :: Module -> Module
 rename (Module name ex im stmts) =
-    Module name ex im . run $ renameStatements id stmts
+    Module name ex im . run $ renameStatements deprime stmts
 
 renameStatements env stmts = do env' <- extends env $ concatMap getNames stmts
                                 mapM (renameStmt env') stmts
@@ -83,10 +83,12 @@ rename' env expr =
 
   where rnm = rename' env
 
+deprime = map (\c -> if c == '\'' then '_' else c)
+
 extend :: (String -> String) -> String -> GuidCounter (String, String -> String)
 extend env x = do
   n <- guid
-  let rx = map (\c -> if c == '\'' then '_' else c) $ x ++ "_" ++ show n
+  let rx = deprime x ++ "_" ++ show n
   return (rx, \y -> if y == x then rx else env y)
 
 extends :: (String -> String) -> [String] -> GuidCounter (String -> String)

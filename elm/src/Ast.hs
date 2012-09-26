@@ -101,6 +101,7 @@ instance Show Expr where
   show (Fold e1 e2 e3) = concat [ "foldp ", show' e1, " ", show' e2, " ", show' e3 ]
   show (Async e) = "async " ++ show' e
   show (Input i) = i
+  show (Markdown _) = "[markdown| ... |]"
 
 
 instance Show Definition where

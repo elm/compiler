@@ -59,12 +59,13 @@ jsModule (escapees, Module names exports imports stmts) =
               modName  = intercalate "." modNames
               includes = concatMap jsImport $ map (first ("ElmCode."++)) imports
               body = stmtsToJS stmts
-              export = getExports exps stmts
+              export = getExports exports stmts
               exps = if null exports then ["main"] else exports
 
 getExports names stmts = ret . braces $ intercalate "," pairs
     where pairs = mapMaybe pair $ concatMap get stmts
-          pair x = if y `elem` names then Just $ y ++ ":" ++ x else Nothing
+          pair x = if null names || y `elem` names then
+                       Just $ y ++ ":" ++ x else Nothing
               where y = derename x
           get s = case s of Def x _ _           -> [x]
                             Datatype _ _ tcs    -> map fst tcs
