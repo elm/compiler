@@ -80,19 +80,21 @@ ElmCode.Graphics.Element = function() {
   var Dotted_69 = ["Dotted"];
   var Dashed_70 = ["Dashed"];
   function Custom_71(a1) {
-    return["Custom", a1]
+    return["Custom", Foreign.JavaScript.castListToJSArray(a1)]
   }
   var Filled_72 = ["Filled"];
   var Outlined_73 = ["Outlined"];
   function CustomOutline_74(a1) {
-    return["CustomOutline", a1]
+    return["CustomOutline", Foreign.JavaScript.castListToJSArray(a1)]
   }
   function Line_75(a1) {
-    return["Line", a1]
+    return["Line", Foreign.JavaScript.castListToJSArray(a1)]
   }
   function Shape_78(a1) {
     return function(a2) {
-      return["Shape", a1, a2]
+	var points = Foreign.JavaScript.castListToJSArray(a1);
+	if (points.length > 0) { points.push(points[0]); }
+	return["Shape", points, a2];
     }
   }
   function Form_84(a1) {
@@ -365,7 +367,10 @@ ElmCode.Graphics.Element = function() {
   function rect_80(w_174) {
     return function(h_175) {
       return function(pos_176) {
-        return Shape_78(["Cons", ["Tuple2", 0 - w_174 / 2, 0 - h_175 / 2], ["Cons", ["Tuple2", 0 - w_174 / 2, h_175 / 2], ["Cons", ["Tuple2", w_174 / 2, h_175 / 2], ["Cons", ["Tuple2", w_174 / 2, 0 - h_175 / 2], ["Nil"]]]]])(pos_176)
+        return Shape_78(["Cons", ["Tuple2", 0 - w_174 / 2, 0 - h_175 / 2],
+			 ["Cons", ["Tuple2", 0 - w_174 / 2, h_175 / 2],
+			  ["Cons", ["Tuple2", w_174 / 2, h_175 / 2],
+			   ["Cons", ["Tuple2", w_174 / 2, 0 - h_175 / 2], ["Nil"]]]]])(pos_176)
       }
     }
   }
@@ -457,7 +462,7 @@ ElmCode.Graphics.Element = function() {
   function customOutline_95(pattern) {
     return function(clr) {
       return function(shape) {
-	return Form_84(0)(1)(shape[2])(FShape_86(["CustomOutline",pattern])(clr)(shape));
+	  return Form_84(0)(1)(shape[2])(FShape_86(CustomOutline_74(pattern))(clr)(shape));
       }
     }
   }
@@ -506,5 +511,6 @@ ElmCode.Graphics.Element = function() {
   }
   return{left:left_6, right:right_7, down:down_8, up:up_9, inward:inward_10, outward:outward_11, topLeft:topLeft_22, topRight:topRight_23, bottomLeft:bottomLeft_24, bottomRight:bottomRight_25, midLeft:midLeft_26, midRight:midRight_27, midTop:midTop_28, midBottom:midBottom_29, middle:middle_30, middleAt:middleAt, topLeftAt:topLeftAt_31, topRightAt:topRightAt_32, bottomLeftAt:bottomLeftAt_33, bottomRightAt:bottomRightAt_34, absolute:absolute_35, relative:relative_36, width:width_47, height:height_48, size:size_49, opacity:opacity_50, 
 	 color:color_51, link:link, widthOf:widthOf_52, heightOf:heightOf_53, sizeOf:sizeOf_54, text:text_56, asText:asText, plainText:plainText, centeredText:centeredText, justifiedText:justifiedText, rightedText:rightedText, image:image_57, images:images, video:video_58, fittedImage:fittedImage_59, flow:flow_60, above:above_61, below:below_62, beside:beside_63, layers:layers_64, collage:collage_65, spacer:spacer_66, container:container_67, line:line_76, segment:segment_77, polygon:polygon_79, rect:rect_80, oval:oval_81, circle:circle_82, ngon:ngon_83, solid:solid_89, dotted:dotted_90, dashed:dashed_91, customLine:customLine_92, filled:filled_93, 
-	 outlined:outlined_94, customOutline:customOutline_95, textured:textured, sprite:sprite_96, toForm:toForm_97, rotate:rotate_98, scale:scale_99, move:move_100}
+	 outlined:outlined_94, customOutline:customOutline_95, textured:textured, sprite:sprite_96, toForm:toForm_97, rotate:rotate_98, scale:scale_99, move:move_100,
+	 insideForm: Collage.insideForm}
 }();

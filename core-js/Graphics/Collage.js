@@ -70,27 +70,22 @@ var customLineHelp = function(ctx, pattern, points) {
 };
 
 function drawLine(ctx,form) {
-    var points = Foreign.JavaScript.castListToJSArray(form[3][1]);
+    var points = form[3][1];
     switch(form[1][0]) {
     case "Solid" : return solid(ctx,form[2],points);
     case "Dotted": return customLine([3,3],ctx,form[2],points);
     case "Dashed": return customLine([8,4],ctx,form[2],points);
-    case "Custom": 
-	var pattern = Foreign.JavaScript.castListToJSArray(form[1][1]);
-	customLine(pattern,ctx,form[2],points);
+    case "Custom": return customLine(form[1][1],ctx,form[2],points);
     }
 };
 
 function drawShape(redo,ctx,shapeStyle,color,points) {
-    points = Foreign.JavaScript.castListToJSArray(points);
-    if (points.length > 0) points.push(points[0]);
     switch(shapeStyle[0]) {
     case "Filled":   return filled(ctx,color,points);
     case "Outlined": return solid(ctx,color,points);
     case "Textured": return textured(redo,ctx,shapeStyle[1],points);
     case "CustomOutline":
-	var pattern = Foreign.JavaScript.castListToJSArray(shapeStyle[1]);
-	customLine(pattern,ctx,color,points);
+	return customLine(shapeStyle[1],ctx,color,points);
     }
 };
 
@@ -209,6 +204,107 @@ function updateCollage(node,currs,nexts) {
     }
 }
 
-return {collage:collage, updateCollage:updateCollage};
+function style(clr,n,list) {
+    return ["Tuple2",
+	    '<span style="font-size:100%;color:' + clr + ';">' + n + '</span>',
+	    list];
+}
+
+function insideForm(point) { return function(form) {
+    if (!inBoundsOf(point[1],point[2],form)) return false;
+    var hw, hh;
+    switch (form[4][0]) {
+    case "FShape": return insideShape(point,form[1],form[2],form[3],form[4][3][1]);
+    case "FLine":  return false;
+    case "FImage":
+	hw = form[4][1] / 2;
+	hh = form[4][2] / 2;
+	break;
+    case "FElement":
+	hw = form[4][1][3] / 2;
+	hh = form[4][1][4] / 2;
+	break;
+    }
+    return insideShape(point,form[1],form[2],form[3],
+		       [ [null, hw, hh],
+			 [null,-hw, hh],
+			 [null,-hw,-hh],
+			 [null, hw,-hh],
+			 [null, hw, hh] ]);
+    };
+}
+
+function inBoundsOf(px,py,form) {
+  if (form.length < 6) {
+    var fx = form[3][1], fy = form[3][2];
+    var radiusSquared = 0;
+    var scale = form[2];
+    switch (form[4][0]) {
+    case "FShape":
+      var points = form[4][3][1];
+      for (var i = points.length; --i; ) {
+	  var p = points[i];
+	  radiusSquared = Math.max(radiusSquared, p[1]*p[1] + p[2]*p[2]);
+      }
+      radiusSquared *= scale * scale;
+      break;
+    case "FLine":
+      break;
+    case "FImage":
+      var x = scale * form[4][1] / 2;
+      var y = scale * form[4][2] / 2;
+      radiusSquared = x*x + y*y;
+      break;
+    case "FElement":
+      var x = scale * form[4][1][3] / 2;
+      var y = scale * form[4][1][4] / 2;
+      radiusSquared = x*x + y*y;
+      break;
+    }
+    form.push(function(px,py) {
+	    var dx = px - fx;
+	    var dy = py - fy;
+	    return dx*dx + dy*dy < radiusSquared + 1;
+	});
+  }
+  return form[5](px,py);
+}
+
+function insideShape(point,theta,scale,pos,points) {
+  var counter = 0;
+  var list = ["Nil"];
+  var p1,p2;
+
+  var x = (point[1] - pos[1]) / scale;
+  var y = (point[2] - pos[2]) / scale;
+  if (theta !== 0) {
+      var angle = 2 * Math.PI * theta;
+      var t = x === 0 ? (y > 0 ? Math.PI/2 : -Math.PI/2) - angle
+                      : (Math.atan(y/x) + (x > 0 ? 0 : Math.PI)) - angle;
+      var r = Math.sqrt(x*x + y*y);
+      x = r * Math.cos(t);
+      y = r * Math.sin(t);
+  }
+
+  if (points.length === 0) { return false; }
+  p1 = points[0];
+  for (var i = points.length - 1; i--; ) {
+    p2 = points[i];
+    var p1x = p1[1], p1y = p1[2], p2x = p2[1], p2y = p2[2];
+
+    if (p1y < p2y) {var ymin=p1y, ymax=p2y;} else {var ymin=p2y, ymax=p1y;}
+    if (p1x < p2x) {var xmin=p1x, xmax=p2x;} else {var xmin=p2x, xmax=p1x;}
+
+    if (ymin < y && y <= ymax && x <= xmax) {
+	if (x <= xmin || x <= ((y-p1y)*(p2x-p1x)/(p2y-p1y)+p1x)) {
+	    ++counter;
+	}
+    }
+    p1 = p2;
+  }
+  return (counter % 2) === 1;
+}
+
+return {collage:collage, updateCollage:updateCollage, insideForm:insideForm};
 
 }();
