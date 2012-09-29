@@ -347,6 +347,8 @@ var Signal = function() {
 			  return Elm.Lift(f, [e1,e2,e3,e4]); }; }; }; }; },
 	  foldp : function(f) { return function(b) { return function(e) {
 		  return Elm.Fold(f,b,e); }; }; },
+	  foldp1 : function(f) { return function(b) { return function(e) {
+		  return Elm.Fold1(f,b,e); }; }; },
 	  count : function(sig){return Elm.Fold(function(_){return function(c){return c+1;};},0,sig)},
 	  keepIf : Elm.keepIf,
 	  dropIf : Elm.dropIf,
