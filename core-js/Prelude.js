@@ -94,6 +94,7 @@ var Prelude = function() {
 	    lift3 : Signal.lift3,
 	    lift4 : Signal.lift4,
 	    foldp : Signal.foldp,
+	    foldp1 : Signal.foldp1,
 	    constant : Signal.constant,
 	    count : Signal.count,
 	    keepIf : Signal.keepIf,

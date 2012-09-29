@@ -50,9 +50,9 @@ var Elm = function() {
 	    args[i].kids.push(this);
 	}
     };
-    var fold = function(func,base,input) {
+    var fold = function(func,base,baseIsFunc,input) {
 	this.id = Guid.guid();
-	this.value = base;
+	this.value = baseIsFunc ? base(input.value) : base;
 	this.kids = [];
 	this.recv = function(timestep, changed, parentID) {
 	    if (changed) { this.value = func(input.value)(this.value); }
@@ -113,7 +113,8 @@ var Elm = function() {
 
     return {Input: function(x) {return new input(x);},
 	    Lift:  function(f,xs){return new lift(f,xs);},
-	    Fold:  function(f,b,x){return new fold(f,b,x);},
+	    Fold:  function(f,b,x){return new fold(f,b,false,x);},
+	    Fold1: function(f,b,x){return new fold(f,b,true,x);},
 	    keepIf : function(pred) { return function(base) { return function(sig) {
 		    return new dropIf(function(x) { return !pred(x)},base,sig); }; }; },
 	    dropIf : function(pred) { return function(base) { return function(sig) {
