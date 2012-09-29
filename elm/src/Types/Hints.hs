@@ -131,7 +131,8 @@ signals =
     , sig 3 "lift2"
     , sig 4 "lift3"
     , sig 5 "lift4"
-    , "foldp" -:: (a ==> b ==> b) ==> b ==> signalOf a ==> signalOf b
+    , "foldp"     -:: (a ==> b ==> b) ==> b ==> signalOf a ==> signalOf b
+    , "foldp1"    -:: (a ==> b ==> b) ==> (a ==> b) ==> signalOf a ==> signalOf b
     , "randomize" -:: int ==> int ==> signalOf a ==> signalOf int
     , "count"     -:: signalOf a ==> signalOf int
     , "keepIf"    -:: (a==>bool) ==> a ==> signalOf a ==> signalOf a
