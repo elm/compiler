@@ -3,6 +3,7 @@ module Types.Substitutions (cSub
                            ,tSub
                            ,cSubNoContext
                            ,cFreeVars
+                           ,freeVars
                            ,schemeSub
                            ,concretize
                            ,rescheme

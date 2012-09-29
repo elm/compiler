@@ -49,16 +49,18 @@ solver (Context ctx (VarT x :=: VarT y) : cs) subs
               solver (map (cSub y (VarT x)) cs) $ Map.insert y (VarT x) subs
           (_, _) ->
               solver (map (cSub x (VarT y)) cs) $ Map.insert x (VarT y) subs
-solver (Context ctx (VarT x :=: t) : cs) subs =
-    case Map.lookup x subs of
-      Nothing -> solver (map (cSub x t) cs) . Map.map (tSub x t) $ Map.insert x t subs
-      Just (Super ts) ->
-          let ts' = Set.intersection ts (Set.singleton t) in
-          case Set.toList ts' of
-            []   -> solver (Context ctx (t :<: Super ts) : cs) subs
-            [t'] -> solver (map (cSub x t') cs) $ Map.insert x t' subs
-            _    -> solver cs $ Map.insert x (Super ts') subs
-      Just t' -> solver (Context ctx (t' :=: t) : cs) subs
+solver (Context ctx (VarT x :=: t) : cs) subs = do
+  if x `occursIn` t then occursError ctx (VarT x) t else
+      (case Map.lookup x subs of
+         Nothing -> solver (map (cSub x t) cs) . Map.map (tSub x t) $ Map.insert x t subs
+         Just (Super ts) ->
+             let ts' = Set.intersection ts (Set.singleton t) in
+             case Set.toList ts' of
+               []   -> solver (Context ctx (t :<: Super ts) : cs) subs
+               [t'] -> solver (map (cSub x t') cs) $ Map.insert x t' subs
+               _    -> solver cs $ Map.insert x (Super ts') subs
+         Just t' -> solver (Context ctx (t' :=: t) : cs) subs
+      )
 solver ((Context ctx (t :=: VarT x)) : cs) subs =
     solver ((Context ctx (VarT x :=: t)) : cs) subs
 solver ((Context ctx (t1 :=: t2)) : cs) subs
@@ -98,6 +100,10 @@ solver (Context ctx (x :<<: s) : cs) subs
            prints cs'' $ solver cs'' subs
 
 
+occursError ctx t1 t2 =
+    return . Left $ "Type error: Occurs check: cannot construct the infinite type: " ++ show t1 ++
+                    " = " ++ show t2 ++
+                    " in context " ++ ctx
 uniError ctx t1 t2 =
     return . Left $ "Type error: " ++ show t1 ++
                     " is not equal to " ++ show t2 ++
@@ -109,3 +115,5 @@ unionError ctx ts ts' =
 subtypeError ctx t s =
     return . Left $ concat [ "Type error: ", show t, " is not a ", show s
                            , " in context ", ctx ]
+
+occursIn x t = x `elem` freeVars t
