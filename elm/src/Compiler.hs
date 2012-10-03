@@ -4,6 +4,7 @@ module Main where
 import Data.Either (lefts, rights)
 import Data.List (intersect, intercalate)
 import Data.Maybe (fromMaybe)
+import Data.Version (showVersion)
 import System.Console.CmdArgs
 import Text.Blaze.Html.Renderer.String (renderHtml)
 
@@ -40,11 +41,11 @@ elm = ELM { make = False &= help "automatically compile dependencies."
           , minify = False &= help "Minify generated JavaScript"
           } &=
     help "Compile Elm programs to HTML, CSS, and JavaScript." &=
-    summary ("The Elm Compiler " ++ show version ++ ", (c) Evan Czaplicki")
+    summary ("The Elm Compiler " ++ showVersion version ++ ", (c) Evan Czaplicki")
 
 main = do
   args <- cmdArgs elm
-  mini <- getDataFileName ("elm-runtime-" ++ show version ++ ".js")
+  mini <- getDataFileName ("elm-runtime-" ++ showVersion version ++ ".js")
   compileArgs mini args
 
 compileArgs mini (ELM _ [] _ _ _ _ _ _) =

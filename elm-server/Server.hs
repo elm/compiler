@@ -4,6 +4,7 @@ module Main where
 import Control.Monad (msum,guard)
 import Control.Monad.Trans (MonadIO(liftIO))
 import Data.List (isPrefixOf, isSuffixOf)
+import Data.Version (showVersion)
 import Happstack.Server
 import Happstack.Server.Compression
 import System.Directory (makeRelativeToCurrentDirectory)
@@ -11,11 +12,11 @@ import System.Environment
 import qualified Language.Elm as Elm
 import Paths_elm_server
 
-runtime = "/elm-" ++ show version ++ ".js"
+runtime = "elm-" ++ showVersion version ++ ".js"
 
 serve :: String -> IO ()
 serve libLoc = do
-  putStrLn ("Elm Server "++show version++": running at <http://localhost:8000>")
+  putStrLn ("Elm Server " ++ showVersion version ++ ": running at <http://localhost:8000>")
   simpleHTTP nullConf $ do
          _ <- compressedResponseFilter
          msum [ uriRest serveElm
@@ -34,7 +35,7 @@ serveElm fp = do
   ok . toResponse $ Elm.toHtml runtime (pageTitle filePath) content
 
 serveLib libLoc fp = do
-  guard (fp == runtime)
+  guard (fp == '/' : runtime)
   serveFile (asContentType "application/javascript") libLoc
 
 main :: IO ()
@@ -42,7 +43,7 @@ main = getArgs >>= parse
 
 parse :: [String] -> IO ()
 parse ("--help":_) = putStrLn usage
-parse ("--version":_) = putStrLn ("The Elm Server " ++ show version)
+parse ("--version":_) = putStrLn ("The Elm Server " ++ showVersion version)
 parse [] = serve =<< Elm.runtimeLocation
 parse [arg]
     | "--runtime-location=" `isPrefixOf` arg =
