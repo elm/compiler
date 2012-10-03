@@ -28,7 +28,10 @@ import Paths_Elm
 import qualified Data.Text as TS
 import qualified Data.Text.Lazy as TL
 
-runtimeLocation = getDataFileName ("elm-runtime-" ++ showVersion version ++ ".js")
+-- |The absolute path to Elm's runtime system.
+runtimeLocation :: IO FilePath
+runtimeLocation =
+    getDataFileName ("elm-runtime-" ++ showVersion version ++ ".js")
 
 class ElmSource a where
   -- |This function compiles Elm code to three separate parts: HTML, CSS,
