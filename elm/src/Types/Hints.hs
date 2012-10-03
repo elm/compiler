@@ -49,7 +49,7 @@ directions = hasType direction ["up","down","left","right","inward","outward"]
 positions =
     hasType position ["topLeft","midLeft","bottomLeft","midTop","middle"
                      ,"midBottom","topRight","midRight","bottomRight"] ++
-    hasType (location ==> position)
+    hasType (location ==> location ==> position)
                 ["topLeftAt","bottomLeftAt","middleAt","topRightAt","bottomRightAt"] ++
     [ "absolute" -: int ==> location, "relative" -: float ==> location ]
 colors = [ numScheme (\n -> n ==> n ==> n ==> color) "rgb"
