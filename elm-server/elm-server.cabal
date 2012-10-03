@@ -35,4 +35,4 @@ Executable elm-server
                        happstack-server == 7.0.2,
                        deepseq,
                        directory,
-                       Elm == 0.4.*
+                       Elm >= 0.4.0.3

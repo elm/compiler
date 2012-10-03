@@ -32,7 +32,6 @@ source-repository head
 Library
   exposed-modules:     Language.Elm,
                        Language.Elm.Quasi
-                       Paths_Elm
   Hs-Source-Dirs:      src, src/Parse, src/Types, src/Gen
   other-modules:       Ast,
                        CompileToJS,
@@ -56,7 +55,8 @@ Library
                        Types.Constrain,
                        Types.Hints,
                        Types.Substitutions,
-                       Types.Unify
+                       Types.Unify,
+                       Paths_Elm
 
   Build-depends:       base >=4.2 && <5,
                        containers >= 0.3,
@@ -98,7 +98,8 @@ Executable elm
                        Types.Constrain,
                        Types.Hints,
                        Types.Substitutions,
-                       Types.Unify
+                       Types.Unify,
+                       Paths_Elm
 
   Build-depends:       base >=4.2 && <5,
                        containers >= 0.3,

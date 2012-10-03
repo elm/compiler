@@ -12,7 +12,8 @@
      Example implementations using Yesod and Happstack are available at <https://github.com/tazjin/Elm/tree/master/Examples>
 -}
 module Language.Elm (
-    ElmSource (..)
+    ElmSource (..),
+    runtimeLocation
     ) where
 
 import CompileToJS
@@ -21,9 +22,12 @@ import GenerateHtml
 import Initialize
 import Text.Blaze.Html (Html)
 import Language.Elm.Quasi
+import Paths_Elm
 
 import qualified Data.Text as TS
 import qualified Data.Text.Lazy as TL
+
+runtimeLocation = getDataFileName ("elm-runtime-" ++ show version ++ ".js")
 
 class ElmSource a where
   -- |This function compiles Elm code to three separate parts: HTML, CSS,

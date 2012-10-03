@@ -9,11 +9,13 @@ import Happstack.Server.Compression
 import System.Directory (makeRelativeToCurrentDirectory)
 import System.Environment
 import qualified Language.Elm as Elm
-import Paths_Elm
+import Paths_elm_server
+
+runtime = "/elm-" ++ show version ++ ".js"
 
 serve :: String -> IO ()
 serve libLoc = do
-  putStrLn "Elm Server 0.4.0.3: running at <http://localhost:8000>"
+  putStrLn ("Elm Server "++show version++": running at <http://localhost:8000>")
   simpleHTTP nullConf $ do
          _ <- compressedResponseFilter
          msum [ uriRest serveElm
@@ -29,10 +31,10 @@ serveElm fp = do
   let ('/':filePath) = fp
   guard (".elm" `isSuffixOf` filePath)
   content <- liftIO (readFile filePath)
-  ok . toResponse $ Elm.toHtml "elm-runtime.js" (pageTitle filePath) content
+  ok . toResponse $ Elm.toHtml runtime (pageTitle filePath) content
 
 serveLib libLoc fp = do
-  guard (fp == "/elm-runtime.js")
+  guard (fp == runtime)
   serveFile (asContentType "application/javascript") libLoc
 
 main :: IO ()
@@ -40,11 +42,8 @@ main = getArgs >>= parse
 
 parse :: [String] -> IO ()
 parse ("--help":_) = putStrLn usage
-parse ("--version":_) = putStrLn "The Elm Server 0.4.0.3"
-parse [] = do
-  absolutePath <- getDataFileName "elm-runtime-0.4.0.3.js"
-  runtime <- makeRelativeToCurrentDirectory absolutePath
-  serve runtime
+parse ("--version":_) = putStrLn ("The Elm Server " ++ show version)
+parse [] = serve =<< Elm.runtimeLocation
 parse [arg]
     | "--runtime-location=" `isPrefixOf` arg =
         serve . tail $ dropWhile (/='=') arg
@@ -63,7 +62,7 @@ usage =
   \Example: elm-server\n\
   \\n\
   \Resource Locations:\n\
-  \  --runtime-location   set the location of the Elm runtime (elm-mini.js)\n\
+  \  --runtime-location   set the location of the Elm runtime\n\
   \\n\
   \Compiler Information:\n\
   \  --version            print the version information and exit\n\
