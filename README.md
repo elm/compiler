@@ -25,16 +25,14 @@ Assuming everything goes correctly (potential problems are discussed later), thi
 
 To use these executables you need to add a new directory to your PATH. For me, the executables were placed in `/home/evan/.cabal/bin` which I appended to the end of my PATH variable in my .bashrc file. Cabal should tell you where your executables are located upon successful installation, so you can make a similar addition (see this tutorial if you are new to changing your PATH in [Unix/Linux](http://www.cyberciti.biz/faq/unix-linux-adding-path/)).
 
-That is almost everything. Now, we will create a simple Elm project. The following commands will set-up a very basic project and compile it to HTML.
+That is almost everything. Now, we will create a simple Elm project. The following commands will set-up a very basic project and start the Elm server.
 
     mkdir helloElm
     cd helloElm
     echo main = lift asText Mouse.position > main.elm
-    elm main.elm
+    elm-server
 
-The first two commands create a new directory and navigate into it. The `echo` command places a simple program into `main.elm` (do this manually if you do not have `echo`). The final command compiles the Elm code to HTML, which you can open with your browser.
-
-An important note: When you install the `elm` compiler, it automatically downloads Elm's JavaScript runtime system to `~/.cabal/share/Elm-x.y.z/`. The runtime system will follow the name scheme `elm-runtime-x.y.z.js` where `x.y.z` matches the version number of the compiler. If you want to serve this file from a different location, *copy* it from its home and always be sure that code compiled with version `x.y.z` of the compiler is served with version `x.y.z` of the runtime system.
+The first two commands create a new directory and navigate into it. The `echo` command places a simple program into `main.elm` (do this manually if you do not have `echo`). The final command starts the Elm server at [localhost](http://localhost:8000/), allowing you to navigate to `main.elm` and see your first program in action.
 
 
 Installation for Haskell-users
@@ -51,6 +49,9 @@ Yesod users should also install the `elm-yesod` package which provides functions
     cabal install elm-yesod
 
 Some extra tips on Elm+Yesod can be found [here](https://github.com/evancz/Elm/wiki/Elm-with-Yesod:-Getting-Started).
+
+An important note: When you install the `elm` compiler, it automatically downloads Elm's JavaScript runtime system to `~/.cabal/share/Elm-x.y.z/`. The runtime system will follow the name scheme `elm-runtime-x.y.z.js` where `x.y.z` matches the version number of the compiler. If you want to serve this file from a different location, *copy* it from its home and always be sure that code compiled with version `x.y.z` of the compiler is served with version `x.y.z` of the runtime system.
+
 
 Potential problems and their solutions
 --------------------------------------
