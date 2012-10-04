@@ -40,7 +40,7 @@ elements = let iee = int ==> element ==> element in
            , "centeredText"  -: text ==> element
            , "justifiedText" -: text ==> element
            , "asText" -:: a ==> element 
-           , "show" -:: a ==> text
+           , "show" -:: a ==> string
            , "collage" -: int ==> int ==> listOf form ==> element
            , "fittedImage" -: int ==> int ==> string ==> element
            ]
@@ -145,6 +145,18 @@ signals =
     , "sampleOn" -:: signalOf a ==> signalOf b ==> signalOf b
     ]
 
+http =
+  [ "send"     -:: signalOf (request a) -> signalOf (response string)
+  , "sendGet"  -:: signalOf string -> signalOf (response string)
+  , "get"      -:  string ==> request string
+  , "post"     -:  string ==> string ==> request string
+  , "request"  -:  string ==> string ==> string ==> listOf (pairOf string) ==> request string
+  , "Waiting"  -:: response a
+  , "Failure"  -:: int ==> string ==> response a
+  , "Success"  -:: a -> response a ]
+    where request  t = ADT "Request"  [t]
+          response t = ADT "Response" [t]
+
 concreteSignals = 
   [ "keysDown"    -: signalOf (listOf int)
   , "charPressed" -: signalOf (maybeOf int)
@@ -199,6 +211,15 @@ bools =
     , Forall [0,1] [ Context "`compare'" $ VarT 0 :<: comparable ] (VarT 0 ==> VarT 0 ==> VarT 1) )
   ]
 
+chars =
+  [ hasType (char ==> bool)
+                ["isDigit","isOctDigit","isHexDigit","isUpper","isLower"]
+  , hasType (char ==> char)
+                ["toUpper","toLower","toLocaleUpper","toLocaleLower"]
+  , "toCode"   -: char ==> int
+  , "fromCode" -: int ==> char
+  ]
+
 --------  Polymorphic Functions  --------
 
 [a,b,c] = map VarT [1,2,3]
@@ -237,8 +258,8 @@ lists =
   , "foldr1"  -:: (a ==> a ==> a) ==> listOf a ==> a
   , "foldl1"  -:: (a ==> a ==> a) ==> listOf a ==> a
   , "scanl1"  -:: (a ==> a ==> a) ==> listOf a ==> a
-  , "forall"  -:: (a ==> bool) ==> listOf a ==> bool
-  , "exists"  -:: (a ==> bool) ==> listOf a ==> bool
+  , "all"     -:: (a ==> bool) ==> listOf a ==> bool
+  , "any"     -:: (a ==> bool) ==> listOf a ==> bool
   , "reverse" -:: listOf a ==> listOf a
   , "take"    -:: int ==> listOf a ==> listOf a
   , "drop"    -:: int ==> listOf a ==> listOf a
@@ -275,5 +296,5 @@ hints = mapM (\(n,s) -> (,) n `liftM` rescheme s) hs
     where hs = concat [ funcs, lists, signals, math, bools, str2elem, textAttrs
                       , elements, directions, colors, lineTypes, shapes
                       , concreteSignals, casts, polyCasts, json, maybeFuncs
-                      , positions, collages
+                      , positions, collages, http
                       ]
