@@ -263,7 +263,6 @@ ElmCode.Graphics.Element = function() {
 	      src = Foreign.JavaScript.castStringToJSString(src);
 	      var img = new Image();
 	      img.onload = function() {
-		  console.log('loaded');
 		  Dispatcher.notify(pics.id,
 				    image_57(this.width)(this.height)(src));
 	      };
