@@ -234,7 +234,7 @@ ElmCode.Graphics.Element = function() {
     return basicNewElement(EText_39("left")(txt),p[0],p[1])
   }
   function asText(v) {
-    var txt = Value.toText(Value.show(v));
+    var txt = monospace(Value.toText(Value.show(v)));
     var p = Value.getTextSize(0,0,txt);
     return basicNewElement(EText_39("left")(txt),p[0],p[1])
   }
