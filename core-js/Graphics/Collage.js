@@ -278,7 +278,7 @@ function insideShape(point,theta,scale,pos,points) {
   var x = (point[1] - pos[1]) / scale;
   var y = (point[2] - pos[2]) / scale;
   if (theta !== 0) {
-      var t = 2 * Math.PI * theta;
+      var t = -2 * Math.PI * theta;
       var nx = x * Math.cos(t) - y * Math.sin(t);
       y = x * Math.sin(t) + y * Math.cos(t);
       x = nx;
