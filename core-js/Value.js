@@ -199,9 +199,7 @@ var Value = function(){
     }
     return v+"";
   };
-  var show = function(v) {
-      return Text.monospace(properEscape(toString(v)));
-  };
+  var show = function(v) { return str(toString(v)); };
   var append = function(xs,ys) {
     if (typeof xs === "string" && typeof ys === "string") {
 	return xs.concat(ys);
