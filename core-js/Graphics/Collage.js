@@ -278,12 +278,10 @@ function insideShape(point,theta,scale,pos,points) {
   var x = (point[1] - pos[1]) / scale;
   var y = (point[2] - pos[2]) / scale;
   if (theta !== 0) {
-      var angle = 2 * Math.PI * theta;
-      var t = x === 0 ? (y > 0 ? Math.PI/2 : -Math.PI/2) - angle
-                      : (Math.atan(y/x) + (x > 0 ? 0 : Math.PI)) - angle;
-      var r = Math.sqrt(x*x + y*y);
-      x = r * Math.cos(t);
-      y = r * Math.sin(t);
+      var t = 2 * Math.PI * theta;
+      var nx = x * Math.cos(t) - y * Math.sin(t);
+      y = x * Math.sin(t) + y * Math.cos(t);
+      x = nx;
   }
 
   if (points.length === 0) { return false; }
