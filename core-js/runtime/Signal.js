@@ -182,57 +182,62 @@ var Signal = function() {
   };
 
   var HTTP = function() {
-      var fetch = function(how) { return function(url) {
-	      var thread = Elm.Input(["Waiting"]);
-	      var request = {};
-	      if (window.XMLHttpRequest) { request = new XMLHttpRequest(); }
-	      else if (window.ActiveXObject) { request = new ActiveXObject("Microsoft.XMLHTTP"); }
-	      request.onreadystatechange = function(e) {
-		  if (request.readyState === 4) {
-		      Dispatcher.notify(thread.id,
-					request.status === 200
-					? ["Success", toElmString(request.responseText)]
-					: ["Failure", request.status, toElmString(request.statusText)]);
-		  }
-	      };
-	      request.open(how, Value.toText(url), true);
-	      request.send(null);
-	      return thread;
-	  };
+
+    function request(verb) { return function(url) { return function(data) {
+      return function(headers) {
+	return {0 : "Request",
+		length : 1,
+		verb : Foreign.JavaScript.castStringToJSString(verb),
+		url : Foreign.JavaScript.castStringToJSString(url),
+		data : data === null ? null : Foreign.JavaScript.castStringToJSString(data),
+		headers : headers }; }; }; };
+    }
+    function get(url) { return request("GET")(url)(null)(["Nil"]); }
+    function post(url) { return function(data) {
+	    return request("POST")(url)(data)(["Nil"]); }; }
+
+    function sendReq(responses) { return function(req) {
+      Dispatcher.notify(responses.id,["Waiting"]);
+      var request = null;
+      if (window.XMLHttpRequest) {
+	  request = new XMLHttpRequest();
+      } else if (window.ActiveXObject) {
+	  request = new ActiveXObject("Microsoft.XMLHTTP");
+      }
+      request.onreadystatechange = function(e) {
+	if (request.readyState === 4) {
+	  Dispatcher.notify(
+	    responses.id,
+	    request.status === 200
+	    ? ["Success", toElmString(request.responseText)]
+	    : ["Failure", request.status, toElmString(request.statusText)]);
+	}
       };
-      var fetches = function(how) { return function(input) {
-	      var output = Elm.Input(["Nothing"]);
-	      var fetcher = Elm.Lift(update, [input]);
-	      var combine = Elm.Lift(function(x) { return function(y) { return x; } }, [output,fetcher]);
-	      function update(strOpt) {
-		  if (strOpt[0] !== "Just") {
-		      try { Dispatcher.notify(output.id, ["Nothing"]); } catch(e) {}
-		      return [];
-		  }
-		  try {
-		      Dispatcher.notify(output.id, ["Just", ["Waiting"]]);
-		  } catch(e) { output.value = ["Just", ["Waiting"]]; }
-		  var request = {};
-		  if (window.XMLHttpRequest) { request = new XMLHttpRequest(); }
-		  else if (window.ActiveXObject) { request = new ActiveXObject("Microsoft.XMLHTTP"); }
-		  request.onreadystatechange = function(e) {
-		      if (request.readyState === 4) {
-			  Dispatcher.notify(output.id,
-					    ["Just", request.status === 200
-					     ? ["Success", toElmString(request.responseText)]
-					     : ["Failure", request.status, toElmString(request.statusText)]]);
-		      }
-		  };
-		  request.open(how, Value.toText(strOpt[1]), true);
-		  request.send(null);
-		  return [];
-	      }
-	      return combine;
-	  };
-      };
-      return {get : fetch("GET"), post : fetch("POST"),
-	      gets : fetches("GET"), posts : fetches("POST")
-	      };
+      request.open(req.verb, req.url, true);
+      List.map(function(pair) {
+	      request.setRequestHeader(
+		Foreign.JavaScript.castStringToJSString(pair[1]),
+		Foreign.JavaScript.castStringToJSString(pair[2]));
+	  })(req.headers);
+      request.send(req.data);
+      return null;
+     };
+    }
+
+    function send(requests) {
+        var responses = Elm.Input(["Waiting"]);
+	var sender = Elm.Lift(sendReq(responses), [requests]);
+	var combine = Elm.Lift(function(x){return function(y){return x;}},
+			       [responses,sender]);
+	return combine;
+    }
+
+    return {get     : get,
+	    post    : post,
+	    request : request,
+	    send    : send,
+	    sendGet : function(urls){return send(Elm.Lift(get,[urls]));}
+	    };
   }();
   var Random = function() {
       var inRange = function(min) { return function(max) {
