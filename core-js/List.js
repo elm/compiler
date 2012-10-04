@@ -191,12 +191,12 @@ var List = function() {
         return concat(map(f_76)(x))
       }
     }
-    function forall(pred) {
+    function all(pred) {
 	return foldl(function(x) { return function(acc) {
 		    return acc && pred(x);
 		};})(true);
     }
-    function exists(pred) {
+    function any(pred) {
 	return foldl(function(x) { return function(acc) {
 		    return acc || pred(x);
 		};})(false);
@@ -464,8 +464,8 @@ var List = function() {
 	    concatMap:concatMap,
 	    and:and,
 	    or:or,
-	    forall:forall,
-	    exists:exists,
+	    all:all,
+	    any:any,
 	    sum:sum,
 	    product:product,
 	    maximum:maximum,
