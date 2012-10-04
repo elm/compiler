@@ -53,6 +53,7 @@ var Prelude = function() {
 	    asin : Math.asin,
 	    acos : Math.acos,
 	    atan : Math.atan,
+	    atan2 : function(y) { return function(x) { return Math.atan2(y,x); }; },
 	    mod  : mod,
 	    min  : min,
 	    max  : max,
