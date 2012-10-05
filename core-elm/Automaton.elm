@@ -3,17 +3,8 @@ module Automaton where
 
 data Automaton a b = Automaton (a -> (b, Automaton a b))
 
--- Maybe once there are infix type constructors this could be
---     data a ~> b
--- or something like that.
 
-
-{--- API possibilies
-
-All names and types are up for debate!
-
-
-How to run an automaton (some require typeclasses):
+{--- API possibilies: All names and types are up for debate!
 
 run :: Automaton a b -> Signal a -> Signal b
 run :: OrderedContainer c => Automaton a b -> c a -> c b
@@ -24,9 +15,11 @@ combine :: [Automaton a b] -> Automaton a [b]
 combine :: Container c => c (Automaton a b) -> Automaton a (c b)
 
 init  :: b -> (a -> b -> b) -> Automaton a b
+
 init' :: s -> (a -> s -> (b,s)) -> Automaton a b
 
 count :: Automaton a Int
+
 draggable :: Form -> Automaton (Bool,(Int,Int)) Form
 
 --}
