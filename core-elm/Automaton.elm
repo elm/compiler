@@ -26,6 +26,7 @@ combine :: Container c => c (Automaton a b) -> Automaton a (c b)
 init  :: b -> (a -> b -> b) -> Automaton a b
 init' :: s -> (a -> s -> (b,s)) -> Automaton a b
 
+count :: Automaton a Int
 draggable :: Form -> Automaton (Bool,(Int,Int)) Form
 
 --}
@@ -48,3 +49,5 @@ init s step =
 
 init' s step =
   Automaton (\a -> let (b,s') = step a s in (b, init s' step))
+
+count = init 0 (\_ c -> c + 1)
