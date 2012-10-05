@@ -14,13 +14,16 @@ compose :: Automaton a b -> Automaton b c -> Automaton a c
 combine :: [Automaton a b] -> Automaton a [b]
 combine :: Container c => c (Automaton a b) -> Automaton a (c b)
 
-init  :: b -> (a -> b -> b) -> Automaton a b
 
+pure :: (a -> b) -> Automaton a b
+init  :: b -> (a -> b -> b) -> Automaton a b
 init' :: s -> (a -> s -> (b,s)) -> Automaton a b
 
 count :: Automaton a Int
 
 draggable :: Form -> Automaton (Bool,(Int,Int)) Form
+foo :: (a -> b) -> Automaton b c -> Automaton a c
+bar :: Automaton a b -> (b -> c) -> Automaton a c
 
 --}
 
