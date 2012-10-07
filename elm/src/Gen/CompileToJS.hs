@@ -42,8 +42,12 @@ tryBlock escapees names e =
            , "};}"
            ]
     where msg | escapees /= [] = concat [ "<br/><br/>The problem may stem from an improper usage of:<br/>"
-                                        ,  intercalate ", " escapees ]
+                                        ,  intercalate ", " $ map (concatMap escape) escapees ]
               | otherwise = ""
+          escape '\'' = "\\'"
+          escape '"' = "\\\""
+          escape c = [c]
+
 
 jsModule (escapees, Module names exports imports stmts) =
     tryBlock escapees (tail modNames) $ concat
@@ -215,6 +219,8 @@ binop (o:p) e1 e2
                     ">"  -> "(compare(" ++ e1 ++ ")(" ++ e2 ++ ")[0] === 'GT')"
                     "<=" -> "function() { var ord = compare(" ++ e1 ++ ")(" ++ e2 ++ ")[0]; return ord === 'LT' || ord === 'EQ'; }()"
                     ">=" -> "function() { var ord = compare(" ++ e1 ++ ")(" ++ e2 ++ ")[0]; return ord === 'GT' || ord === 'EQ'; }()"
+                    ">>>" -> "composeAuto(" ++ e1 ++ ")(" ++ e2 ++ ")"
+                    "<<<" -> "composeAuto(" ++ e2 ++ ")(" ++ e1 ++ ")"
                     _    -> parens (e1 ++ (o:p) ++ e2)
 
 append e1 e2 = "Value.append" ++ parens (e1 ++ "," ++ e2)

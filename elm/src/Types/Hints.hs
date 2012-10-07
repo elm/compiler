@@ -146,14 +146,14 @@ signals =
     ]
 
 http =
-  [ "send"     -:: signalOf (request a) -> signalOf (response string)
-  , "sendGet"  -:: signalOf string -> signalOf (response string)
+  [ "send"     -:: signalOf (request a) ==> signalOf (response string)
+  , "sendGet"  -:: signalOf string ==> signalOf (response string)
   , "get"      -:  string ==> request string
   , "post"     -:  string ==> string ==> request string
   , "request"  -:  string ==> string ==> string ==> listOf (pairOf string) ==> request string
   , "Waiting"  -:: response a
   , "Failure"  -:: int ==> string ==> response a
-  , "Success"  -:: a -> response a ]
+  , "Success"  -:: a ==> response a ]
     where request  t = ADT "Request"  [t]
           response t = ADT "Response" [t]
 
@@ -211,14 +211,13 @@ bools =
     , Forall [0,1] [ Context "`compare'" $ VarT 0 :<: comparable ] (VarT 0 ==> VarT 0 ==> VarT 1) )
   ]
 
-chars =
-  [ hasType (char ==> bool)
-                ["isDigit","isOctDigit","isHexDigit","isUpper","isLower"]
-  , hasType (char ==> char)
-                ["toUpper","toLower","toLocaleUpper","toLocaleLower"]
-  , "toCode"   -: char ==> int
-  , "fromCode" -: int ==> char
-  ]
+chars = classify ++ convert1 ++ convert2
+  where classify = hasType (char ==> bool)
+                   ["isDigit","isOctDigit","isHexDigit","isUpper","isLower"]
+        convert1 =  hasType (char ==> char)
+                    ["toUpper","toLower","toLocaleUpper","toLocaleLower"]
+        convert2 = [ "toCode" -: char ==> int, "fromCode" -: int ==> char ]
+  
 
 --------  Polymorphic Functions  --------
 
