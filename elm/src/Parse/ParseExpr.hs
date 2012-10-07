@@ -58,6 +58,10 @@ listTerm = (do { try $ string "[markdown|"
 parensTerm = parens $ choice
              [ do op <- anyOp
                   return . Lambda "x" . Lambda "y" $ Binop op (Var "x") (Var "y")
+             , do let comma = char ',' <?> "comma ','"
+                  commas <- comma >> many (whitespace >> comma)
+                  let vars = map (('v':) . show) [ 0 .. length commas + 1 ]
+                  return $ foldr Lambda (tuple $ map Var vars) (vars)
              , do es <- commaSep expr
                   return $ case es of { [e] -> e; _ -> tuple es }
              ]
