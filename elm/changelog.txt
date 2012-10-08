@@ -1,4 +1,15 @@
 
+Release 0.4.1
+=============
+
+* Add Automaton library.
+
+* Add (,,) notation for creating tuples.
+
+* The Haskell API exports the absolute path to the Elm runtime
+  system (with the corresponding version number).
+
+
 Release 0.4.0
 =============
 
