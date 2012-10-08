@@ -94,18 +94,21 @@ lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
                 e <- expr
                 return $ makeLambda pats e
 
-letExpr = do
-  reserved "let"
-  brace <- optionMaybe . try $ do
-             whitespace
+defSet = do
+  brace <- optionMaybe $ do
              char '{' <?> "a set of definitions { x = ... ; y = ... }"
+  whitespace
   case brace of
-    Nothing -> do whitespace; ds <- assignExpr
-                  whitespace; reserved "in"; whitespace; Let ds <$> expr
-    Just '{' -> do whitespace ; dss <- semiSep1 assignExpr ; whitespace
+    Nothing  -> assignExpr
+    Just '{' -> do dss <- semiSep1 assignExpr
+                   whitespace
                    string "}" <?> "closing bracket '}'"
-                   whitespace; reserved "in"; whitespace; e <- expr
-                   return $ Let (concat dss) e
+                   return (concat dss)
+letExpr = do
+  reserved "let" ; whitespace
+  defs <- defSet
+  whitespace ; reserved "in" ; whitespace
+  Let defs <$> expr
 
 caseExpr = do
   reserved "case"; whitespace; e <- expr; whitespace; reserved "of"; whitespace
