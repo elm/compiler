@@ -2,7 +2,7 @@ module Patterns (patternTerm, patternExpr, makeLambda, flattenPatterns) where
 
 import Ast
 import Data.Char (isUpper)
-import Control.Applicative ((<$>))
+import Control.Applicative ((<$>),(<*>))
 import Control.Monad
 import Text.Parsec
 import ParseLib
@@ -11,8 +11,7 @@ patternBasic :: Monad m => ParsecT [Char] u m Pattern
 patternBasic =
     choice [ char '_' >> return PAnything
            , do x@(c:_) <- var
-                if isUpper c then PData x <$> spacePrefix patternTerm
-                             else return $ PVar x
+                return $ if isUpper c then PData x [] else PVar x
            ]
 
 patternTuple :: Monad m => ParsecT [Char] u m Pattern
@@ -25,8 +24,11 @@ patternList = plist <$> braces (commaSep patternExpr)
 patternTerm :: Monad m => ParsecT [Char] u m Pattern
 patternTerm = patternTuple <|> patternList <|> patternBasic <?> "pattern"
 
+patternConstructor :: Monad m => ParsecT [Char] u m Pattern
+patternConstructor = PData <$> capVar <*> spacePrefix patternTerm
+
 patternExpr :: Monad m => ParsecT [Char] u m Pattern
-patternExpr = foldr1 pcons <$> consSep1 patternTerm <?> "pattern"
+patternExpr = foldr1 pcons <$> consSep1 (patternConstructor <|> patternTerm) <?> "pattern"
 
 
 makeLambda pats body = foldr Lambda (makeBody pats body) (map getName pats)
