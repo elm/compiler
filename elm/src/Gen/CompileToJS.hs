@@ -19,10 +19,14 @@ showErr :: String -> String
 showErr err = mainEquals $ "text(monospace(" ++ msg ++ "))"
     where msg = show . concatMap (++"<br>") . lines $ err
 
+indent = concatMap f
+    where f '\n' = "\n "
+          f c = [c]
+
 parens s  = "(" ++ s ++ ")"
 braces s  = "{" ++ s ++ "}"
 jsList ss = "["++ intercalate "," ss ++"]"
-jsFunc args body = "function(" ++ args ++ "){" ++ body ++ "}"
+jsFunc args body = "function(" ++ args ++ "){" ++ indent body ++ "}"
 assign x e = "\nvar " ++ x ++ "=" ++ e ++ ";"
 ret e = "\nreturn "++ e ++";"
 iff a b c = a ++ "?" ++ b ++ ":" ++ c
@@ -31,7 +35,7 @@ mainEquals s = globalAssign "ElmCode.main" (jsFunc "" (ret s))
 globalAssign m s = "\n" ++ m ++ "=" ++ s ++ ";"
 
 tryBlock escapees names e = 
-    concat [ "\ntry{\n" ++ e ++ "\n\n} catch (e) {"
+    concat [ "\ntry{\n" ++ e ++ "\n} catch (e) {"
            , "ElmCode.main=function() {"
 	   , "var msg = ('<br/><h2>Your browser may not be supported. " ++
              "Are you using a modern browser?</h2>' +" ++
@@ -91,8 +95,8 @@ jsImport' (modul, Importing vs) =
 jsImport' (modul, Hiding vs) =
     concat [ assign "hiddenVars" . jsList $ map (\v -> "'" ++ v ++ "'") vs
            , "\nfor(var i in " ++ modul ++ "){"
-           , "\nif (hiddenVars.indexOf(i) >= 0) continue;"
-           , globalAssign "this[i]" $ modul ++ "[i]"
+           , indent $ "\nif (hiddenVars.indexOf(i) >= 0) continue;"
+           , indent $ globalAssign "this[i]" $ modul ++ "[i]"
            , "}" ]
 
 stmtsToJS :: [Statement] -> String
@@ -107,7 +111,7 @@ stmtsToJS stmts = concatMap stmtToJS (sortBy cmpStmt stmts)
 stmtToJS :: Statement -> String
 stmtToJS (Def name [] e) = assign name (toJS e)
 stmtToJS (Def name (a:as) e) = "\nfunction " ++ name ++ parens a ++
-                               braces (ret . toJS $ foldr Lambda e as) ++ ";"
+                               braces (indent . ret . toJS $ foldr Lambda e as) ++ ";"
 stmtToJS (Datatype _ _ tcs) = concatMap (stmtToJS . toDef) tcs
     where toDef (name,args) = Def name vars $ Data (derename name) (map Var vars)
               where vars = map (('a':) . show) [1..length args]
@@ -167,36 +171,31 @@ jsDefs defs = concat `liftM` mapM toDef (sortBy f defs)
           toDef (Definition x [] e) = assign x `liftM` toJS' e
           toDef (Definition f (a:as) e) = do
             out <- toJS' $ foldr Lambda e as
-            return $ "\nfunction " ++ f ++ parens a ++ braces (ret out) ++ ";"
+            return $ "\nfunction " ++ f ++ parens a ++ braces (indent $ ret out) ++ ";"
 
 caseToJS e ps = do
   match <- caseToMatch ps
-  var <- liftM (\n -> "case" ++ show n) guid
-  matches <- matchToJS var match
   e' <- toJS' e
-  return $ concat [ "function(", var, "){"
-                  , case match of { Match name _ _ -> assign name var ; _ -> "" }
-                  , matches
-                  , "}", parens e' ]
+  (match',stmt) <- case (match,e) of
+                     (Match name _ _, Var x) -> return (matchSubst [(name,x)] match, "")
+                     (Match name _ _, _    ) -> return (match, assign name e')
+                     _ -> liftM (\n -> (match, e')) guid
+  matches <- matchToJS match'
+  return $ concat [ "function(){", stmt, matches, "}()" ]
 
-matchToJS v (Match name clauses def) = do
+matchToJS (Match name clauses def) = do
   cases <- concat `liftM` mapM (clauseToJS name) clauses
-  finally <- matchToJS v def
-  return $ concat [ "\nswitch(", name, "[0]){", cases, "\n}", finally ]
-matchToJS _ Fail  = return "\nthrow \"Non-exhaustive pattern match in case\";"
-matchToJS _ Break = return "break;"
-matchToJS _ (Other e) = ret `liftM` toJS' e
-matchToJS v (Seq ms) = concat `liftM` mapM (matchToJS v) ms
+  finally <- matchToJS def
+  return $ concat [ "\nswitch(", name, "[0]){", indent cases, "\n}", finally ]
+matchToJS Fail  = return "\nthrow \"Non-exhaustive pattern match in case\";"
+matchToJS Break = return "break;"
+matchToJS (Other e) = ret `liftM` toJS' e
+matchToJS (Seq ms) = concat `liftM` mapM matchToJS ms
 
 clauseToJS var (Clause name vars e) = do
-  s <- matchToJS var e
-  return $ concat [ "\ncase ", show name, ":"
-                  , defs
-                  , s ]
-        where toDef v n = v ++ "=" ++ var ++ "[" ++ show n ++ "]"
-              defs = case vars of [] -> ""
-                                  _ -> ("\nvar "++) . (++";") . intercalate "," $
-                                         zipWith toDef vars [ 1 .. length vars ]
+  let vars' = map (\n -> var ++ "[" ++ show n ++ "]") [ 1 .. length vars ]
+  s <- matchToJS $ matchSubst (zip vars vars') e
+  return $ concat [ "\ncase ", show name, ":", s ]
 
 jsNil         = "[\"Nil\"]"
 jsCons  e1 e2 = jsList [ show "Cons", e1, e2 ]

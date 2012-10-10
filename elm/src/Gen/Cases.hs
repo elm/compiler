@@ -1,15 +1,14 @@
 
-module Cases (caseToMatch, Match (..), Clause (..)) where
+module Cases (caseToMatch, Match (..), Clause (..), matchSubst) where
 
 import Control.Arrow (first)
 import Control.Monad (liftM,foldM)
-import Data.List (groupBy,sortBy)
+import Data.List (groupBy,sortBy,lookup)
+import Data.Maybe (fromMaybe)
 
 import Ast
 import Guid
 import Substitute
-
-import System.IO.Unsafe
 
 caseToMatch patterns = do
   v <- newVar
@@ -27,6 +26,16 @@ data Match = Match String [Clause] Match
 
 data Clause = Clause String [String] Match
               deriving Show
+
+matchSubst :: [(String,String)] -> Match -> Match
+matchSubst _ Break = Break
+matchSubst _ Fail = Fail
+matchSubst pairs (Seq ms) = Seq (map (matchSubst pairs) ms)
+matchSubst pairs (Other e) =
+    Other $ foldr ($) e $ map (\(x,y) -> subst x (Var y)) pairs
+matchSubst pairs (Match n cs m) = Match (varSubst n) (map clauseSubst cs) (matchSubst pairs m)
+    where clauseSubst (Clause c vs m) = Clause c (map varSubst vs) (matchSubst pairs m)
+          varSubst v = fromMaybe v (lookup v pairs)
 
 isCon (PData _ _ : _, _) = True
 isCon _                  = False
