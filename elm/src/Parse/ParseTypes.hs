@@ -33,7 +33,9 @@ typeUnambiguous :: (Monad m) => ParsecT [Char] u m ParseType
 typeUnambiguous = typeList <|> typeTuple
 
 typeSimple :: (Monad m) => ParsecT [Char] u m ParseType
-typeSimple = VarPT <$> var
+typeSimple = dealias <$> var
+    where dealias "String" = listPT (VarPT "Char")
+          dealias v = VarPT v
 
 typeApp :: (Monad m) => ParsecT [Char] u m ParseType
 typeApp = do name <- capVar <?> "type constructor"
@@ -50,7 +52,8 @@ typeExpr = do
               Nothing -> return t1
 
 typeConstructor :: (Monad m) => ParsecT [Char] u m (String, [ParseType])
-typeConstructor = (,) <$> (capVar <?> "another type constructor") <*> spacePrefix (typeSimple <|> typeUnambiguous)
+typeConstructor = (,) <$> (capVar <?> "another type constructor")
+                      <*> spacePrefix (typeSimple <|> typeUnambiguous)
 
 datatype :: (Monad m) => ParsecT [Char] u m Statement
 datatype = do
