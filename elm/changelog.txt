@@ -6,8 +6,15 @@ Release 0.4.1
 
 * Add (,,) notation for creating tuples.
 
+* Redo HTTP library, allowing any kind of request and more flexibility.
+
 * The Haskell API exports the absolute path to the Elm runtime
   system (with the corresponding version number).
+
+* Fix bug in pattern parsing.
+* Ensure that `String` is treated as an alias of `[Char]`.
+* Make pattern matching a bit more concise.
+* Make generated JS more readable.
 
 
 Release 0.4.0
