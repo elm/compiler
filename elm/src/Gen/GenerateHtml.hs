@@ -22,15 +22,7 @@ import ExtractNoscript
 
 css = H.style ! A.type_ "text/css" $ preEscapedToMarkup
       ("html,head,body { padding:0; margin:0; }\
-       \body { font-family: helvetica, arial, sans-serif; }\
-       \a:link {text-decoration: none}\
-       \a:visited {text-decoration: none}\
-       \a:active {text-decoration: none}\
-       \a:hover {text-decoration: underline; color: #ff8f12;}" :: String)
-{--
-       \hyphens: auto; -moz-hyphens: auto;\
-       \ -webkit-hyphens: auto; -ms-hyphens: auto; }\
---}
+       \body { font-family: helvetica, arial, sans-serif; }" :: String)
 
 data JSStyle = Minified | Readable
 
