@@ -300,7 +300,7 @@ scoreBoard w inPlay p1 p2 =
       ; stack top bottom = flow down [ code " ", code top, code bottom ]
       ; msg = width w . centeredText . monospace $ toText "Press SPACE to begin"
       ; board = flow right [ stack "W" "S", spacer 20 1
-                           , text . Text.height 4 $ show p1 ++ toText "    " ++ show p2
+                           , text . Text.height 4 . toText $ show p1 ++ "    " ++ show p2
                            , spacer 20 1, stack "&uarr;" "&darr;" ]
       ; score = container w (heightOf board) midTop board
       }
