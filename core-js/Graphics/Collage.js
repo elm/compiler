@@ -1,6 +1,8 @@
 
 var Collage = function() {
 
+var JS = Elm.JavaScript;
+
 function tracePoints(ctx,points) {
     var i = points.length - 1;
     if (i <= 0) return;
@@ -22,7 +24,7 @@ function filled(ctx,color,points) {
 
 function textured(redo,ctx,src,points) {
     var img = new Image();
-    img.src = Foreign.JavaScript.castStringToJSString(src);
+    img.src = JS.castStringToJSString(src);
     img.onload = redo;
  
     tracePoints(ctx,points);
@@ -92,7 +94,7 @@ function drawShape(redo,ctx,shapeStyle,color,points) {
 function drawImage(redo,ctx,w,h,src) {
     var img = new Image();
     img.onload = redo;
-    img.src = Foreign.JavaScript.castStringToJSString(src);
+    img.src = JS.castStringToJSString(src);
     ctx.drawImage(img,-w/2,-h/2,w,h);
 }
 

@@ -1,6 +1,7 @@
-var ElmCode = ElmCode || {};
-ElmCode.Graphics = ElmCode.Graphics || {};
-ElmCode.Graphics.Element = function() {
+var Elm = Elm || {};
+Elm.Graphics = Elm.Graphics || {};
+Elm.Graphics.Element = function() {
+  var JS = Elm.JavaScript;
   var DLeft_0 = ["DLeft"];
   var DRight_1 = ["DRight"];
   var DUp_2 = ["DUp"];
@@ -50,17 +51,17 @@ ElmCode.Graphics.Element = function() {
     }
   }
   function EImage_40(a1) {
-    return["EImage", Foreign.JavaScript.castStringToJSString(a1)]
+    return["EImage", JS.castStringToJSString(a1)]
   }
   function EVideo_41(a1) {
-    return["EVideo", Foreign.JavaScript.castStringToJSString(a1)]
+    return["EVideo", JS.castStringToJSString(a1)]
   }
   function EFittedImage_42(a1) {
-    return["EFittedImage", Foreign.JavaScript.castStringToJSString(a1)]
+    return["EFittedImage", JS.castStringToJSString(a1)]
   }
   function EFlow_43(a1) {
     return function(a2) {
-      return["EFlow", a1, Foreign.JavaScript.castListToJSArray(a2)]
+      return["EFlow", a1, JS.castListToJSArray(a2)]
     }
   }
   function ECollage_44(a1) {
@@ -80,19 +81,19 @@ ElmCode.Graphics.Element = function() {
   var Dotted_69 = ["Dotted"];
   var Dashed_70 = ["Dashed"];
   function Custom_71(a1) {
-    return["Custom", Foreign.JavaScript.castListToJSArray(a1)]
+    return["Custom", JS.castListToJSArray(a1)]
   }
   var Filled_72 = ["Filled"];
   var Outlined_73 = ["Outlined"];
   function CustomOutline_74(a1) {
-    return["CustomOutline", Foreign.JavaScript.castListToJSArray(a1)]
+    return["CustomOutline", JS.castListToJSArray(a1)]
   }
   function Line_75(a1) {
-    return["Line", Foreign.JavaScript.castListToJSArray(a1)]
+    return["Line", JS.castListToJSArray(a1)]
   }
   function Shape_78(a1) {
     return function(a2) {
-	var points = Foreign.JavaScript.castListToJSArray(a1);
+	var points = JS.castListToJSArray(a1);
 	if (points.length > 0) { points.push(points[0]); }
 	return["Shape", points, a2];
     }
@@ -123,7 +124,7 @@ ElmCode.Graphics.Element = function() {
   function FImage_87(a1) {
     return function(a2) {
       return function(a3) {
-          return["FImage", a1, a2, Foreign.JavaScript.castStringToJSString(a3)]
+          return["FImage", a1, a2, JS.castStringToJSString(a3)]
       }
     }
   }
@@ -218,7 +219,7 @@ ElmCode.Graphics.Element = function() {
   }
   function link(lnk) {
     return function(e) {
-	return newElement_38(e[2], e[3], e[4], e[5], e[6], Just(Foreign.JavaScript.castStringToJSString(lnk)));
+	return newElement_38(e[2], e[3], e[4], e[5], e[6], Just(JS.castStringToJSString(lnk)));
     }
   }
   function widthOf_52(e)  { return ~~e[3]; }
@@ -258,18 +259,18 @@ ElmCode.Graphics.Element = function() {
     }
   }
   function images(srcs) {
-      var pics = Elm.Input(spacer_66(0)(0));
-      var update = Elm.Lift(function(src) {
-	      src = Foreign.JavaScript.castStringToJSString(src);
+      var pics = Elm.Signal.constant(spacer_66(0)(0));
+      var update = Elm.Signal.lift(function(src) {
+	      src = JS.castStringToJSString(src);
 	      var img = new Image();
 	      img.onload = function() {
 		  Dispatcher.notify(pics.id,
 				    image_57(this.width)(this.height)(src));
 	      };
 	      img.src = src;
-	  }, [srcs]);
-      var combine = Elm.Lift(function(x) { return function(y) { return x; } },
-			     [pics,update]);
+	  })(srcs);
+      function f(x) { return function(y) { return x; } }
+      var combine = Elm.Signal.lift2(f)(pics)(update);
       return combine;
   }
   function video_58(w) {

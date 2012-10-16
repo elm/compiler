@@ -139,8 +139,8 @@ signals =
     , "count"     -:: signalOf a ==> signalOf int
     , "keepIf"    -:: (a==>bool) ==> a ==> signalOf a ==> signalOf a
     , "dropIf"    -:: (a==>bool) ==> a ==> signalOf a ==> signalOf a
-    , "keepWhen"  -:: signalOf bool ==>a==> signalOf a ==> signalOf a
-    , "dropWhen"  -:: signalOf bool ==>a==> signalOf a ==> signalOf a
+    , "keepWhen"  -:: signalOf bool ==> a ==> signalOf a ==> signalOf a
+    , "dropWhen"  -:: signalOf bool ==> a ==> signalOf a ==> signalOf a
     , "dropRepeats" -:: signalOf a ==> signalOf a
     , "sampleOn" -:: signalOf a ==> signalOf b ==> signalOf b
     ]

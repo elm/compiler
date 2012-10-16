@@ -401,6 +401,9 @@ var Value = function(){
 	    return "[]";
 	} else if (v[0] === "JSON") {
 	    return "(JSON.fromList " + toString(ElmJSON.toList(v)) + ")";
+	} else if (v[0] === "RBNode" || v[0] === "RBEmpty") {
+	    function cons(k){ return function(v) { return function(acc) { return ["Cons",["Tuple2",k,v],acc]; }; }; }
+	    return "(Map.fromList " + toString(ElmCode.Map.fold(cons)(["Nil"])(v)) + ")";
 	} else {
 	    var output = "";
 	    for (var i = v.length; --i; ) {

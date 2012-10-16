@@ -1,4 +1,5 @@
-var List = function() {
+var Elm = Elm || {};
+Elm.List = function() {
 
     var throwError = function(f) {
 	throw "Function '" + f + "' expecting a list!";

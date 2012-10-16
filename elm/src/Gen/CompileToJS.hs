@@ -31,12 +31,12 @@ assign x e = "\nvar " ++ x ++ "=" ++ e ++ ";"
 ret e = "\nreturn "++ e ++";"
 iff a b c = a ++ "?" ++ b ++ ":" ++ c
 
-mainEquals s = globalAssign "ElmCode.main" (jsFunc "" (ret s))
+mainEquals s = globalAssign "Elm.main" (jsFunc "" (ret s))
 globalAssign m s = "\n" ++ m ++ "=" ++ s ++ ";"
 
 tryBlock escapees names e = 
     concat [ "\ntry{\n" ++ e ++ "\n} catch (e) {"
-           , "ElmCode.main=function() {"
+           , "Elm.main=function() {"
 	   , "var msg = ('<br/><h2>Your browser may not be supported. " ++
              "Are you using a modern browser?</h2>' +" ++
              " '<br/><span style=\"color:grey\">Runtime Error in " ++
@@ -62,10 +62,10 @@ jsModule (escapees, Module names exports imports stmts) =
              intercalate "." (tail modNames) ++ "' is already defined.\"; "
            , globalAssign modName $ jsFunc "" (includes ++body++ export) ++ "()"
            , mainEquals $ modName ++ ".main" ]
-        where modNames = if null names then ["ElmCode", "Main"]
-                                       else  "ElmCode" : names
+        where modNames = if null names then ["Elm", "Main"]
+                                       else  "Elm" : names
               modName  = intercalate "." modNames
-              includes = concatMap jsImport $ map (first ("ElmCode."++)) imports
+              includes = concatMap jsImport $ map (first ("Elm."++)) imports
               body = stmtsToJS stmts
               export = getExports exports stmts
               exps = if null exports then ["main"] else exports

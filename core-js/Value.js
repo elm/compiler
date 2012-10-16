@@ -133,7 +133,7 @@ var Value = function(){
 
 
   function groupForms(forms) {
-    forms = Foreign.JavaScript.castListToJSArray(forms);
+    forms = Elm.JavaScript.castListToJSArray(forms);
     var groups = [];
     var arr = [];
     for (var i = forms.length; i--; ) {
@@ -230,6 +230,23 @@ var Value = function(){
     return out;
   };
   
+  function wrap(elem) {
+      var p = Value.getSize(elem);
+      return ["Element", Guid.guid(), ["EHtml",elem],
+	      p[0], p[1], 1, Nothing, Nothing];
+  }
+  var addListener = function() {
+      if(document.addEventListener) {
+	  return function(element, event, handler) {
+	      element.addEventListener(event, handler, false);
+	  };
+      } else {
+	  return function(element, event, handler) {
+	      element.attachEvent('on' + event, handler);
+	  };
+      }
+  }();
+
   return {eq:eq,
 	  str:str,
 	  show:show,
@@ -241,5 +258,8 @@ var Value = function(){
 	  getTextSize : getTextSize,
 	  getSize : getSize,
 	  getExcess : getExcess,
-	  groupForms : groupForms };
+	  groupForms : groupForms,
+	  wrap : wrap,
+	  addListener : addListener
+       };
 }();

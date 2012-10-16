@@ -1,6 +1,7 @@
 
-var ElmJSON = function() {
-    var JS = Foreign.JavaScript;
+var Elm = Elm || {};
+Elm.JSON = function() {
+    var JS = Elm.JavaScript;
     var empty = ['JSON',{}];
     function singleton(k) { return function(v) {
 	    var obj = {};
@@ -134,5 +135,3 @@ var ElmJSON = function() {
 	    JsonObject : JsonObject
     };
 }();
-
-Foreign.JavaScript.JSON = ElmJSON;

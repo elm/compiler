@@ -12,7 +12,7 @@ var Text = function() {
   };
 
   var typeface = function(name) {
-      name = Foreign.JavaScript.castStringToJSString(name);
+      name = Elm.JavaScript.castStringToJSString(name);
       return addStyle('font-family', name);
   };
   var size = function(px) {
@@ -47,3 +47,6 @@ var Text = function() {
 	  color : color,
 	  link : link };
 }();
+
+var Elm = Elm || {};
+Elm.Graphics.Text = Text;

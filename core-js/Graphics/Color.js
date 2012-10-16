@@ -1,6 +1,6 @@
-var ElmCode = ElmCode || {};
-ElmCode.Graphics = ElmCode.Graphics || {};
-ElmCode.Graphics.Color = function() {
+var Elm = Elm || {};
+Elm.Graphics = Elm.Graphics || {};
+Elm.Graphics.Color = function() {
   function Color_0(a1) {
     return function(a2) {
       return function(a3) {
