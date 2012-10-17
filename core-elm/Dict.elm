@@ -1,5 +1,5 @@
 
-module Map (empty,singleton,insert,lookup,remove,member,fold) where
+module Dict (empty,singleton,insert,lookup,remove,member,fold) where
 
 import Data.Maybe (isJust)
 
