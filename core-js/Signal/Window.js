@@ -8,7 +8,7 @@ Elm.Window = function() {
   var height = Elm.Signal.lift(function(p){return p[2];})(dimensions);
   height.defaultNumberOfKids = 0;
 
-  addListener(window, 'resize', function(e) {
+  Value.addListener(window, 'resize', function(e) {
 	  var w = document.getElementById('widthChecker').offsetWidth;
 	  var hasListener = Dispatcher.notify(dimensions.id,
 					      Value.Tuple(w, window.innerHeight));

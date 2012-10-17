@@ -1,4 +1,10 @@
 
+Value.addListener(document, 'elm_log', function(e) { console.log(e.value); });
+Value.addListener(document, 'elm_title', function(e) {document.title = e.value;});
+Value.addListener(document, 'elm_redirect', function(e) {
+	if (e.value.length > 0) { window.location = e.value; }
+    });
+
 var Elm = Elm || {};
 Elm.Prelude = function() {
     var mod = function(x) { return function(y) {
@@ -64,50 +70,65 @@ Elm.Prelude = function() {
 	    curry : curry,
 	    uncurry : uncurry,
 	    logBase : logBase,
-	    Just    : Maybe.Just,
-	    Nothing : Maybe.Nothing,
-	    maybe   : Maybe.maybe,
-	    map     : List.map,
-	    filter  : List.filter,
-	    head    : List.head,
-	    tail    : List.tail,
-	    last    : List.last,
-	    length  : List.length,
-	    reverse : List.reverse,
-	    foldr   : List.foldr,
-	    foldr1  : List.foldr1,
-	    foldl   : List.foldl,
-	    foldl1  : List.foldl1,
-	    and     : List.and,
-	    or      : List.or,
-	    all     : List.all,
-	    any     : List.any,
-	    sum     : List.sum,
-	    product : List.product,
-	    concat  : List.concat,
-	    concatMap : List.concatMap,
-	    maximum : List.maximum,
-	    minimum : List.minimum,
-	    scanl   : List.scanl,
-	    scanl1  : List.scanl1,
-	    take    : List.take,
-	    drop    : List.drop,
-	    zip     : List.zip,
-	    unzip   : List.unzip,
-	    lift  : Signal.lift,
-	    lift2 : Signal.lift2,
-	    lift3 : Signal.lift3,
-	    lift4 : Signal.lift4,
-	    foldp : Signal.foldp,
-	    foldp1 : Signal.foldp1,
-	    foldp_ : Signal.foldp_,
-	    constant : Signal.constant,
-	    count : Signal.count,
-	    keepIf : Signal.keepIf,
-	    dropIf : Signal.dropIf,
-	    keepWhen : Signal.keepWhen,
-	    dropWhen : Signal.dropWhen,
-	    dropRepeats : Signal.dropRepeats,
-	    sampleOn : Signal.sampleOn
+	    Just    : Elm.Maybe.Just,
+	    Nothing : Elm.Maybe.Nothing,
+	    maybe   : Elm.Maybe.maybe,
+	    map     : Elm.List.map,
+	    filter  : Elm.List.filter,
+	    head    : Elm.List.head,
+	    tail    : Elm.List.tail,
+	    last    : Elm.List.last,
+	    length  : Elm.List.length,
+	    reverse : Elm.List.reverse,
+	    foldr   : Elm.List.foldr,
+	    foldr1  : Elm.List.foldr1,
+	    foldl   : Elm.List.foldl,
+	    foldl1  : Elm.List.foldl1,
+	    and     : Elm.List.and,
+	    or      : Elm.List.or,
+	    all     : Elm.List.all,
+	    any     : Elm.List.any,
+	    sum     : Elm.List.sum,
+	    product : Elm.List.product,
+	    concat  : Elm.List.concat,
+	    concatMap : Elm.List.concatMap,
+	    maximum : Elm.List.maximum,
+	    minimum : Elm.List.minimum,
+	    scanl   : Elm.List.scanl,
+	    scanl1  : Elm.List.scanl1,
+	    take    : Elm.List.take,
+	    drop    : Elm.List.drop,
+	    zip     : Elm.List.zip,
+	    unzip   : Elm.List.unzip,
+	    lift  : Elm.Signal.lift,
+	    lift2 : Elm.Signal.lift2,
+	    lift3 : Elm.Signal.lift3,
+	    lift4 : Elm.Signal.lift4,
+	    foldp : Elm.Signal.foldp,
+	    foldp1 : Elm.Signal.foldp1,
+	    foldp_ : Elm.Signal.foldp_,
+	    constant : Elm.Signal.constant,
+	    count : Elm.Signal.count,
+	    keepIf : Elm.Signal.keepIf,
+	    dropIf : Elm.Signal.dropIf,
+	    keepWhen : Elm.Signal.keepWhen,
+	    dropWhen : Elm.Signal.dropWhen,
+	    dropRepeats : Elm.Signal.dropRepeats,
+	    sampleOn : Elm.Signal.sampleOn
 	    };
+
 }();
+
+(function() {
+  var include = function(library) {
+    for (var i in library) {
+	Elm.Prelude[i] = library[i];
+    }
+  };
+  include (Elm.Graphics.Color);
+  include (Elm.Graphics.Text);
+  include (Elm.Graphics.Element);
+
+  show = Value.show;
+  
+}());

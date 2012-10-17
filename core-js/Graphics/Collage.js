@@ -12,13 +12,13 @@ function tracePoints(ctx,points) {
 
 function solid(ctx,color,points) {
     tracePoints(ctx,points);
-    ctx.strokeStyle = ElmCode.Graphics.Color.extract(color);
+    ctx.strokeStyle = Elm.Graphics.Color.extract(color);
     ctx.stroke();
 };
 
 function filled(ctx,color,points) {
     tracePoints(ctx,points);
-    ctx.fillStyle = ElmCode.Graphics.Color.extract(color);
+    ctx.fillStyle = Elm.Graphics.Color.extract(color);
     ctx.fill();
 }
 
@@ -35,7 +35,7 @@ function textured(redo,ctx,src,points) {
 function customLine(pattern,ctx,color,points) {
     if (pattern.length === 0) { pattern = [8,4]; }
     customLineHelp(ctx, pattern, points);
-    ctx.strokeStyle = ElmCode.Graphics.Color.extract(color);
+    ctx.strokeStyle = Elm.Graphics.Color.extract(color);
     ctx.stroke();
 };
 

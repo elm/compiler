@@ -6,7 +6,7 @@ var Dispatcher = function() {
     var currentElement = null;
 
     var initialize = function() {
-	program = ElmCode.main();
+	program = Elm.main();
 	if (!program.hasOwnProperty('recv')) {
 	    program = Elm.Signal.constant(program);
 	}

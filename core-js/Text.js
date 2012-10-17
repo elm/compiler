@@ -23,7 +23,7 @@ var Text = function() {
   var italic = addStyle('font-style', 'italic');
   var bold = addTag('b');
   var color = function(c) {
-    return addStyle('color', ElmCode.Graphics.Color.extract(c));
+    return addStyle('color', Elm.Graphics.Color.extract(c));
   };
   var underline = addStyle('text-decoration', 'underline');
   var overline = addStyle('text-decoration', 'overline');

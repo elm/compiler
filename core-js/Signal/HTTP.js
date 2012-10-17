@@ -1,4 +1,5 @@
 Elm.HTTP = function() {
+  var JS = Elm.JavaScript;
   var toElmString = Elm.JavaScript.castJSStringToString;
   function request(verb) { return function(url) { return function(data) {
     return function(headers) {
@@ -31,7 +32,7 @@ Elm.HTTP = function() {
 	}
     };
     request.open(req.verb, req.url, true);
-    List.map(function(pair) {
+    Elm.List.map(function(pair) {
 	    request.setRequestHeader(
 		JS.castStringToJSString(pair[1]),
 		JS.castStringToJSString(pair[2]));
