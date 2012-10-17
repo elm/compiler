@@ -55,7 +55,8 @@ tryBlock escapees names e =
 
 jsModule (escapees, Module names exports imports stmts) =
     tryBlock escapees (tail modNames) $ concat
-           [ concatMap (\n -> globalAssign n $ n ++ " || {}") .
+           [ "\nfor(var i in Elm) { this[i] = Elm[i]; }"
+           , concatMap (\n -> globalAssign n $ n ++ " || {}") .
              map (intercalate ".") . drop 2 . inits $
              take (length modNames - 1) modNames
            , "\nif (" ++ modName ++ ") throw \"Module name collision, '" ++
