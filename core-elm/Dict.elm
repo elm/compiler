@@ -1,13 +1,18 @@
 
-module Dict (empty,singleton,insert,lookup,remove,member,fold) where
+module Dict (empty,singleton,insert
+            ,lookup,find,findWithDefault
+            ,remove,member
+            ,fold,map
+            ,union,intersect,diff
+            ,keys,values
+            ,toList,fromList
+            ) where
 
-import Data.Maybe (isJust)
+import Maybe (isJust)
 
 data NColor = Red | Black
 
 data RBTree k v = RBNode NColor k v (RBTree k v) (RBTree k v) | RBEmpty
-
-raise = console.log
 
 empty = RBEmpty
 
@@ -93,14 +98,14 @@ min t =
   case t of 
   { RBNode _ k v RBEmpty _ -> (k,v)
   ; RBNode _ _ _ l _ -> min l
-  ; RBEmpty -> console.log "(min RBEmpty) is not defined"
+  ; RBEmpty -> throw "(min RBEmpty) is not defined"
   }
 
 max t =
   case t of 
   { RBNode _ k v _ RBEmpty -> (k,v)
   ; RBNode _ _ _ _ r -> max r
-  ; RBEmpty -> console.log "(max RBEmpty) is not defined"
+  ; RBEmpty -> throw "(max RBEmpty) is not defined"
   }
 
 lookup k t =
@@ -113,20 +118,40 @@ lookup k t =
     ; GT -> lookup k r }
  }
 
+findWithDefault base k t =
+ case t of
+ { RBEmpty -> base
+ ; RBNode _ k' v l r ->
+    case compare k k' of
+    { LT -> findWithDefault base k l
+    ; EQ -> v
+    ; GT -> findWithDefault base k r }
+ }
+
+find k t =
+ case t of
+ { RBEmpty -> throw "Key was not found in dictionary!"
+ ; RBNode _ k' v l r ->
+    case compare k k' of
+    { LT -> find k l
+    ; EQ -> v
+    ; GT -> find k r }
+ }
+
 -- Does t contain k?
 member k t = isJust $ lookup k t
 
 rotateLeft t =
  case t of
  { RBNode cy ky vy a (RBNode cz kz vz b c) -> RBNode cy kz vz (RBNode Red ky vy a b) c
- ; _ -> raise "rotateLeft of a node without enough children" }
+ ; _ -> throw "rotateLeft of a node without enough children" }
 
 -- rotateRight -- the reverse, and 
 -- makes Y have Z's color, and makes Z Red.
 rotateRight t =
  case t of
  { RBNode cz kz vz (RBNode cy ky vy a b) c -> RBNode cz ky vy a (RBNode Red kz vz b c)
- ; _ -> raise "rotateRight of a node without enough children" }
+ ; _ -> throw "rotateRight of a node without enough children" }
 
 rotateLeftIfNeeded t =
  case t of 
@@ -146,7 +171,7 @@ color_flip t =
    RBNode (otherColor c1) bk bv
             (RBNode (otherColor c2) ak av la ra)
             (RBNode (otherColor c3) ck cv lc rc)
- ; _ -> raise "color_flip called on a RBEmpty or RBNode with a RBEmpty child" }
+ ; _ -> throw "color_flip called on a RBEmpty or RBNode with a RBEmpty child" }
 
 color_flipIfNeeded t = 
  case t of
@@ -173,10 +198,10 @@ insert k v t =
                   ; GT -> RBNode c k' v' l (ins r) }
           in  fixUp h }
   in  if not (invariants_hold t) then
-          raise "invariants broken before insert"
+          throw "invariants broken before insert"
       else (let new_t = ensureBlackRoot (ins t) in
             if not (invariants_hold new_t) then
-                raise "invariants broken after insert"
+                throw "invariants broken after insert"
             else new_t)
 
 singleton k v = insert k v RBEmpty
@@ -262,17 +287,17 @@ remove k t =
     let t' = moveRedLeftIfNeeded t in
     case t' of 
     { RBNode c k' v l r -> fixUp (RBNode c k' v (del l) r)
-    ; RBEmpty -> raise "delLT on RBEmpty" }
+    ; RBEmpty -> throw "delLT on RBEmpty" }
   ; delEQ t =
     case t of -- Replace with successor
     { RBNode c _ _ l r ->
           let (k',v') = min r in
           fixUp (RBNode c k' v' l (deleteMin r))
-    ; RBEmpty -> raise "delEQ called on a RBEmpty" }
+    ; RBEmpty -> throw "delEQ called on a RBEmpty" }
   ; delGT t =
     case t of
     { RBNode c k' v l r -> fixUp (RBNode c k' v l (del r))
-    ; RBEmpty -> raise "delGT called on a RBEmpty" }
+    ; RBEmpty -> throw "delGT called on a RBEmpty" }
   ; del t =
     case t of 
     { RBEmpty -> RBEmpty
@@ -284,13 +309,29 @@ remove k t =
                   if eq t then delEQ t else delGT t)) }
   }
   in  if not (invariants_hold t) then
-          raise "invariants broken before remove"
+          throw "invariants broken before remove"
       else (let t' = ensureBlackRoot (del t) in
             if invariants_hold t' then t' else
-                raise "invariants broken after remove")
+                throw "invariants broken after remove")
+
+map f t =
+  case t of
+  { RBEmpty -> RBEmpty
+  ; RBNode c k v l r -> RBNode c k (f v) (map f l) (map f r)
+  }
 
 fold f acc t =
   case t of
   { RBEmpty -> acc
   ; RBNode _ k v l r -> fold f (f k v (fold f acc l)) r
   }
+
+union t1 t2 = fold insert t2 t1
+intersect t1 t2 = fold (\k v t -> if k `member` t2 then insert k v t else t) empty t1
+diff t1 t2 = fold (\k _ t -> remove k t) t1 t2
+
+keys t = fold (\k _ acc -> k : acc) [] t
+values t = fold (\_ -> (:)) [] t
+
+toList t = fold (\k v acc -> (k,v) : acc) [] t
+fromList assocs = List.foldl (\(k,v) t -> insert k v t) empty assocs

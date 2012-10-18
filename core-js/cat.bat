@@ -2,4 +2,4 @@ copy /B Guid.js+foreign\JavaScript.js+foreign\JSON.js+Value.js+List.js+Dict.js+S
 
 cd ..\elm
 
-copy /B ..\elm-mini.js elm-runtime-0.4.5.js
+copy /B ..\elm-mini.js elm-runtime-0.5.0.js
