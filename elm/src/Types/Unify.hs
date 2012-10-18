@@ -11,6 +11,7 @@ import Types
 import Types.Constrain
 import Types.Substitutions
 
+import Control.DeepSeq (deepseq)
 --import System.IO.Unsafe
 
 prints xs v = v --} unsafePerformIO (putStrLn "----------" >> mapM print xs) `seq` v
@@ -21,6 +22,7 @@ unify hints modul = run $ do
   prints cs $ return ((,) escapees `liftM` subs)
 
 eq ctx t1 t2 = Context ctx (t1 :=: t2)
+
 
 solver [] subs = prints (Map.toList subs) $ return $ Right subs
 
@@ -43,21 +45,26 @@ solver (Context ctx (VarT x :=: VarT y) : cs) subs
                  setXY t = Map.insert x t . Map.insert y t
              in  case Set.toList ts of
                    []  -> unionError ctx xts yts
-                   [t] -> solver (map (cSub x t . cSub y t) cs) $ setXY t subs
+                   [t] -> let cs1 = map (\c -> cSub y t c `seq` cSub x t (cSub y t c)) cs in
+                          cs1 `seq` solver cs1 (setXY t subs)
                    _   -> solver cs $ setXY (Super ts) subs
           (Just (Super xts), _) ->
-              solver (map (cSub y (VarT x)) cs) $ Map.insert y (VarT x) subs
+              let cs2 = map (cSub y (VarT x)) cs in
+              cs2 `seq` solver cs2 $ Map.insert y (VarT x) subs
           (_, _) ->
-              solver (map (cSub x (VarT y)) cs) $ Map.insert x (VarT y) subs
+              let cs3 = map (cSub x (VarT y)) cs in
+              cs3 `deepseq` solver cs3 $ Map.insert x (VarT y) subs
 solver (Context ctx (VarT x :=: t) : cs) subs = do
   if x `occursIn` t then occursError ctx (VarT x) t else
       (case Map.lookup x subs of
-         Nothing -> solver (map (cSub x t) cs) . Map.map (tSub x t) $ Map.insert x t subs
+         Nothing -> let cs4 = map (cSub x t) cs in
+                    cs4 `deepseq` (solver cs4 . Map.map (tSub x t) $ Map.insert x t subs)
          Just (Super ts) ->
              let ts' = Set.intersection ts (Set.singleton t) in
              case Set.toList ts' of
                []   -> solver (Context ctx (t :<: Super ts) : cs) subs
-               [t'] -> solver (map (cSub x t') cs) $ Map.insert x t' subs
+               [t'] -> let cs5 = map (cSub x t) cs in
+                       cs5 `seq` solver cs5 $ Map.insert x t' subs
                _    -> solver cs $ Map.insert x (Super ts') subs
          Just t' -> solver (Context ctx (t' :=: t) : cs) subs
       )
@@ -91,13 +98,13 @@ solver (Context ctx (t :<: Super ts) : cs) subs
     | otherwise = subtypeError ctx t (Super ts)
 
 solver (Context ctx (x :<<: s) : cs) subs
-    | any (\(Context _ c) -> x `elem` cFreeVars c) cs =
-        do cs' <- concat `liftM` mapM (schemeSub x s) cs
-           prints cs' $ solver cs' subs
+    | any (hasVarC x) cs =
+        do cs6 <- concat `liftM` mapM (schemeSub x s) cs
+           solver cs6 subs
     | otherwise =
-        do (t,cs') <- concretize s
-           let cs'' = (cs ++ Context ctx (VarT x :=: t) : map (extendCtx ctx) cs')
-           prints cs'' $ solver cs'' subs
+        do (t,cs7) <- concretize s
+           let cs'' = (cs ++ Context ctx (VarT x :=: t) : map (extendCtx ctx) cs7)
+           solver cs'' subs
 
 
 occursError ctx t1 t2 =
