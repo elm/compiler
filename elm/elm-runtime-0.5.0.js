@@ -3660,9 +3660,9 @@ Elm.Automaton=function(){
     throw "Non-exhaustive pattern match in case";}();
    }
    throw "Non-exhaustive pattern match in case";}();};};
- function dragForm_14(form_93){
+ function draggable_14(form_93){
   return init__7(["Tuple2",Listen_9,form_93])(stepDrag_13);};
- return {Automaton:Automaton_0,run:run_1,step:step_2,composeAuto:composeAuto_3,combine:combine_4,pure:pure_5,init:init_6,init_:init__7,count:count_8,Listen:Listen_9,Ignore:Ignore_10,DragFrom:DragFrom_11,vecSub:vecSub_12,stepDrag:stepDrag_13,dragForm:dragForm_14};}();
+ return {Automaton:Automaton_0,run:run_1,step:step_2,composeAuto:composeAuto_3,combine:combine_4,pure:pure_5,init:init_6,init_:init__7,count:count_8,Listen:Listen_9,Ignore:Ignore_10,DragFrom:DragFrom_11,vecSub:vecSub_12,stepDrag:stepDrag_13,draggable:draggable_14};}();
 Elm.main=function(){
  return Elm.Automaton.main;};
 } catch (e) {Elm.main=function() {var msg = ('<br/><h2>Your browser may not be supported. Are you using a modern browser?</h2>' + '<br/><span style="color:grey">Runtime Error in Automaton module:<br/>' + e + '</span>');document.body.innerHTML = Text.monospace(msg);throw e;};}
