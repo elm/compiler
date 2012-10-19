@@ -55,9 +55,9 @@
 
 module Pong where
 
-import Foreign.JavaScript
-import Signal.Keyboard.Raw
-import Signal.Window as Win
+import JavaScript
+import Keyboard.Raw
+import Window as Win
 
 
 ------------------------------------------------------------------------

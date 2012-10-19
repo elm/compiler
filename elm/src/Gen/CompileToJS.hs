@@ -117,8 +117,8 @@ stmtToJS (Datatype _ _ tcs) = concatMap (stmtToJS . toDef) tcs
     where toDef (name,args) = Def name vars $ Data (derename name) (map Var vars)
               where vars = map (('a':) . show) [1..length args]
 stmtToJS (ImportEvent js base elm _) =
-    concat [ "\nvar " ++ elm ++ " = Elm.Input(" ++ toJS base ++ ");"
-           , "\nSignal.addListener(document, '" ++ js
+    concat [ "\nvar " ++ elm ++ " = Elm.Signal.constant(" ++ toJS base ++ ");"
+           , "\nValue.addListener(document, '" ++ js
            , "', function(e) { Dispatcher.notify(" ++ elm
            , ".id, e.value); });" ]
 stmtToJS (ExportEvent js elm _) =

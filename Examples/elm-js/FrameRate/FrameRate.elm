@@ -1,10 +1,10 @@
 
 module FrameRate where
 
-import Data.Maybe (mapMaybe)
-import Foreign.JavaScript
-import Signal.Keyboard.Raw
-import Signal.Input
+import Maybe (mapMaybe)
+import JavaScript
+import Keyboard.Raw
+import Input
 
 (drop,dFPS) = dropDown
   [ ( "30",  30)
@@ -58,7 +58,7 @@ position = foldp addVecs (0,0) delta
 screen pos actual =
   flow down [ collage 400 400 [ outlined black (rect 40 40 pos) ]
             , plainText "Move the square around with the arrow keys."
-            , text $ toText "Actual frames per second: " ++ show actual
+            , plainText $ "Actual frames per second: " ++ show actual
             , plainText "Desired frames per second: " `beside` drop
             ]
 

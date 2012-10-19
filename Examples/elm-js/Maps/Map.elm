@@ -1,8 +1,8 @@
 
 module Map where
 
-import Signal.Window as Win
-import Foreign.JavaScript.Experimental
+import Window as Win
+import JavaScript.Experimental
 
 foreign import jsevent "provideMap"
   (castElementToJSElement $ spacer 640 360)
