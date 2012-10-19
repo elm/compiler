@@ -1,8 +1,6 @@
 
 module Automaton where
 
-import Data.List (unzip)
-
 data Automaton a b = Automaton (a -> (b, Automaton a b))
 
 
@@ -41,7 +39,7 @@ draggable :: Form -> Automaton (Bool,(Int,Int)) Form
 run (Automaton m0) input =
   lift fst $ foldp' (\a (b, Automaton m) -> m a) m0 input
 
-step a (Automaton m) = m a
+step (Automaton m) a = m a
 
 
 --a1 >>> a2 =

@@ -1,7 +1,7 @@
 
 module Set (empty,singleton,insert,remove
            ,member
-           ,fold,map
+           ,foldl,foldr,map
            ,union,intersect,diff
            ,toList,fromList
            ) where
@@ -19,5 +19,6 @@ diff = Dict.diff
 toList = Dict.keys
 fromList = List.foldl (\k t -> Dict.insert k () t) empty
 
-fold f = Dict.fold (\k v b -> f k b)
+foldl f = Dict.foldl (\k v b -> f k b)
+foldr f = Dict.foldr (\k v b -> f k b)
 map f t = fromList . List.map f $ toList t

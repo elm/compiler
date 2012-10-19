@@ -955,55 +955,551 @@ Elm.List = function() {
 	    sort:sort,
 	    take:take,
 	    drop:drop};
-}();try{if(Elm.Dict)throw "Module name collision, 'Dict' is already defined.";Elm.Dict=function(){try{if(!(Elm.Prelude instanceof Object))throw 'module not found'}catch(e){throw "Module 'Prelude' is missing. Compile with --make flag or load missing module in a separate JavaScript file."};var hiddenVars=[];for(var i in Elm.Prelude){if(hiddenVars.indexOf(i)>=0)continue;this[i]=Elm.Prelude[i]};try{if(!(Elm.Data.Maybe instanceof Object))throw 'module not found'}catch(e){throw "Module 'Data.Maybe' is missing. Compile with --make flag or load missing module in a separate JavaScript file."};var isJust=Elm.Data.Maybe.isJust,Red_0=["Red"],Black_1=["Black"]
-function RBNode_2(a1){return function(a2){return function(a3){return function(a4){return function(a5){return ["RBNode",a1,a2,a3,a4,a5]}}}}};var RBEmpty_3=["RBEmpty"],raise_4=console.log,empty_5=RBEmpty_3
-function equal_pathLen_6(t_46){return function(){function path_numBlacks_47(t_48){return function(){switch(t_48[0]){case"RBEmpty":return 1;case"RBNode":return function(){var bl_52=path_numBlacks_47(t_48[4]),br_53=path_numBlacks_47(t_48[5]);return((not(eq(bl_52,br_53))||(eq(bl_52,-1)||eq(br_53,-1)))?-1:(bl_52+(eq(t_48[1],Red_0)?0:1)))}()};throw "Non-exhaustive pattern match in case"}()};return not(eq(-1,path_numBlacks_47(t_46)))}()}
-function rootBlack_7(t_54){return function(){switch(t_54[0]){case"RBEmpty":return true;case"RBNode":switch(t_54[1][0]){case"Black":return true};break};return false}()}
-function redBlack_children_8(t_55){return function(){switch(t_55[0]){case"RBEmpty":return true;case"RBNode":switch(t_55[1][0]){case"Red":switch(t_55[4][0]){case"RBNode":switch(t_55[4][1][0]){case"Red":return false};break};switch(t_55[5][0]){case"RBNode":switch(t_55[5][1][0]){case"Red":return false};break};break};return(redBlack_children_8(t_55[4])&&redBlack_children_8(t_55[5]))};throw "Non-exhaustive pattern match in case"}()}
-function findExtreme_9(f_58){return function(t_59){return function(){switch(t_59[0]){case"RBEmpty":return Nothing;case"RBNode":return function(){var case6=findExtreme_9(f_58)(f_58(["Tuple2",t_59[4],t_59[5]]));switch(case6[0]){case"Just":return Just(case6[1]);case"Nothing":return Just(t_59[2])};throw "Non-exhaustive pattern match in case"}()};throw "Non-exhaustive pattern match in case"}()}}
-function findminRbt_10(t_65){return findExtreme_9(fst)(t_65)}
-function findmaxRbt_11(t_66){return findExtreme_9(snd)(t_66)}
-function optionRelation_12(f_67){return function(u_68){return function(xo_69){return function(yo_70){return function(){var case0=["Tuple2",xo_69,yo_70];switch(case0[0]){case"Tuple2":switch(case0[1][0]){case"Nothing":return u_68};switch(case0[2][0]){case"Nothing":return u_68};switch(case0[1][0]){case"Just":switch(case0[2][0]){case"Just":return f_67(case0[1][1])(case0[2][1])};break};break};throw "Non-exhaustive pattern match in case"}()}}}}
-function olt_13(xo_73){return function(yo_74){return optionRelation_12(function(x_75){return function(y_76){return(compare(x_75)(y_76)[0]==='LT')}})(true)(xo_73)(yo_74)}}
-function olte_14(xo_77){return function(yo_78){return optionRelation_12(function(x_79){return function(y_80){return function(){var ord=compare(x_79)(y_80)[0];return ord==='LT'||ord==='EQ'}()}})(true)(xo_77)(yo_78)}}
-function ordered_15(t_81){return function(){switch(t_81[0]){case"RBEmpty":return true;case"RBNode":return function(){var Tuple2$lmaxrmin_87=["Tuple2",findmaxRbt_11(t_81[4]),findminRbt_10(t_81[5])],lmax_88=function(){switch(Tuple2$lmaxrmin_87[0]){case"Tuple2":return Tuple2$lmaxrmin_87[1]};throw "Non-exhaustive pattern match in case"}(),rmin_89=function(){switch(Tuple2$lmaxrmin_87[0]){case"Tuple2":return Tuple2$lmaxrmin_87[2]};throw "Non-exhaustive pattern match in case"}();return(olte_14(lmax_88)(Just(t_81[2]))&&(olte_14(Just(t_81[2]))(rmin_89)&&(ordered_15(t_81[4])&&ordered_15(t_81[5]))))}()};throw "Non-exhaustive pattern match in case"}()}
-function leftLeaning_16(t_94){return function(){switch(t_94[0]){case"RBEmpty":return true;case"RBNode":switch(t_94[4][0]){case"RBEmpty":switch(t_94[5][0]){case"RBNode":switch(t_94[5][1][0]){case"Red":return false};break};break;case"RBNode":switch(t_94[4][1][0]){case"Black":switch(t_94[5][0]){case"RBNode":switch(t_94[5][1][0]){case"Red":return false};break};break};break};return(leftLeaning_16(t_94[4])&&leftLeaning_16(t_94[5]))};throw "Non-exhaustive pattern match in case"}()}
-function invariants_hold_17(t_97){return(ordered_15(t_97)&&(rootBlack_7(t_97)&&(redBlack_children_8(t_97)&&(equal_pathLen_6(t_97)&&leftLeaning_16(t_97)))))}
-function min_18(t_98){return function(){switch(t_98[0]){case"RBEmpty":return console.log(Value.str("(min RBEmpty) is not defined"));case"RBNode":switch(t_98[4][0]){case"RBEmpty":return ["Tuple2",t_98[2],t_98[3]]};return min_18(t_98[4])};throw "Non-exhaustive pattern match in case"}()}
-function max_19(t_102){return function(){switch(t_102[0]){case"RBEmpty":return console.log(Value.str("(max RBEmpty) is not defined"));case"RBNode":switch(t_102[5][0]){case"RBEmpty":return ["Tuple2",t_102[2],t_102[3]]};return max_19(t_102[5])};throw "Non-exhaustive pattern match in case"}()}
-function lookup_20(k_106){return function(t_107){return function(){switch(t_107[0]){case"RBEmpty":return Nothing;case"RBNode":return function(){var case6=compare(k_106)(t_107[2]);switch(case6[0]){case"EQ":return Just(t_107[3]);case"GT":return lookup_20(k_106)(t_107[5]);case"LT":return lookup_20(k_106)(t_107[4])};throw "Non-exhaustive pattern match in case"}()};throw "Non-exhaustive pattern match in case"}()}}
-function member_21(k_112){return function(t_113){return isJust(lookup_20(k_112)(t_113))}}
-function rotateLeft_22(t_114){return function(){switch(t_114[0]){case"RBNode":switch(t_114[5][0]){case"RBNode":return RBNode_2(t_114[1])(t_114[5][2])(t_114[5][3])(RBNode_2(Red_0)(t_114[2])(t_114[3])(t_114[4])(t_114[5][4]))(t_114[5][5])};break};return raise_4(Value.str("rotateLeft of a node without enough children"))}()}
-function rotateRight_23(t_124){return function(){switch(t_124[0]){case"RBNode":switch(t_124[4][0]){case"RBNode":return RBNode_2(t_124[1])(t_124[4][2])(t_124[4][3])(t_124[4][4])(RBNode_2(Red_0)(t_124[2])(t_124[3])(t_124[4][5])(t_124[5]))};break};return raise_4(Value.str("rotateRight of a node without enough children"))}()}
-function rotateLeftIfNeeded_24(t_134){return function(){switch(t_134[0]){case"RBNode":switch(t_134[5][0]){case"RBNode":switch(t_134[5][1][0]){case"Red":return rotateLeft_22(t_134)};break};break};return t_134}()}
-function rotateRightIfNeeded_25(t_135){return function(){switch(t_135[0]){case"RBNode":switch(t_135[4][0]){case"RBNode":switch(t_135[4][1][0]){case"Red":switch(t_135[4][4][0]){case"RBNode":switch(t_135[4][4][1][0]){case"Red":return rotateRight_23(t_135)};break};break};break};break};return t_135}()}
-function otherColor_26(c_136){return function(){switch(c_136[0]){case"Black":return Red_0;case"Red":return Black_1};throw "Non-exhaustive pattern match in case"}()}
-function color_flip_27(t_137){return function(){switch(t_137[0]){case"RBNode":switch(t_137[4][0]){case"RBNode":switch(t_137[5][0]){case"RBNode":return RBNode_2(otherColor_26(t_137[1]))(t_137[2])(t_137[3])(RBNode_2(otherColor_26(t_137[4][1]))(t_137[4][2])(t_137[4][3])(t_137[4][4])(t_137[4][5]))(RBNode_2(otherColor_26(t_137[5][1]))(t_137[5][2])(t_137[5][3])(t_137[5][4])(t_137[5][5]))};break};break};return raise_4(Value.str("color_flip called on a RBEmpty or RBNode with a RBEmpty child"))}()}
-function color_flipIfNeeded_28(t_151){return function(){switch(t_151[0]){case"RBNode":switch(t_151[4][0]){case"RBNode":switch(t_151[4][1][0]){case"Red":switch(t_151[5][0]){case"RBNode":switch(t_151[5][1][0]){case"Red":return color_flip_27(t_151)};break};break};break};break};return t_151}()}
-function fixUp_29(t_152){return color_flipIfNeeded_28(rotateRightIfNeeded_25(rotateLeftIfNeeded_24(t_152)))}
-function ensureBlackRoot_30(t_153){return function(){switch(t_153[0]){case"RBNode":switch(t_153[1][0]){case"Red":return RBNode_2(Black_1)(t_153[2])(t_153[3])(t_153[4])(t_153[5])};break};return t_153}()}
-function insert_31(k_158){return function(v_159){return function(t_160){return function(){function ins_161(t_162){return function(){switch(t_162[0]){case"RBEmpty":return RBNode_2(Red_0)(k_158)(v_159)(RBEmpty_3)(RBEmpty_3);case"RBNode":return function(){var h_168=function(){var case6=compare(k_158)(t_162[2]);switch(case6[0]){case"EQ":return RBNode_2(t_162[1])(t_162[2])(v_159)(t_162[4])(t_162[5]);case"GT":return RBNode_2(t_162[1])(t_162[2])(t_162[3])(t_162[4])(ins_161(t_162[5]));case"LT":return RBNode_2(t_162[1])(t_162[2])(t_162[3])(ins_161(t_162[4]))(t_162[5])};throw "Non-exhaustive pattern match in case"}();return fixUp_29(h_168)}()};throw "Non-exhaustive pattern match in case"}()};return(not(invariants_hold_17(t_160))?raise_4(Value.str("invariants broken before insert")):function(){var new_t_169=ensureBlackRoot_30(ins_161(t_160));return(not(invariants_hold_17(new_t_169))?raise_4(Value.str("invariants broken after insert")):new_t_169)}())}()}}}
-function singleton_32(k_170){return function(v_171){return insert_31(k_170)(v_171)(RBEmpty_3)}}
-function isRed_33(t_172){return function(){switch(t_172[0]){case"RBNode":switch(t_172[1][0]){case"Red":return true};break};return false}()}
-function isRedLeft_34(t_173){return function(){switch(t_173[0]){case"RBNode":switch(t_173[4][0]){case"RBNode":switch(t_173[4][1][0]){case"Red":return true};break};break};return false}()}
-function isRedLeftLeft_35(t_174){return function(){switch(t_174[0]){case"RBNode":switch(t_174[4][0]){case"RBNode":switch(t_174[4][4][0]){case"RBNode":switch(t_174[4][4][1][0]){case"Red":return true};break};break};break};return false}()}
-function isRedRight_36(t_175){return function(){switch(t_175[0]){case"RBNode":switch(t_175[5][0]){case"RBNode":switch(t_175[5][1][0]){case"Red":return true};break};break};return false}()}
-function isRedRightLeft_37(t_176){return function(){switch(t_176[0]){case"RBNode":switch(t_176[5][0]){case"RBNode":switch(t_176[5][4][0]){case"RBNode":switch(t_176[5][4][1][0]){case"Red":return true};break};break};break};return false}()}
-function moveRedLeft_38(t_177){return function(){var t__178=color_flip_27(t_177);return function(){switch(t__178[0]){case"RBNode":return function(){switch(t__178[5][0]){case"RBNode":switch(t__178[5][4][0]){case"RBNode":switch(t__178[5][4][1][0]){case"Red":return color_flip_27(rotateLeft_22(RBNode_2(t__178[1])(t__178[2])(t__178[3])(t__178[4])(rotateRight_23(t__178[5]))))};break};break};return t__178}()};return t__178}()}()}
-function moveRedRight_39(t_184){return function(){var t__185=color_flip_27(t_184);return(isRedLeftLeft_35(t__185)?color_flip_27(rotateRight_23(t__185)):t__185)}()}
-function moveRedLeftIfNeeded_40(t_186){return((not(isRedLeft_34(t_186))&&not(isRedLeftLeft_35(t_186)))?moveRedLeft_38(t_186):t_186)}
-function moveRedRightIfNeeded_41(t_187){return((not(isRedRight_36(t_187))&&not(isRedRightLeft_37(t_187)))?moveRedRight_39(t_187):t_187)}
-function deleteMin_42(t_188){return function(){function del_189(t_190){return function(){switch(t_190[0]){case"RBNode":switch(t_190[4][0]){case"RBEmpty":return RBEmpty_3};break};return function(){var t__191=moveRedLeftIfNeeded_40(t_190);return function(){switch(t__191[0]){case"RBEmpty":return RBEmpty_3;case"RBNode":return fixUp_29(RBNode_2(t__191[1])(t__191[2])(t__191[3])(del_189(t__191[4]))(t__191[5]))};throw "Non-exhaustive pattern match in case"}()}()}()};return ensureBlackRoot_30(del_189(t_188))}()}
-function deleteMax_43(t_197){return function(){function del_198(t_199){return function(){var t__200=(isRedLeft_34(t_199)?rotateRight_23(t_199):t_199);return function(){switch(t__200[0]){case"RBNode":switch(t__200[5][0]){case"RBEmpty":return RBEmpty_3};break};return function(){var t___201=moveRedRightIfNeeded_41(t__200);return function(){switch(t___201[0]){case"RBEmpty":return RBEmpty_3;case"RBNode":return fixUp_29(RBNode_2(t___201[1])(t___201[2])(t___201[3])(t___201[4])(del_198(t___201[5])))};throw "Non-exhaustive pattern match in case"}()}()}()}()};return ensureBlackRoot_30(del_198(t_197))}()}
-function remove_44(k_207){return function(t_208){return function(){function eq_and_noRightNode_209(t_215){return function(){switch(t_215[0]){case"RBNode":switch(t_215[5][0]){case"RBEmpty":return eq(k_207,t_215[2])};break};return false}()}
-function eq_210(t_217){return function(){switch(t_217[0]){case"RBNode":return eq(k_207,t_217[2])};return false}()}
-function delLT_211(t_219){return function(){var t__220=moveRedLeftIfNeeded_40(t_219);return function(){switch(t__220[0]){case"RBEmpty":return raise_4(Value.str("delLT on RBEmpty"));case"RBNode":return fixUp_29(RBNode_2(t__220[1])(t__220[2])(t__220[3])(del_214(t__220[4]))(t__220[5]))};throw "Non-exhaustive pattern match in case"}()}()}
-function delEQ_212(t_226){return function(){switch(t_226[0]){case"RBEmpty":return raise_4(Value.str("delEQ called on a RBEmpty"));case"RBNode":return function(){var Tuple2$k_v__230=min_18(t_226[5]),k__231=function(){switch(Tuple2$k_v__230[0]){case"Tuple2":return Tuple2$k_v__230[1]};throw "Non-exhaustive pattern match in case"}(),v__232=function(){switch(Tuple2$k_v__230[0]){case"Tuple2":return Tuple2$k_v__230[2]};throw "Non-exhaustive pattern match in case"}();return fixUp_29(RBNode_2(t_226[1])(k__231)(v__232)(t_226[4])(deleteMin_42(t_226[5])))}()};throw "Non-exhaustive pattern match in case"}()}
-function delGT_213(t_237){return function(){switch(t_237[0]){case"RBEmpty":return raise_4(Value.str("delGT called on a RBEmpty"));case"RBNode":return fixUp_29(RBNode_2(t_237[1])(t_237[2])(t_237[3])(t_237[4])(del_214(t_237[5])))};throw "Non-exhaustive pattern match in case"}()}
-function del_214(t_243){return function(){switch(t_243[0]){case"RBEmpty":return RBEmpty_3;case"RBNode":return((compare(k_207)(t_243[2])[0]==='LT')?delLT_211(t_243):function(){var t__245=(isRedLeft_34(t_243)?rotateRight_23(t_243):t_243);return(eq_and_noRightNode_209(t__245)?RBEmpty_3:function(){var t_246=moveRedRightIfNeeded_41(t_246);return(eq_210(t_246)?delEQ_212(t_246):delGT_213(t_246))}())}())};throw "Non-exhaustive pattern match in case"}()};return(not(invariants_hold_17(t_208))?raise_4(Value.str("invariants broken before remove")):function(){var t__247=ensureBlackRoot_30(del_214(t_208));return(invariants_hold_17(t__247)?t__247:raise_4(Value.str("invariants broken after remove")))}())}()}}
-function fold_45(f_248){return function(acc_249){return function(t_250){return function(){switch(t_250[0]){case"RBEmpty":return acc_249;case"RBNode":return fold_45(f_248)(f_248(t_250[2])(t_250[3])(fold_45(f_248)(acc_249)(t_250[4])))(t_250[5])};throw "Non-exhaustive pattern match in case"}()}}};return {empty:empty_5,lookup:lookup_20,member:member_21,insert:insert_31,singleton:singleton_32,remove:remove_44,fold:fold_45}}();Elm.main=function(){return Elm.Dict.main}}catch(e){Elm.main=function(){var msg=('<br/><h2>Your browser may not be supported. Are you using a modern browser?</h2>'+'<br/><span style="color:grey">Runtime Error in Dict module:<br/>'+e+'<br/><br/>The problem may stem from an improper usage of:<br/>EQ, GT, LT, console.log, fst, snd</span>');document.body.innerHTML=Text.monospace(msg);throw e}}try{if(Elm.Set)throw "Module name collision, 'Set' is already defined.";Elm.Set=function(){try{if(!(Elm.Prelude instanceof Object))throw 'module not found'}catch(e){throw "Module 'Prelude' is missing. Compile with --make flag or load missing module in a separate JavaScript file."};var hiddenVars=[];for(var i in Elm.Prelude){if(hiddenVars.indexOf(i)>=0)continue;this[i]=Elm.Prelude[i]};try{if(!(Elm.Dict instanceof Object))throw 'module not found'}catch(e){throw "Module 'Dict' is missing. Compile with --make flag or load missing module in a separate JavaScript file."};var Dict=Elm.Dict,empty_0=Dict.empty,remove_3=Dict.remove,member_4=Dict.member
-function singleton_1(k_5){return Dict.singleton(k_5)(["Tuple0"])}
-function insert_2(k_6){return Dict.insert(k_6)(["Tuple0"])};return {empty:empty_0,singleton:singleton_1,insert:insert_2,remove:remove_3,member:member_4}}();Elm.main=function(){return Elm.Set.main}}catch(e){Elm.main=function(){var msg=('<br/><h2>Your browser may not be supported. Are you using a modern browser?</h2>'+'<br/><span style="color:grey">Runtime Error in Set module:<br/>'+e+'<br/><br/>The problem may stem from an improper usage of:<br/>Dict.empty, Dict.insert, Dict.member, Dict.remove, Dict.singleton</span>');document.body.innerHTML=Text.monospace(msg);throw e}}
+}();
+try{
+
+for(var i in Elm) { this[i] = Elm[i]; }
+if (Elm.Dict) throw "Module name collision, 'Dict' is already defined."; 
+Elm.Dict=function(){
+ try{if (!(Elm.Prelude instanceof Object)) throw 'module not found'; } catch(e) {throw "Module 'Prelude' is missing. Compile with --make flag or load missing module in a separate JavaScript file.";}
+ var hiddenVars=[];
+ for(var i in Elm.Prelude){
+  if (hiddenVars.indexOf(i) >= 0) continue;
+  this[i]=Elm.Prelude[i];}
+ try{if (!(Elm.Maybe instanceof Object)) throw 'module not found'; } catch(e) {throw "Module 'Maybe' is missing. Compile with --make flag or load missing module in a separate JavaScript file.";}
+ var isJust=Elm.Maybe.isJust;
+ var Red_0=["Red"];
+ var Black_1=["Black"];
+ function RBNode_2(a1){
+  return function(a2){
+   return function(a3){
+    return function(a4){
+     return function(a5){
+      return ["RBNode",a1,a2,a3,a4,a5];};};};};};
+ var RBEmpty_3=["RBEmpty"];
+ var empty_4=RBEmpty_3;
+ var raise_5=console.log;
+ function min_6(t_43){
+  return function(){
+  switch(t_43[0]){
+   case "RBEmpty":
+   return raise_5(Value.str("(min RBEmpty) is not defined"));
+   case "RBNode":
+   switch(t_43[4][0]){
+    case "RBEmpty":
+    return ["Tuple2",t_43[2],t_43[3]];
+   }
+   return min_6(t_43[4]);
+  }
+  throw "Non-exhaustive pattern match in case";}();};
+ function lookup_7(k_47){
+  return function(t_48){
+   return function(){
+   switch(t_48[0]){
+    case "RBEmpty":
+    return Nothing;
+    case "RBNode":
+    return function(){
+    var case6=compare(k_47)(t_48[2]);
+    switch(case6[0]){
+     case "EQ":
+     return Just(t_48[3]);
+     case "GT":
+     return lookup_7(k_47)(t_48[5]);
+     case "LT":
+     return lookup_7(k_47)(t_48[4]);
+    }
+    throw "Non-exhaustive pattern match in case";}();
+   }
+   throw "Non-exhaustive pattern match in case";}();};};
+ function findWithDefault_8(base_53){
+  return function(k_54){
+   return function(t_55){
+    return function(){
+    switch(t_55[0]){
+     case "RBEmpty":
+     return base_53;
+     case "RBNode":
+     return function(){
+     var case6=compare(k_54)(t_55[2]);
+     switch(case6[0]){
+      case "EQ":
+      return t_55[3];
+      case "GT":
+      return findWithDefault_8(base_53)(k_54)(t_55[5]);
+      case "LT":
+      return findWithDefault_8(base_53)(k_54)(t_55[4]);
+     }
+     throw "Non-exhaustive pattern match in case";}();
+    }
+    throw "Non-exhaustive pattern match in case";}();};};};
+ function find_9(k_60){
+  return function(t_61){
+   return function(){
+   switch(t_61[0]){
+    case "RBEmpty":
+    return raise_5(Value.str("Key was not found in dictionary!"));
+    case "RBNode":
+    return function(){
+    var case6=compare(k_60)(t_61[2]);
+    switch(case6[0]){
+     case "EQ":
+     return t_61[3];
+     case "GT":
+     return find_9(k_60)(t_61[5]);
+     case "LT":
+     return find_9(k_60)(t_61[4]);
+    }
+    throw "Non-exhaustive pattern match in case";}();
+   }
+   throw "Non-exhaustive pattern match in case";}();};};
+ function member_10(k_66){
+  return function(t_67){
+   return isJust(lookup_7(k_66)(t_67));};};
+ function rotateLeft_11(t_68){
+  return function(){
+  switch(t_68[0]){
+   case "RBNode":
+   switch(t_68[5][0]){
+    case "RBNode":
+    return RBNode_2(t_68[1])(t_68[5][2])(t_68[5][3])(RBNode_2(Red_0)(t_68[2])(t_68[3])(t_68[4])(t_68[5][4]))(t_68[5][5]);
+   }break;
+  }
+  return raise_5(Value.str("rotateLeft of a node without enough children"));}();};
+ function rotateRight_12(t_78){
+  return function(){
+  switch(t_78[0]){
+   case "RBNode":
+   switch(t_78[4][0]){
+    case "RBNode":
+    return RBNode_2(t_78[1])(t_78[4][2])(t_78[4][3])(t_78[4][4])(RBNode_2(Red_0)(t_78[2])(t_78[3])(t_78[4][5])(t_78[5]));
+   }break;
+  }
+  return raise_5(Value.str("rotateRight of a node without enough children"));}();};
+ function rotateLeftIfNeeded_13(t_88){
+  return function(){
+  switch(t_88[0]){
+   case "RBNode":
+   switch(t_88[5][0]){
+    case "RBNode":
+    switch(t_88[5][1][0]){
+     case "Red":
+     return rotateLeft_11(t_88);
+    }break;
+   }break;
+  }
+  return t_88;}();};
+ function rotateRightIfNeeded_14(t_89){
+  return function(){
+  switch(t_89[0]){
+   case "RBNode":
+   switch(t_89[4][0]){
+    case "RBNode":
+    switch(t_89[4][1][0]){
+     case "Red":
+     switch(t_89[4][4][0]){
+      case "RBNode":
+      switch(t_89[4][4][1][0]){
+       case "Red":
+       return rotateRight_12(t_89);
+      }break;
+     }break;
+    }break;
+   }break;
+  }
+  return t_89;}();};
+ function otherColor_15(c_90){
+  return function(){
+  switch(c_90[0]){
+   case "Black":
+   return Red_0;
+   case "Red":
+   return Black_1;
+  }
+  throw "Non-exhaustive pattern match in case";}();};
+ function color_flip_16(t_91){
+  return function(){
+  switch(t_91[0]){
+   case "RBNode":
+   switch(t_91[4][0]){
+    case "RBNode":
+    switch(t_91[5][0]){
+     case "RBNode":
+     return RBNode_2(otherColor_15(t_91[1]))(t_91[2])(t_91[3])(RBNode_2(otherColor_15(t_91[4][1]))(t_91[4][2])(t_91[4][3])(t_91[4][4])(t_91[4][5]))(RBNode_2(otherColor_15(t_91[5][1]))(t_91[5][2])(t_91[5][3])(t_91[5][4])(t_91[5][5]));
+    }break;
+   }break;
+  }
+  return raise_5(Value.str("color_flip called on a RBEmpty or RBNode with a RBEmpty child"));}();};
+ function color_flipIfNeeded_17(t_105){
+  return function(){
+  switch(t_105[0]){
+   case "RBNode":
+   switch(t_105[4][0]){
+    case "RBNode":
+    switch(t_105[4][1][0]){
+     case "Red":
+     switch(t_105[5][0]){
+      case "RBNode":
+      switch(t_105[5][1][0]){
+       case "Red":
+       return color_flip_16(t_105);
+      }break;
+     }break;
+    }break;
+   }break;
+  }
+  return t_105;}();};
+ function fixUp_18(t_106){
+  return color_flipIfNeeded_17(rotateRightIfNeeded_14(rotateLeftIfNeeded_13(t_106)));};
+ function ensureBlackRoot_19(t_107){
+  return function(){
+  switch(t_107[0]){
+   case "RBNode":
+   switch(t_107[1][0]){
+    case "Red":
+    return RBNode_2(Black_1)(t_107[2])(t_107[3])(t_107[4])(t_107[5]);
+   }break;
+  }
+  return t_107;}();};
+ function insert_20(k_112){
+  return function(v_113){
+   return function(t_114){
+    return function(){
+     function ins_115(t_116){
+      return function(){
+      switch(t_116[0]){
+       case "RBEmpty":
+       return RBNode_2(Red_0)(k_112)(v_113)(RBEmpty_3)(RBEmpty_3);
+       case "RBNode":
+       return function(){
+        var h_122=function(){
+        var case6=compare(k_112)(t_116[2]);
+        switch(case6[0]){
+         case "EQ":
+         return RBNode_2(t_116[1])(t_116[2])(v_113)(t_116[4])(t_116[5]);
+         case "GT":
+         return RBNode_2(t_116[1])(t_116[2])(t_116[3])(t_116[4])(ins_115(t_116[5]));
+         case "LT":
+         return RBNode_2(t_116[1])(t_116[2])(t_116[3])(ins_115(t_116[4]))(t_116[5]);
+        }
+        throw "Non-exhaustive pattern match in case";}();
+        return fixUp_18(h_122);}();
+      }
+      throw "Non-exhaustive pattern match in case";}();};
+     return ensureBlackRoot_19(ins_115(t_114));}();};};};
+ function singleton_21(k_123){
+  return function(v_124){
+   return insert_20(k_123)(v_124)(RBEmpty_3);};};
+ function isRed_22(t_125){
+  return function(){
+  switch(t_125[0]){
+   case "RBNode":
+   switch(t_125[1][0]){
+    case "Red":
+    return true;
+   }break;
+  }
+  return false;}();};
+ function isRedLeft_23(t_126){
+  return function(){
+  switch(t_126[0]){
+   case "RBNode":
+   switch(t_126[4][0]){
+    case "RBNode":
+    switch(t_126[4][1][0]){
+     case "Red":
+     return true;
+    }break;
+   }break;
+  }
+  return false;}();};
+ function isRedLeftLeft_24(t_127){
+  return function(){
+  switch(t_127[0]){
+   case "RBNode":
+   switch(t_127[4][0]){
+    case "RBNode":
+    switch(t_127[4][4][0]){
+     case "RBNode":
+     switch(t_127[4][4][1][0]){
+      case "Red":
+      return true;
+     }break;
+    }break;
+   }break;
+  }
+  return false;}();};
+ function isRedRight_25(t_128){
+  return function(){
+  switch(t_128[0]){
+   case "RBNode":
+   switch(t_128[5][0]){
+    case "RBNode":
+    switch(t_128[5][1][0]){
+     case "Red":
+     return true;
+    }break;
+   }break;
+  }
+  return false;}();};
+ function isRedRightLeft_26(t_129){
+  return function(){
+  switch(t_129[0]){
+   case "RBNode":
+   switch(t_129[5][0]){
+    case "RBNode":
+    switch(t_129[5][4][0]){
+     case "RBNode":
+     switch(t_129[5][4][1][0]){
+      case "Red":
+      return true;
+     }break;
+    }break;
+   }break;
+  }
+  return false;}();};
+ function moveRedLeft_27(t_130){
+  return function(){
+   var t__131=color_flip_16(t_130);
+   return function(){
+   switch(t__131[0]){
+    case "RBNode":
+    return function(){
+    switch(t__131[5][0]){
+     case "RBNode":
+     switch(t__131[5][4][0]){
+      case "RBNode":
+      switch(t__131[5][4][1][0]){
+       case "Red":
+       return color_flip_16(rotateLeft_11(RBNode_2(t__131[1])(t__131[2])(t__131[3])(t__131[4])(rotateRight_12(t__131[5]))));
+      }break;
+     }break;
+    }
+    return t__131;}();
+   }
+   return t__131;}();}();};
+ function moveRedRight_28(t_137){
+  return function(){
+   var t__138=color_flip_16(t_137);
+   return (isRedLeftLeft_24(t__138)?color_flip_16(rotateRight_12(t__138)):t__138);}();};
+ function moveRedLeftIfNeeded_29(t_139){
+  return ((not(isRedLeft_23(t_139))&&not(isRedLeftLeft_24(t_139)))?moveRedLeft_27(t_139):t_139);};
+ function moveRedRightIfNeeded_30(t_140){
+  return ((not(isRedRight_25(t_140))&&not(isRedRightLeft_26(t_140)))?moveRedRight_28(t_140):t_140);};
+ function deleteMin_31(t_141){
+  return function(){
+   function del_142(t_143){
+    return function(){
+    switch(t_143[0]){
+     case "RBNode":
+     switch(t_143[4][0]){
+      case "RBEmpty":
+      return RBEmpty_3;
+     }break;
+    }
+    return function(){
+     var t__144=moveRedLeftIfNeeded_29(t_143);
+     return function(){
+     switch(t__144[0]){
+      case "RBEmpty":
+      return RBEmpty_3;
+      case "RBNode":
+      return fixUp_18(RBNode_2(t__144[1])(t__144[2])(t__144[3])(del_142(t__144[4]))(t__144[5]));
+     }
+     throw "Non-exhaustive pattern match in case";}();}();}();};
+   return ensureBlackRoot_19(del_142(t_141));}();};
+ function remove_32(k_150){
+  return function(t_151){
+   return function(){
+    function eq_and_noRightNode_152(t_153){
+     return function(){
+     switch(t_153[0]){
+      case "RBNode":
+      switch(t_153[5][0]){
+       case "RBEmpty":
+       return eq(k_150,t_153[2]);
+      }break;
+     }
+     return false;}();};
+    return function(){
+     function eq_155(t_156){
+      return function(){
+      switch(t_156[0]){
+       case "RBNode":
+       return eq(k_150,t_156[2]);
+      }
+      return false;}();};
+     return function(){
+      function delLT_158(t_159){
+       return function(){
+        var t__160=moveRedLeftIfNeeded_29(t_159);
+        return function(){
+        switch(t__160[0]){
+         case "RBEmpty":
+         return raise_5(Value.str("delLT on RBEmpty"));
+         case "RBNode":
+         return fixUp_18(RBNode_2(t__160[1])(t__160[2])(t__160[3])(del(t__160[4]))(t__160[5]));
+        }
+        throw "Non-exhaustive pattern match in case";}();}();};
+      return function(){
+       function delEQ_166(t_167){
+        return function(){
+        switch(t_167[0]){
+         case "RBEmpty":
+         return raise_5(Value.str("delEQ called on a RBEmpty"));
+         case "RBNode":
+         return function(){
+          var Tuple2$k_v__171=min_6(t_167[5]);
+          var k__172=function(){
+          switch(Tuple2$k_v__171[0]){
+           case "Tuple2":
+           return Tuple2$k_v__171[1];
+          }
+          throw "Non-exhaustive pattern match in case";}();
+          var v__173=function(){
+          switch(Tuple2$k_v__171[0]){
+           case "Tuple2":
+           return Tuple2$k_v__171[2];
+          }
+          throw "Non-exhaustive pattern match in case";}();
+          return fixUp_18(RBNode_2(t_167[1])(k__172)(v__173)(t_167[4])(deleteMin_31(t_167[5])));}();
+        }
+        throw "Non-exhaustive pattern match in case";}();};
+       return function(){
+        function delGT_178(t_179){
+         return function(){
+         switch(t_179[0]){
+          case "RBEmpty":
+          return raise_5(Value.str("delGT called on a RBEmpty"));
+          case "RBNode":
+          return fixUp_18(RBNode_2(t_179[1])(t_179[2])(t_179[3])(t_179[4])(del(t_179[5])));
+         }
+         throw "Non-exhaustive pattern match in case";}();};
+        return function(){
+         function del_185(t_186){
+          return function(){
+          switch(t_186[0]){
+           case "RBEmpty":
+           return RBEmpty_3;
+           case "RBNode":
+           return ((compare(k_150)(t_186[2])[0] === 'LT')?delLT_158(t_186):function(){
+            var t__188=(isRedLeft_23(t_186)?rotateRight_12(t_186):t_186);
+            return (eq_and_noRightNode_152(t__188)?RBEmpty_3:function(){
+             var t_189=moveRedRightIfNeeded_30(t_189);
+             return (eq_155(t_189)?delEQ_166(t_189):delGT_178(t_189));}());}());
+          }
+          throw "Non-exhaustive pattern match in case";}();};
+         return ensureBlackRoot_19(del_185(t_151));}();}();}();}();}();}();};};
+ function map_33(f_190){
+  return function(t_191){
+   return function(){
+   switch(t_191[0]){
+    case "RBEmpty":
+    return RBEmpty_3;
+    case "RBNode":
+    return RBNode_2(t_191[1])(t_191[2])(f_190(t_191[3]))(map_33(f_190)(t_191[4]))(map_33(f_190)(t_191[5]));
+   }
+   throw "Non-exhaustive pattern match in case";}();};};
+ function foldl_34(f_197){
+  return function(acc_198){
+   return function(t_199){
+    return function(){
+    switch(t_199[0]){
+     case "RBEmpty":
+     return acc_198;
+     case "RBNode":
+     return foldl_34(f_197)(f_197(t_199[2])(t_199[3])(foldl_34(f_197)(acc_198)(t_199[4])))(t_199[5]);
+    }
+    throw "Non-exhaustive pattern match in case";}();};};};
+ function foldr_35(f_204){
+  return function(acc_205){
+   return function(t_206){
+    return function(){
+    switch(t_206[0]){
+     case "RBEmpty":
+     return acc_205;
+     case "RBNode":
+     return foldr_35(f_204)(f_204(t_206[2])(t_206[3])(foldr_35(f_204)(acc_205)(t_206[5])))(t_206[4]);
+    }
+    throw "Non-exhaustive pattern match in case";}();};};};
+ function union_36(t1_211){
+  return function(t2_212){
+   return foldl_34(insert_20)(t2_212)(t1_211);};};
+ function intersect_37(t1_213){
+  return function(t2_214){
+   return foldl_34(function(k_215){
+    return function(v_216){
+     return function(t_217){
+      return (member_10(k_215)(t2_214)?insert_20(k_215)(v_216)(t_217):t_217);};};})(empty_4)(t1_213);};};
+ function diff_38(t1_218){
+  return function(t2_219){
+   return foldl_34(function(k_220){
+    return function(__221){
+     return function(t_222){
+      return remove_32(k_220)(t_222);};};})(t1_218)(t2_219);};};
+ function keys_39(t_223){
+  return foldl_34(function(k_224){
+   return function(__225){
+    return function(acc_226){
+     return ["Cons",k_224,acc_226];};};})(["Nil"])(t_223);};
+ function values_40(t_227){
+  return foldl_34(function(__228){
+   return function(x_229){
+    return function(y_230){
+     return ["Cons",x_229,y_230];};};})(["Nil"])(t_227);};
+ function toList_41(t_231){
+  return foldl_34(function(k_232){
+   return function(v_233){
+    return function(acc_234){
+     return ["Cons",["Tuple2",k_232,v_233],acc_234];};};})(["Nil"])(t_231);};
+ function fromList_42(assocs_235){
+  return List.foldl(uncurry(insert_20))(empty_4)(assocs_235);};
+ return {empty:empty_4,lookup:lookup_7,findWithDefault:findWithDefault_8,find:find_9,member:member_10,insert:insert_20,singleton:singleton_21,remove:remove_32,map:map_33,foldl:foldl_34,foldr:foldr_35,union:union_36,intersect:intersect_37,diff:diff_38,keys:keys_39,values:values_40,toList:toList_41,fromList:fromList_42};}();
+Elm.main=function(){
+ return Elm.Dict.main;};
+} catch (e) {Elm.main=function() {var msg = ('<br/><h2>Your browser may not be supported. Are you using a modern browser?</h2>' + '<br/><span style="color:grey">Runtime Error in Dict module:<br/>' + e + '</span>');document.body.innerHTML = Text.monospace(msg);throw e;};}
+try{
+
+for(var i in Elm) { this[i] = Elm[i]; }
+if (Elm.Set) throw "Module name collision, 'Set' is already defined."; 
+Elm.Set=function(){
+ try{if (!(Elm.Prelude instanceof Object)) throw 'module not found'; } catch(e) {throw "Module 'Prelude' is missing. Compile with --make flag or load missing module in a separate JavaScript file.";}
+ var hiddenVars=[];
+ for(var i in Elm.Prelude){
+  if (hiddenVars.indexOf(i) >= 0) continue;
+  this[i]=Elm.Prelude[i];}
+ var empty_0=Dict.empty;
+ var remove_3=Dict.remove;
+ var member_4=Dict.member;
+ var union_5=Dict.union;
+ var intersect_6=Dict.intersect;
+ var diff_7=Dict.diff;
+ var toList_8=Dict.keys;
+ var fromList_9=List.foldl(function(k_15){
+  return function(t_16){
+   return Dict.insert(k_15)(["Tuple0"])(t_16);};})(empty_0);
+ function singleton_1(k_13){
+  return Dict.singleton(k_13)(["Tuple0"]);};
+ function insert_2(k_14){
+  return Dict.insert(k_14)(["Tuple0"]);};
+ function foldl_10(f_17){
+  return Dict.foldl(function(k_18){
+   return function(v_19){
+    return function(b_20){
+     return f_17(k_18)(b_20);};};});};
+ function foldr_11(f_21){
+  return Dict.foldr(function(k_22){
+   return function(v_23){
+    return function(b_24){
+     return f_21(k_22)(b_24);};};});};
+ function map_12(f_25){
+  return function(t_26){
+   return function(x){
+    return fromList_9(List.map(f_25)(x));}(toList_8(t_26));};};
+ return {empty:empty_0,singleton:singleton_1,insert:insert_2,remove:remove_3,member:member_4,union:union_5,intersect:intersect_6,diff:diff_7,toList:toList_8,fromList:fromList_9,foldl:foldl_10,foldr:foldr_11,map:map_12};}();
+Elm.main=function(){
+ return Elm.Set.main;};
+} catch (e) {Elm.main=function() {var msg = ('<br/><h2>Your browser may not be supported. Are you using a modern browser?</h2>' + '<br/><span style="color:grey">Runtime Error in Set module:<br/>' + e + '</span>');document.body.innerHTML = Text.monospace(msg);throw e;};}
 var Elm = Elm || {};
 Elm.Char = function() {
     function isBetween(lo,hi) { return function(chr) {
@@ -2981,16 +3477,192 @@ Elm.Prelude = function() {
   show = Value.show;
   
 }());
-try{if(Elm.Automaton)throw "Module name collision, 'Automaton' is already defined.";Elm.Automaton=function(){try{if(!(Elm.Prelude instanceof Object))throw 'module not found'}catch(e){throw "Module 'Prelude' is missing. Compile with --make flag or load missing module in a separate JavaScript file."};var hiddenVars=[];for(var i in Elm.Prelude){if(hiddenVars.indexOf(i)>=0)continue;this[i]=Elm.Prelude[i]};try{if(!(Elm.Data.List instanceof Object))throw 'module not found'}catch(e){throw "Module 'Data.List' is missing. Compile with --make flag or load missing module in a separate JavaScript file."};var unzip=Elm.Data.List.unzip
-function Automaton_0(a1){return ["Automaton",a1]};var Listen_9=["Listen"],Ignore_10=["Ignore"]
-function DragFrom_11(a1){return ["DragFrom",a1]};var count_8=init_6(0)(function(__75){return function(c_76){return(1+c_76)}})
-function run_1(Automaton$m0_15){return function(input_16){return function(){switch(Automaton$m0_15[0]){case"Automaton":return lift(fst)(foldp_(function(a_18){return function(Tuple2$bAutomaton$m_19){return function(){switch(Tuple2$bAutomaton$m_19[0]){case"Tuple2":switch(Tuple2$bAutomaton$m_19[2][0]){case"Automaton":return Tuple2$bAutomaton$m_19[2][1](a_18)};break};throw "Non-exhaustive pattern match in case"}()}})(Automaton$m0_15[1])(input_16))};throw "Non-exhaustive pattern match in case"}()}}
-function step_2(a_22){return function(Automaton$m_23){return function(){switch(Automaton$m_23[0]){case"Automaton":return Automaton$m_23[1](a_22)};throw "Non-exhaustive pattern match in case"}()}}
-function composeAuto_3(a1_25){return function(a2_26){return function(){var Automaton$m1_27=a1_25,m1_28=function(){switch(Automaton$m1_27[0]){case"Automaton":return Automaton$m1_27[1]};throw "Non-exhaustive pattern match in case"}(),Automaton$m2_29=a2_26,m2_30=function(){switch(Automaton$m2_29[0]){case"Automaton":return Automaton$m2_29[1]};throw "Non-exhaustive pattern match in case"}();return Automaton_0(function(a_33){return function(){var Tuple2$bm1__34=m1_28(a_33),b_35=function(){switch(Tuple2$bm1__34[0]){case"Tuple2":return Tuple2$bm1__34[1]};throw "Non-exhaustive pattern match in case"}(),m1__36=function(){switch(Tuple2$bm1__34[0]){case"Tuple2":return Tuple2$bm1__34[2]};throw "Non-exhaustive pattern match in case"}();return function(){var Tuple2$cm2__41=m2_30(b_35),c_42=function(){switch(Tuple2$cm2__41[0]){case"Tuple2":return Tuple2$cm2__41[1]};throw "Non-exhaustive pattern match in case"}(),m2__43=function(){switch(Tuple2$cm2__41[0]){case"Tuple2":return Tuple2$cm2__41[2]};throw "Non-exhaustive pattern match in case"}();return ["Tuple2",c_42,composeAuto_3(m1__36)(m2__43)]}()}()})}()}}
-function combine_4(autos_48){return Automaton_0(function(a_49){return function(){var Tuple2$bsautos__50=unzip(map(function(Automaton$m_53){return function(){switch(Automaton$m_53[0]){case"Automaton":return Automaton$m_53[1](a_49)};throw "Non-exhaustive pattern match in case"}()})(autos_48)),bs_51=function(){switch(Tuple2$bsautos__50[0]){case"Tuple2":return Tuple2$bsautos__50[1]};throw "Non-exhaustive pattern match in case"}(),autos__52=function(){switch(Tuple2$bsautos__50[0]){case"Tuple2":return Tuple2$bsautos__50[2]};throw "Non-exhaustive pattern match in case"}();return ["Tuple2",bs_51,combine_4(autos__52)]}()})}
-function pure_5(f_59){return Automaton_0(function(x_60){return ["Tuple2",f_59(x_60),pure_5(f_59)]})}
-function init_6(s_61){return function(step_62){return Automaton_0(function(a_63){return function(){var s__64=step_62(a_63)(s_61);return ["Tuple2",s__64,init_6(s__64)(step_62)]}()})}}
-function init__7(s_65){return function(step_66){return Automaton_0(function(a_67){return function(){var Tuple2$bs__68=step_66(a_67)(s_65),b_69=function(){switch(Tuple2$bs__68[0]){case"Tuple2":return Tuple2$bs__68[1]};throw "Non-exhaustive pattern match in case"}(),s__70=function(){switch(Tuple2$bs__68[0]){case"Tuple2":return Tuple2$bs__68[2]};throw "Non-exhaustive pattern match in case"}();return ["Tuple2",b_69,init__7(s__70)(step_66)]}()})}}
-function vecSub_12(Tuple2$x1y1_77){return function(Tuple2$x2y2_78){return function(){switch(Tuple2$x1y1_77[0]){case"Tuple2":return function(){switch(Tuple2$x2y2_78[0]){case"Tuple2":return ["Tuple2",(Tuple2$x1y1_77[1]-Tuple2$x2y2_78[1]),(Tuple2$x1y1_77[2]-Tuple2$x2y2_78[2])]};throw "Non-exhaustive pattern match in case"}()};throw "Non-exhaustive pattern match in case"}()}}
-function stepDrag_13(Tuple2$presspos_83){return function(Tuple2$dsform_84){return function(){switch(Tuple2$presspos_83[0]){case"Tuple2":return function(){switch(Tuple2$dsform_84[0]){case"Tuple2":return function(){function wrap_89(ds__90){return ["Tuple2",Tuple2$dsform_84[2],["Tuple2",ds__90,Tuple2$dsform_84[2]]]};return function(){switch(Tuple2$dsform_84[1][0]){case"DragFrom":return(Tuple2$presspos_83[1]?["Tuple2",uncurry(move)(vecSub_12(Tuple2$presspos_83[2])(Tuple2$dsform_84[1][1]))(Tuple2$dsform_84[2]),["Tuple2",DragFrom_11(Tuple2$dsform_84[1][1]),Tuple2$dsform_84[2]]]:function(){var form__92=uncurry(move)(vecSub_12(Tuple2$presspos_83[2])(Tuple2$dsform_84[1][1]))(Tuple2$dsform_84[2]);return ["Tuple2",form__92,["Tuple2",Listen_9,form__92]]}());case"Ignore":return wrap_89((Tuple2$presspos_83[1]?Ignore_10:Listen_9));case"Listen":return wrap_89((not(Tuple2$presspos_83[1])?Listen_9:(isWithin(Tuple2$presspos_83[2])(Tuple2$dsform_84[2])?DragFrom_11(Tuple2$presspos_83[2]):Ignore_10)))};throw "Non-exhaustive pattern match in case"}()}()};throw "Non-exhaustive pattern match in case"}()};throw "Non-exhaustive pattern match in case"}()}}
-function dragForm_14(form_93){return init__7(["Tuple2",Listen_9,form_93])(stepDrag_13)};return {Automaton:Automaton_0,run:run_1,step:step_2,composeAuto:composeAuto_3,combine:combine_4,pure:pure_5,init:init_6,init_:init__7,count:count_8,Listen:Listen_9,Ignore:Ignore_10,DragFrom:DragFrom_11,vecSub:vecSub_12,stepDrag:stepDrag_13,dragForm:dragForm_14}}();Elm.main=function(){return Elm.Automaton.main}}catch(e){Elm.main=function(){var msg=('<br/><h2>Your browser may not be supported. Are you using a modern browser?</h2>'+'<br/><span style="color:grey">Runtime Error in Automaton module:<br/>'+e+'<br/><br/>The problem may stem from an improper usage of:<br/>fst, unzip</span>');document.body.innerHTML=Text.monospace(msg);throw e}}
+
+try{
+
+for(var i in Elm) { this[i] = Elm[i]; }
+if (Elm.Automaton) throw "Module name collision, 'Automaton' is already defined."; 
+Elm.Automaton=function(){
+ try{if (!(Elm.Prelude instanceof Object)) throw 'module not found'; } catch(e) {throw "Module 'Prelude' is missing. Compile with --make flag or load missing module in a separate JavaScript file.";}
+ var hiddenVars=[];
+ for(var i in Elm.Prelude){
+  if (hiddenVars.indexOf(i) >= 0) continue;
+  this[i]=Elm.Prelude[i];}
+ function Automaton_0(a1){
+  return ["Automaton",a1];};
+ var Listen_9=["Listen"];
+ var Ignore_10=["Ignore"];
+ function DragFrom_11(a1){
+  return ["DragFrom",a1];};
+ var count_8=init_6(0)(function(__75){
+  return function(c_76){
+   return (1+c_76);};});
+ function run_1(Automaton$m0_15){
+  return function(input_16){
+   return function(){
+   switch(Automaton$m0_15[0]){
+    case "Automaton":
+    return lift(fst)(foldp_(function(a_18){
+     return function(Tuple2$bAutomaton$m_19){
+      return function(){
+      switch(Tuple2$bAutomaton$m_19[0]){
+       case "Tuple2":
+       switch(Tuple2$bAutomaton$m_19[2][0]){
+        case "Automaton":
+        return Tuple2$bAutomaton$m_19[2][1](a_18);
+       }break;
+      }
+      throw "Non-exhaustive pattern match in case";}();};})(Automaton$m0_15[1])(input_16));
+   }
+   throw "Non-exhaustive pattern match in case";}();};};
+ function step_2(Automaton$m_22){
+  return function(a_23){
+   return function(){
+   switch(Automaton$m_22[0]){
+    case "Automaton":
+    return Automaton$m_22[1](a_23);
+   }
+   throw "Non-exhaustive pattern match in case";}();};};
+ function composeAuto_3(a1_25){
+  return function(a2_26){
+   return function(){
+    var Automaton$m1_27=a1_25;
+    var m1_28=function(){
+    switch(Automaton$m1_27[0]){
+     case "Automaton":
+     return Automaton$m1_27[1];
+    }
+    throw "Non-exhaustive pattern match in case";}();
+    var Automaton$m2_29=a2_26;
+    var m2_30=function(){
+    switch(Automaton$m2_29[0]){
+     case "Automaton":
+     return Automaton$m2_29[1];
+    }
+    throw "Non-exhaustive pattern match in case";}();
+    return Automaton_0(function(a_33){
+     return function(){
+      var Tuple2$bm1__34=m1_28(a_33);
+      var b_35=function(){
+      switch(Tuple2$bm1__34[0]){
+       case "Tuple2":
+       return Tuple2$bm1__34[1];
+      }
+      throw "Non-exhaustive pattern match in case";}();
+      var m1__36=function(){
+      switch(Tuple2$bm1__34[0]){
+       case "Tuple2":
+       return Tuple2$bm1__34[2];
+      }
+      throw "Non-exhaustive pattern match in case";}();
+      return function(){
+       var Tuple2$cm2__41=m2_30(b_35);
+       var c_42=function(){
+       switch(Tuple2$cm2__41[0]){
+        case "Tuple2":
+        return Tuple2$cm2__41[1];
+       }
+       throw "Non-exhaustive pattern match in case";}();
+       var m2__43=function(){
+       switch(Tuple2$cm2__41[0]){
+        case "Tuple2":
+        return Tuple2$cm2__41[2];
+       }
+       throw "Non-exhaustive pattern match in case";}();
+       return ["Tuple2",c_42,composeAuto_3(m1__36)(m2__43)];}();}();});}();};};
+ function combine_4(autos_48){
+  return Automaton_0(function(a_49){
+   return function(){
+    var Tuple2$bsautos__50=unzip(map(function(Automaton$m_53){
+     return function(){
+     switch(Automaton$m_53[0]){
+      case "Automaton":
+      return Automaton$m_53[1](a_49);
+     }
+     throw "Non-exhaustive pattern match in case";}();})(autos_48));
+    var bs_51=function(){
+    switch(Tuple2$bsautos__50[0]){
+     case "Tuple2":
+     return Tuple2$bsautos__50[1];
+    }
+    throw "Non-exhaustive pattern match in case";}();
+    var autos__52=function(){
+    switch(Tuple2$bsautos__50[0]){
+     case "Tuple2":
+     return Tuple2$bsautos__50[2];
+    }
+    throw "Non-exhaustive pattern match in case";}();
+    return ["Tuple2",bs_51,combine_4(autos__52)];}();});};
+ function pure_5(f_59){
+  return Automaton_0(function(x_60){
+   return ["Tuple2",f_59(x_60),pure_5(f_59)];});};
+ function init_6(s_61){
+  return function(step_62){
+   return Automaton_0(function(a_63){
+    return function(){
+     var s__64=step_62(a_63)(s_61);
+     return ["Tuple2",s__64,init_6(s__64)(step_62)];}();});};};
+ function init__7(s_65){
+  return function(step_66){
+   return Automaton_0(function(a_67){
+    return function(){
+     var Tuple2$bs__68=step_66(a_67)(s_65);
+     var b_69=function(){
+     switch(Tuple2$bs__68[0]){
+      case "Tuple2":
+      return Tuple2$bs__68[1];
+     }
+     throw "Non-exhaustive pattern match in case";}();
+     var s__70=function(){
+     switch(Tuple2$bs__68[0]){
+      case "Tuple2":
+      return Tuple2$bs__68[2];
+     }
+     throw "Non-exhaustive pattern match in case";}();
+     return ["Tuple2",b_69,init__7(s__70)(step_66)];}();});};};
+ function vecSub_12(Tuple2$x1y1_77){
+  return function(Tuple2$x2y2_78){
+   return function(){
+   switch(Tuple2$x1y1_77[0]){
+    case "Tuple2":
+    return function(){
+    switch(Tuple2$x2y2_78[0]){
+     case "Tuple2":
+     return ["Tuple2",(Tuple2$x1y1_77[1]-Tuple2$x2y2_78[1]),(Tuple2$x1y1_77[2]-Tuple2$x2y2_78[2])];
+    }
+    throw "Non-exhaustive pattern match in case";}();
+   }
+   throw "Non-exhaustive pattern match in case";}();};};
+ function stepDrag_13(Tuple2$presspos_83){
+  return function(Tuple2$dsform_84){
+   return function(){
+   switch(Tuple2$presspos_83[0]){
+    case "Tuple2":
+    return function(){
+    switch(Tuple2$dsform_84[0]){
+     case "Tuple2":
+     return function(){
+      function wrap_89(ds__90){
+       return ["Tuple2",Tuple2$dsform_84[2],["Tuple2",ds__90,Tuple2$dsform_84[2]]];};
+      return function(){
+      switch(Tuple2$dsform_84[1][0]){
+       case "DragFrom":
+       return (Tuple2$presspos_83[1]?["Tuple2",uncurry(move)(vecSub_12(Tuple2$presspos_83[2])(Tuple2$dsform_84[1][1]))(Tuple2$dsform_84[2]),["Tuple2",DragFrom_11(Tuple2$dsform_84[1][1]),Tuple2$dsform_84[2]]]:function(){
+        var form__92=uncurry(move)(vecSub_12(Tuple2$presspos_83[2])(Tuple2$dsform_84[1][1]))(Tuple2$dsform_84[2]);
+        return ["Tuple2",form__92,["Tuple2",Listen_9,form__92]];}());
+       case "Ignore":
+       return wrap_89((Tuple2$presspos_83[1]?Ignore_10:Listen_9));
+       case "Listen":
+       return wrap_89((not(Tuple2$presspos_83[1])?Listen_9:(isWithin(Tuple2$presspos_83[2])(Tuple2$dsform_84[2])?DragFrom_11(Tuple2$presspos_83[2]):Ignore_10)));
+      }
+      throw "Non-exhaustive pattern match in case";}();}();
+    }
+    throw "Non-exhaustive pattern match in case";}();
+   }
+   throw "Non-exhaustive pattern match in case";}();};};
+ function dragForm_14(form_93){
+  return init__7(["Tuple2",Listen_9,form_93])(stepDrag_13);};
+ return {Automaton:Automaton_0,run:run_1,step:step_2,composeAuto:composeAuto_3,combine:combine_4,pure:pure_5,init:init_6,init_:init__7,count:count_8,Listen:Listen_9,Ignore:Ignore_10,DragFrom:DragFrom_11,vecSub:vecSub_12,stepDrag:stepDrag_13,dragForm:dragForm_14};}();
+Elm.main=function(){
+ return Elm.Automaton.main;};
+} catch (e) {Elm.main=function() {var msg = ('<br/><h2>Your browser may not be supported. Are you using a modern browser?</h2>' + '<br/><span style="color:grey">Runtime Error in Automaton module:<br/>' + e + '</span>');document.body.innerHTML = Text.monospace(msg);throw e;};}
