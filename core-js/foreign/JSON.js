@@ -1,5 +1,6 @@
 
 var Elm = Elm || {};
+var JSjson = JSON;
 Elm.JSON = function() {
     var JS = Elm.JavaScript;
     var empty = ['JSON',{}];
@@ -88,11 +89,11 @@ Elm.JSON = function() {
 	    return v[1];
 	    }
 	}
-	return JSON.stringify(fromValue([ 'JsonObject', obj ]), null, JS.castStringToJSString(sep));
+	return JSjson.stringify(fromValue([ 'JsonObject', obj ]), null, JS.castStringToJSString(sep));
       };
     }
     function fromJSString(str) {
-	var obj = JSON.parse(str);
+	var obj = JSjson.parse(str);
 	function toValue(v) {
 	    switch (typeof v) {
 	    case 'string'  : return [ "JsonString", JS.castJSStringToString(v) ];
