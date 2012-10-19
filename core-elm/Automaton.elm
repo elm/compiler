@@ -83,7 +83,7 @@ stepDrag (press,pos) (ds,form) =
                                   (form', (Listen,form')))
   }
 
-dragForm form = init' (Listen,form) stepDrag
+draggable form = init' (Listen,form) stepDrag
 
 
 {--- See the following papers for ideas on how to make this faster:
