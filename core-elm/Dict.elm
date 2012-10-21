@@ -1,6 +1,6 @@
 
 module Dict (empty,singleton,insert
-            ,lookup,find,findWithDefault
+            ,lookup,findWithDefault
             ,remove,member
             ,foldl,foldr,map
             ,union,intersect,diff
@@ -133,6 +133,7 @@ findWithDefault base k t =
     ; GT -> findWithDefault base k r }
  }
 
+{--
 find k t =
  case t of
  { RBEmpty -> raise "Key was not found in dictionary!"
@@ -142,6 +143,7 @@ find k t =
     ; EQ -> v
     ; GT -> find k r }
  }
+--}
 
 -- Does t contain k?
 member k t = isJust $ lookup k t

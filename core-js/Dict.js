@@ -76,26 +76,6 @@ Elm.Dict=function(){
      throw "Non-exhaustive pattern match in case";}();
     }
     throw "Non-exhaustive pattern match in case";}();};};};
- function find_9(k_60){
-  return function(t_61){
-   return function(){
-   switch(t_61[0]){
-    case "RBEmpty":
-    return raise_5(Value.str("Key was not found in dictionary!"));
-    case "RBNode":
-    return function(){
-    var case6=compare(k_60)(t_61[2]);
-    switch(case6[0]){
-     case "EQ":
-     return t_61[3];
-     case "GT":
-     return find_9(k_60)(t_61[5]);
-     case "LT":
-     return find_9(k_60)(t_61[4]);
-    }
-    throw "Non-exhaustive pattern match in case";}();
-   }
-   throw "Non-exhaustive pattern match in case";}();};};
  function member_10(k_66){
   return function(t_67){
    return isJust(lookup_7(k_66)(t_67));};};
@@ -497,7 +477,7 @@ Elm.Dict=function(){
      return ["Cons",["Tuple2",k_232,v_233],acc_234];};};})(["Nil"])(t_231);};
  function fromList_42(assocs_235){
   return List.foldl(uncurry(insert_20))(empty_4)(assocs_235);};
- return {empty:empty_4,lookup:lookup_7,findWithDefault:findWithDefault_8,find:find_9,member:member_10,insert:insert_20,singleton:singleton_21,remove:remove_32,map:map_33,foldl:foldl_34,foldr:foldr_35,union:union_36,intersect:intersect_37,diff:diff_38,keys:keys_39,values:values_40,toList:toList_41,fromList:fromList_42};}();
+ return {empty:empty_4,lookup:lookup_7,findWithDefault:findWithDefault_8,member:member_10,insert:insert_20,singleton:singleton_21,remove:remove_32,map:map_33,foldl:foldl_34,foldr:foldr_35,union:union_36,intersect:intersect_37,diff:diff_38,keys:keys_39,values:values_40,toList:toList_41,fromList:fromList_42};}();
 Elm.main=function(){
  return Elm.Dict.main;};
 } catch (e) {Elm.main=function() {var msg = ('<br/><h2>Your browser may not be supported. Are you using a modern browser?</h2>' + '<br/><span style="color:grey">Runtime Error in Dict module:<br/>' + e + '</span>');document.body.innerHTML = Text.monospace(msg);throw e;};}
