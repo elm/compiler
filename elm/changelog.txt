@@ -4,6 +4,11 @@ Release 0.4.1
 
 * Add Automaton library.
 
+* Add Dict and Set libraries.
+
+* Remove the library prefixes `Data.` and `Signal.` because they were
+  more confusing than helpful.
+
 * Add (,,) notation for creating tuples.
 
 * Redo HTTP library, allowing any kind of request and more flexibility.
@@ -11,6 +16,9 @@ Release 0.4.1
 * The Haskell API exports the absolute path to the Elm runtime
   system (with the corresponding version number).
 
+* Better type error reporting for ambiguous uses of variables and for aliased modules.
+
+* Add `readInt` and `readFloat` functions.
 * Fix bug in pattern parsing.
 * Ensure that `String` is treated as an alias of `[Char]`.
 * Make pattern matching a bit more concise.
