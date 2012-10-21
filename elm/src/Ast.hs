@@ -13,6 +13,7 @@ type Exports = [String]
 
 type Imports = [(String, ImportMethod)]
 data ImportMethod = As String | Hiding [String] | Importing [String]
+                    deriving (Eq,Ord)
 
 
 data Pattern = PData String [Pattern] | PVar String | PAnything

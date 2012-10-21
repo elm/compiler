@@ -7,43 +7,45 @@ import Types
 import Types.Substitutions (rescheme)
 
 
---------  Text and Elements  --------
+prefix pre xs = map (first (\x -> pre ++ "." ++ x)) xs
 
-str2elem = hasType (string ==> element) [ "plainText" ]
+--------  Text and Elements  --------
 
 textToText = [ "header", "italic", "bold", "underline"
              , "overline", "strikeThrough", "monospace" ]
 
 textAttrs = [ "toText" -: string ==> text
-            , "typeface" -: string ==> text ==> text
-            , "link"   -:: string ==> a ==> a
-            , numScheme (\t -> t ==> text ==> text) "Text.height"
-            ] ++ hasType (text ==> text) textToText
+            , "Graphics.Text.typeface" -: string ==> text ==> text
+            , "Graphics.Text.link"   -:: string ==> text ==> text
+            , numScheme (\t -> t ==> text ==> text) "Graphics.Text.height"
+            ] ++ prefix "Graphics.Text" (hasType (text ==> text) textToText)
 
-elements = let iee = int ==> element ==> element in
-           [ "flow"    -: direction ==> listOf element ==> element
-           , "layers"  -: listOf element ==> element
-           , "text"    -: text ==> element
-           , "image"   -: int ==> int ==> string ==> element
-           , "video"   -: int ==> int ==> string ==> element
-           , "opacity" -: float ==> element ==> element
-           , "width"   -: iee
-           , "height"  -: iee
-           , "size"    -: int ==> iee
-           , "widthOf" -: element ==> int
-           , "heightOf"-: element ==> int
-           , "sizeOf"  -: element ==> pairOf int
-           , "color"   -: color ==> element ==> element
-           , "container" -: int ==> int ==> position ==> element ==> element
-           , "spacer" -: int ==> int ==> element
-           , "rightedText"  -: text ==> element
-           , "centeredText"  -: text ==> element
-           , "justifiedText" -: text ==> element
-           , "asText" -:: a ==> element 
-           , "show" -:: a ==> string
-           , "collage" -: int ==> int ==> listOf form ==> element
-           , "fittedImage" -: int ==> int ==> string ==> element
-           ]
+elements =
+    let iee = int ==> element ==> element in
+      [ "plainText" -: string ==> element
+      , "link"   -:: string ==> element ==> element
+      , "flow"    -: direction ==> listOf element ==> element
+      , "layers"  -: listOf element ==> element
+      , "text"    -: text ==> element
+      , "image"   -: int ==> int ==> string ==> element
+      , "video"   -: int ==> int ==> string ==> element
+      , "opacity" -: float ==> element ==> element
+      , "width"   -: iee
+      , "height"  -: iee
+      , "size"    -: int ==> iee
+      , "widthOf" -: element ==> int
+      , "heightOf"-: element ==> int
+      , "sizeOf"  -: element ==> pairOf int
+      , "color"   -: color ==> element ==> element
+      , "container" -: int ==> int ==> position ==> element ==> element
+      , "spacer" -: int ==> int ==> element
+      , "rightedText"  -: text ==> element
+      , "centeredText"  -: text ==> element
+      , "justifiedText" -: text ==> element
+      , "asText" -:: a ==> element 
+      , "collage" -: int ==> int ==> listOf form ==> element
+      , "fittedImage" -: int ==> int ==> string ==> element
+      ]
 
 directions = hasType direction ["up","down","left","right","inward","outward"]
 positions =
@@ -52,10 +54,6 @@ positions =
     hasType (location ==> location ==> position)
                 ["topLeftAt","bottomLeftAt","middleAt","topRightAt","bottomRightAt"] ++
     [ "absolute" -: int ==> location, "relative" -: float ==> location ]
-colors = [ numScheme (\n -> n ==> n ==> n ==> color) "rgb"
-         , numScheme (\n -> n ==> n ==> n ==> n ==> color) "rgba"
-         ] ++ hasType color ["red","green","blue","black","white"
-                            ,"yellow","cyan","magenta","grey","gray"]
 
 lineTypes = [ numScheme (\n -> listOf (pairOf n) ==> line) "line"
             , numScheme (\n -> pairOf n ==> pairOf n ==> line) "segment"
@@ -78,6 +76,15 @@ collages = [ numScheme (\n -> pairOf n ==> element ==> form) "toForm"
            , numScheme (\n -> n ==> form ==> form) "scale"
            , numScheme (\n -> pairOf n ==> form ==> bool) "isWithin"
            ]
+
+graphicsElement = prefix "Graphics.Element"
+                  (concat [elements,directions,positions,lineTypes,shapes,collages])
+graphicsColor = prefix "Graphics.Color" clrs
+    where clrs = [ numScheme (\n -> n ==> n ==> n ==> color) "rgb"
+                 , numScheme (\n -> n ==> n ==> n ==> n ==> color) "rgba"
+                 ] ++ hasType color ["red","green","blue","black","white"
+                                    ,"yellow","cyan","magenta","grey","gray"]
+
 
 --------  Foreign  --------
 
@@ -107,16 +114,28 @@ polyCasts =
   , "castListToJSArray"   -:: listOf a ==> jsArray a
   ]
 
-json =
+javascript = prefix "JavaScript" (concat [casts,polyCasts])
+
+json = prefix "JSON"
   [ "JsonString" -: string ==> jsonValue
   , "JsonBool"   -: bool   ==> jsonValue
   , "JsonNull"   -: jsonValue
   , "JsonArray"  -: listOf jsonValue ==> jsonValue
   , "JsonObject" -: jsonObject ==> jsonValue
   , numScheme (\n -> n ==> jsonValue) "JsonNumber"
-  , "toPrettyString" -: string ==> jsonObject ==> string
+  , "toString"   -: jsonObject ==> string
+  , "fromString" -: string ==> jsonObject
+  , "lookup"     -: string ==> jsonObject ==> maybeOf jsonValue
+  , "findObject" -: string ==> jsonObject ==> jsonObject
+  , "findArray"  -: string ==> jsonObject ==> listOf jsonObject
+  , "findString" -: string ==> jsonObject ==> string
+  , "findWithDefault" -:: jsonValue ==> string ==> jsonObject ==> jsonValue
+  , "toPrettyString"   -: string ==> jsonObject ==> string
   , "toPrettyJSString" -: string ==> jsonObject ==> jsString
-  , "toJSString" -: jsonObject ==> jsString
+  , "toList"   -: jsonObject ==> listOf (tupleOf [string,jsonValue])
+  , "fromList" -: listOf (tupleOf [string,jsonValue]) ==> jsonObject
+  , "toJSString"   -: jsonObject ==> jsString
+  , "fromJSString" -: jsString ==> jsonObject
   ]
 
 
@@ -126,7 +145,7 @@ sig n name = (,) name $ Forall [1..n] [] (fn ts ==> fn (map signalOf ts))
     where fn = foldr1 (==>)
           ts = map VarT [1..n]
 
-signals =
+signals = prefix "Signal"
     [ sig 1 "constant"
     , sig 2 "lift" 
     , sig 3 "lift2"
@@ -135,7 +154,6 @@ signals =
     , "foldp"     -:: (a ==> b ==> b) ==> b ==> signalOf a ==> signalOf b
     , "foldp1"    -:: (a ==> a ==> a) ==> signalOf a ==> signalOf a
     , "foldp'"    -:: (a ==> b ==> b) ==> (a ==> b) ==> signalOf a ==> signalOf b
-    , "randomize" -:: int ==> int ==> signalOf a ==> signalOf int
     , "count"     -:: signalOf a ==> signalOf int
     , "keepIf"    -:: (a==>bool) ==> a ==> signalOf a ==> signalOf a
     , "dropIf"    -:: (a==>bool) ==> a ==> signalOf a ==> signalOf a
@@ -145,7 +163,7 @@ signals =
     , "sampleOn" -:: signalOf a ==> signalOf b ==> signalOf b
     ]
 
-http =
+http = prefix "HTTP"
   [ "send"     -:: signalOf (request a) ==> signalOf (response string)
   , "sendGet"  -:: signalOf string ==> signalOf (response string)
   , "get"      -:  string ==> request string
@@ -158,24 +176,29 @@ http =
           response t = ADT "Response" [t]
 
 concreteSignals = 
-  [ "keysDown"    -: signalOf (listOf int)
-  , "charPressed" -: signalOf (maybeOf int)
-  , "inRange"     -: int ==> int ==> signalOf int
-  , timeScheme "every"  (\t -> t ==> signalOf t)
-  , timeScheme "before" (\t -> t ==> signalOf bool)
-  , timeScheme "after"  (\t -> t ==> signalOf bool)
-  , "dimensions"  -: signalOf point
-  , "position"    -: signalOf point
-  , "x"           -: signalOf int
-  , "y"           -: signalOf int
-  , "isDown"      -: signalOf bool
-  , "isClicked"   -: signalOf bool
-  , "textField"   -: string ==> tupleOf [element, signalOf string]
-  , "password"    -: string ==> tupleOf [element, signalOf string]
-  , "textArea"    -: int ==> int ==> tupleOf [element, signalOf string]
-  , "checkBox"    -: bool ==> tupleOf [element, signalOf bool]
-  , "button"      -: string ==> tupleOf [element, signalOf bool]
-  , "stringDropDown" -: listOf string ==> tupleOf [element, signalOf string]
+  [ "Keyboard.Raw.keysDown"    -: signalOf (listOf int)
+  , "Keyboard.Raw.charPressed" -: signalOf (maybeOf int)
+  , "Random.inRange"     -: int ==> int ==> signalOf int
+  , "Random.randomize"   -:: int ==> int ==> signalOf a ==> signalOf int
+  , timeScheme "Time.every"  (\t -> t ==> signalOf t)
+  , timeScheme "Time.before" (\t -> t ==> signalOf bool)
+  , timeScheme "Time.after"  (\t -> t ==> signalOf bool)
+  , "Window.dimensions" -: signalOf point
+  , "Window.width"      -: signalOf int
+  , "Window.height"     -: signalOf int
+  , "Mouse.position"    -: signalOf point
+  , "Mouse.x"           -: signalOf int
+  , "Mouse.y"           -: signalOf int
+  , "Mouse.isDown"      -: signalOf bool
+  , "Mouse.isClicked"   -: signalOf bool
+  , "Mouse.clicks"      -: signalOf (tupleOf [])
+  , "Input.textField"   -: string ==> tupleOf [element, signalOf string]
+  , "Input.password"    -: string ==> tupleOf [element, signalOf string]
+  , "Input.textArea"    -: int ==> int ==> tupleOf [element, signalOf string]
+  , "Input.checkBox"    -: bool ==> tupleOf [element, signalOf bool]
+  , "Input.button"      -: string ==> tupleOf [element, signalOf bool]
+  , "Input.stringDropDown" -: listOf string ==> tupleOf [element, signalOf string]
+  , "Input.dropDown"    -:: listOf (tupleOf [string,a]) ==> tupleOf [element, signalOf a]
   ]
 
 --------  Math and Binops  --------
@@ -201,7 +224,10 @@ math =
   hasType (float ==> float) ["sin","cos","tan","asin","acos","atan","sqrt"] ++
   hasType float ["pi","e"] ++
   hasType (int ==> float) ["toFloat","castIntToFloat"] ++
-  hasType (float ==> int) ["round","floor","ceiling","truncate"]
+  hasType (float ==> int) ["round","floor","ceiling","truncate"] ++
+  [ "show" -:: a ==> string
+  , "readInt" -: string ==> maybeOf int
+  , "readFloat" -: string ==> maybeOf float ]
 
 bools =
   [ "not" -: bool ==> bool ] ++
@@ -211,7 +237,7 @@ bools =
     , Forall [0,1] [ Context "`compare'" $ VarT 0 :<: comparable ] (VarT 0 ==> VarT 0 ==> VarT 1) )
   ]
 
-chars = classify ++ convert1 ++ convert2
+chars = prefix "Char" (classify ++ convert1 ++ convert2)
   where classify = hasType (char ==> bool)
                    ["isDigit","isOctDigit","isHexDigit","isUpper","isLower"]
         convert1 =  hasType (char ==> char)
@@ -246,7 +272,7 @@ funcs =
 tuple n = ("Tuple" ++ show n, Forall [1..n] [] $ foldr (==>) (tupleOf vs) vs)
     where vs = map VarT [1..n]
 
-lists =
+lists = prefix "List"
   [ "and"  -:: listOf bool ==> bool
   , "or"   -:: listOf bool ==> bool
   , numScheme (\n -> listOf n ==> listOf n) "sort"
@@ -279,7 +305,7 @@ lists =
   ] ++ map (numScheme (\n -> listOf n ==> n)) [ "sum", "product"
                                               , "maximum", "minimum" ]
 
-maybeFuncs =
+maybeFuncs = prefix "Maybe"
   [ "maybe" -:: b ==> (a ==> b) ==> maybeOf a ==> b
   , "isJust" -:: maybeOf a ==> bool
   , "isNothing" -:: maybeOf a ==> bool
@@ -289,11 +315,66 @@ maybeFuncs =
   , "catMaybes" -:: (a ==> maybeOf b) ==> listOf a ==> listOf b
   ]
 
+dictionary =
+  let dict k v = ADT "Dict" [k,v] in
+  prefix "Dict"
+    [ "empty" -:: dict a b
+    , "singleton" -:: a ==> b ==> dict a b
+    , "insert" -:: a ==> b ==> dict a b ==> dict a b
+    , "remove" -:: a ==> dict a b ==> dict a b
+    , "member" -:: a ==> dict a b ==> bool
+    , "lookup" -:: a ==> dict a b ==> maybeOf b
+    , "findWithDefault" -:: b ==> a ==> dict a b ==> b
+    , "intersect" -:: dict a b ==> dict a c ==> dict a b
+    , "union" -:: dict a b ==> dict a b ==> dict a b
+    , "diff"  -:: dict a b ==> dict a c ==> dict a b
+    , "map"   -:: (b ==> c) ==> dict a b ==> dict a c
+    , "foldl" -:: (a ==> b ==> c ==> c) ==> c ==> dict a b ==> c
+    , "foldr" -:: (a ==> b ==> c ==> c) ==> c ==> dict a b ==> c
+    , "keys"  -:: dict a b ==> listOf a
+    , "values"   -:: dict a b ==> listOf b
+    , "toList"   -:: dict a b ==> listOf (tupleOf [a,b])
+    , "fromList" -:: listOf (tupleOf [a,b]) ==> dict a b
+    ]
+
+sets =
+  let set v = ADT "Set" [v] in
+  prefix "Set"
+    [ "empty" -:: set a
+    , "singleton" -:: a ==> set a
+    , "insert" -:: a ==> set a ==> set a
+    , "remove" -:: a ==> set a ==> set a
+    , "member" -:: a ==> set a ==> bool
+    , "intersect" -:: set a ==> set a ==> set a
+    , "union" -:: set a ==> set a ==> set a
+    , "diff"  -:: set a ==> set a ==> set a
+    , "map"   -:: (a ==> b) ==> set a ==> set b
+    , "foldl" -:: (a ==> b ==> b) ==> b ==> set a ==> b
+    , "foldr" -:: (a ==> b ==> b) ==> b ==> set a ==> b
+    , "toList"   -:: set a ==> listOf a
+    , "fromList" -:: listOf a ==> set a
+    ]
+
+automaton =
+  let auto a b = ADT "Automaton" [a,b] in
+  prefix "Automaton"
+    [ "pure"    -:: (a ==> b) ==> auto a b
+    , "init"    -:: b ==> (a ==> b ==> b) ==> auto a b
+    , "init'"   -:: c ==> (a ==> c ==> tupleOf [b,c]) ==> auto a b
+    , ">>>"     -:: auto a b ==> auto b c ==> auto a c
+    , "<<<"     -:: auto b c ==> auto a b ==> auto a c
+    , "combine" -:: listOf (auto a b) ==> auto a (listOf b)
+    , "run"     -:: auto a b ==> signalOf a ==> signalOf b
+    , "step"    -:: auto a b ==> a ==> tupleOf [b,auto a b]
+    , "count"   -:: auto a int
+    , "draggable" -:: form ==> auto (tupleOf [bool,point]) form
+    ]
+
 --------  Everything  --------
 
 hints = mapM (\(n,s) -> (,) n `liftM` rescheme s) hs
-    where hs = concat [ funcs, lists, signals, math, bools, str2elem, textAttrs
-                      , elements, directions, colors, lineTypes, shapes
-                      , concreteSignals, casts, polyCasts, json, maybeFuncs
-                      , positions, collages, http
+    where hs = concat [ funcs, lists, signals, math, bools, textAttrs
+                      , graphicsElement, graphicsColor
+                      , concreteSignals, javascript, json, maybeFuncs
+                      , http, dictionary, sets, automaton
                       ]

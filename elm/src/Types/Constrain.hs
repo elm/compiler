@@ -3,7 +3,7 @@ module Types.Constrain (constrain) where
 
 import Ast
 import Types
-import Data.List (foldl')
+import Data.List (foldl',sort,group,isPrefixOf,intercalate,isSuffixOf)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Control.Arrow (second)
@@ -20,15 +20,42 @@ beta = VarT `liftM` guid
 unionA = Map.unionWith (++)
 unionsA = Map.unionsWith (++)
 
-constrain hints (Module _ _ _ stmts) = do
-    (ass,css,schemess) <- unzip3 `liftM` mapM stmtGen stmts
-    allHints <-  liftM (Map.fromList . (++ concat schemess)) hints
-    let insert as n = do v <- guid; return $ Map.insertWith' (\_ x -> x) n [v] as
-    assumptions <- foldM insert (unionsA ass) $ map fst (concat schemess)
-    let cs = let f k s vs = map (\v -> Context k $ v :<<: s) vs in
-             concat . Map.elems $ Map.intersectionWithKey f allHints assumptions
-    let escapees = Map.keys $ Map.difference assumptions allHints
-    return . (,) escapees $ cs ++ Set.toList (Set.unions css)
+getAliases imports hints = hints ++ concatMap aliasesFrom imports'
+    where imports' = map head . group $ sort imports
+          aliasesFrom (name,method) =
+              case method of
+                As alias -> concatMap (findAlias name alias) hints
+                Hiding [] -> concatMap (findAlias name "") hints
+                _ -> []
+          findAlias mName' mAlias (name,tipe) =
+              let mName = mName' ++ "." in
+              case mName `isPrefixOf` name of
+                True  -> [ (mAlias ++ drop (length mName) name, tipe) ]
+                False -> []
+
+findAmbiguous hints hints' assumptions continue =
+    let potentialDups = map head . filter (\g -> length g > 1) . group $ sort hints'
+        dups = filter (\k -> Map.member k assumptions) potentialDups
+    in  case dups of
+          n:_ -> return . Left $ "Error: Ambiguous occurrence of '" ++ n ++ "' could refer to " ++
+                                 intercalate ", " (filter (isSuffixOf n) hints)
+          _ -> continue
+
+constrain typeHints (Module _ _ imports stmts) = do
+  (ass,css,schemess) <- unzip3 `liftM` mapM stmtGen stmts
+  hints <- typeHints
+  let aliasHints = getAliases (imports ++ extraImports) hints
+  let allHints = Map.fromList (aliasHints ++ concat schemess)
+  assumptions <- foldM insert (unionsA ass) $ map fst (concat schemess)
+  findAmbiguous (map fst hints) (map fst aliasHints) assumptions $
+                do let cs = let f k s vs = map (\v -> Context k $ v :<<: s) vs in
+                            concat . Map.elems $ Map.intersectionWithKey f allHints assumptions
+                   let escapees = Map.keys $ Map.difference assumptions allHints
+                   return . Right . (,) escapees $ cs ++ Set.toList (Set.unions css)
+      where extraImports =
+                map (\n -> (n, Hiding []))
+                        ["List","Signal","Graphics.Text","Graphics.Element","Graphics.Color"]
+            insert as n = do v <- guid; return $ Map.insertWith' (\_ x -> x) n [v] as
 
 gen :: Expr -> GuidCounter (Map.Map String [X], Set.Set (Context String Constraint), Type)
 

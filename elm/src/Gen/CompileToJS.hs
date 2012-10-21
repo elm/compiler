@@ -90,7 +90,6 @@ jsImport (modul, how) =
      jsImport' (modul, how)
   
 jsImport' (modul, As name) = assign name modul
-jsImport' (modul, Importing []) = jsImport' (modul, Hiding [])
 jsImport' (modul, Importing vs) =
     concatMap (\v -> assign v $ modul ++ "." ++ v) vs
 jsImport' (modul, Hiding vs) =

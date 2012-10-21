@@ -17,9 +17,12 @@ import Control.DeepSeq (deepseq)
 prints xs v = v --} unsafePerformIO (putStrLn "----------" >> mapM print xs) `seq` v
 
 unify hints modul = run $ do
-  (escapees, cs) <- constrain hints modul
-  subs <- solver cs Map.empty
-  prints cs $ return ((,) escapees `liftM` subs)
+  constraints <- constrain hints modul
+  case constraints of
+    Left msg -> return (Left msg)
+    Right (escapees, cs) ->
+        do subs <- solver cs Map.empty
+           return ((,) escapees `liftM` subs)
 
 eq ctx t1 t2 = Context ctx (t1 :=: t2)
 
