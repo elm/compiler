@@ -51,7 +51,11 @@ var Value = function(){
         arr[i] = spaces.join('');
       }
     }
-    return arr.join('');
+    arr = arr.join('');
+    if (arr[arr.length-1] === " ") {
+	return arr.slice(0,-1) + '&nbsp;';
+    }
+    return arr;
   }
 
   function properEscape(str) {
@@ -187,7 +191,7 @@ var Value = function(){
 	} else if (v[0] === "Nil") {
 	    return "[]";
 	} else if (v[0] === "JSON") {
-	    return "(JSON.fromList " + toString(ElmJSON.toList(v)) + ")";
+	    return "(JSON.fromList " + toString(Elm.JSON.toList(v)) + ")";
 	} else if (v[0] === "RBNode" || v[0] === "RBEmpty") {
 	    function cons(k){ return function(v) { return function(acc) { return ["Cons",["Tuple2",k,v],acc]; }; }; }
 	    return "(Map.fromList " + toString(Elm.Dict.fold(cons)(["Nil"])(v)) + ")";
