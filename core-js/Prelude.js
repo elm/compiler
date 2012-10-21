@@ -32,6 +32,42 @@ Elm.Prelude = function() {
     };
 
     var logBase=function(b){return function(x){return Math.log(x)/Math.log(b);};};
+
+    function readInt(str) {
+	var s = JavaScript.castStringToJSString(str);
+	var len = s.length;
+	if (len === 0) { return Nothing; }
+	var start = 0;
+	if (s[0] == '-') {
+	    if (len === 1) { return Nothing; }
+	    start = 1;
+	}
+	for (var i = start; i < len; ++i) {
+	    if (!Char.isDigit(s[i])) { return Nothing; }
+	}
+	return Just(parseInt(s));
+    }
+
+    function readFloat(str) {
+	var s = JavaScript.castStringToJSString(str);
+	var len = s.length;
+	if (len === 0) { return Nothing; }
+	var start = 0;
+	if (s[0] == '-') {
+	    if (len === 1) { return Nothing; }
+	    start = 1;
+	}
+	var dotCount = 0;
+	for (var i = start; i < len; ++i) {
+	    if (Char.isDigit(s[i])) { continue; }
+	    if (s[i] === '.') {
+		dotCount += 1;
+		if (dotCount <= 1) { continue; }
+	    }
+	    return Nothing;
+	}
+	return Just(parseFloat(s));
+    }
     
     return {eq   : Value.eq,
 	    id   : function(x) { return x; },
@@ -51,6 +87,8 @@ Elm.Prelude = function() {
 	    floor : function(n) { return Math.floor(n); },
 	    ceiling : function(n) { return Math.ceil(n); },
 	    truncate : function(n) { return ~~n; },
+	    readInt : readInt,
+	    readFloat : readFloat,
 	    sqrt : Math.sqrt,
 	    abs  : Math.abs,
 	    pi   : Math.PI,
