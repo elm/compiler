@@ -21,10 +21,21 @@ Elm.JSON = function() {
         };
       };
     }
+
     function lookup(key) { return function(obj) {
         var k = JS.castStringToJSString(key);
         return obj[1].hasOwnProperty(k) ? Just(obj[1][k]) : Nothing ;
       };
+    }
+    function find(tipe,base) { return function (key) { return function(obj) {
+          var k = JS.castStringToJSString(key);
+          if (obj[1].hasOwnProperty(k)) {
+	    var v = obj[1][k];
+	    if (v[0] === tipe) { return v[1]; }
+          }
+          return base;
+        };
+      }
     }
     function lookupWithDefault(base) { return function(key) { return function(obj) {
           var k = JS.castStringToJSString(key);
@@ -32,6 +43,7 @@ Elm.JSON = function() {
         };
       };
     }
+
     function remove(k) { return function(inObj) {
         var obj = inObj[1];
         var outObj = {};
@@ -117,6 +129,9 @@ Elm.JSON = function() {
 	    singleton : singleton,
 	    insert : insert,
 	    lookup : lookup,
+	    findString : find("JsonString",["Nil"]),
+	    findObject : find("JsonObject", empty ),
+	    findArray  : find("JsonArray" ,["Nil"]),
 	    findWithDefault : lookupWithDefault,
 	    remove : remove,
 	    toPrettyJSString : toPrettyJSString,
