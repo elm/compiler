@@ -15,10 +15,10 @@ textToText = [ "header", "italic", "bold", "underline"
              , "overline", "strikeThrough", "monospace" ]
 
 textAttrs = [ "toText" -: string ==> text
-            , "Graphics.Text.typeface" -: string ==> text ==> text
-            , "Graphics.Text.link"   -:: string ==> text ==> text
-            , numScheme (\t -> t ==> text ==> text) "Graphics.Text.height"
-            ] ++ prefix "Graphics.Text" (hasType (text ==> text) textToText)
+            , "Text.typeface" -: string ==> text ==> text
+            , "Text.link"   -:: string ==> text ==> text
+            , numScheme (\t -> t ==> text ==> text) "Text.height"
+            ] ++ prefix "Text" (hasType (text ==> text) textToText)
 
 elements =
     let iee = int ==> element ==> element in
@@ -77,9 +77,9 @@ collages = [ numScheme (\n -> pairOf n ==> element ==> form) "toForm"
            , numScheme (\n -> pairOf n ==> form ==> bool) "isWithin"
            ]
 
-graphicsElement = prefix "Graphics.Element"
+graphicsElement = prefix "Graphics"
                   (concat [elements,directions,positions,lineTypes,shapes,collages])
-graphicsColor = prefix "Graphics.Color" clrs
+graphicsColor = prefix "Color" clrs
     where clrs = [ numScheme (\n -> n ==> n ==> n ==> color) "rgb"
                  , numScheme (\n -> n ==> n ==> n ==> n ==> color) "rgba"
                  ] ++ hasType color ["red","green","blue","black","white"

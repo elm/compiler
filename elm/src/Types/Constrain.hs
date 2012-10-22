@@ -53,8 +53,7 @@ constrain typeHints (Module _ _ imports stmts) = do
                    let escapees = Map.keys $ Map.difference assumptions allHints
                    return . Right . (,) escapees $ cs ++ Set.toList (Set.unions css)
       where extraImports =
-                map (\n -> (n, Hiding []))
-                        ["List","Signal","Graphics.Text","Graphics.Element","Graphics.Color"]
+                map (\n -> (n, Hiding [])) ["List","Signal","Text","Graphics","Color"]
             insert as n = do v <- guid; return $ Map.insertWith' (\_ x -> x) n [v] as
 
 gen :: Expr -> GuidCounter (Map.Map String [X], Set.Set (Context String Constraint), Type)
