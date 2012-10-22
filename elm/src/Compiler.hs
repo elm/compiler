@@ -101,10 +101,10 @@ toFilePath :: String -> FilePath
 toFilePath modul = map (\c -> if c == '.' then '/' else c) modul ++ ".elm"
 
 builtInModules =
-    concat [ map ("Data."++)     [ "List", "Char", "Maybe" ]
-           , map ("Signal."++)   [ "Mouse", "Keyboard.Raw"
-                                 , "Window", "Time", "HTTP", "Input", "Random" ]
-           , map ("Graphics."++) [ "Element", "Text", "Color" ]
-           , map ("Foreign.JavaScript"++) [ "", "JSON", "Experimental" ]
-           , [ "Prelude" ]
+    concat [ [ "List", "Char", "Maybe", "Dict", "Set", "Automaton" ]
+           , [ "Signal", "Mouse", "Keyboard.Raw"
+             , "Window", "Time", "HTTP", "Input", "Random" ]
+           , [ "Graphics", "Text", "Color" ]
+           , map ("JavaScript"++) [ "", "Experimental" ]
+           , [ "Prelude", "JSON" ]
            ]
