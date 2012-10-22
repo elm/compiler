@@ -177,7 +177,7 @@ function render(elem) {
     e.style.height = (~~elem[4]) + 'px';
     if (elem[5] !== 1) { e.style.opacity = elem[5]; }
     if (elem[6][0] === "Just") {
-	e.style.backgroundColor = Elm.Graphics.Color.extract(elem[6][1]);
+	e.style.backgroundColor = Elm.Color.extract(elem[6][1]);
     }
     if (elem[7][0] === "Just") {
 	var a = newElement('a');
@@ -263,7 +263,7 @@ function update(node,curr,next) {
     if (next[4] !== curr[4]) node.style.height  = (~~next[4]) + 'px';
     if (next[5] !== curr[5]) node.style.opacity = next[5];
     if (next[6].length === 2) {
-	var clr = Elm.Graphics.Color.extract(next[6][1]);
+	var clr = Elm.Color.extract(next[6][1]);
 	if (clr !== node.style.backgroundColor) node.style.backgroundColor = clr;
     }
     if (next[7].length === 2) {

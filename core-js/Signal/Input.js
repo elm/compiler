@@ -50,7 +50,7 @@ Elm.Input = function() {
 	var opts = [];
 	while (options[0] === "Cons") {
 	    var opt = newElement('option');
-	    var str = Text.toText(options[1][1]);
+	    var str = Value.toText(options[1][1]);
 	    opt.value = str;
 	    opt.innerHTML = str;
 	    slct.appendChild(opt);

@@ -163,9 +163,9 @@ Elm.Prelude = function() {
 	Elm.Prelude[i] = library[i];
     }
   };
-  include (Elm.Graphics.Color);
-  include (Elm.Graphics.Text);
-  include (Elm.Graphics.Element);
+  include (Elm.Color);
+  include (Elm.Text);
+  include (Elm.Graphics);
 
   show = Value.show;
   

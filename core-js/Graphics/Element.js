@@ -1,6 +1,5 @@
 var Elm = Elm || {};
-Elm.Graphics = Elm.Graphics || {};
-Elm.Graphics.Element = function() {
+Elm.Graphics = function() {
   var JS = Elm.JavaScript;
   var DLeft_0 = ["DLeft"];
   var DRight_1 = ["DRight"];

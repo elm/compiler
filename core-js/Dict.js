@@ -1,15 +1,13 @@
 
-try{
+(function() {
 
 for(var i in Elm) { this[i] = Elm[i]; }
 if (Elm.Dict) throw "Module name collision, 'Dict' is already defined."; 
 Elm.Dict=function(){
- try{if (!(Elm.Prelude instanceof Object)) throw 'module not found'; } catch(e) {throw "Module 'Prelude' is missing. Compile with --make flag or load missing module in a separate JavaScript file.";}
  var hiddenVars=[];
  for(var i in Elm.Prelude){
   if (hiddenVars.indexOf(i) >= 0) continue;
   this[i]=Elm.Prelude[i];}
- try{if (!(Elm.Maybe instanceof Object)) throw 'module not found'; } catch(e) {throw "Module 'Maybe' is missing. Compile with --make flag or load missing module in a separate JavaScript file.";}
  var isJust=Elm.Maybe.isJust;
  var Red_0=["Red"];
  var Black_1=["Black"];
@@ -478,6 +476,4 @@ Elm.Dict=function(){
  function fromList_42(assocs_235){
   return List.foldl(uncurry(insert_20))(empty_4)(assocs_235);};
  return {empty:empty_4,lookup:lookup_7,findWithDefault:findWithDefault_8,member:member_10,insert:insert_20,singleton:singleton_21,remove:remove_32,map:map_33,foldl:foldl_34,foldr:foldr_35,union:union_36,intersect:intersect_37,diff:diff_38,keys:keys_39,values:values_40,toList:toList_41,fromList:fromList_42};}();
-Elm.main=function(){
- return Elm.Dict.main;};
-} catch (e) {Elm.main=function() {var msg = ('<br/><h2>Your browser may not be supported. Are you using a modern browser?</h2>' + '<br/><span style="color:grey">Runtime Error in Dict module:<br/>' + e + '</span>');document.body.innerHTML = Text.monospace(msg);throw e;};}
+}());

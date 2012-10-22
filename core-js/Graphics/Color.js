@@ -1,6 +1,5 @@
 var Elm = Elm || {};
-Elm.Graphics = Elm.Graphics || {};
-Elm.Graphics.Color = function() {
+Elm.Color = function() {
   function Color_0(a1) {
     return function(a2) {
       return function(a3) {

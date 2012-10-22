@@ -1,5 +1,6 @@
 
-var Text = function() {
+var Elm = Elm || {};
+Elm.Text = function() {
   function fromString(s) { return Value.toText(s); }
 
   var addTag = function(tag) { return function(text) {
@@ -23,7 +24,7 @@ var Text = function() {
   var italic = addStyle('font-style', 'italic');
   var bold = addTag('b');
   var color = function(c) {
-    return addStyle('color', Elm.Graphics.Color.extract(c));
+    return addStyle('color', Elm.Color.extract(c));
   };
   var underline = addStyle('text-decoration', 'underline');
   var overline = addStyle('text-decoration', 'overline');
@@ -47,6 +48,3 @@ var Text = function() {
 	  color : color,
 	  link : link };
 }();
-
-var Elm = Elm || {};
-Elm.Graphics.Text = Text;
