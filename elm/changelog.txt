@@ -2,9 +2,7 @@
 Release 0.4.1
 =============
 
-* Add Automaton library.
-
-* Add Dict and Set libraries.
+* Add Automaton, Dict, and Set libraries.
 
 * Remove the library prefixes `Data.` and `Signal.` because they were
   more confusing than helpful.

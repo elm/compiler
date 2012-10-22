@@ -977,17 +977,53 @@ Elm.List = function() {
 	    take:take,
 	    drop:drop};
 }();
-try{
+var Elm = Elm || {};
+Elm.Maybe = function() {
+    function consMaybe(x) { return function(xs) {
+	    if (x[0] === "Just") return ["Cons", x[1], xs];
+	    return xs;
+	};
+    }
+    function fromMaybe(b) { return function(m) {
+	    if (m[0] === "Just") return m[1];
+	    return b;
+	};
+    }
+    function mapCons(f) { return function(y) { return function(xs) {
+		var x = f(y);
+		if (x[0] === "Just") return ["Cons", x[1], xs];
+		return xs;
+	    };
+	};
+    }
+    function maybe(b) { return function(f) { return function(m) {
+		if (m[0] === "Just") return f(m[1]);
+		return b;
+	    };
+	};
+    }
+
+    return {Just : function(x) { return ["Just",x]; },
+	    Nothing : ["Nothing"],
+	    catMaybes : Elm.List.foldr(consMaybe)(["Nil"]),
+	    isJust : function(m) { return m[0] === "Just"; },
+	    isNothing : function(m) { return m[0] === "Nothing"; },
+	    fromMaybe : fromMaybe,
+	    consMaybe : consMaybe,
+	    mapMaybe : function(f) { return Elm.List.foldr(mapCons(f))(["Nil"]); },
+	    maybe : maybe
+    };
+}();
+
+(function() {
 
 for(var i in Elm) { this[i] = Elm[i]; }
 if (Elm.Dict) throw "Module name collision, 'Dict' is already defined."; 
 Elm.Dict=function(){
- try{if (!(Elm.Prelude instanceof Object)) throw 'module not found'; } catch(e) {throw "Module 'Prelude' is missing. Compile with --make flag or load missing module in a separate JavaScript file.";}
  var hiddenVars=[];
  for(var i in Elm.Prelude){
   if (hiddenVars.indexOf(i) >= 0) continue;
   this[i]=Elm.Prelude[i];}
- try{if (!(Elm.Maybe instanceof Object)) throw 'module not found'; } catch(e) {throw "Module 'Maybe' is missing. Compile with --make flag or load missing module in a separate JavaScript file.";}
  var isJust=Elm.Maybe.isJust;
  var Red_0=["Red"];
  var Black_1=["Black"];
@@ -1456,15 +1492,11 @@ Elm.Dict=function(){
  function fromList_42(assocs_235){
   return List.foldl(uncurry(insert_20))(empty_4)(assocs_235);};
  return {empty:empty_4,lookup:lookup_7,findWithDefault:findWithDefault_8,member:member_10,insert:insert_20,singleton:singleton_21,remove:remove_32,map:map_33,foldl:foldl_34,foldr:foldr_35,union:union_36,intersect:intersect_37,diff:diff_38,keys:keys_39,values:values_40,toList:toList_41,fromList:fromList_42};}();
-Elm.main=function(){
- return Elm.Dict.main;};
-} catch (e) {Elm.main=function() {var msg = ('<br/><h2>Your browser may not be supported. Are you using a modern browser?</h2>' + '<br/><span style="color:grey">Runtime Error in Dict module:<br/>' + e + '</span>');document.body.innerHTML = Text.monospace(msg);throw e;};}
-try{
+}());
+(function() {
 
 for(var i in Elm) { this[i] = Elm[i]; }
-if (Elm.Set) throw "Module name collision, 'Set' is already defined."; 
 Elm.Set=function(){
- try{if (!(Elm.Prelude instanceof Object)) throw 'module not found'; } catch(e) {throw "Module 'Prelude' is missing. Compile with --make flag or load missing module in a separate JavaScript file.";}
  var hiddenVars=[];
  for(var i in Elm.Prelude){
   if (hiddenVars.indexOf(i) >= 0) continue;
@@ -1498,9 +1530,7 @@ Elm.Set=function(){
    return function(x){
     return fromList_9(List.map(f_25)(x));}(toList_8(t_26));};};
  return {empty:empty_0,singleton:singleton_1,insert:insert_2,remove:remove_3,member:member_4,union:union_5,intersect:intersect_6,diff:diff_7,toList:toList_8,fromList:fromList_9,foldl:foldl_10,foldr:foldr_11,map:map_12};}();
-Elm.main=function(){
- return Elm.Set.main;};
-} catch (e) {Elm.main=function() {var msg = ('<br/><h2>Your browser may not be supported. Are you using a modern browser?</h2>' + '<br/><span style="color:grey">Runtime Error in Set module:<br/>' + e + '</span>');document.body.innerHTML = Text.monospace(msg);throw e;};}
+}());
 var Elm = Elm || {};
 Elm.Char = function() {
     function isBetween(lo,hi) { return function(chr) {
@@ -1523,44 +1553,6 @@ Elm.Char = function() {
 	    isDigit    : isDigit,
 	    isOctDigit : isBetween('0'.charCodeAt(0),'7'.charCodeAt(0)),
 	    isHexDigit : function(c) { return isDigit(c) || chk1(c) || chk2(c); }
-    };
-}();
-
-var Elm = Elm || {};
-Elm.Maybe = function() {
-    function consMaybe(x) { return function(xs) {
-	    if (x[0] === "Just") return ["Cons", x[1], xs];
-	    return xs;
-	};
-    }
-    function fromMaybe(b) { return function(m) {
-	    if (m[0] === "Just") return m[1];
-	    return b;
-	};
-    }
-    function mapCons(f) { return function(y) { return function(xs) {
-		var x = f(y);
-		if (x[0] === "Just") return ["Cons", x[1], xs];
-		return xs;
-	    };
-	};
-    }
-    function maybe(b) { return function(f) { return function(m) {
-		if (m[0] === "Just") return f(m[1]);
-		return b;
-	    };
-	};
-    }
-
-    return {Just : function(x) { return ["Just",x]; },
-	    Nothing : ["Nothing"],
-	    catMaybes : Elm.List.foldr(consMaybe)(["Nil"]),
-	    isJust : function(m) { return m[0] === "Just"; },
-	    isNothing : function(m) { return m[0] === "Nothing"; },
-	    fromMaybe : fromMaybe,
-	    consMaybe : consMaybe,
-	    mapMaybe : function(f) { return Elm.List.foldr(mapCons(f))(["Nil"]); },
-	    maybe : maybe
     };
 }();
 
@@ -1647,8 +1639,7 @@ var String = function() {
 
 var String = {toText:Value.toText, properEscape:Value.properEscape};
 var Elm = Elm || {};
-Elm.Graphics = Elm.Graphics || {};
-Elm.Graphics.Color = function() {
+Elm.Color = function() {
   function Color_0(a1) {
     return function(a2) {
       return function(a3) {
@@ -1695,13 +1686,13 @@ function tracePoints(ctx,points) {
 
 function solid(ctx,color,points) {
     tracePoints(ctx,points);
-    ctx.strokeStyle = Elm.Graphics.Color.extract(color);
+    ctx.strokeStyle = Elm.Color.extract(color);
     ctx.stroke();
 };
 
 function filled(ctx,color,points) {
     tracePoints(ctx,points);
-    ctx.fillStyle = Elm.Graphics.Color.extract(color);
+    ctx.fillStyle = Elm.Color.extract(color);
     ctx.fill();
 }
 
@@ -1718,7 +1709,7 @@ function textured(redo,ctx,src,points) {
 function customLine(pattern,ctx,color,points) {
     if (pattern.length === 0) { pattern = [8,4]; }
     customLineHelp(ctx, pattern, points);
-    ctx.strokeStyle = Elm.Graphics.Color.extract(color);
+    ctx.strokeStyle = Elm.Color.extract(color);
     ctx.stroke();
 };
 
@@ -1991,8 +1982,7 @@ function insideShape(point,theta,scale,pos,points) {
 return {collage:collage, updateCollage:updateCollage, insideForm:insideForm};
 
 }();var Elm = Elm || {};
-Elm.Graphics = Elm.Graphics || {};
-Elm.Graphics.Element = function() {
+Elm.Graphics = function() {
   var JS = Elm.JavaScript;
   var DLeft_0 = ["DLeft"];
   var DRight_1 = ["DRight"];
@@ -2506,7 +2496,8 @@ Elm.Graphics.Element = function() {
 	 outlined:outlined_94, customOutline:customOutline_95, textured:textured, sprite:sprite_96, toForm:toForm_97, rotate:rotate_98, scale:scale_99, move:move_100,
 	 isWithin: Collage.insideForm}
 }();
-var Text = function() {
+var Elm = Elm || {};
+Elm.Text = function() {
   function fromString(s) { return Value.toText(s); }
 
   var addTag = function(tag) { return function(text) {
@@ -2530,7 +2521,7 @@ var Text = function() {
   var italic = addStyle('font-style', 'italic');
   var bold = addTag('b');
   var color = function(c) {
-    return addStyle('color', Elm.Graphics.Color.extract(c));
+    return addStyle('color', Elm.Color.extract(c));
   };
   var underline = addStyle('text-decoration', 'underline');
   var overline = addStyle('text-decoration', 'overline');
@@ -2554,9 +2545,6 @@ var Text = function() {
 	  color : color,
 	  link : link };
 }();
-
-var Elm = Elm || {};
-Elm.Graphics.Text = Text;
 
 var Render = function(){
 
@@ -2736,7 +2724,7 @@ function render(elem) {
     e.style.height = (~~elem[4]) + 'px';
     if (elem[5] !== 1) { e.style.opacity = elem[5]; }
     if (elem[6][0] === "Just") {
-	e.style.backgroundColor = Elm.Graphics.Color.extract(elem[6][1]);
+	e.style.backgroundColor = Elm.Color.extract(elem[6][1]);
     }
     if (elem[7][0] === "Just") {
 	var a = newElement('a');
@@ -2822,7 +2810,7 @@ function update(node,curr,next) {
     if (next[4] !== curr[4]) node.style.height  = (~~next[4]) + 'px';
     if (next[5] !== curr[5]) node.style.opacity = next[5];
     if (next[6].length === 2) {
-	var clr = Elm.Graphics.Color.extract(next[6][1]);
+	var clr = Elm.Color.extract(next[6][1]);
 	if (clr !== node.style.backgroundColor) node.style.backgroundColor = clr;
     }
     if (next[7].length === 2) {
@@ -3145,7 +3133,7 @@ Elm.Input = function() {
 	var opts = [];
 	while (options[0] === "Cons") {
 	    var opt = newElement('option');
-	    var str = Text.toText(options[1][1]);
+	    var str = Value.toText(options[1][1]);
 	    opt.value = str;
 	    opt.innerHTML = str;
 	    slct.appendChild(opt);
@@ -3509,20 +3497,17 @@ Elm.Prelude = function() {
 	Elm.Prelude[i] = library[i];
     }
   };
-  include (Elm.Graphics.Color);
-  include (Elm.Graphics.Text);
-  include (Elm.Graphics.Element);
+  include (Elm.Color);
+  include (Elm.Text);
+  include (Elm.Graphics);
 
   show = Value.show;
   
 }());
-
-try{
+(function() {
 
 for(var i in Elm) { this[i] = Elm[i]; }
-if (Elm.Automaton) throw "Module name collision, 'Automaton' is already defined."; 
 Elm.Automaton=function(){
- try{if (!(Elm.Prelude instanceof Object)) throw 'module not found'; } catch(e) {throw "Module 'Prelude' is missing. Compile with --make flag or load missing module in a separate JavaScript file.";}
  var hiddenVars=[];
  for(var i in Elm.Prelude){
   if (hiddenVars.indexOf(i) >= 0) continue;
@@ -3702,6 +3687,4 @@ Elm.Automaton=function(){
  function draggable_14(form_93){
   return init__7(["Tuple2",Listen_9,form_93])(stepDrag_13);};
  return {Automaton:Automaton_0,run:run_1,step:step_2,composeAuto:composeAuto_3,combine:combine_4,pure:pure_5,init:init_6,init_:init__7,count:count_8,Listen:Listen_9,Ignore:Ignore_10,DragFrom:DragFrom_11,vecSub:vecSub_12,stepDrag:stepDrag_13,draggable:draggable_14};}();
-Elm.main=function(){
- return Elm.Automaton.main;};
-} catch (e) {Elm.main=function() {var msg = ('<br/><h2>Your browser may not be supported. Are you using a modern browser?</h2>' + '<br/><span style="color:grey">Runtime Error in Automaton module:<br/>' + e + '</span>');document.body.innerHTML = Text.monospace(msg);throw e;};}
+}());
