@@ -82,6 +82,7 @@ graphicsElement = prefix "Graphics"
 graphicsColor = prefix "Color" clrs
     where clrs = [ numScheme (\n -> n ==> n ==> n ==> color) "rgb"
                  , numScheme (\n -> n ==> n ==> n ==> n ==> color) "rgba"
+                 , "complement" -: color ==> color
                  ] ++ hasType color ["red","green","blue","black","white"
                                     ,"yellow","cyan","magenta","grey","gray"]
 
