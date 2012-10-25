@@ -1,26 +1,31 @@
 
-Release 0.4.1
+Release 0.5.0
 =============
 
-* Add Automaton, Dict, and Set libraries.
-
-* Remove the library prefixes `Data.` and `Signal.` because they were
-  more confusing than helpful.
+* Add Dict, Set, and Automaton libraries!
 
 * Add (,,) notation for creating tuples.
 
 * Redo HTTP library, allowing any kind of request and more flexibility.
 
-* The Haskell API exports the absolute path to the Elm runtime
-  system (with the corresponding version number).
+* Remove the library prefixes `Data.`, `Graphics.`, and `Signal.` because
+  they were more confusing than helpful.
 
-* Better type error reporting for ambiguous uses of variables and for aliased modules.
+* Better type error reporting for ambiguous uses of variables and for
+  variables in aliased modules.
 
 * Add `readInt` and `readFloat` functions.
-* Fix bug in pattern parsing.
+* Add `complement` function to compute complementary colors.
 * Ensure that `String` is treated as an alias of `[Char]`.
-* Make pattern matching a bit more concise.
+
+* Fix bug in pattern parsing. `A B _ _` was parsed as `A (B _ _)`.
+* Make pattern matching a bit more compact in generated code.
 * Make generated JS more readable.
+
+* The Haskell API exports the absolute path to the Elm runtime
+  system (with the corresponding version number). This makes it easier
+  to run Elm programs with less setup.
+
 
 
 Release 0.4.0
