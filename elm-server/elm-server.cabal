@@ -1,5 +1,5 @@
 Name:                elm-server
-Version:             0.4.0.4
+Version:             0.5.0
 Synopsis:            The Elm language server.
 Description:         This package provides a standalone, Happstack-based Elm server.
 
@@ -30,9 +30,9 @@ Executable elm-server
                        transformers >= 0.2,
                        mtl >= 2,
                        parsec >= 3.1.1,
-                       blaze-html == 0.5.0.*,
+                       blaze-html >= 0.5.1,
                        HTTP >= 4000,
                        happstack-server == 7.0.2,
                        deepseq,
                        directory,
-                       Elm >= 0.4.0.4
+                       Elm >= 0.5.0
