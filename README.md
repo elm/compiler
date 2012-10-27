@@ -21,9 +21,11 @@ Assuming everything goes correctly (potential problems are discussed later), thi
 
 * `elm` is a standard compiler that takes `.elm` files and produces `.html` and/or `.js` files. You can then use these files with your favorite web-framework.
 
-* `elm-server` is both a compiler and server, allowing you to develop without designing and setting up a server yourself. Running `elm-server` starts a server in the current directory. It will compile and serve any `.elm` files in the current directory and its sub-directories. This is how I prefer to develop Elm programs.
+* `elm-server` is both a compiler and server, allowing you to develop without designing and setting up a server yourself. Running `elm-server` starts a server in the current directory. It will compile and serve any `.elm` files in the current directory and its sub-directories. This is how I prefer to develop Elm programs.  Use the command `elm-server --help` to see some extra information.
 
 To use these executables you need to add a new directory to your PATH. For me, the executables were placed in `/home/evan/.cabal/bin` which I appended to the end of my PATH variable in my .bashrc file. Cabal should tell you where your executables are located upon successful installation, so you can make a similar addition (see this tutorial if you are new to changing your PATH in [Unix/Linux](http://www.cyberciti.biz/faq/unix-linux-adding-path/)).
+
+You can use the commands `elm --help` and `elm-server --help` to get more information about using these tools.
 
 That is almost everything. Now, we will create a simple Elm project. The following commands will set-up a very basic project and start the Elm server.
 
@@ -64,12 +66,5 @@ These problems all appeared before Elm version 0.1.1.4:
 * When installing on Debian, `blaze-html-0.4.3.2` fails to compile. You must install `blaze-html-0.4.3.1` instead.
 * Elm does not appear to work with the latest versions of `containers` (i.e. 0.4.2.*). I know it works with earlier versions of containers, so to avoid this problem, you can try: `cabal install elm --constrain="containers==0.4.1.0" --force-reinstall`
 * On Windows, HAppStack has trouble installing because of issues with the "network" package. I struggled with this problem on Windows 7 until I found the suggestion at the bottom of [this page](http://hackage.haskell.org/trac/ghc/ticket/5159).
-* Likely more to come...
 
-
-Areas for further work:
------------------------
-
-Error messages need work in general. Syntax, Parsing, and Type errors are reported, but the messages are not very specific. I hope to fix this as soon as possible.
-
-If you are interested in making a large contribution, please contact me at `info (at) elm-lang (dot) org` so that we do not duplicate any work!
+If you are still stuck, email the list or ask a question in the [#Elm IRC channel](http://webchat.freenode.net/?channels=elm).
