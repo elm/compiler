@@ -79,5 +79,3 @@ var String = function() {
     };
 }();
 */
-
-var String = {toText:Value.toText, properEscape:Value.properEscape};
