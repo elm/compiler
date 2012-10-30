@@ -128,7 +128,7 @@ json = prefix "JSON"
   , "fromString" -: string ==> jsonObject
   , "lookup"     -: string ==> jsonObject ==> maybeOf jsonValue
   , "findObject" -: string ==> jsonObject ==> jsonObject
-  , "findArray"  -: string ==> jsonObject ==> listOf jsonObject
+  , "findArray"  -: string ==> jsonObject ==> listOf jsonValue
   , "findString" -: string ==> jsonObject ==> string
   , "findWithDefault" -:: jsonValue ==> string ==> jsonObject ==> jsonValue
   , "toPrettyString"   -: string ==> jsonObject ==> string
