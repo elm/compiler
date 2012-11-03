@@ -9,8 +9,7 @@ If you intend to serve Elm code with a Haskell backend, be sure to read all the 
 Installation for General Use
 ----------------------------
 
-Download the [Haskell Platform](http://hackage.haskell.org/platform/). This will give you access to the Haskell compiler (needed to build Elm) and Haskell's package distribution system (to make installation of Elm easier). Elm works best
-with version 7.4 of the Haskell compiler (i.e. GHC 7.4).
+Download the [Haskell Platform 2012.2.0.0](http://hackage.haskell.org/platform/). This will give you access to the Haskell compiler (needed to build Elm) and Haskell's package distribution system (to make installation of Elm easier). Elm works best with version 7.4 of the Haskell compiler (i.e. GHC 7.4) which is bundled with version 2012.2.0.0 of the Haskell Platform.
 
 #### Installing the compiler and server
 
@@ -50,10 +49,6 @@ The first two commands create a new directory and navigate into it. The `echo` c
 
 Installation for Haskell-users
 ------------------------------
-
-Elm as described in the previous section is actually split into two packages: `elm` which contains the guts of the compiler and `elm-server` which provides a simple HAppStack-based server to simplify development. Those of you planning to write your own server in Haskell only need the `elm` package:
-
-    cabal install elm
 
 The `elm` package provides support for [compilation of Elm code directly in Haskell](http://hackage.haskell.org/packages/archive/Elm/0.1.2/doc/html/Language-Elm.html) and [QuasiQuoting](http://hackage.haskell.org/packages/archive/Elm/0.1.2/doc/html/Language-Elm-Quasi.html). See the [Examples/](https://github.com/evancz/Elm/tree/master/Examples) directory for information and examples on how to get started with Elm+Haskell.
 
