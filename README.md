@@ -10,9 +10,11 @@ Installation for General Use
 ----------------------------
 
 Download the [Haskell Platform](http://hackage.haskell.org/platform/). This will give you access to the Haskell compiler (needed to build Elm) and Haskell's package distribution system (to make installation of Elm easier). Elm works best
-with version 7.4 of the Haskell compiler (i.e. GHC 7.4)
+with version 7.4 of the Haskell compiler (i.e. GHC 7.4).
 
-Once installed (even if it already was), you must update your listing of Haskell packages with:
+#### Installing the compiler and server
+
+Once the Haskell Platform is installed (even if it already was), you must update your listing of packages with:
 
     cabal update
 
@@ -22,7 +24,7 @@ This will ensure that the elm package is available. Then install Elm with:
 
 Assuming everything goes correctly (potential problems are discussed later), this will install the `elm` compiler on your machine. `elm` is a standard compiler that takes `.elm` files and produces `.html` and/or `.js` files. You can then use these files with your favorite web-framework. Use `elm --help` for more directions on how to use it.
 
-If you have this installed you can write and compile Elm locally.
+If you have this installed you can write and compile Elm locally, so if the next step fails for you, it is safe to proceed without it.
 
 You can also install `elm-server` which is both a compiler and server, allowing you to develop without designing and setting up a server yourself. Running `elm-server` starts a server in the current directory. It will compile and serve any `.elm` files in the current directory and its sub-directories. This is how I prefer to develop Elm programs. Install with:
 
