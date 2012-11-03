@@ -30,8 +30,7 @@ You can also install `elm-server` which is both a compiler and server, allowing 
 
     cabal install elm-server
 
-Dependency issues have been cropping up with this step, so if you run into issues, know that they are being worked on.
-Once installed, use the command `elm-server --help` to see some extra information.
+Dependency issues have been cropping up with this step, so if you run into issues, please report them so they can be fixed! Once installed, use the command `elm-server --help` to see some extra information.
 
 #### Using the Elm compiler and server
 
