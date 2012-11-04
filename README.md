@@ -1,15 +1,33 @@
 Elm
 ===
 
-This is the Elm compiler and server, allowing you to develop Elm applications that run in any modern browser.
+This is the Elm compiler and server, allowing you to develop Elm
+applications that run in any modern browser.
 
-If you intend to serve Elm code with a Haskell backend, be sure to read all the way to the "Installation for Haskell-Users" section.
+If you intend to serve Elm code with a custom Haskell backend, be
+sure to read all the way to the "Installation for Haskell-Users" section.
 
 
 Installation for General Use
 ----------------------------
 
-Download the [Haskell Platform 2012.2.0.0](http://hackage.haskell.org/platform/). This will give you access to the Haskell compiler (needed to build Elm) and Haskell's package distribution system (to make installation of Elm easier). Elm works best with version 7.4 of the Haskell compiler (i.e. GHC 7.4) which is bundled with version 2012.2.0.0 of the Haskell Platform.
+Download the [Haskell Platform 2012.2.0.0](http://hackage.haskell.org/platform/).
+This will give you access to the Haskell compiler (needed to build Elm) and Haskell's
+package distribution system (to make installation of Elm easier). Elm definitely works with
+version 7.4 of the Haskell compiler (i.e. GHC 7.4) which is bundled with
+version 2012.2.0.0 of the Haskell Platform.
+
+If you are a Linux user and already have a copy of GHC installed and have
+downloaded a bunch of packages, it may be worthwhile to create new user account
+and just install Elm separately
+[as described here](https://groups.google.com/forum/?fromgroups=#!topic/elm-discuss/cNNJ6YM77zs).
+Dependency issues have been rampant lately with packages changing to support GHC 7.6.
+
+If you run into issues, check [the mailing list][list] for advice or go to the
+[#Elm IRC channel][irc].
+
+  [list]: https://groups.google.com/forum/?fromgroups#!forum/elm-discuss "Mailing List"
+  [irc]: http://webchat.freenode.net/?channels=elm "#elm channel"
 
 #### Installing the compiler and server
 
@@ -21,30 +39,49 @@ This will ensure that the elm package is available. Then install Elm with:
 
     cabal install elm
 
-Assuming everything goes correctly (potential problems are discussed later), this will install the `elm` compiler on your machine. `elm` is a standard compiler that takes `.elm` files and produces `.html` and/or `.js` files. You can then use these files with your favorite web-framework. Use `elm --help` for more directions on how to use it.
+Assuming everything goes correctly (potential problems are discussed later), this
+will install the `elm` compiler on your machine. `elm` is a standard compiler that
+takes `.elm` files and produces `.html` and/or `.js` files. You can then use these
+files with your favorite web-framework. Use `elm --help` for more directions on how to use it.
 
-If you have this installed you can write and compile Elm locally, so if the next step fails for you, it is safe to proceed without it.
+If you have this installed you can write and compile Elm locally,
+so if the next step fails for you, it is safe to proceed without it.
 
-You can also install `elm-server` which is both a compiler and server, allowing you to develop without designing and setting up a server yourself. Running `elm-server` starts a server in the current directory. It will compile and serve any `.elm` files in the current directory and its sub-directories. This is how I prefer to develop Elm programs. Install with:
+You can also install `elm-server` which is both a compiler and server, allowing
+you to develop without designing and setting up a server yourself. Running `elm-server`
+starts a server in the current directory. It will compile and serve any `.elm` files in
+the current directory and its sub-directories. This is how I prefer to develop
+Elm programs. Install with:
 
     cabal install elm-server
 
-Dependency issues have been cropping up with this step, so if you run into issues, please report them so they can be fixed! Once installed, use the command `elm-server --help` to see some extra information.
+Dependency issues have been cropping up with this step, so if you run into issues,
+please report them so they can be fixed! Once installed, use the command `elm-server --help`
+to see some extra information.
 
 #### Using the Elm compiler and server
 
-To use these executables you need to add a new directory to your PATH. For me, the executables were placed in `/home/evan/.cabal/bin` which I appended to the end of my PATH variable in my .bashrc file. Cabal should tell you where your executables are located upon successful installation, so you can make a similar addition (see this tutorial if you are new to changing your PATH in [Unix/Linux](http://www.cyberciti.biz/faq/unix-linux-adding-path/)).
+To use these executables you need to add a new directory to your PATH. For me, the
+executables were placed in `/home/evan/.cabal/bin` which I appended to the end of my
+PATH variable in my .bashrc file. Cabal should tell you where your executables are
+located upon successful installation, so you can make a similar addition (see this
+tutorial if you are new to changing your PATH in [Unix/Linux](http://www.cyberciti.biz/faq/unix-linux-adding-path/)).
 
-You can use the commands `elm --help` and `elm-server --help` to get more information about using these tools.
+You can use the commands `elm --help` and `elm-server --help`
+to get more information about using these tools.
 
-That is almost everything. Now, we will create a simple Elm project. The following commands will set-up a very basic project and start the Elm server.
+That is almost everything. Now, we will create a simple Elm project.
+The following commands will set-up a very basic project and start the Elm server.
 
     mkdir helloElm
     cd helloElm
     echo main = lift asText Mouse.position > main.elm
     elm-server
 
-The first two commands create a new directory and navigate into it. The `echo` command places a simple program into `main.elm` (do this manually if you do not have `echo`). The final command starts the Elm server at [localhost](http://localhost:8000/), allowing you to navigate to `main.elm` and see your first program in action.
+The first two commands create a new directory and navigate into it. The `echo`
+command places a simple program into `main.elm` (do this manually if you do not
+have `echo`). The final command starts the Elm server at [localhost](http://localhost:8000/),
+allowing you to navigate to `main.elm` and see your first program in action.
 
 
 Installation for Haskell-users
