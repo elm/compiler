@@ -28,32 +28,32 @@ function image(src) {
 }
 
 function fittedImage(w,h,src) {
-    var canvas = newElement('canvas');
-    canvas.style.display = "block";
-    canvas.style.width  = w + 'px';
-    canvas.style.height = h + 'px';
-    canvas.width  = w;
-    canvas.height = h;
-    canvas.innerHTML = "Your browser does not support the canvas element.";
+    var e = newElement('div');
+    e.style.width  = w + 'px';
+    e.style.height = h + 'px';
+    e.style.position = "relative";
+    e.style.overflow = "hidden";
 
     var img = newElement('img');
     img.onload = function() {
-	if (canvas.getContext) {
-	    var ctx = canvas.getContext('2d');
-	    var sx = 0, sy = 0, sWidth = this.width, sHeight = this.height;
-	    if (w / h > this.width / this.height) {
-		sHeight = this.width * h / w;
-		sy = (this.height - sHeight) / 2;
-	    } else {
-		sWidth = this.height * w / h;
-		sx = (this.width - sWidth) / 2;
-	    }
-	    ctx.drawImage(img, sx, sy, sWidth, sHeight,
-			  0,0, canvas.width, canvas.height);
+	img.style.position = 'absolute';
+	img.style.margin = 'auto';
+
+	var sw = w, sh = h;
+	if (w / h > this.width / this.height) {
+	    sh = Math.round(this.height * w / this.width);
+	} else {
+	    sw = Math.round(this.width * h / this.height);
 	}
+	img.style.width = sw + 'px';
+	img.style.height = sh + 'px';
+	img.style.left = ((w - sw) / 2) + 'px';
+	img.style.top = ((h - sh) / 2) + 'px';
     };
     img.src = src;
-    return canvas;
+    img.name = src;
+    addTo(e,img);
+    return e;
 };
 
 var video = function(src) {
