@@ -9,19 +9,29 @@ If you intend to serve Elm code with a Haskell backend, be sure to read all the 
 Installation for General Use
 ----------------------------
 
-Download the [Haskell Platform](http://hackage.haskell.org/platform/). This will give you access to the Haskell compiler (needed to build Elm) and Haskell's package distribution system (to make installation of Elm easier). Once installed (even if it already was), you must update your listing of Haskell packages with:
+Download the [Haskell Platform 2012.2.0.0](http://hackage.haskell.org/platform/). This will give you access to the Haskell compiler (needed to build Elm) and Haskell's package distribution system (to make installation of Elm easier). Elm works best with version 7.4 of the Haskell compiler (i.e. GHC 7.4) which is bundled with version 2012.2.0.0 of the Haskell Platform.
+
+#### Installing the compiler and server
+
+Once the Haskell Platform is installed (even if it already was), you must update your listing of packages with:
 
     cabal update
 
 This will ensure that the elm package is available. Then install Elm with:
 
+    cabal install elm
+
+Assuming everything goes correctly (potential problems are discussed later), this will install the `elm` compiler on your machine. `elm` is a standard compiler that takes `.elm` files and produces `.html` and/or `.js` files. You can then use these files with your favorite web-framework. Use `elm --help` for more directions on how to use it.
+
+If you have this installed you can write and compile Elm locally, so if the next step fails for you, it is safe to proceed without it.
+
+You can also install `elm-server` which is both a compiler and server, allowing you to develop without designing and setting up a server yourself. Running `elm-server` starts a server in the current directory. It will compile and serve any `.elm` files in the current directory and its sub-directories. This is how I prefer to develop Elm programs. Install with:
+
     cabal install elm-server
 
-Assuming everything goes correctly (potential problems are discussed later), this will build two executables on your machine:
+Dependency issues have been cropping up with this step, so if you run into issues, please report them so they can be fixed! Once installed, use the command `elm-server --help` to see some extra information.
 
-* `elm` is a standard compiler that takes `.elm` files and produces `.html` and/or `.js` files. You can then use these files with your favorite web-framework.
-
-* `elm-server` is both a compiler and server, allowing you to develop without designing and setting up a server yourself. Running `elm-server` starts a server in the current directory. It will compile and serve any `.elm` files in the current directory and its sub-directories. This is how I prefer to develop Elm programs.  Use the command `elm-server --help` to see some extra information.
+#### Using the Elm compiler and server
 
 To use these executables you need to add a new directory to your PATH. For me, the executables were placed in `/home/evan/.cabal/bin` which I appended to the end of my PATH variable in my .bashrc file. Cabal should tell you where your executables are located upon successful installation, so you can make a similar addition (see this tutorial if you are new to changing your PATH in [Unix/Linux](http://www.cyberciti.biz/faq/unix-linux-adding-path/)).
 
@@ -39,10 +49,6 @@ The first two commands create a new directory and navigate into it. The `echo` c
 
 Installation for Haskell-users
 ------------------------------
-
-Elm as described in the previous section is actually split into two packages: `elm` which contains the guts of the compiler and `elm-server` which provides a simple HAppStack-based server to simplify development. Those of you planning to write your own server in Haskell only need the `elm` package:
-
-    cabal install elm
 
 The `elm` package provides support for [compilation of Elm code directly in Haskell](http://hackage.haskell.org/packages/archive/Elm/0.1.2/doc/html/Language-Elm.html) and [QuasiQuoting](http://hackage.haskell.org/packages/archive/Elm/0.1.2/doc/html/Language-Elm-Quasi.html). See the [Examples/](https://github.com/evancz/Elm/tree/master/Examples) directory for information and examples on how to get started with Elm+Haskell.
 
