@@ -1,5 +1,4 @@
 
-var Elm = Elm || {};
 var JSjson = JSON;
 Elm.JSON = function() {
     var JS = Elm.JavaScript;

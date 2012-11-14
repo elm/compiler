@@ -1,5 +1,4 @@
 
-var Elm = Elm || {};
 Elm.Text = function() {
   function fromString(s) { return Value.toText(s); }
 

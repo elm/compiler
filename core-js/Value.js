@@ -94,11 +94,11 @@ var Value = function(){
     t.style.cssFloat   = "left";
     
     document.body.appendChild(t);
-    var cStyle = window.getComputedStyle(t);
+    var cStyle = window.getComputedStyle(t,null);
     var realW = cStyle.getPropertyValue("width").slice(0,-2) - 0;
     var realH = cStyle.getPropertyValue("height").slice(0,-2) - 0;
     document.body.removeChild(t);
-    delete t;
+    //delete t;
     return [Math.ceil(realW),Math.ceil(Math.max(h,realH))];
   }
 
@@ -113,7 +113,7 @@ var Value = function(){
     var w = t.offsetWidth;
     var h = t.offsetHeight;
     document.body.removeChild(t);
-    delete t;
+    //delete t;
     return [w,h];
   }
 
@@ -127,11 +127,11 @@ var Value = function(){
     document.body.appendChild(t);
     var ow = t.offsetWidth;
     var oh = t.offsetHeight;
-    var cStyle = window.getComputedStyle(t);
+    var cStyle = window.getComputedStyle(t,null);
     var w = cStyle.getPropertyValue("width").slice(0,-2) - 0;
     var h = cStyle.getPropertyValue("height").slice(0,-2) - 0;
     document.body.removeChild(t);
-    delete t;
+    //delete t;
     return [ow-w,oh-h];
   }
 

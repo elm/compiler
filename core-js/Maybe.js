@@ -1,5 +1,4 @@
 
-var Elm = Elm || {};
 Elm.Maybe = function() {
     function consMaybe(x) { return function(xs) {
 	    if (x[0] === "Just") return ["Cons", x[1], xs];

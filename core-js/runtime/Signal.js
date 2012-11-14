@@ -1,5 +1,4 @@
 
-var Elm = Elm || {};
 Elm.Signal = function() {
   var send = function(node, timestep, changed) {
     var kids = node.kids;

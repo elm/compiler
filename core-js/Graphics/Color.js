@@ -1,4 +1,3 @@
-var Elm = Elm || {};
 Elm.Color = function() {
   function Color_0(a1) {
     return function(a2) {

@@ -1,4 +1,3 @@
-var Elm = Elm || {};
 Elm.List = function() {
 
     var throwError = function(f) {

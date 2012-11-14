@@ -122,14 +122,15 @@ function renderForms(redo,ctx,w,h,forms) {
 
 function collageForms(w,h,forms) {
     var canvas = Render.newElement('canvas');
-    canvas.style.width  = (~~w) + 'px';
-    canvas.style.height = (~~h) + 'px';
+    w = ~~w;
+    h = ~~h;
+    canvas.style.width  = w + 'px';
+    canvas.style.height = h + 'px';
     canvas.style.display = "block";
-    canvas.width  = ~~w;
-    canvas.height = ~~h;
+    canvas.width  = w;
+    canvas.height = h;
     if (canvas.getContext) {
 	var ctx = canvas.getContext('2d');
-	var w = canvas.width, h = canvas.height;
 	function redo() { renderForms(this,ctx,w,h,forms); }
 	renderForms(redo,ctx,w,h,forms);
 	return canvas;

@@ -5,7 +5,6 @@ Value.addListener(document, 'elm_redirect', function(e) {
 	if (e.value.length > 0) { window.location = e.value; }
     });
 
-var Elm = Elm || {};
 Elm.Prelude = function() {
     var mod = function(x) { return function(y) {
 	    var r = x % y;

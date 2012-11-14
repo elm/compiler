@@ -1,5 +1,4 @@
 
-var Elm = Elm || {};
 Elm.JavaScript = function() {
   function castJSBoolToBool(b) { return b; }
   function castBoolToJSBool(b) { return b; }

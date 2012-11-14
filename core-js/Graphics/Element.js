@@ -1,4 +1,3 @@
-var Elm = Elm || {};
 Elm.Graphics = function() {
   var JS = Elm.JavaScript;
   var DLeft_0 = ["DLeft"];

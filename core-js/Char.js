@@ -1,5 +1,4 @@
 
-var Elm = Elm || {};
 Elm.Char = function() {
     function isBetween(lo,hi) { return function(chr) {
 	    var c = chr.charCodeAt(0);
