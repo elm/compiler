@@ -387,7 +387,7 @@ Elm.Graphics = function() {
               var lst = ["Nil"];
               if(lo <= hi) {
                 do {
-                  var lst = ["Cons", hi, lst]
+                  lst = ["Cons", hi, lst]
                 }while(hi-- > lo)
               }
               return lst
@@ -415,7 +415,7 @@ Elm.Graphics = function() {
               var lst = ["Nil"];
               if(lo <= hi) {
                 do {
-                  var lst = ["Cons", hi, lst]
+                  lst = ["Cons", hi, lst]
                 }while(hi-- > lo)
               }
               return lst

@@ -6,7 +6,10 @@ Elm.Signal = function() {
       kids[i].recv(timestep, changed, node.id);
     }
   };
-  var input = function(base) {
+  /**
+   * @constructor
+   */
+  function input(base) {
     this.id = Guid.guid();
     this.value = base;
     this.kids = [];
@@ -19,7 +22,10 @@ Elm.Signal = function() {
     };
     Dispatcher.inputs.push(this);
   };
-  var lift = function(func,args) {
+  /**
+   * @constructor
+   */
+  function lift(func,args) {
     this.id = Guid.guid();
     this.value = null;
     this.kids = [];
@@ -50,7 +56,10 @@ Elm.Signal = function() {
       args[i].kids.push(this);
     }
   };
-  var fold = function(func,base,baseIsFunc,input) {
+  /**
+   * @constructor
+   */
+  function fold(func,base,baseIsFunc,input) {
     this.id = Guid.guid();
     this.value = baseIsFunc ? base(input.value) : base;
     this.kids = [];
@@ -61,7 +70,10 @@ Elm.Signal = function() {
     input.kids.push(this);
   };
 
-  var dropIf = function(pred,base,input) {
+  /**
+   * @constructor
+   */
+  function dropIf(pred,base,input) {
     this.id = Guid.guid();
     this.value = pred(input.value) ? base : input.value;
     this.kids = [];
@@ -72,7 +84,11 @@ Elm.Signal = function() {
     };
     input.kids.push(this);
   };
-  var dropRepeats = function(input) {
+
+  /**
+   * @constructor
+   */
+  function dropRepeats(input) {
       this.id = Guid.guid();
       this.value = input.value;
       this.kids = [];
@@ -90,7 +106,10 @@ Elm.Signal = function() {
     return new lift(function(p){return p[1];},[dropped]); }; };
   };
 
-  var sampleOn = function(s1,s2) {
+  /**
+   * @constructor
+   */
+  function sampleOn(s1,s2) {
     this.id = Guid.guid();
     this.value = s2.value;
     this.kids = [];
@@ -121,7 +140,10 @@ Elm.Signal = function() {
     };
   }
   
-  var merge = function(s1,s2) {
+  /**
+   * @constructor
+   */
+  function merge(s1,s2) {
     this.id = Guid.guid();
     this.value = s1.value;
     this.kids = [];
