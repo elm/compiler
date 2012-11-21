@@ -194,7 +194,13 @@ var Value = function(){
 	    return "(JSON.fromList " + toString(Elm.JSON.toList(v)) + ")";
 	} else if (v[0] === "RBNode" || v[0] === "RBEmpty") {
 	    function cons(k){ return function(v) { return function(acc) { return ["Cons",["Tuple2",k,v],acc]; }; }; }
-	    return "(Map.fromList " + toString(Elm.Dict.fold(cons)(["Nil"])(v)) + ")";
+	    var list = Elm.Dict.foldr(cons)(["Nil"])(v);
+	    var name = "Dict";
+	    if (list[0] === "Cons" && list[1][2][0] === "Tuple0") {
+		name = "Set";
+		list = Elm.List.map(function(x) { return x[1]; })(list);
+	    }
+	    return "(" + name + ".fromList " + toString(list) + ")";
 	} else {
 	    var output = "";
 	    for (var i = v.length; --i; ) {
