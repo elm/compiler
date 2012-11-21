@@ -237,7 +237,7 @@ var Value = function(){
   function wrap(elem) {
       var p = Value.getSize(elem);
       return ["Element", Guid.guid(), ["EHtml",elem],
-	      p[0], p[1], 1, Nothing, Nothing];
+	      p[0], p[1], 1, ["Nothing"], ["Nothing"]];
   }
   var addListener = function() {
       if(document.addEventListener) {

@@ -1,11 +1,6 @@
-(function() {
-
-for(var i in Elm) { this[i] = Elm[i]; }
 Elm.Automaton=function(){
- var hiddenVars=[];
- for(var i in Elm.Prelude){
-  if (hiddenVars.indexOf(i) >= 0) continue;
-  this[i]=Elm.Prelude[i];}
+ for(this['i'] in Elm.Prelude){
+     eval('var ' + this['i'] + '=Elm.Prelude[this.i];'); }
  function Automaton_0(a1){
   return ["Automaton",a1];};
  var Listen_9=["Listen"];
@@ -181,4 +176,3 @@ Elm.Automaton=function(){
  function draggable_14(form_93){
   return init__7(["Tuple2",Listen_9,form_93])(stepDrag_13);};
  return {Automaton:Automaton_0,run:run_1,step:step_2,composeAuto:composeAuto_3,combine:combine_4,pure:pure_5,init:init_6,init_:init__7,count:count_8,Listen:Listen_9,Ignore:Ignore_10,DragFrom:DragFrom_11,vecSub:vecSub_12,stepDrag:stepDrag_13,draggable:draggable_14};}();
-}());

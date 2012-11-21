@@ -1,5 +1,5 @@
 
-var JSjson = JSON;
+var JSjson = window.JSON;
 Elm.JSON = function() {
     var JS = Elm.JavaScript;
     var empty = ['JSON',{}];
@@ -23,7 +23,7 @@ Elm.JSON = function() {
 
     function lookup(key) { return function(obj) {
         var k = JS.castStringToJSString(key);
-        return obj[1].hasOwnProperty(k) ? Just(obj[1][k]) : Nothing ;
+        return obj[1].hasOwnProperty(k) ? ["Just", obj[1][k]] : ["Nothing"] ;
       };
     }
     function find(tipe,base) { return function (key) { return function(obj) {

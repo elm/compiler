@@ -3,8 +3,8 @@ Elm.Date = function() {
 
  function readDate(str) {
      var d = new Date(Elm.JavaScript.castStringToJSString(str));
-     if (isNaN(d.getTime())) return Nothing;
-     return Just(d);
+     if (isNaN(d.getTime())) return ["Nothing"];
+     return ["Just",d];
  }
 
  var dayTable = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

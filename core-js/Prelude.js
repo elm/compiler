@@ -44,7 +44,7 @@ Elm.Prelude = function() {
 	for (var i = start; i < len; ++i) {
 	    if (!Char.isDigit(s[i])) { return Nothing; }
 	}
-	return Just(parseInt(s));
+	return ["Just", parseInt(s)];
     }
 
     function readFloat(str) {
@@ -65,7 +65,7 @@ Elm.Prelude = function() {
 	    }
 	    return Nothing;
 	}
-	return Just(parseFloat(s));
+	return ["Just", parseFloat(s)];
     }
     
     return {eq   : Value.eq,

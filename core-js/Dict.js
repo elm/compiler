@@ -1,13 +1,7 @@
 
-(function() {
-
-for(var i in Elm) { this[i] = Elm[i]; }
-if (Elm.Dict) throw "Module name collision, 'Dict' is already defined."; 
 Elm.Dict=function(){
- var hiddenVars=[];
- for(var i in Elm.Prelude){
-  if (hiddenVars.indexOf(i) >= 0) continue;
-  this[i]=Elm.Prelude[i];}
+ for(this['i'] in Elm.Prelude){
+     eval('var ' + this['i'] + '=Elm.Prelude[this.i];'); }
  var isJust=Elm.Maybe.isJust;
  var Red_0=["Red"];
  var Black_1=["Black"];
@@ -19,7 +13,7 @@ Elm.Dict=function(){
       return ["RBNode",a1,a2,a3,a4,a5];};};};};};
  var RBEmpty_3=["RBEmpty"];
  var empty_4=RBEmpty_3;
- var raise_5=console.log;
+ var raise_5=function(x){return x;};
  function min_6(t_43){
   return function(){
   switch(t_43[0]){
@@ -476,4 +470,3 @@ Elm.Dict=function(){
  function fromList_42(assocs_235){
   return List.foldl(uncurry(insert_20))(empty_4)(assocs_235);};
  return {empty:empty_4,lookup:lookup_7,findWithDefault:findWithDefault_8,member:member_10,insert:insert_20,singleton:singleton_21,remove:remove_32,map:map_33,foldl:foldl_34,foldr:foldr_35,union:union_36,intersect:intersect_37,diff:diff_38,keys:keys_39,values:values_40,toList:toList_41,fromList:fromList_42};}();
-}());

@@ -225,7 +225,7 @@ function update(node,curr,next) {
 	    return node.parentNode.replaceChild(render(next),node);
 	}
 	var currs = currE[2];
-	var goDir = {};
+	var goDir = function(x) { return x; };
 	switch(nextE[1][0]) {
 	case "DDown":  case "DUp":   goDir = goDown; break;
 	case "DRight": case "DLeft": goDir = goRight; break;

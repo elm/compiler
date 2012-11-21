@@ -1,4 +1,7 @@
 Elm.Graphics = function() {
+  for (this['i'] in Elm.List) {
+      eval('var ' + this['i'] + ' = Elm.List[this.i];');
+  }
   var JS = Elm.JavaScript;
   var DLeft_0 = ["DLeft"];
   var DRight_1 = ["DRight"];
@@ -156,7 +159,7 @@ Elm.Graphics = function() {
   var absolute_35 = Absolute_12;
   var relative_36 = Relative_13;
   function newElement_38(e,w,h,o,c,l) { return Element_37(Guid.guid(),e,w,h,o,c,l); }
-  function basicNewElement(e,w,h) { return Element_37(Guid.guid(),e,w,h,1,Nothing,Nothing); }
+  function basicNewElement(e,w,h) { return Element_37(Guid.guid(),e,w,h,1,["Nothing"],["Nothing"]); }
   var line_76 = Line_75;
   var polygon_79 = Shape_78;
   function sprite_96(src) {
@@ -212,12 +215,12 @@ Elm.Graphics = function() {
   }
   function color_51(c) {
     return function(e) {
-      return newElement_38(e[2], e[3], e[4], e[5], Just(c), e[7]);
+	return newElement_38(e[2], e[3], e[4], e[5], ["Just",c], e[7]);
     }
   }
   function link(lnk) {
     return function(e) {
-	return newElement_38(e[2], e[3], e[4], e[5], e[6], Just(JS.castStringToJSString(lnk)));
+	return newElement_38(e[2], e[3], e[4], e[5], e[6], ["Just", JS.castStringToJSString(lnk)]);
     }
   }
   function widthOf_52(e)  { return ~~e[3]; }
@@ -233,7 +236,7 @@ Elm.Graphics = function() {
     return basicNewElement(EText_39("left")(txt),p[0],p[1])
   }
   function asText(v) {
-    var txt = monospace(Value.toText(Value.show(v)));
+    var txt = Elm.Text.monospace(Value.toText(Value.show(v)));
     var p = Value.getTextSize(0,0,txt);
     return basicNewElement(EText_39("left")(txt),p[0],p[1])
   }
@@ -320,17 +323,17 @@ Elm.Graphics = function() {
   }
   function above_61(e1_156) {
     return function(e2_157) {
-	return basicNewElement(EFlow_43(DDown_3)(["Cons", e1_156, ["Cons", e2_157, ["Nil"]]]), max(widthOf_52(e1_156))(widthOf_52(e2_157)), heightOf_53(e1_156) + heightOf_53(e2_157))
+	return basicNewElement(EFlow_43(DDown_3)(["Cons", e1_156, ["Cons", e2_157, ["Nil"]]]), Math.max(widthOf_52(e1_156),widthOf_52(e2_157)), heightOf_53(e1_156) + heightOf_53(e2_157));
     }
   }
   function below_62(e1_158) {
     return function(e2_159) {
-	return basicNewElement(EFlow_43(DDown_3)(["Cons", e2_159, ["Cons", e1_158, ["Nil"]]]), max(widthOf_52(e1_158))(widthOf_52(e2_159)), heightOf_53(e1_158) + heightOf_53(e2_159))
+	return basicNewElement(EFlow_43(DDown_3)(["Cons", e2_159, ["Cons", e1_158, ["Nil"]]]), Math.max(widthOf_52(e1_158),widthOf_52(e2_159)), heightOf_53(e1_158) + heightOf_53(e2_159));
     }
   }
   function beside_63(e1_160) {
     return function(e2_161) {
-	return basicNewElement(EFlow_43(DRight_1)(["Cons", e1_160, ["Cons", e2_161, ["Nil"]]]), widthOf_52(e1_160) + widthOf_52(e2_161), max(heightOf_53(e1_160))(heightOf_53(e2_161)))
+	return basicNewElement(EFlow_43(DRight_1)(["Cons", e1_160, ["Cons", e2_161, ["Nil"]]]), widthOf_52(e1_160) + widthOf_52(e2_161), Math.max(heightOf_53(e1_160),heightOf_53(e2_161)));
     }
   }
   function layers_64(es_162) {
@@ -379,7 +382,7 @@ Elm.Graphics = function() {
           var n_180 = 50;
           return function() {
             function f_181(i_182) {
-              return["Tuple2", w_177 / 2 * cos(2 * (pi / n_180) * i_182), h_178 / 2 * sin(2 * (pi / n_180) * i_182)]
+		return["Tuple2", w_177 / 2 * Math.cos(2 * (Math.PI / n_180) * i_182), h_178 / 2 * Math.sin(2 * (Math.PI / n_180) * i_182)];
             }
             return Shape_78(map(f_181)(function() {
               var lo = 0;
@@ -404,10 +407,10 @@ Elm.Graphics = function() {
     return function(r_185) {
       return function(pos_186) {
         return function() {
-          var m_187 = toFloat(n_184);
+          var m_187 = n_184;
           return function() {
             function f_188(i_189) {
-              return["Tuple2", r_185 * cos(2 * (pi / m_187) * i_189), r_185 * sin(2 * (pi / m_187) * i_189)]
+		return["Tuple2", r_185 * Math.cos(2 * (Math.PI / m_187) * i_189), r_185 * Math.sin(2 * (Math.PI / m_187) * i_189)];
             }
             return Shape_78(map(f_188)(function() {
               var lo = 0;

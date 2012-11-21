@@ -18,7 +18,7 @@ var Dispatcher = function() {
 	content.appendChild(Render.render(currentElement));
 	var w = document.getElementById('widthChecker').offsetWidth;
 	if (w !== window.innerWidth) {
-	    Dispatcher.notify(Window.dimensions.id, Value.Tuple(w, window.innerHeight));
+	    Dispatcher.notify(Elm.Window.dimensions.id, Value.Tuple(w, window.innerHeight));
 	}
 	program = Elm.Signal.lift(function(value) {
 		var content = document.getElementById('content');
@@ -29,7 +29,6 @@ var Dispatcher = function() {
     };
     var notify = function(id, v) {
 	timestep += 1;
-	//console.log(timestep);
 	var hasListener = false;
 	for (var i = inputs.length; i--; ) {
 	    hasListener = inputs[i].recv(timestep, id, v) || hasListener;

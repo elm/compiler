@@ -93,7 +93,7 @@ Elm.Signal = function() {
       this.value = input.value;
       this.kids = [];
       this.recv = function(timestep, changed, parentID) {
-	  var chng = changed && !eq(this.value,input.value);
+	  var chng = changed && !Value.eq(this.value,input.value);
 	  if (chng) { this.value = input.value; }
 	  send(this, timestep, chng);
       };
