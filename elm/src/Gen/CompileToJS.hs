@@ -35,15 +35,15 @@ mainEquals s = globalAssign "Elm.main" (jsFunc "" (ret s))
 globalAssign m s = "\n" ++ m ++ "=" ++ s ++ ";"
 
 tryBlock escapees names e = 
-    concat [ "\ntry{\n" ++ e ++ "\n} catch (e) {"
-           , "Elm.main=function() {"
-	   , "var msg = ('<br/><h2>Your browser may not be supported. " ++
+    concat [ "\n(function() {\ntry{\n" ++ e ++ "\n} catch (e) {"
+           , "\nElm.main=function() {"
+	   , "\nvar msg = ('<br/><h2>Your browser may not be supported. " ++
              "Are you using a modern browser?</h2>' +" ++
              " '<br/><span style=\"color:grey\">Runtime Error in " ++
              intercalate "." names ++ " module:<br/>' + e + '" ++ msg ++ "</span>');"
-	   , "document.body.innerHTML = Text.monospace(msg);"
+	   , "\ndocument.body.innerHTML = Elm.Text.monospace(msg);"
            , "throw e;"
-           , "};}"
+           , "};}}());"
            ]
     where msg | escapees /= [] = concat [ "<br/><br/>The problem may stem from an improper usage of:<br/>"
                                         ,  intercalate ", " $ map (concatMap escape) escapees ]
@@ -55,7 +55,7 @@ tryBlock escapees names e =
 
 jsModule (escapees, Module names exports imports stmts) =
     tryBlock escapees (tail modNames) $ concat
-           [ "\nfor(var i in Elm) { this[i] = Elm[i]; }"
+           [ "\nfor(this['i'] in Elm) { eval('var ' + this['i'] + '=Elm[this.i];'); }"
            , concatMap (\n -> globalAssign n $ n ++ " || {}") .
              map (intercalate ".") . drop 2 . inits $
              take (length modNames - 1) modNames
@@ -93,10 +93,11 @@ jsImport' (modul, As name) = assign name modul
 jsImport' (modul, Importing vs) =
     concatMap (\v -> assign v $ modul ++ "." ++ v) vs
 jsImport' (modul, Hiding vs) =
-    concat [ assign "hiddenVars" . jsList $ map (\v -> "'" ++ v ++ "'") vs
-           , "\nfor(var i in " ++ modul ++ "){"
-           , indent $ "\nif (hiddenVars.indexOf(i) >= 0) continue;"
-           , indent $ globalAssign "this[i]" $ modul ++ "[i]"
+    concat [ assign "hiddenVars" . ("{"++) . (++"}") . intercalate "," $
+                    map (\v -> v ++ ":true") vs
+           , "\nfor(this['i'] in " ++ modul ++ "){"
+           , indent $ "\nif (hiddenVars[i]) continue;"
+           , indent $ "\neval('var ' + this['i'] + ' = " ++ modul ++ "[this.i];');"
            , "}" ]
 
 stmtsToJS :: [Statement] -> String
@@ -201,7 +202,7 @@ jsNil         = "[\"Nil\"]"
 jsCons  e1 e2 = jsList [ show "Cons", e1, e2 ]
 jsRange e1 e2 = (++"()") . jsFunc "" $
                 assign "lo" e1 ++ assign "hi" e2 ++ assign "lst" jsNil ++
-                "if(lo<=hi){do{" ++ assign "lst" (jsCons "hi" "lst") ++ "}while(hi-->lo)}" ++
+                "if(lo<=hi){do{lst=" ++ (jsCons "hi" "lst") ++ "}while(hi-->lo)}" ++
                 ret "lst"
 
 binop (o:p) e1 e2
