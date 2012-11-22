@@ -19,5 +19,5 @@ initialize str =
        (escapees, subs) <- unify hints modul
        let modul' = optimize . rename $ Module name ex im' stmts
                where im' | any ((=="Prelude") . fst) im = im
-                         | otherwise = ("Prelude", Importing []) : im
+                         | otherwise = ("Prelude", Hiding []) : im
        subs `seq` return (escapees, modul')
