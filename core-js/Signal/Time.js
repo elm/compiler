@@ -1,10 +1,18 @@
 Elm.Time = function() {
+  function timeNow() { return (new window.Date).getTime(); }
   var now = function(t) {
-      var clock = Elm.Signal.constant((new Date()).getTime());
-      function tellTime() { Dispatcher.notify(clock.id, (new Date()).getTime()); }
+      var clock = Elm.Signal.constant(timeNow());
+      function tellTime() { Dispatcher.notify(clock.id, timeNow()); }
       setInterval(tellTime, t);
       return clock;
   };
+  function fps(desiredFPS) {
+      var msPerFrame = 1000 / desiredFPS;
+      var ticker = Elm.Signal.constant(timeNow());
+      function tick() { Dispatcher.notify(ticker.id, timeNow()); }
+      function f(t) { setTimeout(tick, msPerFrame); return t; }
+      return Elm.Signal.lift(f)(ticker);
+  }
   var every = function(t) {
       t *= 1000;
       var clock = Elm.Signal.constant(0);
@@ -28,10 +36,11 @@ Elm.Time = function() {
       return thread;
   };
   function read(s) {
-      var t = Date.parse(s);
-      return isNaN(t) ? Nothing : Just(s);
+      var t = window.Date.parse(s);
+      return isNaN(t) ? ["Nothing"] : ["Just",t];
   }
   return {now:now,
+	  fps:fps,
 	  every:every,
 	  after:after,
 	  before:before,
@@ -43,7 +52,7 @@ Elm.Time = function() {
 	  inMinutes : function(t) { return ~~(t / 60000); },
 	  inSeconds : function(t) { return ~~(t / 1000); },
 	  inMillis : function(t) { return t; },
-	  toDate : function(t) { return new Date(t); },
+	  toDate : function(t) { return new window.Date(t); },
 	  read : read
   };
 

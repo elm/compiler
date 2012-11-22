@@ -2,7 +2,7 @@
 Elm.Date = function() {
 
  function readDate(str) {
-     var d = new Date(Elm.JavaScript.castStringToJSString(str));
+     var d = new window.Date(Elm.JavaScript.castStringToJSString(str));
      if (isNaN(d.getTime())) return ["Nothing"];
      return ["Just",d];
  }
