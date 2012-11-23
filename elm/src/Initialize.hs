@@ -5,7 +5,7 @@ import Control.Monad.Error
 import Data.List (lookup)
 
 import Ast
-import Parser (parseProgram)
+import Parse.Parser (parseProgram)
 import Rename
 import Types ((-:))
 import Types.Hints (hints)

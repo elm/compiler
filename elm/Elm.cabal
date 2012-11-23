@@ -32,7 +32,7 @@ source-repository head
 Library
   exposed-modules:     Language.Elm,
                        Language.Elm.Quasi
-  Hs-Source-Dirs:      src, src/Parse, src/Types, src/Gen
+  Hs-Source-Dirs:      src, src/Types, src/Gen
   other-modules:       Ast,
                        CompileToJS,
                        Cases,
@@ -43,14 +43,14 @@ Library
                        Optimize,
                        Initialize,
                        Rename,
-                       Binops,
-                       Patterns,
-                       Parser,
-                       ParseLib,
-                       ParseExpr,
-                       ParseTypes,
-                       ParseModules,
-                       ParseForeign,
+                       Parse.Binops,
+                       Parse.Expr,
+                       Parse.Foreign,
+                       Parse.Library,
+                       Parse.Modules,
+                       Parse.Parser,
+                       Parse.Patterns,
+                       Parse.PTypes,
                        Types,
                        Types.Constrain,
                        Types.Hints,
@@ -75,7 +75,7 @@ Library
 
 Executable elm
   Main-is:             Compiler.hs
-  Hs-Source-Dirs:      src, src/Parse, src/Types, src/Gen
+  Hs-Source-Dirs:      src, src/Types, src/Gen
   other-modules:       Ast,
                        CompileToJS,
                        Cases,
@@ -86,14 +86,14 @@ Executable elm
                        Optimize,
                        Initialize,
                        Rename,
-                       Binops,
-                       Patterns,
-                       Parser,
-                       ParseLib,
-                       ParseExpr,
-                       ParseTypes,
-                       ParseModules,
-                       ParseForeign,
+                       Parse.Binops,
+                       Parse.Expr,
+                       Parse.Foreign,
+                       Parse.Library,
+                       Parse.Modules,
+                       Parse.Parser,
+                       Parse.Patterns,
+                       Parse.PTypes,
                        Types,
                        Types.Constrain,
                        Types.Hints,
