@@ -1,12 +1,12 @@
 
-module ParseModules (moduleDef, imports) where
+module Parse.Modules (moduleDef, imports) where
 
 import Control.Applicative ((<$>), (<*>))
 import Data.List (intercalate)
 import Text.Parsec hiding (newline,spaces)
 
 import Ast
-import ParseLib
+import Parse.Library
 
 moduleDef :: (Monad m) => ParsecT [Char] u m ([String], [String])
 moduleDef = do

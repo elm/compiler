@@ -1,4 +1,4 @@
-module Parser (parseProgram) where
+module Parse.Parser (parseProgram) where
 
 import Ast
 import Control.Applicative ((<$>), (<*>))
@@ -7,11 +7,11 @@ import Data.Char (isSymbol, isDigit)
 import Data.List (foldl')
 import Text.Parsec hiding (newline,spaces)
 
-import ParseLib
-import ParseExpr
-import ParseTypes
-import ParseModules
-import ParseForeign
+import Parse.Library
+import Parse.Expr
+import Parse.PTypes
+import Parse.Modules
+import Parse.Foreign
 
 
 statement =  (:[]) <$> foreignDef

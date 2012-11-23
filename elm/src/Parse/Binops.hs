@@ -1,4 +1,4 @@
-module Binops (binops) where
+module Parse.Binops (binops) where
 
 import Ast
 import Control.Monad (liftM,guard)
@@ -8,7 +8,7 @@ import qualified Data.Map as Map
 import Data.Maybe (mapMaybe)
 
 import Text.Parsec
-import ParseLib
+import Parse.Library
 
 data Assoc = L | N | R deriving (Eq,Show)
 

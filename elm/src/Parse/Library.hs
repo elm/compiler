@@ -1,5 +1,5 @@
 
-module ParseLib where
+module Parse.Library where
 
 import Ast
 import Control.Applicative ((<$>),(<*>))

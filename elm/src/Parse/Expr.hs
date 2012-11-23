@@ -1,4 +1,4 @@
-module ParseExpr (def,term) where
+module Parse.Expr (def,term) where
 
 import Ast
 import Control.Applicative ((<$>), (<*>))
@@ -8,9 +8,9 @@ import Data.List (foldl')
 import Text.Parsec hiding (newline,spaces)
 import qualified Text.Pandoc as Pan
 
-import ParseLib
-import Patterns
-import Binops
+import Parse.Library
+import Parse.Patterns
+import Parse.Binops
 
 import Guid
 import Types (Type (VarT), Scheme (Forall))

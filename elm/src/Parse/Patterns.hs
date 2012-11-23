@@ -1,11 +1,11 @@
-module Patterns (patternTerm, patternExpr, makeLambda, flattenPatterns) where
+module Parse.Patterns (patternTerm, patternExpr, makeLambda, flattenPatterns) where
 
 import Ast
 import Data.Char (isUpper)
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad
 import Text.Parsec
-import ParseLib
+import Parse.Library
 
 patternBasic :: Monad m => ParsecT [Char] u m Pattern
 patternBasic =

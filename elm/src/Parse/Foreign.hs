@@ -1,14 +1,14 @@
 
-module ParseForeign (foreignDef) where
+module Parse.Foreign (foreignDef) where
 
 import Control.Applicative ((<$>), (<*>))
 import Data.Either (partitionEithers)
 import Text.Parsec hiding (newline,spaces)
 
 import Ast
-import ParseLib
-import ParseExpr (term)
-import ParseTypes
+import Parse.Library
+import Parse.Expr (term)
+import Parse.PTypes
 import Types (signalOf)
 
 

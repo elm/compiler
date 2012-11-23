@@ -1,4 +1,4 @@
-module ParseTypes where
+module Parse.PTypes where
 
 import Ast
 import Control.Applicative ((<$>),(<*>))
@@ -8,7 +8,7 @@ import Data.Maybe (fromMaybe)
 import Data.List (lookup)
 import Text.Parsec
 
-import ParseLib
+import Parse.Library
 import Types hiding (string,parens)
 import Guid
 
