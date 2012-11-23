@@ -7,7 +7,7 @@ import Data.List (lookup)
 import Ast
 import Parse.Parser (parseProgram)
 import Rename
-import Types ((-:))
+import Types.Types ((-:))
 import Types.Hints (hints)
 import Types.Unify
 import Optimize

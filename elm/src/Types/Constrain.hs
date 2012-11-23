@@ -1,15 +1,17 @@
 
 module Types.Constrain (constrain) where
 
-import Ast
-import Types
 import Data.List (foldl',sort,group,isPrefixOf,intercalate,isSuffixOf)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Control.Arrow (second)
 import Control.Monad (liftM,mapM,zipWithM,foldM)
 import Control.Monad.State (evalState)
+
+import Ast
 import Guid
+
+import Types.Types
 import Types.Substitutions
 
 --import System.IO.Unsafe

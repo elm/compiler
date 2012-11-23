@@ -32,7 +32,7 @@ source-repository head
 Library
   exposed-modules:     Language.Elm,
                        Language.Elm.Quasi
-  Hs-Source-Dirs:      src, src/Types, src/Gen
+  Hs-Source-Dirs:      src, src/Gen
   other-modules:       Ast,
                        CompileToJS,
                        Cases,
@@ -51,7 +51,7 @@ Library
                        Parse.Parser,
                        Parse.Patterns,
                        Parse.Types,
-                       Types,
+                       Types.Types,
                        Types.Constrain,
                        Types.Hints,
                        Types.Substitutions,
@@ -75,7 +75,7 @@ Library
 
 Executable elm
   Main-is:             Compiler.hs
-  Hs-Source-Dirs:      src, src/Types, src/Gen
+  Hs-Source-Dirs:      src, src/Gen
   other-modules:       Ast,
                        CompileToJS,
                        Cases,
@@ -94,7 +94,7 @@ Executable elm
                        Parse.Parser,
                        Parse.Patterns,
                        Parse.Types,
-                       Types,
+                       Types.Types,
                        Types.Constrain,
                        Types.Hints,
                        Types.Substitutions,

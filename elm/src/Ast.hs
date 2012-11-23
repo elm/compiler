@@ -3,7 +3,7 @@ module Ast where
 
 import Data.Char (isDigit)
 import Data.List (intercalate)
-import Types
+import Types.Types
 import Guid
 import qualified Text.Pandoc as Pandoc
 

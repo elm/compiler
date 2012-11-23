@@ -13,7 +13,7 @@ import Parse.Patterns
 import Parse.Binops
 
 import Guid
-import Types (Type (VarT), Scheme (Forall))
+import Types.Types (Type (VarT), Scheme (Forall))
 
 import System.IO.Unsafe
 

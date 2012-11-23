@@ -3,7 +3,7 @@ module Types.Hints (hints) where
 
 import Control.Monad (liftM,mapM)
 import Control.Arrow (first)
-import Types
+import Types.Types
 import Types.Substitutions (rescheme)
 
 

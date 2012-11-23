@@ -14,7 +14,7 @@ import Control.Monad (liftM)
 import Data.List (foldl')
 import qualified Data.Set as Set
 import Guid
-import Types
+import Types.Types
 
 force x = x `deepseq` x
 a ++++ b = foldl' (\tl hd -> hd : tl) b a

@@ -9,7 +9,7 @@ import Ast
 import Parse.Library
 import Parse.Expr (term)
 import Parse.Types
-import Types (signalOf)
+import Types.Types (signalOf)
 
 
 foreignDef = do try (reserved "foreign") ; whitespace

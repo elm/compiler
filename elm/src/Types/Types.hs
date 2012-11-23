@@ -1,5 +1,5 @@
 
-module Types where
+module Types.Types where
 
 import Data.Char (isDigit)
 import Data.List (intercalate,isPrefixOf)

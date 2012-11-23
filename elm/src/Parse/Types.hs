@@ -9,7 +9,7 @@ import Data.List (lookup)
 import Text.Parsec
 
 import Parse.Library
-import Types hiding (string,parens)
+import Types.Types hiding (string,parens)
 import Guid
 
 data ParseType = VarPT String

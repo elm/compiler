@@ -7,7 +7,7 @@ import Data.List (foldl')
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Guid
-import Types
+import Types.Types
 import Types.Constrain
 import Types.Substitutions
 
