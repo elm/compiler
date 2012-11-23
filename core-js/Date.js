@@ -1,6 +1,13 @@
 
 Elm.Date = function() {
 
+ function dateNow() { return new window.Date; }
+ function now(t) {
+     var clock = Elm.Signal.constant(dateNow());
+     function tellTime() { Dispatcher.notify(clock.id, dateNow()); }
+     setInterval(tellTime, t);
+     return clock;
+ }
  function readDate(str) {
      var d = new window.Date(Elm.JavaScript.castStringToJSString(str));
      if (isNaN(d.getTime())) return ["Nothing"];
@@ -12,6 +19,7 @@ Elm.Date = function() {
 		   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]; 
 
  return {
+     now     : now,
      read    : readDate,
      year    : function(d) { return d.getFullYear(); },
      month   : function(d) { return [monthTable[d.getMonth()]]; },
