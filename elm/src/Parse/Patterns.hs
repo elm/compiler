@@ -38,17 +38,22 @@ makeBody pats body = foldr func body pats
           func (PVar x)  e = e
           func p e = Case (Var $ getName p) [(p,e)]
 
-flattenPatterns (PVar f : args) exp =
-    return [ Definition f (map getName args) (makeBody args exp) ]
+flattenPatterns (PVar f : args) exp
+    | isOp (head f) = let [a,b] = (map getName args) in
+                      return [ OpDef f a b (makeBody args exp) ]
+    | otherwise     = return [ FnDef f (map getName args) (makeBody args exp) ]
+
+
 flattenPatterns [p] exp = return $ matchSingle p exp p
+
 flattenPatterns ps _ = 
     fail $ "Pattern (" ++ unwords (map show ps) ++
            ") cannot be used on the left-hand side of an assign statement."
 
 matchSingle pat exp p@(PData _ ps) =
-    (Definition v [] exp) : concatMap (matchSingle p $ Var v) ps
+    (FnDef v [] exp) : concatMap (matchSingle p $ Var v) ps
         where v = getName p
-matchSingle pat exp (PVar x)  = [ Definition x [] (Case exp [(pat,Var x)]) ]
+matchSingle pat exp (PVar x)  = [ FnDef x [] (Case exp [(pat,Var x)]) ]
 matchSingle pat exp PAnything = []
 
 getName p = f p

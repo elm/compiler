@@ -19,7 +19,8 @@ subst old new expr =
       Async e -> Async (f e)
       Input _ -> expr
       Let defs e -> Let (map substDef defs) (f e)
-              where substDef (Definition name vs e) = Definition name vs (f e)
+              where substDef (FnDef name vs e)  = FnDef name vs (f e)
+                    substDef (OpDef op a1 a2 e) = OpDef op a1 a2 (f e)
       Var x -> if x == old then new else expr
       Case e cases -> Case (f e) $ map (second f) cases
       Data name es -> Data name (map f es)

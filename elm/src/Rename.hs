@@ -1,5 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Rename (rename, derename) where
+module Rename (renameModule, derename) where
 
 import Ast
 import Control.Arrow (first)
@@ -12,29 +12,45 @@ derename var
     | isDigit (last var) = reverse . tail . dropWhile isDigit $ reverse var
     | otherwise = var
 
-rename :: Module -> Module
-rename (Module name ex im stmts) =
-    Module name ex im . run $ renameStatements deprime stmts
+renameModule :: Module -> Module
+renameModule modul = run (rename deprime modul)
 
-renameStatements env stmts = do env' <- extends env $ concatMap getNames stmts
-                                mapM (renameStmt env') stmts
-    where getNames stmt = case stmt of Def n _ _ -> [n]
-                                       Datatype _ _ tcs -> map fst tcs
-                                       ImportEvent _ _ n _ -> [n]
-                                       ExportEvent _ _ _ -> []
-          renameStmt env (Def name args e) =
-              do env' <- extends env args
-                 Def (env name) (map env' args) `liftM` rename' env' e
-          renameStmt env (Datatype name args tcs) =
-              return $ Datatype name args $ map (first env) tcs
-          renameStmt env (ImportEvent js base elm tipe) =
-              do base' <- rename' env base
-                 return $ ImportEvent js base' (env elm) tipe
-          renameStmt env (ExportEvent js elm tipe) =
-                 return $ ExportEvent js (env elm) tipe
+class Rename a where
+  rename :: (String -> String) -> a -> GuidCounter a
 
-rename' :: (String -> String) -> Expr -> GuidCounter Expr
-rename' env expr =
+instance Rename Module where 
+  rename env (Module name ex im stmts) = do stmts' <- renameStmts env stmts
+                                            return (Module name ex im stmts')
+
+instance Rename Def where
+  rename env (OpDef op a1 a2 e) =
+      do env' <- extends env [a1,a2]
+         OpDef op (env' a1) (env' a2) `liftM` rename env' e
+  rename env (FnDef f args e) =
+      do env' <- extends env args
+         FnDef (env f) (map env' args) `liftM` rename env' e
+
+instance Rename Statement where
+  rename env (Definition def) = Definition `liftM` rename env def
+  rename env (Datatype name args tcs) =
+      return $ Datatype name args $ map (first env) tcs
+  rename env (ImportEvent js base elm tipe) =
+      do base' <- rename env base
+         return $ ImportEvent js base' (env elm) tipe
+  rename env (ExportEvent js elm tipe) =
+      return $ ExportEvent js (env elm) tipe
+
+renameStmts env stmts = do env' <- extends env $ concatMap getNames stmts
+                           mapM (rename env') stmts
+    where getNames stmt = case stmt of
+                            Definition (FnDef n _ _) -> [n]
+                            Datatype _ _ tcs -> map fst tcs
+                            ImportEvent _ _ n _ -> [n]
+                            _ -> []
+
+instance Rename Expr where
+  rename env expr =
+    let rnm = rename env in
     case expr of
 
       Range e1 e2 -> Range `liftM` rnm e1
@@ -52,7 +68,7 @@ rename' env expr =
 
       Lambda x e -> do
           (rx, env') <- extend env x
-          Lambda rx `liftM` rename' env' e
+          Lambda rx `liftM` rename env' e
 
       App e1 e2 -> App `liftM` rnm e1
                           `ap` rnm e2
@@ -81,8 +97,6 @@ rename' env expr =
 
       _ -> return expr
 
-  where rnm = rename' env
-
 deprime = map (\c -> if c == '\'' then '_' else c)
 
 extend :: (String -> String) -> String -> GuidCounter (String, String -> String)
@@ -107,13 +121,11 @@ patternExtend pattern env =
 patternRename :: (String -> String) -> (Pattern, Expr) -> GuidCounter (Pattern, Expr)
 patternRename env (p,e) = do
   (rp,env') <- patternExtend p env
-  re <- rename' env' e
+  re <- rename env' e
   return (rp,re)
 
-renameLet env defs e = do env' <- extends env $ map getNames defs
-                          defs' <- mapM (renameDef env') defs
-                          Let defs' `liftM` rename' env' e
-    where getNames (Definition n _ _) = n
-          renameDef env (Definition name args e) =
-              do env' <- extends env args
-                 Definition (env name) (map env' args) `liftM` rename' env' e
+renameLet env defs e = do env' <- extends env $ concatMap getNames defs
+                          defs' <- mapM (rename env') defs
+                          Let defs' `liftM` rename env' e
+    where getNames (FnDef n _ _)   = [n]
+          getNames (OpDef _ _ _ _) = []

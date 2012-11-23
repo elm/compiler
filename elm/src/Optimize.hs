@@ -9,13 +9,23 @@ optimize (Module name ims exs stmts) =
     Module name ims exs (map optimizeStmt stmts)
 
 optimizeStmt stmt = if stmt == stmt' then stmt' else optimizeStmt stmt'
-    where stmt' = simpStmt stmt
-          simpStmt (Def name args e) = Def name args (simp e)
-          simpStmt (ImportEvent js b elm t) = ImportEvent js (simp b) elm t
-          simpStmt stmt = stmt
+    where stmt' = simp stmt
 
-simp :: Expr -> Expr
-simp expr =
+class Simplify a where
+  simp :: a -> a
+
+instance Simplify Statement where
+  simp (Definition def) = Definition (simp def)
+  simp (ImportEvent js b elm t) = ImportEvent js (simp b) elm t
+  simp stmt = stmt
+
+instance Simplify Def where
+  simp (FnDef func args e) = FnDef func args (simp e)
+  simp (OpDef op a1 a2 e)  = OpDef op a1 a2 (simp e)
+  
+
+instance Simplify Expr where
+  simp expr =
     let f = simp in
     case expr of
       Range e1 e2 -> Range (f e1) (f e2)
@@ -26,8 +36,7 @@ simp expr =
               where { e1' = f e1 ; e2' = f e2 }
       App e1 e2 -> App (f e1) (f e2)
       If e1 e2 e3 -> simp_if (f e1) (f e2) (f e3)
-      Let defs e -> Let (map simpDef defs) (f e)
-              where simpDef (Definition func args e) = Definition func args (f e)
+      Let defs e -> Let (map simp defs) (f e)
       Data name es -> Data name (map f es)
       Case e cases -> Case (f e) (map (second f) cases)
       _ -> expr

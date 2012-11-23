@@ -40,10 +40,14 @@ reserved word =
   <?> "reserved word '" ++ word ++ "'"
 
 anyOp :: (Monad m) => ParsecT [Char] u m String
-anyOp = betwixt '`' '`' var <|>
-        (do op <- many1 (satisfy isSymbol <|> oneOf "+-/*=.$<>:&|^?%#@~!")
-            guard (op `notElem` [ "=", "..", "->", "--" ])
-            return op) <?> "infix operator (e.g. +, *, ||)"
+anyOp = betwixt '`' '`' var <|> symOp <?> "infix operator (e.g. +, *, ||)"
+
+isOp c = isSymbol c || elem c "+-/*=.$<>:&|^?%#@~!"
+
+symOp :: (Monad m) => ParsecT [Char] u m String
+symOp = do op <- many1 (satisfy isOp)
+           guard (op `notElem` [ "=", "..", "->", "--" ])
+           return op
 
 arrow :: (Monad m) => ParsecT [Char] u m String
 arrow = string "->" <|> string "\8594" <?> "arrow (->)"

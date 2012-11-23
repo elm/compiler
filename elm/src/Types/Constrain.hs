@@ -81,8 +81,10 @@ gen (Let defs e) =
     do (as,cs,t) <- gen e
        (ass, schemes) <- liftM unzip (mapM defScheme defs)
        let assumptions = unionsA (as:ass)
-       let names = map (\(Definition x _ _) -> x) defs
-       let genCs name s = do
+           getName (FnDef f _ _) = f
+           getName (OpDef op _ _ _) = op
+           names = map getName defs
+           genCs name s = do
              v <- guid
              let vs = Map.findWithDefault [v] name assumptions
              return $ map (\x -> ctx (Var name) $ x :<<: s) vs
@@ -157,26 +159,28 @@ patternGen (as,cs,ts) p@(PData name ps) = do
          , ts ++ [output] )
 
 
-defScheme :: Definition -> GuidCounter (Map.Map String [X], Scheme)
-defScheme (Definition name args e) = do
-  (as,cs,hint) <- defGen name args e
-  return ( as, snd hint )
+defScheme :: Def -> GuidCounter (Map.Map String [X], Scheme)
+defScheme def = do (as,cs,hint) <- defGen def
+                   return ( as, snd hint )
 
-defGen name args e = do
-  argDict <- mapM (\a -> liftM ((,) a) guid) args 
-  (as,cs,t) <- gen e
-  let genCs (arg,x) = do
-        v <- guid
-        return . map (\y -> Context arg $ VarT x :=: VarT y) $ Map.findWithDefault [v] arg as
-  cs' <- concat `liftM` mapM genCs argDict
-  let as' = foldr Map.delete as args
-  let tipe = foldr (==>) t $ map (VarT . snd) argDict
-  scheme <- generalize (concat $ Map.elems as') $
-            Forall (map snd argDict) (cs' ++ Set.toList cs) tipe
-  return ( as', Set.empty, (name, scheme) )
+defGen def = case def of FnDef f args e -> defGen' f args e
+                         OpDef op a1 a2 e -> defGen' op [a1,a2] e
+    where defGen' name args e = do
+            argDict <- mapM (\a -> liftM ((,) a) guid) args 
+            (as,cs,t) <- gen e
+            let as' = foldr Map.delete as args
+                tipe = foldr (==>) t $ map (VarT . snd) argDict
+                genCs (arg,x) = do
+                  v <- guid
+                  let as' = Map.findWithDefault [v] arg as
+                  return $ map (\y -> Context arg $ VarT x :=: VarT y) as'
+            cs' <- concat `liftM` mapM genCs argDict
+            scheme <- generalize (concat $ Map.elems as') $
+                      Forall (map snd argDict) (cs' ++ Set.toList cs) tipe
+            return ( as', Set.empty, (name, scheme) )
 
-stmtGen (Def name args e) = do (as,cs,hint) <- defGen name args e
-                               return ( as, cs, [hint] )
+stmtGen (Definition def) = do (as,cs,hint) <- defGen def
+                              return ( as, cs, [hint] )
 
 stmtGen (Datatype name xs tcs) = do schemes <- mapM gen' tcs'
                                     return (Map.empty, Set.empty, schemes)

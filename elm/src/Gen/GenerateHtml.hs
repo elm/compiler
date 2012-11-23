@@ -49,10 +49,11 @@ generateHtml libLoc title source =
       Right (escs, modul) -> modulesToHtml Readable title libLoc [] True [(escs,modul)]
 
 
-modulesToHtml jsStyle title libLoc jss nscrpt pairs = createHtml jsStyle libLoc title' js noscript
+modulesToHtml jsStyle title libLoc jss nscrpt pairs =
+    createHtml jsStyle libLoc title' js noscript
     where modules = map snd pairs
           js = Right $ jss ++ concatMap jsModule pairs
-          noscript = if nscrpt then extract $ last modules else ""
+          noscript = if nscrpt then extractNoscript $ last modules else ""
           title' = if null title then altTitle else title
           altTitle = (\(Module names _ _ _) -> intercalate "." names) $
                      last modules

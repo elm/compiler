@@ -119,17 +119,25 @@ caseExpr = do
 expr = choice [ ifExpr, letExpr, caseExpr
               , lambdaExpr, binaryExpr ] <?> "an expression"
 
-assignExpr = do
-  patterns <-
-      choice [ try $ do v <- PVar <$> lowVar
-                        notFollowedBy (whitespace >> char ':')
-                        (v:) <$> spacePrefix patternTerm
-             , (:[]) <$> patternExpr
-             ] <?> "the definition of a variable (x = ...)"
-  whitespace; string "="; whitespace; exp <- expr
-  flattenPatterns patterns exp
+funcDef = do p1 <- try patternTerm ; infics p1 <|> func p1
+    where func p@(PVar v) = (p:) <$> spacePrefix patternTerm
+          func p          = do try (lookAhead (whitespace >> string "="))
+                               return [p]
+          infics p1 = do
+            o:p <- try (whitespace >> anyOp)
+            p2  <- (whitespace >> patternTerm)
+            return $ if o == '`' then [ PVar $ takeWhile (/='`') p, p1, p2 ]
+                                 else [ PVar (o:p), p1, p2 ]
 
-def = map (\(Definition n as e) -> Def n as e) <$> assignExpr
+assignExpr = do
+  fDefs <- try funcDef
+           <|> ((:[]) <$> patternExpr)
+           <?> "the definition of a variable (x = ...)"
+  whitespace; string "="; whitespace
+  e <- expr
+  flattenPatterns fDefs e
+
+def = map Definition <$> assignExpr
 
 
 parseDef str =

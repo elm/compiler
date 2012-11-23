@@ -34,17 +34,18 @@ data Expr = IntNum Int
           | Fold Expr Expr Expr
           | Async Expr
           | Input String
-          | Let [Definition] Expr
+          | Let [Def] Expr
           | Var String
           | Case Expr [(Pattern,Expr)]
           | Data String [Expr]
           | Markdown Pandoc.Pandoc
             deriving (Eq)
 
-data Definition = Definition String [String] Expr
+data Def = FnDef String [String] Expr
+         | OpDef String String String Expr
                   deriving (Eq)
 
-data Statement = Def String [String] Expr
+data Statement = Definition Def
                | Datatype String [X] [(String,[Type])]
                | ImportEvent String Expr String Type
                | ExportEvent String String Type
@@ -105,9 +106,10 @@ instance Show Expr where
   show (Markdown _) = "[markdown| ... |]"
 
 
-instance Show Definition where
-  show (Definition v [] e) = v ++ " = " ++ show e
-  show (Definition f args e) = f ++ " " ++ intercalate " " args ++ " = " ++ show e
+instance Show Def where
+  show (FnDef v [] e) = v ++ " = " ++ show e
+  show (FnDef f args e) = f ++ " " ++ intercalate " " args ++ " = " ++ show e
+  show (OpDef op a1 a2 e) = intercalate " " [a1,op,a2] ++ " = " ++ show e
 
 getLambdas (Lambda x e) = (x:xs,e')
     where (xs,e') = getLambdas e
