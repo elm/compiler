@@ -1,4 +1,4 @@
-module Parse.PTypes where
+module Parse.Types where
 
 import Ast
 import Control.Applicative ((<$>),(<*>))

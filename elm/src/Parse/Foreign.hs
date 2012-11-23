@@ -8,7 +8,7 @@ import Text.Parsec hiding (newline,spaces)
 import Ast
 import Parse.Library
 import Parse.Expr (term)
-import Parse.PTypes
+import Parse.Types
 import Types (signalOf)
 
 

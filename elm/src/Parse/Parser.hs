@@ -9,7 +9,7 @@ import Text.Parsec hiding (newline,spaces)
 
 import Parse.Library
 import Parse.Expr
-import Parse.PTypes
+import Parse.Types
 import Parse.Modules
 import Parse.Foreign
 
