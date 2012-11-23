@@ -42,20 +42,17 @@ run (Automaton m0) input =
 step (Automaton m) a = m a
 
 
---a1 >>> a2 =
-composeAuto a1 a2 =
+a1 >>> a2 =
   let { Automaton m1 = a1 ; Automaton m2 = a2 } in
   Automaton 
     (\a -> let (b,m1') = m1 a in
-           let (c,m2') = m2 b in (c, composeAuto m1' m2'))
+           let (c,m2') = m2 b in (c, m1' >>> m2'))
 
-{--
-a2 <<< a1 = a1 >>> a2
+a2 <<< a1 = a1 >>> a2 
 f  ^>> a  = pure f >>> a
 a  >>^ f  = a >>> pure f
 f  ^<< a  = a >>> pure f
 a  <<^ f  = pure f >>> a
---}
 
 combine autos =
   Automaton (\a -> let (bs,autos') = unzip $ map (\(Automaton m) -> m a) autos in

@@ -1,178 +1,221 @@
+
+(function() {
+try{
+
+var $op={};
+for(this['i'] in Elm){eval('var '+this['i']+'=Elm[this.i];');}
+if (Elm.Automaton) throw "Module name collision, 'Automaton' is already defined."; 
 Elm.Automaton=function(){
- for(this['i'] in Elm.Prelude){
-     eval('var ' + this['i'] + '=Elm.Prelude[this.i];'); }
+ try{
+  if (!(Elm.Prelude instanceof Object)) throw 'module not found';
+ } catch(e) {
+  throw ("Module 'Prelude' is missing. Compile with --make flag or load missing module in a separate JavaScript file.");
+ }
+ var hiddenVars={};
+ for (this['i'] in Elm.Prelude) {
+  if (hiddenVars[this['i']]) continue;
+  eval('var ' + this['i'] + ' = Elm.Prelude[this.i];');}
  function Automaton_0(a1){
-  return ["Automaton",a1];};
- var Listen_9=["Listen"];
- var Ignore_10=["Ignore"];
- function DragFrom_11(a1){
-  return ["DragFrom",a1];};
- var count_8=init_6(0)(function(__75){
-  return function(c_76){
-   return (1+c_76);};});
- function run_1(Automaton$m0_15){
-  return function(input_16){
+  return ["Automaton",a1];}
+ var Listen_8=["Listen"];
+ var Ignore_9=["Ignore"];
+ function DragFrom_10(a1){
+  return ["DragFrom",a1];}
+ $op['>>>'] = function(a1_24){
+  return function(a2_25){
    return function(){
-   switch(Automaton$m0_15[0]){
-    case "Automaton":
-    return lift(fst)(foldp_(function(a_18){
-     return function(Tuple2$bAutomaton$m_19){
-      return function(){
-      switch(Tuple2$bAutomaton$m_19[0]){
+    var Automaton$m1_26=a1_24;
+    var m1_27=function(){
+    switch(Automaton$m1_26[0]){
+     case "Automaton":
+     return Automaton$m1_26[1];
+    }
+    throw "Non-exhaustive pattern match in case";}();
+    var Automaton$m2_28=a2_25;
+    var m2_29=function(){
+    switch(Automaton$m2_28[0]){
+     case "Automaton":
+     return Automaton$m2_28[1];
+    }
+    throw "Non-exhaustive pattern match in case";}();
+    return Automaton_0(function(a_32){
+     return function(){
+      var Tuple2$bm1__33=m1_27(a_32);
+      var b_34=function(){
+      switch(Tuple2$bm1__33[0]){
        case "Tuple2":
-       switch(Tuple2$bAutomaton$m_19[2][0]){
+       return Tuple2$bm1__33[1];
+      }
+      throw "Non-exhaustive pattern match in case";}();
+      var m1__35=function(){
+      switch(Tuple2$bm1__33[0]){
+       case "Tuple2":
+       return Tuple2$bm1__33[2];
+      }
+      throw "Non-exhaustive pattern match in case";}();
+      return function(){
+       var Tuple2$cm2__40=m2_29(b_34);
+       var c_41=function(){
+       switch(Tuple2$cm2__40[0]){
+        case "Tuple2":
+        return Tuple2$cm2__40[1];
+       }
+       throw "Non-exhaustive pattern match in case";}();
+       var m2__42=function(){
+       switch(Tuple2$cm2__40[0]){
+        case "Tuple2":
+        return Tuple2$cm2__40[2];
+       }
+       throw "Non-exhaustive pattern match in case";}();
+       return ["Tuple2",c_41,$op['>>>'](m1__35)(m2__42)];}();}();});}();};};
+ $op['<<<'] = function(a2_47){
+  return function(a1_48){
+   return $op['>>>'](a1_48)(a2_47);};};
+ $op['^>>'] = function(f_49){
+  return function(a_50){
+   return $op['>>>'](pure_4(f_49))(a_50);};};
+ $op['>>^'] = function(a_51){
+  return function(f_52){
+   return $op['>>>'](a_51)(pure_4(f_52));};};
+ $op['^<<'] = function(f_53){
+  return function(a_54){
+   return $op['>>>'](a_54)(pure_4(f_53));};};
+ $op['<<^'] = function(a_55){
+  return function(f_56){
+   return $op['>>>'](pure_4(f_56))(a_55);};};
+ var count_7=init_5(0)(function(__84){
+  return function(c_85){
+   return (1+c_85);};});
+ function run_1(Automaton$m0_14){
+  return function(input_15){
+   return function(){
+   switch(Automaton$m0_14[0]){
+    case "Automaton":
+    return lift(fst)(foldp_(function(a_17){
+     return function(Tuple2$bAutomaton$m_18){
+      return function(){
+      switch(Tuple2$bAutomaton$m_18[0]){
+       case "Tuple2":
+       switch(Tuple2$bAutomaton$m_18[2][0]){
         case "Automaton":
-        return Tuple2$bAutomaton$m_19[2][1](a_18);
+        return Tuple2$bAutomaton$m_18[2][1](a_17);
        }break;
       }
-      throw "Non-exhaustive pattern match in case";}();};})(Automaton$m0_15[1])(input_16));
+      throw "Non-exhaustive pattern match in case";}();};})(Automaton$m0_14[1])(input_15));
    }
-   throw "Non-exhaustive pattern match in case";}();};};
- function step_2(Automaton$m_22){
-  return function(a_23){
+   throw "Non-exhaustive pattern match in case";}();};}
+ function step_2(Automaton$m_21){
+  return function(a_22){
    return function(){
-   switch(Automaton$m_22[0]){
+   switch(Automaton$m_21[0]){
     case "Automaton":
-    return Automaton$m_22[1](a_23);
+    return Automaton$m_21[1](a_22);
    }
-   throw "Non-exhaustive pattern match in case";}();};};
- function composeAuto_3(a1_25){
-  return function(a2_26){
+   throw "Non-exhaustive pattern match in case";}();};}
+ function combine_3(autos_57){
+  return Automaton_0(function(a_58){
    return function(){
-    var Automaton$m1_27=a1_25;
-    var m1_28=function(){
-    switch(Automaton$m1_27[0]){
-     case "Automaton":
-     return Automaton$m1_27[1];
-    }
-    throw "Non-exhaustive pattern match in case";}();
-    var Automaton$m2_29=a2_26;
-    var m2_30=function(){
-    switch(Automaton$m2_29[0]){
-     case "Automaton":
-     return Automaton$m2_29[1];
-    }
-    throw "Non-exhaustive pattern match in case";}();
-    return Automaton_0(function(a_33){
+    var Tuple2$bsautos__59=unzip(map(function(Automaton$m_62){
      return function(){
-      var Tuple2$bm1__34=m1_28(a_33);
-      var b_35=function(){
-      switch(Tuple2$bm1__34[0]){
-       case "Tuple2":
-       return Tuple2$bm1__34[1];
-      }
-      throw "Non-exhaustive pattern match in case";}();
-      var m1__36=function(){
-      switch(Tuple2$bm1__34[0]){
-       case "Tuple2":
-       return Tuple2$bm1__34[2];
-      }
-      throw "Non-exhaustive pattern match in case";}();
-      return function(){
-       var Tuple2$cm2__41=m2_30(b_35);
-       var c_42=function(){
-       switch(Tuple2$cm2__41[0]){
-        case "Tuple2":
-        return Tuple2$cm2__41[1];
-       }
-       throw "Non-exhaustive pattern match in case";}();
-       var m2__43=function(){
-       switch(Tuple2$cm2__41[0]){
-        case "Tuple2":
-        return Tuple2$cm2__41[2];
-       }
-       throw "Non-exhaustive pattern match in case";}();
-       return ["Tuple2",c_42,composeAuto_3(m1__36)(m2__43)];}();}();});}();};};
- function combine_4(autos_48){
-  return Automaton_0(function(a_49){
-   return function(){
-    var Tuple2$bsautos__50=unzip(map(function(Automaton$m_53){
-     return function(){
-     switch(Automaton$m_53[0]){
+     switch(Automaton$m_62[0]){
       case "Automaton":
-      return Automaton$m_53[1](a_49);
+      return Automaton$m_62[1](a_58);
      }
-     throw "Non-exhaustive pattern match in case";}();})(autos_48));
-    var bs_51=function(){
-    switch(Tuple2$bsautos__50[0]){
+     throw "Non-exhaustive pattern match in case";}();})(autos_57));
+    var bs_60=function(){
+    switch(Tuple2$bsautos__59[0]){
      case "Tuple2":
-     return Tuple2$bsautos__50[1];
+     return Tuple2$bsautos__59[1];
     }
     throw "Non-exhaustive pattern match in case";}();
-    var autos__52=function(){
-    switch(Tuple2$bsautos__50[0]){
+    var autos__61=function(){
+    switch(Tuple2$bsautos__59[0]){
      case "Tuple2":
-     return Tuple2$bsautos__50[2];
+     return Tuple2$bsautos__59[2];
     }
     throw "Non-exhaustive pattern match in case";}();
-    return ["Tuple2",bs_51,combine_4(autos__52)];}();});};
- function pure_5(f_59){
-  return Automaton_0(function(x_60){
-   return ["Tuple2",f_59(x_60),pure_5(f_59)];});};
- function init_6(s_61){
-  return function(step_62){
-   return Automaton_0(function(a_63){
+    return ["Tuple2",bs_60,combine_3(autos__61)];}();});}
+ function pure_4(f_68){
+  return Automaton_0(function(x_69){
+   return ["Tuple2",f_68(x_69),pure_4(f_68)];});}
+ function init_5(s_70){
+  return function(step_71){
+   return Automaton_0(function(a_72){
     return function(){
-     var s__64=step_62(a_63)(s_61);
-     return ["Tuple2",s__64,init_6(s__64)(step_62)];}();});};};
- function init__7(s_65){
-  return function(step_66){
-   return Automaton_0(function(a_67){
+     var s__73=step_71(a_72)(s_70);
+     return ["Tuple2",s__73,init_5(s__73)(step_71)];}();});};}
+ function init__6(s_74){
+  return function(step_75){
+   return Automaton_0(function(a_76){
     return function(){
-     var Tuple2$bs__68=step_66(a_67)(s_65);
-     var b_69=function(){
-     switch(Tuple2$bs__68[0]){
+     var Tuple2$bs__77=step_75(a_76)(s_74);
+     var b_78=function(){
+     switch(Tuple2$bs__77[0]){
       case "Tuple2":
-      return Tuple2$bs__68[1];
+      return Tuple2$bs__77[1];
      }
      throw "Non-exhaustive pattern match in case";}();
-     var s__70=function(){
-     switch(Tuple2$bs__68[0]){
+     var s__79=function(){
+     switch(Tuple2$bs__77[0]){
       case "Tuple2":
-      return Tuple2$bs__68[2];
+      return Tuple2$bs__77[2];
      }
      throw "Non-exhaustive pattern match in case";}();
-     return ["Tuple2",b_69,init__7(s__70)(step_66)];}();});};};
- function vecSub_12(Tuple2$x1y1_77){
-  return function(Tuple2$x2y2_78){
+     return ["Tuple2",b_78,init__6(s__79)(step_75)];}();});};}
+ function vecSub_11(Tuple2$x1y1_86){
+  return function(Tuple2$x2y2_87){
    return function(){
-   switch(Tuple2$x1y1_77[0]){
+   switch(Tuple2$x1y1_86[0]){
     case "Tuple2":
     return function(){
-    switch(Tuple2$x2y2_78[0]){
+    switch(Tuple2$x2y2_87[0]){
      case "Tuple2":
-     return ["Tuple2",(Tuple2$x1y1_77[1]-Tuple2$x2y2_78[1]),(Tuple2$x1y1_77[2]-Tuple2$x2y2_78[2])];
+     return ["Tuple2",(Tuple2$x1y1_86[1]-Tuple2$x2y2_87[1]),(Tuple2$x1y1_86[2]-Tuple2$x2y2_87[2])];
     }
     throw "Non-exhaustive pattern match in case";}();
    }
-   throw "Non-exhaustive pattern match in case";}();};};
- function stepDrag_13(Tuple2$presspos_83){
-  return function(Tuple2$dsform_84){
+   throw "Non-exhaustive pattern match in case";}();};}
+ function stepDrag_12(Tuple2$presspos_92){
+  return function(Tuple2$dsform_93){
    return function(){
-   switch(Tuple2$presspos_83[0]){
+   switch(Tuple2$presspos_92[0]){
     case "Tuple2":
     return function(){
-    switch(Tuple2$dsform_84[0]){
+    switch(Tuple2$dsform_93[0]){
      case "Tuple2":
      return function(){
-      function wrap_89(ds__90){
-       return ["Tuple2",Tuple2$dsform_84[2],["Tuple2",ds__90,Tuple2$dsform_84[2]]];};
+      function wrap_98(ds__99){
+       return ["Tuple2",Tuple2$dsform_93[2],["Tuple2",ds__99,Tuple2$dsform_93[2]]];}
       return function(){
-      switch(Tuple2$dsform_84[1][0]){
+      switch(Tuple2$dsform_93[1][0]){
        case "DragFrom":
-       return (Tuple2$presspos_83[1]?["Tuple2",uncurry(move)(vecSub_12(Tuple2$presspos_83[2])(Tuple2$dsform_84[1][1]))(Tuple2$dsform_84[2]),["Tuple2",DragFrom_11(Tuple2$dsform_84[1][1]),Tuple2$dsform_84[2]]]:function(){
-        var form__92=uncurry(move)(vecSub_12(Tuple2$presspos_83[2])(Tuple2$dsform_84[1][1]))(Tuple2$dsform_84[2]);
-        return ["Tuple2",form__92,["Tuple2",Listen_9,form__92]];}());
+       return (Tuple2$presspos_92[1]?["Tuple2",uncurry(move)(vecSub_11(Tuple2$presspos_92[2])(Tuple2$dsform_93[1][1]))(Tuple2$dsform_93[2]),["Tuple2",DragFrom_10(Tuple2$dsform_93[1][1]),Tuple2$dsform_93[2]]]:function(){
+        var form__101=uncurry(move)(vecSub_11(Tuple2$presspos_92[2])(Tuple2$dsform_93[1][1]))(Tuple2$dsform_93[2]);
+        return ["Tuple2",form__101,["Tuple2",Listen_8,form__101]];}());
        case "Ignore":
-       return wrap_89((Tuple2$presspos_83[1]?Ignore_10:Listen_9));
+       return wrap_98((Tuple2$presspos_92[1]?Ignore_9:Listen_8));
        case "Listen":
-       return wrap_89((not(Tuple2$presspos_83[1])?Listen_9:(isWithin(Tuple2$presspos_83[2])(Tuple2$dsform_84[2])?DragFrom_11(Tuple2$presspos_83[2]):Ignore_10)));
+       return wrap_98((not(Tuple2$presspos_92[1])?Listen_8:(isWithin(Tuple2$presspos_92[2])(Tuple2$dsform_93[2])?DragFrom_10(Tuple2$presspos_92[2]):Ignore_9)));
       }
       throw "Non-exhaustive pattern match in case";}();}();
     }
     throw "Non-exhaustive pattern match in case";}();
    }
-   throw "Non-exhaustive pattern match in case";}();};};
- function draggable_14(form_93){
-  return init__7(["Tuple2",Listen_9,form_93])(stepDrag_13);};
- return {Automaton:Automaton_0,run:run_1,step:step_2,composeAuto:composeAuto_3,combine:combine_4,pure:pure_5,init:init_6,init_:init__7,count:count_8,Listen:Listen_9,Ignore:Ignore_10,DragFrom:DragFrom_11,vecSub:vecSub_12,stepDrag:stepDrag_13,draggable:draggable_14};}();
+   throw "Non-exhaustive pattern match in case";}();};}
+ function draggable_13(form_102){
+  return init__6(["Tuple2",Listen_8,form_102])(stepDrag_12);}
+ return {$op : {'>>>' : $op['>>>'], '<<<' : $op['<<<'], '^>>' : $op['^>>'], '>>^' : $op['>>^'], '^<<' : $op['^<<'], '<<^' : $op['<<^']},
+ run:run_1,
+ step:step_2,
+ combine:combine_3,
+ pure:pure_4,
+ init:init_5,
+ init_:init__6,
+ count:count_7,
+ draggable:draggable_13};}();
+Elm.main=function(){
+ return Elm.Automaton.main;};
+} catch (e) {
+Elm.main=function() {
+var msg = ('<br/><h2>Your browser may not be supported. Are you using a modern browser?</h2>' + '<br/><span style="color:grey">Runtime Error in Automaton module:<br/>' + e + '</span>');
+document.body.innerHTML = Elm.Text.monospace(msg);throw e;};}}());
