@@ -1,5 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Rename (renameModule, derename) where
+module Rename (renameModule, derename, deprime) where
 
 import Ast
 import Control.Arrow (first)

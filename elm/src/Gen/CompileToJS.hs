@@ -14,6 +14,8 @@ import Initialize
 import Rename (derename)
 import Cases
 import Guid
+import Parse.Library (isOp)
+import Rename (deprime)
 
 showErr :: String -> String
 showErr err = mainEquals $ "Elm.Graphics.text(Elm.Text.monospace(" ++ msg ++ "))"
@@ -35,7 +37,7 @@ mainEquals s = globalAssign "Elm.main" (jsFunc "" (ret s))
 globalAssign m s = "\n" ++ m ++ "=" ++ s ++ ";"
 
 tryBlock escapees names e = 
-    concat [ "\n(function() {\ntry{\n" ++ e ++ "\n} catch (e) {"
+    concat [ "\ntry{\n" ++ e ++ "\n} catch (e) {"
            , "\nElm.main=function() {"
 	   , "\nvar msg = ('<br/><h2>Your browser may not be supported. " ++
              "Are you using a modern browser?</h2>' +" ++
@@ -43,7 +45,7 @@ tryBlock escapees names e =
              intercalate "." names ++ " module:<br/>' + e + '" ++ msg ++ "</span>');"
 	   , "\ndocument.body.innerHTML = Elm.Text.monospace(msg);"
            , "throw e;"
-           , "};}}());"
+           , "};}"
            ]
     where msg | escapees /= [] = concat [ "<br/><br/>The problem may stem from an improper usage of:<br/>"
                                         ,  intercalate ", " $ map (concatMap escape) escapees ]
@@ -55,14 +57,12 @@ tryBlock escapees names e =
 
 jsModule (escapees, Module names exports imports stmts) =
     tryBlock escapees (tail modNames) $ concat
-           [ assign "$op" "{}"
-           , "\nfor(this['i'] in Elm){eval('var '+this['i']+'=Elm[this.i];');}"
-           , concatMap (\n -> globalAssign n $ n ++ " || {}") .
+           [ concatMap (\n -> globalAssign n $ n ++ " || {}") .
              map (intercalate ".") . drop 2 . inits $
              take (length modNames - 1) modNames
            , "\nif (" ++ modName ++ ") throw \"Module name collision, '" ++
              intercalate "." (tail modNames) ++ "' is already defined.\"; "
-           , globalAssign modName $ jsFunc "" (includes ++body++ export) ++ "()"
+           , globalAssign modName $ jsFunc "" (defs ++ includes ++ body ++ export) ++ "()"
            , mainEquals $ modName ++ ".main" ]
         where modNames = if null names then ["Elm", "Main"]
                                        else  "Elm" : names
@@ -71,9 +71,11 @@ jsModule (escapees, Module names exports imports stmts) =
               body = stmtsToJS stmts
               export = getExports exports stmts
               exps = if null exports then ["main"] else exports
+              defs = concat [ assign "$op" "{}"
+                            , "\nfor(Elm['i'] in Elm){eval('var '+Elm['i']+'=Elm[Elm.i];');}" ]
 
 getExports names stmts = ret . braces $ intercalate ",\n" (op : map fnPair fns)
-    where exNames n = either id id n `elem` names
+    where exNames n = either derename id n `elem` names
           exports | null names = concatMap get stmts
                   | otherwise  = filter exNames (concatMap get stmts)
 
@@ -100,16 +102,21 @@ jsImport (modul, how) =
      jsImport' (modul, how)
   
 jsImport' (modul, As name) = assign name modul
-jsImport' (modul, Importing vs) =
-    concatMap (\v -> assign v $ modul ++ "." ++ v) vs
+jsImport' (modul, Importing vs) = concatMap def vs
+    where def [] = []
+          def (o:p) | isOp o    = let v = "$op['" ++ o:p ++ "']" in
+                                  "\n" ++ v ++ " = " ++ modul ++ "." ++ v ++ ";"
+                    | otherwise = let v = deprime (o:p) in
+                                  assign v $ modul ++ "." ++ v
+
 jsImport' (modul, Hiding vs) =
     concat [ assign "hiddenVars" . ("{"++) . (++"}") . intercalate "," $
-                    map (\v -> v ++ ":true") vs
-           , "\nfor (this['i'] in " ++ modul ++ ") "
+                    map (\v -> v ++ ":true") (map deprime vs)
+           , "\nfor (Elm['i'] in " ++ modul ++ ") "
            , braces . indent . concat $
-               [ "\nif (hiddenVars[this['i']]) continue;"
-               , "\neval('var ' + this['i'] + ' = "
-               , modul, "[this.i];');" ]
+               [ "\nif (hiddenVars[Elm['i']]) continue;"
+               , "\neval('var ' + Elm['i'] + ' = "
+               , modul, "[Elm.i];');" ]
            ]
 
 stmtsToJS :: [Statement] -> String

@@ -8,13 +8,16 @@ import Text.Parsec hiding (newline,spaces)
 import Ast
 import Parse.Library
 
+varList ::  (Monad m) => ParsecT [Char] u m [String]
+varList = parens $ commaSep1 (var <|> parens symOp)
+
 moduleDef :: (Monad m) => ParsecT [Char] u m ([String], [String])
 moduleDef = do
   try (reserved "module")
-  whitespace <?> "name of module"
-  names <- dotSep1 capVar
   whitespace
-  exports <- option [] . parens $ commaSep var
+  names <- dotSep1 capVar <?> "name of module"
+  whitespace
+  exports <- option [] varList
   whitespace <?> "reserved word 'where'"
   reserved "where"
   return (names, exports)
@@ -38,7 +41,7 @@ as' = reserved "as" >> whitespace >> As <$> capVar <?> "alias for module"
 
 hiding' :: (Monad m) => ParsecT [Char] u m ImportMethod
 hiding' = reserved "hiding" >> whitespace >>
-          Hiding <$> parens (commaSep1 var) <?> "listing of hidden values"
+          Hiding <$> varList <?> "listing of hidden values"
 
 importing' :: (Monad m) => ParsecT [Char] u m ImportMethod
-importing' = Importing <$> parens (commaSep1 var) <?> "listing of imported values (x,y,z)"
+importing' = Importing <$> varList <?> "listing of imported values (x,y,z)"
