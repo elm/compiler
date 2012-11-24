@@ -46,7 +46,7 @@ isOp c = isSymbol c || elem c "+-/*=.$<>:&|^?%#@~!"
 
 symOp :: (Monad m) => ParsecT [Char] u m String
 symOp = do op <- many1 (satisfy isOp)
-           guard (op `notElem` [ "=", "..", "->", "--" ])
+           guard (op `notElem` [ "=", "..", "->", "--", "|", "\8594" ])
            return op
 
 arrow :: (Monad m) => ParsecT [Char] u m String
@@ -91,9 +91,9 @@ betwixt a b c = do char a ; out <- c
                    char b <?> "closing '" ++ [b] ++ "'" ; return out
 
 surround a z name p = do
-  char a ; whitespace ; a <- p ; whitespace
+  char a ; whitespace ; v <- p ; whitespace
   char z <?> unwords ["closing", name, show z]
-  return a
+  return v
 
 braces   :: (Monad m) => ParsecT [Char] u m a -> ParsecT [Char] u m a
 braces   = surround '[' ']' "brace"
