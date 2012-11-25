@@ -69,8 +69,8 @@ fileTo isMini get what jsFiles noscript outputDir rtLoc file = do
     Left err -> putStrLn $ "Error while compiling " ++ file ++ ":\n" ++ err
     Right ms ->
         let path = case outputDir of
-		Nothing -> reverse . tail . dropWhile (/='.') $ reverse file
-		Just dir -> (\s -> dir ++ "/" ++ s) . reverse . takeWhile (/='/') . tail . dropWhile (/='.') $ reverse file
+                Nothing -> reverse . tail . dropWhile (/='.') $ reverse file
+                Just dir -> (\s -> dir ++ "/" ++ s) . reverse . takeWhile (/='/') . tail . dropWhile (/='.') $ reverse file
             js = path ++ ".js"
             html = path ++ ".html"
         in  case what of
