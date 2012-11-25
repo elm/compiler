@@ -7,6 +7,7 @@ import Data.Char (isUpper,isLower)
 import Data.Maybe (fromMaybe)
 import Data.List (lookup)
 import Text.Parsec
+import Text.Parsec.Indent
 
 import Parse.Library
 import Types.Types hiding (string,parens)
@@ -19,43 +20,43 @@ data ParseType = VarPT String
 listPT t = ADTPT "List" [t]
 tuplePT ts = ADTPT ("Tuple" ++ show (length ts)) ts
 
-typeVar :: (Monad m) => ParsecT [Char] u m ParseType
+typeVar :: IParser ParseType
 typeVar = VarPT <$> lowVar <?> "type variable"
 
-typeList :: (Monad m) => ParsecT [Char] u m ParseType
+typeList :: IParser ParseType
 typeList  = listPT <$> braces typeExpr
 
-typeTuple :: (Monad m) => ParsecT [Char] u m ParseType
+typeTuple :: IParser ParseType
 typeTuple = do ts <- parens (commaSep typeExpr)
                return $ case ts of { [t] -> t ; _ -> tuplePT ts }
 
-typeUnambiguous :: (Monad m) => ParsecT [Char] u m ParseType
+typeUnambiguous :: IParser ParseType
 typeUnambiguous = typeList <|> typeTuple
 
-typeSimple :: (Monad m) => ParsecT [Char] u m ParseType
+typeSimple :: IParser ParseType
 typeSimple = dealias <$> var
     where dealias "String" = listPT (VarPT "Char")
           dealias v = VarPT v
 
-typeApp :: (Monad m) => ParsecT [Char] u m ParseType
+typeApp :: IParser ParseType
 typeApp = do name <- capVar <?> "type constructor"
              args <- spacePrefix (typeUnambiguous <|> typeSimple)
              return $ case args of
                         [] -> VarPT name
                         _  -> ADTPT name args
 
-typeExpr :: (Monad m) => ParsecT [Char] u m ParseType
+typeExpr :: IParser ParseType
 typeExpr = do
   t1 <- typeVar <|> typeApp <|> typeUnambiguous
   whitespace ; arr <- optionMaybe arrow ; whitespace
   case arr of Just _  -> LambdaPT t1 <$> typeExpr
               Nothing -> return t1
 
-typeConstructor :: (Monad m) => ParsecT [Char] u m (String, [ParseType])
+typeConstructor :: IParser (String, [ParseType])
 typeConstructor = (,) <$> (capVar <?> "another type constructor")
                       <*> spacePrefix (typeSimple <|> typeUnambiguous)
 
-datatype :: (Monad m) => ParsecT [Char] u m Statement
+datatype :: IParser Statement
 datatype = do
   reserved "data" <?> "datatype definition (data T = A | B | ...)"
   forcedWS ; name <- capVar <?> "name of data-type" ; args <- spacePrefix lowVar

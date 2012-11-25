@@ -1,6 +1,7 @@
 module Replace (replace, depth) where
 
 import Ast
+import Control.Arrow ((***))
 import Data.Set (singleton,empty,unions,member, Set)
 
 replace :: String -> Expr -> Expr -> Expr
@@ -12,6 +13,7 @@ replace y v expr =
       Binop op e1 e2 -> Binop op (f e1) (f e2)
       App e1 e2 -> App (f e1) (f e2)
       If e1 e2 e3 -> If (f e1) (f e2) (f e3)
+      Guard ps -> map (f *** f) ps
       Lift e es -> Lift (f e) (map f es)
       Fold e1 e2 e3 -> Fold (f e1) (f e2) (f e3)
       Async e -> Async (f e)
@@ -44,6 +46,7 @@ depth' d expr =
       Lambda x e -> f e
       App e1 e2 -> max (f e1) (f e2)
       If e1 e2 e3 -> maximum [f e1, f e2, f e3]
+      Guard ps -> maximum (map (uncurry max . f *** f) ps)
       Lift e es -> maximum $ f e : map f es
       Fold e1 e2 e3 -> maximum [f e1, f e2, f e3]
       Async e -> f e

@@ -173,6 +173,7 @@ instance ToJS Expr where
       Access e lbl -> (\s -> s ++ "." ++ lbl) `liftM` toJS e
       Binop op e1 e2 -> binop op `liftM` toJS e1 `ap` toJS e2
       If eb et ef -> parens `liftM` (iff `liftM` toJS eb `ap` toJS et `ap` toJS ef)
+      Guard ps -> guardToJS ps
       Lambda v e -> liftM (jsFunc v . ret) (toJS e)
       App (Var "toText") (Str s) -> return $ "toText" ++ parens (show s)
       App (Var "link") (Str s) -> return $ "link(" ++ show s ++ ")"
@@ -190,6 +191,13 @@ formatMarkdown = concatMap f
           f '\n' = "\\n"
           f '"'  = "\""
           f c = [c]
+
+guardToJS ps = format `liftM` mapM f ps
+    where format cs = foldr (\c e -> parens $ c ++ " : " ++ e) err cs
+          err = "(function(){throw \"Non-exhaustive guard expression\";}())"
+          f (b,e) = do b' <- toJS b
+                       e' <- toJS e
+                       return (b' ++ " ? " ++ e')
 
 jsLet defs e' = do
   body <- (++) `liftM` jsDefs defs `ap` (ret `liftM` toJS e')

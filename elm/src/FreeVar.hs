@@ -1,6 +1,7 @@
 module FreeVar (freeIn,freeVars) where
 
 import Ast
+import Control.Arrow ((***))
 import Data.Set (union, unions, delete, singleton, empty, difference, member)
 
 x `freeIn` expr = member x $ freeVars expr
@@ -13,6 +14,7 @@ freeVars expr =
       Lambda x e -> delete x (f e)
       App e1 e2 -> f e1 `union` f e2
       If e1 e2 e3 -> unions $ map f [e1,e2,e3]
+      Guard ps -> map (f *** f) ps
       Lift e es -> unions $ map f es
       Fold e1 e2 e3 -> unions $ map f [e1,e2,e3]
       Async e -> f e

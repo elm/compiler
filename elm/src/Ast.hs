@@ -4,7 +4,6 @@ module Ast where
 import Data.Char (isDigit)
 import Data.List (intercalate)
 import Types.Types
-import Guid
 import qualified Text.Pandoc as Pandoc
 
 data Module = Module [String] Exports Imports [Statement]
@@ -30,6 +29,7 @@ data Expr = IntNum Int
           | Lambda String Expr
           | App Expr Expr
           | If Expr Expr Expr
+          | Guard [(Expr,Expr)]
           | Lift Expr [Expr]
           | Fold Expr Expr Expr
           | Async Expr
@@ -92,6 +92,7 @@ instance Show Expr where
                       concat [ "\\", intercalate " " xs, " -> ", show e' ]
   show (App e1 e2) = show' e1 ++ " " ++ show' e2
   show (If e1 e2 e3) = concat [ "if ", show e1, " then ", show e2, " else ", show e3 ]
+  show (Guard ps) = concatMap (\(b,e) -> concat ["\n  | ",show b," = ",show e]) ps
   show (Let defs e) = "let { " ++ intercalate " ; " (map show defs) ++ " } in " ++ show e
   show (Var x) = x
   show (Case e pats) = "case " ++ show e ++ " of { " ++ intercalate " ; " (map (\(p,e) -> show p ++ " -> " ++ show e) pats) ++ " }"

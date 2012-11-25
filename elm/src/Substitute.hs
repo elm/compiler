@@ -1,6 +1,6 @@
 module Substitute (subst) where
 
-import Control.Arrow (second)
+import Control.Arrow (second, (***))
 
 import Ast
 
@@ -14,6 +14,7 @@ subst old new expr =
       Lambda x e -> if x == old then expr else Lambda x (f e)
       App e1 e2 -> App (f e1) (f e2)
       If e1 e2 e3 -> If (f e1) (f e2) (f e3)
+      Guard ps -> Guard (map (f *** f) ps)
       Lift e es -> Lift (f e) (map f es)
       Fold e1 e2 e3 -> Fold (f e1) (f e2) (f e3)
       Async e -> Async (f e)

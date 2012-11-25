@@ -122,6 +122,16 @@ gen (Range e1 e2) =
                                                   , ctx e2 (t2 :=: int) ] ]
               , listOf int )
 
+gen e@(Guard ps) = do (ass,css,t:ts) <- unzip3 `liftM` mapM genPair ps
+                      let cs = Set.fromList (map (ctx e . (t :=:)) ts)
+                      return (unionsA ass, Set.unions (cs:css), t)
+    where genPair (b,e) = do 
+            (a1,c1,t1) <- gen b
+            (a2,c2,t2) <- gen e
+            return ( unionsA [a1,a2]
+                   , Set.unions [ c1, c2, Set.singleton (ctx b (t1 :=: bool)) ]
+                   , t2 )
+
 gen other =
     case other of
       IntNum _ -> do t <- beta
@@ -131,7 +141,7 @@ gen other =
       Str _ -> primitive string
       Boolean _ -> primitive bool
       Markdown _ -> primitive element
-      _ -> beta >>= primitive 
+      -- _ -> beta >>= primitive 
 
 primitive t = return (Map.empty, Set.empty, t)
 

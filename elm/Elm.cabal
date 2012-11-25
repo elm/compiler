@@ -71,7 +71,8 @@ Library
                        shakespeare >= 1,
                        pandoc <= 1.9.4.2,
                        bytestring,
-                       hjsmin
+                       hjsmin,
+                       indents
 
 Executable elm
   Main-is:             Compiler.hs
@@ -112,4 +113,5 @@ Executable elm
                        cmdargs,
                        pandoc <= 1.9.4.2,
                        bytestring,
-                       hjsmin
+                       hjsmin,
+                       indents

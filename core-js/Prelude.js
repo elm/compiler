@@ -75,6 +75,7 @@ Elm.Prelude = function() {
 	    snd  : function(p) { return p[2]; },
 	    rem  : function(x) { return function(y) { return x % y; }; },
 	    div  : function(x) { return function(y) { return ~~(x / y); }; },
+	    otherwise : true,
 	    compare : function(x) { return function (y) {
 		x = (typeof x === "object") ? toText(x) : x;
 		y = (typeof y === "object") ? toText(y) : y;

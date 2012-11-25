@@ -36,6 +36,6 @@ program = do
   return $ Module names exports is statements
 
 parseProgram source = 
-    case parse program "" source of
+    case iParse program "" source of
       Right result -> Right result
       Left err -> Left $ "Parse error at " ++ show err

@@ -77,6 +77,10 @@ instance Rename Expr where
                            `ap` rnm e2
                            `ap` rnm e3
 
+      Guard ps -> Guard `liftM` mapM grnm ps
+              where grnm (b,e) = (,) `liftM` rnm b
+                                        `ap` rnm e
+
       Lift e es -> Lift `liftM` rnm e
                            `ap` mapM rnm es
 

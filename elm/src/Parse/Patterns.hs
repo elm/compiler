@@ -4,30 +4,32 @@ import Ast
 import Data.Char (isUpper)
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad
-import Text.Parsec
+import Control.Monad.State
+import Text.Parsec hiding (newline,spaces,State)
+import Text.Parsec.Indent
 import Parse.Library
 
-patternBasic :: Monad m => ParsecT [Char] u m Pattern
+patternBasic :: IParser Pattern
 patternBasic =
     choice [ char '_' >> return PAnything
            , do x@(c:_) <- var
                 return $ if isUpper c then PData x [] else PVar x
            ]
 
-patternTuple :: Monad m => ParsecT [Char] u m Pattern
+patternTuple :: IParser Pattern
 patternTuple = do ps <- parens (commaSep patternExpr)
                   return $ case ps of { [p] -> p; _ -> ptuple ps }
 
-patternList :: Monad m => ParsecT [Char] u m Pattern
+patternList :: IParser Pattern
 patternList = plist <$> braces (commaSep patternExpr)
 
-patternTerm :: Monad m => ParsecT [Char] u m Pattern
+patternTerm :: IParser Pattern
 patternTerm = patternTuple <|> patternList <|> patternBasic <?> "pattern"
 
-patternConstructor :: Monad m => ParsecT [Char] u m Pattern
+patternConstructor :: IParser Pattern
 patternConstructor = PData <$> capVar <*> spacePrefix patternTerm
 
-patternExpr :: Monad m => ParsecT [Char] u m Pattern
+patternExpr :: IParser Pattern
 patternExpr = foldr1 pcons <$> consSep1 (patternConstructor <|> patternTerm) <?> "pattern"
 
 
