@@ -124,7 +124,7 @@ function setPos(pos,e) {
   case "PositionAt":
       e.style.top  = toPos(pos[2]);
       e.style.left = toPos(pos[1]);
-      var shift = "translate(" + (-elem[3]/2) + "px," + (-elem[4]/2) + "px)";
+      var shift = "translate(" + ~~(-e.style.width.slice(0,-2) / 2) + "px," + ~~(-e.style.height.slice(0,-2) / 2) + "px)";
       e.style.transform       = shift;
       e.style.msTransform     = shift;
       e.style.MozTransform    = shift;

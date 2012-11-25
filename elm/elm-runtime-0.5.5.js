@@ -2126,9 +2126,11 @@ function setPos(pos,e) {
       if (pos[2][0] !== "Near") e.style.bottom = 0;
       break;
   case "PositionAt":
+      console.log(toPos(pos[1]),toPos(pos[2]));
       e.style.top  = toPos(pos[2]);
       e.style.left = toPos(pos[1]);
-      var shift = "translate(" + (-elem[3]/2) + "px," + (-elem[4]/2) + "px)";
+      var shift = "translate(" + ~~(-e.style.width.slice(0,-2) / 2) + "px," + ~~(-e.style.height.slice(0,-2) / 2) + "px)";
+      console.log(shift);
       e.style.transform       = shift;
       e.style.msTransform     = shift;
       e.style.MozTransform    = shift;
