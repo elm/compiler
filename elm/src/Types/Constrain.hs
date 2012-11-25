@@ -113,7 +113,11 @@ gen e@(If e1 e2 e3) =
 
 gen (Data name es) = gen $ foldl' App (Var name) es
 gen (Binop op e1 e2) = gen (Var op `App` e1 `App` e2)
-gen (Access (Var x) y) = gen . Var $ x ++ "." ++ y
+
+gen (Access (Var a) b) = gen . Var $ a ++ "." ++ b
+gen (Access (Access (Var a) b) c) = gen . Var $ intercalate "." [a, b, c]
+gen (Access (Access (Access (Var a) b) c) d) = gen . Var $ intercalate "." [a, b, c, d]
+
 gen (Range e1 e2) =
     do (a1,c1,t1) <- gen e1
        (a2,c2,t2) <- gen e2

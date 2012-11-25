@@ -112,6 +112,8 @@ Elm.Prelude = function() {
 	    Nothing : Elm.Maybe.Nothing,
 	    maybe   : Elm.Maybe.maybe,
 	    map     : Elm.List.map,
+	    zip     : Elm.List.zip,
+	    zipWith : Elm.List.zipWith,
 	    filter  : Elm.List.filter,
 	    head    : Elm.List.head,
 	    tail    : Elm.List.tail,
