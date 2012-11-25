@@ -6,6 +6,7 @@ import Data.List (intersect, intercalate)
 import Data.Maybe (fromMaybe)
 import Data.Version (showVersion)
 import System.Console.CmdArgs
+import System.FilePath
 import Text.Blaze.Html.Renderer.String (renderHtml)
 
 import qualified Text.Jasmine as JS
@@ -17,6 +18,7 @@ import CompileToJS
 import GenerateHtml
 import Paths_Elm
 
+import System.IO.Unsafe
 
 data ELM =
     ELM { make :: Bool
@@ -68,12 +70,10 @@ fileTo isMini get what jsFiles noscript outputDir rtLoc file = do
   case ems of
     Left err -> putStrLn $ "Error while compiling " ++ file ++ ":\n" ++ err
     Right ms ->
-        let path = case outputDir of
-                Nothing -> reverse . tail . dropWhile (/='.') $ reverse file
-                Just dir -> (\s -> dir ++ "/" ++ s) . reverse . takeWhile (/='/') . tail . dropWhile (/='.') $ reverse file
-            js = path ++ ".js"
-            html = path ++ ".html"
-        in  case what of
+        let path = fromMaybe "" outputDir </> file
+            js = replaceExtension path ".js"
+            html = replaceExtension path ".html"
+        in  case unsafePerformIO (print path) `seq` what of
               JS -> writeFile js . formatJS $ jss ++ concatMap jsModule ms
               HTML -> writeFile html . renderHtml $ modulesToHtml jsStyle "" rtLoc jss noscript ms
               Split -> do
@@ -105,10 +105,10 @@ toFilePath :: String -> FilePath
 toFilePath modul = map (\c -> if c == '.' then '/' else c) modul ++ ".elm"
 
 builtInModules =
-    concat [ [ "List", "Char", "Maybe", "Dict", "Set", "Automaton" ]
+    concat [ [ "List", "Char", "Maybe", "Dict", "Set", "Automaton", "Date" ]
            , [ "Signal", "Mouse", "Keyboard.Raw"
              , "Window", "Time", "HTTP", "Input", "Random" ]
            , [ "Graphics", "Text", "Color" ]
-           , map ("JavaScript"++) [ "", "Experimental" ]
+           , map ("JavaScript"++) [ "", ".Experimental" ]
            , [ "Prelude", "JSON" ]
            ]

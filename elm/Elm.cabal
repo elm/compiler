@@ -72,7 +72,8 @@ Library
                        pandoc <= 1.9.4.2,
                        bytestring,
                        hjsmin,
-                       indents
+                       indents,
+                       filepath
 
 Executable elm
   Main-is:             Compiler.hs
@@ -114,4 +115,5 @@ Executable elm
                        pandoc <= 1.9.4.2,
                        bytestring,
                        hjsmin,
-                       indents
+                       indents,
+                       filepath
