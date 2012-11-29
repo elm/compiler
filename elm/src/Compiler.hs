@@ -18,8 +18,6 @@ import CompileToJS
 import GenerateHtml
 import Paths_Elm
 
-import System.IO.Unsafe
-
 data ELM =
     ELM { make :: Bool
         , files :: [FilePath]
@@ -73,7 +71,7 @@ fileTo isMini get what jsFiles noscript outputDir rtLoc file = do
         let path = fromMaybe "" outputDir </> file
             js = replaceExtension path ".js"
             html = replaceExtension path ".html"
-        in  case unsafePerformIO (print path) `seq` what of
+        in  case what of
               JS -> writeFile js . formatJS $ jss ++ concatMap jsModule ms
               HTML -> writeFile html . renderHtml $ modulesToHtml jsStyle "" rtLoc jss noscript ms
               Split -> do

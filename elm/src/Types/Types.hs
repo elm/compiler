@@ -42,7 +42,10 @@ bool = tipe "Bool"
 string = listOf char -- tipe "String"
 text  = tipe "Text"
 
-time = Super (Set.fromList [ int, float ])
+time = tipe "Time"
+date = tipe "Date"
+month = tipe "Month"
+day = tipe "Day"
 
 element   = tipe "Element"
 direction = tipe "Direction"
@@ -60,8 +63,7 @@ maybeOf t  = ADT "Maybe" [t]
 pairOf t = tupleOf [t,t]
 point = pairOf int
 appendable t = Super (Set.fromList [ string, text, listOf t ])
-comparable = Super (Set.fromList [ int, float, char, string ])
-transformable = Super (Set.fromList [ shape, line ])
+comparable = Super (Set.fromList [ int, float, char, string, time, date ])
 
 jsBool     = tipe "JSBool"
 jsNumber   = tipe "JSNumber"

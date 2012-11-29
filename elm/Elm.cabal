@@ -54,6 +54,7 @@ Library
                        Types.Types,
                        Types.Constrain,
                        Types.Hints,
+                       Types.Solver,
                        Types.Substitutions,
                        Types.Unify,
                        Paths_Elm
@@ -99,6 +100,7 @@ Executable elm
                        Types.Types,
                        Types.Constrain,
                        Types.Hints,
+                       Types.Solver,
                        Types.Substitutions,
                        Types.Unify,
                        Paths_Elm

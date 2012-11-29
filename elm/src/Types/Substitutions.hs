@@ -1,10 +1,6 @@
 
-module Types.Substitutions (cSub
-                           ,tSub
-                           ,cSubNoContext
-                           ,hasVarC
-                           ,freeVars
-                           ,schemeSub
+module Types.Substitutions (subst
+                           ,occurs
                            ,concretize
                            ,rescheme
                            ,generalize) where
@@ -16,106 +12,83 @@ import qualified Data.Set as Set
 import Guid
 import Types.Types
 
-force x = x `deepseq` x
-a ++++ b = foldl' (\tl hd -> hd : tl) b a
-map' f xs = map (\x -> let v = f x in v `seq` v) xs
 
-instance (NFData a) => NFData (Context c a) where
-  rnf (Context _ a) = a `deepseq` ()
+class Subst a where
+  subst :: [(X,Type)] -> a -> a
 
-instance NFData Scheme where
-  rnf (Forall vs cs t) = vs `deepseq` cs `deepseq` t `deepseq` ()
+instance Subst Type where
+  subst ss (VarT x) = case lookup x ss of
+                        Nothing        -> VarT x
+                        Just (Super _) -> VarT x
+                        Just t         -> t
+  subst ss (LambdaT t1 t2) = LambdaT (subst ss t1) (subst ss t2)
+  subst ss (ADT name ts) = ADT name (subst ss ts)
+  subst ss (Super ts) = Super ts
 
-instance NFData Constraint where
-  rnf (t1 :=: t2) = t1 `deepseq` t2 `deepseq` ()
-  rnf (t1 :<: t2) = t1 `deepseq` t2 `deepseq` ()
-  rnf (t :<<: s)  = t `deepseq` s `deepseq` ()
+instance Subst Scheme where
+  subst ss (Forall vs cs t) = Forall vs (subst ss cs) (subst ss t)
 
-instance NFData Type where
-  rnf (LambdaT t1 t2) = t1 `deepseq` t2 `deepseq` ()
-  rnf (ADT _ ts) =  foldl' (\acc x -> x `deepseq` acc) () ts
-  rnf t = t `seq` ()
+instance Subst Constraint where
+  subst ss (t1 :=: t2) = subst ss t1 :=: subst ss t2
+  subst ss (t :<: super) = subst ss t :<: super
+  subst ss (x :<<: poly) = x :<<: subst ss poly
 
-tSub k v t@(VarT x) = if k == x then v else t
-tSub k v (LambdaT t1 t2) = tSub k v t1 `seq` tSub k v t2 `seq` LambdaT (tSub k v t1) (tSub k v t2)
-tSub k v (ADT name ts) = map' (tSub k v) ts `seq` ADT name (map' (tSub k v) ts)
-tSub k v (Super ts) = Super ts
+instance Subst a => Subst (Context c a) where
+  subst ss (Context ctx c) = Context ctx (subst ss c)
 
-schemeSubHelp k s c t1 t2 relation = do
-  (t1',cs1) <- f t1
-  (t2',cs2) <- f t2
-  return $ Context c (relation t1' t2') : cs1 ++++ cs2
-    where f t | hasVar k t = do (v, cs) <- concretize s; return (tSub k v t, cs)
-              | otherwise  = return (t, [])
+instance Subst a => Subst [a] where
+  subst ss as = map (subst ss) as
 
-schemeSub k s (Context ctx (t1 :=: t2)) = t1 `seq` t2 `seq` schemeSubHelp k s ctx t1 t2 (:=:)
-schemeSub k s (Context ctx (t1 :<: t2)) = t1 `seq` t2 `seq` schemeSubHelp k s ctx t1 t2 (:<:)
-schemeSub k s c@(Context ctx (x :<<: Forall cxs ccs ctipe)) =
-    if not $ hasVarC k c then return [c]
-    else do
-      Forall xs cs tipe <- rescheme s
-      let constraints = map' (cSub k tipe) $ cs ++ ccs
-      let c' = x :<<: Forall (cxs ++ xs) constraints (tSub k tipe ctipe)
-      return [ Context ctx c' ]
 
-hasVar v (VarT x) = v == x
-hasVar v (LambdaT t1 t2) = force (hasVar v t1 || hasVar v t2)
-hasVar v (ADT _ ts) = force $ any (hasVar v) ts
-hasVar v (Super _ ) = False
+class FreeVars a where
+  freeVars :: a -> [X]
 
-cSub k v (Context ctx c) = out `deepseq` out
-    where out = Context ctx (cSubNoContext' k v c)
+instance FreeVars Type where
+  freeVars (VarT v) = [v]
+  freeVars (LambdaT t1 t2) = freeVars t1 ++ freeVars t2
+  freeVars (ADT _ ts) = concatMap freeVars ts
+  freeVars (Super _ ) = [] 
 
-cSubNoContext k v c = c' `deepseq` c'
-    where c' = cSubNoContext' k v c
+instance FreeVars Constraint where
+  freeVars (t1 :=: t2) = freeVars t1 ++ freeVars t2
+  freeVars (t1 :<: t2) = freeVars t1 ++ freeVars t2
+  freeVars (x :<<: Forall xs cs t) = filter (`notElem` xs) frees
+      where frees = concatMap freeVars cs ++ freeVars t
 
-cSubNoContext' k v (t1 :=: t2) = let { t1' = tSub k v $! t1 ; t2' = tSub k v $! t2 } in
-                                 t1' `seq` t2' `seq` t1' :=: t2'
-cSubNoContext' k v (t :<: super) = let t' = tSub k v t in t' `seq` t' :<: super
-cSubNoContext' k v (x :<<: poly@(Forall vs cs tipe)) = (x :<<: poly')
-    where poly' | k `elem` vs = poly
-                | otherwise = let tipe' = tSub k v tipe in
-                              tipe' `deepseq` Forall vs (map' (cSub k v) cs) tipe'
+instance FreeVars a => FreeVars (Context c a) where
+  freeVars (Context _ c) = freeVars c    
 
+
+class Occurs a where
+  occurs :: X -> a -> Bool
+
+instance Occurs Type where
+  occurs v (VarT x) = v == x
+  occurs v (LambdaT t1 t2) = occurs v t1 || occurs v t2
+  occurs v (ADT _ ts) = any (occurs v) ts
+  occurs v (Super _ ) = False
+
+instance Occurs Constraint where
+  occurs x (t1 :=: t2) = occurs x t1 || occurs x t2
+  occurs x (t1 :<: t2) = occurs x t1 || occurs x t2
+  occurs x (y :<<: Forall xs cs t) = x == y || occurs x t || inCs
+      where inCs = x `notElem` xs && any (occurs x) cs
+
+instance Occurs a => Occurs (Context c a) where
+  occurs x (Context _ c) = occurs x c
+
+concretize :: Scheme -> GuidCounter (Type, [Context String Constraint])
 concretize (Forall xs cs t) = do
-  pairs <- zip xs `liftM` mapM (const guid) xs
-  let tipe = foldl' (\t' (k,v) -> tSub k (VarT v) $! t') t pairs
-  let f c = foldl' (\c (k,v) -> cSub k (VarT v) $! c) c $! pairs
-  let cs' = f `seq` map' f cs
-  tipe `deepseq` cs' `deepseq` return (tipe, cs')
+  ss <- zip xs `liftM` mapM (\_ -> liftM VarT guid) xs
+  return (subst ss t, subst ss cs)
 
 rescheme :: Scheme -> GuidCounter Scheme
 rescheme (Forall xs cs t) = do
-  pairs <- zip xs `liftM` mapM (const guid) xs
-  let tipe = foldl' (\t' (k,v) -> tSub k (VarT v) $! t') t pairs
-  let fs = map (\(k,v) -> cSub k (VarT v)) pairs
-  let cs' = map (\c -> foldl' (\c f -> f $! c) c fs) cs
-  tipe `deepseq` cs' `deepseq` (return $ Forall (map' snd pairs) cs' tipe)
-
-freeVars t = let fs = freeVars' t in fs `deepseq` fs
-
-freeVars' (VarT v) = [v]
-freeVars' (LambdaT t1 t2) = freeVars' t1 ++++ freeVars' t2
-freeVars' (ADT _ ts) = concatMap freeVars' ts
-freeVars' (Super _ ) = []
-
-cFreeVars c = let fs = cFreeVars' c in fs `deepseq` fs
-
-cFreeVars' (t1 :=: t2) = freeVars' t1 ++++ freeVars' t2
-cFreeVars' (t1 :<: t2) = freeVars' t1 ++++ freeVars' t2
-cFreeVars' (x :<<: Forall xs cs t) = filter (`notElem` xs) frees
-    where frees = concatMap (\(Context _ c) -> cFreeVars' c) cs ++++ freeVars' t
-
-
-hasVarC x (Context _ (t1 :=: t2)) = hasVar x t1 || hasVar x t2
-hasVarC x (Context _ (t1 :<: t2)) = hasVar x t1 || hasVar x t2
-hasVarC x (Context _ (y :<<: Forall xs cs t)) = x == y || hasVar x t || inCs
-    where inCs = x `notElem` xs && any (hasVarC x) cs
-
-decontext (Context _ c) = c
+  xs' <- mapM (const guid) xs
+  let ss = zip xs (map VarT xs')
+  return $ Forall xs' (subst ss cs) (subst ss t)
 
 generalize :: [X] -> Scheme -> GuidCounter Scheme
 generalize exceptions (Forall xs cs t) = rescheme (Forall (xs ++ frees) cs t)
-    where allFrees = Set.fromList $ freeVars t ++ concatMap (cFreeVars . decontext) cs
+    where allFrees = Set.fromList $ freeVars t ++ concatMap freeVars cs
           frees = Set.toList $ Set.difference allFrees (Set.fromList exceptions)
-

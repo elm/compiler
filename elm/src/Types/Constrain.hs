@@ -200,20 +200,20 @@ stmtGen (Definition def) = do (as,cs,hint) <- defGen def
 
 stmtGen (Datatype name xs tcs) = do schemes <- mapM gen' tcs'
                                     return (Map.empty, Set.empty, schemes)
-    where names = map (+ (length xs)) [1..5]
-          tcs' = map (second . map $ rnm names) tcs
-          supers t = map (Context name) $ zipWith (:<:) (map VarT names)
-                     [ number, time, appendable t, comparable, transformable ]
+    where var n = length xs + n
+          ( a, b, c) = ( var 1,  var 2,  var 3)
+          (va,vb,vc) = (VarT a, VarT b, VarT c)
+          rnm (ADT n []) | n == "Number"     = va
+                         | n == "Appendable" = vb
+                         | n == "Comparable" = vc
+          rnm t = t
+          tcs' = map (second (map rnm)) tcs
+          supers t = map (Context name) $
+                     zipWith (:<:) [va,vb,vc] [number,appendable t,comparable]
           gen' (n,ts) = do t <- beta
-                           let s = Forall (xs ++ names) (supers t) $
+                           let s = Forall (xs ++ [a,b,c]) (supers t) $
                                    foldr (==>) (ADT name $ map VarT xs) ts
                            (,) n `liftM` generalize [] s
-          rnm [a,b,c,d,e] (ADT n []) | n == "Number" = VarT a
-                                     | n == "Time"  = VarT b
-                                     | n == "Appendable"  = VarT c
-                                     | n == "Comparable"  = VarT d
-                                     | n == "Transformable"  = VarT e
-          rnm _ t = t
 
 stmtGen (ExportEvent js elm tipe) = do
   x <- guid

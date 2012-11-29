@@ -179,11 +179,8 @@ http = prefix "HTTP"
 concreteSignals = 
   [ "Keyboard.Raw.keysDown"    -: signalOf (listOf int)
   , "Keyboard.Raw.charPressed" -: signalOf (maybeOf int)
-  , "Random.inRange"     -: int ==> int ==> signalOf int
-  , "Random.randomize"   -:: int ==> int ==> signalOf a ==> signalOf int
-  , timeScheme "Time.every"  (\t -> t ==> signalOf t)
-  , timeScheme "Time.before" (\t -> t ==> signalOf bool)
-  , timeScheme "Time.after"  (\t -> t ==> signalOf bool)
+  , "Random.inRange"    -: int ==> int ==> signalOf int
+  , "Random.randomize"  -:: int ==> int ==> signalOf a ==> signalOf int
   , "Window.dimensions" -: signalOf point
   , "Window.width"      -: signalOf int
   , "Window.height"     -: signalOf int
@@ -202,6 +199,43 @@ concreteSignals =
   , "Input.dropDown"    -:: listOf (tupleOf [string,a]) ==> tupleOf [element, signalOf a]
   ]
 
+times = prefix "Time"
+  [ "deltas"    -: signalOf time ==> signalOf time
+  , "fps"       -: number ==> signalOf time
+  , "every"     -: time ==> signalOf time
+  , "fpsWhen"   -: signalOf bool ==> number ==> signalOf time
+--  , "everyWhen" -: signalOf bool ==> time ==> signalOf time
+  , "before"    -: time ==> signalOf bool
+  , "after"     -: time ==> signalOf bool
+  , "hours"     -: number ==> time
+  , "minutes"   -: number ==> time
+  , "seconds"   -: number ==> time
+  , "millis"    -: number ==> time
+  , "inHours"   -: time ==> float
+  , "inMinutes" -: time ==> float
+  , "inSeconds" -: time ==> float
+  , "inMillis"  -: time ==> float
+  , "toDate"    -: time ==> date
+  , "read"      -: string ==> maybeOf time
+  ]
+
+dates =
+  let days   = map (-: day) ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+      months = map (-: month) [ "Jan", "Feb", "Mar", "Apr", "May", "Jun"
+		              , "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" ]
+  in  prefix "Date"
+        ([ "every"     -: time ==> signalOf date
+         , "read"      -: string ==> maybeOf date
+         , "year"      -: date ==> int
+         , "month"     -: date ==> month
+         , "day"       -: date ==> int
+         , "hour"      -: date ==> int
+         , "minute"    -: date ==> int
+         , "second"    -: date ==> int
+         , "dayOfWeek" -: date ==> day
+         , "toTime"    -: date ==> time
+         ] ++ days ++ months)
+
 --------  Math and Binops  --------
 
 binop t = t ==> t ==> t
@@ -213,7 +247,6 @@ scheme2 s1 s2 t name =
                         , Context ("`" ++ name ++ "'") $ VarT 1 :<: s2
                         ] (t (VarT 0) (VarT 1)))
 numScheme t name = scheme1 number t name
-timeScheme name t = scheme1 time t name
 twoNums f name = scheme2 number number f name
 
 math =
@@ -377,5 +410,5 @@ hints = mapM (\(n,s) -> (,) n `liftM` rescheme s) hs
     where hs = concat [ funcs, lists, signals, math, bools, textAttrs
                       , graphicsElement, graphicsColor
                       , concreteSignals, javascript, json, maybeFuncs
-                      , http, dictionary, sets, automaton
+                      , http, dictionary, sets, automaton, times, dates
                       ]

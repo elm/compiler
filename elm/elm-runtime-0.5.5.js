@@ -2126,11 +2126,9 @@ function setPos(pos,e) {
       if (pos[2][0] !== "Near") e.style.bottom = 0;
       break;
   case "PositionAt":
-      console.log(toPos(pos[1]),toPos(pos[2]));
       e.style.top  = toPos(pos[2]);
       e.style.left = toPos(pos[1]);
       var shift = "translate(" + ~~(-e.style.width.slice(0,-2) / 2) + "px," + ~~(-e.style.height.slice(0,-2) / 2) + "px)";
-      console.log(shift);
       e.style.transform       = shift;
       e.style.msTransform     = shift;
       e.style.MozTransform    = shift;
@@ -2828,7 +2826,7 @@ Elm.Random = function() {
   return { inRange:inRange, randomize:randomize };
 }();Elm.Time = function() {
   function timeNow() { return (new window.Date).getTime(); }
-  var now = function(t) {
+  var every = function(t) {
       var clock = Elm.Signal.constant(timeNow());
       function tellTime() { Dispatcher.notify(clock.id, timeNow()); }
       setInterval(tellTime, t);
@@ -2841,16 +2839,6 @@ Elm.Random = function() {
       function f(t) { setTimeout(tick, msPerFrame); return t; }
       return Elm.Signal.lift(f)(ticker);
   }
-  var every = function(t) {
-      t *= 1000;
-      var clock = Elm.Signal.constant(0);
-      var time = 0;
-      setInterval(function() {
-	      time += t;
-	      Dispatcher.notify(clock.id, time/1000);
-	  }, t);
-      return clock;
-  };
   var after = function(t) {
       t *= 1000;
       var thread = Elm.Signal.constant(false);
@@ -2867,8 +2855,7 @@ Elm.Random = function() {
       var t = window.Date.parse(s);
       return isNaN(t) ? ["Nothing"] : ["Just",t];
   }
-  return {now:now,
-	  fps:fps,
+  return {fps:fps,
 	  every:every,
 	  after:after,
 	  before:before,
@@ -2876,9 +2863,9 @@ Elm.Random = function() {
 	  minutes : function(n) { return n * 60000; },
 	  seconds : function(n) { return n * 1000; },
 	  millis : function(n) { return n; },
-	  inHours : function(t) { return ~~(t / 3600000); },
-	  inMinutes : function(t) { return ~~(t / 60000); },
-	  inSeconds : function(t) { return ~~(t / 1000); },
+	  inHours : function(t) { return t / 3600000; },
+	  inMinutes : function(t) { return t / 60000; },
+	  inSeconds : function(t) { return t / 1000; },
 	  inMillis : function(t) { return t; },
 	  toDate : function(t) { return new window.Date(t); },
 	  read : read
@@ -2907,7 +2894,7 @@ Elm.Random = function() {
 Elm.Date = function() {
 
  function dateNow() { return new window.Date; }
- function now(t) {
+ function every(t) {
      var clock = Elm.Signal.constant(dateNow());
      function tellTime() { Dispatcher.notify(clock.id, dateNow()); }
      setInterval(tellTime, t);
@@ -2924,7 +2911,7 @@ Elm.Date = function() {
 		   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]; 
 
  return {
-     now     : now,
+     every   : every,
      read    : readDate,
      year    : function(d) { return d.getFullYear(); },
      month   : function(d) { return [monthTable[d.getMonth()]]; },
@@ -2932,7 +2919,7 @@ Elm.Date = function() {
      hour    : function(d) { return d.getHours(); },
      minute  : function(d) { return d.getMinutes(); },
      second  : function(d) { return d.getSeconds(); },
-     weekday : function(d) { return [dayTable[d.getDay()]]; },
+     dayOfWeek : function(d) { return [dayTable[d.getDay()]]; },
      toTime  : function(d) { return d.getTime(); },
      Mon : ["Mon"], Tue : ["Tue"], Wed : ["Wed"],
      Thu : ["Thu"], Fri : ["Fri"], Sat : ["Sat"], Sun : ["Sun"],
