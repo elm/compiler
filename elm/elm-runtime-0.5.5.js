@@ -2412,11 +2412,15 @@ Elm.Signal = function() {
 
   function delay(t) { return function(s) {
       var delayed = new input(s.value);
+      var firstEvent = true;
       function update(v) {
-	  setTimeout(function() { Dispatcher.notify(delayed.id,v); },t*1000);
+	  if (firstEvent) return;
+	  setTimeout(function() { Dispatcher.notify(delayed.id,v); },t);
       }
       function first(a) { return function(b) { return a; }; }
-      return new lift(first, [delayed, new lift(update,[s])]);
+      var out = new sampleOn(delayed,new lift(first, [delayed, new lift(update,[s])]));
+      firstEvent = false;
+      return out;
     };
   }
   
@@ -2453,16 +2457,56 @@ Elm.Signal = function() {
     s2.kids.push(this);
   };
 
+  function average(sampleSize) { return function(s) {
+    var sample = new Array(sampleSize);
+    var i = sampleSize;
+    while (i--) sample[i] = 0;
+    i = 0;
+    var full = false;
+    var total = 0;
+    function f(n) {
+	total += n - sample[i];
+	sample[i] = n;
+	var avg = total / Math.max(1, full ? sampleSize : i);
+	if (++i == sampleSize) { full = true; i = 0; }
+	return avg;
+    }
+    return new lift(f, [s]);
+   };
+  }
+
   return {
     constant : function(v) { return new input(v); },
     lift  : function(f){return function(e){return new lift(f,[e]);};},
-    lift2 : function(f) { return function(e1) { return function(e2) {
-		  return new lift(f, [e1,e2]); }; }; },
-    lift3 : function(f) { return function(e1) { return function(e2) {
-		  return function(e3){return new lift(f,[e1,e2,e3]);};};};},
-    lift4 : function(f) { return function(e1) { return function(e2) {
-		  return function(e3) { return function(e4) {
-			  return new lift(f, [e1,e2,e3,e4]); }; }; }; }; },
+    lift2 : function(f) {
+	      return function(e1) { return function(e2) {
+	      return new lift(f, [e1,e2]); };};},
+    lift3 : function(f) {
+	      return function(e1) { return function(e2) {
+	      return function(e3){return new lift(f,[e1,e2,e3]);};};};},
+    lift4 : function(f) {
+	      return function(e1) { return function(e2) {
+	      return function(e3) { return function(e4) {
+	      return new lift(f, [e1,e2,e3,e4]);};};};};},
+    lift5 : function(f) {
+	      return function(e1) { return function(e2) {
+	      return function(e3) { return function(e4) {
+	      return function(e5) {
+	      return new lift(f, [e1,e2,e3,e4,e5]);};};};};};},
+    lift6 : function(f) { return function(e1) { return function(e2) {
+              return function(e3) { return function(e4) {
+              return function(e5) { return function(e6) {
+	      return new lift(f, [e1,e2,e3,e4,e5,e6]); };};};};};};},
+    lift7 : function(f) { return function(e1) { return function(e2) {
+              return function(e3) { return function(e4) {
+              return function(e5) { return function(e6) {
+              return function(e7) {
+              return new lift(f, [e1,e2,e3,e4,e5,e6,e7]);};};};};};};};},
+    lift8 : function(f) { return function(e1) { return function(e2) {
+              return function(e3) { return function(e4) {
+              return function(e5) { return function(e6) {
+              return function(e7) { return function(e8) {
+              return new lift(f, [e1,e2,e3,e4,e5,e6,e7,e8]);};};};};};};};};},
     foldp : function(f) { return function(b) { return function(e) {
 		  return new fold(f,b,false,e); }; }; },
     foldp_ : function(f) { return function(b) { return function(e) {
@@ -2471,6 +2515,7 @@ Elm.Signal = function() {
 	      return new fold(f,function(x){return x;},true,e); }; },
     delay : delay,
     merge : function(s1) { return function(s2) { return new merge(s1,s2)}; },
+    average : average,
     count : function(sig) {
 	  var incr = function(_){return function(c){return c+1;};};
 	  return new fold(incr,0,false,sig) },
@@ -2826,49 +2871,77 @@ Elm.Random = function() {
   return { inRange:inRange, randomize:randomize };
 }();Elm.Time = function() {
   function timeNow() { return (new window.Date).getTime(); }
-  var every = function(t) {
+  function everyWhen(isOn) { return function(t) {
       var clock = Elm.Signal.constant(timeNow());
       function tellTime() { Dispatcher.notify(clock.id, timeNow()); }
       setInterval(tellTime, t);
       return clock;
-  };
-  function fps(desiredFPS) {
-      var msPerFrame = 1000 / desiredFPS;
-      var ticker = Elm.Signal.constant(timeNow());
-      function tick() { Dispatcher.notify(ticker.id, timeNow()); }
-      function f(t) { setTimeout(tick, msPerFrame); return t; }
-      return Elm.Signal.lift(f)(ticker);
+    };
   }
-  var after = function(t) {
+  function fpsWhen(desiredFPS) { return function (isOn) {
+      var msPerFrame = 1000 / desiredFPS;
+      var prev = timeNow(), curr = prev, diff = 0, wasOn = true;
+      var ticker = Elm.Signal.constant(diff);
+      function tick(zero) { return function() {
+	  curr = timeNow();
+	  diff = zero ? 0 : curr - prev;
+	  prev = curr;
+	  Dispatcher.notify(ticker.id, diff);
+        };
+      }
+      var timeoutID = 0;
+      function f(isOn) { return function(t) {
+	if (isOn) {
+	    timeoutID = setTimeout(tick(!wasOn && isOn), msPerFrame);
+	} else if (wasOn) {
+	    clearTimeout(timeoutID);	    
+	}
+	wasOn = isOn;
+	return t;
+       };
+      }
+      return Elm.Signal.lift2(f)(isOn)(ticker);
+    };
+  }
+  function since(t) { return function(s) {
+	  function cmp(a) { return function(b) { return !Value.eq(a,b); }; }
+	  var dcount = Elm.Signal.count(Elm.Signal.delay(t)(s));
+	  return Elm.Signal.lift2(cmp)(Elm.Signal.count(s))(dcount);
+      };
+  }
+  function after(t) {
       t *= 1000;
       var thread = Elm.Signal.constant(false);
       setTimeout(function() { Dispatcher.notify(thread.id, true); }, t);
       return thread;
-  };
-  var before = function(t) {
+  }
+  function before(t) {
       t *= 1000;
       var thread = Elm.Signal.constant(true);
       setTimeout(function() { Dispatcher.notify(thread.id, false); }, t);
       return thread;
-  };
+  }
   function read(s) {
       var t = window.Date.parse(s);
       return isNaN(t) ? ["Nothing"] : ["Just",t];
   }
-  return {fps:fps,
-	  every:every,
-	  after:after,
-	  before:before,
-	  hours : function(n) { return n * 3600000; },
-	  minutes : function(n) { return n * 60000; },
-	  seconds : function(n) { return n * 1000; },
-	  millis : function(n) { return n; },
-	  inHours : function(t) { return t / 3600000; },
+  return {fpsWhen : fpsWhen,
+	  fps : function(t) { return fpsWhen(t)(Elm.Signal.constant(true)); },
+	  every : everyWhen(Elm.Signal.constant(true)),
+	  delay : Elm.Signal.delay,
+	  since : since,
+	  after  : after,
+	  before : before,
+	  hour   : 3600000,
+	  minute : 60000,
+	  second : 1000,
+	  ms     : 1,
+	  inHours   : function(t) { return t / 3600000; },
 	  inMinutes : function(t) { return t / 60000; },
 	  inSeconds : function(t) { return t / 1000; },
-	  inMillis : function(t) { return t; },
+	  inMss     : function(t) { return t; },
 	  toDate : function(t) { return new window.Date(t); },
-	  read : read
+	  read   : read
   };
 
 }();Elm.Window = function() {
@@ -2894,12 +2967,6 @@ Elm.Random = function() {
 Elm.Date = function() {
 
  function dateNow() { return new window.Date; }
- function every(t) {
-     var clock = Elm.Signal.constant(dateNow());
-     function tellTime() { Dispatcher.notify(clock.id, dateNow()); }
-     setInterval(tellTime, t);
-     return clock;
- }
  function readDate(str) {
      var d = new window.Date(Elm.JavaScript.castStringToJSString(str));
      if (isNaN(d.getTime())) return ["Nothing"];
@@ -2911,7 +2978,6 @@ Elm.Date = function() {
 		   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]; 
 
  return {
-     every   : every,
      read    : readDate,
      year    : function(d) { return d.getFullYear(); },
      month   : function(d) { return [monthTable[d.getMonth()]]; },
@@ -3079,10 +3145,10 @@ Elm.Prelude = function() {
 	    foldp1 : Elm.Signal.foldp1,
 	    foldp_ : Elm.Signal.foldp_,
 	    constant : Elm.Signal.constant,
-	    delay : Elm.Signal.delay,
 	    merge : Elm.Signal.merge,
 	    count : Elm.Signal.count,
 	    countIf : Elm.Signal.countIf,
+	    average : Elm.Signal.average,
 	    keepIf : Elm.Signal.keepIf,
 	    dropIf : Elm.Signal.dropIf,
 	    keepWhen : Elm.Signal.keepWhen,
@@ -3102,6 +3168,7 @@ Elm.Prelude = function() {
   include (Elm.Color);
   include (Elm.Text);
   include (Elm.Graphics);
+  include (Elm.Time);
 
   show = Value.show;
   
