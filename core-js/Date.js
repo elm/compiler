@@ -2,12 +2,6 @@
 Elm.Date = function() {
 
  function dateNow() { return new window.Date; }
- function now(t) {
-     var clock = Elm.Signal.constant(dateNow());
-     function tellTime() { Dispatcher.notify(clock.id, dateNow()); }
-     setInterval(tellTime, t);
-     return clock;
- }
  function readDate(str) {
      var d = new window.Date(Elm.JavaScript.castStringToJSString(str));
      if (isNaN(d.getTime())) return ["Nothing"];
@@ -19,7 +13,6 @@ Elm.Date = function() {
 		   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]; 
 
  return {
-     now     : now,
      read    : readDate,
      year    : function(d) { return d.getFullYear(); },
      month   : function(d) { return [monthTable[d.getMonth()]]; },
@@ -27,7 +20,7 @@ Elm.Date = function() {
      hour    : function(d) { return d.getHours(); },
      minute  : function(d) { return d.getMinutes(); },
      second  : function(d) { return d.getSeconds(); },
-     weekday : function(d) { return [dayTable[d.getDay()]]; },
+     dayOfWeek : function(d) { return [dayTable[d.getDay()]]; },
      toTime  : function(d) { return d.getTime(); },
      Mon : ["Mon"], Tue : ["Tue"], Wed : ["Wed"],
      Thu : ["Thu"], Fri : ["Fri"], Sat : ["Sat"], Sun : ["Sun"],
