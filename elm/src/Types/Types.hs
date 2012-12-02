@@ -42,7 +42,7 @@ bool = tipe "Bool"
 string = listOf char -- tipe "String"
 text  = tipe "Text"
 
-time = tipe "Time"
+time = float --tipe "Time"
 date = tipe "Date"
 month = tipe "Month"
 day = tipe "Day"

@@ -36,6 +36,7 @@ typeUnambiguous = typeList <|> typeTuple
 typeSimple :: IParser ParseType
 typeSimple = dealias <$> var
     where dealias "String" = listPT (VarPT "Char")
+          dealias "Time" = VarPT "Float"
           dealias v = VarPT v
 
 typeApp :: IParser ParseType
