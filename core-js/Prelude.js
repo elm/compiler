@@ -148,10 +148,10 @@ Elm.Prelude = function() {
 	    foldp1 : Elm.Signal.foldp1,
 	    foldp_ : Elm.Signal.foldp_,
 	    constant : Elm.Signal.constant,
-	    delay : Elm.Signal.delay,
 	    merge : Elm.Signal.merge,
 	    count : Elm.Signal.count,
 	    countIf : Elm.Signal.countIf,
+	    average : Elm.Signal.average,
 	    keepIf : Elm.Signal.keepIf,
 	    dropIf : Elm.Signal.dropIf,
 	    keepWhen : Elm.Signal.keepWhen,
@@ -171,6 +171,7 @@ Elm.Prelude = function() {
   include (Elm.Color);
   include (Elm.Text);
   include (Elm.Graphics);
+  include (Elm.Time);
 
   show = Value.show;
   
