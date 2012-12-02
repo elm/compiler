@@ -46,19 +46,21 @@ findAmbiguous hints hints' assumptions continue =
 constrain typeHints (Module _ _ imports stmts) = do
   (ass,css,schemess) <- unzip3 `liftM` mapM stmtGen stmts
   hints <- typeHints
-  let aliasHints = getAliases (imports ++ extraImports) hints
-  let allHints = Map.fromList (aliasHints ++ concat schemess)
+  let extraImports = ("Time", Hiding ["read"]) : map (\n -> (n, Hiding []))
+                     ["List","Signal","Text","Graphics","Color"]
+      insert as n = do v <- guid; return $ Map.insertWith' (\_ x -> x) n [v] as
+      aliasHints = getAliases (imports ++ extraImports) hints
+      allHints = Map.fromList (aliasHints ++ concat schemess)
   assumptions <- foldM insert (unionsA ass) $ map fst (concat schemess)
-  findAmbiguous (map fst hints) (map fst aliasHints) assumptions $
-                do let cs = let f k s vs = map (\v -> Context k $ v :<<: s) vs in
-                            concat . Map.elems $ Map.intersectionWithKey f allHints assumptions
-                   let escapees = Map.keys $ Map.difference assumptions allHints
-                   return . Right . (,) escapees $ cs ++ Set.toList (Set.unions css)
-      where extraImports =
-                map (\n -> (n, Hiding [])) ["List","Signal","Text","Graphics","Color"]
-            insert as n = do v <- guid; return $ Map.insertWith' (\_ x -> x) n [v] as
+  findAmbiguous (map fst hints) (map fst aliasHints) assumptions $ do
+    let f k s vs = map (\v -> Context k $ v :<<: s) vs
+        cs = concat . Map.elems $ Map.intersectionWithKey f allHints assumptions
+        escapees = Map.keys $ Map.difference assumptions allHints
+    return . Right . (,) escapees $ cs ++ Set.toList (Set.unions css)
 
-gen :: Expr -> GuidCounter (Map.Map String [X], Set.Set (Context String Constraint), Type)
+gen :: Expr -> GuidCounter (Map.Map String [X],
+                            Set.Set (Context String Constraint),
+                            Type)
 
 gen (Var x) =
     do b <- guid

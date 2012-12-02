@@ -29,7 +29,8 @@ data JSStyle = Minified | Readable
 makeScript :: JSStyle -> Either String String -> H.Html
 makeScript _ (Left s) =
     H.script ! A.type_ "text/javascript" ! A.src (H.toValue s) $ ""
-makeScript jsStyle (Right s) = H.script ! A.type_ "text/javascript" $ preEscapedToMarkup content
+makeScript jsStyle (Right s) =
+    H.script ! A.type_ "text/javascript" $ preEscapedToMarkup content
     where content = case jsStyle of 
                       Minified -> BS.unpack . minify . BS.pack $ s
                       Readable -> s
