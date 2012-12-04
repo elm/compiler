@@ -26,13 +26,19 @@ indent = concatMap f
           f c = [c]
 
 parens s  = "(" ++ s ++ ")"
-quoted s  = "'" ++ s ++ "'"
 braces s  = "{" ++ s ++ "}"
 jsList ss = "["++ intercalate "," ss ++"]"
 jsFunc args body = "function(" ++ args ++ "){" ++ indent body ++ "}"
 assign x e = "\nvar " ++ x ++ "=" ++ e ++ ";"
 ret e = "\nreturn "++ e ++";"
 iff a b c = a ++ "?" ++ b ++ ":" ++ c
+quoted s  = "'" ++ concatMap f s ++ "'"
+    where f '\n' = "\\n"
+          f '\'' = "\\'"
+          f '\t' = "\\t"
+          f '\"' = "\\\""
+          f '\\' = "\\\\"
+          f c    = [c]
 
 mainEquals s = globalAssign "Elm.main" (jsFunc "" (ret s))
 globalAssign m s = "\n" ++ m ++ "=" ++ s ++ ";"
