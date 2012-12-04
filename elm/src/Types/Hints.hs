@@ -161,9 +161,11 @@ signals = prefix "Signal"
     , "keepWhen"  -:: signalOf bool ==> a ==> signalOf a ==> signalOf a
     , "dropWhen"  -:: signalOf bool ==> a ==> signalOf a ==> signalOf a
     , "dropRepeats" -:: signalOf a ==> signalOf a
-    , "sampleOn" -:: signalOf a ==> signalOf b ==> signalOf b
-    , "merge"    -:: signalOf a ==> signalOf a ==> signalOf a
-    , "merges"   -:: listOf (signalOf a) ==> signalOf a
+    , "sampleOn"  -:: signalOf a ==> signalOf b ==> signalOf b
+    , "timestamp" -:: signalOf a ==> signalOf (tupleOf [time,a])
+    , "timeOf"    -:: signalOf a ==> signalOf time
+    , "merge"     -:: signalOf a ==> signalOf a ==> signalOf a
+    , "merges"    -:: listOf (signalOf a) ==> signalOf a
     , numScheme (\n -> int ==> signalOf n ==> signalOf float) "average"
     ]
 
@@ -211,7 +213,7 @@ times = prefix "Time"
   , "hour"    -: time
   , "minute"  -: time
   , "second"  -: time
-  , "ms"   -: time
+  , "ms"      -: time
   , "inHours"   -: time ==> float
   , "inMinutes" -: time ==> float
   , "inSeconds" -: time ==> float
