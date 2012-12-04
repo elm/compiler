@@ -1,7 +1,6 @@
 
 var Dispatcher = function() {
     var program = null;
-    var timestep = 0;
     var inputs = [];
     var currentElement = null;
 
@@ -28,7 +27,7 @@ var Dispatcher = function() {
 	    })(program);
     };
     var notify = function(id, v) {
-	timestep += 1;
+	var timestep = (new window.Date).getTime();
 	var hasListener = false;
 	for (var i = inputs.length; i--; ) {
 	    hasListener = inputs[i].recv(timestep, id, v) || hasListener;

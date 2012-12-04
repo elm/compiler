@@ -157,7 +157,9 @@ Elm.Prelude = function() {
 	    keepWhen : Elm.Signal.keepWhen,
 	    dropWhen : Elm.Signal.dropWhen,
 	    dropRepeats : Elm.Signal.dropRepeats,
-	    sampleOn : Elm.Signal.sampleOn
+	    sampleOn : Elm.Signal.sampleOn,
+	    timestamp : Elm.Signal.timestamp,
+	    timeOf : Elm.Signal.timeOf
 	    };
 
 }();

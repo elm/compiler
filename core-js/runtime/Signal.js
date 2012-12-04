@@ -109,6 +109,21 @@ Elm.Signal = function() {
   /**
    * @constructor
    */
+  function timeIndex(pair,s) {
+      this.id = Guid.guid();
+      var t = (new window.Date).getTime();
+      this.value = pair ? Value.Tuple(t,s.value) : t;
+      this.kids = [];
+      this.recv = function(timestep, changed, parentID) {
+	  if (changed) this.value = pair ? Value.Tuple(timestep, s.value) : timestep;
+	  send(this, timestep, changed);
+      };
+      s.kids.push(this);
+  }
+
+  /**
+   * @constructor
+   */
   function sampleOn(s1,s2) {
     this.id = Guid.guid();
     this.value = s2.value;
@@ -249,6 +264,8 @@ Elm.Signal = function() {
     keepWhen : function(s) { return dropWhen(new lift(function(b){return !b;},[s])); },
     dropWhen : dropWhen,
     dropRepeats : function(s) { return new dropRepeats(s);},
-    sampleOn : function(s1){return function(s2){return new sampleOn(s1,s2);};}
+    sampleOn : function(s1){return function(s2){return new sampleOn(s1,s2);};},
+    timestamp : function(s) { return new timeIndex(true, s); },
+    timeOf : function(s) { return new timeIndex(false, s); }
   };
 }();

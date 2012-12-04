@@ -2389,6 +2389,21 @@ Elm.Signal = function() {
   /**
    * @constructor
    */
+  function timeIndex(pair,s) {
+      this.id = Guid.guid();
+      var t = (new window.Date).getTime();
+      this.value = pair ? Value.Tuple(t,s.value) : t;
+      this.kids = [];
+      this.recv = function(timestep, changed, parentID) {
+	  if (changed) this.value = pair ? Value.Tuple(timestep, s.value) : timestep;
+	  send(this, timestep, changed);
+      };
+      s.kids.push(this);
+  }
+
+  /**
+   * @constructor
+   */
   function sampleOn(s1,s2) {
     this.id = Guid.guid();
     this.value = s2.value;
@@ -2529,12 +2544,13 @@ Elm.Signal = function() {
     keepWhen : function(s) { return dropWhen(new lift(function(b){return !b;},[s])); },
     dropWhen : dropWhen,
     dropRepeats : function(s) { return new dropRepeats(s);},
-    sampleOn : function(s1){return function(s2){return new sampleOn(s1,s2);};}
+    sampleOn : function(s1){return function(s2){return new sampleOn(s1,s2);};},
+    timestamp : function(s) { return new timeIndex(true, s); },
+    timeOf : function(s) { return new timeIndex(false, s); }
   };
 }();
 var Dispatcher = function() {
     var program = null;
-    var timestep = 0;
     var inputs = [];
     var currentElement = null;
 
@@ -2561,7 +2577,7 @@ var Dispatcher = function() {
 	    })(program);
     };
     var notify = function(id, v) {
-	timestep += 1;
+	var timestep = (new window.Date).getTime();
 	var hasListener = false;
 	for (var i = inputs.length; i--; ) {
 	    hasListener = inputs[i].recv(timestep, id, v) || hasListener;
@@ -3154,7 +3170,9 @@ Elm.Prelude = function() {
 	    keepWhen : Elm.Signal.keepWhen,
 	    dropWhen : Elm.Signal.dropWhen,
 	    dropRepeats : Elm.Signal.dropRepeats,
-	    sampleOn : Elm.Signal.sampleOn
+	    sampleOn : Elm.Signal.sampleOn,
+	    timestamp : Elm.Signal.timestamp,
+	    timeOf : Elm.Signal.timeOf
 	    };
 
 }();
