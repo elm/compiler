@@ -57,41 +57,17 @@ module Pong where
 
 import JavaScript
 import Keyboard.Raw
-import Window as Win
+
+
+-- Set the frames per second (FPS) to 60, calculate the deltas (the
+-- difference between the two latest times, the amount of time since
+-- the last frame), and convert the time into a number of seconds.
+
+delta = lift inSeconds (fps 60)
 
 
 ------------------------------------------------------------------------
-------            Extracting timesteps from JavaScript            ------
-------------------------------------------------------------------------
-
--- Export our desired FPS to JavaScript. We just want a steady 30 frames
--- per second for this game.
-
-desiredFPS = constant (castIntToJSNumber 30)
-
-foreign export jsevent "desiredFPS"
-  desiredFPS :: Signal JSNumber
-
-
--- Import the current time from JavaScript. Events will come in roughly
--- 30 times per second.
-
-foreign import jsevent "trigger" (castIntToJSNumber 0)
-  jsTime :: Signal JSNumber
-
-time = lift castJSNumberToFloat jsTime
-
-
--- Determine the time that has elapsed since the last event. This is
--- our timestep, telling us how far everything should move in the next
--- frame.
-
-delta = lift snd $ foldp (\t1 (t0,d) -> (t1, t1-t0)) (0,0) time
-
-
-
-------------------------------------------------------------------------
-------                  Modelling user input                      ------
+------                  Modelling User Input                      ------
 ------------------------------------------------------------------------
 
 -- Each paddle can be moving up, down, or not at all. We'll call this
@@ -117,11 +93,11 @@ defaultKeyInput = KeyInput False Neutral Neutral
 
 updateDirection upKey downKey key direction =
   case direction of
-  { Up      -> if key == downKey then Neutral else Up
-  ; Down    -> if key == upKey   then Neutral else Down
-  ; Neutral -> if key == upKey   then Up   else
+    Up      -> if key == downKey then Neutral else Up
+    Down    -> if key == upKey   then Neutral else Down
+    Neutral -> if key == upKey   then Up   else
                if key == downKey then Down else Neutral
-  }
+  
 
 updateDirection1 = updateDirection 87 83 -- 'w' for up and 's' for down
 updateDirection2 = updateDirection 38 40 -- 'UP' for up and 'DOWN' for down
@@ -216,10 +192,9 @@ defaultGame = GameState BetweenRounds
 
 stepPaddle delta dir (Paddle y) =
   case dir of
-  { Up      -> Paddle $ clamp 20 (gameHeight-20) (y - 200 * delta)
-  ; Down    -> Paddle $ clamp 20 (gameHeight-20) (y + 200 * delta)
-  ; Neutral -> Paddle y
-  }
+    Up      -> Paddle $ clamp 20 (gameHeight-20) (y - 200 * delta)
+    Down    -> Paddle $ clamp 20 (gameHeight-20) (y + 200 * delta)
+    Neutral -> Paddle y
 
 
 -- We must also step the ball forward. This is more complicated due to
@@ -241,14 +216,13 @@ stepVelocity velocity lowerCollision upperCollision =
   if upperCollision then makeNegative velocity else velocity
 
 stepBall delta (Ball (x,y) (vx,vy)) (Paddle y1) (Paddle y2) =
-  let { hitPaddle1 = within 20 y1 y && within 8 25 x
-      ; hitPaddle2 = within 20 y2 y && within 8 (gameWidth - 25) x
-      ; vx' = stepVelocity vx hitPaddle1 hitPaddle2
-      ; vy' = stepVelocity vy (y < 7) (y > gameHeight - 7)
-      ; scored = x > gameWidth || x < 0
-      ; x' = if scored then halfWidth  else x + vx' * delta
-      ; y' = if scored then halfHeight else y + vy' * delta
-      }
+  let hitPaddle1 = within 20 y1 y && within 8 25 x
+      hitPaddle2 = within 20 y2 y && within 8 (gameWidth - 25) x
+      vx' = stepVelocity vx hitPaddle1 hitPaddle2
+      vy' = stepVelocity vy (y < 7) (y > gameHeight - 7)
+      scored = x > gameWidth || x < 0
+      x' = if scored then halfWidth  else x + vx' * delta
+      y' = if scored then halfHeight else y + vy' * delta
   in ( Ball (x',y') (vx',vy')
      , if x > gameWidth then 1 else 0
      , if x < 0         then 1 else 0 )
@@ -259,15 +233,16 @@ stepBall delta (Ball (x,y) (vx,vy)) (Paddle y1) (Paddle y2) =
 
 stepGame (Input delta (KeyInput space dir1 dir2))
          (GameState state (Score s1 s2) ball paddle1 paddle2) =
-  let { (ball',s1',s2') = if state == Play then stepBall delta ball paddle1 paddle2
-                                           else (ball, 0, 0)
-      ; state' = case state of { Play -> if s1' /= s2' then BetweenRounds else state
-                               ; BetweenRounds -> if space then Play else state }
-  } in  GameState state'
-                  (Score (s1+s1') (s2+s2'))
-                  ball'
-                  (stepPaddle delta dir1 paddle1)
-                  (stepPaddle delta dir2 paddle2)
+  let (ball',s1',s2') = if state == Play then stepBall delta ball paddle1 paddle2
+                                         else (ball, 0, 0)
+      state' = case state of
+                 Play -> if s1' /= s2' then BetweenRounds else state
+                 BetweenRounds -> if space then Play else state
+  in  GameState state'
+                (Score (s1+s1') (s2+s2'))
+                ball'
+                (stepPaddle delta dir1 paddle1)
+                (stepPaddle delta dir2 paddle2)
 
 
 -- Now we put it all together. We have a signal of inputs that changes whenever there
@@ -296,14 +271,13 @@ gameState = foldp stepGame defaultGame input
 -- This function displays the current score and directions.
 
 scoreBoard w inPlay p1 p2 =
-  let { code = text . monospace . toText
-      ; stack top bottom = flow down [ code " ", code top, code bottom ]
-      ; msg = width w . centeredText . monospace $ toText "Press SPACE to begin"
-      ; board = flow right [ stack "W" "S", spacer 20 1
-                           , text . Text.height 4 . toText $ show p1 ++ "    " ++ show p2
-                           , spacer 20 1, stack "&uarr;" "&darr;" ]
-      ; score = container w (heightOf board) midTop board
-      }
+  let code = text . monospace . toText
+      stack top bottom = flow down [ code " ", code top, code bottom ]
+      msg = width w . centeredText . monospace $ toText "Press SPACE to begin"
+      board = flow right [ stack "W" "S", spacer 20 1
+                         , text . Text.height 4 . toText $ show p1 ++ "    " ++ show p2
+                         , spacer 20 1, stack "&uarr;" "&darr;" ]
+      score = container w (heightOf board) midTop board
   in  if inPlay then score else score `above` msg
 
 
@@ -324,18 +298,4 @@ display (w,h) (GameState state (Score p1 p2) (Ball pos _) (Paddle y1) (Paddle y2
 -- We can now define a view of the game (a signal of Elements) that changes
 -- as the GameState changes. This is what the users will see.
 
-view = lift2 display Win.dimensions gameState
-
-
--- Here we tell the JavaScript FPS manager that all of the computations for
--- this frame are complete. This allows the manager to calculate when the next
--- step should happen.
-
-done = lift (\_ -> castBoolToJSBool True) view
-foreign export jsevent "finished"
-  done :: Signal JSBool
-
-
--- And finally, we display the view of the game to the user: Pong in Elm!
-
-main = view
+main = lift2 display Window.dimensions gameState

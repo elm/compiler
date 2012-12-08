@@ -7,12 +7,12 @@ import Data.List (isPrefixOf, isSuffixOf)
 import Data.Version (showVersion)
 import Happstack.Server
 import Happstack.Server.Compression
-import System.Directory (makeRelativeToCurrentDirectory)
 import System.Environment
+import System.FilePath
 import qualified Language.Elm as Elm
 import Paths_elm_server
 
-runtime = "elm-" ++ showVersion version ++ ".js"
+runtime = "/elm-" ++ showVersion version ++ ".js"
 
 serve :: String -> IO ()
 serve libLoc = do
@@ -25,17 +25,15 @@ serve libLoc = do
               ]
 
 pageTitle :: String -> String
-pageTitle fp =
-    reverse . takeWhile (/='/') . drop 1 . dropWhile (/='.') $ reverse fp
+pageTitle = dropExtension . takeBaseName
 
 serveElm fp = do
-  let ('/':filePath) = fp
-  guard (".elm" `isSuffixOf` filePath)
-  content <- liftIO (readFile filePath)
-  ok . toResponse $ Elm.toHtml runtime (pageTitle filePath) content
+  guard (takeExtension fp == ".elm")
+  content <- liftIO (readFile (tail fp))
+  ok . toResponse $ Elm.toHtml runtime (pageTitle fp) content
 
 serveLib libLoc fp = do
-  guard (fp == '/' : runtime)
+  guard (fp == runtime)
   serveFile (asContentType "application/javascript") libLoc
 
 main :: IO ()

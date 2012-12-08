@@ -192,6 +192,11 @@ Elm.Signal = function() {
     s2.kids.push(this);
   };
 
+  function merges(ss) {
+      function mrg(x) { return function(y) { return new merge(x,y); }; }
+      return Elm.List.foldl1(mrg)(ss);
+  }
+
   function average(sampleSize) { return function(s) {
     var sample = new Array(sampleSize);
     var i = sampleSize;
@@ -250,6 +255,7 @@ Elm.Signal = function() {
 	      return new fold(f,function(x){return x;},true,e); }; },
     delay : delay,
     merge : function(s1) { return function(s2) { return new merge(s1,s2)}; },
+    merges : merges,
     average : average,
     count : function(sig) {
 	  var incr = function(_){return function(c){return c+1;};};
