@@ -42,7 +42,7 @@ Elm.Prelude = function() {
 	    start = 1;
 	}
 	for (var i = start; i < len; ++i) {
-	    if (!Char.isDigit(s[i])) { return ["Nothing"]; }
+	    if (!Elm.Char.isDigit(s[i])) { return ["Nothing"]; }
 	}
 	return ["Just", parseInt(s)];
     }
@@ -58,7 +58,7 @@ Elm.Prelude = function() {
 	}
 	var dotCount = 0;
 	for (var i = start; i < len; ++i) {
-	    if (Char.isDigit(s[i])) { continue; }
+	    if (Elm.Char.isDigit(s[i])) { continue; }
 	    if (s[i] === '.') {
 		dotCount += 1;
 		if (dotCount <= 1) { continue; }
