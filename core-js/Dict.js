@@ -468,5 +468,5 @@ Elm.Dict=function(){
     return function(acc_234){
      return ["Cons",["Tuple2",k_232,v_233],acc_234];};};})(["Nil"])(t_231);};
  function fromList_42(assocs_235){
-  return List.foldl(uncurry(insert_20))(empty_4)(assocs_235);};
+  return Elm.List.foldl(uncurry(insert_20))(empty_4)(assocs_235);};
  return {empty:empty_4,lookup:lookup_7,findWithDefault:findWithDefault_8,member:member_10,insert:insert_20,singleton:singleton_21,remove:remove_32,map:map_33,foldl:foldl_34,foldr:foldr_35,union:union_36,intersect:intersect_37,diff:diff_38,keys:keys_39,values:values_40,toList:toList_41,fromList:fromList_42};}();
