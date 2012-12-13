@@ -16,7 +16,7 @@ data RBTree k v = RBNode NColor k v (RBTree k v) (RBTree k v) | RBEmpty
 
 empty = RBEmpty
 
-raise = console.log
+raise err = throw (JavaScript.castStringToJSString err)
 
 {-- Helpers for checking invariants
 
@@ -254,13 +254,11 @@ moveRedRight t =
   let t' = color_flip t in
   if isRedLeftLeft t' then color_flip (rotateRight t') else t'
 
-moveRedLeftIfNeeded t
-  | not (isRedLeft t) && not (isRedLeftLeft t) = moveRedLeft t
-  | otherwise = t
+moveRedLeftIfNeeded t =
+  if not (isRedLeft t) && not (isRedLeftLeft t) then moveRedLeft t else t
 
-moveRedRightIfNeeded t
-  | not (isRedRight t) && not (isRedRightLeft t) = moveRedRight t
-  | otherwise = t
+moveRedRightIfNeeded t =
+  if not (isRedRight t) && not (isRedRightLeft t) then moveRedRight t else t
   
 deleteMin t = 
   let del t =
@@ -285,7 +283,8 @@ deleteMax t =
 --}
 
 remove k t = 
-  let eq_and_noRightNode t = case t of { RBNode _ k' _ _ RBEmpty -> k == k' ; _ -> False }
+  let eq_and_noRightNode t =
+          case t of { RBNode _ k' _ _ RBEmpty -> k == k' ; _ -> False }
       eq t = case t of { RBNode _ k' _ _ _ -> k == k' ; _ -> False }
       delLT t = case moveRedLeftIfNeeded t of 
                   RBNode c k' v l r -> fixUp (RBNode c k' v (del l) r)
@@ -300,12 +299,12 @@ remove k t =
       del t = case t of 
                 RBEmpty -> RBEmpty
                 RBNode _ k' _ _ _ ->
-                    let v | k < k' = delLT t
-                          | eq_and_noRightNode (if isRedLeft t then rotateRight t else t) = RBEmpty
-                          | otherwise = let t' = moveRedRightIfNeeded t in
-                                        if eq t' then delEQ t' else delGT t'
-                    in  v
-  in  ensureBlackRoot (del t)
+                    if k < k' then delLT t else
+                        let u = if isRedLeft t then rotateRight t else t in
+                        if eq_and_noRightNode u then RBEmpty else
+                            let t' = moveRedRightIfNeeded t in
+                            if eq t' then delEQ t' else delGT t'
+  in  if member k t then ensureBlackRoot (del t) else t
 {--
       if not (invariants_hold t) then
           raise "invariants broken before remove"
@@ -329,12 +328,12 @@ foldr f acc t =
     RBEmpty -> acc
     RBNode _ k v l r -> foldr f (f k v (foldr f acc r)) l
 
-union t1 t2 = Dict.foldl insert t2 t1
-intersect t1 t2 = Dict.foldl (\k v t -> if k `member` t2 then insert k v t else t) empty t1
-diff t1 t2 = Dict.foldl (\k v t -> remove k t) t1 t2
+union t1 t2 = foldl insert t2 t1
+intersect t1 t2 = foldl (\k v t -> if k `member` t2 then insert k v t else t) empty t1
+diff t1 t2 = foldl (\k v t -> remove k t) t1 t2
 
-keys t   = Dict.foldl (\k v acc -> k : acc) [] t
-values t = Dict.foldl (\k v acc -> v : acc) [] t
+keys t   = foldr (\k v acc -> k : acc) [] t
+values t = foldr (\k v acc -> v : acc) [] t
 
-toList t = Dict.foldl (\k v acc -> (k,v) : acc) [] t
-fromList assocs = List.foldl (uncurry insert) empty assocs
+toList t = foldr (\k v acc -> (k,v) : acc) [] t
+fromList assocs = Elm.List.foldl (uncurry insert) empty assocs

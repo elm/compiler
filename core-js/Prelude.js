@@ -67,7 +67,23 @@ Elm.Prelude = function() {
 	}
 	return ["Just", parseFloat(s)];
     }
-    
+
+    function compare(x) { return function (y) {
+      if (x instanceof Array && y instanceof Array) {
+	var len = x.length;
+	if (len == y.length) {
+	  for (var i = 1; i < len; ++i) {
+	    var cmp = compare(x[i])(y[i]);
+	    if (cmp[0] === 'EQ') continue;
+	    return cmp;
+	  }
+	  return ['EQ'];
+	}
+	return [ y.length == 1 ? 'GT' : 'LT' ];
+      }
+      return [ x === y ? 'EQ' : (x < y ? 'LT' : 'GT') ];
+     };
+    }
     return {eq   : Value.eq,
 	    id   : function(x) { return x; },
 	    not  : function(b) { return !b; },
@@ -76,21 +92,7 @@ Elm.Prelude = function() {
 	    rem  : function(x) { return function(y) { return x % y; }; },
 	    div  : function(x) { return function(y) { return ~~(x / y); }; },
 	    otherwise : true,
-	    compare : function(x) { return function (y) {
-		if (x instanceof Array && y instanceof Array) {
-		    var len = x.length;
-		    if (len == y.length) {
-			for (var i = 0; i < len; ++i) {
-			    var cmp = compare(x[i])(y[i]);
-			    if (cmp[0] === 'EQ') continue;
-			    return cmp;
-			}
-			return ['EQ'];
-		    }
-		}
-		return [ x === y ? 'EQ' : (x < y ? 'LT' : 'GT') ];
-	      };
-	    },
+	    compare : compare,
 	    toFloat : function(x) { return x; },
 	    round : function(n) { return Math.round(n); },
 	    floor : function(n) { return Math.floor(n); },
