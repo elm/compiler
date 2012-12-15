@@ -1,4 +1,3 @@
-
 module Types.Hints (hints) where
 
 import Control.Monad (liftM,mapM)
@@ -151,7 +150,9 @@ signals = prefix "Signal"
     [ sig 1 "constant"
     , sig 2 "lift" 
     ] ++ map lyft [2..8] ++ [
-      "foldp"     -:: (a ==> b ==> b) ==> b ==> signalOf a ==> signalOf b
+      "<~"        -:: (a ==> b) ==> signalOf a ==> signalOf b
+    , "~"         -:: signalOf (a ==> b) ==> signalOf a ==> signalOf b
+    , "foldp"     -:: (a ==> b ==> b) ==> b ==> signalOf a ==> signalOf b
     , "foldp1"    -:: (a ==> a ==> a) ==> signalOf a ==> signalOf a
     , "foldp'"    -:: (a ==> b ==> b) ==> (a ==> b) ==> signalOf a ==> signalOf b
     , "count"     -:: signalOf a ==> signalOf int
