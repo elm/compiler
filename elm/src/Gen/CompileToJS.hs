@@ -1,4 +1,3 @@
-
 module CompileToJS (showErr, jsModule) where
 
 import Ast
@@ -265,6 +264,9 @@ binop (o:p) e1 e2
                   e2 ++ ")[0]; return ord==='LT' || ord==='EQ'; }()"
           ">=" -> "function() { var ord = compare(" ++ e1 ++ ")(" ++
                   e2 ++ ")[0]; return ord==='GT' || ord==='EQ'; }()"
+          "<~" -> "lift" ++ parens e1 ++ parens e2
+          "~"  -> "lift2(function(f){return function(x){return f(x);};})" ++
+                  parens e1 ++ parens e2
           _  | elem (o:p) ops -> parens (e1 ++ (o:p) ++ e2)
              | otherwise      -> concat [ "$op['", o:p, "']"
                                         , parens e1, parens e2 ]
