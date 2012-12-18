@@ -32,7 +32,7 @@ Executable elm-server
                        parsec >= 3.1.1,
                        blaze-html >= 0.5.1,
                        HTTP >= 4000,
-                       happstack-server == 7.0.2,
+                       happstack-server == 7.1.1,
                        deepseq,
                        filepath,
                        Elm >= 0.6.0.3
