@@ -1,4 +1,63 @@
+// requestAnimationFrame shim
+// http://paulirish.com/2011/requestanimationframe-for-smart-animating/
+// http://my.opera.com/emoller/blog/2011/12/20/requestanimationframe-for-smart-er-animating
+// by Erik Möller, Paul Irish and Tino Zijdel
+(function() {
+    var lastTime = 0;
+    var vendors = ['ms', 'moz', 'webkit', 'o'];
+    for(var x = 0; x < vendors.length && !window.requestAnimationFrame; ++x) {
+        window.requestAnimationFrame = window[vendors[x]+'RequestAnimationFrame'];
+        window.cancelAnimationFrame = window[vendors[x]+'CancelAnimationFrame']
+                   || window[vendors[x]+'CancelRequestAnimationFrame'];
+    }
+
+    if (!window.requestAnimationFrame)
+    window.requestAnimationFrame = function(callback, element) {
+        var currTime = new Date().getTime();
+        var timeToCall = Math.max(0, 16 - (currTime - lastTime));
+        var id = window.setTimeout(function() { callback(currTime + timeToCall); },
+                                   timeToCall);
+        lastTime = currTime + timeToCall;
+        return id;
+    };
+
+    if (!window.cancelAnimationFrame) {
+        window.cancelAnimationFrame = function(id) {
+            clearTimeout(id);
+        };
+    }
+}());
+
 Elm.Time = function() {
+  function animationFrameFPSWhen(desiredFPS) { return function (isOn) {
+      var msPerFrame = 1000 / desiredFPS;
+      if(desiredFPS == 0) { msPerFrame = 0; }
+      var prev = timeNow(), curr = prev, diff = 0, wasOn = true;
+      var ticker = Elm.Signal.constant(diff);
+      function tick(zero) { return function (stamp) {
+	  curr = timeNow();
+	  diff = zero ? 0 : curr - prev;
+	  prev = curr;
+          Dispatcher.notify(ticker.id, diff);
+      };};
+
+      var timeoutID = 0;
+      function f(isOn) { return function(t) {
+        if (isOn) {
+          timeoutID = setTimeout(function() {
+            requestAnimationFrame(tick(!wasOn && isOn));
+          }, msPerFrame);
+        } else if (wasOn) {
+          clearTimeout(timeoutID);
+        }
+        wasOn = isOn;
+        return t;
+       };
+      }
+      return Elm.Signal.lift2(f)(isOn)(ticker);
+    };
+  }
+
   function timeNow() { return (new window.Date).getTime(); }
   function everyWhen(isOn) { return function(t) {
       var clock = Elm.Signal.constant(timeNow());
@@ -23,7 +82,7 @@ Elm.Time = function() {
 	if (isOn) {
 	    timeoutID = setTimeout(tick(!wasOn && isOn), msPerFrame);
 	} else if (wasOn) {
-	    clearTimeout(timeoutID);	    
+	    clearTimeout(timeoutID);
 	}
 	wasOn = isOn;
 	return t;
@@ -56,6 +115,10 @@ Elm.Time = function() {
   }
   return {fpsWhen : fpsWhen,
 	  fps : function(t) { return fpsWhen(t)(Elm.Signal.constant(true)); },
+	  animationFrameWhen : animationFrameFPSWhen(0),
+	  animationFrame : animationFrameFPSWhen(0)(Elm.Signal.constant(true)),
+	  animationFrameFPS : function(t) { return animationFrameFPSWhen(t)(Elm.Signal.constant(true)); },
+	  animationFrameFPSWhen : function(t) { return animationFrameFPSWhen(t); },
 	  every : everyWhen(Elm.Signal.constant(true)),
 	  delay : Elm.Signal.delay,
 	  since : since,
@@ -72,5 +135,4 @@ Elm.Time = function() {
 	  toDate : function(t) { return new window.Date(t); },
 	  read   : read
   };
-
 }();
