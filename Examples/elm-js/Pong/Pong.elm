@@ -59,11 +59,11 @@ import JavaScript
 import Keyboard.Raw
 
 
--- Set the frames per second (FPS) to 60, calculate the deltas (the
+-- Request animation frames from the browser, calculate the deltas (the
 -- difference between the two latest times, the amount of time since
 -- the last frame), and convert the time into a number of seconds.
 
-delta = lift inSeconds (fps 60)
+delta = lift inSeconds animationFrame
 
 
 ------------------------------------------------------------------------
