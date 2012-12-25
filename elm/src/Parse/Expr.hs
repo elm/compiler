@@ -93,27 +93,22 @@ parensTerm = parens $ choice
              ]
 
 recordTerm :: IParser Expr
-recordTerm = brackets $ do
-  Record <$> (mapM extract =<< commaSep field)
+recordTerm = brackets $ choice [ modify, record ]
     where field = do
-            fDefs <- (:) <$> (PVar <$> lowVar) <*> spacePrefix patternTerm
-            whitespace
-            e <- string "=" >> whitespace >> expr
-            flattenPatterns fDefs e
+              fDefs <- (:) <$> (PVar <$> lowVar) <*> spacePrefix patternTerm
+              whitespace
+              e <- string "=" >> whitespace >> expr
+              flattenPatterns fDefs e
           extract [ FnDef f args exp ] = return (f,args,exp)
           extract _ = fail "Improperly formed record field."
-{--
-  record <- expr
-  whitespace >> string "|" >> whitespace
-  label <- lowVar
-  whitespace
-  op <- (string "<-" <|> string "=")
-  whitespace
-  e <- expr
-  case op of
-    "<-" -> 
-    "="  -> 
---}
+          record = Record <$> (mapM extract =<< commaSep field)
+          modify = do
+              record <- try $ do record <- addContext (Var <$> lowVar)
+                                 whitespace >> string "|"  >> whitespace
+                                 return record
+              label <- lowVar
+              whitespace >> string "<-" >> whitespace
+              Modify record label <$> expr
 
 term :: IParser CExpr
 term =  addContext (choice [ numTerm, strTerm, chrTerm, listTerm, accessor ])

@@ -10,6 +10,8 @@ subst old new expr =
     case expr of
       Range e1 e2 -> Range (f e1) (f e2)
       Access e x -> Access (f e) x
+      Modify r lbl v -> Modify (f r) lbl (f v)
+      Record fs -> Record (map (\(lbl,as,e) -> (lbl,as,f e)) fs)
       Binop op e1 e2 -> Binop op (f e1) (f e2)
       Lambda x e -> if x == old then expr else Lambda x (f e)
       App e1 e2 -> App (f e1) (f e2)

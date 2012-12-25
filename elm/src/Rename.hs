@@ -63,6 +63,14 @@ instance Rename Expr where
       Access e x -> Access `liftM` rnm e
                               `ap` return x
 
+      Modify e f v  -> flip Modify f `liftM` rnm e
+                                        `ap` rnm v
+
+      Record fs -> Record `liftM` mapM frnm fs
+          where frnm (f,as,e) = do env' <- extends env as
+                                   e' <- rename env' e
+                                   return (f, map env' as, e') 
+
       Binop op@(h:_) e1 e2 ->
         let rop = if isLower h || '_' == h
                   then env op

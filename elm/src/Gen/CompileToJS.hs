@@ -186,6 +186,13 @@ instance ToJS Expr where
       Boolean b -> return $ if b then "true" else "false"
       Range lo hi -> jsRange `liftM` toJS' lo `ap` toJS' hi
       Access e lbl -> (\s -> s ++ "." ++ lbl) `liftM` toJS' e
+
+      Modify e lbl v -> do e' <- toJS' e
+                           v' <- toJS' v
+                           let body = concat [ assign "r" e'
+                                             , globalAssign ("r." ++ lbl) v'
+                                             , ret "r" ]
+                           return $ jsFunc "" body ++ "()"
  
       Record fs -> (braces . intercalate ",\n") `liftM` mapM toField fs
           where toField (f, as, ce@(C t s e)) =

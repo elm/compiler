@@ -27,6 +27,7 @@ data Expr = IntNum Int
           | Boolean Bool
           | Range CExpr CExpr
           | Access CExpr String
+          | Modify CExpr String CExpr
           | Record [(String,[String],CExpr)]
           | Binop String CExpr CExpr
           | Lambda String CExpr
@@ -88,7 +89,8 @@ instance Show Expr where
      Boolean b -> show b
      Range e1 e2 -> "[" ++ show e1 ++ ".." ++ show e2 ++ "]"
      Access e x -> show' e ++ "." ++ x
-     Record r -> "{" ++ intercalate ", " (map fields r) ++ "}"
+     Modify e x e' -> "{ " ++ show e ++ " | " ++ x ++ " <- " ++ show e' ++ " }"
+     Record r -> "{ " ++ intercalate ", " (map fields r) ++ " }"
          where fields (f,args,e) = f ++ concatMap (' ':) args ++ " = " ++ show e
      Binop op e1 e2 -> show' e1 ++ " " ++ op ++ " " ++ show' e2
      Lambda x e -> let (xs,e') = getLambdas (noContext $ Lambda x e) in

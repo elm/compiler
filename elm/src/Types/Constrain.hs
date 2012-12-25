@@ -138,6 +138,16 @@ gen (C _ span expr) =
                c = (ctx' (RecordT fs rtype' :=: rtype))
            return (as, Set.insert c cs, t)
 
+    Modify record label value ->
+        do (ras,rcs,rtype) <- gen record
+           (vas,vcs,vtype) <- gen value
+           t <- beta
+           rtype' <- beta
+           let c = rtype :=: RecordT (Map.singleton label [t]) rtype'
+           return ( unionA ras vas
+                  , Set.unions [Set.singleton (ctx' c), rcs, vcs]
+                  , RecordT (Map.singleton label [vtype]) rtype' )
+
     Record fields ->
         let insert label tipe = Map.insertWith (++) label [tipe]
             getScheme (f,args,e) = do
