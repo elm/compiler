@@ -34,6 +34,7 @@ Library
                        Language.Elm.Quasi
   Hs-Source-Dirs:      src, src/Gen
   other-modules:       Ast,
+                       Context,
                        CompileToJS,
                        Cases,
                        Substitute,
@@ -80,6 +81,7 @@ Executable elm
   Main-is:             Compiler.hs
   Hs-Source-Dirs:      src, src/Gen
   other-modules:       Ast,
+                       Context,
                        CompileToJS,
                        Cases,
                        Substitute,
