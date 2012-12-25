@@ -1,9 +1,11 @@
 module Parse.Binops (binops) where
 
 import Ast
+import Context
 import Control.Monad (liftM,guard)
 import Control.Monad.Error
-import Data.List (foldl',splitAt,elemIndices,group,groupBy,sortBy,find)
+import Data.List (foldl',splitAt,elemIndices
+                 ,group,groupBy,sortBy,find,intercalate)
 import qualified Data.Map as Map
 import Data.Maybe (mapMaybe)
 
@@ -12,6 +14,9 @@ import Parse.Library
 
 data Assoc = L | N | R deriving (Eq,Show)
 
+type OpTable = [(Int, Assoc, String)]
+
+table :: OpTable
 table = [ (9, R, ".")
         , (8, R, "^")
         , (7, L, "*"), (7, L, "/"), (7, L, "mod"), (7, L, "div"), (7, L, "rem")
@@ -19,52 +24,65 @@ table = [ (9, R, ".")
         , (5, R, ":" ), (5, R, "++")
         , (4, N, "<="), (4, N, ">="), (4, N, "<")
         , (4, N, "=="), (4, N, "/="), (4, N, ">")
-        , (4, L, "<~"), (4, L, "~")
+        , (4, L, "~"), (4, L, "<~")
         , (3, R, "&&")
         , (2, R, "||")
         , (0, R, "$")
         ]
 
+opLevel op = Map.findWithDefault 9 op dict
+    where dict = Map.fromList (map (\(lvl,_,op) -> (op,lvl)) table)
+
+opAssoc op = Map.findWithDefault R op dict
+    where dict = Map.fromList (map (\(_,assoc,op) -> (op,assoc)) table)
+
+hasLevel n (op,e) = opLevel op == n
+
+sortOps :: OpTable -> OpTable
 sortOps = sortBy (\(i,_,_) (j,_,_) -> compare i j)
 
+binops :: IParser CExpr -> IParser String -> IParser CExpr
 binops term anyOp = do
   e <- term
-  (ops,es) <- liftM unzip $
-                    many (commitIf (whitespace >> anyOp) $ do { whitespace ; op <- anyOp
-                                   ; whitespace ; e <- term
-                                   ; return (op,e) })
-  case binopOf Map.empty (sortOps table) ops (e:es) of
-    Right e -> return e
-    Left msg -> fail msg
+  split 0 e =<< many (commitIf (whitespace >> anyOp) $ do
+                        whitespace ; op <- anyOp
+                        whitespace ; e <- term
+                        return (op,e))
 
-binopSplit seen opTable i ops es =
-    case (splitAt i ops, splitAt (i+1) es) of
-      ((befores, op:afters), (pres, posts)) ->
-          do e1 <- binopOf seen opTable befores pres
-             e2 <- binopOf seen opTable afters posts
-             return $ Binop op e1 e2
+split :: Int -> CExpr -> [(String, CExpr)] -> IParser CExpr
+split _ e []  = return e
+split n e eops = do
+  assoc <- getAssoc n eops
+  es <- sequence (splitLevel n e eops)
+  let ops = map fst (filter (hasLevel n) eops)
+  case assoc of R -> joinR es ops
+                _ -> joinL es ops
 
-binopOf _ _ _ [e] = return e
-binopOf seen [] ops es = binopOf seen [(9,L,head ops)] ops es
+splitLevel :: Int -> CExpr -> [(String, CExpr)] -> [IParser CExpr]
+splitLevel n e eops =
+    case break (hasLevel n) eops of
+      (lops, (op,e'):rops) -> split (n+1) e lops : splitLevel n e' rops
+      (lops, []) -> [ split (n+1) e lops ]
 
-binopOf seen (tbl@((lvl, L, op):rest)) ops es =
-    case elemIndices op ops of
-      [] -> binopOf seen rest ops es
-      is -> case Map.lookup lvl seen of
-              Nothing -> binopSplit (Map.insert lvl (L,op) seen) tbl (last is) ops es
-              Just (L,_) -> binopSplit seen tbl (last is) ops es
-              Just (assoc,op') -> Left $ errorMessage lvl op L op' assoc
-binopOf seen (tbl@((lvl, assoc, op):rest)) ops es =
-    case elemIndices op ops of
-      [] -> binopOf seen rest ops es
-      i:_ -> case Map.lookup lvl seen of
-               Nothing -> binopSplit (Map.insert lvl (assoc,op) seen) tbl i ops es
-               Just (assoc',op') ->
-                   if assoc == assoc' && assoc /= N then
-                       binopSplit seen tbl i ops es
-                   else Left $ errorMessage lvl op assoc op' assoc'
+joinL :: [CExpr] -> [String] -> IParser CExpr
+joinL [e] [] = return e
+joinL (a:b:es) (op:ops) = joinL (epos a b (Binop op a b) : es) ops
+joinL _ _ = fail "Ill-formed binary expression. Report a compiler bug."
 
-errorMessage lvl op1 assoc1 op2 assoc2 =
-    "Cannot have (" ++ op1 ++ ") with [" ++ show assoc1 ++ " " ++
-    show lvl ++ "] and (" ++ op2 ++ ") with [" ++ show assoc2 ++ " " ++
-    show lvl ++ "]"
+joinR :: [CExpr] -> [String] -> IParser CExpr
+joinR [e] [] = return e
+joinR (a:b:es) (op:ops) = do e <- joinR (b:es) ops
+                             return (epos a e (Binop op a e))
+joinR _ _ = fail "Ill-formed binary expression. Report a compiler bug."
+
+getAssoc :: Int -> [(String,CExpr)] -> IParser Assoc
+getAssoc n eops | all (==L) assocs = return L
+                | all (==R) assocs = return R 
+                | all (==N) assocs = case assocs of [_] -> return N
+                                                    _   -> fail msg
+    where levelOps = filter (hasLevel n) eops
+          assocs = map (opAssoc . fst) levelOps
+          msg = concat [ "Conflicting precedence for binary operators ("
+                       , intercalate ", " (map fst eops), "). "
+                       , "Consider adding parentheses to disambiguate." ]
+

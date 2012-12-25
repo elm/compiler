@@ -1,6 +1,7 @@
 
 module Ast where
 
+import Context
 import Data.Char (isDigit)
 import Data.List (intercalate)
 import Types.Types
@@ -18,45 +19,43 @@ data ImportMethod = As String | Hiding [String] | Importing [String]
 data Pattern = PData String [Pattern] | PVar String | PAnything
                deriving (Eq)
 
+type CExpr = Context Expr
 data Expr = IntNum Int
           | FloatNum Float
           | Chr Char
           | Str String
           | Boolean Bool
-          | Range Expr Expr
-          | Access Expr String
-          | Binop String Expr Expr
-          | Lambda String Expr
-          | App Expr Expr
-          | If Expr Expr Expr
-          | Guard [(Expr,Expr)]
-          | Lift Expr [Expr]
-          | Fold Expr Expr Expr
-          | Async Expr
-          | Input String
-          | Let [Def] Expr
+          | Range CExpr CExpr
+          | Access CExpr String
+          | Record [(String,[String],CExpr)]
+          | Binop String CExpr CExpr
+          | Lambda String CExpr
+          | App CExpr CExpr
+          | If CExpr CExpr CExpr
+          | MultiIf [(CExpr,CExpr)]
+          | Let [Def] CExpr
           | Var String
-          | Case Expr [(Pattern,Expr)]
-          | Data String [Expr]
+          | Case CExpr [(Pattern,CExpr)]
+          | Data String [CExpr]
           | Markdown Pandoc.Pandoc
             deriving (Eq)
 
-data Def = FnDef String [String] Expr
-         | OpDef String String String Expr
-                  deriving (Eq)
+data Def = FnDef String [String] CExpr
+         | OpDef String String String CExpr
+           deriving (Eq)
 
 data Statement = Definition Def
                | Datatype String [X] [(String,[Type])]
-               | ImportEvent String Expr String Type
+               | ImportEvent String CExpr String Type
                | ExportEvent String String Type
                  deriving (Eq,Show)
 
-cons h t = Data "Cons" [h,t]
-nil      = Data "Nil" []
+cons h t = epos h t (Data "Cons" [h,t])
+nil      = C (Just "[]") NoSpan (Data "Nil" [])
 list     = foldr cons nil
 tuple es = Data ("Tuple" ++ show (length es)) es
 
-delist (Data "Cons" [h,t]) = h : delist t
+delist (C _ _ (Data "Cons" [h,t])) = h : delist t
 delist _ = []
 
 
@@ -80,43 +79,49 @@ instance Show Pattern where
             where parens s = "(" ++ s ++ ")"
 
 instance Show Expr where
-  show (IntNum n) = show n
-  show (FloatNum n) = show n
-  show (Chr c) = show c
-  show (Str s) = show s
-  show (Boolean b) = show b
-  show (Range e1 e2) = "[" ++ show e1 ++ ".." ++ show e2 ++ "]"
-  show (Access e x) = show' e ++ "." ++ x
-  show (Binop op e1 e2) = show' e1 ++ " " ++ op ++ " " ++ show' e2
-  show (Lambda x e) = let (xs,e') = getLambdas (Lambda x e) in
+  show e =
+   case e of
+     IntNum n -> show n
+     FloatNum n -> show n
+     Chr c -> show c
+     Str s -> show s
+     Boolean b -> show b
+     Range e1 e2 -> "[" ++ show e1 ++ ".." ++ show e2 ++ "]"
+     Access e x -> show' e ++ "." ++ x
+     Record r -> "{" ++ intercalate ", " (map fields r) ++ "}"
+         where fields (f,args,e) = f ++ concatMap (' ':) args ++ " = " ++ show e
+     Binop op e1 e2 -> show' e1 ++ " " ++ op ++ " " ++ show' e2
+     Lambda x e -> let (xs,e') = getLambdas (noContext $ Lambda x e) in
                       concat [ "\\", intercalate " " xs, " -> ", show e' ]
-  show (App e1 e2) = show' e1 ++ " " ++ show' e2
-  show (If e1 e2 e3) = concat [ "if ", show e1, " then ", show e2, " else ", show e3 ]
-  show (Guard ps) = concatMap (\(b,e) -> concat ["\n  | ",show b," = ",show e]) ps
-  show (Let defs e) = "let { " ++ intercalate " ; " (map show defs) ++ " } in " ++ show e
-  show (Var x) = x
-  show (Case e pats) = "case " ++ show e ++ " of { " ++ intercalate " ; " (map (\(p,e) -> show p ++ " -> " ++ show e) pats) ++ " }"
-  show (Data name es)
-      | name == "Cons" = ("["++) . (++"]") . intercalate "," . map show $ delist (Data "Cons" es)
-      | name == "Nil" = "[]"
-      | otherwise = name ++ " " ++ intercalate " " (map show' es)
-  show (Lift f es) = concat [ "lift", show $ length es, " ", show' f, " ", intercalate " " (map show' es) ]
-  show (Fold e1 e2 e3) = concat [ "foldp ", show' e1, " ", show' e2, " ", show' e3 ]
-  show (Async e) = "async " ++ show' e
-  show (Input i) = i
-  show (Markdown _) = "[markdown| ... |]"
+     App e1 e2 -> show' e1 ++ " " ++ show' e2
+     If e1 e2 e3 -> concat [ "if ", show e1, " then ", show e2, " else ", show e3 ]
+     MultiIf (p:ps) -> concat [ "if | ", iff p, sep (map iff ps) ]
+         where iff (b,e) = show b ++ " -> " ++ show e
+               sep = concatMap ("\n   | " ++)
+     Let defs e -> "let { "++intercalate " ; " (map show defs)++" } in "++show e
+     Var x -> x
+     Case e pats -> "case "++ show e ++" of { "++ intercalate " ; " pats' ++" }"
+         where pats' = map (\(p,e) -> show p ++ " -> " ++ show e) pats
+     Data name es
+          | name == "Cons" -> ("["++) . (++"]") . intercalate "," . map show $
+                              delist (noContext $ Data "Cons" es)
+          | name == "Nil"  -> "[]"
+          | otherwise      -> name ++ " " ++ intercalate " " (map show' es)
+     Markdown _ -> "[markdown| ... |]"
 
 
 instance Show Def where
-  show (FnDef v [] e) = v ++ " = " ++ show e
-  show (FnDef f args e) = f ++ " " ++ intercalate " " args ++ " = " ++ show e
-  show (OpDef op a1 a2 e) = intercalate " " [a1,op,a2] ++ " = " ++ show e
+  show e =
+   case e of
+     FnDef v [] e     -> v ++ " = " ++ show e
+     FnDef f args e   -> f ++ " " ++ intercalate " " args ++ " = " ++ show e
+     OpDef op a1 a2 e -> intercalate " " [a1,op,a2] ++ " = " ++ show e
 
-getLambdas (Lambda x e) = (x:xs,e')
+getLambdas (C _ _ (Lambda x e)) = (x:xs,e')
     where (xs,e') = getLambdas e
 getLambdas e = ([],e)
 
-show' e = if needsParens e then "(" ++ show e ++ ")" else show e
+show' (C _ _ e) = if needsParens e then "(" ++ show e ++ ")" else show e
 
 needsParens (Binop _ _ _) = True
 needsParens (Lambda _ _) = True
@@ -125,7 +130,4 @@ needsParens (If _ _ _) = True
 needsParens (Let _ _) = True
 needsParens (Case _ _) = True
 needsParens (Data name (x:xs)) = name /= "Cons"
-needsParens (Lift _ _) = True
-needsParens (Fold _ _ _) = True
-needsParens (Async _) = True
 needsParens _ = False

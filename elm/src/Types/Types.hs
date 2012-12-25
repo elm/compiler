@@ -1,33 +1,28 @@
 
 module Types.Types where
 
+import Context
 import Data.Char (isDigit)
 import Data.List (intercalate,isPrefixOf)
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 
 type X = Int
 
 data Type = LambdaT Type Type
           | VarT X
           | ADT String [Type]
+          | EmptyRecord
+          | RecordT (Map.Map String [Type]) Type
           | Super (Set.Set Type)
             deriving (Eq, Ord)
 
-data Scheme = Forall [X] [Context String Constraint] Type deriving (Eq, Ord)
+data Scheme = Forall [X] [Context Constraint] Type deriving (Eq, Ord)
 
 data Constraint = Type :=: Type
                 | Type :<: Type
                 | X :<<: Scheme
                   deriving (Eq, Ord, Show)
-
-data Context c v = Context c v deriving (Eq, Show)
-
-ctx c = Context ("`" ++ show c ++ "'")
-extendCtx ctx2 (Context ctx1 c) = Context (ctx1 ++ " in " ++ ctx2) c
-
-instance (Ord a, Eq c) => Ord (Context c a) where
-    compare (Context _ x) (Context _ y) = compare x y
-
 
 tipe t = ADT t []
 
@@ -95,13 +90,25 @@ instance Show Type where
         ; ADT name cs ->
             if isTupleString name
                 then parens . intercalate "," $ map show cs
-                else case cs of [] -> name
-                                _ -> parens $ name ++ " " ++ unwords (map show cs)
+                else case cs of
+                       [] -> name
+                       _ -> parens $ name ++ " " ++ unwords (map show cs)
         ; Super ts -> "{" ++ (intercalate "," . map show $ Set.toList ts) ++ "}"
+        ; EmptyRecord -> "{}"
+        ; RecordT fs t ->
+            start ++ intercalate ", " (concatMap fields $ Map.toList fs) ++ " }"
+                where field n s = n ++ " :: " ++ show s
+                      fields (n,ss) = map (field n) ss
+                      start = case t of
+                                EmptyRecord -> "{ "
+                                _ -> "{ " ++ show t ++ " | "
         }
 
 instance Show Scheme where
-  show (Forall xs cs t) = "Forall " ++ show xs ++ cs' ++ "\n  " ++ show t
-      where cs' = concatMap (concatMap ("\n  "++) . lines . show) cs
+  show (Forall [] [] t) = show t
+  show (Forall xs cs t) =
+    concat [ "Forall ", show xs
+           , concatMap (("\n          "++) . show) cs
+           , "\n    ", parens (show t) ]
 
 isTupleString str = "Tuple" `isPrefixOf` str && all isDigit (drop 5 str)

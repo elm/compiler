@@ -1,6 +1,7 @@
 module CompileToJS (showErr, jsModule) where
 
 import Ast
+import Context
 import Control.Arrow (first)
 import Control.Monad (liftM,(<=<),join,ap)
 import Data.Char (isAlpha,isDigit)
@@ -140,22 +141,22 @@ class ToJS a where
   toJS :: a -> GuidCounter String
 
 instance ToJS Def where
-  toJS (FnDef x [] e) = assign x `liftM` toJS e
+  toJS (FnDef x [] e) = assign x `liftM` toJS' e
   toJS (FnDef f (a:as) e) =
-      do body <- toJS (foldr Lambda e as)
+      do body <- toJS' (foldr (\x e -> noContext (Lambda x e)) e as)
          return $ concat ["\nfunction ",f,parens a, braces . indent $ ret body]
   toJS (OpDef op a1 a2 e) =
-      do body <- toJS (foldr Lambda e [a1,a2])
+      do body <- toJS' (foldr (\x e -> noContext (Lambda x e)) e [a1,a2])
          return $ concat [ "\n$op['", op, "'] = ", body, ";" ]
 
 instance ToJS Statement where
     toJS (Definition d) = toJS d
     toJS (Datatype _ _ tcs) = concat `liftM` mapM (toJS . toDef) tcs
-        where toDef (name,args) =
-                  Definition . FnDef name vars $ Data (derename name) (map Var vars)
+      where toDef (name,args) = Definition . FnDef name vars . noContext $
+                                Data (derename name) (map (noContext . Var) vars)
                       where vars = map (('a':) . show) [1..length args]
     toJS (ImportEvent js base elm _) =
-        do v <- toJS base
+        do v <- toJS' base
            return $ concat [ "\nvar " ++ elm ++ "=Elm.Signal.constant(" ++ v ++ ");"
                            , "\nValue.addListener(document, '" ++ js
                            , "', function(e) { Dispatcher.notify(" ++ elm
@@ -167,6 +168,13 @@ instance ToJS Statement where
                         , "e.value = v;"
                         , "document.dispatchEvent(e); return v; })(", elm, ");" ]
 
+toJS' :: CExpr -> GuidCounter String
+toJS' (C txt span expr) =
+    case expr of
+      MultiIf ps -> multiIfToJS span ps
+      Case e cases -> caseToJS span e cases
+      _ -> toJS expr
+
 instance ToJS Expr where
   toJS expr =
     case expr of
@@ -176,22 +184,38 @@ instance ToJS Expr where
       Chr c -> return $ quoted [c]
       Str s -> return $ "Value.str" ++ parens (quoted s)
       Boolean b -> return $ if b then "true" else "false"
-      Range lo hi -> jsRange `liftM` toJS lo `ap` toJS hi
-      Access e lbl -> (\s -> s ++ "." ++ lbl) `liftM` toJS e
-      Binop op e1 e2 -> binop op `liftM` toJS e1 `ap` toJS e2
-      If eb et ef -> parens `liftM` (iff `liftM` toJS eb `ap` toJS et `ap` toJS ef)
-      Guard ps -> guardToJS ps
-      Lambda v e -> liftM (jsFunc v . ret) (toJS e)
-      App (Var "toText") (Str s) -> return $ "toText" ++ parens (quoted s)
-      App (Var "link") (Str s) -> return $ "link(" ++ quoted s ++ ")"
-      App (Var "plainText") (Str s) -> return $ "plainText(" ++ quoted s ++ ")"
-      App e1 e2 -> (++) `liftM` (toJS e1) `ap` (parens `liftM` toJS e2)
+      Range lo hi -> jsRange `liftM` toJS' lo `ap` toJS' hi
+      Access e lbl -> (\s -> s ++ "." ++ lbl) `liftM` toJS' e
+ 
+      Record fs -> (braces . intercalate ",\n") `liftM` mapM toField fs
+          where toField (f, as, ce@(C t s e)) =
+                    do v <- toJS' (foldr (\x e -> C t s $ Lambda x e) ce as)
+                       return (f ++ " : " ++ v)
+
+      Binop op e1 e2 -> binop op `liftM` toJS' e1 `ap` toJS' e2
+
+      If eb et ef ->
+          parens `liftM` (iff `liftM` toJS' eb `ap` toJS' et `ap` toJS' ef)
+
+      Lambda v e -> liftM (jsFunc v . ret) (toJS' e)
+
+      App (C _ _ (Var "toText")) (C _ _ (Str s)) ->
+          return $ "toText" ++ parens (quoted s)
+
+      App (C _ _ (Var "link")) (C _ _ (Str s)) ->
+          return $ "link(" ++ quoted s ++ ")"
+
+      App (C _ _ (Var "plainText")) (C _ _ (Str s)) ->
+          return $ "plainText(" ++ quoted s ++ ")"
+
+      App e1 e2 -> (++) `liftM` (toJS' e1) `ap` (parens `liftM` toJS' e2)
       Let defs e -> jsLet defs e
-      Case e cases -> caseToJS e cases
-      Data name es -> (\ss -> jsList $ quoted name : ss) `liftM` mapM toJS es
+      Data name es -> (\ss -> jsList $ quoted name : ss) `liftM` mapM toJS' es
+
       Markdown doc -> return $ "text('" ++ pad ++ md ++ pad ++ "')"
-          where md = formatMarkdown $ Pan.writeHtmlString Pan.defaultWriterOptions doc
-                pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
+          where pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
+                md = formatMarkdown $
+                     Pan.writeHtmlString Pan.defaultWriterOptions doc
 
 formatMarkdown = concatMap f
     where f '\'' = "\\'"
@@ -199,15 +223,16 @@ formatMarkdown = concatMap f
           f '"'  = "\""
           f c = [c]
 
-guardToJS ps = format `liftM` mapM f ps
+multiIfToJS span ps = format `liftM` mapM f ps
     where format cs = foldr (\c e -> parens $ c ++ " : " ++ e) err cs
-          err = "(function(){throw \"Non-exhaustive guard expression\";}())"
-          f (b,e) = do b' <- toJS b
-                       e' <- toJS e
+          err = concat [ "(function(){throw \"Non-exhaustive "
+                       , "multi-way-if expression (", show span, ")\";}())" ]
+          f (b,e) = do b' <- toJS' b
+                       e' <- toJS' e
                        return (b' ++ " ? " ++ e')
 
 jsLet defs e' = do
-  body <- (++) `liftM` jsDefs defs `ap` (ret `liftM` toJS e')
+  body <- (++) `liftM` jsDefs defs `ap` (ret `liftM` toJS' e')
   return $ jsFunc "" body ++ "()"
 
 jsDefs defs = concat `liftM` mapM toJS (sortBy f defs)
@@ -215,28 +240,29 @@ jsDefs defs = concat `liftM` mapM toJS (sortBy f defs)
           valueOf (FnDef _ args _) = min 1 (length args)
           valueOf (OpDef _ _ _ _)  = 1
 
-caseToJS e ps = do
+caseToJS span e ps = do
   match <- caseToMatch ps
-  e' <- toJS e
+  e' <- toJS' e
   (match',stmt) <- case (match,e) of
-                     (Match name _ _, Var x) -> return (matchSubst [(name,x)] match, "")
-                     (Match name _ _, _    ) -> return (match, assign name e')
-                     _ -> liftM (\n -> (match, e')) guid
-  matches <- matchToJS match'
+      (Match name _ _, C _ _ (Var x)) -> return (matchSubst [(name,x)] match, "")
+      (Match name _ _, _)             -> return (match, assign name e')
+      _                               -> liftM (\n -> (match, e')) guid
+  matches <- matchToJS span match'
   return $ concat [ "function(){", stmt, matches, "}()" ]
 
-matchToJS (Match name clauses def) = do
-  cases <- concat `liftM` mapM (clauseToJS name) clauses
-  finally <- matchToJS def
+matchToJS span (Match name clauses def) = do
+  cases <- concat `liftM` mapM (clauseToJS span name) clauses
+  finally <- matchToJS span def
   return $ concat [ "\nswitch(", name, "[0]){", indent cases, "\n}", finally ]
-matchToJS Fail  = return "\nthrow \"Non-exhaustive pattern match in case\";"
-matchToJS Break = return "break;"
-matchToJS (Other e) = ret `liftM` toJS e
-matchToJS (Seq ms) = concat `liftM` mapM matchToJS ms
+matchToJS span Fail  = return ("\nthrow \"Non-exhaustive pattern match " ++
+                               "in case expression (" ++ show span ++ ")\";")
+matchToJS span Break = return "break;"
+matchToJS span (Other e) = ret `liftM` toJS' e
+matchToJS span (Seq ms) = concat `liftM` mapM (matchToJS span) ms
 
-clauseToJS var (Clause name vars e) = do
+clauseToJS span var (Clause name vars e) = do
   let vars' = map (\n -> var ++ "[" ++ show n ++ "]") [ 1 .. length vars ]
-  s <- matchToJS $ matchSubst (zip vars vars') e
+  s <- matchToJS span $ matchSubst (zip vars vars') e
   return $ concat [ "\ncase ", quoted name, ":", s ]
 
 jsNil         = "[\"Nil\"]"

@@ -1,6 +1,7 @@
 module Parse.Expr (def,term) where
 
 import Ast
+import Context
 import Control.Applicative ((<$>), (<*>))
 import Control.Monad
 import Data.Char (isSymbol, isDigit)
@@ -45,56 +46,107 @@ chrTerm :: IParser Expr
 chrTerm = Chr <$> betwixt '\'' '\'' (backslashed <|> satisfy (/='\''))
           <?> "character"
 
+accessor :: IParser Expr
+accessor = do
+  start <- getPosition
+  label <- try (string "." >> lowVar)
+  end   <- getPosition
+  let ctx e = addCtx ("." ++ label) (pos start end e)
+  return (Lambda "r" (ctx $ Access (ctx $ Var "r") label))
+
 
 --------  Complex Terms  --------
 
 listTerm :: IParser Expr
-listTerm = (do { try $ string "[markdown|"
-               ; md <- filter (/='\r') <$> manyTill anyChar (try $ string "|]")
-               ; return . Markdown $ Pan.readMarkdown Pan.defaultParserState md })
-           <|> (braces $ choice
-                [ try $ do { lo <- expr; whitespace; string ".." ; whitespace
-                           ; Range lo <$> expr }
-                , list <$> commaSep expr ])
+listTerm =
+      (do { try $ string "[markdown|"
+          ; md <- filter (/='\r') <$> manyTill anyChar (try $ string "|]")
+          ; return . Markdown $ Pan.readMarkdown Pan.defaultParserState md })
+  <|> (braces $ choice
+       [ try $ do { lo <- expr; whitespace; string ".." ; whitespace
+                  ; Range lo <$> expr }
+       , do (C _ _ e) <- list <$> commaSep expr
+            return e
+       ])
 
-parensTerm :: IParser Expr
+parensTerm :: IParser CExpr
 parensTerm = parens $ choice
-             [ do op <- anyOp
-                  return . Lambda "x" . Lambda "y" $ Binop op (Var "x") (Var "y")
-             , do let comma = char ',' <?> "comma ','"
+             [ do start <- getPosition
+                  op <- try anyOp
+                  end <- getPosition
+                  let ctxt = pos start end
+                  return . ctxt . Lambda "x" . ctxt . Lambda "y" . ctxt $
+                         Binop op (ctxt $ Var "x") (ctxt $ Var "y")
+             , do start <- getPosition
+                  let comma = char ',' <?> "comma ','"
                   commas <- comma >> many (whitespace >> comma)
+                  end <- getPosition
                   let vars = map (('v':) . show) [ 0 .. length commas + 1 ]
-                  return $ foldr Lambda (tuple $ map Var vars) (vars)
-             , do es <- commaSep expr
-                  return $ case es of { [e] -> e; _ -> tuple es }
+                      ctxt = pos start end
+                  return $ foldr (\x e -> ctxt $ Lambda x e)
+                             (ctxt . tuple $ map (ctxt . Var) vars) vars
+             , do start <- getPosition
+                  es <- commaSep expr
+                  end <- getPosition
+                  return $ case es of [e] -> e
+                                      _   -> pos start end (tuple es)
              ]
 
-term :: IParser Expr
-term = choice [ numTerm, strTerm, chrTerm
-              , accessible varTerm
-              , listTerm, parensTerm ]
-       <?> "basic term (4, x, 'c', etc.)"
+recordTerm :: IParser Expr
+recordTerm = brackets $ do
+  Record <$> (mapM extract =<< commaSep field)
+    where field = do
+            fDefs <- (:) <$> (PVar <$> lowVar) <*> spacePrefix patternTerm
+            whitespace
+            e <- string "=" >> whitespace >> expr
+            flattenPatterns fDefs e
+          extract [ FnDef f args exp ] = return (f,args,exp)
+          extract _ = fail "Improperly formed record field."
+{--
+  record <- expr
+  whitespace >> string "|" >> whitespace
+  label <- lowVar
+  whitespace
+  op <- (string "<-" <|> string "=")
+  whitespace
+  e <- expr
+  case op of
+    "<-" -> 
+    "="  -> 
+--}
+
+term :: IParser CExpr
+term =  addContext (choice [ numTerm, strTerm, chrTerm, listTerm, accessor ])
+    <|> accessible (addContext varTerm <|> parensTerm <|> addContext recordTerm)
+    <?> "basic term (4, x, 'c', etc.)"
 
 --------  Applications  --------
 
-appExpr :: IParser Expr
+appExpr :: IParser CExpr
 appExpr = do
   tlist <- spaceSep1 term
   return $ case tlist of
              t:[] -> t
-             t:ts -> foldl' App t ts
+             t:ts -> foldl' (\f x -> epos f x $ App f x) t ts
 
 --------  Normal Expressions  --------
 
-binaryExpr :: IParser Expr
+binaryExpr :: IParser CExpr
 binaryExpr = binops appExpr anyOp
 
 ifExpr :: IParser Expr
-ifExpr = do reserved "if"   ; whitespace ; e1 <- expr ; whitespace
-            reserved "then" ; whitespace ; e2 <- expr ; (whitespace <?> "an 'else' branch")
-            reserved "else" <?> "an 'else' branch" ; whitespace ; If e1 e2 <$> expr
+ifExpr = reserved "if" >> whitespace >> (normal <|> multiIf)
+    where normal = do e1 <- expr ; whitespace
+                      reserved "then" ; whitespace ; e2 <- expr
+                      whitespace <?> "an 'else' branch"
+                      reserved "else" <?> "an 'else' branch" ; whitespace
+                      If e1 e2 <$> expr
+          multiIf = (MultiIf <$> spaceSep1 iff)
+              where iff = do string "|" ; whitespace
+                             b <- expr ; whitespace ; string "->" ; whitespace
+                             (,) b <$> expr
 
-lambdaExpr :: IParser Expr
+lambdaExpr :: IParser CExpr
 lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
                 whitespace
                 pats <- spaceSep1 patternTerm
@@ -103,16 +155,7 @@ lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
                 return $ makeLambda pats e
 
 defSet :: IParser [Def]
-defSet = do
-  brace <- optionMaybe $ do
-             string "{" <?> "a set of definitions { x = ... ; y = ... }"
-             whitespace >> return "{"
-  case brace of
-    Nothing  -> concat <$> block (do d <- assignExpr ; whitespace ; return d)
-    Just "{" -> do dss <- semiSep1 assignExpr
-                   whitespace
-                   string "}" <?> "closing bracket '}'"
-                   return (concat dss)
+defSet = concat <$> block (do d <- assignExpr ; whitespace ; return d)
 
 letExpr :: IParser Expr
 letExpr = do
@@ -130,8 +173,10 @@ caseExpr = do
           with    = brackets (semiSep1 (case_ <?> "cases { x -> ... }"))
           without = block (do c <- case_ ; whitespace ; return c)
 
-expr = choice [ ifExpr, letExpr, caseExpr
-              , lambdaExpr, binaryExpr ] <?> "an expression"
+expr = addContext (choice [ ifExpr, letExpr, caseExpr ])
+    <|> lambdaExpr
+    <|> binaryExpr 
+    <?> "an expression"
 
 funcDef = try (do p1 <- try patternTerm ; infics p1 <|> func p1)
           <|> ((:[]) <$> patternExpr)
@@ -149,13 +194,8 @@ assignExpr :: IParser [Def]
 assignExpr = withPos $ do
   fDefs <- funcDef
   whitespace
-  e <- (string "=" >> whitespace >> expr) <|> guardExpr
+  e <- string "=" >> whitespace >> expr
   flattenPatterns fDefs e
-
-guardExpr = (Guard <$> spaceSep1 gExpr)
-    where gExpr = do string "|" ; whitespace
-                     b <- expr ; whitespace ; string "=" ; whitespace
-                     (,) b <$> expr
 
 def = map Definition <$> assignExpr
 

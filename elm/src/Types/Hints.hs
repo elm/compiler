@@ -1,11 +1,12 @@
 module Types.Hints (hints) where
 
-import Control.Monad (liftM,mapM)
+import Context
 import Control.Arrow (first)
+import Control.Monad (liftM,mapM)
 import Types.Types
 import Types.Substitutions (rescheme)
 
-
+ctx str = C (Just str) NoSpan
 prefix pre xs = map (first (\x -> pre ++ "." ++ x)) xs
 
 --------  Text and Elements  --------
@@ -243,11 +244,11 @@ dates =
 
 binop t = t ==> t ==> t
 scheme1 super t name =
-    (name, Forall [0] [ Context ("`" ++ name ++ "'") $ VarT 0 :<: super
+    (name, Forall [0] [ ctx name $ VarT 0 :<: super
                       ] (t (VarT 0)))
 scheme2 s1 s2 t name =
-    (name, Forall [0,1] [ Context ("`" ++ name ++ "'") $ VarT 0 :<: s1
-                        , Context ("`" ++ name ++ "'") $ VarT 1 :<: s2
+    (name, Forall [0,1] [ ctx name $ VarT 0 :<: s1
+                        , ctx name $ VarT 1 :<: s2
                         ] (t (VarT 0) (VarT 1)))
 numScheme t name = scheme1 number t name
 twoNums f name = scheme2 number number f name
@@ -271,7 +272,7 @@ bools =
   hasType (binop bool) ["&&","||"] ++
   map (scheme1 comparable (\t -> t ==> t ==> bool))  ["<",">","<=",">="] ++
   [ ( "compare"
-    , Forall [0,1] [ Context "`compare'" $ VarT 0 :<: comparable ] (VarT 0 ==> VarT 0 ==> VarT 1) )
+    , Forall [0,1] [ ctx "compare" $ VarT 0 :<: comparable ] (VarT 0 ==> VarT 0 ==> VarT 1) )
   ]
 
 chars = prefix "Char" (classify ++ convert1 ++ convert2)
@@ -297,7 +298,7 @@ funcs =
     , "."    -:: (b ==> c) ==> (a ==> b) ==> (a ==> c)
     , "$"    -:: (a ==> b) ==> a ==> b
     , ":"       -:: a ==> listOf a ==> listOf a
-    , (,) "++" . Forall [0,1] [ Context "`++'" $ VarT 0 :<: appendable (VarT 1) ] $ VarT 0 ==> VarT 0 ==> VarT 0
+    , (,) "++" . Forall [0,1] [ ctx "++" $ VarT 0 :<: appendable (VarT 1) ] $ VarT 0 ==> VarT 0 ==> VarT 0
     , "Cons"    -:: a ==> listOf a ==> listOf a 
     , "Nil"     -:: listOf a
     , "Just"    -:: a ==> maybeOf a
@@ -332,11 +333,11 @@ lists = prefix "List"
   , "foldr" -:: (a ==> b ==> b) ==> b ==> listOf a ==> b
   , "foldl" -:: (a ==> b ==> b) ==> b ==> listOf a ==> b
   , "scanl" -:: (a ==> b ==> b) ==> b ==> listOf a ==> listOf b
-  , (,) "concat"      . Forall [0,1]   [ Context "`concat'" $ VarT 0 :<: appendable (VarT 1) ] $
+  , (,) "concat"      . Forall [0,1]   [ ctx "concat" $ VarT 0 :<: appendable (VarT 1) ] $
         listOf (VarT 0) ==> VarT 0
-  , (,) "concatMap"   . Forall [0,1,2] [ Context "`concatMap'" $ VarT 0 :<: appendable (VarT 1) ] $
+  , (,) "concatMap"   . Forall [0,1,2] [ ctx "concatMap" $ VarT 0 :<: appendable (VarT 1) ] $
         (VarT 2 ==> VarT 0) ==> listOf (VarT 2) ==> VarT 0
-  , (,) "intercalate" . Forall [0,1]   [ Context "`intercalate'" $ VarT 0 :<: appendable (VarT 1) ] $
+  , (,) "intercalate" . Forall [0,1]   [ ctx "intercalate" $ VarT 0 :<: appendable (VarT 1) ] $
         VarT 0 ==> listOf (VarT 0) ==> VarT 0
   , "zipWith" -:: (a ==> b ==> c) ==> listOf a ==> listOf b ==> listOf c
   ] ++ map (numScheme (\n -> listOf n ==> n)) [ "sum", "product"

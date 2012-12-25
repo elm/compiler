@@ -2,6 +2,7 @@
 module Rename (renameModule, derename, deprime) where
 
 import Ast
+import Context
 import Control.Arrow (first)
 import Control.Monad (ap, liftM, foldM, mapM, Monad, zipWithM)
 import Control.Monad.State (evalState, State, get, put)
@@ -48,6 +49,9 @@ renameStmts env stmts = do env' <- extends env $ concatMap getNames stmts
                             ImportEvent _ _ n _ -> [n]
                             _ -> []
 
+instance Rename a => Rename (Context a) where
+  rename env (C t s e) = C t s `liftM` rename env e
+                          
 instance Rename Expr where
   rename env expr =
     let rnm = rename env in
@@ -77,18 +81,9 @@ instance Rename Expr where
                            `ap` rnm e2
                            `ap` rnm e3
 
-      Guard ps -> Guard `liftM` mapM grnm ps
+      MultiIf ps -> MultiIf `liftM` mapM grnm ps
               where grnm (b,e) = (,) `liftM` rnm b
                                         `ap` rnm e
-
-      Lift e es -> Lift `liftM` rnm e
-                           `ap` mapM rnm es
-
-      Fold e1 e2 e3 -> Fold `liftM` rnm e1
-                               `ap` rnm e2
-                               `ap` rnm e3
-
-      Async e -> Async `liftM` rnm e
 
       Let defs e -> renameLet env defs e
 
@@ -122,7 +117,7 @@ patternExtend pattern env =
                  where f (rps,env') p = do (rp,env'') <- patternExtend p env'
                                            return (rp:rps, env'')
 
-patternRename :: (String -> String) -> (Pattern, Expr) -> GuidCounter (Pattern, Expr)
+patternRename :: (String -> String) -> (Pattern, CExpr) -> GuidCounter (Pattern, CExpr)
 patternRename env (p,e) = do
   (rp,env') <- patternExtend p env
   re <- rename env' e

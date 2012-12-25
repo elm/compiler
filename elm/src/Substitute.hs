@@ -1,12 +1,12 @@
 module Substitute (subst) where
 
-import Control.Arrow (second, (***))
-
 import Ast
+import Context
+import Control.Arrow (second, (***))
 
 subst :: String -> Expr -> Expr -> Expr
 subst old new expr =
-    let f = subst old new in
+    let f (C t s e) = C t s (subst old new e) in
     case expr of
       Range e1 e2 -> Range (f e1) (f e2)
       Access e x -> Access (f e) x
@@ -14,11 +14,7 @@ subst old new expr =
       Lambda x e -> if x == old then expr else Lambda x (f e)
       App e1 e2 -> App (f e1) (f e2)
       If e1 e2 e3 -> If (f e1) (f e2) (f e3)
-      Guard ps -> Guard (map (f *** f) ps)
-      Lift e es -> Lift (f e) (map f es)
-      Fold e1 e2 e3 -> Fold (f e1) (f e2) (f e3)
-      Async e -> Async (f e)
-      Input _ -> expr
+      MultiIf ps -> MultiIf (map (f *** f) ps)
       Let defs e -> Let (map substDef defs) (f e)
               where substDef (FnDef name vs e)  = FnDef name vs (f e)
                     substDef (OpDef op a1 a2 e) = OpDef op a1 a2 (f e)

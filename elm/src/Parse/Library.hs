@@ -2,6 +2,7 @@
 module Parse.Library where
 
 import Ast
+import Context
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad
 import Control.Monad.State
@@ -57,7 +58,9 @@ isOp c = isSymbol c || elem c "+-/*=.$<>:&|^?%#@~!"
 symOp :: IParser String
 symOp = do op <- many1 (satisfy isOp)
            guard (op `notElem` [ "=", "..", "->", "--", "|", "\8594" ])
-           return op
+           case op of
+             "." -> notFollowedBy lower >> return op
+             _   -> return op
 
 arrow :: IParser String
 arrow = string "->" <|> string "\8594" <?> "arrow (->)"
@@ -114,13 +117,23 @@ parens   = surround '(' ')' "paren"
 brackets :: IParser a -> IParser a
 brackets = surround '{' '}' "bracket"
 
-accessible :: IParser Expr -> IParser Expr
-accessible expr = do
+addContext :: IParser Expr -> IParser CExpr
+addContext expr = do
+  start <- getPosition
   e <- expr
-  access <- optionMaybe . try $
-                  (do { char '.' ; notFollowedBy (char '.') } <?> "field access (e.g. List.map)")
+  end <- getPosition
+  return (pos start end e)
+
+accessible :: IParser CExpr -> IParser CExpr
+accessible expr = do
+  start <- getPosition
+  e <- expr
+  access <- optionMaybe . try $ (do { char '.' ; notFollowedBy (char '.') }
+                                    <?> "field access (e.g. List.map)")
   case access of
-    Just _  -> accessible (Access e `liftM` var <?> "field access (e.g. List.map)")
+    Just _  -> accessible $ do v <- var <?> "field access (e.g. List.map)"
+                               end <- getPosition
+                               return (pos start end (Access e v))
     Nothing -> return e
 
 
