@@ -1,3 +1,7 @@
+# I do not use this script, so it may be out of date.
+# Please make sure that this matches with cat.bat to
+# avoid confusing "errors".
+
 cat \
     Guid.js\
     foreign/JavaScript.js\
