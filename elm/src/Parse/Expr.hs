@@ -49,10 +49,10 @@ chrTerm = Chr <$> betwixt '\'' '\'' (backslashed <|> satisfy (/='\''))
 accessor :: IParser Expr
 accessor = do
   start <- getPosition
-  label <- try (string "." >> lowVar)
-  end   <- getPosition
-  let ctx e = addCtx ("." ++ label) (pos start end e)
-  return (Lambda "r" (ctx $ Access (ctx $ Var "r") label))
+  lbl <- try (string "." >> rLabel)
+  end <- getPosition
+  let ctx e = addCtx ("." ++ lbl) (pos start end e)
+  return (Lambda "r" (ctx $ Access (ctx $ Var "r") lbl))
 
 
 --------  Complex Terms  --------
@@ -92,27 +92,40 @@ parensTerm = parens $ choice
                                       _   -> pos start end (tuple es)
              ]
 
-recordTerm :: IParser Expr
-recordTerm = brackets $ choice [ modify, record ]
+recordTerm :: IParser CExpr
+recordTerm = brackets $ choice [ misc, addContext record ]
     where field = do
-              fDefs <- (:) <$> (PVar <$> lowVar) <*> spacePrefix patternTerm
+              fDefs <- (:) <$> (PVar <$> rLabel) <*> spacePrefix patternTerm
               whitespace
               e <- string "=" >> whitespace >> expr
-              flattenPatterns fDefs e
+              run $ flattenPatterns fDefs e
           extract [ FnDef f args exp ] = return (f,args,exp)
           extract _ = fail "Improperly formed record field."
           record = Record <$> (mapM extract =<< commaSep field)
-          modify = do
-              record <- try $ do record <- addContext (Var <$> lowVar)
-                                 whitespace >> string "|"  >> whitespace
-                                 return record
-              label <- lowVar
+          change = do
+              lbl <- rLabel
               whitespace >> string "<-" >> whitespace
-              Modify record label <$> expr
+              (,) lbl <$> expr
+          remove r = addContext (string "-" >> whitespace >> Remove r <$> rLabel)
+          insert r = addContext $ do
+                       string "|" >> whitespace
+                       Insert r <$> rLabel <*>
+                           (whitespace >> string "=" >> whitespace >> expr)
+          modify r = addContext
+                     (string "|" >> whitespace >> Modify r <$> commaSep1 change)
+          misc = try $ do
+            record <- addContext (Var <$> rLabel)
+            whitespace
+            opt <- optionMaybe (remove record)
+            whitespace
+            case opt of
+              Just e  -> try (insert e) <|> return e
+              Nothing -> try (insert record) <|> try (modify record)
+                        
 
 term :: IParser CExpr
 term =  addContext (choice [ numTerm, strTerm, chrTerm, listTerm, accessor ])
-    <|> accessible (addContext varTerm <|> parensTerm <|> addContext recordTerm)
+    <|> accessible (addContext varTerm <|> parensTerm <|> recordTerm)
     <?> "basic term (4, x, 'c', etc.)"
 
 --------  Applications  --------
@@ -147,7 +160,7 @@ lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
                 pats <- spaceSep1 patternTerm
                 whitespace ; arrow ; whitespace
                 e <- expr
-                return $ makeLambda pats e
+                return . run $ makeLambda pats e
 
 defSet :: IParser [Def]
 defSet = concat <$> block (do d <- assignExpr ; whitespace ; return d)
@@ -190,7 +203,7 @@ assignExpr = withPos $ do
   fDefs <- funcDef
   whitespace
   e <- string "=" >> whitespace >> expr
-  flattenPatterns fDefs e
+  run $ flattenPatterns fDefs e
 
 def = map Definition <$> assignExpr
 

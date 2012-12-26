@@ -16,7 +16,10 @@ data ImportMethod = As String | Hiding [String] | Importing [String]
                     deriving (Eq,Ord)
 
 
-data Pattern = PData String [Pattern] | PVar String | PAnything
+data Pattern = PData String [Pattern]
+             | PRecord [String]
+             | PVar String
+             | PAnything
                deriving (Eq)
 
 type CExpr = Context Expr
@@ -27,7 +30,9 @@ data Expr = IntNum Int
           | Boolean Bool
           | Range CExpr CExpr
           | Access CExpr String
-          | Modify CExpr String CExpr
+          | Remove CExpr String
+          | Insert CExpr String CExpr
+          | Modify CExpr [(String,CExpr)]
           | Record [(String,[String],CExpr)]
           | Binop String CExpr CExpr
           | Lambda String CExpr
@@ -65,7 +70,10 @@ pnil      = PData "Nil" []
 plist     = foldr pcons pnil
 ptuple es = PData ("Tuple" ++ show (length es)) es
 
+brkt s = "{ " ++ s ++ " }"
+
 instance Show Pattern where
+    show (PRecord fs) = brkt (intercalate ", " fs)
     show (PVar x)  = x
     show PAnything = "_"
     show (PData "Cons" [hd@(PData "Cons" _),tl]) =
@@ -89,8 +97,13 @@ instance Show Expr where
      Boolean b -> show b
      Range e1 e2 -> "[" ++ show e1 ++ ".." ++ show e2 ++ "]"
      Access e x -> show' e ++ "." ++ x
-     Modify e x e' -> "{ " ++ show e ++ " | " ++ x ++ " <- " ++ show e' ++ " }"
-     Record r -> "{ " ++ intercalate ", " (map fields r) ++ " }"
+     Remove e x -> brkt (show e ++ " - " ++ x)
+     Insert (C _ _ (Remove e y)) x v ->
+         brkt (show e ++ " - " ++ y ++ " | " ++ x ++ " = " ++ show v)
+     Insert e x v -> brkt (show e ++ " | " ++ x ++ " = " ++ show v)
+     Modify e fs -> brkt (show e ++" | "++ intercalate ", " (map field fs))
+         where field (x,e) = x ++ " <- " ++ show e
+     Record r -> brkt (intercalate ", " (map fields r))
          where fields (f,args,e) = f ++ concatMap (' ':) args ++ " = " ++ show e
      Binop op e1 e2 -> show' e1 ++ " " ++ op ++ " " ++ show' e2
      Lambda x e -> let (xs,e') = getLambdas (noContext $ Lambda x e) in
@@ -102,7 +115,7 @@ instance Show Expr where
                sep = concatMap ("\n   | " ++)
      Let defs e -> "let { "++intercalate " ; " (map show defs)++" } in "++show e
      Var x -> x
-     Case e pats -> "case "++ show e ++" of { "++ intercalate " ; " pats' ++" }"
+     Case e pats -> "case "++ show e ++" of " ++ brkt (intercalate " ; " pats')
          where pats' = map (\(p,e) -> show p ++ " -> " ++ show e) pats
      Data name es
           | name == "Cons" -> ("["++) . (++"]") . intercalate "," . map show $

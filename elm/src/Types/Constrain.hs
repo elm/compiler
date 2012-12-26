@@ -138,15 +138,28 @@ gen (C _ span expr) =
                c = (ctx' (RecordT fs rtype' :=: rtype))
            return (as, Set.insert c cs, t)
 
-    Modify record label value ->
-        do (ras,rcs,rtype) <- gen record
-           (vas,vcs,vtype) <- gen value
+    Remove e x -> 
+        do (as,cs,rtype) <- gen e
            t <- beta
            rtype' <- beta
-           let c = rtype :=: RecordT (Map.singleton label [t]) rtype'
-           return ( unionA ras vas
-                  , Set.unions [Set.singleton (ctx' c), rcs, vcs]
-                  , RecordT (Map.singleton label [vtype]) rtype' )
+           let c = (ctx' (RecordT (Map.singleton x [t]) rtype' :=: rtype))
+           return (as, Set.insert c cs, rtype')
+
+    Insert e x v -> 
+        do (eas,ecs,etype) <- gen e
+           (vas,vcs,vtype) <- gen v
+           return ( unionA eas vas
+                  , Set.union ecs vcs
+                  , RecordT (Map.singleton x [vtype]) etype )
+
+    Modify record fields ->
+        do (ras,rcs,rtype) <- gen record
+           (ass,css,newTs) <- unzip3 `liftM` mapM gen (map snd fields)
+           oldTs <- mapM (\_ -> beta) fields
+           rtype' <- beta
+           let rT ts = RecordT (recordT (zip (map fst fields) ts)) rtype'
+               c = Set.singleton (ctx' (rtype :=: rT oldTs))
+           return ( unionsA (ras:ass), Set.unions (c : rcs : css), rT newTs )
 
     Record fields ->
         let insert label tipe = Map.insertWith (++) label [tipe]
@@ -281,3 +294,6 @@ getDatatypeInfo (Datatype name args tcs) =
     Just (name, args, tcs)
 getDatatypeInfo _ = Nothing
 
+recordT :: [(String,Type)] -> Map.Map String [Type]
+recordT fields =
+    foldl (\r (x,t) -> Map.insertWith (++) x [t] r) Map.empty fields

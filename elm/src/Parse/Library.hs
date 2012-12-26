@@ -6,7 +6,8 @@ import Context
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad
 import Control.Monad.State
-import Data.Char (isSymbol)
+import Data.Char (isSymbol,isUpper)
+import Rename (deprime)
 import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
 
@@ -36,6 +37,9 @@ lowVar :: IParser String
 lowVar = makeVar (lower <?> "lower case variable")
 capVar :: IParser String
 capVar = makeVar (upper <?> "upper case variable")
+
+rLabel :: IParser String
+rLabel = deprime <$> lowVar
 
 innerVarChar :: IParser Char
 innerVarChar = alphaNum <|> char '_' <|> char '\'' <?> "" 
@@ -127,14 +131,19 @@ addContext expr = do
 accessible :: IParser CExpr -> IParser CExpr
 accessible expr = do
   start <- getPosition
-  e <- expr
-  access <- optionMaybe . try $ (do { char '.' ; notFollowedBy (char '.') }
-                                    <?> "field access (e.g. List.map)")
-  case access of
-    Just _  -> accessible $ do v <- var <?> "field access (e.g. List.map)"
-                               end <- getPosition
-                               return (pos start end (Access e v))
-    Nothing -> return e
+  ce@(C s t e) <- expr
+  let rest f = do
+        let dot = char '.' >> notFollowedBy (char '.')
+        access <- optionMaybe (try dot <?> "field access (e.g. List.map)")
+        case access of
+          Nothing -> return ce
+          Just _  -> accessible $ do
+                       v <- var <?> "field access (e.g. List.map)"
+                       end <- getPosition
+                       return (pos start end (f v))
+  case e of Var (c:cs) | isUpper c -> rest (\v -> Var (c:cs ++ '.':v))
+                       | otherwise -> rest (Access ce)
+            _ -> rest (Access ce)
 
 
 spaces :: IParser String

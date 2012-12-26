@@ -63,8 +63,13 @@ instance Rename Expr where
       Access e x -> Access `liftM` rnm e
                               `ap` return x
 
-      Modify e f v  -> flip Modify f `liftM` rnm e
-                                        `ap` rnm v
+      Remove e x -> flip Remove x `liftM` rnm e
+
+      Insert e x v -> flip Insert x `liftM` rnm e
+                                       `ap` rnm v
+
+      Modify e fs  -> Modify `liftM` rnm e
+                                `ap` mapM (\(x,e) -> (,) x `liftM` rnm e) fs
 
       Record fs -> Record `liftM` mapM frnm fs
           where frnm (f,as,e) = do env' <- extends env as

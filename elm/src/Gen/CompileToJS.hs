@@ -6,7 +6,7 @@ import Control.Arrow (first)
 import Control.Monad (liftM,(<=<),join,ap)
 import Data.Char (isAlpha,isDigit)
 import Data.List (intercalate,sortBy,inits,foldl')
-import Data.Map (toList)
+import qualified Data.Map as Map
 import Data.Either (partitionEithers)
 import qualified Text.Pandoc as Pan
 
@@ -175,54 +175,75 @@ toJS' (C txt span expr) =
       Case e cases -> caseToJS span e cases
       _ -> toJS expr
 
+recordToJS e loop cmds = 
+    do e' <- toJS' e
+       return $ jsFunc "" (concat [ assign "r" "{_:[true]}"
+                                  , assign "e" e'
+                                  , "\nfor(var i in e){", loop, "}"
+                                  , cmds
+                                  , ret "r" ]) ++ "()"
+
+remove x = concat [ "\n if (i!='", x, "') { r[i]=e[i]; }"
+                  , "\n else if (e[i].length>1) { r[i]=e[i].slice(1); }" ]
+addField (x,e) = ((++add) . assign "v") `liftM` toJS' e
+    where add = concat [ "\nif (r.hasOwnProperty('", x, "')) {"
+                       , "\n r.", x, " = r.", x, ".slice(0);"
+                       , "\n r.", x, ".unshift(v);"
+                       , "\n} else { r.", x, " = [v]; }" ]
+setField (x,e) = do
+  set <- globalAssign ("r." ++ x ++ "[0]") `liftM` toJS' e
+  return (globalAssign ("r." ++ x) ("r." ++ x ++ ".slice(0)") ++ set)
+access x e = jsFunc "r" (ret body) ++ parens e
+    where body = "r.hasOwnProperty('_') ? r." ++ x ++ "[0] : r." ++ x
+makeRecord kvs = do
+  kvs' <- (Map.toList . foldl' combine Map.empty) `liftM` mapM prep kvs
+  let fs = map (\(k,vs) -> k ++ " : " ++ jsList vs) kvs' ++ ["_ : [true]"]
+  return $ "\n " ++ braces (intercalate ",\n  " fs)
+        where combine r (k,v) = Map.insertWith (++) k v r
+              prep (k, as, e@(C t s _)) =
+                  do v <- toJS' (foldr (\x e -> C t s $ Lambda x e) e as)
+                     return (k,[v])
+
+
 instance ToJS Expr where
-  toJS expr =
-    case expr of
-      IntNum n -> return $ show n
-      FloatNum n -> return $ show n
-      Var x -> return $ x
-      Chr c -> return $ quoted [c]
-      Str s -> return $ "Value.str" ++ parens (quoted s)
-      Boolean b -> return $ if b then "true" else "false"
-      Range lo hi -> jsRange `liftM` toJS' lo `ap` toJS' hi
-      Access e lbl -> (\s -> s ++ "." ++ lbl) `liftM` toJS' e
+ toJS expr =
+  case expr of
+    IntNum n -> return $ show n
+    FloatNum n -> return $ show n
+    Var x -> return $ x
+    Chr c -> return $ quoted [c]
+    Str s -> return $ "Value.str" ++ parens (quoted s)
+    Boolean b -> return $ if b then "true" else "false"
+    Range lo hi -> jsRange `liftM` toJS' lo `ap` toJS' hi
+    Access e x -> access x `liftM` toJS' e
+    Remove e x -> recordToJS e (remove x) ""
+    Insert e x v -> recordToJS e "r[i]=e[i];" =<< addField (x,v)
+    Modify e fs -> recordToJS e "r[i]=e[i];" . concat =<< mapM setField fs
+    Record fs -> makeRecord fs
+    Binop op e1 e2 -> binop op `liftM` toJS' e1 `ap` toJS' e2
 
-      Modify e lbl v -> do e' <- toJS' e
-                           v' <- toJS' v
-                           let body = concat [ assign "r" e'
-                                             , globalAssign ("r." ++ lbl) v'
-                                             , ret "r" ]
-                           return $ jsFunc "" body ++ "()"
- 
-      Record fs -> (braces . intercalate ",\n") `liftM` mapM toField fs
-          where toField (f, as, ce@(C t s e)) =
-                    do v <- toJS' (foldr (\x e -> C t s $ Lambda x e) ce as)
-                       return (f ++ " : " ++ v)
+    If eb et ef ->
+        parens `liftM` (iff `liftM` toJS' eb `ap` toJS' et `ap` toJS' ef)
 
-      Binop op e1 e2 -> binop op `liftM` toJS' e1 `ap` toJS' e2
+    Lambda v e -> liftM (jsFunc v . ret) (toJS' e)
 
-      If eb et ef ->
-          parens `liftM` (iff `liftM` toJS' eb `ap` toJS' et `ap` toJS' ef)
+    App (C _ _ (Var "toText")) (C _ _ (Str s)) ->
+        return $ "toText" ++ parens (quoted s)
 
-      Lambda v e -> liftM (jsFunc v . ret) (toJS' e)
+    App (C _ _ (Var "link")) (C _ _ (Str s)) ->
+        return $ "link(" ++ quoted s ++ ")"
 
-      App (C _ _ (Var "toText")) (C _ _ (Str s)) ->
-          return $ "toText" ++ parens (quoted s)
+    App (C _ _ (Var "plainText")) (C _ _ (Str s)) ->
+        return $ "plainText(" ++ quoted s ++ ")"
 
-      App (C _ _ (Var "link")) (C _ _ (Str s)) ->
-          return $ "link(" ++ quoted s ++ ")"
+    App e1 e2 -> (++) `liftM` (toJS' e1) `ap` (parens `liftM` toJS' e2)
+    Let defs e -> jsLet defs e
+    Data name es -> (\ss -> jsList $ quoted name : ss) `liftM` mapM toJS' es
 
-      App (C _ _ (Var "plainText")) (C _ _ (Str s)) ->
-          return $ "plainText(" ++ quoted s ++ ")"
-
-      App e1 e2 -> (++) `liftM` (toJS' e1) `ap` (parens `liftM` toJS' e2)
-      Let defs e -> jsLet defs e
-      Data name es -> (\ss -> jsList $ quoted name : ss) `liftM` mapM toJS' es
-
-      Markdown doc -> return $ "text('" ++ pad ++ md ++ pad ++ "')"
-          where pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
-                md = formatMarkdown $
-                     Pan.writeHtmlString Pan.defaultWriterOptions doc
+    Markdown doc -> return $ "text('" ++ pad ++ md ++ pad ++ "')"
+        where pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
+              md = formatMarkdown $
+                   Pan.writeHtmlString Pan.defaultWriterOptions doc
 
 formatMarkdown = concatMap f
     where f '\'' = "\\'"

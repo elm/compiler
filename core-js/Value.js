@@ -3,6 +3,11 @@ var Value = function(){
 
   var eq = function(x,y) {
     if (typeof x === "object") {
+	if (x.hasOwnProperty('_')) {
+	    for (var i in x) { if (x[i] != y[i]) return false; }
+	    for (var i in y) { if (x[i] != y[i]) return false; }
+	    return true;
+	}
 	if (x === y) return true;
 	if (x.length !== y.length) return false;
 	for (var i = x.length; i--; ) {
@@ -159,20 +164,29 @@ var Value = function(){
   }
 
   var toString = function(v) {
-    if (typeof v === "boolean") {
+    if (typeof v === "function") {
+	return "<function>";
+    } else if (typeof v === "boolean") {
 	return v ? "True" : "False";
     } else if (typeof v === "number") {
 	return v+"";
     } else if (typeof v === "string" && v.length < 2) {
 	return "'"+v+"'";
+    } else if (typeof v === "object" && v.hasOwnProperty('_')) {
+	var output = []
+	for (var k in v) {
+          if (k == '_') continue;
+          for (var i = v[k].length; i--; ) {
+            output.push(k + " = " + toString(v[k][i]));
+	  }
+	}
+	if (output.length === 0) return "{}";
+	return "{ " + output.join(", ") + " }";
     } else if (v[0]) {
 	if (v[0].substring(0,5) === "Tuple") {
-	    var output = "";
-	    for (var i = v.length; --i; ) {
-		output = "," + toString(v[i]) + output;
-	    }
-	    if (output[0] === ",") output = output.substring(1);
-	    return "("+output+")";
+	    var output = new Array(v.length-1);
+	    for (var i = v.length; --i; ) { output[i-1] = toString(v[i]); }
+	    return "(" + output.join(",") + ")";
 	} else if (v[0] === "Cons") {
 	    var start = (typeof v[1] === "string") ? '"' : "[";
 	    var  end  = (typeof v[1] === "string") ? '"' : "]";
@@ -202,11 +216,9 @@ var Value = function(){
 	    }
 	    return "(" + name + ".fromList " + toString(list) + ")";
 	} else {
-	    var output = "";
-	    for (var i = v.length; --i; ) {
-		output = " " + toString(v[i]) + output
-	    }
-	    output = v[0] + output;
+	    var output = [];
+	    for (var i = v.length; --i; ) { output.push(toString(v[i])); }
+	    output = v[0] + ' ' + output.join(' ');
 	    return (v.length > 1) ? "(" + output + ")" : output;
 	}
     }
