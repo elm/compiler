@@ -96,4 +96,9 @@ matchSingle pat exp@(C t s _) p =
     PVar x ->
         return [ FnDef x [] (ctx $ Case exp [(pat, ctx $ Var x)]) ]
 
+    PRecord fs -> do
+        a <- (\x -> 'a' : show x) `liftM` guid
+        let toDef f = FnDef f [] (ctx $ Access (ctx $ Var a) f)
+        return (FnDef a [] exp : map toDef fs)
+
     PAnything -> return []

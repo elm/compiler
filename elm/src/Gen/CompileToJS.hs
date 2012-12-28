@@ -198,7 +198,7 @@ access x e = jsFunc "r" (ret body) ++ parens e
 makeRecord kvs = do
   kvs' <- (Map.toList . foldl' combine Map.empty) `liftM` mapM prep kvs
   let fs = map (\(k,vs) -> k ++ " : " ++ jsList vs) kvs' ++ ["_ : [true]"]
-  return $ "\n " ++ braces (intercalate ",\n  " fs)
+  return $ braces ("\n  " ++ intercalate ",\n  " fs)
         where combine r (k,v) = Map.insertWith (++) k v r
               prep (k, as, e@(C t s _)) =
                   do v <- toJS' (foldr (\x e -> C t s $ Lambda x e) e as)
