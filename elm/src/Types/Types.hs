@@ -24,8 +24,11 @@ data Constraint = Type :=: Type
                 | X :<<: Scheme
                   deriving (Eq, Ord, Show)
 
-tipe t = ADT t []
+recordT :: [(String,Type)] -> Map.Map String [Type]
+recordT fields =
+    foldl (\r (x,t) -> Map.insertWith (++) x [t] r) Map.empty fields
 
+tipe t = ADT t []
 
 int = tipe "Int"
 float = tipe "Float"

@@ -52,7 +52,7 @@ accessor = do
   lbl <- try (string "." >> rLabel)
   end <- getPosition
   let ctx e = addCtx ("." ++ lbl) (pos start end e)
-  return (Lambda "r" (ctx $ Access (ctx $ Var "r") lbl))
+  return (Lambda "_" (ctx $ Access (ctx $ Var "_") lbl))
 
 
 --------  Complex Terms  --------

@@ -293,7 +293,3 @@ stmtGen (ImportEvent js e@(C txt span base) elm tipe) = do
 getDatatypeInfo (Datatype name args tcs) =
     Just (name, args, tcs)
 getDatatypeInfo _ = Nothing
-
-recordT :: [(String,Type)] -> Map.Map String [Type]
-recordT fields =
-    foldl (\r (x,t) -> Map.insertWith (++) x [t] r) Map.empty fields

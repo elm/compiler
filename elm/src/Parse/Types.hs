@@ -16,6 +16,7 @@ import Guid
 data ParseType = VarPT String
                | LambdaPT ParseType ParseType
                | ADTPT String [ParseType]
+               | RecordPT [(String,ParseType)]
 
 listPT t = ADTPT "List" [t]
 tuplePT ts = ADTPT ("Tuple" ++ show (length ts)) ts
@@ -30,8 +31,14 @@ typeTuple :: IParser ParseType
 typeTuple = do ts <- parens (commaSep typeExpr)
                return $ case ts of { [t] -> t ; _ -> tuplePT ts }
 
+typeRecord :: IParser ParseType
+typeRecord = fmap RecordPT . brackets . commaSep $ do
+               lbl <- rLabel
+               whitespace >> string "::" >> whitespace
+               (,) lbl <$> typeExpr
+
 typeUnambiguous :: IParser ParseType
-typeUnambiguous = typeList <|> typeTuple
+typeUnambiguous = typeList <|> typeTuple <|> typeRecord
 
 typeSimple :: IParser ParseType
 typeSimple = dealias <$> var
@@ -80,6 +87,8 @@ toDatatype name args tcs = Datatype name [1..n] <$> mapM toC tcs
                                        Just v -> Right v
                                        Nothing -> Left $ msg x
               | otherwise = return $ ADT x []
+          toT (RecordPT fs) = do fs' <- mapM (\(x,pt) -> (,) x <$> toT pt) fs
+                                 return (RecordT (recordT fs') EmptyRecord)
           msg x = "Type variable '" ++ x ++
                   "' is unbound in type constructor '" ++ name ++ "'."
 
