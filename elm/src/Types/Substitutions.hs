@@ -69,28 +69,7 @@ instance FreeVars a => FreeVars (Context a) where
 instance FreeVars a => FreeVars [a] where
   freeVars = concatMap freeVars
 
-class Occurs a where
-  occurs :: X -> a -> Bool
-
-instance Occurs Type where
-  occurs v (VarT x) = v == x
-  occurs v (LambdaT t1 t2) = occurs v t1 || occurs v t2
-  occurs v (ADT _ ts) = any (occurs v) ts
-  occurs v (RecordT fs t) = occurs v (concat $ Map.elems fs) || occurs v t
-  occurs v EmptyRecord = False
-  occurs v (Super _ ) = False
-
-instance Occurs Constraint where
-  occurs x (t1 :=: t2) = occurs x t1 || occurs x t2
-  occurs x (t1 :<: t2) = occurs x t1 || occurs x t2
-  occurs x (y :<<: Forall xs cs t) = x == y || occurs x t || inCs
-      where inCs = x `notElem` xs && any (occurs x) cs
-
-instance Occurs a => Occurs (Context a) where
-  occurs x (C _ _ c) = occurs x c
-
-instance Occurs a => Occurs [a] where
-  occurs v = any (occurs v)
+occurs x t = x `elem` freeVars t
 
 concretize :: Scheme -> GuidCounter (Type, [Context Constraint])
 concretize (Forall xs cs t) = do
