@@ -14,7 +14,7 @@ Elm.JavaScript = function() {
       return function(node) {
 	return ["Element",Guid.guid(),
 		["EExternalHtml",node],
-		w,h,1,Nothing,Nothing];
+		w,h,1,["Nothing"],["Nothing"]];
       }
     }
   }
