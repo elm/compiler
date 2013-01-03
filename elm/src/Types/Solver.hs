@@ -14,8 +14,6 @@ import Types.Types
 import Types.Constrain
 import Types.Substitutions
 
-import System.IO.Unsafe
-
 isSolved ss (C _ _ (t1 :=: t2)) = t1 == t2
 isSolved ss (C _ _ (x :<<: _)) = isJust (lookup x ss)
 isSolved ss c = False
@@ -54,10 +52,8 @@ schemeSub' x s c@(C txt span constraint) =
                    c' = y :<<: Forall (cxs ++ xs) constraints (subst ss ctipe)
                return [ C txt span c' ]
 
-p x = unsafePerformIO (print x) `seq` x
-
 recordConstraints eq fs t fs' t' =
-  liftM (p . concat) . sequence $
+  liftM concat . sequence $
       [ constrain fs fs'
       , liftM concat . mapM (\(k,ts) -> zipper [] k ts []) . Map.toList $
               Map.difference fs fs'
@@ -76,10 +72,10 @@ recordConstraints eq fs t fs' t' =
               ([],[]) -> return cs
               (as,[]) -> do x <- guid
                             let tipe = RecordT (Map.singleton k as) (VarT x)
-                            return . p $ (cs ++ [eq t' tipe])
+                            return (cs ++ [eq t' tipe])
               ([],bs) -> do x <- guid
                             let tipe = RecordT (Map.singleton k bs) (VarT x)
-                            return . p $ (cs ++ [eq t tipe])
+                            return (cs ++ [eq t tipe])
                               
 solver :: [Context Constraint]
        -> Map.Map X Type
@@ -98,7 +94,6 @@ solver (C txt span c : cs) subs =
           solver ([ eq t1 t1', eq t2 t2' ] ++ cs) subs
 
       RecordT fs t :=: RecordT fs' t' ->
-          unsafePerformIO (print c) `seq`
           do cs' <- recordConstraints eq fs t fs' t'
              solver (cs' ++ cs) subs
 
