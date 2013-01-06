@@ -1,7 +1,10 @@
 
 Elm.Keyboard = { Raw : function() {
   var keysDown = Elm.Signal.constant(["Nil"]);
+  keysDown.defaultNumberOfKids = 2;
+
   var charPressed = Elm.Signal.constant(["Nothing"]);
+
   function remove(x,xs) {
 	if (xs[0] === "Nil") return xs;
 	if (xs[1] === x) return xs[2];
@@ -41,3 +44,29 @@ Elm.Keyboard = { Raw : function() {
 	  charPressed:charPressed};
     }()
 };
+
+(function() {
+  function dir(left,right,up,down) {
+      function f(ks) {
+	  var x = 0, y = 0;
+	  while (ks[0] == "Cons") {
+	      switch (ks[1]) {
+	      case left : --x; break;
+	      case right: ++x; break;
+	      case up   : ++y; break;
+	      case down : --y; break;
+	      }
+	      ks = ks[2];
+	  }
+	  return { _:[true], x:[x], y:[y] };
+      }
+      return Elm.Signal.lift(f)(Elm.Keyboard.Raw.keysDown);
+  }
+  var arrows = dir(37,39,38,40);
+  arrows.defaultNumberOfKids = 0;
+  var wasd = dir(65,68,87,83);
+  wasd.defaultNumberOfKids = 0;
+
+  Elm.Keyboard.arrows = arrows;
+  Elm.Keyboard.wasd   = wasd;
+}());

@@ -139,17 +139,21 @@ function collageForms(w,h,forms) {
     return canvas;
 };
 
+function applyTransforms(theta,scale,x,y,w,h,e) {
+  var t = "translate(" + (x - w / 2) + "px,"+ (y - h / 2) + "px)";
+  var r = theta === (~~theta) ? "" : "rotate(" + theta*360 + "deg)";
+  var s = scale === 1 ? "" : "scale(" + scale + "," + scale + ")";
+  var transforms = t + " " + s + " " + r;
+  e.style.transform       = transforms;
+  e.style.msTransform     = transforms;
+  e.style.MozTransform    = transforms;
+  e.style.webkitTransform = transforms;
+  e.style.OTransform      = transforms;
+}
+
 function collageElement(w,h,theta,scale,x,y,elem) {
     var e = Render.render(elem);
-    var t = "translate(" + (x - elem[3] / 2) + "px,"+ (y - elem[4] / 2) + "px)";
-    var r = theta === (~~theta) ? "" : "rotate(" + theta*360 + "deg)";
-    var s = scale === 1 ? "" : "scale(" + scale + "," + scale + ")";
-    var transforms = t + " " + s + " " + r;
-    e.style.transform       = transforms;
-    e.style.msTransform     = transforms;
-    e.style.MozTransform    = transforms;
-    e.style.webkitTransform = transforms;
-    e.style.OTransform      = transforms;
+    applyTransforms(theta,scale,x,y,elem[3],elem[4],e);
     var div = Render.newElement('div');
     Render.addTo(div,e);
     div.style.width = (~~w) + "px";
@@ -174,25 +178,27 @@ function collage(w,h,formss) {
 }
 
 function updateFormSet(node,currSet,nextSet) {
-    if (Value.eq(nextSet,currSet)) return;
-    var w = node.style.width.slice(0,-2) - 0;
-    var h = node.style.height.slice(0,-2) - 0;
-    if (typeof nextSet[0] === "object") {
-	if (typeof currSet[0] === "object") {
-	    if (node.getContext) {
-		var ctx = node.getContext('2d');
-		function redo() { renderForms(this,ctx,w,h,nextSet); }
-		return renderForms(redo,ctx,w,h,nextSet);
-	    }
-	}
-	var newNode = collageForms(w,h,nextSet);
-	newNode.style.position = 'absolute';
-	return node.parentNode.replaceChild(newNode,node);
+  if (Value.eq(nextSet,currSet)) return;
+  var w = node.style.width.slice(0,-2) - 0;
+  var h = node.style.height.slice(0,-2) - 0;
+  if (typeof nextSet[0] === "object") {
+    if (typeof currSet[0] === "object") {
+      if (node.getContext) {
+        var ctx = node.getContext('2d');
+	function redo() { renderForms(this,ctx,w,h,nextSet); }
+	  return renderForms(redo,ctx,w,h,nextSet);
+      }
     }
-    var f = nextSet;
-    var newNode = collageElement(w,h,f[1],f[2],f[3][1],f[3][2],f[4][1]);
+    var newNode = collageForms(w,h,nextSet);
     newNode.style.position = 'absolute';
     return node.parentNode.replaceChild(newNode,node);
+  }
+  node.style.width = (~~w) + "px";
+  node.style.height = (~~h) + "px";
+  var f = nextSet;
+  var next = nextSet[4][1];
+  Render.update(node.firstChild, currSet[4][1], next);
+  applyTransforms(f[1],f[2],f[3][1],f[3][2],next[3],next[4],node.firstChild);
 }
 
 // assumes that the form sets are the same length.
