@@ -55,11 +55,11 @@ extract pattern body@(C t s _) =
     PVar x -> return $ fn x body
     PData name ps -> do
         x <- guid
-        let a = 'a' : show x
+        let a = '_' : show x
         return . fn a . ctx $ Case (ctx (Var a)) [(pattern, body)]
     PRecord fs -> do
         x <- guid
-        let a = 'a' : show x
+        let a = '_' : show x
             toDef f = FnDef f [] (ctx $ Access (ctx $ Var a) f)
         return . fn a . ctx $ Let (map toDef fs) body
 
@@ -89,7 +89,7 @@ matchSingle pat exp@(C t s _) p =
   let ctx = C t s in
   case p of
     PData _ ps -> do x <- guid
-                     let v = 'a' : show x
+                     let v = '_' : show x
                      dss <- mapM (matchSingle p . ctx $ Var v) ps
                      return (FnDef v [] exp : concat dss)
 
@@ -97,7 +97,7 @@ matchSingle pat exp@(C t s _) p =
         return [ FnDef x [] (ctx $ Case exp [(pat, ctx $ Var x)]) ]
 
     PRecord fs -> do
-        a <- (\x -> 'a' : show x) `liftM` guid
+        a <- (\x -> '_' : show x) `liftM` guid
         let toDef f = FnDef f [] (ctx $ Access (ctx $ Var a) f)
         return (FnDef a [] exp : map toDef fs)
 

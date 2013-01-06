@@ -161,7 +161,7 @@ Elm.Prelude = function() {
 	    lift8 : Elm.Signal.lift8,
 	    foldp : Elm.Signal.foldp,
 	    foldp1 : Elm.Signal.foldp1,
-	    foldp_ : Elm.Signal.foldp_,
+	    foldp$ : Elm.Signal.foldp$,
 	    constant : Elm.Signal.constant,
 	    merge : Elm.Signal.merge,
 	    count : Elm.Signal.count,

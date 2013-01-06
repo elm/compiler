@@ -210,7 +210,7 @@ Elm.Automaton=function(){
  combine:combine_3,
  pure:pure_4,
  init:init_5,
- init_:init__6,
+ init$:init__6,
  count:count_7,
  draggable:draggable_13};}();
 Elm.main=function(){

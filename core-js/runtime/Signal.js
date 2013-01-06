@@ -249,7 +249,7 @@ Elm.Signal = function() {
               return new lift(f, [e1,e2,e3,e4,e5,e6,e7,e8]);};};};};};};};};},
     foldp : function(f) { return function(b) { return function(e) {
 		  return new fold(f,b,false,e); }; }; },
-    foldp_ : function(f) { return function(b) { return function(e) {
+    foldp$ : function(f) { return function(b) { return function(e) {
 		  return new fold(f,b,true,e); }; }; },
     foldp1 : function(f) { return function(e) {
 	      return new fold(f,function(x){return x;},true,e); }; },

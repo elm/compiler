@@ -109,7 +109,7 @@ instance Rename Expr where
 
       _ -> return expr
 
-deprime = map (\c -> if c == '\'' then '_' else c)
+deprime = map (\c -> if c == '\'' then '$' else c)
 
 extend :: (String -> String) -> String -> GuidCounter (String, String -> String)
 extend env x = do
