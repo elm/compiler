@@ -2,23 +2,26 @@
 Elm.Touch = function() {
   var touches = Elm.Signal.constant(["Nil"]);
   
-  Value.addListener(document, "touchstart",  function(e) {
-	  var ts = e.changedTouches;
-	  var vs = touches.value;
-	  for (var i = ts.length; i--; ) {
-	      var t = ts[i];
-	      vs = ["Cons", Value.tuple(t.pageX, t.pageY), vs];
-	  }
-	  Dispatcher.notify(touches.id, vs);
-      });
-  Value.addListener(document, "touchend",    function(e) {
-      });
-  Value.addListener(document, "touchcancel", function(e) {
-      });
-  Value.addListener(document, "touchleave",  function(e) {
-      });
-  Value.addListener(document, "touchmove",   function(e) {
-      });
+  function touch(t) {
+    return {_ : [true], x: [t.pageX], y: [t.pageY], id: [t.identifier] };
+  }
 
-  return {};
+  function listen(name) {
+    function update(e) {
+      var ts = Elm.JavaScript.castJSArrayToList(e.touches);
+      var hasListener = Dispatcher.notify(touches.id, Elm.List.map(touch)(ts));
+      if (!hasListener)
+        return this.removeEventListener(name,arguments.callee,false);
+      e.preventDefault();
+    }
+    Value.addListener(document, name, update);
+  }
+
+  listen("touchstart");
+  listen("touchmove");
+  listen("touchend");
+  listen("touchcancel");
+  listen("touchleave");
+
+  return { touches: touches };
 }();
