@@ -91,7 +91,7 @@ Elm.Automaton=function(){
    return function(){
    switch(Automaton$m0_14[0]){
     case "Automaton":
-    return lift(fst)(foldp_(function(a_17){
+    return lift(fst)(foldp$(function(a_17){
      return function(Tuple2$bAutomaton$m_18){
       return function(){
       switch(Tuple2$bAutomaton$m_18[0]){
