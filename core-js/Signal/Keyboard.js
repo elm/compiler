@@ -1,8 +1,6 @@
 
 Elm.Keyboard = { Raw : function() {
   var keysDown = Elm.Signal.constant(["Nil"]);
-  keysDown.defaultNumberOfKids = 2;
-
   var charPressed = Elm.Signal.constant(["Nothing"]);
 
   function remove(x,xs) {
@@ -46,27 +44,45 @@ Elm.Keyboard = { Raw : function() {
 };
 
 (function() {
-  function dir(left,right,up,down) {
-      function f(ks) {
-	  var x = 0, y = 0;
-	  while (ks[0] == "Cons") {
-	      switch (ks[1]) {
-	      case left : --x; break;
-	      case right: ++x; break;
-	      case up   : ++y; break;
-	      case down : --y; break;
-	      }
-	      ks = ks[2];
-	  }
-	  return { _:[true], x:[x], y:[y] };
-      }
-      return Elm.Signal.lift(f)(Elm.Keyboard.Raw.keysDown);
+  function keySignal(f) {
+    var signal = Elm.Signal.lift(f)(Elm.Keyboard.Raw.keysDown);
+    Elm.Keyboard.Raw.keysDown.defaultNumberOfKids += 1;
+    signal.defaultNumberOfKids = 0;
+    return signal;
   }
-  var arrows = dir(37,39,38,40);
-  arrows.defaultNumberOfKids = 0;
-  var wasd = dir(65,68,87,83);
-  wasd.defaultNumberOfKids = 0;
 
-  Elm.Keyboard.arrows = arrows;
-  Elm.Keyboard.wasd   = wasd;
+  function dir(left,right,up,down) {
+    function f(ks) {
+      var x = 0, y = 0;
+      while (ks[0] == "Cons") {
+	switch (ks[1]) {
+	case left : --x; break;
+	case right: ++x; break;
+	case up   : ++y; break;
+	case down : --y; break;
+	}
+	ks = ks[2];
+      }
+      return { _:[true], x:[x], y:[y] };
+    }
+    return keySignal(f);
+  }
+
+  function is(key) {
+    function f(ks) {
+      while (ks[0] == "Cons") {
+	if (key == ks[1]) return true;
+	ks = ks[2];
+      }
+      return false;
+    }
+    return keySignal(f);
+  }
+
+  Elm.Keyboard.arrows = dir(37,39,38,40);
+  Elm.Keyboard.wasd   = dir(65,68,87,83);
+  Elm.Keyboard.shift  = is(16);
+  Elm.Keyboard.ctrl   = is(17);
+  Elm.Keyboard.space  = is(32);
+
 }());
