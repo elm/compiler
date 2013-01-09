@@ -5,11 +5,6 @@ Elm.Maybe = function() {
 	    return xs;
 	};
     }
-    function fromMaybe(b) { return function(m) {
-	    if (m[0] === "Just") return m[1];
-	    return b;
-	};
-    }
     function mapCons(f) { return function(y) { return function(xs) {
 		var x = f(y);
 		if (x[0] === "Just") return ["Cons", x[1], xs];
@@ -26,12 +21,10 @@ Elm.Maybe = function() {
 
     return {Just : function(x) { return ["Just",x]; },
 	    Nothing : ["Nothing"],
-	    catMaybes : Elm.List.foldr(consMaybe)(["Nil"]),
+	    justs : Elm.List.foldr(consMaybe)(["Nil"]),
 	    isJust : function(m) { return m[0] === "Just"; },
 	    isNothing : function(m) { return m[0] === "Nothing"; },
-	    fromMaybe : fromMaybe,
-	    consMaybe : consMaybe,
-	    mapMaybe : function(f) { return Elm.List.foldr(mapCons(f))(["Nil"]); },
+	    cons : consMaybe,
 	    maybe : maybe
     };
 }();
