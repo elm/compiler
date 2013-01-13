@@ -216,9 +216,9 @@ var Value = function(){
 	    }
 	    return "(" + name + ".fromList " + toString(list) + ")";
 	} else {
-	    var output = [];
-	    for (var i = v.length; --i; ) { output.push(toString(v[i])); }
-	    output = v[0] + ' ' + output.join(' ');
+	    var output = "";
+	    for (var i = v.length; --i; ) { output = ' ' + toString(v[i]) + output; }
+	    output = v[0] + output;
 	    return (v.length > 1) ? "(" + output + ")" : output;
 	}
     }
