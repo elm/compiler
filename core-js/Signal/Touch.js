@@ -8,11 +8,11 @@ Elm.Touch = function() {
     this.insert = function(key,value) {
       this.keys.push(key);
       this.values.push(value);
-    }
+    };
     this.lookup = function(key) {
       var i = this.keys.indexOf(key)
       return i >= 0 ? this.values[i] : {x:0,y:0,t:0};
-    }
+    };
     this.remove = function(key) {
       var i = this.keys.indexOf(key);
       if (i < 0) return;
@@ -20,7 +20,7 @@ Elm.Touch = function() {
       this.keys.splice(i,1);
       this.values.splice(i,1);
       return t;
-    }
+    };
   }
 
   var root = Elm.Signal.constant([]),
@@ -28,7 +28,7 @@ Elm.Touch = function() {
       hasTap = false,
       tap = {_:[true],x:[0],y:[0]},
       dict = new Dict();
-  
+
   function touch(t) {
       var r = dict.lookup(t.identifier);
       return {_ : [true], id: [t.identifier],
@@ -54,8 +54,7 @@ Elm.Touch = function() {
       var ts = new Array(e.touches.length);
       for (var i = e.touches.length; i--; ) { ts[i] = touch(e.touches[i]); }
       var hasListener = Dispatcher.notify(root.id, ts);
-      if (!hasListener)
-        return this.removeEventListener(name,arguments.callee,false);
+      if (!hasListener) return document.removeEventListener(name, update);
       e.preventDefault();
     }
     Value.addListener(document, name, update);
@@ -68,19 +67,22 @@ Elm.Touch = function() {
   listen("touchleave", end);
 
   function dependency(f) {
-    var signal = Elm.Signal.lift(f)(root);
-    root.defaultNumberOfKids += 1;
-    signal.defaultNumberOfKids = 0;
-    return signal;
+      var sig = Elm.Signal.lift(f)(root);
+      root.defaultNumberOfKids += 1;
+      sig.defaultNumberOfKids = 0;
+      return sig;
   }
 
   var touches = dependency(function(ts) {
 	  return Elm.JavaScript.castJSArrayToList(ts);
       });
   var taps = function() {
-      function pred(_) { var b = hasTap; hasTap = false; return b; }
       var sig = dependency(function(_) { return tap; });
-      return Elm.Signal.keepIf(pred)({_:[true],x:[0],y:[0]})(sig);
+      sig.defaultNumberOfKids = 1;
+      function pred(_) { var b = hasTap; hasTap = false; return b; }
+      var sig2 =  Elm.Signal.keepIf(pred)({_:[true],x:[0],y:[0]})(sig);
+      sig2.defaultNumberOfKids = 0;
+      return sig2;
   }();
 
   return { touches: touches, taps: taps };

@@ -12,7 +12,9 @@ Value.addListener(document, 'elm_viewport', function(e) {
 	    node.name = 'viewport';
 	    document.head.appendChild(node);
 	}
-	node.content = e.value; //'width=device-width, initial-scale=1';
+	node.content = e.value;
+	Dispatcher.notify(Elm.Window.dimensions.id,
+			  Value.Tuple(window.innerWidth, window.innerHeight));
     });
 
 Elm.Prelude = function() {
