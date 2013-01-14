@@ -2519,6 +2519,12 @@ Elm.Signal = function() {
       return Elm.List.foldl1(mrg)(ss);
   }
 
+  function mergeEither(s1) { return function(s2) {
+      function f(s) { return function(x) { return [s,x]; }; }
+      return new merge(new lift(f,[s1]), new lift(f,[s2]));
+    };
+  }
+
   function average(sampleSize) { return function(s) {
     var sample = new Array(sampleSize);
     var i = sampleSize;
@@ -2578,6 +2584,7 @@ Elm.Signal = function() {
     delay : delay,
     merge : function(s1) { return function(s2) { return new merge(s1,s2)}; },
     merges : merges,
+    mergeEither : mergeEither,
     average : average,
     count : function(sig) {
 	  var incr = function(_){return function(c){return c+1;};};
@@ -2615,7 +2622,8 @@ var Dispatcher = function() {
 	content.appendChild(Render.render(currentElement));
 	var w = document.getElementById('widthChecker').offsetWidth;
 	if (w !== window.innerWidth) {
-	    Dispatcher.notify(Elm.Window.dimensions.id, Value.Tuple(w, window.innerHeight));
+	    Dispatcher.notify(Elm.Window.dimensions.id,
+			      Value.Tuple(w, window.innerHeight));
 	}
 	program = Elm.Signal.lift(function(value) {
 		var content = document.getElementById('content');
@@ -2647,7 +2655,7 @@ var Dispatcher = function() {
     function filterDeadInputs() {
 	var temp = [];
 	for (var i = inputs.length; i--; ) {
-	    if (isAlive(inputs[i])) temp.push(inputs[i]);
+	    if (isAlive(inputs[i])) { temp.push(inputs[i]); }
 	}
 	inputs = temp;
     }
@@ -2932,12 +2940,12 @@ Elm.Mouse = function() {
 	  var hasListener2 = Dispatcher.notify(clicks.id, Value.Tuple());
 	  Dispatcher.notify(isClicked.id, false);
 	  if (!hasListener1 && !hasListener2)
-		this.removeEventListener('click',arguments.callee,false);
+            this.removeEventListener('click',arguments.callee,false);
 	});
   Value.addListener(document, 'mousedown', function(e) {
 	  var hasListener = Dispatcher.notify(isDown.id, true);
 	  if (!hasListener)
-		this.removeEventListener('mousedown',arguments.callee,false);
+            this.removeEventListener('mousedown',arguments.callee,false);
 	});
   Value.addListener(document, 'mouseup', function(e) {
 	  var hasListener = Dispatcher.notify(isDown.id, false);
@@ -3111,6 +3119,18 @@ Value.addListener(document, 'elm_title', function(e) {document.title = e.value;}
 Value.addListener(document, 'elm_redirect', function(e) {
 	if (e.value.length > 0) { window.location = e.value; }
     });
+Value.addListener(document, 'elm_viewport', function(e) {
+	var node = document.getElementById('elm_viewport');
+	if (!node) {
+	    node = document.createElement('meta');
+	    node.id = 'elm_viewport';
+	    node.name = 'viewport';
+	    document.head.appendChild(node);
+	}
+	node.content = e.value;
+	Dispatcher.notify(Elm.Window.dimensions.id,
+			  Value.Tuple(window.innerWidth, window.innerHeight));
+    });
 
 Elm.Prelude = function() {
     var mod = function(x) { return function(y) {
@@ -3271,6 +3291,8 @@ Elm.Prelude = function() {
 	    foldp$ : Elm.Signal.foldp$,
 	    constant : Elm.Signal.constant,
 	    merge : Elm.Signal.merge,
+	    merges : Elm.Signal.merges,
+	    mergeEither : Elm.Signal.mergeEither,
 	    count : Elm.Signal.count,
 	    countIf : Elm.Signal.countIf,
 	    average : Elm.Signal.average,
@@ -3303,16 +3325,6 @@ Elm.Prelude = function() {
 
 Elm.Touch = function() {
 
-  function log(id,msg) {
-    var e = document.getElementById('logger' + id);
-    if (!e) {
-      e = document.createElement('div');
-      e.id = 'logger' + id;
-      document.body.appendChild(e);
-    }
-    e.innerHTML = msg;
-  }
-
   function Dict() {
     this.keys = [];
     this.values = [];
@@ -3320,11 +3332,11 @@ Elm.Touch = function() {
     this.insert = function(key,value) {
       this.keys.push(key);
       this.values.push(value);
-    }
+    };
     this.lookup = function(key) {
       var i = this.keys.indexOf(key)
       return i >= 0 ? this.values[i] : {x:0,y:0,t:0};
-    }
+    };
     this.remove = function(key) {
       var i = this.keys.indexOf(key);
       if (i < 0) return;
@@ -3332,7 +3344,7 @@ Elm.Touch = function() {
       this.keys.splice(i,1);
       this.values.splice(i,1);
       return t;
-    }
+    };
   }
 
   var root = Elm.Signal.constant([]),
@@ -3340,7 +3352,7 @@ Elm.Touch = function() {
       hasTap = false,
       tap = {_:[true],x:[0],y:[0]},
       dict = new Dict();
-  
+
   function touch(t) {
       var r = dict.lookup(t.identifier);
       return {_ : [true], id: [t.identifier],
@@ -3366,8 +3378,7 @@ Elm.Touch = function() {
       var ts = new Array(e.touches.length);
       for (var i = e.touches.length; i--; ) { ts[i] = touch(e.touches[i]); }
       var hasListener = Dispatcher.notify(root.id, ts);
-      if (!hasListener)
-        return this.removeEventListener(name,arguments.callee,false);
+      if (!hasListener) return document.removeEventListener(name, update);
       e.preventDefault();
     }
     Value.addListener(document, name, update);
@@ -3380,19 +3391,22 @@ Elm.Touch = function() {
   listen("touchleave", end);
 
   function dependency(f) {
-    var signal = Elm.Signal.lift(f)(root);
-    root.defaultNumberOfKids += 1;
-    signal.defaultNumberOfKids = 0;
-    return signal;
+      var sig = Elm.Signal.lift(f)(root);
+      root.defaultNumberOfKids += 1;
+      sig.defaultNumberOfKids = 0;
+      return sig;
   }
 
   var touches = dependency(function(ts) {
 	  return Elm.JavaScript.castJSArrayToList(ts);
       });
   var taps = function() {
-      function pred(_) { var b = hasTap; hasTap = false; return b; }
       var sig = dependency(function(_) { return tap; });
-      return Elm.Signal.keepIf(pred)({_:[true],x:[0],y:[0]})(sig);
+      sig.defaultNumberOfKids = 1;
+      function pred(_) { var b = hasTap; hasTap = false; return b; }
+      var sig2 =  Elm.Signal.keepIf(pred)({_:[true],x:[0],y:[0]})(sig);
+      sig2.defaultNumberOfKids = 0;
+      return sig2;
   }();
 
   return { touches: touches, taps: taps };
