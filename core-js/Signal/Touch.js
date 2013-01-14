@@ -1,16 +1,6 @@
 
 Elm.Touch = function() {
 
-  function log(id,msg) {
-    var e = document.getElementById('logger' + id);
-    if (!e) {
-      e = document.createElement('div');
-      e.id = 'logger' + id;
-      document.body.appendChild(e);
-    }
-    e.innerHTML = msg;
-  }
-
   function Dict() {
     this.keys = [];
     this.values = [];

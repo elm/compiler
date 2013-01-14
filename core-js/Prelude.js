@@ -4,6 +4,16 @@ Value.addListener(document, 'elm_title', function(e) {document.title = e.value;}
 Value.addListener(document, 'elm_redirect', function(e) {
 	if (e.value.length > 0) { window.location = e.value; }
     });
+Value.addListener(document, 'elm_viewport', function(e) {
+	var node = document.getElementById('elm_viewport');
+	if (!node) {
+	    node = document.createElement('meta');
+	    node.id = 'elm_viewport';
+	    node.name = 'viewport';
+	    document.head.appendChild(node);
+	}
+	node.content = e.value; //'width=device-width, initial-scale=1';
+    });
 
 Elm.Prelude = function() {
     var mod = function(x) { return function(y) {
@@ -164,6 +174,8 @@ Elm.Prelude = function() {
 	    foldp$ : Elm.Signal.foldp$,
 	    constant : Elm.Signal.constant,
 	    merge : Elm.Signal.merge,
+	    merges : Elm.Signal.merges,
+	    mergeEither : Elm.Signal.mergeEither,
 	    count : Elm.Signal.count,
 	    countIf : Elm.Signal.countIf,
 	    average : Elm.Signal.average,
