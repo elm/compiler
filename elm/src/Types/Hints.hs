@@ -168,6 +168,7 @@ signals = prefix "Signal"
     , "timeOf"    -:: signalOf a ==> signalOf time
     , "merge"     -:: signalOf a ==> signalOf a ==> signalOf a
     , "merges"    -:: listOf (signalOf a) ==> signalOf a
+    , "mergeEither" -:: signalOf a ==> signalOf b ==> signalOf (eitherOf a b)
     , numScheme (\n -> int ==> signalOf n ==> signalOf float) "average"
     ]
 
@@ -184,9 +185,7 @@ http = prefix "HTTP"
           response t = ADT "Response" [t]
 
 concreteSignals = 
-  [ "Keyboard.Raw.keysDown"    -: signalOf (listOf int)
-  , "Keyboard.Raw.charPressed" -: signalOf (maybeOf int)
-  , "Random.inRange"    -: int ==> int ==> signalOf int
+  [ "Random.inRange"    -: int ==> int ==> signalOf int
   , "Random.randomize"  -:: int ==> int ==> signalOf a ==> signalOf int
   , "Window.dimensions" -: signalOf point
   , "Window.width"      -: signalOf int
@@ -206,10 +205,27 @@ concreteSignals =
   , "Input.dropDown"    -:: listOf (tupleOf [string,a]) ==> tupleOf [element, signalOf a]
   ]
 
+keyboards = prefix "Keyboard"
+  [ "Raw.keysDown"    -: signalOf (listOf int)
+  , "Raw.charPressed" -: signalOf (maybeOf int)
+  , "arrows" -: signalOf (recordOf [("x",int),("y",int)]))
+  , "wasd"   -: signalOf (recordOf [("x",int),("y",int)]))
+  , "ctrl"   -: signalOf bool
+  , "space"  -: signalOf bool
+  , "shift"  -: signalOf bool
+  ]
+
+touches = prefix "Touch"
+  [ "touches" -: signalOf (listOf (recordOf [("x" ,int) ,("y" ,int)
+                                            ,("x0",int) ,("y0",int)
+                                            ,("t0",time),("id",int)]))
+  , "taps" -: signalOf (recordOf [("x",int),("y",int)])
+  ]
+
 times = prefix "Time"
-  [ "fps"     -: number ==> signalOf time
+  [ numScheme (\n -> n ==> signalOf time) "fps"
+  , numScheme (\n -> n ==> signalOf bool ==> signalOf time) "fpsWhen"
   , "every"   -: time ==> signalOf time
-  , "fpsWhen" -: number ==> signalOf bool ==> signalOf time
   , "delay"   -:: time ==> signalOf a ==> signalOf a
   , "since"   -:: time ==> signalOf a ==> signalOf bool
   , "hour"    -: time
@@ -303,6 +319,8 @@ funcs =
     , "Nil"     -:: listOf a
     , "Just"    -:: a ==> maybeOf a
     , "Nothing" -:: maybeOf a
+    , "Left"    -:: a ==> eitherOf a b
+    , "Right"   -:: b ==> eitherOf a b
     , "curry"   -:: (tupleOf [a,b] ==> c) ==> a ==> b ==> c
     , "uncurry" -:: (a ==> b ==> c) ==> tupleOf [a,b] ==> c
     ] ++ map tuple [0..8]
@@ -347,10 +365,17 @@ maybeFuncs = prefix "Maybe"
   [ "maybe" -:: b ==> (a ==> b) ==> maybeOf a ==> b
   , "isJust" -:: maybeOf a ==> bool
   , "isNothing" -:: maybeOf a ==> bool
-  , "fromMaybe" -:: a ==> maybeOf a ==> a
-  , "consMaybe" -:: maybeOf a ==> listOf a ==> listOf a
-  , "catMaybes" -:: listOf (maybeOf a) ==> listOf a
-  , "catMaybes" -:: (a ==> maybeOf b) ==> listOf a ==> listOf b
+  , "cons" -:: maybeOf a ==> listOf a ==> listOf a
+  , "justs" -:: listOf (maybeOf a) ==> listOf a
+  ]
+
+eithers = prefix "Either"
+  [ "isLeft"  -:: eitherOf a b ==> bool
+  , "isRight" -:: eitherOf a b ==> bool
+  , "either"  -:: (a ==> c) ==> (b ==> c) ==> eitherOf a b ==> c
+  , "lefts"   -:: listOf (eitherOf a b) ==> listOf a
+  , "rights"  -:: listOf (eitherOf a b) ==> listOf b
+  , "partition" -:: listOf (eitherOf a b) ==> tupleOf [listOf a,listOf b]
   ]
 
 dictionary =
@@ -410,9 +435,9 @@ automaton =
 
 --------  Everything  --------
 
-hints = mapM (\(n,s) -> (,) n `liftM` rescheme s) hs
-    where hs = concat [ funcs, lists, signals, math, bools, textAttrs
-                      , graphicsElement, graphicsColor
-                      , concreteSignals, javascript, json, maybeFuncs
-                      , http, dictionary, sets, automaton, times, dates
-                      ]
+hints = mapM (\(n,s) -> (,) n `liftM` rescheme s) (concat hs)
+    where hs = [ funcs, lists, signals, math, bools, textAttrs
+               , graphicsElement, graphicsColor, eithers, keyboards, touches
+               , concreteSignals, javascript, json, maybeFuncs
+               , http, dictionary, sets, automaton, times, dates
+               ]

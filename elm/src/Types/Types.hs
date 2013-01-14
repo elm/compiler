@@ -28,6 +28,9 @@ recordT :: [(String,Type)] -> Map.Map String [Type]
 recordT fields =
     foldl (\r (x,t) -> Map.insertWith (++) x [t] r) Map.empty fields
 
+recordOf :: [(String,Type)] -> Type
+recordOf fields = RecordT (recordT fields) EmptyRecord
+
 tipe t = ADT t []
 
 int = tipe "Int"
@@ -58,6 +61,7 @@ listOf t   = ADT "List" [t]
 signalOf t = ADT "Signal" [t]
 tupleOf ts = ADT ("Tuple" ++ show (length ts)) ts
 maybeOf t  = ADT "Maybe" [t]
+eitherOf a b = ADT "Maybe" [a,b]
 pairOf t = tupleOf [t,t]
 point = pairOf int
 appendable t = Super (Set.fromList [ string, text, listOf t ])
