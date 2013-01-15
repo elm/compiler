@@ -67,8 +67,8 @@ jsModule (escapees, Module names exports imports stmts) =
            [ concatMap (\n -> globalAssign n $ n ++ " || {}") .
              map (intercalate ".") . drop 2 . inits $
              take (length modNames - 1) modNames
-           , "\nif (" ++ modName ++ ") throw \"Module name collision, '" ++
-             intercalate "." (tail modNames) ++ "' is already defined.\"; "
+           , "\nif (" ++ modName ++ ") throw new Error(\"Module name collision, '" ++
+             intercalate "." (tail modNames) ++ "' is already defined.\"); "
            , globalAssign modName $ jsFunc "" (defs ++ includes ++ body ++ export) ++ "()"
            , mainEquals $ modName ++ ".main" ]
         where modNames = if null names then ["Elm", "Main"]
@@ -102,7 +102,7 @@ getExports names stmts = ret . braces $ intercalate ",\n" (op : map fnPair fns)
 
 
 jsImport (modul, how) =
-  concat [ "\ntry{\n if (!(" ++ modul ++ " instanceof Object)) throw 'module not found';\n} catch(e) {\n throw (\"Module '"
+  concat [ "\ntry{\n if (!(" ++ modul ++ " instanceof Object)) throw new Error('module not found');\n} catch(e) {\n throw new Error(\"Module '"
          , drop 1 (dropWhile (/='.') modul)
          , "' is missing. Compile with --make flag or load missing "
          , "module in a separate JavaScript file.\");\n}" ] ++
@@ -253,8 +253,8 @@ formatMarkdown = concatMap f
 
 multiIfToJS span ps = format `liftM` mapM f ps
     where format cs = foldr (\c e -> parens $ c ++ " : " ++ e) err cs
-          err = concat [ "(function(){throw \"Non-exhaustive "
-                       , "multi-way-if expression (", show span, ")\";}())" ]
+          err = concat [ "(function(){throw new Error(\"Non-exhaustive "
+                       , "multi-way-if expression (", show span, ")\");}())" ]
           f (b,e) = do b' <- toJS' b
                        e' <- toJS' e
                        return (b' ++ " ? " ++ e')
@@ -282,8 +282,8 @@ matchToJS span (Match name clauses def) = do
   cases <- concat `liftM` mapM (clauseToJS span name) clauses
   finally <- matchToJS span def
   return $ concat [ "\nswitch(", name, "[0]){", indent cases, "\n}", finally ]
-matchToJS span Fail  = return ("\nthrow \"Non-exhaustive pattern match " ++
-                               "in case expression (" ++ show span ++ ")\";")
+matchToJS span Fail  = return ("\nthrow new Error(\"Non-exhaustive pattern match " ++
+                               "in case expression (" ++ show span ++ ")\");")
 matchToJS span Break = return "break;"
 matchToJS span (Other e) = ret `liftM` toJS' e
 matchToJS span (Seq ms) = concat `liftM` mapM (matchToJS span) ms
