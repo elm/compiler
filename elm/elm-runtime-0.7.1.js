@@ -2622,8 +2622,7 @@ var Dispatcher = function() {
 	content.appendChild(Render.render(currentElement));
 	var w = document.getElementById('widthChecker').offsetWidth;
 	if (w !== window.innerWidth) {
-	    Dispatcher.notify(Elm.Window.dimensions.id,
-			      Value.Tuple(w, window.innerHeight));
+	    Dispatcher.notify(Elm.Window.dimensions.id, Value.Tuple(w, window.innerHeight));
 	}
 	program = Elm.Signal.lift(function(value) {
 		var content = document.getElementById('content');
@@ -2655,7 +2654,7 @@ var Dispatcher = function() {
     function filterDeadInputs() {
 	var temp = [];
 	for (var i = inputs.length; i--; ) {
-	    if (isAlive(inputs[i])) { temp.push(inputs[i]); }
+	    if (isAlive(inputs[i])) temp.push(inputs[i]);
 	}
 	inputs = temp;
     }
@@ -2940,12 +2939,12 @@ Elm.Mouse = function() {
 	  var hasListener2 = Dispatcher.notify(clicks.id, Value.Tuple());
 	  Dispatcher.notify(isClicked.id, false);
 	  if (!hasListener1 && !hasListener2)
-            this.removeEventListener('click',arguments.callee,false);
+		this.removeEventListener('click',arguments.callee,false);
 	});
   Value.addListener(document, 'mousedown', function(e) {
 	  var hasListener = Dispatcher.notify(isDown.id, true);
 	  if (!hasListener)
-            this.removeEventListener('mousedown',arguments.callee,false);
+		this.removeEventListener('mousedown',arguments.callee,false);
 	});
   Value.addListener(document, 'mouseup', function(e) {
 	  var hasListener = Dispatcher.notify(isDown.id, false);
@@ -3214,6 +3213,7 @@ Elm.Prelude = function() {
     return {eq   : Value.eq,
 	    id   : function(x) { return x; },
 	    not  : function(b) { return !b; },
+	    xor  : function(x) { return function(y) { return x != y; }; },
 	    fst  : function(p) { return p[1]; },
 	    snd  : function(p) { return p[2]; },
 	    rem  : function(x) { return function(y) { return x % y; }; },
