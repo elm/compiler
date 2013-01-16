@@ -99,6 +99,7 @@ Elm.Prelude = function() {
     return {eq   : Value.eq,
 	    id   : function(x) { return x; },
 	    not  : function(b) { return !b; },
+	    xor  : function(x) { return function(y) { return x != y; }; },
 	    fst  : function(p) { return p[1]; },
 	    snd  : function(p) { return p[2]; },
 	    rem  : function(x) { return function(y) { return x % y; }; },
