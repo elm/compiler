@@ -208,8 +208,8 @@ concreteSignals =
 keyboards = prefix "Keyboard"
   [ "Raw.keysDown"    -: signalOf (listOf int)
   , "Raw.charPressed" -: signalOf (maybeOf int)
-  , "arrows" -: signalOf (recordOf [("x",int),("y",int)]))
-  , "wasd"   -: signalOf (recordOf [("x",int),("y",int)]))
+  , "arrows" -: signalOf (recordOf [("x",int),("y",int)])
+  , "wasd"   -: signalOf (recordOf [("x",int),("y",int)])
   , "ctrl"   -: signalOf bool
   , "space"  -: signalOf bool
   , "shift"  -: signalOf bool
