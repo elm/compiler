@@ -242,8 +242,7 @@ instance ToJS Expr where
 
     Markdown doc -> return $ "text('" ++ pad ++ md ++ pad ++ "')"
         where pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
-              md = formatMarkdown $
-                   Pan.writeHtmlString Pan.defaultWriterOptions doc
+              md = formatMarkdown $ Pan.writeHtmlString Pan.def doc
 
 formatMarkdown = concatMap f
     where f '\'' = "\\'"

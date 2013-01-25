@@ -61,7 +61,7 @@ listTerm :: IParser Expr
 listTerm =
       (do { try $ string "[markdown|"
           ; md <- filter (/='\r') <$> manyTill anyChar (try $ string "|]")
-          ; return . Markdown $ Pan.readMarkdown Pan.defaultParserState md })
+          ; return . Markdown $ Pan.readMarkdown Pan.def md })
   <|> (braces $ choice
        [ try $ do { lo <- expr; whitespace; string ".." ; whitespace
                   ; Range lo <$> expr }
