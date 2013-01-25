@@ -2521,7 +2521,7 @@ Elm.Signal = function() {
 
   function mergeEither(s1) { return function(s2) {
       function f(s) { return function(x) { return [s,x]; }; }
-      return new merge(new lift(f,[s1]), new lift(f,[s2]));
+      return new merge(new lift(f('Left'),[s1]), new lift(f('Right'),[s2]));
     };
   }
 
