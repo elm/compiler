@@ -56,7 +56,6 @@
 module Pong where
 
 import JavaScript
-import Keyboard.Raw
 
 
 -- Set the frames per second (FPS) to 60, calculate the deltas (the
@@ -70,53 +69,19 @@ delta = lift inSeconds (fps 60)
 ------                  Modelling User Input                      ------
 ------------------------------------------------------------------------
 
--- Each paddle can be moving up, down, or not at all. We'll call this
--- the `direction' of the paddle.
+-- During gameplay, all keyboard input is about the position of the
+-- two paddles. So the keyboard input can be reduced to two directions,
+-- each represented by an integer in {-1,0,1}. Furthermore, the SPACE
+-- key is used to start the game between rounds, so we also need a
+-- boolean value to represent whether it is pressed.
 
-data Direction = Up | Neutral | Down
+data KeyInput = KeyInput Bool Int Int
 
--- During gameplay, all keyboard input is about the position of the two
--- paddles. So the keyboard input can be reduced to two `Directions'.
--- Furthermore, the SPACE key is used to start the game between rounds,
--- so we also need a boolean value to represent whether it is pressed.
+defaultKeyInput = KeyInput False 0 0
 
-data KeyInput = KeyInput Bool Direction Direction
-
-defaultKeyInput = KeyInput False Neutral Neutral
-
-
--- Now we determine how to update the direction of a paddle based on
--- keyboard input. The first two args of `updatePaddle` are the key
--- codes of the up and down keys. The next argument is the key that
--- has been pressed. The last argument is the previously calculated
--- direction of the paddle, which is getting updated.
-
-updateDirection upKey downKey key direction =
-  case direction of
-    Up      -> if key == downKey then Neutral else Up
-    Down    -> if key == upKey   then Neutral else Down
-    Neutral -> if key == upKey   then Up   else
-               if key == downKey then Down else Neutral
-  
-
-updateDirection1 = updateDirection 87 83 -- 'w' for up and 's' for down
-updateDirection2 = updateDirection 38 40 -- 'UP' for up and 'DOWN' for down
-
-
--- Update the keyboard input representation based on a particular key press.
-
-updateInput key (KeyInput space dir1 dir2) =
-  KeyInput (space || key == 32)
-    (updateDirection1 key dir1)
-    (updateDirection2 key dir2)
-
-
--- `keysDown` has type (Signal [Int]) so we need to fold `updateInput`
--- over all of the keys that are currently pressed to get the current
--- keyboard state.
-
-keyInput = lift (foldl updateInput defaultKeyInput) keysDown
-
+keyInput = lift3 KeyInput Keyboard.space
+                          (lift .y Keyboard.wasd)
+                          (lift .y Keyboard.arrows)
 
 
 ------------------------------------------------------------------------
@@ -191,10 +156,7 @@ defaultGame = GameState BetweenRounds
 -- by keyboard input).
 
 stepPaddle delta dir (Paddle y) =
-  case dir of
-    Up      -> Paddle $ clamp 20 (gameHeight-20) (y - 200 * delta)
-    Down    -> Paddle $ clamp 20 (gameHeight-20) (y + 200 * delta)
-    Neutral -> Paddle y
+  Paddle $ clamp 20 (gameHeight-20) (y + toFloat dir * 200 * delta)
 
 
 -- We must also step the ball forward. This is more complicated due to
