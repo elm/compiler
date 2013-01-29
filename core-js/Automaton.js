@@ -4,7 +4,7 @@ try{
 
 var $op={};
 for(this['i'] in Elm){eval('var '+this['i']+'=Elm[this.i];');}
-if (Elm.Automaton) throw "Module name collision, 'Automaton' is already defined."; 
+if (Elm.Automaton) throw new Error("Module name collision, 'Automaton' is already defined."); 
 Elm.Automaton=function(){
  try{
   if (!(Elm.Prelude instanceof Object)) throw 'module not found';
@@ -30,14 +30,14 @@ Elm.Automaton=function(){
      case "Automaton":
      return Automaton$m1_26[1];
     }
-    throw "Non-exhaustive pattern match in case";}();
+    throw new Error("Non-exhaustive pattern match in case");}();
     var Automaton$m2_28=a2_25;
     var m2_29=function(){
     switch(Automaton$m2_28[0]){
      case "Automaton":
      return Automaton$m2_28[1];
     }
-    throw "Non-exhaustive pattern match in case";}();
+    throw new Error("Non-exhaustive pattern match in case");}();
     return Automaton_0(function(a_32){
      return function(){
       var Tuple2$bm1__33=m1_27(a_32);
@@ -46,13 +46,13 @@ Elm.Automaton=function(){
        case "Tuple2":
        return Tuple2$bm1__33[1];
       }
-      throw "Non-exhaustive pattern match in case";}();
+      throw new Error("Non-exhaustive pattern match in case");}();
       var m1__35=function(){
       switch(Tuple2$bm1__33[0]){
        case "Tuple2":
        return Tuple2$bm1__33[2];
       }
-      throw "Non-exhaustive pattern match in case";}();
+      throw new Error("Non-exhaustive pattern match in case");}();
       return function(){
        var Tuple2$cm2__40=m2_29(b_34);
        var c_41=function(){
@@ -60,13 +60,13 @@ Elm.Automaton=function(){
         case "Tuple2":
         return Tuple2$cm2__40[1];
        }
-       throw "Non-exhaustive pattern match in case";}();
+       throw new Error("Non-exhaustive pattern match in case");}();
        var m2__42=function(){
        switch(Tuple2$cm2__40[0]){
         case "Tuple2":
         return Tuple2$cm2__40[2];
        }
-       throw "Non-exhaustive pattern match in case";}();
+       throw new Error("Non-exhaustive pattern match in case");}();
        return ["Tuple2",c_41,$op['>>>'](m1__35)(m2__42)];}();}();});}();};};
  $op['<<<'] = function(a2_47){
   return function(a1_48){
@@ -101,9 +101,9 @@ Elm.Automaton=function(){
         return Tuple2$bAutomaton$m_18[2][1](a_17);
        }break;
       }
-      throw "Non-exhaustive pattern match in case";}();};})(Automaton$m0_14[1])(input_15));
+      throw new Error("Non-exhaustive pattern match in case");}();};})(Automaton$m0_14[1])(input_15));
    }
-   throw "Non-exhaustive pattern match in case";}();};}
+   throw new Error("Non-exhaustive pattern match in case");}();};}
  function step_2(Automaton$m_21){
   return function(a_22){
    return function(){
@@ -111,7 +111,7 @@ Elm.Automaton=function(){
     case "Automaton":
     return Automaton$m_21[1](a_22);
    }
-   throw "Non-exhaustive pattern match in case";}();};}
+   throw new Error("Non-exhaustive pattern match in case");}();};}
  function combine_3(autos_57){
   return Automaton_0(function(a_58){
    return function(){
@@ -121,19 +121,19 @@ Elm.Automaton=function(){
       case "Automaton":
       return Automaton$m_62[1](a_58);
      }
-     throw "Non-exhaustive pattern match in case";}();})(autos_57));
+     throw new Error("Non-exhaustive pattern match in case");}();})(autos_57));
     var bs_60=function(){
     switch(Tuple2$bsautos__59[0]){
      case "Tuple2":
      return Tuple2$bsautos__59[1];
     }
-    throw "Non-exhaustive pattern match in case";}();
+    throw new Error("Non-exhaustive pattern match in case");}();
     var autos__61=function(){
     switch(Tuple2$bsautos__59[0]){
      case "Tuple2":
      return Tuple2$bsautos__59[2];
     }
-    throw "Non-exhaustive pattern match in case";}();
+    throw new Error("Non-exhaustive pattern match in case");}();
     return ["Tuple2",bs_60,combine_3(autos__61)];}();});}
  function pure_4(f_68){
   return Automaton_0(function(x_69){
@@ -154,13 +154,13 @@ Elm.Automaton=function(){
       case "Tuple2":
       return Tuple2$bs__77[1];
      }
-     throw "Non-exhaustive pattern match in case";}();
+     throw new Error("Non-exhaustive pattern match in case");}();
      var s__79=function(){
      switch(Tuple2$bs__77[0]){
       case "Tuple2":
       return Tuple2$bs__77[2];
      }
-     throw "Non-exhaustive pattern match in case";}();
+     throw new Error("Non-exhaustive pattern match in case");}();
      return ["Tuple2",b_78,init__6(s__79)(step_75)];}();});};}
  function vecSub_11(Tuple2$x1y1_86){
   return function(Tuple2$x2y2_87){
@@ -172,9 +172,9 @@ Elm.Automaton=function(){
      case "Tuple2":
      return ["Tuple2",(Tuple2$x1y1_86[1]-Tuple2$x2y2_87[1]),(Tuple2$x1y1_86[2]-Tuple2$x2y2_87[2])];
     }
-    throw "Non-exhaustive pattern match in case";}();
+    throw new Error("Non-exhaustive pattern match in case");}();
    }
-   throw "Non-exhaustive pattern match in case";}();};}
+   throw new Error("Non-exhaustive pattern match in case");}();};}
  function stepDrag_12(Tuple2$presspos_92){
   return function(Tuple2$dsform_93){
    return function(){
@@ -197,11 +197,11 @@ Elm.Automaton=function(){
        case "Listen":
        return wrap_98((not(Tuple2$presspos_92[1])?Listen_8:(isWithin(Tuple2$presspos_92[2])(Tuple2$dsform_93[2])?DragFrom_10(Tuple2$presspos_92[2]):Ignore_9)));
       }
-      throw "Non-exhaustive pattern match in case";}();}();
+      throw new Error("Non-exhaustive pattern match in case");}();}();
     }
-    throw "Non-exhaustive pattern match in case";}();
+    throw new Error("Non-exhaustive pattern match in case");}();
    }
-   throw "Non-exhaustive pattern match in case";}();};}
+   throw new Error("Non-exhaustive pattern match in case");}();};}
  function draggable_13(form_102){
   return init__6(["Tuple2",Listen_8,form_102])(stepDrag_12);}
  return {$op : {'>>>' : $op['>>>'], '<<<' : $op['<<<'], '^>>' : $op['^>>'], '>>^' : $op['>>^'], '^<<' : $op['^<<'], '<<^' : $op['<<^']},
