@@ -3,7 +3,7 @@ var Value = function(){
 
   var eq = function(x,y) {
     if (typeof x === "object") {
-	if (x.hasOwnProperty('_')) {
+	if ('_' in x) {
 	    for (var i in x) { if (x[i] != y[i]) return false; }
 	    for (var i in y) { if (x[i] != y[i]) return false; }
 	    return true;
@@ -172,7 +172,7 @@ var Value = function(){
 	return v+"";
     } else if (typeof v === "string" && v.length < 2) {
 	return "'"+v+"'";
-    } else if (typeof v === "object" && v.hasOwnProperty('_')) {
+    } else if (typeof v === "object" && ('_' in v)) {
 	var output = []
 	for (var k in v) {
           if (k == '_') continue;

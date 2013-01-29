@@ -23,12 +23,12 @@ Elm.JSON = function() {
 
     function lookup(key) { return function(obj) {
         var k = JS.castStringToJSString(key);
-        return obj[1].hasOwnProperty(k) ? ["Just", obj[1][k]] : ["Nothing"] ;
+        return (k in obj[1]) ? ["Just", obj[1][k]] : ["Nothing"] ;
       };
     }
     function find(tipe,base) { return function (key) { return function(obj) {
           var k = JS.castStringToJSString(key);
-          if (obj[1].hasOwnProperty(k)) {
+          if (k in obj[1]) {
 	    var v = obj[1][k];
 	    if (v[0] === tipe) { return v[1]; }
           }
@@ -38,7 +38,7 @@ Elm.JSON = function() {
     }
     function lookupWithDefault(base) { return function(key) { return function(obj) {
           var k = JS.castStringToJSString(key);
-          return obj[1].hasOwnProperty(k) ? obj[1][k] : base ;
+          return (k in obj[1]) ? obj[1][k] : base ;
         };
       };
     }

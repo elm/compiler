@@ -6,7 +6,7 @@ var Dispatcher = function() {
 
     var initialize = function() {
 	program = Elm.main();
-	if (!program.hasOwnProperty('recv')) {
+	if (!('recv' in program)) {
 	    program = Elm.Signal.constant(program);
 	}
 
@@ -36,7 +36,7 @@ var Dispatcher = function() {
     };
 
     function isAlive(input) {
-	if (!input.hasOwnProperty('defaultNumberOfKids')) return true;
+	if (!('defaultNumberOfKids' in input)) return true;
 	var len = input.kids.length;
 	if (len == 0) return false;
 	if (len > input.defaultNumberOfKids) return true;
