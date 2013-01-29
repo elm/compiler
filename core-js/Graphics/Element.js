@@ -481,7 +481,7 @@ Elm.Graphics = function() {
             var case1 = case0[1], case2 = case0[2], case3 = case0[3], case4 = case0[4];
             return Form_84(t_212 + case1)(case2)(case3)(case4)
         }
-        throw"Non-exhaustive pattern match in case";
+        throw new Error("Non-exhaustive pattern match in case");
       }(Form$thetascaleposform_213)
     }
   }
@@ -505,7 +505,7 @@ Elm.Graphics = function() {
               }
               break
           }
-          throw"Non-exhaustive pattern match in case";
+          throw new Error("Non-exhaustive pattern match in case");
         }(Form$thetascaleTuple2$pxpyform_226)
       }
     }
