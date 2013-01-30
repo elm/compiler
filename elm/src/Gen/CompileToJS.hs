@@ -182,9 +182,7 @@ recordToJS e cmds =
                                   , ret "r" ]) ++ "()"
 
 addField (x,e) = ((++add) . assign "v") `liftM` toJS' e
-    where add = concat [ "\nif ('", x, "' in r) {"
-                       , "\n r.", x, " = [v].concat(r.", x, ");"
-                       , "\n} else { r.", x, " = [v]; }" ]
+    where add = concat [ "\n r.", x, " = '", x, "' in r ? [v].concat(r.", x, ") : [v];" ]
 setField (x,e) = do
   let rx = "r." ++ x
   set <- globalAssign (rx ++ "[0]") `liftM` toJS' e
