@@ -37,7 +37,7 @@ Elm.Prelude = function() {
     };
     var uncurry = function(f) { return function(p) {
 	    if (p[0] !== "Tuple2") {
-		throw "Function was uncurry'd but was not given a pair.";
+		throw new Error("Function was uncurry'd but was not given a pair.");
 	    }
 	    return f(p[1])(p[2]); };
     };

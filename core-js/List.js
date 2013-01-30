@@ -1,7 +1,7 @@
 Elm.List = function() {
 
     var throwError = function(f) {
-	throw "Function '" + f + "' expecting a list!";
+	throw new Error("Function '" + f + "' expecting a list!");
     }
 
     function length(xs) {
@@ -46,19 +46,19 @@ Elm.List = function() {
     var minimum = foldl1(function(x) { return function(y) { return Math.min(x,y) } });
     function head(v) {
 	if (v[0] !== "Cons") {
-	    throw "Error: 'head' only accepts lists of length greater than one.";
+	    throw new Error("Error: 'head' only accepts lists of length greater than one.");
 	}
 	return v[1];
     }
     function tail(v) {
 	if (v[0] !== "Cons") {
-	    throw "Error: 'tail' only accepts lists of length greater than one.";
+	    throw new Error("Error: 'tail' only accepts lists of length greater than one.");
 	}
 	return v[2];
     }
     function last(v) {
 	if (v[0] !== "Cons") {
-	    throw "Error: 'last' only accepts lists of length greater than one.";
+	    throw new Error("Error: 'last' only accepts lists of length greater than one.");
 	}
 	var out = v[1];
 	while (v[0] === "Cons") {
@@ -129,7 +129,7 @@ Elm.List = function() {
     }
     function foldr1(f) {
       return function(xs) {
-	if (xs[0] === "Nil") { throw "'foldr1' requires an non-empty list." }
+	if (xs[0] === "Nil") { throw new Error("'foldr1' requires an non-empty list.") }
 	if (xs[0] !== "Cons") { throwError('foldr1'); }
 	var arr = [];
 	while (xs[0] === "Cons") {
@@ -165,7 +165,7 @@ Elm.List = function() {
     function scanl1(f) {
       return function(xs) {
 	if (xs[0] !== "Cons") {
-	    throw "Error: 'scanl1' requires a list of at least length 1.";
+	    throw new Error("Error: 'scanl1' requires a list of at least length 1.");
 	}
 	return scanl(f)(xs[1])(xs[2]);
       }

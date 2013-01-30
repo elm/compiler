@@ -28,7 +28,7 @@ Elm.Dict=function(){
    }
    return min_6(t_42[4]);
   }
-  throw "Non-exhaustive pattern match in case";}();}
+  throw new Error("Non-exhaustive pattern match in case");}();}
  function lookup_7(k_46){
   return function(t_47){
    return function(){
@@ -46,9 +46,9 @@ Elm.Dict=function(){
      case 'LT':
      return lookup_7(k_46)(t_47[4]);
     }
-    throw "Non-exhaustive pattern match in case";}();
+    throw new Error("Non-exhaustive pattern match in case");}();
    }
-   throw "Non-exhaustive pattern match in case";}();};}
+   throw new Error("Non-exhaustive pattern match in case");}();};}
  function findWithDefault_8(base_52){
   return function(k_53){
    return function(t_54){
@@ -67,9 +67,9 @@ Elm.Dict=function(){
       case 'LT':
       return findWithDefault_8(base_52)(k_53)(t_54[4]);
      }
-     throw "Non-exhaustive pattern match in case";}();
+     throw new Error("Non-exhaustive pattern match in case");}();
     }
-    throw "Non-exhaustive pattern match in case";}();};};}
+    throw new Error("Non-exhaustive pattern match in case");}();};};}
  function member_9(k_59){
   return function(t_60){
    return isJust(lookup_7(k_59)(t_60));};}
@@ -133,7 +133,7 @@ Elm.Dict=function(){
    case 'Red':
    return Black_1;
   }
-  throw "Non-exhaustive pattern match in case";}();}
+  throw new Error("Non-exhaustive pattern match in case");}();}
  function color_flip_15(t_84){
   return function(){
   switch(t_84[0]){
@@ -199,10 +199,10 @@ Elm.Dict=function(){
          case 'LT':
          return RBNode_2(t_109[1])(t_109[2])(t_109[3])(ins_108(t_109[4]))(t_109[5]);
         }
-        throw "Non-exhaustive pattern match in case";}();
+        throw new Error("Non-exhaustive pattern match in case");}();
         return fixUp_17(h_115);}();
       }
-      throw "Non-exhaustive pattern match in case";}();}
+      throw new Error("Non-exhaustive pattern match in case");}();}
      return ensureBlackRoot_18(ins_108(t_107));}();};};}
  function singleton_20(k_116){
   return function(v_117){
@@ -322,7 +322,7 @@ Elm.Dict=function(){
      case 'RBNode':
      return fixUp_17(RBNode_2(case198[1])(case198[2])(case198[3])(del_135(case198[4]))(case198[5]));
     }
-    throw "Non-exhaustive pattern match in case";}();}();}
+    throw new Error("Non-exhaustive pattern match in case");}();}();}
    return ensureBlackRoot_18(del_135(t_134));}();}
  function remove_31(k_142){
   return function(t_143){
@@ -353,7 +353,7 @@ Elm.Dict=function(){
       case 'RBNode':
       return fixUp_17(RBNode_2(case216[1])(case216[2])(case216[3])(del_149(case216[4]))(case216[5]));
      }
-     throw "Non-exhaustive pattern match in case";}();}
+     throw new Error("Non-exhaustive pattern match in case");}();}
     function delEQ_147(t_160){
      return function(){
      switch(t_160[0]){
@@ -367,16 +367,16 @@ Elm.Dict=function(){
         case 'Tuple2':
         return Tuple2$k_v__164[1];
        }
-       throw "Non-exhaustive pattern match in case";}();
+       throw new Error("Non-exhaustive pattern match in case");}();
        var v__166=function(){
        switch(Tuple2$k_v__164[0]){
         case 'Tuple2':
         return Tuple2$k_v__164[2];
        }
-       throw "Non-exhaustive pattern match in case";}();
+       throw new Error("Non-exhaustive pattern match in case");}();
        return fixUp_17(RBNode_2(t_160[1])(k__165)(v__166)(t_160[4])(deleteMin_30(t_160[5])));}();
      }
-     throw "Non-exhaustive pattern match in case";}();}
+     throw new Error("Non-exhaustive pattern match in case");}();}
     function delGT_148(t_171){
      return function(){
      switch(t_171[0]){
@@ -385,7 +385,7 @@ Elm.Dict=function(){
       case 'RBNode':
       return fixUp_17(RBNode_2(t_171[1])(t_171[2])(t_171[3])(t_171[4])(del_149(t_171[5])));
      }
-     throw "Non-exhaustive pattern match in case";}();}
+     throw new Error("Non-exhaustive pattern match in case");}();}
     function del_149(t_177){
      return function(){
      switch(t_177[0]){
@@ -398,7 +398,7 @@ Elm.Dict=function(){
         var t__180=moveRedRightIfNeeded_29(t_177);
         return (eq_145(t__180)?delEQ_147(t__180):delGT_148(t__180));}());}());
      }
-     throw "Non-exhaustive pattern match in case";}();}
+     throw new Error("Non-exhaustive pattern match in case");}();}
     return (member_9(k_142)(t_143)?ensureBlackRoot_18(del_149(t_143)):t_143);}();};}
  function map_32(f_181){
   return function(t_182){
@@ -409,7 +409,7 @@ Elm.Dict=function(){
     case 'RBNode':
     return RBNode_2(t_182[1])(t_182[2])(f_181(t_182[3]))(map_32(f_181)(t_182[4]))(map_32(f_181)(t_182[5]));
    }
-   throw "Non-exhaustive pattern match in case";}();};}
+   throw new Error("Non-exhaustive pattern match in case");}();};}
  function foldl_33(f_188){
   return function(acc_189){
    return function(t_190){
@@ -420,7 +420,7 @@ Elm.Dict=function(){
      case 'RBNode':
      return foldl_33(f_188)(f_188(t_190[2])(t_190[3])(foldl_33(f_188)(acc_189)(t_190[4])))(t_190[5]);
     }
-    throw "Non-exhaustive pattern match in case";}();};};}
+    throw new Error("Non-exhaustive pattern match in case");}();};};}
  function foldr_34(f_195){
   return function(acc_196){
    return function(t_197){
@@ -431,7 +431,7 @@ Elm.Dict=function(){
      case 'RBNode':
      return foldr_34(f_195)(f_195(t_197[2])(t_197[3])(foldr_34(f_195)(acc_196)(t_197[5])))(t_197[4]);
     }
-    throw "Non-exhaustive pattern match in case";}();};};}
+    throw new Error("Non-exhaustive pattern match in case");}();};};}
  function union_35(t1_202){
   return function(t2_203){
    return foldl_33(insert_19)(t2_203)(t1_202);};}
