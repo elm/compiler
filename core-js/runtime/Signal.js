@@ -6,9 +6,6 @@ Elm.Signal = function() {
       kids[i].recv(timestep, changed, node.id);
     }
   };
-  /**
-   * @constructor
-   */
   function input(base) {
     this.id = Guid.guid();
     this.value = base;
@@ -22,9 +19,6 @@ Elm.Signal = function() {
     };
     Dispatcher.inputs.push(this);
   };
-  /**
-   * @constructor
-   */
   function lift(func,args) {
     this.id = Guid.guid();
     this.value = null;
@@ -56,9 +50,6 @@ Elm.Signal = function() {
       args[i].kids.push(this);
     }
   };
-  /**
-   * @constructor
-   */
   function fold(func,base,baseIsFunc,input) {
     this.id = Guid.guid();
     this.value = baseIsFunc ? base(input.value) : base;
@@ -70,9 +61,6 @@ Elm.Signal = function() {
     input.kids.push(this);
   };
 
-  /**
-   * @constructor
-   */
   function dropIf(pred,base,input) {
     this.id = Guid.guid();
     this.value = pred(input.value) ? base : input.value;
@@ -85,9 +73,6 @@ Elm.Signal = function() {
     input.kids.push(this);
   };
 
-  /**
-   * @constructor
-   */
   function dropRepeats(input) {
       this.id = Guid.guid();
       this.value = input.value;
@@ -106,9 +91,6 @@ Elm.Signal = function() {
     return new lift(function(p){return p[1];},[dropped]); }; };
   };
 
-  /**
-   * @constructor
-   */
   function timeIndex(pair,s) {
       this.id = Guid.guid();
       var t = (new window.Date).getTime();
@@ -121,9 +103,6 @@ Elm.Signal = function() {
       s.kids.push(this);
   }
 
-  /**
-   * @constructor
-   */
   function sampleOn(s1,s2) {
     this.id = Guid.guid();
     this.value = s2.value;
@@ -159,9 +138,6 @@ Elm.Signal = function() {
     };
   }
   
-  /**
-   * @constructor
-   */
   function merge(s1,s2) {
     this.id = Guid.guid();
     this.value = s1.value;
