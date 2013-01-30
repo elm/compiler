@@ -10,6 +10,9 @@ Elm.HTTP = function() {
 		data : data === null ? null : JS.castStringToJSString(data),
 		headers : headers }; }; }; };
   }
+  /** get :: String -> Request String
+      Create a GET request to the given url.
+  **/
   function get(url) { return request("GET")(url)(null)(["Nil"]); }
   function post(url) { return function(data) {
 	  return request("POST")(url)(data)(["Nil"]); }; }
@@ -59,8 +62,7 @@ Elm.HTTP = function() {
     var responses = Elm.Signal.constant(["Waiting"]);
     var sender = Elm.Signal.lift(registerReq([],responses))(requests);
     function f(x) { return function(y) { return x; } }
-    var combine = Elm.Signal.lift2(f)(responses)(sender);
-    return combine;
+    return Elm.Signal.lift2(f)(responses)(sender);
   }
 
   return {get   : get,
