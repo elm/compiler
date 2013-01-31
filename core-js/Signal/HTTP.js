@@ -1,6 +1,31 @@
+
+/*! HTTP
+A library for asynchronous HTTP requests (AJAX). See the
+[WebSocket](http://elm-lang.org/docs/WebSocket.elm) library if
+you have very strict latency requirements.
+!*/
+
 Elm.HTTP = function() {
   var JS = Elm.JavaScript;
   var toElmString = Elm.JavaScript.castJSStringToString;
+
+  /*[Creating Requests]*/
+
+  /** get :: String -> Request String
+      Create a GET request to the given url.
+  **/
+  function get(url) { return request("GET")(url)(null)(["Nil"]); }
+
+  /** post :: String -> String -> Request String
+      Create a POST request to the given url, carrying the given data.
+  **/
+  function post(url) { return function(data) {
+	  return request("POST")(url)(data)(["Nil"]); }; }
+
+  /** request :: String -> String -> String -> [(String,String)] -> Request String
+      Create a customized request. Arguments are request type (get, post, put,
+      delete, etc.), target url, data, and a list of additional headers.
+  **/
   function request(verb) { return function(url) { return function(data) {
     return function(headers) {
 	return {0 : "Request",
@@ -10,12 +35,6 @@ Elm.HTTP = function() {
 		data : data === null ? null : JS.castStringToJSString(data),
 		headers : headers }; }; }; };
   }
-  /** get :: String -> Request String
-      Create a GET request to the given url.
-  **/
-  function get(url) { return request("GET")(url)(null)(["Nil"]); }
-  function post(url) { return function(data) {
-	  return request("POST")(url)(data)(["Nil"]); }; }
 
   function registerReq(queue,responses) { return function(req) {
     if (req.url !== "") { sendReq(queue,responses,req); }
@@ -58,12 +77,30 @@ Elm.HTTP = function() {
     return null;
   }
 
+  /*[Responses]*/
+
+  /** data Response a = Waiting | Success a | Failure Int String
+      The datatype for responses. Success contains only the returned message.
+      Failures contain both an error code and an error message.
+  **/
+
+  /*[Sending Requests]*/
+
+  /** send :: Signal (Request a) -> Signal (Response String)
+      Performs an HTTP request with the given requests. Produces a signal
+      that carries the responses.
+  **/
   function send(requests) {
     var responses = Elm.Signal.constant(["Waiting"]);
     var sender = Elm.Signal.lift(registerReq([],responses))(requests);
     function f(x) { return function(y) { return x; } }
     return Elm.Signal.lift2(f)(responses)(sender);
   }
+
+  /** sendGet :: Signal String -> Signal (Response String)
+      Performs an HTTP GET request with the given urls. Produces a signal
+      that carries the responses.
+  **/
 
   return {get   : get,
 	  post  : post,

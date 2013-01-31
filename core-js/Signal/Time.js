@@ -1,12 +1,35 @@
+/*! Time
+Library for working with time. Type `Time` represents some number of
+milliseconds.
+!*/
+
 Elm.Time = function() {
+
+  /*[Times]*/
+
+  /** hour, minute, second, ms :: Time
+      Units of time, making it easier to specify things like a
+      half-second `(second / 2)`.
+  **/
+
   function timeNow() { return (new window.Date).getTime(); }
-  function everyWhen(isOn) { return function(t) {
-      var clock = Elm.Signal.constant(timeNow());
-      function tellTime() { Dispatcher.notify(clock.id, timeNow()); }
-      setInterval(tellTime, t);
-      return clock;
-    };
-  }
+
+  /*[Tickers]*/
+
+  /** fps :: Number -> Signal Time
+      Takes desired number of frames per second (fps). The resulting signal
+      gives a sequence of time deltas as quickly as possible until it reaches
+      the desired FPS. A time delta is the time between the last frame and the
+      current frame.
+  **/
+
+  /** fpsWhen :: Number -> Signal Bool -> Signal Time
+      Same as the fps function, but you can turn it on and off. Allows you
+      to do brief animations based on user input without major ineffeciencies.
+      The first time delta after a pause is always zero, no matter how long
+      the pause was. This way summing the deltas will actually give the amount
+      of time that the output signal has been running.
+  **/
   function fpsWhen(desiredFPS) { return function (isOn) {
       var msPerFrame = 1000 / desiredFPS;
       var prev = timeNow(), curr = prev, diff = 0, wasOn = true;
@@ -32,6 +55,19 @@ Elm.Time = function() {
       return Elm.Signal.lift2(f)(isOn)(ticker);
     };
   }
+ 
+  /** every :: Time -> Signal Time
+      Takes a time interval t. The resulting signal is the current time,
+      updated every t.
+   **/
+  function everyWhen(isOn) { return function(t) {
+      var clock = Elm.Signal.constant(timeNow());
+      function tellTime() { Dispatcher.notify(clock.id, timeNow()); }
+      setInterval(tellTime, t);
+      return clock;
+    };
+  }
+
   function since(t) { return function(s) {
 	  function cmp(a) { return function(b) { return !Value.eq(a,b); }; }
 	  var dcount = Elm.Signal.count(Elm.Signal.delay(t)(s));
