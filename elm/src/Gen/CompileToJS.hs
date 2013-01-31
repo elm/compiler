@@ -175,23 +175,26 @@ toJS' (C txt span expr) =
       Case e cases -> caseToJS span e cases
       _ -> toJS expr
 
-recordToJS e cmds = 
+recordToJS e loop cmds = 
     do e' <- toJS' e
-       return $ jsFunc "" (concat [ assign "r" ("Object.create" ++ parens e')
+       return $ jsFunc "" (concat [ assign "r" "{}"
+                                  , assign "e" e'
+                                  , "\nfor(var i in e){", loop, "}"
                                   , cmds
                                   , ret "r" ]) ++ "()"
 
+remove x = concat [ "\n if (i!='", x, "') { r[i]=e[i]; }"
+                  , "\n else if (e[i].length>1) { r[i]=e[i].slice(1); }" ]
 addField (x,e) = ((++add) . assign "v") `liftM` toJS' e
     where add = concat [ "\n r.", x, " = '", x, "' in r ? [v].concat(r.", x, ") : [v];" ]
-setField (x,e) = do
-  let rx = "r." ++ x
-  set <- globalAssign (rx ++ "[0]") `liftM` toJS' e
-  return (globalAssign rx (rx ++ ".slice(0)") ++ set)
+setField (x,e) = let rx = "r." ++ x in
+                 do set <- globalAssign (rx ++ "[0]") `liftM` toJS' e
+                    return (globalAssign rx (rx ++ ".slice(0)") ++ set)
 access x e = jsFunc "r" (ret body) ++ parens e
     where body = "'_' in r ? r." ++ x ++ "[0] : r." ++ x
 makeRecord kvs = do
   kvs' <- (Map.toList . foldl' combine Map.empty) `liftM` mapM prep kvs
-  let fs = map (\(k,vs) -> k ++ " : " ++ jsList vs) kvs' ++ ["_ : [true]"]
+  let fs = map (\(k,vs) -> k ++ " : " ++ jsList vs) kvs' ++ ["_ : true"]
   return $ braces ("\n  " ++ intercalate ",\n  " fs)
         where combine r (k,v) = Map.insertWith (++) k v r
               prep (k, as, e@(C t s _)) =
@@ -210,9 +213,9 @@ instance ToJS Expr where
     Boolean b -> return $ if b then "true" else "false"
     Range lo hi -> jsRange `liftM` toJS' lo `ap` toJS' hi
     Access e x -> access x `liftM` toJS' e
-    Remove e x -> recordToJS e ("\ndelete r." ++ x ++ ";")
-    Insert e x v -> recordToJS e =<< addField (x,v)
-    Modify e fs -> recordToJS e . concat =<< mapM setField fs
+    Remove e x -> recordToJS e (remove x) ""
+    Insert e x v -> recordToJS e "r[i]=e[i];" =<< addField (x,v)
+    Modify e fs -> recordToJS e "r[i]=e[i];" . concat =<< mapM setField fs
     Record fs -> makeRecord fs
     Binop op e1 e2 -> binop op `liftM` toJS' e1 `ap` toJS' e2
 
