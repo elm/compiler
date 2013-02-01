@@ -3,9 +3,9 @@ var Value = function(){
 
   var eq = function(x,y) {
     if (typeof x === "object") {
-	if ('_' in x) {
+	if (x !== null && '_' in x) {
 	    for (var i in x) { if (x[i] != y[i]) return false; }
-	    for (var i in y) { if (x[i] != y[i]) return false; }
+	    for (var i in y) { if (!(i in x)) return false; }
 	    return true;
 	}
 	if (x === y) return true;
