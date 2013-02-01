@@ -74,8 +74,8 @@ fileTo isMini get what jsFiles noscript outputDir rtLoc file = do
         let path = fromMaybe "" outputDir </> file
             js = replaceExtension path ".js"
             html = replaceExtension path ".html"
-        in  case what of
-              NoMain -> writeFile js . formatJS $ jss ++ concatMap jsModule ms
+        in case what of
+              NoMain -> writeFile js . formatJS $ jss ++ concatMap jsModuleNoMain ms
               JS -> writeFile js . formatJS $ jss ++ concatMap jsModule ms
               HTML -> writeFile html . renderHtml $ modulesToHtml jsStyle "" rtLoc jss noscript ms
               Split -> do
