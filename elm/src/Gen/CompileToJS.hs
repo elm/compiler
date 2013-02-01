@@ -1,4 +1,4 @@
-module CompileToJS (showErr, jsModule) where
+module CompileToJS (showErr, jsModule, jsModuleNoMain) where
 
 import Ast
 import Context
@@ -75,6 +75,24 @@ jsModule (escapees, Module names exports imports stmts) =
                                        else  "Elm" : names
               modName  = intercalate "." modNames
               includes = concatMap jsImport $ map (first ("Elm."++)) imports
+              body = stmtsToJS stmts
+              export = getExports exports stmts
+              exps = if null exports then ["main"] else exports
+              defs = concat [ assign "$op" "{}"
+                            , "\nfor(Elm['i'] in Elm){eval('var '+Elm['i']+'=Elm[Elm.i];');}" ]
+
+jsModuleNoMain (escapees, Module names exports imports stmts) =
+    concat
+           [ concatMap (\n -> globalAssign n $ n ++ " || {}") .
+             map (intercalate ".") . drop 2 . inits $
+             take (length modNames - 1) modNames
+           , "\nif (" ++ modName ++ ") throw new Error(\"Module name collision, '" ++
+             intercalate "." (tail modNames) ++ "' is already defined.\"); "
+           , globalAssign modName $ jsFunc "" (defs ++ includes ++ body ++ export) ++ "()" ]
+        where modNames = if null names then ["Elm", "Main"]
+                                       else  "Elm" : names
+              modName  = intercalate "." modNames
+	      includes = concatMap jsImport $ map (first ("Elm."++)) . filter (\(name,_) -> name /= "Prelude" ) $ imports
               body = stmtsToJS stmts
               export = getExports exports stmts
               exps = if null exports then ["main"] else exports
