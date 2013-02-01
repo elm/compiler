@@ -69,8 +69,7 @@ jsModule (escapees, Module names exports imports stmts) =
              take (length modNames - 1) modNames
            , "\nif (" ++ modName ++ ") throw new Error(\"Module name collision, '" ++
              intercalate "." (tail modNames) ++ "' is already defined.\"); "
-           , globalAssign modName $ jsFunc "" (defs ++ includes ++ body ++ export) ++ "()"
-           , mainEquals $ modName ++ ".main" ]
+           , globalAssign modName $ jsFunc "" (defs ++ includes ++ body ++ export) ++ "()" ]
         where modNames = if null names then ["Elm", "Main"]
                                        else  "Elm" : names
               modName  = intercalate "." modNames
