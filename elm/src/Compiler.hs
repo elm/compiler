@@ -23,6 +23,7 @@ data ELM =
         , files :: [FilePath]
         , runtime :: Maybe FilePath
         , separate_js :: Bool
+	, no_main :: Bool
         , only_js :: Bool
         , import_js :: [FilePath]
         , generate_noscript :: Bool
@@ -36,6 +37,7 @@ elm = ELM { make = False &= help "automatically compile dependencies."
           , runtime = Nothing &= typFile &=
             help "Specify a custom location for Elm's runtime system."
           , separate_js = False &= help "Compile to separate HTML and JS files."
+	  , no_main = False &= help "Compile only to Javascript, and do not generate main wrapper"
           , only_js = False &= help "Compile only to JavaScript."
           , import_js = [] &= typFile &= help "Include a JavaScript file before the body of the Elm program. Can be used many times. Files will be included in the given order."
           , generate_noscript = True &= help "Add generated <noscript> tag to HTML output."
@@ -50,15 +52,16 @@ main = do
   mini <- getDataFileName ("elm-runtime-" ++ showVersion version ++ ".js")
   compileArgs mini args
 
-compileArgs mini (ELM _ [] _ _ _ _ _ _ _) =
+compileArgs mini (ELM _ [] _ _ _ _ _ _ _ _) =
     putStrLn "Usage: elm [OPTIONS] [FILES]\nFor more help: elm --help"
-compileArgs mini (ELM make files rtLoc split only js nscrpt isMini outputDir) =
+compileArgs mini (ELM make files rtLoc split noMain only js nscrpt isMini outputDir) =
     mapM_ (fileTo isMini get what js nscrpt outputDir $ fromMaybe mini rtLoc) files
         where get = if make then getModules [] else getModule
-              what = if only then JS else
+              what = if noMain then NoMain else
+	               if only then JS else
                          if split then Split else HTML
 
-data What = JS | HTML | Split
+data What = NoMain | JS | HTML | Split
 
 fileTo isMini get what jsFiles noscript outputDir rtLoc file = do
   let jsStyle = if isMini then Minified else Readable
@@ -72,6 +75,7 @@ fileTo isMini get what jsFiles noscript outputDir rtLoc file = do
             js = replaceExtension path ".js"
             html = replaceExtension path ".html"
         in  case what of
+              NoMain -> writeFile js . formatJS $ jss ++ concatMap jsModule ms
               JS -> writeFile js . formatJS $ jss ++ concatMap jsModule ms
               HTML -> writeFile html . renderHtml $ modulesToHtml jsStyle "" rtLoc jss noscript ms
               Split -> do
