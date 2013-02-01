@@ -92,7 +92,7 @@ jsModuleNoMain (escapees, Module names exports imports stmts) =
         where modNames = if null names then ["Elm", "Main"]
                                        else  "Elm" : names
               modName  = intercalate "." modNames
-              includes = concatMap jsImport $ map (first ("Elm."++)) imports
+	      includes = concatMap jsImport $ map (first ("Elm."++)) . filter (\(name,_) -> name /= "Prelude" ) $ imports
               body = stmtsToJS stmts
               export = getExports exports stmts
               exps = if null exports then ["main"] else exports
