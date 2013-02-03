@@ -5,10 +5,10 @@
 cat \
     Guid.js\
     foreign/JavaScript.js\
-    foreign/JSON.js\
-    Value.js\
     List.js\
     Maybe.js\
+    foreign/JSON.js\
+    Value.js\
     Char.js\
     Graphics/Color.js\
     Graphics/Collage.js\
@@ -29,4 +29,5 @@ cat \
     Dict.js\
     Set.js\
     Automaton.js\
+    Signal/WebSocket.js\
     > ../elm/elm-runtime.js
