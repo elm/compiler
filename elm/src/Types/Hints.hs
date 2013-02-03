@@ -125,7 +125,7 @@ json = prefix "JSON"
   , "JsonObject" -: jsonObject ==> jsonValue
   , numScheme (\n -> n ==> jsonValue) "JsonNumber"
   , "toString"   -: jsonObject ==> string
-  , "fromString" -: string ==> jsonObject
+  , "fromString" -: string ==> maybeOf jsonObject
   , "lookup"     -: string ==> jsonObject ==> maybeOf jsonValue
   , "findObject" -: string ==> jsonObject ==> jsonObject
   , "findArray"  -: string ==> jsonObject ==> listOf jsonValue
