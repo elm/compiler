@@ -130,6 +130,7 @@ json = prefix "JSON"
   , "findObject" -: string ==> jsonObject ==> jsonObject
   , "findArray"  -: string ==> jsonObject ==> listOf jsonValue
   , "findString" -: string ==> jsonObject ==> string
+  , "findNumber" -: float ==> jsonObject ==> float
   , "findWithDefault" -:: jsonValue ==> string ==> jsonObject ==> jsonValue
   , "toPrettyString"   -: string ==> jsonObject ==> string
   , "toPrettyJSString" -: string ==> jsonObject ==> jsString
@@ -285,7 +286,7 @@ math =
 
 bools =
   [ "not" -: bool ==> bool ] ++
-  hasType (binop bool) ["&&","||"] ++
+  hasType (binop bool) ["&&","||","xor"] ++
   map (scheme1 comparable (\t -> t ==> t ==> bool))  ["<",">","<=",">="] ++
   [ ( "compare"
     , Forall [0,1] [ ctx "compare" $ VarT 0 :<: comparable ] (VarT 0 ==> VarT 0 ==> VarT 1) )
@@ -313,7 +314,7 @@ funcs =
     , "flip" -:: (a ==> b ==> c) ==> (b ==> a ==> c)
     , "."    -:: (b ==> c) ==> (a ==> b) ==> (a ==> c)
     , "$"    -:: (a ==> b) ==> a ==> b
-    , ":"       -:: a ==> listOf a ==> listOf a
+    , ":"    -:: a ==> listOf a ==> listOf a
     , (,) "++" . Forall [0,1] [ ctx "++" $ VarT 0 :<: appendable (VarT 1) ] $ VarT 0 ==> VarT 0 ==> VarT 0
     , "Cons"    -:: a ==> listOf a ==> listOf a 
     , "Nil"     -:: listOf a
