@@ -12,3 +12,4 @@ cabal-dev
 /Examples/elm-js/Form/Form.html
 /Examples/elm-js/FrameRate/FrameRate.html
 /Examples/elm-js/Maps/Map.html
+elm/elm-runtime.js
