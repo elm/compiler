@@ -104,7 +104,12 @@ Elm.JSON = function() {
       };
     }
     function fromJSString(str) {
-	var obj = JSjson.parse(str);
+        var obj;
+	try {
+	    obj = JSjson.parse(str);
+	} catch (e) {
+            return Elm.Maybe.Nothing;
+	}
 	function toValue(v) {
 	    switch (typeof v) {
 	    case 'string'  : return [ "JsonString", JS.castJSStringToString(v) ];
@@ -122,12 +127,13 @@ Elm.JSON = function() {
 	for (var i in obj) {
 	    obj[i] = toValue(obj[i]);
 	}
-	return ['JSON',obj];
+	return Elm.Maybe.Just( ['JSON',obj] );
     }
     return {empty : empty,
 	    singleton : singleton,
 	    insert : insert,
 	    lookup : lookup,
+	    findNumber : find("JsonNumber",0),
 	    findString : find("JsonString",["Nil"]),
 	    findObject : find("JsonObject", empty ),
 	    findArray  : find("JsonArray" ,["Nil"]),
