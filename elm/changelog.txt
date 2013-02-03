@@ -1,4 +1,14 @@
 
+Release 0.7.2
+=============
+
+* Add a WebSockets library.
+* Add support for the mathematical looking operator for function composition (U+2218).
+
+
+forgot to fill this in for a while...
+
+
 Release 0.5.0
 =============
 
