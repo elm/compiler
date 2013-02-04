@@ -79,7 +79,7 @@ Elm.Touch = function() {
 
   /*[Touches]*/
 
-  /** touches :: Signal [{ x  :: Int, y  :: Int, id :: Int, x0 :: Int, y0 :: Int, t0 :: Time }]
+  /** touches : Signal [{ x:Int, y:Int, id:Int, x0:Int, y0:Int, t0:Time }]
       A list of touches. Each ongoing touch is represented by a set of
       coordinates and an identifier id that allows you to distinguish
       between different touches. Each touch also contains the coordinates and
@@ -92,7 +92,7 @@ Elm.Touch = function() {
 
   /*[Gestures]*/
 
-  /** taps :: Signal { x :: Int, y :: Int }
+  /** taps : Signal { x:Int, y:Int }
       The last position that was tapped. Default value is `{x=0,y=0}`.
       Updates whenever the user taps the screen.
   **/

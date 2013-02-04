@@ -4,7 +4,7 @@ Elm.Window = function() {
 
   /*[Dimensions]*/
 
-  /** dimensions :: Signal (Int,Int)
+  /** dimensions : Signal (Int,Int)
       The current dimensions of the window (i.e. the area viewable to the
       user, not including scroll bars).
   **/
@@ -12,13 +12,13 @@ Elm.Window = function() {
 						   window.innerHeight));
   dimensions.defaultNumberOfKids = 2;
 
-  /** width :: Signal Int
+  /** width : Signal Int
       The current width of the window.
   **/
   var width  = Elm.Signal.lift(function(p){return p[1];})(dimensions);
   width.defaultNumberOfKids = 0;
 
-  /** height :: Signal Int
+  /** height : Signal Int
       The current height of the window.
   **/
   var height = Elm.Signal.lift(function(p){return p[2];})(dimensions);

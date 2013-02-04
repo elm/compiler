@@ -1,15 +1,44 @@
+/*! Mouse
+  !*/
 
 Elm.Mouse = function() {
+  /*[Position]*/
+
+  /** position : Signal (Int,Int)
+      The current mouse position.
+  **/
   var position  = Elm.Signal.constant(Value.Tuple(0,0));
   position.defaultNumberOfKids = 2;
 
+  /** x : Signal Int
+      The current x-coordinate of the mouse.
+  **/
   var x = Elm.Signal.lift(function(p){return p[1];})(position);
   x.defaultNumberOfKids = 0;
+
+  /** y : Signal Int
+      The current y-coordinate of the mouse.
+  **/
   var y = Elm.Signal.lift(function(p){return p[2];})(position);
   y.defaultNumberOfKids = 0;
 
+  /*[Button Status]*/
+
+  /** isDown : Signal Bool
+      The current state of the left mouse-button.
+      True when the button is down, and false otherwise.
+   **/
   var isDown    = Elm.Signal.constant(false);
+
+  /** isClicked : Signal Bool
+      True immediately after the left mouse-button has been clicked,
+      and false otherwise.
+   **/
   var isClicked = Elm.Signal.constant(false);
+
+  /** clicks : Signal ()
+      Always equal to unit. Event triggers on every mouse click.
+   **/
   var clicks = Elm.Signal.constant(Value.Tuple());
   
   function getXY(e) {
@@ -50,6 +79,13 @@ Elm.Mouse = function() {
 	  if (!hasListener)
 		this.removeEventListener('mousemove',arguments.callee,false);
 	});
+
+  /** isClickedOn : Element -> (Element, Signal Bool)
+      Determine whether an element has been clicked. The resulting pair
+      is a signal of booleans that is true when its paired element has
+      been clicked. The signal is True immediately after the left
+      mouse-button has been clicked, and false otherwise.
+   **/
   var clickedOn = function(elem) {
 	var node = Render.render(elem);
 	var click = Elm.Signal.constant(false);

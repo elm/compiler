@@ -11,18 +11,18 @@ Elm.HTTP = function() {
 
   /*[Creating Requests]*/
 
-  /** get :: String -> Request String
+  /** get : String -> Request String
       Create a GET request to the given url.
   **/
   function get(url) { return request("GET")(url)(null)(["Nil"]); }
 
-  /** post :: String -> String -> Request String
+  /** post : String -> String -> Request String
       Create a POST request to the given url, carrying the given data.
   **/
   function post(url) { return function(data) {
 	  return request("POST")(url)(data)(["Nil"]); }; }
 
-  /** request :: String -> String -> String -> [(String,String)] -> Request String
+  /** request : String -> String -> String -> [(String,String)] -> Request String
       Create a customized request. Arguments are request type (get, post, put,
       delete, etc.), target url, data, and a list of additional headers.
   **/
@@ -86,7 +86,7 @@ Elm.HTTP = function() {
 
   /*[Sending Requests]*/
 
-  /** send :: Signal (Request a) -> Signal (Response String)
+  /** send : Signal (Request a) -> Signal (Response String)
       Performs an HTTP request with the given requests. Produces a signal
       that carries the responses.
   **/
@@ -97,7 +97,7 @@ Elm.HTTP = function() {
     return Elm.Signal.lift2(f)(responses)(sender);
   }
 
-  /** sendGet :: Signal String -> Signal (Response String)
+  /** sendGet : Signal String -> Signal (Response String)
       Performs an HTTP GET request with the given urls. Produces a signal
       that carries the responses.
   **/

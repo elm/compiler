@@ -7,7 +7,7 @@ Elm.Time = function() {
 
   /*[Times]*/
 
-  /** hour, minute, second, ms :: Time
+  /** hour, minute, second, ms : Time
       Units of time, making it easier to specify things like a
       half-second `(second / 2)`.
   **/
@@ -16,14 +16,14 @@ Elm.Time = function() {
 
   /*[Tickers]*/
 
-  /** fps :: Number -> Signal Time
+  /** fps : Number -> Signal Time
       Takes desired number of frames per second (fps). The resulting signal
       gives a sequence of time deltas as quickly as possible until it reaches
       the desired FPS. A time delta is the time between the last frame and the
       current frame.
   **/
 
-  /** fpsWhen :: Number -> Signal Bool -> Signal Time
+  /** fpsWhen : Number -> Signal Bool -> Signal Time
       Same as the fps function, but you can turn it on and off. Allows you
       to do brief animations based on user input without major ineffeciencies.
       The first time delta after a pause is always zero, no matter how long
@@ -56,7 +56,7 @@ Elm.Time = function() {
     };
   }
  
-  /** every :: Time -> Signal Time
+  /** every : Time -> Signal Time
       Takes a time interval t. The resulting signal is the current time,
       updated every t.
    **/

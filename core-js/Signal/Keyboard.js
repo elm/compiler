@@ -43,6 +43,12 @@ Elm.Keyboard = { Raw : function() {
     }()
 };
 
+/*! Keyboard
+These are nicely curated inputs from the keyboard. See the
+[Keyboard.Raw library](/docs/Signal/KeyboardRaw.elm) for a
+lower-level interface that will let you define more complicated behavior.
+!*/
+
 (function() {
   function keySignal(f) {
     var signal = Elm.Signal.lift(f)(Elm.Keyboard.Raw.keysDown);
@@ -79,10 +85,39 @@ Elm.Keyboard = { Raw : function() {
     return keySignal(f);
   }
 
+  /*[Directions]*/
+
+  /** arrows : Signal { x:Int, y:Int }
+      A signal of records indicating which arrow keys are pressed.
+
+      `{ x = 0, y = 0 }` when pressing no arrows.
+      `{ x =-1, y = 0 }` when pressing the left arrow.
+      `{ x = 1, y = 1 }` when pressing the up and right arrows.
+      `{ x = 0, y =-1 }` when pressing the down, left, and right arrows.
+  **/
   Elm.Keyboard.arrows = dir(37,39,38,40);
+
+  /** wasd : Signal { x:Int, y:Int }
+      Just like the arrows signal, but this uses keys w, a, s, and d,
+      which are common controls for many computer games.
+  **/
   Elm.Keyboard.wasd   = dir(65,68,87,83);
+
+  /*[Modifiers]*/
+
+  /** shift : Signal Bool
+      Whether the shift key is pressed.
+  **/
   Elm.Keyboard.shift  = is(16);
+
+  /** ctrl : Signal Bool
+      Whether the control key is pressed.
+  **/
   Elm.Keyboard.ctrl   = is(17);
+
+  /** space : Signal Bool
+      Whether the space key is pressed.
+  **/
   Elm.Keyboard.space  = is(32);
 
 }());
