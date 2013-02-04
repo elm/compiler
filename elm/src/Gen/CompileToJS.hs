@@ -99,6 +99,8 @@ getExports names stmts = ret . braces $ intercalate ",\n" (op : map fnPair fns)
                             Datatype _ _ tcs    -> map (Left . fst) tcs
                             ImportEvent _ _ x _ -> [ Left x ]
                             ExportEvent _ _ _   -> []
+                            TypeAlias _ _       -> []
+                            TypeAnnotation _ _  -> []
 
 
 jsImport (modul, how) =
@@ -136,6 +138,8 @@ stmtsToJS stmts = run (concat `liftM` mapM toJS (sortBy cmpStmt stmts))
                             if derename f == "main" then 5 else 4
                         Definition _               -> 3
                         ExportEvent _ _ _          -> 6
+                        TypeAlias _ _              -> 0
+                        TypeAnnotation _ _         -> 0
 
 class ToJS a where
   toJS :: a -> GuidCounter String
@@ -167,6 +171,8 @@ instance ToJS Statement where
                         , "e.initEvent('", js, "', true, true);"
                         , "e.value = v;"
                         , "document.dispatchEvent(e); return v; })(", elm, ");" ]
+    toJS (TypeAnnotation _ _) = return ""
+    toJS (TypeAlias _ _) = return ""
 
 toJS' :: CExpr -> GuidCounter String
 toJS' (C txt span expr) =

@@ -14,10 +14,8 @@ import Parse.Modules
 import Parse.Foreign
 
 
-statement =  (:[]) <$> foreignDef
-         <|> (:[]) <$> datatype
-         <|> def
-         <?> "datatype or variable definition"
+statement = let defs = [ foreignDef, datatype, typeAlias, typeAnnotation ] in
+            (:[]) <$> choice defs <|> def <?> "datatype or variable definition"
 
 freshDef = commitIf (freshLine >> (letter <|> char '_')) $ do
              freshLine

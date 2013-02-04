@@ -34,7 +34,7 @@ typeTuple = do ts <- parens (commaSep typeExpr)
 typeRecord :: IParser ParseType
 typeRecord = fmap RecordPT . brackets . commaSep $ do
                lbl <- rLabel
-               whitespace >> string "::" >> whitespace
+               whitespace >> hasType >> whitespace
                (,) lbl <$> typeExpr
 
 typeUnambiguous :: IParser ParseType
@@ -64,6 +64,18 @@ typeConstructor :: IParser (String, [ParseType])
 typeConstructor = (,) <$> (capVar <?> "another type constructor")
                       <*> spacePrefix (typeSimple <|> typeUnambiguous)
 
+typeAlias :: IParser Statement
+typeAlias = do
+  reserved "type" <?> "type alias (type Point = {x:Int, y:Int})"
+  alias <- capVar
+  whitespace ; string "=" ; whitespace
+  TypeAlias alias <$> toType <$> typeExpr
+
+typeAnnotation :: IParser Statement
+typeAnnotation =
+  let start = do v <- lowVar ; whitespace ; hasType ; whitespace ; return v
+  in  TypeAnnotation <$> try start <*> (toType <$> typeExpr)
+
 datatype :: IParser Statement
 datatype = do
   reserved "data" <?> "datatype definition (data T = A | B | ...)"
@@ -76,21 +88,39 @@ datatype = do
 
 beta = liftM VarT guid
 
+toType :: ParseType -> Type
+toType pt =
+  let frees :: ParseType -> [String]
+      frees pt = case pt of
+                   LambdaPT a b -> frees a ++ frees b
+                   ADTPT _ ts   -> concatMap frees ts
+                   RecordPT fs  -> concatMap (frees . snd) fs
+                   VarPT (c:cs) | isLower c -> [c:cs]
+                                | otherwise -> []
+  in  case toTypeWith "" (zip (frees pt) [1..]) pt of
+        Right t -> t
+        Left  _ -> VarT 0
+
+toTypeWith :: String -> [(String,X)] -> ParseType -> Either String Type
+toTypeWith name tvarDict pt =
+  let msg x = "Type variable '" ++ x ++ "' is unbound in type '" ++ name ++ "'."
+      toT = toTypeWith name tvarDict
+  in  case pt of
+        LambdaPT t1 t2  -> (==>) <$> toT t1 <*> toT t2
+        ADTPT name args -> ADT name <$> mapM toT args
+        RecordPT fs     -> do fs' <- mapM (\(x,pt) -> (,) x <$> toT pt) fs
+                              return (RecordT (recordT fs') EmptyRecord)
+        VarPT x@(c:_)
+            | not (isLower c) -> return $ ADT x []
+            | otherwise -> VarT <$> case lookup x tvarDict of
+                                      Just v -> Right v
+                                      Nothing -> Left (msg x)
+
+
 toDatatype name args tcs = Datatype name [1..n] <$> mapM toC tcs
     where n = length args
-          tvarDict = zip args [1..n]
-          toC (name,pt) = (,) name <$> mapM toT pt
-          toT (LambdaPT t1 t2)  = (==>) <$> toT t1 <*> toT t2
-          toT (ADTPT name args) = ADT name <$> mapM toT args
-          toT (VarPT x@(c:_))
-              | isLower c = VarT <$> case lookup x tvarDict of
-                                       Just v -> Right v
-                                       Nothing -> Left $ msg x
-              | otherwise = return $ ADT x []
-          toT (RecordPT fs) = do fs' <- mapM (\(x,pt) -> (,) x <$> toT pt) fs
-                                 return (RecordT (recordT fs') EmptyRecord)
-          msg x = "Type variable '" ++ x ++
-                  "' is unbound in type constructor '" ++ name ++ "'."
+          toType = toTypeWith name (zip args [1..n])
+          toC (name,pt) = (,) name <$> mapM toType pt
 
 
 toForeignType (LambdaPT t1 t2) =

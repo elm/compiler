@@ -52,6 +52,8 @@ data Def = FnDef String [String] CExpr
 
 data Statement = Definition Def
                | Datatype String [X] [(String,[Type])]
+               | TypeAlias String Type
+               | TypeAnnotation String Type
                | ImportEvent String CExpr String Type
                | ExportEvent String String Type
                  deriving (Eq,Show)

@@ -198,7 +198,7 @@ gen (C _ span expr) =
     Str _ -> primitive string
     Boolean _ -> primitive bool
     Markdown _ -> primitive element
-      -- _ -> beta >>= primitive 
+
 
 primitive :: Type -> GuidCounter (TVarMap, ConstraintSet, Type)
 primitive t = return (Map.empty, Set.empty, t)
@@ -258,38 +258,39 @@ defGenHelp name args e = do
             Forall (map snd argDict) (cs' ++ Set.toList cs) tipe
   return ( as', Set.empty, (name, scheme) )
 
-stmtGen (Definition def) = do (as,cs,hint) <- defGen def
-                              return ( as, cs, [hint] )
 
-stmtGen (Datatype name xs tcs) = do schemes <- mapM gen' tcs'
-                                    return (Map.empty, Set.empty, schemes)
-    where var n = length xs + n
-          ( a, b, c) = ( var 1,  var 2,  var 3)
-          (va,vb,vc) = (VarT a, VarT b, VarT c)
-          rnm (ADT n []) | n == "Number"     = va
-                         | n == "Appendable" = vb
-                         | n == "Comparable" = vc
-          rnm t = t
-          tcs' = map (second (map rnm)) tcs
-          supers t = map (ctx name NoSpan) $
-                     zipWith (:<:) [va,vb,vc] [number,appendable t,comparable]
-          gen' (n,ts) = do t <- beta
-                           let s = Forall (xs ++ [a,b,c]) (supers t) $
-                                   foldr (==>) (ADT name $ map VarT xs) ts
-                           (,) n `liftM` generalize [] s
+stmtGen :: Statement -> GuidCounter (TVarMap, ConstraintSet, [(String,Scheme)])
+stmtGen stmt =
+  case stmt of
+    Definition def -> do (as,cs,hint) <- defGen def
+                         return ( as, cs, [hint] )
 
-stmtGen (ExportEvent js elm tipe) = do
-  x <- guid
-  return ( Map.singleton elm [x]
-         , Set.singleton . ctx elm NoSpan $ VarT x :=: tipe
-         , [] )
+    TypeAlias alias t -> return (Map.empty, Set.empty, [])
 
-stmtGen (ImportEvent js e@(C txt span base) elm tipe) = do
-  (as,cs,t) <- gen e
-  return ( as
-         , Set.insert (C txt span (signalOf t :=: tipe)) cs
-         , [ (elm, Forall [] [] tipe) ] )
+    TypeAnnotation name t ->
+        do Forall _ _ t' <- generalize [] (Forall [] [] t)
+           x <- guid
+           return (Map.singleton name [x],
+                   Set.singleton (ctx name NoSpan $ VarT x :=: t'),
+                   [])
 
-getDatatypeInfo (Datatype name args tcs) =
-    Just (name, args, tcs)
-getDatatypeInfo _ = Nothing
+    Datatype name xs tcs ->
+        let toType ts = foldl (==>) (ADT name $ map VarT xs) ts in
+        do schemes <- mapM (toScheme . second toType) tcs
+           return (Map.empty, Set.empty, schemes)
+
+    ExportEvent js elm tipe ->
+        do x <- guid
+           return ( Map.singleton elm [x]
+                  , Set.singleton . ctx elm NoSpan $ VarT x :=: tipe
+                  , [] )
+
+    ImportEvent js e@(C txt span base) elm tipe ->
+        do (as,cs,t) <- gen e
+           return ( as
+                  , Set.insert (C txt span (signalOf t :=: tipe)) cs
+                  , [ (elm, Forall [] [] tipe) ] )
+
+toScheme :: (String,Type) -> GuidCounter (String,Scheme)
+toScheme (name,tipe) = do scheme <- generalize [] (Forall [] [] tipe)
+                          return (name, scheme)

@@ -19,7 +19,7 @@ exportEvent = do
   try (reserved "export" >> whitespace >> reserved "jsevent" >> whitespace)
   js   <- jsVar    ; whitespace
   elm  <- lowVar   ; whitespace
-  string "::"      ; whitespace
+  hasType          ; whitespace
   tipe <- typeExpr
   case tipe of
     ADTPT "Signal" [pt] ->
@@ -32,7 +32,7 @@ importEvent = do
   base <- term <?> "Base case for imported signal (signals cannot be undefined)"
   whitespace
   elm  <- lowVar <?> "Name of imported signal"
-  whitespace ; string "::" ; whitespace
+  whitespace ; hasType ; whitespace
   tipe <- typeExpr
   case tipe of
     ADTPT "Signal" [pt] ->

@@ -82,8 +82,6 @@ t1 ==> t2 = LambdaT t1 t2
 infix 8 -:
 name -: tipe = (,) name $ Forall [] [] tipe
 
-hasType t = map (-: t)
-
 parens = ("("++) . (++")")
 
 instance Show Type where

@@ -32,14 +32,18 @@ instance Rename Def where
          FnDef (env f) (map env' args) `liftM` rename env' e
 
 instance Rename Statement where
-  rename env (Definition def) = Definition `liftM` rename env def
-  rename env (Datatype name args tcs) =
-      return $ Datatype name args $ map (first env) tcs
-  rename env (ImportEvent js base elm tipe) =
-      do base' <- rename env base
-         return $ ImportEvent js base' (env elm) tipe
-  rename env (ExportEvent js elm tipe) =
-      return $ ExportEvent js (env elm) tipe
+  rename env stmt =
+    case stmt of
+      Definition def -> Definition `liftM` rename env def
+      Datatype name args tcs ->
+          return $ Datatype name args $ map (first env) tcs
+      TypeAlias n t -> return (TypeAlias n t)
+      TypeAnnotation n t -> return (TypeAnnotation (env n) t)
+      ImportEvent js base elm tipe ->
+          do base' <- rename env base
+             return $ ImportEvent js base' (env elm) tipe
+      ExportEvent js elm tipe ->
+          return $ ExportEvent js (env elm) tipe
 
 renameStmts env stmts = do env' <- extends env $ concatMap getNames stmts
                            mapM (rename env') stmts

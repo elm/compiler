@@ -12,8 +12,9 @@ import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
 
 reserveds = [ "if", "then", "else"
-            , "case", "of", "data"
+            , "case", "of"
             , "let", "in"
+            , "data", "type"
             , "module", "where"
             , "import", "as", "hiding"
             , "export", "foreign" ]
@@ -61,7 +62,7 @@ isOp c = isSymbol c || elem c "+-/*=.$<>:&|^?%#@~!"
 
 symOp :: IParser String
 symOp = do op <- many1 (satisfy isOp)
-           guard (op `notElem` [ "=", "..", "->", "--", "|", "\8594" ])
+           guard (op `notElem` [ "=", "..", "->", "--", "|", "\8594", ":" ])
            case op of
              "." -> notFollowedBy lower >> return op
              "\8728" -> return "."
@@ -69,6 +70,9 @@ symOp = do op <- many1 (satisfy isOp)
 
 arrow :: IParser String
 arrow = string "->" <|> string "\8594" <?> "arrow (->)"
+
+hasType :: IParser String
+hasType = string ":" <?> "':' (a type annotation)'"
 
 
 commitIf check p = commit <|> try p

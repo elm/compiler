@@ -1,9 +1,10 @@
 
-module Types.Substitutions (subst
-                           ,occurs
-                           ,concretize
-                           ,rescheme
-                           ,generalize) where
+module Types.Substitutions (subst,
+                            occurs,
+                            freeVars,
+                            concretize,
+                            rescheme,
+                            generalize) where
 
 import Context
 import Control.DeepSeq (NFData (..), deepseq)

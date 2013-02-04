@@ -8,6 +8,8 @@ import Types.Substitutions (rescheme)
 
 ctx str = C (Just str) NoSpan
 prefix pre xs = map (first (\x -> pre ++ "." ++ x)) xs
+hasType t = map (-: t)
+
 
 --------  Text and Elements  --------
 
