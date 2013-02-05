@@ -97,7 +97,7 @@ pipeSep1 :: IParser a -> IParser [a]
 pipeSep1 = spaceySepBy1 (char '|' <?> "type divider '|'")
 
 consSep1 :: IParser a -> IParser [a]
-consSep1 = spaceySepBy1 (char ':' <?> "cons operator ':'")
+consSep1 = spaceySepBy1 (string "::" <?> "cons operator '::'")
 
 dotSep1 :: IParser a -> IParser [a]
 dotSep1 p = (:) <$> p <*> many (try (char '.') >> p)
