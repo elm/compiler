@@ -94,8 +94,11 @@ generalize exceptions (Forall xs cs t) = rescheme (Forall (xs ++ frees) cs t)
 dealias :: [Statement] -> [Statement]
 dealias stmts = map dealiasS stmts
   where
+    builtins :: [(String,([X],Type))]
+    builtins = [ ("String", ([], string)) ]
+
     getAliases :: [Statement] -> Map.Map String ([X],Type)
-    getAliases stmts = Map.fromList (concatMap getAlias stmts)
+    getAliases stmts = Map.fromList (builtins ++ concatMap getAlias stmts)
         where getAlias stmt = case stmt of
                                 TypeAlias alias xs t -> [(alias, (xs,t))]
                                 _ -> []
