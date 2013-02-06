@@ -307,7 +307,7 @@ binop (o:p) e1 e2
     | otherwise =
         let ops = ["+","-","*","/","&&","||"] in
         case o:p of
-          ":"  -> jsCons e1 e2
+          "::" -> jsCons e1 e2
           "++" -> append e1 e2
           "$"  -> e1 ++ parens e2
           "."  -> jsFunc "x" . ret $ e1 ++ parens (e2 ++ parens "x")
