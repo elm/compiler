@@ -72,9 +72,9 @@ typeAlias = do
   TypeAlias alias <$> toType <$> typeExpr
 
 typeAnnotation :: IParser Statement
-typeAnnotation =
-  let start = do v <- lowVar ; whitespace ; hasType ; whitespace ; return v
-  in  TypeAnnotation <$> try start <*> (toType <$> typeExpr)
+typeAnnotation = TypeAnnotation <$> try start <*> (toType <$> typeExpr)
+    where start = do v <- lowVar <|> parens symOp
+                     whitespace ; hasType ; whitespace ; return v
 
 datatype :: IParser Statement
 datatype = do
