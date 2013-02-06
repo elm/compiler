@@ -305,5 +305,4 @@ stmtGen stmt =
         do schm <- generalize [] (Forall [] [] tipe)
            return (Map.empty, Set.empty, Map.singleton name schm)
 
-    _ -> return (Map.empty, Set.empty, Map.empty)
-
+    TypeAlias _ _ _ -> return (Map.empty, Set.empty, Map.empty)

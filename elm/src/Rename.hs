@@ -37,7 +37,7 @@ instance Rename Statement where
       Definition def -> Definition `liftM` rename env def
       Datatype name args tcs ->
           return $ Datatype name args $ map (first env) tcs
-      TypeAlias n t -> return (TypeAlias n t)
+      TypeAlias n xs t -> return (TypeAlias n xs t)
       TypeAnnotation n t -> return (TypeAnnotation (env n) t)
       ImportEvent js base elm tipe ->
           do base' <- rename env base

@@ -57,8 +57,9 @@ typeExpr :: IParser ParseType
 typeExpr = do
   t1 <- typeVar <|> typeApp <|> typeUnambiguous
   whitespace ; arr <- optionMaybe arrow ; whitespace
-  case arr of Just _  -> LambdaPT t1 <$> typeExpr
-              Nothing -> return t1
+  case arr of
+    Just _  -> LambdaPT t1 <$> typeExpr
+    Nothing -> return t1
 
 typeConstructor :: IParser (String, [ParseType])
 typeConstructor = (,) <$> (capVar <?> "another type constructor")
@@ -67,9 +68,15 @@ typeConstructor = (,) <$> (capVar <?> "another type constructor")
 typeAlias :: IParser Statement
 typeAlias = do
   reserved "type" <?> "type alias (type Point = {x:Int, y:Int})"
+  forcedWS
   alias <- capVar
+  args  <- spacePrefix lowVar
   whitespace ; string "=" ; whitespace
-  TypeAlias alias <$> toType <$> typeExpr
+  let n = length args
+  tipe <- typeExpr
+  case toTypeWith alias (zip args [1..n]) tipe of
+    Right t -> return (TypeAlias alias [1..n] t)
+    Left msg -> fail msg
 
 typeAnnotation :: IParser Statement
 typeAnnotation = TypeAnnotation <$> try start <*> (toType <$> typeExpr)
