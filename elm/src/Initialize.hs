@@ -10,16 +10,18 @@ import Rename
 import Types.Types ((-:))
 import Types.Hints (hints)
 import Types.Unify
-import Types.Substitutions (dealias)
+import Types.Alias
 import Optimize
 
-
-initialize str =
-    do Module name ex im stmts <- parseProgram str
-       let stmts' = dealias stmts
-           modul = Module name ex im stmts'
-       (escapees, subs) <- unify hints modul
-       let modul' = optimize . renameModule $ Module name ex im' stmts'
-               where im' | any ((=="Prelude") . fst) im = im
-                         | otherwise = ("Prelude", Hiding []) : im
-       subs `seq` return (escapees, modul')
+initialize :: String -> Either String ([String], Module)
+initialize str = do
+  Module name ex im stmts <- parseProgram str
+  case mistakes stmts of
+    m:ms -> Left (unlines (m:ms))
+    [] -> let stmts' = dealias stmts
+              modul = Module name ex im stmts'
+          in do (escapees, subs) <- unify hints modul
+                let im' | any ((=="Prelude") . fst) im = im
+                        | otherwise = ("Prelude", Hiding []) : im
+                    modul' = optimize . renameModule $ Module name ex im' stmts'
+                subs `seq` return (escapees, modul')

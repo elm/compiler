@@ -4,13 +4,11 @@ module Types.Substitutions (subst,
                             freeVars,
                             concretize,
                             rescheme,
-                            generalize,
-                            dealias) where
+                            generalize) where
 
 import Ast
 import Context
 import Control.DeepSeq (NFData (..), deepseq)
-import Control.Arrow (second)
 import Control.Monad (liftM)
 import Data.List (foldl')
 import qualified Data.Set as Set
@@ -90,35 +88,3 @@ generalize :: [X] -> Scheme -> GuidCounter Scheme
 generalize exceptions (Forall xs cs t) = rescheme (Forall (xs ++ frees) cs t)
     where allFrees = Set.fromList $ freeVars t ++ concatMap freeVars cs
           frees = Set.toList $ Set.difference allFrees (Set.fromList exceptions)
-
-dealias :: [Statement] -> [Statement]
-dealias stmts = map dealiasS stmts
-  where
-    builtins :: [(String,([X],Type))]
-    builtins = [ ("String", ([], string)) ]
-
-    getAliases :: [Statement] -> Map.Map String ([X],Type)
-    getAliases stmts = Map.fromList (builtins ++ concatMap getAlias stmts)
-        where getAlias stmt = case stmt of
-                                TypeAlias alias xs t -> [(alias, (xs,t))]
-                                _ -> []
-
-    dealiasT :: Type -> Type
-    dealiasT t =
-      case t of
-        ADT name ts -> case Map.lookup name (getAliases stmts) of
-                         Just (xs,t) -> dealiasT (subst (zip xs ts) t)
-                         Nothing -> ADT name (map dealiasT ts)
-        LambdaT t u -> LambdaT (dealiasT t) (dealiasT u)
-        RecordT r t -> RecordT (Map.map (map dealiasT) r) (dealiasT t)
-        _ -> t
-
-    dealiasS :: Statement -> Statement
-    dealiasS s =
-      case s of
-        Datatype n xs tcs -> Datatype n xs (map (second (map dealiasT)) tcs)
-        ExportEvent js elm tipe -> ExportEvent js elm (dealiasT tipe)
-        ImportEvent js e elm tipe -> ImportEvent js e elm (dealiasT tipe)
-        TypeAnnotation name tipe -> TypeAnnotation name (dealiasT tipe)
-        Definition _ -> s
-        TypeAlias _ _ _ -> s
