@@ -6,7 +6,7 @@ import Language.Elm
 import Language.Elm.Quasi
 
 elmLoc :: String
-elmLoc = "https://raw.github.com/evancz/Elm/master/elm/elm-runtime-0.3.5.js"
+elmLoc = "https://raw.github.com/evancz/Elm/master/elm/elm-runtime-0.7.1.1.js"
 
 -- elmResponse is a "nice to have" helper function for compiling
 -- Elm code when using Elm with Happstack. At some point this might
@@ -21,7 +21,7 @@ elmResponse title = toResponse . toHtml elmLoc title
 rootHandler :: ServerPart Response
 rootHandler = ok $ elmResponse "Welcome!" $ elmIndex
   where
-    mouse = "/mouse"
+    mouse = "/mouse" -- all three of these variables are used in elm_source/index.elm
     clock = "/clock"
     shapes = "/shapes"
     elmIndex = $(elmFile "elm_source/index.elm")
