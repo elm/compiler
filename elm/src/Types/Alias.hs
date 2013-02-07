@@ -122,7 +122,7 @@ badOrder stmts = map msg $ missings (sort $ expectedPairs as ds) (sort $ actualP
       actualPairs stmts =      
           case stmts of
             TypeAnnotation n _ : Definition d : rest ->
-                if n == defName d then [n] else [] ++ actualPairs rest
+                (if n == defName d then [n] else []) ++ actualPairs rest
             t:s:rest -> actualPairs (s:rest)
             _ -> []
 
