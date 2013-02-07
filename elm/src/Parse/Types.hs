@@ -16,7 +16,7 @@ import Guid
 data ParseType = VarPT String
                | LambdaPT ParseType ParseType
                | ADTPT String [ParseType]
-               | RecordPT [(String,ParseType)]
+               | RecordPT (Maybe ParseType) [(String,ParseType)]
 
 listPT t = ADTPT "List" [t]
 tuplePT ts = ADTPT ("Tuple" ++ show (length ts)) ts
@@ -32,10 +32,15 @@ typeTuple = do ts <- parens (commaSep typeExpr)
                return $ case ts of { [t] -> t ; _ -> tuplePT ts }
 
 typeRecord :: IParser ParseType
-typeRecord = fmap RecordPT . brackets . commaSep $ do
-               lbl <- rLabel
-               whitespace >> hasType >> whitespace
-               (,) lbl <$> typeExpr
+typeRecord = brackets (RecordPT <$> extend <*> fields)
+  where extend = optionMaybe . try $ do
+                   t <- typeVar
+                   whitespace >> string "|" >> whitespace
+                   return t
+        fields = commaSep $ do
+                   lbl <- rLabel
+                   whitespace >> hasType >> whitespace
+                   (,) lbl <$> typeExpr
 
 typeUnambiguous :: IParser ParseType
 typeUnambiguous = typeList <|> typeTuple <|> typeRecord
@@ -99,9 +104,9 @@ toType :: ParseType -> Type
 toType pt =
   let frees :: ParseType -> [String]
       frees pt = case pt of
-                   LambdaPT a b -> frees a ++ frees b
-                   ADTPT _ ts   -> concatMap frees ts
-                   RecordPT fs  -> concatMap (frees . snd) fs
+                   LambdaPT a b  -> frees a ++ frees b
+                   ADTPT _ ts    -> concatMap frees ts
+                   RecordPT t fs -> maybe [] frees t ++ concatMap (frees . snd) fs
                    VarPT (c:cs) | isLower c -> [c:cs]
                                 | otherwise -> []
   in  case toTypeWith "" (zip (frees pt) [1..]) pt of
@@ -115,8 +120,9 @@ toTypeWith name tvarDict pt =
   in  case pt of
         LambdaPT t1 t2  -> (==>) <$> toT t1 <*> toT t2
         ADTPT name args -> ADT name <$> mapM toT args
-        RecordPT fs     -> do fs' <- mapM (\(x,pt) -> (,) x <$> toT pt) fs
-                              return (RecordT (recordT fs') EmptyRecord)
+        RecordPT t fs   -> do fs' <- mapM (\(x,pt) -> (,) x <$> toT pt) fs
+                              ext <- maybe (return EmptyRecord) toT t
+                              return (RecordT (recordT fs') ext)
         VarPT x@(c:_)
             | not (isLower c) -> return $ ADT x []
             | otherwise -> VarT <$> case lookup x tvarDict of
