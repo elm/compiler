@@ -1,4 +1,4 @@
-title w = size w 60 . text . header . toText $ "Elm-Yesod"
+title w = size w 60 . text . header . toText $ "Elm-Happstack"
 
 lightGrey = rgb 240 241 244
 mediumGrey = rgb 216 221 225
@@ -25,12 +25,12 @@ shapesLink = "#{shapes}"
 
 
 info w = List.map (\f -> f ()) . List.intersperse (\x -> plainText "&nbsp;") . List.map ((\e x -> e) . width w) $
-  [ section "Written in Elm, served with Yesod"
+  [ section "Written in Elm, served with Happstack"
   , text $ toText "This page is written in " ++ Text.link "http://elm-lang.org/" (toText "Elm") ++
            toText " and served using the " ++ 
-           Text.link "http://yesodweb.com/" (toText "Yesod Web Framework") ++
+           Text.link "http://happstack.com/" (toText "Happstack Web Framework") ++
            toText ". Since you are looking at this page it is safe to assume that you already have the example code. "
-  , text $ toText "Type-safe URLs are rendered using simple QuasiQuoter variable interpolation."
+  , text $ toText "URLs are rendered using simple QuasiQuoter variable interpolation."
   , section "More examples:"
   , text $ toText "- " ++ Text.link mouseLink (toText "A simple mouse input example")
   , text $ toText "- " ++ Text.link clockLink (toText "An animated analog clock")
