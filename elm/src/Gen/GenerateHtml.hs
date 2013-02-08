@@ -45,7 +45,7 @@ generateHtml :: String -- ^ Location of elm-min.js as expected by the browser
              -> String -- ^ The elm source code.
              -> Html
 generateHtml libLoc title source =
-    case initialize source of
+    case buildFromSource source of
       Left err -> createHtml Readable libLoc title (Right $ showErr err) (H.noscript "")
       Right (escs, modul) -> modulesToHtml Readable title libLoc [] True [(escs,modul)]
 

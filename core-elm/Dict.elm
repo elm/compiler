@@ -272,7 +272,7 @@ moveRedRight t =
   let t' = color_flip t in
   if isRedLeftLeft t' then color_flip (rotateRight t') else t'
 
-moveRedLeft : RBTree k v -> RBTree k v
+moveRedLeftIfNeeded : RBTree k v -> RBTree k v
 moveRedLeftIfNeeded t =
   if not (isRedLeft t) && not (isRedLeftLeft t) then moveRedLeft t else t
 
