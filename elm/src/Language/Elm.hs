@@ -77,6 +77,6 @@ instance ElmSource (t -> Elm) where
 -- build helper to avoid boilerplate repetition
 toPartsHelper :: String -> (Html, Html, String)
 toPartsHelper source = (html, css, js)
-  where modul = initialize source
+  where modul = buildFromSource source
         js = either showErr jsModule modul
         html = widgetBody $ either id (extractNoscript . snd) modul
