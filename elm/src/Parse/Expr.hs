@@ -98,7 +98,8 @@ recordTerm = brackets $ choice [ misc, addContext record ]
               fDefs <- (:) <$> (PVar <$> rLabel) <*> spacePrefix patternTerm
               whitespace
               e <- string "=" >> whitespace >> expr
-              run $ flattenPatterns fDefs e
+              n <- sourceLine <$> getPosition
+              runAt (1000 * n) $ flattenPatterns fDefs e
           extract [ FnDef f args exp ] = return (f,args,exp)
           extract _ = fail "Improperly formed record field."
           record = Record <$> (mapM extract =<< commaSep field)
@@ -203,7 +204,8 @@ assignExpr = withPos $ do
   fDefs <- funcDef
   whitespace
   e <- string "=" >> whitespace >> expr
-  run $ flattenPatterns fDefs e
+  n <- sourceLine <$> getPosition
+  runAt (1000 * n) $ flattenPatterns fDefs e
 
 def = map Definition <$> assignExpr
 
