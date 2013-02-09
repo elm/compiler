@@ -5,8 +5,8 @@ import Happstack.Server
 import Language.Elm
 import Language.Elm.Quasi
 
-elmLoc :: String
-elmLoc = "https://raw.github.com/evancz/Elm/master/elm/elm-runtime-0.7.1.1.js"
+elmRuntime="elm-runtime.js"
+elmRTPath='/':elmRuntime
 
 -- elmResponse is a "nice to have" helper function for compiling
 -- Elm code when using Elm with Happstack. At some point this might
@@ -15,7 +15,7 @@ elmResponse :: ElmSource a
             => String -- ^ Page title
             -> a      -- ^ elm source
             -> Response
-elmResponse title = toResponse . toHtml elmLoc title
+elmResponse title = toResponse . toHtml elmRTPath title
 
 -- embedding variables (in this case URLs)
 rootHandler :: ServerPart Response
@@ -52,11 +52,13 @@ shapesHandler :: ServerPart Response
 shapesHandler = ok $ elmResponse "Simple shapes" $ shapesPage
 
 -- routing
-elmExample :: ServerPart Response
-elmExample =
-    msum [ nullDir >> rootHandler
+elmExample :: String -> ServerPart Response
+elmExample elmLoc = do
+    msum [ nullDir >> rootHandler 
+         , dir elmRuntime $ nullDir >>
+              serveFile (guessContentTypeM mimeTypes) elmLoc
          , dir "mouse" $ nullDir >>
-              mouseHandler
+              mouseHandler 
          , dir "clock" $ nullDir >>
               clockHandler
          , dir "shapes" $ nullDir >>
@@ -64,4 +66,6 @@ elmExample =
          ]
 
 main :: IO ()
-main = simpleHTTP nullConf {port = 3000} elmExample
+main = do
+    elmLoc <- Language.Elm.runtimeLocation
+    simpleHTTP nullConf {port = 3000}  $ elmExample elmLoc

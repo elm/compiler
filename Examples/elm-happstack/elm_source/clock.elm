@@ -1,5 +1,5 @@
 
-import Signal.Time (every)
+import Time (every)
 
 hand clr len time =
   let t = pi * time / 30 - pi / 2 in
