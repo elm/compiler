@@ -9,6 +9,9 @@ head = Native.head
 tail : [a] -> [a]
 tail = Native.tail
 
+last : [a] -> a
+last = Native.last
+
 map : (a -> b) -> [a] -> [b]
 map = Native.map
 
@@ -19,16 +22,16 @@ foldr : (a -> b -> b) -> b -> [a] -> b
 foldr = Native.foldr
 
 foldl1 : (a -> a -> a) -> [a] -> a
-foldl1 f (x::xs) = foldl f x xs
+foldl1 = Native.foldl1
 
 foldr1 : (a -> a -> a) -> [a] -> a
-foldr1 f (x::xs) = foldr f x xs
+foldr1 = Native.foldr1
 
 scanl : (a -> b -> b) -> b -> [a] -> [b]
-scanl f b xs = b :: (case xs of { x::xs -> scanl f (f x b) xs; [] -> [] })
+scanl = Native.scanl
 
 scanl1 : (a -> a -> a) -> [a] -> [a]
-scanl1 f lst = case lst of { x::xs -> scanl f x xs; [] -> [] }
+scanl1 = Native.scanl1
 
 filter : (a -> Bool) -> [a] -> [a]
 filter = Native.filter
@@ -37,22 +40,25 @@ length : [a] -> Int
 length = Native.length
 
 reverse : [a] -> [a]
-reverse = foldl (::) []
+reverse = Native.reverse
 
-concat = foldr (++) []
-concatMap f = concat . map f
+concat : [[a]] -> [a]
+concat = Native.foldr (++) []
 
-and : [Bool] -> Bool
-and = foldl (&&) True
-
-or : [Bool] -> Bool
-or = foldl (||) False
-
-any : (a -> Bool) -> [a] -> Bool
-any pred = foldl (\x acc -> acc && pred x) True
+concatMap : (a -> [b]) -> [a] -> [b]
+concatMap f = concat . Native.map f
 
 all : (a -> Bool) -> [a] -> Bool
-all pred = foldl (\x acc -> acc || pred x) False
+all pred = Native.all
+
+any : (a -> Bool) -> [a] -> Bool
+any = Native.any
+
+and : [Bool] -> Bool
+and = Native.all id
+
+or : [Bool] -> Bool
+or = Native.any id
 
 sum = foldl (+) 0
 product = foldl (*) 1
