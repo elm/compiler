@@ -4,8 +4,6 @@ module Automaton where
 data Automaton a b = Automaton (a -> (b, Automaton a b))
 
 {--- API possibilies: All names and types are up for debate!
-(>>>) :: Automaton a b -> Automaton b c -> Automaton a c
-(<<<) :: Automaton b c -> Automaton a b -> Automaton a c
 (^>>) :: (a -> b) -> Automaton b c -> Automaton a c
 (>>^) :: Automaton a b -> (b -> c) -> Automaton a c
 (^<<) :: (b -> c) -> Automaton a b -> Automaton a c
@@ -21,6 +19,7 @@ step : Automaton a b -> a -> (b, Automaton a b)
 step (Automaton m) a = m a
 
 
+(>>>) : Automaton a b -> Automaton b c -> Automaton a c
 a1 >>> a2 =
   let Automaton m1 = a1
       Automaton m2 = a2
@@ -28,11 +27,8 @@ a1 >>> a2 =
                            (c,m2') = m2 b
                        in  (c, m1' >>> m2'))
 
+(<<<) : Automaton b c -> Automaton a b -> Automaton a c
 a2 <<< a1 = a1 >>> a2 
-f  ^>> a  = pure f >>> a
-a  >>^ f  = a >>> pure f
-f  ^<< a  = a >>> pure f
-a  <<^ f  = pure f >>> a
 
 combine : [Automaton a b] -> Automaton a [b]
 combine autos =
@@ -59,13 +55,14 @@ vecSub (x1,y1) (x2,y2) = (x1-x2,y1-y2)
 stepDrag (press,pos) (ds,form) =
   let wrap ds' = (form, (ds',form)) in
   case ds of
-  { Listen -> wrap (if not press then Listen else
-                    if pos `isWithin` form then DragFrom pos else Ignore)
-  ; Ignore -> wrap (if press then Ignore else Listen)
-  ; DragFrom p0 -> if press then (uncurry move (vecSub pos p0) form, (DragFrom p0, form))
-                            else (let form' = uncurry move (vecSub pos p0) form in
-                                  (form', (Listen,form')))
-  }
+    Listen -> wrap (if | not press -> Listen
+                       | pos `isWithin` form -> DragFrom pos
+                       | otherwise -> Ignore)
+    Ignore -> wrap (if press then Ignore else Listen)
+    DragFrom p0 ->
+        if press then (uncurry move (vecSub pos p0) form, (DragFrom p0, form))
+                 else (let form' = uncurry move (vecSub pos p0) form in
+                       (form', (Listen,form')))
 
 draggable : Form -> Automaton (Bool,(Int,Int)) Form
 draggable form = init' (Listen,form) stepDrag
