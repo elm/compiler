@@ -82,9 +82,9 @@ solver :: [Context Constraint]
        -> GuidCounter (Either String (Map.Map X Type))
 solver [] subs = return $ Right subs
 solver (C txt span c : cs) subs =
-    let ctx = C txt span in
-    let eq t1 t2 = ctx (t1 :=: t2) in
-    case c of
+  let ctx = C txt span
+      eq t1 t2 = ctx (t1 :=: t2)
+  in case c of
       -- Destruct Type-constructors
       t1@(ADT n1 ts1) :=: t2@(ADT n2 ts2) ->
           if n1 /= n2 then uniError txt span t1 t2 else
