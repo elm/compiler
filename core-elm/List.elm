@@ -24,7 +24,10 @@ foldl1 f (x::xs) = foldl f x xs
 foldr1 : (a -> a -> a) -> [a] -> a
 foldr1 f (x::xs) = foldr f x xs
 
+scanl : (a -> b -> b) -> b -> [a] -> [b]
 scanl f b xs = b :: (case xs of { x::xs -> scanl f (f x b) xs; [] -> [] })
+
+scanl1 : (a -> a -> a) -> [a] -> [a]
 scanl1 f lst = case lst of { x::xs -> scanl f x xs; [] -> [] }
 
 filter : (a -> Bool) -> [a] -> [a]
