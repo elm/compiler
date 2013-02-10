@@ -173,12 +173,16 @@ var Value = function(){
     } else if (typeof v === "string" && v.length < 2) {
 	return "'"+v+"'";
     } else if (typeof v === "object" && ('_' in v)) {
-	var output = []
-	for (var k in v) {
-          if (k == '_') continue;
-          for (var i = v[k].length; i--; ) {
-            output.push(k + " = " + toString(v[k][i]));
+	var output = [];
+	for (var k in v._) {
+	  console.log(k,v._[k]);
+          for (var i = v._[k].length; i--; ) {
+            output.push(k + " = " + toString(v._[k][i]));
 	  }
+	}
+	for (var k in v) {
+          if (k === '_') continue;
+	  output.push(k + " = " + toString(v[k]));
 	}
 	if (output.length === 0) return "{}";
 	return "{ " + output.join(", ") + " }";

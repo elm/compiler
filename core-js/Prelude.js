@@ -1,3 +1,36 @@
+function elmRecordCopy(r) {
+    var o = {};
+    for (var i in r) { o[i] = r[i]; }
+    return o;
+}
+
+function elmRecordRemove(x,r) {
+    var o = elmRecordCopy(r);
+    if (x in o._) {
+	o[x] = o._[x][0];
+	o._[x] = o._[x].slice(1);
+	if (o._[x].length === 0) { delete o._[x]; }
+    } else {
+	delete o[x];
+    }
+    return o;
+}
+
+function elmRecordReplace(kvs,r) {
+    var o = elmRecordCopy(r);
+    for (var i = kvs.length; i--; ) {
+	kvsi = kvs[i];
+	o[kvsi[0]] = kvsi[1];
+    }
+    return o;
+}
+
+function elmRecordInsert(x,v,r) {
+    var o = elmRecordCopy(r);
+    if (x in o) o._[x] = [o[x]].concat(x in o._ ? o._[x].slice(0) : []);
+    o[x] = v;
+    return o;
+}
 
 Value.addListener(document, 'elm_log', function(e) { console.log(e.value); });
 Value.addListener(document, 'elm_title', function(e) {document.title = e.value;});
