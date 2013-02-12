@@ -6,6 +6,7 @@ import Data.List (intersect, intercalate)
 import Data.Maybe (fromMaybe)
 import Data.Version (showVersion)
 import System.Console.CmdArgs
+import System.Exit
 import System.FilePath
 import Text.Blaze.Html.Renderer.String (renderHtml)
 
@@ -67,7 +68,8 @@ fileTo isMini make what jsFiles noscript outputDir rtLoc file = do
   ems <- build make file
   jss <- concat `fmap` mapM readFile jsFiles
   case ems of
-    Left err -> putStrLn $ "Error while compiling " ++ file ++ ":\n" ++ err
+    Left err -> do putStrLn $ "Error while compiling " ++ file ++ ":\n" ++ err
+                   exitFailure
     Right ms ->
         let path = fromMaybe "" outputDir </> file
             js = replaceExtension path ".js"
