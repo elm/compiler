@@ -4,6 +4,9 @@ Elm
 This is the Elm compiler and server, allowing you to develop Elm
 applications that run in any modern browser.
 
+If you are new to Elm, learn more about the language [here](http://elm-lang.org/)
+and try it out in the [online interactive editor](http://elm-lang.org/try).
+
 If you intend to serve Elm code with a custom Haskell backend, be
 sure to read all the way to the "Installation for Haskell-Users" section.
 
