@@ -26,7 +26,7 @@ indent = concatMap f
           f c = [c]
 
 parens s  = "(" ++ s ++ ")"
-braces s  = "{" ++ s ++ "}"
+brackets s  = "{" ++ s ++ "}"
 jsList ss = "["++ intercalate "," ss ++"]"
 jsFunc args body = "function(" ++ args ++ "){" ++ indent body ++ "}"
 assign x e = "\nvar " ++ x ++ "=" ++ e ++ ";"
@@ -81,7 +81,7 @@ jsModule (escapees, Module names exports imports stmts) =
               defs = concat [ assign "$op" "{}"
                             , "\nfor(Elm['i'] in Elm){eval('var '+Elm['i']+'=Elm[Elm.i];');}" ]
 
-getExports names stmts = ret . braces $ intercalate ",\n" (op : map fnPair fns)
+getExports names stmts = ret . brackets $ intercalate ",\n" (op : map fnPair fns)
     where exNames n = either derename id n `elem` names
           exports | null names = concatMap get stmts
                   | otherwise  = filter exNames (concatMap get stmts)
@@ -91,7 +91,7 @@ getExports names stmts = ret . braces $ intercalate ",\n" (op : map fnPair fns)
           opPair op = "'" ++ op ++ "' : $op['" ++ op ++ "']"
           fnPair fn = let fn' = derename fn in fn' ++ ":" ++ fn
 
-          op = ("$op : "++) . braces . intercalate ", " $ map opPair ops
+          op = ("$op : "++) . brackets . intercalate ", " $ map opPair ops
 
           get' (FnDef x _ _) = Left x
           get' (OpDef op _ _ _) = Right op
@@ -122,7 +122,7 @@ jsImport' (modul, Hiding vs) =
     concat [ assign "hiddenVars" . ("{"++) . (++"}") . intercalate "," $
                     map (\v -> v ++ ":true") (map deprime vs)
            , "\nfor (Elm['i'] in " ++ modul ++ ") "
-           , braces . indent . concat $
+           , brackets . indent . concat $
                [ "\nif (hiddenVars[Elm['i']]) continue;"
                , "\neval('var ' + Elm['i'] + ' = "
                , modul, "[Elm.i];');" ]
@@ -148,7 +148,7 @@ instance ToJS Def where
   toJS (FnDef x [] e) = assign x `liftM` toJS' e
   toJS (FnDef f (a:as) e) =
       do body <- toJS' (foldr (\x e -> noContext (Lambda x e)) e as)
-         return $ concat ["\nfunction ",f,parens a, braces . indent $ ret body]
+         return $ concat ["\nfunction ",f,parens a, brackets . indent $ ret body]
   toJS (OpDef op a1 a2 e) =
       do body <- toJS' (foldr (\x e -> noContext (Lambda x e)) e [a1,a2])
          return $ concat [ "\n$op['", op, "'] = ", body, ";" ]
@@ -194,7 +194,7 @@ makeRecord kvs = record `liftM` collect kvs
         do v <- toJS' (foldr (\x e -> C t s $ Lambda x e) e as)
            return (k,[v])
     fields fs =
-        braces ("\n  "++intercalate ",\n  " (map (\(k,v) -> k++":"++v) fs))
+        brackets ("\n  "++intercalate ",\n  " (map (\(k,v) -> k++":"++v) fs))
     hidden = fields . map (second jsList) .
              filter (not . null . snd) . Map.toList . Map.map tail
     record kvs = fields . (("_", hidden kvs) :) . Map.toList . Map.map head $ kvs
@@ -234,7 +234,10 @@ instance ToJS Expr where
 
     App e1 e2 -> (++) `liftM` (toJS' e1) `ap` (parens `liftM` toJS' e2)
     Let defs e -> jsLet defs e
-    Data name es -> (\ss -> jsList $ quoted name : ss) `liftM` mapM toJS' es
+    Data name es ->
+        do fs <- mapM toJS' es
+           let fields = zipWith (\n e -> "_" ++ show n ++ ":" ++ e) [0..] fs
+           return (brackets ("ctor:" ++ show name ++ concatMap (", "++) fields))
 
     Markdown doc -> return $ "text('" ++ pad ++ md ++ pad ++ "')"
         where pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
@@ -276,7 +279,7 @@ caseToJS span e ps = do
 matchToJS span (Match name clauses def) = do
   cases <- concat `liftM` mapM (clauseToJS span name) clauses
   finally <- matchToJS span def
-  return $ concat [ "\nswitch(", name, "[0]){", indent cases, "\n}", finally ]
+  return $ concat [ "\nswitch(", name, ".ctor){", indent cases, "\n}", finally ]
 matchToJS span Fail  = return ("\nthrow new Error(\"Non-exhaustive pattern match " ++
                                "in case expression (" ++ show span ++ ")\");")
 matchToJS span Break = return "break;"
@@ -284,7 +287,7 @@ matchToJS span (Other e) = ret `liftM` toJS' e
 matchToJS span (Seq ms) = concat `liftM` mapM (matchToJS span) ms
 
 clauseToJS span var (Clause name vars e) = do
-  let vars' = map (\n -> var ++ "[" ++ show n ++ "]") [ 1 .. length vars ]
+  let vars' = map (\n -> var ++ "._" ++ show n) [ 1 .. length vars ]
   s <- matchToJS span $ matchSubst (zip vars vars') e
   return $ concat [ "\ncase ", quoted name, ":", s ]
 
@@ -307,12 +310,12 @@ binop (o:p) e1 e2
           "^"  -> "Math.pow(" ++ e1 ++ "," ++ e2 ++ ")"
           "==" -> "eq(" ++ e1 ++ "," ++ e2 ++ ")"
           "/=" -> "not(eq(" ++ e1 ++ "," ++ e2 ++ "))"
-          "<"  -> "(compare(" ++ e1 ++ ")(" ++ e2 ++ ")[0] === 'LT')"
-          ">"  -> "(compare(" ++ e1 ++ ")(" ++ e2 ++ ")[0] === 'GT')"
+          "<"  -> "(compare(" ++ e1 ++ ")(" ++ e2 ++ ").ctor === 'LT')"
+          ">"  -> "(compare(" ++ e1 ++ ")(" ++ e2 ++ ").ctor === 'GT')"
           "<=" -> "function() { var ord = compare(" ++ e1 ++ ")(" ++
-                  e2 ++ ")[0]; return ord==='LT' || ord==='EQ'; }()"
+                  e2 ++ ").ctor; return ord==='LT' || ord==='EQ'; }()"
           ">=" -> "function() { var ord = compare(" ++ e1 ++ ")(" ++
-                  e2 ++ ")[0]; return ord==='GT' || ord==='EQ'; }()"
+                  e2 ++ ").ctor; return ord==='GT' || ord==='EQ'; }()"
           "<~" -> "lift" ++ parens e1 ++ parens e2
           "~"  -> "lift2(function(f){return function(x){return f(x);};})" ++
                   parens e1 ++ parens e2
