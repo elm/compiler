@@ -1,8 +1,9 @@
 function nativeColor(elm) {
+"use strict";
 
 function extract(c) {
-    if (c[4] === 1) { return 'rgb(' + c[1] + ',' + c[2] + ',' + c[3] + ')'; }
-    return 'rgba(' + c[1] + ',' + c[2] + ',' + c[3] + ',' + c[4] + ')';
+    if (c._3 === 1) { return 'rgb(' + c._0 + ',' + c._1 + ',' + c._2 + ')'; }
+    return 'rgba(' + c._0 + ',' + c._1 + ',' + c._2 + ',' + c._3 + ')';
 }
 function complement(rgb) {
   var hsv = toHSV(rgb);
@@ -12,7 +13,7 @@ function complement(rgb) {
 
 function hsva(h) { return function(s) { return function(v) { return function(a) {
     var clr = toRGB({hue:h, saturation:s, value:v});
-    clr[4] = a;
+    clr._3 = a;
     return clr;
   }; }; };
 }
@@ -22,7 +23,7 @@ function hsv(h) { return function(s) { return function(v) {
 
 function toHSV(rgb) {
     var hsv = {};
-    var r = rgb[1] / 255.0, g = rgb[2] / 255.0, b = rgb[3] / 255.0;
+    var r = rgb._0 / 255.0, g = rgb._1 / 255.0, b = rgb._2 / 255.0;
     var M = Math.max(r,g,b);
     var m = Math.min(r,g,b);
     var c = M - m;
