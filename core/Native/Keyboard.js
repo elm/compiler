@@ -49,7 +49,9 @@ These are nicely curated inputs from the keyboard. See the
 lower-level interface that will let you define more complicated behavior.
 !*/
 
-(function() {
+function nativeKeyboard(elm) {
+  'use strict';
+
   function keySignal(f) {
     var signal = Elm.Signal.lift(f)(Elm.Keyboard.Raw.keysDown);
     Elm.Keyboard.Raw.keysDown.defaultNumberOfKids += 1;
@@ -57,67 +59,36 @@ lower-level interface that will let you define more complicated behavior.
     return signal;
   }
 
-  function dir(left,right,up,down) {
+  function dir(up) { return function(down) {
+   return function(left) { return function(right) {
     function f(ks) {
       var x = 0, y = 0;
-      while (ks[0] == "Cons") {
-	switch (ks[1]) {
+      while (ks.ctor == "Cons") {
+	switch (ks._0) {
 	case left : --x; break;
 	case right: ++x; break;
 	case up   : ++y; break;
 	case down : --y; break;
 	}
-	ks = ks[2];
+	ks = ks._1;
       }
-      return { _:[true], x:[x], y:[y] };
+      return { _:{}, x:x, y:y };
     }
     return keySignal(f);
+   }}}
   }
 
   function is(key) {
     function f(ks) {
-      while (ks[0] == "Cons") {
-	if (key == ks[1]) return true;
-	ks = ks[2];
+      while (ks.ctor == "Cons") {
+	if (key == ks._0) return true;
+	ks = ks._1;
       }
       return false;
     }
     return keySignal(f);
   }
 
-  /*[Directions]*/
+  elm.Native.Keyboard = { isDown:is, dir:dir };
 
-  /** arrows : Signal { x:Int, y:Int }
-      A signal of records indicating which arrow keys are pressed.
-
-      `{ x = 0, y = 0 }` when pressing no arrows.
-      `{ x =-1, y = 0 }` when pressing the left arrow.
-      `{ x = 1, y = 1 }` when pressing the up and right arrows.
-      `{ x = 0, y =-1 }` when pressing the down, left, and right arrows.
-  **/
-  Elm.Keyboard.arrows = dir(37,39,38,40);
-
-  /** wasd : Signal { x:Int, y:Int }
-      Just like the arrows signal, but this uses keys w, a, s, and d,
-      which are common controls for many computer games.
-  **/
-  Elm.Keyboard.wasd   = dir(65,68,87,83);
-
-  /*[Modifiers]*/
-
-  /** shift : Signal Bool
-      Whether the shift key is pressed.
-  **/
-  Elm.Keyboard.shift  = is(16);
-
-  /** ctrl : Signal Bool
-      Whether the control key is pressed.
-  **/
-  Elm.Keyboard.ctrl   = is(17);
-
-  /** space : Signal Bool
-      Whether the space key is pressed.
-  **/
-  Elm.Keyboard.space  = is(32);
-
-}());
+}

@@ -1,5 +1,5 @@
--- A library for low latency HTTP communication. See the HTTP library for standard
--- requests like GET, POST, etc.
+-- A library for low latency HTTP communication. See the HTTP library for
+-- standard requests like GET, POST, etc.
 
 module WebSocket where
 
