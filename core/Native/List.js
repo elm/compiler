@@ -1,5 +1,8 @@
-function nativeList(elm) {
+function nativeList() {
   "use strict";
+
+  var Nil = { ctor:'Nil' };
+  function Cons(hd,tl) { return { ctor:"Cons", _0:hd, _1:tl }; }
 
   function throwError(f) {
     throw new Error("Function '" + f + "' expects a non-empty list!");
@@ -15,9 +18,9 @@ function nativeList(elm) {
   }
     
   function fromArray(arr) {
-    var out = ["Nil"];
+    var out = Nil;
     for (var i = arr.length; i--; ) {
-      out = ["Cons", arr[i], out];
+      out = Cons(arr[i], out);
     }
     return out;
   }
@@ -188,7 +191,7 @@ function nativeList(elm) {
 
   function concatA(
 
-  elm.Native.List = {
+  Elm.Native.List = {
       head:head,
       tail:tail,
       last:last,

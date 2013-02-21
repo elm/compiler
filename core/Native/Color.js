@@ -1,4 +1,5 @@
-function nativeColor(elm) {
+
+function nativeColor() {
 "use strict";
 
 function extract(c) {
@@ -54,12 +55,11 @@ function toRGB(hsv) {
     else if (between(5,6,hue)) { r = c; g = 0; b = x; }
 
     var m = hsv.value - c;
-    return [ "Color", norm(r+m), norm(g+m), norm(b+m), 1 ];
+    return { ctor:"Color", _0:norm(r+m), _1:norm(g+m), _2:norm(b+m), _3:1 };
 }
 
-elm.Native.Color = {
-    hsva:hsva,
-    hsv:hsv,
-    complement:complement,
-    extract:extract};
+Elm.Native.Color = {hsva:hsva,
+		    hsv:hsv,
+		    complement:complement,
+		    extract:extract};
 }

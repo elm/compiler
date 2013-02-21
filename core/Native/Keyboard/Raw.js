@@ -1,4 +1,4 @@
-function nativeKeyboardRaw(elm) {
+function nativeKeyboardRaw() {
   var keysDown = Elm.Signal.constant(Elm.Native.List.Nil);
   var charPressed = Elm.Signal.constant(Elm.Maybe.Nothing);
 
@@ -29,5 +29,5 @@ function nativeKeyboardRaw(elm) {
 		this.removeEventListener('keypress',arguments.callee,false);
 	});
 
-  elm.Native.Keyboard.Raw = {keysDown:keysDown, charPressed:charPressed};
+  Elm.Native.Keyboard.Raw = {keysDown:keysDown, charPressed:charPressed};
 }

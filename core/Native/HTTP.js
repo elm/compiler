@@ -1,8 +1,6 @@
 
-function nativeHTTP(elm) {
+function nativeHTTP() {
   "use strict";
-  var toElmString = Elm.JavaScript.castJSStringToString;
-  var toJSString  = Elm.JavaScript.castStringToJSString;
 
   function registerReq(queue,responses) { return function(req) {
     if (req.url !== "") { sendReq(queue,responses,req); }
@@ -20,10 +18,12 @@ function nativeHTTP(elm) {
   }
 
   function setHeader(pair) {
-    request.setRequestHeader(toJSString(pair._0), toJSString(pair._1));
+    request.setRequestHeader(Elm.JavaScript.castStringToJSString(pair._0),
+			     Elm.JavaScript.castStringToJSString(pair._1));
   }
 
   function sendReq(queue,responses,req) {
+    var JS = Elm.JavaScript;
     var response = { value: Elm.HTTP.Waiting };
     queue.push(response);
 
@@ -33,15 +33,16 @@ function nativeHTTP(elm) {
     request.onreadystatechange = function(e) {
       if (request.readyState === 4) {
         response.value = (request.status === 200
-			  ? Success(toElmString(request.responseText))
-			  : Failure(request.status)(toElmString(request.statusText)));
+			  ? Elm.HTTP.Success(JS.castJSStringToString(request.responseText))
+			  : Elm.HTTP.Failure(request.status)(JS.castJSStringToString(request.statusText)));
 	setTimeout(function() { updateQueue(queue,responses); }, 0);
       }
     };
-    request.open(toJSString(req.verb), toJSString(req.url), true);
+    request.open(JS.castStringToJSString(req.verb),
+		 JS.castStringToJSString(req.url),
+		 true);
     Elm.List.map(setHeader)(req.headers);
-    request.send(toJSString(req.body));
-    return null;
+    request.send(JS.castStringToJSString(req.body));
   }
  
   function send(requests) {
@@ -51,5 +52,5 @@ function nativeHTTP(elm) {
     return Elm.Signal.lift2(f)(responses)(sender);
   }
 
-  elm.Native.HTTP = {send:send};
+  Elm.Native.HTTP = {send:send};
 }
