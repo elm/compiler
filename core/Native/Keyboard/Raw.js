@@ -1,4 +1,11 @@
-function nativeKeyboardRaw() {
+/*
+import Signal
+import List
+*/
+
+(function() {
+  'use strict';
+
   var keysDown = Elm.Signal.constant(Elm.Native.List.Nil);
   var charPressed = Elm.Signal.constant(Elm.Maybe.Nothing);
 
@@ -30,4 +37,4 @@ function nativeKeyboardRaw() {
 	});
 
   Elm.Native.Keyboard.Raw = {keysDown:keysDown, charPressed:charPressed};
-}
+}());

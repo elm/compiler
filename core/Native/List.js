@@ -1,4 +1,4 @@
-function nativeList() {
+(function() {
   "use strict";
 
   var Nil = { ctor:'Nil' };
@@ -189,8 +189,6 @@ function nativeList() {
    }
   }
 
-  function concatA(
-
   Elm.Native.List = {
       head:head,
       tail:tail,
@@ -215,4 +213,4 @@ function nativeList() {
       sort:sort,
       take:take,
       drop:drop};
-}
+}());

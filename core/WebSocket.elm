@@ -3,6 +3,8 @@
 
 module WebSocket where
 
+import Native.WebSocket
+
 -- Create a web-socket. The first argument is the URL of the desired
 -- web-socket server. The input signal holds the outgoing messages,
 -- and the resulting signal contains the incoming ones.

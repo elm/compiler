@@ -4,6 +4,10 @@
 
 module Keyboard where
 
+import Native.Keyboard
+
+type KeyCode = Int
+
 -- A signal of records indicating which arrow keys are pressed.
 --
 -- `{ x = 0, y = 0 }` when pressing no arrows.

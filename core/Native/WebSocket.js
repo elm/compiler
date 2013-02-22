@@ -1,6 +1,12 @@
+/*
+import Signal
+import JavaScript
+import List
+*/
 
-function nativeWebSocket(elm) {
-  "use strict";
+(function() {
+  'use strict';
+
   var JS = Elm.JavaScript;
 
   function open(url) { return function(outgoing) {
@@ -29,5 +35,5 @@ function nativeWebSocket(elm) {
    };
   }
 
-  elm.Native.WebSocket = {open:open};
-}
+  Elm.Native.WebSocket = {open:open};
+}());

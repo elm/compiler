@@ -6,6 +6,8 @@ module Set (empty,singleton,insert,remove
            ,toList,fromList
            ) where
 
+import Dict as Dict
+
 type Set t = Dict t ()
 
 empty : Set t

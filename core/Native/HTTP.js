@@ -1,6 +1,12 @@
 
-function nativeHTTP() {
-  "use strict";
+/*
+import JavaScript
+import List
+import Signal
+*/
+
+(function() {
+  'use strict';
 
   function registerReq(queue,responses) { return function(req) {
     if (req.url !== "") { sendReq(queue,responses,req); }
@@ -53,4 +59,4 @@ function nativeHTTP() {
   }
 
   Elm.Native.HTTP = {send:send};
-}
+}());

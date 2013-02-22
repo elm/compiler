@@ -1,6 +1,8 @@
 
 module Date where
 
+import Native.Date
+
 data Day = Mon | Tue | Wed | Thu | Fri | Sat | Sun
 
 data Month = Jan | Feb | Mar | Apr

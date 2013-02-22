@@ -1,4 +1,10 @@
-function nativeKeyboard() {
+/*
+import Signal
+import Keyboard.Raw
+import List
+*/
+
+(function() {
   'use strict';
 
   function keySignal(f) {
@@ -31,4 +37,4 @@ function nativeKeyboard() {
 
   Elm.Native.Keyboard = { isDown:is, dir:dir };
 
-}
+}());

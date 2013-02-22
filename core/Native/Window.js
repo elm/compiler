@@ -1,35 +1,29 @@
-/*! Window !*/
+/*
+import Signal
+import Native.Misc
+*/
 
-Elm.Window = function() {
+(function() {
+  'use strict';
 
-  /*[Dimensions]*/
+  var Misc = Elm.Native.Misc;
 
-  /** dimensions : Signal (Int,Int)
-      The current dimensions of the window (i.e. the area viewable to the
-      user, not including scroll bars).
-  **/
-  var dimensions = Elm.Signal.constant(Value.Tuple(window.innerWidth,
-						   window.innerHeight));
+  var dimensions = Elm.Signal.constant(Misc.Tuple(window.innerWidth,
+						  window.innerHeight));
   dimensions.defaultNumberOfKids = 2;
 
-  /** width : Signal Int
-      The current width of the window.
-  **/
-  var width  = Elm.Signal.lift(function(p){return p[1];})(dimensions);
+  var width  = Elm.Signal.lift(function(p){return p._0;})(dimensions);
   width.defaultNumberOfKids = 0;
 
-  /** height : Signal Int
-      The current height of the window.
-  **/
-  var height = Elm.Signal.lift(function(p){return p[2];})(dimensions);
+  var height = Elm.Signal.lift(function(p){return p._1;})(dimensions);
   height.defaultNumberOfKids = 0;
 
-  Value.addListener(window, 'resize', function(e) {
+  Misc.addListener(window, 'resize', function(e) {
 	  var w = document.getElementById('widthChecker').offsetWidth;
 	  var hasListener = Dispatcher.notify(dimensions.id,
-					      Value.Tuple(w, window.innerHeight));
+					      Misc.Tuple(w, window.innerHeight));
 	  if (!hasListener)
 		this.removeEventListener('resize',arguments.callee,false);
 	});
-  return {dimensions:dimensions,width:width,height:height};
-}();
+  Elm.Native.Window = {dimensions:dimensions,width:width,height:height};
+}());

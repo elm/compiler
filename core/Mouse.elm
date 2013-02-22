@@ -1,6 +1,8 @@
 
 module Mouse where
 
+import Native.Mouse
+
 -- The current mouse position.
 position : Signal (Int,Int)
 position = Native.Mouse.position

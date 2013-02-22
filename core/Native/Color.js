@@ -1,5 +1,5 @@
 
-function nativeColor() {
+(function() {
 "use strict";
 
 function extract(c) {
@@ -62,4 +62,4 @@ Elm.Native.Color = {hsva:hsva,
 		    hsv:hsv,
 		    complement:complement,
 		    extract:extract};
-}
+}());

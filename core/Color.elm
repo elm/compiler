@@ -8,7 +8,7 @@ module Graphics.Color (rgba,rgb,hsva,hsv,
                        violet,forestGreen,
                        black,white,gray,grey) where
 
-import Native.Color as Native
+import Native.Color
 
 data Color = Color Int Int Int Float
 
@@ -39,6 +39,6 @@ purple  = Color 128  0  128 1
 forestGreen = Color 34 139 34 1
 violet = Color 238 130 238 1
 
-complement = Native.complement
-hsva = Native.hsva
-hsv = Native.hsv
+complement = Native.Color.complement
+hsva = Native.Color.hsva
+hsv = Native.Color.hsv

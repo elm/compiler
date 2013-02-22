@@ -4,6 +4,8 @@
 
 module HTTP where
 
+import Native.HTTP
+
 -- The datatype for responses. Success contains only the returned message.
 -- Failures contain both an error code and an error message.
 data Response a = Success a | Waiting | Failure Int String

@@ -1,5 +1,10 @@
-function nativeTouch(elm) {
-  "use strict";
+/*
+import Signal
+import JavaScript
+*/
+
+(function() {
+  'use strict';
 
   function Dict() {
     this.keys = [];
@@ -90,5 +95,5 @@ function nativeTouch(elm) {
       return sig2;
   }();
 
-  elm.Native.Touch = { touches: touches, taps: taps };
-}
+  Elm.Native.Touch = { touches: touches, taps: taps };
+}());

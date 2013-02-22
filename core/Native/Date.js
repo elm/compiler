@@ -1,12 +1,17 @@
 
-function nativeDate(Maybe, JS) {
+/*
+import Maybe
+import JavaScript
+*/
+
+(function() {
 'use strict';
 
  function dateNow() { return new window.Date; }
  function readDate(str) {
-     var d = new window.Date(JS.castStringToJSString(str));
-     if (isNaN(d.getTime())) return Maybe.Nothing;
-     return Maybe.Just(d);
+     var d = new window.Date(Elm.JavaScript.castStringToJSString(str));
+     if (isNaN(d.getTime())) return Elm.Maybe.Nothing;
+     return Elm.Maybe.Just(d);
  }
 
  var dayTable = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -25,4 +30,4 @@ function nativeDate(Maybe, JS) {
      dayOfWeek : function(d) { return { ctor:dayTable[d.getDay()] }; },
  };
 
-}
+}());
