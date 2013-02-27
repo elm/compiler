@@ -162,7 +162,7 @@ whitespace :: IParser ()
 whitespace = optional forcedWS <?> ""
 
 freshLine :: IParser [[String]]
-freshLine = try (do { many1 newline; many space_nl }) <|> try (many1 space_nl) <?> ""
+freshLine = try (many1 newline >> many space_nl) <|> try (many1 space_nl) <?> ""
     where space_nl = try $ spaces >> many1 newline
 
 newline :: IParser String

@@ -47,23 +47,22 @@ generateHtml :: String -- ^ Location of elm-min.js as expected by the browser
 generateHtml libLoc title source =
     case buildFromSource source of
       Left err -> createHtml Readable libLoc title (Right $ showErr err) (H.noscript "")
-      Right (escs, modul) -> modulesToHtml Readable title libLoc [] True [(escs,modul)]
+      Right modul -> modulesToHtml Readable title libLoc [] True [modul]
 
 
-modulesToHtml jsStyle title libLoc jss nscrpt pairs =
+modulesToHtml jsStyle title libLoc jss nscrpt modules =
     createHtml jsStyle libLoc title' js noscript
-    where modules = map snd pairs
-          js = Right $ jss ++ concatMap jsModule pairs
-          noscript = if nscrpt then extractNoscript $ last modules else ""
-          title' = if null title then altTitle else title
-          altTitle = (\(Module names _ _ _) -> intercalate "." names) $
-                     last modules
+    where
+      js = Right $ jss ++ concatMap jsModule modules
+      noscript = if nscrpt then extractNoscript $ last modules else ""
+      title' = if null title then altTitle else title
+      altTitle = (\(Module names _ _ _) -> intercalate "." names) $ last modules
                   
 
 linkedHtml rtLoc jsLoc modules =
     createHtml Readable rtLoc title (Left jsLoc) (H.noscript "")
-    where title = (\(Module names _ _ _) -> intercalate "." names) $
-                  snd (last modules)
+    where
+      title = (\(Module names _ _ _) -> intercalate "." names) (last modules)
 
 
 createHtml jsStyle libLoc title js noscript =

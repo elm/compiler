@@ -1,19 +1,20 @@
-module Initialize (build,buildFromSource) where
+module Initialize (build, buildFromSource) where
 
 import Control.Applicative ((<$>))
 import Control.Monad.Error
-import Data.List (lookup)
+import Data.List (lookup,nub)
 
 import Ast
 import Data.Either (lefts,rights)
 import Data.List (intercalate,partition)
-import Parse.Parser (parseProgram)
+import Parse.Parser (parseProgram, preParse)
 import Rename
 import Types.Types ((-:))
 import Types.Hints (hints)
 import Types.Unify
 import Types.Alias
 import Optimize
+import CompileToJS (jsModule)
 
 checkMistakes :: Module -> Either String Module
 checkMistakes modul@(Module name ex im stmts) = 
@@ -21,75 +22,84 @@ checkMistakes modul@(Module name ex im stmts) =
     m:ms -> Left (unlines (m:ms))
     []   -> return modul
 
-checkTypes :: Module -> Either String ([String], Module)
+checkTypes :: Module -> Either String Module
 checkTypes (Module name ex im stmts) =
     let stmts' = dealias stmts
         modul = Module name ex im stmts'
-    in do (escapees, subs) <- unify hints modul
+    in do subs <- unify hints modul
           let im' | any ((=="Prelude") . fst) im = im
-                  | otherwise = ("Prelude", Hiding []) : im
+                  | otherwise = ("Prelude", Importing []) : im
               modul' = optimize . renameModule $ Module name ex im' stmts'
-          subs `seq` return (escapees, modul')
+          subs `seq` return modul'
 
-check :: Module -> Either String ([String], Module)
+check :: Module -> Either String Module
 check = checkMistakes >=> checkTypes
 
-buildFromSource :: String -> Either String ([String],Module)
-buildFromSource = parseProgram >=> check
+buildFromSource :: String -> Either String Module
+buildFromSource src = check =<< parseProgram src
 
-build :: Bool -> FilePath -> IO (Either String ([String],[Module]))
-build make root = do
-  proj <- parse make root
-  return $ do
-    ms <- proj
-    (escapeess, modules) <- unzip `liftM` mapM check ms
-    sortedModules <- (if make then sort else return) modules
-    return (concat escapeess, sortedModules)
-
-parse :: Bool -> FilePath -> IO (Either String [Module])
-parse make root = parseProject [] make root
-
-parseProject :: [FilePath] -> Bool -> FilePath -> IO (Either String [Module])
-parseProject seen make root = do
-  txt <- readFile root
-  case parseProgram txt of
+build :: FilePath -> IO (Either String [Module])
+build root = do
+  names <- getSortedModuleNames root
+  case names of
     Left err -> return (Left err)
-    Right modul@(Module names exs ims stmts) ->
-        let allDeps = map toFilePath (getDeps modul)
-            newDeps = if make then filter (`notElem` seen) allDeps else []
-            name    = intercalate "." names
-        in  do ps <- mapM (parseProject (name : seen ++ newDeps) make) newDeps
-               return $ case unlines (lefts ps) of
-                          c:cs -> Left (c:cs)
-                          _    -> Right (modul : concat (rights ps))
+    Right ns -> do srcs <- zipWithM buildFile' [1..] ns
+                   return (sequence srcs)
+      where
+        buildFile' n name = putStrLn (msg n name) >> buildFile name
+        msg n name = "["++show n++" of "++show (length ns)++"] Compiling "++name
 
-toFilePath :: String -> FilePath
-toFilePath modul = map (\c -> if c == '.' then '/' else c) modul ++ ".elm"
-
-getDeps :: Module -> [String]
-getDeps (Module _ _ is _) = filter (`notElem` builtInModules) (map fst is)
-  where 
-    builtInModules =
-        ["List","Char","Either","Maybe","Dict","Set","Automaton","Date",
-         "Signal","Mouse","Keyboard.Raw","Keyboard","Touch",
-         "WebSocket","Window","Time","HTTP","Input","Random",
-         "Graphics","Text","Color","JavaScript",
-         "JavaScript.Experimental","Prelude","JSON"]
+buildFile :: String -> IO (Either String Module)
+buildFile moduleName =
+  let filePath = toFilePath moduleName in
+  case isNative moduleName of
+    True  -> return (Right $ Module [moduleName] [] [] [])
+             --return (Left "Can't do that yet")
+             --Right `liftM` readFile filePath
+    False -> do txt <- readFile filePath
+                return $ buildFromSource txt
 
 
-sort :: [Module] -> Either String [Module]
-sort = go []
+getSortedModuleNames :: FilePath -> IO (Either String [String])
+getSortedModuleNames root = do
+  deps <- readDeps [] root
+  return (sortDeps =<< deps)
+
+type Deps = (String, [String])
+
+sortDeps :: [Deps] -> Either String [String]
+sortDeps deps = go [] (nub deps)
     where
       msg = "A cyclical or missing module dependency or was detected in: "
-      getName (Module names _ _ _) = intercalate "." names
 
-      has name modul = name == getName modul
-      within ms name = any (has name) ms
-
-      go :: [Module] -> [Module] -> Either String [Module]
+      go :: [String] -> [Deps] -> Either String [String]
       go sorted [] = Right sorted
       go sorted unsorted =
-          case partition (all (within sorted) . getDeps) unsorted of
-            ([],m:ms) -> Left (msg ++ intercalate ", " (map getName (m:ms)))
-            (srtd,unsrtd) -> go (sorted ++ srtd) unsrtd
-      
+          case partition (all (`elem` sorted) . snd) unsorted of
+            ([],m:ms) -> Left (msg ++ intercalate ", " (map fst (m:ms)) ++ show sorted ++ show unsorted)
+            (srtd,unsrtd) -> go (sorted ++ map fst srtd) unsrtd
+
+readDeps :: [FilePath] -> FilePath -> IO (Either String [Deps])
+readDeps seen root = do
+  txt <- readFile root
+  case preParse txt of
+    Left err -> return (Left err)
+    Right (name,deps) -> do rest <- mapM (readDeps seen' . toFilePath) newDeps
+                            return $ do rs <- sequence rest
+                                        return ((name, realDeps) : concat rs)
+        where realDeps = filter (`notElem` builtIns) deps
+              newDeps = filter (`notElem` seen) realDeps
+              seen' = root : seen ++ newDeps
+              builtIns = [] {--
+                ["List","Char","Either","Maybe","Dict","Set","Date",
+                 "Signal","Mouse","Keyboard.Raw","Keyboard","Touch",
+                 "WebSocket","Window","Time","HTTP","Input","Random",
+                 "Graphics","Text","Color","JavaScript","Automaton",
+                 "JavaScript.Experimental","Prelude","JSON"]
+                 --}
+
+isNative name = takeWhile (/='.') name == "Native"
+toFilePath name = map swapDots name ++ ext
+    where swapDots '.' = '/'
+          swapDots  c  =  c
+          ext = if isNative name then ".js" else ".elm"

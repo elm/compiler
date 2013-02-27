@@ -24,7 +24,6 @@ getAliases imports hints = hints ++ concatMap aliasesFrom imports'
           aliasesFrom (name,method) =
               case method of
                 As alias -> concatMap (findAlias name alias) hints
-                Hiding [] -> concatMap (findAlias name "") hints
                 _ -> []
           findAlias mName' mAlias (name,tipe) =
               let mName = mName' ++ "." in
@@ -63,7 +62,7 @@ constrain typeHints (Module _ _ imports stmts) = do
   (as', cs', schemes) <- mergeSchemes schemess
   let constraints = Set.unions (cs':css)
       as = unionsA (as':ass)
-      extraImports = ("Time", Hiding ["read"]) : map (\n -> (n, Hiding []))
+      extraImports = ("Time", Importing []) : map (\n -> (n, Importing []))
                      ["List","Signal","Text","Graphics","Color"]
       aliasHints = getAliases (imports ++ extraImports) hints
       allHints = Map.union schemes (Map.fromList aliasHints)
@@ -73,7 +72,9 @@ constrain typeHints (Module _ _ imports stmts) = do
     let f k s vs = map (\v -> C (Just k) NoSpan $ v :<<: s) vs
         cs = concat . Map.elems $ Map.intersectionWithKey f allHints assumptions
         escapees = Map.keys $ Map.difference assumptions allHints
-    return . Right . (,) escapees $ Set.toList constraints ++ cs
+    return $ case escapees of
+               _  -> Right (Set.toList constraints ++ cs)
+               --_  -> Left ("Undefined variable(s): " ++ intercalate ", " escapees)
 
 type TVarMap = Map.Map String [X]
 type ConstraintSet = Set.Set (Context Constraint)

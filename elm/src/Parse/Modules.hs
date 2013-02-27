@@ -31,17 +31,12 @@ import' = do
   reserved "import"
   whitespace
   name <- intercalate "." <$> dotSep1 capVar
-  method <- option (Hiding []) $ try (whitespace >>
-                                      (as' <|> hiding' <|> importing'))
+  method <- option (Importing []) $ try (whitespace >> (as' <|> importing'))
   return (name, method)
 
 
 as' :: IParser ImportMethod
 as' = reserved "as" >> whitespace >> As <$> capVar <?> "alias for module"
-
-hiding' :: IParser ImportMethod
-hiding' = reserved "hiding" >> whitespace >>
-          Hiding <$> varList <?> "listing of hidden values"
 
 importing' :: IParser ImportMethod
 importing' = Importing <$> varList <?> "listing of imported values (x,y,z)"

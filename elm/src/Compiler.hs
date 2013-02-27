@@ -64,7 +64,8 @@ data What = JS | HTML | Split
 fileTo isMini make what jsFiles noscript outputDir rtLoc file = do
   let jsStyle  = if isMini then Minified else Readable
       formatJS = if isMini then BS.unpack . JS.minify . BS.pack else id
-  ems <- build make file
+  ems <- if make then build file else do src <- readFile file
+                                         return (fmap (:[]) (buildFromSource src))
   jss <- concat `fmap` mapM readFile jsFiles
   case ems of
     Left err -> putStrLn $ "Error while compiling " ++ file ++ ":\n" ++ err
@@ -72,12 +73,11 @@ fileTo isMini make what jsFiles noscript outputDir rtLoc file = do
         let path = fromMaybe "" outputDir </> file
             js = replaceExtension path ".js"
             html = replaceExtension path ".html"
-            pairs = map ((,) (fst ms)) (snd ms)
-            txt = jss ++ concatMap jsModule pairs
+            txt = jss ++ concatMap jsModule ms
         in  case what of
               JS    -> writeFile js (formatJS txt)
               HTML  -> writeFile html . renderHtml $
-                       modulesToHtml jsStyle "" rtLoc jss noscript pairs
+                       modulesToHtml jsStyle "" rtLoc jss noscript ms
               Split ->
-                  do writeFile html . renderHtml $ linkedHtml rtLoc js pairs
+                  do writeFile html . renderHtml $ linkedHtml rtLoc js ms
                      writeFile js (formatJS txt)

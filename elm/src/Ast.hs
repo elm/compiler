@@ -12,7 +12,7 @@ data Module = Module [String] Exports Imports [Statement]
 type Exports = [String]
 
 type Imports = [(String, ImportMethod)]
-data ImportMethod = As String | Hiding [String] | Importing [String]
+data ImportMethod = As String | Importing [String]
                     deriving (Eq,Ord)
 
 

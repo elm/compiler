@@ -10,10 +10,5 @@ import Types.Solver
 
 unify hints modul = run $ do
   constraints <- constrain hints modul
-  case constraints of
-    Left msg -> return (Left msg)
-    Right (escapees, cs) ->
-        do subs <- solver cs Map.empty
-           return $ do ss <- subs
-                       return (escapees, ss)
+  either (return . Left) (\cs -> solver cs Map.empty) constraints
 

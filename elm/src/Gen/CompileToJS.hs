@@ -1,7 +1,5 @@
 module CompileToJS (showErr, jsModule) where
 
-import Ast
-import Context
 import Control.Arrow (first,second)
 import Control.Monad (liftM,(<=<),join,ap)
 import Data.Char (isAlpha,isDigit)
@@ -10,12 +8,15 @@ import qualified Data.Map as Map
 import Data.Either (partitionEithers)
 import qualified Text.Pandoc as Pan
 
-import Initialize
+import Ast
+import Context
 import Rename (derename)
 import Cases
 import Guid
+import LetBoundVars
 import Parse.Library (isOp)
 import Rename (deprime)
+import Types.Types ( Type(RecordT) )
 
 showErr :: String -> String
 showErr err = mainEquals $ "Elm.Graphics.text(Elm.Text.monospace(" ++ msg ++ "))"
@@ -41,47 +42,26 @@ quoted s  = "'" ++ concatMap f s ++ "'"
           f c    = [c]
 
 mainEquals s = globalAssign "Elm.main" (jsFunc "" (ret s))
-globalAssign m s = "\n" ++ m ++ "=" ++ s ++ ";"
+globalAssign n e = "\n" ++ assign' n e ++ ";"
+assign' n e = n ++ " = " ++ e
 
-tryBlock escapees names e = 
-    concat [ "\ntry{\n" ++ e ++ "\n} catch (e) {"
-           , "\nElm.main=function() {"
-	   , "\nvar msg = ('<br/><h2>Your browser may not be supported. " ++
-             "Are you using a modern browser?</h2>' +" ++
-             " '<br/><span style=\"color:grey\">Runtime Error in " ++
-             intercalate "." names ++ " module:<br/>' + e + '" ++ msg ++ "</span>');"
-	   , "\ndocument.body.innerHTML = Elm.Text.monospace(msg);"
-           , "throw e;"
-           , "};}"
-           ]
-    where msg | escapees /= [] = concat [ "<br/><br/>The problem may stem from an improper usage of:<br/>"
-                                        ,  intercalate ", " $ map (concatMap escape) escapees ]
-              | otherwise = ""
-          escape '\'' = "\\'"
-          escape '"' = "\\\""
-          escape c = [c]
+jsModule (Module names exports imports stmts) =
+  concat [ concatMap (\n -> globalAssign n $ n ++ " || {}") .
+           map (intercalate ".") . drop 2 . inits $
+           take (length modNames - 1) modNames
+         , parens (jsFunc "" (defs ++ includes ++ body ++ globalAssign modName export) ++ "()")
+         , mainEquals $ modName ++ ".main" ]
+      where modNames = if null names then ["Elm", "Main"]
+                                     else  "Elm" : names
+            modName  = intercalate "." modNames
+            includes = concatMap jsImport imports
+            body = stmtsToJS stmts
+            export = getExports exports stmts
+            exps = if null exports then ["main"] else exports
+            defs = assign "$op" "{}"
 
-
-jsModule (escapees, Module names exports imports stmts) =
-    tryBlock escapees (tail modNames) $ concat
-           [ concatMap (\n -> globalAssign n $ n ++ " || {}") .
-             map (intercalate ".") . drop 2 . inits $
-             take (length modNames - 1) modNames
-           , "\nif (" ++ modName ++ ") throw new Error(\"Module name collision, '" ++
-             intercalate "." (tail modNames) ++ "' is already defined.\"); "
-           , globalAssign modName $ jsFunc "" (defs ++ includes ++ body ++ export) ++ "()"
-           , mainEquals $ modName ++ ".main" ]
-        where modNames = if null names then ["Elm", "Main"]
-                                       else  "Elm" : names
-              modName  = intercalate "." modNames
-              includes = concatMap jsImport $ map (first ("Elm."++)) imports
-              body = stmtsToJS stmts
-              export = getExports exports stmts
-              exps = if null exports then ["main"] else exports
-              defs = concat [ assign "$op" "{}"
-                            , "\nfor(Elm['i'] in Elm){eval('var '+Elm['i']+'=Elm[Elm.i];');}" ]
-
-getExports names stmts = ret . brackets $ intercalate ",\n" (op : map fnPair fns)
+getExports names stmts = brackets . ("\n "++) $
+                         intercalate ",\n " (op : map fnPair fns)
     where exNames n = either derename id n `elem` names
           exports | null names = concatMap get stmts
                   | otherwise  = filter exNames (concatMap get stmts)
@@ -104,75 +84,75 @@ getExports names stmts = ret . brackets $ intercalate ",\n" (op : map fnPair fns
 
 
 jsImport (modul, how) =
-  concat [ "\ntry{\n if (!(" ++ modul ++ " instanceof Object)) throw new Error('module not found');\n} catch(e) {\n throw new Error(\"Module '"
-         , drop 1 (dropWhile (/='.') modul)
-         , "' is missing. Compile with --make flag or load missing "
-         , "module in a separate JavaScript file.\");\n}" ] ++
-     jsImport' (modul, how)
-  
-jsImport' (modul, As name) = assign name modul
-jsImport' (modul, Importing vs) = concatMap def vs
-    where def [] = []
-          def (o:p) | isOp o    = let v = "$op['" ++ o:p ++ "']" in
-                                  "\n" ++ v ++ " = " ++ modul ++ "." ++ v ++ ";"
-                    | otherwise = let v = deprime (o:p) in
-                                  assign v $ modul ++ "." ++ v
+    case how of
+      As name -> assign name ("Elm." ++ modul)
+      Importing vs ->
+          assign modul ("Elm." ++ modul) ++ concatMap def vs
+          where
+            imprt asgn v = asgn v ("Elm." ++ modul ++ "." ++ v)
+            def (o:p) =
+                if isOp o then imprt globalAssign ("$op['" ++ o:p ++ "']")
+                          else imprt assign (deprime (o:p))
 
-jsImport' (modul, Hiding vs) =
-    concat [ assign "hiddenVars" . ("{"++) . (++"}") . intercalate "," $
-                    map (\v -> v ++ ":true") (map deprime vs)
-           , "\nfor (Elm['i'] in " ++ modul ++ ") "
-           , brackets . indent . concat $
-               [ "\nif (hiddenVars[Elm['i']]) continue;"
-               , "\neval('var ' + Elm['i'] + ' = "
-               , modul, "[Elm.i];');" ]
-           ]
 
 stmtsToJS :: [Statement] -> String
-stmtsToJS stmts = run (concat `liftM` mapM toJS (sortBy cmpStmt stmts))
-    where cmpStmt s1 s2 = compare (valueOf s1) (valueOf s2)
-          valueOf s = case s of
-                        Datatype _ _ _             -> 1
-                        ImportEvent _ _ _ _        -> 2
-                        Definition (FnDef f [] _)  ->
-                            if derename f == "main" then 5 else 4
-                        Definition _               -> 3
-                        ExportEvent _ _ _          -> 6
-                        TypeAlias _ _ _            -> 0
-                        TypeAnnotation _ _         -> 0
+stmtsToJS stmts = run $ do program <- mapM toJS (sortBy cmpStmt stmts)
+                           return (vars ++ concat program)
+    where
+      vars = "\nvar " ++ intercalate "," (letBoundVars stmts) ++ ";"
+      cmpStmt s1 s2 = compare (valueOf s1) (valueOf s2)
+      valueOf s = case s of
+                    Datatype _ _ _             -> 1
+                    ImportEvent _ _ _ _        -> 2
+                    Definition (FnDef f [] _)  ->
+                        if derename f == "main" then 5 else 4
+                    Definition _               -> 3
+                    ExportEvent _ _ _          -> 6
+                    TypeAlias _ _ _            -> 0
+                    TypeAnnotation _ _         -> 0
 
 class ToJS a where
   toJS :: a -> GuidCounter String
 
 instance ToJS Def where
-  toJS (FnDef x [] e) = assign x `liftM` toJS' e
+  toJS (FnDef x [] e) = assign' x `liftM` toJS' e
   toJS (FnDef f (a:as) e) =
       do body <- toJS' (foldr (\x e -> noContext (Lambda x e)) e as)
-         return $ concat ["\nfunction ",f,parens a, brackets . indent $ ret body]
+         return $ assign' f (jsFunc a (ret body))
   toJS (OpDef op a1 a2 e) =
       do body <- toJS' (foldr (\x e -> noContext (Lambda x e)) e [a1,a2])
          return $ concat [ "\n$op['", op, "'] = ", body, ";" ]
 
 instance ToJS Statement where
-    toJS (Definition d) = toJS d
-    toJS (Datatype _ _ tcs) = concat `liftM` mapM (toJS . toDef) tcs
-      where toDef (name,args) = Definition . FnDef name vars . noContext $
-                                Data (derename name) (map (noContext . Var) vars)
-                      where vars = map (('a':) . show) [1..length args]
-    toJS (ImportEvent js base elm _) =
+  toJS stmt =
+    case stmt of
+      Definition d -> (\asgn -> "\n" ++ asgn ++ ";") `liftM` toJS d
+      Datatype _ _ tcs -> concat `liftM` mapM (toJS . toDef) tcs
+          where toDef (name,args) =
+                    let vars = map (('a':) . show) [1..length args] in
+                    Definition . FnDef name vars . noContext $
+                    Data (derename name) (map (noContext . Var) vars)
+      ImportEvent js base elm _ ->
         do v <- toJS' base
            return $ concat [ "\nvar " ++ elm ++ "=Elm.Signal.constant(" ++ v ++ ");"
                            , "\nValue.addListener(document, '" ++ js
                            , "', function(e) { Dispatcher.notify(" ++ elm
                            , ".id, e.value); });" ]
-    toJS (ExportEvent js elm _) =
+      ExportEvent js elm _ ->
         return $ concat [ "\nlift(function(v) { "
                         , "var e = document.createEvent('Event');"
                         , "e.initEvent('", js, "', true, true);"
                         , "e.value = v;"
                         , "document.dispatchEvent(e); return v; })(", elm, ");" ]
-    toJS (TypeAnnotation _ _) = return ""
-    toJS (TypeAlias _ _ _) = return ""
+      TypeAnnotation _ _ -> return ""
+      TypeAlias n _ t ->
+          case t of
+            RecordT kvs _ -> return $ "\nfunction" ++ args ++ brackets body
+                where fs = Map.keys kvs
+                      args = parens (intercalate "," fs)
+                      body = ret . brackets . intercalate "," $
+                             map (\k -> k ++ ":" ++ k) fs
+            _ -> return ""
 
 toJS' :: CExpr -> GuidCounter String
 toJS' (C txt span expr) =
@@ -203,7 +183,7 @@ makeRecord kvs = record `liftM` collect kvs
 instance ToJS Expr where
  toJS expr =
   case expr of
-    IntNum n -> return $ show n
+    IntNum n -> return $ show n ++ "|0"
     FloatNum n -> return $ show n
     Var x -> return $ x
     Chr c -> return $ quoted [c]
@@ -249,22 +229,27 @@ formatMarkdown = concatMap f
           f '"'  = "\""
           f c = [c]
 
-multiIfToJS span ps = format `liftM` mapM f ps
-    where format cs = foldr (\c e -> parens $ c ++ " : " ++ e) err cs
-          err = concat [ "(function(){throw new Error(\"Non-exhaustive "
-                       , "multi-way-if expression (", show span, ")\");}())" ]
-          f (b,e) = do b' <- toJS' b
-                       e' <- toJS' e
-                       return (b' ++ " ? " ++ e')
+multiIfToJS span ps =
+    case last ps of
+      (C _ _ (Var "otherwise"), e) -> toJS' e >>= \b -> format b (init ps)
+      _ -> format err ps
+  where
+    format base ps =
+        foldr (\c e -> parens $ c ++ " : " ++ e) base `liftM` mapM f ps
+    err = "throw new Error('Non-exhaustive multi-way-if expression (" ++
+          show span ++ ")')"
+    f (b,e) = do b' <- toJS' b
+                 e' <- toJS' e
+                 return (b' ++ " ? " ++ e')
 
-jsLet defs e' = do
-  body <- (++) `liftM` jsDefs defs `ap` (ret `liftM` toJS' e')
-  return $ jsFunc "" body ++ "()"
-
-jsDefs defs = concat `liftM` mapM toJS (sortBy f defs)
-    where f a b = compare (valueOf a) (valueOf b)
-          valueOf (FnDef _ args _) = min 1 (length args)
-          valueOf (OpDef _ _ _ _)  = 1
+jsLet defs e' = do ds <- jsDefs defs
+                   e  <- toJS' e'
+                   return $ parens (intercalate ", " ds ++ ", " ++ e)
+  where 
+    jsDefs defs = mapM toJS (sortBy f defs)
+    f a b = compare (valueOf a) (valueOf b)
+    valueOf (FnDef _ args _) = min 1 (length args)
+    valueOf (OpDef _ _ _ _)  = 1
 
 caseToJS span e ps = do
   match <- caseToMatch ps
@@ -280,8 +265,9 @@ matchToJS span (Match name clauses def) = do
   cases <- concat `liftM` mapM (clauseToJS span name) clauses
   finally <- matchToJS span def
   return $ concat [ "\nswitch(", name, ".ctor){", indent cases, "\n}", finally ]
-matchToJS span Fail  = return ("\nthrow new Error(\"Non-exhaustive pattern match " ++
-                               "in case expression (" ++ show span ++ ")\");")
+matchToJS span Fail  =
+    return ("\nthrow new Error(\"Non-exhaustive pattern match " ++
+            "in case expression (" ++ show span ++ ")\");")
 matchToJS span Break = return "break;"
 matchToJS span (Other e) = ret `liftM` toJS' e
 matchToJS span (Seq ms) = concat `liftM` mapM (matchToJS span) ms
@@ -291,12 +277,9 @@ clauseToJS span var (Clause name vars e) = do
   s <- matchToJS span $ matchSubst (zip vars vars') e
   return $ concat [ "\ncase ", quoted name, ":", s ]
 
-jsNil         = "[\"Nil\"]"
-jsCons  e1 e2 = jsList [ quoted "Cons", e1, e2 ]
-jsRange e1 e2 = (++"()") . jsFunc "" $
-                assign "lo" e1 ++ assign "hi" e2 ++ assign "lst" jsNil ++
-                "if(lo<=hi){do{lst=" ++ (jsCons "hi" "lst") ++ "}while(hi-->lo)}" ++
-                ret "lst"
+jsNil         = "{ctor:'Nil'}"
+jsCons  e1 e2 = "{ctor:'Cons',_0:" ++ e1 ++ ",_1:" ++ e2 ++ "}"
+jsRange e1 e2 = "Elm.Native.List.range" ++ parens (e1 ++ "," ++ e2)
 
 binop (o:p) e1 e2
     | isAlpha o || '_' == o = (o:p) ++ parens e1 ++ parens e2
