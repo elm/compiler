@@ -8,7 +8,8 @@ module Dict (empty,singleton,insert
             ,toList,fromList
             ) where
 
-import Maybe (isJust)
+import Maybe as Maybe
+import JavaScript as JavaScript
 
 data NColor = Red | Black
 
@@ -148,7 +149,7 @@ find k t =
 
 -- Does t contain k?
 member : k -> RBTree k v -> Bool
-member k t = isJust $ lookup k t
+member k t = Maybe.isJust $ lookup k t
 
 rotateLeft : RBTree k v -> RBTree k v
 rotateLeft t =

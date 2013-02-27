@@ -1,3 +1,6 @@
+/**
+module Native.Color where
+**/
 
 (function() {
 "use strict";

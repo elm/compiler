@@ -1,8 +1,9 @@
+/**
+module Native.Color where
 
-/*
 import Maybe
 import JavaScript
-*/
+**/
 
 (function() {
 'use strict';

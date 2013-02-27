@@ -1,5 +1,7 @@
 
 /*
+module Native.Misc where
+
 import List
 import Maybe
 import JavaScript
@@ -10,7 +12,7 @@ import JSON
 (function(){
   'use strict';
 
-  var eq = function(x,y) {
+  function eq(x,y) {
     if (typeof x === "object") {
 	if (x !== null && '_' in x) {
 	    for (var i in x) { if (x[i] != y[i]) return false; }
@@ -25,7 +27,7 @@ import JSON
 	return true;
     }
     return x === y;
-  };
+  }
 
   var Tuple0 = { ctor: "Tuple0" }
   function Tuple2(x,y) { return { ctor = "Tuple2", _0:x, _1:y }; }
@@ -219,39 +221,15 @@ import JSON
     }
     return v+"";
   };
-  var show = function(v) { return str(toString(v)); };
-  var append = function(xs,ys) {
-    if (typeof xs === "string" && typeof ys === "string") {
-	return xs.concat(ys);
-    }
-    if (xs.ctor === "Nil") {
-	return ys;
-    }
-    var root = Elm.Native.List.Cons(xs._0. Elm.Native.List.Nil);
-    var curr = root;
-    xs = xs._1;
-    while (xs.ctor==="Cons") {
-	curr._1 = Elm.Native.List.Cons(xs._0. Elm.Native.List.Nil);
-	xs = xs._1;
-	curr = curr._1;
-    }
-    curr._1 = ys;
-    return root;
-  };
+  var show = function(v) { return Elm.Native.List.fromArray(toString(v)); };
 
-  var str = function(s) {
-    var out = Elm.Native.List.Nil;
-    for (var i = s.length; i--; ) {
-	out = Elm.Native.List.Cons(s[i], out);
-    }
-    return out;
-  };
-  
+  /*
   function wrap(elem) {
       var p = Value.getSize(elem);
       return ['Element', Guid.guid(), ["EHtml",elem],
 	      p.ctor, p._0, 1, Elm.Maybe.Nothing, Elm.Maybe.Nothing];
   }
+  */
   var addListener = function() {
       if(document.addEventListener) {
 	  return function(element, event, handler) {
@@ -266,18 +244,15 @@ import JSON
 
   Elm.Native.Misc = {
       eq:eq,
-      str:str,
       show:show,
-      Tuple:Tuple,
-      append:append,
-      listToArray:listToArray,
+      Tuple0:Tuple0,
+      Tuple2:Tuple2,
       toText : toText,
       properEscape : properEscape,
       getTextSize : getTextSize,
       getSize : getSize,
       getExcess : getExcess,
       groupForms : groupForms,
-      wrap : wrap,
       addListener : addListener
   };
 }());

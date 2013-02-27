@@ -69,8 +69,8 @@ partition : (a -> Bool) -> [a] -> ([a],[a])
 partition pred lst =
     case lst of
       []    -> ([],[])
-      x::xs -> let (as,bs) = partition pred xs  in
-               if pred x then (x::as,bs) else (as,x::bs)
+      x::xs -> let (bs,cs) = partition pred xs in
+               if pred x then (x::bs,cs) else (bs,x::cs)
 
 zipWith : (a -> b -> c) -> [a] -> [b] -> [c]
 zipWith = Native.List.zipWith

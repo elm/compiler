@@ -1,35 +1,19 @@
 
 module Collage where
 
-data Line
-    = Start     (Float,Float)
-    | Arc       (Float,Float) Float (Float,Float) Path
-    | Line      (Float,Float) Path
-    | Bezier    (Float,Float) (Float,Float) (Float,Float) Path
-    | Quadratic (Float,Float) (Float,Float) Path
+data Path = Path [(Float,Float)]
 
-path ps = case ps of
-            [] -> Start (0,0)
-            hd:tl -> foldl Line (Start hd) tl
+path = Path
+segment p1 p2 = Path [p1,p2]
 
-segment p1 p2 = Line p1 (Start p2)
+data Shape = Shape [(Float,Float)]
 
-start       = Start
-arcTo       = Arc
-lineTo      = Line
-bezierTo    = Bezier
-quadraticTo = Quadratic
-
-data Shape = Shape Line
-
-polygon ps = Shape (case ps of
-                      []    -> Start (0,0)
-                      hd:tl -> Line hd $ foldl Line (Start hd) tl)
+polygon = Shape
 
 rect w h = polygon [ (0-w/2,0-h/2), (0-w/2,h/2), (w/2,h/2), (w/2,0-h/2) ]
 oval w h =
   let n = 50
-      f i = ( w/2 * cos (2*pi/n * i), h/2 * sin (2*pi/n * i))
+      f i = (w/2 * cos (2*pi/n * i), h/2 * sin (2*pi/n * i))
   in  Shape $ map f [0..n-1]
 circle r = oval (2*r) (2*r)
 ngon n r =
@@ -56,12 +40,21 @@ data FillStyle
   | LinearGradient [(Float,Color)] (Float,Float) (Float,Float)
   | RadialGradient [(Float,Color)] (Float,Float) Float (Float,Float) Float
 
-data LineStyle = NoLine | Line [Int] Int Float LineCap LineJoin Float FillStyle
+-- dash pattern, dash offset, line width, cap, join, miter limit, fill style
+type LineStyle = {
+  width : Float,
+  cap   : LineCap,
+  join  : LineJoin,
+  miterLimit : Float,
+  fillStyle  : FillStyle,
+  dashing    : [Int],
+  dashOffset : Int
+}
 
 data BasicForm
-  = FLine LineStyle FillStyle Line
+  = FLine LineStyle Line
   | FShape LineStyle FillStyle Shape
-  | FImage Int Int String
+  | FImage Int Int Int Int String
   | FElement Element
   | FGroup [Form]
 
@@ -78,10 +71,14 @@ linearGradient stops start end = setFillStyle (LinearGradient stops start end)
 radialGradient stops innerP innerR outerP outerR =
     setFillStyle (RadialGradient stops innerP innerR outerP outerR)
 
-solid  clr ln = Form [] (FLine  ln)
-dotted clr ln = Form [] (FLine  ln)
-dashed clr ln = Form [] (FLine  ln)
-customLine pattern clr ln = Form [] (FLine (Custom pattern) clr ln)
+plain = { width=1, cap=Butt, join=Miter, miterLimit=10,
+          fillStyle=...,
+          dashing=[], dashOffset=0 }
+
+solid  c = Form [] . FLine c
+dotted c = Form [] . FLine c
+dashed c = Form [] . FLine c
+lineStyle = Form [] . FLine
 
 
 filled   clr shp = Form [] (FShape  shp)

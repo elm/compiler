@@ -1,3 +1,7 @@
+ /**
+ module Native.List where
+ **/
+
 (function() {
   "use strict";
 
@@ -23,6 +27,29 @@
       out = Cons(arr[i], out);
     }
     return out;
+  }
+
+  function range(lo,hi) {
+    var lst = Nil;
+    if (lo <= hi) {
+	do { lst = Cons(hi,lst) } while (hi-->lo);
+    }
+    return lst
+  }
+
+  function append(xs,ys) {
+    if (typeof xs === "string") { return xs.concat(ys); }
+    if (xs.ctor === "Nil") { return ys; }
+    var root = Elm.Native.List.Cons(xs._0. Elm.Native.List.Nil);
+    var curr = root;
+    xs = xs._1;
+    while (xs.ctor==="Cons") {
+	curr._1 = Elm.Native.List.Cons(xs._0. Elm.Native.List.Nil);
+	xs = xs._1;
+	curr = curr._1;
+    }
+    curr._1 = ys;
+    return root;
   }
 
   function head(v) { v.ctor === "Nil" ? throwError('head') : return v._0; }
@@ -190,6 +217,13 @@
   }
 
   Elm.Native.List = {
+      Nil:Nil,
+      Cons:Cons,
+      toArray:toArray,
+      fromArray:fromArray,
+      range:range,
+      append:append,
+
       head:head,
       tail:tail,
       last:last,

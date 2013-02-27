@@ -1,5 +1,6 @@
 /*
 import Signal
+import Maybe
 */
 
 (function() {
@@ -61,7 +62,7 @@ import Signal
   }
   function read(s) {
       var t = window.Date.parse(s);
-      return isNaN(t) ? ["Nothing"] : ["Just",t];
+      return isNaN(t) ? Elm.Maybe.Nothing : Elm.Maybe.Just(t);
   }
   Elm.Native.Time = {
       fpsWhen : fpsWhen,
