@@ -1,4 +1,4 @@
-module CompileToJS (showErr, jsModule) where
+ module CompileToJS (showErr, jsModule) where
 
 import Control.Arrow (first,second)
 import Control.Monad (liftM,(<=<),join,ap)
@@ -99,7 +99,7 @@ stmtsToJS :: [Statement] -> String
 stmtsToJS stmts = run $ do program <- mapM toJS (sortBy cmpStmt stmts)
                            return (vars ++ concat program)
     where
-      vars = "\nvar " ++ intercalate "," (letBoundVars stmts) ++ ";"
+      vars = "\nvar " ++ intercalate ", " ("e":"case0":letBoundVars stmts) ++ ";"
       cmpStmt s1 s2 = compare (valueOf s1) (valueOf s2)
       valueOf s = case s of
                     Datatype _ _ _             -> 1
@@ -116,12 +116,14 @@ class ToJS a where
 
 instance ToJS Def where
   toJS (FnDef x [] e) = assign' x `liftM` toJS' e
-  toJS (FnDef f (a:as) e) =
-      do body <- toJS' (foldr (\x e -> noContext (Lambda x e)) e as)
-         return $ assign' f (jsFunc a (ret body))
+  toJS (FnDef f as e) = (assign' f . wrapper . func) `liftM` toJS' e
+      where func body = jsFunc (intercalate ", " as) (ret body)
+            wrapper e | length as == 1 = e
+                      | otherwise = 'F' : show (length as) ++ parens e
   toJS (OpDef op a1 a2 e) =
-      do body <- toJS' (foldr (\x e -> noContext (Lambda x e)) e [a1,a2])
-         return $ concat [ "\n$op['", op, "'] = ", body, ";" ]
+      do body <- toJS' e                    
+         let func = "F2" ++ parens (jsFunc (a1 ++ ", " ++ a2) (ret body))
+         return (globalAssign ("$op['" ++ op ++ "']") func)
 
 instance ToJS Statement where
   toJS stmt =
@@ -203,16 +205,7 @@ instance ToJS Expr where
 
     Lambda v e -> liftM (jsFunc v . ret) (toJS' e)
 
-    App (C _ _ (Var "toText")) (C _ _ (Str s)) ->
-        return $ "toText" ++ parens (quoted s)
-
-    App (C _ _ (Var "link")) (C _ _ (Str s)) ->
-        return $ "link(" ++ quoted s ++ ")"
-
-    App (C _ _ (Var "plainText")) (C _ _ (Str s)) ->
-        return $ "plainText(" ++ quoted s ++ ")"
-
-    App e1 e2 -> (++) `liftM` (toJS' e1) `ap` (parens `liftM` toJS' e2)
+    App e1 e2 -> jsApp e1 e2
     Let defs e -> jsLet defs e
     Data name es ->
         do fs <- mapM toJS' es
@@ -222,6 +215,19 @@ instance ToJS Expr where
     Markdown doc -> return $ "text('" ++ pad ++ md ++ pad ++ "')"
         where pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
               md = formatMarkdown $ Pan.writeHtmlString Pan.def doc
+
+jsApp e1 e2 =
+    do f  <- toJS' func
+       as <- mapM toJS' args
+       return $ case as of
+                  [a] -> f ++ parens a
+                  _   -> "A" ++ show (length as) ++ parens (intercalate ", " (f:as))
+  where
+    (func, args) = go [e2] e1
+    go args e =
+       case e of
+         (C _ _ (App e1 e2)) -> go (e2 : args) e1
+         _ -> (e, args)
 
 formatMarkdown = concatMap f
     where f '\'' = "\\'"
@@ -255,27 +261,39 @@ caseToJS span e ps = do
   match <- caseToMatch ps
   e' <- toJS' e
   (match',stmt) <- case (match,e) of
-      (Match name _ _, C _ _ (Var x)) -> return (matchSubst [(name,x)] match, "")
-      (Match name _ _, _)             -> return (match, assign name e')
-      _                               -> liftM (\n -> (match, e')) guid
+                     (Match name _ _, C _ _ (Var x)) ->
+                         return (matchSubst [(name,x)] match, Nothing)
+                     (Match name _ _, _) ->
+                         return (match, Just (name ++ " = " ++ e'))
+                     _ -> return (match, Nothing)  -- Just e'
   matches <- matchToJS span match'
-  return $ concat [ "function(){", stmt, matches, "}()" ]
+  return $ case stmt of
+             Nothing -> matches
+             Just exp -> parens (exp ++ ", " ++ matches)
 
-matchToJS span (Match name clauses def) = do
-  cases <- concat `liftM` mapM (clauseToJS span name) clauses
-  finally <- matchToJS span def
-  return $ concat [ "\nswitch(", name, ".ctor){", indent cases, "\n}", finally ]
-matchToJS span Fail  =
-    return ("\nthrow new Error(\"Non-exhaustive pattern match " ++
-            "in case expression (" ++ show span ++ ")\");")
-matchToJS span Break = return "break;"
-matchToJS span (Other e) = ret `liftM` toJS' e
-matchToJS span (Seq ms) = concat `liftM` mapM (matchToJS span) ms
+matchToJS span match =
+  let sqnc e1 e2 = parens ("e = " ++ e1 ++ " : null, " ++ "e !== null ? e : " ++ e2)
+  in case match of
+    Match name clauses def ->
+        do cases <- intercalate " : " `liftM` mapM (clauseToJS span name) clauses
+           finally <- matchToJS span def
+           return (sqnc cases finally)
+    Fail -> return ("throw new Error(\"Non-exhaustive pattern match " ++
+                    "in case expression (" ++ show span ++ ")\")")
+    Break -> return "null"
+    Other e -> toJS' e
+    Seq ms -> foldr1 sqnc `liftM` mapM (matchToJS span) (dropEnd [] ms)
+        where dropEnd acc [] = acc
+              dropEnd acc (m:ms) =
+                  case m of
+                    Other _ -> acc ++ [m]
+                    _ -> dropEnd (acc ++ [m]) ms
+
 
 clauseToJS span var (Clause name vars e) = do
-  let vars' = map (\n -> var ++ "._" ++ show n) [ 1 .. length vars ]
+  let vars' = map (\n -> var ++ "._" ++ show n) [0..]
   s <- matchToJS span $ matchSubst (zip vars vars') e
-  return $ concat [ "\ncase ", quoted name, ":", s ]
+  return $ concat [ var, ".ctor === ", quoted name, " ? ", s ]
 
 jsNil         = "{ctor:'Nil'}"
 jsCons  e1 e2 = "{ctor:'Cons',_0:" ++ e1 ++ ",_1:" ++ e2 ++ "}"
