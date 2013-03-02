@@ -30,7 +30,7 @@ import JSON
   }
 
   var Tuple0 = { ctor: "Tuple0" }
-  function Tuple2(x,y) { return { ctor = "Tuple2", _0:x, _1:y }; }
+  function Tuple2(x,y) { return { ctor = "Tuple2", _0:x, _1:y } }
 
   function makeSpaces(s) {
     if (s.length == 0) { return s; }

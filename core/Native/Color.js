@@ -15,31 +15,29 @@ function complement(rgb) {
   return toRGB(hsv);
 }
 
-function hsva(h) { return function(s) { return function(v) { return function(a) {
-    var clr = toRGB({hue:h, saturation:s, value:v});
-    clr._3 = a;
-    return clr;
-  }; }; };
+function hsva(h,s,v,a) {
+  var clr = toRGB({hue:h, saturation:s, value:v});
+  clr._3 = a;
+  return clr;
 }
 
-function hsv(h) { return function(s) { return function(v) {
-   return toRGB({hue:h, saturation:s, value:v}); }; }; }
+function hsv(h,s,v) { return toRGB({hue:h, saturation:s, value:v}); }
 
 function toHSV(rgb) {
-    var hsv = {};
-    var r = rgb._0 / 255.0, g = rgb._1 / 255.0, b = rgb._2 / 255.0;
-    var M = Math.max(r,g,b);
-    var m = Math.min(r,g,b);
-    var c = M - m;
+  var hsv = {};
+  var r = rgb._0 / 255.0, g = rgb._1 / 255.0, b = rgb._2 / 255.0;
+  var M = Math.max(r,g,b);
+  var m = Math.min(r,g,b);
+  var c = M - m;
 
-    var h = 0;
-    if (c === 0) { h = 0; }
-    else if (M === r) { h = ((g - b) / c) % 6; }
-    else if (M === g) { h = ((b - r) / c) + 2; }
-    else if (M === b) { h = ((r - g) / c) + 4; }
-    h *= 60;
+  var h = 0;
+  if (c === 0) { h = 0; }
+  else if (M === r) { h = ((g - b) / c) % 6; }
+  else if (M === g) { h = ((b - r) / c) + 2; }
+  else if (M === b) { h = ((r - g) / c) + 4; }
+  h *= 60;
 
-    return { value : M, hue : h, saturation : (M === 0 ? 0 : c / M) };
+  return { value : M, hue : h, saturation : (M === 0 ? 0 : c / M) };
 }
 
 function between(lo,hi,x) { return lo <= x && x < hi; }
@@ -61,8 +59,11 @@ function toRGB(hsv) {
     return { ctor:"Color", _0:norm(r+m), _1:norm(g+m), _2:norm(b+m), _3:1 };
 }
 
-Elm.Native.Color = {hsva:hsva,
-		    hsv:hsv,
-		    complement:complement,
-		    extract:extract};
+Elm.Native.Color = {
+    hsva:F4(hsva),
+    hsv:F3(hsv),
+    complement:complement,
+    extract:extract
+};
+
 }());

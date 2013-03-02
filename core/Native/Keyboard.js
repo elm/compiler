@@ -14,8 +14,7 @@ import List
     return signal;
   }
 
-  function dir(up) { return function(down) {
-   return function(left) { return function(right) {
+  function dir(up, down, left, right) {
     function f(ks) {
       var x = 0, y = 0;
       while (ks.ctor == "Cons") {
@@ -30,11 +29,10 @@ import List
       return { _:{}, x:x, y:y };
     }
     return keySignal(f);
-   }}}
   }
 
   function is(key) { return keySignal(Elm.List.member(key)); }
 
-  Elm.Native.Keyboard = { isDown:is, dir:dir };
+  Elm.Native.Keyboard = { isDown:is, dir:F4(dir) };
 
 }());

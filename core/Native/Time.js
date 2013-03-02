@@ -8,45 +8,41 @@ import Maybe
 
   function timeNow() { return (new window.Date).getTime(); }
 
-  function fpsWhen(desiredFPS) { return function (isOn) {
-      var msPerFrame = 1000 / desiredFPS;
-      var prev = timeNow(), curr = prev, diff = 0, wasOn = true;
-      var ticker = Elm.Signal.constant(diff);
-      function tick(zero) { return function() {
-	  curr = timeNow();
-	  diff = zero ? 0 : curr - prev;
-	  prev = curr;
-	  Dispatcher.notify(ticker.id, diff);
-        };
+  function fpsWhen(desiredFPS, isOn) {
+    var msPerFrame = 1000 / desiredFPS;
+    var prev = timeNow(), curr = prev, diff = 0, wasOn = true;
+    var ticker = Elm.Signal.constant(diff);
+    function tick(zero) { return function() {
+        curr = timeNow();
+	diff = zero ? 0 : curr - prev;
+	prev = curr;
+	Dispatcher.notify(ticker.id, diff);
+      };
+    }
+    var timeoutID = 0;
+    function f(isOn, t) {
+      if (isOn) {
+        timeoutID = setTimeout(tick(!wasOn && isOn), msPerFrame);
+      } else if (wasOn) {
+	clearTimeout(timeoutID);	    
       }
-      var timeoutID = 0;
-      function f(isOn) { return function(t) {
-	if (isOn) {
-	    timeoutID = setTimeout(tick(!wasOn && isOn), msPerFrame);
-	} else if (wasOn) {
-	    clearTimeout(timeoutID);	    
-	}
-	wasOn = isOn;
-	return t;
-       };
-      }
-      return Elm.Signal.lift2(f)(isOn)(ticker);
-    };
+      wasOn = isOn;
+      return t;
+    }
+    return Elm.Signal.lift2(F2(f))(isOn)(ticker);
   }
  
-  function everyWhen(isOn) { return function(t) {
-      var clock = Elm.Signal.constant(timeNow());
-      function tellTime() { Dispatcher.notify(clock.id, timeNow()); }
-      setInterval(tellTime, t);
-      return clock;
-    };
+  function everyWhen(t, isOn) {
+    var clock = Elm.Signal.constant(timeNow());
+    function tellTime() { Dispatcher.notify(clock.id, timeNow()); }
+    setInterval(tellTime, t);
+    return clock;
   }
 
-  function since(t) { return function(s) {
-	  function cmp(a) { return function(b) { return !Value.eq(a,b); }; }
-	  var dcount = Elm.Signal.count(Elm.Signal.delay(t)(s));
-	  return Elm.Signal.lift2(cmp)(Elm.Signal.count(s))(dcount);
-      };
+  function since(t, s) {
+    function cmp(a,b) { return !Value.eq(a,b) }
+    var dcount = Elm.Signal.count(Elm.Signal.delay(t)(s));
+    return Elm.Signal.lift2(F2(cmp))(Elm.Signal.count(s))(dcount);
   }
   function after(t) {
       t *= 1000;
@@ -65,11 +61,11 @@ import Maybe
       return isNaN(t) ? Elm.Maybe.Nothing : Elm.Maybe.Just(t);
   }
   Elm.Native.Time = {
-      fpsWhen : fpsWhen,
-      fps : function(t) { return fpsWhen(t)(Elm.Signal.constant(true)); },
-      every : everyWhen(Elm.Signal.constant(true)),
+      fpsWhen : F2(fpsWhen),
+      fps : function(t) { return fpsWhen(t, Elm.Signal.constant(true)); },
+      every : function(t) { return everyWhen(t, Elm.Signal.constant(true)) },
       delay : Elm.Signal.delay,
-      since : since,
+      since : F2(since),
       after  : after,
       before : before,
       toDate : function(t) { return new window.Date(t); },

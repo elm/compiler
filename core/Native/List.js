@@ -1,8 +1,8 @@
- /**
- module Native.List where
+/**
+module Native.List where
 
 import Native.Function
- **/
+**/
 
 (function() {
   "use strict";
@@ -34,7 +34,7 @@ import Native.Function
   function range(lo,hi) {
     var lst = Nil;
     if (lo <= hi) {
-	do { lst = Cons(hi,lst) } while (hi-->lo);
+      do { lst = Cons(hi,lst) } while (hi-->lo);
     }
     return lst
   }
@@ -119,7 +119,7 @@ import Native.Function
   }
   
   function scanl1(f, xs) {
-    xs.ctor === "Nil" ? throwError('scanl1') : return scanl(f, xs._0, xs._1);
+    return xs.ctor === "Nil" ? throwError('scanl1') : scanl(f, xs._0, xs._1);
   }
 
   function filter(pred, xs) {
