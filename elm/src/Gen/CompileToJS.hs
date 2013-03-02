@@ -238,12 +238,10 @@ formatMarkdown = concatMap f
 multiIfToJS span ps =
     case last ps of
       (C _ _ (Var "otherwise"), e) -> toJS' e >>= \b -> format b (init ps)
-      _ -> format err ps
+      _ -> format ("Elm.Error.If" ++ parens (quoted (show span))) ps
   where
     format base ps =
         foldr (\c e -> parens $ c ++ " : " ++ e) base `liftM` mapM f ps
-    err = "throw new Error('Non-exhaustive multi-way-if expression (" ++
-          show span ++ ")')"
     f (b,e) = do b' <- toJS' b
                  e' <- toJS' e
                  return (b' ++ " ? " ++ e')
@@ -278,8 +276,7 @@ matchToJS span match =
         do cases <- intercalate " : " `liftM` mapM (clauseToJS span name) clauses
            finally <- matchToJS span def
            return (sqnc cases finally)
-    Fail -> return ("throw new Error(\"Non-exhaustive pattern match " ++
-                    "in case expression (" ++ show span ++ ")\")")
+    Fail -> return ("Elm.Error.Case" ++ parens (quoted (show span)))
     Break -> return "null"
     Other e -> toJS' e
     Seq ms -> foldr1 sqnc `liftM` mapM (matchToJS span) (dropEnd [] ms)
