@@ -1,195 +1,87 @@
 
-module Graphics.Element
-    (left,right,down,up,inward,outward
-    ,topLeft,topRight,bottomLeft,bottomRight
-    ,midLeft,midRight,midTop,midBottom
-    ,middle,absolute,relative
-    ,topLeftAt,topRightAt,bottomLeftAt,bottomRightAt
-    ,width,height,size,widthOf,heightOf,sizeOf
-    ,color,opacity
-    ,text,image,fittedImage,video
-    ,flow,above,below,beside,layers
-    ,collage,spacer,container
-    ,line,segment
-    ,polygon,ngon,rect,oval,circle
-    ,solid,dotted,dashed,customLine
-    ,filled,outlined,customOutline,textured
-    ,sprite,toForm
-    ,rotate,scale,move
-    ) where
+module Grapics.Element where
 
-import Graphics.Color
+import Native.Guid (guid)
+import JavaScript as JS
+import List as List
+import Graphics.FillStyle
 
-data Direction = DLeft | DRight | DUp | DDown | DIn | DOut
+type Properties = {
+  id      : Int,
+  width   : Int,
+  height  : Int,
+  opacity : Float,
+  filling : FillStyle,
+  href    : JSString,
+  tag     : JSString
+ }
 
-left    = DLeft
-right   = DRight
-down    = DDown
-up      = DUp
-inward  = DIn
-outward = DOut
+data Element = Element Properties ElementPrim
 
-data Pos1 = Absolute Int | Relative Float
-data Pos2 = Near | Mid | Far
+getProp get e = let (Element props _) = e in get props
+widthOf  e = getProp .width e
+heightOf e = getProp .height e
+sizeOf   e = getProp (\p -> (p.width, p.height)) e
 
-data Position
-  = Position Pos2 Pos2
-  | PositionAt Pos1 Pos1
-  | PositionTL Pos1 Pos1
-  | PositionTR Pos1 Pos1
-  | PositionBL Pos1 Pos1
-  | PositionBR Pos1 Pos1
-
-topLeft     = Position Near Near
-topRight    = Position Far  Near
-bottomLeft  = Position Near Far
-bottomRight = Position Far  Far
-
-midLeft     = Position Near Mid
-midRight    = Position Far  Mid
-midTop      = Position Mid  Near
-midBottom   = Position Mid  Far
-
-middle      = Position Mid  Mid
-
-middleAt      = PositionAt
-topLeftAt     = PositionTL
-topRightAt    = PositionTR
-bottomLeftAt  = PositionBL
-bottomRightAt = PositionBR
-
-absolute = Absolute
-relative = Relative
-
-data Element = Element Int BasicElement Int Int Float (Maybe Color) (Just String)
-
-newElement = Element 0
-basicNewElement e w h = Element 0 e w h 1 Nothing Nothing
-
-data BasicElement
-  = EText Text Text
-  | EImage String
-  | EVideo String
-  | EFittedImage String
-  | EFlow Direction [Element]
-  | ECollage Int Int [Form]
-  | EEmpty
-  | EContainer Position Element
-
-width w' (Element _ e w h o c l) =
+width w e =
   case e of
-  { EText  _ -> newElement e w' h o c l
-  ; EImage _ -> newElement e w' h o c l
-  ; EVideo _ -> newElement e w' h o c l
-  ; _        -> newElement e w' h o c l }
-height  h' (Element _ e w h o c l) =
+    Element props prim -> Element {props| width   <- w} prim
+height h e =
   case e of
-  { EText  _ -> newElement e w h' o c l
-  ; EImage _ -> newElement e w h' o c l
-  ; EVideo _ -> newElement e w h' o c l
-  ; _        -> newElement e w h' o c l }
-size w' h' (Element _ e w h o c l) = newElement e w' h' o  c l
-opacity o' (Element _ e w h o c l) = newElement e w  h  o' c l
-color   c' (Element _ e w h o c l) = newElement e w  h  o  (Just c') l
-link    l' (Element _ e w h o c l) = newElement e w  h  o  c (Just l')
+    Element props prim -> Element {props| height  <- h} prim
+opacity o e =
+  case e of
+    Element props prim -> Element {props| opacity <- o} prim
+color c e =
+  case e of
+    Element props prim -> Element {props| filling <- c} prim
+filling f e =
+  case e of
+    Element props prim -> Element {props| filling <- f} prim
+tag name e =
+  case e of
+    Element props prim -> Element {props| tag  <- JS.fromString name } prim
+link href e =
+  case e of
+    Element props prim -> Element {props| href <- JS.fromString href } prim
 
-widthOf  (Element _ _ w _ _ _ _) = w
-heightOf (Element _ _ _ h _ _ _) = h
-sizeOf   (Element _ _ w h _ _ _) = (w,h)
+emptyStr = JS.fromString ""
+newElement w h e =
+  Element (Properties (guid ()) w h 1 NoFill emptyStr emptyStr) e
 
-n1 = 0-1
+data ElementPrim
+  = Image ImageStyle String
+  | Container Position Element
+  | Flow Direction [Element]
+  | Spacer
+  | RawHtml JSString
+  | DomNode JSElement
 
-text t  = basicNewElement (EText t)  n1 n1
-image w h s = basicNewElement (EImage s) w h
-video w h s = basicNewElement (EVideo s) w h
-fittedImage w h s = basicNewElement (EFittedImage s) w h
+data ImageStyle = Plain | Fitted | Cropped (Int,Int) Int Int
+data Direction = DUp | DDown | DLeft | DRight | DIn | DOut
+
+image w h src = newElement w h (Image Plain src)
+fittedImage w h src = newElement w h (Image Fitted src)
+croppedImage w h pos src = newElement w h (Image (Cropped pos w h) src)
+
+container w h pos e = newElement w h (Container pos e)
+spacer w h = newElement w h Spacer
 
 flow dir es =
-  let { w = let ws = map widthOf es in
-            case dir of { DLeft  -> sum ws
-                        ; DRight -> sum ws
-                        ; _      -> maximum ws }
-      ; h = let hs = map heightOf es in
-            case dir of { DDown -> sum hs
-                        ; DUp   -> sum hs
-                        ; _     -> maximum hs }
-  } in  basicNewElement (EFlow dir es) w h
+  let ws = map widthOf es
+      hs = map heightOf es
+      newFlow w h = newElement w h (Flow dir es)
+  in 
+  case dir of
+    DUp    -> newFlow (List.maximum ws) (List.sum hs)
+    DDown  -> newFlow (List.maximum ws) (List.sum hs)
+    DLeft  -> newFlow (List.sum ws) (List.maximum hs)
+    DRight -> newFlow (List.sum ws) (List.maximum hs)
+    DIn    -> newFlow (List.maximum ws) (List.maximum hs)
+    DOut   -> newFlow (List.maximum ws) (List.maximum hs)
 
-above e1 e2 =
-  newElement
-    (EFlow DDown [e1,e2])
-    (max (widthOf e1) (widthOf e2))
-    (heightOf e1 + heightOf e2) 1 Nothing Nothing
+above hi lo = newElement (max (widthOf hi) (widthOf lo)) (heightOf hi + heightOf lo) (Flow DDown [hi,lo])
+below lo hi = newElement (max (widthOf hi) (widthOf lo)) (heightOf hi + heightOf lo) (Flow DDown [hi,lo])
+beside lft rht = newElement (widthOf lft + widthOf rht) (max (heightOf lft) (heightOf rht)) (Flow right [lft,rht])
 
-below e1 e2 =
-  basicNewElement (EFlow DDown [e2,e1])
-    (max (widthOf e1) (widthOf e2))
-    (heightOf e1 + heightOf e2)
-
-beside e1 e2 =
-  basicNewElement (EFlow DRight [e1,e2])
-    (widthOf e1 + widthOf e2)
-    (max (heightOf e1) (heightOf e2))
-
-layers es =
-  basicNewElement (EFlow DIn es)
-    (maximum (map widthOf es))
-    (maximum (map heightOf es))
-
-collage w h forms = basicNewElement (ECollage w h forms) w h
-
-spacer w h = basicNewElement EEmpty w h
-
-container w h pos e =
-  basicNewElement (EContainer pos e) w h
-
-
-
-data LineStyle = Solid | Dotted | Dashed | Custom [Int]
-data ShapeStyle = Filled | Outlined | CustomOutline [Int] | Textured String
-
-data Line = Line [(Float,Float)]
-
-line = Line
-segment p1 p2 = Line [p1,p2]
-
-data Shape = Shape [(Float,Float)] (Float,Float)
-
-polygon = Shape
-rect w h pos = Shape [(0-w/2,0-h/2),(0-w/2,h/2),(w/2,h/2),(w/2,0-h/2)] pos
-oval w h pos =
-  let n = 50 in
-  let f i = ( w/2 * cos (2*pi/n * i), h/2 * sin (2*pi/n * i)) in
-    Shape (map f [0..n-1]) pos
-circle r = oval (2*r) (2*r)
-ngon n r pos =
-  let m = toFloat n in
-  let f i = ( r * cos (2*pi/m * i), r * sin (2*pi/m * i)) in
-    Shape (map f [0..n-1]) pos
-
-data Form = Form Float Float (Float,Float) BasicForm
-
-data BasicForm
-  = FLine LineStyle Color Line
-  | FShape ShapeStyle Color Shape
-  | FImage Int Int String
-  | FElement Element
-
-solid  clr ln = Form 0 1 (0,0) (FLine Solid  clr ln)
-dotted clr ln = Form 0 1 (0,0) (FLine Dotted clr ln)
-dashed clr ln = Form 0 1 (0,0) (FLine Dashed clr ln)
-customLine pattern clr ln =
-    Form 0 1 (0,0) (FLine (Custom pattern) clr ln)
-
-filled   clr (Shape ps pos) = Form 0 1 pos (FShape Filled   clr (Shape ps pos))
-outlined clr (Shape ps pos) = Form 0 1 pos (FShape Outlined clr (Shape ps pos))
-customOutline pattern clr (Shape ps pos) =
-    Form 0 1 pos (FShape (CustomOutline pattern) clr (Shape ps pos))
-textured src (Shape ps pos) = Form 0 1 pos (FShape (Textured src) black (Shape ps pos))
-
-sprite w h pos src = Form 0 1 pos (FImage w h src)
-toForm pos e = Form 0 1 pos (FElement e)
-
-rotate t (Form theta scale   pos   form) = Form (t+theta) scale pos form
-scale s  (Form theta scale   pos   form) = Form theta (s*scale) pos form
-move x y (Form theta scale (px,py) form) = Form theta scale (x+px,y+py) form
+text : Text -> Element
