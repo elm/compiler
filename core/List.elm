@@ -1,64 +1,64 @@
 
 module List where
 
-import Native.List
+import Native.List as L
 
 head : [a] -> a
-head = Native.List.head
+head = L.head
 
 tail : [a] -> [a]
-tail = Native.List.tail
+tail = L.tail
 
 last : [a] -> a
-last = Native.List.last
+last = L.last
 
 map : (a -> b) -> [a] -> [b]
-map = Native.List.map
+map = L.map
 
 foldl : (a -> b -> b) -> b -> [a] -> b
-foldl = Native.List.foldl
+foldl = L.foldl
 
 foldr : (a -> b -> b) -> b -> [a] -> b
-foldr = Native.List.foldr
+foldr = L.foldr
 
 foldl1 : (a -> a -> a) -> [a] -> a
-foldl1 = Native.List.foldl1
+foldl1 = L.foldl1
 
 foldr1 : (a -> a -> a) -> [a] -> a
-foldr1 = Native.List.foldr1
+foldr1 = L.foldr1
 
 scanl : (a -> b -> b) -> b -> [a] -> [b]
-scanl = Native.List.scanl
+scanl = L.scanl
 
 scanl1 : (a -> a -> a) -> [a] -> [a]
-scanl1 = Native.List.scanl1
+scanl1 = L.scanl1
 
 filter : (a -> Bool) -> [a] -> [a]
-filter = Native.List.filter
+filter = L.filter
 
 length : [a] -> Int
-length = Native.List.length
+length = L.length
 
 reverse : [a] -> [a]
-reverse = Native.List.reverse
+reverse = L.reverse
 
 concat : [[a]] -> [a]
-concat = Native.List.foldr (++) []
+concat = L.foldr (++) []
 
 concatMap : (a -> [b]) -> [a] -> [b]
-concatMap f = concat . Native.List.map f
+concatMap f = concat . L.map f
 
 all : (a -> Bool) -> [a] -> Bool
-all pred = Native.List.all
+all pred = L.all
 
 any : (a -> Bool) -> [a] -> Bool
-any = Native.List.any
+any = L.any
 
 and : [Bool] -> Bool
-and = Native.List.all id
+and = L.all id
 
 or : [Bool] -> Bool
-or = Native.List.any id
+or = L.any id
 
 sum = foldl (+) 0
 product = foldl (*) 1
@@ -73,10 +73,10 @@ partition pred lst =
                if pred x then (x::bs,cs) else (bs,x::cs)
 
 zipWith : (a -> b -> c) -> [a] -> [b] -> [c]
-zipWith = Native.List.zipWith
+zipWith = L.zipWith
 
 zip : [a] -> [b] -> [(a,b)]
-zip = Native.List.zip
+zip = L.zip
 
 unzip : [(a,b)] -> ([a],[b])
 unzip pairs =
