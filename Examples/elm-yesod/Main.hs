@@ -38,7 +38,7 @@ mkYesod "ElmTest" [parseRoutes|
 -- so that toWidget can work with QuasiQuoted elm code. All URL interpolation
 -- is done automatically. (e.g. lines 28-30 in elm_source/index.elm)
 getMouseR :: Handler RepHtml
-getMouseR = 
+getMouseR =
   defaultLayout $ do
       setTitle "Mouse position demo"
       toWidget mousePage
@@ -75,7 +75,7 @@ instance Yesod ElmTest where
         hamletToRepHtml $(hamletFile "templates/default-layout-wrapper.hamlet")
 
 instance YesodElm ElmTest where
-  urlElmJs _ = Right $ "https://raw.github.com/evancz/Elm/master/elm/elm-runtime-0.3.5.js"
+  urlElmJs _ = Right $ "https://raw.github.com/evancz/Elm/master/elm/elm-runtime-0.7.2.js"
 
 main :: IO ()
 main = warpDebug 3000 ElmTest
