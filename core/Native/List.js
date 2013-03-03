@@ -54,8 +54,8 @@ import Native.Function
     return root;
   }
 
-  function head(v) { v.ctor === "Nil" ? throwError('head') : return v._0; }
-  function tail(v) { v.ctor === "Nil" ? throwError('tail') : return v._1; }
+  function head(v) { return v.ctor === "Nil" ? throwError('head') : v._0; }
+  function tail(v) { return v.ctor === "Nil" ? throwError('tail') : v._1; }
 
   function last(xs) {
     if (xs.ctor === "Nil") { throwError('last'); }
@@ -95,7 +95,7 @@ import Native.Function
   }
 
   function foldl1(f, xs) {
-    xs.ctor === "Nil" ? throwError('foldl1') : return foldl(f, xs._0, xs._1);
+    return xs.ctor === "Nil" ? throwError('foldl1') : foldl(f, xs._0, xs._1);
   }
 
   function foldr1(f, xs) {
