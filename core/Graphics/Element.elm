@@ -23,27 +23,15 @@ widthOf  e = getProp .width e
 heightOf e = getProp .height e
 sizeOf   e = getProp (\p -> (p.width, p.height)) e
 
-width w e =
-  case e of
-    Element props prim -> Element {props| width   <- w} prim
-height h e =
-  case e of
-    Element props prim -> Element {props| height  <- h} prim
-opacity o e =
-  case e of
-    Element props prim -> Element {props| opacity <- o} prim
-color c e =
-  case e of
-    Element props prim -> Element {props| filling <- c} prim
-filling f e =
-  case e of
-    Element props prim -> Element {props| filling <- f} prim
-tag name e =
-  case e of
-    Element props prim -> Element {props| tag  <- JS.fromString name } prim
-link href e =
-  case e of
-    Element props prim -> Element {props| href <- JS.fromString href } prim
+width w e   = case e of Element props prim -> Element {props| width   <- w} prim
+height h e  = case e of Element props prim -> Element {props| height  <- h} prim
+opacity o e = case e of Element props prim -> Element {props| opacity <- o} prim
+color c e   = case e of Element props prim -> Element {props| filling <- c} prim
+filling f e = case e of Element props prim -> Element {props| filling <- f} prim
+tag name e  = case e of Element props prim ->
+                          Element {props| tag  <- JS.fromString name } prim
+link href e = case e of Element props prim ->
+                          Element {props| href <- JS.fromString href } prim
 
 emptyStr = JS.fromString ""
 newElement w h e =
@@ -83,5 +71,3 @@ flow dir es =
 above hi lo = newElement (max (widthOf hi) (widthOf lo)) (heightOf hi + heightOf lo) (Flow DDown [hi,lo])
 below lo hi = newElement (max (widthOf hi) (widthOf lo)) (heightOf hi + heightOf lo) (Flow DDown [hi,lo])
 beside lft rht = newElement (widthOf lft + widthOf rht) (max (heightOf lft) (heightOf rht)) (Flow right [lft,rht])
-
-text : Text -> Element

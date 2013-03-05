@@ -32,57 +32,6 @@ import JSON
   var Tuple0 = { ctor: "Tuple0" }
   function Tuple2(x,y) { return { ctor = "Tuple2", _0:x, _1:y } }
 
-  function makeSpaces(s) {
-    if (s.length == 0) { return s; }
-    var arr = s.split('');
-    if (arr[0] == ' ') { arr[0] = "&nbsp;" }      
-    for (var i = arr.length; --i; ) {
-      if (arr[i][0] == ' ' && arr[i-1] == ' ') {
-        arr[i-1] = arr[i-1] + arr[i];
-        arr[i] = '';
-      }
-    }
-    for (var i = arr.length; i--; ) {
-      if (arr[i].length > 1 && arr[i][0] == ' ') {
-        var spaces = arr[i].split('');
-        for (var j = spaces.length - 2; j >= 0; j -= 2) {
-          spaces[j] = '&nbsp;';
-        }
-        arr[i] = spaces.join('');
-      }
-    }
-    arr = arr.join('');
-    if (arr[arr.length-1] === " ") {
-	return arr.slice(0,-1) + '&nbsp;';
-    }
-    return arr;
-  }
-
-  function properEscape(str) {
-    if (str.length == 0) return str;
-    str = str //.replace(/&/g,  "&#38;")
-             .replace(/"/g, /*"*/  "&#34;")
-             .replace(/'/g, /*'*/  "&#39;")
-             .replace(/</g,  "&#60;")
-             .replace(/>/g,  "&#62;")
-             .replace(/\n/g, "<br/>");
-    var arr = str.split('<br/>');
-    for (var i = arr.length; i--; ) {
-	arr[i] = makeSpaces(arr[i]);
-    }
-    return arr.join('<br/>');
-  }
-
-  var toText = function(elmList) {
-    if (typeof elmList === "string") return properEscape(elmList);
-    var a = [];
-    while (elmList.ctor === "Cons") {
-      a.push(elmList._0);
-      elmList = elmList._1;
-    }
-    return properEscape(a.join(''));
-  };
-
   function getTextSize(w,h,txt) {
     var t = document.createElement('div');
     t.innerHTML = txt;
@@ -248,7 +197,6 @@ import JSON
       Tuple0:Tuple0,
       Tuple2:Tuple2,
       toText : toText,
-      properEscape : properEscape,
       getTextSize : getTextSize,
       getSize : getSize,
       getExcess : getExcess,
