@@ -42,3 +42,8 @@ violet = Color 238 130 238 1
 complement = C.complement
 hsva = C.hsva
 hsv = C.hsv
+
+data Gradient
+  = Linear [(Float,Color)] (Float,Float) (Float,Float)
+  | Radial [(Float,Color)] (Float,Float) Float (Float,Float) Float
+

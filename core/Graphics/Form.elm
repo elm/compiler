@@ -1,25 +1,9 @@
 
-module Collage where
+module Graphics.Collage where
 
-data Path = Path [(Float,Float)]
-
-path = Path
-segment p1 p2 = Path [p1,p2]
-
-data Shape = Shape [(Float,Float)]
-
-polygon = Shape
-
-rect w h = polygon [ (0-w/2,0-h/2), (0-w/2,h/2), (w/2,h/2), (w/2,0-h/2) ]
-oval w h =
-  let n = 50
-      f i = (w/2 * cos (2*pi/n * i), h/2 * sin (2*pi/n * i))
-  in  Shape $ map f [0..n-1]
-circle r = oval (2*r) (2*r)
-ngon n r =
-  let m = toFloat n
-      f i = ( r * cos (2*pi/m * i), r * sin (2*pi/m * i))
-  in  Shape $ map f [0..n-1]
+import Either
+import Graphics.LineStyle
+import Geometry
 
 data Transform
   = Rotate Float
@@ -29,47 +13,37 @@ data Transform
 
 data Form = Form [Transform] BasicForm
 
-
-data LineCap  = Butt  | Round | Square
-data LineJoin = Round | Bevel | Miter
-
 data FillStyle
   = NoFill
   | Solid Color
   | Texture String
-  | LinearGradient [(Float,Color)] (Float,Float) (Float,Float)
-  | RadialGradient [(Float,Color)] (Float,Float) Float (Float,Float) Float
-
--- dash pattern, dash offset, line width, cap, join, miter limit, fill style
-type LineStyle = {
-  width : Float,
-  cap   : LineCap,
-  join  : LineJoin,
-  miterLimit : Float,
-  fillStyle  : FillStyle,
-  dashing    : [Int],
-  dashOffset : Int
-}
+  | Gradient Gradient
 
 data BasicForm
   = FLine LineStyle Line
-  | FShape LineStyle FillStyle Shape
+  | FShape (Either LineStyle FillStyle) Shape
   | FImage Int Int Int Int String
   | FElement Element
   | FGroup [Form]
 
-setFillStyle fs form =
-  case form of
-    FLine  ls _ ln  -> FLine ls fs ln
-    FShape ls _ shp -> FLine ls fs shp
-    _ -> form
+fill style shape = FShape (Right style) shape
 
-noFill = setFillStyle NoFill
-fillColor clr = setFillStyle (Solid clr)
-texture src = setFillStyle (Texture src)
+filled : Color -> Shape -> Form
+filled color shape = fill (Solid color) shape
+
+textured : String -> Shape -> Form
+textured src shape = fill (Texture src) shape
+
+gradient : Gradient -> Shape -> Form
+gradient grad shape = fill (Gradient grad) shape
+
+outline style shape = FShape (Left style) shape
+trace = FLine
+
+
 linearGradient stops start end = setFillStyle (LinearGradient stops start end)
 radialGradient stops innerP innerR outerP outerR =
-    setFillStyle (RadialGradient stops innerP innerR outerP outerR)
+    setStyle (RadialGradient stops innerP innerR outerP outerR)
 
 plain = { width=1, cap=Butt, join=Miter, miterLimit=10,
           fillStyle=...,
