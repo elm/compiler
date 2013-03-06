@@ -1,5 +1,5 @@
 
-module Json.Static where
+module Json.Experimental where
 
 import JavaScript as JS
 import Native.Json as Native

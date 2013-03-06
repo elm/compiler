@@ -1,5 +1,5 @@
 
-module Json.Dynamic where
+module Json where
 
 import Dict
 import JavaScript as JS
