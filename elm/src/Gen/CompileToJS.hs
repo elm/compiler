@@ -1,4 +1,4 @@
- module CompileToJS (showErr, jsModule) where
+module CompileToJS (showErr, jsModule) where
 
 import Control.Arrow (first,second)
 import Control.Monad (liftM,(<=<),join,ap)
@@ -41,24 +41,24 @@ quoted s  = "'" ++ concatMap f s ++ "'"
           f '\\' = "\\\\"
           f c    = [c]
 
-mainEquals s = globalAssign "Elm.main" (jsFunc "" (ret s))
+mainEquals s = globalAssign "Elm.main" (jsFunc "" (ret (s ++ ".main")))
 globalAssign n e = "\n" ++ assign' n e ++ ";"
 assign' n e = n ++ " = " ++ e
 
 jsModule (Module names exports imports stmts) =
-  concat [ concatMap (\n -> globalAssign n $ n ++ " || {}") .
-           map (intercalate ".") . drop 2 . inits $
-           take (length modNames - 1) modNames
-         , parens (jsFunc "" (defs ++ includes ++ body ++ globalAssign modName export) ++ "()")
-         , mainEquals $ modName ++ ".main" ]
-      where modNames = if null names then ["Elm", "Main"]
-                                     else  "Elm" : names
-            modName  = intercalate "." modNames
-            includes = concatMap jsImport imports
-            body = stmtsToJS stmts
-            export = getExports exports stmts
-            exps = if null exports then ["main"] else exports
-            defs = assign "$op" "{}"
+ setup ++ parens (jsFunc "" program ++ "()") ++ mainEquals modName
+  where
+    modNames = if null names then ["Elm", "Main"] else  "Elm" : names
+    modName  = intercalate "." modNames
+    includes = concatMap jsImport imports
+    body = stmtsToJS stmts
+    export = getExports exports stmts
+    exps = if null exports then ["main"] else exports
+    defs = assign "$op" "{}"
+    program = defs ++ includes ++ body ++ globalAssign modName export
+    setup = concatMap (\n -> globalAssign n $ n ++ " || {}") .
+            map (intercalate ".") . drop 2 . inits $
+            take (length modNames - 1) modNames
 
 getExports names stmts = brackets . ("\n "++) $
                          intercalate ",\n " (op : map fnPair fns)
