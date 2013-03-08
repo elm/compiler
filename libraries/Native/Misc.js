@@ -13,18 +13,18 @@ import JSON
   'use strict';
 
   function eq(x,y) {
+    if (x === y) return true;
     if (typeof x === "object") {
-	if (x !== null && '_' in x) {
-	    for (var i in x) { if (x[i] != y[i]) return false; }
-	    for (var i in y) { if (!(i in x)) return false; }
-	    return true;
-	}
-	if (x === y) return true;
-	if (x.length !== y.length) return false;
-	for (var i = x.length; i--; ) {
-	    if (!eq(x[i],y[i])) return false;
-	}
+      if ('_' in x) {
+        for (var i in x) { if (!eq(x[i],y[i])) return false; }
+	for (var i in y) { if (!(i in x)) return false; }
 	return true;
+      }
+      if (x.ctor !== y.ctor) return false;
+      for (var i = x.length; i--; ) {
+	if (!eq(x[i],y[i])) return false;
+      }
+      return true;
     }
     return x === y;
   }
