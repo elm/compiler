@@ -1,22 +1,19 @@
-/*
-import Signal
-import Maybe
-*/
 
-(function() {
+Elm.Native.Time = function(elm) {
   'use strict';
 
-  function timeNow() { return (new window.Date).getTime(); }
+  var Signal = Elm.Signal(elm);
+  var Maybe = Elm.Maybe(elm);
 
   function fpsWhen(desiredFPS, isOn) {
     var msPerFrame = 1000 / desiredFPS;
-    var prev = timeNow(), curr = prev, diff = 0, wasOn = true;
-    var ticker = Elm.Signal.constant(diff);
+    var prev = Date.now(), curr = prev, diff = 0, wasOn = true;
+    var ticker = Signal.constant(diff);
     function tick(zero) { return function() {
-        curr = timeNow();
+        curr = Date.now();
 	diff = zero ? 0 : curr - prev;
 	prev = curr;
-	Dispatcher.notify(ticker.id, diff);
+	elm.notify(ticker.id, diff);
       };
     }
     var timeoutID = 0;
@@ -29,42 +26,42 @@ import Maybe
       wasOn = isOn;
       return t;
     }
-    return Elm.Signal.lift2(F2(f))(isOn)(ticker);
+    return A3( Signal.lift2, F2(f), isOn, ticker );
   }
  
   function everyWhen(t, isOn) {
-    var clock = Elm.Signal.constant(timeNow());
-    function tellTime() { Dispatcher.notify(clock.id, timeNow()); }
+    var clock = Signal.constant(Date.now());
+    function tellTime() { elm.notify(clock.id, Date.now()); }
     setInterval(tellTime, t);
     return clock;
   }
 
   function since(t, s) {
     function cmp(a,b) { return !Value.eq(a,b) }
-    var dcount = Elm.Signal.count(Elm.Signal.delay(t)(s));
-    return Elm.Signal.lift2(F2(cmp))(Elm.Signal.count(s))(dcount);
+    var dcount = Signal.count(Signal.delay(t)(s));
+    return A3( Signal.lift2, F2(cmp), Signal.count(s), dcount );
   }
   function after(t) {
       t *= 1000;
-      var thread = Elm.Signal.constant(false);
-      setTimeout(function() { Dispatcher.notify(thread.id, true); }, t);
+      var thread = Signal.constant(false);
+      setTimeout(function() { elm.notify(thread.id, true); }, t);
       return thread;
   }
   function before(t) {
       t *= 1000;
-      var thread = Elm.Signal.constant(true);
-      setTimeout(function() { Dispatcher.notify(thread.id, false); }, t);
+      var thread = Signal.constant(true);
+      setTimeout(function() { elm.notify(thread.id, false); }, t);
       return thread;
   }
   function read(s) {
-      var t = window.Date.parse(s);
-      return isNaN(t) ? Elm.Maybe.Nothing : Elm.Maybe.Just(t);
+      var t = Date.parse(s);
+      return isNaN(t) ? Maybe.Nothing : Maybe.Just(t);
   }
-  Elm.Native.Time = {
+  return elm.Native.Time = {
       fpsWhen : F2(fpsWhen),
-      fps : function(t) { return fpsWhen(t, Elm.Signal.constant(true)); },
-      every : function(t) { return everyWhen(t, Elm.Signal.constant(true)) },
-      delay : Elm.Signal.delay,
+      fps : function(t) { return fpsWhen(t, Signal.constant(true)); },
+      every : function(t) { return everyWhen(t, Signal.constant(true)) },
+      delay : Signal.delay,
       since : F2(since),
       after  : after,
       before : before,
@@ -72,4 +69,4 @@ import Maybe
       read   : read
   };
 
-}());
+};

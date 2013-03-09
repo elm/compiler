@@ -1,15 +1,13 @@
 
-/**
-import JavaScript
-import List
-import Signal
-**/
-
-Elm.Native.Signal.Http = function(elm) {
+Elm.Native.Http = function(elm) {
   'use strict';
   elm.Native = elm.Native || {};
-  elm.Native.Signal = elm.Native.Signal || {};
-  if (elm.Native.Signal.Http) return elm.Native.Signal.Http;
+  if (elm.Native.Http) return elm.Native.Http;
+
+
+  var JS = Elm.JavaScript(elm);
+  var List = Elm.List(elm);
+  var Signal = Elm.Signal(elm);
 
 
   function registerReq(queue,responses) { return function(req) {
@@ -28,13 +26,11 @@ Elm.Native.Signal.Http = function(elm) {
   }
 
   function setHeader(pair) {
-    request.setRequestHeader(elm.JavaScript.fomString(pair._0),
-			     elm.JavaScript.fromString(pair._1));
+    request.setRequestHeader( JS.fomString(pair._0), JS.fromString(pair._1) );
   }
 
   function sendReq(queue,responses,req) {
-    var JS = elm.JavaScript;
-    var response = { value: elm.Http.Waiting };
+    var response = { value: { ctor:'Waiting' } };
     queue.push(response);
 
     var request = null;
@@ -42,26 +38,24 @@ Elm.Native.Signal.Http = function(elm) {
     if (window.XMLHttpRequest) { request = new XMLHttpRequest(); }
     request.onreadystatechange = function(e) {
       if (request.readyState === 4) {
-        response.value = (request.status === 200
-			  ? elm.Http.Success(JS.castJSStringToString(request.responseText))
-			  : elm.Http.Failure(request.status)(JS.castJSStringToString(request.statusText)));
+        response.value = (request.status === 200 ?
+	 { ctor:'Success', _0:JS.toString(request.responseText) } :
+	 { ctor:'Failure', _0:request.status, _1:JS.toString(request.statusText) });
 	setTimeout(function() { updateQueue(queue,responses); }, 0);
       }
     };
-    request.open(JS.castStringToJSString(req.verb),
-		 JS.castStringToJSString(req.url),
-		 true);
-    elm.List.map(setHeader)(req.headers);
-    request.send(JS.castStringToJSString(req.body));
+    request.open(JS.fromString(req.verb), JS.fromString(req.url), true);
+    List.map(setHeader)(req.headers);
+    request.send(JS.fromString(req.body));
   }
  
   function send(requests) {
-    var responses = elm.Signal.constant(elm.Http.Waiting);
-    var sender = elm.Signal.lift(registerReq([],responses))(requests);
+    var responses = Signal.constant(elm.Http.Waiting);
+    var sender = A2( Signal.lift, registerReq([],responses), requests );
     function f(x) { return function(y) { return x; } }
-    return elm.Signal.lift2(f)(responses)(sender);
+    return A3( Signal.lift2, f, responses, sender );
   }
 
-  return elm.Native.Signal.Http = {send:send};
+  return elm.Native.Http = {send:send};
 
 };

@@ -1,9 +1,8 @@
 
-Elm.Native.Signal.Mouse = function(elm) {
+Elm.Native.Mouse = function(elm) {
   'use strict';
   elm.Native = elm.Native || {};
-  elm.Native.Signal = elm.Native.Signal || {};
-  if (elm.Native.Signal.Mouse) return elm.Native.Signal.Mouse;
+  if (elm.Native.Mouse) return elm.Native.Mouse;
 
   var Signal = Elm.Signal(elm);
   var Misc   = Elm.Native.Misc(elm);
@@ -14,9 +13,9 @@ Elm.Native.Signal.Mouse = function(elm) {
   // do not get rid of x and y. By setting their default number
   // of kids, it is possible to detatch the mouse listeners if
   // they are not needed.
-  var x = Signal.lift(function(p){return p._0})(position);
+  var x = A2( Signal.lift, function(p){return p._0}, position);
   x.defaultNumberOfKids = 0;
-  var y = Signal.lift(function(p){return p._1})(position);
+  var y = A2( Signal.lift, function(p){return p._1}, position);
   y.defaultNumberOfKids = 0;
 
   var isDown    = Signal.constant(false);
@@ -67,7 +66,7 @@ Elm.Native.Signal.Mouse = function(elm) {
   Misc.addListener(elm.node, 'mouseup'  , up);
   Misc.addListener(elm.node, 'mousemove', move);
 
-  return elm.Native.Signal.Mouse = {
+  return elm.Native.Mouse = {
       position: position,
       x:x,
       y:y,

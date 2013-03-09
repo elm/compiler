@@ -1,18 +1,15 @@
-/*
-*/
 
-Elm.Native.Signal.Keyboard = function(elm) {
+Elm.Native.Keyboard = function(elm) {
   'use strict';
   elm.Native = elm.Native || {};
-  elm.Native.Signal = elm.Native.Signal || {};
-  if (elm.Native.Signal.Keyboard) return elm.Native.Signal.Keyboard;
+  if (elm.Native.Keyboard) return elm.Native.Keyboard;
 
   var Signal = Elm.Signal(elm);
   var KR = Elm.Keyboard.Raw(elm);
   var List = Elm.List(elm);
 
   function keySignal(f) {
-    var signal = Signal.lift(f)(elm.Keyboard.Raw.keysDown);
+    var signal = A2( Signal.lift, f, elm.Keyboard.Raw.keysDown );
     KR.keysDown.defaultNumberOfKids += 1;
     signal.defaultNumberOfKids = 0;
     return signal;
@@ -37,6 +34,6 @@ Elm.Native.Signal.Keyboard = function(elm) {
 
   function is(key) { return keySignal(List.member(key)); }
 
-  return elm.Native.Signal.Keyboard = { isDown:is, dir:F4(dir) };
+  return elm.Native.Keyboard = { isDown:is, dir:F4(dir) };
 
 };
