@@ -1,16 +1,13 @@
 
-/*
-module Native.Misc where
-
-import List
-import Maybe
-import JavaScript
-import Dict
-import JSON
-*/
-
-(function(){
+Elm.Native.Misc = function(elm) {
   'use strict';
+
+  var NativeList = Elm.Native.List(elm);
+  var List = Elm.List(elm);
+  var Maybe = Elm.Maybe(elm);
+  var JS = Elm.JavaScript(elm);
+  var Dict = Elm.Dict(elm);
+  var Json = Elm.Json(elm);
 
   function eq(x,y) {
     if (x === y) return true;
@@ -86,7 +83,7 @@ import JSON
 
 
   function groupForms(forms) {
-    forms = Elm.JavaScript.castListToJSArray(forms);
+    forms = JS.fromList(forms);
     var groups = [];
     var arr = [];
     for (var i = forms.length; i--; ) {
@@ -151,14 +148,14 @@ import JSON
 	} else if (v.ctor === "Nil") {
 	    return "[]";
 	} else if (v.ctor === "JSON") {
-	    return "(JSON.fromList " + toString(Elm.JSON.toList(v)) + ")";
+	    return "(JSON.fromList " + toString(Json.toList(v)) + ")";
 	} else if (v.ctor === "RBNode" || v.ctor === "RBEmpty") {
-	    function cons(k){ return function(v) { return function(acc) { return Elm.Native.List.Cons(Tuple2(k,v),acc); }; }; }
-	    var list = Elm.Dict.foldr(cons)(Elm.Native.List.Nil)(v);
+	    function cons(k){ return function(v) { return function(acc) { return NativeList.Cons(Tuple2(k,v),acc); }; }; }
+	    var list = Dict.foldr(cons)(NativeList.Nil)(v);
 	    var name = "Dict";
 	    if (list.ctor === "Cons" && list._0._1.ctor === "Tuple0") {
 		name = "Set";
-		list = Elm.List.map(function(x) { return x._0; })(list);
+		list = A2(List.map, function(x){return x._0}, list);
 	    }
 	    return "(" + name + ".fromList " + toString(list) + ")";
 	} else {
@@ -170,15 +167,8 @@ import JSON
     }
     return v+"";
   };
-  var show = function(v) { return Elm.Native.List.fromArray(toString(v)); };
+  var show = function(v) { return NativeList.fromArray(toString(v)); };
 
-  /*
-  function wrap(elem) {
-      var p = Value.getSize(elem);
-      return ['Element', Guid.guid(), ["EHtml",elem],
-	      p.ctor, p._0, 1, Elm.Maybe.Nothing, Elm.Maybe.Nothing];
-  }
-  */
   var addListener = function() {
       if(document.addEventListener) {
 	  return function(element, event, handler) {
@@ -191,7 +181,7 @@ import JSON
       }
   }();
 
-  Elm.Native.Misc = {
+  elm.Native.Misc = {
       eq:eq,
       show:show,
       Tuple0:Tuple0,
@@ -203,4 +193,4 @@ import JSON
       groupForms : groupForms,
       addListener : addListener
   };
-}());
+};

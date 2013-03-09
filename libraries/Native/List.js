@@ -1,11 +1,9 @@
-/**
-module Native.List where
 
-import Native.Function
-**/
-
-(function() {
+Elm.Native.List = function(elm) {
   "use strict";
+
+  elm.Native = elm.Native || {};
+  if (elm.Native.List) return elm.Native.List;
 
   var Nil = { ctor:'Nil' };
   function Cons(hd,tl) { return { ctor:"Cons", _0:hd, _1:tl }; }
@@ -42,11 +40,11 @@ import Native.Function
   function append(xs,ys) {
     if (typeof xs === "string") { return xs.concat(ys); }
     if (xs.ctor === "Nil") { return ys; }
-    var root = Elm.Native.List.Cons(xs._0. Elm.Native.List.Nil);
+    var root = Cons(xs._0. Nil);
     var curr = root;
     xs = xs._1;
     while (xs.ctor==="Cons") {
-	curr._1 = Elm.Native.List.Cons(xs._0. Elm.Native.List.Nil);
+	curr._1 = Cons(xs._0. Nil);
 	xs = xs._1;
 	curr = curr._1;
     }
@@ -140,6 +138,15 @@ import Native.Function
     return out;
   }
 
+  function member(x, xs) {
+    var out = 0;
+    while (xs.ctor === "Cons") {
+      if (Misc.eq(x,xs._0)) return true;
+      xs = xs._1;
+    }
+    return false;
+  }
+
   function reverse(xs) { return fromArray(toArray(xs).reverse()); }
    
   function all(pred, xs) {
@@ -200,7 +207,7 @@ import Native.Function
     return xs;
   }
 
-  Elm.Native.List = {
+  return elm.Native.List = {
       Nil:Nil,
       Cons:Cons,
       toArray:toArray,
@@ -222,6 +229,7 @@ import Native.Function
       scanl1:F2(scanl1),
       filter:F2(filter),
       length:length,
+      member:member,
       reverse:reverse,
 
       all:F2(all),
@@ -233,4 +241,4 @@ import Native.Function
       drop:F2(drop)
   };
 
-}());
+};

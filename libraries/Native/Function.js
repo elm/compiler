@@ -1,6 +1,3 @@
-/*
-module Native.Function where
-*/
 
 function F2(fun) {
   function wrapper(a) { return function(b) { return fun(a,b) } }
