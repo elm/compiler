@@ -1,14 +1,14 @@
 
-/**
-module Native.Graphics.Text where
-
-import JavaScript
-import Native.Graphics.Color
-import Graphics.Element
-**/
-
-(function() {
+Elm.Native.Graphics.Text = function(elm) {
   'use strict';
+
+  elm.Native = elm.Native || {};
+  elm.Native.Graphics = elm.Native.Graphics || {};
+  if (elm.Native.Graphics.Text) return elm.Native.Graphics.Text;
+
+  var JS = Elm.JavaScript(elm);
+  var Color = Elm.Native.Graphics.Color(elm);
+  var Element = Elm.Graphics.Element(elm);
 
   function makeSpaces(s) {
     if (s.length == 0) { return s; }
@@ -51,7 +51,7 @@ import Graphics.Element
     return arr.join('<br/>');
   }
 
-  function toText(str) { return properEscape(Elm.JavaScript.fromString(str)); }
+  function toText(str) { return properEscape(JS.fromString(str)); }
 
   function addTag(tag) { return function(text) {
       return '<' + tag + ' style="padding:0;margin:0">' + text + '</' + tag + '>';
@@ -63,7 +63,7 @@ import Graphics.Element
   }
 
   function typeface(name, text) {
-    return addStyle('font-family', Elm.JavaScript.fromString(name), text);
+    return addStyle('font-family', JS.fromString(name), text);
   }
   function size(px, text) { return addStyle('font-size', px + 'px', text) }
   var header = addTag('h1');
@@ -71,7 +71,7 @@ import Graphics.Element
   function italic(text) { return addStyle('font-style', 'italic', text) }
   var bold = addTag('b');
   function color(c, text) {
-    return addStyle('color', Elm.Native.Graphics.Color.extract(c), text);
+    return addStyle('color', Color.extract(c), text);
   }
   function underline(text) { return addStyle('text-decoration', 'underline', text) }
   function overline(text) { return addStyle('text-decoration', 'overline', text) }
@@ -82,12 +82,11 @@ import Graphics.Element
     return "<a href='" + toText(href) + "'>" + text + "</a>";
   }
 
-  var newElem = Elm.Graphics.Element.newElement;
   function position(pos) { return function(text) {
     var e = {ctor:'RawHtml',
 	     _0: '<div style="padding:0;margin:0;text-align:'+pos+'">'+text+'</div>'
     };
-    return A3(newElem, 0, 0, e);
+    return A3(Element.newElement, 0, 0, e);
    }
   }
 
@@ -95,7 +94,7 @@ import Graphics.Element
     return position('left')(typeface('monospace', toText(show(v))));
   }
 
-  Elm.Native.Graphics.Text = {
+  return elm.Native.Graphics.Text = {
       toText: toText,
 
       header : header,
@@ -118,4 +117,4 @@ import Graphics.Element
       asText : asText
   };
 
-}())
+};
