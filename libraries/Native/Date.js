@@ -1,25 +1,25 @@
-/**
-module Native.Color where
 
-import Maybe
-import JavaScript
-**/
+Elm.Native.Date = function(elm) {
+ 'use strict';
 
-(function() {
-'use strict';
+ elm.Native = elm.Native || {};
+ if (elm.Native.Date) return elm.Native.Date;
+
+ var JS = Elm.JavaScript(elm);
+ var Maybe = Elm.Maybe(elm);
 
  function dateNow() { return new window.Date; }
  function readDate(str) {
-     var d = new window.Date(Elm.JavaScript.castStringToJSString(str));
-     if (isNaN(d.getTime())) return Elm.Maybe.Nothing;
-     return Elm.Maybe.Just(d);
+     var d = new window.Date(JS.fromString(str));
+     if (isNaN(d.getTime())) return Maybe.Nothing;
+     return Maybe.Just(d);
  }
 
  var dayTable = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
  var monthTable = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
 		   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]; 
 
- Elm.Native.Date = {
+ return elm.Native.Date = {
      read    : readDate,
      year    : function(d) { return d.getFullYear(); },
      month   : function(d) { return { ctor:monthTable[d.getMonth()] }; },
@@ -31,4 +31,4 @@ import JavaScript
      dayOfWeek : function(d) { return { ctor:dayTable[d.getDay()] }; },
  };
 
-}());
+};

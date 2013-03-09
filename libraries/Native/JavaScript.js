@@ -1,18 +1,17 @@
-/**
-module Native.JavaScript where
-**/
 
-(function() {
+Elm.Native.JavaScript = function(elm) {
   'use strict';
 
-  var fromArray = Elm.Native.List.fromArray;
-  var toArray = Elm.Native.List.toArray;
+  elm.Native = elm.Native || {};
+  if (elm.Native.JavaScript) return elm.Native.JavaScript;
+
+  var List = Elm.Native.List(elm);
 
   function fromJS(v) {
     var type = typeof v;
     if (type === 'number' ) return v;
     if (type === 'boolean') return v;
-    if (type === 'string' ) return fromArray(v);
+    if (type === 'string' ) return List.fromArray(v);
     if (v instanceof Array) {
       var arr = [];
       var len = v.length;
@@ -20,7 +19,7 @@ module Native.JavaScript where
 	var x = fromJS(v[i]);
 	if (x !== null) arr.push(x);
       }
-      return fromArray(arr);
+      return List.fromArray(arr);
     }
     if (type === 'object') {
       var rec = { _:{} };
@@ -45,7 +44,7 @@ module Native.JavaScript where
 	return obj;
     }
     if (type === 'object' && (v.ctor === 'Cons' || v.ctor === 'Nil')) {
-	var array = toArray(v);
+	var array = List.toArray(v);
 	for (var i = array.length; i--; ) {
 	    array[i] = toJS(array[i]);
 	}
@@ -62,15 +61,15 @@ module Native.JavaScript where
     throw new Error("'fromRecord' must be called on a record.");
   }
 
-  Elm.Native.JavaScript = {
+  return elm.Native.JavaScript = {
       id         : function(n) { return n },
       toInt      : function(n) { return n|0 },
-      toString   : function(s) { return fromArray(s) },
-      toList     : fromArray,
-      fromString : function(s) { return toArray(s).join('') },
-      fromList   : toArray,
+      toString   : function(s) { return List.fromArray(s) },
+      toList     : List.fromArray,
+      fromString : function(s) { return List.toArray(s).join('') },
+      fromList   : List.toArray,
       toRecord   : fromJS,
       fromRecord : fromRecord
   };
 
-}());
+};

@@ -1,17 +1,11 @@
 
-/**
-module Native.Json where
-
-import Maybe
-import JavaScript
-import Dict
-import List
-**/
-
-(function() {
+Elm.Native.Json = function(elm) {
   'use strict';
 
-  var JS = Elm.JavaScript;
+  var Maybe = Elm.Maybe(elm);
+  var Dict = Elm.Dict(elm);
+  var List = Elm.List(elm);
+  var JS = Elm.JavaScript(elm);
 
   function fromValue(v) {
     switch (v.ctor) {
@@ -19,7 +13,7 @@ import List
     case 'String' : return JS.fromString(v._0);
     case 'Object' :
       var obj = {};
-      var array = JS.fromList(Elm.Dict.toList(v._0));
+      var array = JS.fromList(Dict.toList(v._0));
       for (var i = arr.length; i--; ) {
 	obj[JS.fromString(array[i]._0)] = fromValue(array[i]._1);
       }
@@ -52,34 +46,34 @@ import List
       }
       var array = [];
       for (var k in v) array.push(Tuple2(JS.toString(k), toValue(v[k])));
-      return { ctor:"Object", _0: Elm.Dict.fromList(JS.toList(array)) };
+      return { ctor:"Object", _0: Dict.fromList(JS.toList(array)) };
     }
   }
 
   function fromJSString(str) {
     try {
-	return Elm.Maybe.Just(toValue(JSON.parse(str)));
+	return Maybe.Just(toValue(JSON.parse(str)));
     } catch (e) {
-	return Elm.Maybe.Nothing;
+	return Maybe.Nothing;
     }
   }
 
   function recordFromJSString(str) {
     try {
-	return Elm.Maybe.Just(JS.toRecord(JSON.parse(str)));
+	return Maybe.Just(JS.toRecord(JSON.parse(str)));
     } catch (e) {
-	return Elm.Maybe.Nothing;
+	return Maybe.Nothing;
     }
   }
   function recordToPrettyJSString(sep, rec) {
     return JSON.stringify(JS.fromRecord(rec), null, JS.fromString(sep));
   }
 
-  Elm.Native.Json = {
+  return elm.Native.Json = {
       toPrettyJSString : F2(toPrettyJSString),
       fromJSString : fromJSString,
       recordToPrettyJSString : F2(recordToPrettyJSString),
       recordFromJSString : recordFromJSString
   };
 
-}());
+};
