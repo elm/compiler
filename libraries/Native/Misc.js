@@ -181,7 +181,7 @@ Elm.Native.Misc = function(elm) {
       }
   }();
 
-  elm.Native.Misc = {
+  return elm.Native.Misc = {
       eq:eq,
       show:show,
       Tuple0:Tuple0,

@@ -7,6 +7,7 @@ Elm.Native.Touch = function(elm) {
 
   var Signal = Elm.Signal(elm);
   var JS = Elm.JavaScript(elm);
+  var Misc = Elm.Native.Misc(elm);
 
   function Dict() {
     this.keys = [];
@@ -68,7 +69,7 @@ Elm.Native.Touch = function(elm) {
       if (!hasListener) return document.removeEventListener(name, update);
       e.preventDefault();
     }
-    Value.addListener(document, name, update);
+    Misc.addListener(document, name, update);
   }
 
   listen("touchstart", start);

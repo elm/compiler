@@ -1,40 +1,51 @@
-/*
-import Signal
-import List
-*/
 
-(function() {
+Elm.Native.Keyboard.Raw = function(elm) {
   'use strict';
 
-  var keysDown = Elm.Signal.constant(Elm.Native.List.Nil);
-  var charPressed = Elm.Signal.constant(Elm.Maybe.Nothing);
+  var Signal = Elm.Signal(elm);
+  var NList = Elm.Native.List(elm);
+  var List = Elm.List(elm);
+  var Maybe = Elm.Maybe(elm);
+  var Misc = Elm.Native.Misc(elm);
 
-  Value.addListener(document, 'keydown', function(e) {
-	  if (Elm.List.member(e.keyCode)(keysDown.value)) return;
-	  var list = Elm.Native.List.Cons(e.keyCode, keysDown.value);
-	  var hasListener = Dispatcher.notify(keysDown.id, list);
-	  if (!hasListener)
-		this.removeEventListener('keydown',arguments.callee,false);
-	});
-  Value.addListener(document, 'keyup', function(e) {
-	  function notEq(kc) { return kc !== e.keyCode; }
-	  var codes = Elm.List.filter(notEq)(keysDown.value);
-	  var hasListener = Dispatcher.notify(keysDown.id, codes);
-	  if (!hasListener)
-		this.removeEventListener('keyup',arguments.callee,false);
-	});
-  Value.addListener(window, 'blur', function(e) {
-	  var hasListener = Dispatcher.notify(keysDown.id, ["Nil"]);
-	  if (!hasListener)
-		this.removeEventListener('blur',arguments.callee,false);
-	});
-  Value.addListener(document, 'keypress', function(e) {
-	  var next = Elm.Maybe.Just(e.charCode || e.keyCode);
-	  var hasListener = Dispatcher.notify(charPressed.id, next);
-	  Dispatcher.notify(charPressed.id, Elm.Maybe.Nothing);
-	  if (!hasListener)
-		this.removeEventListener('keypress',arguments.callee,false);
-	});
+  var keysDown = Signal.constant(NList.Nil);
+  var charPressed = Signal.constant(Maybe.Nothing);
 
-  Elm.Native.Keyboard.Raw = {keysDown:keysDown, charPressed:charPressed};
-}());
+  function down(e) {
+      if (List.member(e.keyCode)(keysDown.value)) return;
+      var list = NList.Cons(e.keyCode, keysDown.value);
+      var hasListener = elm.notify(keysDown.id, list);
+      if (!hasListener)
+	  this.removeEventListener('keydown',arguments.callee,false);
+  }
+  function up(e) {
+      function notEq(kc) { return kc !== e.keyCode; }
+      var codes = List.filter(notEq)(keysDown.value);
+      var hasListener = elm.notify(keysDown.id, codes);
+      if (!hasListener)
+	  this.removeEventListener('keyup',arguments.callee,false);
+  }
+  function blur(e) {
+      var hasListener = elm.notify(keysDown.id, NList.Nil);
+      if (!hasListener)
+	  this.removeEventListener('blur',arguments.callee,false);
+  }
+  function press(e) {
+      var next = Maybe.Just(e.charCode || e.keyCode);
+      var hasListener = elm.notify(charPressed.id, next);
+      elm.notify(charPressed.id, Maybe.Nothing);
+      if (!hasListener)
+	  this.removeEventListener('keypress',arguments.callee,false);
+  }
+
+  Misc.addListener(document, 'keydown' , down );
+  Misc.addListener(document, 'keyup'   , up   );
+  Misc.addListener(window  , 'blur'    , blur );
+  Misc.addListener(document, 'keypress', press);
+
+  return elm.Native.Keyboard.Raw = {
+      keysDown:keysDown,
+      charPressed:charPressed
+  };
+
+};
