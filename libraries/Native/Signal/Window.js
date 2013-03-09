@@ -1,29 +1,35 @@
-/*
-import Signal
-import Native.Misc
-*/
 
-(function() {
+Elm.Native.Window = function(elm) {
   'use strict';
 
-  var Misc = Elm.Native.Misc;
+  elm.Native = elm.Native || {};
+  if (elm.Native.Window) return elm.Native.Window;
 
-  var dimensions = Elm.Signal.constant(Misc.Tuple(window.innerWidth,
-						  window.innerHeight));
+  var Signal = Elm.Signal(elm);
+  var Misc = Elm.Native.Misc(elm);
+
+  var dimensions = Signal.constant(Misc.Tuple2(window.innerWidth,window.innerHeight));
   dimensions.defaultNumberOfKids = 2;
 
-  var width  = Elm.Signal.lift(function(p){return p._0;})(dimensions);
+  var width  = A2(Signal.lift, function(p){return p._0}, dimensions);
   width.defaultNumberOfKids = 0;
 
-  var height = Elm.Signal.lift(function(p){return p._1;})(dimensions);
+  var height = A2(Signal.lift, function(p){return p._1}, dimensions);
   height.defaultNumberOfKids = 0;
 
-  Misc.addListener(window, 'resize', function(e) {
-	  var w = document.getElementById('widthChecker').offsetWidth;
-	  var hasListener = Dispatcher.notify(dimensions.id,
-					      Misc.Tuple(w, window.innerHeight));
-	  if (!hasListener)
-		this.removeEventListener('resize',arguments.callee,false);
-	});
-  Elm.Native.Window = {dimensions:dimensions,width:width,height:height};
-}());
+  function resize(e) {
+      var w = elm.node.getElementById('widthChecker').offsetWidth;
+      var hasListener = elm.notify(dimensions.id,
+				   Misc.Tuple2(w, window.innerHeight));
+      if (!hasListener)
+	  this.removeEventListener('resize',arguments.callee,false);
+  }
+  Misc.addListener(window, 'resize', resize);
+
+  return elm.Native.Window = {
+      dimensions:dimensions,
+      width:width,
+      height:height
+  };
+
+};

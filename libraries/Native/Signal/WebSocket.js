@@ -1,17 +1,17 @@
-/*
-import Signal
-import JavaScript
-import List
-*/
 
-(function() {
+Elm.Native.WebSocket = function(elm) {
   'use strict';
 
-  var JS = Elm.JavaScript;
+  elm.Native = elm.Native || {};
+  if (elm.Native.WebSocket) return elm.Native.WebSocket;
 
-  function open(url) { return function(outgoing) {
-    var incoming = Elm.Signal.constant(Elm.Native.List.Nil);
-    var ws = new window.WebSocket(JS.castStringToJSString(url));
+  var Signal = Elm.Signal(elm);
+  var JS = Elm.JavaScript(elm);
+  var List = Elm.Native.List(elm);
+
+  function open(url, outgoing) {
+    var incoming = Signal.constant(List.Nil);
+    var ws = new WebSocket(JS.fromString(url));
 
     var pending = [];
     var ready = false;
@@ -22,18 +22,17 @@ import List
       ready = true;
     };
     ws.onmessage = function(event) {
-      Dispatcher.notify(incoming.id, JS.castJSStringToString(event.data));
+      elm.notify(incoming.id, JS.toString(event.data));
     };
     
     function send(msg) {
-      var s = JS.castStringToJSString(msg);
+      var s = JS.fromString(msg);
       ready ? ws.send(s) : pending.push(s);
     }
     
-    function take1(x) { return function(y) { return x; } }
-    return Elm.Signal.lift2(take1)(incoming)(Elm.Signal.lift(send)(outgoing));
-   };
+    function take1(x,y) { return x }
+    return A3(Signal.lift2, F2(take1), incoming, A2(Signal.lift, send, outgoing));
   }
 
-  Elm.Native.WebSocket = {open:open};
-}());
+  return elm.Native.WebSocket = { open: F2(open) };
+};
