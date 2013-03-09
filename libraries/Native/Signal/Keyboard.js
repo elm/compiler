@@ -1,15 +1,19 @@
 /*
-import Signal
-import Keyboard.Raw
-import List
 */
 
-(function() {
+Elm.Native.Signal.Keyboard = function(elm) {
   'use strict';
+  elm.Native = elm.Native || {};
+  elm.Native.Signal = elm.Native.Signal || {};
+  if (elm.Native.Signal.Keyboard) return elm.Native.Signal.Keyboard;
+
+  var Signal = Elm.Signal(elm);
+  var KR = Elm.Keyboard.Raw(elm);
+  var List = Elm.List(elm);
 
   function keySignal(f) {
-    var signal = Elm.Signal.lift(f)(Elm.Keyboard.Raw.keysDown);
-    Elm.Keyboard.Raw.keysDown.defaultNumberOfKids += 1;
+    var signal = Signal.lift(f)(elm.Keyboard.Raw.keysDown);
+    KR.keysDown.defaultNumberOfKids += 1;
     signal.defaultNumberOfKids = 0;
     return signal;
   }
@@ -31,8 +35,8 @@ import List
     return keySignal(f);
   }
 
-  function is(key) { return keySignal(Elm.List.member(key)); }
+  function is(key) { return keySignal(List.member(key)); }
 
-  Elm.Native.Keyboard = { isDown:is, dir:F4(dir) };
+  return elm.Native.Signal.Keyboard = { isDown:is, dir:F4(dir) };
 
-}());
+};

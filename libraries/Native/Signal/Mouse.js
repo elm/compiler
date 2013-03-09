@@ -1,27 +1,27 @@
-/*
-import Signal
-import Native.Misc
-*/
 
-(function() {
+Elm.Native.Signal.Mouse = function(elm) {
   'use strict';
+  elm.Native = elm.Native || {};
+  elm.Native.Signal = elm.Native.Signal || {};
+  if (elm.Native.Signal.Mouse) return elm.Native.Signal.Mouse;
 
-  var Misc = Elm.Native.Misc;
+  var Signal = Elm.Signal(elm);
+  var Misc   = Elm.Native.Misc(elm);
 
-  var position  = Elm.Signal.constant(Misc.Tuple(0,0));
+  var position  = Signal.constant(Misc.Tuple(0,0));
   position.defaultNumberOfKids = 2;
 
   // do not get rid of x and y. By setting their default number
   // of kids, it is possible to detatch the mouse listeners if
   // they are not needed.
-  var x = Elm.Signal.lift(function(p){return p._0})(position);
+  var x = Signal.lift(function(p){return p._0})(position);
   x.defaultNumberOfKids = 0;
-  var y = Elm.Signal.lift(function(p){return p._1})(position);
+  var y = Signal.lift(function(p){return p._1})(position);
   y.defaultNumberOfKids = 0;
 
-  var isDown    = Elm.Signal.constant(false);
-  var isClicked = Elm.Signal.constant(false);
-  var clicks = Elm.Signal.constant(Misc.Tuple());
+  var isDown    = Signal.constant(false);
+  var isClicked = Signal.constant(false);
+  var clicks = Signal.constant(Misc.Tuple0);
   
   function getXY(e) {
     var posx = 0;
@@ -36,46 +36,43 @@ import Native.Misc
 	posy = e.clientY + document.body.scrollTop +
 	  document.documentElement.scrollTop;
     }
-    return Misc.Tuple(posx, posy);
+    return Misc.Tuple2(posx, posy);
   }
 
-  Misc.addListener(document, 'click', function(e) {
-	  var hasListener1 = Dispatcher.notify(isClicked.id, true);
-	  var hasListener2 = Dispatcher.notify(clicks.id, Misc.Tuple());
-	  Dispatcher.notify(isClicked.id, false);
-	  if (!hasListener1 && !hasListener2)
-		this.removeEventListener('click',arguments.callee,false);
-	});
-  Misc.addListener(document, 'mousedown', function(e) {
-	  var hasListener = Dispatcher.notify(isDown.id, true);
-	  if (!hasListener)
-		this.removeEventListener('mousedown',arguments.callee,false);
-	});
-  Misc.addListener(document, 'mouseup', function(e) {
-	  var hasListener = Dispatcher.notify(isDown.id, false);
-	  if (!hasListener)
-		this.removeEventListener('mouseup',arguments.callee,false);
-	});
-  Misc.addListener(document, 'mousemove', function(e) {
-	  var hasListener = Dispatcher.notify(position.id, getXY(e));
-	  if (!hasListener)
-		this.removeEventListener('mousemove',arguments.callee,false);
-	});
+  function click(e) {
+    var hasListener1 = elm.notify(isClicked.id, true);
+    var hasListener2 = elm.notify(clicks.id, Misc.Tuple0);
+    elm.notify(isClicked.id, false);
+    if (!hasListener1 && !hasListener2)
+	this.removeEventListener('click',arguments.callee,false);
+  }
 
-  var clickedOn = function(elem) {
-	var node = Render.render(elem);
-	var click = Elm.Signal.constant(false);
-	Misc.addListener(node, 'click', function(e) {
-		Dispatcher.notify(click.id, true);
-		Dispatcher.notify(click.id, false);
-	  });
-	return Misc.Tuple(Misc.wrap(node), click);
+  function down(e) {
+    var hasListener = elm.notify(isDown.id, true);
+    if (!hasListener) this.removeEventListener('mousedown',arguments.callee,false);
+  }
+
+  function up(e) {
+    var hasListener = elm.notify(isDown.id, false);
+    if (!hasListener) this.removeEventListener('mouseup',arguments.callee,false);
+  }
+
+  function move(e) {
+    var hasListener = elm.notify(position.id, getXY(e));
+    if (!hasListener) this.removeEventListener('mousemove',arguments.callee,false);
+  }
+
+  Misc.addListener(elm.node, 'click'    , click);
+  Misc.addListener(elm.node, 'mousedown', down);
+  Misc.addListener(elm.node, 'mouseup'  , up);
+  Misc.addListener(elm.node, 'mousemove', move);
+
+  return elm.Native.Signal.Mouse = {
+      position: position,
+      x:x,
+      y:y,
+      isClicked: isClicked,
+      isDown: isDown,
+      clicks: clicks
   };
-  Elm.Native.Mouse = {position: position,
-		      x:x,
-		      y:y,
-		      isClicked: isClicked,
-		      isDown: isDown,
-		      clicks: clicks,
-		      isClickedOn: clickedOn};
-}());
+};

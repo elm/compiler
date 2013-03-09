@@ -1,12 +1,16 @@
 
-/*
+/**
 import JavaScript
 import List
 import Signal
-*/
+**/
 
-(function() {
+Elm.Native.Signal.Http = function(elm) {
   'use strict';
+  elm.Native = elm.Native || {};
+  elm.Native.Signal = elm.Native.Signal || {};
+  if (elm.Native.Signal.Http) return elm.Native.Signal.Http;
+
 
   function registerReq(queue,responses) { return function(req) {
     if (req.url !== "") { sendReq(queue,responses,req); }
@@ -15,7 +19,7 @@ import Signal
 
   function updateQueue(queue,responses) {
     if (queue.length > 0) {
-      Dispatcher.notify(responses.id, queue[0].value);
+      elm.notify(responses.id, queue[0].value);
       if (queue[0].value.ctor !== Waiting) {
 	queue.shift();
 	setTimeout(function() { updateQueue(queue,responses); }, 0);
@@ -24,13 +28,13 @@ import Signal
   }
 
   function setHeader(pair) {
-    request.setRequestHeader(Elm.JavaScript.castStringToJSString(pair._0),
-			     Elm.JavaScript.castStringToJSString(pair._1));
+    request.setRequestHeader(elm.JavaScript.fomString(pair._0),
+			     elm.JavaScript.fromString(pair._1));
   }
 
   function sendReq(queue,responses,req) {
-    var JS = Elm.JavaScript;
-    var response = { value: Elm.HTTP.Waiting };
+    var JS = elm.JavaScript;
+    var response = { value: elm.Http.Waiting };
     queue.push(response);
 
     var request = null;
@@ -39,24 +43,25 @@ import Signal
     request.onreadystatechange = function(e) {
       if (request.readyState === 4) {
         response.value = (request.status === 200
-			  ? Elm.HTTP.Success(JS.castJSStringToString(request.responseText))
-			  : Elm.HTTP.Failure(request.status)(JS.castJSStringToString(request.statusText)));
+			  ? elm.Http.Success(JS.castJSStringToString(request.responseText))
+			  : elm.Http.Failure(request.status)(JS.castJSStringToString(request.statusText)));
 	setTimeout(function() { updateQueue(queue,responses); }, 0);
       }
     };
     request.open(JS.castStringToJSString(req.verb),
 		 JS.castStringToJSString(req.url),
 		 true);
-    Elm.List.map(setHeader)(req.headers);
+    elm.List.map(setHeader)(req.headers);
     request.send(JS.castStringToJSString(req.body));
   }
  
   function send(requests) {
-    var responses = Elm.Signal.constant(Elm.HTTP.Waiting);
-    var sender = Elm.Signal.lift(registerReq([],responses))(requests);
+    var responses = elm.Signal.constant(elm.Http.Waiting);
+    var sender = elm.Signal.lift(registerReq([],responses))(requests);
     function f(x) { return function(y) { return x; } }
-    return Elm.Signal.lift2(f)(responses)(sender);
+    return elm.Signal.lift2(f)(responses)(sender);
   }
 
-  Elm.Native.HTTP = {send:send};
-}());
+  return elm.Native.Signal.Http = {send:send};
+
+};
