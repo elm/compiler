@@ -1,10 +1,12 @@
-/*
-import Signal
-import JavaScript
-*/
 
-(function() {
+Elm.Native.Touch = function(elm) {
   'use strict';
+
+  elm.Native = elm.Native || {};
+  if (elm.Native.Touch) return elm.Native.Touch;
+
+  var Signal = Elm.Signal(elm);
+  var JS = Elm.JavaScript(elm);
 
   function Dict() {
     this.keys = [];
@@ -28,7 +30,7 @@ import JavaScript
     };
   }
   
-  var root = Elm.Signal.constant([]),
+  var root = Signal.constant([]),
       tapTime = 500,
       hasTap = false,
       tap = {_:{},x:0,y:0},
@@ -76,24 +78,23 @@ import JavaScript
   listen("touchleave", end);
 
   function dependency(f) {
-      var sig = Elm.Signal.lift(f)(root);
+      var sig = A2( Signal.lift, f, root );
       root.defaultNumberOfKids += 1;
       sig.defaultNumberOfKids = 0;
       return sig;
   }
 
-  var touches = dependency(function(ts) {
-	  return Elm.JavaScript.castJSArrayToList(ts);
-      });
+  var touches = dependency(JS.fromList);
 
   var taps = function() {
       var sig = dependency(function(_) { return tap; });
       sig.defaultNumberOfKids = 1;
       function pred(_) { var b = hasTap; hasTap = false; return b; }
-      var sig2 =  Elm.Signal.keepIf(pred)({_:{},x:0,y:0})(sig);
+      var sig2 = A3( Signal.keepIf, pred, {_:{},x:0,y:0}, sig);
       sig2.defaultNumberOfKids = 0;
       return sig2;
   }();
 
-  Elm.Native.Touch = { touches: touches, taps: taps };
-}());
+  return elm.Native.Touch = { touches: touches, taps: taps };
+
+};

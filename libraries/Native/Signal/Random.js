@@ -1,20 +1,21 @@
 
-/*
-import Signal
-*/
-
-(function() {
+Elm.Native.Random = function(elm) {
   'use strict';
+  elm.Native = elm.Native || {};
+  if (elm.Native.Random) return elm.Native.Random;
 
-  function inRange(min, max) {
-    return Elm.Signal.constant(Math.floor(Math.random() * (max-min+1)) + min);
-  }
+  var Signal = Elm.Signal(elm);
 
-  function randomize(min, max, signal) {
+  function range(min, max, signal) {
     function f(x) { return Math.floor(Math.random() * (max-min+1)) + min; }
-    return Elm.Signal.lift(f)(signal);
+    return A2( Signal.lift, f, signal );
   }
 
-  Elm.Native.Random = { inRange:F2(inRange), randomize: F3(randomize) };
+  function float(signal) {
+    function f(x) { return Math.random() }
+    return A2( Signal.lift, f, signal );
+  }
 
-}());
+  return elm.Native.Random = { range: F3(randomize), float: float };
+
+};
