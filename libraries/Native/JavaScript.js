@@ -61,13 +61,19 @@ Elm.Native.JavaScript = function(elm) {
     throw new Error("'fromRecord' must be called on a record.");
   }
 
+  function id(n) { return n }
+
   return elm.Native.JavaScript = {
-      id         : function(n) { return n },
+      toFloat    : id,
+      toBool     : id,
       toInt      : function(n) { return n|0 },
       toString   : function(s) { return List.fromArray(s) },
       toList     : List.fromArray,
       fromString : function(s) { return List.toArray(s).join('') },
       fromList   : List.toArray,
+      fromInt    : id,
+      fromFloat  : id,
+      fromBool   : id,
       toRecord   : fromJS,
       fromRecord : fromRecord
   };

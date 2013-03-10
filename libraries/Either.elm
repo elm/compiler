@@ -1,4 +1,8 @@
 
+module Either where
+
+import List (filter, partition)
+
 data Either a b = Left a | Right b
 
 either : (a -> c) -> (b -> c) -> Either a b -> c
@@ -13,10 +17,10 @@ isRight e = case e of { Right _ -> True ; _ -> False }
 
 
 lefts  : [Either a b] -> [a]
-lefts  = Elm.List.filter isLeft
+lefts  = filter isLeft
 
 rights : [Either a b] -> [b]
-rights = Elm.List.filter isRight
+rights = filter isRight
 
 partition : [Either a b] -> ([a],[b])
-partition = Elm.List.partition isLeft
+partition = partition isLeft

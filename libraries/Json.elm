@@ -30,47 +30,46 @@ fromString : String -> Maybe Value
 fromString s = Native.fromJSString (JS.fromString s)
 
 fromJSString : JSString -> Maybe Value
-fromJSString = Native.fromJSString
 
 
 -- Extract Elm values from Json values
 
-string : String -> Value -> String
-string base v = case v of { String s -> s ; _ -> base }
+string : Value -> String
+string v = case v of { String s -> s ; _ -> "" }
 
-number : Float -> Value -> Float
-number base v = case v of { Number n -> n ; _ -> base }
+number : Value -> Float
+number v = case v of { Number n -> n ; _ -> 0 }
 
-boolean : Bool -> Value -> Bool
-boolean base v = case v of { Boolean b -> b ; _ -> base }
+boolean : Value -> Bool
+boolean v = case v of { Boolean b -> b ; _ -> False }
 
-array : [Value] -> Value -> [Value]
-array base v = case v of { Array a -> a ; _ -> base }
+array : Value -> [Value]
+array v = case v of { Array a -> a ; _ -> [] }
 
-object : Dict String Value -> Value -> Dict String Value
-object base v = case v of { Object o -> o ; _ -> base }
+object : Value -> Dict String Value
+object v = case v of { Object o -> o ; _ -> Dict.empty }
 
 
 -- Extract Elm values from dictionaries of Json values
 
-find get =
-  let f base key dict =
+find get base =
+  let f key dict =
           case Dict.lookup key dict of
             Nothing -> base
-            Just v  -> get base v
+            Just v  -> get v
   in  f
 
 findString : String -> Dict String Value -> String
-findString = find string
+findString = find string ""
 
-findNumber : Float -> Dict String Value -> Float
-findNumber = find number
+findNumber : String -> Dict String Value -> Float
+findNumber = find number 0
 
-findBoolean : Bool -> Dict String Value -> Bool
-findBoolean = find boolean
+findBoolean : String -> Dict String Value -> Bool
+findBoolean = find boolean False
 
-findArray : [Value] -> Dict String Value -> [Value]
-findArray = find array
+findArray : String -> Dict String Value -> [Value]
+findArray = find array []
 
-findObject : Dict String Value -> Dict String Value -> Dict String Value
-findObject = find object
+findObject : String -> Dict String Value -> Dict String Value
+findObject = find object Dict.empty

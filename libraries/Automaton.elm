@@ -3,14 +3,6 @@ module Automaton where
 
 data Automaton a b = Automaton (a -> (b, Automaton a b))
 
-{--- API possibilies: All names and types are up for debate!
-(^>>) :: (a -> b) -> Automaton b c -> Automaton a c
-(>>^) :: Automaton a b -> (b -> c) -> Automaton a c
-(^<<) :: (b -> c) -> Automaton a b -> Automaton a c
-(<<^) :: Automaton b c -> (a -> b) -> Automaton a c
---}
-
-
 run : Automaton a b -> Signal a -> Signal b
 run (Automaton m0) input =
   lift fst $ foldp' (\a (b, Automaton m) -> m a) m0 input

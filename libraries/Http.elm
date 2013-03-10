@@ -2,9 +2,9 @@
 -- [WebSocket](http://elm-lang.org/docs/WebSocket.elm) library if
 -- you have very strict latency requirements.
 
-module HTTP where
+module Http where
 
-import Native.HTTP
+import Native.Http (send)
 
 -- The datatype for responses. Success contains only the returned message.
 -- Failures contain both an error code and an error message.
@@ -15,7 +15,7 @@ type Request a = {
   url  : String,
   body : a,
   headers : [(String,String)]
-}
+ }
 
 -- Create a customized request. Arguments are request type (get, post, put,
 -- delete, etc.), target url, data, and a list of additional headers.
@@ -34,10 +34,9 @@ post url body = Request "POST" url body []
 -- Performs an HTTP request with the given requests. Produces a signal
 -- that carries the responses.
 send : Signal (Request a) -> Signal (Response String)
-send = Native.HTTP.send
 
 -- Performs an HTTP GET request with the given urls. Produces a signal
 -- that carries the responses.
 sendGet : Signal String -> Signal (Response String)
-sendGet = send . lift get
+sendGet reqs = send (lift get reqs)
 
