@@ -19,12 +19,26 @@ import Rename (deprime)
 import Types.Types ( Type(RecordT) )
 
 showErr :: String -> String
-showErr err = mainEquals $ "Elm.Graphics.text(Elm.Text.monospace(" ++ msg ++ "))"
+showErr err = "Elm.Graphics.text(Elm.Text.monospace(" ++ msg ++ "))"
     where msg = show . concatMap (++"<br>") . lines $ err
 
 indent = concatMap f
     where f '\n' = "\n "
           f c = [c]
+
+internalImports =
+    [ ("_Utils",  "Elm.Native.Utils(elm)"),
+      ("_insert", "_Utils.insert"),
+      ("_remove", "_Utils.remove"),
+      ("_replace", "_Utils.replace"),
+      ("_eq", "_Utils.eq"),
+      ("_compare", "_Utils.compare"),
+      ("_range", "Elm.Native.List(elm).range"),
+      ("_append", "Elm.Native.List(elm).append"),
+      ("_caseError", "Elm.Native.Error(elm).Case"),
+      ("_ifError", "Elm.Native.Error(elm).If"),
+      ("_str", "Elm.Native.JavaScript(elm).toString")
+    ]
 
 parens s  = "(" ++ s ++ ")"
 brackets s  = "{" ++ s ++ "}"
@@ -41,24 +55,26 @@ quoted s  = "'" ++ concatMap f s ++ "'"
           f '\\' = "\\\\"
           f c    = [c]
 
-mainEquals s = globalAssign "Elm.main" (jsFunc "" (ret (s ++ ".main")))
 globalAssign n e = "\n" ++ assign' n e ++ ";"
 assign' n e = n ++ " = " ++ e
 
 jsModule (Module names exports imports stmts) =
- setup ++ parens (jsFunc "" program ++ "()") ++ mainEquals modName
+ setup ++ globalAssign ("Elm." ++ modName) (jsFunc "elm" program)
   where
-    modNames = if null names then ["Elm", "Main"] else  "Elm" : names
+    modNames = if null names then ["Main"] else names
     modName  = intercalate "." modNames
     includes = concatMap jsImport imports
     body = stmtsToJS stmts
     export = getExports exports stmts
     exps = if null exports then ["main"] else exports
     defs = assign "$op" "{}"
-    program = defs ++ includes ++ body ++ globalAssign modName export
+    program = usefulFuncs ++ defs ++ includes ++ body ++
+              ret ("elm." ++ modName ++ " = " ++ export)
     setup = concatMap (\n -> globalAssign n $ n ++ " || {}") .
-            map (intercalate ".") . drop 2 . inits $
+            map (intercalate ".") . tail . inits $
             take (length modNames - 1) modNames
+    usefulFuncs =
+        "var " ++ intercalate ", " (map (uncurry assign) internalImports) ++ ";"
 
 getExports names stmts = brackets . ("\n "++) $
                          intercalate ",\n " (op : map fnPair fns)
@@ -85,11 +101,11 @@ getExports names stmts = brackets . ("\n "++) $
 
 jsImport (modul, how) =
     case how of
-      As name -> assign name ("Elm." ++ modul)
+      As name -> assign name ("Elm." ++ modul ++ parens "elm")
       Importing vs ->
-          assign modul ("Elm." ++ modul) ++ concatMap def vs
+          "\nElm." ++ modul ++ parens "elm" ++ ";" ++ concatMap def vs
           where
-            imprt asgn v = asgn v ("Elm." ++ modul ++ "." ++ v)
+            imprt asgn v = asgn v ("elm." ++ modul ++ "." ++ v)
             def (o:p) =
                 if isOp o then imprt globalAssign ("$op['" ++ o:p ++ "']")
                           else imprt assign (deprime (o:p))
@@ -137,13 +153,13 @@ instance ToJS Statement where
       ImportEvent js base elm _ ->
         do v <- toJS' base
            return $ concat [ "\nvar " ++ elm ++ "=Elm.Signal.constant(" ++ v ++ ");"
-                           , "\nValue.addListener(document, '" ++ js
-                           , "', function(e) { Dispatcher.notify(" ++ elm
+                           , "\ndocument.addEventListener('", js
+                           , "_' + elm.id, function(e) { elm.notify(", elm
                            , ".id, e.value); });" ]
       ExportEvent js elm _ ->
         return $ concat [ "\nlift(function(v) { "
                         , "var e = document.createEvent('Event');"
-                        , "e.initEvent('", js, "', true, true);"
+                        , "e.initEvent('", js, "_' + elm.id, true, true);"
                         , "e.value = v;"
                         , "document.dispatchEvent(e); return v; })(", elm, ");" ]
       TypeAnnotation _ _ -> return ""
@@ -163,9 +179,9 @@ toJS' (C txt span expr) =
       Case e cases -> caseToJS span e cases
       _ -> toJS expr
 
-remove x e = "elmRecordRemove('" ++ x ++ "', " ++ e ++ ")"
-addField x v e = "elmRecordInsert('" ++ x ++ "', " ++ v ++ ", " ++ e ++ ")"
-setField fs e = "elmRecordReplace(" ++ jsList (map f fs) ++ ", " ++ e ++ ")"
+remove x e = "_remove('" ++ x ++ "', " ++ e ++ ")"
+addField x v e = "_insert('" ++ x ++ "', " ++ v ++ ", " ++ e ++ ")"
+setField fs e = "_replace(" ++ jsList (map f fs) ++ ", " ++ e ++ ")"
     where f (x,v) = "['" ++ x ++ "'," ++ v ++ "]"
 access x e = parens e ++ "." ++ x
 makeRecord kvs = record `liftM` collect kvs
@@ -185,11 +201,11 @@ makeRecord kvs = record `liftM` collect kvs
 instance ToJS Expr where
  toJS expr =
   case expr of
-    IntNum n -> return $ show n ++ "|0"
+    IntNum n -> return $ show n
     FloatNum n -> return $ show n
     Var x -> return $ x
     Chr c -> return $ quoted [c]
-    Str s -> return $ "Value.str" ++ parens (quoted s)
+    Str s -> return $ "_str" ++ parens (quoted s)
     Boolean b -> return $ if b then "true" else "false"
     Range lo hi -> jsRange `liftM` toJS' lo `ap` toJS' hi
     Access e x -> access x `liftM` toJS' e
@@ -238,7 +254,7 @@ formatMarkdown = concatMap f
 multiIfToJS span ps =
     case last ps of
       (C _ _ (Var "otherwise"), e) -> toJS' e >>= \b -> format b (init ps)
-      _ -> format ("Elm.Error.If" ++ parens (quoted (show span))) ps
+      _ -> format ("_ifError" ++ parens (quoted (show span))) ps
   where
     format base ps =
         foldr (\c e -> parens $ c ++ " : " ++ e) base `liftM` mapM f ps
@@ -263,7 +279,7 @@ caseToJS span e ps = do
                          return (matchSubst [(name,x)] match, Nothing)
                      (Match name _ _, _) ->
                          return (match, Just (name ++ " = " ++ e'))
-                     _ -> return (match, Nothing)  -- Just e'
+                     _ -> return (match, Nothing)
   matches <- matchToJS span match'
   return $ case stmt of
              Nothing -> matches
@@ -276,7 +292,7 @@ matchToJS span match =
         do cases <- intercalate " : " `liftM` mapM (clauseToJS span name) clauses
            finally <- matchToJS span def
            return (sqnc cases finally)
-    Fail -> return ("Elm.Error.Case" ++ parens (quoted (show span)))
+    Fail -> return ("_caseError" ++ parens (quoted (show span)))
     Break -> return "null"
     Other e -> toJS' e
     Seq ms -> foldr1 sqnc `liftM` mapM (matchToJS span) (dropEnd [] ms)
@@ -294,7 +310,8 @@ clauseToJS span var (Clause name vars e) = do
 
 jsNil         = "{ctor:'Nil'}"
 jsCons  e1 e2 = "{ctor:'Cons',_0:" ++ e1 ++ ",_1:" ++ e2 ++ "}"
-jsRange e1 e2 = "Elm.Native.List.range" ++ parens (e1 ++ "," ++ e2)
+jsRange e1 e2 = "_range" ++ parens (e1 ++ "," ++ e2)
+jsCompare e1 e2 op = parens ("_compare(" ++ e1 ++ "," ++ e2 ++ ").ctor " ++ op)
 
 binop (o:p) e1 e2
     | isAlpha o || '_' == o = (o:p) ++ parens e1 ++ parens e2
@@ -302,23 +319,19 @@ binop (o:p) e1 e2
         let ops = ["+","-","*","/","&&","||"] in
         case o:p of
           "::" -> jsCons e1 e2
-          "++" -> append e1 e2
+          "++" -> "_append" ++ parens (e1 ++ "," ++ e2)
           "$"  -> e1 ++ parens e2
           "."  -> jsFunc "x" . ret $ e1 ++ parens (e2 ++ parens "x")
           "^"  -> "Math.pow(" ++ e1 ++ "," ++ e2 ++ ")"
-          "==" -> "eq(" ++ e1 ++ "," ++ e2 ++ ")"
-          "/=" -> "not(eq(" ++ e1 ++ "," ++ e2 ++ "))"
-          "<"  -> "(compare(" ++ e1 ++ ")(" ++ e2 ++ ").ctor === 'LT')"
-          ">"  -> "(compare(" ++ e1 ++ ")(" ++ e2 ++ ").ctor === 'GT')"
-          "<=" -> "function() { var ord = compare(" ++ e1 ++ ")(" ++
-                  e2 ++ ").ctor; return ord==='LT' || ord==='EQ'; }()"
-          ">=" -> "function() { var ord = compare(" ++ e1 ++ ")(" ++
-                  e2 ++ ").ctor; return ord==='GT' || ord==='EQ'; }()"
+          "==" -> "_eq(" ++ e1 ++ "," ++ e2 ++ ")"
+          "/=" -> "!_eq(" ++ e1 ++ "," ++ e2 ++ ")"
+          "<"  -> jsCompare e1 e2 "=== 'LT'"
+          ">"  -> jsCompare e1 e2 "=== 'GT'"
+          "<=" -> jsCompare e1 e2 "!== 'GT'"
+          ">=" -> jsCompare e1 e2 "!== 'LT'"
           "<~" -> "lift" ++ parens e1 ++ parens e2
           "~"  -> "lift2(function(f){return function(x){return f(x);};})" ++
                   parens e1 ++ parens e2
           _  | elem (o:p) ops -> parens (e1 ++ (o:p) ++ e2)
              | otherwise      -> concat [ "$op['", o:p, "']"
                                         , parens e1, parens e2 ]
-
-append e1 e2 = "Value.append" ++ parens (e1 ++ "," ++ e2)
