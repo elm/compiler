@@ -12,7 +12,7 @@ module Grapics.Element (widthOf, heightOf, sizeOf,
                         spacer
                        ) where
 
-import Native.Guid (guid)
+import Native.Utils (guid)
 import JavaScript as JS
 import List as List
 import Graphics.Color

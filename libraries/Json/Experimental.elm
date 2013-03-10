@@ -2,11 +2,11 @@
 module Json.Experimental where
 
 import JavaScript as JS
-import Native.Json as Native
+import Native.Json (recordFromJSString, recordToPrettyJSString
 
-fromString s = Native.recordFromJSString (JS.fromString s)
-fromJSString = Native.recordFromJSString
+fromString s = recordFromJSString (JS.fromString s)
+fromJSString = recordFromJSString
 
-toString r = JS.toString (Native.recordToPrettyJSString "" r)
-toPrettyString sep r = JS.toString (Native.recordToPrettyJSString sep r)
-toJSString r = Native.recordToPrettyJSString "" r
+toString r = JS.toString (recordToPrettyJSString "" r)
+toPrettyString sep r = JS.toString (recordToPrettyJSString sep r)
+toJSString r = recordToPrettyJSString "" r

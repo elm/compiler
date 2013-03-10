@@ -53,6 +53,8 @@ Elm.Native.Utils = function(elm) {
   var Tuple0 = { ctor: "Tuple0" }
   function Tuple2(x,y) { return { ctor = "Tuple2", _0:x, _1:y } }
 
+  var count = 0;
+  function guid(_) { return count++ }
 
   function copy(r) {
     var o = {};
@@ -96,6 +98,7 @@ Elm.Native.Utils = function(elm) {
       copy: copy,
       remove: remove,
       replace: replace,
-      insert: insert
+      insert: insert,
+      guid: guid
   };
 };

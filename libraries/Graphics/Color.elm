@@ -6,7 +6,8 @@ module Graphics.Color (rgba,rgb,hsva,hsv,
                        maroon,navy,green,
                        teal,purple,
                        violet,forestGreen,
-                       black,white,gray,grey) where
+                       black,white,gray,grey,
+                       linear,radial) where
 
 import Native.Graphics.Color as C
 
@@ -39,11 +40,13 @@ purple  = Color 128  0  128 1
 forestGreen = Color 34 139 34 1
 violet = Color 238 130 238 1
 
-complement = C.complement
-hsva = C.hsva
-hsv = C.hsv
+complement : Color -> Color
+hsva : Int -> Float -> Float -> Float -> Color
+hsv : Int -> Float -> Float -> Color
 
 data Gradient
   = Linear [(Float,Color)] (Float,Float) (Float,Float)
   | Radial [(Float,Color)] (Float,Float) Float (Float,Float) Float
 
+linear = Linear
+radial = Radial
