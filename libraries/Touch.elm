@@ -13,9 +13,7 @@ type Touch = { x:Int, y:Int, id:Int, x0:Int, y0:Int, t0:Time }
 -- time of the initial contact (x0, y0, and t0) which helps compute more
 -- complicated gestures.
 touches : Signal [Touch]
-touches = Native.Touch.touches
 
 -- The last position that was tapped. Default value is `{x=0,y=0}`.
 -- Updates whenever the user taps the screen.
 taps : Signal { x:Int, y:Int }
-taps = Native.Touch.taps

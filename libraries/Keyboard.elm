@@ -4,7 +4,7 @@
 
 module Keyboard where
 
-import Native.Keyboard
+import Native.Keyboard as N
 
 type KeyCode = Int
 
@@ -15,26 +15,26 @@ type KeyCode = Int
 -- `{ x = 1, y = 1 }` when pressing the up and right arrows.
 -- `{ x = 0, y =-1 }` when pressing the down, left, and right arrows.
 arrows : Signal { x:Int, y:Int }
-arrows = Native.Keyboard.dir 37 39 38 40
+arrows = N.directions 37 39 38 40
 
 -- Just like the arrows signal, but this uses keys w, a, s, and d,
 -- which are common controls for many computer games.
 wasd : Signal { x:Int, y:Int }
-wasd = Native.Keyboard.dir 65 68 87 83
+wasd = N.directions 65 68 87 83
 
+directions : KeyCode -> KeyCode -> KeyCode -> KeyCode -> Signal { x:Int, y:Int }
 
 
 isDown : KeyCode -> Signal Bool
-isDown = Native.Keyboard.isDown
 
 -- Whether the shift key is pressed.
 shift : Signal Bool
-shift = Native.Keyboard.isDown 16
+shift = N.isDown 16
 
 -- Whether the control key is pressed.
 ctrl : Signal Bool
-ctrl = Native.Keyboard.isDown 17
+ctrl = N.isDown 17
 
 -- Whether the space key is pressed.
 space : Signal Bool
-space = Native.Keyboard.isDown 32
+space = N.isDown 32

@@ -6,7 +6,8 @@ module Set (empty,singleton,insert,remove
            ,toList,fromList
            ) where
 
-import Dict as Dict
+import Dict
+import List
 
 type Set t = Dict t ()
 
@@ -38,13 +39,13 @@ toList : Set t -> [t]
 toList = Dict.keys
 
 fromList : [t] -> Set t
-fromList = List.foldl (\k t -> Dict.insert k () t) empty
+fromList xs = List.foldl (\k t -> Dict.insert k () t) empty xs
 
 foldl : (a -> b -> b) -> b -> Set a -> b
-foldl f = Dict.foldl (\k _ b -> f k b)
+foldl f b s = Dict.foldl (\k _ b -> f k b) b s
 
 foldr : (a -> b -> b) -> b -> Set a -> b
-foldr f = Dict.foldr (\k _ b -> f k b)
+foldr f b s = Dict.foldr (\k _ b -> f k b) b s
 
 map : (a -> b) -> Set a -> Set b
-map f = fromList . List.map f . toList
+map f s = fromList (List.map f (toList s))

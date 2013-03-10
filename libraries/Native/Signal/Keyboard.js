@@ -34,6 +34,6 @@ Elm.Native.Keyboard = function(elm) {
 
   function is(key) { return keySignal(List.member(key)); }
 
-  return elm.Native.Keyboard = { isDown:is, dir:F4(dir) };
+  return elm.Native.Keyboard = { isDown:is, directions:F4(dir) };
 
 };
