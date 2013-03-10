@@ -1,5 +1,5 @@
-
-(function() {
+ElmRuntime = ElmRuntime || {};
+ElmRuntime.Render = function() {
 'use strict';
 
 function newElement(elementType) {
@@ -277,11 +277,11 @@ function update(node, curr, next) {
     }
 }
 
-Elm.Runtime = {
+return {
     render:render,
     update:update,
     addTo:addTo,
     newElement:newElement
 };
 
-}())
+}();
