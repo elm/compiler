@@ -5,7 +5,7 @@ Elm.Native.List = function(elm) {
   elm.Native = elm.Native || {};
   if (elm.Native.List) return elm.Native.List;
 
-  var eq = elm.Native.Utils(elm).eq;
+  var Utils = elm.Native.Utils(elm);
 
   var Nil = { ctor:'Nil' };
   function Cons(hd,tl) { return { ctor:"Cons", _0:hd, _1:tl }; }
@@ -143,13 +143,23 @@ Elm.Native.List = function(elm) {
   function member(x, xs) {
     var out = 0;
     while (xs.ctor === "Cons") {
-      if (eq(x,xs._0)) return true;
+      if (Utils.eq(x,xs._0)) return true;
       xs = xs._1;
     }
     return false;
   }
 
   function reverse(xs) { return fromArray(toArray(xs).reverse()); }
+
+  function concat(xss) {
+      if (xss.ctor === 'Nil') return xss;
+      var arr = toArray(xss);
+      var xs = arr[arr.length-1];
+      for (var i = arr.length-1; i--; ) {
+	  xs = append(arr[i], xs);
+      }
+      return xs;
+  }
    
   function all(pred, xs) {
     while (xs.ctor === "Cons") {
@@ -180,7 +190,7 @@ Elm.Native.List = function(elm) {
   function zip(xs, ys) {
     var arr = [];
     while (xs.ctor === "Cons" && ys.ctor === "Cons") {
-      arr.push({ ctor:'Tuple2', _0:xs._0, _1:ys._0 });
+      arr.push(Utils.Tuple2(xs._0, ys._0));
       xs = xs._1;
       ys = ys._1;
     }
@@ -188,7 +198,11 @@ Elm.Native.List = function(elm) {
   }
 
   function sort(xs) {
-    return fromArray(toArray(xs).sort(function(a,b) { return a - b}));
+    function cmp(a,b) {
+      var ord = Utils.compare(a,b);
+      return ord === 'EQ' ? 0 : ord === 'LT' ? -1 : 1;
+    }
+    return fromArray(toArray(xs).sort(cmp));
   }
   
   function take(n, xs) {
@@ -233,6 +247,7 @@ Elm.Native.List = function(elm) {
       length:length,
       member:member,
       reverse:reverse,
+      concat:concat,
 
       all:F2(all),
       any:F2(any),
