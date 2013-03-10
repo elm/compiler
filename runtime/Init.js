@@ -33,7 +33,7 @@ Elm.init = function(module, baseNode) {
 
   // create the actuall RTS. Any impure modules will attach themselves to this
   // object. This permits many Elm programs to be embedded per document.
-  var elm = { notify: notify, node: baseNode };
+  var elm = { notify: notify, node: baseNode, id: ElmRuntime.guid() };
 
   // evaluate the given module and extract its 'main' value.
   signalGraph = module(elm).main;
@@ -65,10 +65,24 @@ Elm.init = function(module, baseNode) {
   }
 
   signalGraph = A2(Signal.lift, domUpdate, signalGraph);
+
+  function send(name, value) {
+      var e = document.createEvent('Event');
+      e.initEvent(name + '_' + elm.id, true, true);
+      e.value = value;
+      document.dispatchEvent(e);
+  }
+  function recv(name, handler) {
+      document.addEventListener(name + '_' + elm.id, handler);
+  }
+
+  return { send : send, recv : recv };
 };
 
 // Helper function to filter dead inputs. Not specific to initialization.
 ElmRuntime = ElmRuntime || {};
+ElmRuntime.counter = 0;
+ElmRuntime.guid = function() { ++ElmRuntime.counter; return ElmRuntime.counter; }
 ElmRuntime.filterDeadInputs = function() {
   'use strict';
   function isAlive(input) {
