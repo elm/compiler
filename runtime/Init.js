@@ -48,7 +48,7 @@ Elm.init = function(module, baseNode) {
   // Add the visualModel to the DOM
   baseNode.appendChild(Render.render(visualModel));
 
-  if (p'Window' in elm) {
+  if ('Window' in elm) {
       var w = baseNode.clientWidth;
       if (w !== elm.Window.dimensions.value._0) {
 	  notify(elm.Window.dimensions.id,
