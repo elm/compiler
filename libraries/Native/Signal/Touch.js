@@ -7,7 +7,6 @@ Elm.Native.Touch = function(elm) {
 
   var Signal = Elm.Signal(elm);
   var JS = Elm.JavaScript(elm);
-  var Misc = Elm.Native.Misc(elm);
 
   function Dict() {
     this.keys = [];
@@ -65,11 +64,11 @@ Elm.Native.Touch = function(elm) {
       for (var i = e.changedTouches.length; i--; ) { f(e.changedTouches[i]); }
       var ts = new Array(e.touches.length);
       for (var i = e.touches.length; i--; ) { ts[i] = touch(e.touches[i]); }
-      var hasListener = Dispatcher.notify(root.id, ts);
-      if (!hasListener) return document.removeEventListener(name, update);
+      var hasListener = elm.notify(root.id, ts);
+      if (!hasListener) return elm.node.removeEventListener(name, update);
       e.preventDefault();
     }
-    Misc.addListener(document, name, update);
+    elm.node.addEventListener(name, update);
   }
 
   listen("touchstart", start);

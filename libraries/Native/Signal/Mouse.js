@@ -5,12 +5,12 @@ Elm.Native.Mouse = function(elm) {
   if (elm.Native.Mouse) return elm.Native.Mouse;
 
   var Signal = Elm.Signal(elm);
-  var Misc   = Elm.Native.Misc(elm);
+  var Utils = Elm.Native.Utils(elm);
 
-  var position  = Signal.constant(Misc.Tuple(0,0));
+  var position  = Signal.constant(Utils.Tuple2(0,0));
   position.defaultNumberOfKids = 2;
 
-  // do not get rid of x and y. By setting their default number
+  // do not move x and y into Elm. By setting their default number
   // of kids, it is possible to detatch the mouse listeners if
   // they are not needed.
   var x = A2( Signal.lift, function(p){return p._0}, position);
@@ -20,7 +20,7 @@ Elm.Native.Mouse = function(elm) {
 
   var isDown    = Signal.constant(false);
   var isClicked = Signal.constant(false);
-  var clicks = Signal.constant(Misc.Tuple0);
+  var clicks = Signal.constant(Utils.Tuple0);
   
   function getXY(e) {
     var posx = 0;
@@ -35,36 +35,36 @@ Elm.Native.Mouse = function(elm) {
 	posy = e.clientY + document.body.scrollTop +
 	  document.documentElement.scrollTop;
     }
-    return Misc.Tuple2(posx, posy);
+    return Utils.Tuple2(posx, posy);
   }
 
   function click(e) {
     var hasListener1 = elm.notify(isClicked.id, true);
-    var hasListener2 = elm.notify(clicks.id, Misc.Tuple0);
+    var hasListener2 = elm.notify(clicks.id, Utils.Tuple0);
     elm.notify(isClicked.id, false);
     if (!hasListener1 && !hasListener2)
-	this.removeEventListener('click',arguments.callee,false);
+	elm.node.removeEventListener('click', click);
   }
 
   function down(e) {
     var hasListener = elm.notify(isDown.id, true);
-    if (!hasListener) this.removeEventListener('mousedown',arguments.callee,false);
+    if (!hasListener) elm.node.removeEventListener('mousedown', down);
   }
 
   function up(e) {
     var hasListener = elm.notify(isDown.id, false);
-    if (!hasListener) this.removeEventListener('mouseup',arguments.callee,false);
+    if (!hasListener) elm.node.removeEventListener('mouseup', up);
   }
 
   function move(e) {
     var hasListener = elm.notify(position.id, getXY(e));
-    if (!hasListener) this.removeEventListener('mousemove',arguments.callee,false);
+    if (!hasListener) elm.node.removeEventListener('mousemove', move);
   }
 
-  Misc.addListener(elm.node, 'click'    , click);
-  Misc.addListener(elm.node, 'mousedown', down);
-  Misc.addListener(elm.node, 'mouseup'  , up);
-  Misc.addListener(elm.node, 'mousemove', move);
+  elm.node.addEventListener('click'    , click);
+  elm.node.addEventListener('mousedown', down);
+  elm.node.addEventListener('mouseup'  , up);
+  elm.node.addEventListener('mousemove', move);
 
   return elm.Native.Mouse = {
       position: position,

@@ -1,12 +1,15 @@
 
-/**
-module Native.Signal where
+Elm.Native.Signal = function(elm) {
+  'use strict';
 
-import Either
-import List
-**/
+  elm.Native = elm.Native || {};
+  if (elm.Native.Signal) return elm.Native.Signal;
+  
+  var Utils  = Elm.Native.Utils(elm);
+  var Either = Elm.Either(elm);
+  var foldl1 = Elm.List(elm).foldl1;
 
-(function() {
+
   function send(node, timestep, changed) {
     var kids = node.kids;
     for (var i = kids.length; i--; ) {
@@ -105,7 +108,7 @@ import List
     this.value = input.value;
     this.kids = [];
     this.recv = function(timestep, changed, parentID) {
-	var chng = changed && !Elm.Misc.eq(this.value,input.value);
+	var chng = changed && !Utils.eq(this.value,input.value);
 	if (chng) { this.value = input.value; }
 	send(this, timestep, chng);
     };
@@ -119,7 +122,7 @@ import List
   }
 
   function timestamp(a) {
-    function update() { return Elm.Misc.Tuple2(Date.now(), a.value) }
+    function update() { return Utils.Tuple2(Date.now(), a.value) }
     return new LiftN(update, [a]);
   }
 
@@ -187,9 +190,9 @@ import List
   }
 
   function merge(s1,s2) { return new Merge(s1,s2) }
-  function merges(ss) { return A2(Elm.List.foldl1, F2(merge), ss) }
-  function mergeEither(s1,s2) {return new Merge(A2(lift, Elm.Either.Left , s1),
-						A2(lift, Elm.Either.Right, s2))}
+  function merges(ss) { return A2(foldl1, F2(merge), ss) }
+  function mergeEither(s1,s2) {return new Merge(A2(lift, Either.Left , s1),
+						A2(lift, Either.Right, s2))}
 
   function average(sampleSize, s) {
     var sample = new Array(sampleSize);
@@ -208,7 +211,7 @@ import List
     return lift(f,s);pp
   }
 
-  Elm.Native.Signal = {
+  return elm.Native.Signal = {
     constant : function(v) { return new Input(v); },
     lift  : F2(lift ),
     lift2 : F3(lift2),
@@ -237,4 +240,4 @@ import List
     sampleOn : F2(sampleOn),
     timestamp : timestamp
   };
-}())
+};

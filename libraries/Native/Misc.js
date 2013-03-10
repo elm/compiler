@@ -2,32 +2,30 @@
 Elm.Native.Misc = function(elm) {
   'use strict';
 
+  elm.node.addEventListener('elm_log', function(e) { console.log(e.value); });
+  elm.node.addEventListener('elm_title', function(e) {document.title = e.value;});
+  elm.node.addEventListener('elm_redirect', function(e) {
+	  if (e.value.length > 0) { window.location = e.value; }
+      });
+  elm.node.addEventListener('elm_viewport', function(e) {
+	  var node = document.getElementById('elm_viewport');
+	  if (!node) {
+	      node = document.createElement('meta');
+	      node.id = 'elm_viewport';
+	      node.name = 'viewport';
+	      document.head.appendChild(node);
+	  }
+	  node.content = e.value;
+	  Dispatcher.notify(elm.Window.dimensions.id,
+			    Tuple2(window.innerWidth, window.innerHeight));
+      });
+
   var NativeList = Elm.Native.List(elm);
   var List = Elm.List(elm);
   var Maybe = Elm.Maybe(elm);
   var JS = Elm.JavaScript(elm);
   var Dict = Elm.Dict(elm);
   var Json = Elm.Json(elm);
-
-  function eq(x,y) {
-    if (x === y) return true;
-    if (typeof x === "object") {
-      if ('_' in x) {
-        for (var i in x) { if (!eq(x[i],y[i])) return false; }
-	for (var i in y) { if (!(i in x)) return false; }
-	return true;
-      }
-      if (x.ctor !== y.ctor) return false;
-      for (var i = x.length; i--; ) {
-	if (!eq(x[i],y[i])) return false;
-      }
-      return true;
-    }
-    return x === y;
-  }
-
-  var Tuple0 = { ctor: "Tuple0" }
-  function Tuple2(x,y) { return { ctor = "Tuple2", _0:x, _1:y } }
 
   function getTextSize(w,h,txt) {
     var t = document.createElement('div');

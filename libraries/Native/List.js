@@ -5,6 +5,8 @@ Elm.Native.List = function(elm) {
   elm.Native = elm.Native || {};
   if (elm.Native.List) return elm.Native.List;
 
+  var eq = elm.Native.Utils(elm).eq;
+
   var Nil = { ctor:'Nil' };
   function Cons(hd,tl) { return { ctor:"Cons", _0:hd, _1:tl }; }
 
@@ -141,7 +143,7 @@ Elm.Native.List = function(elm) {
   function member(x, xs) {
     var out = 0;
     while (xs.ctor === "Cons") {
-      if (Misc.eq(x,xs._0)) return true;
+      if (eq(x,xs._0)) return true;
       xs = xs._1;
     }
     return false;
