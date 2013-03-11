@@ -33,8 +33,9 @@ appendElm file = do
   removeFile jsFile
 
 main = do
-  writeFile "elm-runtime.js" "Elm = {}; Elm.Native = {};\n"
+  writeFile "elm-runtime.js" "Elm = {}; Elm.Native = {}; Elm.Native.Graphics = {}; Elm.Graphics = {};\n"
   mapM_ appendJS  =<< getFiles ".js"  "libraries"
   mapM_ appendElm =<< getFiles ".elm" "libraries"
   mapM_ appendJS  =<< getFiles ".js"  "runtime"
+  putStrLn "Success building runtime and libraries!"
   exitSuccess
