@@ -156,7 +156,7 @@ defaultGame = GameState BetweenRounds
 -- by keyboard input).
 
 stepPaddle delta dir (Paddle y) =
-  Paddle $ clamp 20 (gameHeight-20) (y + toFloat dir * 200 * delta)
+  Paddle $ clamp 20 (gameHeight-20) (y - toFloat dir * 200 * delta)
 
 
 -- We must also step the ball forward. This is more complicated due to
