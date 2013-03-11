@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 module GenerateHtml (generateHtml,
-                     body, css, widgetBody,
                      modulesToHtml, linkedHtml,
                      JSStyle (..)
                     ) where
@@ -19,10 +18,6 @@ import Ast
 import Initialize
 import CompileToJS
 import ExtractNoscript
-
-css = H.style ! A.type_ "text/css" $ preEscapedToMarkup
-      ("html,head,body { padding:0; margin:0; }\
-       \body { font-family: helvetica, arial, sans-serif; }" :: String)
 
 data JSStyle = Minified | Readable
 
@@ -51,38 +46,28 @@ generateHtml libLoc title source =
 
 
 modulesToHtml jsStyle title libLoc jss nscrpt modules =
-    createHtml jsStyle libLoc title' js noscript
+  createHtml jsStyle libLoc title' js noscript altTitle
     where
       js = Right $ jss ++ concatMap jsModule modules
       noscript = if nscrpt then extractNoscript $ last modules else ""
       title' = if null title then altTitle else title
-      altTitle = (\(Module names _ _ _) -> intercalate "." names) $ last modules
+      altTitle = intercalate "." names
+          where Module names _ _ _ = last modules
                   
 
 linkedHtml rtLoc jsLoc modules =
-    createHtml Readable rtLoc title (Left jsLoc) (H.noscript "")
+    createHtml Readable rtLoc title (Left jsLoc) (H.noscript "") title
     where
       title = (\(Module names _ _ _) -> intercalate "." names) (last modules)
 
 
-createHtml jsStyle libLoc title js noscript =
+createHtml jsStyle libLoc title js noscript moduleToLoad =
     H.docTypeHtml $ do 
       H.head $ do
         H.meta ! A.charset "UTF-8"
         H.title . H.toHtml $ title
-        css
       H.body $ do
         makeScript Readable (Left libLoc)
         makeScript jsStyle js
-        body noscript
-
-body noscript = do
-  H.div ! A.id "widthChecker" ! A.style "width:100%; height:1px; position:absolute; top:-1px;" $ ""
-  H.div ! A.id "content" $ ""
-  H.script ! A.type_ "text/javascript" $ "Dispatcher.initialize()"
-  H.noscript $ preEscapedToMarkup noscript
-
-widgetBody noscript = do
-  H.div ! A.id "widthChecker" ! A.style "width:100%; height:1px; position:absolute; top:-1px;" $ ""
-  H.div ! A.id "content" $ ""
-  H.noscript $ preEscapedToMarkup noscript
+        H.script ! A.type_ "text/javascript" $ "Elm.init(" ++ moduleToLoad ++ ")"
+        H.noscript $ preEscapedToMarkup noscript

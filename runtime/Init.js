@@ -28,6 +28,12 @@ Elm.init = function(module, baseNode) {
 	      baseNode.style.width  = document.documentElement.clientWidth + 'px';
 	      baseNode.style.height = document.documentElement.clientHeight + 'px';
 	  }, true);
+
+      var style = Render.newElement('style');
+      style.type = 'text/css';
+      style.innerHTML = "html,head,body { padding:0; margin:0; }" +
+	  "body { font-family: calibri, helvetica, arial, sans-serif; }";
+      document.head.appendChild(style);
   }
   baseNode.style.overflow = 'scroll';
 
