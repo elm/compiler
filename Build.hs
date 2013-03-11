@@ -1,5 +1,5 @@
 -- This file compiles all library and runtime code 
--- into elm-runtime.js. Use the following command to run it:
+-- into elm-runtime.js. Run it with following command:
 --
 --     runHaskell Build.hs
 --
@@ -8,6 +8,7 @@
 
 import System.Cmd
 import System.Directory
+import System.Exit
 import System.FilePath
 import System.IO
 import Language.Elm
@@ -36,4 +37,4 @@ main = do
   mapM_ appendJS  =<< getFiles ".js"  "libraries"
   mapM_ appendElm =<< getFiles ".elm" "libraries"
   mapM_ appendJS  =<< getFiles ".js"  "runtime"
-
+  exitSuccess
