@@ -4,7 +4,7 @@ module Graphics.LineStyle where
 import Graphics.Color
 
 data LineCap  = Butt  | Round | Square
-data LineJoin = Round | Bevel | Miter
+data LineJoin = Soft | Sharp | Clip
 
 type LineStyle = {
   color : Color,
@@ -26,6 +26,6 @@ default = {
   miterLimit = 10
  }
 
-solid clr = { default | color <- clr }
-dashed clr = { default | color <- clr, dashing = [8,4] }
-dotted clr = { default | color <- clr, dashing = [3,3] }
+solid  clr = { default | color <- clr }
+dashed clr = { default | color <- clr, dashing <- [8,4] }
+dotted clr = { default | color <- clr, dashing <- [3,3] }

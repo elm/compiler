@@ -2,7 +2,7 @@
 module Json.Experimental where
 
 import JavaScript as JS
-import Native.Json (recordFromJSString, recordToPrettyJSString
+import Native.Json (recordFromJSString, recordToPrettyJSString)
 
 fromString s = recordFromJSString (JS.fromString s)
 fromJSString = recordFromJSString
