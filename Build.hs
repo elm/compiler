@@ -1,8 +1,10 @@
--- This file compiles all Elm code then concatenates all JS code
+-- This file compiles all library and runtime code 
 -- into elm-runtime.js. Use the following command to run it:
 --
 --     runHaskell Build.hs
 --
+-- Note: This does NOT compile the compiler! Run `cabal install`
+-- from the compiler/ directory to do that.
 
 import System.Cmd
 import System.Directory
