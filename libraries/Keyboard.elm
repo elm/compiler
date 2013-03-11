@@ -38,3 +38,6 @@ ctrl = N.isDown 17
 -- Whether the space key is pressed.
 space : Signal Bool
 space = N.isDown 32
+
+keysDown : Signal [KeyCode]
+charPressed : Signal (Maybe Char)
