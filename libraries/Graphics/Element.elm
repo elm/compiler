@@ -9,10 +9,10 @@ module Graphics.Element (widthOf, heightOf, sizeOf,
                          midLeft, midRight, midTop, midBottom, middleAt,
                          topLeftAt, topRightAt, bottomLeftAt, bottomRightAt,
                          midLeftAt, midRightAt, midTopAt, midBottomAt,
-                         spacer
+                         spacer, newElement
                         ) where
 
-import Native.Utils (guid)
+import Native.Utils (guid, max)
 import JavaScript as JS
 import List as List
 import Graphics.Color as Color
@@ -73,8 +73,8 @@ spacer w h = newElement w h Spacer
 data Direction = DUp | DDown | DLeft | DRight | DIn | DOut
 
 flow dir es =
-  let ws = map widthOf es
-      hs = map heightOf es
+  let ws = List.map widthOf es
+      hs = List.map heightOf es
       newFlow w h = newElement w h (Flow dir es)
   in 
   case dir of
@@ -85,13 +85,13 @@ flow dir es =
     DIn    -> newFlow (List.maximum ws) (List.maximum hs)
     DOut   -> newFlow (List.maximum ws) (List.maximum hs)
 
-above hi lo = newElement (max (widthOf hi) (widthOf lo)) (heightOf hi + heightOf lo) (Flow DDown [hi,lo])
-below lo hi = newElement (max (widthOf hi) (widthOf lo)) (heightOf hi + heightOf lo) (Flow DDown [hi,lo])
-beside lft rht = newElement (widthOf lft + widthOf rht) (max (heightOf lft) (heightOf rht)) (Flow right [lft,rht])
+above hi lo = newElement (Utils.max (widthOf hi) (widthOf lo)) (heightOf hi + heightOf lo) (Flow DDown [hi,lo])
+below lo hi = newElement (Utils.max (widthOf hi) (widthOf lo)) (heightOf hi + heightOf lo) (Flow DDown [hi,lo])
+beside lft rht = newElement (widthOf lft + widthOf rht) (Utils.max (heightOf lft) (heightOf rht)) (Flow right [lft,rht])
 
 layers es = 
-  let ws = map widthOf es
-      hs = map heightOf es
+  let ws = List.map widthOf es
+      hs = List.map heightOf es
   in  newElement (List.maximum w) (List.maximum h) (Flow DOut es)
 
 

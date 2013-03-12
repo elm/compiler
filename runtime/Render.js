@@ -3,6 +3,8 @@ var ElmRuntime = ElmRuntime || {};
 ElmRuntime.Render = function() {
 'use strict';
 
+var fromList = Elm.JavaScript({}).fromList
+
 function newElement(elementType) {
     var e = document.createElement(elementType);    
     e.style.padding = "0";
@@ -119,8 +121,8 @@ function flowWith(f, array) {
 }
 
 function flow(dir,elist) {
-    var array = JS.fromList(elist);
-    switch(dir) {
+    var array = fromList(elist);
+    switch(dir.ctor) {
     case "DDown":  array.reverse();
     case "DUp":    return flowWith(goDown,array);
     case "DRight": array.reverse();
