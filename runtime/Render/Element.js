@@ -1,6 +1,5 @@
 
-var ElmRuntime = ElmRuntime || {};
-ElmRuntime.Render = function() {
+ElmRuntime.Render.Element = function() {
 'use strict';
 
 var fromList = Elm.JavaScript({}).fromList
@@ -14,13 +13,6 @@ function newElement(elementType) {
 
 function addTo(container, elem) {
     container.appendChild(elem);
-}
-
-function makeText(pos,txt) {
-    var e = newElement('div');
-    e.innerHTML = txt;
-    e.style.textAlign = pos;
-    return e;
 }
 
 function extract(c) {

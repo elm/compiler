@@ -31,7 +31,8 @@ appendElm file = do
   removeFile jsFile
 
 main = do
-  writeFile rts "Elm = {}; Elm.Native = {}; Elm.Native.Graphics = {}; Elm.Graphics = {};\n"
+  writeFile rts "Elm = {}; Elm.Native = {}; Elm.Native.Graphics = {};\n\
+                \Elm.Graphics = {}; ElmRuntime = {}; ElmRuntime.Render = {}\n"
   mapM_ appendJS  =<< getFiles ".js"  "libraries"
   mapM_ appendElm =<< getFiles ".elm" "libraries"
   mapM_ appendJS  =<< getFiles ".js"  "runtime"

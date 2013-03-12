@@ -19,7 +19,7 @@ Elm.init = function(module, baseNode) {
   }
 
   // ensure that baseNode exists and is properly formatted.
-  var Render = ElmRuntime.Render;
+  var Render = ElmRuntime.Render.Element;
   if (typeof baseNode === 'undefined') {
       baseNode = Render.newElement('div');
       document.body.appendChild(baseNode);
