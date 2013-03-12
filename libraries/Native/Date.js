@@ -27,8 +27,8 @@ Elm.Native.Date = function(elm) {
      hour    : function(d) { return d.getHours(); },
      minute  : function(d) { return d.getMinutes(); },
      second  : function(d) { return d.getSeconds(); },
-     toTime  : function(d) { return d.getTime(); }
-     dayOfWeek : function(d) { return { ctor:dayTable[d.getDay()] }; },
+     toTime  : function(d) { return d.getTime(); },
+     dayOfWeek : function(d) { return { ctor:dayTable[d.getDay()] }; }
  };
 
 };

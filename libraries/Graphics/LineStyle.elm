@@ -1,7 +1,7 @@
 
 module Graphics.LineStyle where
 
-import Graphics.Color
+import Graphics.Color as Color
 
 data LineCap  = Butt  | Round | Square
 data LineJoin = Soft | Sharp | Clip

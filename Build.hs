@@ -1,10 +1,6 @@
 -- This file compiles all library and runtime code 
--- into elm-runtime.js. Run it with following command:
---
---     runHaskell Build.hs
---
--- Note: This does NOT compile the compiler! Run `cabal install`
--- from the compiler/ directory to do that.
+-- into compiler/elm-runtime.js. It then rebuilds the compiler.
+-- Run it with the command "runHaskell Build.hs".
 
 import System.Cmd
 import System.Directory
@@ -12,6 +8,8 @@ import System.Exit
 import System.FilePath
 import System.IO
 import Language.Elm
+
+rts = "compiler" </> "elm-runtime.js"
 
 getFiles ext dir = do
   contents <- map (dir </>) `fmap` getDirectoryContents dir
@@ -24,7 +22,7 @@ appendJS file = do
   putStrLn (dropExtension file)
   str <- readFile file
   length str `seq` return ()
-  appendFile "elm-runtime.js" str
+  appendFile rts str
 
 appendElm file = do
   system ("elm --only-js " ++ file)
@@ -33,9 +31,12 @@ appendElm file = do
   removeFile jsFile
 
 main = do
-  writeFile "elm-runtime.js" "Elm = {}; Elm.Native = {}; Elm.Native.Graphics = {}; Elm.Graphics = {};\n"
+  writeFile rts "Elm = {}; Elm.Native = {}; Elm.Native.Graphics = {}; Elm.Graphics = {};\n"
   mapM_ appendJS  =<< getFiles ".js"  "libraries"
   mapM_ appendElm =<< getFiles ".elm" "libraries"
   mapM_ appendJS  =<< getFiles ".js"  "runtime"
-  putStrLn "Success building runtime and libraries!"
+  putStrLn "\n+------------------------------------------+\
+           \\n|  Success building runtime and libraries! |\
+           \\n+------------------------------------------+\n"
+  system ("cabal install compiler" </> "Elm.cabal")
   exitSuccess

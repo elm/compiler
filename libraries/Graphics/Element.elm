@@ -1,21 +1,22 @@
 
-module Grapics.Element (widthOf, heightOf, sizeOf,
-                        width, height, opacity, color, tag, link,
-                        image, fittedImage, croppedImage,
-                        flow, up, down, left, right, inward, outward,
-                        above, below, beside, layers,
-                        container, absolute, relative,
-                        middle, topLeft, topRight, bottomLeft, bottomRight,
-                        midLeft, midRight, midTop, midBottom, middleAt,
-                        topLeftAt, topRightAt, bottomLeftAt, bottomRightAt,
-                        midLeftAt, midRightAt, midTopAt, midBottomAt,
-                        spacer
-                       ) where
+module Graphics.Element (widthOf, heightOf, sizeOf,
+                         width, height, opacity, color, tag, link,
+                         image, fittedImage, croppedImage,
+                         flow, up, down, left, right, inward, outward,
+                         above, below, beside, layers,
+                         container, absolute, relative,
+                         middle, topLeft, topRight, bottomLeft, bottomRight,
+                         midLeft, midRight, midTop, midBottom, middleAt,
+                         topLeftAt, topRightAt, bottomLeftAt, bottomRightAt,
+                         midLeftAt, midRightAt, midTopAt, midBottomAt,
+                         spacer
+                        ) where
 
 import Native.Utils (guid)
 import JavaScript as JS
 import List as List
-import Graphics.Color
+import Graphics.Color as Color
+import Maybe (Just, Nothing)
 
 type Properties = {
   id      : Int,
@@ -36,15 +37,16 @@ sizeOf   e = (e.props.width, e.props.height)
 width   w e = let p = e.props in { element=e.element, props={p| width   <- w} }
 height  h e = let p = e.props in { element=e.element, props={p| height  <- h} }
 opacity o e = let p = e.props in { element=e.element, props={p| opacity <- o} }
-color   c e = let p = e.props in { element=e.element, props={p| color   <- c} }
+color   c e = let p = e.props in
+              { element=e.element, props={p| color <- Just c} }
 tag  name e = let p = e.props in
-              { element=e.element, props={p| tag  <- JS.fromString name} }
+              { element=e.element, props={p| tag   <- JS.fromString name} }
 link href e = let p = e.props in
-              { element=e.element, props={p| href <- JS.fromString href} }
+              { element=e.element, props={p| href  <- JS.fromString href} }
 
 emptyStr = JS.fromString ""
 newElement w h e =
-  { props = Properties (guid ()) w h 1 NoFill emptyStr emptyStr, element = e }
+  { props = Properties (guid ()) w h 1 Nothing emptyStr emptyStr, element = e }
 
 data ElementPrim
   = Image ImageStyle Int Int JSString

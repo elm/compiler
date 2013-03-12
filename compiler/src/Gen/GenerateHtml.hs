@@ -35,13 +35,13 @@ makeScript jsStyle (Right s) =
 --  Usage example:
 --
 -- > generateHtml "/elm-min.js" "Some title" [elmFile|elm-source/somePage.elm|]
-generateHtml :: String -- ^ Location of elm-min.js as expected by the browser
+generateHtml :: String -- ^ Location of elm-runtime.js as expected by the browser
              -> String -- ^ The page title
              -> String -- ^ The elm source code.
              -> Html
 generateHtml libLoc title source =
     case buildFromSource source of
-      Left err -> createHtml Readable libLoc title (Right $ showErr err) (H.noscript "")
+      Left err -> createHtml Readable libLoc title (Right $ showErr err) (H.noscript "") "Elm.Main"
       Right modul -> modulesToHtml Readable title libLoc [] True [modul]
 
 
@@ -69,5 +69,5 @@ createHtml jsStyle libLoc title js noscript moduleToLoad =
       H.body $ do
         makeScript Readable (Left libLoc)
         makeScript jsStyle js
-        H.script ! A.type_ "text/javascript" $ "Elm.init(" ++ moduleToLoad ++ ")"
+        H.script ! A.type_ "text/javascript" $ preEscapedToMarkup ("Elm.init(Elm." ++ moduleToLoad ++ ")" :: String)
         H.noscript $ preEscapedToMarkup noscript

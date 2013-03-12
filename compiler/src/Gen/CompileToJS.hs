@@ -28,7 +28,7 @@ indent = concatMap f
 
 internalImports =
     [ ("N" , "Elm.Native"),
-      ("_" , "N.Utils(elm)"),
+      ("_N", "N.Utils(elm)"),
       ("_L", "N.List(elm)"),
       ("_E", "N.Error(elm)"),
       ("_str", "N.JavaScript(elm).toString")
@@ -53,7 +53,7 @@ globalAssign n e = "\n" ++ assign' n e ++ ";"
 assign' n e = n ++ " = " ++ e
 
 jsModule (Module names exports imports stmts) =
- setup ++ globalAssign ("Elm." ++ modName) (jsFunc "elm" program)
+ setup ("Elm":modNames) ++ globalAssign ("Elm." ++ modName) (jsFunc "elm" program)
   where
     modNames = if null names then ["Main"] else names
     modName  = intercalate "." modNames
@@ -61,12 +61,12 @@ jsModule (Module names exports imports stmts) =
     body = stmtsToJS stmts
     defs = assign "$op" "{}"
     program = "\nvar " ++ usefulFuncs ++ ";" ++ defs ++ includes ++ body ++
-              "\n_ = " ++ "elm.Native." ++ modName ++ " || {};" ++
-              getExports exports stmts ++
+              setup ("elm":"Native":modNames) ++
+              assign "_" ("elm.Native." ++ modName ++ " || {}") ++
+              getExports exports stmts ++ setup ("elm":modNames) ++
               ret (assign' ("elm." ++ modName) "_") ++ "\n"
-    setup = concatMap (\n -> globalAssign n $ n ++ " || {}") .
-            map (intercalate ".") . tail . inits $
-            take (length modNames - 1) modNames
+    setup modNames = concatMap (\n -> globalAssign n $ n ++ " || {}") .
+                     map (intercalate ".") . tail . inits $ init modNames
     usefulFuncs = intercalate ", " (map (uncurry assign') internalImports)
 
 getExports names stmts = "\n"++ intercalate ";\n" (op : map fnPair fns)
@@ -157,14 +157,7 @@ instance ToJS Statement where
                         , "e.value = v;"
                         , "document.dispatchEvent(e); return v; })(", elm, ");" ]
       TypeAnnotation _ _ -> return ""
-      TypeAlias n _ t ->
-          case t of
-            RecordT kvs _ -> return $ "\nfunction" ++ args ++ brackets body
-                where fs = Map.keys kvs
-                      args = parens (intercalate "," fs)
-                      body = ret . brackets . intercalate "," $
-                             map (\k -> k ++ ":" ++ k) fs
-            _ -> return ""
+      TypeAlias n _ t -> return ""
 
 toJS' :: CExpr -> GuidCounter String
 toJS' (C txt span expr) =
@@ -173,9 +166,9 @@ toJS' (C txt span expr) =
       Case e cases -> caseToJS span e cases
       _ -> toJS expr
 
-remove x e = "_.remove('" ++ x ++ "', " ++ e ++ ")"
-addField x v e = "_.insert('" ++ x ++ "', " ++ v ++ ", " ++ e ++ ")"
-setField fs e = "_.replace(" ++ jsList (map f fs) ++ ", " ++ e ++ ")"
+remove x e = "_N.remove('" ++ x ++ "', " ++ e ++ ")"
+addField x v e = "_N.insert('" ++ x ++ "', " ++ v ++ ", " ++ e ++ ")"
+setField fs e = "_N.replace(" ++ jsList (map f fs) ++ ", " ++ e ++ ")"
     where f (x,v) = "['" ++ x ++ "'," ++ v ++ "]"
 access x e = parens e ++ "." ++ x
 makeRecord kvs = record `liftM` collect kvs
@@ -305,7 +298,7 @@ clauseToJS span var (Clause name vars e) = do
 jsNil         = "_L.Nil"
 jsCons  e1 e2 = "_L.Cons(" ++ e1 ++ "," ++ e2 ++ ")"
 jsRange e1 e2 = "_L.range" ++ parens (e1 ++ "," ++ e2)
-jsCompare e1 e2 op = parens ("_.compare(" ++ e1 ++ "," ++ e2 ++ ").ctor" ++ op)
+jsCompare e1 e2 op = parens ("_N.compare(" ++ e1 ++ "," ++ e2 ++ ").ctor" ++ op)
 
 binop (o:p) e1 e2
     | isAlpha o || '_' == o = (o:p) ++ parens e1 ++ parens e2
@@ -317,8 +310,8 @@ binop (o:p) e1 e2
           "$"  -> e1 ++ parens e2
           "."  -> jsFunc "x" . ret $ e1 ++ parens (e2 ++ parens "x")
           "^"  -> "Math.pow(" ++ e1 ++ "," ++ e2 ++ ")"
-          "==" -> "_.eq(" ++ e1 ++ "," ++ e2 ++ ")"
-          "/=" -> "!_.eq(" ++ e1 ++ "," ++ e2 ++ ")"
+          "==" -> "_N.eq(" ++ e1 ++ "," ++ e2 ++ ")"
+          "/=" -> "!_N.eq(" ++ e1 ++ "," ++ e2 ++ ")"
           "<"  -> jsCompare e1 e2 "==='LT'"
           ">"  -> jsCompare e1 e2 "==='GT'"
           "<=" -> jsCompare e1 e2 "!=='GT'"

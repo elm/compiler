@@ -5,7 +5,7 @@ Elm.Native.List = function(elm) {
   elm.Native = elm.Native || {};
   if (elm.Native.List) return elm.Native.List;
 
-  var Utils = elm.Native.Utils(elm);
+  var Utils = Elm.Native.Utils(elm);
 
   var Nil = { ctor:'Nil' };
   function Cons(hd,tl) { return { ctor:"Cons", _0:hd, _1:tl }; }

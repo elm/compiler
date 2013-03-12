@@ -47,7 +47,7 @@ elm = ELM { make = False &= help "automatically compile dependencies."
 
 main = do
   args <- cmdArgs elm
-  mini <- getDataFileName ("elm-runtime-" ++ showVersion version ++ ".js")
+  mini <- getDataFileName "elm-runtime.js"
   compileArgs mini args
 
 compileArgs mini (ELM _ [] _ _ _ _ _ _ _) =

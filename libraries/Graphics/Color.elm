@@ -9,8 +9,6 @@ module Graphics.Color (rgba,rgb,hsva,hsv,
                        black,white,gray,grey,
                        linear,radial) where
 
-import Native.Graphics.Color as C
-
 data Color = Color Int Int Int Float
 
 rgba = Color

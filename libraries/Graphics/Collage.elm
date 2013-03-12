@@ -2,7 +2,7 @@
 module Graphics.Collage where
 
 import Either
-import Graphics.LineStyle
+import Graphics.LineStyle as LS
 import Geometry
 
 data Transform

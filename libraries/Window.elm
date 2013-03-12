@@ -1,8 +1,6 @@
 
 module Window where
 
-import Native.Window
-
 -- The current dimensions of the window (i.e. the area viewable to the
 -- user, not including scroll bars).
 dimensions : Signal (Int,Int)

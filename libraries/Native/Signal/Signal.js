@@ -18,7 +18,7 @@ Elm.Native.Signal = function(elm) {
   }
 
   function Input(base) {
-    this.id = Guid.guid();
+    this.id = Utils.guid();
     this.value = base;
     this.kids = [];
     this.defaultNumberOfKids = 0;
@@ -28,11 +28,11 @@ Elm.Native.Signal = function(elm) {
       send(this, timestep, changed);
       return changed;
     };
-    Dispatcher.inputs.push(this);
+    elm.inputs.push(this);
   }
 
   function LiftN(update, args) {
-    this.id = Guid.guid();
+    this.id = Utils.guid();
     this.value = update();
     this.kids = [];
 
@@ -92,7 +92,7 @@ Elm.Native.Signal = function(elm) {
   }
 
   function dropIf(pred,base,input) {
-    this.id = Guid.guid();
+    this.id = Utils.guid();
     this.value = pred(input.value) ? base : input.value;
     this.kids = [];
     this.recv = function(timestep, changed, parentID) {
@@ -104,7 +104,7 @@ Elm.Native.Signal = function(elm) {
   }
 
   function dropRepeats(input) {
-    this.id = Guid.guid();
+    this.id = Utils.guid();
     this.value = input.value;
     this.kids = [];
     this.recv = function(timestep, changed, parentID) {
@@ -127,7 +127,7 @@ Elm.Native.Signal = function(elm) {
   }
 
   function SampleOn(s1,s2) {
-    this.id = Guid.guid();
+    this.id = Utils.guid();
     this.value = s2.value;
     this.kids = [];
     
@@ -155,14 +155,14 @@ Elm.Native.Signal = function(elm) {
       var firstEvent = true;
       function update(v) {
 	  if (firstEvent) { firstEvent = false; return; }
-	  setTimeout(function() { Dispatcher.notify(delayed.id, v) }, t);
+	  setTimeout(function() { elm.notify(delayed.id, v) }, t);
       }
       function first(a,b) { return a }
       return new SampleOn(delayed, lift2(F2(first), delayed, lift(update,s)));
   }
   
   function Merge(s1,s2) {
-      this.id = Guid.guid();
+      this.id = Utils.guid();
       this.value = s1.value;
       this.kids = [];
     
@@ -223,7 +223,7 @@ Elm.Native.Signal = function(elm) {
     lift8 : F9(lift8),
     foldp : F3(foldp),
     delay : delay,
-    merge : F2(merge)
+    merge : F2(merge),
     merges : merges,
     mergeEither : F2(mergeEither),
     average : F2(average),

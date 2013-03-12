@@ -2,6 +2,7 @@
 Elm.Native.Show = function(elm) {
   'use strict';
 
+  elm.Native = elm.Native || {};
   if (elm.Native.Show) return elm.Native.Show;
 
   var NList = Elm.Native.List(elm);
@@ -73,8 +74,8 @@ Elm.Native.Show = function(elm) {
 	} else if (v.ctor === "Nil") {
 	    return "[]";
 	} else if (v.ctor === "RBNode" || v.ctor === "RBEmpty") {
-	    function cons(k){ return function(v) { return function(acc) { return NList.Cons(Tuple2(k,v),acc); }; }; }
-	    var list = Dict.foldr(cons)(NList.Nil)(v);
+	    var cons = F3(function(k,v,acc){return NList.Cons(Tuple2(k,v),acc)});
+	    var list = A3(Dict.foldr, cons, NList.Nil, v);
 	    var name = "Dict";
 	    if (list.ctor === "Cons" && list._0._1.ctor === "Tuple0") {
 		name = "Set";

@@ -4,6 +4,8 @@ Elm.Native.Error = function(elm) {
     elm.Native = elm.Native || {};
     if (elm.Native.Error) return elm.Native.Error;
 
+    var fromString = Elm.Native.JavaScript(elm).fromString;
+
     function Case(span) { 
 	var msg = 'Non-exhaustive pattern match in case expression'
 	throw new Error(msg + " (" + span + ")")
@@ -14,5 +16,7 @@ Elm.Native.Error = function(elm) {
 	throw new Error(msg + " (" + span + ")")
     }
 
-    return elm.Native.Error = { Case: Case, If: If };
+    function raise(str) { throw new Error(fromString(str)); }
+
+    return elm.Native.Error = { Case: Case, If: If, raise: raise };
 };

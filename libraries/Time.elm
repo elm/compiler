@@ -3,8 +3,6 @@
 
 module Time where
 
-import Native.Time
-
 type Time = Float
 
 -- Units of time, making it easier to specify things like a

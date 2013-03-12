@@ -1,14 +1,12 @@
 
-Elm.Native.Color = function(elm) {
+
+Elm.Native.Graphics.Color = function(elm) {
  "use strict";
 
  elm.Native = elm.Native || {};
- if (elm.Native.Color) return elm.Native.Color;
+ elm.Native.Graphics = elm.Native.Graphics || {};
+ if (elm.Native.Graphics.Color) return elm.Native.Graphics.Color;
 
- function extract(c) {
-  if (c._3 === 1) { return 'rgb(' + c._0 + ',' + c._1 + ',' + c._2 + ')'; }
-  return 'rgba(' + c._0 + ',' + c._1 + ',' + c._2 + ',' + c._3 + ')';
- }
  function complement(rgb) {
   var hsv = toHSV(rgb);
   hsv.hue = (hsv.hue + 180) % 360;
@@ -59,11 +57,10 @@ Elm.Native.Color = function(elm) {
   return { ctor:"Color", _0:norm(r+m), _1:norm(g+m), _2:norm(b+m), _3:1 };
  }
 
- return elm.Native.Color = {
+ return elm.Native.Graphics.Color = {
     hsva:F4(hsva),
     hsv:F3(hsv),
-    complement:complement,
-    extract:extract
+    complement:complement
  };
 
 };

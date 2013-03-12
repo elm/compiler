@@ -2,6 +2,9 @@
 Elm.Native.Utils = function(elm) {
   'use strict';
 
+  elm.Native = elm.Native || {};
+  if (elm.Native.Utils) return elm.Native.Utils;
+
   function eq(x,y) {
     if (x === y) return true;
     if (typeof x === "object") {
@@ -50,8 +53,8 @@ Elm.Native.Utils = function(elm) {
   }
 
 
-  var Tuple0 = { ctor: "Tuple0" }
-  function Tuple2(x,y) { return { ctor = "Tuple2", _0:x, _1:y } }
+  var Tuple0 = { ctor: "Tuple0" };
+  function Tuple2(x,y) { return { ctor:"Tuple2", _0:x, _1:y } }
 
   var count = 0;
   function guid(_) { return count++ }
@@ -77,7 +80,7 @@ Elm.Native.Utils = function(elm) {
   function replace(kvs,r) {
     var o = copy(r);
     for (var i = kvs.length; i--; ) {
-	kvsi = kvs[i];
+	var kvsi = kvs[i];
 	o[kvsi[0]] = kvsi[1];
     }
     return o;
@@ -90,6 +93,9 @@ Elm.Native.Utils = function(elm) {
     return o;
   }
 
+  function max(a,b) { return a > b ? a : b }
+  function min(a,b) { return a < b ? a : b }
+
   return elm.Native.Utils = {
       eq:eq,
       compare:compare,
@@ -99,6 +105,8 @@ Elm.Native.Utils = function(elm) {
       remove: remove,
       replace: replace,
       insert: insert,
-      guid: guid
+      guid: guid,
+      max : F2(max),
+      min : F2(min)
   };
 };

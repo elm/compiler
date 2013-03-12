@@ -1,4 +1,5 @@
-ElmRuntime = ElmRuntime || {};
+
+var ElmRuntime = ElmRuntime || {};
 ElmRuntime.Render = function() {
 'use strict';
 
@@ -20,12 +21,17 @@ function makeText(pos,txt) {
     return e;
 }
 
+function extract(c) {
+    if (c._3 === 1) { return 'rgb(' + c._0 + ',' + c._1 + ',' + c._2 + ')'; }
+    return 'rgba(' + c._0 + ',' + c._1 + ',' + c._2 + ',' + c._3 + ')';
+}
+
 function setProps(props, e) {
     e.style.width  = (props.width |0) + 'px';
     e.style.height = (props.height|0) + 'px';
     if (props.opacity !== 1) { e.style.opacity = props.opacity; }
     if (props.color.ctor === 'Just') {
-	e.style.backgroundColor = Elm.Color.extract(props.color._0);
+	e.style.backgroundColor = extract(props.color._0);
     }
     if (props.tag !== '') { e.id = props.tag; }
     if (props.href !== '') {
@@ -262,7 +268,7 @@ function update(node, curr, next) {
 	e.style.opacity = props.opacity;
     }
     var nextColor = (props.color.ctor === 'Just' ?
-		     Elm.Color.extract(props.color._0) : 'transparent');
+		     extract(props.color._0) : 'transparent');
     if (e.style.backgroundColor !== nextColor) e.style.backgroundColor = nextColor;
     if (props.tag !== currP.tag) { e.id = props.tag; }
     if (props.href !== currP.href) {

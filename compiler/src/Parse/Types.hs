@@ -9,6 +9,7 @@ import Data.List (lookup)
 import Text.Parsec
 import Text.Parsec.Indent
 
+import Context
 import Parse.Library
 import Types.Types hiding (string,parens)
 import Guid
@@ -70,8 +71,9 @@ typeConstructor :: IParser (String, [ParseType])
 typeConstructor = (,) <$> (capVar <?> "another type constructor")
                       <*> spacePrefix (typeSimple <|> typeUnambiguous)
 
-typeAlias :: IParser Statement
+typeAlias :: IParser [Statement]
 typeAlias = do
+  start <- getPosition
   reserved "type" <?> "type alias (type Point = {x:Int, y:Int})"
   forcedWS
   alias <- capVar
@@ -79,9 +81,21 @@ typeAlias = do
   whitespace ; string "=" ; whitespace
   let n = length args
   tipe <- typeExpr
+  end <- getPosition
   case toTypeWith alias (zip args [1..n]) tipe of
-    Right t -> return (TypeAlias alias [1..n] t)
     Left msg -> fail msg
+    Right t -> return (TypeAlias alias [1..n] t : ctor)
+        where ctor = case tipe of
+                       RecordPT _ kvs -> [toConstructor start end alias kvs]
+                       _ -> []
+
+toConstructor start end alias kvs =
+    Definition (FnDef alias args (ctxt (Record rec)))
+  where
+    ctxt = pos start end
+    args = map fst kvs
+    rec = map (\a -> (a, [], ctxt (Var a))) args
+
 
 typeAnnotation :: IParser Statement
 typeAnnotation = TypeAnnotation <$> try start <*> (toType <$> typeExpr)

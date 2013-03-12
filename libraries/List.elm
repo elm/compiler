@@ -1,6 +1,7 @@
 
 module List where
 
+import Native.Utils (min, max)
 import Native.List as L
 
 head : [a] -> a

@@ -22,7 +22,7 @@ Elm.init = function(module, baseNode) {
   var Render = ElmRuntime.Render;
   if (typeof baseNode === 'undefined') {
       baseNode = Render.newElement('div');
-      document.appendChild(baseNode);
+      document.body.appendChild(baseNode);
       window.addEventListener('resize', function() {
 	      console.log('resize the base node');
 	      baseNode.style.width  = document.documentElement.clientWidth + 'px';
@@ -35,11 +35,10 @@ Elm.init = function(module, baseNode) {
 	  "body { font-family: calibri, helvetica, arial, sans-serif; }";
       document.head.appendChild(style);
   }
-  baseNode.style.overflow = 'scroll';
 
   // create the actuall RTS. Any impure modules will attach themselves to this
   // object. This permits many Elm programs to be embedded per document.
-  var elm = { notify: notify, node: baseNode, id: ElmRuntime.guid() };
+  var elm = { notify: notify, node: baseNode, id: ElmRuntime.guid(), inputs: inputs };
 
   // evaluate the given module and extract its 'main' value.
   signalGraph = module(elm).main;

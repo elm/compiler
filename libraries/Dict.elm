@@ -9,7 +9,7 @@ module Dict (empty,singleton,insert
             ) where
 
 import Maybe as Maybe
-import JavaScript as JavaScript
+import Native.Error as Error
 
 data NColor = Red | Black
 
@@ -17,8 +17,6 @@ data RBTree k v = RBNode NColor k v (RBTree k v) (RBTree k v) | RBEmpty
 
 empty : RBTree k v
 empty = RBEmpty
-
-raise err = throw (JavaScript.castStringToJSString err)
 
 {-- Helpers for checking invariants
 
@@ -104,14 +102,14 @@ min t =
   case t of 
     RBNode _ k v RBEmpty _ -> (k,v)
     RBNode _ _ _ l _ -> min l
-    RBEmpty -> raise "(min RBEmpty) is not defined"
+    RBEmpty -> Error.raise "(min RBEmpty) is not defined"
 
 {--
 max t =
   case t of 
   { RBNode _ k v _ RBEmpty -> (k,v)
   ; RBNode _ _ _ _ r -> max r
-  ; RBEmpty -> raise "(max RBEmpty) is not defined"
+  ; RBEmpty -> Error.raise "(max RBEmpty) is not defined"
   }
 --}
 
@@ -138,7 +136,7 @@ findWithDefault base k t =
 {--
 find k t =
  case t of
- { RBEmpty -> raise "Key was not found in dictionary!"
+ { RBEmpty -> Error.raise "Key was not found in dictionary!"
  ; RBNode _ k' v l r ->
     case compare k k' of
     { LT -> find k l
@@ -155,7 +153,7 @@ rotateLeft : RBTree k v -> RBTree k v
 rotateLeft t =
  case t of
    RBNode cy ky vy a (RBNode cz kz vz b c) -> RBNode cy kz vz (RBNode Red ky vy a b) c
-   _ -> raise "rotateLeft of a node without enough children"
+   _ -> Error.raise "rotateLeft of a node without enough children"
 
 -- rotateRight -- the reverse, and 
 -- makes Y have Z's color, and makes Z Red.
@@ -163,7 +161,7 @@ rotateRight : RBTree k v -> RBTree k v
 rotateRight t =
  case t of
    RBNode cz kz vz (RBNode cy ky vy a b) c -> RBNode cz ky vy a (RBNode Red kz vz b c)
-   _ -> raise "rotateRight of a node without enough children"
+   _ -> Error.raise "rotateRight of a node without enough children"
 
 rotateLeftIfNeeded : RBTree k v -> RBTree k v
 rotateLeftIfNeeded t =
@@ -186,7 +184,7 @@ color_flip t =
        RBNode (otherColor c1) bk bv
               (RBNode (otherColor c2) ak av la ra)
               (RBNode (otherColor c3) ck cv lc rc)
-   _ -> raise "color_flip called on a RBEmpty or RBNode with a RBEmpty child"
+   _ -> Error.raise "color_flip called on a RBEmpty or RBNode with a RBEmpty child"
 
 color_flipIfNeeded : RBTree k v -> RBTree k v
 color_flipIfNeeded t = 
@@ -217,10 +215,10 @@ insert k v t =
   in  ensureBlackRoot (ins t)
 {--
       if not (invariants_hold t) then
-          raise "invariants broken before insert"
+          Error.raise "invariants broken before insert"
       else (let new_t = ensureBlackRoot (ins t) in
             if not (invariants_hold new_t) then
-                raise "invariants broken after insert"
+                Error.raise "invariants broken after insert"
             else new_t)
 --}
 
@@ -311,14 +309,14 @@ remove k t =
       eq t = case t of { RBNode _ k' _ _ _ -> k == k' ; _ -> False }
       delLT t = case moveRedLeftIfNeeded t of 
                   RBNode c k' v l r -> fixUp (RBNode c k' v (del l) r)
-                  RBEmpty -> raise "delLT on RBEmpty"
+                  RBEmpty -> Error.raise "delLT on RBEmpty"
       delEQ t = case t of -- Replace with successor
                   RBNode c _ _ l r -> let (k',v') = min r in
                                       fixUp (RBNode c k' v' l (deleteMin r))
-                  RBEmpty -> raise "delEQ called on a RBEmpty"
+                  RBEmpty -> Error.raise "delEQ called on a RBEmpty"
       delGT t = case t of
                   RBNode c k' v l r -> fixUp (RBNode c k' v l (del r))
-                  RBEmpty -> raise "delGT called on a RBEmpty"
+                  RBEmpty -> Error.raise "delGT called on a RBEmpty"
       del t = case t of 
                 RBEmpty -> RBEmpty
                 RBNode _ k' _ _ _ ->
@@ -330,10 +328,10 @@ remove k t =
   in  if member k t then ensureBlackRoot (del t) else t
 {--
       if not (invariants_hold t) then
-          raise "invariants broken before remove"
+          Error.raise "invariants broken before remove"
       else (let t' = ensureBlackRoot (del t) in
             if invariants_hold t' then t' else
-                raise "invariants broken after remove")
+                Error.raise "invariants broken after remove")
 --}
 
 map : (a -> b) -> RBTree k a -> RBTree k b

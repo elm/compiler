@@ -3,7 +3,7 @@
 
 module Touch where
 
-import Native.Touch
+import Native.Touch as T
 
 type Touch = { x:Int, y:Int, id:Int, x0:Int, y0:Int, t0:Time }
 

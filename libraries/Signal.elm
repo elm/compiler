@@ -1,9 +1,7 @@
 
 module Signal where
 
-import Either
-import Time
-import Native.Signal
+import Native.Signal as Native
 
 constant : a -> Signal a
 
