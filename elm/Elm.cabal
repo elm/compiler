@@ -123,3 +123,32 @@ Executable elm
                        hjsmin,
                        indents,
                        filepath
+
+
+test-suite Main
+  type:                exitcode-stdio-1.0
+  x-uses-tf:           true
+
+  build-depends:       base >=4.2 && <5,
+                       containers >= 0.3,
+                       transformers >= 0.2,
+                       mtl >= 2,
+                       parsec >= 3.1.1,
+                       blaze-html == 0.5.*,
+                       blaze-markup == 0.5.1.*,
+                       deepseq,
+                       text,
+                       template-haskell,
+                       shakespeare >= 1,
+                       pandoc >= 1.10,
+                       bytestring,
+                       hjsmin,
+                       indents,
+                       filepath,
+
+                       QuickCheck >= 2.4,
+                       test-framework >= 0.4.1,
+                       test-framework-quickcheck2
+
+  hs-source-dirs:      src, tests
+  main-is:             Main.hs
