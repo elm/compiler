@@ -1,7 +1,7 @@
 
 module Window where
 
-import Native.Mouse
+import Native.Window as W
 
 -- The current dimensions of the window (i.e. the area viewable to the
 -- user, not including scroll bars).

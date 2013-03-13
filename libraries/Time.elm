@@ -3,7 +3,7 @@
 
 module Time where
 
-import Native.Time
+import Native.Time as T
 
 type Time = Float
 
