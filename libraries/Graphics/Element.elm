@@ -101,7 +101,7 @@ beside lft rht = newElement (widthOf lft + widthOf rht) (max (heightOf lft) (hei
 layers es = 
   let ws = List.map widthOf es
       hs = List.map heightOf es
-  in  newElement (List.maximum w) (List.maximum h) (Flow DOut es)
+  in  newElement (List.maximum ws) (List.maximum hs) (Flow DOut es)
 
 
 -- Repetitive things --
