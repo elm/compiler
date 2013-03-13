@@ -148,7 +148,8 @@ test-suite Main
 
                        QuickCheck >= 2.4,
                        test-framework >= 0.4.1,
-                       test-framework-quickcheck2
+                       test-framework-quickcheck2,
+                       regex-compat
 
   hs-source-dirs:      src, tests
   main-is:             Main.hs
