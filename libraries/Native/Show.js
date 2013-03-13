@@ -55,8 +55,8 @@ Elm.Native.Show = function(elm) {
 	return "{ " + output.join(", ") + " }";
     } else if ('ctor' in v) {
 	if (v.ctor.substring(0,5) === "Tuple") {
-	    var output = new Array(v.length-1);
-	    for (var i = v.length; --i; ) { output[i-1] = toString(v[i]); }
+	    var output = [];
+	    for (var k in v) { if (k === 'ctor') continue; output.push(toString(v[k])); }
 	    return "(" + output.join(",") + ")";
 	} else if (v.ctor === "Cons") {
 	    var isStr = typeof v._0 === "string";

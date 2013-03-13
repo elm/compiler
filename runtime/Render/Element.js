@@ -2,7 +2,8 @@
 ElmRuntime.Render.Element = function() {
 'use strict';
 
-var fromList = Elm.JavaScript({}).fromList
+var fromList = Elm.JavaScript({}).fromList;
+var eq = Elm.Native.Utils({}).eq;
 
 function newElement(elementType) {
     var e = document.createElement(elementType);    
@@ -41,7 +42,7 @@ function image(props, img) {
   switch (img._0.ctor) {
   case 'Plain':   return plainImage(img._3);
   case 'Fitted':  return fittedImage(props.width, props.height, img._3);
-  case 'Cropped': return croppedImage(img._0._0,props.width,props.height,img._3);
+  case 'Cropped': return croppedImage(img,props.width,props.height,img._3);
   }
 }
 
@@ -80,7 +81,8 @@ function fittedImage(w, h, src) {
     return e;
 }
 
-function croppedImage(pos, w, h, src) {
+function croppedImage(elem, w, h, src) {
+    var pos = elem._0._0;
     var e = newElement('div');
     e.style.position = "relative";
     e.style.overflow = "hidden";
@@ -89,11 +91,11 @@ function croppedImage(pos, w, h, src) {
     img.onload = function() {
 	img.style.position = 'absolute';
 	img.style.margin = 'auto';
-	var sw = dimensions.width / w, sh = dimensions.height / h;
-	img.style.width = (this.width * sw) + 'px';
-	img.style.height = (this.height * sh) + 'px';
-	img.style.left = (- pos._0 * sw) + 'px';
-	img.style.top = (- pos._1 * sh) + 'px';
+	var sw = w / elem._1, sh = h / elem._2;
+	img.style.width = ((this.width * sw)|0) + 'px';
+	img.style.height = ((this.height * sh)|0) + 'px';
+	img.style.left = ((- pos._0 * sw)|0) + 'px';
+	img.style.top = ((- pos._1 * sh)|0) + 'px';
     };
     img.src = src;
     img.name = src;
@@ -207,7 +209,7 @@ function update(node, curr, next) {
     case "Image":
 	if (nextE._0.ctor === 'Plain') {
 	    if (nextE._3 !== currE._3) node.src = nextE._3;
-	} else if (!Value.eq(nextE,currE) ||
+	} else if (!eq(nextE,currE) ||
 		   next.props.width !== curr.props.width ||
 		   next.props.height !== curr.props.height) {
 	    node.parentNode.replaceChild(render(next),node);
@@ -255,7 +257,7 @@ function update(node, curr, next) {
 	if (next._0 !== curr._0) node.parentNode.replaceChild(render(next),node);
 	break;
     }
-    var props = next.props, currP = curr.props;
+    var props = next.props, currP = curr.props, e = node;
     if (props.width !== currP.width)   e.style.width  = (props.width |0) + 'px';
     if (props.height !== currP.height) e.style.height = (props.height|0) + 'px';
     if (props.opacity !== 1 && props.opacity !== currP.opacity) {
