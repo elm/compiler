@@ -1,6 +1,8 @@
 
 module Random where
 
+import Native.Random
+
 -- Given a range from low to high and a signal of values, this produces
 -- a new signal that changes whenever the input signal changes. The new
 -- values are random number between 'low' and 'high' inclusive.

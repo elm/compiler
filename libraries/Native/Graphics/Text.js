@@ -10,6 +10,7 @@ Elm.Native.Graphics.Text = function(elm) {
   var htmlHeight = Elm.Native.Utils(elm).htmlHeight;
   var Color = Elm.Native.Graphics.Color(elm);
   var Element = Elm.Graphics.Element(elm);
+  var show = Elm.Native.Show(elm).show;
 
   function makeSpaces(s) {
     if (s.length == 0) { return s; }
@@ -66,6 +67,9 @@ Elm.Native.Graphics.Text = function(elm) {
   function typeface(name, text) {
     return addStyle('font-family', JS.fromString(name), text);
   }
+  function monospace(text) {
+    return addStyle('font-family', 'monospace', text);
+  }
   function size(px, text) { return addStyle('font-size', px + 'px', text) }
   var header = addTag('h1');
   function height(h, text) { return addStyle('font-size', hf+'em', text) }
@@ -94,7 +98,7 @@ Elm.Native.Graphics.Text = function(elm) {
   }
 
   function asText(v) {
-    return position('left')(typeface('monospace', toText(show(v))));
+      return position('left')(monospace(toText(show(v))));
   }
 
   return elm.Native.Graphics.Text = {
@@ -107,7 +111,7 @@ Elm.Native.Graphics.Text = function(elm) {
       underline : underline,
       overline : overline,
       strikeThrough : strikeThrough,
-      monospace : function(text) { return typeface('monospace', text) },
+      monospace : monospace,
       typeface : F2(typeface),
       color : F2(color),
       link : F2(link),
