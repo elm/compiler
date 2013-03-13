@@ -12,7 +12,7 @@ module Graphics.Element (widthOf, heightOf, sizeOf,
                          spacer, newElement
                         ) where
 
-import Native.Utils (guid, max)
+import Native.Utils (guid, max, htmlHeight)
 import JavaScript as JS
 import List as List
 import Graphics.Color as Color
@@ -34,8 +34,17 @@ widthOf  e = e.props.width
 heightOf e = e.props.height
 sizeOf   e = (e.props.width, e.props.height)
 
-width   w e = let p = e.props in { element=e.element, props={p| width   <- w} }
-height  h e = let p = e.props in { element=e.element, props={p| height  <- h} }
+width  nw e = let p = e.props
+                  props = case e.element of
+                            Image _ w h _ -> {p| height <- h/w*nw }
+                            RawHtml html -> {p| height <- htmlHeight nw html }
+                            _ -> p
+              in { element=e.element, props={props| width <- nw} }
+height nh e = let p = e.props
+                  props = case e.element of
+                            Image _ w h _ -> {p| width <- w/h*nh }
+                            _ -> p
+              in { element=e.element, props={p| height  <- nh} }
 opacity o e = let p = e.props in { element=e.element, props={p| opacity <- o} }
 color   c e = let p = e.props in
               { element=e.element, props={p| color <- Just c} }
@@ -85,9 +94,9 @@ flow dir es =
     DIn    -> newFlow (List.maximum ws) (List.maximum hs)
     DOut   -> newFlow (List.maximum ws) (List.maximum hs)
 
-above hi lo = newElement (Utils.max (widthOf hi) (widthOf lo)) (heightOf hi + heightOf lo) (Flow DDown [hi,lo])
-below lo hi = newElement (Utils.max (widthOf hi) (widthOf lo)) (heightOf hi + heightOf lo) (Flow DDown [hi,lo])
-beside lft rht = newElement (widthOf lft + widthOf rht) (Utils.max (heightOf lft) (heightOf rht)) (Flow right [lft,rht])
+above hi lo = newElement (max (widthOf hi) (widthOf lo)) (heightOf hi + heightOf lo) (Flow DDown [hi,lo])
+below lo hi = newElement (max (widthOf hi) (widthOf lo)) (heightOf hi + heightOf lo) (Flow DDown [hi,lo])
+beside lft rht = newElement (widthOf lft + widthOf rht) (max (heightOf lft) (heightOf rht)) (Flow right [lft,rht])
 
 layers es = 
   let ws = List.map widthOf es

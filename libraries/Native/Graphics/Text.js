@@ -7,6 +7,7 @@ Elm.Native.Graphics.Text = function(elm) {
   if (elm.Native.Graphics.Text) return elm.Native.Graphics.Text;
 
   var JS = Elm.JavaScript(elm);
+  var htmlHeight = Elm.Native.Utils(elm).htmlHeight;
   var Color = Elm.Native.Graphics.Color(elm);
   var Element = Elm.Graphics.Element(elm);
 
@@ -82,27 +83,13 @@ Elm.Native.Graphics.Text = function(elm) {
     return "<a href='" + toText(href) + "'>" + text + "</a>";
   }
 
-  function htmlHeight(txt, width) {
-    var t = document.createElement('div');
-    t.innerHTML = html;
-    t.style.width  = w + "px";
-    t.style.visibility = "hidden";
-    t.style.styleFloat = "left";
-    t.style.cssFloat   = "left";
-    
-    document.body.appendChild(t);
-    var h = t.clientHeight
-    document.body.removeChild(t);
-
-    return h;
-  }
-
   function position(pos) { return function(text) {
     var e = {ctor:'RawHtml',
-	     _0: '<div style="padding:0;margin:0;text-align:'+pos+'">'+text+'</div>'
-    };
+	     _0: '<div style="padding:0;margin:0;text-align:' +
+                   pos + '">' + text + '</div>'
+            };
     var w = elm.node.clientWidth;
-    return A3(Element.newElement, w, htmlHeight(text, w), e);
+    return A3(Element.newElement, w, A2(htmlHeight, w, text), e);
    }
   }
 

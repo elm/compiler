@@ -96,6 +96,20 @@ Elm.Native.Utils = function(elm) {
   function max(a,b) { return a > b ? a : b }
   function min(a,b) { return a < b ? a : b }
 
+  function htmlHeight(width, html) {
+    var t = document.createElement('div');
+    t.innerHTML = html;
+    t.style.width  = width + "px";
+    t.style.visibility = "hidden";
+    t.style.styleFloat = "left";
+    t.style.cssFloat   = "left";
+    
+    document.body.appendChild(t);
+    var h = t.clientHeight
+    document.body.removeChild(t);
+    return h;
+  }
+
   return elm.Native.Utils = {
       eq:eq,
       compare:compare,
@@ -107,6 +121,7 @@ Elm.Native.Utils = function(elm) {
       insert: insert,
       guid: guid,
       max : F2(max),
-      min : F2(min)
+      min : F2(min),
+      htmlHeight: F2(htmlHeight)
   };
 };
