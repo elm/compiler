@@ -82,11 +82,27 @@ Elm.Native.Graphics.Text = function(elm) {
     return "<a href='" + toText(href) + "'>" + text + "</a>";
   }
 
+  function htmlHeight(txt, width) {
+    var t = document.createElement('div');
+    t.innerHTML = html;
+    t.style.width  = w + "px";
+    t.style.visibility = "hidden";
+    t.style.styleFloat = "left";
+    t.style.cssFloat   = "left";
+    
+    document.body.appendChild(t);
+    var h = t.clientHeight
+    document.body.removeChild(t);
+
+    return h;
+  }
+
   function position(pos) { return function(text) {
     var e = {ctor:'RawHtml',
 	     _0: '<div style="padding:0;margin:0;text-align:'+pos+'">'+text+'</div>'
     };
-    return A3(Element.newElement, 0, 0, e);
+    var w = elm.node.clientWidth;
+    return A3(Element.newElement, w, htmlHeight(text, w), e);
    }
   }
 
