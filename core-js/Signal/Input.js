@@ -67,9 +67,9 @@ Elm.Input = function() {
 	return dropDown(Elm.List.map (function(x) {return Value.Tuple(x,x);}) (opts));
     };
     var button = function(name) {
-	var b = newElement('input');
+	var b = newElement('button');
 	b.type = "button";
-	b.value = JS.castStringToJSString(name);
+	b.innerText = JS.castStringToJSString(name);
 	var press = Elm.Signal.constant(false);
 	Value.addListener(b, 'click', function(e) {
 		Dispatcher.notify(press.id, true);
