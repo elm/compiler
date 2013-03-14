@@ -23,7 +23,7 @@ toModules ms =
   "{ \"modules\" : [\n    " ++ intercalate ",\n    " (map toModule ms) ++ "\n  ]\n}"
 
 toModule (name, values) =
-  "{ \"module\" : " ++ show name ++ ",\n      \"values\" : [\n        " ++ vs ++ "\n      ]\n    }"
+  "{ \"name\" : " ++ show name ++ ",\n      \"values\" : [\n        " ++ vs ++ "\n      ]\n    }"
     where vs = intercalate ",\n        " (map toValue values)
 
 toValue (name, tipe) =
