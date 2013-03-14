@@ -59,7 +59,7 @@ buildRuntime lbi = do
   createDirectoryIfMissing False rtsDir     -- dist should already exist
   writeFile rts "Elm = {}; Elm.Native = {}; Elm.Native.Graphics = {};\n\
                 \Elm.Graphics = {}; ElmRuntime = {}; ElmRuntime.Render = {}\n"
-  mapM_ (appendElm lbi) =<< getFiles ".elm" "../libraries"
+  mapM_ appendJS =<< getFiles ".js" "../libraries"
   mapM_ (appendElm lbi) =<< getFiles ".elm" "../libraries"
   mapM_ appendJS  =<< getFiles ".js"  "../runtime"
   putStrLn "\n+------------------------------------------+\
