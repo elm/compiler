@@ -10,6 +10,7 @@ import System.IO
 import Language.Elm
 
 rts = "compiler" </> "elm-runtime.js"
+types = "compiler" </> "types.json"
 
 getFiles ext dir = do
   contents <- map (dir </>) `fmap` getDirectoryContents dir
@@ -34,10 +35,12 @@ main = do
   writeFile rts "Elm = {}; Elm.Native = {}; Elm.Native.Graphics = {};\n\
                 \Elm.Graphics = {}; ElmRuntime = {}; ElmRuntime.Render = {}\n"
   mapM_ appendJS  =<< getFiles ".js"  "libraries"
-  mapM_ appendElm =<< getFiles ".elm" "libraries"
+  files <- getFiles ".elm" "libraries"
+  mapM_ appendElm files
   mapM_ appendJS  =<< getFiles ".js"  "runtime"
   putStrLn "\n+------------------------------------------+\
            \\n|  Success building runtime and libraries! |\
            \\n+------------------------------------------+\n"
+  system ("elm-doc " ++ unwords files ++ " > " ++ types)
   system ("cabal install compiler" </> "Elm.cabal")
   exitSuccess

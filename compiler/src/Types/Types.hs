@@ -86,28 +86,29 @@ parens = ("("++) . (++")")
 
 instance Show Type where
   show t =
-      case t of
-        { LambdaT t1@(LambdaT _ _) t2 -> parens (show t1) ++ " -> " ++ show t2
-        ; LambdaT t1 t2 -> show t1 ++ " -> " ++ show t2
-        ; VarT x -> 't' : show x
-        ; ADT "List" [ADT "Char" []] -> "String"
-        ; ADT "List" [tipe] -> "[" ++ show tipe ++ "]"
-        ; ADT name cs ->
-            if isTupleString name
-                then parens . intercalate "," $ map show cs
-                else case cs of
-                       [] -> name
-                       _ -> parens $ name ++ " " ++ unwords (map show cs)
-        ; Super ts -> "{" ++ (intercalate "," . map show $ Set.toList ts) ++ "}"
-        ; EmptyRecord -> "{}"
-        ; RecordT fs t ->
-            start ++ intercalate ", " (concatMap fields $ Map.toList fs) ++ " }"
-                where field n s = n ++ " :: " ++ show s
-                      fields (n,ss) = map (field n) ss
-                      start = case t of
-                                EmptyRecord -> "{ "
-                                _ -> "{ " ++ show t ++ " | "
-        }
+   let show' t = case t of { LambdaT _ _ -> parens (show t) ; _ -> show t }
+   in case t of
+      LambdaT t1@(LambdaT _ _) t2 -> show' t1 ++ " -> " ++ show t2
+      LambdaT t1 t2 -> show t1 ++ " -> " ++ show t2
+      VarT x -> 't' : show x
+      ADT "List" [ADT "Char" []] -> "String"
+      ADT "List" [tipe] -> "[" ++ show tipe ++ "]"
+      ADT name cs ->
+          if isTupleString name
+              then parens . intercalate "," $ map show cs
+              else case cs of
+                     [] -> name
+                     _  -> name ++ " " ++ unwords (map show cs)
+      Super ts -> "{" ++ (intercalate "," . map show $ Set.toList ts) ++ "}"
+      EmptyRecord -> "{}"
+      RecordT fs t ->
+        start ++ intercalate ", " (concatMap fields $ Map.toList fs) ++ " }"
+           where field n s = n ++ " :: " ++ show s
+                 fields (n,ss) = map (field n) ss
+                 start = case t of
+                           EmptyRecord -> "{ "
+                           _ -> "{ " ++ show t ++ " | "
+
 
 instance Show Scheme where
   show (Forall [] [] t) = show t

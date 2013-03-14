@@ -73,24 +73,26 @@ plist     = foldr pcons pnil
 ptuple es = PData ("Tuple" ++ show (length es)) es
 
 brkt s = "{ " ++ s ++ " }"
+parensIf b s = if b then parens s else s
 
 instance Show Pattern where
-    show (PRecord fs) = brkt (intercalate ", " fs)
-    show (PVar x)  = x
-    show PAnything = "_"
-    show (PData "Cons" [hd@(PData "Cons" _),tl]) =
-        parens (show hd) ++ " : " ++ show tl
-            where parens s = "(" ++ s ++ ")"
-    show (PData "Cons" [hd,tl]) = show hd ++ " : " ++ show tl
-    show (PData "Nil" []) = "[]"
-    show (PData name ps) =
+  show p =
+   case p of
+     PRecord fs -> brkt (intercalate ", " fs)
+     PVar x -> x
+     PAnything -> "_"
+     PData "Cons" [hd@(PData "Cons" _),tl] ->
+        parens (show hd) ++ " :: " ++ show tl
+     PData "Cons" [hd,tl] -> show hd ++ " : " ++ show tl
+     PData "Nil" [] -> "[]"
+     PData name ps ->
         if take 5 name == "Tuple" && all isDigit (drop 5 name) then
             parens . intercalate ", " $ map show ps
-        else (if null ps then id else parens) $ unwords (name : map show ps)
-            where parens s = "(" ++ s ++ ")"
+        else parensIf (not (null ps)) $ unwords (name : map show ps)
 
 instance Show Expr where
   show e =
+   let show' (C _ _ e) = parensIf (needsParens e) (show e) in
    case e of
      IntNum n -> show n
      FloatNum n -> show n
@@ -138,13 +140,13 @@ getLambdas (C _ _ (Lambda x e)) = (x:xs,e')
     where (xs,e') = getLambdas e
 getLambdas e = ([],e)
 
-show' (C _ _ e) = if needsParens e then "(" ++ show e ++ ")" else show e
-
-needsParens (Binop _ _ _) = True
-needsParens (Lambda _ _) = True
-needsParens (App _ _) = True
-needsParens (If _ _ _) = True
-needsParens (Let _ _) = True
-needsParens (Case _ _) = True
-needsParens (Data name (x:xs)) = name /= "Cons"
-needsParens _ = False
+needsParens e =
+  case e of
+    Binop _ _ _ -> True
+    Lambda _ _ -> True
+    App _ _ -> True
+    If _ _ _ -> True
+    Let _ _ -> True
+    Case _ _ -> True
+    Data name (x:xs) -> name /= "Cons"
+    _ -> False

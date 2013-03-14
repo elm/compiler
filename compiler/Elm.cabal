@@ -66,10 +66,10 @@ Library
                        containers >= 0.3,
                        transformers >= 0.2,
                        mtl >= 2,
+                       deepseq,
                        parsec >= 3.1.1,
                        blaze-html == 0.5.*,
                        blaze-markup == 0.5.1.*,
-                       deepseq,
                        text,
                        template-haskell,
                        shakespeare >= 1,
@@ -115,13 +115,32 @@ Executable elm
                        containers >= 0.3,
                        transformers >= 0.2,
                        mtl >= 2,
+                       deepseq,
                        parsec >= 3.1.1,
                        blaze-html == 0.5.*,
                        blaze-markup == 0.5.1.*,
-                       deepseq,
                        cmdargs,
                        pandoc >= 1.10,
                        bytestring,
                        hjsmin,
                        indents,
                        filepath
+
+Executable elm-doc
+  Main-is:             Docs.hs
+  Hs-Source-Dirs:      src
+  other-modules:       Ast,
+                       Context,
+                       Parse.Library,
+                       Parse.Modules,
+                       Parse.Types,
+                       Types.Types
+
+  Build-depends:       base >=4.2 && <5,
+                       containers >= 0.3,
+                       transformers >= 0.2,
+                       mtl >= 2,
+                       parsec >= 3.1.1,
+                       pandoc >= 1.10,
+                       cmdargs,
+                       indents
