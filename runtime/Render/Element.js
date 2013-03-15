@@ -1,4 +1,3 @@
-
 ElmRuntime.Render.Element = function() {
 'use strict';
 
@@ -6,7 +5,7 @@ var fromList = Elm.JavaScript({}).fromList;
 var eq = Elm.Native.Utils({}).eq;
 
 function newElement(elementType) {
-    var e = document.createElement(elementType);    
+    var e = document.createElement(elementType);
     e.style.padding = "0";
     e.style.margin = "0";
     return e;
@@ -183,6 +182,13 @@ function rawHtml(html) {
     return e;
 }
 
+function collage(props,elist) {
+   var array = fromList(elist);
+   var elem = newElement('canvas');
+   ElmRuntime.Render.Collage.render(elem, props.width, props.height, array);
+   return elem;
+}
+
 function render(elem) { return setProps(elem.props, makeElement(elem)); }
 function makeElement(e) {
     switch(e.element.ctor) {
@@ -192,6 +198,7 @@ function makeElement(e) {
     case 'Spacer':    return newElement('div');
     case 'RawHtml':   return rawHtml(e.element._0);
     case 'DomNode':   return e.element._0;
+    case 'Collage':   return collage(e.props, e.element._0);
     }
 }
 

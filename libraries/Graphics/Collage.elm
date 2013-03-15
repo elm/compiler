@@ -1,7 +1,6 @@
-
 module Graphics.Collage where
 
-import Either
+import Either (Left,Right)
 import Graphics.LineStyle as LS
 import Geometry
 
@@ -55,7 +54,7 @@ rotate t = add (Rotate t)
 
 scale  s = add (Scale s s)
 scaleX s = add (Scale s 1)
-scaleY s = add (Scale 1 s) 
+scaleY s = add (Scale 1 s)
 
 move x y = add (Move x y)
 moveX x  = add (Move x 0)
