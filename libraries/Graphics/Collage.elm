@@ -3,15 +3,10 @@ module Graphics.Collage where
 
 import Either
 import Graphics.LineStyle as LS
-import Geometry
+import Graphics.Geometry
+import Graphics.Matrix as Matrix
 
-data Transform
-  = Rotate Float
-  | Move Float Float
-  | Scale Float Float
-  | Transform Float Float Float Float Float Float
-
-type Form = { transforms : [Transform], form : BasicForm }
+type Form = { transform : Matrix, form : BasicForm }
 
 data FillStyle
   = NoFill
@@ -45,20 +40,20 @@ toForm e = Form [] (FElement e)
 
 group fs = Form [] (FGroup fs)
 
-add t f = { transforms = t :: f.transforms, form = f.form }
+add t f = { transforms = Matrix.multiply t f.transforms, form = f.form }
 
 radians t = t
 degrees dep = pi * deg / 180
 rotations rot = 2 * pi * rot
 
-rotate t = add (Rotate t)
+rotate t = add (Matrix.rotate t)
 
-scale  s = add (Scale s s)
-scaleX s = add (Scale s 1)
-scaleY s = add (Scale 1 s) 
+scale  s = add (Matrix.scale s s)
+scaleX s = add (Matrix.scale s 1)
+scaleY s = add (Matrix.scale 1 s) 
 
-move x y = add (Move x y)
-moveX x  = add (Move x 0)
-moveY y  = add (Move 0 y)
+move x y = add (Matrix.translate x y)
+moveX x  = add (Matrix.translate x 0)
+moveY y  = add (Matrix.translate 0 y)
 
-transform a b c d e f = add (Transform a b c d e f)
+transform a b c d e f = add (Matrix.matrix a b c d e f)
