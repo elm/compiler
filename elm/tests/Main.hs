@@ -19,8 +19,9 @@ import Parse.Parser
 
 import Debug.Trace
 
-import Util.Stringable
+import Util.Arbs
 import Util.CharGens
+import Util.Stringable
 
 
 main :: IO ()
@@ -36,45 +37,6 @@ tests = [
       testProperty "prop_invalidIdent" prop_invalidIdent
     ]
   ]
-
-
-newtype ValidIdent = ValidIdent String deriving (Eq, Show)
-
-instance Stringable ValidIdent where
-  stringify (ValidIdent v) = v
-
-instance Arbitrary ValidIdent where
-  arbitrary = ValidIdent <$> ((:) <$> lowerAlpha <*> (listOf alphaNumUnderPrime))
-
-
-newtype StringValue = StringValue String deriving (Eq, Show)
-
-instance Stringable StringValue where
-  stringify (StringValue v) = v
-
-instance Arbitrary StringValue where
-  arbitrary = StringValue <$> escape <$> arbitrary
-
-
-newtype InvalidIdentChar = InvalidIdentChar Char deriving (Eq, Show)
-
-instance Stringable InvalidIdentChar where
-  stringify (InvalidIdentChar c) = [c]
-
-instance Arbitrary InvalidIdentChar where
-  arbitrary = InvalidIdentChar <$> elements "!@#$%^&*()-=+\\|/?.>,<`~"
-
-
-replace' :: String -> String -> String -> String
-replace' a b c = unpack $ replace (pack a) (pack b) (pack c)
-
-escape :: String -> String
-escape =
-  (replace' "\n" "\\n") .
-  (replace' "\t" "\\t") .
-  (replace' "\"" "\\\"") .
-  (replace' "\\" "\\\\")
-
 
 -- TODO: variable whitespace?
 prop_assignString :: ValidIdent -> StringValue -> Bool
