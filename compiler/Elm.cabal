@@ -1,4 +1,3 @@
-
 Name:                Elm
 Version:             0.8
 Synopsis:            The Elm language module.
@@ -19,10 +18,11 @@ Copyright:           Copyright: (c) 2011-2012 Evan Czaplicki
 
 Category:            Compiler, Language
 
-Build-type:          Simple
+Build-type:          Custom
 
 Extra-source-files:  changelog.txt
-Data-files:          elm-runtime.js
+Data-dir:            dist/data
+Data-files:          elm-runtime.js types.json
 Cabal-version:       >=1.8
 
 source-repository head
