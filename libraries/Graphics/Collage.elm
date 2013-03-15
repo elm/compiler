@@ -4,7 +4,7 @@ module Graphics.Collage where
 import Either
 import Graphics.LineStyle as LS
 import Graphics.Geometry
-import Graphics.Matrix as Matrix
+import Native.Graphics.Matrix as Matrix
 
 type Form = { transform : Matrix, form : BasicForm }
 
