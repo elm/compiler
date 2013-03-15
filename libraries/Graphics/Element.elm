@@ -1,4 +1,3 @@
-
 module Graphics.Element (widthOf, heightOf, sizeOf,
                          width, height, opacity, color, tag, link,
                          image, fittedImage, croppedImage,
@@ -9,7 +8,8 @@ module Graphics.Element (widthOf, heightOf, sizeOf,
                          midLeft, midRight, midTop, midBottom, middleAt,
                          topLeftAt, topRightAt, bottomLeftAt, bottomRightAt,
                          midLeftAt, midRightAt, midTopAt, midBottomAt,
-                         spacer, newElement
+                         spacer, newElement,
+                         collage
                         ) where
 
 import Native.Utils (guid, max, htmlHeight)
@@ -17,6 +17,7 @@ import JavaScript as JS
 import List as List
 import Graphics.Color as Color
 import Maybe (Just, Nothing)
+import Graphics.Collage (Form)
 
 type Properties = {
   id      : Int,
@@ -64,6 +65,7 @@ data ElementPrim
   | Spacer
   | RawHtml JSString
   | DomNode JSElement
+  | Collage [Form]
 
 data ImageStyle = Plain | Fitted | Cropped (Int,Int)
 
@@ -85,7 +87,7 @@ flow dir es =
   let ws = List.map widthOf es
       hs = List.map heightOf es
       newFlow w h = newElement w h (Flow dir es)
-  in 
+  in
   case dir of
     DUp    -> newFlow (List.maximum ws) (List.sum hs)
     DDown  -> newFlow (List.maximum ws) (List.sum hs)
@@ -98,11 +100,12 @@ above hi lo = newElement (max (widthOf hi) (widthOf lo)) (heightOf hi + heightOf
 below lo hi = newElement (max (widthOf hi) (widthOf lo)) (heightOf hi + heightOf lo) (Flow DDown [hi,lo])
 beside lft rht = newElement (widthOf lft + widthOf rht) (max (heightOf lft) (heightOf rht)) (Flow right [lft,rht])
 
-layers es = 
+layers es =
   let ws = List.map widthOf es
       hs = List.map heightOf es
   in  newElement (List.maximum ws) (List.maximum hs) (Flow DOut es)
 
+collage w h forms = newElement w h (Collage forms)
 
 -- Repetitive things --
 

@@ -1,5 +1,4 @@
-
-ElmRuntime.Render.Collage = function(rts) {
+ElmRuntime.Render.Collage = function() {
     /*
 var JS = Elm.JavaScript;
 
@@ -26,7 +25,7 @@ function textured(redo,ctx,src,points) {
     var img = new Image();
     img.src = JS.castStringToJSString(src);
     img.onload = redo;
- 
+
     tracePoints(ctx,points);
     ctx.fillStyle = ctx.createPattern(img,'repeat');
     ctx.fill();
@@ -314,4 +313,10 @@ function insideShape(point,theta,scale,pos,points) {
 
 return {collage:collage, updateCollage:updateCollage, insideForm:insideForm};
     */
-};
+
+   function render(elem, w, h, formss) {
+      alert("Hello World");
+   }
+
+   return {render:render};
+}();
