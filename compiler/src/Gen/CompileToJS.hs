@@ -99,7 +99,7 @@ jsImport (modul, how) =
           if null vs then "\nfor (var k in _$) {eval('var '+k+'=_$[\"'+k+'\"]')}"
                      else concatMap def vs
         where
-          imprt asgn v = asgn v ("elm." ++ modul ++ "." ++ v)
+          imprt asgn v = asgn v ("_$." ++ v)
           def (o:p) =
               if isOp o then imprt globalAssign ("$op['" ++ o:p ++ "']")
                         else imprt assign (deprime (o:p))
