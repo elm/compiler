@@ -95,14 +95,13 @@ jsImport (modul, how) =
     case how of
       As name -> assign name ("Elm." ++ modul ++ parens "elm")
       Importing vs ->
-          "\nvar _$ = Elm." ++ modul ++ parens "elm" ++ ";" ++
-          if null vs then "\nfor (var k in _$) {eval('var '+k+'=_$[\"'+k+'\"]')}"
-                     else concatMap def vs
+          "\nvar $ = Elm." ++ modul ++ parens "elm" ++ ";" ++
+          if null vs then "\nfor (var k in $) {eval('var '+k+'=$[\"'+k+'\"]')}"
+                     else "\nvar " ++ intercalate ", " (map def vs) ++ ";"
         where
-          imprt asgn v = asgn v ("_$." ++ v)
+          imprt v = assign' v ("$." ++ v)
           def (o:p) =
-              if isOp o then imprt globalAssign ("$op['" ++ o:p ++ "']")
-                        else imprt assign (deprime (o:p))
+              imprt (if isOp o then "$op['" ++ o:p ++ "']" else deprime (o:p))
 
 
 stmtsToJS :: [Statement] -> String
