@@ -29,7 +29,7 @@ myPostBuild as bfs pd lbi = do
 rtsDir = "dist" </> "data"
 
 rts = rtsDir </> "elm-runtime.js"
-types = rtsDir </> "types.json"
+types = rtsDir </> "docs.json"
 
 -- buildDir with LocalBuildInfo points to "dist/build" (usually)
 elm lbi = (buildDir lbi) </> "elm" </> "elm"

@@ -22,7 +22,7 @@ Build-type:          Custom
 
 Extra-source-files:  changelog.txt
 Data-dir:            dist/data
-Data-files:          elm-runtime.js types.json
+Data-files:          elm-runtime.js docs.json
 Cabal-version:       >=1.8
 
 source-repository head
@@ -32,7 +32,7 @@ source-repository head
 Library
   exposed-modules:     Language.Elm,
                        Language.Elm.Quasi
-  Hs-Source-Dirs:      src, src/Gen
+  Hs-Source-Dirs:      compiler, compiler/Gen, compiler/Model, compiler/Transform
   other-modules:       Ast,
                        Context,
                        CompileToJS,
@@ -81,7 +81,7 @@ Library
 
 Executable elm
   Main-is:             Compiler.hs
-  Hs-Source-Dirs:      src, src/Gen
+  Hs-Source-Dirs:      compiler, compiler/Gen, compiler/Model, compiler/Transform
   other-modules:       Ast,
                        Context,
                        CompileToJS,
@@ -128,7 +128,7 @@ Executable elm
 
 Executable elm-doc
   Main-is:             Docs.hs
-  Hs-Source-Dirs:      src
+  Hs-Source-Dirs:      compiler, compiler/Model
   other-modules:       Ast,
                        Context,
                        Parse.Library,
