@@ -67,7 +67,7 @@ Elm.Prelude = function(elm) {
     return Maybe.Just(parseFloat(s));
   }
 
-  return elm.Prelude = {
+  var prelude = {
       div:F2(div),
       rem:F2(rem),
       mod:F2(mod),
@@ -110,4 +110,16 @@ Elm.Prelude = function(elm) {
       fst:fst,
       snd:snd
   };
+
+  function add(Module) {
+      var M = Module(elm);
+      for (var k in M) { prelude[k] = M[k] }
+  }
+  add(Elm.Signal);
+  add(Elm.List);
+  add(Elm.Maybe);
+  add(Elm.Time);
+  add(Elm.Graphics);
+
+  return elm.Prelude = prelude;
 };
