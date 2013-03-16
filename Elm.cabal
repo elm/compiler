@@ -128,12 +128,13 @@ Executable elm
 
 Executable elm-doc
   Main-is:             Docs.hs
-  Hs-Source-Dirs:      compiler, compiler/Model
+  Hs-Source-Dirs:      compiler, compiler/Model, compiler/Transform
   other-modules:       Ast,
                        Context,
                        Parse.Library,
                        Parse.Modules,
                        Parse.Types,
+                       Rename,
                        Types.Types
 
   Build-depends:       base >=4.2 && <5,

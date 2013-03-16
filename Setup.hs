@@ -59,14 +59,14 @@ buildRuntime lbi = do
   createDirectoryIfMissing False rtsDir     -- dist should already exist
   writeFile rts "Elm = {}; Elm.Native = {}; Elm.Native.Graphics = {};\n\
                 \Elm.Graphics = {}; ElmRuntime = {}; ElmRuntime.Render = {}\n"
-  mapM_ appendJS =<< getFiles ".js" "../libraries"
-  mapM_ (appendElm lbi) =<< getFiles ".elm" "../libraries"
-  mapM_ appendJS  =<< getFiles ".js"  "../runtime"
+  mapM_ appendJS =<< getFiles ".js" "libraries"
+  mapM_ (appendElm lbi) =<< getFiles ".elm" "libraries"
+  mapM_ appendJS  =<< getFiles ".js"  "runtime"
   putStrLn "\n+------------------------------------------+\
            \\n|  Success building runtime and libraries! |\
            \\n+------------------------------------------+\n"
 
 buildTypes lbi = do
-  files <- getFiles ".elm" "../libraries"
+  files <- getFiles ".elm" "libraries"
   system ((show $ elm_doc lbi) ++ " " ++ unwords files ++ " > " ++ types)
   putStrLn "Custom build step completed: elm-doc"

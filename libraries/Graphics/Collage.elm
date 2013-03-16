@@ -21,7 +21,9 @@ data BasicForm
   | FElement Element
   | FGroup [Form]
 
-fill style shape = Form [] (FShape (Right style) shape)
+ident = Matrix.identity
+
+fill style shape = Form ident (FShape (Right style) shape)
 
 filled : Color -> Shape -> Form
 filled color shape = fill (Solid color) shape
@@ -33,18 +35,18 @@ gradient : Gradient -> Shape -> Form
 gradient grad shape = fill (Gradient grad) shape
 
 outline : LineStyle -> Shape -> Form
-outline style shape = Form [] (FShape (Left style) shape)
+outline style shape = Form ident (FShape (Left style) shape)
 
-outline : LineStyle -> Path -> Form
-trace style path = Form [] (FPath style path)
+trace : LineStyle -> Path -> Form
+trace style path = Form ident (FPath style path)
 
 sprite : Int -> Int -> (Int,Int) -> String -> Form
-sprite w h pos src = Form [] (FImage w h pos src)
+sprite w h pos src = Form ident (FImage w h pos src)
 
 toForm : Element -> Form
-toForm e = Form [] (FElement e)
+toForm e = Form ident (FElement e)
 
-group fs = Form [] (FGroup fs)
+group fs = Form ident (FGroup fs)
 
 rotate t f = { form = f.form, transform = Matrix.rotate  t f.transform }
 scale  s f = { form = f.form, transform = Matrix.scale s s f.transform }
