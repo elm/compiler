@@ -15,7 +15,7 @@ data FillStyle
   | Gradient Gradient
 
 data BasicForm
-  = FLine LineStyle Line
+  = FPath LineStyle Path
   | FShape (Either LineStyle FillStyle) Shape
   | FImage Int Int (Int,Int) String
   | FElement Element
@@ -32,28 +32,27 @@ textured src shape = fill (Texture src) shape
 gradient : Gradient -> Shape -> Form
 gradient grad shape = fill (Gradient grad) shape
 
+outline : LineStyle -> Shape -> Form
 outline style shape = Form [] (FShape (Left style) shape)
-trace style line = Form [] (FLine style line)
 
+outline : LineStyle -> Path -> Form
+trace style path = Form [] (FPath style path)
+
+sprite : Int -> Int -> (Int,Int) -> String -> Form
 sprite w h pos src = Form [] (FImage w h pos src)
+
+toForm : Element -> Form
 toForm e = Form [] (FElement e)
 
 group fs = Form [] (FGroup fs)
 
-add t f = { transforms = Matrix.multiply t f.transforms, form = f.form }
+rotate t f = { form = f.form, transform = Matrix.rotate  t f.transform }
+scale  s f = { form = f.form, transform = Matrix.scale s s f.transform }
+scaleX s f = { form = f.form, transform = Matrix.scale s 1 f.transform }
+scaleY s f = { form = f.form, transform = Matrix.scale 1 s f.transform }
+move x y f = { form = f.form, transform = Matrix.move  x y f.transform }
+moveX  x f = { form = f.form, transform = Matrix.move  x 0 f.transform }
+moveY  y f = { form = f.form, transform = Matrix.move  0 y f.transform }
 
-radians t = t
-degrees dep = pi * deg / 180
-rotations rot = 2 * pi * rot
-
-rotate t = add (Matrix.rotate t)
-
-scale  s = add (Matrix.scale s s)
-scaleX s = add (Matrix.scale s 1)
-scaleY s = add (Matrix.scale 1 s) 
-
-move x y = add (Matrix.translate x y)
-moveX x  = add (Matrix.translate x 0)
-moveY y  = add (Matrix.translate 0 y)
-
-transform a b c d e f = add (Matrix.matrix a b c d e f)
+transform u v w x y z f =
+    { form = f.form, transform = Matrix.matrix u v w x y z f.transform }
