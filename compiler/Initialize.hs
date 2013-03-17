@@ -27,9 +27,9 @@ checkTypes (Module name ex im stmts) =
     let stmts' = dealias stmts
         modul = Module name ex im stmts'
     in do subs <- unify hints modul
-          let im' | any ((=="Prelude") . fst) im = im
-                  | otherwise = ("Prelude", Importing []) : im
-              modul' = optimize . renameModule $ Module name ex im' stmts'
+          let --im' | any ((=="Prelude") . fst) im = im
+              --    | otherwise = ("Prelude", Importing []) : im
+              modul' = optimize . renameModule $ Module name ex im stmts'
           subs `seq` return modul'
 
 check :: Module -> Either String Module

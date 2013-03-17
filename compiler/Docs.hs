@@ -3,13 +3,13 @@ module Main where
 
 import Ast
 import Control.Applicative ((<$>), (<*>))
-import Data.List as List
+import Data.List (intercalate)
 import Parse.Library
 import Parse.Modules (moduleDef)
 import Parse.Types (typeAnnotation)
+import Text.Parsec hiding (newline,spaces)
 import System.Environment
 import System.Exit
-import Text.Parsec hiding (newline,spaces)
 import Types.Types
 
 
@@ -28,6 +28,7 @@ toModule (name, values) =
 
 toValue (name, tipe) =
     "{ \"name\" : " ++ show name ++ ",\n          \"type\" : \"" ++ show tipe ++ "\"\n        }"
+
 
 docParse :: String -> Either String (String, [(String, Type)])
 docParse = setupParser $ do

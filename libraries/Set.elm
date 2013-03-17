@@ -6,8 +6,8 @@ module Set (empty,singleton,insert,remove
            ,toList,fromList
            ) where
 
-import Dict
-import List
+import Dict as Dict
+import List as List
 
 type Set t = Dict t ()
 

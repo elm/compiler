@@ -1,6 +1,8 @@
 
 module Prelude where
 
+import Native.Prelude as N
+
 radians : Float -> Float
 radians t = t
 

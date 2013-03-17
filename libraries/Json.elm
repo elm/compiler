@@ -1,7 +1,7 @@
 
 module Json where
 
-import Dict
+import Dict as Dict
 import JavaScript as JS
 import Native.Json as Native
 

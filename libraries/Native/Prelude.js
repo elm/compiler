@@ -1,11 +1,12 @@
 
-Elm.Prelude = function(elm) {
+Elm.Native.Prelude = function(elm) {
   'use strict';
-  if (elm.Prelude) return elm.Prelude;
+  if (elm.Native.Prelude) return elm.Native.Prelude;
 
   var JS = Elm.JavaScript(elm);
   var Maybe = Elm.Maybe(elm);
   var Utils = Elm.Native.Utils(elm);
+  var Char = Elm.Char(elm);
 
   function div(a,b) { return (a/b)|0 }
   function rem(a,b) { return a % b }
@@ -41,7 +42,7 @@ Elm.Prelude = function(elm) {
 	start = 1;
     }
     for (var i = start; i < len; ++i) {
-	if (!Elm.Char.isDigit(s[i])) { return Maybe.Nothing }
+	if (!Char.isDigit(s[i])) { return Maybe.Nothing }
     }
     return Maybe.Just(parseInt(s));
   }
@@ -57,7 +58,7 @@ Elm.Prelude = function(elm) {
     }
     var dotCount = 0;
     for (var i = start; i < len; ++i) {
-	if (Elm.Char.isDigit(s[i])) { continue; }
+	if (Char.isDigit(s[i])) { continue; }
 	if (s[i] === '.') {
 	    dotCount += 1;
 	    if (dotCount <= 1) { continue; }
@@ -119,7 +120,7 @@ Elm.Prelude = function(elm) {
   add(Elm.List);
   add(Elm.Maybe);
   add(Elm.Time);
-  add(Elm.Graphics);
+  add(Elm.Graphics.Element);
 
-  return elm.Prelude = prelude;
+  return elm.Native.Prelude = prelude;
 };

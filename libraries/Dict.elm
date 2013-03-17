@@ -10,13 +10,14 @@ module Dict (empty,singleton,insert
 
 import Maybe as Maybe
 import Native.Error as Error
+import List as List
 
 data NColor = Red | Black
 
-data RBTree k v = RBNode NColor k v (RBTree k v) (RBTree k v) | RBEmpty
+data Dict k v = Node NColor k v (Dict k v) (Dict k v) | Empty
 
-empty : RBTree k v
-empty = RBEmpty
+empty : Dict k v
+empty = Empty
 
 {-- Helpers for checking invariants
 
@@ -24,8 +25,8 @@ empty = RBEmpty
 equal_pathLen t = 
   let path_numBlacks t =
      case t of
-     { RBEmpty -> 1
-     ; RBNode col _ _ l r ->
+     { Empty -> 1
+     ; Node col _ _ l r ->
           let { bl = path_numBlacks l ; br = path_numBlacks r } in
           if bl /= br || bl == 0-1 || br == 0-1
               then 0-1
@@ -35,22 +36,22 @@ equal_pathLen t =
 
 rootBlack t = 
   case t of
-  { RBEmpty -> True
-  ; RBNode Black _ _ _ _ -> True
+  { Empty -> True
+  ; Node Black _ _ _ _ -> True
   ; _ -> False }
 
 redBlack_children t = 
   case t of 
-  { RBNode Red _ _ (RBNode Red _ _ _ _) _ -> False
-  ; RBNode Red _ _ _ (RBNode Red _ _ _ _) -> False
-  ; RBEmpty -> True
-  ; RBNode _ _ _ l r -> redBlack_children l && redBlack_children r
+  { Node Red _ _ (Node Red _ _ _ _) _ -> False
+  ; Node Red _ _ _ (Node Red _ _ _ _) -> False
+  ; Empty -> True
+  ; Node _ _ _ l r -> redBlack_children l && redBlack_children r
   }
 
 findExtreme f t =
   case t of
-  { RBEmpty -> Nothing
-  ; RBNode c k _ l r ->
+  { Empty -> Nothing
+  ; Node c k _ l r ->
       case findExtreme f (f (l,r)) of
       { Nothing -> Just k
       ; Just k' -> Just k' }
@@ -74,8 +75,8 @@ olte xo yo = optionRelation (<=) True xo yo
 
 ordered t =
   case t of
-  { RBEmpty -> True
-  ; RBNode c k v l r ->
+  { Empty -> True
+  ; Node c k v l r ->
       let (lmax,rmin) = (findmaxRbt l, findminRbt r) in
       olte lmax (Just k) && olte (Just k) rmin && ordered l && ordered r
   }
@@ -83,10 +84,10 @@ ordered t =
 -- Check that there aren't any right red nodes in the tree *)
 leftLeaning t = 
   case t of
-  { RBEmpty -> True
-  ; RBNode _ _ _ (RBNode Black _ _ _ _) (RBNode Red _ _ _ _) -> False
-  ; RBNode _ _ _ RBEmpty (RBNode Red _ _ _ _) -> False
-  ; RBNode _ _ _ l r -> (leftLeaning l) && (leftLeaning r)
+  { Empty -> True
+  ; Node _ _ _ (Node Black _ _ _ _) (Node Red _ _ _ _) -> False
+  ; Node _ _ _ Empty (Node Red _ _ _ _) -> False
+  ; Node _ _ _ l r -> (leftLeaning l) && (leftLeaning r)
   }
 
 invariants_hold t =
@@ -97,37 +98,37 @@ invariants_hold t =
 --}
 
 
-min : RBTree k v -> (k,v)
+min : Dict k v -> (k,v)
 min t =
   case t of 
-    RBNode _ k v RBEmpty _ -> (k,v)
-    RBNode _ _ _ l _ -> min l
-    RBEmpty -> Error.raise "(min RBEmpty) is not defined"
+    Node _ k v Empty _ -> (k,v)
+    Node _ _ _ l _ -> min l
+    Empty -> Error.raise "(min Empty) is not defined"
 
 {--
 max t =
   case t of 
-  { RBNode _ k v _ RBEmpty -> (k,v)
-  ; RBNode _ _ _ _ r -> max r
-  ; RBEmpty -> Error.raise "(max RBEmpty) is not defined"
+  { Node _ k v _ Empty -> (k,v)
+  ; Node _ _ _ _ r -> max r
+  ; Empty -> Error.raise "(max Empty) is not defined"
   }
 --}
 
-lookup : k -> RBTree k v -> Maybe v
+lookup : k -> Dict k v -> Maybe v
 lookup k t =
  case t of
-   RBEmpty -> Nothing
-   RBNode _ k' v l r ->
+   Empty -> Nothing
+   Node _ k' v l r ->
     case compare k k' of
       LT -> lookup k l
       EQ -> Just v
       GT -> lookup k r
 
-findWithDefault : v -> k -> RBTree k v -> v
+findWithDefault : v -> k -> Dict k v -> v
 findWithDefault base k t =
  case t of
-   RBEmpty -> base
-   RBNode _ k' v l r ->
+   Empty -> base
+   Node _ k' v l r ->
     case compare k k' of
       LT -> findWithDefault base k l
       EQ -> v
@@ -136,8 +137,8 @@ findWithDefault base k t =
 {--
 find k t =
  case t of
- { RBEmpty -> Error.raise "Key was not found in dictionary!"
- ; RBNode _ k' v l r ->
+ { Empty -> Error.raise "Key was not found in dictionary!"
+ ; Node _ k' v l r ->
     case compare k k' of
     { LT -> find k l
     ; EQ -> v
@@ -146,71 +147,71 @@ find k t =
 --}
 
 -- Does t contain k?
-member : k -> RBTree k v -> Bool
+member : k -> Dict k v -> Bool
 member k t = Maybe.isJust $ lookup k t
 
-rotateLeft : RBTree k v -> RBTree k v
+rotateLeft : Dict k v -> Dict k v
 rotateLeft t =
  case t of
-   RBNode cy ky vy a (RBNode cz kz vz b c) -> RBNode cy kz vz (RBNode Red ky vy a b) c
+   Node cy ky vy a (Node cz kz vz b c) -> Node cy kz vz (Node Red ky vy a b) c
    _ -> Error.raise "rotateLeft of a node without enough children"
 
 -- rotateRight -- the reverse, and 
 -- makes Y have Z's color, and makes Z Red.
-rotateRight : RBTree k v -> RBTree k v
+rotateRight : Dict k v -> Dict k v
 rotateRight t =
  case t of
-   RBNode cz kz vz (RBNode cy ky vy a b) c -> RBNode cz ky vy a (RBNode Red kz vz b c)
+   Node cz kz vz (Node cy ky vy a b) c -> Node cz ky vy a (Node Red kz vz b c)
    _ -> Error.raise "rotateRight of a node without enough children"
 
-rotateLeftIfNeeded : RBTree k v -> RBTree k v
+rotateLeftIfNeeded : Dict k v -> Dict k v
 rotateLeftIfNeeded t =
  case t of 
-   RBNode _ _ _ _ (RBNode Red _ _ _ _) -> rotateLeft t
+   Node _ _ _ _ (Node Red _ _ _ _) -> rotateLeft t
    _ -> t
 
-rotateRightIfNeeded : RBTree k v -> RBTree k v
+rotateRightIfNeeded : Dict k v -> Dict k v
 rotateRightIfNeeded t =
  case t of 
-   RBNode _ _ _ (RBNode Red _ _ (RBNode Red _ _ _ _) _) _ -> rotateRight t
+   Node _ _ _ (Node Red _ _ (Node Red _ _ _ _) _) _ -> rotateRight t
    _ -> t
 
 otherColor c = case c of { Red -> Black ; Black -> Red }
 
-color_flip : RBTree k v -> RBTree k v
+color_flip : Dict k v -> Dict k v
 color_flip t =
  case t of
-   RBNode c1 bk bv (RBNode c2 ak av la ra) (RBNode c3 ck cv lc rc) -> 
-       RBNode (otherColor c1) bk bv
-              (RBNode (otherColor c2) ak av la ra)
-              (RBNode (otherColor c3) ck cv lc rc)
-   _ -> Error.raise "color_flip called on a RBEmpty or RBNode with a RBEmpty child"
+   Node c1 bk bv (Node c2 ak av la ra) (Node c3 ck cv lc rc) -> 
+       Node (otherColor c1) bk bv
+              (Node (otherColor c2) ak av la ra)
+              (Node (otherColor c3) ck cv lc rc)
+   _ -> Error.raise "color_flip called on a Empty or Node with a Empty child"
 
-color_flipIfNeeded : RBTree k v -> RBTree k v
+color_flipIfNeeded : Dict k v -> Dict k v
 color_flipIfNeeded t = 
  case t of
-   RBNode _ _ _ (RBNode Red _ _ _ _) (RBNode Red _ _ _ _) -> color_flip t
+   Node _ _ _ (Node Red _ _ _ _) (Node Red _ _ _ _) -> color_flip t
    _ -> t
 
 fixUp t = color_flipIfNeeded (rotateRightIfNeeded (rotateLeftIfNeeded t))
 
-ensureBlackRoot : RBTree k v -> RBTree k v
+ensureBlackRoot : Dict k v -> Dict k v
 ensureBlackRoot t = 
   case t of
-    RBNode Red k v l r -> RBNode Black k v l r
+    Node Red k v l r -> Node Black k v l r
     _ -> t
      
 -- Invariant: t is a valid left-leaning rb tree *)
-insert : k -> v -> RBTree k v -> RBTree k v
+insert : k -> v -> Dict k v -> Dict k v
 insert k v t =
   let ins t =
       case t of
-        RBEmpty -> RBNode Red k v RBEmpty RBEmpty
-        RBNode c k' v' l r ->
+        Empty -> Node Red k v Empty Empty
+        Node c k' v' l r ->
           let h = case compare k k' of
-                    LT -> RBNode c k' v' (ins l) r
-                    EQ -> RBNode c k' v  l r  -- replace
-                    GT -> RBNode c k' v' l (ins r)
+                    LT -> Node c k' v' (ins l) r
+                    EQ -> Node c k' v  l r  -- replace
+                    GT -> Node c k' v' l (ins r)
           in  fixUp h
   in  ensureBlackRoot (ins t)
 {--
@@ -222,71 +223,71 @@ insert k v t =
             else new_t)
 --}
 
-singleton : k -> v -> RBTree k v
-singleton k v = insert k v RBEmpty
+singleton : k -> v -> Dict k v
+singleton k v = insert k v Empty
 
-isRed : RBTree k v -> Bool
+isRed : Dict k v -> Bool
 isRed t =
   case t of
-    RBNode Red _ _ _ _ -> True
+    Node Red _ _ _ _ -> True
     _ -> False
 
-isRedLeft : RBTree k v -> Bool
+isRedLeft : Dict k v -> Bool
 isRedLeft t =
   case t of
-    RBNode _ _ _ (RBNode Red _ _ _ _) _ -> True
+    Node _ _ _ (Node Red _ _ _ _) _ -> True
     _ -> False
 
-isRedLeftLeft : RBTree k v -> Bool
+isRedLeftLeft : Dict k v -> Bool
 isRedLeftLeft t =
   case t of
-    RBNode _ _ _ (RBNode _ _ _ (RBNode Red _ _ _ _) _) _ -> True
+    Node _ _ _ (Node _ _ _ (Node Red _ _ _ _) _) _ -> True
     _ -> False
 
-isRedRight : RBTree k v -> Bool
+isRedRight : Dict k v -> Bool
 isRedRight t =
   case t of
-    RBNode _ _ _ _ (RBNode Red _ _ _ _) -> True
+    Node _ _ _ _ (Node Red _ _ _ _) -> True
     _ -> False
 
-isRedRightLeft : RBTree k v -> Bool
+isRedRightLeft : Dict k v -> Bool
 isRedRightLeft t =
   case t of
-    RBNode _ _ _ _ (RBNode _ _ _ (RBNode Red _ _ _ _) _) -> True
+    Node _ _ _ _ (Node _ _ _ (Node Red _ _ _ _) _) -> True
     _ -> False
 
-moveRedLeft : RBTree k v -> RBTree k v
+moveRedLeft : Dict k v -> Dict k v
 moveRedLeft t = 
   let t' = color_flip t in
   case t' of
-    RBNode c k v l r ->
+    Node c k v l r ->
         case r of
-          RBNode _ _ _ (RBNode Red _ _ _ _) _ ->
-              color_flip (rotateLeft (RBNode c k v l (rotateRight r)))
+          Node _ _ _ (Node Red _ _ _ _) _ ->
+              color_flip (rotateLeft (Node c k v l (rotateRight r)))
           _ -> t'
     _ -> t'
 
-moveRedRight : RBTree k v -> RBTree k v
+moveRedRight : Dict k v -> Dict k v
 moveRedRight t =
   let t' = color_flip t in
   if isRedLeftLeft t' then color_flip (rotateRight t') else t'
 
-moveRedLeftIfNeeded : RBTree k v -> RBTree k v
+moveRedLeftIfNeeded : Dict k v -> Dict k v
 moveRedLeftIfNeeded t =
   if not (isRedLeft t) && not (isRedLeftLeft t) then moveRedLeft t else t
 
-moveRedRightIfNeeded : RBTree k v -> RBTree k v
+moveRedRightIfNeeded : Dict k v -> Dict k v
 moveRedRightIfNeeded t =
   if not (isRedRight t) && not (isRedRightLeft t) then moveRedRight t else t
   
-deleteMin : RBTree k v -> RBTree k v
+deleteMin : Dict k v -> Dict k v
 deleteMin t = 
   let del t =
     case t of 
-      RBNode _ _ _ RBEmpty _ -> RBEmpty
+      Node _ _ _ Empty _ -> Empty
       _ -> case moveRedLeftIfNeeded t of
-             RBNode c k v l r -> fixUp (RBNode c k v (del l) r)
-             RBEmpty -> RBEmpty
+             Node c k v l r -> fixUp (Node c k v (del l) r)
+             Empty -> Empty
   in  ensureBlackRoot (del t)
 
 {--
@@ -294,35 +295,35 @@ deleteMax t =
   let del t =
       let t' = if isRedLeft t then rotateRight t else t in
       case t' of
-      { RBNode _ _ _ _ RBEmpty -> RBEmpty
+      { Node _ _ _ _ Empty -> Empty
       ; _ -> let t'' = moveRedRightIfNeeded t' in
              case t'' of
-             { RBNode c k v l r -> fixUp (RBNode c k v l (del r))
-             ; RBEmpty -> RBEmpty } }
+             { Node c k v l r -> fixUp (Node c k v l (del r))
+             ; Empty -> Empty } }
   in  ensureBlackRoot (del t)
 --}
 
-remove : k -> RBTree k v -> RBTree k v
+remove : k -> Dict k v -> Dict k v
 remove k t = 
   let eq_and_noRightNode t =
-          case t of { RBNode _ k' _ _ RBEmpty -> k == k' ; _ -> False }
-      eq t = case t of { RBNode _ k' _ _ _ -> k == k' ; _ -> False }
+          case t of { Node _ k' _ _ Empty -> k == k' ; _ -> False }
+      eq t = case t of { Node _ k' _ _ _ -> k == k' ; _ -> False }
       delLT t = case moveRedLeftIfNeeded t of 
-                  RBNode c k' v l r -> fixUp (RBNode c k' v (del l) r)
-                  RBEmpty -> Error.raise "delLT on RBEmpty"
+                  Node c k' v l r -> fixUp (Node c k' v (del l) r)
+                  Empty -> Error.raise "delLT on Empty"
       delEQ t = case t of -- Replace with successor
-                  RBNode c _ _ l r -> let (k',v') = min r in
-                                      fixUp (RBNode c k' v' l (deleteMin r))
-                  RBEmpty -> Error.raise "delEQ called on a RBEmpty"
+                  Node c _ _ l r -> let (k',v') = min r in
+                                      fixUp (Node c k' v' l (deleteMin r))
+                  Empty -> Error.raise "delEQ called on a Empty"
       delGT t = case t of
-                  RBNode c k' v l r -> fixUp (RBNode c k' v l (del r))
-                  RBEmpty -> Error.raise "delGT called on a RBEmpty"
+                  Node c k' v l r -> fixUp (Node c k' v l (del r))
+                  Empty -> Error.raise "delGT called on a Empty"
       del t = case t of 
-                RBEmpty -> RBEmpty
-                RBNode _ k' _ _ _ ->
+                Empty -> Empty
+                Node _ k' _ _ _ ->
                     if k < k' then delLT t else
                         let u = if isRedLeft t then rotateRight t else t in
-                        if eq_and_noRightNode u then RBEmpty else
+                        if eq_and_noRightNode u then Empty else
                             let t' = moveRedRightIfNeeded t in
                             if eq t' then delEQ t' else delGT t'
   in  if member k t then ensureBlackRoot (del t) else t
@@ -334,41 +335,43 @@ remove k t =
                 Error.raise "invariants broken after remove")
 --}
 
-map : (a -> b) -> RBTree k a -> RBTree k b
+map : (a -> b) -> Dict k a -> Dict k b
 map f t =
   case t of
-    RBEmpty -> RBEmpty
-    RBNode c k v l r -> RBNode c k (f v) (map f l) (map f r)
+    Empty -> Empty
+    Node c k v l r -> Node c k (f v) (map f l) (map f r)
 
-foldl : (k -> v -> b -> b) -> b -> RBTree k v -> b
+foldl : (k -> v -> b -> b) -> b -> Dict k v -> b
 foldl f acc t =
   case t of
-    RBEmpty -> acc
-    RBNode _ k v l r -> foldl f (f k v (foldl f acc l)) r
+    Empty -> acc
+    Node _ k v l r -> foldl f (f k v (foldl f acc l)) r
 
-foldr : (k -> v -> b -> b) -> b -> RBTree k v -> b
+foldr : (k -> v -> b -> b) -> b -> Dict k v -> b
 foldr f acc t =
   case t of
-    RBEmpty -> acc
-    RBNode _ k v l r -> foldr f (f k v (foldr f acc r)) l
+    Empty -> acc
+    Node _ k v l r -> foldr f (f k v (foldr f acc r)) l
 
-union : RBTree k v -> RBTree k v -> RBTree k v
+union : Dict k v -> Dict k v -> Dict k v
 union t1 t2 = foldl insert t2 t1
 
-intersect : RBTree k v -> RBTree k v -> RBTree k v
-intersect t1 t2 = foldl (\k v t -> if k `member` t2 then insert k v t else t) empty t1
+intersect : Dict k v -> Dict k v -> Dict k v
+intersect t1 t2 =
+ let combine k v t = if k `member` t2 then insert k v t else t
+ in  foldl combine empty t1
 
-diff : RBTree k v -> RBTree k v -> RBTree k v
+diff : Dict k v -> Dict k v -> Dict k v
 diff t1 t2 = foldl (\k v t -> remove k t) t1 t2
 
-keys : RBTree k v -> [k]
+keys : Dict k v -> [k]
 keys t   = foldr (\k v acc -> k :: acc) [] t
 
-values : RBTree k v -> [v]
+values : Dict k v -> [v]
 values t = foldr (\k v acc -> v :: acc) [] t
 
-toList : RBTree k v -> [(k,v)]
+toList : Dict k v -> [(k,v)]
 toList t = foldr (\k v acc -> (k,v) :: acc) [] t
 
-fromList : [(k,v)] -> RBTree k v
-fromList assocs = Elm.List.foldl (uncurry insert) empty assocs
+fromList : [(k,v)] -> Dict k v
+fromList assocs = List.foldl (uncurry insert) empty assocs
