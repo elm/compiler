@@ -33,3 +33,13 @@ instance ShowQ InvalidIdentChar where
 
 instance Arbitrary InvalidIdentChar where
   arbitrary = InvalidIdentChar <$> elements "!@#$%^&*()-=+\\|/?.>,<`~"
+
+
+newtype BuiltinType = BuiltinType String deriving (Eq, Show)
+
+instance ShowQ BuiltinType where
+  showQ (BuiltinType v) = v
+
+instance Arbitrary BuiltinType where
+  -- TODO: add others
+  arbitrary = BuiltinType <$> elements ["Char", "String"]
