@@ -1,0 +1,5 @@
+:set -i../src -i.
+:l Main Parse.Parser
+:m + Test.QuickCheck Main
+:set prompt "test>> "
+:set -Wall
