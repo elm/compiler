@@ -62,11 +62,11 @@ jsModule (Module names exports imports stmts) =
     defs = assign "$op" "{}"
     program = "\nvar " ++ usefulFuncs ++ ";" ++ defs ++ includes ++ body ++
               setup ("elm":"Native":modNames) ++
-              assign "_" ("elm.Native." ++ modName ++ " || {}") ++
+              assign "_" ("elm.Native." ++ modName ++ "||{}") ++
               getExports exports stmts ++ setup ("elm":modNames) ++
               ret (assign' ("elm." ++ modName) "_") ++ "\n"
-    setup modNames = concatMap (\n -> globalAssign n $ n ++ " || {}") .
-                     map (intercalate ".") . tail . inits $ init modNames
+    setup modNames = concatMap (\n -> globalAssign n $ n ++ "||{}") .
+                     map (intercalate ".") . drop 2 . inits $ init modNames
     usefulFuncs = intercalate ", " (map (uncurry assign') internalImports)
 
 getExports names stmts = "\n"++ intercalate ";\n" (op : map fnPair fns)
@@ -95,13 +95,25 @@ jsImport (modul, how) =
     case how of
       As name -> assign name ("Elm." ++ modul ++ parens "elm")
       Importing vs ->
-          "\nvar $ = Elm." ++ modul ++ parens "elm" ++ ";" ++
+          "\nvar $ = Elm." ++ modul ++ parens "elm" ++ ";" ++ setup modul ++
           if null vs then "\nfor (var k in $) {eval('var '+k+'=$[\"'+k+'\"]')}"
                      else "\nvar " ++ intercalate ", " (map def vs) ++ ";"
         where
           imprt v = assign' v ("$." ++ v)
-          def (o:p) =
-              imprt (if isOp o then "$op['" ++ o:p ++ "']" else deprime (o:p))
+          def (o:p) = imprt (if isOp o then "$op['" ++ o:p ++ "']" else deprime (o:p))
+          setup moduleName = 
+              "\nvar " ++ concatMap (++";") (defs ++ [assign' moduleName "$"])
+             where
+               defs = map (\n -> assign' n (n ++ "||{}")) (subnames moduleName)
+               subnames = map (intercalate ".") . tail . inits . init . split
+               split names = case go [] names of
+                               (name, []) -> [name]
+                               (name, ns) -> name : split ns
+               go name str = case str of
+                               '.':rest -> (reverse name, rest)
+                               c:rest   -> go (c:name) rest
+                               []       -> (reverse name, [])
+
 
 
 stmtsToJS :: [Statement] -> String
