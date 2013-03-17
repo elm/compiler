@@ -17,13 +17,13 @@ instance Arbitrary ValidIdent where
   arbitrary = ValidIdent <$> ((:) <$> lowerAlpha <*> (listOf alphaNumUnderPrime))
 
 
-newtype StringValue = StringValue String deriving (Eq, Show)
+newtype StringLiteral = StringLiteral String deriving (Eq, Show)
 
-instance ShowQ StringValue where
-  showQ (StringValue v) = v
+instance ShowQ StringLiteral where
+  showQ (StringLiteral v) = v
 
-instance Arbitrary StringValue where
-  arbitrary = StringValue <$> escape <$> arbitrary
+instance Arbitrary StringLiteral where
+  arbitrary = StringLiteral <$> (\x -> "\"" ++ x ++ "\"") <$> escape <$> arbitrary
 
 
 newtype InvalidIdentChar = InvalidIdentChar Char deriving (Eq, Show)

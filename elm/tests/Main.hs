@@ -27,11 +27,11 @@ tests = [
     ]
   ]
 
-prop_assignString :: ValidIdent -> StringValue -> Bool
+prop_assignString :: ValidIdent -> StringLiteral -> Bool
 prop_assignString i s =
-  parses [qq|{i} = "{s}"|]
+  parses [qq|{i} = {s}|]
 
-prop_invalidIdent :: ValidIdent -> InvalidIdentChar -> StringValue -> Bool
+prop_invalidIdent :: ValidIdent -> InvalidIdentChar -> StringLiteral -> Bool
 prop_invalidIdent i z s =
-  parseFails [qq|{i}{z} = "{s}"|]
+  parseFails [qq|{i}{z} = {s}|]
 
