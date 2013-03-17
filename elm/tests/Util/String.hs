@@ -11,5 +11,3 @@ escape =
   (replace "\t" "\\t") .
   (replace "\"" "\\\"") .
   (replace "\\" "\\\\")
-
--- (a -> t) -> a -> b -> c -> (t -> t -> t -> z) -> z
