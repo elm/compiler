@@ -17,6 +17,8 @@ main = defaultMain tests
 parses :: String -> Bool
 parses code = either (const False) (const True) (parseProgram code)
 
+parseFails = not . parses
+
 tests :: [TF.Test]
 tests = [
     testGroup "String Assignments" [
@@ -31,4 +33,5 @@ prop_assignString i s =
 
 prop_invalidIdent :: ValidIdent -> InvalidIdentChar -> StringValue -> Bool
 prop_invalidIdent i z s =
-  (not . parses) [qq|{i}{z} = "{s}"|]
+  parseFails [qq|{i}{z} = "{s}"|]
+
