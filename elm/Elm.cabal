@@ -149,7 +149,8 @@ test-suite Main
                        QuickCheck >= 2.4,
                        test-framework >= 0.4.1,
                        test-framework-quickcheck2,
-                       regex-compat
+                       regex-compat,
+                       interpolatedstring-perl6 >= 0.9
 
   hs-source-dirs:      src, tests
   main-is:             Main.hs

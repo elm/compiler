@@ -3,14 +3,15 @@ module Util.Arbs where
 import Control.Applicative
 import Test.QuickCheck
 import Util.CharGens
-import Util.Stringable
 import Util.String
+
+import Text.InterpolatedString.Perl6 (ShowQ(showQ))
 
 
 newtype ValidIdent = ValidIdent String deriving (Eq, Show)
 
-instance Stringable ValidIdent where
-  stringify (ValidIdent v) = v
+instance ShowQ ValidIdent where
+  showQ (ValidIdent v) = v
 
 instance Arbitrary ValidIdent where
   arbitrary = ValidIdent <$> ((:) <$> lowerAlpha <*> (listOf alphaNumUnderPrime))
@@ -18,8 +19,8 @@ instance Arbitrary ValidIdent where
 
 newtype StringValue = StringValue String deriving (Eq, Show)
 
-instance Stringable StringValue where
-  stringify (StringValue v) = v
+instance ShowQ StringValue where
+  showQ (StringValue v) = v
 
 instance Arbitrary StringValue where
   arbitrary = StringValue <$> escape <$> arbitrary
@@ -27,8 +28,8 @@ instance Arbitrary StringValue where
 
 newtype InvalidIdentChar = InvalidIdentChar Char deriving (Eq, Show)
 
-instance Stringable InvalidIdentChar where
-  stringify (InvalidIdentChar c) = [c]
+instance ShowQ InvalidIdentChar where
+  showQ (InvalidIdentChar c) = [c]
 
 instance Arbitrary InvalidIdentChar where
   arbitrary = InvalidIdentChar <$> elements "!@#$%^&*()-=+\\|/?.>,<`~"
