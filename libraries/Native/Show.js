@@ -56,14 +56,19 @@ Elm.Native.Show = function(elm) {
     } else if ('ctor' in v) {
 	if (v.ctor.substring(0,5) === "Tuple") {
 	    var output = [];
-	    for (var k in v) { if (k === 'ctor') continue; output.push(toString(v[k])); }
+	    for (var k in v) {
+		if (k === 'ctor') continue;
+		output.push(toString(v[k]));
+	    }
 	    return "(" + output.join(",") + ")";
 	} else if (v.ctor === "Cons") {
-	    var isStr = typeof v._0 === "string";
-	    var start = isStr ? '"' : "[";
-	    var  end  = isStr ? '"' : "]";
-	    var  sep  = isStr ?  "" : ",";
-	    var   f   = isStr ? function(x){return x} : toString;
+	    var isStr = typeof v._0 === "string",
+	        start = isStr ? '"' : "[",
+	        end   = isStr ? '"' : "]",
+	        sep   = isStr ?  "" : ",",
+	        f     = !isStr ? toString : function(x){
+		return x === '\n' ? '\\n' : x;
+	    };
 	    var output = start + f(v._0);
 	    v = v._1;
 	    while (v.ctor === "Cons") {

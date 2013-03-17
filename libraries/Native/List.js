@@ -229,7 +229,8 @@ Elm.Native.List = function(elm) {
     var out = toArray(xss._0);
     xss = xss._1;
     while (xss.ctor === "Cons") {
-	out += s + toArray(xss._0);
+      out = out.concat(s, toArray(xss._0));
+      xss = xss._1;
     }
     return fromArray(out);
   }
