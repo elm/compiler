@@ -5,6 +5,8 @@ import Either
 import Graphics.LineStyle as LS
 import Graphics.Geometry
 import Native.Graphics.Matrix as Matrix
+import Native.Graphics.Collage as N
+import Graphics.Element
 
 type Form = { transform : Matrix, form : BasicForm }
 
@@ -57,3 +59,5 @@ moveY  y f = { form = f.form, transform = Matrix.move  0 y f.transform }
 
 transform u v w x y z f =
     { form = f.form, transform = Matrix.matrix u v w x y z f.transform }
+
+collage : Int -> Int -> [Form] -> Element

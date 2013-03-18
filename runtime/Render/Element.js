@@ -2,8 +2,9 @@
 ElmRuntime.Render.Element = function() {
 'use strict';
 
-var Utils = use(ElmRuntime.Render.Utils);
-var newElement = Utils.newElement, addTo = Utils.addTo, extract = Utils.extract;
+var Utils = ElmRuntime.use(ElmRuntime.Render.Utils);
+var newElement = Utils.newElement, addTo = Utils.addTo, extract = Utils.extract,
+    addTransform = Utils.addTransform, removeTransform = Utils.removeTransform;
 
 function setProps(props, e) {
     e.style.width  = (props.width |0) + 'px';
@@ -117,22 +118,6 @@ function toPos(pos) {
     }
 }
 
-function addTransform(style, trans) {
-  style.transform       = trans;
-  style.msTransform     = trans;
-  style.MozTransform    = trans;
-  style.webkitTransform = trans;
-  style.OTransform      = trans;
-}
-
-function removeTransform(style) {
-  style.transform       = 'none';
-  style.msTransform     = 'none';
-  style.MozTransform    = 'none';
-  style.webkitTransform = 'none';
-  style.OTransform      = 'none';
-}
-
 function setPos(pos,w,h,e) {
   e.style.position = 'absolute';
   e.style.margin = 'auto';
@@ -169,13 +154,14 @@ function rawHtml(html) {
 
 function render(elem) { return setProps(elem.props, makeElement(elem)); }
 function makeElement(e) {
-    switch(e.element.ctor) {
-    case 'Image':     return image(e.props, e.element);
-    case 'Flow':      return flow(e.element._0, e.element._1);
-    case 'Container': return container(e.element._0, e.element._1);
+    var elem = e.element;
+    switch(elem.ctor) {
+    case 'Image':     return image(e.props, elem);
+    case 'Flow':      return flow(elem._0, elem._1);
+    case 'Container': return container(elem._0, elem._1);
     case 'Spacer':    return newElement('div');
-    case 'RawHtml':   return rawHtml(e.element._0);
-    case 'DomNode':   return e.element._0;
+    case 'RawHtml':   return rawHtml(elem._0);
+    case 'Custom':    return elem.render(elem.model);
     }
 }
 
@@ -237,7 +223,7 @@ function update(node, curr, next) {
 	}
 	setPos(nextE._0, next.props.width, next.props.height, node.firstChild);
 	break;
-    case "DomNode":
+    case "Custom":
 	if (next._0 !== curr._0) node.parentNode.replaceChild(render(next),node);
 	break;
     }
