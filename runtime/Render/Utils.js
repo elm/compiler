@@ -18,13 +18,13 @@ function extract(c) {
     return 'rgba(' + c._0 + ',' + c._1 + ',' + c._2 + ',' + c._3 + ')';
 }
 
-var fromList = Elm.JavaScript({}).fromList;
-var eq = Elm.Native.Utils({}).eq;
+var JS = Elm.JavaScript({});
 
 return {addTo:addTo,
 	newElement:newElement,
-	extract:extract,
-	fromList:fromList,
-	eq:eq
+	extract : extract,
+	fromList: JS.fromList,
+	fromString: JS.fromString,
+	eq: Elm.Native.Utils({}).eq
 	};
 };

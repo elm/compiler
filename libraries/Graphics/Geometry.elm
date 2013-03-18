@@ -4,10 +4,10 @@
 
 module Geometry where
 
-data Path = Path [(Float,Float)]
+type Path = [(Float,Float)]
 
-path = Path
-segment p1 p2 = Path [p1,p2]
+path ps = ps
+segment p1 p2 = [p1,p2]
 
 type Shape = [(Float,Float)]
 

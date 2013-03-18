@@ -3,9 +3,12 @@ ElmRuntime.Render.Collage = function() {
 'use strict';
 
 var Utils = ElmRuntime.use(ElmRuntime.Render.Utils);
-var newElement = Utils.newElement, addTo = Utils.addTo, extract = Utils.extract;
+var newElement = Utils.newElement, addTo = Utils.addTo,
+    extract = Utils.extract, fromList = Utils.fromList,
+    fromString = Utils.fromString;
 
 function trace(ctx, path) {
+    var points = fromList(path);
     var i = points.length - 1;
     if (i <= 0) return;
     ctx.moveTo(points[i]._0, points[i]._1);
@@ -57,39 +60,47 @@ function drawLine(ctx, style, path) {
     ctx.miterLimit = style.miterLimit;
     ctx.strokeStyle = extract(style.color);
     return line(ctx, style, path);
-} 
-
-function filled(ctx,color,points) {
-    tracePoints(ctx,points);
-    ctx.fillStyle = extract(color);
-    ctx.fill();
 }
 
-function textured(redo,ctx,src,points) {
+function texture(redo, ctx, src) {
     var img = new Image();
-    img.src = JS.castStringToJSString(src);
+    img.src = fromString(src);
     img.onload = redo;
- 
-    tracePoints(ctx,points);
-    ctx.fillStyle = ctx.createPattern(img,'repeat');
-    ctx.fill();
+    return ctx.createPattern(img, 'repeat');
 }
 
-function drawShape(redo,ctx,shapeStyle,color,points) {
-    switch(shapeStyle[0]) {
-    case "Filled":   return filled(ctx,color,points);
-    case "Outlined": return solid(ctx,color,points);
-    case "Textured": return textured(redo,ctx,shapeStyle[1],points);
-    case "CustomOutline":
-	return customLine(shapeStyle[1],ctx,color,points);
+function gradient(ctx, grad) {
+    var g;
+    if (grad.ctor === 'Linear') {
+	var p1 = grad._1, p2 = grad._2;
+	g = ctx.createLinearGradient(p1._0, p1._1, p2._0, p2._1);
+    } else {
+	var p1 = grad._1, p2 = grad._3;
+	g = ctx.createRadialGradient(p1._0, p1._1, grad._2, p2._0, p2._1, grad._4);
     }
-};
+    var stops = fromList(grad._0);
+    for (var i = stops.length; i--; ) {
+	var stop = stops[i];
+	g.addColorStop(stop._0, extract(stop._1));
+    }
+    return g;
+}
 
-function drawImage(redo,ctx,w,h,src) {
+function drawShape(redo, ctx, style, path) {
+    trace(ctx, path);
+    var sty = style.ctor;
+    ctx.fillStyle =
+        sty === 'Solid' ? extract(style._0) :
+        sty === 'Texture' ? texture(redo, ctx, style._0) : gradient(ctx, style._0);
+    ctx.fill();
+}
+
+function drawImage(redo, ctx, form) {
     var img = new Image();
     img.onload = redo;
-    img.src = JS.castStringToJSString(src);
-    ctx.drawImage(img,-w/2,-h/2,w,h);
+    img.src = fromString(form._3);
+    var w = form._0, h = form._1, pos = form._2;
+    ctx.drawImage(img, pos._0, pos._1, w, h, -w/2, -h/2, w, h);
 }
 
 function renderForm(redo,ctx,form) {
@@ -97,17 +108,21 @@ function renderForm(redo,ctx,form) {
     var m = form.transform;
     ctx.transform(m[0], m[3], m[1], m[4], m[2], m[5]);
     ctx.beginPath();
-    switch(form.form.ctor) {
-    case 'FPath' : drawLine(ctx, form._0, form._1); break;
-    case 'FShape': drawShape(redo, ctx, form._0, form._1); break;
-    case 'FImage': drawImage(redo, ctx, form._0, form._1, form._2, form._3); break;
-    case 'FGroup': renderForms(redo, ctx, form.form._0); break;
+    var f = form.form;
+    switch(f.ctor) {
+    case 'FPath' : drawLine(ctx, f._0, f._1); break;
+    case 'FShape':
+	if (form.form._0.ctor === 'Left') drawLine(ctx, f._0._0, f._1);
+	else drawShape(redo, ctx, f._0._0, f._1);
+	break;
+    case 'FImage': drawImage(redo, ctx, f); break;
+    case 'FGroup': renderForms(redo, ctx, f._0); break;
     }
     ctx.restore();
 }
 
 function renderForms(redo, ctx, forms) {
-    forms = toArray(forms);
+    forms = fromList(forms);
     for (var i = forms.length; i--; ) {
 	renderForm(redo,ctx,forms[i]);
     }

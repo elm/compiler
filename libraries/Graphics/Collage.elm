@@ -9,8 +9,7 @@ import Native.Graphics.Matrix as Matrix
 type Form = { transform : Matrix, form : BasicForm }
 
 data FillStyle
-  = NoFill
-  | Solid Color
+  = Solid Color
   | Texture String
   | Gradient Gradient
 
