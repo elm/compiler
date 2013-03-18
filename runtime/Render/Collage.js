@@ -10,6 +10,7 @@ var newElement = Utils.newElement, addTo = Utils.addTo,
 
 function trace(ctx, path) {
     var points = fromList(path);
+    console.log(points);
     var i = points.length - 1;
     if (i <= 0) return;
     ctx.moveTo(points[i]._0, points[i]._1);
@@ -88,6 +89,7 @@ function gradient(ctx, grad) {
 }
 
 function drawShape(redo, ctx, style, path) {
+    console.log(style, path);
     trace(ctx, path);
     var sty = style.ctor;
     ctx.fillStyle =
@@ -110,6 +112,7 @@ function renderForm(redo,ctx,form) {
     ctx.transform(m[0], m[3], m[1], m[4], m[2], m[5]);
     ctx.beginPath();
     var f = form.form;
+    console.log(f);
     switch(f.ctor) {
     case 'FPath' : drawLine(ctx, f._0, f._1); break;
     case 'FShape':
@@ -123,9 +126,10 @@ function renderForm(redo,ctx,form) {
 }
 
 function renderForms(redo, ctx, forms) {
-    forms = fromList(forms);
-    for (var i = forms.length; i--; ) {
-	renderForm(redo,ctx,forms[i]);
+    var fs = fromList(forms);
+    console.log(fs);
+    for (var i = fs.length; i--; ) {
+	renderForm(redo,ctx,fs[i]);
     }
 }
 
@@ -138,10 +142,11 @@ function collageForms(w,h,forms) {
     canvas.style.display = "block";
     canvas.width  = w;
     canvas.height = h;
+    function redo() { renderForms(this,ctx,forms); }
     if (canvas.getContext) {
 	var ctx = canvas.getContext('2d');
-	function redo() { renderForms(this,ctx,w,h,forms); }
-	renderForms(redo,ctx,w,h,forms);
+	console.log(forms);
+	renderForms(redo,ctx,forms);
 	return canvas;
     }
     canvas.innerHTML = "Your browser does not support canvas.";
@@ -162,6 +167,7 @@ function collageElement(w, h, m, elem) {
 }
 
 function render(model) {
+    console.log(model);
     return collageForms(model.w, model.h, model.forms);
 }
 

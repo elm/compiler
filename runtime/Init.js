@@ -42,42 +42,7 @@ Elm.init = function(module, baseNode) {
   // object. This permits many Elm programs to be embedded per document.
   var elm = {notify: notify, node: baseNode, id: ElmRuntime.guid(), inputs: inputs};
 
-  // If graphics are enabled, set up the `main` value in baseNode.
-  if (baseNode !== null) {
-    var Render = ElmRuntime.use(ElmRuntime.Render.Element);
-
-    // evaluate the given module and extract its 'main' value.
-    signalGraph = module(elm).main;
-
-    // make sure the signal graph is actually a signal, extract the visual model,
-    // and filter out any unused inputs.
-    var Signal = Elm.Signal(elm);
-    if (!('recv' in signalGraph)) signalGraph = Signal.constant(signalGraph);
-    visualModel = signalGraph.value;
-    inputs = ElmRuntime.filterDeadInputs(inputs);
-
-    // Add the visualModel to the DOM
-    baseNode.appendChild(Render.render(visualModel));
-
-    if ('Window' in elm) {
-      var w = baseNode.clientWidth;
-      if (w !== elm.Window.dimensions.value._0) {
-	  notify(elm.Window.dimensions.id,
-		 Elm.Native.Utils(elm).Tuple2(w, baseNode.clientHeight));
-      }
-    }
-  
-    // set up updates so that the DOM is adjusted as necessary.
-    var update = Render.update;
-    function domUpdate(value) {
-      update(baseNode.firstChild, visualModel, value);
-      visualModel = value;
-      return value;
-    }
-
-    signalGraph = A2(Signal.lift, domUpdate, signalGraph);
-  }
-
+  // Set up methods to communicate with Elm program from JS.
   function send(name, value) {
       var e = document.createEvent('Event');
       e.initEvent(name + '_' + elm.id, true, true);
@@ -88,5 +53,42 @@ Elm.init = function(module, baseNode) {
       document.addEventListener(name + '_' + elm.id, handler);
   }
 
+  // If graphics are not enabled, escape early, skip over setting up DOM stuff.
+  if (baseNode === null) return { send : send, recv : recv };
+
+
+  var Render = ElmRuntime.use(ElmRuntime.Render.Element);
+
+  // evaluate the given module and extract its 'main' value.
+  signalGraph = module(elm).main;
+  
+  // make sure the signal graph is actually a signal, extract the visual model,
+  // and filter out any unused inputs.
+  var Signal = Elm.Signal(elm);
+  if (!('recv' in signalGraph)) signalGraph = Signal.constant(signalGraph);
+  visualModel = signalGraph.value;
+  inputs = ElmRuntime.filterDeadInputs(inputs);
+  
+  // Add the visualModel to the DOM
+  baseNode.appendChild(Render.render(visualModel));
+  
+  if ('Window' in elm) {
+      var w = baseNode.clientWidth;
+      if (w !== elm.Window.dimensions.value._0) {
+	  notify(elm.Window.dimensions.id,
+		 Elm.Native.Utils(elm).Tuple2(w, baseNode.clientHeight));
+      }
+  }
+  
+  // set up updates so that the DOM is adjusted as necessary.
+  var update = Render.update;
+  function domUpdate(value) {
+      update(baseNode.firstChild, visualModel, value);
+      visualModel = value;
+      return value;
+  }
+  
+  signalGraph = A2(Signal.lift, domUpdate, signalGraph);
+    
   return { send : send, recv : recv };
 };

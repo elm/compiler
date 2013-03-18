@@ -35,7 +35,7 @@ Elm.Native.Graphics.Matrix = function(elm) {
 
  return elm.Native.Graphics.Matrix = {
      identity:identity,
-     rotation:F2(rotation),
+     rotate:F2(rotate),
      scale:F3(scale),
      move:F3(move),
      matrix:F7(matrix)

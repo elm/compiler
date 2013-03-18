@@ -17,10 +17,10 @@ type LineStyle = {
  }
 
 default = {
-  color = black,
+  color = Color.black,
   width = 1,
   cap   = Butt,
-  join  = Miter,
+  join  = Sharp,
   dashing = [],
   dashOffset = 0,
   miterLimit = 10
