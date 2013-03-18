@@ -2,24 +2,8 @@
 ElmRuntime.Render.Element = function() {
 'use strict';
 
-var fromList = Elm.JavaScript({}).fromList;
-var eq = Elm.Native.Utils({}).eq;
-
-function newElement(elementType) {
-    var e = document.createElement(elementType);    
-    e.style.padding = "0";
-    e.style.margin = "0";
-    return e;
-}
-
-function addTo(container, elem) {
-    container.appendChild(elem);
-}
-
-function extract(c) {
-    if (c._3 === 1) { return 'rgb(' + c._0 + ',' + c._1 + ',' + c._2 + ')'; }
-    return 'rgba(' + c._0 + ',' + c._1 + ',' + c._2 + ',' + c._3 + ')';
-}
+var Utils = use(ElmRuntime.Render.Utils);
+var newElement = Utils.newElement, addTo = Utils.addTo, extract = Utils.extract;
 
 function setProps(props, e) {
     e.style.width  = (props.width |0) + 'px';
@@ -279,11 +263,6 @@ function update(node, curr, next) {
     }
 }
 
-return {
-    render:render,
-    update:update,
-    addTo:addTo,
-    newElement:newElement
-};
+return { render:render, update:update };
 
-}();
+};

@@ -1,45 +1,24 @@
 
-ElmRuntime.Render.Collage = function(rts) {
-    /*
-var JS = Elm.JavaScript;
+ElmRuntime.Render.Collage = function() {
+'use strict';
 
-function tracePoints(ctx,points) {
+var Utils = ElmRuntime.use(ElmRuntime.Render.Utils);
+var newElement = Utils.newElement, addTo = Utils.addTo, extract = Utils.extract;
+
+function trace(ctx, path) {
     var i = points.length - 1;
     if (i <= 0) return;
-    ctx.moveTo(points[i][1], points[i][2]);
-    while (i--) { ctx.lineTo(points[i][1], points[i][2]); }
+    ctx.moveTo(points[i]._0, points[i]._1);
+    while (i--) { ctx.lineTo(points[i]._0, points[i]._1); }
 }
 
-function solid(ctx,color,points) {
-    tracePoints(ctx,points);
-    ctx.strokeStyle = Elm.Color.extract(color);
+function line(ctx,style,path) {
+    var isSolid = style.dashing.ctor === 'Nil';
+    isSolid ? trace(ctx, path) : customLineHelp(ctx, style, path);
     ctx.stroke();
-};
-
-function filled(ctx,color,points) {
-    tracePoints(ctx,points);
-    ctx.fillStyle = Elm.Color.extract(color);
-    ctx.fill();
 }
 
-function textured(redo,ctx,src,points) {
-    var img = new Image();
-    img.src = JS.castStringToJSString(src);
-    img.onload = redo;
- 
-    tracePoints(ctx,points);
-    ctx.fillStyle = ctx.createPattern(img,'repeat');
-    ctx.fill();
-}
-
-function customLine(pattern,ctx,color,points) {
-    if (pattern.length === 0) { pattern = [8,4]; }
-    customLineHelp(ctx, pattern, points);
-    ctx.strokeStyle = Elm.Color.extract(color);
-    ctx.stroke();
-};
-
-var customLineHelp = function(ctx, pattern, points) {
+function customLineHelp(ctx, pattern, points) {
     var i = points.length - 1;
     if (i <= 0) return;
     var x0 = points[i][1], y0 = points[i][2];
@@ -69,17 +48,32 @@ var customLineHelp = function(ctx, pattern, points) {
 	}
 	x0 = x1; y0 = y1;
     }
-};
+}
 
-function drawLine(ctx,form) {
-    var points = form[3][1];
-    switch(form[1][0]) {
-    case "Solid" : return solid(ctx,form[2],points);
-    case "Dotted": return customLine([3,3],ctx,form[2],points);
-    case "Dashed": return customLine([8,4],ctx,form[2],points);
-    case "Custom": return customLine(form[1][1],ctx,form[2],points);
-    }
-};
+function drawLine(ctx, style, path) {
+    ctx.lineWidth = style.width;
+    ctx.lineCap = style.cap.ctor.toLowerCase();
+    ctx.lineJoin = style.join.ctor.toLowerCase();
+    ctx.miterLimit = style.miterLimit;
+    ctx.strokeStyle = extract(style.color);
+    return line(ctx, style, path);
+} 
+
+function filled(ctx,color,points) {
+    tracePoints(ctx,points);
+    ctx.fillStyle = extract(color);
+    ctx.fill();
+}
+
+function textured(redo,ctx,src,points) {
+    var img = new Image();
+    img.src = JS.castStringToJSString(src);
+    img.onload = redo;
+ 
+    tracePoints(ctx,points);
+    ctx.fillStyle = ctx.createPattern(img,'repeat');
+    ctx.fill();
+}
 
 function drawShape(redo,ctx,shapeStyle,color,points) {
     switch(shapeStyle[0]) {
@@ -98,25 +92,24 @@ function drawImage(redo,ctx,w,h,src) {
     ctx.drawImage(img,-w/2,-h/2,w,h);
 }
 
-function renderForm(redo,ctx,theta,scale,x,y,form) {
+function renderForm(redo,ctx,form) {
     ctx.save();
-    if (x !== 0 || y !== 0) ctx.translate(x,y);
-    if (theta !== ~~theta)  ctx.rotate(2*Math.PI*theta);
-    if (scale !== 1)        ctx.scale(scale,scale);
+    var m = form.transform;
+    ctx.transform(m[0], m[3], m[1], m[4], m[2], m[5]);
     ctx.beginPath();
-    switch(form[0]) {
-    case "FLine":  drawLine(ctx,form); break;
-    case "FShape": drawShape(redo,ctx,form[1],form[2],form[3][1]); break;
-    case "FImage": drawImage(redo,ctx,form[1],form[2],form[3]); break;
+    switch(form.form.ctor) {
+    case 'FPath' : drawLine(ctx, form._0, form._1); break;
+    case 'FShape': drawShape(redo, ctx, form._0, form._1); break;
+    case 'FImage': drawImage(redo, ctx, form._0, form._1, form._2, form._3); break;
+    case 'FGroup': renderForms(redo, ctx, form.form._0); break;
     }
     ctx.restore();
-};
+}
 
-function renderForms(redo,ctx,w,h,forms) {
-    ctx.clearRect(0,0,w,h);
+function renderForms(redo, ctx, forms) {
+    forms = toArray(forms);
     for (var i = forms.length; i--; ) {
-	var f = forms[i];
-	renderForm(redo,ctx,f[1],f[2],f[3][1],f[3][2],f[4]);
+	renderForm(redo,ctx,forms[i]);
     }
 }
 
@@ -313,5 +306,5 @@ function insideShape(point,theta,scale,pos,points) {
 }
 
 return {collage:collage, updateCollage:updateCollage, insideForm:insideForm};
-    */
+
 };
