@@ -1,0 +1,5 @@
+#!/bin/sh 
+
+here=`cd \`dirname $0\` && pwd`
+cd "$here/tests" &&
+ghci

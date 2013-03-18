@@ -1,0 +1,7 @@
+#!/bin/sh
+(
+  cd `dirname $0` &&
+  cabal configure --enable-tests &&
+  cabal build &&
+  cabal test 
+) || exit 1
