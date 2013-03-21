@@ -30,18 +30,18 @@ toModule (name, values) =
 toValue (name, tipe, desc) =
     "{ \"name\" : " ++ show name ++
     ",\n          \"type\" : \"" ++ show tipe ++
-    ",\n          \"desc\" : " ++ show desc ++ "\n        }"
+    "\",\n          \"desc\" : " ++ show desc ++ "\n        }"
 
 docParse :: String -> Either String (String, [(String, Type, String)])
 docParse = setupParser $ do
              optional freshLine
              (,) <$> option "Main" moduleName <*> types
-    where 
+    where
       skip = manyTill anyChar simpleNewline >> return []
       end  = many1 anyChar >> return []
       types = concat <$> many (docs <|> try skip <|> end)
       getName = intercalate "." . fst
-      moduleName = do optional freshLine 
+      moduleName = do optional freshLine
                       getName <$> moduleDef `followedBy` freshLine
 
 docs :: IParser [(String, Type, String)]

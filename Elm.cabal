@@ -33,6 +33,8 @@ Library
   exposed-modules:     Language.Elm,
                        Language.Elm.Quasi
   Hs-Source-Dirs:      compiler, compiler/Gen, compiler/Model, compiler/Transform
+  extensions:          CPP
+  cpp-options:         -DELM_COMPILEDATADIR="dist/data"
   other-modules:       Ast,
                        Context,
                        CompileToJS,
@@ -87,6 +89,8 @@ Library
 Executable elm
   Main-is:             Compiler.hs
   Hs-Source-Dirs:      compiler, compiler/Gen, compiler/Model, compiler/Transform
+  extensions:          CPP
+  cpp-options:         -DELM_COMPILEDATADIR="dist/data"
   other-modules:       Ast,
                        Context,
                        CompileToJS,
