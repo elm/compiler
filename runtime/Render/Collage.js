@@ -15,6 +15,10 @@ function trace(ctx, path) {
     if (i <= 0) return;
     ctx.moveTo(points[i]._0, points[i]._1);
     while (i--) { ctx.lineTo(points[i]._0, points[i]._1); }
+    if (path.closed) {
+	i = points.length - 1;
+	ctx.lineTo(points[i]._0, points[i]._1);
+    }
 }
 
 function line(ctx,style,path) {
@@ -118,8 +122,12 @@ function renderForm(redo,ctx,form) {
     switch(f.ctor) {
     case 'FPath' : drawLine(ctx, f._0, f._1); break;
     case 'FShape':
-	if (form.form._0.ctor === 'Left') drawLine(ctx, f._0._0, f._1);
-	else drawShape(redo, ctx, f._0._0, f._1);
+	if (f._0.ctor === 'Left') {
+	    f._1.closed = true;
+	    drawLine(ctx, f._0._0, f._1);
+	} else {
+	    drawShape(redo, ctx, f._0._0, f._1);
+	}
 	break;
     case 'FImage': drawImage(redo, ctx, f); break;
     case 'FGroup': renderForms(redo, ctx, f._0); break;

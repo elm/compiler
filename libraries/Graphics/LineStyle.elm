@@ -16,7 +16,7 @@ type LineStyle = {
   dashOffset : Int
  }
 
-default = {
+basic = {
   color = Color.black,
   width = 1,
   cap   = Butt,
@@ -26,6 +26,6 @@ default = {
   miterLimit = 10
  }
 
-solid  clr = { default | color <- clr }
-dashed clr = { default | color <- clr, dashing <- [8,4] }
-dotted clr = { default | color <- clr, dashing <- [3,3] }
+solid  clr = { basic | color <- clr }
+dashed clr = { basic | color <- clr, dashing <- [8,4] }
+dotted clr = { basic | color <- clr, dashing <- [3,3] }
