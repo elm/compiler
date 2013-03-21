@@ -63,7 +63,7 @@ data ElementPrim
   | Flow Direction [Element]
   | Spacer
   | RawHtml JSString
-  | DomNode JSElement
+  | Custom -- for custom Elements implemented in JS, see collage for example
 
 data ImageStyle = Plain | Fitted | Cropped (Int,Int)
 
@@ -94,9 +94,18 @@ flow dir es =
     DIn    -> newFlow (List.maximum ws) (List.maximum hs)
     DOut   -> newFlow (List.maximum ws) (List.maximum hs)
 
-above hi lo = newElement (max (widthOf hi) (widthOf lo)) (heightOf hi + heightOf lo) (Flow DDown [hi,lo])
-below lo hi = newElement (max (widthOf hi) (widthOf lo)) (heightOf hi + heightOf lo) (Flow DDown [hi,lo])
-beside lft rht = newElement (widthOf lft + widthOf rht) (max (heightOf lft) (heightOf rht)) (Flow right [lft,rht])
+above hi lo =
+    newElement (max (widthOf hi) (widthOf lo))
+               (heightOf hi + heightOf lo)
+               (Flow DDown [hi,lo])
+below lo hi =
+    newElement (max (widthOf hi) (widthOf lo))
+               (heightOf hi + heightOf lo)
+               (Flow DDown [hi,lo])
+beside lft rht =
+    newElement (widthOf lft + widthOf rht)
+               (max (heightOf lft) (heightOf rht))
+               (Flow right [lft,rht])
 
 layers es = 
   let ws = List.map widthOf es

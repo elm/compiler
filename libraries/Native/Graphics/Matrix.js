@@ -27,15 +27,15 @@ Elm.Native.Graphics.Matrix = function(elm) {
      return new A([m0, m1, m0*x + m1*y + m[2],
 		   m3, m4, m3*x + m4*y + m[5]]);
  }
- function matrix(a,b,c,d,e,f,m) {
+ function matrix(n11, n12, n21, n22, dx, dy, m) {
      var m0 = m[0], m1 = m[1], m3 = m[3], m4 = m[4];
-     return new A([m0*a + m1*d, m0*b + m1*e, m0*c + m1*f + m[2],
-		   m3*a + m4*d, m3*b + m4*e, m3*c + m4*f + m[5]]);
+     return new A([m0*n11 + m1*n12, m0*n21 + m1*n22, m0*dx + m1*dy + m[2],
+		   m3*n11 + m4*n12, m3*n21 + m4*n22, m3*dx + m4*dy + m[5]]);
  }
 
  return elm.Native.Graphics.Matrix = {
      identity:identity,
-     rotation:F2(rotation),
+     rotate:F2(rotate),
      scale:F3(scale),
      move:F3(move),
      matrix:F7(matrix)

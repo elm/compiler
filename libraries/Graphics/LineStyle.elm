@@ -4,7 +4,7 @@ module Graphics.LineStyle where
 import Graphics.Color as Color
 
 data LineCap  = Butt  | Round | Square
-data LineJoin = Soft | Sharp | Clip
+data LineJoin = Smooth | Sharp | Clipped
 
 type LineStyle = {
   color : Color,
@@ -17,10 +17,10 @@ type LineStyle = {
  }
 
 default = {
-  color = black,
+  color = Color.black,
   width = 1,
   cap   = Butt,
-  join  = Miter,
+  join  = Sharp,
   dashing = [],
   dashOffset = 0,
   miterLimit = 10

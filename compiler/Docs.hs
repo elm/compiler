@@ -19,30 +19,43 @@ main = do
     Left err -> putStrLn err >> exitFailure
     Right ms -> putStrLn (toModules ms)
 
-toModules ms =
-  "{ \"modules\" : [\n    " ++ intercalate ",\n    " (map toModule ms) ++ "\n  ]\n}"
+toModules ms = wrap (intercalate ",\n    " (map toModule ms))
+  where wrap s = "{ \"modules\" : [\n    " ++ s ++ "\n  ]\n}"
 
 toModule (name, values) =
-  "{ \"name\" : " ++ show name ++ ",\n      \"values\" : [\n        " ++ vs ++ "\n      ]\n    }"
-    where vs = intercalate ",\n        " (map toValue values)
+    "{ \"name\" : " ++ show name ++ ",\n      " ++
+    "\"values\" : [\n        " ++ vs ++ "\n      ]\n    }"
+  where vs = intercalate ",\n        " (map toValue values)
 
-toValue (name, tipe) =
-    "{ \"name\" : " ++ show name ++ ",\n          \"type\" : \"" ++ show tipe ++ "\"\n        }"
+toValue (name, tipe, desc) =
+    "{ \"name\" : " ++ show name ++
+    ",\n          \"type\" : \"" ++ show tipe ++
+    ",\n          \"desc\" : " ++ show desc ++ "\n        }"
 
-
-docParse :: String -> Either String (String, [(String, Type)])
+docParse :: String -> Either String (String, [(String, Type, String)])
 docParse = setupParser $ do
              optional freshLine
              (,) <$> option "Main" moduleName <*> types
     where 
       skip = manyTill anyChar simpleNewline >> return []
       end  = many1 anyChar >> return []
-      tipe = get <$> try typeAnnotation
-      get stmt = case stmt of { TypeAnnotation n t -> [(n,t)] ; _ -> [] }
-      types = concat <$> many (tipe <|> try skip <|> end)
+      types = concat <$> many (docs <|> try skip <|> end)
       getName = intercalate "." . fst
       moduleName = do optional freshLine 
                       getName <$> moduleDef `followedBy` freshLine
+
+docs :: IParser [(String, Type, String)]
+docs = (tipe <$> try typeAnnotation) <|> commentTipe
+  where
+    clip str = case str of { ' ':rest -> rest ; _ -> str }
+    tipe stmt = case stmt of { TypeAnnotation n t -> [(n,t,"")] ; _ -> [] }
+    commentTipe = do
+      cs  <- map clip <$> many1 lineComment
+      typ <- optionMaybe (try typeAnnotation)
+      return $ case typ of
+                 Just (TypeAnnotation n t) -> [(n, t, intercalate "\n" cs)]
+                 _ -> []
+
 
 setupParser p source =
     case iParse p "" source of

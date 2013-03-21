@@ -223,6 +223,50 @@ Elm.Native.List = function(elm) {
     return xs;
   }
 
+  function join(sep, xss) {
+    if (xss.ctor === 'Nil') return {ctor:'Nil'}
+    var s = toArray(sep);
+    var out = toArray(xss._0);
+    xss = xss._1;
+    while (xss.ctor === "Cons") {
+      out = out.concat(s, toArray(xss._0));
+      xss = xss._1;
+    }
+    return fromArray(out);
+  }
+
+  function split(sep, xs) {
+    var out = {ctor:'Nil'};
+    var array = toArray(xs);
+    var s = toArray(sep);
+    var slen = s.length;
+    if (slen === 0) {
+      for (var i = array.length; i--; ) {
+	out = Cons(Cons(array[i],Nil), out);
+      }
+      return out;
+    }
+    var temp = {ctor:'Nil'};
+    for (var i = array.length - slen; i >= 0; --i) {
+      var match = true;
+      for (var j = slen; j--; ) {
+	if (!Utils.eq(array[i+j], s[j])) { match = false;  break; }
+      }
+      if (match) {
+	out = {ctor:'Cons', _0:temp, _1:out};
+	temp = {ctor:'Nil'};
+	i -= slen - 1;
+      } else {
+	temp = {ctor:'Cons', _0:array[i+j], _1:temp};
+      }
+    }
+    for (var j = slen-1; j--; ) {
+      temp = {ctor:'Cons', _0:array[j], _1:temp};
+    }
+    out = {ctor:'Cons', _0:temp, _1:out};
+    return out;
+  }
+ 
   return elm.Native.List = {
       Nil:Nil,
       Cons:Cons,
@@ -255,7 +299,10 @@ Elm.Native.List = function(elm) {
       zip:F2(zip),
       sort:sort,
       take:F2(take),
-      drop:F2(drop)
+      drop:F2(drop),
+
+      join:F2(join),
+      split:F2(split)
   };
 
 };

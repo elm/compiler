@@ -5,12 +5,19 @@ import Either
 import Graphics.LineStyle as LS
 import Graphics.Geometry
 import Native.Graphics.Matrix as Matrix
+import Native.Graphics.Collage as N
+import Graphics.Element
 
-type Form = { transform : Matrix, form : BasicForm }
+type Form = {
+  theta : Float,
+  scale : Float,
+  x : Float,
+  y : Float,
+  form : BasicForm
+ }
 
 data FillStyle
-  = NoFill
-  | Solid Color
+  = Solid Color
   | Texture String
   | Gradient Gradient
 
@@ -21,9 +28,9 @@ data BasicForm
   | FElement Element
   | FGroup [Form]
 
-ident = Matrix.identity
+form f = { theta = 0, scale = 1, x = 0, y = 0, form = f }
 
-fill style shape = Form ident (FShape (Right style) shape)
+fill style shape = form (FShape (Right style) shape)
 
 filled : Color -> Shape -> Form
 filled color shape = fill (Solid color) shape
@@ -35,26 +42,27 @@ gradient : Gradient -> Shape -> Form
 gradient grad shape = fill (Gradient grad) shape
 
 outline : LineStyle -> Shape -> Form
-outline style shape = Form ident (FShape (Left style) shape)
+outline style shape = form (FShape (Left style) shape)
 
 trace : LineStyle -> Path -> Form
-trace style path = Form ident (FPath style path)
+trace style path = form (FPath style path)
 
 sprite : Int -> Int -> (Int,Int) -> String -> Form
-sprite w h pos src = Form ident (FImage w h pos src)
+sprite w h pos src = form (FImage w h pos src)
 
 toForm : Element -> Form
-toForm e = Form ident (FElement e)
+toForm e = form (FElement e)
 
-group fs = Form ident (FGroup fs)
+group : [Form] -> Form
+group fs = form (FGroup fs)
 
-rotate t f = { form = f.form, transform = Matrix.rotate  t f.transform }
-scale  s f = { form = f.form, transform = Matrix.scale s s f.transform }
-scaleX s f = { form = f.form, transform = Matrix.scale s 1 f.transform }
-scaleY s f = { form = f.form, transform = Matrix.scale 1 s f.transform }
-move x y f = { form = f.form, transform = Matrix.move  x y f.transform }
-moveX  x f = { form = f.form, transform = Matrix.move  x 0 f.transform }
-moveY  y f = { form = f.form, transform = Matrix.move  0 y f.transform }
+rotate : Float -> Form -> Form
+rotate t f = { f | theta <- f.theta + t }
 
-transform u v w x y z f =
-    { form = f.form, transform = Matrix.matrix u v w x y z f.transform }
+scale  s f = { f | scale <- f.scale * s }
+
+move x y f = { f | x <- f.x + x, y <- f.y + y }
+moveX  x f = { f | x <- f.x + x }
+moveY  y f = { f | y <- f.y + y }
+
+collage : Int -> Int -> [Form] -> Element

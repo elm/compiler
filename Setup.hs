@@ -50,7 +50,7 @@ appendJS file = do
   appendFile rts str
 
 appendElm lbi file = do
-  system ((show $ elm lbi) ++ " --only-js " ++ file)
+  system (elm lbi ++ " --only-js " ++ file)
   let jsFile = replaceExtension file ".js"
   appendJS jsFile
   removeFile jsFile
@@ -68,5 +68,5 @@ buildRuntime lbi = do
 
 buildTypes lbi = do
   files <- getFiles ".elm" "libraries"
-  system ((show $ elm_doc lbi) ++ " " ++ unwords files ++ " > " ++ types)
+  system (elm_doc lbi ++ " " ++ unwords files ++ " > " ++ types)
   putStrLn "Custom build step completed: elm-doc"

@@ -50,14 +50,13 @@ unzip pairs =
     []        -> ([],[])
     (x,y)::ps -> let (xs,ys) = (unzip ps) in (x::xs,y::ys)
 
+split : [a] -> [a] -> [[a]]
+join  : [a] -> [[a]] -> [a]
+
+intersperse : a -> [a] -> [a]
 intersperse sep xs =
   case xs of 
     a::b::cs -> a :: sep :: intersperse sep (b::cs)
     [a] -> [a]
     []  -> []
 
-intercalate sep xs =
-  case xs of 
-    a::b::cs -> a ++ sep ++ intercalate sep (b::cs)
-    [a] -> a
-    []  -> []

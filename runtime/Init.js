@@ -19,9 +19,9 @@ Elm.init = function(module, baseNode) {
   }
 
   // ensure that baseNode exists and is properly formatted.
-  var Render = ElmRuntime.Render.Element;
   if (typeof baseNode === 'undefined') {
-      baseNode = Render.newElement('div');
+      var newElement = ElmRuntime.use(ElmRuntime.Render.Utils).newElement;
+      baseNode = newElement('div');
       document.body.appendChild(baseNode);
       baseNode.style.width  = window.innerWidth + 'px';
       baseNode.style.height = window.innerHeight + 'px';
@@ -31,7 +31,7 @@ Elm.init = function(module, baseNode) {
 	      baseNode.style.height = window.innerHeight + 'px';
 	  }, true);
 
-      var style = Render.newElement('style');
+      var style = newElement('style');
       style.type = 'text/css';
       style.innerHTML = "html,head,body { padding:0; margin:0; }" +
 	  "body { font-family: calibri, helvetica, arial, sans-serif; }";
@@ -40,21 +40,38 @@ Elm.init = function(module, baseNode) {
 
   // create the actuall RTS. Any impure modules will attach themselves to this
   // object. This permits many Elm programs to be embedded per document.
-  var elm = { notify: notify, node: baseNode, id: ElmRuntime.guid(), inputs: inputs };
+  var elm = {notify: notify, node: baseNode, id: ElmRuntime.guid(), inputs: inputs};
+
+  // Set up methods to communicate with Elm program from JS.
+  function send(name, value) {
+      var e = document.createEvent('Event');
+      e.initEvent(name + '_' + elm.id, true, true);
+      e.value = value;
+      document.dispatchEvent(e);
+  }
+  function recv(name, handler) {
+      document.addEventListener(name + '_' + elm.id, handler);
+  }
+
+  // If graphics are not enabled, escape early, skip over setting up DOM stuff.
+  if (baseNode === null) return { send : send, recv : recv };
+
+
+  var Render = ElmRuntime.use(ElmRuntime.Render.Element);
 
   // evaluate the given module and extract its 'main' value.
   signalGraph = module(elm).main;
-
+  
   // make sure the signal graph is actually a signal, extract the visual model,
   // and filter out any unused inputs.
   var Signal = Elm.Signal(elm);
   if (!('recv' in signalGraph)) signalGraph = Signal.constant(signalGraph);
   visualModel = signalGraph.value;
   inputs = ElmRuntime.filterDeadInputs(inputs);
-
+  
   // Add the visualModel to the DOM
   baseNode.appendChild(Render.render(visualModel));
-
+  
   if ('Window' in elm) {
       var w = baseNode.clientWidth;
       if (w !== elm.Window.dimensions.value._0) {
@@ -70,44 +87,8 @@ Elm.init = function(module, baseNode) {
       visualModel = value;
       return value;
   }
-
+  
   signalGraph = A2(Signal.lift, domUpdate, signalGraph);
-
-  function send(name, value) {
-      var e = document.createEvent('Event');
-      e.initEvent(name + '_' + elm.id, true, true);
-      e.value = value;
-      document.dispatchEvent(e);
-  }
-  function recv(name, handler) {
-      document.addEventListener(name + '_' + elm.id, handler);
-  }
-
+    
   return { send : send, recv : recv };
 };
-
-// Helper function to filter dead inputs. Not specific to initialization.
-ElmRuntime = ElmRuntime || {};
-ElmRuntime.counter = 0;
-ElmRuntime.guid = function() { ++ElmRuntime.counter; return ElmRuntime.counter; }
-ElmRuntime.filterDeadInputs = function() {
-  'use strict';
-  function isAlive(input) {
-      if (!('defaultNumberOfKids' in input)) return true;
-      var len = input.kids.length;
-      if (len == 0) return false;
-      if (len > input.defaultNumberOfKids) return true;
-      var alive = false;
-      for (var i = len; i--; ) {
-	  alive = alive || isAlive(input.kids[i]);
-      }
-      return alive;
-  }
-  return function filterDeadInputs(inputs) {
-      var temp = [];
-      for (var i = inputs.length; i--; ) {
-	  if (isAlive(inputs[i])) temp.push(inputs[i]);
-      }
-      return temp;
-  };
-}();

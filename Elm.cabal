@@ -81,7 +81,8 @@ Library
                        indents,
                        filepath,
                        template-haskell,
-                       json
+                       json,
+                       directory
 
 Executable elm
   Main-is:             Compiler.hs
@@ -132,7 +133,8 @@ Executable elm
                        indents,
                        filepath,
                        template-haskell,
-                       json
+                       json,
+                       directory
 
 Executable elm-doc
   Main-is:             Docs.hs
