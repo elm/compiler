@@ -10,7 +10,6 @@ var newElement = Utils.newElement, addTo = Utils.addTo,
 
 function trace(ctx, path) {
     var points = fromList(path);
-    console.log(points);
     var i = points.length - 1;
     if (i <= 0) return;
     ctx.moveTo(points[i]._0, points[i]._1);
@@ -22,21 +21,23 @@ function trace(ctx, path) {
 }
 
 function line(ctx,style,path) {
-    var isSolid = style.dashing.ctor === 'Nil';
-    isSolid ? trace(ctx, path) : customLineHelp(ctx, style, path);
+    style.dashing.ctor === 'Nil' ? trace(ctx, path) : customLineHelp(ctx, style, path);
     ctx.stroke();
 }
 
-function customLineHelp(ctx, pattern, points) {
+function customLineHelp(ctx, style, path) {
+    var points = fromList(path);
+    if (path.closed) points.push(points[0]);
+    var pattern = fromList(style.dashing);
     var i = points.length - 1;
     if (i <= 0) return;
-    var x0 = points[i][1], y0 = points[i][2];
+    var x0 = points[i]._0, y0 = points[i]._1;
     var x1=0, y1=0, dx=0, dy=0, remaining=0, nx=0, ny=0;
     var pindex = 0, plen = pattern.length;
     var draw = true, segmentLength = pattern[0];
     ctx.moveTo(x0,y0);
     while (i--) {
-	x1 = points[i][1]; y1 = points[i][2];
+	x1 = points[i]._0; y1 = points[i]._1;
 	dx = x1 - x0; dy = y1 - y0;
 	remaining = Math.sqrt(dx * dx + dy * dy);
 	while (segmentLength <= remaining) {
@@ -93,7 +94,6 @@ function gradient(ctx, grad) {
 }
 
 function drawShape(redo, ctx, style, path) {
-    console.log(style, path);
     trace(ctx, path);
     var sty = style.ctor;
     ctx.fillStyle =
@@ -107,7 +107,6 @@ function drawImage(redo, ctx, form) {
     img.onload = redo;
     img.src = fromString(form._3);
     var w = form._0, h = form._1, pos = form._2;
-    console.log(w,h,pos);
     ctx.drawImage(img, pos._0, pos._1, w, h, -w/2, -h/2, w, h);
 }
 
@@ -118,7 +117,6 @@ function renderForm(redo,ctx,form) {
     if (form.scale !== 1) ctx.scale(form.scale, form.scale);
     ctx.beginPath();
     var f = form.form;
-    console.log(f);
     switch(f.ctor) {
     case 'FPath' : drawLine(ctx, f._0, f._1); break;
     case 'FShape':
@@ -137,16 +135,13 @@ function renderForm(redo,ctx,form) {
 
 function renderForms(redo, ctx, forms) {
     var fs = fromList(forms);
-    console.log(fs);
     for (var i = 0, len = fs.length; i < len; ++i) {
-	renderForm(redo,ctx,fs[i]);
+	renderForm(redo, ctx, fs[i]);
     }
 }
 
 function collageForms(w,h,forms) {
     var canvas = newElement('canvas');
-    w = w|0;
-    h = h|0;
     canvas.style.width  = w + 'px';
     canvas.style.height = h + 'px';
     canvas.style.display = "block";
@@ -155,7 +150,6 @@ function collageForms(w,h,forms) {
     function redo() { renderForms(this,ctx,forms); }
     if (canvas.getContext) {
 	var ctx = canvas.getContext('2d');
-	console.log(forms);
 	renderForms(redo,ctx,forms);
 	return canvas;
     }
@@ -163,21 +157,25 @@ function collageForms(w,h,forms) {
     return canvas;
 }
 
-function collageElement(w, h, m, elem) {
+function collageElement(width, height, x, y, theta, scale, elem) {
   var e = Render.render(elem);
-  var matrix = 'matrix(' + m[0] + ',' + m[3] + ',' + m[1] + ',' +
-                           m[4] + ',' + m[2] + ',' + m[5] + ')';
-  addTransform(e.style, matrix);
+  var w = elem.props.width,
+      h = elem.props.height,
+      t = 'translate(' + (width + f.x - w/2) + 'px,'+ (height - f.y - h/2) + 'px)',
+      r = theta === 0 ? '' : 'rotate(' + theta + 'rad)',
+      s = scale === 1 ? '' : 'scale(' + scale + ',' + scale + ')';
+  // var m = 'matrix(' + mtrx[0] + ',' + mtrx[3] + ',' + mtrx[1] + ',' +
+  //                     mtrx[4] + ',' + mtrx[2] + ',' + mtrx[5] + ')';
+  addTransform(e.style, t + ' ' + s + ' ' + r);
   var div = newElement('div');
   addTo(div,e);
-  div.style.width = (w|0) + "px";
-  div.style.height = (h|0) + "px";
-  div.style.overflow = "hidden";
+  div.style.width = width + 'px';
+  div.style.height = height + 'px';
+  div.style.overflow = 'hidden';
   return div;
 }
 
 function render(model) {
-    console.log(model);
     return collageForms(model.w, model.h, model.forms);
 }
 
