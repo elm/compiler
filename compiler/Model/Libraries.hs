@@ -1,10 +1,8 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Libraries (libraries) where
 
 import qualified Data.Map as Map
 import Text.JSON
-import LoadLibraries
+import LoadLibraries (docs)
 
 libraries :: Map.Map String (Map.Map String String)
 libraries = case getLibs of
@@ -13,7 +11,7 @@ libraries = case getLibs of
 
 getLibs :: Result (Map.Map String (Map.Map String String))
 getLibs = do
-  obj <- decodeStrict "{\"modules\":[]}" -- $(docs) :: Result (JSObject JSValue)
+  obj <- decodeStrict docs :: Result (JSObject JSValue)
   modules <- valFromObj "modules" obj :: Result [JSObject JSValue]
   Map.fromList `fmap` mapM getValues modules
 
