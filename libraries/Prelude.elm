@@ -7,10 +7,10 @@ radians : Float -> Float
 radians t = t
 
 degrees : Float -> Float
-degrees d = Math.pi * d / 180
+degrees d = d * Math.PI / 180
 
-rotations : Float -> Float
-rotations r = 2 * Math.pi * r
+turns : Float -> Float
+turns r = 2 * Math.PI * r
 
 -- Integer division, remainder is discarded.
 div : Int -> Int -> Int

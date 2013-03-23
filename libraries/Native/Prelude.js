@@ -73,7 +73,7 @@ Elm.Native.Prelude = function(elm) {
       rem:F2(rem),
       mod:F2(mod),
 
-      pi:Math.pi,
+      pi:Math.PI,
       e:Math.e,
       cos:Math.cos,
       sin:Math.sin,

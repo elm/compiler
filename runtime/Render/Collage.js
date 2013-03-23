@@ -112,7 +112,7 @@ function drawImage(redo, ctx, form) {
 
 function renderForm(redo,ctx,form) {
     ctx.save();
-    if (form.x !== 0 || form.y !== 0) ctx.translate(form.x, form.y);
+    if (form.x !== 0 || form.y !== 0) ctx.translate(form.x, -form.y);
     if (form.theta !== 0) ctx.rotate(form.theta);
     if (form.scale !== 1) ctx.scale(form.scale, form.scale);
     ctx.beginPath();
