@@ -2,9 +2,9 @@
 -- [Keyboard.Raw library](/docs/Signal/KeyboardRaw.elm) for a
 -- lower-level interface that will let you define more complicated behavior.
 
-module Keyboard where
+module Keys where
 
-import Native.Keyboard as N
+import Native.Keys as N
 
 type KeyCode = Int
 
@@ -22,9 +22,12 @@ arrows = N.directions 37 39 38 40
 wasd : Signal { x:Int, y:Int }
 wasd = N.directions 65 68 87 83
 
+-- Custom key directions so that you can support different locales.
+-- The plan is to have a locale independent version of this function
+-- that uses the physical location of keys, but I don't know how to do it.
 directions : KeyCode -> KeyCode -> KeyCode -> KeyCode -> Signal { x:Int, y:Int }
 
-
+-- Whether an arbitrary key is pressed.
 isDown : KeyCode -> Signal Bool
 
 -- Whether the shift key is pressed.
@@ -39,5 +42,9 @@ ctrl = N.isDown 17
 space : Signal Bool
 space = N.isDown 32
 
-keysDown : Signal [KeyCode]
-charPressed : Signal (Maybe Char)
+-- Whether the enter key is pressed.
+enter : Signal Bool
+enter = N.isDown 13
+
+down : Signal [KeyCode]
+presses : Signal Char
