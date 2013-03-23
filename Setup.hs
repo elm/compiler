@@ -7,6 +7,7 @@ import System.Cmd
 import System.Directory
 import System.FilePath
 import System.IO
+import System.Process
 
 import Control.Monad
 
@@ -29,6 +30,7 @@ import Control.Monad
 -- Assumptions
 -- Elm.cabal expects the generated files to end up in dist/data
 rtsDir lbi = (buildDir lbi) </> ".." </> "data"      -- git won't look in dist + cabal will clean it
+jsDir lbi = (buildDir lbi) </> ".." </> "js"
 
 -- The runtime is called:
 rts lbi = (rtsDir lbi) </> "elm-runtime.js"
@@ -43,13 +45,6 @@ types lbi = (rtsDir lbi) </> "docs.json"
 
 -- buildDir with LocalBuildInfo points to "dist/build" (usually)
 elm lbi = (buildDir lbi) </> "elm" </> "elm"
-
--- "touch" is available as a system command.
--- There is no portable file touch (unix-compat might work but leads to cabal library dependency
---    issues: see: http://hackage.haskell.org/trac/summer-of-code/ticket/1602 )
--- Files that need recompilation after docs.json is updated
---    (Would be nice if this list was in the cabal file, but can't see any way to do that)
-docTouches = ["compiler" </> "Model" </> "LoadLibraries.hs"]
 
 -- Care!  This appears to be based on an unstable API
 -- See: http://www.haskell.org/cabal/release/cabal-latest/doc/API/Cabal/Distribution-Simple.html#2
@@ -67,10 +62,16 @@ myBuild pd lbi uh bf = do
     withExe pd (\x -> putStrLn (exeName x))
     buildHook simpleUserHooks (filterExe elmDoc pd) (filterLBI elmDoc lbi) uh bf
     putStrLn "Custom build step started: build docs.json"
-    buildTypes lbi
-    forM_ docTouches (\s -> system ("touch " ++ s))     -- NB non-portable
+    buildTypes lbi      -- see note(1) below
     putStrLn "Custom build step started: compile everything"
     buildHook simpleUserHooks pd lbi uh bf
+
+-- note(1): We use to include docs.json directly into LoadLibraries at compile time
+-- If docs.json is used in other (template) haskell files, they should be copied
+-- and compiled in a separate directory (eg, dist/copiedSrc).
+-- This is to make sure they are re-compiled on docs.json changes.
+-- Copying is a better solution than 'touch'ing the source files
+-- (touch is non-portable and confusing wrt RCS).
 
 -- In the PackageDescription, the list of stuff to build is held in library (in a Maybe)
 -- and the executables list.  We want a PackageDescription that only mentions the executable 'name'
@@ -116,10 +117,25 @@ appendJS lbi file = do
   appendFile (rts lbi) str
 
 appendElm lbi file = do
-  system (elm lbi ++ " --only-js " ++ file)
-  let jsFile = replaceExtension file ".js"
+  jsFile <- runElm lbi file
   appendJS lbi jsFile
-  removeFile jsFile
+
+-- replace 'system' call with 'runProcess' which handles args better and allows env variable
+-- "Elm_datadir" which is used by LoadLibraries to find docs.json
+runElm :: LocalBuildInfo -> String -> IO FilePath
+runElm lbi file = do
+  rts_c <- canonicalizePath (rts lbi)       -- dist/data/elm-runtime.js
+  let js = jsDir lbi        -- dist/js
+  let j = dropFileName (js </> file)        -- dist/js/libraries/
+  createDirectoryIfMissing True j       -- must do before any canonicalization
+  out_c <- canonicalizePath js      -- dist/js (root folder)
+  elm_c <- canonicalizePath (elm lbi)       -- dist/build/elm/elm
+  rtd_c <- canonicalizePath (rtsDir lbi)        -- dist/data (for docs.json)
+  handle <- runProcess elm_c ["--only-js", "--runtime="++rts_c, "--output-directory="++out_c, file]
+            Nothing (Just [("Elm_datadir", rtd_c)]) Nothing Nothing Nothing
+  waitForProcess handle
+  return $ j </> replaceExtension (takeFileName file) ".js"
+
 
 buildRuntime lbi = do
   createDirectoryIfMissing False (rtsDir lbi)     -- dist should already exist
