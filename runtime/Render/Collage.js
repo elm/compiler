@@ -150,6 +150,7 @@ function collageForms(w,h,forms) {
     function redo() { renderForms(this,ctx,forms); }
     if (canvas.getContext) {
 	var ctx = canvas.getContext('2d');
+	ctx.translate(w/2, h/2);
 	renderForms(redo,ctx,forms);
 	return canvas;
     }

@@ -5,6 +5,7 @@
 module Graphics.Geometry where
 
 import List
+import Native.Utils (toFloat)
 
 type Path = [(Float,Float)]
 
@@ -19,12 +20,16 @@ rect w h = [ (0-w/2,0-h/2), (0-w/2,h/2), (w/2,h/2), (w/2,0-h/2) ]
 
 oval w h =
   let n = 50
-      f i = (w/2 * Math.cos (2*Math.pi/n * i), h/2 * Math.sin (2*Math.pi/n * i))
+      t = 2 * Math.PI / n
+      hw = w/2
+      hh = h/2
+      f i = (hw * Math.cos (t*i), hh * Math.sin (t*i))
   in  map f [0..n-1]
 
 circle r = oval (2*r) (2*r)
 
 ngon n r =
   let m = toFloat n
-      f i = ( r * Math.cos (2*Math.pi/m * i), r * Math.sin (2*Math.pi/m * i))
+      t = 2 * Math.PI / m
+      f i = ( r * Math.cos (t*i), r * Math.sin (t*i) )
   in  map f [0..n-1]

@@ -122,6 +122,7 @@ Elm.Native.Utils = function(elm) {
       guid: guid,
       max : F2(max),
       min : F2(min),
-      htmlHeight: F2(htmlHeight)
+      htmlHeight: F2(htmlHeight),
+      toFloat: function(x){return x}
   };
 };
