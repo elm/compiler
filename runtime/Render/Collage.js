@@ -128,7 +128,13 @@ function renderForm(redo,ctx,form) {
 	}
 	break;
     case 'FImage': drawImage(redo, ctx, f); break;
-    case 'FGroup': renderForms(redo, ctx, f._0); break;
+    case 'FGroup':
+	ctx.save();
+	var m = f._0;
+	ctx.transform(m[0], m[3], m[1], m[4], m[2], m[5]);
+	renderForms(redo, ctx, f._1);
+	ctx.restore();
+	break;
     }
     ctx.restore();
 }

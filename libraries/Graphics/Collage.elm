@@ -26,7 +26,7 @@ data BasicForm
   | FShape (Either LineStyle FillStyle) Shape
   | FImage Int Int (Int,Int) String
   | FElement Element
-  | FGroup [Form]
+  | FGroup Matrix [Form]
 
 form f = { theta = 0, scale = 1, x = 0, y = 0, form = f }
 
@@ -41,11 +41,11 @@ textured src shape = fill (Texture src) shape
 gradient : Gradient -> Shape -> Form
 gradient grad shape = fill (Gradient grad) shape
 
-outline : LineStyle -> Shape -> Form
-outline style shape = form (FShape (Left style) shape)
+outlined : LineStyle -> Shape -> Form
+outlined style shape = form (FShape (Left style) shape)
 
-trace : LineStyle -> Path -> Form
-trace style path = form (FPath style path)
+traced : LineStyle -> Path -> Form
+traced style path = form (FPath style path)
 
 sprite : Int -> Int -> (Int,Int) -> String -> Form
 sprite w h pos src = form (FImage w h pos src)
@@ -54,7 +54,10 @@ toForm : Element -> Form
 toForm e = form (FElement e)
 
 group : [Form] -> Form
-group fs = form (FGroup fs)
+group fs = form (FGroup Matrix.identity fs)
+
+groupTransform : Matrix -> [Form] -> Form
+groupTransform matrix fs = form (FGroup matrix fs)
 
 rotate : Float -> Form -> Form
 rotate t f = { f | theta <- f.theta + t }
