@@ -1,6 +1,4 @@
--- Library for working with time. Type `Time` represents some number of
--- milliseconds.
-
+-- Library for working with time. Type `Time` represents some number of milliseconds.
 module Time where
 
 import Native.Time as T
@@ -50,3 +48,15 @@ fpsWhen : Number -> Signal Bool -> Signal Time
 -- Takes a time interval t. The resulting signal is the current time,
 -- updated every t.
 every : Time -> Signal Time
+
+-- Takes a time `t` and any signal. The resulting boolean signal
+-- is true for time `t` after every event on the input signal.
+-- So ``(second `since` Mouse.clicks)`` would result in a signal
+-- that is true for one second after each mouse click and false
+-- otherwise.
+since : Time -> Signal a -> Signal Bool
+
+{-- TODO: Only found in docs
+  , ("timeOf", "Signal a -> Signal Time", [markdown|
+  Same as `timestamp` but it throws out the incoming value. So `(timeOf == lift fst . timestamp)`.|])
+--}

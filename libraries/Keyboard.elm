@@ -1,7 +1,6 @@
 -- These are nicely curated inputs from the keyboard. See the
 -- [Keyboard.Raw library](/docs/Signal/KeyboardRaw.elm) for a
 -- lower-level interface that will let you define more complicated behavior.
-
 module Keyboard where
 
 import Native.Keyboard as N
