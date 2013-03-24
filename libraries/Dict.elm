@@ -16,6 +16,7 @@ data NColor = Red | Black
 
 data Dict k v = Node NColor k v (Dict k v) (Dict k v) | Empty
 
+-- Create an empty dictionary.
 empty : Dict k v
 empty = Empty
 
@@ -114,6 +115,7 @@ max t =
   }
 --}
 
+-- Lookup the value associated with a key.
 lookup : k -> Dict k v -> Maybe v
 lookup k t =
  case t of
@@ -124,6 +126,7 @@ lookup k t =
       EQ -> Just v
       GT -> lookup k r
 
+-- Find the value associated with a key. If the key is not found, return the default value.
 findWithDefault : v -> k -> Dict k v -> v
 findWithDefault base k t =
  case t of
@@ -135,6 +138,7 @@ findWithDefault base k t =
       GT -> findWithDefault base k r
 
 {--
+-- Find the value associated with a key. If the key is not found, there will be a runtime error.
 find k t =
  case t of
  { Empty -> Error.raise "Key was not found in dictionary!"
@@ -146,8 +150,9 @@ find k t =
  }
 --}
 
--- Does t contain k?
+-- Determine if a key is in a dictionary.
 member : k -> Dict k v -> Bool
+-- Does t contain k?
 member k t = Maybe.isJust $ lookup k t
 
 rotateLeft : Dict k v -> Dict k v
@@ -201,6 +206,7 @@ ensureBlackRoot t =
     Node Red k v l r -> Node Black k v l r
     _ -> t
      
+-- Insert a key-value pair into a dictionary. Replaces value when there is a collision.
 -- Invariant: t is a valid left-leaning rb tree *)
 insert : k -> v -> Dict k v -> Dict k v
 insert k v t =
@@ -223,6 +229,7 @@ insert k v t =
             else new_t)
 --}
 
+-- Create a dictionary with one key-value pair.
 singleton : k -> v -> Dict k v
 singleton k v = insert k v Empty
 
@@ -303,6 +310,7 @@ deleteMax t =
   in  ensureBlackRoot (del t)
 --}
 
+-- Remove a key-value pair from a dictionary. If the key is not found, no changes are made.
 remove : k -> Dict k v -> Dict k v
 remove k t = 
   let eq_and_noRightNode t =
@@ -335,43 +343,53 @@ remove k t =
                 Error.raise "invariants broken after remove")
 --}
 
+-- Apply a function to all values in a dictionary.
 map : (a -> b) -> Dict k a -> Dict k b
 map f t =
   case t of
     Empty -> Empty
     Node c k v l r -> Node c k (f v) (map f l) (map f r)
 
+-- Fold over the key-value pairs in a dictionary, in order from lowest key to highest key.
 foldl : (k -> v -> b -> b) -> b -> Dict k v -> b
 foldl f acc t =
   case t of
     Empty -> acc
     Node _ k v l r -> foldl f (f k v (foldl f acc l)) r
 
+-- Fold over the key-value pairs in a dictionary, in order from highest key to lowest key.
 foldr : (k -> v -> b -> b) -> b -> Dict k v -> b
 foldr f acc t =
   case t of
     Empty -> acc
     Node _ k v l r -> foldr f (f k v (foldr f acc r)) l
 
+-- Combine two dictionaries. If there is a collision, preference is given to the first dictionary.
 union : Dict k v -> Dict k v -> Dict k v
 union t1 t2 = foldl insert t2 t1
 
+-- Keep a key-value pair when its key appears in the second dictionary. Preference is given to values in the first dictionary.
 intersect : Dict k v -> Dict k v -> Dict k v
 intersect t1 t2 =
  let combine k v t = if k `member` t2 then insert k v t else t
  in  foldl combine empty t1
 
+-- Keep a key-value pair when its key does not appear in the second dictionary. Preference is given to the first dictionary.
 diff : Dict k v -> Dict k v -> Dict k v
 diff t1 t2 = foldl (\k v t -> remove k t) t1 t2
 
+-- Get all of the keys in a dictionary.
 keys : Dict k v -> [k]
 keys t   = foldr (\k v acc -> k :: acc) [] t
 
+-- Get all of the values in a dictionary.
 values : Dict k v -> [v]
 values t = foldr (\k v acc -> v :: acc) [] t
 
+-- Convert a dictionary into an association list of key-value pairs.
 toList : Dict k v -> [(k,v)]
 toList t = foldr (\k v acc -> (k,v) :: acc) [] t
 
+-- Convert an association list into a dictionary.
 fromList : [(k,v)] -> Dict k v
 fromList assocs = List.foldl (uncurry insert) empty assocs

@@ -1,6 +1,5 @@
 -- This is an early version of the touch library. It will likely grow to
 -- include gestures that would be useful for both games and web-pages.
-
 module Touch where
 
 import Native.Touch as T
