@@ -31,8 +31,8 @@ toLocaleUpper : Char -> Char
 toLocaleLower : Char -> Char
 
 -- Convert to unicode.
-toCode : Char -> Int
+toCode : Char -> KeyCode
 
 -- Convert from unicode.
-fromCode : Int -> Char
+fromCode : KeyCode -> Char
 
