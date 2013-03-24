@@ -1,8 +1,8 @@
 
-Elm.Native.Keys = function(elm) {
+Elm.Native.Keyboard = function(elm) {
   'use strict';
   elm.Native = elm.Native || {};
-  if (elm.Native.Keys) return elm.Native.Keys;
+  if (elm.Native.Keyboard) return elm.Native.Keyboard;
 
   var Signal = Elm.Signal(elm);
   var NList = Elm.Native.List(elm);
@@ -62,11 +62,11 @@ Elm.Native.Keys = function(elm) {
 
   function is(key) { return keySignal(NList.member(key)); }
 
-  return elm.Native.Keys = {
+  return elm.Native.Keyboard = {
       isDown:is,
       directions:F4(dir),
-      down:keysDown,
-      presses:charPressed
+      keysDown:keysDown,
+      lastPressed:charPressed
   };
 
 };

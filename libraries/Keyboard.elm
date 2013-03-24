@@ -2,9 +2,9 @@
 -- [Keyboard.Raw library](/docs/Signal/KeyboardRaw.elm) for a
 -- lower-level interface that will let you define more complicated behavior.
 
-module Keys where
+module Keyboard where
 
-import Native.Keys as N
+import Native.Keyboard as N
 
 type KeyCode = Int
 
@@ -46,5 +46,8 @@ space = N.isDown 32
 enter : Signal Bool
 enter = N.isDown 13
 
-down : Signal [KeyCode]
-presses : Signal Char
+-- List of keys that are currently down.
+keysDown : Signal [KeyCode]
+
+-- The latest key that has been pressed.
+lastPressed : Signal Char
