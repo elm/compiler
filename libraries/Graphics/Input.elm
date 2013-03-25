@@ -1,7 +1,10 @@
 
 module Graphics.Input where
 
+import Signal (lift)
 import Native.Graphics.Input as N
+
+id x = x
 
 buttons : a -> { button : a -> String -> Element, events : Signal a }
 
