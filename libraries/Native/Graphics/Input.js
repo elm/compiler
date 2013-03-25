@@ -98,7 +98,6 @@ Elm.Native.Graphics.Input = function(elm) {
      var events = Signal.constant(defaultValue);
 
      function render(model) {
-	 console.log('render');
 	 var field = newNode('input');
 	 field.elmHandler = model.handler;
 
@@ -132,7 +131,6 @@ Elm.Native.Graphics.Input = function(elm) {
      }
 
      function update(node, oldModel, newModel) {
-	 console.log('update');
 	 node.elmEvent = newModel.handler;
 	 node.elmValue = fromString(newModel.state.input);
 	 node.value = node.elmValue;
