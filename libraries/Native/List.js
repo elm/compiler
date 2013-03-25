@@ -289,7 +289,7 @@ Elm.Native.List = function(elm) {
       scanl1:F2(scanl1),
       filter:F2(filter),
       length:length,
-      member:member,
+      member:F2(member),
       reverse:reverse,
       concat:concat,
 
