@@ -227,7 +227,7 @@ Elm.Native.Signal = function(elm) {
     merges : merges,
     mergeEither : F2(mergeEither),
     average : F2(average),
-    count : function(s) { return foldp(F2(function(x,y) { return x+y }), 0, s) },
+    count : function(s) { return foldp(F2(function(_,c) { return c+1 }), 0, s) },
     countIf : F2(function(pred,s) {
 	    return foldp(F2(function(x,c){return pred(x) ? c+1 : c}), 0, s)}),
     keepIf : F3(function(pred,base,sig) {

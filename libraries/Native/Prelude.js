@@ -116,6 +116,7 @@ Elm.Native.Prelude = function(elm) {
       var M = Module(elm);
       for (var k in M) { prelude[k] = M[k] }
   }
+  add(Elm.Native.Show);
   add(Elm.Signal);
   add(Elm.List);
   add(Elm.Maybe);

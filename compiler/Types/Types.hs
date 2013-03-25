@@ -103,7 +103,7 @@ instance Show Type where
       EmptyRecord -> "{}"
       RecordT fs t ->
         start ++ intercalate ", " (concatMap fields $ Map.toList fs) ++ " }"
-           where field n s = n ++ " :: " ++ show s
+           where field n s = n ++ " : " ++ show s
                  fields (n,ss) = map (field n) ss
                  start = case t of
                            EmptyRecord -> "{ "
