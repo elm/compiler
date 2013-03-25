@@ -7,7 +7,11 @@ Elm.Native.List = function(elm) {
 
   var Utils = Elm.Native.Utils(elm);
 
-  var Nil = { ctor:'Nil' };
+  // freeze is universally supported and as a singleton introduces little performance penalty
+  // for a small amount of object safety
+  var Nil = Object.freeze({ ctor:'Nil' });
+
+  // using freeze for every cons would be nice but is a huge (9x on firefox 19) performance penalty
   function Cons(hd,tl) { return { ctor:"Cons", _0:hd, _1:tl }; }
 
   function throwError(f) {
@@ -22,7 +26,7 @@ Elm.Native.List = function(elm) {
     }
     return out;
   }
-    
+
   function fromArray(arr) {
     var out = Nil;
     for (var i = arr.length; i--; ) {
@@ -79,7 +83,7 @@ Elm.Native.List = function(elm) {
   function foldl(f, b, xs) {
     var acc = b;
     while (xs.ctor === "Cons") {
-      acc = f(xs._0)(acc);
+      acc = A2(f, acc, xs._0);
       xs = xs._1;
     }
     return acc;
@@ -89,7 +93,7 @@ Elm.Native.List = function(elm) {
     var arr = toArray(xs);
     var acc = b;
     for (var i = arr.length; i--; ) {
-      acc = f(arr[i])(acc);
+      acc = A2(f, arr[i], acc);
     }
     return acc;
   }
@@ -117,7 +121,7 @@ Elm.Native.List = function(elm) {
     }
     return fromArray(arr);
   }
-  
+
   function scanl1(f, xs) {
     return xs.ctor === "Nil" ? throwError('scanl1') : scanl(f, xs._0, xs._1);
   }
@@ -141,7 +145,6 @@ Elm.Native.List = function(elm) {
   }
 
   function member(x, xs) {
-    var out = 0;
     while (xs.ctor === "Cons") {
       if (Utils.eq(x,xs._0)) return true;
       xs = xs._1;
@@ -160,7 +163,7 @@ Elm.Native.List = function(elm) {
       }
       return xs;
   }
-   
+
   function all(pred, xs) {
     while (xs.ctor === "Cons") {
       if (!pred(xs._0)) return false;
@@ -200,11 +203,11 @@ Elm.Native.List = function(elm) {
   function sort(xs) {
     function cmp(a,b) {
       var ord = Utils.compare(a,b);
-      return ord === 'EQ' ? 0 : ord === 'LT' ? -1 : 1;
+      return ord.ctor === 'EQ' ? 0 : ord.ctor === 'LT' ? -1 : 1;
     }
     return fromArray(toArray(xs).sort(cmp));
   }
-  
+
   function take(n, xs) {
     var arr = [];
     while (xs.ctor === "Cons" && n > 0) {
@@ -224,7 +227,7 @@ Elm.Native.List = function(elm) {
   }
 
   function join(sep, xss) {
-    if (xss.ctor === 'Nil') return {ctor:'Nil'}
+    if (xss.ctor === 'Nil') return Nil;
     var s = toArray(sep);
     var out = toArray(xss._0);
     xss = xss._1;
@@ -236,37 +239,37 @@ Elm.Native.List = function(elm) {
   }
 
   function split(sep, xs) {
-    var out = {ctor:'Nil'};
+    var out = Nil;
     var array = toArray(xs);
     var s = toArray(sep);
     var slen = s.length;
     if (slen === 0) {
       for (var i = array.length; i--; ) {
-	out = Cons(Cons(array[i],Nil), out);
+        out = Cons(Cons(array[i],Nil), out);
       }
       return out;
     }
-    var temp = {ctor:'Nil'};
+    var temp = Nil;
     for (var i = array.length - slen; i >= 0; --i) {
       var match = true;
       for (var j = slen; j--; ) {
-	if (!Utils.eq(array[i+j], s[j])) { match = false;  break; }
+        if (!Utils.eq(array[i+j], s[j])) { match = false;  break; }
       }
       if (match) {
-	out = {ctor:'Cons', _0:temp, _1:out};
-	temp = {ctor:'Nil'};
-	i -= slen - 1;
+        out = Cons(temp,out);
+        temp = Nil;
+        i -= slen - 1;
       } else {
-	temp = {ctor:'Cons', _0:array[i+j], _1:temp};
+        temp = Cons(array[i+j], temp);
       }
     }
     for (var j = slen-1; j--; ) {
-      temp = {ctor:'Cons', _0:array[j], _1:temp};
+      temp = Cons(array[j], temp);
     }
-    out = {ctor:'Cons', _0:temp, _1:out};
+    out = Cons(temp, out);
     return out;
   }
- 
+
   return elm.Native.List = {
       Nil:Nil,
       Cons:Cons,
