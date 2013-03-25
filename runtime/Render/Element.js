@@ -226,7 +226,8 @@ function update(node, curr, next) {
 	break;
     case "Custom":
 	if (currE.type === nextE.type) {
-	    nextE.update(node, currE.model, nextE.model);
+	    var done = nextE.update(node, currE.model, nextE.model);
+	    if (done) return;
 	} else {
 	    return node.parentNode.replaceChild(render(next), node);
 	}

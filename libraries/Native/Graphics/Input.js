@@ -31,6 +31,7 @@ Elm.Native.Graphics.Input = function(elm) {
 	 node.elmEvent = newModel.event;
 	 var txt = newModel.text;
 	 if (oldModel.text !== txt) node.innerHTML = txt;
+	 return true;
      }
 
      function button(evnt, txt) {
