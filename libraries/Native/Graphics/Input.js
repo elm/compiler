@@ -58,15 +58,27 @@ Elm.Native.Graphics.Input = function(elm) {
 	 btn.elmHover = Render.render(model.hover);
 	 btn.elmDown  = Render.render(model.down);
 	 
-	 function replace(node) { return function() {
+	 function replace(node) {
            if (node !== btn.firstChild) btn.replaceChild(node, btn.firstChild);
-	  };
 	 }
-	 var hover = replace(btn.elmHover);
-	 function up() { hover(); elm.notify(events.id, btn.elmEvent); }
-	 btn.addEventListener('mouseover', hover);
-	 btn.addEventListener('mouseout' , replace(btn.elmUp));
-	 btn.addEventListener('mousedown', replace(btn.elmDown));
+	 var overCount = 0;
+	 function over(e) {
+	     if (overCount++ > 0) return;
+	     replace(btn.elmHover);
+	 }
+	 function out(e) {
+	     if (btn.contains(e.toElement || e.relatedTarget)) return;
+	     overCount = 0;
+	     replace(btn.elmUp);
+	 }
+	 function up() {
+	     replace(btn.elmHover);
+	     elm.notify(events.id, btn.elmEvent);
+	 }
+	 function down() { replace(btn.elmDown); }
+	 btn.addEventListener('mouseover', over);
+	 btn.addEventListener('mouseout' , out);
+	 btn.addEventListener('mousedown', down);
 	 btn.addEventListener('mouseup'  , up);
 
 	 btn.appendChild(btn.elmUp);

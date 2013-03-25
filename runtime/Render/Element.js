@@ -5,7 +5,7 @@ ElmRuntime.Render.Element = function() {
 var Utils = ElmRuntime.use(ElmRuntime.Render.Utils);
 var newElement = Utils.newElement, addTo = Utils.addTo, extract = Utils.extract,
     addTransform = Utils.addTransform, removeTransform = Utils.removeTransform,
-    fromList = Utils.fromList;
+    fromList = Utils.fromList, eq = Utils.eq;
 
 function setProps(props, e) {
     e.style.width  = (props.width |0) + 'px';
