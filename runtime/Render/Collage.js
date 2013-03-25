@@ -186,6 +186,10 @@ function render(model) {
     return collageForms(model.w, model.h, model.forms);
 }
 
-return { render:render };
+function update(node, oldModel, newModel) {
+    node.parentNode.replaceChild(render(newModel), node);
+}
+
+return { render:render, update:update };
 
 };

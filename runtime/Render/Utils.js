@@ -41,6 +41,7 @@ return {addTo:addTo,
 	extract : extract,
 	fromList: JS.fromList,
 	fromString: JS.fromString,
+	toString: JS.toString,
 	eq: Elm.Native.Utils({}).eq,
 	addTransform: addTransform,
 	removeTransform: removeTransform

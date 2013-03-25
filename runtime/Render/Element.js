@@ -4,7 +4,8 @@ ElmRuntime.Render.Element = function() {
 
 var Utils = ElmRuntime.use(ElmRuntime.Render.Utils);
 var newElement = Utils.newElement, addTo = Utils.addTo, extract = Utils.extract,
-    addTransform = Utils.addTransform, removeTransform = Utils.removeTransform;
+    addTransform = Utils.addTransform, removeTransform = Utils.removeTransform,
+    fromList = Utils.fromList;
 
 function setProps(props, e) {
     e.style.width  = (props.width |0) + 'px';
@@ -166,6 +167,7 @@ function makeElement(e) {
 }
 
 function update(node, curr, next) {
+    console.log('overall update', curr.element.ctor, next.element.ctor);
     if (node.tagName === 'A') { node = node.firstChild; }
     if (curr.props.id === next.props.id) return false;
     if (curr.element.ctor !== next.element.ctor) {
@@ -187,23 +189,27 @@ function update(node, curr, next) {
 	}
 	break;
     case "Flow":
+	console.log('flow update', nextE._0.ctor, currE._0.ctor);
 	if (nextE._0.ctor !== currE._0.ctor) {
 	    node.parentNode.replaceChild(render(next),node);
 	    return true;
 	}
-	var nexts = nextE._1;
+	var nexts = fromList(nextE._1);
 	var kids = node.childNodes;
+	console.log('flow length', nexts.length, kids.length);
 	if (nexts.length !== kids.length) {
 	    node.parentNode.replaceChild(render(next),node);
 	    return true;
 	}
-	var currs = currE._1;
+	var currs = fromList(currE._1);
 	var goDir = function(x) { return x; };
-	switch(nextE[1][0]) {
+	console.log(nextE);
+	switch(nextE._0.ctor) {
 	case "DDown":  case "DUp":   goDir = goDown; break;
 	case "DRight": case "DLeft": goDir = goRight; break;
 	case "DOut":   case "DIn":   goDir = goIn; break;
 	}
+	console.log(currs, nexts);
 	for (var i = kids.length; i-- ;) {
 	    update(kids[i],currs[i],nexts[i]);
 	    goDir(kids[i]);
@@ -224,8 +230,12 @@ function update(node, curr, next) {
 	setPos(nextE._0, next.props.width, next.props.height, node.firstChild);
 	break;
     case "Custom":
-	node.parentNode.replaceChild(render(next),node);
-	return true;
+	console.log(currE.type, nextE.type);
+	if (currE.type === nextE.type) {
+	    nextE.update(node, currE.model, nextE.model);
+	} else {
+	    return node.parentNode.replaceChild(render(next), node);
+	}
     }
     var props = next.props, currP = curr.props, e = node;
     if (props.width !== currP.width)   e.style.width  = (props.width |0) + 'px';
