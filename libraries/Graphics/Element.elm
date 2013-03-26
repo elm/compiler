@@ -86,6 +86,7 @@ flow dir es =
       hs = List.map heightOf es
       newFlow w h = newElement w h (Flow dir es)
   in 
+  if es == [] then spacer 0 0 else
   case dir of
     DUp    -> newFlow (List.maximum ws) (List.sum hs)
     DDown  -> newFlow (List.maximum ws) (List.sum hs)

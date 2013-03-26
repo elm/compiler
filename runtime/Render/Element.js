@@ -113,9 +113,9 @@ function flow(dir,elist) {
 }
 
 function toPos(pos) {
-    switch(pos[0]) {
-    case "Absolute": return  pos[1] + "px";
-    case "Relative": return (pos[1] * 100) + "%";
+    switch(pos.ctor) {
+    case "Absolute": return  pos._0 + "px";
+    case "Relative": return (pos._0 * 100) + "%";
     }
 }
 
@@ -123,15 +123,15 @@ function setPos(pos,w,h,e) {
   e.style.position = 'absolute';
   e.style.margin = 'auto';
   var transform = '';
-  switch(pos.horizontal) {
+  switch(pos.horizontal.ctor) {
   case 'P': e.style.right = toPos(pos.x); break;
   case 'Z': transform = 'translateX(' + ((-w/2)|0) + 'px) ';
   case 'N': e.style.left = toPos(pos.x); break;
   }
-  switch(pos.vertical) {
-  case 'N': e.style.bottom = toPos(pos.x); break;
+  switch(pos.vertical.ctor) {
+  case 'N': e.style.bottom = toPos(pos.y); break;
   case 'Z': transform += 'translateY(' + ((-h/2)|0) + 'px)';
-  case 'P': e.style.top = toPos(pos.x); break;
+  case 'P': e.style.top = toPos(pos.y); break;
   }
   if (transform !== '') addTransform(e.style, transform);
   return e;
@@ -222,7 +222,7 @@ function update(node, curr, next) {
 		removeTransform(inner.style);
 	    }
 	}
-	setPos(nextE._0, next.props.width, next.props.height, node.firstChild);
+	setPos(nextE._0, nextE._1.props.width, nextE._1.props.height, inner);
 	break;
     case "Custom":
 	if (currE.type === nextE.type) {

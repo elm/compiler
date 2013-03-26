@@ -20,7 +20,7 @@ Elm.Native.List = function(elm) {
 
   function toArray(xs) {
     var out = [];
-    while (xs !== Nil) {
+    while (xs.ctor !== 'Nil') {
       out.push(xs._0);
       xs = xs._1;
     }
@@ -49,7 +49,7 @@ Elm.Native.List = function(elm) {
     var root = Cons(xs._0. Nil);
     var curr = root;
     xs = xs._1;
-    while (xs !== Nil) {
+    while (xs.ctor !== 'Nil') {
 	curr._1 = Cons(xs._0. Nil);
 	xs = xs._1;
 	curr = curr._1;
@@ -64,7 +64,7 @@ Elm.Native.List = function(elm) {
   function last(xs) {
     if (xs === Nil) { throwError('last'); }
     var out = xs._0;
-    while (xs !== Nil) {
+    while (xs.ctor !== 'Nil') {
       out = xs._0;
       xs = xs._1;
     }
@@ -73,7 +73,7 @@ Elm.Native.List = function(elm) {
 
   function map(f, xs) {
     var arr = [];
-    while (xs !== Nil) {
+    while (xs.ctor !== 'Nil') {
       arr.push(f(xs._0));
       xs = xs._1;
     }
@@ -84,7 +84,7 @@ Elm.Native.List = function(elm) {
    // ie, foldl :: (a -> b -> b) -> b -> [a] -> b
   function foldl(f, b, xs) {
     var acc = b;
-    while (xs !== Nil) {
+    while (xs.ctor !== 'Nil') {
       acc = A2(f, xs._0, acc);
       xs = xs._1;
     }
@@ -130,7 +130,7 @@ Elm.Native.List = function(elm) {
 
   function filter(pred, xs) {
     var arr = [];
-    while (xs !== Nil) {
+    while (xs.ctor !== 'Nil') {
       if (pred(xs._0)) { arr.push(xs._0); }
       xs = xs._1;
     }
@@ -139,7 +139,7 @@ Elm.Native.List = function(elm) {
 
   function length(xs) {
     var out = 0;
-    while (xs !== Nil) {
+    while (xs.ctor !== 'Nil') {
       out += 1;
       xs = xs._1;
     }
@@ -147,7 +147,7 @@ Elm.Native.List = function(elm) {
   }
 
   function member(x, xs) {
-    while (xs !== Nil) {
+    while (xs.ctor !== 'Nil') {
       if (Utils.eq(x,xs._0)) return true;
       xs = xs._1;
     }
@@ -167,7 +167,7 @@ Elm.Native.List = function(elm) {
   }
 
   function all(pred, xs) {
-    while (xs !== Nil) {
+    while (xs.ctor !== 'Nil') {
       if (!pred(xs._0)) return false;
       xs = xs._1;
     }
@@ -175,7 +175,7 @@ Elm.Native.List = function(elm) {
   }
 
   function any(pred, xs) {
-    while (xs !== Nil) {
+    while (xs.ctor !== 'Nil') {
       if (pred(xs._0)) return true;
       xs = xs._1;
     }
@@ -184,7 +184,7 @@ Elm.Native.List = function(elm) {
 
   function zipWith(f, xs, ys) {
     var arr = [];
-    while (xs !== Nil && ys !== Nil) {
+    while (xs.ctor !== 'Nil' && ys.ctor !== 'Nil') {
       arr.push(A2(f, xs._0, ys._0));
       xs = xs._1;
       ys = ys._1;
@@ -194,7 +194,7 @@ Elm.Native.List = function(elm) {
 
   function zip(xs, ys) {
     var arr = [];
-    while (xs !== Nil && ys !== Nil) {
+    while (xs.ctor !== 'Nil' && ys.ctor !== 'Nil') {
       arr.push(Utils.Tuple2(xs._0, ys._0));
       xs = xs._1;
       ys = ys._1;
@@ -212,7 +212,7 @@ Elm.Native.List = function(elm) {
 
   function take(n, xs) {
     var arr = [];
-    while (xs !== Nil && n > 0) {
+    while (xs.ctor !== 'Nil' && n > 0) {
       arr.push(xs._0);
       xs = xs._1;
       --n;
@@ -221,7 +221,7 @@ Elm.Native.List = function(elm) {
   }
 
   function drop(n, xs) {
-    while (xs !== Nil && n > 0) {
+    while (xs.ctor !== 'Nil' && n > 0) {
       xs = xs._1;
       --n;
     }
@@ -233,7 +233,7 @@ Elm.Native.List = function(elm) {
     var s = toArray(sep);
     var out = toArray(xss._0);
     xss = xss._1;
-    while (xss !== Nil) {
+    while (xss.ctor !== 'Nil') {
       out = out.concat(s, toArray(xss._0));
       xss = xss._1;
     }
