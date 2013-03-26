@@ -223,8 +223,11 @@ instance ToJS Expr where
     Let defs e -> jsLet defs e
     Data name es ->
         do fs <- mapM toJS' es
-           let fields = zipWith (\n e -> "_" ++ show n ++ ":" ++ e) [0..] fs
-           return (brackets ("ctor:" ++ show name ++ concatMap (", "++) fields))
+           return $ case name of
+              "Nil" -> jsNil
+              "Cons" -> jsCons (head fs) ((head . tail) fs)
+              _ -> brackets $ "ctor:" ++ show name ++ concatMap (", "++) fields
+                   where fields = zipWith (\n e -> "_" ++ show n ++ ":" ++ e) [0..] fs
 
     Markdown doc -> return $ "text('" ++ pad ++ md ++ pad ++ "')"
         where pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
