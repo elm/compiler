@@ -1,4 +1,3 @@
-
 Elm.Native.List = function(elm) {
   "use strict";
 
@@ -46,11 +45,11 @@ Elm.Native.List = function(elm) {
   function append(xs,ys) {
     if (typeof xs === "string") { return xs.concat(ys); }
     if (xs === Nil) { return ys; }
-    var root = Cons(xs._0. Nil);
+    var root = Cons(xs._0, Nil);
     var curr = root;
     xs = xs._1;
     while (xs.ctor !== 'Nil') {
-	curr._1 = Cons(xs._0. Nil);
+	curr._1 = Cons(xs._0, Nil);
 	xs = xs._1;
 	curr = curr._1;
     }
