@@ -44,9 +44,9 @@ defaultLine = {
   miterLimit = 10
  }
 
-solid  clr = { basic | color <- clr }
-dashed clr = { basic | color <- clr, dashing <- [8,4] }
-dotted clr = { basic | color <- clr, dashing <- [3,3] }
+solid  clr = { defaultLine | color <- clr }
+dashed clr = { defaultLine | color <- clr, dashing <- [8,4] }
+dotted clr = { defaultLine | color <- clr, dashing <- [3,3] }
 
 data BasicForm
   = FPath LineStyle Path
