@@ -63,7 +63,9 @@ function customLineHelp(ctx, style, path) {
 function drawLine(ctx, style, path) {
     ctx.lineWidth = style.width;
     ctx.lineCap = style.cap.ctor.toLowerCase();
-    ctx.lineJoin = style.join.ctor.toLowerCase();
+    var join = style.join.ctor;
+    ctx.lineJoin = join === 'Smooth' ? 'round' :
+                   join === 'Sharp' ? 'miter' : 'bevel';
     ctx.miterLimit = style.miterLimit;
     ctx.strokeStyle = extract(style.color);
     return line(ctx, style, path);

@@ -2,7 +2,6 @@
 module Graphics.Collage where
 
 import Either
-import Graphics.LineStyle as LS
 import Graphics.Geometry
 import Native.Graphics.Matrix as Matrix
 import Native.Graphics.Collage as N
