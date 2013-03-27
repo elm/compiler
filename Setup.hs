@@ -51,11 +51,15 @@ elm lbi = (buildDir lbi) </> "elm" </> "elm"
 
 
 main :: IO ()
-main = defaultMainWithHooks simpleUserHooks { buildHook = myBuild, postBuild = myPostBuild }
+main = defaultMainWithHooks simpleUserHooks { {-- buildHook = myBuild, --} postBuild = myPostBuildWithTypes }
 
 
 -- Build
 
+-- Not currently used.  buildTypes is in 'myPostBuildWithTypes'
+-- If using this again, change postBuild to 'myPostBuild'
+-- Purpose is to make sure docs.json was built before elm exec was (as elm exec depended on it)
+-- This is no longer true and the code below seems to affect cabal's build dependencies
 myBuild :: PackageDescription -> LocalBuildInfo -> UserHooks -> BuildFlags -> IO ()
 myBuild pd lbi uh bf = do
     putStrLn $ "Custom build step started: compile " ++ elmDoc
@@ -96,6 +100,12 @@ buildTypes lbi = do
 
 
 -- Post Build
+
+myPostBuildWithTypes :: Args -> BuildFlags -> PackageDescription -> LocalBuildInfo -> IO ()
+myPostBuildWithTypes as bfs pd lbi = do
+    putStrLn "Custom build step started: build docs.json"
+    buildTypes lbi      -- see note(1) below
+    myPostBuild as bfs pd lbi
 
 myPostBuild :: Args -> BuildFlags -> PackageDescription -> LocalBuildInfo -> IO ()
 myPostBuild as bfs pd lbi = do
