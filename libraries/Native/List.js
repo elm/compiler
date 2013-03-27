@@ -6,6 +6,15 @@ Elm.Native.List = function(elm) {
 
   var Utils = Elm.Native.Utils(elm);
 
+  // TODO: Improve Nil handling
+  // We can change places like:  if (xs.ctor === 'Nil') ... to if (xs === Nil) ...
+  // but only if we're confident Nil can only be defined once.
+  // Currently (27Mar2013) each module can have different instantiations, so multiple Nil objects can exist
+  // (and if they're used interchangeably then direct object comparison fails where ctor doesn't).
+  // So, this can only be fixed when modules initialisation is also fixed.
+  // The performance overhead of the .ctor calls is 5-10% according to jsperf (depending on fn + list size)
+  // (on firefox 19)
+
   // freeze is universally supported and as a singleton introduces little performance penalty
   // for a small amount of object safety
   var Nil = Object.freeze({ ctor:'Nil' });
@@ -44,7 +53,7 @@ Elm.Native.List = function(elm) {
 
   function append(xs,ys) {
     if (typeof xs === "string") { return xs.concat(ys); }
-    if (xs === Nil) { return ys; }
+    if (xs.ctor === 'Nil') { return ys; }
     var root = Cons(xs._0, Nil);
     var curr = root;
     xs = xs._1;
@@ -57,11 +66,11 @@ Elm.Native.List = function(elm) {
     return root;
   }
 
-  function head(v) { return v === Nil ? throwError('head') : v._0; }
-  function tail(v) { return v === Nil ? throwError('tail') : v._1; }
+  function head(v) { return v.ctor === 'Nil' ? throwError('head') : v._0; }
+  function tail(v) { return v.ctor === 'Nil' ? throwError('tail') : v._1; }
 
   function last(xs) {
-    if (xs === Nil) { throwError('last'); }
+    if (xs.ctor === 'Nil') { throwError('last'); }
     var out = xs._0;
     while (xs.ctor !== 'Nil') {
       out = xs._0;
@@ -100,11 +109,11 @@ Elm.Native.List = function(elm) {
   }
 
   function foldl1(f, xs) {
-    return xs === Nil ? throwError('foldl1') : foldl(f, xs._0, xs._1);
+    return xs.ctor === 'Nil' ? throwError('foldl1') : foldl(f, xs._0, xs._1);
   }
 
   function foldr1(f, xs) {
-    if (xs === Nil) { throwError('foldr1'); }
+    if (xs.ctor === 'Nil') { throwError('foldr1'); }
     var arr = toArray(xs);
     var acc = arr.pop();
     for (var i = arr.length; i--; ) {
@@ -124,7 +133,7 @@ Elm.Native.List = function(elm) {
   }
 
   function scanl1(f, xs) {
-    return xs === Nil ? throwError('scanl1') : scanl(f, xs._0, xs._1);
+    return xs.ctor === 'Nil' ? throwError('scanl1') : scanl(f, xs._0, xs._1);
   }
 
   function filter(pred, xs) {
@@ -156,7 +165,7 @@ Elm.Native.List = function(elm) {
   function reverse(xs) { return fromArray(toArray(xs).reverse()); }
 
   function concat(xss) {
-      if (xss === Nil) return xss;
+      if (xss.ctor === 'Nil') return xss;
       var arr = toArray(xss);
       var xs = arr[arr.length-1];
       for (var i = arr.length-1; i--; ) {
@@ -228,7 +237,7 @@ Elm.Native.List = function(elm) {
   }
 
   function join(sep, xss) {
-    if (xss === Nil) return Nil;
+    if (xss.ctor === 'Nil') return Nil;
     var s = toArray(sep);
     var out = toArray(xss._0);
     xss = xss._1;
