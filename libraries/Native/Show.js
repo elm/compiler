@@ -1,4 +1,3 @@
-
 Elm.Native.Show = function(elm) {
   'use strict';
 
@@ -31,7 +30,9 @@ Elm.Native.Show = function(elm) {
       });
 
   var toString = function(v) {
-    if (typeof v === "function") {
+    if (typeof v === "undefined") {
+       return "<undefined>";
+    } else if (typeof v === "function") {
 	return "<function>";
     } else if (typeof v === "boolean") {
 	return v ? "True" : "False";
