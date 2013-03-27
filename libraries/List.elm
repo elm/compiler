@@ -1,4 +1,3 @@
-
 module List where
 
 import Native.Utils (min, max)
@@ -111,11 +110,10 @@ intersperse sep xs =
     [a] -> [a]
     []  -> []
 
-{-- TODO: only found in docs
-
 -- Add an element to the front of a list 
 --     a :: [b,c] = [a,b,c]
 (::) : a -> [a] -> [a]
+-- :: has no direct implementation: Handled by Parser as a binop and converted to a Cons function
 
 -- Appends two lists.
 (++) : [a] -> [a] -> [a]
@@ -127,6 +125,4 @@ take : Int -> [a] -> [a]
 -- Drop the first n members of a list. 
 --     drop 2 [1,2,3,4]) ==> [3,4]
 drop : Int -> [a] -> [a]
-
---}
 

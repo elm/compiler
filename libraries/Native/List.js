@@ -6,6 +6,15 @@ Elm.Native.List = function(elm) {
   if ('values' in Elm.Native.List) return elm.Native.List = Elm.Native.List.values
 
   var Utils = Elm.Native.Utils(elm);
+   
+  // TODO: Improve Nil handling
+  // We can change places like:  if (xs.ctor === 'Nil') ... to if (xs === Nil) ...
+  // but only if we're confident Nil can only be defined once.
+  // Currently (27Mar2013) each module can have different instantiations, so multiple Nil objects can exist
+  // (and if they're used interchangeably then direct object comparison fails where ctor doesn't).
+  // So, this can only be fixed when modules initialisation is also fixed.
+  // The performance overhead of the .ctor calls is 5-10% according to jsperf (depending on fn + list size)
+  // (on firefox 19)
 
   // TODO: Improve Nil handling
   // We can change places like:  if (xs.ctor === 'Nil') ... to if (xs === Nil) ...
@@ -21,7 +30,16 @@ Elm.Native.List = function(elm) {
   var Nil = Object.freeze({ ctor:'Nil' });
 
   // using freeze for every cons would be nice but is a huge (9x on firefox 19) performance penalty
-  function Cons(hd,tl) { return { ctor:"Cons", _0:hd, _1:tl }; }
+  // undefined checking would also be nice but adds a 20% penalty
+  // (it's much easier to catch errors at construction rather than usage time)
+  function Cons(hd,tl) {
+     /*
+     if (typeof hd == "undefined")
+        throw new Error("Cons: no head");
+     if (typeof tl == "undefined")
+        throw new Error("Cons: no tail");
+      */
+     return { ctor:"Cons", _0:hd, _1:tl }; }
 
   function throwError(f) {
     throw new Error("Function '" + f + "' expects a non-empty list!");
@@ -175,6 +193,14 @@ Elm.Native.List = function(elm) {
       return xs;
   }
 
+   function and(xs) {
+      while (xs.ctor !== 'Nil') {
+         if (!xs._0) return false;     // -- short circuit
+         xs = xs._1;
+      }
+      return true;      // -- empty list is true (like Haskell)
+   }
+
   function all(pred, xs) {
     while (xs.ctor !== 'Nil') {
       if (!pred(xs._0)) return false;
@@ -182,6 +208,14 @@ Elm.Native.List = function(elm) {
     }
     return true;
   }
+
+   function or(xs) {
+      while (xs.ctor !== 'Nil') {
+         if (xs._0) return true;    // -- short circuit
+         xs = xs._1;
+      }
+      return false;      // -- empty list is false (like Haskell)
+   }
 
   function any(pred, xs) {
     while (xs.ctor !== 'Nil') {
@@ -249,37 +283,65 @@ Elm.Native.List = function(elm) {
     return fromArray(out);
   }
 
-  function split(sep, xs) {
-    var out = Nil;
-    var array = toArray(xs);
-    var s = toArray(sep);
-    var slen = s.length;
-    if (slen === 0) {
-      for (var i = array.length; i--; ) {
-        out = Cons(Cons(array[i],Nil), out);
+   function split(sep, xs) {
+      var array = toArray(xs);
+      var alen = array.length;
+      if (alen == 0) {
+         return Cons(Nil,Nil);     // splitting an empty list is a list of lists: [[]]
       }
+      
+      var s = toArray(sep);
+      var slen = s.length;
+      if (slen === 0) {
+         var out = Nil;
+         for (var i = alen; i--; ) {
+            out = Cons(Cons(array[i],Nil), out);
+         }
+         return out;    // splitting with an empty sep is a list of all elements: map (\x -> [x]) xs
+      }
+      
+      var runs = [];    // indices of matches:  array[runs[0]..] matches sep
+      var c = s[0];     // base on 1st chr$ searching
+      // Need to iterate forwards, otherwise split("aa", "aaa") = ["a",""] instead of ["","a"]
+      for (var i = 0; i <= alen - slen; i++) {
+         if (Utils.eq(array[i], c)) {     // 1st chr$ match
+            var match = true;
+            for (var j = slen; --j >= 1; ) {
+               if (!Utils.eq(array[i+j], s[j])) { match = false;  break; }
+            }
+            if (match) {
+               runs.push(i);
+               i += slen -1;
+            }
+         }
+      }
+      
+      if (runs.length === 0) {      // no matches shortcut
+         return Cons(xs,Nil);
+      }
+      
+      // eg, for split("aa","aaabaa"), runs = [0,4],
+      // we want: [ "" (pre 0), "ab" (runs[0]+sep..runs[1]-1, "" (post runs[1]) ]
+
+      var out = Nil;
+      var stop = alen;
+      for (var i=runs.length; --i>=0; ) {    // need to build list in reverse order
+         var temp = Nil;
+         var start = runs[i];
+         for (var j = start+slen; j < stop; j++)
+            temp = Cons(array[j], temp);
+         
+         out = Cons(temp, out);
+         stop = start;
+      }
+      
+      var temp = Nil;
+      for (var i=runs[0]; --i>=0; ) {
+         temp = Cons(array[i], temp);
+      }
+      out = Cons(temp,out);
       return out;
-    }
-    var temp = Nil;
-    for (var i = array.length - slen; i >= 0; --i) {
-      var match = true;
-      for (var j = slen; j--; ) {
-        if (!Utils.eq(array[i+j], s[j])) { match = false;  break; }
-      }
-      if (match) {
-        out = Cons(temp,out);
-        temp = Nil;
-        i -= slen - 1;
-      } else {
-        temp = Cons(array[i+j], temp);
-      }
-    }
-    for (var j = slen-1; j--; ) {
-      temp = Cons(array[j], temp);
-    }
-    out = Cons(temp, out);
-    return out;
-  }
+   }
 
   Elm.Native.List.values = {
       Nil:Nil,
@@ -307,7 +369,9 @@ Elm.Native.List = function(elm) {
       reverse:reverse,
       concat:concat,
 
+      and:and,
       all:F2(all),
+      or:or,
       any:F2(any),
       zipWith:F3(zipWith),
       zip:F2(zip),
