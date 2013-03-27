@@ -30,9 +30,7 @@ Elm.Native.Show = function(elm) {
       });
 
   var toString = function(v) {
-    if (typeof v === "undefined") {
-       return "<undefined>";
-    } else if (typeof v === "function") {
+    if (typeof v === "function") {
 	return "<function>";
     } else if (typeof v === "boolean") {
 	return v ? "True" : "False";
@@ -54,6 +52,8 @@ Elm.Native.Show = function(elm) {
 	}
 	if (output.length === 0) return "{}";
 	return "{ " + output.join(", ") + " }";
+    } else if (typeof v === "undefined") {
+       return "<undefined>";
     } else if ('ctor' in v) {
 	if (v.ctor.substring(0,5) === "Tuple") {
 	    var output = [];

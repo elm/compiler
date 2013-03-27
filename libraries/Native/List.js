@@ -16,30 +16,12 @@ Elm.Native.List = function(elm) {
   // The performance overhead of the .ctor calls is 5-10% according to jsperf (depending on fn + list size)
   // (on firefox 19)
 
-  // TODO: Improve Nil handling
-  // We can change places like:  if (xs.ctor === 'Nil') ... to if (xs === Nil) ...
-  // but only if we're confident Nil can only be defined once.
-  // Currently (27Mar2013) each module can have different instantiations, so multiple Nil objects can exist
-  // (and if they're used interchangeably then direct object comparison fails where ctor doesn't).
-  // So, this can only be fixed when modules initialisation is also fixed.
-  // The performance overhead of the .ctor calls is 5-10% according to jsperf (depending on fn + list size)
-  // (on firefox 19)
-
   // freeze is universally supported and as a singleton introduces little performance penalty
   // for a small amount of object safety
   var Nil = Object.freeze({ ctor:'Nil' });
 
   // using freeze for every cons would be nice but is a huge (9x on firefox 19) performance penalty
-  // undefined checking would also be nice but adds a 20% penalty
-  // (it's much easier to catch errors at construction rather than usage time)
-  function Cons(hd,tl) {
-     /*
-     if (typeof hd == "undefined")
-        throw new Error("Cons: no head");
-     if (typeof tl == "undefined")
-        throw new Error("Cons: no tail");
-      */
-     return { ctor:"Cons", _0:hd, _1:tl }; }
+  function Cons(hd,tl) { return { ctor:"Cons", _0:hd, _1:tl }; }
 
   function throwError(f) {
     throw new Error("Function '" + f + "' expects a non-empty list!");
