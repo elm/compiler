@@ -7,6 +7,7 @@ import Graphics.Geometry
 import Native.Graphics.Matrix as Matrix
 import Native.Graphics.Collage as N
 import Graphics.Element
+import Graphics.Color as Color
 
 type Form = {
   theta : Float,
@@ -20,6 +21,33 @@ data FillStyle
   = Solid Color
   | Texture String
   | Gradient Gradient
+
+data LineCap  = Butt  | Round | Square
+data LineJoin = Smooth | Sharp | Clipped
+
+type LineStyle = {
+  color : Color,
+  width : Float,
+  cap   : LineCap,
+  join  : LineJoin,
+  miterLimit : Float,
+  dashing    : [Int],
+  dashOffset : Int
+ }
+
+defaultLine = {
+  color = Color.black,
+  width = 1,
+  cap   = Butt,
+  join  = Sharp,
+  dashing = [],
+  dashOffset = 0,
+  miterLimit = 10
+ }
+
+solid  clr = { basic | color <- clr }
+dashed clr = { basic | color <- clr, dashing <- [8,4] }
+dotted clr = { basic | color <- clr, dashing <- [3,3] }
 
 data BasicForm
   = FPath LineStyle Path
