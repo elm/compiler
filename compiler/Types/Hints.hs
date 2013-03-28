@@ -15,7 +15,7 @@ hints = mapM toScheme values
       addPrefixes = concatMap (\(m,vs) -> map (first (\n -> m ++ "." ++ n)) vs)
       values = addPrefixes (Map.toList (Map.map Map.toList libraries))
       toScheme (name, tipeString) =
-          case iParse (fmap toType typeExpr) "libraries" tipeString of
+          case iParse (fmap toType typeExpr) "parsing types in docs.json" tipeString of
             Left err   -> error (show err)
             Right tipe -> do scheme <- generalize [] (Forall [] [] tipe)
                              return (name, scheme)
