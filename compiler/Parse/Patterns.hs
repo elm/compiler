@@ -90,7 +90,7 @@ matchSingle pat exp@(C t s _) p =
   case p of
     PData _ ps -> do x <- guid
                      let v = '_' : show x
-                     dss <- mapM (matchSingle p . ctx $ Var v) ps
+                     dss <- mapM (matchSingle pat . ctx $ Var v) ps
                      return (FnDef v [] exp : concat dss)
 
     PVar x ->
