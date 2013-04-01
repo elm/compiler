@@ -37,12 +37,19 @@ type TextState = {
 textFields : a -> { field : (TextState -> a) -> String -> TextState -> Element,
                     events : Signal a }
 
-textField : String -> TextState -> (Signal Element, Signal TextState)
-textField placeHolder textState =
+text : String -> TextState -> (Signal Element, Signal TextState)
+text placeHolder textState =
     let tfs = N.textFields textState
     in  (lift (tfs.field id placeHolder) tfs.events, tfs.events)
 
 password : String -> TextState -> (Signal Element, Signal TextState)
+password placeHolder textState =
+    let tfs = N.passwords textState
+    in  (lift (tfs.field id placeHolder) tfs.events, tfs.events)
+
 email : String -> TextState -> (Signal Element, Signal TextState)
+email placeHolder textState =
+    let tfs = N.emails textState
+    in  (lift (tfs.field id placeHolder) tfs.events, tfs.events)
 
 -- file?

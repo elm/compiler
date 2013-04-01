@@ -107,27 +107,66 @@ Elm.Native.Graphics.Input = function(elm) {
      return { _:{}, button:F4(button), events:events };
  }
 
- function textFields(defaultValue) {
+
+ function checkBoxes(defaultValue) {
+     var events = Signal.constant(defaultValue);
+
+     function render(model) {
+	 var b = newNode('input');
+	 b.type = 'checkbox';
+	 b.checked = model.checked;
+	 b.style.display = 'block';
+	 b.elmHandler = model.handler;
+	 function change() { elm.notify(events.id, b.elmHandler(b.checked)); }
+	 b.addEventListener('change', change);
+	 return b;
+     }
+
+     function update(node, oldModel, newModel) {
+	 node.elmHandler = newModel.handler;
+	 node.checked = newModel.checked;
+	 return true;
+     }
+
+     function box(handler, checked) {
+	 return A3(newElement, 13, 13, {
+                     ctor: 'Custom',
+		     type: 'CheckBox',
+		     render: render,
+		     update: update,
+		     model: { checked:checked, handler:handler  }
+	     });
+     }
+
+     return { _:{}, box:F2(box), events:events };
+ }
+
+ function mkTextPool(type) { return function textFields(defaultValue) {
      var events = Signal.constant(defaultValue);
 
      function render(model) {
 	 var field = newNode('input');
 	 field.elmHandler = model.handler;
 
-	 field.id = 'test'
+	 field.id = 'test';
+	 field.type = type;
 	 field.placeholder = fromString(model.placeHolder);
-	 field.elmValue = fromString(model.state.input);
-	 field.value = field.elmValue;
+	 field.value = fromString(model.state.input);
 	 field.setSelectionRange(model.state.start, model.state.end);
 	 field.style.border = 'none';
 
 	 function update() {
+	     var start = field.selectionStart,
+		 end = field.selectionEnd;
+	     if (field.selectionDirection === 'backward') {
+		 start = end;
+		 end = field.selectionStart;
+	     }
 	     var state = { _:{},
 			   input:toString(field.value),
-			   start:field.selectionStart,
-			   end:field.selectionEnd };
-	     field.value = field.elmValue;
-	     elm.notify(events.id, state);
+			   start:start,
+			   end:end };
+	     elm.notify(events.id, field.elmHandler(state));
 	 }
 	 function mousedown() {
 	     update();
@@ -144,16 +183,20 @@ Elm.Native.Graphics.Input = function(elm) {
      }
 
      function update(node, oldModel, newModel) {
-	 node.elmEvent = newModel.handler;
-	 node.elmValue = fromString(newModel.state.input);
-	 node.value = node.elmValue;
-	 node.setSelectionRange(newModel.state.start, newModel.state.end);
+	 node.elmHandler = newModel.handler;
+	 node.value = fromString(newModel.state.input);
+	 if (newModel.state.start <= newModel.state.end) {
+	     node.setSelectionRange(newModel.state.start, newModel.state.end);
+	 } else {
+	     node.setSelectionRange(newModel.state.end,
+				    newModel.state.start, 'backward');
+	 }
      }
 
      function field(handler, placeHolder, state) {
 	 return A3(newElement, 200, 30,
                    { ctor: 'Custom',
-		     type: 'TextField',
+		     type: type + 'Input',
 		     render: render,
 		     update: update,
 		     model: { handler:handler,
@@ -163,12 +206,15 @@ Elm.Native.Graphics.Input = function(elm) {
      }
 
      return { _:{}, field:F3(field), events:events };
+   }
  }
 
  return elm.Native.Graphics.Input = {
      buttons:buttons,
      customButtons:customButtons,
-     textFields:textFields
+     textFields:mkTextPool('text'),
+     emails:mkTextPool('email'),
+     passwords:mkTextPool('password')
  };
 
 };
