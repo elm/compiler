@@ -141,7 +141,7 @@ runElm lbi file = do
   out_c <- canonicalizePath js      -- dist/js (root folder)
   elm_c <- canonicalizePath (elm lbi)       -- dist/build/elm/elm
   rtd_c <- canonicalizePath (rtsDir lbi)        -- dist/data (for docs.json)
-  handle <- runProcess elm_c ["--only-js", "--runtime="++rts_c, "--output-directory="++out_c, file]
+  handle <- runProcess elm_c ["--only-js", "--no-prelude", "--runtime="++rts_c, "--output-directory="++out_c, file]
             Nothing (Just [("Elm_datadir", rtd_c)]) Nothing Nothing Nothing
   waitForProcess handle
   return $ j </> replaceExtension (takeFileName file) ".js"

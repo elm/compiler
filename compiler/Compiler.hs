@@ -26,7 +26,8 @@ data ELM =
         , separate_js :: Bool
         , only_js :: Bool
         , import_js :: [FilePath]
-        , generate_noscript :: Bool
+        , no_prelude :: Bool
+        , noscript :: Bool
         , minify :: Bool
 	, output_directory :: Maybe FilePath
         }
@@ -39,7 +40,8 @@ elm = ELM { make = False &= help "automatically compile dependencies."
           , separate_js = False &= help "Compile to separate HTML and JS files."
           , only_js = False &= help "Compile only to JavaScript."
           , import_js = [] &= typFile &= help "Include a JavaScript file before the body of the Elm program. Can be used many times. Files will be included in the given order."
-          , generate_noscript = True &= help "Add generated <noscript> tag to HTML output."
+          , no_prelude = False &= help "Do not import Prelude by default, used only when compiling standard libraries."
+          , noscript = True &= help "Add generated <noscript> tag to HTML output."
           , minify = False &= help "Minify generated JavaScript"
 	  , output_directory = Nothing &= typFile &= help "Output files to directory specified. Defaults to the location of original file."
           } &=
@@ -51,35 +53,39 @@ main = do
   mini <- getDataFileName "elm-runtime.js"
   compileArgs mini args
 
-compileArgs mini (ELM _ [] _ _ _ _ _ _ _) =
-    putStrLn "Usage: elm [OPTIONS] [FILES]\nFor more help: elm --help"
-compileArgs mini (ELM make files rtLoc split only js nscrpt isMini outputDir) =
-    mapM_ (fileTo isMini make what js nscrpt outputDir loc) files
-        where loc = fromMaybe mini rtLoc
-              what | only = JS
-                   | split = Split
-                   | otherwise = HTML
+compileArgs mini flags =
+  case files flags of
+    [] -> putStrLn "Usage: elm [OPTIONS] [FILES]\nFor more help: elm --help"
+    fs -> mapM_ (fileTo flags what loc) fs
+      where loc  = fromMaybe mini (runtime flags)
+            what | only_js flags = JS
+                 | separate_js flags = Split
+                 | otherwise = HTML
 
 data What = JS | HTML | Split
 
-fileTo isMini make what jsFiles noscript outputDir rtLoc file = do
-  let jsStyle  = if isMini then Minified else Readable
-      formatJS = if isMini then BS.unpack . JS.minify . BS.pack else id
-  ems <- if make then build file else do src <- readFile file
-                                         return (fmap (:[]) (buildFromSource src))
-  jss <- concat `fmap` mapM readFile jsFiles
+fileTo flags what rtLoc file = do
+  let jsStyle  = if minify flags then Minified else Readable
+      formatJS = if minify flags then BS.unpack . JS.minify . BS.pack else id
+  ems <- if make flags then build file
+                       else do src <- readFile file
+                               return (fmap (:[]) (buildFromSource src))
+  jss <- concat `fmap` mapM readFile (import_js flags)
   case ems of
     Left err -> do putStrLn $ "Error while compiling " ++ file ++ ":\n" ++ err
                    exitFailure
-    Right ms ->
-        let path = fromMaybe "" outputDir </> file
+    Right ms' ->
+        let path = fromMaybe "" (output_directory flags) </> file
             js = replaceExtension path ".js"
             html = replaceExtension path ".html"
+            addPrelude (Module name exs ims stmts) =
+                Module name exs (("Prelude", Importing []) : ims) stmts
+            ms = if no_prelude flags then ms' else map addPrelude ms'
             txt = jss ++ concatMap jsModule ms
         in  case what of
               JS    -> writeFile js (formatJS txt)
               HTML  -> writeFile html . renderHtml $
-                       modulesToHtml jsStyle "" rtLoc jss noscript ms
+                       modulesToHtml jsStyle "" rtLoc jss (noscript flags) ms
               Split ->
                   do writeFile html . renderHtml $ linkedHtml rtLoc js ms
                      writeFile js (formatJS txt)
