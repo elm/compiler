@@ -44,6 +44,7 @@ Elm.init = function(module, baseNode) {
 
   // Set up methods to communicate with Elm program from JS.
   function send(name, value) {
+      if (typeof value === 'undefined') return function(v) { return send(name,v) };
       var e = document.createEvent('Event');
       e.initEvent(name + '_' + elm.id, true, true);
       e.value = value;
