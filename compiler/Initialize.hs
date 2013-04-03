@@ -3,12 +3,14 @@ module Initialize (build, buildFromSource) where
 import Control.Applicative ((<$>))
 import Control.Monad.Error
 import Data.List (lookup,nub)
+import qualified Data.Map as Map
 
 import Ast
 import Data.Either (lefts,rights)
 import Data.List (intercalate,partition)
 import Parse.Parser (parseProgram, preParse)
 import Rename
+import Libraries (libraries)
 import Types.Types ((-:))
 import Types.Hints (hints)
 import Types.Unify
@@ -27,9 +29,7 @@ checkTypes (Module name ex im stmts) =
     let stmts' = dealias stmts
         modul = Module name ex im stmts'
     in do subs <- unify hints modul
-          let --im' | any ((=="Prelude") . fst) im = im
-              --    | otherwise = ("Prelude", Importing []) : im
-              modul' = optimize . renameModule $ Module name ex im stmts'
+          let modul' = optimize . renameModule $ Module name ex im stmts'
           subs `seq` return modul'
 
 check :: Module -> Either String Module
@@ -90,13 +90,7 @@ readDeps seen root = do
         where realDeps = filter (`notElem` builtIns) deps
               newDeps = filter (`notElem` seen) realDeps
               seen' = root : seen ++ newDeps
-              builtIns = [] {--
-                ["List","Char","Either","Maybe","Dict","Set","Date",
-                 "Signal","Mouse","Keyboard.Raw","Keyboard","Touch",
-                 "WebSocket","Window","Time","HTTP","Input","Random",
-                 "Graphics","Text","Color","JavaScript","Automaton",
-                 "JavaScript.Experimental","Prelude","JSON"]
-                 --}
+              builtIns = Map.keys libraries
 
 isNative name = takeWhile (/='.') name == "Native"
 toFilePath name = map swapDots name ++ ext
