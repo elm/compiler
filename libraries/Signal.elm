@@ -110,15 +110,3 @@ delay : Time -> Signal a -> Signal a
 --     scene <~ Mouse.x ~ Mouse.y
 --     lift2 scene Mouse.x Mouse.y
 (~) : Signal (a -> b) -> Signal a -> Signal b
-
-
-{-- TODO: only found in docs
-  , ("average", "Int -> Signal Number -> Signal Float", [markdown|
-
-Takes an integer `n` and a signal of numbers. Computes the running
-average of the signal over the last `n` events.
-
-So `(average 20 (fps 40))` would be the average time between the frames for
-the last 20 frames.|])
---}
-
