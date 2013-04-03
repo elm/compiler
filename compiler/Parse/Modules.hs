@@ -31,7 +31,7 @@ import' = do
   reserved "import"
   whitespace
   name <- intercalate "." <$> dotSep1 capVar
-  method <- option (Importing []) $ try (whitespace >> (as' <|> importing'))
+  method <- option (Hiding []) $ try (whitespace >> (as' <|> importing'))
   return (name, method)
 
 

@@ -36,6 +36,7 @@ internalImports =
 
 parens s  = "(" ++ s ++ ")"
 brackets s  = "{" ++ s ++ "}"
+jsObj = brackets . intercalate ", "
 jsList ss = "["++ intercalate "," ss ++"]"
 jsFunc args body = "function(" ++ args ++ "){" ++ indent body ++ "}"
 assign x e = "\nvar " ++ x ++ " = " ++ e ++ ";"
@@ -79,7 +80,7 @@ getExports names stmts = "\n"++ intercalate ";\n" (op : map fnPair fns)
           opPair op = "'" ++ op ++ "' : $op['" ++ op ++ "']"
           fnPair fn = let fn' = derename fn in "_." ++ fn' ++ " = " ++ fn
 
-          op = ("_.$op = "++) . brackets . intercalate ", " $ map opPair ops
+          op = ("_.$op = "++) . jsObj $ map opPair ops
 
           get' (FnDef x _ _) = Left x
           get' (OpDef op _ _ _) = Right op
@@ -94,25 +95,26 @@ getExports names stmts = "\n"++ intercalate ";\n" (op : map fnPair fns)
 jsImport (modul, how) =
     case how of
       As name -> assign name ("Elm." ++ modul ++ parens "elm")
-      Importing vs ->
-          "\nvar $ = Elm." ++ modul ++ parens "elm" ++ ";" ++ setup modul ++
-          if null vs then "\nfor (var k in $) {eval('var '+k+'=$[\"'+k+'\"]')}"
-                     else "\nvar " ++ intercalate ", " (map def vs) ++ ";"
+      Hiding vs -> include ++ " var hiding=" ++ (jsObj $ map (++":1") vs) ++
+                   "; for(var k in _){if(k in hiding)continue;" ++
+                   "eval('var '+k+'=_[\"'+k+'\"]')}"
+      Importing vs -> include ++ "\nvar " ++ intercalate ", " (map def vs) ++ ";"
+          where 
+            imprt v = assign' v ("_." ++ v)
+            def (o:p) = imprt (if isOp o then "$op['" ++ o:p ++ "']" else deprime (o:p))
+  where
+    include = "\nvar _ = Elm." ++ modul ++ parens "elm" ++ ";" ++ setup modul
+    setup moduleName = " var " ++ concatMap (++";") (defs ++ [assign' moduleName "_"])
         where
-          imprt v = assign' v ("$." ++ v)
-          def (o:p) = imprt (if isOp o then "$op['" ++ o:p ++ "']" else deprime (o:p))
-          setup moduleName = 
-              "\nvar " ++ concatMap (++";") (defs ++ [assign' moduleName "$"])
-             where
-               defs = map (\n -> assign' n (n ++ "||{}")) (subnames moduleName)
-               subnames = map (intercalate ".") . tail . inits . init . split
-               split names = case go [] names of
-                               (name, []) -> [name]
-                               (name, ns) -> name : split ns
-               go name str = case str of
-                               '.':rest -> (reverse name, rest)
-                               c:rest   -> go (c:name) rest
-                               []       -> (reverse name, [])
+          defs = map (\n -> assign' n (n ++ "||{}")) (subnames moduleName)
+          subnames = map (intercalate ".") . tail . inits . init . split
+          split names = case go [] names of
+                          (name, []) -> [name]
+                          (name, ns) -> name : split ns
+          go name str = case str of
+                          '.':rest -> (reverse name, rest)
+                          c:rest   -> go (c:name) rest
+                          []       -> (reverse name, [])
 
 
 
@@ -226,7 +228,7 @@ instance ToJS Expr where
            return $ case name of
               "Nil" -> jsNil
               "Cons" -> jsCons (head fs) ((head . tail) fs)
-              _ -> brackets $ "ctor:" ++ show name ++ concatMap (", "++) fields
+              _ -> jsObj $ ("ctor:" ++ show name) : fields
                    where fields = zipWith (\n e -> "_" ++ show n ++ ":" ++ e) [0..] fs
 
     Markdown doc -> return $ "text('" ++ pad ++ md ++ pad ++ "')"

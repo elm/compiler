@@ -2,7 +2,7 @@
 module Main where
 
 import Data.Either (lefts, rights)
-import Data.List (intersect, intercalate)
+import Data.List (intersect, intercalate,lookup)
 import Data.Maybe (fromMaybe)
 import Data.Version (showVersion)
 import System.Console.CmdArgs
@@ -78,8 +78,6 @@ fileTo flags what rtLoc file = do
         let path = fromMaybe "" (output_directory flags) </> file
             js = replaceExtension path ".js"
             html = replaceExtension path ".html"
-            addPrelude (Module name exs ims stmts) =
-                Module name exs (("Prelude", Importing []) : ims) stmts
             ms = if no_prelude flags then ms' else map addPrelude ms'
             txt = jss ++ concatMap jsModule ms
         in  case what of
@@ -89,3 +87,16 @@ fileTo flags what rtLoc file = do
               Split ->
                   do writeFile html . renderHtml $ linkedHtml rtLoc js ms
                      writeFile js (formatJS txt)
+
+addPrelude (Module name exs ims stmts) = Module name exs (prelude ++ ims) stmts
+    where prelude = concatMap addModule allModules
+
+          addModule (n, method) = case lookup n ims of
+                                    Nothing -> [(n, method)]
+                                    Just _  -> []
+          modules = [ "Prelude", "Signal", "List", "Maybe"
+                    , "Time", "Graphics.Element", "Graphics.Color" ]
+
+          text = ("Graphics.Text", Hiding ["link", "color"])
+
+          allModules = text : map (\n -> (n, Hiding [])) modules
