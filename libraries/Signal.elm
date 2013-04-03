@@ -42,7 +42,7 @@ merge : Signal a -> Signal a -> Signal a
 merges : [Signal a] -> Signal a
 
 combine : [Signal a] -> Signal [a]
-combine = List.foldr (S.lift2 (::)) (S.constant [])
+combine = L.foldr (S.lift2 (::)) (S.constant [])
 
 -- Merge two signals into one, but distinguishing the values by marking the first
 -- signal as `Left` and the second signal as `Right`. This allows you to easily
