@@ -7,7 +7,8 @@
 -- Note: There are lift functions up to `lift8`.
 module Signal where
 
-import Native.Signal as Native
+import Native.Signal as S
+import List as L
 
 -- Create a constant signal that never changes.
 constant : a -> Signal a
@@ -39,6 +40,9 @@ merge : Signal a -> Signal a -> Signal a
 -- Merge many signals into one, biased towards the left-most signal if multiple
 -- signals update simultaneously.
 merges : [Signal a] -> Signal a
+
+combine : [Signal a] -> Signal [a]
+combine = List.foldr (S.lift2 (::)) (S.constant [])
 
 -- Merge two signals into one, but distinguishing the values by marking the first
 -- signal as `Left` and the second signal as `Right`. This allows you to easily
@@ -94,6 +98,20 @@ timestamp : Signal a -> Signal (Time, a)
 -- will update one second later than any mouse click.
 delay : Time -> Signal a -> Signal a
 
+-- An alias for `lift`. A prettier way to apply a
+-- function to the current value of a signal.
+(<~) : (a -> b) -> Signal a -> Signal b
+
+-- Signal application. This takes two signals, holding a function and
+-- a value. It applies the current function to the current value.
+-- 
+-- So the following expressions are equivalent:
+-- 
+--     scene <~ Mouse.x ~ Mouse.y
+--     lift2 scene Mouse.x Mouse.y
+(~) : Signal (a -> b) -> Signal a -> Signal b
+
+
 {-- TODO: only found in docs
   , ("average", "Int -> Signal Number -> Signal Float", [markdown|
 
@@ -102,22 +120,5 @@ average of the signal over the last `n` events.
 
 So `(average 20 (fps 40))` would be the average time between the frames for
 the last 20 frames.|])
-  , ("foldp1", "(a -> a -> a) -> Signal a -> Signal a", [markdown|
-Create a past-dependent signal. The first value on the signal is used
-as the base case.|])
-  , ("foldp'", "(a -> b -> b) -> (a -> b) -> Signal a -> Signal b", [markdown|
-Just like foldp, but instead of a base case, you provide a function to be
-applied to the first value, creating the base case.|])
-  [ ("(<~)", "(a -> b) -> Signal a -> Signal b", [markdown|
-An alias for `lift`. A prettier way to apply a
-function to the current value of a signal.|])
-  , ("(~)", "Signal (a -> b) -> Signal a -> Signal b", [markdown|
-Signal application. This takes two signals, holding a function and
-a value. It applies the current function to the current value.
-
-So the following expressions are equivalent:
-
-    scene <~ Mouse.x ~ Mouse.y
-    lift2 scene Mouse.x Mouse.y|])
 --}
 
