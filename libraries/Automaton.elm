@@ -55,6 +55,7 @@ init' s f = Step (\x -> let (s',out) = f x s
 count : Automaton a Int
 count = init 0 (\_ c -> c + 1)
 
+{-
 type Queue t = ([t],[t])
 empty = ([],[])
 enqueue x (en,de) = (x:en, de)
@@ -75,7 +76,7 @@ average k =
             Just (m,ns') -> let sum' = sum + n - m
                             in ((enqueue n ns', len, sum'), sum' / len)
   in  init' (empty,0,0) step
-
+-}
 {-- TODO(evancz): move this code to the Form library so people can find it.
 
 data DragState = Listen | Ignore | DragFrom (Int,Int)
