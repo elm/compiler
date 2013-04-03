@@ -4,6 +4,13 @@ module List where
 import Native.Utils (min, max)
 import Native.List as L
 
+-- Add an element to the front of a list 
+--     a :: [b,c] = [a,b,c]
+(::) : a -> [a] -> [a]
+
+-- Appends two lists.
+(++) : [a] -> [a] -> [a]
+
 -- Extract the first element of a list. List must be non-empty.
 head : [a] -> a
 
@@ -111,15 +118,6 @@ intersperse sep xs =
     [a] -> [a]
     []  -> []
 
-{-- TODO: only found in docs
-
--- Add an element to the front of a list 
---     a :: [b,c] = [a,b,c]
-(::) : a -> [a] -> [a]
-
--- Appends two lists.
-(++) : [a] -> [a] -> [a]
-
 -- Take the first n members of a list.
 --     take 2 [1,2,3,4]) ==> [1,2]
 take : Int -> [a] -> [a]
@@ -127,6 +125,4 @@ take : Int -> [a] -> [a]
 -- Drop the first n members of a list. 
 --     drop 2 [1,2,3,4]) ==> [3,4]
 drop : Int -> [a] -> [a]
-
---}
 
