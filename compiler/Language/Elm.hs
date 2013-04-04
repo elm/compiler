@@ -15,9 +15,13 @@
 -}
 module Language.Elm (
     compile, toHtml,
-    runtimeLocation
+    moduleName,
+    runtime, docs
     ) where
 
+import qualified Ast as Ast
+import qualified Libraries as Libraries
+import Data.List (intercalate)
 import Data.Version (showVersion)
 import CompileToJS
 import ExtractNoscript
@@ -30,12 +34,16 @@ import Paths_Elm
 import qualified Data.Text as TS
 import qualified Data.Text.Lazy as TL
 
--- |This function compiles Elm code to three separate parts: HTML, CSS,
---  and JavaScript. The HTML is only the contents of the body, so the three
---  parts must be combined in a basic HTML skeleton.
+-- |This function compiles Elm code to JavaScript.
 compile :: String -> String
-compile source = either showErr jsModule modul
+compile source = either showErr (jsModule . Libraries.addPrelude) modul
   where modul = buildFromSource source
+
+-- |This function extracts the module name of a given source program.
+moduleName :: String -> String
+moduleName source = either (const "Main") getName modul
+  where modul = buildFromSource source
+        getName (Ast.Module names _ _ _) = intercalate "." names
 
 -- |This function compiles Elm code into a full HTML page.
 toHtml :: String -- ^ Location of elm-min.js as expected by the browser
@@ -45,6 +53,10 @@ toHtml :: String -- ^ Location of elm-min.js as expected by the browser
 toHtml = generateHtml
 
 -- |The absolute path to Elm's runtime system.
-runtimeLocation :: IO FilePath
-runtimeLocation = getDataFileName "elm-runtime.js"
+runtime :: IO FilePath
+runtime = getDataFileName "elm-runtime.js"
+
+-- |The absolute path to Elm's core library documentation.
+docs :: IO FilePath
+docs = getDataFileName "docs.json"
 

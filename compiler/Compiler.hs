@@ -79,7 +79,7 @@ fileTo flags what rtLoc file = do
         let path = fromMaybe "" (output_directory flags) </> file
             js = replaceExtension path ".js"
             html = replaceExtension path ".html"
-            ms = if no_prelude flags then ms' else map addPrelude ms'
+            ms = if no_prelude flags then ms' else map Libraries.addPrelude ms'
             txt = jss ++ concatMap jsModule ms
         in  case what of
               JS    -> writeFile js (formatJS txt)
@@ -88,10 +88,3 @@ fileTo flags what rtLoc file = do
               Split ->
                   do writeFile html . renderHtml $ linkedHtml rtLoc js ms
                      writeFile js (formatJS txt)
-
-addPrelude (Module name exs ims stmts) = Module name exs (prelude ++ ims) stmts
-    where prelude = concatMap addModule Libraries.prelude
-
-          addModule (n, method) = case lookup n ims of
-                                    Nothing -> [(n, method)]
-                                    Just _  -> []
