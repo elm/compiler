@@ -58,8 +58,6 @@ reserved word =
 anyOp :: IParser String
 anyOp = betwixt '`' '`' var <|> symOp <?> "infix operator (e.g. +, *, ||)"
 
-isOp c = isSymbol c || elem c "+-/*=.$<>:&|^?%#@~!"
-
 symOp :: IParser String
 symOp = do op <- many1 (satisfy isOp)
            guard (op `notElem` [ "=", "..", "->", "--", "|", "\8594", ":" ])

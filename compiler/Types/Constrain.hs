@@ -4,6 +4,7 @@ module Types.Constrain (constrain) where
 import Control.Arrow (second)
 import Control.Monad (liftM,mapM,zipWithM,foldM)
 import Control.Monad.State (evalState)
+import Data.Char (isDigit)
 import Data.List (foldl',sort,group,isPrefixOf,intercalate,isSuffixOf)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -11,6 +12,7 @@ import qualified Data.Set as Set
 import Ast
 import Context
 import Guid
+import qualified Libraries as Libraries
 
 import Types.Types
 import Types.Substitutions
@@ -19,25 +21,25 @@ beta = VarT `liftM` guid
 unionA = Map.unionWith (++)
 unionsA = Map.unionsWith (++)
 
-getAliases imports hints = hints ++ concatMap aliasesFrom imports'
-    where imports' = map head . group $ sort imports
-          aliasesFrom (name,method) =
-              case method of
-                As alias -> concatMap (findAlias name alias) hints
-                _ -> []
-          findAlias mName' mAlias (name,tipe) =
-              let mName = mName' ++ "." in
-              case mName `isPrefixOf` name of
-                True  -> [ (mAlias ++ drop (length mName) name, tipe) ]
-                False -> []
+getAliases imports hints = hints ++ concatMap aliasesFrom imports
+  where aliasesFrom (name,method) =
+            let values = concatMap (getValue name) hints
+            in  case method of
+                  As alias -> map (\(n,t) -> (alias ++ "." ++ n, t)) values
+                  Hiding vs -> filter (\(n,t) -> n `notElem` vs) values
+                  Importing vs -> filter (\(n,t) -> n `elem` vs) values
+        getValue inModule (name,tipe) =
+            case inModule `isPrefixOf` name of
+              True  -> [ (drop (length inModule + 1) name, tipe) ]
+              False -> []
 
 findAmbiguous hints hints' assumptions continue =
-    let potentialDups = map head . filter (\g -> length g > 1) . group $ sort hints'
-        dups = filter (\k -> Map.member k assumptions) potentialDups
-    in  case dups of
-          n:_ -> return . Left $ "Error: Ambiguous occurrence of '" ++ n ++ "' could refer to " ++
-                                 intercalate ", " (filter (isSuffixOf n) hints)
-          _ -> continue
+  let potentialDups = map head . filter (\g -> length g > 1) . group $ sort hints'
+      dups = filter (\k -> Map.member k assumptions) potentialDups
+  in case dups of
+       n:_ -> return . Left $ "Error: Ambiguous occurrence of '" ++ n ++
+              "' could refer to " ++ intercalate ", " (filter (isSuffixOf n) hints)
+       _ -> continue
 
 mergeSchemes :: [Map.Map String Scheme]
              -> GuidCounter (TVarMap, ConstraintSet, Map.Map String Scheme)
@@ -62,9 +64,7 @@ constrain typeHints (Module _ _ imports stmts) = do
   (as', cs', schemes) <- mergeSchemes schemess
   let constraints = Set.unions (cs':css)
       as = unionsA (as':ass)
-      extraImports = ("Time", Importing []) : map (\n -> (n, Importing []))
-                     ["List","Signal","Text","Graphics","Color"]
-      aliasHints = getAliases (imports ++ extraImports) hints
+      aliasHints = getAliases (imports ++ Libraries.prelude) hints
       allHints = Map.union schemes (Map.fromList aliasHints)
       insert as n = do v <- guid; return $ Map.insertWith' (\_ x -> x) n [v] as
   assumptions <- foldM insert as (Map.keys schemes)

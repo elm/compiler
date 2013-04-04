@@ -17,7 +17,7 @@ data Type = LambdaT Type Type
           | Super (Set.Set Type)
             deriving (Eq, Ord)
 
-data Scheme = Forall [X] [Context Constraint] Type deriving (Eq, Ord)
+data Scheme = Forall [X] [Context Constraint] Type deriving (Eq, Ord, Show)
 
 data Constraint = Type :=: Type
                 | Type :<: Type
@@ -109,12 +109,5 @@ instance Show Type where
                            EmptyRecord -> "{ "
                            _ -> "{ " ++ show t ++ " | "
 
-
-instance Show Scheme where
-  show (Forall [] [] t) = show t
-  show (Forall xs cs t) =
-    concat [ "Forall ", show xs
-           , concatMap (("\n          "++) . show) cs
-           , "\n    ", parens (show t) ]
 
 isTupleString str = "Tuple" `isPrefixOf` str && all isDigit (drop 5 str)

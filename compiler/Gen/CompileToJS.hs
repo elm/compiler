@@ -14,7 +14,6 @@ import Rename (derename)
 import Cases
 import Guid
 import LetBoundVars
-import Parse.Library (isOp)
 import Rename (deprime)
 import Types.Types ( Type(RecordT) )
 

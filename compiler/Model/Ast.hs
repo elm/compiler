@@ -2,7 +2,7 @@
 module Ast where
 
 import Context
-import Data.Char (isDigit)
+import Data.Char (isDigit, isSymbol)
 import Data.List (intercalate)
 import Types.Types
 import qualified Text.Pandoc as Pandoc
@@ -13,7 +13,7 @@ type Exports = [String]
 
 type Imports = [(String, ImportMethod)]
 data ImportMethod = As String | Importing [String] | Hiding [String]
-                    deriving (Eq,Ord)
+                    deriving (Eq, Ord, Show)
 
 
 data Pattern = PData String [Pattern]
@@ -74,6 +74,7 @@ ptuple es = PData ("Tuple" ++ show (length es)) es
 
 brkt s = "{ " ++ s ++ " }"
 parensIf b s = if b then parens s else s
+isOp c = isSymbol c || elem c "+-/*=.$<>:&|^?%#@~!"
 
 instance Show Pattern where
   show p =
@@ -118,7 +119,7 @@ instance Show Expr where
          where iff (b,e) = show b ++ " -> " ++ show e
                sep = concatMap ("\n   | " ++)
      Let defs e -> "let { "++intercalate " ; " (map show defs)++" } in "++show e
-     Var x -> x
+     Var (c:cs) -> if isOp c then parens (c:cs) else c:cs
      Case e pats -> "case "++ show e ++" of " ++ brkt (intercalate " ; " pats')
          where pats' = map (\(p,e) -> show p ++ " -> " ++ show e) pats
      Data name es

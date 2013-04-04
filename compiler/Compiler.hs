@@ -17,6 +17,7 @@ import Ast
 import Initialize
 import CompileToJS
 import GenerateHtml
+import qualified Libraries as Libraries
 import Paths_Elm
 
 data ELM =
@@ -89,14 +90,8 @@ fileTo flags what rtLoc file = do
                      writeFile js (formatJS txt)
 
 addPrelude (Module name exs ims stmts) = Module name exs (prelude ++ ims) stmts
-    where prelude = concatMap addModule allModules
+    where prelude = concatMap addModule Libraries.prelude
 
           addModule (n, method) = case lookup n ims of
                                     Nothing -> [(n, method)]
                                     Just _  -> []
-          modules = [ "Prelude", "Signal", "List", "Maybe"
-                    , "Time", "Graphics.Element", "Graphics.Color" ]
-
-          text = ("Graphics.Text", Hiding ["link", "color"])
-
-          allModules = text : map (\n -> (n, Hiding [])) modules
