@@ -66,8 +66,8 @@ createHtml jsStyle libLoc title js noscript moduleToLoad =
       H.head $ do
         H.meta ! A.charset "UTF-8"
         H.title . H.toHtml $ title
-      H.body $ do
         makeScript Readable (Left libLoc)
         makeScript jsStyle js
+      H.body $ do
         H.script ! A.type_ "text/javascript" $ preEscapedToMarkup ("Elm.init(Elm." ++ moduleToLoad ++ ")" :: String)
         H.noscript $ preEscapedToMarkup noscript
