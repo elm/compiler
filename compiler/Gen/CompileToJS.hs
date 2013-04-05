@@ -18,8 +18,10 @@ import Rename (deprime)
 import Types.Types ( Type(RecordT) )
 
 showErr :: String -> String
-showErr err = "Elm.Graphics.text(Elm.Text.monospace(" ++ msg ++ "))"
+showErr err = globalAssign "Elm.Main" (jsFunc "elm" body)
     where msg = show . concatMap (++"<br>") . lines $ err
+          body = "var T = Elm.Graphics.Text(elm);\n\
+                 \return { main : T.text(T.monospace(" ++ msg ++ ")) };"
 
 indent = concatMap f
     where f '\n' = "\n "
