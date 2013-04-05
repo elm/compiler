@@ -11,7 +11,7 @@ import Text.Parsec.Indent
 
 import Context
 import Parse.Library
-import Types.Types hiding (string,parens)
+import Types.Types hiding (parens,string)
 import Guid
 
 data ParseType = VarPT String
@@ -47,10 +47,7 @@ typeUnambiguous :: IParser ParseType
 typeUnambiguous = typeList <|> typeTuple <|> typeRecord
 
 typeSimple :: IParser ParseType
-typeSimple = dealias <$> var
-    where dealias "String" = listPT (VarPT "Char")
-          dealias "Time" = VarPT "Float"
-          dealias v = VarPT v
+typeSimple = VarPT <$> var
 
 typeApp :: IParser ParseType
 typeApp = do name <- capVar <?> "type constructor"

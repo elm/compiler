@@ -13,14 +13,17 @@ import Guid
 import Types.Types
 import Types.Constrain
 import Types.Substitutions
+import Types.Alias (dealias)
 
 isSolved ss (C _ _ (t1 :=: t2)) = t1 == t2
 isSolved ss (C _ _ (x :<<: _)) = isJust (lookup x ss)
 isSolved ss c = False
 
-crush :: Scheme -> GuidCounter (Either String Scheme)
-crush (Forall xs cs t) =
-    do subs <- solver cs Map.empty
+type Aliases = Map.Map String ([X],Type)
+
+crush :: Aliases -> Scheme -> GuidCounter (Either String Scheme)
+crush aliases (Forall xs cs t) =
+    do subs <- solver aliases Map.empty cs
        return $ do ss' <- subs
                    let ss  = Map.toList ss'
                        cs' = filter (not . isSolved ss) (subst ss cs)
@@ -34,10 +37,11 @@ schemeSubHelp txt span x s t1 rltn t2 = do
                   | otherwise = do (st, cs) <- concretize s
                                    return (subst [(x,st)] t, cs)
 
-schemeSub x s c = do s' <- crush s
-                     case s' of
-                       Right s'' -> Right `liftM` schemeSub' x s'' c
-                       Left err  -> return $ Left err
+schemeSub aliases x s c =
+    do s' <- crush aliases s
+       case s' of
+         Right s'' -> Right `liftM` schemeSub' x s'' c
+         Left err  -> return $ Left err
 
 schemeSub' x s c@(C txt span constraint) =
   case constraint of
@@ -77,29 +81,34 @@ recordConstraints eq fs t fs' t' =
                             let tipe = RecordT (Map.singleton k bs) (VarT x)
                             return (cs ++ [eq t tipe])
                               
-solver :: [Context Constraint]
+solver :: Aliases
        -> Map.Map X Type
+       -> [Context Constraint]
        -> GuidCounter (Either String (Map.Map X Type))
-solver [] subs = return $ Right subs
-solver (C txt span c : cs) subs =
+solver _ subs [] = return $ Right subs
+solver aliases subs (C txt span c : cs) =
   let ctx = C txt span
       eq t1 t2 = ctx (t1 :=: t2)
+      solv = solver aliases subs
   in case c of
       -- Destruct Type-constructors
       t1@(ADT n1 ts1) :=: t2@(ADT n2 ts2) ->
-          if n1 /= n2 then uniError txt span t1 t2 else
-              solver (zipWith eq ts1 ts2 ++ cs) subs
+          if n1 == n2 then solv (zipWith eq ts1 ts2 ++ cs)
+          else let t1' = dealias aliases t1
+                   t2' = dealias aliases t2
+               in  if t1 == t1' && t2 == t2' then uniError txt span t1 t2
+                                             else solv (ctx (t1' :=: t2') : cs)
 
       LambdaT t1 t2 :=: LambdaT t1' t2' ->
-          solver ([ eq t1 t1', eq t2 t2' ] ++ cs) subs
+          solv ([ eq t1 t1', eq t2 t2' ] ++ cs)
 
       RecordT fs t :=: RecordT fs' t' ->
           do cs' <- recordConstraints eq fs t fs' t'
-             solver (cs' ++ cs) subs
+             solv (cs' ++ cs)
 
       -- Type-equality
       VarT x :=: VarT y
-          | x == y    -> solver cs subs
+          | x == y    -> solv cs
           | otherwise ->
               case (Map.lookup x subs, Map.lookup y subs) of
                 (Just (Super xts), Just (Super yts)) ->
@@ -108,68 +117,68 @@ solver (C txt span c : cs) subs =
                     in  case Set.toList ts of
                           []  -> unionError txt span xts yts
                           [t] -> let cs1 = subst [(x,t),(y,t)] cs in
-                                 cs1 `seq` solver cs1 (setXY t subs)
-                          _   -> solver cs $ setXY (Super ts) subs
+                                 cs1 `seq` solver aliases (setXY t subs) cs1
+                          _   -> solver aliases (setXY (Super ts) subs) cs
                 (Just (Super xts), _) ->
                     let cs2 = subst [(y,VarT x)] cs in
-                    solver cs2 $ Map.insert y (VarT x) subs
+                    solver aliases (Map.insert y (VarT x) subs) cs2
                 (_, _) ->
                     let cs3 = subst [(x,VarT y)] cs in
-                    solver cs3 $ Map.insert x (VarT y) subs
+                    solver aliases (Map.insert x (VarT y) subs) cs3
 
       VarT x :=: t -> do
           if x `occurs` t then occursError txt span (VarT x) t else
             (case Map.lookup x subs of
-               Nothing -> let cs4 = subst [(x,t)] cs in
-                          solver cs4 . Map.map (subst [(x,t)]) $
-                                 Map.insert x t subs
+               Nothing ->
+                   let cs4 = subst [(x,t)] cs
+                       subs' = Map.map (subst [(x,t)]) $ Map.insert x t subs
+                   in  solver aliases subs' cs4
                Just (Super ts) ->
                    let ts' = Set.intersection ts (Set.singleton t) in
                    case Set.toList ts' of
-                     []   -> solver (ctx (t :<: Super ts) : cs) subs
+                     []   -> solv (ctx (t :<: Super ts) : cs)
                      [t'] -> let cs5 = subst [(x,t)] cs in
-                             solver cs5 $ Map.insert x t' subs
-                     _    -> solver cs $ Map.insert x (Super ts') subs
-               Just t' -> solver (ctx (t' :=: t) : cs) subs
+                             solver aliases (Map.insert x t' subs) cs5
+                     _    -> solver aliases (Map.insert x (Super ts') subs) cs
+               Just t' -> solv (ctx (t' :=: t) : cs)
             )
 
-      t :=: VarT x -> solver ((ctx (VarT x :=: t)) : cs) subs
+      t :=: VarT x -> solv ((ctx (VarT x :=: t)) : cs)
 
-      t1 :=: t2 | t1 == t2  -> solver cs subs
+      t1 :=: t2 | t1 == t2  -> solv cs
                 | otherwise -> uniError txt span t1 t2
 
       -- subtypes
       VarT x :<: Super ts ->
           case Map.lookup x subs of
-            Nothing -> solver cs $ Map.insert x (Super ts) subs
+            Nothing -> solver aliases (Map.insert x (Super ts) subs) cs
             Just (Super ts') ->
                 case Set.toList $ Set.intersection ts ts' of
                   []   -> unionError txt span ts ts'
-                  [t]  -> solver (subst [(x,t)] cs) $ Map.insert x t subs
-                  ts'' -> solver cs $
-                          Map.insert x (Super $ Set.fromList ts'') subs
+                  [t]  -> solver aliases (Map.insert x t subs) (subst [(x,t)] cs)
+                  ts'' -> solver aliases subs' cs
+                    where subs' = Map.insert x (Super $ Set.fromList ts'') subs
 
       ADT "List" [t] :<: Super ts
-          | any f (Set.toList ts) -> solver cs subs
+          | any f (Set.toList ts) -> solv cs
           | otherwise -> subtypeError txt span (ADT "List" [t]) (Super ts)
                  where f (ADT "List" [VarT _]) = True
                        f (ADT "List" [t']) = t == t'
                        f _ = False
 
       t :<: Super ts
-          | Set.member t ts -> solver cs subs
+          | Set.member t ts -> solv cs
           | otherwise       -> subtypeError txt span t (Super ts)
 
       x :<<: s
           | any (occurs x) cs ->
-              do css <- mapM (schemeSub x s) cs
+              do css <- mapM (schemeSub aliases x s) cs
                  case lefts css of
                    err : _ -> return $ Left err
-                   [] -> solver (concat (rights css)) subs
+                   [] -> solv (concat (rights css))
           | otherwise ->
               do (t,cs7) <- concretize s
-                 let cs'' = (cs ++ ctx (VarT x :=: t) : cs7)
-                 solver cs'' subs
+                 solv (cs ++ ctx (VarT x :=: t) : cs7)
 
 showMsg msg = case msg of
                 Just str -> "\nIn context: " ++ str

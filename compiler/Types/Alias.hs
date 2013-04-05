@@ -1,5 +1,5 @@
 
-module Types.Alias (dealias, mistakes) where
+module Types.Alias (dealias, get, mistakes) where
 
 import Ast
 import Control.Arrow (second)
@@ -10,37 +10,25 @@ import Types.Substitutions (subst)
 import Types.Types
 
 builtins :: [(String,([X],Type))]
-builtins = [ ("String", ([], string)) ]
+builtins = [ ("String", ([], listOf char))
+           , ("Time", ([], float)) ]
 
-getAliases :: [Statement] -> Map.Map String ([X],Type)
-getAliases stmts = Map.fromList (builtins ++ concatMap getAlias stmts)
+get :: [Statement] -> Map.Map String ([X],Type)
+get stmts = Map.fromList (builtins ++ concatMap getAlias stmts)
     where getAlias stmt = case stmt of
                             TypeAlias alias xs t -> [(alias, (xs,t))]
                             _ -> []
 
-
-dealias :: [Statement] -> [Statement]
-dealias stmts = map dealiasS stmts
-  where
-    dealiasT :: Type -> Type
-    dealiasT t =
-      case t of
-        ADT name ts -> case Map.lookup name (getAliases stmts) of
-                         Just (xs,t) -> dealiasT (subst (zip xs ts) t)
-                         Nothing -> ADT name (map dealiasT ts)
-        LambdaT t u -> LambdaT (dealiasT t) (dealiasT u)
-        RecordT r t -> RecordT (Map.map (map dealiasT) r) (dealiasT t)
-        _ -> t
-
-    dealiasS :: Statement -> Statement
-    dealiasS s =
-      case s of
-        Datatype n xs tcs -> Datatype n xs (map (second (map dealiasT)) tcs)
-        ExportEvent js elm tipe   -> ExportEvent js elm (dealiasT tipe)
-        ImportEvent js e elm tipe -> ImportEvent js e elm (dealiasT tipe)
-        TypeAnnotation name tipe  -> TypeAnnotation name (dealiasT tipe)
-        TypeAlias alias xs tipe   -> TypeAlias alias xs (dealiasT tipe)
-        Definition _ -> s
+dealias :: Map.Map String ([X],Type) -> Type -> Type
+dealias aliases t =
+  let f = dealias aliases in
+  case t of
+    ADT name ts -> case Map.lookup name aliases of
+                     Just (xs,t) -> f (subst (zip xs ts) t)
+                     Nothing -> ADT name (map f ts)
+    LambdaT t u -> LambdaT (f t) (f u)
+    RecordT r t -> RecordT (Map.map (map f) r) (f t)
+    _ -> t
 
 mistakes :: [Statement] -> [String]
 mistakes stmts = badKinds stmts ++ dups stmts ++ badOrder stmts
@@ -55,7 +43,7 @@ badKinds stmts = map msg (concatMap badS stmts)
     badT t =
       case t of
         ADT name ts ->
-          case Map.lookup name (getAliases stmts) of
+          case Map.lookup name (get stmts) of
             Just (xs,t) | length xs == length ts -> []
                         | otherwise -> [name]
             Nothing -> concatMap badT ts

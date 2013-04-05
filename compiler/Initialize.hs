@@ -14,7 +14,7 @@ import Libraries (libraries)
 import Types.Types ((-:))
 import Types.Hints (hints)
 import Types.Unify
-import Types.Alias
+import Types.Alias (dealias, mistakes)
 import Optimize
 import CompileToJS (jsModule)
 
@@ -25,12 +25,9 @@ checkMistakes modul@(Module name ex im stmts) =
     []   -> return modul
 
 checkTypes :: Module -> Either String Module
-checkTypes (Module name ex im stmts) =
-    let stmts' = dealias stmts
-        modul = Module name ex im stmts'
-    in do subs <- unify hints modul
-          let modul' = optimize . renameModule $ Module name ex im stmts'
-          subs `seq` return modul'
+checkTypes modul =
+  do subs <- unify hints modul
+     subs `seq` return (optimize (renameModule modul))
 
 check :: Module -> Either String Module
 check = checkMistakes >=> checkTypes
