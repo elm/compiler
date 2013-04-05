@@ -9,7 +9,7 @@ import Native.List as L
 (::) : a -> [a] -> [a]
 
 -- Appends two lists.
-(++) : [a] -> [a] -> [a]
+-- (++) : [a] -> [a] -> [a]
 
 -- Extract the first element of a list. List must be non-empty.
 head : [a] -> a

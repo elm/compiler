@@ -23,7 +23,7 @@ import qualified Ast as Ast
 import qualified Libraries as Libraries
 import Data.List (intercalate)
 import Data.Version (showVersion)
-import CompileToJS
+import CompileToJS (showErr, jsModule)
 import ExtractNoscript
 import GenerateHtml
 import Initialize

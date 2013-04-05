@@ -25,7 +25,8 @@ getAliases imports hints = hints ++ concatMap aliasesFrom imports
   where aliasesFrom (name,method) =
             let values = concatMap (getValue name) hints
             in  case method of
-                  As alias -> map (\(n,t) -> (alias ++ "." ++ n, t)) values
+                  As alias -> if alias == name then [] else
+                                  map (\(n,t) -> (alias ++ "." ++ n, t)) values
                   Hiding vs -> filter (\(n,t) -> n `notElem` vs) values
                   Importing vs -> filter (\(n,t) -> n `elem` vs) values
         getValue inModule (name,tipe) =
