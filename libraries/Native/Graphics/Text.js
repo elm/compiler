@@ -72,11 +72,16 @@ Elm.Native.Graphics.Text = function(elm) {
   }
   function size(px, text) { return addStyle('font-size', px + 'px', text) }
   var header = addTag('h1');
-  function height(h, text) { return addStyle('font-size', hf+'em', text) }
+  function height(h, text) { return addStyle('font-size', h+'em', text) }
   function italic(text) { return addStyle('font-style', 'italic', text) }
   var bold = addTag('b');
+
+  function extract(c) {
+    if (c._3 === 1) { return 'rgb(' + c._0 + ',' + c._1 + ',' + c._2 + ')'; }
+    return 'rgba(' + c._0 + ',' + c._1 + ',' + c._2 + ',' + c._3 + ')';
+  }
   function color(c, text) {
-    return addStyle('color', Color.extract(c), text);
+    return addStyle('color', extract(c), text);
   }
   function underline(text) { return addStyle('text-decoration', 'underline', text) }
   function overline(text) { return addStyle('text-decoration', 'overline', text) }
