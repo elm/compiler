@@ -14,16 +14,15 @@ Elm.Native.Window = function(elm) {
 
   // Do not move width and height into Elm. By setting the default number of kids,
   // the resize listener can be detached.
-  var width  = A2(Signal.lift, function(p){return p._0}, dimensions);
+  var width  = A2(Signal.lift, function(p){console.log(p._0); return p._0}, dimensions);
   width.defaultNumberOfKids = 0;
 
   var height = A2(Signal.lift, function(p){return p._1}, dimensions);
   height.defaultNumberOfKids = 0;
 
   function resize(e) {
-    console.log('use the base node (should happen after resize)');
-    var hasListener = elm.notify(dimensions.id, Tuple2(elm.node.clientWidth,
-						       elm.node.clientHeight));
+    var hasListener = elm.notify(dimensions.id,
+				 Tuple2(elm.node.clientWidth, elm.node.clientHeight));
     if (!hasListener) window.removeEventListener('resize', resize);
   }
   window.addEventListener('resize', resize);

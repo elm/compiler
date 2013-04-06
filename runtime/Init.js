@@ -20,18 +20,8 @@ Elm.init = function(module, baseNode) {
 
   // ensure that baseNode exists and is properly formatted.
   if (typeof baseNode === 'undefined') {
-      var newElement = ElmRuntime.use(ElmRuntime.Render.Utils).newElement;
-      baseNode = newElement('div');
-      document.body.appendChild(baseNode);
-      baseNode.style.width  = window.innerWidth + 'px';
-      baseNode.style.height = window.innerHeight + 'px';
-      window.addEventListener('resize', function() {
-	      console.log('resize the base node');
-	      baseNode.style.width  = window.innerWidth + 'px';
-	      baseNode.style.height = window.innerHeight + 'px';
-	  }, true);
-
-      var style = newElement('style');
+      baseNode = document.body;
+      var style = document.createElement('style');
       style.type = 'text/css';
       style.innerHTML = "html,head,body { padding:0; margin:0; }" +
 	  "body { font-family: calibri, helvetica, arial, sans-serif; }";
@@ -71,21 +61,26 @@ Elm.init = function(module, baseNode) {
   inputs = ElmRuntime.filterDeadInputs(inputs);
   
   // Add the visualModel to the DOM
-  baseNode.appendChild(Render.render(visualModel));
+  var renderNode = Render.render(visualModel)
+  baseNode.appendChild(renderNode);
+  adjustWindow();
   
-  if ('Window' in elm) {
+  function adjustWindow() {
+    if ('Window' in elm) {
       var w = baseNode.clientWidth;
       if (w !== elm.Window.dimensions.value._0) {
-	  notify(elm.Window.dimensions.id,
-		 Elm.Native.Utils(elm).Tuple2(w, baseNode.clientHeight));
+	notify(elm.Window.dimensions.id,
+	       Elm.Native.Utils(elm).Tuple2(w, baseNode.clientHeight));
       }
+    }
   }
-  
+
   // set up updates so that the DOM is adjusted as necessary.
   var update = Render.update;
   function domUpdate(value) {
-      update(baseNode.firstChild, visualModel, value);
+      update(renderNode, visualModel, value);
       visualModel = value;
+      adjustWindow();
       return value;
   }
   

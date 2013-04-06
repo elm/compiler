@@ -86,12 +86,16 @@ Elm.Native.Show = function(elm) {
 		name = "Set";
 		list = A2(List.map, function(x){return x._0}, list);
 	    }
-	    return "(" + name + ".fromList " + toString(list) + ")";
+	    return name + ".fromList " + toString(list);
 	} else {
 	    var output = "";
-	    for (var i = v.length; --i; ) { output = ' ' + toString(v[i]) + output; }
-	    output = v.ctor + output;
-	    return (v.length > 1) ? "(" + output + ")" : output;
+	    for (var i in v) {
+		if (i === 'ctor') continue;
+		var str = toString(v[i]);
+		var parenless = str[0] === '{' || str.indexOf(' ') < 0;
+		output += ' ' + (parenless ? str : '(' + str + ')');
+	    }
+	    return v.ctor + output;
 	}
     }
     return v+"";
