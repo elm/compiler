@@ -133,6 +133,8 @@ patternExtend pattern env =
           first (PData name . reverse) `liftM` foldM f ([], env) ps
                  where f (rps,env') p = do (rp,env'') <- patternExtend p env'
                                            return (rp:rps, env'')
+      PRecord fs ->
+          return (pattern, foldr (\f e n -> if n == f then f else env n) env fs)
 
 patternRename :: (String -> String) -> (Pattern, CExpr) -> GuidCounter (Pattern, CExpr)
 patternRename env (p,e) = do

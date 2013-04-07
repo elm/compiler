@@ -57,8 +57,15 @@ match vs cs def
 
 matchVar :: [String] -> [([Pattern],CExpr)] -> Match -> GuidCounter Match
 matchVar (v:vs) cs def = match vs (map subVar cs) def
-    where subVar (PVar x    : ps, C t s e) = (ps, C t s $ subst x (Var v) e)
-          subVar (PAnything : ps, ce) = (ps, ce)
+  where
+    subVar (p:ps, ce@(C t s e)) =
+        let ctx = C t s in
+        (ps, case p of
+               PVar x     -> C t s $ subst x (Var v) e
+               PAnything  -> ce
+               PRecord fs ->
+                   ctx $ foldr (\x -> subst x (Access (ctx (Var v)) x)) e fs
+        )
 
 matchCon :: [String] -> [([Pattern],CExpr)] -> Match -> GuidCounter Match
 matchCon (v:vs) cs def = (flip (Match v) def) `liftM` mapM toClause css

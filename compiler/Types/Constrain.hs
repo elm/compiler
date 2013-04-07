@@ -234,13 +234,13 @@ caseGen tipe (p, ce@(C _ span e)) = do
   return ( as', Set.union cs cs', t )
 
 patternGen :: (Constraint -> Context Constraint)
-           -> Type
+           -> Type     -- Type of e in `case e of ...`
            -> TVarMap
            -> Pattern
            -> GuidCounter (TVarMap, ConstraintSet, Type)
 patternGen ctxt tipe as pattern =
   case pattern of
-    PAnything -> do b <- beta ; return (Map.empty, Set.empty, b)
+    PAnything -> do b <- beta ; return ( as, Set.empty, b )
     PVar v -> do
       b <- beta
       let cs = map (ctxt . (b :=:) . VarT) (Map.findWithDefault [] v as)
@@ -255,6 +255,15 @@ patternGen ctxt tipe as pattern =
       return ( Map.insert name [constr] as'
              , Set.insert (ctxt (VarT constr :=: t)) cs
              , output )
+    PRecord fs ->
+        do pairs <- mapM (\f -> do b <- beta; return (f,b)) fs
+           b <- beta
+           let t = RecordT (Map.fromList $ map (second (:[])) pairs) b
+               mkCs (name,tipe) = map (ctxt . (tipe :=:) . VarT)
+                                  (Map.findWithDefault [] name as)
+           return ( foldr Map.delete as fs
+                  , Set.fromList (ctxt (t :=: tipe) : concatMap mkCs pairs)
+                  , t )
 
 
 defScheme :: Def -> GuidCounter (Map.Map String [X], Scheme)
