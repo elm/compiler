@@ -202,12 +202,12 @@ makeRecord kvs = record `liftM` collect kvs
 instance ToJS Expr where
  toJS expr =
   case expr of
-    IntNum n -> return $ show n
-    FloatNum n -> return $ show n
     Var x -> return $ x
     Chr c -> return $ quoted [c]
     Str s -> return $ "_str" ++ parens (quoted s)
-    Boolean b -> return $ if b then "true" else "false"
+    IntNum   n -> return $ show n
+    FloatNum n -> return $ show n
+    Boolean  b -> return $ if b then "true" else "false"
     Range lo hi -> jsRange `liftM` toJS' lo `ap` toJS' hi
     Access e x -> access x `liftM` toJS' e
     Remove e x -> remove x `liftM` toJS' e

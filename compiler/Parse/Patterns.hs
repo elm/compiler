@@ -88,10 +88,11 @@ matchSingle :: Pattern -> CExpr -> Pattern -> GuidCounter [Def]
 matchSingle pat exp@(C t s _) p =
   let ctx = C t s in
   case p of
-    PData _ ps -> do x <- guid
-                     let v = '_' : show x
-                     dss <- mapM (matchSingle pat . ctx $ Var v) ps
-                     return (FnDef v [] exp : concat dss)
+    PData _ ps -> do
+        x <- guid
+        let v = '_' : show x
+        dss <- mapM (matchSingle pat . ctx $ Var v) ps
+        return (FnDef v [] exp : concat dss)
 
     PVar x ->
         return [ FnDef x [] (ctx $ Case exp [(pat, ctx $ Var x)]) ]
