@@ -1,7 +1,7 @@
 
 module Maybe where
 
-import List (foldr)
+import List as List
 
 -- The Maybe datatype. Useful when a computation may or may not
 -- result in a value (e.g. logarithm is defined only for positive numbers).
@@ -30,4 +30,4 @@ cons mx xs = maybe xs (\x -> x :: xs) mx
 
 -- Filters out Nothings and extracts the remaining values.
 justs : [Maybe a] -> [a]
-justs = foldr cons []
+justs = List.foldr cons []
