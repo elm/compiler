@@ -25,11 +25,11 @@ function setProps(props, e) {
 }
 
 function image(props, img) {
-  switch (img._0.ctor) {
-  case 'Plain':   return plainImage(img._3);
-  case 'Fitted':  return fittedImage(props.width, props.height, img._3);
-  case 'Cropped': return croppedImage(img,props.width,props.height,img._3);
-  }
+    switch (img._0.ctor) {
+    case 'Plain':   return plainImage(img._3);
+    case 'Fitted':  return fittedImage(props.width, props.height, img._3);
+    case 'Cropped': return croppedImage(img,props.width,props.height,img._3);
+    }
 }
 
 function plainImage(src) {
@@ -120,21 +120,21 @@ function toPos(pos) {
 }
 
 function setPos(pos,w,h,e) {
-  e.style.position = 'absolute';
-  e.style.margin = 'auto';
-  var transform = '';
-  switch(pos.horizontal.ctor) {
-  case 'P': e.style.right = toPos(pos.x); break;
-  case 'Z': transform = 'translateX(' + ((-w/2)|0) + 'px) ';
-  case 'N': e.style.left = toPos(pos.x); break;
-  }
-  switch(pos.vertical.ctor) {
-  case 'N': e.style.bottom = toPos(pos.y); break;
-  case 'Z': transform += 'translateY(' + ((-h/2)|0) + 'px)';
-  case 'P': e.style.top = toPos(pos.y); break;
-  }
-  if (transform !== '') addTransform(e.style, transform);
-  return e;
+    e.style.position = 'absolute';
+    e.style.margin = 'auto';
+    var transform = '';
+    switch(pos.horizontal.ctor) {
+    case 'P': e.style.right = toPos(pos.x); break;
+    case 'Z': transform = 'translateX(' + ((-w/2)|0) + 'px) ';
+    case 'N': e.style.left = toPos(pos.x); break;
+    }
+    switch(pos.vertical.ctor) {
+    case 'N': e.style.bottom = toPos(pos.y); break;
+    case 'Z': transform += 'translateY(' + ((-h/2)|0) + 'px)';
+    case 'P': e.style.top = toPos(pos.y); break;
+    }
+    if (transform !== '') addTransform(e.style, transform);
+    return e;
 }
 
 function container(pos,elem) {
@@ -168,7 +168,7 @@ function makeElement(e) {
 
 function update(node, curr, next) {
     if (node.tagName === 'A') { node = node.firstChild; }
-    if (curr.props.id === next.props.id) return false;
+    if (curr.props.id === next.props.id) return updateProps(node, curr, next);
     if (curr.element.ctor !== next.element.ctor) {
 	node.parentNode.replaceChild(render(next),node);
 	return true;
@@ -176,7 +176,9 @@ function update(node, curr, next) {
     var nextE = next.element, currE = curr.element;
     switch(nextE.ctor) {
     case "Spacer": break;
-    case "RawHtml": if (nextE._0 !== currE._0) node.innerHTML = nextE._0; break;
+    case "RawHtml":
+        if (nextE._0 !== currE._0) node.innerHTML = nextE._0;
+        break;
     case "Image":
 	if (nextE._0.ctor === 'Plain') {
 	    if (nextE._3 !== currE._3) node.src = nextE._3;
@@ -188,6 +190,8 @@ function update(node, curr, next) {
 	}
 	break;
     case "Flow":
+        var arr = fromList(nextE._1);
+        for (var i = arr.length; i--; ) { arr[i] = arr[i].element.ctor; }
 	if (nextE._0.ctor !== currE._0.ctor) {
 	    node.parentNode.replaceChild(render(next),node);
 	    return true;
@@ -232,6 +236,10 @@ function update(node, curr, next) {
 	    return node.parentNode.replaceChild(render(next), node);
 	}
     }
+    updateProps(node, curr, next);
+}
+
+function updateProps(node, curr, next) {
     var props = next.props, currP = curr.props, e = node;
     if (props.width !== currP.width)   e.style.width  = (props.width |0) + 'px';
     if (props.height !== currP.height) e.style.height = (props.height|0) + 'px';
@@ -240,7 +248,9 @@ function update(node, curr, next) {
     }
     var nextColor = (props.color.ctor === 'Just' ?
 		     extract(props.color._0) : 'transparent');
-    if (e.style.backgroundColor !== nextColor) e.style.backgroundColor = nextColor;
+    if (e.style.backgroundColor !== nextColor) {
+        e.style.backgroundColor = nextColor;
+    }
     if (props.tag !== currP.tag) { e.id = props.tag; }
     if (props.href !== currP.href) {
 	if (currP.href === '') {

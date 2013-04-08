@@ -39,7 +39,7 @@ Elm.Native.Show = function(elm) {
             return v+"";
         } else if (typeof v === "string" && v.length < 2) {
             return "'"+v+"'";
-        } else if (typeof v === "object" && ('_' in v)) {
+        } else if (typeof v === "object" && '_' in v) {
             var output = [];
             for (var k in v._) {
                 console.log(k,v._[k]);
@@ -53,7 +53,7 @@ Elm.Native.Show = function(elm) {
             }
             if (output.length === 0) return "{}";
             return "{ " + output.join(", ") + " }";
-        } else if ('ctor' in v) {
+        } else if (typeof v === "object" && 'ctor' in v) {
             if (v.ctor.substring(0,5) === "Tuple") {
                 var output = [];
                 for (var k in v) {

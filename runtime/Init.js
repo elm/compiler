@@ -60,21 +60,23 @@ Elm.init = function(module, baseNode) {
   visualModel = signalGraph.value;
   inputs = ElmRuntime.filterDeadInputs(inputs);
   
+  var tuple2 = Elm.Native.Utils(elm).Tuple2;
+  function adjustWindow() {
+      if ('Window' in elm) {
+          var w = baseNode.clientWidth;
+          if (w !== elm.Window.dimensions.value._0) {
+              notify(elm.Window.dimensions.id,
+                     tuple2(w, document.body === baseNode ?
+                            window.innerHeight : baseNode.clientHeight));
+          }
+      }
+  }
+  
   // Add the visualModel to the DOM
   var renderNode = Render.render(visualModel)
   baseNode.appendChild(renderNode);
   adjustWindow();
   
-  function adjustWindow() {
-    if ('Window' in elm) {
-      var w = baseNode.clientWidth;
-      if (w !== elm.Window.dimensions.value._0) {
-	notify(elm.Window.dimensions.id,
-	       Elm.Native.Utils(elm).Tuple2(w, baseNode.clientHeight));
-      }
-    }
-  }
-
   // set up updates so that the DOM is adjusted as necessary.
   var update = Render.update;
   function domUpdate(value) {
