@@ -184,7 +184,7 @@ remove x e = "_N.remove('" ++ x ++ "', " ++ e ++ ")"
 addField x v e = "_N.insert('" ++ x ++ "', " ++ v ++ ", " ++ e ++ ")"
 setField fs e = "_N.replace(" ++ jsList (map f fs) ++ ", " ++ e ++ ")"
     where f (x,v) = "['" ++ x ++ "'," ++ v ++ "]"
-access x e = parens e ++ "." ++ x
+access x e = e ++ "." ++ x
 makeRecord kvs = record `liftM` collect kvs
   where
     combine r (k,v) = Map.insertWith (++) k v r
