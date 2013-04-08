@@ -28,21 +28,17 @@ import ExtractNoscript
 import GenerateHtml
 import Initialize
 import Text.Blaze.Html (Html)
-import Language.Elm.Quasi
 import Paths_Elm
-
-import qualified Data.Text as TS
-import qualified Data.Text.Lazy as TL
 
 -- |This function compiles Elm code to JavaScript.
 compile :: String -> String
-compile source = either showErr (jsModule . Libraries.addPrelude) modul
-  where modul = buildFromSource source
+compile source = either showErr jsModule modul
+  where modul = buildFromSource True source
 
 -- |This function extracts the module name of a given source program.
 moduleName :: String -> String
 moduleName source = either (const "Main") getName modul
-  where modul = buildFromSource source
+  where modul = buildFromSource False source
         getName (Ast.Module names _ _ _) = intercalate "." names
 
 -- |This function compiles Elm code into a full HTML page.

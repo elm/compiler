@@ -113,11 +113,11 @@ superize name tipe =
       EmptyRecord -> return t
       Super _     -> return t
       VarT _      -> return t
-      LambdaT t1 t2       -> liftM2 LambdaT (go t1) (go t2)
-      ADT "Number" []     -> liftM VarT number
-      ADT "Appendable" [] -> liftM VarT append
-      ADT name ts         -> liftM (ADT name) (mapM go ts)
-      RecordT fs t        -> liftM2 RecordT fs' (go t)
+      LambdaT t1 t2        -> liftM2 LambdaT (go t1) (go t2)
+      ADT "Number" []      -> liftM VarT number
+      ADT "Appendable" [t] -> liftM VarT append
+      ADT name ts          -> liftM (ADT name) (mapM go ts)
+      RecordT fs t         -> liftM2 RecordT fs' (go t)
           where pairs = Map.toList fs
                 fs' = do ps <- mapM (\(f,t) -> liftM ((,) f) (mapM go t)) pairs
                          return (Map.fromList ps)

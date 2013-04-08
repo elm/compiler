@@ -6,8 +6,13 @@ import Data.List (inits)
 import Text.JSON
 import LoadLibraries (docs)
 
+import System.IO.Unsafe
 
-addPrelude (Module name exs ims stmts) = Module name exs (customIms ++ ims) stmts
+addPrelude :: Module -> Module
+addPrelude (Module name exs ims stmts) =
+    unsafePerformIO $ do
+      mapM print $ customIms ++ ims
+      return $ Module name exs (customIms ++ ims) stmts
     where customIms = concatMap addModule prelude
 
           addModule (n, method) = case lookup n ims of
@@ -23,15 +28,20 @@ prelude = text : map (\n -> (n, Hiding [])) modules
               , "Graphics.Collage", "Graphics.Geometry" ]
 
 libraries :: Map.Map String (Map.Map String String)
-libraries = case getLibs of
-              Error err -> error err
-              Ok libs   -> Map.unionWith Map.union libs nilAndTuples
-                  where nilAndTuples = Map.singleton "Prelude" (Map.fromList pairs)
-                        pairs = ("Nil", "List a") : map makeTuple (inits ['a'..'i'])
-                        makeTuple cs = 
-                            let name = "Tuple" ++ show (length cs)
-                            in  (name, concatMap (\c -> c : " -> ") cs ++
-                                       name ++ concatMap (\c -> [' ',c]) cs)
+libraries =
+    case getLibs of
+      Error err -> error err
+      Ok libs   -> Map.unionWith Map.union libs nilAndTuples
+          where nilAndTuples = Map.singleton "Prelude" (Map.fromList pairs)
+                pairs =
+                    [ ("Cons", "a -> [a] -> [a]")
+                    , ("Nil", "[a]")
+                    ] ++ map makeTuple (inits ['a'..'i'])
+                
+                makeTuple cs = 
+                    let name = "Tuple" ++ show (length cs)
+                    in  (name, concatMap (\c -> c : " -> ") cs ++
+                               name ++ concatMap (\c -> [' ',c]) cs)
 
 getLibs :: Result (Map.Map String (Map.Map String String))
 getLibs = do

@@ -12,8 +12,11 @@ import Types.Types
 hints :: GuidCounter [(String, Scheme)]
 hints = mapM toScheme values
  where
-  addPrefixes = concatMap (\(m,vs) -> map (first (\n -> m ++ "." ++ n)) vs)
+
   values = addPrefixes (Map.toList (Map.map Map.toList libraries))
+
+  addPrefixes = concatMap (\(m,vs) -> map (first (\n -> m ++ "." ++ n)) vs)
+
   toScheme (name, tipeString) =
    case iParse (fmap toType typeExpr) "parsing types in docs.json" tipeString of
      Left err   -> error (show err)

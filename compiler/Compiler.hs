@@ -68,9 +68,10 @@ data What = JS | HTML | Split
 fileTo flags what rtLoc file = do
   let jsStyle  = if minify flags then Minified else Readable
       formatJS = if minify flags then BS.unpack . JS.minify . BS.pack else id
-  ems <- if make flags then build file
+      prelude = not (no_prelude flags)
+  ems <- if make flags then build prelude file
                        else do src <- readFile file
-                               return (fmap (:[]) (buildFromSource src))
+                               return (fmap (:[]) (buildFromSource prelude src))
   jss <- concat `fmap` mapM readFile (import_js flags)
   case ems of
     Left err -> do putStrLn $ "Error while compiling " ++ file ++ ":\n" ++ err

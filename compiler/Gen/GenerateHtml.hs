@@ -15,9 +15,10 @@ import Text.Jasmine (minify)
 import qualified Data.ByteString.Lazy.Char8 as BS
 
 import Ast
-import Initialize
+import Initialize (buildFromSource)
 import CompileToJS
 import ExtractNoscript
+import Libraries as Libraries
 
 data JSStyle = Minified | Readable
 
@@ -40,9 +41,10 @@ generateHtml :: String -- ^ Location of elm-runtime.js as expected by the browse
              -> String -- ^ The elm source code.
              -> Html
 generateHtml libLoc title source =
-    case buildFromSource source of
-      Left err -> createHtml Readable libLoc title (Right $ showErr err) (H.noscript "") "Elm.Main"
-      Right modul -> modulesToHtml Readable title libLoc [] True [modul]
+  case buildFromSource True source of
+    Right modul -> modulesToHtml Readable title libLoc [] True [modul]
+    Left err -> createHtml Readable libLoc title (Right $ showErr err)
+                (H.noscript "") "Elm.Main"
 
 
 modulesToHtml jsStyle title libLoc jss nscrpt modules =

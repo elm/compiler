@@ -10,7 +10,7 @@ import Data.Either (lefts,rights)
 import Data.List (intercalate,partition)
 import Parse.Parser (parseProgram, preParse)
 import Rename
-import Libraries (libraries)
+import qualified Libraries as Libs
 import Types.Types ((-:))
 import Types.Hints (hints)
 import Types.Unify
@@ -32,29 +32,30 @@ checkTypes modul =
 check :: Module -> Either String Module
 check = checkMistakes >=> checkTypes
 
-buildFromSource :: String -> Either String Module
-buildFromSource src = check =<< parseProgram src
+buildFromSource :: Bool -> String -> Either String Module
+buildFromSource withPrelude src = (check . add) =<< (parseProgram src)
+    where add = if withPrelude then Libs.addPrelude else id
 
-build :: FilePath -> IO (Either String [Module])
-build root = do
+build :: Bool -> FilePath -> IO (Either String [Module])
+build withPrelude root = do
   names <- getSortedModuleNames root
   case names of
     Left err -> return (Left err)
     Right ns -> do srcs <- zipWithM buildFile' [1..] ns
                    return (sequence srcs)
       where
-        buildFile' n name = putStrLn (msg n name) >> buildFile name
+        buildFile' n name = putStrLn (msg n name) >> buildFile withPrelude name
         msg n name = "["++show n++" of "++show (length ns)++"] Compiling "++name
 
-buildFile :: String -> IO (Either String Module)
-buildFile moduleName =
+buildFile :: Bool -> String -> IO (Either String Module)
+buildFile withPrelude moduleName =
   let filePath = toFilePath moduleName in
   case isNative moduleName of
     True  -> return (Right $ Module [moduleName] [] [] [])
              --return (Left "Can't do that yet")
              --Right `liftM` readFile filePath
     False -> do txt <- readFile filePath
-                return $ buildFromSource txt
+                return $ buildFromSource withPrelude txt
 
 
 getSortedModuleNames :: FilePath -> IO (Either String [String])
@@ -87,7 +88,7 @@ readDeps seen root = do
         where realDeps = filter (`notElem` builtIns) deps
               newDeps = filter (`notElem` seen) realDeps
               seen' = root : seen ++ newDeps
-              builtIns = Map.keys libraries
+              builtIns = Map.keys Libs.libraries
 
 isNative name = takeWhile (/='.') name == "Native"
 toFilePath name = map swapDots name ++ ext
