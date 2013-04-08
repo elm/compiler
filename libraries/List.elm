@@ -9,7 +9,7 @@ import Native.List as L
 (::) : a -> [a] -> [a]
 
 -- Appends two lists.
--- (++) : [a] -> [a] -> [a]
+(++) : Appendable a -> Appendable a -> Appendable a
 
 -- Extract the first element of a list. List must be non-empty.
 head : [a] -> a
@@ -63,10 +63,10 @@ and : [Bool] -> Bool
 or  : [Bool] -> Bool
 
 -- Flatten a list of lists.
-concat : [[a]] -> [a]
+concat : [Appendable a] -> Appendable a
 
 -- Map a given function onto a list and flatten the resulting lists. (concatMap f xs == concat (map f xs))
-concatMap : (a -> [b]) -> [a] -> [b]
+concatMap : (a -> Appendable b) -> [a] -> Appendable b
 concatMap f = L.concat . L.map f
 
 -- Get the sum of the list elements.

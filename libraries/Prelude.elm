@@ -12,6 +12,11 @@ degrees d = d * Math.PI / 180
 turns : Float -> Float
 turns r = 2 * Math.PI * r
 
+(+) : Number -> Number -> Number
+(-) : Number -> Number -> Number
+(*) : Number -> Number -> Number
+(/) : Float -> Float -> Float
+
 -- Integer division, remainder is discarded.
 div : Int -> Int -> Int
 
