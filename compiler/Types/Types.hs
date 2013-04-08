@@ -39,9 +39,8 @@ number = Super (Set.fromList [ int, float ])
 
 char = tipe "Char"
 bool = tipe "Bool"
-
+text = tipe "Text"
 string = tipe "String"
-text  = tipe "Text"
 
 element   = tipe "Element"
 
@@ -52,7 +51,7 @@ maybeOf t  = ADT "Maybe" [t]
 eitherOf a b = ADT "Either" [a,b]
 pairOf t = tupleOf [t,t]
 point = pairOf int
-appendable t = Super (Set.fromList [ string, text, listOf t ])
+appendable t = Super (Set.fromList [ string, text, listOf (VarT t) ])
 --comparable = Super (Set.fromList [ int, float, char, string, time, date ])
 
 infixr ==>

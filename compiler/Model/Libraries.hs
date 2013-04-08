@@ -1,4 +1,4 @@
-module Libraries (libraries, addPrelude, prelude) where
+module Libraries (libraries, addPrelude) where
 
 import Ast
 import qualified Data.Map as Map
@@ -11,8 +11,9 @@ addPrelude (Module name exs ims stmts) = Module name exs (customIms ++ ims) stmt
     where customIms = concatMap addModule prelude
 
           addModule (n, method) = case lookup n ims of
-                                    Nothing -> [(n, method)]
-                                    Just _  -> []
+                                    Nothing     -> [(n, method)]
+                                    Just (As m) -> [(n, method)]
+                                    Just _      -> []
 
 prelude = text : map (\n -> (n, Hiding [])) modules
   where

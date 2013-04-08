@@ -1,5 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Guid (guid, run, runAt, GuidCounter) where
+module Guid (guid, set, run, runAt, GuidCounter) where
 
 import Control.Monad.State (evalState, State, get, put)
 
@@ -12,6 +12,8 @@ guid :: GuidCounter Int
 guid = GC $ do n <- get
                put (n + 1)
                return n
+
+set n = GC (put n)
 
 run = runAt 0
 runAt n x = evalState (runGC x) n

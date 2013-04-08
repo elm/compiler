@@ -12,7 +12,6 @@ import qualified Data.Set as Set
 import Ast
 import Context
 import Guid
-import qualified Libraries as Libraries
 
 import Types.Types
 import Types.Substitutions
@@ -21,12 +20,11 @@ beta = VarT `liftM` guid
 unionA = Map.unionWith (++)
 unionsA = Map.unionsWith (++)
 
-getAliases imports hints = hints ++ concatMap aliasesFrom imports
+getAliases imports hints = concatMap aliasesFrom imports
   where aliasesFrom (name,method) =
             let values = concatMap (getValue name) hints
             in  case method of
-                  As alias -> if alias == name then [] else
-                                  map (\(n,t) -> (alias ++ "." ++ n, t)) values
+                  As alias -> map (\(n,t) -> (alias ++ "." ++ n, t)) values
                   Hiding vs -> filter (\(n,t) -> n `notElem` vs) values
                   Importing vs -> filter (\(n,t) -> n `elem` vs) values
         getValue inModule (name,tipe) =
@@ -34,13 +32,15 @@ getAliases imports hints = hints ++ concatMap aliasesFrom imports
               True  -> [ (drop (length inModule + 1) name, tipe) ]
               False -> []
 
-findAmbiguous hints hints' assumptions continue =
-  let potentialDups = map head . filter (\g -> length g > 1) . group $ sort hints'
-      dups = filter (\k -> Map.member k assumptions) potentialDups
-  in case dups of
-       n:_ -> return . Left $ "Error: Ambiguous occurrence of '" ++ n ++
-              "' could refer to " ++ intercalate ", " (filter (isSuffixOf n) hints)
-       _ -> continue
+findAmbiguous hints assumptions continue =
+ let potentialDups = map head . filter (\g -> length g > 1) . group . sort $
+                     filter (elem '.') hints
+     dups = filter (\k -> Map.member k assumptions) potentialDups
+ in case dups of
+      n:_ -> return . Left $ "Error: Ambiguous occurrence of '" ++ n ++
+             "' could refer to " ++
+             intercalate ", " (filter (isSuffixOf n) hints)
+      _ -> continue
 
 mergeSchemes :: [Map.Map String Scheme]
              -> GuidCounter (TVarMap, ConstraintSet, Map.Map String Scheme)
@@ -61,15 +61,14 @@ mergeSchemes schmss = do (ass,css,sss) <- unzip3 `liftM` mapM split kvs
 
 constrain typeHints (Module _ _ imports stmts) = do
   (ass,css,schemess) <- unzip3 `liftM` mapM stmtGen stmts
-  hints <- typeHints
+  aliasHints <- getAliases imports `liftM` typeHints
   (as', cs', schemes) <- mergeSchemes schemess
   let constraints = Set.unions (cs':css)
       as = unionsA (as':ass)
-      aliasHints = getAliases (imports ++ Libraries.prelude) hints
       allHints = Map.union schemes (Map.fromList aliasHints)
       insert as n = do v <- guid; return $ Map.insertWith' (\_ x -> x) n [v] as
   assumptions <- foldM insert as (Map.keys schemes)
-  findAmbiguous (map fst hints) (map fst aliasHints) assumptions $ do
+  findAmbiguous (map fst aliasHints) assumptions $ do
     let f k s vs = map (\v -> C (Just k) NoSpan $ v :<<: s) vs
         cs = concat . Map.elems $ Map.intersectionWithKey f allHints assumptions
         escapees = Map.keys $ Map.difference assumptions allHints
