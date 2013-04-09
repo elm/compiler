@@ -90,14 +90,12 @@ solver aliases subs (C txt span c : cs) =
   let ctx = C txt span
       eq t1 t2 = ctx (t1 :=: t2)
       solv = solver aliases subs
+      uniError' = uniError (\t1 t2 -> solv (eq t1 t2 : cs)) aliases txt span
   in case c of
       -- Destruct Type-constructors
       t1@(ADT n1 ts1) :=: t2@(ADT n2 ts2) ->
           if n1 == n2 then solv (zipWith eq ts1 ts2 ++ cs)
-          else let t1' = dealias aliases t1
-                   t2' = dealias aliases t2
-               in  if t1 == t1' && t2 == t2' then uniError txt span t1 t2
-                                             else solv (ctx (t1' :=: t2') : cs)
+                      else uniError' t1 t2
 
       LambdaT t1 t2 :=: LambdaT t1' t2' ->
           solv ([ eq t1 t1', eq t2 t2' ] ++ cs)
@@ -146,7 +144,7 @@ solver aliases subs (C txt span c : cs) =
       t :=: VarT x -> solv ((ctx (VarT x :=: t)) : cs)
 
       t1 :=: t2 | t1 == t2  -> solv cs
-                | otherwise -> uniError txt span t1 t2
+                | otherwise -> uniError' t1 t2
 
       -- subtypes
       VarT x :<: Super ts ->
@@ -190,10 +188,14 @@ occursError msg span t1 t2 =
         , "Occurs check: cannot construct the infinite type:\n"
         , show t1, " = ", show t2, showMsg msg ]
 
-uniError msg span t1 t2 =
-    return . Left $ concat
-        [ "Type error (" ++ show span ++ "):\n"
-        , show t1, " is not equal to ", show t2, showMsg msg ]
+uniError solveWith aliases msg span t1 t2 =
+    let t1' = dealias aliases t1
+        t2' = dealias aliases t2
+    in  if t1 /= t1' || t2 /= t2'
+        then solveWith t1' t2'
+        else return . Left $ concat
+                 [ "Type error (" ++ show span ++ "):\n"
+                 , show t1, " is not equal to ", show t2, showMsg msg ]
 
 unionError msg span ts ts' =
     return . Left $ concat
