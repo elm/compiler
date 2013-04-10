@@ -6,13 +6,8 @@ import Data.List (inits)
 import Text.JSON
 import LoadLibraries (docs)
 
-import System.IO.Unsafe
-
 addPrelude :: Module -> Module
-addPrelude (Module name exs ims stmts) =
-    unsafePerformIO $ do
-      mapM print $ customIms ++ ims
-      return $ Module name exs (customIms ++ ims) stmts
+addPrelude (Module name exs ims stmts) = Module name exs (customIms ++ ims) stmts
     where customIms = concatMap addModule prelude
 
           addModule (n, method) = case lookup n ims of
