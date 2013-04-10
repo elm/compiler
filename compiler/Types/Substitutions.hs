@@ -11,12 +11,11 @@ import Ast
 import Context
 import Control.Monad (liftM, liftM2)
 import Control.Monad.State (runState, State, get, put)
-import Data.List (foldl')
-import Data.Maybe (catMaybes)
+import Data.List (nub)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Guid
-import Types.Types as Types
+import Types.Types
 
 class Subst a where
   subst :: [(X,Type)] -> a -> a
@@ -92,21 +91,25 @@ generalize exceptions (Forall xs cs t) = rescheme (Forall (xs ++ frees) cs t)
     where allFrees = Set.fromList $ freeVars t ++ concatMap freeVars cs
           frees = Set.toList $ Set.difference allFrees (Set.fromList exceptions)
 
-newtype Superize a = S { runSuper :: State (Int, Maybe X, Maybe X) a }
+newtype Superize a = S { runSuper :: State ([X], [X], [X]) a }
     deriving (Monad)
 
 superize :: String -> Type -> GuidCounter Scheme
 superize name tipe =
-    do x <- guid
-       let (tipe', (m, number, append)) =
-               runState (runSuper (go tipe)) (x+1, Nothing, Nothing)
-           mkC super = liftM (\x -> C (Just name) NoSpan (VarT x :<: super))
-       set m
-       return (Forall (catMaybes [number,append])
-                      (catMaybes [ mkC Types.number number
-                                 , mkC (Types.appendable x) append])
-                      tipe')
+    do constraints <- liftM concat $
+                      sequence [ mapM (<: nmbr) (nub ns)
+                               , mapM (<: apnd) (nub as)
+                               , mapM (<: comp) (nub cs) ]
+       return (Forall (concat [ns,as,cs]) constraints tipe')
  where
+  (tipe', (ns,as,cs)) = runState (runSuper (go tipe)) ([],[],[])
+  t <: super = do x <- guid
+                  return $ C (Just name) NoSpan (VarT t :<: super x)
+
+  nmbr t = number
+  apnd t = appendable t
+  comp t = comparable t
+
   go :: Type -> Superize Type
   go t =
     case t of
@@ -114,24 +117,20 @@ superize name tipe =
       Super _     -> return t
       VarT _      -> return t
       LambdaT t1 t2        -> liftM2 LambdaT (go t1) (go t2)
-      ADT "Number" []      -> liftM VarT number
-      ADT "Appendable" [t] -> liftM VarT append
+      ADT "Number" [VarT t] -> addNumber t
+      ADT "Appendable" [VarT t] -> addAppendable t
+      ADT "Comparable" [VarT t] -> addComparable t
       ADT name ts          -> liftM (ADT name) (mapM go ts)
       RecordT fs t         -> liftM2 RecordT fs' (go t)
           where pairs = Map.toList fs
                 fs' = do ps <- mapM (\(f,t) -> liftM ((,) f) (mapM go t)) pairs
                          return (Map.fromList ps)
 
-  number :: Superize X
-  number = S $ do (n, num, append) <- get
-                  case num of
-                    Just x  -> return x
-                    Nothing -> do put (n + 1, Just n, append)
-                                  return n
+  add :: (X -> ([X],[X],[X]) -> ([X],[X],[X])) -> X -> Superize Type
+  add f v = S $ do (ns, as, cs) <- get
+                   put $ f v (ns, as, cs)
+                   return (VarT v)
 
-  append :: Superize X
-  append = S $ do (n, number, app) <- get
-                  case app of
-                    Just x  -> return x
-                    Nothing -> do put (n + 1, number, Just n)
-                                  return n
+  addNumber     = add (\n (ns,as,cs) -> (n:ns,as,cs))
+  addAppendable = add (\a (ns,as,cs) -> (ns,a:as,cs))
+  addComparable = add (\c (ns,as,cs) -> (ns,as,c:cs))

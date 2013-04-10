@@ -14,7 +14,7 @@ import Context
 import Guid
 
 import Types.Types
-import Types.Substitutions
+import qualified Types.Substitutions as Subs
 
 beta = VarT `liftM` guid
 unionA = Map.unionWith (++)
@@ -283,7 +283,7 @@ defGenHelp name args e = do
         let as' = Map.findWithDefault [v] arg as
         return $ map (\y -> ctx arg NoSpan $ VarT x :=: VarT y) as'
   cs' <- concat `liftM` mapM genCs argDict
-  scheme <- generalize (concat $ Map.elems as') $
+  scheme <- Subs.generalize (concat $ Map.elems as') $
             Forall (map snd argDict) (cs' ++ Set.toList cs) tipe
   return ( as', Set.empty, (name, scheme) )
 
@@ -312,7 +312,7 @@ stmtGen stmt =
                   , Map.singleton elm (Forall [] [] tipe) )
 
     TypeAnnotation name tipe ->
-        do schm <- generalize [] (Forall [] [] tipe)
+        do schm <- Subs.generalize [] =<< Subs.superize name tipe
            return (Map.empty, Set.empty, Map.singleton name schm)
 
     TypeAlias _ _ _ -> return (Map.empty, Set.empty, Map.empty)

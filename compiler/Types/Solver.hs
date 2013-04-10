@@ -161,12 +161,13 @@ solver aliases subs (C txt span c : cs) =
           | any f (Set.toList ts) -> solv cs
           | otherwise -> subtypeError txt span (ADT "List" [t]) (Super ts)
                  where f (ADT "List" [VarT _]) = True
-                       f (ADT "List" [t']) = t == t'
+                       f (ADT "List" [t']) = dealias aliases t == t'
                        f _ = False
 
       t :<: Super ts
           | Set.member t ts -> solv cs
-          | otherwise       -> subtypeError txt span t (Super ts)
+          | Set.member (dealias aliases t) ts -> solv cs
+          | otherwise -> subtypeError txt span t (Super ts)
 
       x :<<: s
           | any (occurs x) cs ->

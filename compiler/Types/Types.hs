@@ -35,12 +35,18 @@ tipe t = ADT t []
 
 int = tipe "Int"
 float = tipe "Float"
-number = Super (Set.fromList [ int, float ])
+time = tipe "Time"
+date = tipe "Date"
 
 char = tipe "Char"
 bool = tipe "Bool"
 text = tipe "Text"
+order = tipe "Order"
 string = tipe "String"
+
+number = Super $ Set.fromList [ int, float, time ]
+appendable t = Super $ Set.fromList [ string, text, listOf (VarT t) ]
+comparable t = Super $ Set.fromList [ int, float, char, string, time, date ]
 
 element   = tipe "Element"
 
@@ -51,8 +57,6 @@ maybeOf t  = ADT "Maybe" [t]
 eitherOf a b = ADT "Either" [a,b]
 pairOf t = tupleOf [t,t]
 point = pairOf int
-appendable t = Super (Set.fromList [ string, text, listOf (VarT t) ])
---comparable = Super (Set.fromList [ int, float, char, string, time, date ])
 
 infixr ==>
 t1 ==> t2 = LambdaT t1 t2
