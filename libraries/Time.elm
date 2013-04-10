@@ -36,14 +36,14 @@ inHours t = t / hour
 -- gives a sequence of time deltas as quickly as possible until it reaches
 -- the desired FPS. A time delta is the time between the last frame and the
 -- current frame.
-fps : Number -> Signal Time
+fps : Number a -> Signal Time
 
 -- Same as the fps function, but you can turn it on and off. Allows you
 -- to do brief animations based on user input without major ineffeciencies.
 -- The first time delta after a pause is always zero, no matter how long
 -- the pause was. This way summing the deltas will actually give the amount
 -- of time that the output signal has been running.
-fpsWhen : Number -> Signal Bool -> Signal Time
+fpsWhen : Number a -> Signal Bool -> Signal Time
 
 -- Takes a time interval t. The resulting signal is the current time,
 -- updated every t.

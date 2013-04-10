@@ -108,9 +108,11 @@ unzip pairs =
 --     split "," "hello,there,friend" == ["hello", "there", "friend"]
 split : [a] -> [a] -> [[a]]
 
--- Places the given value between all of the lists in the second argument and concatenates the result. 
+-- Places the given value between all of the lists in the second argument
+-- and concatenates the result. 
+--
 --     join xs xss = concat (intersperse xs xss)
-join  : [a] -> [[a]] -> [a]
+join  : Appendable a -> [Appendable a] -> Appendable a
 
 -- Places the given value between all members of the given list.
 intersperse : a -> [a] -> [a]

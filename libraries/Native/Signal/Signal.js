@@ -191,8 +191,8 @@ Elm.Native.Signal = function(elm) {
 
   function merge(s1,s2) { return new Merge(s1,s2) }
   function merges(ss) { return A2(foldl1, F2(merge), ss) }
-  function mergeEither(s1,s2) {return new Merge(A2(lift, Either.Left , s1),
-						A2(lift, Either.Right, s2))}
+  function mergeEither(s1,s2) { return new Merge(lift(Either.Left, s1),
+                                                 lift(Either.Right,s2)) }
 
   function average(sampleSize, s) {
     var sample = new Array(sampleSize);
@@ -222,7 +222,7 @@ Elm.Native.Signal = function(elm) {
     lift7 : F8(lift7),
     lift8 : F9(lift8),
     foldp : F3(foldp),
-    delay : delay,
+    delay : F2(delay),
     merge : F2(merge),
     merges : merges,
     mergeEither : F2(mergeEither),

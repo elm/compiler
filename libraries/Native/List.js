@@ -3,7 +3,8 @@ Elm.Native.List = function(elm) {
 
   elm.Native = elm.Native || {};
   if (elm.Native.List) return elm.Native.List;
-  if ('values' in Elm.Native.List) return elm.Native.List = Elm.Native.List.values
+  if ('values' in Elm.Native.List)
+      return elm.Native.List = Elm.Native.List.values;
 
   var Utils = Elm.Native.Utils(elm);
 
@@ -238,6 +239,7 @@ Elm.Native.List = function(elm) {
   }
 
   function join(sep, xss) {
+    if (typeof sep === 'string') return toArray(xss).join(sep);
     if (xss.ctor === 'Nil') return Nil;
     var s = toArray(sep);
     var out = toArray(xss._0);

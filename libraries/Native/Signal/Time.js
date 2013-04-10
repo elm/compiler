@@ -4,6 +4,7 @@ Elm.Native.Time = function(elm) {
 
   var Signal = Elm.Signal(elm);
   var Maybe = Elm.Maybe(elm);
+  var Utils = Elm.Native.Utils(elm);
 
   function fpsWhen(desiredFPS, isOn) {
     var msPerFrame = 1000 / desiredFPS;
@@ -37,8 +38,8 @@ Elm.Native.Time = function(elm) {
   }
 
   function since(t, s) {
-    function cmp(a,b) { return !Value.eq(a,b) }
-    var dcount = Signal.count(Signal.delay(t)(s));
+    function cmp(a,b) { return !Utils.eq(a,b) }
+    var dcount = Signal.count(A2(Signal.delay, t, s));
     return A3( Signal.lift2, F2(cmp), Signal.count(s), dcount );
   }
   function after(t) {

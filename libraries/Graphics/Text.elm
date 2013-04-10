@@ -53,6 +53,9 @@ righted : Text -> Element
 
 -- Display styled text.
 text : Text -> Element
+
+-- Display a plain string.
+plainText : String -> Element
  
 -- Convert anything to it's textual representation and make it displayable in browser
 --     asText = text . monospace . show

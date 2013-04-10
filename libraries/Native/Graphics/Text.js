@@ -106,6 +106,10 @@ Elm.Native.Graphics.Text = function(elm) {
       return position('left')(monospace(toText(show(v))));
   }
 
+  function plainText(v) {
+      return position('left')(toText(v));
+  }
+
   return elm.Native.Graphics.Text = {
       toText: toText,
 
@@ -125,6 +129,7 @@ Elm.Native.Graphics.Text = function(elm) {
       centered : position('center'),
       righted : position('right'),
       text : position('left'),
+      plainText : plainText,
 
       asText : asText
   };
