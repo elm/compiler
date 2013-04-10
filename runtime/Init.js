@@ -44,6 +44,12 @@ Elm.init = function(module, baseNode) {
       document.addEventListener(name + '_' + elm.id, handler);
   }
 
+  recv('elm_log', function(e) {console.log(e.value)});
+  recv('elm_title', function(e) {document.title = e.value});
+  recv('elm_redirect', function(e) {
+	if (e.value.length > 0) { window.location = e.value; }
+      });
+
   // If graphics are not enabled, escape early, skip over setting up DOM stuff.
   if (baseNode === null) return { send : send, recv : recv };
 
