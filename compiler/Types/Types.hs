@@ -68,19 +68,18 @@ parens = ("("++) . (++")")
 
 instance Show Type where
   show t =
-   let show' t = case t of { LambdaT _ _ -> parens (show t) ; _ -> show t }
+   let addParens (c:cs) =
+           if notElem ' ' cs || c == '(' then c:cs else parens (c:cs)
    in case t of
-      LambdaT t1@(LambdaT _ _) t2 -> show' t1 ++ " -> " ++ show t2
+      LambdaT t1@(LambdaT _ _) t2 -> parens (show t1) ++ " -> " ++ show t2
       LambdaT t1 t2 -> show t1 ++ " -> " ++ show t2
       VarT x -> 't' : show x
-      --ADT "List" [ADT "Char" []] -> "String"
+      ADT "List" [ADT "Char" []] -> "String"
       ADT "List" [tipe] -> "[" ++ show tipe ++ "]"
       ADT name cs ->
           if isTupleString name
               then parens . intercalate "," $ map show cs
-              else case cs of
-                     [] -> name
-                     _  -> name ++ " " ++ unwords (map show cs)
+              else name ++ concatMap ((' ':) . addParens . show) cs
       Super ts -> "{" ++ (intercalate "," . map show $ Set.toList ts) ++ "}"
       EmptyRecord -> "{}"
       RecordT fs t ->

@@ -315,7 +315,7 @@ clauseToJS span var (Clause name vars e) = do
 jsNil         = "_L.Nil"
 jsCons  e1 e2 = "_L.Cons(" ++ e1 ++ "," ++ e2 ++ ")"
 jsRange e1 e2 = "_L.range" ++ parens (e1 ++ "," ++ e2)
-jsCompare e1 e2 op = parens ("_N.compare(" ++ e1 ++ "," ++ e2 ++ ").ctor" ++ op)
+jsCompare e1 e2 op = parens ("_N.cmp(" ++ e1 ++ "," ++ e2 ++ ").ctor" ++ op)
 
 binop (o:p) e1 e2
     | isAlpha o || '_' == o = (o:p) ++ parens e1 ++ parens e2
