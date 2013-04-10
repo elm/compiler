@@ -112,7 +112,8 @@ Elm.Native.Utils = function(elm) {
 
   return elm.Native.Utils = {
       eq:eq,
-      compare:compare,
+      cmp:compare,
+      compare:F2(compare),
       Tuple0:Tuple0,
       Tuple2:Tuple2,
       copy: copy,

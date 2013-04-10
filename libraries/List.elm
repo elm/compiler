@@ -65,7 +65,9 @@ or  : [Bool] -> Bool
 -- Flatten a list of lists.
 concat : [Appendable a] -> Appendable a
 
--- Map a given function onto a list and flatten the resulting lists. (concatMap f xs == concat (map f xs))
+-- Map a given function onto a list and flatten the resulting lists.
+--
+--     concatMap f xs == concat (map f xs)
 concatMap : (a -> Appendable b) -> [a] -> Appendable b
 concatMap f = L.concat . L.map f
 

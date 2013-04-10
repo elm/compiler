@@ -12,9 +12,9 @@ degrees d = d * Math.PI / 180
 turns : Float -> Float
 turns r = 2 * Math.PI * r
 
-(+) : Number -> Number -> Number
-(-) : Number -> Number -> Number
-(*) : Number -> Number -> Number
+(+) : Number a -> Number a -> Number a
+(-) : Number a -> Number a -> Number a
+(*) : Number a -> Number a -> Number a
 (/) : Float -> Float -> Float
 
 -- Integer division, remainder is discarded.
@@ -40,21 +40,21 @@ atan : Float -> Float
 atan2 : Float -> Float -> Float
 
 -- Take the square root of a number.
-sqrt : Number -> Number
+sqrt : Number a -> Number a
 
 -- Take the absolute value of a number.
-abs : Number -> Number
+abs : Number a -> Number a
 
 -- Calculate the logarithm of a number with a given base: `logBase 10 100 == 2`
-logBase : Number -> Number -> Number
+logBase : Number a -> Number a -> Number a
 
 -- Given two numbers, returns the smaller (or greater respectively).
-min : Number -> Number -> Number
-max : Number -> Number -> Number
+min : Number a -> Number a -> Number a
+max : Number a -> Number a -> Number a
 
 -- Clamps a number within a given range, so `clamp 100 200 x` is 200 for
 -- x >= 200, 100 for x <= 100, and x for any 100 < x < 200 
-clamp : Number -> Number -> Number -> Number
+clamp : Number a -> Number a -> Number a -> Number a
 
 -- An approximation of pi.
 pi : Float
@@ -64,16 +64,20 @@ e : Float
 
 -- Compare any two values for structural equality and inequality.
 -- Functions cannot be compared.
-(==) : a -> a -> Bool
-(/=) : a -> a -> Bool
+(==) : Comparable a -> Comparable a -> Bool
+(/=) : Comparable a -> Comparable a -> Bool
 
 -- Compare any two comparable values. Comparable values include String, Char,
 -- Int, Float, Time, or a list or tuple containing comparable values.
 -- These are also the only values that work as Dictionary keys or Set members.
-(<)  : a -> a -> Bool
-(>)  : a -> a -> Bool
-(<=) : a -> a -> Bool
-(>=) : a -> a -> Bool
+(<)  : Comparable a -> Comparable a -> Bool
+(>)  : Comparable a -> Comparable a -> Bool
+(<=) : Comparable a -> Comparable a -> Bool
+(>=) : Comparable a -> Comparable a -> Bool
+
+compare : Comparable a -> Comparable a -> Order
+
+data Order = LT | EQ | GT
 
 -- The and operator. True if both inputs are True.
 (&&) : Bool -> Bool -> Bool

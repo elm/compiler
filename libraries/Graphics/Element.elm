@@ -147,9 +147,9 @@ layers es =
 
 -- Repetitive things --
 
-absolute : Pos
+absolute : Int -> Pos
 absolute = Absolute
-relative : Pos
+relative : Float -> Pos
 relative = Relative
 
 middle      : Position

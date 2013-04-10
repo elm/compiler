@@ -89,7 +89,7 @@ Elm.Native.Prelude = function(elm) {
       min:F2(min),
       max:F2(max),
       clamp:F3(clamp),
-
+      compare:Utils.compare,
 
       xor:F2(xor),
       not:not,

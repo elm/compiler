@@ -11,6 +11,7 @@ Elm.Native.Show = function(elm) {
     var JS = Elm.JavaScript(elm);
     var Dict = Elm.Dict(elm);
     var Json = Elm.Json(elm);
+    var Tuple2 = Elm.Native.Utils(elm).Tuple2;
 
     elm.node.addEventListener('log', function(e) { console.log(e.value); });
     elm.node.addEventListener('title', function(e) {document.title = e.value;});

@@ -11,7 +11,8 @@ module Graphics.Color (rgba,rgb,hsva,hsv,
 
 data Color = Color Int Int Int Float
 
--- Create RGB colors with an alpha component for transparency. The alpha component is specified with numbers between 0 and 1.
+-- Create RGB colors with an alpha component for transparency.
+-- The alpha component is specified with numbers between 0 and 1.
 rgba : Int -> Int -> Int -> Float -> Color
 rgba = Color
 
@@ -88,8 +89,9 @@ data Gradient
   = Linear (Float,Float) (Float,Float) [(Float,Color)]
   | Radial (Float,Float) Float (Float,Float) Float [(Float,Color)]
 
-linear : (Number,Number) -> (Number,Number) -> [(Float,Color)] -> Gradient
+linear : (Number a, Number a) ->
+         (Number a, Number a) -> [(Float,Color)] -> Gradient
 linear = Linear
-radial : (Number,Number) -> Number ->
-         (Number,Number) -> Number -> [(Float,Color)] -> Gradient
+radial : (Number a,Number a) -> Number a ->
+         (Number a,Number a) -> Number a -> [(Float,Color)] -> Gradient
 radial = Radial
