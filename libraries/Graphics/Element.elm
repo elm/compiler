@@ -43,7 +43,7 @@ width : Int -> Element -> Element
 width  nw e = let p = e.props
                   props = case e.element of
                             Image _ w h _ -> {p| height <- h/w*nw }
-                            RawHtml html -> {p| height <- htmlHeight nw html }
+                            RawHtml html -> {p| height <- let (w,h) = htmlHeight nw html in h}
                             _ -> p
               in { element=e.element, props={props| width <- nw} }
 

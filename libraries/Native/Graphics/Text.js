@@ -97,8 +97,8 @@ Elm.Native.Graphics.Text = function(elm) {
 	     _0: '<div style="padding:0;margin:0;text-align:' +
                    pos + '">' + text + '</div>'
             };
-    var w = elm.node.clientWidth;
-    return A3(Element.newElement, w, A2(htmlHeight, w, text), e);
+    var p = A2(htmlHeight, 0, text);
+    return A3(Element.newElement, p._0, p._1, e);
    }
   }
 

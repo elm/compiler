@@ -99,15 +99,16 @@ Elm.Native.Utils = function(elm) {
   function htmlHeight(width, html) {
     var t = document.createElement('div');
     t.innerHTML = html;
-    t.style.width  = width + "px";
+    if (width > 0) { t.style.width = width + "px"; }
     t.style.visibility = "hidden";
     t.style.styleFloat = "left";
     t.style.cssFloat   = "left";
     
-    document.body.appendChild(t);
-    var h = t.clientHeight
-    document.body.removeChild(t);
-    return h;
+    elm.node.appendChild(t);
+    var w = t.clientWidth;
+    var h = t.clientHeight;
+    elm.node.removeChild(t);
+    return Tuple2(w,h);
   }
 
   return elm.Native.Utils = {

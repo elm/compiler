@@ -8,3 +8,6 @@ import Native.WebSocket as WS
 -- web-socket server. The input signal holds the outgoing messages,
 -- and the resulting signal contains the incoming ones.
 open : String -> Signal String -> Signal String
+
+-- data Action = Open String | Close String | Send String String
+-- connections : Signal Action -> Signal String
