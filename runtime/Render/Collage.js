@@ -189,7 +189,14 @@ function render(model) {
 }
 
 function update(node, oldModel, newModel) {
-    node.parentNode.replaceChild(render(newModel), node);
+    if (!node.getContext) {
+        return node.parentNode.replaceChild(render(newModel), node);
+    }
+    var ctx = node.getContext('2d');
+    var w = newModel.w, h = newModel.h;
+    ctx.clearRect(-w/2, -h/2, w, h);
+    function redo() { renderForms( this, ctx, newModel.forms ); }
+    renderForms( redo, ctx, newModel.forms );
 }
 
 return { render:render, update:update };
