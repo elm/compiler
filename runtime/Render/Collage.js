@@ -112,11 +112,12 @@ function drawImage(redo, ctx, form) {
     ctx.drawImage(img, pos._0, pos._1, w, h, -w/2, -h/2, w, h);
 }
 
-function renderForm(redo,ctx,form) {
+function renderForm(stack, redo, ctx, form) {
     ctx.save();
-    if (form.x !== 0 || form.y !== 0) ctx.translate(form.x, -form.y);
-    if (form.theta !== 0) ctx.rotate(form.theta);
-    if (form.scale !== 1) ctx.scale(form.scale, form.scale);
+    var x = form.x, y = form.y, theta = form.theta, scale = form.scale;
+    if (x !== 0 || y !== 0) ctx.translate(x, -y);
+    if (theta !== 0) ctx.rotate(theta);
+    if (scale !== 1) ctx.scale(scale, scale);
     ctx.beginPath();
     var f = form.form;
     switch(f.ctor) {
@@ -126,25 +127,36 @@ function renderForm(redo,ctx,form) {
 	    f._1.closed = true;
 	    drawLine(ctx, f._0._0, f._1);
 	} else {
-	    drawShape(redo, ctx, f._0._0, f._1);
-	}
+            drawShape(redo, ctx, f._0._0, f._1);
+        }
 	break;
     case 'FImage': drawImage(redo, ctx, f); break;
     case 'FGroup':
 	ctx.save();
 	var m = f._0;
+        // stack.push(makeTransform(x, y, theta, scale, m));
 	ctx.transform(m[0], m[3], m[1], m[4], m[2], m[5]);
-	renderForms(redo, ctx, f._1);
+	renderForms(stack, redo, ctx, f._1);
+        // stack.pop();
 	ctx.restore();
 	break;
     }
     ctx.restore();
 }
 
-function renderForms(redo, ctx, forms) {
+function makeTransform(x, y, theta, scale, matrix) {
+    return function(m) {
+        if (x !== 0 || y !== 0) m = A3( Matrix.move, x, y, m );
+        if (theta !== 0) m = A2( Matrix.rotate, theta, m );
+        if (scale !== 1) m = Matrix.scale( scale );
+        return Matrix.multiply( m, matrix );
+    };
+}
+
+function renderForms(stack, redo, ctx, forms) {
     var fs = fromList(forms);
     for (var i = 0, len = fs.length; i < len; ++i) {
-	renderForm(redo, ctx, fs[i]);
+	renderForm(stack, redo, ctx, fs[i]);
     }
 }
 
@@ -155,27 +167,27 @@ function collageForms(w,h,forms) {
     canvas.style.display = "block";
     canvas.width  = w;
     canvas.height = h;
-    function redo() { renderForms(this,ctx,forms); }
+    function redo() { renderForms([], this, ctx, forms); }
     if (canvas.getContext) {
 	var ctx = canvas.getContext('2d');
 	ctx.translate(w/2, h/2);
-	renderForms(redo,ctx,forms);
+	renderForms([], redo, ctx, forms);
 	return canvas;
     }
     canvas.innerHTML = "Your browser does not support canvas.";
     return canvas;
 }
 
-function collageElement(width, height, x, y, theta, scale, elem) {
-  var e = Render.render(elem);
-  var w = elem.props.width,
+function collageElement(stack, width, height, elem) {
+  var e = Render.render(elem),
+      w = elem.props.width,
       h = elem.props.height,
-      t = 'translate(' + (width + f.x - w/2) + 'px,'+ (height - f.y - h/2) + 'px)',
-      r = theta === 0 ? '' : 'rotate(' + theta + 'rad)',
-      s = scale === 1 ? '' : 'scale(' + scale + ',' + scale + ')';
-  // var m = 'matrix(' + mtrx[0] + ',' + mtrx[3] + ',' + mtrx[1] + ',' +
-  //                     mtrx[4] + ',' + mtrx[2] + ',' + mtrx[5] + ')';
-  addTransform(e.style, t + ' ' + s + ' ' + r);
+      m = Matrix.matrix(1,0,0,1,width/2,height/2),
+      len = stack.length;
+  for (var i = 0; i < len; ++i) { m = stack[i](m); }
+  var mtrx = 'matrix(' + m[0] + ',' + m[3] + ',' + m[1] + ',' +
+                         m[4] + ',' + m[2] + ',' + m[5] + ')';
+  addTransform(e.style, 'translate(' + (-w/2) + 'px,'+ (-h/2) + 'px) ' + mtrx);
   var div = newElement('div');
   addTo(div,e);
   div.style.width = width + 'px';
@@ -195,8 +207,8 @@ function update(node, oldModel, newModel) {
     var ctx = node.getContext('2d');
     var w = newModel.w, h = newModel.h;
     ctx.clearRect(-w/2, -h/2, w, h);
-    function redo() { renderForms( this, ctx, newModel.forms ); }
-    renderForms( redo, ctx, newModel.forms );
+    function redo() { renderForms( [], this, ctx, newModel.forms ); }
+    renderForms( [], redo, ctx, newModel.forms );
 }
 
 return { render:render, update:update };
