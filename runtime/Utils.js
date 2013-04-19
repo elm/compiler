@@ -30,4 +30,22 @@ ElmRuntime.filterDeadInputs = function(inputs) {
     return temp;
 };
 
+// define the draw function
+var vendors = ['ms', 'moz', 'webkit', 'o'];
+for (var i = 0; i < vendors.length && !window.requestAnimationFrame; ++i) {
+    window.requestAnimationFrame = window[vendors[i]+'RequestAnimationFrame'];
+    window.cancelAnimationFrame  = window[vendors[i]+'CancelAnimationFrame'] 
+                                || window[vendors[i]+'CancelRequestAnimationFrame'];
+}
+
+if (window.requestAnimationFrame && window.cancelAnimationFrame) {
+    var previous = 0;
+    ElmRuntime.draw = function(callback) {
+        window.cancelAnimationFrame(previous);
+        previous = window.requestAnimationFrame(callback);
+    };
+} else {
+    ElmRuntime.draw = function(callback) { callback(); };
+}
+
 }());

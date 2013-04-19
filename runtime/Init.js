@@ -86,9 +86,11 @@ Elm.init = function(module, baseNode) {
   // set up updates so that the DOM is adjusted as necessary.
   var update = Render.update;
   function domUpdate(value) {
-      update(renderNode, visualModel, value);
-      visualModel = value;
-      adjustWindow();
+      ElmRuntime.draw(function(_) {
+              update(renderNode, visualModel, value);
+              visualModel = value;
+              adjustWindow();
+          });
       return value;
   }
   
