@@ -1,4 +1,3 @@
-
 module GameSkeleton where
 
 
@@ -8,7 +7,7 @@ module GameSkeleton where
 What information do you need to represent all relevant user input?
 
 Task: Redefine `UserInput` to include all of the information you need.
-      Redifene `userInput` to be a signal that correctly models the user
+      Redefine `userInput` to be a signal that correctly models the user
       input as described by `UserInput`.
 
 ------------------------------------------------------------------------------}
