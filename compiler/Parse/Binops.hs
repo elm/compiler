@@ -17,7 +17,7 @@ data Assoc = L | N | R deriving (Eq,Show)
 type OpTable = [(Int, Assoc, String)]
 
 table :: OpTable
-table = [ (9, R, ".")
+table = [ (9, R, "."), (9, R, "<<"), (9, L, ">>")
         , (8, R, "^")
         , (7, L, "*"), (7, L, "/"), (7, L, "mod"), (7, L, "div"), (7, L, "rem")
         , (6, L, "+"), (6, L, "-")
@@ -28,6 +28,7 @@ table = [ (9, R, ".")
         , (3, R, "&&")
         , (2, R, "||")
         , (0, R, "$")
+        , (0, R, "<|"), (0, L, "|>")
         ]
 
 opLevel op = Map.findWithDefault 9 op dict

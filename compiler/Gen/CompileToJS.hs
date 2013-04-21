@@ -325,7 +325,11 @@ binop (o:p) e1 e2
           "::" -> jsCons e1 e2
           "++" -> "_L.append" ++ parens (e1 ++ "," ++ e2)
           "$"  -> e1 ++ parens e2
+          "<|" -> e1 ++ parens e2
+          "|>" -> e2 ++ parens e1
           "."  -> jsFunc "x" . ret $ e1 ++ parens (e2 ++ parens "x")
+          "<<" -> jsFunc "x" . ret $ e1 ++ parens (e2 ++ parens "x")
+          ">>" -> jsFunc "x" . ret $ e2 ++ parens (e1 ++ parens "x")
           "^"  -> "Math.pow(" ++ e1 ++ "," ++ e2 ++ ")"
           "==" -> "_N.eq(" ++ e1 ++ "," ++ e2 ++ ")"
           "/=" -> "!_N.eq(" ++ e1 ++ "," ++ e2 ++ ")"
