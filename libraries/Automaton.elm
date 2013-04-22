@@ -55,17 +55,16 @@ init' s f = Step (\x -> let (s',out) = f x s
 count : Automaton a Int
 count = init 0 (\_ c -> c + 1)
 
-{-
 type Queue t = ([t],[t])
 empty = ([],[])
-enqueue x (en,de) = (x:en, de)
+enqueue x (en,de) = (x::en, de)
 dequeue q = case q of
               ([],[]) -> Nothing
               (en,[]) -> enqueue ([], reverse en)
               (en,hd::tl) -> Just (hd, (en,tl))
 
 -- Computes the running average of the last `n` inputs.
-average : Int -> Automaton Float Float
+average : Int -> Automaton (Number a) (Number a)
 average k =
   let step n (ns,len,sum) =
           if len == k then stepFull n (ns,len,sum)
@@ -76,7 +75,7 @@ average k =
             Just (m,ns') -> let sum' = sum + n - m
                             in ((enqueue n ns', len, sum'), sum' / len)
   in  init' (empty,0,0) step
--}
+
 {-- TODO(evancz): move this code to the Form library so people can find it.
 
 data DragState = Listen | Ignore | DragFrom (Int,Int)

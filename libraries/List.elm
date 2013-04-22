@@ -72,15 +72,19 @@ concatMap : (a -> Appendable b) -> [a] -> Appendable b
 concatMap f = L.concat . L.map f
 
 -- Get the sum of the list elements.
+sum : [Number a] -> Number a
 sum = L.foldl (+) 0
 
 -- Get the product of the list elements.
+product : [Number a] -> Number a
 product = L.foldl (*) 1
 
 -- Find the highest number in a non-empty list.
+maximum : [Comparable a] -> Comparable a
 maximum = L.foldl1 max
 
 -- Find the lowest number in a non-empty list.
+minimum : [Comparable a] -> Comparable a
 minimum = L.foldl1 min
 
 -- Split a list based on the predicate.
@@ -105,6 +109,7 @@ unzip pairs =
     (x,y)::ps -> let (xs,ys) = (unzip ps) in (x::xs,y::ys)
 
 -- Split a list
+--
 --     split "," "hello,there,friend" == ["hello", "there", "friend"]
 split : [a] -> [a] -> [[a]]
 

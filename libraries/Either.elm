@@ -23,14 +23,14 @@ isRight : Either a b -> Bool
 isRight e = case e of { Right _ -> True ; _ -> False }
 
 -- Keep only the values held in `Left` values.
---lefts : [Either a b] -> [a]
+lefts : [Either a b] -> [a]
 lefts es = List.filter isLeft es
 
 -- Keep only the values held in `Right` values.
---rights : [Either a b] -> [b]
+rights : [Either a b] -> [b]
 rights es = List.filter isRight es
 
 -- Split into two lists, lefts on the left and rights on the right. So we
 -- have the equivalence: `(partition es == (lefts es, rights es))`
--- partition : [Either a b] -> ([a],[b])
+partition : [Either a b] -> ([a],[b])
 partition es = List.partition isLeft es
