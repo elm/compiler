@@ -17,7 +17,7 @@ data Assoc = L | N | R deriving (Eq,Show)
 type OpTable = [(Int, Assoc, String)]
 
 table :: OpTable
-table = [ (9, R, "."), (9, R, "<<"), (9, L, ">>")
+table = [ (9, R, ".")
         , (8, R, "^")
         , (7, L, "*"), (7, L, "/"), (7, L, "mod"), (7, L, "div"), (7, L, "rem")
         , (6, L, "+"), (6, L, "-")
