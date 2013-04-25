@@ -6,7 +6,7 @@ import Context
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad
 import Control.Monad.State
-import Data.Char (isSymbol,isUpper)
+import Data.Char (isUpper)
 import Rename (deprime)
 import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
