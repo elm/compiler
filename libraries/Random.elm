@@ -8,6 +8,9 @@ import Native.Random as R
 -- values are random number between 'low' and 'high' inclusive.
 range : Int -> Int -> Signal a -> Signal Int
 
+-- Synchronous version of range
+rangeSync: Int -> Int -> Int
+
 -- Produces a new signal that changes whenever the input signal changes.
 -- The new values are random number in [0..1).
 float : Signal a -> Signal Float
