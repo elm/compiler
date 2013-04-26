@@ -43,7 +43,7 @@ main = getArgs >>= parse
 parse :: [String] -> IO ()
 parse ("--help":_) = putStrLn usage
 parse ("--version":_) = putStrLn ("The Elm Server " ++ showVersion version)
-parse [] = serve =<< Elm.runtimeLocation
+parse [] = serve =<< Elm.runtime
 parse [arg]
     | "--runtime-location=" `isPrefixOf` arg =
         serve . tail $ dropWhile (/='=') arg

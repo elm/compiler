@@ -27,7 +27,7 @@ makeScript _ (Left s) =
     H.script ! A.type_ "text/javascript" ! A.src (H.toValue s) $ ""
 makeScript jsStyle (Right s) =
     H.script ! A.type_ "text/javascript" $ preEscapedToMarkup content
-    where content = case jsStyle of 
+    where content = case jsStyle of
                       Minified -> BS.unpack . minify . BS.pack $ s
                       Readable -> s
 
@@ -44,7 +44,7 @@ generateHtml libLoc title source =
   case buildFromSource True source of
     Right modul -> modulesToHtml Readable title libLoc [] True [modul]
     Left err -> createHtml Readable libLoc title (Right $ showErr err)
-                (H.noscript "") "Elm.Main"
+                (H.noscript "") "Main"
 
 
 modulesToHtml jsStyle title libLoc jss nscrpt modules =
@@ -55,7 +55,7 @@ modulesToHtml jsStyle title libLoc jss nscrpt modules =
       title' = if null title then altTitle else title
       altTitle = intercalate "." names
           where Module names _ _ _ = last modules
-                  
+
 
 linkedHtml rtLoc jsLoc modules =
     createHtml Readable rtLoc title (Left jsLoc) (H.noscript "") title
@@ -64,7 +64,7 @@ linkedHtml rtLoc jsLoc modules =
 
 
 createHtml jsStyle libLoc title js noscript moduleToLoad =
-    H.docTypeHtml $ do 
+    H.docTypeHtml $ do
       H.head $ do
         H.meta ! A.charset "UTF-8"
         H.title . H.toHtml $ title
