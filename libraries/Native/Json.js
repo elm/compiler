@@ -6,6 +6,7 @@ Elm.Native.Json = function(elm) {
   var Dict = Elm.Dict(elm);
   var List = Elm.List(elm);
   var JS = Elm.JavaScript(elm);
+  var Utils = Elm.Native.Utils(elm);
 
   function fromValue(v) {
     switch (v.ctor) {
@@ -45,7 +46,7 @@ Elm.Native.Json = function(elm) {
 	  return { ctor:"Array", _0: JS.toList(v) };
       }
       var array = [];
-      for (var k in v) array.push(Tuple2(JS.toString(k), toValue(v[k])));
+      for (var k in v) array.push(Utils.Tuple2(JS.toString(k), toValue(v[k])));
       return { ctor:"Object", _0: Dict.fromList(JS.toList(array)) };
     }
   }
