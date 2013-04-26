@@ -31,43 +31,44 @@ Elm.Native.Show = function(elm) {
                               Tuple2(elm.node.clientWidth, elm.node.clientHeight));
         });
 
-    var toString = function(v) {
+    var showToString = function(v) {
+        var result = "";
         if (typeof v === "function") {
-            return "<function>";
+            result = "<function>";
         } else if (typeof v === "boolean") {
-            return v ? "True" : "False";
+            result = v ? "True" : "False";
         } else if (typeof v === "number") {
-            return v+"";
+            result = v+"";
         } else if (typeof v === "string" && v.length < 2) {
-            return "'"+v+"'";
+            result = "'"+v+"'";
         } else if (typeof v === "object" && '_' in v) {
             var output = [];
             for (var k in v._) {
                 console.log(k,v._[k]);
                 for (var i = v._[k].length; i--; ) {
-                    output.push(k + " = " + toString(v._[k][i]));
+                    output.push(k + " = " + showToString(v._[k][i]));
                 }
             }
             for (var k in v) {
                 if (k === '_') continue;
-                output.push(k + " = " + toString(v[k]));
+                output.push(k + " = " + showToString(v[k]));
             }
-            if (output.length === 0) return "{}";
-            return "{ " + output.join(", ") + " }";
+            if (output.length === 0) result = "{}";
+            result = "{ " + output.join(", ") + " }";
         } else if (typeof v === "object" && 'ctor' in v) {
             if (v.ctor.substring(0,5) === "Tuple") {
                 var output = [];
                 for (var k in v) {
                     if (k === 'ctor') continue;
-                    output.push(toString(v[k]));
+                    output.push(showToString(v[k]));
                 }
-                return "(" + output.join(",") + ")";
+                result = "(" + output.join(",") + ")";
             } else if (v.ctor === "Cons") {
                 var isStr = typeof v._0 === "string",
                 start = isStr ? '"' : "[",
                 end   = isStr ? '"' : "]",
                 sep   = isStr ?  "" : ",",
-                f     = !isStr ? toString : function(x){
+                f     = !isStr ? showToString : function(x){
                     return x === '\n' ? '\\n' : x;
                 };
                 var output = start + f(v._0);
@@ -76,9 +77,9 @@ Elm.Native.Show = function(elm) {
                     output += sep + f(v._0);
                     v = v._1;
                 }
-                return output + end;
+                result = output + end;
             } else if (v.ctor === "Nil") {
-                return "[]";
+                result = "[]";
             } else if (v.ctor === "RBNode" || v.ctor === "RBEmpty") {
                 var cons = F3(function(k,v,acc){return NList.Cons(Tuple2(k,v),acc)});
                 var list = A3(Dict.foldr, cons, NList.Nil, v);
@@ -87,21 +88,29 @@ Elm.Native.Show = function(elm) {
                     name = "Set";
                     list = A2(List.map, function(x){return x._0}, list);
                 }
-                return name + ".fromList " + toString(list);
+                result = name + ".fromList " + showToString(list);
             } else {
                 var output = "";
                 for (var i in v) {
                     if (i === 'ctor') continue;
-                    var str = toString(v[i]);
+                    var str = showToString(v[i]);
                     var parenless = str[0] === '{' || str.indexOf(' ') < 0;
                     output += ' ' + (parenless ? str : '(' + str + ')');
                 }
-                return v.ctor + output;
+                result = v.ctor + output;
             }
         }
-        return v+"";
+
+        if(result === "") {
+          return v+"";
+        } else {
+          return result;
+        }
     };
-    function show(v) { return NList.fromArray(toString(v)); }
+
+    var show = function(v) {
+      return NList.fromArray([showToString(v)]);
+    }
 
     return elm.Native.Show = { show:show };
 };
