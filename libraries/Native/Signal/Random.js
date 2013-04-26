@@ -11,7 +11,7 @@ Elm.Native.Random = function(elm) {
     return A2( Signal.lift, f, signal );
   }
 
-  function rangeSync(min, max, signal) {
+  function rangeSync(min, max) {
     return Math.floor(Math.random() * (max-min+1)) + min;
   }
 
@@ -20,6 +20,6 @@ Elm.Native.Random = function(elm) {
     return A2( Signal.lift, f, signal );
   }
 
-  return elm.Native.Random = { rangeSync: F3(rangeSync), range: F3(range), float: float };
+  return elm.Native.Random = { rangeSync: F2(rangeSync), range: F3(range), float: float };
 
 };
