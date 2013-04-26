@@ -44,6 +44,7 @@ defaultLine = {
   miterLimit = 10
  }
 
+-- default LineStyles
 solid  clr = { defaultLine | color <- clr }
 dashed clr = { defaultLine | color <- clr, dashing <- [8,4] }
 dotted clr = { defaultLine | color <- clr, dashing <- [3,3] }
@@ -74,6 +75,11 @@ outlined style shape = form (FShape (Left style) shape)
 traced : LineStyle -> Path -> Form
 traced style path = form (FPath style path)
 
+-- Draw a sprite
+-- w width
+-- h height
+-- pos (px,py) coordinates into the sprite map
+-- src The location of the image
 sprite : Int -> Int -> (Int,Int) -> String -> Form
 sprite w h pos src = form (FImage w h pos src)
 
@@ -89,6 +95,7 @@ groupTransform matrix fs = form (FGroup matrix fs)
 rotate : Float -> Form -> Form
 rotate t f = { f | theta <- f.theta + t }
 
+scale : Float -> Form -> Form
 scale  s f = { f | scale <- f.scale * s }
 
 move x y f = { f | x <- f.x + x, y <- f.y + y }
