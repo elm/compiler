@@ -8,8 +8,10 @@ Elm.Native.Window = function(elm) {
   var Signal = Elm.Signal(elm);
   var Tuple2 = Elm.Native.Utils(elm).Tuple2;
 
-  var dimensions = Signal.constant(Tuple2(elm.node.clientWidth,
-					  elm.node.clientHeight));
+  var dimensions = Signal.constant(Tuple2(
+    elm.node.clientWidth,
+    document.body == elm.node ? window.innerHeight : elm.node.clientHeight
+  ));
   dimensions.defaultNumberOfKids = 2;
 
   // Do not move width and height into Elm. By setting the default number of kids,
