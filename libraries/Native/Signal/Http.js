@@ -18,7 +18,7 @@ Elm.Native.Http = function(elm) {
   function updateQueue(queue,responses) {
     if (queue.length > 0) {
       elm.notify(responses.id, queue[0].value);
-      if (queue[0].value.ctor !== Waiting) {
+      if (queue[0].value.ctor !== 'Waiting') {
 	queue.shift();
 	setTimeout(function() { updateQueue(queue,responses); }, 0);
       }
@@ -48,7 +48,7 @@ Elm.Native.Http = function(elm) {
     List.map(setHeader)(req.headers);
     request.send(JS.fromString(req.body));
   }
- 
+
   function send(requests) {
     var responses = Signal.constant(elm.Http.Waiting);
     var sender = A2( Signal.lift, registerReq([],responses), requests );
