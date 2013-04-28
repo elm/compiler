@@ -133,24 +133,24 @@ buster.testCase("Native Prelude", {
   },
 
   "readInt": function(){
-    var number = Prelude.readInt(elm.Native.JavaScript.toString("1"));
+    var number = Prelude.readInt(_str("1"));
     assert.equals(number._0, 1);
     assert.equals(number.ctor, "Just");
-    assert.equals(Prelude.readInt(elm.Native.JavaScript.toString("lame")).ctor, "Nothing");
-    assert.equals(Prelude.readInt(elm.Native.JavaScript.toString("0.0")).ctor, "Nothing");
-    assert.equals(Prelude.readInt(elm.Native.JavaScript.toString("")).ctor, "Nothing");
-    assert.equals(Prelude.readInt(elm.Native.JavaScript.toString("-123"))._0, -123);
+    assert.equals(Prelude.readInt(_str("lame")).ctor, "Nothing");
+    assert.equals(Prelude.readInt(_str("0.0")).ctor, "Nothing");
+    assert.equals(Prelude.readInt(_str("")).ctor, "Nothing");
+    assert.equals(Prelude.readInt(_str("-123"))._0, -123);
   },
 
   "readFloat": function(){
-    var number = Prelude.readFloat(elm.Native.JavaScript.toString("1"));
+    var number = Prelude.readFloat(_str("1"));
     assert.equals(number._0, 1.0);
     assert.equals(number.ctor, "Just");
-    assert.equals(Prelude.readFloat(elm.Native.JavaScript.toString("lame")).ctor, "Nothing");
-    assert.equals(Prelude.readFloat(elm.Native.JavaScript.toString("0e")).ctor, "Nothing");
-    assert.equals(Prelude.readFloat(elm.Native.JavaScript.toString("")).ctor, "Nothing");
-    assert.equals(Prelude.readFloat(elm.Native.JavaScript.toString("0.0"))._0, 0.0);
-    assert.equals(Prelude.readFloat(elm.Native.JavaScript.toString("-0.0"))._0, 0.0);
-    assert.equals(Prelude.readFloat(elm.Native.JavaScript.toString("-3.44444444444"))._0, -3.44444444444);
+    assert.equals(Prelude.readFloat(_str("lame")).ctor, "Nothing");
+    assert.equals(Prelude.readFloat(_str("0e")).ctor, "Nothing");
+    assert.equals(Prelude.readFloat(_str("")).ctor, "Nothing");
+    assert.equals(Prelude.readFloat(_str("0.0"))._0, 0.0);
+    assert.equals(Prelude.readFloat(_str("-0.0"))._0, 0.0);
+    assert.equals(Prelude.readFloat(_str("-3.44444444444"))._0, -3.44444444444);
   }
 });
