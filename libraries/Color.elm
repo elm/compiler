@@ -1,13 +1,5 @@
 
-module Graphics.Color (rgba,rgb,hsva,hsv,
-                       complement,
-                       red,lime,blue,
-                       yellow,cyan,magenta,
-                       maroon,navy,green,
-                       teal,purple,
-                       violet,forestGreen,
-                       black,white,gray,grey,
-                       linear,radial) where
+module Color where
 
 data Color = Color Int Int Int Float
 

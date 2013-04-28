@@ -3,10 +3,10 @@ module Graphics.Collage where
 
 import Either
 import Graphics.Geometry
-import Native.Graphics.Matrix as Matrix
+import Native.Matrix2D as Matrix
 import Native.Graphics.Collage as N
 import Graphics.Element
-import Graphics.Color as Color
+import Color as Color
 
 type Form = {
   theta : Float,

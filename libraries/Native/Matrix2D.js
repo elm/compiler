@@ -1,10 +1,9 @@
 
-Elm.Native.Graphics.Matrix = function(elm) {
+Elm.Native.Matrix2D = function(elm) {
  "use strict";
 
  elm.Native = elm.Native || {};
- elm.Native.Graphics = elm.Native.Graphics || {};
- if (elm.Native.Graphics.Matrix) return elm.Native.Graphics.Matrix;
+ if (elm.Native.Matrix2D) return elm.Native.Matrix2D;
 
  try { Float32Array; } catch(e) { Float32Array = Array; }
  var A = Float32Array;
@@ -54,7 +53,7 @@ Elm.Native.Graphics.Matrix = function(elm) {
      return transform(m[0], m[3], m[1], m[4], m[2], m[5], n);
  }
 
- return elm.Native.Graphics.Matrix = {
+ return elm.Native.Matrix2D = {
      identity:identity,
      matrix:F6(matrix),
      multiply:F2(multiply),

@@ -1,7 +1,7 @@
 
-module Graphics.Text where
+module Text where
 
-import Native.Graphics.Text as T
+import Native.Text as T
 
 
 -- Convert a string into text which can be styled and displayed.

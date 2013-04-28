@@ -1,11 +1,10 @@
 
 
-Elm.Native.Graphics.Color = function(elm) {
+Elm.Native.Color = function(elm) {
  "use strict";
 
  elm.Native = elm.Native || {};
- elm.Native.Graphics = elm.Native.Graphics || {};
- if (elm.Native.Graphics.Color) return elm.Native.Graphics.Color;
+ if (elm.Native.Color) return elm.Native.Color;
 
  function complement(rgb) {
   var hsv = toHSV(rgb);
@@ -57,7 +56,7 @@ Elm.Native.Graphics.Color = function(elm) {
   return { ctor:"Color", _0:norm(r+m), _1:norm(g+m), _2:norm(b+m), _3:1 };
  }
 
- return elm.Native.Graphics.Color = {
+ return elm.Native.Color = {
     hsva:F4(hsva),
     hsv:F3(hsv),
     complement:complement

@@ -1,7 +1,7 @@
 
-module Graphics.Matrix where
+module Matrix2D where
 
-import Native.Graphics.Matrix as M
+import Native.Matrix2D as M
 
 identity  : Matrix
 

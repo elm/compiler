@@ -1,14 +1,13 @@
 
-Elm.Native.Graphics.Text = function(elm) {
+Elm.Native.Text = function(elm) {
   'use strict';
 
   elm.Native = elm.Native || {};
-  elm.Native.Graphics = elm.Native.Graphics || {};
-  if (elm.Native.Graphics.Text) return elm.Native.Graphics.Text;
+  if (elm.Native.Text) return elm.Native.Text;
 
   var JS = Elm.JavaScript(elm);
   var htmlHeight = Elm.Native.Utils(elm).htmlHeight;
-  var Color = Elm.Native.Graphics.Color(elm);
+  var Color = Elm.Native.Color(elm);
   var Element = Elm.Graphics.Element(elm);
   var show = Elm.Native.Show(elm).show;
 
@@ -110,7 +109,7 @@ Elm.Native.Graphics.Text = function(elm) {
       return position('left')(toText(v));
   }
 
-  return elm.Native.Graphics.Text = {
+  return elm.Native.Text = {
       toText: toText,
 
       header : header,
