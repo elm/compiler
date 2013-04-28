@@ -13,6 +13,7 @@ Elm.Native.Prelude = function(elm) {
   function mod(a,b) {
     var r = a % b;
     var m = a === 0 ? 0 : (b > 0 ? (a >= 0 ? r : r+b) : -mod(-a,-b));
+
     return m === b ? 0 : m;
   }
   function abs(x) { return x < 0 ? -x : x; }

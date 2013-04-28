@@ -99,3 +99,25 @@ function A9(fun,a,b,c,d,e,f,g,h,i) {
   return fun.arity === 9 ? fun.func(a,b,c,d,e,f,g,h,i)
                          : fun(a)(b)(c)(d)(e)(f)(g)(h)(i);
 }
+
+if(typeof exports !== "undefined"){
+  exports.Functions = {
+    F2: F2,
+    F3: F3,
+    F4: F4,
+    F5: F5,
+    F6: F6,
+    F7: F7,
+    F8: F8,
+    F9: F9,
+
+    A2: A2,
+    A3: A3,
+    A4: A4,
+    A5: A5,
+    A6: A6,
+    A7: A7,
+    A8: A8,
+    A9: A9
+  };
+}
