@@ -41,7 +41,7 @@ buster.testCase("Prelude", {
   }
 });
 
-buster.testCase("Native Prelude", {
+buster.testCase("Native.Prelude", {
   "div": function(){
     assert.equals(Prelude.div.func(1,2), 0);
     assert.equals(Prelude.div.func(2,2), 1);
@@ -152,5 +152,39 @@ buster.testCase("Native Prelude", {
     assert.equals(Prelude.readFloat(_str("0.0"))._0, 0.0);
     assert.equals(Prelude.readFloat(_str("-0.0"))._0, 0.0);
     assert.equals(Prelude.readFloat(_str("-3.44444444444"))._0, -3.44444444444);
+  }
+});
+
+var Show = Elm.Native.Show(elm);
+
+buster.testCase("Native.Show", {
+  "show": function(){
+    var toList = N.JavaScript(elm).toList,
+        fromList = N.JavaScript(elm).fromList,
+        showJS = function(v){ return fromList(Show.show(v)); };
+    assert.equals(showJS(""), ["''"]);
+    assert.equals(showJS(showJS), ["<function>"]);
+    assert.equals(showJS(true), ["True"]);
+    assert.equals(showJS(false), ["False"]);
+    assert.equals(showJS(1337), ["1337"]);
+    assert.equals(showJS("hello"), ["hello"]);
+    // I have no idea what these are for.
+    assert.equals(showJS({_:{}}), ["{  }"]);
+    assert.equals(showJS({_:{a: [1]}, a: 2}), ["{ a = 1, a = 2 }"]);
+
+    assert.equals(showJS({ctor:"Tuple2", _0: 1, _1: 2}), ["(1,2)"]);
+    assert.equals(showJS({ctor:"Tuple3", _0: 1, _1: 2, _2: 3}), ["(1,2,3)"]);
+
+    assert.equals(showJS(N.JavaScript(elm).toList(['hello'])), ["\"hello\""]);
+    assert.equals(showJS(N.JavaScript(elm).toList([1, 'hello', true])), ["[1,hello,True]"]);
+
+    assert.equals(showJS({ctor: "Nil"}), ["[]"]);
+
+    var list = N.JavaScript(elm).toList([
+      N.Utils(elm).Tuple2(_str('you'), _str('goodbye')),
+      N.Utils(elm).Tuple2(_str('I'), _str('hello'))
+    ]);
+    var dict = Elm.Dict(elm).fromList(list);
+    assert.equals(showJS(dict), ['Dict.fromList [("I","hello"),("you","goodbye")]']);
   }
 });
