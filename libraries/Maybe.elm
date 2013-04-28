@@ -10,9 +10,9 @@ data Maybe a = Just a | Nothing
 -- Apply a function to the contents of a `Maybe`.
 -- Return default when given `Nothing`.
 maybe : b -> (a -> b) -> Maybe a -> b
-maybe b f m = case m of
-                Just v  -> f v
-                Nothing -> b
+maybe default fun m = case m of
+                Just v  -> fun v
+                Nothing -> default
 
 -- Check if constructed with `Just`.
 isJust : Maybe a -> Bool
@@ -22,6 +22,9 @@ isJust = maybe False (\_ -> True)
 isNothing : Maybe a -> Bool
 isNothing = not . isJust
 
+-- Extract a from Maybe a, giving default if Nothing
+fromMaybe : a -> Maybe a -> a
+fromMaybe default m = maybe default (\x -> x) m
 
 -- If `Just`, adds the value to the front of the list.
 -- If `Nothing`, list is unchanged.
