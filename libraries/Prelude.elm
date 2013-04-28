@@ -64,8 +64,8 @@ e : Float
 
 -- Compare any two values for structural equality and inequality.
 -- Functions cannot be compared.
-(==) : Comparable a -> Comparable a -> Bool
-(/=) : Comparable a -> Comparable a -> Bool
+(==) : a -> a -> Bool
+(/=) : a -> a -> Bool
 
 -- Compare any two comparable values. Comparable values include String, Char,
 -- Int, Float, Time, or a list or tuple containing comparable values.
