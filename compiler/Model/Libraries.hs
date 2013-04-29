@@ -18,10 +18,9 @@ addPrelude (Module name exs ims stmts) = Module name exs (customIms ++ ims) stmt
 
 prelude = text : map (\n -> (n, Hiding [])) modules
   where
-    text = ("Graphics.Text", Hiding ["link", "color", "height"])
+    text = ("Text", Hiding ["link", "color", "height"])
     modules = [ "Prelude", "Signal", "List", "Maybe", "Time"
-              , "Graphics.Element", "Graphics.Color"
-              , "Graphics.Collage", "Graphics.Geometry" ]
+              , "Graphics.Element", "Color", "Graphics.Collage" ]
 
 libraries :: Map.Map String (Map.Map String String)
 libraries =

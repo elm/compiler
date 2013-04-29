@@ -20,7 +20,7 @@ import Types.Types ( Type(RecordT) )
 showErr :: String -> String
 showErr err = globalAssign "Elm.Main" (jsFunc "elm" body)
     where msg = show . concatMap (++"<br>") . lines $ err
-          body = "var T = Elm.Graphics.Text(elm);\n\
+          body = "var T = Elm.Text(elm);\n\
                  \return { main : T.text(T.monospace(" ++ msg ++ ")) };"
 
 indent = concatMap f
