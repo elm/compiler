@@ -16,7 +16,8 @@ runtime = "/elm-" ++ showVersion version ++ ".js"
 
 serve :: String -> IO ()
 serve libLoc = do
-  putStrLn ("Elm Server " ++ showVersion version ++ ": running at <http://localhost:8000>")
+  putStrLn ("Elm Server " ++ showVersion version ++
+            ": running at <http://localhost:8000>")
   putStrLn "Just refresh a page to recompile it!"
   simpleHTTP nullConf $ do
          _ <- compressedResponseFilter
@@ -43,7 +44,7 @@ main = getArgs >>= parse
 parse :: [String] -> IO ()
 parse ("--help":_) = putStrLn usage
 parse ("--version":_) = putStrLn ("The Elm Server " ++ showVersion version)
-parse [] = serve =<< Elm.runtimeLocation
+parse [] = serve =<< Elm.runtime
 parse [arg]
     | "--runtime-location=" `isPrefixOf` arg =
         serve . tail $ dropWhile (/='=') arg
