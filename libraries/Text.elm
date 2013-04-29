@@ -19,7 +19,7 @@ monospace : Text -> Text
 header : Text -> Text
 
 -- Create a link.
-href : String -> Text -> Text
+link : String -> Text -> Text
 
 -- Set the height of text in \"ems\". 1em is the normal height of text. 2ems is twice that height.
 height : Float -> Text -> Text
