@@ -203,23 +203,29 @@ buster.testCase("Signal", {
   },
 
   lift: function(){
-    var value,
-        f = function(v){ value = v; },
+    var value = 0,
+        f = function(v){ return value += v; },
         lifted = F.A2(Signal.lift, f, Signal.constant(1));
 
+    assert.equals(lifted.value, 1);
     lifted.recv(Date.now(), true, 0);
-    assert.equals(value, 1);
+    assert.equals(lifted.value, 2);
   },
 
   liftN: function(){
     var values = [],
+        counter = 0,
+        lifted,
         f = function(){
-          values = [];
           for (var i = arguments.length - 1; i >= 0; i--) {
             values[i] = arguments[i];
           }
+          return counter += 1;
         };
+
     for (var i = 8; i >= 2; i--) {
+      values = [];
+      counter = 0;
       var applicator = F['A' + (i + 1)],
           functor = F['F' + i],
           lift = Signal['lift' + i],
@@ -230,9 +236,18 @@ buster.testCase("Signal", {
         args.push(Signal.constant(j));
         expected.push(j);
       }
-      applicator.apply(this, args);
+      lifted = applicator.apply(this, args);
 
-      assert.equals(values, expected);
+      // State should not change if only one signal fired.
+      assert.equals(lifted.value, 1);
+      lifted.recv(Date.now(), true, 0);
+      assert.equals(lifted.value, 1);
+
+      // State should change if all signals fired.
+      for (var k = i - 2; k >= 0; k--) {
+        lifted.recv(Date.now(), true, 0);
+      }
+      assert.equals(lifted.value, 2);
     }
   }
 });
