@@ -1,12 +1,13 @@
 
 module Graphics.Collage where
 
+import List
+import Native.Utils (toFloat)
 import Either
-import Graphics.Geometry
-import Native.Graphics.Matrix as Matrix
+import Native.Matrix2D as Matrix
 import Native.Graphics.Collage as N
 import Graphics.Element
-import Graphics.Color as Color
+import Color as Color
 
 type Form = {
   theta : Float,
@@ -103,3 +104,39 @@ moveX  x f = { f | x <- f.x + x }
 moveY  y f = { f | y <- f.y + y }
 
 collage : Int -> Int -> [Form] -> Element
+
+
+type Path = [(Float,Float)]
+
+path : [(Number a,Number a)] -> Path
+path ps = ps
+
+segment : (Number a,Number a) -> (Number a,Number a) -> Path
+segment p1 p2 = [p1,p2]
+
+type Shape = [(Float,Float)]
+
+polygon : [(Number a,Number a)] -> Shape
+polygon points = points
+
+rect : Number a -> Number a -> Shape
+rect w h = [ (0-w/2,0-h/2), (0-w/2,h/2), (w/2,h/2), (w/2,0-h/2) ]
+
+oval : Number a -> Number a -> Shape
+oval w h =
+  let n = 50
+      t = 2 * Math.PI / n
+      hw = w/2
+      hh = h/2
+      f i = (hw * Math.cos (t*i), hh * Math.sin (t*i))
+  in  map f [0..n-1]
+
+circle : Number a -> Shape
+circle r = oval (2*r) (2*r)
+
+ngon : Int -> Number a -> Shape
+ngon n r =
+  let m = toFloat n
+      t = 2 * Math.PI / m
+      f i = ( r * Math.cos (t*i), r * Math.sin (t*i) )
+  in  map f [0..n-1]

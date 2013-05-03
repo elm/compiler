@@ -36,7 +36,6 @@ instance Extract Expr where
                           (_   , ss1 , ss2 ) -> ss1 ++ ss2
       Lambda v e -> f e
       App (C _ _ (App (C _ _ (Var "link")) src)) txt -> linkExtract src txt
-      App (C _ _ (App (C _ _ (Var "Graphics.link")) src)) txt -> linkExtract src txt
       App (C _ _ (App (C _ _ (Var "Text.link")) src)) txt -> linkExtract src txt
       App (C _ _ (Var "header")) e -> tag "h1" e
       App (C _ _ (Var "bold")) e -> tag "b" e

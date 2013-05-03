@@ -15,7 +15,7 @@ module Graphics.Element (widthOf, heightOf, sizeOf,
 import Native.Utils (guid, max, htmlHeight)
 import JavaScript as JS
 import List as List
-import Graphics.Color as Color
+import Color
 import Maybe (Just, Nothing)
 
 type Properties = {

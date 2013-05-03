@@ -64,8 +64,8 @@ e : Float
 
 -- Compare any two values for structural equality and inequality.
 -- Functions cannot be compared.
-(==) : Comparable a -> Comparable a -> Bool
-(/=) : Comparable a -> Comparable a -> Bool
+(==) : a -> a -> Bool
+(/=) : a -> a -> Bool
 
 -- Compare any two comparable values. Comparable values include String, Char,
 -- Int, Float, Time, or a list or tuple containing comparable values.
@@ -127,12 +127,28 @@ readFloat : String -> Maybe Float
 -- Function composition: f . g == (\x -> f (g x))
 (.) : (b -> c) -> (a -> b) -> (a -> c)
 
--- Function application `f $ x == f x`. This function is useful for avoiding
--- parenthesis. Consider the following code to create a text element:
---     text (monospace (toText "code"))
+-- Forward function application `x |> f == f x`. This function is useful
+-- for avoiding parenthesis and writing code in a more natural way.
+-- Consider the following code to create a pentagon:
+--
+--     scale 2 (move 100 100 (filled blue (ngon 5 30)))
+--
 -- This can also be written as:
---     text . monospace $ toText "code"
-($) : (a -> b) -> a -> b
+--
+--     ngon 5 30 |> filled blue
+--               |> move 100 100
+--               |> scale 2
+(|>) : a -> (a -> b) -> b
+
+-- Function application `f <| x == f x`. This function is useful for avoiding
+-- parenthesis. Consider the following code to create a text element:
+--
+--     text (monospace (toText "code"))
+--
+-- This can also be written as:
+--
+--     text . monospace <| toText "code"
+(<|) : (a -> b) -> a -> b
 
 -- Given a value, returns exactly the same value.
 id : a -> a

@@ -11,8 +11,6 @@ toList : JSArray a -> [a]
 
 toInt : JSNumber -> Int
 toFloat : JSNumber -> Float
-
--- Conversion from JavaScript boolean values to Elm boolean values.
 toBool : JSBool -> Bool
 
 
@@ -25,8 +23,6 @@ fromList : [a] -> JSArray a
 
 fromInt : Int -> JSNumber
 fromFloat : Float -> JSNumber
-
--- Conversion from Elm boolean values to JavaScript boolean values.
 fromBool : Bool -> JSBool
 
 {-- TODO: only found in docs
