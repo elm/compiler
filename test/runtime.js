@@ -6,7 +6,7 @@ node test/runtime.js
 
 var buster = require("buster"),
 elmExports = require("../dist/data/elm-runtime.js"),
-Functions = elmExports.Functions;
+F = elmExports.Functions;
 
 var elm = {
   node: {
@@ -106,20 +106,20 @@ buster.testCase("Native.Prelude", {
   },
 
   "flip": function(){
-    var f = Functions.F2(function(a,b){ return [a,b]; });
-    assert.equals(Functions.A3(Prelude.flip, f, 1, 2), [2,1]);
+    var f = F.F2(function(a,b){ return [a,b]; });
+    assert.equals(F.A3(Prelude.flip, f, 1, 2), [2,1]);
   },
 
   "curry": function(){
     var tuple = {_0: 1, _1: 2, ctor: "Tuple2"},
-        f = Functions.F2(function(a,b){ return [a,b]; });
-    assert.equals(Functions.A2(Prelude.curry, f, tuple), [1,2]);
+        f = F.F2(function(a,b){ return [a,b]; });
+    assert.equals(F.A2(Prelude.curry, f, tuple), [1,2]);
   },
 
   "uncurry": function(){
     var tuple = { _0: 1, _1: 2, ctor: "Tuple2" },
         f = function(tuple){ return tuple; };
-    assert.equals(Functions.A3(Prelude.uncurry, f, 1, 2), tuple);
+    assert.equals(F.A3(Prelude.uncurry, f, 1, 2), tuple);
   },
 
   "fst": function(){
@@ -200,6 +200,40 @@ var Signal = Elm.Signal(elm);
 buster.testCase("Signal", {
   constant: function(){
     assert.equals(Signal.constant(1).value, 1);
+  },
+
+  lift: function(){
+    var value,
+        f = function(v){ value = v; },
+        lifted = F.A2(Signal.lift, f, Signal.constant(1));
+
+    lifted.recv(Date.now(), true, 0);
+    assert.equals(value, 1);
+  },
+
+  liftN: function(){
+    var values = [],
+        f = function(){
+          values = [];
+          for (var i = arguments.length - 1; i >= 0; i--) {
+            values[i] = arguments[i];
+          }
+        };
+    for (var i = 8; i >= 2; i--) {
+      var applicator = F['A' + (i + 1)],
+          functor = F['F' + i],
+          lift = Signal['lift' + i],
+          args = [lift, functor(f)],
+          expected = [];
+      // lift8 should have 8 arguments, 0-7
+      for (var j = i - 1; j >= 0; j--) {
+        args.push(Signal.constant(j));
+        expected.push(j);
+      }
+      applicator.apply(this, args);
+
+      assert.equals(values, expected);
+    }
   }
 });
 
