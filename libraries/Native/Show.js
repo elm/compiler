@@ -81,12 +81,12 @@ Elm.Native.Show = function(elm) {
             } else if (v.ctor === "Nil") {
                 result = "[]";
             } else if (v.ctor === "RBNode" || v.ctor === "RBEmpty") {
-                var cons = F3(function(k,v,acc){return NList.Cons(Tuple2(k,v),acc)});
+                var cons = F3(function(k,v,acc){return NList.Cons(Tuple2(k,v),acc);});
                 var list = A3(Dict.foldr, cons, NList.Nil, v);
                 var name = "Dict";
                 if (list.ctor === "Cons" && list._0._1.ctor === "Tuple0") {
                     name = "Set";
-                    list = A2(List.map, function(x){return x._0}, list);
+                    list = A2(List.map, function(x){return x._0;}, list);
                 }
                 result = name + ".fromList " + showToString(list);
             } else {
