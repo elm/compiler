@@ -186,5 +186,20 @@ buster.testCase("Native.Show", {
     ]);
     var dict = Elm.Dict(elm).fromList(list);
     assert.equals(showJS(dict), ['Dict.fromList [("I","hello"),("you","goodbye")]']);
+
+    var set = Elm.Set(elm).fromList(list);
+    assert.equals(showJS(set), ['Set.fromList [("I","hello"),("you","goodbye")]']);
+
+    assert.equals(showJS({hello: set, ctor:'SomeCtor'}), ['SomeCtor (Set.fromList [("I","hello"),("you","goodbye")])']);
+    assert.equals(showJS({a: 'b'}), ['[object Object]']);
   }
 });
+
+var Signal = Elm.Signal(elm);
+
+buster.testCase("Signal", {
+  constant: function(){
+    assert.equals(Signal.constant(1).value, 1);
+  }
+});
+
