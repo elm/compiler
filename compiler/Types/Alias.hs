@@ -15,6 +15,7 @@ builtins =
         state = [("text", string), ("start", int), ("end", int)]
     in  [ ("String", ([], listOf char))
         , ("Time", ([], float))
+        , ("KeyCode", ([], int))
         , ("Touch", ([], RecordT (Map.fromString touch) EmptyRecord))
         , ("TextState", ([], RecordT (Map.fromString state) EmptyRecord))
         ]
