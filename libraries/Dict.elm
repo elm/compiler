@@ -119,7 +119,7 @@ max t =
 lookup : Comparable k -> Dict (Comparable k) v -> Maybe v
 lookup k t =
  case t of
-   RBEmpty -> Nothing
+   RBEmpty -> Maybe.Nothing
    RBNode _ k' v l r ->
     case compare k k' of
       LT -> lookup k l
