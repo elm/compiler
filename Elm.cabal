@@ -145,9 +145,7 @@ Executable elm-doc
                        Context,
                        Parse.Library,
                        Parse.Modules,
-                       Parse.Types,
-                       Rename,
-                       Types.Types
+                       Rename
 
   Build-depends:       base >=4.2 && <5,
                        containers >= 0.3,

@@ -20,7 +20,8 @@ hints = mapM toScheme values
 
   toScheme :: (String, String) -> GuidCounter (String, Scheme)
   toScheme (name, tipeString) =
-   case iParse (fmap toType typeExpr) "parsing types in docs.json" tipeString of
-     Left err   -> error (show err)
-     Right tipe -> do scheme <- Subs.generalize [] =<< Subs.superize name tipe
-                      return (name, scheme)
+    let err = "in docs.json parsing type: " ++ tipeString in
+    case iParse (fmap toType typeExpr) err tipeString of
+      Left err   -> error (show err)
+      Right tipe -> do scheme <- Subs.generalize [] =<< Subs.superize name tipe
+                       return (name, scheme)

@@ -375,8 +375,7 @@ union t1 t2 = foldl insert t2 t1
 
 -- Keep a key-value pair when its key appears in the second dictionary.
 -- Preference is given to values in the first dictionary.
-intersect : Dict (Comparable k) v
-    -> Dict (Comparable k) v -> Dict (Comparable k) v
+intersect : Dict (Comparable k) v -> Dict (Comparable k) v -> Dict (Comparable k) v
 intersect t1 t2 =
  let combine k v t = if k `member` t2 then insert k v t else t
  in  foldl combine empty t1
