@@ -10,8 +10,14 @@ import Types.Substitutions (subst)
 import Types.Types
 
 builtins :: [(String,([X],Type))]
-builtins = [ ("String", ([], listOf char))
-           , ("Time", ([], float)) ]
+builtins =
+    let touch = ("t0", time) : map (flip (,) int) ["x","y","x0","y0","id"]
+        state = [("text", string), ("start", int), ("end", int)]
+    in  [ ("String", ([], listOf char))
+        , ("Time", ([], float))
+        , ("Touch", ([], RecordT (Map.fromString touch) EmptyRecord))
+        , ("TextState", ([], RecordT (Map.fromString state) EmptyRecord))
+        ]
 
 get :: [Statement] -> Map.Map String ([X],Type)
 get stmts = Map.fromList (builtins ++ concatMap getAlias stmts)
