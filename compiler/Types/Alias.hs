@@ -11,13 +11,13 @@ import Types.Types
 
 builtins :: [(String,([X],Type))]
 builtins =
-    let touch = ("t0", time) : map (flip (,) int) ["x","y","x0","y0","id"]
-        state = [("text", string), ("start", int), ("end", int)]
+    let touch = ("t0", [time]) : map (flip (,) [int]) ["x","y","x0","y0","id"]
+        state = [("text", [string]), ("start", [int]), ("end", [int])]
     in  [ ("String", ([], listOf char))
         , ("Time", ([], float))
         , ("KeyCode", ([], int))
-        , ("Touch", ([], RecordT (Map.fromString touch) EmptyRecord))
-        , ("TextState", ([], RecordT (Map.fromString state) EmptyRecord))
+        , ("Touch", ([], RecordT (Map.fromList touch) EmptyRecord))
+        , ("TextState", ([], RecordT (Map.fromList state) EmptyRecord))
         ]
 
 get :: [Statement] -> Map.Map String ([X],Type)
