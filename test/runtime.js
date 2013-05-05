@@ -212,15 +212,12 @@ buster.testCase("Signal", {
     assert.equals(lifted.value, 2);
   },
 
+  // Test lifts 2-8
   liftN: function(){
-    var values = [],
-        counter = 0,
+    var counter = 0,
         lifted,
         f = function(){
-          for (var i = arguments.length - 1; i >= 0; i--) {
-            values[i] = arguments[i];
-          }
-          return counter += 1;
+          return counter += arguments.length;
         };
 
     for (var i = 8; i >= 2; i--) {
@@ -229,25 +226,23 @@ buster.testCase("Signal", {
       var applicator = F['A' + (i + 1)],
           functor = F['F' + i],
           lift = Signal['lift' + i],
-          args = [lift, functor(f)],
-          expected = [];
+          args = [lift, functor(f)];
       // lift8 should have 8 arguments, 0-7
       for (var j = i - 1; j >= 0; j--) {
         args.push(Signal.constant(j));
-        expected.push(j);
       }
       lifted = applicator.apply(this, args);
 
       // State should not change if only one signal fired.
-      assert.equals(lifted.value, 1);
+      assert.equals(lifted.value, i);
       lifted.recv(Date.now(), true, 0);
-      assert.equals(lifted.value, 1);
+      assert.equals(lifted.value, i);
 
       // State should change if all signals fired.
       for (var k = i - 2; k >= 0; k--) {
         lifted.recv(Date.now(), true, 0);
       }
-      assert.equals(lifted.value, 2);
+      assert.equals(lifted.value, i * 2);
     }
   }
 });
