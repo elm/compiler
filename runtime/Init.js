@@ -28,7 +28,7 @@ Elm.init = function(module, baseNode) {
       document.head.appendChild(style);
   }
 
-  // create the actuall RTS. Any impure modules will attach themselves to this
+  // create the actual RTS. Any impure modules will attach themselves to this
   // object. This permits many Elm programs to be embedded per document.
   var elm = {notify: notify, node: baseNode, id: ElmRuntime.guid(), inputs: inputs};
 
@@ -79,7 +79,7 @@ Elm.init = function(module, baseNode) {
   }
 
   // Add the visualModel to the DOM
-  var renderNode = Render.render(visualModel)
+  var renderNode = Render.render(visualModel);
   baseNode.appendChild(renderNode);
   adjustWindow();
 
