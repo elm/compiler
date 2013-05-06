@@ -21,31 +21,33 @@ customButton up hover down =
     let pool = N.customButtons ()
     in  (pool.button () up hover down, pool.events)
 
-checkBoxes : a -> { box : (Bool -> a) -> Bool -> Element, events : Signal a }
+checkboxes : a -> { box : (Bool -> a) -> Bool -> Element, events : Signal a }
 
-checkBox : Bool -> (Signal Element, Signal Bool)
-checkBox b =
-    let cbs = N.checkBoxes b
+checkbox : Bool -> (Signal Element, Signal Bool)
+checkbox b =
+    let cbs = N.checkboxes b
     in  (lift (cbs.box id) cbs.events, cbs.events)
 
-type TextState = { text:String, start:Int, end:Int }
+type FieldState = { string:String, start:Int, end:Int }
 
-textFields : a -> { field : (TextState -> a) -> String -> TextState -> Element,
-                    events : Signal a }
+fields : a -> { field : (FieldState -> a) -> String -> FieldState -> Element,
+                events : Signal a }
 
-text : String -> TextState -> (Signal Element, Signal TextState)
-text placeHolder textState =
-    let tfs = N.textFields textState
+empty = { string="", start=0, end=0 }
+
+field : String -> (Signal Element, Signal FieldState)
+field placeHolder =
+    let tfs = N.fields empty
     in  (lift (tfs.field id placeHolder) tfs.events, tfs.events)
 
-password : String -> TextState -> (Signal Element, Signal TextState)
-password placeHolder textState =
-    let tfs = N.passwords textState
+password : String -> (Signal Element, Signal FieldState)
+password placeHolder =
+    let tfs = N.passwords empty
     in  (lift (tfs.field id placeHolder) tfs.events, tfs.events)
 
-email : String -> TextState -> (Signal Element, Signal TextState)
-email placeHolder textState =
-    let tfs = N.emails textState
+email : String -> (Signal Element, Signal FieldState)
+email placeHolder =
+    let tfs = N.emails empty
     in  (lift (tfs.field id placeHolder) tfs.events, tfs.events)
 
 -- file?
