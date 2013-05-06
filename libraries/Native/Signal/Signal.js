@@ -87,7 +87,11 @@ Elm.Native.Signal = function(elm) {
   }
 
   function foldp(func,state,input) {
-    function update() { state = A2(func, input.value, state); return state }
+    var first = true;
+    function update() {
+        first ? first = false : state = A2(func, input.value, state);
+        return state;
+    }
     return new LiftN(update, [input]);
   }
 
