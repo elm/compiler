@@ -38,33 +38,35 @@ Elm.Native.Mouse = function(elm) {
     return Utils.Tuple2(posx, posy);
   }
 
+  var node = elm.node.tagName === "BODY" ? document : elm.node;
+
   function click(e) {
     var hasListener1 = elm.notify(isClicked.id, true);
     var hasListener2 = elm.notify(clicks.id, Utils.Tuple0);
     elm.notify(isClicked.id, false);
     if (!hasListener1 && !hasListener2)
-	elm.node.removeEventListener('click', click);
+	node.removeEventListener('click', click);
   }
 
   function down(e) {
     var hasListener = elm.notify(isDown.id, true);
-    if (!hasListener) elm.node.removeEventListener('mousedown', down);
+    if (!hasListener) node.removeEventListener('mousedown', down);
   }
 
   function up(e) {
     var hasListener = elm.notify(isDown.id, false);
-    if (!hasListener) elm.node.removeEventListener('mouseup', up);
+    if (!hasListener) node.removeEventListener('mouseup', up);
   }
 
   function move(e) {
     var hasListener = elm.notify(position.id, getXY(e));
-    if (!hasListener) elm.node.removeEventListener('mousemove', move);
+    if (!hasListener) node.removeEventListener('mousemove', move);
   }
 
-  elm.node.addEventListener('click'    , click);
-  elm.node.addEventListener('mousedown', down);
-  elm.node.addEventListener('mouseup'  , up);
-  elm.node.addEventListener('mousemove', move);
+  node.addEventListener('click'    , click);
+  node.addEventListener('mousedown', down);
+  node.addEventListener('mouseup'  , up);
+  node.addEventListener('mousemove', move);
 
   return elm.Native.Mouse = {
       position: position,
