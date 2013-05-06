@@ -24,13 +24,28 @@ isRight e = case e of { Right _ -> True ; _ -> False }
 
 -- Keep only the values held in `Left` values.
 lefts : [Either a b] -> [a]
-lefts es = List.filter isLeft es
+lefts es = List.foldr consLeft [] es
 
 -- Keep only the values held in `Right` values.
 rights : [Either a b] -> [b]
-rights es = List.filter isRight es
+rights es = List.foldr consRight [] es
 
 -- Split into two lists, lefts on the left and rights on the right. So we
 -- have the equivalence: `(partition es == (lefts es, rights es))`
 partition : [Either a b] -> ([a],[b])
-partition es = List.partition isLeft es
+partition es = List.foldr consEither ([],[]) es
+
+consLeft e vs =
+    case e of
+      Left  v -> v::vs
+      Right _ -> vs
+
+consRight e vs =
+    case e of
+      Left  _ -> vs
+      Right v -> v::vs
+
+consEither e (ls,rs) =
+    case e of
+      Left  l -> (l::ls,rs)
+      Right r -> (ls,r::rs)

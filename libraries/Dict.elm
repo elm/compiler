@@ -119,11 +119,11 @@ max t =
 lookup : Comparable k -> Dict (Comparable k) v -> Maybe v
 lookup k t =
  case t of
-   RBEmpty -> Nothing
+   RBEmpty -> Maybe.Nothing
    RBNode _ k' v l r ->
     case compare k k' of
       LT -> lookup k l
-      EQ -> Just v
+      EQ -> Maybe.Just v
       GT -> lookup k r
 
 -- Find the value associated with a key. If the key is not found,
@@ -282,11 +282,11 @@ moveRedRight t =
 
 moveRedLeftIfNeeded : Dict k v -> Dict k v
 moveRedLeftIfNeeded t =
-  if not (isRedLeft t) && not (isRedLeftLeft t) then moveRedLeft t else t
+  if isRedLeft t || isRedLeftLeft t then t else moveRedLeft t
 
 moveRedRightIfNeeded : Dict k v -> Dict k v
 moveRedRightIfNeeded t =
-  if not (isRedRight t) && not (isRedRightLeft t) then moveRedRight t else t
+  if isRedRight t || isRedRightLeft t then t else moveRedRight t
   
 deleteMin : Dict k v -> Dict k v
 deleteMin t = 

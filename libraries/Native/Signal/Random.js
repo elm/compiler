@@ -16,6 +16,6 @@ Elm.Native.Random = function(elm) {
     return A2( Signal.lift, f, signal );
   }
 
-  return elm.Native.Random = { range: F3(randomize), float: float };
+  return elm.Native.Random = { range: F3(range), float: float };
 
 };
