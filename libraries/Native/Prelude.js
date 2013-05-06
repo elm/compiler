@@ -27,8 +27,8 @@ Elm.Native.Prelude = function(elm) {
 
   function id(n) { return n }
   function flip(f,a,b) { return A2(f,b,a) }
-  function curry(f,v) { return A2(f,v._0,v._1) }
-  function uncurry(f,a,b) { return f(Utils.Tuple2(a,b)) }
+  function curry(f,a,b) { return f(Utils.Tuple2(a,b)) }
+  function uncurry(f,v) { return A2(f,v._0,v._1) }
   function fst(t) { return t._0 }
   function snd(t) { return t._1 }
 
@@ -106,8 +106,8 @@ Elm.Native.Prelude = function(elm) {
 
       id:id,
       flip:F3(flip),
-      curry:F2(curry),
-      uncurry:F3(uncurry),
+      curry:F3(curry),
+      uncurry:F2(uncurry),
       fst:fst,
       snd:snd
   };
