@@ -52,7 +52,7 @@ fromJSString : JSString -> Maybe Value
 string : Value -> String
 string v = case v of { String s -> s ; _ -> "" }
 
-number : Value -> Number
+number : Value -> Float
 number v = case v of { Number n -> n ; _ -> 0 }
 
 boolean : Value -> Bool
@@ -83,7 +83,7 @@ findString = find string ""
 
 -- Find a number value in an Elm Json object. If the key is not found or the
 -- value found is not a number, this returns 0
-findNumber : String -> Object -> Number
+findNumber : String -> Object -> Float
 findNumber = find number 0
 
 -- Find a boolean value in an Elm Json object. If the key is not found or the

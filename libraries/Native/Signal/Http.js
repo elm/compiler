@@ -19,8 +19,8 @@ Elm.Native.Http = function(elm) {
     if (queue.length > 0) {
       elm.notify(responses.id, queue[0].value);
       if (queue[0].value.ctor !== 'Waiting') {
-	queue.shift();
-	setTimeout(function() { updateQueue(queue,responses); }, 0);
+        queue.shift();
+        setTimeout(function() { updateQueue(queue,responses); }, 0);
       }
     }
   }
@@ -39,9 +39,9 @@ Elm.Native.Http = function(elm) {
     request.onreadystatechange = function(e) {
       if (request.readyState === 4) {
         response.value = (request.status === 200 ?
-	 { ctor:'Success', _0:JS.toString(request.responseText) } :
-	 { ctor:'Failure', _0:request.status, _1:JS.toString(request.statusText) });
-	setTimeout(function() { updateQueue(queue,responses); }, 0);
+        { ctor:'Success', _0:JS.toString(request.responseText) } :
+        { ctor:'Failure', _0:request.status, _1:JS.toString(request.statusText) });
+        setTimeout(function() { updateQueue(queue,responses); }, 0);
       }
     };
     request.open(JS.fromString(req.verb), JS.fromString(req.url), true);
