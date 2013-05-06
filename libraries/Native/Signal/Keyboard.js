@@ -8,7 +8,7 @@ Elm.Native.Keyboard = function(elm) {
   var NList = Elm.Native.List(elm);
 
   var keysDown = Signal.constant(NList.Nil);
-  var charPressed = Signal.constant('\0');
+  var lastKey = Signal.constant('\0');
 
   function down(e) {
       if (NList.member(e.keyCode)(keysDown.value)) return;
@@ -27,7 +27,7 @@ Elm.Native.Keyboard = function(elm) {
       if (!hasListener) elm.node.removeEventListener('blur', blur);
   }
   function press(e) {
-      var hasListener = elm.notify(charPressed.id, e.charCode || e.keyCode);
+      var hasListener = elm.notify(lastKey.id, e.charCode || e.keyCode);
       if (!hasListener) elm.node.removeEventListener('keypress', press);
   }
 
@@ -66,7 +66,7 @@ Elm.Native.Keyboard = function(elm) {
       isDown:is,
       directions:F4(dir),
       keysDown:keysDown,
-      lastPressed:charPressed
+      lastKey:lastKey
   };
 
 };
