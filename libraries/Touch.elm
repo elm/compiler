@@ -4,7 +4,7 @@ module Touch where
 
 import Native.Touch as T
 
-type Touch = { x:Int, y:Int, id:Int, x0:Int, y0:Int, t0:Time }
+-- type Touch = { x:Int, y:Int, id:Int, x0:Int, y0:Int, t0:Time }
 
 -- A list of touches. Each ongoing touch is represented by a set of
 -- coordinates and an identifier id that allows you to distinguish
