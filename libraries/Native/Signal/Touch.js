@@ -83,9 +83,10 @@ Elm.Native.Touch = function(elm) {
   listen("touchcancel", end);
   listen("touchleave", end);
 
+  var mouseID = -1;
   function move(e) {
       for (var i = root.value.length; i--; ) {
-          if (root.value[i].id === 0) {
+          if (root.value[i].id === mouseID) {
               root.value[i].x = e.pageX;
               root.value[i].y = e.pageY;
               elm.notify(root.id, root.value);
@@ -95,18 +96,19 @@ Elm.Native.Touch = function(elm) {
   }
   node.addEventListener("mousedown", function(e) {
           node.addEventListener("mousemove", move);
-          e.identifier = 0;
+          e.identifier = mouseID;
           root.value.push(touch(e));
           start(e);
           elm.notify(root.id, root.value);
       });
   node.addEventListener("mouseup", function(e) {
           node.removeEventListener("mousemove", move);
-          e.identifier = 0;
+          e.identifier = mouseID;
           end(e);
           for (var i = root.value.length; i--; ) {
-              if (root.value[i].id === 0) {
+              if (root.value[i].id === mouseID) {
                   root.value.splice(i, 1);
+                  --mouseID;
                   break;
               }
           }
@@ -114,6 +116,10 @@ Elm.Native.Touch = function(elm) {
       });
   node.addEventListener("blur", function() {
           node.removeEventListener("mousemove", move);
+          if (root.values.length > 0) {
+              elm.notify(root.id, []);
+              --mouseID;
+          }
           dict.clear();
       });
 
