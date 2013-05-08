@@ -43,7 +43,7 @@ Elm.Native.Keyboard = function(elm) {
     return signal;
   }
 
-  function dir(left, right, up, down) {
+  function dir(up, down, left, right) {
     function f(ks) {
       var x = 0, y = 0;
       while (ks.ctor == "Cons") {

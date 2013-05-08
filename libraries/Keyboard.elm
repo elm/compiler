@@ -24,7 +24,6 @@ wasd = N.directions 87 83 65 68
 -- Custom key directions so that you can support different locales.
 -- The plan is to have a locale independent version of this function
 -- that uses the physical location of keys, but I don't know how to do it.
--- left, right, up, down
 directions : KeyCode -> KeyCode -> KeyCode -> KeyCode -> Signal { x:Int, y:Int }
 
 -- Whether an arbitrary key is pressed.
