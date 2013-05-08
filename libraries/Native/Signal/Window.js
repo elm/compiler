@@ -8,10 +8,12 @@ Elm.Native.Window = function(elm) {
   var Signal = Elm.Signal(elm);
   var Tuple2 = Elm.Native.Utils(elm).Tuple2;
 
-  var dimensions = Signal.constant(Tuple2(
-    elm.node.clientWidth,
-    document.body == elm.node ? window.innerHeight : elm.node.clientHeight
-  ));
+  function getWidth() { return elm.node.clientWidth; }
+  function getHeight() {
+      return document.body === elm.node ? window.innerHeight : elm.node.clientHeight;
+  }
+
+  var dimensions = Signal.constant(Tuple2(getWidth(), getHeight()));
   dimensions.defaultNumberOfKids = 2;
 
   // Do not move width and height into Elm. By setting the default number of kids,
@@ -23,9 +25,8 @@ Elm.Native.Window = function(elm) {
   height.defaultNumberOfKids = 0;
 
   function resize(e) {
-      var w = elm.node.clientWidth;
-      var h = document.body === elm.node ? window.innerHeight : elm.node.clientHeight;
-      console.log('cmp', dimensions.value._0, w, dimensions.value._1, h);
+      var w = getWidth();
+      var h = getHeight();
       if (dimensions.value._0 === w && dimensions.value._1 === h) return;
       var hasListener = elm.notify(dimensions.id, Tuple2(w,h));
       if (!hasListener) window.removeEventListener('resize', resize);

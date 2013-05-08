@@ -34,13 +34,14 @@ Elm.Native.Show = function(elm) {
     var showToString = function(v) {
         var result = "";
         if (typeof v === "function") {
-            result = "<function>";
+            var name = v.func ? v.func.name : v.name;
+            result = '<function' + (name === '' ? '' : ': ') + name + '>';
         } else if (typeof v === "boolean") {
             result = v ? "True" : "False";
         } else if (typeof v === "number") {
             result = v+"";
         } else if (typeof v === "string" && v.length < 2) {
-            result = "'"+v+"'";
+            result = "'" + showChar(v) + "'";
         } else if (typeof v === "object" && '_' in v) {
             var output = [];
             for (var k in v._) {
@@ -68,9 +69,7 @@ Elm.Native.Show = function(elm) {
                 start = isStr ? '"' : "[",
                 end   = isStr ? '"' : "]",
                 sep   = isStr ?  "" : ",",
-                f     = !isStr ? showToString : function(x){
-                    return x === '\n' ? '\\n' : x;
-                };
+                f     = !isStr ? showToString : showChar;
                 var output = start + f(v._0);
                 v = v._1;
                 while (v.ctor === "Cons") {
@@ -110,6 +109,18 @@ Elm.Native.Show = function(elm) {
 
     var show = function(v) {
       return NList.fromArray([showToString(v)]);
+    }
+
+    var showChar = function(c) {
+        return c === '\n' ? '\\n' :
+               c === '\t' ? '\\t' :
+               c === '\b' ? '\\b' :
+               c === '\r' ? '\\r' :
+               c === '\v' ? '\\v' :
+               c === '\0' ? '\\0' :
+               c === '\'' ? "\\'" :
+               c === '\"' ? '\\"' :
+               c === '\\' ? '\\\\' : c;
     }
 
     return elm.Native.Show = { show:show };

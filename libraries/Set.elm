@@ -42,7 +42,7 @@ intersect = Dict.intersect
 -- Get the difference between the first set and the second. Keeps values
 -- that do not appear in the second set.
 diff : Set (Comparable k) -> Set (Comparable k) -> Set (Comparable k)
-diff s1 s2 = foldl remove s1 s2
+diff = Dict.diff
 
 -- Convert a set into a list.
 toList : Set (Comparable k) -> [Comparable k]

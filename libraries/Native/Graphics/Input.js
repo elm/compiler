@@ -108,7 +108,7 @@ Elm.Native.Graphics.Input = function(elm) {
  }
 
 
- function checkBoxes(defaultValue) {
+ function checkboxes(defaultValue) {
      var events = Signal.constant(defaultValue);
 
      function render(model) {
@@ -141,7 +141,7 @@ Elm.Native.Graphics.Input = function(elm) {
      return { _:{}, box:F2(box), events:events };
  }
 
- function mkTextPool(type) { return function textFields(defaultValue) {
+ function mkTextPool(type) { return function fields(defaultValue) {
      var events = Signal.constant(defaultValue);
 
      function render(model) {
@@ -151,7 +151,7 @@ Elm.Native.Graphics.Input = function(elm) {
 	 field.id = 'test';
 	 field.type = type;
 	 field.placeholder = fromString(model.placeHolder);
-	 field.value = fromString(model.state.input);
+	 field.value = fromString(model.state.string);
 	 field.setSelectionRange(model.state.start, model.state.end);
 	 field.style.border = 'none';
 
@@ -163,7 +163,7 @@ Elm.Native.Graphics.Input = function(elm) {
 		 end = field.selectionStart;
 	     }
 	     var state = { _:{},
-			   input:toString(field.value),
+			   string:toString(field.value),
 			   start:start,
 			   end:end };
 	     elm.notify(events.id, field.elmHandler(state));
@@ -184,7 +184,7 @@ Elm.Native.Graphics.Input = function(elm) {
 
      function update(node, oldModel, newModel) {
 	 node.elmHandler = newModel.handler;
-	 node.value = fromString(newModel.state.input);
+	 node.value = fromString(newModel.state.string);
 	 if (newModel.state.start <= newModel.state.end) {
 	     node.setSelectionRange(newModel.state.start, newModel.state.end);
 	 } else {
@@ -212,7 +212,8 @@ Elm.Native.Graphics.Input = function(elm) {
  return elm.Native.Graphics.Input = {
      buttons:buttons,
      customButtons:customButtons,
-     textFields:mkTextPool('text'),
+     checkboxes:checkboxes,
+     fields:mkTextPool('text'),
      emails:mkTextPool('email'),
      passwords:mkTextPool('password')
  };
