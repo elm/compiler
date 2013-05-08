@@ -35,6 +35,7 @@ type LineStyle = {
   dashOffset : Int
  }
 
+defaultLine : LineStyle
 defaultLine = {
   color = Color.black,
   width = 1,
@@ -46,8 +47,11 @@ defaultLine = {
  }
 
 -- default LineStyles
+solid : Color -> LineStyle
 solid  clr = { defaultLine | color <- clr }
+dashed : Color -> LineStyle
 dashed clr = { defaultLine | color <- clr, dashing <- [8,4] }
+dotted : Color -> LineStyle
 dotted clr = { defaultLine | color <- clr, dashing <- [3,3] }
 
 data BasicForm
@@ -97,11 +101,16 @@ rotate : Float -> Form -> Form
 rotate t f = { f | theta <- f.theta + t }
 
 scale : Float -> Form -> Form
-scale  s f = { f | scale <- f.scale * s }
+scale s f = { f | scale <- f.scale * s }
 
+move : Float -> Float -> Form -> Form
 move x y f = { f | x <- f.x + x, y <- f.y + y }
-moveX  x f = { f | x <- f.x + x }
-moveY  y f = { f | y <- f.y + y }
+
+moveX : Float -> Form -> Form
+moveX x f = { f | x <- f.x + x }
+
+moveY : Float -> Form -> Form
+moveY y f = { f | y <- f.y + y }
 
 collage : Int -> Int -> [Form] -> Element
 

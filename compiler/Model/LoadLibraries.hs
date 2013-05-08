@@ -15,22 +15,20 @@ import System.IO.Unsafe (unsafePerformIO)
 
 {-# NOINLINE docs #-}
 docs :: String
-docs = force . unsafePerformIO . safeReadDocs . getDataFileName $ "docs.json"
+docs = force $ unsafePerformIO (safeReadDocs =<< getDataFileName "docs.json")
 
-safeReadDocs :: IO FilePath -> IO String
-safeReadDocs path = E.catch (readDocs path) (emitError path)
+safeReadDocs :: FilePath -> IO String
+safeReadDocs name = E.catch (readDocs name) (emitError name)
 
-readDocs :: IO FilePath -> IO String
-readDocs path = do
-  name <- path
+readDocs :: FilePath -> IO String
+readDocs name = do
   exists <- doesFileExist name
   if exists then readFile name
             else ioError . userError $ "File Not Found"
 
 
-emitError :: IO FilePath -> IOError -> IO String
-emitError path err = do
-    name <- path
-    putStrLn $ "Error! Types for standard library not loaded properly!\n File should be here:" ++ name ++ "\n The file is created and copied by command: cabal install"
+emitError :: FilePath -> IOError -> IO String
+emitError name err = do
+    putStrLn $ "Error! Types for standard library not loaded properly!\n  File should be here:" ++ name ++ "\n  The file is created and copied by command: cabal install"
     putStrLn (show err)
     return "{\"modules\":[]}"

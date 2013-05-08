@@ -28,11 +28,7 @@ checkBox b =
     let cbs = N.checkBoxes b
     in  (lift (cbs.box id) cbs.events, cbs.events)
 
-type TextState = {
-  input : String,
-  start : Int,
-  end   : Int
- }
+type TextState = { text:String, start:Int, end:Int }
 
 textFields : a -> { field : (TextState -> a) -> String -> TextState -> Element,
                     events : Signal a }

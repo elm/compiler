@@ -4,13 +4,12 @@ module Main where
 import Ast
 import Control.Applicative ((<$>), (<*>))
 import Data.List (intercalate)
+import Data.Maybe (catMaybes)
 import Parse.Library
 import Parse.Modules (moduleDef)
-import Parse.Types (typeAnnotation)
 import Text.Parsec hiding (newline,spaces)
 import System.Environment
 import System.Exit
-import Types.Types
 
 
 main = do
@@ -29,32 +28,34 @@ toModule (name, values) =
 
 toValue (name, tipe, desc) =
     "{ \"name\" : " ++ show name ++
-    ",\n          \"type\" : \"" ++ show tipe ++
-    "\",\n          \"desc\" : " ++ show desc ++ "\n        }"
+    ",\n          \"type\" : " ++ show tipe ++
+    ",\n          \"desc\" : " ++ show desc ++ "\n        }"
 
-docParse :: String -> Either String (String, [(String, Type, String)])
+docParse :: String -> Either String (String, [(String, String, String)])
 docParse = setupParser $ do
-             optional freshLine
-             (,) <$> option "Main" moduleName <*> types
+  optional freshLine
+  (names, exports) <- option (["Main"],[]) (moduleDef `followedBy` freshLine)
+  info <- many (docs exports <|> try skip <|> end)
+  return (intercalate "." names, catMaybes info)
     where
-      skip = manyTill anyChar simpleNewline >> return []
-      end  = many1 anyChar >> return []
-      types = concat <$> many (docs <|> try skip <|> end)
-      getName = intercalate "." . fst
-      moduleName = do optional freshLine
-                      getName <$> moduleDef `followedBy` freshLine
+      skip = manyTill anyChar simpleNewline >> return Nothing
+      end  = many1 anyChar >> return Nothing
 
-docs :: IParser [(String, Type, String)]
-docs = (tipe <$> try typeAnnotation) <|> commentTipe
+docs :: [String] -> IParser (Maybe (String, String, String))
+docs exports = export <$> try annotation
   where
-    clip str = case str of { ' ':rest -> rest ; _ -> str }
-    tipe stmt = case stmt of { TypeAnnotation n t -> [(n,t,"")] ; _ -> [] }
-    commentTipe = do
-      cs  <- map clip <$> many1 lineComment
-      typ <- optionMaybe (try typeAnnotation)
-      return $ case typ of
-                 Just (TypeAnnotation n t) -> [(n, t, intercalate "\n" cs)]
-                 _ -> []
+    tipe comment = tuple <$> name <*> tipe
+        where name = do v <- lowVar <|> parens symOp
+                        whitespace ; hasType ; whitespace ; return v
+              tipe = manyTill anyChar (try (freshLine >> notFollowedBy (string " ")))
+              tuple n t = (n,t,comment)
+
+    annotation = tipe =<< option "" (concatMap clip <$> many1 lineComment)
+        where clip str = case str of { ' ':rest -> rest ; _ -> str } ++ "\n"
+
+    export info@(name,_,_) =
+        if null exports || name `elem` exports then Just info else Nothing
+
 
 
 setupParser p source =

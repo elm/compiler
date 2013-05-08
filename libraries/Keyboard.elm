@@ -14,12 +14,12 @@ type KeyCode = Int
 -- `{ x = 1, y = 1 }` when pressing the up and right arrows.
 -- `{ x = 0, y =-1 }` when pressing the down, left, and right arrows.
 arrows : Signal { x:Int, y:Int }
-arrows = N.directions 37 39 38 40
+arrows = N.directions 38 40 37 39
 
 -- Just like the arrows signal, but this uses keys w, a, s, and d,
 -- which are common controls for many computer games.
 wasd : Signal { x:Int, y:Int }
-wasd = N.directions 65 68 87 83
+wasd = N.directions 87 83 65 68
 
 -- Custom key directions so that you can support different locales.
 -- The plan is to have a locale independent version of this function
