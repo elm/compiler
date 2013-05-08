@@ -1,0 +1,4 @@
+{ "name" : "Elm"
+, "version" : "0.8.0"
+, "dependencies" : { "buster" : "0.6.12" }
+, "private" : true }

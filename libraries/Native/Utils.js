@@ -13,8 +13,8 @@ Elm.Native.Utils = function(elm) {
       return c === Object.keys(y).length;
     }
     if (typeof x === 'function') {
-	throw new Error('Equality error: general function equality is ' +
-			'undecidable, and therefore, unsupported');
+      throw new Error('Equality error: general function equality is ' +
+      'undecidable, and therefore, unsupported');
     }
     return x === y;
   }
@@ -22,18 +22,20 @@ Elm.Native.Utils = function(elm) {
   var EQ = 0, LT = 1, GT = 2, ord = ['EQ','LT','GT'];
   function compare(x,y) { return { ctor: ord[cmp(x,y)] } }
   function cmp(x,y) {
+    var ord;
     if (typeof x !== 'object') return x === y ? EQ : x < y ? LT : GT;
 
     if (x.ctor === "Cons" || x.ctor === "Nil") {
-	while (true) {
-	    if (x.ctor === "Nil" && y.ctor === "Nil") return EQ;
-	    if (x.ctor !== y.ctor) return {ctor: x.ctor==='Nil'?LT:GT};
-	    var ord = cmp(x._0, y._0);
-	    if (ord !== EQ) return ord;
-	    x = x._1;
-	    y = y._1;
-	}
+      while (true) {
+          if (x.ctor === "Nil" && y.ctor === "Nil") return EQ;
+          if (x.ctor !== y.ctor) return x.ctor === 'Nil' ? LT : GT;
+          ord = cmp(x._0, y._0);
+          if (ord !== EQ) return ord;
+          x = x._1;
+          y = y._1;
+      }
     }
+
     if (x.ctor.slice(0,5) === 'Tuple') {
       var n = x.ctor.slice(5) - 0;
       var err = 'cannot compare tuples with more than 6 elements.';
@@ -48,8 +50,8 @@ Elm.Native.Utils = function(elm) {
       return EQ;
     }
     throw new Error('Comparison error: comparison is only defined on ints, ' +
-		    'floats, times, chars, strings, lists of comparable values, ' +
-		    'and tuples of comparable values.')
+        'floats, times, chars, strings, lists of comparable values, ' +
+        'and tuples of comparable values.')
   }
 
 
@@ -68,11 +70,11 @@ Elm.Native.Utils = function(elm) {
   function remove(x,r) {
     var o = copy(r);
     if (x in o._) {
-	o[x] = o._[x][0];
-	o._[x] = o._[x].slice(1);
-	if (o._[x].length === 0) { delete o._[x]; }
+      o[x] = o._[x][0];
+      o._[x] = o._[x].slice(1);
+      if (o._[x].length === 0) { delete o._[x]; }
     } else {
-	delete o[x];
+      delete o[x];
     }
     return o;
   }
@@ -80,8 +82,8 @@ Elm.Native.Utils = function(elm) {
   function replace(kvs,r) {
     var o = copy(r);
     for (var i = kvs.length; i--; ) {
-	var kvsi = kvs[i];
-	o[kvsi[0]] = kvsi[1];
+      var kvsi = kvs[i];
+      o[kvsi[0]] = kvsi[1];
     }
     return o;
   }
@@ -103,7 +105,7 @@ Elm.Native.Utils = function(elm) {
     t.style.visibility = "hidden";
     t.style.styleFloat = "left";
     t.style.cssFloat   = "left";
-    
+
     elm.node.appendChild(t);
     var w = t.clientWidth;
     var h = t.clientHeight;
