@@ -13,7 +13,30 @@ Elm.Time = function() {
   **/
 
   function timeNow() { return (new window.Date).getTime(); }
-
+(function() {
+    var lastTime = 0;
+    var vendors = ['ms', 'moz', 'webkit', 'o'];
+    for(var x = 0; x < vendors.length && !window.requestAnimationFrame; ++x) {
+        window.requestAnimationFrame = window[vendors[x]+'RequestAnimationFrame'];
+        window.cancelAnimationFrame = window[vendors[x]+'CancelAnimationFrame']
+                                   || window[vendors[x]+'CancelRequestAnimationFrame'];
+    }
+ 
+    if (!window.requestAnimationFrame)
+        window.requestAnimationFrame = function(callback, element) {
+            var currTime = new Date().getTime();
+            var timeToCall = Math.max(0, 16 - (currTime - lastTime));
+            var id = window.setTimeout(function() { callback(currTime + timeToCall); },
+              timeToCall);
+            lastTime = currTime + timeToCall;
+            return id;
+        };
+ 
+    if (!window.cancelAnimationFrame)
+        window.cancelAnimationFrame = function(id) {
+            clearTimeout(id);
+        };
+}());
   /*[Tickers]*/
 
   /** fps : Number -> Signal Time
@@ -44,7 +67,9 @@ Elm.Time = function() {
       var timeoutID = 0;
       function f(isOn) { return function(t) {
 	if (isOn) {
-	    timeoutID = setTimeout(tick(!wasOn && isOn), msPerFrame);
+	    timeoutID = setTimeout(function () {
+	    	window.requestAnimationFrame(tick(!wasOn && isOn));
+	    }, msPerFrame);
 	} else if (wasOn) {
 	    clearTimeout(timeoutID);	    
 	}
