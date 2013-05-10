@@ -13,30 +13,30 @@ Elm.Time = function() {
   **/
 
   function timeNow() { return (new window.Date).getTime(); }
-(function() {
-    var lastTime = 0;
-    var vendors = ['ms', 'moz', 'webkit', 'o'];
-    for(var x = 0; x < vendors.length && !window.requestAnimationFrame; ++x) {
-        window.requestAnimationFrame = window[vendors[x]+'RequestAnimationFrame'];
-        window.cancelAnimationFrame = window[vendors[x]+'CancelAnimationFrame']
-                                   || window[vendors[x]+'CancelRequestAnimationFrame'];
-    }
+  (function() {
+      var lastTime = 0;
+      var vendors = ['ms', 'moz', 'webkit', 'o'];
+      for(var x = 0; x < vendors.length && !window.requestAnimationFrame; ++x) {
+          window.requestAnimationFrame = window[vendors[x]+'RequestAnimationFrame'];
+          window.cancelAnimationFrame = window[vendors[x]+'CancelAnimationFrame']
+                                     || window[vendors[x]+'CancelRequestAnimationFrame'];
+      }
  
-    if (!window.requestAnimationFrame)
-        window.requestAnimationFrame = function(callback, element) {
-            var currTime = new Date().getTime();
-            var timeToCall = Math.max(0, 16 - (currTime - lastTime));
-            var id = window.setTimeout(function() { callback(currTime + timeToCall); },
-              timeToCall);
-            lastTime = currTime + timeToCall;
-            return id;
-        };
+      if (!window.requestAnimationFrame)
+          window.requestAnimationFrame = function(callback, element) {
+              var currTime = new Date().getTime();
+              var timeToCall = Math.max(0, 16 - (currTime - lastTime));
+              var id = window.setTimeout(function() { callback(currTime + timeToCall); },
+                timeToCall);
+              lastTime = currTime + timeToCall;
+              return id;
+          };
  
-    if (!window.cancelAnimationFrame)
-        window.cancelAnimationFrame = function(id) {
-            clearTimeout(id);
-        };
-}());
+      if (!window.cancelAnimationFrame)
+          window.cancelAnimationFrame = function(id) {
+              clearTimeout(id);
+          };
+  }());
   /*[Tickers]*/
 
   /** fps : Number -> Signal Time
@@ -58,23 +58,25 @@ Elm.Time = function() {
       var prev = timeNow(), curr = prev, diff = 0, wasOn = true;
       var ticker = Elm.Signal.constant(diff);
       function tick(zero) { return function() {
-	  curr = timeNow();
-	  diff = zero ? 0 : curr - prev;
-	  prev = curr;
-	  Dispatcher.notify(ticker.id, diff);
+          curr = timeNow();
+          diff = zero ? 0 : curr - prev;
+          prev = curr;
+          Dispatcher.notify(ticker.id, diff);
         };
       }
       var timeoutID = 0;
+      var animFrameID = 0;
       function f(isOn) { return function(t) {
-	if (isOn) {
-	    timeoutID = setTimeout(function () {
-	    	window.requestAnimationFrame(tick(!wasOn && isOn));
-	    }, msPerFrame);
-	} else if (wasOn) {
-	    clearTimeout(timeoutID);	    
-	}
-	wasOn = isOn;
-	return t;
+        if (isOn) {
+	        timeoutID = setTimeout(function () {
+	    	  animFrameID = window.requestAnimationFrame(tick(!wasOn && isOn));
+	      }, msPerFrame);
+	      } else if (wasOn) {
+          window.cancelAnimationFrame(animFrameID);
+          clearTimeout(timeoutID);	    
+	      }
+	      wasOn = isOn;
+	      return t;
        };
       }
       return Elm.Signal.lift2(f)(isOn)(ticker);
@@ -86,7 +88,7 @@ Elm.Time = function() {
       updated every t.
    **/
   function everyWhen(isOn) { return function(t) {
-      var clock = Elm.Signal.constant(timeNow());
+     var clock = Elm.Signal.constant(timeNow());
       function tellTime() { Dispatcher.notify(clock.id, timeNow()); }
       setInterval(tellTime, t);
       return clock;
