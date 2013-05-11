@@ -44,7 +44,6 @@ Elm.Native.Show = function(elm) {
         } else if (typeof v === "object" && '_' in v) {
             var output = [];
             for (var k in v._) {
-                console.log(k,v._[k]);
                 for (var i = v._[k].length; i--; ) {
                     output.push(k + " = " + toString(v._[k][i]));
                 }
