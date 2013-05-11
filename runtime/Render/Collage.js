@@ -3,6 +3,7 @@ ElmRuntime.Render.Collage = function() {
 'use strict';
 
 var Render = ElmRuntime.use(ElmRuntime.Render.Element);
+var Matrix = Elm.Matrix2D({});
 var Utils = ElmRuntime.use(ElmRuntime.Render.Utils);
 var newElement = Utils.newElement, addTo = Utils.addTo,
     extract = Utils.extract, fromList = Utils.fromList,
@@ -112,7 +113,7 @@ function drawImage(redo, ctx, form) {
     ctx.drawImage(img, pos._0, pos._1, w, h, -w/2, -h/2, w, h);
 }
 
-function renderForm(stack, redo, ctx, form) {
+function renderForm(redo, ctx, form) {
     ctx.save();
     var x = form.x, y = form.y, theta = form.theta, scale = form.scale;
     if (x !== 0 || y !== 0) ctx.translate(x, -y);
@@ -131,73 +132,121 @@ function renderForm(stack, redo, ctx, form) {
         }
 	break;
     case 'FImage': drawImage(redo, ctx, f); break;
-    case 'FGroup':
-	ctx.save();
-	var m = f._0;
-        // stack.push(makeTransform(x, y, theta, scale, m));
-	ctx.transform(m[0], m[3], m[1], m[4], m[2], m[5]);
-	renderForms(stack, redo, ctx, f._1);
-        // stack.pop();
-	ctx.restore();
-	break;
     }
     ctx.restore();
 }
 
-function makeTransform(x, y, theta, scale, matrix) {
-    return function(m) {
-        if (x !== 0 || y !== 0) m = A3( Matrix.move, x, y, m );
-        if (theta !== 0) m = A2( Matrix.rotate, theta, m );
-        if (scale !== 1) m = Matrix.scale( scale );
-        return Matrix.multiply( m, matrix );
-    };
+function makeTransform(form, matrix) {
+    var m = matrix;
+    var x = form.x, y = form.y, theta = form.theta, scale = form.scale;
+    if (x !== 0 || y !== 0) m = A3( Matrix.move, x, y, m );
+    if (theta !== 0) m = A2( Matrix.rotate, theta, m );
+    if (scale !== 1) m = Matrix.scale( scale );
+    return m;
 }
 
-function renderForms(stack, redo, ctx, forms) {
-    var fs = fromList(forms);
-    for (var i = 0, len = fs.length; i < len; ++i) {
-	renderForm(stack, redo, ctx, fs[i]);
-    }
-}
-
-function collageForms(w,h,forms) {
-    var canvas = newElement('canvas');
-    canvas.style.width  = w + 'px';
-    canvas.style.height = h + 'px';
-    canvas.style.display = "block";
-    canvas.width  = w;
-    canvas.height = h;
-    function redo() { renderForms([], this, ctx, forms); }
-    if (canvas.getContext) {
-	var ctx = canvas.getContext('2d');
-	ctx.translate(w/2, h/2);
-	renderForms([], redo, ctx, forms);
-	return canvas;
-    }
-    canvas.innerHTML = "Your browser does not support canvas.";
-    return canvas;
-}
-
-function collageElement(stack, width, height, elem) {
-  var e = Render.render(elem),
-      w = elem.props.width,
-      h = elem.props.height,
-      m = Matrix.matrix(1,0,0,1,width/2,height/2),
-      len = stack.length;
-  for (var i = 0; i < len; ++i) { m = stack[i](m); }
+function collageElement(width, height, matrices, form) {
+  var elem = form.form._0,
+      e = Render.render(elem),
+      m = A6( Matrix.matrix, 1, 0, 0, 1,
+              (width - elem.props.width)/2,
+              (elem.props.height - height)/2 );
+  var len = matrices.length;
+  for (var i = 0; i < len; ++i) { m = A2( Matrix.multiply, m, matrices[i] ); }
+  m = makeTransform(form, m);
   var mtrx = 'matrix(' + m[0] + ',' + m[3] + ',' + m[1] + ',' +
-                         m[4] + ',' + m[2] + ',' + m[5] + ')';
-  addTransform(e.style, 'translate(' + (-w/2) + 'px,'+ (-h/2) + 'px) ' + mtrx);
+                         m[4] + ',' + m[2] + ',' + (-m[5]) + ')';
+  addTransform(e.style, mtrx);
   var div = newElement('div');
   addTo(div,e);
   div.style.width = width + 'px';
   div.style.height = height + 'px';
   div.style.overflow = 'hidden';
+  div.style.position = 'absolute';
   return div;
 }
 
+function stepperHelp(group) {
+    var i = 0;
+    function hasNext() { return i < group.length; }
+    // assumes that there is a next element
+    function next() {
+        var out = group[i];
+        ++i;
+        return out;
+    }
+    return { hasNext:hasNext, next:next };
+}
+
+function stepper(forms) {
+    var ps = [stepperHelp(fromList(forms))];
+    var matrices = [];
+    function hasNext() {
+        var len = ps.length;
+        for (var i = 0; i < len; ++i ) {
+            if (ps[i].hasNext()) return true;
+        }
+        return false;
+    }
+    // assumes that there is a next element
+    function next(ctx) {
+        while (!ps[0].hasNext()) { ps.shift(); matrices.pop(); ctx.restore(); }
+        var out = ps[0].next();
+        if (out.ctor === 'FGroup') {
+            ps.unshift(stepperHelp(out._1));
+            matrices.push(out._0);
+            ctx.save();
+            var m = f._0;
+            ctx.transform(m[0], m[3], m[1], m[4], m[2], -m[5]);
+        }
+        return out;
+    }
+    function transforms() { return matrices; }
+    return { hasNext:hasNext, next:next, transforms:transforms };
+}
+
+function makeCanvas(w,h) {
+    var canvas = newElement('canvas');
+    canvas.style.width  = w + 'px';
+    canvas.style.height = h + 'px';
+    canvas.style.display = "block";
+    canvas.style.position = "absolute";
+    canvas.width  = w;
+    canvas.height = h;
+    return canvas;
+}
+
 function render(model) {
-    return collageForms(model.w, model.h, model.forms);
+    var w = model.w,
+        h = model.h,
+        div = newElement('div'),
+        canvas = makeCanvas(w,h),
+        ctx = canvas.getContext('2d');
+    div.appendChild(canvas);
+    ctx.translate(w/2, h/2);
+
+    var stpr = stepper(model.forms);
+    while (stpr.hasNext()) {
+        var form = stpr.next(ctx);
+        if (form.form.ctor === 'FElement') {
+            div.appendChild(collageElement(w, h, stpr.transforms(), form));
+            if (!stpr.hasNext()) return div;
+            canvas = makeCanvas(w,h);
+            div.appendChild(canvas);
+            ctx = canvas.getContext('2d');
+            ctx.translate(w/2, h/2);
+            var transforms = stpr.transforms();
+            var len = transforms.length;
+            for (var i = 0; i < len; ++i) {
+                var m = transforms[i];
+                ctx.save();
+                ctx.transform(m[0], m[3], m[1], m[4], m[2], m[5]);
+            }
+        } else if (form.form.ctor !== 'FGroup') {
+            renderForm(function() { update(div, model, model); }, ctx, form);
+        }
+    }
+    return div;
 }
 
 function update(node, oldModel, newModel) {
@@ -207,8 +256,6 @@ function update(node, oldModel, newModel) {
     var ctx = node.getContext('2d');
     var w = newModel.w, h = newModel.h;
     ctx.clearRect(-w/2, -h/2, w, h);
-    function redo() { renderForms( [], this, ctx, newModel.forms ); }
-    renderForms( [], redo, ctx, newModel.forms );
 }
 
 return { render:render, update:update };
