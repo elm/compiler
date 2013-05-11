@@ -78,25 +78,25 @@ find get base =
 
 -- Find a string value in an Elm Json object. If the key is not found or the
 -- value found is not a string, this returns the empty string.
-findString : String -> Dict String Value -> String
+findString : String -> Object -> String
 findString = find string ""
 
 -- Find a number value in an Elm Json object. If the key is not found or the
 -- value found is not a number, this returns 0
-findNumber : String -> Dict String Value -> Float
+findNumber : String -> Object -> Float
 findNumber = find number 0
 
 -- Find a boolean value in an Elm Json object. If the key is not found or the
 -- value found is not a boolean, this returns the False.
-findBoolean : String -> Dict String Value -> Bool
+findBoolean : String -> Object -> Bool
 findBoolean = find boolean False
 
 -- Find an array value in an Elm Json object. If the key is not found or the
 -- value found is not an array, this returns an empty list.
-findArray : String -> Dict String Value -> [Value]
+findArray : String -> Object -> [Value]
 findArray = find array []
 
 -- Find an object value in an Elm Json object. If the key is not found or the
 -- value found is not an object, this returns an empty object.
-findObject : String -> Dict String Value -> Dict String Value
+findObject : String -> Object -> Object
 findObject = find object Dict.empty

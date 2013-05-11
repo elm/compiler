@@ -18,9 +18,9 @@ Elm.Native.Http = function(elm) {
   function updateQueue(queue,responses) {
     if (queue.length > 0) {
       elm.notify(responses.id, queue[0].value);
-      if (queue[0].value.ctor !== Waiting) {
-	queue.shift();
-	setTimeout(function() { updateQueue(queue,responses); }, 0);
+      if (queue[0].value.ctor !== 'Waiting') {
+        queue.shift();
+        setTimeout(function() { updateQueue(queue,responses); }, 0);
       }
     }
   }
