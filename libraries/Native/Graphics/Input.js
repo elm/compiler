@@ -57,7 +57,7 @@ Elm.Native.Graphics.Input = function(elm) {
 	 btn.elmUp    = Render.render(model.up);
 	 btn.elmHover = Render.render(model.hover);
 	 btn.elmDown  = Render.render(model.down);
-	 
+
 	 function replace(node) {
            if (node !== btn.firstChild) btn.replaceChild(node, btn.firstChild);
 	 }

@@ -6,7 +6,7 @@ Elm.init = function(module, baseNode) {
   var signalGraph = null;
   var inputs = [];
   var visualModel = null;
-  
+
   function notify(id, v) {
     var timestep = Date.now();
     var hasListener = false;
@@ -24,17 +24,17 @@ Elm.init = function(module, baseNode) {
       var style = document.createElement('style');
       style.type = 'text/css';
       style.innerHTML = "html,head,body { padding:0; margin:0; }" +
-	  "body { font-family: calibri, helvetica, arial, sans-serif; }";
+                        "body { font-family: calibri, helvetica, arial, sans-serif; }";
       document.head.appendChild(style);
   }
 
-  // create the actuall RTS. Any impure modules will attach themselves to this
+  // create the actual RTS. Any impure modules will attach themselves to this
   // object. This permits many Elm programs to be embedded per document.
   var elm = {notify: notify, node: baseNode, id: ElmRuntime.guid(), inputs: inputs};
 
   // Set up methods to communicate with Elm program from JS.
   function send(name, value) {
-      if (typeof value === 'undefined') return function(v) { return send(name,v) };
+      if (typeof value === 'undefined') return function(v) { return send(name,v); };
       var e = document.createEvent('Event');
       e.initEvent(name + '_' + elm.id, true, true);
       e.value = value;
@@ -44,11 +44,11 @@ Elm.init = function(module, baseNode) {
       document.addEventListener(name + '_' + elm.id, handler);
   }
 
-  recv('elm_log', function(e) {console.log(e.value)});
-  recv('elm_title', function(e) {document.title = e.value});
+  recv('elm_log', function(e) {console.log(e.value);});
+  recv('elm_title', function(e) {document.title = e.value;});
   recv('elm_redirect', function(e) {
-	if (e.value.length > 0) { window.location = e.value; }
-      });
+    if (e.value.length > 0) { window.location = e.value; }
+  });
 
   // If graphics are not enabled, escape early, skip over setting up DOM stuff.
   if (baseNode === null) return { send : send, recv : recv };
@@ -58,14 +58,14 @@ Elm.init = function(module, baseNode) {
 
   // evaluate the given module and extract its 'main' value.
   signalGraph = module(elm).main;
-  
+
   // make sure the signal graph is actually a signal, extract the visual model,
   // and filter out any unused inputs.
   var Signal = Elm.Signal(elm);
   if (!('recv' in signalGraph)) signalGraph = Signal.constant(signalGraph);
   visualModel = signalGraph.value;
   inputs = ElmRuntime.filterDeadInputs(inputs);
-  
+
   var tuple2 = Elm.Native.Utils(elm).Tuple2;
   function adjustWindow() {
       if ('Window' in elm) {
@@ -77,12 +77,12 @@ Elm.init = function(module, baseNode) {
           }
       }
   }
-  
+
   // Add the visualModel to the DOM
-  var renderNode = Render.render(visualModel)
+  var renderNode = Render.render(visualModel);
   baseNode.appendChild(renderNode);
   adjustWindow();
-  
+
   // set up updates so that the DOM is adjusted as necessary.
   var update = Render.update;
   function domUpdate(value) {
@@ -93,8 +93,8 @@ Elm.init = function(module, baseNode) {
           });
       return value;
   }
-  
+
   signalGraph = A2(Signal.lift, domUpdate, signalGraph);
-    
+
   return { send : send, recv : recv };
 };
