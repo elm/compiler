@@ -123,6 +123,7 @@ function renderForm(redo, ctx, form) {
     var f = form.form;
     switch(f.ctor) {
     case 'FPath' : drawLine(ctx, f._0, f._1); break;
+    case 'FImage': drawImage(redo, ctx, f); break;
     case 'FShape':
 	if (f._0.ctor === 'Left') {
 	    f._1.closed = true;
@@ -131,7 +132,6 @@ function renderForm(redo, ctx, form) {
             drawShape(redo, ctx, f._0._0, f._1);
         }
 	break;
-    case 'FImage': drawImage(redo, ctx, f); break;
     }
     ctx.restore();
 }
@@ -166,12 +166,13 @@ function collageElement(width, height, matrices, form) {
   return div;
 }
 
-function stepperHelp(group) {
+function stepperHelp(list) {
+    var arr = fromList(list);
     var i = 0;
-    function hasNext() { return i < group.length; }
+    function hasNext() { return i < arr.length; }
     // assumes that there is a next element
     function next() {
-        var out = group[i];
+        var out = arr[i];
         ++i;
         return out;
     }
@@ -179,7 +180,7 @@ function stepperHelp(group) {
 }
 
 function stepper(forms) {
-    var ps = [stepperHelp(fromList(forms))];
+    var ps = [stepperHelp(forms)];
     var matrices = [];
     function hasNext() {
         var len = ps.length;
@@ -192,11 +193,12 @@ function stepper(forms) {
     function next(ctx) {
         while (!ps[0].hasNext()) { ps.shift(); matrices.pop(); ctx.restore(); }
         var out = ps[0].next();
-        if (out.ctor === 'FGroup') {
-            ps.unshift(stepperHelp(out._1));
-            matrices.push(out._0);
-            ctx.save();
+        var f = out.form;
+        if (f.ctor === 'FGroup') {
+            ps.unshift(stepperHelp(f._1));
             var m = f._0;
+            matrices.push(m);
+            ctx.save();
             ctx.transform(m[0], m[3], m[1], m[4], m[2], -m[5]);
         }
         return out;
