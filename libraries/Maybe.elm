@@ -22,6 +22,9 @@ isJust = maybe False (\_ -> True)
 isNothing : Maybe a -> Bool
 isNothing = not . isJust
 
+-- Extract a from Maybe a, giving b when given `Nothing`.
+fromMaybe : a -> Maybe a -> a
+fromMaybe b m = maybe b (\x -> x) m
 
 -- If `Just`, adds the value to the front of the list.
 -- If `Nothing`, list is unchanged.
