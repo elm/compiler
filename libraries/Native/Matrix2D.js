@@ -5,7 +5,7 @@ Elm.Native.Matrix2D = function(elm) {
  elm.Native = elm.Native || {};
  if (elm.Native.Matrix2D) return elm.Native.Matrix2D;
 
- try { Float32Array; } catch(e) { Float32Array = Array; }
+ if (typeof Float32Array === 'undefined'){ Float32Array = Array; }
  var A = Float32Array;
 
  // layout of matrix in an array is
