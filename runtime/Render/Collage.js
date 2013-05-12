@@ -15,8 +15,8 @@ function trace(ctx, path) {
     ctx.moveTo(points[i]._0, points[i]._1);
     while (i--) { ctx.lineTo(points[i]._0, points[i]._1); }
     if (path.closed) {
-	i = points.length - 1;
-	ctx.lineTo(points[i]._0, points[i]._1);
+        i = points.length - 1;
+        ctx.lineTo(points[i]._0, points[i]._1);
     }
 }
 
@@ -37,26 +37,26 @@ function customLineHelp(ctx, style, path) {
     var draw = true, segmentLength = pattern[0];
     ctx.moveTo(x0,y0);
     while (i--) {
-    x1 = points[i]._0; y1 = points[i]._1;
-    dx = x1 - x0; dy = y1 - y0;
-    remaining = Math.sqrt(dx * dx + dy * dy);
-    while (segmentLength <= remaining) {
-        x0 += dx * segmentLength / remaining;
-        y0 += dy * segmentLength / remaining;
-        ctx[draw ? 'lineTo' : 'moveTo'](x0, y0);
-        // update starting position
+        x1 = points[i]._0; y1 = points[i]._1;
         dx = x1 - x0; dy = y1 - y0;
         remaining = Math.sqrt(dx * dx + dy * dy);
-        // update pattern
-        draw = !draw;
-        pindex = (pindex + 1) % plen;
-        segmentLength = pattern[pindex];
-    }
-    if (remaining > 0) {
-        ctx[draw ? 'lineTo' : 'moveTo'](x1, y1);
-        segmentLength -= remaining;
-    }
-    x0 = x1; y0 = y1;
+        while (segmentLength <= remaining) {
+            x0 += dx * segmentLength / remaining;
+            y0 += dy * segmentLength / remaining;
+            ctx[draw ? 'lineTo' : 'moveTo'](x0, y0);
+            // update starting position
+            dx = x1 - x0; dy = y1 - y0;
+            remaining = Math.sqrt(dx * dx + dy * dy);
+            // update pattern
+            draw = !draw;
+            pindex = (pindex + 1) % plen;
+            segmentLength = pattern[pindex];
+        }
+        if (remaining > 0) {
+            ctx[draw ? 'lineTo' : 'moveTo'](x1, y1);
+            segmentLength -= remaining;
+        }
+        x0 = x1; y0 = y1;
     }
 }
 
@@ -108,8 +108,19 @@ function drawImage(redo, ctx, form) {
     var img = new Image();
     img.onload = redo;
     img.src = fromString(form._3);
-    var w = form._0, h = form._1, pos = form._2;
-    ctx.drawImage(img, pos._0, pos._1, w, h, -w/2, -h/2, w, h);
+    var w = form._0,
+        h = form._1,
+        pos = form._2,
+        srcX = pos._0,
+        srcY = pos._1,
+        srcW = w,
+        srcH = h,
+        destX = -w/2,
+        destY = -h/2,
+        destW = w,
+        destH = h;
+
+    ctx.drawImage(img, srcX, srcY, srcW, srcH, destX, destY, destW, destH);
 }
 
 function renderForm(stack, redo, ctx, form) {
@@ -121,25 +132,25 @@ function renderForm(stack, redo, ctx, form) {
     ctx.beginPath();
     var f = form.form;
     switch(f.ctor) {
-    case 'FPath' : drawLine(ctx, f._0, f._1); break;
-    case 'FShape':
-    if (f._0.ctor === 'Left') {
-        f._1.closed = true;
-        drawLine(ctx, f._0._0, f._1);
-    } else {
-            drawShape(redo, ctx, f._0._0, f._1);
-        }
-    break;
-    case 'FImage': drawImage(redo, ctx, f); break;
-    case 'FGroup':
-    ctx.save();
-    var m = f._0;
-        // stack.push(makeTransform(x, y, theta, scale, m));
-    ctx.transform(m[0], m[3], m[1], m[4], m[2], m[5]);
-    renderForms(stack, redo, ctx, f._1);
-        // stack.pop();
-    ctx.restore();
-    break;
+        case 'FPath' : drawLine(ctx, f._0, f._1); break;
+        case 'FShape':
+            if (f._0.ctor === 'Left') {
+                f._1.closed = true;
+                drawLine(ctx, f._0._0, f._1);
+            } else {
+                drawShape(redo, ctx, f._0._0, f._1);
+            }
+            break;
+        case 'FImage': drawImage(redo, ctx, f); break;
+        case 'FGroup':
+            ctx.save();
+            var m = f._0;
+                // stack.push(makeTransform(x, y, theta, scale, m));
+            ctx.transform(m[0], m[3], m[1], m[4], m[2], m[5]);
+            renderForms(stack, redo, ctx, f._1);
+                // stack.pop();
+            ctx.restore();
+            break;
     }
     ctx.restore();
 }
@@ -156,7 +167,7 @@ function makeTransform(x, y, theta, scale, matrix) {
 function renderForms(stack, redo, ctx, forms) {
     var fs = fromList(forms);
     for (var i = 0, len = fs.length; i < len; ++i) {
-	renderForm(stack, redo, ctx, fs[i]);
+        renderForm(stack, redo, ctx, fs[i]);
     }
 }
 
