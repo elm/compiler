@@ -5,7 +5,7 @@ ElmRuntime.Render.Collage = function() {
 var Render = ElmRuntime.use(ElmRuntime.Render.Element);
 var Matrix = Elm.Matrix2D({});
 var Utils = ElmRuntime.use(ElmRuntime.Render.Utils);
-var newElement = Utils.newElement, addTo = Utils.addTo,
+var newElement = Utils.newElement,
     extract = Utils.extract, fromList = Utils.fromList,
     fromString = Utils.fromString, addTransform = Utils.addTransform;
 
@@ -136,75 +136,68 @@ function renderForm(redo, ctx, form) {
     ctx.restore();
 }
 
-function makeTransform(form, matrix) {
-    var m = matrix;
+function makeTransform(w, h, form, matrices) {
+    var props = form.form._0.props;
+    var m = A6( Matrix.matrix, 1, 0, 0, 1,
+                (w - props.width)/2,
+                (props.height - h)/2 );
+    var len = matrices.length;
+    for (var i = 0; i < len; ++i) { m = A2( Matrix.multiply, m, matrices[i] ); }
+
     var x = form.x, y = form.y, theta = form.theta, scale = form.scale;
     if (x !== 0 || y !== 0) m = A3( Matrix.move, x, y, m );
     if (theta !== 0) m = A2( Matrix.rotate, theta, m );
     if (scale !== 1) m = Matrix.scale( scale );
-    return m;
-}
-
-function collageElement(width, height, matrices, form) {
-  var elem = form.form._0,
-      e = Render.render(elem),
-      m = A6( Matrix.matrix, 1, 0, 0, 1,
-              (width - elem.props.width)/2,
-              (elem.props.height - height)/2 );
-  var len = matrices.length;
-  for (var i = 0; i < len; ++i) { m = A2( Matrix.multiply, m, matrices[i] ); }
-  m = makeTransform(form, m);
-  var mtrx = 'matrix(' + m[0] + ',' + m[3] + ',' + m[1] + ',' +
-                         m[4] + ',' + m[2] + ',' + (-m[5]) + ')';
-  addTransform(e.style, mtrx);
-  var div = newElement('div');
-  addTo(div,e);
-  div.style.width = width + 'px';
-  div.style.height = height + 'px';
-  div.style.overflow = 'hidden';
-  div.style.position = 'absolute';
-  return div;
+    return 'matrix(' + m[0] + ',' + m[3] + ',' + m[1] + ',' +
+                       m[4] + ',' + m[2] + ',' + (-m[5]) + ')';
 }
 
 function stepperHelp(list) {
     var arr = fromList(list);
     var i = 0;
-    function hasNext() { return i < arr.length; }
+    function peekNext() {
+        return i < arr.length ? arr[i].form.ctor : '';
+    }
     // assumes that there is a next element
     function next() {
         var out = arr[i];
         ++i;
         return out;
     }
-    return { hasNext:hasNext, next:next };
+    return { peekNext:peekNext, next:next };
 }
 
 function stepper(forms) {
     var ps = [stepperHelp(forms)];
     var matrices = [];
-    function hasNext() {
+    function peekNext() {
         var len = ps.length;
+        var formType = '';
         for (var i = 0; i < len; ++i ) {
-            if (ps[i].hasNext()) return true;
+            if (formType = ps[i].peekNext()) return formType;
         }
-        return false;
+        return '';
     }
     // assumes that there is a next element
     function next(ctx) {
-        while (!ps[0].hasNext()) { ps.shift(); matrices.pop(); ctx.restore(); }
+        while (!ps[0].peekNext()) { ps.shift(); matrices.pop(); ctx.restore(); }
         var out = ps[0].next();
         var f = out.form;
         if (f.ctor === 'FGroup') {
             ps.unshift(stepperHelp(f._1));
             var m = f._0;
             matrices.push(m);
+            var x = out.x, y = out.y, theta = out.theta, scale = out.scale;
+            if (x !== 0 || y !== 0) ctx.translate(x, -y);
+            if (theta !== 0) ctx.rotate(theta);
+            if (scale !== 1) ctx.scale(scale, scale);
             ctx.save();
             ctx.transform(m[0], m[3], m[1], m[4], m[2], -m[5]);
         }
         return out;
     }
     function transforms() { return matrices; }
-    return { hasNext:hasNext, next:next, transforms:transforms };
+    return { peekNext:peekNext, next:next, transforms:transforms };
 }
 
 function makeCanvas(w,h) {
@@ -219,45 +212,102 @@ function makeCanvas(w,h) {
 }
 
 function render(model) {
-    var w = model.w,
-        h = model.h,
-        div = newElement('div'),
-        canvas = makeCanvas(w,h),
-        ctx = canvas.getContext('2d');
-    div.appendChild(canvas);
-    ctx.translate(w/2, h/2);
+    var div = newElement('div');
+    update(div, model, model);
+    return div;
+}
 
-    var stpr = stepper(model.forms);
-    while (stpr.hasNext()) {
-        var form = stpr.next(ctx);
-        if (form.form.ctor === 'FElement') {
-            div.appendChild(collageElement(w, h, stpr.transforms(), form));
-            if (!stpr.hasNext()) return div;
-            canvas = makeCanvas(w,h);
-            div.appendChild(canvas);
-            ctx = canvas.getContext('2d');
-            ctx.translate(w/2, h/2);
-            var transforms = stpr.transforms();
-            var len = transforms.length;
-            for (var i = 0; i < len; ++i) {
-                var m = transforms[i];
-                ctx.save();
-                ctx.transform(m[0], m[3], m[1], m[4], m[2], m[5]);
+function updateTracker(w,h,div) {
+    var kids = div.childNodes;
+    var i = 0;
+    function transform(transforms, ctx) {
+        ctx.translate(w/2, h/2);
+        var len = transforms.length;
+        for (var i = 0; i < len; ++i) {
+            var m = transforms[i];
+            ctx.save();
+            ctx.transform(m[0], m[3], m[1], m[4], m[2], m[5]);
+        }
+        return ctx;
+    }
+    function getContext(transforms) {
+        while (i < kids.length) {
+            var node = kids[i++];
+            if (node.getContext) {
+                node.width = w;
+                node.height = h;
+                return transform(transforms, node.getContext('2d'));
             }
-        } else if (form.form.ctor !== 'FGroup') {
+            div.removeChild(node);
+        }
+        var canvas = makeCanvas(w,h);
+        div.appendChild(canvas);
+        // we have added a new node, so we must step our position
+        ++i;
+        return transform(transforms, canvas.getContext('2d'));
+    }
+    function element(matrices, form) {
+        var container = kids[i];
+        if (!container) {
+            container = newElement('div');
+            container.style.overflow = 'hidden';
+            container.style.position = 'absolute';
+            div.appendChild(container);
+        } else if (container.getContext) {
+            container = newElement('div');
+            container.style.overflow = 'hidden';
+            container.style.position = 'absolute';
+            div.insertBefore(container, kids[i]);
+        }
+        // we have added a new node, so we must step our position
+        ++i;
+
+        container.style.width = w + 'px';
+        container.style.height = h + 'px';
+
+        var elem = form.form._0;
+        var node = container.firstChild;
+        if (node) {
+            Render.update(node, node.oldElement, elem);
+        } else {
+            node = Render.render(elem);
+            container.appendChild(node);
+        }
+        node.oldElement = elem;
+        addTransform(node.style, makeTransform(w, h, form, matrices));
+    }
+    return { getContext:getContext, element:element };
+}
+
+
+function update(div, _, model) {
+    var w = model.w;
+    var h = model.h;
+    div.style.width = w + 'px';
+    div.style.height = h + 'px';
+    if (model.forms.ctor === 'Nil') {
+        while (div.hasChildNodes()) {
+            div.removeChild(div.lastChild);
+        }
+    }
+    var stpr = stepper(model.forms);
+    var tracker = updateTracker(w,h,div);
+    var ctx = null;
+    var formType = '';
+
+    while (formType = stpr.peekNext()) {
+        if (ctx === null && formType !== 'FElement') {
+            ctx = tracker.getContext(stpr.transforms());
+        }
+        var form = stpr.next(ctx);
+        if (formType === 'FElement') {
+            tracker.element(stpr.transforms(), form);
+            ctx = null;
+        } else if (formType !== 'FGroup') {
             renderForm(function() { update(div, model, model); }, ctx, form);
         }
     }
     return div;
-}
-
-function update(node, oldModel, newModel) {
-    if (!node.getContext) {
-        return node.parentNode.replaceChild(render(newModel), node);
-    }
-    var ctx = node.getContext('2d');
-    var w = newModel.w, h = newModel.h;
-    ctx.clearRect(-w/2, -h/2, w, h);
 }
 
 return { render:render, update:update };

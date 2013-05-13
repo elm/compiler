@@ -3,7 +3,7 @@ ElmRuntime.Render.Element = function() {
 'use strict';
 
 var Utils = ElmRuntime.use(ElmRuntime.Render.Utils);
-var newElement = Utils.newElement, addTo = Utils.addTo, extract = Utils.extract,
+var newElement = Utils.newElement, extract = Utils.extract,
     addTransform = Utils.addTransform, removeTransform = Utils.removeTransform,
     fromList = Utils.fromList, eq = Utils.eq;
 
@@ -18,7 +18,7 @@ function setProps(props, e) {
     if (props.href !== '') {
 	var a = newElement('a');
 	a.href = props.href;
-	addTo(a,e);
+	a.appendChild(e);
 	return a;
     }
     return e;
@@ -63,7 +63,7 @@ function fittedImage(w, h, src) {
     };
     img.src = src;
     img.name = src;
-    addTo(e,img);
+    e.appendChild(img);
     return e;
 }
 
@@ -85,7 +85,7 @@ function croppedImage(elem, w, h, src) {
     };
     img.src = src;
     img.name = src;
-    addTo(e,img);
+    e.appendChild(img);
     return e;
 }
 
@@ -95,7 +95,7 @@ function goRight(e) { e.style.styleFloat = e.style.cssFloat = "left"; return e; 
 function flowWith(f, array) {
     var container = newElement('div');
     for (var i = array.length; i--; ) {
-	addTo(container, f(render(array[i])));
+	container.appendChild(f(render(array[i])));
     }
     return container;
 }
@@ -143,7 +143,7 @@ function container(pos,elem) {
     var div = newElement('div');
     div.style.position = 'relative';
     div.style.overflow = 'hidden';
-    addTo(div,e);
+    div.appendChild(e);
     return div;
 }
 
@@ -256,7 +256,7 @@ function updateProps(node, curr, next) {
 	if (currP.href === '') {
 	    var a = newElement('a');
 	    a.href = props.href;
-	    addTo(a,e);
+	    a.appendChild(e);
 	    e.parentNode.replaceChild(a,e);
 	} else {
 	    node.parentNode.href = props.href;
