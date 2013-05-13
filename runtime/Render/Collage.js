@@ -80,20 +80,23 @@ function texture(redo, ctx, src) {
 }
 
 function gradient(ctx, grad) {
-    var g;
-    if (grad.ctor === 'Linear') {
-	var p1 = grad._1, p2 = grad._2;
-	g = ctx.createLinearGradient(p1._0, p1._1, p2._0, p2._1);
-    } else {
-	var p1 = grad._1, p2 = grad._3;
-	g = ctx.createRadialGradient(p1._0, p1._1, grad._2, p2._0, p2._1, grad._4);
-    }
-    var stops = fromList(grad._0);
-    for (var i = stops.length; i--; ) {
-	var stop = stops[i];
-	g.addColorStop(stop._0, extract(stop._1));
-    }
-    return g;
+  var g;
+  var stops = [];
+  if (grad.ctor === 'Linear') {
+    var p0 = grad._0, p1 = grad._1;
+    g = ctx.createLinearGradient(p0._0, -p0._1, p1._0, -p1._1);
+    stops = fromList(grad._2);
+  } else {
+    var p0 = grad._0, p2 = grad._2;
+    g = ctx.createRadialGradient(p0._0, -p0._1, grad._1, p2._0, -p2._1, grad._3);
+    stops = fromList(grad._4);
+  }
+  var len = stops.length;
+  for (var i = 0; i < len; ++i) {
+    var stop = stops[i];
+    g.addColorStop(stop._0, extract(stop._1));
+  }
+  return g;
 }
 
 function drawShape(redo, ctx, style, path) {
