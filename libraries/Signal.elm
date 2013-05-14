@@ -3,7 +3,7 @@
 -- working with time (e.g. setting FPS) and combining signals and time (e.g.
 -- delaying updates, getting timestamps) can be found in the
 -- [`Time`](/docs/Signal/Time.elm) library.
--- 
+--
 -- Note: There are lift functions up to `lift8`.
 module Signal where
 
@@ -29,7 +29,7 @@ lift8 : (a -> b -> c -> d -> e -> f -> g -> h -> i) -> Signal a -> Signal b -> S
 
 -- Create a past-dependent signal. Each value given on the input signal will
 -- be accumulated, producing a new output value.
--- 
+--
 -- For instance, `(foldp (\\t acc -> acc + 1) 0 (Time.every second))` increments every second.
 foldp : (a -> b -> b) -> b -> Signal a -> Signal b
 
@@ -41,6 +41,7 @@ merge : Signal a -> Signal a -> Signal a
 -- signals update simultaneously.
 merges : [Signal a] -> Signal a
 
+-- Combine many signals into one, with an array of results.
 combine : [Signal a] -> Signal [a]
 combine = L.foldr (S.lift2 (::)) (S.constant [])
 
@@ -104,9 +105,9 @@ delay : Time -> Signal a -> Signal a
 
 -- Signal application. This takes two signals, holding a function and
 -- a value. It applies the current function to the current value.
--- 
+--
 -- So the following expressions are equivalent:
--- 
+--
 --     scene <~ Mouse.x ~ Mouse.y
 --     lift2 scene Mouse.x Mouse.y
 (~) : Signal (a -> b) -> Signal a -> Signal b

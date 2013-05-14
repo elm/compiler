@@ -46,6 +46,7 @@ defaultLine = {
   miterLimit = 10
  }
 
+-- default LineStyles
 solid : Color -> LineStyle
 solid  clr = { defaultLine | color <- clr }
 dashed : Color -> LineStyle
@@ -79,6 +80,11 @@ outlined style shape = form (FShape (Left style) shape)
 traced : LineStyle -> Path -> Form
 traced style path = form (FPath style path)
 
+-- Draw a sprite
+-- w width
+-- h height
+-- pos (px,py) coordinates into the sprite map
+-- src The location of the image
 sprite : Int -> Int -> (Int,Int) -> String -> Form
 sprite w h pos src = form (FImage w h pos src)
 

@@ -39,7 +39,7 @@ inHours t = t / hour
 fps : Number a -> Signal Time
 
 -- Same as the fps function, but you can turn it on and off. Allows you
--- to do brief animations based on user input without major ineffeciencies.
+-- to do brief animations based on user input without major inefficiencies.
 -- The first time delta after a pause is always zero, no matter how long
 -- the pause was. This way summing the deltas will actually give the amount
 -- of time that the output signal has been running.
