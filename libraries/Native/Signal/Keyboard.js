@@ -47,13 +47,13 @@ Elm.Native.Keyboard = function(elm) {
     function f(ks) {
       var x = 0, y = 0;
       while (ks.ctor == "Cons") {
-	switch (ks._0) {
-	case left : --x; break;
-	case right: ++x; break;
-	case up   : ++y; break;
-	case down : --y; break;
-	}
-	ks = ks._1;
+        switch (ks._0) {
+          case left : --x; break;
+          case right: ++x; break;
+          case up   : ++y; break;
+          case down : --y; break;
+        }
+        ks = ks._1;
       }
       return { _:{}, x:x, y:y };
     }

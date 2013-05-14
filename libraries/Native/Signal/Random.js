@@ -11,11 +11,11 @@ Elm.Native.Random = function(elm) {
     return A2( Signal.lift, f, signal );
   }
 
-  function float(signal) {
-    function f(x) { return Math.random() }
+  function flt(signal) {
+    function f(x) { return Math.random(); }
     return A2( Signal.lift, f, signal );
   }
 
-  return elm.Native.Random = { range: F3(range), float: float };
+  return elm.Native.Random = { range: F3(range), float: flt };
 
 };

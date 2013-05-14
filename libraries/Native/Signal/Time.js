@@ -12,9 +12,9 @@ Elm.Native.Time = function(elm) {
     var ticker = Signal.constant(diff);
     function tick(zero) { return function() {
         curr = Date.now();
-	diff = zero ? 0 : curr - prev;
-	prev = curr;
-	elm.notify(ticker.id, diff);
+        diff = zero ? 0 : curr - prev;
+        prev = curr;
+        elm.notify(ticker.id, diff);
       };
     }
     var timeoutID = 0;
@@ -22,14 +22,14 @@ Elm.Native.Time = function(elm) {
       if (isOn) {
         timeoutID = setTimeout(tick(!wasOn && isOn), msPerFrame);
       } else if (wasOn) {
-	clearTimeout(timeoutID);	    
+        clearTimeout(timeoutID);
       }
       wasOn = isOn;
       return t;
     }
     return A3( Signal.lift2, F2(f), isOn, ticker );
   }
- 
+
   function everyWhen(t, isOn) {
     var clock = Signal.constant(Date.now());
     function tellTime() { elm.notify(clock.id, Date.now()); }
@@ -38,7 +38,7 @@ Elm.Native.Time = function(elm) {
   }
 
   function since(t, s) {
-    function cmp(a,b) { return !Utils.eq(a,b) }
+    function cmp(a,b) { return !Utils.eq(a,b); }
     var dcount = Signal.count(A2(Signal.delay, t, s));
     return A3( Signal.lift2, F2(cmp), Signal.count(s), dcount );
   }
