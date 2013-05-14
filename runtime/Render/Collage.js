@@ -239,6 +239,8 @@ function updateTracker(w,h,div) {
             if (node.getContext) {
                 node.width = w;
                 node.height = h;
+                node.style.width = w + 'px';
+                node.style.height = h + 'px';
                 return transform(transforms, node.getContext('2d'));
             }
             div.removeChild(node);
