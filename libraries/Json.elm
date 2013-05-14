@@ -38,12 +38,12 @@ toJSString : Value -> JSString
 toJSString v = Native.toPrettyJSString "" v
 
 -- Parse a string representation of a proper JSON object into
--- its Elm's representation.
+-- its Elm representation.
 fromString : String -> Maybe Value
 fromString s = Native.fromJSString (JS.fromString s)
 
 -- Parse a JavaScript string representation of a proper JSON object into
--- its Elm's representation.
+-- its Elm representation.
 fromJSString : JSString -> Maybe Value
 
 

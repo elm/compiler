@@ -21,7 +21,7 @@ Elm.Native.Mouse = function(elm) {
   var isDown    = Signal.constant(false);
   var isClicked = Signal.constant(false);
   var clicks = Signal.constant(Utils.Tuple0);
-  
+
   function getXY(e) {
     var posx = 0;
     var posy = 0;
@@ -35,10 +35,10 @@ Elm.Native.Mouse = function(elm) {
 	posy = e.clientY + document.body.scrollTop +
 	  document.documentElement.scrollTop;
     }
-    return Utils.Tuple2(posx, posy);
+    return Utils.Tuple2(posx-elm.node.offsetX, posy-elm.node.offsetY);
   }
 
-  var node = elm.node.tagName === "BODY" ? document : elm.node;
+  var node = elm.display === ElmRuntime.Display.FULLSCREEN ? document : elm.node;
 
   function click(e) {
     var hasListener1 = elm.notify(isClicked.id, true);

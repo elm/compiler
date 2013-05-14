@@ -1,7 +1,28 @@
 
-Elm.init = function(module, baseNode) {
-  'use strict';
+(function() {
+'use strict';
 
+Elm.fullscreen = function(module) {
+    var style = document.createElement('style');
+    style.type = 'text/css';
+    style.innerHTML = "html,head,body { padding:0; margin:0; }" +
+        "body { font-family: calibri, helvetica, arial, sans-serif; }";
+    document.head.appendChild(style);
+    return init(ElmRuntime.Display.FULLSCREEN, document.body, module);
+};
+
+Elm.node = function(width, height, module) {
+    var container = document.createElement('div');
+    container.style.width = width + 'px';
+    container.style.height = height + 'px';
+    return init(ElmRuntime.Display.COMPONENT, container, module);
+};
+
+Elm.worker = function(module) {
+    return init(ElmRuntime.Display.NONE, {}, module);
+};
+
+function init(display, container, module) {
   // defining state needed for an instance of the Elm RTS
   var signalGraph = null;
   var inputs = [];
@@ -18,19 +39,17 @@ Elm.init = function(module, baseNode) {
     return hasListener;
   }
 
-  // ensure that baseNode exists and is properly formatted.
-  if (typeof baseNode === 'undefined') {
-      baseNode = document.body;
-      var style = document.createElement('style');
-      style.type = 'text/css';
-      style.innerHTML = "html,head,body { padding:0; margin:0; }" +
-                        "body { font-family: calibri, helvetica, arial, sans-serif; }";
-      document.head.appendChild(style);
-  }
+  container.offsetX = 0;
+  container.offsetY = 0;
 
   // create the actual RTS. Any impure modules will attach themselves to this
   // object. This permits many Elm programs to be embedded per document.
-  var elm = {notify: notify, node: baseNode, id: ElmRuntime.guid(), inputs: inputs};
+  var elm = { notify:notify,
+              node:container,
+              display:display,
+              id:ElmRuntime.guid(),
+              inputs:inputs
+  };
 
   // Set up methods to communicate with Elm program from JS.
   function send(name, value) {
@@ -44,15 +63,16 @@ Elm.init = function(module, baseNode) {
       document.addEventListener(name + '_' + elm.id, handler);
   }
 
-  recv('elm_log', function(e) {console.log(e.value);});
-  recv('elm_title', function(e) {document.title = e.value;});
-  recv('elm_redirect', function(e) {
+  recv('log', function(e) {console.log(e.value)});
+  recv('title', function(e) {document.title = e.value});
+  recv('redirect', function(e) {
     if (e.value.length > 0) { window.location = e.value; }
   });
 
   // If graphics are not enabled, escape early, skip over setting up DOM stuff.
-  if (baseNode === null) return { send : send, recv : recv };
-
+  if (display === ElmRuntime.Display.NONE) {
+      return { send : send, recv : recv };
+  }
 
   var Render = ElmRuntime.use(ElmRuntime.Render.Element);
 
@@ -65,36 +85,26 @@ Elm.init = function(module, baseNode) {
   if (!('recv' in signalGraph)) signalGraph = Signal.constant(signalGraph);
   visualModel = signalGraph.value;
   inputs = ElmRuntime.filterDeadInputs(inputs);
-
-  var tuple2 = Elm.Native.Utils(elm).Tuple2;
-  function adjustWindow() {
-      if ('Window' in elm) {
-          var w = baseNode.clientWidth;
-          if (w !== elm.Window.dimensions.value._0) {
-              notify(elm.Window.dimensions.id,
-                     tuple2(w, document.body === baseNode ?
-                            window.innerHeight : baseNode.clientHeight));
-          }
-      }
-  }
-
-  // Add the visualModel to the DOM
-  var renderNode = Render.render(visualModel);
-  baseNode.appendChild(renderNode);
-  adjustWindow();
-
+  
+   // Add the visualModel to the DOM
+  var renderNode = Render.render(visualModel)
+  container.appendChild(renderNode);
+  elm.Native.Window.resizeIfNeeded();
+  
   // set up updates so that the DOM is adjusted as necessary.
   var update = Render.update;
   function domUpdate(value) {
       ElmRuntime.draw(function(_) {
               update(renderNode, visualModel, value);
               visualModel = value;
-              adjustWindow();
+              elm.Native.Window.resizeIfNeeded();
           });
       return value;
   }
 
   signalGraph = A2(Signal.lift, domUpdate, signalGraph);
-
-  return { send : send, recv : recv };
+    
+  return { send : send, recv : recv, node : container };
 };
+
+}());

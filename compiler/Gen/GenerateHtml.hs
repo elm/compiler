@@ -44,7 +44,7 @@ generateHtml libLoc title source =
   case buildFromSource True source of
     Right modul -> modulesToHtml Readable title libLoc [] True [modul]
     Left err -> createHtml Readable libLoc title (Right $ showErr err)
-                (H.noscript "") "Elm.Main"
+                (H.noscript "") "Main"
 
 
 modulesToHtml jsStyle title libLoc jss nscrpt modules =
@@ -71,5 +71,5 @@ createHtml jsStyle libLoc title js noscript moduleToLoad =
         makeScript Readable (Left libLoc)
         makeScript jsStyle js
       H.body $ do
-        H.script ! A.type_ "text/javascript" $ preEscapedToMarkup ("Elm.init(Elm." ++ moduleToLoad ++ ")" :: String)
+        H.script ! A.type_ "text/javascript" $ preEscapedToMarkup ("Elm.fullscreen(Elm." ++ moduleToLoad ++ ")" :: String)
         H.noscript $ preEscapedToMarkup noscript

@@ -10,7 +10,10 @@ Elm.Native.Window = function(elm) {
 
   function getWidth() { return elm.node.clientWidth; }
   function getHeight() {
-      return document.body === elm.node ? window.innerHeight : elm.node.clientHeight;
+      if (elm.display === ElmRuntime.Display.FULLSCREEN) {
+          return window.innerHeight;
+      }
+      return elm.node.clientHeight;
   }
 
   var dimensions = Signal.constant(Tuple2(getWidth(), getHeight()));
@@ -24,19 +27,20 @@ Elm.Native.Window = function(elm) {
   var height = A2(Signal.lift, function(p){return p._1;}, dimensions);
   height.defaultNumberOfKids = 0;
 
-  function resize(e) {
+  function resizeIfNeeded() {
       var w = getWidth();
       var h = getHeight();
       if (dimensions.value._0 === w && dimensions.value._1 === h) return;
       var hasListener = elm.notify(dimensions.id, Tuple2(w,h));
-      if (!hasListener) window.removeEventListener('resize', resize);
+      if (!hasListener) window.removeEventListener('resize', resizeIfNeeded);
   }
-  window.addEventListener('resize', resize);
+  window.addEventListener('resize', resizeIfNeeded);
 
   return elm.Native.Window = {
       dimensions:dimensions,
       width:width,
-      height:height
+      height:height,
+      resizeIfNeeded:resizeIfNeeded
   };
 
 };
