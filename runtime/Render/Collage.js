@@ -84,11 +84,11 @@ function gradient(ctx, grad) {
   var stops = [];
   if (grad.ctor === 'Linear') {
     var p0 = grad._0, p1 = grad._1;
-    g = ctx.createLinearGradient(p0._0, -p0._1, p1._0, -p1._1);
+    g = ctx.createLinearGradient(p0._0, p0._1, p1._0, p1._1);
     stops = fromList(grad._2);
   } else {
     var p0 = grad._0, p2 = grad._2;
-    g = ctx.createRadialGradient(p0._0, -p0._1, grad._1, p2._0, -p2._1, grad._3);
+    g = ctx.createRadialGradient(p0._0, p0._1, grad._1, p2._0, p2._1, grad._3);
     stops = fromList(grad._4);
   }
   var len = stops.length;
@@ -119,9 +119,9 @@ function drawImage(redo, ctx, form) {
 function renderForm(redo, ctx, form) {
     ctx.save();
     var x = form.x, y = form.y, theta = form.theta, scale = form.scale;
-    if (x !== 0 || y !== 0) ctx.translate(x, -y);
+    if (x !== 0 || y !== 0) ctx.translate(x, y);
     if (theta !== 0) ctx.rotate(theta);
-    if (scale !== 1) ctx.scale(scale, scale);
+    ctx.scale(scale,-scale);
     ctx.beginPath();
     var f = form.form;
     switch(f.ctor) {
@@ -143,16 +143,17 @@ function makeTransform(w, h, form, matrices) {
     var props = form.form._0.props;
     var m = A6( Matrix.matrix, 1, 0, 0, 1,
                 (w - props.width)/2,
-                (props.height - h)/2 );
+                (h - props.height)/2 );
     var len = matrices.length;
     for (var i = 0; i < len; ++i) { m = A2( Matrix.multiply, m, matrices[i] ); }
 
     var x = form.x, y = form.y, theta = form.theta, scale = form.scale;
     if (x !== 0 || y !== 0) m = A3( Matrix.move, x, y, m );
     if (theta !== 0) m = A2( Matrix.rotate, theta, m );
-    if (scale !== 1) m = Matrix.scale( scale );
+    m = A2( Matrix.scaleY, -scale, m );
+    if (scale !== 1) m = A2( Matrix.scale, scale, m);
     return 'matrix(' + m[0] + ',' + m[3] + ',' + m[1] + ',' +
-                       m[4] + ',' + m[2] + ',' + (-m[5]) + ')';
+                       m[4] + ',' + m[2] + ',' + m[5] + ')';
 }
 
 function stepperHelp(list) {
@@ -191,11 +192,11 @@ function stepper(forms) {
             var m = f._0;
             matrices.push(m);
             var x = out.x, y = out.y, theta = out.theta, scale = out.scale;
-            if (x !== 0 || y !== 0) ctx.translate(x, -y);
+            if (x !== 0 || y !== 0) ctx.translate(x, y);
             if (theta !== 0) ctx.rotate(theta);
             if (scale !== 1) ctx.scale(scale, scale);
             ctx.save();
-            ctx.transform(m[0], m[3], m[1], m[4], m[2], -m[5]);
+            ctx.transform(m[0], m[3], m[1], m[4], m[2], m[5]);
         }
         return out;
     }
@@ -253,16 +254,16 @@ function updateTracker(w,h,div) {
     }
     function element(matrices, form) {
         var container = kids[i];
-        if (!container) {
+        if (!container || container.getContext) {
             container = newElement('div');
             container.style.overflow = 'hidden';
             container.style.position = 'absolute';
-            div.appendChild(container);
-        } else if (container.getContext) {
-            container = newElement('div');
-            container.style.overflow = 'hidden';
-            container.style.position = 'absolute';
-            div.insertBefore(container, kids[i]);
+            addTransform(container.style, 'scaleY(-1)');
+            if (!container) {
+                div.appendChild(container);
+            } else {
+                div.insertBefore(container, kids[i]);
+            }
         }
         // we have added a new node, so we must step our position
         ++i;
@@ -303,6 +304,7 @@ function update(div, _, model) {
     while (formType = stpr.peekNext()) {
         if (ctx === null && formType !== 'FElement') {
             ctx = tracker.getContext(stpr.transforms());
+            ctx.scale(1,-1);
         }
         var form = stpr.next(ctx);
         if (formType === 'FElement') {

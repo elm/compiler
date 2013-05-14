@@ -89,7 +89,7 @@ function init(display, container, module) {
    // Add the visualModel to the DOM
   var renderNode = Render.render(visualModel)
   container.appendChild(renderNode);
-  elm.Native.Window.resizeIfNeeded();
+  if (elm.Native.Window) elm.Native.Window.resizeIfNeeded();
   
   // set up updates so that the DOM is adjusted as necessary.
   var update = Render.update;
@@ -97,7 +97,7 @@ function init(display, container, module) {
       ElmRuntime.draw(function(_) {
               update(renderNode, visualModel, value);
               visualModel = value;
-              elm.Native.Window.resizeIfNeeded();
+              if (elm.Native.Window) elm.Native.Window.resizeIfNeeded();
           });
       return value;
   }
