@@ -27,7 +27,7 @@ function init(display, container, module) {
   var signalGraph = null;
   var inputs = [];
   var visualModel = null;
-  
+
   function notify(id, v) {
     var timestep = Date.now();
     var hasListener = false;
@@ -42,7 +42,7 @@ function init(display, container, module) {
   container.offsetX = 0;
   container.offsetY = 0;
 
-  // create the actuall RTS. Any impure modules will attach themselves to this
+  // create the actual RTS. Any impure modules will attach themselves to this
   // object. This permits many Elm programs to be embedded per document.
   var elm = { notify:notify,
               node:container,
@@ -53,7 +53,7 @@ function init(display, container, module) {
 
   // Set up methods to communicate with Elm program from JS.
   function send(name, value) {
-      if (typeof value === 'undefined') return function(v) { return send(name,v) };
+      if (typeof value === 'undefined') return function(v) { return send(name,v); };
       var e = document.createEvent('Event');
       e.initEvent(name + '_' + elm.id, true, true);
       e.value = value;
@@ -66,8 +66,8 @@ function init(display, container, module) {
   recv('log', function(e) {console.log(e.value)});
   recv('title', function(e) {document.title = e.value});
   recv('redirect', function(e) {
-	if (e.value.length > 0) { window.location = e.value; }
-      });
+    if (e.value.length > 0) { window.location = e.value; }
+  });
 
   // If graphics are not enabled, escape early, skip over setting up DOM stuff.
   if (display === ElmRuntime.Display.NONE) {
@@ -78,7 +78,7 @@ function init(display, container, module) {
 
   // evaluate the given module and extract its 'main' value.
   signalGraph = module(elm).main;
-  
+
   // make sure the signal graph is actually a signal, extract the visual model,
   // and filter out any unused inputs.
   var Signal = Elm.Signal(elm);
@@ -101,7 +101,7 @@ function init(display, container, module) {
           });
       return value;
   }
-  
+
   signalGraph = A2(Signal.lift, domUpdate, signalGraph);
     
   return { send : send, recv : recv, node : container };

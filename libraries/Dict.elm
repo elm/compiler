@@ -24,7 +24,7 @@ empty = RBEmpty
 {-- Helpers for checking invariants
 
 -- Check that the tree has an equal number of black nodes on each path
-equal_pathLen t = 
+equal_pathLen t =
   let path_numBlacks t =
      case t of
        RBEmpty -> 1
@@ -35,14 +35,14 @@ equal_pathLen t =
               else bl + (if col == Red then 0 else 1)
   in 0-1 /= path_numBlacks t
 
-rootBlack t = 
+rootBlack t =
   case t of
     RBEmpty -> True
     RBNode Black _ _ _ _ -> True
     _ -> False
 
-redBlack_children t = 
-  case t of 
+redBlack_children t =
+  case t of
   { RBNode Red _ _ (RBNode Red _ _ _ _) _ -> False
   ; RBNode Red _ _ _ (RBNode Red _ _ _ _) -> False
   ; RBEmpty -> True
@@ -57,7 +57,7 @@ findExtreme f t =
       { Nothing -> Just k
       ; Just k' -> Just k' }
   }
-               
+
 findminRbt t = findExtreme fst t
 findmaxRbt t = findExtreme snd t
 
@@ -83,7 +83,7 @@ ordered t =
   }
 
 -- Check that there aren't any right red nodes in the tree *)
-leftLeaning t = 
+leftLeaning t =
   case t of
   { RBEmpty -> True
   ; RBNode _ _ _ (RBNode Black _ _ _ _) (RBNode Red _ _ _ _) -> False
@@ -92,7 +92,7 @@ leftLeaning t =
   }
 
 invariants_hold t =
-  ordered t && rootBlack t && redBlack_children t && 
+  ordered t && rootBlack t && redBlack_children t &&
   equal_pathLen t && leftLeaning t
 
 --** End invariant helpers *****
@@ -101,14 +101,14 @@ invariants_hold t =
 
 min : Dict k v -> (k,v)
 min t =
-  case t of 
+  case t of
     RBNode _ k v RBEmpty _ -> (k,v)
     RBNode _ _ _ l _ -> min l
     RBEmpty -> Error.raise "(min Empty) is not defined"
 
 {--
 max t =
-  case t of 
+  case t of
   { RBNode _ k v _ RBEmpty -> (k,v)
   ; RBNode _ _ _ _ r -> max r
   ; RBEmpty -> Error.raise "(max Empty) is not defined"
@@ -162,7 +162,7 @@ rotateLeft t =
    RBNode cy ky vy a (RBNode cz kz vz b c) -> RBNode cy kz vz (RBNode Red ky vy a b) c
    _ -> Error.raise "rotateLeft of a node without enough children"
 
--- rotateRight -- the reverse, and 
+-- rotateRight -- the reverse, and
 -- makes Y have Z's color, and makes Z Red.
 rotateRight : Dict k v -> Dict k v
 rotateRight t =
@@ -172,13 +172,13 @@ rotateRight t =
 
 rotateLeftIfNeeded : Dict k v -> Dict k v
 rotateLeftIfNeeded t =
- case t of 
+ case t of
    RBNode _ _ _ _ (RBNode Red _ _ _ _) -> rotateLeft t
    _ -> t
 
 rotateRightIfNeeded : Dict k v -> Dict k v
 rotateRightIfNeeded t =
- case t of 
+ case t of
    RBNode _ _ _ (RBNode Red _ _ (RBNode Red _ _ _ _) _) _ -> rotateRight t
    _ -> t
 
@@ -187,14 +187,14 @@ otherColor c = case c of { Red -> Black ; Black -> Red }
 color_flip : Dict k v -> Dict k v
 color_flip t =
  case t of
-   RBNode c1 bk bv (RBNode c2 ak av la ra) (RBNode c3 ck cv lc rc) -> 
+   RBNode c1 bk bv (RBNode c2 ak av la ra) (RBNode c3 ck cv lc rc) ->
        RBNode (otherColor c1) bk bv
               (RBNode (otherColor c2) ak av la ra)
               (RBNode (otherColor c3) ck cv lc rc)
    _ -> Error.raise "color_flip called on a Empty or Node with a Empty child"
 
 color_flipIfNeeded : Dict k v -> Dict k v
-color_flipIfNeeded t = 
+color_flipIfNeeded t =
  case t of
    RBNode _ _ _ (RBNode Red _ _ _ _) (RBNode Red _ _ _ _) -> color_flip t
    _ -> t
@@ -202,11 +202,11 @@ color_flipIfNeeded t =
 fixUp t = color_flipIfNeeded (rotateRightIfNeeded (rotateLeftIfNeeded t))
 
 ensureBlackRoot : Dict k v -> Dict k v
-ensureBlackRoot t = 
+ensureBlackRoot t =
   case t of
     RBNode Red k v l r -> RBNode Black k v l r
     _ -> t
-     
+
 -- Insert a key-value pair into a dictionary. Replaces value when there is
 -- a collision.
 insert : Comparable k -> v -> Dict (Comparable k) v -> Dict (Comparable k) v
@@ -265,7 +265,7 @@ isRedRightLeft t =
     _ -> False
 
 moveRedLeft : Dict k v -> Dict k v
-moveRedLeft t = 
+moveRedLeft t =
   let t' = color_flip t in
   case t' of
     RBNode c k v l r ->
@@ -289,9 +289,9 @@ moveRedRightIfNeeded t =
   if isRedRight t || isRedRightLeft t then t else moveRedRight t
   
 deleteMin : Dict k v -> Dict k v
-deleteMin t = 
+deleteMin t =
   let del t =
-    case t of 
+    case t of
       RBNode _ _ _ RBEmpty _ -> RBEmpty
       _ -> case moveRedLeftIfNeeded t of
              RBNode c k v l r -> fixUp (RBNode c k v (del l) r)
@@ -314,11 +314,11 @@ deleteMax t =
 -- Remove a key-value pair from a dictionary. If the key is not found,
 -- no changes are made.
 remove : Comparable k -> Dict (Comparable k) v -> Dict (Comparable k) v
-remove k t = 
+remove k t =
   let eq_and_noRightNode t =
           case t of { RBNode _ k' _ _ RBEmpty -> k == k' ; _ -> False }
       eq t = case t of { RBNode _ k' _ _ _ -> k == k' ; _ -> False }
-      delLT t = case moveRedLeftIfNeeded t of 
+      delLT t = case moveRedLeftIfNeeded t of
                   RBNode c k' v l r -> fixUp (RBNode c k' v (del l) r)
                   RBEmpty -> Error.raise "delLT on Empty"
       delEQ t = case t of -- Replace with successor
@@ -328,7 +328,7 @@ remove k t =
       delGT t = case t of
                   RBNode c k' v l r -> fixUp (RBNode c k' v l (del r))
                   RBEmpty -> Error.raise "delGT called on a Empty"
-      del t = case t of 
+      del t = case t of
                 RBEmpty -> RBEmpty
                 RBNode _ k' _ _ _ ->
                     if k < k' then delLT t else
