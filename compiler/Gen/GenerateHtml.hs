@@ -44,7 +44,7 @@ generateHtml libLoc title source =
   case buildFromSource True source of
     Right modul -> modulesToHtml Readable title libLoc [] True [modul]
     Left err -> createHtml Readable libLoc title (Right $ showErr err)
-                (H.noscript "") "Elm.Main"
+                (H.noscript "") "Main"
 
 
 modulesToHtml jsStyle title libLoc jss nscrpt modules =
