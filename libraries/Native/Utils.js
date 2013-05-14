@@ -111,6 +111,23 @@ Elm.Native.Utils = function(elm) {
     return Tuple2(w,h);
   }
 
+  function adjustOffset() {
+      var node = elm.node;
+      var offsetX = offsetY = 0;
+      if (node.offsetParent) {
+          do {
+              offsetX += node.offsetLeft;
+              offsetY += node.offsetTop;
+          } while (node = node.offsetParent);
+      }
+      node.offsetX = offsetX;
+      node.offsetY = offsetY;
+  }
+
+  if (elm.display === ElmRuntime.Display.COMPONENT) {
+      elm.node.addEventListener('mouseover', adjustOffset);
+  }
+
   return elm.Native.Utils = {
       eq:eq,
       cmp:compare,

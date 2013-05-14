@@ -7,6 +7,7 @@ Elm.Native.Touch = function(elm) {
 
   var Signal = Elm.Signal(elm);
   var JS = Elm.JavaScript(elm);
+  var _ = Elm.Native.Utils(elm);
 
   function Dict() {
     this.keys = [];
@@ -44,24 +45,27 @@ Elm.Native.Touch = function(elm) {
       var r = dict.lookup(t.identifier);
       return {_ : {},
 	      id: t.identifier,
-	      x : t.pageX,
-	      y : t.pageY,
+	      x : t.pageX - elm.node.offsetX,
+	      y : t.pageY - elm.node.offsetY,
 	      x0: r.x,
 	      y0: r.y,
 	      t0: r.t
 	      };
   }
 
-  var node = elm.node === document.body ? document : elm.node;
+  var node = elm.display === ElmRuntime.Display.FULLSCREEN ? document : elm.node;
 
   function start(e) {
-    dict.insert(e.identifier,{x:e.pageX,y:e.pageY,t:Date.now()});
+    dict.insert(e.identifier,
+                {x: e.pageX - elm.node.offsetX,
+                 y: e.pageY - elm.node.offsetY,
+                 t: Date.now()});
   }
   function end(e) {
     var t = dict.remove(e.identifier);
     if (Date.now() - t.t < tapTime) {
-	hasTap = true;
-	tap = {_:{}, x:t.x, y:t.y};
+        hasTap = true;
+        tap = {_:{}, x:t.x, y:t.y};
     }
   }
 
@@ -87,8 +91,8 @@ Elm.Native.Touch = function(elm) {
   function move(e) {
       for (var i = root.value.length; i--; ) {
           if (root.value[i].id === mouseID) {
-              root.value[i].x = e.pageX;
-              root.value[i].y = e.pageY;
+              root.value[i].x = e.pageX - elm.node.offsetX;
+              root.value[i].y = e.pageY - elm.node.offsetY;
               elm.notify(root.id, root.value);
               break;
           }

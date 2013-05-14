@@ -2,6 +2,8 @@
 (function() {
 'use strict';
 
+ElmRuntime.Display = { FULLSCREEN: 0, COMPONENT: 1, NONE: 2 };
+
 ElmRuntime.counter = 0;
 ElmRuntime.guid = function() { return ElmRuntime.counter++; }
 

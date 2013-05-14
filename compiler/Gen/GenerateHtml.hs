@@ -71,5 +71,5 @@ createHtml jsStyle libLoc title js noscript moduleToLoad =
         makeScript Readable (Left libLoc)
         makeScript jsStyle js
       H.body $ do
-        H.script ! A.type_ "text/javascript" $ preEscapedToMarkup ("Elm.init(Elm." ++ moduleToLoad ++ ")" :: String)
+        H.script ! A.type_ "text/javascript" $ preEscapedToMarkup ("Elm.fullscreen(Elm." ++ moduleToLoad ++ ")" :: String)
         H.noscript $ preEscapedToMarkup noscript

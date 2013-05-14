@@ -13,24 +13,6 @@ Elm.Native.Show = function(elm) {
     var Json = Elm.Json(elm);
     var Tuple2 = Elm.Native.Utils(elm).Tuple2;
 
-    elm.node.addEventListener('log', function(e) { console.log(e.value); });
-    elm.node.addEventListener('title', function(e) {document.title = e.value;});
-    elm.node.addEventListener('redirect', function(e) {
-            if (e.value.length > 0) { window.location = e.value; }
-        });
-    elm.node.addEventListener('viewport', function(e) {
-            var node = document.getElementById('elm_viewport');
-            if (!node) {
-                node = document.createElement('meta');
-                node.id = 'elm_viewport';
-                node.name = 'viewport';
-                document.head.appendChild(node);
-            }
-            node.content = e.value;
-            Dispatcher.notify(elm.Window.dimensions.id,
-                              Tuple2(elm.node.clientWidth, elm.node.clientHeight));
-        });
-
     var toString = function(v) {
         if (typeof v === "function") {
             var name = v.func ? v.func.name : v.name;
