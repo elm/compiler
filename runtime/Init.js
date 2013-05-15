@@ -11,10 +11,15 @@ Elm.fullscreen = function(module) {
     return init(ElmRuntime.Display.FULLSCREEN, document.body, module);
 };
 
-Elm.node = function(width, height, module) {
-    var container = document.createElement('div');
-    container.style.width = width + 'px';
-    container.style.height = height + 'px';
+Elm.byId = function(id, module) {
+    var container = document.getElementById(id);
+    var tag = container.tagName;
+    if (tag !== 'DIV') {
+        throw new Error('Elm.byId must be given a div, not a ' + tag + '.');
+    }
+    while (container.hasChildNodes()) {
+        container.removeChild(container.lastChild);
+    }
     return init(ElmRuntime.Display.COMPONENT, container, module);
 };
 
