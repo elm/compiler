@@ -122,8 +122,8 @@ Elm.Native.Utils = function(elm) {
               offsetY += node.offsetTop;
           } while (node = node.offsetParent);
       }
-      node.offsetX = offsetX;
-      node.offsetY = offsetY;
+      elm.node.offsetX = offsetX;
+      elm.node.offsetY = offsetY;
   }
 
   if (elm.display === ElmRuntime.Display.COMPONENT) {
