@@ -66,7 +66,7 @@ Elm.Native.Keyboard = function(elm) {
       isDown:is,
       directions:F4(dir),
       keysDown:keysDown,
-      lastKey:lastKey
+      lastPressed:lastKey
   };
 
 };

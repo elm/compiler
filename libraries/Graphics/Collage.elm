@@ -103,8 +103,8 @@ rotate t f = { f | theta <- f.theta + t }
 scale : Float -> Form -> Form
 scale s f = { f | scale <- f.scale * s }
 
-move : Float -> Float -> Form -> Form
-move x y f = { f | x <- f.x + x, y <- f.y + y }
+move : (Float,Float) -> Form -> Form
+move (x,y) f = { f | x <- f.x + x, y <- f.y + y }
 
 moveX : Float -> Form -> Form
 moveX x f = { f | x <- f.x + x }

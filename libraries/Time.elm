@@ -56,7 +56,12 @@ every : Time -> Signal Time
 -- otherwise.
 since : Time -> Signal a -> Signal Bool
 
-{-- TODO: Only found in docs
-  , ("timeOf", "Signal a -> Signal Time", [markdown|
-  Same as `timestamp` but it throws out the incoming value. So `(timeOf == lift fst . timestamp)`.|])
---}
+-- Add a timestamp to any signal. Timestamps increase monotonically. Each
+-- timestamp is related to a specfic event, so `Mouse.x` and `Mouse.y` will
+-- always have the same timestamp because they both rely on the same
+-- underlying event.
+timestamp : Signal a -> Signal (Time, a)
+
+-- Delay a signal by a certain amount of time. So `(delay second Mouse.clicks)`
+-- will update one second later than any mouse click.
+delay : Time -> Signal a -> Signal a

@@ -81,9 +81,17 @@ data Gradient
   = Linear (Float,Float) (Float,Float) [(Float,Color)]
   | Radial (Float,Float) Float (Float,Float) Float [(Float,Color)]
 
-linear : (Number a, Number a) ->
-         (Number a, Number a) -> [(Float,Color)] -> Gradient
+-- Create a linear gradient. Takes a start and end point and then a series
+-- of &ldquo;color stops&rdquo; that indicate how to interpolate between
+-- the start and end points. See [this example](/edit/examples/Elements/LinearGradient.elm) for
+-- a more visual explanation.
+linear : (Number a, Number a) -> (Number a, Number a) -> [(Float,Color)] -> Gradient
 linear = Linear
-radial : (Number a,Number a) -> Number a ->
-         (Number a,Number a) -> Number a -> [(Float,Color)] -> Gradient
+
+-- Create a radial gradient. First takes a start point and inner radius.
+-- Then takes an end point and outer radius. It then takes a series
+-- of &ldquo;color stops&rdquo; that indicate how to interpolate between
+-- the inner and outer circles. See [this example](/edit/examples/Elements/RadialGradient.elm) for
+-- a more visual explanation.
+radial : (Number a,Number a) -> Number a -> (Number a,Number a) -> Number a -> [(Float,Color)] -> Gradient
 radial = Radial

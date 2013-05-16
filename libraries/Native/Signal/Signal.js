@@ -6,9 +6,7 @@ Elm.Native.Signal = function(elm) {
   if (elm.Native.Signal) return elm.Native.Signal;
 
   var Utils  = Elm.Native.Utils(elm);
-  var Either = Elm.Either(elm);
   var foldl1 = Elm.List(elm).foldl1;
-
 
   function send(node, timestep, changed) {
     var kids = node.kids;
@@ -195,25 +193,6 @@ Elm.Native.Signal = function(elm) {
 
   function merge(s1,s2) { return new Merge(s1,s2); }
   function merges(ss) { return A2(foldl1, F2(merge), ss); }
-  function mergeEither(s1,s2) { return new Merge(lift(Either.Left, s1),
-                                                 lift(Either.Right,s2)); }
-
-  function average(sampleSize, s) {
-    var sample = new Array(sampleSize);
-    var i = sampleSize;
-    while (i--) { sample[i] = 0; }
-    i = 0;
-    var full = false;
-    var total = 0;
-    function f(n) {
-      total += n - sample[i];
-      sample[i] = n;
-      var avg = total / Math.max(1, full ? sampleSize : i);
-      if (++i == sampleSize) { full = true; i = 0; }
-      return avg;
-    }
-    return lift(f,s);
-  }
 
   return elm.Native.Signal = {
     constant : function(v) { return new Input(v); },
@@ -229,8 +208,6 @@ Elm.Native.Signal = function(elm) {
     delay : F2(delay),
     merge : F2(merge),
     merges : merges,
-    mergeEither : F2(mergeEither),
-    average : F2(average),
     count : function(s) { return foldp(F2(function(_,c) { return c+1; }), 0, s); },
     countIf : F2(function(pred,s) {
       return foldp(F2(function(x,c){

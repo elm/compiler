@@ -9,5 +9,5 @@ import Native.Random as R
 range : Int -> Int -> Signal a -> Signal Int
 
 -- Produces a new signal that changes whenever the input signal changes.
--- The new values are random number in [0..1).
+-- The new values are random numbers in [0..1).
 float : Signal a -> Signal Float

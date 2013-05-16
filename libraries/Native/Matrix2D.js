@@ -28,7 +28,9 @@ Elm.Native.Matrix2D = function(elm) {
      return new A([m11*c + m12*s, -m11*s + m12*c, m[2],
                    m21*c + m22*s, -m21*s + m22*c, m[5]]);
  }
- function move(x,y,m) {
+ function move(xy,m) {
+     var x = xy._0;
+     var y = xy._1;
      var m11 = m[0], m12 = m[1], m21 = m[3], m22 = m[4];
      return new A([m11, m12, m11*x + m12*y + m[2],
                    m21, m22, m21*x + m22*y + m[5]]);
@@ -60,7 +62,7 @@ Elm.Native.Matrix2D = function(elm) {
 
      transform:F7(transform),
      rotate:F2(rotate),
-     move:F3(move),
+     move:F2(move),
      scale:F2(scale),
      scaleX:F2(scaleX),
      scaleY:F2(scaleY),

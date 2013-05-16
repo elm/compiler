@@ -3,18 +3,34 @@ module Prelude where
 
 import Native.Prelude as N
 
+-- Convert radians to standard Elm angles (radians).
 radians : Float -> Float
 radians t = t
 
+-- Convert degrees to standard Elm angles (radians).
 degrees : Float -> Float
 degrees d = d * Math.PI / 180
 
+-- Convert turns to standard Elm angles (radians).
+-- One turn is equal to 360&deg;.
 turns : Float -> Float
 turns r = 2 * Math.PI * r
+
+-- Start with polar coordinates (r,&theta;)
+-- and get out cartesian coordinates (x,y).
+fromPolar : (Float,Float) -> (Float,Float)
+fromPolar (r,t) = (r * N.cos t, r * N.sin t)
+
+-- Start with cartesian coordinates (x,y)
+-- and get out polar coordinates (r,&theta;).
+toPolar : (Float,Float) -> (Float,Float)
+toPolar (x,y) = (N.sqrt (x^2 + y^2), N.atan2 y x)
 
 (+) : Number a -> Number a -> Number a
 (-) : Number a -> Number a -> Number a
 (*) : Number a -> Number a -> Number a
+
+-- Floating point division.
 (/) : Float -> Float -> Float
 
 -- Integer division, remainder is discarded.
@@ -25,6 +41,9 @@ rem : Int -> Int -> Int
 
 -- Perform modular arithmetic: 7 `mod` 2 == 1
 mod : Int -> Int -> Int
+
+-- Exponentiation: `3^2 == 9`
+(^) : Number a -> Number a -> Number a
 
 -- Basic functions of trigonometry.
 cos  : Float -> Float

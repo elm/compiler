@@ -40,20 +40,26 @@ pure : (a -> b) -> Automaton a b
 pure f = Step (\x -> (pure f, f x))
 
 -- Create an automaton with state. Requires an initial state and a step
--- function to step the state forward.
-init : b -> (a -> b -> b) -> Automaton a b
-init s f = Step (\x -> let s' = f x s
-                       in  (init s' f, s'))
+-- function to step the state forward. For example, an automaton that counted
+-- how many steps it has taken would look like this:
+--
+--         count = state 0 (\\_ c -> c+1)
+--
+-- It is a stateful automaton. The initial state is zero, and the step function
+-- increments the state on every step.
+state : b -> (a -> b -> b) -> Automaton a b
+state s f = Step (\x -> let s' = f x s
+                        in  (state s' f, s'))
 
 -- Create an automaton with hidden state. Requires an initial state and a
 -- step function to step the state forward and produce an output.
-init' : s -> (a -> s -> (s,b)) -> Automaton a b
-init' s f = Step (\x -> let (s',out) = f x s
-                        in  (init' s' f, out))
+hiddenState : s -> (a -> s -> (s,b)) -> Automaton a b
+hiddenState s f = Step (\x -> let (s',out) = f x s
+                              in  (hiddenState s' f, out))
 
 -- Count the number of steps taken.
 count : Automaton a Int
-count = init 0 (\_ c -> c + 1)
+count = state 0 (\_ c -> c + 1)
 
 type Queue t = ([t],[t])
 empty = ([],[])
@@ -64,7 +70,7 @@ dequeue q = case q of
               (en,hd::tl) -> Just (hd, (en,tl))
 
 -- Computes the running average of the last `n` inputs.
-average : Int -> Automaton (Number a) (Number a)
+average : Int -> Automaton Float Float
 average k =
   let step n (ns,len,sum) =
           if len == k then stepFull n (ns,len,sum)
@@ -74,30 +80,8 @@ average k =
             Nothing -> ((ns,len,sum), 0)
             Just (m,ns') -> let sum' = sum + n - m
                             in ((enqueue n ns', len, sum'), sum' / len)
-  in  init' (empty,0,0) step
+  in  hiddenState (empty,0,0) step
 
-{-- TODO(evancz): move this code to the Form library so people can find it.
-
-data DragState = Listen | Ignore | DragFrom (Int,Int)
-
-vecSub (x1,y1) (x2,y2) = (x1-x2,y1-y2)
-
-stepDrag (press,pos) (ds,form) =
-  let wrap ds' = (form, (ds',form)) in
-  case ds of
-    Listen -> wrap (if | not press -> Listen
-                       | pos `isWithin` form -> DragFrom pos
-                       | otherwise -> Ignore)
-    Ignore -> wrap (if press then Ignore else Listen)
-    DragFrom p0 ->
-        if press then (uncurry move (vecSub pos p0) form, (DragFrom p0, form))
-                 else (let form' = uncurry move (vecSub pos p0) form in
-                       (form', (Listen,form')))
-
--- Create a draggable form that can be dynamically created and added to a scene.
-draggable : Form -> Automaton (Bool,(Int,Int)) Form
-draggable form = init' (Listen,form) stepDrag
---}
 
 {-- TODO(evancz): See the following papers for ideas on how to make this
 library faster and better:

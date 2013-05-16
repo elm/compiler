@@ -42,18 +42,6 @@ Elm.Native.Time = function(elm) {
     var dcount = Signal.count(A2(Signal.delay, t, s));
     return A3( Signal.lift2, F2(cmp), Signal.count(s), dcount );
   }
-  function after(t) {
-      t *= 1000;
-      var thread = Signal.constant(false);
-      setTimeout(function() { elm.notify(thread.id, true); }, t);
-      return thread;
-  }
-  function before(t) {
-      t *= 1000;
-      var thread = Signal.constant(true);
-      setTimeout(function() { elm.notify(thread.id, false); }, t);
-      return thread;
-  }
   function read(s) {
       var t = Date.parse(s);
       return isNaN(t) ? Maybe.Nothing : Maybe.Just(t);
@@ -63,6 +51,7 @@ Elm.Native.Time = function(elm) {
       fps : function(t) { return fpsWhen(t, Signal.constant(true)); },
       every : function(t) { return everyWhen(t, Signal.constant(true)) },
       delay : Signal.delay,
+      timestamp : Signal.timestamp,
       since : F2(since),
       after  : after,
       before : before,

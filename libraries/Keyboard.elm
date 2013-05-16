@@ -49,4 +49,4 @@ enter = N.isDown 13
 keysDown : Signal [KeyCode]
 
 -- The latest key that has been pressed.
-lastKey : Signal KeyCode
+lastPressed : Signal KeyCode
