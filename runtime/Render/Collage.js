@@ -150,6 +150,16 @@ function renderForm(redo, ctx, form) {
     ctx.restore();
 }
 
+function formToMatrix(form) {
+   var scale = form.scale;
+   var matrix = A6( Matrix.matrix, scale, 0, 0, scale, scale * form.x, scale * form.y );
+
+   var theta = form.theta
+   if (theta !== 0) matrix = A2( Matrix.rotate, theta, matrix );
+
+   return matrix;
+}
+
 function makeTransform(w, h, form, matrices) {
     var props = form.form._0.props;
     var m = A6( Matrix.matrix, 1, 0, 0, 1,
@@ -157,14 +167,11 @@ function makeTransform(w, h, form, matrices) {
                 (h - props.height)/2 );
     var len = matrices.length;
     for (var i = 0; i < len; ++i) { m = A2( Matrix.multiply, m, matrices[i] ); }
+    m = A2( Matrix.multiply, m, formToMatrix(form) );
 
-    var x = form.x, y = form.y, theta = form.theta, scale = form.scale;
-    if (x !== 0 || y !== 0) m = A3( Matrix.move, x, y, m );
-    if (theta !== 0) m = A2( Matrix.rotate, theta, m );
-    m = A2( Matrix.scaleY, -scale, m );
-    if (scale !== 1) m = A2( Matrix.scale, scale, m);
-    return 'matrix(' + m[0] + ',' + m[3] + ',' + m[1] + ',' +
-                       m[4] + ',' + m[2] + ',' + m[5] + ')';
+    return 'matrix(' +   m[0]  + ',' +   m[3]  + ',' +
+                       (-m[1]) + ',' + (-m[4]) + ',' +
+                         m[2]  + ',' +   m[5]  + ')';
 }
 
 function stepperHelp(list) {
@@ -200,14 +207,10 @@ function stepper(forms) {
         var f = out.form;
         if (f.ctor === 'FGroup') {
             ps.unshift(stepperHelp(f._1));
-            var m = f._0;
-            matrices.push(m);
-            var x = out.x, y = out.y, theta = out.theta, scale = out.scale;
-            if (x !== 0 || y !== 0) ctx.translate(x, y);
-            if (theta !== 0) ctx.rotate(theta);
-            if (scale !== 1) ctx.scale(scale, scale);
+            var m = A2( Matrix.multiply, f._0, formToMatrix(out));
             ctx.save();
             ctx.transform(m[0], m[3], m[1], m[4], m[2], m[5]);
+            matrices.push(m);
         }
         return out;
     }
