@@ -34,24 +34,24 @@ toValue (name, tipe, desc) =
 docParse :: String -> Either String (String, [(String, String, String)])
 docParse = setupParser $ do
   optional freshLine
-  (names, exports) <- option (["Main"],[]) (moduleDef `followedBy` freshLine)
-  info <- many (docs exports <|> try skip <|> end)
+  (names, exports) <- option (["Main"],[]) moduleDef
+  info <- many (annotation exports <|> try skip <|> end)
   return (intercalate "." names, catMaybes info)
     where
       skip = manyTill anyChar simpleNewline >> return Nothing
       end  = many1 anyChar >> return Nothing
 
-docs :: [String] -> IParser (Maybe (String, String, String))
-docs exports = export <$> try annotation
+annotation :: [String] -> IParser (Maybe (String, String, String))
+annotation exports =
+    try ((\c n t -> export (n,t,c)) <$> comment <*> name <*> tipe)
   where
-    tipe comment = tuple <$> name <*> tipe
-        where name = do v <- lowVar <|> parens symOp
-                        whitespace ; hasType ; whitespace ; return v
-              tipe = manyTill anyChar (try (freshLine >> notFollowedBy (string " ")))
-              tuple n t = (n,t,comment)
+    comment = concatMap clip <$> many lineComment
+    clip str = case str of { ' ':rest -> rest ; _ -> str } ++ "\n"
 
-    annotation = tipe =<< option "" (concatMap clip <$> many1 lineComment)
-        where clip str = case str of { ' ':rest -> rest ; _ -> str } ++ "\n"
+    name = do v <- lowVar <|> parens symOp
+              whitespace ; hasType ; whitespace ; return v
+
+    tipe = manyTill anyChar (try (simpleNewline >> notFollowedBy (string " ")))
 
     export info@(name,_,_) =
         if null exports || name `elem` exports then Just info else Nothing
