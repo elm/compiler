@@ -53,8 +53,6 @@ Elm.Native.Time = function(elm) {
       delay : Signal.delay,
       timestamp : Signal.timestamp,
       since : F2(since),
-      after  : after,
-      before : before,
       toDate : function(t) { return new window.Date(t); },
       read   : read
   };

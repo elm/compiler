@@ -36,26 +36,31 @@ toPolar (x,y) = (N.sqrt (x^2 + y^2), N.atan2 y x)
 -- Integer division, remainder is discarded.
 div : Int -> Int -> Int
 
--- Finds the remainder after dividing one number by another: 4 `rem` 3 == 1
+-- Finds the remainder after dividing one number by another: ``4 `rem` 3 == 1``
 rem : Int -> Int -> Int
 
--- Perform modular arithmetic: 7 `mod` 2 == 1
+-- Perform modular arithmetic: ``7 `mod` 2 == 1``
 mod : Int -> Int -> Int
 
 -- Exponentiation: `3^2 == 9`
 (^) : Number a -> Number a -> Number a
 
--- Basic functions of trigonometry.
 cos  : Float -> Float
 sin  : Float -> Float
 tan  : Float -> Float
 acos : Float -> Float
 asin : Float -> Float
+
+-- You probably do not want to use this. Because it takes `(y/x)` as the argument
+-- there is no way to know where the negative signs come from so the resulting
+-- angle is always between &pi;/2 and -&pi;/2 (in quadrants I and IV).
 atan : Float -> Float
 
--- Returns the arctangent of the quotient of its arguments in radians.
--- So `atan2 y x` computes the angle from the positive x-axis to the vector
--- starting at the origin and ending at (x,y).
+-- This helps you find the angle of a cartesian coordinate.
+-- You will almost certainly want to use this instead of `atan`.
+-- So `atan2 y x` computes *atan(y/x)* but also keeps track of which
+-- quadrant the angle should really be in. The result will be between
+-- &pi; and -&pi;, giving you the full range of angles.
 atan2 : Float -> Float -> Float
 
 -- Take the square root of a number.
@@ -67,12 +72,18 @@ abs : Number a -> Number a
 -- Calculate the logarithm of a number with a given base: `logBase 10 100 == 2`
 logBase : Number a -> Number a -> Number a
 
--- Given two numbers, returns the smaller (or greater respectively).
+-- Given two numbers, returns the smaller one.
 min : Number a -> Number a -> Number a
+
+-- Given two numbers, returns the larger one.
 max : Number a -> Number a -> Number a
 
--- Clamps a number within a given range, so `clamp 100 200 x` is 200 for
--- x >= 200, 100 for x <= 100, and x for any 100 < x < 200 
+-- Clamps a number within a given range. With the expression `clamp 100 200 x`
+-- the results are as follows:
+--
+--   * `100   if x < 100`
+--   * ` x    if 100 <= x < 200`
+--   * `200   if 200 <= x`
 clamp : Number a -> Number a -> Number a -> Number a
 
 -- An approximation of pi.
@@ -81,21 +92,22 @@ pi : Float
 -- An approximation of e.
 e : Float
 
--- Compare any two values for structural equality and inequality.
--- Functions cannot be compared.
+-- Compare any two values for structural equality. Functions cannot be compared.
 (==) : a -> a -> Bool
 (/=) : a -> a -> Bool
 
--- Compare any two comparable values. Comparable values include String, Char,
--- Int, Float, Time, or a list or tuple containing comparable values.
--- These are also the only values that work as Dictionary keys or Set members.
 (<)  : Comparable a -> Comparable a -> Bool
 (>)  : Comparable a -> Comparable a -> Bool
 (<=) : Comparable a -> Comparable a -> Bool
 (>=) : Comparable a -> Comparable a -> Bool
 
+-- Compare any two comparable values. Comparable values include `String`, `Char`,
+-- `Int`, `Float`, `Time`, or a list or tuple containing comparable values.
+-- These are also the only values that work as `Dict` keys or `Set` members.
 compare : Comparable a -> Comparable a -> Order
 
+-- Represents the relative ordering of two things.
+-- The relations are less than, equal to, and greater than.
 data Order = LT | EQ | GT
 
 -- The and operator. True if both inputs are True.
@@ -107,7 +119,7 @@ data Order = LT | EQ | GT
 -- The exclusive-or operator. True if exactly one input is True.
 xor : Bool -> Bool -> Bool
 
--- Negate a boolean value: (not True == False) and (not False == True)
+-- Negate a boolean value: `(not True == False)` and `(not False == True)`
 not : Bool -> Bool
 
 -- Equal to true. Useful as the last case of a multi-way-if.
@@ -143,30 +155,30 @@ readFloat : String -> Maybe Float
 
 -- Function Helpers
 
--- Function composition: f . g == (\x -> f (g x))
+-- Function composition: `(f . g == (\\x -> f (g x)))`
 (.) : (b -> c) -> (a -> b) -> (a -> c)
 
 -- Forward function application `x |> f == f x`. This function is useful
 -- for avoiding parenthesis and writing code in a more natural way.
 -- Consider the following code to create a pentagon:
 --
---     scale 2 (move 100 100 (filled blue (ngon 5 30)))
+--         scale 2 (move (10,10) (filled blue (ngon 5 30)))
 --
 -- This can also be written as:
 --
---     ngon 5 30 |> filled blue
---               |> move 100 100
---               |> scale 2
+--         ngon 5 30 |> filled blue
+--                   |> move (10,10)
+--                   |> scale 2
 (|>) : a -> (a -> b) -> b
 
 -- Function application `f <| x == f x`. This function is useful for avoiding
 -- parenthesis. Consider the following code to create a text element:
 --
---     text (monospace (toText "code"))
+--         text (monospace (toText "code"))
 --
 -- This can also be written as:
 --
---     text . monospace <| toText "code"
+--         text . monospace <| toText "code"
 (<|) : (a -> b) -> a -> b
 
 -- Given a value, returns exactly the same value.

@@ -17,11 +17,10 @@ Elm.Native.List = function(elm) {
   // The performance overhead of the .ctor calls is 5-10% according to jsperf (depending on fn + list size)
   // (on firefox 19)
 
-  // freeze is universally supported and as a singleton introduces little performance penalty
-  // for a small amount of object safety
-  var Nil = Object.freeze({ ctor:'Nil' });
+  var Nil = { ctor:'Nil' };
 
-  // using freeze for every cons would be nice but is a huge (9x on firefox 19) performance penalty
+  // using freeze for every cons would be nice but is a huge (9x on firefox 19)
+  // performance penalty
   function Cons(hd,tl) { return { ctor:"Cons", _0:hd, _1:tl }; }
 
   function throwError(f) {
@@ -251,35 +250,62 @@ Elm.Native.List = function(elm) {
     return fromArray(out);
   }
 
-  function split(sep, xs) {
-    var out = Nil;
-    var array = toArray(xs);
-    var s = toArray(sep);
-    var slen = s.length;
-    if (slen === 0) {
-      for (var i = array.length; i--; ) {
+  function split(seperator, list) {
+    var array = toArray(list);
+    var alen = array.length;
+    if (alen === 0) {
+      // splitting an empty list is a list of lists: [[]]
+      return Cons(Nil,Nil);
+    }
+
+    var sep = toArray(seperator);
+    var seplen = sep.length;
+    if (seplen === 0) {
+      // splitting with an empty sep is a list of all elements
+      // Same as (map (\x -> [x]) list)
+      var out = Nil;
+      for (var i = alen; i--; ) {
         out = Cons(Cons(array[i],Nil), out);
       }
       return out;
     }
-    var temp = Nil;
-    for (var i = array.length - slen; i >= 0; --i) {
-      var match = true;
-      for (var j = slen; j--; ) {
-        if (!Utils.eq(array[i+j], s[j])) { match = false;  break; }
-      }
-      if (match) {
-        out = Cons(temp,out);
-        temp = Nil;
-        i -= slen - 1;
-      } else {
-        temp = Cons(array[i+j], temp);
+
+    var matches = [-seplen];
+    var sepStart = sep[0];
+    var len = alen - seplen + 1;
+    for (var i = 0; i < len; ++i) {
+      if (Utils.eq(array[i], sepStart)) {
+        var match = true;
+        for (var j = seplen; --j; ) {
+          if (!Utils.eq(array[i+j], sep[j])) { match = false;  break; }
+        }
+        if (match) {
+          console.log(i);
+          matches.push(i);
+          i += seplen - 1;
+        }
       }
     }
-    for (var j = slen-1; j--; ) {
-      temp = Cons(array[j], temp);
+
+    // shortcut in case of no matches
+    if (matches.length === 0) {
+      return Cons(list,Nil);
     }
-    out = Cons(temp, out);
+
+    var out = Nil;
+    var index = alen - 1;
+    for (var i = matches.length; i--; ) {
+      console.log('starts at', index);
+      var temp = Nil;
+      var stop = matches[i] + seplen - 1;
+      for ( ; index > stop; --index ) {
+        temp = Cons(array[index], temp);
+      }
+      console.log(toArray(temp));
+      out = Cons(temp,out);
+      console.log('ends at', index);
+      index -= seplen;
+    }
     return out;
   }
 

@@ -108,15 +108,15 @@ unzip pairs =
     []        -> ([],[])
     (x,y)::ps -> let (xs,ys) = (unzip ps) in (x::xs,y::ys)
 
--- Split a list
+-- Split a list with a given seperator.
 --
---     split "," "hello,there,friend" == ["hello", "there", "friend"]
+--         split "," "hello,there,friend" == ["hello", "there", "friend"]
 split : [a] -> [a] -> [[a]]
 
 -- Places the given value between all of the lists in the second argument
 -- and concatenates the result. 
 --
---     join xs xss = concat (intersperse xs xss)
+--         join "a" ["H","w","ii","n"] == "Hawaiian"
 join  : Appendable a -> [Appendable a] -> Appendable a
 
 -- Places the given value between all members of the given list.

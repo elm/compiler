@@ -3,19 +3,19 @@ module Char where
 
 import Native.Char as N
 
--- Selects upper case letters.
+-- True for upper case letters.
 isUpper : Char -> Bool
 
--- Selects lower case letters.
+-- True for lower case letters.
 isLower : Char -> Bool
 
--- Selects ASCII digits (0..9).
+-- True for ASCII digits (`0..9`).
 isDigit : Char -> Bool
 
--- Selects ASCII octal digits (0..7).
+-- True for ASCII octal digits (`0..7`).
 isOctDigit : Char -> Bool
 
--- Selects ASCII hexadecimal digits (0..9a..fA..F).
+-- True for ASCII hexadecimal digits (`0..9a..fA..F`).
 isHexDigit : Char -> Bool
 
 -- Convert to upper case.
