@@ -63,11 +63,13 @@ function customLineHelp(ctx, style, path) {
 
 function drawLine(ctx, style, path) {
     ctx.lineWidth = style.width;
-    ctx.lineCap = style.cap.ctor.toLowerCase();
+    var cap = style.cap.ctor;
+    ctx.lineCap = cap === 'Flat' ? 'butt' :
+                  cap === 'Round' ? 'round' : 'square';
     var join = style.join.ctor;
     ctx.lineJoin = join === 'Smooth' ? 'round' :
                    join === 'Sharp' ? 'miter' : 'bevel';
-    ctx.miterLimit = style.miterLimit;
+    ctx.miterLimit = style.join._0 || 10;
     ctx.strokeStyle = extract(style.color);
     return line(ctx, style, path);
 }
@@ -155,7 +157,8 @@ function formToMatrix(form) {
    var matrix = A6( Matrix.matrix, scale, 0, 0, scale, scale * form.x, scale * form.y );
 
    var theta = form.theta
-   if (theta !== 0) matrix = A2( Matrix.rotate, theta, matrix );
+   if (theta !== 0)
+       matrix = A2( Matrix.multiply, Matrix.rotation(theta), matrix );
 
    return matrix;
 }
