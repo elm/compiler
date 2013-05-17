@@ -35,19 +35,19 @@ fields : a -> { field : (FieldState -> a) -> String -> FieldState -> Element,
 
 empty = { string="", start=0, end=0 }
 
-field : String -> (Signal Element, Signal FieldState)
+field : String -> (Signal Element, Signal String)
 field placeHolder =
     let tfs = N.fields empty
-    in  (lift (tfs.field id placeHolder) tfs.events, tfs.events)
+    in  (lift (tfs.field id placeHolder) tfs.events, lift .string tfs.events)
 
-password : String -> (Signal Element, Signal FieldState)
+password : String -> (Signal Element, Signal String)
 password placeHolder =
     let tfs = N.passwords empty
-    in  (lift (tfs.field id placeHolder) tfs.events, tfs.events)
+    in  (lift (tfs.field id placeHolder) tfs.events, lift .string tfs.events)
 
-email : String -> (Signal Element, Signal FieldState)
+email : String -> (Signal Element, Signal String)
 email placeHolder =
     let tfs = N.emails empty
-    in  (lift (tfs.field id placeHolder) tfs.events, tfs.events)
+    in  (lift (tfs.field id placeHolder) tfs.events, lift .string tfs.events)
 
 -- file?
