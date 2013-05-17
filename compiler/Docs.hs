@@ -43,7 +43,7 @@ docParse = setupParser $ do
 
 annotation :: [String] -> IParser (Maybe (String, String, String))
 annotation exports =
-    try ((\c n t -> export (n,t,c)) <$> comment <*> name <*> tipe)
+    try ((\c n t -> export (n,t,c)) <$> comment <*> (try adt <|> name) <*> tipe)
   where
     comment = concatMap clip <$> many lineComment
     clip str = case str of { ' ':rest -> rest ; _ -> str } ++ "\n"
@@ -56,6 +56,7 @@ annotation exports =
     export info@(name,_,_) =
         if null exports || name `elem` exports then Just info else Nothing
 
+    adt = lookAhead ((string "data" <|> string "type") >> whitespace >> capVar)
 
 
 setupParser p source =
