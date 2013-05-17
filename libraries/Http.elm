@@ -5,6 +5,7 @@
 module Http where
 
 import Native.Http (send)
+import Signal (lift)
 
 -- The datatype for responses. Success contains only the returned message.
 -- Failures contain both an error code and an error message.
