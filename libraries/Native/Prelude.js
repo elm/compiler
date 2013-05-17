@@ -10,12 +10,7 @@ Elm.Native.Prelude = function(elm) {
 
   function div(a,b) { return (a/b)|0; }
   function rem(a,b) { return a % b; }
-  function mod(a,b) {
-    var r = a % b;
-    var m = a === 0 ? 0 : (b > 0 ? (a >= 0 ? r : r+b) : -mod(-a,-b));
-
-    return m === b ? 0 : m;
-  }
+  var mod = Utils.mod;
   function abs(x) { return x < 0 ? -x : x; }
   function logBase(base,n) { return Math.log(n) / Math.log(base); }
   function min(a,b) { return a < b ? a : b; }

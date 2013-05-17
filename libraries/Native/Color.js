@@ -6,19 +6,25 @@ Elm.Native.Color = function(elm) {
  elm.Native = elm.Native || {};
  if (elm.Native.Color) return elm.Native.Color;
 
+ var Utils = Elm.Native.Utils(elm);
+
  function complement(rgb) {
-  var hsv = toHSV(rgb);
-  hsv.hue = (hsv.hue + 180) % 360;
-  return toRGB(hsv);
+     var hsv = toHSV(rgb);
+     hsv.hue = (hsv.hue + 180) % 360;
+     return toRGB(hsv);
  }
 
  function hsva(h,s,v,a) {
-  var clr = toRGB({hue:h, saturation:s, value:v});
-  clr._3 = a;
-  return clr;
+     var degree = A2(Utils.mod, h * 180 / Math.PI, 360);
+     var clr = toRGB({hue:degree, saturation:s, value:v});
+     clr._3 = a;
+     return clr;
  }
 
- function hsv(h,s,v) { return toRGB({hue:h, saturation:s, value:v}); }
+ function hsv(h,s,v) {
+     var degree = A2(Utils.mod, h * 180 / Math.PI, 360);
+     return toRGB({hue:degree, saturation:s, value:v});
+ }
 
  function toHSV(rgb) {
   var hsv = {};

@@ -57,25 +57,15 @@ forestGreen = Color 34 139 34 1
 -- The two colors will accent each other.
 complement : Color -> Color
 
--- Create HSV colors with an alpha component for transparency.
--- The alpha component is specified with numbers between 0 and 1.
-hsva : Int -> Float -> Float -> Float -> Color
+-- Create [HSV colors](http://en.wikipedia.org/wiki/HSL_and_HSV)
+-- with an alpha component for transparency.
+hsva : Float -> Float -> Float -> Float -> Color
 
--- Create HSV colors. HSV stands for hue-saturation-value.
+-- Create [HSV colors](http://en.wikipedia.org/wiki/HSL_and_HSV).
+-- This is very convenient for creating colors that cycle and shift.
 --
--- Hue is a degree from 0 to 360 representing a color wheel: red at 0&deg;,
--- green at 120&deg;, blue at 240&deg;, and red again at 360&deg;.
--- This makes it easy to cycle through colors and compute color complements,
--- triads, tetrads, etc.
---
--- Saturation is a number between 1 and 0 where lowering this number makes
--- your color more grey. This can help you tone a color down.
---
--- Value is also a number between 1 and 0. Lowering this number makes your
--- color more black.
---
--- Look up the &ldquo;HSV cylinder&rdquo; for more information.
-hsv : Int -> Float -> Float -> Color
+--         hsv (degrees 240) 1 1 == blue
+hsv : Float -> Float -> Float -> Color
 
 data Gradient
   = Linear (Float,Float) (Float,Float) [(Float,Color)]

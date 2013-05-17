@@ -98,6 +98,13 @@ Elm.Native.Utils = function(elm) {
   function max(a,b) { return a > b ? a : b }
   function min(a,b) { return a < b ? a : b }
 
+  function mod(a,b) {
+    var r = a % b;
+    var m = a === 0 ? 0 : (b > 0 ? (a >= 0 ? r : r+b) : -mod(-a,-b));
+
+    return m === b ? 0 : m;
+  }
+
   function htmlHeight(width, html) {
     var t = document.createElement('div');
     t.innerHTML = html;
@@ -143,6 +150,7 @@ Elm.Native.Utils = function(elm) {
       guid: guid,
       max : F2(max),
       min : F2(min),
+      mod : F2(mod),
       htmlHeight: F2(htmlHeight),
       toFloat: function(x){return x}
   };

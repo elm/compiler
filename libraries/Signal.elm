@@ -95,6 +95,8 @@ sampleOn : Signal a -> Signal b -> Signal b
 
 -- An alias for `lift`. A prettier way to apply a
 -- function to the current value of a signal.
+--
+--         lift f signal == f <~ signal
 (<~) : (a -> b) -> Signal a -> Signal b
 
 -- Signal application. This takes two signals, holding a function and
@@ -102,6 +104,6 @@ sampleOn : Signal a -> Signal b -> Signal b
 --
 -- So the following expressions are equivalent:
 --
---     scene <~ Mouse.x ~ Mouse.y
---     lift2 scene Mouse.x Mouse.y
+--         scene <~ Window.dimensions ~ Mouse.position
+--         lift2 scene Window.dimensions Mouse.position
 (~) : Signal (a -> b) -> Signal a -> Signal b

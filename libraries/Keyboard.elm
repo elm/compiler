@@ -1,17 +1,17 @@
--- These are nicely curated inputs from the keyboard. See the
--- [Keyboard.Raw library](/docs/Signal/KeyboardRaw.elm) for a
--- lower-level interface that will let you define more complicated behavior.
 module Keyboard where
 
 import Native.Keyboard as N
 
+-- Type alias to make it clearer what integers are supposed to represent
+-- in this library. Use [`Char.toCode`](docs/Char.elm#toCode) and
+-- [`Char.fromCode`](/docs/Char.elm#fromCode) to convert key codes to characters.
 type KeyCode = Int
 
 -- A signal of records indicating which arrow keys are pressed.
 --
--- `{ x = 0, y = 0 }` when pressing no arrows.
--- `{ x =-1, y = 0 }` when pressing the left arrow.
--- `{ x = 1, y = 1 }` when pressing the up and right arrows.
+-- `{ x = 0, y = 0 }` when pressing no arrows.<br>
+-- `{ x =-1, y = 0 }` when pressing the left arrow.<br>
+-- `{ x = 1, y = 1 }` when pressing the up and right arrows.<br>
 -- `{ x = 0, y =-1 }` when pressing the down, left, and right arrows.
 arrows : Signal { x:Int, y:Int }
 arrows = N.directions 38 40 37 39

@@ -43,6 +43,7 @@ pure f = Step (\x -> (pure f, f x))
 -- function to step the state forward. For example, an automaton that counted
 -- how many steps it has taken would look like this:
 --
+--         count = Automaton a Int
 --         count = state 0 (\\_ c -> c+1)
 --
 -- It is a stateful automaton. The initial state is zero, and the step function

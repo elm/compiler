@@ -6,6 +6,7 @@ Elm.Native.JavaScript = function(elm) {
   if (elm.Native.JavaScript) return elm.Native.JavaScript;
 
   var List = Elm.Native.List(elm);
+  var Render = ElmRuntime.use(ElmRuntime.Render.Element);
 
   function fromJS(v) {
     var type = typeof v;
@@ -61,7 +62,24 @@ Elm.Native.JavaScript = function(elm) {
     throw new Error("'fromRecord' must be called on a record.");
   }
 
-  function id(n) { return n }
+  function id(n) { return n; }
+
+  function toElement(w,h,domNode) {
+      return A3( newElement, w, h, {
+              ctor: 'Custom',
+              type: 'DomNode',
+              render: function(node) { return node; },
+              update: function(node,oldNode,newNode) {
+                  if (node === newNode) return;
+                  node.parentNode.replaceChild(newNode, node);
+              },
+              model: domNode
+          });
+  }
+
+  function fromElement(element) {
+      return Render.render(element);
+  }
 
   return elm.Native.JavaScript = {
       toFloat    : id,
@@ -74,8 +92,11 @@ Elm.Native.JavaScript = function(elm) {
       fromInt    : id,
       fromFloat  : id,
       fromBool   : id,
-      toRecord   : fromJS,
-      fromRecord : fromRecord
+
+      toElement   : toElement,
+      fromElement : fromElement,
+      toRecord    : fromJS,
+      fromRecord  : fromRecord
   };
 
 };

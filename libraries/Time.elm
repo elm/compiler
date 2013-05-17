@@ -3,13 +3,15 @@ module Time where
 
 import Native.Time as T
 
+-- Type alias to make it clearer when you are working with time values.
+-- Using the `Time` constants instead of raw numbers is very highly recommended.
 type Time = Float
 
 -- Units of time, making it easier to specify things like a
--- half-second `(second / 2)`.
-
-ms : Time
-ms = 1
+-- half-second `(500 * milliseconds)` without remembering Elm&rsquo;s
+-- underlying units of time.
+millisecond : Time
+millisecond = 1
 
 second : Time
 second = 1000 * ms
@@ -20,8 +22,8 @@ minute = 60 * second
 hour : Time
 hour = 60 * minute
 
-inMss : Time -> Float
-inMss t = t
+inMilliseconds : Time -> Float
+inMilliseconds t = t
 
 inSeconds : Time -> Float
 inSeconds t = t / second

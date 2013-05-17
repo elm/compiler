@@ -4,13 +4,15 @@ module Touch where
 
 import Native.Touch as T
 
--- type Touch = { x:Int, y:Int, id:Int, x0:Int, y0:Int, t0:Time }
+-- Every `Touch` has `xy` coordinates. It also has an identifier `id` to
+-- distinguish one touch from another.
+--
+-- A touch also keeps info about the intial point and time of contact:
+-- `x0`, `y0`, and `t0`. This helps compute more complicated gestures
+-- like taps, drags, and swipes which need to know about timing or direction.
+type Touch = { x:Int, y:Int, id:Int, x0:Int, y0:Int, t0:Time }
 
--- A list of touches. Each ongoing touch is represented by a set of
--- coordinates and an identifier id that allows you to distinguish
--- between different touches. Each touch also contains the coordinates and
--- time of the initial contact (x0, y0, and t0) which helps compute more
--- complicated gestures.
+-- A list of ongoing touches.
 touches : Signal [Touch]
 
 -- The last position that was tapped. Default value is `{x=0,y=0}`.
