@@ -34,14 +34,14 @@ function removeTransform(style) {
   style.OTransform      = 'none';
 }
 
-var JS = Elm.JavaScript({});
+var List = Elm.Native.List({});
 
 return {addTo:addTo,
 	newElement:newElement,
 	extract : extract,
-	fromList: JS.fromList,
-	fromString: JS.fromString,
-	toString: JS.toString,
+	fromList: List.toArray,
+	fromString: function(s) { return List.toArray(s).join(''); },
+	toString: List.fromArray,
 	eq: Elm.Native.Utils({}).eq,
 	addTransform: addTransform,
 	removeTransform: removeTransform

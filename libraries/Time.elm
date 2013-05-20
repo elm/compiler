@@ -14,7 +14,7 @@ millisecond : Time
 millisecond = 1
 
 second : Time
-second = 1000 * ms
+second = 1000 * millisecond
 
 minute : Time
 minute = 60 * second

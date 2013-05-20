@@ -84,10 +84,10 @@ Elm.Native.JavaScript = function(elm) {
   return elm.Native.JavaScript = {
       toFloat    : id,
       toBool     : id,
-      toInt      : function(n) { return n|0 },
-      toString   : function(s) { return List.fromArray(s) },
+      toInt      : function(n) { return n|0; },
+      toString   : List.fromArray,
       toList     : List.fromArray,
-      fromString : function(s) { return List.toArray(s).join('') },
+      fromString : function(s) { return List.toArray(s).join(''); },
       fromList   : List.toArray,
       fromInt    : id,
       fromFloat  : id,
