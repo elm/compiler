@@ -6,7 +6,16 @@ import Native.Graphics.Input as N
 
 id x = x
 
-buttons : a -> { button : a -> String -> Element, events : Signal a }
+-- Create a group of buttons.
+--
+-- * The first argument is the default value of the `events` signal.
+-- * The `events` signal represents all of the activity in this group
+--   of buttons.
+-- * The `button` function creates a button
+--   with the given name, like &ldquo;Submit&rdquo; or &ldquo;Cancel&rdquo;.
+--   The `a` value is sent to `events` whenever the button is pressed.
+buttons : a -> { events : Signal a,
+                 button : a -> String -> Element }
 
 -- Create a button with a given label. The result is an `Element` and
 -- a signal of units. This signal triggers whenever the button is pressed.
@@ -15,8 +24,17 @@ button txt =
     let pool = N.buttons ()
     in  (pool.button () txt, pool.events)
 
-customButtons : a -> { button : a -> Element -> Element -> Element -> Element,
-                       events : Signal a }
+-- Create a group of custom buttons.
+--
+-- * The first argument is the default value of the `events` signal.
+-- * The `events` signal represents all of the activity in this group
+--   of custom buttons.
+-- * The `customButton` function creates a button with three different visual
+--   states, one for up, hovering, and down. The resulting button has dimensions
+--   large enough to fit all three possible `Elements`.
+--   The `a` value is sent to `events` whenever the button is pressed.
+customButtons : a -> { events : Signal a,
+                       customButton : a -> Element -> Element -> Element -> Element }
 
 -- Create a button with custom states for up, hovering, and down
 -- (given in that order). The result is an `Element` and
@@ -26,41 +44,76 @@ customButton up hover down =
     let pool = N.customButtons ()
     in  (pool.button () up hover down, pool.events)
 
-checkboxes : a -> { box : (Bool -> a) -> Bool -> Element, events : Signal a }
+-- Create a group of checkboxes.
+--
+-- * The first argument is the default value of the `events` signal.
+-- * The `events` signal represents all of the activity in this group
+--   of checkboxes.
+-- * The `checkbox` function creates a
+--   checkbox with a given state. The `(Bool -> a)` function is used
+--   when the checkbox is modified. It takes the new state and turns
+--   it into a value that can be sent to `events`. For example, this
+--   lets you add an ID to distinguish between checkboxes.
+checkboxes : a -> { events : Signal a,
+                    checkbox : (Bool -> a) -> Bool -> Element }
 
--- Create a checkbox with a given start state. Notice that the result is a *signal*
--- of elements. That is because a checkbox has state that updates based on user input.
+-- Create a checkbox with a given start state. Unlike `button`, this result
+-- is a *signal* of elements. That is because a checkbox has state that
+-- updates based on user input.
 -- The boolean signal represents the current state of the checkbox.
 checkbox : Bool -> (Signal Element, Signal Bool)
 checkbox b =
     let cbs = N.checkboxes b
     in  (lift (cbs.box id) cbs.events, cbs.events)
 
-type FieldState = { string:String, start:Int, end:Int }
+-- Represents the current state of a text field. The `string` represents the
+-- characters filling the text field. The `selectionStart` and `selectionEnd`
+-- values represent what the user has selected with their mouse or keyboard.
+-- For example:
+--
+--         { string="She sells sea shells", selectionStart=3, selectionEnd=0 }
+--
+-- This means the user highlighted the substring `"She"` backwards.
+type FieldState = { string:String, selectionStart:Int, selectionEnd:Int }
 
-fields : a -> { field : (FieldState -> a) -> String -> FieldState -> Element,
-                events : Signal a }
+-- Create a group of text input fields.
+--
+-- * The first argument is the default value of the `events` signal.
+-- * The `events` signal represents all of the activity in this group
+--   of text fields.
+-- * The `field` function creates a
+--   field with the given ghost text and initial field state.
+--   When the field is modified, the `(FieldState -> a)` function
+--   takes the new state and turns
+--   it into a value that can be sent to `events`. For example, this
+--   lets you add an ID to distinguish between input fields.
+fields : a -> { events : Signal a,
+                field : (FieldState -> a) -> String -> FieldState -> Element }
 
-empty = { string="", start=0, end=0 }
+-- The empty field state:
+--
+--         { string="", selectionStart=0, selectionEnd=0 }
+emptyFieldState : FieldState
+emptyFieldState = { string="", selectionStart=0, selectionEnd=0 }
 
 -- Create a field with the given default text. The output is an element that
 -- updates to match the user input and a signal of strings representing the
 -- content of the field.
 field : String -> (Signal Element, Signal String)
 field placeHolder =
-    let tfs = N.fields empty
+    let tfs = N.fields emptyFieldState
     in  (lift (tfs.field id placeHolder) tfs.events, lift .string tfs.events)
 
 -- Same as `field` but the UI element blocks out each characters.
 password : String -> (Signal Element, Signal String)
 password placeHolder =
-    let tfs = N.passwords empty
+    let tfs = N.passwords emptyFieldState
     in  (lift (tfs.field id placeHolder) tfs.events, lift .string tfs.events)
 
--- Same as `field` but it adds an annotation that this field is for email addresses.
--- This is helpful for auto-complete and for mobile users who may get a custom keyboard
--- with an `@` and `.com` button.
+-- Same as `field` but it adds an annotation that this field is for email
+-- addresses. This is helpful for auto-complete and for mobile users who may
+-- get a custom keyboard with an `@` and `.com` button.
 email : String -> (Signal Element, Signal String)
 email placeHolder =
-    let tfs = N.emails empty
+    let tfs = N.emails emptyFieldState
     in  (lift (tfs.field id placeHolder) tfs.events, lift .string tfs.events)

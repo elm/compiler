@@ -143,6 +143,8 @@ Elm.Native.Graphics.Input = function(elm) {
  function mkTextPool(type) { return function fields(defaultValue) {
      var events = Signal.constant(defaultValue);
 
+     var state = null;
+
      function render(model) {
 	 var field = newNode('input');
 	 field.elmHandler = model.handler;
@@ -151,8 +153,9 @@ Elm.Native.Graphics.Input = function(elm) {
 	 field.type = type;
 	 field.placeholder = fromString(model.placeHolder);
 	 field.value = fromString(model.state.string);
-	 field.setSelectionRange(model.state.start, model.state.end);
+	 field.setSelectionRange(model.state.selectionStart, model.state.selectionEnd);
 	 field.style.border = 'none';
+         state = model.state;
 
 	 function update() {
 	     var start = field.selectionStart,
@@ -161,10 +164,10 @@ Elm.Native.Graphics.Input = function(elm) {
 		 start = end;
 		 end = field.selectionStart;
 	     }
-	     var state = { _:{},
-			   string:toString(field.value),
-			   start:start,
-			   end:end };
+             state = { _:{},
+                       string:toString(field.value),
+                       selectionStart:start,
+                       selectionEnd:end };
 	     elm.notify(events.id, field.elmHandler(state));
 	 }
 	 function mousedown() {
@@ -183,13 +186,24 @@ Elm.Native.Graphics.Input = function(elm) {
 
      function update(node, oldModel, newModel) {
 	 node.elmHandler = newModel.handler;
-	 node.value = fromString(newModel.state.string);
-	 if (newModel.state.start <= newModel.state.end) {
-	     node.setSelectionRange(newModel.state.start, newModel.state.end);
-	 } else {
-	     node.setSelectionRange(newModel.state.end,
-				    newModel.state.start, 'backward');
-	 }
+         if (state === newModel.state) return;
+         var newStr = fromString(newModel.state.string);
+	 if (node.value !== newStr) node.value = newStr;
+
+         var start = newModel.state.selectionStart;
+         var end = newModel.state.selectionEnd;
+         var direction = 'forward';
+         if (end < start) {
+             start = end;
+             end = newModel.state.selectionStart;
+             direction = 'backward';
+         }
+ 
+         if (node.selectionStart !== start
+             || node.selectionEnd !== end
+             || node.selectionDirection !== direction) {
+             node.setSelectionRange(start, end, direction);
+         }
      }
 
      function field(handler, placeHolder, state) {

@@ -12,7 +12,7 @@ import Types.Types
 builtins :: [(String,([X],Type))]
 builtins =
     let touch = ("t0", time) : map (flip (,) int) ["x","y","x0","y0","id"]
-        state = [("string", string), ("start", int), ("end", int)]
+        state = [("string", string), ("selectionStart", int), ("selectionEnd", int)]
         line  = [("color", tipe "Color"), ("width", float),
                  ("cap", tipe "LineCap"), ("join", tipe "LineJoin"),
                  ("miterLimit", float),   ("dashing", listOf int),
