@@ -14,21 +14,21 @@ instance LetBoundVars Statement where
     case stmt of
       Definition d -> letBoundVars d
       Datatype _ _ tcs -> []
-      ImportEvent _ e _ _ -> letBoundVars' e
+      ImportEvent _ e _ _ -> letBoundVars e
       ExportEvent _ _ _ -> []
       TypeAnnotation _ _ -> []
       TypeAlias _ _ _ -> []
 
 instance LetBoundVars Def where
-  letBoundVars (FnDef n _ e) = n : letBoundVars' e
-  letBoundVars (OpDef _ _ _ e) = letBoundVars' e
+  letBoundVars (FnDef n _ e) = n : letBoundVars e
+  letBoundVars (OpDef _ _ _ e) = letBoundVars e
 
-letBoundVars' :: CExpr -> [String]
-letBoundVars' (C _ _ e) = letBoundVars e
+instance LetBoundVars e => LetBoundVars (Context e) where
+  letBoundVars (C _ _ e) = letBoundVars e
 
 instance LetBoundVars Expr where
   letBoundVars expr =
-    let f = letBoundVars' in
+    let f = letBoundVars in
     case expr of
       IntNum _ -> []
       FloatNum _ -> []
