@@ -59,22 +59,11 @@ Elm.Native.Json = function(elm) {
     }
   }
 
-  function recordFromJSString(str) {
-    try {
-	return Maybe.Just(JS.toRecord(JSON.parse(str)));
-    } catch (e) {
-	return Maybe.Nothing;
-    }
-  }
-  function recordToPrettyJSString(sep, rec) {
-    return JSON.stringify(JS.fromRecord(rec), null, JS.fromString(sep));
-  }
-
   return elm.Native.Json = {
-      toPrettyJSString : F2(toPrettyJSString),
+      toJSString : F2(toPrettyJSString),
       fromJSString : fromJSString,
-      recordToPrettyJSString : F2(recordToPrettyJSString),
-      recordFromJSString : recordFromJSString
+      toJSObject : fromValue,
+      fromJSObject : toValue
   };
 
 };

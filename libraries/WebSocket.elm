@@ -7,7 +7,7 @@ import Native.WebSocket as WS
 -- Create a web-socket. The first argument is the URL of the desired
 -- web-socket server. The input signal holds the outgoing messages,
 -- and the resulting signal contains the incoming ones.
-open : String -> Signal String -> Signal String
+connect : String -> Signal String -> Signal String
 
 -- data Action = Open String | Close String | Send String String
 -- connections : Signal Action -> Signal String

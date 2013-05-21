@@ -34,5 +34,5 @@ Elm.Native.WebSocket = function(elm) {
     return A3(Signal.lift2, F2(take1), incoming, A2(Signal.lift, send, outgoing));
   }
 
-  return elm.Native.WebSocket = { open: F2(open) };
+  return elm.Native.WebSocket = { connect: F2(open) };
 };
