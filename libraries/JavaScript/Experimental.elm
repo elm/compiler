@@ -12,8 +12,8 @@ import JavaScript as JS
 --         { errorLevel:10, critical:true }
 --
 --         -- BAD objects
---         { answer = null }
---         { info = [true,42,'what'] }
+--         { answer:null }
+--         { info:[true,42,'what'] }
 toRecord : JSObject -> a
 toRecord = JS.toRecord
 

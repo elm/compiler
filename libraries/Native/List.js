@@ -280,7 +280,6 @@ Elm.Native.List = function(elm) {
           if (!Utils.eq(array[i+j], sep[j])) { match = false;  break; }
         }
         if (match) {
-          console.log(i);
           matches.push(i);
           i += seplen - 1;
         }
@@ -295,15 +294,12 @@ Elm.Native.List = function(elm) {
     var out = Nil;
     var index = alen - 1;
     for (var i = matches.length; i--; ) {
-      console.log('starts at', index);
       var temp = Nil;
       var stop = matches[i] + seplen - 1;
       for ( ; index > stop; --index ) {
         temp = Cons(array[index], temp);
       }
-      console.log(toArray(temp));
       out = Cons(temp,out);
-      console.log('ends at', index);
       index -= seplen;
     }
     return out;
