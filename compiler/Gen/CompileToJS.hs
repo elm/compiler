@@ -138,8 +138,8 @@ class ToJS a where
   toJS :: a -> GuidCounter String
 
 instance ToJS Def where
-  toJS (FnDef x [] e) = assign' x `liftM` toJS' e
-  toJS (FnDef f as e) = (assign' f . wrapper . func) `liftM` toJS' e
+  toJS (FnDef x [] e) = assign x `liftM` toJS' e
+  toJS (FnDef f as e) = (assign f . wrapper . func) `liftM` toJS' e
       where
         func body = jsFunc (intercalate ", " as) (ret body)
         wrapper e | length as == 1 = e
@@ -152,7 +152,7 @@ instance ToJS Def where
 instance ToJS Statement where
   toJS stmt =
     case stmt of
-      Definition d -> (\asgn -> "\n" ++ asgn ++ ";") `liftM` toJS d
+      Definition d -> toJS d
       Datatype _ _ tcs -> concat `liftM` mapM (toJS . toDef) tcs
           where toDef (name,args) =
                     let vars = map (('a':) . show) [1..length args] in
@@ -268,9 +268,8 @@ multiIfToJS span ps =
 
 jsLet defs e' = do ds <- jsDefs defs
                    e <- toJS' e'
-                   return $ jsFunc "" (combineDefs ds ++ ret e) ++ "()"
+                   return $ jsFunc "" (concat ds ++ ret e) ++ "()"
   where 
-    combineDefs = concatMap (\def -> "\nvar " ++ def ++ ";")
     jsDefs defs = mapM toJS (sortBy f defs)
     f a b = compare (valueOf a) (valueOf b)
     valueOf (FnDef _ args _) = min 1 (length args)
@@ -280,21 +279,19 @@ caseToJS span e ps = do
   match <- caseToMatch ps
   e' <- toJS' e
   let (match',stmt) = case (match,e) of
-        (Match name _ _, C _ _ (Var x)) -> (matchSubst [(name,x)] match, Nothing)
-        (Match name _ _, _)             -> (match, Just (name ++ " = " ++ e'))
-        _                               -> (match, Nothing)
+        (Match name _ _, C _ _ (Var x)) -> (matchSubst [(name,x)] match, "")
+        (Match name _ _, _)             -> (match, assign name e')
+        _                               -> (match, "")
   matches <- matchToJS span match'
-  let enclose body = "function(){ " ++ body ++ " }()"
-  return . enclose $ case stmt of
-                       Nothing -> matches
-                       Just exp -> "\nvar " ++ exp ++ ";" ++ matches
+  return $ "function(){ " ++ stmt ++ matches ++ " }()"
 
 matchToJS span match =
   case match of
     Match name clauses def ->
         do cases <- concat `liftM` mapM (clauseToJS span name) clauses
            finally <- matchToJS span def
-           return $ concat [ "\nswitch(", name, ".ctor){", indent cases, "\n}", finally ]
+           return $ concat [ "\nswitch (", name, ".ctor) {",
+                             indent cases, "\n}", finally ]
     Fail -> return ("_E.Case" ++ parens (quoted (show span)))
     Break -> return "break;"
     Other e -> ret `liftM` toJS' e
