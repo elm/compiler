@@ -30,9 +30,13 @@ import' :: IParser (String, ImportMethod)
 import' = do
   reserved "import"
   whitespace
+  open <- optionMaybe (reserved "open")
+  whitespace
   name <- intercalate "." <$> dotSep1 capVar
-  method <- option (Hiding []) $ try (whitespace >> (as' <|> importing'))
-  return (name, method)
+  case open of
+    Just _ -> return (name, Hiding [])
+    Nothing -> let how = try (whitespace >> (as' <|> importing'))
+               in  (,) name <$> option (Importing []) how
 
 
 as' :: IParser ImportMethod

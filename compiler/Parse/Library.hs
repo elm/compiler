@@ -16,7 +16,7 @@ reserveds = [ "if", "then", "else"
             , "let", "in"
             , "data", "type"
             , "module", "where"
-            , "import", "as", "hiding"
+            , "import", "as", "hiding", "open"
             , "export", "foreign" ]
 
 expecting = flip (<?>)

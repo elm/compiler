@@ -99,10 +99,11 @@ jsImport (modul, how) =
       Hiding vs -> include ++ " var hiding=" ++ (jsObj $ map (++":1") vs) ++
                    "; for(var k in _){if(k in hiding)continue;" ++
                    "eval('var '+k+'=_[\"'+k+'\"]')}"
-      Importing vs -> include ++ "\nvar " ++ intercalate ", " (map def vs) ++ ";"
+      Importing vs -> include ++ named
           where 
             imprt v = assign' v ("_." ++ v)
             def (o:p) = imprt (if isOp o then "$op['" ++ o:p ++ "']" else deprime (o:p))
+            named = if null vs then "" else "\nvar " ++ intercalate ", " (map def vs) ++ ";"
   where
     include = "\nvar _ = Elm." ++ modul ++ parens "elm" ++ ";" ++ setup modul
     setup moduleName = " var " ++ concatMap (++";") (defs ++ [assign' moduleName "_"])
