@@ -1,0 +1,200 @@
+Name:                Elm
+Version:             0.8
+Synopsis:            The Elm language module.
+Description:         Elm aims to make client-side web-development more pleasant.
+                     It is a statically/strongly typed, functional reactive
+                     language to HTML, CSS, and JS. This package provides a
+                     library for Elm compilation in Haskell and a compiler
+                     executable.
+
+Homepage:            http://elm-lang.org
+
+License:             BSD3
+License-file:        LICENSE
+
+Author:              Evan Czaplicki
+Maintainer:          info@elm-lang.org
+Copyright:           Copyright: (c) 2011-2012 Evan Czaplicki
+
+Category:            Compiler, Language
+
+Build-type:          Custom
+
+Extra-source-files:  changelog.txt
+Data-dir:            dist/data
+Data-files:          elm-runtime.js docs.json
+Cabal-version:       >=1.8
+
+source-repository head
+  type:     git
+  location: git://github.com/evancz/Elm.git
+
+Library
+  exposed-modules:     Language.Elm,
+                       Language.Elm.Quasi
+  Hs-Source-Dirs:      compiler, compiler/Gen, compiler/Model, compiler/Transform
+  other-modules:       Ast,
+                       Context,
+                       CompileToJS,
+                       Cases,
+                       Substitute,
+                       ExtractNoscript,
+                       GenerateHtml,
+                       Guid,
+                       Libraries,
+                       LoadLibraries,
+                       Optimize,
+                       Initialize,
+                       Rename,
+                       Parse.Binops,
+                       Parse.Expr,
+                       Parse.Foreign,
+                       Parse.Library,
+                       Parse.Modules,
+                       Parse.Parser,
+                       Parse.Patterns,
+                       Parse.Types,
+                       Types.Alias,
+                       Types.Types,
+                       Types.Constrain,
+                       Types.Hints,
+                       Types.Solver,
+                       Types.Substitutions,
+                       Types.Unify,
+                       Paths_Elm
+
+  Build-depends:       base >=4.2 && <5,
+                       containers >= 0.3,
+                       transformers >= 0.2,
+                       mtl >= 2,
+                       deepseq,
+                       parsec >= 3.1.1,
+                       blaze-html == 0.5.* || == 0.6.*,
+                       blaze-markup == 0.5.1.*,
+                       text,
+                       template-haskell,
+                       shakespeare >= 1,
+                       pandoc >= 1.10,
+                       bytestring,
+                       hjsmin,
+                       indents,
+                       filepath,
+                       template-haskell,
+                       json,
+                       directory
+
+Executable elm
+  Main-is:             Compiler.hs
+  Hs-Source-Dirs:      compiler, compiler/Gen, compiler/Model, compiler/Transform
+  extensions:          CPP
+  cpp-options:         -DELM_COMPILEDATADIR="dist/data"
+  other-modules:       Ast,
+                       Context,
+                       CompileToJS,
+                       Cases,
+                       Substitute,
+                       ExtractNoscript,
+                       GenerateHtml,
+                       Guid,
+                       Libraries,
+                       LoadLibraries,
+                       Optimize,
+                       Initialize,
+                       Rename,
+                       Parse.Binops,
+                       Parse.Expr,
+                       Parse.Foreign,
+                       Parse.Library,
+                       Parse.Modules,
+                       Parse.Parser,
+                       Parse.Patterns,
+                       Parse.Types,
+                       Types.Alias,
+                       Types.Types,
+                       Types.Constrain,
+                       Types.Hints,
+                       Types.Solver,
+                       Types.Substitutions,
+                       Types.Unify,
+                       Paths_Elm
+
+  Build-depends:       base >=4.2 && <5,
+                       containers >= 0.3,
+                       transformers >= 0.2,
+                       mtl >= 2,
+                       deepseq,
+                       parsec >= 3.1.1,
+                       blaze-html == 0.5.* || == 0.6.*,
+                       blaze-markup == 0.5.1.*,
+                       cmdargs,
+                       pandoc >= 1.10,
+                       bytestring,
+                       hjsmin,
+                       indents,
+<<<<<<< .mine
+                       filepath
+
+
+test-suite Main
+  type:                exitcode-stdio-1.0
+  x-uses-tf:           true
+
+  build-depends:       base >=4.2 && <5,
+                       containers >= 0.3,
+                       transformers >= 0.2,
+                       mtl >= 2,
+                       parsec >= 3.1.1,
+                       blaze-html == 0.5.* || == 0.6.*,
+                       blaze-markup == 0.5.1.*,
+                       deepseq,
+                       text,
+                       template-haskell,
+                       shakespeare >= 1,
+                       pandoc >= 1.10,
+                       bytestring,
+                       hjsmin,
+                       indents,
+                       filepath,
+
+                       QuickCheck >= 2.4,
+                       test-framework >= 0.4.1,
+                       test-framework-quickcheck2,
+                       regex-compat,
+                       interpolatedstring-perl6 >= 0.9
+
+  hs-source-dirs:      src, tests
+  main-is:             Main.hs
+=======
+                       filepath,
+                       template-haskell,
+                       json,
+                       directory
+
+Executable elm-doc
+  Main-is:             Docs.hs
+  Hs-Source-Dirs:      compiler, compiler/Model, compiler/Transform
+  other-modules:       Ast,
+                       Context,
+                       Parse.Library,
+                       Parse.Modules,
+                       Rename
+
+  Build-depends:       base >=4.2 && <5,
+                       containers >= 0.3,
+                       transformers >= 0.2,
+                       mtl >= 2,
+                       parsec >= 3.1.1,
+                       pandoc >= 1.10,
+                       cmdargs,
+                       indents
+
+
+
+
+
+
+
+
+
+
+>>>>>>> .theirs
