@@ -292,6 +292,7 @@ function updateTracker(w,h,div) {
         var node = container.firstChild;
         if (node) {
             Render.update(node, node.oldElement, elem);
+            node = container.firstChild;
         } else {
             node = Render.render(elem);
             container.appendChild(node);
