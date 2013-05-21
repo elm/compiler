@@ -13,7 +13,6 @@ import Context
 import Rename (derename)
 import Cases
 import Guid
-import LetBoundVars
 import Rename (deprime)
 import Types.Types ( Type(RecordT) )
 
@@ -24,7 +23,7 @@ showErr err = globalAssign "Elm.Main" (jsFunc "elm" body)
                  \return { main : T.text(T.monospace(" ++ msg ++ ")) };"
 
 indent = concatMap f
-    where f '\n' = "\n "
+    where f '\n' = "\n  "
           f c = [c]
 
 internalImports =
@@ -122,9 +121,8 @@ jsImport (modul, how) =
 
 stmtsToJS :: [Statement] -> String
 stmtsToJS stmts = run $ do program <- mapM toJS (sortBy cmpStmt stmts)
-                           return (vars ++ concat program)
+                           return (concat program)
     where
-      vars = "\nvar " ++ intercalate ", " ("e":"case0":letBoundVars stmts) ++ ";"
       cmpStmt s1 s2 = compare (valueOf s1) (valueOf s2)
       valueOf s = case s of
                     Datatype _ _ _             -> 1
@@ -142,9 +140,10 @@ class ToJS a where
 instance ToJS Def where
   toJS (FnDef x [] e) = assign' x `liftM` toJS' e
   toJS (FnDef f as e) = (assign' f . wrapper . func) `liftM` toJS' e
-      where func body = jsFunc (intercalate ", " as) (ret body)
-            wrapper e | length as == 1 = e
-                      | otherwise = 'F' : show (length as) ++ parens e
+      where
+        func body = jsFunc (intercalate ", " as) (ret body)
+        wrapper e | length as == 1 = e
+                  | otherwise = 'F' : show (length as) ++ parens e
   toJS (OpDef op a1 a2 e) =
       do body <- toJS' e                    
          let func = "F2" ++ parens (jsFunc (a1 ++ ", " ++ a2) (ret body))
@@ -161,7 +160,7 @@ instance ToJS Statement where
                     Data (derename name) (map (noContext . Var) vars)
       ImportEvent js base elm _ ->
         do v <- toJS' base
-           return $ concat [ "\nvar " ++ elm ++ "=Elm.Signal.constant(" ++ v ++ ");"
+           return $ concat [ "\nvar " ++ elm ++ "=Elm.Signal(elm).constant(" ++ v ++ ");"
                            , "\ndocument.addEventListener('", js
                            , "_' + elm.id, function(e) { elm.notify(", elm
                            , ".id, e.value); });" ]
@@ -268,9 +267,10 @@ multiIfToJS span ps =
                  return (b' ++ " ? " ++ e')
 
 jsLet defs e' = do ds <- jsDefs defs
-                   e  <- toJS' e'
-                   return $ parens (intercalate ", " ds ++ ", " ++ e)
+                   e <- toJS' e'
+                   return $ jsFunc "" (combineDefs ds ++ ret e) ++ "()"
   where 
+    combineDefs = concatMap (\def -> "\nvar " ++ def ++ ";")
     jsDefs defs = mapM toJS (sortBy f defs)
     f a b = compare (valueOf a) (valueOf b)
     valueOf (FnDef _ args _) = min 1 (length args)
@@ -279,39 +279,37 @@ jsLet defs e' = do ds <- jsDefs defs
 caseToJS span e ps = do
   match <- caseToMatch ps
   e' <- toJS' e
-  (match',stmt) <- case (match,e) of
-                     (Match name _ _, C _ _ (Var x)) ->
-                         return (matchSubst [(name,x)] match, Nothing)
-                     (Match name _ _, _) ->
-                         return (match, Just (name ++ " = " ++ e'))
-                     _ -> return (match, Nothing)
+  let (match',stmt) = case (match,e) of
+        (Match name _ _, C _ _ (Var x)) -> (matchSubst [(name,x)] match, Nothing)
+        (Match name _ _, _)             -> (match, Just (name ++ " = " ++ e'))
+        _                               -> (match, Nothing)
   matches <- matchToJS span match'
-  return $ case stmt of
-             Nothing -> matches
-             Just exp -> parens (exp ++ ", " ++ matches)
+  let enclose body = "function(){ " ++ body ++ " }()"
+  return . enclose $ case stmt of
+                       Nothing -> matches
+                       Just exp -> "\nvar " ++ exp ++ ";" ++ matches
 
 matchToJS span match =
-  let sqnc e1 e2 = parens ("e=" ++ e1 ++ ":null,e!==null?e:" ++ e2)
-  in case match of
+  case match of
     Match name clauses def ->
-        do cases <- intercalate ":" `liftM` mapM (clauseToJS span name) clauses
+        do cases <- concat `liftM` mapM (clauseToJS span name) clauses
            finally <- matchToJS span def
-           return (sqnc cases finally)
+           return $ concat [ "\nswitch(", name, ".ctor){", indent cases, "\n}", finally ]
     Fail -> return ("_E.Case" ++ parens (quoted (show span)))
-    Break -> return "null"
-    Other e -> toJS' e
-    Seq ms -> foldr1 sqnc `liftM` mapM (matchToJS span) (dropEnd [] ms)
-        where dropEnd acc [] = acc
-              dropEnd acc (m:ms) =
-                  case m of
-                    Other _ -> acc ++ [m]
-                    _ -> dropEnd (acc ++ [m]) ms
-
+    Break -> return "break;"
+    Other e -> ret `liftM` toJS' e
+    Seq ms -> concat `liftM` mapM (matchToJS span) (dropEnd [] ms)
+        where
+          dropEnd acc [] = acc
+          dropEnd acc (m:ms) =
+              case m of
+                Other _ -> acc ++ [m]
+                _ -> dropEnd (acc ++ [m]) ms
 
 clauseToJS span var (Clause name vars e) = do
   let vars' = map (\n -> var ++ "._" ++ show n) [0..]
   s <- matchToJS span $ matchSubst (zip vars vars') e
-  return $ concat [ var, ".ctor===", quoted name, "?", s ]
+  return $ concat [ "\ncase ", quoted name, ":", indent s ]
 
 jsNil         = "_L.Nil"
 jsCons  e1 e2 = "_L.Cons(" ++ e1 ++ "," ++ e2 ++ ")"
