@@ -101,8 +101,8 @@ Elm.Native.Touch = function(elm) {
   node.addEventListener("mousedown", function(e) {
           node.addEventListener("mousemove", move);
           e.identifier = mouseID;
-          root.value.push(touch(e));
           start(e);
+          root.value.push(touch(e));
           elm.notify(root.id, root.value);
       });
   node.addEventListener("mouseup", function(e) {

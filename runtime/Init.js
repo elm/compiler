@@ -8,7 +8,9 @@ Elm.fullscreen = function(module) {
     style.innerHTML = "html,head,body { padding:0; margin:0; }" +
         "body { font-family: calibri, helvetica, arial, sans-serif; }";
     document.head.appendChild(style);
-    return init(ElmRuntime.Display.FULLSCREEN, document.body, module);
+    var container = document.createElement('div');
+    document.body.appendChild(container);
+    return init(ElmRuntime.Display.FULLSCREEN, container, module);
 };
 
 Elm.byId = function(id, module) {
@@ -92,15 +94,14 @@ function init(display, container, module) {
   inputs = ElmRuntime.filterDeadInputs(inputs);
   
    // Add the visualModel to the DOM
-  var renderNode = Render.render(visualModel)
-  container.appendChild(renderNode);
+  container.appendChild(Render.render(visualModel));
   if (elm.Native.Window) elm.Native.Window.resizeIfNeeded();
   
   // set up updates so that the DOM is adjusted as necessary.
   var update = Render.update;
   function domUpdate(value) {
       ElmRuntime.draw(function(_) {
-              update(renderNode, visualModel, value);
+              update(container.firstChild, visualModel, value);
               visualModel = value;
               if (elm.Native.Window) elm.Native.Window.resizeIfNeeded();
           });

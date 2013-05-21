@@ -86,11 +86,11 @@ function gradient(ctx, grad) {
   var stops = [];
   if (grad.ctor === 'Linear') {
     var p0 = grad._0, p1 = grad._1;
-    g = ctx.createLinearGradient(p0._0, p0._1, p1._0, p1._1);
+    g = ctx.createLinearGradient(p0._0, -p0._1, p1._0, -p1._1);
     stops = fromList(grad._2);
   } else {
     var p0 = grad._0, p2 = grad._2;
-    g = ctx.createRadialGradient(p0._0, p0._1, grad._1, p2._0, p2._1, grad._3);
+    g = ctx.createRadialGradient(p0._0, -p0._1, grad._1, p2._0, -p2._1, grad._3);
     stops = fromList(grad._4);
   }
   var len = stops.length;
@@ -158,7 +158,7 @@ function formToMatrix(form) {
 
    var theta = form.theta
    if (theta !== 0)
-       matrix = A2( Matrix.multiply, Matrix.rotation(theta), matrix );
+       matrix = A2( Matrix.multiply, matrix, Matrix.rotation(theta) );
 
    return matrix;
 }

@@ -67,7 +67,7 @@ Elm.Native.Prelude = function(elm) {
   var prelude = {
       div:F2(div),
       rem:F2(rem),
-      mod:F2(mod),
+      mod:mod,
 
       pi:Math.PI,
       e:Math.e,

@@ -7,7 +7,7 @@ import Either
 import Native.Matrix2D as Matrix
 import Native.Graphics.Collage as N
 import Graphics.Element
-import Color as Color
+import Color
 
 type Form = {
   theta : Float,
@@ -53,7 +53,7 @@ defaultLine = {
   cap   = Flat,
   join  = Sharp 10,
   dashing = [],
-  dashOffset = 0,
+  dashOffset = 0
  }
 
 -- Create a solid line style with a given color.
@@ -73,11 +73,11 @@ data BasicForm
   | FShape (Either LineStyle FillStyle) Shape
   | FImage Int Int (Int,Int) String
   | FElement Element
-  | FGroup Matrix [Form]
+  | FGroup Matrix2D [Form]
 
 form f = { theta = 0, scale = 1, x = 0, y = 0, form = f }
 
-fill style shape = form (FShape (Right style) shape)
+fill style shape = form (FShape (Either.Right style) shape)
 
 -- Create a filled in shape.
 filled : Color -> Shape -> Form
@@ -94,7 +94,7 @@ gradient grad shape = fill (Gradient grad) shape
 
 -- Outline a shape with a given line style.
 outlined : LineStyle -> Shape -> Form
-outlined style shape = form (FShape (Left style) shape)
+outlined style shape = form (FShape (Either.Left style) shape)
 
 -- Trace a path with a given line style.
 traced : LineStyle -> Path -> Form
@@ -186,7 +186,7 @@ oval w h =
       hw = w/2
       hh = h/2
       f i = (hw * Math.cos (t*i), hh * Math.sin (t*i))
-  in  map f [0..n-1]
+  in  List.map f [0..n-1]
 
 -- A circle with a given radius.
 circle : Number a -> Shape
@@ -202,4 +202,4 @@ ngon n r =
   let m = toFloat n
       t = 2 * Math.PI / m
       f i = ( r * Math.cos (t*i), r * Math.sin (t*i) )
-  in  map f [0..n-1]
+  in  List.map f [0..n-1]
