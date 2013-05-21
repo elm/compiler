@@ -78,6 +78,7 @@ function init(display, container, module) {
 
   // If graphics are not enabled, escape early, skip over setting up DOM stuff.
   if (display === ElmRuntime.Display.NONE) {
+      module(elm);
       return { send : send, recv : recv };
   }
 
