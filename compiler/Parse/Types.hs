@@ -5,7 +5,7 @@ import Control.Applicative ((<$>),(<*>))
 import Control.Monad (liftM,mapM)
 import Data.Char (isUpper,isLower)
 import Data.Maybe (fromMaybe)
-import Data.List (lookup)
+import Data.List (lookup,intercalate)
 import Text.Parsec
 import Text.Parsec.Indent
 
@@ -18,6 +18,7 @@ data ParseType = VarPT String
                | LambdaPT ParseType ParseType
                | ADTPT String [ParseType]
                | RecordPT (Maybe ParseType) [(String,ParseType)]
+                 deriving (Show)
 
 listPT t = ADTPT "List" [t]
 tuplePT ts = ADTPT ("Tuple" ++ show (length ts)) ts
@@ -150,18 +151,20 @@ toDatatype name args tcs = Datatype name [1..n] <$> mapM toC tcs
 toForeignType (LambdaPT t1 t2) =
     fail $ "Elm's JavaScript event interface does not yet handle functions. " ++
            "Only simple values can be imported and exported in this release."
-    --LambdaT <$> toForeignType t1 <*> toForeignType t2
-toForeignType (ADTPT name args)
-    | isJsStructure name =  ADT name <$> mapM toForeignType args
-    | otherwise =
-        Left $ "'" ++ name ++ "' is not an exportable type " ++
-               "constructor. Only 'JSArray' and 'JSTupleN' are exportable."
+
+toForeignType (ADTPT "JSArray" args) =
+    ADT "JSArray" <$> mapM toForeignType args
+
+toForeignType (ADTPT name _) =
+    Left $ "'" ++ name ++ "' is not an exportable type " ++
+             "constructor. Only 'JSArray' is exportable."
 
 toForeignType (VarPT x@(c:_))
+    | x `elem` jsTypes = Right (ADT x [])
     | isLower c =
-        Left "All exported types must be concrete types (JSNumber, JSString, etc.)"
-    | x `elem` ["JSString","JSNumber","JSElement","JSBool"] = Right (ADT x [])
-    | otherwise = Left $ "'" ++ x ++ "' is not an exportable type. Only JSTypes are exportable."
-
-isJsStructure name = name == "JSArray" || isTuple
-    where isTuple = "JSTuple" == take 7 name && drop 7 name `elem` map show [2..5]
+        Left $ "All exported types must be concrete types." ++ msg
+    | otherwise =
+        Left $ "'" ++ x ++ "' is not an exportable type." ++ msg
+  where
+    msg = " The following types are exportable: " ++ intercalate ", " jsTypes
+    jsTypes = ["JSString","JSNumber","JSElement","JSBool","JSObject"]

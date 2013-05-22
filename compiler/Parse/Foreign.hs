@@ -11,12 +11,11 @@ import Parse.Expr (term)
 import Parse.Types
 import Types.Types (signalOf)
 
-
 foreignDef = do try (reserved "foreign") ; whitespace
-                importEvent <|> exportEvent
+                try importEvent <|> exportEvent
 
 exportEvent = do
-  try (reserved "export" >> whitespace >> reserved "jsevent" >> whitespace)
+  reserved "export" >> whitespace >> reserved "jsevent" >> whitespace
   js   <- jsVar    ; whitespace
   elm  <- lowVar   ; whitespace
   hasType          ; whitespace
@@ -27,7 +26,7 @@ exportEvent = do
     _ -> fail "When exporting events, the exported value must be a Signal."
 
 importEvent = do
-  try (reserved "import" >> whitespace >> reserved "jsevent" >> whitespace)
+  reserved "import" >> whitespace >> reserved "jsevent" >> whitespace
   js   <- jsVar ; whitespace
   base <- term <?> "Base case for imported signal (signals cannot be undefined)"
   whitespace
