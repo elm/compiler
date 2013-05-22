@@ -114,8 +114,9 @@ Elm.Native.Utils = function(elm) {
     t.style.cssFloat   = "left";
 
     elm.node.appendChild(t);
-    var w = t.clientWidth;
-    var h = t.clientHeight;
+    var style = window.getComputedStyle(t, null);
+    var w = Math.ceil(style.getPropertyValue("width").slice(0,-2) - 0);
+    var h = Math.ceil(style.getPropertyValue("height").slice(0,-2) - 0);
     elm.node.removeChild(t);
     return Tuple2(w,h);
   }
