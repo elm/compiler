@@ -12,21 +12,21 @@ import Parse.Types
 import Types.Types (signalOf)
 
 foreignDef = do try (reserved "foreign") ; whitespace
-                try importEvent <|> exportEvent
+                importEvent <|> exportEvent
 
 exportEvent = do
-  reserved "export" >> whitespace >> reserved "jsevent" >> whitespace
+  try (reserved "export") >> whitespace >> reserved "jsevent" >> whitespace
   js   <- jsVar    ; whitespace
   elm  <- lowVar   ; whitespace
   hasType          ; whitespace
   tipe <- typeExpr
   case tipe of
     ADTPT "Signal" [pt] ->
-        either fail (return . ExportEvent js elm . signalOf) (toForeignType pt)
-    _ -> fail "When exporting events, the exported value must be a Signal."
+        either error (return . ExportEvent js elm . signalOf) (toForeignType pt)
+    _ -> error "When exporting events, the exported value must be a Signal."
 
 importEvent = do
-  reserved "import" >> whitespace >> reserved "jsevent" >> whitespace
+  try (reserved "import") >> whitespace >> reserved "jsevent" >> whitespace
   js   <- jsVar ; whitespace
   base <- term <?> "Base case for imported signal (signals cannot be undefined)"
   whitespace
@@ -35,15 +35,15 @@ importEvent = do
   tipe <- typeExpr
   case tipe of
     ADTPT "Signal" [pt] ->
-        either fail (return . ImportEvent js base elm . signalOf) (toForeignType pt)
-    _ -> fail "When importing events, the imported value must be a Signal."
+       either error (return . ImportEvent js base elm . signalOf) (toForeignType pt)
+    _ -> error "When importing events, the imported value must be a Signal."
 
 
 jsVar :: (Monad m) => ParsecT [Char] u m String
 jsVar = betwixt '"' '"' $ do
   v <- (:) <$> (letter <|> char '_') <*> many (alphaNum <|> char '_')
   if v `notElem` jsReserveds then return v else
-      fail $ "'" ++ v ++
+      error $ "'" ++ v ++
           "' is not a good name for a importing or exporting JS values."
 
 jsReserveds =
