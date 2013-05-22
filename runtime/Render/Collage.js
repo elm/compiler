@@ -279,7 +279,12 @@ function updateTracker(w,h,div) {
             if (!container) {
                 div.appendChild(container);
             } else {
-                div.insertBefore(container, kids[i]);
+                var kid = kids[i];
+                if (kid) {
+                    div.insertBefore(container, kid);
+                } else {
+                    div.appendChild(container);
+                }
             }
         }
         // we have added a new node, so we must step our position

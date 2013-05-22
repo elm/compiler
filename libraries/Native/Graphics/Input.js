@@ -140,6 +140,14 @@ Elm.Native.Graphics.Input = function(elm) {
      return { _:{}, box:F2(box), events:events };
  }
 
+ function setRange(node, start, end, dir) {
+     if (node.parentNode) {
+         node.setSelectionRange(start, end, dir);
+     } else {
+         setTimeout(function(){node.setSelectionRange(start, end, dir);}, 0);
+     }
+ }
+
  function mkTextPool(type) { return function fields(defaultValue) {
      var events = Signal.constant(defaultValue);
 
@@ -153,7 +161,7 @@ Elm.Native.Graphics.Input = function(elm) {
 	 field.type = type;
 	 field.placeholder = fromString(model.placeHolder);
 	 field.value = fromString(model.state.string);
-	 field.setSelectionRange(model.state.selectionStart, model.state.selectionEnd);
+	 setRange(field, model.state.selectionStart, model.state.selectionEnd, 'forward');
 	 field.style.border = 'none';
          state = model.state;
 
@@ -202,7 +210,7 @@ Elm.Native.Graphics.Input = function(elm) {
          if (node.selectionStart !== start
              || node.selectionEnd !== end
              || node.selectionDirection !== direction) {
-             node.setSelectionRange(start, end, direction);
+             setRange(node, start, end, direction);
          }
      }
 

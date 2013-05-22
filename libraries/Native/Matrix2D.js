@@ -5,8 +5,20 @@ Elm.Native.Matrix2D = function(elm) {
  elm.Native = elm.Native || {};
  if (elm.Native.Matrix2D) return elm.Native.Matrix2D;
 
- if (typeof Float32Array === 'undefined'){ Float32Array = Array; }
- var A = Float32Array;
+ var A;
+ if (typeof Float32Array === 'undefined') {
+     A = function(arr) {
+         this.length = arr.length;
+         this[0] = arr[0];
+         this[1] = arr[1];
+         this[2] = arr[2];
+         this[3] = arr[3];
+         this[4] = arr[4];
+         this[5] = arr[5];
+     };
+ } else {
+     A = Float32Array;
+ }
 
  // layout of matrix in an array is
  //
