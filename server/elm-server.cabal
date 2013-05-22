@@ -17,7 +17,7 @@ Category:            Compiler, Language
 Build-type:          Simple
 
 --Extra-source-files:  README.md
-Cabal-version:       >=1.6
+Cabal-version:       >=1.8
 
 source-repository head
   type:     git

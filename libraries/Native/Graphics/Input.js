@@ -103,7 +103,7 @@ Elm.Native.Graphics.Input = function(elm) {
 		   });
      }
 
-     return { _:{}, button:F4(button), events:events };
+     return { _:{}, customButton:F4(button), events:events };
  }
 
 
