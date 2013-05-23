@@ -43,7 +43,7 @@ customButtons : a -> { events : Signal a,
 customButton : Element -> Element -> Element -> (Element, Signal ())
 customButton up hover down =
     let pool = N.customButtons ()
-    in  (pool.button () up hover down, pool.events)
+    in  (pool.customButton () up hover down, pool.events)
 
 -- Create a group of checkboxes.
 --
