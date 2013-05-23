@@ -15,7 +15,7 @@ Elm.Native.Json = function(elm) {
     case 'Object' :
       var obj = {};
       var array = JS.fromList(Dict.toList(v._0));
-      for (var i = arr.length; i--; ) {
+      for (var i = array.length; i--; ) {
 	obj[JS.fromString(array[i]._0)] = fromValue(array[i]._1);
       }
       return obj;
