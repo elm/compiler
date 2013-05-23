@@ -4,14 +4,16 @@
 -- it can be used.
 module Automaton where
 
+import Signal (lift,foldp)
+
 data Automaton a b = Step (a -> (Automaton a b, b))
 
 -- Run an automaton on a given signal. The automaton steps forward
 -- whenever the input signal updates.
 run : Automaton a b -> b -> Signal a -> Signal b
-run (Step f) base inputs =
+run auto base inputs =
   let step a (Step f, _) = f a
-  in  lift snd $ foldp step base inputs
+  in  lift (\(x,y) -> y) <| foldp step (auto,base) inputs
 
 -- Step an automaton forward once with a given input.
 step : a -> Automaton a b -> (Automaton a b, b)
