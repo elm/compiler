@@ -38,7 +38,7 @@ Elm.Native.Http = function(elm) {
     if (window.XMLHttpRequest) { request = new XMLHttpRequest(); }
     request.onreadystatechange = function(e) {
       if (request.readyState === 4) {
-        response.value = (request.status === 200 ?
+        response.value = (request.status >= 200 && request.status < 300 ?
         { ctor:'Success', _0:JS.toString(request.responseText) } :
         { ctor:'Failure', _0:request.status, _1:JS.toString(request.statusText) });
         setTimeout(function() { updateQueue(queue,responses); }, 0);
