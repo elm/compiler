@@ -167,4 +167,4 @@ toForeignType (VarPT x@(c:_))
         Left $ "'" ++ x ++ "' is not an exportable type." ++ msg
   where
     msg = " The following types are exportable: " ++ intercalate ", " jsTypes
-    jsTypes = ["JSString","JSNumber","JSElement","JSBool","JSObject"]
+    jsTypes = ["JSString","JSNumber","JSDomNode","JSBool","JSObject"]
