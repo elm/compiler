@@ -1,8 +1,9 @@
 
 module Graphics.Input where
 
-import Signal (lift)
+import Signal (lift,dropRepeats)
 import Native.Graphics.Input as N
+import List
 
 id x = x
 
@@ -102,13 +103,17 @@ emptyFieldState = { string="", selectionStart=0, selectionEnd=0 }
 field : String -> (Signal Element, Signal String)
 field placeHolder =
     let tfs = N.fields emptyFieldState
-    in  (lift (tfs.field id placeHolder) tfs.events, lift .string tfs.events)
+        changes = dropRepeats tfs.events
+    in  (lift (tfs.field id placeHolder) changes,
+         dropRepeats (lift .string changes))
 
 -- Same as `field` but the UI element blocks out each characters.
 password : String -> (Signal Element, Signal String)
 password placeHolder =
     let tfs = N.passwords emptyFieldState
-    in  (lift (tfs.field id placeHolder) tfs.events, lift .string tfs.events)
+        changes = dropRepeats tfs.events
+    in  (lift (tfs.field id placeHolder) changes,
+         dropRepeats (lift .string changes))
 
 -- Same as `field` but it adds an annotation that this field is for email
 -- addresses. This is helpful for auto-complete and for mobile users who may
@@ -116,4 +121,18 @@ password placeHolder =
 email : String -> (Signal Element, Signal String)
 email placeHolder =
     let tfs = N.emails emptyFieldState
-    in  (lift (tfs.field id placeHolder) tfs.events, lift .string tfs.events)
+        changes = dropRepeats tfs.events
+    in  (lift (tfs.field id placeHolder) changes,
+         dropRepeats (lift .string changes))
+
+-- Create a drop-down menu. When the user selects a string,
+-- the current state of the drop-down is set to the associated
+-- value. This lets you avoid manually mapping the string onto
+-- functions and values.
+dropDown : [(String,a)] -> (Signal Element, Signal a)
+
+-- Create a drop-down menu for selecting strings. The resulting
+-- signal of strings represents the string that is currently selected.
+stringDropDown : [String] -> (Signal Element, Signal String)
+stringDropDown strs =
+    N.dropDown (List.map (\s -> (s,s)) strs)

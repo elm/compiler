@@ -7,12 +7,50 @@ Elm.Native.Graphics.Input = function(elm) {
  if (elm.Native.Graphics.Input) return elm.Native.Graphics.Input;
 
  var Render = ElmRuntime.use(ElmRuntime.Render.Element);
- var Utils = ElmRuntime.use(ElmRuntime.Render.Utils);
- var newNode = Utils.newElement, fromString = Utils.fromString,
-     toString = Utils.toString;
+ var newNode = ElmRuntime.use(ElmRuntime.Render.Utils).newElement;
 
  var Signal = Elm.Signal(elm);
  var newElement = Elm.Graphics.Element(elm).newElement;
+ var JS = Elm.Native.JavaScript(elm);
+ var Tuple2 = Elm.Native.Utils(elm).Tuple2;
+
+ function dropDown(values) {
+     var entries = JS.fromList(values);
+     var events = Signal.constant(entries[0]._1);
+
+     var drop = newNode('select');
+     drop.style.border = '0 solid';
+     for (var i = 0; i < entries.length; ++i) {
+         var option = newNode('option');
+         var name = JS.fromString(entries[i]._0);
+         option.value = name;
+         option.innerHTML = name;
+         drop.appendChild(option);
+     }
+     drop.addEventListener('change', function() {
+             elm.notify(events.id, entries[drop.selectedIndex]._1);
+         });
+
+     var t = drop.cloneNode(true);
+     t.style.visibility = "hidden";
+
+     elm.node.appendChild(t);
+     var style = window.getComputedStyle(t, null);
+     var w = Math.ceil(style.getPropertyValue("width").slice(0,-2) - 0);
+     var h = Math.ceil(style.getPropertyValue("height").slice(0,-2) - 0);
+     elm.node.removeChild(t);
+     
+     console.log(w,h);
+     var element = A3(newElement, w, h, {
+             ctor: 'Custom',
+             type: 'DropDown',
+             render: function render(model) { return drop; },
+             update: function update(node, oldModel, newModel) {},
+             model: {}
+         });
+
+     return Tuple2(Signal.constant(element), events);
+ }
 
  function buttons(defaultValue) {
      var events = Signal.constant(defaultValue);
@@ -39,7 +77,7 @@ Elm.Native.Graphics.Input = function(elm) {
 		     type: 'Button',
 		     render: render,
 		     update: update,
-		     model: { event:evnt, text:fromString(txt) }
+		     model: { event:evnt, text:JS.fromString(txt) }
 	     });
      }
 
@@ -159,8 +197,8 @@ Elm.Native.Graphics.Input = function(elm) {
 
 	 field.id = 'test';
 	 field.type = type;
-	 field.placeholder = fromString(model.placeHolder);
-	 field.value = fromString(model.state.string);
+	 field.placeholder = JS.fromString(model.placeHolder);
+	 field.value = JS.fromString(model.state.string);
 	 setRange(field, model.state.selectionStart, model.state.selectionEnd, 'forward');
 	 field.style.border = 'none';
          state = model.state;
@@ -173,7 +211,7 @@ Elm.Native.Graphics.Input = function(elm) {
 		 end = field.selectionStart;
 	     }
              state = { _:{},
-                       string:toString(field.value),
+                       string:JS.toString(field.value),
                        selectionStart:start,
                        selectionEnd:end };
 	     elm.notify(events.id, field.elmHandler(state));
@@ -195,7 +233,7 @@ Elm.Native.Graphics.Input = function(elm) {
      function update(node, oldModel, newModel) {
 	 node.elmHandler = newModel.handler;
          if (state === newModel.state) return;
-         var newStr = fromString(newModel.state.string);
+         var newStr = JS.fromString(newModel.state.string);
 	 if (node.value !== newStr) node.value = newStr;
 
          var start = newModel.state.selectionStart;
@@ -236,7 +274,8 @@ Elm.Native.Graphics.Input = function(elm) {
      checkboxes:checkboxes,
      fields:mkTextPool('text'),
      emails:mkTextPool('email'),
-     passwords:mkTextPool('password')
+     passwords:mkTextPool('password'),
+     dropDown:dropDown
  };
 
 };
