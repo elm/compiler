@@ -1,7 +1,5 @@
-Elm
-===
 
-Learn more about the language at [elm-lang.org](http://elm-lang.org/).
+Learn about the Elm programming language at [elm-lang.org](http://elm-lang.org/).
 
 
 ### Installing the Compiler
