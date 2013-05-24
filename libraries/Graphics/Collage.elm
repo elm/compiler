@@ -172,11 +172,13 @@ polygon points = points
 
 -- A rectangle with a given width and height.
 rect : Number a -> Number a -> Shape
-rect w h = [ (0-w/2,0-h/2), (0-w/2,h/2), (w/2,h/2), (w/2,0-h/2) ]
+rect w h = let hw = w/2
+               hh = h/2
+           in  [ (0-hw,0-hh), (0-hw,hh), (hw,hh), (hw,0-hh) ]
 
 -- A square with a given edge length.
 square : Number a -> Shape
-square n = rect w h
+square n = rect n n
 
 -- An oval with a given width and height.
 oval : Number a -> Number a -> Shape
