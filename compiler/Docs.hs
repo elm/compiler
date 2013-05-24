@@ -5,6 +5,8 @@ import Ast
 import Control.Applicative ((<$>), (<*>))
 import Data.List (intercalate)
 import Data.Maybe (catMaybes)
+import Types.Types ((==>), Type ( ADT, VarT ) )
+import Parse.Types (datatype)
 import Parse.Library
 import Parse.Modules (moduleDef)
 import Text.Parsec hiding (newline,spaces)
@@ -35,15 +37,19 @@ docParse :: String -> Either String (String, [(String, String, String)])
 docParse = setupParser $ do
   optional freshLine
   (names, exports) <- option (["Main"],[]) moduleDef
-  info <- many (annotation exports <|> try skip <|> end)
-  return (intercalate "." names, catMaybes info)
+  info <- many (try (annotation exports) <|> try skip <|> end)
+  return (intercalate "." names, concat info)
     where
-      skip = manyTill anyChar simpleNewline >> return Nothing
-      end  = many1 anyChar >> return Nothing
+      skip = manyTill anyChar simpleNewline >> return []
+      end  = many1 anyChar >> return []
 
-annotation :: [String] -> IParser (Maybe (String, String, String))
+annotation :: [String] -> IParser [(String, String, String)]
 annotation exports =
-    try ((\c n t -> export (n,t,c)) <$> comment <*> (try adt <|> name) <*> tipe)
+    do description <- comment
+       extras  <- option [] (lookAhead adt)
+       varName <- try typeDef <|> name
+       varType <- tipe
+       return $ extras ++ export varName varType description
   where
     comment = concatMap clip <$> many lineComment
     clip str = case str of { ' ':rest -> rest ; _ -> str } ++ "\n"
@@ -53,11 +59,16 @@ annotation exports =
 
     tipe = manyTill anyChar (try (simpleNewline >> notFollowedBy (string " ")))
 
-    export info@(name,_,_) =
-        if null exports || name `elem` exports then Just info else Nothing
+    export name tipe desc =
+        if null exports || name `elem` exports then [(name,tipe,desc)] else []
 
-    adt = lookAhead ((string "data" <|> string "type") >> whitespace >> capVar)
+    typeDef = lookAhead ((string "data" <|> string "type") >> whitespace >> capVar)
 
+    adt = do
+      (Datatype name tvs constructors) <- datatype
+      let toType (cName, typeArgs) =
+              (cName, show $ foldr (==>) (ADT name $ map VarT tvs) typeArgs, "")
+      return $ map toType constructors
 
 setupParser p source =
     case iParse p "" source of
