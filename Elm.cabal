@@ -1,5 +1,5 @@
 Name:                Elm
-Version:             0.8.0.1
+Version:             0.8.0.2
 Synopsis:            The Elm language module.
 Description:         Elm aims to make client-side web-development more pleasant.
                      It is a statically/strongly typed, functional reactive
@@ -72,14 +72,13 @@ Library
                        blaze-html == 0.5.* || == 0.6.*,
                        blaze-markup == 0.5.1.*,
                        text,
-                       template-haskell,
                        shakespeare >= 1,
+                       template-haskell,
                        pandoc >= 1.10,
                        bytestring,
                        hjsmin,
                        indents,
                        filepath,
-                       template-haskell,
                        json,
                        directory
 
@@ -132,7 +131,6 @@ Executable elm
                        hjsmin,
                        indents,
                        filepath,
-                       template-haskell,
                        json,
                        directory
 
