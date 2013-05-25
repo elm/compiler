@@ -49,7 +49,7 @@ function tiledImage(src) {
 
 function fittedImage(w, h, src) {
     var div = newElement('div');
-    div.style.background = 'url(' + src + ') no-repeat center center fixed';
+    div.style.background = 'url(' + src + ') no-repeat center';
     div.style.webkitBackgroundSize = 'cover';
     div.style.MozBackgroundSize = 'cover';
     div.style.OBackgroundSize = 'cover';
