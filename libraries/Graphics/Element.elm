@@ -1,6 +1,6 @@
 
 module Graphics.Element (widthOf, heightOf, sizeOf,
-                         width, height, opacity, color, tag, link,
+                         width, height, size, opacity, color, tag, link,
                          image, fittedImage, croppedImage, tiledImage,
                          flow, up, down, left, right, inward, outward,
                          above, below, beside, layers,
@@ -59,6 +59,10 @@ height nh e = let p = e.props
                             _ -> p
               in { element=e.element, props={p| height  <- nh} }
 
+-- Create an `Element` with a new width and height.
+size : Int -> Int -> Element -> Element
+size w h e = height h (width w e)
+
 -- Create an `Element` with a given opacity. Opacity is a number between 0 and 1
 -- where 0 means totally clear.
 opacity : Float -> Element -> Element
@@ -108,9 +112,9 @@ fittedImage w h src = newElement w h (Image Fitted w h (JS.fromString src))
 -- at the given top left coordinate. If you have a 140-by-140 image,
 -- the following will cut a 100-by-100 square out of the middle of it.
 --
---         croppedImage 100 100 (20,20) "yogi.jpg"
-croppedImage : Int -> Int -> (Int,Int) -> String -> Element
-croppedImage w h pos src =
+--         croppedImage (20,20) 100 100 "yogi.jpg"
+croppedImage : (Int,Int) -> Int -> Int -> String -> Element
+croppedImage pos w h src =
     newElement w h (Image (Cropped pos) w h (JS.fromString src))
 
 tiledImage : Int -> Int -> String -> Element
