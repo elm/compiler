@@ -1,7 +1,7 @@
 
 module Graphics.Element (widthOf, heightOf, sizeOf,
                          width, height, opacity, color, tag, link,
-                         image, fittedImage, croppedImage,
+                         image, fittedImage, croppedImage, tiledImage,
                          flow, up, down, left, right, inward, outward,
                          above, below, beside, layers,
                          container, absolute, relative,
@@ -93,7 +93,7 @@ data ElementPrim
   | RawHtml JSString
   | Custom -- for custom Elements implemented in JS, see collage for example
 
-data ImageStyle = Plain | Fitted | Cropped (Int,Int)
+data ImageStyle = Plain | Fitted | Cropped (Int,Int) | Tiled
 
 -- Create an image given a width, height, and image source.
 image : Int -> Int -> String -> Element
@@ -112,6 +112,10 @@ fittedImage w h src = newElement w h (Image Fitted w h (JS.fromString src))
 croppedImage : Int -> Int -> (Int,Int) -> String -> Element
 croppedImage w h pos src =
     newElement w h (Image (Cropped pos) w h (JS.fromString src))
+
+tiledImage : Int -> Int -> String -> Element
+tiledImage w h src =
+    newElement w h (Image Tiled w h (JS.fromString src))
 
 data Three = P | Z | N
 data Pos = Absolute Int | Relative Float

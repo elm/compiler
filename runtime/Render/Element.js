@@ -29,6 +29,7 @@ function image(props, img) {
     case 'Plain':   return plainImage(img._3);
     case 'Fitted':  return fittedImage(props.width, props.height, img._3);
     case 'Cropped': return croppedImage(img,props.width,props.height,img._3);
+    case 'Tiled':   return tiledImage(img._3);
     }
 }
 
@@ -40,31 +41,20 @@ function plainImage(src) {
     return img;
 }
 
+function tiledImage(src) {
+    var div = newElement('div');
+    div.style.backgroundImage = 'url(' + src + ')';
+    return div;
+}
+
 function fittedImage(w, h, src) {
-    var e = newElement('div');
-    e.style.position = "relative";
-    e.style.overflow = "hidden";
-
-    var img = newElement('img');
-    img.onload = function() {
-	img.style.position = 'absolute';
-	img.style.margin = 'auto';
-
-	var sw = w, sh = h;
-	if (w / h > this.width / this.height) {
-	    sh = Math.round(this.height * w / this.width);
-	} else {
-	    sw = Math.round(this.width * h / this.height);
-	}
-	img.style.width = sw + 'px';
-	img.style.height = sh + 'px';
-	img.style.left = ((w - sw) / 2) + 'px';
-	img.style.top = ((h - sh) / 2) + 'px';
-    };
-    img.src = src;
-    img.name = src;
-    e.appendChild(img);
-    return e;
+    var div = newElement('div');
+    div.style.background = 'url(' + src + ') no-repeat center center fixed';
+    div.style.webkitBackgroundSize = 'cover';
+    div.style.MozBackgroundSize = 'cover';
+    div.style.OBackgroundSize = 'cover';
+    div.style.backgroundSize = 'cover';
+    return div;
 }
 
 function croppedImage(elem, w, h, src) {
@@ -180,7 +170,7 @@ function update(node, curr, next) {
         if (nextE._0 !== currE._0) node.innerHTML = nextE._0;
         break;
     case "Image":
-	if (nextE._0.ctor === 'Plain') {
+	if (nextE._0.ctor !== 'Plain') {
 	    if (nextE._3 !== currE._3) node.src = nextE._3;
 	} else if (!eq(nextE,currE) ||
 		   next.props.width !== curr.props.width ||
