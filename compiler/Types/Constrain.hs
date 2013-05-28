@@ -22,17 +22,27 @@ beta = VarT `liftM` guid
 unionA = Map.unionWith (++)
 unionsA = Map.unionsWith (++)
 
+getAliases :: [(String,ImportMethod)] -> [(String,Scheme)] -> [(String,Scheme)]
 getAliases imports hints = concatMap aliasesFrom imports
-  where aliasesFrom (name,method) =
-            let values = concatMap (getValue name) hints
-            in  case method of
-                  As alias -> map (\(n,t) -> (alias ++ "." ++ n, t)) values
-                  Hiding vs -> filter (\(n,t) -> n `notElem` vs) values
-                  Importing vs -> filter (\(n,t) -> n `elem` vs) values
-        getValue inModule (name,tipe) =
-            case inModule `isPrefixOf` name of
-              True  -> [ (drop (length inModule + 1) name, tipe) ]
-              False -> []
+    where
+      -- Get the names of values that are now in scope after a particular
+      -- import statement.
+      aliasesFrom :: (String,ImportMethod) -> [(String,Scheme)]
+      aliasesFrom (name,method) =
+          let values = concatMap (getValue name) hints
+              prefixed name = map (\(n,t) -> (name ++ "." ++ n, t)) values
+          in  case method of
+                As alias -> prefixed alias
+                Hiding vs -> prefixed name ++ filter (\(n,t) -> n `notElem` vs) values
+                Importing vs -> prefixed name ++ filter (\(n,t) -> n `elem` vs) values
+
+      -- Take a module name and a type annotation. Return the unprefxed
+      -- type annotation: getValue "List" ("List.map",t) == [("map",t)]
+      getValue :: String -> (String,Scheme) -> [(String,Scheme)]
+      getValue inModule (name,tipe) =
+          case inModule `isPrefixOf` name of
+            True  -> [ (drop (length inModule + 1) name, tipe) ]
+            False -> []
 
 findAmbiguous hints assumptions continue =
  let potentialDups = map head . filter (\g -> length g > 1) . group . sort $
@@ -74,10 +84,11 @@ constrain typeHints (Module _ _ imports stmts) = do
     let f k s vs = map (\v -> C (Just k) NoSpan $ v :<<: s) vs
         cs = concat . Map.elems $ Map.intersectionWithKey f allHints assumptions
         escapees = Map.keys $ Map.difference assumptions allHints
+        msg = "Warning! Type-checker could not find variables:\n" ++ intercalate ", " escapees
     return $ case escapees of
                [] -> Right (Set.toList constraints ++ cs)
-               _  -> unsafePerformIO (print escapees) `seq` Right (Set.toList constraints ++ cs)
-               _  -> Left ("Undefined variable(s): " ++ intercalate ", " escapees)
+               _  -> unsafePerformIO (putStrLn msg) `seq` Right (Set.toList constraints ++ cs)
+               --_  -> Left ("Undefined variable(s): " ++ intercalate ", " escapees)
 
 type TVarMap = Map.Map String [X]
 type ConstraintSet = Set.Set (Context Constraint)
