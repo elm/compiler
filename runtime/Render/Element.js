@@ -170,7 +170,7 @@ function update(node, curr, next) {
         if (nextE._0 !== currE._0) node.innerHTML = nextE._0;
         break;
     case "Image":
-	if (nextE._0.ctor !== 'Plain') {
+	if (nextE._0.ctor === 'Plain') {
 	    if (nextE._3 !== currE._3) node.src = nextE._3;
 	} else if (!eq(nextE,currE) ||
 		   next.props.width !== curr.props.width ||
