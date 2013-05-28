@@ -13,33 +13,35 @@
      Example implementations using Yesod and Happstack are available
      at <https://github.com/tazjin/Elm/tree/master/Examples>
 -}
-module Language.Elm (
-    compile, toHtml,
-    moduleName,
-    runtime, docs
-    ) where
+module Language.Elm (compile, toHtml, moduleName, runtime, docs) where
 
-import qualified Ast as Ast
-import qualified Libraries as Libraries
 import Data.List (intercalate)
 import Data.Version (showVersion)
 import CompileToJS (showErr, jsModule)
-import ExtractNoscript
-import GenerateHtml
-import Initialize
+import GenerateHtml (generateHtml)
+import Initialize (buildFromSource)
+import Parse.Library
+import Parse.Modules (moduleDef)
 import Text.Blaze.Html (Html)
+import Text.Parsec (option,optional)
 import Paths_Elm
 
 -- |This function compiles Elm code to JavaScript.
 compile :: String -> String
 compile source = either showErr jsModule modul
-  where modul = buildFromSource True source
+    where
+      modul = buildFromSource True source
 
 -- |This function extracts the module name of a given source program.
 moduleName :: String -> String
-moduleName source = either (const "Main") getName modul
-  where modul = buildFromSource False source
-        getName (Ast.Module names _ _ _) = intercalate "." names
+moduleName source = case iParse getModuleName "" source of
+                      Right name -> name
+                      Left _     -> "Main"
+    where
+      getModuleName = do
+        optional freshLine
+        (names, _) <- option (["Main"],[]) moduleDef
+        return (intercalate "." names)
 
 -- |This function compiles Elm code into a full HTML page.
 toHtml :: String -- ^ Location of elm-min.js as expected by the browser
