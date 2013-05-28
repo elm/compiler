@@ -16,6 +16,8 @@ import Guid
 import Types.Types
 import qualified Types.Substitutions as Subs
 
+import System.IO.Unsafe
+
 beta = VarT `liftM` guid
 unionA = Map.unionWith (++)
 unionsA = Map.unionsWith (++)
@@ -73,8 +75,9 @@ constrain typeHints (Module _ _ imports stmts) = do
         cs = concat . Map.elems $ Map.intersectionWithKey f allHints assumptions
         escapees = Map.keys $ Map.difference assumptions allHints
     return $ case escapees of
-               _  -> Right (Set.toList constraints ++ cs)
-               --_  -> Left ("Undefined variable(s): " ++ intercalate ", " escapees)
+               [] -> Right (Set.toList constraints ++ cs)
+               _  -> unsafePerformIO (print escapees) `seq` Right (Set.toList constraints ++ cs)
+               _  -> Left ("Undefined variable(s): " ++ intercalate ", " escapees)
 
 type TVarMap = Map.Map String [X]
 type ConstraintSet = Set.Set (Context Constraint)
