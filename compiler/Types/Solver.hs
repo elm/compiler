@@ -11,7 +11,6 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Guid
 import Types.Types
-import Types.Constrain
 import Types.Substitutions
 import Types.Alias (dealias)
 

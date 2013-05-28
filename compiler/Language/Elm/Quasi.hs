@@ -4,11 +4,13 @@
 {-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -fno-warn-missing-fields #-}
 
--- | This module contains Shakespearean (see "Text.Shakespeare") templates for Elm.
---   It introduces type-safe compile-time variable and URL interpolation. A typeclass
---   @'ToElm'@ is provided for interpolated variables.
+-- | This module contains Shakespearean (see "Text.Shakespeare") templates
+--   for Elm. It introduces type-safe compile-time variable and URL
+--   interpolation. A typeclass @'ToElm'@ is provided for interpolated
+--   variables.
 --
---   Further reading on Shakespearean templates: <http://www.yesodweb.com/book/templates>
+--   Further reading on Shakespearean templates:
+--   <http://www.yesodweb.com/book/templates>
 --
 --   Further reading on Elm: <http://elm-lang.org> 
 module Language.Elm.Quasi
@@ -17,8 +19,9 @@ module Language.Elm.Quasi
       -- |These QuasiQuoters return functions of the type @(t -> 'Elm')@
       --  where @t@ is the URL rendering function if type-safe URLs are used.
       --
-      --  A usage example for both type-safe (Yesod) and standard path segment (Happstack)
-      --  URLs is provided in the Examples folder in the Git repository.
+      --  A usage example for both type-safe (Yesod) and standard path segment
+      --  (Happstack) URLs is provided in the Examples folder in the Git
+      --  repository.
       elm
     , elmFile
     , elmFileReload

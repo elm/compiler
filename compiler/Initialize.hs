@@ -13,7 +13,7 @@ import Rename
 import qualified Libraries as Libs
 import Types.Types ((-:))
 import Types.Hints (hints)
-import Types.Unify
+import Types.Unify (unify)
 import Types.Alias (dealias, mistakes)
 import Optimize
 import CompileToJS (jsModule)

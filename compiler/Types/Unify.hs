@@ -6,11 +6,11 @@ import qualified Data.Map as Map
 
 import Ast
 import Guid
-import Types.Constrain
-import Types.Solver
-import Types.Alias as Alias
+import qualified Types.Constrain as Constrain
+import qualified Types.Solver as Solver
+import qualified Types.Alias as Alias
 
 unify hints modul@(Module _ _ _ stmts) = run $ do
-  constraints <- constrain hints modul
-  either (return . Left) (solver (Alias.get stmts) Map.empty) constraints
+  constraints <- Constrain.constrain hints modul
+  either (return . Left) (Solver.solver (Alias.get stmts) Map.empty) constraints
 

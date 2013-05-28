@@ -14,7 +14,7 @@ import qualified Text.Jasmine as JS
 import qualified Data.ByteString.Lazy.Char8 as BS
 
 import Ast
-import Initialize
+import Initialize (build,buildFromSource)
 import CompileToJS
 import GenerateHtml
 import qualified Libraries as Libraries
