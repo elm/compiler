@@ -272,7 +272,8 @@ jsLet defs e' = do ds <- jsDefs defs
   where 
     jsDefs defs = mapM toJS (sortBy f defs)
     f a b = compare (valueOf a) (valueOf b)
-    valueOf (FnDef _ args _) = min 1 (length args)
+    valueOf (FnDef _ [] _) = 2
+    valueOf (FnDef _ _ _) = 1
     valueOf (OpDef _ _ _ _)  = 1
 
 caseToJS span e ps = do
