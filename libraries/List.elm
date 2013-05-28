@@ -9,8 +9,8 @@ import Native.List as L
 
 -- Puts two appendable things together:
 --
---         [1,1] ++ [2,3] == [1,1,2,3]
---         "abc" ++ "123" == "abc123"
+--       [1,1] ++ [2,3] == [1,1,2,3]
+--       "abc" ++ "123" == "abc123"
 (++) : Appendable a -> Appendable a -> Appendable a
 
 -- Extract the first element of a list. List must be non-empty.
@@ -24,6 +24,13 @@ tail : [a] -> [a]
 -- Extract the last element of a list. List must be non-empty.
 -- `(last [1,2,3] == 3)`
 last : [a] -> a
+
+-- Check if a list is empty `(isEmpty [] == True)`
+isEmpty : [a] -> Bool
+isEmpty xs =
+    case xs of
+      [] -> True
+      _  -> False
 
 -- Apply a function to every element of a list: `(map sqrt [1,4,9] == [1,2,3])`
 map  : (a -> b) -> [a] -> [b]
@@ -42,12 +49,12 @@ foldr1 : (a -> a -> a) -> [a] -> a
 
 -- Reduce a list from the left, building up all of the intermediate results into a list.
 --
---         scanl (+) 0 [1,2,3,4] == [0,1,3,6,10]
+--       scanl (+) 0 [1,2,3,4] == [0,1,3,6,10]
 scanl  : (a -> b -> b) -> b -> [a] -> [b]
 
 -- Same as scanl but it doesn't require a base case. List must be non-empty.
 --
---         scanl1 (+) [1,2,3,4] == [1,3,6,10]
+--       scanl1 (+) [1,2,3,4] == [1,3,6,10]
 scanl1 : (a -> a -> a) -> [a] -> [a]
 
 -- Filter out elements which do not satisfy the predicate: `(filter isLower "AaBbCc" == "abc")`
@@ -73,12 +80,12 @@ or  : [Bool] -> Bool
 
 -- Concatenate a list of appendable things:
 --
---         concat ["tree","house"] == "treehouse"
+--       concat ["tree","house"] == "treehouse"
 concat : [Appendable a] -> Appendable a
 
 -- Map a given function onto a list and flatten the resulting lists.
 --
---         concatMap f xs == concat (map f xs)
+--       concatMap f xs == concat (map f xs)
 concatMap : (a -> Appendable b) -> [a] -> Appendable b
 concatMap f = L.concat . L.map f
 
@@ -109,14 +116,14 @@ partition pred lst =
 -- Combine two lists, combining them into tuples pairwise.
 -- If one list is longer, the extra elements are dropped.
 --
---         zip [1,2,3] [6,7] == [(1,6),(2,7)]
---         zip == zipWith (,)
+--       zip [1,2,3] [6,7] == [(1,6),(2,7)]
+--       zip == zipWith (,)
 zip : [a] -> [b] -> [(a,b)]
 
 -- Combine two lists, combining them with the given function.
 -- If one list is longer, the extra elements are dropped.
 --
---         zipWith (+) [1,2,3] [1,2,3,4] == [2,4,6]
+--       zipWith (+) [1,2,3] [1,2,3,4] == [2,4,6]
 zipWith : (a -> b -> c) -> [a] -> [b] -> [c]
 
 -- Decompose a list of tuples.
@@ -128,18 +135,18 @@ unzip pairs =
 
 -- Split a list with a given seperator.
 --
---         split "," "hello,there,friend" == ["hello", "there", "friend"]
+--       split "," "hello,there,friend" == ["hello", "there", "friend"]
 split : [a] -> [a] -> [[a]]
 
 -- Places the given value between all of the lists in the second argument
 -- and concatenates the result. 
 --
---         join "a" ["H","w","ii","n"] == "Hawaiian"
+--       join "a" ["H","w","ii","n"] == "Hawaiian"
 join  : Appendable a -> [Appendable a] -> Appendable a
 
 -- Places the given value between all members of the given list.
 --
---         intersperse ' ' "INCEPTION" == "I N C E P T I O N"
+--       intersperse ' ' "INCEPTION" == "I N C E P T I O N"
 intersperse : a -> [a] -> [a]
 intersperse sep xs =
   case xs of 
