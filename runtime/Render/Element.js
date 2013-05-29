@@ -60,18 +60,15 @@ function fittedImage(w, h, src) {
 function croppedImage(elem, w, h, src) {
     var pos = elem._0._0;
     var e = newElement('div');
-    e.style.position = "relative";
     e.style.overflow = "hidden";
 
     var img = newElement('img');
     img.onload = function() {
-	img.style.position = 'absolute';
-	img.style.margin = 'auto';
 	var sw = w / elem._1, sh = h / elem._2;
 	img.style.width = ((this.width * sw)|0) + 'px';
 	img.style.height = ((this.height * sh)|0) + 'px';
-	img.style.left = ((- pos._0 * sw)|0) + 'px';
-	img.style.top = ((- pos._1 * sh)|0) + 'px';
+	img.style.marginLeft = ((- pos._0 * sw)|0) + 'px';
+	img.style.marginTop = ((- pos._1 * sh)|0) + 'px';
     };
     img.src = src;
     img.name = src;
