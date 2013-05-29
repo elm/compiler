@@ -2,7 +2,7 @@
 module Parse.Library where
 
 import Ast
-import Context
+import Located
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad
 import Control.Monad.State
@@ -124,8 +124,8 @@ parens   = surround '(' ')' "paren"
 brackets :: IParser a -> IParser a
 brackets = surround '{' '}' "bracket"
 
-addContext :: IParser Expr -> IParser CExpr
-addContext expr = do
+addLocation :: IParser Expr -> IParser CExpr
+addLocation expr = do
   start <- getPosition
   e <- expr
   end <- getPosition
@@ -134,7 +134,7 @@ addContext expr = do
 accessible :: IParser CExpr -> IParser CExpr
 accessible expr = do
   start <- getPosition
-  ce@(C s t e) <- expr
+  ce@(L s t e) <- expr
   let rest f = do
         let dot = char '.' >> notFollowedBy (char '.')
         access <- optionMaybe (try dot <?> "field access (e.g. List.map)")

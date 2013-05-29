@@ -1,5 +1,5 @@
 
-module Context where
+module Located where
 
 import Text.Parsec.Pos
 
@@ -10,7 +10,7 @@ data SrcPos = Pos Int Int
 data SrcSpan = Span SrcPos SrcPos | NoSpan
     deriving (Eq,Ord)
 
-data Context e = C (Maybe String) SrcSpan e deriving (Eq,Ord)
+data Located e = L (Maybe String) SrcSpan e deriving (Eq,Ord)
 
 
 instance Show SrcPos where
@@ -22,22 +22,22 @@ instance Show SrcSpan where
         Span start end -> show start
         NoSpan -> ""
 
-instance Show e => Show (Context e) where
-  show (C _ _ e) = show e
+instance Show e => Show (Located e) where
+  show (L _ _ e) = show e
 
 
 
-noContext = C Nothing NoSpan
+notLocated = L Nothing NoSpan
 
-pos start end = C Nothing
+pos start end = L Nothing
                   (Span (Pos (sourceLine start) (sourceColumn start))
                         (Pos (sourceLine end  ) (sourceColumn end  )))
 
-epos (C _ s1 _) (C _ s2 _) = C Nothing span
+epos (L _ s1 _) (L _ s2 _) = L Nothing span
     where span = case (s1,s2) of
                    (Span start _, Span _ end) -> Span start end
                    (_, NoSpan) -> s1
                    (NoSpan, _) -> s2
 
-addCtx x (C Nothing span e) = C (Just (show x)) span e
-addCtx x (C txt span e) = C txt span e
+addLoc x (L Nothing span e) = L (Just (show x)) span e
+addLoc x (L txt span e) = L txt span e

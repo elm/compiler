@@ -2,7 +2,7 @@
 module Parse.Patterns (patternTerm, patternExpr, makeLambda, flattenPatterns) where
 
 import Ast
-import Context
+import Located
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad
 import Control.Monad.State
@@ -42,13 +42,13 @@ patternExpr = foldr1 pcons <$> consSep1 (patternConstructor <|> patternTerm) <?>
 makeLambda :: [Pattern] -> CExpr -> GuidCounter CExpr
 makeLambda pats body = go (reverse pats) body
     where go [] body = return body
-          go (p:ps) body@(C t s _) = do
+          go (p:ps) body@(L t s _) = do
             (x,e) <- extract p body
-            go ps (C t s $ Lambda x e)
+            go ps (L t s $ Lambda x e)
           
 extract :: Pattern -> CExpr -> GuidCounter (String, CExpr)
-extract pattern body@(C t s _) =
-  let ctx = C t s in
+extract pattern body@(L t s _) =
+  let loc = L t s in
   let fn x e = (x,e) in
   case pattern of
     PAnything -> return $ fn "_" body
@@ -56,12 +56,12 @@ extract pattern body@(C t s _) =
     PData name ps -> do
         x <- guid
         let a = '_' : show x
-        return . fn a . ctx $ Case (ctx (Var a)) [(pattern, body)]
+        return . fn a . loc $ Case (loc (Var a)) [(pattern, body)]
     PRecord fs -> do
         x <- guid
         let a = '_' : show x
-            toDef f = FnDef f [] (ctx $ Access (ctx $ Var a) f)
-        return . fn a . ctx $ Let (map toDef fs) body
+            toDef f = FnDef f [] (loc $ Access (loc $ Var a) f)
+        return . fn a . loc $ Let (map toDef fs) body
 
 extracts :: [Pattern] -> CExpr -> GuidCounter ([String], CExpr)
 extracts ps body = go [] (reverse ps) body
@@ -70,8 +70,8 @@ extracts ps body = go [] (reverse ps) body
                                    go (x:args) ps e
 
 flattenPatterns :: [Pattern] -> CExpr -> GuidCounter (IParser [Def])
-flattenPatterns patterns exp@(C t s _) =
-  let ctx = C t s in
+flattenPatterns patterns exp@(L t s _) =
+  let loc = L t s in
   case patterns of
     PVar f : args -> do
         (as,e) <- extracts args exp
@@ -85,21 +85,21 @@ flattenPatterns patterns exp@(C t s _) =
                 ") cannot be used on the left-hand side of an assign statement."
 
 matchSingle :: Pattern -> CExpr -> Pattern -> GuidCounter [Def]
-matchSingle pat exp@(C t s _) p =
-  let ctx = C t s in
+matchSingle pat exp@(L t s _) p =
+  let loc = L t s in
   case p of
     PData _ ps -> do
         x <- guid
         let v = '_' : show x
-        dss <- mapM (matchSingle pat . ctx $ Var v) ps
+        dss <- mapM (matchSingle pat . loc $ Var v) ps
         return (FnDef v [] exp : concat dss)
 
     PVar x ->
-        return [ FnDef x [] (ctx $ Case exp [(pat, ctx $ Var x)]) ]
+        return [ FnDef x [] (loc $ Case exp [(pat, loc $ Var x)]) ]
 
     PRecord fs -> do
         a <- (\x -> '_' : show x) `liftM` guid
-        let toDef f = FnDef f [] (ctx $ Access (ctx $ Var a) f)
+        let toDef f = FnDef f [] (loc $ Access (loc $ Var a) f)
         return (FnDef a [] exp : map toDef fs)
 
     PAnything -> return []

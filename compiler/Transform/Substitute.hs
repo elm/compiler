@@ -1,12 +1,12 @@
 module Substitute (subst) where
 
 import Ast
-import Context
+import Located
 import Control.Arrow (second, (***))
 
 subst :: String -> Expr -> Expr -> Expr
 subst old new expr =
-    let f (C t s e) = C t s (subst old new e) in
+    let f (L t s e) = L t s (subst old new e) in
     case expr of
       Range e1 e2 -> Range (f e1) (f e2)
       Access e x -> Access (f e) x

@@ -8,7 +8,7 @@ module Types.Substitutions (subst,
                             superize) where
 
 import Ast
-import Context
+import Located
 import Control.Monad (liftM, liftM2)
 import Control.Monad.State (runState, State, get, put)
 import Data.List (nub)
@@ -41,8 +41,8 @@ instance Subst Constraint where
   subst ss (t :<: super) = subst ss t :<: super
   subst ss (x :<<: poly) = x :<<: subst ss poly
 
-instance Subst a => Subst (Context a) where
-  subst ss (C str span c) = C str span (subst ss c)
+instance Subst a => Subst (Located a) where
+  subst ss (L str span c) = L str span (subst ss c)
 
 instance Subst a => Subst [a] where
   subst ss as = map (subst ss) as
@@ -67,15 +67,15 @@ instance FreeVars Constraint where
   freeVars (x :<<: Forall xs cs t) = filter (`notElem` xs) frees
       where frees = concatMap freeVars cs ++ freeVars t
 
-instance FreeVars a => FreeVars (Context a) where
-  freeVars (C _ _ c) = freeVars c    
+instance FreeVars a => FreeVars (Located a) where
+  freeVars (L _ _ c) = freeVars c    
 
 instance FreeVars a => FreeVars [a] where
   freeVars = concatMap freeVars
 
 occurs x t = x `elem` freeVars t
 
-concretize :: Scheme -> GuidCounter (Type, [Context Constraint])
+concretize :: Scheme -> GuidCounter (Type, [Located Constraint])
 concretize (Forall xs cs t) = do
   ss <- zip xs `liftM` mapM (\_ -> liftM VarT guid) xs
   return (subst ss t, subst ss cs)
@@ -104,7 +104,7 @@ superize name tipe =
  where
   (tipe', (ns,as,cs)) = runState (runSuper (go tipe)) ([],[],[])
   t <: super = do x <- guid
-                  return $ C (Just name) NoSpan (VarT t :<: super x)
+                  return $ L (Just name) NoSpan (VarT t :<: super x)
 
   nmbr t = number
   apnd t = appendable t

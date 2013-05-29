@@ -1,7 +1,7 @@
 module Parse.Expr (def,term) where
 
 import Ast
-import Context
+import Located
 import Control.Applicative ((<$>), (<*>))
 import Control.Monad
 import Data.Char (isSymbol, isDigit)
@@ -51,8 +51,8 @@ accessor = do
   start <- getPosition
   lbl <- try (string "." >> rLabel)
   end <- getPosition
-  let ctx e = addCtx ("." ++ lbl) (pos start end e)
-  return (Lambda "_" (ctx $ Access (ctx $ Var "_") lbl))
+  let loc e = addLoc ("." ++ lbl) (pos start end e)
+  return (Lambda "_" (loc $ Access (loc $ Var "_") lbl))
 
 
 --------  Complex Terms  --------
@@ -65,7 +65,7 @@ listTerm =
   <|> (braces $ choice
        [ try $ do { lo <- expr; whitespace; string ".." ; whitespace
                   ; Range lo <$> expr }
-       , do (C _ _ e) <- list <$> commaSep expr
+       , do (L _ _ e) <- list <$> commaSep expr
             return e
        ])
 
@@ -74,17 +74,17 @@ parensTerm = parens $ choice
              [ do start <- getPosition
                   op <- try anyOp
                   end <- getPosition
-                  let ctxt = pos start end
-                  return . ctxt . Lambda "x" . ctxt . Lambda "y" . ctxt $
-                         Binop op (ctxt $ Var "x") (ctxt $ Var "y")
+                  let loc = pos start end
+                  return . loc . Lambda "x" . loc . Lambda "y" . loc $
+                         Binop op (loc $ Var "x") (loc $ Var "y")
              , do start <- getPosition
                   let comma = char ',' <?> "comma ','"
                   commas <- comma >> many (whitespace >> comma)
                   end <- getPosition
                   let vars = map (('v':) . show) [ 0 .. length commas + 1 ]
-                      ctxt = pos start end
-                  return $ foldr (\x e -> ctxt $ Lambda x e)
-                             (ctxt . tuple $ map (ctxt . Var) vars) vars
+                      loc = pos start end
+                  return $ foldr (\x e -> loc $ Lambda x e)
+                             (loc . tuple $ map (loc . Var) vars) vars
              , do start <- getPosition
                   es <- commaSep expr
                   end <- getPosition
@@ -93,7 +93,7 @@ parensTerm = parens $ choice
              ]
 
 recordTerm :: IParser CExpr
-recordTerm = brackets $ choice [ misc, addContext record ]
+recordTerm = brackets $ choice [ misc, addLocation record ]
     where field = do
               fDefs <- (:) <$> (PVar <$> rLabel) <*> spacePrefix patternTerm
               whitespace
@@ -107,15 +107,15 @@ recordTerm = brackets $ choice [ misc, addContext record ]
               lbl <- rLabel
               whitespace >> string "<-" >> whitespace
               (,) lbl <$> expr
-          remove r = addContext (string "-" >> whitespace >> Remove r <$> rLabel)
-          insert r = addContext $ do
+          remove r = addLocation (string "-" >> whitespace >> Remove r <$> rLabel)
+          insert r = addLocation $ do
                        string "|" >> whitespace
                        Insert r <$> rLabel <*>
                            (whitespace >> string "=" >> whitespace >> expr)
-          modify r = addContext
+          modify r = addLocation
                      (string "|" >> whitespace >> Modify r <$> commaSep1 change)
           misc = try $ do
-            record <- addContext (Var <$> rLabel)
+            record <- addLocation (Var <$> rLabel)
             whitespace
             opt <- optionMaybe (remove record)
             whitespace
@@ -125,8 +125,8 @@ recordTerm = brackets $ choice [ misc, addContext record ]
                         
 
 term :: IParser CExpr
-term =  addContext (choice [ numTerm, strTerm, chrTerm, listTerm, accessor ])
-    <|> accessible (addContext varTerm <|> parensTerm <|> recordTerm)
+term =  addLocation (choice [ numTerm, strTerm, chrTerm, listTerm, accessor ])
+    <|> accessible (addLocation varTerm <|> parensTerm <|> recordTerm)
     <?> "basic term (4, x, 'c', etc.)"
 
 --------  Applications  --------
@@ -182,7 +182,7 @@ caseExpr = do
           with    = brackets (semiSep1 (case_ <?> "cases { x -> ... }"))
           without = block (do c <- case_ ; whitespace ; return c)
 
-expr = addContext (choice [ ifExpr, letExpr, caseExpr ])
+expr = addLocation (choice [ ifExpr, letExpr, caseExpr ])
     <|> lambdaExpr
     <|> binaryExpr 
     <?> "an expression"

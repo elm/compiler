@@ -1,7 +1,6 @@
 module Parse.Binops (binops) where
 
 import Ast
-import Context
 import Control.Monad (liftM,guard)
 import Control.Monad.Error
 import Data.List (foldl',splitAt,elemIndices
@@ -9,6 +8,7 @@ import Data.List (foldl',splitAt,elemIndices
 import qualified Data.Map as Map
 import Data.Maybe (mapMaybe)
 
+import Located (epos)
 import Text.Parsec
 import Parse.Library
 

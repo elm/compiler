@@ -1,7 +1,7 @@
 
 module Types.Types where
 
-import Context
+import Located
 import Data.Char (isDigit)
 import Data.List (intercalate,isPrefixOf)
 import qualified Data.Set as Set
@@ -17,7 +17,7 @@ data Type = LambdaT Type Type
           | Super (Set.Set Type)
             deriving (Eq, Ord)
 
-data Scheme = Forall [X] [Context Constraint] Type deriving (Eq, Ord, Show)
+data Scheme = Forall [X] [Located Constraint] Type deriving (Eq, Ord, Show)
 
 data Constraint = Type :=: Type
                 | Type :<: Type

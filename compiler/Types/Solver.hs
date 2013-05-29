@@ -1,7 +1,7 @@
 
 module Types.Solver (solver) where
 
-import Context
+import Located
 import Control.Arrow (second)
 import Control.Monad (liftM)
 import Data.Either (lefts,rights)
@@ -14,8 +14,8 @@ import Types.Types
 import Types.Substitutions
 import Types.Alias (dealias)
 
-isSolved ss (C _ _ (t1 :=: t2)) = t1 == t2
-isSolved ss (C _ _ (x :<<: _)) = isJust (lookup x ss)
+isSolved ss (L _ _ (t1 :=: t2)) = t1 == t2
+isSolved ss (L _ _ (x :<<: _)) = isJust (lookup x ss)
 isSolved ss c = False
 
 type Aliases = Map.Map String ([X],Type)
@@ -31,7 +31,7 @@ crush aliases (Forall xs cs t) =
 schemeSubHelp txt span x s t1 rltn t2 = do
   (t1',cs1) <- sub t1
   (t2',cs2) <- sub t2
-  return (C txt span (rltn t1' t2') : cs1 ++ cs2)
+  return (L txt span (rltn t1' t2') : cs1 ++ cs2)
       where sub t | not (occurs x t) = return (t, [])
                   | otherwise = do (st, cs) <- concretize s
                                    return (subst [(x,st)] t, cs)
@@ -42,7 +42,7 @@ schemeSub aliases x s c =
          Right s'' -> Right `liftM` schemeSub' x s'' c
          Left err  -> return $ Left err
 
-schemeSub' x s c@(C txt span constraint) =
+schemeSub' x s c@(L txt span constraint) =
   case constraint of
     (t1 :=: t2) -> schemeSubHelp txt span x s t1 (:=:) t2
     (t1 :<: t2) -> schemeSubHelp txt span x s t1 (:<:) t2
@@ -53,7 +53,7 @@ schemeSub' x s c@(C txt span constraint) =
                let ss = [(x,tipe)]
                    constraints = subst ss (cs ++ ccs)
                    c' = y :<<: Forall (cxs ++ xs) constraints (subst ss ctipe)
-               return [ C txt span c' ]
+               return [ L txt span c' ]
 
 recordConstraints eq fs t fs' t' =
   liftM concat . sequence $
@@ -64,11 +64,11 @@ recordConstraints eq fs t fs' t' =
               Map.difference fs' fs
       ]
     where constrain :: Map.Map String [Type] -> Map.Map String [Type]
-                    -> GuidCounter [Context Constraint]
+                    -> GuidCounter [Located Constraint]
           constrain as bs = liftM concat . sequence . Map.elems $
                             Map.intersectionWithKey (zipper []) as bs
-          zipper :: [Context Constraint] -> String -> [Type] -> [Type]
-                 -> GuidCounter [Context Constraint]
+          zipper :: [Located Constraint] -> String -> [Type] -> [Type]
+                 -> GuidCounter [Located Constraint]
           zipper cs k xs ys =
             case (xs,ys) of
               (a:as, b:bs) -> zipper (eq a b : cs) k as bs
@@ -82,12 +82,12 @@ recordConstraints eq fs t fs' t' =
                               
 solver :: Aliases
        -> Map.Map X Type
-       -> [Context Constraint]
+       -> [Located Constraint]
        -> GuidCounter (Either String (Map.Map X Type))
 solver _ subs [] = return $ Right subs
-solver aliases subs (C txt span c : cs) =
-  let ctx = C txt span
-      eq t1 t2 = ctx (t1 :=: t2)
+solver aliases subs (L txt span c : cs) =
+  let loc = L txt span
+      eq t1 t2 = loc (t1 :=: t2)
       solv = solver aliases subs
       uniError' = uniError (\t1 t2 -> solv (eq t1 t2 : cs)) aliases txt span
   in case c of
@@ -133,14 +133,14 @@ solver aliases subs (C txt span c : cs) =
                Just (Super ts) ->
                    let ts' = Set.intersection ts (Set.singleton t) in
                    case Set.toList ts' of
-                     []   -> solv (ctx (t :<: Super ts) : cs)
+                     []   -> solv (loc (t :<: Super ts) : cs)
                      [t'] -> let cs5 = subst [(x,t)] cs in
                              solver aliases (Map.insert x t' subs) cs5
                      _    -> solver aliases (Map.insert x (Super ts') subs) cs
-               Just t' -> solv (ctx (t' :=: t) : cs)
+               Just t' -> solv (loc (t' :=: t) : cs)
             )
 
-      t :=: VarT x -> solv ((ctx (VarT x :=: t)) : cs)
+      t :=: VarT x -> solv ((loc (VarT x :=: t)) : cs)
 
       t1 :=: t2 | t1 == t2  -> solv cs
                 | otherwise -> uniError' t1 t2
@@ -176,7 +176,7 @@ solver aliases subs (C txt span c : cs) =
                    [] -> solv (concat (rights css))
           | otherwise ->
               do (t,cs7) <- concretize s
-                 solv (cs ++ ctx (VarT x :=: t) : cs7)
+                 solv (cs ++ loc (VarT x :=: t) : cs7)
 
 showMsg msg = case msg of
                 Just str -> "\nIn context: " ++ str

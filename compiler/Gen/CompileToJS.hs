@@ -9,7 +9,7 @@ import Data.Either (partitionEithers)
 import qualified Text.Pandoc as Pan
 
 import Ast
-import Context
+import Located
 import Rename (derename)
 import Cases
 import Guid
@@ -156,8 +156,8 @@ instance ToJS Statement where
       Datatype _ _ tcs -> concat `liftM` mapM (toJS . toDef) tcs
           where toDef (name,args) =
                     let vars = map (('a':) . show) [1..length args] in
-                    Definition . FnDef name vars . noContext $
-                    Data (derename name) (map (noContext . Var) vars)
+                    Definition . FnDef name vars . notLocated $
+                    Data (derename name) (map (notLocated . Var) vars)
       ImportEvent js base elm _ ->
         do v <- toJS' base
            return $ concat [ "\nvar " ++ elm ++ "=Elm.Signal(elm).constant(" ++ v ++ ");"
@@ -174,7 +174,7 @@ instance ToJS Statement where
       TypeAlias n _ t -> return ""
 
 toJS' :: CExpr -> GuidCounter String
-toJS' (C txt span expr) =
+toJS' (L txt span expr) =
     case expr of
       MultiIf ps -> multiIfToJS span ps
       Case e cases -> caseToJS span e cases
@@ -189,8 +189,8 @@ makeRecord kvs = record `liftM` collect kvs
   where
     combine r (k,v) = Map.insertWith (++) k v r
     collect = liftM (foldl' combine Map.empty) . mapM prep
-    prep (k, as, e@(C t s _)) =
-        do v <- toJS' (foldr (\x e -> C t s $ Lambda x e) e as)
+    prep (k, as, e@(L t s _)) =
+        do v <- toJS' (foldr (\x e -> L t s $ Lambda x e) e as)
            return (k,[v])
     fields fs =
         brackets ("\n  "++intercalate ",\n  " (map (\(k,v) -> k++":"++v) fs))
@@ -246,7 +246,7 @@ jsApp e1 e2 =
     (func, args) = go [e2] e1
     go args e =
        case e of
-         (C _ _ (App e1 e2)) -> go (e2 : args) e1
+         (L _ _ (App e1 e2)) -> go (e2 : args) e1
          _ -> (e, args)
 
 formatMarkdown = concatMap f
@@ -257,7 +257,7 @@ formatMarkdown = concatMap f
 
 multiIfToJS span ps =
     case last ps of
-      (C _ _ (Var "otherwise"), e) -> toJS' e >>= \b -> format b (init ps)
+      (L _ _ (Var "otherwise"), e) -> toJS' e >>= \b -> format b (init ps)
       _ -> format ("_E.If" ++ parens (quoted (show span))) ps
   where
     format base ps =
@@ -280,7 +280,7 @@ caseToJS span e ps = do
   match <- caseToMatch ps
   e' <- toJS' e
   let (match',stmt) = case (match,e) of
-        (Match name _ _, C _ _ (Var x)) -> (matchSubst [(name,x)] match, "")
+        (Match name _ _, L _ _ (Var x)) -> (matchSubst [(name,x)] match, "")
         (Match name _ _, _)             -> (match, assign name e')
         _                               -> (match, "")
   matches <- matchToJS span match'

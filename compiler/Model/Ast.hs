@@ -1,7 +1,7 @@
 
 module Ast where
 
-import Context
+import Located
 import Data.Char (isDigit, isSymbol)
 import Data.List (intercalate)
 import Types.Types
@@ -22,7 +22,7 @@ data Pattern = PData String [Pattern]
              | PAnything
                deriving (Eq)
 
-type CExpr = Context Expr
+type CExpr = Located Expr
 data Expr = IntNum Int
           | FloatNum Float
           | Chr Char
@@ -59,11 +59,11 @@ data Statement = Definition Def
                  deriving (Eq,Show)
 
 cons h t = epos h t (Data "Cons" [h,t])
-nil      = C (Just "[]") NoSpan (Data "Nil" [])
+nil      = L (Just "[]") NoSpan (Data "Nil" [])
 list     = foldr cons nil
 tuple es = Data ("Tuple" ++ show (length es)) es
 
-delist (C _ _ (Data "Cons" [h,t])) = h : delist t
+delist (L _ _ (Data "Cons" [h,t])) = h : delist t
 delist _ = []
 
 
@@ -93,7 +93,7 @@ instance Show Pattern where
 
 instance Show Expr where
   show e =
-   let show' (C _ _ e) = parensIf (needsParens e) (show e) in
+   let show' (L _ _ e) = parensIf (needsParens e) (show e) in
    case e of
      IntNum n -> show n
      FloatNum n -> show n
@@ -103,7 +103,7 @@ instance Show Expr where
      Range e1 e2 -> "[" ++ show e1 ++ ".." ++ show e2 ++ "]"
      Access e x -> show' e ++ "." ++ x
      Remove e x -> brkt (show e ++ " - " ++ x)
-     Insert (C _ _ (Remove e y)) x v ->
+     Insert (L _ _ (Remove e y)) x v ->
          brkt (show e ++ " - " ++ y ++ " | " ++ x ++ " = " ++ show v)
      Insert e x v -> brkt (show e ++ " | " ++ x ++ " = " ++ show v)
      Modify e fs -> brkt (show e ++" | "++ intercalate ", " (map field fs))
@@ -111,7 +111,7 @@ instance Show Expr where
      Record r -> brkt (intercalate ", " (map fields r))
          where fields (f,args,e) = f ++ concatMap (' ':) args ++ " = " ++ show e
      Binop op e1 e2 -> show' e1 ++ " " ++ op ++ " " ++ show' e2
-     Lambda x e -> let (xs,e') = getLambdas (noContext $ Lambda x e) in
+     Lambda x e -> let (xs,e') = getLambdas (notLocated $ Lambda x e) in
                       concat [ "\\", intercalate " " xs, " -> ", show e' ]
      App e1 e2 -> show' e1 ++ " " ++ show' e2
      If e1 e2 e3 -> concat [ "if ", show e1, " then ", show e2, " else ", show e3 ]
@@ -124,7 +124,7 @@ instance Show Expr where
          where pats' = map (\(p,e) -> show p ++ " -> " ++ show e) pats
      Data name es
           | name == "Cons" -> ("["++) . (++"]") . intercalate "," . map show $
-                              delist (noContext $ Data "Cons" es)
+                              delist (notLocated $ Data "Cons" es)
           | name == "Nil"  -> "[]"
           | otherwise      -> name ++ " " ++ intercalate " " (map show' es)
      Markdown _ -> "[markdown| ... |]"
@@ -134,10 +134,10 @@ instance Show Def where
   show e =
    case e of
      FnDef v [] e     -> v ++ " = " ++ show e
-     FnDef f args e   -> f ++ " " ++ intercalate " " args ++ " = " ++ show e
+     FnDef f args e   -> f ++ concatMap (' ':) args ++ " = " ++ show e
      OpDef op a1 a2 e -> intercalate " " [a1,op,a2] ++ " = " ++ show e
 
-getLambdas (C _ _ (Lambda x e)) = (x:xs,e')
+getLambdas (L _ _ (Lambda x e)) = (x:xs,e')
     where (xs,e') = getLambdas e
 getLambdas e = ([],e)
 

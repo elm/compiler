@@ -10,7 +10,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import Ast
-import Context
+import Located
 import Guid
 
 import Types.Types
@@ -62,7 +62,7 @@ mergeSchemes schmss = do (ass,css,sss) <- unzip3 `liftM` mapM split kvs
     kvs = Map.toList $ Map.unionsWith (++) (map (Map.map (:[])) schmss)
     split (k,vs) =
       let ps = zipWith (\s v -> (s++k,v)) (map (flip replicate '_') [0..]) vs
-          eq t u = C (Just $ msg ++ k) NoSpan (VarT t :=: VarT u)
+          eq t u = L (Just $ msg ++ k) NoSpan (VarT t :=: VarT u)
           msg = "the definition of "
       in  do xs <- mapM (\_ -> guid) vs
              return ( Map.fromList $ zip (map fst ps) (map (:[]) xs)
@@ -81,7 +81,7 @@ constrain typeHints (Module _ _ imports stmts) = do
       insert as n = do v <- guid; return $ Map.insertWith' (\_ x -> x) n [v] as
   assumptions <- foldM insert as (Map.keys schemes)
   findAmbiguous (map fst aliasHints) assumptions $ do
-    let f k s vs = map (\v -> C (Just k) NoSpan $ v :<<: s) vs
+    let f k s vs = map (\v -> L (Just k) NoSpan $ v :<<: s) vs
         cs = concat . Map.elems $ Map.intersectionWithKey f allHints assumptions
         escapees = Map.keys $ Map.difference assumptions allHints
         msg = "Warning! Type-checker could not find variables:\n" ++ intercalate ", " escapees
@@ -91,13 +91,13 @@ constrain typeHints (Module _ _ imports stmts) = do
                --_  -> Left ("Undefined variable(s): " ++ intercalate ", " escapees)
 
 type TVarMap = Map.Map String [X]
-type ConstraintSet = Set.Set (Context Constraint)
+type ConstraintSet = Set.Set (Located Constraint)
 
-ctx e span = C (Just $ show e) span
+loc e span = L (Just $ show e) span
 
 gen :: CExpr -> GuidCounter (TVarMap, ConstraintSet, Type)
-gen (C _ span expr) =
-  let ctx' = C (Just $ show expr) span in
+gen (L _ span expr) =
+  let loc' = L (Just $ show expr) span in
   case expr of
     Var x ->
         do b <- guid
@@ -109,7 +109,7 @@ gen (C _ span expr) =
            b <- beta
            return ( unionA a1 a2
                   , Set.unions [c1,c2
-                               ,Set.singleton . ctx' $ t1 :=: (LambdaT t2 b)]
+                               ,Set.singleton . loc' $ t1 :=: (LambdaT t2 b)]
                   , b )
 
     Lambda x e ->
@@ -118,7 +118,7 @@ gen (C _ span expr) =
            v <- guid
            return ( Map.delete x a
                   , Set.union c . Set.fromList .
-                    map (\x -> ctx' $ VarT x :=: b) $
+                    map (\x -> loc' $ VarT x :=: b) $
                     Map.findWithDefault [v] x a
                   , LambdaT b t )
 
@@ -132,7 +132,7 @@ gen (C _ span expr) =
                genCs name s = do
                  v <- guid
                  let vs = Map.findWithDefault [v] name assumptions
-                 return $ map (\x -> ctx name span $ x :<<: s) vs
+                 return $ map (\x -> loc name span $ x :<<: s) vs
            cs' <- zipWithM genCs names schemes
            return ( foldr Map.delete assumptions names
                   , Set.union (Set.fromList . concat $ cs') cs
@@ -143,9 +143,9 @@ gen (C _ span expr) =
            (ass,css,ts) <- liftM unzip3 $ mapM (caseGen t) cases
            return ( unionsA $ as:ass
                   , let cases' = map snd cases
-                        ctxs = zipWith epos cases' (tail cases')
+                        locs = zipWith epos cases' (tail cases')
                         csts = zipWith (:=:) ts (tail ts)
-                        cs' = Set.fromList (zipWith ($) ctxs csts)
+                        cs' = Set.fromList (zipWith ($) locs csts)
                     in  Set.unions $ cs' : cs : css
                   , head ts)
 
@@ -154,30 +154,30 @@ gen (C _ span expr) =
            (a2,c2,t2) <- gen e2
            (a3,c3,t3) <- gen e3
            return ( unionsA [a1,a2,a3]
-                  , let c4 = Set.fromList [ ctx e1 span (t1 :=: bool)
-                                          , ctx' (t2 :=: t3)   ]
+                  , let c4 = Set.fromList [ loc e1 span (t1 :=: bool)
+                                          , loc' (t2 :=: t3)   ]
                     in  Set.unions [c1,c2,c3,c4]
                   , t2 )
 
     Data name es ->
-        gen $ foldl' (\f x -> epos f x $ App f x) (ctx' $ Var name) es
+        gen $ foldl' (\f x -> epos f x $ App f x) (loc' $ Var name) es
 
     Binop op e1 e2 ->
-        gen $ ctx' (App (ctx' $ App (ctx' $ Var op) e1) e2)
+        gen $ loc' (App (loc' $ App (loc' $ Var op) e1) e2)
 
     Access e label ->
         do (as,cs,rtype) <- gen e
            t <- beta
            rtype' <- beta
            let fs = Map.singleton label [t]
-               c = (ctx' (RecordT fs rtype' :=: rtype))
+               c = (loc' (RecordT fs rtype' :=: rtype))
            return (as, Set.insert c cs, t)
 
     Remove e x -> 
         do (as,cs,rtype) <- gen e
            t <- beta
            rtype' <- beta
-           let c = (ctx' (RecordT (Map.singleton x [t]) rtype' :=: rtype))
+           let c = (loc' (RecordT (Map.singleton x [t]) rtype' :=: rtype))
            return (as, Set.insert c cs, rtype')
 
     Insert e x v -> 
@@ -193,7 +193,7 @@ gen (C _ span expr) =
            oldTs <- mapM (\_ -> beta) fields
            rtype' <- beta
            let rT ts = RecordT (recordT (zip (map fst fields) ts)) rtype'
-               c = Set.singleton (ctx' (rtype :=: rT oldTs))
+               c = Set.singleton (loc' (rtype :=: rT oldTs))
            return ( unionsA (ras:ass), Set.unions (c : rcs : css), rT newTs )
 
     Record fields ->
@@ -206,27 +206,27 @@ gen (C _ span expr) =
                       , Set.fromList (concat css)
                       , RecordT (foldr ($) Map.empty fs) EmptyRecord )
 
-    Range e1@(C w1 s1 _) e2@(C w2 s2 _) ->
+    Range e1@(L w1 s1 _) e2@(L w2 s2 _) ->
         do (a1,c1,t1) <- gen e1
            (a2,c2,t2) <- gen e2
            return ( unionsA [a1,a2]
-                  , Set.unions [ c1, c2, Set.fromList [ C w1 s1 (t1 :=: int)
-                                                      , C w1 s2 (t2 :=: int) ] ]
+                  , Set.unions [ c1, c2, Set.fromList [ L w1 s1 (t1 :=: int)
+                                                      , L w1 s2 (t2 :=: int) ] ]
                   , listOf int )
 
     MultiIf ps -> do (ass,css,t:ts) <- unzip3 `liftM` mapM genPair ps
-                     let cs = Set.fromList (map (ctx' . (t :=:)) ts)
+                     let cs = Set.fromList (map (loc' . (t :=:)) ts)
                      return (unionsA ass, Set.unions (cs:css), t)
-        where genPair (b@(C t s _),e) = do 
+        where genPair (b@(L t s _),e) = do 
                 (a1,c1,t1) <- gen b
                 (a2,c2,t2) <- gen e
                 return ( unionsA [a1,a2]
                        , Set.unions [ c1, c2
-                                    , Set.singleton (C t s (t1 :=: bool)) ]
+                                    , Set.singleton (L t s (t1 :=: bool)) ]
                        , t2 )
 
     IntNum _ -> do t <- beta
-                   return (Map.empty, Set.singleton (ctx' $ t :<: number), t)
+                   return (Map.empty, Set.singleton (loc' $ t :<: number), t)
 
     FloatNum _ -> primitive float
     Chr _ -> primitive char
@@ -241,41 +241,41 @@ primitive t = return (Map.empty, Set.empty, t)
 caseGen :: Type
         -> (Pattern, CExpr)
         -> GuidCounter (TVarMap, ConstraintSet, Type)
-caseGen tipe (p, ce@(C _ span e)) = do
+caseGen tipe (p, ce@(L _ span e)) = do
   (as ,cs ,t) <- gen ce
-  (as',cs',_) <- patternGen (ctx p span) tipe as p
+  (as',cs',_) <- patternGen (loc p span) tipe as p
   return ( as', Set.union cs cs', t )
 
-patternGen :: (Constraint -> Context Constraint)
+patternGen :: (Constraint -> Located Constraint)
            -> Type     -- Type of e in `case e of ...`
            -> TVarMap
            -> Pattern
            -> GuidCounter (TVarMap, ConstraintSet, Type)
-patternGen ctxt tipe as pattern =
+patternGen loc tipe as pattern =
   case pattern of
     PAnything -> do b <- beta ; return ( as, Set.empty, b )
     PVar v -> do
       b <- beta
-      let cs = map (ctxt . (b :=:) . VarT) (Map.findWithDefault [] v as)
-      return ( Map.delete v as, Set.fromList (ctxt (b :=: tipe) : cs), b )
+      let cs = map (loc . (b :=:) . VarT) (Map.findWithDefault [] v as)
+      return ( Map.delete v as, Set.fromList (loc (b :=: tipe) : cs), b )
     PData name ps -> do
       constr <- guid
       output <- beta
       let step (as,cs,tipe) p = do b <- beta
-                                   (as',cs',t) <- patternGen ctxt b as p
+                                   (as',cs',t) <- patternGen loc b as p
                                    return (as', Set.union cs cs', t ==> tipe)
       (as',cs, t) <- foldM step (as,Set.empty,tipe) (reverse ps)
       return ( Map.insert name [constr] as'
-             , Set.insert (ctxt (VarT constr :=: t)) cs
+             , Set.insert (loc (VarT constr :=: t)) cs
              , output )
     PRecord fs ->
         do pairs <- mapM (\f -> do b <- beta; return (f,b)) fs
            b <- beta
            let t = RecordT (Map.fromList $ map (second (:[])) pairs) b
-               mkCs (name,tipe) = map (ctxt . (tipe :=:) . VarT)
+               mkCs (name,tipe) = map (loc . (tipe :=:) . VarT)
                                   (Map.findWithDefault [] name as)
            return ( foldr Map.delete as fs
-                  , Set.fromList (ctxt (t :=: tipe) : concatMap mkCs pairs)
+                  , Set.fromList (loc (t :=: tipe) : concatMap mkCs pairs)
                   , t )
 
 
@@ -295,7 +295,7 @@ defGenHelp name args e = do
       genCs (arg,x) = do
         v <- guid
         let as' = Map.findWithDefault [v] arg as
-        return $ map (\y -> ctx arg NoSpan $ VarT x :=: VarT y) as'
+        return $ map (\y -> loc arg NoSpan $ VarT x :=: VarT y) as'
   cs' <- concat `liftM` mapM genCs argDict
   scheme <- Subs.generalize (concat $ Map.elems as') $
             Forall (map snd argDict) (cs' ++ Set.toList cs) tipe
@@ -316,13 +316,13 @@ stmtGen stmt =
     ExportEvent js elm tipe ->
         do x <- guid
            return ( Map.singleton elm [x]
-                  , Set.singleton . ctx elm NoSpan $ VarT x :=: tipe
+                  , Set.singleton . loc elm NoSpan $ VarT x :=: tipe
                   , Map.empty )
 
-    ImportEvent js e@(C txt span base) elm tipe ->
+    ImportEvent js e@(L txt span base) elm tipe ->
         do (as,cs,t) <- gen e
            return ( as
-                  , Set.insert (C txt span (signalOf t :=: tipe)) cs
+                  , Set.insert (L txt span (signalOf t :=: tipe)) cs
                   , Map.singleton elm (Forall [] [] tipe) )
 
     TypeAnnotation name tipe ->

@@ -1,8 +1,7 @@
-
 module ExtractNoscript (extractNoscript) where
 
 import Ast
-import Context
+import Located
 import qualified Text.Pandoc as Pan
 
 extractNoscript :: Module -> String
@@ -23,8 +22,8 @@ instance Extract Def where
   extract (FnDef _ _ e)   = extract e
   extract (OpDef _ _ _ e) = extract e
 
-instance Extract e => Extract (Context e) where
-  extract (C _ _ e) = extract e
+instance Extract e => Extract (Located e) where
+  extract (L _ _ e) = extract e
 
 instance Extract Expr where
   extract expr =
@@ -35,12 +34,12 @@ instance Extract Expr where
                           ("++", [s1], [s2]) -> [s1 ++ s2]
                           (_   , ss1 , ss2 ) -> ss1 ++ ss2
       Lambda v e -> f e
-      App (C _ _ (App (C _ _ (Var "link")) src)) txt -> linkExtract src txt
-      App (C _ _ (App (C _ _ (Var "Text.link")) src)) txt -> linkExtract src txt
-      App (C _ _ (Var "header")) e -> tag "h1" e
-      App (C _ _ (Var "bold")) e -> tag "b" e
-      App (C _ _ (Var "italic")) e -> tag "i" e
-      App (C _ _ (Var "monospace")) e -> tag "code" e
+      App (L _ _ (App (L _ _ (Var "link")) src)) txt -> linkExtract src txt
+      App (L _ _ (App (L _ _ (Var "Text.link")) src)) txt -> linkExtract src txt
+      App (L _ _ (Var "header")) e -> tag "h1" e
+      App (L _ _ (Var "bold")) e -> tag "b" e
+      App (L _ _ (Var "italic")) e -> tag "i" e
+      App (L _ _ (Var "monospace")) e -> tag "code" e
       App e1 e2 -> f e1 ++ f e2
       If eb et ef -> f et ++ f ef
       Let defs e -> concatMap extract defs ++ f e

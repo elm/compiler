@@ -34,7 +34,7 @@ Library
                        Language.Elm.Quasi
   Hs-Source-Dirs:      compiler, compiler/Gen, compiler/Model, compiler/Transform
   other-modules:       Ast,
-                       Context,
+                       Located,
                        CompileToJS,
                        Cases,
                        Substitute,
@@ -88,7 +88,7 @@ Executable elm
   extensions:          CPP
   cpp-options:         -DELM_COMPILEDATADIR="dist/data"
   other-modules:       Ast,
-                       Context,
+                       Located,
                        CompileToJS,
                        Cases,
                        Substitute,
@@ -138,7 +138,7 @@ Executable elm-doc
   Main-is:             Docs.hs
   Hs-Source-Dirs:      compiler, compiler/Model, compiler/Transform
   other-modules:       Ast,
-                       Context,
+                       Located,
                        Parse.Library,
                        Parse.Modules,
                        Rename

@@ -2,7 +2,7 @@
 module Rename (renameModule, derename, deprime) where
 
 import Ast
-import Context
+import Located
 import Control.Arrow (first)
 import Control.Monad (ap, liftM, foldM, mapM, Monad, zipWithM)
 import Control.Monad.State (evalState, State, get, put)
@@ -53,8 +53,8 @@ renameStmts env stmts = do env' <- extends env $ concatMap getNames stmts
                             ImportEvent _ _ n _ -> [n]
                             _ -> []
 
-instance Rename a => Rename (Context a) where
-  rename env (C t s e) = C t s `liftM` rename env e
+instance Rename a => Rename (Located a) where
+  rename env (L t s e) = L t s `liftM` rename env e
                           
 instance Rename Expr where
   rename env expr =

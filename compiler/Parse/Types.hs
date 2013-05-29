@@ -9,7 +9,7 @@ import Data.List (lookup,intercalate)
 import Text.Parsec
 import Text.Parsec.Indent
 
-import Context
+import Located
 import Parse.Library
 import Types.Types hiding (parens,string)
 import Guid
@@ -88,11 +88,11 @@ typeAlias = do
                        _ -> []
 
 toConstructor start end alias kvs =
-    Definition (FnDef alias args (ctxt (Record rec)))
+    Definition (FnDef alias args (loc (Record rec)))
   where
-    ctxt = pos start end
+    loc = pos start end
     args = map fst kvs
-    rec = map (\a -> (a, [], ctxt (Var a))) args
+    rec = map (\a -> (a, [], loc (Var a))) args
 
 
 typeAnnotation :: IParser Statement

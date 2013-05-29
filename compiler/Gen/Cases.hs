@@ -7,7 +7,7 @@ import Data.List (groupBy,sortBy,lookup)
 import Data.Maybe (fromMaybe)
 
 import Ast
-import Context
+import Located
 import Guid
 import Substitute
 
@@ -32,8 +32,8 @@ matchSubst :: [(String,String)] -> Match -> Match
 matchSubst _ Break = Break
 matchSubst _ Fail = Fail
 matchSubst pairs (Seq ms) = Seq (map (matchSubst pairs) ms)
-matchSubst pairs (Other (C t s e)) =
-    Other . C t s $ foldr ($) e $ map (\(x,y) -> subst x (Var y)) pairs
+matchSubst pairs (Other (L t s e)) =
+    Other . L t s $ foldr ($) e $ map (\(x,y) -> subst x (Var y)) pairs
 matchSubst pairs (Match n cs m) =
     Match (varSubst n) (map clauseSubst cs) (matchSubst pairs m)
         where varSubst v = fromMaybe v (lookup v pairs)
@@ -58,13 +58,13 @@ match vs cs def
 matchVar :: [String] -> [([Pattern],CExpr)] -> Match -> GuidCounter Match
 matchVar (v:vs) cs def = match vs (map subVar cs) def
   where
-    subVar (p:ps, ce@(C t s e)) =
-        let ctx = C t s in
+    subVar (p:ps, ce@(L t s e)) =
+        let loc = L t s in
         (ps, case p of
-               PVar x     -> C t s $ subst x (Var v) e
+               PVar x     -> L t s $ subst x (Var v) e
                PAnything  -> ce
                PRecord fs ->
-                   ctx $ foldr (\x -> subst x (Access (ctx (Var v)) x)) e fs
+                   loc $ foldr (\x -> subst x (Access (loc (Var v)) x)) e fs
         )
 
 matchCon :: [String] -> [([Pattern],CExpr)] -> Match -> GuidCounter Match
