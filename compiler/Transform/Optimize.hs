@@ -126,7 +126,6 @@ binop op ce1@(C t1 s1 e1) ce2@(C t2 s2 e2) =
 
     ("|>", _, _) -> App ce2 ce1
     ("<|", _, _) -> App ce1 ce2
-    ("$", _, _) -> App ce1 ce2
     (".", _, _) ->
         Lambda "x" (noContext $
                       App ce1 (noContext $ App ce2 (noContext $ Var "x")))

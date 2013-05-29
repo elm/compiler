@@ -321,7 +321,6 @@ binop (o:p) e1 e2
         case o:p of
           "::" -> jsCons e1 e2
           "++" -> "_L.append" ++ parens (e1 ++ "," ++ e2)
-          "$"  -> e1 ++ parens e2
           "<|" -> e1 ++ parens e2
           "|>" -> e2 ++ parens e1
           "."  -> jsFunc "x" . ret $ e1 ++ parens (e2 ++ parens "x")
