@@ -32,7 +32,7 @@ pageTitle = dropExtension . takeBaseName
 serveElm fp = do
   guard (takeExtension fp == ".elm")
   content <- liftIO (readFile (tail fp))
-  ok . toResponse $ Elm.toHtml runtime (pageTitle fp) content
+  length content `seq` (ok . toResponse $ Elm.toHtml runtime (pageTitle fp) content)
 
 serveLib libLoc fp = do
   guard (fp == runtime)
