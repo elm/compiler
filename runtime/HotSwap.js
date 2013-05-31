@@ -5,33 +5,38 @@
 // structure.
 ElmRuntime.swap = function(from, to) {
     function similar(nodeOld,nodeNew) {
-        return nodeOld.kids.length === nodeNew.kids.length;
+        idOkay = nodeOld.id === nodeNew.id;
+        lengthOkay = nodeOld.kids.length === nodeNew.kids.length;
+        return idOkay && lengthOkay;
     }
     function swap(nodeOld,nodeNew) {
         nodeNew.value = nodeOld.value;
         return true;
     }
-    from_ = from.__private__;
-    to_ = to.__private__;
-    var canSwap = depthFirstTraversals(similar, from_.inputs, to_.inputs);
-    if (canSwap) {
-        depthFirstTraversals(swap, from_.inputs, to_.inputs);
-        to.send("(!@#$%^&*)", null);
-    }
-    from_.container.parentNode.replaceChild(to_.container, from_.container);
+    var canSwap = depthFirstTraversals(similar, from.inputs, to.inputs);
+    if (canSwap) { depthFirstTraversals(swap, from.inputs, to.inputs); }
+    from.node.parentNode.replaceChild(to.node, from.node);
     return canSwap;
 }
 
 // Returns false if the node operation f ever fails.
 function depthFirstTraversals(f, queueOld, queueNew) {
+    if (queueOld.length !== queueNew.length) return false;
+    queueOld = queueOld.slice(0);
+    queueNew = queueNew.slice(0);
+
+    var seen = [];
     while (queueOld.length > 0 && queueNew.length > 0) {
         var nodeOld = queueOld.pop();
         var nodeNew = queueNew.pop();
-        if (!f(nodeOld, nodeNew)) return false;
-        queueOld = queueOld.concat(nodeOld.kids);
-        queueNew = queueNew.concat(nodeNew.kids);
+        if (seen.indexOf(nodeOld.id) < 0) {
+            if (!f(nodeOld, nodeNew)) return false;
+            queueOld = queueOld.concat(nodeOld.kids);
+            queueNew = queueNew.concat(nodeNew.kids);
+            seen.push(nodeOld.id);
+        }
     }
-    return queueOld.length === queueNew.length;
+    return true;
 }
 
 }())

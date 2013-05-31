@@ -29,7 +29,7 @@ Elm.worker = function(module) {
     return init(ElmRuntime.Display.NONE, {}, module);
 };
 
-function init(display, container, module) {
+function init(display, container, module, moduleToReplace) {
   // defining state needed for an instance of the Elm RTS
   var inputs = [];
 
@@ -74,18 +74,38 @@ function init(display, container, module) {
     if (e.value.length > 0) { window.location = e.value; }
   });
 
+  function swap(newModule) {
+      var div = document.createElement('div');
+      if (container.id) { div.id = container.id; }
+      var newElm = init(display, div, newModule, elm);
+      // elm.send = newElm.send;
+      // elm.recv = newElm.recv;
+      // elm.swap = newElm.swap;
+      return newElm;
+  }
+
   var Module = module(elm);
   inputs = ElmRuntime.filterDeadInputs(inputs);
+  if (display !== ElmRuntime.Display.NONE) {
+      var graphicsNode = initGraphics(elm, Module);
+  }
+  if (typeof moduleToReplace !== 'undefined') {
+      ElmRuntime.swap(moduleToReplace, elm);
 
-  // If graphics are not enabled, escape early, skip over setting up DOM stuff.
-  if (display !== ElmRuntime.Display.NONE) { initGraphics(elm, Module); }
+      // rerender scene if graphics are enabled.
+      if (typeof graphicsNode !== 'undefined') {
+          graphicsNode.value = A2( Elm.Graphics.Element(elm).spacer, 0, 0 );
+          graphicsNode.recv(0, true, 0);
+      }
+  }
 
-  return { send:send, recv:recv,
-          __private__ : { inputs:inputs, container:container } };
+  return { send:send, recv:recv, swap:swap };
 };
 
 function initGraphics(elm, Module) {
-  if (!('main' in Module)) throw new Error("'main' is missing! What do I display?!");
+  if (!('main' in Module))
+      throw new Error("'main' is missing! What do I display?!");
+
   var signalGraph = Module.main;
 
   // make sure the signal graph is actually a signal & extract the visual model
@@ -101,15 +121,14 @@ function initGraphics(elm, Module) {
   if (elm.Native.Window) elm.Native.Window.resizeIfNeeded();
   
   // set up updates so that the DOM is adjusted as necessary.
-  function domUpdate(newScene) {
+  function domUpdate(newScene, currentScene) {
       ElmRuntime.draw(function(_) {
               Render.update(elm.node.firstChild, currentScene, newScene);
-              currentScene = newScene;
               if (elm.Native.Window) elm.Native.Window.resizeIfNeeded();
           });
       return newScene;
   }
-  A2(Signal.lift, domUpdate, signalGraph);
+  return A3(Signal.foldp, F2(domUpdate), currentScene, signalGraph);
 }
 
 }());
