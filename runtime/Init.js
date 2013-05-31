@@ -89,21 +89,21 @@ function initGraphics(elm, Module) {
   var signalGraph = Module.main;
 
   // make sure the signal graph is actually a signal & extract the visual model
+  var Signal = Elm.Signal(elm);
   if (!('recv' in signalGraph)) {
-      var Signal = Elm.Signal(elm);
       signalGraph = Signal.constant(signalGraph);
   }
   var currentScene = signalGraph.value;
   
   // Add the currentScene to the DOM
   var Render = ElmRuntime.use(ElmRuntime.Render.Element);
-  container.appendChild(Render.render(currentScene));
+  elm.node.appendChild(Render.render(currentScene));
   if (elm.Native.Window) elm.Native.Window.resizeIfNeeded();
   
   // set up updates so that the DOM is adjusted as necessary.
   function domUpdate(newScene) {
       ElmRuntime.draw(function(_) {
-              Render.update(container.firstChild, currentScene, newScene);
+              Render.update(elm.node.firstChild, currentScene, newScene);
               currentScene = newScene;
               if (elm.Native.Window) elm.Native.Window.resizeIfNeeded();
           });
