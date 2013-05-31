@@ -31,9 +31,7 @@ Elm.worker = function(module) {
 
 function init(display, container, module) {
   // defining state needed for an instance of the Elm RTS
-  var signalGraph = null;
   var inputs = [];
-  var visualModel = null;
 
   function notify(id, v) {
     var timestep = Date.now();
@@ -76,42 +74,42 @@ function init(display, container, module) {
     if (e.value.length > 0) { window.location = e.value; }
   });
 
-  // If graphics are not enabled, escape early, skip over setting up DOM stuff.
-  if (display === ElmRuntime.Display.NONE) {
-      module(elm);
-      return { send : send, recv : recv };
-  }
-
-  var Render = ElmRuntime.use(ElmRuntime.Render.Element);
-
-  // evaluate the given module and extract its 'main' value.
-  signalGraph = module(elm).main;
-
-  // make sure the signal graph is actually a signal, extract the visual model,
-  // and filter out any unused inputs.
-  var Signal = Elm.Signal(elm);
-  if (!('recv' in signalGraph)) signalGraph = Signal.constant(signalGraph);
-  visualModel = signalGraph.value;
+  var Module = module(elm);
   inputs = ElmRuntime.filterDeadInputs(inputs);
+
+  // If graphics are not enabled, escape early, skip over setting up DOM stuff.
+  if (display !== ElmRuntime.Display.NONE) { initGraphics(elm, Module); }
+
+  return { send:send, recv:recv,
+          __private__ : { inputs:inputs, container:container } };
+};
+
+function initGraphics(elm, Module) {
+  if (!('main' in Module)) throw new Error("'main' is missing! What do I display?!");
+  var signalGraph = Module.main;
+
+  // make sure the signal graph is actually a signal & extract the visual model
+  if (!('recv' in signalGraph)) {
+      var Signal = Elm.Signal(elm);
+      signalGraph = Signal.constant(signalGraph);
+  }
+  var currentScene = signalGraph.value;
   
-   // Add the visualModel to the DOM
-  container.appendChild(Render.render(visualModel));
+  // Add the currentScene to the DOM
+  var Render = ElmRuntime.use(ElmRuntime.Render.Element);
+  container.appendChild(Render.render(currentScene));
   if (elm.Native.Window) elm.Native.Window.resizeIfNeeded();
   
   // set up updates so that the DOM is adjusted as necessary.
-  var update = Render.update;
-  function domUpdate(value) {
+  function domUpdate(newScene) {
       ElmRuntime.draw(function(_) {
-              update(container.firstChild, visualModel, value);
-              visualModel = value;
+              Render.update(container.firstChild, currentScene, newScene);
+              currentScene = newScene;
               if (elm.Native.Window) elm.Native.Window.resizeIfNeeded();
           });
-      return value;
+      return newScene;
   }
-
-  signalGraph = A2(Signal.lift, domUpdate, signalGraph);
-    
-  return { send : send, recv : recv, node : container };
-};
+  A2(Signal.lift, domUpdate, signalGraph);
+}
 
 }());

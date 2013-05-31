@@ -5,7 +5,7 @@ Elm.Native.Signal = function(elm) {
   elm.Native = elm.Native || {};
   if (elm.Native.Signal) return elm.Native.Signal;
 
-  var Utils  = Elm.Native.Utils(elm);
+  var Utils = Elm.Native.Utils(elm);
   var foldl1 = Elm.List(elm).foldl1;
 
   function send(node, timestep, changed) {
@@ -84,13 +84,22 @@ Elm.Native.Signal = function(elm) {
     return new LiftN(update, [a,b,c,d,e,f,g,h]);
   }
 
-  function foldp(func,state,input) {
-    var first = true;
-    function update() {
-        first ? first = false : state = A2(func, input.value, state);
-        return state;
-    }
-    return new LiftN(update, [input]);
+  function Foldp(step, state, input) {
+    this.id = Utils.guid();
+    this.value = state;
+    this.kids = [];
+
+    this.recv = function(timestep, changed, parentID) {
+      if (changed) {
+          this.value = A2( step, input.value, this.value );
+      }
+      send(this, timestep, changed);
+    };
+    input.kids.push(this);
+  }
+
+  function foldp(step, state, input) {
+      return new Foldp(step, state, input);
   }
 
   function DropIf(pred,base,input) {
