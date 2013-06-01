@@ -243,6 +243,7 @@ function updateTracker(w,h,div) {
     var i = 0;
     function transform(transforms, ctx) {
         ctx.translate(w/2, h/2);
+        ctx.scale(1,-1);
         var len = transforms.length;
         for (var i = 0; i < len; ++i) {
             var m = transforms[i];
@@ -332,7 +333,6 @@ function update(div, _, model) {
     while (formType = stpr.peekNext()) {
         if (ctx === null && formType !== 'FElement') {
             ctx = tracker.getContext(stpr.transforms());
-            ctx.scale(1,-1);
         }
         var form = stpr.next(ctx);
         if (formType === 'FElement') {
