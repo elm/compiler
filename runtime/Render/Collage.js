@@ -305,7 +305,12 @@ function updateTracker(w,h,div) {
         node.oldElement = elem;
         addTransform(node.style, makeTransform(w, h, form, matrices));
     }
-    return { getContext:getContext, element:element };
+    function clearRest() {
+        while (kids.length > i) {
+            div.removeChild(kids[i]);
+        }
+    }
+    return { getContext:getContext, element:element, clearRest:clearRest };
 }
 
 
@@ -337,6 +342,7 @@ function update(div, _, model) {
             renderForm(function() { update(div, model, model); }, ctx, form);
         }
     }
+    tracker.clearRest();
     return div;
 }
 
