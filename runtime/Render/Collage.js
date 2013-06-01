@@ -205,7 +205,7 @@ function stepper(forms) {
     }
     // assumes that there is a next element
     function next(ctx) {
-        while (!ps[0].peekNext()) { ps.shift(); matrices.pop(); ctx.restore(); }
+        while (!ps[0].peekNext()) { ps.shift(); matrices.pop(); if (ctx) { ctx.restore(); } }
         var out = ps[0].next();
         var f = out.form;
         if (f.ctor === 'FGroup') {
@@ -254,12 +254,13 @@ function updateTracker(w,h,div) {
     }
     function getContext(transforms) {
         while (i < kids.length) {
-            var node = kids[i++];
+            var node = kids[i];
             if (node.getContext) {
                 node.width = w;
                 node.height = h;
                 node.style.width = w + 'px';
                 node.style.height = h + 'px';
+                ++i;
                 return transform(transforms, node.getContext('2d'));
             }
             div.removeChild(node);
@@ -277,16 +278,10 @@ function updateTracker(w,h,div) {
             container.style.overflow = 'hidden';
             container.style.position = 'absolute';
             addTransform(container.style, 'scaleY(-1)');
-            if (!container) {
-                div.appendChild(container);
-            } else {
-                var kid = kids[i];
-                if (kid) {
-                    div.insertBefore(container, kid);
-                } else {
-                    div.appendChild(container);
-                }
-            }
+            
+            var kid = kids[i];
+            kid ? div.insertBefore(container, kid)
+                : div.appendChild(container);
         }
         // we have added a new node, so we must step our position
         ++i;
@@ -307,7 +302,7 @@ function updateTracker(w,h,div) {
         addTransform(node.style, makeTransform(w, h, form, matrices));
     }
     function clearRest() {
-        while (kids.length > i) {
+        while (i < kids.length) {
             div.removeChild(kids[i]);
         }
     }
