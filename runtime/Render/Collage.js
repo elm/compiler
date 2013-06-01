@@ -23,6 +23,7 @@ function trace(ctx, path) {
 
 function line(ctx,style,path) {
     style.dashing.ctor === 'Nil' ? trace(ctx, path) : customLineHelp(ctx, style, path);
+    ctx.scale(1,-1);
     ctx.stroke();
 }
 
@@ -107,6 +108,7 @@ function drawShape(redo, ctx, style, path) {
     ctx.fillStyle =
         sty === 'Solid' ? extract(style._0) :
         sty === 'Texture' ? texture(redo, ctx, style._0) : gradient(ctx, style._0);
+    ctx.scale(1,-1);
     ctx.fill();
 }
 
@@ -126,6 +128,7 @@ function drawImage(redo, ctx, form) {
         destW = w,
         destH = h;
 
+    ctx.scale(1,-1);
     ctx.drawImage(img, srcX, srcY, srcW, srcH, destX, destY, destW, destH);
 }
 
@@ -134,7 +137,7 @@ function renderForm(redo, ctx, form) {
     var x = form.x, y = form.y, theta = form.theta, scale = form.scale;
     if (x !== 0 || y !== 0) ctx.translate(x, y);
     if (theta !== 0) ctx.rotate(theta);
-    ctx.scale(scale,-scale);
+    if (scale !== 1) ctx.scale(scale,scale);
     ctx.beginPath();
     var f = form.form;
     switch(f.ctor) {
