@@ -157,7 +157,7 @@ function renderForm(redo, ctx, form) {
 
 function formToMatrix(form) {
    var scale = form.scale;
-   var matrix = A6( Matrix.matrix, scale, 0, 0, scale, scale * form.x, scale * form.y );
+   var matrix = A6( Matrix.matrix, scale, 0, 0, scale, form.x, form.y );
 
    var theta = form.theta
    if (theta !== 0)
