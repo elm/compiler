@@ -41,4 +41,4 @@ function depthFirstTraversals(f, queueOld, queueNew) {
     return true;
 }
 
-}())
+}());
