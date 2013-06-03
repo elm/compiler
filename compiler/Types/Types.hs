@@ -1,4 +1,4 @@
-
+{-# LANGUAGE DeriveDataTypeable #-}
 module Types.Types where
 
 import Located
@@ -6,6 +6,7 @@ import Data.Char (isDigit)
 import Data.List (intercalate,isPrefixOf)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
+import Data.Data
 
 type X = Int
 
@@ -15,14 +16,14 @@ data Type = LambdaT Type Type
           | EmptyRecord
           | RecordT (Map.Map String [Type]) Type
           | Super (Set.Set Type)
-            deriving (Eq, Ord)
+            deriving (Eq, Ord, Data, Typeable)
 
-data Scheme = Forall [X] [Located Constraint] Type deriving (Eq, Ord, Show)
+data Scheme = Forall [X] [Located Constraint] Type deriving (Eq, Ord, Show, Data, Typeable)
 
 data Constraint = Type :=: Type
                 | Type :<: Type
                 | X :<<: Scheme
-                  deriving (Eq, Ord, Show)
+                  deriving (Eq, Ord, Show, Data, Typeable)
 
 recordT :: [(String,Type)] -> Map.Map String [Type]
 recordT fields =

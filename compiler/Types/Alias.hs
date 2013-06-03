@@ -1,13 +1,16 @@
-
+{-# LANGUAGE PatternGuards #-}
 module Types.Alias (dealias, get, mistakes) where
 
 import Ast
+import Located
 import Control.Arrow (second)
 import Data.List (group,sort)
+import Data.Maybe (mapMaybe)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Types.Substitutions (subst)
 import Types.Types
+import Data.Generics.Uniplate.Data
 
 builtins :: [(String,([X],Type))]
 builtins =
@@ -48,68 +51,59 @@ mistakes :: [Statement] -> [String]
 mistakes stmts = badKinds stmts ++ dups stmts ++ badOrder stmts
 
 badKinds :: [Statement] -> [String]
-badKinds stmts = map msg (concatMap badS stmts)
+badKinds stmts = [msg tname | t <- universeBi stmts, tname <- badT t]
   where
     msg x = "Type Error: Type alias '" ++ x ++
             "' was given the wrong number of arguments."
 
     badT :: Type -> [String]
-    badT t =
-      case t of
-        ADT name ts ->
-          case Map.lookup name (get stmts) of
-            Just (xs,t) | length xs == length ts -> []
-                        | otherwise -> [name]
-            Nothing -> concatMap badT ts
-        LambdaT t u -> badT t ++ badT u
-        RecordT r t -> badT t ++ concatMap badT (concat (Map.elems r))
-        _ -> []
+    badT (ADT name ts)
+      | Just (xs, _) <- Map.lookup name (get stmts),
+        length xs /= length ts = [name]
+    badT _ = []
 
-    badS :: Statement -> [String]
-    badS s =
-      case s of
-        Datatype _ _ tcs -> concatMap badT (concatMap snd tcs)
-        ExportEvent _ _ tipe   -> badT tipe
-        ImportEvent _ _ _ tipe -> badT tipe
-        TypeAnnotation _ tipe  -> badT tipe
-        TypeAlias _ _ tipe     -> badT tipe
-        Definition _ -> []
-
-annotation :: Statement -> [String]
+annotation :: Def -> Maybe String
 annotation s =
     case s of
-      TypeAnnotation name _ -> [name]
-      _ -> []
+      TypeAnnotation name _ -> Just name
+      _ -> Nothing
 
-definition :: Statement -> [String]
+definition :: Def -> Maybe String
 definition s =
     case s of
-      Definition d -> [defName d]
-      _ -> []
+      FnDef name _ _ -> Just name
+      OpDef name _ _ _ -> Just name
+      _ -> Nothing
 
-defName :: Def -> String
-defName d =
-    case d of
-      FnDef n _ _   -> n
-      OpDef n _ _ _ -> n
+checkTopLevelAndLets :: [Statement] -> (String -> [Def] -> [a]) -> [a]
+checkTopLevelAndLets stmts fcheck =
+  fcheck "at top-level" topLevelDefs ++
+  concatMap (fcheck "in let binding") allLetDefs
+  where
+    topLevelDefs = mapMaybe maybeDef stmts
+    maybeDef (Definition d) = Just d
+    maybeDef _ = Nothing
+    allLetDefs = [defList | Let defList _ <- universeBi stmts]
 
 dups :: [Statement] -> [String]
-dups stmts = map defMsg (dup definition) ++ map annMsg (dup annotation)
-    where
-      dup :: (Statement -> [String]) -> [String]
-      dup f = map head . filter ((>1) . length) . group . sort $ concatMap f stmts
+dups stmts = checkTopLevelAndLets stmts $ \ctxt defs ->
+  let
+      dup :: (Def -> Maybe String) -> [String]
+      dup f = map head . filter ((>1) . length) . group . sort $ mapMaybe f defs
 
       msg = "Syntax Error: There can only be one "
-      defMsg x = msg ++ "top-level definition of '" ++ x ++ "'."
-      annMsg x = msg ++ "type annotation for '" ++ x ++ "'."
+      defMsg x = msg ++ "definition of '" ++ x ++ "' " ++ ctxt ++ "."
+      annMsg x = msg ++ "type annotation for '" ++ x ++ "'" ++ ctxt ++ "."
+  in
+    map defMsg (dup definition) ++ map annMsg (dup annotation)
 
 badOrder :: [Statement] -> [String]
-badOrder stmts = map msg $ missings (sort $ expectedPairs as ds) (sort $ actualPairs stmts)
-    where
+badOrder stmts = checkTopLevelAndLets stmts $ \ctxt defs ->
+  let
       msg x = "Syntax Error: The type annotation for '" ++ x ++
-              "' must be directly above its definition."
-      as = sort $ concatMap annotation stmts
-      ds = sort $ concatMap definition stmts
+              "' must be directly above its definition in " ++ ctxt ++ "."
+      as = sort $ mapMaybe annotation defs
+      ds = sort $ mapMaybe definition defs
 
       expectedPairs :: [String] -> [String] -> [String]
       expectedPairs as ds =
@@ -120,11 +114,14 @@ badOrder stmts = map msg $ missings (sort $ expectedPairs as ds) (sort $ actualP
                               GT -> expectedPairs (x:xs) ys
             ( _  ,  _  ) -> []
 
-      actualPairs :: [Statement] -> [String]
+      actualPairs :: [Def] -> [String]
       actualPairs stmts =      
           case stmts of
-            TypeAnnotation n _ : Definition d : rest ->
-                (if n == defName d then [n] else []) ++ actualPairs rest
+            TypeAnnotation n _ : rest@(d : _) ->
+                (if Just n == definition d
+                 then [n]
+                 else []
+                ) ++ actualPairs rest
             t:s:rest -> actualPairs (s:rest)
             _ -> []
 
@@ -137,3 +134,5 @@ badOrder stmts = map msg $ missings (sort $ expectedPairs as ds) (sort $ actualP
                               GT -> a : missings (e:es) as
             ( [] ,  _  ) -> actual
             (  _ ,  [] ) -> expected
+  in
+   map msg $ missings (sort $ expectedPairs as ds) (sort $ actualPairs defs)
