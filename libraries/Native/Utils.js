@@ -135,7 +135,7 @@ Elm.Native.Utils = function(elm) {
   }
 
   if (elm.display === ElmRuntime.Display.COMPONENT) {
-      elm.node.addEventListener('mouseover', adjustOffset);
+      elm.addListener(elm.inputs, elm.node, 'mouseover', adjustOffset);
   }
 
   return elm.Native.Utils = {

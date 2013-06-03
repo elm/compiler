@@ -31,10 +31,9 @@ Elm.Native.Window = function(elm) {
       var w = getWidth();
       var h = getHeight();
       if (dimensions.value._0 === w && dimensions.value._1 === h) return;
-      var hasListener = elm.notify(dimensions.id, Tuple2(w,h));
-      if (!hasListener) window.removeEventListener('resize', resizeIfNeeded);
+      elm.notify(dimensions.id, Tuple2(w,h));
   }
-  window.addEventListener('resize', resizeIfNeeded);
+  elm.addListener([dimensions.id], window, 'resize', resizeIfNeeded);
 
   return elm.Native.Window = {
       dimensions:dimensions,

@@ -40,33 +40,20 @@ Elm.Native.Mouse = function(elm) {
 
   var node = elm.display === ElmRuntime.Display.FULLSCREEN ? document : elm.node;
 
-  function click(e) {
-    var hasListener1 = elm.notify(isClicked.id, true);
-    var hasListener2 = elm.notify(clicks.id, Utils.Tuple0);
-    elm.notify(isClicked.id, false);
-    if (!hasListener1 && !hasListener2)
-	node.removeEventListener('click', click);
-  }
-
-  function down(e) {
-    var hasListener = elm.notify(isDown.id, true);
-    if (!hasListener) node.removeEventListener('mousedown', down);
-  }
-
-  function up(e) {
-    var hasListener = elm.notify(isDown.id, false);
-    if (!hasListener) node.removeEventListener('mouseup', up);
-  }
-
-  function move(e) {
-    var hasListener = elm.notify(position.id, getXY(e));
-    if (!hasListener) node.removeEventListener('mousemove', move);
-  }
-
-  node.addEventListener('click'    , click);
-  node.addEventListener('mousedown', down);
-  node.addEventListener('mouseup'  , up);
-  node.addEventListener('mousemove', move);
+  elm.addListener([isClicked.id, clicks.id], node, 'click', function click() {
+          elm.notify(isClicked.id, true);
+          elm.notify(clicks.id, Utils.Tuple0);
+          elm.notify(isClicked.id, false);
+      });
+  elm.addListener([isDown.id], node, 'mousedown', function down() {
+          elm.notify(isDown.id, true);
+      });
+  elm.addListener([isDown.id], node, 'mouseup', function up() {
+          elm.notify(isDown.id, false);
+      });
+  elm.addListener([position.id], node, 'mousemove', function move(e) {
+          elm.notify(position.id, getXY(e));
+      });
 
   return elm.Native.Mouse = {
       position: position,

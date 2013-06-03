@@ -10,31 +10,20 @@ Elm.Native.Keyboard = function(elm) {
   var keysDown = Signal.constant(NList.Nil);
   var lastKey = Signal.constant('\0');
 
-  function down(e) {
-      if (NList.member(e.keyCode)(keysDown.value)) return;
-      var list = NList.Cons(e.keyCode, keysDown.value);
-      var hasListener = elm.notify(keysDown.id, list);
-      if (!hasListener) document.removeEventListener('keydown', down);
-  }
-  function up(e) {
-      function notEq(kc) { return kc !== e.keyCode; }
-      var codes = NList.filter(notEq)(keysDown.value);
-      var hasListener = elm.notify(keysDown.id, codes);
-      if (!hasListener) document.removeEventListener('keyup', up);
-  }
-  function blur(e) {
-      var hasListener = elm.notify(keysDown.id, NList.Nil);
-      if (!hasListener) document.removeEventListener('blur', blur);
-  }
-  function press(e) {
-      var hasListener = elm.notify(lastKey.id, e.charCode || e.keyCode);
-      if (!hasListener) document.removeEventListener('keypress', press);
-  }
-
-  document.addEventListener('keydown' , down );
-  document.addEventListener('keyup'   , up   );
-  document.addEventListener('blur'    , blur );
-  document.addEventListener('keypress', press);
+  elm.addListener([keysDown.id], document, 'keydown', function down(e) {
+          if (NList.member(e.keyCode)(keysDown.value)) return;
+          elm.notify(keysDown.id, NList.Cons(e.keyCode, keysDown.value));
+      });
+  elm.addListener([keysDown.id], document, 'keyup', function up(e) {
+          function notEq(kc) { return kc !== e.keyCode; }
+          elm.notify(keysDown.id, NList.filter(notEq)(keysDown.value));
+      });
+  elm.addListener([keysDown.id], document, 'blur', function blur(e) {
+          elm.notify(keysDown.id, NList.Nil);
+      });
+  elm.addListener([lastKey.id], document, 'keypress', function press(e) {
+          elm.notify(lastKey.id, e.charCode || e.keyCode);
+      });
 
   function keySignal(f) {
     var signal = A2( Signal.lift, f, keysDown );

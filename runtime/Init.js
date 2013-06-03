@@ -13,14 +13,12 @@ Elm.fullscreen = function(module) {
     return init(ElmRuntime.Display.FULLSCREEN, container, module);
 };
 
-Elm.byId = function(id, module) {
-    var container = document.getElementById(id);
+Elm.domNode = function(container, module) {
     var tag = container.tagName;
     if (tag !== 'DIV') {
-        throw new Error('Elm.byId must be given a div, not a ' + tag + '.');
-    }
-    while (container.hasChildNodes()) {
-        container.removeChild(container.lastChild);
+        throw new Error('Elm.node must be given a DIV, not a ' + tag + '.');
+    } else if (container.hasChildNodes()) {
+        throw new Error('Elm.node must be given an empty DIV. No children allowed!');
     }
     return init(ElmRuntime.Display.COMPONENT, container, module);
 };
@@ -34,26 +32,36 @@ function init(display, container, module, moduleToReplace) {
   var inputs = [];
 
   function notify(id, v) {
-    var timestep = Date.now();
-    var hasListener = false;
-    for (var i = inputs.length; i--; ) {
-      // must maintain the order of this stmt to avoid having the ||
-      // short-circuiting the necessary work of recv
-      hasListener = inputs[i].recv(timestep, id, v) || hasListener;
-    }
-    return hasListener;
+      var timestep = Date.now();
+      for (var i = inputs.length; i--; ) {
+          inputs[i].recv(timestep, id, v);
+      }
   }
 
   container.offsetX = 0;
   container.offsetY = 0;
 
+  var listeners = [];
+  function addListener(relevantInputs, domNode, eventName, func) {
+      domNode.addEventListener(eventName, func);
+      var listener = {
+          relevantInputs: relevantInputs,
+          domNode: domNode,
+          eventName: eventName,
+          func: func
+      };
+      listeners.push(listener);
+  }
+
   // create the actual RTS. Any impure modules will attach themselves to this
   // object. This permits many Elm programs to be embedded per document.
-  var elm = { notify:notify,
-              node:container,
-              display:display,
-              id:ElmRuntime.guid(),
-              inputs:inputs
+  var elm = {
+      notify:notify,
+      node:container,
+      display:display,
+      id:ElmRuntime.guid(),
+      addListener:addListener,
+      inputs:inputs
   };
 
   // Set up methods to communicate with Elm program from JS.
@@ -75,8 +83,8 @@ function init(display, container, module, moduleToReplace) {
   });
 
   function swap(newModule) {
+      removeListeners(listeners);
       var div = document.createElement('div');
-      if (container.id) { div.id = container.id; }
       var newElm = init(display, div, newModule, elm);
       // elm.send = newElm.send;
       // elm.recv = newElm.recv;
@@ -86,6 +94,7 @@ function init(display, container, module, moduleToReplace) {
 
   var Module = module(elm);
   inputs = ElmRuntime.filterDeadInputs(inputs);
+  filterListeners(inputs, listeners);
   if (display !== ElmRuntime.Display.NONE) {
       var graphicsNode = initGraphics(elm, Module);
   }
@@ -101,6 +110,26 @@ function init(display, container, module, moduleToReplace) {
 
   return { send:send, recv:recv, swap:swap };
 };
+
+function filterListeners(inputs, listeners) {
+    loop:
+    for (var i = listeners.length; i--; ) {
+        var listener = listeners[i];
+        for (var j = inputs.length; j--; ) {
+            if (listener.relevantInputs.indexOf(inputs[j].id) >= 0) {
+                continue loop;
+            }
+        }
+        listener.domNode.removeEventListener(listener.eventName, listener.func);
+    }
+}
+
+function removeListeners(listeners) {
+    for (var i = listeners.length; i--; ) {
+        var listener = listeners[i];
+        listener.domNode.removeEventListener(listener.eventName, listener.func);
+    }
+}
 
 function initGraphics(elm, Module) {
   if (!('main' in Module))

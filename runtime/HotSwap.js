@@ -15,9 +15,7 @@ ElmRuntime.swap = function(from, to) {
     }
     var canSwap = depthFirstTraversals(similar, from.inputs, to.inputs);
     if (canSwap) { depthFirstTraversals(swap, from.inputs, to.inputs); }
-    ElmRuntime.draw(function() {
-            from.node.parentNode.replaceChild(to.node, from.node)
-        });
+    from.node.parentNode.replaceChild(to.node, from.node);
     return canSwap;
 }
 
