@@ -74,11 +74,10 @@ Elm.Native.Touch = function(elm) {
       for (var i = e.changedTouches.length; i--; ) { f(e.changedTouches[i]); }
       var ts = new Array(e.touches.length);
       for (var i = e.touches.length; i--; ) { ts[i] = touch(e.touches[i]); }
-      var hasListener = elm.notify(root.id, ts);
-      if (!hasListener) return node.removeEventListener(name, update);
+      elm.notify(root.id, ts);
       e.preventDefault();
     }
-    node.addEventListener(name, update);
+    elm.addListener([root.id], node, name, update);
   }
 
   listen("touchstart", start);
@@ -98,14 +97,14 @@ Elm.Native.Touch = function(elm) {
           }
       }
   }
-  node.addEventListener("mousedown", function(e) {
+  elm.addListener([root.id], node, "mousedown", function down(e) {
           node.addEventListener("mousemove", move);
           e.identifier = mouseID;
           start(e);
           root.value.push(touch(e));
           elm.notify(root.id, root.value);
       });
-  node.addEventListener("mouseup", function(e) {
+  elm.addListener([root.id], node, "mouseup", function up(e) {
           node.removeEventListener("mousemove", move);
           e.identifier = mouseID;
           end(e);
@@ -118,7 +117,7 @@ Elm.Native.Touch = function(elm) {
           }
           elm.notify(root.id, root.value);
       });
-  node.addEventListener("blur", function() {
+  elm.addListener([root.id], node, "blur", function blur(e) {
           node.removeEventListener("mousemove", move);
           if (root.values.length > 0) {
               elm.notify(root.id, []);

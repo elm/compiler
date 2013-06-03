@@ -32,8 +32,11 @@ Elm.Native.Time = function(elm) {
 
   function everyWhen(t, isOn) {
     var clock = Signal.constant(Date.now());
-    function tellTime() { elm.notify(clock.id, Date.now()); }
-    setInterval(tellTime, t);
+    var id = setInterval(function tellTime() {
+            if (!elm.notify(clock.id, Date.now())) {
+                clearInterval(id);
+            }
+        }, t);
     return clock;
   }
 
