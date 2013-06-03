@@ -33,9 +33,12 @@ function init(display, container, module, moduleToReplace) {
 
   function notify(id, v) {
       var timestep = Date.now();
+      var changed = false;
       for (var i = inputs.length; i--; ) {
-          inputs[i].recv(timestep, id, v);
+          // order is important here to avoid short-circuiting
+          changed = inputs[i].recv(timestep, id, v) || changed;
       }
+      return changed;
   }
 
   container.offsetX = 0;
@@ -86,6 +89,7 @@ function init(display, container, module, moduleToReplace) {
       removeListeners(listeners);
       var div = document.createElement('div');
       var newElm = init(display, div, newModule, elm);
+      inputs = [];
       // elm.send = newElm.send;
       // elm.recv = newElm.recv;
       // elm.swap = newElm.swap;
