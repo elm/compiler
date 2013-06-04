@@ -13,7 +13,6 @@ if you have any trouble.
 
 Download the [Haskell Platform 2012.2.0.0](http://hackage.haskell.org/platform/).
 Elm definitely works with GHC 7.4, so newer versions of the Haskell Platform may work too.
-
 Once the Haskell Platform is installed:
 
     cabal update
