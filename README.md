@@ -39,8 +39,7 @@ The following commands will set-up a very basic project and start the Elm server
 
     mkdir helloElm
     cd helloElm
-    echo import Mouse > Main.elm
-    echo main = lift asText Mouse.position >> Main.elm
+    printf "import Mouse\n\nmain = lift asText Mouse.position" > Main.elm
     elm-server
 
 The first two commands create a new directory and navigate into it. The `echo`
