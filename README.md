@@ -19,7 +19,7 @@ Once the Haskell Platform is installed:
     cabal install elm
     cabal install elm-server
 
-## Using Elm
+## Use
 
 To use `elm` and `elm-server` you may need to add a new directory to your PATH.
 
@@ -32,7 +32,7 @@ appended to the end of my PATH variable in my .bashrc file.
 See this tutorial if you are new to changing your PATH in
 [Unix/Linux](http://www.cyberciti.biz/faq/unix-linux-adding-path/).
 
-## Test Project
+## My First Project
 
 Now we will create a simple Elm project.
 The following commands will set-up a very basic project and start the Elm server.
