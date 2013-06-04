@@ -1,13 +1,11 @@
 Learn about the Elm programming language at [elm-lang.org](http://elm-lang.org/).
 
 
-### Installing the Compiler
-
-#### OSX
+## Installing everything on Mac OSX
 
 Use [the installer](https://dl.dropboxusercontent.com/u/5850974/Elm/Elm.pkg).
 
-#### Everyone else
+### Installing the Compiler
 
 Download the [Haskell Platform 2012.2.0.0](http://hackage.haskell.org/platform/).
 Elm definitely works with GHC 7.4, so newer versions of the Haskell Platform may work too.
