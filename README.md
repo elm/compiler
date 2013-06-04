@@ -1,28 +1,28 @@
 Learn about the Elm programming language at [elm-lang.org](http://elm-lang.org/).
 
 
-### Installing on Mac OSX
+## Install
+
+#### On Mac OSX
 
 Use [the installer](https://dl.dropboxusercontent.com/u/5850974/Elm/Elm.pkg) and you are done.
 Let us know on [the list](https://groups.google.com/forum/?fromgroups#!forum/elm-discuss)
 if you have any trouble.
 
-### Installing the Compiler
+#### On any platform
 
 Download the [Haskell Platform 2012.2.0.0](http://hackage.haskell.org/platform/).
 Elm definitely works with GHC 7.4, so newer versions of the Haskell Platform may work too.
 
 Once the Haskell Platform is installed:
 
-    cabal update ; cabal install elm
-
-### Installing the Server
-
+    cabal update
+    cabal install elm
     cabal install elm-server
 
-### Using the executables
+## Using Elm
 
-To use `elm` and `elm-server` you need to add a new directory to your PATH.
+To use `elm` and `elm-server` you may need to add a new directory to your PATH.
 
 Cabal should tell you where your executables are located upon
 successful installation.
@@ -33,7 +33,7 @@ appended to the end of my PATH variable in my .bashrc file.
 See this tutorial if you are new to changing your PATH in
 [Unix/Linux](http://www.cyberciti.biz/faq/unix-linux-adding-path/).
 
-## A Test project
+## Test Project
 
 Now we will create a simple Elm project.
 The following commands will set-up a very basic project and start the Elm server.
