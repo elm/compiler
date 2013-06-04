@@ -42,9 +42,9 @@ The following commands will set-up a very basic project and start the Elm server
     printf "import Mouse\n\nmain = lift asText Mouse.position" > Main.elm
     elm-server
 
-The first two commands create a new directory and navigate into it. The `echo`
+The first two commands create a new directory and navigate into it. The `printf`
 commands place a simple program into `Main.elm`. Do this manually if you do not
-have `echo`. The final command starts the Elm server at [localhost:8000](http://localhost:8000/),
+have `printf`. The final command starts the Elm server at [localhost:8000](http://localhost:8000/),
 allowing you to navigate to `Main.elm` and see your first program in action.
 
 #### Wrap up
