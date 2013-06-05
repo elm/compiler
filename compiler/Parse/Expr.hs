@@ -13,6 +13,7 @@ import qualified Text.Pandoc as Pan
 import Parse.Library
 import Parse.Patterns
 import Parse.Binops
+import Parse.Types
 
 import Guid
 import Types.Types (Type (VarT), Scheme (Forall))
@@ -164,7 +165,7 @@ lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
                 return . run $ makeLambda pats e
 
 defSet :: IParser [Def]
-defSet = concat <$> block (do d <- assignExpr ; whitespace ; return d)
+defSet = concat <$> block (do d <- anyDef ; whitespace ; return d)
 
 letExpr :: IParser Expr
 letExpr = do
@@ -207,8 +208,11 @@ assignExpr = withPos $ do
   n <- sourceLine <$> getPosition
   runAt (1000 * n) $ flattenPatterns fDefs e
 
-def = map Definition <$> assignExpr
+anyDef = 
+  ((\d -> [d]) <$> typeAnnotation) <|>
+  assignExpr
 
+def = map Definition <$> anyDef
 
 parseDef str =
     case iParse def "" str of

@@ -16,7 +16,7 @@ import Parse.Foreign
 
 
 statement = choice (typeAlias:defs) <|> def <?> "datatype or variable definition"
-    where defs = map ((:[]) <$>) [ foreignDef, datatype, typeAnnotation ]
+    where defs = map ((:[]) <$>) [ foreignDef, datatype ]
 
 freshDef = commitIf (freshLine >> (letter <|> char '_')) $ do
              freshLine

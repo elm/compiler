@@ -1,16 +1,16 @@
-
+{-# LANGUAGE DeriveDataTypeable #-}
 module Located where
 
 import Text.Parsec.Pos
-
+import Data.Data
 
 data SrcPos = Pos Int Int
-    deriving (Eq,Ord)
+    deriving (Eq, Ord, Data, Typeable)
 
 data SrcSpan = Span SrcPos SrcPos | NoSpan
-    deriving (Eq,Ord)
+    deriving (Eq, Ord, Data, Typeable)
 
-data Located e = L (Maybe String) SrcSpan e deriving (Eq,Ord)
+data Located e = L (Maybe String) SrcSpan e deriving (Eq,Ord, Data, Typeable)
 
 
 instance Show SrcPos where

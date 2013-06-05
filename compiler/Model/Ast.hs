@@ -1,4 +1,4 @@
-
+{-# LANGUAGE DeriveDataTypeable #-}
 module Ast where
 
 import Located
@@ -6,6 +6,7 @@ import Data.Char (isDigit, isSymbol)
 import Data.List (intercalate)
 import Types.Types
 import qualified Text.Pandoc as Pandoc
+import Data.Data
 
 data Module = Module [String] Exports Imports [Statement]
 
@@ -13,14 +14,14 @@ type Exports = [String]
 
 type Imports = [(String, ImportMethod)]
 data ImportMethod = As String | Importing [String] | Hiding [String]
-                    deriving (Eq, Ord, Show)
+                    deriving (Eq, Ord, Show, Data, Typeable)
 
 
 data Pattern = PData String [Pattern]
              | PRecord [String]
              | PVar String
              | PAnything
-               deriving (Eq)
+               deriving (Eq, Data, Typeable)
 
 type CExpr = Located Expr
 data Expr = IntNum Int
@@ -44,19 +45,19 @@ data Expr = IntNum Int
           | Case CExpr [(Pattern,CExpr)]
           | Data String [CExpr]
           | Markdown Pandoc.Pandoc
-            deriving (Eq)
+            deriving (Eq, Data, Typeable)
 
 data Def = FnDef String [String] CExpr
          | OpDef String String String CExpr
-           deriving (Eq)
+         | TypeAnnotation String Type
+           deriving (Eq, Data, Typeable)
 
 data Statement = Definition Def
                | Datatype String [X] [(String,[Type])]
                | TypeAlias String [X] Type
-               | TypeAnnotation String Type
                | ImportEvent String CExpr String Type
                | ExportEvent String String Type
-                 deriving (Eq,Show)
+                 deriving (Eq, Show, Data, Typeable)
 
 cons h t = epos h t (Data "Cons" [h,t])
 nil      = L (Just "[]") NoSpan (Data "Nil" [])
@@ -136,6 +137,7 @@ instance Show Def where
      FnDef v [] e     -> v ++ " = " ++ show e
      FnDef f args e   -> f ++ concatMap (' ':) args ++ " = " ++ show e
      OpDef op a1 a2 e -> intercalate " " [a1,op,a2] ++ " = " ++ show e
+     TypeAnnotation n t -> n ++ " : " ++ show t
 
 getLambdas (L _ _ (Lambda x e)) = (x:xs,e')
     where (xs,e') = getLambdas e

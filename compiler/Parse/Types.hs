@@ -95,7 +95,7 @@ toConstructor start end alias kvs =
     rec = map (\a -> (a, [], loc (Var a))) args
 
 
-typeAnnotation :: IParser Statement
+typeAnnotation :: IParser Def
 typeAnnotation = TypeAnnotation <$> try start <*> (toType <$> typeExpr)
     where start = do v <- lowVar <|> parens symOp
                      whitespace ; hasType ; whitespace ; return v

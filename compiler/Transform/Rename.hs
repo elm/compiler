@@ -30,6 +30,8 @@ instance Rename Def where
   rename env (FnDef f args e) =
       do env' <- extends env args
          FnDef (env f) (map env' args) `liftM` rename env' e
+  rename env (TypeAnnotation n t) = return (TypeAnnotation (env n) t)
+
 
 instance Rename Statement where
   rename env stmt =
@@ -38,7 +40,6 @@ instance Rename Statement where
       Datatype name args tcs ->
           return $ Datatype name args $ map (first env) tcs
       TypeAlias n xs t -> return (TypeAlias n xs t)
-      TypeAnnotation n t -> return (TypeAnnotation (env n) t)
       ImportEvent js base elm tipe ->
           do base' <- rename env base
              return $ ImportEvent js base' (env elm) tipe
@@ -146,4 +147,4 @@ renameLet env defs e = do env' <- extends env $ concatMap getNames defs
                           defs' <- mapM (rename env') defs
                           Let defs' `liftM` rename env' e
     where getNames (FnDef n _ _)   = [n]
-          getNames (OpDef _ _ _ _) = []
+          getNames _ = []

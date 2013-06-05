@@ -128,6 +128,7 @@ gen (L _ span expr) =
            let assumptions = unionsA (as:ass)
                getName d = case d of FnDef f _ _    -> f
                                      OpDef op _ _ _ -> op
+                                     TypeAnnotation n _ -> n
                names = map getName defs
                genCs name s = do
                  v <- guid
@@ -286,6 +287,9 @@ defScheme def = do (as,cs,hint) <- defGen def
 defGen def = case def of
                FnDef f args e   -> defGenHelp f args e
                OpDef op a1 a2 e -> defGenHelp op [a1,a2] e
+               TypeAnnotation name tipe -> do
+                 schm <- Subs.generalize [] =<< Subs.superize name tipe
+                 return (Map.empty, Set.empty, (name, schm))
 
 defGenHelp name args e = do
   argDict <- mapM (\a -> liftM ((,) a) guid) args 
@@ -324,9 +328,5 @@ stmtGen stmt =
            return ( as
                   , Set.insert (L txt span (signalOf t :=: tipe)) cs
                   , Map.singleton elm (Forall [] [] tipe) )
-
-    TypeAnnotation name tipe ->
-        do schm <- Subs.generalize [] =<< Subs.superize name tipe
-           return (Map.empty, Set.empty, Map.singleton name schm)
 
     TypeAlias _ _ _ -> return (Map.empty, Set.empty, Map.empty)
