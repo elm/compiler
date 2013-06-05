@@ -1,4 +1,4 @@
-module Initialize (build, buildFromSource) where
+module Initialize (buildFromSource, getSortedModuleNames) where
 
 import Control.Applicative ((<$>))
 import Control.Monad.Error
@@ -16,7 +16,8 @@ import Types.Hints (hints)
 import Types.Unify (unify)
 import Types.Alias (dealias, mistakes)
 import Optimize
-import CompileToJS (jsModule)
+import System.Exit
+import System.FilePath
 
 checkMistakes :: Module -> Either String Module
 checkMistakes modul@(Module name ex im stmts) = 
@@ -33,64 +34,49 @@ check :: Module -> Either String Module
 check = checkMistakes >=> checkTypes
 
 buildFromSource :: Bool -> String -> Either String Module
-buildFromSource withPrelude src = (check . add) =<< (parseProgram src)
-    where add = if withPrelude then Libs.addPrelude else id
+buildFromSource noPrelude src =
+    let add = if noPrelude then id else Libs.addPrelude in
+    (check . add) =<< (parseProgram src)
 
-build :: Bool -> FilePath -> IO (Either String [Module])
-build withPrelude root = do
-  names <- getSortedModuleNames root
-  case names of
-    Left err -> return (Left err)
-    Right ns -> do srcs <- zipWithM buildFile' [1..] ns
-                   return (sequence srcs)
-      where
-        buildFile' n name = putStrLn (msg n name) >> buildFile withPrelude name
-        msg n name = "["++show n++" of "++show (length ns)++"] Compiling "++name
-
-buildFile :: Bool -> String -> IO (Either String Module)
-buildFile withPrelude moduleName =
-  let filePath = toFilePath moduleName in
-  case isNative moduleName of
-    True  -> return (Right $ Module [moduleName] [] [] [])
-             --return (Left "Can't do that yet")
-             --Right `liftM` readFile filePath
-    False -> do txt <- readFile filePath
-                return $ buildFromSource withPrelude txt
-
-
-getSortedModuleNames :: FilePath -> IO (Either String [String])
-getSortedModuleNames root = do
-  deps <- readDeps [] root
-  return (sortDeps =<< deps)
+getSortedModuleNames :: FilePath -> IO [String]
+getSortedModuleNames root =
+    sortDeps =<< readDeps [] root
 
 type Deps = (String, [String])
 
-sortDeps :: [Deps] -> Either String [String]
+sortDeps :: [Deps] -> IO [String]
 sortDeps deps = go [] (nub deps)
     where
       msg = "A cyclical or missing module dependency or was detected in: "
 
-      go :: [String] -> [Deps] -> Either String [String]
-      go sorted [] = Right sorted
+      go :: [String] -> [Deps] -> IO [String]
+      go sorted [] = return (map toFilePath sorted)
       go sorted unsorted =
           case partition (all (`elem` sorted) . snd) unsorted of
-            ([],m:ms) -> Left (msg ++ intercalate ", " (map fst (m:ms)) ++ show sorted ++ show unsorted)
+            ([],m:ms) -> do putStrLn (msg ++ intercalate ", " (map fst (m:ms)) ++ show sorted ++ show unsorted)
+                            exitFailure
             (srtd,unsrtd) -> go (sorted ++ map fst srtd) unsrtd
 
-readDeps :: [FilePath] -> FilePath -> IO (Either String [Deps])
+readDeps :: [FilePath] -> FilePath -> IO [Deps]
 readDeps seen root = do
   txt <- readFile root
   case preParse txt of
-    Left err -> return (Left err)
-    Right (name,deps) -> do rest <- mapM (readDeps seen' . toFilePath) newDeps
-                            return $ do rs <- sequence rest
-                                        return ((name, realDeps) : concat rs)
-        where realDeps = filter (`notElem` builtIns) deps
-              newDeps = filter (`notElem` seen) realDeps
-              seen' = root : seen ++ newDeps
-              builtIns = Map.keys Libs.libraries
+    Left err ->
+        let msg = "Error resolving dependencies in " ++ root ++ ":\n" in
+        putStrLn (msg ++ err) >> exitFailure
+    Right (name,deps) ->
+        do rest <- mapM (readDeps seen' . toFilePath) newDeps
+           return ((name, realDeps) : concat rest)
+        where
+          realDeps = filter (`notElem` builtIns) deps
+          newDeps = filter (\d -> d `notElem` seen && not (isNative d)) realDeps
+          seen' = root : seen ++ newDeps
+          builtIns = Map.keys Libs.libraries
+                       
 
 isNative name = takeWhile (/='.') name == "Native"
+
+toFilePath :: String -> FilePath
 toFilePath name = map swapDots name ++ ext
     where swapDots '.' = '/'
           swapDots  c  =  c

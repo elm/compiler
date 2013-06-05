@@ -1,91 +1,156 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 module Main where
 
+import Control.Monad (foldM, when)
+import qualified Data.Map as Map
 import Data.Either (lefts, rights)
-import Data.List (intersect, intercalate,lookup)
+import Data.List (intersect, intercalate, lookup)
 import Data.Maybe (fromMaybe)
 import Data.Version (showVersion)
 import System.Console.CmdArgs
+import System.Directory
 import System.Exit
 import System.FilePath
-import Text.Blaze.Html.Renderer.String (renderHtml)
+import qualified Text.Blaze.Html.Renderer.Pretty as Pretty
+import qualified Text.Blaze.Html.Renderer.String as Normal
 
 import qualified Text.Jasmine as JS
 import qualified Data.ByteString.Lazy.Char8 as BS
 
 import Ast
-import Initialize (build,buildFromSource)
-import CompileToJS
-import GenerateHtml
+import Initialize (buildFromSource, getSortedModuleNames)
+import CompileToJS (jsModule)
+import GenerateHtml (createHtml, JSStyle(..), JSSource(..))
 import qualified Libraries as Libraries
 import Paths_Elm
 
-data ELM =
-    ELM { make :: Bool
-        , files :: [FilePath]
-        , runtime :: Maybe FilePath
-        , separate_js :: Bool
-        , only_js :: Bool
-        , import_js :: [FilePath]
-        , no_prelude :: Bool
-        , noscript :: Bool
-        , minify :: Bool
-	, output_directory :: Maybe FilePath
-        }
+data Flags =
+    Flags { make :: Bool
+          , files :: [FilePath]
+          , runtime :: Maybe FilePath
+          , only_js :: Bool
+          , scripts :: [FilePath]
+          , no_prelude :: Bool
+          , minify :: Bool
+	  , output_directory :: FilePath
+          }
     deriving (Data,Typeable,Show,Eq)
 
-elm = ELM { make = False &= help "automatically compile dependencies."
-          , files = def &= args &= typ "FILES"
-          , runtime = Nothing &= typFile &=
-            help "Specify a custom location for Elm's runtime system."
-          , separate_js = False &= help "Compile to separate HTML and JS files."
-          , only_js = False &= help "Compile only to JavaScript."
-          , import_js = [] &= typFile &= help "Include a JavaScript file before the body of the Elm program. Can be used many times. Files will be included in the given order."
-          , no_prelude = False &= help "Do not import Prelude by default, used only when compiling standard libraries."
-          , noscript = True &= help "Add generated <noscript> tag to HTML output."
-          , minify = False &= help "Minify generated JavaScript"
-	  , output_directory = Nothing &= typFile &= help "Output files to directory specified. Defaults to the location of original file."
-          } &=
-    help "Compile Elm programs to HTML, CSS, and JavaScript." &=
-    summary ("The Elm Compiler " ++ showVersion version ++ ", (c) Evan Czaplicki")
+flags = Flags
+  { make = False
+           &= help "automatically compile dependencies."
+  , files = def &= args &= typ "FILES"
+  , runtime = Nothing &= typFile
+              &= help "Specify a custom location for Elm's runtime system."
+  , only_js = False
+              &= help "Compile only to JavaScript."
+  , scripts = [] &= typFile
+              &= help "Load JavaScript files in generated HTML. Files will be included in the given order."
+  , no_prelude = False
+                 &= help "Do not import Prelude by default, used only when compiling standard libraries."
+  , minify = False
+             &= help "Minify generated JavaScript"
+  , output_directory = "ElmFiles" &= typFile
+                       &= help "Output files to directory specified. Defaults to ElmFiles/ directory."
+  } &= help "Compile Elm programs to HTML, CSS, and JavaScript."
+    &= summary ("The Elm Compiler " ++ showVersion version ++ ", (c) Evan Czaplicki")
 
-main = do
-  args <- cmdArgs elm
-  mini <- getDataFileName "elm-runtime.js"
-  compileArgs mini args
+main :: IO ()             
+main = compileArgs =<< cmdArgs flags
 
-compileArgs mini flags =
-  case files flags of
-    [] -> putStrLn "Usage: elm [OPTIONS] [FILES]\nFor more help: elm --help"
-    fs -> mapM_ (fileTo flags what loc) fs
-      where loc  = fromMaybe mini (runtime flags)
-            what | only_js flags = JS
-                 | separate_js flags = Split
-                 | otherwise = HTML
+compileArgs :: Flags -> IO ()
+compileArgs flags =
+  let builder file = if make flags then build flags file
+                                   else buildFile flags 1 1 file >> return ()
+  in case files flags of
+       [] -> putStrLn "Usage: elm [OPTIONS] [FILES]\nFor more help: elm --help"
+       fs -> mapM_ builder fs
+          
 
-data What = JS | HTML | Split
+type Interface = String
 
-fileTo flags what rtLoc file = do
-  let jsStyle  = if minify flags then Minified else Readable
-      formatJS = if minify flags then BS.unpack . JS.minify . BS.pack else id
-      prelude = not (no_prelude flags)
-  ems <- if make flags then build prelude file
-                       else do src <- readFile file
-                               return (fmap (:[]) (buildFromSource prelude src))
-  jss <- concat `fmap` mapM readFile (import_js flags)
-  case ems of
-    Left err -> do putStrLn $ "Error while compiling " ++ file ++ ":\n" ++ err
-                   exitFailure
-    Right ms' ->
-        let path = fromMaybe "" (output_directory flags) </> file
-            js = replaceExtension path ".js"
-            html = replaceExtension path ".html"
-            ms = if no_prelude flags then ms' else map Libraries.addPrelude ms'
-            txt = jss ++ concatMap jsModule ms
-        in  case what of
-              JS    -> writeFile js (formatJS txt)
-              HTML  -> writeFile html . renderHtml $
-                       modulesToHtml jsStyle "" rtLoc jss (noscript flags) ms
-              Split ->
-                  do writeFile html . renderHtml $ linkedHtml rtLoc js ms
-                     writeFile js (formatJS txt)
+buildFile :: Flags -> Int -> Int -> FilePath -> IO Interface
+buildFile flags moduleNum numModules filePath =
+    do compiled <- alreadyCompiled
+       if compiled then getInterface else compile
+
+    where
+      file :: String -> FilePath
+      file ext = replaceExtension filePath ext
+
+      interface :: FilePath
+      interface = file "elmi"
+
+      alreadyCompiled :: IO Bool
+      alreadyCompiled = do
+        exists <- doesFileExist interface
+        if not exists then return False
+                      else do tsrc <- getModificationTime filePath
+                              tint <- getModificationTime interface
+                              return (tsrc < tint)
+
+      number :: String
+      number = "[" ++ show moduleNum ++ " of " ++ show numModules ++ "]"
+
+      name :: String
+      name = intercalate "." (splitDirectories (dropExtensions filePath))
+
+      compile :: IO Interface
+      compile = do
+        putStrLn (number ++ " Compiling " ++ name)
+        source <- readFile filePath
+        js <- if takeExtension filePath == ".js" then return source else
+                  case buildFromSource (no_prelude flags) source of
+                    Left err -> putStrLn err >> exitFailure
+                    Right modul -> return (jsModule modul)
+        writeFile interface js
+        writeFile (file "elmo") js
+        when (only_js flags) (writeFile (file "js") js)
+        return js
+
+      getInterface :: IO Interface
+      getInterface = do
+        readFile interface
+
+getRuntime :: Flags -> IO FilePath
+getRuntime flags =
+    case runtime flags of
+      Just fp -> return fp
+      Nothing -> getDataFileName "elm-runtime.js"
+
+build :: Flags -> FilePath -> IO ()
+build flags rootFile = do
+  files <- getSortedModuleNames rootFile
+  buildFiles flags (length files) Map.empty files
+  js <- foldM appendToOutput "" files
+  case only_js flags of
+    True -> do
+      putStr "\nGenerating JavaScript... "
+      writeFile (replaceExtension rootFile "js") (genJs js)
+      putStrLn "Done"
+    False -> do
+      putStr "\nGenerating HTML... "
+      runtime <- getRuntime flags
+      let html = genHtml $ createHtml runtime rootFile (sources js) ""
+      writeFile (replaceExtension rootFile "html") html
+      putStrLn "Done"
+
+    where
+      appendToOutput :: String -> FilePath -> IO String
+      appendToOutput js filePath =
+          do src <- readFile (replaceExtension filePath "elmo")
+             return (src ++ js)
+
+      genHtml = if minify flags then Normal.renderHtml else Pretty.renderHtml
+      genJs = if minify flags then BS.unpack . JS.minify . BS.pack else id
+      sources js = map Link (scripts flags) ++
+                   [ Source (if minify flags then Minified else Readable) js ]
+
+
+buildFiles :: Flags -> Int -> Map.Map String Interface -> [FilePath] -> IO ()
+buildFiles _ _ _ [] = return ()
+buildFiles flags numModules interfaces (filePath:rest) = do
+  interface <- buildFile flags (numModules - length rest) numModules filePath
+  let moduleName = intercalate "." (splitDirectories (dropExtensions filePath))
+      interfaces' = Map.insert moduleName interface interfaces
+  buildFiles flags numModules interfaces' rest
