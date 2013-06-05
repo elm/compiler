@@ -49,7 +49,7 @@ flags = Flags
   , no_prelude = False
                  &= help "Do not import Prelude by default, used only when compiling standard libraries."
   , minify = False
-             &= help "Minify generated JavaScript"
+             &= help "Minify generated JavaScript and HTML"
   , output_directory = "ElmFiles" &= typFile
                        &= help "Output files to directory specified. Defaults to ElmFiles/ directory."
   } &= help "Compile Elm programs to HTML, CSS, and JavaScript."
@@ -60,11 +60,9 @@ main = compileArgs =<< cmdArgs flags
 
 compileArgs :: Flags -> IO ()
 compileArgs flags =
-  let builder file = if make flags then build flags file
-                                   else buildFile flags 1 1 file >> return ()
-  in case files flags of
-       [] -> putStrLn "Usage: elm [OPTIONS] [FILES]\nFor more help: elm --help"
-       fs -> mapM_ builder fs
+    case files flags of
+      [] -> putStrLn "Usage: elm [OPTIONS] [FILES]\nFor more help: elm --help"
+      fs -> mapM_ (build flags) fs
           
 
 type Interface = String
@@ -76,7 +74,7 @@ buildFile flags moduleNum numModules filePath =
 
     where
       file :: String -> FilePath
-      file ext = replaceExtension filePath ext
+      file ext = output_directory flags </> replaceExtension filePath ext
 
       interface :: FilePath
       interface = file "elmi"
@@ -99,14 +97,15 @@ buildFile flags moduleNum numModules filePath =
       compile = do
         putStrLn (number ++ " Compiling " ++ name)
         source <- readFile filePath
-        js <- if takeExtension filePath == ".js" then return source else
-                  case buildFromSource (no_prelude flags) source of
-                    Left err -> putStrLn err >> exitFailure
-                    Right modul -> return (jsModule modul)
-        writeFile interface js
-        writeFile (file "elmo") js
-        when (only_js flags) (writeFile (file "js") js)
-        return js
+        (inter,obj) <-
+            if takeExtension filePath == ".js" then return ("",source) else
+                case buildFromSource (no_prelude flags) source of
+                  Left err -> putStrLn err >> exitFailure
+                  Right modul -> return (show modul, jsModule modul)
+        createDirectoryIfMissing True (output_directory flags)
+        writeFile interface inter
+        writeFile (file "elmo") obj
+        return inter
 
       getInterface :: IO Interface
       getInterface = do
@@ -120,16 +119,16 @@ getRuntime flags =
 
 build :: Flags -> FilePath -> IO ()
 build flags rootFile = do
-  files <- getSortedModuleNames rootFile
+  files <- if make flags then getSortedModuleNames rootFile else return [rootFile]
   buildFiles flags (length files) Map.empty files
   js <- foldM appendToOutput "" files
   case only_js flags of
     True -> do
-      putStr "\nGenerating JavaScript... "
+      putStr "Generating JavaScript ... "
       writeFile (replaceExtension rootFile "js") (genJs js)
       putStrLn "Done"
     False -> do
-      putStr "\nGenerating HTML... "
+      putStr "Generating HTML ... "
       runtime <- getRuntime flags
       let html = genHtml $ createHtml runtime rootFile (sources js) ""
       writeFile (replaceExtension rootFile "html") html
@@ -138,7 +137,7 @@ build flags rootFile = do
     where
       appendToOutput :: String -> FilePath -> IO String
       appendToOutput js filePath =
-          do src <- readFile (replaceExtension filePath "elmo")
+          do src <- readFile (output_directory flags </> replaceExtension filePath "elmo")
              return (src ++ js)
 
       genHtml = if minify flags then Normal.renderHtml else Pretty.renderHtml
