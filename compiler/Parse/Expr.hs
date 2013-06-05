@@ -141,7 +141,7 @@ appExpr = do
 --------  Normal Expressions  --------
 
 binaryExpr :: IParser CExpr
-binaryExpr = binops appExpr anyOp
+binaryExpr = binops [] appExpr anyOp
 
 ifExpr :: IParser Expr
 ifExpr = reserved "if" >> whitespace >> (normal <|> multiIf)

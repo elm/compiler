@@ -8,7 +8,7 @@ import qualified Data.Map as Map
 import Ast
 import Data.Either (lefts,rights)
 import Data.List (intercalate,partition)
-import Parse.Parser (parseProgram, preParse)
+import Parse.Parser (parseProgram, parseDependencies)
 import Rename
 import qualified Libraries as Libs
 import Types.Types ((-:))
@@ -60,7 +60,7 @@ sortDeps deps = go [] (nub deps)
 readDeps :: [FilePath] -> FilePath -> IO [Deps]
 readDeps seen root = do
   txt <- readFile root
-  case preParse txt of
+  case parseDependencies txt of
     Left err ->
         let msg = "Error resolving dependencies in " ++ root ++ ":\n" in
         putStrLn (msg ++ err) >> exitFailure

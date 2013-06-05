@@ -1,4 +1,4 @@
-module Parse.Parser (parseProgram, preParse) where
+module Parse.Parser (parseProgram, parseDependencies, parseInfix) where
 
 import Ast
 import Control.Applicative ((<$>), (<*>))
@@ -8,6 +8,7 @@ import Data.List (foldl',intercalate)
 import Text.Parsec hiding (newline,spaces)
 
 import Parse.Library
+import Parse.Binops (infixStmt, OpTable)
 import Parse.Expr
 import Parse.Types
 import Parse.Modules
@@ -35,16 +36,22 @@ program = do
 
 parseProgram = setupParser program
 
-preParse :: String -> Either String (String, [String])
-preParse = setupParser $ do
-             optional skip
-             (,) <$> option "Main" moduleName <*> option [] imprts
+parseDependencies :: String -> Either String (String, [String])
+parseDependencies =
+    setupParser $ do
+      optional skip
+      (,) <$> option "Main" moduleName <*> option [] imprts
     where 
       skip = try (manyTill anyChar (try (string "/**")))
       imprts = fmap (map fst) imports `followedBy` freshLine
       getName = intercalate "." . fst
       moduleName = do optional freshLine 
                       getName <$> moduleDef `followedBy` freshLine
+
+parseInfix :: String -> Either String OpTable
+parseInfix = setupParser . many $ do
+               manyTill (whitespace <|> (anyChar >> return ())) freshLine
+               infixStmt
 
 setupParser p source =
     case iParse p "" source of
