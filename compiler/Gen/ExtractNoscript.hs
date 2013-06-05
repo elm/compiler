@@ -21,6 +21,7 @@ instance Extract Statement where
 instance Extract Def where
   extract (FnDef _ _ e)   = extract e
   extract (OpDef _ _ _ e) = extract e
+  extract _ = []
 
 instance Extract e => Extract (Located e) where
   extract (L _ _ e) = extract e

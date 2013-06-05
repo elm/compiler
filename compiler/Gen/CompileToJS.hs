@@ -7,6 +7,7 @@ import Data.List (intercalate,sortBy,inits,foldl')
 import qualified Data.Map as Map
 import Data.Either (partitionEithers)
 import qualified Text.Pandoc as Pan
+import Data.Maybe (maybeToList)
 
 import Ast
 import Located
@@ -82,14 +83,14 @@ getExports names stmts = "\n"++ intercalate ";\n" (op : map fnPair fns)
 
           op = ("_.$op = "++) . jsObj $ map opPair ops
 
-          get' (FnDef x _ _) = Left x
-          get' (OpDef op _ _ _) = Right op
-          get s = case s of Definition d        -> [ get' d ]
+          get' (FnDef x _ _) = Just (Left x)
+          get' (OpDef op _ _ _) = Just (Right op)
+          get' (TypeAnnotation _ _) = Nothing
+          get s = case s of Definition d        -> maybeToList (get' d)
                             Datatype _ _ tcs    -> map (Left . fst) tcs
                             ImportEvent _ _ x _ -> [ Left x ]
                             ExportEvent _ _ _   -> []
                             TypeAlias _ _ _     -> []
-                            TypeAnnotation _ _  -> []
 
 
 jsImport (modul, how) =
@@ -129,10 +130,10 @@ stmtsToJS stmts = run $ do program <- mapM toJS (sortBy cmpStmt stmts)
                     ImportEvent _ _ _ _        -> 2
                     Definition (FnDef f [] _)  ->
                         if derename f == "main" then 5 else 4
+                    Definition (TypeAnnotation _ _)  -> 0
                     Definition _               -> 3
                     ExportEvent _ _ _          -> 6
                     TypeAlias _ _ _            -> 0
-                    TypeAnnotation _ _         -> 0
 
 class ToJS a where
   toJS :: a -> GuidCounter String
@@ -148,6 +149,8 @@ instance ToJS Def where
       do body <- toJS' e                    
          let func = "F2" ++ parens (jsFunc (a1 ++ ", " ++ a2) (ret body))
          return (globalAssign ("$op['" ++ op ++ "']") func)
+  toJS (TypeAnnotation _ _) = return ""
+
 
 instance ToJS Statement where
   toJS stmt =
@@ -170,7 +173,6 @@ instance ToJS Statement where
                         , "e.initEvent('", js, "_' + elm.id, true, true);"
                         , "e.value = v;"
                         , "document.dispatchEvent(e); return v; })(", elm, ");" ]
-      TypeAnnotation _ _ -> return ""
       TypeAlias n _ t -> return ""
 
 toJS' :: CExpr -> GuidCounter String
@@ -275,6 +277,7 @@ jsLet defs e' = do ds <- jsDefs defs
     valueOf (FnDef _ [] _) = 2
     valueOf (FnDef _ _ _) = 1
     valueOf (OpDef _ _ _ _)  = 1
+    valueOf (TypeAnnotation _ _) = 0
 
 caseToJS span e ps = do
   match <- caseToMatch ps
