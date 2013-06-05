@@ -22,6 +22,7 @@ instance LetBoundVars Statement where
 instance LetBoundVars Def where
   letBoundVars (FnDef n _ e) = n : letBoundVars e
   letBoundVars (OpDef _ _ _ e) = letBoundVars e
+  letBoundVars _ = []
 
 instance LetBoundVars e => LetBoundVars (Context e) where
   letBoundVars (C _ _ e) = letBoundVars e

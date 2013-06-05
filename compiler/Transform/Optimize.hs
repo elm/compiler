@@ -23,6 +23,7 @@ instance Simplify Statement where
 instance Simplify Def where
   simp (FnDef func args e) = FnDef func args (simp e)
   simp (OpDef op a1 a2 e)  = OpDef op a1 a2 (simp e)
+  simp x = x
 
 instance Simplify e => Simplify (Located e) where
   simp (L t s e) = L t s (simp e)

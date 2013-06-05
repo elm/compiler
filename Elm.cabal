@@ -65,6 +65,7 @@ Library
 
   Build-depends:       base >=4.2 && <5,
                        containers >= 0.3,
+                       uniplate >= 1.6,
                        transformers >= 0.2,
                        mtl >= 2,
                        deepseq,
@@ -119,6 +120,7 @@ Executable elm
 
   Build-depends:       base >=4.2 && <5,
                        containers >= 0.3,
+                       uniplate >= 1.6,
                        transformers >= 0.2,
                        mtl >= 2,
                        deepseq,
