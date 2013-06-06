@@ -1,10 +1,6 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 {- | This module exports the functions necessary for compiling Elm code into the
-     respective HTML, JS and CSS code.
-
-     The type class @'ElmSource'@ requires an instance for all types that the Elm
-     compiler understands. The provided instances for String, Text and QuasiQuoted
-     Elm source code should be sufficient.
+     respective HTML, CSS, and JS code.
 
      The documentation for the Elm language is available at
      <http://elm-lang.org/Documentation.elm>, and many interactive examples are
@@ -26,21 +22,22 @@ import Text.Blaze.Html (Html)
 import Text.Parsec (option,optional)
 import Paths_Elm
 
--- |This function compiles Elm code to JavaScript.
-compile :: String -> String
-compile source = either showErr jsModule modul
+-- |This function compiles Elm code to JavaScript. It will return either
+--  an error message or the compiled JS code.
+compile :: String -> Either String String
+compile source = fmap jsModule modul
     where
-      modul = buildFromSource True source
+      modul = buildFromSource False source
 
 -- |This function extracts the module name of a given source program.
-moduleName :: String -> String
+moduleName :: String -> Maybe String
 moduleName source = case iParse getModuleName "" source of
-                      Right name -> name
-                      Left _     -> "Main"
+                      Right name -> Just name
+                      Left _     -> Nothing
     where
       getModuleName = do
         optional freshLine
-        (names, _) <- option (["Main"],[]) moduleDef
+        (names, _) <- moduleDef
         return (intercalate "." names)
 
 -- |This function compiles Elm code into a full HTML page.

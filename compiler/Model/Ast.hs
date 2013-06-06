@@ -9,6 +9,7 @@ import qualified Text.Pandoc as Pandoc
 import Data.Data
 
 data Module = Module [String] Exports Imports [Statement]
+              deriving (Show)
 
 type Exports = [String]
 
