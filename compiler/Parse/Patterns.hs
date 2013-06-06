@@ -19,6 +19,13 @@ patternBasic =
                 return $ if isUpper c then PData x [] else PVar x
            ]
 
+patternMaybeAtVar :: Pattern -> IParser Pattern
+patternMaybeAtVar (PVar x) =
+  (char '@' >>
+   PAtVar x <$> patternExpr) <|>
+  ({- empty -} return $ PVar x)
+patternMaybeAtVar x = return x
+
 patternRecord :: IParser Pattern
 patternRecord = PRecord <$> brackets (commaSep1 lowVar)
 
@@ -30,7 +37,8 @@ patternList :: IParser Pattern
 patternList = plist <$> braces (commaSep patternExpr)
 
 patternTerm :: IParser Pattern
-patternTerm = choice [ patternRecord, patternTuple, patternList, patternBasic ]
+patternTerm = choice [ patternRecord, patternTuple, patternList,
+                       patternMaybeAtVar =<< patternBasic ]
            <?> "pattern"
 
 patternConstructor :: IParser Pattern
@@ -53,6 +61,10 @@ extract pattern body@(L t s _) =
   case pattern of
     PAnything -> return $ fn "_" body
     PVar x -> return $ fn x body
+    PAtVar x PAnything -> return $ fn x body
+    PAtVar x p -> do
+      (x', body') <- extract p body
+      return $ fn x (loc $ Let [FnDef x' [] (loc $ Var x)] body')
     PData name ps -> do
         x <- guid
         let a = '_' : show x
@@ -97,6 +109,10 @@ matchSingle pat exp@(L t s _) p =
     PVar x ->
         return [ FnDef x [] (loc $ Case exp [(pat, loc $ Var x)]) ]
 
+    PAtVar x p' -> do
+        subPat <- matchSingle p' (loc $ Var x) p'
+        return $ (FnDef x [] (loc $ Case exp [(pat, loc $ Var x)])):subPat
+      
     PRecord fs -> do
         a <- (\x -> '_' : show x) `liftM` guid
         let toDef f = FnDef f [] (loc $ Access (loc $ Var a) f)

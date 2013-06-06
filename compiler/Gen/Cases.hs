@@ -59,13 +59,16 @@ matchVar :: [String] -> [([Pattern],CExpr)] -> Match -> GuidCounter Match
 matchVar (v:vs) cs def = match vs (map subVar cs) def
   where
     subVar (p:ps, ce@(L t s e)) =
-        let loc = L t s in
-        (ps, case p of
-               PVar x     -> L t s $ subst x (Var v) e
-               PAnything  -> ce
-               PRecord fs ->
-                   loc $ foldr (\x -> subst x (Access (loc (Var v)) x)) e fs
-        )
+        let
+          loc = L t s
+          subOnePattern (PVar x)      = subst x (Var v) e
+          subOnePattern (PAtVar x p)  = 
+            subst x (Var v) e
+          subOnePattern PAnything     = e
+          subOnePattern (PRecord fs)  =
+            foldr (\x -> subst x (Access (loc (Var v)) x)) e fs
+        in
+         (ps, L t s $ subOnePattern p)
 
 matchCon :: [String] -> [([Pattern],CExpr)] -> Match -> GuidCounter Match
 matchCon (v:vs) cs def = (flip (Match v) def) `liftM` mapM toClause css
