@@ -19,7 +19,7 @@ data ImportMethod = As String | Importing [String] | Hiding [String]
 
 data Pattern = PData String [Pattern]
              | PRecord [String]
-             | PAtVar String Pattern
+             | PAsVar String Pattern
              | PVar String
              | PAnything
                deriving (Eq, Data, Typeable)
@@ -83,7 +83,7 @@ instance Show Pattern where
    case p of
      PRecord fs -> brkt (intercalate ", " fs)
      PVar x -> x
-     PAtVar x p -> x ++ "@(" ++ show p ++ ")"
+     PAsVar x p -> x ++ "@(" ++ show p ++ ")"
      PAnything -> "_"
      PData "Cons" [hd@(PData "Cons" _),tl] ->
         parens (show hd) ++ " :: " ++ show tl

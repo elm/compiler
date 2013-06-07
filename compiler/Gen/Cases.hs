@@ -62,7 +62,7 @@ matchVar (v:vs) cs def = match vs (map subVar cs) def
         let
           loc = L t s
           subOnePattern (PVar x)      = subst x (Var v) e
-          subOnePattern (PAtVar x p)  = 
+          subOnePattern (PAsVar x p)  = 
             subst x (Var v) e
           subOnePattern PAnything     = e
           subOnePattern (PRecord fs)  =
