@@ -39,7 +39,10 @@ instance Subst Scheme where
 instance Subst Constraint where
   subst ss (t1 :=: t2) = subst ss t1 :=: subst ss t2
   subst ss (t :<: super) = subst ss t :<: super
-  subst ss (x :<<: poly) = x :<<: subst ss poly
+  subst ss (x :<<: poly) = (case lookup x ss of
+                               Just (VarT y) -> y
+                               _ -> x
+                           ) :<<: subst ss poly
 
 instance Subst a => Subst (Located a) where
   subst ss (L str span c) = L str span (subst ss c)

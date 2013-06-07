@@ -130,6 +130,10 @@ patternExtend pattern env =
     case pattern of
       PAnything -> return (PAnything, env)
       PVar x -> first PVar `liftM` extend env x
+      PAsVar x p -> do
+        (x', env') <- extend env x
+        (p', env'') <- patternExtend p env'
+        return (PAsVar x' p', env'')
       PData name ps ->
           first (PData name . reverse) `liftM` foldM f ([], env) ps
                  where f (rps,env') p = do (rp,env'') <- patternExtend p env'
