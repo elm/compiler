@@ -70,21 +70,21 @@ type Interface = String
 buildFile :: Flags -> Int -> Int -> FilePath -> IO Interface
 buildFile flags moduleNum numModules filePath =
     do compiled <- alreadyCompiled
-       if compiled then getInterface else compile
+       if compiled then readFile elmo else compile
 
     where
       file :: String -> FilePath
       file ext = output_directory flags </> replaceExtension filePath ext
 
-      interface :: FilePath
-      interface = file "elmi"
+      elmo :: FilePath
+      elmo = file "elmo"
 
       alreadyCompiled :: IO Bool
       alreadyCompiled = do
-        exists <- doesFileExist interface
+        exists <- doesFileExist elmo
         if not exists then return False
                       else do tsrc <- getModificationTime filePath
-                              tint <- getModificationTime interface
+                              tint <- getModificationTime elmo
                               return (tsrc < tint)
 
       number :: String
@@ -97,19 +97,16 @@ buildFile flags moduleNum numModules filePath =
       compile = do
         putStrLn (number ++ " Compiling " ++ name)
         source <- readFile filePath
-        (inter,obj) <-
+        (interface,obj) <-
             if takeExtension filePath == ".js" then return ("",source) else
                 case buildFromSource (no_prelude flags) source of
                   Left err -> putStrLn err >> exitFailure
-                  Right modul -> return (show modul, jsModule modul)
+                  Right modul -> do exs <- exportInfo modul
+                                    return (exs, jsModule modul)
         createDirectoryIfMissing True (output_directory flags)
-        writeFile interface inter
-        writeFile (file "elmo") obj
-        return inter
+        writeFile elmo obj
+        return obj
 
-      getInterface :: IO Interface
-      getInterface = do
-        readFile interface
 
 getRuntime :: Flags -> IO FilePath
 getRuntime flags =
@@ -153,3 +150,9 @@ buildFiles flags numModules interfaces (filePath:rest) = do
   let moduleName = intercalate "." (splitDirectories (dropExtensions filePath))
       interfaces' = Map.insert moduleName interface interfaces
   buildFiles flags numModules interfaces' rest
+
+
+exportInfo :: Module -> IO String
+exportInfo (Module names ims exs stmts) =
+    do print exs
+       return (show exs)
