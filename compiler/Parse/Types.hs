@@ -84,16 +84,23 @@ typeAlias = do
     Left msg -> fail msg
     Right t -> return (TypeAlias alias [1..n] t : ctor)
         where ctor = case tipe of
-                       RecordPT _ kvs -> [toConstructor start end alias kvs]
+                       RecordPT extension kvs ->
+                           [toConstructor start end alias extension kvs]
                        _ -> []
 
-toConstructor start end alias kvs =
+toConstructor start end alias Nothing kvs =
     Definition (FnDef alias args (loc (Record rec)))
   where
     loc = pos start end
     args = map fst kvs
     rec = map (\a -> (a, [], loc (Var a))) args
-
+toConstructor start end alias (Just _) kvs =
+    Definition (FnDef alias (args++["_ext_"]) (loc rec))
+  where
+    loc = pos start end
+    args = map fst kvs
+    rec = foldl insert (Var "_ext_") (zip args (map (loc . Var) args))
+    insert e (k,v) = Insert (loc e) k v
 
 typeAnnotation :: IParser Def
 typeAnnotation = TypeAnnotation <$> try start <*> (toType <$> typeExpr)
