@@ -67,24 +67,25 @@ compileArgs flags =
 
 type Interface = String
 
+file :: Flags -> FilePath -> String -> FilePath
+file flags filePath ext = output_directory flags </> replaceExtension filePath ext
+
+elmo :: Flags -> FilePath -> FilePath
+elmo flags filePath = file flags filePath "elmo"
+
+
 buildFile :: Flags -> Int -> Int -> FilePath -> IO Interface
 buildFile flags moduleNum numModules filePath =
     do compiled <- alreadyCompiled
-       if compiled then readFile elmo else compile
+       if compiled then readFile (elmo flags filePath) else compile
 
     where
-      file :: String -> FilePath
-      file ext = output_directory flags </> replaceExtension filePath ext
-
-      elmo :: FilePath
-      elmo = file "elmo"
-
       alreadyCompiled :: IO Bool
       alreadyCompiled = do
-        exists <- doesFileExist elmo
+        exists <- doesFileExist (elmo flags filePath)
         if not exists then return False
                       else do tsrc <- getModificationTime filePath
-                              tint <- getModificationTime elmo
+                              tint <- getModificationTime (elmo flags filePath)
                               return (tsrc < tint)
 
       number :: String
@@ -104,7 +105,7 @@ buildFile flags moduleNum numModules filePath =
                   Right modul -> do exs <- exportInfo modul
                                     return (exs, jsModule modul)
         createDirectoryIfMissing True (output_directory flags)
-        writeFile elmo obj
+        writeFile (elmo flags filePath) obj
         return obj
 
 
@@ -122,19 +123,19 @@ build flags rootFile = do
   case only_js flags of
     True -> do
       putStr "Generating JavaScript ... "
-      writeFile (replaceExtension rootFile "js") (genJs js)
+      writeFile (file flags rootFile "js") (genJs js)
       putStrLn "Done"
     False -> do
       putStr "Generating HTML ... "
       runtime <- getRuntime flags
       let html = genHtml $ createHtml runtime rootFile (sources js) ""
-      writeFile (replaceExtension rootFile "html") html
+      writeFile (file flags rootFile "html") html
       putStrLn "Done"
 
     where
       appendToOutput :: String -> FilePath -> IO String
       appendToOutput js filePath =
-          do src <- readFile (output_directory flags </> replaceExtension filePath "elmo")
+          do src <- readFile (elmo flags filePath)
              return (src ++ js)
 
       genHtml = if minify flags then Normal.renderHtml else Pretty.renderHtml
@@ -153,6 +154,6 @@ buildFiles flags numModules interfaces (filePath:rest) = do
 
 
 exportInfo :: Module -> IO String
-exportInfo (Module names ims exs stmts) =
+exportInfo (Module names exs ims stmts) =
     do print exs
        return (show exs)

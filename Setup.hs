@@ -151,6 +151,7 @@ buildRuntime lbi = do
   createDirectoryIfMissing False (rtsDir lbi)     -- dist should already exist
   writeFile (rts lbi) "Elm = {}; Elm.Native = {}; Elm.Native.Graphics = {};\n\
                 \Elm.Graphics = {}; ElmRuntime = {}; ElmRuntime.Render = {}\n"
+  removeDirectoryRecursive ("dist" </> "js")
   mapM_ (appendJS lbi)  =<< getFiles ".js" "libraries"
   mapM_ (appendElm lbi) =<< getFiles ".elm" "libraries"
   mapM_ (appendJS lbi)  =<< getFiles ".js"  "runtime"
