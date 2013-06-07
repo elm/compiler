@@ -8,7 +8,7 @@ import Types.Types
 import qualified Text.Pandoc as Pandoc
 import Data.Data
 
-data Module = Module [String] Exports Imports [Statement]
+data Module = Module [String] Exports Imports [Statement] deriving (Show)
 
 type Exports = [String]
 
@@ -19,6 +19,7 @@ data ImportMethod = As String | Importing [String] | Hiding [String]
 
 data Pattern = PData String [Pattern]
              | PRecord [String]
+             | PAsVar String Pattern
              | PVar String
              | PAnything
                deriving (Eq, Data, Typeable)
@@ -82,6 +83,7 @@ instance Show Pattern where
    case p of
      PRecord fs -> brkt (intercalate ", " fs)
      PVar x -> x
+     PAsVar x p -> x ++ "@(" ++ show p ++ ")"
      PAnything -> "_"
      PData "Cons" [hd@(PData "Cons" _),tl] ->
         parens (show hd) ++ " :: " ++ show tl

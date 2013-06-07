@@ -259,6 +259,15 @@ patternGen loc tipe as pattern =
       b <- beta
       let cs = map (loc . (b :=:) . VarT) (Map.findWithDefault [] v as)
       return ( Map.delete v as, Set.fromList (loc (b :=: tipe) : cs), b )
+    PAsVar v p -> do
+      b <- beta
+      let cs = map (loc . (b :=:) . VarT) (Map.findWithDefault [] v as)
+      (as', cs', tipe') <- patternGen loc b as p
+      return (Map.delete v as',
+              cs' `Set.union`
+              (Set.fromList $ (loc (b :=: tipe)):(loc (b :=: tipe')):cs),
+              b)
+      
     PData name ps -> do
       constr <- guid
       output <- beta
