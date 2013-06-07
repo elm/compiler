@@ -19,11 +19,13 @@ patternBasic =
                 return $ if isUpper c then PData x [] else PVar x
            ]
 
-patternMaybeAsVar :: Pattern -> IParser Pattern
-patternMaybeAsVar x =
-    choice [ PAsVar <$> 
-             (optional whitespace *> reserved "as" *> whitespace *> lowVar) <*> pure x,
-             pure x ]
+asPattern :: IParser Pattern -> IParser Pattern
+asPattern pattern = do
+  p <- pattern
+  var <- optionMaybe (try (whitespace >> reserved "as" >> whitespace >> lowVar))
+  return $ case var of
+             Just v -> PAsVar v p
+             Nothing -> p
 
 patternRecord :: IParser Pattern
 patternRecord = PRecord <$> brackets (commaSep1 lowVar)
@@ -44,9 +46,9 @@ patternConstructor :: IParser Pattern
 patternConstructor = PData <$> capVar <*> spacePrefix patternTerm
 
 patternExpr :: IParser Pattern
-patternExpr = (patternMaybeAsVar =<<
-              (foldr1 pcons <$> consSep1 (patternConstructor <|> patternTerm)))
-              <?> "pattern"
+patternExpr = 
+    asPattern (foldr1 pcons <$> consSep1 (patternConstructor <|> patternTerm))
+    <?> "pattern"
 
 makeLambda :: [Pattern] -> CExpr -> GuidCounter CExpr
 makeLambda pats body = go (reverse pats) body

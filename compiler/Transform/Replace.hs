@@ -33,7 +33,7 @@ patternVars pattern =
     case pattern of
       PData _ ps -> unions (map patternVars ps)
       PVar x -> singleton x
-      PAsVar _ p -> patternVars p
+      PAsVar x p -> insert x (patternVars p)
       PAnything -> empty
 
 depth :: Expr -> Integer
