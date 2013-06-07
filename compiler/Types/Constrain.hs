@@ -249,10 +249,20 @@ patternGen :: (Constraint -> Located Constraint)
 patternGen loc tipe as pattern =
   case pattern of
     PAnything -> do b <- beta ; return ( as, [], b )
+
     PVar v -> do
       b <- beta
       let cs = map (loc . (b :=:) . VarT) (Map.findWithDefault [] v as)
       return ( Map.delete v as, loc (b :=: tipe) : cs, b )
+
+    PAsVar v p -> do
+      b <- beta
+      let cs = map (loc . (b :=:) . VarT) (Map.findWithDefault [] v as)
+      (as', cs', tipe') <- patternGen loc b as p
+      return (Map.delete v as',
+              cs' ++ [ loc (b :=: tipe), loc (b :=: tipe') ] ++ cs,
+              b)
+      
     PData name ps -> do
       constr <- guid
       output <- beta
