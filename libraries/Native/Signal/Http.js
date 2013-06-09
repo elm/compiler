@@ -1,4 +1,3 @@
-
 Elm.Native.Http = function(elm) {
   'use strict';
   elm.Native = elm.Native || {};
