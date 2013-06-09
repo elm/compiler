@@ -1,4 +1,3 @@
-
 Elm.Native.Http = function(elm) {
   'use strict';
   elm.Native = elm.Native || {};
@@ -26,7 +25,7 @@ Elm.Native.Http = function(elm) {
   }
 
   function setHeader(pair) {
-    request.setRequestHeader( JS.fomString(pair._0), JS.fromString(pair._1) );
+    request.setRequestHeader( JS.fromString(pair._0), JS.fromString(pair._1) );
   }
 
   function sendReq(queue,responses,req) {
