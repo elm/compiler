@@ -18,7 +18,8 @@ data Type = LambdaT Type Type
           | Super (Set.Set Type)
             deriving (Eq, Ord, Data, Typeable)
 
-data Scheme = Forall [X] [Located Constraint] Type deriving (Eq, Ord, Show, Data, Typeable)
+data Scheme = Forall [X] [Located Constraint] Type
+              deriving (Eq, Ord, Show, Data, Typeable)
 
 data Constraint = Type :=: Type
                 | Type :<: Type

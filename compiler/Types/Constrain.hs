@@ -71,6 +71,9 @@ mergeSchemes schmss = do (ass,css,sss) <- unzip3 `liftM` mapM split kvs
                         []   -> []
                     , Map.fromList ps )
 
+--constrain :: Map.Map String Scheme
+--          -> Module
+--          -> GuidCounter (Either String Constraints)
 constrain typeHints (Module _ _ imports stmts) = do
   (ass,css,schemess) <- unzip3 `liftM` mapM stmtGen stmts
   aliasHints <- getAliases imports `liftM` typeHints
@@ -86,8 +89,8 @@ constrain typeHints (Module _ _ imports stmts) = do
         escapees = Map.keys $ Map.difference assumptions allHints
         msg = "Warning! Type-checker could not find variables:\n" ++ intercalate ", " escapees
     return $ case escapees of
-               [] -> Right (constraints ++ cs)
-               _  -> unsafePerformIO (putStrLn msg) `seq` Right (constraints ++ cs)
+               [] -> Right (schemess, constraints ++ cs)
+               _  -> unsafePerformIO (putStrLn msg) `seq` Right (schemess, constraints ++ cs)
                --_  -> Left ("Undefined variable(s): " ++ intercalate ", " escapees)
 
 type TVarMap = Map.Map String [X]

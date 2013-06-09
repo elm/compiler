@@ -10,7 +10,16 @@ import qualified Types.Constrain as Constrain
 import qualified Types.Solver as Solver
 import qualified Types.Alias as Alias
 
+import qualified Types.Substitutions as Subst
+import System.IO.Unsafe
+import Control.Arrow (second)
+
 unify hints modul@(Module _ _ _ stmts) = run $ do
-  constraints <- Constrain.constrain hints modul
-  either (return . Left) (Solver.solver (Alias.get stmts) Map.empty) constraints
+  result <- Constrain.constrain hints modul
+  case result of
+    Left err -> return (Left err)
+    Right (schemes, constraints) ->
+        do subs <- Solver.solver (Alias.get stmts) Map.empty constraints
+           let ss = either (const []) Map.toList subs
+           unsafePerformIO (mapM print . map (second (Subst.subst ss)) $ concatMap Map.toList schemes) `seq` return subs
 
