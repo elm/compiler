@@ -67,24 +67,25 @@ compileArgs flags =
 
 type Interface = String
 
+file :: Flags -> FilePath -> String -> FilePath
+file flags filePath ext = output_directory flags </> replaceExtension filePath ext
+
+elmo :: Flags -> FilePath -> FilePath
+elmo flags filePath = file flags filePath "elmo"
+
+
 buildFile :: Flags -> Int -> Int -> FilePath -> IO Interface
 buildFile flags moduleNum numModules filePath =
     do compiled <- alreadyCompiled
-       if compiled then getInterface else compile
+       if compiled then readFile (elmo flags filePath) else compile
 
     where
-      file :: String -> FilePath
-      file ext = output_directory flags </> replaceExtension filePath ext
-
-      interface :: FilePath
-      interface = file "elmi"
-
       alreadyCompiled :: IO Bool
       alreadyCompiled = do
-        exists <- doesFileExist interface
+        exists <- doesFileExist (elmo flags filePath)
         if not exists then return False
                       else do tsrc <- getModificationTime filePath
-                              tint <- getModificationTime interface
+                              tint <- getModificationTime (elmo flags filePath)
                               return (tsrc < tint)
 
       number :: String
@@ -97,19 +98,16 @@ buildFile flags moduleNum numModules filePath =
       compile = do
         putStrLn (number ++ " Compiling " ++ name)
         source <- readFile filePath
-        (inter,obj) <-
+        (interface,obj) <-
             if takeExtension filePath == ".js" then return ("",source) else
                 case buildFromSource (no_prelude flags) source of
                   Left err -> putStrLn err >> exitFailure
-                  Right modul -> return (show modul, jsModule modul)
+                  Right modul -> do exs <- exportInfo modul
+                                    return (exs, jsModule modul)
         createDirectoryIfMissing True (output_directory flags)
-        writeFile interface inter
-        writeFile (file "elmo") obj
-        return inter
+        writeFile (elmo flags filePath) obj
+        return obj
 
-      getInterface :: IO Interface
-      getInterface = do
-        readFile interface
 
 getRuntime :: Flags -> IO FilePath
 getRuntime flags =
@@ -125,19 +123,19 @@ build flags rootFile = do
   case only_js flags of
     True -> do
       putStr "Generating JavaScript ... "
-      writeFile (replaceExtension rootFile "js") (genJs js)
+      writeFile (file flags rootFile "js") (genJs js)
       putStrLn "Done"
     False -> do
       putStr "Generating HTML ... "
       runtime <- getRuntime flags
       let html = genHtml $ createHtml runtime rootFile (sources js) ""
-      writeFile (replaceExtension rootFile "html") html
+      writeFile (file flags rootFile "html") html
       putStrLn "Done"
 
     where
       appendToOutput :: String -> FilePath -> IO String
       appendToOutput js filePath =
-          do src <- readFile (output_directory flags </> replaceExtension filePath "elmo")
+          do src <- readFile (elmo flags filePath)
              return (src ++ js)
 
       genHtml = if minify flags then Normal.renderHtml else Pretty.renderHtml
@@ -153,3 +151,9 @@ buildFiles flags numModules interfaces (filePath:rest) = do
   let moduleName = intercalate "." (splitDirectories (dropExtensions filePath))
       interfaces' = Map.insert moduleName interface interfaces
   buildFiles flags numModules interfaces' rest
+
+
+exportInfo :: Module -> IO String
+exportInfo (Module names exs ims stmts) =
+    do print exs
+       return (show exs)
