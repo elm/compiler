@@ -140,6 +140,7 @@ function renderForm(redo, ctx, form) {
     if (scale !== 1) ctx.scale(scale,scale);
     ctx.beginPath();
     var f = form.form;
+    if (f.alpha !== 1) ctx.globalAlpha = f.alpha;
     switch(f.ctor) {
     case 'FPath' : drawLine(ctx, f._0, f._1); break;
     case 'FImage': drawImage(redo, ctx, f); break;
@@ -291,6 +292,7 @@ function updateTracker(w,h,div) {
 
         container.style.width = w + 'px';
         container.style.height = h + 'px';
+        if (form.alpha !== 1) container.style.opacity = form.alpha;
 
         var elem = form.form._0;
         var node = container.firstChild;

@@ -14,6 +14,7 @@ type Form = {
   scale : Float,
   x : Float,
   y : Float,
+  alpha : Float,
   form : BasicForm
  }
 
@@ -75,7 +76,8 @@ data BasicForm
   | FElement Element
   | FGroup Matrix2D [Form]
 
-form f = { theta = 0, scale = 1, x = 0, y = 0, form = f }
+form : BasicForm -> Form
+form f = { theta=0, scale=1, x=0, y=0, alpha=1, form=f }
 
 fill style shape = form (FShape (Either.Right style) shape)
 
@@ -146,6 +148,10 @@ moveX x f = { f | x <- f.x + x }
 -- `form` upwards by 10 pixels.
 moveY : Float -> Form -> Form
 moveY y f = { f | y <- f.y + y }
+
+-- Set the opacity of a `Form`. The default is 1, and 0 is totally transparent.
+opacity : Float -> Form -> Form
+opacity a f = { f | alpha <- a }
 
 -- A collage is a collection of 2D forms. There are no strict positioning
 -- relationships between forms, so you are free to do all kinds of 2D graphics.
