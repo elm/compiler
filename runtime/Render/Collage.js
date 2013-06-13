@@ -138,7 +138,7 @@ function renderForm(redo, ctx, form) {
     if (x !== 0 || y !== 0) ctx.translate(x, y);
     if (theta !== 0) ctx.rotate(theta);
     if (scale !== 1) ctx.scale(scale,scale);
-    if (form.alpha !== 1) ctx.globalAlpha = form.alpha;
+    if (form.alpha !== 1) ctx.globalAlpha = ctx.globalAlpha * form.alpha;
     ctx.beginPath();
     var f = form.form;
     switch(f.ctor) {
@@ -199,6 +199,7 @@ function stepperHelp(list) {
 function stepper(forms) {
     var ps = [stepperHelp(forms)];
     var matrices = [];
+    var alphas = [];
     function peekNext() {
         var len = ps.length;
         var formType = '';
@@ -209,7 +210,12 @@ function stepper(forms) {
     }
     // assumes that there is a next element
     function next(ctx) {
-        while (!ps[0].peekNext()) { ps.shift(); matrices.pop(); if (ctx) { ctx.restore(); } }
+        while (!ps[0].peekNext()) {
+            ps.shift();
+            matrices.pop();
+            alphas.shift();
+            if (ctx) { ctx.restore(); }
+        }
         var out = ps[0].next();
         var f = out.form;
         if (f.ctor === 'FGroup') {
@@ -218,11 +224,16 @@ function stepper(forms) {
             ctx.save();
             ctx.transform(m[0], m[3], m[1], m[4], m[2], m[5]);
             matrices.push(m);
+
+            var alpha = (alphas[0] || 1) * out.alpha;
+            alphas.unshift(alpha);
+            ctx.globalAlpha = alpha;
         }
         return out;
     }
     function transforms() { return matrices; }
-    return { peekNext:peekNext, next:next, transforms:transforms };
+    function alpha() { return alphas[0] || 1; }
+    return { peekNext:peekNext, next:next, transforms:transforms, alpha:alpha };
 }
 
 function makeCanvas(w,h) {
@@ -275,7 +286,7 @@ function updateTracker(w,h,div) {
         ++i;
         return transform(transforms, canvas.getContext('2d'));
     }
-    function element(matrices, form) {
+    function element(matrices, alpha, form) {
         var container = kids[i];
         if (!container || container.getContext) {
             container = newElement('div');
@@ -292,7 +303,7 @@ function updateTracker(w,h,div) {
 
         container.style.width = w + 'px';
         container.style.height = h + 'px';
-        if (form.alpha !== 1) container.style.opacity = form.alpha;
+        container.style.opacity = alpha * form.alpha;
 
         var elem = form.form._0;
         var node = container.firstChild;
@@ -333,10 +344,11 @@ function update(div, _, model) {
     while (formType = stpr.peekNext()) {
         if (ctx === null && formType !== 'FElement') {
             ctx = tracker.getContext(stpr.transforms());
+            ctx.globalAlpha = stpr.alpha();
         }
         var form = stpr.next(ctx);
         if (formType === 'FElement') {
-            tracker.element(stpr.transforms(), form);
+            tracker.element(stpr.transforms(), stpr.alpha(), form);
             ctx = null;
         } else if (formType !== 'FGroup') {
             renderForm(function() { update(div, model, model); }, ctx, form);
