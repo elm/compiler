@@ -138,9 +138,9 @@ function renderForm(redo, ctx, form) {
     if (x !== 0 || y !== 0) ctx.translate(x, y);
     if (theta !== 0) ctx.rotate(theta);
     if (scale !== 1) ctx.scale(scale,scale);
+    if (form.alpha !== 1) ctx.globalAlpha = form.alpha;
     ctx.beginPath();
     var f = form.form;
-    if (f.alpha !== 1) ctx.globalAlpha = f.alpha;
     switch(f.ctor) {
     case 'FPath' : drawLine(ctx, f._0, f._1); break;
     case 'FImage': drawImage(redo, ctx, f); break;
@@ -214,7 +214,7 @@ function stepper(forms) {
         var f = out.form;
         if (f.ctor === 'FGroup') {
             ps.unshift(stepperHelp(f._1));
-            var m = A2( Matrix.multiply, f._0, formToMatrix(out));
+            var m = A2(Matrix.multiply, f._0, formToMatrix(out));
             ctx.save();
             ctx.transform(m[0], m[3], m[1], m[4], m[2], m[5]);
             matrices.push(m);
