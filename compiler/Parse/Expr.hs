@@ -146,15 +146,18 @@ binaryExpr = binops [] appExpr anyOp
 
 ifExpr :: IParser Expr
 ifExpr = reserved "if" >> whitespace >> (normal <|> multiIf)
-    where normal = do e1 <- expr ; whitespace
-                      reserved "then" ; whitespace ; e2 <- expr
-                      whitespace <?> "an 'else' branch"
-                      reserved "else" <?> "an 'else' branch" ; whitespace
-                      If e1 e2 <$> expr
-          multiIf = (MultiIf <$> spaceSep1 iff)
-              where iff = do string "|" ; whitespace
-                             b <- expr ; whitespace ; string "->" ; whitespace
-                             (,) b <$> expr
+    where
+      normal = do
+        bool <- expr
+        whitespace ; reserved "then" ; whitespace
+        thenBranch <- expr
+        whitespace <?> "an 'else' branch" ; reserved "else" <?> "an 'else' branch" ; whitespace
+        elseBranch <- expr
+        return $ MultiIf [(bool, thenBranch), (notLocated (Var "otherwise"), elseBranch)]
+      multiIf = MultiIf <$> spaceSep1 iff
+          where iff = do string "|" ; whitespace
+                         b <- expr ; whitespace ; string "->" ; whitespace
+                         (,) b <$> expr
 
 lambdaExpr :: IParser CExpr
 lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"

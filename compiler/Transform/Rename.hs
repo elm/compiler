@@ -95,10 +95,6 @@ instance Rename Expr where
       App e1 e2 -> App `liftM` rnm e1
                           `ap` rnm e2
 
-      If e1 e2 e3 -> If `liftM` rnm e1
-                           `ap` rnm e2
-                           `ap` rnm e3
-
       MultiIf ps -> MultiIf `liftM` mapM grnm ps
               where grnm (b,e) = (,) `liftM` rnm b
                                         `ap` rnm e

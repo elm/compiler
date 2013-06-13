@@ -40,7 +40,6 @@ data Expr = IntNum Int
           | Binop String CExpr CExpr
           | Lambda String CExpr
           | App CExpr CExpr
-          | If CExpr CExpr CExpr
           | MultiIf [(CExpr,CExpr)]
           | Let [Def] CExpr
           | Var String
@@ -118,7 +117,6 @@ instance Show Expr where
      Lambda x e -> let (xs,e') = getLambdas (notLocated $ Lambda x e) in
                       concat [ "\\", intercalate " " xs, " -> ", show e' ]
      App e1 e2 -> show' e1 ++ " " ++ show' e2
-     If e1 e2 e3 -> concat [ "if ", show e1, " then ", show e2, " else ", show e3 ]
      MultiIf (p:ps) -> concat [ "if | ", iff p, sep (map iff ps) ]
          where iff (b,e) = show b ++ " -> " ++ show e
                sep = concatMap ("\n   | " ++)
@@ -149,10 +147,10 @@ getLambdas e = ([],e)
 needsParens e =
   case e of
     Binop _ _ _ -> True
-    Lambda _ _ -> True
-    App _ _ -> True
-    If _ _ _ -> True
-    Let _ _ -> True
-    Case _ _ -> True
+    Lambda _ _  -> True
+    App _ _     -> True
+    MultiIf _   -> True
+    Let _ _     -> True
+    Case _ _    -> True
     Data name (x:xs) -> name /= "Cons"
     _ -> False

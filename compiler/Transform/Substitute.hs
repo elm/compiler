@@ -17,7 +17,6 @@ subst old new expr =
       Binop op e1 e2 -> Binop op (f e1) (f e2)
       Lambda x e -> if x == old then expr else Lambda x (f e)
       App e1 e2 -> App (f e1) (f e2)
-      If e1 e2 e3 -> If (f e1) (f e2) (f e3)
       MultiIf ps -> MultiIf (map (f *** f) ps)
       Let defs e -> Let (map substDef defs) (f e)
               where substDef (FnDef name vs e)  = FnDef name vs (f e)

@@ -2,7 +2,7 @@ module Optimize (optimize) where
 
 import Ast
 import Located
-import Control.Arrow (second)
+import Control.Arrow (second, (***))
 import Data.Char (isAlpha)
 import Substitute
 
@@ -41,14 +41,19 @@ instance Simplify Expr where
               where ce1'@(L _ _ e1') = f e1
                     ce2'@(L _ _ e2') = f e2
       App e1 e2 -> App (f e1) (f e2)
-      If e1 e2 e3 -> simp_if (f e1) (f e2) (f e3)
       Let defs e -> Let (map simp defs) (f e)
       Data name es -> Data name (map f es)
+      MultiIf es -> MultiIf . clipBranches $ map (f *** f) es
       Case e cases -> Case (f e) (map (second f) cases)
       _ -> expr
 
-simp_if (L _ _ (Boolean b)) (L _ _ e2) (L _ _ e3) = if b then e2 else e3
-simp_if a b c = If a b c
+
+clipBranches [] = []
+clipBranches (e:es) =
+    case e of
+      (L _ _ (Boolean True), _) -> [e]
+      _ -> e : clipBranches es
+
 
 isValue e =
     case e of { IntNum _  -> True

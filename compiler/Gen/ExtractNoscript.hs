@@ -42,11 +42,11 @@ instance Extract Expr where
       App (L _ _ (Var "italic")) e -> tag "i" e
       App (L _ _ (Var "monospace")) e -> tag "code" e
       App e1 e2 -> f e1 ++ f e2
-      If eb et ef -> f et ++ f ef
       Let defs e -> concatMap extract defs ++ f e
       Var _ -> []
       Case e cases -> concatMap (f . snd) cases
       Data _ es -> concatMap f es
+      MultiIf es -> concatMap (f . snd) es
       Markdown doc -> [ Pan.writeHtmlString Pan.def doc ]
       _ -> []
 

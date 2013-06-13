@@ -42,7 +42,6 @@ jsList ss = "["++ intercalate "," ss ++"]"
 jsFunc args body = "function(" ++ args ++ "){" ++ indent body ++ "}"
 assign x e = "\nvar " ++ x ++ " = " ++ e ++ ";"
 ret e = "\nreturn "++ e ++";"
-iff a b c = a ++ "?" ++ b ++ ":" ++ c
 quoted s  = "'" ++ concatMap f s ++ "'"
     where f '\n' = "\\n"
           f '\'' = "\\'"
@@ -218,9 +217,6 @@ instance ToJS Expr where
                       setField fs' `liftM` toJS' e
     Record fs -> makeRecord fs
     Binop op e1 e2 -> binop op `liftM` toJS' e1 `ap` toJS' e2
-
-    If eb et ef ->
-        parens `liftM` (iff `liftM` toJS' eb `ap` toJS' et `ap` toJS' ef)
 
     Lambda v e -> liftM (jsFunc v . ret) (toJS' e)
 

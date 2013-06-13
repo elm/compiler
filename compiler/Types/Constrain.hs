@@ -151,14 +151,6 @@ gen (L _ span expr) =
                     in  concat $ cs' : cs : css
                   , head ts)
 
-    If e1 e2 e3 ->
-        do (a1,c1,t1) <- gen e1
-           (a2,c2,t2) <- gen e2
-           (a3,c3,t3) <- gen e3
-           return ( unionsA [a1,a2,a3]
-                  , c1 ++ c2 ++ c3 ++ [ loc e1 span (t1 :=: bool), loc' (t2 :=: t3) ]
-                  , t2 )
-
     Data name es ->
         gen $ foldl' (\f x -> epos f x $ App f x) (loc' $ Var name) es
 
