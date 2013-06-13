@@ -1,4 +1,16 @@
 
+Release 0.8.1
+=============
+
+* Hot-swapping
+* Type annotations in let expressions (Andrew)
+* Pattern aliases with `as` (Andrew)
+* Opacity on arbitrary forms in collages
+
+
+forgot to fill this in again...
+
+
 Release 0.7.2
 =============
 
