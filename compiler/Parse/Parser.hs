@@ -1,17 +1,17 @@
 module Parse.Parser (parseProgram, parseDependencies, parseInfix) where
 
-import Ast
+import SourceSyntax.Module
 import Control.Applicative ((<$>), (<*>))
 import Control.Monad
 import Data.Char (isSymbol, isDigit)
 import Data.List (foldl',intercalate)
 import Text.Parsec hiding (newline,spaces)
 
-import Parse.Library
-import Parse.Binops (infixStmt, OpTable)
-import Parse.Expr
-import Parse.Types
-import Parse.Modules
+import Parse.Helpers
+import Parse.Binop (infixStmt, OpTable)
+import Parse.Expression
+import Parse.Type
+import Parse.Module
 import Parse.Foreign
 
 statement = choice (typeAlias:defs) <|> def <?> "datatype or variable definition"

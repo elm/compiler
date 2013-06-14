@@ -18,7 +18,7 @@ import qualified SourceSyntax.Literal as Literal
 import SourceSyntax.Expression
 import SourceSyntax.Declaration (Declaration(Definition))
 
-import Guid
+import Unique
 import Types.Types (Type (VarT), Scheme (Forall))
 
 import System.IO.Unsafe
@@ -26,14 +26,14 @@ import System.IO.Unsafe
 
 --------  Basic Terms  --------
 
-varTerm :: IParser Expr
+varTerm :: IParser (Expr t v)
 varTerm = toVar <$> var <?> "variable"
 
 toVar v = case v of "True"  -> Literal (Literal.Boolean True)
                     "False" -> Literal (Literal.Boolean False)
                     _       -> Var v
 
-accessor :: IParser Expr
+accessor :: IParser (Expr t v)
 accessor = do
   start <- getPosition
   lbl <- try (string "." >> rLabel)
@@ -44,7 +44,7 @@ accessor = do
 
 --------  Complex Terms  --------
 
-listTerm :: IParser Expr
+listTerm :: IParser (Expr t v)
 listTerm =
       (do { try $ string "[markdown|"
           ; md <- filter (/='\r') <$> manyTill anyChar (try $ string "|]")
@@ -56,7 +56,7 @@ listTerm =
             return e
        ])
 
-parensTerm :: IParser LExpr
+parensTerm :: IParser (LExpr t v)
 parensTerm = parens $ choice
              [ do start <- getPosition
                   op <- try anyOp
@@ -79,7 +79,7 @@ parensTerm = parens $ choice
                                       _   -> Location.at start end (tuple es)
              ]
 
-recordTerm :: IParser LExpr
+recordTerm :: IParser (LExpr t v)
 recordTerm = brackets $ choice [ misc, addLocation record ]
     where field = do
               fDefs <- (:) <$> (PVar <$> rLabel) <*> spacePrefix Pattern.term
@@ -111,14 +111,14 @@ recordTerm = brackets $ choice [ misc, addLocation record ]
               Nothing -> try (insert record) <|> try (modify record)
                         
 
-term :: IParser LExpr
+term :: IParser (LExpr t v)
 term =  addLocation (choice [ Literal <$> literal, listTerm, accessor ])
     <|> accessible (addLocation varTerm <|> parensTerm <|> recordTerm)
     <?> "basic term (4, x, 'c', etc.)"
 
 --------  Applications  --------
 
-appExpr :: IParser LExpr
+appExpr :: IParser (LExpr t v)
 appExpr = do
   tlist <- spaceSep1 term
   return $ case tlist of
@@ -127,10 +127,10 @@ appExpr = do
 
 --------  Normal Expressions  --------
 
-binaryExpr :: IParser LExpr
+binaryExpr :: IParser (LExpr t v)
 binaryExpr = binops [] appExpr anyOp
 
-ifExpr :: IParser Expr
+ifExpr :: IParser (Expr t v)
 ifExpr = reserved "if" >> whitespace >> (normal <|> multiIf)
     where
       normal = do
@@ -145,7 +145,7 @@ ifExpr = reserved "if" >> whitespace >> (normal <|> multiIf)
                          b <- expr ; whitespace ; string "->" ; whitespace
                          (,) b <$> expr
 
-lambdaExpr :: IParser LExpr
+lambdaExpr :: IParser (LExpr t v)
 lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
                 whitespace
                 pats <- spaceSep1 Pattern.term
@@ -153,17 +153,17 @@ lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
                 e <- expr
                 return . run $ Pattern.makeLambda pats e
 
-defSet :: IParser [Def]
+defSet :: IParser [Def t v]
 defSet = concat <$> block (do d <- anyDef ; whitespace ; return d)
 
-letExpr :: IParser Expr
+letExpr :: IParser (Expr t v)
 letExpr = do
   reserved "let" ; whitespace
   defs <- defSet
   whitespace ; reserved "in" ; whitespace
   Let defs <$> expr
 
-caseExpr :: IParser Expr
+caseExpr :: IParser (Expr t v)
 caseExpr = do
   reserved "case"; whitespace; e <- expr; whitespace; reserved "of"; whitespace
   Case e <$> (with <|> without)
@@ -189,7 +189,7 @@ funcDef = try (do p1 <- try Pattern.term ; infics p1 <|> func p1)
             return $ if o == '`' then [ PVar $ takeWhile (/='`') p, p1, p2 ]
                                  else [ PVar (o:p), p1, p2 ]
 
-assignExpr :: IParser [Def]
+assignExpr :: IParser [Def t v]
 assignExpr = withPos $ do
   fDefs <- funcDef
   whitespace

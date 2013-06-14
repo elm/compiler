@@ -5,7 +5,7 @@ import Control.Arrow (first)
 import Control.Monad (ap, liftM, foldM, mapM, Monad, zipWithM)
 import Control.Monad.State (evalState, State, get, put)
 import Data.Char (isLower,isDigit)
-import Guid
+import Unique
 import SourceSyntax.Location
 import SourceSyntax.Pattern
 import SourceSyntax.Expression
@@ -16,17 +16,17 @@ derename var
     | isDigit (last var) = reverse . tail . dropWhile isDigit $ reverse var
     | otherwise = var
 
-renameModule :: Module -> Module
+renameModule :: Module t v -> Module t v
 renameModule modul = run (rename deprime modul)
 
 class Rename a where
-  rename :: (String -> String) -> a -> GuidCounter a
+  rename :: (String -> String) -> a -> Unique a
 
-instance Rename Module where 
+instance Rename (Module t v) where 
   rename env (Module name ex im stmts) = do stmts' <- renameStmts env stmts
                                             return (Module name ex im stmts')
 
-instance Rename Def where
+instance Rename (Def t v) where
   rename env (OpDef op a1 a2 e) =
       do env' <- extends env [a1,a2]
          OpDef op (env' a1) (env' a2) `liftM` rename env' e
@@ -36,7 +36,7 @@ instance Rename Def where
   rename env (TypeAnnotation n t) = return (TypeAnnotation (env n) t)
 
 
-instance Rename Declaration where
+instance Rename (Declaration t v) where
   rename env stmt =
     case stmt of
       Definition def -> Definition `liftM` rename env def
@@ -60,7 +60,7 @@ renameStmts env stmts = do env' <- extends env $ concatMap getNames stmts
 instance Rename a => Rename (Located a) where
   rename env (L t s e) = L t s `liftM` rename env e
                           
-instance Rename Expr where
+instance Rename (Expr t v) where
   rename env expr =
     let rnm = rename env in
     case expr of
@@ -115,16 +115,16 @@ instance Rename Expr where
 
 deprime = map (\c -> if c == '\'' then '$' else c)
 
-extend :: (String -> String) -> String -> GuidCounter (String, String -> String)
+extend :: (String -> String) -> String -> Unique (String, String -> String)
 extend env x = do
   n <- guid
   let rx = deprime x ++ "_" ++ show n
   return (rx, \y -> if y == x then rx else env y)
 
-extends :: (String -> String) -> [String] -> GuidCounter (String -> String)
+extends :: (String -> String) -> [String] -> Unique (String -> String)
 extends env xs = foldM (\e x -> liftM snd $ extend e x) env xs
 
-patternExtend :: Pattern -> (String -> String) -> GuidCounter (Pattern, String -> String)
+patternExtend :: Pattern -> (String -> String) -> Unique (Pattern, String -> String)
 patternExtend pattern env =
     case pattern of
       PAnything -> return (PAnything, env)
@@ -141,8 +141,8 @@ patternExtend pattern env =
           return (pattern, foldr (\f e n -> if n == f then f else env n) env fs)
 
 patternRename :: (String -> String)
-              -> (Pattern, LExpr)
-              -> GuidCounter (Pattern, LExpr)
+              -> (Pattern, LExpr t v)
+              -> Unique (Pattern, LExpr t v)
 patternRename env (p,e) = do
   (rp,env') <- patternExtend p env
   re <- rename env' e

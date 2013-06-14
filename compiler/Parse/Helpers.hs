@@ -124,14 +124,14 @@ parens   = surround '(' ')' "paren"
 brackets :: IParser a -> IParser a
 brackets = surround '{' '}' "bracket"
 
-addLocation :: IParser Expr -> IParser LExpr
+addLocation :: IParser (Expr t v) -> IParser (LExpr t v)
 addLocation expr = do
   start <- getPosition
   e <- expr
   end <- getPosition
   return (Location.at start end e)
 
-accessible :: IParser LExpr -> IParser LExpr
+accessible :: IParser (LExpr t v) -> IParser (LExpr t v)
 accessible expr = do
   start <- getPosition
   ce@(L s t e) <- expr

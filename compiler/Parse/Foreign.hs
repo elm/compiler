@@ -10,11 +10,11 @@ import Parse.Expression (term)
 import Parse.Type
 import Types.Types (signalOf)
 
-foreignDef :: IParser Declaration
+foreignDef :: IParser (Declaration t v)
 foreignDef = do try (reserved "foreign") ; whitespace
                 importEvent <|> exportEvent
 
-exportEvent :: IParser Declaration
+exportEvent :: IParser (Declaration t v)
 exportEvent = do
   try (reserved "export") >> whitespace >> reserved "jsevent" >> whitespace
   js   <- jsVar    ; whitespace
@@ -26,7 +26,7 @@ exportEvent = do
         either error (return . ExportEvent js elm . signalOf) (toForeignType pt)
     _ -> error "When exporting events, the exported value must be a Signal."
 
-importEvent :: IParser Declaration
+importEvent :: IParser (Declaration t v)
 importEvent = do
   try (reserved "import") >> whitespace >> reserved "jsevent" >> whitespace
   js   <- jsVar ; whitespace

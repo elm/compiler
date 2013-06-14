@@ -5,7 +5,7 @@ import Control.Applicative ((<$>),(<*>),(*>),pure)
 import Control.Monad
 import Control.Monad.State
 import Data.Char (isUpper)
-import Guid
+import Unique
 import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
 import Parse.Helpers
@@ -51,14 +51,14 @@ expr = do
   patterns <- consSep1 (patternConstructor <|> term)
   asPattern (foldr1 Pattern.cons patterns) <?> "pattern"
 
-makeLambda :: [Pattern] -> LExpr -> GuidCounter LExpr
+makeLambda :: [Pattern] -> LExpr t v -> Unique (LExpr t v)
 makeLambda pats body = go (reverse pats) body
     where go [] body = return body
           go (p:ps) body@(L t s _) = do
             (x,e) <- extract p body
             go ps (L t s $ Lambda x e)
           
-extract :: Pattern -> LExpr -> GuidCounter (String, LExpr)
+extract :: Pattern -> LExpr t v -> Unique (String, LExpr t v)
 extract pattern body@(L t s _) =
   let loc = L t s in
   let fn x e = (x,e) in
@@ -79,13 +79,13 @@ extract pattern body@(L t s _) =
             toDef f = FnDef f [] (loc $ Access (loc $ Var a) f)
         return . fn a . loc $ Let (map toDef fs) body
 
-extracts :: [Pattern] -> LExpr -> GuidCounter ([String], LExpr)
+extracts :: [Pattern] -> LExpr t v -> Unique ([String], LExpr t v)
 extracts ps body = go [] (reverse ps) body
     where go args [] body = return (args, body)
           go args (p:ps) body = do (x,e) <- extract p body
                                    go (x:args) ps e
 
-flatten :: [Pattern] -> LExpr -> GuidCounter (IParser [Def])
+flatten :: [Pattern] -> LExpr t v -> Unique (IParser [Def t v])
 flatten patterns exp@(L t s _) =
   let loc = L t s in
   case patterns of
@@ -100,7 +100,7 @@ flatten patterns exp@(L t s _) =
     _ -> return . fail $ "Pattern (" ++ unwords (map show patterns) ++
                 ") cannot be used on the left-hand side of an assign statement."
 
-matchSingle :: Pattern -> LExpr -> Pattern -> GuidCounter [Def]
+matchSingle :: Pattern -> LExpr t v -> Pattern -> Unique [Def t v]
 matchSingle pat exp@(L t s _) p =
   let loc = L t s in
   case p of

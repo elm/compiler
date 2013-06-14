@@ -10,29 +10,31 @@ import qualified SourceSyntax.Pattern as Pattern
 import qualified SourceSyntax.Literal as Literal
 import Types.Types
 
-type LExpr = Location.Located Expr
-data Expr = Literal Literal.Literal
-          | Range LExpr LExpr
-          | Access LExpr String
-          | Remove LExpr String
-          | Insert LExpr String LExpr
-          | Modify LExpr [(String,LExpr)]
-          | Record [(String,[String],LExpr)]
-          | Binop String LExpr LExpr
-          | Lambda String LExpr
-          | App LExpr LExpr
-          | MultiIf [(LExpr,LExpr)]
-          | Let [Def] LExpr
-          | Var String
-          | Case LExpr [(Pattern.Pattern,LExpr)]
-          | Data String [LExpr]
-          | Markdown Pandoc.Pandoc
-            deriving (Eq, Data, Typeable)
+type LExpr tipe var = Location.Located (Expr tipe var)
+data Expr t v
+    = Literal Literal.Literal
+    | Var String
+    | Range (LExpr t v) (LExpr t v)
+    | Access (LExpr t v) String
+    | Remove (LExpr t v) String
+    | Insert (LExpr t v) String (LExpr t v)
+    | Modify (LExpr t v) [(String, LExpr t v)]
+    | Record [(String, [String], LExpr t v)]
+    | Binop String (LExpr t v) (LExpr t v)
+    | Lambda String (LExpr t v)
+    | App (LExpr t v) (LExpr t v)
+    | MultiIf [(LExpr t v,LExpr t v)]
+    | Let [Def t v] (LExpr t v)
+    | Case (LExpr t v) [(Pattern.Pattern, LExpr t v)]
+    | Data String [LExpr t v]
+    | Markdown Pandoc.Pandoc
+      deriving (Eq, Data, Typeable)
 
-data Def = FnDef String [String] LExpr
-         | OpDef String String String LExpr
-         | TypeAnnotation String Type
-           deriving (Eq, Data, Typeable)
+data Def tipe var
+    = FnDef String [String] (LExpr tipe var)
+    | OpDef String String String (LExpr tipe var)
+    | TypeAnnotation String Type
+      deriving (Eq, Data, Typeable)
 
 cons h t = Location.merge h t (Data "Cons" [h,t])
 nil      = Location.L (Just "[]") Location.NoSpan (Data "Nil" [])
@@ -43,7 +45,7 @@ delist (Location.L _ _ (Data "Cons" [h,t])) = h : delist t
 delist _ = []
 
 
-instance Show Expr where
+instance Show (Expr t v) where
   show e =
    let show' (Location.L _ _ e) = Help.parensIf (needsParens e) (show e) in
    case e of
@@ -77,7 +79,7 @@ instance Show Expr where
      Markdown _ -> "[markdown| ... |]"
 
 
-instance Show Def where
+instance Show (Def t v) where
   show e =
    case e of
      FnDef v [] e     -> v ++ " = " ++ show e

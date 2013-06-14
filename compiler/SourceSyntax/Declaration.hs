@@ -5,11 +5,11 @@ import Data.Data
 import qualified SourceSyntax.Expression as Expr
 import Types.Types
 
-data Declaration
-    = Definition Expr.Def
+data Declaration tipe var
+    = Definition (Expr.Def tipe var)
     | Datatype String [X] [(String,[Type])]
     | TypeAlias String [X] Type
-    | ImportEvent String Expr.LExpr String Type
+    | ImportEvent String (Expr.LExpr tipe var) String Type
     | ExportEvent String String Type
     | Fixity Assoc Int String
       deriving (Eq, Show, Data, Typeable)

@@ -35,10 +35,10 @@ opAssoc :: OpTable -> String -> Assoc
 opAssoc table op = Map.findWithDefault R op dict
     where dict = Map.fromList (map (\(_,assoc,op) -> (op,assoc)) table)
 
-hasLevel :: OpTable -> Int -> (String,LExpr) -> Bool
+hasLevel :: OpTable -> Int -> (String, LExpr t v) -> Bool
 hasLevel table n (op,_) = opLevel table op == n
 
-binops :: OpTable -> IParser LExpr -> IParser String -> IParser LExpr
+binops :: OpTable -> IParser (LExpr t v) -> IParser String -> IParser (LExpr t v)
 binops table term anyOp =
     do e <- term
        split (table ++ preludeTable) 0 e =<< many nextOp
@@ -48,7 +48,11 @@ binops table term anyOp =
                  whitespace ; e <- term
                  return (op,e)
 
-split :: OpTable -> Int -> LExpr -> [(String, LExpr)] -> IParser LExpr
+split :: OpTable
+      -> Int
+      -> LExpr t v
+      -> [(String, LExpr t v)]
+      -> IParser (LExpr t v)
 split _ _ e []  = return e
 split table n e eops = do
   assoc <- getAssoc table n eops
@@ -57,25 +61,26 @@ split table n e eops = do
   case assoc of R -> joinR es ops
                 _ -> joinL es ops
 
-splitLevel :: OpTable -> Int -> LExpr -> [(String, LExpr)] -> [IParser LExpr]
+splitLevel :: OpTable -> Int -> LExpr t v -> [(String, LExpr t v)]
+           -> [IParser (LExpr t v)]
 splitLevel table n e eops =
     case break (hasLevel table n) eops of
       (lops, (op,e'):rops) ->
           split table (n+1) e lops : splitLevel table n e' rops
       (lops, []) -> [ split table (n+1) e lops ]
 
-joinL :: [LExpr] -> [String] -> IParser LExpr
+joinL :: [LExpr t v] -> [String] -> IParser (LExpr t v)
 joinL [e] [] = return e
 joinL (a:b:es) (op:ops) = joinL (merge a b (Binop op a b) : es) ops
 joinL _ _ = fail "Ill-formed binary expression. Report a compiler bug."
 
-joinR :: [LExpr] -> [String] -> IParser LExpr
+joinR :: [LExpr t v] -> [String] -> IParser (LExpr t v)
 joinR [e] [] = return e
 joinR (a:b:es) (op:ops) = do e <- joinR (b:es) ops
                              return (merge a e (Binop op a e))
 joinR _ _ = fail "Ill-formed binary expression. Report a compiler bug."
 
-getAssoc :: OpTable -> Int -> [(String,LExpr)] -> IParser Assoc
+getAssoc :: OpTable -> Int -> [(String,LExpr t v)] -> IParser Assoc
 getAssoc table n eops
     | all (==L) assocs = return L
     | all (==R) assocs = return R 

@@ -12,7 +12,7 @@ import SourceSyntax.Expression
 import SourceSyntax.Declaration
 import Parse.Helpers
 import Types.Types hiding (parens,string)
-import Guid
+import Unique
 
 data ParseType = VarPT String
                | LambdaPT ParseType ParseType
@@ -69,7 +69,7 @@ typeConstructor :: IParser (String, [ParseType])
 typeConstructor = (,) <$> (capVar <?> "another type constructor")
                       <*> spacePrefix (typeSimple <|> typeUnambiguous)
 
-typeAlias :: IParser [Declaration]
+typeAlias :: IParser [Declaration t v]
 typeAlias = do
   start <- getPosition
   reserved "type" <?> "type alias (type Point = {x:Int, y:Int})"
@@ -102,12 +102,12 @@ toConstructor start end alias (Just _) kvs =
     rec = foldl insert (Var "_ext_") (zip args (map (loc . Var) args))
     insert e (k,v) = Insert (loc e) k v
 
-annotation :: IParser Def
+annotation :: IParser (Def t v)
 annotation = TypeAnnotation <$> try start <*> (toType <$> typeExpr)
     where start = do v <- lowVar <|> parens symOp
                      whitespace ; hasType ; whitespace ; return v
 
-datatype :: IParser Declaration
+datatype :: IParser (Declaration t v)
 datatype = do
   reserved "data" <?> "datatype definition (data T = A | B | ...)"
   forcedWS ; name <- capVar <?> "name of data-type" ; args <- spacePrefix lowVar
