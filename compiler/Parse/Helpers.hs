@@ -1,13 +1,13 @@
+module Parse.Helpers where
 
-module Parse.Library where
-
-import Ast
-import Located
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad
 import Control.Monad.State
 import Data.Char (isUpper)
-import Rename (deprime)
+import SourceSyntax.Helpers (isOp)
+import SourceSyntax.Location as Location
+import SourceSyntax.Expression
+import SourceSyntax.Rename (deprime)
 import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
 
@@ -124,14 +124,14 @@ parens   = surround '(' ')' "paren"
 brackets :: IParser a -> IParser a
 brackets = surround '{' '}' "bracket"
 
-addLocation :: IParser Expr -> IParser CExpr
+addLocation :: IParser Expr -> IParser LExpr
 addLocation expr = do
   start <- getPosition
   e <- expr
   end <- getPosition
-  return (pos start end e)
+  return (Location.at start end e)
 
-accessible :: IParser CExpr -> IParser CExpr
+accessible :: IParser LExpr -> IParser LExpr
 accessible expr = do
   start <- getPosition
   ce@(L s t e) <- expr
@@ -143,7 +143,7 @@ accessible expr = do
           Just _  -> accessible $ do
                        v <- var <?> "field access (e.g. List.map)"
                        end <- getPosition
-                       return (pos start end (f v))
+                       return (Location.at start end (f v))
   case e of Var (c:cs) | isUpper c -> rest (\v -> Var (c:cs ++ '.':v))
                        | otherwise -> rest (Access ce)
             _ -> rest (Access ce)

@@ -1,6 +1,5 @@
 module Parse.Types where
 
-import Ast
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad (liftM,mapM)
 import Data.Char (isUpper,isLower)
@@ -9,8 +8,10 @@ import Data.List (lookup,intercalate)
 import Text.Parsec
 import Text.Parsec.Indent
 
-import Located
-import Parse.Library
+import SourceSyntax.Location as Located
+import SourceSyntax.Expression
+import SourceSyntax.Declaration
+import Parse.Helpers
 import Types.Types hiding (parens,string)
 import Guid
 
@@ -69,7 +70,7 @@ typeConstructor :: IParser (String, [ParseType])
 typeConstructor = (,) <$> (capVar <?> "another type constructor")
                       <*> spacePrefix (typeSimple <|> typeUnambiguous)
 
-typeAlias :: IParser [Statement]
+typeAlias :: IParser [Declaration]
 typeAlias = do
   start <- getPosition
   reserved "type" <?> "type alias (type Point = {x:Int, y:Int})"
@@ -91,13 +92,13 @@ typeAlias = do
 toConstructor start end alias Nothing kvs =
     Definition (FnDef alias args (loc (Record rec)))
   where
-    loc = pos start end
+    loc = Located.at start end
     args = map fst kvs
     rec = map (\a -> (a, [], loc (Var a))) args
 toConstructor start end alias (Just _) kvs =
     Definition (FnDef alias (args++["_ext_"]) (loc rec))
   where
-    loc = pos start end
+    loc = Located.at start end
     args = map fst kvs
     rec = foldl insert (Var "_ext_") (zip args (map (loc . Var) args))
     insert e (k,v) = Insert (loc e) k v
@@ -107,7 +108,7 @@ typeAnnotation = TypeAnnotation <$> try start <*> (toType <$> typeExpr)
     where start = do v <- lowVar <|> parens symOp
                      whitespace ; hasType ; whitespace ; return v
 
-datatype :: IParser Statement
+datatype :: IParser Declaration
 datatype = do
   reserved "data" <?> "datatype definition (data T = A | B | ...)"
   forcedWS ; name <- capVar <?> "name of data-type" ; args <- spacePrefix lowVar

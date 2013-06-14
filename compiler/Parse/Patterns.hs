@@ -1,5 +1,5 @@
 
-module Parse.Patterns (patternTerm, patternExpr, makeLambda, flattenPatterns) where
+module Parse.Pattern (patternTerm, patternExpr, makeLambda, flattenPatterns) where
 
 import Ast
 import Located

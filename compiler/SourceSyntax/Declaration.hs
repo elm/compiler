@@ -11,5 +11,8 @@ data Declaration
     | TypeAlias String [X] Type
     | ImportEvent String Expr.LExpr String Type
     | ExportEvent String String Type
-    | Fixity Int String
+    | Fixity Assoc Int String
       deriving (Eq, Show, Data, Typeable)
+
+data Assoc = L | N | R
+             deriving (Eq, Show, Data, Typeable)

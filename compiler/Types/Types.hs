@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 module Types.Types where
 
-import Located
+import SourceSyntax.Location
 import Data.Char (isDigit)
 import Data.List (intercalate,isPrefixOf)
 import qualified Data.Set as Set

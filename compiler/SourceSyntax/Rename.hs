@@ -1,13 +1,16 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Rename (renameModule, derename, deprime) where
+module SourceSyntax.Rename (renameModule, derename, deprime) where
 
-import Ast
-import Located
 import Control.Arrow (first)
 import Control.Monad (ap, liftM, foldM, mapM, Monad, zipWithM)
 import Control.Monad.State (evalState, State, get, put)
 import Data.Char (isLower,isDigit)
 import Guid
+import SourceSyntax.Location
+import SourceSyntax.Pattern
+import SourceSyntax.Expression
+import SourceSyntax.Declaration hiding (Assoc(..))
+import SourceSyntax.Module
 
 derename var
     | isDigit (last var) = reverse . tail . dropWhile isDigit $ reverse var
@@ -33,7 +36,7 @@ instance Rename Def where
   rename env (TypeAnnotation n t) = return (TypeAnnotation (env n) t)
 
 
-instance Rename Statement where
+instance Rename Declaration where
   rename env stmt =
     case stmt of
       Definition def -> Definition `liftM` rename env def
@@ -126,10 +129,10 @@ patternExtend pattern env =
     case pattern of
       PAnything -> return (PAnything, env)
       PVar x -> first PVar `liftM` extend env x
-      PAsVar x p -> do
+      PAlias x p -> do
         (x', env') <- extend env x
         (p', env'') <- patternExtend p env'
-        return (PAsVar x' p', env'')
+        return (PAlias x' p', env'')
       PData name ps ->
           first (PData name . reverse) `liftM` foldM f ([], env) ps
                  where f (rps,env') p = do (rp,env'') <- patternExtend p env'
@@ -137,7 +140,9 @@ patternExtend pattern env =
       PRecord fs ->
           return (pattern, foldr (\f e n -> if n == f then f else env n) env fs)
 
-patternRename :: (String -> String) -> (Pattern, CExpr) -> GuidCounter (Pattern, CExpr)
+patternRename :: (String -> String)
+              -> (Pattern, LExpr)
+              -> GuidCounter (Pattern, LExpr)
 patternRename env (p,e) = do
   (rp,env') <- patternExtend p env
   re <- rename env' e

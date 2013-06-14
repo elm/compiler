@@ -1,18 +1,14 @@
 module Parse.Binops (binops, infixStmt, OpTable) where
 
-import Ast
-import Control.Monad (liftM,guard)
 import Control.Monad.Error
-import Data.List (foldl',splitAt,elemIndices
-                 ,group,groupBy,sortBy,find,intercalate)
+import Data.List (intercalate)
 import qualified Data.Map as Map
-import Data.Maybe (mapMaybe)
 
-import Located (epos)
+import SourceSyntax.Location (merge)
+import SourceSyntax.Expression (LExpr, Expr(Binop))
+import SourceSyntax.Declaration (Assoc(..))
 import Text.Parsec
-import Parse.Library
-
-data Assoc = L | N | R deriving (Eq,Show)
+import Parse.Helpers
 
 type OpTable = [(Int, Assoc, String)]
 
@@ -39,10 +35,10 @@ opAssoc :: OpTable -> String -> Assoc
 opAssoc table op = Map.findWithDefault R op dict
     where dict = Map.fromList (map (\(_,assoc,op) -> (op,assoc)) table)
 
-hasLevel :: OpTable -> Int -> (String,CExpr) -> Bool
+hasLevel :: OpTable -> Int -> (String,LExpr) -> Bool
 hasLevel table n (op,_) = opLevel table op == n
 
-binops :: OpTable -> IParser CExpr -> IParser String -> IParser CExpr
+binops :: OpTable -> IParser LExpr -> IParser String -> IParser LExpr
 binops table term anyOp =
     do e <- term
        split (table ++ preludeTable) 0 e =<< many nextOp
@@ -52,7 +48,7 @@ binops table term anyOp =
                  whitespace ; e <- term
                  return (op,e)
 
-split :: OpTable -> Int -> CExpr -> [(String, CExpr)] -> IParser CExpr
+split :: OpTable -> Int -> LExpr -> [(String, LExpr)] -> IParser LExpr
 split _ _ e []  = return e
 split table n e eops = do
   assoc <- getAssoc table n eops
@@ -61,25 +57,25 @@ split table n e eops = do
   case assoc of R -> joinR es ops
                 _ -> joinL es ops
 
-splitLevel :: OpTable -> Int -> CExpr -> [(String, CExpr)] -> [IParser CExpr]
+splitLevel :: OpTable -> Int -> LExpr -> [(String, LExpr)] -> [IParser LExpr]
 splitLevel table n e eops =
     case break (hasLevel table n) eops of
       (lops, (op,e'):rops) ->
           split table (n+1) e lops : splitLevel table n e' rops
       (lops, []) -> [ split table (n+1) e lops ]
 
-joinL :: [CExpr] -> [String] -> IParser CExpr
+joinL :: [LExpr] -> [String] -> IParser LExpr
 joinL [e] [] = return e
-joinL (a:b:es) (op:ops) = joinL (epos a b (Binop op a b) : es) ops
+joinL (a:b:es) (op:ops) = joinL (merge a b (Binop op a b) : es) ops
 joinL _ _ = fail "Ill-formed binary expression. Report a compiler bug."
 
-joinR :: [CExpr] -> [String] -> IParser CExpr
+joinR :: [LExpr] -> [String] -> IParser LExpr
 joinR [e] [] = return e
 joinR (a:b:es) (op:ops) = do e <- joinR (b:es) ops
-                             return (epos a e (Binop op a e))
+                             return (merge a e (Binop op a e))
 joinR _ _ = fail "Ill-formed binary expression. Report a compiler bug."
 
-getAssoc :: OpTable -> Int -> [(String,CExpr)] -> IParser Assoc
+getAssoc :: OpTable -> Int -> [(String,LExpr)] -> IParser Assoc
 getAssoc table n eops
     | all (==L) assocs = return L
     | all (==R) assocs = return R 

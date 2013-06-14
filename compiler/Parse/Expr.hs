@@ -1,7 +1,5 @@
 module Parse.Expr (def,term) where
 
-import Ast
-import Located
 import Control.Applicative ((<$>), (<*>))
 import Control.Monad
 import Data.Char (isSymbol, isDigit)
@@ -14,6 +12,9 @@ import Parse.Library
 import Parse.Patterns
 import Parse.Binops
 import Parse.Types
+
+import Ast
+import Located
 
 import Guid
 import Types.Types (Type (VarT), Scheme (Forall))
@@ -70,7 +71,7 @@ listTerm =
             return e
        ])
 
-parensTerm :: IParser CExpr
+parensTerm :: IParser LExpr
 parensTerm = parens $ choice
              [ do start <- getPosition
                   op <- try anyOp
@@ -93,7 +94,7 @@ parensTerm = parens $ choice
                                       _   -> pos start end (tuple es)
              ]
 
-recordTerm :: IParser CExpr
+recordTerm :: IParser LExpr
 recordTerm = brackets $ choice [ misc, addLocation record ]
     where field = do
               fDefs <- (:) <$> (PVar <$> rLabel) <*> spacePrefix patternTerm
@@ -125,14 +126,14 @@ recordTerm = brackets $ choice [ misc, addLocation record ]
               Nothing -> try (insert record) <|> try (modify record)
                         
 
-term :: IParser CExpr
+term :: IParser LExpr
 term =  addLocation (choice [ numTerm, strTerm, chrTerm, listTerm, accessor ])
     <|> accessible (addLocation varTerm <|> parensTerm <|> recordTerm)
     <?> "basic term (4, x, 'c', etc.)"
 
 --------  Applications  --------
 
-appExpr :: IParser CExpr
+appExpr :: IParser LExpr
 appExpr = do
   tlist <- spaceSep1 term
   return $ case tlist of
@@ -141,7 +142,7 @@ appExpr = do
 
 --------  Normal Expressions  --------
 
-binaryExpr :: IParser CExpr
+binaryExpr :: IParser LExpr
 binaryExpr = binops [] appExpr anyOp
 
 ifExpr :: IParser Expr
@@ -159,7 +160,7 @@ ifExpr = reserved "if" >> whitespace >> (normal <|> multiIf)
                          b <- expr ; whitespace ; string "->" ; whitespace
                          (,) b <$> expr
 
-lambdaExpr :: IParser CExpr
+lambdaExpr :: IParser LExpr
 lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
                 whitespace
                 pats <- spaceSep1 patternTerm

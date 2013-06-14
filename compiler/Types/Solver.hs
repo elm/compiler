@@ -14,6 +14,8 @@ import Types.Types
 import Types.Substitutions
 import Types.Alias (dealias)
 
+import System.IO.Unsafe
+
 isSolved ss (L _ _ (t1 :=: t2)) = t1 == t2
 isSolved ss (L _ _ (x :<<: _)) = isJust (lookup x ss)
 isSolved ss c = False
@@ -21,12 +23,15 @@ isSolved ss c = False
 type Aliases = Map.Map String ([X],Type)
 
 crush :: Aliases -> Scheme -> GuidCounter (Either String Scheme)
-crush aliases (Forall xs cs t) =
+crush aliases forall@(Forall xs cs t) =
     do subs <- solver aliases Map.empty cs
        return $ do ss' <- subs
                    let ss  = Map.toList ss'
                        cs' = filter (not . isSolved ss) (subst ss cs)
-                   return $ Forall xs cs' (subst ss t)
+                       f x = (unsafePerformIO $ do
+                                print forall  >> putStrLn "-------"
+                                print x >> putStrLn "~~~~~~~") `seq` x
+                   return . f $ Forall xs cs' (subst ss t)
 
 schemeSubHelp txt span x s t1 rltn t2 = do
   (t1',cs1) <- sub t1
@@ -36,11 +41,10 @@ schemeSubHelp txt span x s t1 rltn t2 = do
                   | otherwise = do (st, cs) <- concretize s
                                    return (subst [(x,st)] t, cs)
 
-schemeSub aliases x s c =
-    do s' <- crush aliases s
-       case s' of
-         Right s'' -> Right `liftM` schemeSub' x s'' c
-         Left err  -> return $ Left err
+schemeSub x s' c =
+    case s' of
+      Right s'' -> Right `liftM` schemeSub' x s'' c
+      Left err  -> return $ Left err
 
 schemeSub' x s c@(L txt span constraint) =
   case constraint of
@@ -170,7 +174,8 @@ solver aliases subs (L txt span c : cs) =
 
       x :<<: s
           | any (occurs x) cs ->
-              do css <- mapM (schemeSub aliases x s) cs
+              do s' <- crush aliases s
+                 css <- mapM (schemeSub x s') cs
                  case lefts css of
                    err : _ -> return $ Left err
                    [] -> solv (concat (rights css))
