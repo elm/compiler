@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-module Located where
+module SourceSyntax.Location where
 
 import Text.Parsec.Pos
 import Data.Data
@@ -27,17 +27,17 @@ instance Show e => Show (Located e) where
 
 
 
-notLocated = L Nothing NoSpan
+none = L Nothing NoSpan
 
-pos start end = L Nothing
-                  (Span (Pos (sourceLine start) (sourceColumn start))
-                        (Pos (sourceLine end  ) (sourceColumn end  )))
+at start end = L Nothing
+               (Span (Pos (sourceLine start) (sourceColumn start))
+                     (Pos (sourceLine end  ) (sourceColumn end  )))
 
-epos (L _ s1 _) (L _ s2 _) = L Nothing span
+merge (L _ s1 _) (L _ s2 _) = L Nothing span
     where span = case (s1,s2) of
                    (Span start _, Span _ end) -> Span start end
                    (_, NoSpan) -> s1
                    (NoSpan, _) -> s2
 
-addLoc x (L Nothing span e) = L (Just (show x)) span e
-addLoc x (L txt span e) = L txt span e
+add x (L Nothing span e) = L (Just (show x)) span e
+add x (L txt span e) = L txt span e
