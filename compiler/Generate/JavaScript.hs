@@ -1,4 +1,4 @@
-module CompileToJS (showErr, jsModule) where
+module Generate.JavaScript (showErr, jsModule) where
 
 import Control.Arrow (first,second)
 import Control.Monad (liftM,(<=<),join,ap)
@@ -9,12 +9,9 @@ import Data.Either (partitionEithers)
 import qualified Text.Pandoc as Pan
 import Data.Maybe (maybeToList)
 
-import Ast
-import Located
-import Rename (derename)
-import Cases
-import Guid
-import Rename (deprime)
+import Unique
+import Generate.Cases
+import SourceSyntax.Everything hiding (parens)
 import Types.Types ( Type(RecordT) )
 
 showErr :: String -> String
@@ -119,7 +116,7 @@ jsImport (modul, how) =
 
 
 
-stmtsToJS :: [Statement] -> String
+stmtsToJS :: [Declaration t v] -> String
 stmtsToJS stmts = run $ do program <- mapM toJS (sortBy cmpStmt stmts)
                            return (concat program)
     where
@@ -135,9 +132,9 @@ stmtsToJS stmts = run $ do program <- mapM toJS (sortBy cmpStmt stmts)
                     TypeAlias _ _ _            -> 0
 
 class ToJS a where
-  toJS :: a -> GuidCounter String
+  toJS :: a -> Unique String
 
-instance ToJS Def where
+instance ToJS (Def t v) where
   toJS (FnDef x [] e) = assign x `liftM` toJS' e
   toJS (FnDef f as e) = (assign f . wrapper . func) `liftM` toJS' e
       where
@@ -151,15 +148,15 @@ instance ToJS Def where
   toJS (TypeAnnotation _ _) = return ""
 
 
-instance ToJS Statement where
+instance ToJS (Declaration t v) where
   toJS stmt =
     case stmt of
       Definition d -> toJS d
       Datatype _ _ tcs -> concat `liftM` mapM (toJS . toDef) tcs
           where toDef (name,args) =
                     let vars = map (('a':) . show) [1..length args] in
-                    Definition . FnDef name vars . notLocated $
-                    Data (derename name) (map (notLocated . Var) vars)
+                    Definition . FnDef name vars . none $
+                    Data (derename name) (map (none . Var) vars)
       ImportEvent js base elm _ ->
         do v <- toJS' base
            return $ concat [ "\nvar " ++ elm ++ "=Elm.Signal(elm).constant(" ++ v ++ ");"
@@ -174,7 +171,7 @@ instance ToJS Statement where
                         , "document.dispatchEvent(e); return v; })(", elm, ");" ]
       TypeAlias n _ t -> return ""
 
-toJS' :: CExpr -> GuidCounter String
+toJS' :: LExpr t v -> Unique String
 toJS' (L txt span expr) =
     case expr of
       MultiIf ps -> multiIfToJS span ps
@@ -200,15 +197,21 @@ makeRecord kvs = record `liftM` collect kvs
     record kvs = fields . (("_", hidden kvs) :) . Map.toList . Map.map head $ kvs
 
 
-instance ToJS Expr where
- toJS expr =
-  case expr of
-    Var x -> return $ x
+instance ToJS Literal where
+ toJS lit =
+  case lit of
     Chr c -> return $ quoted [c]
     Str s -> return $ "_str" ++ parens (quoted s)
     IntNum   n -> return $ show n
     FloatNum n -> return $ show n
     Boolean  b -> return $ if b then "true" else "false"
+
+
+instance ToJS (Expr t v) where
+ toJS expr =
+  case expr of
+    Var x -> return x
+    Literal lit -> toJS lit
     Range lo hi -> jsRange `liftM` toJS' lo `ap` toJS' hi
     Access e x -> access x `liftM` toJS' e
     Remove e x -> remove x `liftM` toJS' e

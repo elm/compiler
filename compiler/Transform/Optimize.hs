@@ -1,10 +1,9 @@
-module Optimize (optimize) where
+module Transform.Optimize (optimize) where
 
-import Ast
-import Located
+import SourceSyntax.Everything
 import Control.Arrow (second, (***))
 import Data.Char (isAlpha)
-import Substitute
+import Transform.Substitute
 
 optimize (Module name ims exs stmts) =
     Module name ims exs (map optimizeStmt stmts)
@@ -15,12 +14,12 @@ optimizeStmt stmt = if stmt == stmt' then stmt' else optimizeStmt stmt'
 class Simplify a where
   simp :: a -> a
 
-instance Simplify Statement where
+instance Simplify (Declaration t v) where
   simp (Definition def) = Definition (simp def)
   simp (ImportEvent js b elm t) = ImportEvent js (simp b) elm t
   simp stmt = stmt
 
-instance Simplify Def where
+instance Simplify (Def t v) where
   simp (FnDef func args e) = FnDef func args (simp e)
   simp (OpDef op a1 a2 e)  = OpDef op a1 a2 (simp e)
   simp x = x
@@ -28,12 +27,12 @@ instance Simplify Def where
 instance Simplify e => Simplify (Located e) where
   simp (L t s e) = L t s (simp e)
 
-instance Simplify Expr where
+instance Simplify (Expr t v) where
   simp expr =
     let f = simp in
     case expr of
       Range e1 e2 -> Range (f e1) (f e2)
-      Binop op e1 e2 -> simp_binop op (f e1) (f e2)
+      Binop op e1 e2 -> binop op (f e1) (f e2)
       Lambda x e -> Lambda x (f e)
       Record fs -> Record (map (\(f,as,e) -> (f, as, simp e)) fs)
       App (L t s (Lambda x e1)) e2 -> 
@@ -51,41 +50,43 @@ instance Simplify Expr where
 clipBranches [] = []
 clipBranches (e:es) =
     case e of
-      (L _ _ (Boolean True), _) -> [e]
+      (L _ _ (Literal (Boolean True)), _) -> [e]
       _ -> e : clipBranches es
 
 
 isValue e =
-    case e of { IntNum _  -> True
-              ; FloatNum _ -> True
-              ; Chr _ -> True
-              ; Str _ -> True
-              ; Boolean _ -> True
-              ; Var _ -> True
-              ; Data _ _ -> True
-              ; _ -> False }
+    case e of
+      Literal _  -> True
+      Var _      -> True
+      Data _ _   -> True
+      _          -> False
 
-simp_binop = binop
 
 binop op ce1@(L t1 s1 e1) ce2@(L t2 s2 e2) =
-  let c1 = L t1 s1 in
-  let c2 = L t2 s2 in
+  let c1 = L t1 s1
+      c2 = L t2 s2
+      int = Literal . IntNum
+      str = Literal . Str
+      bool = Literal . Boolean
+  in  
   case (op, e1, e2) of
-    (_, IntNum n, IntNum m) -> case op of
-                                 { "+" -> IntNum $ (+) n m
-                                 ; "-" -> IntNum $ (-) n m
-                                 ; "*" -> IntNum $ (*) n m
-                                 ; "^" -> IntNum $ n ^ m
-                                 ; "div" -> IntNum $ div n m
-                                 ; "mod" -> IntNum $ mod n m
-                                 ; "<" -> Boolean $ n < m
-                                 ; ">" -> Boolean $ n < m
-                                 ; "<=" -> Boolean $ n <= m
-                                 ; ">=" -> Boolean $ n >= m
-                                 ; "==" -> Boolean $ n == m
-                                 ; "/=" -> Boolean $ n /= m
-                                 ;  _  -> Binop op ce1 ce2 }
-
+    (_, Literal (IntNum n), Literal (IntNum m)) ->
+        case op of
+          { "+" -> int $ (+) n m
+          ; "-" -> int $ (-) n m
+          ; "*" -> int $ (*) n m
+          ; "^" -> int $ n ^ m
+          ; "div" -> int $ div n m
+          ; "mod" -> int $ mod n m
+          ; "rem" -> int $ rem n m
+          ; "<" -> bool $ n < m
+          ; ">" -> bool $ n < m
+          ; "<=" -> bool $ n <= m
+          ; ">=" -> bool $ n >= m
+          ; "==" -> bool $ n == m
+          ; "/=" -> bool $ n /= m
+          ;  _  -> Binop op ce1 ce2 }
+  {--
     -- flip order to move lone integers to the left
     ("+", _, IntNum n) -> binop "+" ce2 ce1
     ("*", _, IntNum n) -> binop "*" ce2 ce1
@@ -95,47 +96,49 @@ binop op ce1@(L t1 s1 e1) ce2@(L t2 s2 e2) =
         binop "+" (c1 $ IntNum (n+m)) ce
     ("+", Binop "+" (L _ _ (IntNum n)) ce1'
         , Binop "+" (L _ _ (IntNum m)) ce2') ->
-        binop "+" (notLocated $ IntNum (n+m)) (notLocated $ Binop "+" ce1' ce2')
+        binop "+" (none $ IntNum (n+m)) (none $ Binop "+" ce1' ce2')
 
     ("*", IntNum 0, _) -> e1
     ("*", IntNum 1, _) -> e2
     ("*", IntNum n, Binop "*" (L _ _ (IntNum m)) ce) ->
-        binop "*" (notLocated $ IntNum (n*m)) ce
+        binop "*" (none $ IntNum (n*m)) ce
     ("*", Binop "*" (L _ _ (IntNum n)) ce1'
         , Binop "*" (L _ _ (IntNum m)) ce2') ->
-        binop "*" (notLocated $ IntNum (n*m)) (notLocated $ Binop "*" ce1' ce2')
+        binop "*" (none $ IntNum (n*m)) (none $ Binop "*" ce1' ce2')
 
     ("-", _, IntNum 0) -> e1
     ("/", _, IntNum 1) -> e1
     ("div", _, IntNum 1) -> e1
+--}
+    (_, Literal (Boolean n), Literal (Boolean m)) ->
+        case op of
+          "&&" -> bool $ n && m
+          "||" -> bool $ n || m
+          _    -> Binop op ce1 ce2
 
-    (_, Boolean n, Boolean m) -> case op of "&&" -> Boolean $ n && m
-                                            "||" -> Boolean $ n || m
-                                            _    -> Binop op ce1 ce2
-
-    ("&&", Boolean  True, _) -> e2
-    ("&&", Boolean False, _) -> Boolean False
-    ("||", Boolean  True, _) -> Boolean True
-    ("||", Boolean False, _) -> e2
+    ("&&", Literal (Boolean  True), _) -> e2
+    ("&&", Literal (Boolean False), _) -> bool False
+    ("||", Literal (Boolean  True), _) -> bool True
+    ("||", Literal (Boolean False), _) -> e2
 
     ("::", _, _) -> let (L _ _ e) = cons ce1 ce2 in e
 
-    ("++", Str s1, Str s2) -> Str $ s1 ++ s2
-    ("++", Str s1, Binop "++" (L _ _ (Str s2)) ce) ->
-        Binop "++" (c1 $ Str $ s1 ++ s2) ce
-    ("++", Binop "++" e (L _ _ (Str s1)), Str s2) ->
-        Binop "++" e (c1 $ Str $ s1 ++ s2)
+    ("++", Literal (Str s1), Literal (Str s2)) -> str $ s1 ++ s2
+    ("++", Literal (Str s1), Binop "++" (L _ _ (Literal (Str s2))) ce) ->
+        Binop "++" (c1 . str $ s1 ++ s2) ce
+    ("++", Binop "++" e (L _ _ (Literal (Str s1))), Literal (Str s2)) ->
+        Binop "++" e (c1 . str $ s1 ++ s2)
 
     ("++", Data "Nil" [], _) -> e2
     ("++", _, Data "Nil" []) -> e1
-    ("++", Data "Cons" [h,t], _) -> Data "Cons" [h, notLocated $ binop "++" t ce2]
+    ("++", Data "Cons" [h,t], _) -> Data "Cons" [h, none $ binop "++" t ce2]
 
     ("|>", _, _) -> App ce2 ce1
     ("<|", _, _) -> App ce1 ce2
     (".", _, _) ->
-        Lambda "x" (notLocated $
-                      App ce1 (notLocated $ App ce2 (notLocated $ Var "x")))
+        Lambda "x" (none $
+                      App ce1 (none $ App ce2 (none $ Var "x")))
 
     _ | isAlpha (head op) || '_' == head op ->
-          App (notLocated $ App (notLocated $ Var op) ce1) ce2
+          App (none $ App (none $ Var op) ce1) ce2
       | otherwise -> Binop op ce1 ce2

@@ -7,14 +7,13 @@ module Types.Substitutions (subst,
                             generalize,
                             superize) where
 
-import Ast
-import Located
+import SourceSyntax.Everything 
 import Control.Monad (liftM, liftM2)
 import Control.Monad.State (runState, State, get, put)
 import Data.List (nub)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
-import Guid
+import Unique
 import Types.Types
 
 class Subst a where
@@ -78,18 +77,18 @@ instance FreeVars a => FreeVars [a] where
 
 occurs x t = x `elem` freeVars t
 
-concretize :: Scheme -> GuidCounter (Type, [Located Constraint])
+concretize :: Scheme -> Unique (Type, [Located Constraint])
 concretize (Forall xs cs t) = do
   ss <- zip xs `liftM` mapM (\_ -> liftM VarT guid) xs
   return (subst ss t, subst ss cs)
 
-rescheme :: Scheme -> GuidCounter Scheme
+rescheme :: Scheme -> Unique Scheme
 rescheme (Forall xs cs t) = do
   xs' <- mapM (const guid) xs
   let ss = zip xs (map VarT xs')
   return $ Forall xs' (subst ss cs) (subst ss t)
 
-generalize :: [X] -> Scheme -> GuidCounter Scheme
+generalize :: [X] -> Scheme -> Unique Scheme
 generalize exceptions (Forall xs cs t) = rescheme (Forall (xs ++ frees) cs t)
     where allFrees = Set.fromList $ freeVars t ++ concatMap freeVars cs
           frees = Set.toList $ Set.difference allFrees (Set.fromList exceptions)
@@ -97,7 +96,7 @@ generalize exceptions (Forall xs cs t) = rescheme (Forall (xs ++ frees) cs t)
 newtype Superize a = S { runSuper :: State ([X], [X], [X]) a }
     deriving (Monad)
 
-superize :: String -> Type -> GuidCounter Scheme
+superize :: String -> Type -> Unique Scheme
 superize name tipe =
     do constraints <- liftM concat $
                       sequence [ mapM (<: nmbr) (nub ns)

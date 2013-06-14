@@ -1,24 +1,24 @@
-module ExtractNoscript (extractNoscript) where
+module Generate.Noscript (noscript) where
 
-import Ast
-import Located
+import Data.List (isInfixOf)
+import SourceSyntax.Everything
 import qualified Text.Pandoc as Pan
 
-extractNoscript :: Module -> String
-extractNoscript modul = concat (extract modul)
+noscript :: Module t v -> String
+noscript modul = concat (extract modul)
 
 class Extract a where
   extract :: a -> [String]
 
-instance Extract Module where
+instance Extract (Module t v) where
   extract (Module _ _ _ stmts) =
       map (\s -> "<p>" ++ s ++ "</p>") (concatMap extract stmts)
 
-instance Extract Statement where
+instance Extract (Declaration t v) where
   extract (Definition d) = extract d
   extract _ = []
 
-instance Extract Def where
+instance Extract (Def t v) where
   extract (FnDef _ _ e)   = extract e
   extract (OpDef _ _ _ e) = extract e
   extract _ = []
@@ -26,21 +26,24 @@ instance Extract Def where
 instance Extract e => Extract (Located e) where
   extract (L _ _ e) = extract e
 
-instance Extract Expr where
+instance Extract (Expr t v) where
   extract expr =
     let f = extract in
     case expr of
-      Str s -> [s]
+      Literal (Str s) -> [s]
       Binop op e1 e2 -> case (op, f e1, f e2) of
                           ("++", [s1], [s2]) -> [s1 ++ s2]
                           (_   , ss1 , ss2 ) -> ss1 ++ ss2
       Lambda v e -> f e
-      App (L _ _ (App (L _ _ (Var "link")) src)) txt -> linkExtract src txt
-      App (L _ _ (App (L _ _ (Var "Text.link")) src)) txt -> linkExtract src txt
-      App (L _ _ (Var "header")) e -> tag "h1" e
-      App (L _ _ (Var "bold")) e -> tag "b" e
-      App (L _ _ (Var "italic")) e -> tag "i" e
-      App (L _ _ (Var "monospace")) e -> tag "code" e
+      App (L _ _ (App (L _ _ (App (L _ _ (Var func)) w)) h)) src
+          | "image" `isInfixOf` func -> extractImage src
+      App (L _ _ (App (L _ _ (Var func)) src)) txt
+          | "link" `isInfixOf` func -> extractLink src txt
+      App (L _ _ (Var func)) e
+          | "header"    `isInfixOf` func -> tag "h1" e
+          | "bold"      `isInfixOf` func -> tag "b" e
+          | "italic"    `isInfixOf` func -> tag "i" e
+          | "monospace" `isInfixOf` func -> tag "code" e
       App e1 e2 -> f e1 ++ f e2
       Let defs e -> concatMap extract defs ++ f e
       Var _ -> []
@@ -50,10 +53,14 @@ instance Extract Expr where
       Markdown doc -> [ Pan.writeHtmlString Pan.def doc ]
       _ -> []
 
-linkExtract src txt =
+extractLink src txt =
     case (extract src, extract txt) of
       ([s1],[s2]) -> [ "<a href=\"" ++ s1 ++ "\">" ++ s2 ++ "</a>" ]
       ( ss1, ss2) -> ss1 ++ ss2
 
+extractImage src =
+    case extract src of
+      [s] -> ["<img src=\"" ++ s ++ "\">"]
+      ss  -> ss
 
 tag t e = map (\s -> concat [ "<", t, ">", s, "</", t, ">" ]) (extract e)

@@ -1,7 +1,7 @@
 
 module Types.Solver (solver) where
 
-import Located
+import SourceSyntax.Everything
 import Control.Arrow (second)
 import Control.Monad (liftM)
 import Data.Either (lefts,rights)
@@ -9,7 +9,7 @@ import Data.List (foldl')
 import Data.Maybe (isJust)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
-import Guid
+import Unique
 import Types.Types
 import Types.Substitutions
 import Types.Alias (dealias)
@@ -22,7 +22,7 @@ isSolved ss c = False
 
 type Aliases = Map.Map String ([X],Type)
 
-crush :: Aliases -> Scheme -> GuidCounter (Either String Scheme)
+crush :: Aliases -> Scheme -> Unique (Either String Scheme)
 crush aliases forall@(Forall xs cs t) =
     do subs <- solver aliases Map.empty cs
        return $ do ss' <- subs
@@ -68,11 +68,11 @@ recordConstraints eq fs t fs' t' =
               Map.difference fs' fs
       ]
     where constrain :: Map.Map String [Type] -> Map.Map String [Type]
-                    -> GuidCounter [Located Constraint]
+                    -> Unique [Located Constraint]
           constrain as bs = liftM concat . sequence . Map.elems $
                             Map.intersectionWithKey (zipper []) as bs
           zipper :: [Located Constraint] -> String -> [Type] -> [Type]
-                 -> GuidCounter [Located Constraint]
+                 -> Unique [Located Constraint]
           zipper cs k xs ys =
             case (xs,ys) of
               (a:as, b:bs) -> zipper (eq a b : cs) k as bs
@@ -87,7 +87,7 @@ recordConstraints eq fs t fs' t' =
 solver :: Aliases
        -> Map.Map X Type
        -> [Located Constraint]
-       -> GuidCounter (Either String (Map.Map X Type))
+       -> Unique (Either String (Map.Map X Type))
 solver _ subs [] = return $ Right subs
 solver aliases subs (L txt span c : cs) =
   let loc = L txt span

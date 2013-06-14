@@ -1,10 +1,10 @@
-module Substitute (subst) where
+module Transform.Substitute (subst) where
 
-import Ast
-import Located
+import SourceSyntax.Expression
+import SourceSyntax.Location
 import Control.Arrow (second, (***))
 
-subst :: String -> Expr -> Expr -> Expr
+subst :: String -> Expr t v -> Expr t v -> Expr t v
 subst old new expr =
     let f (L t s e) = L t s (subst old new e) in
     case expr of

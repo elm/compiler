@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
-module GenerateHtml (generateHtml,
-                     createHtml,
-                     JSStyle (..),
-                     JSSource (..)
-                    ) where
+module Generate.Html (generateHtml,
+                      createHtml,
+                      JSStyle (..),
+                      JSSource (..)
+                     ) where
 
 import Data.List (intercalate)
 import Text.Blaze (preEscapedToMarkup)
@@ -17,9 +17,9 @@ import qualified Data.ByteString.Lazy.Char8 as BS
 
 import Ast
 import Initialize (buildFromSource)
-import CompileToJS
-import ExtractNoscript
-import Libraries as Libraries
+import Generate.JavaScript
+import Generate.Noscript
+import Metadata.Libraries as Libraries
 
 data JSStyle = Minified | Readable
 data JSSource = Link String | Source JSStyle String

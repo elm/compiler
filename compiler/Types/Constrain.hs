@@ -9,9 +9,8 @@ import Data.List (foldl',sort,group,isPrefixOf,intercalate,isSuffixOf)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-import Ast
-import Located
-import Guid
+import SourceSyntax.Everything
+import Unique
 
 import Types.Types
 import qualified Types.Substitutions as Subs
@@ -55,7 +54,7 @@ findAmbiguous hints assumptions continue =
       _ -> continue
 
 mergeSchemes :: [Map.Map String Scheme]
-             -> GuidCounter (TVarMap, Constraints, Map.Map String Scheme)
+             -> Unique (TVarMap, Constraints, Map.Map String Scheme)
 mergeSchemes schmss = do (ass,css,sss) <- unzip3 `liftM` mapM split kvs
                          return (Map.unions ass, concat css, Map.unions sss)
   where
@@ -73,7 +72,7 @@ mergeSchemes schmss = do (ass,css,sss) <- unzip3 `liftM` mapM split kvs
 
 --constrain :: Map.Map String Scheme
 --          -> Module
---          -> GuidCounter (Either String Constraints)
+--          -> Unique (Either String Constraints)
 constrain typeHints (Module _ _ imports stmts) = do
   (ass,css,schemess) <- unzip3 `liftM` mapM stmtGen stmts
   aliasHints <- getAliases imports `liftM` typeHints
@@ -98,7 +97,7 @@ type Constraints = [Located Constraint]
 
 loc e span = L (Just $ show e) span
 
-gen :: CExpr -> GuidCounter (TVarMap, Constraints, Type)
+gen :: LExpr t v -> Unique (TVarMap, Constraints, Type)
 gen (L _ span expr) =
   let loc' = L (Just $ show expr) span in
   case expr of
@@ -145,14 +144,14 @@ gen (L _ span expr) =
            (ass,css,ts) <- liftM unzip3 $ mapM (caseGen t) cases
            return ( unionsA $ as:ass
                   , let cases' = map snd cases
-                        locs = zipWith epos cases' (tail cases')
+                        locs = zipWith merge cases' (tail cases')
                         csts = zipWith (:=:) ts (tail ts)
                         cs' = zipWith ($) locs csts
                     in  concat $ cs' : cs : css
                   , head ts)
 
     Data name es ->
-        gen $ foldl' (\f x -> epos f x $ App f x) (loc' $ Var name) es
+        gen $ foldl' (\f x -> merge f x $ App f x) (loc' $ Var name) es
 
     Binop op e1 e2 ->
         gen $ loc' (App (loc' $ App (loc' $ Var op) e1) e2)
@@ -215,22 +214,23 @@ gen (L _ span expr) =
                        , c1 ++ c2 ++ [ L t s (t1 :=: bool) ]
                        , t2 )
 
-    IntNum _ -> do t <- beta
-                   return (Map.empty, [loc' $ t :<: number], t)
-
-    FloatNum _ -> primitive float
-    Chr _ -> primitive char
-    Str _ -> primitive string
-    Boolean _ -> primitive bool
     Markdown _ -> primitive element
+    Literal lit ->
+        case lit of
+          IntNum _ -> do t <- beta
+                         return (Map.empty, [loc' $ t :<: number], t)
+          FloatNum _ -> primitive float
+          Chr _ -> primitive char
+          Str _ -> primitive string
+          Boolean _ -> primitive bool
 
 
-primitive :: Type -> GuidCounter (TVarMap, Constraints, Type)
+primitive :: Type -> Unique (TVarMap, Constraints, Type)
 primitive t = return (Map.empty, [], t)
 
 caseGen :: Type
-        -> (Pattern, CExpr)
-        -> GuidCounter (TVarMap, Constraints, Type)
+        -> (Pattern, LExpr t v)
+        -> Unique (TVarMap, Constraints, Type)
 caseGen tipe (p, ce@(L _ span e)) = do
   (as ,cs ,t) <- gen ce
   (as',cs',_) <- patternGen (loc p span) tipe as p
@@ -240,7 +240,7 @@ patternGen :: (Constraint -> Located Constraint)
            -> Type     -- Type of e in `case e of ...`
            -> TVarMap
            -> Pattern
-           -> GuidCounter (TVarMap, Constraints, Type)
+           -> Unique (TVarMap, Constraints, Type)
 patternGen loc tipe as pattern =
   case pattern of
     PAnything -> do b <- beta ; return ( as, [], b )
@@ -250,7 +250,7 @@ patternGen loc tipe as pattern =
       let cs = map (loc . (b :=:) . VarT) (Map.findWithDefault [] v as)
       return ( Map.delete v as, loc (b :=: tipe) : cs, b )
 
-    PAsVar v p -> do
+    PAlias v p -> do
       b <- beta
       let cs = map (loc . (b :=:) . VarT) (Map.findWithDefault [] v as)
       (as', cs', tipe') <- patternGen loc b as p
@@ -279,7 +279,7 @@ patternGen loc tipe as pattern =
                   , t )
 
 
-defScheme :: Def -> GuidCounter (Map.Map String [X], Scheme)
+defScheme :: Def t v -> Unique (Map.Map String [X], Scheme)
 defScheme def = do (as,cs,hint) <- defGen def
                    return ( as, snd hint )
 
@@ -305,8 +305,8 @@ defGenHelp name args e = do
   return ( as', [], (name, scheme) )
 
 
-stmtGen :: Statement
-        -> GuidCounter (TVarMap, Constraints, Map.Map String Scheme)
+stmtGen :: Declaration t v
+        -> Unique (TVarMap, Constraints, Map.Map String Scheme)
 stmtGen stmt =
   case stmt of
     Definition def -> do (as,cs,hint) <- defGen def

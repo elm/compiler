@@ -4,14 +4,14 @@ import Control.Arrow (first)
 import Control.Monad (liftM)
 import Data.Maybe (catMaybes)
 import qualified Data.Map as Map
-import Guid
-import qualified Libraries as Libs
-import Parse.Library (iParse)
-import Parse.Types
+import Unique
+import qualified Metadata.Libraries as Libs
+import Parse.Helpers (iParse)
+import Parse.Type
 import qualified Types.Substitutions as Subs
 import Types.Types
 
-hints :: GuidCounter [(String, Scheme)]
+hints :: Unique [(String, Scheme)]
 hints = liftM catMaybes (mapM toScheme values)
     where
       values :: [(String, String)]
@@ -20,7 +20,7 @@ hints = liftM catMaybes (mapM toScheme values)
       addPrefixes :: [(String,[(String, String)])] -> [(String, String)]
       addPrefixes = concatMap (\(m,vs) -> map (first (\n -> m ++ "." ++ n)) vs)
 
-      toScheme :: (String, String) -> GuidCounter (Maybe (String, Scheme))
+      toScheme :: (String, String) -> Unique (Maybe (String, Scheme))
       toScheme (name, 't':'y':'p':'e':' ':_) = return Nothing
       toScheme (name, 'd':'a':'t':'a':' ':_) = return Nothing
       toScheme (name, tipeString) =
