@@ -1,4 +1,4 @@
-module LoadLibraries (docs) where
+module Metadata.LoadLibraries (docs) where
 
 import Control.DeepSeq (force)
 import qualified Control.Exception as E

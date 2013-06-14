@@ -1,13 +1,13 @@
-module Libraries (libraries, addPrelude) where
+module Metadata.Libraries (libraries, addPrelude) where
 
-import Ast
 import Control.Applicative ((<$>),(<*>))
 import qualified Data.Map as Map
 import Data.List (inits)
 import Text.JSON
-import LoadLibraries as Libs
+import Metadata.LoadLibraries as Libs
+import SourceSyntax.Module
 
-addPrelude :: Module -> Module
+addPrelude :: Module t v -> Module t v
 addPrelude (Module name exs ims stmts) = Module name exs (customIms ++ ims) stmts
     where customIms = concatMap addModule prelude
 
