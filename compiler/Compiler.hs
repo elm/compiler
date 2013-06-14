@@ -17,11 +17,11 @@ import qualified Text.Blaze.Html.Renderer.String as Normal
 import qualified Text.Jasmine as JS
 import qualified Data.ByteString.Lazy.Char8 as BS
 
-import Ast
+import SourceSyntax.Module
 import Initialize (buildFromSource, getSortedModuleNames)
-import CompileToJS (jsModule)
-import GenerateHtml (createHtml, JSStyle(..), JSSource(..))
-import qualified Libraries as Libraries
+import Generate.JavaScript (jsModule)
+import Generate.Html (createHtml, JSStyle(..), JSSource(..))
+import qualified Metadata.Libraries as Libraries
 import Paths_Elm
 
 data Flags =
@@ -153,7 +153,7 @@ buildFiles flags numModules interfaces (filePath:rest) = do
   buildFiles flags numModules interfaces' rest
 
 
-exportInfo :: Module -> IO String
+exportInfo :: Module t v -> IO String
 exportInfo (Module names exs ims stmts) =
     do print exs
        return (show exs)

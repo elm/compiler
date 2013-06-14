@@ -13,11 +13,11 @@ module Language.Elm (compile, toHtml, moduleName, runtime, docs) where
 
 import Data.List (intercalate)
 import Data.Version (showVersion)
-import CompileToJS (showErr, jsModule)
-import GenerateHtml (generateHtml)
+import Generate.JavaScript (showErr, jsModule)
+import Generate.Html (generateHtml)
 import Initialize (buildFromSource)
-import Parse.Library
-import Parse.Modules (moduleDef)
+import Parse.Helpers
+import Parse.Module (moduleDef)
 import Text.Blaze.Html (Html)
 import Text.Parsec (option,optional)
 import Paths_Elm

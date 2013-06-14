@@ -8,7 +8,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Types.Substitutions (subst)
 import Types.Types
-import Data.Generics.Uniplate.Data
 import Data.Data
 
 builtins :: [(String,([X],Type))]

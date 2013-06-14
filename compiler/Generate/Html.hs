@@ -15,7 +15,6 @@ import qualified Text.Blaze.Html5.Attributes as A
 import Text.Jasmine (minify)
 import qualified Data.ByteString.Lazy.Char8 as BS
 
-import Ast
 import Initialize (buildFromSource)
 import Generate.JavaScript
 import Generate.Noscript

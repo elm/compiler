@@ -1,14 +1,14 @@
 
 module Main where
 
-import Ast
+import SourceSyntax.Declaration (Declaration(Datatype))
 import Control.Applicative ((<$>), (<*>))
 import Data.List (intercalate)
 import Data.Maybe (catMaybes)
 import Types.Types ((==>), Type ( ADT, VarT ) )
-import Parse.Types (datatype)
-import Parse.Library
-import Parse.Modules (moduleDef)
+import Parse.Type (datatype)
+import Parse.Helpers
+import Parse.Module (moduleDef)
 import Text.Parsec hiding (newline,spaces)
 import System.Environment
 import System.Exit
