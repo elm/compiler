@@ -1,9 +1,8 @@
-module Parse.Types where
+module Parse.Type where
 
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad (liftM,mapM)
-import Data.Char (isUpper,isLower)
-import Data.Maybe (fromMaybe)
+import Data.Char (isLower)
 import Data.List (lookup,intercalate)
 import Text.Parsec
 import Text.Parsec.Indent
@@ -103,8 +102,8 @@ toConstructor start end alias (Just _) kvs =
     rec = foldl insert (Var "_ext_") (zip args (map (loc . Var) args))
     insert e (k,v) = Insert (loc e) k v
 
-typeAnnotation :: IParser Def
-typeAnnotation = TypeAnnotation <$> try start <*> (toType <$> typeExpr)
+annotation :: IParser Def
+annotation = TypeAnnotation <$> try start <*> (toType <$> typeExpr)
     where start = do v <- lowVar <|> parens symOp
                      whitespace ; hasType ; whitespace ; return v
 

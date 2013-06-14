@@ -1,20 +1,22 @@
-module Parse.Expr (def,term) where
+module Parse.Expression (def,term) where
 
 import Control.Applicative ((<$>), (<*>))
-import Control.Monad
-import Data.Char (isSymbol, isDigit)
 import Data.List (foldl')
 import Text.Parsec hiding (newline,spaces)
 import Text.Parsec.Indent
 import qualified Text.Pandoc as Pan
 
-import Parse.Library
-import Parse.Patterns
-import Parse.Binops
-import Parse.Types
+import Parse.Helpers
+import qualified Parse.Pattern as Pattern
+import qualified Parse.Type as Type
+import Parse.Binop
+import Parse.Literal
 
-import Ast
-import Located
+import SourceSyntax.Location as Location
+import SourceSyntax.Pattern hiding (tuple,list)
+import qualified SourceSyntax.Literal as Literal
+import SourceSyntax.Expression
+import SourceSyntax.Declaration (Declaration(Definition))
 
 import Guid
 import Types.Types (Type (VarT), Scheme (Forall))
@@ -24,36 +26,19 @@ import System.IO.Unsafe
 
 --------  Basic Terms  --------
 
-numTerm :: IParser Expr
-numTerm = toExpr <$> (preNum <?> "number")
-    where toExpr n | '.' `elem` n = FloatNum (read n)
-                   | otherwise = IntNum (read n)
-          preNum  = (++) <$> many1 digit <*> option "" postNum
-          postNum = do try $ lookAhead (string "." >> digit)
-                       string "."
-                       ('.':) <$> many1 digit
-
-strTerm :: IParser Expr
-strTerm = liftM Str . expecting "string" . betwixt '"' '"' . many $
-          backslashed <|> satisfy (/='"')
-
 varTerm :: IParser Expr
 varTerm = toVar <$> var <?> "variable"
 
-toVar v = case v of "True"  -> Boolean True
-                    "False" -> Boolean False
+toVar v = case v of "True"  -> Literal (Literal.Boolean True)
+                    "False" -> Literal (Literal.Boolean False)
                     _       -> Var v
-
-chrTerm :: IParser Expr
-chrTerm = Chr <$> betwixt '\'' '\'' (backslashed <|> satisfy (/='\''))
-          <?> "character"
 
 accessor :: IParser Expr
 accessor = do
   start <- getPosition
   lbl <- try (string "." >> rLabel)
   end <- getPosition
-  let loc e = addLoc ("." ++ lbl) (pos start end e)
+  let loc e = Location.add ("." ++ lbl) (Location.at start end e)
   return (Lambda "_" (loc $ Access (loc $ Var "_") lbl))
 
 
@@ -76,7 +61,7 @@ parensTerm = parens $ choice
              [ do start <- getPosition
                   op <- try anyOp
                   end <- getPosition
-                  let loc = pos start end
+                  let loc = Location.at start end
                   return . loc . Lambda "x" . loc . Lambda "y" . loc $
                          Binop op (loc $ Var "x") (loc $ Var "y")
              , do start <- getPosition
@@ -84,24 +69,24 @@ parensTerm = parens $ choice
                   commas <- comma >> many (whitespace >> comma)
                   end <- getPosition
                   let vars = map (('v':) . show) [ 0 .. length commas + 1 ]
-                      loc = pos start end
+                      loc = Location.at start end
                   return $ foldr (\x e -> loc $ Lambda x e)
                              (loc . tuple $ map (loc . Var) vars) vars
              , do start <- getPosition
                   es <- commaSep expr
                   end <- getPosition
                   return $ case es of [e] -> e
-                                      _   -> pos start end (tuple es)
+                                      _   -> Location.at start end (tuple es)
              ]
 
 recordTerm :: IParser LExpr
 recordTerm = brackets $ choice [ misc, addLocation record ]
     where field = do
-              fDefs <- (:) <$> (PVar <$> rLabel) <*> spacePrefix patternTerm
+              fDefs <- (:) <$> (PVar <$> rLabel) <*> spacePrefix Pattern.term
               whitespace
               e <- string "=" >> whitespace >> expr
               n <- sourceLine <$> getPosition
-              runAt (1000 * n) $ flattenPatterns fDefs e
+              runAt (1000 * n) $ Pattern.flatten fDefs e
           extract [ FnDef f args exp ] = return (f,args,exp)
           extract _ = fail "Improperly formed record field."
           record = Record <$> (mapM extract =<< commaSep field)
@@ -127,7 +112,7 @@ recordTerm = brackets $ choice [ misc, addLocation record ]
                         
 
 term :: IParser LExpr
-term =  addLocation (choice [ numTerm, strTerm, chrTerm, listTerm, accessor ])
+term =  addLocation (choice [ Literal <$> literal, listTerm, accessor ])
     <|> accessible (addLocation varTerm <|> parensTerm <|> recordTerm)
     <?> "basic term (4, x, 'c', etc.)"
 
@@ -138,7 +123,7 @@ appExpr = do
   tlist <- spaceSep1 term
   return $ case tlist of
              t:[] -> t
-             t:ts -> foldl' (\f x -> epos f x $ App f x) t ts
+             t:ts -> foldl' (\f x -> Location.merge f x $ App f x) t ts
 
 --------  Normal Expressions  --------
 
@@ -154,7 +139,7 @@ ifExpr = reserved "if" >> whitespace >> (normal <|> multiIf)
         thenBranch <- expr
         whitespace <?> "an 'else' branch" ; reserved "else" <?> "an 'else' branch" ; whitespace
         elseBranch <- expr
-        return $ MultiIf [(bool, thenBranch), (notLocated (Var "otherwise"), elseBranch)]
+        return $ MultiIf [(bool, thenBranch), (Location.none (Var "otherwise"), elseBranch)]
       multiIf = MultiIf <$> spaceSep1 iff
           where iff = do string "|" ; whitespace
                          b <- expr ; whitespace ; string "->" ; whitespace
@@ -163,10 +148,10 @@ ifExpr = reserved "if" >> whitespace >> (normal <|> multiIf)
 lambdaExpr :: IParser LExpr
 lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
                 whitespace
-                pats <- spaceSep1 patternTerm
+                pats <- spaceSep1 Pattern.term
                 whitespace ; arrow ; whitespace
                 e <- expr
-                return . run $ makeLambda pats e
+                return . run $ Pattern.makeLambda pats e
 
 defSet :: IParser [Def]
 defSet = concat <$> block (do d <- anyDef ; whitespace ; return d)
@@ -182,7 +167,7 @@ caseExpr :: IParser Expr
 caseExpr = do
   reserved "case"; whitespace; e <- expr; whitespace; reserved "of"; whitespace
   Case e <$> (with <|> without)
-    where case_ = do p <- patternExpr; whitespace; arrow; whitespace
+    where case_ = do p <- Pattern.expr; whitespace; arrow; whitespace
                      (,) p <$> expr
           with    = brackets (semiSep1 (case_ <?> "cases { x -> ... }"))
           without = block (do c <- case_ ; whitespace ; return c)
@@ -192,15 +177,15 @@ expr = addLocation (choice [ ifExpr, letExpr, caseExpr ])
     <|> binaryExpr 
     <?> "an expression"
 
-funcDef = try (do p1 <- try patternTerm ; infics p1 <|> func p1)
-          <|> ((:[]) <$> patternExpr)
+funcDef = try (do p1 <- try Pattern.term ; infics p1 <|> func p1)
+          <|> ((:[]) <$> Pattern.expr)
           <?> "the definition of a variable (x = ...)"
-    where func p@(PVar v) = (p:) <$> spacePrefix patternTerm
+    where func p@(PVar v) = (p:) <$> spacePrefix Pattern.term
           func p          = do try (lookAhead (whitespace >> string "="))
                                return [p]
           infics p1 = do
             o:p <- try (whitespace >> anyOp)
-            p2  <- (whitespace >> patternTerm)
+            p2  <- (whitespace >> Pattern.term)
             return $ if o == '`' then [ PVar $ takeWhile (/='`') p, p1, p2 ]
                                  else [ PVar (o:p), p1, p2 ]
 
@@ -210,10 +195,10 @@ assignExpr = withPos $ do
   whitespace
   e <- string "=" >> whitespace >> expr
   n <- sourceLine <$> getPosition
-  runAt (1000 * n) $ flattenPatterns fDefs e
+  runAt (1000 * n) $ Pattern.flatten fDefs e
 
 anyDef = 
-  ((\d -> [d]) <$> typeAnnotation) <|>
+  ((\d -> [d]) <$> Type.annotation) <|>
   assignExpr
 
 def = map Definition <$> anyDef

@@ -1,4 +1,4 @@
-module Parse.Binops (binops, infixStmt, OpTable) where
+module Parse.Binop (binops, infixStmt, OpTable) where
 
 import Control.Monad.Error
 import Data.List (intercalate)

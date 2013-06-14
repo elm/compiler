@@ -2,18 +2,19 @@
 module Parse.Foreign (foreignDef) where
 
 import Control.Applicative ((<$>), (<*>))
-import Data.Either (partitionEithers)
 import Text.Parsec hiding (newline,spaces)
 
-import Ast
-import Parse.Library
-import Parse.Expr (term)
-import Parse.Types
+import SourceSyntax.Declaration (Declaration(ExportEvent,ImportEvent))
+import Parse.Helpers
+import Parse.Expression (term)
+import Parse.Type
 import Types.Types (signalOf)
 
+foreignDef :: IParser Declaration
 foreignDef = do try (reserved "foreign") ; whitespace
                 importEvent <|> exportEvent
 
+exportEvent :: IParser Declaration
 exportEvent = do
   try (reserved "export") >> whitespace >> reserved "jsevent" >> whitespace
   js   <- jsVar    ; whitespace
@@ -25,6 +26,7 @@ exportEvent = do
         either error (return . ExportEvent js elm . signalOf) (toForeignType pt)
     _ -> error "When exporting events, the exported value must be a Signal."
 
+importEvent :: IParser Declaration
 importEvent = do
   try (reserved "import") >> whitespace >> reserved "jsevent" >> whitespace
   js   <- jsVar ; whitespace
@@ -39,13 +41,14 @@ importEvent = do
     _ -> error "When importing events, the imported value must be a Signal."
 
 
-jsVar :: (Monad m) => ParsecT [Char] u m String
+jsVar :: IParser String
 jsVar = betwixt '"' '"' $ do
   v <- (:) <$> (letter <|> char '_') <*> many (alphaNum <|> char '_')
   if v `notElem` jsReserveds then return v else
       error $ "'" ++ v ++
           "' is not a good name for a importing or exporting JS values."
 
+jsReserveds :: [String]
 jsReserveds =
     [ "null", "undefined", "Nan", "Infinity", "true", "false", "eval"
     , "arguments", "int", "byte", "char", "goto", "long", "final", "float"

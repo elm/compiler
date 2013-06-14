@@ -1,12 +1,12 @@
 
-module Parse.Modules (moduleDef, imports) where
+module Parse.Module (moduleDef, imports) where
 
 import Control.Applicative ((<$>), (<*>))
 import Data.List (intercalate)
 import Text.Parsec hiding (newline,spaces)
 
-import Ast
-import Parse.Library
+import Parse.Helpers
+import SourceSyntax.Module
 
 varList ::  IParser [String]
 varList = parens $ commaSep1 (var <|> parens symOp)
