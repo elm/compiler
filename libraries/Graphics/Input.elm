@@ -67,6 +67,14 @@ checkbox b =
     let cbs = N.checkboxes b
     in  (lift (cbs.box id) cbs.events, cbs.events)
 
+hoverables : a -> { events : Signal a,
+                    hoverable : (Bool -> a) -> Element -> Element }
+
+hoverable : Element -> (Element, Signal Bool)
+hoverable elem =
+    let pool = N.hoverables False
+    in  (pool.hoverable id elem, pool.events)
+
 -- Represents the current state of a text field. The `string` represents the
 -- characters filling the text field. The `selectionStart` and `selectionEnd`
 -- values represent what the user has selected with their mouse or keyboard.

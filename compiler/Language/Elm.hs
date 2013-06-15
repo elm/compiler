@@ -56,4 +56,3 @@ runtime = getDataFileName "elm-runtime.js"
 -- |The absolute path to Elm's core library documentation.
 docs :: IO FilePath
 docs = getDataFileName "docs.json"
-

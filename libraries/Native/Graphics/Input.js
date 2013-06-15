@@ -12,7 +12,8 @@ Elm.Native.Graphics.Input = function(elm) {
  var Signal = Elm.Signal(elm);
  var newElement = Elm.Graphics.Element(elm).newElement;
  var JS = Elm.Native.JavaScript(elm);
- var Tuple2 = Elm.Native.Utils(elm).Tuple2;
+ var Utils = Elm.Native.Utils(elm);
+ var Tuple2 = Utils.Tuple2;
 
  function dropDown(values) {
      var entries = JS.fromList(values);
@@ -145,6 +146,19 @@ Elm.Native.Graphics.Input = function(elm) {
  }
 
 
+ function hoverables(defaultValue) {
+     var events = Signal.constant(defaultValue);
+     function hoverable(handler, elem) {
+         function onHover(bool) {
+             elm.notify(events.id, handler(bool));
+         }
+         var props = Utils.replace([['hover',onHover]], elem.props);
+         return { props:props, element:elem.element };
+     }
+     return { _:{}, hoverable:F2(hoverable), events:events };
+ }
+
+
  function checkboxes(defaultValue) {
      var events = Signal.constant(defaultValue);
 
@@ -271,6 +285,7 @@ Elm.Native.Graphics.Input = function(elm) {
  return elm.Native.Graphics.Input = {
      buttons:buttons,
      customButtons:customButtons,
+     hoverables:hoverables,
      checkboxes:checkboxes,
      fields:mkTextPool('text'),
      emails:mkTextPool('email'),

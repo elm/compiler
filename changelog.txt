@@ -5,6 +5,7 @@ Release 0.8.1
 * Hot-swapping
 * Type annotations in let expressions (Andrew)
 * Pattern aliases with `as` (Andrew)
+* Detect hovering over any Element
 * Opacity on arbitrary forms in collages
 
 

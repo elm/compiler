@@ -25,7 +25,8 @@ type Properties = {
   opacity : Float,
   color   : Maybe Color,
   href    : JSString,
-  tag     : JSString
+  tag     : JSString,
+  hover   : ()
  }
 
 type Element = { props : Properties, element : ElementPrim }
@@ -87,7 +88,7 @@ link href e = let p = e.props in
 
 emptyStr = JS.fromString ""
 newElement w h e =
-  { props = Properties (guid ()) w h 1 Nothing emptyStr emptyStr, element = e }
+  { props = Properties (guid ()) w h 1 Nothing emptyStr emptyStr (), element = e }
 
 data ElementPrim
   = Image ImageStyle Int Int JSString
