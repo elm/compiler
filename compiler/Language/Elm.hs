@@ -18,6 +18,7 @@ import Generate.Html (generateHtml)
 import Initialize (buildFromSource)
 import Parse.Helpers
 import Parse.Module (moduleDef)
+import SourceSyntax.Module
 import Text.Blaze.Html (Html)
 import Text.Parsec (option,optional)
 import Paths_Elm
@@ -27,6 +28,7 @@ import Paths_Elm
 compile :: String -> Either String String
 compile source = fmap jsModule modul
     where
+      modul :: Either String (Module () String)
       modul = buildFromSource False source
 
 -- |This function extracts the module name of a given source program.

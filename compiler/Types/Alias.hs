@@ -9,6 +9,7 @@ import qualified Data.Set as Set
 import Types.Substitutions (subst)
 import Types.Types
 import Data.Data
+import Data.Generics.Uniplate.Data
 
 builtins :: [(String,([X],Type))]
 builtins =
@@ -28,13 +29,16 @@ builtins =
           ("LineStyle", ([], makeRecord line))
         ]
 
-get :: [Declaration t v] -> Map.Map String ([X],Type)
-get stmts = Map.fromList (builtins ++ concatMap getAlias stmts)
-    where getAlias stmt = case stmt of
-                            TypeAlias alias xs t -> [(alias, (xs,t))]
-                            _ -> []
+type AliasDict = Map.Map String ([X],Type)
 
-dealias :: Map.Map String ([X],Type) -> Type -> Type
+get :: [Declaration t v] -> AliasDict
+get decl = Map.fromList (builtins ++ concatMap getAlias decl)
+    where
+      getAlias decl = case decl of
+                        TypeAlias alias xs t -> [(alias, (xs,t))]
+                        _ -> []
+
+dealias :: AliasDict -> Type -> Type
 dealias aliases t =
   let f = dealias aliases in
   case t of
@@ -45,38 +49,54 @@ dealias aliases t =
     RecordT r t -> RecordT (Map.map (map f) r) (f t)
     _ -> t
 
-mistakes :: [Declaration t v] -> [String]
-mistakes stmts = badKinds stmts ++ dups stmts ++ badOrder stmts
+--mistakes :: [Def t v] -> [String]
+mistakes defs = badKinds defs -- ++ dups defs ++ badOrder defs
 
-badKinds :: [Declaration t v] -> [String]
-badKinds stmts = map msg (concatMap badS stmts)
+extractDefs :: [Declaration t v] -> [Def t v]
+extractDefs = concatMap keepDef
+    where
+      keepDef decl = case decl of
+                       Definition def -> [def]
+                       _ -> []
+
+badKinds :: (Data t, Data v) => [Declaration t v] -> [String]
+badKinds decls = map msg (concatMap bad decls)
   where
     msg x = "Type Error: Type alias '" ++ x ++
             "' was given the wrong number of arguments."
 
-    badT :: Type -> [String]
-    badT t =
-      case t of
-        ADT name ts ->
-          case Map.lookup name (get stmts) of
-            Just (xs,t) | length xs == length ts -> []
-                        | otherwise -> [name]
-            Nothing -> concatMap badT ts
-        LambdaT t u -> badT t ++ badT u
-        RecordT r t -> badT t ++ concatMap badT (concat (Map.elems r))
-        _ -> []
+    aliases :: AliasDict
+    aliases = Map.empty
 
-    badS :: Declaration t v -> [String]
-    badS s =
+    badType :: Type -> [String]
+    badType t =
+        case t of
+          ADT name ts ->
+              case Map.lookup name aliases of
+                Just (xs,t) | length xs == length ts -> []
+                            | otherwise -> [name]
+                Nothing -> concatMap badType ts
+          LambdaT t u -> badType t ++ badType u
+          RecordT r t -> badType t ++ concatMap badType (concat (Map.elems r))
+          _ -> []
+
+    --badDef :: AliasDict -> Def t v -> [String]
+    badDef def =
+        case def of
+          TypeAnnotation _ tipe -> badType tipe
+          FnDef _ _ expr ->
+              concatMap badDef $ concat [defList | Let defList _ <- universeBi expr]
+          OpDef _ _ _ expr ->
+              concatMap badDef $ concat [defList | Let defList _ <- universeBi expr]
+
+    --bad :: Declaration t v -> [String]
+    bad s =
       case s of
-        Datatype _ _ tcs -> concatMap badT (concatMap snd tcs)
-        ExportEvent _ _ tipe   -> badT tipe
-        ImportEvent _ _ _ tipe -> badT tipe
-        TypeAlias _ _ tipe     -> badT tipe
-        Definition d ->
-            case d of
-              TypeAnnotation _ tipe -> badT tipe
-              _ -> []
+        Datatype _ _ tcs -> concatMap badType (concatMap snd tcs)
+        ExportEvent _ _ tipe   -> badType tipe
+        ImportEvent _ _ _ tipe -> badType tipe
+        TypeAlias _ _ tipe     -> badType tipe
+        Definition d -> badDef d
 
 annotation :: Declaration t v -> [String]
 annotation s =
@@ -97,22 +117,22 @@ defName d =
       OpDef n _ _ _ -> n
 
 dups :: [Declaration t v] -> [String]
-dups stmts = map defMsg (dup definition) ++ map annMsg (dup annotation)
+dups defs = map defMsg (dup definition) ++ map annMsg (dup annotation)
     where
       --dup :: (Declaration t v -> [String]) -> [String]
-      dup f = map head . filter ((>1) . length) . group . sort $ concatMap f stmts
+      dup f = map head . filter ((>1) . length) . group . sort $ concatMap f defs
 
       msg = "Syntax Error: There can only be one "
       defMsg x = msg ++ "top-level definition of '" ++ x ++ "'."
       annMsg x = msg ++ "type annotation for '" ++ x ++ "'."
 
-badOrder :: [Declaration t v] -> [String]
-badOrder stmts = map msg $ missings (sort $ expectedPairs as ds) (sort $ actualPairs stmts)
+--badOrder :: [Def t v] -> [String]
+badOrder defs = map msg $ missings (sort $ expectedPairs as ds) (sort $ actualPairs defs)
     where
       msg x = "Syntax Error: The type annotation for '" ++ x ++
               "' must be directly above its definition."
-      as = sort $ concatMap annotation stmts
-      ds = sort $ concatMap definition stmts
+      as = sort $ concatMap annotation defs
+      ds = sort $ concatMap definition defs
 
       expectedPairs :: [String] -> [String] -> [String]
       expectedPairs as ds =
@@ -123,9 +143,9 @@ badOrder stmts = map msg $ missings (sort $ expectedPairs as ds) (sort $ actualP
                               GT -> expectedPairs (x:xs) ys
             ( _  ,  _  ) -> []
 
-      --actualPairs :: [Declaration t v] -> [String]
-      actualPairs stmts =      
-          case stmts of
+      --actualPairs :: [Def t v] -> [String]
+      actualPairs defs =      
+          case defs of
             Definition (TypeAnnotation n _) : Definition d : rest ->
                 (if n == defName d then [n] else []) ++ actualPairs rest
             t:s:rest -> actualPairs (s:rest)

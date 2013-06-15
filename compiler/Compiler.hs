@@ -102,7 +102,7 @@ buildFile flags moduleNum numModules filePath =
             if takeExtension filePath == ".js" then return ("",source) else
                 case buildFromSource (no_prelude flags) source of
                   Left err -> putStrLn err >> exitFailure
-                  Right modul -> do exs <- exportInfo modul
+                  Right modul -> do exs <- exportInfo (modul :: Module () String)
                                     return (exs, jsModule modul)
         createDirectoryIfMissing True (output_directory flags)
         writeFile (elmo flags filePath) obj

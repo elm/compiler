@@ -4,7 +4,7 @@ import Control.Applicative ((<$>))
 import Control.Monad.Error
 import Data.List (lookup,nub)
 import qualified Data.Map as Map
-
+import Data.Data
 import SourceSyntax.Everything
 import Data.List (intercalate,partition)
 import Parse.Parser (parseProgram, parseDependencies)
@@ -17,21 +17,21 @@ import Transform.Optimize
 import System.Exit
 import System.FilePath
 
-checkMistakes :: Module t v -> Either String (Module t v)
+checkMistakes :: (Data t, Data v) => Module t v -> Either String (Module t v)
 checkMistakes modul@(Module name ex im stmts) = 
   case mistakes stmts of
     m:ms -> Left (unlines (m:ms))
     []   -> return modul
 
-checkTypes :: Module t v -> Either String (Module t v)
+checkTypes :: (Data t, Data v) => Module t v -> Either String (Module t v)
 checkTypes modul =
   do subs <- unify hints modul
      subs `seq` return (optimize (renameModule modul))
 
-check :: Module t v -> Either String (Module t v)
+check :: (Data t, Data v) => Module t v -> Either String (Module t v)
 check = checkMistakes >=> checkTypes
 
-buildFromSource :: Bool -> String -> Either String (Module t v)
+buildFromSource :: (Data t, Data v) => Bool -> String -> Either String (Module t v)
 buildFromSource noPrelude src =
     let add = if noPrelude then id else Libs.addPrelude in
     (check . add) =<< (parseProgram src)
