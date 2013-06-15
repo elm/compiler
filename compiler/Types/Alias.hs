@@ -49,15 +49,8 @@ dealias aliases t =
     RecordT r t -> RecordT (Map.map (map f) r) (f t)
     _ -> t
 
---mistakes :: [Def t v] -> [String]
-mistakes defs = badKinds defs -- ++ dups defs ++ badOrder defs
-
-extractDefs :: [Declaration t v] -> [Def t v]
-extractDefs = concatMap keepDef
-    where
-      keepDef decl = case decl of
-                       Definition def -> [def]
-                       _ -> []
+mistakes :: (Data t, Data v) => [Declaration t v] -> [String]
+mistakes decls = badKinds decls ++ dups decls ++ badOrder decls
 
 badKinds :: (Data t, Data v) => [Declaration t v] -> [String]
 badKinds decls = map msg (concatMap bad decls)
@@ -66,7 +59,7 @@ badKinds decls = map msg (concatMap bad decls)
             "' was given the wrong number of arguments."
 
     aliases :: AliasDict
-    aliases = Map.empty
+    aliases = get decls
 
     badType :: Type -> [String]
     badType t =
@@ -107,32 +100,34 @@ annotation s =
 definition :: Declaration t v -> [String]
 definition s =
     case s of
-      Definition d -> [defName d]
+      Definition d -> defName d
       _ -> []
 
-defName :: Def t v -> String
+defName :: Def t v -> [String]
 defName d =
     case d of
-      FnDef n _ _   -> n
-      OpDef n _ _ _ -> n
+      FnDef n _ _   -> [n]
+      OpDef n _ _ _ -> [n]
+      _ -> []
 
 dups :: [Declaration t v] -> [String]
-dups defs = map defMsg (dup definition) ++ map annMsg (dup annotation)
+dups decls = map defMsg (dup definition) ++ map annMsg (dup annotation)
     where
       --dup :: (Declaration t v -> [String]) -> [String]
-      dup f = map head . filter ((>1) . length) . group . sort $ concatMap f defs
+      dup f = map head . filter ((>1) . length) . group . sort $ concatMap f decls
 
       msg = "Syntax Error: There can only be one "
       defMsg x = msg ++ "top-level definition of '" ++ x ++ "'."
       annMsg x = msg ++ "type annotation for '" ++ x ++ "'."
 
---badOrder :: [Def t v] -> [String]
-badOrder defs = map msg $ missings (sort $ expectedPairs as ds) (sort $ actualPairs defs)
+badOrder :: (Data t, Data v) => [Declaration t v] -> [String]
+badOrder decls =
+    map msg $ missings (sort $ expectedPairs as ds) (sort $ actualPairs decls)
     where
       msg x = "Syntax Error: The type annotation for '" ++ x ++
               "' must be directly above its definition."
-      as = sort $ concatMap annotation defs
-      ds = sort $ concatMap definition defs
+      as = sort $ concatMap annotation decls
+      ds = sort $ concatMap definition decls
 
       expectedPairs :: [String] -> [String] -> [String]
       expectedPairs as ds =
@@ -144,10 +139,12 @@ badOrder defs = map msg $ missings (sort $ expectedPairs as ds) (sort $ actualPa
             ( _  ,  _  ) -> []
 
       --actualPairs :: [Def t v] -> [String]
-      actualPairs defs =      
-          case defs of
-            Definition (TypeAnnotation n _) : Definition d : rest ->
-                (if n == defName d then [n] else []) ++ actualPairs rest
+      actualPairs decls =      
+          case decls of
+            Definition (TypeAnnotation n _) : Definition (FnDef m _ _) : rest ->
+                (if n == m then [n] else []) ++ actualPairs rest
+            Definition (TypeAnnotation n _) : Definition (OpDef m _ _ _) : rest ->
+                (if n == m then [n] else []) ++ actualPairs rest
             t:s:rest -> actualPairs (s:rest)
             _ -> []
 
