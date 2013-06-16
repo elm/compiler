@@ -355,7 +355,7 @@ function update(div, _, model) {
         }
     }
     tracker.clearRest();
-    return div;
+    return false;
 }
 
 return { render:render, update:update };
