@@ -26,7 +26,7 @@ Elm.Native.Keyboard = function(elm) {
       });
 
   function keySignal(f) {
-    var signal = A2( Signal.lift, f, keysDown );
+    var signal = Signal.dropRepeats(A2(Signal.lift, f, keysDown));
     keysDown.defaultNumberOfKids += 1;
     signal.defaultNumberOfKids = 0;
     return signal;
