@@ -154,7 +154,7 @@ find k t =
 -- Determine if a key is in a dictionary.
 member : Comparable k -> Dict (Comparable k) v -> Bool
 -- Does t contain k?
-member k t = Maybe.isJust $ lookup k t
+member k t = Maybe.isJust <| lookup k t
 
 rotateLeft : Dict k v -> Dict k v
 rotateLeft t =
