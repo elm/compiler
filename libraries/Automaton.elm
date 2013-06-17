@@ -33,7 +33,7 @@ g <<< f = f >>> g
 -- Combine a list of automatons into a single automaton that produces a list.
 combine : [Automaton a b] -> Automaton a [b]
 combine autos =
-  Step (\a -> let (autos', bs) = unzip $ map (step a) autos
+  Step (\a -> let (autos', bs) = unzip <| map (step a) autos
               in  (combine autos', bs))
 
 -- Create an automaton with no memory. It just applies the given function to
