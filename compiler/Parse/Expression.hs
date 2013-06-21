@@ -52,8 +52,7 @@ listTerm =
   <|> (braces $ choice
        [ try $ do { lo <- expr; whitespace; string ".." ; whitespace
                   ; Range lo <$> expr }
-       , do (L _ _ e) <- list <$> commaSep expr
-            return e
+       , ExplicitList <$> commaSep expr
        ])
 
 parensTerm :: IParser (LExpr t v)

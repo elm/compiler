@@ -44,7 +44,7 @@ Elm.Native.Show = function(elm) {
                     output.push(toString(v[k]));
                 }
                 return "(" + output.join(",") + ")";
-            } else if (v.ctor === "Cons") {
+            } else if (v.ctor === "::") {
                 var isStr = typeof v._0 === "string",
                 start = isStr ? '"' : "[",
                 end   = isStr ? '"' : "]",
@@ -52,18 +52,18 @@ Elm.Native.Show = function(elm) {
                 f     = !isStr ? toString : showChar;
                 var output = start + f(v._0);
                 v = v._1;
-                while (v.ctor === "Cons") {
+                while (v.ctor === "::") {
                     output += sep + f(v._0);
                     v = v._1;
                 }
                 return output + end;
-            } else if (v.ctor === "Nil") {
+            } else if (v.ctor === "[]") {
                 return "[]";
             } else if (v.ctor === "RBNode" || v.ctor === "RBEmpty") {
                 var cons = F3(function(k,v,acc){return NList.Cons(Tuple2(k,v),acc)});
                 var list = A3(Dict.foldr, cons, NList.Nil, v);
                 var name = "Dict";
-                if (list.ctor === "Cons" && list._0._1.ctor === "Tuple0") {
+                if (list.ctor === "::" && list._0._1.ctor === "Tuple0") {
                     name = "Set";
                     list = A2(List.map, function(x){return x._0}, list);
                 }

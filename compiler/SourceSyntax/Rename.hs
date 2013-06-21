@@ -108,6 +108,8 @@ instance Rename (Expr t v) where
 
       Data name es -> Data name `liftM` mapM rnm es
 
+      ExplicitList es -> ExplicitList `liftM` mapM rnm es
+
       Case e cases -> Case `liftM` rnm e
                               `ap` mapM (patternRename env) cases
 

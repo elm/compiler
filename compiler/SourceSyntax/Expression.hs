@@ -26,6 +26,7 @@ data Expr t v
     | MultiIf [(LExpr t v,LExpr t v)]
     | Let [Def t v] (LExpr t v)
     | Case (LExpr t v) [(Pattern.Pattern, LExpr t v)]
+    | ExplicitList [LExpr t v]
     | Data String [LExpr t v]
     | Markdown Pandoc.Pandoc
       deriving (Eq, Data, Typeable)
@@ -36,12 +37,9 @@ data Def tipe var
     | TypeAnnotation String Type
       deriving (Eq, Data, Typeable)
 
-cons h t = Location.merge h t (Data "Cons" [h,t])
-nil      = Location.L (Just "[]") Location.NoSpan (Data "Nil" [])
-list     = foldr cons nil
 tuple es = Data ("Tuple" ++ show (length es)) es
 
-delist (Location.L _ _ (Data "Cons" [h,t])) = h : delist t
+delist (Location.L _ _ (Data "::" [h,t])) = h : delist t
 delist _ = []
 
 
@@ -71,11 +69,10 @@ instance Show (Expr t v) where
      Var (c:cs) -> if Help.isOp c then Help.parens (c:cs) else c:cs
      Case e pats -> "case "++ show e ++" of " ++ Help.brkt (intercalate " ; " pats')
          where pats' = map (\(p,e) -> show p ++ " -> " ++ show e) pats
-     Data name es
-          | name == "Cons" -> ("["++) . (++"]") . intercalate "," . map show $
-                              delist (Location.none $ Data "Cons" es)
-          | name == "Nil"  -> "[]"
-          | otherwise      -> name ++ " " ++ intercalate " " (map show' es)
+     ExplicitList es -> "[" ++ intercalate "," (map show es) ++ "]"
+     Data "::" [h,t] -> show h ++ " :: " ++ show t
+     Data "[]" [] -> "[]"
+     Data name es -> name ++ " " ++ intercalate " " (map show' es)
      Markdown _ -> "[markdown| ... |]"
 
 
@@ -99,5 +96,5 @@ needsParens e =
     MultiIf _   -> True
     Let _ _     -> True
     Case _ _    -> True
-    Data name (x:xs) -> name /= "Cons"
+    Data name (x:xs) -> name /= "::"
     _ -> False

@@ -25,10 +25,10 @@ Elm.Native.Utils = function(elm) {
     var ord;
     if (typeof x !== 'object') return x === y ? EQ : x < y ? LT : GT;
 
-    if (x.ctor === "Cons" || x.ctor === "Nil") {
+    if (x.ctor === "::" || x.ctor === "[]") {
       while (true) {
-          if (x.ctor === "Nil" && y.ctor === "Nil") return EQ;
-          if (x.ctor !== y.ctor) return x.ctor === 'Nil' ? LT : GT;
+          if (x.ctor === "[]" && y.ctor === "[]") return EQ;
+          if (x.ctor !== y.ctor) return x.ctor === '[]' ? LT : GT;
           ord = cmp(x._0, y._0);
           if (ord !== EQ) return ord;
           x = x._1;

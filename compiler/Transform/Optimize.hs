@@ -121,7 +121,7 @@ binop op ce1@(L t1 s1 e1) ce2@(L t2 s2 e2) =
     ("||", Literal (Boolean  True), _) -> bool True
     ("||", Literal (Boolean False), _) -> e2
 
-    ("::", _, _) -> let (L _ _ e) = cons ce1 ce2 in e
+    ("::", _, _) -> Data "::" [ce1, ce2]
 
     ("++", Literal (Str s1), Literal (Str s2)) -> str $ s1 ++ s2
     ("++", Literal (Str s1), Binop "++" (L _ _ (Literal (Str s2))) ce) ->
@@ -129,9 +129,9 @@ binop op ce1@(L t1 s1 e1) ce2@(L t2 s2 e2) =
     ("++", Binop "++" e (L _ _ (Literal (Str s1))), Literal (Str s2)) ->
         Binop "++" e (c1 . str $ s1 ++ s2)
 
-    ("++", Data "Nil" [], _) -> e2
-    ("++", _, Data "Nil" []) -> e1
-    ("++", Data "Cons" [h,t], _) -> Data "Cons" [h, none $ binop "++" t ce2]
+    ("++", Data "[]" [], _) -> e2
+    ("++", _, Data "[]" []) -> e1
+    ("++", Data "::" [h,t], _) -> Data "::" [h, none $ binop "++" t ce2]
 
     ("|>", _, _) -> App ce2 ce1
     ("<|", _, _) -> App ce1 ce2

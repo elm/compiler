@@ -71,7 +71,7 @@ parens = ("("++) . (++")")
 instance Show Type where
   show t =
    let addParens (c:cs) =
-           if notElem ' ' cs || c == '(' then c:cs else parens (c:cs)
+           if notElem ' ' cs || c == '(' || c == '{' then c:cs else parens (c:cs)
    in case t of
       LambdaT t1@(LambdaT _ _) t2 -> parens (show t1) ++ " -> " ++ show t2
       LambdaT t1 t2 -> show t1 ++ " -> " ++ show t2

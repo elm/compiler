@@ -28,9 +28,9 @@ crush aliases forall@(Forall xs cs t) =
        return $ do ss' <- subs
                    let ss  = Map.toList ss'
                        cs' = filter (not . isSolved ss) (subst ss cs)
-                       f x = (unsafePerformIO $ do
+                       f x = x {-(unsafePerformIO $ do
                                 print forall  >> putStrLn "-------"
-                                print x >> putStrLn "~~~~~~~") `seq` x
+                                print x >> putStrLn "~~~~~~~") `seq` x-}
                    return . f $ Forall xs cs' (subst ss t)
 
 schemeSubHelp txt span x s t1 rltn t2 = do

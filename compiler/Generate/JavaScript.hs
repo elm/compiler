@@ -29,7 +29,8 @@ internalImports =
       ("_N", "N.Utils(elm)"),
       ("_L", "N.List(elm)"),
       ("_E", "N.Error(elm)"),
-      ("_str", "N.JavaScript(elm).toString")
+      ("_J", "N.JavaScript(elm)"),
+      ("_str", "_J.toString")
     ]
 
 parens s  = "(" ++ s ++ ")"
@@ -225,11 +226,16 @@ instance ToJS (Expr t v) where
 
     App e1 e2 -> jsApp e1 e2
     Let defs e -> jsLet defs e
+
+    ExplicitList es ->
+        do es' <- mapM toJS' es
+           return $ "_J.toList" ++ parens (jsList es')
+
     Data name es ->
         do fs <- mapM toJS' es
            return $ case name of
-              "Nil" -> jsNil
-              "Cons" -> jsCons (head fs) ((head . tail) fs)
+              "[]" -> jsNil
+              "::" -> jsCons (head fs) ((head . tail) fs)
               _ -> jsObj $ ("ctor:" ++ show name) : fields
                    where fields = zipWith (\n e -> "_" ++ show n ++ ":" ++ e) [0..] fs
 

@@ -29,8 +29,8 @@ libraries =
       Ok libs   -> Map.unionWith Map.union libs nilAndTuples
           where nilAndTuples = Map.singleton "Prelude" (Map.fromList pairs)
                 pairs =
-                    [ ("Cons", "a -> [a] -> [a]")
-                    , ("Nil", "[a]")
+                    [ ("::", "a -> [a] -> [a]")
+                    , ("[]", "[a]")
                     ] ++ map makeTuple (inits ['a'..'i'])
                 
                 makeTuple cs = 

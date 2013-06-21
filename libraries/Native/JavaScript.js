@@ -44,7 +44,7 @@ Elm.Native.JavaScript = function(elm) {
           }
           return obj;
       }
-      if (type === 'object' && (v.ctor === 'Cons' || v.ctor === 'Nil')) {
+      if (type === 'object' && (v.ctor === '::' || v.ctor === '[]')) {
           var array = List.toArray(v);
           if (typeof array[0] === 'string') {
               array = array.join('');

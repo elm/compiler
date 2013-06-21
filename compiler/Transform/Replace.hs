@@ -20,6 +20,7 @@ replace y v expr =
       Let defs e -> if y `elem` vs then Let defs e else Let (zip vs (map f es)) (f e)
               where (vs,es) = unzip defs
       Var x -> if x == y then v else Var x
+      ExplicitList es -> ExplicitList (map f es)
       Data name es -> Data name (map f es)
       Case e cases -> Case (f e) $ map (caseReplace y v) cases
       _ -> expr
@@ -52,7 +53,7 @@ depth' d expr =
       Fold e1 e2 e3 -> maximum [f e1, f e2, f e3]
       Async e -> f e
       Let defs e -> let (_,es) = unzip defs in maximum $ f e : map f es
-      Data "Cons" es -> maximum $ map (depth' d) es
+      Data "::" es -> maximum $ map (depth' d) es
       Data name es -> maximum $ 1 : map f es
       Case e cases -> maximum $ f e : map (f . snd) cases
       _ -> d

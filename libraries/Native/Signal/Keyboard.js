@@ -35,7 +35,7 @@ Elm.Native.Keyboard = function(elm) {
   function dir(up, down, left, right) {
     function f(ks) {
       var x = 0, y = 0;
-      while (ks.ctor == "Cons") {
+      while (ks.ctor === "::") {
         switch (ks._0) {
           case left : --x; break;
           case right: ++x; break;

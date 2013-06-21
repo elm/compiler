@@ -150,6 +150,12 @@ gen (L _ span expr) =
                     in  concat $ cs' : cs : css
                   , head ts)
 
+    ExplicitList es ->
+        do (ass,css,ts) <- unzip3 `liftM` mapM gen es
+           t <- beta
+           let cs = zipWith (\t' (L a b _) -> L a b (t :=: t')) ts es
+           return ( unionsA ass, cs ++ concat css, listOf t )
+
     Data name es ->
         gen $ foldl' (\f x -> merge f x $ App f x) (loc' $ Var name) es
 
