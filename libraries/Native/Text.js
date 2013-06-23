@@ -71,7 +71,7 @@ Elm.Native.Text = function(elm) {
   }
   function size(px, text) { return addStyle('font-size', px + 'px', text) }
   var header = addTag('h1');
-  function height(h, text) { return addStyle('font-size', h+'em', text) }
+  function height(h, text) { return addStyle('font-size', h+'px', text) }
   function italic(text) { return addStyle('font-style', 'italic', text) }
   var bold = addTag('b');
 

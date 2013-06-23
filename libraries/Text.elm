@@ -21,7 +21,7 @@ header : Text -> Text
 -- Create a link.
 link : String -> Text -> Text
 
--- Set the height of text in \"ems\". 1em is the normal height of text. 2ems is twice that height.
+-- Set the height of text in pixels.
 height : Float -> Text -> Text
 
 -- Set the color of a string.
