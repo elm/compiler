@@ -1,5 +1,6 @@
 module Parse.Binop (binops, infixStmt, OpTable) where
 
+import Control.Applicative ((<$>))
 import Control.Monad.Error
 import Data.List (intercalate)
 import qualified Data.Map as Map
@@ -38,15 +39,22 @@ opAssoc table op = Map.findWithDefault R op dict
 hasLevel :: OpTable -> Int -> (String, LExpr t v) -> Bool
 hasLevel table n (op,_) = opLevel table op == n
 
-binops :: OpTable -> IParser (LExpr t v) -> IParser String -> IParser (LExpr t v)
-binops table term anyOp =
+binops :: OpTable
+       -> IParser (LExpr t v)
+       -> IParser (LExpr t v)
+       -> IParser String
+       -> IParser (LExpr t v)
+binops table term last anyOp =
     do e <- term
-       split (table ++ preludeTable) 0 e =<< many nextOp
+       split (table ++ preludeTable) 0 e =<< nextOps
     where
-      nextOp = commitIf (whitespace >> anyOp) $ do
-                 whitespace ; op <- anyOp
-                 whitespace ; e <- term
-                 return (op,e)
+      nextOps = choice [ commitIf (whitespace >> anyOp) $ do
+                           whitespace ; op <- anyOp ; whitespace
+                           expr <- Left <$> try term <|> Right <$> last
+                           case expr of
+                             Left t -> (:) (op,t) <$> nextOps
+                             Right e -> return [(op,e)]
+                       , return [] ]
 
 split :: OpTable
       -> Int
