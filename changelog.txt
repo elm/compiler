@@ -3,13 +3,20 @@ Release 0.8.1
 =============
 
 * Hot-swapping
+
+Syntax:
 * Type annotations in let expressions (Andrew)
-* Pattern aliases with `as` (Andrew)
-* Detect hovering over any Element
-* Opacity on arbitrary forms in collages
+* Record Constructors
 * Pattern matching on literals
+* Pattern aliases with `as` (Andrew)
 * Use if, let, case, and lambda in last term of a
   binary expression without parentheses
+
+Libraries:
+* Detect hovering over any Element
+* Opacity on arbitrary forms in collages
+* Switch Text.height to use px instead of em,
+  units like em and % can be created in Elm
 
 
 forgot to fill this in again...
