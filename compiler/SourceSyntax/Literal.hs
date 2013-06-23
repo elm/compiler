@@ -8,7 +8,7 @@ data Literal = IntNum Int
              | Chr Char
              | Str String
              | Boolean Bool
-               deriving (Eq, Data, Typeable)
+               deriving (Eq, Ord, Data, Typeable)
 
 
 instance Show Literal where

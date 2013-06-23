@@ -299,8 +299,12 @@ matchToJS span match =
     Match name clauses def ->
         do cases <- concat `liftM` mapM (clauseToJS span name) clauses
            finally <- matchToJS span def
-           return $ concat [ "\nswitch (", name, ".ctor) {",
-                             indent cases, "\n}", finally ]
+           let isLiteral p = case p of
+                               Clause (Right _) _ _ -> True
+                               _ -> False
+               access = if any isLiteral clauses then "" else ".ctor"
+           return $ concat [ "\nswitch (", name, access, ") {"
+                           , indent cases, "\n}", finally ]
     Fail -> return ("_E.Case" ++ parens (quoted (show span)))
     Break -> return "break;"
     Other e -> ret `liftM` toJS' e
@@ -312,10 +316,15 @@ matchToJS span match =
                 Other _ -> acc ++ [m]
                 _ -> dropEnd (acc ++ [m]) ms
 
-clauseToJS span var (Clause name vars e) = do
+clauseToJS span var (Clause value vars e) = do
   let vars' = map (\n -> var ++ "._" ++ show n) [0..]
   s <- matchToJS span $ matchSubst (zip vars vars') e
-  return $ concat [ "\ncase ", quoted name, ":", indent s ]
+  return $ concat [ "\ncase ", case value of
+                                 Left name -> quoted name
+                                 Right (Boolean True)  -> "true"
+                                 Right (Boolean False) -> "false"
+                                 Right lit -> show lit
+                  , ":", indent s ]
 
 jsNil         = "_L.Nil"
 jsCons  e1 e2 = "_L.Cons(" ++ e1 ++ "," ++ e2 ++ ")"

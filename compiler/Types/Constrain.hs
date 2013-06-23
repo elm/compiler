@@ -142,13 +142,13 @@ gen (L _ span expr) =
     Case e cases ->
         do (as,cs,t) <- gen e
            (ass,css,ts) <- liftM unzip3 $ mapM (caseGen t) cases
+           b <- beta
            return ( unionsA $ as:ass
                   , let cases' = map snd cases
                         locs = zipWith merge cases' (tail cases')
-                        csts = zipWith (:=:) ts (tail ts)
-                        cs' = zipWith ($) locs csts
+                        cs' = zipWith (\t loc -> loc (b :=: t)) ts locs
                     in  concat $ cs' : cs : css
-                  , head ts)
+                  , b)
 
     ExplicitList es ->
         do (ass,css,ts) <- unzip3 `liftM` mapM gen es
@@ -221,14 +221,19 @@ gen (L _ span expr) =
                        , t2 )
 
     Markdown _ -> primitive element
-    Literal lit ->
-        case lit of
-          IntNum _ -> do t <- beta
-                         return (Map.empty, [loc' $ t :<: number], t)
-          FloatNum _ -> primitive float
-          Chr _ -> primitive char
-          Str _ -> primitive string
-          Boolean _ -> primitive bool
+    Literal lit -> literalGen loc' lit
+
+literalGen :: (Constraint -> Located Constraint)
+           -> Literal
+           -> Unique (TVarMap, Constraints, Type)
+literalGen loc lit =
+    case lit of
+      IntNum _   -> do t <- beta
+                       return (Map.empty, [loc $ t :<: number], t)
+      FloatNum _ -> primitive float
+      Boolean _  -> primitive bool
+      Chr _      -> primitive char
+      Str _      -> primitive string
 
 
 primitive :: Type -> Unique (TVarMap, Constraints, Type)
@@ -250,6 +255,8 @@ patternGen :: (Constraint -> Located Constraint)
 patternGen loc tipe as pattern =
   case pattern of
     PAnything -> do b <- beta ; return ( as, [], b )
+
+    PLiteral lit -> literalGen loc lit
 
     PVar v -> do
       b <- beta

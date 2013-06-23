@@ -6,11 +6,6 @@ import Text.Parsec hiding (newline,spaces)
 import Text.Parsec.Indent
 
 import Parse.Helpers
-import qualified Parse.Pattern as Pattern
-import qualified Parse.Type as Type
-import Parse.Binop
-
-import SourceSyntax.Pattern hiding (tuple,list)
 import SourceSyntax.Literal
 
 literal = num <|> str <|> chr

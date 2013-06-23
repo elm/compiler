@@ -8,20 +8,27 @@ import Data.Char (isUpper)
 import Unique
 import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
-import Parse.Helpers
 
-import SourceSyntax.Helpers (isOp)
-import SourceSyntax.Location
-import SourceSyntax.Pattern hiding (tuple,list)
+import Parse.Helpers
+import Parse.Literal
 import qualified SourceSyntax.Pattern as Pattern
-import SourceSyntax.Expression (Expr(..), Def(..), LExpr)
+import SourceSyntax.Everything hiding (parens, tuple)
+
 
 basic :: IParser Pattern
-basic =
-    choice [ char '_' >> return PAnything
-           , do x@(c:_) <- var
-                return $ if isUpper c then PData x [] else PVar x
-           ]
+basic = choice
+    [ char '_' >> return PAnything
+    , do v <- var
+         return $ case v of
+                    "True"  -> PLiteral (Boolean True)
+                    "False" -> PLiteral (Boolean False)
+                    c : _   -> if isUpper c then PData v [] else PVar v
+    , do lit <- literal
+         return $ case lit of
+                    Str s -> foldr combine (PData "[]" []) s
+                       where combine h t = PData "::" [PLiteral (Chr h),t]
+                    _ -> PLiteral lit
+    ]
 
 asPattern :: Pattern -> IParser Pattern
 asPattern pattern = do
@@ -41,10 +48,16 @@ list :: IParser Pattern
 list = Pattern.list <$> braces (commaSep expr)
 
 term :: IParser Pattern
-term = (choice [ record, tuple, list, basic ]) <?> "pattern"
+term =
+     (choice [ record, tuple, list, basic ]) <?> "pattern"
 
 patternConstructor :: IParser Pattern
-patternConstructor = PData <$> capVar <*> spacePrefix term
+patternConstructor = do
+  v <- capVar
+  case v of
+    "True"  -> return $ PLiteral (Boolean True)
+    "False" -> return $ PLiteral (Boolean False)
+    _       -> PData v <$> spacePrefix term
 
 expr :: IParser Pattern
 expr = do

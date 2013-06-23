@@ -13,7 +13,7 @@ data Pattern = PData String [Pattern]
              | PVar String
              | PAnything
              | PLiteral Literal.Literal
-               deriving (Eq, Data, Typeable)
+               deriving (Eq, Ord, Data, Typeable)
 
 cons h t = PData "::" [h,t]
 nil      = PData "[]" []
