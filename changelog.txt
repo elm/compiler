@@ -7,6 +7,9 @@ Release 0.8.1
 * Pattern aliases with `as` (Andrew)
 * Detect hovering over any Element
 * Opacity on arbitrary forms in collages
+* Pattern matching on literals
+* Use if, let, case, and lambda in last term of a
+  binary expression without parentheses
 
 
 forgot to fill this in again...
