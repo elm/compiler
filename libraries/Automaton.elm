@@ -5,6 +5,8 @@
 module Automaton where
 
 import Signal (lift,foldp)
+import List (reverse)
+import Maybe (Just, Nothing)
 
 data Automaton a b = Step (a -> (Automaton a b, b))
 
@@ -69,7 +71,7 @@ empty = ([],[])
 enqueue x (en,de) = (x::en, de)
 dequeue q = case q of
               ([],[]) -> Nothing
-              (en,[]) -> enqueue ([], reverse en)
+              (en,[]) -> dequeue ([], reverse en)
               (en,hd::tl) -> Just (hd, (en,tl))
 
 -- Computes the running average of the last `n` inputs.
