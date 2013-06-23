@@ -43,7 +43,7 @@ matchSubst pairs (Match n cs m) =
               clauseSubst (Clause c vs m) =
                   Clause c (map varSubst vs) (matchSubst pairs m)
 
-isCon (p:ps, _) =
+isCon (p:ps, e) =
   case p of
     PData _ _  -> True
     PLiteral _ -> True
@@ -56,22 +56,28 @@ match [] [] def = return def
 match [] [([],e)] Fail  = return $ Other e
 match [] [([],e)] Break = return $ Other e
 match [] cs def = return $ Seq (map (Other . snd) cs ++ [def])
-match vs cs def
-    | all isVar cs = matchVar vs cs def
-    | all isCon cs = matchCon vs cs def
-    | otherwise    = matchMix vs cs def
+match vs@(v:_) cs def
+    | all isVar cs' = matchVar vs cs' def
+    | all isCon cs' = matchCon vs cs' def
+    | otherwise     = matchMix vs cs' def
+  where
+    cs' = map (dealias v) cs
+
+dealias v c@(p:ps, L t s e) =
+    case p of
+      PAlias x pattern -> (pattern:ps, L t s $ subst x (Var v) e)
+      _ -> c
 
 matchVar :: [String] -> [([Pattern],LExpr t v)] -> Match t v
          -> Unique (Match t v)
 matchVar (v:vs) cs def = match vs (map subVar cs) def
   where
-    subVar (p:ps, ce@(L t s e)) = (ps, L t s $ subOnePattern p)
+    subVar (p:ps, ce@(L t s e)) = (ps, L t s $ subOnePattern p e)
         where
           loc = L t s
-          subOnePattern pattern =
+          subOnePattern pattern e =
             case pattern of
               PVar x     -> subst x (Var v) e
-              PAlias x p -> subst x (Var v) e
               PAnything  -> e
               PRecord fs ->
                  foldr (\x -> subst x (Access (loc (Var v)) x)) e fs
