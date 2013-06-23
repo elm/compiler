@@ -33,9 +33,10 @@ patternVars :: Pattern -> Set String
 patternVars pattern =
     case pattern of
       PData _ ps -> unions (map patternVars ps)
-      PVar x -> singleton x
+      PVar x     -> singleton x
       PAsVar x p -> insert x (patternVars p)
-      PAnything -> empty
+      PAnything  -> empty
+      PLiteral _ -> empty
 
 depth :: Expr -> Integer
 depth = depth' 0
