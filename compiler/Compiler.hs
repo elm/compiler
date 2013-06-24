@@ -2,9 +2,10 @@
 module Main where
 
 import Control.Monad (foldM, when)
+import Control.Applicative ((<$>), (<*>))
 import qualified Data.Map as Map
 import Data.Either (lefts, rights)
-import Data.List (intersect, intercalate, lookup)
+import Data.List (intersect, intercalate, lookup, partition)
 import Data.Maybe (fromMaybe)
 import Data.Version (showVersion)
 import System.Console.CmdArgs
@@ -74,8 +75,8 @@ elmo :: Flags -> FilePath -> FilePath
 elmo flags filePath = file flags filePath "elmo"
 
 
-buildFile :: Flags -> Int -> Int -> FilePath -> IO Interface
-buildFile flags moduleNum numModules filePath =
+buildFile :: Flags -> Map.Map String Interface -> Int -> Int -> FilePath -> IO Interface
+buildFile flags otherInterfaces moduleNum numModules filePath =
     do compiled <- alreadyCompiled
        if compiled then readFile (elmo flags filePath) else compile
 
@@ -104,7 +105,7 @@ buildFile flags moduleNum numModules filePath =
                   Left err -> putStrLn err >> exitFailure
                   Right modul -> do exs <- exportInfo (modul :: Module () String)
                                     return (exs, jsModule modul)
-        createDirectoryIfMissing True (output_directory flags)
+        createDirectoryIfMissing True ((output_directory flags) </> takeDirectory filePath)
         writeFile (elmo flags filePath) obj
         return obj
 
@@ -117,9 +118,10 @@ getRuntime flags =
 
 build :: Flags -> FilePath -> IO ()
 build flags rootFile = do
-  files <- if make flags then getSortedModuleNames rootFile else return [rootFile]
+  allFiles <- if make flags then getSortedModuleNames rootFile else return [rootFile]
+  let (nativeFiles, files) = partition (\fn -> takeExtension fn == ".js") allFiles
   buildFiles flags (length files) Map.empty files
-  js <- foldM appendToOutput "" files
+  js <- flip (foldM appendJSToOutput) nativeFiles =<< foldM appendToOutput "" files
   case only_js flags of
     True -> do
       putStr "Generating JavaScript ... "
@@ -138,6 +140,11 @@ build flags rootFile = do
           do src <- readFile (elmo flags filePath)
              return (src ++ js)
 
+      appendJSToOutput :: String -> FilePath -> IO String
+      appendJSToOutput js filePath =
+          do src <- readFile filePath
+             return (src ++ js)
+
       genHtml = if minify flags then Normal.renderHtml else Pretty.renderHtml
       genJs = if minify flags then BS.unpack . JS.minify . BS.pack else id
       sources js = map Link (scripts flags) ++
@@ -147,7 +154,7 @@ build flags rootFile = do
 buildFiles :: Flags -> Int -> Map.Map String Interface -> [FilePath] -> IO ()
 buildFiles _ _ _ [] = return ()
 buildFiles flags numModules interfaces (filePath:rest) = do
-  interface <- buildFile flags (numModules - length rest) numModules filePath
+  interface <- buildFile flags interfaces (numModules - length rest) numModules filePath
   let moduleName = intercalate "." (splitDirectories (dropExtensions filePath))
       interfaces' = Map.insert moduleName interface interfaces
   buildFiles flags numModules interfaces' rest
