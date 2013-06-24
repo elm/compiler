@@ -57,6 +57,7 @@ Library
                        Parse.Helpers,
                        Parse.Literal,
                        Parse.Module,
+                       Parse.Literal,
                        Parse.Parser,
                        Parse.Pattern,
                        Parse.Type,
@@ -84,6 +85,9 @@ Library
                        mtl >= 2,
                        pandoc >= 1.10,
                        parsec >= 3.1.1,
+                       shakespeare,
+                       template-haskell,
+                       text,
                        transformers >= 0.2,
                        union-find,
                        uniplate
@@ -142,6 +146,9 @@ Executable elm
                        mtl >= 2,
                        pandoc >= 1.10,
                        parsec >= 3.1.1,
+                       shakespeare,
+                       template-haskell,
+                       text,
                        transformers >= 0.2,
                        union-find,
                        uniplate
