@@ -63,12 +63,16 @@ readDeps seen root = do
         let msg = "Error resolving dependencies in " ++ root ++ ":\n" in
         putStrLn (msg ++ err) >> exitFailure
     Right (name,deps) ->
-        do rest <- mapM (readDeps seen' . toFilePath) newDeps
-           return ((name, realDeps) : concat rest)
+        do rest <-
+             (mapM (readDeps seen' . toFilePath) newDeps) 
+           let restWithNatives =
+                 (map (\name -> (name,[])) nativeDeps):rest
+           return ((name, realDeps) : concat restWithNatives)
         where
           realDeps = filter (`notElem` builtIns) deps
           newDeps = filter (\d -> d `notElem` seen && not (isNative d)) realDeps
-          seen' = root : seen ++ newDeps
+          nativeDeps = filter (\d -> d `notElem` seen && isNative d) realDeps
+          seen' = root : seen ++ newDeps ++ nativeDeps
           builtIns = Map.keys Libs.libraries
                        
 
