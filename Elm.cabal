@@ -55,6 +55,7 @@ Library
                        Parse.Expression,
                        Parse.Foreign,
                        Parse.Helpers,
+                       Parse.Literal,
                        Parse.Module,
                        Parse.Parser,
                        Parse.Pattern,
@@ -69,24 +70,23 @@ Library
                        Paths_Elm
 
   Build-depends:       base >=4.2 && <5,
-                       containers >= 0.3,
-                       transformers >= 0.2,
-                       mtl >= 2,
-                       deepseq,
-                       parsec >= 3.1.1,
                        blaze-html == 0.5.* || == 0.6.*,
                        blaze-markup == 0.5.1.*,
-                       text,
-                       shakespeare >= 1,
-                       template-haskell,
-                       pandoc >= 1.10,
                        bytestring,
-                       uniplate,
+                       cmdargs,
+                       containers >= 0.3,
+                       deepseq,
+                       directory,
+                       filepath,
                        hjsmin,
                        indents,
-                       filepath,
                        json,
-                       directory
+                       mtl >= 2,
+                       pandoc >= 1.10,
+                       parsec >= 3.1.1,
+                       transformers >= 0.2,
+                       union-find,
+                       uniplate
 
 Executable elm
   Main-is:             Compiler.hs
@@ -113,6 +113,7 @@ Executable elm
                        Parse.Expression,
                        Parse.Foreign,
                        Parse.Helpers,
+                       Parse.Literal,
                        Parse.Module,
                        Parse.Parser,
                        Parse.Pattern,
@@ -127,22 +128,23 @@ Executable elm
                        Paths_Elm
 
   Build-depends:       base >=4.2 && <5,
-                       containers >= 0.3,
-                       transformers >= 0.2,
-                       mtl >= 2,
-                       deepseq,
-                       parsec >= 3.1.1,
                        blaze-html == 0.5.* || == 0.6.*,
                        blaze-markup == 0.5.1.*,
-                       cmdargs,
-                       pandoc >= 1.10,
                        bytestring,
-                       uniplate,
+                       cmdargs,
+                       containers >= 0.3,
+                       deepseq,
+                       directory,
+                       filepath,
                        hjsmin,
                        indents,
-                       filepath,
                        json,
-                       directory
+                       mtl >= 2,
+                       pandoc >= 1.10,
+                       parsec >= 3.1.1,
+                       transformers >= 0.2,
+                       union-find,
+                       uniplate
 
 Executable elm-doc
   Main-is:             Docs.hs
