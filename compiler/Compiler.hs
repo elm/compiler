@@ -120,7 +120,6 @@ build :: Flags -> FilePath -> IO ()
 build flags rootFile = do
   allFiles <- if make flags then getSortedModuleNames rootFile else return [rootFile]
   let (nativeFiles, files) = partition (\fn -> takeExtension fn == ".js") allFiles
-  putStrLn $ "NativeFiles: " ++ show nativeFiles ++ " Elm Files: " ++ show files
   buildFiles flags (length files) Map.empty files
   js <- flip (foldM appendJSToOutput) nativeFiles =<< foldM appendToOutput "" files
   case only_js flags of
