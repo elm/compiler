@@ -29,22 +29,22 @@ import Control.Monad
 
 -- Assumptions
 -- Elm.cabal expects the generated files to end up in dist/data
-rtsDir lbi = (buildDir lbi) </> ".." </> "data"      -- git won't look in dist + cabal will clean it
-jsDir lbi = (buildDir lbi) </> ".." </> "js"
+rtsDir lbi = buildDir lbi </> ".." </> "data"      -- git won't look in dist + cabal will clean it
+jsDir lbi = buildDir lbi </> ".." </> "js"
 
 -- The runtime is called:
-rts lbi = (rtsDir lbi) </> "elm-runtime.js"
+rts lbi = rtsDir lbi </> "elm-runtime.js"
 
 -- The json file is called:
 
 -- The elm-docs executable is called:
 elmDoc = "elm-doc"
-elm_doc lbi = (buildDir lbi) </> elmDoc </> elmDoc
+elm_doc lbi = buildDir lbi </> elmDoc </> elmDoc
 
-types lbi = (rtsDir lbi) </> "docs.json"
+types lbi = rtsDir lbi </> "docs.json"
 
 -- buildDir with LocalBuildInfo points to "dist/build" (usually)
-elm lbi = (buildDir lbi) </> "elm" </> "elm"
+elm lbi = buildDir lbi </> "elm" </> "elm"
 
 -- Care!  This appears to be based on an unstable API
 -- See: http://www.haskell.org/cabal/release/cabal-latest/doc/API/Cabal/Distribution-Simple.html#2
