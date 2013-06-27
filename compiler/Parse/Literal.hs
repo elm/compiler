@@ -20,8 +20,11 @@ num = fmap toLit (preNum <?> "number")
                        ('.':) <$> many1 digit
 
 str :: IParser Literal
-str = liftM Str . expecting "string" . betwixt '"' '"' . many $
-          backslashed <|> satisfy (/='"')
+str = choice [ let quote = try (string "\"\"\"")
+               in  quote >> Str <$> manyTill (backslashed <|> anyChar) quote
+             , liftM Str . expecting "string" . betwixt '"' '"' . many $
+               backslashed <|> satisfy (/='"')
+             ]
 
 chr :: IParser Literal
 chr = Chr <$> betwixt '\'' '\'' (backslashed <|> satisfy (/='\''))

@@ -1,7 +1,7 @@
 
 module Parse.Pattern (term, expr, makeLambda, flatten) where
 
-import Control.Applicative ((<$>),(<*>),(*>),pure)
+import Control.Applicative ((<$>),(<*>),pure)
 import Control.Monad
 import Control.Monad.State
 import Data.Char (isUpper)
