@@ -9,6 +9,7 @@ Syntax:
 * Record Constructors
 * Pattern matching on literals
 * Pattern aliases with `as` (Andrew)
+* Triple-quoted multi-line strings
 * Use if, let, case, and lambda in last term of a
   binary expression without parentheses
 
