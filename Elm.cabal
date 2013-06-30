@@ -57,7 +57,6 @@ Library
                        Parse.Helpers,
                        Parse.Literal,
                        Parse.Module,
-                       Parse.Literal,
                        Parse.Parser,
                        Parse.Pattern,
                        Parse.Type,
