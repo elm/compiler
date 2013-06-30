@@ -19,7 +19,7 @@ unify hints modul@(Module _ _ _ stmts) = run $ do
   case result of
     Left err -> return (Left err)
     Right (schemes, constraints) ->
-        do subs <- unsafePerformIO (mapM print constraints) `seq`
+        do subs <- {- unsafePerformIO (mapM print constraints) `seq` -}
                    Solver.solver (Alias.get stmts) Map.empty constraints
            let ss = either (const []) Map.toList subs
            -- unsafePerformIO (mapM print . map (second (Subst.subst ss)) $ concatMap Map.toList schemes) `seq`
