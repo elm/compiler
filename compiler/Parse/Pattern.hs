@@ -14,7 +14,6 @@ import Parse.Literal
 import qualified SourceSyntax.Pattern as Pattern
 import SourceSyntax.Everything hiding (parens, tuple)
 
-
 basic :: IParser Pattern
 basic = choice
     [ char '_' >> return PAnything

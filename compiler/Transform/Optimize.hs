@@ -3,6 +3,7 @@ module Transform.Optimize (optimize) where
 import SourceSyntax.Everything
 import Control.Arrow (second, (***))
 import Data.Char (isAlpha)
+import Data.Data
 import Transform.Substitute
 
 optimize (Module name ims exs stmts) =
@@ -14,12 +15,12 @@ optimizeStmt stmt = if stmt == stmt' then stmt' else optimizeStmt stmt'
 class Simplify a where
   simp :: a -> a
 
-instance Simplify (Declaration t v) where
+instance (Data t, Data v) => Simplify (Declaration t v) where
   simp (Definition def) = Definition (simp def)
   simp (ImportEvent js b elm t) = ImportEvent js (simp b) elm t
   simp stmt = stmt
 
-instance Simplify (Def t v) where
+instance (Data t, Data v) => Simplify (Def t v) where
   simp (FnDef func args e) = FnDef func args (simp e)
   simp (OpDef op a1 a2 e)  = OpDef op a1 a2 (simp e)
   simp x = x
@@ -27,7 +28,7 @@ instance Simplify (Def t v) where
 instance Simplify e => Simplify (Located e) where
   simp (L t s e) = L t s (simp e)
 
-instance Simplify (Expr t v) where
+instance (Data t, Data v) => Simplify (Expr t v) where
   simp expr =
     let f = simp in
     case expr of

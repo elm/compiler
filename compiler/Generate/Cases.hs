@@ -4,6 +4,7 @@ import Control.Arrow (first)
 import Control.Monad (liftM,foldM)
 import Data.List (groupBy,sortBy,lookup)
 import Data.Maybe (fromMaybe)
+import Data.Data
 
 import Unique
 import SourceSyntax.Location
@@ -31,7 +32,7 @@ data Clause t v =
     Clause (Either String Literal) [String] (Match t v)
     deriving Show
 
-matchSubst :: [(String,String)] -> Match t v -> Match t v
+matchSubst :: (Data t, Data v) => [(String,String)] -> Match t v -> Match t v
 matchSubst _ Break = Break
 matchSubst _ Fail = Fail
 matchSubst pairs (Seq ms) = Seq (map (matchSubst pairs) ms)
@@ -51,7 +52,7 @@ isCon (p:ps, e) =
 
 isVar p = not (isCon p)
 
-match :: [String] -> [([Pattern],LExpr t v)] -> Match t v -> Unique (Match t v)
+match :: (Data t, Data v) => [String] -> [([Pattern],LExpr t v)] -> Match t v -> Unique (Match t v)
 match [] [] def = return def
 match [] [([],e)] Fail  = return $ Other e
 match [] [([],e)] Break = return $ Other e
@@ -68,7 +69,7 @@ dealias v c@(p:ps, L t s e) =
       PAlias x pattern -> (pattern:ps, L t s $ subst x (Var v) e)
       _ -> c
 
-matchVar :: [String] -> [([Pattern],LExpr t v)] -> Match t v
+matchVar :: (Data t, Data v) => [String] -> [([Pattern],LExpr t v)] -> Match t v
          -> Unique (Match t v)
 matchVar (v:vs) cs def = match vs (map subVar cs) def
   where
@@ -82,7 +83,7 @@ matchVar (v:vs) cs def = match vs (map subVar cs) def
               PRecord fs ->
                  foldr (\x -> subst x (Access (loc (Var v)) x)) e fs
 
-matchCon :: [String] -> [([Pattern],LExpr t v)] -> Match t v
+matchCon :: (Data t, Data v) => [String] -> [([Pattern],LExpr t v)] -> Match t v
          -> Unique (Match t v)
 matchCon (v:vs) cs def = (flip (Match v) def) `liftM` mapM toClause css
     where
@@ -103,7 +104,7 @@ matchCon (v:vs) cs def = (flip (Match v) def) `liftM` mapM toClause css
           (PData name _ : _, _) -> matchClause (Left name) (v:vs) cs Break
           (PLiteral lit : _, _) -> matchClause (Right lit) (v:vs) cs Break
 
-matchClause :: Either String Literal
+matchClause :: (Data t, Data v) => Either String Literal
             -> [String]
             -> [([Pattern],LExpr t v)]
             -> Match t v
@@ -115,7 +116,7 @@ matchClause c (v:vs) cs def =
 
       flatten (p:ps, e) =
           case p of
-            PData _ ps' -> (ps' ++ ps, e)
+            PData name ps' -> (ps' ++ ps, e)
             PLiteral _  -> (ps, e)
 
       getVars =
@@ -123,7 +124,7 @@ matchClause c (v:vs) cs def =
             (PData _ ps : _, _) -> mapM (\_ -> newVar) ps
             (PLiteral _ : _, _) -> return []
 
-matchMix :: [String] -> [([Pattern],LExpr t v)] -> Match t v
+matchMix :: (Data t, Data v) => [String] -> [([Pattern],LExpr t v)] -> Match t v
          -> Unique (Match t v)
 matchMix vs cs def = foldM (flip $ match vs) def (reverse css)
     where css = groupBy (\p1 p2 -> isCon p1 == isCon p2) cs
