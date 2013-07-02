@@ -80,7 +80,7 @@ binop op ce1@(L t1 s1 e1) ce2@(L t2 s2 e2) =
           ; "mod" -> int $ mod n m
           ; "rem" -> int $ rem n m
           ; "<" -> bool $ n < m
-          ; ">" -> bool $ n < m
+          ; ">" -> bool $ n > m
           ; "<=" -> bool $ n <= m
           ; ">=" -> bool $ n >= m
           ; "==" -> bool $ n == m
