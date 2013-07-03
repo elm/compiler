@@ -48,7 +48,7 @@ constrain env (L _ _ expr) tipe =
           exists $ \t2 -> do
             fragment <- Pattern.constrain env p t1
             c2 <- constrain env e t2
-            let c = ex (vars fragment) (CLet [Scheme [] [] CTrue (typeEnv fragment)]
+            let c = ex (vars fragment) (CLet [monoscheme (typeEnv fragment)]
                                              (typeConstraint fragment /\ c2 ))
             return $ c /\ tipe === (t1 ==> t2)
 
@@ -66,8 +66,6 @@ constrain env (L _ _ expr) tipe =
                   ce <- constrain env e tipe
                   return (cb /\ ce)
 
-      Let defs body -> error "not defined yet"
-
       Case e branches ->
           exists $ \t -> do
             ce <- constrain env e t
@@ -75,7 +73,7 @@ constrain env (L _ _ expr) tipe =
                   fragment <- Pattern.constrain env p t
                   c <- constrain env e tipe
                   return $ ex (vars fragment)
-                              (CLet [Scheme [] [] CTrue (typeEnv fragment)]
+                              (CLet [monoscheme (typeEnv fragment)]
                                     (typeConstraint fragment /\ c))
             CAnd . (:) ce <$> mapM branch branches
 
@@ -140,16 +138,62 @@ constrain env (L _ _ expr) tipe =
       Markdown _ ->
           return $ tipe === Env.get env builtin "Element"
 
+      Let defs body ->
+          do c <- constrain env body tipe
+             (schemes, rqs, fqs, header, c2, c1) <-
+                 Monad.foldM (constrainDef env)
+                             ([], [], [], Map.empty, CTrue, CTrue)
+                             (collapseDefs defs)
+             return $ CLet schemes
+                           (CLet [Scheme rqs fqs (CLet [monoscheme header] c2) header ]
+                                 (c1 /\ c))
+
+
+constrainDef env info (name, args, expr, maybeTipe) =
+    let (schemes, rigidQuantifiers, flexibleQuantifiers, headers, c2, c1) = info in
+    case maybeTipe of
+      Just tipe ->
+          do flexiVars <- mapM (\_ -> flexibleVar) args
+             let inserts = zipWith (\arg typ -> Map.insert arg (VarN typ)) args flexiVars
+                 env' = env { value = List.foldl' (\x f -> f x) (value env) inserts }
+                 typ = error "This should be the internal representation of the user defined type."
+                 scheme = Scheme { rigidQuantifiers = [],
+                                   flexibleQuantifiers = flexiVars,
+                                   constraint = CTrue,
+                                   header = Map.singleton name typ }
+             c <- constrain env' expr typ
+             return ( scheme : schemes
+                    , rigidQuantifiers
+                    , flexibleQuantifiers
+                    , headers
+                    , c2
+                    , fl rigidQuantifiers c /\ c1 )
+
+      Nothing ->
+          do var <- flexibleVar
+             rigidVars <- mapM (\_ -> rigidVar) args
+             let tipe = VarN var
+                 inserts = zipWith (\arg typ -> Map.insert arg (VarN typ)) args rigidVars
+                 env' = env { value = List.foldl' (\x f -> f x) (value env) inserts }
+             c <- constrain env' expr tipe
+             return ( schemes
+                    , rigidVars ++ rigidQuantifiers
+                    , var : flexibleQuantifiers
+                    , Map.insert name tipe headers
+                    , c /\ c2
+                    , c1 )
 
 --collapseDefs :: [Def t v] -> [(String, [String], LExpr t v, Maybe Type)]
-collapseDefs = go Map.empty Map.empty
-    where
-      go defs typs [] = Map.union (Map.intersectionWith (\f t -> f (Just t)) defs typs)
-                                  (Map.map ($ Nothing) (Map.difference defs typs))
-      go defs typs (d:ds) =
-          case d of
-            Def name args body ->
-                go (Map.insert name ((,,) args body) defs) typs ds
-            TypeAnnotation name typ ->
-                go defs (Map.insert name typ typs) ds
-          
+collapseDefs definitions =
+    map (\(name, (args, expr, tipe)) -> (name, args, expr, tipe)) defPairs
+  where
+    defPairs = Map.toList (go Map.empty Map.empty definitions)
+
+    go defs typs [] = Map.union (Map.intersectionWith (\f t -> f (Just t)) defs typs)
+                                (Map.map ($ Nothing) (Map.difference defs typs))
+    go defs typs (d:ds) =
+        case d of
+          Def name args body ->
+              go (Map.insert name ((,,) args body) defs) typs ds
+          TypeAnnotation name typ ->
+              go defs (Map.insert name typ typs) ds

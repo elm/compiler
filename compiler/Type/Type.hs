@@ -37,6 +37,8 @@ data Scheme a b = Scheme {
     header :: Map.Map String a    -- mapping from names to types
 } deriving Show
 
+monoscheme headers = Scheme [] [] CTrue headers
+
 data Descriptor = Descriptor {
     structure :: Maybe (Term1 Variable),
     rank :: Int,
@@ -80,6 +82,13 @@ flexibleVar = UF.fresh $ Descriptor {
     structure = Nothing,
     rank = noRank,
     flex = Flexible,
+    name = Nothing
+  }
+
+rigidVar = UF.fresh $ Descriptor {
+    structure = Nothing,
+    rank = noRank,
+    flex = Rigid,
     name = Nothing
   }
 
