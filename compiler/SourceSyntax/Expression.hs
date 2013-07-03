@@ -15,25 +15,24 @@ data Expr t v
     = Literal Literal.Literal
     | Var String
     | Range (LExpr t v) (LExpr t v)
-    | Access (LExpr t v) String
-    | Remove (LExpr t v) String
-    | Insert (LExpr t v) String (LExpr t v)
-    | Modify (LExpr t v) [(String, LExpr t v)]
-    | Record [(String, [String], LExpr t v)]
+    | ExplicitList [LExpr t v]
     | Binop String (LExpr t v) (LExpr t v)
-    | Lambda String (LExpr t v)
+    | Lambda Pattern.Pattern (LExpr t v)
     | App (LExpr t v) (LExpr t v)
     | MultiIf [(LExpr t v,LExpr t v)]
     | Let [Def t v] (LExpr t v)
     | Case (LExpr t v) [(Pattern.Pattern, LExpr t v)]
-    | ExplicitList [LExpr t v]
     | Data String [LExpr t v]
+    | Access (LExpr t v) String
+    | Remove (LExpr t v) String
+    | Insert (LExpr t v) String (LExpr t v)
+    | Modify (LExpr t v) [(String, LExpr t v)]
+    | Record [(String, [String], LExpr t v)] -- [Def t v]
     | Markdown Pandoc.Pandoc
       deriving (Eq, Data, Typeable)
 
 data Def tipe var
-    = FnDef String [String] (LExpr tipe var)
-    | OpDef String String String (LExpr tipe var)
+    = Def String [String] (LExpr tipe var)
     | TypeAnnotation String Type
       deriving (Eq, Data, Typeable)
 
@@ -49,15 +48,7 @@ instance Show (Expr t v) where
    case e of
      Literal lit -> show lit
      Range e1 e2 -> "[" ++ show e1 ++ ".." ++ show e2 ++ "]"
-     Access e x -> show' e ++ "." ++ x
-     Remove e x -> Help.brkt (show e ++ " - " ++ x)
-     Insert (Location.L _ _ (Remove e y)) x v ->
-         Help.brkt (show e ++ " - " ++ y ++ " | " ++ x ++ " = " ++ show v)
-     Insert e x v -> Help.brkt (show e ++ " | " ++ x ++ " = " ++ show v)
-     Modify e fs -> Help.brkt (show e ++" | "++ intercalate ", " (map field fs))
-         where field (x,e) = x ++ " <- " ++ show e
-     Record r -> Help.brkt (intercalate ", " (map fields r))
-         where fields (f,args,e) = f ++ concatMap (' ':) args ++ " = " ++ show e
+     ExplicitList es -> "[" ++ intercalate "," (map show es) ++ "]"
      Binop op e1 e2 -> show' e1 ++ " " ++ op ++ " " ++ show' e2
      Lambda x e -> let (xs,e') = getLambdas (Location.none $ Lambda x e) in
                       concat [ "\\", intercalate " " xs, " -> ", show e' ]
@@ -69,22 +60,34 @@ instance Show (Expr t v) where
      Var (c:cs) -> if Help.isOp c then Help.parens (c:cs) else c:cs
      Case e pats -> "case "++ show e ++" of " ++ Help.brkt (intercalate " ; " pats')
          where pats' = map (\(p,e) -> show p ++ " -> " ++ show e) pats
-     ExplicitList es -> "[" ++ intercalate "," (map show es) ++ "]"
      Data "::" [h,t] -> show h ++ " :: " ++ show t
      Data "[]" [] -> "[]"
      Data name es -> name ++ " " ++ intercalate " " (map show' es)
+     Access e x -> show' e ++ "." ++ x
+     Remove e x -> Help.brkt (show e ++ " - " ++ x)
+     Insert (Location.L _ _ (Remove e y)) x v ->
+         Help.brkt (show e ++ " - " ++ y ++ " | " ++ x ++ " = " ++ show v)
+     Insert e x v -> Help.brkt (show e ++ " | " ++ x ++ " = " ++ show v)
+     Modify e fs -> Help.brkt (show e ++" | "++ intercalate ", " (map field fs))
+         where field (x,e) = x ++ " <- " ++ show e
+     Record r -> Help.brkt (intercalate ", " (map fields r))
+         where fields (f,args,e) = f ++ concatMap (' ':) args ++ " = " ++ show e
      Markdown _ -> "[markdown| ... |]"
 
 
 instance Show (Def t v) where
   show e =
    case e of
-     FnDef v [] e     -> v ++ " = " ++ show e
-     FnDef f args e   -> f ++ concatMap (' ':) args ++ " = " ++ show e
-     OpDef op a1 a2 e -> intercalate " " [a1,op,a2] ++ " = " ++ show e
      TypeAnnotation n t -> n ++ " : " ++ show t
+     Def name@(c:_) args e ->
+         value ++ " = " ++ show e
+       where
+         value = if not (Help.isOp c) then name ++ concatMap (' ':) args else
+                 case args of
+                   [] -> parens name
+                   [a,b] -> a ++ " " ++ name ++ " " ++ b
 
-getLambdas (Location.L _ _ (Lambda x e)) = (x:xs,e')
+getLambdas (Location.L _ _ (Lambda x e)) = (show x:xs,e')
     where (xs,e') = getLambdas e
 getLambdas e = ([],e)
 
