@@ -89,13 +89,14 @@ typeAlias = do
                        _ -> []
 
 toConstructor start end alias Nothing kvs =
-    Definition (FnDef alias args (loc (Record rec)))
+    Definition (Def alias args (loc (Record rec)))
   where
     loc = Located.at start end
     args = map fst kvs
-    rec = map (\a -> (a, [], loc (Var a))) args
+    rec = map (\a -> (a, loc (Var a))) args
+
 toConstructor start end alias (Just _) kvs =
-    Definition (FnDef alias (args++["_ext_"]) (loc rec))
+    Definition (Def alias (args++["_ext_"]) (loc rec))
   where
     loc = Located.at start end
     args = map fst kvs

@@ -1,5 +1,5 @@
 
-module Parse.Pattern (term, expr, makeLambda, flatten) where
+module Parse.Pattern (term, expr) where
 
 import Control.Applicative ((<$>),(<*>),pure)
 import Control.Monad
@@ -64,13 +64,7 @@ expr = do
   patterns <- consSep1 (patternConstructor <|> term)
   asPattern (foldr1 Pattern.cons patterns) <?> "pattern"
 
-makeLambda :: [Pattern] -> LExpr t v -> Unique (LExpr t v)
-makeLambda pats body = go (reverse pats) body
-    where go [] body = return body
-          go (p:ps) body@(L t s _) = do
-            (x,e) <- extract p body
-            go ps (L t s $ Lambda x e)
-          
+{--
 extract :: Pattern -> LExpr t v -> Unique (String, LExpr t v)
 extract pattern body@(L t s _) =
   let loc = L t s in
@@ -136,3 +130,4 @@ matchSingle pat exp@(L t s _) p =
         return (FnDef a [] exp : map toDef fs)
 
     PAnything -> return []
+--}

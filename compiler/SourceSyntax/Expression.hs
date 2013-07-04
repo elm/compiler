@@ -27,12 +27,12 @@ data Expr t v
     | Remove (LExpr t v) String
     | Insert (LExpr t v) String (LExpr t v)
     | Modify (LExpr t v) [(String, LExpr t v)]
-    | Record [(String, [String], LExpr t v)] -- [Def t v]
+    | Record [(String, LExpr t v)]
     | Markdown Pandoc.Pandoc
       deriving (Eq, Data, Typeable)
 
 data Def tipe var
-    = Def String [String] (LExpr tipe var)
+    = Def Pattern.Pattern (LExpr tipe var)
     | TypeAnnotation String Type
       deriving (Eq, Data, Typeable)
 
@@ -71,7 +71,7 @@ instance Show (Expr t v) where
      Modify e fs -> Help.brkt (show e ++" | "++ intercalate ", " (map field fs))
          where field (x,e) = x ++ " <- " ++ show e
      Record r -> Help.brkt (intercalate ", " (map fields r))
-         where fields (f,args,e) = f ++ concatMap (' ':) args ++ " = " ++ show e
+         where fields (f,e) = f ++ " = " ++ show e
      Markdown _ -> "[markdown| ... |]"
 
 
@@ -79,13 +79,8 @@ instance Show (Def t v) where
   show e =
    case e of
      TypeAnnotation n t -> n ++ " : " ++ show t
-     Def name@(c:_) args e ->
-         value ++ " = " ++ show e
-       where
-         value = if not (Help.isOp c) then name ++ concatMap (' ':) args else
-                 case args of
-                   [] -> parens name
-                   [a,b] -> a ++ " " ++ name ++ " " ++ b
+     Def pattern e ->
+         show pattern ++ " = " ++ show e
 
 getLambdas (Location.L _ _ (Lambda x e)) = (show x:xs,e')
     where (xs,e') = getLambdas e

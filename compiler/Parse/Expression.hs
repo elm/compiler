@@ -81,25 +81,32 @@ parensTerm = parens $ choice
 recordTerm :: IParser (LExpr t v)
 recordTerm = brackets $ choice [ misc, addLocation record ]
     where field = do
-              fDefs <- (:) <$> (PVar <$> rLabel) <*> spacePrefix Pattern.term
+              label <- rLabel
+              patterns <- spacePrefix Pattern.term
               whitespace
               e <- string "=" >> whitespace >> expr
-              n <- sourceLine <$> getPosition
-              runAt (1000 * n) $ Pattern.flatten fDefs e
-          extract [ FnDef f args exp ] = return (f,args,exp)
+              return (label, foldr Lambda e patterns)
+              
+          extract [ Def f args exp ] = return (f,args,exp)
           extract _ = fail "Improperly formed record field."
+
           record = Record <$> (mapM extract =<< commaSep field)
+
           change = do
               lbl <- rLabel
               whitespace >> string "<-" >> whitespace
               (,) lbl <$> expr
+
           remove r = addLocation (string "-" >> whitespace >> Remove r <$> rLabel)
+
           insert r = addLocation $ do
                        string "|" >> whitespace
                        Insert r <$> rLabel <*>
                            (whitespace >> string "=" >> whitespace >> expr)
+
           modify r = addLocation
                      (string "|" >> whitespace >> Modify r <$> commaSep1 change)
+
           misc = try $ do
             record <- addLocation (Var <$> rLabel)
             whitespace
@@ -152,7 +159,7 @@ lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
                 pats <- spaceSep1 Pattern.term
                 whitespace ; arrow ; whitespace
                 e <- expr
-                return . run $ Pattern.makeLambda pats e
+                return (foldr Lambda pats e)
 
 defSet :: IParser [Def t v]
 defSet = concat <$> block (do d <- anyDef ; whitespace ; return d)

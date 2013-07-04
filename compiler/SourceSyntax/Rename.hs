@@ -7,7 +7,7 @@ import Control.Monad.State (evalState, State, get, put)
 import Data.Char (isLower,isDigit)
 import qualified Data.Map as Map
 import Unique
-import SourceSyntax.Location
+import SourceSyntax.Location as Loc
 import SourceSyntax.Pattern
 import SourceSyntax.Expression
 import SourceSyntax.Declaration hiding (Assoc(..))
@@ -30,17 +30,17 @@ class Rename a where
   rename :: Env -> a -> Unique a
 
 instance Rename (Module t v) where 
-  rename env (Module name ex im stmts) = do stmts' <- renameStmts env stmts
-                                            return (Module name ex im stmts')
+  rename env (Module name ex im decls) = do decls' <- renameDecls env decls
+                                            return (Module name ex im decls')
 
 instance Rename (Def t v) where
-  rename env (OpDef op a1 a2 e) =
-      do env' <- extends env [a1,a2]
-         OpDef op (replace env' a1) (replace env' a2) `liftM` rename env' e
-  rename env (FnDef f args e) =
-      do env' <- extends env args
-         FnDef (replace env f) (map (replace env') args) `liftM` rename env' e
-  rename env (TypeAnnotation n t) = return (TypeAnnotation (replace env n) t)
+  rename env def =
+    case def of
+      Def p e ->
+          do (p', e', _) <- patternRename env (p,e)
+             return (Def p' e')
+      TypeAnnotation n t ->
+          return (TypeAnnotation (replace env n) t)
 
 
 instance Rename (Declaration t v) where
@@ -56,10 +56,11 @@ instance Rename (Declaration t v) where
       ExportEvent js elm tipe ->
           return $ ExportEvent js (replace env elm) tipe
 
-renameStmts env stmts = do env' <- extends env $ concatMap getNames stmts
-                           mapM (rename env') stmts
+renameDecls env decls =
+    do env' <- extends env $ concatMap getNames decls
+       mapM (rename env') decls
     where getNames stmt = case stmt of
-                            Definition (FnDef n _ _) -> [n]
+                            --Definition (Def n _) -> [n]
                             Datatype _ _ tcs -> map fst tcs
                             ImportEvent _ _ n _ -> [n]
                             _ -> []
@@ -87,10 +88,8 @@ instance Rename (Expr t v) where
                                 `ap` mapM (\(x,e) -> (,) x `liftM` rnm e) fs
 
       Record fs -> Record `liftM` mapM frnm fs
-          where frnm (f,as,e) = do
-                  env' <- extends env as
-                  e' <- rename env' e
-                  return (f, map (replace env') as, e') 
+          where
+            frnm (f,e) = (,) f `liftM` rename env e
 
       Binop op@(h:_) e1 e2 ->
         let rop = if isLower h || '_' == h
@@ -99,9 +98,9 @@ instance Rename (Expr t v) where
         in Binop rop `liftM` rnm e1
                         `ap` rnm e2
 
-      Lambda x e -> do
-          (rx, env') <- extend env x
-          Lambda rx `liftM` rename env' e
+      Lambda pattern e -> do
+          (pattern', env') <- patternExtend env pattern
+          Lambda pattern' `liftM` rename env' e
 
       App e1 e2 -> App `liftM` rnm e1
                           `ap` rnm e2
@@ -119,7 +118,9 @@ instance Rename (Expr t v) where
       ExplicitList es -> ExplicitList `liftM` mapM rnm es
 
       Case e cases -> Case `liftM` rnm e
-                              `ap` mapM (patternRename env) cases
+                              `ap` mapM (liftM drop3rd . patternRename env) cases
+          where
+            drop3rd (a,b,c) = (a,b)
 
       _ -> return expr
 
@@ -134,31 +135,36 @@ extend env x = do
 extends :: Env -> [String] -> Unique Env
 extends env xs = foldM (\e x -> liftM snd $ extend e x) env xs
 
-patternExtend :: Pattern -> Env -> Unique (Pattern, Env)
-patternExtend pattern env =
+patternExtend :: Env -> Pattern -> Unique (Pattern, Env)
+patternExtend env pattern =
     case pattern of
       PLiteral _ -> return (pattern, env)
       PAnything  -> return (pattern, env)
       PVar x     -> first PVar `liftM` extend env x
       PAlias x p -> do
         (x', env') <- extend env x
-        (p', env'') <- patternExtend p env'
+        (p', env'') <- patternExtend env' p
         return (PAlias x' p', env'')
       PData name ps ->
           first (PData name . reverse) `liftM` foldM f ([], env) ps
-                 where f (rps,env') p = do (rp,env'') <- patternExtend p env'
+                 where f (rps,env') p = do (rp,env'') <- patternExtend env' p
                                            return (rp:rps, env'')
       PRecord fs ->
           return (pattern, Map.union (Map.fromList $ map (\f -> (f,f)) fs) env)
 
-patternRename :: Env -> (Pattern, LExpr t v) -> Unique (Pattern, LExpr t v)
-patternRename env (p,e) = do
-  (rp,env') <- patternExtend p env
-  re <- rename env' e
-  return (rp,re)
+patternRename :: Env -> (Pattern, LExpr t v) -> Unique (Pattern, LExpr t v, Env)
+patternRename env (pattern,expr) = do
+  (pattern',env') <- patternExtend env pattern
+  expr' <- rename env' expr
+  return (pattern', expr', env')
 
-renameLet env defs e = do env' <- extends env $ concatMap getNames defs
-                          defs' <- mapM (rename env') defs
-                          Let defs' `liftM` rename env' e
-    where getNames (FnDef n _ _)   = [n]
-          getNames _ = []
+renameLet env defs e =
+  do (env', ps') <- foldM addPattern (env, []) (map fst defPairs)
+     bodies <- mapM (rename env') (map snd defPairs)
+     Let (zipWith Def ps' bodies) `liftM` rename env' e
+  where
+    defPairs = map (\(Def p e) -> (p,e)) defs
+
+    addPattern (env,ps) pattern =
+        do (pattern', _, env') <- patternRename env (pattern, Loc.none (Var ""))
+           return (env', pattern' : ps)
