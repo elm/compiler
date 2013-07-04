@@ -5,13 +5,15 @@ import Control.Monad (liftM,(<=<),join,ap)
 import Data.Char (isAlpha,isDigit)
 import Data.List (intercalate,sortBy,inits,foldl')
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.Either (partitionEithers)
 import qualified Text.Pandoc as Pan
-import Data.Maybe (maybeToList)
 
 import Unique
 import Generate.Cases
 import SourceSyntax.Everything hiding (parens)
+import SourceSyntax.Location as Loc
+import Transform.SortDefinitions
 import Types.Types ( Type(RecordT) )
 
 showErr :: String -> String
@@ -80,10 +82,15 @@ getExports names stmts = "\n"++ intercalate ";\n" (op : map fnPair fns)
 
           op = ("_.$op = "++) . jsObj $ map opPair ops
 
-          get' (FnDef x _ _) = Just (Left x)
-          get' (OpDef op _ _ _) = Just (Right op)
-          get' (TypeAnnotation _ _) = Nothing
-          get s = case s of Definition d        -> maybeToList (get' d)
+          get' def =
+              case def of
+                TypeAnnotation _ _ -> []
+                Def pattern _ ->
+                    case Set.toList (boundVars pattern) of
+                      [var@(c:_)] -> [if isOp c then Right var else Left var]
+                      vars -> map Left vars
+
+          get s = case s of Definition def      -> get' def
                             Datatype _ _ tcs    -> map (Left . fst) tcs
                             ImportEvent _ _ x _ -> [ Left x ]
                             ExportEvent _ _ _   -> []
@@ -125,10 +132,11 @@ stmtsToJS stmts = run $ do program <- mapM toJS (sortBy cmpStmt stmts)
       valueOf s = case s of
                     Datatype _ _ _             -> 1
                     ImportEvent _ _ _ _        -> 2
-                    Definition (FnDef f [] _)  ->
-                        if derename f == "main" then 5 else 4
+                    Definition (Def f (L _ _ (Lambda _ _)))  -> 3
+                    Definition (Def (PVar name) _)  ->
+                        if derename name == "main" then 5 else 4
+                    Definition (Def _ _)  -> 4
                     Definition (TypeAnnotation _ _)  -> 0
-                    Definition _               -> 3
                     ExportEvent _ _ _          -> 6
                     TypeAlias _ _ _            -> 0
 
@@ -136,8 +144,12 @@ class ToJS a where
   toJS :: a -> Unique String
 
 instance ToJS (Def t v) where
-  toJS (FnDef x [] e) = assign x `liftM` toJS' e
-  toJS (FnDef f as e) = (assign f . wrapper . func) `liftM` toJS' e
+
+  -- TODO: Make this handle patterns besides plain variables
+
+  toJS (Def (PVar x) e) = assign x `liftM` toJS' e
+{--
+  toJS (Def f e) = (assign f . wrapper . func) `liftM` toJS' e
       where
         func body = jsFunc (intercalate ", " as) (ret body)
         wrapper e | length as == 1 = e
@@ -146,6 +158,7 @@ instance ToJS (Def t v) where
       do body <- toJS' e                    
          let func = "F2" ++ parens (jsFunc (a1 ++ ", " ++ a2) (ret body))
          return (globalAssign ("$op['" ++ op ++ "']") func)
+--}
   toJS (TypeAnnotation _ _) = return ""
 
 
@@ -155,9 +168,11 @@ instance ToJS (Declaration t v) where
       Definition d -> toJS d
       Datatype _ _ tcs -> concat `liftM` mapM (toJS . toDef) tcs
           where toDef (name,args) =
-                    let vars = map (('a':) . show) [1..length args] in
-                    Definition . FnDef name vars . none $
-                    Data (derename name) (map (none . Var) vars)
+                    let vars = map (('a':) . show) [1..length args]
+                        body = Loc.none (Data (derename name) (map (Loc.none . Var) vars))
+                        func = foldr (\x e -> Loc.none (Lambda (PVar x) e)) body vars
+                    in  Definition $ Def (PVar name) func
+
       ImportEvent js base elm _ ->
         do v <- toJS' base
            return $ concat [ "\nvar " ++ elm ++ "=Elm.Signal(elm).constant(" ++ v ++ ");"
@@ -188,8 +203,8 @@ makeRecord kvs = record `liftM` collect kvs
   where
     combine r (k,v) = Map.insertWith (++) k v r
     collect = liftM (foldl' combine Map.empty) . mapM prep
-    prep (k, as, e@(L t s _)) =
-        do v <- toJS' (foldr (\x e -> L t s $ Lambda x e) e as)
+    prep (k, e) =
+        do v <- toJS' e
            return (k,[v])
     fields fs =
         brackets ("\n  "++intercalate ",\n  " (map (\(k,v) -> k++":"++v) fs))
@@ -222,7 +237,22 @@ instance ToJS (Expr t v) where
     Record fs -> makeRecord fs
     Binop op e1 e2 -> binop op `liftM` toJS' e1 `ap` toJS' e2
 
-    Lambda v e -> liftM (jsFunc v . ret) (toJS' e)
+    Lambda p e -> liftM (jsFunc (intercalate ", " args) . ret) (toJS' body)
+        where
+          (args, body) = foldr depattern ([], innerBody) (zip patterns [1..])
+
+          depattern (pattern,n) (args, body) =
+            case pattern of
+              PVar x -> (x:args, body)
+              _ -> let arg = "arg" ++ show n
+                   in  (arg:args, Loc.none (Case (Loc.none (Var arg)) [(pattern, body)]))
+
+          (patterns, innerBody) = collect [p] e
+
+          collect patterns lexpr@(L a b expr) =
+            case expr of
+              Lambda p e -> collect (p:patterns) e
+              _ -> (patterns, lexpr)
 
     App e1 e2 -> jsApp e1 e2
     Let defs e -> jsLet defs e
@@ -279,9 +309,8 @@ jsLet defs e' = do ds <- jsDefs defs
   where 
     jsDefs defs = mapM toJS (sortBy f defs)
     f a b = compare (valueOf a) (valueOf b)
-    valueOf (FnDef _ [] _) = 2
-    valueOf (FnDef _ _ _) = 1
-    valueOf (OpDef _ _ _ _)  = 1
+    valueOf (Def _ (L _ _ (Lambda _ _))) = 1
+    valueOf (Def _ _) = 2
     valueOf (TypeAnnotation _ _) = 0
 
 caseToJS span e ps = do

@@ -10,7 +10,8 @@ data SrcPos = Pos Int Int
 data SrcSpan = Span SrcPos SrcPos | NoSpan
     deriving (Eq, Ord, Data, Typeable)
 
-data Located e = L (Maybe String) SrcSpan e deriving (Eq,Ord, Data, Typeable)
+data Located e = L (Maybe String) SrcSpan e
+    deriving (Eq, Ord, Data, Typeable)
 
 
 instance Show SrcPos where
