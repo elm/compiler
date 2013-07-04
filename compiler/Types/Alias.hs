@@ -6,6 +6,7 @@ import Control.Arrow (second)
 import Data.List (group,sort)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Transform.SortDefinitions
 import Types.Substitutions (subst)
 import Types.Types
 import Data.Data
@@ -77,9 +78,7 @@ badKinds decls = map msg (concatMap bad decls)
     badDef def =
         case def of
           TypeAnnotation _ tipe -> badType tipe
-          FnDef _ _ expr ->
-              concatMap badDef $ concat [defList | Let defList _ <- universeBi expr]
-          OpDef _ _ _ expr ->
+          Def _ expr ->
               concatMap badDef $ concat [defList | Let defList _ <- universeBi expr]
 
     --bad :: Declaration t v -> [String]
@@ -106,8 +105,7 @@ definition s =
 defName :: Def t v -> [String]
 defName d =
     case d of
-      FnDef n _ _   -> [n]
-      OpDef n _ _ _ -> [n]
+      Def pattern _ -> Set.toList (boundVars pattern)
       _ -> []
 
 dups :: [Declaration t v] -> [String]
@@ -141,9 +139,7 @@ badOrder decls =
       --actualPairs :: [Def t v] -> [String]
       actualPairs decls =      
           case decls of
-            Definition (TypeAnnotation n _) : Definition (FnDef m _ _) : rest ->
-                (if n == m then [n] else []) ++ actualPairs rest
-            Definition (TypeAnnotation n _) : Definition (OpDef m _ _ _) : rest ->
+            Definition (TypeAnnotation n _) : Definition (Def (PVar m) _) : rest ->
                 (if n == m then [n] else []) ++ actualPairs rest
             t:s:rest -> actualPairs (s:rest)
             _ -> []

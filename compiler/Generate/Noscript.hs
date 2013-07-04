@@ -19,8 +19,7 @@ instance Extract (Declaration t v) where
   extract _ = []
 
 instance Extract (Def t v) where
-  extract (FnDef _ _ e)   = extract e
-  extract (OpDef _ _ _ e) = extract e
+  extract (Def _ e)   = extract e
   extract _ = []
 
 instance Extract e => Extract (Located e) where
