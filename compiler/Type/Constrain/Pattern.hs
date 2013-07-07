@@ -10,8 +10,8 @@ import qualified Data.Map as Map
 
 import SourceSyntax.Pattern
 import Type.Type
-import Type.Constrain.Fragment
-import Type.Constrain.Environment as Env
+import Type.Fragment
+import Type.Environment as Env
 import qualified Type.Constrain.Literal as Literal
 
 

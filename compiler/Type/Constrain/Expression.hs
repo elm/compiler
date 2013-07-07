@@ -11,8 +11,8 @@ import SourceSyntax.Location as Loc
 import SourceSyntax.Pattern (Pattern(PVar))
 import SourceSyntax.Expression
 import Type.Type hiding (Descriptor(..))
-import Type.Constrain.Fragment
-import Type.Constrain.Environment as Env
+import Type.Fragment
+import Type.Environment as Env
 import qualified Type.Constrain.Literal as Literal
 import qualified Type.Constrain.Pattern as Pattern
 

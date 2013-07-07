@@ -5,8 +5,8 @@ import qualified Data.Map as Map
 
 import SourceSyntax.Literal
 import Type.Type
-import Type.Constrain.Fragment
-import Type.Constrain.Environment as Env
+import Type.Fragment
+import Type.Environment as Env
 
 constrain :: Environment -> Literal -> Type -> TypeConstraint
 constrain env literal tipe =

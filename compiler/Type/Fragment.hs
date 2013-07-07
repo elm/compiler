@@ -1,4 +1,4 @@
-module Type.Constrain.Fragment where
+module Type.Fragment where
 
 import qualified Data.List as List
 import qualified Data.Map as Map

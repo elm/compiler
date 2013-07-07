@@ -4,11 +4,11 @@ module Type.Solve where
 import Control.Monad
 import qualified Data.UnionFind.IO as UF
 import qualified Data.Array.IO as Array
-import qualified Data.Map as Map
+import Data.Map as Map
 import qualified Data.Maybe as Maybe
 import Type.Type
 import Type.Unify
-import Type.Environment
+import Type.Environment as Env
 
 -- Pool
 -- Holds a bunch of variables
@@ -88,6 +88,11 @@ traverse young visited k variable =
 
 success = return []
 
+chop = undefined
+addTo = undefined
+newPool = undefined
+introduce = undefined
+
 solve env pool constraint =
     case constraint of
       CTrue -> success
@@ -100,12 +105,33 @@ solve env pool constraint =
           return (concat results)
 
       CLet schemes constraint' -> do
-          env' <- foldM (\env' scheme -> (++) env' `liftM` solveScheme env pool scheme) env schemes
+          env' <- foldM (\env' scheme -> addTo env' `liftM` solveScheme env pool scheme) env schemes
           solve env' pool constraint'
 
       CInstance name term -> do
-          let inst = instance' pool (Env.get env value name)
-              t = chop pool term
+          let instance' = undefined
+              inst = instance' pool (Env.get env value name)
+          t <- chop pool term
           unify pool inst t
 
-solveScheme = undefined
+solveScheme env pool scheme =
+    case scheme of
+      Scheme [] [] constraint header -> do
+          solve env pool constraint
+          mapM (\(n,t) -> (,) n `liftM` chop pool t) (Map.toList header)
+
+      Scheme rigidQuantifiers flexibleQuantifiers constraint header -> do
+          let quantifiers = rigidQuantifiers ++ flexibleQuantifiers
+          pool' <- newPool pool
+          mapM (introduce pool') rigidQuantifiers
+          mapM (introduce pool') flexibleQuantifiers
+          header' <- mapM (\(n,t) -> (,) n `liftM` chop pool t) (Map.toList header)
+          solve env pool' constraint
+          generalize pool pool'
+          mapM isGeneric rigidQuantifiers
+          return header'
+
+isGeneric var =
+    do desc <- UF.descriptor var
+       undefined
+
