@@ -12,26 +12,23 @@ import Parse.Binop (infixStmt, OpTable)
 import Parse.Expression
 import Parse.Type
 import Parse.Module
-import Parse.Foreign
-
-statement = choice (typeAlias:defs) <|> def <?> "datatype or variable definition"
-    where defs = map ((:[]) <$>) [ foreignDef, datatype ]
+import qualified Parse.Declaration as Decl
 
 freshDef = commitIf (freshLine >> (letter <|> char '_')) $ do
              freshLine
-             statement <?> "another datatype or variable definition"
+             Decl.declaration <?> "another datatype or variable definition"
 
-defs1 = do d <- statement <?> "at least one datatype or variable definition"
-           concat <$> (d:) <$> many freshDef
+decls = do d <- Decl.declaration <?> "at least one datatype or variable definition"
+           (d:) <$> many freshDef
 
 program = do
   optional freshLine
   (names,exports) <- option (["Main"],[]) (moduleDef `followedBy` freshLine)
   is <- (do try (lookAhead $ reserved "import")
             imports `followedBy` freshLine) <|> return []
-  statements <- defs1
+  declarations <- decls
   optional freshLine ; optional spaces ; eof
-  return $ Module names exports is statements
+  return $ Module names exports is declarations
 
 parseProgram = setupParser program
 
