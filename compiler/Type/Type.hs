@@ -43,12 +43,15 @@ data Descriptor = Descriptor {
     structure :: Maybe (Term1 Variable),
     rank :: Int,
     flex :: Flex,
-    name :: Maybe TypeName
+    name :: Maybe TypeName,
+    mark :: Int
 }
 
-noRank = 0
+noRank = -1
+outermostRank = 0 :: Int
+
 data Flex = Rigid | Flexible | Constant
-     deriving Show
+     deriving (Show, Eq)
 
 type Variable = UF.Point Descriptor
 
@@ -75,21 +78,24 @@ namedVar name = UF.fresh $ Descriptor {
     structure = Nothing,
     rank = noRank,
     flex = Constant,
-    name = Just name
+    name = Just name,
+    mark = 0
   }
 
 flexibleVar = UF.fresh $ Descriptor {
     structure = Nothing,
     rank = noRank,
     flex = Flexible,
-    name = Nothing
+    name = Nothing,
+    mark = 0
   }
 
 rigidVar = UF.fresh $ Descriptor {
     structure = Nothing,
     rank = noRank,
     flex = Rigid,
-    name = Nothing
+    name = Nothing,
+    mark = 0
   }
 
 -- ex qs constraint == exists qs. constraint

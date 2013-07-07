@@ -128,16 +128,16 @@ constrain env (L _ _ expr) tipe =
                  recordType = record fieldTypes (TermN EmptyRecord1)
              return $ ex (map snd pairs) (CAnd (tipe === recordType : cs))
           where
-            field (name, args, body) = do
-                let value = List.foldl' (\e arg -> Loc.none (Lambda (PVar arg) e)) body args
+            field (name, body) = do
                 v <- flexibleVar -- needs an ex
-                c <- constrain env value (VarN v)
+                c <- constrain env body (VarN v)
                 return ((name, v), c)
                 
 
       Markdown _ ->
           return $ tipe === Env.get env builtin "Element"
 
+{--
       Let defs body ->
           do c <- constrain env body tipe
              (schemes, rqs, fqs, header, c2, c1) <-
@@ -149,12 +149,12 @@ constrain env (L _ _ expr) tipe =
                                  (c1 /\ c))
 
 
-constrainDef env info (name, args, expr, maybeTipe) =
+constrainDef env info (name, qs, expr, maybeTipe) =
     let (schemes, rigidQuantifiers, flexibleQuantifiers, headers, c2, c1) = info in
     case maybeTipe of
       Just tipe ->
-          do flexiVars <- mapM (\_ -> flexibleVar) args
-             let inserts = zipWith (\arg typ -> Map.insert arg (VarN typ)) args flexiVars
+          do flexiVars <- mapM (\_ -> flexibleVar) qs
+             let inserts = zipWith (\arg typ -> Map.insert arg (VarN typ)) qs flexiVars
                  env' = env { value = List.foldl' (\x f -> f x) (value env) inserts }
                  typ = error "This should be the internal representation of the user defined type."
                  scheme = Scheme { rigidQuantifiers = [],
@@ -171,9 +171,9 @@ constrainDef env info (name, args, expr, maybeTipe) =
 
       Nothing ->
           do var <- flexibleVar
-             rigidVars <- mapM (\_ -> rigidVar) args
+             rigidVars <- mapM (\_ -> rigidVar) qs
              let tipe = VarN var
-                 inserts = zipWith (\arg typ -> Map.insert arg (VarN typ)) args rigidVars
+                 inserts = zipWith (\arg typ -> Map.insert arg (VarN typ)) qs rigidVars
                  env' = env { value = List.foldl' (\x f -> f x) (value env) inserts }
              c <- constrain env' expr tipe
              return ( schemes
@@ -185,7 +185,7 @@ constrainDef env info (name, args, expr, maybeTipe) =
 
 --collapseDefs :: [Def t v] -> [(String, [String], LExpr t v, Maybe Type)]
 collapseDefs definitions =
-    map (\(name, (args, expr, tipe)) -> (name, args, expr, tipe)) defPairs
+    map (\(name, (expr, tipe)) -> (name, expr, tipe)) defPairs
   where
     defPairs = Map.toList (go Map.empty Map.empty definitions)
 
@@ -193,7 +193,8 @@ collapseDefs definitions =
                                 (Map.map ($ Nothing) (Map.difference defs typs))
     go defs typs (d:ds) =
         case d of
-          Def name args body ->
-              go (Map.insert name ((,,) args body) defs) typs ds
+          Def name body ->
+              go (Map.insert name ((,) body) defs) typs ds
           TypeAnnotation name typ ->
               go defs (Map.insert name typ typs) ds
+--}
