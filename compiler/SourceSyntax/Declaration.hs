@@ -12,7 +12,7 @@ data Declaration tipe var
     | ImportEvent String (Expr.LExpr tipe var) String Type
     | ExportEvent String String Type
     | Fixity Assoc Int String
-      deriving (Eq, Show, Data, Typeable)
+      deriving (Eq, Show, Data, Typeable, Show)
 
 data Assoc = L | N | R
-             deriving (Eq, Show, Data, Typeable)
+             deriving (Eq, Show, Data, Typeable, Show)

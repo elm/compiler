@@ -2,20 +2,21 @@
 module SourceSyntax.Literal where
 
 import Data.Data
+import SourceSyntax.PrettyPrint
+import qualified Text.PrettyPrint as PP
 
 data Literal = IntNum Int
              | FloatNum Float
              | Chr Char
              | Str String
              | Boolean Bool
-               deriving (Eq, Ord, Data, Typeable)
+               deriving (Eq, Ord, Data, Typeable, Show)
 
-
-instance Show Literal where
-  show e =
-      case e of
-        IntNum n -> show n
-        FloatNum n -> show n
-        Chr c -> show c
-        Str s -> show s
-        Boolean b -> show b
+instance Pretty Literal where
+  pretty literal =
+    case literal of
+      IntNum n -> PP.int n
+      FloatNum n -> PP.float n
+      Chr c -> PP.char c
+      Str s -> PP.text (show s)
+      Boolean bool -> PP.text (show bool)

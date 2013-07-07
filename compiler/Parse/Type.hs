@@ -85,9 +85,9 @@ typeAlias = do
     Right t -> return (TypeAlias alias [1..n] t : ctor)
         where ctor = case tipe of
                        RecordPT extension kvs ->
-                           [toConstructor start end alias extension kvs]
+                           [] --toConstructor start end alias extension kvs]
                        _ -> []
-
+{--
 toConstructor start end alias Nothing kvs =
     Definition (Def alias args (loc (Record rec)))
   where
@@ -102,7 +102,7 @@ toConstructor start end alias (Just _) kvs =
     args = map fst kvs
     rec = foldl insert (Var "_ext_") (zip args (map (loc . Var) args))
     insert e (k,v) = Insert (loc e) k v
-
+--}
 annotation :: IParser (Def t v)
 annotation = TypeAnnotation <$> try start <*> (toType <$> typeExpr)
     where start = do v <- lowVar <|> parens symOp

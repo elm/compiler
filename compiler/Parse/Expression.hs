@@ -1,4 +1,4 @@
-module Parse.Expression (def,term) where
+module Parse.Expression {-(def,term)-} where
 
 import Control.Applicative ((<$>), (<*>))
 import Data.List (foldl')
@@ -12,6 +12,7 @@ import qualified Parse.Type as Type
 import Parse.Binop
 import Parse.Literal
 
+import SourceSyntax.PrettyPrint
 import SourceSyntax.Location as Location
 import SourceSyntax.Pattern hiding (tuple,list)
 import qualified SourceSyntax.Literal as Literal
@@ -21,14 +22,13 @@ import SourceSyntax.Declaration (Declaration(Definition))
 import Unique
 import Types.Types (Type (VarT), Scheme (Forall))
 
-import System.IO.Unsafe
-
 
 --------  Basic Terms  --------
 
 varTerm :: IParser (Expr t v)
 varTerm = toVar <$> var <?> "variable"
 
+toVar :: String -> Expr t v
 toVar v = case v of "True"  -> Literal (Literal.Boolean True)
                     "False" -> Literal (Literal.Boolean False)
                     _       -> Var v
@@ -39,7 +39,7 @@ accessor = do
   lbl <- try (string "." >> rLabel)
   end <- getPosition
   let loc e = Location.add ("." ++ lbl) (Location.at start end e)
-  return (Lambda "_" (loc $ Access (loc $ Var "_") lbl))
+  return (Lambda (PVar "_") (loc $ Access (loc $ Var "_") lbl))
 
 
 --------  Complex Terms  --------
@@ -61,7 +61,7 @@ parensTerm = parens $ choice
                   op <- try anyOp
                   end <- getPosition
                   let loc = Location.at start end
-                  return . loc . Lambda "x" . loc . Lambda "y" . loc $
+                  return . loc . Lambda (PVar "x") . loc . Lambda (PVar "y") . loc $
                          Binop op (loc $ Var "x") (loc $ Var "y")
              , do start <- getPosition
                   let comma = char ',' <?> "comma ','"
@@ -70,7 +70,7 @@ parensTerm = parens $ choice
                   let vars = map (('v':) . show) [ 0 .. length commas + 1 ]
                       loc = Location.at start end
                   return $ foldr (\x e -> loc $ Lambda x e)
-                             (loc . tuple $ map (loc . Var) vars) vars
+                             (loc . tuple $ map (loc . Var) vars) (map PVar vars)
              , do start <- getPosition
                   es <- commaSep expr
                   end <- getPosition
@@ -83,14 +83,11 @@ recordTerm = brackets $ choice [ misc, addLocation record ]
     where field = do
               label <- rLabel
               patterns <- spacePrefix Pattern.term
-              whitespace
-              e <- string "=" >> whitespace >> expr
-              return (label, foldr Lambda e patterns)
+              whitespace >> string "=" >> whitespace
+              body <- expr
+              return (label, makeFunction patterns body)
               
-          extract [ Def f args exp ] = return (f,args,exp)
-          extract _ = fail "Improperly formed record field."
-
-          record = Record <$> (mapM extract =<< commaSep field)
+          record = Record <$> commaSep field
 
           change = do
               lbl <- rLabel
@@ -156,13 +153,13 @@ ifExpr = reserved "if" >> whitespace >> (normal <|> multiIf)
 lambdaExpr :: IParser (LExpr t v)
 lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
                 whitespace
-                pats <- spaceSep1 Pattern.term
+                args <- spaceSep1 Pattern.term
                 whitespace ; arrow ; whitespace
-                e <- expr
-                return (foldr Lambda pats e)
+                body <- expr
+                return (makeFunction args body)
 
 defSet :: IParser [Def t v]
-defSet = concat <$> block (do d <- anyDef ; whitespace ; return d)
+defSet = block (do d <- anyDef ; whitespace ; return d)
 
 letExpr :: IParser (Expr t v)
 letExpr = do
@@ -197,19 +194,23 @@ funcDef = try (do p1 <- try Pattern.term ; infics p1 <|> func p1)
             return $ if o == '`' then [ PVar $ takeWhile (/='`') p, p1, p2 ]
                                  else [ PVar (o:p), p1, p2 ]
 
-assignExpr :: IParser [Def t v]
+makeFunction :: [Pattern] -> LExpr t v -> LExpr t v
+makeFunction args body@(L a b _) =
+    let pos = L a b in
+    foldr (\arg body' -> pos $ Lambda arg body') body args
+
+assignExpr :: IParser (Def t v)
 assignExpr = withPos $ do
-  fDefs <- funcDef
-  whitespace
-  e <- string "=" >> whitespace >> expr
-  n <- sourceLine <$> getPosition
-  runAt (1000 * n) $ Pattern.flatten fDefs e
+  (name:args) <- funcDef
+  whitespace >> string "=" >> whitespace
+  body <- expr
+  return . Def name $ makeFunction args body
 
-anyDef = 
-  ((\d -> [d]) <$> Type.annotation) <|>
-  assignExpr
+anyDef :: IParser (Def t v)
+anyDef = Type.annotation <|> assignExpr
 
-def = map Definition <$> anyDef
+def :: IParser (Declaration t v)
+def = Definition <$> anyDef
 
 parseDef str =
     case iParse def "" str of

@@ -4,6 +4,8 @@ module SourceSyntax.Expression where
 import Data.Data
 import Data.List (intercalate)
 import qualified Text.Pandoc as Pandoc
+import SourceSyntax.PrettyPrint
+import Text.PrettyPrint as PP
 import qualified SourceSyntax.Helpers as Help
 import qualified SourceSyntax.Location as Location
 import qualified SourceSyntax.Pattern as Pattern
@@ -29,70 +31,94 @@ data Expr t v
     | Modify (LExpr t v) [(String, LExpr t v)]
     | Record [(String, LExpr t v)]
     | Markdown Pandoc.Pandoc
-      deriving (Eq, Data, Typeable)
+      deriving (Eq, Data, Typeable, Show)
 
 data Def tipe var
     = Def Pattern.Pattern (LExpr tipe var)
     | TypeAnnotation String Type
-      deriving (Eq, Data, Typeable)
+      deriving (Eq, Data, Typeable, Show)
 
 tuple es = Data ("Tuple" ++ show (length es)) es
 
 delist (Location.L _ _ (Data "::" [h,t])) = h : delist t
 delist _ = []
 
-
-instance Show (Expr t v) where
-  show e =
-   let show' (Location.L _ _ e) = Help.parensIf (needsParens e) (show e) in
-   case e of
-     Literal lit -> show lit
-     Range e1 e2 -> "[" ++ show e1 ++ ".." ++ show e2 ++ "]"
-     ExplicitList es -> "[" ++ intercalate "," (map show es) ++ "]"
-     Binop op e1 e2 -> show' e1 ++ " " ++ op ++ " " ++ show' e2
-     Lambda x e -> let (xs,e') = getLambdas (Location.none $ Lambda x e) in
-                      concat [ "\\", intercalate " " xs, " -> ", show e' ]
-     App e1 e2 -> show' e1 ++ " " ++ show' e2
-     MultiIf (p:ps) -> concat [ "if | ", iff p, sep (map iff ps) ]
-         where iff (b,e) = show b ++ " -> " ++ show e
-               sep = concatMap ("\n   | " ++)
-     Let defs e -> "let { "++intercalate " ; " (map show defs)++" } in "++show e
-     Var (c:cs) -> if Help.isOp c then Help.parens (c:cs) else c:cs
-     Case e pats -> "case "++ show e ++" of " ++ Help.brkt (intercalate " ; " pats')
-         where pats' = map (\(p,e) -> show p ++ " -> " ++ show e) pats
-     Data "::" [h,t] -> show h ++ " :: " ++ show t
-     Data "[]" [] -> "[]"
-     Data name es -> name ++ " " ++ intercalate " " (map show' es)
-     Access e x -> show' e ++ "." ++ x
-     Remove e x -> Help.brkt (show e ++ " - " ++ x)
+instance Pretty (Expr t v) where
+  pretty expr =
+   case expr of
+     Literal lit -> pretty lit
+     Var x@(c:_) -> parensIf (Help.isOp c) (PP.text x)
+     Range e1 e2 -> PP.brackets (pretty e1 <> PP.text ".." <> pretty e2)
+     ExplicitList es -> PP.brackets (commaCat (map pretty es))
+     Binop op e1 e2 -> PP.sep [ prettyParens e1 <+> PP.text op, prettyParens e2 ]
+     Lambda p e -> let (ps,body) = collectLambdas (Location.none $ Lambda p e)
+                   in  PP.text "\\" <> PP.sep ps <+> PP.text "->" <+> pretty body
+     App _ _ -> PP.hang func 2 (PP.sep args)
+       where func:args = map prettyParens (collectApps (Location.none expr))
+     MultiIf branches ->  PP.text "if" $$ nest 3 (vcat $ map iff branches)
+         where
+           iff (b,e) = PP.text "|" <+> PP.hang (pretty b <+> PP.text "->") 2 (pretty e)
+     Let defs e ->
+         PP.sep [ PP.hang (PP.text "let") 4 (PP.vcat (map pretty defs))
+                , PP.text "in" <+> pretty e ]
+     Case e pats ->
+         PP.hang pexpr 2 (PP.vcat (map pretty' pats))
+         where
+           pexpr = PP.sep [ PP.text "case" <+> pretty e, PP.text "of" ]
+           pretty' (p,e) = pretty p <+> PP.text "->" <+> pretty e
+     Data "::" [hd,tl] -> pretty hd <+> PP.text "::" <+> pretty tl
+     Data "[]" [] -> PP.text "[]"
+     Data name es -> PP.hang (PP.text name) 2 (PP.sep (map prettyParens es))
+     Access e x -> prettyParens e <> PP.text "." <> PP.text x
+     Remove e x -> PP.braces (pretty e <+> PP.text "-" <+> PP.text x)
      Insert (Location.L _ _ (Remove e y)) x v ->
-         Help.brkt (show e ++ " - " ++ y ++ " | " ++ x ++ " = " ++ show v)
-     Insert e x v -> Help.brkt (show e ++ " | " ++ x ++ " = " ++ show v)
-     Modify e fs -> Help.brkt (show e ++" | "++ intercalate ", " (map field fs))
-         where field (x,e) = x ++ " <- " ++ show e
-     Record r -> Help.brkt (intercalate ", " (map fields r))
-         where fields (f,e) = f ++ " = " ++ show e
-     Markdown _ -> "[markdown| ... |]"
+         PP.braces (pretty e <+> PP.text "-" <+> PP.text y <+> PP.text "|" <+> PP.text x <+> PP.text "=" <+> pretty v)
+     Insert e x v ->
+         PP.braces (pretty e <+> PP.text "|" <+> PP.text x <+> PP.text "=" <+> pretty v)
 
+     Modify e fs ->
+         PP.braces $ PP.hang (pretty e <+> PP.text "|")
+                             4
+                             (PP.sep . PP.punctuate PP.comma $ map field fs)
+       where
+         field (x,e) = PP.text x <+> PP.text "<-" <+> pretty e
 
-instance Show (Def t v) where
-  show e =
-   case e of
-     TypeAnnotation n t -> n ++ " : " ++ show t
-     Def pattern e ->
-         show pattern ++ " = " ++ show e
+     Record fs ->
+         PP.braces $ PP.nest 2 (PP.sep . PP.punctuate PP.comma $ map field fs)
+       where
+         field (x,e) = PP.text x <+> PP.text "=" <+> pretty e
 
-getLambdas (Location.L _ _ (Lambda x e)) = (show x:xs,e')
-    where (xs,e') = getLambdas e
-getLambdas e = ([],e)
+     Markdown _ -> PP.text "[markdown| ... |]"
 
-needsParens e =
-  case e of
-    Binop _ _ _ -> True
-    Lambda _ _  -> True
-    App _ _     -> True
-    MultiIf _   -> True
-    Let _ _     -> True
-    Case _ _    -> True
-    Data name (x:xs) -> name /= "::"
-    _ -> False
+instance Pretty (Def t v) where
+  pretty def =
+   case def of
+     TypeAnnotation name tipe ->
+         PP.text name <+> PP.text ":" <+> PP.text (show tipe)
+     Def pattern expr ->
+         pretty pattern <+> PP.text "=" <+> pretty expr
+
+collectApps lexpr@(Location.L _ _ expr) =
+  case expr of
+    App a b -> collectApps a ++ [b]
+    _ -> [lexpr]
+
+collectLambdas lexpr@(Location.L _ _ expr) =
+  case expr of
+    Lambda pattern body ->
+        let (ps, body') = collectLambdas body
+        in  (pretty pattern : ps, body')
+    _ -> ([], lexpr)
+
+prettyParens (Location.L _ _ expr) = parensIf needed (pretty expr)
+  where
+    needed =
+      case expr of
+        Binop _ _ _ -> True
+        Lambda _ _  -> True
+        App _ _     -> True
+        MultiIf _   -> True
+        Let _ _     -> True
+        Case _ _    -> True
+        Data name (x:xs) -> name /= "::"
+        _ -> False

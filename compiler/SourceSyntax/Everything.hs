@@ -12,7 +12,7 @@ module SourceSyntax.Everything
 import SourceSyntax.Helpers
 import SourceSyntax.Location
 import SourceSyntax.Literal
-import SourceSyntax.Pattern hiding (tuple, list, cons, nil)
+import SourceSyntax.Pattern hiding (tuple, list, cons, nil, prettyParens)
 import SourceSyntax.Expression
 import SourceSyntax.Declaration hiding (Assoc(..))
 import SourceSyntax.Module
