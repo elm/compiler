@@ -3,7 +3,6 @@ module Transform.Optimize (optimize) where
 import SourceSyntax.Everything
 import Control.Arrow (second, (***))
 import Data.Char (isAlpha)
-import Transform.Substitute
 
 optimize (Module name ims exs stmts) =
     Module name ims exs (map optimizeStmt stmts)
@@ -20,8 +19,7 @@ instance Simplify (Declaration t v) where
   simp stmt = stmt
 
 instance Simplify (Def t v) where
-  simp (FnDef func args e) = FnDef func args (simp e)
-  simp (OpDef op a1 a2 e)  = OpDef op a1 a2 (simp e)
+  simp (Def name e) = Def name (simp e)
   simp x = x
 
 instance Simplify e => Simplify (Located e) where
@@ -34,11 +32,7 @@ instance Simplify (Expr t v) where
       Range e1 e2 -> Range (f e1) (f e2)
       Binop op e1 e2 -> binop op (f e1) (f e2)
       Lambda x e -> Lambda x (f e)
-      Record fs -> Record (map (\(f,as,e) -> (f, as, simp e)) fs)
-      App (L t s (Lambda x e1)) e2 -> 
-        if isValue e2' then subst x e2' e1' else App (L t s (Lambda x ce1')) ce2'
-              where ce1'@(L _ _ e1') = f e1
-                    ce2'@(L _ _ e2') = f e2
+      Record fs -> Record (map (second simp) fs)
       App e1 e2 -> App (f e1) (f e2)
       Let defs e -> Let (map simp defs) (f e)
       Data name es -> Data name (map f es)
@@ -132,12 +126,6 @@ binop op ce1@(L t1 s1 e1) ce2@(L t2 s2 e2) =
     ("++", Data "[]" [], _) -> e2
     ("++", _, Data "[]" []) -> e1
     ("++", Data "::" [h,t], _) -> Data "::" [h, none $ binop "++" t ce2]
-
-    ("|>", _, _) -> App ce2 ce1
-    ("<|", _, _) -> App ce1 ce2
-    (".", _, _) ->
-        Lambda "x" (none $
-                      App ce1 (none $ App ce2 (none $ Var "x")))
 
     _ | isAlpha (head op) || '_' == head op ->
           App (none $ App (none $ Var op) ce1) ce2
