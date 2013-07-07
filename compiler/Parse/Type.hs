@@ -8,106 +8,69 @@ import Text.Parsec
 import Text.Parsec.Indent
 
 import SourceSyntax.Location as Located
-import SourceSyntax.Expression
-import SourceSyntax.Declaration
+--import SourceSyntax.PrettyPrint
+import SourceSyntax.Type as T
+--import qualified SourceSyntax.Expression as Expr
+--import qualified SourceSyntax.Declaration as Decl
 import Parse.Helpers
-import Types.Types hiding (parens,string)
 import Unique
 
-data ParseType = VarPT String
-               | LambdaPT ParseType ParseType
-               | ADTPT String [ParseType]
-               | RecordPT (Maybe ParseType) [(String,ParseType)]
-                 deriving (Show)
+tvar :: IParser T.Type
+tvar = T.Var <$> lowVar <?> "type variable"
 
-listPT t = ADTPT "List" [t]
-tuplePT ts = ADTPT ("Tuple" ++ show (length ts)) ts
+list :: IParser T.Type
+list = listOf <$> braces expr
 
-typeVar :: IParser ParseType
-typeVar = VarPT <$> lowVar <?> "type variable"
+tuple :: IParser T.Type
+tuple = do ts <- parens (commaSep expr)
+           return $ case ts of
+                      [t] -> t
+                      _   -> tupleOf ts
 
-typeList :: IParser ParseType
-typeList  = listPT <$> braces typeExpr
+record :: IParser T.Type
+record = brackets $ do
+           ext <- extend
+           fs <- fields
+           return (T.Record (fieldMap fs) ext)
+  where
+    extend = option T.EmptyRecord . try $ do
+               t <- tvar
+               whitespace >> string "|" >> whitespace
+               return t
+    fields = commaSep $ do
+               lbl <- rLabel
+               whitespace >> hasType >> whitespace
+               (,) lbl <$> expr
 
-typeTuple :: IParser ParseType
-typeTuple = do ts <- parens (commaSep typeExpr)
-               return $ case ts of { [t] -> t ; _ -> tuplePT ts }
+constructor0 :: IParser T.Type
+constructor0 =
+  do name <- capVar
+     return (T.Data name [])
 
-typeRecord :: IParser ParseType
-typeRecord = brackets (RecordPT <$> extend <*> fields)
-  where extend = optionMaybe . try $ do
-                   t <- typeVar
-                   whitespace >> string "|" >> whitespace
-                   return t
-        fields = commaSep $ do
-                   lbl <- rLabel
-                   whitespace >> hasType >> whitespace
-                   (,) lbl <$> typeExpr
+term :: IParser T.Type
+term = list <|> tuple <|> record <|> tvar <|> constructor0
 
-typeUnambiguous :: IParser ParseType
-typeUnambiguous = typeList <|> typeTuple <|> typeRecord
+app :: IParser T.Type
+app =
+  do name <- capVar <?> "type constructor"
+     args <- spacePrefix term
+     return (T.Data name args)
 
-typeSimple :: IParser ParseType
-typeSimple = VarPT <$> var
+expr :: IParser T.Type
+expr =
+  do t1 <- app <|> term
+     whitespace
+     arr <- optionMaybe arrow
+     whitespace
+     case arr of
+       Just _  -> T.Lambda t1 <$> expr
+       Nothing -> return t1
 
-typeApp :: IParser ParseType
-typeApp = do name <- capVar <?> "type constructor"
-             args <- spacePrefix (typeUnambiguous <|> typeSimple)
-             return $ case args of
-                        [] -> VarPT name
-                        _  -> ADTPT name args
+constructor :: IParser (String, [T.Type])
+constructor = (,) <$> (capVar <?> "another type constructor")
+                  <*> spacePrefix term
 
-typeExpr :: IParser ParseType
-typeExpr = do
-  t1 <- typeVar <|> typeApp <|> typeUnambiguous
-  whitespace ; arr <- optionMaybe arrow ; whitespace
-  case arr of
-    Just _  -> LambdaPT t1 <$> typeExpr
-    Nothing -> return t1
-
-typeConstructor :: IParser (String, [ParseType])
-typeConstructor = (,) <$> (capVar <?> "another type constructor")
-                      <*> spacePrefix (typeSimple <|> typeUnambiguous)
-
-typeAlias :: IParser [Declaration t v]
-typeAlias = do
-  start <- getPosition
-  reserved "type" <?> "type alias (type Point = {x:Int, y:Int})"
-  forcedWS
-  alias <- capVar
-  args  <- spacePrefix lowVar
-  whitespace ; string "=" ; whitespace
-  let n = length args
-  tipe <- typeExpr
-  end <- getPosition
-  case toTypeWith alias (zip args [1..n]) tipe of
-    Left msg -> fail msg
-    Right t -> return (TypeAlias alias [1..n] t : ctor)
-        where ctor = case tipe of
-                       RecordPT extension kvs ->
-                           [] --toConstructor start end alias extension kvs]
-                       _ -> []
 {--
-toConstructor start end alias Nothing kvs =
-    Definition (Def alias args (loc (Record rec)))
-  where
-    loc = Located.at start end
-    args = map fst kvs
-    rec = map (\a -> (a, loc (Var a))) args
-
-toConstructor start end alias (Just _) kvs =
-    Definition (Def alias (args++["_ext_"]) (loc rec))
-  where
-    loc = Located.at start end
-    args = map fst kvs
-    rec = foldl insert (Var "_ext_") (zip args (map (loc . Var) args))
-    insert e (k,v) = Insert (loc e) k v
---}
-annotation :: IParser (Def t v)
-annotation = TypeAnnotation <$> try start <*> (toType <$> typeExpr)
-    where start = do v <- lowVar <|> parens symOp
-                     whitespace ; hasType ; whitespace ; return v
-
 datatype :: IParser (Declaration t v)
 datatype = do
   reserved "data" <?> "datatype definition (data T = A | B | ...)"
@@ -118,41 +81,41 @@ datatype = do
     Right dt -> return dt
     Left msg -> fail msg
 
-beta = liftM VarT guid
+beta = liftM T.Var guid
 
-toType :: ParseType -> Type
+toType :: T.Type -> Type
 toType pt =
-  let frees :: ParseType -> [String]
+  let frees :: T.Type -> [String]
       frees pt = case pt of
                    LambdaPT a b  -> frees a ++ frees b
                    ADTPT _ ts    -> concatMap frees ts
                    RecordPT t fs -> maybe [] frees t ++ concatMap (frees . snd) fs
                    VarPT (c:cs) | isLower c -> [c:cs]
                                 | otherwise -> []
-  in  case toTypeWith "" (zip (frees pt) [1..]) pt of
+  in  case toTypeWith "" (zip (frees pt) ['a'..]) pt of
         Right t -> t
-        Left  _ -> VarT 0
+        Left  _ -> T.Var 0
 
-toTypeWith :: String -> [(String,X)] -> ParseType -> Either String Type
+toTypeWith :: String -> [(String,String)] -> T.Type -> Either String Type
 toTypeWith name tvarDict pt =
   let msg x = "Type variable '" ++ x ++ "' is unbound in type '" ++ name ++ "'."
       toT = toTypeWith name tvarDict
   in  case pt of
-        LambdaPT t1 t2  -> (==>) <$> toT t1 <*> toT t2
-        ADTPT name args -> ADT name <$> mapM toT args
+        LambdaPT t1 t2  -> T.Lambda <$> toT t1 <*> toT t2
+        ADTPT name args -> T.Data name <$> mapM toT args
         RecordPT t fs   -> do fs' <- mapM (\(x,pt) -> (,) x <$> toT pt) fs
-                              ext <- maybe (return EmptyRecord) toT t
-                              return (RecordT (recordT fs') ext)
+                              ext <- maybe (return T.EmptyRecord) toT t
+                              return (T.Record (T.record fs') ext)
         VarPT x@(c:_)
-            | not (isLower c) -> return $ ADT x []
-            | otherwise -> VarT <$> case lookup x tvarDict of
-                                      Just v -> Right v
-                                      Nothing -> Left (msg x)
+            | not (isLower c) -> return $ T.Data x []
+            | otherwise -> T.Var <$> case lookup x tvarDict of
+                                       Just v -> Right v
+                                       Nothing -> Left (msg x)
 
 
 toDatatype name args tcs = Datatype name [1..n] <$> mapM toC tcs
     where n = length args
-          toType = toTypeWith name (zip args [1..n])
+          toType = toTypeWith name (zip args (map (:[]) ['a'..]))
           toC (name,pt) = (,) name <$> mapM toType pt
 
 
@@ -161,14 +124,14 @@ toForeignType (LambdaPT t1 t2) =
            "Only simple values can be imported and exported in this release."
 
 toForeignType (ADTPT "JSArray" args) =
-    ADT "JSArray" <$> mapM toForeignType args
+    T.Data "JSArray" <$> mapM toForeignType args
 
 toForeignType (ADTPT name _) =
     Left $ "'" ++ name ++ "' is not an exportable type " ++
              "constructor. Only 'JSArray' is exportable."
 
 toForeignType (VarPT x@(c:_))
-    | x `elem` jsTypes = Right (ADT x [])
+    | x `elem` jsTypes = Right (T.Data x [])
     | isLower c =
         Left $ "All exported types must be concrete types." ++ msg
     | otherwise =
@@ -176,3 +139,4 @@ toForeignType (VarPT x@(c:_))
   where
     msg = " The following types are exportable: " ++ intercalate ", " jsTypes
     jsTypes = ["JSString","JSNumber","JSDomNode","JSBool","JSObject"]
+--}

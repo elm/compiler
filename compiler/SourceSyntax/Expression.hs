@@ -1,16 +1,14 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 module SourceSyntax.Expression where
 
-import Data.Data
 import Data.List (intercalate)
 import qualified Text.Pandoc as Pandoc
 import SourceSyntax.PrettyPrint
-import Text.PrettyPrint as PP
+import Text.PrettyPrint as P
 import qualified SourceSyntax.Helpers as Help
 import qualified SourceSyntax.Location as Location
 import qualified SourceSyntax.Pattern as Pattern
+import qualified SourceSyntax.Type as Type
 import qualified SourceSyntax.Literal as Literal
-import Types.Types
 
 type LExpr tipe var = Location.Located (Expr tipe var)
 data Expr t v
@@ -31,12 +29,12 @@ data Expr t v
     | Modify (LExpr t v) [(String, LExpr t v)]
     | Record [(String, LExpr t v)]
     | Markdown Pandoc.Pandoc
-      deriving (Eq, Data, Typeable, Show)
+      deriving (Eq, Show)
 
 data Def tipe var
     = Def Pattern.Pattern (LExpr tipe var)
-    | TypeAnnotation String Type
-      deriving (Eq, Data, Typeable, Show)
+    | TypeAnnotation String Type.Type
+      deriving (Eq, Show)
 
 tuple es = Data ("Tuple" ++ show (length es)) es
 
@@ -47,56 +45,56 @@ instance Pretty (Expr t v) where
   pretty expr =
    case expr of
      Literal lit -> pretty lit
-     Var x@(c:_) -> parensIf (Help.isOp c) (PP.text x)
-     Range e1 e2 -> PP.brackets (pretty e1 <> PP.text ".." <> pretty e2)
-     ExplicitList es -> PP.brackets (commaCat (map pretty es))
-     Binop op e1 e2 -> PP.sep [ prettyParens e1 <+> PP.text op, prettyParens e2 ]
+     Var x@(c:_) -> parensIf (Help.isOp c) (P.text x)
+     Range e1 e2 -> P.brackets (pretty e1 <> P.text ".." <> pretty e2)
+     ExplicitList es -> P.brackets (commaCat (map pretty es))
+     Binop op e1 e2 -> P.sep [ prettyParens e1 <+> P.text op, prettyParens e2 ]
      Lambda p e -> let (ps,body) = collectLambdas (Location.none $ Lambda p e)
-                   in  PP.text "\\" <> PP.sep ps <+> PP.text "->" <+> pretty body
-     App _ _ -> PP.hang func 2 (PP.sep args)
+                   in  P.text "\\" <> P.sep ps <+> P.text "->" <+> pretty body
+     App _ _ -> P.hang func 2 (P.sep args)
        where func:args = map prettyParens (collectApps (Location.none expr))
-     MultiIf branches ->  PP.text "if" $$ nest 3 (vcat $ map iff branches)
+     MultiIf branches ->  P.text "if" $$ nest 3 (vcat $ map iff branches)
          where
-           iff (b,e) = PP.text "|" <+> PP.hang (pretty b <+> PP.text "->") 2 (pretty e)
+           iff (b,e) = P.text "|" <+> P.hang (pretty b <+> P.text "->") 2 (pretty e)
      Let defs e ->
-         PP.sep [ PP.hang (PP.text "let") 4 (PP.vcat (map pretty defs))
-                , PP.text "in" <+> pretty e ]
+         P.sep [ P.hang (P.text "let") 4 (P.vcat (map pretty defs))
+               , P.text "in" <+> pretty e ]
      Case e pats ->
-         PP.hang pexpr 2 (PP.vcat (map pretty' pats))
+         P.hang pexpr 2 (P.vcat (map pretty' pats))
          where
-           pexpr = PP.sep [ PP.text "case" <+> pretty e, PP.text "of" ]
-           pretty' (p,e) = pretty p <+> PP.text "->" <+> pretty e
-     Data "::" [hd,tl] -> pretty hd <+> PP.text "::" <+> pretty tl
-     Data "[]" [] -> PP.text "[]"
-     Data name es -> PP.hang (PP.text name) 2 (PP.sep (map prettyParens es))
-     Access e x -> prettyParens e <> PP.text "." <> PP.text x
-     Remove e x -> PP.braces (pretty e <+> PP.text "-" <+> PP.text x)
+           pexpr = P.sep [ P.text "case" <+> pretty e, P.text "of" ]
+           pretty' (p,e) = pretty p <+> P.text "->" <+> pretty e
+     Data "::" [hd,tl] -> pretty hd <+> P.text "::" <+> pretty tl
+     Data "[]" [] -> P.text "[]"
+     Data name es -> P.hang (P.text name) 2 (P.sep (map prettyParens es))
+     Access e x -> prettyParens e <> P.text "." <> P.text x
+     Remove e x -> P.braces (pretty e <+> P.text "-" <+> P.text x)
      Insert (Location.L _ _ (Remove e y)) x v ->
-         PP.braces (pretty e <+> PP.text "-" <+> PP.text y <+> PP.text "|" <+> PP.text x <+> PP.text "=" <+> pretty v)
+         P.braces (pretty e <+> P.text "-" <+> P.text y <+> P.text "|" <+> P.text x <+> P.text "=" <+> pretty v)
      Insert e x v ->
-         PP.braces (pretty e <+> PP.text "|" <+> PP.text x <+> PP.text "=" <+> pretty v)
+         P.braces (pretty e <+> P.text "|" <+> P.text x <+> P.text "=" <+> pretty v)
 
      Modify e fs ->
-         PP.braces $ PP.hang (pretty e <+> PP.text "|")
-                             4
-                             (PP.sep . PP.punctuate PP.comma $ map field fs)
+         P.braces $ P.hang (pretty e <+> P.text "|")
+                           4
+                           (P.sep . P.punctuate P.comma $ map field fs)
        where
-         field (x,e) = PP.text x <+> PP.text "<-" <+> pretty e
+         field (x,e) = P.text x <+> P.text "<-" <+> pretty e
 
      Record fs ->
-         PP.braces $ PP.nest 2 (PP.sep . PP.punctuate PP.comma $ map field fs)
+         P.braces $ P.nest 2 (P.sep . P.punctuate P.comma $ map field fs)
        where
-         field (x,e) = PP.text x <+> PP.text "=" <+> pretty e
+         field (x,e) = P.text x <+> P.text "=" <+> pretty e
 
-     Markdown _ -> PP.text "[markdown| ... |]"
+     Markdown _ -> P.text "[markdown| ... |]"
 
 instance Pretty (Def t v) where
   pretty def =
    case def of
      TypeAnnotation name tipe ->
-         PP.text name <+> PP.text ":" <+> PP.text (show tipe)
+         P.text name <+> P.text ":" <+> P.text (show tipe)
      Def pattern expr ->
-         pretty pattern <+> PP.text "=" <+> pretty expr
+         pretty pattern <+> P.text "=" <+> pretty expr
 
 collectApps lexpr@(Location.L _ _ expr) =
   case expr of

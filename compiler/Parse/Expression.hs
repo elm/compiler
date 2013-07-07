@@ -20,7 +20,6 @@ import SourceSyntax.Expression
 import SourceSyntax.Declaration (Declaration(Definition))
 
 import Unique
-import Types.Types (Type (VarT), Scheme (Forall))
 
 
 --------  Basic Terms  --------
@@ -159,7 +158,7 @@ lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
                 return (makeFunction args body)
 
 defSet :: IParser [Def t v]
-defSet = block (do d <- anyDef ; whitespace ; return d)
+defSet = block (do d <- def ; whitespace ; return d)
 
 letExpr :: IParser (Expr t v)
 letExpr = do
@@ -206,11 +205,15 @@ assignExpr = withPos $ do
   body <- expr
   return . Def name $ makeFunction args body
 
-anyDef :: IParser (Def t v)
-anyDef = Type.annotation <|> assignExpr
+typeAnnotation :: IParser (Def t v)
+typeAnnotation = TypeAnnotation <$> try start <*> Type.expr
+    where
+      start = do v <- lowVar <|> parens symOp
+                 whitespace ; hasType ; whitespace
+                 return v
 
-def :: IParser (Declaration t v)
-def = Definition <$> anyDef
+def :: IParser (Def t v)
+def = typeAnnotation <|> assignExpr
 
 parseDef str =
     case iParse def "" str of
