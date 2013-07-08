@@ -41,13 +41,19 @@ for (var i = 0; i < vendors.length && !window.requestAnimationFrame; ++i) {
 }
 
 if (window.requestAnimationFrame && window.cancelAnimationFrame) {
-    var previous = 0;
-    ElmRuntime.draw = function(callback) {
-        window.cancelAnimationFrame(previous);
-        previous = window.requestAnimationFrame(callback);
+    var previous = {};
+    ElmRuntime.draw = function(callback, currentScene, newScene) {
+        if (previous.currentScene == null)
+            previous.currentScene = currentScene;
+        if (previous.frame != null)
+            window.cancelAnimationFrame(previous.frame);
+        previous.frame = window.requestAnimationFrame(function() {
+            callback(previous.currentScene, newScene);
+            previous.currentScene = newScene;
+        });
     };
 } else {
-    ElmRuntime.draw = function(callback) { callback(); };
+    ElmRuntime.draw = function(callback, currentScene, newScene) { callback(currentScene, newScene); };
 }
 
 }());
