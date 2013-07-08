@@ -5,7 +5,6 @@ import Data.Data
 import Data.List (intercalate)
 import qualified SourceSyntax.Declaration as Decl
 import System.FilePath (joinPath)
-import Types.Types
 
 data Module tipe var =
     Module [String] Exports Imports [Decl.Declaration tipe var]
