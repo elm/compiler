@@ -12,7 +12,6 @@ import qualified Parse.Type as Type
 import Parse.Binop
 import Parse.Literal
 
-import SourceSyntax.PrettyPrint
 import SourceSyntax.Location as Location
 import SourceSyntax.Pattern hiding (tuple,list)
 import qualified SourceSyntax.Literal as Literal
@@ -215,7 +214,7 @@ typeAnnotation = TypeAnnotation <$> try start <*> Type.expr
 def :: IParser (Def t v)
 def = typeAnnotation <|> assignExpr
 
-parseDef str =
-    case iParse def "" str of
-      Right result -> Right result
-      Left err -> Left $ "Parse error at " ++ show err
+attempt f parser str =
+    case iParse parser "" str of
+      Right result -> f result
+      Left err -> error $ "Parse error at " ++ show err

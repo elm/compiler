@@ -1,25 +1,45 @@
 module Type.Constrain.Expression where
 
-import Control.Arrow (second)
-import Control.Applicative ((<$>))
 import qualified Data.List as List
 import qualified Data.Map as Map
-import qualified Control.Monad as Monad
 import Data.Map ((!))
+import Control.Arrow (second)
+import Control.Applicative ((<$>),(<*>))
+import qualified Control.Monad as Monad
+import Control.Monad.State
+import Data.Traversable (traverse)
 
 import SourceSyntax.Location as Loc
 import SourceSyntax.Pattern (Pattern(PVar))
 import SourceSyntax.Expression
+import qualified SourceSyntax.Type as SrcT
 import Type.Type hiding (Descriptor(..))
 import Type.Fragment
-import Type.Environment as Env
+import qualified Type.Environment as Env
 import qualified Type.Constrain.Literal as Literal
 import qualified Type.Constrain.Pattern as Pattern
 
+{-- Testing section --}
+import SourceSyntax.PrettyPrint
+import Parse.Expression
+import Parse.Helpers (iParse)
 
-constrain :: Environment -> LExpr a b -> Type -> IO TypeConstraint
+test str =
+  case iParse expr "" str of
+    Left err -> error $ "Parse error at " ++ show err
+    Right expression -> do
+      env <- Env.initialEnvironment
+      var <- flexibleVar
+      constraint <- constrain env expression (VarN var)
+      prettyNames constraint
+      print (pretty constraint)
+      print (pretty var)
+      return ()
+{-- todo: remove testing code --}
+
+constrain :: Env.Environment -> LExpr a b -> Type -> IO TypeConstraint
 constrain env (L _ _ expr) tipe =
-    let list t = TermN (App1 (Env.get env builtin "[]") t) in
+    let list t = TermN (App1 (Env.get env Env.builtin "[_]") t) in
     case expr of
       Literal lit -> return $ Literal.constrain env lit tipe
 
@@ -41,7 +61,7 @@ constrain env (L _ _ expr) tipe =
           exists $ \t2 -> do
             c1 <- constrain env e1 t1
             c2 <- constrain env e2 t2
-            return $ CAnd [ c1, c2, (Env.get env value op) === (t1 ==> t2 ==> tipe) ]
+            return $ CAnd [ c1, c2, op <? (t1 ==> t2 ==> tipe) ]
 
       Lambda p e ->
           exists $ \t1 ->
@@ -60,7 +80,7 @@ constrain env (L _ _ expr) tipe =
 
       MultiIf branches -> CAnd <$> mapM constrain' branches
           where 
-             bool = Env.get env builtin "Bool"
+             bool = Env.get env Env.builtin "Bool"
              constrain' (b,e) = do
                   cb <- constrain env b bool
                   ce <- constrain env e tipe
@@ -135,9 +155,8 @@ constrain env (L _ _ expr) tipe =
                 
 
       Markdown _ ->
-          return $ tipe === Env.get env builtin "Element"
+          return $ tipe === Env.get env Env.builtin "Element"
 
-{--
       Let defs body ->
           do c <- constrain env body tipe
              (schemes, rqs, fqs, header, c2, c1) <-
@@ -149,15 +168,17 @@ constrain env (L _ _ expr) tipe =
                                  (c1 /\ c))
 
 
-constrainDef env info (name, qs, expr, maybeTipe) =
-    let (schemes, rigidQuantifiers, flexibleQuantifiers, headers, c2, c1) = info in
-    case maybeTipe of
-      Just tipe ->
+constrainDef env info (pattern, expr, maybeTipe) =
+    let qs = [] -- should come from the def, but I'm not sure what would live there...
+        (schemes, rigidQuantifiers, flexibleQuantifiers, headers, c2, c1) = info
+    in
+    case (pattern, maybeTipe) of
+      (PVar name, Just tipe) ->
           do flexiVars <- mapM (\_ -> flexibleVar) qs
              let inserts = zipWith (\arg typ -> Map.insert arg (VarN typ)) qs flexiVars
-                 env' = env { value = List.foldl' (\x f -> f x) (value env) inserts }
-                 typ = error "This should be the internal representation of the user defined type."
-                 scheme = Scheme { rigidQuantifiers = [],
+                 env' = env { Env.value = List.foldl' (\x f -> f x) (Env.value env) inserts }
+             typ <- instantiateType tipe
+             let scheme = Scheme { rigidQuantifiers = [],
                                    flexibleQuantifiers = flexiVars,
                                    constraint = CTrue,
                                    header = Map.singleton name typ }
@@ -169,12 +190,12 @@ constrainDef env info (name, qs, expr, maybeTipe) =
                     , c2
                     , fl rigidQuantifiers c /\ c1 )
 
-      Nothing ->
+      (PVar name, Nothing) ->
           do var <- flexibleVar
              rigidVars <- mapM (\_ -> rigidVar) qs
              let tipe = VarN var
                  inserts = zipWith (\arg typ -> Map.insert arg (VarN typ)) qs rigidVars
-                 env' = env { value = List.foldl' (\x f -> f x) (value env) inserts }
+                 env' = env { Env.value = List.foldl' (\x f -> f x) (Env.value env) inserts }
              c <- constrain env' expr tipe
              return ( schemes
                     , rigidVars ++ rigidQuantifiers
@@ -183,18 +204,45 @@ constrainDef env info (name, qs, expr, maybeTipe) =
                     , c /\ c2
                     , c1 )
 
---collapseDefs :: [Def t v] -> [(String, [String], LExpr t v, Maybe Type)]
-collapseDefs definitions =
-    map (\(name, (expr, tipe)) -> (name, expr, tipe)) defPairs
+instantiateType :: SrcT.Type -> IO Type
+instantiateType sourceType = evalStateT (go sourceType) Map.empty
   where
-    defPairs = Map.toList (go Map.empty Map.empty definitions)
+    go :: SrcT.Type -> StateT (Map.Map String Variable) IO Type
+    go sourceType =
+      case sourceType of
+        SrcT.Lambda t1 t2 -> TermN <$> (Fun1 <$> go t1 <*> go t2)
 
-    go defs typs [] = Map.union (Map.intersectionWith (\f t -> f (Just t)) defs typs)
-                                (Map.map ($ Nothing) (Map.difference defs typs))
-    go defs typs (d:ds) =
+        SrcT.Var x -> do
+          dict <- get
+          case Map.lookup x dict of
+            Just var -> return (VarN var)
+            Nothing -> do
+              var <- liftIO $ namedVar x -- should this be Constant or Flexible?
+              put (Map.insert x var dict)
+              return (VarN var)
+
+        SrcT.Data name ts -> do
+          ts' <- mapM go ts
+          return $ foldr (\t result -> TermN $ App1 t result) (error "not sure how to look this up yet") ts'
+
+        SrcT.EmptyRecord -> return (TermN EmptyRecord1)
+
+        SrcT.Record fields ext ->
+          TermN <$> (Record1 <$> traverse (mapM go) fields <*> go ext)
+
+collapseDefs :: [Def t v] -> [(Pattern, LExpr t v, Maybe SrcT.Type)]
+collapseDefs = go [] Map.empty Map.empty
+  where
+    go output defs typs [] =
+        output ++ concatMap Map.elems [
+          Map.intersectionWithKey (\k v t -> (PVar k, v, Just t)) defs typs,
+          Map.mapWithKey (\k v -> (PVar k, v, Nothing)) (Map.difference defs typs) ]
+    go output defs typs (d:ds) =
         case d of
-          Def name body ->
-              go (Map.insert name ((,) body) defs) typs ds
+          Def (PVar name) body ->
+              go output (Map.insert name body defs) typs ds
+          Def pattern body ->
+              go ((pattern, body, Nothing) : output) defs typs ds
           TypeAnnotation name typ ->
-              go defs (Map.insert name typ typs) ds
+              go output defs (Map.insert name typ typs) ds
 --}

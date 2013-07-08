@@ -15,19 +15,27 @@ data Environment = Environment {
 initialEnvironment :: IO Environment
 initialEnvironment = do
     let mkPair name = fmap ((,) name . VarN) (namedVar name)
-    list <- mkPair "[]"
-    prims <- mapM mkPair ["Int","Float","Char","Bool","Element"]
+    list <- mkPair "[_]"
+    int <- mkPair "Int"
+    prims <- mapM mkPair ["Float","Char","Bool","Element"]
+    let builtins = list : int : prims
     
     cons <- do v <- flexibleVar
                let vlist = TermN (App1 (snd list) (VarN v))
                return ([v], VarN v ==> vlist ==> vlist)
 
-    let builtins = list : prims
+    nil <- do v <- flexibleVar
+              return ([v], TermN (App1 (snd list) (VarN v)))
+
+    let add = snd int ==> snd int ==> snd int
+
     return $ Environment {
-      constructor = Map.singleton "::" cons,
+      constructor = Map.fromList [("::", cons), ("[]", nil)],
       builtin = Map.fromList builtins,
-      value = Map.empty
+      value = Map.empty -- Map.fromList [("+", add)]
     }
 
 get :: Environment -> (Environment -> Map.Map String a) -> String -> a
-get env subDict key = subDict env ! key
+get env subDict key = Map.findWithDefault err key (subDict env)
+  where
+    err = error $ "Could not find '" ++ key ++ "' in the type environment."
