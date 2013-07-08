@@ -19,6 +19,10 @@ Libraries:
 * Switch Text.height to use px instead of em,
   units like em and % can be created in Elm
 
+Error Messages:
+* Pretty printing of expressions and types
+* Type-variables look more natural (a,b,c instead of t1,t2,t3)
+
 
 forgot to fill this in again...
 
