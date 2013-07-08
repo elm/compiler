@@ -155,10 +155,10 @@ function initGraphics(elm, Module) {
   
   // set up updates so that the DOM is adjusted as necessary.
   function domUpdate(newScene, currentScene) {
-      ElmRuntime.draw(function(_) {
+      ElmRuntime.draw(function(currentScene, newScene) {
               Render.update(elm.node.firstChild, currentScene, newScene);
               if (elm.Native.Window) elm.Native.Window.resizeIfNeeded();
-          });
+            }, currentScene, newScene);
       return newScene;
   }
   return A3(Signal.foldp, F2(domUpdate), currentScene, signalGraph);
