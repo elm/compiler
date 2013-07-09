@@ -21,8 +21,11 @@ import qualified Type.Constrain.Pattern as Pattern
 
 {-- Testing section --}
 import SourceSyntax.PrettyPrint
+import Text.PrettyPrint as P
 import Parse.Expression
 import Parse.Helpers (iParse)
+import Type.Solve (solve)
+import qualified Type.State as TS
 
 test str =
   case iParse expr "" str of
@@ -33,8 +36,9 @@ test str =
       constraint <- constrain env expression (VarN var)
       prettyNames constraint
       print (pretty constraint)
-      print (pretty var)
-      return ()
+      print (P.text "Solving for:" <+> pretty var)
+      (env,_,_,_) <- execStateT (solve constraint) TS.initialState
+      mapM_ (\(n,t) -> print $ P.text n <+> P.text ":" <+> pretty t) $ Map.toList env
 {-- todo: remove testing code --}
 
 constrain :: Env.Environment -> LExpr a b -> Type -> IO TypeConstraint
@@ -152,7 +156,6 @@ constrain env (L _ _ expr) tipe =
                 v <- flexibleVar -- needs an ex
                 c <- constrain env body (VarN v)
                 return ((name, v), c)
-                
 
       Markdown _ ->
           return $ tipe === Env.get env Env.builtin "Element"

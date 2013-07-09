@@ -50,11 +50,15 @@ data Descriptor = Descriptor {
     rank :: Int,
     flex :: Flex,
     name :: Maybe TypeName,
+    copy :: Maybe Variable,
     mark :: Int
 } deriving Show
 
 noRank = -1
 outermostRank = 0 :: Int
+
+noMark = 0
+initialMark = 1
 
 data Flex = Rigid | Flexible | Constant
      deriving (Show, Eq)
@@ -85,7 +89,8 @@ namedVar name = UF.fresh $ Descriptor {
     rank = noRank,
     flex = Constant,
     name = Just name,
-    mark = 0
+    copy = Nothing,
+    mark = noMark
   }
 
 flexibleVar = UF.fresh $ Descriptor {
@@ -93,7 +98,8 @@ flexibleVar = UF.fresh $ Descriptor {
     rank = noRank,
     flex = Flexible,
     name = Nothing,
-    mark = 0
+    copy = Nothing,
+    mark = noMark
   }
 
 rigidVar = UF.fresh $ Descriptor {
@@ -101,7 +107,8 @@ rigidVar = UF.fresh $ Descriptor {
     rank = noRank,
     flex = Rigid,
     name = Nothing,
-    mark = 0
+    copy = Nothing,
+    mark = noMark
   }
 
 -- ex qs constraint == exists qs. constraint

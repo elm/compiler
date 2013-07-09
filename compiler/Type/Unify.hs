@@ -37,17 +37,19 @@ actuallyUnify variable1 variable2 = do
       merge1 :: StateT TS.SolverState IO ()
       merge1 = liftIO $ do
         UF.union variable2 variable1
-        UF.setDescriptor variable1 (desc1 { flex = flex', name = name', rank = rank', mark = undefined })
+        UF.setDescriptor variable1 (desc1 {
+            flex = flex', name = name', rank = rank', copy = Nothing, mark = noMark })
 
       merge2 :: StateT TS.SolverState IO ()
       merge2 = liftIO $ do
         UF.union variable1 variable2
-        UF.setDescriptor variable2 (desc2 { flex = flex', name = name', rank = rank', mark = undefined })
+        UF.setDescriptor variable2 (desc2 {
+            flex = flex', name = name', rank = rank', copy = Nothing, mark = noMark })
 
       fresh :: Maybe (Term1 Variable) -> StateT TS.SolverState IO Variable
       fresh structure = do
         var <- liftIO . UF.fresh $ Descriptor {
-                 structure = structure, rank = rank', flex = flex', name = name', mark = undefined
+                 structure = structure, rank = rank', flex = flex', name = name', copy = Nothing, mark = noMark
                }
         TS.register var
 
