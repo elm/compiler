@@ -2,17 +2,17 @@ module Type.Unify (unify) where
 
 import Type.Type
 import qualified Data.UnionFind.IO as UF
-import qualified Type.Pool as Pool
+import qualified Type.State as TS
 import Control.Arrow (first,second)
 import Control.Monad.State
 
-unify :: Variable -> Variable -> StateT (Pool.Pool, [String]) IO ()
+unify :: Variable -> Variable -> StateT TS.SolverState IO ()
 unify variable1 variable2 = do
   equivalent <- liftIO $ UF.equivalent variable1 variable2
   if equivalent then return ()
                 else actuallyUnify variable1 variable2
 
-actuallyUnify :: Variable -> Variable -> StateT (Pool.Pool, [String]) IO ()
+actuallyUnify :: Variable -> Variable -> StateT TS.SolverState IO ()
 actuallyUnify variable1 variable2 = do
   desc1 <- liftIO $ UF.descriptor variable1
   desc2 <- liftIO $ UF.descriptor variable2
@@ -34,25 +34,22 @@ actuallyUnify variable1 variable2 = do
       rank' :: Int
       rank' = min (rank desc1) (rank desc2)
 
-      merge1 :: StateT (Pool.Pool, [String]) IO ()
+      merge1 :: StateT TS.SolverState IO ()
       merge1 = liftIO $ do
         UF.union variable2 variable1
         UF.setDescriptor variable1 (desc1 { flex = flex', name = name', rank = rank', mark = undefined })
 
-      merge2 :: StateT (Pool.Pool, [String]) IO ()
+      merge2 :: StateT TS.SolverState IO ()
       merge2 = liftIO $ do
         UF.union variable1 variable2
         UF.setDescriptor variable2 (desc2 { flex = flex', name = name', rank = rank', mark = undefined })
 
-      fresh :: Maybe (Term1 Variable) -> StateT (Pool.Pool, [String]) IO Variable
+      fresh :: Maybe (Term1 Variable) -> StateT TS.SolverState IO Variable
       fresh structure = do
         var <- liftIO . UF.fresh $ Descriptor {
                  structure = structure, rank = rank', flex = flex', name = name', mark = undefined
                }
-        Pool.register var
-
-      mistake :: String -> StateT (Pool.Pool, [String]) IO ()
-      mistake err = modify $ second (err:)
+        TS.register var
 
   case (structure desc1, structure desc2) of
     (Nothing, _) | flex desc1 == Flexible -> merge2
@@ -61,8 +58,8 @@ actuallyUnify variable1 variable2 = do
     (Just (Var1 v), _) -> unify v variable2
     (_, Just (Var1 v)) -> unify v variable1
 
-    (Nothing, _) -> mistake "Cannot unify rigid type variable."
-    (_, Nothing) -> mistake "Cannot unify rigid type variable."
+    (Nothing, _) -> TS.addError "Cannot unify rigid type variable."
+    (_, Nothing) -> TS.addError "Cannot unify rigid type variable."
 
     (Just type1, Just type2) ->
         case (type1,type2) of
@@ -79,6 +76,6 @@ actuallyUnify variable1 variable2 = do
               return ()
 
           (Record1 fields1 ext1, Record1 fields2 ext2) ->
-              mistake "did not write record unification yet"
+              TS.addError "did not write record unification yet"
 
-          _ -> mistake "Could not unify types"
+          _ -> TS.addError "Could not unify types"

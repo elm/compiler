@@ -2,33 +2,24 @@
 module Type.Solve where
 
 import Control.Monad
+import Control.Monad.State
 import qualified Data.UnionFind.IO as UF
 import qualified Data.Array.IO as Array
-import Data.Map as Map
+import qualified Data.Map as Map
+import qualified Data.Traversable as Traversable
 import qualified Data.Maybe as Maybe
 import Type.Type
 import Type.Unify
-import Type.Environment as Env
-
--- Pool
--- Holds a bunch of variables
--- The rank of each variable is less than or equal to the pool's "number"
--- The young pool exists to make it possible to identify these vars in constant time.
-
--- inhabitants :: Pool -> [Variable]
-
-data Pool = Pool {
-  maxRank :: Int,
-  inhabitants :: [Variable]
-}
+import qualified Type.Environment as Env
+import qualified Type.State as TS
 
 register = undefined
 
-generalize :: Pool -> Pool -> IO [Variable]
+generalize :: TS.Pool -> TS.Pool -> IO [Variable]
 generalize oldPool youngPool = do
   let young = 0
       visited = 1
-      youngRank = maxRank youngPool
+      youngRank = TS.maxRank youngPool
 
   array' <- Array.newArray (0, youngRank) []
   let array = array' :: Array.IOArray Int [Variable]
@@ -36,7 +27,7 @@ generalize oldPool youngPool = do
   -- Insert all of the youngPool variables into the array.
   -- They are placed into a list at the index corresponding
   -- to their rank.
-  forM (inhabitants youngPool) $ \var -> do
+  forM (TS.inhabitants youngPool) $ \var -> do
       desc <- UF.descriptor var
       vars <- Array.readArray array (rank desc)
       Array.writeArray array (rank desc) (var : vars)
@@ -86,50 +77,56 @@ traverse young visited k variable =
                return rank'
            else return (rank desc)
 
-success = return []
-
-chop = undefined
 addTo = undefined
 newPool = undefined
 introduce = undefined
 
-solve env pool constraint =
-    case constraint of
-      CTrue -> success
+solve :: TypeConstraint -> StateT TS.SolverState IO ()
+solve constraint =
+  case constraint of
+    CTrue -> return ()
 
-      CEqual term1 term2 ->
-          unify (register pool) term1 term2
+    CEqual term1 term2 -> do
+        t1 <- TS.flatten term1
+        t2 <- TS.flatten term2
+        unify t1 t2
 
-      CAnd cs -> do
-          results <- mapM (solve env pool) cs
-          return (concat results)
+    CAnd cs -> mapM_ solve cs
 
-      CLet schemes constraint' -> do
-          env' <- foldM (\env' scheme -> addTo env' `liftM` solveScheme env pool scheme) env schemes
-          solve env' pool constraint'
+    CLet [Scheme [] fqs constraint' _] CTrue -> do
+        mapM_ introduce fqs
+        solve constraint'
 
-      CInstance name term -> do
-          let instance' = undefined
-              inst = instance' pool (Env.get env value name)
-          t <- chop pool term
-          unify pool inst t
+    CLet schemes constraint' -> do
+        mapM solveScheme schemes
+        solve constraint'
 
-solveScheme env pool scheme =
+    CInstance name term -> do
+        let instance' = undefined
+            inst = undefined --instance' pool (Env.get env value name)
+        t <- TS.flatten term
+        unify inst t
+
+solveScheme :: TypeScheme -> StateT TS.SolverState IO ()
+solveScheme scheme =
     case scheme of
       Scheme [] [] constraint header -> do
-          solve env pool constraint
-          mapM (\(n,t) -> (,) n `liftM` chop pool t) (Map.toList header)
+          solve constraint
+          Traversable.traverse TS.flatten header
+          return ()
 
       Scheme rigidQuantifiers flexibleQuantifiers constraint header -> do
           let quantifiers = rigidQuantifiers ++ flexibleQuantifiers
-          pool' <- newPool pool
-          mapM (introduce pool') rigidQuantifiers
-          mapM (introduce pool') flexibleQuantifiers
-          header' <- mapM (\(n,t) -> (,) n `liftM` chop pool t) (Map.toList header)
-          solve env pool' constraint
-          generalize pool pool'
-          mapM isGeneric rigidQuantifiers
-          return header'
+          globalPool <- TS.getPool
+          localPool <- TS.newPool
+          TS.modifyPool (\_ -> localPool)
+          mapM TS.introduce quantifiers
+          header' <- Traversable.traverse TS.flatten header
+          solve constraint
+          -- distinct variables
+          -- generalize
+          -- generic variables
+          TS.modifyPool (\_ -> globalPool)
 
 isGeneric var =
     do desc <- UF.descriptor var
