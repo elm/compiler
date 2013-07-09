@@ -134,7 +134,10 @@ instance Pretty a => Pretty (Term1 a) where
   pretty term =
     case term of
       App1 f x -> pretty f <+> pretty x
-      Fun1 arg body -> pretty arg <+> P.text "->" <+> pretty body
+      Fun1 arg body -> formattedArg <+> P.text "->" <+> pretty body
+        where
+          prettyArg = pretty arg
+          formattedArg = parensIf ("->" `List.isInfixOf` P.render prettyArg) prettyArg
       Var1 x -> pretty x
       EmptyRecord1 -> P.braces P.empty
       Record1 fields ext ->
