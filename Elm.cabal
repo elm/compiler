@@ -69,7 +69,8 @@ Library
                        Types.Unify,
                        Paths_Elm
 
-  Build-depends:       base >=4.2 && <5,
+  Build-depends:       ansi-terminal,
+                       base >=4.2 && <5,
                        blaze-html == 0.5.* || == 0.6.*,
                        blaze-markup == 0.5.1.*,
                        bytestring,
@@ -130,7 +131,8 @@ Executable elm
                        Types.Unify,
                        Paths_Elm
 
-  Build-depends:       base >=4.2 && <5,
+  Build-depends:       ansi-terminal,
+                       base >=4.2 && <5,
                        blaze-html == 0.5.* || == 0.6.*,
                        blaze-markup == 0.5.1.*,
                        bytestring,
