@@ -5,6 +5,8 @@ import qualified Data.UnionFind.IO as UF
 import qualified Type.State as TS
 import Control.Arrow (first,second)
 import Control.Monad.State
+import SourceSyntax.PrettyPrint
+import qualified Text.PrettyPrint as P
 
 unify :: Variable -> Variable -> StateT TS.SolverState IO ()
 unify variable1 variable2 = do
@@ -60,8 +62,8 @@ actuallyUnify variable1 variable2 = do
     (Just (Var1 v), _) -> unify v variable2
     (_, Just (Var1 v)) -> unify v variable1
 
-    (Nothing, _) -> TS.addError "Cannot unify rigid type variable."
-    (_, Nothing) -> TS.addError "Cannot unify rigid type variable."
+    (Nothing, _) -> TS.addError "The following types are not equal" variable1 variable2
+    (_, Nothing) -> TS.addError "The following types are not equal" variable1 variable2
 
     (Just type1, Just type2) ->
         case (type1,type2) of
@@ -78,6 +80,6 @@ actuallyUnify variable1 variable2 = do
               return ()
 
           (Record1 fields1 ext1, Record1 fields2 ext2) ->
-              TS.addError "did not write record unification yet"
+              TS.addError "did not write record unification yet" variable1 variable2
 
-          _ -> TS.addError "Could not unify types"
+          _ -> TS.addError "could not unify types" variable1 variable2

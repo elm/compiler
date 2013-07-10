@@ -35,10 +35,13 @@ test str =
       var <- flexibleVar
       constraint <- constrain env expression (VarN var)
       prettyNames constraint
-      print (pretty constraint)
-      print (P.text "Solving for:" <+> pretty var)
-      (env,_,_,_) <- execStateT (solve constraint) TS.initialState
+      --print (pretty constraint)
+      --print (P.text "Solving for:" <+> pretty var)
+      (env,_,_,errors) <- execStateT (solve constraint) TS.initialState
       mapM_ (\(n,t) -> print $ P.text n <+> P.text ":" <+> pretty t) $ Map.toList env
+      if null errors then return () else do
+          putStrLn "\n"
+          mapM_ print errors
 {-- todo: remove testing code --}
 
 constrain :: Env.Environment -> LExpr a b -> Type -> IO TypeConstraint

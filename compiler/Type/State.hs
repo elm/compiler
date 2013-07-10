@@ -3,14 +3,16 @@ module Type.State where
 
 import Type.Type
 import qualified Data.Map as Map
+import qualified Data.List as List
 import qualified Type.Environment as Env
 import qualified Data.UnionFind.IO as UF
 import Control.Monad.State
 import Control.Applicative ((<$>),(<*>), Applicative)
 import qualified Data.Traversable as Traversable
-
--- todo: remove later
+import Text.PrettyPrint as P
 import SourceSyntax.PrettyPrint
+
+debug e = {-- liftIO e --} return ()
 
 -- Pool
 -- Holds a bunch of variables
@@ -25,14 +27,23 @@ data Pool = Pool {
 emptyPool = Pool { maxRank = 0, inhabitants = [] }
 
 -- Keeps track of the environment, type variable pool, and a list of errors
-type SolverState = (Map.Map String Variable, Pool, Int, [String])
+type SolverState = (Map.Map String Variable, Pool, Int, [P.Doc])
 
 -- The mark must never be equal to noMark!
 initialState = (Map.empty, emptyPool, noMark + 1, [])
 
 modifyEnv  f = modify $ \(env, pool, mark, errors) -> (f env, pool, mark, errors)
 modifyPool f = modify $ \(env, pool, mark, errors) -> (env, f pool, mark, errors)
-addError err = modify $ \(env, pool, mark, errors) -> (env, pool, mark, err:errors)
+addError message t1 t2 = modify $ \(env, pool, mark, errors) -> (env, pool, mark, err:errors)
+  where
+    msg = P.fsep . map P.text $ words message
+    width = maximum . map length . lines $ render msg
+    err = P.vcat [ P.text $ "Type error on line ???"
+                 , P.text (List.replicate width '-')
+                 , msg <> P.text "\n"
+                 , P.text "   Expected Type:" <+> pretty t1
+                 , P.text "     Actual Type:" <+> pretty t2 <> P.text "\n"
+                 ]
 
 switchToPool pool = modifyPool (\_ -> pool)
 
@@ -87,23 +98,30 @@ flatten term =
 
 makeInstance :: Variable -> StateT SolverState IO Variable
 makeInstance var = do
+--  liftIO $ putStrLn ""
+--  liftIO $ print $ pretty var
   alreadyCopied <- uniqueMark
   freshVar <- makeCopy alreadyCopied var
   restore alreadyCopied var
+--  liftIO $ print $ pretty freshVar
   return freshVar
 
 makeCopy :: Int -> Variable -> StateT SolverState IO Variable
 makeCopy alreadyCopied variable = do
+--  liftIO $ putStr "Copying: "
   desc <- liftIO $ UF.descriptor variable
   if | mark desc == alreadyCopied ->
+        do debug $ putStrLn "Already Copied"
            case copy desc of
              Just v -> return v
              Nothing -> error "This should be impossible."
 
-     | mark desc /= noRank || flex desc == Constant ->
-         return variable
+     | rank desc /= noRank || flex desc == Constant ->
+        do debug $ putStr "did not make a copy: " >> print (mark desc, noRank, flex desc)
+           return variable
 
      | otherwise -> do
+         debug $ print "no problems!"
          pool <- getPool
          newVar <- liftIO $ UF.fresh $ Descriptor {
                      structure = Nothing,
@@ -118,12 +136,17 @@ makeCopy alreadyCopied variable = do
 
          register newVar
 
-         -- Link the original variable to the new variable
-         -- Need to do this before recursively copying to
-         -- avoid looping on cyclic terms.
+         -- Link the original variable to the new variable. This lets us
+         -- avoid making multiple copies of the variable we are instantiating.
+         --
+         -- Need to do this before recursively copying the structure of
+         -- the variable to avoid looping on cyclic terms.
          liftIO $ UF.modifyDescriptor variable $ \desc ->
              desc { mark = alreadyCopied, copy = Just newVar }
 
+         -- Now we recursively copy the structure of the variable.
+         -- We have already marked the variable as copied, so we
+         -- will not repeat this work or crawl this variable again.
          case structure desc of
            Nothing -> return newVar
            Just term -> do
@@ -134,13 +157,19 @@ makeCopy alreadyCopied variable = do
 
 restore :: Int -> Variable -> StateT SolverState IO Variable
 restore alreadyCopied variable = do
+  debug $ putStr "Restoring: "
   desc <- liftIO $ UF.descriptor variable
-  if mark desc /= alreadyCopied then return variable else do
+  if mark desc /= alreadyCopied
+  then do
+      debug $ putStrLn "not copied, no need to do anything"
+      return variable
+  else do
+      debug $ putStrLn "restoring"
       restoredStructure <-
           case structure desc of
             Nothing -> return Nothing
             Just term -> Just <$> traverseTerm (restore alreadyCopied) term
-      liftIO $ UF.modifyDescriptor variable $ \desc ->
+      debug $ UF.modifyDescriptor variable $ \desc ->
           desc { mark = noMark, rank = noRank, structure = restoredStructure }
       return variable
 

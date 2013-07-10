@@ -1,4 +1,4 @@
-
+{-# OPTIONS_GHC -XMultiWayIf #-}
 module Type.Solve where
 
 import Control.Monad
@@ -11,6 +11,7 @@ import Type.Type
 import Type.Unify
 import qualified Type.Environment as Env
 import qualified Type.State as TS
+import qualified Text.PrettyPrint as P
 
 
 -- | Every variable has rank less than or equal to the maxRank of the pool.
@@ -47,10 +48,15 @@ generalize youngPool = do
             if rank desc < youngRank
               then TS.register var >> return ()
               else let flex' = if flex desc == Flexible then Rigid else flex desc
-                   in  liftIO $ UF.setDescriptor var (desc { rank = noRank, flex = flex' })
+                   in  do liftIO $ UF.setDescriptor var (desc { rank = noRank, flex = flex' })
+                          TS.debug $ print var
 
   Traversable.traverse (mapM registerIfNotRedundant) rankDict
   Traversable.traverse (mapM registerIfHigherRank) rankDict
+
+  TS.debug $ print youngMark
+  TS.debug $ print visitedMark
+--  TS.debug $ mapM print youngVars
 
   return ()
 
@@ -63,9 +69,8 @@ adjustRank :: Int -> Int -> Int -> Variable -> StateT TS.SolverState IO Int
 adjustRank youngMark visitedMark groupRank variable =
     let adjust = adjustRank youngMark visitedMark groupRank in
     do desc <- liftIO $ UF.descriptor variable
-       case mark desc == youngMark of
-         True -> do
-           rank' <- case structure desc of
+       if | mark desc == youngMark -> do
+              rank' <- case structure desc of
                          Nothing -> return groupRank
                          Just term -> case term of
                                         App1 a b -> max `liftM` adjust a `ap` adjust b
@@ -75,31 +80,37 @@ adjustRank youngMark visitedMark groupRank variable =
                                         Record1 fields extension -> do
                                             ranks <- mapM adjust (concat (Map.elems fields))
                                             max (maximum ranks) `liftM` adjust extension
-           liftIO $ UF.setDescriptor variable (desc { mark = visitedMark, rank = rank' })
-           return rank'
+              liftIO $ UF.setDescriptor variable (desc { mark = visitedMark, rank = rank' })
+              return rank'
 
-         False -> do
-           if mark desc == visitedMark then return (rank desc) else do
-               let rank' = min groupRank (rank desc)
-               liftIO $ UF.setDescriptor variable (desc { mark = visitedMark, rank = rank' })
-               return rank'
+          | mark desc /= visitedMark -> do
+              let rank' = min groupRank (rank desc)
+              liftIO $ UF.setDescriptor variable (desc { mark = visitedMark, rank = rank' })
+              return rank'
+
+          | otherwise -> return (rank desc)
 
 
-solve :: TypeConstraint -> StateT TS.SolverState IO ()
+
+solve :: TypeConstraint -> StateT TS.SolverState IO (Map.Map String Variable)
 solve constraint =
   case constraint of
-    CTrue -> return ()
+    CTrue -> TS.getEnv
 
     CEqual term1 term2 -> do
         t1 <- TS.flatten term1
         t2 <- TS.flatten term2
         unify t1 t2
+        TS.getEnv
 
-    CAnd cs -> mapM_ solve cs
+    CAnd cs -> mapM solve cs >> TS.getEnv
 
     CLet [Scheme [] fqs constraint' _] CTrue -> do
-        mapM_ TS.introduce fqs
+        oldEnv <- TS.getEnv
+        mapM TS.introduce fqs
         solve constraint'
+        TS.modifyEnv (\_ -> oldEnv)
+        return oldEnv
 
     CLet schemes constraint' -> do
         headers <- mapM solveScheme schemes
@@ -111,6 +122,7 @@ solve constraint =
         freshCopy <- TS.makeInstance ((Map.!) env name)
         t <- TS.flatten term
         unify freshCopy t
+        TS.getEnv
 
 solveScheme :: TypeScheme -> StateT TS.SolverState IO (Map.Map String Variable)
 solveScheme scheme =
@@ -147,10 +159,11 @@ allDistinct vars = do
   let check var = do
         desc <- liftIO $ UF.descriptor var
         case structure desc of
-          Just _ -> TS.addError "Cannot generalize something that is not a type variable."
+          Just _ ->
+              TS.addError "Cannot generalize something that is not a type variable" () var
           Nothing -> do
             if mark desc == seen
-              then TS.addError "Duplicate variable during generalization"
+              then TS.addError "Duplicate variable during generalization" var ()
               else return ()
             liftIO $ UF.setDescriptor var (desc { mark = seen })
   mapM_ check vars
@@ -161,4 +174,4 @@ isGeneric var = do
   desc <- liftIO $ UF.descriptor var
   if rank desc == noRank
     then return ()
-    else TS.addError "Cannot generalize. Variable must have not have a rank."
+    else TS.addError "Cannot generalize. Variable must have not have a rank." () var
