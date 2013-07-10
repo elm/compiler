@@ -197,15 +197,16 @@ instance (Pretty a, Pretty b) => Pretty (Scheme a b) where
       dict = P.parens . P.sep . P.punctuate P.comma . map prettyPair $ Map.toList headers
       prettyPair (n,t) = P.text n <+> P.text ":" <+> pretty t
 
-
-prettyNames constraint = do
-    (_, rawVars) <- fold constraint [] getNames
+extraPretty :: (Pretty t, Crawl t) => t -> IO Doc
+extraPretty value = do
+    (_, rawVars) <- runStateT (crawl getNames value) []
     let vars = map head . List.group $ List.sort rawVars
         letters = map (:[]) ['a'..'z']
         suffix s = map (++s)
         allVars = letters ++ suffix "'" letters ++ concatMap (\n -> suffix (show n) letters) [0..]
         okayVars = filter (`notElem` vars) allVars
-    fold constraint okayVars rename
+    runStateT (crawl rename value) okayVars
+    return (pretty value)
   where
     getNames name vars =
       case name of
@@ -217,39 +218,60 @@ prettyNames constraint = do
         Just var -> (name, vars)
         Nothing -> (Just (head vars), tail vars)
 
-fold constraint initialState func =
-    runStateT (prettyName constraint) initialState
-  where
-    prettyName constraint =
-      case constraint of
-        CTrue -> return CTrue
-        CEqual a b -> CEqual <$> prettyTypeName a <*> prettyTypeName b
-        CAnd cs -> CAnd <$> mapM prettyName cs
-        CLet schemes c -> CLet <$> mapM prettySchemeName schemes <*> prettyName c
-        CInstance name tipe -> CInstance name <$> prettyTypeName tipe
 
-    prettySchemeName (Scheme rqs fqs c headers) =
-       Scheme <$> mapM prettyVarName rqs <*> mapM prettyVarName fqs <*> prettyName c <*> return headers
+-- Code for traversing all the type data-structures and giving
+-- names to the variables embedded deep in there.
+class Crawl t where
+  crawl :: (Maybe TypeName -> [String] -> (Maybe TypeName, [String]))
+        -> t
+        -> StateT [String] IO t
 
-    prettyVarName point = do
-      state <- get
-      put =<< do desc <- liftIO $ UF.descriptor point
-                 let (name', state') = func (name desc) state
-                 liftIO $ UF.setDescriptor point (desc { name = name' })
-                 return state'
-      return point
+instance (Crawl t, Crawl v) => Crawl (Constraint t v) where
+  crawl nextState constraint = 
+    let rnm = crawl nextState in
+    case constraint of
+      CTrue -> return CTrue
+      CEqual a b -> CEqual <$> rnm a <*> rnm b
+      CAnd cs -> CAnd <$> crawl nextState cs
+      CLet schemes c -> CLet <$> crawl nextState schemes <*> crawl nextState c 
+      CInstance name tipe -> CInstance name <$> rnm tipe
 
-    prettyTypeName tipe =
-      case tipe of
-        VarN x -> VarN <$> prettyVarName x
-        TermN term -> TermN <$> prettyTermName term
+instance Crawl a => Crawl [a] where
+  crawl nextState list = mapM (crawl nextState) list
 
-    prettyTermName term =
-      case term of
-        App1 a b -> App1 <$> prettyTypeName a <*> prettyTypeName b
-        Fun1 a b -> Fun1 <$> prettyTypeName a <*> prettyTypeName b
-        Var1 a -> Var1 <$> prettyTypeName a
-        EmptyRecord1 -> return EmptyRecord1
-        Record1 fields ext -> Record1 <$> fields' <*> prettyTypeName ext
-          where
-            fields' = traverse (mapM prettyTypeName) fields
+instance (Crawl t, Crawl v) => Crawl (Scheme t v) where
+  crawl nextState (Scheme rqs fqs c headers) =
+    let rnm = crawl nextState in
+    Scheme <$> rnm rqs <*> rnm fqs <*> crawl nextState c <*> return headers
+
+instance Crawl t => Crawl (TermN t) where
+  crawl nextState tipe =
+    case tipe of
+      VarN x -> VarN <$> crawl nextState x
+      TermN term -> TermN <$> crawl nextState term
+
+instance Crawl t => Crawl (Term1 t) where
+  crawl nextState term =
+     let rnm = crawl nextState in
+     case term of
+      App1 a b -> App1 <$> rnm a <*> rnm b
+      Fun1 a b -> Fun1 <$> rnm a <*> rnm b
+      Var1 a -> Var1 <$> rnm a
+      EmptyRecord1 -> return EmptyRecord1
+      Record1 fields ext ->
+          Record1 <$> traverse (mapM rnm) fields <*> rnm ext
+
+instance Crawl a => Crawl (UF.Point a) where
+  crawl nextState point = do
+    desc <- liftIO $ UF.descriptor point
+    desc' <- crawl nextState desc
+    liftIO $ UF.setDescriptor point desc'
+    return point
+
+instance Crawl Descriptor where
+  crawl nextState desc = do
+    state <- get
+    let (name', state') = nextState (name desc) state
+    structure' <- traverse (crawl nextState) (structure desc)
+    put state'
+    return $ desc { name = name', structure = structure' }

@@ -27,23 +27,31 @@ data Pool = Pool {
 emptyPool = Pool { maxRank = 0, inhabitants = [] }
 
 -- Keeps track of the environment, type variable pool, and a list of errors
-type SolverState = (Map.Map String Variable, Pool, Int, [P.Doc])
+type SolverState = (Map.Map String Variable, Pool, Int, [IO P.Doc])
 
 -- The mark must never be equal to noMark!
 initialState = (Map.empty, emptyPool, noMark + 1, [])
 
 modifyEnv  f = modify $ \(env, pool, mark, errors) -> (f env, pool, mark, errors)
 modifyPool f = modify $ \(env, pool, mark, errors) -> (env, f pool, mark, errors)
-addError message t1 t2 = modify $ \(env, pool, mark, errors) -> (env, pool, mark, err:errors)
+addError message t1 t2 =
+    modify $ \(env, pool, mark, errors) -> (env, pool, mark, err : errors)
+
   where
-    msg = P.fsep . map P.text $ words message
+    wordify = P.fsep . map P.text . words 
+    msg = wordify message
     width = maximum . map length . lines $ render msg
-    err = P.vcat [ P.text $ "Type error on line ???"
-                 , P.text (List.replicate width '-')
-                 , msg <> P.text "\n"
-                 , P.text "   Expected Type:" <+> pretty t1
-                 , P.text "     Actual Type:" <+> pretty t2 <> P.text "\n"
-                 ]
+    spaces = List.replicate (width - 15 - 3) ' '
+    err = makeError <$> extraPretty t1 <*> extraPretty t2
+    makeError pt1 pt2 =
+        P.vcat [ P.text $ "Type error" ++ spaces ++ "line ???"
+               , P.text (List.replicate width '-')
+               , msg <> P.text "\n"
+               , P.text "   Expected Type:" <+> pt1
+               , P.text "     Actual Type:" <+> pt2 <> P.text "\n"
+               , wordify "The error comes from:" <> P.text "\n"
+               , P.nest 3 (P.text "???")
+               ]
 
 switchToPool pool = modifyPool (\_ -> pool)
 
@@ -98,17 +106,14 @@ flatten term =
 
 makeInstance :: Variable -> StateT SolverState IO Variable
 makeInstance var = do
---  liftIO $ putStrLn ""
---  liftIO $ print $ pretty var
   alreadyCopied <- uniqueMark
   freshVar <- makeCopy alreadyCopied var
   restore alreadyCopied var
---  liftIO $ print $ pretty freshVar
   return freshVar
 
 makeCopy :: Int -> Variable -> StateT SolverState IO Variable
 makeCopy alreadyCopied variable = do
---  liftIO $ putStr "Copying: "
+  debug $ putStr "Copying: "
   desc <- liftIO $ UF.descriptor variable
   if | mark desc == alreadyCopied ->
         do debug $ putStrLn "Already Copied"

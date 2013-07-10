@@ -160,10 +160,10 @@ allDistinct vars = do
         desc <- liftIO $ UF.descriptor var
         case structure desc of
           Just _ ->
-              TS.addError "Cannot generalize something that is not a type variable" () var
+              TS.addError "Cannot generalize something that is not a type variable" var var
           Nothing -> do
             if mark desc == seen
-              then TS.addError "Duplicate variable during generalization" var ()
+              then TS.addError "Duplicate variable during generalization" var var
               else return ()
             liftIO $ UF.setDescriptor var (desc { mark = seen })
   mapM_ check vars
@@ -174,4 +174,4 @@ isGeneric var = do
   desc <- liftIO $ UF.descriptor var
   if rank desc == noRank
     then return ()
-    else TS.addError "Cannot generalize. Variable must have not have a rank." () var
+    else TS.addError "Cannot generalize. Variable must have not have a rank." var var
