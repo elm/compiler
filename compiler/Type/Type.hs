@@ -166,33 +166,44 @@ instance (Pretty a, Pretty b) => Pretty (Constraint a b) where
       CEqual a b -> pretty a <+> P.text "=" <+> pretty b
       CAnd [] -> P.text "True"
 
-      CAnd (c:cs) ->
-        P.parens . P.sep $ pretty c : (map (\c -> P.text "and" <+> pretty c) cs)
+      CAnd cs ->
+        P.parens . P.sep $ P.punctuate (P.text " and") (map pretty cs)
 
       CLet [Scheme [] fqs constraint header] CTrue | Map.null header ->
-          P.hang binder 2 (pretty constraint)
+          P.sep [ binder, pretty c ]
         where
-          binder = if null fqs then P.empty else
-                     P.text "exists" <+> P.hsep (map pretty fqs) <> P.text "."
+          mergeExists vs c =
+            case c of
+              CLet [Scheme [] fqs' c' _] CTrue -> mergeExists (vs ++ fqs') c'
+              _ -> (vs, c)
+
+          (fqs', c) = mergeExists fqs constraint
+
+          binder = if null fqs' then P.empty else
+                     P.text "exists" <+> P.hsep (map pretty fqs') <> P.text "."
 
       CLet schemes constraint ->
-        P.vcat [ P.hang (P.text "let") 4 (P.brackets . P.sep . P.punctuate P.comma $ map pretty schemes)
-               , P.text "in " <+> pretty constraint ]
+        P.fsep [ P.hang (P.text "let") 4 (P.brackets . P.sep . P.punctuate P.comma $ map pretty schemes)
+               , P.text "in", pretty constraint ]
 
       CInstance name tipe ->
         P.text name <+> P.text "<" <+> pretty tipe
 
 instance (Pretty a, Pretty b) => Pretty (Scheme a b) where
   pretty (Scheme rqs fqs constraint headers) =
-      P.sep [ forall <+> frees <+> rigids, cs, headers' ]
+      P.sep [ forall, cs, headers' ]
     where
-      forall = if Map.size headers + length rqs /= 0 then P.text "forall" else P.empty
+      forall = if null rqs && null fqs then P.empty else
+               P.text "forall" <+> frees <+> rigids
+
       frees = P.hsep $ map pretty fqs
-      rigids = if length rqs > 0 then P.braces . P.hsep $ map pretty rqs else empty
+      rigids = if null rqs then P.empty else P.braces . P.hsep $ map pretty rqs
+
       cs = case constraint of
              CTrue -> P.empty
              CAnd [] -> P.empty
              _ -> P.brackets (pretty constraint)
+
       headers' = if Map.size headers > 0 then dict else P.empty
       dict = P.parens . P.sep . P.punctuate P.comma . map prettyPair $ Map.toList headers
       prettyPair (n,t) = P.text n <+> P.text ":" <+> pretty t
