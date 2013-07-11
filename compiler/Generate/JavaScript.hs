@@ -14,7 +14,6 @@ import Generate.Cases
 import SourceSyntax.Everything hiding (parens)
 import SourceSyntax.Location as Loc
 import Transform.SortDefinitions
-import Types.Types ( Type(RecordT) )
 
 showErr :: String -> String
 showErr err = globalAssign "Elm.Main" (jsFunc "elm" body)

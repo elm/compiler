@@ -9,13 +9,20 @@ import SourceSyntax.Everything
 import Data.List (intercalate,partition)
 import Parse.Parser (parseProgram, parseDependencies)
 import qualified Metadata.Libraries as Libs
-import Types.Types ((-:))
-import Types.Hints (hints)
-import Types.Unify (unify)
-import Types.Alias (dealias, mistakes)
 import Transform.Optimize
 import System.Exit
 import System.FilePath
+
+
+{-- TODO: replace with new stuff
+import Types.Hints (hints)
+import Types.Unify (unify)
+import Types.Alias (dealias, mistakes)
+--}
+mistakes = undefined
+unify = undefined
+hints = undefined
+
 
 checkMistakes :: (Data t, Data v) => Module t v -> Either String (Module t v)
 checkMistakes modul@(Module name ex im stmts) = 

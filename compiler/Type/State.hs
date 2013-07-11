@@ -165,10 +165,10 @@ restore alreadyCopied variable = do
   debug $ putStr "Restoring: "
   desc <- liftIO $ UF.descriptor variable
   if mark desc /= alreadyCopied
-  then do
+    then do
       debug $ putStrLn "not copied, no need to do anything"
       return variable
-  else do
+    else do
       debug $ putStrLn "restoring"
       restoredStructure <-
           case structure desc of

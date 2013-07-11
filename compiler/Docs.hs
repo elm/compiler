@@ -4,15 +4,12 @@ module Main where
 import SourceSyntax.Declaration (Declaration(Datatype))
 import Control.Applicative ((<$>), (<*>))
 import Data.List (intercalate)
-import Data.Maybe (catMaybes)
-import Types.Types ((==>), Type ( ADT, VarT ) )
-import Parse.Type (datatype)
+import Parse.Type
 import Parse.Helpers
 import Parse.Module (moduleDef)
 import Text.Parsec hiding (newline,spaces)
 import System.Environment
 import System.Exit
-
 
 main = do
   srcs <- mapM readFile =<< getArgs
@@ -64,11 +61,13 @@ annotation exports =
 
     typeDef = lookAhead ((string "data" <|> string "type") >> whitespace >> capVar)
 
-    adt = do
+    adt = do undefined
+{-- TODO: reimplement this
       (Datatype name tvs constructors) <- datatype
       let toType (cName, typeArgs) =
-              (cName, show $ foldr (==>) (ADT name $ map VarT tvs) typeArgs, "")
+              (cName, show $ foldr (==>) (kADT name $ map kVarT tvs) typeArgs, "")
       return $ map toType constructors
+--}
 
 setupParser p source =
     case iParse p "" source of
