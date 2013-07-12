@@ -1,1 +1,1 @@
-let test x = let y = x in y in test
+test x = let y = x in y

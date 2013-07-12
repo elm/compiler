@@ -1,5 +1,3 @@
-let test =
-  let id : a -> a
-      id x = x
-  in  id
- in test
+test = let id : a -> a
+           id x = x
+       in  id
