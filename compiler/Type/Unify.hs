@@ -37,25 +37,41 @@ actuallyUnify variable1 variable2 = do
       rank' = min (rank desc1) (rank desc2)
 
       merge1 :: StateT TS.SolverState IO ()
-      merge1 = liftIO $ do
-        UF.union variable2 variable1
-        UF.setDescriptor variable1 (desc1 {
-            flex = flex', name = name', rank = rank', copy = Nothing, mark = noMark })
+      merge1 =
+        if rank desc1 < rank desc2 then
+          liftIO $ do
+            UF.union variable2 variable1
+            UF.modifyDescriptor variable1 (\desc -> desc { flex = flex', name = name' })
+        else
+          liftIO $ do
+            UF.union variable1 variable2
+            UF.modifyDescriptor variable2 (\desc -> desc {
+                structure = structure desc1, flex = flex', name = name' })
 
       merge2 :: StateT TS.SolverState IO ()
-      merge2 = liftIO $ do
-        UF.union variable1 variable2
-        UF.setDescriptor variable2 (desc2 {
-            flex = flex', name = name', rank = rank', copy = Nothing, mark = noMark })
+      merge2 =
+        if rank desc1 < rank desc2 then
+          liftIO $ do
+            UF.union variable2 variable1
+            UF.modifyDescriptor variable2 (\desc -> desc {
+                structure = structure desc2, flex = flex', name = name' })
+        else 
+          liftIO $ do
+            UF.union variable1 variable2
+            UF.modifyDescriptor variable2 (\desc -> desc { flex = flex', name = name' })
+
+      merge = if rank desc1 < rank desc2 then merge1 else merge2
 
       fresh :: Maybe (Term1 Variable) -> StateT TS.SolverState IO Variable
       fresh structure = do
         var <- liftIO . UF.fresh $ Descriptor {
-                 structure = structure, rank = rank', flex = flex', name = name', copy = Nothing, mark = noMark
+                 structure = structure, rank = rank', flex = flex',
+                 name = name', copy = Nothing, mark = noMark
                }
         TS.register var
 
   case (structure desc1, structure desc2) of
+    (Nothing, Nothing) | flex desc1 == Flexible && flex desc1 == Flexible -> merge
     (Nothing, _) | flex desc1 == Flexible -> merge2
     (_, Nothing) | flex desc2 == Flexible -> merge1
 
@@ -68,11 +84,11 @@ actuallyUnify variable1 variable2 = do
     (Just type1, Just type2) ->
         case (type1,type2) of
           (App1 term1 term2, App1 term1' term2') ->
-              do merge1
+              do merge
                  unify term1 term1'
                  unify term2 term2'
           (Fun1 term1 term2, Fun1 term1' term2') ->
-              do merge1
+              do merge
                  unify term1 term1'
                  unify term2 term2'
 

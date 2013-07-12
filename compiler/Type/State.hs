@@ -12,8 +12,6 @@ import qualified Data.Traversable as Traversable
 import Text.PrettyPrint as P
 import SourceSyntax.PrettyPrint
 
-debug e = {-- liftIO e --} return ()
-
 -- Pool
 -- Holds a bunch of variables
 -- The rank of each variable is less than or equal to the pool's "maxRank"
@@ -24,7 +22,7 @@ data Pool = Pool {
   inhabitants :: [Variable]
 } deriving Show
 
-emptyPool = Pool { maxRank = 0, inhabitants = [] }
+emptyPool = Pool { maxRank = outermostRank, inhabitants = [] }
 
 -- Keeps track of the environment, type variable pool, and a list of errors
 type SolverState = (Map.Map String Variable, Pool, Int, [IO P.Doc])
@@ -36,7 +34,6 @@ modifyEnv  f = modify $ \(env, pool, mark, errors) -> (f env, pool, mark, errors
 modifyPool f = modify $ \(env, pool, mark, errors) -> (env, f pool, mark, errors)
 addError message t1 t2 =
     modify $ \(env, pool, mark, errors) -> (env, pool, mark, err : errors)
-
   where
     wordify = P.fsep . map P.text . words 
     msg = wordify message
@@ -113,20 +110,16 @@ makeInstance var = do
 
 makeCopy :: Int -> Variable -> StateT SolverState IO Variable
 makeCopy alreadyCopied variable = do
-  debug $ putStr "Copying: "
   desc <- liftIO $ UF.descriptor variable
   if | mark desc == alreadyCopied ->
-        do debug $ putStrLn "Already Copied"
            case copy desc of
              Just v -> return v
              Nothing -> error "This should be impossible."
 
      | rank desc /= noRank || flex desc == Constant ->
-        do debug $ putStr "did not make a copy: " >> print (mark desc, noRank, flex desc)
            return variable
 
      | otherwise -> do
-         debug $ print "no problems!"
          pool <- getPool
          newVar <- liftIO $ UF.fresh $ Descriptor {
                      structure = Nothing,
@@ -162,19 +155,13 @@ makeCopy alreadyCopied variable = do
 
 restore :: Int -> Variable -> StateT SolverState IO Variable
 restore alreadyCopied variable = do
-  debug $ putStr "Restoring: "
   desc <- liftIO $ UF.descriptor variable
   if mark desc /= alreadyCopied
-    then do
-      debug $ putStrLn "not copied, no need to do anything"
-      return variable
+    then return variable
     else do
-      debug $ putStrLn "restoring"
       restoredStructure <-
-          case structure desc of
-            Nothing -> return Nothing
-            Just term -> Just <$> traverseTerm (restore alreadyCopied) term
-      debug $ UF.modifyDescriptor variable $ \desc ->
+          Traversable.traverse (traverseTerm (restore alreadyCopied)) (structure desc)
+      liftIO $ UF.modifyDescriptor variable $ \desc ->
           desc { mark = noMark, rank = noRank, structure = restoredStructure }
       return variable
 

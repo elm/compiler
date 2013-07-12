@@ -34,6 +34,7 @@ test str =
       env <- Env.initialEnvironment
       var <- flexibleVar
       constraint <- constrain env expression (VarN var)
+      print =<< extraPretty constraint
       (env,_,_,errors) <- execStateT (solve constraint) TS.initialState
       forM (Map.toList env) $ \(n,t) -> do
           pt <- extraPretty t
@@ -197,7 +198,8 @@ constrainDef env info (pattern, expr, maybeTipe) =
 
       (PVar name, Nothing) ->
           do var <- flexibleVar
-             rigidVars <- mapM (\_ -> rigidVar) qs
+             rigidVars <- mapM (\_ -> rigidVar) qs -- Some mistake may be happening here.
+                                                   -- Currently, qs is always the empty list.
              let tipe = VarN var
                  inserts = zipWith (\arg typ -> Map.insert arg (VarN typ)) qs rigidVars
                  env' = env { Env.value = List.foldl' (\x f -> f x) (Env.value env) inserts }
