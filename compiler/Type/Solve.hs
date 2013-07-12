@@ -18,9 +18,11 @@ import qualified Text.PrettyPrint as P
 --   This sorts variables into the young and old pools accordingly.
 generalize :: TS.Pool -> StateT TS.SolverState IO ()
 generalize youngPool = do
+  youngMark <- TS.uniqueMark 
   let youngRank = TS.maxRank youngPool
       insert dict var = do
         desc <- liftIO $ UF.descriptor var
+        liftIO $ UF.modifyDescriptor var (\desc -> desc { mark = youngMark })
         return $ Map.insertWith (++) (rank desc) [var] dict
 
   -- Sort the youngPool variables by rank.
@@ -29,42 +31,37 @@ generalize youngPool = do
   -- get the ranks right for each entry.
   -- start at low ranks so that we only have to pass
   -- over the information once.
-  youngMark <- TS.uniqueMark 
   visitedMark <- TS.uniqueMark
-  Traversable.traverse (mapM (adjustRank youngMark visitedMark youngRank)) rankDict
+  mapM (\(poolRank, vars) -> mapM (adjustRank youngMark visitedMark poolRank) vars) (Map.toList rankDict)
 
-  -- Move variables out of the young pool if they do not have a young rank.
-  -- We should not generalize things we cannot use.
-  let youngVars = (Map.!) rankDict youngRank
-
-      registerIfNotRedundant var = do
+  -- For variables that have rank lowerer than youngRank, register them in
+  -- the old pool if they are not redundant.
+  let registerIfNotRedundant var = do
         isRedundant <- liftIO $ UF.redundant var
         if isRedundant then return var else TS.register var
 
-      registerIfHigherRank var = do
+  let rankDict' = Map.delete youngRank rankDict
+  Traversable.traverse (mapM registerIfNotRedundant) rankDict'
+
+  -- For variables with rank youngRank
+  --   If rank < youngRank: register in oldPool
+  --   otherwise generalize
+  let registerIfLowerRank var = do
         isRedundant <- liftIO $ UF.redundant var
         if isRedundant then return () else do
             desc <- liftIO $ UF.descriptor var
             if rank desc < youngRank
               then TS.register var >> return ()
               else let flex' = if flex desc == Flexible then Rigid else flex desc
-                   in  do liftIO $ UF.setDescriptor var (desc { rank = noRank, flex = flex' })
-                          TS.debug $ print var
+                   in  liftIO $ UF.setDescriptor var (desc { rank = noRank, flex = flex' })
 
-  Traversable.traverse (mapM registerIfNotRedundant) rankDict
-  Traversable.traverse (mapM registerIfHigherRank) rankDict
-
-  TS.debug $ print youngMark
-  TS.debug $ print visitedMark
---  TS.debug $ mapM print youngVars
+  mapM registerIfLowerRank (Map.findWithDefault [] youngRank rankDict)
 
   return ()
 
 
 -- adjust the ranks of variables such that ranks never increase as you
--- move deeper into a variable. This mean the rank actually represents the
--- deepest variable in the whole type, and we can ignore things at a lower
--- rank than the current constraints.
+-- move deeper into a variable.
 adjustRank :: Int -> Int -> Int -> Variable -> StateT TS.SolverState IO Int
 adjustRank youngMark visitedMark groupRank variable =
     let adjust = adjustRank youngMark visitedMark groupRank in
@@ -133,19 +130,19 @@ solveScheme scheme =
 
       Scheme rigidQuantifiers flexibleQuantifiers constraint header -> do
           let quantifiers = rigidQuantifiers ++ flexibleQuantifiers
-          currentPool <- TS.getPool
+          oldPool <- TS.getPool
 
           -- fill in a new pool when working on this scheme's constraints
-          emptyPool <- TS.nextRankPool
-          TS.switchToPool emptyPool
+          freshPool <- TS.nextRankPool
+          TS.switchToPool freshPool
           mapM TS.introduce quantifiers
           header' <- Traversable.traverse TS.flatten header
           solve constraint
 
           allDistinct rigidQuantifiers
-          localPool <- TS.getPool
-          TS.switchToPool currentPool
-          generalize localPool
+          youngPool <- TS.getPool
+          TS.switchToPool oldPool
+          generalize youngPool
           mapM isGeneric rigidQuantifiers
           return header'
 
