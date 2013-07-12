@@ -17,6 +17,6 @@ instance Pretty Literal where
     case literal of
       IntNum n -> PP.int n
       FloatNum n -> PP.float n
-      Chr c -> PP.char c
+      Chr c -> PP.quotes (PP.char c)
       Str s -> PP.text (show s)
       Boolean bool -> PP.text (show bool)
