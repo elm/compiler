@@ -1,11 +1,15 @@
 
-module Transform.SortDefinitions (boundVars) where
+module Transform.SortDefinitions (sortDefs) where
 
 import Control.Monad.State
+import Control.Applicative ((<$>))
 import qualified Data.Set as Set
 import qualified Data.Map as Map
+import qualified SourceSyntax.Type as ST
 import SourceSyntax.Everything
-
+import qualified Data.Graph as Graph
+import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
 
 boundVars :: Pattern -> Set.Set String
 boundVars pattern =
@@ -17,38 +21,19 @@ boundVars pattern =
       PAnything -> Set.empty
       PLiteral _ -> Set.empty
 
+free :: String -> State (Set.Set String) ()
 free x = modify (Set.insert x)
+
+bound :: Set.Set String -> State (Set.Set String) ()
 bound boundVars = modify (\freeVars -> Set.difference freeVars boundVars)
 
-reorderAndGetDependencies pattern expr =
-    do globalFrees <- get
-       expr' <- reorder expr
-       localFrees <- get
-       modify (Set.union globalFrees)
-       let addDep var deps = Map.insert var localFrees deps
-           dependencies = Set.foldr addDep Map.empty (boundVars pattern)
-       return (expr', dependencies)
+sortDefs :: LExpr t v -> LExpr t v
+sortDefs expr = evalState (reorder expr) Set.empty
 
 reorder :: LExpr t v -> State (Set.Set String) (LExpr t v)
 reorder lexpr@(L a b expr) =
     L a b `liftM`
     case expr of
-{--
-      -- Actually do some reordering
-      Let defs body ->
-          do -- swap in a fresh environment
-
-             -- swap in the old environment
-             body' <- reorder body
-             bound (boundVars (patterns defs))
-             Let `liftM` defs' `ap` body'
-
-          where
-            patterns = flip concatMap defs $
-                       case def of
-                         Def pattern _ -> [pattern]
-                         TypeAnnotation _ _ -> []
---}
       -- Be careful adding and restricting freeVars
       Var x -> free x >> return expr
 
@@ -98,6 +83,35 @@ reorder lexpr@(L a b expr) =
 
       Markdown _ -> return expr
 
+      -- Actually do some reordering
+      Let defs body ->
+          do body' <- reorder body
+
+             -- Sort defs into strongly connected components.This
+             -- allows the programmer to write definitions in whatever
+             -- order they please, we can still define things in order
+             -- and generalize polymorphic functions when appropriate.
+             sccs <- Graph.stronglyConnComp <$> buildDefDict defs
+             let defss = map Graph.flattenSCC sccs
+             
+             -- remove let-bound variables from the context
+             let getPatterns def =
+                     case def of
+                       Def pattern _ -> pattern
+                       TypeAnnotation name _ -> PVar name
+             mapM (bound . boundVars . getPatterns) defs
+
+             let addDefs ds bod = L a b (Let (concatMap toDefs ds) bod)
+                     where
+                       toDefs (pattern, expr, Nothing) = [ Def pattern expr ]
+                       toDefs (PVar name, expr, Just tipe) =
+                           [ TypeAnnotation name tipe, Def (PVar name) expr ]
+             
+                 L _ _ let' = foldr addDefs body' defss
+
+             return let'
+
+
 reorderField (label, expr) =
     (,) label `liftM` reorder expr
 
@@ -109,4 +123,57 @@ bindingReorder (pattern,expr) =
     do expr' <- reorder expr
        bound (boundVars pattern)
        return (pattern, expr')
+
+
+type PDef t v = (Pattern, LExpr t v, Maybe ST.Type)
+
+reorderAndGetDependencies :: PDef t v -> State (Set.Set String) (PDef t v, [String])
+reorderAndGetDependencies (pattern, expr, mType) =
+    do globalFrees <- get
+       -- work in a fresh environment
+       put Set.empty
+       expr' <- reorder expr
+       localFrees <- get
+       -- merge with global frees
+       modify (Set.union globalFrees)
+       return ((pattern, expr', mType), Set.toList localFrees)
+
+
+-- This also reorders the all of the sub-expressions in the Def list.
+buildDefDict :: [Def t v] -> State (Set.Set String) [(PDef t v, Int, [Int])]
+buildDefDict defs =
+  do pdefsDeps <- mapM reorderAndGetDependencies (getPDefs defs)
+     return $ realDeps (addKey pdefsDeps)
+
+  where
+    getPDefs :: [Def t v] -> [PDef t v]
+    getPDefs defs = map (\(p,(e,t)) -> (p,e,t)) $
+                    Map.toList $ go defs Map.empty Map.empty
+      where
+        go [] ds ts =
+            Map.unions [ Map.difference ds ts
+                       , Map.intersectionWith (\(e,_) t -> (e,Just t)) ds ts ]
+        
+        go (def:defs) ds ts =
+            case def of
+              Def p e -> go defs (Map.insert p (e, Nothing) ds) ts
+              TypeAnnotation name tipe -> go defs ds (Map.insert (PVar name) tipe ts)
+
+    addKey :: [(PDef t v, [String])] -> [(PDef t v, Int, [String])]
+    addKey = zipWith (\n (pdef,deps) -> (pdef,n,deps)) [0..]
+
+    variableToKey :: (PDef t v, Int, [String]) -> [(String, Int)]
+    variableToKey ((pattern, _, _), key, _) =
+        [ (var, key) | var <- Set.toList (boundVars pattern) ]
+
+    variableToKeyMap :: [(PDef t v, Int, [String])] -> Map.Map String Int
+    variableToKeyMap pdefsDeps =
+        Map.fromList (concatMap variableToKey pdefsDeps)
+
+    realDeps :: [(PDef t v, Int, [String])] -> [(PDef t v, Int, [Int])]
+    realDeps pdefsDeps = map convert pdefsDeps
+        where
+          varDict = variableToKeyMap pdefsDeps
+          convert (pdef, key, deps) =
+              (pdef, key, Maybe.mapMaybe (flip Map.lookup varDict) deps)
 

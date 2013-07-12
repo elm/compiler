@@ -26,6 +26,7 @@ import Parse.Expression
 import Parse.Helpers (iParse)
 import Type.Solve (solve)
 import qualified Type.State as TS
+import Transform.SortDefinitions
 
 test str =
   case iParse expr "" str of
@@ -33,7 +34,9 @@ test str =
     Right expression -> do
       env <- Env.initialEnvironment
       var <- flexibleVar
-      constraint <- constrain env expression (VarN var)
+      let expr = sortDefs expression
+      print (pretty expr)
+      constraint <- constrain env expr (VarN var)
       print =<< extraPretty constraint
       (env,_,_,errors) <- execStateT (solve constraint) TS.initialState
       forM (Map.toList env) $ \(n,t) -> do
