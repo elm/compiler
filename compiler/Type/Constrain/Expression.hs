@@ -212,7 +212,10 @@ constrainDef env info (pattern, expr, maybeTipe) =
                     , c1 )
 
 instantiateType :: SrcT.Type -> IO Type
-instantiateType sourceType = evalStateT (go sourceType) Map.empty
+instantiateType sourceType = instantiateTypeWithContext sourceType Map.empty
+
+instantiateTypeWithContext :: SrcT.Type -> Map.Map String Variable -> IO Type
+instantiateTypeWithContext sourceType dict = evalStateT (go sourceType) dict
   where
     go :: SrcT.Type -> StateT (Map.Map String Variable) IO Type
     go sourceType =
