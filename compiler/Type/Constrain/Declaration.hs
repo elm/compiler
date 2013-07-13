@@ -24,6 +24,7 @@ import Parse.Parser (parseProgram)
 import Type.Solve (solve)
 import qualified Type.State as TS
 import Control.Monad.State
+import Transform.SortDefinitions as Sort
 
 test filePath = do
   src <- readFile filePath
@@ -32,7 +33,9 @@ test filePath = do
     Right (Module _ _ _ decls) -> do
       env <- Env.initialEnvironment
       var <- T.flexibleVar
-      constraint <- TcExpr.constrain env (toExpr decls) (T.VarN var)
+      let expr = sortDefs (toExpr decls)
+      print $ pretty expr
+      constraint <- TcExpr.constrain env expr (T.VarN var)
       print =<< T.extraPretty constraint
       (env,_,_,errors) <- execStateT (solve constraint) TS.initialState
       forM (Map.toList env) $ \(n,t) -> do
@@ -43,7 +46,7 @@ test filePath = do
           mapM_ print =<< sequence errors
 
 toExpr decls =
-  SL.none $ SE.Let (concatMap toDefs decls) (SL.none $ SE.Literal (SL.IntNum 0))
+  SL.none $ SE.Let (concatMap toDefs decls) (SL.none $ SE.Literal (SL.IntNum 42))
 
 toDefs :: Declaration t v -> [SE.Def t v]
 toDefs decl =
