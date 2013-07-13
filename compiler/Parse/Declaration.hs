@@ -17,7 +17,7 @@ import SourceSyntax.Declaration (Declaration(..))
 import Unique
 
 declaration :: IParser (Declaration t v)
-declaration = definition <|> alias <|> datatype <|> foreignDef
+declaration = alias <|> datatype <|> foreignDef <|> definition
 
 definition :: IParser (Declaration t v)
 definition = Definition <$> Expr.def
