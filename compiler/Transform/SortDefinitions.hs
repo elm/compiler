@@ -1,5 +1,5 @@
 
-module Transform.SortDefinitions (sortDefs) where
+module Transform.SortDefinitions (sortDefs, boundVars) where
 
 import Control.Monad.State
 import Control.Applicative ((<$>))
