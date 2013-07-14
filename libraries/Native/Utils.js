@@ -36,8 +36,8 @@ Elm.Native.Utils = function(elm) {
       }
     }
 
-    if (x.ctor.slice(0,5) === 'Tuple') {
-      var n = x.ctor.slice(5) - 0;
+    if (x.ctor.slice(0,6) === '_Tuple') {
+      var n = x.ctor.slice(6) - 0;
       var err = 'cannot compare tuples with more than 6 elements.';
       if (n === 0) return EQ;
       if (n >= 1) { ord = cmp(x._0, y._0); if (ord !== EQ) return ord;
@@ -55,8 +55,8 @@ Elm.Native.Utils = function(elm) {
   }
 
 
-  var Tuple0 = { ctor: "Tuple0" };
-  function Tuple2(x,y) { return { ctor:"Tuple2", _0:x, _1:y } }
+  var Tuple0 = { ctor: "_Tuple0" };
+  function Tuple2(x,y) { return { ctor:"_Tuple2", _0:x, _1:y } }
 
   var count = 0;
   function guid(_) { return count++ }

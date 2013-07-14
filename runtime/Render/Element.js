@@ -21,7 +21,7 @@ function setProps(props, e) {
 	a.appendChild(e);
 	return a;
     }
-    if (props.hover.ctor !== 'Tuple0') {
+    if (props.hover.ctor !== '_Tuple0') {
         var overCount = 0;
         e.addEventListener('mouseover', function() {
                 if (overCount++ > 0) return;

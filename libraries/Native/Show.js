@@ -37,7 +37,7 @@ Elm.Native.Show = function(elm) {
             if (output.length === 0) return "{}";
             return "{ " + output.join(", ") + " }";
         } else if (typeof v === "object" && 'ctor' in v) {
-            if (v.ctor.substring(0,5) === "Tuple") {
+            if (v.ctor.substring(0,6) === "_Tuple") {
                 var output = [];
                 for (var k in v) {
                     if (k === 'ctor') continue;
@@ -63,7 +63,7 @@ Elm.Native.Show = function(elm) {
                 var cons = F3(function(k,v,acc){return NList.Cons(Tuple2(k,v),acc)});
                 var list = A3(Dict.foldr, cons, NList.Nil, v);
                 var name = "Dict";
-                if (list.ctor === "::" && list._0._1.ctor === "Tuple0") {
+                if (list.ctor === "::" && list._0._1.ctor === "_Tuple0") {
                     name = "Set";
                     list = A2(List.map, function(x){return x._0}, list);
                 }
