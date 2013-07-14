@@ -1,5 +1,7 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 module SourceSyntax.Expression where
 
+import Data.Data
 import Data.List (intercalate)
 import qualified Text.Pandoc as Pandoc
 import SourceSyntax.PrettyPrint
@@ -29,12 +31,12 @@ data Expr t v
     | Modify (LExpr t v) [(String, LExpr t v)]
     | Record [(String, LExpr t v)]
     | Markdown Pandoc.Pandoc
-      deriving (Eq, Show)
+      deriving (Eq, Show, Data, Typeable)
 
 data Def tipe var
     = Def Pattern.Pattern (LExpr tipe var)
     | TypeAnnotation String Type.Type
-      deriving (Eq, Show)
+      deriving (Eq, Show, Data, Typeable)
 
 tuple es = Data ("_Tuple" ++ show (length es)) es
 

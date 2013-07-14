@@ -10,6 +10,7 @@ import Data.List (intercalate,partition)
 import Parse.Parser (parseProgram, parseDependencies)
 import qualified Metadata.Libraries as Libs
 import Transform.Optimize
+import qualified Transform.Check as Check
 import System.Exit
 import System.FilePath
 
@@ -19,14 +20,13 @@ import Types.Hints (hints)
 import Types.Unify (unify)
 import Types.Alias (dealias, mistakes)
 --}
-mistakes = undefined
 unify = undefined
 hints = undefined
 
 
 checkMistakes :: (Data t, Data v) => Module t v -> Either String (Module t v)
-checkMistakes modul@(Module name ex im stmts) = 
-  case mistakes stmts of
+checkMistakes modul@(Module name ex im decls) = 
+  case Check.mistakes decls of
     m:ms -> Left (unlines (m:ms))
     []   -> return modul
 
