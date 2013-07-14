@@ -36,7 +36,7 @@ data Def tipe var
     | TypeAnnotation String Type.Type
       deriving (Eq, Show)
 
-tuple es = Data ("Tuple" ++ show (length es)) es
+tuple es = Data ("_Tuple" ++ show (length es)) es
 
 delist (Location.L _ _ (Data "::" [h,t])) = h : delist t
 delist _ = []

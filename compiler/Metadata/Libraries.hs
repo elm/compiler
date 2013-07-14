@@ -34,7 +34,7 @@ libraries =
                     ] ++ map makeTuple (inits ['a'..'i'])
                 
                 makeTuple cs = 
-                    let name = "Tuple" ++ show (length cs)
+                    let name = "_Tuple" ++ show (length cs)
                     in  (name, concatMap (\c -> c : " -> ") cs ++
                                name ++ concatMap (\c -> [' ',c]) cs)
 

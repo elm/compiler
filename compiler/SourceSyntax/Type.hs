@@ -23,7 +23,7 @@ listOf :: Type -> Type
 listOf t = Data "List" [t]
 
 tupleOf :: [Type] -> Type
-tupleOf ts = Data ("Tuple" ++ show (length ts)) ts
+tupleOf ts = Data ("_Tuple" ++ show (length ts)) ts
 
 
 instance Pretty Type where

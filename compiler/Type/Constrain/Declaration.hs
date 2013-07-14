@@ -36,7 +36,7 @@ test filePath = do
       let expr = sortDefs (toExpr decls)
       print $ pretty expr
       constraint <- TcExpr.constrain env expr (T.VarN var)
-      print =<< T.extraPretty constraint
+      --print =<< T.extraPretty constraint
       (env,_,_,errors) <- execStateT (solve constraint) TS.initialState
       forM (Map.toList env) $ \(n,t) -> do
           pt <- T.extraPretty t

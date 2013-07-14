@@ -19,7 +19,7 @@ data Pattern = PData String [Pattern]
 cons h t = PData "::" [h,t]
 nil      = PData "[]" []
 list     = foldr cons nil
-tuple es = PData ("Tuple" ++ show (length es)) es
+tuple es = PData ("_Tuple" ++ show (length es)) es
 
 
 instance Pretty Pattern where
