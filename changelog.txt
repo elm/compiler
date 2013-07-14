@@ -7,13 +7,15 @@ Website:
 * Much faster page load with pre-compile Elm files (Max New)
 
 Syntax:
-* Type annotations in let expressions (Andrew)
-* Record Constructors
 * Pattern matching on literals
 * Pattern aliases with `as` (Andrew)
+* Unary negation
 * Triple-quoted multi-line strings
 * Use if, let, case, and lambda in last term of a
   binary expression without parentheses
+* Type annotations in let expressions (Andrew)
+* Record Constructors
+* Record type aliases can be closed on the zeroth column
 
 Libraries:
 * Detect hovering over any Element
