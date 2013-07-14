@@ -28,10 +28,12 @@ tuple = do ts <- parens (commaSep expr)
                       _   -> tupleOf ts
 
 record :: IParser T.Type
-record = brackets $ do
-           ext <- extend
-           fs <- fields
-           return (T.Record (fieldMap fs) ext)
+record =
+  do char '{' ; whitespace
+     ext <- extend
+     fs <- fields
+     dumbWhitespace ; char '}'
+     return (T.Record (fieldMap fs) ext)
   where
     extend = option T.EmptyRecord . try $ do
                t <- tvar
@@ -41,6 +43,7 @@ record = brackets $ do
                lbl <- rLabel
                whitespace >> hasType >> whitespace
                (,) lbl <$> expr
+
 
 constructor0 :: IParser T.Type
 constructor0 =

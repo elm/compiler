@@ -156,6 +156,10 @@ forcedWS :: IParser [String]
 forcedWS = try (do { spaces; many nl_space }) <|> try (many1 nl_space)
     where nl_space = try $ many1 newline >> spaces
 
+-- Just eats whitespace until the next meaningful character.
+dumbWhitespace :: IParser ()
+dumbWhitespace = many (spaces <|> newline) >> return ()
+
 whitespace :: IParser ()
 whitespace = optional forcedWS <?> ""
 
