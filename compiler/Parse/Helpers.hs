@@ -103,7 +103,14 @@ dotSep1 p = (:) <$> p <*> many (try (char '.') >> p)
 spaceSep1 :: IParser a -> IParser [a]
 spaceSep1 p =  (:) <$> p <*> spacePrefix p
 
-spacePrefix p = many (try (whitespace >> indented >> p))
+spacePrefix p = constrainedSpacePrefix p (\_ -> return ())
+
+constrainedSpacePrefix p constraint =
+    many . try $ do
+      n <- whitespace
+      constraint n
+      indented
+      p
 
 followedBy a b = do x <- a ; b ; return x
 
@@ -150,38 +157,43 @@ accessible expr = do
 
 
 spaces :: IParser String
-spaces = many1 ((multiComment <|> string " " <?> "") >> return ' ') <?> "spaces"
+spaces = concat <$> many1 (multiComment <|> string " ") <?> "spaces"
 
-forcedWS :: IParser [String]
-forcedWS = try (do { spaces; many nl_space }) <|> try (many1 nl_space)
-    where nl_space = try $ many1 newline >> spaces
+forcedWS :: IParser String
+forcedWS = choice [ try $ (++) <$> spaces <*> (concat <$> many nl_space)
+                  , try $ concat <$> many1 nl_space ]
+    where nl_space = try ((++) <$> (concat <$> many1 newline) <*> spaces)
 
 -- Just eats whitespace until the next meaningful character.
-dumbWhitespace :: IParser ()
-dumbWhitespace = many (spaces <|> newline) >> return ()
+dumbWhitespace :: IParser String
+dumbWhitespace = concat <$> many (spaces <|> newline)
 
-whitespace :: IParser ()
-whitespace = optional forcedWS <?> ""
+whitespace :: IParser String
+whitespace = option "" forcedWS <?> "whitespace"
 
 freshLine :: IParser [[String]]
 freshLine = try (many1 newline >> many space_nl) <|> try (many1 space_nl) <?> ""
     where space_nl = try $ spaces >> many1 newline
 
 newline :: IParser String
-newline = simpleNewline <|> lineComment <?> ""
+newline = simpleNewline <|> lineComment <?> "newline"
 
 simpleNewline :: IParser String
 simpleNewline = try (string "\r\n") <|> string "\n"
 
 lineComment :: IParser String
-lineComment = do try (string "--")
-                 manyTill anyChar $ simpleNewline <|> (eof >> return "\n")
+lineComment = do
+  try (string "--")
+  comment <- manyTill anyChar $ simpleNewline <|> (eof >> return "\n")
+  return ("--" ++ comment)
 
 multiComment :: IParser String
 multiComment = do { try (string "{-"); closeComment }
 
 closeComment :: IParser String
-closeComment = manyTill anyChar . choice $
+closeComment = do
+    comment <- manyTill anyChar . choice $
                [ try (string "-}") <?> "close comment"
                , do { try $ string "{-"; closeComment; closeComment }
                ]
+    return ("{-" ++ comment ++ "-}")

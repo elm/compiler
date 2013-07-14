@@ -39,6 +39,14 @@ accessor = do
   let loc e = Location.add ("." ++ lbl) (Location.at start end e)
   return (Lambda (PVar "_") (loc $ Access (loc $ Var "_") lbl))
 
+negative :: IParser (Expr t v)
+negative = do
+  start <- getPosition
+  nTerm <- try (char '-' >> notFollowedBy (char '.' <|> char '-')) >> term
+  end <- getPosition
+  let loc e = Location.at start end e
+  return (Binop "-" (loc $ Literal (Literal.IntNum 0)) nTerm)
+
 
 --------  Complex Terms  --------
 
@@ -113,7 +121,7 @@ recordTerm = brackets $ choice [ misc, addLocation record ]
                         
 
 term :: IParser (LExpr t v)
-term =  addLocation (choice [ Literal <$> literal, listTerm, accessor ])
+term =  addLocation (choice [ Literal <$> literal, listTerm, accessor, negative ])
     <|> accessible (addLocation varTerm <|> parensTerm <|> recordTerm)
     <?> "basic term (4, x, 'c', etc.)"
 
@@ -121,10 +129,12 @@ term =  addLocation (choice [ Literal <$> literal, listTerm, accessor ])
 
 appExpr :: IParser (LExpr t v)
 appExpr = do
-  tlist <- spaceSep1 term
-  return $ case tlist of
-             t:[] -> t
-             t:ts -> foldl' (\f x -> Location.merge f x $ App f x) t ts
+  t <- term
+  ts <- constrainedSpacePrefix term $ \str ->
+            if null str then notFollowedBy (char '-') else return ()
+  return $ case ts of
+             [] -> t
+             _  -> foldl' (\f x -> Location.merge f x $ App f x) t ts
 
 --------  Normal Expressions  --------
 

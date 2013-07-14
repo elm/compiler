@@ -46,7 +46,7 @@ parseDependencies =
 
 parseInfix :: String -> Either String OpTable
 parseInfix = setupParser . many $ do
-               manyTill (whitespace <|> (anyChar >> return ())) freshLine
+               manyTill ((whitespace >> return ' ') <|> anyChar) freshLine
                infixStmt
 
 setupParser p source =
