@@ -23,7 +23,7 @@ Build-type:          Custom
 Extra-source-files:  changelog.txt
 Data-dir:            dist/data
 Data-files:          elm-runtime.js docs.json
-Cabal-version:       >=1.8
+Cabal-version:       >=1.9
 
 source-repository head
   type:     git
@@ -185,3 +185,9 @@ Executable elm-doc
                        cmdargs,
                        filepath,
                        indents
+
+Test-Suite test-elm
+  Type:            exitcode-stdio-1.0
+  Hs-Source-Dirs:  tests
+  Main-is:         Everything.hs
+  build-depends:   base
