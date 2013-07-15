@@ -9,17 +9,12 @@ import SourceSyntax.Everything
 import Data.List (intercalate,partition)
 import Parse.Parser (parseProgram, parseDependencies)
 import qualified Metadata.Libraries as Libs
-import Transform.Optimize
+import qualified Transform.Optimize as Optimize
 import qualified Transform.Check as Check
 import System.Exit
 import System.FilePath
 
 
-{-- TODO: replace with new stuff
-import Types.Hints (hints)
-import Types.Unify (unify)
-import Types.Alias (dealias, mistakes)
---}
 unify = undefined
 hints = undefined
 
@@ -27,13 +22,13 @@ hints = undefined
 checkMistakes :: (Data t, Data v) => Module t v -> Either String (Module t v)
 checkMistakes modul@(Module name ex im decls) = 
   case Check.mistakes decls of
-    m:ms -> Left (unlines (m:ms))
-    []   -> return modul
+    [] -> return modul
+    ms -> Left (unlines ms)
 
 checkTypes :: (Data t, Data v) => Module t v -> Either String (Module t v)
 checkTypes modul =
   do subs <- unify hints modul
-     subs `seq` return (optimize (renameModule modul))
+     subs `seq` return (Optimize.optimize (renameModule modul))
 
 check :: (Data t, Data v) => Module t v -> Either String (Module t v)
 check = checkMistakes >=> checkTypes
@@ -41,7 +36,7 @@ check = checkMistakes >=> checkTypes
 buildFromSource :: (Data t, Data v) => Bool -> String -> Either String (Module t v)
 buildFromSource noPrelude src =
     let add = if noPrelude then id else Libs.addPrelude in
-    (check . add) =<< (parseProgram src)
+    (check . add) =<< parseProgram src
 
 getSortedModuleNames :: FilePath -> IO [String]
 getSortedModuleNames root =
