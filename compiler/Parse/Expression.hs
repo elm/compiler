@@ -126,7 +126,7 @@ recordTerm = brackets $ choice [ misc, addLocation record ]
                         
 
 term :: IParser (LExpr t v)
-term =  addLocation (choice [ Literal <$> literal, listTerm, accessor ])
+term =  addLocation (choice [ Literal <$> literal, listTerm, accessor, negative ])
     <|> accessible (addLocation varTerm <|> parensTerm <|> recordTerm)
     <?> "basic term (4, x, 'c', etc.)"
 
