@@ -62,27 +62,32 @@ listTerm =
        ])
 
 parensTerm :: IParser (LExpr t v)
-parensTerm = parens $ choice
-             [ do start <- getPosition
-                  op <- try anyOp
-                  end <- getPosition
-                  let loc = Location.at start end
-                  return . loc . Lambda (PVar "x") . loc . Lambda (PVar "y") . loc $
-                         Binop op (loc $ Var "x") (loc $ Var "y")
-             , do start <- getPosition
-                  let comma = char ',' <?> "comma ','"
-                  commas <- comma >> many (whitespace >> comma)
-                  end <- getPosition
-                  let vars = map (('v':) . show) [ 0 .. length commas + 1 ]
-                      loc = Location.at start end
-                  return $ foldr (\x e -> loc $ Lambda x e)
-                             (loc . tuple $ map (loc . Var) vars) (map PVar vars)
-             , do start <- getPosition
-                  es <- commaSep expr
-                  end <- getPosition
-                  return $ case es of [e] -> e
-                                      _   -> Location.at start end (tuple es)
-             ]
+parensTerm = try (parens opFn) <|> parens (tupleFn <|> parened)
+  where
+    opFn = do
+      start <- getPosition
+      op <- anyOp
+      end <- getPosition
+      let loc = Location.at start end
+      return . loc . Lambda (PVar "x") . loc . Lambda (PVar "y") . loc $
+             Binop op (loc $ Var "x") (loc $ Var "y")
+
+    tupleFn = do
+      start <- getPosition
+      let comma = char ',' <?> "comma ','"
+      commas <- comma >> many (whitespace >> comma)
+      end <- getPosition
+      let vars = map (('v':) . show) [ 0 .. length commas + 1 ]
+          loc = Location.at start end
+      return $ foldr (\x e -> loc $ Lambda x e)
+                 (loc . tuple $ map (loc . Var) vars) (map PVar vars)
+    
+    parened = do
+      start <- getPosition
+      es <- commaSep expr
+      end <- getPosition
+      return $ case es of [e] -> e
+                          _   -> Location.at start end (tuple es)
 
 recordTerm :: IParser (LExpr t v)
 recordTerm = brackets $ choice [ misc, addLocation record ]
