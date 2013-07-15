@@ -16,34 +16,6 @@ import qualified SourceSyntax.Pattern as SP
 import qualified SourceSyntax.Expression as SE
 import qualified SourceSyntax.Type as ST
 
-{-- testing section --}
-import SourceSyntax.PrettyPrint
-import SourceSyntax.Module
-import Text.PrettyPrint as P
-import Parse.Parser (parseProgram)
-import Type.Solve (solve)
-import qualified Type.State as TS
-import Control.Monad.State
-import Transform.SortDefinitions as Sort
-
-test filePath = do
-  src <- readFile filePath
-  case parseProgram src of
-    Left err -> error $ "Parse error at " ++ show err
-    Right (Module _ _ _ decls) -> do
-      env <- Env.initialEnvironment
-      var <- T.flexibleVar
-      let expr = sortDefs (toExpr decls)
-      print $ pretty expr
-      constraint <- TcExpr.constrain env expr (T.VarN var)
-      --print =<< T.extraPretty constraint
-      (env,_,_,errors) <- execStateT (solve constraint) TS.initialState
-      forM (Map.toList env) $ \(n,t) -> do
-          pt <- T.extraPretty t
-          print $ P.text n <+> P.text ":" <+> pt
-      if null errors then return () else do
-          putStrLn "\n"
-          mapM_ print =<< sequence errors
 
 toExpr decls =
   SL.none $ SE.Let (concatMap toDefs decls) (SL.none $ SE.Literal (SL.IntNum 42))

@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -XMultiWayIf #-}
-module Type.Solve where
+module Type.Solve (solve) where
 
 import Control.Monad
 import Control.Monad.State
