@@ -7,37 +7,52 @@ import qualified Data.Map as Map
 import Data.Data
 import Data.List (intercalate,partition)
 import System.Exit
-import System.FilePath
+import System.FilePath as FP
 import Text.PrettyPrint (Doc)
 
-import Parse.Parser (parseProgram, parseDependencies)
 import SourceSyntax.Everything
+import SourceSyntax.Declaration (Assoc)
+import qualified SourceSyntax.Location as Loc
+import qualified Parse.Parse as Parse
 import qualified Metadata.Libraries as Libs
 import qualified Transform.Optimize as Optimize
 import qualified Transform.Check as Check
+import qualified Transform.SortDefinitions as SD
 import qualified Type.Inference as TI
+import qualified Type.Constrain.Declaration as TcDecl
 import qualified Type.Type as T
 
 
+buildFromSource :: (Data t, Data v) => Bool -> String -> Either [Doc] (MetadataModule t v)
+buildFromSource noPrelude src =
+  do modul <- Parse.program src
 
-checkMistakes :: (Data t, Data v) => Module t v -> Either [Doc] (Module t v)
-checkMistakes modul@(Module name ex im decls) = 
-  case Check.mistakes decls of
-    [] -> return modul
-    ms -> Left ms
+     -- check for structural errors
+     Module names exs ims decls <- checkMistakes modul
 
---     subs `seq` return (Optimize.optimize (renameModule modul))
+     -- reorder AST into strongly connected components
+     let metaModule = MetadataModule {
+           names = names,
+           path = FP.joinPath names,
+           exports = exs,
+           imports = ims,
+           defs = fst . SD.flattenLets [] . SD.sortDefs . dummyLet $ TcDecl.toExpr decls,
+           types = Map.empty,
+           fixities = [ (assoc,level,op) | Fixity assoc level op <- decls ],
+           aliases = [ (name,tvs,tipe) | TypeAlias name tvs tipe <- decls ],
+           foreignImports = [ (evt,v,name,typ) | ImportEvent evt v name typ <- decls ],
+           foreignExports = [ (evt,name,typ) | ExportEvent evt name typ <- decls ]
+          }
 
-buildFromSource :: (Data t, Data v) => Bool -> String -> Either [Doc] (Module t v, Map.Map String T.Variable)
-buildFromSource noPrelude src = do
-  modul <- parseProgram src
+     types <- TI.infer metaModule
+     return $ metaModule { types = types }
 
-  -- check for structural errors and give all variables unique names
-  modul' <- renameModule <$> checkMistakes modul
-  -- reorder AST into strongly connected components
+  where
+    checkMistakes modul@(Module _ _ _ decls) = 
+        case Check.mistakes decls of
+          [] -> return modul
+          ms -> Left ms
 
-  types <- TI.infer modul'
-  return (modul', types)
 
 getSortedModuleNames :: FilePath -> IO [String]
 getSortedModuleNames root =
@@ -61,10 +76,10 @@ sortDeps deps = go [] (nub deps)
 readDeps :: [FilePath] -> FilePath -> IO [Deps]
 readDeps seen root = do
   txt <- readFile root
-  case parseDependencies txt of
-    Left err ->
-        let msg = "Error resolving dependencies in " ++ root ++ ":\n" in
-        putStrLn (msg ++ err) >> exitFailure
+  case Parse.dependencies txt of
+    Left err -> putStrLn msg >> print err >> exitFailure
+        where msg = "Error resolving dependencies in " ++ root ++ ":"
+                    
     Right (name,deps) ->
         do rest <- mapM (readDeps seen' . toFilePath) newDeps
            return ((name, realDeps) : concat rest)

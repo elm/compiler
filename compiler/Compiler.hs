@@ -98,12 +98,11 @@ buildFile flags moduleNum numModules filePath =
       compile = do
         putStrLn (number ++ " Compiling " ++ name)
         source <- readFile filePath
-        (interface,obj) <-
-            if takeExtension filePath == ".js" then return ("",source) else
+        obj <-
+            if takeExtension filePath == ".js" then return source else
                 case buildFromSource (no_prelude flags) source of
-                  Left err -> putStrLn err >> exitFailure
-                  Right modul -> do exs <- exportInfo (modul :: Module () String)
-                                    return (exs, jsModule modul)
+                  Left err -> print err >> exitFailure
+                  Right modul -> return . jsModule $ (modul :: MetadataModule () ())
         createDirectoryIfMissing True (output_directory flags)
         writeFile (elmo flags filePath) obj
         return obj
@@ -151,9 +150,3 @@ buildFiles flags numModules interfaces (filePath:rest) = do
   let moduleName = intercalate "." (splitDirectories (dropExtensions filePath))
       interfaces' = Map.insert moduleName interface interfaces
   buildFiles flags numModules interfaces' rest
-
-
-exportInfo :: Module t v -> IO String
-exportInfo (Module names exs ims stmts) =
-    do print exs
-       return (show exs)

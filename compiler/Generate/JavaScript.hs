@@ -3,7 +3,7 @@ module Generate.JavaScript (showErr, jsModule) where
 import Control.Arrow (first,second)
 import Control.Monad (liftM,(<=<),join,ap)
 import Data.Char (isAlpha,isDigit)
-import Data.List (intercalate,sortBy,inits,foldl')
+import Data.List (intercalate,inits,foldl')
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Either (partitionEithers)
@@ -13,7 +13,7 @@ import Unique
 import Generate.Cases
 import SourceSyntax.Everything hiding (parens)
 import SourceSyntax.Location as Loc
-import Transform.SortDefinitions
+import qualified Transform.SortDefinitions as SD
 
 showErr :: String -> String
 showErr err = globalAssign "Elm.Main" (jsFunc "elm" body)
@@ -52,49 +52,50 @@ quoted s  = "'" ++ concatMap f s ++ "'"
 globalAssign n e = "\n" ++ assign' n e ++ ";"
 assign' n e = n ++ " = " ++ e
 
-jsModule (Module names exports imports stmts) =
- setup ("Elm":modNames) ++ globalAssign ("Elm." ++ modName) (jsFunc "elm" program)
+jsModule :: MetadataModule t v -> String
+jsModule modul =
+    run $ do
+      body <- toJS (defs modul)
+      foreignImport <- mapM importEvent (foreignImports modul)
+      return $ concat [ setup ("Elm": names modul)
+                      , globalAssign ("Elm." ++ modName)
+                                     (jsFunc "elm" $ program body foreignImport) ]
   where
-    modNames = if null names then ["Main"] else names
-    modName  = intercalate "." modNames
-    includes = concatMap jsImport imports
-    body = stmtsToJS stmts
-    defs = assign "$op" "{}"
-    program = "\nvar " ++ usefulFuncs ++ ";" ++ defs ++ includes ++ body ++
-              setup ("elm":"Native":modNames) ++
-              assign "_" ("elm.Native." ++ modName ++ "||{}") ++
-              getExports exports stmts ++ setup ("elm":modNames) ++
-              ret (assign' ("elm." ++ modName) "_") ++ "\n"
-    setup modNames = concatMap (\n -> globalAssign n $ n ++ "||{}") .
-                     map (intercalate ".") . drop 2 . inits $ init modNames
+    modName  = intercalate "." (names modul)
+    program body foreignImport =
+        concat [ "\nvar " ++ usefulFuncs ++ ";"
+               , assign "_op" "{}"
+               , concatMap jsImport (imports modul)
+               , concat foreignImport
+               , concatMap exportEvent $ foreignExports modul
+               , body
+               , setup ("elm" : "Native" : names modul)
+               , assign "_" ("elm.Native." ++ modName ++ "||{}")
+               , concatMap jsExport (exports modul)
+               , setup ("elm" : names modul)
+               , ret (assign' ("elm." ++ modName) "_")
+               ]
+    setup names = concatMap (\n -> globalAssign n $ n ++ "||{}") .
+                  map (intercalate ".") . drop 2 . inits $ init names
     usefulFuncs = intercalate ", " (map (uncurry assign') internalImports)
 
-getExports names stmts = "\n"++ intercalate ";\n" (op : map fnPair fns)
-    where exNames n = either derename id n `elem` names
-          exports | null names = concatMap get stmts
-                  | otherwise  = filter exNames (concatMap get stmts)
+    jsExport x = 
+        if isOp x then "\n_._op['" ++ x ++ "'] = _op['" ++ x ++ "'];"
+                  else "\n_." ++ derename x ++ " = " ++ x ++ ";"
+    
+    importEvent (js,base,elm,_) =
+        do v <- toJS' base
+           return $ concat [ "\nvar " ++ elm ++ "=Elm.Signal(elm).constant(" ++ v ++ ");"
+                           , "\ndocument.addEventListener('", js
+                           , "_' + elm.id, function(e) { elm.notify(", elm
+                           , ".id, e.value); });" ]
 
-          (fns,ops) = partitionEithers exports
-
-          opPair op = "'" ++ op ++ "' : $op['" ++ op ++ "']"
-          fnPair fn = let fn' = derename fn in "_." ++ fn' ++ " = " ++ fn
-
-          op = ("_.$op = "++) . jsObj $ map opPair ops
-
-          get' def =
-              case def of
-                TypeAnnotation _ _ -> []
-                Def pattern _ ->
-                    case Set.toList (boundVars pattern) of
-                      [var@(c:_)] -> [if isOp c then Right var else Left var]
-                      vars -> map Left vars
-
-          get s = case s of Definition def      -> get' def
-                            Datatype _ _ tcs    -> map (Left . fst) tcs
-                            ImportEvent _ _ x _ -> [ Left x ]
-                            ExportEvent _ _ _   -> []
-                            TypeAlias _ _ _     -> []
-
+    exportEvent (js,elm,_) =
+        concat [ "\nlift(function(v) { "
+               , "var e = document.createEvent('Event');"
+               , "e.initEvent('", js, "_' + elm.id, true, true);"
+               , "e.value = v;"
+               , "document.dispatchEvent(e); return v; })(", elm, ");" ]
 
 jsImport (modul, how) =
     case how of
@@ -105,7 +106,7 @@ jsImport (modul, how) =
       Importing vs -> include ++ named
           where 
             imprt v = assign' v ("_." ++ v)
-            def (o:p) = imprt (if isOp o then "$op['" ++ o:p ++ "']" else deprime (o:p))
+            def x = imprt $ if isOp x then "_op['" ++ x ++ "']" else deprime x
             named = if null vs then "" else "\nvar " ++ intercalate ", " (map def vs) ++ ";"
   where
     include = "\nvar _ = Elm." ++ modul ++ parens "elm" ++ ";" ++ setup modul
@@ -122,69 +123,31 @@ jsImport (modul, how) =
                           []       -> (reverse name, [])
 
 
-
-stmtsToJS :: [Declaration t v] -> String
-stmtsToJS stmts = run $ do program <- mapM toJS (sortBy cmpStmt stmts)
-                           return (concat program)
-    where
-      cmpStmt s1 s2 = compare (valueOf s1) (valueOf s2)
-      valueOf s = case s of
-                    Datatype _ _ _             -> 1
-                    ImportEvent _ _ _ _        -> 2
-                    Definition (Def f (L _ _ (Lambda _ _)))  -> 3
-                    Definition (Def (PVar name) _)  ->
-                        if derename name == "main" then 5 else 4
-                    Definition (Def _ _)  -> 4
-                    Definition (TypeAnnotation _ _)  -> 0
-                    ExportEvent _ _ _          -> 6
-                    TypeAlias _ _ _            -> 0
-
 class ToJS a where
   toJS :: a -> Unique String
+
 
 instance ToJS (Def t v) where
 
   -- TODO: Make this handle patterns besides plain variables
+  toJS (Def (PVar x) e)
+      | isOp x = globalAssign ("_op['" ++ x ++ "']")  `liftM` toJS' e
+      | otherwise = assign x `liftM` toJS' e
 
-  toJS (Def (PVar x) e) = assign x `liftM` toJS' e
-{--
-  toJS (Def f e) = (assign f . wrapper . func) `liftM` toJS' e
-      where
-        func body = jsFunc (intercalate ", " as) (ret body)
-        wrapper e | length as == 1 = e
-                  | otherwise = 'F' : show (length as) ++ parens e
-  toJS (OpDef op a1 a2 e) =
-      do body <- toJS' e                    
-         let func = "F2" ++ parens (jsFunc (a1 ++ ", " ++ a2) (ret body))
-         return (globalAssign ("$op['" ++ op ++ "']") func)
---}
+  toJS (Def pattern e) =
+      do n <- guid
+         let x = "_" ++ show n
+             var = Loc.none . Var
+             toDef y = Def (PVar y) (Loc.none $ Case (var x) [(pattern, var y)])
+         stmt <- assign x `liftM` toJS' e
+         vars <- toJS . map toDef . Set.toList $ SD.boundVars pattern
+         return (stmt ++ vars)
+
   toJS (TypeAnnotation _ _) = return ""
 
 
-instance ToJS (Declaration t v) where
-  toJS stmt =
-    case stmt of
-      Definition d -> toJS d
-      Datatype _ _ tcs -> concat `liftM` mapM (toJS . toDef) tcs
-          where toDef (name,args) =
-                    let vars = map (('a':) . show) [1..length args]
-                        body = Loc.none (Data (derename name) (map (Loc.none . Var) vars))
-                        func = foldr (\x e -> Loc.none (Lambda (PVar x) e)) body vars
-                    in  Definition $ Def (PVar name) func
-
-      ImportEvent js base elm _ ->
-        do v <- toJS' base
-           return $ concat [ "\nvar " ++ elm ++ "=Elm.Signal(elm).constant(" ++ v ++ ");"
-                           , "\ndocument.addEventListener('", js
-                           , "_' + elm.id, function(e) { elm.notify(", elm
-                           , ".id, e.value); });" ]
-      ExportEvent js elm _ ->
-        return $ concat [ "\nlift(function(v) { "
-                        , "var e = document.createEvent('Event');"
-                        , "e.initEvent('", js, "_' + elm.id, true, true);"
-                        , "e.value = v;"
-                        , "document.dispatchEvent(e); return v; })(", elm, ");" ]
-      TypeAlias n _ t -> return ""
+instance ToJS a => ToJS [a] where
+  toJS xs = concat `liftM` mapM toJS xs
 
 toJS' :: LExpr t v -> Unique String
 toJS' (L txt span expr) =
@@ -254,7 +217,7 @@ instance ToJS (Expr t v) where
               _ -> (patterns, lexpr)
 
     App e1 e2 -> jsApp e1 e2
-    Let defs e -> jsLet defs e
+    Let defs e -> jsLet $ SD.flattenLets defs e 
 
     ExplicitList es ->
         do es' <- mapM toJS' es
@@ -302,15 +265,9 @@ multiIfToJS span ps =
                  e' <- toJS' e
                  return (b' ++ " ? " ++ e')
 
-jsLet defs e' = do ds <- jsDefs defs
-                   e <- toJS' e'
-                   return $ jsFunc "" (concat ds ++ ret e) ++ "()"
-  where 
-    jsDefs defs = mapM toJS (sortBy f defs)
-    f a b = compare (valueOf a) (valueOf b)
-    valueOf (Def _ (L _ _ (Lambda _ _))) = 1
-    valueOf (Def _ _) = 2
-    valueOf (TypeAnnotation _ _) = 0
+jsLet (defs,e') = do ds <- mapM toJS defs
+                     e <- toJS' e'
+                     return $ jsFunc "" (concat ds ++ ret e) ++ "()"
 
 caseToJS span e ps = do
   match <- caseToMatch ps
@@ -379,5 +336,5 @@ binop (o:p) e1 e2
           "<~" -> "A2(lift," ++ e1 ++ "," ++ e2 ++ ")"
           "~"  -> "A3(lift2,F2(function(f,x){return f(x)}),"++e1++","++e2++")"
           _  | elem (o:p) ops -> parens (e1 ++ (o:p) ++ e2)
-             | otherwise      -> concat [ "$op['", o:p, "']"
+             | otherwise      -> concat [ "_op['", o:p, "']"
                                         , parens e1, parens e2 ]
