@@ -17,19 +17,25 @@ import qualified SourceSyntax.Expression as SE
 import qualified SourceSyntax.Type as ST
 
 
-toExpr decls =
-  SL.none $ SE.Let (concatMap toDefs decls) (SL.none $ SE.Literal (SL.IntNum 42))
+toExpr :: [Declaration t v] -> [SE.Def t v]
+toExpr = concatMap toDefs
 
 toDefs :: Declaration t v -> [SE.Def t v]
 toDefs decl =
   case decl of
     Definition def -> [def]
 
-    Datatype name tvars constructors -> map toAnnotation constructors
+    Datatype name tvars constructors -> concatMap toDefs constructors
       where
-        toAnnotation (ctor, tipes) =
-            SE.TypeAnnotation ctor $
-                foldr ST.Lambda (ST.Data name $ map ST.Var tvars) tipes
+        toDefs (ctor, tipes) =
+            let vars = take (length tipes) $ map (\n -> "_" ++ show n) [0..]
+                loc = SL.none
+                body = loc . SE.Data name $ map (loc . SE.Var) vars
+            in  [ SE.TypeAnnotation ctor $
+                      foldr ST.Lambda (ST.Data name $ map ST.Var tvars) tipes
+                , SE.Def (SP.PVar ctor) $
+                      foldr (\p e -> loc $ SE.Lambda p e) body (map SP.PVar vars)
+                ]
 
     -- Type aliases must be added to an extended equality dictionary,
     -- but they do not require any basic constraints.
