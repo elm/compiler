@@ -2,6 +2,7 @@ module Type.Constrain.Expression where
 
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.Map ((!))
 import Control.Arrow (second)
 import Control.Applicative ((<$>),(<*>))
@@ -26,7 +27,7 @@ import Parse.Expression
 import Parse.Helpers (iParse)
 import Type.Solve (solve)
 import qualified Type.State as TS
-import Transform.SortDefinitions
+import qualified Transform.SortDefinitions as SD
 
 test str =
   case iParse expr "" str of
@@ -34,7 +35,7 @@ test str =
     Right expression -> do
       env <- Env.initialEnvironment
       var <- flexibleVar
-      let expr = sortDefs expression
+      let expr = SD.sortDefs expression
       print (pretty expr)
       constraint <- constrain env expr (VarN var)
       print =<< extraPretty constraint
@@ -214,6 +215,7 @@ constrainDef env info (pattern, expr, maybeTipe) =
                     , c /\ c2
                     , c1 )
 
+
 instantiateType :: SrcT.Type -> IO Type
 instantiateType sourceType = instantiateTypeWithContext sourceType Map.empty
 
@@ -243,8 +245,20 @@ instantiateTypeWithContext sourceType dict = evalStateT (go sourceType) dict
         SrcT.Record fields ext ->
           TermN <$> (Record1 <$> traverse (mapM go) fields <*> go ext)
 
+expandPattern :: (Pattern, LExpr t v, Maybe SrcT.Type)
+              -> [(Pattern, LExpr t v, Maybe SrcT.Type)]
+expandPattern triple@(pattern, lexpr, maybeType) =
+    case pattern of
+      PVar _ -> [triple]
+      _ -> (PVar x, lexpr, maybeType) : map toDef vars
+          where
+            vars = Set.toList $ SD.boundVars pattern
+            x = concat vars
+            var = Loc.none . Var
+            toDef y = (PVar y, Loc.none $ Case (var x) [(pattern, var y)], Nothing)
+
 collapseDefs :: [Def t v] -> [(Pattern, LExpr t v, Maybe SrcT.Type)]
-collapseDefs = go [] Map.empty Map.empty
+collapseDefs = concatMap expandPattern . go [] Map.empty Map.empty
   where
     go output defs typs [] =
         output ++ concatMap Map.elems [
