@@ -6,7 +6,7 @@ import Data.List (intercalate)
 import Text.Parsec hiding (newline,spaces)
 
 import Parse.Helpers
-import SourceSyntax.Module
+import SourceSyntax.Module (Module(..), ImportMethod(..), Imports)
 
 varList ::  IParser [String]
 varList = parens $ commaSep1 (var <|> parens symOp)
