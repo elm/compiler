@@ -43,11 +43,14 @@ tuple es = Data ("_Tuple" ++ show (length es)) es
 delist (Location.L _ _ (Data "::" [h,t])) = h : delist t
 delist _ = []
 
+dummyLet defs = 
+     Location.none $ Let defs (Location.none . Literal $ Literal.IntNum 42)
+
 instance Pretty (Expr t v) where
   pretty expr =
    case expr of
      Literal lit -> pretty lit
-     Var x@(c:_) -> parensIf (Help.isOp c) (P.text x)
+     Var x -> parensIf (Help.isOp x) (P.text x)
      Range e1 e2 -> P.brackets (pretty e1 <> P.text ".." <> pretty e2)
      ExplicitList es -> P.brackets (commaCat (map pretty es))
      Binop op e1 e2 -> P.sep [ prettyParens e1 <+> P.text op, prettyParens e2 ]

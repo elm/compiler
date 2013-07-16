@@ -1,12 +1,14 @@
 
 module SourceSyntax.Helpers where
 
-import Data.Char (isSymbol,isDigit)
+import qualified Data.Char as Char
 
 brkt s = "{ " ++ s ++ " }"
 
 isTuple name =
-    take 6 name == "_Tuple" && all isDigit (drop 6 name)
+    take 6 name == "_Tuple" && all Char.isDigit (drop 6 name)
 
-isOp c =
-    isSymbol c || elem c "+-/*=.$<>:&|^?%#@~!"
+isOp = all isSymbol
+
+isSymbol c =
+    Char.isSymbol c || elem c "+-/*=.$<>:&|^?%#@~!"

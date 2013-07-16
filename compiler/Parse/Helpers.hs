@@ -4,7 +4,7 @@ import Control.Applicative ((<$>),(<*>))
 import Control.Monad
 import Control.Monad.State
 import Data.Char (isUpper)
-import SourceSyntax.Helpers (isOp)
+import SourceSyntax.Helpers as Help
 import SourceSyntax.Location as Location
 import SourceSyntax.Expression
 import SourceSyntax.Rename (deprime)
@@ -59,7 +59,7 @@ anyOp :: IParser String
 anyOp = betwixt '`' '`' var <|> symOp <?> "infix operator (e.g. +, *, ||)"
 
 symOp :: IParser String
-symOp = do op <- many1 (satisfy isOp)
+symOp = do op <- many1 (satisfy Help.isSymbol)
            guard (op `notElem` [ "=", "..", "->", "--", "|", "\8594", ":" ])
            case op of
              "." -> notFollowedBy lower >> return op
