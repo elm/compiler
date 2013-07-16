@@ -21,15 +21,16 @@ import Parse.Module (moduleDef)
 import SourceSyntax.Module
 import Text.Blaze.Html (Html)
 import Text.Parsec (option,optional)
+import qualified Text.PrettyPrint as P
 import Paths_Elm
 
 -- |This function compiles Elm code to JavaScript. It will return either
 --  an error message or the compiled JS code.
 compile :: String -> Either String String
-compile source = fmap jsModule modul
-    where
-      modul :: Either String (Module () String)
-      modul = buildFromSource False source
+compile source =
+    case buildFromSource False source of
+      Left docs -> Left . unlines $ map P.render docs
+      Right modul -> Right $ jsModule (modul :: MetadataModule () ())
 
 -- |This function extracts the module name of a given source program.
 moduleName :: String -> Maybe String
