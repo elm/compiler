@@ -1,8 +1,4 @@
 
-type F = {
-  x : Int
-}
-
 trickyID x = let y = x in y
 
 quad f = twice (twice f)
