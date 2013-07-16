@@ -49,7 +49,7 @@ infixDecl = do
                   , reserved "infixr" >> return R ]
   whitespace
   n <- digit
-  whitespace
+  forcedWS
   Fixity assoc (read [n]) <$> anyOp
 
 
