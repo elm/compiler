@@ -59,7 +59,7 @@ Library
                        Parse.Helpers,
                        Parse.Literal,
                        Parse.Module,
-                       Parse.Parser,
+                       Parse.Parse,
                        Parse.Pattern,
                        Parse.Type,
                        Type.Constrain.Declaration,
@@ -126,7 +126,7 @@ Executable elm
                        Parse.Helpers,
                        Parse.Literal,
                        Parse.Module,
-                       Parse.Parser,
+                       Parse.Parse,
                        Parse.Pattern,
                        Parse.Type,
                        Type.Constrain.Declaration,
@@ -184,6 +184,7 @@ Executable elm-doc
                        pretty,
                        cmdargs,
                        filepath,
+                       union-find,
                        indents
 
 Test-Suite test-elm
