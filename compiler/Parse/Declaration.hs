@@ -11,27 +11,24 @@ import Parse.Helpers
 import qualified Parse.Expression as Expr
 import qualified SourceSyntax.Type as T
 import qualified Parse.Type as Type
-
-import SourceSyntax.Declaration (Declaration(..))
+import SourceSyntax.Declaration (Declaration(..), Assoc(..))
 
 import Unique
 
 declaration :: IParser (Declaration t v)
-declaration = alias <|> datatype <|> foreignDef <|> definition
+declaration = alias <|> datatype <|> infixDecl <|> foreignDef <|> definition
 
 definition :: IParser (Declaration t v)
 definition = Definition <$> Expr.def
 
 alias :: IParser (Declaration t v)
 alias = do
-  start <- getPosition
   reserved "type" <?> "type alias (type Point = {x:Int, y:Int})"
   forcedWS
   alias <- capVar
   args  <- spacePrefix lowVar
   whitespace ; string "=" ; whitespace
   tipe <- Type.expr
-  end <- getPosition
   return (TypeAlias alias args tipe)
 
 datatype :: IParser (Declaration t v)
@@ -43,6 +40,17 @@ datatype = do
   whitespace ; string "=" ; whitespace
   tcs <- pipeSep1 Type.constructor
   return $ Datatype name args tcs
+
+
+infixDecl :: IParser (Declaration t v)
+infixDecl = do
+  assoc <- choice [ reserved "infixl" >> return L
+                  , reserved "infix"  >> return N
+                  , reserved "infixr" >> return R ]
+  whitespace
+  n <- digit
+  whitespace
+  Fixity assoc (read [n]) <$> anyOp
 
 
 foreignDef :: IParser (Declaration t v)
