@@ -1,5 +1,5 @@
 
-module Transform.SortDefinitions (sortDefs, boundVars) where
+module Transform.SortDefinitions (sortDefs, boundVars, flattenLets) where
 
 import Control.Monad.State
 import Control.Applicative ((<$>))
@@ -29,6 +29,12 @@ bound boundVars = modify (\freeVars -> Set.difference freeVars boundVars)
 
 sortDefs :: LExpr t v -> LExpr t v
 sortDefs expr = evalState (reorder expr) Set.empty
+
+flattenLets defs lexpr@(L _ _ expr) =
+    case expr of
+      Let ds body -> flattenLets (defs ++ ds) body
+      _ -> (defs, lexpr)
+
 
 reorder :: LExpr t v -> State (Set.Set String) (LExpr t v)
 reorder lexpr@(L a b expr) =
