@@ -8,11 +8,15 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Data
 import Data.Generics.Uniplate.Data
+import Text.PrettyPrint as P
 
 
-mistakes :: (Data t, Data v) => [Declaration t v] -> [String]
+mistakes :: (Data t, Data v) => [Declaration t v] -> [Doc]
 mistakes decls =
-    concatMap (\defs -> duplicates defs ++ badOrder defs) (getLets decls)
+    map prettify $ concatMap findErrors (getLets decls)
+  where
+    prettify = P.sep . map P.text . words
+    findErrors defs = duplicates defs ++ badOrder defs
 
 
 getLets :: (Data t, Data v) => [Declaration t v] -> [[Def t v]]

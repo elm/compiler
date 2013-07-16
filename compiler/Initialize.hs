@@ -2,41 +2,42 @@ module Initialize (buildFromSource, getSortedModuleNames) where
 
 import Control.Applicative ((<$>))
 import Control.Monad.Error
-import Data.List (lookup,nub)
+import Data.List (nub)
 import qualified Data.Map as Map
 import Data.Data
-import SourceSyntax.Everything
 import Data.List (intercalate,partition)
+import System.Exit
+import System.FilePath
+import Text.PrettyPrint (Doc)
+
 import Parse.Parser (parseProgram, parseDependencies)
+import SourceSyntax.Everything
 import qualified Metadata.Libraries as Libs
 import qualified Transform.Optimize as Optimize
 import qualified Transform.Check as Check
-import System.Exit
-import System.FilePath
+import qualified Type.Inference as TI
+import qualified Type.Type as T
 
 
-unify = undefined
-hints = undefined
 
-
-checkMistakes :: (Data t, Data v) => Module t v -> Either String (Module t v)
+checkMistakes :: (Data t, Data v) => Module t v -> Either [Doc] (Module t v)
 checkMistakes modul@(Module name ex im decls) = 
   case Check.mistakes decls of
     [] -> return modul
-    ms -> Left (unlines ms)
+    ms -> Left ms
 
-checkTypes :: (Data t, Data v) => Module t v -> Either String (Module t v)
-checkTypes modul =
-  do subs <- unify hints modul
-     subs `seq` return (Optimize.optimize (renameModule modul))
+--     subs `seq` return (Optimize.optimize (renameModule modul))
 
-check :: (Data t, Data v) => Module t v -> Either String (Module t v)
-check = checkMistakes >=> checkTypes
+buildFromSource :: (Data t, Data v) => Bool -> String -> Either [Doc] (Module t v, Map.Map String T.Variable)
+buildFromSource noPrelude src = do
+  modul <- parseProgram src
 
-buildFromSource :: (Data t, Data v) => Bool -> String -> Either String (Module t v)
-buildFromSource noPrelude src =
-    let add = if noPrelude then id else Libs.addPrelude in
-    (check . add) =<< parseProgram src
+  -- check for structural errors and give all variables unique names
+  modul' <- renameModule <$> checkMistakes modul
+  -- reorder AST into strongly connected components
+
+  types <- TI.infer modul'
+  return (modul', types)
 
 getSortedModuleNames :: FilePath -> IO [String]
 getSortedModuleNames root =
