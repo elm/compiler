@@ -116,7 +116,7 @@ solve constraint =
 
     CInstance name term -> do
         env <- TS.getEnv
-        freshCopy <- TS.makeInstance ((Map.!) env name)
+        freshCopy <- TS.makeInstance (Map.findWithDefault (error $ "Could not find " ++ name ++ " in the environment") name env)
         t <- TS.flatten term
         unify freshCopy t
         TS.getEnv
