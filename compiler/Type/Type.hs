@@ -84,6 +84,9 @@ infixr 9 ==>
 (==>) :: Type -> Type -> Type
 a ==> b = TermN (Fun1 a b)
 
+f <| a = TermN (App1 f a)
+
+
 namedVar name = UF.fresh $ Descriptor {
     structure = Nothing,
     rank = noRank,
@@ -123,6 +126,7 @@ exists :: (Type -> IO TypeConstraint) -> IO TypeConstraint
 exists f = do
   v <- flexibleVar
   ex [v] <$> f (VarN v)
+
 
 instance Show a => Show (UF.Point a) where
   show point = unsafePerformIO $ fmap show (UF.descriptor point)
