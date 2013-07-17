@@ -13,17 +13,27 @@ import qualified SourceSyntax.Expression as Expr
 import Text.PrettyPrint
 import qualified Type.State as TS
 import Control.Monad.State
+import Control.Arrow (second)
 import Transform.SortDefinitions as Sort
 
 import System.IO.Unsafe  -- Possible to switch over to the ST monad instead of
                          -- the IO monad. Not sure if that'd be worthwhile.
 
+
 infer :: MetadataModule t v -> Either [Doc] (Map.Map String T.Variable)
 infer modul = unsafePerformIO $ do
-  env <- Env.initialEnvironment
+  env <- Env.initialEnvironment (datatypes modul)
   var <- T.flexibleVar
+  ctors <- forM (Map.keys (Env.constructor env)) $ \name ->
+               do (_, vars, tipe) <- Env.freshDataScheme env name
+                  return (name, (vars, tipe))
+
   let expr = Expr.dummyLet $ defs modul
-  constraint <- TcExpr.constrain env expr (T.VarN var)
+      vars = concatMap (fst . snd) ctors
+      header = Map.map snd (Map.fromList ctors)
+      environ = T.CLet [ T.Scheme vars [] T.CTrue header ]
+  constraint <- environ `fmap` TcExpr.constrain env expr (T.VarN var)
+  print =<< T.extraPretty constraint
   (env,_,_,errors) <- execStateT (Solve.solve constraint) TS.initialState
   if null errors
       then return $ Right env

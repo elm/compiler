@@ -3,7 +3,6 @@ module Type.Constrain.Expression where
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Data.Map ((!))
 import Control.Arrow (second)
 import Control.Applicative ((<$>),(<*>))
 import qualified Control.Monad as Monad
@@ -33,7 +32,7 @@ test str =
   case iParse expr "" str of
     Left err -> error $ "Parse error at " ++ show err
     Right expression -> do
-      env <- Env.initialEnvironment
+      env <- Env.initialEnvironment []
       var <- flexibleVar
       let expr = SD.sortDefs expression
       print (pretty expr)
@@ -50,7 +49,7 @@ test str =
 
 constrain :: Env.Environment -> LExpr a b -> Type -> IO TypeConstraint
 constrain env (L _ _ expr) tipe =
-    let list t = TermN (App1 (Env.get env Env.builtin "[_]") t) in
+    let list t = TermN (App1 (Env.get env Env.types "_List") t) in
     case expr of
       Literal lit -> return $ Literal.constrain env lit tipe
 
@@ -91,7 +90,7 @@ constrain env (L _ _ expr) tipe =
 
       MultiIf branches -> CAnd <$> mapM constrain' branches
           where 
-             bool = Env.get env Env.builtin "Bool"
+             bool = Env.get env Env.types "Bool"
              constrain' (b,e) = do
                   cb <- constrain env b bool
                   ce <- constrain env e tipe
@@ -165,7 +164,7 @@ constrain env (L _ _ expr) tipe =
                 return ((name, v), c)
 
       Markdown _ ->
-          return $ tipe === Env.get env Env.builtin "Element"
+          return $ tipe === Env.get env Env.types "Element"
 
       Let defs body ->
           do c <- constrain env body tipe
@@ -187,7 +186,7 @@ constrainDef env info (pattern, expr, maybeTipe) =
           do flexiVars <- mapM (\_ -> flexibleVar) qs
              let inserts = zipWith (\arg typ -> Map.insert arg (VarN typ)) qs flexiVars
                  env' = env { Env.value = List.foldl' (\x f -> f x) (Env.value env) inserts }
-             typ <- instantiateType tipe
+             typ <- Env.instantiateType env tipe
              let scheme = Scheme { rigidQuantifiers = [],
                                    flexibleQuantifiers = flexiVars,
                                    constraint = CTrue,
@@ -215,35 +214,6 @@ constrainDef env info (pattern, expr, maybeTipe) =
                     , c /\ c2
                     , c1 )
 
-
-instantiateType :: SrcT.Type -> IO Type
-instantiateType sourceType = instantiateTypeWithContext sourceType Map.empty
-
-instantiateTypeWithContext :: SrcT.Type -> Map.Map String Variable -> IO Type
-instantiateTypeWithContext sourceType dict = evalStateT (go sourceType) dict
-  where
-    go :: SrcT.Type -> StateT (Map.Map String Variable) IO Type
-    go sourceType =
-      case sourceType of
-        SrcT.Lambda t1 t2 -> TermN <$> (Fun1 <$> go t1 <*> go t2)
-
-        SrcT.Var x -> do
-          dict <- get
-          case Map.lookup x dict of
-            Just var -> return (VarN var)
-            Nothing -> do
-              var <- liftIO $ namedVar x -- should this be Constant or Flexible?
-              put (Map.insert x var dict)
-              return (VarN var)
-
-        SrcT.Data name ts -> do
-          ts' <- mapM go ts
-          return $ foldr (\t result -> TermN $ App1 t result) (error "not sure how to look this up yet") ts'
-
-        SrcT.EmptyRecord -> return (TermN EmptyRecord1)
-
-        SrcT.Record fields ext ->
-          TermN <$> (Record1 <$> traverse (mapM go) fields <*> go ext)
 
 expandPattern :: (Pattern, LExpr t v, Maybe SrcT.Type)
               -> [(Pattern, LExpr t v, Maybe SrcT.Type)]

@@ -41,13 +41,15 @@ constrain env pattern tipe =
             }
 
       PData name patterns -> do
-          (cvars, ctipe) <- freshDataScheme env name
-          let (argTypes, resultType) = flattenFunction ctipe
-              msg = "Constructor '" ++ name ++ "' expects " ++ show (length argTypes) ++ " arguments."
-          if length patterns /= length argTypes then error msg else do
-              fragment <- Monad.liftM joinFragments (Monad.zipWithM (constrain env) patterns argTypes)
+          (kind, cvars, ctipe) <- freshDataScheme env name
+          let tvars = map VarN cvars
+              msg = concat [ "Constructor '", name, "' expects ", show kind
+                           , " argument", if kind == 1 then "" else "s"
+                           , " but was given ", show (length patterns), "." ]
+          if length patterns /= kind then error msg else do
+              fragment <- Monad.liftM joinFragments (Monad.zipWithM (constrain env) patterns tvars)
               return $ fragment {
-                typeConstraint = typeConstraint fragment /\ tipe === resultType,
+                typeConstraint = typeConstraint fragment /\ tipe === ctipe,
                 vars = cvars ++ vars fragment
               }
 
@@ -60,31 +62,3 @@ constrain env pattern tipe =
               vars           = map snd pairs,
               typeConstraint = c
           }
-
-freshDataScheme :: Environment -> [Char] -> IO ([Variable], Type)
-freshDataScheme env name =
-  do let (vars, tipe) = Env.get env constructor name
-     freshVars <- mapM (\_ -> flexibleVar) vars
-     let assocList = zip vars freshVars
-     return (freshVars, substitute assocList tipe)
-
-substitute :: Eq a => [(a, a)] -> TermN a -> TermN a
-substitute assocs tipe =
-    case tipe of
-      VarN x -> VarN (Maybe.fromMaybe x (List.lookup x assocs))
-      TermN t -> TermN $
-          case t of
-            App1 a b -> App1 (substitute assocs a) (substitute assocs b)
-            Fun1 a b -> Fun1 (substitute assocs a) (substitute assocs b)
-            Var1 v -> Var1 (substitute assocs v)
-            EmptyRecord1 -> EmptyRecord1
-            Record1 fields extension ->
-                Record1 (Map.map (map $ substitute assocs) fields)
-                        (substitute assocs extension)
-
-flattenFunction :: TermN t -> ([TermN t], TermN t)
-flattenFunction = go []
-    where go args tipe =
-            case tipe of
-              TermN (Fun1 a b) -> go (a:args) b
-              _ -> (reverse args, tipe)
