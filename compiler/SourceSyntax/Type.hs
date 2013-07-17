@@ -21,7 +21,7 @@ recordOf :: [(String,Type)] -> Type
 recordOf fields = Record (fieldMap fields) EmptyRecord
 
 listOf :: Type -> Type
-listOf t = Data "List" [t]
+listOf t = Data "_List" [t]
 
 tupleOf :: [Type] -> Type
 tupleOf ts = Data ("_Tuple" ++ show (length ts)) ts
