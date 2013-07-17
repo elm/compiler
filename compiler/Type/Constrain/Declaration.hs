@@ -50,15 +50,3 @@ toDefs decl =
 
     -- no constraints are needed for fixity declarations
     Fixity _ _ _ -> []
-
-toEqualityDict :: Declaration t v -> Maybe (String, IO T.Type)
-toEqualityDict decl =
-  case decl of
-    Definition _ -> Nothing
-    Datatype _ _ _ -> Nothing
-    ImportEvent _ _ _ _ -> Nothing
-    ExportEvent _ _ _ -> Nothing
-    Fixity _ _ _ -> Nothing
-    TypeAlias alias tvars tipe -> Just $ (,) alias $ do
-        pairs <- forM tvars $ \tname -> (,) tname <$> T.namedVar tname
-        TcExpr.instantiateTypeWithContext tipe (Map.fromList pairs)
