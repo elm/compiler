@@ -22,14 +22,15 @@ data ImportMethod = As String | Importing [String] | Hiding [String]
                     deriving (Eq, Ord, Show, Data, Typeable)
 
 data MetadataModule t v = MetadataModule {
-    names    :: [String],
-    path     :: FilePath,
-    exports  :: [String],
-    imports  :: [(String, ImportMethod)],
-    defs     :: [Def t v],
-    types    :: Map.Map String T.Variable,
-    fixities :: [(Assoc, Int, String)],
-    aliases  :: [(String, [String], Type)],
+    names     :: [String],
+    path      :: FilePath,
+    exports   :: [String],
+    imports   :: [(String, ImportMethod)],
+    defs      :: [Def t v],
+    types     :: Map.Map String T.Variable,
+    fixities  :: [(Assoc, Int, String)],
+    aliases   :: [(String, [String], Type)],
+    datatypes :: [ (String, [String], [(String,[Type])]) ],
     foreignImports :: [(String, LExpr t v, String, Type)],
     foreignExports :: [(String, String, Type)]
 }

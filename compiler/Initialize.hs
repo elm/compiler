@@ -38,6 +38,7 @@ buildFromSource noPrelude src =
            imports = ims,
            defs = fst . SD.flattenLets [] . SD.sortDefs . dummyLet $ TcDecl.toExpr decls,
            types = Map.empty,
+           datatypes = [ (name, vars, ctors) | Datatype name vars ctors <- decls ],
            fixities = [ (assoc,level,op) | Fixity assoc level op <- decls ],
            aliases = [ (name,tvs,tipe) | TypeAlias name tvs tipe <- decls ],
            foreignImports = [ (evt,v,name,typ) | ImportEvent evt v name typ <- decls ],
