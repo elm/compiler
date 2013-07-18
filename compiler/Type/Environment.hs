@@ -41,7 +41,7 @@ makeTypes datatypes =
     kind n names = map (\name -> (name, n)) names
 
     builtins :: [(String,Int)]
-    builtins = concat [ map tuple [0..10]
+    builtins = concat [ map tuple [0..9]
                       , kind 1 ["_List","Maybe","Signal"]
                       , kind 0 ["Int","Float","Char","Bool","Element"]
                       ]
@@ -68,7 +68,7 @@ makeConstructors types datatypes =
                , ("Just"   , inst 1 1 $ \ [t] -> t ==> maybe t)
                , ("[]"     , inst 0 1 $ \ [t] -> list t)
                , ("::"     , inst 2 1 $ \ [t] -> t ==> list t ==> list t)
-               ] ++ map tupleCtor [0..10]
+               ] ++ map tupleCtor [0..9]
 
    
 
@@ -79,9 +79,7 @@ get env subDict key = Map.findWithDefault err key (subDict env)
 
 
 freshDataScheme :: Environment -> String -> IO (Int, [Variable], Type)
-freshDataScheme env name = do
-  putStr "fresh " >> putStrLn name
-  get env constructor name
+freshDataScheme env name = get env constructor name
 
 
 instances :: Environment
@@ -123,9 +121,8 @@ instantiateTypeWithContext env sourceType dict =
               return (VarN var)
 
         Src.Data name ts -> do
-          State.liftIO $ putStr "instantiate " >> putStrLn name
           ts' <- mapM go ts
-          return $ foldr (\t result -> TermN $ App1 t result) (get env types name) ts'
+          return $ foldl (\tyFn ty -> TermN $ App1 tyFn ty) (get env types name) ts'
 
         Src.EmptyRecord -> return (TermN EmptyRecord1)
 
