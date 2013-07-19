@@ -3,7 +3,7 @@ module Type.Type where
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.UnionFind.IO as UF
-import SourceSyntax.PrettyPrint
+import Type.PrettyPrint
 import Text.PrettyPrint as P
 import System.IO.Unsafe
 import Control.Applicative ((<$>),(<*>))
@@ -30,6 +30,7 @@ type TypeName = String
 
 data Constraint a b
     = CTrue
+    | CSaveEnv
     | CEqual a a
     | CAnd [Constraint a b]
     | CLet [Scheme a b] (Constraint a b)
@@ -72,6 +73,8 @@ type TypeScheme = Scheme Type Variable
 infixl 8 /\
 
 (/\) :: Constraint a b -> Constraint a b -> Constraint a b
+a /\ CTrue = a
+CTrue /\ b = b
 a /\ b = CAnd [a,b]
 
 (===) :: Type -> Type -> TypeConstraint
@@ -87,10 +90,10 @@ a ==> b = TermN (Fun1 a b)
 f <| a = TermN (App1 f a)
 
 
-namedVar name = UF.fresh $ Descriptor {
+namedVar flex name = UF.fresh $ Descriptor {
     structure = Nothing,
     rank = noRank,
-    flex = Flexible,
+    flex = flex,
     name = Just name,
     copy = Nothing,
     mark = noMark
@@ -131,50 +134,69 @@ exists f = do
 instance Show a => Show (UF.Point a) where
   show point = unsafePerformIO $ fmap show (UF.descriptor point)
 
-instance Pretty a => Pretty (UF.Point a) where
-  pretty point = unsafePerformIO $ fmap pretty (UF.descriptor point)
 
-instance Pretty a => Pretty (Term1 a) where
-  pretty term =
+instance PrettyType a => PrettyType (UF.Point a) where
+  pretty when point = unsafePerformIO $ fmap (pretty when) (UF.descriptor point)
+
+
+instance PrettyType a => PrettyType (Term1 a) where
+  pretty when term =
+    let prty = pretty Never in
     case term of
-      App1 f x -> pretty f <+> pretty x
-      Fun1 arg body -> formattedArg <+> P.text "->" <+> pretty body
+      App1 f x ->
+          parensIf needed (prty f <+> pretty App x)
         where
-          prettyArg = pretty arg
-          formattedArg = parensIf ("->" `List.isInfixOf` P.render prettyArg) prettyArg
-      Var1 x -> pretty x
+          needed = case when of
+                     App -> True
+                     _ -> False
+
+      Fun1 arg body ->
+          parensIf needed (pretty Fn arg <+> P.text "->" <+> prty body)
+        where
+          needed = case when of
+                     Never -> False
+                     _ -> True
+
+      Var1 x -> prty x
+
       EmptyRecord1 -> P.braces P.empty
+
       Record1 fields ext ->
-          P.braces (pretty ext <+> P.text "|" <+> P.sep (P.punctuate P.comma prettyFields))
+          P.braces (prty ext <+> P.text "|" <+> commaSep prettyFields)
         where
-          mkPretty f t = P.text f <+> P.text ":" <+> pretty t
+          mkPretty f t = P.text f <+> P.text ":" <+> prty t
           prettyFields = concatMap (\(f,ts) -> map (mkPretty f) ts) (Map.toList fields)
 
-instance Pretty a => Pretty (TermN a) where
-  pretty term =
-    case term of
-      VarN x -> pretty x
-      TermN t1 -> pretty t1
 
-instance Pretty Descriptor where
-  pretty desc =
+instance PrettyType a => PrettyType (TermN a) where
+  pretty when term =
+    case term of
+      VarN x -> pretty when x
+      TermN t1 -> pretty when t1
+
+
+instance PrettyType Descriptor where
+  pretty when desc =
     case (structure desc, name desc) of
-      (Just term, _) -> pretty term
+      (Just term, _) -> pretty when term
       (_, Just name) -> P.text name
       _ -> P.text "?"
 
-instance (Pretty a, Pretty b) => Pretty (Constraint a b) where
-  pretty constraint =
+
+instance (PrettyType a, PrettyType b) => PrettyType (Constraint a b) where
+  pretty _ constraint =
+    let prty = pretty Never in
     case constraint of
       CTrue -> P.text "True"
-      CEqual a b -> pretty a <+> P.text "=" <+> pretty b
+      CSaveEnv -> P.text "SaveTheEnvironment!!!"
+      CEqual a b -> prty a <+> P.text "=" <+> prty b
       CAnd [] -> P.text "True"
 
       CAnd cs ->
-        P.parens . P.sep $ P.punctuate (P.text " and") (map pretty cs)
+        P.parens . P.sep $ P.punctuate (P.text " and") (map (pretty Never) cs)
 
       CLet [Scheme [] fqs constraint header] CTrue | Map.null header ->
-          P.sep [ binder, pretty c ]
+          P.sep [ binder, pretty Never c ]
         where
           mergeExists vs c =
             case c of
@@ -184,44 +206,46 @@ instance (Pretty a, Pretty b) => Pretty (Constraint a b) where
           (fqs', c) = mergeExists fqs constraint
 
           binder = if null fqs' then P.empty else
-                     P.text "exists" <+> P.hsep (map pretty fqs') <> P.text "."
+                     P.text "\x2203" <+> P.hsep (map (pretty Never) fqs') <> P.text "."
 
       CLet schemes constraint ->
-        P.fsep [ P.hang (P.text "let") 4 (P.brackets . P.sep . P.punctuate P.comma $ map pretty schemes)
-               , P.text "in", pretty constraint ]
+        P.fsep [ P.hang (P.text "let") 4 (P.brackets . commaSep $ map (pretty Never) schemes)
+               , P.text "in", pretty Never constraint ]
 
       CInstance name tipe ->
-        P.text name <+> P.text "<" <+> pretty tipe
+        P.text name <+> P.text "<" <+> prty tipe
 
-instance (Pretty a, Pretty b) => Pretty (Scheme a b) where
-  pretty (Scheme rqs fqs constraint headers) =
+instance (PrettyType a, PrettyType b) => PrettyType (Scheme a b) where
+  pretty _ (Scheme rqs fqs constraint headers) =
       P.sep [ forall, cs, headers' ]
     where
-      forall = if null rqs && null fqs then P.empty else
-               P.text "forall" <+> frees <+> rigids
+      prty = pretty Never
 
-      frees = P.hsep $ map pretty fqs
-      rigids = if null rqs then P.empty else P.braces . P.hsep $ map pretty rqs
+      forall = if null rqs && null fqs then P.empty else
+               P.text "\x2200" <+> frees <+> rigids
+
+      frees = P.hsep $ map prty fqs
+      rigids = if null rqs then P.empty else P.braces . P.hsep $ map prty rqs
 
       cs = case constraint of
              CTrue -> P.empty
              CAnd [] -> P.empty
-             _ -> P.brackets (pretty constraint)
+             _ -> P.brackets (pretty Never constraint)
 
       headers' = if Map.size headers > 0 then dict else P.empty
-      dict = P.parens . P.sep . P.punctuate P.comma . map prettyPair $ Map.toList headers
-      prettyPair (n,t) = P.text n <+> P.text ":" <+> pretty t
+      dict = P.parens . commaSep . map prettyPair $ Map.toList headers
+      prettyPair (n,t) = P.text n <+> P.text ":" <+> pretty Never t
 
-extraPretty :: (Pretty t, Crawl t) => t -> IO Doc
+
+extraPretty :: (PrettyType t, Crawl t) => t -> IO Doc
 extraPretty value = do
     (_, rawVars) <- runStateT (crawl getNames value) []
     let vars = map head . List.group $ List.sort rawVars
-        letters = map (:[]) ['a'..'z']
-        suffix s = map (++s)
-        allVars = letters ++ suffix "'" letters ++ concatMap (\n -> suffix (show n) letters) [0..]
+        suffix s = map (++s) (map (:[]) ['a'..'z'])
+        allVars = concatMap suffix $ ["","'","_"] ++ map show [0..]
         okayVars = filter (`notElem` vars) allVars
     runStateT (crawl rename value) okayVars
-    return (pretty value)
+    return (pretty Never value)
   where
     getNames name vars =
       case name of
@@ -232,7 +256,7 @@ extraPretty value = do
       case name of
         Just var -> (name, vars)
         Nothing -> (Just (head vars), tail vars)
-
+--}
 
 -- Code for traversing all the type data-structures and giving
 -- names to the variables embedded deep in there.
@@ -246,6 +270,7 @@ instance (Crawl t, Crawl v) => Crawl (Constraint t v) where
     let rnm = crawl nextState in
     case constraint of
       CTrue -> return CTrue
+      CSaveEnv -> return CSaveEnv
       CEqual a b -> CEqual <$> rnm a <*> rnm b
       CAnd cs -> CAnd <$> crawl nextState cs
       CLet schemes c -> CLet <$> crawl nextState schemes <*> crawl nextState c 
