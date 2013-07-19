@@ -55,14 +55,14 @@ assign' n e = n ++ " = " ++ e
 jsModule :: MetadataModule t v -> String
 jsModule modul =
     run $ do
-      body <- toJS (defs modul)
+      body <- toJS . fst . SD.flattenLets [] $ program modul
       foreignImport <- mapM importEvent (foreignImports modul)
       return $ concat [ setup ("Elm": names modul)
                       , globalAssign ("Elm." ++ modName)
-                                     (jsFunc "elm" $ program body foreignImport) ]
+                                     (jsFunc "elm" $ makeProgram body foreignImport) ]
   where
     modName  = intercalate "." (names modul)
-    program body foreignImport =
+    makeProgram body foreignImport =
         concat [ "\nvar " ++ usefulFuncs ++ ";"
                , assign "_op" "{}"
                , concatMap jsImport (imports modul)
