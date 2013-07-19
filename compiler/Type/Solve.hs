@@ -89,30 +89,32 @@ adjustRank youngMark visitedMark groupRank variable =
 
 
 
-solve :: TypeConstraint -> StateT TS.SolverState IO (Map.Map String Variable)
+solve :: TypeConstraint -> StateT TS.SolverState IO ()
 solve constraint =
   case constraint of
-    CTrue -> TS.getEnv
+    CTrue -> return ()
+
+    CSaveEnv -> TS.saveLocalEnv
 
     CEqual term1 term2 -> do
         t1 <- TS.flatten term1
         t2 <- TS.flatten term2
         unify t1 t2
-        TS.getEnv
 
-    CAnd cs -> mapM solve cs >> TS.getEnv
+    CAnd cs -> mapM_ solve cs
 
     CLet [Scheme [] fqs constraint' _] CTrue -> do
         oldEnv <- TS.getEnv
         mapM TS.introduce fqs
         solve constraint'
         TS.modifyEnv (\_ -> oldEnv)
-        return oldEnv
 
     CLet schemes constraint' -> do
+        oldEnv <- TS.getEnv
         headers <- mapM solveScheme schemes
         TS.modifyEnv $ \env -> Map.unions (headers ++ [env])
         solve constraint'
+        TS.modifyEnv (\_ -> oldEnv)
 
     CInstance name term -> do
         env <- TS.getEnv
@@ -120,7 +122,6 @@ solve constraint =
         freshCopy <- TS.makeInstance (Map.findWithDefault (error msg) name env)
         t <- TS.flatten term
         unify freshCopy t
-        TS.getEnv
 
 solveScheme :: TypeScheme -> StateT TS.SolverState IO (Map.Map String Variable)
 solveScheme scheme =
