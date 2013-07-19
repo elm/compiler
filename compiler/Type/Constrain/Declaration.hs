@@ -23,7 +23,7 @@ toDefs decl =
     Datatype name tvars constructors -> concatMap toDefs constructors
       where
         toDefs (ctor, tipes) =
-            let vars = take (length tipes) $ map (\n -> "_" ++ show n) [0..]
+            let vars = take (length tipes) $ map (:[]) ['a'..'z'] ++ map (\n -> "_" ++ show n) [1..]
                 loc = Src.none
                 body = loc . Src.Data ctor $ map (loc . Src.Var) vars
             in  [ Src.TypeAnnotation ctor $
