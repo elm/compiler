@@ -43,8 +43,10 @@ tuple es = Data ("_Tuple" ++ show (length es)) es
 delist (Location.L _ _ (Data "::" [h,t])) = h : delist t
 delist _ = []
 
+saveEnvName = "_save_the_environment!!!"
+
 dummyLet defs = 
-     Location.none $ Let defs (Location.none . Literal $ Literal.IntNum 42)
+     Location.none $ Let defs (Location.none $ Var saveEnvName)
 
 instance Pretty (Expr t v) where
   pretty expr =
@@ -82,12 +84,12 @@ instance Pretty (Expr t v) where
      Modify e fs ->
          P.braces $ P.hang (pretty e <+> P.text "|")
                            4
-                           (P.sep . P.punctuate P.comma $ map field fs)
+                           (commaSep $ map field fs)
        where
          field (x,e) = P.text x <+> P.text "<-" <+> pretty e
 
      Record fs ->
-         P.braces $ P.nest 2 (P.sep . P.punctuate P.comma $ map field fs)
+         P.braces $ P.nest 2 (commaSep $ map field fs)
        where
          field (x,e) = P.text x <+> P.text "=" <+> pretty e
 
@@ -97,7 +99,7 @@ instance Pretty (Def t v) where
   pretty def =
    case def of
      TypeAnnotation name tipe ->
-         P.text name <+> P.text ":" <+> P.text (show tipe)
+         P.text name <+> P.text ":" <+> pretty tipe
      Def pattern expr ->
          pretty pattern <+> P.text "=" <+> pretty expr
 

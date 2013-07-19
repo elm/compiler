@@ -3,6 +3,7 @@ module SourceSyntax.Type where
 
 import Data.Data
 import qualified Data.Map as Map
+import qualified SourceSyntax.Helpers as Help
 import SourceSyntax.PrettyPrint
 import Text.PrettyPrint as P
 
@@ -33,7 +34,10 @@ instance Pretty Type where
       Lambda t1 t2 -> P.sep [ t, P.sep (map (P.text "->" <+>) ts) ]
         where t:ts = collectLambdas tipe
       Var x -> P.text x
-      Data name tipes -> P.hang (P.text name) 2 (P.sep $ map prettyParens tipes)
+      Data "_List" [t] -> P.brackets (pretty t)
+      Data name tipes
+          | Help.isTuple name -> P.parens . P.sep . P.punctuate P.comma $ map prettyParens tipes
+          | otherwise -> P.hang (P.text name) 2 (P.sep $ map prettyParens tipes)
       EmptyRecord -> P.braces P.empty
       Record fields ext -> error "not done yet"
 

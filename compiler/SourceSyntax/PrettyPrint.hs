@@ -14,5 +14,6 @@ instance Pretty () where
   pretty () = empty
 
 commaCat docs = cat (punctuate comma docs)
+commaSep docs = sep (punctuate comma docs)
 
 parensIf bool doc = if bool then parens doc else doc
