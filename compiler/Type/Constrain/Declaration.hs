@@ -25,7 +25,7 @@ toDefs decl =
         toDefs (ctor, tipes) =
             let vars = take (length tipes) $ map (\n -> "_" ++ show n) [0..]
                 loc = Src.none
-                body = loc . Src.Data name $ map (loc . Src.Var) vars
+                body = loc . Src.Data ctor $ map (loc . Src.Var) vars
             in  [ Src.TypeAnnotation ctor $
                       foldr Type.Lambda (Type.Data name $ map Type.Var tvars) tipes
                 , Src.Def (Src.PVar ctor) $
