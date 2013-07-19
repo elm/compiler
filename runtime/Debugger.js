@@ -60,6 +60,7 @@ function debuggerInit(module, elm) {
   function resetProgram() {
     clearAsyncEvents();
     restoreProgramState(allNodes, initialProgramState);
+    redrawGraphics();
   }
 
   function startRecording() {
@@ -93,21 +94,24 @@ function debuggerInit(module, elm) {
     }
   }
 
-  var moduleRetValue = module(elm);
+  function redrawGraphics() {
+    var graphicsFoldp = moduleRetValue.main.kids[0];
+    graphicsFoldp.recv(Date.now(), true, moduleRetValue.main.id);
+  }
 
-  allNodes = flattenNodes(elm.inputs);
-  initialProgramState = saveProgramState(allNodes);
+  var wrappedElm = {
+    notify: wrapNotify,
+    runDelayed: wrapRunDelayed,
+    node: elm.node,
+    display: elm.display,
+    id: elm.id,
+    addListener: elm.addListener,
+    inputs: elm.inputs
+  };
 
-  var debugElm = {
-        elm: {
-            notify: wrapNotify,
-            runDelayed: wrapRunDelayed,
-            node: elm.node,
-            display: elm.display,
-            id: elm.id,
-            addListener: elm.addListener,
-            inputs: elm.inputs
-          },
+  var moduleRetValue = module(wrappedElm);
+
+  var elmDebugger = {
         moduleRetValue: moduleRetValue,
 
         // debugger functions
@@ -115,7 +119,11 @@ function debuggerInit(module, elm) {
         stopRecording: stopRecording,
         reset: resetProgram
   };
-  return debugElm;
+
+  allNodes = flattenNodes(wrappedElm.inputs);
+  initialProgramState = saveProgramState(allNodes);
+
+  return elmDebugger;
 };
 
 

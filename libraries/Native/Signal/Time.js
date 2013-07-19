@@ -24,7 +24,7 @@ Elm.Native.Time.make = function(elm) {
     var timeoutID = 0;
     function f(isOn, t) {
       if (isOn) {
-        timeoutID = setTimeout(tick(!wasOn && isOn), msPerFrame);
+        timeoutID = elm.runDelayed(tick(!wasOn && isOn), msPerFrame);
       } else if (wasOn) {
         clearTimeout(timeoutID);
       }
