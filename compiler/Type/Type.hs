@@ -9,6 +9,7 @@ import System.IO.Unsafe
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad.State
 import Data.Traversable (traverse)
+import SourceSyntax.Helpers (isTuple)
 
 data Term1 a
     = App1 a a
@@ -143,9 +144,10 @@ instance PrettyType a => PrettyType (Term1 a) where
   pretty when term =
     let prty = pretty Never in
     case term of
-      App1 f x ->
-          parensIf needed (prty f <+> pretty App x)
+      App1 f x | P.render px == "_List" -> P.brackets (pretty Never x)
+               | otherwise -> parensIf needed (px <+> pretty App x)
         where
+          px = prty f
           needed = case when of
                      App -> True
                      _ -> False
@@ -179,7 +181,8 @@ instance PrettyType Descriptor where
   pretty when desc =
     case (structure desc, name desc) of
       (Just term, _) -> pretty when term
-      (_, Just name) -> P.text name
+      (_, Just name) -> if not (isTuple name) then P.text name else
+                            P.parens . P.text $ replicate (read (drop 6 name) - 1) ','
       _ -> P.text "?"
 
 
