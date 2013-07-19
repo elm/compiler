@@ -10,6 +10,7 @@ import qualified Type.Solve as Solve
 
 import SourceSyntax.Module
 import qualified SourceSyntax.Expression as Expr
+import SourceSyntax.PrettyPrint
 import Text.PrettyPrint
 import qualified Type.State as TS
 import Control.Monad.State
@@ -28,14 +29,13 @@ infer modul = unsafePerformIO $ do
                do (_, vars, tipe) <- Env.freshDataScheme env name
                   return (name, (vars, tipe))
 
-  let expr = Expr.dummyLet $ defs modul
-      vars = concatMap (fst . snd) ctors
+  let vars = concatMap (fst . snd) ctors
       header = Map.map snd (Map.fromList ctors)
       environ = T.CLet [ T.Scheme vars [] T.CTrue header ]
-  constraint <- environ `fmap` TcExpr.constrain env expr (T.VarN var)
-  print =<< T.extraPretty constraint
-  (env,_,_,errors) <- execStateT (Solve.solve constraint) TS.initialState
+  constraint <- environ `fmap` TcExpr.constrain env (program modul) (T.VarN var)
+  state <- execStateT (Solve.solve constraint) TS.initialState
+  let errors = TS.sErrors state
   if null errors
-      then return $ Right env
+      then return $ Right (Map.difference (TS.sSavedEnv state) header)
       else Left `fmap` sequence errors
 

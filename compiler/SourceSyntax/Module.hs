@@ -26,7 +26,7 @@ data MetadataModule t v = MetadataModule {
     path      :: FilePath,
     exports   :: [String],
     imports   :: [(String, ImportMethod)],
-    defs      :: [Def t v],
+    program   :: LExpr t v,
     types     :: Map.Map String T.Variable,
     fixities  :: [(Assoc, Int, String)],
     aliases   :: [(String, [String], Type)],
