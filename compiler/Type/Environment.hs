@@ -33,7 +33,7 @@ makeTypes datatypes =
     nameAndKind (name, tvars, _) = (name, length tvars)
 
     makeCtor (name, kind) = do
-      ctor <- VarN <$> namedVar name
+      ctor <- VarN <$> namedVar Constant name
       return (name, ctor)
 
     tuple n = ("_Tuple" ++ show n, n)
@@ -46,11 +46,8 @@ makeTypes datatypes =
                       , kind 0 ["Int","Float","Char","Bool","Element"]
                       ]
 
-makeConstructors types datatypes =
-    Map.union (Map.fromList builtins) (Map.unions $ map (instances dummyEnv) datatypes)
+makeConstructors types datatypes = Map.fromList builtins
   where
-    dummyEnv = Environment { constructor=Map.empty, types=types, value=Map.empty }
-
     list  t = (types ! "_List") <| t
     maybe t = (types ! "Maybe") <| t
 
@@ -70,7 +67,6 @@ makeConstructors types datatypes =
                , ("::"     , inst 2 1 $ \ [t] -> t ==> list t ==> list t)
                ] ++ map tupleCtor [0..9]
 
-   
 
 get :: Environment -> (Environment -> Map.Map String a) -> String -> a
 get env subDict key = Map.findWithDefault err key (subDict env)
@@ -81,18 +77,6 @@ get env subDict key = Map.findWithDefault err key (subDict env)
 freshDataScheme :: Environment -> String -> IO (Int, [Variable], Type)
 freshDataScheme env name = get env constructor name
 
-
-instances :: Environment
-          -> (String, [String], [(String, [Src.Type])])
-          -> Map.Map String (IO (Int, [Variable], Type))
-instances env (name, tvars, ctors) = Map.fromList $ map go ctors
-  where
-    tipe = Src.Data name (map Src.Var tvars)
-
-    go (ctor, tipes) = (,) ctor $ do
-      let funcType = foldr Src.Lambda tipe tipes
-      (vars, ttype) <- instantiateTypeWithContext env funcType Map.empty
-      return (length tipes, vars, ttype)
 
 instantiateType :: Environment -> Src.Type -> IO Type
 instantiateType env sourceType =
@@ -116,7 +100,7 @@ instantiateTypeWithContext env sourceType dict =
           case Map.lookup x dict of
             Just var -> return (VarN var)
             Nothing -> do
-              var <- State.liftIO $ namedVar x -- should this be Constant or Flexible?
+              var <- State.liftIO $ namedVar Flexible x -- should this be Constant or Flexible?
               State.put (Map.insert x var dict)
               return (VarN var)
 
