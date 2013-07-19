@@ -25,15 +25,26 @@ data Pool = Pool {
 emptyPool = Pool { maxRank = outermostRank, inhabitants = [] }
 
 -- Keeps track of the environment, type variable pool, and a list of errors
-type SolverState = (Map.Map String Variable, Pool, Int, [IO P.Doc])
+data SolverState = SS {
+    sEnv :: Map.Map String Variable,
+    sSavedEnv :: Map.Map String Variable,
+    sPool :: Pool,
+    sMark :: Int,
+    sErrors :: [IO P.Doc]
+}
 
--- The mark must never be equal to noMark!
-initialState = (Map.empty, emptyPool, noMark + 1, [])
+initialState = SS {
+    sEnv = Map.empty,
+    sSavedEnv = Map.empty,
+    sPool = emptyPool,
+    sMark = noMark + 1,  -- The mark must never be equal to noMark!
+    sErrors = []
+}
 
-modifyEnv  f = modify $ \(env, pool, mark, errors) -> (f env, pool, mark, errors)
-modifyPool f = modify $ \(env, pool, mark, errors) -> (env, f pool, mark, errors)
+modifyEnv  f = modify $ \state -> state { sEnv = f (sEnv state) }
+modifyPool f = modify $ \state -> state { sPool = f (sPool state) }
 addError message t1 t2 =
-    modify $ \(env, pool, mark, errors) -> (env, pool, mark, err : errors)
+    modify $ \state -> state { sErrors = err : sErrors state }
   where
     wordify = P.fsep . map P.text . words 
     msg = wordify message
@@ -53,19 +64,21 @@ addError message t1 t2 =
 switchToPool pool = modifyPool (\_ -> pool)
 
 getPool :: StateT SolverState IO Pool
-getPool = do
-  (_, pool, _, _) <- get
-  return pool
+getPool = sPool <$> get
 
 getEnv :: StateT SolverState IO (Map.Map String Variable)
-getEnv = do
-  (env, _, _, _) <- get
-  return env
+getEnv = sEnv <$> get
+
+saveLocalEnv :: StateT SolverState IO ()
+saveLocalEnv = do
+  env <- sEnv <$> get
+  modify $ \state -> state { sSavedEnv = env }
 
 uniqueMark :: StateT SolverState IO Int
 uniqueMark = do
-  (env, pool, mark, errs) <- get
-  put (env, pool, mark+1, errs)
+  state <- get
+  let mark = sMark state
+  put $ state { sMark = mark + 1 }
   return mark
 
 nextRankPool :: StateT SolverState IO Pool

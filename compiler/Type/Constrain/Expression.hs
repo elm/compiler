@@ -38,8 +38,9 @@ test str =
       print (pretty expr)
       constraint <- constrain env expr (VarN var)
       print =<< extraPretty constraint
-      (env,_,_,errors) <- execStateT (solve constraint) TS.initialState
-      forM (Map.toList env) $ \(n,t) -> do
+      state <- execStateT (solve constraint) TS.initialState
+      let errors = TS.sErrors state
+      forM (Map.toList (TS.sSavedEnv state)) $ \(n,t) -> do
           pt <- extraPretty t
           print $ P.text n <+> P.text ":" <+> pt
       if null errors then return () else do
@@ -53,7 +54,7 @@ constrain env (L _ _ expr) tipe =
     case expr of
       Literal lit -> return $ Literal.constrain env lit tipe
 
-      Var name -> return $ name <? tipe
+      Var name -> return (name <? tipe)
 
       Range lo hi ->
           exists $ \x -> do
@@ -167,7 +168,9 @@ constrain env (L _ _ expr) tipe =
           return $ tipe === Env.get env Env.types "Element"
 
       Let defs body ->
-          do c <- constrain env body tipe
+          do c <- case body of
+                    L _ _ (Var name) | name == saveEnvName -> return CSaveEnv
+                    _ -> constrain env body tipe
              (schemes, rqs, fqs, header, c2, c1) <-
                  Monad.foldM (constrainDef env)
                              ([], [], [], Map.empty, CTrue, CTrue)
