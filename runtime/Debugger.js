@@ -13,32 +13,36 @@ Elm.debuggerInit = function(module) {
 
 Elm.debuggerReset = function() {
   staticDebugger.reset();
-}
+};
 
-Elm.debuggerRecord = function() {
-  staticDebugger.startRecording();
-}
+Elm.debuggerRestart = function() {
+  staticDebugger.restart();
+};
 
-Elm.debuggerPlayback = function() {
-  staticDebugger.stopRecording();
-}
-
+Elm.debuggerStep = function() {
+  staticDebugger.step();
+};
 
 function debuggerInit(module, elm) {
-  var State = { OFF: 0, RECORDING: 1, PLAYBACK: 2 };
-  var debuggerState = State.RUNNING;
 
+  var programPaused = false;
   var allNodes = null;
-  var initialProgramState = null;
+
   var recordedEvents = [];
   var asyncTimers = [];
+  var initialProgramState = {
+    nodeValues: [],
+    asyncTimers: []
+  };
 
   function wrapNotify(id, v) {
     var timestep = Date.now();
-    if (debuggerState != State.PLAYBACK) {
-      elm.notify(id, v, timestep);
+
+    if (programPaused) {
+      // ignore notify because we are stepping
     }
-    if (debuggerState == State.RECORDING) {
+    else {
+      elm.notify(id, v, timestep);
       recordEvent(id, v, timestep);
     }
   };
@@ -49,37 +53,46 @@ function debuggerInit(module, elm) {
 
   function safeSetTimeout(func, delayMs) {
     var timerId = setTimeout(func, delayMs);
-    asyncTimers.push(timerId);
+    asyncTimers.push({ func:func, delayMs:delayMs, timerId:timerId });
     return timerId;
   }
 
   function recordEvent(id, v, timestep) {
-    recordedEvents.push([id, v, timestep]);
+    recordedEvents.push({ id:id, value:v, timestep:timestep });
   }
 
   function resetProgram() {
     clearAsyncEvents();
-    restoreProgramState(allNodes, initialProgramState);
+    restoreNodeValues(allNodes, initialProgramState.nodeValues);
     redrawGraphics();
   }
 
-  function startRecording() {
-    clearAsyncEvents();
-    restoreProgramState(allNodes, initialProgramState);
-    debuggerState = State.RECORDING;
+  function restartProgram() {
+    resetProgram();
     recordedEvents = [];
+    initialProgramState.asyncTimers.forEach(function(timer) {
+      var func = timer.func;
+      func();
+    });
   }
 
-  function stopRecording() {
-    clearAsyncEvents();
-    restoreProgramState(allNodes, initialProgramState);
-    debuggerState = State.PLAYBACK;
-    doPlayback(recordedEvents);
+  function stepRecording() {
+    if (programPaused) {
+      if (recordedEvents.length > 0) {
+        var nextEvent = recordedEvents.shift();
+        elm.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
+      }
+    }
+    else {
+      // move into stepping mode
+      programPaused = true;
+      resetProgram();
+    }
   }
 
   function clearAsyncEvents() {
-    asyncTimers.forEach(function(id) {
-      clearTimeout(id);
+    asyncTimers.forEach(function(timer) {
+      clearTimeout(timer.timerId);
     });
   }
 
@@ -115,13 +128,14 @@ function debuggerInit(module, elm) {
         moduleRetValue: moduleRetValue,
 
         // debugger functions
-        startRecording: startRecording,
-        stopRecording: stopRecording,
-        reset: resetProgram
+        reset: resetProgram,
+        restart: restartProgram,
+        step: stepRecording
   };
 
   allNodes = flattenNodes(wrappedElm.inputs);
-  initialProgramState = saveProgramState(allNodes);
+  initialProgramState.nodeValues = saveNodeValues(allNodes);
+  initialProgramState.asyncTimers = asyncTimers.slice();
 
   return elmDebugger;
 };
@@ -134,7 +148,7 @@ function assert(bool, msg) {
   }
 }
 
-function saveProgramState(allNodes) {
+function saveNodeValues(allNodes) {
   var nodeValues = [];
 
   allNodes.forEach(function(node) {
@@ -145,7 +159,7 @@ function saveProgramState(allNodes) {
 };
 
 
-function restoreProgramState(allNodes, nodeStates) {
+function restoreNodeValues(allNodes, nodeStates) {
   assert(allNodes.length == nodeStates.length, "saved program state has wrong length");
   for (var i=0; i < allNodes.length; i++) {
     var node = allNodes[i];
