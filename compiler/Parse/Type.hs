@@ -7,11 +7,7 @@ import Data.List (lookup,intercalate)
 import Text.Parsec
 import Text.Parsec.Indent
 
-import SourceSyntax.Location as Located
---import SourceSyntax.PrettyPrint
 import SourceSyntax.Type as T
---import qualified SourceSyntax.Expression as Expr
---import qualified SourceSyntax.Declaration as Decl
 import Parse.Helpers
 import Unique
 
@@ -55,9 +51,13 @@ term = list <|> tuple <|> record <|> tvar <|> constructor0
 
 app :: IParser T.Type
 app =
-  do name <- capVar <?> "type constructor"
+  do name <- capVar <|> try tupleCtor <?> "type constructor"
      args <- spacePrefix term
      return (T.Data name args)
+  where
+    tupleCtor = do
+      n <- length <$> parens (many (char ','))
+      return $ "_Tuple" ++ show (if n == 0 then 0 else n+1)
 
 expr :: IParser T.Type
 expr =
