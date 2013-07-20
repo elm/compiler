@@ -1,15 +1,12 @@
 module Initialize (buildFromSource, getSortedModuleNames) where
 
-import Control.Applicative ((<$>))
-import Control.Monad.Error
-import Data.List (nub)
 import qualified Data.Map as Map
 import Data.Data
 import qualified Data.Graph as Graph
 import qualified Data.List as List
 import System.Exit
 import System.FilePath as FP
-import Text.PrettyPrint as P
+import Text.PrettyPrint (Doc)
 
 import SourceSyntax.Everything
 import SourceSyntax.Declaration (Assoc)
@@ -21,18 +18,17 @@ import qualified Transform.Check as Check
 import qualified Transform.SortDefinitions as SD
 import qualified Type.Inference as TI
 import qualified Type.Constrain.Declaration as TcDecl
-import qualified Type.Type as T
-
-import System.IO.Unsafe
 
 
-buildFromSource :: (Data t, Data v) => Bool -> String -> Either [P.Doc] (MetadataModule t v)
+buildFromSource :: (Data t, Data v) => Bool -> String -> Either [Doc] (MetadataModule t v)
 buildFromSource noPrelude src =
-  do modul <- Parse.program src
+  do modul@(Module _ _ _ decls) <- Parse.program src
 
      -- check for structural errors
-     Module names exs ims decls <- checkMistakes modul
-
+     Module names exs ims decls <-
+         case Check.mistakes decls of
+           [] -> return modul
+           ms -> Left ms
      
      let metaModule = MetadataModule {
            names = names,
@@ -51,17 +47,7 @@ buildFromSource noPrelude src =
 
      types <- TI.infer metaModule
 
-     let env = forM (Map.toList types) $ \(n,t) -> do
-                 pt <- T.extraPretty t
-                 print $ P.text n <+> P.text ":" <+> pt
-
-     return $ unsafePerformIO env `seq` metaModule { types = types }
-
-  where
-    checkMistakes modul@(Module _ _ _ decls) = 
-        case Check.mistakes decls of
-          [] -> return modul
-          ms -> Left ms
+     return $ metaModule { types = types }
 
 
 getSortedModuleNames :: FilePath -> IO [String]
