@@ -9,24 +9,28 @@ import System.FilePath as FP
 import Text.PrettyPrint (Doc)
 
 import SourceSyntax.Everything
-import SourceSyntax.Declaration (Assoc)
-import qualified SourceSyntax.Location as Loc
+import SourceSyntax.Type
 import qualified Parse.Parse as Parse
 import qualified Metadata.Libraries as Libs
-import qualified Transform.Optimize as Optimize
 import qualified Transform.Check as Check
 import qualified Transform.SortDefinitions as SD
 import qualified Type.Inference as TI
 import qualified Type.Constrain.Declaration as TcDecl
 
 
-buildFromSource :: (Data t, Data v) => Bool -> String -> Either [Doc] (MetadataModule t v)
-buildFromSource noPrelude src =
-  do modul@(Module _ _ _ decls) <- Parse.program src
+type TypeLibrary = Map.Map String (Map.Map String Type)
+
+buildFromSource ::
+    (Data t, Data v) =>
+    TypeLibrary ->
+    String ->
+    Either [Doc] (MetadataModule t v)
+buildFromSource typeLibrary source =
+  do modul@(Module _ _ _ decls') <- Parse.program source
 
      -- check for structural errors
      Module names exs ims decls <-
-         case Check.mistakes decls of
+         case Check.mistakes decls' of
            [] -> return modul
            ms -> Left ms
      
@@ -60,7 +64,7 @@ sortDeps :: [Deps] -> IO [String]
 sortDeps depends =
     if null mistakes
     then return (concat sccs)
-    else print (msg ++ show mistakes) >> exitFailure
+    else print msg >> mapM print mistakes >> exitFailure
   where
     graph = map (\(name, deps) -> (toFilePath name, name, deps)) depends
     sccs = map Graph.flattenSCC $ Graph.stronglyConnComp graph
