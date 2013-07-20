@@ -1,19 +1,17 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 module Main where
 
-import Control.Monad (foldM, when)
+import Control.Monad
 import qualified Data.Map as Map
-import Data.Either (lefts, rights)
-import Data.List (intersect, intercalate, lookup)
-import Data.Maybe (fromMaybe)
+import qualified Data.List as List
 import Data.Version (showVersion)
 import System.Console.CmdArgs
 import System.Directory
 import System.Exit
 import System.FilePath
+
 import qualified Text.Blaze.Html.Renderer.Pretty as Pretty
 import qualified Text.Blaze.Html.Renderer.String as Normal
-
 import qualified Text.Jasmine as JS
 import qualified Data.ByteString.Lazy.Char8 as BS
 
@@ -21,8 +19,11 @@ import SourceSyntax.Module
 import Initialize (buildFromSource, getSortedModuleNames)
 import Generate.JavaScript (jsModule)
 import Generate.Html (createHtml, JSStyle(..), JSSource(..))
-import qualified Metadata.Libraries as Libraries
 import Paths_Elm
+
+import Text.PrettyPrint as P
+import qualified Type.Type as Type
+
 
 data Flags =
     Flags { make :: Bool
@@ -72,6 +73,7 @@ file flags filePath ext = output_directory flags </> replaceExtension filePath e
 
 elmo :: Flags -> FilePath -> FilePath
 elmo flags filePath = file flags filePath "elmo"
+elmi flags filePath = file flags filePath "elmi"
 
 
 buildFile :: Flags -> Int -> Int -> FilePath -> IO Interface
@@ -92,20 +94,32 @@ buildFile flags moduleNum numModules filePath =
       number = "[" ++ show moduleNum ++ " of " ++ show numModules ++ "]"
 
       name :: String
-      name = intercalate "." (splitDirectories (dropExtensions filePath))
+      name = List.intercalate "." (splitDirectories (dropExtensions filePath))
 
       compile :: IO Interface
       compile = do
         putStrLn (number ++ " Compiling " ++ name)
         source <- readFile filePath
-        obj <-
-            if takeExtension filePath == ".js" then return source else
+        (js, maybeModule) <-
+            if takeExtension filePath == ".js" then return (source, Nothing) else
                 case buildFromSource (no_prelude flags) source of
                   Left err -> mapM print err >> exitFailure
-                  Right modul -> return . jsModule $ (modul :: MetadataModule () ())
+                  Right modul -> return (jsModule modul, Just modul)
         createDirectoryIfMissing True (output_directory flags)
-        writeFile (elmo flags filePath) obj
-        return obj
+        writeFile (elmo flags filePath) js
+        writeTypes maybeModule
+        return js
+
+      writeTypes :: Maybe (MetadataModule () ()) -> IO ()
+      writeTypes maybeModule =
+        case maybeModule of
+          Nothing -> return ()
+          Just metaModule -> do
+              tipes <- forM (Map.toList (types metaModule)) $ \(n,t) -> do
+                           pt <- Type.extraPretty t
+                           return $ P.text n <+> P.text ":" <+> pt
+              writeFile (elmi flags filePath) (P.render $ P.vcat tipes)
+
 
 
 getRuntime :: Flags -> IO FilePath
@@ -147,6 +161,6 @@ buildFiles :: Flags -> Int -> Map.Map String Interface -> [FilePath] -> IO ()
 buildFiles _ _ _ [] = return ()
 buildFiles flags numModules interfaces (filePath:rest) = do
   interface <- buildFile flags (numModules - length rest) numModules filePath
-  let moduleName = intercalate "." (splitDirectories (dropExtensions filePath))
+  let moduleName = List.intercalate "." (splitDirectories (dropExtensions filePath))
       interfaces' = Map.insert moduleName interface interfaces
   buildFiles flags numModules interfaces' rest
