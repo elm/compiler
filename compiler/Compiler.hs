@@ -17,7 +17,7 @@ import qualified Text.Jasmine as JS
 import qualified Data.ByteString.Lazy.Char8 as BS
 
 import SourceSyntax.Module
-import Initialize (buildFromSource, getSortedModuleNames)
+import Initialize (buildFromSource, getSortedModuleNames, TypeLibrary)
 import Generate.JavaScript (jsModule)
 import Generate.Html (createHtml, JSStyle(..), JSSource(..))
 import Paths_Elm
@@ -79,12 +79,7 @@ elmo flags filePath = file flags filePath "elmo"
 elmi flags filePath = file flags filePath "elmi"
 
 
-buildFile :: Flags
-          -> Int
-          -> Int
-          -> Map.Map String ModuleInterface
-          -> FilePath
-          -> IO ModuleInterface
+buildFile :: Flags -> Int -> Int -> TypeLibrary -> FilePath -> IO ModuleInterface
 buildFile flags moduleNum numModules interfaces filePath =
     do compiled <- alreadyCompiled
        if compiled then decodeFile (elmi flags filePath) else compile
@@ -172,11 +167,7 @@ build flags rootFile = do
                    [ Source (if minify flags then Minified else Readable) js ]
 
 
-buildFiles :: Flags
-           -> Int
-           -> Map.Map String ModuleInterface
-           -> [FilePath]
-           -> IO (Map.Map String ModuleInterface)
+buildFiles :: Flags -> Int -> TypeLibrary -> [FilePath] -> IO TypeLibrary
 buildFiles _ _ interfaces [] = return interfaces
 buildFiles flags numModules interfaces (filePath:rest) = do
   interface <- buildFile flags (numModules - length rest) numModules interfaces filePath

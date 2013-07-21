@@ -1,4 +1,4 @@
-module Initialize (buildFromSource, getSortedModuleNames) where
+module Initialize (buildFromSource, getSortedModuleNames, TypeLibrary) where
 
 import qualified Data.Map as Map
 import Data.Data
