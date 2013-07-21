@@ -6,7 +6,7 @@ import qualified Data.Map as Map
 import qualified Data.List as List
 import Data.Binary (encodeFile, decodeFile)
 import Data.Version (showVersion)
-import System.Console.CmdArgs
+import System.Console.CmdArgs hiding (program)
 import System.Directory
 import System.Exit
 import System.FilePath
@@ -17,11 +17,12 @@ import qualified Text.Jasmine as JS
 import qualified Data.ByteString.Lazy.Char8 as BS
 
 import SourceSyntax.Module
-import Initialize (buildFromSource, getSortedModuleNames, TypeLibrary)
+import Initialize (buildFromSource, getSortedModuleNames, Interfaces)
 import Generate.JavaScript (jsModule)
 import Generate.Html (createHtml, JSStyle(..), JSSource(..))
 import Paths_Elm
 
+import SourceSyntax.PrettyPrint (pretty)
 import Text.PrettyPrint as P
 import qualified Type.Type as Type
 import qualified Parse.Type as Parse
@@ -33,6 +34,7 @@ data Flags =
           , runtime :: Maybe FilePath
           , only_js :: Bool
           , print_types :: Bool
+          , print_program :: Bool
           , scripts :: [FilePath]
           , no_prelude :: Bool
           , minify :: Bool
@@ -50,6 +52,8 @@ flags = Flags
               &= help "Compile only to JavaScript."
   , print_types = False
                   &= help "Print out infered types of top-level definitions."
+  , print_program = False
+                    &= help "Print out an internal representation of a program."
   , scripts = [] &= typFile
               &= help "Load JavaScript files in generated HTML. Files will be included in the given order."
   , no_prelude = False
@@ -79,7 +83,7 @@ elmo flags filePath = file flags filePath "elmo"
 elmi flags filePath = file flags filePath "elmi"
 
 
-buildFile :: Flags -> Int -> Int -> TypeLibrary -> FilePath -> IO ModuleInterface
+buildFile :: Flags -> Int -> Int -> Interfaces -> FilePath -> IO ModuleInterface
 buildFile flags moduleNum numModules interfaces filePath =
     do compiled <- alreadyCompiled
        if compiled then decodeFile (elmi flags filePath) else compile
@@ -107,13 +111,15 @@ buildFile flags moduleNum numModules interfaces filePath =
         metaModule <-
             case buildFromSource interfaces source of
                 Left err -> mapM print err >> exitFailure
-                Right modul -> return (modul :: MetadataModule () ())
+                Right modul -> do
+                  if print_program flags then print . pretty $ program modul else return ()
+                  return (modul :: MetadataModule () ())
+        
         if print_types flags then printTypes metaModule else return ()
         tipes <- toSrcTypes (types metaModule)
-        let fmt (name, tvars, ctors) = (name, (length tvars, map fst ctors))
-            interface = ModuleInterface {
+        let interface = ModuleInterface {
                           iTypes = tipes,
-                          iAdts = Map.fromList . map fmt $ datatypes metaModule
+                          iAdts = datatypes metaModule
                         }
         encodeFile (elmi flags filePath) interface
         let js = jsModule metaModule
@@ -167,7 +173,7 @@ build flags rootFile = do
                    [ Source (if minify flags then Minified else Readable) js ]
 
 
-buildFiles :: Flags -> Int -> TypeLibrary -> [FilePath] -> IO TypeLibrary
+buildFiles :: Flags -> Int -> Interfaces -> [FilePath] -> IO Interfaces
 buildFiles _ _ interfaces [] = return interfaces
 buildFiles flags numModules interfaces (filePath:rest) = do
   interface <- buildFile flags (numModules - length rest) numModules interfaces filePath
