@@ -4,6 +4,7 @@ module Main where
 import Control.Monad
 import qualified Data.Map as Map
 import qualified Data.List as List
+import Data.Binary (encodeFile, decodeFile)
 import Data.Version (showVersion)
 import System.Console.CmdArgs
 import System.Directory
@@ -23,13 +24,15 @@ import Paths_Elm
 
 import Text.PrettyPrint as P
 import qualified Type.Type as Type
-
+import qualified Parse.Type as Parse
+import qualified Data.Traversable as Traverse
 
 data Flags =
     Flags { make :: Bool
           , files :: [FilePath]
           , runtime :: Maybe FilePath
           , only_js :: Bool
+          , print_types :: Bool
           , scripts :: [FilePath]
           , no_prelude :: Bool
           , minify :: Bool
@@ -45,6 +48,8 @@ flags = Flags
               &= help "Specify a custom location for Elm's runtime system."
   , only_js = False
               &= help "Compile only to JavaScript."
+  , print_types = False
+                  &= help "Print out infered types of top-level definitions."
   , scripts = [] &= typFile
               &= help "Load JavaScript files in generated HTML. Files will be included in the given order."
   , no_prelude = False
@@ -66,8 +71,6 @@ compileArgs flags =
       fs -> mapM_ (build flags) fs
           
 
-type Interface = String
-
 file :: Flags -> FilePath -> String -> FilePath
 file flags filePath ext = output_directory flags </> replaceExtension filePath ext
 
@@ -76,10 +79,10 @@ elmo flags filePath = file flags filePath "elmo"
 elmi flags filePath = file flags filePath "elmi"
 
 
-buildFile :: Flags -> Int -> Int -> FilePath -> IO Interface
+buildFile :: Flags -> Int -> Int -> FilePath -> IO ModuleInterface
 buildFile flags moduleNum numModules filePath =
     do compiled <- alreadyCompiled
-       if compiled then readFile (elmo flags filePath) else compile
+       if compiled then decodeFile (elmi flags filePath) else compile
 
     where
       alreadyCompiled :: IO Bool
@@ -96,30 +99,35 @@ buildFile flags moduleNum numModules filePath =
       name :: String
       name = List.intercalate "." (splitDirectories (dropExtensions filePath))
 
-      compile :: IO Interface
+      compile :: IO ModuleInterface
       compile = do
         putStrLn (number ++ " Compiling " ++ name)
         source <- readFile filePath
-        (js, maybeModule) <-
-            if takeExtension filePath == ".js" then return (source, Nothing) else
-                case buildFromSource (no_prelude flags) source of
-                  Left err -> mapM print err >> exitFailure
-                  Right modul -> return (jsModule modul, Just modul)
         createDirectoryIfMissing True (output_directory flags)
+        metaModule <-
+            case buildFromSource Map.empty source of
+                Left err -> mapM print err >> exitFailure
+                Right modul -> return (modul :: MetadataModule () ())
+        if print_types flags then printTypes metaModule else return ()
+        tipes <- toSrcTypes (types metaModule)
+        let fmt (name, tvars, ctors) = (name, (length tvars, map fst ctors))
+            interface = ModuleInterface {
+                          iTypes = tipes,
+                          iAdts = Map.fromList . map fmt $ datatypes metaModule
+                        }
+        encodeFile (elmi flags filePath) interface
+        let js = jsModule metaModule
         writeFile (elmo flags filePath) js
-        writeTypes maybeModule
-        return js
+        return interface
 
-      writeTypes :: Maybe (MetadataModule () ()) -> IO ()
-      writeTypes maybeModule =
-        case maybeModule of
-          Nothing -> return ()
-          Just metaModule -> do
-              tipes <- forM (Map.toList (types metaModule)) $ \(n,t) -> do
-                           pt <- Type.extraPretty t
-                           return $ P.text n <+> P.text ":" <+> pt
-              writeFile (elmi flags filePath) (P.render $ P.vcat tipes)
+toSrcTypes tipes = Traverse.traverse convert tipes
+  where
+    convert t = fmap (Parse.readType . P.render) (Type.extraPretty t)
 
+printTypes metaModule =
+    forM_ (Map.toList $ types metaModule) $ \(n,t) -> do
+      pt <- Type.extraPretty t
+      print $ P.text n <+> P.text ":" <+> pt
 
 
 getRuntime :: Flags -> IO FilePath
@@ -157,7 +165,7 @@ build flags rootFile = do
                    [ Source (if minify flags then Minified else Readable) js ]
 
 
-buildFiles :: Flags -> Int -> Map.Map String Interface -> [FilePath] -> IO ()
+buildFiles :: Flags -> Int -> Map.Map String ModuleInterface -> [FilePath] -> IO ()
 buildFiles _ _ _ [] = return ()
 buildFiles flags numModules interfaces (filePath:rest) = do
   interface <- buildFile flags (numModules - length rest) numModules filePath

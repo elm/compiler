@@ -75,6 +75,7 @@ Library
                        Paths_Elm
 
   Build-depends:       base >=4.2 && <5,
+                       binary,
                        blaze-html == 0.5.* || == 0.6.*,
                        blaze-markup == 0.5.1.*,
                        bytestring,
@@ -142,6 +143,7 @@ Executable elm
                        Paths_Elm
 
   Build-depends:       base >=4.2 && <5,
+                       binary,
                        blaze-html == 0.5.* || == 0.6.*,
                        blaze-markup == 0.5.1.*,
                        bytestring,
@@ -176,6 +178,7 @@ Executable elm-doc
                        Parse.Module
 
   Build-depends:       base >=4.2 && <5,
+                       binary,
                        containers >= 0.3,
                        transformers >= 0.2,
                        mtl >= 2,

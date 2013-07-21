@@ -11,7 +11,8 @@
 -}
 module Language.Elm (compile, toHtml, moduleName, runtime, docs) where
 
-import Data.List (intercalate)
+import qualified Data.List as List
+import qualified Data.Map as Map
 import Data.Version (showVersion)
 import Generate.JavaScript (showErr, jsModule)
 import Generate.Html (generateHtml)
@@ -28,7 +29,7 @@ import Paths_Elm
 --  an error message or the compiled JS code.
 compile :: String -> Either String String
 compile source =
-    case buildFromSource False source of
+    case buildFromSource Map.empty source of
       Left docs -> Left . unlines $ map P.render docs
       Right modul -> Right $ jsModule (modul :: MetadataModule () ())
 
@@ -41,7 +42,7 @@ moduleName source = case iParse getModuleName "" source of
       getModuleName = do
         optional freshLine
         (names, _) <- moduleDef
-        return (intercalate "." names)
+        return (List.intercalate "." names)
 
 -- |This function compiles Elm code into a full HTML page.
 toHtml :: String -- ^ Location of elm-min.js as expected by the browser

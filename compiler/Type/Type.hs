@@ -10,6 +10,7 @@ import Control.Applicative ((<$>),(<*>))
 import Control.Monad.State
 import Data.Traversable (traverse)
 import SourceSyntax.Helpers (isTuple)
+import qualified SourceSyntax.Type as Src
 
 data Term1 a
     = App1 a a
@@ -25,6 +26,9 @@ data TermN a
     deriving Show
 
 record fs rec = TermN (Record1 fs rec)
+
+type Type = TermN Variable
+type Variable = UF.Point Descriptor
 
 type SchemeName = String
 type TypeName = String
@@ -45,6 +49,9 @@ data Scheme a b = Scheme {
     header :: Map.Map String a
 } deriving Show
 
+type TypeConstraint = Constraint Type Variable
+type TypeScheme = Scheme Type Variable
+
 monoscheme headers = Scheme [] [] CTrue headers
 
 data Descriptor = Descriptor {
@@ -64,12 +71,6 @@ initialMark = 1
 
 data Flex = Rigid | Flexible | Constant
      deriving (Show, Eq)
-
-type Variable = UF.Point Descriptor
-
-type Type = TermN Variable
-type TypeConstraint = Constraint Type Variable
-type TypeScheme = Scheme Type Variable
 
 infixl 8 /\
 
@@ -241,14 +242,17 @@ instance (PrettyType a, PrettyType b) => PrettyType (Scheme a b) where
 
 
 extraPretty :: (PrettyType t, Crawl t) => t -> IO Doc
-extraPretty value = do
+extraPretty t = pretty Never <$> addNames t
+
+addNames :: (Crawl t) => t -> IO t
+addNames value = do
     (_, rawVars) <- runStateT (crawl getNames value) []
     let vars = map head . List.group $ List.sort rawVars
         suffix s = map (++s) (map (:[]) ['a'..'z'])
         allVars = concatMap suffix $ ["","'","_"] ++ map show [0..]
         okayVars = filter (`notElem` vars) allVars
     runStateT (crawl rename value) okayVars
-    return (pretty Never value)
+    return value
   where
     getNames name vars =
       case name of
@@ -259,7 +263,7 @@ extraPretty value = do
       case name of
         Just var -> (name, vars)
         Nothing -> (Just (head vars), tail vars)
---}
+
 
 -- Code for traversing all the type data-structures and giving
 -- names to the variables embedded deep in there.
