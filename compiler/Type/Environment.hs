@@ -22,11 +22,12 @@ initialEnvironment datatypes = do
     types <- makeTypes datatypes
 
     return $ Environment {
-      constructor = makeConstructors types datatypes,
+      constructor = makeConstructors types,
       types = types,
       value = Map.empty
     }
 
+makeTypes :: [(String, [String], [(String, [Src.Type])])] -> IO (Map.Map String Type)
 makeTypes datatypes = 
     Map.fromList <$> mapM makeCtor (builtins ++ map nameAndKind datatypes)
   where
@@ -46,7 +47,9 @@ makeTypes datatypes =
                       , kind 0 ["Int","Float","Char","Bool","Element"]
                       ]
 
-makeConstructors types datatypes = Map.fromList builtins
+
+makeConstructors :: Map.Map String Type -> Map.Map String (IO (Int, [Variable], Type))
+makeConstructors types = Map.fromList builtins
   where
     list  t = (types ! "_List") <| t
     maybe t = (types ! "Maybe") <| t

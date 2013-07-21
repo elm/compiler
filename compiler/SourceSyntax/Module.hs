@@ -37,9 +37,11 @@ data MetadataModule t v = MetadataModule {
     foreignExports :: [(String, String, Type)]
 }
 
+type Interfaces = Map.Map String ModuleInterface
+
 data ModuleInterface = ModuleInterface {
     iTypes :: Map.Map String Type,
-    iAdts  :: Map.Map String (Int, [String])
+    iAdts  :: [(String, [String], [(String,[Type])])]
 } deriving Show
 
 instance Binary ModuleInterface where

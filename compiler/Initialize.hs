@@ -1,4 +1,4 @@
-module Initialize (buildFromSource, getSortedModuleNames, TypeLibrary) where
+module Initialize (buildFromSource, getSortedModuleNames, Interfaces) where
 
 import qualified Data.Map as Map
 import Data.Data
@@ -17,15 +17,14 @@ import qualified Transform.SortDefinitions as SD
 import qualified Type.Inference as TI
 import qualified Type.Constrain.Declaration as TcDecl
 
-
-type TypeLibrary = Map.Map String ModuleInterface
+import System.IO.Unsafe
 
 buildFromSource ::
     (Data t, Data v) =>
-    TypeLibrary ->
+    Interfaces ->
     String ->
     Either [Doc] (MetadataModule t v)
-buildFromSource typeLibrary source =
+buildFromSource interfaces source =
   do modul@(Module _ _ _ decls') <- Parse.program source
 
      -- check for structural errors
@@ -42,14 +41,15 @@ buildFromSource typeLibrary source =
            -- reorder AST into strongly connected components
            program = SD.sortDefs . dummyLet $ TcDecl.toExpr decls,
            types = Map.empty,
-           datatypes = [ (name, vars, ctors) | Datatype name vars ctors <- decls ],
+           datatypes = [ (name, vars, ctors) | Datatype name vars ctors <- decls ] ++
+                       concatMap iAdts (Map.elems interfaces),
            fixities = [ (assoc,level,op) | Fixity assoc level op <- decls ],
            aliases = [ (name,tvs,tipe) | TypeAlias name tvs tipe <- decls ],
            foreignImports = [ (evt,v,name,typ) | ImportEvent evt v name typ <- decls ],
            foreignExports = [ (evt,name,typ) | ExportEvent evt name typ <- decls ]
           }
 
-     types <- TI.infer metaModule
+     types <- TI.infer interfaces metaModule
 
      return $ metaModule { types = types }
 
