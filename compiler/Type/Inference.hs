@@ -29,8 +29,20 @@ infer interfaces modul = unsafePerformIO $ do
                do (_, vars, tipe) <- Env.freshDataScheme env name
                   return (name, (vars, tipe))
 
+  let combine name importMethod interface =
+          let tipes = iTypes interface in
+          case importMethod of
+            As alias -> Map.mapKeys (\v -> alias ++ "." ++ v) tipes
+            Hiding hidens -> foldr Map.delete tipes hidens
+            Importing visibles ->
+                Map.intersection tipes (Map.fromList [ (v,()) | v <- visibles ])
+
+      locals = Map.intersectionWithKey combine (Map.fromList (imports modul)) interfaces
+
+  mapM print (imports modul)
+
   importedVars <-
-      forM (concatMap (Map.toList . iTypes) $ Map.elems interfaces) $ \(name,tipe) ->
+      forM (concatMap Map.toList $ Map.elems locals) $ \(name,tipe) ->
           (,) name `fmap` Env.instantiateTypeWithContext env tipe Map.empty
 
   let allTypes = ctors ++ importedVars
