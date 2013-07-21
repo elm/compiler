@@ -79,8 +79,8 @@ elmo flags filePath = file flags filePath "elmo"
 elmi flags filePath = file flags filePath "elmi"
 
 
-buildFile :: Flags -> Int -> Int -> FilePath -> IO ModuleInterface
-buildFile flags moduleNum numModules filePath =
+buildFile :: Flags -> Int -> Int -> (Map.Map String ModuleInterface) -> FilePath -> IO ModuleInterface
+buildFile flags moduleNum numModules interfaces filePath =
     do compiled <- alreadyCompiled
        if compiled then decodeFile (elmi flags filePath) else compile
 
@@ -105,7 +105,7 @@ buildFile flags moduleNum numModules filePath =
         source <- readFile filePath
         createDirectoryIfMissing True (output_directory flags)
         metaModule <-
-            case buildFromSource Map.empty source of
+            case buildFromSource interfaces source of
                 Left err -> mapM print err >> exitFailure
                 Right modul -> return (modul :: MetadataModule () ())
         if print_types flags then printTypes metaModule else return ()
@@ -124,11 +124,12 @@ toSrcTypes tipes = Traverse.traverse convert tipes
   where
     convert t = fmap (Parse.readType . P.render) (Type.extraPretty t)
 
-printTypes metaModule =
-    forM_ (Map.toList $ types metaModule) $ \(n,t) -> do
+printTypes metaModule = do
+  putStrLn ""
+  forM_ (Map.toList $ types metaModule) $ \(n,t) -> do
       pt <- Type.extraPretty t
       print $ P.text n <+> P.text ":" <+> pt
-
+  putStrLn ""
 
 getRuntime :: Flags -> IO FilePath
 getRuntime flags =
@@ -139,7 +140,7 @@ getRuntime flags =
 build :: Flags -> FilePath -> IO ()
 build flags rootFile = do
   files <- if make flags then getSortedModuleNames rootFile else return [rootFile]
-  buildFiles flags (length files) Map.empty files
+  interfaces <- buildFiles flags (length files) Map.empty files
   js <- foldM appendToOutput "" files
   case only_js flags of
     True -> do
@@ -165,10 +166,14 @@ build flags rootFile = do
                    [ Source (if minify flags then Minified else Readable) js ]
 
 
-buildFiles :: Flags -> Int -> Map.Map String ModuleInterface -> [FilePath] -> IO ()
-buildFiles _ _ _ [] = return ()
+buildFiles :: Flags
+           -> Int
+           -> Map.Map String ModuleInterface
+           -> [FilePath]
+           -> IO (Map.Map String ModuleInterface)
+buildFiles _ _ interfaces [] = return interfaces
 buildFiles flags numModules interfaces (filePath:rest) = do
-  interface <- buildFile flags (numModules - length rest) numModules filePath
+  interface <- buildFile flags (numModules - length rest) numModules interfaces filePath
   let moduleName = List.intercalate "." (splitDirectories (dropExtensions filePath))
       interfaces' = Map.insert moduleName interface interfaces
   buildFiles flags numModules interfaces' rest

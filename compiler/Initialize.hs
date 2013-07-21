@@ -18,7 +18,7 @@ import qualified Type.Inference as TI
 import qualified Type.Constrain.Declaration as TcDecl
 
 
-type TypeLibrary = Map.Map String (Map.Map String Type)
+type TypeLibrary = Map.Map String ModuleInterface
 
 buildFromSource ::
     (Data t, Data v) =>
