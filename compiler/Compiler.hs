@@ -79,7 +79,12 @@ elmo flags filePath = file flags filePath "elmo"
 elmi flags filePath = file flags filePath "elmi"
 
 
-buildFile :: Flags -> Int -> Int -> (Map.Map String ModuleInterface) -> FilePath -> IO ModuleInterface
+buildFile :: Flags
+          -> Int
+          -> Int
+          -> Map.Map String ModuleInterface
+          -> FilePath
+          -> IO ModuleInterface
 buildFile flags moduleNum numModules interfaces filePath =
     do compiled <- alreadyCompiled
        if compiled then decodeFile (elmi flags filePath) else compile
@@ -140,7 +145,8 @@ getRuntime flags =
 build :: Flags -> FilePath -> IO ()
 build flags rootFile = do
   files <- if make flags then getSortedModuleNames rootFile else return [rootFile]
-  interfaces <- buildFiles flags (length files) Map.empty files
+  let initialInterface = if no_prelude flags then Map.empty else Map.empty
+  interfaces <- buildFiles flags (length files) initialInterface files
   js <- foldM appendToOutput "" files
   case only_js flags of
     True -> do
