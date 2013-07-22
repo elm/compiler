@@ -22,14 +22,20 @@ import System.IO.Unsafe  -- Possible to switch over to the ST monad instead of
 
 
 infer :: Interfaces -> MetadataModule t v -> Either [Doc] (Map.Map String T.Variable)
-infer interfaces modul = unsafePerformIO $ do
-  env <- Env.initialEnvironment (datatypes modul)
+infer interfaces' modul = unsafePerformIO $ do
+  let localImports = Map.fromList (imports modul)
+      interfaces = Map.intersectionWithKey canonicalize localImports interfaces'
+
+--  mapM print (concatMap iAdts (Map.elems interfaces))
+
+  env <- Env.initialEnvironment (datatypes modul ++ concatMap iAdts (Map.elems interfaces))
   var <- T.flexibleVar
   ctors <- forM (Map.keys (Env.constructor env)) $ \name ->
                do (_, vars, tipe) <- Env.freshDataScheme env name
                   return (name, (vars, tipe))
 
-  let combine name importMethod interface =
+  let locals = Map.intersectionWithKey combine localImports interfaces
+      combine name importMethod interface =
           let tipes = iTypes interface in
           case importMethod of
             As alias -> Map.mapKeys (\v -> alias ++ "." ++ v) tipes
@@ -37,9 +43,8 @@ infer interfaces modul = unsafePerformIO $ do
             Importing visibles ->
                 Map.intersection tipes (Map.fromList [ (v,()) | v <- visibles ])
 
-      locals = Map.intersectionWithKey combine (Map.fromList (imports modul)) interfaces
-
-  mapM print (imports modul)
+--  mapM print (map Map.toList $ Map.elems locals)
+--  mapM print (imports modul)
 
   importedVars <-
       forM (concatMap Map.toList $ Map.elems locals) $ \(name,tipe) ->
