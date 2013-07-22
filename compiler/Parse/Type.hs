@@ -40,10 +40,11 @@ record =
                whitespace >> hasType >> whitespace
                (,) lbl <$> expr
 
+capTypeVar = intercalate "." <$> dotSep1 capVar
 
 constructor0 :: IParser T.Type
 constructor0 =
-  do name <- capVar
+  do name <- capTypeVar
      return (T.Data name [])
 
 term :: IParser T.Type
@@ -51,7 +52,7 @@ term = list <|> tuple <|> record <|> tvar <|> constructor0
 
 app :: IParser T.Type
 app =
-  do name <- capVar <|> try tupleCtor <?> "type constructor"
+  do name <- capTypeVar <|> try tupleCtor <?> "type constructor"
      args <- spacePrefix term
      return (T.Data name args)
   where
@@ -70,7 +71,7 @@ expr =
        Nothing -> return t1
 
 constructor :: IParser (String, [T.Type])
-constructor = (,) <$> (capVar <?> "another type constructor")
+constructor = (,) <$> (capTypeVar <?> "another type constructor")
                   <*> spacePrefix term
 
 readType :: String -> Type

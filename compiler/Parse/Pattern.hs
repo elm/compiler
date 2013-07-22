@@ -5,6 +5,7 @@ import Control.Applicative ((<$>),(<*>),pure)
 import Control.Monad
 import Control.Monad.State
 import Data.Char (isUpper)
+import Data.List (intercalate)
 import Unique
 import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
@@ -53,7 +54,7 @@ term =
 
 patternConstructor :: IParser Pattern
 patternConstructor = do
-  v <- capVar
+  v <- intercalate "." <$> dotSep1 capVar
   case v of
     "True"  -> return $ PLiteral (Boolean True)
     "False" -> return $ PLiteral (Boolean False)
