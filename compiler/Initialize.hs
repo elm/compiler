@@ -18,12 +18,9 @@ import qualified Type.Inference as TI
 import qualified Type.Constrain.Declaration as TcDecl
 
 import System.IO.Unsafe
+import SourceSyntax.PrettyPrint
 
-buildFromSource ::
-    (Data t, Data v) =>
-    Interfaces ->
-    String ->
-    Either [Doc] (MetadataModule t v)
+buildFromSource :: Interfaces -> String -> Either [Doc] (MetadataModule () ())
 buildFromSource interfaces source =
   do modul@(Module _ _ _ decls') <- Parse.program source
 
@@ -41,8 +38,7 @@ buildFromSource interfaces source =
            -- reorder AST into strongly connected components
            program = SD.sortDefs . dummyLet $ TcDecl.toExpr decls,
            types = Map.empty,
-           datatypes = [ (name, vars, ctors) | Datatype name vars ctors <- decls ] ++
-                       concatMap iAdts (Map.elems interfaces),
+           datatypes = [ (name, vars, ctors) | Datatype name vars ctors <- decls ],
            fixities = [ (assoc,level,op) | Fixity assoc level op <- decls ],
            aliases = [ (name,tvs,tipe) | TypeAlias name tvs tipe <- decls ],
            foreignImports = [ (evt,v,name,typ) | ImportEvent evt v name typ <- decls ],

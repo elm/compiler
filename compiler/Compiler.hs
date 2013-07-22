@@ -113,7 +113,7 @@ buildFile flags moduleNum numModules interfaces filePath =
                 Left err -> mapM print err >> exitFailure
                 Right modul -> do
                   if print_program flags then print . pretty $ program modul else return ()
-                  return (modul :: MetadataModule () ())
+                  return modul
         
         if print_types flags then printTypes metaModule else return ()
         tipes <- toSrcTypes (types metaModule)
