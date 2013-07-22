@@ -38,7 +38,7 @@ instance Pretty Type where
       Var x -> P.text x
       Data "_List" [t] -> P.brackets (pretty t)
       Data name tipes
-          | Help.isTuple name -> P.parens . P.sep . P.punctuate P.comma $ map prettyParens tipes
+          | Help.isTuple name -> P.parens . P.sep . P.punctuate P.comma $ map pretty tipes
           | otherwise -> P.hang (P.text name) 2 (P.sep $ map prettyParens tipes)
       EmptyRecord -> P.braces P.empty
       Record fields ext -> error "not done yet"
@@ -54,6 +54,7 @@ prettyParens tipe = parensIf needed (pretty tipe)
     needed =
       case tipe of
         Lambda _ _ -> True
+        Data _ [] -> False
         Data _ _ -> True
         _ -> False
 
