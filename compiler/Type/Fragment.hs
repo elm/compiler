@@ -18,6 +18,10 @@ joinFragment f1 f2 = Fragment {
     typeEnv = Map.union (typeEnv f1) (typeEnv f2),
     vars    = vars f1 ++ vars f2,
     typeConstraint = typeConstraint f1 /\ typeConstraint f2
- }
+}
 
 joinFragments = List.foldl' (flip joinFragment) emptyFragment
+
+
+toScheme fragment =
+    Scheme [] (vars fragment) (typeConstraint fragment) (typeEnv fragment)

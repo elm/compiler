@@ -97,15 +97,12 @@ constrain env (L _ _ expr) tipe =
                   ce <- constrain env e tipe
                   return (cb /\ ce)
 
-      Case e branches ->
+      Case exp branches ->
           exists $ \t -> do
-            ce <- constrain env e t
+            ce <- constrain env exp t
             let branch (p,e) = do
                   fragment <- Pattern.constrain env p t
-                  c <- constrain env e tipe
-                  return $ ex (vars fragment)
-                              (CLet [monoscheme (typeEnv fragment)]
-                                    (typeConstraint fragment /\ c))
+                  CLet [toScheme fragment] <$> constrain env e tipe
             CAnd . (:) ce <$> mapM branch branches
 
       Data name exprs ->
