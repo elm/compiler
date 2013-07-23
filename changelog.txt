@@ -16,6 +16,7 @@ Syntax:
 * Record Constructors
 * Record type aliases can be closed on the zeroth column
 * (,,) syntax in types
+* "(+) = " is permitted
 * Unparenthesized if, let, case, and lambda in last
   term of a binary expression
 

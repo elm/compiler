@@ -195,17 +195,24 @@ expr = addLocation (choice [ ifExpr, letExpr, caseExpr ])
     <|> binaryExpr 
     <?> "an expression"
 
-funcDef = try (do p1 <- try Pattern.term ; infics p1 <|> func p1)
-          <|> ((:[]) <$> Pattern.expr)
-          <?> "the definition of a variable (x = ...)"
-    where func p@(PVar v) = (p:) <$> spacePrefix Pattern.term
-          func p          = do try (lookAhead (whitespace >> string "="))
-                               return [p]
-          infics p1 = do
-            o:p <- try (whitespace >> anyOp)
-            p2  <- (whitespace >> Pattern.term)
-            return $ if o == '`' then [ PVar $ takeWhile (/='`') p, p1, p2 ]
-                                 else [ PVar (o:p), p1, p2 ]
+funcDef =
+    choice [ do p1 <- try Pattern.term
+                infics p1 <|> func p1
+           , func =<< (PVar <$> parens symOp)
+           , (:[]) <$> Pattern.expr
+           ] <?> "the definition of a variable (x = ...)"
+    where
+      func pattern =
+          case pattern of
+            PVar v -> (pattern:) <$> spacePrefix Pattern.term
+            _ -> do try (lookAhead (whitespace >> string "="))
+                    return [pattern]
+
+      infics p1 = do
+        o:p <- try (whitespace >> anyOp)
+        p2  <- (whitespace >> Pattern.term)
+        return $ if o == '`' then [ PVar $ takeWhile (/='`') p, p1, p2 ]
+                             else [ PVar (o:p), p1, p2 ]
 
 makeFunction :: [Pattern] -> LExpr t v -> LExpr t v
 makeFunction args body@(L a b _) =
