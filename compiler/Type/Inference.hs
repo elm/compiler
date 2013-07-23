@@ -56,7 +56,7 @@ infer interfaces' modul = unsafePerformIO $ do
       environ = T.CLet [ T.Scheme vars [] T.CTrue header ]
 
   constraint <- environ `fmap` TcExpr.constrain env (program modul) (T.VarN var)
-  print =<< T.extraPretty constraint
+  --print =<< T.extraPretty constraint
 
   state <- execStateT (Solve.solve constraint) TS.initialState
   let errors = TS.sErrors state

@@ -22,7 +22,7 @@ import Generate.JavaScript (jsModule)
 import Generate.Html (createHtml, JSStyle(..), JSSource(..))
 import Paths_Elm
 
-import SourceSyntax.PrettyPrint (pretty)
+import SourceSyntax.PrettyPrint (pretty, variable)
 import Text.PrettyPrint as P
 import qualified Type.Type as Type
 import qualified Parse.Type as Parse
@@ -134,7 +134,7 @@ printTypes metaModule = do
   putStrLn ""
   forM_ (Map.toList $ types metaModule) $ \(n,t) -> do
       pt <- Type.extraPretty t
-      print $ P.text n <+> P.text ":" <+> pt
+      print $ variable n <+> P.text ":" <+> pt
   putStrLn ""
 
 getRuntime :: Flags -> IO FilePath

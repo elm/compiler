@@ -3,7 +3,7 @@ module SourceSyntax.Pattern where
 
 import Data.List (intercalate)
 import Data.Data
-import SourceSyntax.Helpers
+import SourceSyntax.Helpers as Help
 import SourceSyntax.PrettyPrint
 import Text.PrettyPrint as PP
 import SourceSyntax.Literal as Literal
@@ -25,7 +25,7 @@ tuple es = PData ("_Tuple" ++ show (length es)) es
 instance Pretty Pattern where
   pretty pattern =
    case pattern of
-     PVar x -> PP.text x
+     PVar x -> variable x
      PLiteral lit -> pretty lit
      PRecord fs -> PP.braces (commaCat $ map PP.text fs)
      PAlias x p -> prettyParens p <+> PP.text "as" <+> PP.text x

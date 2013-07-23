@@ -52,7 +52,7 @@ instance Pretty (Expr t v) where
   pretty expr =
    case expr of
      Literal lit -> pretty lit
-     Var x -> parensIf (Help.isOp x) (P.text x)
+     Var x -> variable x
      Range e1 e2 -> P.brackets (pretty e1 <> P.text ".." <> pretty e2)
      ExplicitList es -> P.brackets (commaCat (map pretty es))
      Binop op e1 e2 -> P.sep [ prettyParens e1 <+> P.text op, prettyParens e2 ]
@@ -99,7 +99,7 @@ instance Pretty (Def t v) where
   pretty def =
    case def of
      TypeAnnotation name tipe ->
-         P.text name <+> P.text ":" <+> pretty tipe
+         variable name <+> P.text ":" <+> pretty tipe
      Def pattern expr ->
          pretty pattern <+> P.text "=" <+> pretty expr
 
