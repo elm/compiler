@@ -12,7 +12,7 @@ import qualified SourceSyntax.Type as Src
 import Type.Type
 
 data Environment = Environment {
-  constructor :: Map.Map String (IO (Int, [Variable], Type)),
+  constructor :: Map.Map String (IO (Int, [Variable], [Type], Type)),
   types :: Map.Map String Type,
   value :: Map.Map String Type
 }
@@ -48,26 +48,27 @@ makeTypes datatypes =
                       ]
 
 
-makeConstructors :: Map.Map String Type -> Map.Map String (IO (Int, [Variable], Type))
+makeConstructors :: Map.Map String Type -> Map.Map String (IO (Int, [Variable], [Type], Type))
 makeConstructors types = Map.fromList builtins
   where
     list  t = (types ! "_List") <| t
     maybe t = (types ! "Maybe") <| t
 
-    inst :: Int -> Int -> ([Type] -> Type) -> IO (Int, [Variable], Type)
+    inst :: Int -> Int -> ([Type] -> ([Type], Type)) -> IO (Int, [Variable], [Type], Type)
     inst kind numTVars tipe = do
        vars <- forM [1..numTVars] $ \_ -> flexibleVar
-       return (kind, vars, tipe $ map VarN vars)
+       let (args, result) = tipe (map VarN vars)
+       return (kind, vars, args, result)
 
     tupleCtor n =
         let name = "_Tuple" ++ show n
-        in  (name, inst n n $ \vs -> foldr (==>) (foldl (<|) (types ! name) vs) vs)
+        in  (name, inst n n $ \vs -> (vs, foldl (<|) (types ! name) vs))
     
-    builtins :: [ (String, IO (Int, [Variable], Type)) ]
-    builtins = [ ("Nothing", inst 0 1 $ \ [t] -> maybe t)
-               , ("Just"   , inst 1 1 $ \ [t] -> t ==> maybe t)
-               , ("[]"     , inst 0 1 $ \ [t] -> list t)
-               , ("::"     , inst 2 1 $ \ [t] -> t ==> list t ==> list t)
+    builtins :: [ (String, IO (Int, [Variable], [Type], Type)) ]
+    builtins = [ ("Nothing", inst 0 1 $ \ [t] -> ([], maybe t))
+               , ("Just"   , inst 1 1 $ \ [t] -> ([t], maybe t))
+               , ("[]"     , inst 0 1 $ \ [t] -> ([], list t))
+               , ("::"     , inst 2 1 $ \ [t] -> ([t, list t], list t))
                ] ++ map tupleCtor [0..9]
 
 
@@ -77,7 +78,7 @@ get env subDict key = Map.findWithDefault err key (subDict env)
     err = error $ "Could not find '" ++ key ++ "' in the type environment."
 
 
-freshDataScheme :: Environment -> String -> IO (Int, [Variable], Type)
+freshDataScheme :: Environment -> String -> IO (Int, [Variable], [Type], Type)
 freshDataScheme env name = get env constructor name
 
 

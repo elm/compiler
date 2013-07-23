@@ -41,16 +41,14 @@ constrain env pattern tipe =
             }
 
       PData name patterns -> do
-          (kind, cvars, ctipe) <- freshDataScheme env name
-          tvars <- mapM (\_ -> VarN <$> flexibleVar) [1..kind]
-          let tipe' = foldr (==>) tipe tvars
-              msg = concat [ "Constructor '", name, "' expects ", show kind
+          (kind, cvars, args, result) <- freshDataScheme env name
+          let msg = concat [ "Constructor '", name, "' expects ", show kind
                            , " argument", if kind == 1 then "" else "s"
                            , " but was given ", show (length patterns), "." ]
           if length patterns /= kind then error msg else do
-              fragment <- Monad.liftM joinFragments (Monad.zipWithM (constrain env) patterns tvars)
+              fragment <- Monad.liftM joinFragments (Monad.zipWithM (constrain env) patterns args)
               return $ fragment {
-                typeConstraint = typeConstraint fragment /\ tipe' === ctipe,
+                typeConstraint = typeConstraint fragment /\ tipe === result,
                 vars = cvars ++ vars fragment
               }
 

@@ -31,8 +31,8 @@ infer interfaces' modul = unsafePerformIO $ do
   env <- Env.initialEnvironment (datatypes modul ++ concatMap iAdts (Map.elems interfaces))
   var <- T.flexibleVar
   ctors <- forM (Map.keys (Env.constructor env)) $ \name ->
-               do (_, vars, tipe) <- Env.freshDataScheme env name
-                  return (name, (vars, tipe))
+               do (_, vars, args, result) <- Env.freshDataScheme env name
+                  return (name, (vars, foldr (T.==>) result args))
 
   let locals = Map.intersectionWithKey combine localImports interfaces
       combine name importMethod interface =
@@ -54,8 +54,10 @@ infer interfaces' modul = unsafePerformIO $ do
       vars = concatMap (fst . snd) allTypes
       header = Map.map snd (Map.fromList allTypes)
       environ = T.CLet [ T.Scheme vars [] T.CTrue header ]
+
   constraint <- environ `fmap` TcExpr.constrain env (program modul) (T.VarN var)
---  print =<< T.extraPretty constraint
+  print =<< T.extraPretty constraint
+
   state <- execStateT (Solve.solve constraint) TS.initialState
   let errors = TS.sErrors state
   if null errors
