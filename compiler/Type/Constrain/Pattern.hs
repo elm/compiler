@@ -42,8 +42,8 @@ constrain env pattern tipe =
 
       PData name patterns -> do
           (kind, cvars, ctipe) <- freshDataScheme env name
-          tipe' <- foldr (==>) tipe <$> mapM (\_ -> VarN <$> flexibleVar) [1..kind]
-          let tvars = map VarN cvars
+          tvars <- mapM (\_ -> VarN <$> flexibleVar) [1..kind]
+          let tipe' = foldr (==>) tipe tvars
               msg = concat [ "Constructor '", name, "' expects ", show kind
                            , " argument", if kind == 1 then "" else "s"
                            , " but was given ", show (length patterns), "." ]
