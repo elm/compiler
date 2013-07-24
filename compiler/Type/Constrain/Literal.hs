@@ -8,12 +8,12 @@ import Type.Type
 import Type.Fragment
 import Type.Environment as Env
 
-constrain :: Environment -> Literal -> Type -> TypeConstraint
+constrain :: Environment -> Literal -> Type -> IO TypeConstraint
 constrain env literal tipe =
     let prim name = Env.get env Env.types name in
     case literal of
-      IntNum _   -> tipe === prim "Int"
-      FloatNum _ -> tipe === prim "Float"
-      Chr _      -> tipe === prim "Char"
-      Str _      -> tipe === TermN (App1 (prim "[]") (prim "Char"))
-      Boolean _  -> tipe === prim "Bool"
+      IntNum _   -> fmap (\n -> tipe === VarN n) number
+      FloatNum _ -> return $ tipe === prim "Float"
+      Chr _      -> return $ tipe === prim "Char"
+      Str _      -> return $ tipe === TermN (App1 (prim "[]") (prim "Char"))
+      Boolean _  -> return $ tipe === prim "Bool"

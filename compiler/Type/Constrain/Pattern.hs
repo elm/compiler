@@ -20,10 +20,9 @@ constrain env pattern tipe =
     case pattern of
       PAnything -> return emptyFragment
 
-      PLiteral lit ->
-          return $ emptyFragment {
-              typeConstraint = Literal.constrain env lit tipe
-          }
+      PLiteral lit -> do
+          c <- Literal.constrain env lit tipe
+          return $ emptyFragment { typeConstraint = c }
 
       PVar name -> do
           v <- flexibleVar

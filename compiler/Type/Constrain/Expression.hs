@@ -52,7 +52,7 @@ constrain :: Env.Environment -> LExpr a b -> Type -> IO TypeConstraint
 constrain env (L _ _ expr) tipe =
     let list t = TermN (App1 (Env.get env Env.types "_List") t) in
     case expr of
-      Literal lit -> return $ Literal.constrain env lit tipe
+      Literal lit -> Literal.constrain env lit tipe
 
       Var name -> return (name <? tipe)
 
