@@ -7,6 +7,7 @@ import qualified Data.UnionFind.IO as UF
 import qualified Data.Map as Map
 import qualified Data.Traversable as Traversable
 import qualified Data.Maybe as Maybe
+import qualified Data.List as List
 import Type.Type
 import Type.Unify
 import qualified Type.Environment as Env
@@ -118,8 +119,14 @@ solve constraint =
 
     CInstance name term -> do
         env <- TS.getEnv
-        let msg = "Could not find '" ++ name ++ "' when solving type constraints."
-        freshCopy <- TS.makeInstance (Map.findWithDefault (error msg) name env)
+        freshCopy <-
+            case Map.lookup name env of
+              Just tipe -> TS.makeInstance tipe
+              Nothing
+                | List.isPrefixOf "Native." name -> liftIO flexibleVar
+                | otherwise ->
+                    error ("Could not find '" ++ name ++ "' when solving type constraints.")
+
         t <- TS.flatten term
         unify freshCopy t
 
