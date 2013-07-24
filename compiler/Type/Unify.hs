@@ -70,6 +70,30 @@ actuallyUnify variable1 variable2 = do
                }
         TS.register var
 
+      flexAndUnify var = do
+        liftIO $ UF.modifyDescriptor var $ \desc -> desc { flex = Flexible }
+        unify variable1 variable2
+
+      superUnify =
+          case (flex desc1, flex desc2, name desc1, name desc2) of
+            (IsIn Number, IsIn Number, _, _) -> merge
+            (IsIn Number, IsIn Comparable, _, _) -> merge1
+            (IsIn Comparable, IsIn Number, _, _) -> merge2
+
+            (IsIn Number, _, _, Just name)
+                | name == "Int" || name == "Float" -> flexAndUnify variable1
+
+            (_, IsIn Number, Just name, _)
+                | name == "Int" || name == "Float" -> flexAndUnify variable2
+
+            (IsIn Comparable, _, _, Just name)
+                | name == "Int" || name == "Float" -> flexAndUnify variable1
+
+            (_, IsIn Comparable, Just name, _)
+                | name == "Int" || name == "Float" -> flexAndUnify variable2
+
+            _ -> TS.addError "The following types are not equal" variable1 variable2
+
   case (structure desc1, structure desc2) of
     (Nothing, Nothing) | flex desc1 == Flexible && flex desc1 == Flexible -> merge
     (Nothing, _) | flex desc1 == Flexible -> merge2
@@ -78,8 +102,8 @@ actuallyUnify variable1 variable2 = do
     (Just (Var1 v), _) -> unify v variable2
     (_, Just (Var1 v)) -> unify v variable1
 
-    (Nothing, _) -> TS.addError "The following types are not equal" variable1 variable2
-    (_, Nothing) -> TS.addError "The following types are not equal" variable1 variable2
+    (Nothing, _) -> superUnify
+    (_, Nothing) -> superUnify
 
     (Just type1, Just type2) ->
         case (type1,type2) of
@@ -99,3 +123,4 @@ actuallyUnify variable1 variable2 = do
               TS.addError "did not write record unification yet" variable1 variable2
 
           _ -> TS.addError "could not unify types" variable1 variable2
+

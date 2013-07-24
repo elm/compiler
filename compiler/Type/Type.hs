@@ -69,7 +69,10 @@ outermostRank = 0 :: Int
 noMark = 0
 initialMark = 1
 
-data Flex = Rigid | Flexible | Constant
+data Flex = Rigid | Flexible | Constant | IsIn SuperType
+     deriving (Show, Eq)
+
+data SuperType = Number | Comparable | Appendable
      deriving (Show, Eq)
 
 infixl 8 /\
@@ -91,6 +94,7 @@ a ==> b = TermN (Fun1 a b)
 
 f <| a = TermN (App1 f a)
 
+number = namedVar (IsIn Number) "number"
 
 namedVar flex name = UF.fresh $ Descriptor {
     structure = Nothing,

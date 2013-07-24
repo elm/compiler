@@ -53,12 +53,21 @@ makeConstructors types = Map.fromList builtins
   where
     list  t = (types ! "_List") <| t
     maybe t = (types ! "Maybe") <| t
+    bool = types ! "Bool"
+    int = types ! "Int"
+    float = types ! "Float"
 
     inst :: Int -> Int -> ([Type] -> ([Type], Type)) -> IO (Int, [Variable], [Type], Type)
     inst kind numTVars tipe = do
-       vars <- forM [1..numTVars] $ \_ -> flexibleVar
-       let (args, result) = tipe (map VarN vars)
-       return (kind, vars, args, result)
+      vars <- forM [1..numTVars] $ \_ -> flexibleVar
+      let (args, result) = tipe (map VarN vars)
+      return (kind, vars, args, result)
+
+    nmbr :: Int -> (Type -> ([Type], Type)) -> IO (Int, [Variable], [Type], Type)
+    nmbr kind tipe = do
+      var <- number
+      let (args, result) = tipe (VarN var)
+      return (kind, [var], args, result)
 
     tupleCtor n =
         let name = "_Tuple" ++ show n
@@ -69,6 +78,12 @@ makeConstructors types = Map.fromList builtins
                , ("Just"   , inst 1 1 $ \ [t] -> ([t], maybe t))
                , ("[]"     , inst 0 1 $ \ [t] -> ([], list t))
                , ("::"     , inst 2 1 $ \ [t] -> ([t, list t], list t))
+               , ("div"    , inst 2 0 $ \ [] -> ([int, int], int))
+               , ("/"      , inst 2 0 $ \ [] -> ([float, float], float))
+               , ("+"      , nmbr 2 $ \t -> ([t, t], t))
+               , ("-"      , nmbr 2 $ \t -> ([t, t], t))
+               , ("*"      , nmbr 2 $ \t -> ([t, t], t))
+               , ("otherwise", inst 0 0 $ \ [] -> ([], bool))
                ] ++ map tupleCtor [0..9]
 
 

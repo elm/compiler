@@ -138,7 +138,9 @@ makeCopy alreadyCopied variable = do
                      structure = Nothing,
                      rank = maxRank pool,
                      mark = noMark,
-                     flex = Flexible,
+                     flex = case flex desc of
+                              IsIn s -> IsIn s
+                              _ -> Flexible,
                      copy = Nothing,
                      name = case flex desc of
                               Rigid -> Nothing
