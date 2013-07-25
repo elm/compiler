@@ -55,11 +55,12 @@ instance Pretty (Expr t v) where
      Var x -> variable x
      Range e1 e2 -> P.brackets (pretty e1 <> P.text ".." <> pretty e2)
      ExplicitList es -> P.brackets (commaCat (map pretty es))
-     Binop op e1 e2 -> P.sep [ prettyParens e1 <+> P.text op, prettyParens e2 ]
+     Binop op e1 e2 -> P.sep [ prettyParens e1 <+> P.text op', prettyParens e2 ]
+         where op' = if Help.isOp op then op else "`" ++ op ++ "`"
      Lambda p e -> let (ps,body) = collectLambdas (Location.none $ Lambda p e)
                    in  P.text "\\" <> P.sep ps <+> P.text "->" <+> pretty body
      App _ _ -> P.hang func 2 (P.sep args)
-       where func:args = map prettyParens (collectApps (Location.none expr))
+         where func:args = map prettyParens (collectApps (Location.none expr))
      MultiIf branches ->  P.text "if" $$ nest 3 (vcat $ map iff branches)
          where
            iff (b,e) = P.text "|" <+> P.hang (pretty b <+> P.text "->") 2 (pretty e)
