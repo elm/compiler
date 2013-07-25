@@ -1,11 +1,13 @@
-module Metadata.LoadLibraries (docs) where
+module Metadata.Load (interfaces) where
 
-import Control.DeepSeq (force)
 import qualified Control.Exception as E
 import Paths_Elm
 import System.Directory
+import System.Exit
 import System.FilePath
 import System.IO.Unsafe (unsafePerformIO)
+import SourceSyntax.Module
+import Data.Binary
 
 -- See stackoverflow discussion for trade-off between using unsafeIO or TemplateHaskell:
 -- http://stackoverflow.com/questions/12716215/load-pure-global-variable-from-file
@@ -13,22 +15,23 @@ import System.IO.Unsafe (unsafePerformIO)
 -- Given the awkwardness of including a compile-time generated file
 -- vs loading static data, then the unsafeIO seems better.
 
-{-# NOINLINE docs #-}
-docs :: String
-docs = force $ unsafePerformIO (safeReadDocs =<< getDataFileName "docs.json")
+{-# NOINLINE interfaces #-}
+interfaces :: [ModuleInterface]
+interfaces = unsafePerformIO (safeReadDocs =<< getDataFileName "interfaces.data")
 
-safeReadDocs :: FilePath -> IO String
-safeReadDocs name = E.catch (readDocs name) (emitError name)
+safeReadDocs :: FilePath -> IO [ModuleInterface]
+safeReadDocs name =
+    E.catch (readDocs name) $ \err -> do
+      putStrLn $ unlines [ "Error reading types for standard library!"
+                         , "    The file should be located here: " ++ name
+                         , "    If you are using a stable version of Elm,"
+                         , "    please report an issue at github.com/evancz/Elm"
+                         , "    and specify your versions of Elm and your OS" ]
+      print (err :: IOError)
+      exitFailure
 
-readDocs :: FilePath -> IO String
+readDocs :: FilePath -> IO [ModuleInterface]
 readDocs name = do
   exists <- doesFileExist name
-  if exists then readFile name
+  if exists then decodeFile name
             else ioError . userError $ "File Not Found"
-
-
-emitError :: FilePath -> IOError -> IO String
-emitError name err = do
-    putStrLn $ "Error! Types for standard library not loaded properly!\n  File should be here:" ++ name ++ "\n  The file is created and copied by command: cabal install"
-    putStrLn (show err)
-    return "{\"modules\":[]}"
