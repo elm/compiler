@@ -88,15 +88,11 @@ outermostRank = 0 :: Int
 noMark = 0
 initialMark = 1
 
-data Flex = Rigid | Flexible | Constant | IsIn SuperType
+data Flex = Rigid | Flexible | Constant | Is SuperType
      deriving (Show, Eq)
 
 data SuperType = Number | Comparable | Appendable
      deriving (Show, Eq)
-
-number = namedVar (IsIn Number) "number"
-comparable = namedVar (IsIn Comparable) "comparable"
-appendable = namedVar (IsIn Appendable) "appendable"
 
 namedVar flex name = UF.fresh $ Descriptor {
     structure = Nothing,
@@ -107,23 +103,15 @@ namedVar flex name = UF.fresh $ Descriptor {
     mark = noMark
   }
 
-flexibleVar = UF.fresh $ Descriptor {
+var flex = UF.fresh $ Descriptor {
     structure = Nothing,
     rank = noRank,
-    flex = Flexible,
+    flex = flex,
     name = Nothing,
     copy = Nothing,
     mark = noMark
   }
 
-rigidVar = UF.fresh $ Descriptor {
-    structure = Nothing,
-    rank = noRank,
-    flex = Rigid,
-    name = Nothing,
-    copy = Nothing,
-    mark = noMark
-  }
 
 -- ex qs constraint == exists qs. constraint
 ex :: [Variable] -> TypeConstraint -> TypeConstraint
@@ -135,7 +123,7 @@ fl rqs constraint = CLet [Scheme rqs [] constraint Map.empty] CTrue
 
 exists :: (Type -> IO TypeConstraint) -> IO TypeConstraint
 exists f = do
-  v <- flexibleVar
+  v <- var Flexible
   ex [v] <$> f (VarN v)
 
 
@@ -252,31 +240,39 @@ extraPretty t = pretty Never <$> addNames t
 
 addNames :: (Crawl t) => t -> IO t
 addNames value = do
-    (_, rawVars) <- runStateT (crawl getNames value) []
+    (rawVars, _, _, _) <- execStateT (crawl getNames value) ([], 0, 0, 0)
     let vars = map head . List.group $ List.sort rawVars
         suffix s = map (++s) (map (:[]) ['a'..'z'])
         allVars = concatMap suffix $ ["","'","_"] ++ map show [0..]
         okayVars = filter (`notElem` vars) allVars
-    runStateT (crawl rename value) okayVars
+    runStateT (crawl rename value) (okayVars, 0, 0, 0)
     return value
   where
-    getNames name vars =
-      case name of
-        Just var -> (name, var:vars)
-        Nothing -> (name, vars)
+    getNames desc state@(vars, a, b, c) =
+        let name' = name desc in
+        case name' of
+          Just var -> (name', (var:vars, a, b, c))
+          Nothing -> (name', state)
 
-    rename name vars =
-      case name of
-        Just var -> (name, vars)
-        Nothing -> (Just (head vars), tail vars)
+    rename desc state@(vars, a, b, c) =
+      case name desc of
+        Just var -> (Just var, state)
+        Nothing ->
+            case flex desc of
+              Is Number     -> (Just $ "number"     ++ replicate a '\'', (vars, a+1, b, c))
+              Is Comparable -> (Just $ "comparable" ++ replicate b '\'', (vars, a, b+1, c))
+              Is Appendable -> (Just $ "appendable" ++ replicate c '\'', (vars, a, b, c+1))
+              _             -> (Just $ head vars, (tail vars, a, b, c))
 
+
+type CrawlState = ([String], Int, Int, Int)
 
 -- Code for traversing all the type data-structures and giving
 -- names to the variables embedded deep in there.
 class Crawl t where
-  crawl :: (Maybe TypeName -> [String] -> (Maybe TypeName, [String]))
+  crawl :: (Descriptor -> CrawlState -> (Maybe TypeName, CrawlState))
         -> t
-        -> StateT [String] IO t
+        -> StateT CrawlState IO t
 
 instance (Crawl t, Crawl v) => Crawl (Constraint t v) where
   crawl nextState constraint = 
@@ -324,7 +320,7 @@ instance Crawl a => Crawl (UF.Point a) where
 instance Crawl Descriptor where
   crawl nextState desc = do
     state <- get
-    let (name', state') = nextState (name desc) state
+    let (name', state') = nextState desc state
     structure' <- traverse (crawl nextState) (structure desc)
     put state'
     return $ desc { name = name', structure = structure' }

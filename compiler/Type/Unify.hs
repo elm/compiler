@@ -23,9 +23,9 @@ actuallyUnify variable1 variable2 = do
                     case (flex desc1, flex desc2) of
                       (_, Flexible) -> Just name1
                       (Flexible, _) -> Just name2
-                      (IsIn Number, IsIn _) -> Just name1
-                      (IsIn _, IsIn Number) -> Just name2
-                      (IsIn _, IsIn _) -> Just name1
+                      (Is Number, Is _) -> Just name1
+                      (Is _, Is Number) -> Just name2
+                      (Is _, Is _) -> Just name1
                       (_, _) -> Nothing
                 (Just name1, _) -> Just name1
                 (_, Just name2) -> Just name2
@@ -35,9 +35,9 @@ actuallyUnify variable1 variable2 = do
       flex' = case (flex desc1, flex desc2) of
                 (f, Flexible) -> f
                 (Flexible, f) -> f
-                (IsIn Number, IsIn _) -> IsIn Number
-                (IsIn _, IsIn Number) -> IsIn Number
-                (IsIn super, IsIn _) -> IsIn super
+                (Is Number, Is _) -> Is Number
+                (Is _, Is Number) -> Is Number
+                (Is super, Is _) -> Is super
                 (_, _) -> Flexible
 
       rank' :: Int
@@ -73,24 +73,24 @@ actuallyUnify variable1 variable2 = do
 
       superUnify =
           case (flex desc1, flex desc2, name desc1, name desc2) of
-            (IsIn super1, IsIn super2, _, _)
+            (Is super1, Is super2, _, _)
                 | super1 == super2 -> merge
-            (IsIn Number, IsIn Comparable, _, _) -> merge1
-            (IsIn Comparable, IsIn Number, _, _) -> merge2
+            (Is Number, Is Comparable, _, _) -> merge1
+            (Is Comparable, Is Number, _, _) -> merge2
                    
-            (IsIn Number, _, _, Just name)
+            (Is Number, _, _, Just name)
                 | name `elem` ["Int","Float"] -> flexAndUnify variable1
                 | otherwise -> TS.addError "Expecting a number (Int or Float)" variable1 variable2
 
-            (_, IsIn Number, Just name, _)
+            (_, Is Number, Just name, _)
                 | name `elem` ["Int","Float"] -> flexAndUnify variable2
                 | otherwise -> TS.addError "Expecting a number (Int or Float)" variable1 variable2
 
-            (IsIn Comparable, _, _, Just name)
+            (Is Comparable, _, _, Just name)
                 | name `elem` ["Int","Float","Char"] -> flexAndUnify variable1
                 | otherwise -> TS.addError "Expecting something comparable (Int, Float, Char, [comparable])." variable1 variable2
 
-            (_, IsIn Comparable, Just name, _)
+            (_, Is Comparable, Just name, _)
                 | name `elem` ["Int","Float","Char"] -> flexAndUnify variable2
                 | otherwise -> TS.addError "Expecting something comparable (Int, Float, Char, [comparable])." variable1 variable2
 

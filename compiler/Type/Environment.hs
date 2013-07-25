@@ -66,10 +66,10 @@ makeConstructors types = Map.fromList builtins
       let (args, result) = tipe (map VarN vars)
       return (length args, vars, args, result)
 
-    inst = instance' flexibleVar
-    nmbr = instance' number 1
-    cmpr = instance' comparable 1
-    apnd = instance' appendable 1
+    inst = instance' (var Flexible)
+    nmbr = instance' (var (Is Number)) 1
+    cmpr = instance' (var (Is Comparable)) 1
+    apnd = instance' (var (Is Appendable)) 1
 
     tupleCtor n =
         let name = "_Tuple" ++ show n
@@ -132,9 +132,9 @@ instantiateTypeWithContext env sourceType dict =
                    State.put (Map.insert x var dict)
                    return (VarN var)
                 where
-                  flex | "number"     `isPrefixOf` x = IsIn Number
-                       | "comparable" `isPrefixOf` x = IsIn Comparable
-                       | "appendable" `isPrefixOf` x = IsIn Appendable
+                  flex | "number"     `isPrefixOf` x = Is Number
+                       | "comparable" `isPrefixOf` x = Is Comparable
+                       | "appendable" `isPrefixOf` x = Is Appendable
                        | otherwise = Flexible
 
         Src.Data name ts -> do

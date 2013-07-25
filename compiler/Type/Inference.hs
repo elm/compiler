@@ -29,7 +29,6 @@ infer interfaces' modul = unsafePerformIO $ do
 --  mapM print (concatMap iAdts (Map.elems interfaces))
 
   env <- Env.initialEnvironment (datatypes modul ++ concatMap iAdts (Map.elems interfaces))
-  var <- T.flexibleVar
   ctors <- forM (Map.keys (Env.constructor env)) $ \name ->
                do (_, vars, args, result) <- Env.freshDataScheme env name
                   return (name, (vars, foldr (T.==>) result args))
@@ -55,7 +54,8 @@ infer interfaces' modul = unsafePerformIO $ do
       header = Map.map snd (Map.fromList allTypes)
       environ = T.CLet [ T.Scheme vars [] T.CTrue header ]
 
-  constraint <- environ `fmap` TcExpr.constrain env (program modul) (T.VarN var)
+  fvar <- T.var T.Flexible
+  constraint <- environ `fmap` TcExpr.constrain env (program modul) (T.VarN fvar)
   --print =<< T.extraPretty constraint
 
   state <- execStateT (Solve.solve constraint) TS.initialState

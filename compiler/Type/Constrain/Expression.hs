@@ -33,10 +33,10 @@ test str =
     Left err -> error $ "Parse error at " ++ show err
     Right expression -> do
       env <- Env.initialEnvironment []
-      var <- flexibleVar
+      v <- var Flexible
       let expr = SD.sortDefs expression
       print (pretty expr)
-      constraint <- constrain env expr (VarN var)
+      constraint <- constrain env expr (VarN v)
       print =<< extraPretty constraint
       state <- execStateT (solve constraint) TS.initialState
       let errors = TS.sErrors state
@@ -110,7 +110,7 @@ constrain env (L _ _ expr) tipe =
              (ctipe, cs) <- Monad.foldM step (tipe,CTrue) (reverse pairs)
              return (cs /\ name <? ctipe)
           where
-            pair e = do v <- flexibleVar -- needs an ex
+            pair e = do v <- var Flexible -- needs an ex
                         return (e, VarN v)
 
             step (t,c) (e,x) = do
@@ -142,11 +142,11 @@ constrain env (L _ _ expr) tipe =
               return (CAnd (cOld : cNew : constraints))
           where
             dummyField (label, _) = do
-                v <- flexibleVar -- needs an ex
+                v <- var Flexible -- needs an ex
                 return (label, [VarN v])
 
             field (label, value) = do
-                v <- flexibleVar -- needs an ex
+                v <- var Flexible -- needs an ex
                 c <- ex [v] <$> constrain env value (VarN v)
                 return ((label, [VarN v]), c)
 
@@ -157,7 +157,7 @@ constrain env (L _ _ expr) tipe =
              return $ ex (map snd pairs) (CAnd (tipe === recordType : cs))
           where
             field (name, body) = do
-                v <- flexibleVar -- needs an ex
+                v <- var Flexible -- needs an ex
                 c <- constrain env body (VarN v)
                 return ((name, v), c)
 
@@ -182,7 +182,7 @@ constrainDef env info (pattern, expr, maybeTipe) =
     in
     case (pattern, maybeTipe) of
       (PVar name, Just tipe) ->
-          do flexiVars <- mapM (\_ -> flexibleVar) qs
+          do flexiVars <- mapM (\_ -> var Flexible) qs
              let inserts = zipWith (\arg typ -> Map.insert arg (VarN typ)) qs flexiVars
                  env' = env { Env.value = List.foldl' (\x f -> f x) (Env.value env) inserts }
              (vars, typ) <- Env.instantiateTypeWithContext env tipe Map.empty
@@ -199,16 +199,16 @@ constrainDef env info (pattern, expr, maybeTipe) =
                     , fl rigidQuantifiers c /\ c1 )
 
       (PVar name, Nothing) ->
-          do var <- flexibleVar
-             rigidVars <- mapM (\_ -> rigidVar) qs -- Some mistake may be happening here.
-                                                   -- Currently, qs is always the empty list.
-             let tipe = VarN var
+          do v <- var Flexible
+             rigidVars <- mapM (\_ -> var Rigid) qs -- Some mistake may be happening here.
+                                                    -- Currently, qs is always the empty list.
+             let tipe = VarN v
                  inserts = zipWith (\arg typ -> Map.insert arg (VarN typ)) qs rigidVars
                  env' = env { Env.value = List.foldl' (\x f -> f x) (Env.value env) inserts }
              c <- constrain env' expr tipe
              return ( schemes
                     , rigidVars ++ rigidQuantifiers
-                    , var : flexibleQuantifiers
+                    , v : flexibleQuantifiers
                     , Map.insert name tipe headers
                     , c /\ c2
                     , c1 )

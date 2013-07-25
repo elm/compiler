@@ -123,7 +123,7 @@ solve constraint =
             case Map.lookup name env of
               Just tipe -> TS.makeInstance tipe
               Nothing
-                | List.isPrefixOf "Native." name -> liftIO flexibleVar
+                | List.isPrefixOf "Native." name -> liftIO (var Flexible)
                 | otherwise ->
                     error ("Could not find '" ++ name ++ "' when solving type constraints.")
 
