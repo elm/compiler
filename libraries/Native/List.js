@@ -90,7 +90,7 @@ Elm.Native.List = function(elm) {
   }
 
    // f defined similarly for both foldl and foldr (NB: different from Haskell)
-   // ie, foldl :: (a -> b -> b) -> b -> [a] -> b
+   // ie, foldl : (a -> b -> b) -> b -> [a] -> b
   function foldl(f, b, xs) {
     var acc = b;
     while (xs.ctor !== '[]') {
@@ -219,6 +219,10 @@ Elm.Native.List = function(elm) {
     return fromArray(toArray(xs).sort(cmp));
   }
 
+  function nth(xs, n) {
+    return toArray(xs)[n];
+  }
+
   function take(n, xs) {
     var arr = [];
     while (xs.ctor !== '[]' && n > 0) {
@@ -308,6 +312,7 @@ Elm.Native.List = function(elm) {
   Elm.Native.List.values = {
       Nil:Nil,
       Cons:Cons,
+      cons:F2(Cons),
       toArray:toArray,
       fromArray:fromArray,
       range:range,
@@ -336,6 +341,7 @@ Elm.Native.List = function(elm) {
       zipWith:F3(zipWith),
       zip:F2(zip),
       sort:sort,
+      nth:F2(nth),
       take:F2(take),
       drop:F2(drop),
 
