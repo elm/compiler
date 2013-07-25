@@ -81,16 +81,16 @@ actuallyUnify variable1 variable2 = do
             (IsIn Comparable, IsIn Number, _, _) -> merge2
 
             (IsIn Number, _, _, Just name)
-                | name == "Int" || name == "Float" -> flexAndUnify variable1
+                | name `elem` ["Int","Float"] -> flexAndUnify variable1
 
             (_, IsIn Number, Just name, _)
-                | name == "Int" || name == "Float" -> flexAndUnify variable2
+                | name `elem` ["Int","Float"] -> flexAndUnify variable2
 
             (IsIn Comparable, _, _, Just name)
-                | name == "Int" || name == "Float" -> flexAndUnify variable1
+                | name `elem` ["Int","Float","Char"] -> flexAndUnify variable1
 
             (_, IsIn Comparable, Just name, _)
-                | name == "Int" || name == "Float" -> flexAndUnify variable2
+                | name `elem` ["Int","Float","Char"] -> flexAndUnify variable2
 
             _ -> TS.addError "The following types are not equal" variable1 variable2
 

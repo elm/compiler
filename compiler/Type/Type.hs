@@ -54,6 +54,25 @@ type TypeScheme = Scheme Type Variable
 
 monoscheme headers = Scheme [] [] CTrue headers
 
+infixl 8 /\
+
+(/\) :: Constraint a b -> Constraint a b -> Constraint a b
+a /\ CTrue = a
+CTrue /\ b = b
+a /\ b = CAnd [a,b]
+
+(===) :: Type -> Type -> TypeConstraint
+(===) = CEqual
+
+(<?) :: SchemeName -> Type -> TypeConstraint
+x <? t = CInstance x t
+
+infixr 9 ==>
+(==>) :: Type -> Type -> Type
+a ==> b = TermN (Fun1 a b)
+
+f <| a = TermN (App1 f a)
+
 data Descriptor = Descriptor {
     structure :: Maybe (Term1 Variable),
     rank :: Int,
@@ -75,26 +94,9 @@ data Flex = Rigid | Flexible | Constant | IsIn SuperType
 data SuperType = Number | Comparable | Appendable
      deriving (Show, Eq)
 
-infixl 8 /\
-
-(/\) :: Constraint a b -> Constraint a b -> Constraint a b
-a /\ CTrue = a
-CTrue /\ b = b
-a /\ b = CAnd [a,b]
-
-(===) :: Type -> Type -> TypeConstraint
-(===) = CEqual
-
-(<?) :: SchemeName -> Type -> TypeConstraint
-x <? t = CInstance x t
-
-infixr 9 ==>
-(==>) :: Type -> Type -> Type
-a ==> b = TermN (Fun1 a b)
-
-f <| a = TermN (App1 f a)
-
 number = namedVar (IsIn Number) "number"
+comparable = namedVar (IsIn Comparable) "comparable"
+appendable = namedVar (IsIn Appendable) "appendable"
 
 namedVar flex name = UF.fresh $ Descriptor {
     structure = Nothing,

@@ -44,7 +44,7 @@ makeTypes datatypes =
     builtins :: [(String,Int)]
     builtins = concat [ map tuple [0..9]
                       , kind 1 ["_List","Maybe","Signal"]
-                      , kind 0 ["Int","Float","Char","Bool","Element"]
+                      , kind 0 ["Int","Float","Char","Bool","Element","Order"]
                       ]
 
 
@@ -56,34 +56,42 @@ makeConstructors types = Map.fromList builtins
     bool = types ! "Bool"
     int = types ! "Int"
     float = types ! "Float"
+    order = types ! "Order"
 
-    inst :: Int -> Int -> ([Type] -> ([Type], Type)) -> IO (Int, [Variable], [Type], Type)
-    inst kind numTVars tipe = do
-      vars <- forM [1..numTVars] $ \_ -> flexibleVar
+    instance' :: IO Variable -> Int -> ([Type] -> ([Type], Type))
+              -> IO (Int, [Variable], [Type], Type)
+    instance' var numTVars tipe = do
+      vars <- forM [1..numTVars] $ \_ -> var
       let (args, result) = tipe (map VarN vars)
-      return (kind, vars, args, result)
+      return (length args, vars, args, result)
 
-    nmbr :: Int -> (Type -> ([Type], Type)) -> IO (Int, [Variable], [Type], Type)
-    nmbr kind tipe = do
-      var <- number
-      let (args, result) = tipe (VarN var)
-      return (kind, [var], args, result)
+    inst = instance' flexibleVar
+    nmbr = instance' number 1
+    cmpr = instance' comparable 1
+    apnd = instance' appendable 1
 
     tupleCtor n =
         let name = "_Tuple" ++ show n
-        in  (name, inst n n $ \vs -> (vs, foldl (<|) (types ! name) vs))
+        in  (name, inst n $ \vs -> (vs, foldl (<|) (types ! name) vs))
     
     builtins :: [ (String, IO (Int, [Variable], [Type], Type)) ]
-    builtins = [ ("Nothing", inst 0 1 $ \ [t] -> ([], maybe t))
-               , ("Just"   , inst 1 1 $ \ [t] -> ([t], maybe t))
-               , ("[]"     , inst 0 1 $ \ [t] -> ([], list t))
-               , ("::"     , inst 2 1 $ \ [t] -> ([t, list t], list t))
-               , ("div"    , inst 2 0 $ \ [] -> ([int, int], int))
-               , ("/"      , inst 2 0 $ \ [] -> ([float, float], float))
-               , ("+"      , nmbr 2 $ \t -> ([t, t], t))
-               , ("-"      , nmbr 2 $ \t -> ([t, t], t))
-               , ("*"      , nmbr 2 $ \t -> ([t, t], t))
-               , ("otherwise", inst 0 0 $ \ [] -> ([], bool))
+    builtins = [ ("Nothing", inst 1 $ \ [t] -> ([], maybe t))
+               , ("Just"   , inst 1 $ \ [t] -> ([t], maybe t))
+               , ("[]"     , inst 1 $ \ [t] -> ([], list t))
+               , ("::"     , inst 1 $ \ [t] -> ([t, list t], list t))
+               , ("div"    , inst 0 $ \ [] -> ([int, int], int))
+               , ("/"      , inst 0 $ \ [] -> ([float, float], float))
+               , ("+"      , nmbr   $ \ [t] -> ([t, t], t))
+               , ("-"      , nmbr   $ \ [t] -> ([t, t], t))
+               , ("*"      , nmbr   $ \ [t] -> ([t, t], t))
+               , ("<"      , cmpr   $ \ [t] -> ([t, t], bool))
+               , (">"      , cmpr   $ \ [t] -> ([t, t], bool))
+               , ("<="     , cmpr   $ \ [t] -> ([t, t], bool))
+               , (">="     , cmpr   $ \ [t] -> ([t, t], bool))
+               , ("=="     , cmpr   $ \ [t] -> ([t, t], bool))
+               , ("/="     , cmpr   $ \ [t] -> ([t, t], bool))
+               , ("compare", cmpr   $ \ [t] -> ([t, t], order))
+               , ("otherwise", inst 0 $ \ [] -> ([], bool))
                ] ++ map tupleCtor [0..9]
 
 
