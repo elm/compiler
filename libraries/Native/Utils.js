@@ -19,7 +19,7 @@ Elm.Native.Utils = function(elm) {
     return x === y;
   }
 
-  var EQ = 0, LT = 1, GT = 2, ord = ['EQ','LT','GT'];
+  var EQ = 0, LT = -1, GT = 1, ord = ['EQ','LT','GT'];
   function compare(x,y) { return { ctor: ord[cmp(x,y)] } }
   function cmp(x,y) {
     var ord;
@@ -140,7 +140,7 @@ Elm.Native.Utils = function(elm) {
 
   return elm.Native.Utils = {
       eq:eq,
-      cmp:compare,
+      cmp:cmp,
       compare:F2(compare),
       Tuple0:Tuple0,
       Tuple2:Tuple2,
