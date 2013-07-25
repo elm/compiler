@@ -5,7 +5,6 @@ import qualified Data.UnionFind.IO as UF
 import qualified Type.State as TS
 import Control.Arrow (first,second)
 import Control.Monad.State
-import SourceSyntax.PrettyPrint
 import qualified Text.PrettyPrint as P
 
 unify :: Variable -> Variable -> StateT TS.SolverState IO ()
@@ -20,45 +19,43 @@ actuallyUnify variable1 variable2 = do
   desc2 <- liftIO $ UF.descriptor variable2
   let name' :: Maybe String
       name' = case (name desc1, name desc2) of
-                (Just name1, Just name2)
-                    | name1 == name2 -> Just name1
-                    | flex desc1 /= Flexible -> Just name1
-                    | flex desc2 /= Flexible -> Just name2
-                    | otherwise -> Nothing
+                (Just name1, Just name2) ->
+                    case (flex desc1, flex desc2) of
+                      (_, Flexible) -> Just name1
+                      (Flexible, _) -> Just name2
+                      (IsIn Number, IsIn _) -> Just name1
+                      (IsIn _, IsIn Number) -> Just name2
+                      (IsIn _, IsIn _) -> Just name1
+                      (_, _) -> Nothing
                 (Just name1, _) -> Just name1
                 (_, Just name2) -> Just name2
                 _ -> Nothing
 
       flex' :: Flex
-      flex' = if flex desc1 /= Flexible then flex desc1 else
-              if flex desc2 /= Flexible then flex desc2 else Flexible
+      flex' = case (flex desc1, flex desc2) of
+                (f, Flexible) -> f
+                (Flexible, f) -> f
+                (IsIn Number, IsIn _) -> IsIn Number
+                (IsIn _, IsIn Number) -> IsIn Number
+                (IsIn super, IsIn _) -> IsIn super
+                (_, _) -> Flexible
 
       rank' :: Int
       rank' = min (rank desc1) (rank desc2)
 
       merge1 :: StateT TS.SolverState IO ()
-      merge1 =
-        if rank desc1 < rank desc2 then
-          liftIO $ do
-            UF.union variable2 variable1
-            UF.modifyDescriptor variable1 (\desc -> desc { flex = flex', name = name' })
-        else
-          liftIO $ do
-            UF.union variable1 variable2
-            UF.modifyDescriptor variable2 (\desc -> desc {
-                structure = structure desc1, flex = flex', name = name' })
+      merge1 = liftIO $ do
+        if rank desc1 < rank desc2 then UF.union variable2 variable1
+                                   else UF.union variable1 variable2
+        UF.modifyDescriptor variable1 $ \desc ->
+            desc { structure = structure desc1, flex = flex', name = name' }
 
       merge2 :: StateT TS.SolverState IO ()
-      merge2 =
-        if rank desc1 < rank desc2 then
-          liftIO $ do
-            UF.union variable2 variable1
-            UF.modifyDescriptor variable2 (\desc -> desc {
-                structure = structure desc2, flex = flex', name = name' })
-        else 
-          liftIO $ do
-            UF.union variable1 variable2
-            UF.modifyDescriptor variable2 (\desc -> desc { flex = flex', name = name' })
+      merge2 = liftIO $ do
+        if rank desc1 < rank desc2 then UF.union variable2 variable1
+                                   else UF.union variable1 variable2
+        UF.modifyDescriptor variable2 $ \desc ->
+            desc { structure = structure desc2, flex = flex', name = name' }
 
       merge = if rank desc1 < rank desc2 then merge1 else merge2
 
@@ -79,18 +76,22 @@ actuallyUnify variable1 variable2 = do
             (IsIn Number, IsIn Number, _, _) -> merge
             (IsIn Number, IsIn Comparable, _, _) -> merge1
             (IsIn Comparable, IsIn Number, _, _) -> merge2
-
+                   
             (IsIn Number, _, _, Just name)
                 | name `elem` ["Int","Float"] -> flexAndUnify variable1
+                | otherwise -> TS.addError "Expecting a number (Int or Float)" variable1 variable2
 
             (_, IsIn Number, Just name, _)
                 | name `elem` ["Int","Float"] -> flexAndUnify variable2
+                | otherwise -> TS.addError "Expecting a number (Int or Float)" variable1 variable2
 
             (IsIn Comparable, _, _, Just name)
                 | name `elem` ["Int","Float","Char"] -> flexAndUnify variable1
+                | otherwise -> TS.addError "Expecting something comparable (Int, Float, Char, [comparable])." variable1 variable2
 
             (_, IsIn Comparable, Just name, _)
                 | name `elem` ["Int","Float","Char"] -> flexAndUnify variable2
+                | otherwise -> TS.addError "Expecting something comparable (Int, Float, Char, [comparable])." variable1 variable2
 
             _ -> TS.addError "The following types are not equal" variable1 variable2
 
