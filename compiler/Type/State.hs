@@ -43,6 +43,7 @@ initialState = SS {
 
 modifyEnv  f = modify $ \state -> state { sEnv = f (sEnv state) }
 modifyPool f = modify $ \state -> state { sPool = f (sPool state) }
+
 addError message t1 t2 =
     modify $ \state -> state { sErrors = err : sErrors state }
   where
@@ -57,8 +58,6 @@ addError message t1 t2 =
                , msg <> P.text "\n"
                , P.text "   Expected Type:" <+> pt1
                , P.text "     Actual Type:" <+> pt2 <> P.text "\n"
-               , wordify "The error comes from:" <> P.text "\n"
-               , P.nest 3 (P.text "???")
                ]
 
 switchToPool pool = modifyPool (\_ -> pool)
