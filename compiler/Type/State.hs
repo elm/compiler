@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -XMultiWayIf #-}
+{-# LANGUAGE MultiWayIf #-}
 module Type.State where
 
 import Type.Type

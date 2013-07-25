@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -XMultiWayIf #-}
+{-# LANGUAGE MultiWayIf #-}
 module Type.Solve (solve) where
 
 import Control.Monad
