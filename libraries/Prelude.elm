@@ -26,9 +26,9 @@ fromPolar (r,t) = (r * N.cos t, r * N.sin t)
 toPolar : (Float,Float) -> (Float,Float)
 toPolar (x,y) = (N.sqrt (x^2 + y^2), N.atan2 y x)
 
-(+) : Number a -> Number a -> Number a
-(-) : Number a -> Number a -> Number a
-(*) : Number a -> Number a -> Number a
+(+) : number -> number -> number
+(-) : number -> number -> number
+(*) : number -> number -> number
 
 -- Floating point division.
 (/) : Float -> Float -> Float
@@ -43,7 +43,7 @@ rem : Int -> Int -> Int
 mod : Int -> Int -> Int
 
 -- Exponentiation: `3^2 == 9`
-(^) : Number a -> Number a -> Number a
+(^) : number -> number -> number
 
 cos  : Float -> Float
 sin  : Float -> Float
@@ -64,19 +64,19 @@ atan : Float -> Float
 atan2 : Float -> Float -> Float
 
 -- Take the square root of a number.
-sqrt : Number a -> Number a
+sqrt : number -> number
 
 -- Take the absolute value of a number.
-abs : Number a -> Number a
+abs : number -> number
 
 -- Calculate the logarithm of a number with a given base: `logBase 10 100 == 2`
-logBase : Number a -> Number a -> Number a
+logBase : number -> number -> number
 
 -- Given two numbers, returns the smaller one.
-min : Number a -> Number a -> Number a
+min : number -> number -> number
 
 -- Given two numbers, returns the larger one.
-max : Number a -> Number a -> Number a
+max : number -> number -> number
 
 -- Clamps a number within a given range. With the expression `clamp 100 200 x`
 -- the results are as follows:
@@ -84,7 +84,7 @@ max : Number a -> Number a -> Number a
 --   * `100   if x < 100`
 --   * ` x    if 100 <= x < 200`
 --   * `200   if 200 <= x`
-clamp : Number a -> Number a -> Number a -> Number a
+clamp : number -> number -> number -> number
 
 -- An approximation of pi.
 pi : Float
@@ -96,15 +96,15 @@ e : Float
 (==) : a -> a -> Bool
 (/=) : a -> a -> Bool
 
-(<)  : Comparable a -> Comparable a -> Bool
-(>)  : Comparable a -> Comparable a -> Bool
-(<=) : Comparable a -> Comparable a -> Bool
-(>=) : Comparable a -> Comparable a -> Bool
+(<)  : comparable -> comparable -> Bool
+(>)  : comparable -> comparable -> Bool
+(<=) : comparable -> comparable -> Bool
+(>=) : comparable -> comparable -> Bool
 
 -- Compare any two comparable values. Comparable values include `String`, `Char`,
 -- `Int`, `Float`, `Time`, or a list or tuple containing comparable values.
 -- These are also the only values that work as `Dict` keys or `Set` members.
-compare : Comparable a -> Comparable a -> Order
+compare : comparable -> comparable -> Order
 
 -- Represents the relative ordering of two things.
 -- The relations are less than, equal to, and greater than.
