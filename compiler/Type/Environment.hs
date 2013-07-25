@@ -6,6 +6,7 @@ import qualified Control.Monad.State as State
 import qualified Data.Traversable as Traverse
 import qualified Data.Map as Map
 import Data.Map ((!))
+import Data.List (isPrefixOf)
 import qualified Data.UnionFind.IO as UF
 
 import qualified SourceSyntax.Type as Src
@@ -126,10 +127,15 @@ instantiateTypeWithContext env sourceType dict =
           dict <- State.get
           case Map.lookup x dict of
             Just var -> return (VarN var)
-            Nothing -> do
-              var <- State.liftIO $ namedVar Flexible x -- should this be Constant or Flexible?
-              State.put (Map.insert x var dict)
-              return (VarN var)
+            Nothing ->
+                do var <- State.liftIO $ namedVar flex x
+                   State.put (Map.insert x var dict)
+                   return (VarN var)
+                where
+                  flex | "number"     `isPrefixOf` x = IsIn Number
+                       | "comparable" `isPrefixOf` x = IsIn Comparable
+                       | "appendable" `isPrefixOf` x = IsIn Appendable
+                       | otherwise = Flexible
 
         Src.Data name ts -> do
           ts' <- mapM go ts
