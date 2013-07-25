@@ -54,22 +54,12 @@ makeConstructors types = Map.fromList builtins
   where
     list  t = (types ! "_List") <| t
     maybe t = (types ! "Maybe") <| t
-    bool = types ! "Bool"
-    int = types ! "Int"
-    float = types ! "Float"
-    order = types ! "Order"
 
-    instance' :: IO Variable -> Int -> ([Type] -> ([Type], Type))
-              -> IO (Int, [Variable], [Type], Type)
-    instance' var numTVars tipe = do
-      vars <- forM [1..numTVars] $ \_ -> var
+    inst :: Int -> ([Type] -> ([Type], Type)) -> IO (Int, [Variable], [Type], Type)
+    inst numTVars tipe = do
+      vars <- forM [1..numTVars] $ \_ -> var Flexible
       let (args, result) = tipe (map VarN vars)
       return (length args, vars, args, result)
-
-    inst = instance' (var Flexible)
-    nmbr = instance' (var (Is Number)) 1
-    cmpr = instance' (var (Is Comparable)) 1
-    apnd = instance' (var (Is Appendable)) 1
 
     tupleCtor n =
         let name = "_Tuple" ++ show n
@@ -80,19 +70,6 @@ makeConstructors types = Map.fromList builtins
                , ("Just"   , inst 1 $ \ [t] -> ([t], maybe t))
                , ("[]"     , inst 1 $ \ [t] -> ([], list t))
                , ("::"     , inst 1 $ \ [t] -> ([t, list t], list t))
-               , ("div"    , inst 0 $ \ [] -> ([int, int], int))
-               , ("/"      , inst 0 $ \ [] -> ([float, float], float))
-               , ("+"      , nmbr   $ \ [t] -> ([t, t], t))
-               , ("-"      , nmbr   $ \ [t] -> ([t, t], t))
-               , ("*"      , nmbr   $ \ [t] -> ([t, t], t))
-               , ("<"      , cmpr   $ \ [t] -> ([t, t], bool))
-               , (">"      , cmpr   $ \ [t] -> ([t, t], bool))
-               , ("<="     , cmpr   $ \ [t] -> ([t, t], bool))
-               , (">="     , cmpr   $ \ [t] -> ([t, t], bool))
-               , ("=="     , cmpr   $ \ [t] -> ([t, t], bool))
-               , ("/="     , cmpr   $ \ [t] -> ([t, t], bool))
-               , ("compare", cmpr   $ \ [t] -> ([t, t], order))
-               , ("otherwise", inst 0 $ \ [] -> ([], bool))
                ] ++ map tupleCtor [0..9]
 
 
@@ -121,7 +98,7 @@ instantiateTypeWithContext env sourceType dict =
     go :: Src.Type -> State.StateT (Map.Map String Variable) IO Type
     go sourceType =
       case sourceType of
-        Src.Lambda t1 t2 -> TermN <$> (Fun1 <$> go t1 <*> go t2)
+        Src.Lambda t1 t2 -> (==>) <$> go t1 <*> go t2
 
         Src.Var x -> do
           dict <- State.get
@@ -137,9 +114,12 @@ instantiateTypeWithContext env sourceType dict =
                        | "appendable" `isPrefixOf` x = Is Appendable
                        | otherwise = Flexible
 
+        Src.Data "String" [] ->
+            return (get env types "_List" <| get env types "Char")
+
         Src.Data name ts -> do
           ts' <- mapM go ts
-          return $ foldl (\tyFn ty -> TermN $ App1 tyFn ty) (get env types name) ts'
+          return $ foldl (<|) (get env types name) ts'
 
         Src.EmptyRecord -> return (TermN EmptyRecord1)
 
