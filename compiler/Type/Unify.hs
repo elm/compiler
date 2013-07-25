@@ -73,7 +73,8 @@ actuallyUnify variable1 variable2 = do
 
       superUnify =
           case (flex desc1, flex desc2, name desc1, name desc2) of
-            (IsIn Number, IsIn Number, _, _) -> merge
+            (IsIn super1, IsIn super2, _, _)
+                | super1 == super2 -> merge
             (IsIn Number, IsIn Comparable, _, _) -> merge1
             (IsIn Comparable, IsIn Number, _, _) -> merge2
                    
