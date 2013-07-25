@@ -1,4 +1,4 @@
-module Metadata.Libraries (interfaces, addPrelude) where
+module Metadata.Prelude (interfaces, add) where
 
 import qualified Data.Map as Map
 import qualified Control.Exception as E
@@ -11,8 +11,8 @@ import SourceSyntax.Module
 import Data.Binary
 
 
-addPrelude :: Module t v -> Module t v
-addPrelude (Module name exs ims stmts) = Module name exs (customIms ++ ims) stmts
+add :: Module t v -> Module t v
+add (Module name exs ims stmts) = Module name exs (customIms ++ ims) stmts
     where
       customIms = concatMap addModule prelude
 

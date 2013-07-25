@@ -11,7 +11,7 @@ import Text.PrettyPrint (Doc)
 import SourceSyntax.Everything
 import SourceSyntax.Type
 import qualified Parse.Parse as Parse
-import qualified Metadata.Libraries as Libs
+import qualified Metadata.Prelude as Prelude
 import qualified Transform.Check as Check
 import qualified Transform.SortDefinitions as SD
 import qualified Type.Inference as TI
@@ -82,7 +82,7 @@ readDeps seen root = do
           realDeps = filter (`notElem` builtIns) deps
           newDeps = filter (\d -> not (d `elem` seen || isNative d)) realDeps
           seen' = root : seen ++ newDeps
-          builtIns = Map.keys Libs.libraries
+          builtIns = Map.keys Prelude.interfaces
                        
 
 isNative name = List.isPrefixOf "Native." name

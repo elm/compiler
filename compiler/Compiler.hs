@@ -4,7 +4,7 @@ module Main where
 import Control.Monad
 import qualified Data.Map as Map
 import qualified Data.List as List
-import Data.Binary (encodeFile, decodeFile)
+import qualified Data.Binary as Binary
 import Data.Version (showVersion)
 import System.Console.CmdArgs hiding (program)
 import System.Directory
@@ -16,6 +16,7 @@ import qualified Text.Blaze.Html.Renderer.String as Normal
 import qualified Text.Jasmine as JS
 import qualified Data.ByteString.Lazy.Char8 as BS
 
+import qualified Metadata.Prelude as Prelude
 import SourceSyntax.Module
 import Initialize (buildFromSource, getSortedModuleNames, Interfaces)
 import Generate.JavaScript (jsModule)
@@ -86,7 +87,7 @@ elmi flags filePath = file flags filePath "elmi"
 buildFile :: Flags -> Int -> Int -> Interfaces -> FilePath -> IO ModuleInterface
 buildFile flags moduleNum numModules interfaces filePath =
     do compiled <- alreadyCompiled
-       if compiled then decodeFile (elmi flags filePath) else compile
+       if compiled then Binary.decodeFile (elmi flags filePath) else compile
 
     where
       alreadyCompiled :: IO Bool
@@ -121,7 +122,7 @@ buildFile flags moduleNum numModules interfaces filePath =
                           iTypes = tipes,
                           iAdts = datatypes metaModule
                         }
-        encodeFile (elmi flags filePath) interface
+        Binary.encodeFile (elmi flags filePath) interface
         let js = jsModule metaModule
         writeFile (elmo flags filePath) js
         return interface
@@ -146,8 +147,7 @@ getRuntime flags =
 build :: Flags -> FilePath -> IO ()
 build flags rootFile = do
   files <- if make flags then getSortedModuleNames rootFile else return [rootFile]
-  let initialInterface = if no_prelude flags then Map.empty else Map.empty
-  interfaces <- buildFiles flags (length files) initialInterface files
+  interfaces <- buildFiles flags (length files) Prelude.interfaces files
   js <- foldM appendToOutput "" files
   case only_js flags of
     True -> do
