@@ -69,8 +69,7 @@ jsModule modul =
                , concat foreignImport
                , concatMap exportEvent $ foreignExports modul
                , body
-               , setup ("elm" : "Native" : names modul)
-               , assign "_" ("elm.Native." ++ modName ++ "||{}")
+               , assign "_" "{}"
                , concatMap jsExport (exports modul)
                , setup ("elm" : names modul)
                , ret (assign' ("elm." ++ modName) "_")
