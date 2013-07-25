@@ -176,7 +176,6 @@ constrain env (L _ _ expr) tipe =
                            (CLet [Scheme rqs fqs (CLet [monoscheme header] c2) header ]
                                  (c1 /\ c))
 
-
 constrainDef env info (pattern, expr, maybeTipe) =
     let qs = [] -- should come from the def, but I'm not sure what would live there...
         (schemes, rigidQuantifiers, flexibleQuantifiers, headers, c2, c1) = info
@@ -242,4 +241,3 @@ collapseDefs = concatMap expandPattern . go [] Map.empty Map.empty
               go ((pattern, body, Nothing) : output) defs typs ds
           TypeAnnotation name typ ->
               go output defs (Map.insert name typ typs) ds
---}
