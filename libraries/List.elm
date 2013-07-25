@@ -1,7 +1,7 @@
 
 module List where
 
-import Native.Utils
+import open Basics
 import Native.List as Native
 
 -- Add an element to the front of a list `(1 :: [2,3] == [1,2,3])`
@@ -119,11 +119,11 @@ product = foldl (*) 1
 
 -- Find the maximum element in a non-empty list: `maximum [1,4,2] == 4`
 maximum : [comparable] -> comparable
-maximum = foldl1 Native.Utils.max
+maximum = foldl1 max
 
 -- Find the minimum element in a non-empty list: `minimum [3,2,1] == 1`
 minimum : [comparable] -> comparable
-minimum = foldl1 Native.Utils.min
+minimum = foldl1 min
 
 -- Split a list based on the predicate.
 partition : (a -> Bool) -> [a] -> ([a],[a])

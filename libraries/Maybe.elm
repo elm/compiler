@@ -1,6 +1,7 @@
 
 module Maybe where
 
+import open Basics
 import List as List
 
 -- The Maybe datatype. Useful when a computation may or may not
