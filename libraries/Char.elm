@@ -42,9 +42,9 @@ toLocaleLower = Native.toLocaleLower
 type KeyCode = Int
 
 -- Convert to unicode.
-toCode : Char -> Int
+toCode : Char -> KeyCode
 toCode = Native.toCode
 
 -- Convert from unicode.
-fromCode : Int -> Char
+fromCode : KeyCode -> Char
 fromCode = Native.fromCode
