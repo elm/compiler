@@ -47,15 +47,11 @@ modifyPool f = modify $ \state -> state { sPool = f (sPool state) }
 addError message t1 t2 =
     modify $ \state -> state { sErrors = err : sErrors state }
   where
-    wordify = P.fsep . map P.text . words 
-    msg = wordify message
-    width = maximum . map length . lines $ render msg
-    spaces = List.replicate (width - 15 - 3) ' '
     err = makeError <$> extraPretty t1 <*> extraPretty t2
     makeError pt1 pt2 =
-        P.vcat [ P.text $ "Type error" ++ spaces ++ "line ???"
-               , P.text (List.replicate width '-')
-               , msg <> P.text "\n"
+        P.vcat [ P.text $ "Type error on line ???"
+               , if null message then empty else P.fsep . map P.text $ words message
+               , P.text " "
                , P.text "   Expected Type:" <+> pt1
                , P.text "     Actual Type:" <+> pt2 <> P.text "\n"
                ]

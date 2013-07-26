@@ -95,7 +95,7 @@ actuallyUnify variable1 variable2 = do
                 | name `elem` ["Int","Float","Char"] -> flexAndUnify variable2
                 | otherwise -> TS.addError "Expecting something comparable (Int, Float, Char, [comparable])." variable1 variable2
 
-            _ -> TS.addError "The following types are not equal" variable1 variable2
+            _ -> TS.addError "" variable1 variable2
 
   case (structure desc1, structure desc2) of
     (Nothing, Nothing) | flex desc1 == Flexible && flex desc1 == Flexible -> merge
@@ -144,5 +144,5 @@ actuallyUnify variable1 variable2 = do
                 eat (x:xs) (y:ys) = eat xs ys
                 eat xs ys = xs
 
-          _ -> TS.addError "The following types are not equal" variable1 variable2
+          _ -> TS.addError "" variable1 variable2
 
