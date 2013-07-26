@@ -120,7 +120,8 @@ buildFile flags moduleNum numModules interfaces filePath =
         tipes <- toSrcTypes (types metaModule)
         let interface = ModuleInterface {
                           iTypes = tipes,
-                          iAdts = datatypes metaModule
+                          iAdts = datatypes metaModule,
+                          iAliases = aliases metaModule
                         }
         Binary.encodeFile (elmi flags filePath) interface
         let js = jsModule metaModule

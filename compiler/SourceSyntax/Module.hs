@@ -42,19 +42,21 @@ type Interfaces = Map.Map String ModuleInterface
 type ADT = (String, [String], [(String,[Type])])
 
 data ModuleInterface = ModuleInterface {
-    iTypes :: Map.Map String Type,
-    iAdts  :: [ADT]
+    iTypes   :: Map.Map String Type,
+    iAdts    :: [ADT],
+    iAliases :: [(String, [String], Type)]
 } deriving Show
 
 instance Binary ModuleInterface where
-  put modul = put (iTypes modul) >> put (iAdts modul)
-  get = ModuleInterface <$> get <*> get
+  put modul = put (iTypes modul) >> put (iAdts modul) >> put (iAliases modul)
+  get = ModuleInterface <$> get <*> get <*> get
 
 
 canonicalize :: String -> [ImportMethod] -> ModuleInterface -> ModuleInterface
 canonicalize prefix importMethods interface =
     ModuleInterface { iTypes = Map.unions (map iTypes ifaces)
-                    , iAdts = concatMap iAdts ifaces }
+                    , iAdts = concatMap iAdts ifaces
+                    , iAliases = concatMap iAliases ifaces }
   where
     ifaces = map (canonicalizeHelp prefix interface) importMethods
 
@@ -63,7 +65,8 @@ canonicalizeHelp :: String -> ModuleInterface -> ImportMethod -> ModuleInterface
 canonicalizeHelp prefix interface importMethod =
     ModuleInterface {
       iTypes = renameNames $ Map.map (renameType rename) (iTypes interface),
-      iAdts = map renameADT (iAdts interface)
+      iAdts = map renameADT (iAdts interface),
+      iAliases = iAliases interface
     }
   where
     addPrefix name = prefix ++ "." ++ name
