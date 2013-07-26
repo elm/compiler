@@ -35,7 +35,7 @@ import' =
      case open of
        Just _ -> return (name, Hiding [])
        Nothing -> let how = try (whitespace >> (as' <|> importing'))
-                  in  (,) name <$> option (Importing []) how
+                  in  (,) name <$> option (As name) how
   where
     as' :: IParser ImportMethod
     as' = reserved "as" >> whitespace >> As <$> capVar <?> "alias for module"
