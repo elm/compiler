@@ -92,11 +92,13 @@ buildFile flags moduleNum numModules interfaces filePath =
     where
       alreadyCompiled :: IO Bool
       alreadyCompiled = do
-        exists <- doesFileExist (elmo flags filePath)
-        if not exists then return False
-                      else do tsrc <- getModificationTime filePath
-                              tint <- getModificationTime (elmo flags filePath)
-                              return (tsrc < tint)
+        existsi <- doesFileExist (elmi flags filePath)
+        existso <- doesFileExist (elmo flags filePath)
+        if not existsi || not existso
+            then return False
+            else do tsrc <- getModificationTime filePath
+                    tint <- getModificationTime (elmo flags filePath)
+                    return (tsrc < tint)
 
       number :: String
       number = "[" ++ show moduleNum ++ " of " ++ show numModules ++ "]"
@@ -123,6 +125,7 @@ buildFile flags moduleNum numModules interfaces filePath =
                           iAdts = datatypes metaModule,
                           iAliases = aliases metaModule
                         }
+        createDirectoryIfMissing True . dropFileName $ elmi flags filePath
         Binary.encodeFile (elmi flags filePath) interface
         let js = jsModule metaModule
         writeFile (elmo flags filePath) js
