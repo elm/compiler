@@ -77,7 +77,8 @@ adjustRank youngMark visitedMark groupRank variable =
                                         EmptyRecord1 -> return outermostRank
                                         Record1 fields extension -> do
                                             ranks <- mapM adjust (concat (Map.elems fields))
-                                            max (maximum ranks) `liftM` adjust extension
+                                            rnk <- adjust extension
+                                            return . maximum $ rnk : ranks
               liftIO $ UF.setDescriptor variable (desc { mark = visitedMark, rank = rank' })
               return rank'
 
