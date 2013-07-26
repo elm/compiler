@@ -1,8 +1,8 @@
 
 module Maybe where
 
-import open Basics
-import open List
+import Basics (not, (.))
+import List (foldr)
 
 -- The Maybe datatype. Useful when a computation may or may not
 -- result in a value (e.g. logarithm is defined only for positive numbers).

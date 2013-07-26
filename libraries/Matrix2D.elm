@@ -3,6 +3,8 @@ module Matrix2D where
 
 import Native.Matrix2D as Native
 
+data Matrix2D = Matrix2D
+
 -- Create an identity matrix.
 --
 --           / 1 0 \\
