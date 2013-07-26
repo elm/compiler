@@ -18,35 +18,8 @@ import Type.Fragment
 import qualified Type.Environment as Env
 import qualified Type.Constrain.Literal as Literal
 import qualified Type.Constrain.Pattern as Pattern
-
-{-- Testing section --}
-import SourceSyntax.PrettyPrint
-import Text.PrettyPrint as P
-import Parse.Expression
-import Parse.Helpers (iParse)
-import Type.Solve (solve)
-import qualified Type.State as TS
 import qualified Transform.SortDefinitions as SD
 
-test str =
-  case iParse expr "" str of
-    Left err -> error $ "Parse error at " ++ show err
-    Right expression -> do
-      env <- Env.initialEnvironment []
-      v <- var Flexible
-      let expr = SD.sortDefs expression
-      print (pretty expr)
-      constraint <- constrain env expr (VarN v)
-      print =<< extraPretty constraint
-      state <- execStateT (solve constraint) TS.initialState
-      let errors = TS.sErrors state
-      forM (Map.toList (TS.sSavedEnv state)) $ \(n,t) -> do
-          pt <- extraPretty t
-          print $ P.text n <+> P.text ":" <+> pt
-      if null errors then return () else do
-          putStrLn "\n"
-          mapM_ print =<< sequence errors
-{-- todo: remove testing code --}
 
 constrain :: Env.Environment -> LExpr a b -> Type -> IO TypeConstraint
 constrain env (L _ _ expr) tipe =
