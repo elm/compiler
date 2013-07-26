@@ -1,9 +1,11 @@
 module Initialize (buildFromSource, getSortedModuleNames, Interfaces) where
 
-import qualified Data.Map as Map
 import Data.Data
+import Control.Monad.State
 import qualified Data.Graph as Graph
 import qualified Data.List as List
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 import System.Exit
 import System.FilePath as FP
 import Text.PrettyPrint (Doc)
@@ -52,7 +54,7 @@ buildFromSource interfaces source =
 
 getSortedModuleNames :: FilePath -> IO [String]
 getSortedModuleNames root =
-    sortDeps =<< readDeps [] root
+    sortDeps =<< readDeps root
 
 type Deps = (String, [String])
 
@@ -68,21 +70,25 @@ sortDeps depends =
     mistakes = filter (\scc -> length scc > 1) sccs
     msg = "A cyclical module dependency or was detected in: "
 
-readDeps :: [FilePath] -> FilePath -> IO [Deps]
-readDeps seen root = do
-  txt <- readFile root
-  case Parse.dependencies txt of
-    Left err -> putStrLn msg >> print err >> exitFailure
-        where msg = "Error resolving dependencies in " ++ root ++ ":"
+readDeps :: FilePath -> IO [Deps]
+readDeps root = evalStateT (go root) Set.empty
+  where
+    builtIns = Set.fromList (Map.keys Prelude.interfaces)
+
+    go :: FilePath -> StateT (Set.Set String) IO [Deps]
+    go root = do
+      txt <- liftIO $ readFile root
+      case Parse.dependencies txt of
+        Left err -> liftIO (putStrLn msg >> print err >> exitFailure)
+            where msg = "Error resolving dependencies in " ++ root ++ ":"
                     
-    Right (name,deps) ->
-        do rest <- mapM (readDeps seen' . toFilePath) newDeps
-           return ((name, realDeps) : concat rest)
-        where
-          realDeps = filter (`notElem` builtIns) deps
-          newDeps = filter (\d -> not (d `elem` seen || isNative d)) realDeps
-          seen' = root : seen ++ newDeps
-          builtIns = Map.keys Prelude.interfaces
+        Right (name,deps) ->
+            do seen <- get
+               let realDeps = Set.difference (Set.fromList deps) builtIns
+                   newDeps = Set.difference (Set.filter (not . isNative) realDeps) seen
+               put (Set.insert name (Set.union newDeps seen))
+               rest <- mapM (go . toFilePath) (Set.toList newDeps)
+               return ((name, Set.toList realDeps) : concat rest)
                        
 
 isNative name = List.isPrefixOf "Native." name
