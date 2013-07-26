@@ -27,8 +27,6 @@ infer interfaces' modul = unsafePerformIO $ do
       localImports = foldr insert Map.empty (imports modul)
       interfaces = Map.intersectionWithKey Module.canonicalize localImports interfaces'
 
---  mapM print (concatMap iAdts (Map.elems interfaces))
-
   env <- Env.initialEnvironment
              (datatypes modul ++ concatMap iAdts (Map.elems interfaces))
              (aliases modul ++ concatMap iAliases (Map.elems interfaces))
@@ -36,7 +34,7 @@ infer interfaces' modul = unsafePerformIO $ do
                do (_, vars, args, result) <- Env.freshDataScheme env name
                   return (name, (vars, foldr (T.==>) result args))
 
---  mapM print (map Map.toList $ Map.elems locals)
+--  mapM print . Map.toList $ Env.aliases env
 --  mapM print (imports modul)
 
   importedVars <-
@@ -56,5 +54,5 @@ infer interfaces' modul = unsafePerformIO $ do
   let errors = TS.sErrors state
   if null errors
       then return $ Right (Map.difference (TS.sSavedEnv state) header)
-      else Left `fmap` sequence errors
+      else Left `fmap` sequence (reverse errors)
 
