@@ -8,6 +8,7 @@ data JSBool = JSBool
 data JSString = JSString
 data JSArray a = JSArray a
 data JSDomNode = JSDomNode
+data JSObject = JSObject
 
 -- Requires that the input array be uniform (all members have the same type)
 toList : JSArray a -> [a]

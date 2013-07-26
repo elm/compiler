@@ -3,9 +3,12 @@
 
 module Json where
 
+import Dict (Dict)
 import Dict as Dict
+import Maybe (Maybe)
 import JavaScript as JS
 import Native.Json as Native
+import JavaScript (JSObject, JSString)
 
 -- This datatype can represent all valid values that can be held in a JSON
 -- object. In Elm, a proper JSON object is represented as a (Dict String JsonValue)
@@ -31,6 +34,7 @@ toString sep v = JS.toString (Native.toJSString sep v)
 -- Note that the type JSString seen here is not the same as the type constructor
 -- JsonString used elsewhere in this module.
 toJSString : String -> JsonValue -> JSString
+toJSString = Native.toJSString
 
 -- Parse a string representation of a proper JSON object into
 -- its Elm representation.
@@ -40,9 +44,11 @@ fromString s = Native.fromJSString (JS.fromString s)
 -- Parse a JavaScript string representation of a proper JSON object into
 -- its Elm representation.
 fromJSString : JSString -> Maybe JsonValue
+fromJSString = Native.fromJSString
 
 -- Convert a JS object into a `JsonValue`.
 fromJSObject : JSObject -> JsonValue
+fromJSObject = Native.fromJSObject
 
 -- Convert a `JsonValue` into a `JSObject`. Paired with the
 -- [`JavaScript.Experimental` library](/docs/JavaScript/Experimental.elm),
@@ -55,6 +61,7 @@ fromJSObject : JSObject -> JsonValue
 --             Just jsonValue -> Just (JS.toRecord (toJSObject jsonValue))
 --             Nothing -> Nothing
 toJSObject : JsonValue -> JSObject
+toJSObject = Native.toJSObject
 
  {-- Extract Elm values from Json values
 
