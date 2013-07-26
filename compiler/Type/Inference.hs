@@ -8,7 +8,7 @@ import qualified Type.Constrain.Expression as TcExpr
 import qualified Type.Constrain.Declaration as TcDecl
 import qualified Type.Solve as Solve
 
-import SourceSyntax.Module
+import SourceSyntax.Module as Module
 import qualified SourceSyntax.Expression as Expr
 import SourceSyntax.PrettyPrint
 import Text.PrettyPrint
@@ -23,8 +23,9 @@ import System.IO.Unsafe  -- Possible to switch over to the ST monad instead of
 
 infer :: Interfaces -> MetadataModule t v -> Either [Doc] (Map.Map String T.Variable)
 infer interfaces' modul = unsafePerformIO $ do
-  let localImports = Map.fromList (imports modul)
-      interfaces = Map.intersectionWithKey canonicalize localImports interfaces'
+  let insert (name,method) dict = Map.insertWith (++) name [method] dict
+      localImports = foldr insert Map.empty (imports modul)
+      interfaces = Map.intersectionWithKey Module.canonicalize localImports interfaces'
 
 --  mapM print (concatMap iAdts (Map.elems interfaces))
 
@@ -33,20 +34,11 @@ infer interfaces' modul = unsafePerformIO $ do
                do (_, vars, args, result) <- Env.freshDataScheme env name
                   return (name, (vars, foldr (T.==>) result args))
 
-  let locals = Map.intersectionWithKey combine localImports interfaces
-      combine name importMethod interface =
-          let tipes = iTypes interface in
-          case importMethod of
-            As alias -> Map.mapKeys (\v -> alias ++ "." ++ v) tipes
-            Hiding hidens -> foldr Map.delete tipes hidens
-            Importing visibles ->
-                Map.intersection tipes (Map.fromList [ (v,()) | v <- visibles ])
-
 --  mapM print (map Map.toList $ Map.elems locals)
 --  mapM print (imports modul)
 
   importedVars <-
-      forM (concatMap Map.toList $ Map.elems locals) $ \(name,tipe) ->
+      forM (concatMap (Map.toList . iTypes) $ Map.elems interfaces) $ \(name,tipe) ->
           (,) name `fmap` Env.instantiateType env tipe Map.empty
 
   let allTypes = ctors ++ importedVars

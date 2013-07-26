@@ -51,25 +51,41 @@ instance Binary ModuleInterface where
   get = ModuleInterface <$> get <*> get
 
 
-canonicalize :: String -> ImportMethod -> ModuleInterface -> ModuleInterface
-canonicalize prefix importMethod interface =
-    let addPrefix name = prefix ++ "." ++ name
+canonicalize :: String -> [ImportMethod] -> ModuleInterface -> ModuleInterface
+canonicalize prefix importMethods interface =
+    ModuleInterface { iTypes = Map.unions (map iTypes ifaces)
+                    , iAdts = concatMap iAdts ifaces }
+  where
+    ifaces = map (canonicalizeHelp prefix interface) importMethods
 
-        newName (tipe,_,_) =
-            case importMethod of
-              As name -> (tipe, name ++ "." ++ tipe)
-              Hiding vs -> (tipe, if tipe `elem` vs then addPrefix tipe else tipe)
-              Importing vs -> (tipe, if tipe `elem` vs then tipe else addPrefix tipe)
-        newNames = Map.fromList . map newName $ iAdts interface
 
-        rename name = Map.findWithDefault name name newNames
+canonicalizeHelp :: String -> ModuleInterface -> ImportMethod -> ModuleInterface
+canonicalizeHelp prefix interface importMethod =
+    ModuleInterface {
+      iTypes = renameNames $ Map.map (renameType rename) (iTypes interface),
+      iAdts = map renameADT (iAdts interface)
+    }
+  where
+    addPrefix name = prefix ++ "." ++ name
 
-        renameADT (name, tvars, ctors) =
-            (rename name, tvars, map (second (map (renameType rename))) ctors)
-    in  ModuleInterface {
-              iTypes = Map.map (renameType rename) (iTypes interface),
-              iAdts = map renameADT (iAdts interface)
-            }
+    newName (tipe,_,_) =
+        case importMethod of
+          As name -> (tipe, name ++ "." ++ tipe)
+          Hiding vs -> (tipe, if tipe `elem` vs then addPrefix tipe else tipe)
+          Importing vs -> (tipe, if tipe `elem` vs then tipe else addPrefix tipe)
+    newNames = Map.fromList . map newName $ iAdts interface
+
+    rename name = Map.findWithDefault name name newNames
+
+    renameADT (name, tvars, ctors) =
+        (rename name, tvars, map (second (map (renameType rename))) ctors)
+
+    renameNames tipes =
+        case importMethod of
+          As alias -> Map.mapKeys (\v -> alias ++ "." ++ v) tipes
+          Hiding hidens -> foldr Map.delete tipes hidens
+          Importing visibles ->
+              Map.intersection tipes (Map.fromList [ (v,()) | v <- visibles ])
 
 renameType :: (String -> String) -> Type -> Type
 renameType find tipe =
