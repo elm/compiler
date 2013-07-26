@@ -4,8 +4,9 @@
 -- it can be used.
 module Automaton where
 
+import open Basics
 import Signal (lift,foldp)
-import List (reverse)
+import open List
 import Maybe (Just, Nothing)
 
 data Automaton a b = Step (a -> (Automaton a b, b))
@@ -15,7 +16,7 @@ data Automaton a b = Step (a -> (Automaton a b, b))
 run : Automaton a b -> b -> Signal a -> Signal b
 run auto base inputs =
   let step a (Step f, _) = f a
-  in  lift (\(x,y) -> y) <| foldp step (auto,base) inputs
+  in  lift (\(x,y) -> y) (foldp step (auto,base) inputs)
 
 -- Step an automaton forward once with a given input.
 step : a -> Automaton a b -> (Automaton a b, b)
@@ -35,7 +36,7 @@ g <<< f = f >>> g
 -- Combine a list of automatons into a single automaton that produces a list.
 combine : [Automaton a b] -> Automaton a [b]
 combine autos =
-  Step (\a -> let (autos', bs) = unzip $ map (step a) autos
+  Step (\a -> let (autos', bs) = unzip (map (step a) autos)
               in  (combine autos', bs))
 
 -- Create an automaton with no memory. It just applies the given function to

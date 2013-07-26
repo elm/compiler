@@ -1,6 +1,7 @@
 -- Library for working with time. Type `Time` represents some number of milliseconds.
 module Time where
 
+import open Basics
 import Native.Time as Native
 
 -- Type alias to make it clearer when you are working with time values.
