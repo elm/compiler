@@ -39,10 +39,11 @@ data MetadataModule t v = MetadataModule {
 }
 
 type Interfaces = Map.Map String ModuleInterface
+type ADT = (String, [String], [(String,[Type])])
 
 data ModuleInterface = ModuleInterface {
     iTypes :: Map.Map String Type,
-    iAdts  :: [(String, [String], [(String,[Type])])]
+    iAdts  :: [ADT]
 } deriving Show
 
 instance Binary ModuleInterface where

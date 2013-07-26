@@ -10,6 +10,7 @@ import Data.List (isPrefixOf)
 import qualified Data.UnionFind.IO as UF
 
 import qualified SourceSyntax.Type as Src
+import SourceSyntax.Module (ADT)
 import Type.Type
 
 data Environment = Environment {
@@ -18,17 +19,17 @@ data Environment = Environment {
   value :: Map.Map String Type
 }
 
-initialEnvironment :: [(String, [String], [(String,[Src.Type])])] -> IO Environment
+initialEnvironment :: [ADT] -> IO Environment
 initialEnvironment datatypes = do
     types <- makeTypes datatypes
 
     return $ Environment {
-      constructor = makeConstructors types,
+      constructor = makeConstructors types datatypes,
       types = types,
       value = Map.empty
     }
 
-makeTypes :: [(String, [String], [(String, [Src.Type])])] -> IO (Map.Map String Type)
+makeTypes :: [ADT] -> IO (Map.Map String Type)
 makeTypes datatypes = 
     Map.fromList <$> mapM makeCtor (builtins ++ map nameAndKind datatypes)
   where
@@ -44,17 +45,18 @@ makeTypes datatypes =
 
     builtins :: [(String,Int)]
     builtins = concat [ map tuple [0..9]
-                      , kind 1 ["_List","Maybe","Signal"]
+                      , kind 1 ["_List","Signal"]
                       , kind 0 ["Int","Float","Char","Bool","Element","Text"
-                               ,"Color","Order","Matrix2D"]
+                               ,"Color","Order"]
                       ]
 
 
-makeConstructors :: Map.Map String Type -> Map.Map String (IO (Int, [Variable], [Type], Type))
-makeConstructors types = Map.fromList builtins
+makeConstructors :: Map.Map String Type
+                 -> [ADT]
+                 -> Map.Map String (IO (Int, [Variable], [Type], Type))
+makeConstructors types datatypes = Map.fromList builtins
   where
     list  t = (types ! "_List") <| t
-    maybe t = (types ! "Maybe") <| t
 
     inst :: Int -> ([Type] -> ([Type], Type)) -> IO (Int, [Variable], [Type], Type)
     inst numTVars tipe = do
@@ -67,11 +69,28 @@ makeConstructors types = Map.fromList builtins
         in  (name, inst n $ \vs -> (vs, foldl (<|) (types ! name) vs))
     
     builtins :: [ (String, IO (Int, [Variable], [Type], Type)) ]
-    builtins = [ ("Nothing", inst 1 $ \ [t] -> ([], maybe t))
-               , ("Just"   , inst 1 $ \ [t] -> ([t], maybe t))
-               , ("[]"     , inst 1 $ \ [t] -> ([], list t))
+    builtins = [ ("[]"     , inst 1 $ \ [t] -> ([], list t))
                , ("::"     , inst 1 $ \ [t] -> ([t, list t], list t))
                ] ++ map tupleCtor [0..9]
+                 ++ concatMap (ctorToType tempEnv) datatypes
+
+    tempEnv = Environment { types = types, constructor = Map.empty, value = Map.empty }
+
+ctorToType :: Environment -> ADT -> [ (String, IO (Int, [Variable], [Type], Type)) ]
+ctorToType env (name, tvars, ctors) =
+    zip (map fst ctors) (map inst ctors)
+  where
+    inst :: (String, [Src.Type]) -> IO (Int, [Variable], [Type], Type)
+    inst ctor = do
+      ((args, tipe), dict) <- State.runStateT (go ctor) Map.empty
+      return (length args, Map.elems dict, args, tipe)
+      
+
+    go :: (String, [Src.Type]) -> State.StateT (Map.Map String Variable) IO ([Type], Type)
+    go (ctor, args) = do
+      types <- mapM (instantiator env) args
+      returnType <- instantiator env (Src.Data name (map Src.Var tvars))
+      return (types, returnType)
 
 
 get :: Environment -> (Environment -> Map.Map String a) -> String -> a
@@ -93,8 +112,11 @@ instantiateTypeWithContext :: Environment
                            -> Map.Map String Variable
                            -> IO ([Variable], Type)
 instantiateTypeWithContext env sourceType dict =
-  do (tipe, dict') <- State.runStateT (go sourceType) dict
+  do (tipe, dict') <- State.runStateT (instantiator env sourceType) dict
      return (Map.elems dict', tipe)
+
+instantiator :: Environment -> Src.Type -> State.StateT (Map.Map String Variable) IO Type
+instantiator env sourceType = go sourceType
   where
     go :: Src.Type -> State.StateT (Map.Map String Variable) IO Type
     go sourceType =
