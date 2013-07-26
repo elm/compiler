@@ -13,7 +13,7 @@ data Type = Lambda Type Type
           | Var String
           | Data String [Type]
           | EmptyRecord
-          | Record (Map.Map String [Type]) Type
+          | Record [(String,Type)] Type
             deriving (Eq, Show, Data, Typeable)
 
 fieldMap :: [(String,Type)] -> Map.Map String [Type]
@@ -21,7 +21,7 @@ fieldMap fields =
     foldl (\r (x,t) -> Map.insertWith (++) x [t] r) Map.empty fields
 
 recordOf :: [(String,Type)] -> Type
-recordOf fields = Record (fieldMap fields) EmptyRecord
+recordOf fields = Record fields EmptyRecord
 
 listOf :: Type -> Type
 listOf t = Data "_List" [t]
@@ -43,8 +43,8 @@ instance Pretty Type where
       EmptyRecord -> P.braces P.empty
       Record fields ext -> P.braces $ P.hang (pretty ext <+> P.text "|") 4 prettyFields
           where
-            prettyField (f,ts) = map (\t -> P.text f <+> P.text ":" <+> pretty t) ts
-            prettyFields = commaSep . concatMap prettyField $ Map.toList fields
+            prettyField (f,t) = P.text f <+> P.text ":" <+> pretty t
+            prettyFields = commaSep . map prettyField $ fields
 
 collectLambdas tipe =
   case tipe of

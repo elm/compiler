@@ -29,7 +29,7 @@ record =
      ext <- extend
      fs <- fields
      dumbWhitespace ; char '}'
-     return (T.Record (fieldMap fs) ext)
+     return (T.Record fs ext)
   where
     extend = option T.EmptyRecord . try $ do
                t <- tvar

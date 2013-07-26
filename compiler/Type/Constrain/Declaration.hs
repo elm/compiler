@@ -23,14 +23,28 @@ toDefs decl =
     Datatype name tvars constructors -> concatMap toDefs constructors
       where
         toDefs (ctor, tipes) =
-            let vars = take (length tipes) $ map (:[]) ['a'..'z'] ++ map (\n -> "_" ++ show n) [1..]
-                loc = Src.none
-                body = loc . Src.Data ctor $ map (loc . Src.Var) vars
-            in  [ Src.TypeAnnotation ctor $
-                      foldr Type.Lambda (Type.Data name $ map Type.Var tvars) tipes
-                , Src.Def (Src.PVar ctor) $
-                      foldr (\p e -> loc $ Src.Lambda p e) body (map Src.PVar vars)
+            let vars = take (length tipes) arguments
+                tbody = Type.Data name $ map Type.Var tvars
+                body = Src.none . Src.Data ctor $ map (Src.none . Src.Var) vars
+            in  [ Src.TypeAnnotation ctor $ foldr Type.Lambda tbody tipes
+                , Src.Def (Src.PVar ctor) $ buildFunction body vars
                 ]
+
+    TypeAlias name tvars tipe@(Type.Record fields ext) ->
+        [ Src.TypeAnnotation name $ foldr Type.Lambda tipe args
+        , Src.Def (Src.PVar name) $ buildFunction record vars ]
+      where
+        args = case ext of
+                 Type.EmptyRecord -> map snd fields
+                 _ -> map snd fields ++ [ext]
+
+        var = Src.none . Src.Var
+        vars = take (length args) arguments
+
+        efields = zip (map fst fields) (map var vars)
+        record = Src.none $ case ext of
+                              Type.EmptyRecord -> Src.Record efields
+                              _ -> Src.Modify (var $ last vars) efields
 
     -- Type aliases must be added to an extended equality dictionary,
     -- but they do not require any basic constraints.
@@ -45,3 +59,10 @@ toDefs decl =
 
     -- no constraints are needed for fixity declarations
     Fixity _ _ _ -> []
+
+
+arguments :: [String]
+arguments = map (:[]) ['a'..'z'] ++ map (\n -> "_" ++ show n) [1..]
+
+buildFunction body vars =
+    foldr (\p e -> Src.none (Src.Lambda p e)) body (map Src.PVar vars)

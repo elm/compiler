@@ -160,4 +160,4 @@ instantiator env sourceType = go sourceType
         Src.EmptyRecord -> return (TermN EmptyRecord1)
 
         Src.Record fields ext ->
-          TermN <$> (Record1 <$> Traverse.traverse (mapM go) fields <*> go ext)
+          TermN <$> (Record1 <$> Traverse.traverse (mapM go) (Src.fieldMap fields) <*> go ext)

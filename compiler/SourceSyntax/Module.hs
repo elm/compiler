@@ -98,4 +98,4 @@ renameType find tipe =
       Var x -> Var x
       Data name ts -> Data (find name) (map rnm ts)
       EmptyRecord -> EmptyRecord
-      Record fields ext -> Record (Map.map (map rnm) fields) (rnm ext)
+      Record fields ext -> Record (map (second rnm) fields) (rnm ext)
