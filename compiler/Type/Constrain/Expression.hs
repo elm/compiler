@@ -185,7 +185,7 @@ constrainDef env info (pattern, expr, maybeTipe) =
           do flexiVars <- mapM (\_ -> var Flexible) qs
              let inserts = zipWith (\arg typ -> Map.insert arg (VarN typ)) qs flexiVars
                  env' = env { Env.value = List.foldl' (\x f -> f x) (Env.value env) inserts }
-             (vars, typ) <- Env.instantiateTypeWithContext env tipe Map.empty
+             (vars, typ) <- Env.instantiateType env tipe Map.empty
              let scheme = Scheme { rigidQuantifiers = [],
                                    flexibleQuantifiers = flexiVars ++ vars,
                                    constraint = CTrue,

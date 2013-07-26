@@ -102,16 +102,9 @@ get env subDict key = Map.findWithDefault err key (subDict env)
 freshDataScheme :: Environment -> String -> IO (Int, [Variable], [Type], Type)
 freshDataScheme env name = get env constructor name
 
-
-instantiateType :: Environment -> Src.Type -> IO Type
-instantiateType env sourceType =
-    snd <$> instantiateTypeWithContext env sourceType Map.empty
-
-instantiateTypeWithContext :: Environment
-                           -> Src.Type
-                           -> Map.Map String Variable
-                           -> IO ([Variable], Type)
-instantiateTypeWithContext env sourceType dict =
+instantiateType ::
+    Environment -> Src.Type -> Map.Map String Variable -> IO ([Variable], Type)
+instantiateType env sourceType dict =
   do (tipe, dict') <- State.runStateT (instantiator env sourceType) dict
      return (Map.elems dict', tipe)
 

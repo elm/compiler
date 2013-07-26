@@ -47,7 +47,7 @@ infer interfaces' modul = unsafePerformIO $ do
 
   importedVars <-
       forM (concatMap Map.toList $ Map.elems locals) $ \(name,tipe) ->
-          (,) name `fmap` Env.instantiateTypeWithContext env tipe Map.empty
+          (,) name `fmap` Env.instantiateType env tipe Map.empty
 
   let allTypes = ctors ++ importedVars
       vars = concatMap (fst . snd) allTypes
