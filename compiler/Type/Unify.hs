@@ -2,6 +2,7 @@ module Type.Unify (unify) where
 
 import Type.Type
 import qualified Data.UnionFind.IO as UF
+import qualified Data.Map as Map
 import qualified Type.State as TS
 import Control.Arrow (first,second)
 import Control.Monad.State
@@ -121,8 +122,23 @@ actuallyUnify variable1 variable2 = do
           (EmptyRecord1, EmptyRecord1) ->
               return ()
 
-          (Record1 fields1 ext1, Record1 fields2 ext2) ->
-              TS.addError "did not write record unification yet" variable1 variable2
+          (Record1 fields ext, EmptyRecord1) | Map.null fields -> unify ext variable2
+          (EmptyRecord1, Record1 fields ext) | Map.null fields -> unify ext variable1
 
-          _ -> TS.addError "could not unify types" variable1 variable2
+          (Record1 fields1 ext1, Record1 fields2 ext2) ->
+              do sequence . concat . Map.elems $ Map.intersectionWith (zipWith unify) fields1 fields2
+                 record1' <- liftIO $ (structuredVar . Record1 fields1') =<< var Flexible
+                 record2' <- liftIO $ (structuredVar . Record1 fields2') =<< var Flexible
+                 unify record1' ext2
+                 unify ext1 record2'
+              where
+                fields1' = unmerged fields1 fields2
+                fields2' = unmerged fields2 fields1
+
+                unmerged a b = Map.filter (not . null) $ Map.unionWith eat a b
+
+                eat (x:xs) (y:ys) = eat xs ys
+                eat xs ys = xs
+
+          _ -> TS.addError "The following types are not equal" variable1 variable2
 

@@ -112,6 +112,15 @@ var flex = UF.fresh $ Descriptor {
     mark = noMark
   }
 
+structuredVar structure = UF.fresh $ Descriptor {
+    structure = Just structure,
+    rank = noRank,
+    flex = Flexible,
+    name = Nothing,
+    copy = Nothing,
+    mark = noMark
+  }
+
 
 -- ex qs constraint == exists qs. constraint
 ex :: [Variable] -> TypeConstraint -> TypeConstraint
@@ -158,9 +167,11 @@ instance PrettyType a => PrettyType (Term1 a) where
 
       EmptyRecord1 -> P.braces P.empty
 
-      Record1 fields ext ->
-          P.braces (prty ext <+> P.text "|" <+> commaSep prettyFields)
+      Record1 fields ext -> P.braces (extend <+> commaSep prettyFields)
         where
+          prettyExt = prty ext
+          extend | P.render prettyExt == "{}" = P.empty
+                 | otherwise = prettyExt <+> P.text "|"
           mkPretty f t = P.text f <+> P.text ":" <+> prty t
           prettyFields = concatMap (\(f,ts) -> map (mkPretty f) ts) (Map.toList fields)
 
