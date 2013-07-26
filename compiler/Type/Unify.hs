@@ -127,19 +127,25 @@ actuallyUnify variable1 variable2 = do
 
           (Record1 fields1 ext1, Record1 fields2 ext2) ->
               do sequence . concat . Map.elems $ Map.intersectionWith (zipWith unify) fields1 fields2
-                 record1' <- liftIO $ (structuredVar . Record1 fields1') =<< var Flexible
-                 record2' <- liftIO $ (structuredVar . Record1 fields2') =<< var Flexible
+                 let mkRecord fs ext = liftIO . structuredVar $ Record1 fs ext
                  case (Map.null fields1', Map.null fields2') of
                    (True , True ) -> unify ext1 ext2
-                   (True , False) -> unify ext1 record2'
-                   (False, True ) -> unify record1' ext2
-                   (False, False) -> do unify ext1 record2'
-                                        unify record1' ext2
+                   (True , False) -> do
+                      record2' <- mkRecord fields2' ext2
+                      unify ext1 record2'
+                   (False, True ) -> do
+                      record1' <- mkRecord fields1' ext1
+                      unify record1' ext2
+                   (False, False) -> do
+                      record1' <- mkRecord fields1' =<< liftIO (var Flexible)
+                      record2' <- mkRecord fields2' =<< liftIO (var Flexible)
+                      unify record1' ext2
+                      unify ext1 record2'
               where
                 fields1' = unmerged fields1 fields2
                 fields2' = unmerged fields2 fields1
 
-                unmerged a b = Map.filter (not . null) $ Map.unionWith eat a b
+                unmerged a b = Map.filter (not . null) $ Map.union (Map.intersectionWith eat a b) a
 
                 eat (x:xs) (y:ys) = eat xs ys
                 eat xs ys = xs
