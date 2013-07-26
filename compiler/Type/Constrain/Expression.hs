@@ -108,31 +108,24 @@ constrain env (L _ _ expr) tipe =
 
       Modify e fields ->
           exists $ \t -> do
-              dummyFields <- Map.fromList <$> mapM dummyField fields
-              cOld <- constrain env e (record dummyFields t)
-              (fieldTypes, constraints) <- unzip <$> mapM field fields
-              let cNew = tipe === record (Map.fromList fieldTypes) t
-              return (CAnd (cOld : cNew : constraints))
-          where
-            dummyField (label, _) = do
-                v <- var Flexible -- needs an ex
-                return (label, [VarN v])
+              oldVars <- forM fields $ \_ -> var Flexible
+              let oldFields = SrcT.fieldMap (zip (map fst fields) (map VarN oldVars))
+              cOld <- ex oldVars <$> constrain env e (record oldFields t)
 
-            field (label, value) = do
-                v <- var Flexible -- needs an ex
-                c <- ex [v] <$> constrain env value (VarN v)
-                return ((label, [VarN v]), c)
+              newVars <- forM fields $ \_ -> var Flexible
+              let newFields = SrcT.fieldMap (zip (map fst fields) (map VarN newVars))
+              let cNew = tipe === record newFields t
+
+              cs <- zipWithM (constrain env) (map snd fields) (map VarN newVars)
+
+              return $ cOld /\ ex newVars (CAnd (cNew : cs))
 
       Record fields ->
-          do (pairs, cs) <- unzip <$> mapM field fields
-             let fieldTypes = Map.fromList (map (second (\t -> [VarN t])) pairs)
-                 recordType = record fieldTypes (TermN EmptyRecord1)
-             return $ ex (map snd pairs) (CAnd (tipe === recordType : cs))
-          where
-            field (name, body) = do
-                v <- var Flexible -- needs an ex
-                c <- constrain env body (VarN v)
-                return ((name, v), c)
+          do vars <- forM fields $ \_ -> var Flexible
+             cs <- zipWithM (constrain env) (map snd fields) (map VarN vars)
+             let fields' = SrcT.fieldMap (zip (map fst fields) (map VarN vars))
+                 recordType = record fields' (TermN EmptyRecord1)
+             return . ex vars $ CAnd (tipe === recordType : cs)
 
       Markdown _ ->
           return $ tipe === Env.get env Env.types "Element"

@@ -16,7 +16,7 @@ data Type = Lambda Type Type
           | Record [(String,Type)] Type
             deriving (Eq, Show, Data, Typeable)
 
-fieldMap :: [(String,Type)] -> Map.Map String [Type]
+fieldMap :: [(String,a)] -> Map.Map String [a]
 fieldMap fields =
     foldl (\r (x,t) -> Map.insertWith (++) x [t] r) Map.empty fields
 

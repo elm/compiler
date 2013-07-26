@@ -25,6 +25,7 @@ data TermN a
     | TermN (Term1 (TermN a))
     deriving Show
 
+record :: Map.Map String [TermN a] -> TermN a -> TermN a
 record fs rec = TermN (Record1 fs rec)
 
 type Type = TermN Variable
