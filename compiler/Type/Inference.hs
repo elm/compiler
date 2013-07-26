@@ -29,7 +29,9 @@ infer interfaces' modul = unsafePerformIO $ do
 
 --  mapM print (concatMap iAdts (Map.elems interfaces))
 
-  env <- Env.initialEnvironment (datatypes modul ++ concatMap iAdts (Map.elems interfaces)) (aliases modul)
+  env <- Env.initialEnvironment
+             (datatypes modul ++ concatMap iAdts (Map.elems interfaces))
+             (aliases modul ++ concatMap iAliases (Map.elems interfaces))
   ctors <- forM (Map.keys (Env.constructor env)) $ \name ->
                do (_, vars, args, result) <- Env.freshDataScheme env name
                   return (name, (vars, foldr (T.==>) result args))
