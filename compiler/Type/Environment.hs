@@ -13,23 +13,29 @@ import qualified SourceSyntax.Type as Src
 import SourceSyntax.Module (ADT)
 import Type.Type
 
+type TypeDict = Map.Map String Type
+type VarDict = Map.Map String Variable
+
 data Environment = Environment {
   constructor :: Map.Map String (IO (Int, [Variable], [Type], Type)),
-  types :: Map.Map String Type,
-  value :: Map.Map String Type
+  aliases :: Map.Map String ([String], Src.Type),
+  types :: TypeDict,
+  value :: TypeDict
 }
 
-initialEnvironment :: [ADT] -> IO Environment
-initialEnvironment datatypes = do
+initialEnvironment :: [ADT] -> [(String, [String], Src.Type)] -> IO Environment
+initialEnvironment datatypes aliases = do
     types <- makeTypes datatypes
+    let aliases' = Map.fromList $ map (\(a,b,c) -> (a,(b,c))) aliases
+        env = Environment {
+                constructor = Map.empty,
+                value = Map.empty,
+                types = types,
+                aliases = aliases' }
 
-    return $ Environment {
-      constructor = makeConstructors types datatypes,
-      types = types,
-      value = Map.empty
-    }
+    return $ env { constructor = makeConstructors env datatypes }
 
-makeTypes :: [ADT] -> IO (Map.Map String Type)
+makeTypes :: [ADT] -> IO TypeDict
 makeTypes datatypes = 
     Map.fromList <$> mapM makeCtor (builtins ++ map nameAndKind datatypes)
   where
@@ -51,12 +57,12 @@ makeTypes datatypes =
                       ]
 
 
-makeConstructors :: Map.Map String Type
+makeConstructors :: Environment
                  -> [ADT]
                  -> Map.Map String (IO (Int, [Variable], [Type], Type))
-makeConstructors types datatypes = Map.fromList builtins
+makeConstructors env datatypes = Map.fromList builtins
   where
-    list  t = (types ! "_List") <| t
+    list t = (types env ! "_List") <| t
 
     inst :: Int -> ([Type] -> ([Type], Type)) -> IO (Int, [Variable], [Type], Type)
     inst numTVars tipe = do
@@ -66,15 +72,14 @@ makeConstructors types datatypes = Map.fromList builtins
 
     tupleCtor n =
         let name = "_Tuple" ++ show n
-        in  (name, inst n $ \vs -> (vs, foldl (<|) (types ! name) vs))
+        in  (name, inst n $ \vs -> (vs, foldl (<|) (types env ! name) vs))
     
     builtins :: [ (String, IO (Int, [Variable], [Type], Type)) ]
     builtins = [ ("[]"     , inst 1 $ \ [t] -> ([], list t))
                , ("::"     , inst 1 $ \ [t] -> ([t, list t], list t))
                ] ++ map tupleCtor [0..9]
-                 ++ concatMap (ctorToType tempEnv) datatypes
+                 ++ concatMap (ctorToType env) datatypes
 
-    tempEnv = Environment { types = types, constructor = Map.empty, value = Map.empty }
 
 ctorToType :: Environment -> ADT -> [ (String, IO (Int, [Variable], [Type], Type)) ]
 ctorToType env (name, tvars, ctors) =
@@ -82,11 +87,11 @@ ctorToType env (name, tvars, ctors) =
   where
     inst :: (String, [Src.Type]) -> IO (Int, [Variable], [Type], Type)
     inst ctor = do
-      ((args, tipe), dict) <- State.runStateT (go ctor) Map.empty
+      ((args, tipe), (dict,_)) <- State.runStateT (go ctor) (Map.empty, Map.empty)
       return (length args, Map.elems dict, args, tipe)
       
 
-    go :: (String, [Src.Type]) -> State.StateT (Map.Map String Variable) IO ([Type], Type)
+    go :: (String, [Src.Type]) -> State.StateT (VarDict, TypeDict) IO ([Type], Type)
     go (ctor, args) = do
       types <- mapM (instantiator env) args
       returnType <- instantiator env (Src.Data name (map Src.Var tvars))
@@ -96,46 +101,61 @@ ctorToType env (name, tvars, ctors) =
 get :: Environment -> (Environment -> Map.Map String a) -> String -> a
 get env subDict key = Map.findWithDefault err key (subDict env)
   where
-    err = error $ "Could not find '" ++ key ++ "' in the type environment."
+    err = error $ "Could not find type constructor '" ++ key ++ "' while checking types."
 
 
 freshDataScheme :: Environment -> String -> IO (Int, [Variable], [Type], Type)
 freshDataScheme env name = get env constructor name
 
 instantiateType ::
-    Environment -> Src.Type -> Map.Map String Variable -> IO ([Variable], Type)
+    Environment -> Src.Type -> VarDict -> IO ([Variable], Type)
 instantiateType env sourceType dict =
-  do (tipe, dict') <- State.runStateT (instantiator env sourceType) dict
+  do (tipe, (dict',_)) <- State.runStateT (instantiator env sourceType) (dict, Map.empty)
      return (Map.elems dict', tipe)
 
-instantiator :: Environment -> Src.Type -> State.StateT (Map.Map String Variable) IO Type
+instantiator :: Environment -> Src.Type
+             -> State.StateT (VarDict, TypeDict) IO Type
 instantiator env sourceType = go sourceType
   where
-    go :: Src.Type -> State.StateT (Map.Map String Variable) IO Type
+    go :: Src.Type -> State.StateT (VarDict, TypeDict) IO Type
     go sourceType =
       case sourceType of
         Src.Lambda t1 t2 -> (==>) <$> go t1 <*> go t2
 
         Src.Var x -> do
-          dict <- State.get
+          (dict, aliases) <- State.get
           case Map.lookup x dict of
             Just var -> return (VarN var)
             Nothing ->
-                do var <- State.liftIO $ namedVar flex x
-                   State.put (Map.insert x var dict)
-                   return (VarN var)
-                where
-                  flex | "number"     `isPrefixOf` x = Is Number
-                       | "comparable" `isPrefixOf` x = Is Comparable
-                       | "appendable" `isPrefixOf` x = Is Appendable
-                       | otherwise = Flexible
+                case Map.lookup x aliases of
+                  Just t -> return t
+                  Nothing ->
+                    do var <- State.liftIO $ namedVar flex x
+                       State.put (Map.insert x var dict, aliases)
+                       return (VarN var)
+                    where
+                      flex | "number"     `isPrefixOf` x = Is Number
+                           | "comparable" `isPrefixOf` x = Is Comparable
+                           | "appendable" `isPrefixOf` x = Is Appendable
+                           | otherwise = Flexible
 
         Src.Data "String" [] ->
             return (get env types "_List" <| get env types "Char")
 
         Src.Data name ts -> do
           ts' <- mapM go ts
-          return $ foldl (<|) (get env types name) ts'
+          case Map.lookup name (types env) of
+            Just t -> return $ foldl (<|) t ts'
+            Nothing ->
+                case Map.lookup name (aliases env) of
+                  Nothing -> error $ "Could not find type constructor '" ++ name ++ "' while checking types."
+                  Just (tvars, t) ->
+                      let msg = "Type alias '" ++ name ++ "' expects " ++ show (length tvars) ++
+                                " but was given " ++ show (length ts')
+                      in  if length ts' /= length tvars then error msg else
+                              do (dict, aliases) <- State.get
+                                 State.put (dict, Map.union aliases . Map.fromList $ zip tvars ts')
+                                 go t
 
         Src.EmptyRecord -> return (TermN EmptyRecord1)
 
