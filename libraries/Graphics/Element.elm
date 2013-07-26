@@ -12,11 +12,12 @@ module Graphics.Element (widthOf, heightOf, sizeOf,
                          spacer, newElement
                         ) where
 
-import Native.Utils (guid, max, htmlHeight)
-import JavaScript as JS
+import open Basics
+import Native.Utils as Native
+import open JavaScript
 import List as List
-import Color
-import Maybe (Just, Nothing)
+import Color (Color)
+import Maybe (Maybe, Just, Nothing)
 
 type Properties = {
   id      : Int,
@@ -45,18 +46,18 @@ sizeOf e = (e.props.width, e.props.height)
 
 -- Create an `Element` with a given width.
 width : Int -> Element -> Element
-width  nw e = let p = e.props
-                  props = case e.element of
-                            Image _ w h _ -> {p| height <- h/w*nw }
-                            RawHtml html -> {p| height <- let (w,h) = htmlHeight nw html in h}
-                            _ -> p
-              in { element=e.element, props={props| width <- nw} }
+width nw e = let p = e.props
+                 props = case e.element of
+                           Image _ w h _ -> {p| height <- h `div` w * nw }
+                           RawHtml html -> {p| height <- let (w,h) = Native.htmlHeight nw html in h}
+                           _ -> p
+             in { element=e.element, props={ props | width <- nw } }
 
 -- Create an `Element` with a given height.
 height : Int -> Element -> Element
 height nh e = let p = e.props
                   props = case e.element of
-                            Image _ w h _ -> {p| width <- w/h*nh }
+                            Image _ w h _ -> {p| width <- w `div` h * nh }
                             _ -> p
               in { element=e.element, props={p| height  <- nh} }
 
@@ -71,24 +72,26 @@ opacity o e = let p = e.props in { element=e.element, props={p| opacity <- o} }
 
 -- Create an `Element` with a given background color.
 color : Color -> Element -> Element
-color   c e = let p = e.props in
-              { element=e.element, props={p| color <- Just c} }
+color c e = let p = e.props in
+            { element = e.element
+            , props = { p | color <- Just c}
+            }
 
 -- Create an `Element` with a tag. This lets you link directly to it.
 -- The element `(tag "all-about-badgers" thirdParagraph)` can be reached
 -- with a link lik this: `/facts-about-animals.elm#all-about-badgers`
 tag : String -> Element -> Element
 tag  name e = let p = e.props in
-              { element=e.element, props={p| tag   <- JS.fromString name} }
+              { element=e.element, props={p | tag <- fromString name} }
 
 -- Create an `Element` that is a hyper-link.
 link : String -> Element -> Element
 link href e = let p = e.props in
-              { element=e.element, props={p| href  <- JS.fromString href} }
+              { element=e.element, props={p | href <- fromString href} }
 
-emptyStr = JS.fromString ""
+emptyStr = fromString ""
 newElement w h e =
-  { props = Properties (guid ()) w h 1 Nothing emptyStr emptyStr (), element = e }
+  { props = Properties (Native.guid ()) w h 1 Nothing emptyStr emptyStr (), element = e }
 
 data ElementPrim
   = Image ImageStyle Int Int JSString
@@ -102,12 +105,12 @@ data ImageStyle = Plain | Fitted | Cropped (Int,Int) | Tiled
 
 -- Create an image given a width, height, and image source.
 image : Int -> Int -> String -> Element
-image w h src = newElement w h (Image Plain w h (JS.fromString src))
+image w h src = newElement w h (Image Plain w h (fromString src))
 
 -- Create a fitted image given a width, height, and image source.
 -- This will crop the picture to best fill the given dimensions.
 fittedImage : Int -> Int -> String -> Element
-fittedImage w h src = newElement w h (Image Fitted w h (JS.fromString src))
+fittedImage w h src = newElement w h (Image Fitted w h (fromString src))
 
 -- Create a cropped image. Take a rectangle out of the picture starting
 -- at the given top left coordinate. If you have a 140-by-140 image,
@@ -116,11 +119,11 @@ fittedImage w h src = newElement w h (Image Fitted w h (JS.fromString src))
 --         croppedImage (20,20) 100 100 "yogi.jpg"
 croppedImage : (Int,Int) -> Int -> Int -> String -> Element
 croppedImage pos w h src =
-    newElement w h (Image (Cropped pos) w h (JS.fromString src))
+    newElement w h (Image (Cropped pos) w h (fromString src))
 
 tiledImage : Int -> Int -> String -> Element
 tiledImage w h src =
-    newElement w h (Image Tiled w h (JS.fromString src))
+    newElement w h (Image Tiled w h (fromString src))
 
 data Three = P | Z | N
 data Pos = Absolute Int | Relative Float

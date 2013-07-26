@@ -2,11 +2,11 @@
 module Graphics.Collage where
 
 import List
-import Native.Utils (toFloat)
+import Basics (toFloat)
 import Either
-import Native.Matrix2D as Matrix
-import Native.Graphics.Collage as N
-import Graphics.Element
+import Matrix2D as Matrix
+import Native.Graphics.Collage as Native
+import Graphics.Element (Element)
 import Color
 
 type Form = {
@@ -156,16 +156,17 @@ opacity a f = { f | alpha <- a }
 -- A collage is a collection of 2D forms. There are no strict positioning
 -- relationships between forms, so you are free to do all kinds of 2D graphics.
 collage : Int -> Int -> [Form] -> Element
+collage = Native.collage
 
 
 type Path = [(Float,Float)]
 
 -- Create a path that follows a sequence of points.
-path : [(Number a,Number a)] -> Path
+path : [(number,number)] -> Path
 path ps = ps
 
 -- Create a path along a given line segment.
-segment : (Number a,Number a) -> (Number a,Number a) -> Path
+segment : (number,number) -> (number,number) -> Path
 segment p1 p2 = [p1,p2]
 
 type Shape = [(Float,Float)]
@@ -173,21 +174,21 @@ type Shape = [(Float,Float)]
 -- Create an arbitrary polygon by specifying its corners in order.
 -- `polygon` will automatically close all shapes, so the given list
 -- of points does not need to start and end with the same position.
-polygon : [(Number a,Number a)] -> Shape
+polygon : [(number,number)] -> Shape
 polygon points = points
 
 -- A rectangle with a given width and height.
-rect : Number a -> Number a -> Shape
+rect : number -> number -> Shape
 rect w h = let hw = w/2
                hh = h/2
            in  [ (0-hw,0-hh), (0-hw,hh), (hw,hh), (hw,0-hh) ]
 
 -- A square with a given edge length.
-square : Number a -> Shape
+square : number -> Shape
 square n = rect n n
 
 -- An oval with a given width and height.
-oval : Number a -> Number a -> Shape
+oval : number -> number -> Shape
 oval w h =
   let n = 50
       t = 2 * Math.PI / n
@@ -197,7 +198,7 @@ oval w h =
   in  List.map f [0..n-1]
 
 -- A circle with a given radius.
-circle : Number a -> Shape
+circle : number -> Shape
 circle r = oval (2*r) (2*r)
 
 -- A regular polygon with N sides. The first argument specifies the number
@@ -205,7 +206,7 @@ circle r = oval (2*r) (2*r)
 -- 30 you would say:
 --
 --         ngon 5 30
-ngon : Int -> Number a -> Shape
+ngon : Int -> number -> Shape
 ngon n r =
   let m = toFloat n
       t = 2 * Math.PI / m
