@@ -5,7 +5,8 @@
 module Date where
 
 import Native.Date as Native
-import Time
+import Time (Time)
+import Maybe (Maybe)
 
 data Date = Date
 
