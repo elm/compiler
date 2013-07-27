@@ -1,13 +1,15 @@
 
 module Graphics.Collage where
 
+import open Basics
 import List
-import Basics (toFloat)
-import Either
-import Matrix2D as Matrix
+import Either (Either, Left, Right)
+import Matrix2D (Matrix2D, identity)
 import Native.Graphics.Collage as Native
-import Graphics.Element (Element)
-import Color
+import Graphics.Element (Element, Three, Pos, ElementPrim, Properties)
+import Color (Color, black, Gradient)
+import Maybe (Maybe)
+import JavaScript (JSString)
 
 type Form = {
   theta : Float,
@@ -49,7 +51,7 @@ type LineStyle = {
 --         { defaultLine | width <- 10 }
 defaultLine : LineStyle
 defaultLine = {
-  color = Color.black,
+  color = black,
   width = 1,
   cap   = Flat,
   join  = Sharp 10,
@@ -79,7 +81,7 @@ data BasicForm
 form : BasicForm -> Form
 form f = { theta=0, scale=1, x=0, y=0, alpha=1, form=f }
 
-fill style shape = form (FShape (Either.Right style) shape)
+fill style shape = form (FShape (Right style) shape)
 
 -- Create a filled in shape.
 filled : Color -> Shape -> Form
@@ -96,7 +98,7 @@ gradient grad shape = fill (Gradient grad) shape
 
 -- Outline a shape with a given line style.
 outlined : LineStyle -> Shape -> Form
-outlined style shape = form (FShape (Either.Left style) shape)
+outlined style shape = form (FShape (Left style) shape)
 
 -- Trace a path with a given line style.
 traced : LineStyle -> Path -> Form
@@ -116,7 +118,7 @@ toForm e = form (FElement e)
 -- Flatten many forms into a single `Form`. This lets you move and rotate them
 -- as a single unit, making it possible to build small, modular components.
 group : [Form] -> Form
-group fs = form (FGroup Matrix.identity fs)
+group fs = form (FGroup identity fs)
 
 -- Flatten many forms into a single `Form` and then apply a matrix
 -- transformation.
@@ -162,11 +164,11 @@ collage = Native.collage
 type Path = [(Float,Float)]
 
 -- Create a path that follows a sequence of points.
-path : [(number,number)] -> Path
+path : [(Float,Float)] -> Path
 path ps = ps
 
 -- Create a path along a given line segment.
-segment : (number,number) -> (number,number) -> Path
+segment : (Float,Float) -> (Float,Float) -> Path
 segment p1 p2 = [p1,p2]
 
 type Shape = [(Float,Float)]
@@ -174,31 +176,31 @@ type Shape = [(Float,Float)]
 -- Create an arbitrary polygon by specifying its corners in order.
 -- `polygon` will automatically close all shapes, so the given list
 -- of points does not need to start and end with the same position.
-polygon : [(number,number)] -> Shape
+polygon : [(Float,Float)] -> Shape
 polygon points = points
 
 -- A rectangle with a given width and height.
-rect : number -> number -> Shape
+rect : Float -> Float -> Shape
 rect w h = let hw = w/2
                hh = h/2
            in  [ (0-hw,0-hh), (0-hw,hh), (hw,hh), (hw,0-hh) ]
 
 -- A square with a given edge length.
-square : number -> Shape
+square : Float -> Shape
 square n = rect n n
 
 -- An oval with a given width and height.
-oval : number -> number -> Shape
+oval : Float -> Float -> Shape
 oval w h =
   let n = 50
-      t = 2 * Math.PI / n
+      t = 2 * pi / n
       hw = w/2
       hh = h/2
-      f i = (hw * Math.cos (t*i), hh * Math.sin (t*i))
+      f i = (hw * cos (t*i), hh * sin (t*i))
   in  List.map f [0..n-1]
 
 -- A circle with a given radius.
-circle : number -> Shape
+circle : Float -> Shape
 circle r = oval (2*r) (2*r)
 
 -- A regular polygon with N sides. The first argument specifies the number
@@ -206,9 +208,9 @@ circle r = oval (2*r) (2*r)
 -- 30 you would say:
 --
 --         ngon 5 30
-ngon : Int -> number -> Shape
+ngon : Int -> Float -> Shape
 ngon n r =
   let m = toFloat n
-      t = 2 * Math.PI / m
-      f i = ( r * Math.cos (t*i), r * Math.sin (t*i) )
-  in  List.map f [0..n-1]
+      t = 2 * pi / m
+      f i = ( r * cos (t*i), r * sin (t*i) )
+  in  List.map f [0..m-1]

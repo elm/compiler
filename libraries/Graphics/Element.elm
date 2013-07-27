@@ -9,7 +9,7 @@ module Graphics.Element (widthOf, heightOf, sizeOf,
                          midLeft, midRight, midTop, midBottom, middleAt,
                          topLeftAt, topRightAt, bottomLeftAt, bottomRightAt,
                          midLeftAt, midRightAt, midTopAt, midBottomAt,
-                         spacer, newElement
+                         spacer, newElement, Three, Pos, ElementPrim, Properties
                         ) where
 
 import open Basics

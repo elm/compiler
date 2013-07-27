@@ -4,7 +4,10 @@ module Graphics.Input where
 import Signal (lift,dropRepeats)
 import Native.Graphics.Input as Native
 import List
-import Graphics.Element (Element)
+import Graphics.Element (Element, Three, Pos, ElementPrim, Properties)
+import Color (Color)
+import Maybe (Maybe)
+import JavaScript (JSString)
 
 id x = x
 
@@ -24,7 +27,7 @@ buttons = Native.buttons
 -- a signal of units. This signal triggers whenever the button is pressed.
 button : String -> (Element, Signal ())
 button txt =
-    let pool = N.buttons ()
+    let pool = Native.buttons ()
     in  (pool.button () txt, pool.events)
 
 -- Create a group of custom buttons.
@@ -45,7 +48,7 @@ customButtons = Native.customButtons
 -- a signal of units. This signal triggers whenever the button is pressed.
 customButton : Element -> Element -> Element -> (Element, Signal ())
 customButton up hover down =
-    let pool = N.customButtons ()
+    let pool = Native.customButtons ()
     in  (pool.customButton () up hover down, pool.events)
 
 -- Create a group of checkboxes.
@@ -68,7 +71,7 @@ checkboxes = Native.checkboxes
 -- The boolean signal represents the current state of the checkbox.
 checkbox : Bool -> (Signal Element, Signal Bool)
 checkbox b =
-    let cbs = N.checkboxes b
+    let cbs = Native.checkboxes b
     in  (lift (cbs.box id) cbs.events, cbs.events)
 
 hoverables : a -> { events : Signal a,
@@ -77,7 +80,7 @@ hoverables = Native.hoverables
 
 hoverable : Element -> (Element, Signal Bool)
 hoverable elem =
-    let pool = N.hoverables False
+    let pool = Native.hoverables False
     in  (pool.hoverable id elem, pool.events)
 
 -- Represents the current state of a text field. The `string` represents the
@@ -116,7 +119,7 @@ emptyFieldState = { string="", selectionStart=0, selectionEnd=0 }
 -- content of the field.
 field : String -> (Signal Element, Signal String)
 field placeHolder =
-    let tfs = N.fields emptyFieldState
+    let tfs = Native.fields emptyFieldState
         changes = dropRepeats tfs.events
     in  (lift (tfs.field id placeHolder) changes,
          dropRepeats (lift .string changes))
@@ -124,7 +127,7 @@ field placeHolder =
 -- Same as `field` but the UI element blocks out each characters.
 password : String -> (Signal Element, Signal String)
 password placeHolder =
-    let tfs = N.passwords emptyFieldState
+    let tfs = Native.passwords emptyFieldState
         changes = dropRepeats tfs.events
     in  (lift (tfs.field id placeHolder) changes,
          dropRepeats (lift .string changes))
@@ -134,7 +137,7 @@ password placeHolder =
 -- get a custom keyboard with an `@` and `.com` button.
 email : String -> (Signal Element, Signal String)
 email placeHolder =
-    let tfs = N.emails emptyFieldState
+    let tfs = Native.emails emptyFieldState
         changes = dropRepeats tfs.events
     in  (lift (tfs.field id placeHolder) changes,
          dropRepeats (lift .string changes))
@@ -150,4 +153,4 @@ dropDown = Native.dropDown
 -- signal of strings represents the string that is currently selected.
 stringDropDown : [String] -> (Signal Element, Signal String)
 stringDropDown strs =
-    N.dropDown (List.map (\s -> (s,s)) strs)
+    Native.dropDown (List.map (\s -> (s,s)) strs)
