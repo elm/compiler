@@ -1,7 +1,8 @@
 
 module JavaScript.Experimental where
 
-import JavaScript as JS
+import JavaScript (JSObject)
+import Native.JavaScript as Native
 
 -- Turn arbitrary JavaScript objects into Elm records.
 -- Arrays are converted into lists, nested objects are allowed.
@@ -15,7 +16,7 @@ import JavaScript as JS
 --         { answer:null }
 --         { info:[true,42,'what'] }
 toRecord : JSObject -> a
-toRecord = JS.toRecord
+toRecord = Native.toRecord
 
 -- Turn arbitrary Elm records into JavaScript objects.
 -- Lists become arrays, nested records are allowed. No ADTs.
@@ -28,4 +29,4 @@ toRecord = JS.toRecord
 --         { answer = Nothing }
 --         { result = Left "An error occurred" }
 fromRecord : a -> JSObject
-fromRecord = JS.fromRecord
+fromRecord = Native.fromRecord
