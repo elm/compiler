@@ -1,8 +1,13 @@
 
 module Text where
 
-import open Color
+import Color (Color)
+import Graphics.Element (Element, Three, Pos, ElementPrim, Properties)
+import Maybe (Maybe)
+import JavaScript (JSString)
 import Native.Text as Native
+
+data Text = Text
 
 -- Convert a string into text which can be styled and displayed.
 toText : String -> Text
