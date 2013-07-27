@@ -2,8 +2,9 @@
 module Graphics.Input where
 
 import Signal (lift,dropRepeats)
-import Native.Graphics.Input as N
+import Native.Graphics.Input as Native
 import List
+import Graphics.Element (Element)
 
 id x = x
 
@@ -17,6 +18,7 @@ id x = x
 --   The `a` value is sent to `events` whenever the button is pressed.
 buttons : a -> { events : Signal a,
                  button : a -> String -> Element }
+buttons = Native.buttons
 
 -- Create a button with a given label. The result is an `Element` and
 -- a signal of units. This signal triggers whenever the button is pressed.
@@ -36,6 +38,7 @@ button txt =
 --   The `a` value is sent to `events` whenever the button is pressed.
 customButtons : a -> { events : Signal a,
                        customButton : a -> Element -> Element -> Element -> Element }
+customButtons = Native.customButtons
 
 -- Create a button with custom states for up, hovering, and down
 -- (given in that order). The result is an `Element` and
@@ -57,6 +60,7 @@ customButton up hover down =
 --   lets you add an ID to distinguish between checkboxes.
 checkboxes : a -> { events : Signal a,
                     checkbox : (Bool -> a) -> Bool -> Element }
+checkboxes = Native.checkboxes
 
 -- Create a checkbox with a given start state. Unlike `button`, this result
 -- is a *signal* of elements. That is because a checkbox has state that
@@ -69,6 +73,7 @@ checkbox b =
 
 hoverables : a -> { events : Signal a,
                     hoverable : (Bool -> a) -> Element -> Element }
+hoverables = Native.hoverables
 
 hoverable : Element -> (Element, Signal Bool)
 hoverable elem =
@@ -98,6 +103,7 @@ type FieldState = { string:String, selectionStart:Int, selectionEnd:Int }
 --   lets you add an ID to distinguish between input fields.
 fields : a -> { events : Signal a,
                 field : (FieldState -> a) -> String -> FieldState -> Element }
+fields = Native.fields
 
 -- The empty field state:
 --
@@ -138,6 +144,7 @@ email placeHolder =
 -- value. This lets you avoid manually mapping the string onto
 -- functions and values.
 dropDown : [(String,a)] -> (Signal Element, Signal a)
+dropDown = Native.dropDown
 
 -- Create a drop-down menu for selecting strings. The resulting
 -- signal of strings represents the string that is currently selected.
