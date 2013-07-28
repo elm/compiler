@@ -52,9 +52,9 @@ buildFromSource interfaces source =
      return $ metaModule { types = types }
 
 
-getSortedModuleNames :: FilePath -> IO [String]
-getSortedModuleNames root =
-    sortDeps =<< readDeps root
+getSortedModuleNames :: Bool -> FilePath -> IO [String]
+getSortedModuleNames noPrelude root =
+    sortDeps =<< readDeps noPrelude root
 
 type Deps = (String, [String])
 
@@ -70,10 +70,11 @@ sortDeps depends =
     mistakes = filter (\scc -> length scc > 1) sccs
     msg = "A cyclical module dependency or was detected in: "
 
-readDeps :: FilePath -> IO [Deps]
-readDeps root = evalStateT (go root) Set.empty
+readDeps :: Bool -> FilePath -> IO [Deps]
+readDeps noPrelude root = evalStateT (go root) Set.empty
   where
-    builtIns = Set.fromList (Map.keys Prelude.interfaces)
+    builtIns = if noPrelude then Set.empty
+                            else Set.fromList (Map.keys Prelude.interfaces)
 
     go :: FilePath -> StateT (Set.Set String) IO [Deps]
     go root = do

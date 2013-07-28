@@ -10,12 +10,13 @@ import System.IO
 import System.Process
 
 import Control.Monad
+import qualified Data.Binary as Binary
 
 -- Part 1
 -- ------
 -- Add a build callout
--- We need to build elm-doc and run it because that generates the file "docs.json" needs by Libraries.hs
---   which is part of the elm library and executable
+-- We need to build elm-doc and run it because that generates the file "docs.json"
+-- needs by Libraries.hs which is part of the elm library and executable
 -- Unfort. there seems to be no way to tell cabal that:
 --   (a) elm-doc generates docs.json, and
 --   (b) elm (library) depends on docs.json
@@ -29,19 +30,20 @@ import Control.Monad
 
 -- Assumptions
 -- Elm.cabal expects the generated files to end up in dist/data
-rtsDir lbi = buildDir lbi </> ".." </> "data"      -- git won't look in dist + cabal will clean it
-jsDir lbi = buildDir lbi </> ".." </> "js"
+-- git won't look in dist + cabal will clean it
+rtsDir :: LocalBuildInfo -> FilePath
+rtsDir lbi = buildDir lbi </> ".." </> "data"
+
+tempDir :: LocalBuildInfo -> FilePath
+tempDir lbi = buildDir lbi </> ".." </> "temp"
 
 -- The runtime is called:
+rts :: LocalBuildInfo -> FilePath
 rts lbi = rtsDir lbi </> "elm-runtime.js"
 
--- The json file is called:
-
--- The elm-docs executable is called:
-elmDoc = "elm-doc"
-elm_doc lbi = buildDir lbi </> elmDoc </> elmDoc
-
-types lbi = rtsDir lbi </> "docs.json"
+-- The interfaces for the Standard Libraries live in:
+interfaces :: LocalBuildInfo -> FilePath
+interfaces lbi = rtsDir lbi </> "interfaces.data"
 
 -- buildDir with LocalBuildInfo points to "dist/build" (usually)
 elm lbi = buildDir lbi </> "elm" </> "elm"
@@ -51,24 +53,10 @@ elm lbi = buildDir lbi </> "elm" </> "elm"
 
 
 main :: IO ()
-main = defaultMainWithHooks simpleUserHooks { {-- buildHook = myBuild, --} postBuild = myPostBuildWithTypes }
+main = defaultMainWithHooks simpleUserHooks { postBuild = myPostBuild }
 
 
 -- Build
-
--- Not currently used.  buildTypes is in 'myPostBuildWithTypes'
--- If using this again, change postBuild to 'myPostBuild'
--- Purpose is to make sure docs.json was built before elm exec was (as elm exec depended on it)
--- This is no longer true and the code below seems to affect cabal's build dependencies
-myBuild :: PackageDescription -> LocalBuildInfo -> UserHooks -> BuildFlags -> IO ()
-myBuild pd lbi uh bf = do
-    putStrLn $ "Custom build step started: compile " ++ elmDoc
-    withExe pd (\x -> putStrLn (exeName x))
-    buildHook simpleUserHooks (filterExe elmDoc pd) (filterLBI elmDoc lbi) uh bf
-    putStrLn "Custom build step started: build docs.json"
-    buildTypes lbi      -- see note(1) below
-    putStrLn "Custom build step started: compile everything"
-    buildHook simpleUserHooks pd lbi uh bf
 
 -- note(1): We use to include docs.json directly into LoadLibraries at compile time
 -- If docs.json is used in other (template) haskell files, they should be copied
@@ -77,41 +65,80 @@ myBuild pd lbi uh bf = do
 -- Copying is a better solution than 'touch'ing the source files
 -- (touch is non-portable and confusing wrt RCS).
 
--- In the PackageDescription, the list of stuff to build is held in library (in a Maybe)
--- and the executables list.  We want a PackageDescription that only mentions the executable 'name'
+-- In the PackageDescription, the list of stuff to build is held in library
+-- (in a Maybe) and the executables list.  We want a PackageDescription that
+-- only mentions the executable 'name'
+filterExe :: String -> PackageDescription -> PackageDescription
 filterExe name pd = pd {
     library = Nothing,
     executables = filter (\x -> (exeName x == name)) (executables pd)
     }
 
--- It's not enough to fix the PackageDescription, we also have to fix the LocalBuildInfo.
--- This includes the component build order (data ComponentName) which is horribly internal.
+-- It's not enough to fix the PackageDescription, we also have to fix the
+-- LocalBuildInfo. This includes the component build order (data ComponentName)
+-- which is horribly internal.
+filterLBI :: String -> LocalBuildInfo -> LocalBuildInfo
 filterLBI name lbi = lbi {
     libraryConfig = Nothing,
     compBuildOrder = [CExeName name],
     executableConfigs = filter (\a -> (fst a == name)) (executableConfigs lbi)
     }
 
-buildTypes lbi = do
-  createDirectoryIfMissing False (rtsDir lbi)     -- dist should already exist
-  files <- getFiles ".elm" "libraries"
-  system (elm_doc lbi ++ " " ++ unwords files ++ " > " ++ (types lbi))
-  putStrLn $ "Custom build step completed: " ++ elmDoc
-
 
 -- Post Build
 
-myPostBuildWithTypes :: Args -> BuildFlags -> PackageDescription -> LocalBuildInfo -> IO ()
-myPostBuildWithTypes as bfs pd lbi = do
-    putStrLn "Custom build step started: build docs.json"
-    buildTypes lbi      -- see note(1) below
-    myPostBuild as bfs pd lbi
-
 myPostBuild :: Args -> BuildFlags -> PackageDescription -> LocalBuildInfo -> IO ()
 myPostBuild as bfs pd lbi = do
-    putStrLn "Custom post build step started: build elm-runtime.js"
-    buildRuntime lbi
+    putStrLn "Custom build step: compiling standard libraries"
+    (elmos, elmis) <- compileLibraries lbi
+    putStrLn "Custom build step: build interfaces.data"
+    buildInterfaces lbi elmis
+    putStrLn "Custom build step: build elm-runtime.js"
+    buildRuntime lbi elmos
+    removeDirectoryRecursive ("dist" </> "temp")
     postBuild simpleUserHooks as bfs pd lbi
+
+
+compileLibraries lbi = do
+  let temp = tempDir lbi                    -- dist/temp
+  createDirectoryIfMissing True temp
+  out_c <- canonicalizePath temp            -- dist/temp (root folder)
+  elm_c <- canonicalizePath (elm lbi)       -- dist/build/elm/elm
+  rtd_c <- canonicalizePath (rtsDir lbi)    -- dist/data (for docs.json)
+
+  let make file = do
+        -- replace 'system' call with 'runProcess' which handles args better
+        -- and allows env variable "Elm_datadir" which is used by LoadLibraries
+        -- to find docs.json
+        let args = ["--only-js","--make","--no-prelude","--output-directory="++out_c,file]
+            arg = Just [("Elm_datadir", rtd_c)]
+        handle <- runProcess elm_c args Nothing arg Nothing Nothing Nothing
+        exitCode <- waitForProcess handle
+        return ( out_c </> replaceExtension file "elmo"
+               , out_c </> replaceExtension file "elmi")
+
+  setCurrentDirectory "libraries"
+  print =<< getCurrentDirectory
+  files <- getFiles ".elm" "."
+  files <- unzip `fmap` mapM make files
+  setCurrentDirectory ".."
+  return files
+
+buildInterfaces :: LocalBuildInfo -> [FilePath] -> IO ()
+buildInterfaces lbi elmis = do
+  createDirectoryIfMissing True (rtsDir lbi)
+  let ifaces = interfaces lbi
+  Binary.encodeFile ifaces (length elmis)
+  mapM_ (\elmi -> readFile elmi >>= appendFile ifaces) elmis
+
+buildRuntime :: LocalBuildInfo -> [FilePath] -> IO ()
+buildRuntime lbi elmos = do
+  createDirectoryIfMissing True (rtsDir lbi)
+  writeFile (rts lbi) "Elm = {}; Elm.Native = {}; Elm.Native.Graphics = {};\n\
+                      \Elm.Graphics = {}; ElmRuntime = {}; ElmRuntime.Render = {};\n"
+  mapM_ (appendJS lbi) =<< getFiles ".js" "libraries"
+  mapM_ (appendJS lbi) elmos
+  mapM_ (appendJS lbi) =<< getFiles ".js" "runtime"
 
 getFiles ext dir = do
   contents <- map (dir </>) `fmap` getDirectoryContents dir
@@ -125,33 +152,3 @@ appendJS lbi file = do
   str <- readFile file
   length str `seq` return ()
   appendFile (rts lbi) str
-
-appendElm lbi file = do
-  jsFile <- runElm lbi file
-  appendJS lbi jsFile
-
--- replace 'system' call with 'runProcess' which handles args better and allows env variable
--- "Elm_datadir" which is used by LoadLibraries to find docs.json
-runElm :: LocalBuildInfo -> String -> IO FilePath
-runElm lbi file = do
-  rts_c <- canonicalizePath (rts lbi)       -- dist/data/elm-runtime.js
-  let js = jsDir lbi        -- dist/js
-  let j = dropFileName (js </> file)        -- dist/js/libraries/
-  createDirectoryIfMissing True j       -- must do before any canonicalization
-  out_c <- canonicalizePath js      -- dist/js (root folder)
-  elm_c <- canonicalizePath (elm lbi)       -- dist/build/elm/elm
-  rtd_c <- canonicalizePath (rtsDir lbi)        -- dist/data (for docs.json)
-  handle <- runProcess elm_c ["--only-js", "--no-prelude", "--output-directory="++out_c, file]
-            Nothing (Just [("Elm_datadir", rtd_c)]) Nothing Nothing Nothing
-  exitCode <- waitForProcess handle
-  return $ j </> replaceExtension (takeFileName file) ".js"
-
-
-buildRuntime lbi = do
-  createDirectoryIfMissing False (rtsDir lbi)     -- dist should already exist
-  writeFile (rts lbi) "Elm = {}; Elm.Native = {}; Elm.Native.Graphics = {};\n\
-                \Elm.Graphics = {}; ElmRuntime = {}; ElmRuntime.Render = {}\n"
-  removeDirectoryRecursive ("dist" </> "js")
-  mapM_ (appendJS lbi)  =<< getFiles ".js" "libraries"
-  mapM_ (appendElm lbi) =<< getFiles ".elm" "libraries"
-  mapM_ (appendJS lbi)  =<< getFiles ".js"  "runtime"

@@ -8,7 +8,7 @@ import System.Exit
 import System.FilePath
 import System.IO.Unsafe (unsafePerformIO)
 import SourceSyntax.Module
-import Data.Binary
+import qualified Data.Binary as Binary
 
 
 add :: Module t v -> Module t v
@@ -47,5 +47,5 @@ safeReadDocs name =
 readDocs :: FilePath -> IO Interfaces
 readDocs name = do
   exists <- doesFileExist name
-  if exists then decodeFile name
+  if exists then Map.fromList `fmap` Binary.decodeFile name
             else ioError . userError $ "File Not Found"

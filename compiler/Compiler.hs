@@ -87,9 +87,12 @@ elmi flags filePath = file flags filePath "elmi"
 buildFile :: Flags -> Int -> Int -> Interfaces -> FilePath -> IO ModuleInterface
 buildFile flags moduleNum numModules interfaces filePath =
     do compiled <- alreadyCompiled
-       if compiled then Binary.decodeFile (elmi flags filePath) else compile
-
+       if not compiled then compile
+                       else getInterface `fmap` Binary.decodeFile (elmi flags filePath)
     where
+      getInterface :: (String, ModuleInterface) -> ModuleInterface
+      getInterface = snd
+
       alreadyCompiled :: IO Bool
       alreadyCompiled = do
         existsi <- doesFileExist (elmi flags filePath)
@@ -126,9 +129,8 @@ buildFile flags moduleNum numModules interfaces filePath =
                           iAliases = aliases metaModule
                         }
         createDirectoryIfMissing True . dropFileName $ elmi flags filePath
-        Binary.encodeFile (elmi flags filePath) interface
-        let js = jsModule metaModule
-        writeFile (elmo flags filePath) js
+        Binary.encodeFile (elmi flags filePath) (name,interface)
+        writeFile (elmo flags filePath) (jsModule metaModule)
         return interface
 
 toSrcTypes tipes = Traverse.traverse convert tipes
@@ -150,8 +152,10 @@ getRuntime flags =
 
 build :: Flags -> FilePath -> IO ()
 build flags rootFile = do
-  files <- if make flags then getSortedModuleNames rootFile else return [rootFile]
-  interfaces <- buildFiles flags (length files) Prelude.interfaces files
+  let noPrelude = no_prelude flags
+  files <- if make flags then getSortedModuleNames noPrelude rootFile else return [rootFile]
+  let ifaces = if noPrelude then Map.empty else Prelude.interfaces
+  interfaces <- buildFiles flags (length files) ifaces files
   js <- foldM appendToOutput "" files
   case only_js flags of
     True -> do
