@@ -39,7 +39,7 @@ capVar :: IParser String
 capVar = makeVar (upper <?> "upper case variable")
 
 rLabel :: IParser String
-rLabel = Help.deprime <$> lowVar
+rLabel = lowVar
 
 innerVarChar :: IParser Char
 innerVarChar = alphaNum <|> char '_' <|> char '\'' <?> "" 
