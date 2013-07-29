@@ -101,10 +101,12 @@ myPostBuild as bfs pd lbi = do
 
 compileLibraries lbi = do
   let temp = tempDir lbi                    -- dist/temp
+      rts  = rtsDir  lbi                    -- dist/data
   createDirectoryIfMissing True temp
+  createDirectoryIfMissing True rts
   out_c <- canonicalizePath temp            -- dist/temp (root folder)
   elm_c <- canonicalizePath (elm lbi)       -- dist/build/elm/elm
-  rtd_c <- canonicalizePath (rtsDir lbi)    -- dist/data (for docs.json)
+  rtd_c <- canonicalizePath rts             -- dist/data (for docs.json)
 
   let make file = do
         -- replace 'system' call with 'runProcess' which handles args better
