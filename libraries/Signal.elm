@@ -10,6 +10,10 @@ module Signal where
 import Native.Signal as Native
 import List (foldr)
 
+data Signal a = Signal
+--    = Constant a
+--    | Lift (a -> a) (Signal a)
+
 -- Create a constant signal that never changes.
 constant : a -> Signal a
 constant = Native.constant
