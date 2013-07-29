@@ -1,6 +1,6 @@
 module Transform.Canonicalize (interface, metadataModule) where
 
-import Control.Arrow (first, second, (***))
+import Control.Arrow ((***))
 import Control.Monad.Identity
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -13,7 +13,8 @@ import SourceSyntax.Pattern
 import SourceSyntax.Helpers (isOp)
 import qualified SourceSyntax.Type as Type
 import qualified Transform.SortDefinitions as SD
-import Text.PrettyPrint
+import Text.PrettyPrint as P
+
 
 interface :: String -> ModuleInterface -> ModuleInterface
 interface moduleName iface =
@@ -50,8 +51,15 @@ renameType rename tipe =
 metadataModule :: Interfaces -> MetadataModule t v -> Either [Doc] (MetadataModule t v)
 metadataModule ifaces modul =
   do program' <- rename initialEnv (program modul)
-     return $ modul { program = program' }
+     aliases' <- mapM (third renameType') (aliases modul)
+     datatypes' <- mapM (third (mapM (second (mapM renameType')))) (datatypes modul)
+     return $ modul { program = program', aliases = aliases', datatypes = datatypes' }
   where
+    second f (a,b) = (,) a `fmap` f b
+    third f (a,b,c) = (,,) a b `fmap` f c
+    renameType' =
+        Either.either (\err -> Left [P.text err]) return . renameType (replace initialEnv)
+
     get1 (a,_,_) = a
     canon (name, importMethod) =
         let pair pre var = (pre ++ drop (length name + 1) var, var)
@@ -67,8 +75,7 @@ metadataModule ifaces modul =
                   where vs = Set.fromList $ map (\v -> name ++ "." ++ v) vars
 
     pair n = (n,n)
-    localEnv = concat [ map (pair . get1) (aliases modul)
-                      , map (pair . get1) (datatypes modul) ]
+    localEnv = map pair (map get1 (aliases modul) ++ map get1 (datatypes modul))
     globalEnv = map pair $ ["_List",saveEnvName,"::","[]","Int","Float","Char","Bool"] ++
                            map (\n -> "_Tuple" ++ show n) [0..9]
     realImports = filter (not . List.isPrefixOf "Native." . fst) (imports modul)
@@ -96,7 +103,7 @@ replace env v =
 rename :: Env -> LExpr t v -> Either [Doc] (LExpr t v)
 rename env lexpr@(L t s expr) =
     let rnm = rename env
-        throw err = Left [ text $ "Error " ++ show s ++ "\n" ++ err ]
+        throw err = Left [ P.text $ "Error " ++ show s ++ "\n" ++ err ]
         format = Either.either throw return
     in
     L t s `liftM`
