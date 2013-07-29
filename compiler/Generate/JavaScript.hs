@@ -80,7 +80,7 @@ jsModule modul =
 
     jsExport x = 
         if isOp x then "\n_._op['" ++ x ++ "'] = _op['" ++ x ++ "'];"
-                  else "\n_." ++ derename x ++ " = " ++ x ++ ";"
+                  else "\n_." ++ x ++ " = " ++ x ++ ";"
     
     importEvent (js,base,elm,_) =
         do v <- toJS' base
