@@ -74,8 +74,8 @@ makeConstructors env datatypes = Map.fromList builtins
         in  (name, inst n $ \vs -> (vs, foldl (<|) (types env ! name) vs))
     
     builtins :: [ (String, IO (Int, [Variable], [Type], Type)) ]
-    builtins = [ ("[]"     , inst 1 $ \ [t] -> ([], list t))
-               , ("::"     , inst 1 $ \ [t] -> ([t, list t], list t))
+    builtins = [ ("[]", inst 1 $ \ [t] -> ([], list t))
+               , ("::", inst 1 $ \ [t] -> ([t, list t], list t))
                ] ++ map tupleCtor [0..9]
                  ++ concatMap (ctorToType env) datatypes
 
