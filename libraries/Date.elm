@@ -4,6 +4,7 @@
 -- locale formatting or something.
 module Date where
 
+import Basics (String)
 import Native.Date as Native
 import Time (Time)
 import Maybe (Maybe)

@@ -3,6 +3,8 @@ module Basics where
 
 import Native.Basics as Native
 
+type String = [Char]
+
 -- Convert radians to standard Elm angles (radians).
 radians : Float -> Float
 radians t = t
@@ -55,13 +57,13 @@ mod = Native.mod
 (^) : number -> number -> number
 (^) = Native.exp
 
-cos  : Float -> Float
+cos : Float -> Float
 cos = Native.cos
 
-sin  : Float -> Float
+sin : Float -> Float
 sin = Native.sin
 
-tan  : Float -> Float
+tan : Float -> Float
 tan = Native.tan
 
 acos : Float -> Float
@@ -198,11 +200,11 @@ show : a -> String
 show = Native.show
 
 -- Read an integer from a string
-readInt : String -> Maybe Int
+-- readInt : String -> Maybe Int
 readInt = Native.readInt
 
 -- Read a float from a string.
-readFloat : String -> Maybe Float
+-- readFloat : String -> Maybe Float
 readFloat = Native.readFloat
 
 -- Function Helpers

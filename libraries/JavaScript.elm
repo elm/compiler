@@ -2,6 +2,7 @@
 module JavaScript where
 
 import Native.JavaScript as Native
+import open Basics
 
 data JSNumber = JSNumber
 data JSBool = JSBool
@@ -43,7 +44,7 @@ fromBool = Native.fromBool
 fromString : String -> JSString
 fromString = Native.fromString
 
-
+{--
 -- Turn an `Element` into a plain old DOM node.
 fromElement : Element -> JSDomNode
 fromElement = Native.fromElement
@@ -52,4 +53,4 @@ fromElement = Native.fromElement
 -- using the normal `width` and `height` functions.
 toElement : Int -> Int -> JSDomNode -> Element
 toElement = Native.toElement
-
+--}
