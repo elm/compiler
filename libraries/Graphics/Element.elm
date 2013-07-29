@@ -1,19 +1,8 @@
 
-module Graphics.Element (widthOf, heightOf, sizeOf,
-                         width, height, size, opacity, color, tag, link,
-                         image, fittedImage, croppedImage, tiledImage,
-                         flow, up, down, left, right, inward, outward,
-                         above, below, beside, layers,
-                         container, absolute, relative,
-                         middle, topLeft, topRight, bottomLeft, bottomRight,
-                         midLeft, midRight, midTop, midBottom, middleAt,
-                         topLeftAt, topRightAt, bottomLeftAt, bottomRightAt,
-                         midLeftAt, midRightAt, midTopAt, midBottomAt,
-                         spacer, newElement, Three, Pos, ElementPrim, Properties
-                        ) where
+module Graphics.Element where
 
 import open Basics
-import Native.Utils as Native
+import Native.Utils
 import open JavaScript
 import List as List
 import open Color
@@ -49,7 +38,7 @@ width : Int -> Element -> Element
 width nw e = let p = e.props
                  props = case e.element of
                            Image _ w h _ -> {p| height <- h `div` w * nw }
-                           RawHtml html -> {p| height <- let (w,h) = Native.htmlHeight nw html in h}
+                           RawHtml html -> {p| height <- let (w,h) = Native.Utils.htmlHeight nw html in h}
                            _ -> p
              in { element=e.element, props={ props | width <- nw } }
 
@@ -91,7 +80,7 @@ link href e = let p = e.props in
 
 emptyStr = fromString ""
 newElement w h e =
-  { props = Properties (Native.guid ()) w h 1 Nothing emptyStr emptyStr (), element = e }
+  { props = Properties (Native.Utils.guid ()) w h 1 Nothing emptyStr emptyStr (), element = e }
 
 data ElementPrim
   = Image ImageStyle Int Int JSString

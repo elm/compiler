@@ -7,7 +7,7 @@ import open Basics
 import Dict
 import Maybe (Maybe)
 import JavaScript as JS
-import Native.Json as Native
+import Native.Json
 import JavaScript (JSObject, JSString)
 
 -- This datatype can represent all valid values that can be held in a JSON
@@ -28,27 +28,27 @@ data JsonValue
 -- The first argument is a separator token (e.g. \" \", \"\\n\", etc.) that will
 -- be used for indentation in the prettified string version of the JSON.
 toString : String -> JsonValue -> String
-toString sep v = JS.toString (Native.toJSString sep v)
+toString sep v = JS.toString (Native.Json.toJSString sep v)
 
 -- Convert a proper JSON object into a JavaScript string.
 -- Note that the type JSString seen here is not the same as the type constructor
 -- JsonString used elsewhere in this module.
 toJSString : String -> JsonValue -> JSString
-toJSString = Native.toJSString
+toJSString = Native.Json.toJSString
 
 -- Parse a string representation of a proper JSON object into
 -- its Elm representation.
 fromString : String -> Maybe JsonValue
-fromString s = Native.fromJSString (JS.fromString s)
+fromString s = Native.Json.fromJSString (JS.fromString s)
 
 -- Parse a JavaScript string representation of a proper JSON object into
 -- its Elm representation.
 fromJSString : JSString -> Maybe JsonValue
-fromJSString = Native.fromJSString
+fromJSString = Native.Json.fromJSString
 
 -- Convert a JS object into a `JsonValue`.
 fromJSObject : JSObject -> JsonValue
-fromJSObject = Native.fromJSObject
+fromJSObject = Native.Json.fromJSObject
 
 -- Convert a `JsonValue` into a `JSObject`. Paired with the
 -- [`JavaScript.Experimental` library](/docs/JavaScript/Experimental.elm),
@@ -61,7 +61,7 @@ fromJSObject = Native.fromJSObject
 --             Just jsonValue -> Just (JS.toRecord (toJSObject jsonValue))
 --             Nothing -> Nothing
 toJSObject : JsonValue -> JSObject
-toJSObject = Native.toJSObject
+toJSObject = Native.Json.toJSObject
 
  {-- Extract Elm values from Json values
 

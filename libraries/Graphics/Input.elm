@@ -3,7 +3,7 @@ module Graphics.Input where
 
 import Basics (String)
 import Signal (Signal,lift,dropRepeats)
-import Native.Graphics.Input as Native
+import Native.Graphics.Input
 import List
 import Graphics.Element (Element, Three, Pos, ElementPrim, Properties)
 import Color (Color)
@@ -22,13 +22,13 @@ id x = x
 --   The `a` value is sent to `events` whenever the button is pressed.
 buttons : a -> { events : Signal a,
                  button : a -> String -> Element }
-buttons = Native.buttons
+buttons = Native.Graphics.Input.buttons
 
 -- Create a button with a given label. The result is an `Element` and
 -- a signal of units. This signal triggers whenever the button is pressed.
 button : String -> (Element, Signal ())
 button txt =
-    let pool = Native.buttons ()
+    let pool = buttons ()
     in  (pool.button () txt, pool.events)
 
 -- Create a group of custom buttons.
@@ -42,14 +42,14 @@ button txt =
 --   The `a` value is sent to `events` whenever the button is pressed.
 customButtons : a -> { events : Signal a,
                        customButton : a -> Element -> Element -> Element -> Element }
-customButtons = Native.customButtons
+customButtons = Native.Graphics.Input.customButtons
 
 -- Create a button with custom states for up, hovering, and down
 -- (given in that order). The result is an `Element` and
 -- a signal of units. This signal triggers whenever the button is pressed.
 customButton : Element -> Element -> Element -> (Element, Signal ())
 customButton up hover down =
-    let pool = Native.customButtons ()
+    let pool = customButtons ()
     in  (pool.customButton () up hover down, pool.events)
 
 -- Create a group of checkboxes.
@@ -64,7 +64,7 @@ customButton up hover down =
 --   lets you add an ID to distinguish between checkboxes.
 checkboxes : a -> { events : Signal a,
                     checkbox : (Bool -> a) -> Bool -> Element }
-checkboxes = Native.checkboxes
+checkboxes = Native.Graphics.Input.checkboxes
 
 -- Create a checkbox with a given start state. Unlike `button`, this result
 -- is a *signal* of elements. That is because a checkbox has state that
@@ -72,16 +72,16 @@ checkboxes = Native.checkboxes
 -- The boolean signal represents the current state of the checkbox.
 checkbox : Bool -> (Signal Element, Signal Bool)
 checkbox b =
-    let cbs = Native.checkboxes b
-    in  (lift (cbs.box id) cbs.events, cbs.events)
+    let cbs = checkboxes b
+    in  (lift (cbs.checkbox id) cbs.events, cbs.events)
 
 hoverables : a -> { events : Signal a,
                     hoverable : (Bool -> a) -> Element -> Element }
-hoverables = Native.hoverables
+hoverables = Native.Graphics.Input.hoverables
 
 hoverable : Element -> (Element, Signal Bool)
 hoverable elem =
-    let pool = Native.hoverables False
+    let pool = hoverables False
     in  (pool.hoverable id elem, pool.events)
 
 -- Represents the current state of a text field. The `string` represents the
@@ -107,7 +107,7 @@ type FieldState = { string:String, selectionStart:Int, selectionEnd:Int }
 --   lets you add an ID to distinguish between input fields.
 fields : a -> { events : Signal a,
                 field : (FieldState -> a) -> String -> FieldState -> Element }
-fields = Native.fields
+fields = Native.Graphics.Input.fields
 
 -- The empty field state:
 --
@@ -120,7 +120,7 @@ emptyFieldState = { string="", selectionStart=0, selectionEnd=0 }
 -- content of the field.
 field : String -> (Signal Element, Signal String)
 field placeHolder =
-    let tfs = Native.fields emptyFieldState
+    let tfs = fields emptyFieldState
         changes = dropRepeats tfs.events
     in  (lift (tfs.field id placeHolder) changes,
          dropRepeats (lift .string changes))
@@ -128,7 +128,7 @@ field placeHolder =
 -- Same as `field` but the UI element blocks out each characters.
 password : String -> (Signal Element, Signal String)
 password placeHolder =
-    let tfs = Native.passwords emptyFieldState
+    let tfs = Native.Graphics.Input.passwords emptyFieldState
         changes = dropRepeats tfs.events
     in  (lift (tfs.field id placeHolder) changes,
          dropRepeats (lift .string changes))
@@ -138,7 +138,7 @@ password placeHolder =
 -- get a custom keyboard with an `@` and `.com` button.
 email : String -> (Signal Element, Signal String)
 email placeHolder =
-    let tfs = Native.emails emptyFieldState
+    let tfs = Native.Graphics.Input.emails emptyFieldState
         changes = dropRepeats tfs.events
     in  (lift (tfs.field id placeHolder) changes,
          dropRepeats (lift .string changes))
@@ -148,10 +148,10 @@ email placeHolder =
 -- value. This lets you avoid manually mapping the string onto
 -- functions and values.
 dropDown : [(String,a)] -> (Signal Element, Signal a)
-dropDown = Native.dropDown
+dropDown = Native.Graphics.Input.dropDown
 
 -- Create a drop-down menu for selecting strings. The resulting
 -- signal of strings represents the string that is currently selected.
 stringDropDown : [String] -> (Signal Element, Signal String)
 stringDropDown strs =
-    Native.dropDown (List.map (\s -> (s,s)) strs)
+    dropDown (List.map (\s -> (s,s)) strs)

@@ -2,7 +2,7 @@
 module Time where
 
 import open Basics
-import Native.Time as Native
+import Native.Time
 import Signal (Signal)
 
 -- Type alias to make it clearer when you are working with time values.
@@ -41,7 +41,7 @@ inHours t = t / hour
 -- the desired FPS. A time delta is the time between the last frame and the
 -- current frame.
 fps : number -> Signal Time
-fps = Native.fps
+fps = Native.Time.fps
 
 -- Same as the fps function, but you can turn it on and off. Allows you
 -- to do brief animations based on user input without major inefficiencies.
@@ -49,12 +49,12 @@ fps = Native.fps
 -- the pause was. This way summing the deltas will actually give the amount
 -- of time that the output signal has been running.
 fpsWhen : number -> Signal Bool -> Signal Time
-fpsWhen = Native.fpsWhen
+fpsWhen = Native.Time.fpsWhen
 
 -- Takes a time interval t. The resulting signal is the current time,
 -- updated every t.
 every : Time -> Signal Time
-every = Native.every
+every = Native.Time.every
 
 -- Takes a time `t` and any signal. The resulting boolean signal
 -- is true for time `t` after every event on the input signal.
@@ -62,16 +62,16 @@ every = Native.every
 -- that is true for one second after each mouse click and false
 -- otherwise.
 since : Time -> Signal a -> Signal Bool
-since = Native.since
+since = Native.Time.since
 
 -- Add a timestamp to any signal. Timestamps increase monotonically. Each
 -- timestamp is related to a specfic event, so `Mouse.x` and `Mouse.y` will
 -- always have the same timestamp because they both rely on the same
 -- underlying event.
 timestamp : Signal a -> Signal (Time, a)
-timestamp = Native.timestamp
+timestamp = Native.Time.timestamp
 
 -- Delay a signal by a certain amount of time. So `(delay second Mouse.clicks)`
 -- will update one second later than any mouse click.
 delay : Time -> Signal a -> Signal a
-delay = Native.delay
+delay = Native.Time.delay

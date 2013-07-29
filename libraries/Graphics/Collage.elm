@@ -5,7 +5,7 @@ import open Basics
 import List
 import Either (Either, Left, Right)
 import Matrix2D (Matrix2D, identity)
-import Native.Graphics.Collage as Native
+import Native.Graphics.Collage
 import Graphics.Element (Element, Three, Pos, ElementPrim, Properties)
 import Color (Color, black, Gradient)
 import Maybe (Maybe)
@@ -158,7 +158,7 @@ opacity a f = { f | alpha <- a }
 -- A collage is a collection of 2D forms. There are no strict positioning
 -- relationships between forms, so you are free to do all kinds of 2D graphics.
 collage : Int -> Int -> [Form] -> Element
-collage = Native.collage
+collage = Native.Graphics.Collage.collage
 
 
 type Path = [(Float,Float)]

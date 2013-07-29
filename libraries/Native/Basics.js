@@ -3,10 +3,10 @@ Elm.Native.Basics = function(elm) {
   'use strict';
   if (elm.Native.Basics) return elm.Native.Basics;
 
-  var JS = Elm.JavaScript(elm);
-  var Maybe = Elm.Maybe(elm);
+  var JS = Elm.Native.JavaScript(elm);
+  // var Maybe = Elm.Maybe(elm);
   var Utils = Elm.Native.Utils(elm);
-  var Char = Elm.Char(elm);
+  //var Char = Elm.Char(elm);
 
   function div(a,b) { return (a/b)|0; }
   function rem(a,b) { return a % b; }
@@ -26,7 +26,7 @@ Elm.Native.Basics = function(elm) {
   function uncurry(f,v) { return A2(f,v._0,v._1); }
   function fst(t) { return t._0; }
   function snd(t) { return t._1; }
-
+/*
   function readInt(str) {
     var s = JS.fromString(str);
     var len = s.length;
@@ -62,7 +62,7 @@ Elm.Native.Basics = function(elm) {
     }
     return Maybe.Just(parseFloat(s));
   }
-
+*/
   var basics = {
       div:F2(div),
       rem:F2(rem),
@@ -95,8 +95,8 @@ Elm.Native.Basics = function(elm) {
       round:Math.round,
       toFloat:function(x) { return x; },
 
-      readInt:readInt,
-      readFloat:readFloat,
+      //readInt:readInt,
+      //readFloat:readFloat,
 
       curry:F3(curry),
       uncurry:F2(uncurry),

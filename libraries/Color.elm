@@ -1,7 +1,7 @@
 
 module Color where
 
-import Native.Color as Native
+import Native.Color
 
 data Color = Color Int Int Int Float
 
@@ -58,19 +58,19 @@ forestGreen = Color 34 139 34 1
 -- Produce a &ldquo;complementary color&rdquo;.
 -- The two colors will accent each other.
 complement : Color -> Color
-complement = Native.complement
+complement = Native.Color.complement
 
 -- Create [HSV colors](http://en.wikipedia.org/wiki/HSL_and_HSV)
 -- with an alpha component for transparency.
 hsva : Float -> Float -> Float -> Float -> Color
-hsva = Native.hsva
+hsva = Native.Color.hsva
 
 -- Create [HSV colors](http://en.wikipedia.org/wiki/HSL_and_HSV).
 -- This is very convenient for creating colors that cycle and shift.
 --
 --         hsv (degrees 240) 1 1 == blue
 hsv : Float -> Float -> Float -> Color
-hsv = Native.hsv
+hsv = Native.Color.hsv
 
 data Gradient
   = Linear (Float,Float) (Float,Float) [(Float,Color)]

@@ -12,7 +12,7 @@ import open Basics
 import open Maybe
 import Native.Error
 import List as List
-import Native.Utils (compare)
+import Native.Utils
 
 data NColor = Red | Black
 
@@ -122,7 +122,7 @@ lookup k t =
  case t of
    RBEmpty -> Nothing
    RBNode _ k' v l r ->
-    case compare k k' of
+    case Native.Utils.compare k k' of
       LT -> lookup k l
       EQ -> Just v
       GT -> lookup k r
@@ -134,7 +134,7 @@ findWithDefault base k t =
  case t of
    RBEmpty -> base
    RBNode _ k' v l r ->
-    case compare k k' of
+    case Native.Utils.compare k k' of
       LT -> findWithDefault base k l
       EQ -> v
       GT -> findWithDefault base k r
@@ -145,7 +145,7 @@ find k t =
  case t of
  { RBEmpty -> Native.Error.raise "Key was not found in dictionary!"
  ; RBNode _ k' v l r ->
-    case compare k k' of
+    case Native.Utils.compare k k' of
     { LT -> find k l
     ; EQ -> v
     ; GT -> find k r }
@@ -216,7 +216,7 @@ insert k v t =  -- Invariant: t is a valid left-leaning rb tree
       case t of
         RBEmpty -> RBNode Red k v RBEmpty RBEmpty
         RBNode c k' v' l r ->
-          let h = case compare k k' of
+          let h = case Native.Utils.compare k k' of
                     LT -> RBNode c k' v' (ins l) r
                     EQ -> RBNode c k' v  l r  -- replace
                     GT -> RBNode c k' v' l (ins r)

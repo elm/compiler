@@ -3,7 +3,7 @@
 module Touch where
 
 import Signal (Signal)
-import Native.Touch as Native
+import Native.Touch
 import Time (Time)
 
 -- Every `Touch` has `xy` coordinates. It also has an identifier `id` to
@@ -16,9 +16,9 @@ type Touch = { x:Int, y:Int, id:Int, x0:Int, y0:Int, t0:Time }
 
 -- A list of ongoing touches.
 touches : Signal [Touch]
-touches = Native.touches
+touches = Native.Touch.touches
 
 -- The last position that was tapped. Default value is `{x=0,y=0}`.
 -- Updates whenever the user taps the screen.
 taps : Signal { x:Int, y:Int }
-taps = Native.taps
+taps = Native.Touch.taps

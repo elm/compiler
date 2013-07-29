@@ -1,7 +1,7 @@
 
 module JavaScript where
 
-import Native.JavaScript as Native
+import Native.JavaScript
 import open Basics
 
 data JSNumber = JSNumber
@@ -13,44 +13,44 @@ data JSObject = JSObject
 
 -- Requires that the input array be uniform (all members have the same type)
 toList : JSArray a -> [a]
-toList = Native.toList
+toList = Native.JavaScript.toList
 
 toInt : JSNumber -> Int
-toInt = Native.toInt
+toInt = Native.JavaScript.toInt
 
 toFloat : JSNumber -> Float
-toFloat = Native.toFloat
+toFloat = Native.JavaScript.toFloat
 
 toBool : JSBool -> Bool
-toBool = Native.toBool
+toBool = Native.JavaScript.toBool
 
 toString : JSString -> String
-toString = Native.toString
+toString = Native.JavaScript.toString
 
 
 -- Produces a uniform JavaScript array with all members of the same type.
 fromList : [a] -> JSArray a
-fromList = Native.fromList
+fromList = Native.JavaScript.fromList
 
 fromInt : Int -> JSNumber
-fromInt = Native.fromInt
+fromInt = Native.JavaScript.fromInt
 
 fromFloat : Float -> JSNumber
-fromFloat = Native.fromFloat
+fromFloat = Native.JavaScript.fromFloat
 
 fromBool : Bool -> JSBool
-fromBool = Native.fromBool
+fromBool = Native.JavaScript.fromBool
 
 fromString : String -> JSString
-fromString = Native.fromString
+fromString = Native.JavaScript.fromString
 
 {--
 -- Turn an `Element` into a plain old DOM node.
 fromElement : Element -> JSDomNode
-fromElement = Native.fromElement
+fromElement = Native.JavaScript.fromElement
 
 -- Turn a DOM node into an `Element`. You can resize the node
 -- using the normal `width` and `height` functions.
 toElement : Int -> Int -> JSDomNode -> Element
-toElement = Native.toElement
+toElement = Native.JavaScript.toElement
 --}
