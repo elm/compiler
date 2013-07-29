@@ -21,6 +21,16 @@ boundVars pattern =
       PAnything -> Set.empty
       PLiteral _ -> Set.empty
 
+ctors :: Pattern -> [String]
+ctors pattern =
+    case pattern of
+      PVar x -> []
+      PAlias x p -> ctors p
+      PData ctor ps -> ctor : concatMap ctors ps
+      PRecord fields -> []
+      PAnything -> []
+      PLiteral _ -> []
+
 free :: String -> State (Set.Set String) ()
 free x = modify (Set.insert x)
 
@@ -105,7 +115,9 @@ reorder lexpr@(L a b expr) =
                      case def of
                        Def pattern _ -> pattern
                        TypeAnnotation name _ -> PVar name
-             mapM (bound . boundVars . getPatterns) defs
+             forM (map getPatterns defs) $ \pattern -> do
+                bound (boundVars pattern)
+                mapM free (ctors pattern)
 
              let addDefs ds bod = L a b (Let (concatMap toDefs ds) bod)
                      where
@@ -128,6 +140,7 @@ bindingReorder :: (Pattern, LExpr t v) -> State (Set.Set String) (Pattern, LExpr
 bindingReorder (pattern,expr) =
     do expr' <- reorder expr
        bound (boundVars pattern)
+       mapM free (ctors pattern)
        return (pattern, expr')
 
 
