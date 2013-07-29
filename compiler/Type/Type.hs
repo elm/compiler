@@ -1,5 +1,6 @@
 module Type.Type where
 
+import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.UnionFind.IO as UF
@@ -336,3 +337,31 @@ instance Crawl Descriptor where
     structure' <- traverse (crawl nextState) (structure desc)
     put state'
     return $ desc { name = name', structure = structure' }
+
+               
+toSrcType :: Variable -> IO Src.Type
+toSrcType variable = do
+  desc <- UF.descriptor =<< addNames variable
+  case structure desc of
+    Just term ->
+        case term of
+          App1 a b -> do
+            Src.Data name ts <- toSrcType a
+            b' <- toSrcType b
+            return (Src.Data name (ts ++ [b']))
+          Fun1 a b -> Src.Lambda <$> toSrcType a <*> toSrcType b
+          Var1 a -> toSrcType a
+          EmptyRecord1 -> return Src.EmptyRecord
+          Record1 fs ext -> do
+            fs' <- traverse (mapM toSrcType) fs
+            let fs'' = concat [ map ((,) name) ts | (name,ts) <- Map.toList fs' ]
+            Src.Record fs'' <$> toSrcType ext
+    Nothing ->
+        case name desc of
+          Just x@(c:cs) | Char.isLower c -> return (Src.Var x)
+                        | otherwise      -> return (Src.Data x [])
+          Nothing ->
+              error $ concat
+                        [ "Problem converting the following type "
+                        , "from a type-checker type to a source-syntax type:"
+                        , P.render (pretty Never variable) ]

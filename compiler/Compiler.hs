@@ -27,7 +27,6 @@ import Paths_Elm
 import SourceSyntax.PrettyPrint (pretty, variable)
 import Text.PrettyPrint as P
 import qualified Type.Type as Type
-import qualified Parse.Type as Parse
 import qualified Data.Traversable as Traverse
 
 data Flags =
@@ -125,7 +124,7 @@ buildFile flags moduleNum numModules interfaces filePath =
                   return modul
         
         if print_types flags then printTypes metaModule else return ()
-        tipes <- toSrcTypes (types metaModule)
+        tipes <- Traverse.traverse Type.toSrcType (types metaModule)
         let interface = Canonical.interface name $ ModuleInterface {
                           iTypes = tipes,
                           iAdts = datatypes metaModule,
@@ -135,10 +134,6 @@ buildFile flags moduleNum numModules interfaces filePath =
         Binary.encodeFile (elmi flags filePath) (name,interface)
         writeFile (elmo flags filePath) (jsModule metaModule)
         return interface
-
-toSrcTypes tipes = Traverse.traverse convert tipes
-  where
-    convert t = fmap (Parse.readType . P.render) (Type.extraPretty t)
 
 printTypes metaModule = do
   putStrLn ""
