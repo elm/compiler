@@ -18,24 +18,17 @@ import Control.Arrow (second)
 import Transform.SortDefinitions as Sort
 
 import System.IO.Unsafe  -- Possible to switch over to the ST monad instead of
-                         -- the IO monad. Not sure if that'd be worthwhile.
+                         -- the IO monad. I don't think that'd be worthwhile.
 
 
 infer :: Interfaces -> MetadataModule t v -> Either [Doc] (Map.Map String T.Variable)
-infer interfaces' modul = unsafePerformIO $ do
-  let insert (name,method) dict = Map.insertWith (++) name [method] dict
-      localImports = foldr insert Map.empty (imports modul)
-      interfaces = Map.intersectionWithKey Module.canonicalize localImports interfaces'
-
+infer interfaces modul = unsafePerformIO $ do
   env <- Env.initialEnvironment
              (datatypes modul ++ concatMap iAdts (Map.elems interfaces))
              (aliases modul ++ concatMap iAliases (Map.elems interfaces))
   ctors <- forM (Map.keys (Env.constructor env)) $ \name ->
                do (_, vars, args, result) <- Env.freshDataScheme env name
                   return (name, (vars, foldr (T.==>) result args))
-
---  mapM print . Map.toList $ Env.aliases env
---  mapM print (imports modul)
 
   importedVars <-
       forM (concatMap (Map.toList . iTypes) $ Map.elems interfaces) $ \(name,tipe) ->
