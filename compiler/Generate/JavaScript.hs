@@ -15,6 +15,9 @@ import SourceSyntax.Everything hiding (parens)
 import SourceSyntax.Location as Loc
 import qualified Transform.SortDefinitions as SD
 
+deprime :: String -> String
+deprime = map (\c -> if c == '\'' then '$' else c)
+
 showErr :: String -> String
 showErr err = globalAssign "Elm.Main" (jsFunc "elm" body)
     where msg = show . concatMap (++"<br>") . lines $ err
@@ -66,24 +69,25 @@ jsModule modul =
     modName  = dotSep (names modul)
     makeProgram body foreignImport =
         concat [ "\nvar " ++ usefulFuncs ++ ";"
-               , assign "_op" "{}"
                , concatMap jsImport (imports modul)
                , concat foreignImport
                , concatMap exportEvent $ foreignExports modul
+               , assign "_op" "{}"
                , body
-               , assign "_" "{}"
-               , concatMap jsExport (exports modul)
-               , setup ("elm" : names modul)
-               , ret (assign' ("elm." ++ modName) "_")
+               , jsExports
                ]
-    setup names = concatMap (\n -> globalAssign n $ n ++ "||{}") .
+    setup names = concatMap (\n -> globalAssign n $ n ++ " || {}") .
                   map dotSep . drop 2 . List.inits $ init names
     usefulFuncs = commaSep (map (uncurry assign') internalImports)
 
-    jsExport x = 
-        if isOp x then "\n_._op['" ++ x ++ "'] = _op['" ++ x ++ "'];"
-                  else "\n_." ++ x ++ " = " ++ x ++ ";"
-    
+    jsExports = setup ("elm" : names modul) ++
+                ret (assign' ("elm." ++ modName) (brackets exs))
+        where
+          exs = indent . commaSep . concatMap pair $ "_op" : exports modul
+          pair x | isOp x = []
+                 | otherwise = ["\n" ++ x ++ " : " ++ x]
+
+
     importEvent (js,base,elm,_) =
         do v <- toJS' base
            return $ concat [ "\nvar " ++ elm ++ "=Elm.Signal(elm).constant(" ++ v ++ ");"
@@ -98,30 +102,21 @@ jsModule modul =
                , "e.value = v;"
                , "document.dispatchEvent(e); return v; })(", elm, ");" ]
 
-jsImport (modul, how) =
-    case how of
-      As name -> assign name ("Elm." ++ modul ++ parens "elm")
-      Hiding vs -> include ++ " var hiding=" ++ (jsObj $ map (++":1") vs) ++
-                   "; for(var k in _){if(k in hiding)continue;" ++
-                   "eval('var '+k+'=_[\"'+k+'\"]')}"
-      Importing vs -> include ++ named
-          where 
-            imprt v = assign' v ("_." ++ v)
-            def x = imprt $ if isOp x then "_op['" ++ x ++ "']" else deprime x
-            named = if null vs then "" else "\nvar " ++ commaSep (map def vs) ++ ";"
+jsImport (modul, method) =
+    concat $ zipWith3 (\s n v -> s ++ assign' n v ++ ";") starters subnames values
   where
-    include = "\nvar _ = Elm." ++ modul ++ parens "elm" ++ ";" ++ setup modul
-    setup moduleName = " var " ++ concatMap (++";") (defs ++ [assign' moduleName "_"])
-        where
-          defs = map (\n -> assign' n (n ++ "||{}")) (subnames moduleName)
-          subnames = map dotSep . tail . List.inits . init . split
-          split names = case go [] names of
-                          (name, []) -> [name]
-                          (name, ns) -> name : split ns
-          go name str = case str of
-                          '.':rest -> (reverse name, rest)
-                          c:rest   -> go (c:name) rest
-                          []       -> (reverse name, [])
+    starters = "\nvar " : repeat "\n"
+    values = map (\name -> name ++ " || {}") (init subnames) ++
+             ["Elm." ++ modul ++ parens "elm"]
+    subnames = map dotSep . tail . List.inits $ split modul
+
+    split names = case go [] names of
+                    (name, []) -> [name]
+                    (name, ns) -> name : split ns
+    go name str = case str of
+                    '.':rest -> (reverse name, rest)
+                    c:rest   -> go (c:name) rest
+                    []       -> (reverse name, [])
 
 
 class ToJS a where
@@ -133,13 +128,14 @@ instance ToJS (Def t v) where
   -- TODO: Make this handle patterns besides plain variables
   toJS (Def (PVar x) e)
       | isOp x = globalAssign ("_op['" ++ x ++ "']")  `liftM` toJS' e
-      | otherwise = assign x `liftM` toJS' e
+      | otherwise = assign (deprime x) `liftM` toJS' e
 
   toJS (Def pattern e) =
       do n <- guid
          let x = "_" ++ show n
              var = Loc.none . Var
-             toDef y = Def (PVar y) (Loc.none $ Case (var x) [(pattern, var y)])
+             toDef y' = let y = deprime y' in
+                        Def (PVar y) (Loc.none $ Case (var x) [(pattern, var y)])
          stmt <- assign x `liftM` toJS' e
          vars <- toJS . map toDef . Set.toList $ SD.boundVars pattern
          return (stmt ++ vars)
@@ -157,18 +153,18 @@ toJS' (L txt span expr) =
       Case e cases -> caseToJS span e cases
       _ -> toJS expr
 
-remove x e = "_N.remove('" ++ x ++ "', " ++ e ++ ")"
-addField x v e = "_N.insert('" ++ x ++ "', " ++ v ++ ", " ++ e ++ ")"
+remove x e = "_N.remove('" ++ deprime x ++ "', " ++ e ++ ")"
+addField x v e = "_N.insert('" ++ deprime x ++ "', " ++ v ++ ", " ++ e ++ ")"
 setField fs e = "_N.replace(" ++ jsList (map f fs) ++ ", " ++ e ++ ")"
-    where f (x,v) = "['" ++ x ++ "'," ++ v ++ "]"
-access x e = e ++ "." ++ x
+    where f (x,v) = "['" ++ deprime x ++ "'," ++ v ++ "]"
+access x e = e ++ "." ++ deprime x
 makeRecord kvs = record `liftM` collect kvs
   where
     combine r (k,v) = Map.insertWith (++) k v r
     collect = liftM (List.foldl' combine Map.empty) . mapM prep
     prep (k, e) =
         do v <- toJS' e
-           return (k,[v])
+           return (deprime k, [v])
     fields fs =
         brackets ("\n  "++List.intercalate ",\n  " (map (\(k,v) -> k++":"++v) fs))
     hidden = fields . map (second jsList) .
@@ -189,7 +185,7 @@ instance ToJS Literal where
 instance ToJS (Expr t v) where
  toJS expr =
   case expr of
-    Var x -> return x
+    Var x -> return (deprime x)
     Literal lit -> toJS lit
     Range lo hi -> jsRange `liftM` toJS' lo `ap` toJS' hi
     Access e x -> access x `liftM` toJS' e
@@ -200,13 +196,16 @@ instance ToJS (Expr t v) where
     Record fs -> makeRecord fs
     Binop op e1 e2 -> binop op `liftM` toJS' e1 `ap` toJS' e2
 
-    Lambda p e -> liftM (jsFunc (commaSep args) . ret) (toJS' body)
+    Lambda p e -> liftM (fastFunc . ret) (toJS' body)
         where
+          fastFunc body
+              | length args < 2 || length args > 9 = foldr jsFunc body args
+              | otherwise = "F" ++ show (length args) ++ parens (jsFunc (commaSep args) body)
           (args, body) = foldr depattern ([], innerBody) (zip patterns [1..])
 
           depattern (pattern,n) (args, body) =
             case pattern of
-              PVar x -> (x:args, body)
+              PVar x -> (deprime x : args, body)
               _ -> let arg = "arg" ++ show n
                    in  (arg:args, Loc.none (Case (Loc.none (Var arg)) [(pattern, body)]))
 
@@ -274,7 +273,7 @@ caseToJS span e ps = do
   match <- caseToMatch ps
   e' <- toJS' e
   let (match',stmt) = case (match,e) of
-        (Match name _ _, L _ _ (Var x)) -> (matchSubst [(name,x)] match, "")
+        (Match name _ _, L _ _ (Var x)) -> (matchSubst [(name,deprime x)] match, "")
         (Match name _ _, _)             -> (match, assign name e')
         _                               -> (match, "")
   matches <- matchToJS span match'
@@ -317,26 +316,32 @@ jsCons  e1 e2 = "_L.Cons(" ++ e1 ++ "," ++ e2 ++ ")"
 jsRange e1 e2 = "_L.range" ++ parens (e1 ++ "," ++ e2)
 jsCompare e1 e2 op = parens ("_N.cmp(" ++ e1 ++ "," ++ e2 ++ ").ctor" ++ op)
 
--- todo: this is incorrect. Operators come in prefixed by their module now.
-binop (o:p) e1 e2
-    | isAlpha o || '_' == o = (o:p) ++ parens e1 ++ parens e2
-    | otherwise =
-        let ops = ["+","-","*","/","&&","||"] in
-        case o:p of
-          "::" -> jsCons e1 e2
-          "++" -> "_L.append" ++ parens (e1 ++ "," ++ e2)
-          "<|" -> e1 ++ parens e2
-          "|>" -> e2 ++ parens e1
-          "."  -> jsFunc "x" . ret $ e1 ++ parens (e2 ++ parens "x")
-          "^"  -> "Math.pow(" ++ e1 ++ "," ++ e2 ++ ")"
-          "==" -> "_N.eq(" ++ e1 ++ "," ++ e2 ++ ")"
-          "/=" -> "!_N.eq(" ++ e1 ++ "," ++ e2 ++ ")"
-          "<"  -> jsCompare e1 e2 "==='LT'"
-          ">"  -> jsCompare e1 e2 "==='GT'"
-          "<=" -> jsCompare e1 e2 "!=='GT'"
-          ">=" -> jsCompare e1 e2 "!=='LT'"
-          "<~" -> "A2(lift," ++ e1 ++ "," ++ e2 ++ ")"
-          "~"  -> "A3(lift2,F2(function(f,x){return f(x)}),"++e1++","++e2++")"
-          _  | elem (o:p) ops -> parens (e1 ++ (o:p) ++ e2)
-             | otherwise      -> concat [ "_op['", o:p, "']"
-                                        , parens e1, parens e2 ]
+
+binop op e1 e2 =
+  case Map.lookup op opDict of
+    Just e -> e
+    Nothing -> "A2" ++ parens (commaSep [ prefix ++ func, e1, e2 ])
+        where
+          func | isOp op'  = "_op['" ++ op' ++ "']"
+               | otherwise = op'
+          (prefix, op') = case List.elemIndices '.' op of
+                            [] -> ("", op)
+                            xs -> splitAt (last xs + 1) op
+  where
+    opDict = Map.fromList $ basics ++
+             [ ("::", jsCons e1 e2)
+             , ("List.++", "_L.append" ++ parens (e1 ++ "," ++ e2)) ]
+
+    basics = map (\(op,e) -> ("Basics." ++ op, e)) $
+      [ ("<|", e1 ++ parens e2)
+      , ("|>", e2 ++ parens e1)
+      , ("." , jsFunc "x" . ret $ e1 ++ parens (e2 ++ parens "x"))
+      , ("^" , "Math.pow(" ++ e1 ++ "," ++ e2 ++ ")")
+      , ("==", "_N.eq(" ++ e1 ++ "," ++ e2 ++ ")")
+      , ("/=", "!_N.eq(" ++ e1 ++ "," ++ e2 ++ ")")
+      , ("<" , jsCompare e1 e2 "==='LT'")
+      , (">" , jsCompare e1 e2 "==='GT'")
+      , ("<=", jsCompare e1 e2 "!=='GT'")
+      , (">=", jsCompare e1 e2 "!=='LT'")
+      , ("div", parens (e1 ++ "/" ++ e2 ++ "|0"))
+      ] ++ map (\op -> (op, parens (e1 ++ op ++ e2))) ["+","-","*","/","&&","||"]

@@ -16,6 +16,3 @@ isOp = all isSymbol
 isSymbol :: Char -> Bool
 isSymbol c =
     Char.isSymbol c || elem c "+-/*=.$<>:&|^?%#@~!"
-
-deprime :: String -> String
-deprime = map (\c -> if c == '\'' then '$' else c)
