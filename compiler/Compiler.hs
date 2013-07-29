@@ -17,6 +17,7 @@ import qualified Text.Jasmine as JS
 import qualified Data.ByteString.Lazy.Char8 as BS
 
 import qualified Metadata.Prelude as Prelude
+import qualified Transform.Canonicalize as Canonical
 import SourceSyntax.Module
 import Initialize (buildFromSource, getSortedModuleNames, Interfaces)
 import Generate.JavaScript (jsModule)
@@ -115,7 +116,7 @@ buildFile flags moduleNum numModules interfaces filePath =
         source <- readFile filePath
         createDirectoryIfMissing True (output_directory flags)
         metaModule <-
-            case buildFromSource interfaces source of
+            case buildFromSource (no_prelude flags) interfaces source of
                 Left err -> mapM print err >> exitFailure
                 Right modul -> do
                   if print_program flags then print . pretty $ program modul else return ()
@@ -123,7 +124,7 @@ buildFile flags moduleNum numModules interfaces filePath =
         
         if print_types flags then printTypes metaModule else return ()
         tipes <- toSrcTypes (types metaModule)
-        let interface = ModuleInterface {
+        let interface = Canonical.interface name $ ModuleInterface {
                           iTypes = tipes,
                           iAdts = datatypes metaModule,
                           iAliases = aliases metaModule

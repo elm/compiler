@@ -18,21 +18,20 @@ import qualified Transform.Check as Check
 import qualified Transform.SortDefinitions as SD
 import qualified Type.Inference as TI
 import qualified Type.Constrain.Declaration as TcDecl
+import qualified Transform.Canonicalize as Canonical
 
-import System.IO.Unsafe
-import SourceSyntax.PrettyPrint
-
-buildFromSource :: Interfaces -> String -> Either [Doc] (MetadataModule () ())
-buildFromSource interfaces source =
-  do modul@(Module _ _ _ decls') <- Parse.program source
+buildFromSource :: Bool -> Interfaces -> String -> Either [Doc] (MetadataModule () ())
+buildFromSource noPrelude interfaces source =
+  do let add = if noPrelude then id else Prelude.add
+     modul@(Module _ _ _ decls') <- add `fmap` Parse.program source
 
      -- check for structural errors
      Module names exs ims decls <-
          case Check.mistakes decls' of
            [] -> return modul
            ms -> Left ms
-     
-     let metaModule = MetadataModule {
+
+     metaModule <- Canonical.metadataModule interfaces $ MetadataModule {
            names = names,
            path = FP.joinPath names,
            exports = exs,
