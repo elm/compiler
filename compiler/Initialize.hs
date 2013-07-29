@@ -48,7 +48,10 @@ buildFromSource noPrelude interfaces source =
 
      types <- TI.infer interfaces metaModule
 
-     return $ metaModule { types = types }
+     let exports' | null exs  = Map.keys types
+                  | otherwise = exs
+
+     return $ metaModule { types = types, exports = exports' }
 
 
 getSortedModuleNames :: Bool -> FilePath -> IO [String]
