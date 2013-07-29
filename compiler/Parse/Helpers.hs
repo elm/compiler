@@ -7,7 +7,6 @@ import Data.Char (isUpper)
 import SourceSyntax.Helpers as Help
 import SourceSyntax.Location as Location
 import SourceSyntax.Expression
-import SourceSyntax.Rename (deprime)
 import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
 
@@ -40,7 +39,7 @@ capVar :: IParser String
 capVar = makeVar (upper <?> "upper case variable")
 
 rLabel :: IParser String
-rLabel = deprime <$> lowVar
+rLabel = Help.deprime <$> lowVar
 
 innerVarChar :: IParser Char
 innerVarChar = alphaNum <|> char '_' <|> char '\'' <?> "" 
