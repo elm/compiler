@@ -15,19 +15,8 @@ import qualified SourceSyntax.Type as Type
 import qualified Transform.SortDefinitions as SD
 import Text.PrettyPrint
 
--- todo: remove these
-import System.IO.Unsafe
-import SourceSyntax.PrettyPrint
-
 interface :: String -> ModuleInterface -> ModuleInterface
 interface moduleName iface =
-    let f x = unsafePerformIO $ do
-                putStrLn "----------------------\ncanonicalize interface"
-                putStr "iface  " >> print iface
-                putStr "canons " >> print canons
-                putStr "iface' " >> print x
-                return x
-    in  f $
     ModuleInterface {
       iTypes = Map.mapKeys prefix (Map.map renameType' (iTypes iface)),
       iAdts = map (both prefix renameCtors) (iAdts iface),
@@ -60,12 +49,7 @@ renameType rename tipe =
 
 metadataModule :: Interfaces -> MetadataModule t v -> Either [Doc] (MetadataModule t v)
 metadataModule ifaces modul =
-  do let f x = unsafePerformIO $ do
-                 print realImports
-                 print ifaces
-                 putStr "initialEnv " >> print initialEnv
-                 return x
-     program' <- f $ rename initialEnv (program modul)
+  do program' <- rename initialEnv (program modul)
      return $ modul { program = program' }
   where
     get1 (a,_,_) = a
@@ -79,18 +63,14 @@ metadataModule ifaces modul =
               As alias -> map (pair (alias ++ ".")) allNames
               Hiding vars -> map (pair "") $ filter (flip Set.notMember vs) allNames
                   where vs = Set.fromList vars
-              Importing vars -> f $ map (pair "") $ filter (flip Set.member vs) allNames
+              Importing vars -> map (pair "") $ filter (flip Set.member vs) allNames
                   where vs = Set.fromList $ map (\v -> name ++ "." ++ v) vars
-                        f y = unsafePerformIO $ do
-                                print vs
-                                print allNames
-                                print y
-                                return y
 
     pair n = (n,n)
     localEnv = concat [ map (pair . get1) (aliases modul)
                       , map (pair . get1) (datatypes modul) ]
-    globalEnv = map pair $ [ saveEnvName, "::", "[]" ] ++ map (\n -> "_Tuple" ++ show n) [0..9]
+    globalEnv = map pair $ ["_List",saveEnvName,"::","[]","Int","Float","Char","Bool"] ++
+                           map (\n -> "_Tuple" ++ show n) [0..9]
     realImports = filter (not . List.isPrefixOf "Native." . fst) (imports modul)
     initialEnv = Map.fromList (concatMap canon realImports ++ localEnv ++ globalEnv)
 
@@ -139,7 +119,7 @@ rename env lexpr@(L t s expr) =
             frnm (f,e) = (,) f `liftM` rename env e
 
       Binop op e1 e2 ->
-          do op' <- if isOp op then return op else format (replace env op)
+          do op' <- format (replace env op)
              Binop op' `liftM` rnm e1 `ap` rnm e2
 
       Lambda pattern e ->
