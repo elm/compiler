@@ -2,6 +2,8 @@
 -- standard requests like GET, POST, etc.
 module WebSocket where
 
+import Signal (Signal)
+import Basics (String)
 import Native.WebSocket as Native
 
 -- Create a web-socket. The first argument is the URL of the desired

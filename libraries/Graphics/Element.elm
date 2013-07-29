@@ -16,7 +16,7 @@ import open Basics
 import Native.Utils as Native
 import open JavaScript
 import List as List
-import Color (Color)
+import open Color
 import Maybe (Maybe, Just, Nothing)
 
 type Properties = {

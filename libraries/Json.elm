@@ -3,8 +3,8 @@
 
 module Json where
 
-import Dict (Dict)
-import Dict as Dict
+import open Basics
+import Dict
 import Maybe (Maybe)
 import JavaScript as JS
 import Native.Json as Native
@@ -19,7 +19,7 @@ data JsonValue
     | Boolean Bool
     | Null
     | Array [JsonValue]
-    | Object (Dict String JsonValue)
+    | Object (Dict.Dict String JsonValue)
 
 
 -- String Converters

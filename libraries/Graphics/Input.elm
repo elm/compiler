@@ -1,7 +1,8 @@
 
 module Graphics.Input where
 
-import Signal (lift,dropRepeats)
+import Basics (String)
+import Signal (Signal,lift,dropRepeats)
 import Native.Graphics.Input as Native
 import List
 import Graphics.Element (Element, Three, Pos, ElementPrim, Properties)

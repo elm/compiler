@@ -23,7 +23,7 @@ type Form = {
 data FillStyle
   = Solid Color
   | Texture String
-  | Gradient Gradient
+  | Grad Gradient
 
 -- The shape of the ends of a line. 
 data LineCap = Flat | Round | Padded
@@ -94,7 +94,7 @@ textured src shape = fill (Texture src) shape
 
 -- Fill a shape with a [gradient](/docs/Color.elm#linear).
 gradient : Gradient -> Shape -> Form
-gradient grad shape = fill (Gradient grad) shape
+gradient grad shape = fill (Grad grad) shape
 
 -- Outline a shape with a given line style.
 outlined : LineStyle -> Shape -> Form

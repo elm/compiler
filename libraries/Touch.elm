@@ -2,6 +2,7 @@
 -- include gestures that would be useful for both games and web-pages.
 module Touch where
 
+import Signal (Signal)
 import Native.Touch as Native
 import Time (Time)
 

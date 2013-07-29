@@ -1,6 +1,7 @@
 
 module Random where
 
+import Signal (Signal)
 import Native.Random as Native
 
 -- Given a range from low to high and a signal of values, this produces

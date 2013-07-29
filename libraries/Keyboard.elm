@@ -1,5 +1,6 @@
 module Keyboard where
 
+import Signal (Signal)
 import Native.Keyboard as Native
 
 -- Type alias to make it clearer what integers are supposed to represent

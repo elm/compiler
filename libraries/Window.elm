@@ -1,6 +1,7 @@
 
 module Window where
 
+import Signal (Signal)
 import Native.Window as Native
 
 -- The current dimensions of the window (i.e. the area viewable to the
