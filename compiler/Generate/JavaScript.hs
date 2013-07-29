@@ -3,7 +3,7 @@ module Generate.JavaScript (showErr, jsModule) where
 import Control.Arrow (first,second)
 import Control.Monad (liftM,(<=<),join,ap)
 import Data.Char (isAlpha,isDigit)
-import Data.List (intercalate,inits,foldl')
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Either (partitionEithers)
@@ -36,8 +36,10 @@ internalImports =
 
 parens s  = "(" ++ s ++ ")"
 brackets s  = "{" ++ s ++ "}"
-jsObj = brackets . intercalate ", "
-jsList ss = "["++ intercalate "," ss ++"]"
+commaSep = List.intercalate ", "
+dotSep = List.intercalate "."
+jsObj = brackets . commaSep
+jsList ss = "["++ List.intercalate "," ss ++"]"
 jsFunc args body = "function(" ++ args ++ "){" ++ indent body ++ "}"
 assign x e = "\nvar " ++ x ++ " = " ++ e ++ ";"
 ret e = "\nreturn "++ e ++";"
@@ -61,7 +63,7 @@ jsModule modul =
                       , globalAssign ("Elm." ++ modName)
                                      (jsFunc "elm" $ makeProgram body foreignImport) ]
   where
-    modName  = intercalate "." (names modul)
+    modName  = dotSep (names modul)
     makeProgram body foreignImport =
         concat [ "\nvar " ++ usefulFuncs ++ ";"
                , assign "_op" "{}"
@@ -75,8 +77,8 @@ jsModule modul =
                , ret (assign' ("elm." ++ modName) "_")
                ]
     setup names = concatMap (\n -> globalAssign n $ n ++ "||{}") .
-                  map (intercalate ".") . drop 2 . inits $ init names
-    usefulFuncs = intercalate ", " (map (uncurry assign') internalImports)
+                  map dotSep . drop 2 . List.inits $ init names
+    usefulFuncs = commaSep (map (uncurry assign') internalImports)
 
     jsExport x = 
         if isOp x then "\n_._op['" ++ x ++ "'] = _op['" ++ x ++ "'];"
@@ -106,13 +108,13 @@ jsImport (modul, how) =
           where 
             imprt v = assign' v ("_." ++ v)
             def x = imprt $ if isOp x then "_op['" ++ x ++ "']" else deprime x
-            named = if null vs then "" else "\nvar " ++ intercalate ", " (map def vs) ++ ";"
+            named = if null vs then "" else "\nvar " ++ commaSep (map def vs) ++ ";"
   where
     include = "\nvar _ = Elm." ++ modul ++ parens "elm" ++ ";" ++ setup modul
     setup moduleName = " var " ++ concatMap (++";") (defs ++ [assign' moduleName "_"])
         where
           defs = map (\n -> assign' n (n ++ "||{}")) (subnames moduleName)
-          subnames = map (intercalate ".") . tail . inits . init . split
+          subnames = map dotSep . tail . List.inits . init . split
           split names = case go [] names of
                           (name, []) -> [name]
                           (name, ns) -> name : split ns
@@ -163,12 +165,12 @@ access x e = e ++ "." ++ x
 makeRecord kvs = record `liftM` collect kvs
   where
     combine r (k,v) = Map.insertWith (++) k v r
-    collect = liftM (foldl' combine Map.empty) . mapM prep
+    collect = liftM (List.foldl' combine Map.empty) . mapM prep
     prep (k, e) =
         do v <- toJS' e
            return (k,[v])
     fields fs =
-        brackets ("\n  "++intercalate ",\n  " (map (\(k,v) -> k++":"++v) fs))
+        brackets ("\n  "++List.intercalate ",\n  " (map (\(k,v) -> k++":"++v) fs))
     hidden = fields . map (second jsList) .
              filter (not . null . snd) . Map.toList . Map.map tail
     record kvs = fields . (("_", hidden kvs) :) . Map.toList . Map.map head $ kvs
@@ -198,7 +200,7 @@ instance ToJS (Expr t v) where
     Record fs -> makeRecord fs
     Binop op e1 e2 -> binop op `liftM` toJS' e1 `ap` toJS' e2
 
-    Lambda p e -> liftM (jsFunc (intercalate ", " args) . ret) (toJS' body)
+    Lambda p e -> liftM (jsFunc (commaSep args) . ret) (toJS' body)
         where
           (args, body) = foldr depattern ([], innerBody) (zip patterns [1..])
 
@@ -239,7 +241,7 @@ jsApp e1 e2 =
        as <- mapM toJS' args
        return $ case as of
                   [a] -> f ++ parens a
-                  _   -> "A" ++ show (length as) ++ parens (intercalate ", " (f:as))
+                  _   -> "A" ++ show (length as) ++ parens (commaSep (f:as))
   where
     (func, args) = go [e2] e1
     go args e =
@@ -315,6 +317,7 @@ jsCons  e1 e2 = "_L.Cons(" ++ e1 ++ "," ++ e2 ++ ")"
 jsRange e1 e2 = "_L.range" ++ parens (e1 ++ "," ++ e2)
 jsCompare e1 e2 op = parens ("_N.cmp(" ++ e1 ++ "," ++ e2 ++ ").ctor" ++ op)
 
+-- todo: this is incorrect. Operators come in prefixed by their module now.
 binop (o:p) e1 e2
     | isAlpha o || '_' == o = (o:p) ++ parens e1 ++ parens e2
     | otherwise =
