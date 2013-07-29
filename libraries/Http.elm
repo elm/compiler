@@ -4,8 +4,9 @@
 
 module Http where
 
+import open Basics
+import open Signal
 import Native.Http as Native
-import Signal (lift)
 
 -- The datatype for responses. Success contains only the returned message.
 -- Failures contain both an error code and an error message.

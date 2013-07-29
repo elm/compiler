@@ -5,7 +5,7 @@
 module Automaton where
 
 import open Basics
-import Signal (lift,foldp)
+import Signal (lift,foldp,Signal)
 import open List
 import Maybe (Just, Nothing)
 

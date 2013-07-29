@@ -3,6 +3,7 @@ module Time where
 
 import open Basics
 import Native.Time as Native
+import Signal (Signal)
 
 -- Type alias to make it clearer when you are working with time values.
 -- Using the `Time` constants instead of raw numbers is very highly recommended.
