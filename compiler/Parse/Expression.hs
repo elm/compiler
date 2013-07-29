@@ -1,4 +1,4 @@
-module Parse.Expression {-(def,term)-} where
+module Parse.Expression (def,term) where
 
 import Control.Applicative ((<$>), (<*>))
 import Data.List (foldl')
