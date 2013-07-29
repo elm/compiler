@@ -119,7 +119,9 @@ buildFile flags moduleNum numModules interfaces filePath =
             case buildFromSource (no_prelude flags) interfaces source of
                 Left err -> mapM print err >> exitFailure
                 Right modul -> do
-                  if print_program flags then print . pretty $ program modul else return ()
+                  case print_program flags of
+                    False -> return ()
+                    True -> print . pretty $ program modul
                   return modul
         
         if print_types flags then printTypes metaModule else return ()
