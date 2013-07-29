@@ -48,7 +48,9 @@ buildFromSource noPrelude interfaces source =
 
      types <- TI.infer interfaces metaModule
 
-     let exports' | null exs  = Map.keys types
+     let exports' | null exs =
+                      Map.keys types ++
+                      concat [ map fst ctors | (_,_,ctors) <- datatypes metaModule ]
                   | otherwise = exs
 
      return $ metaModule { types = types, exports = exports' }
