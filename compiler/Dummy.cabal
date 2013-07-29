@@ -45,7 +45,6 @@ Library
                        SourceSyntax.Expression,
                        SourceSyntax.Declaration,
                        SourceSyntax.Module,
-                       SourceSyntax.Rename
                        Generate.JavaScript,
                        Generate.Noscript,
                        Generate.Html,
@@ -103,7 +102,6 @@ Executable elm
                        SourceSyntax.Expression,
                        SourceSyntax.Declaration,
                        SourceSyntax.Module,
-                       SourceSyntax.Rename
                        Generate.JavaScript,
                        Generate.Noscript,
                        Generate.Html,
@@ -158,7 +156,6 @@ Executable elm-doc
                        SourceSyntax.Expression,
                        SourceSyntax.Declaration,
                        SourceSyntax.Module,
-                       SourceSyntax.Rename
                        Parse.Helpers,
                        Parse.Module
 
