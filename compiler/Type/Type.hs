@@ -365,3 +365,24 @@ toSrcType variable = do
                         [ "Problem converting the following type "
                         , "from a type-checker type to a source-syntax type:"
                         , P.render (pretty Never variable) ]
+
+
+data AppStructure = List Variable | Tuple [Variable] | Other
+
+collectApps :: Variable -> IO AppStructure
+collectApps variable = go [] variable
+  where
+    go vars variable = do
+      desc <- UF.descriptor variable
+      case (structure desc, vars) of
+        (Nothing, [v]) -> case name desc of
+                            Just "_List" -> return (List v)
+                            _ -> return Other
+        (Nothing,  vs) -> case name desc of
+                            Just ctor | isTuple ctor -> return (Tuple vs)
+                            _ -> return Other
+
+        (Just term, vs) ->
+            case term of
+              App1 a b -> go (vars ++ [b]) a
+              _ -> return Other
