@@ -73,13 +73,14 @@ Elm.Native.Show = function(elm) {
                 for (var i in v) {
                     if (i === 'ctor') continue;
                     var str = toString(v[i]);
-                    var parenless = str[0] === '{' || str.indexOf(' ') < 0;
+                    var parenless = str[0] === '{' || str[0] === '<' || str.indexOf(' ') < 0;
                     output += ' ' + (parenless ? str : '(' + str + ')');
                 }
                 return v.ctor + output;
             }
         }
-        return v+"";
+        if (typeof v === 'object' && 'recv' in v) return '<signal>';
+        return "<internal structure>";
     };
     function show(v) { return NList.fromArray(toString(v)); }
 
