@@ -11,6 +11,7 @@ import Control.Applicative ((<$>),(<*>), Applicative)
 import qualified Data.Traversable as Traversable
 import Text.PrettyPrint as P
 import SourceSyntax.PrettyPrint
+import SourceSyntax.Location
 
 -- Pool
 -- Holds a bunch of variables
@@ -44,12 +45,20 @@ initialState = SS {
 modifyEnv  f = modify $ \state -> state { sEnv = f (sEnv state) }
 modifyPool f = modify $ \state -> state { sPool = f (sPool state) }
 
-addError message t1 t2 =
+addError span message t1 t2 =
     modify $ \state -> state { sErrors = err : sErrors state }
   where
     err = makeError <$> extraPretty t1 <*> extraPretty t2
+
+    location =
+        case span of
+          NoSpan -> ""
+          Span p1 p2 ->
+              if line p1 == line p2 then "on line " ++ show (line p1)
+              else "between lines " ++ show (line p1) ++ " and " ++ show (line p2)
+                 
     makeError pt1 pt2 =
-        P.vcat [ P.text $ "Type error on line ???"
+        P.vcat [ P.text $ "Type error " ++ location
                , if null message then empty else P.vcat . map P.text $ lines message
                , P.text " "
                , P.text "   Expected Type:" <+> pt1

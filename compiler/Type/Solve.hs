@@ -13,7 +13,7 @@ import Type.Unify
 import qualified Type.Environment as Env
 import qualified Type.State as TS
 import qualified Text.PrettyPrint as P
-import SourceSyntax.Location (Located(L))
+import SourceSyntax.Location (Located(L), SrcSpan)
 
 
 -- | Every variable has rank less than or equal to the maxRank of the pool.
@@ -102,7 +102,7 @@ solve (L span constraint) =
     CEqual term1 term2 -> do
         t1 <- TS.flatten term1
         t2 <- TS.flatten term2
-        unify t1 t2
+        unify span t1 t2
 
     CAnd cs -> mapM_ solve cs
 
@@ -114,7 +114,7 @@ solve (L span constraint) =
 
     CLet schemes constraint' -> do
         oldEnv <- TS.getEnv
-        headers <- mapM solveScheme schemes
+        headers <- mapM (solveScheme span) schemes
         TS.modifyEnv $ \env -> Map.unions (headers ++ [env])
         solve constraint'
         TS.modifyEnv (\_ -> oldEnv)
@@ -130,10 +130,10 @@ solve (L span constraint) =
                     error ("Could not find '" ++ name ++ "' when solving type constraints.")
 
         t <- TS.flatten term
-        unify freshCopy t
+        unify span freshCopy t
 
-solveScheme :: TypeScheme -> StateT TS.SolverState IO (Map.Map String Variable)
-solveScheme scheme =
+solveScheme :: SrcSpan -> TypeScheme -> StateT TS.SolverState IO (Map.Map String Variable)
+solveScheme span scheme =
     case scheme of
       Scheme [] [] constraint header -> do
           solve constraint
@@ -150,36 +150,36 @@ solveScheme scheme =
           header' <- Traversable.traverse TS.flatten header
           solve constraint
 
-          allDistinct rigidQuantifiers
+          allDistinct span rigidQuantifiers
           youngPool <- TS.getPool
           TS.switchToPool oldPool
           generalize youngPool
-          mapM isGeneric rigidQuantifiers
+          mapM (isGeneric span) rigidQuantifiers
           return header'
 
 
 -- Checks that all of the given variables belong to distinct equivalence classes.
 -- Also checks that their structure is Nothing, so they represent a variable, not
 -- a more complex term.
-allDistinct :: [Variable] -> StateT TS.SolverState IO ()
-allDistinct vars = do
+allDistinct :: SrcSpan -> [Variable] -> StateT TS.SolverState IO ()
+allDistinct span vars = do
   seen <- TS.uniqueMark
   let check var = do
         desc <- liftIO $ UF.descriptor var
         case structure desc of
           Just _ ->
-              TS.addError "Cannot generalize something that is not a type variable" var var
+              TS.addError span "Cannot generalize something that is not a type variable" var var
           Nothing -> do
             if mark desc == seen
-              then TS.addError "Duplicate variable during generalization" var var
+              then TS.addError span "Duplicate variable during generalization" var var
               else return ()
             liftIO $ UF.setDescriptor var (desc { mark = seen })
   mapM_ check vars
 
 -- Check that a variable has rank == noRank, meaning that it can be generalized.
-isGeneric :: Variable -> StateT TS.SolverState IO ()
-isGeneric var = do
+isGeneric :: SrcSpan -> Variable -> StateT TS.SolverState IO ()
+isGeneric span var = do
   desc <- liftIO $ UF.descriptor var
   if rank desc == noRank
     then return ()
-    else TS.addError "Cannot generalize. Variable must have not have a rank." var var
+    else TS.addError span "Cannot generalize. Variable must have not have a rank." var var
