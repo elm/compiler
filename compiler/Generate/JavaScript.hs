@@ -314,7 +314,7 @@ clauseToJS span var (Clause value vars e) = do
 jsNil         = "_L.Nil"
 jsCons  e1 e2 = "_L.Cons(" ++ e1 ++ "," ++ e2 ++ ")"
 jsRange e1 e2 = "_L.range" ++ parens (e1 ++ "," ++ e2)
-jsCompare e1 e2 op = parens ("_N.cmp(" ++ e1 ++ "," ++ e2 ++ ").ctor" ++ op)
+jsCompare e1 e2 op = parens ("_N.cmp(" ++ e1 ++ "," ++ e2 ++ ")" ++ op)
 
 
 binop op e1 e2 =
@@ -341,9 +341,9 @@ binop op e1 e2 =
                      , ("." , jsFunc "x" . ret $ e1 ++ parens (e2 ++ parens "x"))
                      , ("==", "_N.eq(" ++ e1 ++ "," ++ e2 ++ ")")
                      , ("/=", "!_N.eq(" ++ e1 ++ "," ++ e2 ++ ")")
-                     , ("<" , jsCompare e1 e2 "==='LT'")
-                     , (">" , jsCompare e1 e2 "==='GT'")
-                     , ("<=", jsCompare e1 e2 "!=='GT'")
-                     , (">=", jsCompare e1 e2 "!=='LT'")
+                     , ("<" , jsCompare e1 e2 "<0")
+                     , (">" , jsCompare e1 e2 ">0")
+                     , ("<=", jsCompare e1 e2 "<1")
+                     , (">=", jsCompare e1 e2 ">-1")
                      , ("div", parens (e1 ++ "/" ++ e2 ++ "|0"))
                      ])

@@ -19,8 +19,10 @@ Elm.Native.Utils = function(elm) {
     return x === y;
   }
 
-  var EQ = 0, LT = -1, GT = 1, ord = ['EQ','LT','GT'];
-  function compare(x,y) { return { ctor: ord[cmp(x,y)] } }
+  // code in Generate/JavaScript.hs depends on the particular
+  // integer values assigned to LT, EQ, and GT
+  var LT = -1, EQ = 0, GT = 1, ord = ['LT','EQ','GT'];
+  function compare(x,y) { return { ctor: ord[cmp(x,y)+1] } }
   function cmp(x,y) {
     var ord;
     if (typeof x !== 'object') return x === y ? EQ : x < y ? LT : GT;
