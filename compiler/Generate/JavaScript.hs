@@ -12,7 +12,7 @@ import qualified Text.Pandoc as Pan
 import Unique
 import Generate.Cases
 import SourceSyntax.Everything hiding (parens)
-import SourceSyntax.Location as Loc
+import SourceSyntax.Location
 import qualified Transform.SortDefinitions as SD
 
 deprime :: String -> String
@@ -130,12 +130,12 @@ instance ToJS (Def t v) where
       | isOp x = globalAssign ("_op['" ++ x ++ "']")  `liftM` toJS' e
       | otherwise = assign (deprime x) `liftM` toJS' e
 
-  toJS (Def pattern e) =
+  toJS (Def pattern e@(L s _)) =
       do n <- guid
          let x = "_" ++ show n
-             var = Loc.none . Var
+             var = L s . Var
              toDef y' = let y = deprime y' in
-                        Def (PVar y) (Loc.none $ Case (var x) [(pattern, var y)])
+                        Def (PVar y) (L s $ Case (var x) [(pattern, var y)])
          stmt <- assign x `liftM` toJS' e
          vars <- toJS . map toDef . Set.toList $ SD.boundVars pattern
          return (stmt ++ vars)
@@ -196,7 +196,7 @@ instance ToJS (Expr t v) where
     Record fs -> makeRecord fs
     Binop op e1 e2 -> binop op `liftM` toJS' e1 `ap` toJS' e2
 
-    Lambda p e -> liftM (fastFunc . ret) (toJS' body)
+    Lambda p e@(L s _) -> liftM (fastFunc . ret) (toJS' body)
         where
           fastFunc body
               | length args < 2 || length args > 9 = foldr jsFunc body args
@@ -207,7 +207,7 @@ instance ToJS (Expr t v) where
             case pattern of
               PVar x -> (deprime x : args, body)
               _ -> let arg = "arg" ++ show n
-                   in  (arg:args, Loc.none (Case (Loc.none (Var arg)) [(pattern, body)]))
+                   in  (arg:args, L s (Case (L s (Var arg)) [(pattern, body)]))
 
           (patterns, innerBody) = collect [p] e
 

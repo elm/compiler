@@ -157,7 +157,8 @@ ifExpr = reserved "if" >> whitespace >> (normal <|> multiIf)
         thenBranch <- expr
         whitespace <?> "an 'else' branch" ; reserved "else" <?> "an 'else' branch" ; whitespace
         elseBranch <- expr
-        return $ MultiIf [(bool, thenBranch), (Location.none (Var "otherwise"), elseBranch)]
+        return $ MultiIf [(bool, thenBranch),
+                          (Location.sameAs elseBranch (Var "otherwise"), elseBranch)]
       multiIf = MultiIf <$> spaceSep1 iff
           where iff = do string "|" ; whitespace
                          b <- expr ; whitespace ; string "->" ; whitespace

@@ -64,5 +64,5 @@ toDefs decl =
 arguments :: [String]
 arguments = map (:[]) ['a'..'z'] ++ map (\n -> "_" ++ show n) [1..]
 
-buildFunction body vars =
-    foldr (\p e -> Src.none (Src.Lambda p e)) body (map Src.PVar vars)
+buildFunction body@(Src.L s _) vars =
+    foldr (\p e -> Src.L s (Src.Lambda p e)) body (map Src.PVar vars)

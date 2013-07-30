@@ -182,15 +182,15 @@ constrainDef env info (pattern, expr, maybeTipe) =
 
 expandPattern :: (Pattern, LExpr t v, Maybe SrcT.Type)
               -> [(Pattern, LExpr t v, Maybe SrcT.Type)]
-expandPattern triple@(pattern, lexpr, maybeType) =
+expandPattern triple@(pattern, lexpr@(L s _), maybeType) =
     case pattern of
       PVar _ -> [triple]
       _ -> (PVar x, lexpr, maybeType) : map toDef vars
           where
             vars = Set.toList $ SD.boundVars pattern
             x = concat vars
-            var = Loc.none . Var
-            toDef y = (PVar y, Loc.none $ Case (var x) [(pattern, var y)], Nothing)
+            var = L s . Var
+            toDef y = (PVar y, L s $ Case (var x) [(pattern, var y)], Nothing)
 
 collapseDefs :: [Def t v] -> [(Pattern, LExpr t v, Maybe SrcT.Type)]
 collapseDefs = concatMap expandPattern . go [] Map.empty Map.empty

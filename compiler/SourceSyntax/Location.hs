@@ -26,7 +26,6 @@ instance Show SrcSpan where
 instance Show e => Show (Located e) where
   show (L _ e) = show e
 
-
 none = L NoSpan
 
 at start end = L (Span (Pos (Parsec.sourceLine start) (Parsec.sourceColumn start))
@@ -37,3 +36,5 @@ merge (L s1 _) (L s2 _) = L span
                    (Span start _, Span _ end) -> Span start end
                    (_, NoSpan) -> s1
                    (NoSpan, _) -> s2
+
+sameAs (L s _) = L s

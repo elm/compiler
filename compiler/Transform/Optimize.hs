@@ -56,9 +56,9 @@ isValue e =
       _          -> False
 
 
-binop op ce1@(L t1 s1 e1) ce2@(L t2 s2 e2) =
-  let c1 = L t1 s1
-      c2 = L t2 s2
+binop op ce1@(L s1 e1) ce2@(L s2 e2) =
+  let c1 = L s1
+      c2 = L s2
       int = Literal . IntNum
       str = Literal . Str
       bool = Literal . Boolean
