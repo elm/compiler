@@ -50,7 +50,7 @@ addError message t1 t2 =
     err = makeError <$> extraPretty t1 <*> extraPretty t2
     makeError pt1 pt2 =
         P.vcat [ P.text $ "Type error on line ???"
-               , if null message then empty else P.fsep . map P.text $ words message
+               , if null message then empty else P.vcat . map P.text $ lines message
                , P.text " "
                , P.text "   Expected Type:" <+> pt1
                , P.text "     Actual Type:" <+> pt2 <> P.text "\n"
