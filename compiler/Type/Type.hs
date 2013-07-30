@@ -375,14 +375,12 @@ collectApps variable = go [] variable
     go vars variable = do
       desc <- UF.descriptor variable
       case (structure desc, vars) of
-        (Nothing, [v]) -> case name desc of
-                            Just "_List" -> return (List v)
-                            _ -> return Other
-        (Nothing,  vs) -> case name desc of
-                            Just ctor | isTuple ctor -> return (Tuple vs)
-                            _ -> return Other
-
-        (Just term, vs) ->
-            case term of
-              App1 a b -> go (vars ++ [b]) a
-              _ -> return Other
+        (Nothing, [v] ) -> case name desc of
+                             Just "_List" -> return (List v)
+                             _ -> return Other
+        (Nothing,  vs ) -> case name desc of
+                             Just ctor | isTuple ctor -> return (Tuple vs)
+                             _ -> return Other
+        (Just term, vs) -> case term of
+                             App1 a b -> go (vars ++ [b]) a
+                             _ -> return Other
