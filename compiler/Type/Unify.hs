@@ -6,7 +6,6 @@ import qualified Data.Map as Map
 import qualified Type.State as TS
 import Control.Arrow (first,second)
 import Control.Monad.State
-import qualified Text.PrettyPrint as P
 
 unify :: Variable -> Variable -> StateT TS.SolverState IO ()
 unify variable1 variable2 = do
@@ -72,6 +71,32 @@ actuallyUnify variable1 variable2 = do
         liftIO $ UF.modifyDescriptor var $ \desc -> desc { flex = Flexible }
         unify variable1 variable2
 
+      unifyNumber svar name
+          | name `elem` ["Int","Float"] = flexAndUnify svar
+          | otherwise = TS.addError "Expecting a number (Int or Float)" variable1 variable2
+
+      comparableError str = TS.addError (str ++ msg) variable1 variable2
+          where msg = "Expecting something comparable such as an\n" ++
+                      "Int, Float, Char, or a list or tuple of comparables."
+
+      unifyComparable var name
+          | name `elem` ["Int","Float","Char"] = flexAndUnify var
+          | otherwise = comparableError ""
+
+      unifyComparableStructure varSuper varFlex =
+          do struct <- liftIO $ collectApps varFlex
+             case struct of
+               Other -> comparableError ""
+               List v -> do flexAndUnify varSuper
+                            unify v =<< liftIO (var $ Is Comparable)
+               Tuple vs
+                   | length vs > 6 ->
+                       comparableError "Cannot compare a tuple with more than 6 elements.\n"
+                   | otherwise -> 
+                       do flexAndUnify varSuper
+                          cmpVars <- liftIO $ forM [1..length vs] $ \_ -> var (Is Comparable)
+                          zipWithM_ unify vs cmpVars
+
       superUnify =
           case (flex desc1, flex desc2, name desc1, name desc2) of
             (Is super1, Is super2, _, _)
@@ -79,21 +104,13 @@ actuallyUnify variable1 variable2 = do
             (Is Number, Is Comparable, _, _) -> merge1
             (Is Comparable, Is Number, _, _) -> merge2
                    
-            (Is Number, _, _, Just name)
-                | name `elem` ["Int","Float"] -> flexAndUnify variable1
-                | otherwise -> TS.addError "Expecting a number (Int or Float)" variable1 variable2
+            (Is Number, _, _, Just name) -> unifyNumber variable1 name
+            (_, Is Number, Just name, _) -> unifyNumber variable2 name
 
-            (_, Is Number, Just name, _)
-                | name `elem` ["Int","Float"] -> flexAndUnify variable2
-                | otherwise -> TS.addError "Expecting a number (Int or Float)" variable1 variable2
-
-            (Is Comparable, _, _, Just name)
-                | name `elem` ["Int","Float","Char"] -> flexAndUnify variable1
-                | otherwise -> TS.addError "Expecting something comparable (Int, Float, Char, [comparable])." variable1 variable2
-
-            (_, Is Comparable, Just name, _)
-                | name `elem` ["Int","Float","Char"] -> flexAndUnify variable2
-                | otherwise -> TS.addError "Expecting something comparable (Int, Float, Char, [comparable])." variable1 variable2
+            (Is Comparable, _, _, Just name) -> unifyComparable variable1 name
+            (_, Is Comparable, Just name, _) -> unifyComparable variable2 name
+            (Is Comparable, _, _, _) -> unifyComparableStructure variable1 variable2
+            (_, Is Comparable, _, _) -> unifyComparableStructure variable2 variable1
 
             _ -> TS.addError "" variable1 variable2
 
