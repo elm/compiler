@@ -22,10 +22,16 @@ import qualified Transform.SortDefinitions as SD
 
 
 constrain :: Env.Environment -> LExpr a b -> Type -> IO TypeConstraint
-constrain env (L _ expr) tipe =
-    let list t = Env.get env Env.types "_List" <| t in
+constrain env (L span expr) tipe =
+    let list t = Env.get env Env.types "_List" <| t
+        and = L span . CAnd
+        true = L span CTrue
+        t1 === t2 = L span (CEqual t1 t2)
+        x <? t = L span (CInstance x t)
+        clet schemes c = L span (CLet schemes c)
+    in
     case expr of
-      Literal lit -> Literal.constrain env lit tipe
+      Literal lit -> Literal.constrain env span lit tipe
 
       Var name -> return (name <? tipe)
 
@@ -33,26 +39,26 @@ constrain env (L _ expr) tipe =
           exists $ \x -> do
             clo <- constrain env lo x
             chi <- constrain env hi x
-            return $ CAnd [clo, chi, list x === tipe]
+            return $ and [clo, chi, list x === tipe]
 
       ExplicitList exprs ->
           exists $ \x -> do
             cs <- mapM (\e -> constrain env e x) exprs
-            return $ CAnd (list x === tipe : cs)
+            return . and $ list x === tipe : cs
 
       Binop op e1 e2 ->
           exists $ \t1 ->
           exists $ \t2 -> do
             c1 <- constrain env e1 t1
             c2 <- constrain env e2 t2
-            return $ CAnd [ c1, c2, op <? (t1 ==> t2 ==> tipe) ]
+            return $ and [ c1, c2, op <? (t1 ==> t2 ==> tipe) ]
 
       Lambda p e ->
           exists $ \t1 ->
           exists $ \t2 -> do
             fragment <- Pattern.constrain env p t1
             c2 <- constrain env e t2
-            let c = ex (vars fragment) (CLet [monoscheme (typeEnv fragment)]
+            let c = ex (vars fragment) (clet [monoscheme (typeEnv fragment)]
                                              (typeConstraint fragment /\ c2 ))
             return $ c /\ tipe === (t1 ==> t2)
 
@@ -62,7 +68,7 @@ constrain env (L _ expr) tipe =
             c2 <- constrain env e2 t
             return $ c1 /\ c2
 
-      MultiIf branches -> CAnd <$> mapM constrain' branches
+      MultiIf branches -> and <$> mapM constrain' branches
           where 
              bool = Env.get env Env.types "Bool"
              constrain' (b,e) = do
@@ -75,12 +81,12 @@ constrain env (L _ expr) tipe =
             ce <- constrain env exp t
             let branch (p,e) = do
                   fragment <- Pattern.constrain env p t
-                  CLet [toScheme fragment] <$> constrain env e tipe
-            CAnd . (:) ce <$> mapM branch branches
+                  clet [toScheme fragment] <$> constrain env e tipe
+            and . (:) ce <$> mapM branch branches
 
       Data name exprs ->
           do pairs <- mapM pair exprs
-             (ctipe, cs) <- Monad.foldM step (tipe,CTrue) (reverse pairs)
+             (ctipe, cs) <- Monad.foldM step (tipe,true) (reverse pairs)
              return (cs /\ name <? ctipe)
           where
             pair e = do v <- var Flexible -- needs an ex
@@ -104,7 +110,7 @@ constrain env (L _ expr) tipe =
               cVal <- constrain env value tVal
               cRec <- constrain env e tRec
               let c = tipe === record (Map.singleton label [tVal]) tRec
-              return (CAnd [cVal, cRec, c])
+              return (and [cVal, cRec, c])
 
       Modify e fields ->
           exists $ \t -> do
@@ -118,28 +124,28 @@ constrain env (L _ expr) tipe =
 
               cs <- zipWithM (constrain env) (map snd fields) (map VarN newVars)
 
-              return $ cOld /\ ex newVars (CAnd (cNew : cs))
+              return $ cOld /\ ex newVars (and (cNew : cs))
 
       Record fields ->
           do vars <- forM fields $ \_ -> var Flexible
              cs <- zipWithM (constrain env) (map snd fields) (map VarN vars)
              let fields' = SrcT.fieldMap (zip (map fst fields) (map VarN vars))
                  recordType = record fields' (TermN EmptyRecord1)
-             return . ex vars $ CAnd (tipe === recordType : cs)
+             return . ex vars . and $ tipe === recordType : cs
 
       Markdown _ ->
           return $ tipe === Env.get env Env.types "Element"
 
       Let defs body ->
           do c <- case body of
-                    L _ (Var name) | name == saveEnvName -> return CSaveEnv
+                    L _ (Var name) | name == saveEnvName -> return (L span CSaveEnv)
                     _ -> constrain env body tipe
              (schemes, rqs, fqs, header, c2, c1) <-
                  Monad.foldM (constrainDef env)
-                             ([], [], [], Map.empty, CTrue, CTrue)
+                             ([], [], [], Map.empty, true, true)
                              (collapseDefs defs)
-             return $ CLet schemes
-                           (CLet [Scheme rqs fqs (CLet [monoscheme header] c2) header ]
+             return $ clet schemes
+                           (clet [Scheme rqs fqs (clet [monoscheme header] c2) header ]
                                  (c1 /\ c))
 
 constrainDef env info (pattern, expr, maybeTipe) =
@@ -154,7 +160,7 @@ constrainDef env info (pattern, expr, maybeTipe) =
              (vars, typ) <- Env.instantiateType env tipe Map.empty
              let scheme = Scheme { rigidQuantifiers = [],
                                    flexibleQuantifiers = flexiVars ++ vars,
-                                   constraint = CTrue,
+                                   constraint = Loc.none CTrue,
                                    header = Map.singleton name typ }
              c <- constrain env' expr typ
              return ( scheme : schemes

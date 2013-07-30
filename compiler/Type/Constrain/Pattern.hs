@@ -9,6 +9,7 @@ import Data.Map ((!))
 import qualified Data.Map as Map
 
 import SourceSyntax.Pattern
+import qualified SourceSyntax.Location as Loc
 import Type.Type
 import Type.Fragment
 import Type.Environment as Env
@@ -17,11 +18,15 @@ import qualified Type.Constrain.Literal as Literal
 
 constrain :: Environment -> Pattern -> Type -> IO Fragment
 constrain env pattern tipe =
+    let span = Loc.NoSpan
+        t1 === t2 = Loc.L span (CEqual t1 t2)
+        x <? t = Loc.L span (CInstance x t)
+    in
     case pattern of
       PAnything -> return emptyFragment
 
       PLiteral lit -> do
-          c <- Literal.constrain env lit tipe
+          c <- Literal.constrain env span lit tipe
           return $ emptyFragment { typeConstraint = c }
 
       PVar name -> do

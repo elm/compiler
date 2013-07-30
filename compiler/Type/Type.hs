@@ -10,6 +10,7 @@ import System.IO.Unsafe
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad.State
 import Data.Traversable (traverse)
+import SourceSyntax.Location
 import SourceSyntax.Helpers (isTuple)
 import qualified SourceSyntax.Type as Src
 
@@ -35,7 +36,8 @@ type Variable = UF.Point Descriptor
 type SchemeName = String
 type TypeName = String
 
-data Constraint a b
+type Constraint a b = Located (BasicConstraint a b)
+data BasicConstraint a b
     = CTrue
     | CSaveEnv
     | CEqual a a
@@ -54,20 +56,16 @@ data Scheme a b = Scheme {
 type TypeConstraint = Constraint Type Variable
 type TypeScheme = Scheme Type Variable
 
-monoscheme headers = Scheme [] [] CTrue headers
+monoscheme headers = Scheme [] [] (none CTrue) headers
 
 infixl 8 /\
 
 (/\) :: Constraint a b -> Constraint a b -> Constraint a b
-a /\ CTrue = a
-CTrue /\ b = b
-a /\ b = CAnd [a,b]
-
-(===) :: Type -> Type -> TypeConstraint
-(===) = CEqual
-
-(<?) :: SchemeName -> Type -> TypeConstraint
-x <? t = CInstance x t
+a@(L s1 c1) /\ b@(L s2 c2) =
+    case (c1, c2) of
+      (CTrue, _) -> b
+      (_, CTrue) -> a
+      _ -> merge a b (CAnd [a,b])
 
 infixr 9 ==>
 (==>) :: Type -> Type -> Type
@@ -126,11 +124,11 @@ structuredVar structure = UF.fresh $ Descriptor {
 
 -- ex qs constraint == exists qs. constraint
 ex :: [Variable] -> TypeConstraint -> TypeConstraint
-ex fqs constraint = CLet [Scheme [] fqs constraint Map.empty] CTrue
+ex fqs constraint@(L s _) = L s $ CLet [Scheme [] fqs constraint Map.empty] (L s CTrue)
 
 -- fl qs constraint == forall qs. constraint
 fl :: [Variable] -> TypeConstraint -> TypeConstraint
-fl rqs constraint = CLet [Scheme rqs [] constraint Map.empty] CTrue
+fl rqs constraint@(L s _) = L s $ CLet [Scheme rqs [] constraint Map.empty] (L s CTrue)
 
 exists :: (Type -> IO TypeConstraint) -> IO TypeConstraint
 exists f = do
@@ -144,6 +142,10 @@ instance Show a => Show (UF.Point a) where
 
 instance PrettyType a => PrettyType (UF.Point a) where
   pretty when point = unsafePerformIO $ fmap (pretty when) (UF.descriptor point)
+
+
+instance PrettyType a => PrettyType (Located a) where
+  pretty when (L _ e) = pretty when e
 
 
 instance PrettyType a => PrettyType (Term1 a) where
@@ -194,7 +196,7 @@ instance PrettyType Descriptor where
       _ -> P.text "?"
 
 
-instance (PrettyType a, PrettyType b) => PrettyType (Constraint a b) where
+instance (PrettyType a, PrettyType b) => PrettyType (BasicConstraint a b) where
   pretty _ constraint =
     let prty = pretty Never in
     case constraint of
@@ -206,12 +208,12 @@ instance (PrettyType a, PrettyType b) => PrettyType (Constraint a b) where
       CAnd cs ->
         P.parens . P.sep $ P.punctuate (P.text " and") (map (pretty Never) cs)
 
-      CLet [Scheme [] fqs constraint header] CTrue | Map.null header ->
+      CLet [Scheme [] fqs constraint header] (L _ CTrue) | Map.null header ->
           P.sep [ binder, pretty Never c ]
         where
-          mergeExists vs c =
+          mergeExists vs (L _ c) =
             case c of
-              CLet [Scheme [] fqs' c' _] CTrue -> mergeExists (vs ++ fqs') c'
+              CLet [Scheme [] fqs' c' _] (L _ CTrue) -> mergeExists (vs ++ fqs') c'
               _ -> (vs, c)
 
           (fqs', c) = mergeExists fqs constraint
@@ -227,7 +229,7 @@ instance (PrettyType a, PrettyType b) => PrettyType (Constraint a b) where
         P.text name <+> P.text "<" <+> prty tipe
 
 instance (PrettyType a, PrettyType b) => PrettyType (Scheme a b) where
-  pretty _ (Scheme rqs fqs constraint headers) =
+  pretty _ (Scheme rqs fqs (L _ constraint) headers) =
       P.sep [ forall, cs, headers' ]
     where
       prty = pretty Never
@@ -287,7 +289,10 @@ class Crawl t where
         -> t
         -> StateT CrawlState IO t
 
-instance (Crawl t, Crawl v) => Crawl (Constraint t v) where
+instance Crawl a => Crawl (Located a) where
+  crawl nextState (L s e) = L s <$> crawl nextState e
+
+instance (Crawl t, Crawl v) => Crawl (BasicConstraint t v) where
   crawl nextState constraint = 
     let rnm = crawl nextState in
     case constraint of

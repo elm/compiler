@@ -13,6 +13,7 @@ import Type.Unify
 import qualified Type.Environment as Env
 import qualified Type.State as TS
 import qualified Text.PrettyPrint as P
+import SourceSyntax.Location (Located(L))
 
 
 -- | Every variable has rank less than or equal to the maxRank of the pool.
@@ -92,7 +93,7 @@ adjustRank youngMark visitedMark groupRank variable =
 
 
 solve :: TypeConstraint -> StateT TS.SolverState IO ()
-solve constraint =
+solve (L span constraint) =
   case constraint of
     CTrue -> return ()
 
@@ -105,7 +106,7 @@ solve constraint =
 
     CAnd cs -> mapM_ solve cs
 
-    CLet [Scheme [] fqs constraint' _] CTrue -> do
+    CLet [Scheme [] fqs constraint' _] (L _ CTrue) -> do
         oldEnv <- TS.getEnv
         mapM TS.introduce fqs
         solve constraint'

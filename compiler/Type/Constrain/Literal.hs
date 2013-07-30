@@ -4,16 +4,22 @@ import Data.Map ((!))
 import qualified Data.Map as Map
 
 import SourceSyntax.Literal
+import SourceSyntax.Location
 import Type.Type
 import Type.Fragment
 import Type.Environment as Env
 
-constrain :: Environment -> Literal -> Type -> IO TypeConstraint
-constrain env literal tipe =
-    let prim name = Env.get env Env.types name in
-    case literal of
-      IntNum _   -> fmap (\n -> tipe === VarN n) (var (Is Number))
-      FloatNum _ -> return $ tipe === prim "Float"
-      Chr _      -> return $ tipe === prim "Char"
-      Str _      -> return $ tipe === TermN (App1 (prim "_List") (prim "Char"))
-      Boolean _  -> return $ tipe === prim "Bool"
+constrain :: Environment -> SrcSpan -> Literal -> Type -> IO TypeConstraint
+constrain env span literal tipe =
+    do tipe' <- litType
+       return . L span $ CEqual tipe tipe'
+    where
+      prim name = Env.get env Env.types name
+
+      litType =
+          case literal of
+            IntNum _   -> VarN `fmap` var (Is Number)
+            FloatNum _ -> return (prim "Float")
+            Chr _      -> return (prim "Char")
+            Str _      -> return (TermN (App1 (prim "_List") (prim "Char")))
+            Boolean _  -> return (prim "Bool")
