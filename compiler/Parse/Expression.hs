@@ -36,7 +36,7 @@ accessor = do
   start <- getPosition
   lbl <- try (string "." >> rLabel)
   end <- getPosition
-  let loc e = Location.add ("." ++ lbl) (Location.at start end e)
+  let loc e = Location.at start end e
   return (Lambda (PVar "_") (loc $ Access (loc $ Var "_") lbl))
 
 negative :: IParser (Expr t v)
@@ -215,9 +215,8 @@ funcDef =
                              else [ PVar (o:p), p1, p2 ]
 
 makeFunction :: [Pattern] -> LExpr t v -> LExpr t v
-makeFunction args body@(L a b _) =
-    let pos = L a b in
-    foldr (\arg body' -> pos $ Lambda arg body') body args
+makeFunction args body@(L s _) =
+    foldr (\arg body' -> L s $ Lambda arg body') body args
 
 assignExpr :: IParser (Def t v)
 assignExpr = withPos $ do

@@ -101,12 +101,12 @@ replace env v =
                       "\nClose matches include: " ++ List.intercalate ", " matches
 
 rename :: Env -> LExpr t v -> Either [Doc] (LExpr t v)
-rename env lexpr@(L t s expr) =
+rename env lexpr@(L s expr) =
     let rnm = rename env
         throw err = Left [ P.text $ "Error " ++ show s ++ "\n" ++ err ]
         format = Either.either throw return
     in
-    L t s `liftM`
+    L s `liftM`
     case expr of
       Literal lit -> return expr
 

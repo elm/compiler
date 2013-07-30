@@ -7,7 +7,7 @@ import Control.Arrow (second, (***))
 
 subst :: String -> Expr t v -> Expr t v -> Expr t v
 subst old new expr =
-    let f (L t s e) = L t s (subst old new e) in
+    let f (L s e) = L s (subst old new e) in
     case expr of
       Range e1 e2 -> Range (f e1) (f e2)
       ExplicitList es -> ExplicitList (map f es)

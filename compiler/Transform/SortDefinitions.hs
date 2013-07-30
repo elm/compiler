@@ -40,15 +40,15 @@ bound boundVars = modify (\freeVars -> Set.difference freeVars boundVars)
 sortDefs :: LExpr t v -> LExpr t v
 sortDefs expr = evalState (reorder expr) Set.empty
 
-flattenLets defs lexpr@(L _ _ expr) =
+flattenLets defs lexpr@(L _ expr) =
     case expr of
       Let ds body -> flattenLets (defs ++ ds) body
       _ -> (defs, lexpr)
 
 
 reorder :: LExpr t v -> State (Set.Set String) (LExpr t v)
-reorder lexpr@(L a b expr) =
-    L a b `liftM`
+reorder lexpr@(L s expr) =
+    L s `liftM`
     case expr of
       -- Be careful adding and restricting freeVars
       Var x -> free x >> return expr
@@ -119,13 +119,13 @@ reorder lexpr@(L a b expr) =
                 bound (boundVars pattern)
                 mapM free (ctors pattern)
 
-             let addDefs ds bod = L a b (Let (concatMap toDefs ds) bod)
+             let addDefs ds bod = L s (Let (concatMap toDefs ds) bod)
                      where
                        toDefs (pattern, expr, Nothing) = [ Def pattern expr ]
                        toDefs (PVar name, expr, Just tipe) =
                            [ TypeAnnotation name tipe, Def (PVar name) expr ]
              
-                 L _ _ let' = foldr addDefs body' defss
+                 L _ let' = foldr addDefs body' defss
 
              return let'
 

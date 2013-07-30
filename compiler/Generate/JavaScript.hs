@@ -147,7 +147,7 @@ instance ToJS a => ToJS [a] where
   toJS xs = concat `liftM` mapM toJS xs
 
 toJS' :: LExpr t v -> Unique String
-toJS' (L txt span expr) =
+toJS' (L span expr) =
     case expr of
       MultiIf ps -> multiIfToJS span ps
       Case e cases -> caseToJS span e cases
@@ -211,7 +211,7 @@ instance ToJS (Expr t v) where
 
           (patterns, innerBody) = collect [p] e
 
-          collect patterns lexpr@(L a b expr) =
+          collect patterns lexpr@(L _ expr) =
             case expr of
               Lambda p e -> collect (p:patterns) e
               _ -> (patterns, lexpr)
@@ -245,7 +245,7 @@ jsApp e1 e2 =
     (func, args) = go [e2] e1
     go args e =
        case e of
-         (L _ _ (App e1 e2)) -> go (e2 : args) e1
+         (L _ (App e1 e2)) -> go (e2 : args) e1
          _ -> (e, args)
 
 formatMarkdown = concatMap f
@@ -256,7 +256,7 @@ formatMarkdown = concatMap f
 
 multiIfToJS span ps =
     case last ps of
-      (L _ _ (Var "otherwise"), e) -> toJS' e >>= \b -> format b (init ps)
+      (L _ (Var "otherwise"), e) -> toJS' e >>= \b -> format b (init ps)
       _ -> format ("_E.If" ++ parens (quoted (show span))) ps
   where
     format base ps =
@@ -273,9 +273,9 @@ caseToJS span e ps = do
   match <- caseToMatch ps
   e' <- toJS' e
   let (match',stmt) = case (match,e) of
-        (Match name _ _, L _ _ (Var x)) -> (matchSubst [(name,deprime x)] match, "")
-        (Match name _ _, _)             -> (match, assign name e')
-        _                               -> (match, "")
+        (Match name _ _, L _ (Var x)) -> (matchSubst [(name,deprime x)] match, "")
+        (Match name _ _, _)           -> (match, assign name e')
+        _                             -> (match, "")
   matches <- matchToJS span match'
   return $ "function(){ " ++ stmt ++ matches ++ " }()"
 

@@ -140,7 +140,7 @@ addLocation expr = do
 accessible :: IParser (LExpr t v) -> IParser (LExpr t v)
 accessible expr = do
   start <- getPosition
-  ce@(L s t e) <- expr
+  ce@(L _ e) <- expr
   let rest f = do
         let dot = char '.' >> notFollowedBy (char '.')
         access <- optionMaybe (try dot <?> "field access (e.g. List.map)")

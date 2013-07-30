@@ -1,16 +1,16 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 module SourceSyntax.Location where
 
-import Text.Parsec.Pos
+import qualified Text.Parsec.Pos as Parsec
 import Data.Data
 
-data SrcPos = Pos Int Int
+data SrcPos = Pos { line :: Int, column :: Int }
     deriving (Eq, Ord, Data, Typeable)
 
 data SrcSpan = Span SrcPos SrcPos | NoSpan
     deriving (Eq, Ord, Data, Typeable)
 
-data Located e = L (Maybe String) SrcSpan e
+data Located e = L SrcSpan e
     deriving (Eq, Ord, Data, Typeable)
 
 
@@ -24,21 +24,16 @@ instance Show SrcSpan where
         NoSpan -> ""
 
 instance Show e => Show (Located e) where
-  show (L _ _ e) = show e
+  show (L _ e) = show e
 
 
+none = L NoSpan
 
-none = L Nothing NoSpan
+at start end = L (Span (Pos (Parsec.sourceLine start) (Parsec.sourceColumn start))
+                       (Pos (Parsec.sourceLine end  ) (Parsec.sourceColumn end  )))
 
-at start end = L Nothing
-               (Span (Pos (sourceLine start) (sourceColumn start))
-                     (Pos (sourceLine end  ) (sourceColumn end  )))
-
-merge (L _ s1 _) (L _ s2 _) = L Nothing span
+merge (L s1 _) (L s2 _) = L span
     where span = case (s1,s2) of
                    (Span start _, Span _ end) -> Span start end
                    (_, NoSpan) -> s1
                    (NoSpan, _) -> s2
-
-add x (L Nothing span e) = L (Just (show x)) span e
-add x (L txt span e) = L txt span e

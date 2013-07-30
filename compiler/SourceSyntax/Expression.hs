@@ -40,7 +40,7 @@ data Def tipe var
 
 tuple es = Data ("_Tuple" ++ show (length es)) es
 
-delist (Location.L _ _ (Data "::" [h,t])) = h : delist t
+delist (Location.L _ (Data "::" [h,t])) = h : delist t
 delist _ = []
 
 saveEnvName = "_save_the_environment!!!"
@@ -77,7 +77,7 @@ instance Pretty (Expr t v) where
      Data name es -> P.hang (P.text name) 2 (P.sep (map prettyParens es))
      Access e x -> prettyParens e <> P.text "." <> P.text x
      Remove e x -> P.braces (pretty e <+> P.text "-" <+> P.text x)
-     Insert (Location.L _ _ (Remove e y)) x v ->
+     Insert (Location.L _ (Remove e y)) x v ->
          P.braces (pretty e <+> P.text "-" <+> P.text y <+> P.text "|" <+> P.text x <+> P.text "=" <+> pretty v)
      Insert e x v ->
          P.braces (pretty e <+> P.text "|" <+> P.text x <+> P.text "=" <+> pretty v)
@@ -104,19 +104,19 @@ instance Pretty (Def t v) where
      Def pattern expr ->
          pretty pattern <+> P.text "=" <+> pretty expr
 
-collectApps lexpr@(Location.L _ _ expr) =
+collectApps lexpr@(Location.L _ expr) =
   case expr of
     App a b -> collectApps a ++ [b]
     _ -> [lexpr]
 
-collectLambdas lexpr@(Location.L _ _ expr) =
+collectLambdas lexpr@(Location.L _ expr) =
   case expr of
     Lambda pattern body ->
         let (ps, body') = collectLambdas body
         in  (pretty pattern : ps, body')
     _ -> ([], lexpr)
 
-prettyParens (Location.L _ _ expr) = parensIf needed (pretty expr)
+prettyParens (Location.L _ expr) = parensIf needed (pretty expr)
   where
     needed =
       case expr of

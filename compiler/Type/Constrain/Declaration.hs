@@ -50,9 +50,9 @@ toDefs decl =
     -- but they do not require any basic constraints.
     TypeAlias _ _ _ -> []
 
-    ImportEvent _ expr@(Src.L a b _) name tipe ->
+    ImportEvent _ expr@(Src.L s _) name tipe ->
         [ Src.TypeAnnotation name tipe
-        , Src.Def (Src.PVar name) (Src.L a b $ Src.App (Src.L a b $ Src.Var "constant") expr) ]
+        , Src.Def (Src.PVar name) (Src.L s $ Src.App (Src.L s $ Src.Var "constant") expr) ]
 
     ExportEvent _ name tipe ->
         [ Src.TypeAnnotation name tipe ]

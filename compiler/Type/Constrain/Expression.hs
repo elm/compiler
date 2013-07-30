@@ -22,7 +22,7 @@ import qualified Transform.SortDefinitions as SD
 
 
 constrain :: Env.Environment -> LExpr a b -> Type -> IO TypeConstraint
-constrain env (L _ _ expr) tipe =
+constrain env (L _ expr) tipe =
     let list t = Env.get env Env.types "_List" <| t in
     case expr of
       Literal lit -> Literal.constrain env lit tipe
@@ -132,7 +132,7 @@ constrain env (L _ _ expr) tipe =
 
       Let defs body ->
           do c <- case body of
-                    L _ _ (Var name) | name == saveEnvName -> return CSaveEnv
+                    L _ (Var name) | name == saveEnvName -> return CSaveEnv
                     _ -> constrain env body tipe
              (schemes, rqs, fqs, header, c2, c1) <-
                  Monad.foldM (constrainDef env)
