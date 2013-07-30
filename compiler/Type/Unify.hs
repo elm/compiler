@@ -97,6 +97,12 @@ actuallyUnify variable1 variable2 = do
                           cmpVars <- liftIO $ forM [1..length vs] $ \_ -> var (Is Comparable)
                           zipWithM_ unify vs cmpVars
 
+      unifyAppendable varSuper varFlex =
+          do struct <- liftIO $ collectApps varFlex
+             case struct of
+               List _ -> flexAndUnify varSuper
+               _ -> comparableError ""
+
       superUnify =
           case (flex desc1, flex desc2, name desc1, name desc2) of
             (Is super1, Is super2, _, _)
@@ -111,6 +117,11 @@ actuallyUnify variable1 variable2 = do
             (_, Is Comparable, Just name, _) -> unifyComparable variable2 name
             (Is Comparable, _, _, _) -> unifyComparableStructure variable1 variable2
             (_, Is Comparable, _, _) -> unifyComparableStructure variable2 variable1
+
+            (Is Appendable, _, _, Just "Text") -> flexAndUnify variable1
+            (_, Is Appendable, Just "Text", _) -> flexAndUnify variable2
+            (Is Appendable, _, _, _) -> unifyAppendable variable1 variable2
+            (_, Is Appendable, _, _) -> unifyAppendable variable2 variable1
 
             _ -> TS.addError "" variable1 variable2
 
