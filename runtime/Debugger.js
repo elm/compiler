@@ -19,8 +19,12 @@ Elm.debuggerRestart = function() {
   staticDebugger.restart();
 };
 
-Elm.debuggerStep = function() {
-  staticDebugger.step();
+Elm.debuggerGetMaxSteps = function() {
+  return staticDebugger.getMaxSteps();
+};
+
+Elm.debuggerStepTo = function(index) {
+  staticDebugger.stepTo(index);
 };
 
 function debuggerInit(module, elm) {
@@ -29,6 +33,7 @@ function debuggerInit(module, elm) {
   var allNodes = null;
 
   var recordedEvents = [];
+  var eventCounter = 0;
   var asyncTimers = [];
   var initialProgramState = {
     nodeValues: [],
@@ -76,18 +81,33 @@ function debuggerInit(module, elm) {
     });
   }
 
-  function stepRecording() {
-    if (programPaused) {
-      if (recordedEvents.length > 0) {
-        var nextEvent = recordedEvents.shift();
-        elm.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
-      }
-    }
-    else {
-      // move into stepping mode
+  function gotoStep(index) {
+    if (!programPaused) {
       programPaused = true;
       resetProgram();
     }
+
+    if (index < 0 || index >= recordedEvents.length) {
+      throw "Index out of bounds: " + index;
+    }
+
+    if (index < eventCounter) {
+      resetProgram();
+      eventCounter = 0;
+    }
+
+    assert(index >= eventCounter, "index must be bad");
+    while (eventCounter < index) {
+      var nextEvent = recordedEvents[eventCounter];
+      elm.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
+
+      eventCounter += 1;
+    }
+    assert(eventCounter == index, "while loop didnt' work");
+  }
+
+  function getMaxSteps() {
+    return recordedEvents.length - 1;
   }
 
   function clearAsyncEvents() {
@@ -130,7 +150,8 @@ function debuggerInit(module, elm) {
         // debugger functions
         reset: resetProgram,
         restart: restartProgram,
-        step: stepRecording
+        getMaxSteps: getMaxSteps,
+        stepTo: gotoStep
   };
 
   allNodes = flattenNodes(wrappedElm.inputs);
