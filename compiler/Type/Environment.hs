@@ -5,7 +5,6 @@ import Control.Monad
 import qualified Control.Monad.State as State
 import qualified Data.Traversable as Traverse
 import qualified Data.Map as Map
-import Data.Map ((!))
 import Data.List (isPrefixOf)
 import qualified Data.UnionFind.IO as UF
 
@@ -61,7 +60,7 @@ makeConstructors :: Environment
                  -> Map.Map String (IO (Int, [Variable], [Type], Type))
 makeConstructors env datatypes = Map.fromList builtins
   where
-    list t = (types env ! "_List") <| t
+    list t = (types env Map.! "_List") <| t
 
     inst :: Int -> ([Type] -> ([Type], Type)) -> IO (Int, [Variable], [Type], Type)
     inst numTVars tipe = do
@@ -71,7 +70,7 @@ makeConstructors env datatypes = Map.fromList builtins
 
     tupleCtor n =
         let name = "_Tuple" ++ show n
-        in  (name, inst n $ \vs -> (vs, foldl (<|) (types env ! name) vs))
+        in  (name, inst n $ \vs -> (vs, foldl (<|) (types env Map.! name) vs))
     
     builtins :: [ (String, IO (Int, [Variable], [Type], Type)) ]
     builtins = [ ("[]", inst 1 $ \ [t] -> ([], list t))
