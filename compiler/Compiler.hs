@@ -81,6 +81,8 @@ file flags filePath ext = output_directory flags </> replaceExtension filePath e
 
 elmo :: Flags -> FilePath -> FilePath
 elmo flags filePath = file flags filePath "elmo"
+
+elmi :: Flags -> FilePath -> FilePath
 elmi flags filePath = file flags filePath "elmi"
 
 
