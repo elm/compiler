@@ -50,7 +50,10 @@ renameType rename tipe =
 
 metadataModule :: Interfaces -> MetadataModule t v -> Either [Doc] (MetadataModule t v)
 metadataModule ifaces modul =
-  do program' <- rename initialEnv (program modul)
+  do _ <- case filter (\m -> Map.notMember m ifaces) (map fst realImports) of
+            [] -> Right ()
+            missings -> Left [ P.text $ "The following imports were not found: " ++ List.intercalate ", " missings ]
+     program' <- rename initialEnv (program modul)
      aliases' <- mapM (third renameType') (aliases modul)
      datatypes' <- mapM (third (mapM (second (mapM renameType')))) (datatypes modul)
      return $ modul { program = program', aliases = aliases', datatypes = datatypes' }
