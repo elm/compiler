@@ -29,72 +29,73 @@ source-repository head
   type:     git
   location: git://github.com/evancz/Elm.git
 
---Library
---  exposed-modules:     Language.Elm,
---                       Language.Elm.Quasi
---  Hs-Source-Dirs:      compiler
---  other-modules:       Unique,
---                       SourceSyntax.Declaration,
---                       SourceSyntax.Expression,
---                       SourceSyntax.Everything,
---                       SourceSyntax.Helpers,
---                       SourceSyntax.Literal,
---                       SourceSyntax.Location,
---                       SourceSyntax.Module,
---                       SourceSyntax.Pattern,
---                       SourceSyntax.Type,
---                       Generate.JavaScript,
---                       Generate.Noscript,
---                       Generate.Html,
---                       Generate.Cases,
---                       Transform.Canonicalize,
---                       Transform.Substitute,
---                       Transform.Optimize,
---                       Metadata.Prelude,
---                       Initialize,
---                       Parse.Binop,
---                       Parse.Declaration,
---                       Parse.Expression,
---                       Parse.Helpers,
---                       Parse.Literal,
---                       Parse.Module,
---                       Parse.Parse,
---                       Parse.Pattern,
---                       Parse.Type,
---                       Type.Constrain.Declaration,
---                       Type.Constrain.Expression,
---                       Type.Constrain.Literal,
---                       Type.Constrain.Pattern,
---                       Type.Environment,
---                       Type.Fragment,
---                       Type.Solve,
---                       Type.State,
---                       Type.Type,
---                       Type.Unify,
---                       Paths_Elm
---
---  Build-depends:       base >=4.2 && <5,
---                       binary,
---                       blaze-html == 0.5.* || == 0.6.*,
---                       blaze-markup == 0.5.1.*,
---                       bytestring,
---                       cmdargs,
---                       containers >= 0.3,
---                       deepseq,
---                       directory,
---                       filepath,
---                       hjsmin,
---                       indents,
---                       mtl >= 2,
---                       pandoc >= 1.10,
---                       parsec >= 3.1.1,
---                       pretty,
---                       shakespeare,
---                       text,
---                       template-haskell,
---                       transformers >= 0.2,
---                       union-find,
---                       uniplate
+Library
+  exposed-modules:     Language.Elm,
+                       Language.Elm.Quasi
+  Hs-Source-Dirs:      compiler
+  other-modules:       Unique,
+                       SourceSyntax.Declaration,
+                       SourceSyntax.Expression,
+                       SourceSyntax.Everything,
+                       SourceSyntax.Helpers,
+                       SourceSyntax.Literal,
+                       SourceSyntax.Location,
+                       SourceSyntax.Module,
+                       SourceSyntax.Pattern,
+                       SourceSyntax.Type,
+                       Generate.JavaScript,
+                       Generate.Noscript,
+                       Generate.Html,
+                       Generate.Cases,
+                       Transform.Canonicalize,
+                       Transform.SortDefinitions,
+                       Transform.Substitute,
+                       Transform.Optimize,
+                       Metadata.Prelude,
+                       Initialize,
+                       Parse.Binop,
+                       Parse.Declaration,
+                       Parse.Expression,
+                       Parse.Helpers,
+                       Parse.Literal,
+                       Parse.Module,
+                       Parse.Parse,
+                       Parse.Pattern,
+                       Parse.Type,
+                       Type.Constrain.Declaration,
+                       Type.Constrain.Expression,
+                       Type.Constrain.Literal,
+                       Type.Constrain.Pattern,
+                       Type.Environment,
+                       Type.Fragment,
+                       Type.Solve,
+                       Type.State,
+                       Type.Type,
+                       Type.Unify,
+                       Paths_Elm
+
+  Build-depends:       base >=4.2 && <5,
+                       binary,
+                       blaze-html == 0.5.* || == 0.6.*,
+                       blaze-markup == 0.5.1.*,
+                       bytestring,
+                       cmdargs,
+                       containers >= 0.3,
+                       deepseq,
+                       directory,
+                       filepath,
+                       hjsmin,
+                       indents,
+                       mtl >= 2,
+                       pandoc >= 1.10,
+                       parsec >= 3.1.1,
+                       pretty,
+                       shakespeare,
+                       text,
+                       template-haskell,
+                       transformers >= 0.2,
+                       union-find,
+                       uniplate
 
 Executable elm
   Main-is:             Compiler.hs
@@ -114,6 +115,7 @@ Executable elm
                        Generate.Html,
                        Generate.Cases,
                        Transform.Canonicalize,
+                       Transform.SortDefinitions,
                        Transform.Substitute,
                        Transform.Optimize,
                        Metadata.Prelude,
@@ -159,34 +161,8 @@ Executable elm
                        union-find,
                        uniplate
 
---Executable elm-doc
---  Main-is:             Docs.hs
---  Hs-Source-Dirs:      compiler
---  other-modules:       SourceSyntax.Helpers,
---                       SourceSyntax.Location,
---                       SourceSyntax.Literal,
---                       SourceSyntax.Pattern,
---                       SourceSyntax.Expression,
---                       SourceSyntax.Declaration,
---                       SourceSyntax.Module,
---                       Parse.Helpers,
---                       Parse.Module
---
---  Build-depends:       base >=4.2 && <5,
---                       binary,
---                       containers >= 0.3,
---                       transformers >= 0.2,
---                       mtl >= 2,
---                       parsec >= 3.1.1,
---                       pandoc >= 1.10,
---                       pretty,
---                       cmdargs,
---                       filepath,
---                       union-find,
---                       indents
-
---Test-Suite test-elm
---  Type:            exitcode-stdio-1.0
---  Hs-Source-Dirs:  tests
---  Main-is:         Everything.hs
---  build-depends:   base
+Test-Suite test-elm
+  Type:            exitcode-stdio-1.0
+  Hs-Source-Dirs:  tests
+  Main-is:         Everything.hs
+  build-depends:   base

@@ -23,13 +23,14 @@ import SourceSyntax.Module
 import Text.Blaze.Html (Html)
 import Text.Parsec (option,optional)
 import qualified Text.PrettyPrint as P
+import qualified Metadata.Prelude as Prelude
 import Paths_Elm
 
 -- |This function compiles Elm code to JavaScript. It will return either
 --  an error message or the compiled JS code.
 compile :: String -> Either String String
 compile source =
-    case buildFromSource Map.empty source of
+    case buildFromSource False Prelude.interfaces source of
       Left docs -> Left . unlines $ map P.render docs
       Right modul -> Right $ jsModule (modul :: MetadataModule () ())
 
