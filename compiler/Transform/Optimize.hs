@@ -23,7 +23,7 @@ instance Simplify (Def t v) where
   simp x = x
 
 instance Simplify e => Simplify (Located e) where
-  simp (L t s e) = L t s (simp e)
+  simp (L s e) = L s (simp e)
 
 instance Simplify (Expr t v) where
   simp expr =
@@ -44,7 +44,7 @@ instance Simplify (Expr t v) where
 clipBranches [] = []
 clipBranches (e:es) =
     case e of
-      (L _ _ (Literal (Boolean True)), _) -> [e]
+      (L _ (Literal (Boolean True)), _) -> [e]
       _ -> e : clipBranches es
 
 
@@ -86,18 +86,18 @@ binop op ce1@(L s1 e1) ce2@(L s2 e2) =
     ("*", _, IntNum n) -> binop "*" ce2 ce1
 
     ("+", IntNum 0, _) -> e2
-    ("+", IntNum n, Binop "+" (L _ _ (IntNum m)) ce) ->
+    ("+", IntNum n, Binop "+" (L _ (IntNum m)) ce) ->
         binop "+" (c1 $ IntNum (n+m)) ce
-    ("+", Binop "+" (L _ _ (IntNum n)) ce1'
-        , Binop "+" (L _ _ (IntNum m)) ce2') ->
+    ("+", Binop "+" (L _ (IntNum n)) ce1'
+        , Binop "+" (L _ (IntNum m)) ce2') ->
         binop "+" (none $ IntNum (n+m)) (none $ Binop "+" ce1' ce2')
 
     ("*", IntNum 0, _) -> e1
     ("*", IntNum 1, _) -> e2
-    ("*", IntNum n, Binop "*" (L _ _ (IntNum m)) ce) ->
+    ("*", IntNum n, Binop "*" (L _ (IntNum m)) ce) ->
         binop "*" (none $ IntNum (n*m)) ce
-    ("*", Binop "*" (L _ _ (IntNum n)) ce1'
-        , Binop "*" (L _ _ (IntNum m)) ce2') ->
+    ("*", Binop "*" (L _ (IntNum n)) ce1'
+        , Binop "*" (L _ (IntNum m)) ce2') ->
         binop "*" (none $ IntNum (n*m)) (none $ Binop "*" ce1' ce2')
 
     ("-", _, IntNum 0) -> e1
@@ -118,9 +118,9 @@ binop op ce1@(L s1 e1) ce2@(L s2 e2) =
     ("::", _, _) -> Data "::" [ce1, ce2]
 
     ("++", Literal (Str s1), Literal (Str s2)) -> str $ s1 ++ s2
-    ("++", Literal (Str s1), Binop "++" (L _ _ (Literal (Str s2))) ce) ->
+    ("++", Literal (Str s1), Binop "++" (L _ (Literal (Str s2))) ce) ->
         Binop "++" (c1 . str $ s1 ++ s2) ce
-    ("++", Binop "++" e (L _ _ (Literal (Str s1))), Literal (Str s2)) ->
+    ("++", Binop "++" e (L _ (Literal (Str s1))), Literal (Str s2)) ->
         Binop "++" e (c1 . str $ s1 ++ s2)
 
     ("++", Data "[]" [], _) -> e2
