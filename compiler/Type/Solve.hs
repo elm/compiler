@@ -1,4 +1,3 @@
-{-# LANGUAGE MultiWayIf #-}
 module Type.Solve (solve) where
 
 import Control.Monad
@@ -68,27 +67,29 @@ adjustRank :: Int -> Int -> Int -> Variable -> StateT TS.SolverState IO Int
 adjustRank youngMark visitedMark groupRank variable =
     let adjust = adjustRank youngMark visitedMark groupRank in
     do desc <- liftIO $ UF.descriptor variable
-       if | mark desc == youngMark -> do
-              rank' <- case structure desc of
-                         Nothing -> return groupRank
-                         Just term -> case term of
-                                        App1 a b -> max `liftM` adjust a `ap` adjust b
-                                        Fun1 a b -> max `liftM` adjust a `ap` adjust b
-                                        Var1 x -> adjust x
-                                        EmptyRecord1 -> return outermostRank
-                                        Record1 fields extension -> do
-                                            ranks <- mapM adjust (concat (Map.elems fields))
-                                            rnk <- adjust extension
-                                            return . maximum $ rnk : ranks
-              liftIO $ UF.setDescriptor variable (desc { mark = visitedMark, rank = rank' })
-              return rank'
+       case () of
+         () | mark desc == youngMark ->
+                do rank' <- case structure desc of
+                              Nothing -> return groupRank
+                              Just term ->
+                                  case term of
+                                    App1 a b -> max `liftM` adjust a `ap` adjust b
+                                    Fun1 a b -> max `liftM` adjust a `ap` adjust b
+                                    Var1 x -> adjust x
+                                    EmptyRecord1 -> return outermostRank
+                                    Record1 fields extension ->
+                                        do ranks <- mapM adjust (concat (Map.elems fields))
+                                           rnk <- adjust extension
+                                           return . maximum $ rnk : ranks
+                   liftIO $ UF.setDescriptor variable (desc { mark = visitedMark, rank = rank' })
+                   return rank'
 
-          | mark desc /= visitedMark -> do
-              let rank' = min groupRank (rank desc)
-              liftIO $ UF.setDescriptor variable (desc { mark = visitedMark, rank = rank' })
-              return rank'
+            | mark desc /= visitedMark ->
+                do let rank' = min groupRank (rank desc)
+                   liftIO $ UF.setDescriptor variable (desc { mark = visitedMark, rank = rank' })
+                   return rank'
 
-          | otherwise -> return (rank desc)
+            | otherwise -> return (rank desc)
 
 
 

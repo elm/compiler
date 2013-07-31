@@ -1,4 +1,3 @@
-{-# LANGUAGE MultiWayIf #-}
 module Type.State where
 
 import Type.Type
@@ -128,49 +127,49 @@ makeInstance var = do
 makeCopy :: Int -> Variable -> StateT SolverState IO Variable
 makeCopy alreadyCopied variable = do
   desc <- liftIO $ UF.descriptor variable
-  if | mark desc == alreadyCopied ->
+  case () of
+    () | mark desc == alreadyCopied ->
            case copy desc of
              Just v -> return v
              Nothing -> error "This should be impossible."
 
-     | rank desc /= noRank || flex desc == Constant ->
+       | rank desc /= noRank || flex desc == Constant ->
            return variable
 
-     | otherwise -> do
-         pool <- getPool
-         newVar <- liftIO $ UF.fresh $ Descriptor {
-                     structure = Nothing,
-                     rank = maxRank pool,
-                     mark = noMark,
-                     flex = case flex desc of
-                              Is s -> Is s
-                              _ -> Flexible,
-                     copy = Nothing,
-                     name = case flex desc of
-                              Rigid -> Nothing
-                              _ -> name desc
-                   }
+       | otherwise -> do
+           pool <- getPool
+           newVar <- liftIO $ UF.fresh $ Descriptor {
+                                   structure = Nothing,
+                                   rank = maxRank pool,
+                                   mark = noMark,
+                                   flex = case flex desc of
+                                            Is s -> Is s
+                                            _ -> Flexible,
+                                   copy = Nothing,
+                                   name = case flex desc of
+                                            Rigid -> Nothing
+                                            _ -> name desc
+                                 }
+           register newVar
 
-         register newVar
+           -- Link the original variable to the new variable. This lets us
+           -- avoid making multiple copies of the variable we are instantiating.
+           --
+           -- Need to do this before recursively copying the structure of
+           -- the variable to avoid looping on cyclic terms.
+           liftIO $ UF.modifyDescriptor variable $ \desc ->
+               desc { mark = alreadyCopied, copy = Just newVar }
 
-         -- Link the original variable to the new variable. This lets us
-         -- avoid making multiple copies of the variable we are instantiating.
-         --
-         -- Need to do this before recursively copying the structure of
-         -- the variable to avoid looping on cyclic terms.
-         liftIO $ UF.modifyDescriptor variable $ \desc ->
-             desc { mark = alreadyCopied, copy = Just newVar }
-
-         -- Now we recursively copy the structure of the variable.
-         -- We have already marked the variable as copied, so we
-         -- will not repeat this work or crawl this variable again.
-         case structure desc of
-           Nothing -> return newVar
-           Just term -> do
-               newTerm <- traverseTerm (makeCopy alreadyCopied) term
-               liftIO $ UF.modifyDescriptor newVar $ \desc ->
-                   desc { structure = Just newTerm }
-               return newVar
+           -- Now we recursively copy the structure of the variable.
+           -- We have already marked the variable as copied, so we
+           -- will not repeat this work or crawl this variable again.
+           case structure desc of
+             Nothing -> return newVar
+             Just term -> do
+                 newTerm <- traverseTerm (makeCopy alreadyCopied) term
+                 liftIO $ UF.modifyDescriptor newVar $ \desc ->
+                     desc { structure = Just newTerm }
+                 return newVar
 
 restore :: Int -> Variable -> StateT SolverState IO Variable
 restore alreadyCopied variable = do
