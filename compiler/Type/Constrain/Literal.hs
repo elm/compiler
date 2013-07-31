@@ -1,12 +1,8 @@
 module Type.Constrain.Literal where
 
-import Data.Map ((!))
-import qualified Data.Map as Map
-
 import SourceSyntax.Literal
 import SourceSyntax.Location
 import Type.Type
-import Type.Fragment
 import Type.Environment as Env
 
 constrain :: Environment -> SrcSpan -> Literal -> Type -> IO TypeConstraint

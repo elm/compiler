@@ -5,7 +5,6 @@ import Control.Applicative ((<$>))
 import qualified Control.Monad as Monad
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
-import Data.Map ((!))
 import qualified Data.Map as Map
 
 import SourceSyntax.Pattern
