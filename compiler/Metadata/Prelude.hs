@@ -22,9 +22,9 @@ add (Module name exs ims stmts) = Module name exs (customIms ++ ims) stmts
                                 Just _      -> []
 
 prelude :: [(String, ImportMethod)]
-prelude = text : map (\n -> (n, Hiding [])) modules
+prelude = text ++ map (\n -> (n, Hiding [])) modules
   where
-    text = ("Text", Hiding ["link", "color", "height"])
+    text = map ((,) "Text") [ As "Text", Hiding ["link", "color", "height"] ]
     modules = [ "Basics", "Signal", "List", "Maybe", "Time"
               , "Graphics.Element", "Color", "Graphics.Collage" ]
 
