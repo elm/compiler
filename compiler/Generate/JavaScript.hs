@@ -305,10 +305,12 @@ clauseToJS span var (Clause value vars e) = do
   let vars' = map (\n -> var ++ "._" ++ show n) [0..]
   s <- matchToJS span $ matchSubst (zip vars vars') e
   return $ concat [ "\ncase ", case value of
-                                 Left name -> quoted name
                                  Right (Boolean True)  -> "true"
                                  Right (Boolean False) -> "false"
                                  Right lit -> show lit
+                                 Left name -> quoted $ case List.elemIndices '.' name of
+                                                         [] -> name
+                                                         is -> drop (last is + 1) name
                   , ":", indent s ]
 
 jsNil         = "_L.Nil"
