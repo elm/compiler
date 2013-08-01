@@ -38,6 +38,11 @@ lowVar = makeVar (lower <?> "lower case variable")
 capVar :: IParser String
 capVar = makeVar (upper <?> "upper case variable")
 
+qualifiedVar :: IParser String
+qualifiedVar = do
+  vars <- many ((++) <$> capVar <*> string ".")
+  (++) (concat vars) <$> lowVar
+
 rLabel :: IParser String
 rLabel = lowVar
 
@@ -55,7 +60,7 @@ reserved word =
   <?> "reserved word '" ++ word ++ "'"
 
 anyOp :: IParser String
-anyOp = betwixt '`' '`' var <|> symOp <?> "infix operator (e.g. +, *, ||)"
+anyOp = betwixt '`' '`' qualifiedVar <|> symOp <?> "infix operator (e.g. +, *, ||)"
 
 symOp :: IParser String
 symOp = do op <- many1 (satisfy Help.isSymbol)
