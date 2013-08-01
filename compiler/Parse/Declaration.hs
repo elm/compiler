@@ -121,7 +121,7 @@ isExportable tipe =
     T.Data "JSArray" [t] -> isExportable t
 
     T.Data name []
-        | name `elem` jsTypes -> Nothing
+        | any (`List.isSuffixOf` name) jsTypes -> Nothing
         | otherwise -> Just $ "'" ++ name ++ "' is not an exportable type." ++ msg
 
     T.Data name _ ->
