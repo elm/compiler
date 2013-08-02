@@ -31,10 +31,17 @@ buildFromSource noPrelude interfaces source =
            [] -> return modul
            ms -> Left ms
 
+     let exports'
+             | null exs =
+                 let get = Set.toList . SD.boundVars in
+                 concat [ get pattern | Definition (Def pattern _) <- decls ] ++
+                 concat [ map fst ctors | Datatype _ _ ctors <- decls ]
+             | otherwise = exs
+
      metaModule <- Canonical.metadataModule interfaces $ MetadataModule {
            names = names,
            path = FP.joinPath names,
-           exports = exs,
+           exports = exports',
            imports = ims,
            -- reorder AST into strongly connected components
            program = SD.sortDefs . dummyLet $ TcDecl.toExpr decls,
@@ -48,12 +55,7 @@ buildFromSource noPrelude interfaces source =
 
      types <- TI.infer interfaces metaModule
 
-     let exports' | null exs =
-                      Map.keys types ++
-                      concat [ map fst ctors | (_,_,ctors) <- datatypes metaModule ]
-                  | otherwise = exs
-
-     return $ metaModule { types = types, exports = exports' }
+     return $ metaModule { types = types }
 
 
 getSortedDependencies :: Bool -> FilePath -> IO [String]
