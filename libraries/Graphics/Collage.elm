@@ -151,9 +151,9 @@ moveX x f = { f | x <- f.x + x }
 moveY : Float -> Form -> Form
 moveY y f = { f | y <- f.y + y }
 
--- Set the opacity of a `Form`. The default is 1, and 0 is totally transparent.
-opacity : Float -> Form -> Form
-opacity a f = { f | alpha <- a }
+-- Set the alpha of a `Form`. The default is 1, and 0 is totally transparent.
+alpha : Float -> Form -> Form
+alpha a f = { f | alpha <- a }
 
 -- A collage is a collection of 2D forms. There are no strict positioning
 -- relationships between forms, so you are free to do all kinds of 2D graphics.
