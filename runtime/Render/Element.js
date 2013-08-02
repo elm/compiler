@@ -18,9 +18,12 @@ function setProps(props, e) {
     if (props.href !== '') {
         var a = newElement('a');
         a.href = props.href;
+        a.style.width = '100%';
+        a.style.height = '100%';
+        a.style.top = 0;
+        a.style.left = 0;
         a.style.display = 'block';
-        a.appendChild(e);
-        return a;
+        e.appendChild(a);
     }
     if (props.hover.ctor !== '_Tuple0') {
         var overCount = 0;
