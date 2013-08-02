@@ -11,7 +11,7 @@ import qualified Text.Pandoc as Pan
 
 import Unique
 import Generate.Cases
-import SourceSyntax.Everything hiding (parens)
+import SourceSyntax.Everything
 import SourceSyntax.Location
 import qualified Transform.SortDefinitions as SD
 
