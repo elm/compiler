@@ -71,9 +71,9 @@ jsModule modul =
         concat [ "\nvar " ++ usefulFuncs ++ ";"
                , concatMap jsImport (imports modul)
                , concat foreignImport
-               , concatMap exportEvent $ foreignExports modul
                , assign "_op" "{}"
                , body
+               , concatMap exportEvent $ foreignExports modul
                , jsExports
                ]
     setup names = concatMap (\n -> globalAssign n $ n ++ " || {}") .
@@ -90,17 +90,17 @@ jsModule modul =
 
     importEvent (js,base,elm,_) =
         do v <- toJS' base
-           return $ concat [ "\nvar " ++ elm ++ "=Elm.Signal(elm).constant(" ++ v ++ ");"
+           return $ concat [ "\nvar " ++ elm ++ "=Signal.constant(" ++ v ++ ");"
                            , "\ndocument.addEventListener('", js
                            , "_' + elm.id, function(e) { elm.notify(", elm
                            , ".id, e.value); });" ]
 
     exportEvent (js,elm,_) =
-        concat [ "\nlift(function(v) { "
+        concat [ "\nA2( Signal.lift, function(v) { "
                , "var e = document.createEvent('Event');"
                , "e.initEvent('", js, "_' + elm.id, true, true);"
                , "e.value = v;"
-               , "document.dispatchEvent(e); return v; })(", elm, ");" ]
+               , "document.dispatchEvent(e); return v; }, ", elm, ");" ]
 
 jsImport (modul, method) =
     concat $ zipWith3 (\s n v -> s ++ assign' n v ++ ";") starters subnames values
@@ -231,7 +231,7 @@ instance ToJS (Expr t v) where
               _ -> jsObj $ ("ctor:" ++ show name) : fields
                    where fields = zipWith (\n e -> "_" ++ show n ++ ":" ++ e) [0..] fs
 
-    Markdown doc -> return $ "text('" ++ pad ++ md ++ pad ++ "')"
+    Markdown doc -> return $ "Text.text('" ++ pad ++ md ++ pad ++ "')"
         where pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
               md = formatMarkdown $ Pan.writeHtmlString Pan.def doc
 
