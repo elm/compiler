@@ -270,14 +270,13 @@ jsLet (defs,e') = do ds <- mapM toJS defs
                      return $ jsFunc "" (concat ds ++ ret e) ++ "()"
 
 caseToJS span e ps = do
-  match <- caseToMatch ps
+  (tempVar,match) <- caseToMatch ps
   e' <- toJS' e
-  let (match',stmt) = case (match,e) of
-        (Match name _ _, L _ (Var x)) -> (matchSubst [(name,deprime x)] match, "")
-        (Match name _ _, _)           -> (match, assign name e')
-        _                             -> (match, "")
+  let (match',stmt) = case e of
+        L _ (Var x) -> (matchSubst [(tempVar,deprime x)] match, "")
+        _           -> (match, assign tempVar e')
   matches <- matchToJS span match'
-  return $ "function(){ " ++ stmt ++ matches ++ " }()"
+  return $ jsFunc "" (stmt ++ matches) ++ "()"
 
 matchToJS span match =
   case match of

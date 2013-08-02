@@ -14,7 +14,7 @@ import Transform.Substitute
 
 caseToMatch patterns = do
   v <- newVar
-  match [v] (map (first (:[])) patterns) Fail
+  (,) v `liftM` match [v] (map (first (:[])) patterns) Fail
 
 newVar = do n <- guid
             return $ "case" ++ show n
