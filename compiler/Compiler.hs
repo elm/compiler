@@ -165,7 +165,7 @@ build flags rootFile = do
     False -> do
       putStr "Generating HTML ... "
       runtime <- getRuntime flags
-      let html = genHtml $ createHtml runtime rootFile (sources js) ""
+      let html = genHtml $ createHtml runtime (takeBaseName rootFile) (sources js) ""
       writeFile (file flags rootFile "html") html
       putStrLn "Done"
 
