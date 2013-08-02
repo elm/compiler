@@ -42,9 +42,9 @@ toDefs decl =
         vars = take (length args) arguments
 
         efields = zip (map fst fields) (map var vars)
-        record = Src.none $ case ext of
-                              Type.EmptyRecord -> Src.Record efields
-                              _ -> Src.Modify (var $ last vars) efields
+        record = case ext of
+                   Type.EmptyRecord -> Src.none $ Src.Record efields
+                   _ -> foldl (\r (f,v) -> Src.none $ Src.Insert r f v) (var $ last vars) efields
 
     -- Type aliases must be added to an extended equality dictionary,
     -- but they do not require any basic constraints.
