@@ -25,14 +25,14 @@ function setProps(props, e) {
     if (props.hover.ctor !== '_Tuple0') {
         var overCount = 0;
         e.addEventListener('mouseover', function() {
-                if (overCount++ > 0) return;
-                props.hover(true);
-            });
+            if (overCount++ > 0) return;
+            props.hover(true);
+        });
         e.addEventListener('mouseout', function(evt) {
-                if (e.contains(evt.toElement || evt.relatedTarget)) return;
-                overCount = 0;
-                props.hover(false);
-            });
+            if (e.contains(evt.toElement || evt.relatedTarget)) return;
+            overCount = 0;
+            props.hover(false);
+        });
     }
     return e;
 }
