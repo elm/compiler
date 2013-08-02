@@ -83,7 +83,7 @@ jsModule modul =
     jsExports = setup ("elm" : names modul) ++
                 ret (assign' ("elm." ++ modName) (brackets exs))
         where
-          exs = indent . commaSep . concatMap pair $ "_op" : exports modul
+          exs = indent . commaSep . concatMap (pair . deprime) $ "_op" : exports modul
           pair x | isOp x = []
                  | otherwise = ["\n" ++ x ++ " : " ++ x]
 
@@ -340,7 +340,7 @@ binop op e1 e2 =
     basics = ops ++ map (\(op,e) -> ("Basics." ++ op, e))
              (ops ++ [ ("<|", e1 ++ parens e2)
                      , ("|>", e2 ++ parens e1)
-                     , ("." , jsFunc "x" . ret $ e1 ++ parens (e2 ++ parens "x"))
+                     , ("." , jsFunc "$" . ret $ e1 ++ parens (e2 ++ parens "$"))
                      , ("==", "_N.eq(" ++ e1 ++ "," ++ e2 ++ ")")
                      , ("/=", "!_N.eq(" ++ e1 ++ "," ++ e2 ++ ")")
                      , ("<" , jsCompare e1 e2 "<0")
