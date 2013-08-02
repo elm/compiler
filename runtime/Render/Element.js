@@ -18,6 +18,7 @@ function setProps(props, e) {
     if (props.href !== '') {
 	var a = newElement('a');
 	a.href = props.href;
+        a.style.display = 'block';
 	a.appendChild(e);
 	return a;
     }
