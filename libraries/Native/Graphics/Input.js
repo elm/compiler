@@ -57,29 +57,29 @@ Elm.Native.Graphics.Input = function(elm) {
      var events = Signal.constant(defaultValue);
 
      function render(model) {
-	 var b = newNode('button');
-	 b.style.display = 'block';
-	 b.elmEvent = model.event;
-	 function click() { elm.notify(events.id, b.elmEvent); }
-	 b.addEventListener('click', click);
-	 b.innerHTML = model.text;
-	 return b;
+         var b = newNode('button');
+         b.style.display = 'block';
+         b.elmEvent = model.event;
+         function click() { elm.notify(events.id, b.elmEvent); }
+         b.addEventListener('click', click);
+         b.innerHTML = model.text;
+         return b;
      }
 
      function update(node, oldModel, newModel) {
-	 node.elmEvent = newModel.event;
-	 var txt = newModel.text;
-	 if (oldModel.text !== txt) node.innerHTML = txt;
+         node.elmEvent = newModel.event;
+         var txt = newModel.text;
+         if (oldModel.text !== txt) node.innerHTML = txt;
      }
 
      function button(evnt, txt) {
-	 return A3(newElement, 100, 40, {
+         return A3(newElement, 100, 40, {
                      ctor: 'Custom',
-		     type: 'Button',
-		     render: render,
-		     update: update,
-		     model: { event:evnt, text:JS.fromString(txt) }
-	     });
+                     type: 'Button',
+                     render: render,
+                     update: update,
+                     model: { event:evnt, text:JS.fromString(txt) }
+             });
      }
 
      return { _:{}, button:F2(button), events:events };
@@ -89,37 +89,37 @@ Elm.Native.Graphics.Input = function(elm) {
      var events = Signal.constant(defaultValue);
 
      function render(model) {
-	 var btn = newNode('div');
-	 btn.elmEvent = model.event;
+         var btn = newNode('div');
+         btn.elmEvent = model.event;
 
-	 btn.elmUp    = Render.render(model.up);
-	 btn.elmHover = Render.render(model.hover);
-	 btn.elmDown  = Render.render(model.down);
+         btn.elmUp    = Render.render(model.up);
+         btn.elmHover = Render.render(model.hover);
+         btn.elmDown  = Render.render(model.down);
 
-	 function replace(node) {
+         function replace(node) {
            if (node !== btn.firstChild) btn.replaceChild(node, btn.firstChild);
-	 }
-	 var overCount = 0;
-	 function over(e) {
-	     if (overCount++ > 0) return;
-	     replace(btn.elmHover);
-	 }
-	 function out(e) {
-	     if (btn.contains(e.toElement || e.relatedTarget)) return;
-	     overCount = 0;
-	     replace(btn.elmUp);
-	 }
-	 function up() {
-	     replace(btn.elmHover);
-	     elm.notify(events.id, btn.elmEvent);
-	 }
-	 function down() { replace(btn.elmDown); }
-	 btn.addEventListener('mouseover', over);
-	 btn.addEventListener('mouseout' , out);
-	 btn.addEventListener('mousedown', down);
-	 btn.addEventListener('mouseup'  , up);
+         }
+         var overCount = 0;
+         function over(e) {
+             if (overCount++ > 0) return;
+             replace(btn.elmHover);
+         }
+         function out(e) {
+             if (btn.contains(e.toElement || e.relatedTarget)) return;
+             overCount = 0;
+             replace(btn.elmUp);
+         }
+         function up() {
+             replace(btn.elmHover);
+             elm.notify(events.id, btn.elmEvent);
+         }
+         function down() { replace(btn.elmDown); }
+         btn.addEventListener('mouseover', over);
+         btn.addEventListener('mouseout' , out);
+         btn.addEventListener('mousedown', down);
+         btn.addEventListener('mouseup'  , up);
 
-	 btn.appendChild(btn.elmUp);
+         btn.appendChild(btn.elmUp);
 
          var clicker = newNode('div');
          clicker.style.width = btn.elmUp.style.width;
@@ -128,26 +128,26 @@ Elm.Native.Graphics.Input = function(elm) {
          clicker.style.top = 0;
          btn.appendChild(clicker);
 
-	 return btn;
+         return btn;
      }
 
      function update(node, oldModel, newModel) {
-	 node.elmEvent = newModel.event;
-	 Render.update(node.elmUp, oldModel.up, newModel.up)
-	 Render.update(node.elmHover, oldModel.hover, newModel.hover)
-	 Render.update(node.elmDown, oldModel.down, newModel.down)
+         node.elmEvent = newModel.event;
+         Render.update(node.elmUp, oldModel.up, newModel.up)
+         Render.update(node.elmHover, oldModel.hover, newModel.hover)
+         Render.update(node.elmDown, oldModel.down, newModel.down)
      }
 
      function button(evnt, up, hover, down) {
-	 return A3(newElement,
-		   Math.max(up.props.width, hover.props.width, down.props.width),
-		   Math.max(up.props.height, hover.props.height, down.props.height),
+         return A3(newElement,
+                   Math.max(up.props.width, hover.props.width, down.props.width),
+                   Math.max(up.props.height, hover.props.height, down.props.height),
                    { ctor: 'Custom',
-		     type: 'CustomButton',
-		     render: render,
-		     update: update,
-		     model: { event:evnt, up:up, hover:hover, down:down }
-		   });
+                     type: 'CustomButton',
+                     render: render,
+                     update: update,
+                     model: { event:evnt, up:up, hover:hover, down:down }
+                   });
      }
 
      return { _:{}, customButton:F4(button), events:events };
@@ -171,30 +171,30 @@ Elm.Native.Graphics.Input = function(elm) {
      var events = Signal.constant(defaultValue);
 
      function render(model) {
-	 var b = newNode('input');
-	 b.type = 'checkbox';
-	 b.checked = model.checked;
-	 b.style.display = 'block';
-	 b.elmHandler = model.handler;
-	 function change() { elm.notify(events.id, b.elmHandler(b.checked)); }
-	 b.addEventListener('change', change);
-	 return b;
+         var b = newNode('input');
+         b.type = 'checkbox';
+         b.checked = model.checked;
+         b.style.display = 'block';
+         b.elmHandler = model.handler;
+         function change() { elm.notify(events.id, b.elmHandler(b.checked)); }
+         b.addEventListener('change', change);
+         return b;
      }
 
      function update(node, oldModel, newModel) {
-	 node.elmHandler = newModel.handler;
-	 node.checked = newModel.checked;
-	 return true;
+         node.elmHandler = newModel.handler;
+         node.checked = newModel.checked;
+         return true;
      }
 
      function box(handler, checked) {
-	 return A3(newElement, 13, 13, {
+         return A3(newElement, 13, 13, {
                      ctor: 'Custom',
-		     type: 'CheckBox',
-		     render: render,
-		     update: update,
-		     model: { checked:checked, handler:handler  }
-	     });
+                     type: 'CheckBox',
+                     render: render,
+                     update: update,
+                     model: { checked:checked, handler:handler  }
+             });
      }
 
      return { _:{}, box:F2(box), events:events };
@@ -214,49 +214,49 @@ Elm.Native.Graphics.Input = function(elm) {
      var state = null;
 
      function render(model) {
-	 var field = newNode('input');
-	 field.elmHandler = model.handler;
+         var field = newNode('input');
+         field.elmHandler = model.handler;
 
-	 field.id = 'test';
-	 field.type = type;
-	 field.placeholder = JS.fromString(model.placeHolder);
-	 field.value = JS.fromString(model.state.string);
-	 setRange(field, model.state.selectionStart, model.state.selectionEnd, 'forward');
-	 field.style.border = 'none';
+         field.id = 'test';
+         field.type = type;
+         field.placeholder = JS.fromString(model.placeHolder);
+         field.value = JS.fromString(model.state.string);
+         setRange(field, model.state.selectionStart, model.state.selectionEnd, 'forward');
+         field.style.border = 'none';
          state = model.state;
 
-	 function update() {
-	     var start = field.selectionStart,
-		 end = field.selectionEnd;
-	     if (field.selectionDirection === 'backward') {
-		 start = end;
-		 end = field.selectionStart;
-	     }
+         function update() {
+             var start = field.selectionStart,
+                 end = field.selectionEnd;
+             if (field.selectionDirection === 'backward') {
+                 start = end;
+                 end = field.selectionStart;
+             }
              state = { _:{},
                        string:JS.toString(field.value),
                        selectionStart:start,
                        selectionEnd:end };
-	     elm.notify(events.id, field.elmHandler(state));
-	 }
-	 function mousedown() {
-	     update();
-	     elm.node.addEventListener('mouseup', mouseup);
-	 }
-	 function mouseup() {
-	     update();
-	     elm.node.removeEventListener('mouseup', mouseup)
-	 }
-	 field.addEventListener('keyup', update);
-	 field.addEventListener('mousedown', mousedown);
+             elm.notify(events.id, field.elmHandler(state));
+         }
+         function mousedown() {
+             update();
+             elm.node.addEventListener('mouseup', mouseup);
+         }
+         function mouseup() {
+             update();
+             elm.node.removeEventListener('mouseup', mouseup)
+         }
+         field.addEventListener('keyup', update);
+         field.addEventListener('mousedown', mousedown);
 
-	 return field;
+         return field;
      }
 
      function update(node, oldModel, newModel) {
-	 node.elmHandler = newModel.handler;
+         node.elmHandler = newModel.handler;
          if (state === newModel.state) return;
          var newStr = JS.fromString(newModel.state.string);
-	 if (node.value !== newStr) node.value = newStr;
+         if (node.value !== newStr) node.value = newStr;
 
          var start = newModel.state.selectionStart;
          var end = newModel.state.selectionEnd;
@@ -275,15 +275,15 @@ Elm.Native.Graphics.Input = function(elm) {
      }
 
      function field(handler, placeHolder, state) {
-	 return A3(newElement, 200, 30,
+         return A3(newElement, 200, 30,
                    { ctor: 'Custom',
-		     type: type + 'Input',
-		     render: render,
-		     update: update,
-		     model: { handler:handler,
-			      placeHolder:placeHolder,
-			      state:state }
-		   });
+                     type: type + 'Input',
+                     render: render,
+                     update: update,
+                     model: { handler:handler,
+                              placeHolder:placeHolder,
+                              state:state }
+                   });
      }
 
      return { _:{}, field:F3(field), events:events };
