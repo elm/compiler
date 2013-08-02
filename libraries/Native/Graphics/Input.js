@@ -120,6 +120,14 @@ Elm.Native.Graphics.Input = function(elm) {
 	 btn.addEventListener('mouseup'  , up);
 
 	 btn.appendChild(btn.elmUp);
+
+         var clicker = newNode('div');
+         clicker.style.width = btn.elmUp.style.width;
+         clicker.style.height = btn.elmUp.style.height;
+         clicker.style.position = 'absolute';
+         clicker.style.top = 0;
+         btn.appendChild(clicker);
+
 	 return btn;
      }
 
