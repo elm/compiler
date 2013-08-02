@@ -134,7 +134,7 @@ constrain env (L span expr) tipe =
              return . ex vars . and $ tipe === recordType : cs
 
       Markdown _ ->
-          return $ tipe === Env.get env Env.types "Element"
+          return ("Graphics.Element.markdown" <? tipe)
 
       Let defs body ->
           do c <- case body of

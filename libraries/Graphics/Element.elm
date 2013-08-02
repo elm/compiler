@@ -114,6 +114,9 @@ tiledImage : Int -> Int -> String -> Element
 tiledImage w h src =
     newElement w h (Image Tiled w h (fromString src))
 
+markdown : Element
+markdown = Native.Utils.undefined
+
 data Three = P | Z | N
 data Pos = Absolute Int | Relative Float
 type Position = { horizontal : Three, vertical : Three, x : Pos, y : Pos }
