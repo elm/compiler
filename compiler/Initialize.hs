@@ -1,4 +1,4 @@
-module Initialize (buildFromSource, getSortedModuleNames, Interfaces) where
+module Initialize (buildFromSource, getSortedDependencies) where
 
 import Data.Data
 import Control.Monad.State
@@ -56,11 +56,11 @@ buildFromSource noPrelude interfaces source =
      return $ metaModule { types = types, exports = exports' }
 
 
-getSortedModuleNames :: Bool -> FilePath -> IO [String]
-getSortedModuleNames noPrelude root =
+getSortedDependencies :: Bool -> FilePath -> IO [String]
+getSortedDependencies noPrelude root =
     sortDeps =<< readDeps noPrelude root
 
-type Deps = (String, [String])
+type Deps = (FilePath, String, [String])
 
 sortDeps :: [Deps] -> IO [String]
 sortDeps depends =
@@ -68,8 +68,7 @@ sortDeps depends =
     then return (concat sccs)
     else print msg >> mapM print mistakes >> exitFailure
   where
-    graph = map (\(name, deps) -> (toFilePath name, name, deps)) depends
-    sccs = map Graph.flattenSCC $ Graph.stronglyConnComp graph
+    sccs = map Graph.flattenSCC $ Graph.stronglyConnComp depends
 
     mistakes = filter (\scc -> length scc > 1) sccs
     msg = "A cyclical module dependency or was detected in: "
@@ -93,7 +92,7 @@ readDeps noPrelude root = evalStateT (go root) Set.empty
                    newDeps = Set.difference (Set.filter (not . isNative) realDeps) seen
                put (Set.insert name (Set.union newDeps seen))
                rest <- mapM (go . toFilePath) (Set.toList newDeps)
-               return ((name, Set.toList realDeps) : concat rest)
+               return ((makeRelative "." root, name, Set.toList realDeps) : concat rest)
                        
 
 isNative name = List.isPrefixOf "Native." name

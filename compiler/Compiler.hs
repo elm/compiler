@@ -19,7 +19,7 @@ import qualified Data.ByteString.Lazy.Char8 as BS
 import qualified Metadata.Prelude as Prelude
 import qualified Transform.Canonicalize as Canonical
 import SourceSyntax.Module
-import Initialize (buildFromSource, getSortedModuleNames, Interfaces)
+import Initialize (buildFromSource, getSortedDependencies)
 import Generate.JavaScript (jsModule)
 import Generate.Html (createHtml, JSStyle(..), JSSource(..))
 import Paths_Elm
@@ -153,7 +153,7 @@ getRuntime flags =
 build :: Flags -> FilePath -> IO ()
 build flags rootFile = do
   let noPrelude = no_prelude flags
-  files <- if make flags then getSortedModuleNames noPrelude rootFile else return [rootFile]
+  files <- if make flags then getSortedDependencies noPrelude rootFile else return [rootFile]
   let ifaces = if noPrelude then Map.empty else Prelude.interfaces
   interfaces <- buildFiles flags (length files) ifaces files
   js <- foldM appendToOutput "" files
@@ -185,6 +185,6 @@ buildFiles :: Flags -> Int -> Interfaces -> [FilePath] -> IO Interfaces
 buildFiles _ _ interfaces [] = return interfaces
 buildFiles flags numModules interfaces (filePath:rest) = do
   interface <- buildFile flags (numModules - length rest) numModules interfaces filePath
-  let moduleName = List.intercalate "." (splitDirectories (dropExtensions filePath))
+  let moduleName = List.intercalate "." . splitDirectories $ dropExtensions filePath
       interfaces' = Map.insert moduleName interface interfaces
   buildFiles flags numModules interfaces' rest
