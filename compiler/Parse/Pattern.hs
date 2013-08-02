@@ -13,7 +13,7 @@ import Text.Parsec.Indent
 import Parse.Helpers
 import Parse.Literal
 import qualified SourceSyntax.Pattern as Pattern
-import SourceSyntax.Everything hiding (parens, tuple)
+import SourceSyntax.Everything hiding (tuple)
 
 
 basic :: IParser Pattern
