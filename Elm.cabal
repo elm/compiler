@@ -30,8 +30,7 @@ source-repository head
   location: git://github.com/evancz/Elm.git
 
 Library
-  exposed-modules:     Language.Elm,
-                       Language.Elm.Quasi
+  exposed-modules:     Language.Elm
   Hs-Source-Dirs:      compiler
   other-modules:       Unique,
                        SourceSyntax.Declaration,
@@ -93,8 +92,6 @@ Library
                        pandoc >= 1.10,
                        parsec >= 3.1.1,
                        pretty,
-                       shakespeare,
-                       text,
                        transformers >= 0.2,
                        union-find,
                        uniplate
