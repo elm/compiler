@@ -85,7 +85,6 @@ Library
                        bytestring,
                        cmdargs,
                        containers >= 0.3,
-                       deepseq,
                        directory,
                        filepath,
                        hjsmin,
@@ -96,7 +95,6 @@ Library
                        pretty,
                        shakespeare,
                        text,
-                       template-haskell,
                        transformers >= 0.2,
                        union-find,
                        uniplate
@@ -156,7 +154,6 @@ Executable elm
                        bytestring,
                        cmdargs,
                        containers >= 0.3,
-                       deepseq,
                        directory,
                        filepath,
                        hjsmin,
