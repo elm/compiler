@@ -98,6 +98,7 @@ Library
 
 Executable elm
   Main-is:             Compiler.hs
+  ghc-options:         -threaded -O2
   Hs-Source-Dirs:      compiler
   other-modules:       Unique,
                        SourceSyntax.Declaration,
