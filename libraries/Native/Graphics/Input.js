@@ -197,7 +197,7 @@ Elm.Native.Graphics.Input = function(elm) {
              });
      }
 
-     return { _:{}, box:F2(box), events:events };
+     return { _:{}, checkbox:F2(box), events:events };
  }
 
  function setRange(node, start, end, dir) {
