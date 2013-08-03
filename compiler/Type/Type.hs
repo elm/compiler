@@ -56,7 +56,7 @@ data Scheme a b = Scheme {
 type TypeConstraint = Constraint Type Variable
 type TypeScheme = Scheme Type Variable
 
-monoscheme headers = Scheme [] [] (none CTrue) headers
+monoscheme headers = Scheme [] [] (noneNoDocs CTrue) headers
 
 infixl 8 /\
 
@@ -65,7 +65,7 @@ a@(L s1 c1) /\ b@(L s2 c2) =
     case (c1, c2) of
       (CTrue, _) -> b
       (_, CTrue) -> a
-      _ -> merge a b (CAnd [a,b])
+      _ -> mergeOldDocs a b (CAnd [a,b])
 
 infixr 9 ==>
 (==>) :: Type -> Type -> Type

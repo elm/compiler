@@ -5,7 +5,7 @@ import qualified Data.Map as Map
 
 import Type.Type
 import SourceSyntax.Pattern
-import SourceSyntax.Location (none)
+import SourceSyntax.Location (noneNoDocs)
 
 data Fragment = Fragment {
     typeEnv        :: Map.Map String Type,
@@ -13,7 +13,7 @@ data Fragment = Fragment {
     typeConstraint :: TypeConstraint
 } deriving Show
 
-emptyFragment = Fragment Map.empty [] (none CTrue)
+emptyFragment = Fragment Map.empty [] (noneNoDocs CTrue)
 
 joinFragment f1 f2 = Fragment {
     typeEnv = Map.union (typeEnv f1) (typeEnv f2),

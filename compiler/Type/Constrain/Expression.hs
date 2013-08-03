@@ -160,7 +160,7 @@ constrainDef env info (pattern, expr, maybeTipe) =
              (vars, typ) <- Env.instantiateType env tipe Map.empty
              let scheme = Scheme { rigidQuantifiers = [],
                                    flexibleQuantifiers = flexiVars ++ vars,
-                                   constraint = Loc.none CTrue,
+                                   constraint = Loc.noneNoDocs CTrue,
                                    header = Map.singleton name typ }
              c <- constrain env' expr typ
              return ( scheme : schemes

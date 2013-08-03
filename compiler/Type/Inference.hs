@@ -10,7 +10,7 @@ import qualified Type.Solve as Solve
 
 import SourceSyntax.Module as Module
 import qualified SourceSyntax.Expression as Expr
-import SourceSyntax.Location (none)
+import SourceSyntax.Location (Located, noneNoDocs)
 import SourceSyntax.PrettyPrint
 import Text.PrettyPrint
 import qualified Type.State as TS
@@ -38,7 +38,7 @@ infer interfaces modul = unsafePerformIO $ do
   let allTypes = ctors ++ importedVars
       vars = concatMap (fst . snd) allTypes
       header = Map.map snd (Map.fromList allTypes)
-      environ = none . T.CLet [ T.Scheme vars [] (none T.CTrue) header ]
+      environ = noneNoDocs . T.CLet [ T.Scheme vars [] (noneNoDocs T.CTrue) header ]
 
   fvar <- T.var T.Flexible
   constraint <- environ `fmap` TcExpr.constrain env (program modul) (T.VarN fvar)

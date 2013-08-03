@@ -8,6 +8,8 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Map as Map
 
 import SourceSyntax.Pattern
+import SourceSyntax.PrettyPrint
+import Text.PrettyPrint (render)
 import qualified SourceSyntax.Location as Loc
 import Type.Type
 import Type.Fragment
@@ -17,7 +19,7 @@ import qualified Type.Constrain.Literal as Literal
 
 constrain :: Environment -> Pattern -> Type -> IO Fragment
 constrain env pattern tipe =
-    let span = Loc.NoSpan
+    let span = Loc.NoSpan (render $ pretty pattern)
         t1 === t2 = Loc.L span (CEqual t1 t2)
         x <? t = Loc.L span (CInstance x t)
     in
