@@ -122,8 +122,10 @@ buildFile flags moduleNum numModules interfaces filePath =
         createDirectoryIfMissing True (output_directory flags)
         metaModule <-
             case buildFromSource (no_prelude flags) interfaces source of
-                Left err -> mapM print err >> exitFailure
-                Right modul -> do
+              Left errors -> do
+                  mapM print (List.intersperse (P.text " ") errors)
+                  exitFailure
+              Right modul -> do
                   case print_program flags of
                     False -> return ()
                     True -> print . pretty $ program modul
