@@ -3,7 +3,8 @@ module Graphics.Element where
 
 import open Basics
 import Native.Utils
-import open JavaScript
+import JavaScript as JS
+import JavaScript (JSString)
 import List as List
 import open Color
 import Maybe (Maybe, Just, Nothing)
@@ -35,20 +36,22 @@ sizeOf e = (e.props.width, e.props.height)
 
 -- Create an `Element` with a given width.
 width : Int -> Element -> Element
-width nw e = let p = e.props
-                 props = case e.element of
-                           Image _ w h _ -> {p| height <- h `div` w * nw }
-                           RawHtml html -> {p| height <- let (w,h) = Native.Utils.htmlHeight nw html in h}
-                           _ -> p
-             in { element=e.element, props={ props | width <- nw } }
+width nw e =
+    let p = e.props
+        props = case e.element of
+                  Image _ w h _ -> {p| height <- round (toFloat h / toFloat w * toFloat nw) }
+                  RawHtml html -> {p| height <- snd (Native.Utils.htmlHeight nw html)}
+                  _ -> p
+    in { element=e.element, props={ props | width <- nw } }
 
 -- Create an `Element` with a given height.
 height : Int -> Element -> Element
-height nh e = let p = e.props
-                  props = case e.element of
-                            Image _ w h _ -> {p| width <- w `div` h * nh }
-                            _ -> p
-              in { element=e.element, props={p| height  <- nh} }
+height nh e =
+    let p = e.props
+        props = case e.element of
+                  Image _ w h _ -> {p| width <- round (toFloat w / toFloat h * toFloat nh) }
+                  _ -> p
+    in { element=e.element, props={ p | height <- nh} }
 
 -- Create an `Element` with a new width and height.
 size : Int -> Int -> Element -> Element
@@ -71,14 +74,14 @@ color c e = let p = e.props in
 -- with a link lik this: `/facts-about-animals.elm#all-about-badgers`
 tag : String -> Element -> Element
 tag  name e = let p = e.props in
-              { element=e.element, props={p | tag <- fromString name} }
+              { element=e.element, props={p | tag <- JS.fromString name} }
 
 -- Create an `Element` that is a hyper-link.
 link : String -> Element -> Element
 link href e = let p = e.props in
-              { element=e.element, props={p | href <- fromString href} }
+              { element=e.element, props={p | href <- JS.fromString href} }
 
-emptyStr = fromString ""
+emptyStr = JS.fromString ""
 newElement w h e =
   { props = Properties (Native.Utils.guid ()) w h 1 Nothing emptyStr emptyStr (), element = e }
 
@@ -94,12 +97,12 @@ data ImageStyle = Plain | Fitted | Cropped (Int,Int) | Tiled
 
 -- Create an image given a width, height, and image source.
 image : Int -> Int -> String -> Element
-image w h src = newElement w h (Image Plain w h (fromString src))
+image w h src = newElement w h (Image Plain w h (JS.fromString src))
 
 -- Create a fitted image given a width, height, and image source.
 -- This will crop the picture to best fill the given dimensions.
 fittedImage : Int -> Int -> String -> Element
-fittedImage w h src = newElement w h (Image Fitted w h (fromString src))
+fittedImage w h src = newElement w h (Image Fitted w h (JS.fromString src))
 
 -- Create a cropped image. Take a rectangle out of the picture starting
 -- at the given top left coordinate. If you have a 140-by-140 image,
@@ -108,11 +111,11 @@ fittedImage w h src = newElement w h (Image Fitted w h (fromString src))
 --         croppedImage (20,20) 100 100 "yogi.jpg"
 croppedImage : (Int,Int) -> Int -> Int -> String -> Element
 croppedImage pos w h src =
-    newElement w h (Image (Cropped pos) w h (fromString src))
+    newElement w h (Image (Cropped pos) w h (JS.fromString src))
 
 tiledImage : Int -> Int -> String -> Element
 tiledImage w h src =
-    newElement w h (Image Tiled w h (fromString src))
+    newElement w h (Image Tiled w h (JS.fromString src))
 
 markdown : Element
 markdown = Native.Utils.undefined
