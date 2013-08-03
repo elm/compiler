@@ -49,19 +49,23 @@ addError span message t1 t2 =
   where
     err = makeError <$> extraPretty t1 <*> extraPretty t2
 
-    location =
-        case span of
-          NoSpan msg -> if null msg then "" else ":\n\n        " ++ msg
-          Span p1 p2 msg -> lineNum ++ expr
-              where
-                lineNum = if line p1 == line p2 then "on line " ++ show (line p1)
-                          else "between lines " ++ show (line p1) ++ " and " ++ show (line p2)
-                expr = if null msg then "" else ":\n\n        " ++ msg
+    location = case span of
+                 NoSpan msg -> ""
+                 Span p1 p2 msg ->
+                     if line p1 == line p2 then " on line " ++ show (line p1)
+                     else " between lines " ++ show (line p1) ++ " and " ++ show (line p2)
+
+    display msg = if null msg then "\n"
+                  else "\n" ++ unlines (map ("        "++) $ lines msg)
+
+    src = case span of
+            NoSpan msg -> display msg
+            Span _ _ msg -> display msg
 
     makeError pt1 pt2 =
-        P.vcat [ P.text $ "Type error " ++ location
+        P.vcat [ P.text $ "Type error" ++ location ++ ":"
                , if null message then empty else P.vcat . map P.text $ lines message
-               , P.text " "
+               , P.text src
                , P.text "   Expected Type:" <+> pt1
                , P.text "     Actual Type:" <+> pt2 <> P.text "\n"
                ]
