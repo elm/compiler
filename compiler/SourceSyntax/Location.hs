@@ -45,8 +45,12 @@ instance Show SrcPos where
 instance Show SrcSpan where
   show span = 
       case span of
-        Span start end _ -> show start ++ " to " ++ show end
-        NoSpan str -> str
+        NoSpan _ -> ""
+        Span start end _ ->
+            case line start == line end of
+              False -> "between lines " ++ show (line start) ++ " and " ++ show (line end)
+              True -> "line " ++ show (line end) ++ ", column " ++
+                      show (column start) ++ " to " ++ show (column end)
 
 instance Show e => Show (Located e) where
   show (L s e) = "L (" ++ show s ++ ") (" ++ show e ++ ")"
