@@ -10,6 +10,7 @@ import System.Console.CmdArgs hiding (program)
 import System.Directory
 import System.Exit
 import System.FilePath
+import GHC.Conc
 
 import qualified Text.Blaze.Html.Renderer.Pretty as Pretty
 import qualified Text.Blaze.Html.Renderer.String as Normal
@@ -67,7 +68,8 @@ flags = Flags
     &= summary ("The Elm Compiler " ++ showVersion version ++ ", (c) Evan Czaplicki")
 
 main :: IO ()             
-main = compileArgs =<< cmdArgs flags
+main = do setNumCapabilities =<< getNumProcessors
+          compileArgs =<< cmdArgs flags
 
 compileArgs :: Flags -> IO ()
 compileArgs flags =
@@ -113,7 +115,9 @@ buildFile flags moduleNum numModules interfaces filePath =
 
       compile :: IO ModuleInterface
       compile = do
-        putStrLn (number ++ " Compiling " ++ name)
+        putStrLn $ concat [ number, " Compiling ", name
+                          , replicate (max 1 (20 - length name)) ' '
+                          , "( " ++ filePath ++ " )" ]
         source <- readFile filePath
         createDirectoryIfMissing True (output_directory flags)
         metaModule <-
