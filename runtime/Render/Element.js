@@ -23,6 +23,8 @@ function setProps(props, e) {
         a.style.top = 0;
         a.style.left = 0;
         a.style.display = 'block';
+        a.style.position = 'absolute';
+        e.style.position = 'relative';
         e.appendChild(a);
     }
     if (props.hover.ctor !== '_Tuple0') {
@@ -259,10 +261,16 @@ function updateProps(node, curr, next) {
         if (currP.href === '') {
             var a = newElement('a');
             a.href = props.href;
-            a.appendChild(e);
-            e.parentNode.replaceChild(a,e);
+            a.style.width = '100%';
+            a.style.height = '100%';
+            a.style.top = 0;
+            a.style.left = 0;
+            a.style.display = 'block';
+            a.style.position = 'absolute';
+            e.style.position = 'relative';
+            e.appendChild(a);
         } else {
-            node.parentNode.href = props.href;
+            node.lastNode.href = props.href;
         }
     }
 }
