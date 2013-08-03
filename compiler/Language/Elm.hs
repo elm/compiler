@@ -31,7 +31,7 @@ import Paths_Elm
 compile :: String -> Either String String
 compile source =
     case buildFromSource False Prelude.interfaces source of
-      Left docs -> Left . unlines $ map P.render docs
+      Left docs -> Left . unlines . List.intersperse "" $ map P.render docs
       Right modul -> Right $ jsModule (modul :: MetadataModule () ())
 
 -- |This function extracts the module name of a given source program.

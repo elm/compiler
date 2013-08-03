@@ -51,12 +51,12 @@ addError span message t1 t2 =
 
     location =
         case span of
-          NoSpan msg -> if null msg then "" else "in\n\n        " ++ msg
+          NoSpan msg -> if null msg then "" else ":\n\n        " ++ msg
           Span p1 p2 msg -> lineNum ++ expr
               where
                 lineNum = if line p1 == line p2 then "on line " ++ show (line p1)
                           else "between lines " ++ show (line p1) ++ " and " ++ show (line p2)
-                expr = if null msg then "" else "\n\n        " ++ msg
+                expr = if null msg then "" else ":\n\n        " ++ msg
 
     makeError pt1 pt2 =
         P.vcat [ P.text $ "Type error " ++ location
