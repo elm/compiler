@@ -101,7 +101,8 @@ function init(display, container, module, moduleToReplace) {
   try {
       Module = module(elm);
   } catch(e) {
-      Module.main = Elm.Text(elm).text('<code>' + e.message + '</code>');
+      var directions = "<br/>&nbsp; &nbsp; Open the developer console for more details."
+      Module.main = Elm.Text(elm).text('<code>' + e.message + directions + '</code>');
       reportAnyErrors = function() { throw e; }
   }
   inputs = ElmRuntime.filterDeadInputs(inputs);
