@@ -25,7 +25,7 @@ prelude :: [(String, ImportMethod)]
 prelude = text ++ map (\n -> (n, Hiding [])) modules
   where
     text = map ((,) "Text") [ As "Text", Hiding ["link", "color", "height"] ]
-    modules = [ "Basics", "Signal", "List", "Maybe", "Time"
+    modules = [ "Basics", "Signal", "List", "Maybe", "Time", "Prelude"
               , "Graphics.Element", "Color", "Graphics.Collage" ]
 
 {-# NOINLINE interfaces #-}

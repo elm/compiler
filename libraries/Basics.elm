@@ -195,17 +195,6 @@ ceiling = Native.Basics.ceiling
 toFloat : Int -> Float
 toFloat = Native.Basics.toFloat
 
--- Convert almost any value to its string representation.
-show : a -> String
-show = Native.Basics.show
-
--- Read an integer from a string
--- readInt : String -> Maybe Int
---readInt = Native.Basics.readInt
-
--- Read a float from a string.
--- readFloat : String -> Maybe Float
---readFloat = Native.Basics.readFloat
 
 -- Function Helpers
 
