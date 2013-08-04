@@ -4,10 +4,9 @@ import Control.Applicative ((<$>),(<*>))
 import Control.Monad
 import Control.Monad.State
 import Data.Char (isUpper)
-import SourceSyntax.Helpers (isOp)
+import SourceSyntax.Helpers as Help
 import SourceSyntax.Location as Location
 import SourceSyntax.Expression
-import SourceSyntax.Rename (deprime)
 import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
 
@@ -39,8 +38,13 @@ lowVar = makeVar (lower <?> "lower case variable")
 capVar :: IParser String
 capVar = makeVar (upper <?> "upper case variable")
 
+qualifiedVar :: IParser String
+qualifiedVar = do
+  vars <- many ((++) <$> capVar <*> string ".")
+  (++) (concat vars) <$> lowVar
+
 rLabel :: IParser String
-rLabel = deprime <$> lowVar
+rLabel = lowVar
 
 innerVarChar :: IParser Char
 innerVarChar = alphaNum <|> char '_' <|> char '\'' <?> "" 
@@ -56,10 +60,10 @@ reserved word =
   <?> "reserved word '" ++ word ++ "'"
 
 anyOp :: IParser String
-anyOp = betwixt '`' '`' var <|> symOp <?> "infix operator (e.g. +, *, ||)"
+anyOp = betwixt '`' '`' qualifiedVar <|> symOp <?> "infix operator (e.g. +, *, ||)"
 
 symOp :: IParser String
-symOp = do op <- many1 (satisfy isOp)
+symOp = do op <- many1 (satisfy Help.isSymbol)
            guard (op `notElem` [ "=", "..", "->", "--", "|", "\8594", ":" ])
            case op of
              "." -> notFollowedBy lower >> return op
@@ -103,7 +107,14 @@ dotSep1 p = (:) <$> p <*> many (try (char '.') >> p)
 spaceSep1 :: IParser a -> IParser [a]
 spaceSep1 p =  (:) <$> p <*> spacePrefix p
 
-spacePrefix p = many (try (whitespace >> indented >> p))
+spacePrefix p = constrainedSpacePrefix p (\_ -> return ())
+
+constrainedSpacePrefix p constraint =
+    many . try $ do
+      n <- whitespace
+      constraint n
+      indented
+      p
 
 followedBy a b = do x <- a ; b ; return x
 
@@ -134,7 +145,7 @@ addLocation expr = do
 accessible :: IParser (LExpr t v) -> IParser (LExpr t v)
 accessible expr = do
   start <- getPosition
-  ce@(L s t e) <- expr
+  ce@(L _ e) <- expr
   let rest f = do
         let dot = char '.' >> notFollowedBy (char '.')
         access <- optionMaybe (try dot <?> "field access (e.g. List.map)")
@@ -150,34 +161,43 @@ accessible expr = do
 
 
 spaces :: IParser String
-spaces = many1 ((multiComment <|> string " " <?> "") >> return ' ') <?> "spaces"
+spaces = concat <$> many1 (multiComment <|> string " ") <?> "spaces"
 
-forcedWS :: IParser [String]
-forcedWS = try (do { spaces; many nl_space }) <|> try (many1 nl_space)
-    where nl_space = try $ many1 newline >> spaces
+forcedWS :: IParser String
+forcedWS = choice [ try $ (++) <$> spaces <*> (concat <$> many nl_space)
+                  , try $ concat <$> many1 nl_space ]
+    where nl_space = try ((++) <$> (concat <$> many1 newline) <*> spaces)
 
-whitespace :: IParser ()
-whitespace = optional forcedWS <?> ""
+-- Just eats whitespace until the next meaningful character.
+dumbWhitespace :: IParser String
+dumbWhitespace = concat <$> many (spaces <|> newline)
+
+whitespace :: IParser String
+whitespace = option "" forcedWS <?> "whitespace"
 
 freshLine :: IParser [[String]]
 freshLine = try (many1 newline >> many space_nl) <|> try (many1 space_nl) <?> ""
     where space_nl = try $ spaces >> many1 newline
 
 newline :: IParser String
-newline = simpleNewline <|> lineComment <?> ""
+newline = simpleNewline <|> lineComment <?> "newline"
 
 simpleNewline :: IParser String
 simpleNewline = try (string "\r\n") <|> string "\n"
 
 lineComment :: IParser String
-lineComment = do try (string "--")
-                 manyTill anyChar $ simpleNewline <|> (eof >> return "\n")
+lineComment = do
+  try (string "--")
+  comment <- manyTill anyChar $ simpleNewline <|> (eof >> return "\n")
+  return ("--" ++ comment)
 
 multiComment :: IParser String
 multiComment = do { try (string "{-"); closeComment }
 
 closeComment :: IParser String
-closeComment = manyTill anyChar . choice $
+closeComment = do
+    comment <- manyTill anyChar . choice $
                [ try (string "-}") <?> "close comment"
                , do { try $ string "{-"; closeComment; closeComment }
                ]
+    return ("{-" ++ comment ++ "-}")

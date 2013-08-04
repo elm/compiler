@@ -6,7 +6,7 @@ import Data.List (intercalate)
 import Text.Parsec hiding (newline,spaces)
 
 import Parse.Helpers
-import SourceSyntax.Module
+import SourceSyntax.Module (Module(..), ImportMethod(..), Imports)
 
 varList ::  IParser [String]
 varList = parens $ commaSep1 (var <|> parens symOp)
@@ -25,22 +25,20 @@ moduleDef = do
 imports :: IParser Imports
 imports = option [] ((:) <$> import' <*> many (try (freshLine >> import')))
 
-
 import' :: IParser (String, ImportMethod)
-import' = do
-  reserved "import"
-  whitespace
-  open <- optionMaybe (reserved "open")
-  whitespace
-  name <- intercalate "." <$> dotSep1 capVar
-  case open of
-    Just _ -> return (name, Hiding [])
-    Nothing -> let how = try (whitespace >> (as' <|> importing'))
-               in  (,) name <$> option (Importing []) how
+import' =
+  do reserved "import"
+     whitespace
+     open <- optionMaybe (reserved "open")
+     whitespace
+     name <- intercalate "." <$> dotSep1 capVar
+     case open of
+       Just _ -> return (name, Hiding [])
+       Nothing -> let how = try (whitespace >> (as' <|> importing'))
+                  in  (,) name <$> option (As name) how
+  where
+    as' :: IParser ImportMethod
+    as' = reserved "as" >> whitespace >> As <$> capVar <?> "alias for module"
 
-
-as' :: IParser ImportMethod
-as' = reserved "as" >> whitespace >> As <$> capVar <?> "alias for module"
-
-importing' :: IParser ImportMethod
-importing' = Importing <$> varList <?> "listing of imported values (x,y,z)"
+    importing' :: IParser ImportMethod
+    importing' = Importing <$> varList <?> "listing of imported values (x,y,z)"

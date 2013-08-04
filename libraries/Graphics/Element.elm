@@ -1,22 +1,13 @@
 
-module Graphics.Element (widthOf, heightOf, sizeOf,
-                         width, height, size, opacity, color, tag, link,
-                         image, fittedImage, croppedImage, tiledImage,
-                         flow, up, down, left, right, inward, outward,
-                         above, below, beside, layers,
-                         container, absolute, relative,
-                         middle, topLeft, topRight, bottomLeft, bottomRight,
-                         midLeft, midRight, midTop, midBottom, middleAt,
-                         topLeftAt, topRightAt, bottomLeftAt, bottomRightAt,
-                         midLeftAt, midRightAt, midTopAt, midBottomAt,
-                         spacer, newElement
-                        ) where
+module Graphics.Element where
 
-import Native.Utils (guid, max, htmlHeight)
+import open Basics
+import Native.Utils
 import JavaScript as JS
+import JavaScript (JSString)
 import List as List
-import Color
-import Maybe (Just, Nothing)
+import open Color
+import Maybe (Maybe, Just, Nothing)
 
 type Properties = {
   id      : Int,
@@ -45,20 +36,22 @@ sizeOf e = (e.props.width, e.props.height)
 
 -- Create an `Element` with a given width.
 width : Int -> Element -> Element
-width  nw e = let p = e.props
-                  props = case e.element of
-                            Image _ w h _ -> {p| height <- h/w*nw }
-                            RawHtml html -> {p| height <- let (w,h) = htmlHeight nw html in h}
-                            _ -> p
-              in { element=e.element, props={props| width <- nw} }
+width nw e =
+    let p = e.props
+        props = case e.element of
+                  Image _ w h _ -> {p| height <- round (toFloat h / toFloat w * toFloat nw) }
+                  RawHtml html -> {p| height <- snd (Native.Utils.htmlHeight nw html)}
+                  _ -> p
+    in { element=e.element, props={ props | width <- nw } }
 
 -- Create an `Element` with a given height.
 height : Int -> Element -> Element
-height nh e = let p = e.props
-                  props = case e.element of
-                            Image _ w h _ -> {p| width <- w/h*nh }
-                            _ -> p
-              in { element=e.element, props={p| height  <- nh} }
+height nh e =
+    let p = e.props
+        props = case e.element of
+                  Image _ w h _ -> {p| width <- round (toFloat w / toFloat h * toFloat nh) }
+                  _ -> p
+    in { element=e.element, props={ p | height <- nh} }
 
 -- Create an `Element` with a new width and height.
 size : Int -> Int -> Element -> Element
@@ -71,24 +64,26 @@ opacity o e = let p = e.props in { element=e.element, props={p| opacity <- o} }
 
 -- Create an `Element` with a given background color.
 color : Color -> Element -> Element
-color   c e = let p = e.props in
-              { element=e.element, props={p| color <- Just c} }
+color c e = let p = e.props in
+            { element = e.element
+            , props = { p | color <- Just c}
+            }
 
 -- Create an `Element` with a tag. This lets you link directly to it.
 -- The element `(tag "all-about-badgers" thirdParagraph)` can be reached
 -- with a link lik this: `/facts-about-animals.elm#all-about-badgers`
 tag : String -> Element -> Element
 tag  name e = let p = e.props in
-              { element=e.element, props={p| tag   <- JS.fromString name} }
+              { element=e.element, props={p | tag <- JS.fromString name} }
 
 -- Create an `Element` that is a hyper-link.
 link : String -> Element -> Element
 link href e = let p = e.props in
-              { element=e.element, props={p| href  <- JS.fromString href} }
+              { element=e.element, props={p | href <- JS.fromString href} }
 
 emptyStr = JS.fromString ""
 newElement w h e =
-  { props = Properties (guid ()) w h 1 Nothing emptyStr emptyStr (), element = e }
+  { props = Properties (Native.Utils.guid ()) w h 1 Nothing emptyStr emptyStr (), element = e }
 
 data ElementPrim
   = Image ImageStyle Int Int JSString
@@ -121,6 +116,9 @@ croppedImage pos w h src =
 tiledImage : Int -> Int -> String -> Element
 tiledImage w h src =
     newElement w h (Image Tiled w h (JS.fromString src))
+
+markdown : Element
+markdown = Native.Utils.undefined
 
 data Three = P | Z | N
 data Pos = Absolute Int | Relative Float

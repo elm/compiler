@@ -1,13 +1,15 @@
 
 module Graphics.Collage where
 
+import open Basics
 import List
-import Native.Utils (toFloat)
-import Either
-import Native.Matrix2D as Matrix
-import Native.Graphics.Collage as N
-import Graphics.Element
-import Color
+import Either (Either, Left, Right)
+import Matrix2D (Matrix2D, identity)
+import Native.Graphics.Collage
+import Graphics.Element (Element, Three, Pos, ElementPrim, Properties)
+import Color (Color, black, Gradient)
+import Maybe (Maybe)
+import JavaScript (JSString)
 
 type Form = {
   theta : Float,
@@ -21,7 +23,7 @@ type Form = {
 data FillStyle
   = Solid Color
   | Texture String
-  | Gradient Gradient
+  | Grad Gradient
 
 -- The shape of the ends of a line. 
 data LineCap = Flat | Round | Padded
@@ -49,7 +51,7 @@ type LineStyle = {
 --         { defaultLine | width <- 10 }
 defaultLine : LineStyle
 defaultLine = {
-  color = Color.black,
+  color = black,
   width = 1,
   cap   = Flat,
   join  = Sharp 10,
@@ -79,7 +81,7 @@ data BasicForm
 form : BasicForm -> Form
 form f = { theta=0, scale=1, x=0, y=0, alpha=1, form=f }
 
-fill style shape = form (FShape (Either.Right style) shape)
+fill style shape = form (FShape (Right style) shape)
 
 -- Create a filled in shape.
 filled : Color -> Shape -> Form
@@ -92,11 +94,11 @@ textured src shape = fill (Texture src) shape
 
 -- Fill a shape with a [gradient](/docs/Color.elm#linear).
 gradient : Gradient -> Shape -> Form
-gradient grad shape = fill (Gradient grad) shape
+gradient grad shape = fill (Grad grad) shape
 
 -- Outline a shape with a given line style.
 outlined : LineStyle -> Shape -> Form
-outlined style shape = form (FShape (Either.Left style) shape)
+outlined style shape = form (FShape (Left style) shape)
 
 -- Trace a path with a given line style.
 traced : LineStyle -> Path -> Form
@@ -116,7 +118,7 @@ toForm e = form (FElement e)
 -- Flatten many forms into a single `Form`. This lets you move and rotate them
 -- as a single unit, making it possible to build small, modular components.
 group : [Form] -> Form
-group fs = form (FGroup Matrix.identity fs)
+group fs = form (FGroup identity fs)
 
 -- Flatten many forms into a single `Form` and then apply a matrix
 -- transformation.
@@ -149,23 +151,24 @@ moveX x f = { f | x <- f.x + x }
 moveY : Float -> Form -> Form
 moveY y f = { f | y <- f.y + y }
 
--- Set the opacity of a `Form`. The default is 1, and 0 is totally transparent.
-opacity : Float -> Form -> Form
-opacity a f = { f | alpha <- a }
+-- Set the alpha of a `Form`. The default is 1, and 0 is totally transparent.
+alpha : Float -> Form -> Form
+alpha a f = { f | alpha <- a }
 
 -- A collage is a collection of 2D forms. There are no strict positioning
 -- relationships between forms, so you are free to do all kinds of 2D graphics.
 collage : Int -> Int -> [Form] -> Element
+collage = Native.Graphics.Collage.collage
 
 
 type Path = [(Float,Float)]
 
 -- Create a path that follows a sequence of points.
-path : [(Number a,Number a)] -> Path
+path : [(Float,Float)] -> Path
 path ps = ps
 
 -- Create a path along a given line segment.
-segment : (Number a,Number a) -> (Number a,Number a) -> Path
+segment : (Float,Float) -> (Float,Float) -> Path
 segment p1 p2 = [p1,p2]
 
 type Shape = [(Float,Float)]
@@ -173,31 +176,31 @@ type Shape = [(Float,Float)]
 -- Create an arbitrary polygon by specifying its corners in order.
 -- `polygon` will automatically close all shapes, so the given list
 -- of points does not need to start and end with the same position.
-polygon : [(Number a,Number a)] -> Shape
+polygon : [(Float,Float)] -> Shape
 polygon points = points
 
 -- A rectangle with a given width and height.
-rect : Number a -> Number a -> Shape
+rect : Float -> Float -> Shape
 rect w h = let hw = w/2
                hh = h/2
            in  [ (0-hw,0-hh), (0-hw,hh), (hw,hh), (hw,0-hh) ]
 
 -- A square with a given edge length.
-square : Number a -> Shape
+square : Float -> Shape
 square n = rect n n
 
 -- An oval with a given width and height.
-oval : Number a -> Number a -> Shape
+oval : Float -> Float -> Shape
 oval w h =
   let n = 50
-      t = 2 * Math.PI / n
+      t = 2 * pi / n
       hw = w/2
       hh = h/2
-      f i = (hw * Math.cos (t*i), hh * Math.sin (t*i))
+      f i = (hw * cos (t*i), hh * sin (t*i))
   in  List.map f [0..n-1]
 
 -- A circle with a given radius.
-circle : Number a -> Shape
+circle : Float -> Shape
 circle r = oval (2*r) (2*r)
 
 -- A regular polygon with N sides. The first argument specifies the number
@@ -205,9 +208,9 @@ circle r = oval (2*r) (2*r)
 -- 30 you would say:
 --
 --         ngon 5 30
-ngon : Int -> Number a -> Shape
+ngon : Int -> Float -> Shape
 ngon n r =
   let m = toFloat n
-      t = 2 * Math.PI / m
-      f i = ( r * Math.cos (t*i), r * Math.sin (t*i) )
-  in  List.map f [0..n-1]
+      t = 2 * pi / m
+      f i = ( r * cos (t*i), r * sin (t*i) )
+  in  List.map f [0..m-1]

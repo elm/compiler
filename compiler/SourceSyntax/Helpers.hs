@@ -1,11 +1,18 @@
 
 module SourceSyntax.Helpers where
 
-import Data.Char (isSymbol)
+import qualified Data.Char as Char
 
+brkt :: String -> String
 brkt s = "{ " ++ s ++ " }"
 
-parens s = "(" ++ s ++ ")"
-parensIf b s = if b then parens s else s
+isTuple :: String -> Bool
+isTuple name =
+    take 6 name == "_Tuple" && all Char.isDigit (drop 6 name)
 
-isOp c = isSymbol c || elem c "+-/*=.$<>:&|^?%#@~!"
+isOp :: String -> Bool
+isOp = all isSymbol
+
+isSymbol :: Char -> Bool
+isSymbol c =
+    Char.isSymbol c || elem c "+-/*=.$<>:&|^?%#@~!"

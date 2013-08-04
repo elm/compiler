@@ -1,13 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Generate.Html (generateHtml,
-                      createHtml,
-                      JSStyle (..),
-                      JSSource (..)
-                     ) where
+module Generate.Html
+    (generateHtml,
+     createHtml,
+     JSStyle (..),
+     JSSource (..)
+    ) where
 
-import Data.List (intercalate)
 import Text.Blaze (preEscapedToMarkup)
-import Text.Blaze.Html (Html)
 import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5 ((!))
 import qualified Text.Blaze.Html5.Attributes as A
@@ -18,7 +17,6 @@ import qualified Data.ByteString.Lazy.Char8 as BS
 import Initialize (buildFromSource)
 import Generate.JavaScript
 import Generate.Noscript
-import Metadata.Libraries as Libraries
 
 data JSStyle = Minified | Readable
 data JSSource = Link String | Source JSStyle String
@@ -41,7 +39,7 @@ makeScript source =
 generateHtml :: String -- ^ Location of elm-runtime.js as expected by the browser
              -> String -- ^ The page title
              -> String -- ^ The elm source code.
-             -> Html
+             -> H.Html
 generateHtml libLoc title source = H.span "broken for now"
 {--
   case buildFromSource True source of
@@ -61,7 +59,7 @@ modulesToHtml libLoc title scripts nscrpt modules =
           where Module names _ _ _ = last modules
 --}                 
 
-createHtml :: FilePath -> String -> [JSSource] -> String -> Html
+createHtml :: FilePath -> String -> [JSSource] -> String -> H.Html
 createHtml libLoc title scripts noscript =
     H.docTypeHtml $ do 
       H.head $ do

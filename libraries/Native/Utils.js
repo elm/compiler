@@ -19,8 +19,10 @@ Elm.Native.Utils = function(elm) {
     return x === y;
   }
 
-  var EQ = 0, LT = 1, GT = 2, ord = ['EQ','LT','GT'];
-  function compare(x,y) { return { ctor: ord[cmp(x,y)] } }
+  // code in Generate/JavaScript.hs depends on the particular
+  // integer values assigned to LT, EQ, and GT
+  var LT = -1, EQ = 0, GT = 1, ord = ['LT','EQ','GT'];
+  function compare(x,y) { return { ctor: ord[cmp(x,y)+1] } }
   function cmp(x,y) {
     var ord;
     if (typeof x !== 'object') return x === y ? EQ : x < y ? LT : GT;
@@ -36,8 +38,8 @@ Elm.Native.Utils = function(elm) {
       }
     }
 
-    if (x.ctor.slice(0,5) === 'Tuple') {
-      var n = x.ctor.slice(5) - 0;
+    if (x.ctor.slice(0,6) === '_Tuple') {
+      var n = x.ctor.slice(6) - 0;
       var err = 'cannot compare tuples with more than 6 elements.';
       if (n === 0) return EQ;
       if (n >= 1) { ord = cmp(x._0, y._0); if (ord !== EQ) return ord;
@@ -55,8 +57,8 @@ Elm.Native.Utils = function(elm) {
   }
 
 
-  var Tuple0 = { ctor: "Tuple0" };
-  function Tuple2(x,y) { return { ctor:"Tuple2", _0:x, _1:y } }
+  var Tuple0 = { ctor: "_Tuple0" };
+  function Tuple2(x,y) { return { ctor:"_Tuple2", _0:x, _1:y } }
 
   var count = 0;
   function guid(_) { return count++ }
@@ -140,7 +142,7 @@ Elm.Native.Utils = function(elm) {
 
   return elm.Native.Utils = {
       eq:eq,
-      cmp:compare,
+      cmp:cmp,
       compare:F2(compare),
       Tuple0:Tuple0,
       Tuple2:Tuple2,

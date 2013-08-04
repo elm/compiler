@@ -14,7 +14,7 @@ import Transform.Substitute
 
 caseToMatch patterns = do
   v <- newVar
-  match [v] (map (first (:[])) patterns) Fail
+  (,) v `liftM` match [v] (map (first (:[])) patterns) Fail
 
 newVar = do n <- guid
             return $ "case" ++ show n
@@ -35,8 +35,8 @@ matchSubst :: [(String,String)] -> Match t v -> Match t v
 matchSubst _ Break = Break
 matchSubst _ Fail = Fail
 matchSubst pairs (Seq ms) = Seq (map (matchSubst pairs) ms)
-matchSubst pairs (Other (L t s e)) =
-    Other . L t s $ foldr ($) e $ map (\(x,y) -> subst x (Var y)) pairs
+matchSubst pairs (Other (L s e)) =
+    Other . L s $ foldr ($) e $ map (\(x,y) -> subst x (Var y)) pairs
 matchSubst pairs (Match n cs m) =
     Match (varSubst n) (map clauseSubst cs) (matchSubst pairs m)
         where varSubst v = fromMaybe v (lookup v pairs)
@@ -63,24 +63,23 @@ match vs@(v:_) cs def
   where
     cs' = map (dealias v) cs
 
-dealias v c@(p:ps, L t s e) =
+dealias v c@(p:ps, L s e) =
     case p of
-      PAlias x pattern -> (pattern:ps, L t s $ subst x (Var v) e)
+      PAlias x pattern -> (pattern:ps, L s $ subst x (Var v) e)
       _ -> c
 
 matchVar :: [String] -> [([Pattern],LExpr t v)] -> Match t v
          -> Unique (Match t v)
 matchVar (v:vs) cs def = match vs (map subVar cs) def
   where
-    subVar (p:ps, ce@(L t s e)) = (ps, L t s $ subOnePattern p e)
+    subVar (p:ps, ce@(L s e)) = (ps, L s $ subOnePattern p e)
         where
-          loc = L t s
           subOnePattern pattern e =
             case pattern of
               PVar x     -> subst x (Var v) e
               PAnything  -> e
               PRecord fs ->
-                 foldr (\x -> subst x (Access (loc (Var v)) x)) e fs
+                 foldr (\x -> subst x (Access (L s (Var v)) x)) e fs
 
 matchCon :: [String] -> [([Pattern],LExpr t v)] -> Match t v
          -> Unique (Match t v)

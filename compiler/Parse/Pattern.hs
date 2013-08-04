@@ -1,10 +1,11 @@
 
-module Parse.Pattern (term, expr, makeLambda, flatten) where
+module Parse.Pattern (term, expr) where
 
 import Control.Applicative ((<$>),(<*>),pure)
 import Control.Monad
 import Control.Monad.State
 import Data.Char (isUpper)
+import Data.List (intercalate)
 import Unique
 import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
@@ -12,7 +13,7 @@ import Text.Parsec.Indent
 import Parse.Helpers
 import Parse.Literal
 import qualified SourceSyntax.Pattern as Pattern
-import SourceSyntax.Everything hiding (parens, tuple)
+import SourceSyntax.Everything hiding (tuple)
 
 
 basic :: IParser Pattern
@@ -53,7 +54,7 @@ term =
 
 patternConstructor :: IParser Pattern
 patternConstructor = do
-  v <- capVar
+  v <- intercalate "." <$> dotSep1 capVar
   case v of
     "True"  -> return $ PLiteral (Boolean True)
     "False" -> return $ PLiteral (Boolean False)
@@ -64,13 +65,7 @@ expr = do
   patterns <- consSep1 (patternConstructor <|> term)
   asPattern (foldr1 Pattern.cons patterns) <?> "pattern"
 
-makeLambda :: [Pattern] -> LExpr t v -> Unique (LExpr t v)
-makeLambda pats body = go (reverse pats) body
-    where go [] body = return body
-          go (p:ps) body@(L t s _) = do
-            (x,e) <- extract p body
-            go ps (L t s $ Lambda x e)
-          
+{--
 extract :: Pattern -> LExpr t v -> Unique (String, LExpr t v)
 extract pattern body@(L t s _) =
   let loc = L t s in
@@ -136,3 +131,4 @@ matchSingle pat exp@(L t s _) p =
         return (FnDef a [] exp : map toDef fs)
 
     PAnything -> return []
+--}

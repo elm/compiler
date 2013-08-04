@@ -19,12 +19,11 @@ instance Extract (Declaration t v) where
   extract _ = []
 
 instance Extract (Def t v) where
-  extract (FnDef _ _ e)   = extract e
-  extract (OpDef _ _ _ e) = extract e
+  extract (Def _ e)   = extract e
   extract _ = []
 
 instance Extract e => Extract (Located e) where
-  extract (L _ _ e) = extract e
+  extract (L _ e) = extract e
 
 instance Extract (Expr t v) where
   extract expr =
@@ -35,11 +34,11 @@ instance Extract (Expr t v) where
                           ("++", [s1], [s2]) -> [s1 ++ s2]
                           (_   , ss1 , ss2 ) -> ss1 ++ ss2
       Lambda v e -> f e
-      App (L _ _ (App (L _ _ (App (L _ _ (Var func)) w)) h)) src
+      App (L _ (App (L _ (App (L _ (Var func)) w)) h)) src
           | "image" `isInfixOf` func -> extractImage src
-      App (L _ _ (App (L _ _ (Var func)) src)) txt
+      App (L _ (App (L _ (Var func)) src)) txt
           | "link" `isInfixOf` func -> extractLink src txt
-      App (L _ _ (Var func)) e
+      App (L _ (Var func)) e
           | "header"    `isInfixOf` func -> tag "h1" e
           | "bold"      `isInfixOf` func -> tag "b" e
           | "italic"    `isInfixOf` func -> tag "i" e

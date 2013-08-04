@@ -2,22 +2,38 @@
 Release 0.8.1
 =============
 
+Website:
 * Hot-swapping
+* Much faster page load with pre-compile Elm files (Max New)
 
 Syntax:
-* Type annotations in let expressions (Andrew)
-* Record Constructors
 * Pattern matching on literals
 * Pattern aliases with `as` (Andrew)
+* Unary negation
 * Triple-quoted multi-line strings
-* Use if, let, case, and lambda in last term of a
-  binary expression without parentheses
+* Custom infix precedence and associativity
+* Type annotations in let expressions (Andrew)
+* Record Constructors
+* Record type aliases can be closed on the zeroth column
+* (,,) syntax in types
+* "(+) = " is permitted
+* Unparenthesized if, let, case, and lambda in last
+  term of a binary expression
 
 Libraries:
 * Detect hovering over any Element
 * Opacity on arbitrary forms in collages
-* Switch Text.height to use px instead of em,
-  units like em and % can be created in Elm
+* Switch Text.height to use px instead of em
+
+Error Messages:
+* Cross-module type errors
+* Pretty printing of expressions and types
+* Type-variables look more natural (a,b,c instead of t1,t2,t3)
+
+Build Improvements:
+* Module-level compilation, only re-compile if necessary
+* Import type aliases between modules
+
 
 
 forgot to fill this in again...

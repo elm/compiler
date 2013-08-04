@@ -1,11 +1,12 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 module SourceSyntax.Pattern where
 
-import Data.Char (isDigit)
 import Data.List (intercalate)
 import Data.Data
-import SourceSyntax.Helpers
-import qualified SourceSyntax.Literal as Literal
+import SourceSyntax.Helpers as Help
+import SourceSyntax.PrettyPrint
+import Text.PrettyPrint as PP
+import SourceSyntax.Literal as Literal
 
 data Pattern = PData String [Pattern]
              | PRecord [String]
@@ -13,27 +14,35 @@ data Pattern = PData String [Pattern]
              | PVar String
              | PAnything
              | PLiteral Literal.Literal
-               deriving (Eq, Ord, Data, Typeable)
+               deriving (Eq, Ord, Data, Typeable, Show)
 
 cons h t = PData "::" [h,t]
 nil      = PData "[]" []
 list     = foldr cons nil
-tuple es = PData ("Tuple" ++ show (length es)) es
+tuple es = PData ("_Tuple" ++ show (length es)) es
 
 
-instance Show Pattern where
-  show p =
-   case p of
-     PVar x -> x
-     PLiteral lit -> show lit
-     PRecord fs -> brkt (intercalate ", " fs)
-     PAlias x p -> show p ++ " as " ++ x
-     PAnything -> "_"
-     PData "::" [hd@(PData "::" _),tl] ->
-        parens (show hd) ++ " :: " ++ show tl
-     PData "::" [hd,tl] -> show hd ++ " :: " ++ show tl
-     PData "[]" [] -> "[]"
+instance Pretty Pattern where
+  pretty pattern =
+   case pattern of
+     PVar x -> variable x
+     PLiteral lit -> pretty lit
+     PRecord fs -> PP.braces (commaCat $ map PP.text fs)
+     PAlias x p -> prettyParens p <+> PP.text "as" <+> PP.text x
+     PAnything -> PP.text "_"
+     PData "::" [hd,tl] -> parensIf isCons (pretty hd) <+> PP.text "::" <+> pretty tl
+       where isCons = case hd of
+                        PData "::" _ -> True
+                        _ -> False
      PData name ps ->
-        if take 5 name == "Tuple" && all isDigit (drop 5 name) then
-            parens . intercalate ", " $ map show ps
-        else parensIf (not (null ps)) $ unwords (name : map show ps)
+        if isTuple name then
+            PP.parens . commaCat $ map pretty ps
+        else sep (PP.text name : map prettyParens ps)
+
+prettyParens pattern = parensIf needsThem (pretty pattern)
+  where
+    needsThem =
+      case pattern of
+        PData name (_:_) | not (isTuple name) -> True
+        PAlias _ _ -> True
+        _ -> False

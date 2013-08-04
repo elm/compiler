@@ -6,60 +6,61 @@ module Set (empty,singleton,insert,remove
            ,toList,fromList
            ) where
 
+import Maybe (Maybe)
 import Dict as Dict
 import List as List
 
-type Set t = Dict t ()
+type Set t = Dict.Dict t ()
 
 -- Create an empty set.
-empty : Set (Comparable k)
+empty : Set comparable
 empty = Dict.empty
 
 -- Create a set with one value.
-singleton : Comparable k -> Set (Comparable k)
+singleton : comparable -> Set comparable
 singleton k = Dict.singleton k ()
 
 -- Insert a value into a set.
-insert : Comparable k -> Set (Comparable k) -> Set (Comparable k)
+insert : comparable -> Set comparable -> Set comparable
 insert k = Dict.insert k ()
 
 -- Remove a value from a set. If the value is not found, no changes are made.
-remove : Comparable k -> Set (Comparable k) -> Set (Comparable k)
+remove : comparable -> Set comparable -> Set comparable
 remove = Dict.remove
 
 -- Determine if a value is in a set.
-member : Comparable k -> Set (Comparable k) -> Bool
+member : comparable -> Set comparable -> Bool
 member = Dict.member
 
 -- Get the union of two sets. Keep all values.
-union : Set (Comparable k) -> Set (Comparable k) -> Set (Comparable k)
+union : Set comparable -> Set comparable -> Set comparable
 union = Dict.union
 
 -- Get the intersection of two sets. Keeps values that appear in both sets.
-intersect : Set (Comparable k) -> Set (Comparable k) -> Set (Comparable k)
+intersect : Set comparable -> Set comparable -> Set comparable
 intersect = Dict.intersect
 
 -- Get the difference between the first set and the second. Keeps values
 -- that do not appear in the second set.
-diff : Set (Comparable k) -> Set (Comparable k) -> Set (Comparable k)
+diff : Set comparable -> Set comparable -> Set comparable
 diff = Dict.diff
 
 -- Convert a set into a list.
-toList : Set (Comparable k) -> [Comparable k]
+toList : Set comparable -> [comparable]
 toList = Dict.keys
 
 -- Convert a list into a set, removing any duplicates.
-fromList : [Comparable k] -> Set (Comparable k)
+fromList : [comparable] -> Set comparable
 fromList xs = List.foldl insert empty xs
 
 -- Fold over the values in a set, in order from lowest to highest.
-foldl : (Comparable a -> b -> b) -> b -> Set (Comparable a) -> b
+foldl : (comparable -> b -> b) -> b -> Set comparable -> b
 foldl f b s = Dict.foldl (\k _ b -> f k b) b s
 
 -- Fold over the values in a set, in order from highest to lowest.
-foldr : (Comparable a -> b -> b) -> b -> Set (Comparable a) -> b
+foldr : (comparable -> b -> b) -> b -> Set comparable -> b
 foldr f b s = Dict.foldr (\k _ b -> f k b) b s
 
 -- Map a function onto a set, creating a new set with no duplicates.
-map : (Comparable a -> Comparable b) -> Set (Comparable a) -> Set (Comparable b)
+map : (comparable -> comparable') -> Set comparable -> Set comparable'
 map f s = fromList (List.map f (toList s))
