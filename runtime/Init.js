@@ -96,7 +96,14 @@ function init(display, container, module, moduleToReplace) {
       return newElm;
   }
 
-  var Module = module(elm);
+  var Module = {};
+  var reportAnyErrors = function() {};
+  try {
+      Module = module(elm);
+  } catch(e) {
+      Module.main = Elm.Text(elm).text('<code>' + e.message + '</code>');
+      reportAnyErrors = function() { throw e; }
+  }
   inputs = ElmRuntime.filterDeadInputs(inputs);
   filterListeners(inputs, listeners);
   if (display !== ElmRuntime.Display.NONE) {
@@ -112,6 +119,7 @@ function init(display, container, module, moduleToReplace) {
       }
   }
 
+  reportAnyErrors();
   return { send:send, recv:recv, swap:swap };
 };
 
