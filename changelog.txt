@@ -1,38 +1,39 @@
 
-Release 0.8.1
-=============
-
-Website:
-* Hot-swapping
-* Much faster page load with pre-compile Elm files (Max New)
-
-Syntax:
-* Pattern matching on literals
-* Pattern aliases with `as` (Andrew)
-* Unary negation
-* Triple-quoted multi-line strings
-* Custom infix precedence and associativity
-* Type annotations in let expressions (Andrew)
-* Record Constructors
-* Record type aliases can be closed on the zeroth column
-* (,,) syntax in types
-* "(+) = " is permitted
-* Unparenthesized if, let, case, and lambda in last
-  term of a binary expression
-
-Libraries:
-* Detect hovering over any Element
-* Opacity on arbitrary forms in collages
-* Switch Text.height to use px instead of em
-
-Error Messages:
-* Cross-module type errors
-* Pretty printing of expressions and types
-* Type-variables look more natural (a,b,c instead of t1,t2,t3)
+Release 0.9
+===========
 
 Build Improvements:
-* Module-level compilation, only re-compile if necessary
-* Import type aliases between modules
+  * Major speed improvements to type-checker
+  * Type-checker should catch _all_ type errors now
+  * Module-level compilation, only re-compile if necessary
+  * Import type aliases between modules
+
+Error Messages:
+  * Cross-module type errors
+  * Errors for undefined values
+  * Pretty printing of expressions and types
+ 
+Syntax:
+  * Pattern matching on literals
+  * Pattern aliases with `as` (Andrew)
+  * Unary negation
+  * Triple-quoted multi-line strings
+  * Type annotations in let expressions (Andrew)
+  * Record Constructors
+  * Record type aliases can be closed on the zeroth column
+  * (,,) syntax in types
+  * "(+) = " is permitted
+  * Unparenthesized if, let, case, lambda at end of binary expressions
+
+Libraries:
+  * Detect hovering over any Element
+  * Set alpha of arbitrary forms in collages
+  * Switch Text.height to use px instead of em
+
+Website:
+  * Hot-swapping
+  * Much faster page load with pre-compiled Elm files (Max New)
+
 
 
 
