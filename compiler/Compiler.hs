@@ -194,9 +194,3 @@ buildFiles flags numModules interfaces (filePath:rest) = do
   let moduleName = List.intercalate "." . splitDirectories $ dropExtensions filePath
       interfaces' = Map.insert moduleName interface interfaces
   buildFiles flags numModules interfaces' rest
-
-
-exportInfo :: Module -> IO String
-exportInfo (Module names exs ims stmts) =
-    do print exs
-       return (show exs)
