@@ -79,7 +79,7 @@ jsModule modul =
                ]
     setup names = concatMap (\n -> globalAssign n $ n ++ " || {}") .
                   map dotSep . drop 2 . List.inits $ init names
-    usefulFuncs = commaSep (map (uncurry assign') (internalImports modName)
+    usefulFuncs = commaSep (map (uncurry assign') (internalImports modName))
 
     jsExports = setup ("elm" : names modul) ++
                 ret (assign' ("elm." ++ modName) (brackets exs))
