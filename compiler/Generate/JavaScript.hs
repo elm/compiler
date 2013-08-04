@@ -28,13 +28,14 @@ indent = concatMap f
     where f '\n' = "\n  "
           f c = [c]
 
-internalImports =
+internalImports name =
     [ ("N" , "Elm.Native"),
       ("_N", "N.Utils(elm)"),
       ("_L", "N.List(elm)"),
       ("_E", "N.Error(elm)"),
       ("_J", "N.JavaScript(elm)"),
-      ("_str", "_J.toString")
+      ("_str", "_J.toString"),
+      ("$moduleName", quoted name)
     ]
 
 parens s  = "(" ++ s ++ ")"
@@ -78,7 +79,7 @@ jsModule modul =
                ]
     setup names = concatMap (\n -> globalAssign n $ n ++ " || {}") .
                   map dotSep . drop 2 . List.inits $ init names
-    usefulFuncs = commaSep (map (uncurry assign') internalImports)
+    usefulFuncs = commaSep (map (uncurry assign') (internalImports modName)
 
     jsExports = setup ("elm" : names modul) ++
                 ret (assign' ("elm." ++ modName) (brackets exs))
@@ -194,7 +195,7 @@ instance ToJS (Expr t v) where
     Modify e fs -> do fs' <- (mapM (\(x,v) -> (,) x `liftM` toJS' v) fs)
                       setField fs' `liftM` toJS' e
     Record fs -> makeRecord fs
-    Binop op e1 e2 -> binop op `liftM` toJS' e1 `ap` toJS' e2
+    Binop op e1 e2 -> binop op e1 e2
 
     Lambda p e@(L s _) -> liftM (fastFunc . ret) (toJS' body)
         where
@@ -257,7 +258,7 @@ formatMarkdown = concatMap f
 multiIfToJS span ps =
     case last ps of
       (L _ (Var "otherwise"), e) -> toJS' e >>= \b -> format b (init ps)
-      _ -> format ("_E.If" ++ parens (quoted (show span))) ps
+      _ -> format ("_E.If" ++ parens ("$moduleName," ++ quoted (show span))) ps
   where
     format base ps =
         foldr (\c e -> parens $ c ++ " : " ++ e) base `liftM` mapM f ps
@@ -289,7 +290,7 @@ matchToJS span match =
                access = if any isLiteral clauses then "" else ".ctor"
            return $ concat [ "\nswitch (", name, access, ") {"
                            , indent cases, "\n}", finally ]
-    Fail -> return ("_E.Case" ++ parens (quoted (show span)))
+    Fail -> return ("_E.Case" ++ parens ("$moduleName," ++ quoted (show span)))
     Break -> return "break;"
     Other e -> ret `liftM` toJS' e
     Seq ms -> concat `liftM` mapM (matchToJS span) (dropEnd [] ms)
@@ -318,33 +319,50 @@ jsRange e1 e2 = "_L.range" ++ parens (e1 ++ "," ++ e2)
 jsCompare e1 e2 op = parens ("_N.cmp(" ++ e1 ++ "," ++ e2 ++ ")" ++ op)
 
 
-binop op e1 e2 =
+binop op e1 e2
+    | op == "Basics.." =
+        do ss <- mapM toJS' (e1 : collect [] e2)
+           return . jsFunc "$" . ret $ apply "$" ss
+    | op == "Basics.<|" =
+        do arg <- toJS' e2
+           funcs <- mapM toJS' (collect [] e1)
+           return (apply arg funcs)
+    | otherwise =
+        binopNormal op `liftM` toJS' e1 `ap` toJS' e2
+  where
+    apply = foldr (\f arg-> f ++ parens arg)
+
+    collect es e =
+        case e of
+          L _ (Binop op e1 e2) | op == "Basics.." -> collect (es ++ [e1]) e2
+          _ -> es ++ [e]
+
+binopNormal op s1 s2 =
   case Map.lookup op opDict of
     Just e -> e
-    Nothing -> "A2" ++ parens (commaSep [ prefix ++ func, e1, e2 ])
-        where
-          func | isOp op'  = "_op['" ++ op' ++ "']"
-               | otherwise = op'
-          (prefix, op') = case List.elemIndices '.' op of
-                            [] -> ("", op)
-                            xs -> splitAt (last xs + 1) op
+    Nothing -> "A2" ++ parens (commaSep [ prefix ++ func, s1, s2 ])
   where
-    opDict = Map.fromList $ basics ++
-             [ ("::", jsCons e1 e2)
-             , ("List.++", "_L.append" ++ parens (e1 ++ "," ++ e2)) ]
+    func | isOp op'  = "_op['" ++ op' ++ "']"
+         | otherwise = op'
+    (prefix, op') = case List.elemIndices '.' op of
+                      [] -> ("", op)
+                      xs -> splitAt (last xs + 1) op
 
-    ops = pow : map (\op -> (op, parens (e1 ++ op ++ e2))) ["+","-","*","/","&&","||"]
-        where pow = ("^" , "Math.pow(" ++ e1 ++ "," ++ e2 ++ ")")
+    opDict = Map.fromList $ basics ++
+             [ ("::", jsCons s1 s2)
+             , ("List.++", "_L.append" ++ parens (s1 ++ "," ++ s2)) ]
+
+    ops = pow : map (\op -> (op, parens (s1 ++ op ++ s2))) ["+","-","*","/","&&","||"]
+        where pow = ("^" , "Math.pow(" ++ s1 ++ "," ++ s2 ++ ")")
 
     basics = ops ++ map (\(op,e) -> ("Basics." ++ op, e))
-             (ops ++ [ ("<|", e1 ++ parens e2)
-                     , ("|>", e2 ++ parens e1)
-                     , ("." , jsFunc "$" . ret $ e1 ++ parens (e2 ++ parens "$"))
-                     , ("==", "_N.eq(" ++ e1 ++ "," ++ e2 ++ ")")
-                     , ("/=", "!_N.eq(" ++ e1 ++ "," ++ e2 ++ ")")
-                     , ("<" , jsCompare e1 e2 "<0")
-                     , (">" , jsCompare e1 e2 ">0")
-                     , ("<=", jsCompare e1 e2 "<1")
-                     , (">=", jsCompare e1 e2 ">-1")
-                     , ("div", parens (e1 ++ "/" ++ e2 ++ "|0"))
+             (ops ++ [ ("<|", s1 ++ parens s2)
+                     , ("|>", s2 ++ parens s1)
+                     , ("==", "_N.eq(" ++ s1 ++ "," ++ s2 ++ ")")
+                     , ("/=", "!_N.eq(" ++ s1 ++ "," ++ s2 ++ ")")
+                     , ("<" , jsCompare s1 s2 "<0")
+                     , (">" , jsCompare s1 s2 ">0")
+                     , ("<=", jsCompare s1 s2 "<1")
+                     , (">=", jsCompare s1 s2 ">-1")
+                     , ("div", parens (s1 ++ "/" ++ s2 ++ "|0"))
                      ])
