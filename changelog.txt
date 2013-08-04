@@ -6,7 +6,7 @@ Build Improvements:
   * Major speed improvements to type-checker
   * Type-checker should catch _all_ type errors now
   * Module-level compilation, only re-compile if necessary
-  * Import type aliases between modules
+  * Import types and type aliases between modules
 
 Error Messages:
   * Cross-module type errors
