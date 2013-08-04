@@ -22,7 +22,7 @@ Syntax:
   * Record Constructors
   * Record type aliases can be closed on the zeroth column
   * (,,) syntax in types
-  * "(+) = " is permitted
+  * Allow infix op definitions without args: (*) = add
   * Unparenthesized if, let, case, lambda at end of binary expressions
 
 Libraries:
