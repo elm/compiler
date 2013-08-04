@@ -1,80 +1,103 @@
-module Initialize (buildFromSource, getSortedModuleNames) where
+module Initialize (buildFromSource, getSortedDependencies) where
 
-import Control.Applicative ((<$>))
-import Control.Monad.Error
-import Data.List (lookup,nub)
+import Data.Data
+import Control.Monad.State
+import qualified Data.Graph as Graph
+import qualified Data.List as List
 import qualified Data.Map as Map
-
-import Ast
-import Data.Either (lefts,rights)
-import Data.List (intercalate,partition)
-import Parse.Parser (parseProgram, parseDependencies)
-import Rename
-import qualified Libraries as Libs
-import Types.Types ((-:))
-import Types.Hints (hints)
-import Types.Unify (unify)
-import Types.Alias (dealias, mistakes)
-import Optimize
+import qualified Data.Set as Set
 import System.Exit
-import System.FilePath
+import System.FilePath as FP
+import Text.PrettyPrint (Doc)
 
-checkMistakes :: Module -> Either String Module
-checkMistakes modul@(Module name ex im stmts) = 
-  case mistakes stmts of
-    m:ms -> Left (unlines (m:ms))
-    []   -> return modul
+import SourceSyntax.Everything
+import SourceSyntax.Type
+import qualified Parse.Parse as Parse
+import qualified Metadata.Prelude as Prelude
+import qualified Transform.Check as Check
+import qualified Transform.SortDefinitions as SD
+import qualified Type.Inference as TI
+import qualified Type.Constrain.Declaration as TcDecl
+import qualified Transform.Canonicalize as Canonical
 
-checkTypes :: Module -> Either String Module
-checkTypes modul =
-  do subs <- unify hints modul
-     subs `seq` return (optimize (renameModule modul))
+buildFromSource :: Bool -> Interfaces -> String -> Either [Doc] (MetadataModule () ())
+buildFromSource noPrelude interfaces source =
+  do let add = if noPrelude then id else Prelude.add
+     modul@(Module _ _ _ decls') <- add `fmap` Parse.program source
 
-check :: Module -> Either String Module
-check = checkMistakes >=> checkTypes
+     -- check for structural errors
+     Module names exs ims decls <-
+         case Check.mistakes decls' of
+           [] -> return modul
+           ms -> Left ms
 
-buildFromSource :: Bool -> String -> Either String Module
-buildFromSource noPrelude src =
-    let add = if noPrelude then id else Libs.addPrelude in
-    (check . add) =<< (parseProgram src)
+     let exports'
+             | null exs =
+                 let get = Set.toList . SD.boundVars in
+                 concat [ get pattern | Definition (Def pattern _) <- decls ] ++
+                 concat [ map fst ctors | Datatype _ _ ctors <- decls ]
+             | otherwise = exs
 
-getSortedModuleNames :: FilePath -> IO [String]
-getSortedModuleNames root =
-    sortDeps =<< readDeps [] root
+     metaModule <- Canonical.metadataModule interfaces $ MetadataModule {
+           names = names,
+           path = FP.joinPath names,
+           exports = exports',
+           imports = ims,
+           -- reorder AST into strongly connected components
+           program = SD.sortDefs . dummyLet $ TcDecl.toExpr decls,
+           types = Map.empty,
+           datatypes = [ (name,vars,ctors) | Datatype name vars ctors <- decls ],
+           fixities = [ (assoc,level,op) | Fixity assoc level op <- decls ],
+           aliases = [ (name,tvs,tipe) | TypeAlias name tvs tipe <- decls ],
+           foreignImports = [ (evt,v,name,typ) | ImportEvent evt v name typ <- decls ],
+           foreignExports = [ (evt,name,typ) | ExportEvent evt name typ <- decls ]
+          }
 
-type Deps = (String, [String])
+     types <- TI.infer interfaces metaModule
+
+     return $ metaModule { types = types }
+
+
+getSortedDependencies :: Bool -> FilePath -> IO [String]
+getSortedDependencies noPrelude root =
+    sortDeps =<< readDeps noPrelude root
+
+type Deps = (FilePath, String, [String])
 
 sortDeps :: [Deps] -> IO [String]
-sortDeps deps = go [] (nub deps)
-    where
-      msg = "A cyclical or missing module dependency or was detected in: "
+sortDeps depends =
+    if null mistakes
+    then return (concat sccs)
+    else print msg >> mapM print mistakes >> exitFailure
+  where
+    sccs = map Graph.flattenSCC $ Graph.stronglyConnComp depends
 
-      go :: [String] -> [Deps] -> IO [String]
-      go sorted [] = return (map toFilePath sorted)
-      go sorted unsorted =
-          case partition (all (`elem` sorted) . snd) unsorted of
-            ([],m:ms) -> do putStrLn (msg ++ intercalate ", " (map fst (m:ms)) ++ show sorted ++ show unsorted)
-                            exitFailure
-            (srtd,unsrtd) -> go (sorted ++ map fst srtd) unsrtd
+    mistakes = filter (\scc -> length scc > 1) sccs
+    msg = "A cyclical module dependency or was detected in: "
 
-readDeps :: [FilePath] -> FilePath -> IO [Deps]
-readDeps seen root = do
-  txt <- readFile root
-  case parseDependencies txt of
-    Left err ->
-        let msg = "Error resolving dependencies in " ++ root ++ ":\n" in
-        putStrLn (msg ++ err) >> exitFailure
-    Right (name,deps) ->
-        do rest <- mapM (readDeps seen' . toFilePath) newDeps
-           return ((name, realDeps) : concat rest)
-        where
-          realDeps = filter (`notElem` builtIns) deps
-          newDeps = filter (\d -> d `notElem` seen && not (isNative d)) realDeps
-          seen' = root : seen ++ newDeps
-          builtIns = Map.keys Libs.libraries
+readDeps :: Bool -> FilePath -> IO [Deps]
+readDeps noPrelude root = evalStateT (go root) Set.empty
+  where
+    builtIns = if noPrelude then Set.empty
+                            else Set.fromList (Map.keys Prelude.interfaces)
+
+    go :: FilePath -> StateT (Set.Set String) IO [Deps]
+    go root = do
+      txt <- liftIO $ readFile root
+      case Parse.dependencies txt of
+        Left err -> liftIO (putStrLn msg >> print err >> exitFailure)
+            where msg = "Error resolving dependencies in " ++ root ++ ":"
+                    
+        Right (name,deps) ->
+            do seen <- get
+               let realDeps = Set.difference (Set.fromList deps) builtIns
+                   newDeps = Set.difference (Set.filter (not . isNative) realDeps) seen
+               put (Set.insert name (Set.union newDeps seen))
+               rest <- mapM (go . toFilePath) (Set.toList newDeps)
+               return ((makeRelative "." root, name, Set.toList realDeps) : concat rest)
                        
 
-isNative name = takeWhile (/='.') name == "Native"
+isNative name = List.isPrefixOf "Native." name
 
 toFilePath :: String -> FilePath
 toFilePath name = map swapDots name ++ ext

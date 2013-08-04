@@ -6,14 +6,24 @@ Elm.Native.Error = function(elm) {
 
     var fromString = Elm.Native.JavaScript(elm).fromString;
 
-    function Case(span) { 
-	var msg = 'Non-exhaustive pattern match in case expression'
-	throw new Error(msg + " (" + span + ")")
+    function indent(lines) {
+        var msg = '';
+        for (var i = 0; i < lines.length; ++i) {
+            msg += '<br/>&nbsp; &nbsp; ' + lines[i];
+        }
+        return msg;
     }
 
-    function If(span) { 
-	var msg = 'Non-exhaustive pattern match in multi-way-if expression'
-	throw new Error(msg + " (" + span + ")")
+    function Case(moduleName, span) { 
+	var msg = indent(['Non-exhaustive pattern match in case-expression.',
+                          'Make sure your patterns cover every case!']);
+	throw new Error('Runtime error in module ' + moduleName + ' (' + span + '):' + msg);
+    }
+
+    function If(moduleName, span) { 
+	var msg = indent(['Non-exhaustive pattern match in multi-way-if expression.',
+                          'It is best to use \'otherwise\' as the last branch of multi-way-if.']);
+	throw new Error('Runtime error in module ' + moduleName + ' (' + span + '):' + msg);
     }
 
     function raise(str) { throw new Error(fromString(str)); }

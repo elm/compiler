@@ -96,7 +96,15 @@ function init(display, container, module, moduleToReplace) {
       return newElm;
   }
 
-  var Module = module(elm);
+  var Module = {};
+  var reportAnyErrors = function() {};
+  try {
+      Module = module(elm);
+  } catch(e) {
+      var directions = "<br/>&nbsp; &nbsp; Open the developer console for more details."
+      Module.main = Elm.Text(elm).text('<code>' + e.message + directions + '</code>');
+      reportAnyErrors = function() { throw e; }
+  }
   inputs = ElmRuntime.filterDeadInputs(inputs);
   filterListeners(inputs, listeners);
   if (display !== ElmRuntime.Display.NONE) {
@@ -112,6 +120,7 @@ function init(display, container, module, moduleToReplace) {
       }
   }
 
+  reportAnyErrors();
   return { send:send, recv:recv, swap:swap };
 };
 
@@ -148,20 +157,25 @@ function initGraphics(elm, Module) {
   }
   var currentScene = signalGraph.value;
   
-  // Add the currentScene to the DOM
+ // Add the currentScene to the DOM
   var Render = ElmRuntime.use(ElmRuntime.Render.Element);
   elm.node.appendChild(Render.render(currentScene));
-  if (elm.Native.Window) elm.Native.Window.resizeIfNeeded();
   
   // set up updates so that the DOM is adjusted as necessary.
   function domUpdate(newScene, currentScene) {
       ElmRuntime.draw(function(_) {
-              Render.update(elm.node.firstChild, currentScene, newScene);
-              if (elm.Native.Window) elm.Native.Window.resizeIfNeeded();
-          });
+          Render.update(elm.node.firstChild, currentScene, newScene);
+          if (elm.Native.Window) elm.Native.Window.resizeIfNeeded();
+      });
       return newScene;
   }
-  return A3(Signal.foldp, F2(domUpdate), currentScene, signalGraph);
+  var renderer = A3(Signal.foldp, F2(domUpdate), currentScene, signalGraph);
+
+  // must check for resize after 'renderer' is created so
+  // that changes show up.
+  if (elm.Native.Window) elm.Native.Window.resizeIfNeeded();
+
+  return renderer;
 }
 
 }());

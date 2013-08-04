@@ -2,7 +2,9 @@
 -- include gestures that would be useful for both games and web-pages.
 module Touch where
 
-import Native.Touch as T
+import Signal (Signal)
+import Native.Touch
+import Time (Time)
 
 -- Every `Touch` has `xy` coordinates. It also has an identifier `id` to
 -- distinguish one touch from another.
@@ -14,7 +16,9 @@ type Touch = { x:Int, y:Int, id:Int, x0:Int, y0:Int, t0:Time }
 
 -- A list of ongoing touches.
 touches : Signal [Touch]
+touches = Native.Touch.touches
 
 -- The last position that was tapped. Default value is `{x=0,y=0}`.
 -- Updates whenever the user taps the screen.
 taps : Signal { x:Int, y:Int }
+taps = Native.Touch.taps

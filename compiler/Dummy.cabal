@@ -1,0 +1,170 @@
+-- This is a dummy .cabal file that makes it possible to build the
+-- compiler with GHCi from within emacs. Do not actually use this
+-- file to install things.
+
+Name:                Elm
+Version:             0.8.0.3
+Synopsis:            The Elm language module.
+Description:         Elm aims to make client-side web-development more pleasant.
+                     It is a statically/strongly typed, functional reactive
+                     language to HTML, CSS, and JS. This package provides a
+                     library for Elm compilation in Haskell and a compiler
+                     executable.
+
+Homepage:            http://elm-lang.org
+
+License:             BSD3
+License-file:        LICENSE
+
+Author:              Evan Czaplicki
+Maintainer:          info@elm-lang.org
+Copyright:           Copyright: (c) 2011-2012 Evan Czaplicki
+
+Category:            Compiler, Language
+
+Build-type:          Custom
+
+Extra-source-files:  changelog.txt
+Data-dir:            dist/data
+Data-files:          elm-runtime.js docs.json
+Cabal-version:       >=1.8
+
+source-repository head
+  type:     git
+  location: git://github.com/evancz/Elm.git
+
+Library
+  exposed-modules:     Language.Elm,
+                       Language.Elm.Quasi
+  Hs-Source-Dirs:      compiler
+  other-modules:       Unique,
+                       SourceSyntax.Helpers,
+                       SourceSyntax.Location,
+                       SourceSyntax.Literal,
+                       SourceSyntax.Pattern,
+                       SourceSyntax.Expression,
+                       SourceSyntax.Declaration,
+                       SourceSyntax.Module,
+                       Generate.JavaScript,
+                       Generate.Noscript,
+                       Generate.Html,
+                       Generate.Cases,
+                       Transform.Substitute,
+                       Transform.Optimize,
+                       Metadata.Libraries,
+                       Metadata.LoadLibraries,
+                       Initialize,
+                       Parse.Binop,
+                       Parse.Expression,
+                       Parse.Foreign,
+                       Parse.Helpers,
+                       Parse.Module,
+                       Parse.Parser,
+                       Parse.Pattern,
+                       Parse.Type,
+                       Types.Alias,
+                       Types.Types,
+                       Types.Constrain,
+                       Types.Hints,
+                       Types.Solver,
+                       Types.Substitutions,
+                       Types.Unify,
+                       Paths_Elm
+
+  Build-depends:       base >=4.2 && <5,
+                       containers >= 0.3,
+                       transformers >= 0.2,
+                       mtl >= 2,
+                       deepseq,
+                       parsec >= 3.1.1,
+                       blaze-html == 0.5.* || == 0.6.*,
+                       blaze-markup == 0.5.1.*,
+                       text,
+                       shakespeare >= 1,
+                       template-haskell,
+                       pandoc >= 1.10,
+                       bytestring,
+                       uniplate,
+                       hjsmin,
+                       indents,
+                       filepath,
+                       json,
+                       directory
+
+Executable elm
+  Main-is:             Compiler.hs
+  Hs-Source-Dirs:      compiler
+  other-modules:       Unique,
+                       SourceSyntax.Helpers,
+                       SourceSyntax.Location,
+                       SourceSyntax.Literal,
+                       SourceSyntax.Pattern,
+                       SourceSyntax.Expression,
+                       SourceSyntax.Declaration,
+                       SourceSyntax.Module,
+                       Generate.JavaScript,
+                       Generate.Noscript,
+                       Generate.Html,
+                       Generate.Cases,
+                       Transform.Substitute,
+                       Transform.Optimize,
+                       Metadata.Libraries,
+                       Metadata.LoadLibraries,
+                       Initialize,
+                       Parse.Binop,
+                       Parse.Expression,
+                       Parse.Foreign,
+                       Parse.Helpers,
+                       Parse.Module,
+                       Parse.Parser,
+                       Parse.Pattern,
+                       Parse.Type,
+                       Types.Alias,
+                       Types.Types,
+                       Types.Constrain,
+                       Types.Hints,
+                       Types.Solver,
+                       Types.Substitutions,
+                       Types.Unify,
+                       Paths_Elm
+
+  Build-depends:       base >=4.2 && <5,
+                       containers >= 0.3,
+                       transformers >= 0.2,
+                       mtl >= 2,
+                       deepseq,
+                       parsec >= 3.1.1,
+                       blaze-html == 0.5.* || == 0.6.*,
+                       blaze-markup == 0.5.1.*,
+                       cmdargs,
+                       pandoc >= 1.10,
+                       bytestring,
+                       uniplate,
+                       hjsmin,
+                       indents,
+                       filepath,
+                       json,
+                       directory
+
+Executable elm-doc
+  Main-is:             Docs.hs
+  Hs-Source-Dirs:      compiler
+  other-modules:       SourceSyntax.Helpers,
+                       SourceSyntax.Location,
+                       SourceSyntax.Literal,
+                       SourceSyntax.Pattern,
+                       SourceSyntax.Expression,
+                       SourceSyntax.Declaration,
+                       SourceSyntax.Module,
+                       Parse.Helpers,
+                       Parse.Module
+
+  Build-depends:       base >=4.2 && <5,
+                       containers >= 0.3,
+                       transformers >= 0.2,
+                       mtl >= 2,
+                       parsec >= 3.1.1,
+                       pandoc >= 1.10,
+                       cmdargs,
+                       filepath,
+                       indents

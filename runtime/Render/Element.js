@@ -12,14 +12,32 @@ function setProps(props, e) {
     e.style.height = (props.height|0) + 'px';
     if (props.opacity !== 1) { e.style.opacity = props.opacity; }
     if (props.color.ctor === 'Just') {
-	e.style.backgroundColor = extract(props.color._0);
+        e.style.backgroundColor = extract(props.color._0);
     }
     if (props.tag !== '') { e.id = props.tag; }
     if (props.href !== '') {
-	var a = newElement('a');
-	a.href = props.href;
-	a.appendChild(e);
-	return a;
+        var a = newElement('a');
+        a.href = props.href;
+        a.style.width = '100%';
+        a.style.height = '100%';
+        a.style.top = 0;
+        a.style.left = 0;
+        a.style.display = 'block';
+        a.style.position = 'absolute';
+        e.style.position = 'relative';
+        e.appendChild(a);
+    }
+    if (props.hover.ctor !== '_Tuple0') {
+        var overCount = 0;
+        e.addEventListener('mouseover', function() {
+            if (overCount++ > 0) return;
+            props.hover(true);
+        });
+        e.addEventListener('mouseout', function(evt) {
+            if (e.contains(evt.toElement || evt.relatedTarget)) return;
+            overCount = 0;
+            props.hover(false);
+        });
     }
     return e;
 }
@@ -64,11 +82,11 @@ function croppedImage(elem, w, h, src) {
 
     var img = newElement('img');
     img.onload = function() {
-	var sw = w / elem._1, sh = h / elem._2;
-	img.style.width = ((this.width * sw)|0) + 'px';
-	img.style.height = ((this.height * sh)|0) + 'px';
-	img.style.marginLeft = ((- pos._0 * sw)|0) + 'px';
-	img.style.marginTop = ((- pos._1 * sh)|0) + 'px';
+        var sw = w / elem._1, sh = h / elem._2;
+        img.style.width = ((this.width * sw)|0) + 'px';
+        img.style.height = ((this.height * sh)|0) + 'px';
+        img.style.marginLeft = ((- pos._0 * sw)|0) + 'px';
+        img.style.marginTop = ((- pos._1 * sh)|0) + 'px';
     };
     img.src = src;
     img.name = src;
@@ -82,7 +100,7 @@ function goRight(e) { e.style.styleFloat = e.style.cssFloat = "left"; return e; 
 function flowWith(f, array) {
     var container = newElement('div');
     for (var i = array.length; i--; ) {
-	container.appendChild(f(render(array[i])));
+        container.appendChild(f(render(array[i])));
     }
     return container;
 }
@@ -157,8 +175,8 @@ function update(node, curr, next) {
     if (node.tagName === 'A') { node = node.firstChild; }
     if (curr.props.id === next.props.id) return updateProps(node, curr, next);
     if (curr.element.ctor !== next.element.ctor) {
-	node.parentNode.replaceChild(render(next),node);
-	return true;
+        node.parentNode.replaceChild(render(next),node);
+        return true;
     }
     var nextE = next.element, currE = curr.element;
     switch(nextE.ctor) {
@@ -167,61 +185,61 @@ function update(node, curr, next) {
         if (nextE._0 !== currE._0) node.innerHTML = nextE._0;
         break;
     case "Image":
-	if (nextE._0.ctor === 'Plain') {
-	    if (nextE._3 !== currE._3) node.src = nextE._3;
-	} else if (!eq(nextE,currE) ||
-		   next.props.width !== curr.props.width ||
-		   next.props.height !== curr.props.height) {
-	    node.parentNode.replaceChild(render(next),node);
-	    return true;
-	}
-	break;
+        if (nextE._0.ctor === 'Plain') {
+            if (nextE._3 !== currE._3) node.src = nextE._3;
+        } else if (!eq(nextE,currE) ||
+                   next.props.width !== curr.props.width ||
+                   next.props.height !== curr.props.height) {
+            node.parentNode.replaceChild(render(next),node);
+            return true;
+        }
+        break;
     case "Flow":
         var arr = fromList(nextE._1);
         for (var i = arr.length; i--; ) { arr[i] = arr[i].element.ctor; }
-	if (nextE._0.ctor !== currE._0.ctor) {
-	    node.parentNode.replaceChild(render(next),node);
-	    return true;
-	}
-	var nexts = fromList(nextE._1);
-	var kids = node.childNodes;
-	if (nexts.length !== kids.length) {
-	    node.parentNode.replaceChild(render(next),node);
-	    return true;
-	}
-	var currs = fromList(currE._1);
-	var goDir = function(x) { return x; };
-	switch(nextE._0.ctor) {
-	case "DDown":  case "DUp":   goDir = goDown; break;
-	case "DRight": case "DLeft": goDir = goRight; break;
-	case "DOut":   case "DIn":   goDir = goIn; break;
-	}
-	for (var i = kids.length; i-- ;) {
-	    update(kids[i],currs[i],nexts[i]);
-	    goDir(kids[i]);
-	}
-	break;
+        if (nextE._0.ctor !== currE._0.ctor) {
+            node.parentNode.replaceChild(render(next),node);
+            return true;
+        }
+        var nexts = fromList(nextE._1);
+        var kids = node.childNodes;
+        if (nexts.length !== kids.length) {
+            node.parentNode.replaceChild(render(next),node);
+            return true;
+        }
+        var currs = fromList(currE._1);
+        var goDir = function(x) { return x; };
+        switch(nextE._0.ctor) {
+        case "DDown":  case "DUp":   goDir = goDown; break;
+        case "DRight": case "DLeft": goDir = goRight; break;
+        case "DOut":   case "DIn":   goDir = goIn; break;
+        }
+        for (var i = kids.length; i-- ;) {
+            update(kids[i],currs[i],nexts[i]);
+            goDir(kids[i]);
+        }
+        break;
     case "Container":
-	var inner = node.firstChild;
-	if (!update(inner, currE._1, nextE._1)) {
-	    if (nextE._0.horizontal.ctor !== currE._0.horizontal.ctor) {
-		inner.style.left = inner.style.right = 'none';
-		removeTransform(inner.style);
-	    }
-	    if (nextE._0.vertical.ctor !== currE._0.vertical.ctor) {
-		inner.style.top = inner.style.bottom = 'none';
-		removeTransform(inner.style);
-	    }
-	}
-	setPos(nextE._0, nextE._1.props.width, nextE._1.props.height, inner);
-	break;
+        var inner = node.firstChild;
+        if (!update(inner, currE._1, nextE._1)) {
+            if (nextE._0.horizontal.ctor !== currE._0.horizontal.ctor) {
+                inner.style.left = inner.style.right = 'none';
+                removeTransform(inner.style);
+            }
+            if (nextE._0.vertical.ctor !== currE._0.vertical.ctor) {
+                inner.style.top = inner.style.bottom = 'none';
+                removeTransform(inner.style);
+            }
+        }
+        setPos(nextE._0, nextE._1.props.width, nextE._1.props.height, inner);
+        break;
     case "Custom":
-	if (currE.type === nextE.type) {
-	    var done = nextE.update(node, currE.model, nextE.model);
-	    if (done) return;
-	} else {
-	    return node.parentNode.replaceChild(render(next), node);
-	}
+        if (currE.type === nextE.type) {
+            var done = nextE.update(node, currE.model, nextE.model);
+            if (done) return;
+        } else {
+            return node.parentNode.replaceChild(render(next), node);
+        }
     }
     updateProps(node, curr, next);
 }
@@ -231,23 +249,29 @@ function updateProps(node, curr, next) {
     if (props.width !== currP.width)   e.style.width  = (props.width |0) + 'px';
     if (props.height !== currP.height) e.style.height = (props.height|0) + 'px';
     if (props.opacity !== 1 && props.opacity !== currP.opacity) {
-	e.style.opacity = props.opacity;
+        e.style.opacity = props.opacity;
     }
     var nextColor = (props.color.ctor === 'Just' ?
-		     extract(props.color._0) : 'transparent');
+                     extract(props.color._0) : 'transparent');
     if (e.style.backgroundColor !== nextColor) {
         e.style.backgroundColor = nextColor;
     }
     if (props.tag !== currP.tag) { e.id = props.tag; }
     if (props.href !== currP.href) {
-	if (currP.href === '') {
-	    var a = newElement('a');
-	    a.href = props.href;
-	    a.appendChild(e);
-	    e.parentNode.replaceChild(a,e);
-	} else {
-	    node.parentNode.href = props.href;
-	}
+        if (currP.href === '') {
+            var a = newElement('a');
+            a.href = props.href;
+            a.style.width = '100%';
+            a.style.height = '100%';
+            a.style.top = 0;
+            a.style.left = 0;
+            a.style.display = 'block';
+            a.style.position = 'absolute';
+            e.style.position = 'relative';
+            e.appendChild(a);
+        } else {
+            node.lastNode.href = props.href;
+        }
     }
 }
 

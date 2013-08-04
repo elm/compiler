@@ -11,7 +11,7 @@ Elm.Native.Http = function(elm) {
 
 
   function registerReq(queue,responses) { return function(req) {
-    if (req.url.ctor !== 'Nil') { sendReq(queue,responses,req); }
+    if (req.url.ctor !== '[]') { sendReq(queue,responses,req); }
    };
   }
 
