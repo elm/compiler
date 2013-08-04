@@ -3,6 +3,7 @@ Elm.Native.Time = function(elm) {
   'use strict';
 
   var Signal = Elm.Signal(elm);
+  var delay = Elm.Native.Signal(elm).delay;
   var Maybe = Elm.Maybe(elm);
   var Utils = Elm.Native.Utils(elm);
 
@@ -42,7 +43,7 @@ Elm.Native.Time = function(elm) {
 
   function since(t, s) {
     function cmp(a,b) { return !Utils.eq(a,b); }
-    var dcount = Signal.count(A2(Signal.delay, t, s));
+    var dcount = Signal.count(A2(delay, t, s));
     return A3( Signal.lift2, F2(cmp), Signal.count(s), dcount );
   }
   function read(s) {
@@ -53,7 +54,7 @@ Elm.Native.Time = function(elm) {
       fpsWhen : F2(fpsWhen),
       fps : function(t) { return fpsWhen(t, Signal.constant(true)); },
       every : function(t) { return everyWhen(t, Signal.constant(true)) },
-      delay : Signal.delay,
+      delay : delay,
       timestamp : Signal.timestamp,
       since : F2(since),
       toDate : function(t) { return new window.Date(t); },
