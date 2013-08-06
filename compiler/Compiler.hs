@@ -10,12 +10,14 @@ import System.Console.CmdArgs hiding (program)
 import System.Directory
 import System.Exit
 import System.FilePath
+import System.IO
 import GHC.Conc
 
 import qualified Text.Blaze.Html.Renderer.Pretty as Pretty
 import qualified Text.Blaze.Html.Renderer.String as Normal
 import qualified Text.Jasmine as JS
 import qualified Data.ByteString.Lazy.Char8 as BS
+import qualified Data.ByteString.Lazy as L
 
 import qualified Metadata.Prelude as Prelude
 import qualified Transform.Canonicalize as Canonical
@@ -91,8 +93,14 @@ elmi flags filePath = file flags filePath "elmi"
 buildFile :: Flags -> Int -> Int -> Interfaces -> FilePath -> IO ModuleInterface
 buildFile flags moduleNum numModules interfaces filePath =
     do compiled <- alreadyCompiled
-       if not compiled then compile
-                       else getInterface `fmap` Binary.decodeFile (elmi flags filePath)
+       case compiled of
+         False -> compile
+         True -> do
+           handle <- openBinaryFile (elmi flags filePath) ReadMode
+           bits <- L.hGetContents handle
+           let iface = getInterface (Binary.decode bits)
+           L.length bits `seq` hClose handle
+           return iface
     where
       getInterface :: (String, ModuleInterface) -> ModuleInterface
       getInterface = snd
@@ -139,7 +147,9 @@ buildFile flags moduleNum numModules interfaces filePath =
                           iAliases = aliases metaModule
                         }
         createDirectoryIfMissing True . dropFileName $ elmi flags filePath
-        Binary.encodeFile (elmi flags filePath) (name,interface)
+        handle <- openBinaryFile (elmi flags filePath) WriteMode
+        L.hPut handle (Binary.encode (name,interface))
+        hClose handle
         writeFile (elmo flags filePath) (jsModule metaModule)
         return interface
 

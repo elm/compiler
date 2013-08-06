@@ -11,6 +11,7 @@ import System.Process
 
 import Control.Monad
 import qualified Data.Binary as Binary
+import qualified Data.ByteString.Lazy as BS
 
 -- Part 1
 -- ------
@@ -130,8 +131,15 @@ buildInterfaces :: LocalBuildInfo -> [FilePath] -> IO ()
 buildInterfaces lbi elmis = do
   createDirectoryIfMissing True (rtsDir lbi)
   let ifaces = interfaces lbi
-  Binary.encodeFile ifaces (length elmis)
-  mapM_ (\elmi -> readFile elmi >>= appendFile ifaces) elmis
+  ifaceHandle <- openBinaryFile ifaces WriteMode
+  BS.hPut ifaceHandle (Binary.encode (length elmis))
+  let append file = do
+        handle <- openBinaryFile file ReadMode
+        bits <- hGetContents handle
+        length bits `seq` hPutStr ifaceHandle bits
+        hClose handle
+  mapM_ append elmis
+  hClose ifaceHandle
 
 buildRuntime :: LocalBuildInfo -> [FilePath] -> IO ()
 buildRuntime lbi elmos = do
