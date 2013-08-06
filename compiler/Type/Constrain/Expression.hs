@@ -6,6 +6,7 @@ import qualified Data.Set as Set
 import Control.Arrow (second)
 import Control.Applicative ((<$>),(<*>))
 import qualified Control.Monad as Monad
+import Control.Monad.Error (ErrorT, runErrorT)
 import Control.Monad.State
 import Data.Traversable (traverse)
 
@@ -56,7 +57,7 @@ constrain env (L span expr) tipe =
       Lambda p e ->
           exists $ \t1 ->
           exists $ \t2 -> do
-            fragment <- Pattern.constrain env p t1
+            fragment <- try span $ Pattern.constrain env p t1
             c2 <- constrain env e t2
             let c = ex (vars fragment) (clet [monoscheme (typeEnv fragment)]
                                              (typeConstraint fragment /\ c2 ))
@@ -80,7 +81,7 @@ constrain env (L span expr) tipe =
           exists $ \t -> do
             ce <- constrain env exp t
             let branch (p,e) = do
-                  fragment <- Pattern.constrain env p t
+                  fragment <- try span $ Pattern.constrain env p t
                   clet [toScheme fragment] <$> constrain env e tipe
             and . (:) ce <$> mapM branch branches
 
@@ -213,3 +214,10 @@ collapseDefs = concatMap expandPattern . go [] Map.empty Map.empty
               go ((pattern, body, Nothing) : output) defs typs ds
           TypeAnnotation name typ ->
               go output defs (Map.insert name typ typs) ds
+
+try :: SrcSpan -> ErrorT String IO a -> IO a
+try span computation = do
+  result <- runErrorT computation
+  case result of
+    Left msg -> error $ "\nType error " ++ show span ++ "\n" ++ msg
+    Right value -> return value
