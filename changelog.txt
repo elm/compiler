@@ -7,6 +7,10 @@ Build Improvements:
   * Type-checker should catch _all_ type errors now
   * Module-level compilation, only re-compile if necessary
   * Import types and type aliases between modules
+  * Intermediate files are generated to avoid unneeded recompilation
+    and shorten compile time. These files go in ElmFiles/ by default
+  * Generated files are placed in ElmFiles/ by default, replicating
+    the directory structure of your source code.
 
 Error Messages:
   * Cross-module type errors
@@ -29,6 +33,9 @@ Libraries:
   * Detect hovering over any Element
   * Set alpha of arbitrary forms in collages
   * Switch Text.height to use px instead of em
+
+Bug Fixes:
+  * Many bug fixes for collage, especially when rendering Elements.
 
 Website:
   * Hot-swapping
