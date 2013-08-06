@@ -171,7 +171,7 @@ build flags rootFile = do
   let noPrelude = no_prelude flags
   files <- if make flags then getSortedDependencies noPrelude rootFile else return [rootFile]
   let ifaces = if noPrelude then Map.empty else Prelude.interfaces
-  interfaces <- buildFiles flags (length files) ifaces files
+  (moduleName, interfaces) <- buildFiles flags (length files) ifaces "" files
   js <- foldM appendToOutput "" files
   case only_js flags of
     True -> do
@@ -181,7 +181,7 @@ build flags rootFile = do
     False -> do
       putStr "Generating HTML ... "
       runtime <- getRuntime flags
-      let html = genHtml $ createHtml runtime (takeBaseName rootFile) (sources js) ""
+      let html = genHtml $ createHtml runtime (takeBaseName rootFile) (sources js) moduleName ""
       writeFile (file flags rootFile "html") html
       putStrLn "Done"
 
@@ -197,10 +197,10 @@ build flags rootFile = do
                    [ Source (if minify flags then Minified else Readable) js ]
 
 
-buildFiles :: Flags -> Int -> Interfaces -> [FilePath] -> IO Interfaces
-buildFiles _ _ interfaces [] = return interfaces
-buildFiles flags numModules interfaces (filePath:rest) = do
+buildFiles :: Flags -> Int -> Interfaces -> String -> [FilePath] -> IO (String, Interfaces)
+buildFiles _ _ interfaces moduleName [] = return (moduleName, interfaces)
+buildFiles flags numModules interfaces _ (filePath:rest) = do
   interface <- buildFile flags (numModules - length rest) numModules interfaces filePath
   let moduleName = List.intercalate "." . splitDirectories $ dropExtensions filePath
       interfaces' = Map.insert moduleName interface interfaces
-  buildFiles flags numModules interfaces' rest
+  buildFiles flags numModules interfaces' moduleName rest
