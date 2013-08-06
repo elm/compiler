@@ -14,7 +14,7 @@ module Language.Elm (compile, toHtml, moduleName, runtime, docs) where
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Data.Version (showVersion)
-import Generate.JavaScript (showErr, jsModule)
+import Generate.JavaScript (jsModule)
 import Generate.Html (generateHtml)
 import Initialize (buildFromSource)
 import Parse.Helpers

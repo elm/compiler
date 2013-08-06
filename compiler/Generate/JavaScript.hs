@@ -1,4 +1,4 @@
-module Generate.JavaScript (showErr, jsModule) where
+module Generate.JavaScript (jsModule) where
 
 import Control.Arrow (first,second)
 import Control.Monad (liftM,(<=<),join,ap)
@@ -17,12 +17,6 @@ import qualified Transform.SortDefinitions as SD
 
 deprime :: String -> String
 deprime = map (\c -> if c == '\'' then '$' else c)
-
-showErr :: String -> String
-showErr err = globalAssign "Elm.Main" (jsFunc "elm" body)
-    where msg = show . concatMap (++"<br>") . lines $ err
-          body = "var T = Elm.Text(elm);\n\
-                 \return { main : T.text(T.monospace(" ++ msg ++ ")) };"
 
 indent = concatMap f
     where f '\n' = "\n  "
