@@ -49,7 +49,7 @@ instance Show SrcSpan where
         Span start end _ ->
             case line start == line end of
               False -> "between lines " ++ show (line start) ++ " and " ++ show (line end)
-              True -> "line " ++ show (line end) ++ ", column " ++
+              True -> "on line " ++ show (line end) ++ ", column " ++
                       show (column start) ++ " to " ++ show (column end)
 
 instance Show e => Show (Located e) where
