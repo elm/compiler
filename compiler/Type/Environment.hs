@@ -99,7 +99,7 @@ ctorToType env (name, tvars, ctors) =
 get :: Environment -> (Environment -> Map.Map String a) -> String -> a
 get env subDict key = Map.findWithDefault err key (subDict env)
   where
-    err = error $ "Could not find type constructor '" ++ key ++ "' while checking types."
+    err = error $ "\nCould not find type constructor '" ++ key ++ "' while checking types."
 
 
 freshDataScheme :: Environment -> String -> IO (Int, [Variable], [Type], Type)
@@ -146,9 +146,11 @@ instantiator env sourceType = go sourceType
             Just t -> return $ foldl (<|) t ts'
             Nothing ->
                 case Map.lookup name (aliases env) of
-                  Nothing -> error $ "Could not find type constructor '" ++ name ++ "' while checking types."
+                  Nothing -> error $ "\nCould not find type constructor '" ++ name ++ "' while checking types."
                   Just (tvars, t) ->
-                      let msg = "Type alias '" ++ name ++ "' expects " ++ show (length tvars) ++
+                      let tvarLen = length tvars
+                          msg = "\nType alias '" ++ name ++ "' expects " ++ show tvarLen ++
+                                " type argument" ++ (if tvarLen == 1 then "" else "s") ++
                                 " but was given " ++ show (length ts')
                       in  if length ts' /= length tvars then error msg else
                               do (dict, aliases) <- State.get
