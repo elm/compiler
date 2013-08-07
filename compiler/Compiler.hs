@@ -42,7 +42,8 @@ data Flags =
           , scripts :: [FilePath]
           , no_prelude :: Bool
           , minify :: Bool
-	  , output_directory :: FilePath
+	  , cache_dir :: FilePath
+	  , build_dir :: FilePath
           }
     deriving (Data,Typeable,Show,Eq)
 
@@ -64,8 +65,10 @@ flags = Flags
                  &= help "Do not import Prelude by default, used only when compiling standard libraries."
   , minify = False
              &= help "Minify generated JavaScript and HTML"
-  , output_directory = "ElmFiles" &= typFile
-                       &= help "Output files to directory specified. Defaults to ElmFiles/ directory."
+  , cache_dir = "cache" &= typFile
+                &= help "Directory for files cached to make builds faster. Defaults to cache/ directory."
+  , build_dir = "build" &= typFile
+                &= help "Directory for generated HTML and JS files. Defaults to build/ directory."
   } &= help "Compile Elm programs to HTML, CSS, and JavaScript."
     &= summary ("The Elm Compiler " ++ showVersion version ++ ", (c) Evan Czaplicki")
 
@@ -80,14 +83,17 @@ compileArgs flags =
       fs -> mapM_ (build flags) fs
           
 
-file :: Flags -> FilePath -> String -> FilePath
-file flags filePath ext = output_directory flags </> replaceExtension filePath ext
+buildPath :: Flags -> FilePath -> String -> FilePath
+buildPath flags filePath ext = build_dir flags </> replaceExtension filePath ext
+
+cachePath :: Flags -> FilePath -> String -> FilePath
+cachePath flags filePath ext = cache_dir flags </> replaceExtension filePath ext
 
 elmo :: Flags -> FilePath -> FilePath
-elmo flags filePath = file flags filePath "elmo"
+elmo flags filePath = cachePath flags filePath "elmo"
 
 elmi :: Flags -> FilePath -> FilePath
-elmi flags filePath = file flags filePath "elmi"
+elmi flags filePath = cachePath flags filePath "elmi"
 
 
 buildFile :: Flags -> Int -> Int -> Interfaces -> FilePath -> IO ModuleInterface
@@ -127,7 +133,8 @@ buildFile flags moduleNum numModules interfaces filePath =
                           , replicate (max 1 (20 - length name)) ' '
                           , "( " ++ filePath ++ " )" ]
         source <- readFile filePath
-        createDirectoryIfMissing True (output_directory flags)
+        createDirectoryIfMissing True (cache_dir flags)
+        createDirectoryIfMissing True (build_dir flags)
         metaModule <-
             case buildFromSource (no_prelude flags) interfaces source of
               Left errors -> do
@@ -176,13 +183,13 @@ build flags rootFile = do
   case only_js flags of
     True -> do
       putStr "Generating JavaScript ... "
-      writeFile (file flags rootFile "js") (genJs js)
+      writeFile (buildPath flags rootFile "js") (genJs js)
       putStrLn "Done"
     False -> do
       putStr "Generating HTML ... "
       runtime <- getRuntime flags
       let html = genHtml $ createHtml runtime (takeBaseName rootFile) (sources js) moduleName ""
-      writeFile (file flags rootFile "html") html
+      writeFile (buildPath flags rootFile "html") html
       putStrLn "Done"
 
     where

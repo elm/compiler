@@ -113,7 +113,8 @@ compileLibraries lbi = do
         -- replace 'system' call with 'runProcess' which handles args better
         -- and allows env variable "Elm_datadir" which is used by LoadLibraries
         -- to find docs.json
-        let args = ["--only-js","--make","--no-prelude","--output-directory="++out_c,file]
+        let args = [ "--only-js", "--make", "--no-prelude"
+                   , "--cache-dir="++out_c, "--build-dir="++out_c, file ]
             arg = Just [("Elm_datadir", rtd_c)]
         handle <- runProcess elm_c args Nothing arg Nothing Nothing Nothing
         exitCode <- waitForProcess handle
