@@ -17,11 +17,9 @@ import Data.Version (showVersion)
 import Generate.JavaScript (jsModule)
 import Generate.Html (generateHtml)
 import Initialize (buildFromSource)
-import Parse.Helpers
-import Parse.Module (moduleDef)
+import Parse.Module (getModuleName)
 import SourceSyntax.Module
 import Text.Blaze.Html (Html)
-import Text.Parsec (option,optional)
 import qualified Text.PrettyPrint as P
 import qualified Metadata.Prelude as Prelude
 import Paths_Elm
@@ -36,14 +34,7 @@ compile source =
 
 -- |This function extracts the module name of a given source program.
 moduleName :: String -> Maybe String
-moduleName source = case iParse getModuleName "" source of
-                      Right name -> Just name
-                      Left _     -> Nothing
-    where
-      getModuleName = do
-        optional freshLine
-        (names, _) <- moduleDef
-        return (List.intercalate "." names)
+moduleName = getModuleName
 
 -- |This function compiles Elm code into a full HTML page.
 toHtml :: String -- ^ Location of elm-min.js as expected by the browser

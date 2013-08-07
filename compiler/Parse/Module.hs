@@ -1,5 +1,5 @@
 
-module Parse.Module (moduleDef, imports) where
+module Parse.Module (moduleDef, getModuleName, imports) where
 
 import Control.Applicative ((<$>), (<*>))
 import Data.List (intercalate)
@@ -10,6 +10,17 @@ import SourceSyntax.Module (Module(..), ImportMethod(..), Imports)
 
 varList ::  IParser [String]
 varList = parens $ commaSep1 (var <|> parens symOp)
+
+getModuleName :: String -> Maybe String
+getModuleName source =
+    case iParse getModuleName "" source of
+      Right name -> Just name
+      Left _     -> Nothing
+    where
+      getModuleName = do
+        optional freshLine
+        (names, _) <- moduleDef
+        return (intercalate "." names)
 
 moduleDef :: IParser ([String], [String])
 moduleDef = do

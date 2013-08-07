@@ -22,6 +22,7 @@ import qualified Data.ByteString.Lazy as L
 import qualified Metadata.Prelude as Prelude
 import qualified Transform.Canonicalize as Canonical
 import SourceSyntax.Module
+import Parse.Module (getModuleName)
 import Initialize (buildFromSource, getSortedDependencies)
 import Generate.JavaScript (jsModule)
 import Generate.Html (createHtml, JSStyle(..), JSSource(..))
@@ -96,7 +97,7 @@ elmi :: Flags -> FilePath -> FilePath
 elmi flags filePath = cachePath flags filePath "elmi"
 
 
-buildFile :: Flags -> Int -> Int -> Interfaces -> FilePath -> IO ModuleInterface
+buildFile :: Flags -> Int -> Int -> Interfaces -> FilePath -> IO (String,ModuleInterface)
 buildFile flags moduleNum numModules interfaces filePath =
     do compiled <- alreadyCompiled
        case compiled of
@@ -104,13 +105,11 @@ buildFile flags moduleNum numModules interfaces filePath =
          True -> do
            handle <- openBinaryFile (elmi flags filePath) ReadMode
            bits <- L.hGetContents handle
-           let iface = getInterface (Binary.decode bits)
+           let info :: (String, ModuleInterface)
+               info = Binary.decode bits
            L.length bits `seq` hClose handle
-           return iface
+           return info
     where
-      getInterface :: (String, ModuleInterface) -> ModuleInterface
-      getInterface = snd
-
       alreadyCompiled :: IO Bool
       alreadyCompiled = do
         existsi <- doesFileExist (elmi flags filePath)
@@ -124,15 +123,16 @@ buildFile flags moduleNum numModules interfaces filePath =
       number :: String
       number = "[" ++ show moduleNum ++ " of " ++ show numModules ++ "]"
 
-      name :: String
-      name = List.intercalate "." (splitDirectories (dropExtensions filePath))
-
-      compile :: IO ModuleInterface
+      compile :: IO (String,ModuleInterface)
       compile = do
+        source <- readFile filePath
+        let name = case getModuleName source of
+                     Just n -> n
+                     Nothing -> "Name"
         putStrLn $ concat [ number, " Compiling ", name
                           , replicate (max 1 (20 - length name)) ' '
                           , "( " ++ filePath ++ " )" ]
-        source <- readFile filePath
+        
         createDirectoryIfMissing True (cache_dir flags)
         createDirectoryIfMissing True (build_dir flags)
         metaModule <-
@@ -158,7 +158,7 @@ buildFile flags moduleNum numModules interfaces filePath =
         L.hPut handle (Binary.encode (name,interface))
         hClose handle
         writeFile (elmo flags filePath) (jsModule metaModule)
-        return interface
+        return (name,interface)
 
 printTypes metaModule = do
   putStrLn ""
@@ -207,7 +207,6 @@ build flags rootFile = do
 buildFiles :: Flags -> Int -> Interfaces -> String -> [FilePath] -> IO (String, Interfaces)
 buildFiles _ _ interfaces moduleName [] = return (moduleName, interfaces)
 buildFiles flags numModules interfaces _ (filePath:rest) = do
-  interface <- buildFile flags (numModules - length rest) numModules interfaces filePath
-  let moduleName = List.intercalate "." . splitDirectories $ dropExtensions filePath
-      interfaces' = Map.insert moduleName interface interfaces
-  buildFiles flags numModules interfaces' moduleName rest
+  (name,interface) <- buildFile flags (numModules - length rest) numModules interfaces filePath
+  let interfaces' = Map.insert name interface interfaces
+  buildFiles flags numModules interfaces' name rest
