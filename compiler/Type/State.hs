@@ -62,7 +62,7 @@ addError span message t1 t2 =
             NoSpan msg -> display msg
             Span _ _ msg -> display msg
 
-    defaultMessage = "Something is weird is happening with this value:"
+    defaultMessage = "Something weird is happening with this value:"
 
     makeError pt1 pt2 =
         P.vcat [ P.text $ "Type error" ++ location ++ ":"
