@@ -9,6 +9,8 @@ Use [the installer](https://dl.dropboxusercontent.com/u/5850974/Elm/Elm.pkg) and
 Let us know on [the list](https://groups.google.com/forum/?fromgroups#!forum/elm-discuss)
 if you have any trouble.
 
+If you do have issues, use the [on any platform](#on-any-platform) instructions which are known to work reliably.
+
 #### On any platform
 
 Download the [Haskell Platform 2012.2.0.0](http://hackage.haskell.org/platform/).
