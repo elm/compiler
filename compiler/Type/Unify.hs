@@ -7,6 +7,8 @@ import qualified Type.State as TS
 import Control.Arrow (first,second)
 import Control.Monad.State
 import SourceSyntax.Location
+import Type.PrettyPrint
+import Text.PrettyPrint (render)
 
 unify :: SrcSpan -> Variable -> Variable -> StateT TS.SolverState IO ()
 unify span variable1 variable2 = do
@@ -106,6 +108,12 @@ actuallyUnify span variable1 variable2 = do
                List _ -> flexAndUnify varSuper
                _ -> comparableError ""
 
+      rigidError variable = TS.addError span msg variable1 variable2
+          where
+            msg = concat
+                  [ "Cannot unify rigid type variable '", render (pretty Never variable), "'.\n"
+                  , "It is likely that a type annotation is not general enough." ]
+
       superUnify =
           case (flex desc1, flex desc2, name desc1, name desc2) of
             (Is super1, Is super2, _, _)
@@ -126,6 +134,8 @@ actuallyUnify span variable1 variable2 = do
             (Is Appendable, _, _, _) -> unifyAppendable variable1 variable2
             (_, Is Appendable, _, _) -> unifyAppendable variable2 variable1
 
+            (Rigid, _, _, _) -> rigidError variable1
+            (_, Rigid, _, _) -> rigidError variable2
             _ -> TS.addError span "" variable1 variable2
 
   case (structure desc1, structure desc2) of
