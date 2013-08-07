@@ -128,7 +128,7 @@ buildFile flags moduleNum numModules interfaces filePath =
         source <- readFile filePath
         let name = case getModuleName source of
                      Just n -> n
-                     Nothing -> "Name"
+                     Nothing -> "Main"
         putStrLn $ concat [ number, " Compiling ", name
                           , replicate (max 1 (20 - length name)) ' '
                           , "( " ++ filePath ++ " )" ]
