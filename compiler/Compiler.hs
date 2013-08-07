@@ -189,7 +189,9 @@ build flags rootFile = do
       putStr "Generating HTML ... "
       runtime <- getRuntime flags
       let html = genHtml $ createHtml runtime (takeBaseName rootFile) (sources js) moduleName ""
-      writeFile (buildPath flags rootFile "html") html
+          htmlFile = buildPath flags rootFile "html"
+      createDirectoryIfMissing True (takeDirectory htmlFile)
+      writeFile htmlFile html
       putStrLn "Done"
 
     where
