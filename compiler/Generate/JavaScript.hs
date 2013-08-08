@@ -191,11 +191,14 @@ instance ToJS (Expr t v) where
     Record fs -> makeRecord fs
     Binop op e1 e2 -> binop op e1 e2
 
-    Lambda p e@(L s _) -> liftM (fastFunc . ret) (toJS' body)
+    Lambda p e@(L s _) -> liftM fastFunc (toJS' body)
         where
           fastFunc body
-              | length args < 2 || length args > 9 = foldr jsFunc body args
-              | otherwise = "F" ++ show (length args) ++ parens (jsFunc (commaSep args) body)
+              | length args < 2 || length args > 9 =
+                  foldr (\arg bod -> jsFunc arg (ret bod)) body args
+              | otherwise =
+                  "F" ++ show (length args) ++ parens (jsFunc (commaSep args) (ret body))
+
           (args, body) = first reverse $ foldr depattern ([], innerBody) (zip patterns [1..])
 
           depattern (pattern,n) (args, body) =
