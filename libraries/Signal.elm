@@ -52,7 +52,8 @@ lift8 = Native.Signal.lift8
 -- Create a past-dependent signal. Each value given on the input signal will
 -- be accumulated, producing a new output value.
 --
--- For instance, `(foldp (\\t acc -> acc + 1) 0 (Time.every second))` increments every second.
+-- For instance, `(foldp (\\arrows number -> number + arrows.y) 0 Keyboard.arrows)`
+-- increments or decrements the accumulated value (which starts at zero) when the up or down arrow keys are pressed.
 foldp : (a -> b -> b) -> b -> Signal a -> Signal b
 foldp = Native.Signal.foldp
 
