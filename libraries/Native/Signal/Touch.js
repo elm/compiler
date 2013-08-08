@@ -119,7 +119,7 @@ Elm.Native.Touch = function(elm) {
       });
   elm.addListener([root.id], node, "blur", function blur(e) {
           node.removeEventListener("mousemove", move);
-          if (root.values.length > 0) {
+          if (root.value.length > 0) {
               elm.notify(root.id, []);
               --mouseID;
           }
