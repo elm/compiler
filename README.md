@@ -7,9 +7,8 @@ Learn about the Elm programming language at [elm-lang.org](http://elm-lang.org/)
 
 Use [the installer](https://dl.dropboxusercontent.com/u/5850974/Elm/Elm.pkg) and you are done.
 Let us know on [the list](https://groups.google.com/forum/?fromgroups#!forum/elm-discuss)
-if you have any trouble.
-
-If you do have issues, use the [on any platform](#on-any-platform) instructions which are known to work reliably.
+if you have any trouble. If you do have issues, use the [on any platform](#on-any-platform)
+instructions which are known to work reliably.
 
 #### On any platform
 
