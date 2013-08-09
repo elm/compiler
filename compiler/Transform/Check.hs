@@ -39,8 +39,8 @@ duplicates defs =
     dups = map head . filter ((>1) . length) . List.group
 
     msg = "Syntax Error: There can only be one "
-    defMsg x = msg ++ " definition of '" ++ x ++ "'."
-    annMsg x = msg ++ " type annotation for '" ++ x ++ "'."
+    defMsg x = msg ++ "definition of '" ++ x ++ "'."
+    annMsg x = msg ++ "type annotation for '" ++ x ++ "'."
 
 
 badOrder :: [Def t v] -> [String]
