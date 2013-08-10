@@ -33,10 +33,10 @@ import qualified Data.ByteString.Lazy as BS
 -- Elm.cabal expects the generated files to end up in dist/data
 -- git won't look in dist + cabal will clean it
 rtsDir :: LocalBuildInfo -> FilePath
-rtsDir lbi = buildDir lbi </> ".." </> "data"
+rtsDir lbi = "data"
 
 tempDir :: LocalBuildInfo -> FilePath
-tempDir lbi = buildDir lbi </> ".." </> "temp"
+tempDir lbi = "temp"
 
 -- The runtime is called:
 rts :: LocalBuildInfo -> FilePath
@@ -96,18 +96,18 @@ myPostBuild as bfs pd lbi = do
     buildInterfaces lbi elmis
     putStrLn "Custom build step: build elm-runtime.js"
     buildRuntime lbi elmos
-    removeDirectoryRecursive ("dist" </> "temp")
+    removeDirectoryRecursive (tempDir lbi)
     postBuild simpleUserHooks as bfs pd lbi
 
 
 compileLibraries lbi = do
-  let temp = tempDir lbi                    -- dist/temp
-      rts  = rtsDir  lbi                    -- dist/data
+  let temp = tempDir lbi                    -- temp
+      rts  = rtsDir  lbi                    -- data
   createDirectoryIfMissing True temp
   createDirectoryIfMissing True rts
-  out_c <- canonicalizePath temp            -- dist/temp (root folder)
+  out_c <- canonicalizePath temp            -- temp (root folder)
   elm_c <- canonicalizePath (elm lbi)       -- dist/build/elm/elm
-  rtd_c <- canonicalizePath rts             -- dist/data (for docs.json)
+  rtd_c <- canonicalizePath rts             -- data
 
   let make file = do
         -- replace 'system' call with 'runProcess' which handles args better

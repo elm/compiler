@@ -21,7 +21,7 @@ Category:            Compiler, Language
 Build-type:          Custom
 
 Extra-source-files:  changelog.txt
-Data-dir:            dist/data
+Data-dir:            data
 Data-files:          elm-runtime.js interfaces.data
 Cabal-version:       >=1.9
 
