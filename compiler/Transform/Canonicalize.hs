@@ -134,7 +134,7 @@ rename env lexpr@(L s expr) =
 
       Lambda pattern e ->
           let env' = extend env pattern in
-          Lambda pattern `liftM` rename env' e
+          Lambda `liftM` format (renamePattern env' pattern) `ap` rename env' e
 
       App e1 e2 -> App `liftM` rnm e1 `ap` rnm e2
 
