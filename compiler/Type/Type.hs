@@ -277,7 +277,11 @@ addNames value = do
               Is Number     -> (Just $ "number"     ++ replicate a '\'', (vars, a+1, b, c))
               Is Comparable -> (Just $ "comparable" ++ replicate b '\'', (vars, a, b+1, c))
               Is Appendable -> (Just $ "appendable" ++ replicate c '\'', (vars, a, b, c+1))
-              _             -> (Just $ head vars, (tail vars, a, b, c))
+              other         -> (Just $ head vars, (tail vars, a, b, c))
+                  where mark = case other of
+                                 Flexible -> ""
+                                 Rigid    -> "!"
+                                 Constant -> "#"
 
 
 type CrawlState = ([String], Int, Int, Int)
