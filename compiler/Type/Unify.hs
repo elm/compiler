@@ -85,7 +85,7 @@ actuallyUnify span variable1 variable2 = do
                       "Int, Float, Char, or a list or tuple of comparables."
 
       unifyComparable var name
-          | name `elem` ["Int","Float","Char"] = flexAndUnify var
+          | name `elem` ["Int","Float","Char","comparable"] = flexAndUnify var
           | otherwise = comparableError ""
 
       unifyComparableStructure varSuper varFlex =
