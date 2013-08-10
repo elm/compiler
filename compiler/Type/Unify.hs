@@ -77,7 +77,7 @@ actuallyUnify span variable1 variable2 = do
         unify' variable1 variable2
 
       unifyNumber svar name
-          | name `elem` ["Int","Float"] = flexAndUnify svar
+          | name `elem` ["Int","Float","number"] = flexAndUnify svar
           | otherwise = TS.addError span "Expecting a number (Int or Float)" variable1 variable2
 
       comparableError str = TS.addError span (str ++ msg) variable1 variable2
