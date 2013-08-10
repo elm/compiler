@@ -7,17 +7,19 @@ import Data.List (isPrefixOf, isSuffixOf, (\\))
 import Data.Version (showVersion)
 import Happstack.Server
 import Happstack.Server.Compression
+import System.Directory
 import System.Environment
 import System.FilePath
+import System.Process
 import qualified Language.Elm as Elm
 import Paths_elm_server
 
-runtime = "/elm-" ++ showVersion version ++ ".js"
+runtime = "/elm-runtime.js"
 
 serve :: Int -> String -> IO ()
 serve portNumber libLoc = do
-  putStrLn ("Elm Server " ++ showVersion version ++
-            ": running at <http://localhost:" ++ (show portNumber) ++ ">")
+  putStrLn $ "Elm Server " ++ showVersion version ++
+             ": running at <http://localhost:" ++ show portNumber ++ ">"
   putStrLn "Just refresh a page to recompile it!"
   simpleHTTP httpConf $ do
          _ <- compressedResponseFilter
@@ -30,11 +32,16 @@ serve portNumber libLoc = do
 pageTitle :: String -> String
 pageTitle = dropExtension . takeBaseName
 
+serveElm :: FilePath -> ServerPartT IO Response
 serveElm fp = do
   guard (takeExtension fp == ".elm")
-  content <- liftIO (readFile (tail fp))
-  length content `seq` (ok . toResponse $ Elm.toHtml runtime (pageTitle fp) content)
+  let file = tail fp
+  liftIO $ rawSystem "elm" [ "--make" ,"--runtime=" ++ runtime
+                           , "--cache-dir=elm-server-cache", file ]
+  liftIO $ removeDirectoryRecursive "elm-server-cache"
+  serveFile (asContentType "text/html") ("build" </> replaceExtension file "html")
 
+serveLib :: FilePath -> [Char] -> ServerPartT IO Response
 serveLib libLoc fp = do
   guard (fp == runtime)
   serveFile (asContentType "application/javascript") libLoc
@@ -45,16 +52,18 @@ main = getArgs >>= parse
 parse :: [String] -> IO ()
 parse ("--help":_) = putStrLn usage
 parse ("--version":_) = putStrLn ("The Elm Server " ++ showVersion version)
-parse args = if null remainingArgs
-             then serve portNumber =<< elmRuntime
-             else putStrLn usageMini
-  where runtimeArg = filter (isPrefixOf "--runtime-location=") args
-        portArg = filter (isPrefixOf "--port=") args
-        remainingArgs = (args \\ runtimeArg) \\ portArg
+parse args =
+  case null remainingArgs of
+    True -> serve portNumber =<< elmRuntime
+    False -> putStrLn usageMini
+  where
+    runtimeArg = filter (isPrefixOf "--runtime-location=") args
+    portArg = filter (isPrefixOf "--port=") args
+    remainingArgs = (args \\ runtimeArg) \\ portArg
 
-        argValue arg = tail $ dropWhile (/= '=') (head arg)
-        portNumber = if null portArg then 8000 else read (argValue portArg) :: Int
-        elmRuntime = if null runtimeArg then Elm.runtime else return $ argValue runtimeArg
+    argValue arg = tail $ dropWhile (/= '=') (head arg)
+    portNumber = if null portArg then 8000 else read (argValue portArg) :: Int
+    elmRuntime = if null runtimeArg then Elm.runtime else return $ argValue runtimeArg
 
 usageMini :: String
 usageMini =
