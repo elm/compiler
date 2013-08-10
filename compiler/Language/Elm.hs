@@ -1,15 +1,11 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 {- | This module exports the functions necessary for compiling Elm code into the
      respective HTML, CSS, and JS code.
 
      The documentation for the Elm language is available at
      <http://elm-lang.org/Documentation.elm>, and many interactive examples are
      available at <http://elm-lang.org/Examples.elm>
-
-     Example implementations using Yesod and Happstack are available
-     at <https://github.com/tazjin/Elm/tree/master/Examples>
 -}
-module Language.Elm (compile, toHtml, moduleName, runtime, docs) where
+module Language.Elm (compile, moduleName, runtime) where
 
 import qualified Data.List as List
 import qualified Data.Map as Map
