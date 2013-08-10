@@ -7,5 +7,6 @@ cabal-dev
 *.aes
 *.elmi
 *.elmo
+data
 */ElmFiles/*
 .DS_Store
