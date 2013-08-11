@@ -9,8 +9,10 @@ import Happstack.Server
 import Happstack.Server.Compression
 import System.Directory
 import System.Environment
+import System.Exit
 import System.FilePath
 import System.Process
+import GHC.IO.Handle
 import qualified Language.Elm as Elm
 import Paths_elm_server
 
@@ -36,10 +38,18 @@ serveElm :: FilePath -> ServerPartT IO Response
 serveElm fp = do
   guard (takeExtension fp == ".elm")
   let file = tail fp
-  liftIO $ rawSystem "elm" [ "--make" ,"--runtime=" ++ runtime
-                           , "--cache-dir=elm-server-cache", file ]
+      args = [ "--make" ,"--runtime=" ++ runtime, "--cache-dir=elm-server-cache", file ]
+  (_, stdout, _, handle) <- liftIO $ createProcess $ (proc "elm" args) { std_out = CreatePipe }
+  exitCode <- liftIO $ waitForProcess handle
   liftIO $ removeDirectoryRecursive "elm-server-cache"
-  serveFile (asContentType "text/html") ("build" </> replaceExtension file "html")
+  case (exitCode, stdout) of
+    (ExitFailure _, Just out) ->
+        do str <- liftIO $ hGetContents out
+           badRequest $ toResponse str
+    (ExitFailure _, Nothing) ->
+        badRequest $ toResponse "See command line for error message."
+    (ExitSuccess, _) ->
+        serveFile (asContentType "text/html") ("build" </> replaceExtension file "html")
 
 serveLib :: FilePath -> [Char] -> ServerPartT IO Response
 serveLib libLoc fp = do
