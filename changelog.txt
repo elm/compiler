@@ -29,6 +29,10 @@ Syntax:
   * Allow infix op definitions without args: (*) = add
   * Unparenthesized if, let, case, lambda at end of binary expressions
 
+elm-server:
+  * Build multi-module projects
+  * Report all errors in browser
+
 Libraries:
   * Detect hovering over any Element
   * Set alpha of arbitrary forms in collages
