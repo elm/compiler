@@ -195,7 +195,7 @@ expandPattern triple@(pattern, lexpr@(L s _), maybeType) =
       _ -> (PVar x, lexpr, maybeType) : map toDef vars
           where
             vars = Set.toList $ SD.boundVars pattern
-            x = concat vars
+            x = "$" ++ concat vars
             var = L s . Var
             toDef y = (PVar y, L s $ Case (var x) [(pattern, var y)], Nothing)
 
