@@ -67,6 +67,7 @@ hsva = Native.Color.hsva
 
 -- Create [HSV colors](http://en.wikipedia.org/wiki/HSL_and_HSV).
 -- This is very convenient for creating colors that cycle and shift.
+-- Hue is an angle and should be given in standard Elm angles (radians).
 --
 --         hsv (degrees 240) 1 1 == blue
 hsv : Float -> Float -> Float -> Color
