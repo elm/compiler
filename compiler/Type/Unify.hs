@@ -168,7 +168,7 @@ actuallyUnify span variable1 variable2 = do
 
           (Record1 fields1 ext1, Record1 fields2 ext2) ->
               do sequence . concat . Map.elems $ Map.intersectionWith (zipWith unify') fields1 fields2
-                 let mkRecord fs ext = liftIO . structuredVar $ Record1 fs ext
+                 let mkRecord fs ext = fresh . Just $ Record1 fs ext
                  case (Map.null fields1', Map.null fields2') of
                    (True , True ) -> unify' ext1 ext2
                    (True , False) -> do
@@ -178,8 +178,8 @@ actuallyUnify span variable1 variable2 = do
                       record1' <- mkRecord fields1' ext1
                       unify' record1' ext2
                    (False, False) -> do
-                      record1' <- mkRecord fields1' =<< liftIO (var Flexible)
-                      record2' <- mkRecord fields2' =<< liftIO (var Flexible)
+                      record1' <- mkRecord fields1' =<< fresh Nothing
+                      record2' <- mkRecord fields2' =<< fresh Nothing
                       unify' record1' ext2
                       unify' ext1 record2'
               where
