@@ -139,7 +139,8 @@ makeCopy alreadyCopied variable = do
     () | mark desc == alreadyCopied ->
            case copy desc of
              Just v -> return v
-             Nothing -> error "This should be impossible."
+             Nothing -> error $ "Error copying type variable. This should be impossible." ++
+                                " Please report an error to the github repo!"
 
        | rank desc /= noRank || flex desc == Constant ->
            return variable
