@@ -49,16 +49,17 @@ generalize youngPool = do
   --   otherwise generalize
   let registerIfLowerRank var = do
         isRedundant <- liftIO $ UF.redundant var
-        if isRedundant then return () else do
+        case isRedundant of
+          True -> return ()
+          False -> do
             desc <- liftIO $ UF.descriptor var
-            if rank desc < youngRank
-              then TS.register var >> return ()
-              else let flex' = if flex desc == Flexible then Rigid else flex desc
-                   in  liftIO $ UF.setDescriptor var (desc { rank = noRank, flex = flex' })
-
-  mapM registerIfLowerRank (Map.findWithDefault [] youngRank rankDict)
-
-  return ()
+            case rank desc < youngRank of
+              True -> TS.register var >> return ()
+              False -> do
+                let flex' = case flex desc of { Flexible -> Rigid ; other -> other }
+                liftIO $ UF.setDescriptor var (desc { rank = noRank, flex = flex' })
+                                 
+  mapM_ registerIfLowerRank (Map.findWithDefault [] youngRank rankDict)
 
 
 -- adjust the ranks of variables such that ranks never increase as you
