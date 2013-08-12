@@ -151,9 +151,11 @@ constrainDef env info (pattern, expr, maybeTipe) =
     let qs = [] -- should come from the def, but I'm not sure what would live there...
         (schemes, rigidQuantifiers, flexibleQuantifiers, headers, c2, c1) = info
     in
-    case (pattern, maybeTipe) of
-      (PVar name, Just tipe) ->
-          do flexiVars <- mapM (\_ -> var Flexible) qs
+    do rigidVars <- mapM (\_ -> var Rigid) qs -- Some mistake may be happening here.
+                                              -- Currently, qs is always the empty list.
+       case (pattern, maybeTipe) of
+         (PVar name, Just tipe) -> do
+             flexiVars <- mapM (\_ -> var Flexible) qs
              let inserts = zipWith (\arg typ -> Map.insert arg (VarN typ)) qs flexiVars
                  env' = env { Env.value = List.foldl' (\x f -> f x) (Env.value env) inserts }
              (vars, typ) <- Env.instantiateType env tipe Map.empty
@@ -167,12 +169,10 @@ constrainDef env info (pattern, expr, maybeTipe) =
                     , flexibleQuantifiers
                     , headers
                     , c2
-                    , fl rigidQuantifiers c /\ c1 )
+                    , fl rigidVars c /\ c1 )
 
-      (PVar name, Nothing) ->
-          do v <- var Flexible
-             rigidVars <- mapM (\_ -> var Rigid) qs -- Some mistake may be happening here.
-                                                    -- Currently, qs is always the empty list.
+         (PVar name, Nothing) -> do
+             v <- var Flexible
              let tipe = VarN v
                  inserts = zipWith (\arg typ -> Map.insert arg (VarN typ)) qs rigidVars
                  env' = env { Env.value = List.foldl' (\x f -> f x) (Env.value env) inserts }
