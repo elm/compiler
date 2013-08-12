@@ -86,13 +86,11 @@ constrain env (L span expr) tipe =
             and . (:) ce <$> mapM branch branches
 
       Data name exprs ->
-          do pairs <- mapM pair exprs
+          do vars <- forM exprs $ \_ -> var Flexible
+             let pairs = zip exprs (map VarN vars)
              (ctipe, cs) <- Monad.foldM step (tipe,true) (reverse pairs)
-             return (cs /\ name <? ctipe)
+             return $ ex vars (cs /\ name <? ctipe)
           where
-            pair e = do v <- var Flexible -- needs an ex
-                        return (e, VarN v)
-
             step (t,c) (e,x) = do
                 c' <- constrain env e x
                 return (x ==> t, c /\ c')
