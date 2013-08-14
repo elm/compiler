@@ -34,7 +34,8 @@ constrain env (L span expr) tipe =
     case expr of
       Literal lit -> Literal.constrain env span lit tipe
 
-      Var name -> return (name <? tipe)
+      Var name | name == saveEnvName -> return (L span CSaveEnv)
+               | otherwise           -> return (name <? tipe)
 
       Range lo hi ->
           exists $ \x -> do
@@ -136,9 +137,7 @@ constrain env (L span expr) tipe =
           return ("Graphics.Element.markdown" <? tipe)
 
       Let defs body ->
-          do c <- case body of
-                    L _ (Var name) | name == saveEnvName -> return (L span CSaveEnv)
-                    _ -> constrain env body tipe
+          do c <- constrain env body tipe
              (schemes, rqs, fqs, header, c2, c1) <-
                  Monad.foldM (constrainDef env)
                              ([], [], [], Map.empty, true, true)
