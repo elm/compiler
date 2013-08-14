@@ -75,24 +75,24 @@ instance Pretty (Expr t v) where
      Data "::" [hd,tl] -> pretty hd <+> P.text "::" <+> pretty tl
      Data "[]" [] -> P.text "[]"
      Data name es -> P.hang (P.text name) 2 (P.sep (map prettyParens es))
-     Access e x -> prettyParens e <> P.text "." <> P.text x
-     Remove e x -> P.braces (pretty e <+> P.text "-" <+> P.text x)
+     Access e x -> prettyParens e <> P.text "." <> variable x
+     Remove e x -> P.braces (pretty e <+> P.text "-" <+> variable x)
      Insert (Location.L _ (Remove e y)) x v ->
-         P.braces (pretty e <+> P.text "-" <+> P.text y <+> P.text "|" <+> P.text x <+> P.text "=" <+> pretty v)
+         P.braces (pretty e <+> P.text "-" <+> variable y <+> P.text "|" <+> variable x <+> P.text "=" <+> pretty v)
      Insert e x v ->
-         P.braces (pretty e <+> P.text "|" <+> P.text x <+> P.text "=" <+> pretty v)
+         P.braces (pretty e <+> P.text "|" <+> variable x <+> P.text "=" <+> pretty v)
 
      Modify e fs ->
          P.braces $ P.hang (pretty e <+> P.text "|")
                            4
                            (commaSep $ map field fs)
        where
-         field (x,e) = P.text x <+> P.text "<-" <+> pretty e
+         field (x,e) = variable x <+> P.text "<-" <+> pretty e
 
      Record fs ->
          P.braces $ P.nest 2 (commaSep $ map field fs)
        where
-         field (x,e) = P.text x <+> P.text "=" <+> pretty e
+         field (x,e) = variable x <+> P.text "=" <+> pretty e
 
      Markdown _ -> P.text "[markdown| ... |]"
 
