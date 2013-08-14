@@ -93,12 +93,14 @@ getAssoc table n eops
     | all (==L) assocs = return L
     | all (==R) assocs = return R 
     | all (==N) assocs = case assocs of [_] -> return N
-                                        _   -> fail msg
+                                        _   -> fail (msg "precedence")
+    | otherwise = fail (msg "associativity")
   where levelOps = filter (hasLevel table n) eops
         assocs = map (opAssoc table . fst) levelOps
-        msg = concat [ "Conflicting precedence for binary operators ("
-                     , intercalate ", " (map fst eops), "). "
-                     , "Consider adding parentheses to disambiguate." ]
+        msg problem =
+            concat [ "Conflicting " ++ problem ++ " for binary operators ("
+                   , intercalate ", " (map fst eops), "). "
+                   , "Consider adding parentheses to disambiguate." ]
 
 infixStmt :: IParser (Int, Assoc, String)
 infixStmt =
