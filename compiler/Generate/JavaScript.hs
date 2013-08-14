@@ -10,13 +10,10 @@ import Data.Either (partitionEithers)
 import qualified Text.Pandoc as Pan
 
 import Unique
-import Generate.Cases
+import Generate.Cases (caseToMatch, deprime, matchSubst, Match(..), Clause(..))
 import SourceSyntax.Everything
 import SourceSyntax.Location
 import qualified Transform.SortDefinitions as SD
-
-deprime :: String -> String
-deprime = map (\c -> if c == '\'' then '$' else c)
 
 indent = concatMap f
     where f '\n' = "\n  "

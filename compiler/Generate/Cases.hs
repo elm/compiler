@@ -1,4 +1,4 @@
-module Generate.Cases (caseToMatch, Match (..), Clause (..), matchSubst) where
+module Generate.Cases (caseToMatch, Match (..), Clause (..), matchSubst, deprime) where
 
 import Control.Arrow (first)
 import Control.Monad (liftM,foldM)
@@ -11,6 +11,9 @@ import SourceSyntax.Literal
 import SourceSyntax.Pattern
 import SourceSyntax.Expression
 import Transform.Substitute
+
+deprime :: String -> String
+deprime = map (\c -> if c == '\'' then '$' else c)
 
 caseToMatch patterns = do
   v <- newVar
@@ -65,7 +68,7 @@ match vs@(v:_) cs def
 
 dealias v c@(p:ps, L s e) =
     case p of
-      PAlias x pattern -> (pattern:ps, L s $ subst x (Var v) e)
+      PAlias x pattern -> (pattern:ps, L s $ subst (deprime x) (Var v) e)
       _ -> c
 
 matchVar :: [String] -> [([Pattern],LExpr t v)] -> Match t v
@@ -76,7 +79,7 @@ matchVar (v:vs) cs def = match vs (map subVar cs) def
         where
           subOnePattern pattern e =
             case pattern of
-              PVar x     -> subst x (Var v) e
+              PVar x     -> subst (deprime x) (Var v) e
               PAnything  -> e
               PRecord fs ->
                  foldr (\x -> subst x (Access (L s (Var v)) x)) e fs
