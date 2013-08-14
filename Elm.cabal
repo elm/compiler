@@ -167,5 +167,5 @@ Executable elm
 Test-Suite test-elm
   Type:            exitcode-stdio-1.0
   Hs-Source-Dirs:  tests
-  Main-is:         Everything.hs
+  Main-is:         Main.hs
   build-depends:   base
