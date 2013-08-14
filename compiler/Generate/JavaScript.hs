@@ -10,7 +10,7 @@ import Data.Either (partitionEithers)
 import qualified Text.Pandoc as Pan
 
 import Unique
-import Generate.Cases (caseToMatch, deprime, matchSubst, Match(..), Clause(..))
+import Generate.Cases
 import SourceSyntax.Everything
 import SourceSyntax.Location
 import qualified Transform.SortDefinitions as SD
@@ -75,7 +75,7 @@ jsModule modul =
     jsExports = setup ("elm" : names modul) ++
                 ret (assign' ("elm." ++ modName) (brackets exs))
         where
-          exs = indent . commaSep . concatMap (pair . deprime) $ "_op" : exports modul
+          exs = indent . commaSep . concatMap pair $ "_op" : exports modul
           pair x | isOp x = []
                  | otherwise = ["\n" ++ x ++ " : " ++ x]
 
@@ -120,14 +120,13 @@ instance ToJS (Def t v) where
   -- TODO: Make this handle patterns besides plain variables
   toJS (Def (PVar x) e)
       | isOp x = globalAssign ("_op['" ++ x ++ "']")  `liftM` toJS' e
-      | otherwise = assign (deprime x) `liftM` toJS' e
+      | otherwise = assign x `liftM` toJS' e
 
   toJS (Def pattern e@(L s _)) =
       do n <- guid
          let x = "_" ++ show n
              var = L s . Var
-             toDef y' = let y = deprime y' in
-                        Def (PVar y) (L s $ Case (var x) [(pattern, var y)])
+             toDef y = Def (PVar y) (L s $ Case (var x) [(pattern, var y)])
          stmt <- assign x `liftM` toJS' e
          vars <- toJS . map toDef . Set.toList $ SD.boundVars pattern
          return (stmt ++ vars)
@@ -145,18 +144,18 @@ toJS' (L span expr) =
       Case e cases -> caseToJS span e cases
       _ -> toJS expr
 
-remove x e = "_N.remove('" ++ deprime x ++ "', " ++ e ++ ")"
-addField x v e = "_N.insert('" ++ deprime x ++ "', " ++ v ++ ", " ++ e ++ ")"
+remove x e = "_N.remove('" ++ x ++ "', " ++ e ++ ")"
+addField x v e = "_N.insert('" ++ x ++ "', " ++ v ++ ", " ++ e ++ ")"
 setField fs e = "_N.replace(" ++ jsList (map f fs) ++ ", " ++ e ++ ")"
-    where f (x,v) = "['" ++ deprime x ++ "'," ++ v ++ "]"
-access x e = e ++ "." ++ deprime x
+    where f (x,v) = "['" ++ x ++ "'," ++ v ++ "]"
+access x e = e ++ "." ++ x
 makeRecord kvs = record `liftM` collect kvs
   where
     combine r (k,v) = Map.insertWith (++) k v r
     collect = liftM (List.foldl' combine Map.empty) . mapM prep
     prep (k, e) =
         do v <- toJS' e
-           return (deprime k, [v])
+           return (k, [v])
     fields fs =
         brackets ("\n  "++List.intercalate ",\n  " (map (\(k,v) -> k++":"++v) fs))
     hidden = fields . map (second jsList) .
@@ -177,7 +176,7 @@ instance ToJS Literal where
 instance ToJS (Expr t v) where
  toJS expr =
   case expr of
-    Var x -> return (deprime x)
+    Var x -> return x
     Literal lit -> toJS lit
     Range lo hi -> jsRange `liftM` toJS' lo `ap` toJS' hi
     Access e x -> access x `liftM` toJS' e
@@ -200,7 +199,7 @@ instance ToJS (Expr t v) where
 
           depattern (pattern,n) (args, body) =
             case pattern of
-              PVar x -> (deprime x : args, body)
+              PVar x -> (x : args, body)
               _ -> let arg = "arg" ++ show n
                    in  (arg:args, L s (Case (L s (Var arg)) [(pattern, body)]))
 
@@ -268,7 +267,7 @@ caseToJS span e ps = do
   (tempVar,match) <- caseToMatch ps
   e' <- toJS' e
   let (match',stmt) = case e of
-        L _ (Var x) -> (matchSubst [(tempVar,deprime x)] match, "")
+        L _ (Var x) -> (matchSubst [(tempVar,x)] match, "")
         _           -> (match, assign tempVar e')
   matches <- matchToJS span match'
   return $ jsFunc "" (stmt ++ matches) ++ "()"

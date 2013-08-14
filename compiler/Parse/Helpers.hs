@@ -49,10 +49,13 @@ rLabel = lowVar
 innerVarChar :: IParser Char
 innerVarChar = alphaNum <|> char '_' <|> char '\'' <?> "" 
 
+deprime :: String -> String
+deprime = map (\c -> if c == '\'' then '$' else c)
+
 makeVar :: IParser Char -> IParser String
 makeVar p = do v <- (:) <$> p <*> many innerVarChar
                guard (v `notElem` reserveds)
-               return v
+               return (deprime v)
 
 reserved :: String -> IParser String
 reserved word =
