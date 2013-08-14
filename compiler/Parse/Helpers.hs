@@ -116,6 +116,12 @@ constrainedSpacePrefix p constraint =
       indented
       p
 
+failure msg = do
+  inp <- getInput
+  setInput ('x':inp)
+  anyToken
+  fail msg
+
 followedBy a b = do x <- a ; b ; return x
 
 betwixt a b c = do char a ; out <- c
