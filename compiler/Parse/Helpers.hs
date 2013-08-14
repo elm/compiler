@@ -110,11 +110,14 @@ spaceSep1 p =  (:) <$> p <*> spacePrefix p
 spacePrefix p = constrainedSpacePrefix p (\_ -> return ())
 
 constrainedSpacePrefix p constraint =
-    many . try $ do
-      n <- whitespace
-      constraint n
-      indented
-      p
+    many $ choice [ try (spacing >> lookAhead (oneOf "[({")) >> p
+                  , try (spacing >> p)
+                  ]
+    where
+      spacing = do
+        n <- whitespace
+        constraint n
+        indented
 
 failure msg = do
   inp <- getInput
