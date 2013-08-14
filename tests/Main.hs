@@ -1,4 +1,4 @@
-module Everything where
+module Main where
 
 import System.Exit
 
