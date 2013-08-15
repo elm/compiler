@@ -1,7 +1,9 @@
 module Main where
 
-import System.Exit
+import Test.Framework
+import Test.Framework.BlackBoxTest
 
-main = do
-  putStrLn "This test always fails"
-  exitFailure
+main :: IO () 
+main = htfMain tests
+
+tests = blackBoxTests "tests/good" "dist/build/elm/elm" ".elm" defaultBBTArgs
