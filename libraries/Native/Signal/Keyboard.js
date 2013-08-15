@@ -4,29 +4,76 @@ Elm.Native.Keyboard = function(elm) {
   elm.Native = elm.Native || {};
   if (elm.Native.Keyboard) return elm.Native.Keyboard;
 
+  // Duplicated from Native.Signal
+  function send(node, timestep, changed) {
+    var kids = node.kids;
+    for (var i = kids.length; i--; ) {
+      kids[i].recv(timestep, changed, node.id);
+    }
+  }
+
   var Signal = Elm.Signal(elm);
   var NList = Elm.Native.List(elm);
+  var Utils = Elm.Native.Utils(elm);
 
-  var keysDown = Signal.constant(NList.Nil);
-  var lastKey = Signal.constant('\0');
+  var downEvents = Signal.constant(0);
+  var upEvents = Signal.constant(0);
+  var blurEvents = Signal.constant(0);
 
-  elm.addListener([keysDown.id], document, 'keydown', function down(e) {
-          if (NList.member(e.keyCode)(keysDown.value)) return;
-          elm.notify(keysDown.id, NList.Cons(e.keyCode, keysDown.value));
-      });
-  elm.addListener([keysDown.id], document, 'keyup', function up(e) {
-          function notEq(kc) { return kc !== e.keyCode; }
-          elm.notify(keysDown.id, NList.filter(notEq)(keysDown.value));
-      });
-  elm.addListener([keysDown.id], document, 'blur', function blur(e) {
-          elm.notify(keysDown.id, NList.Nil);
-      });
-  elm.addListener([lastKey.id], document, 'keypress', function press(e) {
-          elm.notify(lastKey.id, e.charCode || e.keyCode);
-      });
+  elm.addListener([downEvents.id], document, 'keydown', function down(e) {
+    elm.notify(downEvents.id, e.keyCode);
+  });
+
+  elm.addListener([upEvents.id], document, 'keyup', function up(e) {
+    elm.notify(upEvents.id, e.keyCode);
+  });
+
+  elm.addListener([blurEvents.id], document, 'blur', function blur(e) {
+    elm.notify(blurEvents.id, NList.Nil);
+  });
+
+  function KeyMerge(down, up, blur) {
+    var args = [down,up,blur];
+    this.id = Utils.guid();
+    // Ignore starting values here
+    this.value = NList.Nil
+    this.kids = [];
+    
+    var n = args.length;
+    var count = 0;
+    var isChanged = false;
+
+    this.recv = function(timestep, changed, parentID) {
+      ++count;
+      if (changed) { 
+        isChanged = true;
+        // We know that a change must only be one of the following cases
+        if (parentID = down.id && !(NList.member(down.value)(this.value))) {
+          this.value = NList.Cons(down.value, this.value); 
+        } else if (parentID = up.id) {
+          var notEq = function(kc) { return kc !== up.value };
+          this.value = NList.filter(notEq)(this.value);
+        } else if (parentID = blur.id) {
+          this.value = NList.Nil;
+        }
+      }
+      if (count == n) {
+        console.log(this.value);
+        send(this, timestep, isChanged);
+        isChanged = false;
+        count = 0;
+      }
+    };
+
+    for (var i = n; i--; ) { args[i].kids.push(this); }
+
+  }
+
+  var keysDown = Signal.dropRepeats(new KeyMerge(downEvents,upEvents,blurEvents));
 
   function keySignal(f) {
-    var signal = Signal.dropRepeats(A2(Signal.lift, f, keysDown));
+    var signal = A2(Signal.lift, f, keysDown);
+    // what's the significance of these two following lines? -jpm
     keysDown.defaultNumberOfKids += 1;
     signal.defaultNumberOfKids = 0;
     return signal;
@@ -51,11 +98,13 @@ Elm.Native.Keyboard = function(elm) {
 
   function is(key) { return keySignal(NList.member(key)); }
 
+  var lastPressed = Signal.dropRepeats(downEvents);
+
   return elm.Native.Keyboard = {
-      isDown:is,
-      directions:F4(dir),
-      keysDown:keysDown,
-      lastPressed:lastKey
+    isDown:is,
+    directions:F4(dir),
+    keysDown:keysDown,
+    lastPressed:lastPressed
   };
 
 };
