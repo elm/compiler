@@ -46,19 +46,22 @@ Elm.Native.Keyboard = function(elm) {
     this.recv = function(timestep, changed, parentID) {
       ++count;
       if (changed) { 
-        isChanged = true;
-        // We know that a change must only be one of the following cases
-        if (parentID = down.id && !(NList.member(down.value)(this.value))) {
+        // We know this a change must only be one of the following cases
+        if (parentID === down.id && !(NList.member(down.value)(this.value))) {
+          isChanged = true;
           this.value = NList.Cons(down.value, this.value); 
-        } else if (parentID = up.id) {
+        } 
+        if (parentID === up.id) {
+          isChanged = true;
           var notEq = function(kc) { return kc !== up.value };
           this.value = NList.filter(notEq)(this.value);
-        } else if (parentID = blur.id) {
+        } 
+        if (parentID === blur.id) {
+          isChanged = true;
           this.value = NList.Nil;
         }
       }
       if (count == n) {
-        console.log(this.value);
         send(this, timestep, isChanged);
         isChanged = false;
         count = 0;
