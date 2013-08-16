@@ -64,7 +64,7 @@ expr :: IParser T.Type
 expr =
   do t1 <- app <|> term
      whitespace
-     arr <- optionMaybe arrow
+     arr <- optionMaybe (try arrow)
      whitespace
      case arr of
        Just _  -> T.Lambda t1 <$> expr
