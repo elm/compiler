@@ -297,14 +297,14 @@ matchToJS span match =
 clauseToJS span var (Clause value vars e) = do
   let vars' = map (\n -> var ++ "._" ++ show n) [0..]
   s <- matchToJS span $ matchSubst (zip vars vars') e
-  return $ concat [ "\ncase ", case value of
-                                 Right (Boolean True)  -> "true"
-                                 Right (Boolean False) -> "false"
-                                 Right lit -> show lit
-                                 Left name -> quoted $ case List.elemIndices '.' name of
-                                                         [] -> name
-                                                         is -> drop (last is + 1) name
-                  , ":", indent s ]
+  pattern <- case value of
+               Right (Boolean True)  -> return "true"
+               Right (Boolean False) -> return "false"
+               Right lit -> toJS lit
+               Left name -> return . quoted $ case List.elemIndices '.' name of
+                                                [] -> name
+                                                is -> drop (last is + 1) name
+  return $ concat [ "\ncase ", pattern, ":", indent s ]
 
 jsNil         = "_L.Nil"
 jsCons  e1 e2 = "_L.Cons(" ++ e1 ++ "," ++ e2 ++ ")"
