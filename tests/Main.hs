@@ -1,15 +1,22 @@
 module Main where
 
-import Test.Framework
+import System.Directory
+import System.Exit (exitWith)
+import System.Environment (getArgs)
+import Test.Framework.TestManager
 import Test.Framework.BlackBoxTest
 
 main :: IO () 
 main = do
-  tests <- blackBoxTests "tests/good" "dist/build/elm/elm" ".elm" args
-  htfMain tests
+  args  <- getArgs
+  tests <- blackBoxTests "tests/good" "dist/build/elm/elm" ".elm" bbtArgs
+  code  <- runTestWithArgs args tests
+  removeDirectoryRecursive "cache"
+  removeDirectoryRecursive "build"
+  exitWith code
 
-args = defaultBBTArgs { bbtArgs_stdoutDiff = ignoreDiff
-                      , bbtArgs_stderrDiff = ignoreDiff }
+bbtArgs = defaultBBTArgs { bbtArgs_stdoutDiff = ignoreDiff
+                         , bbtArgs_stderrDiff = ignoreDiff }
 
 ignoreDiff :: Diff
 ignoreDiff _ _ = return Nothing
