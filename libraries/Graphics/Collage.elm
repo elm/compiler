@@ -81,6 +81,31 @@ data BasicForm
 form : BasicForm -> Form
 form f = { theta=0, scale=1, x=0, y=0, alpha=1, form=f }
 
+type BoundingBox = {
+  xmin : Int,
+  xmax : Int,
+  ymin : Int,
+  ymax : Int
+}
+
+boundingBox : Form -> BoundingBox
+boundingBox form = case form.form of
+  FPath _ path ->
+      let (xs, ys) = unzip path
+      in BoundingBox (minimum xs) (maximum xs) (minimum ys) (maximum ys)
+  FShape _ shape ->
+      let (xs, ys) = unzip shape
+      in BoundingBox (minimum xs) (maximum xs) (minimum ys) (maximum ys)
+  FImage w h (x,y) _ ->  BoundingBox x (x+w) y (y+h)
+  FElement element -> BoundingBox 0 element.props.width 0 element.props.height
+  FGroup _ forms ->
+    let bboxes = map boundingBox forms
+        xmins = map .xmin bboxes
+        xmaxs = map .xmax bboxes
+        ymins = map .ymin bboxes
+        ymaxs = map .ymax bboxes
+     in BoundingBox (minimum xmins) (maximum xmaxs) (minimum ymins) (maximum ymaxs)
+
 fill style shape = form (FShape (Right style) shape)
 
 -- Create a filled in shape.
@@ -125,11 +150,40 @@ group fs = form (FGroup identity fs)
 groupTransform : Matrix2D -> [Form] -> Form
 groupTransform matrix fs = form (FGroup matrix fs)
 
--- Rotate a form by a given angle. Rotate takes standard Elm angles (radians)
--- and turns things counterclockwise. So to turn `form` 30&deg; to the left
--- you would say, `(rotate (degrees 30) form)`.
+-- Rotate a form by a given angle around its centerpoint. Rotate takes standard
+-- Elm angles (radians) and turns things counterclockwise. So to turn `form`
+-- 30&deg; to the left you would say, `(rotate (degrees 30) form)`.
 rotate : number -> Form -> Form
 rotate t f = { f | theta <- f.theta + t }
+
+-- Rotate a form by a given angle, around a center of rotation given by the
+-- [position](/docs/Graphics/Element.elm#middle) on the form's bounding box.
+-- (Note that this doesn't always work with groups of forms where some elements
+-- have already been transformed.)
+rotateAround : Position -> Float -> Form -> Form
+rotateAround pos deltaTheta form = 
+  let h = pos.horizontal
+      v = pos.vertical
+      theta = deltaTheta + form.theta
+      bbox = boundingBox form
+      w2 = toFloat (bbox.xmax - bbox.xmin) * form.scale / 2
+      h2 = toFloat (bbox.ymax - bbox.ymin) * form.scale / 2
+      r = sqrt (w2*w2 + h2*h2)
+      chord r = r * 2 * sin (deltaTheta/2)
+      alpha = atan2 h2 w2
+      beta = (pi - deltaTheta)/2 -- isoceles triangle with theta
+      tb = theta + beta
+      rotated = rotate deltaTheta form
+  in case (h,v) of
+{-middle-}     (Z,Z) -> rotated
+{-midLeft-}    (N,Z) -> movePolar ((chord w2),(tb               )) rotated
+{-midBottom-}  (Z,N) -> movePolar ((chord h2),(tb + (turns 0.25))) rotated
+{-midRight-}   (P,Z) -> movePolar ((chord w2),(tb + (turns 0.5 ))) rotated
+{-midTop-}     (Z,P) -> movePolar ((chord h2),(tb + (turns 0.75))) rotated
+{-topLeft-}    (N,P) -> movePolar ( (chord r),(tb - alpha)) rotated
+{-topRight-}   (P,P) -> movePolar (-(chord r),(tb + alpha)) rotated
+{-bottomLeft-} (N,N) -> movePolar ( (chord r),(tb + alpha)) rotated
+{-bottomRight-}(P,N) -> movePolar (-(chord r),(tb - alpha)) rotated
 
 -- Scale a form by a given factor. Scaling by 2 doubles the size.
 scale : number -> Form -> Form
@@ -150,6 +204,10 @@ moveX x f = { f | x <- f.x + x }
 -- `form` upwards by 10 pixels.
 moveY : number -> Form -> Form
 moveY y f = { f | y <- f.y + y }
+
+-- Move a shape by a relative amount in polar coordinates (r, theta).
+movePolar : (number,number) -> Form -> Form
+movePolar (r,t) f = { f | x <- f.x + r * cos t, y <- f.y + r * sin t }
 
 -- Set the alpha of a `Form`. The default is 1, and 0 is totally transparent.
 alpha : Float -> Form -> Form
