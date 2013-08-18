@@ -168,4 +168,4 @@ Test-Suite test-elm
   Type:            exitcode-stdio-1.0
   Hs-Source-Dirs:  tests
   Main-is:         Main.hs
-  build-depends:   base, HTF
+  build-depends:   base, directory, HTF
