@@ -19,13 +19,25 @@ num = fmap toLit (preNum <?> "number")
                        string "."
                        ('.':) <$> many1 digit
 
-str :: IParser Literal
-str = choice [ let quote = try (string "\"\"\"")
-               in  quote >> Str <$> manyTill (backslashed <|> anyChar) quote
-             , liftM Str . expecting "string" . betwixt '"' '"' . many $
-               backslashed <|> satisfy (/='"')
-             ]
-
 chr :: IParser Literal
 chr = Chr <$> betwixt '\'' '\'' (backslashed <|> satisfy (/='\''))
       <?> "character"
+
+str :: IParser Literal
+str = choice [ quote >> str <$> manyTill (backslashed <|> anyChar) quote
+             , liftM Str . expecting "string" . betwixt '"' '"' . many $
+               backslashed <|> satisfy (/='"')
+             ]
+    where
+      quote = try (string "\"\"\"")
+      str = Str . dewindows
+
+      -- Remove \r from strings to fix generated JavaScript
+      dewindows [] = []
+      dewindows cs =
+          let (pre, suf) = break (`elem` ['\r','\n']) cs
+          in  pre ++ case suf of 
+                       ('\r':'\n':rest) -> '\n' : dewindows rest
+                       ('\n':rest)      -> '\n' : dewindows rest
+                       ('\r':rest)      -> '\n' : dewindows rest
+                       _                -> []

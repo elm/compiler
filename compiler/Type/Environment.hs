@@ -99,7 +99,7 @@ ctorToType env (name, tvars, ctors) =
 get :: Environment -> (Environment -> Map.Map String a) -> String -> a
 get env subDict key = Map.findWithDefault err key (subDict env)
   where
-    err = error $ "Could not find type constructor '" ++ key ++ "' while checking types."
+    err = error $ "\nCould not find type constructor '" ++ key ++ "' while checking types."
 
 
 freshDataScheme :: Environment -> String -> IO (Int, [Variable], [Type], Type)
@@ -122,38 +122,40 @@ instantiator env sourceType = go sourceType
 
         Src.Var x -> do
           (dict, aliases) <- State.get
-          case Map.lookup x dict of
-            Just var -> return (VarN var)
-            Nothing ->
-                case Map.lookup x aliases of
-                  Just t -> return t
-                  Nothing ->
-                    do var <- State.liftIO $ namedVar flex x
-                       State.put (Map.insert x var dict, aliases)
-                       return (VarN var)
-                    where
-                      flex | "number"     `isPrefixOf` x = Is Number
-                           | "comparable" `isPrefixOf` x = Is Comparable
-                           | "appendable" `isPrefixOf` x = Is Appendable
-                           | otherwise = Flexible
+          case (Map.lookup x dict, Map.lookup x aliases) of
+            (_, Just t) -> return t
+            (Just v, _) -> return (VarN v)
+            _ ->
+                do var <- State.liftIO $ namedVar flex x
+                   State.put (Map.insert x var dict, aliases)
+                   return (VarN var)
+                where
+                  flex | "number"     `isPrefixOf` x = Is Number
+                       | "comparable" `isPrefixOf` x = Is Comparable
+                       | "appendable" `isPrefixOf` x = Is Appendable
+                       | otherwise = Flexible
 
         Src.Data "String" [] ->
             return (get env types "_List" <| get env types "Char")
 
         Src.Data name ts -> do
           ts' <- mapM go ts
-          case Map.lookup name (types env) of
-            Just t -> return $ foldl (<|) t ts'
-            Nothing ->
-                case Map.lookup name (aliases env) of
-                  Nothing -> error $ "Could not find type constructor '" ++ name ++ "' while checking types."
-                  Just (tvars, t) ->
-                      let msg = "Type alias '" ++ name ++ "' expects " ++ show (length tvars) ++
-                                " but was given " ++ show (length ts')
-                      in  if length ts' /= length tvars then error msg else
-                              do (dict, aliases) <- State.get
-                                 State.put (dict, Map.union aliases . Map.fromList $ zip tvars ts')
-                                 go t
+          case (Map.lookup name (types env), Map.lookup name (aliases env)) of
+            (Just t, _) -> return $ foldl (<|) t ts'
+            (_, Just (tvars, t)) ->
+                let tvarLen = length tvars
+                    msg = "\nType alias '" ++ name ++ "' expects " ++ show tvarLen ++
+                          " type argument" ++ (if tvarLen == 1 then "" else "s") ++
+                          " but was given " ++ show (length ts')
+                in  if length ts' /= length tvars then error msg else
+                        do (dict, aliases) <- State.get
+                           let aliases' = Map.union (Map.fromList $ zip tvars ts') aliases
+                           State.put (dict, aliases')
+                           t' <- go t
+                           State.put (dict, aliases)
+                           return t'
+            _ -> error $ "\nCould not find type constructor '" ++
+                         name ++ "' while checking types."
 
         Src.EmptyRecord -> return (TermN EmptyRecord1)
 

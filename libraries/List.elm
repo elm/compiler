@@ -91,11 +91,11 @@ any = Native.List.any
 
 -- Check to see if all elements are True.
 and : [Bool] -> Bool
-and = Native.List.and
+and = foldl (&&) True
 
 -- Check to see if any elements are True.
 or : [Bool] -> Bool
-or = Native.List.or
+or = foldl (||) False
 
 -- Concatenate a list of appendable things:
 --

@@ -62,9 +62,11 @@ addError span message t1 t2 =
             NoSpan msg -> display msg
             Span _ _ msg -> display msg
 
+    defaultMessage = "Something weird is happening with this value:"
+
     makeError pt1 pt2 =
         P.vcat [ P.text $ "Type error" ++ location ++ ":"
-               , if null message then empty else P.vcat . map P.text $ lines message
+               , P.vcat . map P.text . lines $ if null message then defaultMessage else message
                , P.text src
                , P.text "   Expected Type:" <+> pt1
                , P.text "     Actual Type:" <+> pt2 <> P.text "\n"
@@ -137,7 +139,8 @@ makeCopy alreadyCopied variable = do
     () | mark desc == alreadyCopied ->
            case copy desc of
              Just v -> return v
-             Nothing -> error "This should be impossible."
+             Nothing -> error $ "Error copying type variable. This should be impossible." ++
+                                " Please report an error to the github repo!"
 
        | rank desc /= noRank || flex desc == Constant ->
            return variable

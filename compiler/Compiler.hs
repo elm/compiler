@@ -10,16 +10,19 @@ import System.Console.CmdArgs hiding (program)
 import System.Directory
 import System.Exit
 import System.FilePath
+import System.IO
 import GHC.Conc
 
 import qualified Text.Blaze.Html.Renderer.Pretty as Pretty
 import qualified Text.Blaze.Html.Renderer.String as Normal
 import qualified Text.Jasmine as JS
 import qualified Data.ByteString.Lazy.Char8 as BS
+import qualified Data.ByteString.Lazy as L
 
 import qualified Metadata.Prelude as Prelude
 import qualified Transform.Canonicalize as Canonical
 import SourceSyntax.Module
+import Parse.Module (getModuleName)
 import Initialize (buildFromSource, getSortedDependencies)
 import Generate.JavaScript (jsModule)
 import Generate.Html (createHtml, JSStyle(..), JSSource(..))
@@ -40,7 +43,8 @@ data Flags =
           , scripts :: [FilePath]
           , no_prelude :: Bool
           , minify :: Bool
-	  , output_directory :: FilePath
+	  , cache_dir :: FilePath
+	  , build_dir :: FilePath
           }
     deriving (Data,Typeable,Show,Eq)
 
@@ -62,8 +66,10 @@ flags = Flags
                  &= help "Do not import Prelude by default, used only when compiling standard libraries."
   , minify = False
              &= help "Minify generated JavaScript and HTML"
-  , output_directory = "ElmFiles" &= typFile
-                       &= help "Output files to directory specified. Defaults to ElmFiles/ directory."
+  , cache_dir = "cache" &= typFile
+                &= help "Directory for files cached to make builds faster. Defaults to cache/ directory."
+  , build_dir = "build" &= typFile
+                &= help "Directory for generated HTML and JS files. Defaults to build/ directory."
   } &= help "Compile Elm programs to HTML, CSS, and JavaScript."
     &= summary ("The Elm Compiler " ++ showVersion version ++ ", (c) Evan Czaplicki")
 
@@ -78,25 +84,32 @@ compileArgs flags =
       fs -> mapM_ (build flags) fs
           
 
-file :: Flags -> FilePath -> String -> FilePath
-file flags filePath ext = output_directory flags </> replaceExtension filePath ext
+buildPath :: Flags -> FilePath -> String -> FilePath
+buildPath flags filePath ext = build_dir flags </> replaceExtension filePath ext
+
+cachePath :: Flags -> FilePath -> String -> FilePath
+cachePath flags filePath ext = cache_dir flags </> replaceExtension filePath ext
 
 elmo :: Flags -> FilePath -> FilePath
-elmo flags filePath = file flags filePath "elmo"
+elmo flags filePath = cachePath flags filePath "elmo"
 
 elmi :: Flags -> FilePath -> FilePath
-elmi flags filePath = file flags filePath "elmi"
+elmi flags filePath = cachePath flags filePath "elmi"
 
 
-buildFile :: Flags -> Int -> Int -> Interfaces -> FilePath -> IO ModuleInterface
+buildFile :: Flags -> Int -> Int -> Interfaces -> FilePath -> IO (String,ModuleInterface)
 buildFile flags moduleNum numModules interfaces filePath =
     do compiled <- alreadyCompiled
-       if not compiled then compile
-                       else getInterface `fmap` Binary.decodeFile (elmi flags filePath)
+       case compiled of
+         False -> compile
+         True -> do
+           handle <- openBinaryFile (elmi flags filePath) ReadMode
+           bits <- L.hGetContents handle
+           let info :: (String, ModuleInterface)
+               info = Binary.decode bits
+           L.length bits `seq` hClose handle
+           return info
     where
-      getInterface :: (String, ModuleInterface) -> ModuleInterface
-      getInterface = snd
-
       alreadyCompiled :: IO Bool
       alreadyCompiled = do
         existsi <- doesFileExist (elmi flags filePath)
@@ -110,16 +123,18 @@ buildFile flags moduleNum numModules interfaces filePath =
       number :: String
       number = "[" ++ show moduleNum ++ " of " ++ show numModules ++ "]"
 
-      name :: String
-      name = List.intercalate "." (splitDirectories (dropExtensions filePath))
-
-      compile :: IO ModuleInterface
+      compile :: IO (String,ModuleInterface)
       compile = do
+        source <- readFile filePath
+        let name = case getModuleName source of
+                     Just n -> n
+                     Nothing -> "Main"
         putStrLn $ concat [ number, " Compiling ", name
                           , replicate (max 1 (20 - length name)) ' '
                           , "( " ++ filePath ++ " )" ]
-        source <- readFile filePath
-        createDirectoryIfMissing True (output_directory flags)
+        
+        createDirectoryIfMissing True (cache_dir flags)
+        createDirectoryIfMissing True (build_dir flags)
         metaModule <-
             case buildFromSource (no_prelude flags) interfaces source of
               Left errors -> do
@@ -139,9 +154,11 @@ buildFile flags moduleNum numModules interfaces filePath =
                           iAliases = aliases metaModule
                         }
         createDirectoryIfMissing True . dropFileName $ elmi flags filePath
-        Binary.encodeFile (elmi flags filePath) (name,interface)
+        handle <- openBinaryFile (elmi flags filePath) WriteMode
+        L.hPut handle (Binary.encode (name,interface))
+        hClose handle
         writeFile (elmo flags filePath) (jsModule metaModule)
-        return interface
+        return (name,interface)
 
 printTypes metaModule = do
   putStrLn ""
@@ -161,18 +178,20 @@ build flags rootFile = do
   let noPrelude = no_prelude flags
   files <- if make flags then getSortedDependencies noPrelude rootFile else return [rootFile]
   let ifaces = if noPrelude then Map.empty else Prelude.interfaces
-  interfaces <- buildFiles flags (length files) ifaces files
+  (moduleName, interfaces) <- buildFiles flags (length files) ifaces "" files
   js <- foldM appendToOutput "" files
   case only_js flags of
     True -> do
       putStr "Generating JavaScript ... "
-      writeFile (file flags rootFile "js") (genJs js)
+      writeFile (buildPath flags rootFile "js") (genJs js)
       putStrLn "Done"
     False -> do
       putStr "Generating HTML ... "
       runtime <- getRuntime flags
-      let html = genHtml $ createHtml runtime (takeBaseName rootFile) (sources js) ""
-      writeFile (file flags rootFile "html") html
+      let html = genHtml $ createHtml runtime (takeBaseName rootFile) (sources js) moduleName ""
+          htmlFile = buildPath flags rootFile "html"
+      createDirectoryIfMissing True (takeDirectory htmlFile)
+      writeFile htmlFile html
       putStrLn "Done"
 
     where
@@ -187,10 +206,9 @@ build flags rootFile = do
                    [ Source (if minify flags then Minified else Readable) js ]
 
 
-buildFiles :: Flags -> Int -> Interfaces -> [FilePath] -> IO Interfaces
-buildFiles _ _ interfaces [] = return interfaces
-buildFiles flags numModules interfaces (filePath:rest) = do
-  interface <- buildFile flags (numModules - length rest) numModules interfaces filePath
-  let moduleName = List.intercalate "." . splitDirectories $ dropExtensions filePath
-      interfaces' = Map.insert moduleName interface interfaces
-  buildFiles flags numModules interfaces' rest
+buildFiles :: Flags -> Int -> Interfaces -> String -> [FilePath] -> IO (String, Interfaces)
+buildFiles _ _ interfaces moduleName [] = return (moduleName, interfaces)
+buildFiles flags numModules interfaces _ (filePath:rest) = do
+  (name,interface) <- buildFile flags (numModules - length rest) numModules interfaces filePath
+  let interfaces' = Map.insert name interface interfaces
+  buildFiles flags numModules interfaces' name rest

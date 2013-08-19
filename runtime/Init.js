@@ -115,7 +115,6 @@ function init(display, container, module, moduleToReplace) {
 
       // rerender scene if graphics are enabled.
       if (typeof graphicsNode !== 'undefined') {
-          graphicsNode.value = A2( Elm.Graphics.Element(elm).spacer, 0, 0 );
           graphicsNode.recv(0, true, 0);
       }
   }

@@ -80,12 +80,12 @@ average : Int -> Automaton Float Float
 average k =
   let step n (ns,len,sum) =
           if len == k then stepFull n (ns,len,sum)
-                      else ((enqueue n ns, len+1, sum+n), (sum+n) / (len+1))
+                      else ((enqueue n ns, len+1, sum+n), (sum+n) / (toFloat len+1))
       stepFull n (ns,len,sum) =
           case dequeue ns of
             Nothing -> ((ns,len,sum), 0)
             Just (m,ns') -> let sum' = sum + n - m
-                            in ((enqueue n ns', len, sum'), sum' / len)
+                            in ((enqueue n ns', len, sum'), sum' / toFloat len)
   in  hiddenState (empty,0,0) step
 
 

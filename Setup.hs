@@ -11,6 +11,7 @@ import System.Process
 
 import Control.Monad
 import qualified Data.Binary as Binary
+import qualified Data.ByteString.Lazy as BS
 
 -- Part 1
 -- ------
@@ -32,10 +33,10 @@ import qualified Data.Binary as Binary
 -- Elm.cabal expects the generated files to end up in dist/data
 -- git won't look in dist + cabal will clean it
 rtsDir :: LocalBuildInfo -> FilePath
-rtsDir lbi = buildDir lbi </> ".." </> "data"
+rtsDir lbi = "data"
 
 tempDir :: LocalBuildInfo -> FilePath
-tempDir lbi = buildDir lbi </> ".." </> "temp"
+tempDir lbi = "temp"
 
 -- The runtime is called:
 rts :: LocalBuildInfo -> FilePath
@@ -95,24 +96,25 @@ myPostBuild as bfs pd lbi = do
     buildInterfaces lbi elmis
     putStrLn "Custom build step: build elm-runtime.js"
     buildRuntime lbi elmos
-    removeDirectoryRecursive ("dist" </> "temp")
+    removeDirectoryRecursive (tempDir lbi)
     postBuild simpleUserHooks as bfs pd lbi
 
 
 compileLibraries lbi = do
-  let temp = tempDir lbi                    -- dist/temp
-      rts  = rtsDir  lbi                    -- dist/data
+  let temp = tempDir lbi                    -- temp
+      rts  = rtsDir  lbi                    -- data
   createDirectoryIfMissing True temp
   createDirectoryIfMissing True rts
-  out_c <- canonicalizePath temp            -- dist/temp (root folder)
+  out_c <- canonicalizePath temp            -- temp (root folder)
   elm_c <- canonicalizePath (elm lbi)       -- dist/build/elm/elm
-  rtd_c <- canonicalizePath rts             -- dist/data (for docs.json)
+  rtd_c <- canonicalizePath rts             -- data
 
   let make file = do
         -- replace 'system' call with 'runProcess' which handles args better
         -- and allows env variable "Elm_datadir" which is used by LoadLibraries
         -- to find docs.json
-        let args = ["--only-js","--make","--no-prelude","--output-directory="++out_c,file]
+        let args = [ "--only-js", "--make", "--no-prelude"
+                   , "--cache-dir="++out_c, "--build-dir="++out_c, file ]
             arg = Just [("Elm_datadir", rtd_c)]
         handle <- runProcess elm_c args Nothing arg Nothing Nothing Nothing
         exitCode <- waitForProcess handle
@@ -130,8 +132,15 @@ buildInterfaces :: LocalBuildInfo -> [FilePath] -> IO ()
 buildInterfaces lbi elmis = do
   createDirectoryIfMissing True (rtsDir lbi)
   let ifaces = interfaces lbi
-  Binary.encodeFile ifaces (length elmis)
-  mapM_ (\elmi -> readFile elmi >>= appendFile ifaces) elmis
+  ifaceHandle <- openBinaryFile ifaces WriteMode
+  BS.hPut ifaceHandle (Binary.encode (length elmis))
+  let append file = do
+        handle <- openBinaryFile file ReadMode
+        bits <- hGetContents handle
+        length bits `seq` hPutStr ifaceHandle bits
+        hClose handle
+  mapM_ append elmis
+  hClose ifaceHandle
 
 buildRuntime :: LocalBuildInfo -> [FilePath] -> IO ()
 buildRuntime lbi elmos = do

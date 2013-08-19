@@ -61,7 +61,7 @@ metadataModule ifaces modul =
     second f (a,b) = (,) a `fmap` f b
     third f (a,b,c) = (,,) a b `fmap` f c
     renameType' =
-        Either.either (\err -> Left [P.text err]) return . renameType (replace initialEnv)
+        Either.either (\err -> Left [P.text err]) return . renameType (replace "type" initialEnv)
 
     get1 (a,_,_) = a
     canon (name, importMethod) =
@@ -92,12 +92,12 @@ extend env pattern = Map.union (Map.fromList (zip xs xs)) env
     where xs = Set.toList (SD.boundVars pattern)
 
 
-replace :: Env -> String -> Either String String
-replace env v =
+replace :: String -> Env -> String -> Either String String
+replace variable env v =
     if List.isPrefixOf "Native." v then return v else
     case Map.lookup v env of
       Just v' -> return v'
-      Nothing -> Left $ "Could not find variable '" ++ v ++ "'." ++ msg
+      Nothing -> Left $ "Could not find " ++ variable ++ " '" ++ v ++ "'." ++ msg
           where
             matches = filter (List.isInfixOf v) (Map.keys env)
             msg = if null matches then "" else
@@ -129,12 +129,12 @@ rename env lexpr@(L s expr) =
             frnm (f,e) = (,) f `liftM` rename env e
 
       Binop op e1 e2 ->
-          do op' <- format (replace env op)
+          do op' <- format (replace "variable" env op)
              Binop op' `liftM` rnm e1 `ap` rnm e2
 
       Lambda pattern e ->
           let env' = extend env pattern in
-          Lambda pattern `liftM` rename env' e
+          Lambda `liftM` format (renamePattern env' pattern) `ap` rename env' e
 
       App e1 e2 -> App `liftM` rnm e1 `ap` rnm e2
 
@@ -149,9 +149,10 @@ rename env lexpr@(L s expr) =
                   Def p exp ->
                       Def `liftM` format (renamePattern env' p) `ap` rename env' exp
                   TypeAnnotation name tipe ->
-                      TypeAnnotation name `liftM` renameType (format . replace env') tipe
+                      TypeAnnotation name `liftM`
+                          renameType (format . replace "variable" env') tipe
 
-      Var x -> Var `liftM` format (replace env x)
+      Var x -> Var `liftM` format (replace "variable" env x)
 
       Data name es -> Data name `liftM` mapM rnm es
 
@@ -173,5 +174,5 @@ renamePattern env pattern =
       PRecord _ -> return pattern
       PAnything -> return pattern
       PAlias x p -> PAlias x `liftM` renamePattern env p
-      PData name ps -> PData `liftM` replace env name
+      PData name ps -> PData `liftM` replace "pattern" env name
                                 `ap` mapM (renamePattern env) ps

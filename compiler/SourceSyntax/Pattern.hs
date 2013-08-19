@@ -27,8 +27,8 @@ instance Pretty Pattern where
    case pattern of
      PVar x -> variable x
      PLiteral lit -> pretty lit
-     PRecord fs -> PP.braces (commaCat $ map PP.text fs)
-     PAlias x p -> prettyParens p <+> PP.text "as" <+> PP.text x
+     PRecord fs -> PP.braces (commaCat $ map variable fs)
+     PAlias x p -> prettyParens p <+> PP.text "as" <+> variable x
      PAnything -> PP.text "_"
      PData "::" [hd,tl] -> parensIf isCons (pretty hd) <+> PP.text "::" <+> pretty tl
        where isCons = case hd of

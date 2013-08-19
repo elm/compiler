@@ -49,10 +49,13 @@ rLabel = lowVar
 innerVarChar :: IParser Char
 innerVarChar = alphaNum <|> char '_' <|> char '\'' <?> "" 
 
+deprime :: String -> String
+deprime = map (\c -> if c == '\'' then '$' else c)
+
 makeVar :: IParser Char -> IParser String
 makeVar p = do v <- (:) <$> p <*> many innerVarChar
                guard (v `notElem` reserveds)
-               return v
+               return (deprime v)
 
 reserved :: String -> IParser String
 reserved word =
@@ -110,11 +113,20 @@ spaceSep1 p =  (:) <$> p <*> spacePrefix p
 spacePrefix p = constrainedSpacePrefix p (\_ -> return ())
 
 constrainedSpacePrefix p constraint =
-    many . try $ do
-      n <- whitespace
-      constraint n
-      indented
-      p
+    many $ choice [ try (spacing >> lookAhead (oneOf "[({")) >> p
+                  , try (spacing >> p)
+                  ]
+    where
+      spacing = do
+        n <- whitespace
+        constraint n
+        indented
+
+failure msg = do
+  inp <- getInput
+  setInput ('x':inp)
+  anyToken
+  fail msg
 
 followedBy a b = do x <- a ; b ; return x
 

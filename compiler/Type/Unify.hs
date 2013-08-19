@@ -7,6 +7,8 @@ import qualified Type.State as TS
 import Control.Arrow (first,second)
 import Control.Monad.State
 import SourceSyntax.Location
+import Type.PrettyPrint
+import Text.PrettyPrint (render)
 
 unify :: SrcSpan -> Variable -> Variable -> StateT TS.SolverState IO ()
 unify span variable1 variable2 = do
@@ -75,7 +77,7 @@ actuallyUnify span variable1 variable2 = do
         unify' variable1 variable2
 
       unifyNumber svar name
-          | name `elem` ["Int","Float"] = flexAndUnify svar
+          | name `elem` ["Int","Float","number"] = flexAndUnify svar
           | otherwise = TS.addError span "Expecting a number (Int or Float)" variable1 variable2
 
       comparableError str = TS.addError span (str ++ msg) variable1 variable2
@@ -83,7 +85,7 @@ actuallyUnify span variable1 variable2 = do
                       "Int, Float, Char, or a list or tuple of comparables."
 
       unifyComparable var name
-          | name `elem` ["Int","Float","Char"] = flexAndUnify var
+          | name `elem` ["Int","Float","Char","comparable"] = flexAndUnify var
           | otherwise = comparableError ""
 
       unifyComparableStructure varSuper varFlex =
@@ -106,6 +108,12 @@ actuallyUnify span variable1 variable2 = do
                List _ -> flexAndUnify varSuper
                _ -> comparableError ""
 
+      rigidError variable = TS.addError span msg variable1 variable2
+          where
+            msg = concat
+                  [ "Cannot unify rigid type variable '", render (pretty Never variable), "'.\n"
+                  , "It is likely that a type annotation is not general enough." ]
+
       superUnify =
           case (flex desc1, flex desc2, name desc1, name desc2) of
             (Is super1, Is super2, _, _)
@@ -126,6 +134,8 @@ actuallyUnify span variable1 variable2 = do
             (Is Appendable, _, _, _) -> unifyAppendable variable1 variable2
             (_, Is Appendable, _, _) -> unifyAppendable variable2 variable1
 
+            (Rigid, _, _, _) -> rigidError variable1
+            (_, Rigid, _, _) -> rigidError variable2
             _ -> TS.addError span "" variable1 variable2
 
   case (structure desc1, structure desc2) of
@@ -158,7 +168,7 @@ actuallyUnify span variable1 variable2 = do
 
           (Record1 fields1 ext1, Record1 fields2 ext2) ->
               do sequence . concat . Map.elems $ Map.intersectionWith (zipWith unify') fields1 fields2
-                 let mkRecord fs ext = liftIO . structuredVar $ Record1 fs ext
+                 let mkRecord fs ext = fresh . Just $ Record1 fs ext
                  case (Map.null fields1', Map.null fields2') of
                    (True , True ) -> unify' ext1 ext2
                    (True , False) -> do
@@ -168,8 +178,8 @@ actuallyUnify span variable1 variable2 = do
                       record1' <- mkRecord fields1' ext1
                       unify' record1' ext2
                    (False, False) -> do
-                      record1' <- mkRecord fields1' =<< liftIO (var Flexible)
-                      record2' <- mkRecord fields2' =<< liftIO (var Flexible)
+                      record1' <- mkRecord fields1' =<< fresh Nothing
+                      record2' <- mkRecord fields2' =<< fresh Nothing
                       unify' record1' ext2
                       unify' ext1 record2'
               where

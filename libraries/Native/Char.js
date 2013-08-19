@@ -16,7 +16,7 @@ Elm.Native.Char = function(elm) {
 
  return elm.Native.Char = {
      fromCode : function(c) { return String.fromCharCode(c); },
-     toCode   : function(c) { return c.charCodeAt(0); },
+     toCode   : function(c) { return c.toUpperCase().charCodeAt(0); },
      toUpper  : function(c) { return c.toUpperCase(); },
      toLower  : function(c) { return c.toLowerCase(); },
      toLocaleUpper : function(c) { return c.toLocaleUpperCase(); },

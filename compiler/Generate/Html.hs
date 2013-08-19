@@ -40,27 +40,10 @@ generateHtml :: String -- ^ Location of elm-runtime.js as expected by the browse
              -> String -- ^ The page title
              -> String -- ^ The elm source code.
              -> H.Html
-generateHtml libLoc title source = H.span "broken for now"
-{--
-  case buildFromSource True source of
-    Right modul -> createHtml libLoc title [] "" title [modul]
-    Left err -> createHtml Readable libLoc title (Right $ showErr err)
-                (H.noscript "") "Main"
---}
-{--
-modulesToHtml :: FilePath -> String -> []
-modulesToHtml libLoc title scripts nscrpt modules =
-  createHtml jsStyle libLoc title' js noscript altTitle
-    where
-      js = Right $ jss ++ concatMap jsModule modules
-      noscript = if nscrpt then extractNoscript $ last modules else ""
-      title' = if null title then altTitle else title
-      altTitle = intercalate "." names
-          where Module names _ _ _ = last modules
---}                 
+generateHtml libLoc title source = error "function 'generateHtml' is unimplemented for now"
 
-createHtml :: FilePath -> String -> [JSSource] -> String -> H.Html
-createHtml libLoc title scripts noscript =
+createHtml :: FilePath -> String -> [JSSource] -> String -> String -> H.Html
+createHtml libLoc title scripts moduleName noscript =
     H.docTypeHtml $ do 
       H.head $ do
         H.meta ! A.charset "UTF-8"
@@ -68,5 +51,6 @@ createHtml libLoc title scripts noscript =
         makeScript (Link libLoc)
         mapM_ makeScript scripts
       H.body $ do
-        H.script ! A.type_ "text/javascript" $ preEscapedToMarkup ("Elm.fullscreen(Elm.Main)" :: String)
+        H.script ! A.type_ "text/javascript" $
+               preEscapedToMarkup ("Elm.fullscreen(Elm." ++ moduleName ++ ")")
         H.noscript $ preEscapedToMarkup noscript

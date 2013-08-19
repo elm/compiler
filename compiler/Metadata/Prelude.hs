@@ -6,9 +6,11 @@ import qualified Paths_Elm as Path
 import System.Directory
 import System.Exit
 import System.FilePath
+import System.IO
 import System.IO.Unsafe (unsafePerformIO)
 import SourceSyntax.Module
 import qualified Data.Binary as Binary
+import qualified Data.ByteString.Lazy as BS
 
 
 add :: Module t v -> Module t v
@@ -47,5 +49,11 @@ safeReadDocs name =
 readDocs :: FilePath -> IO Interfaces
 readDocs name = do
   exists <- doesFileExist name
-  if exists then Map.fromList `fmap` Binary.decodeFile name
-            else ioError . userError $ "File Not Found"
+  case exists of
+    False -> ioError . userError $ "File Not Found"
+    True -> do
+      handle <- openBinaryFile name ReadMode
+      bits <- BS.hGetContents handle
+      let ifaces = Map.fromList (Binary.decode bits)
+      BS.length bits `seq` hClose handle
+      return ifaces

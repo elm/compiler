@@ -176,7 +176,7 @@ instance PrettyType a => PrettyType (Term1 a) where
           prettyExt = prty ext
           extend | P.render prettyExt == "{}" = P.empty
                  | otherwise = prettyExt <+> P.text "|"
-          mkPretty f t = P.text f <+> P.text ":" <+> prty t
+          mkPretty f t = P.text (reprime f) <+> P.text ":" <+> prty t
           prettyFields = concatMap (\(f,ts) -> map (mkPretty f) ts) (Map.toList fields)
 
 
@@ -191,7 +191,7 @@ instance PrettyType Descriptor where
   pretty when desc =
     case (structure desc, name desc) of
       (Just term, _) -> pretty when term
-      (_, Just name) -> if not (isTuple name) then P.text name else
+      (_, Just name) -> if not (isTuple name) then P.text (reprime name) else
                             P.parens . P.text $ replicate (read (drop 6 name) - 1) ','
       _ -> P.text "?"
 
@@ -277,7 +277,11 @@ addNames value = do
               Is Number     -> (Just $ "number"     ++ replicate a '\'', (vars, a+1, b, c))
               Is Comparable -> (Just $ "comparable" ++ replicate b '\'', (vars, a, b+1, c))
               Is Appendable -> (Just $ "appendable" ++ replicate c '\'', (vars, a, b, c+1))
-              _             -> (Just $ head vars, (tail vars, a, b, c))
+              other         -> (Just $ head vars, (tail vars, a, b, c))
+                  where mark = case other of
+                                 Flexible -> ""
+                                 Rigid    -> "!"
+                                 Constant -> "#"
 
 
 type CrawlState = ([String], Int, Int, Int)

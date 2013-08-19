@@ -80,25 +80,27 @@ splitLevel table n e eops =
 joinL :: [LExpr t v] -> [String] -> IParser (LExpr t v)
 joinL [e] [] = return e
 joinL (a:b:es) (op:ops) = joinL (merge a b (Binop op a b) : es) ops
-joinL _ _ = fail "Ill-formed binary expression. Report a compiler bug."
+joinL _ _ = failure "Ill-formed binary expression. Report a compiler bug."
 
 joinR :: [LExpr t v] -> [String] -> IParser (LExpr t v)
 joinR [e] [] = return e
 joinR (a:b:es) (op:ops) = do e <- joinR (b:es) ops
                              return (merge a e (Binop op a e))
-joinR _ _ = fail "Ill-formed binary expression. Report a compiler bug."
+joinR _ _ = failure "Ill-formed binary expression. Report a compiler bug."
 
 getAssoc :: OpTable -> Int -> [(String,LExpr t v)] -> IParser Assoc
 getAssoc table n eops
     | all (==L) assocs = return L
     | all (==R) assocs = return R 
     | all (==N) assocs = case assocs of [_] -> return N
-                                        _   -> fail msg
+                                        _   -> failure (msg "precedence")
+    | otherwise = failure (msg "associativity")
   where levelOps = filter (hasLevel table n) eops
         assocs = map (opAssoc table . fst) levelOps
-        msg = concat [ "Conflicting precedence for binary operators ("
-                     , intercalate ", " (map fst eops), "). "
-                     , "Consider adding parentheses to disambiguate." ]
+        msg problem =
+            concat [ "Conflicting " ++ problem ++ " for binary operators ("
+                   , intercalate ", " (map fst eops), "). "
+                   , "Consider adding parentheses to disambiguate." ]
 
 infixStmt :: IParser (Int, Assoc, String)
 infixStmt =

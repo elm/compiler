@@ -6,6 +6,7 @@ import qualified Data.Set as Set
 import Control.Arrow (second)
 import Control.Applicative ((<$>),(<*>))
 import qualified Control.Monad as Monad
+import Control.Monad.Error (ErrorT, runErrorT)
 import Control.Monad.State
 import Data.Traversable (traverse)
 
@@ -33,7 +34,8 @@ constrain env (L span expr) tipe =
     case expr of
       Literal lit -> Literal.constrain env span lit tipe
 
-      Var name -> return (name <? tipe)
+      Var name | name == saveEnvName -> return (L span CSaveEnv)
+               | otherwise           -> return (name <? tipe)
 
       Range lo hi ->
           exists $ \x -> do
@@ -56,7 +58,7 @@ constrain env (L span expr) tipe =
       Lambda p e ->
           exists $ \t1 ->
           exists $ \t2 -> do
-            fragment <- Pattern.constrain env p t1
+            fragment <- try span $ Pattern.constrain env p t1
             c2 <- constrain env e t2
             let c = ex (vars fragment) (clet [monoscheme (typeEnv fragment)]
                                              (typeConstraint fragment /\ c2 ))
@@ -80,18 +82,16 @@ constrain env (L span expr) tipe =
           exists $ \t -> do
             ce <- constrain env exp t
             let branch (p,e) = do
-                  fragment <- Pattern.constrain env p t
+                  fragment <- try span $ Pattern.constrain env p t
                   clet [toScheme fragment] <$> constrain env e tipe
             and . (:) ce <$> mapM branch branches
 
       Data name exprs ->
-          do pairs <- mapM pair exprs
+          do vars <- forM exprs $ \_ -> var Flexible
+             let pairs = zip exprs (map VarN vars)
              (ctipe, cs) <- Monad.foldM step (tipe,true) (reverse pairs)
-             return (cs /\ name <? ctipe)
+             return $ ex vars (cs /\ name <? ctipe)
           where
-            pair e = do v <- var Flexible -- needs an ex
-                        return (e, VarN v)
-
             step (t,c) (e,x) = do
                 c' <- constrain env e x
                 return (x ==> t, c /\ c')
@@ -137,9 +137,7 @@ constrain env (L span expr) tipe =
           return ("Graphics.Element.markdown" <? tipe)
 
       Let defs body ->
-          do c <- case body of
-                    L _ (Var name) | name == saveEnvName -> return (L span CSaveEnv)
-                    _ -> constrain env body tipe
+          do c <- constrain env body tipe
              (schemes, rqs, fqs, header, c2, c1) <-
                  Monad.foldM (constrainDef env)
                              ([], [], [], Map.empty, true, true)
@@ -152,9 +150,11 @@ constrainDef env info (pattern, expr, maybeTipe) =
     let qs = [] -- should come from the def, but I'm not sure what would live there...
         (schemes, rigidQuantifiers, flexibleQuantifiers, headers, c2, c1) = info
     in
-    case (pattern, maybeTipe) of
-      (PVar name, Just tipe) ->
-          do flexiVars <- mapM (\_ -> var Flexible) qs
+    do rigidVars <- mapM (\_ -> var Rigid) qs -- Some mistake may be happening here.
+                                              -- Currently, qs is always the empty list.
+       case (pattern, maybeTipe) of
+         (PVar name, Just tipe) -> do
+             flexiVars <- mapM (\_ -> var Flexible) qs
              let inserts = zipWith (\arg typ -> Map.insert arg (VarN typ)) qs flexiVars
                  env' = env { Env.value = List.foldl' (\x f -> f x) (Env.value env) inserts }
              (vars, typ) <- Env.instantiateType env tipe Map.empty
@@ -168,12 +168,10 @@ constrainDef env info (pattern, expr, maybeTipe) =
                     , flexibleQuantifiers
                     , headers
                     , c2
-                    , fl rigidQuantifiers c /\ c1 )
+                    , fl rigidVars c /\ c1 )
 
-      (PVar name, Nothing) ->
-          do v <- var Flexible
-             rigidVars <- mapM (\_ -> var Rigid) qs -- Some mistake may be happening here.
-                                                    -- Currently, qs is always the empty list.
+         (PVar name, Nothing) -> do
+             v <- var Flexible
              let tipe = VarN v
                  inserts = zipWith (\arg typ -> Map.insert arg (VarN typ)) qs rigidVars
                  env' = env { Env.value = List.foldl' (\x f -> f x) (Env.value env) inserts }
@@ -194,7 +192,7 @@ expandPattern triple@(pattern, lexpr@(L s _), maybeType) =
       _ -> (PVar x, lexpr, maybeType) : map toDef vars
           where
             vars = Set.toList $ SD.boundVars pattern
-            x = concat vars
+            x = "$" ++ concat vars
             var = L s . Var
             toDef y = (PVar y, L s $ Case (var x) [(pattern, var y)], Nothing)
 
@@ -213,3 +211,10 @@ collapseDefs = concatMap expandPattern . go [] Map.empty Map.empty
               go ((pattern, body, Nothing) : output) defs typs ds
           TypeAnnotation name typ ->
               go output defs (Map.insert name typ typs) ds
+
+try :: SrcSpan -> ErrorT String IO a -> IO a
+try span computation = do
+  result <- runErrorT computation
+  case result of
+    Left msg -> error $ "\nType error " ++ show span ++ "\n" ++ msg
+    Right value -> return value

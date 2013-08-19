@@ -128,27 +128,27 @@ groupTransform matrix fs = form (FGroup matrix fs)
 -- Rotate a form by a given angle. Rotate takes standard Elm angles (radians)
 -- and turns things counterclockwise. So to turn `form` 30&deg; to the left
 -- you would say, `(rotate (degrees 30) form)`.
-rotate : Float -> Form -> Form
+rotate : number -> Form -> Form
 rotate t f = { f | theta <- f.theta + t }
 
 -- Scale a form by a given factor. Scaling by 2 doubles the size.
-scale : Float -> Form -> Form
+scale : number -> Form -> Form
 scale s f = { f | scale <- f.scale * s }
 
 -- Move a form by the given amount. This is a relative translation so
 -- `(move (10,10) form)` would move `form` ten pixels up and ten pixels to the
 -- right.
-move : (Float,Float) -> Form -> Form
+move : (number,number) -> Form -> Form
 move (x,y) f = { f | x <- f.x + x, y <- f.y + y }
 
 -- Move a shape in the x direction. This is relative so `(moveX 10 form)` moves
 -- `form` 10 pixels to the right.
-moveX : Float -> Form -> Form
+moveX : number -> Form -> Form
 moveX x f = { f | x <- f.x + x }
 
 -- Move a shape in the y direction. This is relative so `(moveY 10 form)` moves
 -- `form` upwards by 10 pixels.
-moveY : Float -> Form -> Form
+moveY : number -> Form -> Form
 moveY y f = { f | y <- f.y + y }
 
 -- Set the alpha of a `Form`. The default is 1, and 0 is totally transparent.
@@ -161,36 +161,36 @@ collage : Int -> Int -> [Form] -> Element
 collage = Native.Graphics.Collage.collage
 
 
-type Path = [(Float,Float)]
+type Path = [(number,number)]
 
 -- Create a path that follows a sequence of points.
-path : [(Float,Float)] -> Path
+path : [(number,number)] -> Path
 path ps = ps
 
 -- Create a path along a given line segment.
-segment : (Float,Float) -> (Float,Float) -> Path
+segment : (number,number) -> (number,number) -> Path
 segment p1 p2 = [p1,p2]
 
-type Shape = [(Float,Float)]
+type Shape = [(number,number)]
 
 -- Create an arbitrary polygon by specifying its corners in order.
 -- `polygon` will automatically close all shapes, so the given list
 -- of points does not need to start and end with the same position.
-polygon : [(Float,Float)] -> Shape
+polygon : [(number,number)] -> Shape
 polygon points = points
 
 -- A rectangle with a given width and height.
-rect : Float -> Float -> Shape
+rect : number -> number -> Shape
 rect w h = let hw = w/2
                hh = h/2
            in  [ (0-hw,0-hh), (0-hw,hh), (hw,hh), (hw,0-hh) ]
 
 -- A square with a given edge length.
-square : Float -> Shape
+square : number -> Shape
 square n = rect n n
 
 -- An oval with a given width and height.
-oval : Float -> Float -> Shape
+oval : number -> number -> Shape
 oval w h =
   let n = 50
       t = 2 * pi / n
@@ -200,7 +200,7 @@ oval w h =
   in  List.map f [0..n-1]
 
 -- A circle with a given radius.
-circle : Float -> Shape
+circle : number -> Shape
 circle r = oval (2*r) (2*r)
 
 -- A regular polygon with N sides. The first argument specifies the number
@@ -208,7 +208,7 @@ circle r = oval (2*r) (2*r)
 -- 30 you would say:
 --
 --         ngon 5 30
-ngon : Int -> Float -> Shape
+ngon : Int -> number -> Shape
 ngon n r =
   let m = toFloat n
       t = 2 * pi / m

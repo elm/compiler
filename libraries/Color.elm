@@ -14,46 +14,41 @@ rgba = Color
 rgb : Int -> Int -> Int -> Color
 rgb r g b = Color r g b 1
 
-red  : Color
-red  = Color 255  0   0  1
-lime : Color
-lime = Color  0  255  0  1
-blue : Color
-blue = Color  0   0  255 1
+lightYellow = Color 255 233 79 1
+yellow      = Color 237 212  0 1
+darkYellow  = Color 196 160  0 1
 
-yellow  : Color
-yellow  = Color 255 255  0  1
-cyan    : Color
-cyan    = Color  0  255 255 1
-magenta : Color
-magenta = Color 255  0  255 1
+lightOrange = Color 252 175 62 1
+orange      = Color 245 121  0 1
+darkOrange  = Color 206  92  0 1
 
-black : Color
+lightBrown = Color 233 185 110 1
+brown      = Color 193 125  17 1
+darkBrown  = Color 143  89   2 1
+
+lightGreen = Color 138 226  52 1
+green      = Color 115 210  22 1
+darkGreen  = Color  78 154   6 1
+
+lightBlue = Color 114 159 207 1
+blue      = Color  52 101 164 1
+darkBlue  = Color  32  74 135 1
+
+lightPurple = Color 173 127 168 1
+purple      = Color 117  80 123 1
+darkPurple  = Color  92  53 102 1
+
+lightRed = Color 239 41 41 1
+red      = Color 204  0  0 1
+darkRed  = Color 164  0  0 1
+
 black = Color  0   0   0  1
-white : Color
 white = Color 255 255 255 1
 
 gray : Color
 gray = Color 128 128 128 1
 grey : Color
 grey = Color 128 128 128 1
-
-maroon : Color
-maroon = Color 128  0   0  1
-navy   : Color
-navy   = Color  0   0  128 1
-green  : Color
-green  = Color  0  128  0  1
-
-teal   : Color
-teal   = Color  0  128 128 1
-purple : Color
-purple = Color 128  0  128 1
-
-violet : Color
-violet = Color 238 130 238 1
-forestGreen : Color
-forestGreen = Color 34 139 34 1
 
 -- Produce a &ldquo;complementary color&rdquo;.
 -- The two colors will accent each other.
@@ -67,6 +62,7 @@ hsva = Native.Color.hsva
 
 -- Create [HSV colors](http://en.wikipedia.org/wiki/HSL_and_HSV).
 -- This is very convenient for creating colors that cycle and shift.
+-- Hue is an angle and should be given in standard Elm angles (radians).
 --
 --         hsv (degrees 240) 1 1 == blue
 hsv : Float -> Float -> Float -> Color

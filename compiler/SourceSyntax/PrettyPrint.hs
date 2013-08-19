@@ -15,4 +15,9 @@ commaSep docs = sep (punctuate comma docs)
 
 parensIf bool doc = if bool then parens doc else doc
 
-variable x = parensIf (Help.isOp x) (text x)
+variable x =
+    if Help.isOp x then parens (text x)
+                   else text (reprime x)
+
+reprime :: String -> String
+reprime = map (\c -> if c == '$' then '\'' else c)

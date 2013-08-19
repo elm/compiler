@@ -252,9 +252,9 @@ function updateProps(node, curr, next) {
         e.style.opacity = props.opacity;
     }
     var nextColor = (props.color.ctor === 'Just' ?
-                     extract(props.color._0) : 'transparent');
+                     extract(props.color._0) : '');
     if (e.style.backgroundColor !== nextColor) {
-        e.style.backgroundColor = nextColor;
+        e.style.backgroundColor = (nextColor === '' ? 'transparent' : nextColor);
     }
     if (props.tag !== currP.tag) { e.id = props.tag; }
     if (props.href !== currP.href) {
