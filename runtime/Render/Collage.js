@@ -3,7 +3,7 @@ ElmRuntime.Render.Collage = function() {
 'use strict';
 
 var Render = ElmRuntime.use(ElmRuntime.Render.Element);
-var Matrix = Elm.Matrix2D({});
+var Transform = Elm.Transform2D({});
 var Utils = ElmRuntime.use(ElmRuntime.Render.Utils);
 var newElement = Utils.newElement,
     extract = Utils.extract, fromList = Utils.fromList,
@@ -158,23 +158,23 @@ function renderForm(redo, ctx, form) {
 
 function formToMatrix(form) {
    var scale = form.scale;
-   var matrix = A6( Matrix.matrix, scale, 0, 0, scale, form.x, form.y );
+   var matrix = A6( Transform.matrix, scale, 0, 0, scale, form.x, form.y );
 
    var theta = form.theta
    if (theta !== 0)
-       matrix = A2( Matrix.multiply, matrix, Matrix.rotation(theta) );
+       matrix = A2( Transform.multiply, matrix, Transform.rotation(theta) );
 
    return matrix;
 }
 
 function makeTransform(w, h, form, matrices) {
     var props = form.form._0.props;
-    var m = A6( Matrix.matrix, 1, 0, 0, 1,
+    var m = A6( Transform.matrix, 1, 0, 0, 1,
                 (w - props.width)/2,
                 (h - props.height)/2 );
     var len = matrices.length;
-    for (var i = 0; i < len; ++i) { m = A2( Matrix.multiply, m, matrices[i] ); }
-    m = A2( Matrix.multiply, m, formToMatrix(form) );
+    for (var i = 0; i < len; ++i) { m = A2( Transform.multiply, m, matrices[i] ); }
+    m = A2( Transform.multiply, m, formToMatrix(form) );
 
     return 'matrix(' +   m[0]  + ',' +   m[3]  + ',' +
                        (-m[1]) + ',' + (-m[4]) + ',' +
@@ -220,7 +220,7 @@ function stepper(forms) {
         var f = out.form;
         if (f.ctor === 'FGroup') {
             ps.unshift(stepperHelp(f._1));
-            var m = A2(Matrix.multiply, f._0, formToMatrix(out));
+            var m = A2(Transform.multiply, f._0, formToMatrix(out));
             ctx.save();
             ctx.transform(m[0], m[3], m[1], m[4], m[2], m[5]);
             matrices.push(m);
