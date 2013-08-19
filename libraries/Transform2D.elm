@@ -1,19 +1,21 @@
 
-module Matrix2D where
+module Transform2D where
 
-import Native.Matrix2D
+import Native.Transform2D
 
-data Matrix2D = Matrix2D
+data Transform2D = Transform2D
 
--- Create an identity matrix.
+-- Create an identity transform. Transforming by the identity does
+-- not change anything, but it can come in handy as a default or
+-- base case.
 --
 --           / 1 0 \\
 --           \\ 0 1 /
-identity : Matrix2D
-identity = Native.Matrix2D.identity
+identity : Transform2D
+identity = Native.Transform2D.identity
 
--- Creates an arbitrary matrix. This lets you create scales, shears, reflections,
--- translations, or any other 2D transform.
+-- Creates an arbitrary transformation matrix. This lets you create scales,
+-- shears, reflections, translations, or any other 2D transform.
 --
 --       matrix a b c d dx dy
 --
@@ -21,22 +23,22 @@ identity = Native.Matrix2D.identity
 --           \\ c d /
 --
 -- And `dx` and `dy` are the translation values.
-matrix : Float -> Float -> Float -> Float -> Float -> Float -> Matrix2D
-matrix = Native.Matrix2D.matrix
+matrix : Float -> Float -> Float -> Float -> Float -> Float -> Transform2D
+matrix = Native.Transform2D.matrix
 
 -- Creates a [rotation matrix](http://en.wikipedia.org/wiki/Rotation_matrix).
 -- Given an angle t, it creates a counterclockwise rotation matrix:
 --
 --           / cos t  -sin t \\
 --           \\ sin t   cos t /
-rotation : Float -> Matrix2D
-rotation = Native.Matrix2D.rotation
+rotation : Float -> Transform2D
+rotation = Native.Transform2D.rotation
 
--- Multiplies two matrices together:
+-- Multiplies two transforms together:
 --
 --       multiply a b
 --
 --           / a11 a12 \\  .  / b11 b12 \\
 --           \\ a21 a22 /     \\ b21 b22 /
-multiply : Matrix2D -> Matrix2D -> Matrix2D
-multiply = Native.Matrix2D.multiply
+multiply : Transform2D -> Transform2D -> Transform2D
+multiply = Native.Transform2D.multiply
