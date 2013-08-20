@@ -41,8 +41,11 @@ instance Pretty Type where
           | Help.isTuple name -> P.parens . P.sep . P.punctuate P.comma $ map pretty tipes
           | otherwise -> P.hang (P.text name) 2 (P.sep $ map prettyParens tipes)
       EmptyRecord -> P.braces P.empty
-      Record fields ext -> P.braces $ P.hang (pretty ext <+> P.text "|") 4 prettyFields
+      Record _ _ -> P.braces $ case ext of
+                                 EmptyRecord -> prettyFields
+                                 _ -> P.hang (pretty ext <+> P.text "|") 4 prettyFields
           where
+            (fields, ext) = collectRecords tipe
             prettyField (f,t) = P.text f <+> P.text ":" <+> pretty t
             prettyFields = commaSep . map prettyField $ fields
 
@@ -51,6 +54,13 @@ collectLambdas tipe =
     Lambda arg@(Lambda _ _) body -> P.parens (pretty arg) : collectLambdas body
     Lambda arg body -> pretty arg : collectLambdas body
     _ -> [pretty tipe]
+
+collectRecords = go []
+  where
+    go fields tipe =
+        case tipe of
+          Record fs ext -> go (fs ++ fields) ext
+          _ -> (fields, tipe)
 
 prettyParens tipe = parensIf needed (pretty tipe)
   where

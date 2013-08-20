@@ -49,7 +49,8 @@ modifyPool f = modify $ \state -> state { sPool = f (sPool state) }
 addError span message t1 t2 =
     modify $ \state -> state { sErrors = err : sErrors state }
   where
-    err = makeError <$> extraPretty t1 <*> extraPretty t2
+    prty t = pretty `fmap` toSrcType t
+    err = makeError <$> prty t1 <*> prty t2
 
     location = case span of
                  NoSpan msg -> ""
