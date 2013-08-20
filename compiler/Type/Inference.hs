@@ -14,6 +14,7 @@ import SourceSyntax.Location (Located, noneNoDocs)
 import SourceSyntax.PrettyPrint
 import Text.PrettyPrint
 import qualified Type.State as TS
+import Type.ExtraChecks (extraChecks)
 import Control.Monad.State
 import Control.Arrow (second)
 import Transform.SortDefinitions as Sort
@@ -46,6 +47,6 @@ infer interfaces modul = unsafePerformIO $ do
   state <- execStateT (Solve.solve constraint) TS.initialState
   let errors = TS.sErrors state
   if null errors
-      then return $ Right (Map.difference (TS.sSavedEnv state) header)
+      then return . extraChecks $ Map.difference (TS.sSavedEnv state) header
       else Left `fmap` sequence (reverse errors)
 
