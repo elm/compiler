@@ -70,7 +70,9 @@ adjustRank youngMark visitedMark groupRank variable =
     do desc <- liftIO $ UF.descriptor variable
        case () of
          () | mark desc == youngMark ->
-                do rank' <- case structure desc of
+                do -- Set the variable as marked first because it may be cyclic.
+                   liftIO $ UF.modifyDescriptor variable $ \desc -> desc { mark = visitedMark }
+                   rank' <- case structure desc of
                               Nothing -> return groupRank
                               Just term ->
                                   case term of
@@ -82,7 +84,7 @@ adjustRank youngMark visitedMark groupRank variable =
                                         do ranks <- mapM adjust (concat (Map.elems fields))
                                            rnk <- adjust extension
                                            return . maximum $ rnk : ranks
-                   liftIO $ UF.setDescriptor variable (desc { mark = visitedMark, rank = rank' })
+                   liftIO $ UF.modifyDescriptor variable $ \desc -> desc { rank = rank' }
                    return rank'
 
             | mark desc /= visitedMark ->

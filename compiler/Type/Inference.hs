@@ -47,6 +47,6 @@ infer interfaces modul = unsafePerformIO $ do
   state <- execStateT (Solve.solve constraint) TS.initialState
   let errors = TS.sErrors state
   if null errors
-      then return . extraChecks $ Map.difference (TS.sSavedEnv state) header
+      then extraChecks $ Map.difference (TS.sSavedEnv state) header
       else Left `fmap` sequence (reverse errors)
 
