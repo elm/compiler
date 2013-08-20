@@ -2,6 +2,7 @@
 module Color where
 
 import Native.Color
+import Basics ((-))
 
 data Color = Color Int Int Int Float
 
@@ -45,10 +46,21 @@ darkRed  = Color 164  0  0 1
 black = Color  0   0   0  1
 white = Color 255 255 255 1
 
-gray : Color
-gray = Color 128 128 128 1
-grey : Color
-grey = Color 128 128 128 1
+lightGrey = Color 238 238 236
+grey      = Color 211 215 207
+darkGrey  = Color 186 189 182
+
+lightGray = Color 238 238 236
+gray      = Color 211 215 207
+darkGray  = Color 186 189 182
+
+lightCharcoal = Color 136 138 133
+charcoal      = Color  85  87  83
+darkCharcoal  = Color  46  52  54
+
+grayscale : Float -> Color
+grayscale p = hsv 0 0 (1-p)
+greyscale p = hsv 0 0 (1-p)
 
 -- Produce a &ldquo;complementary color&rdquo;.
 -- The two colors will accent each other.

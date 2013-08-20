@@ -24,10 +24,12 @@ data Pool = Pool {
 
 emptyPool = Pool { maxRank = outermostRank, inhabitants = [] }
 
+type Env = Map.Map String Variable
+
 -- Keeps track of the environment, type variable pool, and a list of errors
 data SolverState = SS {
-    sEnv :: Map.Map String Variable,
-    sSavedEnv :: Map.Map String Variable,
+    sEnv :: Env,
+    sSavedEnv :: Env,
     sPool :: Pool,
     sMark :: Int,
     sErrors :: [IO P.Doc]
@@ -77,7 +79,7 @@ switchToPool pool = modifyPool (\_ -> pool)
 getPool :: StateT SolverState IO Pool
 getPool = sPool <$> get
 
-getEnv :: StateT SolverState IO (Map.Map String Variable)
+getEnv :: StateT SolverState IO Env
 getEnv = sEnv <$> get
 
 saveLocalEnv :: StateT SolverState IO ()

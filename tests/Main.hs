@@ -9,7 +9,7 @@ import Test.Framework.BlackBoxTest
 main :: IO () 
 main = do
   args  <- getArgs
-  tests <- blackBoxTests "tests/good" "dist/build/elm/elm" ".elm" bbtArgs
+  tests <- blackBoxTests "tests" "dist/build/elm/elm" ".elm" bbtArgs
   code  <- runTestWithArgs args tests
   removeDirectoryRecursive "cache"
   removeDirectoryRecursive "build"

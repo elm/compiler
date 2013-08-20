@@ -4,7 +4,7 @@ module Graphics.Collage where
 import open Basics
 import List
 import Either (Either, Left, Right)
-import Matrix2D (Matrix2D, identity)
+import Transform2D (Transform2D, identity)
 import Native.Graphics.Collage
 import Graphics.Element (Element, Three, Pos, ElementPrim, Properties)
 import Color (Color, black, Gradient)
@@ -76,7 +76,7 @@ data BasicForm
   | FShape (Either LineStyle FillStyle) Shape
   | FImage Int Int (Int,Int) String
   | FElement Element
-  | FGroup Matrix2D [Form]
+  | FGroup Transform2D [Form]
 
 form : BasicForm -> Form
 form f = { theta=0, scale=1, x=0, y=0, alpha=1, form=f }
@@ -122,7 +122,7 @@ group fs = form (FGroup identity fs)
 
 -- Flatten many forms into a single `Form` and then apply a matrix
 -- transformation.
-groupTransform : Matrix2D -> [Form] -> Form
+groupTransform : Transform2D -> [Form] -> Form
 groupTransform matrix fs = form (FGroup matrix fs)
 
 -- Rotate a form by a given angle. Rotate takes standard Elm angles (radians)

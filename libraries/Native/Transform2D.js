@@ -1,9 +1,9 @@
 
-Elm.Native.Matrix2D = function(elm) {
+Elm.Native.Transform2D = function(elm) {
  "use strict";
 
  elm.Native = elm.Native || {};
- if (elm.Native.Matrix2D) return elm.Native.Matrix2D;
+ if (elm.Native.Transform2D) return elm.Native.Transform2D;
 
  var A;
  if (typeof Float32Array === 'undefined') {
@@ -80,7 +80,7 @@ Elm.Native.Matrix2D = function(elm) {
                    m21*ndx + m22*ndy + mdy]);
  }
 
- return elm.Native.Matrix2D = {
+ return elm.Native.Transform2D = {
      identity:identity,
      matrix:F6(matrix),
      rotation:rotation,
