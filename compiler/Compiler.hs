@@ -31,7 +31,6 @@ import Paths_Elm
 import SourceSyntax.PrettyPrint (pretty, variable)
 import Text.PrettyPrint as P
 import qualified Type.Type as Type
-import qualified Data.Traversable as Traverse
 
 data Flags =
     Flags { make :: Bool
@@ -147,9 +146,8 @@ buildFile flags moduleNum numModules interfaces filePath =
                   return modul
         
         if print_types flags then printTypes metaModule else return ()
-        tipes <- Traverse.traverse Type.toSrcType (types metaModule)
         let interface = Canonical.interface name $ ModuleInterface {
-                          iTypes = tipes,
+                          iTypes = types metaModule,
                           iAdts = datatypes metaModule,
                           iAliases = aliases metaModule
                         }
@@ -163,8 +161,7 @@ buildFile flags moduleNum numModules interfaces filePath =
 printTypes metaModule = do
   putStrLn ""
   forM_ (Map.toList $ types metaModule) $ \(n,t) -> do
-      pt <- Type.extraPretty t
-      print $ variable n <+> P.text ":" <+> pt
+      print $ variable n <+> P.text ":" <+> pretty t
   putStrLn ""
 
 getRuntime :: Flags -> IO FilePath
