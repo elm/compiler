@@ -46,17 +46,17 @@ darkRed  = Color 164  0  0 1
 black = Color  0   0   0  1
 white = Color 255 255 255 1
 
-lightGrey = Color 238 238 236
-grey      = Color 211 215 207
-darkGrey  = Color 186 189 182
+lightGrey = Color 238 238 236 1
+grey      = Color 211 215 207 1
+darkGrey  = Color 186 189 182 1
 
-lightGray = Color 238 238 236
-gray      = Color 211 215 207
-darkGray  = Color 186 189 182
+lightGray = Color 238 238 236 1
+gray      = Color 211 215 207 1
+darkGray  = Color 186 189 182 1
 
-lightCharcoal = Color 136 138 133
-charcoal      = Color  85  87  83
-darkCharcoal  = Color  46  52  54
+lightCharcoal = Color 136 138 133 1
+charcoal      = Color  85  87  83 1
+darkCharcoal  = Color  46  52  54 1
 
 grayscale : Float -> Color
 grayscale p = hsv 0 0 (1-p)
