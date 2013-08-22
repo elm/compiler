@@ -1,4 +1,12 @@
 
+Release 0.9.1
+=============
+
+  * Switch to Tango color scheme, adding a bunch of nice colors
+  * add the greyscale function for easily producing greys
+  * Fix miscellaneous bugs in type checker
+  * Switch name of Matrix2D to Transform2D
+
 Release 0.9
 ===========
 

@@ -12,7 +12,6 @@ import SourceSyntax.Expression (LExpr)
 import SourceSyntax.Declaration
 import SourceSyntax.Type
 import System.FilePath (joinPath)
-import qualified Type.Type as Type
 
 data Module tipe var =
     Module [String] Exports Imports [Declaration tipe var]
@@ -30,7 +29,7 @@ data MetadataModule t v = MetadataModule {
     exports   :: [String],
     imports   :: [(String, ImportMethod)],
     program   :: LExpr t v,
-    types     :: Map.Map String Type.Variable,
+    types     :: Map.Map String Type,
     fixities  :: [(Assoc, Int, String)],
     aliases   :: [(String, [String], Type)],
     datatypes :: [ (String, [String], [(String,[Type])]) ],

@@ -12,18 +12,19 @@ import SourceSyntax.Module as Module
 import qualified SourceSyntax.Expression as Expr
 import SourceSyntax.Location (Located, noneNoDocs)
 import SourceSyntax.PrettyPrint
+import SourceSyntax.Type (Type)
 import Text.PrettyPrint
 import qualified Type.State as TS
 import Type.ExtraChecks (extraChecks)
 import Control.Monad.State
 import Control.Arrow (second)
-import Transform.SortDefinitions as Sort
+import qualified Type.Alias as Alias
 
 import System.IO.Unsafe  -- Possible to switch over to the ST monad instead of
                          -- the IO monad. I don't think that'd be worthwhile.
 
 
-infer :: Interfaces -> MetadataModule t v -> Either [Doc] (Map.Map String T.Variable)
+infer :: Interfaces -> MetadataModule t v -> Either [Doc] (Map.Map String Type)
 infer interfaces modul = unsafePerformIO $ do
   env <- Env.initialEnvironment
              (datatypes modul ++ concatMap iAdts (Map.elems interfaces))
@@ -45,8 +46,7 @@ infer interfaces modul = unsafePerformIO $ do
   constraint <- environ `fmap` TcExpr.constrain env (program modul) (T.VarN fvar)
 
   state <- execStateT (Solve.solve constraint) TS.initialState
-  let errors = TS.sErrors state
-  if null errors
-      then extraChecks $ Map.difference (TS.sSavedEnv state) header
-      else Left `fmap` sequence (reverse errors)
-
+  let rules = Alias.rules interfaces modul
+  case TS.sErrors state of
+    errors@(_:_) -> Left `fmap` sequence (map ($ rules) (reverse errors))
+    [] -> extraChecks rules (Map.difference (TS.sSavedEnv state) header)

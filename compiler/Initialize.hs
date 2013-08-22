@@ -11,7 +11,6 @@ import System.FilePath as FP
 import Text.PrettyPrint (Doc)
 
 import SourceSyntax.Everything
-import SourceSyntax.Type
 import qualified Parse.Parse as Parse
 import qualified Metadata.Prelude as Prelude
 import qualified Transform.Check as Check

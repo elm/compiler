@@ -11,6 +11,8 @@ import qualified Data.Traversable as Traversable
 import Text.PrettyPrint as P
 import SourceSyntax.PrettyPrint
 import SourceSyntax.Location
+import qualified SourceSyntax.Type as Src
+import qualified Type.Alias as Alias
 
 -- Pool
 -- Holds a bunch of variables
@@ -32,7 +34,7 @@ data SolverState = SS {
     sSavedEnv :: Env,
     sPool :: Pool,
     sMark :: Int,
-    sErrors :: [IO P.Doc]
+    sErrors :: [Alias.Rules -> IO P.Doc]
 }
 
 initialState = SS {
@@ -47,9 +49,19 @@ modifyEnv  f = modify $ \state -> state { sEnv = f (sEnv state) }
 modifyPool f = modify $ \state -> state { sPool = f (sPool state) }
 
 addError span message t1 t2 =
-    modify $ \state -> state { sErrors = err : sErrors state }
+    modify $ \state -> state { sErrors = makeError : sErrors state }
   where
-    err = makeError <$> extraPretty t1 <*> extraPretty t2
+    makeError rules = do
+      let prettiest = pretty . Alias.realias rules
+      t1' <- prettiest <$> toSrcType t1
+      t2' <- prettiest <$> toSrcType t2
+      return . P.vcat $
+         [ P.text $ "Type error" ++ location ++ ":"
+         , P.vcat . map P.text . lines $ if null message then defaultMessage else message
+         , P.text src
+         , P.text "   Expected Type:" <+> t1'
+         , P.text "     Actual Type:" <+> t2' <> P.text "\n"
+         ]
 
     location = case span of
                  NoSpan msg -> ""
@@ -66,13 +78,6 @@ addError span message t1 t2 =
 
     defaultMessage = "Something weird is happening with this value:"
 
-    makeError pt1 pt2 =
-        P.vcat [ P.text $ "Type error" ++ location ++ ":"
-               , P.vcat . map P.text . lines $ if null message then defaultMessage else message
-               , P.text src
-               , P.text "   Expected Type:" <+> pt1
-               , P.text "     Actual Type:" <+> pt2 <> P.text "\n"
-               ]
 
 switchToPool pool = modifyPool (\_ -> pool)
 

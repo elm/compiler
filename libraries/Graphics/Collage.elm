@@ -6,7 +6,7 @@ import List
 import Either (Either, Left, Right)
 import Transform2D (Transform2D, identity)
 import Native.Graphics.Collage
-import Graphics.Element (Element, Three, Pos, ElementPrim, Properties)
+import Graphics.Element (Element)
 import Color (Color, black, Gradient)
 import Maybe (Maybe)
 import JavaScript (JSString)

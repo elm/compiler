@@ -5,8 +5,7 @@ import Basics (String)
 import Signal (Signal,lift,dropRepeats)
 import Native.Graphics.Input
 import List
-import Graphics.Element (Element, Three, Pos, ElementPrim, Properties)
-import Color (Color)
+import Graphics.Element (Element)
 import Maybe (Maybe)
 import JavaScript (JSString)
 
