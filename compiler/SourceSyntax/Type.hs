@@ -67,6 +67,7 @@ prettyParens tipe = parensIf needed (pretty tipe)
     needed =
       case tipe of
         Lambda _ _ -> True
+        Data "_List" [_] -> False
         Data _ [] -> False
         Data _ _ -> True
         _ -> False
