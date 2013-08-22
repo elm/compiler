@@ -1,4 +1,4 @@
-module Type.Alias (realias, rules, Rules) where
+module Type.Alias (realias, rules, canonicalRealias, Rules) where
 
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad
@@ -54,10 +54,10 @@ localizer metaModule = go
           _ -> []
 
 realias :: Rules -> Type -> Type
-realias (aliases,localize) tipe = localize (realiasHelp aliases tipe)
+realias (aliases,localize) tipe = localize (canonicalRealias aliases tipe)
 
-realiasHelp :: [(String,[String],Type)] -> Type -> Type
-realiasHelp aliases tipe =
+canonicalRealias :: [(String,[String],Type)] -> Type -> Type
+canonicalRealias aliases tipe =
     case concatMap tryRealias aliases of
       [tipe''] -> f tipe''
       _ -> if tipe == tipe' then tipe else f tipe'
@@ -73,7 +73,7 @@ realiasHelp aliases tipe =
                     False -> []
                     True -> [Data name $ map (\arg -> head (holes ! arg)) args]
 
-    f = realiasHelp aliases
+    f = canonicalRealias aliases
     tipe' =
         case tipe of
           Var _ -> tipe

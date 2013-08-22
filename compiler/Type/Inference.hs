@@ -18,8 +18,6 @@ import qualified Type.State as TS
 import Type.ExtraChecks (extraChecks)
 import Control.Monad.State
 import Control.Arrow (second)
-import Transform.SortDefinitions as Sort
-import qualified Data.Traversable as Traverse
 import qualified Type.Alias as Alias
 
 import System.IO.Unsafe  -- Possible to switch over to the ST monad instead of
@@ -48,12 +46,7 @@ infer interfaces modul = unsafePerformIO $ do
   constraint <- environ `fmap` TcExpr.constrain env (program modul) (T.VarN fvar)
 
   state <- execStateT (Solve.solve constraint) TS.initialState
+  let rules = Alias.rules interfaces modul
   case TS.sErrors state of
-    errors@(_:_) ->
-        let rules = Alias.rules interfaces modul in
-        Left `fmap` sequence (map ($ rules) (reverse errors))
-    [] ->
-        let types = Map.difference (TS.sSavedEnv state) header in
-        do srcTypes <- Traverse.traverse T.toSrcType types
-           return $ Right srcTypes
-
+    errors@(_:_) -> Left `fmap` sequence (map ($ rules) (reverse errors))
+    [] -> extraChecks rules (Map.difference (TS.sSavedEnv state) header)

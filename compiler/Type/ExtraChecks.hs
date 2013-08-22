@@ -6,26 +6,38 @@ module Type.ExtraChecks (extraChecks) where
 import Control.Applicative ((<$>),(<*>))
 import qualified Data.Map as Map
 import qualified Data.UnionFind.IO as UF
-import Type.Type ( Variable, structure, Term1(..) )
+import Type.Type ( Variable, structure, Term1(..), toSrcType )
 import Type.State (Env)
-import Type.PrettyPrint ( pretty, ParensWhen(Never) )
+import qualified Type.Alias as Alias
 import Text.PrettyPrint as P
+import SourceSyntax.PrettyPrint (pretty)
+import SourceSyntax.Type (Type)
+import qualified Data.Traversable as Traverse
 
-extraChecks :: Env -> IO (Either [P.Doc] Env)
-extraChecks env = 
-    case mainCheck env of
-      Left errs -> return $ Left errs
-      Right env -> occursCheck env
+extraChecks :: Alias.Rules -> Env -> IO (Either [P.Doc] (Map.Map String Type))
+extraChecks rules env = do
+  eitherEnv <- occursCheck env
+  case eitherEnv of
+    Left errs -> return $ Left errs
+    Right env' ->
+        mainCheck rules <$> Traverse.traverse toSrcType env'
+           
 
-mainCheck :: Env -> Either [P.Doc] Env
-mainCheck env =
+mainCheck :: Alias.Rules -> (Map.Map String Type) -> Either [P.Doc] (Map.Map String Type)
+mainCheck rules env =
+    let acceptable = ["Graphics.Element.Element","Signal.Signal Graphics.Element.Element"] in
     case Map.lookup "main" env of
       Nothing -> Right env
-      Just var
-        | P.render (pretty Never var) `elem` ["Element","Signal Element"] -> Right env
+      Just tipe
+        | P.render (pretty (Alias.canonicalRealias (fst rules) tipe)) `elem` acceptable ->
+            Right env
         | otherwise ->
             Left [ P.vcat [ P.text "Type Error:"
-                          , P.text "'main' must be an Element or a (Signal Element)\n" ] ]
+                          , P.text "Bad type for 'main'. It must have type Element or a (Signal Element)"
+                          , P.text "Instead 'main' has type:\n"
+                          , P.nest 4 . pretty $ Alias.realias rules tipe
+                          , P.text " " ]
+                 ]
 
 occursCheck :: Env -> IO (Either [P.Doc] Env)
 occursCheck env = do
