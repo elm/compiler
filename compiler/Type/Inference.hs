@@ -20,6 +20,7 @@ import Control.Monad.State
 import Control.Arrow (second)
 import Transform.SortDefinitions as Sort
 import qualified Data.Traversable as Traverse
+import qualified Type.Alias as Alias
 
 import System.IO.Unsafe  -- Possible to switch over to the ST monad instead of
                          -- the IO monad. I don't think that'd be worthwhile.
@@ -48,8 +49,11 @@ infer interfaces modul = unsafePerformIO $ do
 
   state <- execStateT (Solve.solve constraint) TS.initialState
   case TS.sErrors state of
-    errors@(_:_) -> Left `fmap` sequence (reverse errors)
-    [] -> let types = Map.difference (TS.sSavedEnv state) header in
-          do srcTypes <- Traverse.traverse T.toSrcType types
-             return $ Right srcTypes
+    errors@(_:_) ->
+        let rules = Alias.rules interfaces modul in
+        Left `fmap` sequence (map ($ rules) (reverse errors))
+    [] ->
+        let types = Map.difference (TS.sSavedEnv state) header in
+        do srcTypes <- Traverse.traverse T.toSrcType types
+           return $ Right srcTypes
 

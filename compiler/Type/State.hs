@@ -11,6 +11,8 @@ import qualified Data.Traversable as Traversable
 import Text.PrettyPrint as P
 import SourceSyntax.PrettyPrint
 import SourceSyntax.Location
+import qualified SourceSyntax.Type as Src
+import qualified Type.Alias as Alias
 
 -- Pool
 -- Holds a bunch of variables
@@ -32,7 +34,7 @@ data SolverState = SS {
     sSavedEnv :: Env,
     sPool :: Pool,
     sMark :: Int,
-    sErrors :: [IO P.Doc]
+    sErrors :: [Alias.Rules -> IO P.Doc]
 }
 
 initialState = SS {
@@ -49,9 +51,10 @@ modifyPool f = modify $ \state -> state { sPool = f (sPool state) }
 addError span message t1 t2 =
     modify $ \state -> state { sErrors = makeError : sErrors state }
   where
-    makeError = do
-      t1' <- pretty <$> toSrcType t1
-      t2' <- pretty <$> toSrcType t2
+    makeError rules = do
+      let prettiest = pretty . Alias.realias rules
+      t1' <- prettiest <$> toSrcType t1
+      t2' <- prettiest <$> toSrcType t2
       return . P.vcat $
          [ P.text $ "Type error" ++ location ++ ":"
          , P.vcat . map P.text . lines $ if null message then defaultMessage else message

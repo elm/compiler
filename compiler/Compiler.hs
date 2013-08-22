@@ -31,6 +31,7 @@ import Paths_Elm
 import SourceSyntax.PrettyPrint (pretty, variable)
 import Text.PrettyPrint as P
 import qualified Type.Type as Type
+import qualified Type.Alias as Alias
 
 data Flags =
     Flags { make :: Bool
@@ -145,7 +146,7 @@ buildFile flags moduleNum numModules interfaces filePath =
                     True -> print . pretty $ program modul
                   return modul
         
-        if print_types flags then printTypes metaModule else return ()
+        if print_types flags then printTypes interfaces metaModule else return ()
         let interface = Canonical.interface name $ ModuleInterface {
                           iTypes = types metaModule,
                           iAdts = datatypes metaModule,
@@ -158,10 +159,11 @@ buildFile flags moduleNum numModules interfaces filePath =
         writeFile (elmo flags filePath) (jsModule metaModule)
         return (name,interface)
 
-printTypes metaModule = do
+printTypes interfaces metaModule = do
   putStrLn ""
+  let rules = Alias.rules interfaces metaModule
   forM_ (Map.toList $ types metaModule) $ \(n,t) -> do
-      print $ variable n <+> P.text ":" <+> pretty t
+      print $ variable n <+> P.text ":" <+> pretty (Alias.realias rules t)
   putStrLn ""
 
 getRuntime :: Flags -> IO FilePath
