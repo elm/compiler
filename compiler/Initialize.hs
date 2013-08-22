@@ -11,6 +11,7 @@ import System.FilePath as FP
 import Text.PrettyPrint (Doc)
 
 import SourceSyntax.Everything
+import qualified SourceSyntax.Type as Type
 import qualified Parse.Parse as Parse
 import qualified Metadata.Prelude as Prelude
 import qualified Transform.Check as Check
@@ -34,7 +35,8 @@ buildFromSource noPrelude interfaces source =
              | null exs =
                  let get = Set.toList . SD.boundVars in
                  concat [ get pattern | Definition (Def pattern _) <- decls ] ++
-                 concat [ map fst ctors | Datatype _ _ ctors <- decls ]
+                 concat [ map fst ctors | Datatype _ _ ctors <- decls ] ++
+                 [ name | TypeAlias name _ (Type.Record _ _) <- decls ]
              | otherwise = exs
 
      metaModule <- Canonical.metadataModule interfaces $ MetadataModule {
