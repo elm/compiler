@@ -56,6 +56,8 @@ localizer metaModule = go
 realias :: Rules -> Type -> Type
 realias (aliases,localize) tipe = localize (canonicalRealias aliases tipe)
 
+-- Realias using canonical aliases, so results will have aliases
+-- that are fully qualified and possible to compare.
 canonicalRealias :: [(String,[String],Type)] -> Type -> Type
 canonicalRealias aliases tipe =
     case concatMap tryRealias aliases of
