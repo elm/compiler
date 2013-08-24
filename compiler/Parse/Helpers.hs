@@ -4,6 +4,7 @@ import Control.Applicative ((<$>),(<*>))
 import Control.Monad
 import Control.Monad.State
 import Data.Char (isUpper)
+import qualified Data.Set as Set
 import SourceSyntax.Helpers as Help
 import SourceSyntax.Location as Location
 import SourceSyntax.Expression
@@ -17,6 +18,20 @@ reserveds = [ "if", "then", "else"
             , "module", "where"
             , "import", "as", "hiding", "open"
             , "export", "foreign" ]
+
+jsReserveds :: Set.Set String
+jsReserveds = Set.fromList
+    [ "null", "undefined", "Nan", "Infinity", "true", "false", "eval"
+    , "arguments", "int", "byte", "char", "goto", "long", "final", "float"
+    , "short", "double", "native", "throws", "boolean", "abstract", "volatile"
+    , "transient", "synchronized", "function", "break", "case", "catch"
+    , "continue", "debugger", "default", "delete", "do", "else", "finally"
+    , "for", "function", "if", "in", "instanceof", "new", "return", "switch"
+    , "this", "throw", "try", "typeof", "var", "void", "while", "with", "class"
+    , "const", "enum", "export", "extends", "import", "super", "implements"
+    , "interface", "let", "package", "private", "protected", "public"
+    , "static", "yield"
+    ]
 
 expecting = flip (<?>)
 
@@ -49,13 +64,18 @@ rLabel = lowVar
 innerVarChar :: IParser Char
 innerVarChar = alphaNum <|> char '_' <|> char '\'' <?> "" 
 
-deprime :: String -> String
-deprime = map (\c -> if c == '\'' then '$' else c)
+makeSafe :: String -> String
+makeSafe = dereserve . deprime
+  where
+    deprime = map (\c -> if c == '\'' then '$' else c)
+    dereserve x = case Set.member x jsReserveds of
+                    False -> x
+                    True  -> "$" ++ x
 
 makeVar :: IParser Char -> IParser String
 makeVar p = do v <- (:) <$> p <*> many innerVarChar
                guard (v `notElem` reserveds)
-               return (deprime v)
+               return (makeSafe v)
 
 reserved :: String -> IParser String
 reserved word =

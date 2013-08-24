@@ -3,6 +3,7 @@ module Parse.Declaration where
 
 import Control.Applicative ((<$>), (<*>))
 import qualified Data.List as List
+import qualified Data.Set as Set
 import Text.Parsec hiding (newline,spaces)
 import Text.Parsec.Indent
 import qualified Text.Pandoc as Pan
@@ -94,23 +95,9 @@ importEvent = do
 jsVar :: IParser String
 jsVar = betwixt '"' '"' $ do
   v <- (:) <$> (letter <|> char '_') <*> many (alphaNum <|> char '_')
-  if v `notElem` jsReserveds then return v else
+  if Set.notMember v jsReserveds then return v else
       error $ "'" ++ v ++
           "' is not a good name for a importing or exporting JS values."
-
-jsReserveds :: [String]
-jsReserveds =
-    [ "null", "undefined", "Nan", "Infinity", "true", "false", "eval"
-    , "arguments", "int", "byte", "char", "goto", "long", "final", "float"
-    , "short", "double", "native", "throws", "boolean", "abstract", "volatile"
-    , "transient", "synchronized", "function", "break", "case", "catch"
-    , "continue", "debugger", "default", "delete", "do", "else", "finally"
-    , "for", "function", "if", "in", "instanceof", "new", "return", "switch"
-    , "this", "throw", "try", "typeof", "var", "void", "while", "with", "class"
-    , "const", "enum", "export", "extends", "import", "super", "implements"
-    , "interface", "let", "package", "private", "protected", "public"
-    , "static", "yield"
-    ]
 
 isExportable tipe =
   case tipe of
