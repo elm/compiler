@@ -54,13 +54,15 @@ jsModule modul =
     run $ do
       body <- toJS . fst . SD.flattenLets [] $ program modul
       foreignImport <- mapM importEvent (foreignImports modul)
-      return $ concat [ setup ("Elm": names modul)
+      return $ concat [ setup ("Elm" : names modul)
                       , globalAssign ("Elm." ++ modName)
                                      (jsFunc "elm" $ makeProgram body foreignImport) ]
   where
     modName  = dotSep (names modul)
     makeProgram body foreignImport =
-        concat [ "\nvar " ++ usefulFuncs ++ ";"
+        concat [ setup ("elm" : names modul)
+               , "\nif (elm." ++ modName ++ ") return elm." ++ modName ++ ";"
+               , "\nvar " ++ usefulFuncs ++ ";"
                , concatMap jsImport (imports modul)
                , concat foreignImport
                , assign "_op" "{}"
@@ -72,8 +74,7 @@ jsModule modul =
                   map dotSep . drop 2 . List.inits $ init names
     usefulFuncs = commaSep (map (uncurry assign') (internalImports modName))
 
-    jsExports = setup ("elm" : names modul) ++
-                ret (assign' ("elm." ++ modName) (brackets exs))
+    jsExports = ret (assign' ("elm." ++ modName) (brackets exs))
         where
           exs = indent . commaSep . concatMap pair $ "_op" : exports modul
           pair x | isOp x = []
