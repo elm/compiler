@@ -35,7 +35,6 @@ mainCheck rules env =
             Left [ P.vcat [ P.text "Type Error:"
                           , P.text "Bad type for 'main'. It must have type Element or a (Signal Element)"
                           , P.text "Instead 'main' has type:\n"
-                          , P.nest 4 . pretty $ Alias.realias rules tipe
                           , P.nest 4 . pretty $ Alias.canonicalRealias (fst rules) tipe
                           , P.text " " ]
                  ]
