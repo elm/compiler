@@ -235,8 +235,3 @@ typeAnnotation = TypeAnnotation <$> try start <*> Type.expr
 
 def :: IParser (Def t v)
 def = typeAnnotation <|> assignExpr
-
-attempt f parser str =
-    case iParse parser "" str of
-      Right result -> f result
-      Left err -> error $ "Parse error at " ++ show err
