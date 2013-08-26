@@ -73,9 +73,3 @@ expr =
 constructor :: IParser (String, [T.Type])
 constructor = (,) <$> (capTypeVar <?> "another type constructor")
                   <*> spacePrefix term
-
-readType :: String -> Type
-readType str =
-    case iParse expr "" str of
-      Left err -> error (show err)
-      Right tipe -> tipe
