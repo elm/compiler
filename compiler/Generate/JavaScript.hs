@@ -226,7 +226,7 @@ instance ToJS (Expr t v) where
               _ -> jsObj $ ("ctor:" ++ show name) : fields
                    where fields = zipWith (\n e -> "_" ++ show n ++ ":" ++ e) [0..] fs
 
-    Markdown doc -> return $ "Text.text('" ++ pad ++ md ++ pad ++ "')"
+    Markdown doc _ -> return $ "Text.text('" ++ pad ++ md ++ pad ++ "')"
         where pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
               md = formatMarkdown $ Pan.writeHtmlString Pan.def doc
 

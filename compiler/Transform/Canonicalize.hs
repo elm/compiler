@@ -164,7 +164,7 @@ rename env lexpr@(L s expr) =
             branch (pattern,e) = (,) `liftM` format (renamePattern env pattern)
                                         `ap` rename (extend env pattern) e
 
-      Markdown _ -> return expr
+      Markdown md es -> Markdown md `liftM` mapM rnm es
 
 
 renamePattern :: Env -> Pattern -> Either String Pattern

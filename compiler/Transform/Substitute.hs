@@ -27,4 +27,4 @@ subst old new expr =
       Modify r fs -> Modify (f r) (map (second f) fs)
       Record fs -> Record (map (second f) fs)
       Literal _ -> expr
-      Markdown _ -> expr
+      Markdown md es -> Markdown md (map f es)
