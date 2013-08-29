@@ -5,9 +5,11 @@ import Control.Monad
 import Control.Monad.State
 import Data.Char (isUpper)
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 import SourceSyntax.Helpers as Help
 import SourceSyntax.Location as Location
 import SourceSyntax.Expression
+import SourceSyntax.Declaration (Assoc)
 import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
 
@@ -35,7 +37,9 @@ jsReserveds = Set.fromList
 
 expecting = flip (<?>)
 
-type IParser a = ParsecT String () (State SourcePos) a
+type OpTable = Map.Map String (Int, Assoc)
+
+type IParser a = ParsecT String OpTable (State SourcePos) a
 
 iParse :: IParser a -> SourceName -> String -> Either ParseError a
 iParse aParser source_name input =
