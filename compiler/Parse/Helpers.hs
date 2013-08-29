@@ -41,9 +41,12 @@ type OpTable = Map.Map String (Int, Assoc)
 
 type IParser a = ParsecT String OpTable (State SourcePos) a
 
-iParse :: IParser a -> SourceName -> String -> Either ParseError a
-iParse aParser source_name input =
-  runIndent source_name $ runParserT aParser () source_name input
+iParse :: IParser a -> String -> Either ParseError a
+iParse = iParseWithTable "" Map.empty
+
+iParseWithTable :: SourceName -> OpTable -> IParser a -> String -> Either ParseError a
+iParseWithTable sourceName table aParser input =
+  runIndent sourceName $ runParserT aParser table sourceName input
 
 backslashed :: IParser Char
 backslashed = do { char '\\'; c <- anyChar
