@@ -49,7 +49,7 @@ setupParserWithTable table p source =
          overlap | not (Map.null overlap) -> Left [ msg overlap ]
                  | otherwise -> 
                      flip setupParser source $ do
-                       putState initialTable --(Map.union initialTable localTable)
+                       putState preludeTable --(Map.union initialTable localTable)
                        p
     where
       msg overlap =
