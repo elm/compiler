@@ -1,4 +1,4 @@
-module Parse.Binop (binops, infixStmt, OpTable) where
+module Parse.Binop (binops, infixStmt, OpTable, preludeTable) where
 
 import Control.Applicative ((<$>))
 import Control.Monad.Error
@@ -42,7 +42,7 @@ binops :: IParser (LExpr t v)
 binops term last anyOp =
     do e <- term
        table <- getState
-       split (Map.union preludeTable table) 0 e =<< nextOps
+       split table 0 e =<< nextOps
     where
       nextOps = choice [ commitIf (whitespace >> anyOp) $ do
                            whitespace ; op <- anyOp ; whitespace
