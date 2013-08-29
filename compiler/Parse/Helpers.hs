@@ -5,11 +5,9 @@ import Control.Monad
 import Control.Monad.State
 import Data.Char (isUpper)
 import qualified Data.Set as Set
-import qualified Data.Map as Map
 import SourceSyntax.Helpers as Help
 import SourceSyntax.Location as Location
 import SourceSyntax.Expression
-import SourceSyntax.Declaration (Assoc)
 import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
 
@@ -37,16 +35,11 @@ jsReserveds = Set.fromList
 
 expecting = flip (<?>)
 
-type OpTable = Map.Map String (Int, Assoc)
+type IParser a = ParsecT String () (State SourcePos) a
 
-type IParser a = ParsecT String OpTable (State SourcePos) a
-
-iParse :: IParser a -> String -> Either ParseError a
-iParse = iParseWithTable "" Map.empty
-
-iParseWithTable :: SourceName -> OpTable -> IParser a -> String -> Either ParseError a
-iParseWithTable sourceName table aParser input =
-  runIndent sourceName $ runParserT aParser table sourceName input
+iParse :: IParser a -> SourceName -> String -> Either ParseError a
+iParse aParser source_name input =
+  runIndent source_name $ runParserT aParser () source_name input
 
 backslashed :: IParser Char
 backslashed = do { char '\\'; c <- anyChar

@@ -150,8 +150,7 @@ buildFile flags moduleNum numModules interfaces filePath =
         let interface = Canonical.interface name $ ModuleInterface {
                           iTypes = types metaModule,
                           iAdts = datatypes metaModule,
-                          iAliases = aliases metaModule,
-                          iFixities = fixities metaModule
+                          iAliases = aliases metaModule
                         }
         createDirectoryIfMissing True . dropFileName $ elmi flags filePath
         handle <- openBinaryFile (elmi flags filePath) WriteMode

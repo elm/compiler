@@ -41,23 +41,11 @@ type Interfaces = Map.Map String ModuleInterface
 type ADT = (String, [String], [(String,[Type])])
 
 data ModuleInterface = ModuleInterface {
-    iTypes    :: Map.Map String Type,
-    iAdts     :: [ADT],
-    iAliases  :: [(String, [String], Type)],
-    iFixities :: [(Assoc, Int, String)]
+    iTypes   :: Map.Map String Type,
+    iAdts    :: [ADT],
+    iAliases :: [(String, [String], Type)]
 } deriving Show
 
 instance Binary ModuleInterface where
-  get = ModuleInterface <$> get <*> get <*> get <*> get
-  put modul = do
-      put (iTypes modul)
-      put (iAdts modul)
-      put (iAliases modul)
-      put (iFixities modul)
-
-
-instance Binary Assoc where
-    get = do n <- getWord8
-             return $ case n of { 0 -> L ; 1 -> N ; 2 -> R }
-
-    put assoc = putWord8 $ case assoc of { L -> 0 ; N -> 1 ; R -> 2 }
+  put modul = put (iTypes modul) >> put (iAdts modul) >> put (iAliases modul)
+  get = ModuleInterface <$> get <*> get <*> get

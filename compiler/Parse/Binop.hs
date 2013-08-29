@@ -1,4 +1,4 @@
-module Parse.Binop (binops, infixStmt, OpTable, preludeTable) where
+module Parse.Binop (binops, infixStmt, OpTable) where
 
 import Control.Applicative ((<$>))
 import Control.Monad.Error
@@ -11,8 +11,10 @@ import SourceSyntax.Declaration (Assoc(..))
 import Text.Parsec
 import Parse.Helpers
 
+type OpTable = [(Int, Assoc, String)]
+
 preludeTable :: OpTable
-preludeTable = Map.fromList $ map (\(lvl,assoc,op) -> (op, (lvl,assoc)))
+preludeTable =
   [ (9, R, ".")
   , (8, R, "^")
   , (7, L, "*"), (7, L, "/"), (7, L, "mod"), (7, L, "div"), (7, L, "rem")
@@ -27,22 +29,24 @@ preludeTable = Map.fromList $ map (\(lvl,assoc,op) -> (op, (lvl,assoc)))
   ]
 
 opLevel :: OpTable -> String -> Int
-opLevel table op = fst $ Map.findWithDefault (9,R) op table
+opLevel table op = Map.findWithDefault 9 op dict
+    where dict = Map.fromList (map (\(lvl,_,op) -> (op,lvl)) table)
 
 opAssoc :: OpTable -> String -> Assoc
-opAssoc table op = snd $ Map.findWithDefault (9,R) op table
+opAssoc table op = Map.findWithDefault R op dict
+    where dict = Map.fromList (map (\(_,assoc,op) -> (op,assoc)) table)
 
 hasLevel :: OpTable -> Int -> (String, LExpr t v) -> Bool
 hasLevel table n (op,_) = opLevel table op == n
 
-binops :: IParser (LExpr t v)
+binops :: OpTable
+       -> IParser (LExpr t v)
        -> IParser (LExpr t v)
        -> IParser String
        -> IParser (LExpr t v)
-binops term last anyOp =
+binops table term last anyOp =
     do e <- term
-       table <- getState
-       split table 0 e =<< nextOps
+       split (table ++ preludeTable) 0 e =<< nextOps
     where
       nextOps = choice [ commitIf (whitespace >> anyOp) $ do
                            whitespace ; op <- anyOp ; whitespace
