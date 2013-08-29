@@ -23,7 +23,10 @@ import qualified Transform.Canonicalize as Canonical
 buildFromSource :: Bool -> Interfaces -> String -> Either [Doc] (MetadataModule () ())
 buildFromSource noPrelude interfaces source =
   do let add = if noPrelude then id else Prelude.add
-     modul@(Module _ _ _ decls') <- add `fmap` Parse.program source
+         infixes = Map.fromList . map (\(assoc,lvl,op) -> (op,(lvl,assoc)))
+                 . concatMap iFixities $ Map.elems interfaces
+
+     modul@(Module _ _ _ decls') <- add `fmap` Parse.program infixes source
 
      -- check for structural errors
      Module names exs ims decls <-

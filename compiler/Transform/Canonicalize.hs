@@ -22,7 +22,7 @@ interface moduleName iface =
     { iTypes = Map.mapKeys prefix (Map.map renameType' (iTypes iface))
     , iAdts = map (both prefix renameCtors) (iAdts iface)
     , iAliases = map (both prefix renameType') (iAliases iface)
-    , iFixities = map (both id prefix) (iFixities iface)
+    , iFixities = iFixities iface -- cannot have canonicalized operators while parsing
     }
   where
     both f g (a,b,c) = (f a, b, g c)
