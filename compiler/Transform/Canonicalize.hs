@@ -18,10 +18,11 @@ import Text.PrettyPrint as P
 
 interface :: String -> ModuleInterface -> ModuleInterface
 interface moduleName iface =
-    ModuleInterface {
-      iTypes = Map.mapKeys prefix (Map.map renameType' (iTypes iface)),
-      iAdts = map (both prefix renameCtors) (iAdts iface),
-      iAliases = map (both prefix renameType') (iAliases iface)
+    ModuleInterface
+    { iTypes = Map.mapKeys prefix (Map.map renameType' (iTypes iface))
+    , iAdts = map (both prefix renameCtors) (iAdts iface)
+    , iAliases = map (both prefix renameType') (iAliases iface)
+    , iFixities = map (both id prefix) (iFixities iface)
     }
   where
     both f g (a,b,c) = (f a, b, g c)
