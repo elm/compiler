@@ -17,7 +17,4 @@ parensIf bool doc = if bool then parens doc else doc
 
 variable x =
     if Help.isOp x then parens (text x)
-                   else text (reprime x)
-
-reprime :: String -> String
-reprime = map (\c -> if c == '$' then '\'' else c)
+                   else text x

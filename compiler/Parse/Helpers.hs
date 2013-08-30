@@ -64,18 +64,10 @@ rLabel = lowVar
 innerVarChar :: IParser Char
 innerVarChar = alphaNum <|> char '_' <|> char '\'' <?> "" 
 
-makeSafe :: String -> String
-makeSafe = dereserve . deprime
-  where
-    deprime = map (\c -> if c == '\'' then '$' else c)
-    dereserve x = case Set.member x jsReserveds of
-                    False -> x
-                    True  -> "$" ++ x
-
 makeVar :: IParser Char -> IParser String
 makeVar p = do v <- (:) <$> p <*> many innerVarChar
                guard (v `notElem` reserveds)
-               return (makeSafe v)
+               return v
 
 reserved :: String -> IParser String
 reserved word =
@@ -233,3 +225,4 @@ closeComment = do
                , do { try $ string "{-"; closeComment; closeComment }
                ]
     return ("{-" ++ comment ++ "-}")
+

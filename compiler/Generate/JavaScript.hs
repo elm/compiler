@@ -14,6 +14,7 @@ import Generate.Cases
 import SourceSyntax.Everything
 import SourceSyntax.Location
 import qualified Transform.SortDefinitions as SD
+import Transform.Variable (makeVarsSafe)
 
 indent = concatMap f
     where f '\n' = "\n  "
@@ -50,14 +51,16 @@ globalAssign n e = "\n" ++ assign' n e ++ ";"
 assign' n e = n ++ " = " ++ e
 
 jsModule :: MetadataModule t v -> String
-jsModule modul =
-    run $ do
-      body <- toJS . fst . SD.flattenLets [] $ program modul
-      foreignImport <- mapM importEvent (foreignImports modul)
-      return $ concat [ setup ("Elm" : names modul)
-                      , globalAssign ("Elm." ++ modName)
-                                     (jsFunc "elm" $ makeProgram body foreignImport) ]
+jsModule unsafeModule =
+  run $ do
+    
+    body <- toJS . fst . SD.flattenLets [] $ program modul
+    foreignImport <- mapM importEvent (foreignImports modul)
+    return $ concat [ setup ("Elm" : names modul)
+                    , globalAssign ("Elm." ++ modName)
+                      (jsFunc "elm" $ makeProgram body foreignImport) ]
   where
+    modul = makeVarsSafe unsafeModule
     modName  = dotSep (names modul)
     makeProgram body foreignImport =
         concat [ setup ("elm" : names modul)
