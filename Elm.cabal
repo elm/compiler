@@ -52,6 +52,7 @@ Library
                        Transform.SortDefinitions,
                        Transform.Substitute,
                        Transform.Optimize,
+                       Transform.Variable
                        Metadata.Prelude,
                        Initialize,
                        Parse.Binop,
@@ -122,6 +123,7 @@ Executable elm
                        Transform.SortDefinitions,
                        Transform.Substitute,
                        Transform.Optimize,
+                       Transform.Variable,
                        Metadata.Prelude,
                        Initialize,
                        Parse.Binop,

@@ -177,7 +177,7 @@ instance PrettyType a => PrettyType (Term1 a) where
           prettyExt = prty ext
           extend | P.render prettyExt == "{}" = P.empty
                  | otherwise = prettyExt <+> P.text "|"
-          mkPretty f t = P.text (reprime f) <+> P.text ":" <+> prty t
+          mkPretty f t = P.text f <+> P.text ":" <+> prty t
           prettyFields = concatMap (\(f,ts) -> map (mkPretty f) ts) (Map.toList fields)
 
 
@@ -192,7 +192,7 @@ instance PrettyType Descriptor where
   pretty when desc =
     case (structure desc, name desc) of
       (Just term, _) -> pretty when term
-      (_, Just name) -> if not (isTuple name) then P.text (reprime name) else
+      (_, Just name) -> if not (isTuple name) then P.text name else
                             P.parens . P.text $ replicate (read (drop 6 name) - 1) ','
       _ -> P.text "?"
 

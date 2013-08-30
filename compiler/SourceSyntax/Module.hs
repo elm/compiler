@@ -35,7 +35,7 @@ data MetadataModule t v = MetadataModule {
     datatypes :: [ (String, [String], [(String,[Type])]) ],
     foreignImports :: [(String, LExpr t v, String, Type)],
     foreignExports :: [(String, String, Type)]
-}
+} deriving Show
 
 type Interfaces = Map.Map String ModuleInterface
 type ADT = (String, [String], [(String,[Type])])
