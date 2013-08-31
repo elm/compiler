@@ -13,7 +13,8 @@ import SourceSyntax.Expression
 import Transform.Substitute
 
 
-caseToMatch patterns = do
+caseToMatch :: [(Pattern, LExpr t v)] -> (String, Match t v)
+caseToMatch patterns = flip evalState 0 $ do
   v <- newVar
   (,) v <$> match [v] (map (first (:[])) patterns) Fail
 
