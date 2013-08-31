@@ -1,22 +1,24 @@
 module Generate.Cases (caseToMatch, Match (..), Clause (..), matchSubst) where
 
+import Control.Applicative ((<$>),(<*>))
 import Control.Arrow (first)
-import Control.Monad (liftM,foldM)
+import Control.Monad.State
 import Data.List (groupBy,sortBy,lookup)
 import Data.Maybe (fromMaybe)
 
-import Unique
 import SourceSyntax.Location
 import SourceSyntax.Literal
 import SourceSyntax.Pattern
 import SourceSyntax.Expression
 import Transform.Substitute
 
+
 caseToMatch patterns = do
   v <- newVar
-  (,) v `liftM` match [v] (map (first (:[])) patterns) Fail
+  (,) v <$> match [v] (map (first (:[])) patterns) Fail
 
-newVar = do n <- guid
+newVar = do n <- get
+            modify (+1)
             return $ "case" ++ show n
 
 data Match t v
@@ -51,7 +53,7 @@ isCon (p:ps, e) =
 
 isVar p = not (isCon p)
 
-match :: [String] -> [([Pattern],LExpr t v)] -> Match t v -> Unique (Match t v)
+match :: [String] -> [([Pattern],LExpr t v)] -> Match t v -> State Int (Match t v)
 match [] [] def = return def
 match [] [([],e)] Fail  = return $ Other e
 match [] [([],e)] Break = return $ Other e
@@ -68,8 +70,7 @@ dealias v c@(p:ps, L s e) =
       PAlias x pattern -> (pattern:ps, L s $ subst x (Var v) e)
       _ -> c
 
-matchVar :: [String] -> [([Pattern],LExpr t v)] -> Match t v
-         -> Unique (Match t v)
+matchVar :: [String] -> [([Pattern],LExpr t v)] -> Match t v -> State Int (Match t v)
 matchVar (v:vs) cs def = match vs (map subVar cs) def
   where
     subVar (p:ps, ce@(L s e)) = (ps, L s $ subOnePattern p e)
@@ -82,8 +83,8 @@ matchVar (v:vs) cs def = match vs (map subVar cs) def
                  foldr (\x -> subst x (Access (L s (Var v)) x)) e fs
 
 matchCon :: [String] -> [([Pattern],LExpr t v)] -> Match t v
-         -> Unique (Match t v)
-matchCon (v:vs) cs def = (flip (Match v) def) `liftM` mapM toClause css
+         -> State Int (Match t v)
+matchCon (v:vs) cs def = (flip (Match v) def) <$> mapM toClause css
     where
       css = groupBy eq (sortBy cmp cs)
 
@@ -106,10 +107,10 @@ matchClause :: Either String Literal
             -> [String]
             -> [([Pattern],LExpr t v)]
             -> Match t v
-            -> Unique (Clause t v)
+            -> State Int (Clause t v)
 matchClause c (v:vs) cs def =
     do vs' <- getVars
-       Clause c vs' `liftM` match (vs' ++ vs) (map flatten cs) def
+       Clause c vs' <$> match (vs' ++ vs) (map flatten cs) def
     where
 
       flatten (p:ps, e) =
@@ -122,7 +123,6 @@ matchClause c (v:vs) cs def =
             (PData _ ps : _, _) -> mapM (\_ -> newVar) ps
             (PLiteral _ : _, _) -> return []
 
-matchMix :: [String] -> [([Pattern],LExpr t v)] -> Match t v
-         -> Unique (Match t v)
+matchMix :: [String] -> [([Pattern],LExpr t v)] -> Match t v -> State Int (Match t v)
 matchMix vs cs def = foldM (flip $ match vs) def (reverse css)
     where css = groupBy (\p1 p2 -> isCon p1 == isCon p2) cs
