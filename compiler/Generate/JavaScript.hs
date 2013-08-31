@@ -1,12 +1,11 @@
 module Generate.JavaScript where
 
-import Control.Monad (liftM,(<=<),join,ap)
+import Control.Applicative ((<$>))
 import Data.Char (isAlpha,isDigit)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Either (partitionEithers)
-
 
 import Unique
 import Generate.Cases
@@ -19,7 +18,9 @@ import Parse.Helpers (makeSafe, iParse)
 
 import Parse.Expression
 
-testExpr str = (prettyPrint . expression) `fmap` iParse expr "" str
+testExpr str = case iParse expr "" str of
+                 Right e -> prettyPrint (expression e)
+                 Left err -> error (show err)
 
 var name = Id () (makeSafe name)
 ref name = VarRef () (var name)
@@ -65,14 +66,12 @@ expression (L span expr) =
       Access e x -> DotRef () (expression e) (var x)
       Remove e x -> dotSep ["_N","remove"] `call` [ref x, expression e]
       Insert e x v -> dotSep ["_N","insert"] `call` [ref x, expression v, expression e]
-{--
-      Modify e fs -> do fs' <- (mapM (\(x,v) -> (,) x `liftM` toJS' v) fs)
-                        setField fs' `liftM` toJS' e
-    Record fs -> makeRecord fs
+      Modify e fs ->
+          let modify (f,v) = ArrayLit () [ref f, expression e]
+          in  dotSep ["_N","replace"] `call` [ArrayLit () (map modify fs), expression e]
 
-addField x v e = "_N.insert('" ++ x ++ "', " ++ v ++ ", " ++ e ++ ")"
-setField fs e = "_N.replace(" ++ jsList (map f fs) ++ ", " ++ e ++ ")"
-    where f (x,v) = "['" ++ x ++ "'," ++ v ++ "]"
+{--
+    Record fs -> makeRecord fs
 makeRecord kvs = record `liftM` collect kvs
   where
     combine r (k,v) = Map.insertWith (++) k v r
@@ -96,7 +95,7 @@ makeRecord kvs = record `liftM` collect kvs
                 | otherwise =
                     ref ("F" ++ show (length args)) <| (args ==> expression body)
 
-            (args, body) = foldr depattern ([], innerBody) (zip patterns [1..])
+            (args, body) = foldr depattern ([], innerBody) (zip patterns [0..])
 
             depattern (pattern,n) (args, body) =
                 case pattern of
@@ -110,7 +109,7 @@ makeRecord kvs = record `liftM` collect kvs
                 case expr of
                   Lambda p e -> collect (p:patterns) e
                   _ -> (patterns, lexpr)
---}
+
       App e1 e2 ->
           case args of
             [arg] -> func <| arg
@@ -122,9 +121,11 @@ makeRecord kvs = record `liftM` collect kvs
                 case func of
                   (L _ (App f arg)) -> getArgs f (arg : args)
                   _ -> (expression func, map expression args)
-{--
-      Let defs e -> jsLet $ SD.flattenLets defs e 
---}
+
+      Let defs e -> FuncExpr () Nothing [] stmts `call` []
+          where
+            (defs',e') = SD.flattenLets defs e 
+            stmts = map definition defs' ++ [ ReturnStmt () (Just (expression e')) ]
 
       MultiIf branches ->
           case last branches of
@@ -148,6 +149,50 @@ makeRecord kvs = record `liftM` collect kvs
               md = formatMarkdown $ Pan.writeHtmlString Pan.def doc
 --}
 
+definition def =
+  case def of
+    TypeAnnotation _ _ -> EmptyStmt ()
+    Def pattern expr@(L span _) ->
+      let assign x = VarDecl () (var x) (Just (expression expr)) in
+      case pattern of
+        PVar x
+            | isOp x ->
+                let op = LBracket () (ref "_op") (string x) in
+                ExprStmt () (AssignExpr () OpAssign op (expression expr))
+            | otherwise ->
+                VarDeclStmt () [ assign x ]
+
+        PRecord fields -> VarDeclStmt () (assign "$" : map setField fields)
+            where
+              setField f = VarDecl () (var f) (Just (dotSep ["$",f]))
+
+        PData name patterns | vars /= Nothing ->
+            case vars of
+              Just vs -> VarDeclStmt () (setup (zipWith varDecl vs [0..]))
+            where
+              vars = getVars patterns
+              getVars patterns =
+                  case patterns of
+                    PVar x : rest -> (x:) <$> getVars rest
+                    [] -> Just []
+                    _ -> Nothing
+
+              varDecl x n = VarDecl () (var x) (Just (dotSep ["$","_" ++ show n]))
+              setup vars
+                  | isTuple name = assign "$" : vars
+                  | otherwise = safeAssign : vars
+
+              safeAssign = VarDecl () (var "$") (Just $ CondExpr () if' (expression expr) exception)
+              if' = InfixExpr () OpStrictEq (dotSep ["$","ctor"]) (string name)
+              exception = dotSep ["_E","Case"] `call` [ref "$moduleName", string (show span)]
+
+        _ -> BlockStmt () ( VarDeclStmt () [assign "$"] : map toDef vars )
+          where
+            vars = Set.toList $ SD.boundVars pattern
+            mkVar = L span . Var
+            toDef y = definition $
+                        Def (PVar y) (L span $ Case (mkVar "$") [(pattern, mkVar y)])
+--}
 {--
 
 globalAssign n e = "\n" ++ assign' n e ++ ";"
@@ -216,49 +261,11 @@ jsImport (modul, method) =
                     []       -> (reverse name, [])
 
 
-class ToJS a where
-  toJS :: a -> Unique String
-
-
-instance ToJS (Def t v) where
-
-  -- TODO: Make this handle patterns besides plain variables
-  toJS (Def (PVar x) e)
-      | isOp x = globalAssign ("_op['" ++ x ++ "']")  `liftM` toJS' e
-      | otherwise = assign x `liftM` toJS' e
-
-  toJS (Def pattern e@(L s _)) =
-      do n <- guid
-         let x = "_" ++ show n
-             var = L s . Var
-             toDef y = Def (PVar y) (L s $ Case (var x) [(pattern, var y)])
-         stmt <- assign x `liftM` toJS' e
-         vars <- toJS . map toDef . Set.toList $ SD.boundVars pattern
-         return (stmt ++ vars)
-
-  toJS (TypeAnnotation _ _) = return ""
-
-
-instance ToJS a => ToJS [a] where
-  toJS xs = concat `liftM` mapM toJS xs
-
-toJS' :: LExpr t v -> Unique String
-toJS' (L span expr) =
-    case expr of
-      Case e cases -> caseToJS span e cases
-      _ -> toJS expr
-
-
-
 formatMarkdown = concatMap f
     where f '\'' = "\\'"
           f '\n' = "\\n"
           f '"'  = "\""
           f c = [c]
-
-jsLet (defs,e') = do ds <- mapM toJS defs
-                     e <- toJS' e'
-                     return $ jsFunc "" (concat ds ++ ret e) ++ "()"
 
 caseToJS span e ps = do
   (tempVar,match) <- caseToMatch ps
@@ -302,9 +309,6 @@ clauseToJS span var (Clause value vars e) = do
                                                 [] -> name
                                                 is -> drop (last is + 1) name
   return $ concat [ "\ncase ", pattern, ":", indent s ]
-
-jsCons  e1 e2 = "_L.Cons(" ++ e1 ++ "," ++ e2 ++ ")"
-jsCompare e1 e2 op = parens ("_N.cmp(" ++ e1 ++ "," ++ e2 ++ ")" ++ op)
 
 --}
 binop span op e1 e2 =
@@ -359,4 +363,3 @@ binop span op e1 e2 =
         ]
 
     cmp op n a b = InfixExpr () op (dotSep ["_N","cmp"] `call` [a,b]) (IntLit () n)
---}
