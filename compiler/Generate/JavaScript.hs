@@ -283,23 +283,16 @@ jsModule modul =
                , "e.initEvent('", js, "_' + elm.id, true, true);"
                , "e.value = v;"
                , "document.dispatchEvent(e); return v; }, ", elm, ");" ]
-
-jsImport (modul, method) =
-    concat $ zipWith3 (\s n v -> s ++ assign' n v ++ ";") starters subnames values
-  where
-    starters = "\nvar " : repeat "\n"
-    values = map (\name -> name ++ " || {}") (init subnames) ++
-             ["Elm." ++ modul ++ parens "elm"]
-    subnames = map dotSep . tail . List.inits $ split modul
-
-    split names = case go [] names of
-                    (name, []) -> [name]
-                    (name, ns) -> name : split ns
-    go name str = case str of
-                    '.':rest -> (reverse name, rest)
-                    c:rest   -> go (c:name) rest
-                    []       -> (reverse name, [])
 --}
+jsImport (modul, _) = map (ExprStmt ()) exprs
+  where
+    assign name = AssignExpr () OpAssign (LDot () (dotSep (init name)) (last name))
+    setup name = assign name (InfixExpr () OpLOr (dotSep name) (ObjectLit () []))
+    exprs = map setup (drop 2 . init $ List.inits path) ++
+            [ assign path (dotSep path <| ref "elm") ]
+    path = split modul
+
+
 binop span op e1 e2 =
     case op of
       "Basics.."  -> ["$"] ==> foldr (<|) (ref "$") (map expression (e1 : collect [] e2))
