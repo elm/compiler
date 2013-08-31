@@ -145,8 +145,8 @@ buildInterfaces lbi elmis = do
 buildRuntime :: LocalBuildInfo -> [FilePath] -> IO ()
 buildRuntime lbi elmos = do
   createDirectoryIfMissing True (rtsDir lbi)
-  writeFile (rts lbi) "Elm = {}; Elm.Native = {}; Elm.Native.Graphics = {};\n\
-                      \Elm.Graphics = {}; ElmRuntime = {}; ElmRuntime.Render = {};\n"
+  writeFile (rts lbi) "var Elm = {}; Elm.Native = {}; Elm.Native.Graphics = {};\n\
+                      \var ElmRuntime = {}; ElmRuntime.Render = {};\n"
   mapM_ (appendJS lbi) =<< getFiles ".js" "libraries"
   mapM_ (appendJS lbi) elmos
   mapM_ (appendJS lbi) =<< getFiles ".js" "runtime"
