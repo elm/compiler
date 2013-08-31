@@ -1,13 +1,12 @@
 module Generate.JavaScript where
 
 import Control.Applicative ((<$>))
-import Data.Char (isAlpha,isDigit)
+import Control.Arrow ((***))
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Either (partitionEithers)
 
-import Unique
 import Generate.Cases
 import SourceSyntax.Everything
 import SourceSyntax.Location
@@ -19,7 +18,7 @@ import Parse.Helpers (makeSafe, iParse)
 import Parse.Expression
 
 testExpr str = case iParse expr "" str of
-                 Right e -> prettyPrint (expression e)
+                 Right e -> prettyPrint (expression (e :: LExpr () ()))
                  Left err -> error (show err)
 
 var name = Id () (makeSafe name)
@@ -57,6 +56,7 @@ literal lit =
 --    FloatNum n -> NumLit () (float2Double n)  -- wrong!!!
     Boolean  b -> BoolLit () b
 
+expression :: LExpr () () -> Expression ()
 expression (L span expr) =
     case expr of
       Var x -> ref x
@@ -70,21 +70,14 @@ expression (L span expr) =
           let modify (f,v) = ArrayLit () [ref f, expression e]
           in  dotSep ["_N","replace"] `call` [ArrayLit () (map modify fs), expression e]
 
-{--
-    Record fs -> makeRecord fs
-makeRecord kvs = record `liftM` collect kvs
-  where
-    combine r (k,v) = Map.insertWith (++) k v r
-    collect = liftM (List.foldl' combine Map.empty) . mapM prep
-    prep (k, e) =
-        do v <- toJS' e
-           return (k, [v])
-    fields fs =
-        brackets ("\n  "++List.intercalate ",\n  " (map (\(k,v) -> k++":"++v) fs))
-    hidden = fields . map (second jsList) .
-             filter (not . null . snd) . Map.toList . Map.map tail
-    record kvs = fields . (("_", hidden kvs) :) . Map.toList . Map.map head $ kvs
---}
+      Record fields -> ObjectLit () $ (PropId () (var "_"), hidden) : visible
+        where
+          combine r (k,v) = Map.insertWith (++) k [v] r
+          fieldMap = List.foldl' combine Map.empty fields
+          hidden = ObjectLit () . map ((PropId () . var) *** (ArrayLit () . map expression)) .
+                   Map.toList . Map.filter (not . null) $ Map.map tail fieldMap
+          visible = map ((PropId () . var) *** expression) . Map.toList $ Map.map head fieldMap
+
       Binop op e1 e2 -> binop span op e1 e2
 
       Lambda p e@(L s _) -> fastFunc
@@ -134,6 +127,15 @@ makeRecord kvs = record `liftM` collect kvs
           where
             ifs branches finally = foldr iff finally branches
             iff (if', then') else' = CondExpr () (expression if') (expression then') else'
+
+      Case e cases -> FuncExpr () Nothing [] (stmt ++ match span revisedMatch) `call` []
+          where
+            (tempVar,initialMatch) = caseToMatch cases
+            (revisedMatch, stmt) =
+                case e of
+                  L _ (Var x) -> (matchSubst [(tempVar,x)] initialMatch, [])
+                  _ -> let decl = VarDecl () (var tempVar) (Just $ expression e)
+                       in  (initialMatch, [VarDeclStmt () [decl]])
 
       ExplicitList es ->
           dotSep ["_J","toList"] <| ArrayLit () (map expression es)
@@ -187,16 +189,47 @@ definition def =
               exception = dotSep ["_E","Case"] `call` [ref "$moduleName", string (show span)]
 
         _ -> BlockStmt () ( VarDeclStmt () [assign "$"] : map toDef vars )
-          where
-            vars = Set.toList $ SD.boundVars pattern
-            mkVar = L span . Var
-            toDef y = definition $
+            where
+              vars = Set.toList $ SD.boundVars pattern
+              mkVar = L span . Var
+              toDef y = definition $
                         Def (PVar y) (L span $ Case (mkVar "$") [(pattern, mkVar y)])
 --}
-{--
 
-globalAssign n e = "\n" ++ assign' n e ++ ";"
-assign' n e = n ++ " = " ++ e
+match span mtch =
+  case mtch of
+    Match name clauses mtch' -> SwitchStmt () (access name) clauses' : match span mtch'
+        where
+          clauses' = map (clause span name) clauses
+          isLiteral p = case p of
+                          Clause (Right _) _ _ -> True
+                          _ -> False
+          access name = if any isLiteral clauses then ref name else dotSep [name,"ctor"]
+
+    Fail -> [ ExprStmt () (dotSep ["_E","Case"] `call` [ref "$moduleName", string (show span)]) ]
+    Break -> []
+    Other e -> [ ReturnStmt () (Just $ expression e) ]
+    Seq ms -> concatMap (match span) (dropEnd [] ms)
+        where
+          dropEnd acc [] = acc
+          dropEnd acc (m:ms) =
+              case m of
+                Other _ -> acc ++ [m]
+                _ -> dropEnd (acc ++ [m]) ms
+
+clause span variable (Clause value vars mtch) =
+    CaseClause () pattern stmt
+  where
+    vars' = map (\n -> variable ++ "._" ++ show n) [0..]
+    stmt = match span $ matchSubst (zip vars vars') mtch
+    pattern = case value of
+                Right (Boolean b)  -> BoolLit () b
+                Right lit -> literal lit
+                Left name -> string $ case List.elemIndices '.' name of
+                                        [] -> name
+                                        is -> drop (last is + 1) name
+--}
+{--
 
 jsModule :: MetadataModule t v -> String
 jsModule modul =
@@ -266,50 +299,6 @@ formatMarkdown = concatMap f
           f '\n' = "\\n"
           f '"'  = "\""
           f c = [c]
-
-caseToJS span e ps = do
-  (tempVar,match) <- caseToMatch ps
-  e' <- toJS' e
-  let (match',stmt) = case e of
-        L _ (Var x) -> (matchSubst [(tempVar,x)] match, "")
-        _           -> (match, assign tempVar e')
-  matches <- matchToJS span match'
-  return $ jsFunc "" (stmt ++ matches) ++ "()"
-
-matchToJS span match =
-  case match of
-    Match name clauses def ->
-        do cases <- concat `liftM` mapM (clauseToJS span name) clauses
-           finally <- matchToJS span def
-           let isLiteral p = case p of
-                               Clause (Right _) _ _ -> True
-                               _ -> False
-               access = if any isLiteral clauses then "" else ".ctor"
-           return $ concat [ "\nswitch (", name, access, ") {"
-                           , indent cases, "\n}", finally ]
-    Fail -> return ("_E.Case" ++ parens ("$moduleName," ++ quoted (show span)))
-    Break -> return "break;"
-    Other e -> ret `liftM` toJS' e
-    Seq ms -> concat `liftM` mapM (matchToJS span) (dropEnd [] ms)
-        where
-          dropEnd acc [] = acc
-          dropEnd acc (m:ms) =
-              case m of
-                Other _ -> acc ++ [m]
-                _ -> dropEnd (acc ++ [m]) ms
-
-clauseToJS span var (Clause value vars e) = do
-  let vars' = map (\n -> var ++ "._" ++ show n) [0..]
-  s <- matchToJS span $ matchSubst (zip vars vars') e
-  pattern <- case value of
-               Right (Boolean True)  -> return "true"
-               Right (Boolean False) -> return "false"
-               Right lit -> toJS lit
-               Left name -> return . quoted $ case List.elemIndices '.' name of
-                                                [] -> name
-                                                is -> drop (last is + 1) name
-  return $ concat [ "\ncase ", pattern, ":", indent s ]
-
 --}
 binop span op e1 e2 =
     case op of
