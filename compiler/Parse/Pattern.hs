@@ -6,7 +6,6 @@ import Control.Monad
 import Control.Monad.State
 import Data.Char (isUpper)
 import Data.List (intercalate)
-import Unique
 import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
 

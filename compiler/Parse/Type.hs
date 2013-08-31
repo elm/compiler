@@ -9,7 +9,6 @@ import Text.Parsec.Indent
 
 import SourceSyntax.Type as T
 import Parse.Helpers
-import Unique
 
 tvar :: IParser T.Type
 tvar = T.Var <$> lowVar <?> "type variable"
