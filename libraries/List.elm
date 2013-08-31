@@ -185,3 +185,7 @@ take = Native.List.take
 -- Drop the first n members of a list: `(drop 2 [1,2,3,4] == [3,4])`
 drop : Int -> [a] -> [a]
 drop = Native.List.drop
+
+-- Creates a list with n copies of a value: `(replicate 3 (0,0) == [(0,0),(0,0),(0,0)]`
+replicate : Int -> a -> [a]
+replicate = Native.List.replicate

@@ -241,6 +241,15 @@ Elm.Native.List = function(elm) {
     return xs;
   }
 
+  function replicate(n, a) {
+    var arr = [];
+    while (n > 0) {
+      arr.push(a);
+      --n;
+    }
+    return fromArray(arr);
+  }
+
   function join(sep, xss) {
     if (typeof sep === 'string') return toArray(xss).join(sep);
     if (xss.ctor === '[]') return Nil;
@@ -344,6 +353,7 @@ Elm.Native.List = function(elm) {
       nth:F2(nth),
       take:F2(take),
       drop:F2(drop),
+      replicate:F2(replicate),
 
       join:F2(join),
       split:F2(split)
