@@ -1,6 +1,5 @@
 module Generate.JavaScript where
 
-import Control.Applicative ((<$>))
 import Control.Arrow ((***))
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -13,13 +12,15 @@ import SourceSyntax.Location
 import qualified Transform.SortDefinitions as SD
 import Language.ECMAScript3.Syntax
 import Language.ECMAScript3.PrettyPrint
-import Parse.Helpers (makeSafe, iParse)
+import Parse.Helpers (jsReserveds)
 
-import Parse.Expression
-
-testExpr str = case iParse expr "" str of
-                 Right e -> prettyPrint (expression (e :: LExpr () ()))
-                 Left err -> error (show err)
+makeSafe :: String -> String
+makeSafe = dereserve . deprime
+  where
+    deprime = map (\c -> if c == '\'' then '$' else c)
+    dereserve x = case Set.member x jsReserveds of
+                    False -> x
+                    True  -> "$" ++ x
 
 split = go []
   where
@@ -62,7 +63,7 @@ literal lit =
     Chr c -> string [c]
     Str s -> ref "_str" <| string s
     IntNum   n -> IntLit () n
---    FloatNum n -> NumLit () (float2Double n)  -- wrong!!!
+    FloatNum n -> NumLit () n
     Boolean  b -> BoolLit () b
 
 expression :: LExpr () () -> Expression ()
@@ -73,10 +74,10 @@ expression (L span expr) =
       Range lo hi -> get "_L.range" `call` [expression lo, expression hi]
 
       Access e x -> DotRef () (expression e) (var x)
-      Remove e x -> get "_N.remove" `call` [ref x, expression e]
-      Insert e x v -> get "_N.insert" `call` [ref x, expression v, expression e]
+      Remove e x -> get "_N.remove" `call` [string x, expression e]
+      Insert e x v -> get "_N.insert" `call` [string x, expression v, expression e]
       Modify e fs ->
-          let modify (f,v) = ArrayLit () [ref f, expression e]
+          let modify (f,v) = ArrayLit () [string f, expression v]
           in  get "_N.replace" `call` [ArrayLit () (map modify fs), expression e]
 
       Record fields -> ObjectLit () $ (PropId () (var "_"), hidden) : visible
@@ -183,7 +184,7 @@ definition def =
               vars = getVars patterns
               getVars patterns =
                   case patterns of
-                    PVar x : rest -> (x:) <$> getVars rest
+                    PVar x : rest -> (x:) `fmap` getVars rest
                     [] -> Just []
                     _ -> Nothing
 
@@ -236,13 +237,13 @@ clause span variable (Clause value vars mtch) =
                                         [] -> name
                                         is -> drop (last is + 1) name
 
-jsModule :: MetadataModule () () -> [Statement ()]
-jsModule modul = setup ("Elm" : names modul) ++
-                 [ assign ("Elm" : names modul) (function ["elm"] programStmts) ]
+jsModule :: MetadataModule () () -> String -- [Statement ()]
+jsModule modul = show . prettyPrint $ setup (Just "Elm") (names modul) ++
+                               [ assign ("Elm" : names modul) (function ["elm"] programStmts) ]
   where
     thisModule = dotSep ("elm" : names modul)
     programStmts =
-        concat [ setup ("elm" : names modul)
+        concat [ setup (Just "elm") (names modul)
                , [ IfSingleStmt () thisModule (ReturnStmt () (Just thisModule)) ]
                , [ internalImports (List.intercalate "." (names modul)) ]
                , concatMap jsImport (imports modul)
@@ -260,20 +261,21 @@ jsModule modul = setup ("Elm" : names modul) ++
           entry x = (PropId () (var x), ref x)
           
     assign path expr =
-        ExprStmt () $
-        flip (AssignExpr () OpAssign) expr $
              case path of
-               [x] -> LVar () x
-               _   -> LDot () (dotSep (init path)) (last path)
+               [x] -> VarDeclStmt () [ varDecl x expr ]
+               _   -> ExprStmt () $
+                      AssignExpr () OpAssign (LDot () (dotSep (init path)) (last path)) expr
 
-    jsImport (modul,_) = setup path ++ [ assign path (dotSep path <| ref "elm") ]
+    jsImport (modul,_) = setup Nothing path ++ [ assign path (dotSep ("Elm" : path) <| ref "elm") ]
         where
           path = split modul
 
-    setup path = map create paths
+    setup namespace path = map create paths
         where
           create name = assign name (InfixExpr () OpLOr (dotSep name) (ObjectLit () []))
-          paths = drop 2 . init $ List.inits path
+          paths = case namespace of
+                    Nothing -> tail . init $ List.inits path
+                    Just nmspc -> drop 2 . init . List.inits $ nmspc : path
 
     addId js = InfixExpr () OpAdd (string (js++"_")) (get "elm.id")
 
@@ -328,7 +330,7 @@ binop span op e1 e2 =
 
     opDict = Map.fromList (infixOps ++ specialOps)
 
-    specialOp str func = ("Basic." ++ str, func)
+    specialOp str func = ("Basics." ++ str, func)
     infixOp str op = specialOp str (InfixExpr () op)
 
     infixOps =
