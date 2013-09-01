@@ -14,7 +14,6 @@ import qualified SourceSyntax.Type as T
 import qualified Parse.Type as Type
 import SourceSyntax.Declaration (Declaration(..), Assoc(..))
 
-import Unique
 
 declaration :: IParser (Declaration t v)
 declaration = alias <|> datatype <|> infixDecl <|> foreignDef <|> definition

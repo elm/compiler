@@ -18,8 +18,6 @@ import qualified SourceSyntax.Literal as Literal
 import SourceSyntax.Expression
 import SourceSyntax.Declaration (Declaration(Definition))
 
-import Unique
-
 
 --------  Basic Terms  --------
 
