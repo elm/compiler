@@ -91,15 +91,16 @@ Elm.Native.Text = function(elm) {
         return "<a href='" + toText(href) + "'>" + text + "</a>";
     }
 
-    function position(pos) { return function(text) {
-        var e = {ctor:'RawHtml',
-	         _0: '<div style="padding:0;margin:0;text-align:' +
-                 pos + '">' + text + '</div>'
-                };
-        var p = A2(htmlHeight, 0, text);
-        return A3(Element.newElement, p._0, p._1, e);
+    function position(pos) {
+        return function(text) {
+            var e = {ctor:'RawHtml',
+	             _0: '<div style="padding:0;margin:0;text-align:' +
+                     pos + '">' + text + '</div>'
+                    };
+            var p = A2(htmlHeight, 0, text);
+            return A3(Element.newElement, p._0, p._1, e);
+        }
     }
-                           }
 
     function asText(v) {
         return position('left')(monospace(toText(show(v))));
