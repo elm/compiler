@@ -80,6 +80,10 @@ text = Native.Text.text
 plainText : String -> Element
 plainText = Native.Text.plainText
 
+-- for internal use only
+markdown : Element
+markdown = Native.Text.markdown
+
 -- Convert anything to it's textual representation and make it displayable in browser
 --
 --     asText == text . monospace . show

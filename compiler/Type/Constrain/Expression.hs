@@ -138,7 +138,7 @@ constrain env (L span expr) tipe =
           do vars <- forM es $ \_ -> liftIO (var Flexible)
              let tvars = map VarN vars
              cs <- zipWithM (constrain env) es tvars
-             return . ex vars $ and ("Graphics.Element.markdown" <? tipe : cs)
+             return . ex vars $ and ("Text.markdown" <? tipe : cs)
 
       Let defs body ->
           do c <- constrain env body tipe
