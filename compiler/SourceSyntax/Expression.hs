@@ -30,7 +30,7 @@ data Expr t v
     | Insert (LExpr t v) String (LExpr t v)
     | Modify (LExpr t v) [(String, LExpr t v)]
     | Record [(String, LExpr t v)]
-    | Markdown Pandoc.Pandoc
+    | Markdown Pandoc.Pandoc [LExpr t v]
       deriving (Eq, Show, Data, Typeable)
 
 data Def tipe var
@@ -94,7 +94,7 @@ instance Pretty (Expr t v) where
        where
          field (x,e) = variable x <+> P.text "=" <+> pretty e
 
-     Markdown _ -> P.text "[markdown| ... |]"
+     Markdown _ _ -> P.text "[markdown| ... |]"
 
 instance Pretty (Def t v) where
   pretty def =

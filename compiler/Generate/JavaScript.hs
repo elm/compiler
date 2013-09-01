@@ -185,7 +185,7 @@ expression (L span expr) =
             ctor = (prop "ctor", string (makeSafe name))
             fields = zipWith (\n e -> (prop ("_" ++ show n), e)) [0..]
 
-      Markdown doc -> return $ obj "Text.text" <| string (pad ++ md ++ pad)
+      Markdown doc _ -> return $ obj "Text.text" <| string (pad ++ md ++ pad)
           where pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
                 md = Pan.writeHtmlString Pan.def doc
 
