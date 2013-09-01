@@ -322,7 +322,7 @@ binop span op e1 e2 =
     js1 = expression e1
     js2 = expression e2
 
-    func | isOp operator = BracketRef () (dotSep (init parts ++ ["_op"])) (string op)
+    func | isOp operator = BracketRef () (dotSep (init parts ++ ["_op"])) (string operator)
          | otherwise     = dotSep parts
         where
           parts = split op
