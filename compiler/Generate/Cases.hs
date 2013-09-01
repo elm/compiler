@@ -1,7 +1,7 @@
 module Generate.Cases (caseToMatch, Match (..), Clause (..), matchSubst) where
 
 import Control.Applicative ((<$>),(<*>))
-import Control.Arrow (first)
+import Control.Arrow (first,second)
 import Control.Monad.State
 import Data.List (groupBy,sortBy,lookup)
 import Data.Maybe (fromMaybe)
@@ -13,14 +13,15 @@ import SourceSyntax.Expression
 import Transform.Substitute
 
 
-caseToMatch :: [(Pattern, LExpr t v)] -> (String, Match t v)
-caseToMatch patterns = flip evalState 0 $ do
+caseToMatch :: [(Pattern, LExpr t v)] -> State Int (String, Match t v)
+caseToMatch patterns = do
   v <- newVar
   (,) v <$> match [v] (map (first (:[])) patterns) Fail
 
+newVar :: State Int String
 newVar = do n <- get
             modify (+1)
-            return $ "case" ++ show n
+            return $ "_case" ++ show n
 
 data Match t v
     = Match String [Clause t v] (Match t v)
@@ -83,8 +84,7 @@ matchVar (v:vs) cs def = match vs (map subVar cs) def
               PRecord fs ->
                  foldr (\x -> subst x (Access (L s (Var v)) x)) e fs
 
-matchCon :: [String] -> [([Pattern],LExpr t v)] -> Match t v
-         -> State Int (Match t v)
+matchCon :: [String] -> [([Pattern],LExpr t v)] -> Match t v -> State Int (Match t v)
 matchCon (v:vs) cs def = (flip (Match v) def) <$> mapM toClause css
     where
       css = groupBy eq (sortBy cmp cs)
@@ -104,11 +104,7 @@ matchCon (v:vs) cs def = (flip (Match v) def) <$> mapM toClause css
           (PData name _ : _, _) -> matchClause (Left name) (v:vs) cs Break
           (PLiteral lit : _, _) -> matchClause (Right lit) (v:vs) cs Break
 
-matchClause :: Either String Literal
-            -> [String]
-            -> [([Pattern],LExpr t v)]
-            -> Match t v
-            -> State Int (Clause t v)
+--matchClause :: Either String Literal -> [String] -> [([Pattern],LExpr t v)] -> Match t v -> State Int (Clause a)
 matchClause c (v:vs) cs def =
     do vs' <- getVars
        Clause c vs' <$> match (vs' ++ vs) (map flatten cs) def
@@ -121,7 +117,7 @@ matchClause c (v:vs) cs def =
 
       getVars =
           case head cs of
-            (PData _ ps : _, _) -> mapM (\_ -> newVar) ps
+            (PData _ ps : _, _) -> forM ps (const newVar)
             (PLiteral _ : _, _) -> return []
 
 matchMix :: [String] -> [([Pattern],LExpr t v)] -> Match t v -> State Int (Match t v)

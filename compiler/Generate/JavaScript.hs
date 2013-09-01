@@ -1,6 +1,8 @@
 module Generate.JavaScript where
 
-import Control.Arrow ((***))
+import Control.Arrow (first,(***))
+import Control.Applicative ((<$>),(<*>))
+import Control.Monad.State
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -39,22 +41,22 @@ call = CallExpr ()
 string = StringLit ()
 
 dotSep (x:xs) = foldl (DotRef ()) (ref x) (map var xs)
-get = dotSep . split
+obj = dotSep . split
 
 varDecl x expr =
     VarDecl () (var x) (Just expr)
 
 include alias moduleName =
-    varDecl alias (get moduleName <| ref "elm")
+    varDecl alias (obj moduleName <| ref "elm")
 
 internalImports name =
     VarDeclStmt () 
-    [ varDecl "N" (get "Elm.Native")
+    [ varDecl "N" (obj "Elm.Native")
     , include "_N" "N.Utils"
     , include "_L" "N.List"
     , include "_E" "N.Error"
     , include "_J" "N.JavaScript"
-    , varDecl "_str" (get "_J.toString")
+    , varDecl "_str" (obj "_J.toString")
     , varDecl "$moduleName" (string name)
     ]
 
@@ -66,38 +68,57 @@ literal lit =
     FloatNum n -> NumLit () n
     Boolean  b -> BoolLit () b
 
-expression :: LExpr () () -> Expression ()
+expression :: LExpr () () -> State Int (Expression ())
 expression (L span expr) =
     case expr of
-      Var x -> ref x
-      Literal lit -> literal lit
-      Range lo hi -> get "_L.range" `call` [expression lo, expression hi]
+      Var x -> return $ ref x
+      Literal lit -> return $ literal lit
 
-      Access e x -> DotRef () (expression e) (var x)
-      Remove e x -> get "_N.remove" `call` [string x, expression e]
-      Insert e x v -> get "_N.insert" `call` [string x, expression v, expression e]
+      Range lo hi ->
+          do lo' <- expression lo
+             hi' <- expression hi
+             return $ obj "_L.range" `call` [lo',hi']
+
+      Access e x ->
+          do e' <- expression e
+             return $ DotRef () e' (var x)
+
+      Remove e x ->
+          do e' <- expression e
+             return $ obj "_N.remove" `call` [string x, e']
+
+      Insert e x v ->
+          do v' <- expression v
+             e' <- expression e
+             return $ obj "_N.insert" `call` [string x, v', e']
+
       Modify e fs ->
-          let modify (f,v) = ArrayLit () [string f, expression v]
-          in  get "_N.replace" `call` [ArrayLit () (map modify fs), expression e]
+          do e' <- expression e
+             fs' <- forM fs $ \(f,v) -> do
+                      v' <- expression v
+                      return $ ArrayLit () [string f, v']
+             return $ obj "_N.replace" `call` [ArrayLit () fs', e']
 
-      Record fields -> ObjectLit () $ (PropId () (var "_"), hidden) : visible
-        where
-          combine r (k,v) = Map.insertWith (++) k [v] r
-          fieldMap = List.foldl' combine Map.empty fields
-          hidden = ObjectLit () . map ((PropId () . var) *** (ArrayLit () . map expression)) .
-                   Map.toList . Map.filter (not . null) $ Map.map tail fieldMap
-          visible = map ((PropId () . var) *** expression) . Map.toList $ Map.map head fieldMap
+      Record fields ->
+          do fields' <- forM fields $ \(f,e) -> do
+                          (,) f <$> expression e
+             let fieldMap = List.foldl' combine Map.empty fields'
+             return $ ObjectLit () $ (PropId () (var "_"), hidden fieldMap) : visible fieldMap
+          where
+            combine r (k,v) = Map.insertWith (++) k [v] r
+            prop = PropId () . var
+            hidden fs = ObjectLit () . map (prop *** ArrayLit ()) .
+                        Map.toList . Map.filter (not . null) $ Map.map tail fs
+            visible fs = map (first prop) . Map.toList $ Map.map head fs
 
       Binop op e1 e2 -> binop span op e1 e2
 
-      Lambda p e@(L s _) -> fastFunc
+      Lambda p e@(L s _) ->
+          do body' <- expression body
+             return $ case length args < 2 || length args > 9 of
+                        True  -> foldr (==>) body' (map (:[]) args)
+                        False -> ref ("F" ++ show (length args)) <| (args ==> body')
           where
-            fastFunc
-                | length args < 2 || length args > 9 =
-                    foldr (==>) (expression body) (map (:[]) args)
-                | otherwise =
-                    ref ("F" ++ show (length args)) <| (args ==> expression body)
-
             (args, body) = foldr depattern ([], innerBody) (zip patterns [0..])
 
             depattern (pattern,n) (args, body) =
@@ -114,72 +135,83 @@ expression (L span expr) =
                   _ -> (patterns, lexpr)
 
       App e1 e2 ->
-          case args of
-            [arg] -> func <| arg
-            _   -> ref aN `call` (func:args)
+          do func' <- expression func
+             args' <- mapM expression args
+             return $ case args' of
+                        [arg] -> func' <| arg
+                        _   -> ref aN `call` (func':args')
           where
             aN = "A" ++ show (length args)
             (func, args) = getArgs e1 [e2]
             getArgs func args =
                 case func of
                   (L _ (App f arg)) -> getArgs f (arg : args)
-                  _ -> (expression func, map expression args)
+                  _ -> (func, args)
 
-      Let defs e -> function [] stmts `call` []
-          where
-            (defs',e') = SD.flattenLets defs e 
-            stmts = concatMap definition defs' ++ [ ReturnStmt () (Just (expression e')) ]
+      Let defs e ->
+          do let (defs',e') = SD.flattenLets defs e 
+             stmts <- concat <$> mapM definition defs'
+             exp <- expression e'
+             return $ function [] (stmts ++ [ ReturnStmt () (Just exp) ]) `call` []
 
       MultiIf branches ->
-          case last branches of
-            (L _ (Var "otherwise"), e) -> ifs (init branches) (expression e)
-            _ -> ifs branches (get "_E.If" `call` [ ref "$moduleName", string (show span) ])
+          do branches' <- forM branches $ \(b,e) -> (,) <$> expression b <*> expression e
+             return $ case last branches of
+                        (L _ (Var "otherwise"), e) -> ifs (init branches') (snd (last branches'))
+                        _ -> ifs branches'
+                                 (obj "_E.If" `call` [ ref "$moduleName", string (show span) ])
           where
             ifs branches finally = foldr iff finally branches
-            iff (if', then') else' = CondExpr () (expression if') (expression then') else'
+            iff (if', then') else' = CondExpr () if' then' else'
 
-      Case e cases -> function [] (stmt ++ match span revisedMatch) `call` []
-          where
-            (tempVar,initialMatch) = caseToMatch cases
-            (revisedMatch, stmt) =
-                case e of
-                  L _ (Var x) -> (matchSubst [(tempVar,x)] initialMatch, [])
-                  _ -> (initialMatch, [VarDeclStmt () [varDecl tempVar (expression e)]])
+      Case e cases ->
+          do (tempVar,initialMatch) <- caseToMatch cases
+             (revisedMatch, stmt) <-
+                 case e of
+                   L _ (Var x) -> return (matchSubst [(tempVar,x)] initialMatch, [])
+                   _ -> do e' <- expression e
+                           return (initialMatch, [VarDeclStmt () [varDecl tempVar e']])
+             match' <- match span revisedMatch
+             return (function [] (stmt ++ match') `call` [])
 
       ExplicitList es ->
-          get "_J.toList" <| ArrayLit () (map expression es)
+          do es' <- mapM expression es
+             return $ obj "_J.toList" <| ArrayLit () es'
 
       Data name es ->
-          ObjectLit () (ctor : fields)
-        where
-          ctor = (prop "ctor", string (makeSafe name))
-          fields = zipWith (\n e -> (prop ("_" ++ show n), expression e)) [0..] es
+          do es' <- mapM expression es
+             return $ ObjectLit () (ctor : fields es')
+          where
+            ctor = (prop "ctor", string (makeSafe name))
+            fields = zipWith (\n e -> (prop ("_" ++ show n), e)) [0..]
 
-      Markdown doc -> get "Text.text" <| string (pad ++ md ++ pad)
+      Markdown doc -> return $ obj "Text.text" <| string (pad ++ md ++ pad)
           where pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
                 md = Pan.writeHtmlString Pan.def doc
 
-
+definition :: Def () () -> State Int [Statement ()]
 definition def =
   case def of
-    TypeAnnotation _ _ -> []
-    Def pattern expr@(L span _) ->
-      let assign x = varDecl x (expression expr) in
+    TypeAnnotation _ _ -> return []
+
+    Def pattern expr@(L span _) -> do
+      expr' <- expression expr
+      let assign x = varDecl x expr'
       case pattern of
         PVar x
-            | isOp x ->
-                let op = LBracket () (ref "_op") (string x) in
-                [ ExprStmt () (AssignExpr () OpAssign op (expression expr)) ]
-            | otherwise ->
-                [ VarDeclStmt () [ assign x ] ]
+          | isOp x ->
+              let op = LBracket () (ref "_op") (string x) in
+              return [ ExprStmt () $ AssignExpr () OpAssign op expr' ]
+          | otherwise ->
+              return [ VarDeclStmt () [ assign x ] ]
 
-        PRecord fields -> [ VarDeclStmt () (assign "$" : map setField fields) ]
-            where
-              setField f = varDecl f (dotSep ["$",f])
+        PRecord fields ->
+            let setField f = varDecl f (dotSep ["$",f]) in
+            return [ VarDeclStmt () (assign "$" : map setField fields) ]
 
         PData name patterns | vars /= Nothing ->
             case vars of
-              Just vs -> [ VarDeclStmt () (setup (zipWith decl vs [0..])) ]
+              Just vs -> return [ VarDeclStmt () (setup (zipWith decl vs [0..])) ]
             where
               vars = getVars patterns
               getVars patterns =
@@ -193,11 +225,13 @@ definition def =
                   | isTuple name = assign "$" : vars
                   | otherwise = safeAssign : vars
 
-              safeAssign = varDecl "$" (CondExpr () if' (expression expr) exception)
-              if' = InfixExpr () OpStrictEq (get "$.ctor") (string name)
-              exception = get "_E.Case" `call` [ref "$moduleName", string (show span)]
+              safeAssign = varDecl "$" (CondExpr () if' expr' exception)
+              if' = InfixExpr () OpStrictEq (obj "$.ctor") (string name)
+              exception = obj "_E.Case" `call` [ref "$moduleName", string (show span)]
 
-        _ -> VarDeclStmt () [assign "$"] : concatMap toDef vars
+        _ ->
+            do defs' <- concat <$> mapM toDef vars
+               return (VarDeclStmt () [assign "$"] : defs')
             where
               vars = Set.toList $ SD.boundVars pattern
               mkVar = L span . Var
@@ -206,18 +240,22 @@ definition def =
 
 match span mtch =
   case mtch of
-    Match name clauses mtch' -> SwitchStmt () (access name) clauses' : match span mtch'
+    Match name clauses mtch' ->
+        do clauses' <- mapM (clause span name) clauses
+           mtch'' <- match span mtch'
+           return (SwitchStmt () (access name) clauses' : mtch'')
         where
-          clauses' = map (clause span name) clauses
           isLiteral p = case p of
                           Clause (Right _) _ _ -> True
                           _ -> False
           access name = if any isLiteral clauses then ref name else dotSep [name,"ctor"]
 
-    Fail -> [ ExprStmt () (get "_E.Case" `call` [ref "$moduleName", string (show span)]) ]
-    Break -> []
-    Other e -> [ ReturnStmt () (Just $ expression e) ]
-    Seq ms -> concatMap (match span) (dropEnd [] ms)
+    Fail -> return [ ExprStmt () (obj "_E.Case" `call` [ref "$moduleName", string (show span)]) ]
+    Break -> return []
+    Other e ->
+        do e' <- expression e
+           return [ ReturnStmt () (Just e') ]
+    Seq ms -> concat <$> mapM (match span) (dropEnd [] ms)
         where
           dropEnd acc [] = acc
           dropEnd acc (m:ms) =
@@ -226,10 +264,9 @@ match span mtch =
                 _ -> dropEnd (acc ++ [m]) ms
 
 clause span variable (Clause value vars mtch) =
-    CaseClause () pattern stmt
+    CaseClause () pattern <$> match span (matchSubst (zip vars vars') mtch)
   where
     vars' = map (\n -> variable ++ "._" ++ show n) [0..]
-    stmt = match span $ matchSubst (zip vars vars') mtch
     pattern = case value of
                 Right (Boolean b)  -> BoolLit () b
                 Right lit -> literal lit
@@ -237,7 +274,8 @@ clause span variable (Clause value vars mtch) =
                                         [] -> name
                                         is -> drop (last is + 1) name
 
-jsModule :: MetadataModule () () -> String -- [Statement ()]
+
+jsModule :: MetadataModule () () -> String 
 jsModule modul = show . prettyPrint $ setup (Just "Elm") (names modul) ++
                                [ assign ("Elm" : names modul) (function ["elm"] programStmts) ]
   where
@@ -249,7 +287,7 @@ jsModule modul = show . prettyPrint $ setup (Just "Elm") (names modul) ++
                , concatMap jsImport (imports modul)
                , concatMap importEvent (foreignImports modul)
                , [ assign ["_op"] (ObjectLit () []) ]
-               , concatMap definition . fst . SD.flattenLets [] $ program modul
+               , concat $ evalState (mapM definition . fst . SD.flattenLets [] $ program modul) 0
                , map exportEvent $ foreignExports modul
                , [ jsExports ]
                , [ ReturnStmt () (Just thisModule) ]
@@ -277,42 +315,52 @@ jsModule modul = show . prettyPrint $ setup (Just "Elm") (names modul) ++
                     Nothing -> tail . init $ List.inits path
                     Just nmspc -> drop 2 . init . List.inits $ nmspc : path
 
-    addId js = InfixExpr () OpAdd (string (js++"_")) (get "elm.id")
+    addId js = InfixExpr () OpAdd (string (js++"_")) (obj "elm.id")
 
     importEvent (js,base,elm,_) =
-        [ VarDeclStmt () [ varDecl elm $ get "Signal.constant" <| expression base ]
+        [ VarDeclStmt () [ varDecl elm $ obj "Signal.constant" <| evalState (expression base) 0 ]
         , ExprStmt () $
-            get "document.addEventListener" `call`
+            obj "document.addEventListener" `call`
                   [ addId js
                   , function ["e"]
-                        [ ExprStmt () $ get "elm.notify" `call` [dotSep [elm,"id"], get "e.value"] ]
+                        [ ExprStmt () $ obj "elm.notify" `call` [dotSep [elm,"id"], obj "e.value"] ]
                   ]
         ]
 
     exportEvent (js,elm,_) =
         ExprStmt () $
         ref "A2" `call`
-                [ get "Signal.lift"
+                [ obj "Signal.lift"
                 , function ["v"]
-                      [ VarDeclStmt () [varDecl "e" $ get "document.createEvent" <| string "Event"]
+                      [ VarDeclStmt () [varDecl "e" $ obj "document.createEvent" <| string "Event"]
                       , ExprStmt () $
-                            get "e.initEvent" `call` [ addId js, BoolLit () True, BoolLit () True ]
+                            obj "e.initEvent" `call` [ addId js, BoolLit () True, BoolLit () True ]
                       , ExprStmt () $ AssignExpr () OpAssign (LDot () (ref "e") "value") (ref "v")
-                      , ExprStmt () $ get "document.dispatchEvent" <| ref "e"
+                      , ExprStmt () $ obj "document.dispatchEvent" <| ref "e"
                       , ReturnStmt () (Just $ ref "v")
                       ]
                 , ref elm ]
 
-
 binop span op e1 e2 =
     case op of
-      "Basics.."  -> ["$"] ==> foldr (<|) (ref "$") (map expression (e1 : collect [] e2))
-      "Basics.<|" -> foldr (<|) (expression e2) (map expression (collect [] e1))
-      "::"        -> expression (L span (Data "::" [e1,e2]))
-      "List.++"   -> get "_L.append" `call` [js1, js2]
-      _           -> case Map.lookup op opDict of
-                       Just f -> f js1 js2
-                       Nothing -> ref "A2" `call` [ func, js1, js2 ]
+      "Basics.." ->
+          do es <- mapM expression (e1 : collect [] e2)
+             return $ ["$"] ==> foldr (<|) (ref "$") es
+      "Basics.<|" ->
+          do e2' <- expression e2
+             es <- mapM expression (collect [] e1)
+             return $ foldr (<|) e2' es
+      "List.++" ->
+          do e1' <- expression e1
+             e2' <- expression e2
+             return $ obj "_L.append" `call` [e1', e2']
+      "::" -> expression (L span (Data "::" [e1,e2]))
+      _ ->
+          do e1' <- expression e1
+             e2' <- expression e2
+             return $ case Map.lookup op opDict of
+                        Just f -> f e1' e2'
+                        Nothing -> ref "A2" `call` [ func, e1', e2' ]
   where
     collect es e =
         case e of
@@ -343,10 +391,10 @@ binop span op e1 e2 =
         ]
 
     specialOps = 
-        [ specialOp "^"   $ \a b -> get "Math.pow" `call` [a,b]
+        [ specialOp "^"   $ \a b -> obj "Math.pow" `call` [a,b]
         , specialOp "|>"  $ flip (<|)
-        , specialOp "=="  $ \a b -> get "_N.eq" `call` [a,b]
-        , specialOp "/="  $ \a b -> PrefixExpr () PrefixLNot (get "_N.eq" `call` [a,b])
+        , specialOp "=="  $ \a b -> obj "_N.eq" `call` [a,b]
+        , specialOp "/="  $ \a b -> PrefixExpr () PrefixLNot (obj "_N.eq" `call` [a,b])
         , specialOp "<"   $ cmp OpLT 0
         , specialOp ">"   $ cmp OpGT 0
         , specialOp "<="  $ cmp OpLT 1
@@ -354,4 +402,4 @@ binop span op e1 e2 =
         , specialOp "div" $ \a b -> InfixExpr () OpBOr (InfixExpr () OpDiv a b) (IntLit () 0)
         ]
 
-    cmp op n a b = InfixExpr () op (get "_N.cmp" `call` [a,b]) (IntLit () n)
+    cmp op n a b = InfixExpr () op (obj "_N.cmp" `call` [a,b]) (IntLit () n)
