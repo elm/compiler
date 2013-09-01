@@ -187,5 +187,5 @@ drop : Int -> [a] -> [a]
 drop = Native.List.drop
 
 -- Creates a list with n copies of a value: `(replicate 3 (0,0) == [(0,0),(0,0),(0,0)]`
-replicate : Int -> a -> [a]
-replicate = Native.List.replicate
+repeat : Int -> a -> [a]
+repeat = Native.List.repeat

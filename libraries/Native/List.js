@@ -241,7 +241,7 @@ Elm.Native.List = function(elm) {
     return xs;
   }
 
-  function replicate(n, a) {
+  function repeat(n, a) {
     var arr = [];
     while (n > 0) {
       arr.push(a);
@@ -353,7 +353,7 @@ Elm.Native.List = function(elm) {
       nth:F2(nth),
       take:F2(take),
       drop:F2(drop),
-      replicate:F2(replicate),
+      repeat:F2(repeat),
 
       join:F2(join),
       split:F2(split)
