@@ -1,5 +1,6 @@
 module Parse.Expression (def,term) where
 
+import Control.Arrow ((***))
 import Control.Applicative ((<$>), (<*>))
 import Data.List (foldl')
 import Text.Parsec hiding (newline,spaces)
@@ -17,8 +18,6 @@ import SourceSyntax.Pattern hiding (tuple,list)
 import qualified SourceSyntax.Literal as Literal
 import SourceSyntax.Expression
 import SourceSyntax.Declaration (Declaration(Definition))
-
-import Unique
 
 
 --------  Basic Terms  --------
@@ -51,15 +50,28 @@ negative = do
 --------  Complex Terms  --------
 
 listTerm :: IParser (Expr t v)
-listTerm =
-      (do { try $ string "[markdown|"
-          ; md <- filter (/='\r') <$> manyTill anyChar (try $ string "|]")
-          ; return . Markdown $ Pan.readMarkdown Pan.def md })
-  <|> (braces $ choice
-       [ try $ do { lo <- expr; whitespace; string ".." ; whitespace
-                  ; Range lo <$> expr }
-       , ExplicitList <$> commaSep expr
-       ])
+listTerm = markdown <|> braces (range <|> ExplicitList <$> commaSep expr)
+  where
+    range = try $ do lo <- expr
+                     whitespace >> string ".." >> whitespace
+                     Range lo <$> expr
+
+    markdown = try (string "[markdown|") >> closeMarkdown "" []
+        where
+          closeMarkdown md exprs =
+              choice [ do try (string "|]")
+                          let toMD = Pan.readMarkdown Pan.def . filter (/='\r')
+                          return $ Markdown (toMD md) (reverse exprs)
+                     , do try (string "{{")
+                          whitespace
+                          e <- expr
+                          whitespace
+                          string "}}"
+                          let span = "<span id=\"md" ++ show (length exprs) ++ "\"></span>"
+                          closeMarkdown (md ++ span) (e:exprs)
+                     , do c <- anyChar
+                          closeMarkdown (md ++ [c]) exprs
+                     ]
 
 parensTerm :: IParser (LExpr t v)
 parensTerm = try (parens opFn) <|> parens (tupleFn <|> parened)
@@ -235,8 +247,3 @@ typeAnnotation = TypeAnnotation <$> try start <*> Type.expr
 
 def :: IParser (Def t v)
 def = typeAnnotation <|> assignExpr
-
-attempt f parser str =
-    case iParse parser "" str of
-      Right result -> f result
-      Left err -> error $ "Parse error at " ++ show err

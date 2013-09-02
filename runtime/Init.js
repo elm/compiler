@@ -13,7 +13,7 @@ Elm.fullscreen = function(module) {
     return init(ElmRuntime.Display.FULLSCREEN, container, module);
 };
 
-Elm.domNode = function(container, module) {
+Elm.embed = function(module, container) {
     var tag = container.tagName;
     if (tag !== 'DIV') {
         throw new Error('Elm.node must be given a DIV, not a ' + tag + '.');

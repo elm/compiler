@@ -9,6 +9,7 @@ import Text.PrettyPrint as P
 import System.IO.Unsafe
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad.State
+import Control.Monad.Error
 import Data.Traversable (traverse)
 import SourceSyntax.Location
 import SourceSyntax.Helpers (isTuple)
@@ -130,9 +131,9 @@ ex fqs constraint@(L s _) = L s $ CLet [Scheme [] fqs constraint Map.empty] (L s
 fl :: [Variable] -> TypeConstraint -> TypeConstraint
 fl rqs constraint@(L s _) = L s $ CLet [Scheme rqs [] constraint Map.empty] (L s CTrue)
 
-exists :: (Type -> IO TypeConstraint) -> IO TypeConstraint
+exists :: Error e => (Type -> ErrorT e IO TypeConstraint) -> ErrorT e IO TypeConstraint
 exists f = do
-  v <- var Flexible
+  v <- liftIO $ var Flexible
   ex [v] <$> f (VarN v)
 
 

@@ -14,7 +14,6 @@ import qualified SourceSyntax.Type as T
 import qualified Parse.Type as Type
 import SourceSyntax.Declaration (Declaration(..), Assoc(..))
 
-import Unique
 
 declaration :: IParser (Declaration t v)
 declaration = alias <|> datatype <|> infixDecl <|> foreignDef <|> definition
@@ -72,8 +71,8 @@ exportEvent = do
     T.Data "Signal" [t] ->
         case isExportable t of
           Nothing -> return (ExportEvent eventName elmVar tipe)
-          Just err -> error err
-    _ -> error "When importing foreign events, the imported value must have type Signal."
+          Just err -> fail err
+    _ -> fail "When importing foreign events, the imported value must have type Signal."
 
 importEvent :: IParser (Declaration t v)
 importEvent = do
@@ -89,14 +88,14 @@ importEvent = do
     T.Data "Signal" [t] ->
         case isExportable t of
           Nothing -> return (ImportEvent eventName baseValue elmVar tipe)
-          Just err -> error err
-    _ -> error "When importing foreign events, the imported value must have type Signal."
+          Just err -> fail err
+    _ -> fail "When importing foreign events, the imported value must have type Signal."
 
 jsVar :: IParser String
 jsVar = betwixt '"' '"' $ do
   v <- (:) <$> (letter <|> char '_') <*> many (alphaNum <|> char '_')
   if Set.notMember v jsReserveds then return v else
-      error $ "'" ++ v ++
+      fail $ "'" ++ v ++
           "' is not a good name for a importing or exporting JS values."
 
 isExportable tipe =

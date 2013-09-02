@@ -6,7 +6,7 @@ import SourceSyntax.PrettyPrint
 import qualified Text.PrettyPrint as PP
 
 data Literal = IntNum Int
-             | FloatNum Float
+             | FloatNum Double
              | Chr Char
              | Str String
              | Boolean Bool
@@ -16,7 +16,7 @@ instance Pretty Literal where
   pretty literal =
     case literal of
       IntNum n -> PP.int n
-      FloatNum n -> PP.float n
+      FloatNum n -> PP.double n
       Chr c -> PP.quotes (PP.char c)
       Str s -> PP.text (show s)
       Boolean bool -> PP.text (show bool)

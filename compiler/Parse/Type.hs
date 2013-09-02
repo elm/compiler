@@ -9,7 +9,6 @@ import Text.Parsec.Indent
 
 import SourceSyntax.Type as T
 import Parse.Helpers
-import Unique
 
 tvar :: IParser T.Type
 tvar = T.Var <$> lowVar <?> "type variable"
@@ -73,9 +72,3 @@ expr =
 constructor :: IParser (String, [T.Type])
 constructor = (,) <$> (capTypeVar <?> "another type constructor")
                   <*> spacePrefix term
-
-readType :: String -> Type
-readType str =
-    case iParse expr "" str of
-      Left err -> error (show err)
-      Right tipe -> tipe
