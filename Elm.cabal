@@ -1,5 +1,5 @@
 Name:                Elm
-Version:             0.9.0.2
+Version:             0.9.1
 Synopsis:            The Elm language module.
 Description:         Elm aims to make client-side web-development more pleasant.
                      It is a statically/strongly typed, functional reactive
