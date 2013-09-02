@@ -67,7 +67,7 @@ listTerm = markdown <|> braces (range <|> ExplicitList <$> commaSep expr)
                           e <- expr
                           whitespace
                           string "}}"
-                          let span = "<span id=\"md" ++ show (length exprs) ++ "\"></span>"
+                          let span = "<span id=\"md" ++ show (length exprs) ++ "\" style=\"font-family:monospace;\">{{ ... }}</span>"
                           closeMarkdown (md ++ span) (e:exprs)
                      , do c <- anyChar
                           closeMarkdown (md ++ [c]) exprs
