@@ -55,6 +55,8 @@ instance Pretty (Expr t v) where
      Var x -> variable x
      Range e1 e2 -> P.brackets (pretty e1 <> P.text ".." <> pretty e2)
      ExplicitList es -> P.brackets (commaCat (map pretty es))
+     Binop "-" (Location.L _ (Literal (Literal.IntNum 0))) e ->
+         P.text "-" <> prettyParens e
      Binop op e1 e2 -> P.sep [ prettyParens e1 <+> P.text op', prettyParens e2 ]
          where op' = if Help.isOp op then op else "`" ++ op ++ "`"
      Lambda p e -> let (ps,body) = collectLambdas (Location.none $ Lambda p e)
