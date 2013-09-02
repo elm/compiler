@@ -129,14 +129,14 @@ function setPos(pos,w,h,e) {
     e.style.margin = 'auto';
     var transform = '';
     switch(pos.horizontal.ctor) {
-    case 'P': e.style.right = toPos(pos.x); break;
+    case 'P': e.style.right = toPos(pos.x); e.style.removeProperty('left'); break;
     case 'Z': transform = 'translateX(' + ((-w/2)|0) + 'px) ';
-    case 'N': e.style.left = toPos(pos.x); break;
+    case 'N': e.style.left = toPos(pos.x); e.style.removeProperty('right'); break;
     }
     switch(pos.vertical.ctor) {
-    case 'N': e.style.bottom = toPos(pos.y); break;
+    case 'N': e.style.bottom = toPos(pos.y); e.style.removeProperty('top'); break;
     case 'Z': transform += 'translateY(' + ((-h/2)|0) + 'px)';
-    case 'P': e.style.top = toPos(pos.y); break;
+    case 'P': e.style.top = toPos(pos.y); e.style.removeProperty('bottom'); break;
     }
     if (transform !== '') addTransform(e.style, transform);
     return e;
