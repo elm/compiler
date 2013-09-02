@@ -36,7 +36,6 @@ ref name = VarRef () (var name)
 prop name = PropId () (var name)
 f <| x = CallExpr () f [x]
 args ==> e = FuncExpr () Nothing (map var args) [ ReturnStmt () (Just e) ]
-namedFunction name args e = FuncExpr () name (map var args) [ ReturnStmt () (Just e) ]
 function args stmts = FuncExpr () Nothing (map var args) stmts
 call = CallExpr ()
 string = StringLit ()
@@ -114,7 +113,26 @@ expression (L span expr) =
 
       Binop op e1 e2 -> binop span op e1 e2
 
-      Lambda pattern body -> lambda Nothing span pattern body
+      Lambda p e@(L s _) ->
+          do body' <- expression body
+             return $ case length args < 2 || length args > 9 of
+                        True  -> foldr (==>) body' (map (:[]) args)
+                        False -> ref ("F" ++ show (length args)) <| (args ==> body')
+          where
+            (args, body) = foldr depattern ([], innerBody) (zip patterns [0..])
+
+            depattern (pattern,n) (args, body) =
+                case pattern of
+                  PVar x -> (args ++ [x], body)
+                  _ -> let arg = "arg" ++ show n
+                       in  (args ++ [arg], L s (Case (L s (Var arg)) [(pattern, body)]))
+
+            (patterns, innerBody) = collect [p] e
+
+            collect patterns lexpr@(L _ expr) =
+                case expr of
+                  Lambda p e -> collect (p:patterns) e
+                  _ -> (patterns, lexpr)
 
       App e1 e2 ->
           do func' <- expression func
@@ -176,11 +194,6 @@ definition def =
   case def of
     TypeAnnotation _ _ -> return []
 
-    Def (PVar f) (L span (Lambda pattern body))
-        | not (isOp f) ->
-            do expr <- lambda (Just (var f)) span pattern body
-               return [ VarDeclStmt () [ varDecl f expr ] ]
-
     Def pattern expr@(L span _) -> do
       expr' <- expression expr
       let assign x = varDecl x expr'
@@ -224,31 +237,6 @@ definition def =
               mkVar = L span . Var
               toDef y = definition $
                         Def (PVar y) (L span $ Case (mkVar "$") [(pattern, mkVar y)])
-
-
-lambda name span outerPattern outerBody =
-    do body' <- expression body
-       return $ case args of
-                  [arg] -> namedFunction name args body'
-                  arg:rest ->
-                      case length args < 10 of
-                        True  -> ref ("F" ++ show (length args)) <| (namedFunction name args body')
-                        False -> namedFunction name [arg] (foldr (==>) body' (map (:[]) rest))
-    where
-      (args, body) = foldr depattern ([], innerBody) (zip patterns [0..])
-
-      depattern (pattern,n) (args, body) =
-          case pattern of
-            PVar x -> (args ++ [x], body)
-            _ -> let arg = "arg" ++ show n
-                 in  (args ++ [arg], L span (Case (L span (Var arg)) [(pattern, body)]))
-
-      (patterns, innerBody) = collect [outerPattern] outerBody
-
-      collect patterns lexpr@(L _ expr) =
-          case expr of
-            Lambda p e -> collect (p:patterns) e
-            _ -> (patterns, lexpr)
 
 match span mtch =
   case mtch of
