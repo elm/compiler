@@ -124,6 +124,8 @@ function toPos(pos) {
     }
 }
 
+// must clear right, left, top, bottom, and transform
+// before calling this function
 function setPos(pos,w,h,e) {
     e.style.position = 'absolute';
     e.style.margin = 'auto';
@@ -220,18 +222,8 @@ function update(node, curr, next) {
         }
         break;
     case "Container":
-        var inner = node.firstChild;
-        if (!update(inner, currE._1, nextE._1)) {
-            if (nextE._0.horizontal.ctor !== currE._0.horizontal.ctor) {
-                inner.style.left = inner.style.right = 'none';
-                removeTransform(inner.style);
-            }
-            if (nextE._0.vertical.ctor !== currE._0.vertical.ctor) {
-                inner.style.top = inner.style.bottom = 'none';
-                removeTransform(inner.style);
-            }
-        }
-        setPos(nextE._0, nextE._1.props.width, nextE._1.props.height, inner);
+        update(node.firstChild, currE._1, nextE._1)
+        setPos(nextE._0, nextE._1.props.width, nextE._1.props.height, node.firstChild);
         break;
     case "Custom":
         if (currE.type === nextE.type) {
