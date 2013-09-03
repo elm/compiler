@@ -1,13 +1,7 @@
-
 module List where
 
-import open Basics
-import Native.List
-
-{-| DOCUMENT STRUCTURE
-
-A library for manipulating lists of values. Every value in a list must have
-the same type.
+{-| A library for manipulating lists of values. Every value in a
+list must have the same type.
 
 # Basics
 @docs (::), (++), length, reverse, map
@@ -26,8 +20,10 @@ the same type.
 
 # Special Folds
 @docs susm, product, maximum, minimum, all, any, and, or
-
 -}
+
+import open Basics
+import Native.List
 
 {-| Add an element to the front of a list `(1 :: [2,3] == [1,2,3])` -}
 (::) : a -> [a] -> [a]

@@ -1,16 +1,6 @@
 module Graphics.Input where
 
-import Basics (String)
-import Signal (Signal,lift,dropRepeats)
-import Native.Graphics.Input
-import List
-import Graphics.Element (Element)
-import Maybe (Maybe)
-import JavaScript (JSString)
-
-{-| DOCUMENT STRUCTURE
-
-This module is for creating standard input widgets such as buttons and
+{-| This module is for creating standard input widgets such as buttons and
 text boxes. In general, functions in this library return a signal representing
 events from the user.
 
@@ -34,8 +24,15 @@ two-way inputs.
 
 # Mouse Hover
 @docs hoverable, hoverables
-
 -}
+
+import Basics (String)
+import Signal (Signal,lift,dropRepeats)
+import Native.Graphics.Input
+import List
+import Graphics.Element (Element)
+import Maybe (Maybe)
+import JavaScript (JSString)
 
 id x = x
 
