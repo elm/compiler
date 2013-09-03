@@ -378,10 +378,10 @@ binop span op e1 e2 =
 
     opDict = Map.fromList (infixOps ++ specialOps)
 
-    specialOp str func = ("Basics." ++ str, func)
+    specialOp str func = [ (str, func), ("Basics." ++ str, func) ]
     infixOp str op = specialOp str (InfixExpr () op)
 
-    infixOps =
+    infixOps = concat
         [ infixOp "+"  OpAdd
         , infixOp "-"  OpSub
         , infixOp "*"  OpMul
@@ -390,7 +390,7 @@ binop span op e1 e2 =
         , infixOp "||" OpLOr
         ]
 
-    specialOps = 
+    specialOps = concat
         [ specialOp "^"   $ \a b -> obj "Math.pow" `call` [a,b]
         , specialOp "|>"  $ flip (<|)
         , specialOp "=="  $ \a b -> obj "_N.eq" `call` [a,b]
