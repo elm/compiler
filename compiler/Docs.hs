@@ -8,6 +8,7 @@ import System.Exit
 
 import Control.Applicative ((<$>), (<*>))
 import Data.Aeson
+import Data.Aeson.Encode.Pretty
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy as BS
@@ -41,25 +42,29 @@ parseFile path = do
     Right json -> do
       putStrLn $ "Documenting " ++ path
       createDirectoryIfMissing True "docs"
-      BS.writeFile ("docs" </> replaceExtension path ".json") (encode json)
+      BS.writeFile ("docs" </> replaceExtension path ".json")
+                   (encodePretty' (defConfig { confIndent = 2 }) json)
     Left err -> do
       putStrLn $ "Parse error in " ++ path ++ " at " ++ show err
       exitFailure
 
 docs :: IParser Value
 docs = do
-  optional freshLine
-  (names, exports) <- option (["Main"],[]) moduleDef
-  optional freshLine
-  structure <- option "" docComment
+  (name, exports, structure) <- moduleDocs
   things <- document
-  return $ toJson (List.intercalate "." names) exports structure things
+  return $ toJson name exports structure things
 
 docComment :: IParser String
 docComment = do
   try (string "{-|")
   contents <- closeComment
-  return (init (init contents))
+  return $ dropWhile (==' ') (init (init contents))
+
+moduleDocs = do
+  (names,exports) <- anyThen moduleDef
+  anyThen (lookAhead (string "{-|"))
+  structure <- docComment
+  return (List.intercalate "." names, exports, structure)
 
 document :: IParser [(String, Declaration t v, String)]
 document = go []

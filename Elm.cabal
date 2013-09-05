@@ -191,6 +191,7 @@ Executable elm-doc
                        Parse.Type
 
   Build-depends:       aeson,
+                       aeson-pretty,
                        base >=4.2 && <5,
                        binary,
                        bytestring,
