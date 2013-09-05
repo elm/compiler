@@ -37,6 +37,9 @@ import Native.List
 (++) : appendable -> appendable -> appendable
 (++) = Native.List.append
 
+infixr 5 ::
+infixr 5 ++
+
 {-| Extract the first element of a list. List must be non-empty.
 `(head [1,2,3] == 1)`
 -}

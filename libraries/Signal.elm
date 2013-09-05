@@ -140,3 +140,6 @@ f <~ s = Native.Signal.lift f s
 --         lift2 scene Window.dimensions Mouse.position
 (~) : Signal (a -> b) -> Signal a -> Signal b
 sf ~ s = Native.Signal.lift2 (\f x -> f x) sf s
+
+infixl 4 <~
+infixl 4 ~
