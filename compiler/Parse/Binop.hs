@@ -33,7 +33,7 @@ opLevel table op = Map.findWithDefault 9 op dict
     where dict = Map.fromList (map (\(lvl,_,op) -> (op,lvl)) table)
 
 opAssoc :: OpTable -> String -> Assoc
-opAssoc table op = Map.findWithDefault R op dict
+opAssoc table op = Map.findWithDefault L op dict
     where dict = Map.fromList (map (\(_,assoc,op) -> (op,assoc)) table)
 
 hasLevel :: OpTable -> Int -> (String, LExpr t v) -> Bool
