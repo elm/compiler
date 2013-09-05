@@ -203,7 +203,8 @@ Executable elm-doc
                        mtl >= 2,
                        pandoc >= 1.10,
                        parsec >= 3.1.1,
-                       pretty
+                       pretty,
+                       text
 
 Test-Suite test-elm
   Type:            exitcode-stdio-1.0

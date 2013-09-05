@@ -12,8 +12,10 @@ import Data.Aeson.Encode.Pretty
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy as BS
+import qualified Data.Text as Text
 
 import SourceSyntax.Helpers (isSymbol)
+import SourceSyntax.Type (Type(..))
 import SourceSyntax.Declaration (Declaration(..), Assoc(..))
 import SourceSyntax.Expression (Def(..))
 
@@ -52,7 +54,7 @@ docs :: IParser Value
 docs = do
   (name, exports, structure) <- moduleDocs
   things <- document
-  return $ toJson name exports structure things
+  return $ documentToJson name exports structure things
 
 docComment :: IParser String
 docComment = do
@@ -103,7 +105,7 @@ docThing = uncommentable <|> commented <|> uncommented ""
         return (comment, def, src)
 
 
-toJson name exports structure things =
+documentToJson name exports structure things =
     object $ [ "name"      .= name
              , "document"  .= structure
              , "values"    .= toList values
@@ -139,12 +141,31 @@ collect infixes types aliases adts things =
             Fixity assoc prec name ->
                 collect (Map.insert name (assoc,prec) infixes) types aliases adts rest
             Definition (TypeAnnotation name tipe) ->
-                collect infixes (insert name [] types) aliases adts rest
+                collect infixes (insert name [ "type" .= tipe ] types) aliases adts rest
             TypeAlias name vars tipe ->
-                collect infixes types (insert name ["vars" .= vars] aliases) adts rest
+                let fields = ["typeVariables" .= vars, "type" .= tipe ]
+                in  collect infixes types (insert name fields aliases) adts rest
             Datatype name vars ctors ->
-                collect infixes types aliases (insert name ["vars" .= vars] adts) rest
+                let tipe = Data name (map Var vars)
+                    fields = ["typeVariables" .= vars, "constructors" .= map (ctorToJson tipe) ctors ]
+                in  collect infixes types aliases (insert name fields adts) rest
           where
             insert name fields dict = Map.insert name (obj name fields) dict
             obj name fields =
                 [ "name" .= name, "raw" .= source, "comment" .= comment ] ++ fields
+
+instance ToJSON Type where
+    toJSON tipe =
+        case tipe of
+          Lambda t1 t2 -> toJSON [ "->", toJSON t1, toJSON t2 ]
+          Var x -> toJSON x
+          Data name ts -> toJSON (toJSON name : map toJSON ts)
+          EmptyRecord -> object []
+          Record fields ext -> object $ map (\(n,t) -> Text.pack n .= toJSON t) fields'
+              where fields' = case ext of
+                                EmptyRecord -> fields
+                                _ -> ("_",ext) : fields
+
+ctorToJson tipe (ctor, tipes) =
+    object [ "name" .= ctor
+           , "type" .= foldr Lambda tipe tipes ]
