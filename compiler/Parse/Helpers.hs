@@ -212,16 +212,45 @@ simpleNewline = try (string "\r\n") <|> string "\n"
 lineComment :: IParser String
 lineComment = do
   try (string "--")
-  comment <- manyTill anyChar $ simpleNewline <|> (eof >> return "\n")
+  comment <- anyUntil $ simpleNewline <|> (eof >> return "\n")
   return ("--" ++ comment)
 
 multiComment :: IParser String
-multiComment = do { try (string "{-"); closeComment }
+multiComment = (++) <$> try (string "{-") <*> closeComment
 
 closeComment :: IParser String
-closeComment = do
-    comment <- manyTill anyChar . choice $
-               [ try (string "-}") <?> "close comment"
-               , do { try $ string "{-"; closeComment; closeComment }
-               ]
-    return ("{-" ++ comment ++ "-}")
+closeComment =
+    anyUntil . choice $
+                 [ try (string "-}") <?> "close comment"
+                 , concat <$> sequence [ try (string "{-"), closeComment, closeComment ]
+                 ]
+
+anyUntil :: IParser String -> IParser String
+anyUntil end = go
+    where
+      go = end <|> (:) <$> anyChar <*> go
+
+anyThen :: IParser a -> IParser a
+anyThen end = go
+    where
+      ignore p = const () <$> p
+      go = end <|> do ignore multiComment <|> ignore anyChar
+                      go
+
+withSource :: IParser a -> IParser (String, a)
+withSource p = do
+  start  <- getParserState
+  result <- p
+  endPos <- getPosition
+  setParserState start
+  raw <- anyUntilPos endPos
+  return (raw, result)
+
+anyUntilPos :: SourcePos -> IParser String
+anyUntilPos pos = go
+    where
+      go = do currentPos <- getPosition
+              case currentPos == pos of
+                True -> return []
+                False -> (:) <$> anyChar <*> go
+
