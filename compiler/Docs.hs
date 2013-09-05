@@ -1,75 +1,140 @@
-
+{-# LANGUAGE OverloadedStrings, DeriveDataTypeable #-}
 module Main where
 
-import SourceSyntax.Declaration (Declaration(Datatype))
-import Control.Applicative ((<$>), (<*>))
-import Data.List (intercalate)
-import Parse.Type
-import Parse.Helpers
-import Parse.Module (moduleDef)
-import Text.Parsec hiding (newline,spaces)
-import System.Environment
+import System.Console.CmdArgs
+import System.FilePath
 import System.Exit
 
+import Control.Applicative ((<$>), (<*>))
+import Data.Aeson
+import qualified Data.List as List
+import qualified Data.Map as Map
+import qualified Data.ByteString.Lazy as BS
+
+import SourceSyntax.Helpers (isSymbol)
+import SourceSyntax.Declaration (Declaration(..), Assoc(..))
+import SourceSyntax.Expression (Def(..))
+
+import Text.Parsec hiding (newline,spaces)
+import Parse.Declaration (alias,datatype,infixDecl)
+import Parse.Expression (typeAnnotation)
+import Parse.Helpers
+import Parse.Module (moduleDef)
+
+data Flags = Flags
+    { files :: [FilePath] }
+    deriving (Data,Typeable,Show,Eq)
+
+defaultFlags = Flags
+  { files = def &= args &= typ "FILES"
+  } &= help "Generate documentation for Elm"
+    &= summary ("Generate documentation for Elm, (c) Evan Czaplicki")
+
 main = do
-  srcs <- mapM readFile =<< getArgs
-  case mapM docParse srcs of
-    Left err -> putStrLn err >> exitFailure
-    Right ms -> putStrLn (toModules ms)
+  flags <- cmdArgs defaultFlags
+  mapM parseFile (files flags)
 
-toModules ms = wrap (intercalate ",\n    " (map toModule ms))
-  where wrap s = "{ \"modules\" : [\n    " ++ s ++ "\n  ]\n}"
+parseFile path = do
+  source <- readFile path
+  case iParse docs "" source of
+    Right json -> do
+      putStrLn $ "Documenting " ++ path
+      BS.writeFile ("docs" </> replaceExtension path ".json") (encode json)
+    Left err -> do
+      putStrLn $ "Parse error in " ++ path ++ " at " ++ show err
+      exitFailure
 
-toModule (name, values) =
-    "{ \"name\" : " ++ show name ++ ",\n      " ++
-    "\"values\" : [\n        " ++ vs ++ "\n      ]\n    }"
-  where vs = intercalate ",\n        " (map toValue values)
-
-toValue (name, tipe, desc) =
-    "{ \"name\" : " ++ show name ++
-    ",\n          \"type\" : " ++ show tipe ++
-    ",\n          \"desc\" : " ++ show desc ++ "\n        }"
-
-docParse :: String -> Either String (String, [(String, String, String)])
-docParse = setupParser $ do
+docs :: IParser Value
+docs = do
   optional freshLine
   (names, exports) <- option (["Main"],[]) moduleDef
-  info <- many (try (annotation exports) <|> try skip <|> end)
-  return (intercalate "." names, concat info)
+  chompUntilFreshLine
+  structure <- docComment
+  things <- document
+  return $ toJson (List.intercalate "." names) exports structure things
+
+docComment :: IParser String
+docComment = do
+  try (string "{-|")
+  contents <- closeComment
+  return (init (init contents))
+
+document :: IParser [(String, Declaration t v, String)]
+document = go []
     where
-      skip = manyTill anyChar simpleNewline >> return []
-      end  = many1 anyChar >> return []
+      go things = do
+        thing <- optionMaybe docThing
+        let things' = case thing of
+                        Nothing -> things
+                        Just t -> things ++ [t]
+        done <- chompUntilFreshLine
+        case done of
+          True  -> return things'
+          False -> go things'
 
-annotation :: [String] -> IParser [(String, String, String)]
-annotation exports =
-    do description <- comment
-       extras  <- option [] (lookAhead adt)
-       varName <- try typeDef <|> name
-       varType <- tipe
-       return $ extras ++ export varName varType description
+-- returns whether the end of file has been reached
+chompUntilFreshLine :: IParser Bool
+chompUntilFreshLine =
+    anyThen . choice $
+       [ try (simpleNewline >> notFollowedBy (string " ")) >> return False
+       , eof >> return True ]
+
+docThing :: IParser (String, Declaration t v, String)
+docThing = uncommented <|> commented
+    where
+      uncommented = do
+        ifx <- infixDecl
+        return ("", ifx, "")
+
+      commented = do
+        comment <- option "" docComment
+        freshLine
+        (src,def) <- withSource $ choice [ alias, datatype, Definition <$> typeAnnotation ]
+        return (comment, def, src)
+
+
+toJson name exports structure things =
+    object $ [ "name"      .= name
+             , "document"  .= structure
+             , "values"    .= toList values
+             , "aliases"   .= toList aliases
+             , "datatypes" .= toList adts
+             ]
   where
-    comment = concatMap clip <$> many lineComment
-    clip str = case str of { ' ':rest -> rest ; _ -> str } ++ "\n"
+    (values, aliases, adts) = collect Map.empty Map.empty Map.empty Map.empty things
+    
+    toList dict = map object . Map.elems $ filterPublics dict
 
-    name = do v <- lowVar <|> parens symOp
-              whitespace ; hasType ; whitespace ; return v
+    exportMap = Map.fromList (zip exports exports)
+    filterPublics dict =
+        case Map.null exportMap of
+          True -> dict
+          False -> Map.filterWithKey (\k _ -> Map.member k exportMap) dict
 
-    tipe = manyTill anyChar (try (simpleNewline >> notFollowedBy (string " ")))
+collect infixes types aliases adts things =
+    case things of
+      [] -> (Map.union customOps nonCustomOps, aliases, adts)
+          where
+            nonCustomOps = Map.mapWithKey addDefaultInfix $ Map.difference types infixes
+            addDefaultInfix name pairs
+                | all isSymbol name = addInfix (L, 9 :: Int) pairs
+                | otherwise = pairs
 
-    export name tipe desc =
-        if null exports || name `elem` exports then [(name,tipe,desc)] else []
+            customOps = Map.intersectionWith addInfix infixes types
+            addInfix (assoc,prec) pairs =
+                [ "associativity" .= show assoc, "precedence" .= prec ] ++ pairs
 
-    typeDef = lookAhead ((string "data" <|> string "type") >> whitespace >> capVar)
-
-    adt = do undefined
-{-- TODO: reimplement this
-      (Datatype name tvs constructors) <- datatype
-      let toType (cName, typeArgs) =
-              (cName, show $ foldr (==>) (kADT name $ map kVarT tvs) typeArgs, "")
-      return $ map toType constructors
---}
-
-setupParser p source =
-    case iParse p "" source of
-      Right result -> Right result
-      Left err -> Left $ "Parse error at " ++ show err
+      (comment, decl, source) : rest ->
+          case decl of
+            Fixity assoc prec name ->
+                collect (Map.insert name (assoc,prec) infixes) types aliases adts rest
+            Definition (TypeAnnotation name tipe) ->
+                collect infixes (insert name [] types) aliases adts rest
+            TypeAlias name vars tipe ->
+                collect infixes types (insert name ["vars" .= vars] aliases) adts rest
+            Datatype name vars ctors ->
+                collect infixes types aliases (insert name ["vars" .= vars] adts) rest
+          where
+            insert name fields dict = Map.insert name (obj name fields) dict
+            obj name fields =
+                [ "name" .= name, "raw" .= source, "comment" .= comment ] ++ fields
