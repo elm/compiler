@@ -84,38 +84,26 @@ hiddenState base fun = loop base (pure (\(i,s) ->
                                           let (o,s') = fun i s
                                           in (s',o)))
 
-(>>>) : Automaton i inter -> Automaton inter o -> Automaton i o
-(>>>) = before
-
 after : Automaton inter o -> Automaton i inter -> Automaton i o
 after g f = f `before` g
-
-(<<<) : Automaton inter o -> Automaton i inter -> Automaton i o
-(<<<) = after
 
 -- AFRP name: second
 extendUp: Automaton i o -> Automaton (extra,i) (extra,o)
 extendUp auto =
   let swap (a, b) = (b, a)
-  in pure swap >>> extendDown auto >>> pure swap
+  in pure swap `before` extendDown auto `before` pure swap
 
 -- (parallel composition)
-stack: Automaton i1 o1 -> Automaton i2 o2 -> Automaton (i1,i2) (o1,o2)
-stack f g = extendDown f >>> extendUp g
+pair: Automaton i1 o1 -> Automaton i2 o2 -> Automaton (i1,i2) (o1,o2)
+pair f g = extendDown f `before` extendUp g
 
-(***): Automaton i1 o1 -> Automaton i2 o2 -> Automaton (i1,i2) (o1,o2)
-(***) = stack
-
-and : Automaton i o1 -> Automaton i o2 -> Automaton i (o1,o2)
-and f g =
+branch : Automaton i o1 -> Automaton i o2 -> Automaton i (o1,o2)
+branch f g =
   let double = pure (\i -> (i,i))
-  in double >>> stack f g
-
-(&&&) : Automaton i o1 -> Automaton i o2 -> Automaton i (o1,o2)
-(&&&) = and
+  in double `before` pair f g
 
 combi: Automaton i o -> Automaton i [o] -> Automaton i [o]
-combi a1 a2 = (a1 &&& a2) >>> pure (uncurry (::))
+combi a1 a2 = (a1 `branch` a2) `before` pure (uncurry (::))
 
 -- Combine a list of automatons into a single automaton that produces a list.
 combine : [Automaton i o] -> Automaton i [o]
@@ -123,7 +111,7 @@ combine autos =
   let l = length autos
   in if l == 0
        then pure (\_ -> [])
-       else foldr combi (last autos >>> pure (\a -> [a])) (take (l-1) autos)
+       else foldr combi (last autos `before` pure (\a -> [a])) (take (l-1) autos)
 
 
 -- Examples of automata
