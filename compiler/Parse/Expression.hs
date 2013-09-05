@@ -1,4 +1,4 @@
-module Parse.Expression (def,term) where
+module Parse.Expression (def,term,typeAnnotation) where
 
 import Control.Arrow ((***))
 import Control.Applicative ((<$>), (<*>))
@@ -208,7 +208,8 @@ expr = addLocation (choice [ ifExpr, letExpr, caseExpr ])
     <|> binaryExpr 
     <?> "an expression"
 
-funcDef =
+defStart :: IParser [Pattern]
+defStart =
     choice [ do p1 <- try Pattern.term
                 infics p1 <|> func p1
            , func =<< (PVar <$> parens symOp)
@@ -231,19 +232,20 @@ makeFunction :: [Pattern] -> LExpr t v -> LExpr t v
 makeFunction args body@(L s _) =
     foldr (\arg body' -> L s $ Lambda arg body') body args
 
-assignExpr :: IParser (Def t v)
-assignExpr = withPos $ do
-  (name:args) <- funcDef
+definition :: IParser (Def t v)
+definition = withPos $ do
+  (name:args) <- defStart
   whitespace >> string "=" >> whitespace
   body <- expr
   return . Def name $ makeFunction args body
 
 typeAnnotation :: IParser (Def t v)
 typeAnnotation = TypeAnnotation <$> try start <*> Type.expr
-    where
-      start = do v <- lowVar <|> parens symOp
-                 whitespace ; hasType ; whitespace
-                 return v
+  where
+    start = do
+      v <- lowVar <|> parens symOp
+      whitespace ; hasType ; whitespace
+      return v
 
 def :: IParser (Def t v)
-def = typeAnnotation <|> assignExpr
+def = typeAnnotation <|> definition
