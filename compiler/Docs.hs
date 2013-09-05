@@ -2,6 +2,7 @@
 module Main where
 
 import System.Console.CmdArgs
+import System.Directory
 import System.FilePath
 import System.Exit
 
@@ -39,6 +40,7 @@ parseFile path = do
   case iParse docs "" source of
     Right json -> do
       putStrLn $ "Documenting " ++ path
+      createDirectoryIfMissing True "docs"
       BS.writeFile ("docs" </> replaceExtension path ".json") (encode json)
     Left err -> do
       putStrLn $ "Parse error in " ++ path ++ " at " ++ show err
@@ -48,8 +50,8 @@ docs :: IParser Value
 docs = do
   optional freshLine
   (names, exports) <- option (["Main"],[]) moduleDef
-  chompUntilFreshLine
-  structure <- docComment
+  optional freshLine
+  structure <- option "" docComment
   things <- document
   return $ toJson (List.intercalate "." names) exports structure things
 
@@ -80,15 +82,18 @@ chompUntilFreshLine =
        , eof >> return True ]
 
 docThing :: IParser (String, Declaration t v, String)
-docThing = uncommented <|> commented
+docThing = uncommentable <|> commented <|> uncommented ""
     where
-      uncommented = do
+      uncommentable = do
         ifx <- infixDecl
         return ("", ifx, "")
 
       commented = do
-        comment <- option "" docComment
+        comment <- docComment
         freshLine
+        uncommented comment
+
+      uncommented comment = do
         (src,def) <- withSource $ choice [ alias, datatype, Definition <$> typeAnnotation ]
         return (comment, def, src)
 
