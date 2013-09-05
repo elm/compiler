@@ -168,6 +168,42 @@ Executable elm
                        union-find,
                        uniplate
 
+Executable elm-doc
+  Main-is:             Docs.hs
+  Hs-Source-Dirs:      compiler
+  other-modules:       SourceSyntax.Declaration,
+                       SourceSyntax.Everything,
+                       SourceSyntax.Expression,
+                       SourceSyntax.Helpers,
+                       SourceSyntax.Literal,
+                       SourceSyntax.Location,
+                       SourceSyntax.Module,
+                       SourceSyntax.Pattern,
+                       SourceSyntax.PrettyPrint,
+                       SourceSyntax.Type,
+                       Parse.Binop,
+                       Parse.Declaration,
+                       Parse.Expression,
+                       Parse.Helpers,
+                       Parse.Literal,
+                       Parse.Module,
+                       Parse.Pattern,
+                       Parse.Type
+
+  Build-depends:       aeson,
+                       base >=4.2 && <5,
+                       binary,
+                       bytestring,
+                       cmdargs,
+                       containers >= 0.3,
+                       directory,
+                       filepath,
+                       indents,
+                       mtl >= 2,
+                       pandoc >= 1.10,
+                       parsec >= 3.1.1,
+                       pretty
+
 Test-Suite test-elm
   Type:            exitcode-stdio-1.0
   Hs-Source-Dirs:  tests
