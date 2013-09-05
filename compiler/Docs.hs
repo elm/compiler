@@ -41,9 +41,9 @@ parseFile path = do
   case iParse docs "" source of
     Right json -> do
       putStrLn $ "Documenting " ++ path
-      createDirectoryIfMissing True "docs"
-      BS.writeFile ("docs" </> replaceExtension path ".json")
-                   (encodePretty' (defConfig { confIndent = 2 }) json)
+      let docPath = "docs" </> replaceExtension path ".json"
+      createDirectoryIfMissing True (dropFileName docPath)
+      BS.writeFile docPath (encodePretty' (defConfig { confIndent = 2 }) json)
     Left err -> do
       putStrLn $ "Parse error in " ++ path ++ " at " ++ show err
       exitFailure
