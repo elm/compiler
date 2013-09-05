@@ -38,6 +38,11 @@ main = do
   flags <- cmdArgs defaultFlags
   mapM parseFile (files flags)
 
+config = Config { confIndent = 2, confCompare = keyOrder keys }
+  where
+    keys = ["name","document","comment","raw","aliases","datatypes"
+           ,"values","typeVariables","type","constructors"]
+
 parseFile path = do
   source <- readFile path
   case iParse docs "" source of
@@ -45,7 +50,7 @@ parseFile path = do
       putStrLn $ "Documenting " ++ path
       let docPath = "docs" </> replaceExtension path ".json"
       createDirectoryIfMissing True (dropFileName docPath)
-      BS.writeFile docPath (encodePretty' (defConfig { confIndent = 2 }) json)
+      BS.writeFile docPath (encodePretty' config json)
     Left err -> do
       putStrLn $ "Parse error in " ++ path ++ " at " ++ show err
       exitFailure
