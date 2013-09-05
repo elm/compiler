@@ -9,7 +9,6 @@ import qualified Text.PrettyPrint as P
 
 import qualified SourceSyntax.Module as S
 import Parse.Helpers
-import Parse.Binop (infixStmt, OpTable)
 import Parse.Expression
 import Parse.Type
 import Parse.Module
