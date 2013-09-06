@@ -9,10 +9,8 @@ import Signal (lift,foldp,Signal)
 import open List
 import Maybe (Just, Nothing)
 
-data Automaton input output =
-  Pure (input -> output)
-  | Stateful state (input -> state -> (output,state))
-
+data Automaton input output = Pure (input -> output)
+                            | Stateful state (input -> state -> (output,state))
 
 -- The basics
 
@@ -21,8 +19,8 @@ pure: (i -> o) -> Automaton i o
 pure = Pure
 
 -- AFRP name: >>>
-before: Automaton i inter -> Automaton inter o -> Automaton i o
-before first second =
+andThen: Automaton i inter -> Automaton inter o -> Automaton i o
+andThen first second =
   case first of
     Pure f -> case second of                               -- f  is the function from first
       Pure s       -> Pure (s . f)                         -- s  is the function from second
@@ -84,26 +82,23 @@ hiddenState base fun = loop base (pure (\(i,s) ->
                                           let (o,s') = fun i s
                                           in (s',o)))
 
-after : Automaton inter o -> Automaton i inter -> Automaton i o
-after g f = f `before` g
-
 -- AFRP name: second
 extendUp: Automaton i o -> Automaton (extra,i) (extra,o)
 extendUp auto =
   let swap (a, b) = (b, a)
-  in pure swap `before` extendDown auto `before` pure swap
+  in pure swap `andThen` extendDown auto `andThen` pure swap
 
 -- (parallel composition)
 pair: Automaton i1 o1 -> Automaton i2 o2 -> Automaton (i1,i2) (o1,o2)
-pair f g = extendDown f `before` extendUp g
+pair f g = extendDown f `andThen` extendUp g
 
 branch : Automaton i o1 -> Automaton i o2 -> Automaton i (o1,o2)
 branch f g =
   let double = pure (\i -> (i,i))
-  in double `before` pair f g
+  in double `andThen` pair f g
 
 combi: Automaton i o -> Automaton i [o] -> Automaton i [o]
-combi a1 a2 = (a1 `branch` a2) `before` pure (uncurry (::))
+combi a1 a2 = (a1 `branch` a2) `andThen` pure (uncurry (::))
 
 -- Combine a list of automatons into a single automaton that produces a list.
 combine : [Automaton i o] -> Automaton i [o]
@@ -111,7 +106,7 @@ combine autos =
   let l = length autos
   in if l == 0
        then pure (\_ -> [])
-       else foldr combi (last autos `before` pure (\a -> [a])) (take (l-1) autos)
+       else foldr combi (last autos `andThen` pure (\a -> [a])) (take (l-1) autos)
 
 
 -- Examples of automata
