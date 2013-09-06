@@ -62,11 +62,9 @@ app =
 expr :: IParser T.Type
 expr =
   do t1 <- app <|> term
-     whitespace
-     arr <- optionMaybe (try arrow)
-     whitespace
+     arr <- optionMaybe $ try (whitespace >> arrow)
      case arr of
-       Just _  -> T.Lambda t1 <$> expr
+       Just _  -> T.Lambda t1 <$> (whitespace >> expr)
        Nothing -> return t1
 
 constructor :: IParser (String, [T.Type])
