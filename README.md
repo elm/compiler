@@ -3,8 +3,7 @@ Learn about the Elm programming language at [elm-lang.org](http://elm-lang.org/)
 
 ## Install
 
-Download the [Haskell Platform 2012.2.0.0](http://hackage.haskell.org/platform/).
-Elm definitely works with GHC 7.4, so newer versions of the Haskell Platform may work too.
+Download the [Haskell Platform 2012.2.0.0 or later](http://hackage.haskell.org/platform/).
 Once the Haskell Platform is installed:
 
     cabal update
