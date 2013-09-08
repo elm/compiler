@@ -56,10 +56,19 @@ metadataModule ifaces modul =
      program' <- rename initialEnv (program modul)
      aliases' <- mapM (third renameType') (aliases modul)
      datatypes' <- mapM (third (mapM (second (mapM renameType')))) (datatypes modul)
-     return $ modul { program = program', aliases = aliases', datatypes = datatypes' }
+     exports' <- mapM (third renameType') (foreignExports modul)
+     imports' <- mapM (twoAndFour (rename initialEnv) renameType') (foreignImports modul)
+     return $ modul { program = program'
+                    , aliases = aliases'
+                    , datatypes = datatypes'
+                    , foreignExports = exports'
+                    , foreignImports = imports' }
   where
     second f (a,b) = (,) a `fmap` f b
     third f (a,b,c) = (,,) a b `fmap` f c
+    twoAndFour f g (a,b,c,d) = do b' <- f b
+                                  d' <- g d
+                                  return (a,b',c,d')
     renameType' =
         Either.either (\err -> Left [P.text err]) return . renameType (replace "type" initialEnv)
 
