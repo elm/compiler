@@ -1,32 +1,52 @@
 
--- The library for general signal manipulation. Some useful functions for
--- working with time (e.g. setting FPS) and combining signals and time (e.g.
--- delaying updates, getting timestamps) can be found in the
--- [`Time`](/docs/Signal/Time.elm) library.
---
--- Note: There are lift functions up to `lift8`.
+{-| The library for general signal manipulation. Includes lift functions up to
+`lift8` and infix lift operators `<~` and `~`, combinations, filters, and
+past-dependence.
+
+Signals are time-varying values. Lifted functions are reevaluated whenver any of
+their input signals has an event. Signal events may be of the same value as the
+previous value of the signal. Such signals are useful for timing and
+past-dependence.
+
+Some useful functions for working with time (e.g. setting FPS) and combining
+signals and time (e.g.  delaying updates, getting timestamps) can be found in
+the [`Time`](/docs/Signal/Time.elm) library.
+
+# Combine
+@docs constant, lift, lift2, merge, merges, combine
+
+# Pretty Lift
+@docs (<~), (~)
+
+# Past-Dependence
+@docs foldp, count, countIf
+
+#Filters
+@docs keepIf, dropIf, keepWhen, dropWhen, dropRepeats, sampleOn
+
+# Do you even lift?
+@docs lift3, lift4, lift5, lift6, lift7, lift8
+
+-}
 module Signal where
 
 import Native.Signal
 import List (foldr)
 
 data Signal a = Signal
---    = Constant a
---    | Lift (a -> a) (Signal a)
 
--- Create a constant signal that never changes.
+{-| Create a constant signal that never changes. -}
 constant : a -> Signal a
 constant = Native.Signal.constant
 
--- Transform a signal with a given function.
+{-| Transform a signal with a given function. -}
 lift  : (a -> b) -> Signal a -> Signal b
 lift = Native.Signal.lift
 
--- Combine two signals with a given function.
+{-| Combine two signals with a given function. -}
 lift2 : (a -> b -> c) -> Signal a -> Signal b -> Signal c
 lift2 = Native.Signal.lift2
 
--- Combine three signals with a given function.
 lift3 : (a -> b -> c -> d) -> Signal a -> Signal b -> Signal c -> Signal d
 lift3 = Native.Signal.lift3
 
@@ -49,25 +69,25 @@ lift8 : (a -> b -> c -> d -> e -> f -> g -> h -> i)
 lift8 = Native.Signal.lift8
 
 
--- Create a past-dependent signal. Each value given on the input signal will
--- be accumulated, producing a new output value.
---
--- For instance, `(foldp (\\arrows number -> number + arrows.y) 0 Keyboard.arrows)`
--- increments or decrements the accumulated value (which starts at zero) when the up or down arrow keys are pressed.
+{-| Create a past-dependent signal. Each value given on the input signal will
+be accumulated, producing a new output value.
+
+For instance, `foldp (+) 0 (fps 40)` is the time the program has been running,
+updated 40 times a second. -}
 foldp : (a -> b -> b) -> b -> Signal a -> Signal b
 foldp = Native.Signal.foldp
 
--- Merge two signals into one, biased towards the first signal if both signals
--- update at the same time.
+{-| Merge two signals into one, biased towards the first signal if both signals
+update at the same time. -}
 merge : Signal a -> Signal a -> Signal a
 merge = Native.Signal.merge
 
--- Merge many signals into one, biased towards the left-most signal if multiple
--- signals update simultaneously.
+{-| Merge many signals into one, biased towards the left-most signal if multiple
+signals update simultaneously. -}
 merges : [Signal a] -> Signal a
 merges = Native.Signal.merges
 
--- Combine a list of signals into a signal of lists.
+{-| Combine a list of signals into a signal of lists. -}
 combine : [Signal a] -> Signal [a]
 combine = foldr (Native.Signal.lift2 (::)) (Native.Signal.constant [])
 
@@ -76,68 +96,72 @@ combine = foldr (Native.Signal.lift2 (::)) (Native.Signal.constant [])
  -- fold over non-homogeneous inputs.
  -- mergeEither : Signal a -> Signal b -> Signal (Either a b)
 
--- Count the number of events that have occured.
+{-| Count the number of events that have occured. -}
 count : Signal a -> Signal Int
 count = Native.Signal.count
 
--- Count the number of events that have occured that satisfy a given predicate.
+{-| Count the number of events that have occured that satisfy a given predicate.
+-}
 countIf : (a -> Bool) -> Signal a -> Signal Int
 countIf = Native.Signal.countIf
 
--- Keep only events that satisfy the given predicate. Elm does not allow
--- undefined signals, so a base case must be provided in case the predicate is
--- never satisfied.
+{-| Keep only events that satisfy the given predicate. Elm does not allow
+undefined signals, so a base case must be provided in case the predicate is
+never satisfied. -}
 keepIf : (a -> Bool) -> a -> Signal a -> Signal a
 keepIf = Native.Signal.keepIf
 
--- Drop events that satisfy the given predicate. Elm does not allow undefined
--- signals, so a base case must be provided in case the predicate is never
--- satisfied.
+{-| Drop events that satisfy the given predicate. Elm does not allow undefined
+signals, so a base case must be provided in case the predicate is never
+satisfied. -}
 dropIf : (a -> Bool) -> a -> Signal a -> Signal a
 dropIf = Native.Signal.dropIf
 
--- Keep events only when the first signal is true. When the first signal becomes
--- true, the most recent value of the second signal will be propagated. Until
--- the first signal becomes false again, all events will be propagated. Elm does
--- not allow undefined signals, so a base case must be provided in case the first
--- signal is never true.
+{-| Keep events only when the first signal is true. When the first signal
+becomes true, the most recent value of the second signal will be propagated.
+Until the first signal becomes false again, all events will be propagated. Elm
+does not allow undefined signals, so a base case must be provided in case the
+first signal is never true. -}
 keepWhen : Signal Bool -> a -> Signal a -> Signal a
 keepWhen = Native.Signal.keepWhen
 
--- Drop events when the first signal is true. When the first signal becomes false,
--- the most recent value of the second signal will be propagated. Until the first
--- signal becomes true again, all events will be propagated. Elm does not allow
--- undefined signals, so a base case must be provided in case the first signal is
--- always true.
+{-| Drop events when the first signal is true. When the first signal becomes
+false, the most recent value of the second signal will be propagated. Until the
+first signal becomes true again, all events will be propagated. Elm does not
+allow undefined signals, so a base case must be provided in case the first
+signal is always true. -}
 dropWhen : Signal Bool -> a -> Signal a -> Signal a
 dropWhen = Native.Signal.dropWhen
 
--- Drop sequential repeated values. For example, if a signal produces the
--- sequence `[1,1,2,2,1]`, it becomes `[1,2,1]` by dropping the values that
--- are the same as the previous value.
+{-| Drop sequential repeated values. For example, if a signal produces the
+sequence `[1,1,2,2,1]`, it becomes `[1,2,1]` by dropping the values that are the
+same as the previous value. -}
 dropRepeats : Signal a -> Signal a
 dropRepeats = Native.Signal.dropRepeats
 
--- Sample from the second input every time an event occurs on the first input.
--- For example, `(sampleOn clicks (every second))` will give the approximate
--- time of the latest click.
+{-| Sample from the second input every time an event occurs on the first input.
+For example, `(sampleOn clicks (every second))` will give the approximate time
+of the latest click. -}
 sampleOn : Signal a -> Signal b -> Signal b
 sampleOn = Native.Signal.sampleOn
 
--- An alias for `lift`. A prettier way to apply a
--- function to the current value of a signal.
---
---         lift f signal == f <~ signal
+{-| An alias for `lift`. A prettier way to apply a function to the current value
+of a signal. -}
 (<~) : (a -> b) -> Signal a -> Signal b
 f <~ s = Native.Signal.lift f s
 
--- Signal application. This takes two signals, holding a function and
--- a value. It applies the current function to the current value.
---
--- So the following expressions are equivalent:
---
---         scene <~ Window.dimensions ~ Mouse.position
---         lift2 scene Window.dimensions Mouse.position
+{-| Informally, an alias for `liftN`. Intersperse it between additional signal
+arguments of the lifted function.
+
+Formally, signal application. This takes two signals, holding a function and
+a value. It applies the current function to the current value.
+
+The following expressions are equivalent:
+
+         scene <~ Window.dimensions ~ Mouse.position
+         lift2 scene Window.dimensions Mouse.position
+-}
+
 (~) : Signal (a -> b) -> Signal a -> Signal b
 sf ~ s = Native.Signal.lift2 (\f x -> f x) sf s
 
