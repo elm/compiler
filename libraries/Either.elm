@@ -3,7 +3,7 @@ module Either where
 {-| Represents any data that can take two different types.
 
 # Type and Constructors
-@docs Either, Left, Right
+@docs Either
 
 # Taking Eithers apart
 @docs either, isLeft, isRight
@@ -15,9 +15,12 @@ module Either where
 
 import List
 
-{-| This can also be used for error handling `(Either String a)` where
-    error messages are stored on the left, and the correct values
-    (&ldquo;right&rdquo; values) are stored on the right.
+{-| Represents any data may take two forms. For example, a user ID may be
+either an `Int` or a `String`.
+
+This can also be used for error handling `(Either String a)` where
+error messages are stored on the left, and the correct values
+(&ldquo;right&rdquo; values) are stored on the right.
 -}
 data Either a b = Left a | Right b
 

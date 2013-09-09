@@ -130,9 +130,10 @@ acos = Native.Basics.acos
 asin : Float -> Float
 asin = Native.Basics.asin
 
-{-| You probably do not want to use this. Because it takes `(y/x)` as the
-argument there is no way to know where the negative signs come from so the
-resulting angle is always between &pi;/2 and -&pi;/2 (in quadrants I and IV).
+{-| You probably do not want to use this. It takes `(y/x)` as the
+argument, so there is no way to know whether the negative signs comes from
+the `y` or `x`. Thus, the resulting angle is always between &pi;/2 and -&pi;/2
+(in quadrants I and IV). You probably want to use `atan2` instead.
 -}
 atan : Float -> Float
 atan = Native.Basics.atan

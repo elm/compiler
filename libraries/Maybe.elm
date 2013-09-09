@@ -3,7 +3,7 @@ module Maybe where
 {-| Represents an optional value.
 
 # Type and Constructors
-@docs Maybe, Just, Nothing
+@docs Maybe
 
 # Taking Maybes apart
 @docs maybe, isJust, isNothing
