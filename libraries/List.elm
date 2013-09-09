@@ -19,7 +19,7 @@ list must have the same type.
 @docs foldr, foldl, foldr1, foldl1, scanl, scanl1
 
 # Special Folds
-@docs susm, product, maximum, minimum, all, any, and, or
+@docs sum, product, maximum, minimum, all, any, and, or
 -}
 
 import open Basics
