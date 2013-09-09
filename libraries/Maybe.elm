@@ -1,6 +1,6 @@
 module Maybe where
 
-{-| Represents an optional value.
+{-| Represents an optional value. Maybe it is there, maybe it is not.
 
 # Type and Constructors
 @docs Maybe
