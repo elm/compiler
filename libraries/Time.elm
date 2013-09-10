@@ -1,17 +1,25 @@
--- Library for working with time. Type `Time` represents some number of milliseconds.
 module Time where
+
+{-| Library for working with time. Type `Time` represents some number of
+milliseconds.
+
+# Type and Constructors
+@docs Time, millisecond, fps, fpsWhen, every, since, timestamp, delay
+
+-}
 
 import open Basics
 import Native.Time
 import Signal (Signal)
 
--- Type alias to make it clearer when you are working with time values.
--- Using the `Time` constants instead of raw numbers is very highly recommended.
+{-| Type alias to make it clearer when you are working with time values.
+Using the `Time` constants instead of raw numbers is very highly recommended.
+-}
 type Time = Float
 
--- Units of time, making it easier to specify things like a
--- half-second `(500 * milliseconds)` without remembering Elm&rsquo;s
--- underlying units of time.
+{-| Units of time, making it easier to specify things like a half-second
+`(500 * milliseconds)` without remembering Elm&rsquo;s underlying units of time.
+-}
 millisecond : Time
 millisecond = 1
 
@@ -36,42 +44,46 @@ inMinutes t = t / minute
 inHours : Time -> Float
 inHours t = t / hour
 
--- Takes desired number of frames per second (fps). The resulting signal
--- gives a sequence of time deltas as quickly as possible until it reaches
--- the desired FPS. A time delta is the time between the last frame and the
--- current frame.
+{-| Takes desired number of frames per second (fps). The resulting signal
+gives a sequence of time deltas as quickly as possible until it reaches
+the desired FPS. A time delta is the time between the last frame and the
+current frame.
+-}
 fps : number -> Signal Time
 fps = Native.Time.fps
 
--- Same as the fps function, but you can turn it on and off. Allows you
--- to do brief animations based on user input without major inefficiencies.
--- The first time delta after a pause is always zero, no matter how long
--- the pause was. This way summing the deltas will actually give the amount
--- of time that the output signal has been running.
+{-| Same as the fps function, but you can turn it on and off. Allows you
+to do brief animations based on user input without major inefficiencies.
+The first time delta after a pause is always zero, no matter how long
+the pause was. This way summing the deltas will actually give the amount
+of time that the output signal has been running.
+-}
 fpsWhen : number -> Signal Bool -> Signal Time
 fpsWhen = Native.Time.fpsWhen
 
--- Takes a time interval t. The resulting signal is the current time,
--- updated every t.
+{-| Takes a time interval t. The resulting signal is the current time, updated
+every t.
+-}
 every : Time -> Signal Time
 every = Native.Time.every
 
--- Takes a time `t` and any signal. The resulting boolean signal
--- is true for time `t` after every event on the input signal.
--- So ``(second `since` Mouse.clicks)`` would result in a signal
--- that is true for one second after each mouse click and false
--- otherwise.
+{-| Takes a time `t` and any signal. The resulting boolean signal is true for
+time `t` after every event on the input signal. So ``(second `since`
+Mouse.clicks)`` would result in a signal that is true for one second after
+each mouse click and false otherwise.
+-}
 since : Time -> Signal a -> Signal Bool
 since = Native.Time.since
 
--- Add a timestamp to any signal. Timestamps increase monotonically. Each
--- timestamp is related to a specfic event, so `Mouse.x` and `Mouse.y` will
--- always have the same timestamp because they both rely on the same
--- underlying event.
+{-| Add a timestamp to any signal. Timestamps increase monotonically. Each
+timestamp is related to a specfic event, so `Mouse.x` and `Mouse.y` will always
+have the same timestamp because they both rely on the same underlying event.
+-}
 timestamp : Signal a -> Signal (Time, a)
 timestamp = Native.Time.timestamp
 
--- Delay a signal by a certain amount of time. So `(delay second Mouse.clicks)`
--- will update one second later than any mouse click.
+{-| Delay a signal by a certain amount of time. So `(delay second Mouse.clicks)`
+will update one second later than any mouse click.
+-}
 delay : Time -> Signal a -> Signal a
 delay = Native.Time.delay
