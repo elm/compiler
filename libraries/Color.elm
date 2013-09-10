@@ -1,4 +1,3 @@
-
 module Color where
 
 {-| Library for working with colors. Includes
@@ -13,12 +12,27 @@ built-in names.
 @docs complementary
 
 # Gradients
-@docs linear radial
+@docs linear, radial
 
 # Built-in Colors
-These come from the [Tango
-palette](http://tango.freedesktop.org/Tango_Icon_Theme_Guidelines).
-@docs red, orange, yellow, green, blue, purple, brown, black, white, grey, gray, charcoal, lightRed, lightOrange, lightYellow, lightGreen, lightBlue, lightPurple, lightBrown, lightGrey, lightGray, lightCharcoal, darkRed, darkOrange, darkYellow, darkGreen, darkBlue, darkPurple, darkBrown, darkGrey, darkGray, darkCharcoal
+These colors come from the [Tango
+palette](http://tango.freedesktop.org/Tango_Icon_Theme_Guidelines)
+which provides reasonable defaults for colors.
+Each color comes with a light and dark version.
+The six colors ranging from `lightGrey` to `darkCharcoal` are
+a compatible series of shades of grey.
+
+### Standard
+@docs red, orange, yellow, green, blue, purple, brown,
+      grey, gray, charcoal, black, white
+
+### Light
+@docs lightRed, lightOrange, lightYellow, lightGreen, lightBlue,
+      lightPurple, lightBrown, lightGrey, lightGray, lightCharcoal
+
+### Dark
+@docs darkRed, darkOrange, darkYellow, darkGreen, darkBlue,
+      darkPurple, darkBrown, darkGrey, darkGray, darkCharcoal
 
 -}
 

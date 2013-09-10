@@ -1,10 +1,16 @@
 module Time where
 
-{-| Library for working with time. Type `Time` represents some number of
-milliseconds.
+{-| Library for working with time.
 
-# Type and Constructors
-@docs Time, millisecond, fps, fpsWhen, every, since, timestamp, delay
+# Units
+@docs Time, millisecond, second, minute, hour,
+      inMilliseconds, inSeconds, inMinutes, inHours
+
+# Tickers
+@docs fps, fpsWhen, every
+
+# Timing
+@docs timestamp, delay, since
 
 -}
 

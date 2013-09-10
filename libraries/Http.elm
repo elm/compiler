@@ -1,12 +1,15 @@
-{-| A library for asynchronous HTTP requests (AJAX). See the
+{-| A library for asynchronous HTTP requests. See the
 [WebSocket](http://elm-lang.org/docs/WebSocket.elm) library if
 you have very strict latency requirements.
 
-# Types
-@docs Request, Response
+# Sending Requests
+@docs send, sendGet
 
-# Making requests
-@docs request, get, post, send, sendGet
+# Creating Requests
+@docs get, post, request
+
+# Responses
+@docs Response
 
 -}
 

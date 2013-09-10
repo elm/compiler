@@ -6,9 +6,9 @@ module Set (empty,singleton,insert,remove
            ,toList,fromList
            ) where
 
-{-|A set of unique values. The values can be any comparable type. This includes
-`Int`, `Float`, `Time`, `Char`, `String`, and tuples or lists of comparable
-types.
+{-| A set of unique values. The values can be any comparable type. This
+includes `Int`, `Float`, `Time`, `Char`, `String`, and tuples or lists
+of comparable types.
 
 Insert, remove, and query operations all take *O(log n)* time.
 

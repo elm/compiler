@@ -8,7 +8,7 @@ module Dict (empty,singleton,insert
             ,toList,fromList
             ) where
 
-{-|A dictionary mapping unique keys to values. The keys can be any comparable
+{-| A dictionary mapping unique keys to values. The keys can be any comparable
 type. This includes `Int`, `Float`, `Time`, `Char`, `String`, and tuples or
 lists of comparable types.
 

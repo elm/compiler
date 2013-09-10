@@ -3,14 +3,17 @@ module Text where
 
 {-| Functions for displaying text
 
-# Constructors
+# Creating Text
 @docs toText
 
-# Stylizing and displaying Text
-@docs typeface, monospace, header, link, height, color, bold, italic, overline, underline, strikethrough, justified, centered, righted, text, plaintext
+# Creating Elements
+@docs plainText, asText, text, centered, justified, righted
 
-# Converting other elements to Text
-@docs asText
+# Formatting
+@docs color, typeface, height, link
+
+# Simple Formatting
+@docs monospace, header, bold, italic, underline, overline, strikethrough
 
 -}
 
