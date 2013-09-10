@@ -8,6 +8,30 @@ module Dict (empty,singleton,insert
             ,toList,fromList
             ) where
 
+{-|A dictionary mapping unique keys to values. The keys can be any comparable
+type. This includes `Int`, `Float`, `Time`, `Char`, `String`, and tuples or
+lists of comparable types.
+
+Insert, remove, and query operations all take *O(log n)* time.
+
+# Build
+@docs empty, singleton, insert, remove
+
+# Query
+@docs member, lookup, findWithDefault
+
+# Combine
+@docs union, intersect, diff
+
+# Lists
+@docs keys, values, toList, fromList
+
+# Transform
+@docs map, foldl, foldr
+
+-}
+
+
 import open Basics
 import open Maybe
 import Native.Error
@@ -18,7 +42,7 @@ data NColor = Red | Black
 
 data Dict k v = RBNode NColor k v (Dict k v) (Dict k v) | RBEmpty
 
--- Create an empty dictionary.
+{-| Create an empty dictionary. -}
 empty : Dict comparable v
 empty = RBEmpty
 
@@ -116,7 +140,7 @@ max t =
   }
 --}
 
--- Lookup the value associated with a key.
+{-| Lookup the value associated with a key. -}
 lookup : comparable -> Dict comparable v -> Maybe v
 lookup k t =
  case t of
@@ -127,8 +151,8 @@ lookup k t =
       EQ -> Just v
       GT -> lookup k r
 
--- Find the value associated with a key. If the key is not found,
--- return the default value.
+{-| Find the value associated with a key. If the key is not found,
+return the default value. -}
 findWithDefault : v -> comparable -> Dict comparable v -> v
 findWithDefault base k t =
  case t of
@@ -152,7 +176,7 @@ find k t =
  }
 --}
 
--- Determine if a key is in a dictionary.
+{-| Determine if a key is in a dictionary. -}
 member : comparable -> Dict comparable v -> Bool
 -- Does t contain k?
 member k t = isJust <| lookup k t
@@ -208,8 +232,8 @@ ensureBlackRoot t =
     RBNode Red k v l r -> RBNode Black k v l r
     _ -> t
 
--- Insert a key-value pair into a dictionary. Replaces value when there is
--- a collision.
+{-| Insert a key-value pair into a dictionary. Replaces value when there is
+a collision. -}
 insert : comparable -> v -> Dict comparable v -> Dict comparable v
 insert k v t =  -- Invariant: t is a valid left-leaning rb tree
   let ins t =
@@ -231,7 +255,7 @@ insert k v t =  -- Invariant: t is a valid left-leaning rb tree
             else new_t)
 --}
 
--- Create a dictionary with one key-value pair.
+{-| Create a dictionary with one key-value pair. -}
 singleton : comparable -> v -> Dict comparable v
 singleton k v = insert k v RBEmpty
 
@@ -312,8 +336,8 @@ deleteMax t =
   in  ensureBlackRoot (del t)
 --}
 
--- Remove a key-value pair from a dictionary. If the key is not found,
--- no changes are made.
+{-| Remove a key-value pair from a dictionary. If the key is not found,
+no changes are made. -}
 remove : comparable -> Dict comparable v -> Dict comparable v
 remove k t =
   let eq_and_noRightNode t =
@@ -346,58 +370,58 @@ remove k t =
                 Native.Error.raise "invariants broken after remove")
 --}
 
--- Apply a function to all values in a dictionary.
+{-| Apply a function to all values in a dictionary. -}
 map : (a -> b) -> Dict comparable a -> Dict comparable b
 map f t =
   case t of
     RBEmpty -> RBEmpty
     RBNode c k v l r -> RBNode c k (f v) (map f l) (map f r)
 
--- Fold over the key-value pairs in a dictionary, in order from lowest
--- key to highest key.
+{-| Fold over the key-value pairs in a dictionary, in order from lowest
+key to highest key. -}
 foldl : (comparable -> v -> b -> b) -> b -> Dict comparable v -> b
 foldl f acc t =
   case t of
     RBEmpty -> acc
     RBNode _ k v l r -> foldl f (f k v (foldl f acc l)) r
 
--- Fold over the key-value pairs in a dictionary, in order from highest
--- key to lowest key.
+{-| Fold over the key-value pairs in a dictionary, in order from highest
+key to lowest key. -}
 foldr : (comparable -> v -> b -> b) -> b -> Dict comparable v -> b
 foldr f acc t =
   case t of
     RBEmpty -> acc
     RBNode _ k v l r -> foldr f (f k v (foldr f acc r)) l
 
--- Combine two dictionaries. If there is a collision, preference is given
--- to the first dictionary.
+{-| Combine two dictionaries. If there is a collision, preference is given
+to the first dictionary. -}
 union : Dict comparable v -> Dict comparable v -> Dict comparable v
 union t1 t2 = foldl insert t2 t1
 
--- Keep a key-value pair when its key appears in the second dictionary.
--- Preference is given to values in the first dictionary.
+{-| Keep a key-value pair when its key appears in the second dictionary.
+Preference is given to values in the first dictionary. -}
 intersect : Dict comparable v -> Dict comparable v -> Dict comparable v
 intersect t1 t2 =
  let combine k v t = if k `member` t2 then insert k v t else t
  in  foldl combine empty t1
 
--- Keep a key-value pair when its key does not appear in the second dictionary.
--- Preference is given to the first dictionary.
+{-| Keep a key-value pair when its key does not appear in the second dictionary.
+Preference is given to the first dictionary. -}
 diff : Dict comparable v -> Dict comparable v -> Dict comparable v
 diff t1 t2 = foldl (\k v t -> remove k t) t1 t2
 
--- Get all of the keys in a dictionary.
+{-| Get all of the keys in a dictionary. -}
 keys : Dict comparable v -> [comparable]
 keys t   = foldr (\k v acc -> k :: acc) [] t
 
--- Get all of the values in a dictionary.
+{-| Get all of the values in a dictionary. -}
 values : Dict comparable v -> [v]
 values t = foldr (\k v acc -> v :: acc) [] t
 
--- Convert a dictionary into an association list of key-value pairs.
+{-| Convert a dictionary into an association list of key-value pairs. -}
 toList : Dict comparable v -> [(comparable,v)]
 toList t = foldr (\k v acc -> (k,v) :: acc) [] t
 
--- Convert an association list into a dictionary.
+{-| Convert an association list into a dictionary. -}
 fromList : [(comparable,v)] -> Dict comparable v
 fromList assocs = List.foldl (\(k,v) d -> insert k v d) empty assocs
