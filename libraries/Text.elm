@@ -13,7 +13,7 @@ module Text where
 @docs color, typeface, height, link
 
 # Simple Formatting
-@docs monospace, header, bold, italic, underline, overline, strikethrough
+@docs monospace, header, bold, italic, underline, overline, strikeThrough
 
 -}
 
