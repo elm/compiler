@@ -17,22 +17,28 @@ built-in names.
 # Built-in Colors
 These colors come from the [Tango
 palette](http://tango.freedesktop.org/Tango_Icon_Theme_Guidelines)
-which provides reasonable defaults for colors.
-Each color comes with a light and dark version.
-The six colors ranging from `lightGrey` to `darkCharcoal` are
-a compatible series of shades of grey.
+which provides aesthetically reasonable defaults for colors. Each color also
+comes with a light and dark version.
 
 ### Standard
-@docs red, orange, yellow, green, blue, purple, brown,
-      grey, gray, charcoal, black, white
+@docs red, orange, yellow, green, blue, purple, brown, black, white
 
 ### Light
-@docs lightRed, lightOrange, lightYellow, lightGreen, lightBlue,
-      lightPurple, lightBrown, lightGrey, lightGray, lightCharcoal
+@docs lightRed, lightOrange, lightYellow, lightGreen, lightBlue, lightPurple,
+    lightBrown
 
 ### Dark
-@docs darkRed, darkOrange, darkYellow, darkGreen, darkBlue,
-      darkPurple, darkBrown, darkGrey, darkGray, darkCharcoal
+@docs darkRed, darkOrange, darkYellow, darkGreen, darkBlue, darkPurple,
+    darkBrown
+
+### Grays
+These six colors are a compatible series of shades of gray. White and black are
+listed above.
+@docs lightGray, gray, darkGray, lightCharcoal, charcoal, darkCharcoal
+
+#### Greys
+These are identical to the *gray* versions.
+@docs lightGrey, grey, darkGrey
 
 -}
 
