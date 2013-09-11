@@ -11,8 +11,6 @@ integration.
 # JavaScript from Elm
 @docs fromString, fromInt, fromFloat, fromBool fromList
 
--}
-{-
 # DOM Nodes and Elements
 @docs toElement, fromElement
 -}
@@ -27,7 +25,7 @@ data JSArray a = JSArray a
 data JSDomNode = JSDomNode
 data JSObject = JSObject
 
--- Requires that the input array be uniform (all members have the same type)
+{-| Requires that the input array be uniform (all members have the same type) -}
 toList : JSArray a -> [a]
 toList = Native.JavaScript.toList
 
@@ -44,7 +42,7 @@ toString : JSString -> String
 toString = Native.JavaScript.toString
 
 
--- Produces a uniform JavaScript array with all members of the same type.
+{-| Produces a uniform JavaScript array with all members of the same type. -}
 fromList : [a] -> JSArray a
 fromList = Native.JavaScript.fromList
 
@@ -60,7 +58,6 @@ fromBool = Native.JavaScript.fromBool
 fromString : String -> JSString
 fromString = Native.JavaScript.fromString
 
-{--
 {-| Turn an `Element` into a DOM node. -}
 fromElement : Element -> JSDomNode
 fromElement = Native.JavaScript.fromElement
@@ -69,4 +66,3 @@ fromElement = Native.JavaScript.fromElement
 using the normal `width` and `height` functions. -}
 toElement : Int -> Int -> JSDomNode -> Element
 toElement = Native.JavaScript.toElement
---}

@@ -1,4 +1,3 @@
-
 module Random where
 
 {-| Since the core of Elm is pure, randomness must be handled via signals.

@@ -4,7 +4,7 @@ module Touch where
 include gestures that would be useful for both games and web-pages.
 
 # Touches
-@docs touches
+@docs Touch, touches
 
 # Gestures
 @docs taps
@@ -14,15 +14,14 @@ import Signal (Signal)
 import Native.Touch
 import Time (Time)
 
-{-|
-Every `Touch` has `xy` coordinates. It also has an identifier `id` to
-distinguish one touch from another.
+{-| Every `Touch` has `xy` coordinates. It also has an identifier
+`id` to distinguish one touch from another.
 
 A touch also keeps info about the initial point and time of contact:
 `x0`, `y0`, and `t0`. This helps compute more complicated gestures
 like taps, drags, and swipes which need to know about timing or direction.
-type Touch = { x:Int, y:Int, id:Int, x0:Int, y0:Int, t0:Time }
 -}
+type Touch = { x:Int, y:Int, id:Int, x0:Int, y0:Int, t0:Time }
 
 {-| A list of ongoing touches. -}
 touches : Signal [Touch]

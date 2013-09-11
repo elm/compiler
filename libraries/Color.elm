@@ -21,7 +21,7 @@ which provides aesthetically reasonable defaults for colors. Each color also
 comes with a light and dark version.
 
 ### Standard
-@docs red, orange, yellow, green, blue, purple, brown, black, white
+@docs red, orange, yellow, green, blue, purple, brown
 
 ### Light
 @docs lightRed, lightOrange, lightYellow, lightGreen, lightBlue, lightPurple,
@@ -31,14 +31,14 @@ comes with a light and dark version.
 @docs darkRed, darkOrange, darkYellow, darkGreen, darkBlue, darkPurple,
     darkBrown
 
-### Grays
-These six colors are a compatible series of shades of gray. White and black are
-listed above.
-@docs lightGray, gray, darkGray, lightCharcoal, charcoal, darkCharcoal
+### Eight Shades of Grey
+These colors are a compatible series of shades of grey, fitting nicely
+with the Tango palette.
+@docs white, lightGrey, grey, darkGrey, lightCharcoal, charcoal, darkCharcoal, black
 
-#### Greys
-These are identical to the *gray* versions.
-@docs lightGrey, grey, darkGrey
+These are identical to the *grey* versions. It seems the spelling is regional, but
+that has never helped me remember which one I should be writing.
+@docs lightGray, gray, darkGray
 
 -}
 
