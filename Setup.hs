@@ -12,6 +12,7 @@ import System.Process
 import Control.Monad
 import qualified Data.Binary as Binary
 import qualified Data.ByteString.Lazy as BS
+import qualified Data.List as List
 
 -- Part 1
 -- ------
@@ -42,12 +43,19 @@ tempDir lbi = "temp"
 rts :: LocalBuildInfo -> FilePath
 rts lbi = rtsDir lbi </> "elm-runtime.js"
 
+-- The runtime is called:
+docs :: LocalBuildInfo -> FilePath
+docs lbi = rtsDir lbi </> "docs.json"
+
 -- The interfaces for the Standard Libraries live in:
 interfaces :: LocalBuildInfo -> FilePath
 interfaces lbi = rtsDir lbi </> "interfaces.data"
 
--- buildDir with LocalBuildInfo points to "dist/build" (usually)
+elm :: LocalBuildInfo -> FilePath
 elm lbi = buildDir lbi </> "elm" </> "elm"
+
+document :: LocalBuildInfo -> FilePath
+document lbi = buildDir lbi </> "elm-doc" </> "elm-doc"
 
 -- Care!  This appears to be based on an unstable API
 -- See: http://www.haskell.org/cabal/release/cabal-latest/doc/API/Cabal/Distribution-Simple.html#2
@@ -96,7 +104,10 @@ myPostBuild as bfs pd lbi = do
     buildInterfaces lbi elmis
     putStrLn "Custom build step: build elm-runtime.js"
     buildRuntime lbi elmos
+    putStrLn "Custom build step: build docs.json"
+    buildDocs lbi
     removeDirectoryRecursive (tempDir lbi)
+    removeDirectoryRecursive ("libraries" </> "docs")
     postBuild simpleUserHooks as bfs pd lbi
 
 
@@ -107,6 +118,7 @@ compileLibraries lbi = do
   createDirectoryIfMissing True rts
   out_c <- canonicalizePath temp            -- temp (root folder)
   elm_c <- canonicalizePath (elm lbi)       -- dist/build/elm/elm
+  doc_c <- canonicalizePath (document lbi)  -- dist/build/elm-doc/elm-doc
   rtd_c <- canonicalizePath rts             -- data
 
   let make file = do
@@ -118,11 +130,11 @@ compileLibraries lbi = do
             arg = Just [("Elm_datadir", rtd_c)]
         handle <- runProcess elm_c args Nothing arg Nothing Nothing Nothing
         exitCode <- waitForProcess handle
+        rawSystem doc_c [file]
         return ( out_c </> replaceExtension file "elmo"
                , out_c </> replaceExtension file "elmi")
 
   setCurrentDirectory "libraries"
-  print =<< getCurrentDirectory
   files <- getFiles ".elm" "."
   files <- unzip `fmap` mapM make files
   setCurrentDirectory ".."
@@ -145,11 +157,23 @@ buildInterfaces lbi elmis = do
 buildRuntime :: LocalBuildInfo -> [FilePath] -> IO ()
 buildRuntime lbi elmos = do
   createDirectoryIfMissing True (rtsDir lbi)
-  writeFile (rts lbi) "var Elm = {}; Elm.Native = {}; Elm.Native.Graphics = {};\n\
-                      \var ElmRuntime = {}; ElmRuntime.Render = {};\n"
-  mapM_ (appendJS lbi) =<< getFiles ".js" "libraries"
-  mapM_ (appendJS lbi) elmos
-  mapM_ (appendJS lbi) =<< getFiles ".js" "runtime"
+  let rts' = rts lbi
+  writeFile rts' "var Elm = {}; Elm.Native = {}; Elm.Native.Graphics = {};\n\
+                 \var ElmRuntime = {}; ElmRuntime.Render = {};\n"
+  mapM_ (appendTo rts') =<< getFiles ".js" "libraries"
+  mapM_ (appendTo rts') elmos
+  mapM_ (appendTo rts') =<< getFiles ".js" "runtime"
+
+buildDocs :: LocalBuildInfo -> IO ()
+buildDocs lbi = do
+  createDirectoryIfMissing True (rtsDir lbi)
+  let docs' = docs lbi
+  writeFile docs' "[\n"
+  json <- getFiles ".json" ("libraries" </> "docs")
+  let appends = map (appendTo docs') json
+      addCommas = List.intersperse (appendFile docs' ",\n")
+  sequence_ (addCommas appends)
+  appendFile docs' "\n]"
 
 getFiles ext dir = do
   contents <- map (dir </>) `fmap` getDirectoryContents dir
@@ -158,8 +182,8 @@ getFiles ext dir = do
   filess <- mapM (getFiles ext) dirs
   return (files ++ concat filess)
 
-appendJS lbi file = do
-  putStrLn (dropExtension file)
-  str <- readFile file
+appendTo :: FilePath -> FilePath -> IO ()
+appendTo destination source = do
+  str <- readFile source
   length str `seq` return ()
-  appendFile (rts lbi) str
+  appendFile destination str

@@ -22,7 +22,7 @@ Build-type:          Custom
 
 Extra-source-files:  changelog.txt
 Data-dir:            data
-Data-files:          elm-runtime.js interfaces.data
+Data-files:          elm-runtime.js interfaces.data docs.json
 Cabal-version:       >=1.9
 
 source-repository head
