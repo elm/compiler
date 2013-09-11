@@ -5,7 +5,7 @@
      <http://elm-lang.org/Documentation.elm>, and many interactive examples are
      available at <http://elm-lang.org/Examples.elm>
 -}
-module Language.Elm (compile, moduleName, runtime) where
+module Language.Elm (compile, moduleName, runtime, docs) where
 
 import qualified Data.List as List
 import qualified Data.Map as Map
