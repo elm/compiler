@@ -1,4 +1,4 @@
-
+module Signal where
 {-| The library for general signal manipulation. Includes lift functions up to
 `lift8` and infix lift operators `<~` and `~`, combinations, filters, and
 past-dependence.
@@ -28,7 +28,6 @@ the [`Time`](/docs/Signal/Time.elm) library.
 @docs lift3, lift4, lift5, lift6, lift7, lift8
 
 -}
-module Signal where
 
 import Native.Signal
 import List (foldr)
@@ -161,7 +160,6 @@ The following expressions are equivalent:
          scene <~ Window.dimensions ~ Mouse.position
          lift2 scene Window.dimensions Mouse.position
 -}
-
 (~) : Signal (a -> b) -> Signal a -> Signal b
 sf ~ s = Native.Signal.lift2 (\f x -> f x) sf s
 
