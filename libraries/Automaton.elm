@@ -3,18 +3,17 @@ dynamically create dynamic components. See the [original release
 notes](/blog/announce/version-0.5.0.elm) on this library to get a feel for how
 it can be used.
 
-# Running and stepping forward Automatons
+# Create
+@docs pure, state, hiddenState
+
+# Evaluate
 @docs run, step
 
-# Putting Automatons together
-@docs (>>>), (<<<)
+# Combine
+@docs (>>>), (<<<), combine
 
-# Creating Automatons
-@docs combine, pure, state, hiddenState
-
-# Measuring Automatons
+# Common Automatons
 @docs count, average
-
 -}
 
 module Automaton where
