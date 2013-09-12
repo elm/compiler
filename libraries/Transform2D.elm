@@ -2,6 +2,12 @@ module Transform2D where
 {-| A library for performing [2D matrix transformations](http://en.wikipedia.org/wiki/Transformation_matrix#Affine_transformations).
 It is used primarily with the `groupTransform` function from `Graphics.Collage` and
 allows you to do things like rotation, scaling, translation, shearing, and reflection.
+
+# Basic Transforms
+@docs identity, matrix, rotation
+
+# Multiplication
+@docs multiply
 -}
 
 import Native.Transform2D

@@ -2,6 +2,39 @@ module Graphics.Element where
 {-| Graphical elements that snap together to build complex widgets and layouts.
 Each Element is a rectangle with a known width and height, making them easy to
 combine and position.
+
+# Images
+@docs image, fittedImage, croppedImage, tiledImage
+
+# Styling
+@docs width, height, size, color, opacity, link, tag
+
+# Inspection
+@docs widthOf, heightOf, sizeOf
+
+# Layout
+@docs flow, up, down, left, right, inward, outward
+
+## Layout Aliases
+There are also some convenience functions for working
+with `flow` in specific cases:
+
+@docs layers, above, below, beside
+
+# Positioning
+@docs spacer, container
+
+## Specific Positions
+
+To create a `Position` you can use any of the built-in positions
+which cover nine common positions.
+@docs middle, midTop, midBottom, midLeft, midRight, topLeft, topRight,
+      bottomLeft, bottomRight
+
+If you need more precision, you can create custom positions.
+
+@docs absolute, relative, middleAt, midTopAt, midBottomAt, midLeftAt,
+      midRightAt, topLeftAt, topRightAt, bottomLeftAt, bottomRightAt
 -}
 
 import open Basics
