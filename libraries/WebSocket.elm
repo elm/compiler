@@ -1,6 +1,10 @@
 module WebSocket where
 {-| A library for low latency HTTP communication. See the HTTP library for
-standard requests like GET, POST, etc.
+standard requests like GET, POST, etc. The API of this library is likely to
+change to make it more flexible.
+
+# Open a Connection
+@docs connect
 -}
 
 import Signal (Signal)
