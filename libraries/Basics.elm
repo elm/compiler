@@ -6,9 +6,6 @@ module Basics where
 The following libraries also get imported by default: List, Signal,
 Text, Maybe, Time, Graphics.Element, Color, Graphics.Collage.
 
-# To Strings
-@docs show
-
 # Equality
 @docs (==), (/=)
 
@@ -31,7 +28,7 @@ are your tuples so big?
 @docs pi, cos, sin, tan, acos, asin, atan, atan2
 
 # Number Conversions
-@docs round, floor, ceiling, truncate, toFloat, readInt, readFloat
+@docs round, floor, ceiling, truncate, toFloat
 
 # Angle Conversions
 All angle conversions result in &ldquo;standard Elm angles&rdquo;
