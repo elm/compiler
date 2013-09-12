@@ -56,66 +56,66 @@ rgba = Color
 rgb : Int -> Int -> Int -> Color
 rgb r g b = Color r g b 1
 
-lightRed : Color
-lightRed = Color 239 41 41 1
-red      : Color
-red      = Color 204  0  0 1
-darkRed  : Color
-darkRed  = Color 164  0  0 1
+lightRed    : Color
+lightRed    = Color 239 41 41 1
+red    : Color
+red    = Color 204  0  0 1
+darkRed    : Color
+darkRed    = Color 164  0  0 1
 
 lightOrange : Color
 lightOrange = Color 252 175 62 1
-orange      : Color
-orange      = Color 245 121  0 1
-darkOrange  : Color
-darkOrange  = Color 206  92  0 1
+orange : Color
+orange = Color 245 121  0 1
+darkOrange : Color
+darkOrange = Color 206  92  0 1
 
 lightYellow : Color
 lightYellow = Color 255 233 79 1
-yellow      : Color
-yellow      = Color 237 212  0 1
-darkYellow  : Color
-darkYellow  = Color 196 160  0 1
+yellow : Color
+yellow = Color 237 212  0 1
+darkYellow : Color
+darkYellow = Color 196 160  0 1
 
-lightGreen : Color
-lightGreen = Color 138 226  52 1
-green      : Color
-green      = Color 115 210  22 1
+lightGreen  : Color
+lightGreen  = Color 138 226  52 1
+green  : Color
+green  = Color 115 210  22 1
 darkGreen  : Color
 darkGreen  = Color  78 154   6 1
 
-lightBlue : Color
-lightBlue = Color 114 159 207 1
-blue      : Color
-blue      = Color  52 101 164 1
-darkBlue  : Color
-darkBlue  = Color  32  74 135 1
+lightBlue   : Color
+lightBlue   = Color 114 159 207 1
+blue   : Color
+blue   = Color  52 101 164 1
+darkBlue   : Color
+darkBlue   = Color  32  74 135 1
 
 lightPurple : Color
 lightPurple = Color 173 127 168 1
-purple      : Color
-purple      = Color 117  80 123 1
-darkPurple  : Color
-darkPurple  = Color  92  53 102 1
+purple : Color
+purple = Color 117  80 123 1
+darkPurple : Color
+darkPurple = Color  92  53 102 1
 
-lightBrown : Color
-lightBrown = Color 233 185 110 1
-brown      : Color
-brown      = Color 193 125  17 1
+lightBrown  : Color
+lightBrown  = Color 233 185 110 1
+brown  : Color
+brown  = Color 193 125  17 1
 darkBrown  : Color
 darkBrown  = Color 143  89   2 1
 
-black : Color
-black = Color  0   0   0  1
-white : Color
-white = Color 255 255 255 1
+black         : Color
+black         = Color  0   0   0  1
+white         : Color
+white         = Color 255 255 255 1
 
-lightGrey : Color
-lightGrey = Color 238 238 236 1
-grey      : Color
-grey      = Color 211 215 207 1
-darkGrey  : Color
-darkGrey  = Color 186 189 182 1
+lightGrey     : Color
+lightGrey     = Color 238 238 236 1
+grey          : Color
+grey          = Color 211 215 207 1
+darkGrey      : Color
+darkGrey      = Color 186 189 182 1
 
 lightGray : Color
 lightGray = Color 238 238 236 1
