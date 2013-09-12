@@ -3,6 +3,9 @@ module JavaScript.Experimental where
 Elm records and JavaScript objects. It currently uses a best effort
 conversion that can cause runtime errors. This API should change and
 improve as we find its key failings.
+
+# Converting between Elm records and JS Objects
+@docs toRecord, fromRecord
 -}
 
 import JavaScript (JSObject)
