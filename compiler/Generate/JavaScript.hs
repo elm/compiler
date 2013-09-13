@@ -157,7 +157,7 @@ expression (L span expr) =
       MultiIf branches ->
           do branches' <- forM branches $ \(b,e) -> (,) <$> expression b <*> expression e
              return $ case last branches of
-                        (L _ (Var "otherwise"), e) -> ifs (init branches') (snd (last branches'))
+                        (L _ (Var "Basics.otherwise"), e) -> ifs (init branches') (snd (last branches'))
                         _ -> ifs branches'
                                  (obj "_E.If" `call` [ ref "$moduleName", string (show span) ])
           where
