@@ -9,57 +9,40 @@ import Signal (lift,foldp,Signal)
 import open List
 import Maybe (Just, Nothing)
 
-data Automaton input output = Pure (input -> output)
-                            | Stateful state (input -> state -> (output,state))
+data Automaton a b = Step (a -> (Automaton a b, b))
 
--- The basics
+-- Run an automaton on a given signal. The automaton steps forward
+-- whenever the input signal updates.
+run : Automaton a b -> b -> Signal a -> Signal b
+run auto base inputs =
+  let step a (Step f, _) = f a
+  in  lift (\(x,y) -> y) (foldp step (auto,base) inputs)
 
--- AFRP name: arr
-pure: (i -> o) -> Automaton i o
-pure = Pure
+-- Step an automaton forward once with a given input.
+step : a -> Automaton a b -> (Automaton a b, b)
+step a (Step f) = f a
 
--- AFRP name: >>>
-andThen: Automaton i inter -> Automaton inter o -> Automaton i o
-andThen first second =
-  case first of
-    Pure f -> case second of                               -- f  is the function from first
-      Pure s       -> Pure (s . f)                         -- s  is the function from second
-      Stateful b s -> Stateful b (\i -> s (f i))           -- b  is the base state from second
-    Stateful fb f -> case second of                        -- fb is the base state from first
-      Pure s        -> Stateful fb (\i st ->               -- sb is the base state from second
-                        let (inter, st') = f i st          -- i  is the input
-                        in (s inter, st'))                 -- st is the input state
-      Stateful sb s -> Stateful (fb, sb) (\i (fst, sst) -> -- inter is the intermediate value
-                        let (inter, fst') = f i fst        -- st' is the new state
-                            (o, sst')     = s inter sst    -- fst and sst are the state of first and second
-                        in (o, (fst', sst')))              -- ect...
+-- Compose two automatons, chaining them together.
+(>>>) : Automaton a b -> Automaton b c -> Automaton a c
+f >>> g =
+  Step (\a -> let (f', b) = step a f
+                  (g', c) = step b g
+              in  (f' >>> g', c))
 
--- AFRP name: first
-extendDown: Automaton i o -> Automaton (i,extra) (o,extra)
-extendDown auto = case auto of
-  Pure fun          -> Pure (\(i,extra) -> (fun i, extra))
-  Stateful base fun -> Stateful base (\(i,extra) s -> (fun i s, extra))
+-- Compose two automatons, chaining them together.
+(<<<) : Automaton b c -> Automaton a b -> Automaton a c
+g <<< f = f >>> g
 
--- AFRP name: loop
-loop: s -> Automaton (i,s) (o,s) -> Automaton i o
-loop base auto = case auto of
-  Pure fun           -> Stateful base (curry fun)
-  Stateful base2 fun -> -- fun: (i, s) -> s2 -> ((o, s), s2)
-    let newFun = (\i (s,s2) ->
-      let ((o, s'), s2') = fun (i, s) s2
-      in (o, (s', s2'))) -- newFun: i -> (s, s2) -> (o, (s, s2))
-    in Stateful (base, base2) newFun
+-- Combine a list of automatons into a single automaton that produces a list.
+combine : [Automaton a b] -> Automaton a [b]
+combine autos =
+  Step (\a -> let (autos', bs) = unzip (map (step a) autos)
+              in  (combine autos', bs))
 
--- Run an automaton on a given signal
-run: Automaton i o -> o ->  Signal i -> Signal o
-run auto baseOut input = case auto of
-  Pure fun          -> lift fun input
-  Stateful base fun -> lift fst
-                         (foldp (\i (o, s) -> fun i s)
-                           (baseOut, base) input)
-
-
--- Other frequently used functions/operators
+-- Create an automaton with no memory. It just applies the given function to
+-- every input.
+pure : (a -> b) -> Automaton a b
+pure f = Step (\x -> (pure f, f x))
 
 -- Create an automaton with state. Requires an initial state and a step
 -- function to step the state forward. For example, an automaton that counted
@@ -70,46 +53,15 @@ run auto baseOut input = case auto of
 --
 -- It is a stateful automaton. The initial state is zero, and the step function
 -- increments the state on every step.
-state : s -> (i -> s -> s) -> Automaton i s
-state base fun = loop base (pure (\(i,s) ->
-                                    let s' = fun i s
-                                    in (s',s')))
+state : b -> (a -> b -> b) -> Automaton a b
+state s f = Step (\x -> let s' = f x s
+                        in  (state s' f, s'))
 
 -- Create an automaton with hidden state. Requires an initial state and a
 -- step function to step the state forward and produce an output.
-hiddenState : s -> (i -> s -> (s,o)) -> Automaton i o
-hiddenState base fun = loop base (pure (\(i,s) ->
-                                          let (o,s') = fun i s
-                                          in (s',o)))
-
--- AFRP name: second
-extendUp: Automaton i o -> Automaton (extra,i) (extra,o)
-extendUp auto =
-  let swap (a, b) = (b, a)
-  in pure swap `andThen` extendDown auto `andThen` pure swap
-
--- (parallel composition)
-pair: Automaton i1 o1 -> Automaton i2 o2 -> Automaton (i1,i2) (o1,o2)
-pair f g = extendDown f `andThen` extendUp g
-
-branch : Automaton i o1 -> Automaton i o2 -> Automaton i (o1,o2)
-branch f g =
-  let double = pure (\i -> (i,i))
-  in double `andThen` pair f g
-
-combi: Automaton i o -> Automaton i [o] -> Automaton i [o]
-combi a1 a2 = (a1 `branch` a2) `andThen` pure (uncurry (::))
-
--- Combine a list of automatons into a single automaton that produces a list.
-combine : [Automaton i o] -> Automaton i [o]
-combine autos =
-  let l = length autos
-  in if l == 0
-       then pure (\_ -> [])
-       else foldr combi (last autos `andThen` pure (\a -> [a])) (take (l-1) autos)
-
-
--- Examples of automata
+hiddenState : s -> (a -> s -> (s,b)) -> Automaton a b
+hiddenState s f = Step (\x -> let (s',out) = f x s
+                              in  (hiddenState s' f, out))
 
 -- Count the number of steps taken.
 count : Automaton a Int
@@ -140,9 +92,10 @@ average k =
 {-- TODO(evancz): See the following papers for ideas on how to make this
 library faster and better:
 
-- Functional Reactive Programming, Continued                            -- took some inspirations from this paper (Apanatshka)
+- Functional Reactive Programming, Continued
 - Causal commutative arrows and their optimization
 
 Speeding things up is a really low priority. Language features and
 libraries with nice APIs and are way more important!
 --}
+
