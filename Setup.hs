@@ -130,13 +130,13 @@ compileLibraries lbi = do
             arg = Just [("Elm_datadir", rtd_c)]
         handle <- runProcess elm_c args Nothing arg Nothing Nothing Nothing
         exitCode <- waitForProcess handle
-        rawSystem doc_c [file]
         return ( out_c </> replaceExtension file "elmo"
                , out_c </> replaceExtension file "elmi")
 
   setCurrentDirectory "libraries"
-  files <- getFiles ".elm" "."
-  files <- unzip `fmap` mapM make files
+  paths <- getFiles ".elm" "."
+  files <- unzip `fmap` mapM make paths
+  mapM_ (\path -> rawSystem doc_c [path]) paths
   setCurrentDirectory ".."
   return files
 
