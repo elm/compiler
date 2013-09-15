@@ -11,9 +11,6 @@ import SourceSyntax.Declaration (Assoc(..))
 import Text.Parsec
 import Parse.Helpers
 
-type OpTable = [(Int, Assoc, String)]
-
-preludeTable :: OpTable
 preludeTable =
   [ (9, R, ".")
   , (8, R, "^")
@@ -29,24 +26,22 @@ preludeTable =
   ]
 
 opLevel :: OpTable -> String -> Int
-opLevel table op = Map.findWithDefault 9 op dict
-    where dict = Map.fromList (map (\(lvl,_,op) -> (op,lvl)) table)
+opLevel table op = fst $ Map.findWithDefault (9,L) op table
 
 opAssoc :: OpTable -> String -> Assoc
-opAssoc table op = Map.findWithDefault L op dict
-    where dict = Map.fromList (map (\(_,assoc,op) -> (op,assoc)) table)
+opAssoc table op = snd $ Map.findWithDefault (9,L) op table
 
 hasLevel :: OpTable -> Int -> (String, LExpr t v) -> Bool
 hasLevel table n (op,_) = opLevel table op == n
 
-binops :: OpTable
-       -> IParser (LExpr t v)
+binops :: IParser (LExpr t v)
        -> IParser (LExpr t v)
        -> IParser String
        -> IParser (LExpr t v)
-binops table term last anyOp =
+binops term last anyOp =
     do e <- term
-       split (table ++ preludeTable) 0 e =<< nextOps
+       table <- getState
+       split table 0 e =<< nextOps
     where
       nextOps = choice [ commitIf (whitespace >> anyOp) $ do
                            whitespace ; op <- anyOp ; whitespace

@@ -41,6 +41,6 @@ dependencies =
 
 setupParser :: IParser a -> String -> Either [P.Doc] a
 setupParser p source =
-    case iParse p "" source of
+    case iParse p source of
       Right result -> Right result
       Left err -> Left [ P.text $ "Parse error at " ++ show err ]

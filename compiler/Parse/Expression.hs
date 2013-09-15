@@ -156,7 +156,7 @@ appExpr = do
 --------  Normal Expressions  --------
 
 binaryExpr :: IParser (LExpr t v)
-binaryExpr = binops [] appExpr lastExpr anyOp
+binaryExpr = binops appExpr lastExpr anyOp
   where lastExpr = addLocation (choice [ ifExpr, letExpr, caseExpr ])
                 <|> lambdaExpr
 

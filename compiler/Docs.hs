@@ -45,7 +45,7 @@ config = Config { confIndent = 2, confCompare = keyOrder keys }
 
 parseFile path = do
   source <- readFile path
-  case iParse docs "" source of
+  case iParse docs source of
     Right json -> do
       putStrLn $ "Documenting " ++ path
       let docPath = "docs" </> replaceExtension path ".json"
