@@ -96,6 +96,10 @@ infixl 7 *
 infixl 7 /
 infixl 8 ^
 
+infixl 7 `div`
+infixl 7 `mod`
+infixl 7 `rem`
+
 {-| Integer division, remainder is discarded. -}
 div : Int -> Int -> Int
 div = Native.Basics.div

@@ -9,9 +9,11 @@ import Text.Parsec hiding (newline,spaces)
 import qualified Text.PrettyPrint as P
 
 import qualified SourceSyntax.Module as S
+import SourceSyntax.Declaration (Declaration(Fixity))
 import Parse.Helpers
-import Parse.Binop (infixStmt, OpTable)
+import Parse.Binop (OpTable)
 import Parse.Expression
+import Parse.Declaration (infixDecl)
 import Parse.Type
 import Parse.Module
 import qualified Parse.Declaration as Decl
@@ -59,22 +61,15 @@ setupParserWithTable table p source =
 
 parseFixities = infixes []
   where
-    nil p = const () <$> p
-    manyTil p end = end <|> (p >> manyTil p end)
+    eatLine = anyThen (const False <$> simpleNewline <|> const True <$> eof)
 
-    eatLine = manyTil (nil multiComment <|> nil anyChar)
-                      (const False <$> simpleNewline <|> const True <$> eof)
-
-    infixes stmts = do
-      next <- Left <$> infixStmt <|> Right <$> eatLine
+    infixes ops = do
+      next <- Left <$> infixDecl <|> Right <$> eatLine
       case next of
-        Left stmt -> infixes (stmt:stmts)
-        Right True -> return $ format stmts
-        Right False -> infixes stmts
+        Left (Fixity assoc lvl op) -> infixes ((op,(lvl,assoc)) : ops)
+        Right True -> return $ Map.fromList ops
+        Right False -> infixes ops
               
-    format = Map.fromList . map (\(lvl,assoc,op) -> (op, (lvl,assoc)))
-
-
 setupParser :: IParser a -> String -> Either [P.Doc] a
 setupParser p source =
     case iParse p source of

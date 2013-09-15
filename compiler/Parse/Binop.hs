@@ -1,4 +1,4 @@
-module Parse.Binop (binops, infixStmt, OpTable) where
+module Parse.Binop (binops, OpTable) where
 
 import Control.Applicative ((<$>))
 import Control.Monad.Error
@@ -10,20 +10,6 @@ import SourceSyntax.Expression (LExpr, Expr(Binop))
 import SourceSyntax.Declaration (Assoc(..))
 import Text.Parsec
 import Parse.Helpers
-
-preludeTable =
-  [ (9, R, ".")
-  , (8, R, "^")
-  , (7, L, "*"), (7, L, "/"), (7, L, "mod"), (7, L, "div"), (7, L, "rem")
-  , (6, L, "+"), (6, L, "-")
-  , (5, R, "::"), (5, R, "++")
-  , (4, N, "<="), (4, N, ">="), (4, N, "<")
-  , (4, N, "=="), (4, N, "/="), (4, N, ">")
-  , (4, L, "~"), (4, L, "<~")
-  , (3, R, "&&")
-  , (2, R, "||")
-  , (0, R, "<|"), (0, L, "|>")
-  ]
 
 opLevel :: OpTable -> String -> Int
 opLevel table op = fst $ Map.findWithDefault (9,L) op table
@@ -96,13 +82,3 @@ getAssoc table n eops
             concat [ "Conflicting " ++ problem ++ " for binary operators ("
                    , intercalate ", " (map fst eops), "). "
                    , "Consider adding parentheses to disambiguate." ]
-
-infixStmt :: IParser (Int, Assoc, String)
-infixStmt =
-  let infx str assoc = try (reserved ("infix" ++ str) >> return assoc) in
-  do assoc <- choice [ infx "l" L, infx "r" R, infx "" N ]
-     whitespace
-     prec <- do n <- digit ; return (read [n] :: Int)
-     whitespace
-     op <- anyOp
-     return (prec, assoc, op)
