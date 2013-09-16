@@ -28,7 +28,8 @@ split = go []
   where
     go vars str =
         case break (=='.') str of
-          (x,'.':rest) -> go (vars ++ [x]) rest
+          (x,'.':rest) | isOp x -> vars ++ [x ++ '.' : rest]
+                       | otherwise -> go (vars ++ [x]) rest
           (x,[]) -> vars ++ [x]
 
 var name = Id () (makeSafe name)
