@@ -140,7 +140,8 @@ expression (L span expr) =
              args' <- mapM expression args
              return $ case args' of
                         [arg] -> func' <| arg
-                        _   -> ref aN `call` (func':args')
+                        _ | length args' <= 9 -> ref aN `call` (func':args')
+                          | otherwise         -> foldl1 (<|) (func':args')
           where
             aN = "A" ++ show (length args)
             (func, args) = getArgs e1 [e2]
