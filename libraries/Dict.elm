@@ -7,10 +7,6 @@ module Dict (empty,singleton,insert
             ,toList,fromList
             ) where
 
--- Cleanup: Change RBEmpty to 2 constructors: Leaf and BBLeaf
--- Consider making the types safer or moving all the remove methods to
--- a let
-
 {-| A dictionary mapping unique keys to values. The keys can be any comparable
 type. This includes `Int`, `Float`, `Time`, `Char`, `String`, and tuples or
 lists of comparable types.
@@ -55,84 +51,6 @@ data Dict k v = RBNode NColor k v (Dict k v) (Dict k v)
 empty : Dict comparable v
 empty = RBEmpty LBlack
 
-{-- Helpers for checking invariants
-
--- Check that the tree has an equal number of black nodes on each path
-equal_pathLen t =
-  let path_numBlacks t =
-     case t of
-       RBEmpty -> 1
-       RBNode col _ _ l r ->
-          let { bl = path_numBlacks l ; br = path_numBlacks r } in
-          if bl /= br || bl == 0-1 || br == 0-1
-              then 0-1
-              else bl + (if col == Red then 0 else 1)
-  in 0-1 /= path_numBlacks t
-
-rootBlack t =
-  case t of
-    RBEmpty -> True
-    RBNode Black _ _ _ _ -> True
-    _ -> False
-
-redBlack_children t =
-  case t of
-  { RBNode Red _ _ (RBNode Red _ _ _ _) _ -> False
-  ; RBNode Red _ _ _ (RBNode Red _ _ _ _) -> False
-  ; RBEmpty -> True
-  ; RBNode _ _ _ l r -> redBlack_children l && redBlack_children r
-  }
-
-findExtreme f t =
-  case t of
-  { RBEmpty -> Nothing
-  ; RBNode c k _ l r ->
-      case findExtreme f (f (l,r)) of
-      { Nothing -> Just k
-      ; Just k' -> Just k' }
-  }
-
-findminRbt t = findExtreme fst t
-findmaxRbt t = findExtreme snd t
-
--- "Option LT than"
--- Returns True if either xo or yo is Nothing
--- Otherwise returns the result of comparing the values using f
-
-optionRelation f u xo yo =
-  case (xo,yo) of
-  { (Nothing,_) -> u
-  ; (_,Nothing) -> u
-  ; (Just x, Just y) -> f x y }
-
-olt  xo yo = optionRelation (< ) True xo yo
-olte xo yo = optionRelation (<=) True xo yo
-
-ordered t =
-  case t of
-  { RBEmpty -> True
-  ; RBNode c k v l r ->
-      let (lmax,rmin) = (findmaxRbt l, findminRbt r) in
-      olte lmax (Just k) && olte (Just k) rmin && ordered l && ordered r
-  }
-
--- Check that there aren't any right red nodes in the tree *)
-leftLeaning t =
-  case t of
-  { RBEmpty -> True
-  ; RBNode _ _ _ (RBNode Black _ _ _ _) (RBNode Red _ _ _ _) -> False
-  ; RBNode _ _ _ RBEmpty (RBNode Red _ _ _ _) -> False
-  ; RBNode _ _ _ l r -> (leftLeaning l) && (leftLeaning r)
-  }
-
-invariants_hold t =
-  ordered t && rootBlack t && redBlack_children t &&
-  equal_pathLen t && leftLeaning t
-
---** End invariant helpers *****
---}
-
-
 min : Dict k v -> (k,v)
 min t =
   case t of
@@ -169,19 +87,6 @@ findWithDefault base k t =
       LT -> findWithDefault base k l
       EQ -> v
       GT -> findWithDefault base k r
-
-{--
--- Find the value associated with a key. If the key is not found, there will be a runtime error.
-find k t =
- case t of
- { RBEmpty -> Native.Error.raise "Key was not found in dictionary!"
- ; RBNode _ k' v l r ->
-    case Native.Utils.compare k k' of
-    { LT -> find k l
-    ; EQ -> v
-    ; GT -> find k r }
- }
---}
 
 {-| Determine if a key is in a dictionary. -}
 member : comparable -> Dict comparable v -> Bool
@@ -254,67 +159,14 @@ insert k v t =  -- Invariant: t is a valid left-leaning rb tree
                     GT -> RBNode c k' v' l (ins r)
           in  fixUp h
   in  ensureBlackRoot (ins t)
-{--
-      if not (invariants_hold t) then
-          Native.Error.raise "invariants broken before insert"
-      else (let new_t = ensureBlackRoot (ins t) in
-            if not (invariants_hold new_t) then
-                Native.Error.raise "invariants broken after insert"
-            else new_t)
---}
 
 {-| Create a dictionary with one key-value pair. -}
 singleton : comparable -> v -> Dict comparable v
 singleton k v = insert k v (RBEmpty LBlack)
-  
--- deleteMin : Dict k v -> Dict k v
--- deleteMin t =
---   let del t =
---     case t of
---       RBNode _ _ _ RBEmpty _ -> RBEmpty
---       _ -> case moveRedLeftIfNeeded t of
---              RBNode c k v l r -> fixUp (RBNode c k v (del l) r)
---              RBEmpty -> RBEmpty
---   in  ensureBlackRoot (del t)
 
-{--
-deleteMax t =
-  let del t =
-      let t' = if isRedLeft t then rotateRight t else t in
-      case t' of
-      { RBNode _ _ _ _ RBEmpty -> RBEmpty
-      ; _ -> let t'' = moveRedRightIfNeeded t' in
-             case t'' of
-             { RBNode c k v l r -> fixUp (RBNode c k v l (del r))
-             ; RBEmpty -> RBEmpty } }
-  in  ensureBlackRoot (del t)
---}
-
--- Finds and deletes k in t
-del : comparable -> Dict comparable v -> Dict comparable v
-del k t = case t of
-  RBEmpty _        -> t
-  RBNode c k' v l r -> case Native.Utils.compare k k' of
-    LT -> bubble c k' v (del k l) r
-    EQ -> rem t
-    GT -> bubble c k' v l (del k r)
-
--- Remove the top node from the tree, may leave behind BBlacks
-rem : Dict k v -> Dict k v
-rem t = case t of
-  RBNode c k v (RBEmpty _) (RBEmpty _) -> case c of
-    Red -> RBEmpty LBlack
-    Black -> RBEmpty LBBlack
-  RBNode Black _ _ (RBEmpty _) (RBNode _ k v l r) ->
-    RBNode Black k v l r
-  RBNode Black _ _ (RBNode _ k v l r) (RBEmpty _) ->
-    RBNode Black k v l r
-  -- l and r are both RBNodes
-  RBNode c _ _ l r ->
-    let (k, v) = max l
-        l'     = remove_max l
-    in bubble c k v l' r
-
+{- Remove helpers: everything from here to remove should only be used
+   internally by remove as they would otherwise break rb-invariants -}
+                
 isBBlack : Dict k v -> Bool
 isBBlack t = case t of
   RBNode c _ _ _ _ -> case c of
@@ -345,6 +197,31 @@ lessBlackTree : Dict k v -> Dict k v
 lessBlackTree t = case t of
   RBNode c k v l r -> RBNode (lessBlack c) k v l r
   RBEmpty _ -> RBEmpty LBlack
+
+-- Finds and deletes k in t
+del : comparable -> Dict comparable v -> Dict comparable v
+del k t = case t of
+  RBEmpty _        -> t
+  RBNode c k' v l r -> case Native.Utils.compare k k' of
+    LT -> bubble c k' v (del k l) r
+    EQ -> rem t
+    GT -> bubble c k' v l (del k r)
+
+-- Remove the top node from the tree, may leave behind BBlacks
+rem : Dict k v -> Dict k v
+rem t = case t of
+  RBNode c k v (RBEmpty _) (RBEmpty _) -> case c of
+    Red -> RBEmpty LBlack
+    Black -> RBEmpty LBBlack
+  RBNode Black _ _ (RBEmpty _) (RBNode _ k v l r) ->
+    RBNode Black k v l r
+  RBNode Black _ _ (RBNode _ k v l r) (RBEmpty _) ->
+    RBNode Black k v l r
+  -- l and r are both RBNodes
+  RBNode c _ _ l r ->
+    let (k, v) = max l
+        l'     = remove_max l
+    in bubble c k v l' r
 
 -- Kills a BBlack or moves it upward, may leave behind NBlack
 bubble : NColor -> k -> v -> Dict k v -> Dict k v -> Dict k v
@@ -396,9 +273,6 @@ balance_node t =
      _ -> t
        
    else t
-                     
-    
-  
 
 -- make the top node black
 blacken : Dict k v -> Dict k v
@@ -416,14 +290,6 @@ redden t = case t of
 no changes are made. -}
 remove : comparable -> Dict comparable v -> Dict comparable v
 remove k t = blacken <| del k t
-
-{--
-      if not (invariants_hold t) then
-          Native.Error.raise "invariants broken before remove"
-      else (let t' = ensureBlackRoot (del t) in
-            if invariants_hold t' then t' else
-                Native.Error.raise "invariants broken after remove")
---}
 
 {-| Apply a function to all values in a dictionary. -}
 map : (a -> b) -> Dict comparable a -> Dict comparable b
