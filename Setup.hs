@@ -83,16 +83,6 @@ filterExe name pd = pd {
     executables = filter (\x -> (exeName x == name)) (executables pd)
     }
 
--- It's not enough to fix the PackageDescription, we also have to fix the
--- LocalBuildInfo. This includes the component build order (data ComponentName)
--- which is horribly internal.
-filterLBI :: String -> LocalBuildInfo -> LocalBuildInfo
-filterLBI name lbi = lbi {
-    libraryConfig = Nothing,
-    compBuildOrder = [CExeName name],
-    executableConfigs = filter (\a -> (fst a == name)) (executableConfigs lbi)
-    }
-
 
 -- Post Build
 
