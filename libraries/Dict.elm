@@ -1,4 +1,3 @@
-
 module Dict (empty,singleton,insert
             ,lookup,findWithDefault
             ,remove,member
@@ -38,113 +37,39 @@ import Native.Error
 import List as List
 import Native.Utils
 
+-- BBlack and NBlack should only be used during the deletion
+-- algorithm. Any other occurrence is a bug and should fail an assert.
 data NColor = Red | Black
+            | BBlack | NBlack
 
-data Dict k v = RBNode NColor k v (Dict k v) (Dict k v) | RBEmpty
+data LeafColor = LBlack | LBBlack
+
+data Dict k v = RBNode NColor k v (Dict k v) (Dict k v)
+              | RBEmpty LeafColor
 
 {-| Create an empty dictionary. -}
 empty : Dict comparable v
-empty = RBEmpty
-
-{-- Helpers for checking invariants
-
--- Check that the tree has an equal number of black nodes on each path
-equal_pathLen t =
-  let path_numBlacks t =
-     case t of
-       RBEmpty -> 1
-       RBNode col _ _ l r ->
-          let { bl = path_numBlacks l ; br = path_numBlacks r } in
-          if bl /= br || bl == 0-1 || br == 0-1
-              then 0-1
-              else bl + (if col == Red then 0 else 1)
-  in 0-1 /= path_numBlacks t
-
-rootBlack t =
-  case t of
-    RBEmpty -> True
-    RBNode Black _ _ _ _ -> True
-    _ -> False
-
-redBlack_children t =
-  case t of
-  { RBNode Red _ _ (RBNode Red _ _ _ _) _ -> False
-  ; RBNode Red _ _ _ (RBNode Red _ _ _ _) -> False
-  ; RBEmpty -> True
-  ; RBNode _ _ _ l r -> redBlack_children l && redBlack_children r
-  }
-
-findExtreme f t =
-  case t of
-  { RBEmpty -> Nothing
-  ; RBNode c k _ l r ->
-      case findExtreme f (f (l,r)) of
-      { Nothing -> Just k
-      ; Just k' -> Just k' }
-  }
-
-findminRbt t = findExtreme fst t
-findmaxRbt t = findExtreme snd t
-
--- "Option LT than"
--- Returns True if either xo or yo is Nothing
--- Otherwise returns the result of comparing the values using f
-
-optionRelation f u xo yo =
-  case (xo,yo) of
-  { (Nothing,_) -> u
-  ; (_,Nothing) -> u
-  ; (Just x, Just y) -> f x y }
-
-olt  xo yo = optionRelation (< ) True xo yo
-olte xo yo = optionRelation (<=) True xo yo
-
-ordered t =
-  case t of
-  { RBEmpty -> True
-  ; RBNode c k v l r ->
-      let (lmax,rmin) = (findmaxRbt l, findminRbt r) in
-      olte lmax (Just k) && olte (Just k) rmin && ordered l && ordered r
-  }
-
--- Check that there aren't any right red nodes in the tree *)
-leftLeaning t =
-  case t of
-  { RBEmpty -> True
-  ; RBNode _ _ _ (RBNode Black _ _ _ _) (RBNode Red _ _ _ _) -> False
-  ; RBNode _ _ _ RBEmpty (RBNode Red _ _ _ _) -> False
-  ; RBNode _ _ _ l r -> (leftLeaning l) && (leftLeaning r)
-  }
-
-invariants_hold t =
-  ordered t && rootBlack t && redBlack_children t &&
-  equal_pathLen t && leftLeaning t
-
---** End invariant helpers *****
---}
-
+empty = RBEmpty LBlack
 
 min : Dict k v -> (k,v)
 min t =
   case t of
-    RBNode _ k v RBEmpty _ -> (k,v)
+    RBNode _ k v (RBEmpty LBlack) _ -> (k,v)
     RBNode _ _ _ l _ -> min l
-    RBEmpty -> Native.Error.raise "(min Empty) is not defined"
+    RBEmpty LBlack -> Native.Error.raise "(min Empty) is not defined"
 
-{--
+max : Dict k v -> (k, v)
 max t =
   case t of
-  { RBNode _ k v _ RBEmpty -> (k,v)
-  ; RBNode _ _ _ _ r -> max r
-  ; RBEmpty -> Native.Error.raise "(max Empty) is not defined"
-  }
---}
+    RBNode _ k v _ (RBEmpty _) -> (k,v)
+    RBNode _ _ _ _ r -> max r
+    RBEmpty _ -> Native.Error.raise "(max Empty) is not defined"
 
 {-| Lookup the value associated with a key. -}
 lookup : comparable -> Dict comparable v -> Maybe v
 lookup k t =
  case t of
-   RBEmpty -> Nothing
+   RBEmpty LBlack -> Nothing
    RBNode _ k' v l r ->
     case Native.Utils.compare k k' of
       LT -> lookup k l
@@ -156,25 +81,12 @@ return the default value. -}
 findWithDefault : v -> comparable -> Dict comparable v -> v
 findWithDefault base k t =
  case t of
-   RBEmpty -> base
+   RBEmpty LBlack -> base
    RBNode _ k' v l r ->
     case Native.Utils.compare k k' of
       LT -> findWithDefault base k l
       EQ -> v
       GT -> findWithDefault base k r
-
-{--
--- Find the value associated with a key. If the key is not found, there will be a runtime error.
-find k t =
- case t of
- { RBEmpty -> Native.Error.raise "Key was not found in dictionary!"
- ; RBNode _ k' v l r ->
-    case Native.Utils.compare k k' of
-    { LT -> find k l
-    ; EQ -> v
-    ; GT -> find k r }
- }
---}
 
 {-| Determine if a key is in a dictionary. -}
 member : comparable -> Dict comparable v -> Bool
@@ -230,7 +142,8 @@ ensureBlackRoot : Dict k v -> Dict k v
 ensureBlackRoot t =
   case t of
     RBNode Red k v l r -> RBNode Black k v l r
-    _ -> t
+    RBNode Black _ _ _ _ -> t
+    RBEmpty LBlack -> t
 
 {-| Insert a key-value pair into a dictionary. Replaces value when there is
 a collision. -}
@@ -238,7 +151,7 @@ insert : comparable -> v -> Dict comparable v -> Dict comparable v
 insert k v t =  -- Invariant: t is a valid left-leaning rb tree
   let ins t =
       case t of
-        RBEmpty -> RBNode Red k v RBEmpty RBEmpty
+        RBEmpty LBlack -> RBNode Red k v (RBEmpty LBlack) (RBEmpty LBlack)
         RBNode c k' v' l r ->
           let h = case Native.Utils.compare k k' of
                     LT -> RBNode c k' v' (ins l) r
@@ -246,135 +159,143 @@ insert k v t =  -- Invariant: t is a valid left-leaning rb tree
                     GT -> RBNode c k' v' l (ins r)
           in  fixUp h
   in  ensureBlackRoot (ins t)
-{--
-      if not (invariants_hold t) then
-          Native.Error.raise "invariants broken before insert"
-      else (let new_t = ensureBlackRoot (ins t) in
-            if not (invariants_hold new_t) then
-                Native.Error.raise "invariants broken after insert"
-            else new_t)
---}
 
 {-| Create a dictionary with one key-value pair. -}
 singleton : comparable -> v -> Dict comparable v
-singleton k v = insert k v RBEmpty
+singleton k v = insert k v (RBEmpty LBlack)
 
-isRed : Dict k v -> Bool
-isRed t =
-  case t of
-    RBNode Red _ _ _ _ -> True
-    _ -> False
+{- Remove helpers: everything from here to remove should only be used
+   internally by remove as they would otherwise break rb-invariants -}
+                
+isBBlack : Dict k v -> Bool
+isBBlack t = case t of
+  RBNode c _ _ _ _ -> case c of
+    BBlack -> True
+    _      -> False
+  RBEmpty LBBlack -> True
+  _               -> False
 
-isRedLeft : Dict k v -> Bool
-isRedLeft t =
-  case t of
-    RBNode _ _ _ (RBNode Red _ _ _ _) _ -> True
-    _ -> False
+moreBlack : NColor -> NColor
+moreBlack c = case c of
+  BBlack -> BBlack
+  Black  -> BBlack
+  Red    -> Black
+  NBlack -> Red
+lessBlack : NColor -> NColor
+lessBlack c = case c of
+  BBlack -> Black
+  Black  -> Red
+  Red    -> NBlack
+  NBlack -> NBlack
 
-isRedLeftLeft : Dict k v -> Bool
-isRedLeftLeft t =
-  case t of
-    RBNode _ _ _ (RBNode _ _ _ (RBNode Red _ _ _ _) _) _ -> True
-    _ -> False
+moreBlackTree : Dict k v -> Dict k v
+moreBlackTree t = case t of
+  RBNode c k v l r -> RBNode (moreBlack c) k v l r
+  RBEmpty _        -> RBEmpty LBBlack
 
-isRedRight : Dict k v -> Bool
-isRedRight t =
-  case t of
-    RBNode _ _ _ _ (RBNode Red _ _ _ _) -> True
-    _ -> False
+lessBlackTree : Dict k v -> Dict k v
+lessBlackTree t = case t of
+  RBNode c k v l r -> RBNode (lessBlack c) k v l r
+  RBEmpty _ -> RBEmpty LBlack
 
-isRedRightLeft : Dict k v -> Bool
-isRedRightLeft t =
-  case t of
-    RBNode _ _ _ _ (RBNode _ _ _ (RBNode Red _ _ _ _) _) -> True
-    _ -> False
+-- Finds and deletes k in t
+del : comparable -> Dict comparable v -> Dict comparable v
+del k t = case t of
+  RBEmpty _        -> t
+  RBNode c k' v l r -> case Native.Utils.compare k k' of
+    LT -> bubble c k' v (del k l) r
+    EQ -> rem t
+    GT -> bubble c k' v l (del k r)
 
-moveRedLeft : Dict k v -> Dict k v
-moveRedLeft t =
-  let t' = color_flip t in
-  case t' of
-    RBNode c k v l r ->
-        case r of
-          RBNode _ _ _ (RBNode Red _ _ _ _) _ ->
-              color_flip (rotateLeft (RBNode c k v l (rotateRight r)))
-          _ -> t'
-    _ -> t'
+-- Remove the top node from the tree, may leave behind BBlacks
+rem : Dict k v -> Dict k v
+rem t = case t of
+  RBNode c k v (RBEmpty _) (RBEmpty _) -> case c of
+    Red -> RBEmpty LBlack
+    Black -> RBEmpty LBBlack
+  RBNode Black _ _ (RBEmpty _) (RBNode _ k v l r) ->
+    RBNode Black k v l r
+  RBNode Black _ _ (RBNode _ k v l r) (RBEmpty _) ->
+    RBNode Black k v l r
+  -- l and r are both RBNodes
+  RBNode c _ _ l r ->
+    let (k, v) = max l
+        l'     = remove_max l
+    in bubble c k v l' r
 
-moveRedRight : Dict k v -> Dict k v
-moveRedRight t =
-  let t' = color_flip t in
-  if isRedLeftLeft t' then color_flip (rotateRight t') else t'
+-- Kills a BBlack or moves it upward, may leave behind NBlack
+bubble : NColor -> k -> v -> Dict k v -> Dict k v -> Dict k v
+bubble c k v l r = if isBBlack l || isBBlack r
+                   then balance (moreBlack c) k v (lessBlackTree l) (lessBlackTree r)
+                   else RBNode c k v l r
+                      
+-- Removes rightmost node, may leave root as BBlack
+remove_max : Dict k v -> Dict k v
+remove_max t = case t of
+  RBNode c k v l (RBEmpty _) -> rem t
+  RBNode c k v l r           -> bubble c k v l (remove_max r)
 
-moveRedLeftIfNeeded : Dict k v -> Dict k v
-moveRedLeftIfNeeded t =
-  if isRedLeft t || isRedLeftLeft t then t else moveRedLeft t
+-- generalized tree balancing act
+balance : NColor -> k -> v -> Dict k v -> Dict k v -> Dict k v
+balance c k v l r = balance_node (RBNode c k v l r)
 
-moveRedRightIfNeeded : Dict k v -> Dict k v
-moveRedRightIfNeeded t =
-  if isRedRight t || isRedRightLeft t then t else moveRedRight t
-  
-deleteMin : Dict k v -> Dict k v
-deleteMin t =
-  let del t =
-    case t of
-      RBNode _ _ _ RBEmpty _ -> RBEmpty
-      _ -> case moveRedLeftIfNeeded t of
-             RBNode c k v l r -> fixUp (RBNode c k v (del l) r)
-             RBEmpty -> RBEmpty
-  in  ensureBlackRoot (del t)
+blackish : Dict k v -> Bool
+blackish (RBNode c _ _ _ _) = c == Black || c == BBlack
 
-{--
-deleteMax t =
-  let del t =
-      let t' = if isRedLeft t then rotateRight t else t in
-      case t' of
-      { RBNode _ _ _ _ RBEmpty -> RBEmpty
-      ; _ -> let t'' = moveRedRightIfNeeded t' in
-             case t'' of
-             { RBNode c k v l r -> fixUp (RBNode c k v l (del r))
-             ; RBEmpty -> RBEmpty } }
-  in  ensureBlackRoot (del t)
---}
+balance_node : Dict k v -> Dict k v
+balance_node t = 
+  let assemble col xk xv yk yv zk zv a b c d = 
+        RBNode (lessBlack col) yk yv (RBNode Black xk xv a b) (RBNode Black zk zv c d)
+  in 
+   if blackish t
+   then case t of
+     RBNode col zk zv (RBNode Red yk yv (RBNode Red xk xv a b) c) d ->
+       assemble col xk xv yk yv zk zv a b c d
+     RBNode col zk zv (RBNode Red xk xv a (RBNode Red yk yv b c)) d ->
+       assemble col xk xv yk yv zk zv a b c d
+     RBNode col xk xv a (RBNode Red zk zv (RBNode Red yk yv b c) d) ->
+       assemble col xk xv yk yv zk zv a b c d
+     RBNode col xk xv a (RBNode Red yk yv b (RBNode Red zk zv c d)) ->
+       assemble col xk xv yk yv zk zv a b c d
+
+     RBNode BBlack xk xv a (RBNode NBlack zk zv (RBNode Black yk yv b c) d) ->
+       case d of
+         (RBNode Black _ _ _ _) -> 
+           RBNode Black yk yv (RBNode Black xk xv a b) (balance Black zk zv c (redden d))
+         _ -> t
+
+     RBNode BBlack zk zv (RBNode NBlack xk xv a (RBNode Black yk yv b c)) d ->
+       case a of
+         (RBNode Black _ _ _ _) -> 
+           RBNode Black yk yv (balance Black xk xv (redden a) b) (RBNode Black zk zv c d)
+         _ -> t
+
+     _ -> t
+       
+   else t
+
+-- make the top node black
+blacken : Dict k v -> Dict k v
+blacken t = case t of
+  RBEmpty _ -> RBEmpty LBlack
+  RBNode _ k v l r -> RBNode Black k v l r
+
+-- make the top node red
+redden : Dict k v -> Dict k v
+redden t = case t of
+  RBEmpty _ -> Native.Error.raise "can't make a Leaf red"
+  RBNode _ k v l r -> RBNode Red k v l r
 
 {-| Remove a key-value pair from a dictionary. If the key is not found,
 no changes are made. -}
 remove : comparable -> Dict comparable v -> Dict comparable v
-remove k t =
-  let eq_and_noRightNode t =
-          case t of { RBNode _ k' _ _ RBEmpty -> k == k' ; _ -> False }
-      eq t = case t of { RBNode _ k' _ _ _ -> k == k' ; _ -> False }
-      delLT t = case moveRedLeftIfNeeded t of
-                  RBNode c k' v l r -> fixUp (RBNode c k' v (del l) r)
-                  RBEmpty -> Native.Error.raise "delLT on Empty"
-      delEQ t = case t of -- Replace with successor
-                  RBNode c _ _ l r -> let (k',v') = min r in
-                                      fixUp (RBNode c k' v' l (deleteMin r))
-                  RBEmpty -> Native.Error.raise "delEQ called on a Empty"
-      delGT t = case t of
-                  RBNode c k' v l r -> fixUp (RBNode c k' v l (del r))
-                  RBEmpty -> Native.Error.raise "delGT called on a Empty"
-      del t = case t of
-                RBEmpty -> RBEmpty
-                RBNode _ k' _ _ _ ->
-                    if k < k' then delLT t else
-                        let u = if isRedLeft t then rotateRight t else t in
-                        if eq_and_noRightNode u then RBEmpty else
-                            let t' = moveRedRightIfNeeded t in
-                            if eq t' then delEQ t' else delGT t'
-  in  if member k t then ensureBlackRoot (del t) else t
-{--
-      if not (invariants_hold t) then
-          Native.Error.raise "invariants broken before remove"
-      else (let t' = ensureBlackRoot (del t) in
-            if invariants_hold t' then t' else
-                Native.Error.raise "invariants broken after remove")
---}
+remove k t = blacken <| del k t
 
 {-| Apply a function to all values in a dictionary. -}
 map : (a -> b) -> Dict comparable a -> Dict comparable b
 map f t =
   case t of
-    RBEmpty -> RBEmpty
+    RBEmpty LBlack -> RBEmpty LBlack
     RBNode c k v l r -> RBNode c k (f v) (map f l) (map f r)
 
 {-| Fold over the key-value pairs in a dictionary, in order from lowest
@@ -382,7 +303,7 @@ key to highest key. -}
 foldl : (comparable -> v -> b -> b) -> b -> Dict comparable v -> b
 foldl f acc t =
   case t of
-    RBEmpty -> acc
+    RBEmpty LBlack -> acc
     RBNode _ k v l r -> foldl f (f k v (foldl f acc l)) r
 
 {-| Fold over the key-value pairs in a dictionary, in order from highest
@@ -390,7 +311,7 @@ key to lowest key. -}
 foldr : (comparable -> v -> b -> b) -> b -> Dict comparable v -> b
 foldr f acc t =
   case t of
-    RBEmpty -> acc
+    RBEmpty LBlack -> acc
     RBNode _ k v l r -> foldr f (f k v (foldr f acc r)) l
 
 {-| Combine two dictionaries. If there is a collision, preference is given
