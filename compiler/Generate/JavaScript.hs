@@ -17,7 +17,7 @@ import Language.ECMAScript3.PrettyPrint
 import Parse.Helpers (jsReserveds)
 
 makeSafe :: String -> String
-makeSafe = dereserve . deprime
+makeSafe = List.intercalate "." . map dereserve . split . deprime
   where
     deprime = map (\c -> if c == '\'' then '$' else c)
     dereserve x = case Set.member x jsReserveds of
