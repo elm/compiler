@@ -101,6 +101,9 @@ Elm.Native.Utils = function(elm) {
     function min(a,b) { return a < b ? a : b }
 
     function mod(a,b) {
+        if (b === 0) {
+            throw new Error("Cannot perform mod 0. Division by zero error.");
+        }
         var r = a % b;
         var m = a === 0 ? 0 : (b > 0 ? (a >= 0 ? r : r+b) : -mod(-a,-b));
 
