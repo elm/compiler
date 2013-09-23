@@ -180,19 +180,20 @@ build flags rootFile = do
   let ifaces = if noPrelude then Map.empty else Prelude.interfaces
   (moduleName, interfaces) <- buildFiles flags (length files) ifaces "" files
   js <- foldM appendToOutput "" files
-  case only_js flags of
+
+  (extension, code) <- case only_js flags of
     True -> do
       putStr "Generating JavaScript ... "
-      writeFile (buildPath flags rootFile "js") (genJs js)
-      putStrLn "Done"
+      return ("js", genJs js)
     False -> do
       putStr "Generating HTML ... "
       runtime <- getRuntime flags
-      let html = genHtml $ createHtml runtime (takeBaseName rootFile) (sources js) moduleName ""
-          htmlFile = buildPath flags rootFile "html"
-      createDirectoryIfMissing True (takeDirectory htmlFile)
-      writeFile htmlFile html
-      putStrLn "Done"
+      return ("html", genHtml $ createHtml runtime (takeBaseName rootFile) (sources js) moduleName "")
+
+  let targetFile = buildPath flags rootFile extension
+  createDirectoryIfMissing True (takeDirectory targetFile)
+  writeFile targetFile code
+  putStrLn "Done"
 
     where
       appendToOutput :: String -> FilePath -> IO String
