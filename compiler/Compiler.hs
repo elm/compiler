@@ -179,7 +179,7 @@ build flags rootFile = do
   files <- if make flags then getSortedDependencies noPrelude rootFile else return [rootFile]
   let ifaces = if noPrelude then Map.empty else Prelude.interfaces
   (moduleName, interfaces) <- buildFiles flags (length files) ifaces "" files
-  js <- foldM appendToOutput "" files
+  js <- foldM appendToOutput BS.empty files
 
   (extension, code) <- case only_js flags of
     True -> do
@@ -187,22 +187,23 @@ build flags rootFile = do
       return ("js", genJs js)
     False -> do
       putStr "Generating HTML ... "
-      runtime <- getRuntime flags
-      return ("html", genHtml $ createHtml runtime (takeBaseName rootFile) (sources js) moduleName "")
+      rtsPath <- getRuntime flags
+      return ("html", BS.pack . genHtml $
+                    createHtml rtsPath (takeBaseName rootFile) (sources js) moduleName "")
 
   let targetFile = buildPath flags rootFile extension
   createDirectoryIfMissing True (takeDirectory targetFile)
-  writeFile targetFile code
+  BS.writeFile targetFile code
   putStrLn "Done"
 
     where
-      appendToOutput :: String -> FilePath -> IO String
+      appendToOutput :: BS.ByteString -> FilePath -> IO BS.ByteString
       appendToOutput js filePath =
-          do src <- readFile (elmo flags filePath)
-             return (src ++ js)
+          do src <- BS.readFile (elmo flags filePath)
+             return (BS.append src js)
 
       genHtml = if minify flags then Normal.renderHtml else Pretty.renderHtml
-      genJs = if minify flags then BS.unpack . JS.minify . BS.pack else id
+      genJs = if minify flags then JS.minify else id
       sources js = map Link (scripts flags) ++
                    [ Source (if minify flags then Minified else Readable) js ]
 

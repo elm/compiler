@@ -19,7 +19,7 @@ import Generate.JavaScript
 import Generate.Noscript
 
 data JSStyle = Minified | Readable
-data JSSource = Link String | Source JSStyle String
+data JSSource = Link String | Source JSStyle BS.ByteString
 
 makeScript :: JSSource -> H.Html
 makeScript source =
@@ -27,9 +27,9 @@ makeScript source =
       Link src -> H.script ! A.type_ "text/javascript" ! A.src (H.toValue src) $ ""
       Source style src ->
           H.script ! A.type_ "text/javascript" $
-           preEscapedToMarkup $ case style of 
-                                  Minified -> BS.unpack . minify . BS.pack $ src
-                                  Readable -> src
+           preEscapedToMarkup $ BS.unpack $ case style of 
+                                              Minified -> minify src
+                                              Readable -> src
 
 -- |This function compiles Elm code into simple HTML.
 --
