@@ -4,10 +4,10 @@ module List where
 list must have the same type.
 
 # Basics
-@docs (::), (++), length, reverse, map
+@docs (::), (++), isEmpty, length, reverse, map
 
 # Sub-lists
-@docs isEmpty, head, tail, last, filter, take, drop
+@docs head, tail, last, filter, take, drop
 
 # Putting Lists Together
 @docs concat, concatMap, join, intersperse, zip, zipWith
