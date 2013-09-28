@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Generate.Html
-    (generateHtml,
-     createHtml,
+    (createHtml,
      JSSource (..)
     ) where
 
@@ -9,7 +8,6 @@ import Text.Blaze (preEscapedToMarkup)
 import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5 ((!))
 import qualified Text.Blaze.Html5.Attributes as A
-
 import qualified Data.ByteString.Lazy.Char8 as BS
 
 import Initialize (buildFromSource)
@@ -25,17 +23,6 @@ makeScript source =
       Source src ->
           H.script ! A.type_ "text/javascript" $
            preEscapedToMarkup $ BS.unpack src
-
--- |This function compiles Elm code into simple HTML.
---
---  Usage example:
---
--- > generateHtml "/elm-min.js" "Some title" [elmFile|elm-source/somePage.elm|]
-generateHtml :: String -- ^ Location of elm-runtime.js as expected by the browser
-             -> String -- ^ The page title
-             -> String -- ^ The elm source code.
-             -> H.Html
-generateHtml libLoc title source = error "function 'generateHtml' is unimplemented for now"
 
 createHtml :: FilePath -> String -> [JSSource] -> String -> String -> H.Html
 createHtml libLoc title scripts moduleName noscript =
