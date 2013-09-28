@@ -13,9 +13,7 @@ import System.FilePath
 import System.IO
 import GHC.Conc
 
-import qualified Text.Blaze.Html.Renderer.Pretty as Pretty
-import qualified Text.Blaze.Html.Renderer.String as Normal
-import qualified Text.Jasmine as JS
+import Text.Blaze.Html.Renderer.Pretty (renderHtml)
 import qualified Data.ByteString.Lazy.Char8 as BS
 import qualified Data.ByteString.Lazy as L
 
@@ -25,7 +23,7 @@ import SourceSyntax.Module
 import Parse.Module (getModuleName)
 import Initialize (buildFromSource, getSortedDependencies)
 import Generate.JavaScript (jsModule)
-import Generate.Html (createHtml, JSStyle(..), JSSource(..))
+import Generate.Html (createHtml, JSSource(..))
 import Paths_Elm
 
 import SourceSyntax.PrettyPrint (pretty, variable)
@@ -42,7 +40,6 @@ data Flags =
           , print_program :: Bool
           , scripts :: [FilePath]
           , no_prelude :: Bool
-          , minify :: Bool
 	  , cache_dir :: FilePath
 	  , build_dir :: FilePath
           }
@@ -64,8 +61,6 @@ flags = Flags
               &= help "Load JavaScript files in generated HTML. Files will be included in the given order."
   , no_prelude = False
                  &= help "Do not import Prelude by default, used only when compiling standard libraries."
-  , minify = False
-             &= help "Minify generated JavaScript and HTML"
   , cache_dir = "cache" &= typFile
                 &= help "Directory for files cached to make builds faster. Defaults to cache/ directory."
   , build_dir = "build" &= typFile
@@ -184,11 +179,11 @@ build flags rootFile = do
   (extension, code) <- case only_js flags of
     True -> do
       putStr "Generating JavaScript ... "
-      return ("js", genJs js)
+      return ("js", js)
     False -> do
       putStr "Generating HTML ... "
       rtsPath <- getRuntime flags
-      return ("html", BS.pack . genHtml $
+      return ("html", BS.pack . renderHtml $
                     createHtml rtsPath (takeBaseName rootFile) (sources js) moduleName "")
 
   let targetFile = buildPath flags rootFile extension
@@ -202,10 +197,7 @@ build flags rootFile = do
           do src <- BS.readFile (elmo flags filePath)
              return (BS.append src js)
 
-      genHtml = if minify flags then Normal.renderHtml else Pretty.renderHtml
-      genJs = if minify flags then JS.minify else id
-      sources js = map Link (scripts flags) ++
-                   [ Source (if minify flags then Minified else Readable) js ]
+      sources js = map Link (scripts flags) ++ [ Source js ]
 
 
 buildFiles :: Flags -> Int -> Interfaces -> String -> [FilePath] -> IO (String, Interfaces)

@@ -2,7 +2,6 @@
 module Generate.Html
     (generateHtml,
      createHtml,
-     JSStyle (..),
      JSSource (..)
     ) where
 
@@ -11,25 +10,21 @@ import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5 ((!))
 import qualified Text.Blaze.Html5.Attributes as A
 
-import Text.Jasmine (minify)
 import qualified Data.ByteString.Lazy.Char8 as BS
 
 import Initialize (buildFromSource)
 import Generate.JavaScript
 import Generate.Noscript
 
-data JSStyle = Minified | Readable
-data JSSource = Link String | Source JSStyle BS.ByteString
+data JSSource = Link String | Source BS.ByteString
 
 makeScript :: JSSource -> H.Html
 makeScript source =
     case source of
       Link src -> H.script ! A.type_ "text/javascript" ! A.src (H.toValue src) $ ""
-      Source style src ->
+      Source src ->
           H.script ! A.type_ "text/javascript" $
-           preEscapedToMarkup $ BS.unpack $ case style of 
-                                              Minified -> minify src
-                                              Readable -> src
+           preEscapedToMarkup $ BS.unpack src
 
 -- |This function compiles Elm code into simple HTML.
 --
