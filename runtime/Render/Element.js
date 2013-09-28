@@ -39,6 +39,14 @@ function setProps(props, e) {
             props.hover(false);
         });
     }
+    if (props.focusChange.ctor !== '_Tuple0') {
+        e.addEventListener('focus', function() {
+            props.focusChange(true);
+        });
+        e.addEventListener('blur', function() {
+            props.focusChange(false);
+        });
+    }
     return e;
 }
 

@@ -10,9 +10,11 @@ Elm.Native.Graphics.Input = function(elm) {
  var newNode = ElmRuntime.use(ElmRuntime.Render.Utils).newElement;
 
  var Signal = Elm.Signal(elm);
+ var Maybe = Elm.Maybe(elm);
  var newElement = Elm.Graphics.Element(elm).newElement;
  var JS = Elm.Native.JavaScript(elm);
  var Utils = Elm.Native.Utils(elm);
+ var List = Elm.Native.List(elm);
  var Tuple2 = Utils.Tuple2;
 
  function dropDown(values) {
@@ -167,6 +169,19 @@ Elm.Native.Graphics.Input = function(elm) {
  }
 
 
+ function focusables(defaultValue) {
+     var events = Signal.constant(defaultValue);
+     function focusable(handler, elem) {
+         function onFocusChange(hasFocus) {
+             elm.notify(events.id, handler(hasFocus));
+         }
+         var props = Utils.replace([['focusChange',onFocusChange]], elem.props);
+         return { props:props, element:elem.element };
+     }
+     return { _:{}, focusable:F2(focusable), events:events };
+ }
+
+
  function checkboxes(defaultValue) {
      var events = Signal.constant(defaultValue);
 
@@ -294,6 +309,7 @@ Elm.Native.Graphics.Input = function(elm) {
      buttons:buttons,
      customButtons:customButtons,
      hoverables:hoverables,
+     focusables:focusables,
      checkboxes:checkboxes,
      fields:mkTextPool('text'),
      emails:mkTextPool('email'),

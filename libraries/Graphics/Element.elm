@@ -46,14 +46,15 @@ import open Color
 import Maybe (Maybe, Just, Nothing)
 
 type Properties = {
-  id      : Int,
-  width   : Int,
-  height  : Int,
-  opacity : Float,
-  color   : Maybe Color,
-  href    : JSString,
-  tag     : JSString,
-  hover   : ()
+  id          : Int,
+  width       : Int,
+  height      : Int,
+  opacity     : Float,
+  color       : Maybe Color,
+  href        : JSString,
+  tag         : JSString,
+  hover       : (),
+  focusChange : ()
  }
 
 type Element = { props : Properties, element : ElementPrim }
@@ -121,7 +122,7 @@ link href e = let p = e.props in
 
 emptyStr = JS.fromString ""
 newElement w h e =
-  { props = Properties (Native.Utils.guid ()) w h 1 Nothing emptyStr emptyStr (), element = e }
+  { props = Properties (Native.Utils.guid ()) w h 1 Nothing emptyStr emptyStr () (), element = e }
 
 data ElementPrim
   = Image ImageStyle Int Int JSString
