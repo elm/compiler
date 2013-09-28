@@ -119,6 +119,20 @@ hoverable elem =
     let pool = hoverables False
     in  (pool.hoverable id elem, pool.events)
 
+{-| Detect if an element of a group has input focus, if any. This
+allows you to create and destroy elements dynamically and still
+detect focus information.
+-}
+focusables : a -> { events : Signal a,
+                    focusable : (Bool -> a) -> Element -> Element }
+focusables = Native.Graphics.Input.focusables
+
+{-| Detect when a specific `Element` got input focus. -}
+focusable : Element -> (Element, Signal Bool)
+focusable elem =
+    let pool = focusables False
+    in  (pool.focusable id elem, pool.events)
+
 {-| Represents the current state of a text field. The `string` represents the
 characters filling the text field. The `selectionStart` and `selectionEnd`
 values represent what the user has selected with their mouse or keyboard.

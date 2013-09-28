@@ -39,6 +39,17 @@ function setProps(props, e) {
             props.hover(false);
         });
     }
+    if (props.focusChange.ctor !== '_Tuple0') {
+        e.addEventListener('focus', function() {
+            props.focusChange(true);
+        });
+        e.addEventListener('blur', function() {
+            props.focusChange(false);
+        });
+    }
+    if (props.focused) {
+        setTimeout(function() { e.focus(); }, 0);
+    }
     return e;
 }
 
@@ -264,6 +275,9 @@ function updateProps(node, curr, next) {
         } else {
             node.lastNode.href = props.href;
         }
+    }
+    if (props.focused) {
+        setTimeout(function() { e.focus(); }, 0);
     }
 }
 
