@@ -46,27 +46,29 @@ data Flags =
     deriving (Data,Typeable,Show,Eq)
 
 flags = Flags
-  { make = False
+  { files = def &= args &= typ "FILES"
+  , make = False
            &= help "automatically compile dependencies."
-  , files = def &= args &= typ "FILES"
-  , runtime = Nothing &= typFile
-              &= help "Specify a custom location for Elm's runtime system."
   , only_js = False
               &= help "Compile only to JavaScript."
-  , print_types = False
-                  &= help "Print out infered types of top-level definitions."
-  , print_program = False
-                    &= help "Print out an internal representation of a program."
-  , scripts = [] &= typFile
-              &= help "Load JavaScript files in generated HTML. Files will be included in the given order."
   , no_prelude = False
                  &= help "Do not import Prelude by default, used only when compiling standard libraries."
+  , scripts = [] &= typFile
+              &= help "Load JavaScript files in generated HTML. Files will be included in the given order."
+  , runtime = Nothing &= typFile
+              &= help "Specify a custom location for Elm's runtime system."
   , cache_dir = "cache" &= typFile
                 &= help "Directory for files cached to make builds faster. Defaults to cache/ directory."
   , build_dir = "build" &= typFile
                 &= help "Directory for generated HTML and JS files. Defaults to build/ directory."
+  , print_types = False
+                  &= help "Print out infered types of top-level definitions."
+  , print_program = False
+                    &= help "Print out an internal representation of a program."
   } &= help "Compile Elm programs to HTML, CSS, and JavaScript."
-    &= summary ("The Elm Compiler " ++ showVersion version ++ ", (c) Evan Czaplicki")
+    &= helpArg [explicit, name "help", name "h"]
+    &= versionArg [explicit, name "version", name "v", summary (showVersion version)]
+    &= summary ("The Elm Compiler " ++ showVersion version ++ ", (c) Evan Czaplicki 2011-2013")
 
 main :: IO ()             
 main = do setNumCapabilities =<< getNumProcessors
