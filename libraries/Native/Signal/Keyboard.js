@@ -1,6 +1,6 @@
+Elm.Native.Keyboard = {};
+Elm.Native.Keyboard.make = function(elm) {
 
-Elm.Native.Keyboard = function(elm) {
-  'use strict';
   elm.Native = elm.Native || {};
   if (elm.Native.Keyboard) return elm.Native.Keyboard;
 
@@ -12,9 +12,9 @@ Elm.Native.Keyboard = function(elm) {
     }
   }
 
-  var Signal = Elm.Signal(elm);
-  var NList = Elm.Native.List(elm);
-  var Utils = Elm.Native.Utils(elm);
+  var Signal = Elm.Signal.make(elm);
+  var NList = Elm.Native.List.make(elm);
+  var Utils = Elm.Native.Utils.make(elm);
 
   var downEvents = Signal.constant(0);
   var upEvents = Signal.constant(0);

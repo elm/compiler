@@ -1,12 +1,11 @@
-
-Elm.Native.Window = function(elm) {
-  'use strict';
+Elm.Native.Window = {};
+Elm.Native.Window.make = function(elm) {
 
   elm.Native = elm.Native || {};
   if (elm.Native.Window) return elm.Native.Window;
 
-  var Signal = Elm.Signal(elm);
-  var Tuple2 = Elm.Native.Utils(elm).Tuple2;
+  var Signal = Elm.Signal.make(elm);
+  var Tuple2 = Elm.Native.Utils.make(elm).Tuple2;
 
   function getWidth() { return elm.node.clientWidth; }
   function getHeight() {

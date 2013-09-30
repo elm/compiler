@@ -1,12 +1,12 @@
 
-Elm.Native.Signal = function(elm) {
-  'use strict';
+Elm.Native.Signal = {};
+Elm.Native.Signal.make = function(elm) {
 
   elm.Native = elm.Native || {};
   if (elm.Native.Signal) return elm.Native.Signal;
 
-  var Utils = Elm.Native.Utils(elm);
-  var foldl1 = Elm.List(elm).foldl1;
+  var Utils = Elm.Native.Utils.make(elm);
+  var foldl1 = Elm.List.make(elm).foldl1;
 
   function send(node, timestep, changed) {
     var kids = node.kids;

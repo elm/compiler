@@ -1,12 +1,11 @@
-
-Elm.Native.Graphics.Collage = function(elm) {
- "use strict";
+Elm.Native.Graphics.Collage = {};
+Elm.Native.Graphics.Collage.make = function(elm) {
 
  elm.Native = elm.Native || {};
  elm.Native.Graphics = elm.Native.Graphics || {};
  if (elm.Native.Graphics.Collage) return elm.Native.Graphics.Collage;
 
- var newElement = Elm.Graphics.Element(elm).newElement;
+ var newElement = Elm.Graphics.Element.make(elm).newElement;
  var C = ElmRuntime.use(ElmRuntime.Render.Collage);
 
  function collage(w,h,forms) {

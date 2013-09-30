@@ -99,10 +99,10 @@ function init(display, container, module, moduleToReplace) {
   var Module = {};
   var reportAnyErrors = function() {};
   try {
-      Module = module(elm);
+      Module = module.make(elm);
   } catch(e) {
       var directions = "<br/>&nbsp; &nbsp; Open the developer console for more details."
-      Module.main = Elm.Text(elm).text('<code>' + e.message + directions + '</code>');
+      Module.main = Elm.Text.make(elm).text('<code>' + e.message + directions + '</code>');
       reportAnyErrors = function() { throw e; }
   }
   inputs = ElmRuntime.filterDeadInputs(inputs);
@@ -150,7 +150,7 @@ function initGraphics(elm, Module) {
   var signalGraph = Module.main;
 
   // make sure the signal graph is actually a signal & extract the visual model
-  var Signal = Elm.Signal(elm);
+  var Signal = Elm.Signal.make(elm);
   if (!('recv' in signalGraph)) {
       signalGraph = Signal.constant(signalGraph);
   }

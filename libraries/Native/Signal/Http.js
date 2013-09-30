@@ -1,13 +1,13 @@
+Elm.Native.Http = {};
+Elm.Native.Http.make = function(elm) {
 
-Elm.Native.Http = function(elm) {
-  'use strict';
   elm.Native = elm.Native || {};
   if (elm.Native.Http) return elm.Native.Http;
 
 
-  var JS = Elm.JavaScript(elm);
-  var List = Elm.List(elm);
-  var Signal = Elm.Signal(elm);
+  var JS = Elm.JavaScript.make(elm);
+  var List = Elm.List.make(elm);
+  var Signal = Elm.Signal.make(elm);
 
 
   function registerReq(queue,responses) { return function(req) {

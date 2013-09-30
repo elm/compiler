@@ -48,7 +48,7 @@ varDecl x expr =
     VarDecl () (var x) (Just expr)
 
 include alias moduleName =
-    varDecl alias (obj moduleName <| ref "elm")
+    varDecl alias (obj (moduleName ++ ".make") <| ref "elm")
 
 internalImports name =
     VarDeclStmt () 
@@ -278,8 +278,9 @@ clause span variable (Clause value vars mtch) =
 
 
 jsModule :: MetadataModule () () -> String 
-jsModule modul = show . prettyPrint $ setup (Just "Elm") (names modul) ++
-                               [ assign ("Elm" : names modul) (function ["elm"] programStmts) ]
+jsModule modul =
+    show . prettyPrint $ setup (Just "Elm") (names modul ++ ["make"]) ++
+             [ assign ("Elm" : names modul ++ ["make"]) (function ["elm"] programStmts) ]
   where
     thisModule = dotSep ("elm" : names modul)
     programStmts =
@@ -306,9 +307,10 @@ jsModule modul = show . prettyPrint $ setup (Just "Elm") (names modul) ++
                _   -> ExprStmt () $
                       AssignExpr () OpAssign (LDot () (dotSep (init path)) (last path)) expr
 
-    jsImport (modul,_) = setup Nothing path ++ [ assign path (dotSep ("Elm" : path) <| ref "elm") ]
+    jsImport (modul,_) = setup Nothing path ++ [ include ]
         where
           path = split modul
+          include = assign path $ dotSep ("Elm" : path ++ ["make"]) <| ref "elm"
 
     setup namespace path = map create paths
         where

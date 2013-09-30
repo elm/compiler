@@ -1,11 +1,9 @@
-
-Elm.Native.JavaScript = function(elm) {
-  'use strict';
-
+Elm.Native.JavaScript = {};
+Elm.Native.JavaScript.make = function(elm) {
   elm.Native = elm.Native || {};
   if (elm.Native.JavaScript) return elm.Native.JavaScript;
 
-  var List = Elm.Native.List(elm);
+  var List = Elm.Native.List.make(elm);
   var Render = ElmRuntime.use(ElmRuntime.Render.Element);
 
   function fromJS(v) {

@@ -1,11 +1,11 @@
 
-Elm.Native.Basics = function(elm) {
-  'use strict';
+Elm.Native.Basics = {};
+Elm.Native.Basics.make = function(elm) {
   if (elm.Native.Basics) return elm.Native.Basics;
 
-  var JS = Elm.Native.JavaScript(elm);
+  var JS = Elm.Native.JavaScript.make(elm);
   // var Maybe = Elm.Maybe(elm);
-  var Utils = Elm.Native.Utils(elm);
+  var Utils = Elm.Native.Utils.make(elm);
   //var Char = Elm.Char(elm);
 
   function div(a,b) { return (a/b)|0; }

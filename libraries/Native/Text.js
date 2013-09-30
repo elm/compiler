@@ -1,15 +1,13 @@
-
-Elm.Native.Text = function(elm) {
-    'use strict';
-
+Elm.Native.Text = {};
+Elm.Native.Text.make = function(elm) {
     elm.Native = elm.Native || {};
     if (elm.Native.Text) return elm.Native.Text;
 
-    var JS = Elm.JavaScript(elm);
-    var htmlHeight = Elm.Native.Utils(elm).htmlHeight;
-    var Color = Elm.Native.Color(elm);
-    var Element = Elm.Graphics.Element(elm);
-    var show = Elm.Native.Show(elm).show;
+    var JS = Elm.JavaScript.make(elm);
+    var htmlHeight = Elm.Native.Utils.make(elm).htmlHeight;
+    var Color = Elm.Native.Color.make(elm);
+    var Element = Elm.Graphics.Element.make(elm);
+    var show = Elm.Native.Show.make(elm).show;
 
     function makeSpaces(s) {
         if (s.length == 0) { return s; }

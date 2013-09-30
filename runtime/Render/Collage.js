@@ -1,9 +1,8 @@
 
 ElmRuntime.Render.Collage = function() {
-'use strict';
 
 var Render = ElmRuntime.use(ElmRuntime.Render.Element);
-var Transform = Elm.Transform2D({});
+var Transform = Elm.Transform2D.make({});
 var Utils = ElmRuntime.use(ElmRuntime.Render.Utils);
 var newElement = Utils.newElement,
     extract = Utils.extract, fromList = Utils.fromList,

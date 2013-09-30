@@ -1,13 +1,12 @@
-
-Elm.Native.Touch = function(elm) {
-  'use strict';
+Elm.Native.Touch = {};
+Elm.Native.Touch.make = function(elm) {
 
   elm.Native = elm.Native || {};
   if (elm.Native.Touch) return elm.Native.Touch;
 
-  var Signal = Elm.Signal(elm);
-  var JS = Elm.JavaScript(elm);
-  var _ = Elm.Native.Utils(elm);
+  var Signal = Elm.Signal.make(elm);
+  var JS = Elm.JavaScript.make(elm);
+  var _ = Elm.Native.Utils.make(elm);
 
   function Dict() {
     this.keys = [];

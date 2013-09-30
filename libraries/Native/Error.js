@@ -1,10 +1,9 @@
-
-Elm.Native.Error = function(elm) {
-    'use strict';
+Elm.Native.Error = {};
+Elm.Native.Error.make = function(elm) {
     elm.Native = elm.Native || {};
     if (elm.Native.Error) return elm.Native.Error;
 
-    var fromString = Elm.Native.JavaScript(elm).fromString;
+    var fromString = Elm.Native.JavaScript.make(elm).fromString;
 
     function indent(lines) {
         var msg = '';

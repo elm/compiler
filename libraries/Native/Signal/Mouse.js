@@ -1,11 +1,11 @@
+Elm.Native.Mouse = {};
+Elm.Native.Mouse.make = function(elm) {
 
-Elm.Native.Mouse = function(elm) {
-  'use strict';
   elm.Native = elm.Native || {};
   if (elm.Native.Mouse) return elm.Native.Mouse;
 
-  var Signal = Elm.Signal(elm);
-  var Utils = Elm.Native.Utils(elm);
+  var Signal = Elm.Signal.make(elm);
+  var Utils = Elm.Native.Utils.make(elm);
 
   var position  = Signal.constant(Utils.Tuple2(0,0));
   position.defaultNumberOfKids = 2;

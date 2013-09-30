@@ -1,12 +1,11 @@
-Elm.Native.List = function(elm) {
-  "use strict";
-
+Elm.Native.List = {};
+Elm.Native.List.make = function(elm) {
   elm.Native = elm.Native || {};
   if (elm.Native.List) return elm.Native.List;
   if ('values' in Elm.Native.List)
       return elm.Native.List = Elm.Native.List.values;
 
-  var Utils = Elm.Native.Utils(elm);
+  var Utils = Elm.Native.Utils.make(elm);
 
   // TODO: Improve Nil handling
   // We can change places like:  if (xs.ctor === '[]') ... to if (xs === Nil) ...

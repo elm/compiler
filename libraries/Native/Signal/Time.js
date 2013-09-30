@@ -1,11 +1,10 @@
+Elm.Native.Time = {};
+Elm.Native.Time.make = function(elm) {
 
-Elm.Native.Time = function(elm) {
-  'use strict';
-
-  var Signal = Elm.Signal(elm);
-  var NS = Elm.Native.Signal(elm);
-  var Maybe = Elm.Maybe(elm);
-  var Utils = Elm.Native.Utils(elm);
+  var Signal = Elm.Signal.make(elm);
+  var NS = Elm.Native.Signal.make(elm);
+  var Maybe = Elm.Maybe.make(elm);
+  var Utils = Elm.Native.Utils.make(elm);
 
   function fpsWhen(desiredFPS, isOn) {
     var msPerFrame = 1000 / desiredFPS;

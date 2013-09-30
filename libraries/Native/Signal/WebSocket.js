@@ -1,13 +1,12 @@
-
-Elm.Native.WebSocket = function(elm) {
-  'use strict';
+Elm.Native.WebSocket = {};
+Elm.Native.WebSocket.make = function(elm) {
 
   elm.Native = elm.Native || {};
   if (elm.Native.WebSocket) return elm.Native.WebSocket;
 
-  var Signal = Elm.Signal(elm);
-  var JS = Elm.JavaScript(elm);
-  var List = Elm.Native.List(elm);
+  var Signal = Elm.Signal.make(elm);
+  var JS = Elm.JavaScript.make(elm);
+  var List = Elm.Native.List.make(elm);
 
   function open(url, outgoing) {
     var incoming = Signal.constant(List.Nil);

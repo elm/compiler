@@ -1,6 +1,6 @@
 
-Elm.Native.Transform2D = function(elm) {
- "use strict";
+Elm.Native.Transform2D = {};
+Elm.Native.Transform2D.make = function(elm) {
 
  elm.Native = elm.Native || {};
  if (elm.Native.Transform2D) return elm.Native.Transform2D;

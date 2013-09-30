@@ -1,5 +1,6 @@
 
-Elm.Native.Utils = function(elm) {
+Elm.Native.Utils = {};
+Elm.Native.Utils.make = function(elm) {
     'use strict';
 
     elm.Native = elm.Native || {};

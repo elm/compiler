@@ -1,12 +1,9 @@
-
-
-Elm.Native.Color = function(elm) {
- "use strict";
-
+Elm.Native.Color = {};
+Elm.Native.Color.make = function(elm) {
  elm.Native = elm.Native || {};
  if (elm.Native.Color) return elm.Native.Color;
 
- var Utils = Elm.Native.Utils(elm);
+ var Utils = Elm.Native.Utils.make(elm);
 
  function complement(rgb) {
      var hsv = toHSV(rgb);

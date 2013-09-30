@@ -1,11 +1,10 @@
-
-Elm.Native.Prelude = function(elm) {
-  'use strict';
+Elm.Native.Prelude = {};
+Elm.Native.Prelude.make = function(elm) {
   if (elm.Native.Prelude) return elm.Native.Prelude;
 
-  var JS = Elm.Native.JavaScript(elm);
-  var Maybe = Elm.Maybe(elm);
-  var Char = Elm.Char(elm);
+  var JS = Elm.Native.JavaScript.make(elm);
+  var Maybe = Elm.Maybe.make(elm);
+  var Char = Elm.Char.make(elm);
 
   function readInt(str) {
     var s = JS.fromString(str);

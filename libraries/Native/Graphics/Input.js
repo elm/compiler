@@ -1,6 +1,5 @@
-
-Elm.Native.Graphics.Input = function(elm) {
- "use strict";
+Elm.Native.Graphics.Input = {};
+Elm.Native.Graphics.Input.make = function(elm) {
 
  elm.Native = elm.Native || {};
  elm.Native.Graphics = elm.Native.Graphics || {};
@@ -9,10 +8,10 @@ Elm.Native.Graphics.Input = function(elm) {
  var Render = ElmRuntime.use(ElmRuntime.Render.Element);
  var newNode = ElmRuntime.use(ElmRuntime.Render.Utils).newElement;
 
- var Signal = Elm.Signal(elm);
- var newElement = Elm.Graphics.Element(elm).newElement;
- var JS = Elm.Native.JavaScript(elm);
- var Utils = Elm.Native.Utils(elm);
+ var Signal = Elm.Signal.make(elm);
+ var newElement = Elm.Graphics.Element.make(elm).newElement;
+ var JS = Elm.Native.JavaScript.make(elm);
+ var Utils = Elm.Native.Utils.make(elm);
  var Tuple2 = Utils.Tuple2;
 
  function dropDown(values) {

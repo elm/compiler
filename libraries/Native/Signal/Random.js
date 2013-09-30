@@ -1,10 +1,10 @@
+Elm.Native.Random = {};
+Elm.Native.Random.make = function(elm) {
 
-Elm.Native.Random = function(elm) {
-  'use strict';
   elm.Native = elm.Native || {};
   if (elm.Native.Random) return elm.Native.Random;
 
-  var Signal = Elm.Signal(elm);
+  var Signal = Elm.Signal.make(elm);
 
   function range(min, max, signal) {
     function f(x) { return Math.floor(Math.random() * (max-min+1)) + min; }

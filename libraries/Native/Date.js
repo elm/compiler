@@ -1,12 +1,10 @@
-
-Elm.Native.Date = function(elm) {
- 'use strict';
-
+Elm.Native.Date = {};
+Elm.Native.Date.make = function(elm) {
  elm.Native = elm.Native || {};
  if (elm.Native.Date) return elm.Native.Date;
 
- var JS = Elm.JavaScript(elm);
- var Maybe = Elm.Maybe(elm);
+ var JS = Elm.JavaScript.make(elm);
+ var Maybe = Elm.Maybe.make(elm);
 
  function dateNow() { return new window.Date; }
  function readDate(str) {
