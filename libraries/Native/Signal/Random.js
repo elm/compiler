@@ -17,7 +17,7 @@ Elm.Native.Random = function(elm) {
   }
 
   elm.Native.Random = { range: F3(range) };
-  elm.Native.Random['float'] = flt;
+  elm.Native.Random['flt'] = flt;
   return elm.Native.Random;
 
 };

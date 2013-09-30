@@ -20,4 +20,4 @@ range = Native.Random.range
 The new values are random numbers in [0..1).
 -}
 float : Signal a -> Signal Float
-float = Native.Random.float
+float = Native.Random.flt
