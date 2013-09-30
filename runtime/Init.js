@@ -164,7 +164,7 @@ function initGraphics(elm, Module) {
   function domUpdate(newScene, currentScene) {
       ElmRuntime.draw(function(_) {
           Render.update(elm.node.firstChild, currentScene, newScene);
-          if (elm.Native.Window) elm.Native.Window.resizeIfNeeded();
+          if (elm.Native.Window) elm.Native.Window.values.resizeIfNeeded();
       });
       return newScene;
   }
@@ -172,7 +172,7 @@ function initGraphics(elm, Module) {
 
   // must check for resize after 'renderer' is created so
   // that changes show up.
-  if (elm.Native.Window) elm.Native.Window.resizeIfNeeded();
+  if (elm.Native.Window) elm.Native.Window.values.resizeIfNeeded();
 
   return renderer;
 }

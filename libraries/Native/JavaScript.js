@@ -1,7 +1,8 @@
 Elm.Native.JavaScript = {};
 Elm.Native.JavaScript.make = function(elm) {
   elm.Native = elm.Native || {};
-  if (elm.Native.JavaScript) return elm.Native.JavaScript;
+  elm.Native.JavaScript = elm.Native.JavaScript || {};
+  if (elm.Native.JavaScript.values) return elm.Native.JavaScript.values;
 
   var List = Elm.Native.List.make(elm);
   var Render = ElmRuntime.use(ElmRuntime.Render.Element);
@@ -82,7 +83,7 @@ Elm.Native.JavaScript.make = function(elm) {
       return Render.render(element);
   }
 
-  return elm.Native.JavaScript = {
+  return elm.Native.JavaScript.values = {
       toFloat    : id,
       toBool     : id,
       toInt      : function(n) { return n|0; },

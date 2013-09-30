@@ -1,7 +1,8 @@
 Elm.Native.Show = {};
 Elm.Native.Show.make = function(elm) {
     elm.Native = elm.Native || {};
-    if (elm.Native.Show) return elm.Native.Show;
+    elm.Native.Show = elm.Native.Show || {};
+    if (elm.Native.Show.values) return elm.Native.Show.values;
 
     var NList = Elm.Native.List.make(elm);
     var List = Elm.List.make(elm);
@@ -95,5 +96,5 @@ Elm.Native.Show.make = function(elm) {
                c === '\\' ? '\\\\' : c;
     }
 
-    return elm.Native.Show = { show:show };
+    return elm.Native.Show.values = { show:show };
 };

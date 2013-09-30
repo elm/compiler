@@ -3,7 +3,8 @@ Elm.Native.Graphics.Input.make = function(elm) {
 
  elm.Native = elm.Native || {};
  elm.Native.Graphics = elm.Native.Graphics || {};
- if (elm.Native.Graphics.Input) return elm.Native.Graphics.Input;
+ elm.Native.Graphics.Input = elm.Native.Graphics.Input || {};
+ if (elm.Native.Graphics.Input.values) return elm.Native.Graphics.Input.values;
 
  var Render = ElmRuntime.use(ElmRuntime.Render.Element);
  var newNode = ElmRuntime.use(ElmRuntime.Render.Utils).newElement;
@@ -289,7 +290,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
    }
  }
 
- return elm.Native.Graphics.Input = {
+ return elm.Native.Graphics.Input.values = {
      buttons:buttons,
      customButtons:customButtons,
      hoverables:hoverables,

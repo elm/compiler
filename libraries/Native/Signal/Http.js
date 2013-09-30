@@ -2,7 +2,8 @@ Elm.Native.Http = {};
 Elm.Native.Http.make = function(elm) {
 
   elm.Native = elm.Native || {};
-  if (elm.Native.Http) return elm.Native.Http;
+  elm.Native.Http = elm.Native.Http || {};
+  if (elm.Native.Http.values) return elm.Native.Http.values;
 
 
   var JS = Elm.JavaScript.make(elm);
@@ -50,12 +51,12 @@ Elm.Native.Http.make = function(elm) {
   }
 
   function send(requests) {
-    var responses = Signal.constant(elm.Http.Waiting);
+    var responses = Signal.constant(elm.Http.values.Waiting);
     var sender = A2( Signal.lift, registerReq([],responses), requests );
     function f(x) { return function(y) { return x; } }
     return A3( Signal.lift2, f, responses, sender );
   }
 
-  return elm.Native.Http = {send:send};
+  return elm.Native.Http.values = {send:send};
 
 };

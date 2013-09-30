@@ -1,6 +1,10 @@
 Elm.Native.Json = {};
 Elm.Native.Json.make = function(elm) {
 
+  elm.Native = elm.Native || {};
+  elm.Native.Json = elm.Native.Json || {};
+  if (elm.Native.Json.values) return elm.Native.Json.values;
+
   var Maybe = Elm.Maybe.make(elm);
   var Dict = Elm.Dict.make(elm);
   var List = Elm.List.make(elm);
@@ -58,7 +62,7 @@ Elm.Native.Json.make = function(elm) {
     }
   }
 
-  return elm.Native.Json = {
+  return elm.Native.Json.values = {
       toJSString : F2(toPrettyJSString),
       fromJSString : fromJSString,
       toJSObject : fromValue,

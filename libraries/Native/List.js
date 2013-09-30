@@ -1,9 +1,10 @@
 Elm.Native.List = {};
 Elm.Native.List.make = function(elm) {
   elm.Native = elm.Native || {};
-  if (elm.Native.List) return elm.Native.List;
+  elm.Native.List = elm.Native.List || {};
+  if (elm.Native.List.values) return elm.Native.List.values;
   if ('values' in Elm.Native.List)
-      return elm.Native.List = Elm.Native.List.values;
+      return elm.Native.List.values = Elm.Native.List.values;
 
   var Utils = Elm.Native.Utils.make(elm);
 

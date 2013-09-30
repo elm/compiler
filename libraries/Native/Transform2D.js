@@ -1,9 +1,9 @@
-
 Elm.Native.Transform2D = {};
 Elm.Native.Transform2D.make = function(elm) {
 
  elm.Native = elm.Native || {};
- if (elm.Native.Transform2D) return elm.Native.Transform2D;
+ elm.Native.Transform2D = elm.Native.Transform2D || {};
+ if (elm.Native.Transform2D.values) return elm.Native.Transform2D.values;
 
  var A;
  if (typeof Float32Array === 'undefined') {
@@ -80,7 +80,7 @@ Elm.Native.Transform2D.make = function(elm) {
                    m21*ndx + m22*ndy + mdy]);
  }
 
- return elm.Native.Transform2D = {
+ return elm.Native.Transform2D.values = {
      identity:identity,
      matrix:F6(matrix),
      rotation:rotation,

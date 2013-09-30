@@ -1,6 +1,8 @@
 Elm.Native.Prelude = {};
 Elm.Native.Prelude.make = function(elm) {
-  if (elm.Native.Prelude) return elm.Native.Prelude;
+  elm.Native = elm.Native || {};
+  elm.Native.Prelude = elm.Native.Prelude || {};
+  if (elm.Native.Prelude.values) return elm.Native.Prelude.values;
 
   var JS = Elm.Native.JavaScript.make(elm);
   var Maybe = Elm.Maybe.make(elm);
@@ -42,9 +44,9 @@ Elm.Native.Prelude.make = function(elm) {
     return Maybe.Just(parseFloat(s));
   }
 
-  return elm.Native.Prelude = {
+  return elm.Native.Prelude.values = {
       readInt:readInt,
-      readFloat:readFloat,
+      readFloat:readFloat
   };
 
 };

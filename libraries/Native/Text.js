@@ -1,7 +1,8 @@
 Elm.Native.Text = {};
 Elm.Native.Text.make = function(elm) {
     elm.Native = elm.Native || {};
-    if (elm.Native.Text) return elm.Native.Text;
+    elm.Native.Text = elm.Native.Text || {};
+    if (elm.Native.Text.values) return elm.Native.Text.values;
 
     var JS = Elm.JavaScript.make(elm);
     var htmlHeight = Elm.Native.Utils.make(elm).htmlHeight;
@@ -108,7 +109,7 @@ Elm.Native.Text.make = function(elm) {
         return position('left')(toText(v));
     }
 
-    return elm.Native.Text = {
+    return elm.Native.Text.values = {
         toText: toText,
 
         header : header,

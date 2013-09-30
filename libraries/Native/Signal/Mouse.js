@@ -2,7 +2,8 @@ Elm.Native.Mouse = {};
 Elm.Native.Mouse.make = function(elm) {
 
   elm.Native = elm.Native || {};
-  if (elm.Native.Mouse) return elm.Native.Mouse;
+  elm.Native.Mouse = elm.Native.Mouse || {};
+  if (elm.Native.Mouse.values) return elm.Native.Mouse.values;
 
   var Signal = Elm.Signal.make(elm);
   var Utils = Elm.Native.Utils.make(elm);
@@ -55,7 +56,7 @@ Elm.Native.Mouse.make = function(elm) {
           elm.notify(position.id, getXY(e));
       });
 
-  return elm.Native.Mouse = {
+  return elm.Native.Mouse.values = {
       position: position,
       x:x,
       y:y,

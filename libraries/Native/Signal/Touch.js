@@ -2,7 +2,8 @@ Elm.Native.Touch = {};
 Elm.Native.Touch.make = function(elm) {
 
   elm.Native = elm.Native || {};
-  if (elm.Native.Touch) return elm.Native.Touch;
+  elm.Native.Touch = elm.Native.Touch || {};
+  if (elm.Native.Touch.values) return elm.Native.Touch.values;
 
   var Signal = Elm.Signal.make(elm);
   var JS = Elm.JavaScript.make(elm);
@@ -143,6 +144,6 @@ Elm.Native.Touch.make = function(elm) {
       return sig2;
   }();
 
-  return elm.Native.Touch = { touches: touches, taps: taps };
+  return elm.Native.Touch.values = { touches: touches, taps: taps };
 
 };

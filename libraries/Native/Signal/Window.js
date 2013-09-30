@@ -2,7 +2,8 @@ Elm.Native.Window = {};
 Elm.Native.Window.make = function(elm) {
 
   elm.Native = elm.Native || {};
-  if (elm.Native.Window) return elm.Native.Window;
+  elm.Native.Window = elm.Native.Window || {};
+  if (elm.Native.Window.values) return elm.Native.Window.values;
 
   var Signal = Elm.Signal.make(elm);
   var Tuple2 = Elm.Native.Utils.make(elm).Tuple2;
@@ -34,7 +35,7 @@ Elm.Native.Window.make = function(elm) {
   }
   elm.addListener([dimensions.id], window, 'resize', resizeIfNeeded);
 
-  return elm.Native.Window = {
+  return elm.Native.Window.values = {
       dimensions:dimensions,
       width:width,
       height:height,

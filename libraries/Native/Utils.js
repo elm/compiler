@@ -1,10 +1,9 @@
-
 Elm.Native.Utils = {};
 Elm.Native.Utils.make = function(elm) {
-    'use strict';
 
     elm.Native = elm.Native || {};
-    if (elm.Native.Utils) return elm.Native.Utils;
+    elm.Native.Utils = elm.Native.Utils || {};
+    if (elm.Native.Utils.values) return elm.Native.Utils.values;
 
     function eq(x,y) {
         if (x === y) return true;
@@ -144,7 +143,7 @@ Elm.Native.Utils.make = function(elm) {
         elm.addListener(elm.inputs, elm.node, 'mouseover', adjustOffset);
     }
 
-    return elm.Native.Utils = {
+    return elm.Native.Utils.values = {
         eq:eq,
         cmp:cmp,
         compare:F2(compare),

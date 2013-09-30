@@ -282,9 +282,9 @@ jsModule modul =
     show . prettyPrint $ setup (Just "Elm") (names modul ++ ["make"]) ++
              [ assign ("Elm" : names modul ++ ["make"]) (function ["elm"] programStmts) ]
   where
-    thisModule = dotSep ("elm" : names modul)
+    thisModule = dotSep ("elm" : names modul ++ ["values"])
     programStmts =
-        concat [ setup (Just "elm") (names modul)
+        concat [ setup (Just "elm") (names modul ++ ["values"])
                , [ IfSingleStmt () thisModule (ReturnStmt () (Just thisModule)) ]
                , [ internalImports (List.intercalate "." (names modul)) ]
                , concatMap jsImport (imports modul)
@@ -296,7 +296,7 @@ jsModule modul =
                , [ ReturnStmt () (Just thisModule) ]
                ]
 
-    jsExports = assign ("elm" : names modul) (ObjectLit () exs)
+    jsExports = assign ("elm" : names modul ++ ["values"]) (ObjectLit () exs)
         where
           exs = map entry . filter (not . isOp) $ "_op" : exports modul
           entry x = (PropId () (var x), ref x)

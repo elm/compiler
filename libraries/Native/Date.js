@@ -1,7 +1,8 @@
 Elm.Native.Date = {};
 Elm.Native.Date.make = function(elm) {
  elm.Native = elm.Native || {};
- if (elm.Native.Date) return elm.Native.Date;
+ elm.Native.Date = elm.Native.Date || {};
+ if (elm.Native.Date.values) return elm.Native.Date.values;
 
  var JS = Elm.JavaScript.make(elm);
  var Maybe = Elm.Maybe.make(elm);
@@ -17,7 +18,7 @@ Elm.Native.Date.make = function(elm) {
  var monthTable = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
 		   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]; 
 
- return elm.Native.Date = {
+ return elm.Native.Date.values = {
      read    : readDate,
      year    : function(d) { return d.getFullYear(); },
      month   : function(d) { return { ctor:monthTable[d.getMonth()] }; },

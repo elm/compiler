@@ -2,7 +2,8 @@ Elm.Native.Random = {};
 Elm.Native.Random.make = function(elm) {
 
   elm.Native = elm.Native || {};
-  if (elm.Native.Random) return elm.Native.Random;
+  elm.Native.Random = elm.Native.Random || {};
+  if (elm.Native.Random.values) return elm.Native.Random.values;
 
   var Signal = Elm.Signal.make(elm);
 
@@ -16,8 +17,8 @@ Elm.Native.Random.make = function(elm) {
     return A2( Signal.lift, f, signal );
   }
 
-  elm.Native.Random = { range: F3(range) };
-  elm.Native.Random['flt'] = flt;
-  return elm.Native.Random;
-
+  return elm.Native.Random.values = {
+      range: F3(range),
+      flt: flt
+  };
 };

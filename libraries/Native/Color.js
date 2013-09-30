@@ -1,7 +1,8 @@
 Elm.Native.Color = {};
 Elm.Native.Color.make = function(elm) {
  elm.Native = elm.Native || {};
- if (elm.Native.Color) return elm.Native.Color;
+ elm.Native.Color = elm.Native.Color || {};
+ if (elm.Native.Color.values) return elm.Native.Color.values;
 
  var Utils = Elm.Native.Utils.make(elm);
 
@@ -59,7 +60,7 @@ Elm.Native.Color.make = function(elm) {
   return { ctor:"Color", _0:norm(r+m), _1:norm(g+m), _2:norm(b+m), _3:1 };
  }
 
- return elm.Native.Color = {
+ return elm.Native.Color.values = {
     hsva:F4(hsva),
     hsv:F3(hsv),
     complement:complement

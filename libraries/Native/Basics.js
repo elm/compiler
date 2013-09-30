@@ -1,7 +1,9 @@
 
 Elm.Native.Basics = {};
 Elm.Native.Basics.make = function(elm) {
-  if (elm.Native.Basics) return elm.Native.Basics;
+  elm.Native = elm.Native || {};
+  elm.Native.Basics = elm.Native.Basics || {};
+  if (elm.Native.Basics.values) return elm.Native.Basics.values;
 
   var JS = Elm.Native.JavaScript.make(elm);
   // var Maybe = Elm.Maybe(elm);
@@ -104,5 +106,5 @@ Elm.Native.Basics.make = function(elm) {
       snd:snd
   };
 
-  return elm.Native.Basics = basics;
+  return elm.Native.Basics.values = basics;
 };
