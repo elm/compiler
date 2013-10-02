@@ -3,9 +3,7 @@ module String where
 -}
 
 import Native.String as Native
-import Maybe
-
-data String = String
+import Maybe (Maybe)
 
 {-|
 -}
