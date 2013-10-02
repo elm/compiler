@@ -129,8 +129,10 @@ actuallyUnify span variable1 variable2 = do
             (Is Comparable, _, _, _) -> unifyComparableStructure variable1 variable2
             (_, Is Comparable, _, _) -> unifyComparableStructure variable2 variable1
 
-            (Is Appendable, _, _, Just "Text.Text") -> flexAndUnify variable1
-            (_, Is Appendable, Just "Text.Text", _) -> flexAndUnify variable2
+            (Is Appendable, _, _, Just ctor)
+                | ctor `elem` ["Text.Text","String"] -> flexAndUnify variable1
+            (_, Is Appendable, Just ctor, _)
+                | ctor `elem` ["Text.Text","String"] -> flexAndUnify variable2
             (Is Appendable, _, _, _) -> unifyAppendable variable1 variable2
             (_, Is Appendable, _, _) -> unifyAppendable variable2 variable1
 
