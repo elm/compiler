@@ -82,10 +82,10 @@ actuallyUnify span variable1 variable2 = do
 
       comparableError str = TS.addError span (str ++ msg) variable1 variable2
           where msg = "Expecting something comparable such as an\n" ++
-                      "Int, Float, Char, or a list or tuple of comparables."
+                      "Int, Float, Char, String, or a list or tuple of comparables."
 
       unifyComparable var name
-          | name `elem` ["Int","Float","Char","comparable"] = flexAndUnify var
+          | name `elem` ["Int","Float","Char","String","comparable"] = flexAndUnify var
           | otherwise = comparableError ""
 
       unifyComparableStructure varSuper varFlex =

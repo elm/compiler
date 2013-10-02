@@ -89,7 +89,7 @@ metadataModule ifaces modul =
 
     pair n = (n,n)
     localEnv = map pair (map get1 (aliases modul) ++ map get1 (datatypes modul))
-    globalEnv = map pair $ ["_List",saveEnvName,"::","[]","Int","Float","Char","Bool"] ++
+    globalEnv = map pair $ ["_List",saveEnvName,"::","[]","Int","Float","Char","Bool","String"] ++
                            map (\n -> "_Tuple" ++ show n) [0..9]
     realImports = filter (not . List.isPrefixOf "Native." . fst) (imports modul)
     initialEnv = Map.fromList (concatMap canon realImports ++ localEnv ++ globalEnv)
