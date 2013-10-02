@@ -7,7 +7,7 @@ all sorts of forms including lines, shapes, images, and elements.
 @docs collage
  
 # Creating Forms
-@docs toForm, filled, textured, gradient, outlined, traced
+@docs toForm, filled, textured, gradient, outlined, traced, sprite
  
 # Transforming Forms
 @docs move, moveX, moveY, scale, rotate, alpha
