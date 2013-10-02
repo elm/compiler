@@ -6,8 +6,19 @@ Elm.Native.String.make = function(elm) {
     if ('values' in Elm.Native.String)
         return elm.Native.String.values = Elm.Native.String.values;
 
+    var Maybe = Elm.Maybe.make(elm);
+    var Tuple2 = Elm.Native.Utils.make(elm).Tuple2;
+
     function isEmpty(str) {
         return str.length === 0;
+    }
+    function cons(chr,str) {
+        return chr + str;
+    }
+    function uncons(str) {
+        var chr;
+        return (chr = str[0]) ? Maybe.Just(Tuple2(chr, str.slice(1)))
+                              : Maybe.Nothing;
     }
     function map(f,str) {
         return str.map(f);
@@ -18,7 +29,26 @@ Elm.Native.String.make = function(elm) {
     function reverse(str) {
         return str.reverse();
     }
+    function foldl(f,b,str) {
+        var len = str.length;
+        for (var i = 0; i < len; ++i) {
+            b = A2(f, str[i], b);
+        }
+        return b;
+    }
+    function foldr(f,b,str) {
+        for (var i = str.length; i--; ) {
+            b = A2(f, str[i], b);
+        }
+        return b;
+    }
 
+    function split(sep, str) {
+        return str.split(sep);
+    }
+    function join(sep, strs) {
+        return strs.join(sep);
+    }
     function repeat(n, chr) {
         var result = '';
         while (n > 0) {
@@ -38,13 +68,13 @@ Elm.Native.String.make = function(elm) {
         return repeat(n - str.length, chr) + str;
     }
 
-    function strip(str) {
+    function trim(str) {
         return str.trim();
     }
-    function stripLeft(str) {
+    function trimLeft(str) {
         return str.trimLeft();
     }
-    function stripRight(str) {
+    function trimRight(str) {
         return str.trimRight();
     }
 
@@ -61,25 +91,56 @@ Elm.Native.String.make = function(elm) {
         return str.join('\n');
     }
 
+    function toUpper(str) {
+        return str.toUpper();
+    }
+    function toLower(str) {
+        return str.toLower();
+    }
+
+    function any(pred, str) {
+        for (var i = str.length; i--; ) {
+            if (pred(str[i])) return true;
+        }
+        return false;
+    }
+    function all(pred, str) {
+        for (var i = str.length; i--; ) {
+            if (!pred(str[i])) return false;
+        }
+        return true;
+    }
+
     return {
         isEmpty: isEmpty,
+        cons: F2(cons),
+        uncons: uncons,
         map: F2(map),
         filter: F2(filter),
         reverse: reverse,
+        foldl: F3(foldl),
+        foldr: F3(foldr),
 
+        split: F2(split),
+        join: F2(join),
         repeat: F2(repeat),
         center: F3(center),
         justifyLeft: F3(justifyLeft),
         justifyRight: F3(justifyRight),
 
-        strip: strip,
-        stripLeft: stripLeft,
-        stripRight: stripRight,
+        trim: trim,
+        trimLeft: trimLeft,
+        trimRight: trimRight,
 
         words: words,
         unwords: unwords,
         lines: lines,
         unlines: unlines,
 
+        toUpper: toUpper,
+        toLower: toLower,
+
+        any: F2(any),
+        all: F2(all),
     };
 };
