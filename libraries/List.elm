@@ -191,13 +191,6 @@ unzip pairs =
     []        -> ([],[])
     (x,y)::ps -> let (xs,ys) = (unzip ps) in (x::xs,y::ys)
 
-{-| Split a list with a given seperator.
-
-      split "," "hello,there,friend" == ["hello", "there", "friend"]
--}
-split : [a] -> [a] -> [[a]]
-split = Native.List.split
-
 {-| Places the given value between all of the lists in the second
 argument and concatenates the result.
 

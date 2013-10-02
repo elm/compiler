@@ -241,13 +241,14 @@ Elm.Native.List.make = function(elm) {
     return xs;
   }
 
-  function repeat(n, a) {
-    var arr = [];
-    while (n > 0) {
-      arr.push(a);
-      --n;
-    }
-    return fromArray(arr);
+  function repeat(n, x) {
+      var arr = [];
+      var pattern = [x];
+      while (n > 0) {
+          if (n & 1) arr += pattern;
+          n >>= 1, pattern += pattern;
+      }
+      return fromArray(arr);
   }
 
   function join(sep, xss) {
@@ -261,61 +262,6 @@ Elm.Native.List.make = function(elm) {
       xss = xss._1;
     }
     return fromArray(out);
-  }
-
-  function split(seperator, list) {
-    var array = toArray(list);
-    var alen = array.length;
-    if (alen === 0) {
-      // splitting an empty list is a list of lists: [[]]
-      return Cons(Nil,Nil);
-    }
-
-    var sep = toArray(seperator);
-    var seplen = sep.length;
-    if (seplen === 0) {
-      // splitting with an empty sep is a list of all elements
-      // Same as (map (\x -> [x]) list)
-      var out = Nil;
-      for (var i = alen; i--; ) {
-        out = Cons(Cons(array[i],Nil), out);
-      }
-      return out;
-    }
-
-    var matches = [-seplen];
-    var sepStart = sep[0];
-    var len = alen - seplen + 1;
-    for (var i = 0; i < len; ++i) {
-      if (Utils.eq(array[i], sepStart)) {
-        var match = true;
-        for (var j = seplen; --j; ) {
-          if (!Utils.eq(array[i+j], sep[j])) { match = false;  break; }
-        }
-        if (match) {
-          matches.push(i);
-          i += seplen - 1;
-        }
-      }
-    }
-
-    // shortcut in case of no matches
-    if (matches.length === 0) {
-      return Cons(list,Nil);
-    }
-
-    var out = Nil;
-    var index = alen - 1;
-    for (var i = matches.length; i--; ) {
-      var temp = Nil;
-      var stop = matches[i] + seplen - 1;
-      for ( ; index > stop; --index ) {
-        temp = Cons(array[index], temp);
-      }
-      out = Cons(temp,out);
-      index -= seplen;
-    }
-    return out;
   }
 
   Elm.Native.List.values = {
@@ -355,8 +301,7 @@ Elm.Native.List.make = function(elm) {
       drop:F2(drop),
       repeat:F2(repeat),
 
-      join:F2(join),
-      split:F2(split)
+      join:F2(join)
   };
   return elm.Native.List = Elm.Native.List.values;
 
