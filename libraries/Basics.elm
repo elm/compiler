@@ -49,8 +49,6 @@ which happen to be radians.
 
 import Native.Basics
 
-type String = [Char]
-
 {-| Convert radians to standard Elm angles (radians). -}
 radians : Float -> Float
 radians t = t
