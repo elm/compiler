@@ -57,14 +57,13 @@ internalImports name =
     , include "_L" "N.List"
     , include "_E" "N.Error"
     , include "_J" "N.JavaScript"
-    , varDecl "_str" (obj "_J.toString")
     , varDecl "$moduleName" (string name)
     ]
 
 literal lit =
   case lit of
     Chr c -> string [c]
-    Str s -> ref "_str" <| string s
+    Str s -> string s
     IntNum   n -> IntLit () n
     FloatNum n -> NumLit () n
     Boolean  b -> BoolLit () b
