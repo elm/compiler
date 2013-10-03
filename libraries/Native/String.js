@@ -92,10 +92,10 @@ Elm.Native.String.make = function(elm) {
     }
 
     function toUpper(str) {
-        return str.toUpper();
+        return str.toUpperCase();
     }
     function toLower(str) {
-        return str.toLower();
+        return str.toLowerCase();
     }
 
     function any(pred, str) {
@@ -111,7 +111,7 @@ Elm.Native.String.make = function(elm) {
         return true;
     }
 
-    return {
+    return Elm.Native.String.values = {
         isEmpty: isEmpty,
         cons: F2(cons),
         uncons: uncons,
@@ -141,6 +141,6 @@ Elm.Native.String.make = function(elm) {
         toLower: toLower,
 
         any: F2(any),
-        all: F2(all),
+        all: F2(all)
     };
 };
