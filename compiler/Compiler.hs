@@ -37,6 +37,7 @@ data Flags =
     Flags { make :: Bool
           , files :: [FilePath]
           , runtime :: Maybe FilePath
+          , css :: Maybe FilePath
           , only_js :: Bool
           , print_types :: Bool
           , print_program :: Bool
@@ -54,6 +55,8 @@ flags = Flags
   , files = def &= args &= typ "FILES"
   , runtime = Nothing &= typFile
               &= help "Specify a custom location for Elm's runtime system."
+  , css = Nothing &= typFile
+          &= help "Specify a stylesheet to include in the head."
   , only_js = False
               &= help "Compile only to JavaScript."
   , print_types = False
@@ -187,7 +190,7 @@ build flags rootFile = do
     False -> do
       putStr "Generating HTML ... "
       runtime <- getRuntime flags
-      let html = genHtml $ createHtml runtime (takeBaseName rootFile) (sources js) moduleName ""
+      let html = genHtml $ createHtml (css flags) runtime (takeBaseName rootFile) (sources js) moduleName ""
           htmlFile = buildPath flags rootFile "html"
       createDirectoryIfMissing True (takeDirectory htmlFile)
       writeFile htmlFile html
