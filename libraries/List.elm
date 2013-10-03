@@ -7,7 +7,7 @@ list must have the same type.
 @docs (::), (++), isEmpty, length, reverse, map
 
 # Sub-lists
-@docs head, tail, last, filter, take, drop
+@docs head, tail, last, init, filter, take, drop
 
 # Putting Lists Together
 @docs concat, concatMap, join, intersperse, zip, zipWith
@@ -57,6 +57,12 @@ tail = Native.List.tail
 -}
 last : [a] -> a
 last = Native.List.last
+
+{-| Extract the elements before the last element in the list. List must be non-empty.
+`(init [1,2,3] == [1,2])
+-}
+init : [a] -> [a]
+init = Native.List.init
 
 {-| Check if a list is empty `(isEmpty [] == True)` -}
 isEmpty : [a] -> Bool
@@ -212,7 +218,7 @@ join = Native.List.join
 -}
 intersperse : a -> [a] -> [a]
 intersperse sep xs =
-  case xs of 
+  case xs of
     a::b::cs -> a :: sep :: intersperse sep (b::cs)
     [a] -> [a]
     []  -> []
