@@ -42,10 +42,15 @@ generateHtml :: String -- ^ Location of elm-runtime.js as expected by the browse
              -> H.Html
 generateHtml libLoc title source = error "function 'generateHtml' is unimplemented for now"
 
-createHtml :: FilePath -> String -> [JSSource] -> String -> String -> H.Html
-createHtml libLoc title scripts moduleName noscript =
+createHtml :: Maybe FilePath -> FilePath -> String -> [JSSource] -> String -> String -> H.Html
+createHtml css libLoc title scripts moduleName noscript =
+  let css' = case css of
+        Nothing -> return ()
+        Just fp -> H.link ! A.rel "stylesheet" ! A.href (H.toValue fp)
+  in
     H.docTypeHtml $ do 
       H.head $ do
+        css'
         H.meta ! A.charset "UTF-8"
         H.title . H.toHtml $ title
         makeScript (Link libLoc)
