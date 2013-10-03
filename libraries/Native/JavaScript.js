@@ -84,12 +84,12 @@ Elm.Native.JavaScript.make = function(elm) {
   }
 
   return elm.Native.JavaScript.values = {
-      toFloat    : id,
-      toBool     : id,
       toInt      : function(n) { return n|0; },
-      toString   : List.fromArray,
+      toFloat    : function(n) { return +n; },
+      toBool     : id,
+      toString   : id,
       toList     : List.fromArray,
-      fromString : function(s) { return List.toArray(s).join(''); },
+      fromString : id,
       fromList   : List.toArray,
       fromInt    : id,
       fromFloat  : id,
