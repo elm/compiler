@@ -21,8 +21,9 @@ Elm.Native.Show.make = function(elm) {
             return v ? "True" : "False";
         } else if (type === "number") {
             return v+"";
-        } else if (type === "string" && v.length < 2) {
-            return "'" + showChar(v) + "'";
+        } else if (type === "string") {
+            var quote = v.length === 1 ? "'" : '"';
+            return quote + addSlashes(v) + quote;
         } else if (type === "object" && '_' in v) {
             var output = [];
             for (var k in v._) {
@@ -45,18 +46,13 @@ Elm.Native.Show.make = function(elm) {
                 }
                 return "(" + output.join(",") + ")";
             } else if (v.ctor === "::") {
-                var isStr = typeof v._0 === "string",
-                start = isStr ? '"' : "[",
-                end   = isStr ? '"' : "]",
-                sep   = isStr ?  "" : ",",
-                f     = !isStr ? toString : showChar;
-                var output = start + f(v._0);
+                var output = '[' + toString(v._0);
                 v = v._1;
                 while (v.ctor === "::") {
-                    output += sep + f(v._0);
+                    output += "," + toString(v._0);
                     v = v._1;
                 }
-                return output + end;
+                return output + ']';
             } else if (v.ctor === "[]") {
                 return "[]";
             } else if (v.ctor === "RBNode" || v.ctor === "RBEmpty") {
@@ -83,16 +79,15 @@ Elm.Native.Show.make = function(elm) {
         return "<internal structure>";
     };
 
-    function showChar (c) {
-        return c === '\n' ? '\\n' :
-               c === '\t' ? '\\t' :
-               c === '\b' ? '\\b' :
-               c === '\r' ? '\\r' :
-               c === '\v' ? '\\v' :
-               c === '\0' ? '\\0' :
-               c === '\'' ? "\\'" :
-               c === '\"' ? '\\"' :
-               c === '\\' ? '\\\\' : c;
+    function addSlashes(str) {
+        return str.replace(/\n/g, '\\n')
+                  .replace(/\t/g, '\\t')
+                  .replace(/\r/g, '\\r')
+                  .replace(/\v/g, '\\v')
+                  .replace(/\0/g, '\\0')
+                  .replace(/\'/g, "\\'")
+                  .replace(/\"/g, '\\"')
+                  .replace(/\\/g, '\\\\')
     }
 
     return elm.Native.Show.values = { show:toString };
