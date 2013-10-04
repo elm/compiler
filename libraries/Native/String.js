@@ -24,10 +24,10 @@ Elm.Native.String.make = function(elm) {
         return str.length;
     }
     function map(f,str) {
-        return str.map(f);
+        return str.split('').map(f).join('');
     }
     function filter(pred,str) {
-        return str.filter(pred);
+        return str.split('').filter(pred).join('');
     }
     function reverse(str) {
         return str.split('').reverse().join('');
