@@ -30,7 +30,7 @@ Elm.Native.String.make = function(elm) {
         return str.filter(pred);
     }
     function reverse(str) {
-        return str.reverse();
+        return str.split('').reverse().join('');
     }
     function foldl(f,b,str) {
         var len = str.length;
