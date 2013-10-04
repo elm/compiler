@@ -7,6 +7,7 @@ Elm.Native.String.make = function(elm) {
         return elm.Native.String.values = Elm.Native.String.values;
 
     var Maybe = Elm.Maybe.make(elm);
+    var JS = Elm.JavaScript.make(elm);
     var Tuple2 = Elm.Native.Utils.make(elm).Tuple2;
 
     function isEmpty(str) {
@@ -50,7 +51,7 @@ Elm.Native.String.make = function(elm) {
         return str.split(sep);
     }
     function join(sep, strs) {
-        return strs.join(sep);
+        return JS.fromList(strs).join(sep);
     }
     function repeat(n, chr) {
         var result = '';
@@ -82,16 +83,16 @@ Elm.Native.String.make = function(elm) {
     }
 
     function words(str) {
-        return str.split(/\s+/g);
+        return JS.toList(str.split(/\s+/g));
     }
     function unwords(str) {
-        return str.join(' ');
+        return JS.fromList(str).join(' ');
     }
     function lines(str) {
-        return str.split(/\r\n|\r|\n/g);
+        return JS.toList(str.split(/\r\n|\r|\n/g));
     }
     function unlines(str) {
-        return str.join('\n');
+        return JS.fromList(str).join('\n');
     }
 
     function toUpper(str) {
