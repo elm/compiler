@@ -39,8 +39,8 @@ Elm.Native.Text.make = function(elm) {
     function properEscape(str) {
         if (str.length == 0) return str;
         str = str //.replace(/&/g,  "&#38;")
-	    .replace(/"/g, /*"*/ '&#34;')
-	    .replace(/'/g, /*'*/ "&#39;")
+	    .replace(/"/g,  '&#34;')
+	    .replace(/'/g,  "&#39;")
 	    .replace(/</g,  "&#60;")
 	    .replace(/>/g,  "&#62;")
 	    .replace(/\n/g, "<br/>");
