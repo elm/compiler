@@ -22,6 +22,11 @@ uncons = Native.String.uncons
 
 {-|
 -}
+length : String -> Int
+length = Native.String.length
+
+{-|
+-}
 map : (Char -> Char) -> String -> String
 map = Native.String.map
 

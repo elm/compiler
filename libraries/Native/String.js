@@ -20,6 +20,9 @@ Elm.Native.String.make = function(elm) {
         return (chr = str[0]) ? Maybe.Just(Tuple2(chr, str.slice(1)))
                               : Maybe.Nothing;
     }
+    function length(str) {
+        return str.length;
+    }
     function map(f,str) {
         return str.map(f);
     }
@@ -115,6 +118,7 @@ Elm.Native.String.make = function(elm) {
         isEmpty: isEmpty,
         cons: F2(cons),
         uncons: uncons,
+        length: length,
         map: F2(map),
         filter: F2(filter),
         reverse: reverse,
