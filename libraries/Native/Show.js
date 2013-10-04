@@ -80,14 +80,14 @@ Elm.Native.Show.make = function(elm) {
     };
 
     function addSlashes(str) {
-        return str.replace(/\n/g, '\\n')
+        return str.replace(/\\/g, '\\\\')
+                  .replace(/\n/g, '\\n')
                   .replace(/\t/g, '\\t')
                   .replace(/\r/g, '\\r')
                   .replace(/\v/g, '\\v')
                   .replace(/\0/g, '\\0')
                   .replace(/\'/g, "\\'")
-                  .replace(/\"/g, '\\"')
-                  .replace(/\\/g, '\\\\')
+                  .replace(/\"/g, '\\"');
     }
 
     return elm.Native.Show.values = { show:toString };
