@@ -55,7 +55,7 @@ makeTypes datatypes =
     builtins :: [(String,Int)]
     builtins = concat [ map tuple [0..9]
                       , kind 1 ["_List"]
-                      , kind 0 ["Int","Float","Char","Bool"]
+                      , kind 0 ["Int","Float","Char","String","Bool"]
                       ]
 
 
@@ -142,9 +142,6 @@ instantiator env sourceType = go sourceType
                        | "comparable" `isPrefixOf` x = Is Comparable
                        | "appendable" `isPrefixOf` x = Is Appendable
                        | otherwise = Flexible
-
-        Src.Data "String" [] ->
-            return (get env types "_List" <| get env types "Char")
 
         Src.Data name ts -> do
           ts' <- mapM go ts

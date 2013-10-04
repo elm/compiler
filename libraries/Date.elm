@@ -12,7 +12,6 @@ issues with internationalization or locale formatting.
 
 -}
 
-import Basics (String)
 import Native.Date
 import Time (Time)
 import Maybe (Maybe)

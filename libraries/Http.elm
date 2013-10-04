@@ -14,7 +14,6 @@ you have very strict latency requirements.
 @docs Response
 -}
 
-import open Basics
 import open Signal
 import Native.Http
 

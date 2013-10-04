@@ -82,7 +82,6 @@ Elm.Native.Show.make = function(elm) {
         if (type === 'object' && 'recv' in v) return '<signal>';
         return "<internal structure>";
     };
-    function show(v) { return NList.fromArray(toString(v)); }
 
     function showChar (c) {
         return c === '\n' ? '\\n' :
@@ -96,5 +95,5 @@ Elm.Native.Show.make = function(elm) {
                c === '\\' ? '\\\\' : c;
     }
 
-    return elm.Native.Show.values = { show:show };
+    return elm.Native.Show.values = { show:toString };
 };

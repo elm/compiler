@@ -23,11 +23,7 @@ basic = choice
                     "True"  -> PLiteral (Boolean True)
                     "False" -> PLiteral (Boolean False)
                     c : _   -> if isUpper c then PData v [] else PVar v
-    , do lit <- literal
-         return $ case lit of
-                    Str s -> foldr combine (PData "[]" []) s
-                       where combine h t = PData "::" [PLiteral (Chr h),t]
-                    _ -> PLiteral lit
+    , PLiteral <$> literal
     ]
 
 asPattern :: Pattern -> IParser Pattern

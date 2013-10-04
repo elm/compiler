@@ -17,7 +17,6 @@ integration.
 -}
 
 import Native.JavaScript
-import open Basics
 
 data JSNumber = JSNumber
 data JSBool = JSBool
