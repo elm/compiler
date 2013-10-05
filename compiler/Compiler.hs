@@ -42,6 +42,7 @@ data Flags =
           , no_prelude :: Bool
 	  , cache_dir :: FilePath
 	  , build_dir :: FilePath
+	  , src_dir :: [FilePath]
           }
     deriving (Data,Typeable,Show,Eq)
 
@@ -61,6 +62,8 @@ flags = Flags
                 &= help "Directory for files cached to make builds faster. Defaults to cache/ directory."
   , build_dir = "build" &= typFile
                 &= help "Directory for generated HTML and JS files. Defaults to build/ directory."
+  , src_dir = ["."] &= typFile
+              &= help "Additional source directories besides project root. Searched when using --make"
   , print_types = False
                   &= help "Print out infered types of top-level definitions."
   , print_program = False
@@ -173,7 +176,8 @@ getRuntime flags =
 build :: Flags -> FilePath -> IO ()
 build flags rootFile = do
   let noPrelude = no_prelude flags
-  files <- if make flags then getSortedDependencies noPrelude rootFile else return [rootFile]
+  files <- if make flags then getSortedDependencies (src_dir flags) noPrelude rootFile
+                         else return [rootFile]
   let ifaces = if noPrelude then Map.empty else Prelude.interfaces
   (moduleName, interfaces) <- buildFiles flags (length files) ifaces "" files
   js <- foldM appendToOutput BS.empty files

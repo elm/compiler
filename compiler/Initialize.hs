@@ -6,6 +6,7 @@ import qualified Data.Graph as Graph
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import System.Directory
 import System.Exit
 import System.FilePath as FP
 import Text.PrettyPrint (Doc)
@@ -62,9 +63,9 @@ buildFromSource noPrelude interfaces source =
      return $ metaModule { types = types }
 
 
-getSortedDependencies :: Bool -> FilePath -> IO [String]
-getSortedDependencies noPrelude root =
-    sortDeps =<< readDeps noPrelude root
+getSortedDependencies :: [FilePath] -> Bool -> FilePath -> IO [String]
+getSortedDependencies srcDirs noPrelude root =
+    sortDeps =<< readDeps srcDirs noPrelude root
 
 type Deps = (FilePath, String, [String])
 
@@ -79,18 +80,18 @@ sortDeps depends =
     mistakes = filter (\scc -> length scc > 1) sccs
     msg = "A cyclical module dependency or was detected in: "
 
-readDeps :: Bool -> FilePath -> IO [Deps]
-readDeps noPrelude root = evalStateT (go root) Set.empty
+readDeps :: [FilePath] -> Bool -> FilePath -> IO [Deps]
+readDeps srcDirs noPrelude root = evalStateT (go root) Set.empty
   where
     builtIns = if noPrelude then Set.empty
                             else Set.fromList (Map.keys Prelude.interfaces)
 
     go :: FilePath -> StateT (Set.Set String) IO [Deps]
     go root = do
-      txt <- liftIO $ readFile root
+      (root', txt) <- liftIO $ getFile srcDirs root
       case Parse.dependencies txt of
         Left err -> liftIO (putStrLn msg >> print err >> exitFailure)
-            where msg = "Error resolving dependencies in " ++ root ++ ":"
+            where msg = "Error resolving dependencies in " ++ root' ++ ":"
                     
         Right (name,deps) ->
             do seen <- get
@@ -98,8 +99,21 @@ readDeps noPrelude root = evalStateT (go root) Set.empty
                    newDeps = Set.difference (Set.filter (not . isNative) realDeps) seen
                put (Set.insert name (Set.union newDeps seen))
                rest <- mapM (go . toFilePath) (Set.toList newDeps)
-               return ((makeRelative "." root, name, Set.toList realDeps) : concat rest)
-                       
+               return ((makeRelative "." root', name, Set.toList realDeps) : concat rest)
+
+getFile :: [FilePath] -> FilePath -> IO (FilePath,String)
+getFile [] path = do
+  putStrLn $ unlines [ "Could not find file: " ++ path
+                     , "    If it is not in the root directory of your project, use"
+                     , "    --src-dir to declare additional locations for source files." ]
+  exitFailure
+
+getFile (dir:dirs) path = do
+  let path' = dir </> path
+  exists <- doesFileExist path'
+  case exists of
+    True -> (,) path' `fmap` readFile path'
+    False -> getFile dirs path
 
 isNative name = List.isPrefixOf "Native." name
 
