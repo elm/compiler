@@ -13,7 +13,7 @@ list must have the same type.
 @docs concat, concatMap, join, intersperse, zip, zipWith
 
 # Taking Lists Apart
-@docs split, partition, unzip
+@docs partition, unzip
 
 # Folds
 @docs foldr, foldl, foldr1, foldl1, scanl, scanl1
