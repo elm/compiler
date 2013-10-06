@@ -1,26 +1,30 @@
 module String where
 {-| A built-in representation of String for effecient string manipulation.
 
-@docs isEmpty, length, cons, uncons
+# Basics
+@docs isEmpty, length, cons, uncons, reverse,
+      map, filter, foldl, foldr, any, all, repeat
 
-@docs map, filter, reverse, foldl, foldr
+# Split and Join
+@docs split, join, words, unwords, lines, unlines
 
-@docs any, all, toUpper, toLower
+# Get Substrings
+@docs sub, left, right, dropLeft, dropRight
 
-@docs split, join, repeat
-
-Should the next 4 exist?
-@docs left, right, dropLeft, dropRight, sub
-
-@docs pad, padLeft, padRight
-
-@docs trim, trimLeft, trimRight
-
-@docs words, unwords, lines, unlines
-
+# Check for Substrings
 @docs contains, startsWith, endsWith, indices, indexes
 
+# Conversion To Numbers
 @docs toInt, toFloat
+
+# Formatting
+@docs toUpper, toLower
+
+### Pad
+@docs pad, padLeft, padRight
+
+### Trim
+@docs trim, trimLeft, trimRight
 
 -}
 
