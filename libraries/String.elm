@@ -18,13 +18,11 @@ module String where
 @docs toInt, toFloat
 
 # Formatting
-@docs toUpper, toLower
+Cosmetic operations such as padding with extra characters or trimming whitespace.
 
-### Pad
-@docs pad, padLeft, padRight
-
-### Trim
-@docs trim, trimLeft, trimRight
+@docs toUpper, toLower,
+      pad, padLeft, padRight,
+      trim, trimLeft, trimRight
 
 -}
 
