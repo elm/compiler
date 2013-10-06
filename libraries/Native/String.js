@@ -62,6 +62,23 @@ Elm.Native.String.make = function(elm) {
         }
         return result;
     }
+
+    function sub(start, end, str) {
+        return str.slice(start,end);
+    }
+    function left(n, str) {
+        return n < 1 ? "" : str.slice(0,n);
+    }
+    function right(n, str) {
+        return n < 1 ? "" : str.slice(-n);
+    }
+    function dropLeft(n, str) {
+        return n < 1 ? str : str.slice(n);
+    }
+    function dropRight(n, str) {
+        return n < 1 ? str : str.slice(0,-n);
+    }
+
     function pad(n,chr,str) {
         var half = n - str.length / 2;
         return repeat(Math.ceil(half),chr) + str + repeat(half|0,chr);
@@ -186,6 +203,12 @@ Elm.Native.String.make = function(elm) {
         split: F2(split),
         join: F2(join),
         repeat: F2(repeat),
+
+        sub: F3(sub),
+        left: F2(left),
+        right: F2(right),
+        dropLeft: F2(dropLeft),
+        dropRight: F2(dropRight),
 
         pad: F3(pad),
         padLeft: F3(padLeft),

@@ -5,19 +5,18 @@ module String where
 
 @docs map, filter, reverse, foldl, foldr
 
-@docs split, join
+@docs any, all, toUpper, toLower
 
-@docs repeat
+@docs split, join, repeat
+
+Should the next 4 exist?
+@docs left, right, dropLeft, dropRight, sub
 
 @docs pad, padLeft, padRight
 
 @docs trim, trimLeft, trimRight
 
 @docs words, unwords, lines, unlines
-
-@docs toUpper, toLower
-
-@docs any, all
 
 @docs contains, startsWith, endsWith, indices, indexes
 
@@ -87,6 +86,29 @@ join = Native.String.join
 -}
 repeat : Int -> String -> String
 repeat = Native.String.repeat
+
+sub : Int -> Int -> String -> String
+sub = Native.String.sub
+
+{-|
+-}
+left : Int -> String -> String
+left = Native.String.left
+
+{-|
+-}
+right : Int -> String -> String
+right = Native.String.right
+
+{-|
+-}
+dropLeft : Int -> String -> String
+dropLeft = Native.String.dropLeft
+
+{-|
+-}
+dropRight : Int -> String -> String
+dropRight = Native.String.dropRight
 
 {-|
 -}
