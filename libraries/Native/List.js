@@ -245,8 +245,8 @@ Elm.Native.List.make = function(elm) {
         var arr = [];
         var pattern = [x];
         while (n > 0) {
-            if (n & 1) arr += pattern;
-            n >>= 1, pattern += pattern;
+            if (n & 1) arr = arr.concat(pattern);
+            n >>= 1, pattern = pattern.concat(pattern);
         }
         return fromArray(arr);
     }
