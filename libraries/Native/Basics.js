@@ -6,9 +6,7 @@ Elm.Native.Basics.make = function(elm) {
   if (elm.Native.Basics.values) return elm.Native.Basics.values;
 
   var JS = Elm.Native.JavaScript.make(elm);
-  // var Maybe = Elm.Maybe(elm);
   var Utils = Elm.Native.Utils.make(elm);
-  //var Char = Elm.Char(elm);
 
   function div(a,b) { return (a/b)|0; }
   function rem(a,b) { return a % b; }
@@ -28,43 +26,7 @@ Elm.Native.Basics.make = function(elm) {
   function uncurry(f,v) { return A2(f,v._0,v._1); }
   function fst(t) { return t._0; }
   function snd(t) { return t._1; }
-/*
-  function readInt(str) {
-    var s = JS.fromString(str);
-    var len = s.length;
-    if (len === 0) { return Maybe.Nothing; }
-    var start = 0;
-    if (s[0] == '-') {
-      if (len === 1) { return Maybe.Nothing; }
-      start = 1;
-    }
-    for (var i = start; i < len; ++i) {
-      if (!Char.isDigit(s[i])) { return Maybe.Nothing; }
-    }
-    return Maybe.Just(parseInt(s, 10));
-  }
 
-  function readFloat(str) {
-    var s = JS.fromString(str);
-    var len = s.length;
-    if (len === 0) { return Maybe.Nothing; }
-    var start = 0;
-    if (s[0] == '-') {
-      if (len === 1) { return Maybe.Nothing; }
-      start = 1;
-    }
-    var dotCount = 0;
-    for (var i = start; i < len; ++i) {
-      if (Char.isDigit(s[i])) { continue; }
-      if (s[i] === '.') {
-        dotCount += 1;
-        if (dotCount <= 1) { continue; }
-      }
-      return Maybe.Nothing;
-    }
-    return Maybe.Just(parseFloat(s));
-  }
-*/
   var basics = {
       div:F2(div),
       rem:F2(rem),
@@ -96,9 +58,6 @@ Elm.Native.Basics.make = function(elm) {
       floor:Math.floor,
       round:Math.round,
       toFloat:function(x) { return x; },
-
-      //readInt:readInt,
-      //readFloat:readFloat,
 
       curry:F3(curry),
       uncurry:F2(uncurry),

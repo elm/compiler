@@ -6,6 +6,7 @@ Elm.Native.String.make = function(elm) {
     if ('values' in Elm.Native.String)
         return elm.Native.String.values = Elm.Native.String.values;
 
+    var Char = Elm.Char.make(elm);
     var Maybe = Elm.Maybe.make(elm);
     var JS = Elm.JavaScript.make(elm);
     var Tuple2 = Elm.Native.Utils.make(elm).Tuple2;
@@ -61,14 +62,14 @@ Elm.Native.String.make = function(elm) {
         }
         return result;
     }
-    function center(n,chr,str) {
+    function pad(n,chr,str) {
         var half = n - str.length / 2;
         return repeat(Math.ceil(half),chr) + str + repeat(half|0,chr);
     }
-    function justifyLeft(n,chr,str) {
+    function padRight(n,chr,str) {
         return str + repeat(n - str.length, chr);
     }
-    function justifyRight(n,chr,str) {
+    function padLeft(n,chr,str) {
         return repeat(n - str.length, chr) + str;
     }
 
@@ -115,6 +116,62 @@ Elm.Native.String.make = function(elm) {
         return true;
     }
 
+    function contains(sub, str) {
+        return str.indexOf(sub) > -1;
+    }
+    function startsWith(sub, str) {
+        return str.indexOf(sub) === 0;
+    }
+    function endsWith(sub, str) {
+        return str.lastIndexOf(sub) === str.length - sub.length;
+    }
+    function indexes(sub, str) {
+        var subLen = sub.length;
+        var i = 0;
+        var is = [];
+        while ((i = str.indexOf(sub, i)) > -1) {
+            is.push(i);
+            i = i + subLen;
+        }
+        return JS.toList(is);
+    }
+
+    function toInt(str) {
+        var s = JS.fromString(str);
+        var len = s.length;
+        if (len === 0) { return Maybe.Nothing; }
+        var start = 0;
+        if (s[0] == '-') {
+            if (len === 1) { return Maybe.Nothing; }
+            start = 1;
+        }
+        for (var i = start; i < len; ++i) {
+            if (!Char.isDigit(s[i])) { return Maybe.Nothing; }
+        }
+        return Maybe.Just(parseInt(s, 10));
+    }
+
+    function toFloat(str) {
+        var s = JS.fromString(str);
+        var len = s.length;
+        if (len === 0) { return Maybe.Nothing; }
+        var start = 0;
+        if (s[0] == '-') {
+            if (len === 1) { return Maybe.Nothing; }
+            start = 1;
+        }
+        var dotCount = 0;
+        for (var i = start; i < len; ++i) {
+            if (Char.isDigit(s[i])) { continue; }
+            if (s[i] === '.') {
+                dotCount += 1;
+                if (dotCount <= 1) { continue; }
+            }
+            return Maybe.Nothing;
+        }
+        return Maybe.Just(parseFloat(s));
+    }
+
     return Elm.Native.String.values = {
         isEmpty: isEmpty,
         cons: F2(cons),
@@ -129,9 +186,10 @@ Elm.Native.String.make = function(elm) {
         split: F2(split),
         join: F2(join),
         repeat: F2(repeat),
-        center: F3(center),
-        justifyLeft: F3(justifyLeft),
-        justifyRight: F3(justifyRight),
+
+        pad: F3(pad),
+        padLeft: F3(padLeft),
+        padRight: F3(padRight),
 
         trim: trim,
         trimLeft: trimLeft,
@@ -146,6 +204,14 @@ Elm.Native.String.make = function(elm) {
         toLower: toLower,
 
         any: F2(any),
-        all: F2(all)
+        all: F2(all),
+
+        contains: F2(contains),
+        startsWith: F2(startsWith),
+        endsWith: F2(endsWith),
+        indexes: F2(indexes),
+
+        toInt: toInt,
+        toFloat: toFloat,
     };
 };

@@ -134,3 +134,38 @@ any = Native.String.any
 -}
 all : (Char -> Bool) -> String -> Bool
 all = Native.String.all
+
+{-|
+-}
+contains : String -> String -> Bool
+contains = Native.String.contains
+
+{-|
+-}
+startsWith : String -> String -> Bool
+startsWith = Native.String.startsWith
+
+{-|
+-}
+endsWith : String -> String -> Bool
+endsWith = Native.String.endsWith
+
+{-|
+-}
+indices : String -> String -> [Int]
+indices = Native.String.indexes
+
+{-|
+-}
+indexes : String -> String -> [Int]
+indexes = Native.String.indexes
+
+{-|
+-}
+toInt : String -> Maybe Int
+toInt = Native.String.toInt
+
+{-|
+-}
+toFloat : String -> Maybe Float
+toFloat = Native.String.toFloat
