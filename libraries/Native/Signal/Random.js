@@ -6,6 +6,7 @@ Elm.Native.Random.make = function(elm) {
   if (elm.Native.Random.values) return elm.Native.Random.values;
 
   var Signal = Elm.Signal.make(elm);
+  var List = Elm.Native.List.make(elm);
 
   function range(min, max, signal) {
     function f(x) { return Math.floor(Math.random() * (max-min+1)) + min; }
@@ -17,8 +18,21 @@ Elm.Native.Random.make = function(elm) {
     return A2( Signal.lift, f, signal );
   }
 
+  function flts(signal) {
+    function f(x) {
+      var arr = [];
+      for (var i = x; i > 0; i--) {
+        arr.push(Math.random());
+      }
+      return List.fromArray(arr);
+    }
+    return A2( Signal.lift, f, signal );
+  }
+
   return elm.Native.Random.values = {
       range: F3(range),
-      flt: flt
+      flt: flt,
+      floatList: flts
   };
+
 };
