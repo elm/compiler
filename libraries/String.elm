@@ -1,5 +1,28 @@
 module String where
 {-| A built-in representation of String for effecient string manipulation.
+
+@docs isEmpty, length, cons, uncons
+
+@docs map, filter, reverse, foldl, foldr
+
+@docs split, join
+
+@docs repeat
+
+@docs pad, padLeft, padRight
+
+@docs trim, trimLeft, trimRight
+
+@docs words, unwords, lines, unlines
+
+@docs toUpper, toLower
+
+@docs any, all
+
+@docs contains, startsWith, endsWith, indices, indexes
+
+@docs toInt, toFloat
+
 -}
 
 import Native.String
@@ -67,18 +90,18 @@ repeat = Native.String.repeat
 
 {-|
 -}
-center : Int -> Char -> String -> String
-center = Native.String.center
+pad : Int -> Char -> String -> String
+pad = Native.String.pad
 
 {-|
 -}
-justifyLeft : Int -> Char -> String -> String
-justifyLeft = Native.String.justifyLeft
+padLeft : Int -> Char -> String -> String
+padLeft = Native.String.padLeft
 
 {-|
 -}
-justifyRight : Int -> Char -> String -> String
-justifyRight = Native.String.justifyRight
+padRight : Int -> Char -> String -> String
+padRight = Native.String.padRight
 
 {-|
 -}
