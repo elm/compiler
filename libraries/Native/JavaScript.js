@@ -11,7 +11,7 @@ Elm.Native.JavaScript.make = function(elm) {
       var type = typeof v;
       if (type === 'number' ) return v;
       if (type === 'boolean') return v;
-      if (type === 'string' ) return List.fromArray(v);
+      if (type === 'string' ) return v;
       if (v instanceof Array) {
           var arr = [];
           var len = v.length;
@@ -45,12 +45,8 @@ Elm.Native.JavaScript.make = function(elm) {
       }
       if (type === 'object' && (v.ctor === '::' || v.ctor === '[]')) {
           var array = List.toArray(v);
-          if (typeof array[0] === 'string') {
-              array = array.join('');
-          } else {
-              for (var i = array.length; i--; ) {
-                  array[i] = toJS(array[i]);
-              }
+          for (var i = array.length; i--; ) {
+              array[i] = toJS(array[i]);
           }
           return array;
       }
