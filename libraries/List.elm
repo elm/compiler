@@ -7,7 +7,7 @@ list must have the same type.
 @docs (::), (++), isEmpty, length, reverse, map
 
 # Sub-lists
-@docs head, tail, last, init, filter, take, drop
+@docs head, tail, last, init, filter, take, takeWhile, drop
 
 # Putting Lists Together
 @docs concat, concatMap, join, intersperse, zip, zipWith
@@ -226,6 +226,12 @@ intersperse sep xs =
 {-| Take the first n members of a list: `(take 2 [1,2,3,4] == [1,2])` -}
 take : Int -> [a] -> [a]
 take = Native.List.take
+
+{-| Takes the elements while the given predicate holds:
+    `(takeWhile (\n -> n < 5) [1..10] == [1..4])`
+-}
+takeWhile : (a -> Bool) -> [a] -> [a]
+takeWhile = Native.List.takeWhile
 
 {-| Drop the first n members of a list: `(drop 2 [1,2,3,4] == [3,4])` -}
 drop : Int -> [a] -> [a]
