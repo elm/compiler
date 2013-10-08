@@ -21,3 +21,10 @@ The new values are random numbers in [0..1).
 -}
 float : Signal a -> Signal Float
 float = Native.Random.flt
+
+{-| Produces a new signal of lists that changes whenever the input signal
+changes. The input signal specifies the length of the random list. Each value is
+a random number in [0..1).
+-}
+floatList : Signal Int -> Signal [Float]
+floatList = Native.Random.floatList
