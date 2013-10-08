@@ -20,9 +20,9 @@ Elm.Native.Random.make = function(elm) {
 
   function flts(signal) {
     function f(x) {
-      var arr = [];
-      for (var i = x; i > 0; i--) {
-        arr.push(Math.random());
+      var arr = new Array(Math.max(0,x));
+      for (var i = 0; i < x; i++) {
+        arr[i] = Math.random();
       }
       return List.fromArray(arr);
     }
