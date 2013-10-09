@@ -255,7 +255,7 @@ match span mtch =
     Case.Fail ->
         return [ ExprStmt () (obj "_E.Case" `call` [ref "$moduleName", string (show span)]) ]
 
-    Case.Break -> return []
+    Case.Break -> return [BreakStmt () Nothing]
     Case.Other e ->
         do e' <- expression e
            return [ ReturnStmt () (Just e') ]
