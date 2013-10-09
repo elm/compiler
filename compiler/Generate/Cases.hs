@@ -1,4 +1,4 @@
-module Generate.Cases (caseToMatch, Match (..), Clause (..), matchSubst) where
+module Generate.Cases (toMatch, Match (..), Clause (..), matchSubst) where
 
 import Control.Applicative ((<$>),(<*>))
 import Control.Arrow (first,second)
@@ -13,8 +13,8 @@ import SourceSyntax.Expression
 import Transform.Substitute
 
 
-caseToMatch :: [(Pattern, LExpr t v)] -> State Int (String, Match t v)
-caseToMatch patterns = do
+toMatch :: [(Pattern, LExpr t v)] -> State Int (String, Match t v)
+toMatch patterns = do
   v <- newVar
   (,) v <$> match [v] (map (first (:[])) patterns) Fail
 

@@ -8,7 +8,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Text.Pandoc as Pan
 
-import Generate.Cases
+import qualified Generate.Cases as Case
 import SourceSyntax.Everything
 import SourceSyntax.Location
 import qualified Transform.SortDefinitions as SD
@@ -166,10 +166,10 @@ expression (L span expr) =
             iff (if', then') else' = CondExpr () if' then' else'
 
       Case e cases ->
-          do (tempVar,initialMatch) <- caseToMatch cases
+          do (tempVar,initialMatch) <- Case.toMatch cases
              (revisedMatch, stmt) <-
                  case e of
-                   L _ (Var x) -> return (matchSubst [(tempVar,x)] initialMatch, [])
+                   L _ (Var x) -> return (Case.matchSubst [(tempVar,x)] initialMatch, [])
                    _ -> do e' <- expression e
                            return (initialMatch, [VarDeclStmt () [varDecl tempVar e']])
              match' <- match span revisedMatch
@@ -239,33 +239,36 @@ definition def =
               toDef y = definition $
                         Def (PVar y) (L span $ Case (mkVar "$") [(pattern, mkVar y)])
 
+match :: (Show a) => a -> Case.Match () () -> State Int [Statement ()]
 match span mtch =
   case mtch of
-    Match name clauses mtch' ->
+    Case.Match name clauses mtch' ->
         do clauses' <- mapM (clause span name) clauses
            mtch'' <- match span mtch'
            return (SwitchStmt () (access name) clauses' : mtch'')
         where
           isLiteral p = case p of
-                          Clause (Right _) _ _ -> True
+                          Case.Clause (Right _) _ _ -> True
                           _ -> False
           access name = if any isLiteral clauses then ref name else dotSep [name,"ctor"]
 
-    Fail -> return [ ExprStmt () (obj "_E.Case" `call` [ref "$moduleName", string (show span)]) ]
-    Break -> return []
-    Other e ->
+    Case.Fail ->
+        return [ ExprStmt () (obj "_E.Case" `call` [ref "$moduleName", string (show span)]) ]
+
+    Case.Break -> return []
+    Case.Other e ->
         do e' <- expression e
            return [ ReturnStmt () (Just e') ]
-    Seq ms -> concat <$> mapM (match span) (dropEnd [] ms)
+    Case.Seq ms -> concat <$> mapM (match span) (dropEnd [] ms)
         where
           dropEnd acc [] = acc
           dropEnd acc (m:ms) =
               case m of
-                Other _ -> acc ++ [m]
+                Case.Other _ -> acc ++ [m]
                 _ -> dropEnd (acc ++ [m]) ms
 
-clause span variable (Clause value vars mtch) =
-    CaseClause () pattern <$> match span (matchSubst (zip vars vars') mtch)
+clause span variable (Case.Clause value vars mtch) =
+    CaseClause () pattern <$> match span (Case.matchSubst (zip vars vars') mtch)
   where
     vars' = map (\n -> variable ++ "._" ++ show n) [0..]
     pattern = case value of
