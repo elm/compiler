@@ -118,7 +118,7 @@ buildFile flags moduleNum numModules interfaces filePath =
             then return False
             else do tsrc <- getModificationTime filePath
                     tint <- getModificationTime (elmo flags filePath)
-                    return (tsrc < tint)
+                    return (tsrc <= tint)
 
       number :: String
       number = "[" ++ show moduleNum ++ " of " ++ show numModules ++ "]"
