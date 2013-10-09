@@ -1,5 +1,5 @@
 module String where
-{-| A built-in representation of String for effecient string manipulation.
+{-| A built-in representation for efficient string manipulation.
 
 # Basics
 @docs isEmpty, length, cons, uncons, reverse,
