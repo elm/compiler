@@ -5,7 +5,7 @@ Elm.Native.Text.make = function(elm) {
     if (elm.Native.Text.values) return elm.Native.Text.values;
 
     var JS = Elm.JavaScript.make(elm);
-    var htmlHeight = Elm.Native.Utils.make(elm).htmlHeight;
+    var Utils = Elm.Native.Utils.make(elm);
     var Color = Elm.Native.Color.make(elm);
     var Element = Elm.Graphics.Element.make(elm);
     var show = Elm.Native.Show.make(elm).show;
@@ -51,15 +51,16 @@ Elm.Native.Text.make = function(elm) {
         return arr.join('<br/>');
     }
 
-    function toText(str) { return properEscape(JS.fromString(str)); }
+    function toText(str) { return Utils.txt(properEscape(JS.fromString(str))); }
 
-    function addTag(tag) { return function(text) {
-        return '<' + tag + ' style="padding:0;margin:0">' + text + '</' + tag + '>';
+    function addTag(tag) {
+        return function(text) {
+            return Utils.txt('<' + tag + '>' + text + '</' + tag + '>');
+        }
     }
-                         }
     
     function addStyle(style, value, text) {
-        return "<span style='" + style + ":" + value + "'>" + text + "</span>";
+        return Utils.txt("<span style='" + style + ":" + value + "'>" + text + "</span>");
     }
 
     function typeface(name, text) {
@@ -75,8 +76,8 @@ Elm.Native.Text.make = function(elm) {
     var bold = addTag('b');
 
     function extract(c) {
-        if (c._3 === 1) { return 'rgb(' + c._0 + ',' + c._1 + ',' + c._2 + ')'; }
-        return 'rgba(' + c._0 + ',' + c._1 + ',' + c._2 + ',' + c._3 + ')';
+        if (c._3 === 1) { return 'rgb(' + c._0 + ', ' + c._1 + ', ' + c._2 + ')'; }
+        return 'rgba(' + c._0 + ', ' + c._1 + ', ' + c._2 + ', ' + c._3 + ')';
     }
     function color(c, text) {
         return addStyle('color', extract(c), text);
@@ -87,7 +88,7 @@ Elm.Native.Text.make = function(elm) {
         return addStyle('text-decoration', 'line-through', text);
     }
     function link(href, text) {
-        return "<a href='" + toText(href) + "'>" + text + "</a>";
+        return Utils.txt("<a href='" + toText(href) + "'>" + text + "</a>");
     }
 
     function position(pos) {
@@ -96,7 +97,7 @@ Elm.Native.Text.make = function(elm) {
 	             _0: '<div style="padding:0;margin:0;text-align:' +
                      pos + '">' + text + '</div>'
                     };
-            var p = A2(htmlHeight, 0, text);
+            var p = A2(Utils.htmlHeight, 0, text);
             return A3(Element.newElement, p._0, p._1, e);
         }
     }
@@ -132,5 +133,4 @@ Elm.Native.Text.make = function(elm) {
 
         asText : asText
     };
-
 };

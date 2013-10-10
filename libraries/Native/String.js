@@ -9,7 +9,7 @@ Elm.Native.String.make = function(elm) {
     var Char = Elm.Char.make(elm);
     var Maybe = Elm.Maybe.make(elm);
     var JS = Elm.JavaScript.make(elm);
-    var Tuple2 = Elm.Native.Utils.make(elm).Tuple2;
+    var Utils = Elm.Native.Utils.make(elm);
 
     function isEmpty(str) {
         return str.length === 0;
@@ -18,8 +18,8 @@ Elm.Native.String.make = function(elm) {
         return chr + str;
     }
     function uncons(str) {
-        var chr;
-        return (chr = str[0]) ? Maybe.Just(Tuple2(chr, str.slice(1)))
+        var hd;
+        return (hd = str[0]) ? Maybe.Just(Utils.Tuple2(Utils.chr(hd), str.slice(1)))
                               : Maybe.Nothing;
     }
     function length(str) {
@@ -54,11 +54,11 @@ Elm.Native.String.make = function(elm) {
     function join(sep, strs) {
         return JS.fromList(strs).join(sep);
     }
-    function repeat(n, chr) {
+    function repeat(n, str) {
         var result = '';
         while (n > 0) {
-            if (n & 1) result += chr;
-            n >>= 1, chr += chr;
+            if (n & 1) result += str;
+            n >>= 1, str += str;
         }
         return result;
     }
@@ -103,14 +103,8 @@ Elm.Native.String.make = function(elm) {
     function words(str) {
         return JS.toList(str.split(/\s+/g));
     }
-    function unwords(str) {
-        return JS.fromList(str).join(' ');
-    }
     function lines(str) {
         return JS.toList(str.split(/\r\n|\r|\n/g));
-    }
-    function unlines(str) {
-        return JS.fromList(str).join('\n');
     }
 
     function toUpper(str) {
@@ -219,9 +213,7 @@ Elm.Native.String.make = function(elm) {
         trimRight: trimRight,
 
         words: words,
-        unwords: unwords,
         lines: lines,
-        unlines: unlines,
 
         toUpper: toUpper,
         toLower: toLower,

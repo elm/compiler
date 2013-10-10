@@ -62,7 +62,7 @@ internalImports name =
 
 literal lit =
   case lit of
-    Chr c -> string [c]
+    Chr c -> obj "_N.chr" <| string [c]
     Str s -> string s
     IntNum   n -> IntLit () n
     FloatNum n -> NumLit () n

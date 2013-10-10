@@ -6,7 +6,7 @@ module String where
       map, filter, foldl, foldr, any, all, repeat
 
 # Split and Join
-@docs split, join, words, unwords, lines, unlines
+@docs split, join, words, lines
 
 # Get Substrings
 @docs sub, left, right, dropLeft, dropRight
@@ -23,7 +23,6 @@ Cosmetic operations such as padding with extra characters or trimming whitespace
 @docs toUpper, toLower,
       pad, padLeft, padRight,
       trim, trimLeft, trimRight
-
 -}
 
 import Native.String
@@ -149,18 +148,8 @@ words = Native.String.words
 
 {-|
 -}
-unwords : [String] -> String
-unwords = Native.String.unwords
-
-{-|
--}
 lines : String -> [String]
 lines = Native.String.lines
-
-{-|
--}
-unlines : [String] -> String
-unlines = Native.String.unlines
 
 {-|
 -}

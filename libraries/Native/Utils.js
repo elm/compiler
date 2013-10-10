@@ -60,6 +60,18 @@ Elm.Native.Utils.make = function(elm) {
     var Tuple0 = { ctor: "_Tuple0" };
     function Tuple2(x,y) { return { ctor:"_Tuple2", _0:x, _1:y } }
 
+    function chr(c) {
+        var x = new String(c);
+        x.isChar = true;
+        return x;
+    }
+
+    function txt(str) {
+        var t = new String(str);
+        t.isText = true;
+        return t;
+    }
+
     var count = 0;
     function guid(_) { return count++ }
 
@@ -149,6 +161,8 @@ Elm.Native.Utils.make = function(elm) {
         compare:F2(compare),
         Tuple0:Tuple0,
         Tuple2:Tuple2,
+        chr:chr,
+        txt:txt,
         copy: copy,
         remove: remove,
         replace: replace,
