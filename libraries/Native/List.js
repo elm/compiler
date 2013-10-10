@@ -53,10 +53,8 @@ Elm.Native.List.make = function(elm) {
     }
 
     function append(xs,ys) {
-        if (typeof xs === "string") {
-            if (xs.isText) return Utils.txt(xs.concat(ys));
-            return xs.concat(ys);
-        }
+        if (xs.isText) return Utils.txt(xs.concat(ys));
+        if (typeof xs === "string") return xs.concat(ys);
         if (xs.ctor === '[]') { return ys; }
         var root = Cons(xs._0, Nil);
         var curr = root;
