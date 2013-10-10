@@ -253,6 +253,7 @@ Elm.Native.List.make = function(elm) {
     }
 
     function join(sep, xss) {
+        if (sep.isText) return Utils.txt(toArray(xss).join(sep));
         if (typeof sep === 'string') return toArray(xss).join(sep);
         if (xss.ctor === '[]') return Nil;
         var s = toArray(sep);
