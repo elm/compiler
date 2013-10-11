@@ -38,8 +38,10 @@ serveElm :: FilePath -> ServerPartT IO Response
 serveElm fp = do
   guard (takeExtension fp == ".elm")
   let file = tail fp
-      args = [ "--make" ,"--runtime=" ++ runtime, "--cache-dir=elm-server-cache", file ]
-  (_, stdout, _, handle) <- liftIO $ createProcess $ (proc "elm" args) { std_out = CreatePipe }
+      args = [ "--make" ,"--runtime=" ++ runtime,
+               "--cache-dir=elm-server-cache", file ]
+  (_, stdout, _, handle) <- liftIO $ createProcess $
+                            (proc "elm" args) { std_out = CreatePipe }
   exitCode <- liftIO $ waitForProcess handle
   liftIO $ removeDirectoryRecursive "elm-server-cache"
   case (exitCode, stdout) of
@@ -49,7 +51,8 @@ serveElm fp = do
     (ExitFailure _, Nothing) ->
         badRequest $ toResponse "See command line for error message."
     (ExitSuccess, _) ->
-        serveFile (asContentType "text/html") ("build" </> replaceExtension file "html")
+        serveFile
+        (asContentType "text/html") ("build" </> replaceExtension file "html")
 
 serveLib :: FilePath -> [Char] -> ServerPartT IO Response
 serveLib libLoc fp = do
@@ -73,7 +76,10 @@ parse args =
 
     argValue arg = tail $ dropWhile (/= '=') (head arg)
     portNumber = if null portArg then 8000 else read (argValue portArg) :: Int
-    elmRuntime = if null runtimeArg then Elm.runtime else return $ argValue runtimeArg
+    elmRuntime = if null runtimeArg then
+                     Elm.runtime
+                 else
+                     return $ argValue runtimeArg
 
 usageMini :: String
 usageMini =
