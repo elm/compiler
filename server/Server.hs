@@ -1,7 +1,7 @@
 
 module Main where
 
-import Control.Monad (msum,guard)
+import Control.Monad (msum,guard,when)
 import Control.Monad.Trans (MonadIO(liftIO))
 import Data.List (isPrefixOf, isSuffixOf, (\\))
 import Data.Version (showVersion)
@@ -34,17 +34,23 @@ serve portNumber libLoc = do
 pageTitle :: String -> String
 pageTitle = dropExtension . takeBaseName
 
+defaultCacheDirectory = "elm-server-cache"
+
 serveElm :: FilePath -> ServerPartT IO Response
 serveElm fp = do
-  guard (takeExtension fp == ".elm")
-  let file = tail fp
-      args = [ "--make" ,"--runtime=" ++ runtime,
-               "--cache-dir=elm-server-cache", file ]
+  fileExists <- liftIO $ doesFileExist file
+  guard $ fileExists && takeExtension fp == ".elm"
+
   (_, stdout, _, handle) <- liftIO $ createProcess $
                             (proc "elm" args) { std_out = CreatePipe }
   exitCode <- liftIO $ waitForProcess handle
-  liftIO $ removeDirectoryRecursive "elm-server-cache"
+
+  dirExists <- liftIO $ doesDirectoryExist defaultCacheDirectory
+  when dirExists $ liftIO $ removeDirectoryRecursive defaultCacheDirectory
+
   case (exitCode, stdout) of
+    (ExitFailure 127, _) ->
+        badRequest $ toResponse "Error: elm binary not found in your path."
     (ExitFailure _, Just out) ->
         do str <- liftIO $ hGetContents out
            badRequest $ toResponse str
@@ -53,6 +59,10 @@ serveElm fp = do
     (ExitSuccess, _) ->
         serveFile
         (asContentType "text/html") ("build" </> replaceExtension file "html")
+
+  where file = tail fp
+        args = [ "--make" ,"--runtime=" ++ runtime,
+                 "--cache-dir=" ++ defaultCacheDirectory, file ]
 
 serveLib :: FilePath -> [Char] -> ServerPartT IO Response
 serveLib libLoc fp = do
