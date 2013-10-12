@@ -1,4 +1,3 @@
-
 module Main where
 
 import Control.Monad (msum,guard,when)
@@ -64,7 +63,7 @@ serveElm fp = do
         args = [ "--make" ,"--runtime=" ++ runtime,
                  "--cache-dir=" ++ defaultCacheDirectory, file ]
 
-serveLib :: FilePath -> [Char] -> ServerPartT IO Response
+serveLib :: FilePath -> String -> ServerPartT IO Response
 serveLib libLoc fp = do
   guard (fp == runtime)
   serveFile (asContentType "application/javascript") libLoc
@@ -76,9 +75,11 @@ parse :: [String] -> IO ()
 parse ("--help":_) = putStrLn usage
 parse ("--version":_) = putStrLn ("The Elm Server " ++ showVersion version)
 parse args =
-  case null remainingArgs of
-    True -> serve portNumber =<< elmRuntime
-    False -> putStrLn usageMini
+  if null remainingArgs then
+      serve portNumber =<< elmRuntime
+  else
+      putStrLn usageMini
+
   where
     runtimeArg = filter (isPrefixOf "--runtime-location=") args
     portArg = filter (isPrefixOf "--port=") args
