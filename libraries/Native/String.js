@@ -49,7 +49,7 @@ Elm.Native.String.make = function(elm) {
     }
 
     function split(sep, str) {
-        return str.split(sep);
+        return JS.toList(str.split(sep));
     }
     function join(sep, strs) {
         return JS.fromList(strs).join(sep);
