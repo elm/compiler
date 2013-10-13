@@ -138,21 +138,26 @@ Elm.Native.Utils.make = function(elm) {
         return Tuple2(w,h);
     }
 
-    function adjustOffset() {
-        var node = elm.node;
-        var offsetX = 0, offsetY = 0;
-        if (node.offsetParent) {
-            do {
-                offsetX += node.offsetLeft;
-                offsetY += node.offsetTop;
-            } while (node = node.offsetParent);
+    function getXY(e) {
+        var posx = 0;
+        var posy = 0;
+        if (e.pageX || e.pageY) {
+            posx = e.pageX;
+            posy = e.pageY;
+        } else if (e.clientX || e.clientY) {
+            posx = e.clientX + document.body.scrollLeft + document.documentElement.scrollLeft;
+            posy = e.clientY + document.body.scrollTop + document.documentElement.scrollTop;
         }
-        elm.node.offsetX = offsetX;
-        elm.node.offsetY = offsetY;
-    }
 
-    if (elm.display === ElmRuntime.Display.COMPONENT) {
-        elm.addListener(elm.inputs, elm.node, 'mouseover', adjustOffset);
+        if (elm.display === ElmRuntime.Display.COMPONENT) {
+            var rect = elm.node.getBoundingClientRect();
+            var relx = rect.left + document.body.scrollLeft + document.documentElement.scrollLeft;
+            var rely = rect.top + document.body.scrollTop + document.documentElement.scrollTop;
+            // TODO: figure out if there is a way to avoid rounding here
+            posx = posx - Math.round(relx) - elm.node.clientLeft;
+            posy = posy - Math.round(rely) - elm.node.clientTop;
+        }
+        return Tuple2(posx, posy);
     }
 
     return elm.Native.Utils.values = {
@@ -172,6 +177,7 @@ Elm.Native.Utils.make = function(elm) {
         min : F2(min),
         mod : F2(mod),
         htmlHeight: F2(htmlHeight),
-        toFloat: function(x){return x}
+        getXY: getXY,
+        toFloat: function(x) { return +x; }
     };
 };

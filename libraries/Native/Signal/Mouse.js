@@ -23,22 +23,6 @@ Elm.Native.Mouse.make = function(elm) {
     var isClicked = Signal.constant(false);
     var clicks = Signal.constant(Utils.Tuple0);
 
-    function getXY(e) {
-        var posx = 0;
-        var posy = 0;
-        if (!e) e = window.event;
-        if (e.pageX || e.pageY) {
-	    posx = e.pageX;
-	    posy = e.pageY;
-        } else if (e.clientX || e.clientY) 	{
-	    posx = e.clientX + document.body.scrollLeft +
-	        document.documentElement.scrollLeft;
-	    posy = e.clientY + document.body.scrollTop +
-	        document.documentElement.scrollTop;
-        }
-        return Utils.Tuple2(posx-elm.node.offsetX, posy-elm.node.offsetY);
-    }
-
     var node = elm.display === ElmRuntime.Display.FULLSCREEN ? document : elm.node;
 
     elm.addListener([isClicked.id, clicks.id], node, 'click', function click() {
@@ -53,7 +37,7 @@ Elm.Native.Mouse.make = function(elm) {
         elm.notify(isDown.id, false);
     });
     elm.addListener([position.id], node, 'mousemove', function move(e) {
-        elm.notify(position.id, getXY(e));
+        elm.notify(position.id, Utils.getXY(e));
     });
 
     return elm.Native.Mouse.values = {

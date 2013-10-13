@@ -41,9 +41,6 @@ function init(display, container, module, moduleToReplace) {
       return changed;
   }
 
-  container.offsetX = 0;
-  container.offsetY = 0;
-
   var listeners = [];
   function addListener(relevantInputs, domNode, eventName, func) {
       domNode.addEventListener(eventName, func);

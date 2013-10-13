@@ -7,7 +7,7 @@ Elm.Native.Touch.make = function(elm) {
 
     var Signal = Elm.Signal.make(elm);
     var JS = Elm.JavaScript.make(elm);
-    var _ = Elm.Native.Utils.make(elm);
+    var Utils = Elm.Native.Utils.make(elm);
 
     function Dict() {
         this.keys = [];
@@ -43,10 +43,11 @@ Elm.Native.Touch.make = function(elm) {
 
     function touch(t) {
         var r = dict.lookup(t.identifier);
+        var point = Utils.getXY(t);
         return {_ : {},
 	        id: t.identifier,
-	        x : t.pageX - elm.node.offsetX,
-	        y : t.pageY - elm.node.offsetY,
+	        x : point._0,
+	        y : point._1,
 	        x0: r.x,
 	        y0: r.y,
 	        t0: r.t
@@ -56,9 +57,10 @@ Elm.Native.Touch.make = function(elm) {
     var node = elm.display === ElmRuntime.Display.FULLSCREEN ? document : elm.node;
 
     function start(e) {
+        var point = Utils.getXY(e);
         dict.insert(e.identifier,
-                    {x: e.pageX - elm.node.offsetX,
-                     y: e.pageY - elm.node.offsetY,
+                    {x: point._0,
+                     y: point._1,
                      t: Date.now()});
     }
     function end(e) {
@@ -88,10 +90,11 @@ Elm.Native.Touch.make = function(elm) {
 
     var mouseID = -1;
     function move(e) {
+        var point = Utils.getXY(e);
         for (var i = root.value.length; i--; ) {
             if (root.value[i].id === mouseID) {
-                root.value[i].x = e.pageX - elm.node.offsetX;
-                root.value[i].y = e.pageY - elm.node.offsetY;
+                root.value[i].x = point._0;
+                root.value[i].y = point._1;
                 elm.notify(root.id, root.value);
                 break;
             }
