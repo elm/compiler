@@ -1,4 +1,6 @@
-module Automaton where
+module Automaton ( pure, state, hiddenState, run, step
+                 , (<<<), (>>>), combine, count, average
+                 ) where
 
 {-| This library is a way to package up dynamic behavior. It makes it easier to
 dynamically create dynamic components. See the [original release
