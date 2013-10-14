@@ -77,10 +77,13 @@ Elm.Native.Keyboard.make = function(elm) {
 
   function keySignal(f) {
     var signal = A2(Signal.lift, f, keysDown);
-    // what's the significance of these two following lines? -jpm
+    // must set the default number of kids to make it possible to filter
+    // these signals if they are not actually used.
     keysDown.defaultNumberOfKids += 1;
-    signal.defaultNumberOfKids = 0;
-    return signal;
+    signal.defaultNumberOfKids = 1;
+    var filtered = Signal.dropRepeats(signal)
+    filtered.defaultNumberOfKids = 0;
+    return filtered;
   }
 
   function dir(up, down, left, right) {
