@@ -69,8 +69,10 @@ docComment = do
   return $ dropWhile (==' ') (reverse reversed)
 
 moduleDocs = do
-  (names,exports) <- anyThen moduleDef
-  anyThen (lookAhead (string "{-|"))
+  optional freshLine
+  (names,exports) <- moduleDef
+  manyTill (string " " <|> newline <?> "more whitespace")
+           (lookAhead (string "{-|") <?> "module documentation comment")
   structure <- docComment
   return (List.intercalate "." names, exports, structure)
 
