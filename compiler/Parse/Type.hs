@@ -34,7 +34,7 @@ record =
                t <- tvar
                whitespace >> string "|" >> whitespace
                return t
-    fields = commaSep $ do
+    fields = commaSep1 $ do
                lbl <- rLabel
                whitespace >> hasType >> whitespace
                (,) lbl <$> expr
