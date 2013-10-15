@@ -9,6 +9,7 @@ import qualified Data.Map as Map
 import SourceSyntax.Helpers as Help
 import SourceSyntax.Location as Location
 import SourceSyntax.Expression
+import SourceSyntax.PrettyPrint
 import SourceSyntax.Declaration (Assoc)
 import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
@@ -165,12 +166,17 @@ parens   = surround '(' ')' "paren"
 brackets :: IParser a -> IParser a
 brackets = surround '{' '}' "bracket"
 
-addLocation :: IParser (Expr t v) -> IParser (LExpr t v)
+addLocation :: (Pretty a) => IParser a -> IParser (Location.Located a)
 addLocation expr = do
-  start <- getPosition
-  e <- expr
-  end <- getPosition
+  (start, e, end) <- located expr
   return (Location.at start end e)
+
+located :: IParser a -> IParser (SourcePos, a, SourcePos)
+located p = do
+  start <- getPosition
+  e <- p
+  end <- getPosition
+  return (start, e, end)
 
 accessible :: IParser (LExpr t v) -> IParser (LExpr t v)
 accessible expr = do

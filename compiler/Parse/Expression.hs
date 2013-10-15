@@ -32,17 +32,14 @@ toVar v = case v of "True"  -> Literal (Literal.Boolean True)
 
 accessor :: IParser (Expr t v)
 accessor = do
-  start <- getPosition
-  lbl <- try (string "." >> rLabel)
-  end <- getPosition
+  (start, lbl, end) <- located (try (string "." >> rLabel))
   let loc e = Location.at start end e
   return (Lambda (PVar "_") (loc $ Access (loc $ Var "_") lbl))
 
 negative :: IParser (Expr t v)
 negative = do
-  start <- getPosition
-  nTerm <- try (char '-' >> notFollowedBy (char '.' <|> char '-')) >> term
-  end <- getPosition
+  (start, nTerm, end) <-
+      located (try (char '-' >> notFollowedBy (char '.' <|> char '-')) >> term)
   let loc e = Location.at start end e
   return (Binop "-" (loc $ Literal (Literal.IntNum 0)) nTerm)
 
@@ -77,29 +74,24 @@ parensTerm :: IParser (LExpr t v)
 parensTerm = try (parens opFn) <|> parens (tupleFn <|> parened)
   where
     opFn = do
-      start <- getPosition
-      op <- anyOp
-      end <- getPosition
+      (start, op, end) <- located anyOp
       let loc = Location.at start end
       return . loc . Lambda (PVar "x") . loc . Lambda (PVar "y") . loc $
              Binop op (loc $ Var "x") (loc $ Var "y")
 
     tupleFn = do
-      start <- getPosition
       let comma = char ',' <?> "comma ','"
-      commas <- comma >> many (whitespace >> comma)
-      end <- getPosition
+      (start, commas, end) <- located (comma >> many (whitespace >> comma))
       let vars = map (('v':) . show) [ 0 .. length commas + 1 ]
           loc = Location.at start end
       return $ foldr (\x e -> loc $ Lambda x e)
                  (loc . tuple $ map (loc . Var) vars) (map PVar vars)
     
     parened = do
-      start <- getPosition
-      es <- commaSep expr
-      end <- getPosition
-      return $ case es of [e] -> e
-                          _   -> Location.at start end (tuple es)
+      (start, es, end) <- located (commaSep expr)
+      return $ case es of
+                 [e] -> e
+                 _   -> Location.at start end (tuple es)
 
 recordTerm :: IParser (LExpr t v)
 recordTerm = brackets $ choice [ misc, addLocation record ]
