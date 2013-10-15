@@ -21,13 +21,11 @@ subst old new expr =
       MultiIf ps -> MultiIf (map (f *** f) ps)
 
       Let defs body
-          | any hasShadow defs -> expr
+          | anyShadow -> expr
           | otherwise -> Let (map substDef defs) (f body)
         where
-          hasShadow def =
-              case def of
-                TypeAnnotation _ _ -> False
-                Def pattern _ -> Set.member old (SD.boundVars pattern)
+          anyShadow =
+              any (Set.member old . SD.boundVars) [ p | Def p _ <- defs ]
           substDef def =
               case def of
                 TypeAnnotation _ _ -> def
