@@ -39,7 +39,7 @@ buildFromSource noPrelude interfaces source =
              | null exs =
                  let get = Set.toList . SD.boundVars in
                  concat [ get pattern | Definition (Def pattern _) <- decls ] ++
-                 concat [ name : map fst ctors | Datatype name _ ctors <- decls ] ++
+                 concat [ map fst ctors | Datatype _ _ ctors <- decls ] ++
                  [ name | TypeAlias name _ (Type.Record _ _) <- decls ]
              | otherwise = exs
 
