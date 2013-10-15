@@ -146,7 +146,7 @@ buildFile flags moduleNum numModules interfaces filePath =
                     True -> print . pretty $ program modul
                   return modul
         
-        if print_types flags then printTypes interfaces metaModule else return ()
+        when (print_types flags) (printTypes interfaces metaModule)
         let interface = Canonical.interface name $ ModuleInterface {
                           iTypes = types metaModule,
                           iAdts = datatypes metaModule,
