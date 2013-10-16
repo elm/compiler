@@ -69,7 +69,7 @@ isEmpty xs =
 map : (a -> b) -> [a] -> [b]
 map = Native.List.map
 
-{-| Reduce a list from the left: `(foldl (::) [] "gateman" == "nametag")` -}
+{-| Reduce a list from the left: `(foldl (::) [] [1,2,3] == [3,2,1])` -}
 foldl : (a -> b -> b) -> b -> [a] -> b
 foldl = Native.List.foldl
 
@@ -100,12 +100,12 @@ scanl1 : (a -> a -> a) -> [a] -> [a]
 scanl1 = Native.List.scanl1
 
 {-| Keep only elements that satisfy the predicate:
-`(filter isLower "AaBbCc" == "abc")`
+`(filter isEven [1..6] == [2,4,6])`
 -}
 filter : (a -> Bool) -> [a] -> [a]
 filter = Native.List.filter
 
-{-| Determine the length of a list: `(length "innumerable" == 11)` -}
+{-| Determine the length of a list: `(length [1,2,3] == 3)` -}
 length : [a] -> Int
 length = Native.List.length
 
@@ -131,7 +131,8 @@ or = foldl (||) False
 
 {-| Concatenate a list of appendable things:
 
-      concat ["tree","house"] == "treehouse"
+      concat [[1,2],[3],[4,5]] == [1,2,3,4,5]
+      concat ["tree","house"]  == "treehouse"
 -}
 concat : [appendable] -> appendable
 concat = Native.List.concat
@@ -201,7 +202,7 @@ join = Native.List.join
 
 {-| Places the given value between all members of the given list.
 
-      intersperse ' ' "INCEPTION" == "I N C E P T I O N"
+      intersperse "on" ["turtles","turtles","turtles"] == ["turtles","on","turtles","on","turtles"]
 -}
 intersperse : a -> [a] -> [a]
 intersperse sep xs =

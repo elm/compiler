@@ -12,7 +12,7 @@ module String where
 @docs sub, left, right, dropLeft, dropRight
 
 # Check for Substrings
-@docs contains, startsWith, endsWith, indices, indexes
+@docs contains, startsWith, endsWith, indexes, indices
 
 # Conversion To Numbers
 @docs toInt, toFloat
@@ -28,38 +28,42 @@ Cosmetic operations such as padding with extra characters or trimming whitespace
 import Native.String
 import Maybe (Maybe)
 
-{-|
--}
+{-| Check if a string is empty `(isEmpty "" == True)` -}
 isEmpty : String
 isEmpty = Native.String.isEmpty
 
-{-|
--}
+{-| Add a character to the beginning of a string -}
 cons : Char -> String -> String
 cons = Native.String.cons
 
-{-|
+{-| Split a non-empty string into its head and tail. This lets you
+pattern match on strings exactly as you would with lists.
+
+      uncons "abc" == Just ('a',"bc")
+      uncons ""    == Nothing
 -}
 uncons : String -> Maybe (Char, String)
 uncons = Native.String.uncons
 
-{-|
--}
+{-| Get the length of a string `(length "innumerable" == 11)` -}
 length : String -> Int
 length = Native.String.length
 
-{-|
+{-| Transform every character in a string
+
+      map (\c -> if c == '/' then '.' else c) "a/b/c" == "a.b.c"
 -}
 map : (Char -> Char) -> String -> String
 map = Native.String.map
 
-{-|
+{-| Keep only the characters that satisfy the predicate:
+
+      filter isDigit "R2-D2" == "22"
 -}
 filter : (Char -> Bool) -> String -> String
 filter = Native.String.filter
 
-{-|
--}
+{-| Reverse a string. `(reverse "stressed" == "desserts")` -}
 reverse : String -> String
 reverse = Native.String.reverse
 
@@ -73,135 +77,197 @@ foldl = Native.String.foldl
 foldr : (Char -> b -> b) -> b -> String -> b
 foldr = Native.String.foldr
 
-{-|
+{-| Split a string using a given separator.
+
+      split "," "cat,dog,cow"        == ["cat","dog","cow"]
+      split "/" "home/evan/Desktop/" == ["home","evan","Desktop"]
 -}
 split : String -> String -> [String]
 split = Native.String.split
 
-{-|
+{-| Put many strings together with a given separator.
+
+      join " " ["cat","dog","cow"]       == "cat dog cow"
+      join "/" ["home","evan","Desktop"] == "home/evan/Desktop"
 -}
 join : String -> [String] -> String
 join = Native.String.join
 
-{-|
--}
+{-| Repeat a string N times `(repeat 3 "ha" == "hahaha")` -}
 repeat : Int -> String -> String
 repeat = Native.String.repeat
 
+{-| Take a substring given a start and end index. Negative indexes
+are taken starting from the *end* of the list.
+
+      sub  7  9 "snakes on a plane!" == "on"
+      sub  0  6 "snakes on a plane!" == "snakes"
+      sub  0 -7 "snakes on a plane!" == "snakes on a"
+      sub -6 -1 "snakes on a plane!" == "plane"
+-}
 sub : Int -> Int -> String -> String
 sub = Native.String.sub
 
-{-|
--}
+{-| Take N characters from the left side of a string. -}
 left : Int -> String -> String
 left = Native.String.left
 
-{-|
--}
+{-| Take N characters from the right side of a string. -}
 right : Int -> String -> String
 right = Native.String.right
 
-{-|
--}
+{-| Drop N characters from the left side of a string. -}
 dropLeft : Int -> String -> String
 dropLeft = Native.String.dropLeft
 
-{-|
--}
+{-| Drop N characters from the right side of a string. -}
 dropRight : Int -> String -> String
 dropRight = Native.String.dropRight
 
-{-|
+{-| Pad a string on both sides until it has a given length.
+
+      pad 5 ' ' "1"   == "  1  "
+      pad 5 ' ' "11"  == "  11 "
+      pad 5 ' ' "121" == " 121 "
 -}
 pad : Int -> Char -> String -> String
 pad = Native.String.pad
 
-{-|
+{-| Pad a string on the left until it has a given length.
+
+      pad 5 '.' "1"   == "....1"
+      pad 5 '.' "11"  == "...11"
+      pad 5 '.' "121" == "..121"
 -}
 padLeft : Int -> Char -> String -> String
 padLeft = Native.String.padLeft
 
-{-|
+{-| Pad a string on the right until it has a given length.
+
+      pad 5 '.' "1"   == "1...."
+      pad 5 '.' "11"  == "11..."
+      pad 5 '.' "121" == "121.."
 -}
 padRight : Int -> Char -> String -> String
 padRight = Native.String.padRight
 
-{-|
+{-| Get rid of whitespace on both sides of a string.
+
+      trim "  hats  \n" == "hats"
 -}
 trim : String -> String
 trim = Native.String.trim
 
-{-|
+{-| Get rid of whitespace on the left of a string.
+
+      trimLeft "  hats  \n" == "hats  \n"
 -}
 trimLeft : String -> String
 trimLeft = Native.String.trimLeft
 
-{-|
+{-| Get rid of whitespace on the left of a string.
+
+      trimRight "  hats  \n" == "  hats"
 -}
 trimRight : String -> String
 trimRight = Native.String.trimRight
 
-{-|
+{-| Break a string into words, splitting on chunks of whitespace.
+
+      words "How are \t you? \n Good?" == ["How","are","you?","Good?"]
 -}
 words : String -> [String]
 words = Native.String.words
 
-{-|
+{-| Break a string into lines, splitting on newlines.
+
+      lines "How are you?\nGood? == ["How are you?", "Good?"]
 -}
 lines : String -> [String]
 lines = Native.String.lines
 
-{-|
+{-| Convert a string to all upper case. Useful for case insensitive comparisons
+and VIRTUAL YELLING.
 -}
 toUpper : String -> String
 toUpper = Native.String.toUpper
 
-{-|
--}
+{-| Convert a string to all lower case. Useful for case insensitive comparisons. -}
 toLower : String -> String
 toLower = Native.String.toLower
 
-{-|
+{-| Check to see if *any* characters satisfy a predicate.
+
+      any isDigit "90210" == True
+      any isDigit "R2-D2" == True
+      any isDigit "heart" == False
 -}
 any : (Char -> Bool) -> String -> Bool
 any = Native.String.any
 
-{-|
+{-| Check to see if *all* characters satisfy a predicate.
+
+      all isDigit "90210" == True
+      all isDigit "R2-D2" == False
+      any isDigit "heart" == False
 -}
 all : (Char -> Bool) -> String -> Bool
 all = Native.String.all
 
-{-|
+{-| See if a string contains another one.
+
+      contains "the" "theory" == True
+      contains "hat" "theory" == False
+      contains "THE" "theory" == False
 -}
 contains : String -> String -> Bool
 contains = Native.String.contains
 
-{-|
+{-| See if a string starts with another one.
+
+      startsWith "the" "theory" == True
+      startsWith "ory" "theory" == False
 -}
 startsWith : String -> String -> Bool
 startsWith = Native.String.startsWith
 
-{-|
+{-| See if a string ends with another one.
+
+      endsWith "the" "theory" == False
+      endsWith "ory" "theory" == True
 -}
 endsWith : String -> String -> Bool
 endsWith = Native.String.endsWith
 
-{-|
--}
-indices : String -> String -> [Int]
-indices = Native.String.indexes
+{-| Get all of the indexes for a substring.
 
-{-|
+      indexes "i" "Mississippi"   == [1,4,7,10]
+      indexes "ss" "Mississippi"  == [2,5]
+      indexes "needle" "haystack" == []
 -}
 indexes : String -> String -> [Int]
 indexes = Native.String.indexes
 
-{-|
+{-| Alias for `indexes` -}
+indices : String -> String -> [Int]
+indices = Native.String.indexes
+
+{-| Try to convert a string into an int, failing on improperly formatted strings.
+
+      toInt "123" == Just 123
+      toInt "-42" == Just -42
+      toInt "3.1" == Nothing
+      toInt "31a" == Nothing
 -}
 toInt : String -> Maybe Int
 toInt = Native.String.toInt
 
-{-|
+{-| Try to convert a string into a float, failing on improperly formatted strings.
+
+      toFloat "123" == Just 123.0
+      toFloat "-42" == Just -42.0
+      toFloat "3.1" == Just 3.1
+      toFloat "31a" == Nothing
 -}
 toFloat : String -> Maybe Float
 toFloat = Native.String.toFloat
