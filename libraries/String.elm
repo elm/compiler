@@ -1,5 +1,6 @@
 module String where
-{-| A built-in representation for efficient string manipulation.
+{-| A built-in representation for efficient string manipulation. String literals
+are enclosed in `"double quotes"`. Strings are *not* lists of characters.
 
 # Basics
 @docs isEmpty, length, cons, uncons, reverse,
