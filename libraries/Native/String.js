@@ -80,7 +80,7 @@ Elm.Native.String.make = function(elm) {
     }
 
     function pad(n,chr,str) {
-        var half = n - str.length / 2;
+        var half = (n - str.length) / 2;
         return repeat(Math.ceil(half),chr) + str + repeat(half|0,chr);
     }
     function padRight(n,chr,str) {
