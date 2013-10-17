@@ -77,24 +77,7 @@ moduleDocs = do
   return (List.intercalate "." names, exports, structure)
 
 document :: IParser [(String, Declaration t v, String)]
-document = go []
-    where
-      go things = do
-        thing <- optionMaybe docThing
-        let things' = case thing of
-                        Nothing -> things
-                        Just t -> things ++ [t]
-        done <- chompUntilFreshLine
-        case done of
-          True  -> return things'
-          False -> go things'
-
--- returns whether the end of file has been reached
-chompUntilFreshLine :: IParser Bool
-chompUntilFreshLine =
-    anyThen . choice $
-       [ try (simpleNewline >> notFollowedBy (string " ")) >> return False
-       , eof >> return True ]
+document = onFreshLines (\t ts -> ts ++ [t]) [] docThing
 
 docThing :: IParser (String, Declaration t v, String)
 docThing = uncommentable <|> commented <|> uncommented ""
