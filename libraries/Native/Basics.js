@@ -1,12 +1,12 @@
 
-Elm.Native.Basics = function(elm) {
-  'use strict';
-  if (elm.Native.Basics) return elm.Native.Basics;
+Elm.Native.Basics = {};
+Elm.Native.Basics.make = function(elm) {
+  elm.Native = elm.Native || {};
+  elm.Native.Basics = elm.Native.Basics || {};
+  if (elm.Native.Basics.values) return elm.Native.Basics.values;
 
-  var JS = Elm.Native.JavaScript(elm);
-  // var Maybe = Elm.Maybe(elm);
-  var Utils = Elm.Native.Utils(elm);
-  //var Char = Elm.Char(elm);
+  var JS = Elm.Native.JavaScript.make(elm);
+  var Utils = Elm.Native.Utils.make(elm);
 
   function div(a,b) { return (a/b)|0; }
   function rem(a,b) { return a % b; }
@@ -26,43 +26,7 @@ Elm.Native.Basics = function(elm) {
   function uncurry(f,v) { return A2(f,v._0,v._1); }
   function fst(t) { return t._0; }
   function snd(t) { return t._1; }
-/*
-  function readInt(str) {
-    var s = JS.fromString(str);
-    var len = s.length;
-    if (len === 0) { return Maybe.Nothing; }
-    var start = 0;
-    if (s[0] == '-') {
-      if (len === 1) { return Maybe.Nothing; }
-      start = 1;
-    }
-    for (var i = start; i < len; ++i) {
-      if (!Char.isDigit(s[i])) { return Maybe.Nothing; }
-    }
-    return Maybe.Just(parseInt(s, 10));
-  }
 
-  function readFloat(str) {
-    var s = JS.fromString(str);
-    var len = s.length;
-    if (len === 0) { return Maybe.Nothing; }
-    var start = 0;
-    if (s[0] == '-') {
-      if (len === 1) { return Maybe.Nothing; }
-      start = 1;
-    }
-    var dotCount = 0;
-    for (var i = start; i < len; ++i) {
-      if (Char.isDigit(s[i])) { continue; }
-      if (s[i] === '.') {
-        dotCount += 1;
-        if (dotCount <= 1) { continue; }
-      }
-      return Maybe.Nothing;
-    }
-    return Maybe.Just(parseFloat(s));
-  }
-*/
   var basics = {
       div:F2(div),
       rem:F2(rem),
@@ -95,14 +59,11 @@ Elm.Native.Basics = function(elm) {
       round:Math.round,
       toFloat:function(x) { return x; },
 
-      //readInt:readInt,
-      //readFloat:readFloat,
-
       curry:F3(curry),
       uncurry:F2(uncurry),
       fst:fst,
       snd:snd
   };
 
-  return elm.Native.Basics = basics;
+  return elm.Native.Basics.values = basics;
 };

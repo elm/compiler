@@ -1,13 +1,13 @@
-
-Elm.Native.WebSocket = function(elm) {
-  'use strict';
+Elm.Native.WebSocket = {};
+Elm.Native.WebSocket.make = function(elm) {
 
   elm.Native = elm.Native || {};
-  if (elm.Native.WebSocket) return elm.Native.WebSocket;
+  elm.Native.WebSocket = elm.Native.WebSocket || {};
+  if (elm.Native.WebSocket.values) return elm.Native.WebSocket.values;
 
-  var Signal = Elm.Signal(elm);
-  var JS = Elm.JavaScript(elm);
-  var List = Elm.Native.List(elm);
+  var Signal = Elm.Signal.make(elm);
+  var JS = Elm.JavaScript.make(elm);
+  var List = Elm.Native.List.make(elm);
 
   function open(url, outgoing) {
     var incoming = Signal.constant(List.Nil);
@@ -34,5 +34,5 @@ Elm.Native.WebSocket = function(elm) {
     return A3(Signal.lift2, F2(take1), incoming, A2(Signal.lift, send, outgoing));
   }
 
-  return elm.Native.WebSocket = { connect: F2(open) };
+  return elm.Native.WebSocket.values = { connect: F2(open) };
 };

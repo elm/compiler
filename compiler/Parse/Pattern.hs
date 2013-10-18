@@ -6,7 +6,6 @@ import Control.Monad
 import Control.Monad.State
 import Data.Char (isUpper)
 import Data.List (intercalate)
-import Unique
 import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
 
@@ -24,11 +23,7 @@ basic = choice
                     "True"  -> PLiteral (Boolean True)
                     "False" -> PLiteral (Boolean False)
                     c : _   -> if isUpper c then PData v [] else PVar v
-    , do lit <- literal
-         return $ case lit of
-                    Str s -> foldr combine (PData "[]" []) s
-                       where combine h t = PData "::" [PLiteral (Chr h),t]
-                    _ -> PLiteral lit
+    , PLiteral <$> literal
     ]
 
 asPattern :: Pattern -> IParser Pattern

@@ -14,7 +14,7 @@ License-file:        LICENSE
 
 Author:              Evan Czaplicki
 Maintainer:          info@elm-lang.org
-Copyright:           Copyright: (c) 2011-2012 Evan Czaplicki
+Copyright:           Copyright: (c) 2011-2013 Evan Czaplicki
 
 Category:            Compiler, Language
 
@@ -22,7 +22,7 @@ Build-type:          Custom
 
 Extra-source-files:  changelog.txt
 Data-dir:            data
-Data-files:          elm-runtime.js interfaces.data
+Data-files:          elm-runtime.js interfaces.data docs.json
 Cabal-version:       >=1.9
 
 source-repository head
@@ -32,8 +32,7 @@ source-repository head
 Library
   exposed-modules:     Language.Elm
   Hs-Source-Dirs:      compiler
-  other-modules:       Unique,
-                       SourceSyntax.Declaration,
+  other-modules:       SourceSyntax.Declaration,
                        SourceSyntax.Expression,
                        SourceSyntax.Everything,
                        SourceSyntax.Helpers,
@@ -88,8 +87,8 @@ Library
                        containers >= 0.3,
                        directory,
                        filepath,
-                       hjsmin,
                        indents,
+                       language-ecmascript,
                        mtl >= 2,
                        pandoc >= 1.10,
                        parsec >= 3.1.1,
@@ -102,8 +101,7 @@ Executable elm
   Main-is:             Compiler.hs
   ghc-options:         -threaded -O2
   Hs-Source-Dirs:      compiler
-  other-modules:       Unique,
-                       SourceSyntax.Declaration,
+  other-modules:       SourceSyntax.Declaration,
                        SourceSyntax.Expression,
                        SourceSyntax.Everything,
                        SourceSyntax.Helpers,
@@ -158,8 +156,8 @@ Executable elm
                        containers >= 0.3,
                        directory,
                        filepath,
-                       hjsmin,
                        indents,
+                       language-ecmascript,
                        mtl >= 2,
                        pandoc >= 1.10,
                        parsec >= 3.1.1,
@@ -167,6 +165,44 @@ Executable elm
                        transformers >= 0.2,
                        union-find,
                        uniplate
+
+Executable elm-doc
+  Main-is:             Docs.hs
+  Hs-Source-Dirs:      compiler
+  other-modules:       SourceSyntax.Declaration,
+                       SourceSyntax.Everything,
+                       SourceSyntax.Expression,
+                       SourceSyntax.Helpers,
+                       SourceSyntax.Literal,
+                       SourceSyntax.Location,
+                       SourceSyntax.Module,
+                       SourceSyntax.Pattern,
+                       SourceSyntax.PrettyPrint,
+                       SourceSyntax.Type,
+                       Parse.Binop,
+                       Parse.Declaration,
+                       Parse.Expression,
+                       Parse.Helpers,
+                       Parse.Literal,
+                       Parse.Module,
+                       Parse.Pattern,
+                       Parse.Type
+
+  Build-depends:       aeson,
+                       aeson-pretty,
+                       base >=4.2 && <5,
+                       binary,
+                       bytestring,
+                       cmdargs,
+                       containers >= 0.3,
+                       directory,
+                       filepath,
+                       indents,
+                       mtl >= 2,
+                       pandoc >= 1.10,
+                       parsec >= 3.1.1,
+                       pretty,
+                       text
 
 Test-Suite test-elm
   Type:            exitcode-stdio-1.0

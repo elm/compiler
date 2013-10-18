@@ -1,29 +1,31 @@
-
-Elm.Native.Show = function(elm) {
-    'use strict';
-
+Elm.Native.Show = {};
+Elm.Native.Show.make = function(elm) {
     elm.Native = elm.Native || {};
-    if (elm.Native.Show) return elm.Native.Show;
+    elm.Native.Show = elm.Native.Show || {};
+    if (elm.Native.Show.values) return elm.Native.Show.values;
 
-    var NList = Elm.Native.List(elm);
-    var List = Elm.List(elm);
-    var Maybe = Elm.Maybe(elm);
-    var JS = Elm.JavaScript(elm);
-    var Dict = Elm.Dict(elm);
-    var Json = Elm.Json(elm);
-    var Tuple2 = Elm.Native.Utils(elm).Tuple2;
+    var NList = Elm.Native.List.make(elm);
+    var List = Elm.List.make(elm);
+    var Maybe = Elm.Maybe.make(elm);
+    var JS = Elm.JavaScript.make(elm);
+    var Dict = Elm.Dict.make(elm);
+    var Json = Elm.Json.make(elm);
+    var Tuple2 = Elm.Native.Utils.make(elm).Tuple2;
 
     var toString = function(v) {
-        if (typeof v === "function") {
+        var type = typeof v;
+        if (type === "function") {
             var name = v.func ? v.func.name : v.name;
             return '<function' + (name === '' ? '' : ': ') + name + '>';
-        } else if (typeof v === "boolean") {
+        } else if (type === "boolean") {
             return v ? "True" : "False";
-        } else if (typeof v === "number") {
+        } else if (type === "number") {
             return v+"";
-        } else if (typeof v === "string" && v.length < 2) {
-            return "'" + showChar(v) + "'";
-        } else if (typeof v === "object" && '_' in v) {
+        } else if (v.isChar && v instanceof String) {
+            return "'" + addSlashes(v) + "'";
+        } else if (type === "string") {
+            return '"' + addSlashes(v) + '"';
+        } else if (type === "object" && '_' in v) {
             var output = [];
             for (var k in v._) {
                 for (var i = v._[k].length; i--; ) {
@@ -36,7 +38,7 @@ Elm.Native.Show = function(elm) {
             }
             if (output.length === 0) return "{}";
             return "{ " + output.join(", ") + " }";
-        } else if (typeof v === "object" && 'ctor' in v) {
+        } else if (type === "object" && 'ctor' in v) {
             if (v.ctor.substring(0,6) === "_Tuple") {
                 var output = [];
                 for (var k in v) {
@@ -45,18 +47,13 @@ Elm.Native.Show = function(elm) {
                 }
                 return "(" + output.join(",") + ")";
             } else if (v.ctor === "::") {
-                var isStr = typeof v._0 === "string",
-                start = isStr ? '"' : "[",
-                end   = isStr ? '"' : "]",
-                sep   = isStr ?  "" : ",",
-                f     = !isStr ? toString : showChar;
-                var output = start + f(v._0);
+                var output = '[' + toString(v._0);
                 v = v._1;
                 while (v.ctor === "::") {
-                    output += sep + f(v._0);
+                    output += "," + toString(v._0);
                     v = v._1;
                 }
-                return output + end;
+                return output + ']';
             } else if (v.ctor === "[]") {
                 return "[]";
             } else if (v.ctor === "RBNode" || v.ctor === "RBEmpty") {
@@ -79,22 +76,20 @@ Elm.Native.Show = function(elm) {
                 return v.ctor + output;
             }
         }
-        if (typeof v === 'object' && 'recv' in v) return '<signal>';
+        if (type === 'object' && 'recv' in v) return '<signal>';
         return "<internal structure>";
     };
-    function show(v) { return NList.fromArray(toString(v)); }
 
-    function showChar (c) {
-        return c === '\n' ? '\\n' :
-               c === '\t' ? '\\t' :
-               c === '\b' ? '\\b' :
-               c === '\r' ? '\\r' :
-               c === '\v' ? '\\v' :
-               c === '\0' ? '\\0' :
-               c === '\'' ? "\\'" :
-               c === '\"' ? '\\"' :
-               c === '\\' ? '\\\\' : c;
+    function addSlashes(str) {
+        return str.replace(/\\/g, '\\\\')
+                  .replace(/\n/g, '\\n')
+                  .replace(/\t/g, '\\t')
+                  .replace(/\r/g, '\\r')
+                  .replace(/\v/g, '\\v')
+                  .replace(/\0/g, '\\0')
+                  .replace(/\'/g, "\\'")
+                  .replace(/\"/g, '\\"');
     }
 
-    return elm.Native.Show = { show:show };
+    return elm.Native.Show.values = { show:toString };
 };

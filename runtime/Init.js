@@ -13,7 +13,7 @@ Elm.fullscreen = function(module) {
     return init(ElmRuntime.Display.FULLSCREEN, container, module);
 };
 
-Elm.domNode = function(container, module) {
+Elm.embed = function(module, container) {
     var tag = container.tagName;
     if (tag !== 'DIV') {
         throw new Error('Elm.node must be given a DIV, not a ' + tag + '.');
@@ -40,9 +40,6 @@ function init(display, container, module, moduleToReplace) {
       }
       return changed;
   }
-
-  container.offsetX = 0;
-  container.offsetY = 0;
 
   var listeners = [];
   function addListener(relevantInputs, domNode, eventName, func) {
@@ -99,10 +96,10 @@ function init(display, container, module, moduleToReplace) {
   var Module = {};
   var reportAnyErrors = function() {};
   try {
-      Module = module(elm);
+      Module = module.make(elm);
   } catch(e) {
       var directions = "<br/>&nbsp; &nbsp; Open the developer console for more details."
-      Module.main = Elm.Text(elm).text('<code>' + e.message + directions + '</code>');
+      Module.main = Elm.Text.make(elm).text('<code>' + e.message + directions + '</code>');
       reportAnyErrors = function() { throw e; }
   }
   inputs = ElmRuntime.filterDeadInputs(inputs);
@@ -150,7 +147,7 @@ function initGraphics(elm, Module) {
   var signalGraph = Module.main;
 
   // make sure the signal graph is actually a signal & extract the visual model
-  var Signal = Elm.Signal(elm);
+  var Signal = Elm.Signal.make(elm);
   if (!('recv' in signalGraph)) {
       signalGraph = Signal.constant(signalGraph);
   }
@@ -164,7 +161,7 @@ function initGraphics(elm, Module) {
   function domUpdate(newScene, currentScene) {
       ElmRuntime.draw(function(_) {
           Render.update(elm.node.firstChild, currentScene, newScene);
-          if (elm.Native.Window) elm.Native.Window.resizeIfNeeded();
+          if (elm.Native.Window) elm.Native.Window.values.resizeIfNeeded();
       });
       return newScene;
   }
@@ -172,7 +169,7 @@ function initGraphics(elm, Module) {
 
   // must check for resize after 'renderer' is created so
   // that changes show up.
-  if (elm.Native.Window) elm.Native.Window.resizeIfNeeded();
+  if (elm.Native.Window) elm.Native.Window.values.resizeIfNeeded();
 
   return renderer;
 }

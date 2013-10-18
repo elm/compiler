@@ -1,11 +1,12 @@
+Elm.Native.Prelude = {};
+Elm.Native.Prelude.make = function(elm) {
+  elm.Native = elm.Native || {};
+  elm.Native.Prelude = elm.Native.Prelude || {};
+  if (elm.Native.Prelude.values) return elm.Native.Prelude.values;
 
-Elm.Native.Prelude = function(elm) {
-  'use strict';
-  if (elm.Native.Prelude) return elm.Native.Prelude;
-
-  var JS = Elm.Native.JavaScript(elm);
-  var Maybe = Elm.Maybe(elm);
-  var Char = Elm.Char(elm);
+  var JS = Elm.Native.JavaScript.make(elm);
+  var Maybe = Elm.Maybe.make(elm);
+  var Char = Elm.Char.make(elm);
 
   function readInt(str) {
     var s = JS.fromString(str);
@@ -43,9 +44,9 @@ Elm.Native.Prelude = function(elm) {
     return Maybe.Just(parseFloat(s));
   }
 
-  return elm.Native.Prelude = {
+  return elm.Native.Prelude.values = {
       readInt:readInt,
-      readFloat:readFloat,
+      readFloat:readFloat
   };
 
 };

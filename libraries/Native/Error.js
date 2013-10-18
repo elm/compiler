@@ -1,10 +1,10 @@
-
-Elm.Native.Error = function(elm) {
-    'use strict';
+Elm.Native.Error = {};
+Elm.Native.Error.make = function(elm) {
     elm.Native = elm.Native || {};
-    if (elm.Native.Error) return elm.Native.Error;
+    elm.Native.Error = elm.Native.Error || {};
+    if (elm.Native.Error.values) return elm.Native.Error.values;
 
-    var fromString = Elm.Native.JavaScript(elm).fromString;
+    var fromString = Elm.Native.JavaScript.make(elm).fromString;
 
     function indent(lines) {
         var msg = '';
@@ -28,5 +28,5 @@ Elm.Native.Error = function(elm) {
 
     function raise(str) { throw new Error(fromString(str)); }
 
-    return elm.Native.Error = { Case: Case, If: If, raise: raise };
+    return elm.Native.Error.values = { Case: Case, If: If, raise: raise };
 };

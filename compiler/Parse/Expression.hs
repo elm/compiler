@@ -1,5 +1,6 @@
-module Parse.Expression (def,term) where
+module Parse.Expression (def,term,typeAnnotation) where
 
+import Control.Arrow ((***))
 import Control.Applicative ((<$>), (<*>))
 import Data.List (foldl')
 import Text.Parsec hiding (newline,spaces)
@@ -18,8 +19,6 @@ import qualified SourceSyntax.Literal as Literal
 import SourceSyntax.Expression
 import SourceSyntax.Declaration (Declaration(Definition))
 
-import Unique
-
 
 --------  Basic Terms  --------
 
@@ -33,17 +32,14 @@ toVar v = case v of "True"  -> Literal (Literal.Boolean True)
 
 accessor :: IParser (Expr t v)
 accessor = do
-  start <- getPosition
-  lbl <- try (string "." >> rLabel)
-  end <- getPosition
+  (start, lbl, end) <- located (try (string "." >> rLabel))
   let loc e = Location.at start end e
   return (Lambda (PVar "_") (loc $ Access (loc $ Var "_") lbl))
 
 negative :: IParser (Expr t v)
 negative = do
-  start <- getPosition
-  nTerm <- try (char '-' >> notFollowedBy (char '.' <|> char '-')) >> term
-  end <- getPosition
+  (start, nTerm, end) <-
+      located (try (char '-' >> notFollowedBy (char '.' <|> char '-')) >> term)
   let loc e = Location.at start end e
   return (Binop "-" (loc $ Literal (Literal.IntNum 0)) nTerm)
 
@@ -51,43 +47,51 @@ negative = do
 --------  Complex Terms  --------
 
 listTerm :: IParser (Expr t v)
-listTerm =
-      (do { try $ string "[markdown|"
-          ; md <- filter (/='\r') <$> manyTill anyChar (try $ string "|]")
-          ; return . Markdown $ Pan.readMarkdown Pan.def md })
-  <|> (braces $ choice
-       [ try $ do { lo <- expr; whitespace; string ".." ; whitespace
-                  ; Range lo <$> expr }
-       , ExplicitList <$> commaSep expr
-       ])
+listTerm = markdown' <|> braces (try range <|> ExplicitList <$> commaSep expr)
+  where
+    range = do
+      lo <- expr
+      whitespace >> string ".." >> whitespace
+      Range lo <$> expr
+
+    markdown' = do
+      (rawText, exprs) <- markdown interpolation
+      let md = Pan.readMarkdown Pan.def (filter (/='\r') rawText)
+      return (Markdown md exprs)
+
+    span xs = "<span id=\"md" ++ show (length xs) ++
+              "\" style=\"font-family:monospace;\">{{ ... }}</span>"
+
+    interpolation md exprs = do
+      try (string "{{")
+      whitespace
+      e <- expr
+      whitespace
+      string "}}"
+      return (md ++ span exprs, exprs ++ [e])
 
 parensTerm :: IParser (LExpr t v)
 parensTerm = try (parens opFn) <|> parens (tupleFn <|> parened)
   where
     opFn = do
-      start <- getPosition
-      op <- anyOp
-      end <- getPosition
+      (start, op, end) <- located anyOp
       let loc = Location.at start end
       return . loc . Lambda (PVar "x") . loc . Lambda (PVar "y") . loc $
              Binop op (loc $ Var "x") (loc $ Var "y")
 
     tupleFn = do
-      start <- getPosition
       let comma = char ',' <?> "comma ','"
-      commas <- comma >> many (whitespace >> comma)
-      end <- getPosition
+      (start, commas, end) <- located (comma >> many (whitespace >> comma))
       let vars = map (('v':) . show) [ 0 .. length commas + 1 ]
           loc = Location.at start end
       return $ foldr (\x e -> loc $ Lambda x e)
                  (loc . tuple $ map (loc . Var) vars) (map PVar vars)
     
     parened = do
-      start <- getPosition
-      es <- commaSep expr
-      end <- getPosition
-      return $ case es of [e] -> e
-                          _   -> Location.at start end (tuple es)
+      (start, es, end) <- located (commaSep expr)
+      return $ case es of
+                 [e] -> e
+                 _   -> Location.at start end (tuple es)
 
 recordTerm :: IParser (LExpr t v)
 recordTerm = brackets $ choice [ misc, addLocation record ]
@@ -144,7 +148,7 @@ appExpr = do
 --------  Normal Expressions  --------
 
 binaryExpr :: IParser (LExpr t v)
-binaryExpr = binops [] appExpr lastExpr anyOp
+binaryExpr = binops appExpr lastExpr anyOp
   where lastExpr = addLocation (choice [ ifExpr, letExpr, caseExpr ])
                 <|> lambdaExpr
 
@@ -196,7 +200,8 @@ expr = addLocation (choice [ ifExpr, letExpr, caseExpr ])
     <|> binaryExpr 
     <?> "an expression"
 
-funcDef =
+defStart :: IParser [Pattern]
+defStart =
     choice [ do p1 <- try Pattern.term
                 infics p1 <|> func p1
            , func =<< (PVar <$> parens symOp)
@@ -219,24 +224,20 @@ makeFunction :: [Pattern] -> LExpr t v -> LExpr t v
 makeFunction args body@(L s _) =
     foldr (\arg body' -> L s $ Lambda arg body') body args
 
-assignExpr :: IParser (Def t v)
-assignExpr = withPos $ do
-  (name:args) <- funcDef
+definition :: IParser (Def t v)
+definition = withPos $ do
+  (name:args) <- defStart
   whitespace >> string "=" >> whitespace
   body <- expr
   return . Def name $ makeFunction args body
 
 typeAnnotation :: IParser (Def t v)
 typeAnnotation = TypeAnnotation <$> try start <*> Type.expr
-    where
-      start = do v <- lowVar <|> parens symOp
-                 whitespace ; hasType ; whitespace
-                 return v
+  where
+    start = do
+      v <- lowVar <|> parens symOp
+      whitespace ; hasType ; whitespace
+      return v
 
 def :: IParser (Def t v)
-def = typeAnnotation <|> assignExpr
-
-attempt f parser str =
-    case iParse parser "" str of
-      Right result -> f result
-      Left err -> error $ "Parse error at " ++ show err
+def = typeAnnotation <|> definition

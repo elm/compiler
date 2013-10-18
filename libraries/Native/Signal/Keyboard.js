@@ -1,8 +1,9 @@
+Elm.Native.Keyboard = {};
+Elm.Native.Keyboard.make = function(elm) {
 
-Elm.Native.Keyboard = function(elm) {
-  'use strict';
   elm.Native = elm.Native || {};
-  if (elm.Native.Keyboard) return elm.Native.Keyboard;
+  elm.Native.Keyboard = elm.Native.Keyboard || {};
+  if (elm.Native.Keyboard.values) return elm.Native.Keyboard.values;
 
   // Duplicated from Native.Signal
   function send(node, timestep, changed) {
@@ -12,9 +13,9 @@ Elm.Native.Keyboard = function(elm) {
     }
   }
 
-  var Signal = Elm.Signal(elm);
-  var NList = Elm.Native.List(elm);
-  var Utils = Elm.Native.Utils(elm);
+  var Signal = Elm.Signal.make(elm);
+  var NList = Elm.Native.List.make(elm);
+  var Utils = Elm.Native.Utils.make(elm);
 
   var downEvents = Signal.constant(0);
   var upEvents = Signal.constant(0);
@@ -76,10 +77,13 @@ Elm.Native.Keyboard = function(elm) {
 
   function keySignal(f) {
     var signal = A2(Signal.lift, f, keysDown);
-    // what's the significance of these two following lines? -jpm
+    // must set the default number of kids to make it possible to filter
+    // these signals if they are not actually used.
     keysDown.defaultNumberOfKids += 1;
-    signal.defaultNumberOfKids = 0;
-    return signal;
+    signal.defaultNumberOfKids = 1;
+    var filtered = Signal.dropRepeats(signal)
+    filtered.defaultNumberOfKids = 0;
+    return filtered;
   }
 
   function dir(up, down, left, right) {
@@ -103,7 +107,7 @@ Elm.Native.Keyboard = function(elm) {
 
   var lastPressed = Signal.dropRepeats(downEvents);
 
-  return elm.Native.Keyboard = {
+  return elm.Native.Keyboard.values = {
     isDown:is,
     directions:F4(dir),
     keysDown:keysDown,

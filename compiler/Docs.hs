@@ -1,75 +1,162 @@
-
+{-# LANGUAGE OverloadedStrings, DeriveDataTypeable #-}
 module Main where
 
-import SourceSyntax.Declaration (Declaration(Datatype))
-import Control.Applicative ((<$>), (<*>))
-import Data.List (intercalate)
-import Parse.Type
-import Parse.Helpers
-import Parse.Module (moduleDef)
-import Text.Parsec hiding (newline,spaces)
-import System.Environment
+import System.Console.CmdArgs
+import System.Directory
+import System.FilePath
 import System.Exit
 
+import Control.Applicative ((<$>), (<*>))
+import Data.Aeson
+import Data.Aeson.Encode.Pretty
+import qualified Data.List as List
+import qualified Data.Map as Map
+import qualified Data.ByteString.Lazy as BS
+import qualified Data.Text as Text
+
+import SourceSyntax.Helpers (isSymbol)
+import SourceSyntax.Type (Type(..))
+import SourceSyntax.Declaration (Declaration(..), Assoc(..))
+import SourceSyntax.Expression (Def(..))
+
+import Text.Parsec hiding (newline,spaces)
+import Parse.Declaration (alias,datatype,infixDecl)
+import Parse.Expression (typeAnnotation)
+import Parse.Helpers
+import Parse.Module (moduleDef)
+
+data Flags = Flags
+    { files :: [FilePath] }
+    deriving (Data,Typeable,Show,Eq)
+
+defaultFlags = Flags
+  { files = def &= args &= typ "FILES"
+  } &= help "Generate documentation for Elm"
+    &= summary ("Generate documentation for Elm, (c) Evan Czaplicki")
+
 main = do
-  srcs <- mapM readFile =<< getArgs
-  case mapM docParse srcs of
-    Left err -> putStrLn err >> exitFailure
-    Right ms -> putStrLn (toModules ms)
+  flags <- cmdArgs defaultFlags
+  mapM parseFile (files flags)
 
-toModules ms = wrap (intercalate ",\n    " (map toModule ms))
-  where wrap s = "{ \"modules\" : [\n    " ++ s ++ "\n  ]\n}"
-
-toModule (name, values) =
-    "{ \"name\" : " ++ show name ++ ",\n      " ++
-    "\"values\" : [\n        " ++ vs ++ "\n      ]\n    }"
-  where vs = intercalate ",\n        " (map toValue values)
-
-toValue (name, tipe, desc) =
-    "{ \"name\" : " ++ show name ++
-    ",\n          \"type\" : " ++ show tipe ++
-    ",\n          \"desc\" : " ++ show desc ++ "\n        }"
-
-docParse :: String -> Either String (String, [(String, String, String)])
-docParse = setupParser $ do
-  optional freshLine
-  (names, exports) <- option (["Main"],[]) moduleDef
-  info <- many (try (annotation exports) <|> try skip <|> end)
-  return (intercalate "." names, concat info)
-    where
-      skip = manyTill anyChar simpleNewline >> return []
-      end  = many1 anyChar >> return []
-
-annotation :: [String] -> IParser [(String, String, String)]
-annotation exports =
-    do description <- comment
-       extras  <- option [] (lookAhead adt)
-       varName <- try typeDef <|> name
-       varType <- tipe
-       return $ extras ++ export varName varType description
+config = Config { confIndent = 2, confCompare = keyOrder keys }
   where
-    comment = concatMap clip <$> many lineComment
-    clip str = case str of { ' ':rest -> rest ; _ -> str } ++ "\n"
+    keys = ["name","document","comment","raw","aliases","datatypes"
+           ,"values","typeVariables","type","constructors"]
 
-    name = do v <- lowVar <|> parens symOp
-              whitespace ; hasType ; whitespace ; return v
+parseFile path = do
+  source <- readFile path
+  case iParse docs source of
+    Right json -> do
+      putStrLn $ "Documenting " ++ path
+      let docPath = "docs" </> replaceExtension path ".json"
+      createDirectoryIfMissing True (dropFileName docPath)
+      BS.writeFile docPath (encodePretty' config json)
+    Left err -> do
+      putStrLn $ "Parse error in " ++ path ++ " at " ++ show err
+      exitFailure
 
-    tipe = manyTill anyChar (try (simpleNewline >> notFollowedBy (string " ")))
+docs :: IParser Value
+docs = do
+  (name, exports, structure) <- moduleDocs
+  things <- document
+  return $ documentToJson name exports structure things
 
-    export name tipe desc =
-        if null exports || name `elem` exports then [(name,tipe,desc)] else []
+docComment :: IParser String
+docComment = do
+  try (string "{-|")
+  contents <- closeComment
+  let reversed = dropWhile (`elem` " \n\r") . drop 2 $ reverse contents
+  return $ dropWhile (==' ') (reverse reversed)
 
-    typeDef = lookAhead ((string "data" <|> string "type") >> whitespace >> capVar)
+moduleDocs = do
+  optional freshLine
+  (names,exports) <- moduleDef
+  manyTill (string " " <|> newline <?> "more whitespace")
+           (lookAhead (string "{-|") <?> "module documentation comment")
+  structure <- docComment
+  return (List.intercalate "." names, exports, structure)
 
-    adt = do undefined
-{-- TODO: reimplement this
-      (Datatype name tvs constructors) <- datatype
-      let toType (cName, typeArgs) =
-              (cName, show $ foldr (==>) (kADT name $ map kVarT tvs) typeArgs, "")
-      return $ map toType constructors
---}
+document :: IParser [(String, Declaration t v, String)]
+document = onFreshLines (\t ts -> ts ++ [t]) [] docThing
 
-setupParser p source =
-    case iParse p "" source of
-      Right result -> Right result
-      Left err -> Left $ "Parse error at " ++ show err
+docThing :: IParser (String, Declaration t v, String)
+docThing = uncommentable <|> commented <|> uncommented ""
+    where
+      uncommentable = do
+        ifx <- infixDecl
+        return ("", ifx, "")
+
+      commented = do
+        comment <- docComment
+        freshLine
+        uncommented comment
+
+      uncommented comment = do
+        (src,def) <- withSource $ choice [ alias, datatype, Definition <$> typeAnnotation ]
+        return (comment, def, src)
+
+
+documentToJson name exports structure things =
+    object $ [ "name"      .= name
+             , "document"  .= structure
+             , "values"    .= toList values
+             , "aliases"   .= toList aliases
+             , "datatypes" .= toList adts
+             ]
+  where
+    (values, aliases, adts) = collect Map.empty Map.empty Map.empty Map.empty things
+    
+    toList dict = map object . Map.elems $ filterPublics dict
+
+    exportMap = Map.fromList (zip exports exports)
+    filterPublics dict =
+        case Map.null exportMap of
+          True -> dict
+          False -> Map.filterWithKey (\k _ -> Map.member k exportMap) dict
+
+collect infixes types aliases adts things =
+    case things of
+      [] -> (Map.union customOps nonCustomOps, aliases, adts)
+          where
+            nonCustomOps = Map.mapWithKey addDefaultInfix $ Map.difference types infixes
+            addDefaultInfix name pairs
+                | all isSymbol name = addInfix (L, 9 :: Int) pairs
+                | otherwise = pairs
+
+            customOps = Map.intersectionWith addInfix infixes types
+            addInfix (assoc,prec) pairs =
+                [ "associativity" .= show assoc, "precedence" .= prec ] ++ pairs
+
+      (comment, decl, source) : rest ->
+          case decl of
+            Fixity assoc prec name ->
+                collect (Map.insert name (assoc,prec) infixes) types aliases adts rest
+            Definition (TypeAnnotation name tipe) ->
+                collect infixes (insert name [ "type" .= tipe ] types) aliases adts rest
+            TypeAlias name vars tipe ->
+                let fields = ["typeVariables" .= vars, "type" .= tipe ]
+                in  collect infixes types (insert name fields aliases) adts rest
+            Datatype name vars ctors ->
+                let tipe = Data name (map Var vars)
+                    fields = ["typeVariables" .= vars, "constructors" .= map (ctorToJson tipe) ctors ]
+                in  collect infixes types aliases (insert name fields adts) rest
+          where
+            insert name fields dict = Map.insert name (obj name fields) dict
+            obj name fields =
+                [ "name" .= name, "raw" .= source, "comment" .= comment ] ++ fields
+
+instance ToJSON Type where
+    toJSON tipe =
+        case tipe of
+          Lambda t1 t2 -> toJSON [ "->", toJSON t1, toJSON t2 ]
+          Var x -> toJSON x
+          Data name ts -> toJSON (toJSON name : map toJSON ts)
+          EmptyRecord -> object []
+          Record fields ext -> object $ map (\(n,t) -> Text.pack n .= toJSON t) fields'
+              where fields' = case ext of
+                                EmptyRecord -> fields
+                                _ -> ("_",ext) : fields
+
+ctorToJson tipe (ctor, tipes) =
+    object [ "name" .= ctor
+           , "type" .= foldr Lambda tipe tipes ]

@@ -1,9 +1,8 @@
 
 ElmRuntime.Render.Collage = function() {
-'use strict';
 
 var Render = ElmRuntime.use(ElmRuntime.Render.Element);
-var Transform = Elm.Transform2D({});
+var Transform = Elm.Transform2D.make({});
 var Utils = ElmRuntime.use(ElmRuntime.Render.Utils);
 var newElement = Utils.newElement,
     extract = Utils.extract, fromList = Utils.fromList,
@@ -167,6 +166,11 @@ function formToMatrix(form) {
    return matrix;
 }
 
+function str(n) {
+    if (n < 0.00001 && n > -0.00001) return 0;
+    return n;
+}
+
 function makeTransform(w, h, form, matrices) {
     var props = form.form._0.props;
     var m = A6( Transform.matrix, 1, 0, 0, 1,
@@ -176,9 +180,9 @@ function makeTransform(w, h, form, matrices) {
     for (var i = 0; i < len; ++i) { m = A2( Transform.multiply, m, matrices[i] ); }
     m = A2( Transform.multiply, m, formToMatrix(form) );
 
-    return 'matrix(' +   m[0]  + ',' +   m[3]  + ',' +
-                       (-m[1]) + ',' + (-m[4]) + ',' +
-                         m[2]  + ',' +   m[5]  + ')';
+    return 'matrix(' + str( m[0]) + ',' + str( m[3]) + ',' +
+                       str(-m[1]) + ',' + str(-m[4]) + ',' +
+                       str( m[2]) + ',' + str( m[5]) + ')';
 }
 
 function stepperHelp(list) {

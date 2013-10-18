@@ -9,7 +9,6 @@ import Text.Parsec.Indent
 
 import SourceSyntax.Type as T
 import Parse.Helpers
-import Unique
 
 tvar :: IParser T.Type
 tvar = T.Var <$> lowVar <?> "type variable"
@@ -35,7 +34,7 @@ record =
                t <- tvar
                whitespace >> string "|" >> whitespace
                return t
-    fields = commaSep $ do
+    fields = commaSep1 $ do
                lbl <- rLabel
                whitespace >> hasType >> whitespace
                (,) lbl <$> expr
@@ -63,19 +62,11 @@ app =
 expr :: IParser T.Type
 expr =
   do t1 <- app <|> term
-     whitespace
-     arr <- optionMaybe (try arrow)
-     whitespace
+     arr <- optionMaybe $ try (whitespace >> arrow)
      case arr of
-       Just _  -> T.Lambda t1 <$> expr
+       Just _  -> T.Lambda t1 <$> (whitespace >> expr)
        Nothing -> return t1
 
 constructor :: IParser (String, [T.Type])
 constructor = (,) <$> (capTypeVar <?> "another type constructor")
                   <*> spacePrefix term
-
-readType :: String -> Type
-readType str =
-    case iParse expr "" str of
-      Left err -> error (show err)
-      Right tipe -> tipe

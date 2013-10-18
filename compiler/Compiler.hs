@@ -13,9 +13,7 @@ import System.FilePath
 import System.IO
 import GHC.Conc
 
-import qualified Text.Blaze.Html.Renderer.Pretty as Pretty
-import qualified Text.Blaze.Html.Renderer.String as Normal
-import qualified Text.Jasmine as JS
+import Text.Blaze.Html.Renderer.Pretty (renderHtml)
 import qualified Data.ByteString.Lazy.Char8 as BS
 import qualified Data.ByteString.Lazy as L
 
@@ -25,7 +23,7 @@ import SourceSyntax.Module
 import Parse.Module (getModuleName)
 import Initialize (buildFromSource, getSortedDependencies)
 import Generate.JavaScript (jsModule)
-import Generate.Html (createHtml, JSStyle(..), JSSource(..))
+import Generate.Html (createHtml, JSSource(..))
 import Paths_Elm
 
 import SourceSyntax.PrettyPrint (pretty, variable)
@@ -42,36 +40,38 @@ data Flags =
           , print_program :: Bool
           , scripts :: [FilePath]
           , no_prelude :: Bool
-          , minify :: Bool
 	  , cache_dir :: FilePath
 	  , build_dir :: FilePath
+	  , src_dir :: [FilePath]
           }
     deriving (Data,Typeable,Show,Eq)
 
 flags = Flags
-  { make = False
+  { files = def &= args &= typ "FILES"
+  , make = False
            &= help "automatically compile dependencies."
-  , files = def &= args &= typ "FILES"
-  , runtime = Nothing &= typFile
-              &= help "Specify a custom location for Elm's runtime system."
   , only_js = False
               &= help "Compile only to JavaScript."
-  , print_types = False
-                  &= help "Print out infered types of top-level definitions."
-  , print_program = False
-                    &= help "Print out an internal representation of a program."
-  , scripts = [] &= typFile
-              &= help "Load JavaScript files in generated HTML. Files will be included in the given order."
   , no_prelude = False
                  &= help "Do not import Prelude by default, used only when compiling standard libraries."
-  , minify = False
-             &= help "Minify generated JavaScript and HTML"
+  , scripts = [] &= typFile
+              &= help "Load JavaScript files in generated HTML. Files will be included in the given order."
+  , runtime = Nothing &= typFile
+              &= help "Specify a custom location for Elm's runtime system."
   , cache_dir = "cache" &= typFile
                 &= help "Directory for files cached to make builds faster. Defaults to cache/ directory."
   , build_dir = "build" &= typFile
                 &= help "Directory for generated HTML and JS files. Defaults to build/ directory."
+  , src_dir = ["."] &= typFile
+              &= help "Additional source directories besides project root. Searched when using --make"
+  , print_types = False
+                  &= help "Print out infered types of top-level definitions."
+  , print_program = False
+                    &= help "Print out an internal representation of a program."
   } &= help "Compile Elm programs to HTML, CSS, and JavaScript."
-    &= summary ("The Elm Compiler " ++ showVersion version ++ ", (c) Evan Czaplicki")
+    &= helpArg [explicit, name "help", name "h"]
+    &= versionArg [explicit, name "version", name "v", summary (showVersion version)]
+    &= summary ("The Elm Compiler " ++ showVersion version ++ ", (c) Evan Czaplicki 2011-2013")
 
 main :: IO ()             
 main = do setNumCapabilities =<< getNumProcessors
@@ -118,7 +118,7 @@ buildFile flags moduleNum numModules interfaces filePath =
             then return False
             else do tsrc <- getModificationTime filePath
                     tint <- getModificationTime (elmo flags filePath)
-                    return (tsrc < tint)
+                    return (tsrc <= tint)
 
       number :: String
       number = "[" ++ show moduleNum ++ " of " ++ show numModules ++ "]"
@@ -146,11 +146,12 @@ buildFile flags moduleNum numModules interfaces filePath =
                     True -> print . pretty $ program modul
                   return modul
         
-        if print_types flags then printTypes interfaces metaModule else return ()
+        when (print_types flags) (printTypes interfaces metaModule)
         let interface = Canonical.interface name $ ModuleInterface {
                           iTypes = types metaModule,
                           iAdts = datatypes metaModule,
-                          iAliases = aliases metaModule
+                          iAliases = aliases metaModule,
+                          iFixities = fixities metaModule
                         }
         createDirectoryIfMissing True . dropFileName $ elmi flags filePath
         handle <- openBinaryFile (elmi flags filePath) WriteMode
@@ -175,34 +176,34 @@ getRuntime flags =
 build :: Flags -> FilePath -> IO ()
 build flags rootFile = do
   let noPrelude = no_prelude flags
-  files <- if make flags then getSortedDependencies noPrelude rootFile else return [rootFile]
+  files <- if make flags then getSortedDependencies (src_dir flags) noPrelude rootFile
+                         else return [rootFile]
   let ifaces = if noPrelude then Map.empty else Prelude.interfaces
   (moduleName, interfaces) <- buildFiles flags (length files) ifaces "" files
-  js <- foldM appendToOutput "" files
-  case only_js flags of
+  js <- foldM appendToOutput BS.empty files
+
+  (extension, code) <- case only_js flags of
     True -> do
       putStr "Generating JavaScript ... "
-      writeFile (buildPath flags rootFile "js") (genJs js)
-      putStrLn "Done"
+      return ("js", js)
     False -> do
       putStr "Generating HTML ... "
-      runtime <- getRuntime flags
-      let html = genHtml $ createHtml runtime (takeBaseName rootFile) (sources js) moduleName ""
-          htmlFile = buildPath flags rootFile "html"
-      createDirectoryIfMissing True (takeDirectory htmlFile)
-      writeFile htmlFile html
-      putStrLn "Done"
+      rtsPath <- getRuntime flags
+      return ("html", BS.pack . renderHtml $
+                    createHtml rtsPath (takeBaseName rootFile) (sources js) moduleName "")
+
+  let targetFile = buildPath flags rootFile extension
+  createDirectoryIfMissing True (takeDirectory targetFile)
+  BS.writeFile targetFile code
+  putStrLn "Done"
 
     where
-      appendToOutput :: String -> FilePath -> IO String
+      appendToOutput :: BS.ByteString -> FilePath -> IO BS.ByteString
       appendToOutput js filePath =
-          do src <- readFile (elmo flags filePath)
-             return (src ++ js)
+          do src <- BS.readFile (elmo flags filePath)
+             return (BS.append src js)
 
-      genHtml = if minify flags then Normal.renderHtml else Pretty.renderHtml
-      genJs = if minify flags then BS.unpack . JS.minify . BS.pack else id
-      sources js = map Link (scripts flags) ++
-                   [ Source (if minify flags then Minified else Readable) js ]
+      sources js = map Link (scripts flags) ++ [ Source js ]
 
 
 buildFiles :: Flags -> Int -> Interfaces -> String -> [FilePath] -> IO (String, Interfaces)

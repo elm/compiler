@@ -18,10 +18,11 @@ import Text.PrettyPrint as P
 
 interface :: String -> ModuleInterface -> ModuleInterface
 interface moduleName iface =
-    ModuleInterface {
-      iTypes = Map.mapKeys prefix (Map.map renameType' (iTypes iface)),
-      iAdts = map (both prefix renameCtors) (iAdts iface),
-      iAliases = map (both prefix renameType') (iAliases iface)
+    ModuleInterface
+    { iTypes = Map.mapKeys prefix (Map.map renameType' (iTypes iface))
+    , iAdts = map (both prefix renameCtors) (iAdts iface)
+    , iAliases = map (both prefix renameType') (iAliases iface)
+    , iFixities = iFixities iface -- cannot have canonicalized operators while parsing
     }
   where
     both f g (a,b,c) = (f a, b, g c)
@@ -56,10 +57,19 @@ metadataModule ifaces modul =
      program' <- rename initialEnv (program modul)
      aliases' <- mapM (third renameType') (aliases modul)
      datatypes' <- mapM (third (mapM (second (mapM renameType')))) (datatypes modul)
-     return $ modul { program = program', aliases = aliases', datatypes = datatypes' }
+     exports' <- mapM (third renameType') (foreignExports modul)
+     imports' <- mapM (twoAndFour (rename initialEnv) renameType') (foreignImports modul)
+     return $ modul { program = program'
+                    , aliases = aliases'
+                    , datatypes = datatypes'
+                    , foreignExports = exports'
+                    , foreignImports = imports' }
   where
     second f (a,b) = (,) a `fmap` f b
     third f (a,b,c) = (,,) a b `fmap` f c
+    twoAndFour f g (a,b,c,d) = do b' <- f b
+                                  d' <- g d
+                                  return (a,b',c,d')
     renameType' =
         Either.either (\err -> Left [P.text err]) return . renameType (replace "type" initialEnv)
 
@@ -79,7 +89,7 @@ metadataModule ifaces modul =
 
     pair n = (n,n)
     localEnv = map pair (map get1 (aliases modul) ++ map get1 (datatypes modul))
-    globalEnv = map pair $ ["_List",saveEnvName,"::","[]","Int","Float","Char","Bool"] ++
+    globalEnv = map pair $ ["_List",saveEnvName,"::","[]","Int","Float","Char","Bool","String"] ++
                            map (\n -> "_Tuple" ++ show n) [0..9]
     realImports = filter (not . List.isPrefixOf "Native." . fst) (imports modul)
     initialEnv = Map.fromList (concatMap canon realImports ++ localEnv ++ globalEnv)
@@ -163,7 +173,7 @@ rename env lexpr@(L s expr) =
             branch (pattern,e) = (,) `liftM` format (renamePattern env pattern)
                                         `ap` rename (extend env pattern) e
 
-      Markdown _ -> return expr
+      Markdown md es -> Markdown md `liftM` mapM rnm es
 
 
 renamePattern :: Env -> Pattern -> Either String Pattern

@@ -1,9 +1,11 @@
 {-# OPTIONS_GHC -Wall #-}
 module Transform.Substitute (subst) where
 
+import Control.Arrow (second, (***))
 import SourceSyntax.Expression
 import SourceSyntax.Location
-import Control.Arrow (second, (***))
+import qualified Data.Set as Set
+import qualified Transform.SortDefinitions as SD
 
 subst :: String -> Expr t v -> Expr t v -> Expr t v
 subst old new expr =
@@ -12,12 +14,23 @@ subst old new expr =
       Range e1 e2 -> Range (f e1) (f e2)
       ExplicitList es -> ExplicitList (map f es)
       Binop op e1 e2 -> Binop op (f e1) (f e2)
-      Lambda p e -> Lambda p (f e)
+      Lambda p e
+          | Set.member old (SD.boundVars p) -> expr
+          | otherwise -> Lambda p (f e)
       App e1 e2 -> App (f e1) (f e2)
       MultiIf ps -> MultiIf (map (f *** f) ps)
-      Let defs body -> Let (map substDef defs) (f body)
-              where substDef (Def name e)  = Def name (f e)
-                    substDef anno@(TypeAnnotation _ _) = anno
+
+      Let defs body
+          | anyShadow -> expr
+          | otherwise -> Let (map substDef defs) (f body)
+        where
+          anyShadow =
+              any (Set.member old . SD.boundVars) [ p | Def p _ <- defs ]
+          substDef def =
+              case def of
+                TypeAnnotation _ _ -> def
+                Def p e -> Def p (f e)
+
       Var x -> if x == old then new else expr
       Case e cases -> Case (f e) $ map (second f) cases
       Data name es -> Data name (map f es)
@@ -27,4 +40,4 @@ subst old new expr =
       Modify r fs -> Modify (f r) (map (second f) fs)
       Record fs -> Record (map (second f) fs)
       Literal _ -> expr
-      Markdown _ -> expr
+      Markdown md es -> Markdown md (map f es)

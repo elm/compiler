@@ -14,10 +14,13 @@ num :: IParser Literal
 num = fmap toLit (preNum <?> "number")
     where toLit n | '.' `elem` n = FloatNum (read n)
                   | otherwise = IntNum (read n)
-          preNum  = (++) <$> many1 digit <*> option "" postNum
+          preNum  = concat <$> sequence [ option "" minus, many1 digit, option "" postNum ]
           postNum = do try $ lookAhead (string "." >> digit)
                        string "."
                        ('.':) <$> many1 digit
+          minus = try $ do string "-"
+                           lookAhead digit
+                           return "-"
 
 chr :: IParser Literal
 chr = Chr <$> betwixt '\'' '\'' (backslashed <|> satisfy (/='\''))

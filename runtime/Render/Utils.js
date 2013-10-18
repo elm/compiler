@@ -1,6 +1,5 @@
 
 ElmRuntime.Render.Utils = function() {
-'use strict';
 
 function newElement(elementType) {
     var e = document.createElement(elementType);    
@@ -34,7 +33,7 @@ function removeTransform(style) {
   style.OTransform      = 'none';
 }
 
-var List = Elm.Native.List({});
+var List = Elm.Native.List.make({});
 
 return {addTo:addTo,
 	newElement:newElement,
@@ -42,7 +41,7 @@ return {addTo:addTo,
 	fromList: List.toArray,
 	fromString: function(s) { return List.toArray(s).join(''); },
 	toString: List.fromArray,
-	eq: Elm.Native.Utils({}).eq,
+	eq: Elm.Native.Utils.make({}).eq,
 	addTransform: addTransform,
 	removeTransform: removeTransform
 	};

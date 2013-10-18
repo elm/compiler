@@ -1,12 +1,16 @@
 module Type.Environment where
 
 import Control.Applicative ((<$>), (<*>))
+import Control.Exception (try, SomeException)
 import Control.Monad
+import Control.Monad.Trans.Error (ErrorList(..))
+import Control.Monad.Error (ErrorT, throwError, liftIO)
 import qualified Control.Monad.State as State
 import qualified Data.Traversable as Traverse
 import qualified Data.Map as Map
 import Data.List (isPrefixOf)
 import qualified Data.UnionFind.IO as UF
+import qualified Text.PrettyPrint as PP
 
 import qualified SourceSyntax.Type as Src
 import SourceSyntax.Module (ADT)
@@ -51,7 +55,7 @@ makeTypes datatypes =
     builtins :: [(String,Int)]
     builtins = concat [ map tuple [0..9]
                       , kind 1 ["_List"]
-                      , kind 0 ["Int","Float","Char","Bool"]
+                      , kind 0 ["Int","Float","Char","String","Bool"]
                       ]
 
 
@@ -105,11 +109,15 @@ get env subDict key = Map.findWithDefault err key (subDict env)
 freshDataScheme :: Environment -> String -> IO (Int, [Variable], [Type], Type)
 freshDataScheme env name = get env constructor name
 
-instantiateType ::
-    Environment -> Src.Type -> VarDict -> IO ([Variable], Type)
+instance ErrorList PP.Doc where
+  listMsg str = [PP.text str]
+
+instantiateType :: Environment -> Src.Type -> VarDict -> ErrorT [PP.Doc] IO ([Variable], Type)
 instantiateType env sourceType dict =
-  do (tipe, (dict',_)) <- State.runStateT (instantiator env sourceType) (dict, Map.empty)
-     return (Map.elems dict', tipe)
+  do result <- liftIO $ try (State.runStateT (instantiator env sourceType) (dict, Map.empty))
+     case result :: Either SomeException (Type, (VarDict, TypeDict)) of
+       Left someError -> throwError [ PP.text $ show someError ]
+       Right (tipe, (dict',_)) -> return (Map.elems dict', tipe)
 
 instantiator :: Environment -> Src.Type
              -> State.StateT (VarDict, TypeDict) IO Type
@@ -134,9 +142,6 @@ instantiator env sourceType = go sourceType
                        | "comparable" `isPrefixOf` x = Is Comparable
                        | "appendable" `isPrefixOf` x = Is Appendable
                        | otherwise = Flexible
-
-        Src.Data "String" [] ->
-            return (get env types "_List" <| get env types "Char")
 
         Src.Data name ts -> do
           ts' <- mapM go ts

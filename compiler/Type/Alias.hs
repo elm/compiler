@@ -56,14 +56,16 @@ localizer metaModule = go
 realias :: Rules -> Type -> Type
 realias (aliases,localize) tipe = localize (canonicalRealias aliases tipe)
 
+-- Realias using canonical aliases, so results will have aliases
+-- that are fully qualified and possible to compare.
 canonicalRealias :: [(String,[String],Type)] -> Type -> Type
 canonicalRealias aliases tipe =
     case concatMap tryRealias aliases of
-      [tipe''] -> f tipe''
-      _ -> if tipe == tipe' then tipe else f tipe'
+      [] -> if tipe == tipe' then tipe else f tipe'
+      tipes -> f (bestType tipes)
   where
-    tryRealias (name, args, t) =
-        case diff t tipe of
+    tryRealias (name, args, aliasTipe) =
+        case diff aliasTipe tipe of
           Nothing -> []
           Just kvs ->
               let holes = collectFields kvs
@@ -84,6 +86,20 @@ canonicalRealias aliases tipe =
 
 allEqual [] = True
 allEqual (x:xs) = all (==x) xs
+
+bestType tipes = fst $ List.minimumBy (\a b -> compare (snd a) (snd b)) pairs
+    where
+      pairs :: [(Type,Int)]
+      pairs = zip tipes (map numFields tipes)
+
+      numFields :: Type -> Int
+      numFields tipe =
+          case tipe of
+            Lambda t1 t2 -> numFields t1 + numFields t2
+            Var _ -> 0
+            Data _ ts -> sum (map numFields ts)
+            EmptyRecord -> 0
+            Record fields ext -> length fields + sum (map (numFields . snd) fields) + numFields ext
 
 diff :: Type -> Type -> Maybe [(String,Type)]
 diff general specific =

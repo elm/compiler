@@ -1,13 +1,14 @@
+Elm.Native.Http = {};
+Elm.Native.Http.make = function(elm) {
 
-Elm.Native.Http = function(elm) {
-  'use strict';
   elm.Native = elm.Native || {};
-  if (elm.Native.Http) return elm.Native.Http;
+  elm.Native.Http = elm.Native.Http || {};
+  if (elm.Native.Http.values) return elm.Native.Http.values;
 
 
-  var JS = Elm.JavaScript(elm);
-  var List = Elm.List(elm);
-  var Signal = Elm.Signal(elm);
+  var JS = Elm.JavaScript.make(elm);
+  var List = Elm.List.make(elm);
+  var Signal = Elm.Signal.make(elm);
 
 
   function registerReq(queue,responses) { return function(req) {
@@ -50,12 +51,12 @@ Elm.Native.Http = function(elm) {
   }
 
   function send(requests) {
-    var responses = Signal.constant(elm.Http.Waiting);
+    var responses = Signal.constant(elm.Http.values.Waiting);
     var sender = A2( Signal.lift, registerReq([],responses), requests );
     function f(x) { return function(y) { return x; } }
     return A3( Signal.lift2, f, responses, sender );
   }
 
-  return elm.Native.Http = {send:send};
+  return elm.Native.Http.values = {send:send};
 
 };

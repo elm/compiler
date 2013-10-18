@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 module Type.Constrain.Pattern where
 
 import Control.Arrow (second)
@@ -7,8 +8,10 @@ import Control.Monad.Error
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import qualified Data.Map as Map
+import qualified Text.PrettyPrint as PP
 
 import SourceSyntax.Pattern
+import SourceSyntax.Location
 import SourceSyntax.PrettyPrint
 import Text.PrettyPrint (render)
 import qualified SourceSyntax.Location as Loc
@@ -18,7 +21,7 @@ import Type.Environment as Env
 import qualified Type.Constrain.Literal as Literal
 
 
-constrain :: Environment -> Pattern -> Type -> ErrorT String IO Fragment
+constrain :: Environment -> Pattern -> Type -> ErrorT (SrcSpan -> PP.Doc) IO Fragment
 constrain env pattern tipe =
     let span = Loc.NoSpan (render $ pretty pattern)
         t1 === t2 = Loc.L span (CEqual t1 t2)
@@ -51,7 +54,11 @@ constrain env pattern tipe =
           let msg = concat [ "Constructor '", name, "' expects ", show kind
                            , " argument", if kind == 1 then "" else "s"
                            , " but was given ", show (length patterns), "." ]
-          if length patterns /= kind then throwError msg else do
+              err span = PP.vcat [ PP.text $ "Type error " ++ show span
+                                 , PP.text msg ]
+          case length patterns == kind of
+            False -> throwError err
+            True -> do
               fragment <- Monad.liftM joinFragments (Monad.zipWithM (constrain env) patterns args)
               return $ fragment {
                 typeConstraint = typeConstraint fragment /\ tipe === result,
@@ -61,9 +68,15 @@ constrain env pattern tipe =
       PRecord fields -> do
           pairs <- liftIO $ mapM (\name -> (,) name <$> var Flexible) fields
           let tenv = Map.fromList (map (second VarN) pairs)
-          c <- liftIO . exists $ \t -> return (tipe === record (Map.map (:[]) tenv) t)
+          c <- exists $ \t -> return (tipe === record (Map.map (:[]) tenv) t)
           return $ Fragment {
               typeEnv        = tenv,
               vars           = map snd pairs,
               typeConstraint = c
           }
+
+instance Error (SrcSpan -> PP.Doc) where
+  noMsg _ = PP.empty
+  strMsg str span =
+      PP.vcat [ PP.text $ "Type error " ++ show span
+              , PP.text str ]

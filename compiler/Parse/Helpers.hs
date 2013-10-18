@@ -1,12 +1,17 @@
 module Parse.Helpers where
 
+import Prelude hiding (until)
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad
 import Control.Monad.State
 import Data.Char (isUpper)
+import qualified Data.Set as Set
+import qualified Data.Map as Map
 import SourceSyntax.Helpers as Help
 import SourceSyntax.Location as Location
 import SourceSyntax.Expression
+import SourceSyntax.PrettyPrint
+import SourceSyntax.Declaration (Assoc)
 import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
 
@@ -18,13 +23,31 @@ reserveds = [ "if", "then", "else"
             , "import", "as", "hiding", "open"
             , "export", "foreign" ]
 
+jsReserveds :: Set.Set String
+jsReserveds = Set.fromList
+    [ "null", "undefined", "Nan", "Infinity", "true", "false", "eval"
+    , "arguments", "int", "byte", "char", "goto", "long", "final", "float"
+    , "short", "double", "native", "throws", "boolean", "abstract", "volatile"
+    , "transient", "synchronized", "function", "break", "case", "catch"
+    , "continue", "debugger", "default", "delete", "do", "else", "finally"
+    , "for", "function", "if", "in", "instanceof", "new", "return", "switch"
+    , "this", "throw", "try", "typeof", "var", "void", "while", "with", "class"
+    , "const", "enum", "export", "extends", "import", "super", "implements"
+    , "interface", "let", "package", "private", "protected", "public"
+    , "static", "yield"
+    ]
+
 expecting = flip (<?>)
 
-type IParser a = ParsecT String () (State SourcePos) a
+type OpTable = Map.Map String (Int, Assoc)
+type IParser a = ParsecT String OpTable (State SourcePos) a
 
-iParse :: IParser a -> SourceName -> String -> Either ParseError a
-iParse aParser source_name input =
-  runIndent source_name $ runParserT aParser () source_name input
+iParse :: IParser a -> String -> Either ParseError a
+iParse = iParseWithTable "" Map.empty
+
+iParseWithTable :: SourceName -> OpTable -> IParser a -> String -> Either ParseError a
+iParseWithTable sourceName table aParser input =
+  runIndent sourceName $ runParserT aParser table sourceName input
 
 backslashed :: IParser Char
 backslashed = do { char '\\'; c <- anyChar
@@ -49,13 +72,10 @@ rLabel = lowVar
 innerVarChar :: IParser Char
 innerVarChar = alphaNum <|> char '_' <|> char '\'' <?> "" 
 
-deprime :: String -> String
-deprime = map (\c -> if c == '\'' then '$' else c)
-
 makeVar :: IParser Char -> IParser String
 makeVar p = do v <- (:) <$> p <*> many innerVarChar
                guard (v `notElem` reserveds)
-               return (deprime v)
+               return v
 
 reserved :: String -> IParser String
 reserved word =
@@ -147,12 +167,17 @@ parens   = surround '(' ')' "paren"
 brackets :: IParser a -> IParser a
 brackets = surround '{' '}' "bracket"
 
-addLocation :: IParser (Expr t v) -> IParser (LExpr t v)
+addLocation :: (Pretty a) => IParser a -> IParser (Location.Located a)
 addLocation expr = do
-  start <- getPosition
-  e <- expr
-  end <- getPosition
+  (start, e, end) <- located expr
   return (Location.at start end e)
+
+located :: IParser a -> IParser (SourcePos, a, SourcePos)
+located p = do
+  start <- getPosition
+  e <- p
+  end <- getPosition
+  return (start, e, end)
 
 accessible :: IParser (LExpr t v) -> IParser (LExpr t v)
 accessible expr = do
@@ -200,16 +225,74 @@ simpleNewline = try (string "\r\n") <|> string "\n"
 lineComment :: IParser String
 lineComment = do
   try (string "--")
-  comment <- manyTill anyChar $ simpleNewline <|> (eof >> return "\n")
+  comment <- anyUntil $ simpleNewline <|> (eof >> return "\n")
   return ("--" ++ comment)
 
 multiComment :: IParser String
-multiComment = do { try (string "{-"); closeComment }
+multiComment = (++) <$> try (string "{-") <*> closeComment
 
 closeComment :: IParser String
-closeComment = do
-    comment <- manyTill anyChar . choice $
-               [ try (string "-}") <?> "close comment"
-               , do { try $ string "{-"; closeComment; closeComment }
-               ]
-    return ("{-" ++ comment ++ "-}")
+closeComment =
+    anyUntil . choice $
+                 [ try (string "-}") <?> "close comment"
+                 , concat <$> sequence [ try (string "{-"), closeComment, closeComment ]
+                 ]
+
+until :: IParser a -> IParser b -> IParser b
+until p end =  go
+    where
+      go = end <|> (p >> go)
+
+anyUntil :: IParser String -> IParser String
+anyUntil end = go
+    where
+      go = end <|> (:) <$> anyChar <*> go
+
+ignoreUntil :: IParser a -> IParser (Maybe a)
+ignoreUntil end = go
+    where
+      ignore p = const () <$> p
+      filler = choice [ ignore multiComment
+                      , ignore (markdown (\_ _ -> mzero))
+                      , ignore anyChar
+                      ]
+      go = choice [ Just <$> end
+                  , filler `until` choice [ const Nothing <$> eof, newline >> go ]
+                  ]
+
+onFreshLines :: (a -> b -> b) -> b -> IParser a -> IParser b
+onFreshLines insert init thing = go init
+    where
+      go values = do
+        optionValue <- ignoreUntil thing
+        case optionValue of
+          Nothing -> return values
+          Just v  -> go (insert v values)
+
+withSource :: IParser a -> IParser (String, a)
+withSource p = do
+  start  <- getParserState
+  result <- p
+  endPos <- getPosition
+  setParserState start
+  raw <- anyUntilPos endPos
+  return (raw, result)
+
+anyUntilPos :: SourcePos -> IParser String
+anyUntilPos pos = go
+    where
+      go = do currentPos <- getPosition
+              case currentPos == pos of
+                True -> return []
+                False -> (:) <$> anyChar <*> go
+
+markdown :: (String -> [a] -> IParser (String, [a])) -> IParser (String, [a])
+markdown interpolation = try (string "[markdown|") >> closeMarkdown "" []
+    where
+      closeMarkdown md stuff =
+          choice [ do try (string "|]")
+                      return (md, stuff)
+                 , uncurry closeMarkdown =<< interpolation md stuff
+                 , do c <- anyChar
+                      closeMarkdown (md ++ [c]) stuff
+                 ]

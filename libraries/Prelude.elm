@@ -1,4 +1,5 @@
 module Prelude where
+{-| Everything that is automatically imported -}
 
 import Basics (String)
 import Maybe (Maybe)

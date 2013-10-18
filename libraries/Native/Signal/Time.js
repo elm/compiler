@@ -1,11 +1,14 @@
+Elm.Native.Time = {};
+Elm.Native.Time.make = function(elm) {
 
-Elm.Native.Time = function(elm) {
-  'use strict';
+  elm.Native = elm.Native || {};
+  elm.Native.Time = elm.Native.Time || {};
+  if (elm.Native.Time.values) return elm.Native.Time.values;
 
-  var Signal = Elm.Signal(elm);
-  var NS = Elm.Native.Signal(elm);
-  var Maybe = Elm.Maybe(elm);
-  var Utils = Elm.Native.Utils(elm);
+  var Signal = Elm.Signal.make(elm);
+  var NS = Elm.Native.Signal.make(elm);
+  var Maybe = Elm.Maybe.make(elm);
+  var Utils = Elm.Native.Utils.make(elm);
 
   function fpsWhen(desiredFPS, isOn) {
     var msPerFrame = 1000 / desiredFPS;
@@ -50,7 +53,7 @@ Elm.Native.Time = function(elm) {
       var t = Date.parse(s);
       return isNaN(t) ? Maybe.Nothing : Maybe.Just(t);
   }
-  return elm.Native.Time = {
+  return elm.Native.Time.values = {
       fpsWhen : F2(fpsWhen),
       fps : function(t) { return fpsWhen(t, Signal.constant(true)); },
       every : function(t) { return everyWhen(t, Signal.constant(true)) },

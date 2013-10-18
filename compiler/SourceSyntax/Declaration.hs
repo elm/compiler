@@ -15,4 +15,11 @@ data Declaration tipe var
       deriving (Eq, Show)
 
 data Assoc = L | N | R
-             deriving (Eq, Show)
+             deriving (Eq)
+
+instance Show Assoc where
+    show assoc =
+        case assoc of
+          L -> "left"
+          N -> "non"
+          R -> "right"

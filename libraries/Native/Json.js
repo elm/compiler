@@ -1,12 +1,15 @@
+Elm.Native.Json = {};
+Elm.Native.Json.make = function(elm) {
 
-Elm.Native.Json = function(elm) {
-  'use strict';
+  elm.Native = elm.Native || {};
+  elm.Native.Json = elm.Native.Json || {};
+  if (elm.Native.Json.values) return elm.Native.Json.values;
 
-  var Maybe = Elm.Maybe(elm);
-  var Dict = Elm.Dict(elm);
-  var List = Elm.List(elm);
-  var JS = Elm.JavaScript(elm);
-  var Utils = Elm.Native.Utils(elm);
+  var Maybe = Elm.Maybe.make(elm);
+  var Dict = Elm.Dict.make(elm);
+  var List = Elm.List.make(elm);
+  var JS = Elm.JavaScript.make(elm);
+  var Utils = Elm.Native.Utils.make(elm);
 
   function fromValue(v) {
     switch (v.ctor) {
@@ -59,7 +62,7 @@ Elm.Native.Json = function(elm) {
     }
   }
 
-  return elm.Native.Json = {
+  return elm.Native.Json.values = {
       toJSString : F2(toPrettyJSString),
       fromJSString : fromJSString,
       toJSObject : fromValue,

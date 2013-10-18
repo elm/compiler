@@ -1,18 +1,17 @@
-
-Elm.Native.JavaScript = function(elm) {
-  'use strict';
-
+Elm.Native.JavaScript = {};
+Elm.Native.JavaScript.make = function(elm) {
   elm.Native = elm.Native || {};
-  if (elm.Native.JavaScript) return elm.Native.JavaScript;
+  elm.Native.JavaScript = elm.Native.JavaScript || {};
+  if (elm.Native.JavaScript.values) return elm.Native.JavaScript.values;
 
-  var List = Elm.Native.List(elm);
+  var List = Elm.Native.List.make(elm);
   var Render = ElmRuntime.use(ElmRuntime.Render.Element);
 
   function fromJS(v) {
       var type = typeof v;
       if (type === 'number' ) return v;
       if (type === 'boolean') return v;
-      if (type === 'string' ) return List.fromArray(v);
+      if (type === 'string' ) return v;
       if (v instanceof Array) {
           var arr = [];
           var len = v.length;
@@ -46,12 +45,8 @@ Elm.Native.JavaScript = function(elm) {
       }
       if (type === 'object' && (v.ctor === '::' || v.ctor === '[]')) {
           var array = List.toArray(v);
-          if (typeof array[0] === 'string') {
-              array = array.join('');
-          } else {
-              for (var i = array.length; i--; ) {
-                  array[i] = toJS(array[i]);
-              }
+          for (var i = array.length; i--; ) {
+              array[i] = toJS(array[i]);
           }
           return array;
       }
@@ -84,13 +79,13 @@ Elm.Native.JavaScript = function(elm) {
       return Render.render(element);
   }
 
-  return elm.Native.JavaScript = {
-      toFloat    : id,
-      toBool     : id,
+  return elm.Native.JavaScript.values = {
       toInt      : function(n) { return n|0; },
-      toString   : List.fromArray,
+      toFloat    : function(n) { return +n; },
+      toBool     : id,
+      toString   : id,
       toList     : List.fromArray,
-      fromString : function(s) { return List.toArray(s).join(''); },
+      fromString : id,
       fromList   : List.toArray,
       fromInt    : id,
       fromFloat  : id,

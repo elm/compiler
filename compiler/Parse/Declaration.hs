@@ -3,6 +3,7 @@ module Parse.Declaration where
 
 import Control.Applicative ((<$>), (<*>))
 import qualified Data.List as List
+import qualified Data.Set as Set
 import Text.Parsec hiding (newline,spaces)
 import Text.Parsec.Indent
 import qualified Text.Pandoc as Pan
@@ -13,7 +14,6 @@ import qualified SourceSyntax.Type as T
 import qualified Parse.Type as Type
 import SourceSyntax.Declaration (Declaration(..), Assoc(..))
 
-import Unique
 
 declaration :: IParser (Declaration t v)
 declaration = alias <|> datatype <|> infixDecl <|> foreignDef <|> definition
@@ -71,8 +71,8 @@ exportEvent = do
     T.Data "Signal" [t] ->
         case isExportable t of
           Nothing -> return (ExportEvent eventName elmVar tipe)
-          Just err -> error err
-    _ -> error "When importing foreign events, the imported value must have type Signal."
+          Just err -> fail err
+    _ -> fail "When importing foreign events, the imported value must have type Signal."
 
 importEvent :: IParser (Declaration t v)
 importEvent = do
@@ -88,29 +88,15 @@ importEvent = do
     T.Data "Signal" [t] ->
         case isExportable t of
           Nothing -> return (ImportEvent eventName baseValue elmVar tipe)
-          Just err -> error err
-    _ -> error "When importing foreign events, the imported value must have type Signal."
+          Just err -> fail err
+    _ -> fail "When importing foreign events, the imported value must have type Signal."
 
 jsVar :: IParser String
 jsVar = betwixt '"' '"' $ do
   v <- (:) <$> (letter <|> char '_') <*> many (alphaNum <|> char '_')
-  if v `notElem` jsReserveds then return v else
-      error $ "'" ++ v ++
+  if Set.notMember v jsReserveds then return v else
+      fail $ "'" ++ v ++
           "' is not a good name for a importing or exporting JS values."
-
-jsReserveds :: [String]
-jsReserveds =
-    [ "null", "undefined", "Nan", "Infinity", "true", "false", "eval"
-    , "arguments", "int", "byte", "char", "goto", "long", "final", "float"
-    , "short", "double", "native", "throws", "boolean", "abstract", "volatile"
-    , "transient", "synchronized", "function", "break", "case", "catch"
-    , "continue", "debugger", "default", "delete", "do", "else", "finally"
-    , "for", "function", "if", "in", "instanceof", "new", "return", "switch"
-    , "this", "throw", "try", "typeof", "var", "void", "while", "with", "class"
-    , "const", "enum", "export", "extends", "import", "super", "implements"
-    , "interface", "let", "package", "private", "protected", "public"
-    , "static", "yield"
-    ]
 
 isExportable tipe =
   case tipe of

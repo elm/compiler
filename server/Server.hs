@@ -1,7 +1,6 @@
-
 module Main where
 
-import Control.Monad (msum,guard)
+import Control.Monad (msum,guard,when)
 import Control.Monad.Trans (MonadIO(liftIO))
 import Data.List (isPrefixOf, isSuffixOf, (\\))
 import Data.Version (showVersion)
@@ -34,24 +33,37 @@ serve portNumber libLoc = do
 pageTitle :: String -> String
 pageTitle = dropExtension . takeBaseName
 
+defaultCacheDirectory = "elm-server-cache"
+
 serveElm :: FilePath -> ServerPartT IO Response
 serveElm fp = do
-  guard (takeExtension fp == ".elm")
-  let file = tail fp
-      args = [ "--make" ,"--runtime=" ++ runtime, "--cache-dir=elm-server-cache", file ]
-  (_, stdout, _, handle) <- liftIO $ createProcess $ (proc "elm" args) { std_out = CreatePipe }
+  fileExists <- liftIO $ doesFileExist file
+  guard $ fileExists && takeExtension fp == ".elm"
+
+  (_, stdout, _, handle) <- liftIO $ createProcess $
+                            (proc "elm" args) { std_out = CreatePipe }
   exitCode <- liftIO $ waitForProcess handle
-  liftIO $ removeDirectoryRecursive "elm-server-cache"
+
+  dirExists <- liftIO $ doesDirectoryExist defaultCacheDirectory
+  when dirExists $ liftIO $ removeDirectoryRecursive defaultCacheDirectory
+
   case (exitCode, stdout) of
+    (ExitFailure 127, _) ->
+        badRequest $ toResponse "Error: elm binary not found in your path."
     (ExitFailure _, Just out) ->
         do str <- liftIO $ hGetContents out
            badRequest $ toResponse str
     (ExitFailure _, Nothing) ->
         badRequest $ toResponse "See command line for error message."
     (ExitSuccess, _) ->
-        serveFile (asContentType "text/html") ("build" </> replaceExtension file "html")
+        serveFile
+        (asContentType "text/html") ("build" </> replaceExtension file "html")
 
-serveLib :: FilePath -> [Char] -> ServerPartT IO Response
+  where file = tail fp
+        args = [ "--make" ,"--runtime=" ++ runtime,
+                 "--cache-dir=" ++ defaultCacheDirectory, file ]
+
+serveLib :: FilePath -> String -> ServerPartT IO Response
 serveLib libLoc fp = do
   guard (fp == runtime)
   serveFile (asContentType "application/javascript") libLoc
@@ -63,9 +75,11 @@ parse :: [String] -> IO ()
 parse ("--help":_) = putStrLn usage
 parse ("--version":_) = putStrLn ("The Elm Server " ++ showVersion version)
 parse args =
-  case null remainingArgs of
-    True -> serve portNumber =<< elmRuntime
-    False -> putStrLn usageMini
+  if null remainingArgs then
+      serve portNumber =<< elmRuntime
+  else
+      putStrLn usageMini
+
   where
     runtimeArg = filter (isPrefixOf "--runtime-location=") args
     portArg = filter (isPrefixOf "--port=") args
@@ -73,7 +87,10 @@ parse args =
 
     argValue arg = tail $ dropWhile (/= '=') (head arg)
     portNumber = if null portArg then 8000 else read (argValue portArg) :: Int
-    elmRuntime = if null runtimeArg then Elm.runtime else return $ argValue runtimeArg
+    elmRuntime = if null runtimeArg then
+                     Elm.runtime
+                 else
+                     return $ argValue runtimeArg
 
 usageMini :: String
 usageMini =

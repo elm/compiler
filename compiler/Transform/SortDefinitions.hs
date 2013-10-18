@@ -97,7 +97,7 @@ reorder lexpr@(L s expr) =
       Record fields ->
           Record `liftM` mapM reorderField fields
 
-      Markdown _ -> return expr
+      Markdown md es -> Markdown md <$> mapM reorder es
 
       -- Actually do some reordering
       Let defs body ->
