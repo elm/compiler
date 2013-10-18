@@ -52,28 +52,16 @@ have the equivalence: `(partition es == (lefts es, rights es))`
 partition : [Either a b] -> ([a],[b])
 partition es = List.foldr consEither ([],[]) es
 
-{-| If `Left`, add the value to the front of the list. 
-If `Right`, return the list unchanged
--}
-consLeft : Either a b -> [a] -> [a]
 consLeft e vs =
     case e of
       Left  v -> v::vs
       Right _ -> vs
 
-{-| If `Right`, add the value to the front of the list.
-If `Left`, return the list unchanged.
--}
-consRight : Either a b -> [b] -> [b]
 consRight e vs =
     case e of
       Left  _ -> vs
       Right v -> v::vs
 
-{-| If `Left`, add the value to the left list.
-If `Right`, add the value to the right list.
--}
-consEither : Either a b -> ([a], [b]) -> ([a], [b])
 consEither e (ls,rs) =
     case e of
       Left  l -> (l::ls,rs)

@@ -39,11 +39,6 @@ isJust = maybe False (\_ -> True)
 isNothing : Maybe a -> Bool
 isNothing = not . isJust
 
-
-{-| If `Just`, adds the value to the front of the list.
-If `Nothing`, list is unchanged.
--}
-cons : Maybe a -> [a] -> [a]
 cons mx xs = maybe xs (\x -> x :: xs) mx
 
 {-| Filters out Nothings and extracts the remaining values.
