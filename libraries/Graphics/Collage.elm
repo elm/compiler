@@ -204,37 +204,37 @@ collage : Int -> Int -> [Form] -> Element
 collage = Native.Graphics.Collage.collage
 
 
-type Path = [(number,number)]
+type Path = [(Float,Float)]
 
 {-| Create a path that follows a sequence of points. -}
-path : [(number,number)] -> Path
+path : [(Float,Float)] -> Path
 path ps = ps
 
 {-| Create a path along a given line segment. -}
-segment : (number,number) -> (number,number) -> Path
+segment : (Float,Float) -> (Float,Float) -> Path
 segment p1 p2 = [p1,p2]
 
-type Shape = [(number,number)]
+type Shape = [(Float,Float)]
 
 {-| Create an arbitrary polygon by specifying its corners in order.
 `polygon` will automatically close all shapes, so the given list
 of points does not need to start and end with the same position.
 -}
-polygon : [(number,number)] -> Shape
+polygon : [(Float,Float)] -> Shape
 polygon points = points
 
 {-| A rectangle with a given width and height. -}
-rect : number -> number -> Shape
+rect : Float -> Float -> Shape
 rect w h = let hw = w/2
                hh = h/2
            in  [ (0-hw,0-hh), (0-hw,hh), (hw,hh), (hw,0-hh) ]
 
 {-| A square with a given edge length. -}
-square : number -> Shape
+square : Float -> Shape
 square n = rect n n
 
 {-| An oval with a given width and height. -}
-oval : number -> number -> Shape
+oval : Float -> Float -> Shape
 oval w h =
   let n = 50
       t = 2 * pi / n
@@ -244,7 +244,7 @@ oval w h =
   in  List.map f [0..n-1]
 
 {-| A circle with a given radius. -}
-circle : number -> Shape
+circle : Float -> Shape
 circle r = oval (2*r) (2*r)
 
 {-| A regular polygon with N sides. The first argument specifies the number
@@ -253,7 +253,7 @@ of sides and the second is the radius. So to create a pentagon with radius
 
         ngon 5 30
 -}
-ngon : Int -> number -> Shape
+ngon : Int -> Float -> Shape
 ngon n r =
   let m = toFloat n
       t = 2 * pi / m

@@ -2,9 +2,11 @@ module Transform.Check (mistakes) where
 
 import Transform.SortDefinitions (boundVars)
 import SourceSyntax.Everything
+import SourceSyntax.PrettyPrint
 import qualified SourceSyntax.Type as T
 import Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import Data.Data
 import Data.Generics.Uniplate.Data
@@ -13,7 +15,7 @@ import Text.PrettyPrint as P
 
 mistakes :: (Data t, Data v) => [Declaration t v] -> [Doc]
 mistakes decls =
-    map P.text $ concatMap findErrors (getLets decls)
+    illFormedTypes decls ++ map P.text (concatMap findErrors (getLets decls))
   where
     findErrors defs = duplicates defs ++ badOrder defs
 
@@ -60,4 +62,46 @@ badOrder defs = go defs
 
             _ -> []
 
+illFormedTypes :: [Declaration t v] -> [Doc]
+illFormedTypes decls = map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
+    where
+      aliases = [ (decl, tvars, [tipe]) | decl@(TypeAlias _ tvars tipe) <- decls ]
+      adts = [ (decl, tvars, concatMap snd ctors) | decl@(Datatype _ tvars ctors) <- decls ]
 
+      freeVars tipe =
+          case tipe of
+            T.Lambda t1 t2 -> Set.union (freeVars t1) (freeVars t2)
+            T.Var x -> Set.singleton x
+            T.Data _ ts -> Set.unions (map freeVars ts)
+            T.EmptyRecord -> Set.empty
+            T.Record fields ext -> Set.unions (freeVars ext : map (freeVars . snd) fields)
+
+      undeclared tvars tipes = Set.difference used declared
+          where
+            used = Set.unions (map freeVars tipes)
+            declared = Set.fromList tvars
+
+      isIllFormed (decl, tvars, tipes) =
+          let unbound = undeclared tvars tipes in 
+          if Set.null unbound then Nothing
+                              else Just (decl, Set.toList unbound)
+
+      report (decl, tvars) =
+          P.vcat [ P.text $ "Error: type variable" ++ listing ++ " unbound in:"
+                 , P.text "\n"
+                 , nest 4 (pretty decl) ]
+          where
+            listing =
+                case tvars of
+                  [tvar] -> " " ++ quote tvar ++ " is"
+                  _      -> "s " ++ addCommas (addAnd (map quote tvars)) ++ " are"
+
+            addCommas xs
+                | length xs < 3 = concat xs
+                | otherwise = intercalate ", " xs
+
+            addAnd xs
+                | length xs < 2 = xs
+                | otherwise = zipWith (++) (replicate (length xs - 1) "" ++ ["and "]) xs
+
+            quote tvar = "'" ++ tvar ++ "'"
