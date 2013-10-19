@@ -94,11 +94,11 @@ illFormedTypes decls = map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
             listing =
                 case tvars of
                   [tvar] -> " " ++ quote tvar ++ " is"
-                  _      -> "s " ++ addCommas (addAnd (map quote tvars)) ++ " are"
+                  _ -> "s" ++ addCommas (map ((++) " ") (addAnd (map quote tvars))) ++ " are"
 
             addCommas xs
                 | length xs < 3 = concat xs
-                | otherwise = intercalate ", " xs
+                | otherwise = intercalate "," xs
 
             addAnd xs
                 | length xs < 2 = xs
