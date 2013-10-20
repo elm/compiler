@@ -26,7 +26,9 @@ record :: IParser T.Type
 record =
   do char '{' ; whitespace
      ext <- extend
-     fs <- fields
+     fs <- case ext of
+        T.EmptyRecord -> commaSep fields
+        _ -> commaSep1 fields
      dumbWhitespace ; char '}'
      return (T.Record fs ext)
   where
@@ -34,7 +36,7 @@ record =
                t <- tvar
                whitespace >> string "|" >> whitespace
                return t
-    fields = commaSep1 $ do
+    fields = do
                lbl <- rLabel
                whitespace >> hasType >> whitespace
                (,) lbl <$> expr
