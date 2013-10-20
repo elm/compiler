@@ -25,21 +25,22 @@ tuple = do ts <- parens (commaSep expr)
 record :: IParser T.Type
 record =
   do char '{' ; whitespace
-     ext <- extend
-     fs <- case ext of
-        T.EmptyRecord -> commaSep fields
-        _ -> commaSep1 fields
+     (ext,fs) <- extended <|> normal
      dumbWhitespace ; char '}'
      return (T.Record fs ext)
   where
-    extend = option T.EmptyRecord . try $ do
-               t <- tvar
-               whitespace >> string "|" >> whitespace
-               return t
+    normal = (,) T.EmptyRecord <$> commaSep fields
+
+    -- extended record types require at least one field
+    extended = do
+      ext <- try (const <$> tvar <*> (whitespace >> string "|"))
+      whitespace
+      (,) ext <$> commaSep1 fields
+
     fields = do
-               lbl <- rLabel
-               whitespace >> hasType >> whitespace
-               (,) lbl <$> expr
+      lbl <- rLabel
+      whitespace >> hasType >> whitespace
+      (,) lbl <$> expr
 
 capTypeVar = intercalate "." <$> dotSep1 capVar
 
