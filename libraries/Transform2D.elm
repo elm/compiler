@@ -46,6 +46,9 @@ Given an angle t, it creates a counterclockwise rotation matrix:
 rotation : Float -> Transform2D
 rotation = Native.Transform2D.rotation
 
+translation : Float -> Float -> Transform2D
+translation = Native.Transform2D.translation
+
 {-| Multiplies two transforms together:
 
       multiply a b
