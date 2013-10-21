@@ -26,10 +26,14 @@ Elm.Native.String.make = function(elm) {
         return str.length;
     }
     function map(f,str) {
-        return str.split('').map(f).join('');
+        var out = str.split('');
+        for (var i = out.length; i--; ) {
+            out[i] = f(Utils.chr(out[i]));
+        }
+        return out.join('');
     }
     function filter(pred,str) {
-        return str.split('').filter(pred).join('');
+        return str.split('').map(Utils.chr).filter(pred).join('');
     }
     function reverse(str) {
         return str.split('').reverse().join('');
@@ -37,13 +41,13 @@ Elm.Native.String.make = function(elm) {
     function foldl(f,b,str) {
         var len = str.length;
         for (var i = 0; i < len; ++i) {
-            b = A2(f, str[i], b);
+            b = A2(f, Utils.chr(str[i]), b);
         }
         return b;
     }
     function foldr(f,b,str) {
         for (var i = str.length; i--; ) {
-            b = A2(f, str[i], b);
+            b = A2(f, Utils.chr(str[i]), b);
         }
         return b;
     }
@@ -116,13 +120,13 @@ Elm.Native.String.make = function(elm) {
 
     function any(pred, str) {
         for (var i = str.length; i--; ) {
-            if (pred(str[i])) return true;
+            if (pred(Utils.chr(str[i]))) return true;
         }
         return false;
     }
     function all(pred, str) {
         for (var i = str.length; i--; ) {
-            if (!pred(str[i])) return false;
+            if (!pred(Utils.chr(str[i]))) return false;
         }
         return true;
     }
