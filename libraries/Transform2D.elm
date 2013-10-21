@@ -49,6 +49,14 @@ rotation = Native.Transform2D.rotation
 translation : Float -> Float -> Transform2D
 translation = Native.Transform2D.translation
 
+{-| Creates a transformation for horizontal scaling -}
+scaleX : Float -> Transform2D
+scaleX x = matrix x 0 0 1 0 0
+
+{-| Creates a transformation for vertical scaling -}
+scaleY : Float -> Transform2D
+scaleY y = matrix y 0 0 1 0 0
+
 {-| Multiplies two transforms together:
 
       multiply a b
