@@ -46,8 +46,26 @@ Given an angle t, it creates a counterclockwise rotation matrix:
 rotation : Float -> Transform2D
 rotation = Native.Transform2D.rotation
 
+{-| Creates a transformation matrix for translation:
+
+    translation x y
+
+          / 1 0 x \
+          | 0 1 y |
+          \ 0 0 1 /
+-}
 translation : Float -> Float -> Transform2D
-translation = Native.Transform2D.translation
+translation x y = matrix 1 0 0 1 x y
+
+{-| Creates a transformation matrix for scaling by a all directions:
+
+    scale a
+
+        / a 0 \
+        \ 0 a /
+-}
+scale : Float -> Transform2D
+scale a = matrix a 0 0 a 0 0
 
 {-| Creates a transformation for horizontal scaling -}
 scaleX : Float -> Transform2D
