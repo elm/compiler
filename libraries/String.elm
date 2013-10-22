@@ -3,11 +3,10 @@ module String where
 are enclosed in `"double quotes"`. Strings are *not* lists of characters.
 
 # Basics
-@docs isEmpty, length, cons, uncons, reverse,
-      map, filter, foldl, foldr, any, all, repeat
+@docs isEmpty, length, reverse, repeat
 
-# Split and Join
-@docs split, join, words, lines
+# Building and Splitting
+@docs  cons, uncons, append, concat, split, join, words, lines
 
 # Get Substrings
 @docs sub, left, right, dropLeft, dropRight
@@ -24,6 +23,9 @@ Cosmetic operations such as padding with extra characters or trimming whitespace
 @docs toUpper, toLower,
       pad, padLeft, padRight,
       trim, trimLeft, trimRight
+
+# Higher-Order Functions
+@docs map, filter, foldl, foldr, any, all
 -}
 
 import Native.String
@@ -45,6 +47,21 @@ pattern match on strings exactly as you would with lists.
 -}
 uncons : String -> Maybe (Char, String)
 uncons = Native.String.uncons
+
+{-| Append two strings. You can also use [the `(++)` operator](/library/List.elm#++)
+to do this.
+
+      append "butter" "fly" == "butterfly"
+-}
+append : String -> String -> String
+append = Native.String.append
+
+{-| Concatenate many strings into one.
+
+      concat ["never","the","less"] == "nevertheless"
+-}
+concat : [String] -> String
+concat = Native.String.concat
 
 {-| Get the length of a string `(length "innumerable" == 11)` -}
 length : String -> Int

@@ -22,6 +22,12 @@ Elm.Native.String.make = function(elm) {
         return (hd = str[0]) ? Maybe.Just(Utils.Tuple2(Utils.chr(hd), str.slice(1)))
                               : Maybe.Nothing;
     }
+    function append(a,b) {
+        return a + b;
+    }
+    function concat(strs) {
+        return JS.fromList(strs).join('');
+    }
     function length(str) {
         return str.length;
     }
@@ -191,6 +197,8 @@ Elm.Native.String.make = function(elm) {
         isEmpty: isEmpty,
         cons: F2(cons),
         uncons: uncons,
+        append: F2(append),
+        concat: concat,
         length: length,
         map: F2(map),
         filter: F2(filter),
