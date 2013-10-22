@@ -125,7 +125,7 @@ tiled to fill the entire shape.
 textured : String -> Shape -> Form
 textured src shape = fill (Texture src) shape
 
-{-| Fill a shape with a [gradient](/docs/Color.elm#linear). -}
+{-| Fill a shape with a [gradient](/library/Color.elm#linear). -}
 gradient : Gradient -> Shape -> Form
 gradient grad shape = fill (Grad grad) shape
 
