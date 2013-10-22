@@ -243,14 +243,17 @@ match :: (Show a) => a -> Case.Match () () -> State Int [Statement ()]
 match span mtch =
   case mtch of
     Case.Match name clauses mtch' ->
-        do clauses' <- mapM (clause span name) clauses
+        do (isChars, clauses') <- unzip <$> mapM (clause span name) clauses
            mtch'' <- match span mtch'
-           return (SwitchStmt () (access name) clauses' : mtch'')
+           return (SwitchStmt () (format isChars (access name)) clauses' : mtch'')
         where
           isLiteral p = case p of
                           Case.Clause (Right _) _ _ -> True
                           _ -> False
           access name = if any isLiteral clauses then ref name else dotSep [name,"ctor"]
+          format isChars e
+              | or isChars = InfixExpr () OpAdd e (string "")
+              | otherwise = e
 
     Case.Fail ->
         return [ ExprStmt () (obj "_E.Case" `call` [ref "$moduleName", string (show span)]) ]
@@ -268,15 +271,18 @@ match span mtch =
                 _ -> dropEnd (acc ++ [m]) ms
 
 clause span variable (Case.Clause value vars mtch) =
-    CaseClause () pattern <$> match span (Case.matchSubst (zip vars vars') mtch)
+    (,) isChar . CaseClause () pattern <$> match span (Case.matchSubst (zip vars vars') mtch)
   where
     vars' = map (\n -> variable ++ "._" ++ show n) [0..]
-    pattern = case value of
-                Right (Boolean b)  -> BoolLit () b
-                Right lit -> literal lit
-                Left name -> string $ case List.elemIndices '.' name of
-                                        [] -> name
-                                        is -> drop (last is + 1) name
+    (isChar, pattern) =
+        case value of
+          Right (Chr c) -> (True, string [c])
+          _ -> (,) False $ case value of
+                             Right (Boolean b) -> BoolLit () b
+                             Right lit -> literal lit
+                             Left name -> string $ case List.elemIndices '.' name of
+                                                     [] -> name
+                                                     is -> drop (last is + 1) name
 
 
 jsModule :: MetadataModule () () -> String 
