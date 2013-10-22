@@ -157,8 +157,7 @@ Elm.Native.String.make = function(elm) {
         return JS.toList(is);
     }
 
-    function toInt(str) {
-        var s = JS.fromString(str);
+    function toInt(s) {
         var len = s.length;
         if (len === 0) { return Maybe.Nothing; }
         var start = 0;
@@ -172,8 +171,7 @@ Elm.Native.String.make = function(elm) {
         return Maybe.Just(parseInt(s, 10));
     }
 
-    function toFloat(str) {
-        var s = JS.fromString(str);
+    function toFloat(s) {
         var len = s.length;
         if (len === 0) { return Maybe.Nothing; }
         var start = 0;
@@ -191,6 +189,13 @@ Elm.Native.String.make = function(elm) {
             return Maybe.Nothing;
         }
         return Maybe.Just(parseFloat(s));
+    }
+
+    function toList(str) {
+        return JS.toList(str.split('').map(Utils.chr));
+    }
+    function fromList(chars) {
+        return JS.fromList(chars).join('');
     }
 
     return Elm.Native.String.values = {
@@ -240,5 +245,7 @@ Elm.Native.String.make = function(elm) {
 
         toInt: toInt,
         toFloat: toFloat,
+        toList: toList,
+        fromList: fromList,
     };
 };

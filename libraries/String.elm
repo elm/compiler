@@ -14,8 +14,8 @@ are enclosed in `"double quotes"`. Strings are *not* lists of characters.
 # Check for Substrings
 @docs contains, startsWith, endsWith, indexes, indices
 
-# Conversion To Numbers
-@docs toInt, toFloat
+# Conversions
+@docs toInt, toFloat, toList, fromList
 
 # Formatting
 Cosmetic operations such as padding with extra characters or trimming whitespace.
@@ -85,12 +85,16 @@ filter = Native.String.filter
 reverse : String -> String
 reverse = Native.String.reverse
 
-{-|
+{-| Reduce a string from the left:
+
+      foldl cons "" "time" == "emit"
 -}
 foldl : (Char -> b -> b) -> b -> String -> b
 foldl = Native.String.foldl
 
-{-|
+{-| Reduce a string from the right:
+
+      foldr cons "" "time" == "time"
 -}
 foldr : (Char -> b -> b) -> b -> String -> b
 foldr = Native.String.foldr
@@ -289,3 +293,19 @@ toInt = Native.String.toInt
 -}
 toFloat : String -> Maybe Float
 toFloat = Native.String.toFloat
+
+{-| Convert a string to a list of characters.
+
+      toList "abc" == ['a','b','c']
+-}
+toList : String -> [Char]
+toList = Native.String.toList
+
+{-| Convert a list of characters into a String. Can be useful if you
+want to create a string primarly by consing, perhaps for decoding
+something.
+
+      fromList ['a','b','c'] == "abc"
+-}
+fromList : String -> [Char]
+fromList = Native.String.fromList
