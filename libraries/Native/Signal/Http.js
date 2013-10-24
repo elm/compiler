@@ -26,10 +26,6 @@ Elm.Native.Http.make = function(elm) {
     }
   }
 
-  function setHeader(pair) {
-    request.setRequestHeader( JS.fromString(pair._0), JS.fromString(pair._1) );
-  }
-
   function sendReq(queue,responses,req) {
     var response = { value: { ctor:'Waiting' } };
     queue.push(response);
@@ -46,6 +42,9 @@ Elm.Native.Http.make = function(elm) {
       }
     };
     request.open(JS.fromString(req.verb), JS.fromString(req.url), true);
+    function setHeader(pair) {
+      request.setRequestHeader( JS.fromString(pair._0), JS.fromString(pair._1) );
+    }
     List.map(setHeader)(req.headers);
     request.send(JS.fromString(req.body));
   }
