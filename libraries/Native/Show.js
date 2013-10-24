@@ -21,7 +21,7 @@ Elm.Native.Show.make = function(elm) {
             return v ? "True" : "False";
         } else if (type === "number") {
             return v+"";
-        } else if (v.isChar && v instanceof String) {
+        } else if ((v instanceof String) && v.isChar) {
             return "'" + addSlashes(v) + "'";
         } else if (type === "string") {
             return '"' + addSlashes(v) + '"';
