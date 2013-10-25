@@ -186,9 +186,12 @@ expression (L span expr) =
             ctor = (prop "ctor", string (makeSafe name))
             fields = zipWith (\n e -> (prop ("_" ++ show n), e)) [0..]
 
-      Markdown doc _ -> return $ obj "Text.text" <| string (pad ++ md ++ pad)
-          where pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
-                md = Pan.writeHtmlString Pan.def doc
+      Markdown uid doc es ->
+          do es' <- mapM expression es
+             return $ obj "Text.markdown" `call` (string md : string uid : es')
+          where
+            pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
+            md = pad ++ Pan.writeHtmlString Pan.def doc ++ pad
 
 definition :: Def () () -> State Int [Statement ()]
 definition def =
