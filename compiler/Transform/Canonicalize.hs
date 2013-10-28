@@ -20,6 +20,7 @@ interface :: String -> ModuleInterface -> ModuleInterface
 interface moduleName iface =
     ModuleInterface
     { iTypes = Map.mapKeys prefix (Map.map renameType' (iTypes iface))
+    , iImports = iImports iface
     , iAdts = map (both prefix renameCtors) (iAdts iface)
     , iAliases = map (both prefix renameType') (iAliases iface)
     , iFixities = iFixities iface -- cannot have canonicalized operators while parsing

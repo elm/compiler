@@ -11,20 +11,23 @@ import SourceSyntax.Module
 
 type Rules = ([(String,[String],Type)], Type -> Type)
 
-rules interfaces metaModule = (collect interfaces metaModule, localizer metaModule)
+rules interfaces moduleAliases moduleImports =
+    (collect interfaces moduleAliases, localizer moduleImports)
 
-collect interfaces metaModule = filter (not . isPrimitive) rawAliases
-  where
-    rawAliases = aliases metaModule ++ concatMap iAliases (Map.elems interfaces)
+collect interfaces moduleAliases =
+    filter (not . isPrimitive) rawAliases
+    where
+      rawAliases =
+          moduleAliases ++ concatMap iAliases (Map.elems interfaces)
 
-    isPrimitive (_,_,tipe) =
-        case tipe of
+      isPrimitive (_,_,tipe) =
+          case tipe of
           Data _ [] -> True
           _ -> False
 
-localizer metaModule = go
+localizer moduleImports = go
   where
-    go tipe = 
+    go tipe =
         case tipe of
           Var _ -> tipe
           EmptyRecord -> tipe
@@ -32,7 +35,8 @@ localizer metaModule = go
           Data name ts -> Data (localize name) (map go ts)
           Record fs ext -> Record (map (second go) fs) (go ext)
 
-    byMethod = foldr (\(n,m) d -> Map.insertWith (++) n [m] d) Map.empty (imports metaModule)
+    byMethod = foldr (\(n,m) d -> Map.insertWith (++) n [m] d)
+               Map.empty moduleImports
 
     separate name =
         case List.elemIndices '.' name of
