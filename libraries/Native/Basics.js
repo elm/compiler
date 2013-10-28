@@ -33,7 +33,7 @@ Elm.Native.Basics.make = function(elm) {
       mod:mod,
 
       pi:Math.PI,
-      e:Math.e,
+      e:Math.E,
       cos:Math.cos,
       sin:Math.sin,
       tan:Math.tan,

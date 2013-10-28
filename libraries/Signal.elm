@@ -15,14 +15,14 @@ the [`Time`](/docs/Signal/Time.elm) library.
 # Combine
 @docs constant, lift, lift2, merge, merges, combine
 
-# Pretty Lift
-@docs (<~), (~)
-
 # Past-Dependence
 @docs foldp, count, countIf
 
 #Filters
 @docs keepIf, dropIf, keepWhen, dropWhen, dropRepeats, sampleOn
+
+# Pretty Lift
+@docs (<~), (~)
 
 # Do you even lift?
 @docs lift3, lift4, lift5, lift6, lift7, lift8

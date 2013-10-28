@@ -22,14 +22,24 @@ Elm.Native.String.make = function(elm) {
         return (hd = str[0]) ? Maybe.Just(Utils.Tuple2(Utils.chr(hd), str.slice(1)))
                               : Maybe.Nothing;
     }
+    function append(a,b) {
+        return a + b;
+    }
+    function concat(strs) {
+        return JS.fromList(strs).join('');
+    }
     function length(str) {
         return str.length;
     }
     function map(f,str) {
-        return str.split('').map(f).join('');
+        var out = str.split('');
+        for (var i = out.length; i--; ) {
+            out[i] = f(Utils.chr(out[i]));
+        }
+        return out.join('');
     }
     function filter(pred,str) {
-        return str.split('').filter(pred).join('');
+        return str.split('').map(Utils.chr).filter(pred).join('');
     }
     function reverse(str) {
         return str.split('').reverse().join('');
@@ -37,13 +47,13 @@ Elm.Native.String.make = function(elm) {
     function foldl(f,b,str) {
         var len = str.length;
         for (var i = 0; i < len; ++i) {
-            b = A2(f, str[i], b);
+            b = A2(f, Utils.chr(str[i]), b);
         }
         return b;
     }
     function foldr(f,b,str) {
         for (var i = str.length; i--; ) {
-            b = A2(f, str[i], b);
+            b = A2(f, Utils.chr(str[i]), b);
         }
         return b;
     }
@@ -116,13 +126,13 @@ Elm.Native.String.make = function(elm) {
 
     function any(pred, str) {
         for (var i = str.length; i--; ) {
-            if (pred(str[i])) return true;
+            if (pred(Utils.chr(str[i]))) return true;
         }
         return false;
     }
     function all(pred, str) {
         for (var i = str.length; i--; ) {
-            if (!pred(str[i])) return false;
+            if (!pred(Utils.chr(str[i]))) return false;
         }
         return true;
     }
@@ -147,8 +157,7 @@ Elm.Native.String.make = function(elm) {
         return JS.toList(is);
     }
 
-    function toInt(str) {
-        var s = JS.fromString(str);
+    function toInt(s) {
         var len = s.length;
         if (len === 0) { return Maybe.Nothing; }
         var start = 0;
@@ -162,8 +171,7 @@ Elm.Native.String.make = function(elm) {
         return Maybe.Just(parseInt(s, 10));
     }
 
-    function toFloat(str) {
-        var s = JS.fromString(str);
+    function toFloat(s) {
         var len = s.length;
         if (len === 0) { return Maybe.Nothing; }
         var start = 0;
@@ -183,10 +191,19 @@ Elm.Native.String.make = function(elm) {
         return Maybe.Just(parseFloat(s));
     }
 
+    function toList(str) {
+        return JS.toList(str.split('').map(Utils.chr));
+    }
+    function fromList(chars) {
+        return JS.fromList(chars).join('');
+    }
+
     return Elm.Native.String.values = {
         isEmpty: isEmpty,
         cons: F2(cons),
         uncons: uncons,
+        append: F2(append),
+        concat: concat,
         length: length,
         map: F2(map),
         filter: F2(filter),
@@ -228,5 +245,7 @@ Elm.Native.String.make = function(elm) {
 
         toInt: toInt,
         toFloat: toFloat,
+        toList: toList,
+        fromList: fromList,
     };
 };

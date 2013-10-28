@@ -3,7 +3,7 @@ module Random where
 {-| Since the core of Elm is pure, randomness must be handled via signals.
 
 # Random Numbers
-@docs range, float
+@docs range, float, floatList
 -}
 
 import Signal (Signal)

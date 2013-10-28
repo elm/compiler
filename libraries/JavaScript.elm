@@ -9,7 +9,7 @@ integration.
 @docs toString, toInt, toFloat, toBool, toList
 
 # JavaScript from Elm
-@docs fromString, fromInt, fromFloat, fromBool fromList
+@docs fromString, fromInt, fromFloat, fromBool, fromList
 -}
 {-
 # DOM Nodes and Elements
