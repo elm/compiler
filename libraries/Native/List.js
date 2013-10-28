@@ -81,19 +81,6 @@ Elm.Native.List.make = function(elm) {
         return out;
     }
 
-    function init(xs) {
-      if (xs.ctor === '[]') { throwError('init'); }
-      var root = Cons(xs._0, Nil);
-      var curr = root;
-      xs = xs._1;
-      while (xs._1.ctor !== '[]') {
-        curr._1 = Cons(xs._0, Nil)
-        xs = xs._1
-        curr = curr._1
-      }
-      return root;
-    }
-
     function map(f, xs) {
         var arr = [];
         while (xs.ctor !== '[]') {
@@ -291,7 +278,6 @@ Elm.Native.List.make = function(elm) {
         head:head,
         tail:tail,
         last:last,
-        init:init,
 
         map:F2(map),
         foldl:F3(foldl),
