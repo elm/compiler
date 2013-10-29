@@ -55,20 +55,22 @@ listTerm = markdown' <|> braces (try range <|> ExplicitList <$> commaSep expr)
       Range lo <$> expr
 
     markdown' = do
-      (rawText, exprs) <- markdown interpolation
+      pos <- getPosition
+      let uid = show (sourceLine pos) ++ ":" ++ show (sourceColumn pos)
+      (rawText, exprs) <- markdown (interpolation uid)
       let md = Pan.readMarkdown Pan.def (filter (/='\r') rawText)
-      return (Markdown md exprs)
+      return (Markdown uid md exprs)
 
-    span xs = "<span id=\"md" ++ show (length xs) ++
-              "\" style=\"font-family:monospace;\">{{ ... }}</span>"
+    span uid index =
+        "<span id=\"md-" ++ uid ++ "-" ++ show index ++ "\"></span>"
 
-    interpolation md exprs = do
+    interpolation uid md exprs = do
       try (string "{{")
       whitespace
       e <- expr
       whitespace
       string "}}"
-      return (md ++ span exprs, exprs ++ [e])
+      return (md ++ span uid (length exprs), exprs ++ [e])
 
 parensTerm :: IParser (LExpr t v)
 parensTerm = try (parens opFn) <|> parens (tupleFn <|> parened)

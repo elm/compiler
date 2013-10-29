@@ -91,15 +91,36 @@ Elm.Native.Text.make = function(elm) {
         return Utils.txt("<a href='" + toText(href) + "'>" + text + "</a>");
     }
 
-    function position(pos) {
+    function position(align) {
         return function(text) {
-            var e = {ctor:'RawHtml',
-	             _0: '<div style="padding:0;margin:0;text-align:' +
-                     pos + '">' + text + '</div>'
-                    };
-            var p = A2(Utils.htmlHeight, 0, text);
-            return A3(Element.newElement, p._0, p._1, e);
+            var raw = {
+                ctor:'RawHtml',
+                html: '<span style="text-align:' + align + ';">' + text + '</span>',
+                guid: '0',
+                args: [],
+            };
+            var pos = A2(Utils.htmlHeight, 0, raw);
+            return A3(Element.newElement, pos._0, pos._1, raw);
         }
+    }
+
+    function markdown(text, guid) {
+        var raw = {
+            ctor:'RawHtml',
+            html: text,
+            guid: guid,
+            args: Array.prototype.slice.call(arguments, 2).map(function(arg) {
+                if (arg.props && arg.element) {
+                    arg.isElement = true;
+                    return arg;
+                } else if (!arg.isText) {
+                    return Utils.txt('<code>' + show(arg) + '</code>');
+                }
+                return arg;
+            }),
+        };
+        var pos = A2(Utils.htmlHeight, 0, raw);
+        return A3(Element.newElement, pos._0, pos._1, raw);
     }
 
     function asText(v) {
@@ -130,7 +151,8 @@ Elm.Native.Text.make = function(elm) {
         righted : position('right'),
         text : position('left'),
         plainText : plainText,
+        markdown : markdown,
 
-        asText : asText
+        asText : asText,
     };
 };

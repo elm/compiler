@@ -76,7 +76,7 @@ width nw e =
     let p = e.props
         props = case e.element of
                   Image _ w h _ -> {p| height <- round (toFloat h / toFloat w * toFloat nw) }
-                  RawHtml html -> {p| height <- snd (Native.Utils.htmlHeight nw html)}
+                  RawHtml       -> {p| height <- snd (Native.Utils.htmlHeight nw e.element) }
                   _ -> p
     in { element=e.element, props={ props | width <- nw } }
 
@@ -128,7 +128,7 @@ data ElementPrim
   | Container Position Element
   | Flow Direction [Element]
   | Spacer
-  | RawHtml JSString
+  | RawHtml
   | Custom -- for custom Elements implemented in JS, see collage for example
 
 data ImageStyle = Plain | Fitted | Cropped (Int,Int) | Tiled
