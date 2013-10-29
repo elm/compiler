@@ -22,11 +22,6 @@ Elm.Native.Basics.make = function(elm) {
 
   function truncate(n) { return n|0; }
 
-  function curry(f,a,b) { return f(Utils.Tuple2(a,b)); }
-  function uncurry(f,v) { return A2(f,v._0,v._1); }
-  function fst(t) { return t._0; }
-  function snd(t) { return t._1; }
-
   var basics = {
       div:F2(div),
       rem:F2(rem),
@@ -58,11 +53,6 @@ Elm.Native.Basics.make = function(elm) {
       floor:Math.floor,
       round:Math.round,
       toFloat:function(x) { return x; },
-
-      curry:F3(curry),
-      uncurry:F2(uncurry),
-      fst:fst,
-      snd:snd
   };
 
   return elm.Native.Basics.values = basics;
