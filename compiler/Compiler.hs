@@ -73,7 +73,7 @@ flags = Flags
     &= versionArg [explicit, name "version", name "v", summary (showVersion version)]
     &= summary ("The Elm Compiler " ++ showVersion version ++ ", (c) Evan Czaplicki 2011-2013")
 
-main :: IO ()             
+main :: IO ()
 main = do setNumCapabilities =<< getNumProcessors
           compileArgs =<< cmdArgs flags
 
@@ -82,7 +82,7 @@ compileArgs flags =
     case files flags of
       [] -> putStrLn "Usage: elm [OPTIONS] [FILES]\nFor more help: elm --help"
       fs -> mapM_ (build flags) fs
-          
+
 
 buildPath :: Flags -> FilePath -> String -> FilePath
 buildPath flags filePath ext = build_dir flags </> replaceExtension filePath ext
@@ -140,7 +140,7 @@ buildFile flags moduleNum numModules interfaces filePath =
         putStrLn $ concat [ number, " Compiling ", name
                           , replicate (max 1 (20 - length name)) ' '
                           , "( " ++ filePath ++ " )" ]
-        
+
         createDirectoryIfMissing True (cache_dir flags)
         createDirectoryIfMissing True (build_dir flags)
         metaModule <-
