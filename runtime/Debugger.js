@@ -2,29 +2,14 @@
 (function() {
 'use strict';
 
-var staticDebugger = null;
-
+Elm.Debugger = null;
 Elm.debuggerInit = function(module) {
-  return function(elm) {
-    staticDebugger = debuggerInit(module, elm);
-    return staticDebugger.moduleRetValue;
+  return {
+    make: function(runtime) {
+      Elm.Debugger = debuggerInit(module, runtime);
+      return Elm.Debugger.moduleRetValue;
+    }
   };
-};
-
-Elm.debuggerReset = function() {
-  staticDebugger.reset();
-};
-
-Elm.debuggerRestart = function() {
-  staticDebugger.restart();
-};
-
-Elm.debuggerGetMaxSteps = function() {
-  return staticDebugger.getMaxSteps();
-};
-
-Elm.debuggerStepTo = function(index) {
-  staticDebugger.stepTo(index);
 };
 
 function debuggerInit(module, elm) {
@@ -142,7 +127,7 @@ function debuggerInit(module, elm) {
     inputs: elm.inputs
   };
 
-  var moduleRetValue = module(wrappedElm);
+  var moduleRetValue = module.make(wrappedElm);
 
   var elmDebugger = {
         moduleRetValue: moduleRetValue,
