@@ -3,6 +3,10 @@ module Transform2D where
 It is used primarily with the `groupTransform` function from `Graphics.Collage` and
 allows you to do things like rotation, scaling, translation, shearing, and reflection.
 
+Note that all the matrices in this library are 3x3 matrices of homogeneous
+coordinates, used for affine transformations. Since the third row as always 0 0
+1, we omit this below.
+
 # Basic Transforms
 @docs identity, matrix, rotation
 
@@ -18,8 +22,8 @@ data Transform2D = Transform2D
 not change anything, but it can come in handy as a default or
 base case.
 
-          / 1 0 \
-          \ 0 1 /
+          / 1 0 0 \
+          \ 0 1 0 /
 -}
 identity : Transform2D
 identity = Native.Transform2D.identity
@@ -29,10 +33,10 @@ such as scales, shears, reflections, and translations.
 
       matrix a b c d dx dy
 
-          / a b \
-          \ c d /
+          / a b dx \
+          \ c d dy /
 
-And `dx` and `dy` are the translation values.
+Note that `dx` and `dy` are the translation values.
 -}
 matrix : Float -> Float -> Float -> Float -> Float -> Float -> Transform2D
 matrix = Native.Transform2D.matrix
@@ -40,8 +44,8 @@ matrix = Native.Transform2D.matrix
 {-| Creates a [rotation matrix](http://en.wikipedia.org/wiki/Rotation_matrix).
 Given an angle t, it creates a counterclockwise rotation matrix:
 
-          / cos t  -sin t \
-          \ sin t   cos t /
+          / cos t  -sin t  0 \
+          \ sin t   cos t  0 /
 -}
 rotation : Float -> Transform2D
 rotation = Native.Transform2D.rotation
@@ -61,8 +65,8 @@ translation x y = matrix 1 0 0 1 x y
 
     scale a
 
-        / a 0 \
-        \ 0 a /
+        / a 0 0 \
+        \ 0 a 0 /
 -}
 scale : Float -> Transform2D
 scale a = matrix a 0 0 a 0 0
