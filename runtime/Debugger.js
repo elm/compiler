@@ -12,7 +12,7 @@ Elm.debuggerInit = function(module) {
   };
 };
 
-function debuggerInit(module, elm) {
+function debuggerInit(module, runtime) {
 
   var programPaused = false;
   var allNodes = null;
@@ -32,7 +32,7 @@ function debuggerInit(module, elm) {
       // ignore notify because we are stepping
     }
     else {
-      elm.notify(id, v, timestep);
+      runtime.notify(id, v, timestep);
       recordEvent(id, v, timestep);
     }
   };
@@ -66,7 +66,7 @@ function debuggerInit(module, elm) {
     });
   }
 
-  function gotoStep(index) {
+  function stepTo(index) {
     if (!programPaused) {
       programPaused = true;
       resetProgram();
@@ -84,7 +84,7 @@ function debuggerInit(module, elm) {
     assert(index >= eventCounter, "index must be bad");
     while (eventCounter < index) {
       var nextEvent = recordedEvents[eventCounter];
-      elm.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
+      runtime.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
 
       eventCounter += 1;
     }
@@ -104,7 +104,7 @@ function debuggerInit(module, elm) {
   function doPlayback(eventList) {
     var x = eventList.shift();
     var time = x[2];
-    elm.notify(x[0], x[1], x[2]);
+    runtime.notify(x[0], x[1], x[2]);
 
     if (eventList.length > 0) {
       var delta = eventList[0][2] - time;
@@ -117,17 +117,17 @@ function debuggerInit(module, elm) {
     graphicsFoldp.recv(Date.now(), true, moduleRetValue.main.id);
   }
 
-  var wrappedElm = {
+  var wrappedRuntime = {
     notify: wrapNotify,
     runDelayed: wrapRunDelayed,
-    node: elm.node,
-    display: elm.display,
-    id: elm.id,
-    addListener: elm.addListener,
-    inputs: elm.inputs
+    node: runtime.node,
+    display: runtime.display,
+    id: runtime.id,
+    addListener: runtime.addListener,
+    inputs: runtime.inputs
   };
 
-  var moduleRetValue = module.make(wrappedElm);
+  var moduleRetValue = module.make(wrappedRuntime);
 
   var elmDebugger = {
         moduleRetValue: moduleRetValue,
@@ -136,10 +136,10 @@ function debuggerInit(module, elm) {
         reset: resetProgram,
         restart: restartProgram,
         getMaxSteps: getMaxSteps,
-        stepTo: gotoStep
+        stepTo: stepTo
   };
 
-  allNodes = flattenNodes(wrappedElm.inputs);
+  allNodes = flattenNodes(wrappedRuntime.inputs);
   initialProgramState.nodeValues = saveNodeValues(allNodes);
   initialProgramState.asyncTimers = asyncTimers.slice();
 
