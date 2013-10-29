@@ -162,36 +162,36 @@ transformation.
 groupTransform : Transform2D -> [Form] -> Form
 groupTransform matrix fs = form (FGroup matrix fs)
 
-{-| Rotate a form by a given angle. Rotate takes standard Elm angles (radians)
-and turns things counterclockwise. So to turn `form` 30&deg; to the left
-you would say, `(rotate (degrees 30) form)`.
--}
-rotate : number -> Form -> Form
-rotate t f = { f | theta <- f.theta + t }
-
-{-| Scale a form by a given factor. Scaling by 2 doubles the size.
--}
-scale : number -> Form -> Form
-scale s f = { f | scale <- f.scale * s }
-
 {-| Move a form by the given amount. This is a relative translation so
 `(move (10,10) form)` would move `form` ten pixels up and ten pixels to the
 right.
 -}
-move : (number,number) -> Form -> Form
+move : (Float,Float) -> Form -> Form
 move (x,y) f = { f | x <- f.x + x, y <- f.y + y }
 
 {-| Move a shape in the x direction. This is relative so `(moveX 10 form)` moves
 `form` 10 pixels to the right.
 -}
-moveX : number -> Form -> Form
+moveX : Float -> Form -> Form
 moveX x f = { f | x <- f.x + x }
 
 {-| Move a shape in the y direction. This is relative so `(moveY 10 form)` moves
 `form` upwards by 10 pixels.
 -}
-moveY : number -> Form -> Form
+moveY : Float -> Form -> Form
 moveY y f = { f | y <- f.y + y }
+
+{-| Scale a form by a given factor. Scaling by 2 doubles the size.
+-}
+scale : Float -> Form -> Form
+scale s f = { f | scale <- f.scale * s }
+
+{-| Rotate a form by a given angle. Rotate takes standard Elm angles (radians)
+and turns things counterclockwise. So to turn `form` 30&deg; to the left
+you would say, `(rotate (degrees 30) form)`.
+-}
+rotate : Float -> Form -> Form
+rotate t f = { f | theta <- f.theta + t }
 
 {-| Set the alpha of a `Form`. The default is 1, and 0 is totally transparent. -}
 alpha : Float -> Form -> Form
