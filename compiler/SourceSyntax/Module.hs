@@ -12,6 +12,7 @@ import SourceSyntax.Expression (LExpr)
 import SourceSyntax.Declaration
 import SourceSyntax.Type
 import System.FilePath (joinPath)
+import Control.Monad (liftM)
 
 data Module tipe var =
     Module [String] Exports Imports [Declaration tipe var]
@@ -22,6 +23,22 @@ type Exports = [String]
 type Imports = [(String, ImportMethod)]
 data ImportMethod = As String | Importing [String] | Hiding [String]
                     deriving (Eq, Ord, Show, Data, Typeable)
+
+instance Binary ImportMethod where
+    put (As s)          = do put (0 :: Word8)
+                             put s
+
+    put (Importing ss) = do put (1 :: Word8)
+                            put ss
+
+    put (Hiding ss)    = do put (2 :: Word8)
+                            put ss
+
+    get = do tag <- getWord8
+             case tag of
+               0 -> liftM As        get
+               1 -> liftM Importing get
+               2 -> liftM Hiding    get
 
 data MetadataModule t v = MetadataModule {
     names     :: [String],
@@ -42,15 +59,18 @@ type ADT = (String, [String], [(String,[Type])])
 
 data ModuleInterface = ModuleInterface {
     iTypes    :: Map.Map String Type,
+    iImports  :: [(String, ImportMethod)],
     iAdts     :: [ADT],
     iAliases  :: [(String, [String], Type)],
     iFixities :: [(Assoc, Int, String)]
 } deriving Show
 
+
 instance Binary ModuleInterface where
-  get = ModuleInterface <$> get <*> get <*> get <*> get
+  get = ModuleInterface <$> get <*> get <*> get <*> get <*> get
   put modul = do
       put (iTypes modul)
+      put (iImports modul)
       put (iAdts modul)
       put (iAliases modul)
       put (iFixities modul)

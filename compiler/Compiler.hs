@@ -107,6 +107,14 @@ buildFile flags moduleNum numModules interfaces filePath =
            bits <- L.hGetContents handle
            let info :: (String, ModuleInterface)
                info = Binary.decode bits
+               modInterface = snd info
+
+           when (print_types flags)
+                 (printTypes interfaces
+                  (iTypes modInterface)
+                  (iAliases modInterface)
+                  (iImports modInterface))
+
            L.length bits `seq` hClose handle
            return info
     where
@@ -145,14 +153,19 @@ buildFile flags moduleNum numModules interfaces filePath =
                     False -> return ()
                     True -> print . pretty $ program modul
                   return modul
-        
-        when (print_types flags) (printTypes interfaces metaModule)
+
+        when (print_types flags)
+                 (printTypes interfaces
+                  (types metaModule) (aliases metaModule) (imports metaModule))
+
         let interface = Canonical.interface name $ ModuleInterface {
-                          iTypes = types metaModule,
-                          iAdts = datatypes metaModule,
-                          iAliases = aliases metaModule,
+                          iTypes    = types metaModule,
+                          iImports  = imports metaModule,
+                          iAdts     = datatypes metaModule,
+                          iAliases  = aliases metaModule,
                           iFixities = fixities metaModule
                         }
+
         createDirectoryIfMissing True . dropFileName $ elmi flags filePath
         handle <- openBinaryFile (elmi flags filePath) WriteMode
         L.hPut handle (Binary.encode (name,interface))
@@ -160,10 +173,10 @@ buildFile flags moduleNum numModules interfaces filePath =
         writeFile (elmo flags filePath) (jsModule metaModule)
         return (name,interface)
 
-printTypes interfaces metaModule = do
+printTypes interfaces moduleTypes moduleAliases moduleImports = do
   putStrLn ""
-  let rules = Alias.rules interfaces metaModule
-  forM_ (Map.toList $ types metaModule) $ \(n,t) -> do
+  let rules = Alias.rules interfaces moduleAliases moduleImports
+  forM_ (Map.toList moduleTypes) $ \(n,t) -> do
       print $ variable n <+> P.text ":" <+> pretty (Alias.realias rules t)
   putStrLn ""
 

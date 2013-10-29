@@ -52,7 +52,7 @@ infer interfaces modul = unsafePerformIO $ do
     Left err -> return $ Left err
     Right (header, constraint) -> do
       state <- execStateT (Solve.solve constraint) TS.initialState
-      let rules = Alias.rules interfaces modul
+      let rules = Alias.rules interfaces (aliases modul) (imports modul)
       case TS.sErrors state of
         errors@(_:_) -> Left `fmap` sequence (map ($ rules) (reverse errors))
         [] -> extraChecks rules (Map.difference (TS.sSavedEnv state) header)
