@@ -1,8 +1,8 @@
-Elm.Native.Bits = {};
-Elm.Native.Bits.make = function(elm) {
+Elm.Native.Bitwise = {};
+Elm.Native.Bitwise.make = function(elm) {
     elm.Native = elm.Native || {};
-    elm.Native.Bits = elm.Native.Bits || {};
-    if (elm.Native.Bits.values) return elm.Native.Bits.values;
+    elm.Native.Bitwise = elm.Native.Bitwise || {};
+    if (elm.Native.Bitwise.values) return elm.Native.Bitwise.values;
 
     function and(a,b) { return a & b; }
     function or (a,b) { return a | b; }
@@ -12,7 +12,7 @@ Elm.Native.Bits.make = function(elm) {
     function sra(a,offset) { return a >> offset; }
     function srl(a,offset) { return a >>> offset; }
 
-    return elm.Native.Bits.values = {
+    return elm.Native.Bitwise.values = {
         and: A2(and),
         or : A2(or ),
         xor: A2(xor),
