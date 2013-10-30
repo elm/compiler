@@ -14,6 +14,9 @@ import SourceSyntax.Type
 import System.FilePath (joinPath)
 import Control.Monad (liftM)
 
+import Paths_Elm (version)
+import Data.Version (showVersion)
+
 data Module tipe var =
     Module [String] Exports Imports [Declaration tipe var]
     deriving (Show)
@@ -52,12 +55,13 @@ data MetadataModule t v = MetadataModule {
     datatypes :: [ (String, [String], [(String,[Type])]) ],
     foreignImports :: [(String, LExpr t v, String, Type)],
     foreignExports :: [(String, String, Type)]
-}
+} deriving Show
 
 type Interfaces = Map.Map String ModuleInterface
 type ADT = (String, [String], [(String,[Type])])
 
 data ModuleInterface = ModuleInterface {
+    iVersion  :: String,
     iTypes    :: Map.Map String Type,
     iImports  :: [(String, ImportMethod)],
     iAdts     :: [ADT],
@@ -67,8 +71,9 @@ data ModuleInterface = ModuleInterface {
 
 
 instance Binary ModuleInterface where
-  get = ModuleInterface <$> get <*> get <*> get <*> get <*> get
+  get = ModuleInterface <$> get <*> get <*> get <*> get <*> get <*> get
   put modul = do
+      put (iVersion modul)
       put (iTypes modul)
       put (iImports modul)
       put (iAdts modul)
