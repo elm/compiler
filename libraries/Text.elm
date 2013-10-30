@@ -104,7 +104,7 @@ markdown : Element
 markdown = Native.Text.markdown
 
 {-| Convert anything to its textual representation and make it displayable in
-browser:
+the browser:
 
         asText == text . monospace . show
 
