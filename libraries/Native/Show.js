@@ -25,7 +25,7 @@ Elm.Native.Show.make = function(elm) {
             return "'" + addSlashes(v) + "'";
         } else if (type === "string") {
             return '"' + addSlashes(v) + '"';
-        } else if (type === "object" && '_' in v) {
+        } else if (type === "object" && '_' in v && probablyPublic(v)) {
             var output = [];
             for (var k in v._) {
                 for (var i = v._[k].length; i--; ) {
@@ -89,6 +89,27 @@ Elm.Native.Show.make = function(elm) {
                   .replace(/\0/g, '\\0')
                   .replace(/\'/g, "\\'")
                   .replace(/\"/g, '\\"');
+    }
+
+    function probablyPublic(v) {
+        var keys = Object.keys(v);
+        var len = keys.length;
+        if (len === 3
+            && 'props' in v
+            && 'element' in v) return false;
+        if (len === 5
+            && 'horizontal' in v
+            && 'vertical' in v
+            && 'x' in v
+            && 'y' in v) return false;
+        if (len === 7
+            && 'theta' in v
+            && 'scale' in v
+            && 'x' in v
+            && 'y' in v
+            && 'alpha' in v
+            && 'form' in v) return false;
+        return true;
     }
 
     return elm.Native.Show.values = { show:toString };
