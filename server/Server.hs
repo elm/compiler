@@ -33,20 +33,23 @@ serve portNumber libLoc = do
 pageTitle :: String -> String
 pageTitle = dropExtension . takeBaseName
 
-defaultCacheDirectory = "elm-server-cache"
-
 serveElm :: FilePath -> ServerPartT IO Response
-serveElm fp = do
-  fileExists <- liftIO $ doesFileExist file
-  guard $ fileExists && takeExtension fp == ".elm"
+serveElm fp =
+  do fileExists <- liftIO $ doesFileExist file
+     guard (fileExists && takeExtension fp == ".elm")
+     onSuccess compile serve
+  where
+    file = tail fp
 
-  (_, stdout, _, handle) <- liftIO $ createProcess $
-                            (proc "elm" args) { std_out = CreatePipe }
+    compile = liftIO $ createProcess $ (proc "elm" args) { std_out = CreatePipe }
+        where args = [ "--make", "--runtime=" ++ runtime, file ]
+
+    serve = serveFile (asContentType "text/html")
+                      ("build" </> replaceExtension file "html")
+
+onSuccess action success = do
+  (_, stdout, _, handle) <- action
   exitCode <- liftIO $ waitForProcess handle
-
-  dirExists <- liftIO $ doesDirectoryExist defaultCacheDirectory
-  when dirExists $ liftIO $ removeDirectoryRecursive defaultCacheDirectory
-
   case (exitCode, stdout) of
     (ExitFailure 127, _) ->
         badRequest $ toResponse "Error: elm binary not found in your path."
@@ -55,13 +58,8 @@ serveElm fp = do
            badRequest $ toResponse str
     (ExitFailure _, Nothing) ->
         badRequest $ toResponse "See command line for error message."
-    (ExitSuccess, _) ->
-        serveFile
-        (asContentType "text/html") ("build" </> replaceExtension file "html")
+    (ExitSuccess, _) -> success
 
-  where file = tail fp
-        args = [ "--make" ,"--runtime=" ++ runtime,
-                 "--cache-dir=" ++ defaultCacheDirectory, file ]
 
 serveLib :: FilePath -> String -> ServerPartT IO Response
 serveLib libLoc fp = do
