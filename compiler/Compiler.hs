@@ -37,7 +37,6 @@ data Flags =
           , runtime :: Maybe FilePath
           , only_js :: Bool
           , print_types :: Bool
-          , print_program :: Bool
           , scripts :: [FilePath]
           , no_prelude :: Bool
 	  , cache_dir :: FilePath
@@ -66,14 +65,12 @@ flags = Flags
               &= help "Additional source directories besides project root. Searched when using --make"
   , print_types = False
                   &= help "Print out infered types of top-level definitions."
-  , print_program = False
-                    &= help "Print out an internal representation of a program."
   } &= help "Compile Elm programs to HTML, CSS, and JavaScript."
     &= helpArg [explicit, name "help", name "h"]
     &= versionArg [explicit, name "version", name "v", summary (showVersion version)]
     &= summary ("The Elm Compiler " ++ showVersion version ++ ", (c) Evan Czaplicki 2011-2013")
 
-main :: IO ()             
+main :: IO ()
 main = do setNumCapabilities =<< getNumProcessors
           compileArgs =<< cmdArgs flags
 
@@ -82,7 +79,7 @@ compileArgs flags =
     case files flags of
       [] -> putStrLn "Usage: elm [OPTIONS] [FILES]\nFor more help: elm --help"
       fs -> mapM_ (build flags) fs
-          
+
 
 buildPath :: Flags -> FilePath -> String -> FilePath
 buildPath flags filePath ext = build_dir flags </> replaceExtension filePath ext
@@ -140,7 +137,7 @@ buildFile flags moduleNum numModules interfaces filePath =
         putStrLn $ concat [ number, " Compiling ", name
                           , replicate (max 1 (20 - length name)) ' '
                           , "( " ++ filePath ++ " )" ]
-        
+
         createDirectoryIfMissing True (cache_dir flags)
         createDirectoryIfMissing True (build_dir flags)
         metaModule <-
@@ -148,11 +145,7 @@ buildFile flags moduleNum numModules interfaces filePath =
               Left errors -> do
                   mapM print (List.intersperse (P.text " ") errors)
                   exitFailure
-              Right modul -> do
-                  case print_program flags of
-                    False -> return ()
-                    True -> print . pretty $ program modul
-                  return modul
+              Right modul -> return modul
 
         when (print_types flags)
                  (printTypes interfaces
