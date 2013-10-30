@@ -37,7 +37,6 @@ data Flags =
           , runtime :: Maybe FilePath
           , only_js :: Bool
           , print_types :: Bool
-          , print_program :: Bool
           , scripts :: [FilePath]
           , no_prelude :: Bool
 	  , cache_dir :: FilePath
@@ -66,8 +65,6 @@ flags = Flags
               &= help "Additional source directories besides project root. Searched when using --make"
   , print_types = False
                   &= help "Print out infered types of top-level definitions."
-  , print_program = False
-                    &= help "Print out an internal representation of a program."
   } &= help "Compile Elm programs to HTML, CSS, and JavaScript."
     &= helpArg [explicit, name "help", name "h"]
     &= versionArg [explicit, name "version", name "v", summary (showVersion version)]
@@ -148,11 +145,7 @@ buildFile flags moduleNum numModules interfaces filePath =
               Left errors -> do
                   mapM print (List.intersperse (P.text " ") errors)
                   exitFailure
-              Right modul -> do
-                  case print_program flags of
-                    False -> return ()
-                    True -> print . pretty $ program modul
-                  return modul
+              Right modul -> return modul
 
         when (print_types flags)
                  (printTypes interfaces
