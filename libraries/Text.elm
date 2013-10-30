@@ -1,4 +1,3 @@
-
 module Text where
 
 {-| Functions for displaying text
@@ -31,7 +30,7 @@ toText : String -> Text
 toText = Native.Text.toText
 
 {-| Set the typeface of some text. The first argument should be a comma
-separated listing of the desired typefaces
+separated listing of the desired typefaces:
 
         "helvetica, arial, sans-serif"
 
@@ -104,8 +103,8 @@ plainText = Native.Text.plainText
 markdown : Element
 markdown = Native.Text.markdown
 
-{-| Convert anything to it's textual representation and make it displayable in
-browser
+{-| Convert anything to its textual representation and make it displayable in
+browser:
 
         asText == text . monospace . show
 
