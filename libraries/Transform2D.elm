@@ -63,13 +63,13 @@ translation x y = matrix 1 0 0 1 x y
 
 {-| Creates a transformation matrix for scaling by a all directions:
 
-    scale a
+    scale s
 
-        / a 0 0 \
-        \ 0 a 0 /
+        / s 0 0 \
+        \ 0 s 0 /
 -}
 scale : Float -> Transform2D
-scale a = matrix a 0 0 a 0 0
+scale s = matrix s 0 0 s 0 0
 
 {-| Creates a transformation for horizontal scaling -}
 scaleX : Float -> Transform2D
