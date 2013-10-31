@@ -31,12 +31,12 @@ identity = Native.Transform2D.identity
 {-| Creates a transformation matrix. This lets you create transforms
 such as scales, shears, reflections, and translations.
 
-      matrix a b c d dx dy
+      matrix a b c d x y
 
-          / a b dx \
-          \ c d dy /
+          / a b x \
+          \ c d y /
 
-Note that `dx` and `dy` are the translation values.
+Note that `x` and `y` are the translation values.
 -}
 matrix : Float -> Float -> Float -> Float -> Float -> Float -> Transform2D
 matrix = Native.Transform2D.matrix
@@ -55,8 +55,7 @@ rotation = Native.Transform2D.rotation
     translation x y
 
           / 1 0 x \
-          | 0 1 y |
-          \ 0 0 1 /
+          \ 0 1 y /
 -}
 translation : Float -> Float -> Transform2D
 translation x y = matrix 1 0 0 1 x y
@@ -77,14 +76,15 @@ scaleX x = matrix x 0 0 1 0 0
 
 {-| Creates a transformation for vertical scaling -}
 scaleY : Float -> Transform2D
-scaleY y = matrix y 0 0 1 0 0
+scaleY y = matrix 1 0 0 y 0 0
 
 {-| Multiplies two transforms together:
 
-      multiply a b
+      multiply m n
 
-          / a11 a12 \  .  / b11 b12 \
-          \ a21 a22 /     \ b21 b22 /
+          / ma mb mx \     / na nb nx \
+          | mc md my |  .  | nc nd ny |
+          \  0  0  1 /     \  0  0  1 /
 -}
 multiply : Transform2D -> Transform2D -> Transform2D
 multiply = Native.Transform2D.multiply
