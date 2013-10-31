@@ -32,7 +32,7 @@ import Native.String
 import Maybe (Maybe)
 
 {-| Check if a string is empty `(isEmpty "" == True)` -}
-isEmpty : String
+isEmpty : String -> Bool
 isEmpty = Native.String.isEmpty
 
 {-| Add a character to the beginning of a string -}
