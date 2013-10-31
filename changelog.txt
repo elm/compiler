@@ -4,6 +4,7 @@
   * Markdown interpolation
   * Bitwise library
   * elm-repl
+  * Improve Transform2D library (thanks to Michael Søndergaard)
 
 ## 0.10
 
