@@ -144,13 +144,13 @@ function renderForm(redo, ctx, form) {
     case 'FPath' : drawLine(ctx, f._0, f._1); break;
     case 'FImage': drawImage(redo, ctx, f); break;
     case 'FShape':
-	if (f._0.ctor === 'Left') {
-	    f._1.closed = true;
-	    drawLine(ctx, f._0._0, f._1);
-	} else {
-            drawShape(redo, ctx, f._0._0, f._1);
-        }
-	break;
+      if (f._0.ctor === 'Left') {
+        f._1.closed = true;
+        drawLine(ctx, f._0._0, f._1);
+      } else {
+        drawShape(redo, ctx, f._0._0, f._1);
+      }
+    break;
     }
     ctx.restore();
 }
@@ -297,7 +297,7 @@ function updateTracker(w,h,div) {
             container.style.overflow = 'hidden';
             container.style.position = 'absolute';
             addTransform(container.style, 'scaleY(-1)');
-            
+
             var kid = kids[i];
             kid ? div.insertBefore(container, kid)
                 : div.appendChild(container);
