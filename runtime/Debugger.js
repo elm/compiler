@@ -7,7 +7,7 @@ Elm.debuggerInit = function(module) {
   return {
     make: function(runtime) {
       Elm.Debugger = debuggerInit(module, runtime);
-      return Elm.Debugger.moduleRetValue;
+      return Elm.Debugger.moduleInstance;
     }
   };
 };
@@ -113,8 +113,8 @@ function debuggerInit(module, runtime) {
   }
 
   function redrawGraphics() {
-    var graphicsFoldp = moduleRetValue.main.kids[0];
-    graphicsFoldp.recv(Date.now(), true, moduleRetValue.main.id);
+    var graphicsFoldp = moduleInstance.main.kids[0];
+    graphicsFoldp.recv(Date.now(), true, moduleInstance.main.id);
   }
 
   var wrappedRuntime = {
@@ -127,10 +127,10 @@ function debuggerInit(module, runtime) {
     inputs: runtime.inputs
   };
 
-  var moduleRetValue = module.make(wrappedRuntime);
+  var moduleInstance = module.make(wrappedRuntime);
 
   var elmDebugger = {
-        moduleRetValue: moduleRetValue,
+        moduleInstance: moduleInstance,
 
         // debugger functions
         reset: resetProgram,
