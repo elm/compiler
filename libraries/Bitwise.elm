@@ -1,4 +1,3 @@
-
 module Bitwise where
 
 {-| Library for [bitwise operations](http://en.wikipedia.org/wiki/Bitwise_operation).
