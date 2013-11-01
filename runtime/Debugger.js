@@ -3,27 +3,23 @@
 'use strict';
 
 Elm.Debugger = null;
-Elm.debuggerInit = function(module) {
+Elm.debuggerAttach = function(module) {
   return {
     make: function(runtime) {
-      Elm.Debugger = debuggerInit(module, runtime);
-      return Elm.Debugger.moduleInstance;
+      var wrappedModule = debugModule(module, runtime);
+      Elm.debuggerInit = function() {
+        Elm.Debugger = debuggerInit(wrappedModule, runtime);
+      };
+      return wrappedModule.moduleInstance;
     }
   };
 };
 
-function debuggerInit(module, runtime) {
-
+function debugModule(module, runtime) {
   var programPaused = false;
-  var allNodes = null;
-
   var recordedEvents = [];
   var eventCounter = 0;
   var asyncTimers = [];
-  var initialProgramState = {
-    nodeValues: [],
-    asyncTimers: []
-  };
 
   function wrapNotify(id, v) {
     var timestep = Date.now();
@@ -51,24 +47,131 @@ function debuggerInit(module, runtime) {
     recordedEvents.push({ id:id, value:v, timestep:timestep });
   }
 
+  function clearAsyncEvents() {
+    asyncTimers.forEach(function(timer) {
+      clearTimeout(timer.timerId);
+    });
+  }
+
+  function clearRecordedEvents() {
+    recordedEvents = [];
+  }
+
+  function getRecordedEvents() {
+    return recordedEvents.slice();
+  }
+
+  function setPaused(v) {
+    programPaused = v;
+  }
+
+  function getPaused() {
+    return programPaused;
+  }
+
+  var wrappedRuntime = {
+    notify: wrapNotify,
+    runDelayed: wrapRunDelayed,
+    node: runtime.node,
+    display: runtime.display,
+    id: runtime.id,
+    addListener: runtime.addListener,
+    inputs: runtime.inputs
+  };
+
+  var moduleInstance = module.make(wrappedRuntime);
+  var moduleNodes = flattenNodes(wrappedRuntime.inputs);
+
+  return {
+    moduleInstance: moduleInstance,
+    moduleNodes: moduleNodes,
+    initialNodeValues: saveNodeValues(moduleNodes),
+    initialAsyncTimers: asyncTimers.slice(),
+    // API functions
+    clearAsyncEvents: clearAsyncEvents,
+    clearRecordedEvents: clearRecordedEvents,
+    getRecordedEvents: getRecordedEvents,
+    getPaused: getPaused,
+    setPaused: setPaused
+  };
+}
+
+function debuggerInit(debugModule, runtime) {
+  var Signal = Elm.Signal.make(runtime);
+  var List = Elm.List.make(runtime);
+  var graphicsNode = debugModule.moduleInstance.main.kids[0];
+  
+  var tracePathCanvas = document.createElement('canvas');
+  tracePathCanvas.width = window.innerWidth;
+  tracePathCanvas.height = window.innerHeight;
+  tracePathCanvas.style.position = "absolute";
+  tracePathCanvas.style.top = "0";
+  tracePathCanvas.style.left = "0";
+  runtime.node.parentNode.appendChild(tracePathCanvas);
+
+  function graphicsUpdate(currentScene) {
+    var ctx = tracePathCanvas.getContext('2d');
+    ctx.clearRect(0, 0, tracePathCanvas.width, tracePathCanvas.height);
+    ctx.fillText("Debugger trace path", 20, 20);
+
+    function drawElement(elem) {
+      if (elem.element.ctor == "Custom" && elem.element.type == "Collage")
+      {
+        List.map(drawForm)(elem.element.model.forms);
+      }
+      else if (elem.element.ctor == "Image")
+      {
+        var x = 0;
+        var y = 0;
+        ctx.beginPath();
+        ctx.arc(x, y, 2, 0, 2*Math.PI);
+        ctx.fillStyle = "grey";
+        ctx.fill();
+        ctx.lineWidth = 1;
+        ctx.strokeStype = "black";
+        ctx.stroke();
+      }
+    }
+
+    function drawForm(form) {
+      ctx.save();
+      ctx.scale(form.scale, form.scale);
+      ctx.rotate(form.theta);
+      ctx.translate(form.x, -form.y);
+      if (form.form.ctor == "FElement")
+      {
+        drawElement(form.form._0);
+      }
+
+      ctx.restore();
+    }
+
+    ctx.save();
+    ctx.translate(ctx.canvas.width/2, ctx.canvas.height/2);
+    drawElement(currentScene);
+    ctx.restore();
+  }
+
+  var tracePathNode = A2(Signal.lift, graphicsUpdate, graphicsNode);
+
   function resetProgram() {
-    clearAsyncEvents();
-    restoreNodeValues(allNodes, initialProgramState.nodeValues);
+    debugModule.clearAsyncEvents();
+    restoreNodeValues(debugModule.moduleNodes, debugModule.initialNodeValues);
     redrawGraphics();
   }
 
   function restartProgram() {
     resetProgram();
-    recordedEvents = [];
-    initialProgramState.asyncTimers.forEach(function(timer) {
+    debugModule.clearRecordedEvents();
+    debugModule.initialAsyncTimers.forEach(function(timer) {
       var func = timer.func;
       func();
     });
   }
 
   function stepTo(index) {
-    if (!programPaused) {
-      programPaused = true;
+    if (!debugModule.getPaused()) {
+      debugModule.setPaused(true);
       resetProgram();
     }
 
@@ -95,12 +198,6 @@ function debuggerInit(module, runtime) {
     return recordedEvents.length - 1;
   }
 
-  function clearAsyncEvents() {
-    asyncTimers.forEach(function(timer) {
-      clearTimeout(timer.timerId);
-    });
-  }
-
   function doPlayback(eventList) {
     var x = eventList.shift();
     var time = x[2];
@@ -113,38 +210,18 @@ function debuggerInit(module, runtime) {
   }
 
   function redrawGraphics() {
-    var graphicsFoldp = moduleInstance.main.kids[0];
-    graphicsFoldp.recv(Date.now(), true, moduleInstance.main.id);
+    graphicsNode.recv(Date.now(), true, debugModule.moduleInstance.main.id);
   }
 
-  var wrappedRuntime = {
-    notify: wrapNotify,
-    runDelayed: wrapRunDelayed,
-    node: runtime.node,
-    display: runtime.display,
-    id: runtime.id,
-    addListener: runtime.addListener,
-    inputs: runtime.inputs
-  };
-
-  var moduleInstance = module.make(wrappedRuntime);
-
   var elmDebugger = {
-        moduleInstance: moduleInstance,
-
-        // debugger functions
-        reset: resetProgram,
-        restart: restartProgram,
-        getMaxSteps: getMaxSteps,
-        stepTo: stepTo
+      reset: resetProgram,
+      restart: restartProgram,
+      getMaxSteps: getMaxSteps,
+      stepTo: stepTo
   };
-
-  allNodes = flattenNodes(wrappedRuntime.inputs);
-  initialProgramState.nodeValues = saveNodeValues(allNodes);
-  initialProgramState.asyncTimers = asyncTimers.slice();
 
   return elmDebugger;
-};
+}
 
 
 
