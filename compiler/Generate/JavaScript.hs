@@ -24,6 +24,7 @@ makeSafe = List.intercalate "." . map dereserve . split . deprime
                     False -> x
                     True  -> "$" ++ x
 
+split :: String -> [String]
 split = go []
   where
     go vars str =
@@ -44,6 +45,7 @@ string = StringLit ()
 dotSep (x:xs) = foldl (DotRef ()) (ref x) (map var xs)
 obj = dotSep . split
 
+varDecl :: String -> Expression () -> VarDecl ()
 varDecl x expr =
     VarDecl () (var x) (Just expr)
 
@@ -60,6 +62,7 @@ internalImports name =
     , varDecl "$moduleName" (string name)
     ]
 
+literal :: Literal -> Expression ()
 literal lit =
   case lit of
     Chr c -> obj "_N.chr" <| string [c]

@@ -104,7 +104,11 @@ matchCon (v:vs) cs def = (flip (Match v) def) <$> mapM toClause css
           (PData name _ : _, _) -> matchClause (Left name) (v:vs) cs Break
           (PLiteral lit : _, _) -> matchClause (Right lit) (v:vs) cs Break
 
---matchClause :: Either String Literal -> [String] -> [([Pattern],LExpr t v)] -> Match t v -> State Int (Clause a)
+matchClause :: Either String Literal
+            -> [String]
+            -> [([Pattern],LExpr t v)]
+            -> Match t v
+            -> State Int (Clause t v)
 matchClause c (v:vs) cs def =
     do vs' <- getVars
        Clause c vs' <$> match (vs' ++ vs) (map flatten cs) def
