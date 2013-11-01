@@ -98,61 +98,11 @@ function debugModule(module, runtime) {
 
 function debuggerInit(debugModule, runtime) {
   var Signal = Elm.Signal.make(runtime);
-  var List = Elm.List.make(runtime);
   var graphicsNode = debugModule.moduleInstance.main.kids[0];
   
-  var tracePathCanvas = document.createElement('canvas');
-  tracePathCanvas.width = window.innerWidth;
-  tracePathCanvas.height = window.innerHeight;
-  tracePathCanvas.style.position = "absolute";
-  tracePathCanvas.style.top = "0";
-  tracePathCanvas.style.left = "0";
-  runtime.node.parentNode.appendChild(tracePathCanvas);
-
-  function graphicsUpdate(currentScene) {
-    var ctx = tracePathCanvas.getContext('2d');
-    ctx.clearRect(0, 0, tracePathCanvas.width, tracePathCanvas.height);
-    ctx.fillText("Debugger trace path", 20, 20);
-
-    function drawElement(elem) {
-      if (elem.element.ctor == "Custom" && elem.element.type == "Collage")
-      {
-        List.map(drawForm)(elem.element.model.forms);
-      }
-      else if (elem.element.ctor == "Image")
-      {
-        var x = 0;
-        var y = 0;
-        ctx.beginPath();
-        ctx.arc(x, y, 2, 0, 2*Math.PI);
-        ctx.fillStyle = "grey";
-        ctx.fill();
-        ctx.lineWidth = 1;
-        ctx.strokeStype = "black";
-        ctx.stroke();
-      }
-    }
-
-    function drawForm(form) {
-      ctx.save();
-      ctx.scale(form.scale, form.scale);
-      ctx.rotate(form.theta);
-      ctx.translate(form.x, -form.y);
-      if (form.form.ctor == "FElement")
-      {
-        drawElement(form.form._0);
-      }
-
-      ctx.restore();
-    }
-
-    ctx.save();
-    ctx.translate(ctx.canvas.width/2, ctx.canvas.height/2);
-    drawElement(currentScene);
-    ctx.restore();
-  }
-
-  var tracePathNode = A2(Signal.lift, graphicsUpdate, graphicsNode);
+  var tracePath = tracePathInit(runtime);
+  var tracePathNode = A2(Signal.lift, tracePath.graphicsUpdate, graphicsNode);
+  runtime.node.parentNode.appendChild(tracePath.canvas);
 
   function resetProgram() {
     debugModule.clearAsyncEvents();
@@ -223,7 +173,114 @@ function debuggerInit(debugModule, runtime) {
   return elmDebugger;
 }
 
+function Point(x, y) {
+  this.x = x;
+  this.y = y;
 
+  this.translate = function(x, y) {
+    return new Point(this.x + x, this.y + y);
+  }
+
+  this.equals = function(p) {
+    return this.x == p.x && this.y == p.y;
+  }
+}
+
+function tracePathInit(runtime) {
+  var List = Elm.List.make(runtime);
+  var tracePathCanvas = createCanvas();
+  var tracePositions = {};
+
+  function findPositions(currentScene) {
+    var positions = {};
+    function processElement(elem, offset) {
+      if (elem.element.ctor == "Custom" && elem.element.type == "Collage")
+      {
+        List.map(F2(processForm)(offset))(elem.element.model.forms);
+      }
+      else if (elem.element.ctor == "Image" && elem.props.debugTracePathId)
+      {
+        positions[elem.props.debugTracePathId] = new Point(offset.x, offset.y);
+      }
+    }
+
+    function processForm(offset, form) {
+      if (form.form.ctor == "FElement")
+      {
+        processElement(form.form._0, offset.translate(form.x, -form.y));
+      }
+    }
+
+    processElement(currentScene, new Point(0, 0));
+    return positions;
+  }
+
+  function appendPositions(positions) {
+    for (var id in positions) {
+      var pos = positions[id];
+      if (tracePositions.hasOwnProperty(id)) {
+        var points = tracePositions[id];
+        if (!pos.equals(points[points.length-1])) {
+          points.push(pos);
+        }
+      }
+      else {
+        tracePositions[id] = [pos];
+      }
+    }
+  }
+
+  function graphicsUpdate(currentScene) {
+    var ctx = tracePathCanvas.getContext('2d');
+    ctx.clearRect(0, 0, tracePathCanvas.width, tracePathCanvas.height);
+    ctx.fillText("Debugger trace path", 20, 20);
+
+    ctx.save();
+    ctx.translate(ctx.canvas.width/2, ctx.canvas.height/2);
+    appendPositions(findPositions(currentScene));
+    for (var id in tracePositions)
+    {
+      ctx.beginPath();
+      var points = tracePositions[id];
+      for (var i=0; i < points.length; i++)
+      {
+        var p = points[i];
+        if (i == 0) {
+          ctx.moveTo(p.x, p.y);
+        }
+        else {
+          ctx.lineTo(p.x, p.y);
+        }
+      }
+    }
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "black";
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function clearTraces() {
+    tracePositions = {};
+  }
+
+  return {
+    graphicsUpdate: graphicsUpdate,
+    canvas: tracePathCanvas,
+    clearTraces: clearTraces
+  }
+}
+
+
+function createCanvas() {
+  var c = document.createElement('canvas');
+  c.width = window.innerWidth;
+  c.height = window.innerHeight;
+  c.style.position = "absolute";
+  c.style.top = "0";
+  c.style.left = "0";
+  return c;
+}
 
 function assert(bool, msg) {
   if (!bool) {
