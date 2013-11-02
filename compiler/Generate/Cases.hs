@@ -1,4 +1,4 @@
-module Generate.Cases (toMatch, Match (..), Clause (..), matchSubst) where
+module Generate.Cases (toMatch, Match (..), Clause (..), matchSubst, newVar) where
 
 import Control.Applicative ((<$>),(<*>))
 import Control.Arrow (first,second)
@@ -21,7 +21,7 @@ toMatch patterns = do
 newVar :: State Int String
 newVar = do n <- get
             modify (+1)
-            return $ "_case" ++ show n
+            return $ "_v" ++ show n
 
 data Match t v
     = Match String [Clause t v] (Match t v)

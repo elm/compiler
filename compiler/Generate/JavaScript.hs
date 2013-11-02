@@ -117,18 +117,17 @@ expression (L span expr) =
       Binop op e1 e2 -> binop span op e1 e2
 
       Lambda p e@(L s _) ->
-          do body' <- expression body
+          do (args, body) <- foldM depattern ([], innerBody) (reverse patterns)
+             body' <- expression body
              return $ case length args < 2 || length args > 9 of
                         True  -> foldr (==>) body' (map (:[]) args)
                         False -> ref ("F" ++ show (length args)) <| (args ==> body')
           where
-            (args, body) = foldr depattern ([], innerBody) (zip patterns [0..])
-
-            depattern (pattern,n) (args, body) =
+            depattern (args, body) pattern =
                 case pattern of
-                  PVar x -> (args ++ [x], body)
-                  _ -> let arg = "arg" ++ show n
-                       in  (args ++ [arg], L s (Case (L s (Var arg)) [(pattern, body)]))
+                  PVar x -> return (args ++ [x], body)
+                  _ -> do arg <- Case.newVar
+                          return (args ++ [arg], L s (Case (L s (Var arg)) [(pattern, body)]))
 
             (patterns, innerBody) = collect [p] e
 
