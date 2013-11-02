@@ -1,9 +1,10 @@
 
 ## 0.11
 
+  * elm-repl
   * Markdown interpolation
   * Bitwise library
-  * elm-repl
+  * Regex library
   * Improve Transform2D library (thanks to Michael Søndergaard)
 
 ## 0.10
