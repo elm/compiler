@@ -93,6 +93,15 @@ symOp = do op <- many1 (satisfy Help.isSymbol)
              "\8728" -> return "."
              _   -> return op
 
+padded :: IParser a -> IParser a
+padded p = do whitespace
+              out <- p
+              whitespace
+              return out
+
+equals :: IParser String
+equals = string "="
+
 arrow :: IParser String
 arrow = string "->" <|> string "\8594" <?> "arrow (->)"
 
@@ -106,7 +115,7 @@ commitIf check p = commit <|> try p
 spaceySepBy1 :: IParser b -> IParser a -> IParser [a]
 spaceySepBy1 sep p = do
   a <- p
-  (a:) <$> many (commitIf (whitespace >> sep) (whitespace >> sep >> whitespace >> p))
+  (a:) <$> many (commitIf (whitespace >> sep) (padded sep >> p))
 
 
 commaSep1 :: IParser a -> IParser [a]
@@ -154,7 +163,7 @@ betwixt a b c = do char a ; out <- c
                    char b <?> "closing '" ++ [b] ++ "'" ; return out
 
 surround a z name p = do
-  char a ; whitespace ; v <- p ; whitespace
+  char a ; v <- padded p
   char z <?> unwords ["closing", name, show z]
   return v
 

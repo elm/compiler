@@ -27,7 +27,7 @@ alias = do
   forcedWS
   alias <- capVar
   args  <- spacePrefix lowVar
-  whitespace ; string "=" ; whitespace
+  padded equals
   tipe <- Type.expr
   return (TypeAlias alias args tipe)
 
@@ -37,7 +37,7 @@ datatype = do
   forcedWS
   name <- capVar <?> "name of data-type"
   args <- spacePrefix lowVar
-  whitespace ; string "=" ; whitespace
+  padded equals
   tcs <- pipeSep1 Type.constructor
   return $ Datatype name args tcs
 
@@ -47,7 +47,7 @@ infixDecl = do
   assoc <- choice [ reserved "infixl" >> return L
                   , reserved "infix"  >> return N
                   , reserved "infixr" >> return R ]
-  whitespace
+  forcedWS
   n <- digit
   forcedWS
   Fixity assoc (read [n]) <$> anyOp
@@ -61,11 +61,11 @@ foreignDef = do
 
 exportEvent :: IParser (Declaration t v)
 exportEvent = do
-  try (reserved "export") >> whitespace >> reserved "jsevent" >> whitespace
+  try (reserved "export") >> padded (reserved "jsevent")
   eventName <- jsVar
   whitespace
   elmVar <- lowVar
-  whitespace ; hasType ; whitespace
+  padded hasType
   tipe <- Type.expr
   case tipe of
     T.Data "Signal" [t] ->
@@ -76,13 +76,12 @@ exportEvent = do
 
 importEvent :: IParser (Declaration t v)
 importEvent = do
-  try (reserved "import") >> whitespace >> reserved "jsevent" >> whitespace
+  try (reserved "import") >> padded (reserved "jsevent")
   eventName <- jsVar
-  whitespace
-  baseValue <- Expr.term <?> "Base case for imported signal (signals cannot be undefined)"
-  whitespace
+  baseValue <- padded Expr.term
+               <?> "Base case for imported signal (signals cannot be undefined)"
   elmVar  <- lowVar <?> "Name of imported signal"
-  whitespace ; hasType ; whitespace
+  padded hasType
   tipe <- Type.expr
   case tipe of
     T.Data "Signal" [t] ->
