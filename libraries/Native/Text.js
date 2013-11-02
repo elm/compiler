@@ -96,7 +96,7 @@ Elm.Native.Text.make = function(elm) {
             var raw = {
                 ctor:'RawHtml',
                 html: '<span style="text-align:' + align + ';">' + text + '</span>',
-                guid: '0',
+                guid: null,
                 args: [],
             };
             var pos = A2(Utils.htmlHeight, 0, raw);

@@ -205,6 +205,11 @@ function update(node, curr, next) {
     switch(nextE.ctor) {
     case "Spacer": break;
     case "RawHtml":
+        // only markdown blocks have guids, so this must be a text block
+        if (nextE.guid === null) {
+            node.innerHTML = nextE.html;
+            break;
+        }
         if (nextE.guid !== currE.guid) {
             node.parentNode.replaceChild(render(next),node);
             return true;
@@ -267,7 +272,7 @@ function update(node, curr, next) {
         }
         break;
     case "Container":
-        update(node.firstChild, currE._1, nextE._1)
+        update(node.firstChild, currE._1, nextE._1);
         setPos(nextE._0, nextE._1.props.width, nextE._1.props.height, node.firstChild);
         break;
     case "Custom":
