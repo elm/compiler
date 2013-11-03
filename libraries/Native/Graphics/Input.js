@@ -41,7 +41,6 @@ Elm.Native.Graphics.Input.make = function(elm) {
      var h = Math.ceil(style.getPropertyValue("height").slice(0,-2) - 0);
      elm.node.removeChild(t);
      
-     console.log(w,h);
      var element = A3(newElement, w, h, {
              ctor: 'Custom',
              type: 'DropDown',
