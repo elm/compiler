@@ -8,11 +8,8 @@ same kind of regular expressions accepted by JavaScript](https://developer.mozil
 # Match
 @docs Match
 
-### Find
-@docs contains, find, findN
-
-### Replace
-@docs replace, replaceN
+### Find and Replace
+@docs contains, find, findN, replace, replaceN
 
 ### Split
 @docs split, splitN
