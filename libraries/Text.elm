@@ -12,7 +12,7 @@ module Text where
 @docs color, typeface, height, link
 
 # Simple Formatting
-@docs monospace, header, bold, italic, underline, overline, strikeThrough
+@docs monospace, bold, italic, underline, overline, strikeThrough
 
 -}
 
@@ -42,10 +42,6 @@ typeface = Native.Text.typeface
 {-| Switch to a monospace typeface. Good for code snippets. -}
 monospace : Text -> Text
 monospace = Native.Text.monospace
-
-{-| Make text big and noticable. -}
-header : Text -> Text
-header = Native.Text.header
 
 {-| Create a link. -}
 link : String -> Text -> Text

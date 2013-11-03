@@ -68,8 +68,35 @@ Elm.Native.Utils.make = function(elm) {
 
     function txt(str) {
         var t = new String(str);
-        t.isText = true;
+        t.text = true;
         return t;
+    }
+
+    function makeText(style, text) {
+        var style = style;
+        var line = '';
+        var href = '';
+        while (true) {
+            if (text.line) {
+                line += text.line;
+                text = text.text;
+                continue;
+            }
+            if (text.style) {
+                style += text.style;
+                text = text.text;
+                continue;
+            }
+            if (text.href) {
+                href = text.href;
+                text = text.text;
+                continue;
+            }
+            if (href) text = '<a href="' + href + '">' + text + '</a>';
+            if (line) style += 'text-decoration:' + line + ';';
+            if (style) text = '<span style="' + style + '">' + text + '</span>';
+            return text;
+        }
     }
 
     var count = 0;
@@ -186,6 +213,7 @@ Elm.Native.Utils.make = function(elm) {
         Tuple2:Tuple2,
         chr:chr,
         txt:txt,
+        makeText:makeText,
         copy: copy,
         remove: remove,
         replace: replace,

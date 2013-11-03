@@ -53,8 +53,15 @@ Elm.Native.List.make = function(elm) {
     }
 
     function append(xs,ys) {
-        if (xs.isText) return Utils.txt(xs.concat(ys));
-        if (typeof xs === "string") return xs.concat(ys);
+        // append Text
+        if (xs.text || ys.text) {
+            return Utils.txt(Utils.makeText('',xs) + Utils.makeText('',ys));
+        }
+
+        // append Strings
+        if (typeof xs === "string") return xs + ys;
+
+        // append Lists
         if (xs.ctor === '[]') { return ys; }
         var root = Cons(xs._0, Nil);
         var curr = root;
@@ -253,7 +260,14 @@ Elm.Native.List.make = function(elm) {
     }
 
     function join(sep, xss) {
-        if (sep.isText) return Utils.txt(toArray(xss).join(sep));
+        if (sep.text) {
+            sep = Utils.makeText('',sep);
+            xss = toArray(xss);
+            for (var i = xss.length; i--; ) {
+                xss[i] = Utils.makeText('',xss[i]);
+            }
+            return Utils.txt(xss.join(sep));
+        }
         if (typeof sep === 'string') return toArray(xss).join(sep);
         if (xss.ctor === '[]') return Nil;
         var s = toArray(sep);
