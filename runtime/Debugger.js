@@ -231,7 +231,6 @@ function tracePathInit(runtime) {
   function graphicsUpdate(currentScene) {
     var ctx = tracePathCanvas.getContext('2d');
     ctx.clearRect(0, 0, tracePathCanvas.width, tracePathCanvas.height);
-    ctx.fillText("Debugger trace path", 20, 20);
 
     ctx.save();
     ctx.translate(ctx.canvas.width/2, ctx.canvas.height/2);
