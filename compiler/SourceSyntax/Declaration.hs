@@ -43,6 +43,7 @@ instance Pretty (Declaration t v) where
           let alias = P.text name <+> P.hsep (map P.text tvars) in
           P.hang (P.text "type" <+> alias <+> P.equals) 4 (pretty tipe)
 
-      -- TODO: actually write out the other cases. They are currently unused, but
-      -- this is probably going to be a bug someday.
-      _ -> P.text (show decl)
+      -- TODO: Actually write out the contained data in these cases.
+      ImportEvent _ _ _ _ -> P.text (show decl)
+      ExportEvent _ _ _   -> P.text (show decl)
+      Fixity _ _ _        -> P.text (show decl)
