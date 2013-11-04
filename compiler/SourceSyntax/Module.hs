@@ -42,7 +42,7 @@ instance Binary ImportMethod where
                0 -> liftM As        get
                1 -> liftM Importing get
                2 -> liftM Hiding    get
-               _ -> error "Error valid ImportMethod type from serialized string"
+               _ -> error "Error reading valid ImportMethod type from serialized string"
 
 data MetadataModule t v = MetadataModule {
     names     :: [String],
