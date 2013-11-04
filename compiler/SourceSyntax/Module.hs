@@ -42,6 +42,7 @@ instance Binary ImportMethod where
                0 -> liftM As        get
                1 -> liftM Importing get
                2 -> liftM Hiding    get
+               _ -> error "Error valid ImportMethod type from serialized string"
 
 data MetadataModule t v = MetadataModule {
     names     :: [String],
@@ -83,6 +84,10 @@ instance Binary ModuleInterface where
 
 instance Binary Assoc where
     get = do n <- getWord8
-             return $ case n of { 0 -> L ; 1 -> N ; 2 -> R }
+             return $ case n of
+                0 -> L
+                1 -> N
+                2 -> R
+                _ -> error "Error reading valid associativity from serialized string"
 
     put assoc = putWord8 $ case assoc of { L -> 0 ; N -> 1 ; R -> 2 }
