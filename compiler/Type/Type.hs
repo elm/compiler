@@ -370,12 +370,10 @@ toSrcType variable = do
         case name desc of
           Just x@(c:cs) | Char.isLower c -> return (Src.Var x)
                         | otherwise      -> return (Src.Data x [])
-          Nothing ->
-              error $ concat
+          _ -> error $ concat
                         [ "Problem converting the following type "
                         , "from a type-checker type to a source-syntax type:"
                         , P.render (pretty Never variable) ]
-
 
 data AppStructure = List Variable | Tuple [Variable] | Other
 
