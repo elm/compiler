@@ -92,7 +92,7 @@ readDeps srcDirs noPrelude root = evalStateT (go root) Set.empty
       case Parse.dependencies txt of
         Left err -> liftIO (putStrLn msg >> print err >> exitFailure)
             where msg = "Error resolving dependencies in " ++ root' ++ ":"
-                    
+
         Right (name,deps) ->
             do seen <- get
                let realDeps = Set.difference (Set.fromList deps) builtIns

@@ -11,7 +11,9 @@ import System.IO.Unsafe (unsafePerformIO)
 import SourceSyntax.Module
 import qualified Data.Binary as Binary
 import qualified Data.ByteString.Lazy as BS
+import Data.Either.Unwrap (fromRight)
 
+import qualified InterfaceSerialization as IS
 
 add :: Module t v -> Module t v
 add (Module name exs ims stmts) = Module name exs (customIms ++ ims) stmts
@@ -46,14 +48,29 @@ safeReadDocs name =
                          , "    and specify your versions of Elm and your OS" ]
       exitFailure
 
+firstModuleInterface :: Interfaces -> Either String (String, ModuleInterface)
+firstModuleInterface interfaces =
+    if Map.null interfaces then
+        Left "No interfaces found in serialized Prelude!"
+    else
+        Right $ head $ Map.toList interfaces
+
 readDocs :: FilePath -> IO Interfaces
-readDocs name = do
-  exists <- doesFileExist name
-  case exists of
-    False -> ioError . userError $ "File Not Found"
-    True -> do
-      handle <- openBinaryFile name ReadMode
-      bits <- BS.hGetContents handle
-      let ifaces = Map.fromList (Binary.decode bits)
-      BS.length bits `seq` hClose handle
-      return ifaces
+readDocs filePath = do
+  bytes <- IS.loadInterface filePath
+  let interfaces = bytes >>= IS.interfaceDecode filePath
+
+  -- Although every ModuleInterface that is deserialized in this collection
+  -- contains the compiler version, we only check the first ModuleInterface
+  -- since it doesn't make sense that different modules in Prelude would have
+  -- been compiled by different compiler versions.
+  case interfaces >>= firstModuleInterface >>= IS.validVersion filePath of
+    Left err -> do
+      hPutStrLn stderr err
+      exitFailure
+
+    -- Unwrapping the Right value here is safe since the whole above chain
+    -- returns a Right value. The toList/fromList is necessary because of a
+    -- problem with looking up keys in the Map after deserialization. Example
+    -- at https://gist.github.com/jsl/7294493.
+    Right _ -> return $ Map.fromList $ Map.toList $ fromRight interfaces

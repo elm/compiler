@@ -24,6 +24,7 @@ import Parse.Module (getModuleName)
 import Initialize (buildFromSource, getSortedDependencies)
 import Generate.JavaScript (jsModule)
 import Generate.Html (createHtml, JSSource(..))
+import qualified InterfaceSerialization as IS
 import Paths_Elm
 
 import SourceSyntax.PrettyPrint (pretty, variable)
@@ -39,9 +40,9 @@ data Flags =
           , print_types :: Bool
           , scripts :: [FilePath]
           , no_prelude :: Bool
-	  , cache_dir :: FilePath
-	  , build_dir :: FilePath
-	  , src_dir :: [FilePath]
+          , cache_dir :: FilePath
+          , build_dir :: FilePath
+          , src_dir :: [FilePath]
           }
     deriving (Data,Typeable,Show,Eq)
 
@@ -93,27 +94,30 @@ elmo flags filePath = cachePath flags filePath "elmo"
 elmi :: Flags -> FilePath -> FilePath
 elmi flags filePath = cachePath flags filePath "elmi"
 
+buildFile :: Flags -> Int -> Int -> Interfaces -> FilePath -> IO (String, ModuleInterface)
+buildFile flags moduleNum numModules interfaces filePath = do
+  compiled <- alreadyCompiled
+  if compiled then do
+      bytes <- IS.loadInterface (elmi flags filePath)
+      case bytes >>= IS.interfaceDecode (elmi flags filePath) >>=
+           IS.validVersion filePath of
 
-buildFile :: Flags -> Int -> Int -> Interfaces -> FilePath -> IO (String,ModuleInterface)
-buildFile flags moduleNum numModules interfaces filePath =
-    do compiled <- alreadyCompiled
-       case compiled of
-         False -> compile
-         True -> do
-           handle <- openBinaryFile (elmi flags filePath) ReadMode
-           bits <- L.hGetContents handle
-           let info :: (String, ModuleInterface)
-               info = Binary.decode bits
-               modInterface = snd info
+        Left err -> do
+           hPutStrLn stderr err
+           exitFailure
 
-           when (print_types flags)
-                 (printTypes interfaces
-                  (iTypes modInterface)
-                  (iAliases modInterface)
-                  (iImports modInterface))
+        Right (name, interface) -> do
+                            when (print_types flags)
+                                     (printTypes interfaces
+                                      (iTypes interface)
+                                      (iAliases interface)
+                                      (iImports interface))
 
-           L.length bits `seq` hClose handle
-           return info
+                            return (name, interface)
+
+    else
+        compile
+
     where
       alreadyCompiled :: IO Bool
       alreadyCompiled = do
@@ -140,6 +144,7 @@ buildFile flags moduleNum numModules interfaces filePath =
 
         createDirectoryIfMissing True (cache_dir flags)
         createDirectoryIfMissing True (build_dir flags)
+
         metaModule <-
             case buildFromSource (no_prelude flags) interfaces source of
               Left errors -> do
@@ -152,6 +157,7 @@ buildFile flags moduleNum numModules interfaces filePath =
                   (types metaModule) (aliases metaModule) (imports metaModule))
 
         let interface = Canonical.interface name $ ModuleInterface {
+                          iVersion  = showVersion version,
                           iTypes    = types metaModule,
                           iImports  = imports metaModule,
                           iAdts     = datatypes metaModule,
@@ -206,11 +212,11 @@ build flags rootFile = do
     where
       appendToOutput :: BS.ByteString -> FilePath -> IO BS.ByteString
       appendToOutput js filePath =
-          do src <- BS.readFile (elmo flags filePath)
-             return (BS.append src js)
+          do
+            src <- BS.readFile (elmo flags filePath)
+            return (BS.append src js)
 
       sources js = map Link (scripts flags) ++ [ Source js ]
-
 
 buildFiles :: Flags -> Int -> Interfaces -> String -> [FilePath] -> IO (String, Interfaces)
 buildFiles _ _ interfaces moduleName [] = return (moduleName, interfaces)
