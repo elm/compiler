@@ -7,9 +7,7 @@ Elm.debuggerAttach = function(module) {
   return {
     make: function(runtime) {
       var wrappedModule = debugModule(module, runtime);
-      Elm.debuggerInit = function() {
-        Elm.Debugger = debuggerInit(wrappedModule, runtime);
-      };
+      Elm.Debugger = debuggerInit(wrappedModule, runtime);
       return wrappedModule.moduleInstance;
     }
   };
@@ -98,10 +96,9 @@ function debugModule(module, runtime) {
 
 function debuggerInit(debugModule, runtime) {
   var Signal = Elm.Signal.make(runtime);
-  var graphicsNode = debugModule.moduleInstance.main.kids[0];
   
   var tracePath = tracePathInit(runtime);
-  var tracePathNode = A2(Signal.lift, tracePath.graphicsUpdate, graphicsNode);
+  var tracePathNode = A2(Signal.lift, tracePath.graphicsUpdate, debugModule.moduleInstance.main);
   runtime.node.parentNode.appendChild(tracePath.canvas);
 
   function resetProgram() {
@@ -160,6 +157,7 @@ function debuggerInit(debugModule, runtime) {
   }
 
   function redrawGraphics() {
+    var graphicsNode = debugModule.moduleInstance.main.kids[0];
     graphicsNode.recv(Date.now(), true, debugModule.moduleInstance.main.id);
   }
 
