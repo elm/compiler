@@ -97,26 +97,22 @@ elmi flags filePath = cachePath flags filePath "elmi"
 buildFile :: Flags -> Int -> Int -> Interfaces -> FilePath -> IO (String, ModuleInterface)
 buildFile flags moduleNum numModules interfaces filePath = do
   compiled <- alreadyCompiled
-  if compiled then do
+  if not compiled then compile else do
       bytes <- IS.loadInterface (elmi flags filePath)
-      case bytes >>= IS.interfaceDecode (elmi flags filePath) >>=
-           IS.validVersion filePath of
-
+      let binary = IS.interfaceDecode (elmi flags filePath) =<< bytes
+      case IS.validVersion filePath =<< binary of
         Left err -> do
-           hPutStrLn stderr err
-           exitFailure
+          hPutStrLn stderr err
+          exitFailure
 
         Right (name, interface) -> do
-                            when (print_types flags)
-                                     (printTypes interfaces
-                                      (iTypes interface)
-                                      (iAliases interface)
-                                      (iImports interface))
+          when (print_types flags) $
+               printTypes interfaces
+                          (iTypes interface)
+                          (iAliases interface)
+                          (iImports interface)
 
-                            return (name, interface)
-
-    else
-        compile
+          return (name, interface)
 
     where
       alreadyCompiled :: IO Bool
@@ -212,9 +208,8 @@ build flags rootFile = do
     where
       appendToOutput :: BS.ByteString -> FilePath -> IO BS.ByteString
       appendToOutput js filePath =
-          do
-            src <- BS.readFile (elmo flags filePath)
-            return (BS.append src js)
+          do src <- BS.readFile (elmo flags filePath)
+             return (BS.append src js)
 
       sources js = map Link (scripts flags) ++ [ Source js ]
 
