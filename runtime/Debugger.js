@@ -8,6 +8,17 @@ Elm.debuggerAttach = function(module) {
     make: function(runtime) {
       var wrappedModule = debugModule(module, runtime);
       Elm.Debugger = debuggerInit(wrappedModule, runtime);
+      if (parent.window) {
+        var dispatch = function(_) {
+          parent.window.postMessage("elmDebuggerInit", window.location.origin);
+        };
+        if (parent.window.document.readyState === "complete") {
+          dispatch();
+        }
+        else {
+          parent.window.addEventListener("load", dispatch);
+        }
+      }
       return wrappedModule.moduleInstance;
     }
   };
