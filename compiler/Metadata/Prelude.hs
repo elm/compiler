@@ -11,7 +11,6 @@ import System.IO.Unsafe (unsafePerformIO)
 import SourceSyntax.Module
 import qualified Data.Binary as Binary
 import qualified Data.ByteString.Lazy as BS
-import Data.Either.Unwrap (fromRight)
 
 import qualified InterfaceSerialization as IS
 
@@ -50,22 +49,23 @@ safeReadDocs name =
 
 firstModuleInterface :: Interfaces -> Either String (String, ModuleInterface)
 firstModuleInterface interfaces =
-    if Map.null interfaces then
-        Left "No interfaces found in serialized Prelude!"
-    else
-        Right $ head $ Map.toList interfaces
+    case Map.toList interfaces of
+      []      -> Left "No interfaces found in serialized Prelude!"
+      iface:_ -> Right iface
 
 readDocs :: FilePath -> IO Interfaces
 readDocs filePath = do
   bytes <- IS.loadInterface filePath
-  let interfaces = bytes >>= IS.interfaceDecode filePath
+  let interfaces = IS.interfaceDecode filePath =<< bytes
 
-  -- Although every ModuleInterface that is deserialized in this collection
-  -- contains the compiler version, we only check the first ModuleInterface
-  -- since it doesn't make sense that different modules in Prelude would have
-  -- been compiled by different compiler versions.
-  case interfaces >>= firstModuleInterface >>= IS.validVersion filePath of
-    Left err -> do
+      -- Although every ModuleInterface that is deserialized in this collection
+      -- contains the compiler version, we only check the first ModuleInterface
+      -- since it doesn't make sense that different modules in Prelude would
+      -- have been compiled by different compiler versions.
+      isValid = IS.validVersion filePath =<< firstModuleInterface =<< interfaces
+
+  case (interfaces, isValid) of
+    (_, Left err) -> do
       hPutStrLn stderr err
       exitFailure
 
@@ -73,4 +73,6 @@ readDocs filePath = do
     -- returns a Right value. The toList/fromList is necessary because of a
     -- problem with looking up keys in the Map after deserialization. Example
     -- at https://gist.github.com/jsl/7294493.
-    Right _ -> return $ Map.fromList $ Map.toList $ fromRight interfaces
+    -- TODO: try switching to Data.ByteString.Lazy.Char8
+    (Right ifaces, _) ->
+        return $ Map.fromList $ Map.toList ifaces
