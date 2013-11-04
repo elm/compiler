@@ -8,10 +8,10 @@ same kind of regular expressions accepted by JavaScript](https://developer.mozil
 # Match
 @docs Match
 
-### Find and Replace
-@docs contains, find, findN, replace, replaceN
+# Find and Replace
+@docs contains, find, findAll, replace, replaceAll
 
-### Split
+# Split
 @docs split, splitN
 
 -}
@@ -40,11 +40,13 @@ caseInsensitive = Native.Regex.caseInsensitive
 
 {-| Check to see if a Regex is contained in a string.
 
-    contains (pattern "123") "12345" == True
-    contains (pattern "b+") "aabbcc" == True
+```haskell
+  contains (pattern "123") "12345" == True
+  contains (pattern "b+") "aabbcc" == True
 
-    contains (pattern "789") "12345" == False
-    contains (pattern "z+") "aabbcc" == False
+  contains (pattern "789") "12345" == False
+  contains (pattern "z+") "aabbcc" == False
+```
 -}
 contains : Regex -> String -> Bool
 contains = Native.Regex.contains
@@ -63,63 +65,69 @@ Here are details on each field:
   * `number` &mdash; if you find many matches, you can think of each one
     as being labeled with a `number` starting at one. So the first time you
     find a match, that is match `number` one. Second time is match `number` two.
-    This is useful when paired with `replace` if replacement is dependent on how
+    This is useful when paired with `replaceAll` if replacement is dependent on how
     many times a pattern has appeared before.
 -}
 type Match = { match : String, submatches : [Maybe String], index : Int, number : Int }
 
 {-| Find all of the matches in a string:
 
-    words = find (pattern "\\w+") "hello world"
+```haskell
+  words = findAll (pattern "\\w+") "hello world"
 
-        map .match words == ["hello","world"]
-        map .index words == [0,6]
+    map .match words == ["hello","world"]
+    map .index words == [0,6]
 
-    places = find (pattern "[oi]n a (\\w+)") "I am on a boat in a lake."
+  places = findAll (pattern "[oi]n a (\\w+)") "I am on a boat in a lake."
 
-        map .match places      == ["on a boat", "in a lake"]
-        map .submatches places == [ [Just "boat"], [Just "lake"] ]
+    map .match places== ["on a boat", "in a lake"]
+    map .submatches places == [ [Just "boat"], [Just "lake"] ]
+```
 -}
-find : Regex -> String -> [Match]
-find = Native.Regex.find
+findAll : Regex -> String -> [Match]
+findAll = Native.Regex.findAll
 
-{-| Same as `find`, but `findN` will quit searching after the Nth match.
+{-| Same as `findAll`, but `find` will quit searching after the *n<sup>th</sup>* match.
 That means the resulting list has maximum length N, but *it can be shorter*
 if there are not that many matches in the given string.
 -}
-findN : Int -> Regex -> String -> [Match]
-findN = Native.Regex.findN
+find : Int -> Regex -> String -> [Match]
+find = Native.Regex.find
 
 {-| Replace all matches. The function from `Match` to `String` lets
 you use the details of a specific match when making replacements.
 
-    vowels = caseInsensitive (pattern "[aeiou]")
-    devowel = replace vowels (\_ -> "")
+```haskell
+  devowel = replaceAll (pattern "[aeiou]") (\_ -> "")
 
-        devowel "The quick brown fox" == "Th qck brwn fx"
+    devowel "The quick brown fox" == "Th qck brwn fx"
 
-    word = pattern "\\w+"
-    reverseWords = replace word (\{match} -> String.reverse match)
+  reverseWords = replaceAll (pattern "\\w+") (\{match} -> String.reverse match)
 
-        reverseWords "deliver mined parts" == "reviled denim strap"
+    reverseWords "deliver mined parts" == "reviled denim strap"
+```
 -}
-replace : Regex -> (Match -> String) -> String -> String
-replace = Native.Regex.replace
+replaceAll : Regex -> (Match -> String) -> String -> String
+replaceAll = Native.Regex.replaceAll
 
-{-| Same as `replace`, but `replaceN` will quit after the Nth match.-}
-replaceN : Int -> Regex -> (Match -> String) -> String -> String
-replaceN = Native.Regex.replaceN
+{-| Same as `replaceAll`, but `replace` will quit after the *n<sup>th</sup>* match.-}
+replace : Int -> Regex -> (Match -> String) -> String -> String
+replace = Native.Regex.replace
 
 {-| Split a string, using the regex as the separator.
 
-    split (pattern ", ?") "a,b, c, d" == ["a","b","c","d"]
+```haskell
+  split (pattern " *, *") "a ,b, c,d" == ["a","b","c","d"]
+```
 -}
 split : Regex -> String -> [String]
 split = Native.Regex.split
 
-{-| Same as `split` but stops after the Nth match.
+{-| Same as `split` but stops after the *n<sup>th</sup>* match.
 
-    splitN 1 (pattern ", ?") "a,b,c,d" == ["a","b,c,d"]
+```haskell
+  splitN 1 (pattern ": *") "tom: 99,90,85" == ["tom","99,90,85"]
+```
 -}
 splitN : Int -> Regex -> String -> [String]
 splitN = Native.Regex.splitN

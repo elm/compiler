@@ -23,10 +23,10 @@ Elm.Native.Regex.make = function(elm) {
         return re.test(JS.fromString(string));
     }
 
-    function find(re, string) {
-        return findN(Infinity, re, string);
+    function findAll(re, string) {
+        return find(Infinity, re, string);
     }
-    function findN(n, re, str) {
+    function find(n, re, str) {
         var out = [];
         var number = 0;
         var string = JS.fromString(str);
@@ -51,10 +51,10 @@ Elm.Native.Regex.make = function(elm) {
         return JS.toList(out);
     }
 
-    function replace(re, replacer, string) {
-        return replaceN(Infinity, re, replacer, string);
+    function replaceAll(re, replacer, string) {
+        return replace(Infinity, re, replacer, string);
     }
-    function replaceN(n, re, replacer, string) {
+    function replace(n, re, replacer, string) {
         var count = 0;
         function jsReplacer(match) {
             if (count++ > n) return match;
@@ -100,11 +100,11 @@ Elm.Native.Regex.make = function(elm) {
         escape: escape,
 
         contains: F2(contains),
-        find: F2(find),
-        findN: F3(findN),
+        findAll: F2(findAll),
+        find: F3(find),
 
-        replace: F3(replace),
-        replaceN: F4(replaceN),
+        replaceAll: F3(replaceAll),
+        replace: F4(replace),
 
         split: F2(split),
         splitN: F3(splitN),
