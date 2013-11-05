@@ -28,7 +28,7 @@ function debugModule(module, runtime) {
   var programPaused = false;
   var recordedEvents = [];
   var eventCounter = 0;
-  var asyncTimers = [];
+  var asyncCallbacks = [];
 
   function wrapNotify(id, v) {
     var timestep = Date.now();
@@ -48,7 +48,7 @@ function debugModule(module, runtime) {
 
   function safeSetTimeout(func, delayMs) {
     var timerId = setTimeout(func, delayMs);
-    asyncTimers.push({ func:func, delayMs:delayMs, timerId:timerId });
+    asyncCallbacks.push({ func:func, delayMs:delayMs, timerId:timerId });
     return timerId;
   }
 
@@ -56,8 +56,8 @@ function debugModule(module, runtime) {
     recordedEvents.push({ id:id, value:v, timestep:timestep });
   }
 
-  function clearAsyncEvents() {
-    asyncTimers.forEach(function(timer) {
+  function clearAsyncCallbacks() {
+    asyncCallbacks.forEach(function(timer) {
       clearTimeout(timer.timerId);
     });
   }
@@ -95,9 +95,9 @@ function debugModule(module, runtime) {
     moduleInstance: moduleInstance,
     moduleNodes: moduleNodes,
     initialNodeValues: saveNodeValues(moduleNodes),
-    initialAsyncTimers: asyncTimers.slice(),
+    initialAsyncCallbacks: asyncCallbacks.slice(),
     // API functions
-    clearAsyncEvents: clearAsyncEvents,
+    clearAsyncCallbacks: clearAsyncCallbacks,
     clearRecordedEvents: clearRecordedEvents,
     getRecordedEvents: getRecordedEvents,
     getPaused: getPaused,
@@ -113,7 +113,7 @@ function debuggerInit(debugModule, runtime) {
   runtime.node.parentNode.appendChild(tracePath.canvas);
 
   function resetProgram() {
-    debugModule.clearAsyncEvents();
+    debugModule.clearAsyncCallbacks();
     restoreNodeValues(debugModule.moduleNodes, debugModule.initialNodeValues);
     redrawGraphics();
   }
@@ -121,7 +121,7 @@ function debuggerInit(debugModule, runtime) {
   function restartProgram() {
     resetProgram();
     debugModule.clearRecordedEvents();
-    debugModule.initialAsyncTimers.forEach(function(timer) {
+    debugModule.initialAsyncCallbacks.forEach(function(timer) {
       var func = timer.func;
       func();
     });
