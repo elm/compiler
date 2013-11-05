@@ -148,6 +148,7 @@ function debuggerInit(debugModule, runtime) {
 
   function pauseProgram() {
     debugModule.setPaused(true);
+    eventCounter = debugModule.getRecordedEventsLength();
   }
 
   function continueProgram() {
@@ -183,7 +184,7 @@ function debuggerInit(debugModule, runtime) {
   }
 
   function getMaxSteps() {
-    return debugModule.getRecordedEventsLength() - 1;
+    return debugModule.getRecordedEventsLength();
   }
 
   function doPlayback(eventList) {
