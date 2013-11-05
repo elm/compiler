@@ -33,7 +33,8 @@ function debugModule(module, runtime) {
     var timestep = Date.now();
 
     if (programPaused) {
-      // ignore notify because we are stepping
+      // ignore async events generated while playing back
+      // or user events while program is paused
     }
     else {
       runtime.notify(id, v, timestep);
@@ -42,12 +43,13 @@ function debugModule(module, runtime) {
   };
 
   function wrapRunDelayed(func, delayMs) {
-    return safeSetTimeout(func, delayMs);
-  };
-
-  function safeSetTimeout(func, delayMs) {
-    var timerId = setTimeout(func, delayMs);
-    asyncCallbacks.push({ func:func, delayMs:delayMs, timerId:timerId });
+    var cbObj = { func:func, delayMs:delayMs, timerId:0, executed:false };
+    var timerId = setTimeout(function() {
+        cbObj.executed = true;
+        func();
+      }, delayMs);
+    cbObj.timerId = timerId;
+    asyncCallbacks.push(cbObj);
     return timerId;
   }
 
@@ -57,7 +59,9 @@ function debugModule(module, runtime) {
 
   function clearAsyncCallbacks() {
     asyncCallbacks.forEach(function(timer) {
-      clearTimeout(timer.timerId);
+      if (!timer.executed) {
+        clearTimeout(timer.timerId);
+      }
     });
   }
 
@@ -75,6 +79,12 @@ function debugModule(module, runtime) {
 
   function setPaused(v) {
     programPaused = v;
+    if (programPaused) {
+      clearAsyncCallbacks();
+    }
+    else {
+      executeCallbacks(asyncCallbacks);
+    }
   }
 
   function getPaused() {
@@ -127,10 +137,18 @@ function debuggerInit(debugModule, runtime) {
   function restartProgram() {
     resetProgram();
     debugModule.clearRecordedEvents();
-    debugModule.initialAsyncCallbacks.forEach(function(timer) {
-      var func = timer.func;
-      func();
-    });
+    executeCallbacks(debugModule.initialAsyncCallbacks);
+  }
+
+  function pauseProgram() {
+    debugModule.setPaused(true);
+  }
+
+  function continueProgram() {
+    if (debugModule.getPaused())
+    {
+      debugModule.setPaused(false);
+    }
   }
 
   function stepTo(index) {
@@ -179,8 +197,9 @@ function debuggerInit(debugModule, runtime) {
   }
 
   var elmDebugger = {
-      reset: resetProgram,
       restart: restartProgram,
+      pause: pauseProgram,
+      kontinue: continueProgram,
       getMaxSteps: getMaxSteps,
       stepTo: stepTo
   };
@@ -285,6 +304,15 @@ function tracePathInit(runtime) {
   }
 }
 
+
+function executeCallbacks(callbacks) {
+  callbacks.forEach(function(timer) {
+    if (!timer.executed) {
+      var func = timer.func;
+      func();
+    }
+  });
+}
 
 function createCanvas() {
   var c = document.createElement('canvas');
