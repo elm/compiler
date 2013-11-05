@@ -93,6 +93,11 @@ function init(display, container, module, moduleToReplace) {
       return newElm;
   }
 
+  function dispose() {
+    removeListeners(listeners);
+    inputs = [];
+  }
+
   var Module = {};
   var reportAnyErrors = function() {};
   try {
@@ -117,7 +122,12 @@ function init(display, container, module, moduleToReplace) {
   }
 
   reportAnyErrors();
-  return { send:send, recv:recv, swap:swap };
+  return {
+    send:send,
+    recv:recv,
+    swap:swap,
+    dispose:dispose
+  };
 };
 
 function filterListeners(inputs, listeners) {
