@@ -7,7 +7,6 @@ import System.Directory
 import System.Exit
 import System.FilePath
 import System.IO
-import System.IO.Unsafe (unsafePerformIO)
 import SourceSyntax.Module
 import qualified Data.Binary as Binary
 import qualified Data.ByteString.Lazy as BS
@@ -31,21 +30,18 @@ prelude = text ++ map (\n -> (n, Hiding [])) modules
     modules = [ "Basics", "Signal", "List", "Maybe", "Time", "Prelude"
               , "Graphics.Element", "Color", "Graphics.Collage" ]
 
-{-# NOINLINE interfaces #-}
-interfaces :: Interfaces
-interfaces =
-    unsafePerformIO (safeReadDocs =<< Path.getDataFileName "interfaces.data")
-
-safeReadDocs :: FilePath -> IO Interfaces
-safeReadDocs name =
-    E.catch (readDocs name) $ \err -> do
-      let _ = err :: IOError
-      putStrLn $ unlines [ "Error reading types for standard library!"
-                         , "    The file should be at " ++ name
-                         , "    If you are using a stable version of Elm,"
-                         , "    please report an issue at github.com/evancz/Elm"
-                         , "    and specify your versions of Elm and your OS" ]
-      exitFailure
+interfaces :: IO Interfaces
+interfaces = do
+  interfacesPath <- Path.getDataFileName "interfaces.data"
+  E.catch (readDocs interfacesPath) $ \err ->
+      do
+        let _ = err :: IOError
+        hPutStrLn stderr $ unlines [ "Error reading types for standard library!"
+                                   , "    The file should be at " ++ interfacesPath
+                                   , "    If you are using a stable version of Elm,"
+                                   , "    please report an issue at github.com/evancz/Elm"
+                                   , "    and specify your versions of Elm and your OS" ]
+        exitFailure
 
 firstModuleInterface :: Interfaces -> Either String (String, ModuleInterface)
 firstModuleInterface interfaces =

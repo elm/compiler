@@ -21,7 +21,7 @@ import qualified Metadata.Prelude as Prelude
 import qualified Transform.Canonicalize as Canonical
 import SourceSyntax.Module
 import Parse.Module (getModuleName)
-import Initialize (buildFromSource, getSortedDependencies)
+import Initialize (buildFromSource, getSortedDependencies, requiredInterfaces)
 import Generate.JavaScript (jsModule)
 import Generate.Html (createHtml, JSSource(..))
 import qualified InterfaceSerialization as IS
@@ -186,7 +186,7 @@ build flags rootFile = do
   let noPrelude = no_prelude flags
   files <- if make flags then getSortedDependencies (src_dir flags) noPrelude rootFile
                          else return [rootFile]
-  let ifaces = if noPrelude then Map.empty else Prelude.interfaces
+  ifaces <- requiredInterfaces noPrelude
   (moduleName, interfaces) <- buildFiles flags (length files) ifaces "" files
   js <- foldM appendToOutput BS.empty files
 
