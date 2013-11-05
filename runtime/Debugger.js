@@ -39,6 +39,9 @@ function debugModule(module, runtime) {
     else {
       runtime.notify(id, v, timestep);
       recordEvent(id, v, timestep);
+      if (parent.window) {
+        parent.window.postMessage("elmNotify", window.location.origin);
+      }
     }
   };
 
@@ -201,7 +204,8 @@ function debuggerInit(debugModule, runtime) {
       pause: pauseProgram,
       kontinue: continueProgram,
       getMaxSteps: getMaxSteps,
-      stepTo: stepTo
+      stepTo: stepTo,
+      getPaused: debugModule.getPaused
   };
 
   return elmDebugger;
