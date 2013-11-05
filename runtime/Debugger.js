@@ -84,9 +84,11 @@ function debugModule(module, runtime) {
     programPaused = v;
     if (programPaused) {
       clearAsyncCallbacks();
+      tracePath.stopRecording();
     }
     else {
       executeCallbacks(asyncCallbacks);
+      tracePath.startRecording();
     }
   }
 
@@ -106,6 +108,7 @@ function debugModule(module, runtime) {
 
   var moduleInstance = module.make(wrappedRuntime);
   var moduleNodes = flattenNodes(wrappedRuntime.inputs);
+  var tracePath = tracePathInit(runtime);
 
   return {
     moduleInstance: moduleInstance,
@@ -119,7 +122,7 @@ function debugModule(module, runtime) {
     getRecordedEventAt: getRecordedEventAt,
     getPaused: getPaused,
     setPaused: setPaused,
-    tracePath: tracePathInit(runtime)
+    tracePath: tracePath
   };
 }
 
@@ -228,6 +231,7 @@ function tracePathInit(runtime) {
   var List = Elm.List.make(runtime);
   var tracePathCanvas = createCanvas();
   var tracePositions = {};
+  var recordingTraces = true;
 
   function findPositions(currentScene) {
     var positions = {};
@@ -269,6 +273,10 @@ function tracePathInit(runtime) {
   }
 
   function graphicsUpdate(currentScene) {
+    if (!recordingTraces) {
+      return;
+    }
+
     var ctx = tracePathCanvas.getContext('2d');
     ctx.clearRect(0, 0, tracePathCanvas.width, tracePathCanvas.height);
 
@@ -301,10 +309,20 @@ function tracePathInit(runtime) {
     tracePositions = {};
   }
 
+  function stopRecording() {
+    recordingTraces = false;
+  }
+
+  function startRecording() {
+    recordingTraces = true;
+  }
+
   return {
     graphicsUpdate: graphicsUpdate,
     canvas: tracePathCanvas,
-    clearTraces: clearTraces
+    clearTraces: clearTraces,
+    stopRecording: stopRecording,
+    startRecording: startRecording
   }
 }
 
