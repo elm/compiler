@@ -87,7 +87,8 @@ function debugModule(module, runtime) {
       tracePath.stopRecording();
     }
     else {
-      executeCallbacks(asyncCallbacks);
+      // executeCallbacks should only be called when continuing, not when restarting.
+      //executeCallbacks(asyncCallbacks, false);
       tracePath.startRecording();
     }
   }
@@ -142,8 +143,10 @@ function debuggerInit(debugModule, runtime) {
 
   function restartProgram() {
     resetProgram();
+    debugModule.tracePath.clearTraces();
     debugModule.clearRecordedEvents();
-    executeCallbacks(debugModule.initialAsyncCallbacks);
+    debugModule.setPaused(false);
+    executeCallbacks(debugModule.initialAsyncCallbacks, true);
   }
 
   function pauseProgram() {
@@ -328,9 +331,9 @@ function tracePathInit(runtime) {
 }
 
 
-function executeCallbacks(callbacks) {
+function executeCallbacks(callbacks, reexecute) {
   callbacks.forEach(function(timer) {
-    if (!timer.executed) {
+    if (reexecute || !timer.executed) {
       var func = timer.func;
       func();
     }
