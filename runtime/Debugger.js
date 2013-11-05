@@ -27,7 +27,6 @@ Elm.debuggerAttach = function(module) {
 function debugModule(module, runtime) {
   var programPaused = false;
   var recordedEvents = [];
-  var eventCounter = 0;
   var asyncCallbacks = [];
 
   function wrapNotify(id, v) {
@@ -66,8 +65,12 @@ function debugModule(module, runtime) {
     recordedEvents = [];
   }
 
-  function getRecordedEvents() {
-    return recordedEvents.slice();
+  function getRecordedEventsLength() {
+    return recordedEvents.length;
+  }
+
+  function getRecordedEventAt(i) {
+    return recordedEvents[i];
   }
 
   function setPaused(v) {
@@ -99,18 +102,21 @@ function debugModule(module, runtime) {
     // API functions
     clearAsyncCallbacks: clearAsyncCallbacks,
     clearRecordedEvents: clearRecordedEvents,
-    getRecordedEvents: getRecordedEvents,
+    getRecordedEventsLength: getRecordedEventsLength,
+    getRecordedEventAt: getRecordedEventAt,
     getPaused: getPaused,
-    setPaused: setPaused
+    setPaused: setPaused,
+    tracePath: tracePathInit(runtime)
   };
 }
 
 function debuggerInit(debugModule, runtime) {
   var Signal = Elm.Signal.make(runtime);
   
-  var tracePath = tracePathInit(runtime);
-  var tracePathNode = A2(Signal.lift, tracePath.graphicsUpdate, debugModule.moduleInstance.main);
-  runtime.node.parentNode.appendChild(tracePath.canvas);
+  var tracePathNode = A2(Signal.lift, debugModule.tracePath.graphicsUpdate, debugModule.moduleInstance.main);
+  runtime.node.parentNode.appendChild(debugModule.tracePath.canvas);
+
+  var eventCounter = 0;
 
   function resetProgram() {
     debugModule.clearAsyncCallbacks();
@@ -133,7 +139,7 @@ function debuggerInit(debugModule, runtime) {
       resetProgram();
     }
 
-    if (index < 0 || index >= recordedEvents.length) {
+    if (index < 0 || index > getMaxSteps()) {
       throw "Index out of bounds: " + index;
     }
 
@@ -144,16 +150,16 @@ function debuggerInit(debugModule, runtime) {
 
     assert(index >= eventCounter, "index must be bad");
     while (eventCounter < index) {
-      var nextEvent = recordedEvents[eventCounter];
+      var nextEvent = debugModule.getRecordedEventAt(eventCounter);
       runtime.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
 
       eventCounter += 1;
     }
-    assert(eventCounter == index, "while loop didnt' work");
+    assert(eventCounter == index, "while loop didn't work");
   }
 
   function getMaxSteps() {
-    return recordedEvents.length - 1;
+    return debugModule.getRecordedEventsLength() - 1;
   }
 
   function doPlayback(eventList) {
