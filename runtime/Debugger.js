@@ -3,11 +3,11 @@
 'use strict';
 
 Elm.Debugger = null;
-Elm.debuggerAttach = function(module) {
+Elm.debuggerAttach = function(module, hotSwapState /* =undefined */) {
   return {
     make: function(runtime) {
       var wrappedModule = debugModule(module, runtime);
-      Elm.Debugger = debuggerInit(wrappedModule, runtime);
+      Elm.Debugger = debuggerInit(wrappedModule, runtime, hotSwapState);
       dispatchElmDebuggerInit();
       return wrappedModule.moduleInstance;
     }
@@ -84,6 +84,14 @@ function debugModule(module, runtime) {
     return recordedEvents[i];
   }
 
+  function copyRecordedEvents() {
+    return recordedEvents.slice();
+  }
+
+  function loadRecordedEvents(events) {
+    recordedEvents = events.slice();
+  }
+
   function setPaused(v) {
     programPaused = v;
     if (programPaused) {
@@ -125,13 +133,15 @@ function debugModule(module, runtime) {
     clearRecordedEvents: clearRecordedEvents,
     getRecordedEventsLength: getRecordedEventsLength,
     getRecordedEventAt: getRecordedEventAt,
+    copyRecordedEvents: copyRecordedEvents,
+    loadRecordedEvents: loadRecordedEvents,
     getPaused: getPaused,
     setPaused: setPaused,
     tracePath: tracePath
   };
 }
 
-function debuggerInit(debugModule, runtime) {
+function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
   var Signal = Elm.Signal.make(runtime);
   
   var tracePathNode = A2(Signal.lift, debugModule.tracePath.graphicsUpdate, debugModule.moduleInstance.main);
@@ -210,13 +220,45 @@ function debuggerInit(debugModule, runtime) {
     graphicsNode.recv(Date.now(), true, debugModule.moduleInstance.main.id);
   }
 
+  function getHotSwapState() {
+    if (debugModule.getPaused()) {
+      return {
+        recordedEvents: debugModule.copyRecordedEvents(),
+        eventCounter: eventCounter
+      };
+    }
+    else {
+      return null;
+    }
+  }
+
+  function dispose() {
+    var parentNode = runtime.node.parentNode;
+    parentNode.removeChild(debugModule.tracePath.canvas);
+    parentNode.removeChild(runtime.node);
+  }
+
+  if (hotSwapState) {
+    debugModule.setPaused(true);
+    debugModule.loadRecordedEvents(hotSwapState.recordedEvents);
+
+    // draw new trace path
+    debugModule.tracePath.startRecording();
+    stepTo(getMaxSteps());
+    debugModule.tracePath.stopRecording();
+
+    stepTo(hotSwapState.eventCounter);
+  }
+
   var elmDebugger = {
       restart: restartProgram,
       pause: pauseProgram,
       kontinue: continueProgram,
       getMaxSteps: getMaxSteps,
       stepTo: stepTo,
-      getPaused: debugModule.getPaused
+      getPaused: debugModule.getPaused,
+      getHotSwapState: getHotSwapState,
+      dispose: dispose
   };
 
   return elmDebugger;
