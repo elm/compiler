@@ -223,15 +223,14 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
   }
 
   function getHotSwapState() {
-    if (debugModule.getPaused()) {
-      return {
-        recordedEvents: debugModule.copyRecordedEvents(),
-        eventCounter: eventCounter
-      };
+    var counter = eventCounter;
+    if (!debugModule.getPaused()) {
+      counter = getMaxSteps();
     }
-    else {
-      return null;
-    }
+    return {
+      recordedEvents: debugModule.copyRecordedEvents(),
+      eventCounter: counter
+    };
   }
 
   function dispose() {
