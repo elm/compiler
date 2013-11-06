@@ -435,13 +435,18 @@ function restoreNodeValues(allNodes, nodeStates) {
 }
 
 function flattenNodes(nodes) {
-  var treeReduce = function(prev, cur, i, arr) {
-    var flatKids = cur.kids.reduce(treeReduce, []);
-    flatKids.push(cur);
-    return prev.concat(flatKids);
-  }
+  var nodesById = {};
 
-  return nodes.reduce(treeReduce, []);
+  function addAllToDict(node) {
+    nodesById[node.id] = node;
+    node.kids.forEach(addAllToDict);
+  }
+  nodes.forEach(addAllToDict);
+
+  var allNodes = Object.keys(nodesById).sort().map(function(key) {
+    return nodesById[key];
+  });
+  return allNodes;
 };
 
 }());
