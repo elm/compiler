@@ -259,7 +259,9 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
       stepTo: stepTo,
       getPaused: debugModule.getPaused,
       getHotSwapState: getHotSwapState,
-      dispose: dispose
+      dispose: dispose,
+      allNodes: debugModule.moduleNodes,
+      mainNode: debugModule.moduleInstance.main
   };
 
   return elmDebugger;
