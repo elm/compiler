@@ -17,6 +17,8 @@ Elm.Native.Signal.make = function(elm) {
   }
 
   function Input(base) {
+    this.nodeType = "input";
+
     this.id = Utils.guid();
     this.value = base;
     this.kids = [];
@@ -31,6 +33,8 @@ Elm.Native.Signal.make = function(elm) {
   }
 
   function LiftN(update, args) {
+    this.nodeType = "lift";
+
     this.id = Utils.guid();
     this.value = update();
     this.kids = [];
@@ -86,6 +90,8 @@ Elm.Native.Signal.make = function(elm) {
   }
 
   function Foldp(step, state, input) {
+    this.nodeType = "foldp";
+
     this.id = Utils.guid();
     this.value = state;
     this.kids = [];
@@ -104,6 +110,8 @@ Elm.Native.Signal.make = function(elm) {
   }
 
   function DropIf(pred,base,input) {
+    this.nodeType = "drop";
+
     this.id = Utils.guid();
     this.value = pred(input.value) ? base : input.value;
     this.kids = [];
@@ -116,6 +124,8 @@ Elm.Native.Signal.make = function(elm) {
   }
 
   function DropRepeats(input) {
+    this.nodeType = "drop";
+
     this.id = Utils.guid();
     this.value = input.value;
     this.kids = [];
@@ -128,6 +138,8 @@ Elm.Native.Signal.make = function(elm) {
   }
 
   function dropWhen(s1,b,s2) {
+    this.nodeType = "drop";
+
     var pairs = lift2( F2(function(x,y){return {x:x,y:y};}), s1, s2 );
     var dropped = new DropIf(function(p){return p.x;},{x:true,y:b},pairs);
     return lift(function(p){return p.y;}, dropped);
@@ -139,6 +151,9 @@ Elm.Native.Signal.make = function(elm) {
   }
 
   function SampleOn(s1,s2) {
+    this.nodeType = "sampleOn";
+    this.indirectParent = s1;
+
     this.id = Utils.guid();
     this.value = s2.value;
     this.kids = [];
@@ -163,6 +178,8 @@ Elm.Native.Signal.make = function(elm) {
   function sampleOn(s1,s2) { return new SampleOn(s1,s2); }
 
   function delay(t,s) {
+      this.nodeType = "delay";
+
       var delayed = new Input(s.value);
       var firstEvent = true;
       function update(v) {
@@ -174,6 +191,8 @@ Elm.Native.Signal.make = function(elm) {
   }
 
   function Merge(s1,s2) {
+      this.nodeType = "merge";
+
       this.id = Utils.guid();
       this.value = s1.value;
       this.kids = [];
