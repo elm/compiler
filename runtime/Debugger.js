@@ -120,7 +120,7 @@ function debugModule(module, runtime) {
 
   var moduleInstance = module.make(wrappedRuntime);
   var moduleNodes = flattenNodes(wrappedRuntime.inputs);
-  var tracePath = tracePathInit(runtime);
+  var tracePath = tracePathInit(runtime, moduleInstance.main);
 
   return {
     moduleInstance: moduleInstance,
@@ -141,11 +141,6 @@ function debugModule(module, runtime) {
 }
 
 function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
-  var Signal = Elm.Signal.make(runtime);
-  
-  var tracePathNode = A2(Signal.lift, debugModule.tracePath.graphicsUpdate, debugModule.moduleInstance.main);
-  runtime.node.parentNode.appendChild(debugModule.tracePath.canvas);
-
   var eventCounter = 0;
 
   function resetProgram() {
@@ -248,6 +243,8 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     stepTo(hotSwapState.eventCounter);
   }
 
+  runtime.node.parentNode.appendChild(debugModule.tracePath.canvas);
+
   var elmDebugger = {
       restart: restartProgram,
       pause: pauseProgram,
@@ -277,8 +274,10 @@ function Point(x, y) {
   }
 }
 
-function tracePathInit(runtime) {
+function tracePathInit(runtime, mainNode) {
   var List = Elm.List.make(runtime);
+  var Signal = Elm.Signal.make(runtime);
+  var tracePathNode = A2(Signal.lift, graphicsUpdate, mainNode);
   var tracePathCanvas = createCanvas();
   var tracePositions = {};
   var recordingTraces = true;
