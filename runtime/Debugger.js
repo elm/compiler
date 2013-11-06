@@ -349,10 +349,19 @@ function tracePathInit(runtime) {
           ctx.lineTo(p.x, p.y);
         }
       }
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "#888a85";
+      ctx.stroke();
+
+      for (var i=0; i < points.length; i++)
+      {
+        var p = points[i];
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+        ctx.fillStyle = "#2e3436";
+        ctx.fill();
+      }
     }
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = "black";
-    ctx.stroke();
 
     ctx.restore();
   }
