@@ -113,12 +113,19 @@ function debugModule(module, runtime) {
 
   // runtime is the prototype of wrappedRuntime
   // so we can access all runtime properties too
-  var wrappedRuntime = Object.create(runtime, {
-    notify: wrapNotify,
-    runDelayed: wrapRunDelayed
+  var wrappedRuntime = Object.create(runtime);
+  wrappedRuntime.notify = wrapNotify;
+  wrappedRuntime.runDelayed = wrapRunDelayed;
+
+  var assignedPropTracker = Object.create(wrappedRuntime);
+  var moduleInstance = module.make(assignedPropTracker);
+  // The main module stores imported modules onto the runtime.
+  // To ensure only one instance of each module is created,
+  // we assign them back on the original runtime object.
+  Object.keys(assignedPropTracker).forEach(function(key) {
+    runtime[key] = assignedPropTracker[key];
   });
 
-  var moduleInstance = module.make(wrappedRuntime);
   var moduleNodes = flattenNodes(wrappedRuntime.inputs);
   var tracePath = tracePathInit(runtime, moduleInstance.main);
 
