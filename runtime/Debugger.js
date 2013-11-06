@@ -39,13 +39,15 @@ function debugModule(module, runtime) {
     if (programPaused) {
       // ignore async events generated while playing back
       // or user events while program is paused
+      return false;
     }
     else {
-      runtime.notify(id, v, timestep);
+      var changed = runtime.notify(id, v, timestep);
       recordEvent(id, v, timestep);
       if (parent.window) {
         parent.window.postMessage("elmNotify", window.location.origin);
       }
+      return changed;
     }
   };
 
