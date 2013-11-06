@@ -111,15 +111,12 @@ function debugModule(module, runtime) {
     return programPaused;
   }
 
-  var wrappedRuntime = {
+  // runtime is the prototype of wrappedRuntime
+  // so we can access all runtime properties too
+  var wrappedRuntime = Object.create(runtime, {
     notify: wrapNotify,
-    runDelayed: wrapRunDelayed,
-    node: runtime.node,
-    display: runtime.display,
-    id: runtime.id,
-    addListener: runtime.addListener,
-    inputs: runtime.inputs
-  };
+    runDelayed: wrapRunDelayed
+  });
 
   var moduleInstance = module.make(wrappedRuntime);
   var moduleNodes = flattenNodes(wrappedRuntime.inputs);
