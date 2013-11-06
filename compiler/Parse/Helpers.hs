@@ -1,5 +1,6 @@
 module Parse.Helpers where
 
+import Prelude hiding (until)
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad
 import Control.Monad.State
@@ -237,17 +238,36 @@ closeComment =
                  , concat <$> sequence [ try (string "{-"), closeComment, closeComment ]
                  ]
 
+until :: IParser a -> IParser b -> IParser b
+until p end =  go
+    where
+      go = end <|> (p >> go)
+
 anyUntil :: IParser String -> IParser String
 anyUntil end = go
     where
       go = end <|> (:) <$> anyChar <*> go
 
-anyThen :: IParser a -> IParser a
-anyThen end = go
+ignoreUntil :: IParser a -> IParser (Maybe a)
+ignoreUntil end = go
     where
       ignore p = const () <$> p
-      go = end <|> do ignore multiComment <|> ignore anyChar
-                      go
+      filler = choice [ ignore multiComment
+                      , ignore (markdown (\_ _ -> mzero))
+                      , ignore anyChar
+                      ]
+      go = choice [ Just <$> end
+                  , filler `until` choice [ const Nothing <$> eof, newline >> go ]
+                  ]
+
+onFreshLines :: (a -> b -> b) -> b -> IParser a -> IParser b
+onFreshLines insert init thing = go init
+    where
+      go values = do
+        optionValue <- ignoreUntil thing
+        case optionValue of
+          Nothing -> return values
+          Just v  -> go (insert v values)
 
 withSource :: IParser a -> IParser (String, a)
 withSource p = do
@@ -266,3 +286,13 @@ anyUntilPos pos = go
                 True -> return []
                 False -> (:) <$> anyChar <*> go
 
+markdown :: (String -> [a] -> IParser (String, [a])) -> IParser (String, [a])
+markdown interpolation = try (string "[markdown|") >> closeMarkdown "" []
+    where
+      closeMarkdown md stuff =
+          choice [ do try (string "|]")
+                      return (md, stuff)
+                 , uncurry closeMarkdown =<< interpolation md stuff
+                 , do c <- anyChar
+                      closeMarkdown (md ++ [c]) stuff
+                 ]

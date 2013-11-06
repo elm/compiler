@@ -125,7 +125,7 @@ tiled to fill the entire shape.
 textured : String -> Shape -> Form
 textured src shape = fill (Texture src) shape
 
-{-| Fill a shape with a [gradient](/docs/Color.elm#linear). -}
+{-| Fill a shape with a [gradient](/library/Color.elm#linear). -}
 gradient : Gradient -> Shape -> Form
 gradient grad shape = fill (Grad grad) shape
 
@@ -162,36 +162,36 @@ transformation.
 groupTransform : Transform2D -> [Form] -> Form
 groupTransform matrix fs = form (FGroup matrix fs)
 
-{-| Rotate a form by a given angle. Rotate takes standard Elm angles (radians)
-and turns things counterclockwise. So to turn `form` 30&deg; to the left
-you would say, `(rotate (degrees 30) form)`.
--}
-rotate : number -> Form -> Form
-rotate t f = { f | theta <- f.theta + t }
-
-{-| Scale a form by a given factor. Scaling by 2 doubles the size.
--}
-scale : number -> Form -> Form
-scale s f = { f | scale <- f.scale * s }
-
 {-| Move a form by the given amount. This is a relative translation so
 `(move (10,10) form)` would move `form` ten pixels up and ten pixels to the
 right.
 -}
-move : (number,number) -> Form -> Form
+move : (Float,Float) -> Form -> Form
 move (x,y) f = { f | x <- f.x + x, y <- f.y + y }
 
 {-| Move a shape in the x direction. This is relative so `(moveX 10 form)` moves
 `form` 10 pixels to the right.
 -}
-moveX : number -> Form -> Form
+moveX : Float -> Form -> Form
 moveX x f = { f | x <- f.x + x }
 
 {-| Move a shape in the y direction. This is relative so `(moveY 10 form)` moves
 `form` upwards by 10 pixels.
 -}
-moveY : number -> Form -> Form
+moveY : Float -> Form -> Form
 moveY y f = { f | y <- f.y + y }
+
+{-| Scale a form by a given factor. Scaling by 2 doubles the size.
+-}
+scale : Float -> Form -> Form
+scale s f = { f | scale <- f.scale * s }
+
+{-| Rotate a form by a given angle. Rotate takes standard Elm angles (radians)
+and turns things counterclockwise. So to turn `form` 30&deg; to the left
+you would say, `(rotate (degrees 30) form)`.
+-}
+rotate : Float -> Form -> Form
+rotate t f = { f | theta <- f.theta + t }
 
 {-| Set the alpha of a `Form`. The default is 1, and 0 is totally transparent. -}
 alpha : Float -> Form -> Form
@@ -204,37 +204,37 @@ collage : Int -> Int -> [Form] -> Element
 collage = Native.Graphics.Collage.collage
 
 
-type Path = [(number,number)]
+type Path = [(Float,Float)]
 
 {-| Create a path that follows a sequence of points. -}
-path : [(number,number)] -> Path
+path : [(Float,Float)] -> Path
 path ps = ps
 
 {-| Create a path along a given line segment. -}
-segment : (number,number) -> (number,number) -> Path
+segment : (Float,Float) -> (Float,Float) -> Path
 segment p1 p2 = [p1,p2]
 
-type Shape = [(number,number)]
+type Shape = [(Float,Float)]
 
 {-| Create an arbitrary polygon by specifying its corners in order.
 `polygon` will automatically close all shapes, so the given list
 of points does not need to start and end with the same position.
 -}
-polygon : [(number,number)] -> Shape
+polygon : [(Float,Float)] -> Shape
 polygon points = points
 
 {-| A rectangle with a given width and height. -}
-rect : number -> number -> Shape
+rect : Float -> Float -> Shape
 rect w h = let hw = w/2
                hh = h/2
            in  [ (0-hw,0-hh), (0-hw,hh), (hw,hh), (hw,0-hh) ]
 
 {-| A square with a given edge length. -}
-square : number -> Shape
+square : Float -> Shape
 square n = rect n n
 
 {-| An oval with a given width and height. -}
-oval : number -> number -> Shape
+oval : Float -> Float -> Shape
 oval w h =
   let n = 50
       t = 2 * pi / n
@@ -244,7 +244,7 @@ oval w h =
   in  List.map f [0..n-1]
 
 {-| A circle with a given radius. -}
-circle : number -> Shape
+circle : Float -> Shape
 circle r = oval (2*r) (2*r)
 
 {-| A regular polygon with N sides. The first argument specifies the number
@@ -253,7 +253,7 @@ of sides and the second is the radius. So to create a pentagon with radius
 
         ngon 5 30
 -}
-ngon : Int -> number -> Shape
+ngon : Int -> Float -> Shape
 ngon n r =
   let m = toFloat n
       t = 2 * pi / m

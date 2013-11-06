@@ -3,7 +3,7 @@ module Random where
 {-| Since the core of Elm is pure, randomness must be handled via signals.
 
 # Random Numbers
-@docs range, float
+@docs range, float, floatList
 -}
 
 import Signal (Signal)
@@ -20,7 +20,7 @@ range = Native.Random.range
 The new values are random numbers in [0..1).
 -}
 float : Signal a -> Signal Float
-float = Native.Random.flt
+float = Native.Random.float_
 
 {-| Produces a new signal of lists that changes whenever the input signal
 changes. The input signal specifies the length of the random list. Each value is

@@ -3,8 +3,7 @@ Learn about the Elm programming language at [elm-lang.org](http://elm-lang.org/)
 
 ## Install
 
-Download the [Haskell Platform 2012.2.0.0](http://hackage.haskell.org/platform/).
-Elm definitely works with GHC 7.4, so newer versions of the Haskell Platform may work too.
+Download the [Haskell Platform 2012.2.0.0 or later](http://hackage.haskell.org/platform/).
 Once the Haskell Platform is installed:
 
     cabal update
@@ -39,10 +38,10 @@ commands place a simple program into `Main.elm`. Do this manually if you do not
 have `printf`. The final command starts the Elm server at [localhost:8000](http://localhost:8000/),
 allowing you to navigate to `Main.elm` and see your first program in action.
 
-#### Wrap up
+#### Final Notes
 
-The `elm` package provides support for compilation of Elm code directly in Haskell and QuasiQuoting.
-Check it out on Hackage if you are interested.
+The `elm` package provides support for compilation of Elm code directly in Haskell.
+Check it out [on Hackage](http://hackage.haskell.org/package/Elm) if you are interested.
 
 If you are stuck, email [the list](https://groups.google.com/forum/?fromgroups#!forum/elm-discuss)
 or ask a question in the [#Elm IRC channel](http://webchat.freenode.net/?channels=elm).

@@ -1,11 +1,8 @@
 
 module Char where
 
-{-| Functions for working with characters.
-
-Like C, characters are enclosed in single quotes, and strings in double quotes.
-Like Haskell, strings are just [lists](/docs/List.elm) of characters, so `"elm"
-== ['e', 'l', 'm']`.
+{-| Functions for working with characters. Character literals are enclosed in
+`'a'` pair of single quotes.
 
 # Classification
 @docs isUpper, isLower, isDigit, isOctDigit, isHexDigit

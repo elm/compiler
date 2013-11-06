@@ -37,7 +37,6 @@ Elm.Native.Transform2D.make = function(elm) {
      var s = Math.sin(t);
      return new A([c, -s, 0, s, c, 0]);
  }
-
  function rotate(t,m) {
      var c = Math.cos(t);
      var s = Math.sin(t);

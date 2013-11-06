@@ -4,7 +4,7 @@ module Automaton ( pure, state, hiddenState, run, step
 
 {-| This library is a way to package up dynamic behavior. It makes it easier to
 dynamically create dynamic components. See the [original release
-notes](/blog/announce/version-0.5.0.elm) on this library to get a feel for how
+notes](http://elm-lang.org/blog/announce/0.5.0.elm) on this library to get a feel for how
 it can be used.
 
 # Create

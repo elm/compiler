@@ -6,7 +6,7 @@ module Color where
 built-in names.
 
 # Creation
-@docs rgb, rgba, hsv, hsva, grayscale, greyscale
+@docs rgb, rgba, hsv, hsva, greyscale, grayscale
 
 # From Other Colors
 @docs complement

@@ -9,7 +9,7 @@ module Either where
 @docs either, isLeft, isRight
 
 # Eithers and Lists
-@docs lefts, rights, partition, consLeft, consRight, consEither
+@docs lefts, rights, partition
 
 -}
 
@@ -25,7 +25,7 @@ error messages are stored on the left, and the correct values
 data Either a b = Left a | Right b
 
 {-| Apply the first function to a `Left` and the second function to a `Right`.
-    This allows the extraction of a value from an `Either`.
+This allows the extraction of a value from an `Either`.
 -}
 either : (a -> c) -> (b -> c) -> Either a b -> c
 either f g e = case e of { Left x -> f x ; Right y -> g y }
@@ -47,33 +47,21 @@ rights : [Either a b] -> [b]
 rights es = List.foldr consRight [] es
 
 {-| Split into two lists, lefts on the left and rights on the right. So we
-    have the equivalence: `(partition es == (lefts es, rights es))`
+have the equivalence: `(partition es == (lefts es, rights es))`
 -}
 partition : [Either a b] -> ([a],[b])
 partition es = List.foldr consEither ([],[]) es
 
-{-| If `Left`, add the value to the front of the list. 
-    If `Right`, return the list unchanged
--}
-consLeft : Either a b -> [a] -> [a]
 consLeft e vs =
     case e of
       Left  v -> v::vs
       Right _ -> vs
 
-{-| If `Right`, add the value to the front of the list.
-    If `Left`, return the list unchanged.
--}
-consRight : Either a b -> [b] -> [b]
 consRight e vs =
     case e of
       Left  _ -> vs
       Right v -> v::vs
 
-{-| If `Left`, add the value to the left list.
-    If `Right`, add the value to the right list.
--}
-consEither : Either a b -> ([a], [b]) -> ([a], [b])
 consEither e (ls,rs) =
     case e of
       Left  l -> (l::ls,rs)

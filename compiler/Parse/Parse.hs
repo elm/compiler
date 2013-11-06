@@ -59,16 +59,9 @@ setupParserWithTable table p source =
                           intercalate " " (Map.keys overlap)
                  ]
 
-parseFixities = infixes []
-  where
-    eatLine = anyThen (const False <$> simpleNewline <|> const True <$> eof)
-
-    infixes ops = do
-      next <- Left <$> infixDecl <|> Right <$> eatLine
-      case next of
-        Left (Fixity assoc lvl op) -> infixes ((op,(lvl,assoc)) : ops)
-        Right True -> return $ Map.fromList ops
-        Right False -> infixes ops
+parseFixities = do
+  decls <- onFreshLines (:) [] infixDecl
+  return $ Map.fromList [ (op,(lvl,assoc)) | Fixity assoc lvl op <- decls ]
               
 setupParser :: IParser a -> String -> Either [P.Doc] a
 setupParser p source =

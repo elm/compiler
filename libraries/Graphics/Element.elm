@@ -204,9 +204,8 @@ flow dir es =
     DIn    -> newFlow (List.maximum ws) (List.maximum hs)
     DOut   -> newFlow (List.maximum ws) (List.maximum hs)
 
-{-| Stack elements vertically. To put `a` above `b` you would say:
-
-        a `above` b
+{-| Stack elements vertically.
+To put `a` above `b` you would say: ``a `above` b``
 -}
 above : Element -> Element -> Element
 above hi lo =
@@ -214,9 +213,8 @@ above hi lo =
                (heightOf hi + heightOf lo)
                (Flow DDown [hi,lo])
 
-{-| Stack elements vertically. To put `a` below `b` you would say:
-
-        a `below` b
+{-| Stack elements vertically.
+To put `a` below `b` you would say: ``a `below` b``
 -}
 below : Element -> Element -> Element
 below lo hi =
@@ -225,6 +223,7 @@ below lo hi =
                (Flow DDown [hi,lo])
 
 {-| Put elements beside each other horizontally.
+To put `a` beside `b` you would say: ``a `beside` b`` 
 -}
 beside : Element -> Element -> Element
 beside lft rht =
@@ -232,8 +231,8 @@ beside lft rht =
                (max (heightOf lft) (heightOf rht))
                (Flow right [lft,rht])
 
-{-| Layer elements on top of each other, starting from the bottom.
-`(layers == flow outward)`
+{-| Layer elements on top of each other, starting from the bottom:
+`layers == flow outward`
 -}
 layers : [Element] -> Element
 layers es = 
