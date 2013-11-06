@@ -13,7 +13,7 @@ Elm.Native.Time.make = function(elm) {
   function fpsWhen(desiredFPS, isOn) {
     var msPerFrame = 1000 / desiredFPS;
     var prev = Date.now(), curr = prev, diff = 0, wasOn = true;
-    var ticker = Signal.constant(diff);
+    var ticker = NS.input(diff);
     function tick(zero) { return function() {
         curr = Date.now();
         diff = zero ? 0 : curr - prev;
@@ -35,7 +35,7 @@ Elm.Native.Time.make = function(elm) {
   }
 
   function everyWhen(t, isOn) {
-    var clock = Signal.constant(Date.now());
+    var clock = NS.input(Date.now());
     var id = elm.runDelayed(function tellTime() {
             if (elm.notify(clock.id, Date.now())) {
                 elm.runDelayed(tellTime, t);

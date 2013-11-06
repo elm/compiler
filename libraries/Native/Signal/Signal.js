@@ -205,7 +205,12 @@ Elm.Native.Signal.make = function(elm) {
   function merges(ss) { return A2(foldr1, F2(merge), ss); }
 
   return elm.Native.Signal.values = {
-    constant : function(v) { return new Input(v); },
+    input: function(v) { return new Input(v); },
+    constant : function(v) {
+      var s = new Input(v);
+      s.nodeType = "constant";
+      return s;
+    },
     lift  : F2(lift ),
     lift2 : F3(lift2),
     lift3 : F4(lift3),
