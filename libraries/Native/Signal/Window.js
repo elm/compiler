@@ -6,6 +6,7 @@ Elm.Native.Window.make = function(elm) {
   if (elm.Native.Window.values) return elm.Native.Window.values;
 
   var Signal = Elm.Signal.make(elm);
+  var NS = Elm.Native.Signal.make(elm);
   var Tuple2 = Elm.Native.Utils.make(elm).Tuple2;
 
   function getWidth() { return elm.node.clientWidth; }
@@ -16,7 +17,7 @@ Elm.Native.Window.make = function(elm) {
       return elm.node.clientHeight;
   }
 
-  var dimensions = Signal.constant(Tuple2(getWidth(), getHeight()));
+  var dimensions = NS.input(Tuple2(getWidth(), getHeight()));
   dimensions.defaultNumberOfKids = 2;
 
   // Do not move width and height into Elm. By setting the default number of kids,
