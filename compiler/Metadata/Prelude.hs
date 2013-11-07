@@ -47,9 +47,10 @@ safeReadDocs name =
                          , "    and specify your versions of Elm and your OS" ]
       exitFailure
 
-firstModuleInterface :: Interfaces -> Either String (String, ModuleInterface)
+firstModuleInterface :: [(String, ModuleInterface)] ->
+                        Either String (String, ModuleInterface)
 firstModuleInterface interfaces =
-    case Map.toList interfaces of
+    case interfaces of
       []      -> Left "No interfaces found in serialized Prelude!"
       iface:_ -> Right iface
 
@@ -69,10 +70,4 @@ readDocs filePath = do
       hPutStrLn stderr err
       exitFailure
 
-    -- Unwrapping the Right value here is safe since the whole above chain
-    -- returns a Right value. The toList/fromList is necessary because of a
-    -- problem with looking up keys in the Map after deserialization. Example
-    -- at https://gist.github.com/jsl/7294493.
-    -- TODO: try switching to Data.ByteString.Lazy.Char8
-    (Right ifaces, _) ->
-        return $ Map.fromList $ Map.toList ifaces
+    (Right ifaces, _) -> return $ Map.fromList ifaces
