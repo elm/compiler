@@ -35,6 +35,8 @@ Elm.Native.Keyboard.make = function(elm) {
   });
 
   function KeyMerge(down, up, blur) {
+    this.nodeType = "merge";
+
     var args = [down,up,blur];
     this.id = Utils.guid();
     // Ignore starting values here
