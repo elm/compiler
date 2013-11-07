@@ -20,6 +20,9 @@ list must have the same type.
 
 # Special Folds
 @docs sum, product, maximum, minimum, all, any, and, or
+
+# Sorting
+@docs sort
 -}
 
 import open Basics
@@ -224,3 +227,7 @@ drop = Native.List.drop
 -}
 repeat : Int -> a -> [a]
 repeat = Native.List.repeat
+
+{-| Sort a list in ascending order. -}
+sort : [comparable] -> [comparable]
+sort = Native.List.sort

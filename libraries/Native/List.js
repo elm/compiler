@@ -214,8 +214,8 @@ Elm.Native.List.make = function(elm) {
 
     function sort(xs) {
         function cmp(a,b) {
-            var ord = Utils.compare(a,b).ctor;
-            return ord=== 'EQ' ? 0 : ord === 'LT' ? -1 : 1;
+            var ord = Utils.compare(a)(b).ctor;
+            return ord === 'EQ' ? 0 : ord === 'LT' ? -1 : 1;
         }
         return fromArray(toArray(xs).sort(cmp));
     }
