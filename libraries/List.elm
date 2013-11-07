@@ -22,7 +22,7 @@ list must have the same type.
 @docs sum, product, maximum, minimum, all, any, and, or
 
 # Sorting
-@docs sort
+@docs sort, sortBy
 -}
 
 import open Basics
@@ -231,3 +231,7 @@ repeat = Native.List.repeat
 {-| Sort a list in ascending order. -}
 sort : [comparable] -> [comparable]
 sort = Native.List.sort
+
+{-| Sort a list by a given comparison function. -}
+sortBy : (a -> comparable) ->  [a] -> [a]
+sortBy = Native.List.sortBy
