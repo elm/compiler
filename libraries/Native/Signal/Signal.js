@@ -110,7 +110,7 @@ Elm.Native.Signal.make = function(elm) {
   }
 
   function DropIf(pred,base,input) {
-    this.nodeType = "drop";
+    this.nodeType = "dropIf";
 
     this.id = Utils.guid();
     this.value = pred(input.value) ? base : input.value;
@@ -124,7 +124,7 @@ Elm.Native.Signal.make = function(elm) {
   }
 
   function DropRepeats(input) {
-    this.nodeType = "drop";
+    this.nodeType = "dropRepeats";
 
     this.id = Utils.guid();
     this.value = input.value;
@@ -138,7 +138,7 @@ Elm.Native.Signal.make = function(elm) {
   }
 
   function dropWhen(s1,b,s2) {
-    this.nodeType = "drop";
+    this.nodeType = "dropWhen";
 
     var pairs = lift2( F2(function(x,y){return {x:x,y:y};}), s1, s2 );
     var dropped = new DropIf(function(p){return p.x;},{x:true,y:b},pairs);
