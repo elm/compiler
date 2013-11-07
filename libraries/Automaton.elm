@@ -70,13 +70,13 @@ function to step the state forward. For example, an automaton that counted
 how many steps it has taken would look like this:
 
         count = Automaton a Int
-        count = state 0 (\\_ c -> c+1)
+        count = stateful 0 (\\_ c -> c+1)
 
 It is a stateful automaton. The initial state is zero, and the step function
 increments the state on every step.
 -}
-state : b -> (a -> b -> b) -> Automaton a b
-state s f = Step (\x -> let s' = f x s
+stateful : b -> (a -> b -> b) -> Automaton a b
+stateful s f = Step (\x -> let s' = f x s
                         in  (state s' f, s'))
 
 {-| Create an automaton with hidden state. Requires an initial state and a
