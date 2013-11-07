@@ -34,18 +34,7 @@ prelude = text ++ map (\n -> (n, Hiding [])) modules
 {-# NOINLINE interfaces #-}
 interfaces :: Interfaces
 interfaces =
-    unsafePerformIO (safeReadDocs =<< Path.getDataFileName "interfaces.data")
-
-safeReadDocs :: FilePath -> IO Interfaces
-safeReadDocs name =
-    E.catch (readDocs name) $ \err -> do
-      let _ = err :: IOError
-      putStrLn $ unlines [ "Error reading types for standard library!"
-                         , "    The file should be at " ++ name
-                         , "    If you are using a stable version of Elm,"
-                         , "    please report an issue at github.com/evancz/Elm"
-                         , "    and specify your versions of Elm and your OS" ]
-      exitFailure
+    unsafePerformIO (readDocs =<< Path.getDataFileName "interfaces.data")
 
 firstModuleInterface :: [(String, ModuleInterface)] ->
                         Either String (String, ModuleInterface)
