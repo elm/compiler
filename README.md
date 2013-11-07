@@ -3,9 +3,9 @@ Learn about the Elm programming language at [elm-lang.org](http://elm-lang.org/)
 
 ## Install
 
-If you use **OS X 10.9 Maverics**, you must follow
+On **OS X 10.9 Maverics**, you must follow
 [these directions](http://justtesting.org/post/64947952690/the-glasgow-haskell-compiler-ghc-on-os-x-10-9)
-before continuing! Everyone else, can carry on.
+before continuing! Then continue with the normal directions:
 
 Download the [Haskell Platform 2012.2.0.0 or later](http://hackage.haskell.org/platform/).
 Once the Haskell Platform is installed:
