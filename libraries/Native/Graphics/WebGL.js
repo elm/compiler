@@ -15,38 +15,37 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
     //var Utils = Elm.Native.Utils.make(elm);
     //var Tuple2 = Utils.Tuple2;
 
+    function drawGL(ctx,model) {
+        var scene = model.scene;
+        console.log(scene);
+    }
+
+    function render(model) {
+        var canvas = newNode('canvas');
+        gl = canvas.getContext("webgl");
+        drawGL(gl,model);
+        return canvas;
+    }
+
+    function update(canvasNode, _oldModel, newModel) {
+        gl = canvasNode.getContext("webgl");
+        drawGL(gl,newModel)
+    }
+
     function glContext(w,h,scene) {
 
-        function drawGL(ctx,model) {
-            throw "Not implemented" 
-        }
-
-        function render(model) {
-            var canvas = newNode('canvas');
-            gl = canvas.getContext("webgl");
-            drawGL(gl,model);
-            return canvas;
-        }
-
-        function update(canvasNode, _oldModel, newModel) {
-            gl = canvasNode.getContext("webgl");
-            drawGL(gl,newModel)
-        }
-
-        return function (scene) {
-            return A3(newElement, 100, 40, {
-                ctor: 'Custom',
-                   type: 'WebGL',
-                   render: render,
-                   update: update,
-                   model: scene,
-            });
-        }
+        return A3(newElement, w, h, {
+            ctor: 'Custom',
+               type: 'WebGL',
+               render: render,
+               update: update,
+               model: {scene:scene},
+        });
 
     }
 
-    return elm.Native.Graphics.Input.values = {
-        glContext:glContext,
+    return elm.Native.Graphics.WebGL.values = {
+        glContext:F3(glContext),
     };
 
 };
