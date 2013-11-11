@@ -53,7 +53,7 @@ instance Show SrcSpan where
                       show (column start) ++ " to " ++ show (column end)
 
 instance Show e => Show (Located e) where
-  show (L s e) = "L (" ++ show s ++ ") (" ++ show e ++ ")"
+  show (L _ e) = show e
 
 instance Pretty a => Pretty (Located a) where
   pretty (L _ e) = pretty e
