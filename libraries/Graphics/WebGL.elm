@@ -5,12 +5,12 @@ module Graphics.WebGL where
 -}
 
 import Basics (Float)
+import MJS (V3)
 import Graphics.Element (Element)
 import Native.Graphics.WebGL
 
-type GLPoint = { x: Float, y: Float, z: Float }
-type GLColor = { r: Int, g: Int, b: Int, a: Int }
-type GLTriangle = { a: GLPoint, b: GLPoint, c: GLPoint }
+type GLTriangle = { a: V3, b: V3, c: V3 }
+type GLColor = V3
 type Model = [(GLColor,GLTriangle)]
 
 data Transform = NoTransform
