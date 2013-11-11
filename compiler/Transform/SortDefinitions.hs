@@ -124,9 +124,9 @@ reorder lexpr@(L s expr) =
                        toDefs (pattern, expr, Nothing) = [ Def pattern expr ]
                        toDefs (PVar name, expr, Just tipe) =
                            [ TypeAnnotation name tipe, Def (PVar name) expr ]
-                       -- This case won't happen since we've removed everything
-                       -- but Def's and PVars above.
-                       toDefs (_,_,_) = error "Internal compiler error"
+                       -- This case really shouldn't happen since we've
+                       -- removed everything but Def's and PVars above.
+                       toDefs (_,_,_) = error "The impossible occurred. Please report an issue at https://github.com/evancz/Elm/issues describing what led to this error message."
              
                  L _ let' = foldr addDefs body' defss
 
