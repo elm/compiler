@@ -38,7 +38,7 @@ Elm.Native.MJS.make = function(elm) {
 
     elm.Native = elm.Native || {};
     elm.Native.MJS = elm.Native.MJS || {};
-    if (elm.Native.WebGL.values) return elm.Native.WebGL.values;
+    if (elm.Native.MJS.values) return elm.Native.MJS.values;
 
     /*
      * Constant: MJS_VERSION
@@ -1845,51 +1845,54 @@ Elm.Native.MJS.make = function(elm) {
     };
 
     return { 
-        v3: A3(V3.$),
+        v3: F3(V3.$),
         v3clone: V3.clone,
-        v3add: A2(V3.add),
-        v3sub: A2(V3.sub),
+        v3add: F2(V3.add),
+        v3sub: F2(V3.sub),
         v3neg: V3.neg,
-        v3direction: A2(V3.direction),
+        v3direction: F2(V3.direction),
         v3length: V3.length,
         v3lengthSquared: V3.lengthSquared,
         v3normalize: V3.normalize,
-        v3scale: A2(V3.scale),
-        v3dot: A2(V3.dot),
-        v3cross: A2(V3.cross),
-        v3mul4x4: A2(V3.mul4x4),
-        m4x4: A16(M4x4.$),
+        v3scale: F2(V3.scale),
+        v3dot: F2(V3.dot),
+        v3cross: F2(V3.cross),
+        v3mul4x4: F2(V3.mul4x4),
+        /*
+           m4x4: F16(M4x4.$),
+           */
+        m4x4identity: M4x4.identity,
         m4x4clone: M4x4.clone,
         m4x4topLeft3x3: M4x4.topLeft3x3,
         m4x4inverseOrthonormal: M4x4.inverseOrthonormal,
         m4x4inverseTo3x3: M4x4.inverseTo3x3,
-        m4x4makeFrustum: A6(M4x4.makeFrustum),
-        m4x4makePerspective: A4(M4x4.makePerspective),
-        m4x4makeOrtho: A6(M4x4.makeOrtho),
-        m4x4makeOrtho2D: A4(M4x4.makeOrtho2D),
-        m4x4mul: A2(M4x4.mul),
-        m4x4Affine: A2(M4x4.mulAffine),
-        m4x4makeRotate: A2(M4x4.makeRotate),
-        m4x4rotate: A3(M4x4.rotate),
-        m4x4makeScale3: A3(M4x4.makeScale3),
+        m4x4makeFrustum: F6(M4x4.makeFrustum),
+        m4x4makePerspective: F4(M4x4.makePerspective),
+        m4x4makeOrtho: F6(M4x4.makeOrtho),
+        m4x4makeOrtho2D: F4(M4x4.makeOrtho2D),
+        m4x4mul: F2(M4x4.mul),
+        m4x4Affine: F2(M4x4.mulAffine),
+        m4x4makeRotate: F2(M4x4.makeRotate),
+        m4x4rotate: F3(M4x4.rotate),
+        m4x4makeScale3: F3(M4x4.makeScale3),
         m4x4makeScale1: M4x4.makeScale1,
         m4x4makeScale: M4x4.makeScale,
-        m4x4scale3: A4(M4x4.scale3),
-        m4x4scale1: A2(M4x4.scale1),
-        m4x4scale: A2(M4x4.scale),
-        m4x4makeTranslate3: A3(M4x4.makeTranslate3),
+        m4x4scale3: F4(M4x4.scale3),
+        m4x4scale1: F2(M4x4.scale1),
+        m4x4scale: F2(M4x4.scale),
+        m4x4makeTranslate3: F3(M4x4.makeTranslate3),
         m4x4makeTranslate1: M4x4.makeTranslate1,
         m4x4makeTranslate: M4x4.makeTranslate,
-        m4x4translate3: A4(M4x4.translate3),
-        m4x4translate1: A2(M4x4.translate1),
-        m4x4translate: A2(M4x4.translate),
-        m4x4makeLookAt: A3(M4x4.makeLookAt),
+        m4x4translate3: F4(M4x4.translate3),
+        m4x4translate1: F2(M4x4.translate1),
+        m4x4translate: F2(M4x4.translate),
+        m4x4makeLookFt: F3(M4x4.makeLookFt),
         m4x4transpose: M4x4.transpose,
-        m4x4transformPoint: A2(M4x4.transformPoint),
+        m4x4transformPoint: F2(M4x4.transformPoint),
         /*
            m4x4_transformLine(m, v, r) {
-           m4x4_transformPointAffine (m, v, r) {
-           m4x4_transformLineAffine(m, v, r) {
+           m4x4_transformPointFffine (m, v, r) {
+           m4x4_transformLineFffine(m, v, r) {
            */
     };
 

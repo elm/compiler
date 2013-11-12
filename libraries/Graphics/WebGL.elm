@@ -10,7 +10,7 @@ import Color (Color)
 import Graphics.Element (Element)
 import Native.Graphics.WebGL
 
-type GLPoint = (V3,Color)
+type GLPoint = { pos: V3, color: Color }
 type GLTriangle = { a: GLPoint, b: GLPoint, c: GLPoint }
 type Model = [GLTriangle]
 

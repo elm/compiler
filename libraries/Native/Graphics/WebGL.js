@@ -15,21 +15,92 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
     //var Utils = Elm.Native.Utils.make(elm);
     //var Tuple2 = Utils.Tuple2;
 
-    function drawGL(ctx,model) {
+    function createShader(gl, str, type) {
+        var shader = gl.createShader(type);
+        gl.shaderSource(shader, str);
+        gl.compileShader(shader);
+
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            throw gl.getShaderInfoLog(shader);
+        }
+
+        return shader;
+    };
+
+    function linkProgram(gl, program) {
+        var vshader = createShader(gl, program.vshaderSource, gl.VERTEX_SHADER);
+        var fshader = createShader(gl, program.fshaderSource, gl.FRAGMENT_SHADER);
+        gl.attachShader(program, vshader);
+        gl.attachShader(program, fshader);
+        gl.linkProgram(program);
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            throw gl.getProgramInfoLog(program);
+        }
+    }
+
+    function createProgram(gl, vstr, fstr) {
+        var program = gl.createProgram();
+        var vshader = createShader(gl, vstr, gl.VERTEX_SHADER);
+        var fshader = createShader(gl, fstr, gl.FRAGMENT_SHADER);
+        gl.attachShader(program, vshader);
+        gl.attachShader(program, fshader);
+        gl.linkProgram(program);
+
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            throw gl.getProgramInfoLog(program);
+        }
+
+        return program;
+    };
+
+    var geoVert = "attribute vec3 aVertexPosition;\
+                   attribute vec4 aVertexColor;\
+                   \
+                   uniform mat4 uMMatrix;\
+                   uniform mat4 uPMatrix;\
+                   uniform mat4 uVMatrix;\
+                   \
+                   varying vec4 vVertexColor;\
+                   \
+                   void main() {\
+                       gl_Position = uPMatrix * uVMatrix * uMMatrix * vec4(aVertexPosition, 1.0);\
+                           vVertexColor = aVertexColor;\
+                   }"
+
+    var geoFrag = "precision mediump float;\
+                   \
+                   varying vec4 vVertexColor;\
+                   \
+                   void main() {\
+                       gl_FragColor = vVertexColor;\
+                   }"
+
+    function drawGL(model) {
         var scene = model.scene;
         console.log(scene);
     }
 
+    /*
+     * Called for new node, caches lots of stuff
+     */
     function render(model) {
         var canvas = newNode('canvas');
-        gl = canvas.getContext("webgl");
-        drawGL(gl,model);
+        var gl = canvas.getContext("webgl");
+        var program = createProgram(gl, geoVert, geoFrag);
+        model.cache = {
+            gl: gl,
+            program: program,
+        };
+        drawGL(model);
         return canvas;
     }
 
-    function update(canvasNode, _oldModel, newModel) {
-        gl = canvasNode.getContext("webgl");
-        drawGL(gl,newModel)
+    /*
+     * Called at existing node
+     */
+    function update(canvasNode, oldModel, newModel) {
+        newModel.cache = oldModel.cache;
+        drawGL(newModel)
     }
 
     function glContext(w,h,scene) {
