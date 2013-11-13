@@ -18,8 +18,8 @@ import qualified Data.List as List
 -- ------
 -- Add a build callout
 -- We need to build elm-doc and run it because that generates the file "docs.json"
--- needs by Libraries.hs which is part of the elm library and executable
--- Unfort. there seems to be no way to tell cabal that:
+-- which is needed by Libraries.hs which is part of the elm library and
+-- executable. Unfortunately there seems to be no way to tell cabal that:
 --   (a) elm-doc generates docs.json, and
 --   (b) elm (library) depends on docs.json
 -- Therefore, we either use make instead (or a script), or hack around in cabal
