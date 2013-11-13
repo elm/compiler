@@ -201,6 +201,10 @@ pageUp =
  {keyCode = 33
  ,name = "Pageup"}
 
+escape = 
+ {keyCode = 27
+ ,name = "Escape"}
+
 -- We don't define the F keys that are not availiable.  AKA, F1 is help, F3 is search.  F5 is refresh. Those keys cannot be used.
 
 f2 = 
