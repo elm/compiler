@@ -1845,6 +1845,7 @@ Elm.Native.MJS.make = function(elm) {
     };
 
     return { 
+        V3: V3,
         v3: F3(V3.$),
         v3clone: V3.clone,
         v3add: F2(V3.add),
@@ -1861,6 +1862,7 @@ Elm.Native.MJS.make = function(elm) {
         /*
            m4x4: F16(M4x4.$),
            */
+        M4x4:M4x4,
         m4x4identity: M4x4.identity,
         m4x4clone: M4x4.clone,
         m4x4topLeft3x3: M4x4.topLeft3x3,
@@ -1886,7 +1888,7 @@ Elm.Native.MJS.make = function(elm) {
         m4x4translate3: F4(M4x4.translate3),
         m4x4translate1: F2(M4x4.translate1),
         m4x4translate: F2(M4x4.translate),
-        m4x4makeLookFt: F3(M4x4.makeLookFt),
+        m4x4makeLookFt: F3(M4x4.makeLookAt),
         m4x4transpose: M4x4.transpose,
         m4x4transformPoint: F2(M4x4.transformPoint),
         /*
