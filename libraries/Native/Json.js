@@ -41,7 +41,7 @@ Elm.Native.Json.make = function(elm) {
     switch (typeof v) {
     case 'string' : return { ctor:"String", _0: JS.toString(v) };
     case 'number' : return { ctor:"Number", _0: JS.toFloat(v)  };
-    case 'boolean': return { ctor:"Bool"  , _0: JS.toBool(v)   };
+    case 'boolean': return { ctor:"Boolean"  , _0: JS.toBool(v)   };
     case 'object' :
       if (v === null) return { ctor:"Null" };
       if (v instanceof Array) {
