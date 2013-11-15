@@ -7,7 +7,6 @@ import System.Directory
 import System.Exit
 import System.FilePath
 import System.IO
-import System.IO.Unsafe (unsafePerformIO)
 import SourceSyntax.Module
 import qualified Data.Binary as Binary
 import qualified Data.ByteString.Lazy as BS
@@ -31,10 +30,8 @@ prelude = text ++ map (\n -> (n, Hiding [])) modules
     modules = [ "Basics", "Signal", "List", "Maybe", "Time", "Prelude"
               , "Graphics.Element", "Color", "Graphics.Collage" ]
 
-{-# NOINLINE interfaces #-}
-interfaces :: Interfaces
-interfaces =
-    unsafePerformIO (safeReadDocs =<< Path.getDataFileName "interfaces.data")
+interfaces :: IO Interfaces
+interfaces = safeReadDocs =<< Path.getDataFileName "interfaces.data"
 
 safeReadDocs :: FilePath -> IO Interfaces
 safeReadDocs name =

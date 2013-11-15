@@ -5,7 +5,14 @@
      <http://elm-lang.org/Documentation.elm>, and many interactive examples are
      available at <http://elm-lang.org/Examples.elm>
 -}
-module Language.Elm (compile, moduleName, runtime, docs) where
+module Language.Elm ( compile
+                    , interfaces
+                    , moduleName
+                    , runtime
+                    , docs
+                    , Interfaces
+                    , ModuleInterface )
+where
 
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -21,11 +28,14 @@ import Paths_Elm
 
 -- |This function compiles Elm code to JavaScript. It will return either
 --  an error message or the compiled JS code.
-compile :: String -> Either String String
-compile source =
-    case buildFromSource False Prelude.interfaces source of
-      Left docs -> Left . unlines . List.intersperse "" $ map P.render docs
-      Right modul -> Right $ jsModule (modul :: MetadataModule () ())
+compile :: Interfaces -> String -> Either String String
+compile ifaces source = do
+  case buildFromSource False ifaces source of
+    Left docs -> Left . unlines . List.intersperse "" $ map P.render docs
+    Right modul -> Right $ jsModule (modul :: MetadataModule () ())
+
+interfaces :: IO Interfaces
+interfaces = Prelude.interfaces
 
 -- |This function extracts the module name of a given source program.
 moduleName :: String -> Maybe String

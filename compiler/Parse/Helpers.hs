@@ -14,6 +14,7 @@ import SourceSyntax.PrettyPrint
 import SourceSyntax.Declaration (Assoc)
 import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
+import Text.Read (readMaybe)
 
 reserveds = [ "if", "then", "else"
             , "case", "of"
@@ -50,8 +51,15 @@ iParseWithTable sourceName table aParser input =
   runIndent sourceName $ runParserT aParser table sourceName input
 
 backslashed :: IParser Char
-backslashed = do { char '\\'; c <- anyChar
-                 ; return . read $ ['\'','\\',c,'\''] }
+backslashed = do
+  char '\\'
+  c <- anyChar
+  case readMaybe ['\'','\\',c,'\''] of
+    Just chr -> return chr
+    Nothing ->
+        fail $ "Did not recognize character '\\" ++ [c] ++
+               "'. If the backslash is meant to be a character of its own, " ++
+               "it should be escaped like this: \"\\\\" ++ [c] ++ "\""
 
 var :: IParser String
 var = makeVar (letter <|> char '_' <?> "variable")

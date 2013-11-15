@@ -184,10 +184,14 @@ getRuntime flags =
 build :: Flags -> FilePath -> IO ()
 build flags rootFile = do
   let noPrelude = no_prelude flags
-  files <- if make flags then getSortedDependencies (src_dir flags) noPrelude rootFile
-                         else return [rootFile]
-  let ifaces = if noPrelude then Map.empty else Prelude.interfaces
-  (moduleName, interfaces) <- buildFiles flags (length files) ifaces "" files
+  builtIns <- if noPrelude then return Map.empty else Prelude.interfaces
+
+  files <- if make flags
+             then getSortedDependencies (src_dir flags) builtIns rootFile
+             else return [rootFile]
+
+  (moduleName, interfaces) <- buildFiles flags (length files) builtIns "" files
+
   js <- foldM appendToOutput BS.empty files
 
   (extension, code) <- case only_js flags of

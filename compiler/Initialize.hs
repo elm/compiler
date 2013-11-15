@@ -63,9 +63,9 @@ buildFromSource noPrelude interfaces source =
      return $ metaModule { types = types }
 
 
-getSortedDependencies :: [FilePath] -> Bool -> FilePath -> IO [String]
-getSortedDependencies srcDirs noPrelude root =
-    sortDeps =<< readDeps srcDirs noPrelude root
+getSortedDependencies :: [FilePath] -> Interfaces -> FilePath -> IO [String]
+getSortedDependencies srcDirs builtIns root =
+    sortDeps =<< readDeps srcDirs builtIns root
 
 type Deps = (FilePath, String, [String])
 
@@ -80,14 +80,13 @@ sortDeps depends =
     mistakes = filter (\scc -> length scc > 1) sccs
     msg = "A cyclical module dependency or was detected in: "
 
-readDeps :: [FilePath] -> Bool -> FilePath -> IO [Deps]
-readDeps srcDirs noPrelude root = evalStateT (go root) Set.empty
+readDeps :: [FilePath] -> Interfaces -> FilePath -> IO [Deps]
+readDeps srcDirs builtIns root = do
+  let ifaces = (Set.fromList . Map.keys) builtIns
+  evalStateT (go ifaces root) Set.empty
   where
-    builtIns = if noPrelude then Set.empty
-                            else Set.fromList (Map.keys Prelude.interfaces)
-
-    go :: FilePath -> StateT (Set.Set String) IO [Deps]
-    go root = do
+    go :: Set.Set String -> FilePath -> StateT (Set.Set String) IO [Deps]
+    go builtIns root = do
       (root', txt) <- liftIO $ getFile srcDirs root
       case Parse.dependencies txt of
         Left err -> liftIO (putStrLn msg >> print err >> exitFailure)
@@ -98,7 +97,7 @@ readDeps srcDirs noPrelude root = evalStateT (go root) Set.empty
                let realDeps = Set.difference (Set.fromList deps) builtIns
                    newDeps = Set.difference (Set.filter (not . isNative) realDeps) seen
                put (Set.insert name (Set.union newDeps seen))
-               rest <- mapM (go . toFilePath) (Set.toList newDeps)
+               rest <- mapM (go builtIns . toFilePath) (Set.toList newDeps)
                return ((makeRelative "." root', name, Set.toList realDeps) : concat rest)
 
 getFile :: [FilePath] -> FilePath -> IO (FilePath,String)
