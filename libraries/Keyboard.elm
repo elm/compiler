@@ -18,19 +18,16 @@ module Keyboard where
 
 import Signal (Signal)
 import Native.Keyboard
-
-{-| Type alias to make it clearer what integers are supposed to represent
-in this library. Use [`Char.toCode`](docs/Char.elm#toCode) and
-[`Char.fromCode`](/docs/Char.elm#fromCode) to convert key codes to characters.
-Use the uppercase character with `toCode`.
--}
-type KeyCode = Int
+import Keyboard.Keys
 
 {-| Custom key directions to support different locales. The order is up, down,
 left, right.
 -}
-directions : KeyCode -> KeyCode -> KeyCode -> KeyCode -> Signal { x:Int, y:Int }
+directions : Keyboard.Keys.KeyCode -> Keyboard.Keys.KeyCode -> Keyboard.Keys.KeyCode -> Keyboard.Keys.KeyCode -> Signal { x:Int, y:Int }
 directions = Native.Keyboard.directions
+
+directionKeys: Keyboard.Keys.Key -> Keyboard.Keys.Key -> Keyboard.Keys.Key -> Keyboard.Keys.Key -> Signal { x:Int, y:Int }
+directionKeys up down right left = Native.Keyboard.directions up.keyCode down.keyCode right.keyCode left.keyCode
 
 {-| A signal of records indicating which arrow keys are pressed.
 
@@ -40,38 +37,41 @@ directions = Native.Keyboard.directions
 `{ x = 0, y =-1 }` when pressing the down, left, and right arrows.
 -}
 arrows : Signal { x:Int, y:Int }
-arrows = directions 38 40 37 39
+arrows = directionKeys Keyboard.Keys.arrowUp Keyboard.Keys.arrowDown Keyboard.Keys.arrowRight Keyboard.Keys.arrowLeft
 
 {-| Just like the arrows signal, but this uses keys w, a, s, and d,
 which are common controls for many computer games.
 -}
 wasd : Signal { x:Int, y:Int }
-wasd = directions 87 83 65 68
+wasd = directionKeys Keyboard.Keys.w Keyboard.Keys.s Keyboard.Keys.a Keyboard.Keys.d
 
 {-| Whether an arbitrary key is pressed. -}
-isDown : KeyCode -> Signal Bool
+isDown : Keyboard.Keys.KeyCode -> Signal Bool
 isDown = Native.Keyboard.isDown
+
+isKeyDown : Keyboard.Keys.Key -> Signal Bool
+isKeyDown k = isDown k.keyCode
 
 {-| Whether the shift key is pressed. -}
 shift : Signal Bool
-shift = isDown 16
+shift = isKeyDown Keyboard.Keys.shift
 
 {-| Whether the control key is pressed. -}
 ctrl : Signal Bool
-ctrl = isDown 17
+ctrl = isKeyDown Keyboard.Keys.ctrl
 
 {-| Whether the space key is pressed. -}
 space : Signal Bool
-space = isDown 32
+space = isKeyDown Keyboard.Keys.space
 
 {-| Whether the enter key is pressed. -}
 enter : Signal Bool
-enter = isDown 13
+enter = isKeyDown Keyboard.Keys.enter
 
 {-| List of keys that are currently down. -}
-keysDown : Signal [KeyCode]
+keysDown : Signal [Keyboard.Keys.KeyCode]
 keysDown = Native.Keyboard.keysDown
 
 {-| The latest key that has been pressed. -}
-lastPressed : Signal KeyCode
+lastPressed : Signal Keyboard.Keys.KeyCode
 lastPressed = Native.Keyboard.lastPressed
