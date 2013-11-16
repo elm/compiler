@@ -21,8 +21,8 @@ type GLTriangle = { a: GLPoint, b: GLPoint, c: GLPoint }
 
 data Mesh = Fake_Mesh
 
-makeMesh : [GLTriangle] -> GLContext -> Mesh
-makeMesh = Native.Graphics.WebGL.makeMesh
+bindMesh : [GLTriangle] -> GLContext -> Mesh
+bindMesh = Native.Graphics.WebGL.bindMesh
 
 data Scene = Node M4x4 [Scene] | Leaf Mesh
 

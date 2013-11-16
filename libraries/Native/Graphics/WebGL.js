@@ -6,15 +6,14 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
     elm.Native.Graphics.WebGL = elm.Native.Graphics.WebGL || {};
     if (elm.Native.Graphics.WebGL.values) return elm.Native.Graphics.WebGL.values;
 
-    //var Render = ElmRuntime.use(ElmRuntime.Render.Element);
     var newNode = ElmRuntime.use(ElmRuntime.Render.Utils).newElement;
 
     var Signal = Elm.Signal.make(elm);
     var newElement = Elm.Graphics.Element.make(elm).newElement;
-    //var JS = Elm.Native.JavaScript.make(elm);
     var Utils = Elm.Native.Utils.make(elm);
     var Tuple2 = Utils.Tuple2;
     var MJS = Elm.Native.MJS.make(elm);
+    var List = Elm.Native.List.make(elm);
 
     function createShader(gl, str, type) {
         var shader = gl.createShader(type);
@@ -57,14 +56,12 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
     var geoVert = "attribute vec3 aVertexPosition;\
                    attribute vec4 aVertexColor;\
                    \
-                   uniform mat4 uMMatrix;\
-                   uniform mat4 uPMatrix;\
-                   uniform mat4 uVMatrix;\
+                   uniform mat4 uSceneMatrix;\
                    \
                    varying vec4 vVertexColor;\
                    \
                    void main() {\
-                       gl_Position = uPMatrix * uVMatrix * uMMatrix * vec4(aVertexPosition, 1.0);\
+                       gl_Position = uSceneMatrix * vec4(aVertexPosition, 1.0);\
                            vVertexColor = aVertexColor;\
                    }"
 
@@ -79,22 +76,50 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
     function drawGL(model) {
         var aspect = model.aspect;
 
-        var projectionMatrix = MJS.M4x4.makePerspective(45, aspect, 0.01, 100);
-
-        var eye = MJS.V3.$(0,0,1);
-        var center = MJS.V3.$(0,0,0);
-        var up = MJS.V3.$(0,1,0);
-
-        var viewMatrix = MJS.M4x4.makeLookAt(eye,center,up);
-        
-        var modelMatrixStack = [MJS.M4x4.identity];
-
         var gl = model.gl;
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        var scene = model.scene;
-        console.log(scene);
+        var program = model.program;
+
+        function drawMesh(mesh, sceneMatrix) {
+            gl.useProgram(program.programPtr);
+            
+            gl.enableVertexAttribArray(program.vertexPositionAttribute);
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.indexBuffer);
+            gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vertexPosBuffer);
+            gl.vertexAttribPointer(program.vertexPositionAttribute, 3, gl.FLOAT, false, 0, 0);
+
+            gl.enableVertexAttribArray(program.vertexColorAttribute);
+            gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vertexColorBuffer);
+            gl.vertexAttribPointer(program.vertexColorAttribute, 4, gl.FLOAT, false, 0, 0);
+
+            gl.uniformMatrix4fv(program.sceneMatrixUniform, false, sceneMatrix);
+            
+            gl.drawElements(gl.TRIANGLES, mesh.numIndices, gl.UNSIGNED_SHORT, 0);
+        }
+
+        var sceneMatrixStack = [MJS.M4x4.identity];
+
+        function drawScene(scene,n) {
+            switch(scene.ctor) {
+                case 'Leaf':
+                    drawMesh(scene._0, sceneMatrixStack[n]);
+                    break;
+                default:
+                    var m = scene._0;
+                    sceneMatrixStack[n+1] = MJS.M4x4.mul(sceneMatrixStack[n],m)
+                    function drawChild(c) {
+                        drawScene(c,n+1);
+                    }
+                    var children = scene._1;
+                    List.each(drawChild, children);
+                    break;
+            }
+        }
         
+        var scene = model.scene;
+        drawScene(scene,0);
+
     }
 
     /*
@@ -115,11 +140,20 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
     function glContext(w,h) {
         var node = newNode('canvas');
         var gl = node.getContext('webgl');
-        var program = createProgram(gl, geoVert, geoFrag);
+        var programPtr = createProgram(gl, geoVert, geoFrag);
+        var vertexPositionAttribute = gl.getAttribLocation(programPtr,'aVertexPosition');
+        var vertexColorAttribute = gl.getAttribLocation(programPtr,'aVertexColor');
+        var sceneMatrixUniform = gl.getUniformLocation(programPtr, 'uSceneMatrix');
+        var program = {
+            programPtr: programPtr,
+            vertexPositionAttribute: vertexPositionAttribute,
+            vertexColorAttribute: vertexColorAttribute,
+            sceneMatrixUniform: sceneMatrixUniform,
+        };
         return Signal.constant({w:w,h:h,gl:gl,node:node,program:program});
     }
 
-    function makeMesh(triangles, context) {
+    function bindMesh(triangles, context) {
         var indices = [];
         var positions = [];
         var colors = [];
@@ -134,9 +168,9 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
                 for (var j = 0; j < 3; j += 1) {
                     positions.push(vertex.pos[j]);
                 }
-                colors.push(vertex.color._0);
-                colors.push(vertex.color._1);
-                colors.push(vertex.color._2);
+                colors.push(vertex.color._0 / 256);
+                colors.push(vertex.color._1 / 256);
+                colors.push(vertex.color._2 / 256);
                 colors.push(vertex.color._3);
             }
             pushTriangle(n+1,node._1);
@@ -154,14 +188,15 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexPosBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
 
-        var vertexColors = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, vertexColors);
+        var vertexColorBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexColorBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
 
         return {
-            indexBuffer:indexBuffer,
+            indexBuffer: indexBuffer,
             vertexPosBuffer: vertexPosBuffer,
-            vertexColors: vertexColors
+            vertexColorBuffer: vertexColorBuffer,
+            numIndices: indices.length,
         };
 
     }
@@ -186,7 +221,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
 
     return elm.Native.Graphics.WebGL.values = {
         glContext:F2(glContext),
-        makeMesh:F2(makeMesh),
+        bindMesh:F2(bindMesh),
         renderGL:F2(renderGL),
     };
 
