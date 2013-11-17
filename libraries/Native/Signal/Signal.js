@@ -1,5 +1,10 @@
 
 Elm.Native.Signal = {};
+function logMess(msg) {
+    setTimeout(function() {
+        throw new Error(msg);
+    }, 0);
+}
 Elm.Native.Signal.make = function(elm) {
 
   elm.Native = elm.Native || {};
@@ -35,14 +40,20 @@ Elm.Native.Signal.make = function(elm) {
     this.value = update();
     this.kids = [];
 
+    /* debugging info */
+    var firstTimestep = 0;
+    var firstParentID = 0;
+
     var n = args.length;
     var count = 0;
     var isChanged = false;
 
     this.recv = function(timestep, changed, parentID) {
+      if(count==0){firstParentID = parentID;firstTimestep=timestep}/*debug*/
       ++count;
       if (changed) { isChanged = true; }
       if (count == n) {
+        if(firstParentID==parentID&&n==2){logMess("Got two messages from the same parent in one round. Blegh. this.id:"+this.id+"parentID:"+parentID+"n:"+n+"firstTimestep"+firstTimestep+"timestep"+timestep);} /*debug*/
         if (isChanged) { this.value = update(); }
         send(this, timestep, isChanged);
         isChanged = false;
@@ -196,6 +207,7 @@ Elm.Native.Signal.make = function(elm) {
             isChanged = false;
             count = 0;
         }
+        if(count > 2){logMess("Merge: Event recieved before we were finnished processing. this.id:"+this.id+"parentID"+parentID+"timestep:"+timestep+"count"+count);}
       };
       s1.kids.push(this);
       s2.kids.push(this);
