@@ -40,7 +40,7 @@ function init(display, container, module, moduleToReplace) {
   function runNotifyQue() {
       notifyRunning = true;
       var changed = false;
-      var e = {id=0,value=0};
+      var e = {id:0,value:0};
       while(notifyQue.length>0)
       {
        e = notifyQue.shift();
