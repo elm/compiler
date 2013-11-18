@@ -31,14 +31,20 @@ function init(display, container, module, moduleToReplace) {
   // defining state needed for an instance of the Elm RTS
   var inputs = [];
 
+  var updateInProgress = false;
   function notify(id, v) {
-      var timestep = Date.now();
-      var changed = false;
-      for (var i = inputs.length; i--; ) {
-          // order is important here to avoid short-circuiting
-          changed = inputs[i].recv(timestep, id, v) || changed;
+      if (updateInProgress) {
+          throw new Error(
+              'The notify function has been called synchronously!\n' +
+              'This can lead to frames being dropped.\n' +
+              'Definitely report this to <https://github.com/evancz/Elm/issues>\n');
       }
-      return changed;
+      updateInProgress = true;
+      var timestep = Date.now();
+      for (var i = inputs.length; i--; ) {
+          inputs[i].recv(timestep, id, v);
+      }
+      updateInProgress = false;
   }
 
   var listeners = [];

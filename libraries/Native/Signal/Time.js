@@ -34,13 +34,11 @@ Elm.Native.Time.make = function(elm) {
     return A3( Signal.lift2, F2(f), isOn, ticker );
   }
 
-  function everyWhen(t, isOn) {
+  function every(t) {
     var clock = Signal.constant(Date.now());
-    var id = setInterval(function tellTime() {
-            if (!elm.notify(clock.id, Date.now())) {
-                clearInterval(id);
-            }
-        }, t);
+    setInterval(function() {
+        elm.notify(clock.id, Date.now());
+    }, t);
     return clock;
   }
 
@@ -56,7 +54,7 @@ Elm.Native.Time.make = function(elm) {
   return elm.Native.Time.values = {
       fpsWhen : F2(fpsWhen),
       fps : function(t) { return fpsWhen(t, Signal.constant(true)); },
-      every : function(t) { return everyWhen(t, Signal.constant(true)) },
+      every : every,
       delay : NS.delay,
       timestamp : NS.timestamp,
       since : F2(since),
