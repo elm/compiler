@@ -211,19 +211,21 @@ Elm.Native.Graphics.Input.make = function(elm) {
      var events = Signal.constant(defaultValue);
 
      var state = null;
-
+     var isTextArea = type == 'textarea';
      function render(model) {
-         var field = newNode('input');
+         var nodeKind = 'input';
+         if(isTextArea){nodeKind='textarea';}
+         var field = newNode(nodeKind);
          field.elmHandler = model.handler;
 
          field.id = 'test';
-         field.type = type;
+         if(!isTextArea){field.type = type;}
          field.placeholder = JS.fromString(model.placeHolder);
          field.value = JS.fromString(model.state.string);
          setRange(field, model.state.selectionStart, model.state.selectionEnd, 'forward');
          field.style.border = 'none';
          state = model.state;
-
+         
          function update() {
              var start = field.selectionStart,
                  end = field.selectionEnd;
@@ -297,6 +299,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
      fields:mkTextPool('text'),
      emails:mkTextPool('email'),
      passwords:mkTextPool('password'),
+     textareas:mkTextPool('textarea'),
      dropDown:dropDown
  };
 
