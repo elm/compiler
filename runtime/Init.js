@@ -30,8 +30,30 @@ Elm.worker = function(module) {
 function init(display, container, module, moduleToReplace) {
   // defining state needed for an instance of the Elm RTS
   var inputs = [];
+  var notifyRunning = false;
+  var notifyQue = [];
 
-  function notify(id, v) {
+  function addToNotifyQue(id,v) {
+    notifyQue.push({id:id,value:v});
+  }
+
+  function runNotifyQue() {
+      notifyRunning = true;
+      var changed = false;
+      var e = {id:0,value:0};
+      while(notifyQue.length>0)
+      {
+       e = notifyQue.shift();
+       changed = runRound(e.id,e.value) || changed;
+      }
+      notifyRunning = false;
+      return changed;
+  }
+
+  /* This is the most important function in the Elm runtime.
+  It goes through the list of inputs and notifies them of changes/nochanges.
+  These events then propigate through the graph running the program. */
+  function runRound(id, v) {
       var timestep = Date.now();
       var changed = false;
       for (var i = inputs.length; i--; ) {
@@ -39,6 +61,12 @@ function init(display, container, module, moduleToReplace) {
           changed = inputs[i].recv(timestep, id, v) || changed;
       }
       return changed;
+  }
+
+  function notify(id, v) {
+      addToNotifyQue(id,v);
+      if(!notifyRunning){return runNotifyQue();}
+      return false;
   }
 
   var listeners = [];
