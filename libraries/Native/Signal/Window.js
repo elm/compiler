@@ -28,10 +28,21 @@ Elm.Native.Window.make = function(elm) {
   height.defaultNumberOfKids = 0;
 
   function resizeIfNeeded() {
+      // Do not trigger event if the dimensions have not changed.
+      // This should be most of the time.
       var w = getWidth();
       var h = getHeight();
       if (dimensions.value._0 === w && dimensions.value._1 === h) return;
-      elm.notify(dimensions.id, Tuple2(w,h));
+
+      setTimeout(function () {
+          // Check again to see if the dimensions have changed.
+          // It is conceivable that the dimensions have changed
+          // again while some other event was being processed.
+          var w = getWidth();
+          var h = getHeight();
+          if (dimensions.value._0 === w && dimensions.value._1 === h) return;
+          elm.notify(dimensions.id, Tuple2(w,h));
+      }, 0);
   }
   elm.addListener([dimensions.id], window, 'resize', resizeIfNeeded);
 
