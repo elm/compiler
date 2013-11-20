@@ -25,7 +25,7 @@ reprime = map (\c -> if c == '$' then '\'' else c)
 eightyCharLines :: Int -> String -> String
 eightyCharLines indent message = answer
     where
-      (answer,_,_) = foldl step (replicate (indent-1) ' ', indent-1, "") chunks
+      (answer,_,_) = foldl step (spaces, indent-1, "") chunks
 
       chunks = map (\w -> (w, length w)) (words message)
       spaces = replicate indent ' '
