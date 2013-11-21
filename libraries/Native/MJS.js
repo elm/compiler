@@ -1888,7 +1888,7 @@ Elm.Native.MJS.make = function(elm) {
         m4x4translate3: F4(M4x4.translate3),
         m4x4translate1: F2(M4x4.translate1),
         m4x4translate: F2(M4x4.translate),
-        m4x4makeLookFt: F3(M4x4.makeLookAt),
+        m4x4makeLookAt: F3(M4x4.makeLookAt),
         m4x4transpose: M4x4.transpose,
         m4x4transformPoint: F2(M4x4.transformPoint),
         /*

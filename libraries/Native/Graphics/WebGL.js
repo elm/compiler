@@ -102,7 +102,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
 
         function drawScene(scene,n) {
             switch(scene.ctor) {
-                case 'Leaf':
+                case 'SceneLeaf':
                     drawMesh(scene._0, sceneMatrixStack[n]);
                     break;
                 default:
@@ -137,7 +137,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
         drawGL(newModel)
     }
 
-    function glContext(w,h) {
+    function makeGL(w,h) {
         var node = newNode('canvas');
         var gl = node.getContext('webgl');
         var programPtr = createProgram(gl, geoVert, geoFrag);
@@ -153,7 +153,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
         return Signal.constant({w:w,h:h,gl:gl,node:node,program:program});
     }
 
-    function bindMesh(triangles, context) {
+    function bufferMesh(triangles, context) {
         var indices = [];
         var positions = [];
         var colors = [];
@@ -161,10 +161,9 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
         function pushTriangle(n, node) {
             if (node.ctor === "[]") return;
             var tri = node._0;
-            var names = ['a','b','c'];
             for (var i = 0; i < 3; i+= 1) {
                 indices.push(3 * n + i);
-                var vertex = tri[names[i]];
+                var vertex = tri['_' + i];
                 for (var j = 0; j < 3; j += 1) {
                     positions.push(vertex.pos[j]);
                 }
@@ -201,7 +200,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
 
     }
 
-    function renderGL(context, scene) {
+    function webgl(context, scene) {
         
         return A3(newElement, context.w, context.h, {
             ctor: 'Custom',
@@ -220,9 +219,9 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
     }
 
     return elm.Native.Graphics.WebGL.values = {
-        glContext:F2(glContext),
-        bindMesh:F2(bindMesh),
-        renderGL:F2(renderGL),
+        makeGL:F2(makeGL),
+        bufferMesh:F2(bufferMesh),
+        webgl:F2(webgl),
     };
 
 };

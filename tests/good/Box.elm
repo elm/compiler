@@ -1,36 +1,53 @@
 
 import open Color
-import open Graphics.WebGL
 import open MJS
 
--- Setup the GL context
+import Graphics.WebGL (GLContext, Vertex, Triangle, Mesh, Scene, makeGL, bufferMesh, transform, mesh, webgl)
 
-context : Signal GLContext
-context = glContext 400 400
+-- Setup the GLContext
 
--- Define what our picture looks like
+gl : Signal GLContext
+gl = makeGL 400 400
+
+-- Define what our geometry looks like
 
 top = v3 0 1 0
 left = v3 -1 -1 0
 right = v3 1 -1 0
 
-triangle : GLTriangle
-triangle = GLTriangle (GLPoint top red) (GLPoint left blue) (GLPoint right green)
+geometry : Triangle
+geometry = (Vertex top red, Vertex left blue, Vertex right green)
 
--- Bind our picture to a mesh in our GL context
+-- Bind our geometry to a mesh in our GL gl
 
-triMesh : Signal Mesh
-triMesh = lift (bindMesh [triangle]) context
+geoMesh : Signal Mesh
+geoMesh = lift (bufferMesh [geometry]) gl
 
--- Given an angle and a Mesh, what does the scene look like?
+-- Build two helper transforms
+
+perspective : M4x4
+perspective = m4x4makePerspective 45 1 0.01 100
+
+camera : Float -> M4x4
+camera r = 
+  let eye = v3 0 0 r
+      center = v3 0 0 0
+      up = v3 0 1 0
+  in m4x4makeLookAt eye center up
+
+-- Build the scene with extra model rotate transforms
 
 scene : Float -> Mesh -> Scene
-scene angle mesh = 
+scene angle m = 
     let xAxis = v3 1 0 0
         yAxis = v3 0 1 0
         rotationX = m4x4makeRotate (angle / 2) xAxis
         rotationY = m4x4makeRotate (angle / 3) yAxis
-    in Node rotationX [Node rotationY [Leaf mesh]]
+    in transform perspective [
+        transform (camera <| 5 + 3 * sin angle) [
+        transform rotationX [
+        transform rotationY [
+        mesh m ]]]]
 
 -- Standard accumulator and wiring it up with main
 
@@ -38,4 +55,5 @@ angle : Signal Float
 angle = foldp (\_ a -> a + 0.1) 0 (fps 25)
 
 main : Signal Element
-main = lift2 renderGL context (lift2 scene angle triMesh)
+main = lift2 webgl gl (lift2 scene angle geoMesh)
+

@@ -1,4 +1,4 @@
-module Graphics.WebGL where
+module Graphics.WebGL (makeGL, Vertex, bufferMesh, transform, mesh, webgl) where
 
 {-| WebGL
 
@@ -11,21 +11,27 @@ import Color (Color)
 import Graphics.Element (Element)
 import Native.Graphics.WebGL
 
-data GLContext = Fake_GLContext
+data GLContext = Fake_Context
 
-glContext : Int -> Int -> Signal GLContext
-glContext = Native.Graphics.WebGL.glContext
+makeGL : Int -> Int -> Signal GLContext
+makeGL = Native.Graphics.WebGL.makeGL
 
-type GLPoint = { pos: V3, color: Color }
-type GLTriangle = { a: GLPoint, b: GLPoint, c: GLPoint }
+type Vertex = { pos: V3, color: Color }
+type Triangle = (Vertex,Vertex,Vertex)
 
 data Mesh = Fake_Mesh
 
-bindMesh : [GLTriangle] -> GLContext -> Mesh
-bindMesh = Native.Graphics.WebGL.bindMesh
+bufferMesh : [Triangle] -> GLContext -> Mesh
+bufferMesh = Native.Graphics.WebGL.bufferMesh
 
-data Scene = Node M4x4 [Scene] | Leaf Mesh
+data Scene = SceneNode M4x4 [Scene] | SceneLeaf Mesh
 
-renderGL : GLContext -> Scene -> Element
-renderGL = Native.Graphics.WebGL.renderGL
+transform : M4x4 -> [Scene] -> Scene
+transform = SceneNode
+
+mesh : Mesh -> Scene
+mesh = SceneLeaf
+
+webgl : GLContext -> Scene -> Element
+webgl = Native.Graphics.WebGL.webgl
 
