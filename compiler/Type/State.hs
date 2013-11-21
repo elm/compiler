@@ -48,7 +48,7 @@ initialState = SS {
 modifyEnv  f = modify $ \state -> state { sEnv = f (sEnv state) }
 modifyPool f = modify $ \state -> state { sPool = f (sPool state) }
 
-addError span message t1 t2 =
+addError span hint t1 t2 =
     modify $ \state -> state { sErrors = makeError : sErrors state }
   where
     makeError rules = do
@@ -56,11 +56,13 @@ addError span message t1 t2 =
       t1' <- prettiest <$> toSrcType t1
       t2' <- prettiest <$> toSrcType t2
       return . P.vcat $
-         [ P.text $ "Type error" ++ location ++ ":"
-         , P.vcat . map P.text . lines $ if null message then defaultMessage else message
-         , P.text src
-         , P.text "   Expected Type:" <+> t1'
-         , P.text "     Actual Type:" <+> t2' <> P.text "\n"
+         [ display $ case span of { NoSpan msg -> msg ; Span _ _ msg -> msg }
+         , case hint of
+             Nothing -> P.text "  Could not match the following types:"
+             Just msg -> P.text $ eightyCharLines 2 $
+                         msg ++ ", so I could not match the following types:"
+         , P.text "        " <> t1'
+         , P.text "        " <> t2'
          ]
 
     location = case span of
@@ -69,14 +71,12 @@ addError span message t1 t2 =
                      if line p1 == line p2 then " on line " ++ show (line p1)
                      else " between lines " ++ show (line p1) ++ " and " ++ show (line p2)
 
-    display msg = if null msg then "\n"
-                  else "\n" ++ unlines (map ("        "++) $ lines msg)
-
-    src = case span of
-            NoSpan msg -> display msg
-            Span _ _ msg -> display msg
-
-    defaultMessage = "Something weird is happening with this value:"
+    display msg =
+        case lines msg of
+          [] -> P.text $ "Type error" ++ location ++ ":"
+          lines' ->
+              P.vcat [ P.text $ "Type error" ++ location ++ ", in or near this expression:"
+                     , P.text $ "        " ++ List.intercalate "\n        " lines' ]
 
 
 switchToPool pool = modifyPool (\_ -> pool)

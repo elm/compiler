@@ -3,6 +3,7 @@ module Type.Unify (unify) where
 import Type.Type
 import qualified Data.UnionFind.IO as UF
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
 import qualified Type.State as TS
 import Control.Arrow (first,second)
 import Control.Monad.State
@@ -78,25 +79,26 @@ actuallyUnify span variable1 variable2 = do
 
       unifyNumber svar name
           | name `elem` ["Int","Float","number"] = flexAndUnify svar
-          | otherwise = TS.addError span "Expecting a number (Int or Float)" variable1 variable2
+          | otherwise = TS.addError span (Just hint) variable1 variable2
+          where hint = "A number must be an Int or Float"
 
-      comparableError str = TS.addError span (str ++ msg) variable1 variable2
-          where msg = "Expecting something comparable such as an\n" ++
-                      "Int, Float, Char, String, or a list or tuple of comparables."
+      comparableError maybe =
+          TS.addError span (Just $ Maybe.fromMaybe msg maybe) variable1 variable2
+          where msg = "A comparable must be an Int, Float, Char, String, list, or tuple"
 
       unifyComparable var name
           | name `elem` ["Int","Float","Char","String","comparable"] = flexAndUnify var
-          | otherwise = comparableError ""
+          | otherwise = comparableError Nothing
 
       unifyComparableStructure varSuper varFlex =
           do struct <- liftIO $ collectApps varFlex
              case struct of
-               Other -> comparableError ""
+               Other -> comparableError Nothing
                List v -> do flexAndUnify varSuper
                             unify' v =<< liftIO (var $ Is Comparable)
                Tuple vs
                    | length vs > 6 ->
-                       comparableError "Cannot compare a tuple with more than 6 elements.\n"
+                       comparableError $ Just "Cannot compare a tuple with more than 6 elements"
                    | otherwise -> 
                        do flexAndUnify varSuper
                           cmpVars <- liftIO $ forM [1..length vs] $ \_ -> var (Is Comparable)
@@ -106,13 +108,12 @@ actuallyUnify span variable1 variable2 = do
           do struct <- liftIO $ collectApps varFlex
              case struct of
                List _ -> flexAndUnify varSuper
-               _ -> comparableError ""
+               _ -> comparableError Nothing
 
-      rigidError variable = TS.addError span msg variable1 variable2
-          where
-            msg = concat
-                  [ "Cannot unify rigid type variable '", render (pretty Never variable), "'.\n"
-                  , "It is likely that a type annotation is not general enough." ]
+      rigidError variable = TS.addError span (Just hint) variable1 variable2
+          where hint = "There is a problem with the '" ++ 
+                       render (pretty Never variable) ++
+                       "' in the type signature. It currently is not possible to unify type variables that appear in top-level declarations and again in subexpressions"
 
       superUnify =
           case (flex desc1, flex desc2, name desc1, name desc2) of
@@ -138,7 +139,7 @@ actuallyUnify span variable1 variable2 = do
 
             (Rigid, _, _, _) -> rigidError variable1
             (_, Rigid, _, _) -> rigidError variable2
-            _ -> TS.addError span "" variable1 variable2
+            _ -> TS.addError span Nothing variable1 variable2
 
   case (structure desc1, structure desc2) of
     (Nothing, Nothing) | flex desc1 == Flexible && flex desc1 == Flexible -> merge
@@ -193,5 +194,5 @@ actuallyUnify span variable1 variable2 = do
                 eat (x:xs) (y:ys) = eat xs ys
                 eat xs ys = xs
 
-          _ -> TS.addError span "" variable1 variable2
+          _ -> TS.addError span Nothing variable1 variable2
 

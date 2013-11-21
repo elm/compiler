@@ -15,7 +15,9 @@ import Text.PrettyPrint as P
 
 mistakes :: (Data t, Data v) => [Declaration t v] -> [Doc]
 mistakes decls =
-    illFormedTypes decls ++ map P.text (concatMap findErrors (getLets decls))
+    concat [ infiniteTypeAliases decls
+           , illFormedTypes decls
+           , map P.text (concatMap findErrors (getLets decls)) ]
   where
     findErrors defs = duplicates defs ++ badOrder defs
 
@@ -105,3 +107,36 @@ illFormedTypes decls = map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
                 | otherwise = zipWith (++) (replicate (length xs - 1) "" ++ ["and "]) xs
 
             quote tvar = "'" ++ tvar ++ "'"
+
+
+infiniteTypeAliases :: [Declaration t v] -> [Doc]
+infiniteTypeAliases decls =
+    [ report decl | decl@(TypeAlias name _ tipe) <- decls, isInfinite name tipe ]
+    where
+      isInfinite name tipe =
+          let infinite = isInfinite name in
+          case tipe of
+            T.Lambda a b -> infinite a || infinite b
+            T.Var _ -> False
+            T.Data name' ts -> name == name' || any infinite ts
+            T.EmptyRecord -> False
+            T.Record fields ext -> infinite ext || any (infinite . snd) fields
+
+      report decl@(TypeAlias name args tipe) =
+          P.vcat [ P.text $ eightyCharLines 0 msg1
+                 , indented decl
+                 , P.text $ eightyCharLines 0 msg2
+                 , indented (Datatype name args [(name,[tipe])])
+                 , P.text $ eightyCharLines 0 msg3 ++ "\n"
+                 ]
+          where
+            indented decl = P.text "\n    " <> pretty decl <> P.text "\n"
+
+            msg1 = "Type alias '" ++ name ++ "' is an infinite type. " ++
+                   "Notice that it appears in its own definition, so when \
+                   \you expand it, it just keeps getting bigger:"
+            msg2 = "Try this instead:"
+            msg3 = "It looks very similar, but an algebraic data type (ADT) \
+                   \actually creates a new type. Unlike with a type alias, this \
+                   \freshly created type is meaningful on its own, so an ADT \
+                   \does not need to be expanded."

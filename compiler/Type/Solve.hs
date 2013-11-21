@@ -9,6 +9,7 @@ import qualified Data.Maybe as Maybe
 import qualified Data.List as List
 import Type.Type
 import Type.Unify
+import qualified Type.ExtraChecks as EC
 import qualified Type.Environment as Env
 import qualified Type.State as TS
 import qualified Text.PrettyPrint as P
@@ -118,9 +119,10 @@ solve (L span constraint) =
 
     CLet schemes constraint' -> do
         oldEnv <- TS.getEnv
-        headers <- mapM (solveScheme span) schemes
-        TS.modifyEnv $ \env -> Map.unions (headers ++ [env])
+        headers <- Map.unions `fmap` mapM (solveScheme span) schemes
+        TS.modifyEnv $ \env -> Map.union headers env
         solve constraint'
+        mapM EC.occursCheck $ Map.toList headers
         TS.modifyEnv (\_ -> oldEnv)
 
     CInstance name term -> do
@@ -171,11 +173,13 @@ allDistinct span vars = do
   let check var = do
         desc <- liftIO $ UF.descriptor var
         case structure desc of
-          Just _ ->
-              TS.addError span "Cannot generalize something that is not a type variable" var var
+          Just _ -> TS.addError span (Just msg) var var
+              where msg = "Cannot generalize something that is not a type variable"
+
           Nothing -> do
             if mark desc == seen
-              then TS.addError span "Duplicate variable during generalization" var var
+              then let msg = "Duplicate variable during generalization"
+                   in  TS.addError span (Just msg) var var
               else return ()
             liftIO $ UF.setDescriptor var (desc { mark = seen })
   mapM_ check vars
@@ -186,4 +190,5 @@ isGeneric span var = do
   desc <- liftIO $ UF.descriptor var
   if rank desc == noRank
     then return ()
-    else TS.addError span "Cannot generalize. Variable must have not have a rank." var var
+    else let msg = "Unable to generalize a type variable. It is not unranked"
+         in  TS.addError span (Just msg) var var

@@ -307,5 +307,5 @@ something.
 
       fromList ['a','b','c'] == "abc"
 -}
-fromList : String -> [Char]
+fromList : [Char] -> String
 fromList = Native.String.fromList
