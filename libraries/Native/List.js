@@ -213,19 +213,13 @@ Elm.Native.List.make = function(elm) {
     }
 
     function sort(xs) {
-        function cmp(a,b) {
-            var ord = Utils.compare(a)(b).ctor;
-            return ord === 'EQ' ? 0 : ord === 'LT' ? -1 : 1;
-        }
-        return fromArray(toArray(xs).sort(cmp));
+        return fromArray(toArray(xs).sort(Utils.cmp));
     }
 
     function sortBy(f, xs) {
-        function cmp(a,b) {
-            var ord = Utils.compare(f(a))(f(b)).ctor;
-            return ord === 'EQ' ? 0 : ord === 'LT' ? -1 : 1;
-        }
-        return fromArray(toArray(xs).sort(cmp));
+        return fromArray(toArray(xs).sort(function(a,b){
+            return Utils.cmp(f(a), f(b));
+        }));
     }
 
     function nth(xs, n) {
