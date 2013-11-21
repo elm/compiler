@@ -214,8 +214,16 @@ Elm.Native.List.make = function(elm) {
 
     function sort(xs) {
         function cmp(a,b) {
-            var ord = Utils.compare(a,b).ctor;
-            return ord=== 'EQ' ? 0 : ord === 'LT' ? -1 : 1;
+            var ord = Utils.compare(a)(b).ctor;
+            return ord === 'EQ' ? 0 : ord === 'LT' ? -1 : 1;
+        }
+        return fromArray(toArray(xs).sort(cmp));
+    }
+
+    function sortBy(f, xs) {
+        function cmp(a,b) {
+            var ord = Utils.compare(f(a))(f(b)).ctor;
+            return ord === 'EQ' ? 0 : ord === 'LT' ? -1 : 1;
         }
         return fromArray(toArray(xs).sort(cmp));
     }
@@ -298,6 +306,7 @@ Elm.Native.List.make = function(elm) {
         zipWith:F3(zipWith),
         zip:F2(zip),
         sort:sort,
+        sortBy:F2(sortBy),
         nth:F2(nth),
         take:F2(take),
         drop:F2(drop),
