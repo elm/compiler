@@ -222,6 +222,13 @@ Elm.Native.List.make = function(elm) {
         }));
     }
 
+    function sortWith(f, xs) {
+        return fromArray(toArray(xs).sort(function(a,b){
+            var ord = f(a)(b).ctor;
+            return ord === 'EQ' ? 0 : ord === 'LT' ? -1 : 1;
+        }));
+    }
+
     function nth(xs, n) {
         return toArray(xs)[n];
     }
@@ -301,6 +308,7 @@ Elm.Native.List.make = function(elm) {
         zip:F2(zip),
         sort:sort,
         sortBy:F2(sortBy),
+        sortWith:F2(sortWith),
         nth:F2(nth),
         take:F2(take),
         drop:F2(drop),

@@ -22,7 +22,7 @@ list must have the same type.
 @docs sum, product, maximum, minimum, all, any, and, or
 
 # Sorting
-@docs sort, sortBy
+@docs sort, sortBy, sortWith
 -}
 
 import open Basics
@@ -232,6 +232,11 @@ repeat = Native.List.repeat
 sort : [comparable] -> [comparable]
 sort = Native.List.sort
 
-{-| Sort a list by a given comparison function. -}
+{-| Sort a list by a given comparison transformation, such a [record field
+accessors](http://elm-lang.org/learn/Syntax.elm#records). -}
 sortBy : (a -> comparable) ->  [a] -> [a]
 sortBy = Native.List.sortBy
+
+{-| Sort a list by a given comparison function. -}
+sortWith : (a -> a -> Order) ->  [a] -> [a]
+sortWith = Native.List.sortWith
