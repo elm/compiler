@@ -14,7 +14,7 @@ two-way inputs.
 @docs button, customButton, buttons, customButtons
 
 # Fields
-@docs field, password, email, fields, FieldState, emptyFieldState
+@docs field, password, email, fieldMultiline, fields, fieldsMultiline, FieldState, emptyFieldState
 
 # Checkboxes
 @docs checkbox, checkboxes
