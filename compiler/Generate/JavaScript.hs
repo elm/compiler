@@ -6,9 +6,9 @@ import Control.Monad.State
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Text.Pandoc as Pan
 
 import qualified Generate.Cases as Case
+import qualified Generate.Markdown as MD
 import SourceSyntax.Everything
 import SourceSyntax.Location
 import qualified Transform.SortDefinitions as SD
@@ -186,9 +186,8 @@ expression (L span expr) =
             ctor = (prop "ctor", string (makeSafe name))
             fields = zipWith (\n e -> (prop ("_" ++ show n), e)) [0..]
 
-      Markdown doc _ -> return $ obj "Text.text" <| string (pad ++ md ++ pad)
+      Markdown md _ -> return $ obj "Text.text" <| string (pad ++ MD.toHtml md ++ pad)
           where pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
-                md = Pan.writeHtmlString Pan.def doc
 
 definition :: Def () () -> State Int [Statement ()]
 definition def =

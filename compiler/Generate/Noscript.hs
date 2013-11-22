@@ -2,7 +2,7 @@ module Generate.Noscript (noscript) where
 
 import Data.List (isInfixOf)
 import SourceSyntax.Everything
-import qualified Text.Pandoc as Pan
+import qualified Generate.Markdown as MD
 
 noscript :: Module t v -> String
 noscript modul = concat (extract modul)
@@ -49,7 +49,7 @@ instance Extract (Expr t v) where
       Case e cases -> concatMap (f . snd) cases
       Data _ es -> concatMap f es
       MultiIf es -> concatMap (f . snd) es
-      Markdown doc _ -> [ Pan.writeHtmlString Pan.def doc ]
+      Markdown md _ -> [ MD.toHtml md ]
       _ -> []
 
 extractLink src txt =

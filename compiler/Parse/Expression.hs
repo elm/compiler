@@ -5,7 +5,6 @@ import Control.Applicative ((<$>), (<*>))
 import Data.List (foldl')
 import Text.Parsec hiding (newline,spaces)
 import Text.Parsec.Indent
-import qualified Text.Pandoc as Pan
 
 import Parse.Helpers
 import qualified Parse.Pattern as Pattern
@@ -56,8 +55,7 @@ listTerm = markdown' <|> braces (try range <|> ExplicitList <$> commaSep expr)
 
     markdown' = do
       (rawText, exprs) <- markdown interpolation
-      let md = Pan.readMarkdown Pan.def (filter (/='\r') rawText)
-      return (Markdown md exprs)
+      return (Markdown (filter (/='\r') rawText) exprs)
 
     span xs = "<span id=\"md" ++ show (length xs) ++
               "\" style=\"font-family:monospace;\">{{ ... }}</span>"
