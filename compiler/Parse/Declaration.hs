@@ -6,7 +6,6 @@ import qualified Data.List as List
 import qualified Data.Set as Set
 import Text.Parsec hiding (newline,spaces)
 import Text.Parsec.Indent
-import qualified Text.Pandoc as Pan
 
 import Parse.Helpers
 import qualified Parse.Expression as Expr

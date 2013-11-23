@@ -3,7 +3,6 @@ module SourceSyntax.Expression where
 
 import Data.Data
 import Data.List (intercalate)
-import qualified Text.Pandoc as Pandoc
 import SourceSyntax.PrettyPrint
 import Text.PrettyPrint as P
 import qualified SourceSyntax.Helpers as Help
@@ -30,7 +29,7 @@ data Expr t v
     | Insert (LExpr t v) String (LExpr t v)
     | Modify (LExpr t v) [(String, LExpr t v)]
     | Record [(String, LExpr t v)]
-    | Markdown String Pandoc.Pandoc [LExpr t v]
+    | Markdown String String [LExpr t v]
       deriving (Eq, Show, Data, Typeable)
 
 data Def tipe var

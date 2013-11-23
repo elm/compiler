@@ -5,7 +5,6 @@ import Control.Applicative ((<$>), (<*>))
 import Data.List (foldl')
 import Text.Parsec hiding (newline,spaces)
 import Text.Parsec.Indent
-import qualified Text.Pandoc as Pan
 
 import Parse.Helpers
 import qualified Parse.Pattern as Pattern
@@ -58,8 +57,7 @@ listTerm = markdown' <|> braces (try range <|> ExplicitList <$> commaSep expr)
       pos <- getPosition
       let uid = show (sourceLine pos) ++ ":" ++ show (sourceColumn pos)
       (rawText, exprs) <- markdown (interpolation uid)
-      let md = Pan.readMarkdown Pan.def (filter (/='\r') rawText)
-      return (Markdown uid md exprs)
+      return (Markdown uid (filter (/='\r') rawText) exprs)
 
     span uid index =
         "<span id=\"md-" ++ uid ++ "-" ++ show index ++ "\"></span>"
