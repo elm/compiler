@@ -105,9 +105,14 @@ checkbox b =
     let cbs = checkboxes b
     in  (lift (cbs.checkbox id) cbs.events, cbs.events)
 
-{-| Detect when the mouse is hovering over some elements. This
-allows you to create and destroy elements dynamically and still
-detect hover information.
+{-| Detect when the mouse is hovering over an element.
+
+ * The first argument is the default value of the `events` signal.
+ * The `events` signal represents the hover activity of the element.
+ * The `hoverable` function creates an element that detects hover events. When
+   a hover event is detected, the `events` signal is updated with the value of
+   the `(Bool -> a)` function (where `Bool` is true if the mouse is hovering
+   over the element).
 -}
 hoverables : a -> { events : Signal a,
                     hoverable : (Bool -> a) -> Element -> Element }
