@@ -62,7 +62,7 @@ fromJSObject : JSObject -> JsonValue
 fromJSObject = Native.Json.fromJSObject
 
 {-| Convert a `JsonValue` into a `JSObject`. Paired with the
-[`JavaScript.Experimental` library](/docs/JavaScript/Experimental.elm),
+[`JavaScript.Experimental` library](/library/JavaScript/Experimental.elm),
 This lets you convert strings into Elm records:
 
        import JavaScript.Experimental as JS
