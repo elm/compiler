@@ -30,7 +30,9 @@ source-repository head
   location: git://github.com/evancz/Elm.git
 
 Library
-  exposed-modules:     Language.Elm
+  exposed-modules:       Language.Elm
+                       , InterfaceSerialization
+                       , SourceSyntax.Module
   Hs-Source-Dirs:      compiler
   other-modules:       SourceSyntax.Declaration,
                        SourceSyntax.Expression,
@@ -38,7 +40,6 @@ Library
                        SourceSyntax.Helpers,
                        SourceSyntax.Literal,
                        SourceSyntax.Location,
-                       SourceSyntax.Module,
                        SourceSyntax.Pattern,
                        SourceSyntax.PrettyPrint,
                        SourceSyntax.Type,
@@ -53,7 +54,6 @@ Library
                        Transform.Optimize,
                        Metadata.Prelude,
                        Initialize,
-                       InterfaceSerialization,
                        Parse.Binop,
                        Parse.Declaration,
                        Parse.Expression,
@@ -210,4 +210,25 @@ Test-Suite test-elm
   Type:            exitcode-stdio-1.0
   Hs-Source-Dirs:  tests
   Main-is:         Main.hs
-  build-depends:   base, directory, HTF
+  build-depends:     base
+                   , binary >= 0.6.4.0
+                   , blaze-html == 0.5.* || == 0.6.*
+                   , blaze-markup
+                   , bytestring
+                   , cmdargs
+                   , containers >= 0.3
+                   , filepath
+                   , indents
+                   , language-ecmascript >=0.15 && < 1.0
+                   , mtl >= 2
+                   , pandoc >= 1.10
+                   , parsec >= 3.1.1
+                   , pretty
+                   , transformers >= 0.2
+                   , union-find
+                   , uniplate
+                   , directory
+                   , HTF
+                   , Elm
+  other-modules:     TestInterfaceSerialization
+                   , Paths_Elm
