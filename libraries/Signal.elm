@@ -133,8 +133,10 @@ dropWhen : Signal Bool -> a -> Signal a -> Signal a
 dropWhen = Native.Signal.dropWhen
 
 {-| Drop sequential repeated values. For example, if a signal produces the
-sequence `[1,1,2,2,1]`, it becomes `[1,2,1]` by dropping the values that are the
-same as the previous value. -}
+sequence `[1,1,2,2,1]` (where the first `1` is the initial value and the second
+`1` is the first event), it becomes `[1,2,1]` (where the initial value is still
+`1`, but the first event is a `2`) by dropping the values that are the same as
+the previous value. -} 
 dropRepeats : Signal a -> Signal a
 dropRepeats = Native.Signal.dropRepeats
 
