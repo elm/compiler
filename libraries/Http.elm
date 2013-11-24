@@ -1,7 +1,7 @@
 module Http where
 
 {-| A library for asynchronous HTTP requests. See the
-[WebSocket](http://elm-lang.org/docs/WebSocket.elm) library if
+[WebSocket](/library/WebSocket.elm) library if
 you have very strict latency requirements.
 
 # Sending Requests
