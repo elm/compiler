@@ -139,7 +139,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
 
     function makeGL(w,h) {
         var node = newNode('canvas');
-        var gl = node.getContext('webgl');
+        var gl = node.getContext('webgl') || node.getContext('experimental-webgl');
         var programPtr = createProgram(gl, geoVert, geoFrag);
         var vertexPositionAttribute = gl.getAttribLocation(programPtr,'aVertexPosition');
         var vertexColorAttribute = gl.getAttribLocation(programPtr,'aVertexColor');
