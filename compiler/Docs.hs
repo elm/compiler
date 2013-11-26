@@ -5,6 +5,7 @@ import System.Console.CmdArgs
 import System.Directory
 import System.FilePath
 import System.Exit
+import System.IO
 
 import Control.Applicative ((<$>), (<*>))
 import Data.Aeson
@@ -52,7 +53,7 @@ parseFile path = do
       createDirectoryIfMissing True (dropFileName docPath)
       BS.writeFile docPath (encodePretty' config json)
     Left err -> do
-      putStrLn $ "Parse error in " ++ path ++ " at " ++ show err
+      hPutStrLn stderr $ "Parse error in " ++ path ++ " at " ++ show err
       exitFailure
 
 docs :: IParser Value
