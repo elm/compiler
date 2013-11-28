@@ -313,3 +313,14 @@ markdown interpolation = try (string "[markdown|") >> closeMarkdown "" []
                  , do c <- anyChar
                       closeMarkdown (md ++ [c]) stuff
                  ]
+
+glShader :: IParser String
+glShader = try (string "[glShader|") >> closeShader "" where
+    closeShader src = choice
+        [ do 
+            try (string "|]")
+            return src
+        , do
+            c <- anyChar
+            closeShader (src ++ [c])
+        ]

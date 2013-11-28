@@ -1,3 +1,6 @@
+
+{-# OPTIONS -Wall #-}
+
 module Transform.Canonicalize (interface, metadataModule) where
 
 import Control.Arrow ((***))
@@ -175,6 +178,7 @@ rename env lexpr@(L s expr) =
 
       Markdown uid md es -> Markdown uid md `liftM` mapM rnm es
 
+      GLShader _ _ -> return expr
 
 renamePattern :: Env -> Pattern -> Either String Pattern
 renamePattern env pattern =

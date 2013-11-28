@@ -30,6 +30,7 @@ data Expr t v
     | Modify (LExpr t v) [(String, LExpr t v)]
     | Record [(String, LExpr t v)]
     | Markdown String String [LExpr t v]
+    | GLShader String String
       deriving (Eq, Show, Data, Typeable)
 
 data Def tipe var

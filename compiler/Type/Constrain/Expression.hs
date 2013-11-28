@@ -35,6 +35,10 @@ constrain env (L span expr) tipe =
     case expr of
       Literal lit -> liftIO $ Literal.constrain env span lit tipe
 
+      GLShader _ src -> return . L span $ CEqual tipe shaderTipe
+        where
+          shaderTipe = error "What's the shader type"
+
       Var name | name == saveEnvName -> return (L span CSaveEnv)
                | otherwise           -> return (name <? tipe)
 

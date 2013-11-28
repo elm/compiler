@@ -1,4 +1,6 @@
 
+{-# OPTIONS -Wall #-}
+
 module Transform.SortDefinitions (sortDefs, boundVars, flattenLets) where
 
 import Control.Monad.State
@@ -98,6 +100,8 @@ reorder lexpr@(L s expr) =
           Record `liftM` mapM reorderField fields
 
       Markdown uid md es -> Markdown uid md <$> mapM reorder es
+
+      GLShader _ _ -> return expr
 
       -- Actually do some reordering
       Let defs body ->
