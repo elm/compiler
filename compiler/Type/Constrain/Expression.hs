@@ -1,3 +1,6 @@
+
+{-# OPTIONS -Wall #-}
+
 module Type.Constrain.Expression where
 
 import qualified Data.List as List
@@ -37,6 +40,7 @@ constrain env (L span expr) tipe =
 
       GLShader _ src -> return . L span $ CEqual tipe shaderTipe
         where
+          shaderTipe :: Type
           shaderTipe = error "What's the shader type"
 
       Var name | name == saveEnvName -> return (L span CSaveEnv)
