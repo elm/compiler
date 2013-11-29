@@ -7,6 +7,8 @@ import Control.Monad.State
 import Data.Char (isUpper)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
+import qualified Language.GLSL.Parser as GLP
+import Language.GLSL.Syntax
 import SourceSyntax.Helpers as Help
 import SourceSyntax.Location as Location
 import SourceSyntax.Expression
@@ -324,3 +326,22 @@ glShader = try (string "[glShader|") >> closeShader "" where
             c <- anyChar
             closeShader (src ++ [c])
         ]
+
+data GLTipe = V3 | M4
+
+glSource :: String -> Maybe [(StorageQualifier, GLTipe, String)]
+glSource src =
+  case GLP.parse src of
+    Right (TranslationUnit decls) ->
+      Just . join . map extractGLinputs $ decls
+    Left e -> Nothing
+  where 
+    extractGLinputs decl = case decl of
+        Declaration (InitDeclaration (TypeDeclarator (FullType (Just (TypeQualSto qual)) (TypeSpec _prec (TypeSpecNoPrecision tipe _mexpr1)))) [InitDecl name _mexpr2 _mexpr3]) ->
+            if elem qual [Attribute, Varying, Uniform] 
+            then case tipe of 
+                Vec3 -> return (qual,V3,name) 
+                Mat4 -> return (qual,M4,name)
+                _ -> []
+            else []
+        _ -> []

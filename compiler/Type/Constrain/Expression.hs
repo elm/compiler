@@ -14,6 +14,7 @@ import Control.Monad.State
 import Data.Traversable (traverse)
 import qualified Text.PrettyPrint as PP
 
+import qualified Parse.Helpers as PH
 import SourceSyntax.Location as Loc
 import SourceSyntax.Pattern (Pattern(PVar))
 import SourceSyntax.Expression
@@ -38,10 +39,10 @@ constrain env (L span expr) tipe =
     case expr of
       Literal lit -> liftIO $ Literal.constrain env span lit tipe
 
-      GLShader _ src -> return . L span $ CEqual tipe shaderTipe
-        where
-          shaderTipe :: Type
-          shaderTipe = error "What's the shader type"
+      GLShader _ src -> 
+        return . L span $ CEqual tipe (glTipe sourceTipe) where
+          glTipe t = Env.get env Env.types "GLShader" <| t
+          sourceTipe = PH.glSource src
 
       Var name | name == saveEnvName -> return (L span CSaveEnv)
                | otherwise           -> return (name <? tipe)
