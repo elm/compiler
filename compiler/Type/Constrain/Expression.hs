@@ -42,7 +42,9 @@ constrain env (L span expr) tipe =
       GLShader _ src -> 
         return . L span $ CEqual tipe (glTipe sourceTipe) where
           glTipe t = Env.get env Env.types "GLShader" <| t
-          sourceTipe = PH.glSource src
+          sourceTipe = declsRecord $ PH.glSource src
+          declsRecord :: Maybe PH.GLShaderDecls -> TermN Variable
+          declsRecord = error "TODO"
 
       Var name | name == saveEnvName -> return (L span CSaveEnv)
                | otherwise           -> return (name <? tipe)

@@ -6,6 +6,7 @@ import Control.Monad
 import Control.Monad.State
 import Data.Char (isUpper)
 import qualified Data.Set as Set
+import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Language.GLSL.Parser as GLP
 import Language.GLSL.Syntax
@@ -328,14 +329,22 @@ glShader = try (string "[glShader|") >> closeShader "" where
         ]
 
 data GLTipe = V3 | M4
+data GLShaderDecls = GLShaderDecls 
+    { attribute :: Map String GLTipe
+    , uniform :: Map String GLTipe
+    , variying :: Map String GLTipe
+    }
 
-glSource :: String -> Maybe [(StorageQualifier, GLTipe, String)]
+--glSource :: String -> Maybe [(StorageQualifier, GLTipe, String)]
+glSource :: String -> Maybe GLShaderDecls
 glSource src =
   case GLP.parse src of
     Right (TranslationUnit decls) ->
-      Just . join . map extractGLinputs $ decls
+      Just . foldl addGLinput emptyDecls . join . map extractGLinputs $ decls
     Left e -> Nothing
   where 
+    emptyDecls = GLShaderDecls Map.empty Map.empty Map.empty
+    addGLinput = error "TODO"
     extractGLinputs decl = case decl of
         Declaration (InitDeclaration (TypeDeclarator (FullType (Just (TypeQualSto qual)) (TypeSpec _prec (TypeSpecNoPrecision tipe _mexpr1)))) [InitDecl name _mexpr2 _mexpr3]) ->
             if elem qual [Attribute, Varying, Uniform] 
