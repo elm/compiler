@@ -7,7 +7,7 @@ Learn about the Elm programming language at [elm-lang.org](http://elm-lang.org/)
 [these directions](http://justtesting.org/post/64947952690/the-glasgow-haskell-compiler-ghc-on-os-x-10-9)
 before continuing!
 
-Download the [Haskell Platform 2012.2.0.0 or later](http://hackage.haskell.org/platform/).
+Download the [Haskell Platform 2013.2.0.0 or later](http://hackage.haskell.org/platform/).
 Once the Haskell Platform is installed:
 
     cabal update
