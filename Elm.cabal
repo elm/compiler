@@ -46,6 +46,7 @@ Library
                        Generate.Noscript,
                        Generate.Html,
                        Generate.Cases,
+                       Generate.Markdown,
                        Transform.Canonicalize,
                        Transform.Check,
                        Transform.SortDefinitions,
