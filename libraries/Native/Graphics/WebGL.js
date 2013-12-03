@@ -27,51 +27,19 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
         return shader;
     };
 
-    function linkProgram(gl, program) {
-        var vshader = createShader(gl, program.vshaderSource, gl.VERTEX_SHADER);
-        var fshader = createShader(gl, program.fshaderSource, gl.FRAGMENT_SHADER);
+    function linkProgram(vSrc, fSrc, context) {
+        var gl = context.gl;
+        var vshader = createShader(gl, vSrc, gl.VERTEX_SHADER);
+        var fshader = createShader(gl, fSrc, gl.FRAGMENT_SHADER);
+        var program = gl.createProgram()
         gl.attachShader(program, vshader);
         gl.attachShader(program, fshader);
         gl.linkProgram(program);
         if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
             throw gl.getProgramInfoLog(program);
         }
-    }
-
-    function createProgram(gl, vstr, fstr) {
-        var program = gl.createProgram();
-        var vshader = createShader(gl, vstr, gl.VERTEX_SHADER);
-        var fshader = createShader(gl, fstr, gl.FRAGMENT_SHADER);
-        gl.attachShader(program, vshader);
-        gl.attachShader(program, fshader);
-        gl.linkProgram(program);
-
-        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-            throw gl.getProgramInfoLog(program);
-        }
-
         return program;
-    };
-
-    var geoVert = "attribute vec3 aVertexPosition;\
-                   attribute vec4 aVertexColor;\
-                   \
-                   uniform mat4 uSceneMatrix;\
-                   \
-                   varying vec4 vVertexColor;\
-                   \
-                   void main() {\
-                       gl_Position = uSceneMatrix * vec4(aVertexPosition, 1.0);\
-                           vVertexColor = aVertexColor;\
-                   }"
-
-    var geoFrag = "precision mediump float;\
-                   \
-                   varying vec4 vVertexColor;\
-                   \
-                   void main() {\
-                       gl_FragColor = vVertexColor;\
-                   }"
+    }
 
     function drawGL(model) {
         var aspect = model.aspect;
@@ -117,8 +85,21 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
             }
         }
         
-        var scene = model.scene;
-        drawScene(scene,0);
+        function drawModel(glModel) {
+            var program = glModel.program;
+            var uniforms = glModel.uniforms;
+            va:q
+            for (var uName in uniforms) {
+                 var uLoc = gl.getUniformLocation(program, uName);
+                 var active = gl.getActiveUniform(program, uName);
+            }
+            
+            
+            var attributes = glModel.attributes;
+
+        }
+
+        List.each(drawModel, model.glModels);
 
     }
 
@@ -140,17 +121,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
     function makeGL(w,h) {
         var node = newNode('canvas');
         var gl = node.getContext('webgl');
-        var programPtr = createProgram(gl, geoVert, geoFrag);
-        var vertexPositionAttribute = gl.getAttribLocation(programPtr,'aVertexPosition');
-        var vertexColorAttribute = gl.getAttribLocation(programPtr,'aVertexColor');
-        var sceneMatrixUniform = gl.getUniformLocation(programPtr, 'uSceneMatrix');
-        var program = {
-            programPtr: programPtr,
-            vertexPositionAttribute: vertexPositionAttribute,
-            vertexColorAttribute: vertexColorAttribute,
-            sceneMatrixUniform: sceneMatrixUniform,
-        };
-        return Signal.constant({w:w,h:h,gl:gl,node:node,program:program});
+        return Signal.constant({w:w,h:h,gl:gl,node:node});
     }
 
     function bufferMesh(triangles, context) {
@@ -200,7 +171,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
 
     }
 
-    function webgl(context, scene) {
+    function webgl(context, glModels) {
         
         return A3(newElement, context.w, context.h, {
             ctor: 'Custom',
@@ -211,17 +182,26 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
                 aspect: context.w/context.h,
                 node: context.node,
                 gl: context.gl,
-                program: context.program,
-                scene: scene,
+                glModels: glModels,
             },
         });
 
+    }
+
+    function linkModel(program, uniforms, attributes) {
+        return {
+            program: program,
+            uniforms: uniforms,
+            attributes: attributes,
+        };
     }
 
     return elm.Native.Graphics.WebGL.values = {
         makeGL:F2(makeGL),
         bufferMesh:F2(bufferMesh),
         webgl:F2(webgl),
+        linkProgram:F3(linkProgram),
+        linkModel:F3(linkModel),
     };
 
 };

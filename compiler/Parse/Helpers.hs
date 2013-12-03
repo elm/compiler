@@ -329,10 +329,15 @@ glShader = try (string "[glShader|") >> closeShader "" where
         ]
 
 data GLTipe = V3 | M4
+
+glTipeName :: GLTipe -> String
+glTipeName V3 = "MJS.V3"
+glTipeName M4 = "MJS.M4x4"
+
 data GLShaderDecls = GLShaderDecls 
     { attribute :: Map String GLTipe
     , uniform :: Map String GLTipe
-    , variying :: Map String GLTipe
+    , varying :: Map String GLTipe
     }
 
 --glSource :: String -> Maybe [(StorageQualifier, GLTipe, String)]
@@ -340,11 +345,15 @@ glSource :: String -> Maybe GLShaderDecls
 glSource src =
   case GLP.parse src of
     Right (TranslationUnit decls) ->
-      Just . foldl addGLinput emptyDecls . join . map extractGLinputs $ decls
+      Just . foldr addGLinput emptyDecls . join . map extractGLinputs $ decls
     Left e -> Nothing
   where 
     emptyDecls = GLShaderDecls Map.empty Map.empty Map.empty
-    addGLinput = error "TODO"
+    addGLinput (qual,tipe,name) glDecls = case qual of
+        Attribute -> glDecls { attribute = Map.insert name tipe $ attribute glDecls }
+        Uniform -> glDecls { uniform = Map.insert name tipe $ uniform glDecls }
+        Varying -> glDecls { varying = Map.insert name tipe $ varying glDecls }
+        _ -> error "Should never happen due to below filter"
     extractGLinputs decl = case decl of
         Declaration (InitDeclaration (TypeDeclarator (FullType (Just (TypeQualSto qual)) (TypeSpec _prec (TypeSpecNoPrecision tipe _mexpr1)))) [InitDecl name _mexpr2 _mexpr3]) ->
             if elem qual [Attribute, Varying, Uniform] 

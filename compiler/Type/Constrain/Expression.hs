@@ -13,7 +13,6 @@ import Control.Monad.Error
 import Control.Monad.State
 import Data.Traversable (traverse)
 import qualified Text.PrettyPrint as PP
-
 import qualified Parse.Helpers as PH
 import SourceSyntax.Location as Loc
 import SourceSyntax.Pattern (Pattern(PVar))
@@ -39,12 +38,21 @@ constrain env (L span expr) tipe =
     case expr of
       Literal lit -> liftIO $ Literal.constrain env span lit tipe
 
-      GLShader _ src -> 
-        return . L span $ CEqual tipe (glTipe sourceTipe) where
-          glTipe t = Env.get env Env.types "GLShader" <| t
-          sourceTipe = declsRecord $ PH.glSource src
-          declsRecord :: Maybe PH.GLShaderDecls -> TermN Variable
-          declsRecord = error "TODO"
+      GLShader _ src -> case declsRecord <$> PH.glSource src of
+        Nothing -> throwError [PP.text "Some sort of GLSL parse error"]
+        Just sourceTipe -> return . L span $ CEqual tipe (shaderTipe sourceTipe)
+        where
+          shaderTipe t = Env.get env Env.types "Graphics.WebGL.GLShader" <| t
+          glTipe = Env.get env Env.types . PH.glTipeName
+          declsRecord :: PH.GLShaderDecls -> TermN Variable
+          declsRecord extractedTipes = record (fields' extractedTipes) (TermN EmptyRecord1) 
+          fields' :: PH.GLShaderDecls -> Map.Map String [Type]
+          fields' extractedTipes = Map.fromList
+            [ ("attribute", [record (Map.map (\t -> [glTipe t]) $ PH.attribute extractedTipes) (TermN EmptyRecord1) ] )
+            , ("uniform", [record (Map.map (\t -> [glTipe t]) $ PH.uniform extractedTipes) (TermN EmptyRecord1) ] )
+            , ("varying", [record (Map.map (\t -> [glTipe t]) $ PH.varying extractedTipes) (TermN EmptyRecord1) ] )
+            ]
+            
 
       Var name | name == saveEnvName -> return (L span CSaveEnv)
                | otherwise           -> return (name <? tipe)

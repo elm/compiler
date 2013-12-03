@@ -1,4 +1,4 @@
-module Graphics.WebGL (makeGL, Vertex, bufferMesh, transform, mesh, webgl) where
+module Graphics.WebGL (makeGL, linkProgram, linkModel, webgl) where
 
 {-| WebGL
 
@@ -16,22 +16,17 @@ data GLContext = Fake_Context
 makeGL : Int -> Int -> Signal GLContext
 makeGL = Native.Graphics.WebGL.makeGL
 
-type Vertex = { pos: V3, color: Color }
-type Triangle = (Vertex,Vertex,Vertex)
+data GLShader declarations = Fake_GLShader
+data GLProgram attributes = Fake_Program
 
-data Mesh = Fake_Mesh
+linkProgram : GLShader { attribute : a, uniform : u, varying : v } -> GLShader { attribute : {}, uniform : {}, varying : v } -> GLContext -> GLProgram { attribute : a, uniform : u }
+linkProgram = Native.Graphics.WebGL.linkProgram
 
-bufferMesh : [Triangle] -> GLContext -> Mesh
-bufferMesh = Native.Graphics.WebGL.bufferMesh
+data GLModel = Fake_Model 
 
-data Scene = SceneNode M4x4 [Scene] | SceneLeaf Mesh
+linkModel : (GLProgram { attribute : a, uniform : u }) -> u -> [a] -> GLModel
+linkModel = Native.Graphics.WebGL.linkModel
 
-transform : M4x4 -> [Scene] -> Scene
-transform = SceneNode
-
-mesh : Mesh -> Scene
-mesh = SceneLeaf
-
-webgl : GLContext -> Scene -> Element
+webgl : GLContext -> [GLModel] -> Element
 webgl = Native.Graphics.WebGL.webgl
 

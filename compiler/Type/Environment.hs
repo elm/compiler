@@ -54,8 +54,8 @@ makeTypes datatypes =
 
     builtins :: [(String,Int)]
     builtins = concat [ map tuple [0..9]
-                      , kind 1 ["_List","GLShader"]
-                      , kind 0 ["Int","Float","Char","String","Bool","M4x4","V3"]
+                      , kind 1 ["_List"]
+                      , kind 0 ["Int","Float","Char","String","Bool"]
                       ]
 
 

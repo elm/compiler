@@ -1,3 +1,5 @@
+{-# OPTIONS -Wall #-}
+
 module Generate.JavaScript where
 
 import Control.Arrow (first,(***))
@@ -194,6 +196,10 @@ expression (L span expr) =
           where
             pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
             md = pad ++ MD.toHtml doc ++ pad
+
+      GLShader uid src ->
+        return . literal $ Str src
+          
 
 definition :: Def () () -> State Int [Statement ()]
 definition def =
