@@ -87,15 +87,53 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
         
         function drawModel(glModel) {
             var program = glModel.program;
-            var uniforms = glModel.uniforms;
-            va:q
-            for (var uName in uniforms) {
-                 var uLoc = gl.getUniformLocation(program, uName);
-                 var active = gl.getActiveUniform(program, uName);
+            gl.useProgram(program);
+
+            var activeUniforms = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
+            for (var i = 0; i < activeUniforms; i += 1) {
+                var uniform = gl.getActiveUniform(program, i);
+                var uniformLocation = gl.getUniformLocation(program, uniform.name);
+                switch (uniform.type) {
+                    case gl.FLOAT_MAT4:
+                        gl.uniformMatrix4fv(uniformLocation, false, glModel.uniforms[uniform.name]);
+                        break;
+                    default:
+                        console.log("Unsupported uniform type: " + uniform.type);
+                        break;
+                }
             }
-            
-            
-            var attributes = glModel.attributes;
+
+            var numIndices = List.length(glModel.attributes);
+            var indices = List.toArray(List.range(0,numIndices));
+            var indexBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+
+            var activeAttributes = gl.getProgramParameter(program, gl.ACTIVE_ATTRIBUTES);
+            for (var i = 0; i < activeAttributes; i += 1) {
+                var attribute = gl.getActiveAttrib(program, i);
+                var attribLocation = gl.getAttribLocation(program, attribute.name);
+                gl.enableVertexAttribArray(attribLocation);
+                switch (attribute.type) {
+                    case gl.FLOAT_VEC3:
+                        var data = [];
+                        List.each(function(v3){
+                            data.push(v3[0]);
+                            data.push(v3[1]);
+                            data.push(v3[2]);
+                        }, glModel.attributes[attribute.name]);
+                        var attributeBuffer = gl.createBuffer();
+                        gl.bindBuffer(gl.ARRAY_BUFFER, attributeBuffer);
+                        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+                        gl.vertexAttribPointer(attribLocation, 3, gl.FLOAT, false, 0, 0);
+                        break;
+                    default:
+                        console.log("Unsupported attribute type: " + attribute.type);
+                        break;
+                }
+            }
+
+            gl.drawElements(gl.TRIANGLES, numIndices, gl.UNSIGNED_SHORT, 0);
 
         }
 
