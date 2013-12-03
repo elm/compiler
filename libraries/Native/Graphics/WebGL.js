@@ -117,11 +117,11 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
                 switch (attribute.type) {
                     case gl.FLOAT_VEC3:
                         var data = [];
-                        List.each(function(v3){
-                            data.push(v3[0]);
-                            data.push(v3[1]);
-                            data.push(v3[2]);
-                        }, glModel.attributes[attribute.name]);
+                        List.each(function(elem){
+                            data.push(elem[attribute.name][0]);
+                            data.push(elem[attribute.name][1]);
+                            data.push(elem[attribute.name][2]);
+                        }, glModel.attributes);
                         var attributeBuffer = gl.createBuffer();
                         gl.bindBuffer(gl.ARRAY_BUFFER, attributeBuffer);
                         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
