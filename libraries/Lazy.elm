@@ -35,16 +35,28 @@ cycle x xs = let cycle' ys = case ys of
                   (y :: ys) -> S { hd = y, tl = thunk (\() -> cycle' ys) }
              in cycle' []
 
+map : (a -> b) -> Stream a -> Stream b
+map f xs = S { hd = f (hd xs)
+             , tl = thunk (\() -> map f (tl xs))
+             }
+
+zip : Stream a -> Stream b -> Stream (a, b)
+zip = zipWith (\x y -> (x,y))
+
 zipWith : (a -> b -> c) -> Stream a -> Stream b -> Stream c
 zipWith f xs ys = S { hd = f (hd xs) (hd ys)
                     , tl = thunk (\() -> zipWith f (tl xs) (tl ys)) }
-
-observeWhen : Stream a -> Signal b -> Signal a
-observeWhen str sig = let tls = foldp (\_ -> tl) str sig in
-                      hd <~ tls
 
 take : Int -> Stream a -> [a]
 take n xs = case n of
   0 -> []
   n -> hd xs :: take (n - 1) (tl xs)
 
+iterate : (a -> a) -> a -> Stream a
+iterate f x = S { hd = x
+                , tl = thunk (\() -> map f (iterate f x))
+                }
+
+observeWhen : Stream a -> Signal b -> Signal a
+observeWhen str sig = let tls = foldp (\_ -> tl) str sig in
+                      hd <~ tls
