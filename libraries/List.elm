@@ -20,6 +20,9 @@ list must have the same type.
 
 # Special Folds
 @docs sum, product, maximum, minimum, all, any, and, or
+
+# Sorting
+@docs sort, sortBy, sortWith
 -}
 
 import open Basics
@@ -224,3 +227,16 @@ drop = Native.List.drop
 -}
 repeat : Int -> a -> [a]
 repeat = Native.List.repeat
+
+{-| Sort a list in ascending order. -}
+sort : [comparable] -> [comparable]
+sort = Native.List.sort
+
+{-| Sort a list by a given comparison transformation, such a [record field
+accessors](http://elm-lang.org/learn/Syntax.elm#records). -}
+sortBy : (a -> comparable) ->  [a] -> [a]
+sortBy = Native.List.sortBy
+
+{-| Sort a list by a given comparison function. -}
+sortWith : (a -> a -> Order) ->  [a] -> [a]
+sortWith = Native.List.sortWith

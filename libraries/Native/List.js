@@ -220,11 +220,20 @@ Elm.Native.List.make = function(elm) {
     }
 
     function sort(xs) {
-        function cmp(a,b) {
-            var ord = Utils.compare(a,b).ctor;
-            return ord=== 'EQ' ? 0 : ord === 'LT' ? -1 : 1;
-        }
-        return fromArray(toArray(xs).sort(cmp));
+        return fromArray(toArray(xs).sort(Utils.cmp));
+    }
+
+    function sortBy(f, xs) {
+        return fromArray(toArray(xs).sort(function(a,b){
+            return Utils.cmp(f(a), f(b));
+        }));
+    }
+
+    function sortWith(f, xs) {
+        return fromArray(toArray(xs).sort(function(a,b){
+            var ord = f(a)(b).ctor;
+            return ord === 'EQ' ? 0 : ord === 'LT' ? -1 : 1;
+        }));
     }
 
     function nth(xs, n) {
@@ -312,6 +321,8 @@ Elm.Native.List.make = function(elm) {
         zipWith:F3(zipWith),
         zip:F2(zip),
         sort:sort,
+        sortBy:F2(sortBy),
+        sortWith:F2(sortWith),
         nth:F2(nth),
         take:F2(take),
         drop:F2(drop),
