@@ -1,32 +1,28 @@
-module Graphics.WebGL (makeGL, linkProgram, linkModel, webgl) where
+module Graphics.WebGL (encapsulate, webgl) where
 
-{-| WebGL
+{-| WebGL -}
 
--}
-
-import Basics (Float)
-import Signal (Signal)
-import MJS (V3,M4x4)
-import Color (Color)
 import Graphics.Element (Element)
 import Native.Graphics.WebGL
 
-data GLContext = Fake_Context
+data Shader a u v = Dummy_Shader
+data Program a u = Dummy_Program
+type Linker = Shader a u v -> Shader {} {} v -> Program a u
 
-makeGL : Int -> Int -> Signal GLContext
-makeGL = Native.Graphics.WebGL.makeGL
+-- Binder really should not need a program
+-- I need runtime type information from something though...
 
-data GLShader declarations = Fake_GLShader
-data GLProgram attributes = Fake_Program
+data Buffer a = Dummy_Buffer
+type Binder = Program a u -> [a] -> Buffer a
 
-linkProgram : GLShader { attribute : a, uniform : u, varying : v } -> GLShader { attribute : {}, uniform : {}, varying : v } -> GLContext -> GLProgram { attribute : a, uniform : u }
-linkProgram = Native.Graphics.WebGL.linkProgram
+-- Now I cheat here because elm lacks existential types or rank-n
+-- I'm in essense doing the following
+-- data Model = forall a u. Model (Program a u) (Buffer a) u
 
-data GLModel = Fake_Model 
+data Model = Dummy_Model 
 
-linkModel : (GLProgram { attribute : a, uniform : u }) -> u -> [a] -> GLModel
-linkModel = Native.Graphics.WebGL.linkModel
+encapsulate : Program a u -> Buffer a -> u -> Model
+encapsulate = Native.Graphics.WebGL.encapsulate
 
-webgl : GLContext -> [GLModel] -> Element
+webgl : Int -> Int -> (Linker -> Binder -> [Model]) -> Element
 webgl = Native.Graphics.WebGL.webgl
-

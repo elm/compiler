@@ -15,76 +15,111 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
     var MJS = Elm.Native.MJS.make(elm);
     var List = Elm.Native.List.make(elm);
 
-    function createShader(gl, str, type) {
-        var shader = gl.createShader(type);
-        gl.shaderSource(shader, str);
-        gl.compileShader(shader);
+    function encapsulate(program, buffer, uniforms) {
 
-        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-            throw gl.getShaderInfoLog(shader);
+        var model = {
+            program: program,
+            buffer: buffer,
+            uniforms: uniforms
+        };
+
+        return model;
+
+    }
+
+    function webgl(w, h, draw) {
+
+        var node = newNode('canvas');
+        var gl = node.getContext('webgl');
+
+        function link (vSrc, fSrc) {
+
+            function createShader(str, type) {
+
+                var shader = gl.createShader(type);
+
+                gl.shaderSource(shader, str);
+                gl.compileShader(shader);
+                var compile = gl.COMPILE_STATUS;
+                if (!gl.getShaderParameter(shader,compile)) {
+                    throw gl.getShaderInfoLog(shader);
+                }
+
+                return shader;
+
+            };
+
+            var vshader = createShader(vSrc, gl.VERTEX_SHADER);
+            var fshader = createShader(fSrc, gl.FRAGMENT_SHADER);
+            var program = gl.createProgram();
+
+            gl.attachShader(program, vshader);
+            gl.attachShader(program, fshader);
+            gl.linkProgram(program);
+            if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                throw gl.getProgramInfoLog(program);
+            }
+
+            return program;
+
         }
 
-        return shader;
-    };
+        function bind (program, bufferElems) {
 
-    function linkProgram(vSrc, fSrc, context) {
-        var gl = context.gl;
-        var vshader = createShader(gl, vSrc, gl.VERTEX_SHADER);
-        var fshader = createShader(gl, fSrc, gl.FRAGMENT_SHADER);
-        var program = gl.createProgram()
-        gl.attachShader(program, vshader);
-        gl.attachShader(program, fshader);
-        gl.linkProgram(program);
-        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-            throw gl.getProgramInfoLog(program);
+            var bufferObject = {};
+
+            var attributes = gl.getProgramParameter(program, gl.ACTIVE_ATTRIBUTES);
+            for (var i = 0; i < attributes; i += 1) {
+                var attribute = gl.getActiveAttrib(program, i);
+                switch (attribute.type) {
+                    case gl.FLOAT_VEC3:
+
+                        // Might want to invert the loop
+                        // to build the array buffer first
+                        // and then bind each one-at-a-time
+                        var data = [];
+                        List.each(function(elem){
+                            data.push(elem[attribute.name][0]);
+                            data.push(elem[attribute.name][1]);
+                            data.push(elem[attribute.name][2]);
+                        }, bufferElems);
+                        var array = new Float32Array(data);
+
+                        var buffer = gl.createBuffer();
+                        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+                        gl.bufferData(gl.ARRAY_BUFFER, array, gl.STATIC_DRAW);
+
+                        bufferObject[attribute.name] = buffer;
+
+                        break;
+
+                    default:
+                        console.log("Bad buffer type");
+                        break;
+                }
+
+            }
+
+            return bufferObject;
+
         }
-        return program;
+
+        function render(model) {
+            drawGL(model);
+            return model.node;
+        }
+
+        function update(canvasNode, oldModel, newModel) {
+            drawGL(newModel)
+        }
+
     }
 
     function drawGL(model) {
-        var aspect = model.aspect;
 
         var gl = model.gl;
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        var program = model.program;
-
-        function drawMesh(mesh, sceneMatrix) {
-            gl.useProgram(program.programPtr);
-            
-            gl.enableVertexAttribArray(program.vertexPositionAttribute);
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.indexBuffer);
-            gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vertexPosBuffer);
-            gl.vertexAttribPointer(program.vertexPositionAttribute, 3, gl.FLOAT, false, 0, 0);
-
-            gl.enableVertexAttribArray(program.vertexColorAttribute);
-            gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vertexColorBuffer);
-            gl.vertexAttribPointer(program.vertexColorAttribute, 4, gl.FLOAT, false, 0, 0);
-
-            gl.uniformMatrix4fv(program.sceneMatrixUniform, false, sceneMatrix);
-            
-            gl.drawElements(gl.TRIANGLES, mesh.numIndices, gl.UNSIGNED_SHORT, 0);
-        }
-
-        var sceneMatrixStack = [MJS.M4x4.identity];
-
-        function drawScene(scene,n) {
-            switch(scene.ctor) {
-                case 'SceneLeaf':
-                    drawMesh(scene._0, sceneMatrixStack[n]);
-                    break;
-                default:
-                    var m = scene._0;
-                    sceneMatrixStack[n+1] = MJS.M4x4.mul(sceneMatrixStack[n],m)
-                    function drawChild(c) {
-                        drawScene(c,n+1);
-                    }
-                    var children = scene._1;
-                    List.each(drawChild, children);
-                    break;
-            }
-        }
-        
         function drawModel(glModel) {
             var program = glModel.program;
             gl.useProgram(program);
@@ -156,90 +191,26 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
         drawGL(newModel)
     }
 
-    function makeGL(w,h) {
-        var node = newNode('canvas');
-        var gl = node.getContext('webgl');
-        return Signal.constant({w:w,h:h,gl:gl,node:node});
-    }
-
-    function bufferMesh(triangles, context) {
-        var indices = [];
-        var positions = [];
-        var colors = [];
-
-        function pushTriangle(n, node) {
-            if (node.ctor === "[]") return;
-            var tri = node._0;
-            for (var i = 0; i < 3; i+= 1) {
-                indices.push(3 * n + i);
-                var vertex = tri['_' + i];
-                for (var j = 0; j < 3; j += 1) {
-                    positions.push(vertex.pos[j]);
-                }
-                colors.push(vertex.color._0 / 256);
-                colors.push(vertex.color._1 / 256);
-                colors.push(vertex.color._2 / 256);
-                colors.push(vertex.color._3);
-            }
-            pushTriangle(n+1,node._1);
-        }
-
-        pushTriangle(0,triangles);
-
-        var gl = context.gl;
-
-        var indexBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
-
-        var vertexPosBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, vertexPosBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-
-        var vertexColorBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, vertexColorBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
-
-        return {
-            indexBuffer: indexBuffer,
-            vertexPosBuffer: vertexPosBuffer,
-            vertexColorBuffer: vertexColorBuffer,
-            numIndices: indices.length,
-        };
-
-    }
-
     function webgl(context, glModels) {
-        
+
         return A3(newElement, context.w, context.h, {
             ctor: 'Custom',
-            type: 'WebGL',
-            render: render,
-            update: update,
-            model: {
-                aspect: context.w/context.h,
-                node: context.node,
-                gl: context.gl,
-                glModels: glModels,
-            },
+               type: 'WebGL',
+               render: render,
+               update: update,
+               model: {
+                   aspect: context.w/context.h,
+               node: context.node,
+               gl: context.gl,
+               glModels: glModels,
+               },
         });
 
     }
 
-    function linkModel(program, uniforms, attributes) {
-        return {
-            program: program,
-            uniforms: uniforms,
-            attributes: attributes,
-        };
-    }
-
     return elm.Native.Graphics.WebGL.values = {
-        makeGL:F2(makeGL),
-        bufferMesh:F2(bufferMesh),
-        webgl:F2(webgl),
-        linkProgram:F3(linkProgram),
-        linkModel:F3(linkModel),
+        encapsulate:F3(linkModel),
+        webgl:F3(webgl),
     };
 
 };
