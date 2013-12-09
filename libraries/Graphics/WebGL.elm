@@ -4,6 +4,7 @@ module Graphics.WebGL (link, bind, encapsulate, webgl) where
 
 import Graphics.Element (Element)
 import Native.Graphics.WebGL
+import Signal (Signal)
 
 data GL = Dummy_GL
 
@@ -30,5 +31,5 @@ data Model = Dummy_Model
 encapsulate : Program a u -> Buffer a -> u -> Model
 encapsulate = Native.Graphics.WebGL.encapsulate
 
-webgl : Int -> Int -> (GL -> [Model]) -> Element
+webgl : Signal (Int,Int) -> Signal (GL -> [Model]) -> Signal Element
 webgl = Native.Graphics.WebGL.webgl
