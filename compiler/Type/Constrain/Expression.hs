@@ -42,7 +42,7 @@ constrain env (L span expr) tipe =
         Nothing -> throwError [PP.text "Some sort of GLSL parse error"]
         Just sourceTipe -> return . L span $ CEqual tipe (shaderTipe sourceTipe)
         where
-          shaderTipe t = Env.get env Env.types "Graphics.WebGL.GLShader" <| t
+          shaderTipe t = Env.get env Env.types "Graphics.WebGL.Shader" <| t
           glTipe = Env.get env Env.types . PH.glTipeName
           declsRecord :: PH.GLShaderDecls -> TermN Variable
           declsRecord extractedTipes = record (fields' extractedTipes) (TermN EmptyRecord1) 

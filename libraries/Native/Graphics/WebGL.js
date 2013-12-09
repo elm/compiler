@@ -27,190 +27,173 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
 
     }
 
+    function link (gl, vSrc, fSrc) {
+
+        function createShader(str, type) {
+
+            var shader = gl.createShader(type);
+
+            gl.shaderSource(shader, str);
+            gl.compileShader(shader);
+            var compile = gl.COMPILE_STATUS;
+            if (!gl.getShaderParameter(shader,compile)) {
+                throw gl.getShaderInfoLog(shader);
+            }
+
+            return shader;
+
+        };
+
+        var vshader = createShader(vSrc, gl.VERTEX_SHADER);
+        var fshader = createShader(fSrc, gl.FRAGMENT_SHADER);
+        var program = gl.createProgram();
+
+        gl.attachShader(program, vshader);
+        gl.attachShader(program, fshader);
+        gl.linkProgram(program);
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            throw gl.getProgramInfoLog(program);
+        }
+
+        return program;
+
+    }
+
+    function bind (gl, program, bufferElems) {
+
+        var buffers = {};
+
+        var attributes = gl.getProgramParameter(program, gl.ACTIVE_ATTRIBUTES);
+        for (var i = 0; i < attributes; i += 1) {
+            var attribute = gl.getActiveAttrib(program, i);
+            switch (attribute.type) {
+                case gl.FLOAT_VEC3:
+
+                    // Might want to invert the loop
+                    // to build the array buffer first
+                    // and then bind each one-at-a-time
+                    var data = [];
+                    List.each(function(elem){
+                        data.push(elem[attribute.name][0]);
+                        data.push(elem[attribute.name][1]);
+                        data.push(elem[attribute.name][2]);
+                    }, bufferElems);
+                    var array = new Float32Array(data);
+
+                    var buffer = gl.createBuffer();
+                    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+                    gl.bufferData(gl.ARRAY_BUFFER, array, gl.STATIC_DRAW);
+
+                    buffers[attribute.name] = buffer;
+
+                    break;
+
+                default:
+                    console.log("Bad buffer type");
+                    break;
+            }
+
+        }
+
+        var bufferObject = {
+            numIndices: List.length(bufferElems),
+            buffers: buffers
+        };
+
+        return bufferObject;
+
+    }
+
     function webgl(w, h, draw) {
 
         var node = newNode('canvas');
         var gl = node.getContext('webgl');
 
-        function link (vSrc, fSrc) {
+        function drawGL(state) {
 
-            function createShader(str, type) {
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+                
+            function drawModel(model) {
 
-                var shader = gl.createShader(type);
+                var program = model.program;
+                gl.useProgram(program);
 
-                gl.shaderSource(shader, str);
-                gl.compileShader(shader);
-                var compile = gl.COMPILE_STATUS;
-                if (!gl.getShaderParameter(shader,compile)) {
-                    throw gl.getShaderInfoLog(shader);
+                var numUniforms = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
+                for (var i = 0; i < numUniforms; i += 1) {
+                    var uniform = gl.getActiveUniform(program, i);
+                    var uniformLocation = gl.getUniformLocation(program, uniform.name);
+                    switch (uniform.type) {
+                        case gl.FLOAT_MAT4:
+                            gl.uniformMatrix4fv(uniformLocation, false, model.uniforms[uniform.name]);
+                            break;
+                        default:
+                            console.log("Unsupported uniform type: " + uniform.type);
+                            break;
+                    }
                 }
 
-                return shader;
+                var numIndices = model.buffer.numIndices;
+                var indices = List.toArray(List.range(0,numIndices));
 
-            };
+                var indexBuffer = gl.createBuffer();
+                gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+                gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
 
-            var vshader = createShader(vSrc, gl.VERTEX_SHADER);
-            var fshader = createShader(fSrc, gl.FRAGMENT_SHADER);
-            var program = gl.createProgram();
+                var numAttributes = gl.getProgramParameter(program, gl.ACTIVE_ATTRIBUTES);
+                for (var i = 0; i < numAttributes; i += 1) {
+                    var attribute = gl.getActiveAttrib(program, i);
+                    var attribLocation = gl.getAttribLocation(program, attribute.name);
+                    gl.enableVertexAttribArray(attribLocation);
+                    attributeBuffer = model.buffer.buffers[attribute.name];
 
-            gl.attachShader(program, vshader);
-            gl.attachShader(program, fshader);
-            gl.linkProgram(program);
-            if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-                throw gl.getProgramInfoLog(program);
-            }
-
-            return program;
-
-        }
-
-        function bind (program, bufferElems) {
-
-            var bufferObject = {};
-
-            var attributes = gl.getProgramParameter(program, gl.ACTIVE_ATTRIBUTES);
-            for (var i = 0; i < attributes; i += 1) {
-                var attribute = gl.getActiveAttrib(program, i);
-                switch (attribute.type) {
-                    case gl.FLOAT_VEC3:
-
-                        // Might want to invert the loop
-                        // to build the array buffer first
-                        // and then bind each one-at-a-time
-                        var data = [];
-                        List.each(function(elem){
-                            data.push(elem[attribute.name][0]);
-                            data.push(elem[attribute.name][1]);
-                            data.push(elem[attribute.name][2]);
-                        }, bufferElems);
-                        var array = new Float32Array(data);
-
-                        var buffer = gl.createBuffer();
-                        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-                        gl.bufferData(gl.ARRAY_BUFFER, array, gl.STATIC_DRAW);
-
-                        bufferObject[attribute.name] = buffer;
-
-                        break;
-
-                    default:
-                        console.log("Bad buffer type");
-                        break;
+                    switch (attribute.type) {
+                        case gl.FLOAT_VEC3:
+                            gl.bindBuffer(gl.ARRAY_BUFFER, attributeBuffer);
+                            gl.vertexAttribPointer(attribLocation, 3, gl.FLOAT, false, 0, 0);
+                            break;
+                        default:
+                            console.log("Unsupported attribute type: " + attribute.type);
+                            break;
+                    }
                 }
+
+                gl.drawElements(gl.TRIANGLES, numIndices, gl.UNSIGNED_SHORT, 0);
 
             }
 
-            return bufferObject;
+            List.each(drawModel, state.models);
 
         }
 
-        function render(model) {
-            drawGL(model);
-            return model.node;
+        function render(state) {
+            drawGL(state);
+            return node;
         }
 
-        function update(canvasNode, oldModel, newModel) {
-            drawGL(newModel)
+        function update(_node, oldState, newState) {
+            drawGL(newState)
         }
 
-    }
+        var models = draw(gl);
 
-    function drawGL(model) {
-
-        var gl = model.gl;
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-        function drawModel(glModel) {
-            var program = glModel.program;
-            gl.useProgram(program);
-
-            var activeUniforms = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
-            for (var i = 0; i < activeUniforms; i += 1) {
-                var uniform = gl.getActiveUniform(program, i);
-                var uniformLocation = gl.getUniformLocation(program, uniform.name);
-                switch (uniform.type) {
-                    case gl.FLOAT_MAT4:
-                        gl.uniformMatrix4fv(uniformLocation, false, glModel.uniforms[uniform.name]);
-                        break;
-                    default:
-                        console.log("Unsupported uniform type: " + uniform.type);
-                        break;
-                }
-            }
-
-            var numIndices = List.length(glModel.attributes);
-            var indices = List.toArray(List.range(0,numIndices));
-            var indexBuffer = gl.createBuffer();
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
-
-            var activeAttributes = gl.getProgramParameter(program, gl.ACTIVE_ATTRIBUTES);
-            for (var i = 0; i < activeAttributes; i += 1) {
-                var attribute = gl.getActiveAttrib(program, i);
-                var attribLocation = gl.getAttribLocation(program, attribute.name);
-                gl.enableVertexAttribArray(attribLocation);
-                switch (attribute.type) {
-                    case gl.FLOAT_VEC3:
-                        var data = [];
-                        List.each(function(elem){
-                            data.push(elem[attribute.name][0]);
-                            data.push(elem[attribute.name][1]);
-                            data.push(elem[attribute.name][2]);
-                        }, glModel.attributes);
-                        var attributeBuffer = gl.createBuffer();
-                        gl.bindBuffer(gl.ARRAY_BUFFER, attributeBuffer);
-                        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
-                        gl.vertexAttribPointer(attribLocation, 3, gl.FLOAT, false, 0, 0);
-                        break;
-                    default:
-                        console.log("Unsupported attribute type: " + attribute.type);
-                        break;
-                }
-            }
-
-            gl.drawElements(gl.TRIANGLES, numIndices, gl.UNSIGNED_SHORT, 0);
-
-        }
-
-        List.each(drawModel, model.glModels);
-
-    }
-
-    /*
-     * Called for new node, caches lots of stuff
-     */
-    function render(model) {
-        drawGL(model);
-        return model.node;
-    }
-
-    /*
-     * Called at existing node
-     */
-    function update(canvasNode, oldModel, newModel) {
-        drawGL(newModel)
-    }
-
-    function webgl(context, glModels) {
-
-        return A3(newElement, context.w, context.h, {
+        var elem = {
             ctor: 'Custom',
-               type: 'WebGL',
-               render: render,
-               update: update,
-               model: {
-                   aspect: context.w/context.h,
-               node: context.node,
-               gl: context.gl,
-               glModels: glModels,
-               },
-        });
+            type: 'WebGL',
+            render: render,
+            update: update,
+            model: {
+                models: models,
+            }
+        };
 
+        return A3(newElement, w, h, elem);
     }
 
     return elm.Native.Graphics.WebGL.values = {
-        encapsulate:F3(linkModel),
-        webgl:F3(webgl),
+        link:F3(link),
+        bind:F3(bind),
+        encapsulate:F3(encapsulate),
+        webgl:F3(webgl)
     };
 
 };
