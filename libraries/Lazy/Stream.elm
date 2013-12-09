@@ -50,9 +50,8 @@ cons' = S . lazy
     iterate f x = S.cons x (S.cons (f x) (S.cons (f (f x)) ...))
 -}
 iterate : (a -> a) -> a -> Stream a
-iterate f x = let go = cons' <| \() ->
-                    (x, map f go)
-              in go
+iterate f x = cons' <| \() ->
+  (x, iterate f (f x))
 
 {-| Create an infinite Stream of xs. -}
 repeat : a -> Stream a
