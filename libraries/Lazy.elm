@@ -3,6 +3,14 @@ module Lazy ( force, lazy, map, apply, bind
 
 {-| Library for efficient Lazy evaluation.
 
+# Delay
+@docs lazy
+
+# Evaluate
+@docs force
+
+# Transform
+@docs map, apply, bind
 -}
 
 import Basics ((<|), (.))
