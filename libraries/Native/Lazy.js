@@ -7,7 +7,7 @@ Elm.Native.Lazy.make = function(elm) {
 
     var Utils = Elm.Native.Utils.make(elm);
     
-    function thunk(f) {
+    function lazy(f) {
 	var value = {};
 	var isEvaled = false;
 	var memoed = function(x) {
@@ -21,6 +21,6 @@ Elm.Native.Lazy.make = function(elm) {
     }
 
     return elm.Native.Lazy.values = {
-	thunk : thunk
+	lazy : lazy
     };
 };

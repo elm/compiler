@@ -1,17 +1,17 @@
-module Lazy.Stream ( hd, tl
-                   , mkStream , iterate, repeat, cycle
+module Lazy.Stream ( head, tail
+                   , cons, cons', iterate, repeat, cycle
                    , map, apply, zip, zipWith, scanl
                    , take, drop, splitAt
-                   , observeWhen
+                   , sampleOn
                    ) where
 
 {-| Library for Infinite Streams 
 
 # Observe
-@docs hd, tl, observeWhen, take, drop, splitAt
+@docs head, tail, sampleOn, take, drop, splitAt
 
 # Create
-@docs mkStream, iterate, repeat, cycle
+@docs cons', iterate, repeat, cycle
 
 # Transform
 @docs map, apply, zip, zipWith, scanl
@@ -22,41 +22,41 @@ import Basics ((.), (<|), (-), id, fst, snd)
 import open Lazy
 import Signal ((<~), foldp, Signal)
 
-data Stream a = S (Lazy { hd : a, tl : Stream a })
+data Stream a = S (Lazy (a, Stream a))
 
-hd : Stream a -> a
-hd (S t) = (run t).hd
+unS : Stream a -> (a, Stream a)
+unS (S t) = force t
 
-tl : Stream a -> Stream a
-tl (S t) = (run t).tl
+head : Stream a -> a
+head = fst . unS
 
-mkStream : (() -> { hd : a, tl : Stream a }) -> Stream a
-mkStream = S . thunk
+tail : Stream a -> Stream a
+tail = snd . unS
+
+cons : a -> (() -> Stream a) -> Stream a
+cons x txs = let mtxs = lazy txs in
+  S . lazy <| \() ->
+  (x, force mtxs)
+
+cons' : (() -> (a, Stream a)) -> Stream a
+cons' = S . lazy
 
 iterate : (a -> a) -> a -> Stream a
-iterate f x = mkStream <| \() ->
-  { hd = x
-  , tl = map f (iterate f x)
-  }
+iterate f x = cons' <| \() ->
+  (x, map f (iterate f x))
 
 repeat : a -> Stream a
 repeat x = iterate id x
   
 cycle : a -> [a] -> Stream a
 cycle x xs = let cycle' ys = case ys of
-                   [] -> mkStream <| \() ->
-                     { hd = x
-                     , tl = cycle' xs }
-                   (y :: ys) -> mkStream <| \() ->
-                     { hd = y
-                     , tl = cycle' ys }
+                   [] -> cons' <| \() ->
+                     (x, cycle' xs)
              in cycle' []
 
 map : (a -> b) -> Stream a -> Stream b
-map f xs = mkStream <| \() ->
-  { hd = f (hd xs)
-  , tl = map f (tl xs)
-  }
+map f xs = cons' <| \() ->
+  (f (head xs), map f (tail xs))
 
 apply : Stream (a -> b) -> Stream a -> Stream b
 apply fs xs = zipWith (<|) fs xs
@@ -65,16 +65,14 @@ zip : Stream a -> Stream b -> Stream (a, b)
 zip = zipWith (\x y -> (x,y))
 
 zipWith : (a -> b -> c) -> Stream a -> Stream b -> Stream c
-zipWith f xs ys = mkStream <| \() ->
-  { hd = f (hd xs) (hd ys)
-  , tl = zipWith f (tl xs) (tl ys)
-  }
+zipWith f xs ys = cons' <| \() ->
+  (f (head xs) (head ys),
+   zipWith f (tail xs) (tail ys))
 
 scanl : (a -> b -> b) -> b -> Stream a -> Stream b
-scanl f init xs = mkStream <| \() ->
-  { hd = init
-  , tl = scanl f (f (hd xs) init) (tl xs)
-  }
+scanl f init xs = cons' <| \() ->
+  (init,
+   scanl f (f (head xs) init) (tail xs))
 
 take : Int -> Stream a -> [a]
 take n xs = fst <| splitAt n xs
@@ -85,9 +83,9 @@ drop n xs = snd <| splitAt n xs
 splitAt : Int -> Stream a -> ([a], Stream a)
 splitAt n xs = case n of
   0 -> ([], xs)
-  n -> let (hds, end) = splitAt (n - 1) (tl xs)
-       in (hd xs :: hds, end)
+  n -> let (heads, end) = splitAt (n - 1) (tail xs)
+       in (head xs :: heads, end)
 
-observeWhen : Stream a -> Signal b -> Signal a
-observeWhen str sig = let tls = foldp (\_ -> tl) str sig in
-                      hd <~ tls
+sampleOn : Stream a -> Signal b -> Signal a
+sampleOn str sig = let tails = foldp (\_ -> tail) str sig in
+                   head <~ tails

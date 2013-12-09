@@ -1,4 +1,4 @@
-module Lazy ( run, thunk, map, apply, bind
+module Lazy ( force, lazy, map, apply, bind
             ) where
 
 {-| Library for efficient Lazy evaluation.
@@ -8,27 +8,27 @@ module Lazy ( run, thunk, map, apply, bind
 import Basics ((<|), (.))
 import Native.Lazy
 
-data Lazy a = L { run : () -> a }
+data Lazy a = L { force : () -> a }
 
 {-| Memoize a thunk so it is evaluated at most once. -}
-thunk : (() -> a) -> Lazy a
-thunk t = L { run = (Native.Lazy.thunk t) }
+lazy : (() -> a) -> Lazy a
+lazy t = L { force = (Native.Lazy.lazy t) }
 
 {-| Execute a lazy value. -}
-run : Lazy a -> a
-run (L r) = r.run ()
+force : Lazy a -> a
+force (L r) = r.force ()
 
 {-| Lazily apply a pure function to a lazy value. -}
 map : (a -> b) -> Lazy a -> Lazy b
-map f t = thunk <| \() ->
-  f . run <| t
+map f t = lazy <| \() ->
+  f . force <| t
 
 {-| Lazily apply a Lazy function to a Lazy value. -}
 apply : Lazy (a -> b) -> Lazy a -> Lazy b
-apply f x = thunk <| \() ->
-  (run f) (run x)
+apply f x = lazy <| \() ->
+  (force f) (force x)
 
 {-| Lazily chain together Lazy computations. -}
 bind : Lazy a -> (a -> Lazy b) -> Lazy b
-bind x k = thunk <| \() ->
-  run . k . run <| x
+bind x k = lazy <| \() ->
+  force . k . force <| x
