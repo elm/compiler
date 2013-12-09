@@ -1,11 +1,24 @@
-module Lazy.Stream ( hd, tl, mkStream, repeat, cycle
-                   , map, apply, zip, zipWith, iterate
-                   , take, observeWhen
+module Lazy.Stream ( hd, tl
+                   , mkStream , iterate, repeat, cycle
+                   , map, apply, zip, zipWith, scanl
+                   , take, drop, splitAt
+                   , observeWhen
                    ) where
 
-{-| Library for Infinite Streams -}
+{-| Library for Infinite Streams 
 
-import Basics ((.), (<|), (-))
+# Observe
+@docs hd, tl, observeWhen, take, drop, splitAt
+
+# Create
+@docs mkStream, iterate, repeat, cycle
+
+# Transform
+@docs map, apply, zip, zipWith, scanl
+
+-}
+
+import Basics ((.), (<|), (-), id, fst, snd)
 import open Lazy
 import Signal ((<~), foldp, Signal)
 
@@ -20,9 +33,14 @@ tl (S t) = (run t).tl
 mkStream : (() -> { hd : a, tl : Stream a }) -> Stream a
 mkStream = S . thunk
 
+iterate : (a -> a) -> a -> Stream a
+iterate f x = mkStream <| \() ->
+  { hd = x
+  , tl = map f (iterate f x)
+  }
+
 repeat : a -> Stream a
-repeat x = mkStream <| \() ->
-  { hd = x, tl = repeat x }
+repeat x = iterate id x
   
 cycle : a -> [a] -> Stream a
 cycle x xs = let cycle' ys = case ys of
@@ -52,16 +70,23 @@ zipWith f xs ys = mkStream <| \() ->
   , tl = zipWith f (tl xs) (tl ys)
   }
 
-iterate : (a -> a) -> a -> Stream a
-iterate f x = mkStream <| \() ->
-  { hd = x
-  , tl = map f (iterate f x)
+scanl : (a -> b -> b) -> b -> Stream a -> Stream b
+scanl f init xs = mkStream <| \() ->
+  { hd = init
+  , tl = scanl f (f (hd xs) init) (tl xs)
   }
 
 take : Int -> Stream a -> [a]
-take n xs = case n of
-  0 -> []
-  n -> hd xs :: take (n - 1) (tl xs)
+take n xs = fst <| splitAt n xs
+
+drop : Int -> Stream a -> Stream a
+drop n xs = snd <| splitAt n xs
+
+splitAt : Int -> Stream a -> ([a], Stream a)
+splitAt n xs = case n of
+  0 -> ([], xs)
+  n -> let (hds, end) = splitAt (n - 1) (tl xs)
+       in (hd xs :: hds, end)
 
 observeWhen : Stream a -> Signal b -> Signal a
 observeWhen str sig = let tls = foldp (\_ -> tl) str sig in
