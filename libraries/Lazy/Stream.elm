@@ -51,18 +51,22 @@ cons' = S . lazy
 -}
 iterate : (a -> a) -> a -> Stream a
 iterate f x = cons' <| \() ->
-  (x, map f (iterate f x))
+  (x, iterate f (f x))
 
 {-| Create an infinite Stream of xs. -}
 repeat : a -> Stream a
-repeat x = iterate id x
+repeat x = let go = cons x <| \() -> go
+           in go
 
 {-| Cycle through the elements of the nonempty list (x :: xs) -}           
 cycle : a -> [a] -> Stream a
 cycle x xs = let cycle' ys = case ys of
-                   [] -> cons' <| \() ->
-                     (x, cycle' xs)
-             in cycle' []
+                   [] -> go
+                   (y :: ys) -> cons y <| \() ->
+                     cycle' ys
+                 go = cons' <| \() ->
+                   (x, cycle' xs)
+             in go
 
 {-| Apply a function to every element of a Stream. -}
 map : (a -> b) -> Stream a -> Stream b
