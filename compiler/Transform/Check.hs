@@ -17,7 +17,7 @@ mistakes :: (Data t, Data v) => [Declaration t v] -> [Doc]
 mistakes decls =
     concat [ infiniteTypeAliases decls
            , illFormedTypes decls
-           , map P.text (duplicateDataConstructors decls)
+           , map P.text (duplicateConstructors decls)
            , map P.text (concatMap findErrors (getLets decls)) ]
   where
     findErrors defs = duplicates defs ++ badOrder defs
@@ -47,12 +47,15 @@ duplicates defs =
     defMsg x = msg ++ "definition of '" ++ x ++ "'."
     annMsg x = msg ++ "type annotation for '" ++ x ++ "'."
 
-duplicateDataConstructors :: [Declaration t v] -> [String]
-duplicateDataConstructors decls = map ctorMsg . dups $ constructors
+duplicateConstructors :: [Declaration t v] -> [String]
+duplicateConstructors decls = 
+    map typeMsg (dups typeCtors) ++ map dataMsg (dups dataCtors)
   where
-    constructors = List.sort . concat $
+    typeCtors = List.sort [ name | Datatype name _ _ <- decls ]
+    dataCtors = List.sort . concat $
       [ map fst patterns | Datatype _ _ patterns <- decls ]
-    ctorMsg x = msg ++ "definition of '" ++ x ++ "'."
+    dataMsg x = msg ++ "definition of data constructor '" ++ x ++ "'."
+    typeMsg x = msg ++ "definition of type constructor '" ++ x ++ "'."
 
 badOrder :: [Def t v] -> [String]
 badOrder defs = go defs
