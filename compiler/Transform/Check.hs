@@ -17,10 +17,10 @@ mistakes :: (Data t, Data v) => [Declaration t v] -> [Doc]
 mistakes decls =
     concat [ infiniteTypeAliases decls
            , illFormedTypes decls
+           , map P.text (duplicateDataConstructors decls)
            , map P.text (concatMap findErrors (getLets decls)) ]
   where
     findErrors defs = duplicates defs ++ badOrder defs
-
 
 getLets :: (Data t, Data v) => [Declaration t v] -> [[Def t v]]
 getLets decls = defs : concatMap getSubLets defs
@@ -32,6 +32,11 @@ getLets decls = defs : concatMap getSubLets defs
             Def pattern expr -> [ defs | Let defs _ <- universeBi expr ]
             TypeAnnotation _ _ -> []
 
+msg :: String
+msg  = "Syntax Error: There can only be one "
+
+dups :: Eq a => [a] -> [a]
+dups  = map head . filter ((>1) . length) . List.group
 
 duplicates :: [Def t v] -> [String]
 duplicates defs =
@@ -39,13 +44,15 @@ duplicates defs =
   where
     annotations = List.sort [ name | TypeAnnotation name _ <- defs ]
     definitions = List.sort $ concatMap Set.toList [ boundVars pattern | Def pattern _ <- defs ]
-
-    dups = map head . filter ((>1) . length) . List.group
-
-    msg = "Syntax Error: There can only be one "
     defMsg x = msg ++ "definition of '" ++ x ++ "'."
     annMsg x = msg ++ "type annotation for '" ++ x ++ "'."
 
+duplicateDataConstructors :: [Declaration t v] -> [String]
+duplicateDataConstructors decls = map ctorMsg . dups $ constructors
+  where
+    constructors = List.sort . concat $
+      [ map fst patterns | Datatype _ _ patterns <- decls ]
+    ctorMsg x = msg ++ "definition of '" ++ x ++ "'."
 
 badOrder :: [Def t v] -> [String]
 badOrder defs = go defs
