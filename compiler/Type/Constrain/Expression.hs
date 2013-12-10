@@ -38,20 +38,15 @@ constrain env (L span expr) tipe =
     case expr of
       Literal lit -> liftIO $ Literal.constrain env span lit tipe
 
-      GLShader _ src -> case declsRecord <$> PH.glSource src of
-        Nothing -> throwError [PP.text "Some sort of GLSL parse error"]
-        Just sourceTipe -> return . L span $ CEqual tipe (shaderTipe sourceTipe)
-        where
-          shaderTipe t = Env.get env Env.types "Graphics.WebGL.Shader" <| t
+      GLShader uid src -> case PH.glSource src of
+        Nothing -> throwError [PP.text $ "Some sort of GLSL parse error" ++ uid]
+        Just sourceDecls -> return . L span $ CEqual tipe (shaderTipe attribute uniform varying)
+            where
+          shaderTipe a u v = Env.get env Env.types "Graphics.WebGL.Shader" <| a <| u <| v
           glTipe = Env.get env Env.types . PH.glTipeName
-          declsRecord :: PH.GLShaderDecls -> TermN Variable
-          declsRecord extractedTipes = record (fields' extractedTipes) (TermN EmptyRecord1) 
-          fields' :: PH.GLShaderDecls -> Map.Map String [Type]
-          fields' extractedTipes = Map.fromList
-            [ ("attribute", [record (Map.map (\t -> [glTipe t]) $ PH.attribute extractedTipes) (TermN EmptyRecord1) ] )
-            , ("uniform", [record (Map.map (\t -> [glTipe t]) $ PH.uniform extractedTipes) (TermN EmptyRecord1) ] )
-            , ("varying", [record (Map.map (\t -> [glTipe t]) $ PH.varying extractedTipes) (TermN EmptyRecord1) ] )
-            ]
+          attribute = record (Map.map (\t -> [glTipe t]) $ PH.attribute sourceDecls) (TermN EmptyRecord1)
+          uniform = record (Map.map (\t -> [glTipe t]) $ PH.uniform sourceDecls) (TermN EmptyRecord1)
+          varying = record (Map.map (\t -> [glTipe t]) $ PH.varying sourceDecls) (TermN EmptyRecord1)
             
 
       Var name | name == saveEnvName -> return (L span CSaveEnv)

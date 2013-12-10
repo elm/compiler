@@ -168,6 +168,11 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
 
     function webgl(sDimensions, sfDraw) {
 
+        if (!window.WebGLRenderingContext) {
+            throw new Error("It appears your browser does not support WebGL! http://get.webgl.org/troubleshooting");
+            return;
+        }
+
         var node = newNode('canvas');
         var gl = node.getContext('webgl');
         var sGL = Signal.constant(gl);

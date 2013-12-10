@@ -11,7 +11,7 @@ data GL = Dummy_GL
 data Shader auv = Dummy_Shader
 data Program a u = Dummy_Program
 
-link : GL -> Shader { attribute : a, uniform : u, varying : v } -> Shader { attribute : {}, uniform : {}, varying : v } -> Program a u
+link : GL -> Shader a u v -> Shader {} {} v -> Program a u
 link = Native.Graphics.WebGL.link
 
 -- Binder really should not need a program
