@@ -96,8 +96,16 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
 
         }
 
+        var numIndices = List.length(bufferElems);
+        var indices = List.toArray(List.range(0,numIndices));
+        console.log("Created index buffer");
+        var indexBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+
         var bufferObject = {
             numIndices: List.length(bufferElems),
+            indexBuffer: indexBuffer,
             buffers: buffers
         };
 
@@ -129,12 +137,8 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
             }
 
             var numIndices = model.buffer.numIndices;
-            var indices = List.toArray(List.range(0,numIndices));
-
-            console.log("Created index buffer");
-            var indexBuffer = gl.createBuffer();
+            var indexBuffer = model.buffer.indexBuffer;
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
 
             var numAttributes = gl.getProgramParameter(program, gl.ACTIVE_ATTRIBUTES);
             for (var i = 0; i < numAttributes; i += 1) {
@@ -162,14 +166,13 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
 
     }
 
-    function webgl(sDimensions, sDraw) {
+    function webgl(sDimensions, sfDraw) {
 
         var node = newNode('canvas');
         var gl = node.getContext('webgl');
         var sGL = Signal.constant(gl);
 
-        var application = F2(function(f,x) { return f(x); });
-        var sModels = A3(Signal.lift2,application,sDraw,sGL);
+        var sModels = sfDraw(sGL);
 
         function makeGLelement(dimensions, models, gl) {
 

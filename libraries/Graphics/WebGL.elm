@@ -31,5 +31,5 @@ data Model = Dummy_Model
 encapsulate : Program a u -> Buffer a -> u -> Model
 encapsulate = Native.Graphics.WebGL.encapsulate
 
-webgl : Signal (Int,Int) -> Signal (GL -> [Model]) -> Signal Element
+webgl : Signal (Int,Int) -> (Signal GL -> Signal [Model]) -> Signal Element
 webgl = Native.Graphics.WebGL.webgl
