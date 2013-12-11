@@ -138,7 +138,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
 
         var bufferObject = {
-            numIndices: List.length(bufferElems),
+            numIndices: numIndices,
             indexBuffer: indexBuffer,
             buffers: buffers
         };
