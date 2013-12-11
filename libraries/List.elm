@@ -20,6 +20,9 @@ list must have the same type.
 
 # Special Folds
 @docs sum, product, maximum, minimum, all, any, and, or
+
+# Sorting
+@docs sort, sortBy, sortWith
 -}
 
 import open Basics
@@ -224,3 +227,42 @@ drop = Native.List.drop
 -}
 repeat : Int -> a -> [a]
 repeat = Native.List.repeat
+
+{-| Sort values from lowest to highest: `sort [3,1,5] == [1,3,5]`
+-}
+sort : [comparable] -> [comparable]
+sort = Native.List.sort
+
+{-| Sort values by a derived property.
+
+```haskell
+alice = { name="Alice", height=1.62 }
+bob   = { name="Bob"  , height=1.85 }
+chuck = { name="Chuck", height=1.76 }
+
+sortBy .name   [chuck,alice,bob] == [alice,bob,chuck]
+sortBy .height [chuck,alice,bob] == [alice,chuck,bob]
+
+sortBy String.length ["five","hi"] == ["hi","five"]
+```
+-}
+sortBy : (a -> comparable) ->  [a] -> [a]
+sortBy = Native.List.sortBy
+
+{-| Sort values with a custom comparison function.
+
+```haskell
+sortWith flippedComparison [1..5] == [5,4,3,2,1]
+
+flippedComparison a b =
+     case compare a b of
+       LT -> GT
+       EQ -> EQ
+       GT -> LT
+```
+
+This is also the most general sort function, allowing you
+to define any other: `sort == sortWith compare`
+-}
+sortWith : (a -> a -> Order) ->  [a] -> [a]
+sortWith = Native.List.sortWith
