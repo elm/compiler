@@ -1,6 +1,8 @@
 Elm.Native.Graphics.WebGL = {};
 Elm.Native.Graphics.WebGL.make = function(elm) {
 
+    // LOG LEVEL
+
     elm.Native = elm.Native || {};
     elm.Native.Graphics = elm.Native.Graphics || {};
     elm.Native.Graphics.WebGL = elm.Native.Graphics.WebGL || {};
@@ -17,17 +19,29 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
 
     function encapsulate(program, buffer, uniforms) {
 
-        var model = {
+        return model = {
             program: program,
             buffer: buffer,
             uniforms: uniforms
         };
 
-        return model;
+    }
+
+    function link (vSrc, fSrc) {
+
+        var guid = Utils.guid();
+
+        console.log("Wrapped program #" + guid);
+
+        return program = {
+            guid: guid,
+            vSrc: vSrc,
+            fSrc: fSrc
+        };
 
     }
 
-    function link (gl, vSrc, fSrc) {
+    function do_link (gl, vSrc, fSrc) {
 
         function createShader(str, type) {
 
@@ -47,6 +61,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
         var vshader = createShader(vSrc, gl.VERTEX_SHADER);
         var fshader = createShader(fSrc, gl.FRAGMENT_SHADER);
         var program = gl.createProgram();
+        console.log("Created shaders and program");
 
         gl.attachShader(program, vshader);
         gl.attachShader(program, fshader);
@@ -59,7 +74,20 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
 
     }
 
-    function bind (gl, program, bufferElems) {
+    function bind (bufferElems) {
+
+        var guid = Utils.guid();
+
+        console.log("Wrapped buffer #" + guid);
+
+        return buffer = {
+            guid: guid,
+            bufferElems: bufferElems
+        };
+
+    }
+
+    function do_bind (gl, program, bufferElems) {
 
         var buffers = {};
 
@@ -74,9 +102,15 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
                     // and then bind each one-at-a-time
                     var data = [];
                     List.each(function(elem){
-                        data.push(elem[attribute.name][0]);
-                        data.push(elem[attribute.name][1]);
-                        data.push(elem[attribute.name][2]);
+                        data.push(elem._0[attribute.name][0]);
+                        data.push(elem._0[attribute.name][1]);
+                        data.push(elem._0[attribute.name][2]);
+                        data.push(elem._1[attribute.name][0]);
+                        data.push(elem._1[attribute.name][1]);
+                        data.push(elem._1[attribute.name][2]);
+                        data.push(elem._2[attribute.name][0]);
+                        data.push(elem._2[attribute.name][1]);
+                        data.push(elem._2[attribute.name][2]);
                     }, bufferElems);
                     var array = new Float32Array(data);
 
@@ -96,8 +130,8 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
 
         }
 
-        var numIndices = List.length(bufferElems);
-        var indices = List.toArray(List.range(0,numIndices));
+        var numIndices = 3 * List.length(bufferElems);
+        var indices = List.toArray(List.range(0, numIndices - 1));
         console.log("Created index buffer");
         var indexBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
@@ -113,13 +147,21 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
 
     }
 
-    function drawGL(gl,state) {
+    function drawGL(model) {
+        
+        var gl = model.cache.gl;
 
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        console.log("Drawing");
 
-        function drawModel(model) {
+        function drawModel(m) {
 
-            var program = model.program;
+            var program = model.cache.programs[m.program.guid];
+            if (!program) {
+                program = do_link(gl, m.program.vSrc, m.program.fSrc);
+                model.cache.programs[m.program.guid] = program;
+            }
+
             gl.useProgram(program);
 
             var numUniforms = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
@@ -128,7 +170,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
                 var uniformLocation = gl.getUniformLocation(program, uniform.name);
                 switch (uniform.type) {
                     case gl.FLOAT_MAT4:
-                        gl.uniformMatrix4fv(uniformLocation, false, model.uniforms[uniform.name]);
+                        gl.uniformMatrix4fv(uniformLocation, false, m.uniforms[uniform.name]);
                         break;
                     default:
                         console.log("Unsupported uniform type: " + uniform.type);
@@ -136,8 +178,14 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
                 }
             }
 
-            var numIndices = model.buffer.numIndices;
-            var indexBuffer = model.buffer.indexBuffer;
+            var buffer = model.cache.buffers[m.buffer.guid];
+            if (!buffer) {
+                buffer = do_bind(gl, program, m.buffer.bufferElems);
+                model.cache.buffers[m.buffer.guid] = buffer;
+            }
+
+            var numIndices = buffer.numIndices;
+            var indexBuffer = buffer.indexBuffer;
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
 
             var numAttributes = gl.getProgramParameter(program, gl.ACTIVE_ATTRIBUTES);
@@ -145,7 +193,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
                 var attribute = gl.getActiveAttrib(program, i);
                 var attribLocation = gl.getAttribLocation(program, attribute.name);
                 gl.enableVertexAttribArray(attribLocation);
-                attributeBuffer = model.buffer.buffers[attribute.name];
+                attributeBuffer = buffer.buffers[attribute.name];
 
                 switch (attribute.type) {
                     case gl.FLOAT_VEC3:
@@ -162,58 +210,59 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
 
         }
 
-        List.each(drawModel, state.models);
+        List.each(drawModel, model.models);
 
     }
 
-    function webgl(sDimensions, sfDraw) {
+    function webgl(dimensions, models) {
 
         if (!window.WebGLRenderingContext) {
             throw new Error("It appears your browser does not support WebGL! http://get.webgl.org/troubleshooting");
             return;
         }
 
-        var node = newNode('canvas');
-        var gl = node.getContext('webgl');
-        var sGL = Signal.constant(gl);
+        var w = dimensions._0;
+        var h = dimensions._1;
 
-        var sModels = sfDraw(sGL);
+        function render(model) {
 
-        function makeGLelement(dimensions, models, gl) {
+            var node = newNode('canvas');
+            var gl = node.getContext('webgl');
 
-            var w = dimensions._0;
-            var h = dimensions._1;
+            model.cache.gl = gl;
+            model.cache.programs = [];
+            model.cache.buffers = [];
 
-            function render(state) {
-                drawGL(gl,state);
-                return node;
-            }
-
-            function update(_node, oldState, newState) {
-                drawGL(gl,newState)
-            }
-
-            var elem = {
-                ctor: 'Custom',
-                type: 'WebGL',
-                render: render,
-                update: update,
-                model: {
-                    models: models,
-                }
-            };
-
-            return A3(newElement, w, h, elem);
+            drawGL(model);
+            return node;
 
         }
 
-        return A4(Signal.lift3,F3(makeGLelement),sDimensions,sModels,sGL);
+        function update(_node, oldModel, newModel) {
+
+            newModel.cache = oldModel.cache;
+            drawGL(newModel);
+
+        }
+
+        var elem = {
+            ctor: 'Custom',
+            type: 'WebGL',
+            render: render,
+            update: update,
+            model: {
+                models: models,
+                cache: {},
+            }
+        };
+
+        return A3(newElement, w, h, elem);
 
     }
 
     return elm.Native.Graphics.WebGL.values = {
-        link:F3(link),
-        bind:F3(bind),
+        link:F2(link),
+        bind:bind,
         encapsulate:F3(encapsulate),
         webgl:F2(webgl)
     };
