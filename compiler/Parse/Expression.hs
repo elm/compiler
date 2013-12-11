@@ -60,7 +60,7 @@ listTerm = markdown' <|> braces (try range <|> ExplicitList <$> commaSep expr)
       return (Markdown uid (filter (/='\r') rawText) exprs)
 
     span uid index =
-        "<span id=\"md-" ++ uid ++ "-" ++ show index ++ "\"></span>"
+        "<span id=\"md-" ++ uid ++ "-" ++ show index ++ "\">{{ markdown interpolation is in the pipeline, but still needs more testing }}</span>"
 
     interpolation uid md exprs = do
       try (string "{{")

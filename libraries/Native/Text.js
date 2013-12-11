@@ -107,15 +107,7 @@ Elm.Native.Text.make = function(elm) {
             ctor:'RawHtml',
             html: text,
             guid: guid,
-            args: Array.prototype.slice.call(arguments, 2).map(function(arg) {
-                if (arg.props && arg.element) {
-                    arg.isElement = true;
-                    return arg;
-                } else if (!arg.isText) {
-                    return Utils.txt('<code>' + show(arg) + '</code>');
-                }
-                return arg;
-            }),
+            args: [],
         };
         var pos = A2(Utils.htmlHeight, 0, raw);
         return A3(Element.newElement, pos._0, pos._1, raw);
