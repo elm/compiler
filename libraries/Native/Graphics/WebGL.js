@@ -228,6 +228,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
 
             var node = newNode('canvas');
             var gl = node.getContext('webgl') || node.getContext('experimental-webgl');
+            gl.enable(gl.DEPTH_TEST);
 
             model.cache.gl = gl;
             model.cache.programs = [];
