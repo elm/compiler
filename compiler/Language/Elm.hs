@@ -1,8 +1,8 @@
-{- | This module exports the functions necessary for compiling Elm to JS,
+{- | This module exports functions for compiling Elm to JS
      and some utilities for making it easier to find some Elm-related files.
 
-     The documentation for the Elm language is available at
-     <http://elm-lang.org/Documentation.elm>, and many interactive examples are
+     Learning resources for Elm are available at
+     <http://elm-lang.org.elm/Learn.elm> and many interactive examples are
      available at <http://elm-lang.org/Examples.elm>
 -}
 module Language.Elm (compile, moduleName, runtime, docs) where
