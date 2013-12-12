@@ -3,6 +3,7 @@ module Lazy.Stream ( head, tail
                    , map, apply, zip, zipWith, scanl
                    , take, drop, splitAt
                    , sampleOn
+                   , filter, takeWhile, dropWhile, splitWhen
                    ) where
 
 {-| Library for Infinite Streams 
@@ -15,6 +16,9 @@ module Lazy.Stream ( head, tail
 
 # Transform
 @docs map, apply, zip, zipWith, scanl
+
+# Converge
+@docs filter, takeWhile, dropWhile, splitWhen
 
 -}
 
@@ -123,3 +127,42 @@ splitAt n xs = case n of
 sampleOn : Signal b -> Stream a -> Signal a
 sampleOn sig str = let tails = foldp (\_ -> tail) str sig in
                    head <~ tails
+
+{-| Filter the elements of a Stream according to a predicate.
+    The produced Stream will go into an infinite loop under head or tail
+    unless there are infinitely many terms in the Stream that satisfy the
+    predicate.
+-}
+filter : (a -> Bool) -> Stream a -> Stream a
+filter p xs = cons' <| (\() ->
+  let (hd, tl) = unS xs in
+  case p hd of
+    True ->  (hd, filter p tl)
+    False -> unS <| filter p tl)
+
+{-| Take the longest prefix of a Stream for which a predicate holds on every element.
+    This function only terminates if there is an element of the stream for
+    which the predicate does not hold.
+-}
+takeWhile : (a -> Bool) -> Stream a -> [a]
+takeWhile p xs = fst <| splitWhen p xs
+
+{-| Take the first tail of a Stream for which a predicate does not
+    hold on its head. This function only terminates if there is an element
+    of the stream for which the predicate does not hold.
+-}
+dropWhile : (a -> Bool) -> Stream a -> Stream a
+dropWhile p xs = snd <| splitWhen p xs
+
+{-| Split a Stream into its longest prefix for which a predicate holds and
+    the rest of the Stream. This function only terminates if there is an element
+    of the stream for which the predicate does not hold.
+
+    splitWhen p xs == (takeWhile p xs, dropWhile p xs)
+-}
+splitWhen : (a -> Bool) -> Stream a -> ([a], Stream a)
+splitWhen p xs = let (hd, tl) = unS xs in
+  case p hd of
+    True  -> let (taken, dropped) = splitWhen p tl
+             in (hd :: taken, dropped)
+    False -> ([], xs)
