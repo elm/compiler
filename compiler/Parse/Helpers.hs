@@ -14,7 +14,6 @@ import SourceSyntax.PrettyPrint
 import SourceSyntax.Declaration (Assoc)
 import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
-import Text.Read (readMaybe)
 
 reserveds = [ "if", "then", "else"
             , "case", "of"
@@ -49,6 +48,12 @@ iParse = iParseWithTable "" Map.empty
 iParseWithTable :: SourceName -> OpTable -> IParser a -> String -> Either ParseError a
 iParseWithTable sourceName table aParser input =
   runIndent sourceName $ runParserT aParser table sourceName input
+
+readMaybe :: Read a => String -> Maybe a
+readMaybe s =
+    case [ x | (x,t) <- reads s, ("","") <- lex t ] of
+      [x] -> Just x
+      _ -> Nothing
 
 backslashed :: IParser Char
 backslashed = do
