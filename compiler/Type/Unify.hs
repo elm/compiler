@@ -111,9 +111,15 @@ actuallyUnify span variable1 variable2 = do
                _ -> comparableError Nothing
 
       rigidError variable = TS.addError span (Just hint) variable1 variable2
-          where hint = "There is a problem with the '" ++ 
-                       render (pretty Never variable) ++
-                       "' in the type signature. It currently is not possible to unify type variables that appear in top-level declarations and again in subexpressions"
+          where
+            var = "'" ++ render (pretty Never variable) ++ "'"
+            hint = concat
+                   [ "This probably relates to a type annotation. A type "
+                   , "annotation may say ", var, " but should be a more "
+                   , "specific type. Also, type variables are not "
+                   , "shared between type annotations, so ", var, " in one "
+                   , "is not the same as " ++ var ++ " in another. "
+                   , "Something like that happened" ]
 
       superUnify =
           case (flex desc1, flex desc2, name desc1, name desc2) of
