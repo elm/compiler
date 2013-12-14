@@ -6,11 +6,26 @@ module MJS where
 
 import Native.MJS
 
-data V3 = Fake_V3
-data M4x4 = Fake_M4x4
+data V3 = Dummy_V3
+data M4x4 = Dummy_M4x4
 
 v3 : Float -> Float -> Float -> V3
 v3 = Native.MJS.v3
+
+v3add : V3 -> V3 -> V3
+v3add = Native.MJS.v3add
+
+v3length : V3 -> Float
+v3length = Native.MJS.v3length
+
+v3normalize : V3 -> V3
+v3normalize = Native.MJS.v3normalize
+
+v3scale : V3 -> Float -> V3
+v3scale = Native.MJS.v3scale
+
+v3mul4x4 : M4x4 -> V3 -> V3
+v3mul4x4 = Native.MJS.v3mul4x4
 
 m4x4identity : M4x4
 m4x4identity = Native.MJS.m4x4identity
