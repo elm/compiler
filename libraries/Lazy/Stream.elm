@@ -217,9 +217,7 @@ filter isOdd naturals
 filter isOdd twos
 ```
 
-The produced Stream can go into an infinite loop if no more elements
-satisfy the predicate. So be sure that there are infinitely many terms
-in the stream that satisfy the predicate.
+This can infinite loop if no more elements in the stream satisfy the predicate!
 -}
 filter : (a -> Bool) -> Stream a -> Stream a
 filter pred xs = cons' <| (\() ->
@@ -237,12 +235,13 @@ takeWhile (\n -> n < 10) powersOf2 == [2,4,8]
 -- Bad! Infinite loop!
 takeWhile isEven powersOf2
 ```
+
+This can infinite loop if all elements of the stream satisfy the predicate!
 -}
 takeWhile : (a -> Bool) -> Stream a -> [a]
 takeWhile pred xs = fst <| splitWith pred xs
 
 {-| Drop values from the stream as long as the predicate holds.
-This can infinite loop if all elements of the stream satisfy the predicate!
 
 ```haskell
 -- 16, 32, 64, 128, ...
@@ -251,15 +250,22 @@ dropWhile (\n -> n < 10) powersOf2
 -- Bad! Infinite loop!
 dropWhile isEven powersOf2
 ```
+
+This can infinite loop if all elements of the stream satisfy the predicate!
 -}
 dropWhile : (a -> Bool) -> Stream a -> Stream a
 dropWhile pred xs = snd <| splitWith pred xs
 
-{-| Split a stream when a predicate holds and
-the rest of the Stream. This function only terminates if there is
-an element of the stream for which the predicate does not hold.
+{-| Combination of `takeWhile` and `dropWhile`. Split a stream when
+the predicate no longer holds.
 
-    splitWith pred xs == (takeWhile pred xs, dropWhile pred xs)
+```haskell
+splitWith pred xs == (takeWhile pred xs, dropWhile pred xs)
+
+splitWith (\n -> n < 10) powersOf2 == ([2,4,8], ...)
+```
+
+This can infinite loop if all elements satisfy the predicate!
 -}
 splitWith : (a -> Bool) -> Stream a -> ([a], Stream a)
 splitWith pred xs = let (hd, tl) = unS xs in
