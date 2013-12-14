@@ -151,6 +151,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
         
         var gl = model.cache.gl;
 
+        gl.viewport(0, 0, model.w, model.h);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         console.log("Drawing");
 
@@ -226,23 +227,39 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
 
         function render(model) {
 
-            var node = newNode('canvas');
-            var gl = node.getContext('webgl') || node.getContext('experimental-webgl');
+            var div = newNode('div');
+            div.style.overflow = 'hidden';
+            var canvas = newNode('canvas');
+            var gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
             gl.enable(gl.DEPTH_TEST);
 
             model.cache.gl = gl;
+            model.cache.canvas = canvas;
             model.cache.programs = [];
             model.cache.buffers = [];
 
-            drawGL(model);
-            return node;
+            update(div, model, model);
+
+            return div;
 
         }
 
-        function update(_node, oldModel, newModel) {
+        function update(div, oldModel, newModel) {
 
             newModel.cache = oldModel.cache;
+
+            var canvas = newModel.cache.canvas;
+
+            canvas.style.width = oldModel.w + 'px';
+            canvas.style.height = oldModel.h + 'px';
+            canvas.style.display = "block";
+            canvas.style.position = "absolute";
+            canvas.width = oldModel.w;
+            canvas.height = oldModel.h;
+
             drawGL(newModel);
+
+            div.appendChild(canvas);
 
         }
 
@@ -254,6 +271,8 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
             model: {
                 models: models,
                 cache: {},
+                w: w,
+                h: h,
             }
         };
 
