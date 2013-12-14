@@ -18,25 +18,36 @@ import Native.Lazy
 
 data Lazy a = L { force : () -> a }
 
-{-| Memoize a thunk so it is evaluated at most once. -}
+{-| Delay a computation. This function memoizes results, so
+it guarantees that the computation will be evaluated at most once.
+-}
 lazy : (() -> a) -> Lazy a
 lazy t = L { force = (Native.Lazy.lazy t) }
 
-{-| Execute a lazy value. -}
+{-| Evaluate a lazy value. It saves the result so the second time
+you call `force` it does not run the computation again. -}
 force : Lazy a -> a
 force (L r) = r.force ()
 
-{-| Lazily apply a pure function to a lazy value. -}
+{-| Lazily apply a function to a lazy value. The computation
+will be delayed until you force the resulting value.
+-}
 map : (a -> b) -> Lazy a -> Lazy b
 map f t = lazy <| \() ->
   f . force <| t
 
-{-| Lazily apply a Lazy function to a Lazy value. -}
+{-| Lazily apply a lazy function to a lazy value. This can
+be used to lazily apply a function to many arguments:
+
+```haskell
+f `map` a `apply` b `apply` c
+```
+-}
 apply : Lazy (a -> b) -> Lazy a -> Lazy b
 apply f x = lazy <| \() ->
   (force f) (force x)
 
-{-| Lazily chain together Lazy computations. -}
+{-| Lazily chain together lazy computations. -}
 bind : Lazy a -> (a -> Lazy b) -> Lazy b
 bind x k = lazy <| \() ->
   force . k . force <| x

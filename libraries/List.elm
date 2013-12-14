@@ -243,7 +243,7 @@ chuck = { name="Chuck", height=1.76 }
 sortBy .name   [chuck,alice,bob] == [alice,bob,chuck]
 sortBy .height [chuck,alice,bob] == [alice,chuck,bob]
 
-sortBy String.length ["five","hi"] == ["hi","five"]
+sortBy String.length ["mouse","cat"] == ["cat","mouse"]
 ```
 -}
 sortBy : (a -> comparable) ->  [a] -> [a]

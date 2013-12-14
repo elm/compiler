@@ -66,7 +66,7 @@ listTerm = markdown' <|> glShader' <|> braces (try range <|> ExplicitList <$> co
       return $ GLShader uid (filter (/='\r') rawSrc)
 
     span uid index =
-        "<span id=\"md-" ++ uid ++ "-" ++ show index ++ "\"></span>"
+        "<span id=\"md-" ++ uid ++ "-" ++ show index ++ "\">{{ markdown interpolation is in the pipeline, but still needs more testing }}</span>"
 
     interpolation uid md exprs = do
       try (string "{{")
