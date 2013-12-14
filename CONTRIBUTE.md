@@ -1,11 +1,20 @@
 # Contributing to Elm
 
-Thanks helping with the development of Elm! **Here's how you can help.**
+Thanks helping with the development of Elm! This document
+describes the basic standards for opening pull requests:
 
-## Opening a PR
+## Branches
 
-The master branch of Elm is used for tagging releases, and the dev branch is
-where the most active development occurs.
+  * The master branch of Elm is for tagging previous releases
+    and non-breaking changes, like bug fixes. This branch is
+    handy for folks who want to build the most recent public
+    release from source.
+
+  * The dev branch is where the most active development occurs.
+    It is the home of the next release of the compiler so new
+    features and improvements get merged there.
+
+## Opening a pull request
 
 **Please open PRs against the [dev branch of
 Elm](http://github.com/evancz/elm/tree/dev) whenever possible.** Changes that
@@ -22,5 +31,5 @@ sure that your changes maintain this compatibility.
 
 ## Licensing
 
-You should sign the [contributor agreement](Contributor Agreement.docx?raw=true)
+You should sign the [contributor agreement](ContributorAgreement.pdf)
 and send it to <info@elm-lang.org> before opening your pull request.
