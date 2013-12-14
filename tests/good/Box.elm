@@ -1,6 +1,7 @@
 
 import MJS (V3,M4x4,v3,m4x4makeRotate,m4x4makePerspective,m4x4makeLookAt,m4x4mul)
 import Graphics.WebGL (Program, link, Triangle, zipTriangle, Buffer, bind, Model, encapsulate, webgl)
+import Window(dimensions)
 
 -- Define what our geometry looks like
 
@@ -76,5 +77,5 @@ rot = (\t -> { rot = m4x4mul (m4x4makeRotate (3*t) (v3 0 1 0)) (m4x4makeRotate (
 draw : Signal [Model]
 draw = combine [ (encapsulate prog buf) <~ rot ]
 
-main = webgl (400,400) <~ draw
+main = webgl <~ dimensions ~ draw
 
