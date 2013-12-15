@@ -10,10 +10,6 @@ import Text.Blaze.Html5 ((!))
 import qualified Text.Blaze.Html5.Attributes as A
 import qualified Data.ByteString.Lazy.Char8 as BS
 
-import Initialize (buildFromSource)
-import Generate.JavaScript
-import Generate.Noscript
-
 data JSSource = Link String | Source BS.ByteString
 
 makeScript :: JSSource -> H.Html
