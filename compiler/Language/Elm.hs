@@ -8,38 +8,35 @@
 module Language.Elm (compile, moduleName, runtime, docs) where
 
 import qualified Data.List as List
-import qualified Data.Map as Map
-import Data.Version (showVersion)
-import Generate.JavaScript (jsModule)
-import Initialize (buildFromSource)
-import Parse.Module (getModuleName)
-import SourceSyntax.Module
-import Text.Blaze.Html (Html)
+import qualified Generate.JavaScript as JS
+import qualified Build.Source as Source
+import qualified Parse.Module as Parser
+import qualified SourceSyntax.Module as M
 import qualified Text.PrettyPrint as P
 import qualified Metadata.Prelude as Prelude
-import Paths_Elm
+import qualified Paths_Elm as This
 import System.IO.Unsafe
 
 -- |This function compiles Elm code to JavaScript. It will return either
 --  an error message or the compiled JS code.
 compile :: String -> Either String String
 compile source =
-    case buildFromSource False interfaces source of
+    case Source.build False interfaces source of
       Left docs -> Left . unlines . List.intersperse "" $ map P.render docs
-      Right modul -> Right $ jsModule (modul :: MetadataModule () ())
+      Right modul -> Right $ JS.generate modul
 
 {-# NOINLINE interfaces #-}
-interfaces :: Interfaces
+interfaces :: M.Interfaces
 interfaces = unsafePerformIO $ Prelude.interfaces
 
 -- |This function extracts the module name of a given source program.
 moduleName :: String -> Maybe String
-moduleName = getModuleName
+moduleName = Parser.getModuleName
 
 -- |The absolute path to Elm's runtime system.
 runtime :: IO FilePath
-runtime = getDataFileName "elm-runtime.js"
+runtime = This.getDataFileName "elm-runtime.js"
 
 -- |The absolute path to Elm's core library documentation.
 docs :: IO FilePath
-docs = getDataFileName "docs.json"
+docs = This.getDataFileName "docs.json"

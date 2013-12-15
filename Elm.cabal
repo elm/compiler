@@ -53,7 +53,6 @@ Library
                        Transform.Substitute,
                        Transform.Optimize,
                        Metadata.Prelude,
-                       Initialize,
                        InterfaceSerialization,
                        Parse.Binop,
                        Parse.Declaration,
@@ -78,6 +77,13 @@ Library
                        Type.State,
                        Type.Type,
                        Type.Unify,
+                       Build.Dependencies,
+                       Build.File,
+                       Build.Flags,
+                       Build.Info,
+                       Build.Print,
+                       Build.Source,
+                       Build.Utils,
                        Paths_Elm
 
   Build-depends:       base >=4.2 && <5,
@@ -124,7 +130,6 @@ Executable elm
                        Transform.Substitute,
                        Transform.Optimize,
                        Metadata.Prelude,
-                       Initialize,
                        InterfaceSerialization,
                        Parse.Binop,
                        Parse.Declaration,
@@ -149,6 +154,13 @@ Executable elm
                        Type.State,
                        Type.Type,
                        Type.Unify,
+                       Build.Dependencies,
+                       Build.File,
+                       Build.Flags,
+                       Build.Info,
+                       Build.Print,
+                       Build.Source,
+                       Build.Utils,
                        Paths_Elm
 
   Build-depends:       base >=4.2 && <5,

@@ -290,8 +290,8 @@ clause span variable (Case.Clause value vars mtch) =
                                                      is -> drop (last is + 1) name
 
 
-jsModule :: MetadataModule () () -> String 
-jsModule modul =
+generate :: MetadataModule () () -> String 
+generate modul =
     show . prettyPrint $ setup (Just "Elm") (names modul ++ ["make"]) ++
              [ assign ("Elm" : names modul ++ ["make"]) (function ["elm"] programStmts) ]
   where

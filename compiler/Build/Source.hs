@@ -1,4 +1,4 @@
-module Build.FromSource (build) where
+module Build.Source (build) where
 
 import Data.Data
 import Control.Monad.State

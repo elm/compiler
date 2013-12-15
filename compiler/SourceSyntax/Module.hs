@@ -14,8 +14,7 @@ import SourceSyntax.Type
 import System.FilePath (joinPath)
 import Control.Monad (liftM)
 
-import Paths_Elm (version)
-import Data.Version (showVersion)
+import qualified Build.Info as Info
 
 data Module tipe var =
     Module [String] Exports Imports [Declaration tipe var]
@@ -70,6 +69,15 @@ data ModuleInterface = ModuleInterface {
     iFixities :: [(Assoc, Int, String)]
 } deriving Show
 
+metaToInterface metaModule =
+    ModuleInterface
+    { iVersion  = Info.version
+    , iTypes    = types metaModule
+    , iImports  = imports metaModule
+    , iAdts     = datatypes metaModule
+    , iAliases  = aliases metaModule
+    , iFixities = fixities metaModule
+    }
 
 instance Binary ModuleInterface where
   get = ModuleInterface <$> get <*> get <*> get <*> get <*> get <*> get
