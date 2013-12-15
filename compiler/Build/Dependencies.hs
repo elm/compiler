@@ -1,14 +1,18 @@
 module Build.Dependencies (getSortedDependencies) where
 
 import Data.Data
+import Control.Applicative
 import Control.Monad.State
+import qualified Data.Char as Char
 import qualified Data.Graph as Graph
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import System.Directory
 import System.Exit
 import System.FilePath as FP
+import System.IO
 import Text.PrettyPrint (Doc)
 
 import SourceSyntax.Everything
@@ -23,7 +27,57 @@ import qualified Transform.Canonicalize as Canonical
 
 getSortedDependencies :: [FilePath] -> Interfaces -> FilePath -> IO [String]
 getSortedDependencies srcDirs builtIns root =
-    sortDeps =<< readDeps srcDirs builtIns root
+    do extras <- additionalSourceDirs
+       sortDeps =<< readDeps (srcDirs ++ extras) builtIns root
+
+additionalSourceDirs :: IO [FilePath]
+additionalSourceDirs =
+    do exists <- doesDirectoryExist deps
+       if exists then getProjects deps else return []
+    where
+      deps = "elm_dependencies"
+
+      getProjects dir = do
+        subs <- map (dir </>) <$> getDirectoryContents dir
+        projects <- filterM isProject subs
+        Maybe.catMaybes <$> mapM getLatest projects
+
+      getLatest project = do
+        subs <- getDirectoryContents project
+        case Maybe.mapMaybe version subs of
+          [] -> return Nothing
+          versions -> return $ Just $ (project </>) $ showVersion maxVersion
+              where maxVersion = List.maximumBy compareVersion versions
+
+      isProject path = do
+        exists <- doesDirectoryExist path
+        return $ exists && path `notElem` [".","..","_internals"]
+
+showVersion (ns,tag) =
+    List.intercalate "." (map show ns) ++ if null tag then "" else "-" ++ tag
+
+compareVersion a b =
+    case compare (fst a) (fst b) of
+      EQ -> compare (snd b) (snd a) -- reverse comparison to favor ""
+      cmp -> cmp      
+
+version :: String -> Maybe ([Int], String)
+version version = (,) <$> splitNumbers possibleNumbers <*> tag
+    where
+      (possibleNumbers, possibleTag) = break (=='-') version
+
+      tag = case possibleTag of
+              "" -> Just ""
+              '-':rest -> Just rest
+              _ -> Nothing
+
+      splitNumbers :: String -> Maybe [Int]
+      splitNumbers ns =
+          case span Char.isDigit ns of
+            ("", _) -> Nothing
+            (number, []) -> Just [read number]
+            (number, '.':rest) -> (read number :) <$> splitNumbers rest
+            _ -> Nothing
 
 type Deps = (FilePath, String, [String])
 
@@ -60,9 +114,10 @@ readDeps srcDirs builtIns root = do
 
 getFile :: [FilePath] -> FilePath -> IO (FilePath,String)
 getFile [] path = do
-  putStrLn $ unlines [ "Could not find file: " ++ path
-                     , "    If it is not in the root directory of your project, use"
-                     , "    --src-dir to declare additional locations for source files." ]
+  hPutStrLn stderr $ unlines
+    [ "Could not find file: " ++ path
+    , "    If it is not in the root directory of your project, use"
+    , "    --src-dir to declare additional locations for source files." ]
   exitFailure
 
 getFile (dir:dirs) path = do
