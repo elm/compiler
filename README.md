@@ -17,7 +17,7 @@ Once the Haskell Platform is installed:
 
 ### Arch Linux
 
-It is _highly_ recommended that you first add [haskell-core] and [haskell-happstack]
+It is _highly_ recommended that you first add `[haskell-core]` and `[haskell-happstack]`
 to your `pacman.conf`. While the necessary dependencies are available in the AUR,
 they are not updated as reliably as the above two repos. Add them as follows:
 
