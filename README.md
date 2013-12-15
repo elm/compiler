@@ -7,12 +7,36 @@ Learn about the Elm programming language at [elm-lang.org](http://elm-lang.org/)
 [these directions](http://justtesting.org/post/64947952690/the-glasgow-haskell-compiler-ghc-on-os-x-10-9)
 before continuing!
 
+### Platform Agnostic
 Download the [Haskell Platform 2012.2.0.0 or later](http://hackage.haskell.org/platform/).
 Once the Haskell Platform is installed:
 
     cabal update
     cabal install elm
     cabal install elm-server
+
+### Arch Linux
+
+It is _highly_ recommended that you first add `[haskell-core]` and `[haskell-happstack]`
+to your `pacman.conf`. While the necessary dependencies are available in the AUR,
+they are not updated as reliably as the above two repos. Add them as follows:
+
+    [haskell-core]
+    Server = http://xsounds.org/~haskell/core/$arch
+
+    [haskell-happstack]
+    Server = ftp://noaxiom.org/$repo/$arch
+
+Then, simply install the appropriate packages from the AUR:
+
+    sudo aura -A haskell-elm elm-server
+
+Naturally any package manager with AUR support will suffice. Optionally:
+
+    sudo aura -A elm-repl
+
+if you desire a REPL for experimenting with Elm. Note that the `Use` section below
+does not apply to Arch users as binaries as placed appropriately automatically.
 
 ## Use
 
