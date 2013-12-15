@@ -3,7 +3,7 @@ module Signal where
 `lift8` and infix lift operators `<~` and `~`, combinations, filters, and
 past-dependence.
 
-Signals are time-varying values. Lifted functions are reevaluated whenver any of
+Signals are time-varying values. Lifted functions are reevaluated whenever any of
 their input signals has an event. Signal events may be of the same value as the
 previous value of the signal. Such signals are useful for timing and
 past-dependence.
