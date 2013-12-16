@@ -24,6 +24,7 @@ import qualified Transform.SortDefinitions as SD
 import qualified Type.Inference as TI
 import qualified Type.Constrain.Declaration as TcDecl
 import qualified Transform.Canonicalize as Canonical
+import qualified Elm.Internal.Version as V
 
 getSortedDependencies :: [FilePath] -> Interfaces -> FilePath -> IO [String]
 getSortedDependencies srcDirs builtIns root =
@@ -44,40 +45,14 @@ additionalSourceDirs =
 
       getLatest project = do
         subs <- getDirectoryContents project
-        case Maybe.mapMaybe version subs of
+        case Maybe.mapMaybe V.fromString subs of
           [] -> return Nothing
-          versions -> return $ Just $ (project </>) $ showVersion maxVersion
-              where maxVersion = List.maximumBy compareVersion versions
+          versions -> return $ Just $ (project </>) $ show maxVersion
+              where maxVersion = List.maximum versions
 
       isProject path = do
         exists <- doesDirectoryExist path
         return $ exists && path `notElem` [".","..","_internals"]
-
-showVersion (ns,tag) =
-    List.intercalate "." (map show ns) ++ if null tag then "" else "-" ++ tag
-
-compareVersion a b =
-    case compare (fst a) (fst b) of
-      EQ -> compare (snd b) (snd a) -- reverse comparison to favor ""
-      cmp -> cmp      
-
-version :: String -> Maybe ([Int], String)
-version version = (,) <$> splitNumbers possibleNumbers <*> tag
-    where
-      (possibleNumbers, possibleTag) = break (=='-') version
-
-      tag = case possibleTag of
-              "" -> Just ""
-              '-':rest -> Just rest
-              _ -> Nothing
-
-      splitNumbers :: String -> Maybe [Int]
-      splitNumbers ns =
-          case span Char.isDigit ns of
-            ("", _) -> Nothing
-            (number, []) -> Just [read number]
-            (number, '.':rest) -> (read number :) <$> splitNumbers rest
-            _ -> Nothing
 
 type Deps = (FilePath, String, [String])
 

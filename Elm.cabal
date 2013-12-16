@@ -30,7 +30,12 @@ source-repository head
   location: git://github.com/evancz/Elm.git
 
 Library
-  exposed-modules:     Language.Elm
+  exposed-modules:     Elm.Internal.Dependencies,
+                       Elm.Internal.Documentation,
+                       Elm.Internal.Name,
+                       Elm.Internal.Paths,
+                       Elm.Internal.Utils,
+                       Elm.Internal.Version
   Hs-Source-Dirs:      compiler
   other-modules:       SourceSyntax.Declaration,
                        SourceSyntax.Expression,
@@ -86,7 +91,8 @@ Library
                        Build.Utils,
                        Paths_Elm
 
-  Build-depends:       base >=4.2 && <5,
+  Build-depends:       aeson,
+                       base >=4.2 && <5,
                        binary >= 0.6.4.0,
                        blaze-html == 0.5.* || == 0.6.*,
                        blaze-markup,
@@ -101,6 +107,7 @@ Library
                        pandoc >= 1.10,
                        parsec >= 3.1.1,
                        pretty,
+                       text,
                        transformers >= 0.2,
                        union-find,
                        uniplate
@@ -163,7 +170,8 @@ Executable elm
                        Build.Utils,
                        Paths_Elm
 
-  Build-depends:       base >=4.2 && <5,
+  Build-depends:       aeson,
+                       base >=4.2 && <5,
                        binary >= 0.6.4.0,
                        blaze-html == 0.5.* || == 0.6.*,
                        blaze-markup == 0.5.1.*,
@@ -178,6 +186,7 @@ Executable elm
                        pandoc >= 1.10,
                        parsec >= 3.1.1,
                        pretty,
+                       text,
                        transformers >= 0.2,
                        union-find,
                        uniplate
