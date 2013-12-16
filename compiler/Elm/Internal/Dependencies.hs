@@ -7,7 +7,7 @@ import qualified Control.Exception as E
 import Data.Aeson
 import qualified Data.List as List
 import qualified Data.ByteString.Lazy as BS
-import qualified Data.Map as Map
+import qualified Data.HashMap.Strict as Map
 import qualified Elm.Internal.Name as N
 import qualified Elm.Internal.Version as V
 
@@ -20,34 +20,53 @@ data Deps = Deps
     , repo :: String
     , exposed :: [String]
     , elmVersion :: V.Version
+    , dependencies :: [(N.Name,V.Version)]
     } deriving Show
 
 instance FromJSON Deps where
     parseJSON (Object obj) =
-        do version <- obj .: "version"
+        do version <- get obj "version" "your projects version number"
 
-           summary <- obj .: "summary"
+           summary <- get obj "summary" "a short summary of your project"
            when (length summary >= 80) $
                fail "'summary' must be less than 80 characters"
 
-           desc    <- obj .: "description"
-           license <- obj .: "license"
+           desc <- get obj "description" "an extended description of your project \
+                                         \and how to get started with it."
+           license <- get obj "license" "license information (BSD3 is recommended)"
 
-           repo <- obj .: "repository"
+           repo <- get obj "repository" "a link to the project's GitHub repo"
            name <- case repoToName repo of
                      Left err -> fail err
                      Right nm -> return nm
 
-           exposed <- obj .: "exposed-modules"
+           exposed <- get obj "exposed-modules" "a list of modules exposed to users"
            when (null exposed) $
                 fail "there are no 'exposed-modules'.\n\
-                     \At least one module must be exposed for anyone to use this library!"
+                     \At least one module must be exposed \
+                     \for anyone to use this library!"
 
-           elmVersion <- obj .: "elm-version"
+           elmVersion <- get obj "elm-version" "the version of the Elm compiler you are using"
 
-           return $ Deps name version summary desc license repo exposed elmVersion
+           deps <- toDeps =<< get obj "dependencies"
+                                      "a listing of your project's dependencies"
+
+           return $ Deps name version summary desc license repo exposed elmVersion deps
 
     parseJSON _ = mzero
+
+toDeps deps =
+    forM (Map.toList deps) $ \(f,v) ->
+        case (N.fromString f, V.fromString v) of
+          (Just name, Just version) -> return (name,version)
+          (Nothing, _) -> fail $ N.errorMsg f
+          (_, Nothing) -> fail $ "invalid version number " ++ v
+
+get obj field desc =
+    do maybe <- obj .:? field
+       case maybe of
+         Nothing -> fail $ "Missing field " ++ show field ++ ", " ++ desc
+         Just value -> return value
 
 repoToName :: String -> Either String N.Name
 repoToName repo
@@ -85,9 +104,6 @@ withDeps handle path =
           Left _ -> throwError $
                     "could not find file " ++ path ++
                     "\n    You may need to create a dependency file for your project."
-
-dependencies :: FilePath -> ErrorT String IO (Map.Map String String)
-dependencies _ = return Map.empty -- withDeps deps
 
 depsAt :: FilePath -> ErrorT String IO Deps
 depsAt = withDeps id

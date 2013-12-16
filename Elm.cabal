@@ -110,7 +110,8 @@ Library
                        text,
                        transformers >= 0.2,
                        union-find,
-                       uniplate
+                       uniplate,
+                       unordered-containers
 
 Executable elm
   Main-is:             Compiler.hs
@@ -189,7 +190,8 @@ Executable elm
                        text,
                        transformers >= 0.2,
                        union-find,
-                       uniplate
+                       uniplate,
+                       unordered-containers
 
 Executable elm-doc
   Main-is:             Docs.hs
