@@ -23,6 +23,12 @@ data Deps = Deps
     , dependencies :: [(N.Name,V.Version)]
     } deriving Show
 
+data MiniDeps = Mini [(N.Name,V.Version)]
+
+instance FromJSON MiniDeps where
+    parseJSON (Object obj) = Mini <$> getDependencies obj
+    parseJSON _ = mzero
+
 instance FromJSON Deps where
     parseJSON (Object obj) =
         do version <- get obj "version" "your projects version number"
@@ -48,19 +54,22 @@ instance FromJSON Deps where
 
            elmVersion <- get obj "elm-version" "the version of the Elm compiler you are using"
 
-           deps <- toDeps =<< get obj "dependencies"
-                                      "a listing of your project's dependencies"
+           deps <- getDependencies obj
 
            return $ Deps name version summary desc license repo exposed elmVersion deps
 
     parseJSON _ = mzero
 
-toDeps deps =
-    forM (Map.toList deps) $ \(f,v) ->
-        case (N.fromString f, V.fromString v) of
-          (Just name, Just version) -> return (name,version)
-          (Nothing, _) -> fail $ N.errorMsg f
-          (_, Nothing) -> fail $ "invalid version number " ++ v
+getDependencies obj = 
+    toDeps =<< get obj "dependencies" "a listing of your project's dependencies"
+    where
+      toDeps deps =
+          forM (Map.toList deps) $ \(f,v) ->
+              case (N.fromString f, V.fromString v) of
+                (Just name, Just version) -> return (name,version)
+                (Nothing, _) -> fail $ N.errorMsg f
+                (_, Nothing) -> fail $ "invalid version number " ++ v
+
 
 get obj field desc =
     do maybe <- obj .:? field

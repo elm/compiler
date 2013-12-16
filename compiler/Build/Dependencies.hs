@@ -54,7 +54,7 @@ extraDependencies =
       getPaths = do
         raw <- BSC.readFile Path.dependencyFile
         case Json.eitherDecode raw of
-          Right deps -> mapM validate (Deps.dependencies deps)
+          Right (Deps.Mini deps) -> mapM validate deps
           Left err ->
               failure $ "Error reading the " ++ Path.dependencyFile ++ " file:\n" ++ err
 
