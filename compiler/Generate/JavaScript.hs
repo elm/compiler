@@ -50,7 +50,7 @@ varDecl x expr =
     VarDecl () (var x) (Just expr)
 
 include alias moduleName =
-    varDecl alias (obj (moduleName ++ ".make") <| ref "elm")
+    varDecl alias (obj (moduleName ++ ".make") <| ref "_elm")
 
 internalImports name =
     VarDeclStmt () 
@@ -293,11 +293,11 @@ clause span variable (Case.Clause value vars mtch) =
 generate :: MetadataModule () () -> String 
 generate modul =
     show . prettyPrint $ setup (Just "Elm") (names modul ++ ["make"]) ++
-             [ assign ("Elm" : names modul ++ ["make"]) (function ["elm"] programStmts) ]
+             [ assign ("Elm" : names modul ++ ["make"]) (function ["_elm"] programStmts) ]
   where
-    thisModule = dotSep ("elm" : names modul ++ ["values"])
+    thisModule = dotSep ("_elm" : names modul ++ ["values"])
     programStmts =
-        concat [ setup (Just "elm") (names modul ++ ["values"])
+        concat [ setup (Just "_elm") (names modul ++ ["values"])
                , [ IfSingleStmt () thisModule (ReturnStmt () (Just thisModule)) ]
                , [ internalImports (List.intercalate "." (names modul)) ]
                , concatMap jsImport (imports modul)
@@ -309,7 +309,7 @@ generate modul =
                , [ ReturnStmt () (Just thisModule) ]
                ]
 
-    jsExports = assign ("elm" : names modul ++ ["values"]) (ObjectLit () exs)
+    jsExports = assign ("_elm" : names modul ++ ["values"]) (ObjectLit () exs)
         where
           exs = map entry . filter (not . isOp) $ "_op" : exports modul
           entry x = (PropId () (var x), ref x)
@@ -323,7 +323,7 @@ generate modul =
     jsImport (modul,_) = setup Nothing path ++ [ include ]
         where
           path = split modul
-          include = assign path $ dotSep ("Elm" : path ++ ["make"]) <| ref "elm"
+          include = assign path $ dotSep ("Elm" : path ++ ["make"]) <| ref "_elm"
 
     setup namespace path = map create paths
         where
@@ -332,15 +332,15 @@ generate modul =
                     Nothing -> tail . init $ List.inits path
                     Just nmspc -> drop 2 . init . List.inits $ nmspc : path
 
-    addId js = InfixExpr () OpAdd (string (js++"_")) (obj "elm.id")
+    addId js = InfixExpr () OpAdd (string (js++"_")) (obj "_elm.id")
 
     importEvent (js,base,elm,_) =
         [ VarDeclStmt () [ varDecl elm $ obj "Signal.constant" <| evalState (expression base) 0 ]
         , ExprStmt () $
             obj "document.addEventListener" `call`
                   [ addId js
-                  , function ["e"]
-                        [ ExprStmt () $ obj "elm.notify" `call` [dotSep [elm,"id"], obj "e.value"] ]
+                  , function ["_e"]
+                        [ ExprStmt () $ obj "_elm.notify" `call` [dotSep [elm,"id"], obj "_e.value"] ]
                   ]
         ]
 
@@ -348,13 +348,13 @@ generate modul =
         ExprStmt () $
         ref "A2" `call`
                 [ obj "Signal.lift"
-                , function ["v"]
-                      [ VarDeclStmt () [varDecl "e" $ obj "document.createEvent" <| string "Event"]
+                , function ["_v"]
+                      [ VarDeclStmt () [varDecl "_e" $ obj "document.createEvent" <| string "Event"]
                       , ExprStmt () $
-                            obj "e.initEvent" `call` [ addId js, BoolLit () True, BoolLit () True ]
-                      , ExprStmt () $ AssignExpr () OpAssign (LDot () (ref "e") "value") (ref "v")
-                      , ExprStmt () $ obj "document.dispatchEvent" <| ref "e"
-                      , ReturnStmt () (Just $ ref "v")
+                            obj "_e.initEvent" `call` [ addId js, BoolLit () True, BoolLit () True ]
+                      , ExprStmt () $ AssignExpr () OpAssign (LDot () (ref "_e") "value") (ref "_v")
+                      , ExprStmt () $ obj "document.dispatchEvent" <| ref "_e"
+                      , ReturnStmt () (Just $ ref "_v")
                       ]
                 , ref elm ]
 
