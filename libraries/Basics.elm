@@ -332,7 +332,7 @@ curry : ((a,b) -> c) -> a -> b -> c
 curry f a b = f (a,b)
 
 {-| Change how arguments are passed to a function.
-This combines two arguments into a sigle pair.
+This combines two arguments into a single pair.
 -}
 uncurry : (a -> b -> c) -> (a,b) -> c
 uncurry f (a,b) = f a b

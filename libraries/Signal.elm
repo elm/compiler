@@ -95,11 +95,11 @@ combine = foldr (Native.Signal.lift2 (::)) (Native.Signal.constant [])
  -- fold over non-homogeneous inputs.
  -- mergeEither : Signal a -> Signal b -> Signal (Either a b)
 
-{-| Count the number of events that have occured. -}
+{-| Count the number of events that have occurred. -}
 count : Signal a -> Signal Int
 count = Native.Signal.count
 
-{-| Count the number of events that have occured that satisfy a given predicate.
+{-| Count the number of events that have occurred that satisfy a given predicate.
 -}
 countIf : (a -> Bool) -> Signal a -> Signal Int
 countIf = Native.Signal.countIf
