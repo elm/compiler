@@ -221,11 +221,15 @@ min = Native.Basics.min
 max : comparable -> comparable -> comparable
 max = Native.Basics.max
 
-{-| The and operator. True if both inputs are True. -}
+{-| The and operator. True if both inputs are True.
+This operator short-circuits if the first argument is False.
+-}
 (&&) : Bool -> Bool -> Bool
 (&&) = Native.Basics.and
 
-{-| The or operator. True if one or both inputs are True. -}
+{-| The or operator. True if one or both inputs are True.
+This operator short-circuits if the first argument is True.
+-}
 (||) : Bool -> Bool -> Bool
 (||) = Native.Basics.or
 
