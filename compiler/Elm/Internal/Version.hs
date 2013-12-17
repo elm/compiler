@@ -67,3 +67,7 @@ instance FromJSON Version where
                      ]
 
     parseJSON _ = fail "Version number must be stored as a string."
+
+instance ToJSON Version where
+    toJSON version = toJSON (show version)
+

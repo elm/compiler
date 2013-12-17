@@ -41,6 +41,9 @@ instance FromJSON Name where
 
     parseJSON _ = fail "Project name must be a string."
 
+instance ToJSON Name where
+    toJSON name = toJSON (show name)
+
 errorMsg string =
     unlines
     [ "Dependency file has an invalid name: " ++ string
