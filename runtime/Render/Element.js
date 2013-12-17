@@ -154,10 +154,31 @@ function container(pos,elem) {
     return div;
 }
 
-function rawHtml(html) {
-    var e = newElement('div');
-    e.innerHTML = html;
-    return e;
+function rawHtml(elem) {
+    var html = elem.html;
+    var args = elem.args;
+    var guid = elem.guid;
+
+    var div = newElement('div');
+    div.innerHTML = html;
+    div.style.visibility = "hidden";
+    document.body.appendChild(div);
+
+    for (var i = args.length; i--; ) {
+        var arg = args[i];
+        var span = document.getElementById('md-' + guid + '-' + i);
+        if (arg.isText) {
+            span.innerHTML = arg;
+        } else {
+            span.style.display = 'block';
+            span.style.width = arg.props.width + 'px';
+            span.style.height = arg.props.height + 'px';
+            span.appendChild(render(arg));
+        }
+    }
+    document.body.removeChild(div);
+    div.style.visibility = 'visible';
+    return div;
 }
 
 function render(elem) { return setProps(elem.props, makeElement(elem)); }
@@ -168,7 +189,7 @@ function makeElement(e) {
     case 'Flow':      return flow(elem._0, elem._1);
     case 'Container': return container(elem._0, elem._1);
     case 'Spacer':    return newElement('div');
-    case 'RawHtml':   return rawHtml(elem._0);
+    case 'RawHtml':   return rawHtml(elem);
     case 'Custom':    return elem.render(elem.model);
     }
 }
@@ -184,7 +205,36 @@ function update(node, curr, next) {
     switch(nextE.ctor) {
     case "Spacer": break;
     case "RawHtml":
-        if (nextE._0 !== currE._0) node.innerHTML = nextE._0;
+        // only markdown blocks have guids, so this must be a text block
+        if (nextE.guid === null) {
+            node.innerHTML = nextE.html;
+            break;
+        }
+        if (nextE.guid !== currE.guid) {
+            node.parentNode.replaceChild(render(next),node);
+            return true;
+        }
+        var nargs = nextE.args;
+        var cargs = currE.args;
+        for (var i = nargs.length; i--; ) {
+            var narg = nargs[i];
+            var carg = cargs[i]
+            if (narg == carg) continue;
+            var span = document.getElementById('md-' + currE.guid + '-' + i);
+            if (narg.isElement) {
+                if (carg.isElement) {
+                    update(span, carg, narg);
+                } else {
+                    span.style.display = 'block';
+                    var e = render(narg);
+                    span.innerHTML = '';
+                    span.appendChild(e);
+                }
+            } else {
+                span.style.display = 'inline';
+                span.innerHTML = narg;
+            }
+        }
         break;
     case "Image":
         if (nextE._0.ctor === 'Plain') {
@@ -222,7 +272,7 @@ function update(node, curr, next) {
         }
         break;
     case "Container":
-        update(node.firstChild, currE._1, nextE._1)
+        update(node.firstChild, currE._1, nextE._1);
         setPos(nextE._0, nextE._1.props.width, nextE._1.props.height, node.firstChild);
         break;
     case "Custom":

@@ -15,11 +15,12 @@ import qualified SourceSyntax.Type as Type
 import qualified Transform.SortDefinitions as SD
 import Text.PrettyPrint as P
 
-
 interface :: String -> ModuleInterface -> ModuleInterface
 interface moduleName iface =
     ModuleInterface
-    { iTypes = Map.mapKeys prefix (Map.map renameType' (iTypes iface))
+    { iVersion = iVersion iface
+    , iTypes = Map.mapKeys prefix (Map.map renameType' (iTypes iface))
+    , iImports = iImports iface
     , iAdts = map (both prefix renameCtors) (iAdts iface)
     , iAliases = map (both prefix renameType') (iAliases iface)
     , iFixities = iFixities iface -- cannot have canonicalized operators while parsing
@@ -93,7 +94,6 @@ metadataModule ifaces modul =
                            map (\n -> "_Tuple" ++ show n) [0..9]
     realImports = filter (not . List.isPrefixOf "Native." . fst) (imports modul)
     initialEnv = Map.fromList (concatMap canon realImports ++ localEnv ++ globalEnv)
-
 
 type Env = Map.Map String String
 
@@ -173,7 +173,7 @@ rename env lexpr@(L s expr) =
             branch (pattern,e) = (,) `liftM` format (renamePattern env pattern)
                                         `ap` rename (extend env pattern) e
 
-      Markdown md es -> Markdown md `liftM` mapM rnm es
+      Markdown uid md es -> Markdown uid md `liftM` mapM rnm es
 
 
 renamePattern :: Env -> Pattern -> Either String Pattern

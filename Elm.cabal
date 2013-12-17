@@ -30,7 +30,12 @@ source-repository head
   location: git://github.com/evancz/Elm.git
 
 Library
-  exposed-modules:     Language.Elm
+  exposed-modules:     Elm.Internal.Dependencies,
+                       Elm.Internal.Documentation,
+                       Elm.Internal.Name,
+                       Elm.Internal.Paths,
+                       Elm.Internal.Utils,
+                       Elm.Internal.Version
   Hs-Source-Dirs:      compiler
   other-modules:       SourceSyntax.Declaration,
                        SourceSyntax.Expression,
@@ -53,7 +58,7 @@ Library
                        Transform.Substitute,
                        Transform.Optimize,
                        Metadata.Prelude,
-                       Initialize,
+                       InterfaceSerialization,
                        Parse.Binop,
                        Parse.Declaration,
                        Parse.Expression,
@@ -77,29 +82,39 @@ Library
                        Type.State,
                        Type.Type,
                        Type.Unify,
+                       Build.Dependencies,
+                       Build.File,
+                       Build.Flags,
+                       Build.Print,
+                       Build.Source,
+                       Build.Utils,
                        Paths_Elm
 
-  Build-depends:       base >=4.2 && <5,
-                       binary,
+  Build-depends:       aeson,
+                       base >=4.2 && <5,
+                       binary >= 0.6.4.0,
                        blaze-html == 0.5.* || == 0.6.*,
-                       blaze-markup == 0.5.1.*,
+                       blaze-markup,
                        bytestring,
                        cmdargs,
                        containers >= 0.3,
                        directory,
                        filepath,
                        indents,
-                       language-ecmascript < 1,
+                       language-ecmascript >=0.15 && < 1.0,
                        mtl >= 2,
                        pandoc >= 1.10,
                        parsec >= 3.1.1,
                        pretty,
+                       text,
                        transformers >= 0.2,
                        union-find,
-                       uniplate
+                       uniplate,
+                       unordered-containers
 
 Executable elm
   Main-is:             Compiler.hs
+  ghc-options:         -threaded -O2
   Hs-Source-Dirs:      compiler
   other-modules:       SourceSyntax.Declaration,
                        SourceSyntax.Expression,
@@ -122,7 +137,7 @@ Executable elm
                        Transform.Substitute,
                        Transform.Optimize,
                        Metadata.Prelude,
-                       Initialize,
+                       InterfaceSerialization,
                        Parse.Binop,
                        Parse.Declaration,
                        Parse.Expression,
@@ -146,10 +161,17 @@ Executable elm
                        Type.State,
                        Type.Type,
                        Type.Unify,
+                       Build.Dependencies,
+                       Build.File,
+                       Build.Flags,
+                       Build.Print,
+                       Build.Source,
+                       Build.Utils,
                        Paths_Elm
 
-  Build-depends:       base >=4.2 && <5,
-                       binary,
+  Build-depends:       aeson,
+                       base >=4.2 && <5,
+                       binary >= 0.6.4.0,
                        blaze-html == 0.5.* || == 0.6.*,
                        blaze-markup == 0.5.1.*,
                        bytestring,
@@ -158,14 +180,16 @@ Executable elm
                        directory,
                        filepath,
                        indents,
-                       language-ecmascript < 1,
+                       language-ecmascript >=0.15 && < 1.0,
                        mtl >= 2,
                        pandoc >= 1.10,
                        parsec >= 3.1.1,
                        pretty,
+                       text,
                        transformers >= 0.2,
                        union-find,
-                       uniplate
+                       uniplate,
+                       unordered-containers
 
 Executable elm-doc
   Main-is:             Docs.hs
@@ -192,7 +216,7 @@ Executable elm-doc
   Build-depends:       aeson,
                        aeson-pretty,
                        base >=4.2 && <5,
-                       binary,
+                       binary >= 0.6.4.0,
                        bytestring,
                        cmdargs,
                        containers >= 0.3,

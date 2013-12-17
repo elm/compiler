@@ -221,11 +221,15 @@ min = Native.Basics.min
 max : comparable -> comparable -> comparable
 max = Native.Basics.max
 
-{-| The and operator. True if both inputs are True. -}
+{-| The and operator. True if both inputs are True.
+This operator short-circuits if the first argument is False.
+-}
 (&&) : Bool -> Bool -> Bool
 (&&) = Native.Basics.and
 
-{-| The or operator. True if one or both inputs are True. -}
+{-| The or operator. True if one or both inputs are True.
+This operator short-circuits if the first argument is True.
+-}
 (||) : Bool -> Bool -> Bool
 (||) = Native.Basics.or
 
@@ -311,11 +315,11 @@ id x = x
 
 {-| Given a 2-tuple, returns the first value. -}
 fst : (a,b) -> a
-fst = Native.Basics.fst
+fst (a,_) = a
 
 {-| Given a 2-tuple, returns the second value. -}
 snd : (a,b) -> b
-snd = Native.Basics.snd
+snd (_,b) = b
 
 {-| Flips the order of the first two arguments to a function. -}
 flip : (a -> b -> c) -> (b -> a -> c)
@@ -325,10 +329,10 @@ flip f b a = f a b
 This splits paired arguments into two separate arguments.
 -}
 curry : ((a,b) -> c) -> a -> b -> c
-curry = Native.Basics.curry
+curry f a b = f (a,b)
 
 {-| Change how arguments are passed to a function.
-This combines two arguments into a sigle pair.
+This combines two arguments into a single pair.
 -}
 uncurry : (a -> b -> c) -> (a,b) -> c
-uncurry = Native.Basics.uncurry
+uncurry f (a,b) = f a b

@@ -24,6 +24,7 @@ makeSafe = List.intercalate "." . map dereserve . split . deprime
                     False -> x
                     True  -> "$" ++ x
 
+split :: String -> [String]
 split = go []
   where
     go vars str =
@@ -44,11 +45,12 @@ string = StringLit ()
 dotSep (x:xs) = foldl (DotRef ()) (ref x) (map var xs)
 obj = dotSep . split
 
+varDecl :: String -> Expression () -> VarDecl ()
 varDecl x expr =
     VarDecl () (var x) (Just expr)
 
 include alias moduleName =
-    varDecl alias (obj (moduleName ++ ".make") <| ref "elm")
+    varDecl alias (obj (moduleName ++ ".make") <| ref "_elm")
 
 internalImports name =
     VarDeclStmt () 
@@ -60,6 +62,7 @@ internalImports name =
     , varDecl "$moduleName" (string name)
     ]
 
+literal :: Literal -> Expression ()
 literal lit =
   case lit of
     Chr c -> obj "_N.chr" <| string [c]
@@ -114,18 +117,17 @@ expression (L span expr) =
       Binop op e1 e2 -> binop span op e1 e2
 
       Lambda p e@(L s _) ->
-          do body' <- expression body
+          do (args, body) <- foldM depattern ([], innerBody) (reverse patterns)
+             body' <- expression body
              return $ case length args < 2 || length args > 9 of
                         True  -> foldr (==>) body' (map (:[]) args)
                         False -> ref ("F" ++ show (length args)) <| (args ==> body')
           where
-            (args, body) = foldr depattern ([], innerBody) (zip patterns [0..])
-
-            depattern (pattern,n) (args, body) =
+            depattern (args, body) pattern =
                 case pattern of
-                  PVar x -> (args ++ [x], body)
-                  _ -> let arg = "arg" ++ show n
-                       in  (args ++ [arg], L s (Case (L s (Var arg)) [(pattern, body)]))
+                  PVar x -> return (args ++ [x], body)
+                  _ -> do arg <- Case.newVar
+                          return (args ++ [arg], L s (Case (L s (Var arg)) [(pattern, body)]))
 
             (patterns, innerBody) = collect [p] e
 
@@ -186,8 +188,12 @@ expression (L span expr) =
             ctor = (prop "ctor", string (makeSafe name))
             fields = zipWith (\n e -> (prop ("_" ++ show n), e)) [0..]
 
-      Markdown md _ -> return $ obj "Text.text" <| string (pad ++ MD.toHtml md ++ pad)
-          where pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
+      Markdown uid doc es ->
+          do es' <- mapM expression es
+             return $ obj "Text.markdown" `call` (string md : string uid : es')
+          where
+            pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
+            md = pad ++ MD.toHtml doc ++ pad
 
 definition :: Def () () -> State Int [Statement ()]
 definition def =
@@ -284,14 +290,14 @@ clause span variable (Case.Clause value vars mtch) =
                                                      is -> drop (last is + 1) name
 
 
-jsModule :: MetadataModule () () -> String 
-jsModule modul =
+generate :: MetadataModule () () -> String 
+generate modul =
     show . prettyPrint $ setup (Just "Elm") (names modul ++ ["make"]) ++
-             [ assign ("Elm" : names modul ++ ["make"]) (function ["elm"] programStmts) ]
+             [ assign ("Elm" : names modul ++ ["make"]) (function ["_elm"] programStmts) ]
   where
-    thisModule = dotSep ("elm" : names modul ++ ["values"])
+    thisModule = dotSep ("_elm" : names modul ++ ["values"])
     programStmts =
-        concat [ setup (Just "elm") (names modul ++ ["values"])
+        concat [ setup (Just "_elm") (names modul ++ ["values"])
                , [ IfSingleStmt () thisModule (ReturnStmt () (Just thisModule)) ]
                , [ internalImports (List.intercalate "." (names modul)) ]
                , concatMap jsImport (imports modul)
@@ -303,7 +309,7 @@ jsModule modul =
                , [ ReturnStmt () (Just thisModule) ]
                ]
 
-    jsExports = assign ("elm" : names modul ++ ["values"]) (ObjectLit () exs)
+    jsExports = assign ("_elm" : names modul ++ ["values"]) (ObjectLit () exs)
         where
           exs = map entry . filter (not . isOp) $ "_op" : exports modul
           entry x = (PropId () (var x), ref x)
@@ -317,7 +323,7 @@ jsModule modul =
     jsImport (modul,_) = setup Nothing path ++ [ include ]
         where
           path = split modul
-          include = assign path $ dotSep ("Elm" : path ++ ["make"]) <| ref "elm"
+          include = assign path $ dotSep ("Elm" : path ++ ["make"]) <| ref "_elm"
 
     setup namespace path = map create paths
         where
@@ -326,15 +332,15 @@ jsModule modul =
                     Nothing -> tail . init $ List.inits path
                     Just nmspc -> drop 2 . init . List.inits $ nmspc : path
 
-    addId js = InfixExpr () OpAdd (string (js++"_")) (obj "elm.id")
+    addId js = InfixExpr () OpAdd (string (js++"_")) (obj "_elm.id")
 
     importEvent (js,base,elm,_) =
         [ VarDeclStmt () [ varDecl elm $ obj "Signal.constant" <| evalState (expression base) 0 ]
         , ExprStmt () $
             obj "document.addEventListener" `call`
                   [ addId js
-                  , function ["e"]
-                        [ ExprStmt () $ obj "elm.notify" `call` [dotSep [elm,"id"], obj "e.value"] ]
+                  , function ["_e"]
+                        [ ExprStmt () $ obj "_elm.notify" `call` [dotSep [elm,"id"], obj "_e.value"] ]
                   ]
         ]
 
@@ -342,13 +348,13 @@ jsModule modul =
         ExprStmt () $
         ref "A2" `call`
                 [ obj "Signal.lift"
-                , function ["v"]
-                      [ VarDeclStmt () [varDecl "e" $ obj "document.createEvent" <| string "Event"]
+                , function ["_v"]
+                      [ VarDeclStmt () [varDecl "_e" $ obj "document.createEvent" <| string "Event"]
                       , ExprStmt () $
-                            obj "e.initEvent" `call` [ addId js, BoolLit () True, BoolLit () True ]
-                      , ExprStmt () $ AssignExpr () OpAssign (LDot () (ref "e") "value") (ref "v")
-                      , ExprStmt () $ obj "document.dispatchEvent" <| ref "e"
-                      , ReturnStmt () (Just $ ref "v")
+                            obj "_e.initEvent" `call` [ addId js, BoolLit () True, BoolLit () True ]
+                      , ExprStmt () $ AssignExpr () OpAssign (LDot () (ref "_e") "value") (ref "_v")
+                      , ExprStmt () $ obj "document.dispatchEvent" <| ref "_e"
+                      , ReturnStmt () (Just $ ref "_v")
                       ]
                 , ref elm ]
 

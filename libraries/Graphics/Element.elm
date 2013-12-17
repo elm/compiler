@@ -76,7 +76,7 @@ width nw e =
     let p = e.props
         props = case e.element of
                   Image _ w h _ -> {p| height <- round (toFloat h / toFloat w * toFloat nw) }
-                  RawHtml html -> {p| height <- snd (Native.Utils.htmlHeight nw html)}
+                  RawHtml       -> {p| height <- snd (Native.Utils.htmlHeight nw e.element) }
                   _ -> p
     in { element=e.element, props={ props | width <- nw } }
 
@@ -108,7 +108,7 @@ color c e = let p = e.props in
 
 {-| Create an `Element` with a tag. This lets you link directly to it.
 The element `(tag "all-about-badgers" thirdParagraph)` can be reached
-with a link lik this: `/facts-about-animals.elm#all-about-badgers`
+with a link like this: `/facts-about-animals.elm#all-about-badgers`
 -}
 tag : String -> Element -> Element
 tag  name e = let p = e.props in
@@ -128,7 +128,7 @@ data ElementPrim
   | Container Position Element
   | Flow Direction [Element]
   | Spacer
-  | RawHtml JSString
+  | RawHtml
   | Custom -- for custom Elements implemented in JS, see collage for example
 
 data ImageStyle = Plain | Fitted | Cropped (Int,Int) | Tiled

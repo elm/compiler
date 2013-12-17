@@ -49,7 +49,7 @@ instance Extract (Expr t v) where
       Case e cases -> concatMap (f . snd) cases
       Data _ es -> concatMap f es
       MultiIf es -> concatMap (f . snd) es
-      Markdown md _ -> [ MD.toHtml md ]
+      Markdown _ md _ -> [ MD.toHtml md ]
       _ -> []
 
 extractLink src txt =

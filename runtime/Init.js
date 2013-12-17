@@ -158,11 +158,11 @@ function initGraphics(elm, Module) {
       signalGraph = Signal.constant(signalGraph);
   }
   var currentScene = signalGraph.value;
-  
+
  // Add the currentScene to the DOM
   var Render = ElmRuntime.use(ElmRuntime.Render.Element);
   elm.node.appendChild(Render.render(currentScene));
-  
+
   // set up updates so that the DOM is adjusted as necessary.
   function domUpdate(newScene, currentScene) {
       ElmRuntime.draw(function(_) {

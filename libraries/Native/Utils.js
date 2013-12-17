@@ -68,8 +68,35 @@ Elm.Native.Utils.make = function(elm) {
 
     function txt(str) {
         var t = new String(str);
-        t.isText = true;
+        t.text = true;
         return t;
+    }
+
+    function makeText(style, text) {
+        var style = style;
+        var line = '';
+        var href = '';
+        while (true) {
+            if (text.line) {
+                line += text.line;
+                text = text.text;
+                continue;
+            }
+            if (text.style) {
+                style += text.style;
+                text = text.text;
+                continue;
+            }
+            if (text.href) {
+                href = text.href;
+                text = text.text;
+                continue;
+            }
+            if (href) text = '<a href="' + href + '">' + text + '</a>';
+            if (line) style += 'text-decoration:' + line + ';';
+            if (style) text = '<span style="' + style + '">' + text + '</span>';
+            return text;
+        }
     }
 
     var count = 0;
@@ -122,7 +149,9 @@ Elm.Native.Utils.make = function(elm) {
         return m === b ? 0 : m;
     }
 
-    function htmlHeight(width, html) {
+    function htmlHeight(width, rawHtml) {
+        // create dummy node
+        var html = rawHtml.html;
         var t = document.createElement('div');
         t.innerHTML = html;
         if (width > 0) { t.style.width = width + "px"; }
@@ -131,6 +160,22 @@ Elm.Native.Utils.make = function(elm) {
         t.style.cssFloat   = "left";
 
         document.body.appendChild(t);
+
+        // insert interpolated values
+        var args = rawHtml.args;
+        var guid = rawHtml.guid;
+        for (var i = args.length; i--; ) {
+            var arg = args[i];
+            var span = document.getElementById('md-' + guid + '-' + i);
+            if (arg.isElement) {
+                span.style.width = arg.props.width + 'px';
+                span.style.height = arg.props.height + 'px';
+            } else {
+                span.innerHTML = arg;
+            }
+        }
+
+        // get dimensions
         var style = window.getComputedStyle(t, null);
         var w = Math.ceil(style.getPropertyValue("width").slice(0,-2) - 0);
         var h = Math.ceil(style.getPropertyValue("height").slice(0,-2) - 0);
@@ -168,6 +213,7 @@ Elm.Native.Utils.make = function(elm) {
         Tuple2:Tuple2,
         chr:chr,
         txt:txt,
+        makeText:makeText,
         copy: copy,
         remove: remove,
         replace: replace,

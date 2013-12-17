@@ -94,3 +94,4 @@ instance Binary Type where
         2 -> Data <$> get <*> get
         3 -> return EmptyRecord
         4 -> Record <$> get <*> get
+        _ -> error "Error reading a valid type from serialized string"

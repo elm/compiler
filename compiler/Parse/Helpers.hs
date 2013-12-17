@@ -49,9 +49,22 @@ iParseWithTable :: SourceName -> OpTable -> IParser a -> String -> Either ParseE
 iParseWithTable sourceName table aParser input =
   runIndent sourceName $ runParserT aParser table sourceName input
 
+readMaybe :: Read a => String -> Maybe a
+readMaybe s =
+    case [ x | (x,t) <- reads s, ("","") <- lex t ] of
+      [x] -> Just x
+      _ -> Nothing
+
 backslashed :: IParser Char
-backslashed = do { char '\\'; c <- anyChar
-                 ; return . read $ ['\'','\\',c,'\''] }
+backslashed = do
+  char '\\'
+  c <- anyChar
+  case readMaybe ['\'','\\',c,'\''] of
+    Just chr -> return chr
+    Nothing ->
+        fail $ "Did not recognize character '\\" ++ [c] ++
+               "'. If the backslash is meant to be a character of its own, " ++
+               "it should be escaped like this: \"\\\\" ++ [c] ++ "\""
 
 var :: IParser String
 var = makeVar (letter <|> char '_' <?> "variable")
@@ -93,6 +106,15 @@ symOp = do op <- many1 (satisfy Help.isSymbol)
              "\8728" -> return "."
              _   -> return op
 
+padded :: IParser a -> IParser a
+padded p = do whitespace
+              out <- p
+              whitespace
+              return out
+
+equals :: IParser String
+equals = string "="
+
 arrow :: IParser String
 arrow = string "->" <|> string "\8594" <?> "arrow (->)"
 
@@ -106,7 +128,7 @@ commitIf check p = commit <|> try p
 spaceySepBy1 :: IParser b -> IParser a -> IParser [a]
 spaceySepBy1 sep p = do
   a <- p
-  (a:) <$> many (commitIf (whitespace >> sep) (whitespace >> sep >> whitespace >> p))
+  (a:) <$> many (commitIf (whitespace >> sep) (padded sep >> p))
 
 
 commaSep1 :: IParser a -> IParser [a]
@@ -154,7 +176,7 @@ betwixt a b c = do char a ; out <- c
                    char b <?> "closing '" ++ [b] ++ "'" ; return out
 
 surround a z name p = do
-  char a ; whitespace ; v <- p ; whitespace
+  char a ; v <- padded p
   char z <?> unwords ["closing", name, show z]
   return v
 

@@ -1,6 +1,29 @@
 
-Release 0.9.1
-=============
+## 0.11
+
+  * Lazy and Lazy.Stream (thanks to Max New)
+  * sortBy, sortWith (thanks to Max Goldstein)
+  * elm-repl
+  * Markdown interpolation
+  * Bitwise library
+  * Regex library
+  * Improve Transform2D library (thanks to Michael Søndergaard)
+
+## 0.10
+
+  * Native strings
+  * Tango colors
+  * custom precedence and associativity for infix operators
+  * elm-doc released with new documentation format
+  * Realiasing in type errors
+  * Rename Matrix2D => Transform2D
+  * Add Random.floatList (thank you Max GoldStein)
+  * Fix remove function in Dict (thank you Max New)
+  * Start using language-ecmascript for JS generation
+  * Make compatable with cabal-1.18 (thank you Justin Leitgeb)
+  * All functions with 10+ arguments (thanks to Max New)
+
+## 0.9.1
 
   * Allow custom precedence and associativity for user-defined infix ops
   * Realias types before printing
@@ -10,8 +33,7 @@ Release 0.9.1
   * Fix miscellaneous bugs in type checker
   * Switch name of Matrix2D to Transform2D
 
-Release 0.9
-===========
+## 0.9
 
 Build Improvements:
   * Major speed improvements to type-checker
@@ -62,8 +84,7 @@ Website:
 forgot to fill this in again...
 
 
-Release 0.7.2
-=============
+## 0.7.2
 
 * Add a WebSockets library.
 * Add support for the mathematical looking operator for function composition (U+2218).
@@ -72,8 +93,7 @@ Release 0.7.2
 forgot to fill this in for a while...
 
 
-Release 0.5.0
-=============
+## 0.5.0
 
 * Add Dict, Set, and Automaton libraries!
 
@@ -101,8 +121,7 @@ Release 0.5.0
 
 
 
-Release 0.4.0
-=============
+## 0.4.0
 
 This version is all about graphics: nicer API with more features and major
 efficiency improvements. I am really excited about this release!
@@ -132,8 +151,7 @@ efficiency improvements. I am really excited about this release!
 
 
 
-Release 0.3.6
-=============
+## 0.3.6
 
 * Add JSON library.
 
@@ -165,8 +183,7 @@ Release 0.3.6
 
 
 
-Release 0.3.5
-=============
+## 0.3.5
 
 * Add JavaScript event interface. Allows Elm to import and export JS values
   and events. This makes it possible to import and export Elements, so users
@@ -213,8 +230,7 @@ Release 0.3.5
 
 
 
-Release 0.3.0
-=============
+## 0.3.0
 
 Major Changes (Read this part!)
 -------------------------------
