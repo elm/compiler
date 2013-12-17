@@ -74,8 +74,9 @@ getDependencies obj =
 get obj field desc =
     do maybe <- obj .:? field
        case maybe of
-         Nothing -> fail $ "Missing field " ++ show field ++ ", " ++ desc
          Just value -> return value
+         Nothing -> fail $ "Missing field " ++ show field ++ ", " ++ desc ++ ".\n" ++
+                           "    <https://github.com/evancz/rainbow-palette/blob/master/elm_dependencies.json>"
 
 repoToName :: String -> Either String N.Name
 repoToName repo
