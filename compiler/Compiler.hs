@@ -2,6 +2,7 @@ module Main where
 
 import Control.Monad (foldM)
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import qualified Data.ByteString.Lazy.Char8 as BS
 import qualified System.Console.CmdArgs as CmdArgs
@@ -13,9 +14,9 @@ import Build.Dependencies (getSortedDependencies)
 import qualified Generate.Html as Html
 import qualified Metadata.Prelude as Prelude
 import qualified Build.Utils as Utils
-import qualified Build.Info as Info
 import qualified Build.Flags as Flag
 import qualified Build.File as File
+import qualified Elm.Internal.Paths as Path
 
 main :: IO ()
 main = do setNumCapabilities =<< getNumProcessors
@@ -46,7 +47,7 @@ build flags rootFile =
            then do putStr "Generating JavaScript ... "
                    return ("js", js)
            else do putStr "Generating HTML ... "
-                   makeHtml js moduleName
+                   return (makeHtml js moduleName)
 
        let targetFile = Utils.buildPath flags rootFile extension
        createDirectoryIfMissing True (takeDirectory targetFile)
@@ -61,11 +62,7 @@ build flags rootFile =
 
       sources js = map Html.Link (Flag.scripts flags) ++ [ Html.Source js ]
 
-      makeHtml js moduleName = do
-        rtsPath <- case Flag.runtime flags of
-                     Just fp -> return fp
-                     Nothing -> Info.runtime
-
-        let html = Html.generate
-                     rtsPath (takeBaseName rootFile) (sources js) moduleName ""
-        return ("html", Blaze.renderHtml html)
+      makeHtml js moduleName = ("html", Blaze.renderHtml html)
+          where
+            rtsPath = Maybe.fromMaybe Path.runtime (Flag.runtime flags)
+            html = Html.generate rtsPath (takeBaseName rootFile) (sources js) moduleName ""

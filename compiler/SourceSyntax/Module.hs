@@ -14,7 +14,7 @@ import SourceSyntax.Type
 import System.FilePath (joinPath)
 import Control.Monad (liftM)
 
-import qualified Build.Info as Info
+import qualified Elm.Internal.Version as Version
 
 data Module tipe var =
     Module [String] Exports Imports [Declaration tipe var]
@@ -61,7 +61,7 @@ type Interfaces = Map.Map String ModuleInterface
 type ADT = (String, [String], [(String,[Type])])
 
 data ModuleInterface = ModuleInterface {
-    iVersion  :: String,
+    iVersion  :: Version.Version,
     iTypes    :: Map.Map String Type,
     iImports  :: [(String, ImportMethod)],
     iAdts     :: [ADT],
@@ -71,7 +71,7 @@ data ModuleInterface = ModuleInterface {
 
 metaToInterface metaModule =
     ModuleInterface
-    { iVersion  = Info.version
+    { iVersion  = Version.elmVersion
     , iTypes    = types metaModule
     , iImports  = imports metaModule
     , iAdts     = datatypes metaModule
