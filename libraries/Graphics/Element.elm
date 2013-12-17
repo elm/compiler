@@ -108,7 +108,7 @@ color c e = let p = e.props in
 
 {-| Create an `Element` with a tag. This lets you link directly to it.
 The element `(tag "all-about-badgers" thirdParagraph)` can be reached
-with a link lik this: `/facts-about-animals.elm#all-about-badgers`
+with a link like this: `/facts-about-animals.elm#all-about-badgers`
 -}
 tag : String -> Element -> Element
 tag  name e = let p = e.props in
