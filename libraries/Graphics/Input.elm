@@ -113,7 +113,7 @@ hoverables : a -> { events : Signal a,
                     hoverable : (Bool -> a) -> Element -> Element }
 hoverables = Native.Graphics.Input.hoverables
 
-{-| Detect when the mouse is hovering over a specifici `Element`. -}
+{-| Detect when the mouse is hovering over a specific `Element`. -}
 hoverable : Element -> (Element, Signal Bool)
 hoverable elem =
     let pool = hoverables False
