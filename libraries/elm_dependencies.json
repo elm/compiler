@@ -6,8 +6,7 @@
 , "elm-version": "0.10.0.2"
 , "dependencies": {}
 , "exposed-modules":
-    [ "Automaton"
-    , "Basics"
+    [ "Basics"
     , "Bitwise"
     , "Char"
     , "Color"
