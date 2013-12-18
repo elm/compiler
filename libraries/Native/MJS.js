@@ -1844,6 +1844,31 @@ Elm.Native.MJS.make = function(elm) {
         return r;
     };
 
+    M4x4.makeCoords = function M4x4_makeCoords(vx,vy,vz) {
+        
+        var r = new MJS_FLOAT_ARRAY_TYPE(16);
+
+        r[0] = vx[0];
+        r[1] = vx[1];
+        r[2] = vx[2];
+        r[3] = 0;
+        r[4] = vy[0];
+        r[5] = vy[1];
+        r[6] = vy[2];
+        r[7] = 0;
+        r[8] = vz[0];
+        r[9] = vz[1];
+        r[10] = vz[2];
+        r[11] = 0;
+        r[12] = 0;
+        r[13] = 0;
+        r[14] = 0;
+        r[15] = 1;
+
+        return r;
+
+    };
+
     return { 
         V3: V3,
         v3: F3(V3.$),
@@ -1896,6 +1921,7 @@ Elm.Native.MJS.make = function(elm) {
            m4x4_transformPointFffine (m, v, r) {
            m4x4_transformLineFffine(m, v, r) {
            */
+        m4x4makeCoords: F3(M4x4.makeCoords),
     };
 
 }
