@@ -3,7 +3,7 @@ module Main where
 import Control.Monad (foldM)
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
-import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
+import Text.Blaze.Html.Renderer.String (renderHtml)
 import qualified Data.ByteString.Lazy.Char8 as BS
 import qualified System.Console.CmdArgs as CmdArgs
 import System.Directory
@@ -62,7 +62,7 @@ build flags rootFile =
 
       sources js = map Html.Link (Flag.scripts flags) ++ [ Html.Source js ]
 
-      makeHtml js moduleName = ("html", Blaze.renderHtml html)
+      makeHtml js moduleName = ("html", BS.pack $ renderHtml html)
           where
             rtsPath = Maybe.fromMaybe Path.runtime (Flag.runtime flags)
             html = Html.generate rtsPath (takeBaseName rootFile) (sources js) moduleName ""
