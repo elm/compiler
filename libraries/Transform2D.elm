@@ -1,14 +1,16 @@
 module Transform2D where
-{-| A library for performing [2D matrix transformations](http://en.wikipedia.org/wiki/Transformation_matrix#Affine_transformations).
+{-| A library for performing [2D matrix transformations][affine].
 It is used primarily with the `groupTransform` function from `Graphics.Collage` and
 allows you to do things like rotation, scaling, translation, shearing, and reflection.
 
 Note that all the matrices in this library are 3x3 matrices of homogeneous
-coordinates, used for affine transformations. Since the third row as always 0 0
-1, we omit this below.
+coordinates, used for [affine transformations][affine]. Since the bottom row as
+always `0 0 1` in these matrices, it is omitted in the diagrams below.
 
-# Basic Transforms
-@docs identity, matrix, rotation
+ [affine]: http://en.wikipedia.org/wiki/Transformation_matrix#Affine_transformations
+
+# Transforms
+@docs identity, matrix, rotation, translation, scale, scaleX, scaleY
 
 # Multiplication
 @docs multiply
