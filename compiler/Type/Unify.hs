@@ -114,7 +114,8 @@ actuallyUnify span variable1 variable2 = do
           where
             var = "'" ++ render (pretty Never variable) ++ "'"
             hint = "Cannot unify rigid type variable " ++ var ++
-                   ".\nThe problem probably relates to a type annotation."
+                   ".\nThe problem probably relates to a type annotation. Note that rigid type\n\
+                   \variables are not shared between a top-level and let-bound type annotations."
 
       superUnify =
           case (flex desc1, flex desc2, name desc1, name desc2) of
