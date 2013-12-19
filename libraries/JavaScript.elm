@@ -5,6 +5,10 @@ module JavaScript where
 the internal data structures of Elm to change and improve with no impact on JS
 integration.
 
+It is intended to be imported as `import JavaScript as JS`. That way functions
+like `JS.toInt` convert JavaScript *to* Elm integers and functions like
+`JS.fromString` gets JavaScript *from* Elm strings.
+
 # Javascript to Elm
 @docs toString, toInt, toFloat, toBool, toList
 
