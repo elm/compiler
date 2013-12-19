@@ -1,4 +1,4 @@
-module Dict (empty,singleton,insert
+module Dict (empty,singleton,insert,update
             ,lookup,findWithDefault
             ,remove,member
             ,foldl,foldr,map
@@ -14,7 +14,7 @@ lists of comparable types.
 Insert, remove, and query operations all take *O(log n)* time.
 
 # Build
-@docs empty, singleton, insert, remove
+@docs empty, singleton, insert, update, remove
 
 # Query
 @docs member, lookup, findWithDefault
@@ -148,17 +148,23 @@ ensureBlackRoot t =
 {-| Insert a key-value pair into a dictionary. Replaces value when there is
 a collision. -}
 insert : comparable -> v -> Dict comparable v -> Dict comparable v
-insert k v t =  -- Invariant: t is a valid left-leaning rb tree
-  let ins t =
+insert k v t = let updater _ = v 
+               in update k updater t
+
+{-| Update the value of a dictionary for a specific key with a given function. -}
+update : comparable -> (Maybe v -> v) -> Dict comparable v -> Dict comparable v
+update k u t = -- Invariant: t is a valid left-leaning rb tree
+  let up t =
       case t of
-        RBEmpty LBlack -> RBNode Red k v (RBEmpty LBlack) (RBEmpty LBlack)
+        -- Insert case
+        RBEmpty LBlack -> RBNode Red k (u Nothing) (RBEmpty LBlack) (RBEmpty LBlack)
         RBNode c k' v' l r ->
           let h = case Native.Utils.compare k k' of
-                    LT -> RBNode c k' v' (ins l) r
-                    EQ -> RBNode c k' v  l r  -- replace
-                    GT -> RBNode c k' v' l (ins r)
+                    LT -> RBNode c k' v' (up l) r
+                    EQ -> RBNode c k' (u (Just v')) l r -- update case
+                    GT -> RBNode c k' v' l (up r)
           in  fixUp h
-  in  ensureBlackRoot (ins t)
+  in  ensureBlackRoot (up t)
 
 {-| Create a dictionary with one key-value pair. -}
 singleton : comparable -> v -> Dict comparable v
