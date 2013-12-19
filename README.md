@@ -3,21 +3,17 @@ Learn about the Elm programming language at [elm-lang.org](http://elm-lang.org/)
 
 ## Install
 
-#### Platform Agnostic
+* [Arch Linux](https://github.com/evancz/Elm/wiki/Installing-Elm#arch-linux)
 
-Note for OS X 10.9 Maverics: you must follow these directions before continuing!
+#### Everyone else!
+
+**With OS X 10.9 Maverics:** you must follow these directions before continuing!
 
 Download the Haskell Platform 2012.2.0.0 or later. Once the Haskell Platform is installed:
 
-cabal update
-cabal install elm
-cabal install elm-server
-
-Elm definitely works with version 7.4 of the Haskell compiler (GHC 7.4) which is bundled with version 2012.2.0.0 of the Haskell Platform.
-
-#### Specific Platforms
-
-* [Arch Linux](https://github.com/evancz/Elm/wiki/Installing-Elm#arch-linux)
+    cabal update
+    cabal install elm
+    cabal install elm-server
 
 ## Use
 
