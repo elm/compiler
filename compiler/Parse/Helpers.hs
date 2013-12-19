@@ -274,7 +274,8 @@ ignoreUntil :: IParser a -> IParser (Maybe a)
 ignoreUntil end = go
     where
       ignore p = const () <$> p
-      filler = choice [ ignore multiComment
+      filler = choice [ ignore str
+                      , ignore multiComment
                       , ignore (markdown (\_ _ -> mzero))
                       , ignore anyChar
                       ]
@@ -318,3 +319,21 @@ markdown interpolation = try (string "[markdown|") >> closeMarkdown "" []
                  , do c <- anyChar
                       closeMarkdown (md ++ [c]) stuff
                  ]
+
+str :: IParser String
+str = choice [ quote >> dewindows <$> manyTill (backslashed <|> anyChar) quote
+             , liftM dewindows . expecting "string" . betwixt '"' '"' . many $
+               backslashed <|> satisfy (/='"')
+             ]
+    where
+      quote = try (string "\"\"\"")
+
+      -- Remove \r from strings to fix generated JavaScript
+      dewindows [] = []
+      dewindows cs =
+          let (pre, suf) = break (`elem` ['\r','\n']) cs
+          in  pre ++ case suf of 
+                       ('\r':'\n':rest) -> '\n' : dewindows rest
+                       ('\n':rest)      -> '\n' : dewindows rest
+                       ('\r':rest)      -> '\n' : dewindows rest
+                       _                -> []
