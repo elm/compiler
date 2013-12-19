@@ -3,14 +3,15 @@ Learn about the Elm programming language at [elm-lang.org](http://elm-lang.org/)
 
 ## Install
 
-**Arch Linux:** follow [these directions](https://github.com/evancz/Elm/wiki/Installing-Elm#arch-linux) and then
+**Arch Linux** &mdash; follow [these directions](https://github.com/evancz/Elm/wiki/Installing-Elm#arch-linux) and then
 jump to the [My First Project](#my-first-project) section.
-
-**OS X 10.9:** follow
+<br/>
+**OS X 10.9** &mdash; follow
 [these directions](http://justtesting.org/post/64947952690/the-glasgow-haskell-compiler-ghc-on-os-x-10-9)
-before continuing!
+before continuing with the platform agnostic directions below.
 
-Download the [Haskell Platform 2012.2.0.0 or later](http://hackage.haskell.org/platform/).
+**Plataform Agnostic** &mdash;
+download the [Haskell Platform 2012.2.0.0 or later](http://hackage.haskell.org/platform/).
 Once the Haskell Platform is installed:
 
     cabal update
