@@ -32,14 +32,16 @@ See this tutorial if you are new to changing your PATH in
 Now we will create a simple Elm project.
 The following commands will set-up a very basic project and start the Elm server.
 
-    mkdir helloElm
-    cd helloElm
-    printf "import Mouse\n\nmain = lift asText Mouse.position" > Main.elm
-    elm-server
+```bash
+mkdir helloElm
+cd helloElm
+echo -e "import Mouse\n\nmain = lift asText Mouse.position" > Main.elm
+elm-server
+```
 
-The first two commands create a new directory and navigate into it. The `printf`
-commands place a simple program into `Main.elm`. Do this manually if you do not
-have `printf`. The final command starts the Elm server at [localhost:8000](http://localhost:8000/),
+The first two commands create a new directory and navigate into it. The `echo`
+commands place a simple program into `Main.elm`.
+The final command starts the Elm server at [localhost:8000](http://localhost:8000/),
 allowing you to navigate to `Main.elm` and see your first program in action.
 
 #### Final Notes
