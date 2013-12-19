@@ -10,6 +10,7 @@ import qualified Data.ByteString.Lazy as BS
 import qualified Data.HashMap.Strict as Map
 import qualified Elm.Internal.Name as N
 import qualified Elm.Internal.Version as V
+import qualified Elm.Internal.Paths as Path
 
 data Deps = Deps
     { name :: N.Name
@@ -47,10 +48,6 @@ instance FromJSON Deps where
                      Right nm -> return nm
 
            exposed <- get obj "exposed-modules" "a list of modules exposed to users"
-           when (null exposed) $
-                fail "there are no 'exposed-modules'.\n\
-                     \At least one module must be exposed \
-                     \for anyone to use this library!"
 
            elmVersion <- get obj "elm-version" "the version of the Elm compiler you are using"
 
@@ -76,7 +73,8 @@ get obj field desc =
        case maybe of
          Just value -> return value
          Nothing -> fail $ "Missing field " ++ show field ++ ", " ++ desc ++ ".\n" ++
-                           "    <https://github.com/evancz/rainbow-palette/blob/master/elm_dependencies.json>"
+                           "    Check out an example " ++ Path.dependencyFile ++ " file here:" ++
+                           "    <https://github.com/evancz/automaton/blob/master/elm_dependencies.json>"
 
 repoToName :: String -> Either String N.Name
 repoToName repo
