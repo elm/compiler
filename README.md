@@ -3,18 +3,29 @@ Learn about the Elm programming language at [elm-lang.org](http://elm-lang.org/)
 
 ## Install
 
-[Please see these instructions.](https://github.com/evancz/Elm/wiki/Installing-Elm)
+#### Platform Agnostic
+
+Note for OS X 10.9 Maverics: you must follow these directions before continuing!
+
+Download the Haskell Platform 2012.2.0.0 or later. Once the Haskell Platform is installed:
+
+cabal update
+cabal install elm
+cabal install elm-server
+
+Elm definitely works with version 7.4 of the Haskell compiler (GHC 7.4) which is bundled with version 2012.2.0.0 of the Haskell Platform.
+
+#### Specific Platforms
+
+* [Arch Linux](https://github.com/evancz/Elm/wiki/Installing-Elm#arch-linux)
 
 ## Use
 
 To use `elm` and `elm-server` you may need to add a new directory to your PATH.
 
 Cabal should tell you where your executables are located upon
-successful installation.
-
-For me, the executables were placed in `/home/evan/.cabal/bin` which I
-appended to the end of my PATH variable in my .bashrc file.
-
+successful installation. It'll be something like `/home/evan/.cabal/bin`
+which you should append to your PATH variable.
 See this tutorial if you are new to changing your PATH in
 [Unix/Linux](http://www.cyberciti.biz/faq/unix-linux-adding-path/).
 
