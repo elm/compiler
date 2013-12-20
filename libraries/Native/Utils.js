@@ -25,7 +25,7 @@ Elm.Native.Utils.make = function(elm) {
     function compare(x,y) { return { ctor: ord[cmp(x,y)+1] } }
     function cmp(x,y) {
         var ord;
-        if (typeof x !== 'object' || x.constructor === String){
+        if (!(x instanceof Object) || x instanceof String){
             return x === y ? EQ : x < y ? LT : GT;
         }
 
