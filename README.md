@@ -10,7 +10,7 @@ jump to the [My First Project](#my-first-project) section.
 [these directions](http://justtesting.org/post/64947952690/the-glasgow-haskell-compiler-ghc-on-os-x-10-9)
 before continuing with the platform agnostic directions below.
 
-**Plataform Agnostic** &mdash;
+**Platform Agnostic** &mdash;
 download the [Haskell Platform 2012.2.0.0 or later](http://hackage.haskell.org/platform/).
 Once the Haskell Platform is installed:
 
