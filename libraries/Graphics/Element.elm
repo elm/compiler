@@ -13,7 +13,7 @@ combine and position.
 @docs widthOf, heightOf, sizeOf
 
 # Layout
-@docs flow, up, down, left, right, inward, outward
+@docs flow, up, down, left, right, inward, outward, empty
 
 ## Layout Aliases
 There are also some convenience functions for working
@@ -57,6 +57,10 @@ type Properties = {
  }
 
 type Element = { props : Properties, element : ElementPrim }
+
+{-| An Element that takes up no space -}
+empty : Element
+empty = spacer 0 0
 
 {-| Get the width of an Element -}
 widthOf : Element -> Int
@@ -195,7 +199,7 @@ flow dir es =
       hs = List.map heightOf es
       newFlow w h = newElement w h (Flow dir es)
   in 
-  if es == [] then spacer 0 0 else
+  if es == [] then empty else
   case dir of
     DUp    -> newFlow (List.maximum ws) (List.sum hs)
     DDown  -> newFlow (List.maximum ws) (List.sum hs)
