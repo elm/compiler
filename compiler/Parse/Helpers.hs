@@ -274,7 +274,7 @@ ignoreUntil :: IParser a -> IParser (Maybe a)
 ignoreUntil end = go
     where
       ignore p = const () <$> p
-      filler = choice [ ignore str
+      filler = choice [ try (ignore chr) <|> ignore str
                       , ignore multiComment
                       , ignore (markdown (\_ _ -> mzero))
                       , ignore anyChar
@@ -337,3 +337,7 @@ str = choice [ quote >> dewindows <$> manyTill (backslashed <|> anyChar) quote
                        ('\n':rest)      -> '\n' : dewindows rest
                        ('\r':rest)      -> '\n' : dewindows rest
                        _                -> []
+
+chr :: IParser Char
+chr = betwixt '\'' '\'' (backslashed <|> satisfy (/='\''))
+      <?> "character"
