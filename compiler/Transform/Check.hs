@@ -8,12 +8,10 @@ import Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
-import Data.Data
-import Data.Generics.Uniplate.Data
 import Text.PrettyPrint as P
 
 
-mistakes :: (Data t, Data v) => [Declaration t v] -> [Doc]
+mistakes :: [Declaration t v] -> [Doc]
 mistakes decls =
     concat [ infiniteTypeAliases decls
            , illFormedTypes decls
@@ -22,15 +20,35 @@ mistakes decls =
   where
     findErrors defs = duplicates defs ++ badOrder defs
 
-getLets :: (Data t, Data v) => [Declaration t v] -> [[Def t v]]
-getLets decls = defs : concatMap getSubLets defs
+getLets :: [Declaration t v] -> [[Def t v]]
+getLets decls = defs : concatMap defLets defs
     where
-      defs = concatMap (\d -> case d of Definition d -> [d] ; _ -> []) decls
+      defs = [ d | Definition d <- decls ]
 
-      getSubLets def =
+      defLets def =
           case def of
-            Def pattern expr -> [ defs | Let defs _ <- universeBi expr ]
             TypeAnnotation _ _ -> []
+            Def _ expr -> exprLets expr
+
+      exprLets (L _ expr) =
+          case expr of
+            Var _ -> []
+            Lambda p e -> exprLets e
+            Binop op e1 e2 -> exprLets e1 ++ exprLets e2
+            Case e cases -> exprLets e ++ concatMap (exprLets . snd) cases
+            Data name es -> concatMap exprLets es
+            Literal _ -> []
+            Range e1 e2 -> exprLets e1 ++ exprLets e2
+            ExplicitList es -> concatMap exprLets es
+            App e1 e2 -> exprLets e1 ++ exprLets e2
+            MultiIf branches -> concatMap (\(b,e) -> exprLets b ++ exprLets e) branches
+            Access e lbl -> exprLets e
+            Remove e lbl -> exprLets e
+            Insert e lbl v -> exprLets e ++ exprLets v
+            Modify e fields -> exprLets e ++ concatMap (exprLets . snd) fields
+            Record fields -> concatMap (exprLets . snd) fields
+            Markdown uid md es -> []
+            Let defs body -> [defs] ++ exprLets body
 
 dups :: Eq a => [a] -> [a]
 dups  = map head . filter ((>1) . length) . List.group

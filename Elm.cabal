@@ -109,7 +109,6 @@ Library
                        text,
                        transformers >= 0.2,
                        union-find,
-                       uniplate,
                        unordered-containers
 
 Executable elm
@@ -188,7 +187,6 @@ Executable elm
                        text,
                        transformers >= 0.2,
                        union-find,
-                       uniplate,
                        unordered-containers
 
 Executable elm-doc

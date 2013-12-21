@@ -1,7 +1,5 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 module SourceSyntax.Expression where
 
-import Data.Data
 import Data.List (intercalate)
 import SourceSyntax.PrettyPrint
 import Text.PrettyPrint as P
@@ -30,12 +28,12 @@ data Expr t v
     | Modify (LExpr t v) [(String, LExpr t v)]
     | Record [(String, LExpr t v)]
     | Markdown String String [LExpr t v]
-      deriving (Eq, Show, Data, Typeable)
+      deriving (Eq)
 
 data Def tipe var
     = Def Pattern.Pattern (LExpr tipe var)
     | TypeAnnotation String Type.Type
-      deriving (Eq, Show, Data, Typeable)
+      deriving (Eq, Show)
 
 tuple es = Data ("_Tuple" ++ show (length es)) es
 
@@ -46,6 +44,9 @@ saveEnvName = "_save_the_environment!!!"
 
 dummyLet defs = 
      Location.none $ Let defs (Location.none $ Var saveEnvName)
+
+instance Show (Expr t v) where
+  show = render . pretty
 
 instance Pretty (Expr t v) where
   pretty expr =
