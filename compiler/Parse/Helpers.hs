@@ -21,7 +21,8 @@ reserveds = [ "if", "then", "else"
             , "data", "type"
             , "module", "where"
             , "import", "as", "hiding", "open"
-            , "export", "foreign" ]
+            , "export", "foreign"
+            , "deriving" ]
 
 jsReserveds :: Set.Set String
 jsReserveds = Set.fromList
