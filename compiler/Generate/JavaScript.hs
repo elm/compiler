@@ -9,8 +9,12 @@ import qualified Data.Set as Set
 
 import qualified Generate.Cases as Case
 import qualified Generate.Markdown as MD
-import SourceSyntax.Everything
+import qualified SourceSyntax.Helpers as Help
+import SourceSyntax.Literal
+import SourceSyntax.Pattern
 import SourceSyntax.Location
+import SourceSyntax.Expression
+import SourceSyntax.Module
 import qualified Transform.SortDefinitions as SD
 import Language.ECMAScript3.Syntax
 import Language.ECMAScript3.PrettyPrint
@@ -21,7 +25,7 @@ split = go []
   where
     go vars str =
         case break (=='.') str of
-          (x,'.':rest) | isOp x -> vars ++ [x ++ '.' : rest]
+          (x,'.':rest) | Help.isOp x -> vars ++ [x ++ '.' : rest]
                        | otherwise -> go (vars ++ [x]) rest
           (x,[]) -> vars ++ [x]
 
@@ -197,7 +201,7 @@ definition def =
       let assign x = varDecl x expr'
       case pattern of
         PVar x
-          | isOp x ->
+          | Help.isOp x ->
               let op = LBracket () (ref "_op") (string x) in
               return [ ExprStmt () $ AssignExpr () OpAssign op expr' ]
           | otherwise ->
@@ -220,7 +224,7 @@ definition def =
 
               decl x n = varDecl x (dotSep ["$","_" ++ show n])
               setup vars
-                  | isTuple name = assign "$" : vars
+                  | Help.isTuple name = assign "$" : vars
                   | otherwise = safeAssign : vars
 
               safeAssign = varDecl "$" (CondExpr () if' expr' exception)
@@ -304,7 +308,7 @@ generate unsafeModule =
 
     jsExports = assign ("_elm" : names modul ++ ["values"]) (ObjectLit () exs)
         where
-          exs = map entry . filter (not . isOp) $ "_op" : exports modul
+          exs = map entry . filter (not . Help.isOp) $ "_op" : exports modul
           entry x = (PropId () (var x), ref x)
           
     assign path expr =
@@ -380,7 +384,7 @@ binop span op e1 e2 =
     js1 = expression e1
     js2 = expression e2
 
-    func | isOp operator = BracketRef () (dotSep (init parts ++ ["_op"])) (string operator)
+    func | Help.isOp operator = BracketRef () (dotSep (init parts ++ ["_op"])) (string operator)
          | otherwise     = dotSep parts
         where
           parts = split op

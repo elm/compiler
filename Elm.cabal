@@ -39,7 +39,6 @@ Library
   Hs-Source-Dirs:      compiler
   other-modules:       SourceSyntax.Declaration,
                        SourceSyntax.Expression,
-                       SourceSyntax.Everything,
                        SourceSyntax.Helpers,
                        SourceSyntax.Literal,
                        SourceSyntax.Location,
@@ -118,7 +117,6 @@ Executable elm
   Hs-Source-Dirs:      compiler
   other-modules:       SourceSyntax.Declaration,
                        SourceSyntax.Expression,
-                       SourceSyntax.Everything,
                        SourceSyntax.Helpers,
                        SourceSyntax.Literal,
                        SourceSyntax.Location,
@@ -195,7 +193,6 @@ Executable elm-doc
   Main-is:             Docs.hs
   Hs-Source-Dirs:      compiler
   other-modules:       SourceSyntax.Declaration,
-                       SourceSyntax.Everything,
                        SourceSyntax.Expression,
                        SourceSyntax.Helpers,
                        SourceSyntax.Literal,

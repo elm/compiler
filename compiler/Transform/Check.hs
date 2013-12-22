@@ -1,7 +1,10 @@
 module Transform.Check (mistakes) where
 
 import Transform.SortDefinitions (boundVars)
-import SourceSyntax.Everything
+import SourceSyntax.Declaration (Declaration(..))
+import SourceSyntax.Expression
+import SourceSyntax.Pattern
+import SourceSyntax.Location
 import SourceSyntax.PrettyPrint
 import qualified SourceSyntax.Type as T
 import Data.List as List
