@@ -32,6 +32,10 @@ the [`Time`](/docs/Signal/Time.elm) library.
 import Native.Signal
 import List (foldr)
 
+import Basics (otherwise, not)
+import Native.Error
+import Maybe as M
+
 data Signal a = Signal
 
 {-| Create a constant signal that never changes. -}
@@ -122,7 +126,18 @@ Until the first signal becomes false again, all events will be propagated. Elm
 does not allow undefined signals, so a base case must be provided in case the
 first signal is not true initially. -}
 keepWhen : Signal Bool -> a -> Signal a -> Signal a
-keepWhen = Native.Signal.keepWhen
+keepWhen bs def sig = 
+  let toMaybe : Bool -> a -> M.Maybe a
+      toMaybe b x = if b
+                    then M.Just x
+                    else M.Nothing
+      
+      fromJust : M.Maybe a -> a
+      fromJust m = case m of
+        M.Just x -> x
+        M.Nothing -> Native.Error.raise "Internal bug in keepWhen! Please report at https://github.com/evancz/Elm/issues?state=open"
+  in
+   fromJust <~ (keepIf M.isJust (M.Just def) (toMaybe <~ (sampleOn sig bs) ~ sig))
 
 {-| Drop events when the first signal is true. When the first signal becomes
 false, the most recent value of the second signal will be propagated. Until the
@@ -130,7 +145,7 @@ first signal becomes true again, all events will be propagated. Elm does not
 allow undefined signals, s oa base case must be provided in case the first
 signal is true initially. -}
 dropWhen : Signal Bool -> a -> Signal a -> Signal a
-dropWhen = Native.Signal.dropWhen
+dropWhen bs = keepWhen (not <~ bs)
 
 {-| Drop updates that repeat the current value of the signal.
 
