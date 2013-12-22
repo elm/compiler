@@ -8,7 +8,7 @@ import Text.Parsec.Indent
 import Parse.Helpers
 import SourceSyntax.Literal
 
-literal = num <|> (Str <$> str) <|> chr
+literal = num <|> (Str <$> str) <|> (Chr <$> chr)
 
 num :: IParser Literal
 num = fmap toLit (preNum <?> "number")
@@ -21,7 +21,3 @@ num = fmap toLit (preNum <?> "number")
           minus = try $ do string "-"
                            lookAhead digit
                            return "-"
-
-chr :: IParser Literal
-chr = Chr <$> betwixt '\'' '\'' (backslashed <|> satisfy (/='\''))
-      <?> "character"
