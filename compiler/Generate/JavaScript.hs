@@ -1,4 +1,4 @@
-module Generate.JavaScript where
+module Generate.JavaScript (generate) where
 
 import Control.Arrow (first,(***))
 import Control.Applicative ((<$>),(<*>))
@@ -14,15 +14,7 @@ import SourceSyntax.Location
 import qualified Transform.SortDefinitions as SD
 import Language.ECMAScript3.Syntax
 import Language.ECMAScript3.PrettyPrint
-import Parse.Helpers (jsReserveds)
-
-makeSafe :: String -> String
-makeSafe = List.intercalate "." . map dereserve . split . deprime
-  where
-    deprime = map (\c -> if c == '\'' then '$' else c)
-    dereserve x = case Set.member x jsReserveds of
-                    False -> x
-                    True  -> "$" ++ x
+import qualified Transform.SafeNames as MakeSafe
 
 split :: String -> [String]
 split = go []
@@ -33,7 +25,7 @@ split = go []
                        | otherwise -> go (vars ++ [x]) rest
           (x,[]) -> vars ++ [x]
 
-var name = Id () (makeSafe name)
+var name = Id () name
 ref name = VarRef () (var name)
 prop name = PropId () (var name)
 f <| x = CallExpr () f [x]
@@ -185,7 +177,7 @@ expression (L span expr) =
           do es' <- mapM expression es
              return $ ObjectLit () (ctor : fields es')
           where
-            ctor = (prop "ctor", string (makeSafe name))
+            ctor = (prop "ctor", string name)
             fields = zipWith (\n e -> (prop ("_" ++ show n), e)) [0..]
 
       Markdown uid doc es ->
@@ -291,10 +283,11 @@ clause span variable (Case.Clause value vars mtch) =
 
 
 generate :: MetadataModule () () -> String 
-generate modul =
+generate unsafeModule =
     show . prettyPrint $ setup (Just "Elm") (names modul ++ ["make"]) ++
              [ assign ("Elm" : names modul ++ ["make"]) (function ["_elm"] programStmts) ]
   where
+    modul = MakeSafe.metadataModule unsafeModule
     thisModule = dotSep ("_elm" : names modul ++ ["values"])
     programStmts =
         concat [ setup (Just "_elm") (names modul ++ ["values"])
