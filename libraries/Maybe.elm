@@ -11,8 +11,8 @@ module Maybe where
 # Transforming Maybes
 @docs map, maybe
 
-# Maybes and Lists
-@docs justs
+# Extracting values
+@docs extract, justs
 -}
 
 import Basics (not, (.))
@@ -55,3 +55,10 @@ cons mx xs = maybe xs (\x -> x :: xs) mx
 -}
 justs : [Maybe a] -> [a]
 justs = foldr cons []
+
+{-| Return the value in a `Just`, or the default if given `Nothing`.
+-}
+extract : a -> Maybe a -> a
+extract a m = case m of
+                Just v -> v
+                Nothing -> a
