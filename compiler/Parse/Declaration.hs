@@ -11,16 +11,16 @@ import Parse.Helpers
 import qualified Parse.Expression as Expr
 import qualified SourceSyntax.Type as T
 import qualified Parse.Type as Type
-import SourceSyntax.Declaration (Declaration(..), Assoc(..))
+import qualified SourceSyntax.Declaration as D
 
 
-declaration :: IParser (Declaration t v)
+declaration :: IParser (D.Declaration t v)
 declaration = alias <|> datatype <|> infixDecl <|> foreignDef <|> definition
 
-definition :: IParser (Declaration t v)
-definition = Definition <$> Expr.def
+definition :: IParser (D.Declaration t v)
+definition = D.Definition <$> Expr.def
 
-alias :: IParser (Declaration t v)
+alias :: IParser (D.Declaration t v)
 alias = do
   reserved "type" <?> "type alias (type Point = {x:Int, y:Int})"
   forcedWS
@@ -28,9 +28,13 @@ alias = do
   args  <- spacePrefix lowVar
   padded equals
   tipe <- Type.expr
-  return (TypeAlias alias args tipe)
+  json <- option [] $ do
+            padded (reserved "deriving")
+            string "Json"
+            return [D.Json]
+  return (D.TypeAlias alias args tipe json)
 
-datatype :: IParser (Declaration t v)
+datatype :: IParser (D.Declaration t v)
 datatype = do
   reserved "data" <?> "datatype definition (data T = A | B | ...)"
   forcedWS
@@ -38,27 +42,27 @@ datatype = do
   args <- spacePrefix lowVar
   padded equals
   tcs <- pipeSep1 Type.constructor
-  return $ Datatype name args tcs
+  return $ D.Datatype name args tcs
 
 
-infixDecl :: IParser (Declaration t v)
+infixDecl :: IParser (D.Declaration t v)
 infixDecl = do
-  assoc <- choice [ reserved "infixl" >> return L
-                  , reserved "infix"  >> return N
-                  , reserved "infixr" >> return R ]
+  assoc <- choice [ reserved "infixl" >> return D.L
+                  , reserved "infix"  >> return D.N
+                  , reserved "infixr" >> return D.R ]
   forcedWS
   n <- digit
   forcedWS
-  Fixity assoc (read [n]) <$> anyOp
+  D.Fixity assoc (read [n]) <$> anyOp
 
 
-foreignDef :: IParser (Declaration t v)
+foreignDef :: IParser (D.Declaration t v)
 foreignDef = do
   try (reserved "foreign")
   whitespace
   importEvent <|> exportEvent
 
-exportEvent :: IParser (Declaration t v)
+exportEvent :: IParser (D.Declaration t v)
 exportEvent = do
   try (reserved "export") >> padded (reserved "jsevent")
   eventName <- jsVar
@@ -69,11 +73,11 @@ exportEvent = do
   case tipe of
     T.Data "Signal" [t] ->
         case isExportable t of
-          Nothing -> return (ExportEvent eventName elmVar tipe)
+          Nothing -> return (D.ExportEvent eventName elmVar tipe)
           Just err -> fail err
     _ -> fail "When importing foreign events, the imported value must have type Signal."
 
-importEvent :: IParser (Declaration t v)
+importEvent :: IParser (D.Declaration t v)
 importEvent = do
   try (reserved "import") >> padded (reserved "jsevent")
   eventName <- jsVar
@@ -85,7 +89,7 @@ importEvent = do
   case tipe of
     T.Data "Signal" [t] ->
         case isExportable t of
-          Nothing -> return (ImportEvent eventName baseValue elmVar tipe)
+          Nothing -> return (D.ImportEvent eventName baseValue elmVar tipe)
           Just err -> fail err
     _ -> fail "When importing foreign events, the imported value must have type Signal."
 
