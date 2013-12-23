@@ -12,11 +12,12 @@ module Maybe where
 @docs map, maybe
 
 # Extracting values
-@docs extract, justs
+@docs extract, justs, keepJusts
 -}
 
 import Basics (not, (.))
 import List (foldr)
+import Signal (Signal, lift, keepIf)
 
 {-| The `Maybe` datatype. Useful when a computation may or may not
 result in a value (e.g. logarithm is defined only for positive numbers).
@@ -62,3 +63,9 @@ extract : a -> Maybe a -> a
 extract a m = case m of
                 Just v -> v
                 Nothing -> a
+
+{-| Create a signal using the value of each `Just`, dropping the `Nothings`. A
+default is required and used until the input signal is not `Nothing`.
+-}
+keepJusts : a -> Signal (Maybe a) -> Signal a
+keepJusts a sa = lift (\(Just x) -> x) (keepIf isJust (Just a) sa)
