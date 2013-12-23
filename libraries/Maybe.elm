@@ -5,8 +5,11 @@ module Maybe where
 # Type and Constructors
 @docs Maybe
 
-# Taking Maybes apart
-@docs maybe, isJust, isNothing
+# Examining Maybes
+@docs isJust, isNothing
+
+# Transforming Maybes
+@docs map, maybe
 
 # Maybes and Lists
 @docs justs
@@ -15,21 +18,28 @@ module Maybe where
 import Basics (not, (.))
 import List (foldr)
 
-{-| The Maybe datatype. Useful when a computation may or may not
-result in a value (e.g. logarithm is defined only for positive
-numbers). 
+{-| The `Maybe` datatype. Useful when a computation may or may not
+result in a value (e.g. logarithm is defined only for positive numbers).
 -}
 data Maybe a = Just a | Nothing
 
-{-| Apply a function to the contents of a `Maybe`.
-Return default when given `Nothing`.
+{-| Apply a function to the contents of a `Just`, or return the default when
+given `Nothing`.
 -}
 maybe : b -> (a -> b) -> Maybe a -> b
 maybe b f m = case m of
                 Just v  -> f v
                 Nothing -> b
 
-{-| Check if constructed with `Just`. 
+{-| Apply a function to the contents of a `Maybe`, returning either the
+transformed `Just` or `Nothing`.
+-}
+map : (a -> b) -> Maybe a -> Maybe b
+map f m = case m of
+            Just v -> Just (f v)
+            Nothing -> Nothing
+
+{-| Check if constructed with `Just`.
 -}
 isJust : Maybe a -> Bool
 isJust = maybe False (\_ -> True)
@@ -41,7 +51,7 @@ isNothing = not . isJust
 
 cons mx xs = maybe xs (\x -> x :: xs) mx
 
-{-| Filters out Nothings and extracts the remaining values.
+{-| Filters out `Nothing`s from a list and extracts the remaining values.
 -}
 justs : [Maybe a] -> [a]
 justs = foldr cons []
