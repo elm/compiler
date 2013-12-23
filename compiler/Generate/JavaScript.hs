@@ -1,4 +1,4 @@
-module Generate.JavaScript where
+module Generate.JavaScript (generate) where
 
 import Control.Arrow (first,(***))
 import Control.Applicative ((<$>),(<*>))
@@ -9,31 +9,27 @@ import qualified Data.Set as Set
 
 import qualified Generate.Cases as Case
 import qualified Generate.Markdown as MD
-import SourceSyntax.Everything
+import qualified SourceSyntax.Helpers as Help
+import SourceSyntax.Literal
+import SourceSyntax.Pattern
 import SourceSyntax.Location
+import SourceSyntax.Expression
+import SourceSyntax.Module
 import qualified Transform.SortDefinitions as SD
 import Language.ECMAScript3.Syntax
 import Language.ECMAScript3.PrettyPrint
-import Parse.Helpers (jsReserveds)
-
-makeSafe :: String -> String
-makeSafe = List.intercalate "." . map dereserve . split . deprime
-  where
-    deprime = map (\c -> if c == '\'' then '$' else c)
-    dereserve x = case Set.member x jsReserveds of
-                    False -> x
-                    True  -> "$" ++ x
+import qualified Transform.SafeNames as MakeSafe
 
 split :: String -> [String]
 split = go []
   where
     go vars str =
         case break (=='.') str of
-          (x,'.':rest) | isOp x -> vars ++ [x ++ '.' : rest]
+          (x,'.':rest) | Help.isOp x -> vars ++ [x ++ '.' : rest]
                        | otherwise -> go (vars ++ [x]) rest
           (x,[]) -> vars ++ [x]
 
-var name = Id () (makeSafe name)
+var name = Id () name
 ref name = VarRef () (var name)
 prop name = PropId () (var name)
 f <| x = CallExpr () f [x]
@@ -185,7 +181,7 @@ expression (L span expr) =
           do es' <- mapM expression es
              return $ ObjectLit () (ctor : fields es')
           where
-            ctor = (prop "ctor", string (makeSafe name))
+            ctor = (prop "ctor", string name)
             fields = zipWith (\n e -> (prop ("_" ++ show n), e)) [0..]
 
       Markdown uid doc es ->
@@ -205,7 +201,7 @@ definition def =
       let assign x = varDecl x expr'
       case pattern of
         PVar x
-          | isOp x ->
+          | Help.isOp x ->
               let op = LBracket () (ref "_op") (string x) in
               return [ ExprStmt () $ AssignExpr () OpAssign op expr' ]
           | otherwise ->
@@ -228,7 +224,7 @@ definition def =
 
               decl x n = varDecl x (dotSep ["$","_" ++ show n])
               setup vars
-                  | isTuple name = assign "$" : vars
+                  | Help.isTuple name = assign "$" : vars
                   | otherwise = safeAssign : vars
 
               safeAssign = varDecl "$" (CondExpr () if' expr' exception)
@@ -291,10 +287,11 @@ clause span variable (Case.Clause value vars mtch) =
 
 
 generate :: MetadataModule () () -> String 
-generate modul =
+generate unsafeModule =
     show . prettyPrint $ setup (Just "Elm") (names modul ++ ["make"]) ++
              [ assign ("Elm" : names modul ++ ["make"]) (function ["_elm"] programStmts) ]
   where
+    modul = MakeSafe.metadataModule unsafeModule
     thisModule = dotSep ("_elm" : names modul ++ ["values"])
     programStmts =
         concat [ setup (Just "_elm") (names modul ++ ["values"])
@@ -311,7 +308,7 @@ generate modul =
 
     jsExports = assign ("_elm" : names modul ++ ["values"]) (ObjectLit () exs)
         where
-          exs = map entry . filter (not . isOp) $ "_op" : exports modul
+          exs = map entry . filter (not . Help.isOp) $ "_op" : exports modul
           entry x = (PropId () (var x), ref x)
           
     assign path expr =
@@ -387,7 +384,7 @@ binop span op e1 e2 =
     js1 = expression e1
     js2 = expression e2
 
-    func | isOp operator = BracketRef () (dotSep (init parts ++ ["_op"])) (string operator)
+    func | Help.isOp operator = BracketRef () (dotSep (init parts ++ ["_op"])) (string operator)
          | otherwise     = dotSep parts
         where
           parts = split op

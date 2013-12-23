@@ -1,7 +1,11 @@
 module Generate.Noscript (noscript) where
 
 import Data.List (isInfixOf)
-import SourceSyntax.Everything
+import SourceSyntax.Declaration (Declaration(..))
+import SourceSyntax.Expression
+import SourceSyntax.Literal
+import SourceSyntax.Location
+import SourceSyntax.Module
 import qualified Generate.Markdown as MD
 
 noscript :: Module t v -> String

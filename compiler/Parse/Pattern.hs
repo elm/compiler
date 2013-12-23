@@ -11,9 +11,9 @@ import Text.Parsec.Indent
 
 import Parse.Helpers
 import Parse.Literal
+import SourceSyntax.Literal
+import SourceSyntax.Pattern hiding (tuple, list)
 import qualified SourceSyntax.Pattern as Pattern
-import SourceSyntax.Everything hiding (tuple)
-
 
 basic :: IParser Pattern
 basic = choice
