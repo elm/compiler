@@ -3,7 +3,7 @@ module Maybe where
 {-| Represents an optional value. Maybe it is there, maybe it is not.
 
 # Type and Constructors
-@docs Maybe
+@docs Maybe, justIf
 
 # Examining Maybes
 @docs isJust, isNothing
@@ -15,7 +15,7 @@ module Maybe where
 @docs extract, justs, keepJusts
 -}
 
-import Basics (not, (.))
+import Basics (not, otherwise, (.))
 import List (foldr)
 import Signal (Signal, lift, keepIf)
 
@@ -23,6 +23,11 @@ import Signal (Signal, lift, keepIf)
 result in a value (e.g. logarithm is defined only for positive numbers).
 -}
 data Maybe a = Just a | Nothing
+
+{-| Return `Just` the value if it meets the predicate, and `Nothing` otherwise.
+-}
+justIf : (a -> Bool) -> a -> Maybe a
+justIf p a = if p a then Just a else Nothing
 
 {-| Apply a function to the contents of a `Just`, or return the default when
 given `Nothing`.
