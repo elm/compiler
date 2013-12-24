@@ -15,7 +15,7 @@ module Maybe where
 @docs extract, justs, keepJusts
 -}
 
-import Basics (not, otherwise, (.))
+import Basics (not, (.))
 import List (foldr)
 import Signal (Signal, lift, keepIf)
 
