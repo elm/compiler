@@ -53,12 +53,10 @@ toDefs decl =
     -- TODO: with the ability to derive code, you may need to generate stuff!
     TypeAlias _ _ _ _ -> []
 
-    ImportEvent _ expr@(L.L s _) name tipe ->
-        [ Src.TypeAnnotation name tipe
-        , Src.Def (P.PVar name) (L.L s $ Src.App (L.L s $ Src.Var "constant") expr) ]
-
-    ExportEvent _ name tipe ->
-        [ Src.TypeAnnotation name tipe ]
+    Port name tipe maybe ->
+        Src.TypeAnnotation name tipe : case maybe of
+                                         Nothing -> []
+                                         Just expr -> [ Src.Def (P.PVar name) expr ]
 
     -- no constraints are needed for fixity declarations
     Fixity _ _ _ -> []

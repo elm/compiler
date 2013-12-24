@@ -10,8 +10,7 @@ data Declaration tipe var
     = Definition (Expr.Def tipe var)
     | Datatype String [String] [(String,[Type])] [Derivation]
     | TypeAlias String [String] Type [Derivation]
-    | ImportEvent String (Expr.LExpr tipe var) String Type
-    | ExportEvent String String Type
+    | Port String Type (Maybe (Expr.LExpr tipe var))
     | Fixity Assoc Int String
       deriving (Eq, Show)
 
@@ -60,11 +59,20 @@ instance Pretty (Declaration t v) where
             name' = P.text name <+> P.hsep (map P.text tvars)
             alias = P.hang (P.text "type" <+> name' <+> P.equals) 4 (pretty tipe)
 
-      -- TODO: Actually write out the contained data in these cases.
-      ImportEvent _ _ _ _ -> P.text (show decl)
-      ExportEvent _ _ _   -> P.text (show decl)
-      Fixity _ _ _        -> P.text (show decl)
+      Port name tipe maybeExpr ->
+          let port = P.text "port" <+> P.text name in
+          P.vcat [ port <+> P.colon  <+> pretty tipe
+                 , maybe P.empty (\expr -> port <+> P.equals <+> pretty expr) maybeExpr
+                 ]
 
+      Fixity assoc prec op -> P.text "infix" <> assoc' <+> P.int prec <+> P.text op
+          where
+            assoc' = case assoc of
+                       L -> P.text "l"
+                       N -> P.empty
+                       R -> P.text "r"
+
+prettyDeriving :: [Derivation] -> Doc
 prettyDeriving deriveables =
     case deriveables of
       []  -> P.empty

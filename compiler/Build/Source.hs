@@ -56,8 +56,7 @@ build noPrelude interfaces source =
            datatypes = [ (name,vars,ctors,ds) | Datatype name vars ctors ds <- decls ],
            fixities = [ (assoc,level,op) | Fixity assoc level op <- decls ],
            aliases = [ (name,tvs,tipe,ds) | TypeAlias name tvs tipe ds <- decls ],
-           foreignImports = [ (evt,v,name,typ) | ImportEvent evt v name typ <- decls ],
-           foreignExports = [ (evt,name,typ) | ExportEvent evt name typ <- decls ]
+           ports = [ (name,tipe,maybe) | Port name tipe maybe <- decls ]
           }
 
      types <- TI.infer interfaces metaModule

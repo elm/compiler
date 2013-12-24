@@ -299,10 +299,9 @@ generate unsafeModule =
                , [ IfSingleStmt () thisModule (ReturnStmt () (Just thisModule)) ]
                , [ internalImports (List.intercalate "." (names modul)) ]
                , concatMap jsImport (imports modul)
-               , concatMap importEvent (foreignImports modul)
+               , concatMap jsPort (ports modul)
                , [ assign ["_op"] (ObjectLit () []) ]
                , concat $ evalState (mapM definition . fst . SD.flattenLets [] $ program modul) 0
-               , map exportEvent $ foreignExports modul
                , [ jsExports ]
                , [ ReturnStmt () (Just thisModule) ]
                ]
@@ -332,29 +331,10 @@ generate unsafeModule =
 
     addId js = InfixExpr () OpAdd (string (js++"_")) (obj "_elm.id")
 
-    importEvent (js,base,elm,_) =
-        [ VarDeclStmt () [ varDecl elm $ obj "Signal.constant" <| evalState (expression base) 0 ]
-        , ExprStmt () $
-            obj "document.addEventListener" `call`
-                  [ addId js
-                  , function ["_e"]
-                        [ ExprStmt () $ obj "_elm.notify" `call` [dotSep [elm,"id"], obj "_e.value"] ]
-                  ]
-        ]
-
-    exportEvent (js,elm,_) =
-        ExprStmt () $
-        ref "A2" `call`
-                [ obj "Signal.lift"
-                , function ["_v"]
-                      [ VarDeclStmt () [varDecl "_e" $ obj "document.createEvent" <| string "Event"]
-                      , ExprStmt () $
-                            obj "_e.initEvent" `call` [ addId js, BoolLit () True, BoolLit () True ]
-                      , ExprStmt () $ AssignExpr () OpAssign (LDot () (ref "_e") "value") (ref "_v")
-                      , ExprStmt () $ obj "document.dispatchEvent" <| ref "_e"
-                      , ReturnStmt () (Just $ ref "_v")
-                      ]
-                , ref elm ]
+    jsPort (name, _, maybe) =
+        case maybe of
+          Nothing -> error "in-ports are not defined yet"
+          Just expr -> error "out-ports are not defined yet"
 
 binop span op e1 e2 =
     case op of

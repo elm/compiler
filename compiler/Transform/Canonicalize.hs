@@ -57,20 +57,16 @@ metadataModule ifaces modul =
             missings -> Left [ P.text $ "The following imports were not found: " ++ List.intercalate ", " missings ]
      program' <- rename initialEnv (program modul)
      aliases' <- mapM (threeOfFour renameType') (aliases modul)
-     datatypes' <- mapM (threeOfFour (mapM (second (mapM renameType')))) (datatypes modul)
-     exports' <- mapM (third renameType') (foreignExports modul)
-     imports' <- mapM (twoAndFour (rename initialEnv) renameType') (foreignImports modul)
+     datatypes' <- mapM (threeOfFour (mapM (two2 (mapM renameType')))) (datatypes modul)
+     ports' <- mapM (two3 renameType') (ports modul)
      return $ modul { program = program'
                     , aliases = aliases'
                     , datatypes = datatypes'
-                    , foreignExports = exports'
-                    , foreignImports = imports' }
+                    , ports = ports' }
   where
-    second f (a,b) = (,) a `fmap` f b
-    third f (a,b,c) = (,,) a b `fmap` f c
-    threeOfFour f (a,b,c,d) =
-        do c' <- f c
-           return (a,b,c',d)
+    two2 f (a,b) = (,) a `fmap` f b
+    two3 f (a,b,c) = (,,) a `fmap` f b `ap` return c
+    threeOfFour f (a,b,c,d) = (,,,) a b `fmap` f c `ap` return d
     twoAndFour f g (a,b,c,d) =
         do b' <- f b
            d' <- g d

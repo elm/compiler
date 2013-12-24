@@ -51,8 +51,7 @@ data MetadataModule t v = MetadataModule {
     fixities  :: [(Assoc, Int, String)],
     aliases   :: [Alias],
     datatypes :: [ADT],
-    foreignImports :: [(String, LExpr t v, String, Type)],
-    foreignExports :: [(String, String, Type)]
+    ports :: [(String, Type, Maybe (LExpr t v))]
 } deriving Show
 
 type Interfaces = Map.Map String ModuleInterface

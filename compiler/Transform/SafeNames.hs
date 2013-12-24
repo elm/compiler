@@ -69,10 +69,7 @@ metadataModule modul =
     , datatypes =
         let makeSafe (name,tvars,ctors,ds) = (var name, tvars, map (first var) ctors, ds)
         in  map makeSafe (datatypes modul)
-    , foreignImports =
-        let makeSafe (js,expr,elm,tipe) = (js, expression expr, var elm, tipe)
-        in  map makeSafe (foreignImports modul)
-    , foreignExports =
-        let makeSafe (js,elm,tipe) = (js, var elm, tipe)
-        in  map makeSafe (foreignExports modul)
+    , ports =
+        let makeSafe (name,tipe,expr) = (name, tipe, expression `fmap` expr)
+        in  map makeSafe (ports modul)
     }
