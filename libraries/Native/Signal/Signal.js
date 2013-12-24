@@ -127,12 +127,6 @@ Elm.Native.Signal.make = function(elm) {
     input.kids.push(this);
   }
 
-  function dropWhen(s1,b,s2) {
-    var pairs = lift2( F2(function(x,y){return {x:x,y:y};}), s1, s2 );
-    var dropped = new DropIf(function(p){return p.x;},{x:true,y:b},pairs);
-    return lift(function(p){return p.y;}, dropped);
-  }
-
   function timestamp(a) {
     function update() { return Utils.Tuple2(Date.now(), a.value); }
     return new LiftN(update, [a]);
@@ -225,9 +219,6 @@ Elm.Native.Signal.make = function(elm) {
     keepIf : F3(function(pred,base,sig) {
       return new DropIf(function(x) {return !pred(x);},base,sig); }),
     dropIf : F3(function(pred,base,sig) { return new DropIf(pred,base,sig); }),
-    keepWhen : F3(function(s1,b,s2) {
-      return dropWhen(lift(function(b){return !b;},s1), b, s2); }),
-    dropWhen : F3(dropWhen),
     dropRepeats : function(s) { return new DropRepeats(s);},
     sampleOn : F2(sampleOn),
     timestamp : timestamp
