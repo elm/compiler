@@ -207,6 +207,30 @@ Elm.Native.Utils.make = function(elm) {
         return Tuple2(posx, posy);
     }
 
+    function checkPorts(moduleName, ports) {
+        var expected = {};
+        for (var i = ports.length; i--; ) {
+            expected[ports[i]] = 1;
+        }
+        for (var key in elm.ports_in) {
+            expected[key] = expected[key] || 0;
+            expected[key] -= 1;
+        }
+        var missing = [];
+        var extra = [];
+        for (var key in expected) {
+            var result = expected[key];
+            if (result > 0) missing.push(key);
+            if (result < 0) extra.push(key);
+        }
+        if (missing.length > 0) {
+            throw new Error("Module " + moduleName + " requires inputs for these ports: " + missing.join(', '));
+        }
+        if (extra.length > 0) {
+            throw new Error("Module " + moduleName + " has been given ports that do not exist: " + extra.join(', '));
+        }
+    }
+
     return elm.Native.Utils.values = {
         eq:eq,
         cmp:cmp,
@@ -226,6 +250,7 @@ Elm.Native.Utils.make = function(elm) {
         mod : F2(mod),
         htmlHeight: F2(htmlHeight),
         getXY: getXY,
-        toFloat: function(x) { return +x; }
+        toFloat: function(x) { return +x; },
+        checkPorts: checkPorts
     };
 };

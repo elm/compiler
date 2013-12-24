@@ -299,7 +299,8 @@ generate unsafeModule =
                , [ IfSingleStmt () thisModule (ReturnStmt () (Just thisModule)) ]
                , [ internalImports (List.intercalate "." (names modul)) ]
                , concatMap jsImport (imports modul)
-               , concatMap jsPort (ports modul)
+               , checkInPorts (ports modul)
+               , map jsPort (ports modul)
                , [ assign ["_op"] (ObjectLit () []) ]
                , concat $ evalState (mapM definition . fst . SD.flattenLets [] $ program modul) 0
                , [ jsExports ]
@@ -331,10 +332,15 @@ generate unsafeModule =
 
     addId js = InfixExpr () OpAdd (string (js++"_")) (obj "_elm.id")
 
+    checkInPorts ports =
+        [ ExprStmt () $ obj "_N.checkPorts" `call` [ref "$moduleName", names] ]
+        where
+          names = ArrayLit () [ string name | (name, _, Nothing) <- ports ]
+
     jsPort (name, _, maybe) =
         case maybe of
-          Nothing -> error "in-ports are not defined yet"
-          Just expr -> error "out-ports are not defined yet"
+          Nothing -> assign [name] $ dotSep ["_elm","ports_in",name]
+          Just expr -> assign ["_elm","ports_out",name] $ evalState (expression expr) 0
 
 binop span op e1 e2 =
     case op of
