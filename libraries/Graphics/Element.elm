@@ -13,7 +13,7 @@ combine and position.
 @docs widthOf, heightOf, sizeOf
 
 # Layout
-@docs flow, up, down, left, right, inward, outward, empty
+@docs flow, up, down, left, right, inward, outward
 
 ## Layout Aliases
 There are also some convenience functions for working
@@ -22,7 +22,7 @@ with `flow` in specific cases:
 @docs layers, above, below, beside
 
 # Positioning
-@docs spacer, container
+@docs empty, spacer, container
 
 ## Specific Positions
 
@@ -58,7 +58,10 @@ type Properties = {
 
 type Element = { props : Properties, element : ElementPrim }
 
-{-| An Element that takes up no space -}
+{-| An Element that takes up no space. Good for things that appear conditionally:
+
+    flow down [ img1, if showMore then img2 else empty ]
+-}
 empty : Element
 empty = spacer 0 0
 
