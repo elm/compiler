@@ -1,6 +1,6 @@
 module Maybe where
 
-{-| Represents an optional value. Maybe it is there, maybe it is not.
+{-| Represents an optional value. Maybe it is there, or maybe it is not.
 
 # Type and Constructors
 @docs Maybe, justIf
@@ -30,7 +30,7 @@ justIf : (a -> Bool) -> a -> Maybe a
 justIf p a = if p a then Just a else Nothing
 
 {-| Apply a function to the contents of a `Just`, or return the default when
-given `Nothing`.
+given `Nothing`. `maybe b f ma == just b (map f ma)`
 -}
 maybe : b -> (a -> b) -> Maybe a -> b
 maybe b f m = case m of
