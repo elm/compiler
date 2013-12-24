@@ -154,14 +154,15 @@ expression (L span expr) =
              return $ function [] (stmts ++ [ ReturnStmt () (Just exp) ]) `call` []
 
       MultiIf branches ->
-          do branches' <- forM branches $ \(b,e) -> (,) <$> expression b <*> expression e
-             return $ case last branches of
-                        (L _ (Var "Basics.otherwise"), e) -> ifs (init branches') (snd (last branches'))
-                        _ -> ifs branches'
-                                 (obj "_E.If" `call` [ ref "$moduleName", string (show span) ])
-          where
-            ifs branches finally = foldr iff finally branches
-            iff (if', then') else' = CondExpr () if' then' else'
+        do branches' <- forM branches $ \(b,e) -> (,) <$> expression b <*> expression e
+           return $ case last branches of
+             (L _ (Var "Basics.otherwise"), _) -> els branches'
+             (L _ (Literal (Boolean True)), _) -> els branches'
+             _ -> ifs branches' (obj "_E.If" `call` [ ref "$moduleName", string (show span) ])
+        where
+          els branches = ifs (init branches) (snd (last branches))
+          ifs branches finally = foldr iff finally branches
+          iff (if', then') else' = CondExpr () if' then' else'
 
       Case e cases ->
           do (tempVar,initialMatch) <- Case.toMatch cases
