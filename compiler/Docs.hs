@@ -17,7 +17,7 @@ import qualified Data.Text as Text
 
 import SourceSyntax.Helpers (isSymbol)
 import SourceSyntax.Type (Type(..))
-import SourceSyntax.Declaration (Declaration(..), Assoc(..))
+import SourceSyntax.Declaration (Declaration(..), Assoc(..), Derivation(..))
 import SourceSyntax.Expression (Def(..))
 
 import Text.Parsec hiding (newline,spaces)
@@ -134,12 +134,14 @@ collect infixes types aliases adts things =
                 collect (Map.insert name (assoc,prec) infixes) types aliases adts rest
             Definition (TypeAnnotation name tipe) ->
                 collect infixes (insert name [ "type" .= tipe ] types) aliases adts rest
-            TypeAlias name vars tipe ->
-                let fields = ["typeVariables" .= vars, "type" .= tipe ]
+            TypeAlias name vars tipe derivations ->
+                let fields = ["typeVariables" .= vars, "type" .= tipe, "deriving" .= derivations ]
                 in  collect infixes types (insert name fields aliases) adts rest
-            Datatype name vars ctors ->
+            Datatype name vars ctors derivations ->
                 let tipe = Data name (map Var vars)
-                    fields = ["typeVariables" .= vars, "constructors" .= map (ctorToJson tipe) ctors ]
+                    fields = ["typeVariables" .= vars
+                             , "constructors" .= map (ctorToJson tipe) ctors
+                             , "deriving" .= derivations ]
                 in  collect infixes types aliases (insert name fields adts) rest
           where
             insert name fields dict = Map.insert name (obj name fields) dict
@@ -161,3 +163,6 @@ instance ToJSON Type where
 ctorToJson tipe (ctor, tipes) =
     object [ "name" .= ctor
            , "type" .= foldr Lambda tipe tipes ]
+
+instance ToJSON Derivation where
+    toJSON = toJSON . show

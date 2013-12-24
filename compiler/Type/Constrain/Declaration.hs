@@ -22,7 +22,7 @@ toDefs decl =
   case decl of
     Definition def -> [def]
 
-    Datatype name tvars constructors -> concatMap toDefs constructors
+    Datatype name tvars constructors _ -> concatMap toDefs constructors
       where
         toDefs (ctor, tipes) =
             let vars = take (length tipes) arguments
@@ -32,7 +32,7 @@ toDefs decl =
                 , Src.Def (P.PVar ctor) $ buildFunction body vars
                 ]
 
-    TypeAlias name tvars tipe@(Type.Record fields ext) ->
+    TypeAlias name tvars tipe@(Type.Record fields ext) _ ->
         [ Src.TypeAnnotation name $ foldr Type.Lambda tipe args
         , Src.Def (P.PVar name) $ buildFunction record vars ]
       where
@@ -50,7 +50,8 @@ toDefs decl =
 
     -- Type aliases must be added to an extended equality dictionary,
     -- but they do not require any basic constraints.
-    TypeAlias _ _ _ -> []
+    -- TODO: with the ability to derive code, you may need to generate stuff!
+    TypeAlias _ _ _ _ -> []
 
     ImportEvent _ expr@(L.L s _) name tipe ->
         [ Src.TypeAnnotation name tipe

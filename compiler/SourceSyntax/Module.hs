@@ -49,21 +49,22 @@ data MetadataModule t v = MetadataModule {
     program   :: LExpr t v,
     types     :: Map.Map String Type,
     fixities  :: [(Assoc, Int, String)],
-    aliases   :: [(String, [String], Type)],
-    datatypes :: [ (String, [String], [(String,[Type])]) ],
+    aliases   :: [Alias],
+    datatypes :: [ADT],
     foreignImports :: [(String, LExpr t v, String, Type)],
     foreignExports :: [(String, String, Type)]
 } deriving Show
 
 type Interfaces = Map.Map String ModuleInterface
-type ADT = (String, [String], [(String,[Type])])
+type ADT = (String, [String], [(String,[Type])], [Derivation])
+type Alias = (String, [String], Type, [Derivation])
 
 data ModuleInterface = ModuleInterface {
     iVersion  :: Version.Version,
     iTypes    :: Map.Map String Type,
     iImports  :: [(String, ImportMethod)],
     iAdts     :: [ADT],
-    iAliases  :: [(String, [String], Type)],
+    iAliases  :: [Alias],
     iFixities :: [(Assoc, Int, String)]
 } deriving Show
 

@@ -74,9 +74,9 @@ duplicateConstructors :: [D.Declaration t v] -> [String]
 duplicateConstructors decls = 
     map typeMsg (dups typeCtors) ++ map dataMsg (dups dataCtors)
   where
-    typeCtors = List.sort [ name | D.Datatype name _ _ <- decls ]
+    typeCtors = List.sort [ name | D.Datatype name _ _ _ <- decls ]
     dataCtors = List.sort . concat $
-      [ map fst patterns | D.Datatype _ _ patterns <- decls ]
+      [ map fst patterns | D.Datatype _ _ patterns _ <- decls ]
     dataMsg = dupErr "definition of data constructor"
     typeMsg = dupErr "definition of type constructor"
 
@@ -101,7 +101,9 @@ badDerivations :: [D.Declaration t v] -> [Doc]
 badDerivations decls = concatMap badDerivation derivations
     where
       derivations =
-          [ (decl, tvars, derives) | decl@(D.TypeAlias name tvars _ derives) <- decls ]
+          [ (decl, tvars, derives) | decl@(D.TypeAlias name tvars _ derives) <- decls ] ++
+          [ (decl, tvars, derives) | decl@(D.Datatype name tvars _ derives) <- decls ]
+
       badDerivation (decl, tvars, derives) =
           case (tvars, derives) of
             (_:_, _)
@@ -120,7 +122,7 @@ illFormedTypes :: [D.Declaration t v] -> [Doc]
 illFormedTypes decls = map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
     where
       aliases = [ (decl, tvars, [tipe]) | decl@(D.TypeAlias _ tvars tipe _) <- decls ]
-      adts = [ (decl, tvars, concatMap snd ctors) | decl@(D.Datatype _ tvars ctors) <- decls ]
+      adts = [ (decl, tvars, concatMap snd ctors) | decl@(D.Datatype _ tvars ctors _) <- decls ]
 
       freeVars tipe =
           case tipe of
@@ -174,11 +176,11 @@ infiniteTypeAliases decls =
             T.EmptyRecord -> False
             T.Record fields ext -> infinite ext || any (infinite . snd) fields
 
-      report decl@(D.TypeAlias name args tipe _) =
+      report decl@(D.TypeAlias name args tipe derivations) =
           P.vcat [ P.text $ eightyCharLines 0 msg1
                  , indented decl
                  , P.text $ eightyCharLines 0 msg2
-                 , indented (D.Datatype name args [(name,[tipe])])
+                 , indented (D.Datatype name args [(name,[tipe])] derivations)
                  , P.text $ eightyCharLines 0 msg3 ++ "\n"
                  ]
           where

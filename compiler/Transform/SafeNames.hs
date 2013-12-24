@@ -64,10 +64,10 @@ metadataModule modul =
     , imports = map (first var) (imports modul)
     , program = expression (program modul)
     , aliases =
-        let makeSafe (name, tvars, tipe) = (var name, tvars, tipe)
+        let makeSafe (name,tvars,tipe,ds) = (var name, tvars, tipe, ds)
         in  map makeSafe (aliases modul)
     , datatypes =
-        let makeSafe (name,tvars,ctors) = (var name, tvars, map (first var) ctors)
+        let makeSafe (name,tvars,ctors,ds) = (var name, tvars, map (first var) ctors, ds)
         in  map makeSafe (datatypes modul)
     , foreignImports =
         let makeSafe (js,expr,elm,tipe) = (js, expression expr, var elm, tipe)

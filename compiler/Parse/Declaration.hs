@@ -29,7 +29,7 @@ alias = do
   padded equals
   tipe <- Type.expr
   json <- option [] $ do
-            padded (reserved "deriving")
+            try $ padded (reserved "deriving")
             string "Json"
             return [D.Json]
   return (D.TypeAlias alias args tipe json)
@@ -42,7 +42,7 @@ datatype = do
   args <- spacePrefix lowVar
   padded equals
   tcs <- pipeSep1 Type.constructor
-  return $ D.Datatype name args tcs
+  return $ D.Datatype name args tcs []
 
 
 infixDecl :: IParser (D.Declaration t v)

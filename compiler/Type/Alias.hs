@@ -9,7 +9,7 @@ import qualified Data.List as List
 import SourceSyntax.Type
 import SourceSyntax.Module
 
-type Rules = ([(String,[String],Type)], Type -> Type)
+type Rules = ([Alias], Type -> Type)
 
 rules interfaces moduleAliases moduleImports =
     (collect interfaces moduleAliases, localizer moduleImports)
@@ -20,7 +20,7 @@ collect interfaces moduleAliases =
       rawAliases =
           moduleAliases ++ concatMap iAliases (Map.elems interfaces)
 
-      isPrimitive (_,_,tipe) =
+      isPrimitive (_,_,tipe,_) =
           case tipe of
           Data _ [] -> True
           _ -> False
@@ -62,13 +62,13 @@ realias (aliases,localize) tipe = localize (canonicalRealias aliases tipe)
 
 -- Realias using canonical aliases, so results will have aliases
 -- that are fully qualified and possible to compare.
-canonicalRealias :: [(String,[String],Type)] -> Type -> Type
+canonicalRealias :: [Alias] -> Type -> Type
 canonicalRealias aliases tipe =
     case concatMap tryRealias aliases of
       [] -> if tipe == tipe' then tipe else f tipe'
       tipes -> f (bestType tipes)
   where
-    tryRealias (name, args, aliasTipe) =
+    tryRealias (name, args, aliasTipe, _) =
         case diff aliasTipe tipe of
           Nothing -> []
           Just kvs ->

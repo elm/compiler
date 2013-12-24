@@ -41,8 +41,8 @@ build noPrelude interfaces source =
              | null exs =
                  let get = Set.toList . SD.boundVars in
                  concat [ get pattern | Definition (Expr.Def pattern _) <- decls ] ++
-                 concat [ map fst ctors | Datatype _ _ ctors <- decls ] ++
-                 [ name | TypeAlias name _ (Type.Record _ _) <- decls ]
+                 concat [ map fst ctors | Datatype _ _ ctors _ <- decls ] ++
+                 [ name | TypeAlias name _ (Type.Record _ _) _ <- decls ]
              | otherwise = exs
 
      metaModule <- Canonical.metadataModule interfaces $ MetadataModule {
@@ -53,9 +53,9 @@ build noPrelude interfaces source =
            -- reorder AST into strongly connected components
            program = SD.sortDefs . Expr.dummyLet $ TcDecl.toExpr decls,
            types = Map.empty,
-           datatypes = [ (name,vars,ctors) | Datatype name vars ctors <- decls ],
+           datatypes = [ (name,vars,ctors,ds) | Datatype name vars ctors ds <- decls ],
            fixities = [ (assoc,level,op) | Fixity assoc level op <- decls ],
-           aliases = [ (name,tvs,tipe) | TypeAlias name tvs tipe <- decls ],
+           aliases = [ (name,tvs,tipe,ds) | TypeAlias name tvs tipe ds <- decls ],
            foreignImports = [ (evt,v,name,typ) | ImportEvent evt v name typ <- decls ],
            foreignExports = [ (evt,name,typ) | ExportEvent evt name typ <- decls ]
           }
