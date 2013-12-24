@@ -12,7 +12,7 @@ module Maybe where
 @docs map, maybe
 
 # Extracting values
-@docs extract, justs, keepJusts
+@docs just, justs, keepJust
 -}
 
 import Basics (not, (.))
@@ -64,13 +64,13 @@ justs = foldr cons []
 
 {-| Return the value in a `Just`, or the default if given `Nothing`.
 -}
-extract : a -> Maybe a -> a
-extract a m = case m of
+just : a -> Maybe a -> a
+just a m = case m of
                 Just v -> v
                 Nothing -> a
 
 {-| Create a signal using the value of each `Just`, dropping the `Nothings`. A
 default is required and used until the input signal is not `Nothing`.
 -}
-keepJusts : a -> Signal (Maybe a) -> Signal a
-keepJusts a sa = lift (\(Just x) -> x) (keepIf isJust (Just a) sa)
+keepJust : a -> Signal (Maybe a) -> Signal a
+keepJust a sa = lift (\(Just x) -> x) (keepIf isJust (Just a) sa)
