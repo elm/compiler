@@ -1,4 +1,4 @@
-module Parse.Expression (def,term,typeAnnotation) where
+module Parse.Expression (def,term,typeAnnotation,expr) where
 
 import Control.Arrow ((***))
 import Control.Applicative ((<$>), (<*>))
@@ -16,7 +16,6 @@ import SourceSyntax.Location as Location
 import SourceSyntax.Pattern hiding (tuple,list)
 import qualified SourceSyntax.Literal as Literal
 import SourceSyntax.Expression
-import SourceSyntax.Declaration (Declaration(Definition))
 
 
 --------  Basic Terms  --------
@@ -191,6 +190,7 @@ caseExpr = do
           with    = brackets (semiSep1 (case_ <?> "cases { x -> ... }"))
           without = block (do c <- case_ ; whitespace ; return c)
 
+expr :: IParser (LExpr t v)
 expr = addLocation (choice [ ifExpr, letExpr, caseExpr ])
     <|> lambdaExpr
     <|> binaryExpr 

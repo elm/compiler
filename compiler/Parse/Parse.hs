@@ -9,7 +9,7 @@ import Text.Parsec hiding (newline,spaces)
 import qualified Text.PrettyPrint as P
 
 import qualified SourceSyntax.Module as S
-import SourceSyntax.Declaration (Declaration(Fixity))
+import qualified SourceSyntax.Declaration as D
 import Parse.Helpers
 import Parse.Binop (OpTable)
 import Parse.Expression
@@ -61,7 +61,7 @@ setupParserWithTable table p source =
 
 parseFixities = do
   decls <- onFreshLines (:) [] infixDecl
-  return $ Map.fromList [ (op,(lvl,assoc)) | Fixity assoc lvl op <- decls ]
+  return $ Map.fromList [ (op,(lvl,assoc)) | D.Fixity assoc lvl op <- decls ]
               
 setupParser :: IParser a -> String -> Either [P.Doc] a
 setupParser p source =
