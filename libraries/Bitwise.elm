@@ -13,22 +13,22 @@ module Bitwise where
 
 import Native.Bitwise
 
-{-| Bitwise &ldquo;and&rdquo;
+{-| Bitwise AND
 -}
 and : Int -> Int -> Int
 and = Native.Bitwise.and
 
-{-| Bitwise &ldquo;or&rdquo;
+{-| Bitwise OR
 -}
 or : Int -> Int -> Int
 or = Native.Bitwise.or
 
-{-| Bitwise &ldquo;xor&rdquo;
+{-| Bitwise XOR
 -}
 xor : Int -> Int -> Int
 xor = Native.Bitwise.xor
 
-{-| Flip each bit individually, often called &ldquo;bitwise not&rdquo;
+{-| Flip each bit individually, often called bitwise NOT
 -}
 complement : Int -> Int
 complement = Native.Bitwise.complement
@@ -51,7 +51,7 @@ whatever is the topmost bit. This can be used to divide numbers by powers of two
 
 This is called an [arithmatic right
 shift](http://en.wikipedia.org/wiki/Bitwise_operation#Arithmetic_shift),
-often written (>>), and sometimes called a &ldquo;sign-propagating&rdquo;
+often written (>>), and sometimes called a sign-propagating
 right shift because it fills empty spots with copies of the highest bit.
 -}
 shiftRight : Int -> Int -> Int
@@ -66,7 +66,7 @@ zeros.
 
 This is called an [logical right
 shift](http://en.wikipedia.org/wiki/Bitwise_operation#Logical_shift), often written (>>>),
-and sometimes called a &ldquo;zero-fill&rdquo; right shift because it fills empty spots
+and sometimes called a zero-fill right shift because it fills empty spots
 with zeros.
 -}
 shiftRightLogical : Int -> Int -> Int

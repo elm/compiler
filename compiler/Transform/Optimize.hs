@@ -1,6 +1,10 @@
 module Transform.Optimize (optimize) where
 
-import SourceSyntax.Everything
+import SourceSyntax.Declaration (Declaration(..))
+import SourceSyntax.Expression
+import SourceSyntax.Literal
+import SourceSyntax.Location
+import SourceSyntax.Module
 import Control.Arrow (second, (***))
 import Data.Char (isAlpha)
 

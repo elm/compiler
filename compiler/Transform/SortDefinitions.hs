@@ -6,7 +6,9 @@ import Control.Applicative ((<$>))
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified SourceSyntax.Type as ST
-import SourceSyntax.Everything
+import SourceSyntax.Expression
+import SourceSyntax.Location
+import SourceSyntax.Pattern
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe

@@ -60,7 +60,7 @@ listTerm = markdown' <|> braces (try range <|> ExplicitList <$> commaSep expr)
       return (Markdown uid (filter (/='\r') rawText) exprs)
 
     span uid index =
-        "<span id=\"md-" ++ uid ++ "-" ++ show index ++ "\"></span>"
+        "<span id=\"md-" ++ uid ++ "-" ++ show index ++ "\">{{ markdown interpolation is in the pipeline, but still needs more testing }}</span>"
 
     interpolation uid md exprs = do
       try (string "{{")
@@ -157,7 +157,7 @@ ifExpr = reserved "if" >> whitespace >> (normal <|> multiIf)
         whitespace <?> "an 'else' branch" ; reserved "else" <?> "an 'else' branch" ; whitespace
         elseBranch <- expr
         return $ MultiIf [(bool, thenBranch),
-                          (Location.sameAs elseBranch (Var "otherwise"), elseBranch)]
+                          (Location.sameAs elseBranch (Literal . Literal.Boolean $ True), elseBranch)]
       multiIf = MultiIf <$> spaceSep1 iff
           where iff = do string "|" ; whitespace
                          b <- expr ; padded arrow

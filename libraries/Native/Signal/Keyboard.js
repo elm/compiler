@@ -105,7 +105,7 @@ Elm.Native.Keyboard.make = function(elm) {
 
   function is(key) { return keySignal(NList.member(key)); }
 
-  var lastPressed = Signal.dropRepeats(downEvents);
+  var lastPressed = downEvents;
 
   return elm.Native.Keyboard.values = {
     isDown:is,

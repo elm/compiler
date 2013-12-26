@@ -1,19 +1,17 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 module SourceSyntax.Location where
 
-import Data.Data
 import Text.PrettyPrint
 import SourceSyntax.PrettyPrint
 import qualified Text.Parsec.Pos as Parsec
 
 data SrcPos = Pos { line :: Int, column :: Int }
-    deriving (Eq, Ord, Data, Typeable)
+    deriving (Eq, Ord)
 
 data SrcSpan = Span SrcPos SrcPos String | NoSpan String
-    deriving (Eq, Ord, Data, Typeable)
+    deriving (Eq, Ord)
 
 data Located e = L SrcSpan e
-    deriving (Eq, Ord, Data, Typeable)
+    deriving (Eq, Ord)
 
 none e = L (NoSpan (render $ pretty e)) e
 noneNoDocs = L (NoSpan "")

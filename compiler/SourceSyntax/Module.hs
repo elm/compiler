@@ -1,7 +1,5 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 module SourceSyntax.Module where
 
-import Data.Data
 import Data.Binary
 import Data.List (intercalate)
 import qualified Data.Map as Map
@@ -14,8 +12,7 @@ import SourceSyntax.Type
 import System.FilePath (joinPath)
 import Control.Monad (liftM)
 
-import Paths_Elm (version)
-import Data.Version (showVersion)
+import qualified Elm.Internal.Version as Version
 
 data Module tipe var =
     Module [String] Exports Imports [Declaration tipe var]
@@ -25,7 +22,7 @@ type Exports = [String]
 
 type Imports = [(String, ImportMethod)]
 data ImportMethod = As String | Importing [String] | Hiding [String]
-                    deriving (Eq, Ord, Show, Data, Typeable)
+                    deriving (Eq, Ord, Show)
 
 instance Binary ImportMethod where
     put (As s)          = do put (0 :: Word8)
@@ -62,7 +59,7 @@ type Interfaces = Map.Map String ModuleInterface
 type ADT = (String, [String], [(String,[Type])])
 
 data ModuleInterface = ModuleInterface {
-    iVersion  :: String,
+    iVersion  :: Version.Version,
     iTypes    :: Map.Map String Type,
     iImports  :: [(String, ImportMethod)],
     iAdts     :: [ADT],
@@ -70,6 +67,15 @@ data ModuleInterface = ModuleInterface {
     iFixities :: [(Assoc, Int, String)]
 } deriving Show
 
+metaToInterface metaModule =
+    ModuleInterface
+    { iVersion  = Version.elmVersion
+    , iTypes    = types metaModule
+    , iImports  = imports metaModule
+    , iAdts     = datatypes metaModule
+    , iAliases  = aliases metaModule
+    , iFixities = fixities metaModule
+    }
 
 instance Binary ModuleInterface where
   get = ModuleInterface <$> get <*> get <*> get <*> get <*> get <*> get

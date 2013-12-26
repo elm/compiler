@@ -1,4 +1,4 @@
-module Generate.JavaScript where
+module Generate.JavaScript (generate) where
 
 import Control.Arrow (first,(***))
 import Control.Applicative ((<$>),(<*>))
@@ -9,31 +9,27 @@ import qualified Data.Set as Set
 
 import qualified Generate.Cases as Case
 import qualified Generate.Markdown as MD
-import SourceSyntax.Everything
+import qualified SourceSyntax.Helpers as Help
+import SourceSyntax.Literal
+import SourceSyntax.Pattern
 import SourceSyntax.Location
+import SourceSyntax.Expression
+import SourceSyntax.Module
 import qualified Transform.SortDefinitions as SD
 import Language.ECMAScript3.Syntax
 import Language.ECMAScript3.PrettyPrint
-import Parse.Helpers (jsReserveds)
-
-makeSafe :: String -> String
-makeSafe = List.intercalate "." . map dereserve . split . deprime
-  where
-    deprime = map (\c -> if c == '\'' then '$' else c)
-    dereserve x = case Set.member x jsReserveds of
-                    False -> x
-                    True  -> "$" ++ x
+import qualified Transform.SafeNames as MakeSafe
 
 split :: String -> [String]
 split = go []
   where
     go vars str =
         case break (=='.') str of
-          (x,'.':rest) | isOp x -> vars ++ [x ++ '.' : rest]
+          (x,'.':rest) | Help.isOp x -> vars ++ [x ++ '.' : rest]
                        | otherwise -> go (vars ++ [x]) rest
           (x,[]) -> vars ++ [x]
 
-var name = Id () (makeSafe name)
+var name = Id () name
 ref name = VarRef () (var name)
 prop name = PropId () (var name)
 f <| x = CallExpr () f [x]
@@ -50,7 +46,7 @@ varDecl x expr =
     VarDecl () (var x) (Just expr)
 
 include alias moduleName =
-    varDecl alias (obj (moduleName ++ ".make") <| ref "elm")
+    varDecl alias (obj (moduleName ++ ".make") <| ref "_elm")
 
 internalImports name =
     VarDeclStmt () 
@@ -158,14 +154,15 @@ expression (L span expr) =
              return $ function [] (stmts ++ [ ReturnStmt () (Just exp) ]) `call` []
 
       MultiIf branches ->
-          do branches' <- forM branches $ \(b,e) -> (,) <$> expression b <*> expression e
-             return $ case last branches of
-                        (L _ (Var "Basics.otherwise"), e) -> ifs (init branches') (snd (last branches'))
-                        _ -> ifs branches'
-                                 (obj "_E.If" `call` [ ref "$moduleName", string (show span) ])
-          where
-            ifs branches finally = foldr iff finally branches
-            iff (if', then') else' = CondExpr () if' then' else'
+        do branches' <- forM branches $ \(b,e) -> (,) <$> expression b <*> expression e
+           return $ case last branches of
+             (L _ (Var "Basics.otherwise"), _) -> safeIfs branches'
+             (L _ (Literal (Boolean True)), _) -> safeIfs branches'
+             _ -> ifs branches' (obj "_E.If" `call` [ ref "$moduleName", string (show span) ])
+        where
+          safeIfs branches = ifs (init branches) (snd (last branches))
+          ifs branches finally = foldr iff finally branches
+          iff (if', then') else' = CondExpr () if' then' else'
 
       Case e cases ->
           do (tempVar,initialMatch) <- Case.toMatch cases
@@ -185,7 +182,7 @@ expression (L span expr) =
           do es' <- mapM expression es
              return $ ObjectLit () (ctor : fields es')
           where
-            ctor = (prop "ctor", string (makeSafe name))
+            ctor = (prop "ctor", string name)
             fields = zipWith (\n e -> (prop ("_" ++ show n), e)) [0..]
 
       Markdown uid doc es ->
@@ -205,7 +202,7 @@ definition def =
       let assign x = varDecl x expr'
       case pattern of
         PVar x
-          | isOp x ->
+          | Help.isOp x ->
               let op = LBracket () (ref "_op") (string x) in
               return [ ExprStmt () $ AssignExpr () OpAssign op expr' ]
           | otherwise ->
@@ -228,7 +225,7 @@ definition def =
 
               decl x n = varDecl x (dotSep ["$","_" ++ show n])
               setup vars
-                  | isTuple name = assign "$" : vars
+                  | Help.isTuple name = assign "$" : vars
                   | otherwise = safeAssign : vars
 
               safeAssign = varDecl "$" (CondExpr () if' expr' exception)
@@ -290,14 +287,15 @@ clause span variable (Case.Clause value vars mtch) =
                                                      is -> drop (last is + 1) name
 
 
-jsModule :: MetadataModule () () -> String 
-jsModule modul =
+generate :: MetadataModule () () -> String 
+generate unsafeModule =
     show . prettyPrint $ setup (Just "Elm") (names modul ++ ["make"]) ++
-             [ assign ("Elm" : names modul ++ ["make"]) (function ["elm"] programStmts) ]
+             [ assign ("Elm" : names modul ++ ["make"]) (function ["_elm"] programStmts) ]
   where
-    thisModule = dotSep ("elm" : names modul ++ ["values"])
+    modul = MakeSafe.metadataModule unsafeModule
+    thisModule = dotSep ("_elm" : names modul ++ ["values"])
     programStmts =
-        concat [ setup (Just "elm") (names modul ++ ["values"])
+        concat [ setup (Just "_elm") (names modul ++ ["values"])
                , [ IfSingleStmt () thisModule (ReturnStmt () (Just thisModule)) ]
                , [ internalImports (List.intercalate "." (names modul)) ]
                , concatMap jsImport (imports modul)
@@ -309,9 +307,9 @@ jsModule modul =
                , [ ReturnStmt () (Just thisModule) ]
                ]
 
-    jsExports = assign ("elm" : names modul ++ ["values"]) (ObjectLit () exs)
+    jsExports = assign ("_elm" : names modul ++ ["values"]) (ObjectLit () exs)
         where
-          exs = map entry . filter (not . isOp) $ "_op" : exports modul
+          exs = map entry . filter (not . Help.isOp) $ "_op" : exports modul
           entry x = (PropId () (var x), ref x)
           
     assign path expr =
@@ -323,7 +321,7 @@ jsModule modul =
     jsImport (modul,_) = setup Nothing path ++ [ include ]
         where
           path = split modul
-          include = assign path $ dotSep ("Elm" : path ++ ["make"]) <| ref "elm"
+          include = assign path $ dotSep ("Elm" : path ++ ["make"]) <| ref "_elm"
 
     setup namespace path = map create paths
         where
@@ -332,15 +330,15 @@ jsModule modul =
                     Nothing -> tail . init $ List.inits path
                     Just nmspc -> drop 2 . init . List.inits $ nmspc : path
 
-    addId js = InfixExpr () OpAdd (string (js++"_")) (obj "elm.id")
+    addId js = InfixExpr () OpAdd (string (js++"_")) (obj "_elm.id")
 
     importEvent (js,base,elm,_) =
         [ VarDeclStmt () [ varDecl elm $ obj "Signal.constant" <| evalState (expression base) 0 ]
         , ExprStmt () $
             obj "document.addEventListener" `call`
                   [ addId js
-                  , function ["e"]
-                        [ ExprStmt () $ obj "elm.notify" `call` [dotSep [elm,"id"], obj "e.value"] ]
+                  , function ["_e"]
+                        [ ExprStmt () $ obj "_elm.notify" `call` [dotSep [elm,"id"], obj "_e.value"] ]
                   ]
         ]
 
@@ -348,13 +346,13 @@ jsModule modul =
         ExprStmt () $
         ref "A2" `call`
                 [ obj "Signal.lift"
-                , function ["v"]
-                      [ VarDeclStmt () [varDecl "e" $ obj "document.createEvent" <| string "Event"]
+                , function ["_v"]
+                      [ VarDeclStmt () [varDecl "_e" $ obj "document.createEvent" <| string "Event"]
                       , ExprStmt () $
-                            obj "e.initEvent" `call` [ addId js, BoolLit () True, BoolLit () True ]
-                      , ExprStmt () $ AssignExpr () OpAssign (LDot () (ref "e") "value") (ref "v")
-                      , ExprStmt () $ obj "document.dispatchEvent" <| ref "e"
-                      , ReturnStmt () (Just $ ref "v")
+                            obj "_e.initEvent" `call` [ addId js, BoolLit () True, BoolLit () True ]
+                      , ExprStmt () $ AssignExpr () OpAssign (LDot () (ref "_e") "value") (ref "_v")
+                      , ExprStmt () $ obj "document.dispatchEvent" <| ref "_e"
+                      , ReturnStmt () (Just $ ref "_v")
                       ]
                 , ref elm ]
 
@@ -387,7 +385,7 @@ binop span op e1 e2 =
     js1 = expression e1
     js2 = expression e2
 
-    func | isOp operator = BracketRef () (dotSep (init parts ++ ["_op"])) (string operator)
+    func | Help.isOp operator = BracketRef () (dotSep (init parts ++ ["_op"])) (string operator)
          | otherwise     = dotSep parts
         where
           parts = split op

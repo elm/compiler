@@ -14,7 +14,6 @@ import SourceSyntax.PrettyPrint
 import SourceSyntax.Declaration (Assoc)
 import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
-import Text.Read (readMaybe)
 
 reserveds = [ "if", "then", "else"
             , "case", "of"
@@ -22,7 +21,8 @@ reserveds = [ "if", "then", "else"
             , "data", "type"
             , "module", "where"
             , "import", "as", "hiding", "open"
-            , "export", "foreign" ]
+            , "export", "foreign"
+            , "deriving" ]
 
 jsReserveds :: Set.Set String
 jsReserveds = Set.fromList
@@ -36,6 +36,10 @@ jsReserveds = Set.fromList
     , "const", "enum", "export", "extends", "import", "super", "implements"
     , "interface", "let", "package", "private", "protected", "public"
     , "static", "yield"
+    -- reserved by the Elm runtime system
+    , "Elm", "ElmRuntime"
+    , "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9"
+    , "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9"
     ]
 
 expecting = flip (<?>)
@@ -49,6 +53,12 @@ iParse = iParseWithTable "" Map.empty
 iParseWithTable :: SourceName -> OpTable -> IParser a -> String -> Either ParseError a
 iParseWithTable sourceName table aParser input =
   runIndent sourceName $ runParserT aParser table sourceName input
+
+readMaybe :: Read a => String -> Maybe a
+readMaybe s =
+    case [ x | (x,t) <- reads s, ("","") <- lex t ] of
+      [x] -> Just x
+      _ -> Nothing
 
 backslashed :: IParser Char
 backslashed = do
@@ -269,7 +279,8 @@ ignoreUntil :: IParser a -> IParser (Maybe a)
 ignoreUntil end = go
     where
       ignore p = const () <$> p
-      filler = choice [ ignore multiComment
+      filler = choice [ try (ignore chr) <|> ignore str
+                      , ignore multiComment
                       , ignore (markdown (\_ _ -> mzero))
                       , ignore anyChar
                       ]
@@ -313,3 +324,25 @@ markdown interpolation = try (string "[markdown|") >> closeMarkdown "" []
                  , do c <- anyChar
                       closeMarkdown (md ++ [c]) stuff
                  ]
+
+str :: IParser String
+str = choice [ quote >> dewindows <$> manyTill (backslashed <|> anyChar) quote
+             , liftM dewindows . expecting "string" . betwixt '"' '"' . many $
+               backslashed <|> satisfy (/='"')
+             ]
+    where
+      quote = try (string "\"\"\"")
+
+      -- Remove \r from strings to fix generated JavaScript
+      dewindows [] = []
+      dewindows cs =
+          let (pre, suf) = break (`elem` ['\r','\n']) cs
+          in  pre ++ case suf of 
+                       ('\r':'\n':rest) -> '\n' : dewindows rest
+                       ('\n':rest)      -> '\n' : dewindows rest
+                       ('\r':rest)      -> '\n' : dewindows rest
+                       _                -> []
+
+chr :: IParser Char
+chr = betwixt '\'' '\'' (backslashed <|> satisfy (/='\''))
+      <?> "character"

@@ -1,6 +1,8 @@
 
 ## 0.11
 
+  * Lazy and Lazy.Stream (thanks to Max New)
+  * sortBy, sortWith (thanks to Max Goldstein)
   * elm-repl
   * Markdown interpolation
   * Bitwise library

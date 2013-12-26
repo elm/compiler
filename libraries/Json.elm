@@ -3,6 +3,9 @@ module Json where
 
 {-| Library for working with [JSON](https://en.wikipedia.org/wiki/JSON) values.
 
+# Json Values
+@docs JsonValue
+
 # Strings
 @docs fromString, toString
 
