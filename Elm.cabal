@@ -30,7 +30,8 @@ source-repository head
   location: git://github.com/evancz/Elm.git
 
 Library
-  exposed-modules:     Elm.Internal.Dependencies,
+  exposed-modules:     Language.Elm
+                       Elm.Internal.Dependencies,
                        Elm.Internal.Documentation,
                        Elm.Internal.Name,
                        Elm.Internal.Paths,
