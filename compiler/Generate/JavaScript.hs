@@ -226,10 +226,10 @@ definition def =
               decl x n = varDecl x (dotSep ["$","_" ++ show n])
               setup vars
                   | Help.isTuple name = assign "$" : vars
-                  | otherwise = safeAssign : vars
+                  | otherwise = assign "$raw" : safeAssign : vars
 
-              safeAssign = varDecl "$" (CondExpr () if' expr' exception)
-              if' = InfixExpr () OpStrictEq (obj "$.ctor") (string name)
+              safeAssign = varDecl "$" (CondExpr () if' (obj "$raw") exception)
+              if' = InfixExpr () OpStrictEq (obj "$raw.ctor") (string name)
               exception = obj "_E.Case" `call` [ref "$moduleName", string (show span)]
 
         _ ->
