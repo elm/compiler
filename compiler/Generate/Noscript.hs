@@ -1,7 +1,11 @@
 module Generate.Noscript (noscript) where
 
 import Data.List (isInfixOf)
-import SourceSyntax.Everything
+import SourceSyntax.Declaration (Declaration(..))
+import SourceSyntax.Expression
+import SourceSyntax.Literal
+import SourceSyntax.Location
+import SourceSyntax.Module
 import qualified Generate.Markdown as MD
 
 noscript :: Module t v -> String
@@ -49,7 +53,7 @@ instance Extract (Expr t v) where
       Case e cases -> concatMap (f . snd) cases
       Data _ es -> concatMap f es
       MultiIf es -> concatMap (f . snd) es
-      Markdown md _ -> [ MD.toHtml md ]
+      Markdown _ md _ -> [ MD.toHtml md ]
       _ -> []
 
 extractLink src txt =

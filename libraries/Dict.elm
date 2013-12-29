@@ -1,4 +1,4 @@
-module Dict (empty,singleton,insert
+module Dict (empty,singleton,insert,update
             ,lookup,findWithDefault
             ,remove,member
             ,foldl,foldr,map
@@ -14,7 +14,7 @@ lists of comparable types.
 Insert, remove, and query operations all take *O(log n)* time.
 
 # Build
-@docs empty, singleton, insert, remove
+@docs empty, singleton, insert, update, remove
 
 # Query
 @docs member, lookup, findWithDefault
@@ -148,18 +148,44 @@ ensureBlackRoot t =
 {-| Insert a key-value pair into a dictionary. Replaces value when there is
 a collision. -}
 insert : comparable -> v -> Dict comparable v -> Dict comparable v
-insert k v t =  -- Invariant: t is a valid left-leaning rb tree
-  let ins t =
-      case t of
-        RBEmpty LBlack -> RBNode Red k v (RBEmpty LBlack) (RBEmpty LBlack)
-        RBNode c k' v' l r ->
-          let h = case Native.Utils.compare k k' of
-                    LT -> RBNode c k' v' (ins l) r
-                    EQ -> RBNode c k' v  l r  -- replace
-                    GT -> RBNode c k' v' l (ins r)
-          in  fixUp h
-  in  ensureBlackRoot (ins t)
+insert k v t = let u _ = Just v in 
+  update k u t
 
+{-| Remove a key-value pair from a dictionary. If the key is not found,
+no changes are made. -}
+remove : comparable -> Dict comparable v -> Dict comparable v
+remove k t = let u _ = Nothing in
+  update k u t
+
+data Flag = Insert | Remove | Same
+
+{-| Update the value of a dictionary for a specific key with a given function. -}
+update : comparable -> (Maybe v -> Maybe v) -> Dict comparable v -> Dict comparable v
+update k u t = 
+  let up t = case t of
+        RBEmpty LBlack -> case u Nothing of
+          Nothing -> (Same, empty)
+          Just v  -> (Insert, RBNode Red k v empty empty)
+        RBNode c k' v l r -> case Native.Utils.compare k k' of
+          EQ -> case u (Just v) of
+            Nothing -> (Remove, rem t)
+            Just v' -> (Same,   RBNode c k' v' l r)
+          LT -> let (fl, l') = up l in
+            case fl of
+              Same   -> (Same, RBNode c k' v l' r)
+              Insert -> (Insert, fixUp <| RBNode c k' v l' r)
+              Remove -> (Remove, bubble c k' v l' r)
+          GT -> let (fl, r') = up r in
+            case fl of
+              Same   -> (Same, RBNode c k' v l r')
+              Insert -> (Insert, fixUp <| RBNode c k' v l r')
+              Remove -> (Remove, bubble c k' v l r')
+      (fl, t') = up t
+  in case fl of
+    Same   -> t'
+    Insert -> ensureBlackRoot t'
+    Remove -> blacken t'
+    
 {-| Create a dictionary with one key-value pair. -}
 singleton : comparable -> v -> Dict comparable v
 singleton k v = insert k v (RBEmpty LBlack)
@@ -197,15 +223,6 @@ lessBlackTree : Dict k v -> Dict k v
 lessBlackTree t = case t of
   RBNode c k v l r -> RBNode (lessBlack c) k v l r
   RBEmpty _ -> RBEmpty LBlack
-
--- Finds and deletes k in t
-del : comparable -> Dict comparable v -> Dict comparable v
-del k t = case t of
-  RBEmpty _        -> t
-  RBNode c k' v l r -> case Native.Utils.compare k k' of
-    LT -> bubble c k' v (del k l) r
-    EQ -> rem t
-    GT -> bubble c k' v l (del k r)
 
 -- Remove the top node from the tree, may leave behind BBlacks
 rem : Dict k v -> Dict k v
@@ -285,11 +302,6 @@ redden : Dict k v -> Dict k v
 redden t = case t of
   RBEmpty _ -> Native.Error.raise "can't make a Leaf red"
   RBNode _ k v l r -> RBNode Red k v l r
-
-{-| Remove a key-value pair from a dictionary. If the key is not found,
-no changes are made. -}
-remove : comparable -> Dict comparable v -> Dict comparable v
-remove k t = blacken <| del k t
 
 {-| Apply a function to all values in a dictionary. -}
 map : (a -> b) -> Dict comparable a -> Dict comparable b

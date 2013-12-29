@@ -50,23 +50,23 @@ listTerm = markdown' <|> braces (try range <|> ExplicitList <$> commaSep expr)
   where
     range = do
       lo <- expr
-      whitespace >> string ".." >> whitespace
+      padded (string "..")
       Range lo <$> expr
 
     markdown' = do
-      (rawText, exprs) <- markdown interpolation
-      return (Markdown (filter (/='\r') rawText) exprs)
+      pos <- getPosition
+      let uid = show (sourceLine pos) ++ ":" ++ show (sourceColumn pos)
+      (rawText, exprs) <- markdown (interpolation uid)
+      return (Markdown uid (filter (/='\r') rawText) exprs)
 
-    span xs = "<span id=\"md" ++ show (length xs) ++
-              "\" style=\"font-family:monospace;\">{{ ... }}</span>"
+    span uid index =
+        "<span id=\"md-" ++ uid ++ "-" ++ show index ++ "\">{{ markdown interpolation is in the pipeline, but still needs more testing }}</span>"
 
-    interpolation md exprs = do
+    interpolation uid md exprs = do
       try (string "{{")
-      whitespace
-      e <- expr
-      whitespace
+      e <- padded expr
       string "}}"
-      return (md ++ span exprs, exprs ++ [e])
+      return (md ++ span uid (length exprs), exprs ++ [e])
 
 parensTerm :: IParser (LExpr t v)
 parensTerm = try (parens opFn) <|> parens (tupleFn <|> parened)
@@ -96,7 +96,7 @@ recordTerm = brackets $ choice [ misc, addLocation record ]
     where field = do
               label <- rLabel
               patterns <- spacePrefix Pattern.term
-              whitespace >> string "=" >> whitespace
+              padded equals
               body <- expr
               return (label, makeFunction patterns body)
               
@@ -104,24 +104,21 @@ recordTerm = brackets $ choice [ misc, addLocation record ]
 
           change = do
               lbl <- rLabel
-              whitespace >> string "<-" >> whitespace
+              padded (string "<-")
               (,) lbl <$> expr
 
           remove r = addLocation (string "-" >> whitespace >> Remove r <$> rLabel)
 
           insert r = addLocation $ do
                        string "|" >> whitespace
-                       Insert r <$> rLabel <*>
-                           (whitespace >> string "=" >> whitespace >> expr)
+                       Insert r <$> rLabel <*> (padded equals >> expr)
 
           modify r = addLocation
                      (string "|" >> whitespace >> Modify r <$> commaSep1 change)
 
           misc = try $ do
             record <- addLocation (Var <$> rLabel)
-            whitespace
-            opt <- optionMaybe (remove record)
-            whitespace
+            opt <- padded (optionMaybe (remove record))
             case opt of
               Just e  -> try (insert e) <|> return e
               Nothing -> try (insert record) <|> try (modify record)
@@ -155,22 +152,22 @@ ifExpr = reserved "if" >> whitespace >> (normal <|> multiIf)
     where
       normal = do
         bool <- expr
-        whitespace ; reserved "then" ; whitespace
+        padded (reserved "then")
         thenBranch <- expr
         whitespace <?> "an 'else' branch" ; reserved "else" <?> "an 'else' branch" ; whitespace
         elseBranch <- expr
         return $ MultiIf [(bool, thenBranch),
-                          (Location.sameAs elseBranch (Var "otherwise"), elseBranch)]
+                          (Location.sameAs elseBranch (Literal . Literal.Boolean $ True), elseBranch)]
       multiIf = MultiIf <$> spaceSep1 iff
           where iff = do string "|" ; whitespace
-                         b <- expr ; whitespace ; string "->" ; whitespace
+                         b <- expr ; padded arrow
                          (,) b <$> expr
 
 lambdaExpr :: IParser (LExpr t v)
 lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
                 whitespace
                 args <- spaceSep1 Pattern.term
-                whitespace ; arrow ; whitespace
+                padded arrow
                 body <- expr
                 return (makeFunction args body)
 
@@ -181,14 +178,15 @@ letExpr :: IParser (Expr t v)
 letExpr = do
   reserved "let" ; whitespace
   defs <- defSet
-  whitespace ; reserved "in" ; whitespace
+  padded (reserved "in")
   Let defs <$> expr
 
 caseExpr :: IParser (Expr t v)
 caseExpr = do
-  reserved "case"; whitespace; e <- expr; whitespace; reserved "of"; whitespace
+  reserved "case"; e <- padded expr; reserved "of"; whitespace
   Case e <$> (with <|> without)
-    where case_ = do p <- Pattern.expr; whitespace; arrow; whitespace
+    where case_ = do p <- Pattern.expr
+                     padded arrow
                      (,) p <$> expr
           with    = brackets (semiSep1 (case_ <?> "cases { x -> ... }"))
           without = block (do c <- case_ ; whitespace ; return c)
@@ -225,7 +223,7 @@ makeFunction args body@(L s _) =
 definition :: IParser (Def t v)
 definition = withPos $ do
   (name:args) <- defStart
-  whitespace >> string "=" >> whitespace
+  padded equals
   body <- expr
   return . Def name $ makeFunction args body
 
@@ -234,7 +232,7 @@ typeAnnotation = TypeAnnotation <$> try start <*> Type.expr
   where
     start = do
       v <- lowVar <|> parens symOp
-      whitespace ; hasType ; whitespace
+      padded hasType
       return v
 
 def :: IParser (Def t v)

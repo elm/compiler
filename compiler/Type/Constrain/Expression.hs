@@ -134,7 +134,7 @@ constrain env (L span expr) tipe =
                  recordType = record fields' (TermN EmptyRecord1)
              return . ex vars . and $ tipe === recordType : cs
 
-      Markdown _ es ->
+      Markdown _ _ es ->
           do vars <- forM es $ \_ -> liftIO (var Flexible)
              let tvars = map VarN vars
              cs <- zipWithM (constrain env) es tvars

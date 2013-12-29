@@ -1,8 +1,6 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 module SourceSyntax.Type where
 
 import Data.Binary
-import Data.Data
 import qualified Data.Map as Map
 import qualified SourceSyntax.Helpers as Help
 import Control.Applicative ((<$>), (<*>))
@@ -14,7 +12,7 @@ data Type = Lambda Type Type
           | Data String [Type]
           | EmptyRecord
           | Record [(String,Type)] Type
-            deriving (Eq, Show, Data, Typeable)
+            deriving (Eq, Show)
 
 fieldMap :: [(String,a)] -> Map.Map String [a]
 fieldMap fields =
@@ -94,3 +92,4 @@ instance Binary Type where
         2 -> Data <$> get <*> get
         3 -> return EmptyRecord
         4 -> Record <$> get <*> get
+        _ -> error "Error reading a valid type from serialized string"

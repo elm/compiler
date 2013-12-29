@@ -144,13 +144,13 @@ function renderForm(redo, ctx, form) {
     case 'FPath' : drawLine(ctx, f._0, f._1); break;
     case 'FImage': drawImage(redo, ctx, f); break;
     case 'FShape':
-	if (f._0.ctor === 'Left') {
-	    f._1.closed = true;
-	    drawLine(ctx, f._0._0, f._1);
-	} else {
-            drawShape(redo, ctx, f._0._0, f._1);
-        }
-	break;
+      if (f._0.ctor === 'Left') {
+        f._1.closed = true;
+        drawLine(ctx, f._0._0, f._1);
+      } else {
+        drawShape(redo, ctx, f._0._0, f._1);
+      }
+    break;
     }
     ctx.restore();
 }
@@ -173,16 +173,16 @@ function str(n) {
 
 function makeTransform(w, h, form, matrices) {
     var props = form.form._0.props;
-    var m = A6( Transform.matrix, 1, 0, 0, 1,
-                (w - props.width)/2,
-                (h - props.height)/2 );
+    var m = A6( Transform.matrix, 1, 0, 0, -1,
+                (w - props.width ) / 2,
+                (h - props.height) / 2 );
     var len = matrices.length;
     for (var i = 0; i < len; ++i) { m = A2( Transform.multiply, m, matrices[i] ); }
     m = A2( Transform.multiply, m, formToMatrix(form) );
 
-    return 'matrix(' + str( m[0]) + ',' + str( m[3]) + ',' +
-                       str(-m[1]) + ',' + str(-m[4]) + ',' +
-                       str( m[2]) + ',' + str( m[5]) + ')';
+    return 'matrix(' + str( m[0]) + ', ' + str( m[3]) + ', ' +
+                       str(-m[1]) + ', ' + str(-m[4]) + ', ' +
+                       str( m[2]) + ', ' + str( m[5]) + ')';
 }
 
 function stepperHelp(list) {
@@ -200,7 +200,7 @@ function stepperHelp(list) {
     return { peekNext:peekNext, next:next };
 }
 
-function stepper(forms) {
+function formStepper(forms) {
     var ps = [stepperHelp(forms)];
     var matrices = [];
     var alphas = [];
@@ -253,11 +253,12 @@ function makeCanvas(w,h) {
 
 function render(model) {
     var div = newElement('div');
+    div.style.overflow = 'hidden';
     update(div, model, model);
     return div;
 }
 
-function updateTracker(w,h,div) {
+function nodeStepper(w,h,div) {
     var kids = div.childNodes;
     var i = 0;
     function transform(transforms, ctx) {
@@ -271,7 +272,7 @@ function updateTracker(w,h,div) {
         }
         return ctx;
     }
-    function getContext(transforms) {
+    function nextContext(transforms) {
         while (i < kids.length) {
             var node = kids[i];
             if (node.getContext) {
@@ -290,75 +291,61 @@ function updateTracker(w,h,div) {
         ++i;
         return transform(transforms, canvas.getContext('2d'));
     }
-    function element(matrices, alpha, form) {
-        var container = kids[i];
-        if (!container || container.getContext) {
-            container = newElement('div');
-            container.style.overflow = 'hidden';
-            container.style.position = 'absolute';
-            addTransform(container.style, 'scaleY(-1)');
-            
-            var kid = kids[i];
-            kid ? div.insertBefore(container, kid)
-                : div.appendChild(container);
-        }
-        // we have added a new node, so we must step our position
-        ++i;
-
-        container.style.width = w + 'px';
-        container.style.height = h + 'px';
-        container.style.opacity = alpha * form.alpha;
-
+    function addElement(matrices, alpha, form) {
+        var kid = kids[i];
         var elem = form.form._0;
-        var node = container.firstChild;
-        if (node) {
-            Render.update(node, node.oldElement, elem);
-            node = container.firstChild;
-        } else {
-            node = Render.render(elem);
-            container.appendChild(node);
-        }
-        node.oldElement = elem;
+
+        var node = (!kid || kid.getContext)
+            ? Render.render(elem)
+            : (Render.update(kid, kid.oldElement, elem), kids[i]);
+
+        node.style.position = 'absolute';
+        node.style.opacity = alpha * form.alpha;
         addTransform(node.style, makeTransform(w, h, form, matrices));
+        node.oldElement = elem;
+        ++i;
+        if (!kid) {
+            div.appendChild(node);
+        } else if (kid.getContext) {
+            div.insertBefore(node, kid);
+        }
     }
     function clearRest() {
         while (i < kids.length) {
             div.removeChild(kids[i]);
         }
     }
-    return { getContext:getContext, element:element, clearRest:clearRest };
+    return { nextContext:nextContext, addElement:addElement, clearRest:clearRest };
 }
 
 
 function update(div, _, model) {
     var w = model.w;
     var h = model.h;
-    div.style.width = w + 'px';
-    div.style.height = h + 'px';
-    if (model.forms.ctor === 'Nil') {
-        while (div.hasChildNodes()) {
-            div.removeChild(div.lastChild);
-        }
-    }
-    var stpr = stepper(model.forms);
-    var tracker = updateTracker(w,h,div);
+
+    var forms = formStepper(model.forms);
+    var nodes = nodeStepper(w,h,div);
     var ctx = null;
     var formType = '';
 
-    while (formType = stpr.peekNext()) {
+    while (formType = forms.peekNext()) {
+        // make sure we have context if we need it
         if (ctx === null && formType !== 'FElement') {
-            ctx = tracker.getContext(stpr.transforms());
-            ctx.globalAlpha = stpr.alpha();
+            ctx = nodes.nextContext(forms.transforms());
+            ctx.globalAlpha = forms.alpha();
         }
-        var form = stpr.next(ctx);
+
+        var form = forms.next(ctx);
+        // if it is FGroup, all updates are made within formStepper when next is called.
         if (formType === 'FElement') {
-            tracker.element(stpr.transforms(), stpr.alpha(), form);
+            // update or insert an element, get a new context
+            nodes.addElement(forms.transforms(), forms.alpha(), form);
             ctx = null;
         } else if (formType !== 'FGroup') {
             renderForm(function() { update(div, model, model); }, ctx, form);
         }
     }
-    tracker.clearRest();
+    nodes.clearRest();
     return false;
 }
 

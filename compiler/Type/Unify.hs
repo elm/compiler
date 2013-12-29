@@ -80,11 +80,11 @@ actuallyUnify span variable1 variable2 = do
       unifyNumber svar name
           | name `elem` ["Int","Float","number"] = flexAndUnify svar
           | otherwise = TS.addError span (Just hint) variable1 variable2
-          where hint = "A number must be an Int or Float"
+          where hint = "A number must be an Int or Float."
 
       comparableError maybe =
           TS.addError span (Just $ Maybe.fromMaybe msg maybe) variable1 variable2
-          where msg = "A comparable must be an Int, Float, Char, String, list, or tuple"
+          where msg = "A comparable must be an Int, Float, Char, String, list, or tuple."
 
       unifyComparable var name
           | name `elem` ["Int","Float","Char","String","comparable"] = flexAndUnify var
@@ -98,7 +98,7 @@ actuallyUnify span variable1 variable2 = do
                             unify' v =<< liftIO (var $ Is Comparable)
                Tuple vs
                    | length vs > 6 ->
-                       comparableError $ Just "Cannot compare a tuple with more than 6 elements"
+                       comparableError $ Just "Cannot compare a tuple with more than 6 elements."
                    | otherwise -> 
                        do flexAndUnify varSuper
                           cmpVars <- liftIO $ forM [1..length vs] $ \_ -> var (Is Comparable)
@@ -111,9 +111,11 @@ actuallyUnify span variable1 variable2 = do
                _ -> comparableError Nothing
 
       rigidError variable = TS.addError span (Just hint) variable1 variable2
-          where hint = "There is a problem with the '" ++ 
-                       render (pretty Never variable) ++
-                       "' in the type signature. It currently is not possible to unify type variables that appear in top-level declarations and again in subexpressions"
+          where
+            var = "'" ++ render (pretty Never variable) ++ "'"
+            hint = "Cannot unify rigid type variable " ++ var ++
+                   ".\nThe problem probably relates to a type annotation. Note that rigid type\n\
+                   \variables are not shared between a top-level and let-bound type annotations."
 
       superUnify =
           case (flex desc1, flex desc2, name desc1, name desc2) of

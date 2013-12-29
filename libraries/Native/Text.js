@@ -53,67 +53,78 @@ Elm.Native.Text.make = function(elm) {
 
     function toText(str) { return Utils.txt(properEscape(JS.fromString(str))); }
 
-    function addTag(tag) {
-        return function(text) {
-            return Utils.txt('<' + tag + '>' + text + '</' + tag + '>');
-        }
+    function height(px, text) {
+        return { style: 'font-size:' + px + 'px;', text:text }
     }
-    
-    function addStyle(style, value, text) {
-        return Utils.txt("<span style='" + style + ":" + value + "'>" + text + "</span>");
-    }
-
     function typeface(name, text) {
-        return addStyle('font-family', JS.fromString(name), text);
+        return { style: 'font-family:' + name + ';', text:text }
     }
     function monospace(text) {
-        return addStyle('font-family', 'monospace', text);
+        return { style: 'font-family:monospace;', text:text }
     }
-    function size(px, text) { return addStyle('font-size', px + 'px', text) }
-    var header = addTag('h1');
-    function height(h, text) { return addStyle('font-size', h+'px', text) }
-    function italic(text) { return addStyle('font-style', 'italic', text) }
-    var bold = addTag('b');
-
-    function extract(c) {
-        if (c._3 === 1) { return 'rgb(' + c._0 + ', ' + c._1 + ', ' + c._2 + ')'; }
-        return 'rgba(' + c._0 + ', ' + c._1 + ', ' + c._2 + ', ' + c._3 + ')';
+    function italic(text) {
+        return { style: 'font-style:italic;', text:text }
     }
-    function color(c, text) {
-        return addStyle('color', extract(c), text);
-    }
-    function underline(text) { return addStyle('text-decoration', 'underline', text) }
-    function overline(text) { return addStyle('text-decoration', 'overline', text) }
-    function strikeThrough(text) {
-        return addStyle('text-decoration', 'line-through', text);
+    function bold(text) {
+        return { style: 'font-weight:bold;', text:text }
     }
     function link(href, text) {
-        return Utils.txt("<a href='" + toText(href) + "'>" + text + "</a>");
+        return { href: toText(href), text:text };
+    }
+    function underline(text) {
+        return { line: ' underline', text:text };
+    }
+    function overline(text) {
+        return { line: ' overline', text:text };
+    }
+    function strikeThrough(text) {
+        return { line: ' line-through', text:text };
     }
 
-    function position(pos) {
-        return function(text) {
-            var e = {ctor:'RawHtml',
-	             _0: '<div style="padding:0;margin:0;text-align:' +
-                     pos + '">' + text + '</div>'
-                    };
-            var p = A2(Utils.htmlHeight, 0, text);
-            return A3(Element.newElement, p._0, p._1, e);
+    function color(c, text) {
+        var color = (c._3 === 1)
+            ? ('rgb(' + c._0 + ', ' + c._1 + ', ' + c._2 + ')')
+            : ('rgba(' + c._0 + ', ' + c._1 + ', ' + c._2 + ', ' + c._3 + ')');
+        return { style: 'color:' + color + ';', text:text };
+    }
+
+    function position(align) {
+        function create(text) {
+            var raw = {
+                ctor:'RawHtml',
+                html: Utils.makeText('text-align:' + align + ';', text),
+                guid: null,
+                args: [],
+            };
+            var pos = A2(Utils.htmlHeight, 0, raw);
+            return A3(Element.newElement, pos._0, pos._1, raw);
         }
+        return create;
     }
 
+    function markdown(text, guid) {
+        var raw = {
+            ctor:'RawHtml',
+            html: text,
+            guid: guid,
+            args: [],
+        };
+        var pos = A2(Utils.htmlHeight, 0, raw);
+        return A3(Element.newElement, pos._0, pos._1, raw);
+    }
+
+    var text = position('left');
     function asText(v) {
-        return position('left')(monospace(toText(show(v))));
+        return text(monospace(toText(show(v))));
     }
 
     function plainText(v) {
-        return position('left')(toText(v));
+        return text(toText(v));
     }
 
     return elm.Native.Text.values = {
         toText: toText,
 
-        header : header,
         height : F2(height),
         italic : italic,
         bold : bold,
@@ -128,9 +139,10 @@ Elm.Native.Text.make = function(elm) {
         justified : position('justify'),
         centered : position('center'),
         righted : position('right'),
-        text : position('left'),
+        text : text,
         plainText : plainText,
+        markdown : markdown,
 
-        asText : asText
+        asText : asText,
     };
 };

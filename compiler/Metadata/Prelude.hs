@@ -7,11 +7,11 @@ import System.Directory
 import System.Exit
 import System.FilePath
 import System.IO
-import System.IO.Unsafe (unsafePerformIO)
 import SourceSyntax.Module
 import qualified Data.Binary as Binary
 import qualified Data.ByteString.Lazy as BS
 
+import qualified InterfaceSerialization as IS
 
 add :: Module t v -> Module t v
 add (Module name exs ims stmts) = Module name exs (customIms ++ ims) stmts
@@ -30,10 +30,8 @@ prelude = text ++ map (\n -> (n, Hiding [])) modules
     modules = [ "Basics", "Signal", "List", "Maybe", "Time", "Prelude"
               , "Graphics.Element", "Color", "Graphics.Collage" ]
 
-{-# NOINLINE interfaces #-}
-interfaces :: Interfaces
-interfaces =
-    unsafePerformIO (safeReadDocs =<< Path.getDataFileName "interfaces.data")
+interfaces :: IO Interfaces
+interfaces = safeReadDocs =<< Path.getDataFileName "interfaces.data"
 
 safeReadDocs :: FilePath -> IO Interfaces
 safeReadDocs name =
@@ -46,14 +44,27 @@ safeReadDocs name =
                          , "    and specify your versions of Elm and your OS" ]
       exitFailure
 
+firstModuleInterface :: [(String, ModuleInterface)] ->
+                        Either String (String, ModuleInterface)
+firstModuleInterface interfaces =
+    case interfaces of
+      []      -> Left "No interfaces found in serialized Prelude!"
+      iface:_ -> Right iface
+
 readDocs :: FilePath -> IO Interfaces
-readDocs name = do
-  exists <- doesFileExist name
-  case exists of
-    False -> ioError . userError $ "File Not Found"
-    True -> do
-      handle <- openBinaryFile name ReadMode
-      bits <- BS.hGetContents handle
-      let ifaces = Map.fromList (Binary.decode bits)
-      BS.length bits `seq` hClose handle
-      return ifaces
+readDocs filePath = do
+  bytes <- IS.loadInterface filePath
+  let interfaces = IS.interfaceDecode filePath =<< bytes
+
+      -- Although every ModuleInterface that is deserialized in this collection
+      -- contains the compiler version, we only check the first ModuleInterface
+      -- since it doesn't make sense that different modules in Prelude would
+      -- have been compiled by different compiler versions.
+      isValid = IS.validVersion filePath =<< firstModuleInterface =<< interfaces
+
+  case (interfaces, isValid) of
+    (_, Left err) -> do
+      hPutStrLn stderr err
+      exitFailure
+
+    (Right ifaces, _) -> return $ Map.fromList ifaces

@@ -1,37 +1,64 @@
 module Transform.Check (mistakes) where
 
 import Transform.SortDefinitions (boundVars)
-import SourceSyntax.Everything
+import SourceSyntax.Declaration (Declaration(..))
+import SourceSyntax.Expression
+import SourceSyntax.Pattern
+import SourceSyntax.Location
 import SourceSyntax.PrettyPrint
 import qualified SourceSyntax.Type as T
 import Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
-import Data.Data
-import Data.Generics.Uniplate.Data
 import Text.PrettyPrint as P
 
 
-mistakes :: (Data t, Data v) => [Declaration t v] -> [Doc]
+mistakes :: [Declaration t v] -> [Doc]
 mistakes decls =
     concat [ infiniteTypeAliases decls
            , illFormedTypes decls
+           , map P.text (duplicateConstructors decls)
            , map P.text (concatMap findErrors (getLets decls)) ]
   where
     findErrors defs = duplicates defs ++ badOrder defs
 
-
-getLets :: (Data t, Data v) => [Declaration t v] -> [[Def t v]]
-getLets decls = defs : concatMap getSubLets defs
+getLets :: [Declaration t v] -> [[Def t v]]
+getLets decls = defs : concatMap defLets defs
     where
-      defs = concatMap (\d -> case d of Definition d -> [d] ; _ -> []) decls
+      defs = [ d | Definition d <- decls ]
 
-      getSubLets def =
+      defLets def =
           case def of
-            Def pattern expr -> [ defs | Let defs _ <- universeBi expr ]
             TypeAnnotation _ _ -> []
+            Def _ expr -> exprLets expr
 
+      exprLets (L _ expr) =
+          case expr of
+            Var _ -> []
+            Lambda p e -> exprLets e
+            Binop op e1 e2 -> exprLets e1 ++ exprLets e2
+            Case e cases -> exprLets e ++ concatMap (exprLets . snd) cases
+            Data name es -> concatMap exprLets es
+            Literal _ -> []
+            Range e1 e2 -> exprLets e1 ++ exprLets e2
+            ExplicitList es -> concatMap exprLets es
+            App e1 e2 -> exprLets e1 ++ exprLets e2
+            MultiIf branches -> concatMap (\(b,e) -> exprLets b ++ exprLets e) branches
+            Access e lbl -> exprLets e
+            Remove e lbl -> exprLets e
+            Insert e lbl v -> exprLets e ++ exprLets v
+            Modify e fields -> exprLets e ++ concatMap (exprLets . snd) fields
+            Record fields -> concatMap (exprLets . snd) fields
+            Markdown uid md es -> []
+            Let defs body -> [defs] ++ exprLets body
+
+dups :: Eq a => [a] -> [a]
+dups  = map head . filter ((>1) . length) . List.group
+
+dupErr :: String -> String -> String
+dupErr err x = 
+  "Syntax Error: There can only be one " ++ err ++ " '" ++ x ++ "'."
 
 duplicates :: [Def t v] -> [String]
 duplicates defs =
@@ -39,13 +66,18 @@ duplicates defs =
   where
     annotations = List.sort [ name | TypeAnnotation name _ <- defs ]
     definitions = List.sort $ concatMap Set.toList [ boundVars pattern | Def pattern _ <- defs ]
+    defMsg = dupErr "definition of"
+    annMsg = dupErr "type annotation for"
 
-    dups = map head . filter ((>1) . length) . List.group
-
-    msg = "Syntax Error: There can only be one "
-    defMsg x = msg ++ "definition of '" ++ x ++ "'."
-    annMsg x = msg ++ "type annotation for '" ++ x ++ "'."
-
+duplicateConstructors :: [Declaration t v] -> [String]
+duplicateConstructors decls = 
+    map typeMsg (dups typeCtors) ++ map dataMsg (dups dataCtors)
+  where
+    typeCtors = List.sort [ name | Datatype name _ _ <- decls ]
+    dataCtors = List.sort . concat $
+      [ map fst patterns | Datatype _ _ patterns <- decls ]
+    dataMsg = dupErr "definition of data constructor"
+    typeMsg = dupErr "definition of type constructor"
 
 badOrder :: [Def t v] -> [String]
 badOrder defs = go defs

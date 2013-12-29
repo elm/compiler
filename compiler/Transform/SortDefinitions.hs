@@ -6,7 +6,9 @@ import Control.Applicative ((<$>))
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified SourceSyntax.Type as ST
-import SourceSyntax.Everything
+import SourceSyntax.Expression
+import SourceSyntax.Location
+import SourceSyntax.Pattern
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
@@ -97,7 +99,7 @@ reorder lexpr@(L s expr) =
       Record fields ->
           Record `liftM` mapM reorderField fields
 
-      Markdown md es -> Markdown md <$> mapM reorder es
+      Markdown uid md es -> Markdown uid md <$> mapM reorder es
 
       -- Actually do some reordering
       Let defs body ->
@@ -120,15 +122,20 @@ reorder lexpr@(L s expr) =
                 mapM free (ctors pattern)
 
              let addDefs ds bod = L s (Let (concatMap toDefs ds) bod)
-                     where
-                       toDefs (pattern, expr, Nothing) = [ Def pattern expr ]
-                       toDefs (PVar name, expr, Just tipe) =
-                           [ TypeAnnotation name tipe, Def (PVar name) expr ]
-             
                  L _ let' = foldr addDefs body' defss
 
              return let'
 
+          where
+            toDefs def =
+                case def of
+                  (pattern, expr, Nothing) -> [ Def pattern expr ]
+                  (PVar name, expr, Just tipe) ->
+                      [ TypeAnnotation name tipe, Def (PVar name) expr ]
+                  _ -> error $ unlines 
+                       [ "The impossible occurred."
+                       , "Please report an issue at <https://github.com/evancz/Elm/issues>."
+                       , "Be very descriptive because something quite weird probably happened." ]
 
 reorderField (label, expr) =
     (,) label `liftM` reorder expr
