@@ -13,7 +13,7 @@ import qualified Data.Version as Version
 
 elmVersion :: Version
 elmVersion = V ns ""
-    where (Version.Version ns _) =This.version
+    where (Version.Version ns _) = This.version
 
 -- Data representation
 
