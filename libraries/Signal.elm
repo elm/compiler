@@ -90,6 +90,10 @@ merges = Native.Signal.merges
 combine : [Signal a] -> Signal [a]
 combine = foldr (Native.Signal.lift2 (::)) (Native.Signal.constant [])
 
+{-| Collects all results yielded from a Signal. -}
+collect : Signal a -> Signal [a]
+collect = foldp (::) []
+
  -- Merge two signals into one, but distinguishing the values by marking the first
  -- signal as `Left` and the second signal as `Right`. This allows you to easily
  -- fold over non-homogeneous inputs.
