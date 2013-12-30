@@ -35,7 +35,7 @@ instance Pretty Pattern where
      PData name ps ->
         if isTuple name then
             PP.parens . commaCat $ map pretty ps
-        else sep (PP.text name : map prettyParens ps)
+        else hsep (PP.text name : map prettyParens ps)
 
 prettyParens pattern = parensIf needsThem (pretty pattern)
   where
