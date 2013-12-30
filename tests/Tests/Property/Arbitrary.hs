@@ -49,7 +49,7 @@ instance Arbitrary Pattern where
   shrink pat = case pat of
     PAnything  -> []
     PVar v     -> PVar     <$> shrinkWHead v
-    PRecord fs -> PRecord  <$> (filter (all $ not.null) . filter (not.null) $ shrink fs)
+    PRecord fs -> PRecord  <$> (filter (all $ not . null) . filter (not . null) $ shrink fs)
     PLiteral l -> PLiteral <$> shrink l
     PAlias s p -> p : (PAlias <$> shrinkWHead s <*> shrink p)
     PData s ps -> ps ++ (PData <$> shrinkWHead s <*> shrink ps)

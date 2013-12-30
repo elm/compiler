@@ -3,6 +3,7 @@ module Tests.Compiler (compilerTests)
 
 import Data.Functor                   ((<$>))
 import Data.Traversable               (traverse)
+import System.FilePath                ((</>))
 import System.FilePath.Find           (find, (==?), extension)
 import Test.Framework
 import Test.Framework.Providers.HUnit (testCase)
@@ -12,9 +13,8 @@ import Elm.Internal.Utils as Elm
 
 compilerTests :: Test
 compilerTests = buildTest $ do
-  goods <- getElms "tests/data/good" >>= mkTests True
-  bads  <- getElms "tests/data/bad"  >>= mkTests False
-
+  goods <- mkTests True  =<< getElms "good"
+  bads  <- mkTests False =<< getElms "bad"
   return $ testGroup "Compile Tests"
     [
       testGroup "Good Tests" goods
@@ -22,11 +22,13 @@ compilerTests = buildTest $ do
     ]
 
   where getElms :: FilePath -> IO [FilePath]
-        getElms = find (return True) (extension ==? ".elm")
+        getElms fname = find (return True) (extension ==? ".elm") (testsDir </> fname)
 
         mkTests :: Bool -> [FilePath] -> IO [Test]
         mkTests b = traverse setupTest
           where setupTest f = testCase f . mkCompileTest b <$> readFile f
+
+        testsDir = "tests" </> "data"
 
 mkCompileTest :: Bool      -- ^ Expect success?
                  -> String -- ^ File Contents
