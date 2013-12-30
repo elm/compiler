@@ -13,7 +13,7 @@ import SourceSyntax.Pattern
 
 instance Arbitrary Literal where
   arbitrary = oneof [ IntNum   <$> arbitrary
-                    , FloatNum <$> arbitrary
+                    , FloatNum <$> (arbitrary `suchThat` noE)
                     , Chr      <$> arbitrary
                       -- This is too permissive
                     , Str      <$> arbitrary
@@ -22,10 +22,14 @@ instance Arbitrary Literal where
                     ]
   shrink l = case l of
     IntNum n   -> IntNum   <$> shrink n
-    FloatNum f -> FloatNum <$> shrink f
+    FloatNum f -> FloatNum <$> (filter noE . shrink $ f)
     Chr c      -> Chr      <$> shrink c
     Str s      -> Str      <$> shrink s
     Boolean b  -> Boolean  <$> shrink b
+
+noE :: Double -> Bool
+noE = notElem 'e' . show
+
 
 instance Arbitrary Pattern where
   arbitrary = sized pat
@@ -66,7 +70,6 @@ notReserved :: Gen String -> Gen String
 notReserved = flip exceptFor Parse.Helpers.reserveds
 
 exceptFor :: (Ord a) => Gen a -> [a] -> Gen a
-exceptFor g xs = suchThat g notAnX
+exceptFor g xs = g `suchThat` notAnX
   where notAnX = flip Set.notMember xset
         xset = Set.fromList xs
-        

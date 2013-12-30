@@ -1,10 +1,12 @@
 module Tests.Property where
 
+import Control.Applicative ((<*))
 import Test.Framework
 import Test.Framework.Providers.HUnit
 import Test.Framework.Providers.QuickCheck2
 import Test.HUnit (assert)
 import Test.QuickCheck
+import Text.Parsec.Combinator (eof)
 
 import SourceSyntax.Literal as Lit
 import SourceSyntax.Pattern as Pat
@@ -46,4 +48,4 @@ prop_parse_print p x =
   either (const False) (== x) . parse_print p $ x
 
 parse_print :: (Pretty a) => IParser a -> a -> Either String a
-parse_print p = either (Left . show) (Right) . iParse p . show . pretty
+parse_print p = either (Left . show) (Right) . iParse (p <* eof) . show . pretty
