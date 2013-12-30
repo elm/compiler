@@ -1,5 +1,8 @@
 module Build.Print where
 
+import System.IO   (hPutStrLn, stderr)
+import System.Exit (exitFailure)
+
 import qualified Data.Map as Map
 import qualified Data.List as List
 import qualified SourceSyntax.Module as M
@@ -29,4 +32,7 @@ types interfaces types' aliases imports =
 
 errors :: [P.Doc] -> IO ()
 errors errs =
-    mapM_ print (List.intersperse (P.text " ") errs)
+  mapM_ print (List.intersperse (P.text " ") errs)
+
+failure :: String -> IO a
+failure msg = hPutStrLn stderr msg >> exitFailure

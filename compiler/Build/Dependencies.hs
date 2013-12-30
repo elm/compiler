@@ -1,4 +1,4 @@
-module Build.Dependencies (getSortedDependencies) where
+module Build.Dependencies (getSortedDependencies, readDeps) where
 
 import Data.Data
 import Control.Applicative
@@ -18,6 +18,8 @@ import System.FilePath as FP
 import System.IO
 import Text.PrettyPrint (Doc)
 
+import Build.Print (failure)
+
 import qualified SourceSyntax.Module as Module
 import qualified SourceSyntax.Type as Type
 import qualified Parse.Parse as Parse
@@ -36,15 +38,13 @@ getSortedDependencies :: [FilePath] -> Module.Interfaces -> FilePath -> IO [Stri
 getSortedDependencies srcDirs builtIns root =
     do extras <- extraDependencies
        let allSrcDirs = srcDirs ++ Maybe.fromMaybe [] extras
-       result <- runErrorT $ readDeps allSrcDirs builtIns root
+       result <- runErrorT $ readAllDeps allSrcDirs builtIns root
        case result of
          Right deps -> sortDeps deps
          Left err -> failure $ err ++ if Maybe.isJust extras then "" else msg
              where msg = "\nYou may need to create a " ++
                          Path.dependencyFile ++
                          " file if you\nare trying to use a 3rd party library."
-
-failure msg = hPutStrLn stderr msg >> exitFailure
 
 extraDependencies :: IO (Maybe [FilePath])
 extraDependencies =
@@ -86,34 +86,44 @@ sortDeps depends =
     mistakes = filter (\scc -> length scc > 1) sccs
     msg = "A cyclical module dependency or was detected in:\n"
 
-readDeps :: [FilePath] -> Module.Interfaces -> FilePath -> ErrorT String IO [Deps]
-readDeps srcDirs builtIns root = do
+readAllDeps :: [FilePath] -> Module.Interfaces -> FilePath -> ErrorT String IO [Deps]
+readAllDeps srcDirs builtIns root = do
   let ifaces = (Set.fromList . Map.keys) builtIns
   State.evalStateT (go ifaces root) Set.empty
   where
     go :: Set.Set String -> FilePath -> State.StateT (Set.Set String) (ErrorT String IO) [Deps]
     go builtIns root = do
-      (root', txt) <- lift $ getFile srcDirs root
-      case Parse.dependencies txt of
-        Left err -> throwError $ msg ++ show err
-            where msg = "Error resolving dependencies in " ++ root' ++ ":\n"
+      root'        <- lift $ findSrcFile srcDirs root
+      (name, deps) <- lift $ readDeps root'
+      seen <- State.get
+      let realDeps = Set.difference (Set.fromList deps) builtIns
+          newDeps = Set.difference (Set.filter (not . isNative) realDeps) seen
+      State.put (Set.insert name (Set.union newDeps seen))
+      rest <- mapM (go builtIns . toFilePath) (Set.toList newDeps)
+      return ((makeRelative "." root', name, Set.toList realDeps) : concat rest)
 
-        Right (name,deps) ->
-            do seen <- State.get
-               let realDeps = Set.difference (Set.fromList deps) builtIns
-                   newDeps = Set.difference (Set.filter (not . isNative) realDeps) seen
-               State.put (Set.insert name (Set.union newDeps seen))
-               rest <- mapM (go builtIns . toFilePath) (Set.toList newDeps)
-               return ((makeRelative "." root', name, Set.toList realDeps) : concat rest)
+readDeps :: FilePath -> ErrorT String IO (String, [String])
+readDeps path = do
+  txt <- lift $ readFile path
+  case Parse.dependencies txt of
+    Left err -> throwError $ msg ++ show err
+      where msg = "Error resolving dependencies in " ++ path ++ ":\n"
+    Right o  -> return o
 
-getFile :: [FilePath] -> FilePath -> ErrorT String IO (FilePath,String)
-getFile [] path =
-    throwError $ unlines
-    [ "Could not find file: " ++ path
-    , "    If it is not in the root directory of your project, use"
-    , "    --src-dir to declare additional locations for source files."
-    , "    If it is part of a 3rd party library, it needs to be declared"
-    , "    as a dependency in the " ++ Path.dependencyFile ++ " file." ]
+findSrcFile :: [FilePath] -> FilePath -> ErrorT String IO FilePath
+findSrcFile dirs path = foldr tryDir notFound dirs
+  where notFound = throwError $ unlines
+          [ "Could not find file: " ++ path
+          , "    If it is not in the root directory of your project, use"
+          , "    --src-dir to declare additional locations for source files."
+          , "    If it is part of a 3rd party library, it needs to be declared"
+          , "    as a dependency in the " ++ Path.dependencyFile ++ " file." ]
+        tryDir dir next = do
+          let path' = dir </> path
+          exists <- liftIO $ doesFileExist path'
+          if exists
+            then return path'
+            else next
 
 getFile (dir:dirs) path = do
   let path' = dir </> path

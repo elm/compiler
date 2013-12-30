@@ -1,68 +1,100 @@
 module Build.File (build) where
 
-import Control.Applicative ((<$>))
-import Control.Monad (when)
+import Control.Applicative      ((<$>), (<*>), pure)
+import Control.Monad            (when)
+import Control.Monad.Error      (runErrorT)
 import Control.Monad.RWS.Strict
-import qualified Data.Binary as Binary
-import qualified Data.List as List
-import qualified Data.Maybe as Maybe
-import Data.Monoid (Last(..))
-import qualified Data.Map as Map
+import Data.Monoid              (Last(..))
 import System.Directory
 import System.Exit
 import System.FilePath
 import System.IO
 
-import qualified Transform.Canonicalize as Canonical
-import qualified Data.ByteString.Lazy as L
+import qualified Data.Binary            as Binary
+import qualified Data.List              as List
+import qualified Data.Maybe             as Maybe
+import qualified Data.Map               as Map
+import qualified Data.ByteString.Lazy   as L
 
-import qualified Build.Utils as Utils
-import qualified Build.Flags as Flag
-import qualified Build.Source as Source
-import qualified Build.Print as Print
-import qualified Generate.JavaScript as JS
+import qualified Build.Dependencies     as Deps
+import qualified Build.Flags            as Flag
+import qualified Build.Print            as Print
+import qualified Build.Source           as Source
+import qualified Build.Utils            as Utils
+import qualified Generate.JavaScript    as JS
 import qualified InterfaceSerialization as IS
-import qualified Parse.Module as Parser
-import qualified SourceSyntax.Module as M
+import qualified Parse.Module           as Parser
+import qualified SourceSyntax.Module    as M
+import qualified Transform.Canonicalize as Canonical
 
 -- Reader: Runtime flags, always accessible
 -- Writer: Remember the last module to be accessed
 -- State:  Build up a map of the module interfaces
-type BuildT m a = RWST Flag.Flags (Last String) M.Interfaces m a
+type BuildT m a = RWST Flag.Flags (Last String) BInterfaces m a
 type Build a = BuildT IO a
+
+-- Interfaces, remembering if something was recompiled
+type BInterfaces = Map.Map String (Bool, M.ModuleInterface)
 
 evalBuild :: Flag.Flags -> M.Interfaces -> Build () -> IO (Maybe String)
 evalBuild fs is b = do
-  (_, s) <- evalRWST b fs is
+  (_, s) <- evalRWST b fs (fmap notUpdated is)
   return . getLast $ s
+  where notUpdated i = (False, i)
 
--- Builds a list of files, returning the moduleName of the last one.
--- Returns "" if the list is empty
+-- | Builds a list of files, returning the moduleName of the last one.
+--   Returns \"\" if the list is empty
 build :: Flag.Flags -> M.Interfaces -> [FilePath] -> IO String
 build flags is = fmap (Maybe.fromMaybe "") . evalBuild flags is . buildAll
 
 buildAll :: [FilePath] -> Build ()
-buildAll fs = mapM_ build1 (zip [1..] fs)
-  where build1 (num, fname) = do
-          compiled <- alreadyCompiled filePath
-          case compiled of
-            False ->
-              let number = join ["[", show num, " of ", show total, "]"]
-              compile number filePath
-            True  -> retrieve filePath
+buildAll fs = mapM_ (uncurry build1) (zip [1..] fs)
+  where build1 num fname = do
+          shouldCompile <- shouldBeCompiled fname
+          if shouldCompile
+            then compile number fname
+            else retrieve fname
+
+          where number = join ["[", show num, " of ", show total, "]"]
+
         total = length fs
 
-alreadyCompiled :: FilePath -> Build Bool
-alreadyCompiled filePath = do
+shouldBeCompiled :: FilePath -> Build Bool
+shouldBeCompiled filePath = do
   flags <- ask
-  liftIO $ do
-    existsi <- doesFileExist (Utils.elmi flags filePath)
-    existso <- doesFileExist (Utils.elmo flags filePath)
-    if not existsi || not existso
-      then return False
-      else do tsrc <- getModificationTime filePath
-              tint <- getModificationTime (Utils.elmo flags filePath)
-              return (tsrc <= tint)
+  let alreadyCompiled = liftIO $ do
+        existsi <- doesFileExist (Utils.elmi flags filePath)
+        existso <- doesFileExist (Utils.elmo flags filePath)
+        return $ existsi && existso
+
+      outDated = liftIO $ do
+        tsrc <- getModificationTime filePath
+        tint <- getModificationTime (Utils.elmo flags filePath)
+        return (tsrc > tint)
+
+      dependenciesUpdated = do
+        eDeps <- liftIO . runErrorT $ Deps.readDeps filePath
+        case eDeps of
+          -- Should never actually reach here
+          Left  err       -> liftIO $ Print.failure err
+          Right (_, deps) -> anyM wasCompiled deps
+        
+  
+    in (not <$> alreadyCompiled) `orM` outDated `orM` dependenciesUpdated
+
+wasCompiled :: String -> Build Bool
+wasCompiled modul = maybe False fst . Map.lookup modul <$> get
+  
+-- Short-circuiting monadic (||)
+infixr 2 `orM`
+orM :: (Monad m) => m Bool -> m Bool -> m Bool
+orM m1 m2 = do b1 <- m1
+               if b1
+                 then return b1
+                 else m2
+
+anyM :: (Monad m) => (a -> m Bool) -> [a] -> m Bool
+anyM f = foldr (orM . f) (return False)
 
 retrieve :: FilePath -> Build ()
 retrieve filePath = do
@@ -72,19 +104,20 @@ retrieve filePath = do
   let binary = IS.interfaceDecode elmi =<< bytes
   case IS.validVersion filePath =<< binary of
     Right (name, interface) ->
-      do interfaces <- get
+      do binterfaces <- get
+         let interfaces = snd <$> binterfaces
          liftIO $ when (Flag.print_types flags) (Print.interfaceTypes interfaces interface)
-         update name interface
+         update name interface False
 
-    Left err ->
-      liftIO $ hPutStrLn stderr err >> exitFailure
+    Left err -> liftIO $ Print.failure err
 
 compile :: String -> FilePath -> Build ()
 compile number filePath =
   do flags      <- ask
-     interfaces <- get
+     binterfaces <- get
      source <- liftIO $ readFile filePath
-     let name = getName source
+     let interfaces = snd <$> binterfaces
+         name = getName source
      liftIO $ do
        printStatus name
        createDirectoryIfMissing True (Flag.cache_dir flags)
@@ -98,9 +131,9 @@ compile number filePath =
 
      liftIO $ when (Flag.print_types flags) $ Print.metaTypes interfaces metaModule
   
-     let intermediate = (name, Canonical.interface name $ M.metaToInterface metaModule)
-     generateCache intermediate metaModule
-     uncurry update intermediate
+     let newInters = Canonical.interface name $ M.metaToInterface metaModule
+     generateCache name newInters metaModule
+     update name newInters True
 
   where
     getName source = case Parser.getModuleName source of
@@ -112,14 +145,14 @@ compile number filePath =
                                   , replicate (max 1 (20 - length name)) ' '
                                   , "( " ++ filePath ++ " )" ]
 
-    generateCache intermediate metaModule = do
+    generateCache name interfs metaModule = do
       flags <- ask
       liftIO $ do
         createDirectoryIfMissing True . dropFileName $ Utils.elmi flags filePath
         writeFile (Utils.elmo flags filePath) (JS.generate metaModule)
         withBinaryFile (Utils.elmi flags filePath) WriteMode $ \handle ->
-          L.hPut handle (Binary.encode intermediate)
+          L.hPut handle (Binary.encode (name, interfs))
 
-update :: String -> M.ModuleInterface -> Build ()
-update name inter = modify (Map.insert name inter)
-                    >> tell (Last . Just $ name)
+update :: String -> M.ModuleInterface -> Bool -> Build ()
+update name inter wasUpdated = modify (Map.insert name (wasUpdated, inter))
+                               >> tell (Last . Just $ name)
