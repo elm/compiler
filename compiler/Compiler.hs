@@ -37,8 +37,7 @@ build flags rootFile =
                 then getSortedDependencies (Flag.src_dir flags) builtIns rootFile
                 else return [rootFile]
 
-       (moduleName, interfaces) <-
-           File.build flags (length files) builtIns "" files
+       moduleName <- File.build flags builtIns files
 
        js <- foldM appendToOutput BS.empty files
 
