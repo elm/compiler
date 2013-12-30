@@ -45,8 +45,15 @@ allowing you to navigate to `Main.elm` and see your first program in action.
 
 #### Final Notes
 
-The `elm` package provides support for compilation of Elm code directly in Haskell.
-Check it out [on Hackage](http://hackage.haskell.org/package/Elm) if you are interested.
+The `elm` package provides
+[some utility functions](http://hackage.haskell.org/package/Elm) for
+working with Elm in Haskell. This can be useful for creating tooling
+for Elm, and has been useful for projects like
+[the website](http://elm-lang.org/) and
+[`elm-get`](https://github.com/evancz/elm-get). Email the list if you
+want to rely on these functions!
 
-If you are stuck, email [the list](https://groups.google.com/forum/?fromgroups#!forum/elm-discuss)
-or ask a question in the [#Elm IRC channel](http://webchat.freenode.net/?channels=elm).
+If you are stuck, email
+[the list](https://groups.google.com/forum/?fromgroups#!forum/elm-discuss)
+or ask a question in the
+[#Elm IRC channel](http://webchat.freenode.net/?channels=elm). 
