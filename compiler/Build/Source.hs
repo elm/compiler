@@ -11,7 +11,9 @@ import System.Exit
 import System.FilePath as FP
 import Text.PrettyPrint (Doc)
 
-import SourceSyntax.Everything
+import SourceSyntax.Declaration
+import SourceSyntax.Module
+import qualified SourceSyntax.Expression as Expr
 import qualified SourceSyntax.Type as Type
 import qualified Parse.Parse as Parse
 import qualified Metadata.Prelude as Prelude
@@ -38,7 +40,7 @@ build noPrelude interfaces source =
      let exports'
              | null exs =
                  let get = Set.toList . SD.boundVars in
-                 concat [ get pattern | Definition (Def pattern _) <- decls ] ++
+                 concat [ get pattern | Definition (Expr.Def pattern _) <- decls ] ++
                  concat [ map fst ctors | Datatype _ _ ctors <- decls ] ++
                  [ name | TypeAlias name _ (Type.Record _ _) <- decls ]
              | otherwise = exs
@@ -49,7 +51,7 @@ build noPrelude interfaces source =
            exports = exports',
            imports = ims,
            -- reorder AST into strongly connected components
-           program = SD.sortDefs . dummyLet $ TcDecl.toExpr decls,
+           program = SD.sortDefs . Expr.dummyLet $ TcDecl.toExpr decls,
            types = Map.empty,
            datatypes = [ (name,vars,ctors) | Datatype name vars ctors <- decls ],
            fixities = [ (assoc,level,op) | Fixity assoc level op <- decls ],

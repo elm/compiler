@@ -1,7 +1,5 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 module SourceSyntax.Declaration where
 
-import Data.Data
 import qualified SourceSyntax.Expression as Expr
 import SourceSyntax.Type
 import SourceSyntax.PrettyPrint

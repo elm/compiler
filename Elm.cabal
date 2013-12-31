@@ -39,7 +39,6 @@ Library
   Hs-Source-Dirs:      compiler
   other-modules:       SourceSyntax.Declaration,
                        SourceSyntax.Expression,
-                       SourceSyntax.Everything,
                        SourceSyntax.Helpers,
                        SourceSyntax.Literal,
                        SourceSyntax.Location,
@@ -55,6 +54,7 @@ Library
                        Generate.Markdown,
                        Transform.Canonicalize,
                        Transform.Check,
+                       Transform.SafeNames,
                        Transform.SortDefinitions,
                        Transform.Substitute,
                        Transform.Optimize,
@@ -111,7 +111,6 @@ Library
                        text,
                        transformers >= 0.2,
                        union-find,
-                       uniplate,
                        unordered-containers
 
 Executable elm
@@ -120,7 +119,6 @@ Executable elm
   Hs-Source-Dirs:      compiler
   other-modules:       SourceSyntax.Declaration,
                        SourceSyntax.Expression,
-                       SourceSyntax.Everything,
                        SourceSyntax.Helpers,
                        SourceSyntax.Literal,
                        SourceSyntax.Location,
@@ -135,6 +133,7 @@ Executable elm
                        Generate.Cases,
                        Transform.Canonicalize,
                        Transform.Check,
+                       Transform.SafeNames,
                        Transform.SortDefinitions,
                        Transform.Substitute,
                        Transform.Optimize,
@@ -191,14 +190,12 @@ Executable elm
                        text,
                        transformers >= 0.2,
                        union-find,
-                       uniplate,
                        unordered-containers
 
 Executable elm-doc
   Main-is:             Docs.hs
   Hs-Source-Dirs:      compiler
   other-modules:       SourceSyntax.Declaration,
-                       SourceSyntax.Everything,
                        SourceSyntax.Expression,
                        SourceSyntax.Helpers,
                        SourceSyntax.Literal,
@@ -235,6 +232,41 @@ Executable elm-doc
 
 Test-Suite test-elm
   Type:            exitcode-stdio-1.0
-  Hs-Source-Dirs:  tests
+  Hs-Source-Dirs:  tests, compiler
   Main-is:         Main.hs
-  build-depends:   base, directory, HTF
+  other-modules:   Tests.Compiler
+                   Tests.Property
+                   Tests.Property.Arbitrary
+                   SourceSyntax.Helpers
+                   SourceSyntax.Literal
+                   SourceSyntax.PrettyPrint
+  build-depends:   base,
+                   directory,
+                   Elm,
+                   test-framework,
+                   test-framework-hunit,
+                   test-framework-quickcheck2,
+                   HUnit,
+                   pretty,
+                   QuickCheck >= 2 && < 3,
+                   filemanip,
+                   aeson,
+                   base >=4.2 && <5,
+                   binary >= 0.6.4.0,
+                   blaze-html == 0.5.* || == 0.6.*,
+                   blaze-markup == 0.5.1.*,
+                   bytestring,
+                   cmdargs,
+                   containers >= 0.3,
+                   directory,
+                   filepath,
+                   indents,
+                   language-ecmascript >=0.15 && < 1.0,
+                   mtl >= 2,
+                   pandoc >= 1.10,
+                   parsec >= 3.1.1,
+                   pretty,
+                   text,
+                   transformers >= 0.2,
+                   union-find,
+                   unordered-containers

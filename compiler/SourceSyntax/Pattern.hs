@@ -1,8 +1,6 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 module SourceSyntax.Pattern where
 
 import Data.List (intercalate)
-import Data.Data
 import SourceSyntax.Helpers as Help
 import SourceSyntax.PrettyPrint
 import Text.PrettyPrint as PP
@@ -14,7 +12,7 @@ data Pattern = PData String [Pattern]
              | PVar String
              | PAnything
              | PLiteral Literal.Literal
-               deriving (Eq, Ord, Data, Typeable, Show)
+               deriving (Eq, Ord, Show)
 
 cons h t = PData "::" [h,t]
 nil      = PData "[]" []
@@ -37,7 +35,7 @@ instance Pretty Pattern where
      PData name ps ->
         if isTuple name then
             PP.parens . commaCat $ map pretty ps
-        else sep (PP.text name : map prettyParens ps)
+        else hsep (PP.text name : map prettyParens ps)
 
 prettyParens pattern = parensIf needsThem (pretty pattern)
   where

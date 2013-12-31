@@ -22,7 +22,7 @@ with `flow` in specific cases:
 @docs layers, above, below, beside
 
 # Positioning
-@docs spacer, container
+@docs empty, spacer, container
 
 ## Specific Positions
 
@@ -57,6 +57,13 @@ type Properties = {
  }
 
 type Element = { props : Properties, element : ElementPrim }
+
+{-| An Element that takes up no space. Good for things that appear conditionally:
+
+    flow down [ img1, if showMore then img2 else empty ]
+-}
+empty : Element
+empty = spacer 0 0
 
 {-| Get the width of an Element -}
 widthOf : Element -> Int
@@ -195,7 +202,7 @@ flow dir es =
       hs = List.map heightOf es
       newFlow w h = newElement w h (Flow dir es)
   in 
-  if es == [] then spacer 0 0 else
+  if es == [] then empty else
   case dir of
     DUp    -> newFlow (List.maximum ws) (List.sum hs)
     DDown  -> newFlow (List.maximum ws) (List.sum hs)

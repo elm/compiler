@@ -18,7 +18,7 @@ import System.FilePath as FP
 import System.IO
 import Text.PrettyPrint (Doc)
 
-import SourceSyntax.Everything
+import qualified SourceSyntax.Module as Module
 import qualified SourceSyntax.Type as Type
 import qualified Parse.Parse as Parse
 import qualified Metadata.Prelude as Prelude
@@ -32,7 +32,7 @@ import qualified Elm.Internal.Name as N
 import qualified Elm.Internal.Version as V
 import qualified Elm.Internal.Dependencies as Deps
 
-getSortedDependencies :: [FilePath] -> Interfaces -> FilePath -> IO [String]
+getSortedDependencies :: [FilePath] -> Module.Interfaces -> FilePath -> IO [String]
 getSortedDependencies srcDirs builtIns root =
     do extras <- extraDependencies
        let allSrcDirs = srcDirs ++ Maybe.fromMaybe [] extras
@@ -86,7 +86,7 @@ sortDeps depends =
     mistakes = filter (\scc -> length scc > 1) sccs
     msg = "A cyclical module dependency or was detected in:\n"
 
-readDeps :: [FilePath] -> Interfaces -> FilePath -> ErrorT String IO [Deps]
+readDeps :: [FilePath] -> Module.Interfaces -> FilePath -> ErrorT String IO [Deps]
 readDeps srcDirs builtIns root = do
   let ifaces = (Set.fromList . Map.keys) builtIns
   State.evalStateT (go ifaces root) Set.empty

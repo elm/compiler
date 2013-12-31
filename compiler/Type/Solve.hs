@@ -174,11 +174,11 @@ allDistinct span vars = do
         desc <- liftIO $ UF.descriptor var
         case structure desc of
           Just _ -> TS.addError span (Just msg) var var
-              where msg = "Cannot generalize something that is not a type variable"
+              where msg = "Cannot generalize something that is not a type variable."
 
           Nothing -> do
             if mark desc == seen
-              then let msg = "Duplicate variable during generalization"
+              then let msg = "Duplicate variable during generalization."
                    in  TS.addError span (Just msg) var var
               else return ()
             liftIO $ UF.setDescriptor var (desc { mark = seen })
@@ -190,5 +190,5 @@ isGeneric span var = do
   desc <- liftIO $ UF.descriptor var
   if rank desc == noRank
     then return ()
-    else let msg = "Unable to generalize a type variable. It is not unranked"
+    else let msg = "Unable to generalize a type variable. It is not unranked."
          in  TS.addError span (Just msg) var var

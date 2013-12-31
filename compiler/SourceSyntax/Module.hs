@@ -1,7 +1,5 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 module SourceSyntax.Module where
 
-import Data.Data
 import Data.Binary
 import Data.List (intercalate)
 import qualified Data.Map as Map
@@ -24,7 +22,7 @@ type Exports = [String]
 
 type Imports = [(String, ImportMethod)]
 data ImportMethod = As String | Importing [String] | Hiding [String]
-                    deriving (Eq, Ord, Show, Data, Typeable)
+                    deriving (Eq, Ord, Show)
 
 instance Binary ImportMethod where
     put (As s)          = do put (0 :: Word8)

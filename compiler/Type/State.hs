@@ -56,13 +56,11 @@ addError span hint t1 t2 =
       t1' <- prettiest <$> toSrcType t1
       t2' <- prettiest <$> toSrcType t2
       return . P.vcat $
-         [ display $ case span of { NoSpan msg -> msg ; Span _ _ msg -> msg }
-         , case hint of
-             Nothing -> P.text "  Could not match the following types:"
-             Just msg -> P.text $ eightyCharLines 2 $
-                         msg ++ ", so I could not match the following types:"
-         , P.text "        " <> t1'
-         , P.text "        " <> t2'
+         [ P.text $ "Type error" ++ location ++ ":"
+         , maybe P.empty P.text hint
+         , display $ case span of { NoSpan msg -> msg ; Span _ _ msg -> msg }
+         , P.text "   Expected Type:" <+> t1'
+         , P.text "     Actual Type:" <+> t2'
          ]
 
     location = case span of
@@ -72,11 +70,8 @@ addError span hint t1 t2 =
                      else " between lines " ++ show (line p1) ++ " and " ++ show (line p2)
 
     display msg =
-        case lines msg of
-          [] -> P.text $ "Type error" ++ location ++ ":"
-          lines' ->
-              P.vcat [ P.text $ "Type error" ++ location ++ ", in or near this expression:"
-                     , P.text $ "        " ++ List.intercalate "\n        " lines' ]
+        P.vcat [ P.text $ concatMap ("\n        "++) (lines msg)
+               , P.text " " ]
 
 
 switchToPool pool = modifyPool (\_ -> pool)
