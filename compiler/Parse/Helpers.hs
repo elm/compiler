@@ -22,7 +22,7 @@ reserveds = [ "if", "then", "else"
             , "module", "where"
             , "import", "as", "hiding", "open"
             , "export", "foreign"
-            , "deriving" ]
+            , "deriving", "port" ]
 
 jsReserveds :: Set.Set String
 jsReserveds = Set.fromList

@@ -1,7 +1,7 @@
 module Transform.Check (mistakes) where
 
 import Transform.SortDefinitions (boundVars)
-import SourceSyntax.Declaration (Declaration(..))
+import qualified SourceSyntax.Declaration as D
 import SourceSyntax.Expression
 import SourceSyntax.Pattern
 import SourceSyntax.Location
@@ -14,19 +14,20 @@ import qualified Data.Set as Set
 import Text.PrettyPrint as P
 
 
-mistakes :: [Declaration t v] -> [Doc]
+mistakes :: [D.Declaration t v] -> [Doc]
 mistakes decls =
     concat [ infiniteTypeAliases decls
            , illFormedTypes decls
            , map P.text (duplicateConstructors decls)
-           , map P.text (concatMap findErrors (getLets decls)) ]
+           , map P.text (concatMap findErrors (getLets decls))
+           , badDerivations decls ]
   where
     findErrors defs = duplicates defs ++ badOrder defs
 
-getLets :: [Declaration t v] -> [[Def t v]]
+getLets :: [D.Declaration t v] -> [[Def t v]]
 getLets decls = defs : concatMap defLets defs
     where
-      defs = [ d | Definition d <- decls ]
+      defs = [ d | D.Definition d <- decls ]
 
       defLets def =
           case def of
@@ -69,13 +70,13 @@ duplicates defs =
     defMsg = dupErr "definition of"
     annMsg = dupErr "type annotation for"
 
-duplicateConstructors :: [Declaration t v] -> [String]
+duplicateConstructors :: [D.Declaration t v] -> [String]
 duplicateConstructors decls = 
     map typeMsg (dups typeCtors) ++ map dataMsg (dups dataCtors)
   where
-    typeCtors = List.sort [ name | Datatype name _ _ <- decls ]
+    typeCtors = List.sort [ name | D.Datatype name _ _ _ <- decls ]
     dataCtors = List.sort . concat $
-      [ map fst patterns | Datatype _ _ patterns <- decls ]
+      [ map fst patterns | D.Datatype _ _ patterns _ <- decls ]
     dataMsg = dupErr "definition of data constructor"
     typeMsg = dupErr "definition of type constructor"
 
@@ -96,11 +97,32 @@ badOrder defs = go defs
 
             _ -> []
 
-illFormedTypes :: [Declaration t v] -> [Doc]
+badDerivations :: [D.Declaration t v] -> [Doc]
+badDerivations decls = concatMap badDerivation derivations
+    where
+      derivations =
+          [ (decl, tvars, derives) | decl@(D.TypeAlias name tvars _ derives) <- decls ] ++
+          [ (decl, tvars, derives) | decl@(D.Datatype name tvars _ derives) <- decls ]
+
+      badDerivation (decl, tvars, derives) =
+          case (tvars, derives) of
+            (_:_, _)
+                | D.Json   `elem` derives -> [report decl D.Json]
+                | D.Binary `elem` derives -> [report decl D.Binary]
+            _ -> []
+
+      report decl derive =
+          P.vcat [ P.text $ "Error: cannot derive '" ++ show derive ++ "' from this type alias."
+                 , P.text "Make sure all type variables are replaced with concrete types:"
+                 , P.text "\n"
+                 , nest 4 (pretty decl)
+                 ]
+
+illFormedTypes :: [D.Declaration t v] -> [Doc]
 illFormedTypes decls = map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
     where
-      aliases = [ (decl, tvars, [tipe]) | decl@(TypeAlias _ tvars tipe) <- decls ]
-      adts = [ (decl, tvars, concatMap snd ctors) | decl@(Datatype _ tvars ctors) <- decls ]
+      aliases = [ (decl, tvars, [tipe]) | decl@(D.TypeAlias _ tvars tipe _) <- decls ]
+      adts = [ (decl, tvars, concatMap snd ctors) | decl@(D.Datatype _ tvars ctors _) <- decls ]
 
       freeVars tipe =
           case tipe of
@@ -141,9 +163,9 @@ illFormedTypes decls = map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
             quote tvar = "'" ++ tvar ++ "'"
 
 
-infiniteTypeAliases :: [Declaration t v] -> [Doc]
+infiniteTypeAliases :: [D.Declaration t v] -> [Doc]
 infiniteTypeAliases decls =
-    [ report decl | decl@(TypeAlias name _ tipe) <- decls, isInfinite name tipe ]
+    [ report decl | decl@(D.TypeAlias name _ tipe _) <- decls, isInfinite name tipe ]
     where
       isInfinite name tipe =
           let infinite = isInfinite name in
@@ -154,11 +176,11 @@ infiniteTypeAliases decls =
             T.EmptyRecord -> False
             T.Record fields ext -> infinite ext || any (infinite . snd) fields
 
-      report decl@(TypeAlias name args tipe) =
+      report decl@(D.TypeAlias name args tipe derivations) =
           P.vcat [ P.text $ eightyCharLines 0 msg1
                  , indented decl
                  , P.text $ eightyCharLines 0 msg2
-                 , indented (Datatype name args [(name,[tipe])])
+                 , indented (D.Datatype name args [(name,[tipe])] derivations)
                  , P.text $ eightyCharLines 0 msg3 ++ "\n"
                  ]
           where

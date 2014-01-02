@@ -13,7 +13,7 @@ import qualified Data.UnionFind.IO as UF
 import qualified Text.PrettyPrint as PP
 
 import qualified SourceSyntax.Type as Src
-import SourceSyntax.Module (ADT)
+import SourceSyntax.Module (ADT, Alias)
 import Type.Type
 
 type TypeDict = Map.Map String Type
@@ -26,10 +26,10 @@ data Environment = Environment {
   value :: TypeDict
 }
 
-initialEnvironment :: [ADT] -> [(String, [String], Src.Type)] -> IO Environment
+initialEnvironment :: [ADT] -> [Alias] -> IO Environment
 initialEnvironment datatypes aliases = do
     types <- makeTypes datatypes
-    let aliases' = Map.fromList $ map (\(a,b,c) -> (a,(b,c))) aliases
+    let aliases' = Map.fromList $ map (\(a,b,c,_) -> (a,(b,c))) aliases
         env = Environment {
                 constructor = Map.empty,
                 value = Map.empty,
@@ -42,7 +42,7 @@ makeTypes :: [ADT] -> IO TypeDict
 makeTypes datatypes = 
     Map.fromList <$> mapM makeCtor (builtins ++ map nameAndKind datatypes)
   where
-    nameAndKind (name, tvars, _) = (name, length tvars)
+    nameAndKind (name, tvars, _, _) = (name, length tvars)
 
     makeCtor (name, kind) = do
       ctor <- VarN <$> namedVar Constant name
@@ -84,7 +84,7 @@ makeConstructors env datatypes = Map.fromList builtins
 
 
 ctorToType :: Environment -> ADT -> [ (String, IO (Int, [Variable], [Type], Type)) ]
-ctorToType env (name, tvars, ctors) =
+ctorToType env (name, tvars, ctors, derivations) =
     zip (map fst ctors) (map inst ctors)
   where
     inst :: (String, [Src.Type]) -> IO (Int, [Variable], [Type], Type)

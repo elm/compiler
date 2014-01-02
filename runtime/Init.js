@@ -2,7 +2,7 @@
 (function() {
 'use strict';
 
-Elm.fullscreen = function(module) {
+Elm.fullscreen = function(module, ports) {
     var style = document.createElement('style');
     style.type = 'text/css';
     style.innerHTML = "html,head,body { padding:0; margin:0; }" +
@@ -10,24 +10,24 @@ Elm.fullscreen = function(module) {
     document.head.appendChild(style);
     var container = document.createElement('div');
     document.body.appendChild(container);
-    return init(ElmRuntime.Display.FULLSCREEN, container, module);
+    return init(ElmRuntime.Display.FULLSCREEN, container, module, ports);
 };
 
-Elm.embed = function(module, container) {
+Elm.embed = function(module, container, ports) {
     var tag = container.tagName;
     if (tag !== 'DIV') {
         throw new Error('Elm.node must be given a DIV, not a ' + tag + '.');
     } else if (container.hasChildNodes()) {
         throw new Error('Elm.node must be given an empty DIV. No children allowed!');
     }
-    return init(ElmRuntime.Display.COMPONENT, container, module);
+    return init(ElmRuntime.Display.COMPONENT, container, module, ports);
 };
 
-Elm.worker = function(module) {
-    return init(ElmRuntime.Display.NONE, {}, module);
+Elm.worker = function(module, ports) {
+    return init(ElmRuntime.Display.NONE, {}, module, ports);
 };
 
-function init(display, container, module, moduleToReplace) {
+function init(display, container, module, moduleToReplace, ports) {
   // defining state needed for an instance of the Elm RTS
   var inputs = [];
 
@@ -67,7 +67,8 @@ function init(display, container, module, moduleToReplace) {
       display:display,
       id:ElmRuntime.guid(),
       addListener:addListener,
-      inputs:inputs
+      inputs:inputs,
+      ports_in:ports
   };
 
   // Set up methods to communicate with Elm program from JS.
@@ -123,7 +124,7 @@ function init(display, container, module, moduleToReplace) {
   }
 
   reportAnyErrors();
-  return { send:send, recv:recv, swap:swap };
+  return { send:send, recv:recv, swap:swap, ports:elm.ports_out };
 };
 
 function filterListeners(inputs, listeners) {

@@ -19,7 +19,7 @@ class Simplify a where
 
 instance Simplify (Declaration t v) where
   simp (Definition def) = Definition (simp def)
-  simp (ImportEvent js b elm t) = ImportEvent js (simp b) elm t
+  simp (Port name tipe maybe) = Port name tipe (simp `fmap` maybe)
   simp stmt = stmt
 
 instance Simplify (Def t v) where
