@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wall #-}
 module SourceSyntax.Declaration where
 
 import Data.Binary
@@ -17,21 +18,25 @@ data Declaration tipe var
 data Assoc = L | N | R
     deriving (Eq)
 
-data Derivation = Json | Binary | RecordConstructor
+data Derivation = Json | JS | Binary | New
     deriving (Eq, Show)
 
 instance Binary Derivation where
   get = do n <- getWord8
            return $ case n of
              0 -> Json
-             1 -> Binary
-             2 -> RecordConstructor
+             1 -> JS
+             2 -> Binary
+             3 -> New
+             _ -> error "Unable to decode Derivation. You may have corrupted binary files,\n\
+                        \so please report an issue at <https://github.com/evancz/Elm/issues>"
 
   put derivation =
-      case derivation of
-        Json              -> putWord8 0
-        Binary            -> putWord8 1
-        RecordConstructor -> putWord8 2
+      putWord8 $ case derivation of
+                   Json   -> 0
+                   JS     -> 1
+                   Binary -> 2
+                   New    -> 3
 
 instance Show Assoc where
     show assoc =
