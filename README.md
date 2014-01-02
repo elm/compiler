@@ -1,6 +1,5 @@
 Learn about the Elm programming language at [elm-lang.org](http://elm-lang.org/).
 
-
 ## Install
 
 **Note for OS X 10.9 Maverics:** you must follow
@@ -49,3 +48,5 @@ Check it out [on Hackage](http://hackage.haskell.org/package/Elm) if you are int
 
 If you are stuck, email [the list](https://groups.google.com/forum/?fromgroups#!forum/elm-discuss)
 or ask a question in the [#Elm IRC channel](http://webchat.freenode.net/?channels=elm).
+
+[![Build Status](https://travis-ci.org/evancz/Elm.png)](https://travis-ci.org/evancz/Elm)
