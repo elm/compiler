@@ -60,6 +60,6 @@ combineAnnotations = go
 
                         Port (RecvDefinition name' expr) : rest | name == name' ->
                             do expr' <- Expr.crawl Def.combineAnnotations expr
-                               (:) (Port (Send name expr' tipe)) <$> go rest
+                               (:) (Port (Recv name expr' tipe)) <$> go rest
 
                         _ -> Left (msg name)
