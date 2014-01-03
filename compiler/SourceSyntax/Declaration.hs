@@ -25,6 +25,7 @@ data ParsePort
     = PortAnnotation String T.Type
     | SendDefinition String Expr.LParseExpr
     | RecvDefinition String Expr.LParseExpr
+      deriving (Eq,Show)
 
 data Port
     = Send String Expr.LExpr T.Type
