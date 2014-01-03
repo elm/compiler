@@ -10,7 +10,6 @@ import SourceSyntax.Expression (LExpr)
 import SourceSyntax.Declaration
 import SourceSyntax.Type
 import System.FilePath (joinPath)
-import Control.Monad (liftM)
 
 import qualified Elm.Internal.Version as Version
 
@@ -25,20 +24,18 @@ data ImportMethod = As String | Importing [String] | Hiding [String]
                     deriving (Eq, Ord, Show)
 
 instance Binary ImportMethod where
-    put (As s)          = do put (0 :: Word8)
-                             put s
-
-    put (Importing ss) = do put (1 :: Word8)
-                            put ss
-
-    put (Hiding ss)    = do put (2 :: Word8)
-                            put ss
+    put method =
+        let put' n info = putWord8 n >> put info in
+        case method of
+          As s         -> put' 0 s
+          Importing ss -> put' 1 ss
+          Hiding ss    -> put' 2 ss
 
     get = do tag <- getWord8
              case tag of
-               0 -> liftM As        get
-               1 -> liftM Importing get
-               2 -> liftM Hiding    get
+               0 -> As        <$> get
+               1 -> Importing <$> get
+               2 -> Hiding    <$> get
                _ -> error "Error reading valid ImportMethod type from serialized string"
 
 data MetadataModule t v = MetadataModule {
