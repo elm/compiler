@@ -27,7 +27,7 @@ pattern pat =
       PAlias x p -> PAlias (var x) (pattern p)
       PData name ps -> PData name (map pattern ps)
 
-expression :: LExpr t v -> LExpr t v
+expression :: LExpr -> LExpr
 expression (L loc expr) =
     let f = expression in
     L loc $
@@ -50,13 +50,11 @@ expression (L loc expr) =
       Record fs -> Record (map (var *** f) fs)
       Markdown uid md es -> Markdown uid md (map f es)
 
-definition :: Def t v -> Def t v
-definition def =
-    case def of
-      Def p e -> Def (pattern p) (expression e)
-      TypeAnnotation name t -> TypeAnnotation (var name) t
+definition :: Def -> Def
+definition (Definition p e t) =
+    Definition (pattern p) (expression e) t
 
-metadataModule :: MetadataModule t v -> MetadataModule t v
+metadataModule :: MetadataModule -> MetadataModule
 metadataModule modul =
     modul
     { names = map var (names modul)
@@ -69,7 +67,8 @@ metadataModule modul =
     , datatypes =
         let makeSafe (name,tvars,ctors,ds) = (var name, tvars, map (first var) ctors, ds)
         in  map makeSafe (datatypes modul)
-    , ports =
-        let makeSafe (name,tipe,expr) = (name, tipe, expression `fmap` expr)
-        in  map makeSafe (ports modul)
+    , sendPorts = map safePorts (sendPorts modul)
+    , recvPorts = map safePorts (recvPorts modul)
     }
+    where
+      safePorts (name,expr,tipe) = (name, expression expr, tipe)
