@@ -1,7 +1,6 @@
 module Parse.Binop (binops, OpTable) where
 
 import Control.Applicative ((<$>))
-import Control.Monad.Error
 import Data.List (intercalate)
 import qualified Data.Map as Map
 

@@ -1,15 +1,11 @@
-
+{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Parse.Declaration where
 
-import Control.Applicative ((<$>), (<*>))
-import qualified Data.List as List
-import qualified Data.Set as Set
+import Control.Applicative ((<$>))
 import Text.Parsec hiding (newline,spaces)
-import Text.Parsec.Indent
 
 import Parse.Helpers
 import qualified Parse.Expression as Expr
-import qualified SourceSyntax.Type as T
 import qualified Parse.Type as Type
 import qualified SourceSyntax.Declaration as D
 
@@ -24,15 +20,15 @@ alias :: IParser D.ParseDeclaration
 alias = do
   reserved "type" <?> "type alias (type Point = {x:Int, y:Int})"
   forcedWS
-  alias <- capVar
-  args  <- spacePrefix lowVar
+  name <- capVar
+  args <- spacePrefix lowVar
   padded equals
   tipe <- Type.expr
   json <- option [] $ do
             try $ padded (reserved "deriving")
             string "Json"
             return [D.Json]
-  return (D.TypeAlias alias args tipe json)
+  return (D.TypeAlias name args tipe json)
 
 datatype :: IParser D.ParseDeclaration
 datatype = do

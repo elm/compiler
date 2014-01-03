@@ -3,7 +3,7 @@ module Type.Constrain.Expression where
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Control.Applicative ((<$>),(<*>))
+import Control.Applicative ((<$>))
 import qualified Control.Monad as Monad
 import Control.Monad.Error
 import qualified Text.PrettyPrint as PP

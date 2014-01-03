@@ -1,6 +1,5 @@
 module Parse.Expression (def,term,typeAnnotation,expr) where
 
-import Control.Arrow ((***))
 import Control.Applicative ((<$>), (<*>))
 import Data.List (foldl')
 import Text.Parsec hiding (newline,spaces)
@@ -206,7 +205,7 @@ defStart =
     where
       func pattern =
           case pattern of
-            PVar v -> (pattern:) <$> spacePrefix Pattern.term
+            PVar _ -> (pattern:) <$> spacePrefix Pattern.term
             _ -> do try (lookAhead (whitespace >> string "="))
                     return [pattern]
 

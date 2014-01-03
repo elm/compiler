@@ -1,12 +1,5 @@
+{-# OPTIONS_GHC -Wall #-}
 module Type.Constrain.Declaration where
-
-import Control.Monad
-import Control.Applicative ((<$>))
-
-import qualified Data.Map as Map
-
-import qualified Type.Constrain.Expression as TcExpr
-import qualified Type.Environment as Env
 
 import SourceSyntax.Declaration
 import qualified SourceSyntax.Expression as Src
@@ -22,15 +15,15 @@ toDefs decl =
   case decl of
     Definition def -> [def]
 
-    Datatype name tvars constructors _ -> concatMap toDefs constructors
+    Datatype name tvars constructors _ -> concatMap toDefs' constructors
       where
-        toDefs (ctor, tipes) =
+        toDefs' (ctor, tipes) =
             let vars = take (length tipes) arguments
                 tbody = Type.Data name $ map Type.Var tvars
                 body = L.none . Src.Data ctor $ map (L.none . Src.Var) vars
             in  [ definition ctor (buildFunction body vars) (foldr Type.Lambda tbody tipes) ]
 
-    TypeAlias name tvars tipe@(Type.Record fields ext) _ ->
+    TypeAlias name _ tipe@(Type.Record fields ext) _ ->
         [ definition name (buildFunction record vars) (foldr Type.Lambda tipe args) ]
       where
         args = case ext of
@@ -53,7 +46,7 @@ toDefs decl =
     Port port ->
         case port of
           Send name expr tipe -> [ definition name expr tipe ]
-          Recv name expr tipe -> -- [ definition name ]
+          Recv _ _ _ -> -- [ definition name ]
               error "not sure how to generate constraints for recv yet"
 
     -- no constraints are needed for fixity declarations
@@ -61,9 +54,11 @@ toDefs decl =
 
 
 arguments :: [String]
-arguments = map (:[]) ['a'..'z'] ++ map (\n -> "_" ++ show n) [1..]
+arguments = map (:[]) ['a'..'z'] ++ map (\n -> "_" ++ show (n :: Int)) [1..]
 
+buildFunction :: Src.LExpr -> [String] -> Src.LExpr
 buildFunction body@(L.L s _) vars =
     foldr (\p e -> L.L s (Src.Lambda p e)) body (map P.PVar vars)
 
+definition :: String -> Src.LExpr -> Type.Type -> Src.Def
 definition name expr tipe = Src.Definition (P.PVar name) expr (Just tipe)

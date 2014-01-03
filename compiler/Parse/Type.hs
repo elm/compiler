@@ -1,11 +1,9 @@
+{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Parse.Type where
 
 import Control.Applicative ((<$>),(<*>))
-import Control.Monad (liftM,mapM)
-import Data.Char (isLower)
-import Data.List (lookup,intercalate)
+import Data.List (intercalate)
 import Text.Parsec
-import Text.Parsec.Indent
 
 import SourceSyntax.Type as T
 import Parse.Helpers
@@ -42,6 +40,7 @@ record =
       whitespace >> hasType >> whitespace
       (,) lbl <$> expr
 
+capTypeVar :: IParser String
 capTypeVar = intercalate "." <$> dotSep1 capVar
 
 constructor0 :: IParser T.Type

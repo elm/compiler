@@ -5,8 +5,6 @@ import Control.Arrow (second)
 import Control.Applicative ((<$>))
 import qualified Control.Monad as Monad
 import Control.Monad.Error
-import qualified Data.List as List
-import qualified Data.Maybe as Maybe
 import qualified Data.Map as Map
 import qualified Text.PrettyPrint as PP
 
