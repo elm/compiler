@@ -1,6 +1,7 @@
 module Transform.Canonicalize (interface, metadataModule) where
 
 import Control.Arrow ((***))
+import Control.Applicative (Applicative,(<$>),(<*>))
 import Control.Monad.Identity
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -9,7 +10,7 @@ import qualified Data.Either as Either
 import SourceSyntax.Module
 import SourceSyntax.Expression
 import SourceSyntax.Location as Loc
-import SourceSyntax.Pattern
+import qualified SourceSyntax.Pattern as P
 import SourceSyntax.Helpers (isOp)
 import qualified SourceSyntax.Type as Type
 import qualified Transform.SortDefinitions as SD
@@ -39,34 +40,36 @@ interface moduleName iface =
     renameType' =
         runIdentity . renameType (\name -> return $ Map.findWithDefault name name canons)
 
-renameType :: (Monad m) => (String -> m String) -> Type.Type -> m Type.Type
+renameType :: (Applicative m, Monad m) => (String -> m String) -> Type.Type -> m Type.Type
 renameType rename tipe =
     let rnm = renameType rename in
     case tipe of
-      Type.Lambda a b -> Type.Lambda `liftM` rnm a `ap` rnm b
+      Type.Lambda a b -> Type.Lambda <$> rnm a <*> rnm b
       Type.Var x -> return tipe
-      Type.Data name ts -> Type.Data `liftM` rename name `ap` mapM rnm ts
+      Type.Data name ts -> Type.Data <$> rename name <*> mapM rnm ts
       Type.EmptyRecord -> return tipe
-      Type.Record fields ext -> Type.Record `liftM` mapM rnm' fields `ap` rnm ext
-          where rnm' (f,t) = (,) f `liftM` rnm t
+      Type.Record fields ext -> Type.Record <$> mapM rnm' fields <*> rnm ext
+          where rnm' (f,t) = (,) f <$> rnm t
 
-metadataModule :: Interfaces -> MetadataModule t v -> Either [Doc] (MetadataModule t v)
+metadataModule :: Interfaces -> MetadataModule -> Either [Doc] MetadataModule
 metadataModule ifaces modul =
   do _ <- case filter (\m -> Map.notMember m ifaces) (map fst realImports) of
             [] -> Right ()
             missings -> Left [ P.text $ "The following imports were not found: " ++ List.intercalate ", " missings ]
      program' <- rename initialEnv (program modul)
-     aliases' <- mapM (threeOfFour renameType') (aliases modul)
-     datatypes' <- mapM (threeOfFour (mapM (two2 (mapM renameType')))) (datatypes modul)
-     ports' <- mapM (two3 renameType') (ports modul)
+     aliases' <- mapM (three4 renameType') (aliases modul)
+     datatypes' <- mapM (three4 (mapM (two2 (mapM renameType')))) (datatypes modul)
+     sendPorts' <- mapM (three3 renameType') (sendPorts modul)
+     recvPorts' <- mapM (three3 renameType') (recvPorts modul)
      return $ modul { program = program'
                     , aliases = aliases'
                     , datatypes = datatypes'
-                    , ports = ports' }
+                    , sendPorts = sendPorts' 
+                    , recvPorts = recvPorts' }
   where
-    two2 f (a,b) = (,) a `fmap` f b
-    two3 f (a,b,c) = (,,) a `fmap` f b `ap` return c
-    threeOfFour f (a,b,c,d) = (,,,) a b `fmap` f c `ap` return d
+    two2 f (a,b) = (,) a <$> f b
+    three3 f (a,b,c) = (,,) a b <$> f c
+    three4 f (a,b,c,d) = (,,,) a b <$> f c <*> return d
     twoAndFour f g (a,b,c,d) =
         do b' <- f b
            d' <- g d
@@ -97,9 +100,9 @@ metadataModule ifaces modul =
 
 type Env = Map.Map String String
 
-extend :: Env -> Pattern -> Env
+extend :: Env -> P.Pattern -> Env
 extend env pattern = Map.union (Map.fromList (zip xs xs)) env
-    where xs = Set.toList (SD.boundVars pattern)
+    where xs = Set.toList (P.boundVars pattern)
 
 
 replace :: String -> Env -> String -> Either String String
@@ -113,76 +116,75 @@ replace variable env v =
             msg = if null matches then "" else
                       "\nClose matches include: " ++ List.intercalate ", " matches
 
-rename :: Env -> LExpr t v -> Either [Doc] (LExpr t v)
+rename :: Env -> LExpr -> Either [Doc] LExpr
 rename env lexpr@(L s expr) =
     let rnm = rename env
         throw err = Left [ P.text $ "Error " ++ show s ++ "\n" ++ err ]
         format = Either.either throw return
     in
-    L s `liftM`
+    L s <$>
     case expr of
       Literal lit -> return expr
 
-      Range e1 e2 -> Range `liftM` rnm e1 `ap` rnm e2
+      Range e1 e2 -> Range <$> rnm e1 <*> rnm e2
 
-      Access e x -> Access `liftM` rnm e `ap` return x
+      Access e x -> Access <$> rnm e <*> return x
 
-      Remove e x -> flip Remove x `liftM` rnm e
+      Remove e x -> flip Remove x <$> rnm e
 
-      Insert e x v -> flip Insert x `liftM` rnm e `ap` rnm v
+      Insert e x v -> flip Insert x <$> rnm e <*> rnm v
 
       Modify e fs ->
-          Modify `liftM` rnm e `ap` mapM (\(x,e) -> (,) x `liftM` rnm e) fs
+          Modify <$> rnm e <*> mapM (\(x,e) -> (,) x <$> rnm e) fs
 
-      Record fs -> Record `liftM` mapM frnm fs
+      Record fs -> Record <$> mapM frnm fs
           where
-            frnm (f,e) = (,) f `liftM` rename env e
+            frnm (f,e) = (,) f <$> rename env e
 
       Binop op e1 e2 ->
           do op' <- format (replace "variable" env op)
-             Binop op' `liftM` rnm e1 `ap` rnm e2
+             Binop op' <$> rnm e1 <*> rnm e2
 
       Lambda pattern e ->
           let env' = extend env pattern in
-          Lambda `liftM` format (renamePattern env' pattern) `ap` rename env' e
+          Lambda <$> format (renamePattern env' pattern) <*> rename env' e
 
-      App e1 e2 -> App `liftM` rnm e1 `ap` rnm e2
+      App e1 e2 -> App <$> rnm e1 <*> rnm e2
 
-      MultiIf ps -> MultiIf `liftM` mapM grnm ps
-              where grnm (b,e) = (,) `liftM` rnm b `ap` rnm e
+      MultiIf ps -> MultiIf <$> mapM grnm ps
+              where grnm (b,e) = (,) <$> rnm b <*> rnm e
 
-      Let defs e -> Let `liftM` mapM rename' defs `ap` rename env' e
+      Let defs e -> Let <$> mapM rename' defs <*> rename env' e
           where
-            env' = foldl extend env [ pattern | Def pattern _ <- defs ]
-            rename' def =
-                case def of
-                  Def p exp ->
-                      Def `liftM` format (renamePattern env' p) `ap` rename env' exp
-                  TypeAnnotation name tipe ->
-                      TypeAnnotation name `liftM`
-                          renameType (format . replace "variable" env') tipe
+            env' = foldl extend env $ map (\(Definition p _ _) -> p) defs
+            rename' (Definition p exp mtipe) =
+                Definition <$> format (renamePattern env' p)
+                           <*> rename env' exp
+                           <*> case mtipe of
+                                 Nothing -> return Nothing
+                                 Just tipe -> Just <$> renameType (format . replace "variable" env') tipe
 
-      Var x -> Var `liftM` format (replace "variable" env x)
+      Var x -> Var <$> format (replace "variable" env x)
 
-      Data name es -> Data name `liftM` mapM rnm es
+      Data name es -> Data name <$> mapM rnm es
 
-      ExplicitList es -> ExplicitList `liftM` mapM rnm es
+      ExplicitList es -> ExplicitList <$> mapM rnm es
 
-      Case e cases -> Case `liftM` rnm e `ap` mapM branch cases
+      Case e cases -> Case <$> rnm e <*> mapM branch cases
           where
-            branch (pattern,e) = (,) `liftM` format (renamePattern env pattern)
-                                        `ap` rename (extend env pattern) e
+            branch (pattern,e) = (,) <$> format (renamePattern env pattern)
+                                     <*> rename (extend env pattern) e
 
-      Markdown uid md es -> Markdown uid md `liftM` mapM rnm es
+      Markdown uid md es -> Markdown uid md <$> mapM rnm es
 
 
-renamePattern :: Env -> Pattern -> Either String Pattern
+renamePattern :: Env -> P.Pattern -> Either String P.Pattern
 renamePattern env pattern =
     case pattern of
-      PVar _ -> return pattern
-      PLiteral _ -> return pattern
-      PRecord _ -> return pattern
-      PAnything -> return pattern
-      PAlias x p -> PAlias x `liftM` renamePattern env p
-      PData name ps -> PData `liftM` replace "pattern" env name
-                                `ap` mapM (renamePattern env) ps
+      P.PVar _ -> return pattern
+      P.PLiteral _ -> return pattern
+      P.PRecord _ -> return pattern
+      P.PAnything -> return pattern
+      P.PAlias x p -> P.PAlias x <$> renamePattern env p
+      P.PData name ps -> P.PData <$> replace "pattern" env name
+                                 <*> mapM (renamePattern env) ps
