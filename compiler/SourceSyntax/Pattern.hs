@@ -4,6 +4,7 @@ import Data.List (intercalate)
 import SourceSyntax.Helpers as Help
 import SourceSyntax.PrettyPrint
 import Text.PrettyPrint as PP
+import qualified Data.Set as Set
 import SourceSyntax.Literal as Literal
 
 data Pattern = PData String [Pattern]
@@ -18,6 +19,16 @@ cons h t = PData "::" [h,t]
 nil      = PData "[]" []
 list     = foldr cons nil
 tuple es = PData ("_Tuple" ++ show (length es)) es
+
+boundVars :: Pattern -> Set.Set String
+boundVars pattern =
+    case pattern of
+      PVar x -> Set.singleton x
+      PAlias x p -> Set.insert x (boundVars p)
+      PData _ ps -> Set.unions (map boundVars ps)
+      PRecord fields -> Set.fromList fields
+      PAnything -> Set.empty
+      PLiteral _ -> Set.empty
 
 
 instance Pretty Pattern where
