@@ -25,7 +25,7 @@ import System.IO.Unsafe  -- Possible to switch over to the ST monad instead of
                          -- the IO monad. I don't think that'd be worthwhile.
 
 
-infer :: Interfaces -> MetadataModule t v -> Either [Doc] (Map.Map String Type)
+infer :: Interfaces -> MetadataModule -> Either [Doc] (Map.Map String Type)
 infer interfaces modul = unsafePerformIO $ do
   env <- Env.initialEnvironment
              (datatypes modul ++ concatMap iAdts (Map.elems interfaces))
