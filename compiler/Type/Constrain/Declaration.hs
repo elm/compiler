@@ -14,10 +14,10 @@ import qualified SourceSyntax.Location as L
 import qualified SourceSyntax.Pattern as P
 import qualified SourceSyntax.Type as Type
 
-toExpr :: [Declaration t v] -> [Src.Def t v]
+toExpr :: [Declaration] -> [Src.Def]
 toExpr = concatMap toDefs
 
-toDefs :: Declaration t v -> [Src.Def t v]
+toDefs :: Declaration -> [Src.Def]
 toDefs decl =
   case decl of
     Definition def -> [def]
@@ -28,13 +28,10 @@ toDefs decl =
             let vars = take (length tipes) arguments
                 tbody = Type.Data name $ map Type.Var tvars
                 body = L.none . Src.Data ctor $ map (L.none . Src.Var) vars
-            in  [ Src.TypeAnnotation ctor $ foldr Type.Lambda tbody tipes
-                , Src.Def (P.PVar ctor) $ buildFunction body vars
-                ]
+            in  [ definition ctor (buildFunction body vars) (foldr Type.Lambda tbody tipes) ]
 
     TypeAlias name tvars tipe@(Type.Record fields ext) _ ->
-        [ Src.TypeAnnotation name $ foldr Type.Lambda tipe args
-        , Src.Def (P.PVar name) $ buildFunction record vars ]
+        [ definition name (buildFunction record vars) (foldr Type.Lambda tipe args) ]
       where
         args = case ext of
                  Type.EmptyRecord -> map snd fields
@@ -53,10 +50,11 @@ toDefs decl =
     -- TODO: with the ability to derive code, you may need to generate stuff!
     TypeAlias _ _ _ _ -> []
 
-    Port name tipe maybe ->
-        Src.TypeAnnotation name tipe : case maybe of
-                                         Nothing -> []
-                                         Just expr -> [ Src.Def (P.PVar name) expr ]
+    Port port ->
+        case port of
+          Send name expr tipe -> [ definition name expr tipe ]
+          Recv name expr tipe -> -- [ definition name ]
+              error "not sure how to generate constraints for recv yet"
 
     -- no constraints are needed for fixity declarations
     Fixity _ _ _ -> []
@@ -67,3 +65,5 @@ arguments = map (:[]) ['a'..'z'] ++ map (\n -> "_" ++ show n) [1..]
 
 buildFunction body@(L.L s _) vars =
     foldr (\p e -> L.L s (Src.Lambda p e)) body (map P.PVar vars)
+
+definition name expr tipe = Src.Definition (P.PVar name) expr (Just tipe)
