@@ -11,11 +11,10 @@ import qualified Generate.Cases as Case
 import qualified Generate.Markdown as MD
 import qualified SourceSyntax.Helpers as Help
 import SourceSyntax.Literal
-import SourceSyntax.Pattern
+import SourceSyntax.Pattern as Pattern
 import SourceSyntax.Location
 import SourceSyntax.Expression
 import SourceSyntax.Module
-import qualified Transform.SortDefinitions as SD
 import Language.ECMAScript3.Syntax
 import Language.ECMAScript3.PrettyPrint
 import qualified Transform.SafeNames as MakeSafe
@@ -67,7 +66,7 @@ literal lit =
     FloatNum n -> NumLit () n
     Boolean  b -> BoolLit () b
 
-expression :: LExpr () () -> State Int (Expression ())
+expression :: LExpr -> State Int (Expression ())
 expression (L span expr) =
     case expr of
       Var x -> return $ ref x
@@ -148,7 +147,7 @@ expression (L span expr) =
                   _ -> (func, args)
 
       Let defs e ->
-          do let (defs',e') = SD.flattenLets defs e 
+          do let (defs',e') = flattenLets defs e 
              stmts <- concat <$> mapM definition defs'
              exp <- expression e'
              return $ function [] (stmts ++ [ ReturnStmt () (Just exp) ]) `call` []
@@ -192,56 +191,52 @@ expression (L span expr) =
             pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
             md = pad ++ MD.toHtml doc ++ pad
 
-definition :: Def () () -> State Int [Statement ()]
-definition def =
-  case def of
-    TypeAnnotation _ _ -> return []
+definition :: Def -> State Int [Statement ()]
+definition (Definition pattern expr@(L span _) _) = do
+  expr' <- expression expr
+  let assign x = varDecl x expr'
+  case pattern of
+    PVar x
+        | Help.isOp x ->
+            let op = LBracket () (ref "_op") (string x) in
+            return [ ExprStmt () $ AssignExpr () OpAssign op expr' ]
+        | otherwise ->
+            return [ VarDeclStmt () [ assign x ] ]
 
-    Def pattern expr@(L span _) -> do
-      expr' <- expression expr
-      let assign x = varDecl x expr'
-      case pattern of
-        PVar x
-          | Help.isOp x ->
-              let op = LBracket () (ref "_op") (string x) in
-              return [ ExprStmt () $ AssignExpr () OpAssign op expr' ]
-          | otherwise ->
-              return [ VarDeclStmt () [ assign x ] ]
+    PRecord fields ->
+        let setField f = varDecl f (dotSep ["$",f]) in
+        return [ VarDeclStmt () (assign "$" : map setField fields) ]
 
-        PRecord fields ->
-            let setField f = varDecl f (dotSep ["$",f]) in
-            return [ VarDeclStmt () (assign "$" : map setField fields) ]
+    PData name patterns | vars /= Nothing ->
+        case vars of
+          Just vs -> return [ VarDeclStmt () (setup (zipWith decl vs [0..])) ]
+        where
+          vars = getVars patterns
+          getVars patterns =
+              case patterns of
+                PVar x : rest -> (x:) `fmap` getVars rest
+                [] -> Just []
+                _ -> Nothing
 
-        PData name patterns | vars /= Nothing ->
-            case vars of
-              Just vs -> return [ VarDeclStmt () (setup (zipWith decl vs [0..])) ]
-            where
-              vars = getVars patterns
-              getVars patterns =
-                  case patterns of
-                    PVar x : rest -> (x:) `fmap` getVars rest
-                    [] -> Just []
-                    _ -> Nothing
+          decl x n = varDecl x (dotSep ["$","_" ++ show n])
+          setup vars
+              | Help.isTuple name = assign "$" : vars
+              | otherwise = assign "$raw" : safeAssign : vars
 
-              decl x n = varDecl x (dotSep ["$","_" ++ show n])
-              setup vars
-                  | Help.isTuple name = assign "$" : vars
-                  | otherwise = assign "$raw" : safeAssign : vars
+          safeAssign = varDecl "$" (CondExpr () if' (obj "$raw") exception)
+          if' = InfixExpr () OpStrictEq (obj "$raw.ctor") (string name)
+          exception = obj "_E.Case" `call` [ref "$moduleName", string (show span)]
 
-              safeAssign = varDecl "$" (CondExpr () if' (obj "$raw") exception)
-              if' = InfixExpr () OpStrictEq (obj "$raw.ctor") (string name)
-              exception = obj "_E.Case" `call` [ref "$moduleName", string (show span)]
+    _ ->
+        do defs' <- concat <$> mapM toDef vars
+           return (VarDeclStmt () [assign "$"] : defs')
+        where
+          vars = Set.toList $ Pattern.boundVars pattern
+          mkVar = L span . Var
+          toDef y = let expr =  L span $ Case (mkVar "$") [(pattern, mkVar y)]
+                    in  definition $ Definition (PVar y) expr Nothing
 
-        _ ->
-            do defs' <- concat <$> mapM toDef vars
-               return (VarDeclStmt () [assign "$"] : defs')
-            where
-              vars = Set.toList $ SD.boundVars pattern
-              mkVar = L span . Var
-              toDef y = definition $
-                        Def (PVar y) (L span $ Case (mkVar "$") [(pattern, mkVar y)])
-
-match :: (Show a) => a -> Case.Match () () -> State Int [Statement ()]
+match :: (Show a) => a -> Case.Match -> State Int [Statement ()]
 match span mtch =
   case mtch of
     Case.Match name clauses mtch' ->
@@ -286,8 +281,12 @@ clause span variable (Case.Clause value vars mtch) =
                                                      [] -> name
                                                      is -> drop (last is + 1) name
 
+flattenLets defs lexpr@(L _ expr) =
+    case expr of
+      Let ds body -> flattenLets (defs ++ ds) body
+      _ -> (defs, lexpr)
 
-generate :: MetadataModule () () -> String 
+generate :: MetadataModule -> String 
 generate unsafeModule =
     show . prettyPrint $ setup (Just "Elm") (names modul ++ ["make"]) ++
              [ assign ("Elm" : names modul ++ ["make"]) (function ["_elm"] programStmts) ]
@@ -299,10 +298,11 @@ generate unsafeModule =
                , [ IfSingleStmt () thisModule (ReturnStmt () (Just thisModule)) ]
                , [ internalImports (List.intercalate "." (names modul)) ]
                , concatMap jsImport (imports modul)
-               , checkInPorts (ports modul)
-               , map jsPort (ports modul)
+               , checkInPorts (recvPorts modul)
+               , map inPort (recvPorts modul)
+               , map outPort (sendPorts modul)
                , [ assign ["_op"] (ObjectLit () []) ]
-               , concat $ evalState (mapM definition . fst . SD.flattenLets [] $ program modul) 0
+               , concat $ evalState (mapM definition . fst . flattenLets [] $ program modul) 0
                , [ jsExports ]
                , [ ReturnStmt () (Just thisModule) ]
                ]
@@ -335,12 +335,15 @@ generate unsafeModule =
     checkInPorts ports =
         [ ExprStmt () $ obj "_N.checkPorts" `call` [ref "$moduleName", names] ]
         where
-          names = ArrayLit () [ string name | (name, _, Nothing) <- ports ]
+          names = ArrayLit () [ string name | (name, _, _) <- ports ]
 
-    jsPort (name, _, maybe) =
-        case maybe of
-          Nothing -> assign [name] $ dotSep ["_elm","ports_in",name]
-          Just expr -> assign ["_elm","ports_out",name] $ evalState (expression expr) 0
+    inPort (name, expr, _) =
+        assign [name] $ obj "_N.inPort" `call` [ dotSep ["_elm","ports_in",name]
+                                               , evalState (expression expr) 0 ]
+
+    outPort (name, expr, _) =
+        let signal = evalState (expression expr) 0 in
+        assign ["_elm","ports_out",name] signal
 
 binop span op e1 e2 =
     case op of
