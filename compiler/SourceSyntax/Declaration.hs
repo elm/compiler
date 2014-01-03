@@ -3,15 +3,15 @@ module SourceSyntax.Declaration where
 
 import Data.Binary
 import qualified SourceSyntax.Expression as Expr
-import SourceSyntax.Type
+import qualified SourceSyntax.Type as T
 import SourceSyntax.PrettyPrint
 import Text.PrettyPrint as P
 
-data Declaration tipe var
-    = Definition (Expr.Def tipe var)
-    | Datatype String [String] [(String,[Type])] [Derivation]
-    | TypeAlias String [String] Type [Derivation]
-    | Port String Type (Maybe (Expr.LExpr tipe var))
+data Declaration' port def
+    = Definition def
+    | Datatype String [String] [(String,[T.Type])] [Derivation]
+    | TypeAlias String [String] T.Type [Derivation]
+    | Port port
     | Fixity Assoc Int String
       deriving (Eq, Show)
 
@@ -20,6 +20,19 @@ data Assoc = L | N | R
 
 data Derivation = Json | JS | Binary | New
     deriving (Eq, Show)
+
+data ParsePort
+    = PortAnnotation String T.Type
+    | SendDefinition String Expr.LParseExpr
+    | RecvDefinition String Expr.LParseExpr
+
+data Port
+    = Send String Expr.LExpr T.Type
+    | Recv String Expr.LExpr T.Type
+      deriving (Eq,Show)
+
+type ParseDeclaration = Declaration' ParsePort Expr.ParseDef
+type Declaration = Declaration' Port Expr.Def
 
 instance Binary Derivation where
   get = do n <- getWord8
@@ -45,7 +58,7 @@ instance Show Assoc where
           N -> "non"
           R -> "right"
 
-instance Pretty (Declaration t v) where
+instance (Pretty port, Pretty def) => Pretty (Declaration' port def) where
   pretty decl =
     case decl of
       Definition def -> pretty def
@@ -56,7 +69,7 @@ instance Pretty (Declaration t v) where
           where
             join c ctor = P.text c <+> prettyCtor ctor
             prettyCtor (name, tipes) =
-                P.hang (P.text name) 2 (P.sep (map prettyParens tipes))
+                P.hang (P.text name) 2 (P.sep (map T.prettyParens tipes))
 
       TypeAlias name tvars tipe deriveables ->
           alias <+> prettyDeriving deriveables
@@ -64,11 +77,7 @@ instance Pretty (Declaration t v) where
             name' = P.text name <+> P.hsep (map P.text tvars)
             alias = P.hang (P.text "type" <+> name' <+> P.equals) 4 (pretty tipe)
 
-      Port name tipe maybeExpr ->
-          let port = P.text "port" <+> P.text name in
-          P.vcat [ port <+> P.colon  <+> pretty tipe
-                 , maybe P.empty (\expr -> port <+> P.equals <+> pretty expr) maybeExpr
-                 ]
+      Port port -> pretty port
 
       Fixity assoc prec op -> P.text "infix" <> assoc' <+> P.int prec <+> P.text op
           where
@@ -76,6 +85,26 @@ instance Pretty (Declaration t v) where
                        L -> P.text "l"
                        N -> P.empty
                        R -> P.text "r"
+
+instance Pretty ParsePort where
+  pretty port =
+    case port of
+      PortAnnotation name tipe -> prettyPort name ":"  tipe
+      SendDefinition name expr -> prettyPort name "<-" expr
+      RecvDefinition name expr -> prettyPort name "->" expr
+
+instance Pretty Port where
+  pretty port =
+    case port of
+      Send name expr tipe -> mkPort "<-" name expr tipe
+      Recv name expr tipe -> mkPort "->" name expr tipe
+    where
+      mkPort arrow name expr tipe = 
+          P.vcat [ prettyPort name ":" tipe
+                 , prettyPort name arrow expr ]
+
+prettyPort :: (Pretty a) => String -> String -> a -> Doc
+prettyPort name op e = P.text "port" <+> P.text name <+> P.text op <+> pretty e
 
 prettyDeriving :: [Derivation] -> Doc
 prettyDeriving deriveables =

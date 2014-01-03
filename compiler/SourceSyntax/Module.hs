@@ -13,8 +13,8 @@ import System.FilePath (joinPath)
 
 import qualified Elm.Internal.Version as Version
 
-data Module tipe var =
-    Module [String] Exports Imports [Declaration tipe var]
+data Module def =
+    Module [String] Exports Imports [def]
     deriving (Show)
 
 type Exports = [String]
@@ -38,18 +38,20 @@ instance Binary ImportMethod where
                2 -> Hiding    <$> get
                _ -> error "Error reading valid ImportMethod type from serialized string"
 
-data MetadataModule t v = MetadataModule {
-    names     :: [String],
-    path      :: FilePath,
-    exports   :: [String],
-    imports   :: [(String, ImportMethod)],
-    program   :: LExpr t v,
-    types     :: Map.Map String Type,
-    fixities  :: [(Assoc, Int, String)],
-    aliases   :: [Alias],
-    datatypes :: [ADT],
-    ports :: [(String, Type, Maybe (LExpr t v))]
-} deriving Show
+data MetadataModule =
+    MetadataModule
+    { names     :: [String]
+    , path      :: FilePath
+    , exports   :: [String]
+    , imports   :: [(String, ImportMethod)]
+    , program   :: LExpr
+    , types     :: Map.Map String Type
+    , fixities  :: [(Assoc, Int, String)]
+    , aliases   :: [Alias]
+    , datatypes :: [ADT]
+    , sendPorts :: [(String, LExpr, Type)]
+    , recvPorts :: [(String, LExpr, Type)]
+    } deriving Show
 
 type Interfaces = Map.Map String ModuleInterface
 type ADT = (String, [String], [(String,[Type])], [Derivation])
