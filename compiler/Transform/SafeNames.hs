@@ -1,16 +1,19 @@
 {-# OPTIONS_GHC -Wall #-}
 module Transform.SafeNames (metadataModule) where
 
-import Control.Arrow (first, (***))
+import Control.Arrow           (first, (***))
+import Data.List               (intercalate)
+
+import qualified Data.Set as Set
+import qualified Parse.Helpers as PHelp
+
 import SourceSyntax.Expression
 import SourceSyntax.Location
 import SourceSyntax.Module
 import SourceSyntax.Pattern
-import qualified Data.Set as Set
-import qualified Parse.Helpers as PHelp
 
 var :: String -> String
-var = dereserve . deprime
+var = intercalate "." . map (dereserve . deprime) . PHelp.splitDots
   where
     deprime = map (\c -> if c == '\'' then '$' else c)
     dereserve x = case Set.member x PHelp.jsReserveds of

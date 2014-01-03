@@ -18,6 +18,16 @@ import SourceSyntax.Expression
 import SourceSyntax.PrettyPrint
 import SourceSyntax.Declaration (Assoc)
 
+splitDots :: String -> [String]
+splitDots = go []
+  where
+    go vars str =
+        case break (=='.') str of
+          (x,'.':rest) | Help.isOp x -> vars ++ [x ++ '.' : rest]
+                       | otherwise -> go (vars ++ [x]) rest
+          (x,[]) -> vars ++ [x]
+
+
 reserveds = [ "if", "then", "else"
             , "case", "of"
             , "let", "in"
