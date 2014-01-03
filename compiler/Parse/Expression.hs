@@ -20,21 +20,21 @@ import SourceSyntax.Expression
 
 --------  Basic Terms  --------
 
-varTerm :: IParser (Expr t v)
+varTerm :: IParser ParseExpr
 varTerm = toVar <$> var <?> "variable"
 
-toVar :: String -> Expr t v
+toVar :: String -> ParseExpr
 toVar v = case v of "True"  -> Literal (Literal.Boolean True)
                     "False" -> Literal (Literal.Boolean False)
                     _       -> Var v
 
-accessor :: IParser (Expr t v)
+accessor :: IParser ParseExpr
 accessor = do
   (start, lbl, end) <- located (try (string "." >> rLabel))
   let loc e = Location.at start end e
   return (Lambda (PVar "_") (loc $ Access (loc $ Var "_") lbl))
 
-negative :: IParser (Expr t v)
+negative :: IParser ParseExpr
 negative = do
   (start, nTerm, end) <-
       located (try (char '-' >> notFollowedBy (char '.' <|> char '-')) >> term)
@@ -44,7 +44,7 @@ negative = do
 
 --------  Complex Terms  --------
 
-listTerm :: IParser (Expr t v)
+listTerm :: IParser ParseExpr
 listTerm = markdown' <|> braces (try range <|> ExplicitList <$> commaSep expr)
   where
     range = do
@@ -67,7 +67,7 @@ listTerm = markdown' <|> braces (try range <|> ExplicitList <$> commaSep expr)
       string "}}"
       return (md ++ span uid (length exprs), exprs ++ [e])
 
-parensTerm :: IParser (LExpr t v)
+parensTerm :: IParser LParseExpr
 parensTerm = try (parens opFn) <|> parens (tupleFn <|> parened)
   where
     opFn = do
@@ -90,7 +90,7 @@ parensTerm = try (parens opFn) <|> parens (tupleFn <|> parened)
                  [e] -> e
                  _   -> Location.at start end (tuple es)
 
-recordTerm :: IParser (LExpr t v)
+recordTerm :: IParser LParseExpr
 recordTerm = brackets $ choice [ misc, addLocation record ]
     where field = do
               label <- rLabel
@@ -123,14 +123,14 @@ recordTerm = brackets $ choice [ misc, addLocation record ]
               Nothing -> try (insert record) <|> try (modify record)
                         
 
-term :: IParser (LExpr t v)
+term :: IParser LParseExpr
 term =  addLocation (choice [ Literal <$> literal, listTerm, accessor, negative ])
     <|> accessible (addLocation varTerm <|> parensTerm <|> recordTerm)
     <?> "basic term (4, x, 'c', etc.)"
 
 --------  Applications  --------
 
-appExpr :: IParser (LExpr t v)
+appExpr :: IParser LParseExpr
 appExpr = do
   t <- term
   ts <- constrainedSpacePrefix term $ \str ->
@@ -141,12 +141,12 @@ appExpr = do
 
 --------  Normal Expressions  --------
 
-binaryExpr :: IParser (LExpr t v)
+binaryExpr :: IParser LParseExpr
 binaryExpr = binops appExpr lastExpr anyOp
   where lastExpr = addLocation (choice [ ifExpr, letExpr, caseExpr ])
                 <|> lambdaExpr
 
-ifExpr :: IParser (Expr t v)
+ifExpr :: IParser ParseExpr
 ifExpr = reserved "if" >> whitespace >> (normal <|> multiIf)
     where
       normal = do
@@ -162,7 +162,7 @@ ifExpr = reserved "if" >> whitespace >> (normal <|> multiIf)
                          b <- expr ; padded arrow
                          (,) b <$> expr
 
-lambdaExpr :: IParser (LExpr t v)
+lambdaExpr :: IParser LParseExpr
 lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
                 whitespace
                 args <- spaceSep1 Pattern.term
@@ -170,17 +170,17 @@ lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
                 body <- expr
                 return (makeFunction args body)
 
-defSet :: IParser [Def t v]
+defSet :: IParser [ParseDef]
 defSet = block (do d <- def ; whitespace ; return d)
 
-letExpr :: IParser (Expr t v)
+letExpr :: IParser ParseExpr
 letExpr = do
   reserved "let" ; whitespace
   defs <- defSet
   padded (reserved "in")
   Let defs <$> expr
 
-caseExpr :: IParser (Expr t v)
+caseExpr :: IParser ParseExpr
 caseExpr = do
   reserved "case"; e <- padded expr; reserved "of"; whitespace
   Case e <$> (with <|> without)
@@ -190,7 +190,7 @@ caseExpr = do
           with    = brackets (semiSep1 (case_ <?> "cases { x -> ... }"))
           without = block (do c <- case_ ; whitespace ; return c)
 
-expr :: IParser (LExpr t v)
+expr :: IParser LParseExpr
 expr = addLocation (choice [ ifExpr, letExpr, caseExpr ])
     <|> lambdaExpr
     <|> binaryExpr 
@@ -216,18 +216,18 @@ defStart =
         return $ if o == '`' then [ PVar $ takeWhile (/='`') p, p1, p2 ]
                              else [ PVar (o:p), p1, p2 ]
 
-makeFunction :: [Pattern] -> LExpr t v -> LExpr t v
+makeFunction :: [Pattern] -> LParseExpr -> LParseExpr
 makeFunction args body@(L s _) =
     foldr (\arg body' -> L s $ Lambda arg body') body args
 
-definition :: IParser (Def t v)
+definition :: IParser ParseDef
 definition = withPos $ do
   (name:args) <- defStart
   padded equals
   body <- expr
   return . Def name $ makeFunction args body
 
-typeAnnotation :: IParser (Def t v)
+typeAnnotation :: IParser ParseDef
 typeAnnotation = TypeAnnotation <$> try start <*> Type.expr
   where
     start = do
@@ -235,5 +235,5 @@ typeAnnotation = TypeAnnotation <$> try start <*> Type.expr
       padded hasType
       return v
 
-def :: IParser (Def t v)
+def :: IParser ParseDef
 def = typeAnnotation <|> definition

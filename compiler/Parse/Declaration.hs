@@ -14,13 +14,13 @@ import qualified Parse.Type as Type
 import qualified SourceSyntax.Declaration as D
 
 
-declaration :: IParser (D.Declaration t v)
+declaration :: IParser D.ParseDeclaration
 declaration = alias <|> datatype <|> infixDecl <|> port <|> definition
 
-definition :: IParser (D.Declaration t v)
+definition :: IParser D.ParseDeclaration
 definition = D.Definition <$> Expr.def
 
-alias :: IParser (D.Declaration t v)
+alias :: IParser D.ParseDeclaration
 alias = do
   reserved "type" <?> "type alias (type Point = {x:Int, y:Int})"
   forcedWS
@@ -34,7 +34,7 @@ alias = do
             return [D.Json]
   return (D.TypeAlias alias args tipe json)
 
-datatype :: IParser (D.Declaration t v)
+datatype :: IParser D.ParseDeclaration
 datatype = do
   reserved "data" <?> "datatype definition (data T = A | B | ...)"
   forcedWS
@@ -45,7 +45,7 @@ datatype = do
   return $ D.Datatype name args tcs []
 
 
-infixDecl :: IParser (D.Declaration t v)
+infixDecl :: IParser D.ParseDeclaration
 infixDecl = do
   assoc <- choice [ reserved "infixl" >> return D.L
                   , reserved "infix"  >> return D.N
@@ -56,23 +56,13 @@ infixDecl = do
   D.Fixity assoc (read [n]) <$> anyOp
 
 
-port :: IParser (D.Declaration t v)
+port :: IParser D.ParseDeclaration
 port =
   do try (reserved "port")
      whitespace
      name <- lowVar
-     padded hasType
-     tipe <- Type.expr
-     expr <- choice [ do try (outPort name)
-                         padded equals
-                         Just <$> Expr.expr
-                    , return Nothing
-                    ]
-     return $ D.Port name tipe expr
-  where
-    outPort name = do
-         freshLine
-         reserved "port"
-         whitespace
-         name' <- lowVar
-         if name == name' then return () else fail "different port"
+     whitespace
+     let port' op ctor expr = do { try op ; whitespace ; ctor name <$> expr }
+     D.Port <$> choice [ port' hasType D.PortAnnotation Type.expr
+                       , port' hasType D.SendDefinition Expr.expr
+                       , port' hasType D.SendDefinition Expr.expr ]

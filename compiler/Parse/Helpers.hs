@@ -206,7 +206,7 @@ located p = do
   end <- getPosition
   return (start, e, end)
 
-accessible :: IParser (LExpr t v) -> IParser (LExpr t v)
+accessible :: IParser LParseExpr -> IParser LParseExpr
 accessible expr = do
   start <- getPosition
   ce@(L _ e) <- expr
