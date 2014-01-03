@@ -1,35 +1,34 @@
 module Generate.Noscript (noscript) where
 
 import Data.List (isInfixOf)
-import SourceSyntax.Declaration (Declaration(..))
+import qualified SourceSyntax.Declaration as D
 import SourceSyntax.Expression
 import SourceSyntax.Literal
 import SourceSyntax.Location
 import SourceSyntax.Module
 import qualified Generate.Markdown as MD
 
-noscript :: Module t v -> String
+noscript :: Extract def => Module def -> String
 noscript modul = concat (extract modul)
 
 class Extract a where
   extract :: a -> [String]
 
-instance Extract (Module t v) where
+instance Extract def => Extract (Module def) where
   extract (Module _ _ _ stmts) =
       map (\s -> "<p>" ++ s ++ "</p>") (concatMap extract stmts)
 
-instance Extract (Declaration t v) where
-  extract (Definition d) = extract d
+instance Extract def => Extract (D.Declaration' port def) where
+  extract (D.Definition d) = extract d
   extract _ = []
 
-instance Extract (Def t v) where
-  extract (Def _ e)   = extract e
-  extract _ = []
+instance Extract Def where
+  extract (Definition _ e _)   = extract e
 
 instance Extract e => Extract (Located e) where
   extract (L _ e) = extract e
 
-instance Extract (Expr t v) where
+instance Extract def => Extract (Expr' def) where
   extract expr =
     let f = extract in
     case expr of

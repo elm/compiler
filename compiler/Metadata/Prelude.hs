@@ -13,8 +13,8 @@ import qualified Data.ByteString.Lazy as BS
 
 import qualified InterfaceSerialization as IS
 
-add :: Module t v -> Module t v
-add (Module name exs ims stmts) = Module name exs (customIms ++ ims) stmts
+add :: Module def -> Module def
+add (Module name exs ims decls) = Module name exs (customIms ++ ims) decls
     where
       customIms = concatMap addModule prelude
 
