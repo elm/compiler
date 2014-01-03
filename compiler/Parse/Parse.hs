@@ -8,8 +8,9 @@ import qualified Data.Map as Map
 import Text.Parsec hiding (newline,spaces)
 import qualified Text.PrettyPrint as P
 
-import qualified SourceSyntax.Module as S
+import qualified SourceSyntax.Expression as E
 import qualified SourceSyntax.Declaration as D
+import qualified SourceSyntax.Module as M
 import Parse.Helpers
 import Parse.Binop (OpTable)
 import Parse.Expression
@@ -17,6 +18,7 @@ import Parse.Declaration (infixDecl)
 import Parse.Type
 import Parse.Module
 import qualified Parse.Declaration as Decl
+import Transform.Declaration (combineAnnotations)
 
 freshDef = commitIf (freshLine >> (letter <|> char '_')) $ do
              freshLine
@@ -25,15 +27,21 @@ freshDef = commitIf (freshLine >> (letter <|> char '_')) $ do
 decls = do d <- Decl.declaration <?> "at least one datatype or variable definition"
            (d:) <$> many freshDef
 
-program :: OpTable -> String -> Either [P.Doc] (S.Module t v)
-program table = setupParserWithTable table $ do
-  optional freshLine
-  (names,exports) <- option (["Main"],[]) (moduleDef `followedBy` freshLine)
-  is <- (do try (lookAhead $ reserved "import")
-            imports `followedBy` freshLine) <|> return []
-  declarations <- decls
-  optional freshLine ; optional spaces ; eof
-  return $ S.Module names exports is declarations
+program :: OpTable -> String -> Either [P.Doc] (M.Module D.Declaration)
+program table src =
+    do (M.Module names exs ims parseDecls) <- setupParserWithTable table programParser src
+       decls <- either (\err -> Left [P.text err]) Right (combineAnnotations parseDecls)
+       return $ M.Module names exs ims decls
+
+programParser :: IParser (M.Module D.ParseDeclaration)
+programParser =
+    do optional freshLine
+       (names,exports) <- option (["Main"],[]) (moduleDef `followedBy` freshLine)
+       is <- (do try (lookAhead $ reserved "import")
+                 imports `followedBy` freshLine) <|> return []
+       declarations <- decls
+       optional freshLine ; optional spaces ; eof
+       return $ M.Module names exports is declarations
 
 dependencies :: String -> Either [P.Doc] (String, [String])
 dependencies =
