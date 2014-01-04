@@ -1,15 +1,13 @@
+{-# OPTIONS_GHC -Wall #-}
 module SourceSyntax.Module where
 
 import Data.Binary
-import Data.List (intercalate)
 import qualified Data.Map as Map
 import Control.Applicative ((<$>), (<*>))
-import Control.Arrow (second)
 
 import SourceSyntax.Expression (LExpr)
 import SourceSyntax.Declaration
 import SourceSyntax.Type
-import System.FilePath (joinPath)
 
 import qualified Elm.Internal.Version as Version
 
@@ -66,6 +64,7 @@ data ModuleInterface = ModuleInterface {
     iFixities :: [(Assoc, Int, String)]
 } deriving Show
 
+metaToInterface :: MetadataModule -> ModuleInterface
 metaToInterface metaModule =
     ModuleInterface
     { iVersion  = Version.elmVersion
@@ -85,14 +84,3 @@ instance Binary ModuleInterface where
       put (iAdts modul)
       put (iAliases modul)
       put (iFixities modul)
-
-
-instance Binary Assoc where
-    get = do n <- getWord8
-             return $ case n of
-                0 -> L
-                1 -> N
-                2 -> R
-                _ -> error "Error reading valid associativity from serialized string"
-
-    put assoc = putWord8 $ case assoc of { L -> 0 ; N -> 1 ; R -> 2 }

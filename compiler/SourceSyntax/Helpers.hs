@@ -1,4 +1,4 @@
-
+{-# OPTIONS_GHC -Wall #-}
 module SourceSyntax.Helpers where
 
 import qualified Data.Char as Char

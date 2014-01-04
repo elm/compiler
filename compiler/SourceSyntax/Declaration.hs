@@ -13,7 +13,7 @@ data Declaration' port def
     | TypeAlias String [String] T.Type [Derivation]
     | Port port
     | Fixity Assoc Int String
-      deriving (Eq, Show)
+      deriving (Show)
 
 data Assoc = L | N | R
     deriving (Eq)
@@ -25,12 +25,12 @@ data ParsePort
     = PortAnnotation String T.Type
     | SendDefinition String Expr.LParseExpr
     | RecvDefinition String Expr.LParseExpr
-      deriving (Eq,Show)
+      deriving (Show)
 
 data Port
     = Send String Expr.LExpr T.Type
     | Recv String Expr.LExpr T.Type
-      deriving (Eq,Show)
+      deriving (Show)
 
 type ParseDeclaration = Declaration' ParsePort Expr.ParseDef
 type Declaration = Declaration' Port Expr.Def
@@ -58,6 +58,16 @@ instance Show Assoc where
           L -> "left"
           N -> "non"
           R -> "right"
+
+instance Binary Assoc where
+    get = do n <- getWord8
+             return $ case n of
+                0 -> L
+                1 -> N
+                2 -> R
+                _ -> error "Error reading valid associativity from serialized string"
+
+    put assoc = putWord8 $ case assoc of { L -> 0 ; N -> 1 ; R -> 2 }
 
 instance (Pretty port, Pretty def) => Pretty (Declaration' port def) where
   pretty decl =

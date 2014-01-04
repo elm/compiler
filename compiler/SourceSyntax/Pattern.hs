@@ -1,6 +1,6 @@
+{-# OPTIONS_GHC -Wall #-}
 module SourceSyntax.Pattern where
 
-import Data.List (intercalate)
 import SourceSyntax.Helpers as Help
 import SourceSyntax.PrettyPrint
 import Text.PrettyPrint as PP
@@ -15,9 +15,16 @@ data Pattern = PData String [Pattern]
              | PLiteral Literal.Literal
                deriving (Eq, Ord, Show)
 
+cons :: Pattern -> Pattern -> Pattern
 cons h t = PData "::" [h,t]
-nil      = PData "[]" []
+
+nil :: Pattern
+nil = PData "[]" []
+
+list :: [Pattern] -> Pattern
 list     = foldr cons nil
+
+tuple :: [Pattern] -> Pattern
 tuple es = PData ("_Tuple" ++ show (length es)) es
 
 boundVars :: Pattern -> Set.Set String
@@ -48,6 +55,7 @@ instance Pretty Pattern where
             PP.parens . commaCat $ map pretty ps
         else hsep (PP.text name : map prettyParens ps)
 
+prettyParens :: Pattern -> Doc
 prettyParens pattern = parensIf needsThem (pretty pattern)
   where
     needsThem =
