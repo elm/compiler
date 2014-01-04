@@ -28,30 +28,31 @@ prelude = text ++ map (\n -> (n, Hiding [])) modules
 
 interfaces :: Bool -> IO Interfaces
 interfaces noPrelude =
-    do ifaces <- safeReadDocs =<< Path.getDataFileName "interfaces.data"
-       return $ if noPrelude then Map.empty else ifaces
+    if noPrelude
+    then return $ Map.empty
+    else safeReadDocs =<< Path.getDataFileName "interfaces.data"
 
 safeReadDocs :: FilePath -> IO Interfaces
 safeReadDocs name =
     E.catch (readDocs name) $ \err -> do
       let _ = err :: IOError
-      putStrLn $ unlines [ "Error reading types for standard library!"
-                         , "    The file should be at " ++ name
-                         , "    If you are using a stable version of Elm,"
-                         , "    please report an issue at github.com/evancz/Elm"
-                         , "    and specify your versions of Elm and your OS" ]
+      hPutStrLn stderr $ unlines $
+         [ "Error reading types for standard library from file " ++ name
+         , "    If you are using a stable version of Elm, please report an issue at"
+         , "    <http://github.com/evancz/Elm/issues> specifying version numbers for"
+         , "    Elm and your OS." ]
       exitFailure
-
-hasInterfaces :: [(String, ModuleInterface)] -> Either String [(String, ModuleInterface)]
-hasInterfaces [] = Left "No interfaces found in serialized Prelude!"
-hasInterfaces ifaces = Right ifaces
 
 readDocs :: FilePath -> IO Interfaces
 readDocs filePath = do
-  bytes <- Interface.load filePath
-  let interfaces = Interface.decode filePath =<< bytes
-  case mapM (Interface.isValid filePath) =<< hasInterfaces =<< interfaces of
-    Right ifaces -> return $ Map.fromList ifaces
+  interfaces <- Interface.load filePath
+  case mapM (Interface.isValid filePath) (interfaces :: [(String, ModuleInterface)]) of
     Left err -> do
       hPutStrLn stderr err
       exitFailure
+
+    Right [] -> do
+      hPutStrLn stderr "No interfaces found in serialized Prelude!"
+      exitFailure
+
+    Right ifaces -> return $ Map.fromList ifaces

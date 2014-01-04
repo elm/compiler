@@ -57,9 +57,8 @@ alreadyCompiled flags filePath = do
 retrieve :: Flag.Flags -> Map.Map String M.ModuleInterface -> FilePath
          -> IO (String, M.ModuleInterface)
 retrieve flags interfaces filePath = do
-  bytes <- Interface.load (Utils.elmi flags filePath)
-  let binary = Interface.decode (Utils.elmi flags filePath) =<< bytes
-  case Interface.isValid filePath =<< binary of
+  iface <- Interface.load (Utils.elmi flags filePath)
+  case Interface.isValid filePath iface of
     Right (name, interface) ->
         do when (Flag.print_types flags) (Print.interfaceTypes interfaces interface)
            return (name, interface)
