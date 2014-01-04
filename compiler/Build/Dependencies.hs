@@ -21,7 +21,6 @@ import Text.PrettyPrint (Doc)
 import qualified SourceSyntax.Module as Module
 import qualified SourceSyntax.Type as Type
 import qualified Parse.Parse as Parse
-import qualified Metadata.Prelude as Prelude
 import qualified Transform.Check as Check
 import qualified Transform.SortDefinitions as SD
 import qualified Type.Inference as TI
