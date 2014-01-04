@@ -62,7 +62,7 @@ monoscheme headers = Scheme [] [] (noneNoDocs CTrue) headers
 infixl 8 /\
 
 (/\) :: Constraint a b -> Constraint a b -> Constraint a b
-a@(L s1 c1) /\ b@(L s2 c2) =
+a@(L _ c1) /\ b@(L _ c2) =
     case (c1, c2) of
       (CTrue, _) -> b
       (_, CTrue) -> a
@@ -95,6 +95,7 @@ data Flex = Rigid | Flexible | Constant | Is SuperType
 data SuperType = Number | Comparable | Appendable
      deriving (Show, Eq)
 
+namedVar :: Flex -> String -> IO Variable
 namedVar flex name = UF.fresh $ Descriptor {
     structure = Nothing,
     rank = noRank,
@@ -104,6 +105,7 @@ namedVar flex name = UF.fresh $ Descriptor {
     mark = noMark
   }
 
+var :: Flex -> IO Variable
 var flex = UF.fresh $ Descriptor {
     structure = Nothing,
     rank = noRank,
@@ -113,6 +115,7 @@ var flex = UF.fresh $ Descriptor {
     mark = noMark
   }
 
+structuredVar :: Term1 Variable -> IO Variable
 structuredVar structure = UF.fresh $ Descriptor {
     structure = Just structure,
     rank = noRank,
@@ -368,8 +371,8 @@ toSrcType variable = do
             Src.Record fs'' <$> toSrcType ext
     Nothing ->
         case name desc of
-          Just x@(c:cs) | Char.isLower c -> return (Src.Var x)
-                        | otherwise      -> return (Src.Data x [])
+          Just x@(c:_) | Char.isLower c -> return (Src.Var x)
+                       | otherwise      -> return (Src.Data x [])
           _ -> error $ concat
                         [ "Problem converting the following type "
                         , "from a type-checker type to a source-syntax type:"
@@ -383,12 +386,12 @@ collectApps variable = go [] variable
     go vars variable = do
       desc <- UF.descriptor variable
       case (structure desc, vars) of
-        (Nothing, [v] ) -> case name desc of
+        (Nothing, [v]) -> case name desc of
                              Just "_List" -> return (List v)
                              _ -> return Other
-        (Nothing,  vs ) -> case name desc of
+        (Nothing,  vs) -> case name desc of
                              Just ctor | isTuple ctor -> return (Tuple vs)
                              _ -> return Other
-        (Just term, vs) -> case term of
-                             App1 a b -> go (vars ++ [b]) a
-                             _ -> return Other
+        (Just term, _) -> case term of
+                            App1 a b -> go (vars ++ [b]) a
+                            _ -> return Other
