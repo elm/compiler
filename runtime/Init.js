@@ -68,7 +68,8 @@ function init(display, container, module, moduleToReplace, ports) {
       id:ElmRuntime.guid(),
       addListener:addListener,
       inputs:inputs,
-      ports_in:ports
+      ports_in:ports,
+      ports_out:{}
   };
 
   function swap(newModule) {
