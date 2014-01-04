@@ -21,21 +21,20 @@ extraChecks :: Alias.Rules -> TS.Env -> IO (Either [P.Doc] (Map.Map String Type)
 extraChecks rules env =
     mainCheck rules <$> Traverse.traverse toSrcType env
 
-mainCheck :: Alias.Rules -> (Map.Map String Type) -> Either [P.Doc] (Map.Map String Type)
+mainCheck :: Alias.Rules -> Map.Map String Type -> Either [P.Doc] (Map.Map String Type)
 mainCheck rules env =
-    let acceptable = ["Graphics.Element.Element","Signal.Signal Graphics.Element.Element"] in
     case Map.lookup "main" env of
       Nothing -> Right env
-      Just tipe
-        | P.render (pretty (Alias.canonicalRealias (fst rules) tipe)) `elem` acceptable ->
-            Right env
-        | otherwise ->
-            Left [ P.vcat [ P.text "Type Error:"
-                          , P.text "Bad type for 'main'. It must have type Element or a (Signal Element)"
-                          , P.text "Instead 'main' has type:\n"
-                          , P.nest 4 . pretty $ Alias.realias rules tipe
-                          , P.text " " ]
-                 ]
+      Just mainType
+          | tipe `elem` acceptable -> Right env
+          | otherwise              -> Left [ P.vcat err ]
+          where
+            acceptable = ["Graphics.Element.Element","Signal.Signal Graphics.Element.Element"]
+            tipe = P.render . pretty $ Alias.canonicalRealias (fst rules) mainType
+            err = [ P.text "Type Error: 'main' must have type Element or (Signal Element)."
+                  , P.text "Instead 'main' has type:\n"
+                  , P.nest 4 . pretty $ Alias.realias rules mainType
+                  , P.text " " ]
 
 occursCheck :: (String, Variable) -> StateT TS.SolverState IO ()
 occursCheck (name, variable) =
