@@ -43,27 +43,16 @@ safeReadDocs name =
                          , "    and specify your versions of Elm and your OS" ]
       exitFailure
 
-firstModuleInterface :: [(String, ModuleInterface)] ->
-                        Either String (String, ModuleInterface)
-firstModuleInterface interfaces =
-    case interfaces of
-      []      -> Left "No interfaces found in serialized Prelude!"
-      iface:_ -> Right iface
+hasInterfaces :: [(String, ModuleInterface)] -> Either String [(String, ModuleInterface)]
+hasInterfaces [] = Left "No interfaces found in serialized Prelude!"
+hasInterfaces ifaces = Right ifaces
 
 readDocs :: FilePath -> IO Interfaces
 readDocs filePath = do
   bytes <- IS.loadInterface filePath
   let interfaces = IS.interfaceDecode filePath =<< bytes
-
-      -- Although every ModuleInterface that is deserialized in this collection
-      -- contains the compiler version, we only check the first ModuleInterface
-      -- since it doesn't make sense that different modules in Prelude would
-      -- have been compiled by different compiler versions.
-      isValid = IS.validVersion filePath =<< firstModuleInterface =<< interfaces
-
-  case (interfaces, isValid) of
-    (_, Left err) -> do
+  case mapM (IS.validVersion filePath) =<< hasInterfaces =<< interfaces of
+    Right ifaces -> return $ Map.fromList ifaces
+    Left err -> do
       hPutStrLn stderr err
       exitFailure
-
-    (Right ifaces, _) -> return $ Map.fromList ifaces
