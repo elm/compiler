@@ -71,31 +71,11 @@ function init(display, container, module, moduleToReplace, ports) {
       ports_in:ports
   };
 
-  // Set up methods to communicate with Elm program from JS.
-  function send(name, value) {
-      if (typeof value === 'undefined') return function(v) { return send(name,v); };
-      var e = document.createEvent('Event');
-      e.initEvent(name + '_' + elm.id, true, true);
-      e.value = value;
-      document.dispatchEvent(e);
-  }
-  function recv(name, handler) {
-      document.addEventListener(name + '_' + elm.id, handler);
-  }
-
-  recv('log', function(e) {console.log(e.value)});
-  recv('title', function(e) {document.title = e.value});
-  recv('redirect', function(e) {
-    if (e.value.length > 0) { window.location = e.value; }
-  });
-
   function swap(newModule) {
       removeListeners(listeners);
       var div = document.createElement('div');
       var newElm = init(display, div, newModule, elm);
       inputs = [];
-      // elm.send = newElm.send;
-      // elm.recv = newElm.recv;
       // elm.swap = newElm.swap;
       return newElm;
   }
@@ -111,6 +91,7 @@ function init(display, container, module, moduleToReplace, ports) {
   }
   inputs = ElmRuntime.filterDeadInputs(inputs);
   filterListeners(inputs, listeners);
+  addReceivers(elm.ports_out);
   if (display !== ElmRuntime.Display.NONE) {
       var graphicsNode = initGraphics(elm, Module);
   }
@@ -124,7 +105,7 @@ function init(display, container, module, moduleToReplace, ports) {
   }
 
   reportAnyErrors();
-  return { send:send, recv:recv, swap:swap, ports:elm.ports_out };
+  return { swap:swap, ports:elm.ports_out };
 };
 
 function filterListeners(inputs, listeners) {
@@ -145,6 +126,31 @@ function removeListeners(listeners) {
         var listener = listeners[i];
         listener.domNode.removeEventListener(listener.eventName, listener.func);
     }
+}
+
+// add receivers for built-in ports if they are defined
+function addReceivers(ports) {
+  if ('log' in ports) {
+      ports.log.subscribe(function(v) { console.log(v) });
+  }
+  if ('stdout' in ports) {
+      var handler = process ? function(v) { process.stdout.write(v); }
+                            : function(v) { console.log(v); };
+      ports.stdout.subscribe(handler);
+  }
+  if ('stderr' in ports) {
+      var handler = process ? function(v) { process.stderr.write(v); }
+                            : function(v) { console.log('Error:' + v); };
+      ports.stderr.subscribe(handler);
+  }
+  if ('title' in ports) {
+      ports.title.subscribe(function(v) { document.title = v; });
+  }
+  if ('redirect' in ports) {
+      ports.redirect.subscribe(function(v) {
+          if (v.length > 0) window.location = v;
+      });
+  }
 }
 
 function initGraphics(elm, Module) {
