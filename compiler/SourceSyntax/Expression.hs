@@ -1,13 +1,14 @@
+{-# OPTIONS_GHC -Wall #-}
 module SourceSyntax.Expression where
 
-import Data.List (intercalate)
 import SourceSyntax.PrettyPrint
 import Text.PrettyPrint as P
 import qualified SourceSyntax.Helpers as Help
 import qualified SourceSyntax.Location as Location
 import qualified SourceSyntax.Pattern as Pattern
-import qualified SourceSyntax.Type as Type
+import qualified SourceSyntax.Type as SrcType
 import qualified SourceSyntax.Literal as Literal
+import qualified Type.Type as Type
 
 {-| This is a located expression. -}
 type LExpr' def = Location.Located (Expr' def)
@@ -45,7 +46,9 @@ data Expr' def
     | Modify (LExpr' def) [(String, LExpr' def)]
     | Record [(String, LExpr' def)]
     | Markdown String String [LExpr' def]
-      deriving (Eq)
+    -- for type checking and code gen only
+    | PortIn String SrcType.Type Type.Type (LExpr' def)
+    | PortOut String SrcType.Type (LExpr' def)
 
 type ParseExpr = Expr' ParseDef
 type LParseExpr = LExpr' ParseDef
@@ -57,23 +60,26 @@ separately, and other checks will make sure they can be combined.
 -}
 data ParseDef
     = Def Pattern.Pattern LParseExpr
-    | TypeAnnotation String Type.Type
-      deriving (Eq, Show)
+    | TypeAnnotation String SrcType.Type
+      deriving (Show)
 
 {-| After checking that type annotations and definitions are all
 valid, they can be combined.
 -}
-data Def
-    = Definition Pattern.Pattern (LExpr' Def) (Maybe Type.Type)
-      deriving (Eq, Show)
+data Def = Definition Pattern.Pattern (LExpr' Def) (Maybe SrcType.Type)
+    deriving (Show)
 
+tuple :: [LExpr' def] -> Expr' def
 tuple es = Data ("_Tuple" ++ show (length es)) es
 
+delist :: LExpr' def -> [LExpr' def]
 delist (Location.L _ (Data "::" [h,t])) = h : delist t
 delist _ = []
 
+saveEnvName :: String
 saveEnvName = "_save_the_environment!!!"
 
+dummyLet :: Pretty def => [def] -> LExpr' def
 dummyLet defs = 
      Location.none $ Let defs (Location.none $ Var saveEnvName)
 
@@ -105,7 +111,7 @@ instance Pretty def => Pretty (Expr' def) where
          P.hang pexpr 2 (P.vcat (map pretty' pats))
          where
            pexpr = P.sep [ P.text "case" <+> pretty e, P.text "of" ]
-           pretty' (p,e) = pretty p <+> P.text "->" <+> pretty e
+           pretty' (p,b) = pretty p <+> P.text "->" <+> pretty b
      Data "::" [hd,tl] -> pretty hd <+> P.text "::" <+> pretty tl
      Data "[]" [] -> P.text "[]"
      Data name es -> P.hang (P.text name) 2 (P.sep (map prettyParens es))
@@ -121,7 +127,7 @@ instance Pretty def => Pretty (Expr' def) where
                            4
                            (commaSep $ map field fs)
        where
-         field (x,e) = variable x <+> P.text "<-" <+> pretty e
+         field (k,v) = variable k <+> P.text "<-" <+> pretty v
 
      Record fs ->
          P.braces $ P.nest 2 (commaSep $ map field fs)
@@ -129,6 +135,10 @@ instance Pretty def => Pretty (Expr' def) where
          field (x,e) = variable x <+> P.equals <+> pretty e
 
      Markdown _ _ _ -> P.text "[markdown| ... |]"
+
+     PortIn _ _ _ handler -> pretty handler
+
+     PortOut _ _ signal -> pretty signal
 
 instance Pretty ParseDef where
   pretty def =
@@ -147,11 +157,13 @@ instance Pretty Def where
                        Nothing -> P.empty
                        Just tipe -> pretty pattern <+> P.colon <+> pretty tipe
 
+collectApps :: LExpr' def -> [LExpr' def]
 collectApps lexpr@(Location.L _ expr) =
   case expr of
     App a b -> collectApps a ++ [b]
     _ -> [lexpr]
 
+collectLambdas :: LExpr' def -> ([Doc], LExpr' def)
 collectLambdas lexpr@(Location.L _ expr) =
   case expr of
     Lambda pattern body ->
@@ -159,6 +171,7 @@ collectLambdas lexpr@(Location.L _ expr) =
         in  (pretty pattern : ps, body')
     _ -> ([], lexpr)
 
+prettyParens :: (Pretty def) => LExpr' def -> Doc
 prettyParens (Location.L _ expr) = parensIf needed (pretty expr)
   where
     needed =
@@ -169,5 +182,5 @@ prettyParens (Location.L _ expr) = parensIf needed (pretty expr)
         MultiIf _   -> True
         Let _ _     -> True
         Case _ _    -> True
-        Data name (x:xs) -> name /= "::"
+        Data name (_:_) -> name /= "::"
         _ -> False

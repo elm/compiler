@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -W #-}
 module Type.Constrain.Expression where
 
 import qualified Data.List as List
@@ -144,6 +145,16 @@ constrain env (L span expr) tipe =
              return $ clet schemes
                            (clet [Scheme rqs fqs (clet [monoscheme header] c2) header ]
                                  (c1 /\ c))
+
+      PortIn _ _ tt handler ->
+          exists $ \t1 ->
+          exists $ \t2 ->
+          exists $ \tHandler -> do
+            cHandler <- constrain env handler tHandler
+            return $ and [ cHandler, tHandler === (t1 ==> t2), tt === t2 ]
+
+      PortOut _ _ signal ->
+          constrain env signal tipe
 
 constrainDef env info (Definition pattern expr maybeTipe) =
     let qs = [] -- should come from the def, but I'm not sure what would live there...

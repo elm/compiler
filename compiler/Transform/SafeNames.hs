@@ -49,6 +49,8 @@ expression (L loc expr) =
       Modify r fs -> Modify (f r) (map (var *** f) fs)
       Record fs -> Record (map (var *** f) fs)
       Markdown uid md es -> Markdown uid md (map f es)
+      PortIn name st tt handler -> PortIn name st tt (f handler)
+      PortOut name st signal -> PortOut name st (f signal)
 
 definition :: Def -> Def
 definition (Definition p e t) =

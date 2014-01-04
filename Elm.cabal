@@ -228,7 +228,8 @@ Executable elm-doc
                        pandoc >= 1.10,
                        parsec >= 3.1.1,
                        pretty,
-                       text
+                       text,
+                       union-find
 
 Test-Suite test-elm
   Type:            exitcode-stdio-1.0

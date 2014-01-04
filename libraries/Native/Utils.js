@@ -207,7 +207,7 @@ Elm.Native.Utils.make = function(elm) {
         return Tuple2(posx, posy);
     }
 
-    function checkPorts(moduleName, ports) {
+    function portCheck(moduleName, ports) {
         var expected = {};
         for (var i = ports.length; i--; ) {
             expected[ports[i]] = 1;
@@ -224,11 +224,35 @@ Elm.Native.Utils.make = function(elm) {
             if (result < 0) extra.push(key);
         }
         if (missing.length > 0) {
-            throw new Error("Module " + moduleName + " requires inputs for these ports: " + missing.join(', '));
+            throw new Error("Module " + moduleName +
+                            " requires inputs for these ports: " + missing.join(', '));
         }
         if (extra.length > 0) {
-            throw new Error("Module " + moduleName + " has been given ports that do not exist: " + extra.join(', '));
+            throw new Error("Module " + moduleName +
+                            " has been given ports that do not exist: " + extra.join(', '));
         }
+    }
+
+    function portOut(name, signal) {
+        var handlers = []
+        function subscribe(handler) {
+            handlers.push(handler);
+        }
+        function unsubscribe(handler) {
+            handlers.pop(handlers.indexOf(handler));
+        }
+        Signal.lift(function(v) {
+            var len = handlers.length;
+            for (var i = 0; i < len; ++i) {
+                handlers[i](v);
+            }
+        }, signal);
+        elm.ports_out[name] = { subscribe:subscribe, unsubscribe:unsubscribe };
+        return signal;
+    }
+    function portIn(name, handler) {
+        var port = elm.ports_in[name];
+        throw new Error('need to decide on Elm.input definition.');
     }
 
     return elm.Native.Utils.values = {
@@ -251,6 +275,8 @@ Elm.Native.Utils.make = function(elm) {
         htmlHeight: F2(htmlHeight),
         getXY: getXY,
         toFloat: function(x) { return +x; },
-        checkPorts: checkPorts
+        portCheck: portCheck,
+        portOut: portOut,
+        portIn: portIn
     };
 };

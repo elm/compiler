@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -W #-}
 module Generate.JavaScript (generate) where
 
 import Control.Arrow (first,(***))
@@ -24,8 +25,8 @@ split = go []
   where
     go vars str =
         case break (=='.') str of
-          (x,'.':rest) | Help.isOp x -> vars ++ [x ++ '.' : rest]
-                       | otherwise -> go (vars ++ [x]) rest
+          (x,_:rest) | Help.isOp x -> vars ++ [x ++ '.' : rest]
+                     | otherwise -> go (vars ++ [x]) rest
           (x,[]) -> vars ++ [x]
 
 var name = Id () name
@@ -37,7 +38,11 @@ function args stmts = FuncExpr () Nothing (map var args) stmts
 call = CallExpr ()
 string = StringLit ()
 
-dotSep (x:xs) = foldl (DotRef ()) (ref x) (map var xs)
+dotSep vars =
+    case vars of
+      x:xs -> foldl (DotRef ()) (ref x) (map var xs)
+      [] -> error "dotSep must be called on a non-empty list of variables"
+
 obj = dotSep . split
 
 varDecl :: String -> Expression () -> VarDecl ()
@@ -191,6 +196,14 @@ expression (L span expr) =
             pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
             md = pad ++ MD.toHtml doc ++ pad
 
+      PortIn name _ _ handler ->
+          do handler' <- expression handler
+             return $ obj "_N.portIn" `call` [ string name, handler' ]
+
+      PortOut name _ signal ->
+          do signal' <- expression signal
+             return $ obj "_N.portOut" `call` [ string name, signal' ]
+
 definition :: Def -> State Int [Statement ()]
 definition (Definition pattern expr@(L span _) _) = do
   expr' <- expression expr
@@ -208,8 +221,7 @@ definition (Definition pattern expr@(L span _) _) = do
         return [ VarDeclStmt () (assign "$" : map setField fields) ]
 
     PData name patterns | vars /= Nothing ->
-        case vars of
-          Just vs -> return [ VarDeclStmt () (setup (zipWith decl vs [0..])) ]
+        return [ VarDeclStmt () (setup (zipWith decl (maybe [] id vars) [0..])) ]
         where
           vars = getVars patterns
           getVars patterns =
@@ -299,8 +311,6 @@ generate unsafeModule =
                , [ internalImports (List.intercalate "." (names modul)) ]
                , concatMap jsImport (imports modul)
                , checkInPorts (recvPorts modul)
-               , map inPort (recvPorts modul)
-               , map outPort (sendPorts modul)
                , [ assign ["_op"] (ObjectLit () []) ]
                , concat $ evalState (mapM definition . fst . flattenLets [] $ program modul) 0
                , [ jsExports ]
@@ -330,20 +340,10 @@ generate unsafeModule =
                     Nothing -> tail . init $ List.inits path
                     Just nmspc -> drop 2 . init . List.inits $ nmspc : path
 
-    addId js = InfixExpr () OpAdd (string (js++"_")) (obj "_elm.id")
-
     checkInPorts ports =
-        [ ExprStmt () $ obj "_N.checkPorts" `call` [ref "$moduleName", names] ]
+        [ ExprStmt () $ obj "_N.portCheck" `call` [ref "$moduleName", names] ]
         where
           names = ArrayLit () [ string name | (name, _, _) <- ports ]
-
-    inPort (name, expr, _) =
-        assign [name] $ obj "_N.inPort" `call` [ dotSep ["_elm","ports_in",name]
-                                               , evalState (expression expr) 0 ]
-
-    outPort (name, expr, _) =
-        let signal = evalState (expression expr) 0 in
-        assign ["_elm","ports_out",name] signal
 
 binop span op e1 e2 =
     case op of
@@ -370,9 +370,6 @@ binop span op e1 e2 =
         case e of
           L _ (Binop op e1 e2) | op == "Basics.." -> collect (es ++ [e1]) e2
           _ -> es ++ [e]
-
-    js1 = expression e1
-    js2 = expression e2
 
     func | Help.isOp operator = BracketRef () (dotSep (init parts ++ ["_op"])) (string operator)
          | otherwise     = dotSep parts

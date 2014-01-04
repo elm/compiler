@@ -45,9 +45,10 @@ toDefs decl =
 
     Port port ->
         case port of
-          Send name expr tipe -> [ definition name expr tipe ]
-          Recv _ _ _ -> -- [ definition name ]
-              error "not sure how to generate constraints for recv yet"
+          Send name expr@(L.L s _) tipe ->
+              [ definition name (L.L s $ E.PortOut name tipe expr) tipe ]
+          Recv name expr@(L.L s _) tipe ->
+              [ definition name (L.L s $ E.PortIn name tipe undefined expr) tipe ]
 
     -- no constraints are needed for fixity declarations
     Fixity _ _ _ -> []

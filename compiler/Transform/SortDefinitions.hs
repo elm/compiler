@@ -83,6 +83,10 @@ reorder (L s expr) =
 
       Markdown uid md es -> Markdown uid md <$> mapM reorder es
 
+      PortOut name st signal -> PortOut name st <$> reorder signal
+
+      PortIn name st tt handler -> PortIn name st tt <$> reorder handler
+
       -- Actually do some reordering
       Let defs body ->
           do body' <- reorder body

@@ -28,4 +28,5 @@ crawl transform = go
             Record fields -> Record <$> mapM (\(k,v) -> (,) k <$> go v) fields
             Markdown uid md es -> Markdown uid md <$> mapM go es
             Let defs body -> Let <$> transform defs <*> go body
-
+            PortIn name st tt handler -> PortIn name st tt <$> go handler
+            PortOut name st signal -> PortOut name st <$> go signal

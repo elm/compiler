@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -W #-}
 module Transform.Canonicalize (interface, metadataModule) where
 
 import Control.Arrow ((***))
@@ -117,6 +117,7 @@ rename env (L s expr) =
     let rnm = rename env
         throw err = Left [ P.text $ "Error " ++ show s ++ "\n" ++ err ]
         format = Either.either throw return
+        renameType' env = renameType (format . replace "variable" env)
     in
     L s <$>
     case expr of
@@ -156,7 +157,7 @@ rename env (L s expr) =
                            <*> rename env' body
                            <*> case mtipe of
                                  Nothing -> return Nothing
-                                 Just tipe -> Just <$> renameType (format . replace "variable" env') tipe
+                                 Just tipe -> Just <$> renameType' env' tipe
 
       Var x -> Var <$> format (replace "variable" env x)
 
@@ -170,6 +171,13 @@ rename env (L s expr) =
                                      <*> rename (extend env pattern) b
 
       Markdown uid md es -> Markdown uid md <$> mapM rnm es
+
+      PortIn name st tt handler ->
+          do st' <- renameType' env st
+             handler' <- rnm handler
+             return $ PortIn name st' tt handler'
+
+      PortOut name st signal -> PortOut name <$> renameType' env st <*> rnm signal
 
 
 renamePattern :: Env -> P.Pattern -> Either String P.Pattern
