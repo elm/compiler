@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -W #-}
 module InterfaceSerialization ( loadInterface
                               , interfaceDecode
                               , validVersion
@@ -8,8 +9,6 @@ import qualified Data.Binary as Binary
 
 import qualified Elm.Internal.Version as Version
 import System.Directory (doesFileExist)
-import System.IO (hPutStrLn, stderr)
-import System.Exit (exitFailure)
 
 import SourceSyntax.Module
 

@@ -1,8 +1,8 @@
+{-# OPTIONS_GHC -W #-}
 module Build.File (build) where
 
 import Control.Monad (when)
 import qualified Data.Binary as Binary
-import qualified Data.List as List
 import qualified Data.Map as Map
 import System.Directory
 import System.Exit

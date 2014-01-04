@@ -1,9 +1,9 @@
 module Generate.Cases (toMatch, Match (..), Clause (..), matchSubst, newVar) where
 
-import Control.Applicative ((<$>),(<*>))
-import Control.Arrow (first,second)
+import Control.Applicative ((<$>))
+import Control.Arrow (first)
 import Control.Monad.State
-import Data.List (groupBy,sortBy,lookup)
+import Data.List (groupBy,sortBy)
 import Data.Maybe (fromMaybe)
 
 import SourceSyntax.Location
@@ -47,7 +47,7 @@ matchSubst pairs (Match n cs m) =
               clauseSubst (Clause c vs m) =
                   Clause c (map varSubst vs) (matchSubst pairs m)
 
-isCon (p:ps, e) =
+isCon (p:_, _) =
   case p of
     PData _ _  -> True
     PLiteral _ -> True
@@ -75,7 +75,7 @@ dealias v c@(p:ps, L s e) =
 matchVar :: [String] -> [([Pattern],LExpr)] -> Match -> State Int Match
 matchVar (v:vs) cs def = match vs (map subVar cs) def
   where
-    subVar (p:ps, ce@(L s e)) = (ps, L s $ subOnePattern p e)
+    subVar (p:ps, (L s e)) = (ps, L s $ subOnePattern p e)
         where
           subOnePattern pattern e =
             case pattern of
@@ -109,7 +109,7 @@ matchClause :: Either String Literal
             -> [([Pattern],LExpr)]
             -> Match
             -> State Int Clause
-matchClause c (v:vs) cs def =
+matchClause c (_:vs) cs def =
     do vs' <- getVars
        Clause c vs' <$> match (vs' ++ vs) (map flatten cs) def
     where

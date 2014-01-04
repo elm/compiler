@@ -1,7 +1,7 @@
+{-# OPTIONS_GHC -W #-}
 module Main where
 
 import Control.Monad (foldM)
-import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import Text.Blaze.Html.Renderer.String (renderHtml)
 import qualified Data.ByteString.Lazy.Char8 as BS
@@ -37,7 +37,7 @@ build flags rootFile =
                 then getSortedDependencies (Flag.src_dir flags) builtIns rootFile
                 else return [rootFile]
 
-       (moduleName, interfaces) <-
+       (moduleName, _) <-
            File.build flags (length files) builtIns "" files
 
        js <- foldM appendToOutput BS.empty files

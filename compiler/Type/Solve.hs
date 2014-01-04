@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -W #-}
 module Type.Solve (solve) where
 
 import Control.Monad
@@ -5,14 +6,11 @@ import Control.Monad.State
 import qualified Data.UnionFind.IO as UF
 import qualified Data.Map as Map
 import qualified Data.Traversable as Traversable
-import qualified Data.Maybe as Maybe
 import qualified Data.List as List
 import Type.Type
 import Type.Unify
 import qualified Type.ExtraChecks as EC
-import qualified Type.Environment as Env
 import qualified Type.State as TS
-import qualified Text.PrettyPrint as P
 import SourceSyntax.Location (Located(L), SrcSpan)
 
 

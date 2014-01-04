@@ -1,13 +1,8 @@
+{-# OPTIONS_GHC -W #-}
 module Build.Source (build) where
 
-import Data.Data
-import Control.Monad.State
-import qualified Data.Graph as Graph
-import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import System.Directory
-import System.Exit
 import System.FilePath as FP
 import Text.PrettyPrint (Doc)
 

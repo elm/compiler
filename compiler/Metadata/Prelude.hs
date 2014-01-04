@@ -1,15 +1,12 @@
+{-# OPTIONS_GHC -W #-}
 module Metadata.Prelude (interfaces, add) where
 
 import qualified Data.Map as Map
 import qualified Control.Exception as E
 import qualified Paths_Elm as Path
-import System.Directory
 import System.Exit
-import System.FilePath
 import System.IO
 import SourceSyntax.Module
-import qualified Data.Binary as Binary
-import qualified Data.ByteString.Lazy as BS
 
 import qualified InterfaceSerialization as IS
 
@@ -20,7 +17,7 @@ add noPrelude (Module name exs ims decls) = Module name exs (customIms ++ ims) d
 
       addModule (n, method) = case lookup n ims of
                                 Nothing     -> [(n, method)]
-                                Just (As m) -> [(n, method)]
+                                Just (As _) -> [(n, method)]
                                 Just _      -> []
 
 prelude :: [(String, ImportMethod)]

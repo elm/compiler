@@ -1,7 +1,8 @@
+{-# OPTIONS_GHC -W #-}
+module Type.ExtraChecks (extraChecks, occursCheck) where
 -- This module contains checks to be run *after* type inference has
 -- completed successfully. At that point we still need to do occurs
 -- checks and ensure that `main` has an acceptable type.
-module Type.ExtraChecks (extraChecks, occursCheck) where
 
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad.State
@@ -14,7 +15,6 @@ import Text.PrettyPrint as P
 import SourceSyntax.PrettyPrint (pretty)
 import SourceSyntax.Type (Type)
 import qualified SourceSyntax.Location as Location
-import qualified SourceSyntax.Expression as Expr
 import qualified Data.Traversable as Traverse
 
 extraChecks :: Alias.Rules -> TS.Env -> IO (Either [P.Doc] (Map.Map String Type))
@@ -47,7 +47,7 @@ occursCheck (name, variable) =
          case structure desc of
            Nothing ->
                modify $ \state -> state { TS.sErrors = fallback : TS.sErrors state }
-           Just struct ->
+           Just _ ->
                do liftIO $ UF.setDescriptor var (desc { structure = Nothing })
                   var' <- liftIO $ UF.fresh desc
                   TS.addError (Location.NoSpan name) (Just msg) var var'

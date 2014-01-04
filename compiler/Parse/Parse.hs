@@ -1,21 +1,16 @@
+{-# OPTIONS_GHC -W #-}
 module Parse.Parse (program, dependencies) where
 
 import Control.Applicative ((<$>), (<*>))
-import Control.Monad
-import Data.Char (isSymbol, isDigit)
-import Data.List (foldl',intercalate)
+import qualified Data.List as List
 import qualified Data.Map as Map
 import Text.Parsec hiding (newline,spaces)
 import qualified Text.PrettyPrint as P
 
-import qualified SourceSyntax.Expression as E
 import qualified SourceSyntax.Declaration as D
 import qualified SourceSyntax.Module as M
 import Parse.Helpers
-import Parse.Binop (OpTable)
-import Parse.Expression
 import Parse.Declaration (infixDecl)
-import Parse.Type
 import Parse.Module
 import qualified Parse.Declaration as Decl
 import Transform.Declaration (combineAnnotations)
@@ -45,7 +40,7 @@ programParser =
 
 dependencies :: String -> Either [P.Doc] (String, [String])
 dependencies =
-    let getName = intercalate "." . fst in
+    let getName = List.intercalate "." . fst in
     setupParser $ do
       optional freshLine
       (,) <$> option "Main" (getName <$> moduleDef `followedBy` freshLine)
@@ -64,7 +59,7 @@ setupParserWithTable table p source =
       msg overlap =
           P.vcat [ P.text "Parse error:"
                  , P.text $ "Overlapping definitions for infix operators: " ++
-                          intercalate " " (Map.keys overlap)
+                          List.intercalate " " (Map.keys overlap)
                  ]
 
 parseFixities = do

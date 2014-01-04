@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -W #-}
 module Type.Environment where
 
 import Control.Applicative ((<$>), (<*>))
@@ -9,7 +10,6 @@ import qualified Control.Monad.State as State
 import qualified Data.Traversable as Traverse
 import qualified Data.Map as Map
 import Data.List (isPrefixOf)
-import qualified Data.UnionFind.IO as UF
 import qualified Text.PrettyPrint as PP
 
 import qualified SourceSyntax.Type as Src
@@ -44,7 +44,7 @@ makeTypes datatypes =
   where
     nameAndKind (name, tvars, _, _) = (name, length tvars)
 
-    makeCtor (name, kind) = do
+    makeCtor (name, _) = do
       ctor <- VarN <$> namedVar Constant name
       return (name, ctor)
 
@@ -84,7 +84,7 @@ makeConstructors env datatypes = Map.fromList builtins
 
 
 ctorToType :: Environment -> ADT -> [ (String, IO (Int, [Variable], [Type], Type)) ]
-ctorToType env (name, tvars, ctors, derivations) =
+ctorToType env (name, tvars, ctors, _) =
     zip (map fst ctors) (map inst ctors)
   where
     inst :: (String, [Src.Type]) -> IO (Int, [Variable], [Type], Type)
@@ -94,7 +94,7 @@ ctorToType env (name, tvars, ctors, derivations) =
       
 
     go :: (String, [Src.Type]) -> State.StateT (VarDict, TypeDict) IO ([Type], Type)
-    go (ctor, args) = do
+    go (_, args) = do
       types <- mapM (instantiator env) args
       returnType <- instantiator env (Src.Data name (map Src.Var tvars))
       return (types, returnType)
