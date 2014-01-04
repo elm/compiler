@@ -31,7 +31,7 @@ compileArgs flags =
 build :: Flag.Flags -> FilePath -> IO ()
 build flags rootFile =
     do let noPrelude = Flag.no_prelude flags
-       builtIns <- if noPrelude then return Map.empty else Prelude.interfaces
+       builtIns <- Prelude.interfaces noPrelude
 
        files <- if Flag.make flags
                 then getSortedDependencies (Flag.src_dir flags) builtIns rootFile

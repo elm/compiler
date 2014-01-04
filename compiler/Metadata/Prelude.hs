@@ -13,10 +13,10 @@ import qualified Data.ByteString.Lazy as BS
 
 import qualified InterfaceSerialization as IS
 
-add :: Module def -> Module def
-add (Module name exs ims decls) = Module name exs (customIms ++ ims) decls
+add :: Bool -> Module def -> Module def
+add noPrelude (Module name exs ims decls) = Module name exs (customIms ++ ims) decls
     where
-      customIms = concatMap addModule prelude
+      customIms = if noPrelude then [] else concatMap addModule prelude
 
       addModule (n, method) = case lookup n ims of
                                 Nothing     -> [(n, method)]
@@ -30,8 +30,10 @@ prelude = text ++ map (\n -> (n, Hiding [])) modules
     modules = [ "Basics", "Signal", "List", "Maybe", "Time", "Prelude"
               , "Graphics.Element", "Color", "Graphics.Collage" ]
 
-interfaces :: IO Interfaces
-interfaces = safeReadDocs =<< Path.getDataFileName "interfaces.data"
+interfaces :: Bool -> IO Interfaces
+interfaces noPrelude =
+    do ifaces <- safeReadDocs =<< Path.getDataFileName "interfaces.data"
+       return $ if noPrelude then Map.empty else ifaces
 
 safeReadDocs :: FilePath -> IO Interfaces
 safeReadDocs name =

@@ -26,7 +26,7 @@ import qualified Transform.Canonicalize as Canonical
 
 build :: Bool -> Interfaces -> String -> Either [Doc] MetadataModule
 build noPrelude interfaces source =
-  do let add = if noPrelude then id else Prelude.add
+  do let add = Prelude.add noPrelude
          infixes = Map.fromList . map (\(assoc,lvl,op) -> (op,(lvl,assoc)))
                  . concatMap iFixities $ Map.elems interfaces
 
