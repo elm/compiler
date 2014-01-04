@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wall #-}
 module Transform.Canonicalize (interface, metadataModule) where
 
 import Control.Arrow ((***))
@@ -11,9 +12,7 @@ import SourceSyntax.Module
 import SourceSyntax.Expression
 import SourceSyntax.Location as Loc
 import qualified SourceSyntax.Pattern as P
-import SourceSyntax.Helpers (isOp)
 import qualified SourceSyntax.Type as Type
-import qualified Transform.SortDefinitions as SD
 import Text.PrettyPrint as P
 
 interface :: String -> ModuleInterface -> ModuleInterface
@@ -41,26 +40,26 @@ interface moduleName iface =
         runIdentity . renameType (\name -> return $ Map.findWithDefault name name canons)
 
 renameType :: (Applicative m, Monad m) => (String -> m String) -> Type.Type -> m Type.Type
-renameType rename tipe =
-    let rnm = renameType rename in
+renameType renamer tipe =
+    let rnm = renameType renamer in
     case tipe of
       Type.Lambda a b -> Type.Lambda <$> rnm a <*> rnm b
-      Type.Var x -> return tipe
-      Type.Data name ts -> Type.Data <$> rename name <*> mapM rnm ts
+      Type.Var _ -> return tipe
+      Type.Data name ts -> Type.Data <$> renamer name <*> mapM rnm ts
       Type.EmptyRecord -> return tipe
       Type.Record fields ext -> Type.Record <$> mapM rnm' fields <*> rnm ext
           where rnm' (f,t) = (,) f <$> rnm t
 
 metadataModule :: Interfaces -> MetadataModule -> Either [Doc] MetadataModule
 metadataModule ifaces modul =
-  do _ <- case filter (\m -> Map.notMember m ifaces) (map fst realImports) of
-            [] -> Right ()
-            missings -> Left [ P.text $ "The following imports were not found: " ++ List.intercalate ", " missings ]
+  do case filter (\m -> Map.notMember m ifaces) (map fst realImports) of
+       [] -> Right ()
+       missings -> Left [ P.text $ "The following imports were not found: " ++ List.intercalate ", " missings ]
      program' <- rename initialEnv (program modul)
      aliases' <- mapM (three4 renameType') (aliases modul)
      datatypes' <- mapM (three4 (mapM (two2 (mapM renameType')))) (datatypes modul)
-     sendPorts' <- mapM (three3 renameType') (sendPorts modul)
-     recvPorts' <- mapM (three3 renameType') (recvPorts modul)
+     sendPorts' <- mapM renamePort (sendPorts modul)
+     recvPorts' <- mapM renamePort (recvPorts modul)
      return $ modul { program = program'
                     , aliases = aliases'
                     , datatypes = datatypes'
@@ -68,12 +67,8 @@ metadataModule ifaces modul =
                     , recvPorts = recvPorts' }
   where
     two2 f (a,b) = (,) a <$> f b
-    three3 f (a,b,c) = (,,) a b <$> f c
+    renamePort (name,expr,tipe) = (,,) name <$> rename initialEnv expr <*> renameType' tipe
     three4 f (a,b,c,d) = (,,,) a b <$> f c <*> return d
-    twoAndFour f g (a,b,c,d) =
-        do b' <- f b
-           d' <- g d
-           return (a,b',c,d')
     renameType' =
         Either.either (\err -> Left [P.text err]) return . renameType (replace "type" initialEnv)
 
@@ -91,10 +86,11 @@ metadataModule ifaces modul =
               Importing vars -> map (pair "") $ filter (flip Set.member vs) allNames
                   where vs = Set.fromList $ map (\v -> name ++ "." ++ v) vars
 
-    pair n = (n,n)
-    localEnv = map pair (map get1 (aliases modul) ++ map get1 (datatypes modul))
-    globalEnv = map pair $ ["_List",saveEnvName,"::","[]","Int","Float","Char","Bool","String"] ++
-                           map (\n -> "_Tuple" ++ show n) [0..9]
+    two n = (n,n)
+    localEnv = map two (map get1 (aliases modul) ++ map get1 (datatypes modul))
+    globalEnv =
+        map two $ ["_List",saveEnvName,"::","[]","Int","Float","Char","Bool","String"] ++
+                  map (\n -> "_Tuple" ++ show (n :: Int)) [0..9]
     realImports = filter (not . List.isPrefixOf "Native." . fst) (imports modul)
     initialEnv = Map.fromList (concatMap canon realImports ++ localEnv ++ globalEnv)
 
@@ -117,14 +113,14 @@ replace variable env v =
                       "\nClose matches include: " ++ List.intercalate ", " matches
 
 rename :: Env -> LExpr -> Either [Doc] LExpr
-rename env lexpr@(L s expr) =
+rename env (L s expr) =
     let rnm = rename env
         throw err = Left [ P.text $ "Error " ++ show s ++ "\n" ++ err ]
         format = Either.either throw return
     in
     L s <$>
     case expr of
-      Literal lit -> return expr
+      Literal _ -> return expr
 
       Range e1 e2 -> Range <$> rnm e1 <*> rnm e2
 
@@ -135,11 +131,9 @@ rename env lexpr@(L s expr) =
       Insert e x v -> flip Insert x <$> rnm e <*> rnm v
 
       Modify e fs ->
-          Modify <$> rnm e <*> mapM (\(x,e) -> (,) x <$> rnm e) fs
+          Modify <$> rnm e <*> mapM (\(k,v) -> (,) k <$> rnm v) fs
 
-      Record fs -> Record <$> mapM frnm fs
-          where
-            frnm (f,e) = (,) f <$> rename env e
+      Record fs -> Record <$> mapM (\(k,v) -> (,) k <$> rnm v) fs
 
       Binop op e1 e2 ->
           do op' <- format (replace "variable" env op)
@@ -157,9 +151,9 @@ rename env lexpr@(L s expr) =
       Let defs e -> Let <$> mapM rename' defs <*> rename env' e
           where
             env' = foldl extend env $ map (\(Definition p _ _) -> p) defs
-            rename' (Definition p exp mtipe) =
+            rename' (Definition p body mtipe) =
                 Definition <$> format (renamePattern env' p)
-                           <*> rename env' exp
+                           <*> rename env' body
                            <*> case mtipe of
                                  Nothing -> return Nothing
                                  Just tipe -> Just <$> renameType (format . replace "variable" env') tipe
@@ -172,8 +166,8 @@ rename env lexpr@(L s expr) =
 
       Case e cases -> Case <$> rnm e <*> mapM branch cases
           where
-            branch (pattern,e) = (,) <$> format (renamePattern env pattern)
-                                     <*> rename (extend env pattern) e
+            branch (pattern,b) = (,) <$> format (renamePattern env pattern)
+                                     <*> rename (extend env pattern) b
 
       Markdown uid md es -> Markdown uid md <$> mapM rnm es
 
