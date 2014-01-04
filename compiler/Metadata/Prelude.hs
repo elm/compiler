@@ -7,8 +7,7 @@ import qualified Paths_Elm as Path
 import System.Exit
 import System.IO
 import SourceSyntax.Module
-
-import qualified InterfaceSerialization as IS
+import qualified Build.Interface as Interface
 
 add :: Bool -> Module def -> Module def
 add noPrelude (Module name exs ims decls) = Module name exs (customIms ++ ims) decls
@@ -49,9 +48,9 @@ hasInterfaces ifaces = Right ifaces
 
 readDocs :: FilePath -> IO Interfaces
 readDocs filePath = do
-  bytes <- IS.loadInterface filePath
-  let interfaces = IS.interfaceDecode filePath =<< bytes
-  case mapM (IS.validVersion filePath) =<< hasInterfaces =<< interfaces of
+  bytes <- Interface.load filePath
+  let interfaces = Interface.decode filePath =<< bytes
+  case mapM (Interface.isValid filePath) =<< hasInterfaces =<< interfaces of
     Right ifaces -> return $ Map.fromList ifaces
     Left err -> do
       hPutStrLn stderr err
