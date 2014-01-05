@@ -224,15 +224,47 @@ Elm.Native.Utils.make = function(elm) {
             if (result < 0) extra.push(key);
         }
         if (missing.length > 0) {
-            throw new Error("Module " + moduleName +
-                            " requires inputs for these ports: " + missing.join(', '));
+            throw new Error("Initialization Error: module " + moduleName +
+                            " was not given inputs for the following ports: " + missing.join(', '));
         }
         if (extra.length > 0) {
-            throw new Error("Module " + moduleName +
+            throw new Error("Initialization Error: module " + moduleName +
                             " has been given ports that do not exist: " + extra.join(', '));
         }
     }
 
+    // On failure, return message. On success, return the value in an array.
+    // Wrapping in an array allows the programmer to pass in a null value.
+    function processInput(converter, v) {
+        try { var elmValue = converter(v); }
+        catch(e) { return "The given value caused a runtime error!\n" + e.toString(); }
+
+        var ctor = elmValue.ctor;
+        if (ctor === 'Nothing' || ctor === 'Left') {
+            return "The port's conversion function failed.";
+        } else if (ctor === 'Just' || ctor === 'Right') {
+            return [elmValue._0];
+        }
+        return [elmValue];
+    }
+    function portIn(name, converter) {
+        var port = elm.ports_in[name];
+        var result = processInput(converter, port.defaultValue);
+        if (typeof result === 'string') {
+            throw new Error("Initialization Error: The default value for port '" +
+                            name + "' is invalid.\n" + result);
+        }
+        var signal = Signal.constant(result[0]);
+        port.subscribe(function(v) {
+            var result = processInput(converter, v);
+            if (typeof result === 'string') {
+                port.errorHandler(v)
+            } else {
+                elm.notify(signal.id, result[0]);
+            }
+        });
+        return signal;
+    }
     function portOut(name, signal) {
         var handlers = []
         function subscribe(handler) {
@@ -249,10 +281,6 @@ Elm.Native.Utils.make = function(elm) {
         }, signal);
         elm.ports_out[name] = { subscribe:subscribe, unsubscribe:unsubscribe };
         return signal;
-    }
-    function portIn(name, handler) {
-        var port = elm.ports_in[name];
-        throw new Error('need to decide on Elm.input definition.');
     }
 
     return elm.Native.Utils.values = {

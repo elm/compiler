@@ -27,6 +27,9 @@ Elm.worker = function(module, ports) {
     return init(ElmRuntime.Display.NONE, {}, module, ports);
 };
 
+Elm.input = function(defaultValue, errorHandler) {
+}
+
 function init(display, container, module, moduleToReplace, ports) {
   // defining state needed for an instance of the Elm RTS
   var inputs = [];
