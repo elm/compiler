@@ -16,6 +16,8 @@ combineAnnotations = go
       msg x = "Syntax Error: The type annotation for '" ++ x ++
               "' must be directly above its definition."
 
+      exprCombineAnnotations = Expr.crawlLet Def.combineAnnotations
+
       go decls =
           case decls of
             -- simple cases, pass them through with no changes
@@ -34,14 +36,14 @@ combineAnnotations = go
             D.Definition def : defRest ->
                 case def of
                   Def pat expr ->
-                      do expr' <- Expr.crawl Def.combineAnnotations expr
+                      do expr' <- exprCombineAnnotations expr
                          let def' = E.Definition pat expr' Nothing
                          (:) (D.Definition def') <$> go defRest
 
                   TypeAnnotation name tipe ->
                       case defRest of
                         D.Definition (Def pat@(P.PVar name') expr) : rest | name == name' ->
-                            do expr' <- Expr.crawl Def.combineAnnotations expr
+                            do expr' <- exprCombineAnnotations expr
                                let def' = E.Definition pat expr' (Just tipe)
                                (:) (D.Definition def') <$> go rest
 
@@ -55,11 +57,11 @@ combineAnnotations = go
                   PortAnnotation name tipe ->
                       case portRest of
                         Port (SendDefinition name' expr) : rest | name == name' ->
-                            do expr' <- Expr.crawl Def.combineAnnotations expr
+                            do expr' <- exprCombineAnnotations expr
                                (:) (Port (Send name expr' tipe)) <$> go rest
 
                         Port (RecvDefinition name' expr) : rest | name == name' ->
-                            do expr' <- Expr.crawl Def.combineAnnotations expr
+                            do expr' <- exprCombineAnnotations expr
                                (:) (Port (Recv name expr' tipe)) <$> go rest
 
                         _ -> Left (msg name)

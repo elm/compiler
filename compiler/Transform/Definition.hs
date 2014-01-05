@@ -12,17 +12,19 @@ combineAnnotations = go
       msg x = "Syntax Error: The type annotation for '" ++ x ++
               "' must be directly above its definition."
 
+      exprCombineAnnotations = Expr.crawlLet combineAnnotations
+
       go defs =
           case defs of
             TypeAnnotation name tipe : Def pat@(P.PVar name') expr : rest | name == name' ->
-                do expr' <- Expr.crawl combineAnnotations expr
+                do expr' <- exprCombineAnnotations expr
                    let def = Definition pat expr' (Just tipe)
                    (:) def <$> go rest
 
             TypeAnnotation name _  : _ -> Left (msg name)
 
             Def pat expr : rest ->
-                do expr' <- Expr.crawl combineAnnotations expr
+                do expr' <- exprCombineAnnotations expr
                    let def = Definition pat expr' Nothing
                    (:) def <$> go rest
 

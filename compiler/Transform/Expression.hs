@@ -1,12 +1,32 @@
 {-# OPTIONS_GHC -Wall #-}
-module Transform.Expression where
+module Transform.Expression (crawlLet, checkPorts) where
 
 import Control.Applicative ((<$>),(<*>))
 import SourceSyntax.Expression
 import SourceSyntax.Location
+import qualified SourceSyntax.Type as ST
+import qualified Type.Type as TT
 
-crawl :: ([def] -> Either a [def']) -> (LExpr' def) -> Either a (LExpr' def')
-crawl transform = go
+crawlLet :: ([def] -> Either a [def']) -> LExpr' def -> Either a (LExpr' def')
+crawlLet = crawl (\_ _ _ -> return ()) (\_ _ -> return ())
+
+checkPorts :: (String -> ST.Type -> TT.Variable -> Either a ())
+           -> (String -> ST.Type -> Either a ())
+           -> LExpr
+           -> Either a LExpr
+checkPorts inCheck outCheck expr =
+    crawl inCheck outCheck (mapM checkDef) expr
+    where
+      checkDef def@(Definition _ body _) =
+          do _ <- checkPorts inCheck outCheck body
+             return def
+
+crawl :: (String -> ST.Type -> TT.Variable -> Either a ())
+      -> (String -> ST.Type -> Either a ())
+      -> ([def] -> Either a [def'])
+      -> LExpr' def
+      -> Either a (LExpr' def')
+crawl portInCheck portOutCheck defsTransform = go
     where
       go (L srcSpan expr) =
           L srcSpan <$>
@@ -27,6 +47,10 @@ crawl transform = go
             Modify e fields -> Modify <$> go e <*> mapM (\(k,v) -> (,) k <$> go v) fields
             Record fields -> Record <$> mapM (\(k,v) -> (,) k <$> go v) fields
             Markdown uid md es -> Markdown uid md <$> mapM go es
-            Let defs body -> Let <$> transform defs <*> go body
-            PortIn name st tt handler -> PortIn name st tt <$> go handler
-            PortOut name st signal -> PortOut name st <$> go signal
+            Let defs body -> Let <$> defsTransform defs <*> go body
+            PortIn name st tt handler ->
+                do portInCheck name st tt
+                   PortIn name st tt <$> go handler
+            PortOut name st signal ->
+                do portOutCheck name st
+                   PortOut name st <$> go signal

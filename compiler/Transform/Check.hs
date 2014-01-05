@@ -52,7 +52,7 @@ duplicates decls =
     getNames = Set.toList . Pattern.boundVars
 
     exprDups :: E.LExpr -> Either String E.LExpr
-    exprDups expr = Expr.crawl defsDups expr
+    exprDups expr = Expr.crawlLet defsDups expr
 
     defsDups :: [E.Def] -> Either String [E.Def]
     defsDups defs =
