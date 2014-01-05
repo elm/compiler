@@ -150,7 +150,7 @@ constrain env (L span expr) tipe =
           exists $ \tIncoming ->
           exists $ \tHandler -> do
             cHandler <- constrain env handler tHandler
-            return $ and [ cHandler, tHandler === (tIncoming ==> tt) ]
+            return $ and [ cHandler, tHandler === (tIncoming ==> VarN tt) ]
 
       PortOut _ _ signal ->
           constrain env signal tipe

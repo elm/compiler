@@ -47,7 +47,7 @@ data Expr' def
     | Record [(String, LExpr' def)]
     | Markdown String String [LExpr' def]
     -- for type checking and code gen only
-    | PortIn String SrcType.Type Type.Type (LExpr' def)
+    | PortIn String SrcType.Type Type.Variable (LExpr' def)
     | PortOut String SrcType.Type (LExpr' def)
 
 type ParseExpr = Expr' ParseDef
