@@ -9,7 +9,7 @@ import qualified Data.Traversable as Traversable
 import qualified Data.List as List
 import Type.Type
 import Type.Unify
-import qualified Type.ExtraChecks as EC
+import qualified Type.ExtraChecks as Check
 import qualified Type.State as TS
 import SourceSyntax.Location (Located(L), SrcSpan)
 
@@ -120,7 +120,7 @@ solve (L span constraint) =
         headers <- Map.unions `fmap` mapM (solveScheme span) schemes
         TS.modifyEnv $ \env -> Map.union headers env
         solve constraint'
-        mapM EC.occursCheck $ Map.toList headers
+        mapM Check.occurs $ Map.toList headers
         TS.modifyEnv (\_ -> oldEnv)
 
     CInstance name term -> do

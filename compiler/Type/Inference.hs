@@ -13,7 +13,7 @@ import SourceSyntax.Location (noneNoDocs)
 import SourceSyntax.Type (Type)
 import Text.PrettyPrint
 import qualified Type.State as TS
-import Type.ExtraChecks (extraChecks)
+import qualified Type.ExtraChecks as Check
 import Control.Monad.State (execStateT, forM)
 import Control.Monad.Error (runErrorT, liftIO)
 import qualified Type.Alias as Alias
@@ -52,4 +52,6 @@ infer interfaces modul = unsafePerformIO $ do
       let rules = Alias.rules interfaces (aliases modul) (imports modul)
       case TS.sErrors state of
         errors@(_:_) -> Left `fmap` sequence (map ($ rules) (reverse errors))
-        [] -> extraChecks rules (Map.difference (TS.sSavedEnv state) header)
+        [] -> case Check.portTypes rules (program modul) of
+                Right () -> Check.mainType rules (Map.difference (TS.sSavedEnv state) header)
+                Left err -> return (Left err)
