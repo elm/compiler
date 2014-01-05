@@ -147,10 +147,7 @@ constrain env (L span expr) tipe =
                                  (c1 /\ c))
 
       PortIn _ _ tt handler ->
-          exists $ \tIncoming ->
-          exists $ \tHandler -> do
-            cHandler <- constrain env handler tHandler
-            return $ and [ cHandler, tHandler === (tIncoming ==> VarN tt) ]
+          constrain env handler (VarN tt)
 
       PortOut _ _ signal ->
           constrain env signal tipe
