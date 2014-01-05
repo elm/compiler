@@ -5,7 +5,9 @@ import SourceSyntax.Declaration
 import qualified SourceSyntax.Expression as E
 import qualified SourceSyntax.Location as L
 import qualified SourceSyntax.Pattern as P
-import qualified SourceSyntax.Type as Type
+import qualified SourceSyntax.Type as T
+import qualified Type.Type as Type
+import System.IO.Unsafe
 
 toExpr :: [Declaration] -> [E.Def]
 toExpr = concatMap toDefs
@@ -19,15 +21,15 @@ toDefs decl =
       where
         toDefs' (ctor, tipes) =
             let vars = take (length tipes) arguments
-                tbody = Type.Data name $ map Type.Var tvars
+                tbody = T.Data name $ map T.Var tvars
                 body = L.none . E.Data ctor $ map (L.none . E.Var) vars
-            in  [ definition ctor (buildFunction body vars) (foldr Type.Lambda tbody tipes) ]
+            in  [ definition ctor (buildFunction body vars) (foldr T.Lambda tbody tipes) ]
 
-    TypeAlias name _ tipe@(Type.Record fields ext) _ ->
-        [ definition name (buildFunction record vars) (foldr Type.Lambda tipe args) ]
+    TypeAlias name _ tipe@(T.Record fields ext) _ ->
+        [ definition name (buildFunction record vars) (foldr T.Lambda tipe args) ]
       where
         args = case ext of
-                 Type.EmptyRecord -> map snd fields
+                 T.EmptyRecord -> map snd fields
                  _ -> map snd fields ++ [ext]
 
         var = L.none . E.Var
@@ -35,7 +37,7 @@ toDefs decl =
 
         efields = zip (map fst fields) (map var vars)
         record = case ext of
-                   Type.EmptyRecord -> L.none $ E.Record efields
+                   T.EmptyRecord -> L.none $ E.Record efields
                    _ -> foldl (\r (f,v) -> L.none $ E.Insert r f v) (var $ last vars) efields
 
     -- Type aliases must be added to an extended equality dictionary,
@@ -48,7 +50,9 @@ toDefs decl =
           Send name expr@(L.L s _) tipe ->
               [ definition name (L.L s $ E.PortOut name tipe expr) tipe ]
           Recv name expr@(L.L s _) tipe ->
-              [ definition name (L.L s $ E.PortIn name tipe undefined expr) tipe ]
+              unsafePerformIO $ do
+                tvar <- Type.var Type.Flexible
+                return $ [ definition name (L.L s $ E.PortIn name tipe tvar expr) tipe ]
 
     -- no constraints are needed for fixity declarations
     Fixity _ _ _ -> []
@@ -61,5 +65,5 @@ buildFunction :: E.LExpr -> [String] -> E.LExpr
 buildFunction body@(L.L s _) vars =
     foldr (\p e -> L.L s (E.Lambda p e)) body (map P.PVar vars)
 
-definition :: String -> E.LExpr -> Type.Type -> E.Def
+definition :: String -> E.LExpr -> T.Type -> E.Def
 definition name expr tipe = E.Definition (P.PVar name) expr (Just tipe)
