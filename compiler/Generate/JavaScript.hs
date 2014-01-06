@@ -306,15 +306,16 @@ generate unsafeModule =
     modul = MakeSafe.metadataModule unsafeModule
     thisModule = dotSep ("_elm" : names modul ++ ["values"])
     programStmts =
-        concat [ setup (Just "_elm") (names modul ++ ["values"])
-               , [ IfSingleStmt () thisModule (ReturnStmt () (Just thisModule)) ]
-               , [ internalImports (List.intercalate "." (names modul)) ]
-               , concatMap jsImport . Set.toList . Set.fromList . map fst $ imports modul
-               , [ assign ["_op"] (ObjectLit () []) ]
-               , concat $ evalState (mapM definition . fst . flattenLets [] $ program modul) 0
-               , [ jsExports ]
-               , [ ReturnStmt () (Just thisModule) ]
-               ]
+        concat
+        [ setup (Just "_elm") (names modul ++ ["values"])
+        , [ IfSingleStmt () thisModule (ReturnStmt () (Just thisModule)) ]
+        , [ internalImports (List.intercalate "." (names modul)) ]
+        , concatMap jsImport . Set.toList . Set.fromList . map fst $ imports modul
+        , [ assign ["_op"] (ObjectLit () []) ]
+        , concat $ evalState (mapM definition . fst . flattenLets [] $ program modul) 0
+        , [ jsExports ]
+        , [ ReturnStmt () (Just thisModule) ]
+        ]
 
     jsExports = assign ("_elm" : names modul ++ ["values"]) (ObjectLit () exs)
         where
