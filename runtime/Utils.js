@@ -34,18 +34,18 @@ ElmRuntime.filterDeadInputs = function(inputs) {
 
 // define the draw function
 var vendors = ['ms', 'moz', 'webkit', 'o'];
-var window = window || {};
-for (var i = 0; i < vendors.length && !window.requestAnimationFrame; ++i) {
-    window.requestAnimationFrame = window[vendors[i]+'RequestAnimationFrame'];
-    window.cancelAnimationFrame  = window[vendors[i]+'CancelAnimationFrame'] ||
-                                   window[vendors[i]+'CancelRequestAnimationFrame'];
+var win = window || {};
+for (var i = 0; i < vendors.length && !win.requestAnimationFrame; ++i) {
+    win.requestAnimationFrame = win[vendors[i]+'RequestAnimationFrame'];
+    win.cancelAnimationFrame  = win[vendors[i]+'CancelAnimationFrame'] ||
+                                win[vendors[i]+'CancelRequestAnimationFrame'];
 }
 
-if (window.requestAnimationFrame && window.cancelAnimationFrame) {
+if (win.requestAnimationFrame && win.cancelAnimationFrame) {
     var previous = 0;
     ElmRuntime.draw = function(callback) {
-        window.cancelAnimationFrame(previous);
-        previous = window.requestAnimationFrame(callback);
+        win.cancelAnimationFrame(previous);
+        previous = win.requestAnimationFrame(callback);
     };
 } else {
     ElmRuntime.draw = function(callback) { callback(); };
