@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -W #-}
 module Build.Utils where
 
 import System.FilePath ((</>), replaceExtension)
