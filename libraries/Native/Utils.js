@@ -225,11 +225,13 @@ Elm.Native.Utils.make = function(elm) {
         }
         if (missing.length > 0) {
             throw new Error("Initialization Error: module " + moduleName +
-                            " was not given inputs for the following ports: " + missing.join(', '));
+                            " was not given inputs for the following ports: " +
+                            missing.join(', '));
         }
         if (extra.length > 0) {
-            throw new Error("Initialization Error: module " + moduleName +
-                            " has been given ports that do not exist: " + extra.join(', '));
+            throw new Error(
+                "Initialization Error: module " + moduleName +
+                " has been given ports that do not exist: " + extra.join(', '));
         }
     }
 
@@ -266,17 +268,17 @@ Elm.Native.Utils.make = function(elm) {
         return signal;
     }
     function portOut(name, signal) {
-        var handlers = []
+        var subscribers = []
         function subscribe(handler) {
-            handlers.push(handler);
+            subscribers.push(handler);
         }
         function unsubscribe(handler) {
-            handlers.pop(handlers.indexOf(handler));
+            subscribers.pop(subscribers.indexOf(handler));
         }
-        Signal.lift(function(v) {
-            var len = handlers.length;
+        Signal.lift(function(value) {
+            var len = subscribers.length;
             for (var i = 0; i < len; ++i) {
-                handlers[i](v);
+                subscribers[i](value);
             }
         }, signal);
         elm.ports_out[name] = { subscribe:subscribe, unsubscribe:unsubscribe };
