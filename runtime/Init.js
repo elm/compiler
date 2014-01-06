@@ -10,7 +10,7 @@ Elm.fullscreen = function(module, ports) {
     document.head.appendChild(style);
     var container = document.createElement('div');
     document.body.appendChild(container);
-    return init(ElmRuntime.Display.FULLSCREEN, container, module, ports);
+    return init(ElmRuntime.Display.FULLSCREEN, container, module, ports || {});
 };
 
 Elm.embed = function(module, container, ports) {
@@ -20,17 +20,37 @@ Elm.embed = function(module, container, ports) {
     } else if (container.hasChildNodes()) {
         throw new Error('Elm.node must be given an empty DIV. No children allowed!');
     }
-    return init(ElmRuntime.Display.COMPONENT, container, module, ports);
+    return init(ElmRuntime.Display.COMPONENT, container, module, ports || {});
 };
 
 Elm.worker = function(module, ports) {
-    return init(ElmRuntime.Display.NONE, {}, module, ports);
+    return init(ElmRuntime.Display.NONE, {}, module, ports || {});
 };
 
 Elm.input = function(defaultValue, errorHandler) {
+    var subscribers = []
+    function subscribe(handler) {
+        subscribers.push(handler);
+    }
+    function unsubscribe(handler) {
+        subscribers.pop(subscribers.indexOf(handler));
+    }
+    function send(value) {
+        var len = subscribers.length;
+        for (var i = 0; i < len; ++i) {
+            subscribers[i](value);
+        }
+    }
+    return {
+        send:send,
+        internal: { defaultValue:defaultValue,
+                    errorHandler:errorHandler,
+                    subscribe: subscribe,
+                    unsubscribe: unsubscribe }
+    };
 }
 
-function init(display, container, module, moduleToReplace, ports) {
+function init(display, container, module, ports, moduleToReplace) {
   // defining state needed for an instance of the Elm RTS
   var inputs = [];
 
@@ -62,6 +82,10 @@ function init(display, container, module, moduleToReplace, ports) {
       listeners.push(listener);
   }
 
+  var portUses = {}
+  for (var key in ports) {
+      portUses[key] = 0;
+  }
   // create the actual RTS. Any impure modules will attach themselves to this
   // object. This permits many Elm programs to be embedded per document.
   var elm = {
@@ -71,14 +95,13 @@ function init(display, container, module, moduleToReplace, ports) {
       id:ElmRuntime.guid(),
       addListener:addListener,
       inputs:inputs,
-      ports_in:ports,
-      ports_out:{}
+      ports: { incoming:ports, outgoing:{}, uses:portUses }
   };
 
   function swap(newModule) {
       removeListeners(listeners);
       var div = document.createElement('div');
-      var newElm = init(display, div, newModule, elm);
+      var newElm = init(display, div, newModule, ports, elm);
       inputs = [];
       // elm.swap = newElm.swap;
       return newElm;
@@ -88,6 +111,7 @@ function init(display, container, module, moduleToReplace, ports) {
   var reportAnyErrors = function() {};
   try {
       Module = module.make(elm);
+      checkPorts(elm);
   } catch(e) {
       var directions = "<br/>&nbsp; &nbsp; Open the developer console for more details."
       Module.main = Elm.Text.make(elm).text('<code>' + e.message + directions + '</code>');
@@ -95,7 +119,7 @@ function init(display, container, module, moduleToReplace, ports) {
   }
   inputs = ElmRuntime.filterDeadInputs(inputs);
   filterListeners(inputs, listeners);
-  addReceivers(elm.ports_out);
+  addReceivers(elm.ports.outgoing);
   if (display !== ElmRuntime.Display.NONE) {
       var graphicsNode = initGraphics(elm, Module);
   }
@@ -109,9 +133,26 @@ function init(display, container, module, moduleToReplace, ports) {
   }
 
   reportAnyErrors();
-  return { swap:swap, ports:elm.ports_out };
+  return { swap:swap, output:elm.ports.outgoing };
 };
 
+function checkPorts(elm) {
+    var portUses = elm.ports.uses;
+    for (var key in portUses) {
+        var uses = portUses[key]
+        if (uses === 0) {
+            throw new Error(
+                "Initialization Error: there is no port named '" + key + "'.\n" +
+                "You should probably remove that input from your initialization code.");
+        } else if (uses > 1) {
+            throw new Error(
+                "Initialization Error: port '" + key +
+                "' has been declared multiple times in the Elm code.\n" +
+                "Remove declarations until there is exactly one.");
+        }
+    }
+}
+    
 function filterListeners(inputs, listeners) {
     loop:
     for (var i = listeners.length; i--; ) {
@@ -134,27 +175,27 @@ function removeListeners(listeners) {
 
 // add receivers for built-in ports if they are defined
 function addReceivers(ports) {
-  if ('log' in ports) {
-      ports.log.subscribe(function(v) { console.log(v) });
-  }
-  if ('stdout' in ports) {
-      var handler = process ? function(v) { process.stdout.write(v); }
-                            : function(v) { console.log(v); };
-      ports.stdout.subscribe(handler);
-  }
-  if ('stderr' in ports) {
-      var handler = process ? function(v) { process.stderr.write(v); }
-                            : function(v) { console.log('Error:' + v); };
-      ports.stderr.subscribe(handler);
-  }
-  if ('title' in ports) {
-      ports.title.subscribe(function(v) { document.title = v; });
-  }
-  if ('redirect' in ports) {
-      ports.redirect.subscribe(function(v) {
-          if (v.length > 0) window.location = v;
-      });
-  }
+    if ('log' in ports) {
+        ports.log.subscribe(function(v) { console.log(v) });
+    }
+    if ('stdout' in ports) {
+        var handler = process ? function(v) { process.stdout.write(v); }
+            : function(v) { console.log(v); };
+        ports.stdout.subscribe(handler);
+    }
+    if ('stderr' in ports) {
+        var handler = process ? function(v) { process.stderr.write(v); }
+            : function(v) { console.log('Error:' + v); };
+        ports.stderr.subscribe(handler);
+    }
+    if ('title' in ports) {
+        ports.title.subscribe(function(v) { document.title = v; });
+    }
+    if ('redirect' in ports) {
+        ports.redirect.subscribe(function(v) {
+            if (v.length > 0) window.location = v;
+        });
+    }
 }
 
 function initGraphics(elm, Module) {
