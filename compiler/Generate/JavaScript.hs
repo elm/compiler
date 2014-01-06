@@ -54,18 +54,18 @@ include alias moduleName =
 
 internalImports name =
     VarDeclStmt () 
-    [ varDecl "N" (obj "Elm.Native")
-    , include "_N" "N.Utils"
-    , include "_L" "N.List"
-    , include "_E" "N.Error"
-    , include "_J" "N.JavaScript"
+    [ varDecl "_N" (obj "Elm.Native")
+    , include "_U" "_N.Utils"
+    , include "_L" "_N.List"
+    , include "_E" "_N.Error"
+    , include "_J" "_N.JavaScript"
     , varDecl "$moduleName" (string name)
     ]
 
 literal :: Literal -> Expression ()
 literal lit =
   case lit of
-    Chr c -> obj "_N.chr" <| string [c]
+    Chr c -> obj "_U.chr" <| string [c]
     Str s -> string s
     IntNum   n -> IntLit () n
     FloatNum n -> NumLit () n
@@ -88,19 +88,19 @@ expression (L span expr) =
 
       Remove e x ->
           do e' <- expression e
-             return $ obj "_N.remove" `call` [string x, e']
+             return $ obj "_U.remove" `call` [string x, e']
 
       Insert e x v ->
           do v' <- expression v
              e' <- expression e
-             return $ obj "_N.insert" `call` [string x, v', e']
+             return $ obj "_U.insert" `call` [string x, v', e']
 
       Modify e fs ->
           do e' <- expression e
              fs' <- forM fs $ \(f,v) -> do
                       v' <- expression v
                       return $ ArrayLit () [string f, v']
-             return $ obj "_N.replace" `call` [ArrayLit () fs', e']
+             return $ obj "_U.replace" `call` [ArrayLit () fs', e']
 
       Record fields ->
           do fields' <- forM fields $ \(f,e) -> do
@@ -198,11 +198,11 @@ expression (L span expr) =
 
       PortIn name _ _ handler ->
           do handler' <- expression handler
-             return $ obj "_N.portIn" `call` [ string name, handler' ]
+             return $ obj "Native.Ports.portIn" `call` [ string name, handler' ]
 
       PortOut name _ signal ->
           do signal' <- expression signal
-             return $ obj "_N.portOut" `call` [ string name, signal' ]
+             return $ obj "Native.Ports.portOut" `call` [ string name, signal' ]
 
 definition :: Def -> State Int [Statement ()]
 definition (Definition pattern expr@(L span _) _) = do
@@ -309,8 +309,7 @@ generate unsafeModule =
         concat [ setup (Just "_elm") (names modul ++ ["values"])
                , [ IfSingleStmt () thisModule (ReturnStmt () (Just thisModule)) ]
                , [ internalImports (List.intercalate "." (names modul)) ]
-               , concatMap jsImport (imports modul)
-               , checkInPorts (recvPorts modul)
+               , concatMap jsImport . Set.toList . Set.fromList . map fst $ imports modul
                , [ assign ["_op"] (ObjectLit () []) ]
                , concat $ evalState (mapM definition . fst . flattenLets [] $ program modul) 0
                , [ jsExports ]
@@ -328,7 +327,7 @@ generate unsafeModule =
                _   -> ExprStmt () $
                       AssignExpr () OpAssign (LDot () (dotSep (init path)) (last path)) expr
 
-    jsImport (modul,_) = setup Nothing path ++ [ include ]
+    jsImport modul = setup Nothing path ++ [ include ]
         where
           path = split modul
           include = assign path $ dotSep ("Elm" : path ++ ["make"]) <| ref "_elm"
@@ -339,11 +338,6 @@ generate unsafeModule =
           paths = case namespace of
                     Nothing -> tail . init $ List.inits path
                     Just nmspc -> drop 2 . init . List.inits $ nmspc : path
-
-    checkInPorts ports =
-        [ ExprStmt () $ obj "_N.portCheck" `call` [ref "$moduleName", names] ]
-        where
-          names = ArrayLit () [ string name | (name, _, _) <- ports ]
 
 binop span op e1 e2 =
     case op of
@@ -394,8 +388,8 @@ binop span op e1 e2 =
     specialOps = concat
         [ specialOp "^"   $ \a b -> obj "Math.pow" `call` [a,b]
         , specialOp "|>"  $ flip (<|)
-        , specialOp "=="  $ \a b -> obj "_N.eq" `call` [a,b]
-        , specialOp "/="  $ \a b -> PrefixExpr () PrefixLNot (obj "_N.eq" `call` [a,b])
+        , specialOp "=="  $ \a b -> obj "_U.eq" `call` [a,b]
+        , specialOp "/="  $ \a b -> PrefixExpr () PrefixLNot (obj "_U.eq" `call` [a,b])
         , specialOp "<"   $ cmp OpLT 0
         , specialOp ">"   $ cmp OpGT 0
         , specialOp "<="  $ cmp OpLT 1
@@ -403,4 +397,4 @@ binop span op e1 e2 =
         , specialOp "div" $ \a b -> InfixExpr () OpBOr (InfixExpr () OpDiv a b) (IntLit () 0)
         ]
 
-    cmp op n a b = InfixExpr () op (obj "_N.cmp" `call` [a,b]) (IntLit () n)
+    cmp op n a b = InfixExpr () op (obj "_U.cmp" `call` [a,b]) (IntLit () n)
