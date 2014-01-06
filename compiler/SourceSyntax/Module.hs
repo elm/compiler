@@ -47,8 +47,6 @@ data MetadataModule =
     , fixities  :: [(Assoc, Int, String)]
     , aliases   :: [Alias]
     , datatypes :: [ADT]
-    , sendPorts :: [(String, LExpr, Type)]
-    , recvPorts :: [(String, LExpr, Type)]
     } deriving Show
 
 type Interfaces = Map.Map String ModuleInterface

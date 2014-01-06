@@ -58,16 +58,11 @@ metadataModule ifaces modul =
      program' <- rename initialEnv (program modul)
      aliases' <- mapM (three4 renameType') (aliases modul)
      datatypes' <- mapM (three4 (mapM (two2 (mapM renameType')))) (datatypes modul)
-     sendPorts' <- mapM renamePort (sendPorts modul)
-     recvPorts' <- mapM renamePort (recvPorts modul)
      return $ modul { program = program'
                     , aliases = aliases'
-                    , datatypes = datatypes'
-                    , sendPorts = sendPorts' 
-                    , recvPorts = recvPorts' }
+                    , datatypes = datatypes' }
   where
     two2 f (a,b) = (,) a <$> f b
-    renamePort (name,expr,tipe) = (,,) name <$> rename initialEnv expr <*> renameType' tipe
     three4 f (a,b,c,d) = (,,,) a b <$> f c <*> return d
     renameType' =
         Either.either (\err -> Left [P.text err]) return . renameType (replace "type" initialEnv)

@@ -69,8 +69,4 @@ metadataModule modul =
     , datatypes =
         let makeSafe (name,tvars,ctors,ds) = (var name, tvars, map (first var) ctors, ds)
         in  map makeSafe (datatypes modul)
-    , sendPorts = map safePorts (sendPorts modul)
-    , recvPorts = map safePorts (recvPorts modul)
     }
-    where
-      safePorts (name,expr,tipe) = (name, expression expr, tipe)

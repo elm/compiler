@@ -51,8 +51,6 @@ build noPrelude interfaces source =
          , datatypes = [ (name,vars,ctors,ds) | Datatype name vars ctors ds <- decls ]
          , fixities = [ (assoc,level,op) | Fixity assoc level op <- decls ]
          , aliases = [ (name,tvs,tipe,ds) | TypeAlias name tvs tipe ds <- decls ]
-         , sendPorts = [ (name,expr,tipe) | Port (Send name expr tipe) <- decls ]
-         , recvPorts = [ (name,expr,tipe) | Port (Recv name expr tipe) <- decls ]
          }
 
      types <- TI.infer interfaces metaModule
