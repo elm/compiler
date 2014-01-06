@@ -207,84 +207,6 @@ Elm.Native.Utils.make = function(elm) {
         return Tuple2(posx, posy);
     }
 
-    function portCheck(moduleName, ports) {
-        var expected = {};
-        for (var i = ports.length; i--; ) {
-            expected[ports[i]] = 1;
-        }
-        for (var key in elm.ports_in) {
-            expected[key] = expected[key] || 0;
-            expected[key] -= 1;
-        }
-        var missing = [];
-        var extra = [];
-        for (var key in expected) {
-            var result = expected[key];
-            if (result > 0) missing.push(key);
-            if (result < 0) extra.push(key);
-        }
-        if (missing.length > 0) {
-            throw new Error("Initialization Error: module " + moduleName +
-                            " was not given inputs for the following ports: " +
-                            missing.join(', '));
-        }
-        if (extra.length > 0) {
-            throw new Error(
-                "Initialization Error: module " + moduleName +
-                " has been given ports that do not exist: " + extra.join(', '));
-        }
-    }
-
-    // On failure, return message. On success, return the value in an array.
-    // Wrapping in an array allows the programmer to pass in a null value.
-    function processInput(converter, v) {
-        try { var elmValue = converter(v); }
-        catch(e) { return "The given value caused a runtime error!\n" + e.toString(); }
-
-        var ctor = elmValue.ctor;
-        if (ctor === 'Nothing' || ctor === 'Left') {
-            return "The port's conversion function failed.";
-        } else if (ctor === 'Just' || ctor === 'Right') {
-            return [elmValue._0];
-        }
-        return [elmValue];
-    }
-    function portIn(name, converter) {
-        var port = elm.ports_in[name];
-        var result = processInput(converter, port.defaultValue);
-        if (typeof result === 'string') {
-            throw new Error("Initialization Error: The default value for port '" +
-                            name + "' is invalid.\n" + result);
-        }
-        var signal = Signal.constant(result[0]);
-        port.subscribe(function(v) {
-            var result = processInput(converter, v);
-            if (typeof result === 'string') {
-                port.errorHandler(v)
-            } else {
-                elm.notify(signal.id, result[0]);
-            }
-        });
-        return signal;
-    }
-    function portOut(name, signal) {
-        var subscribers = []
-        function subscribe(handler) {
-            subscribers.push(handler);
-        }
-        function unsubscribe(handler) {
-            subscribers.pop(subscribers.indexOf(handler));
-        }
-        Signal.lift(function(value) {
-            var len = subscribers.length;
-            for (var i = 0; i < len; ++i) {
-                subscribers[i](value);
-            }
-        }, signal);
-        elm.ports_out[name] = { subscribe:subscribe, unsubscribe:unsubscribe };
-        return signal;
-    }
-
     return elm.Native.Utils.values = {
         eq:eq,
         cmp:cmp,
@@ -304,9 +226,6 @@ Elm.Native.Utils.make = function(elm) {
         mod : F2(mod),
         htmlHeight: F2(htmlHeight),
         getXY: getXY,
-        toFloat: function(x) { return +x; },
-        portCheck: portCheck,
-        portOut: portOut,
-        portIn: portIn
+        toFloat: function(x) { return +x; }
     };
 };
