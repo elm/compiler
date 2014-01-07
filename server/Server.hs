@@ -12,7 +12,7 @@ import System.Exit
 import System.FilePath
 import System.Process
 import GHC.IO.Handle
-import qualified Language.Elm as Elm
+import qualified Elm.Internal.Paths as ElmPaths
 import Paths_elm_server
 
 runtime = "/elm-runtime.js"
@@ -74,7 +74,7 @@ parse ("--help":_) = putStrLn usage
 parse ("--version":_) = putStrLn ("The Elm Server " ++ showVersion version)
 parse args =
   if null remainingArgs then
-      serve portNumber =<< elmRuntime
+      serve portNumber elmRuntime
   else
       putStrLn usageMini
 
@@ -86,9 +86,9 @@ parse args =
     argValue arg = tail $ dropWhile (/= '=') (head arg)
     portNumber = if null portArg then 8000 else read (argValue portArg) :: Int
     elmRuntime = if null runtimeArg then
-                     Elm.runtime
+                     ElmPaths.runtime
                  else
-                     return $ argValue runtimeArg
+                     argValue runtimeArg
 
 usageMini :: String
 usageMini =

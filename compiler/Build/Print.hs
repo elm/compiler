@@ -7,7 +7,7 @@ import qualified SourceSyntax.PrettyPrint as Pretty
 import qualified Type.Alias as Alias
 import qualified Text.PrettyPrint as P
 
-metaTypes :: Map.Map String M.ModuleInterface -> M.MetadataModule () () -> IO ()
+metaTypes :: Map.Map String M.ModuleInterface -> M.MetadataModule -> IO ()
 metaTypes interfaces meta =
     types interfaces (M.types meta) (M.aliases meta) (M.imports meta)
 

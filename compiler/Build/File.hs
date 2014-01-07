@@ -1,8 +1,8 @@
+{-# OPTIONS_GHC -W #-}
 module Build.File (build) where
 
 import Control.Monad (when)
 import qualified Data.Binary as Binary
-import qualified Data.List as List
 import qualified Data.Map as Map
 import System.Directory
 import System.Exit
@@ -15,10 +15,10 @@ import qualified Data.ByteString.Lazy as L
 
 import qualified Build.Utils as Utils
 import qualified Build.Flags as Flag
-import qualified Build.Source as Source
+import qualified Build.Interface as Interface
 import qualified Build.Print as Print
+import qualified Build.Source as Source
 import qualified Generate.JavaScript as JS
-import qualified InterfaceSerialization as IS
 import qualified Parse.Module as Parser
 import qualified SourceSyntax.Module as M
 
@@ -57,9 +57,8 @@ alreadyCompiled flags filePath = do
 retrieve :: Flag.Flags -> Map.Map String M.ModuleInterface -> FilePath
          -> IO (String, M.ModuleInterface)
 retrieve flags interfaces filePath = do
-  bytes <- IS.loadInterface (Utils.elmi flags filePath)
-  let binary = IS.interfaceDecode (Utils.elmi flags filePath) =<< bytes
-  case IS.validVersion filePath =<< binary of
+  iface <- Interface.load (Utils.elmi flags filePath)
+  case Interface.isValid filePath iface of
     Right (name, interface) ->
         do when (Flag.print_types flags) (Print.interfaceTypes interfaces interface)
            return (name, interface)

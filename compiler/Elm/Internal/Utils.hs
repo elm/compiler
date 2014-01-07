@@ -21,7 +21,7 @@ compile source =
 
 {-# NOINLINE interfaces #-}
 interfaces :: M.Interfaces
-interfaces = unsafePerformIO $ Prelude.interfaces
+interfaces = unsafePerformIO $ Prelude.interfaces False
 
 -- |This function extracts the module name of a given source program.
 moduleName :: String -> Maybe String

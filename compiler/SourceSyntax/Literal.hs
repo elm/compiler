@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wall #-}
 module SourceSyntax.Literal where
 
 import SourceSyntax.PrettyPrint

@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wall #-}
 module SourceSyntax.Type where
 
 import Data.Binary
@@ -31,7 +32,7 @@ tupleOf ts = Data ("_Tuple" ++ show (length ts)) ts
 instance Pretty Type where
   pretty tipe =
     case tipe of
-      Lambda t1 t2 -> P.sep [ t, P.sep (map (P.text "->" <+>) ts) ]
+      Lambda _ _ -> P.sep [ t, P.sep (map (P.text "->" <+>) ts) ]
         where t:ts = collectLambdas tipe
       Var x -> P.text x
       Data "_List" [t] -> P.brackets (pretty t)
@@ -47,12 +48,14 @@ instance Pretty Type where
             prettyField (f,t) = P.text f <+> P.text ":" <+> pretty t
             prettyFields = commaSep . map prettyField $ fields
 
+collectLambdas :: Type -> [Doc]
 collectLambdas tipe =
   case tipe of
     Lambda arg@(Lambda _ _) body -> P.parens (pretty arg) : collectLambdas body
     Lambda arg body -> pretty arg : collectLambdas body
     _ -> [pretty tipe]
 
+collectRecords :: Type -> ([(String,Type)], Type)
 collectRecords = go []
   where
     go fields tipe =
@@ -60,6 +63,7 @@ collectRecords = go []
           Record fs ext -> go (fs ++ fields) ext
           _ -> (fields, tipe)
 
+prettyParens :: Type -> Doc
 prettyParens tipe = parensIf needed (pretty tipe)
   where
     needed =

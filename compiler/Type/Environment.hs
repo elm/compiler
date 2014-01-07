@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -W #-}
 module Type.Environment where
 
 import Control.Applicative ((<$>), (<*>))
@@ -9,11 +10,10 @@ import qualified Control.Monad.State as State
 import qualified Data.Traversable as Traverse
 import qualified Data.Map as Map
 import Data.List (isPrefixOf)
-import qualified Data.UnionFind.IO as UF
 import qualified Text.PrettyPrint as PP
 
 import qualified SourceSyntax.Type as Src
-import SourceSyntax.Module (ADT)
+import SourceSyntax.Module (ADT, Alias)
 import Type.Type
 
 type TypeDict = Map.Map String Type
@@ -26,10 +26,10 @@ data Environment = Environment {
   value :: TypeDict
 }
 
-initialEnvironment :: [ADT] -> [(String, [String], Src.Type)] -> IO Environment
+initialEnvironment :: [ADT] -> [Alias] -> IO Environment
 initialEnvironment datatypes aliases = do
     types <- makeTypes datatypes
-    let aliases' = Map.fromList $ map (\(a,b,c) -> (a,(b,c))) aliases
+    let aliases' = Map.fromList $ map (\(a,b,c,_) -> (a,(b,c))) aliases
         env = Environment {
                 constructor = Map.empty,
                 value = Map.empty,
@@ -42,9 +42,9 @@ makeTypes :: [ADT] -> IO TypeDict
 makeTypes datatypes = 
     Map.fromList <$> mapM makeCtor (builtins ++ map nameAndKind datatypes)
   where
-    nameAndKind (name, tvars, _) = (name, length tvars)
+    nameAndKind (name, tvars, _, _) = (name, length tvars)
 
-    makeCtor (name, kind) = do
+    makeCtor (name, _) = do
       ctor <- VarN <$> namedVar Constant name
       return (name, ctor)
 
@@ -84,7 +84,7 @@ makeConstructors env datatypes = Map.fromList builtins
 
 
 ctorToType :: Environment -> ADT -> [ (String, IO (Int, [Variable], [Type], Type)) ]
-ctorToType env (name, tvars, ctors) =
+ctorToType env (name, tvars, ctors, _) =
     zip (map fst ctors) (map inst ctors)
   where
     inst :: (String, [Src.Type]) -> IO (Int, [Variable], [Type], Type)
@@ -94,7 +94,7 @@ ctorToType env (name, tvars, ctors) =
       
 
     go :: (String, [Src.Type]) -> State.StateT (VarDict, TypeDict) IO ([Type], Type)
-    go (ctor, args) = do
+    go (_, args) = do
       types <- mapM (instantiator env) args
       returnType <- instantiator env (Src.Data name (map Src.Var tvars))
       return (types, returnType)

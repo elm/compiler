@@ -1,9 +1,8 @@
+{-# OPTIONS_GHC -W #-}
 module Type.State where
 
 import Type.Type
 import qualified Data.Map as Map
-import qualified Data.List as List
-import qualified Type.Environment as Env
 import qualified Data.UnionFind.IO as UF
 import Control.Monad.State
 import Control.Applicative ((<$>),(<*>), Applicative)
@@ -11,7 +10,6 @@ import qualified Data.Traversable as Traversable
 import Text.PrettyPrint as P
 import SourceSyntax.PrettyPrint
 import SourceSyntax.Location
-import qualified SourceSyntax.Type as Src
 import qualified Type.Alias as Alias
 
 -- Pool
@@ -64,8 +62,8 @@ addError span hint t1 t2 =
          ]
 
     location = case span of
-                 NoSpan msg -> ""
-                 Span p1 p2 msg ->
+                 NoSpan _ -> ""
+                 Span p1 p2 _ ->
                      if line p1 == line p2 then " on line " ++ show (line p1)
                      else " between lines " ++ show (line p1) ++ " and " ++ show (line p2)
 
