@@ -312,9 +312,9 @@ markdown interpolation = try (string "[markdown|") >> closeMarkdown "" []
                  ]
 
 str :: IParser String
-str =
-  choice [ quote >> manyTill stringChar quote
-         , expecting "string" . betwixt '"' '"' . many $ stringChar
+str = expecting "String" $
+  choice [ quote >> manyTill multilineStringChar quote
+         , char '"' >> manyTill stringChar (char '"')
          ]
   >>= parseStringLiteral . wrapQuotes '\"' . join
   where quote = try (string "\"\"\"")
@@ -323,9 +323,19 @@ wrapQuotes :: Char -> String -> String
 wrapQuotes delim s = (delim:s ++ [delim])
 
 stringChar :: IParser String
-stringChar = newline <|> escaped '\"' <|> (pure <$> satisfy (/= '\"'))
-  where newline = ['\\', 'n'] <$ char '\n'
-                  <|> ['\\', 'r'] <$ char '\r'
+stringChar = newlineChar <|> escaped '\"' <|> (pure <$> satisfy (/= '\"'))
+
+multilineStringChar :: IParser String
+multilineStringChar = noEnd
+                      >> (newlineChar <|> escaped '\"' <|> expandQuote <$> anyChar)
+  where noEnd = notFollowedBy (string "\"\"\"")
+        expandQuote c = if c == '\"'
+                        then "\\\""
+                        else [c]
+
+newlineChar :: IParser String
+newlineChar = ['\\', 'n'] <$ char '\n'
+              <|> ['\\', 'r'] <$ char '\r'
 
 escaped :: Char -> IParser String
 escaped delim = try $ do
@@ -334,7 +344,8 @@ escaped delim = try $ do
   return ['\\', c]
 
 chr :: IParser Char
-chr = (betwixt '\'' '\'' (many1 (escaped '\'' <|> (pure <$> satisfy (/='\''))))
+chr = (betwixt '\'' '\''
+       (many1 (escaped '\'' <|> (pure <$> satisfy (/='\''))))
        >>= parseCharLiteral . wrapQuotes '\'' . join
       )
       <?> "character"

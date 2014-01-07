@@ -7,14 +7,15 @@ import System.FilePath                ((</>))
 import System.FilePath.Find           (find, (==?), extension)
 import Test.Framework
 import Test.Framework.Providers.HUnit (testCase)
-import Test.HUnit                     ((@=?), Assertion)
+import Test.HUnit                     (Assertion, assertFailure, assertBool)
+import Text.Parsec                    (ParseError)
 
 import Elm.Internal.Utils as Elm
 
 compilerTests :: Test
 compilerTests = buildTest $ do
-  goods <- mkTests True  =<< getElms "good"
-  bads  <- mkTests False =<< getElms "bad"
+  goods <- mkTests goodCompile  =<< getElms "good"
+  bads  <- mkTests badCompile   =<< getElms "bad"
   return $ testGroup "Compile Tests"
     [
       testGroup "Good Tests" goods
@@ -24,15 +25,21 @@ compilerTests = buildTest $ do
   where getElms :: FilePath -> IO [FilePath]
         getElms fname = find (return True) (extension ==? ".elm") (testsDir </> fname)
 
-        mkTests :: Bool -> [FilePath] -> IO [Test]
-        mkTests b = traverse setupTest
-          where setupTest f = testCase f . mkCompileTest b <$> readFile f
+        mkTests :: (Either String String -> Assertion) -> [FilePath] -> IO [Test]
+        mkTests h = traverse setupTest
+          where setupTest f = testCase f . mkCompileTest h <$> readFile f
 
-        testsDir = "tests" </> "data"
+        testsDir = "tests" </> "test-files"
 
-mkCompileTest :: Bool      -- ^ Expect success?
+goodCompile :: Either String String -> Assertion
+goodCompile (Left err) = assertFailure err
+goodCompile (Right _)  = assertBool "" True
+
+badCompile :: Either String String -> Assertion
+badCompile (Left _)  = assertBool "" True
+badCompile (Right _) = assertFailure "Compilation succeeded but should have failed"
+  
+mkCompileTest :: ((Either String String) -> Assertion) -- ^ Handler
                  -> String -- ^ File Contents
                  -> Assertion
-mkCompileTest succ modul = noCompileErr @=? succ
-  where noCompileErr = either (const False) (const True) . Elm.compile $ modul
-        expectation = "Compile " ++ if succ then "Success" else "Error"
+mkCompileTest handle = handle . Elm.compile
