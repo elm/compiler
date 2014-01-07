@@ -4,10 +4,10 @@ module Transform.Substitute (subst) where
 import Control.Arrow (second, (***))
 import SourceSyntax.Expression
 import SourceSyntax.Location
+import qualified SourceSyntax.Pattern as Pattern
 import qualified Data.Set as Set
-import qualified Transform.SortDefinitions as SD
 
-subst :: String -> Expr t v -> Expr t v -> Expr t v
+subst :: String -> Expr -> Expr -> Expr
 subst old new expr =
     let f (L s e) = L s (subst old new e) in
     case expr of
@@ -15,7 +15,7 @@ subst old new expr =
       ExplicitList es -> ExplicitList (map f es)
       Binop op e1 e2 -> Binop op (f e1) (f e2)
       Lambda p e
-          | Set.member old (SD.boundVars p) -> expr
+          | Set.member old (Pattern.boundVars p) -> expr
           | otherwise -> Lambda p (f e)
       App e1 e2 -> App (f e1) (f e2)
       MultiIf ps -> MultiIf (map (f *** f) ps)
@@ -24,12 +24,9 @@ subst old new expr =
           | anyShadow -> expr
           | otherwise -> Let (map substDef defs) (f body)
         where
+          substDef (Definition p e t) = Definition p (f e) t
           anyShadow =
-              any (Set.member old . SD.boundVars) [ p | Def p _ <- defs ]
-          substDef def =
-              case def of
-                TypeAnnotation _ _ -> def
-                Def p e -> Def p (f e)
+              any (Set.member old . Pattern.boundVars) [ p | Definition p _ _ <- defs ]
 
       Var x -> if x == old then new else expr
       Case e cases -> Case (f e) $ map (second f) cases
@@ -41,3 +38,5 @@ subst old new expr =
       Record fs -> Record (map (second f) fs)
       Literal _ -> expr
       Markdown uid md es -> Markdown uid md (map f es)
+      PortIn name st tt handler -> PortIn name st tt (f handler)
+      PortOut name st signal -> PortOut name st (f signal)

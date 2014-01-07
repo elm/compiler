@@ -1,7 +1,7 @@
+{-# OPTIONS_GHC -W #-}
 module Main where
 
 import Control.Monad (foldM)
-import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import Text.Blaze.Html.Renderer.String (renderHtml)
 import qualified Data.ByteString.Lazy.Char8 as BS
@@ -31,13 +31,13 @@ compileArgs flags =
 build :: Flag.Flags -> FilePath -> IO ()
 build flags rootFile =
     do let noPrelude = Flag.no_prelude flags
-       builtIns <- if noPrelude then return Map.empty else Prelude.interfaces
+       builtIns <- Prelude.interfaces noPrelude
 
        files <- if Flag.make flags
                 then getSortedDependencies (Flag.src_dir flags) builtIns rootFile
                 else return [rootFile]
 
-       (moduleName, interfaces) <-
+       (moduleName, _) <-
            File.build flags (length files) builtIns "" files
 
        js <- foldM appendToOutput BS.empty files

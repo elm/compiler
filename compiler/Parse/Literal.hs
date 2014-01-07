@@ -1,13 +1,12 @@
+{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Parse.Literal (literal) where
 
-import Control.Applicative ((<$>), (<*>))
-import Control.Monad
+import Control.Applicative ((<$>))
 import Text.Parsec hiding (newline,spaces)
-import Text.Parsec.Indent
-
 import Parse.Helpers
 import SourceSyntax.Literal
 
+literal :: IParser Literal
 literal = num <|> (Str <$> str) <|> (Chr <$> chr)
 
 num :: IParser Literal

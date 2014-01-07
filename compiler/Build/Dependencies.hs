@@ -1,12 +1,11 @@
+{-# OPTIONS_GHC -W #-}
 module Build.Dependencies (getSortedDependencies) where
 
-import Data.Data
 import Control.Applicative
 import Control.Monad.Error
 import qualified Control.Monad.State as State
 import qualified Data.Aeson as Json
 import qualified Data.ByteString.Lazy.Char8 as BSC
-import qualified Data.Char as Char
 import qualified Data.Graph as Graph
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -16,20 +15,11 @@ import System.Directory
 import System.Exit
 import System.FilePath as FP
 import System.IO
-import Text.PrettyPrint (Doc)
 
 import qualified SourceSyntax.Module as Module
-import qualified SourceSyntax.Type as Type
 import qualified Parse.Parse as Parse
-import qualified Metadata.Prelude as Prelude
-import qualified Transform.Check as Check
-import qualified Transform.SortDefinitions as SD
-import qualified Type.Inference as TI
-import qualified Type.Constrain.Declaration as TcDecl
-import qualified Transform.Canonicalize as Canonical
 import qualified Elm.Internal.Paths as Path
 import qualified Elm.Internal.Name as N
-import qualified Elm.Internal.Version as V
 import qualified Elm.Internal.Dependencies as Deps
 
 getSortedDependencies :: [FilePath] -> Module.Interfaces -> FilePath -> IO [String]

@@ -1,70 +1,69 @@
+{-# OPTIONS_GHC -Wall #-}
 module Type.Constrain.Declaration where
 
-import Control.Monad
-import Control.Applicative ((<$>))
-
-import qualified Data.Map as Map
-
-import qualified Type.Constrain.Expression as TcExpr
-import qualified Type.Environment as Env
-
 import SourceSyntax.Declaration
-import qualified SourceSyntax.Expression as Src
+import qualified SourceSyntax.Expression as E
 import qualified SourceSyntax.Location as L
 import qualified SourceSyntax.Pattern as P
-import qualified SourceSyntax.Type as Type
+import qualified SourceSyntax.Type as T
+import qualified Type.Type as Type
+import System.IO.Unsafe
 
-toExpr :: [Declaration t v] -> [Src.Def t v]
+toExpr :: [Declaration] -> [E.Def]
 toExpr = concatMap toDefs
 
-toDefs :: Declaration t v -> [Src.Def t v]
+toDefs :: Declaration -> [E.Def]
 toDefs decl =
   case decl of
     Definition def -> [def]
 
-    Datatype name tvars constructors -> concatMap toDefs constructors
+    Datatype name tvars constructors _ -> concatMap toDefs' constructors
       where
-        toDefs (ctor, tipes) =
+        toDefs' (ctor, tipes) =
             let vars = take (length tipes) arguments
-                tbody = Type.Data name $ map Type.Var tvars
-                body = L.none . Src.Data ctor $ map (L.none . Src.Var) vars
-            in  [ Src.TypeAnnotation ctor $ foldr Type.Lambda tbody tipes
-                , Src.Def (P.PVar ctor) $ buildFunction body vars
-                ]
+                tbody = T.Data name $ map T.Var tvars
+                body = L.none . E.Data ctor $ map (L.none . E.Var) vars
+            in  [ definition ctor (buildFunction body vars) (foldr T.Lambda tbody tipes) ]
 
-    TypeAlias name tvars tipe@(Type.Record fields ext) ->
-        [ Src.TypeAnnotation name $ foldr Type.Lambda tipe args
-        , Src.Def (P.PVar name) $ buildFunction record vars ]
+    TypeAlias name _ tipe@(T.Record fields ext) _ ->
+        [ definition name (buildFunction record vars) (foldr T.Lambda tipe args) ]
       where
         args = case ext of
-                 Type.EmptyRecord -> map snd fields
+                 T.EmptyRecord -> map snd fields
                  _ -> map snd fields ++ [ext]
 
-        var = L.none . Src.Var
+        var = L.none . E.Var
         vars = take (length args) arguments
 
         efields = zip (map fst fields) (map var vars)
         record = case ext of
-                   Type.EmptyRecord -> L.none $ Src.Record efields
-                   _ -> foldl (\r (f,v) -> L.none $ Src.Insert r f v) (var $ last vars) efields
+                   T.EmptyRecord -> L.none $ E.Record efields
+                   _ -> foldl (\r (f,v) -> L.none $ E.Insert r f v) (var $ last vars) efields
 
     -- Type aliases must be added to an extended equality dictionary,
     -- but they do not require any basic constraints.
-    TypeAlias _ _ _ -> []
+    -- TODO: with the ability to derive code, you may need to generate stuff!
+    TypeAlias _ _ _ _ -> []
 
-    ImportEvent _ expr@(L.L s _) name tipe ->
-        [ Src.TypeAnnotation name tipe
-        , Src.Def (P.PVar name) (L.L s $ Src.App (L.L s $ Src.Var "constant") expr) ]
-
-    ExportEvent _ name tipe ->
-        [ Src.TypeAnnotation name tipe ]
+    Port port ->
+        case port of
+          Send name expr@(L.L s _) tipe ->
+              [ definition name (L.L s $ E.PortOut name tipe expr) tipe ]
+          Recv name expr@(L.L s _) tipe ->
+              unsafePerformIO $ do
+                tvar <- Type.var Type.Flexible
+                return $ [ definition name (L.L s $ E.PortIn name tipe tvar expr) tipe ]
 
     -- no constraints are needed for fixity declarations
     Fixity _ _ _ -> []
 
 
 arguments :: [String]
-arguments = map (:[]) ['a'..'z'] ++ map (\n -> "_" ++ show n) [1..]
+arguments = map (:[]) ['a'..'z'] ++ map (\n -> "_" ++ show (n :: Int)) [1..]
 
+buildFunction :: E.LExpr -> [String] -> E.LExpr
 buildFunction body@(L.L s _) vars =
-    foldr (\p e -> L.L s (Src.Lambda p e)) body (map P.PVar vars)
+    foldr (\p e -> L.L s (E.Lambda p e)) body (map P.PVar vars)
+
+definition :: String -> E.LExpr -> T.Type -> E.Def
+definition name expr tipe = E.Definition (P.PVar name) expr (Just tipe)

@@ -1,18 +1,16 @@
+{-# OPTIONS_GHC -W #-}
 module Type.Constrain.Expression where
 
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Control.Arrow (second)
-import Control.Applicative ((<$>),(<*>))
+import Control.Applicative ((<$>))
 import qualified Control.Monad as Monad
 import Control.Monad.Error
-import Control.Monad.State
-import Data.Traversable (traverse)
 import qualified Text.PrettyPrint as PP
 
 import SourceSyntax.Location as Loc
-import SourceSyntax.Pattern (Pattern(PVar))
+import SourceSyntax.Pattern (Pattern(PVar), boundVars)
 import SourceSyntax.Expression
 import qualified SourceSyntax.Type as SrcT
 import Type.Type hiding (Descriptor(..))
@@ -20,10 +18,8 @@ import Type.Fragment
 import qualified Type.Environment as Env
 import qualified Type.Constrain.Literal as Literal
 import qualified Type.Constrain.Pattern as Pattern
-import qualified Transform.SortDefinitions as SD
 
-
-constrain :: Env.Environment -> LExpr a b -> Type -> ErrorT [PP.Doc] IO TypeConstraint
+constrain :: Env.Environment -> LExpr -> Type -> ErrorT [PP.Doc] IO TypeConstraint
 constrain env (L span expr) tipe =
     let list t = Env.get env Env.types "_List" <| t
         and = L span . CAnd
@@ -145,13 +141,18 @@ constrain env (L span expr) tipe =
              (schemes, rqs, fqs, header, c2, c1) <-
                  Monad.foldM (constrainDef env)
                              ([], [], [], Map.empty, true, true)
-                             (collapseDefs defs)
+                             (concatMap expandPattern defs)
              return $ clet schemes
                            (clet [Scheme rqs fqs (clet [monoscheme header] c2) header ]
                                  (c1 /\ c))
 
+      PortIn _ _ tt handler ->
+          constrain env handler (VarN tt)
 
-constrainDef env info (pattern, expr, maybeTipe) =
+      PortOut _ _ signal ->
+          constrain env signal tipe
+
+constrainDef env info (Definition pattern expr maybeTipe) =
     let qs = [] -- should come from the def, but I'm not sure what would live there...
         (schemes, rigidQuantifiers, flexibleQuantifiers, headers, c2, c1) = info
     in
@@ -188,33 +189,18 @@ constrainDef env info (pattern, expr, maybeTipe) =
                     , c /\ c2
                     , c1 )
 
-expandPattern :: (Pattern, LExpr t v, Maybe SrcT.Type)
-              -> [(Pattern, LExpr t v, Maybe SrcT.Type)]
-expandPattern triple@(pattern, lexpr@(L s _), maybeType) =
-    case pattern of
-      PVar _ -> [triple]
-      _ -> (PVar x, lexpr, maybeType) : map toDef vars
-          where
-            vars = Set.toList $ SD.boundVars pattern
-            x = "$" ++ concat vars
-            var = L s . Var
-            toDef y = (PVar y, L s $ Case (var x) [(pattern, var y)], Nothing)
+         _ -> error (show pattern)
 
-collapseDefs :: [Def t v] -> [(Pattern, LExpr t v, Maybe SrcT.Type)]
-collapseDefs = concatMap expandPattern . go [] Map.empty Map.empty
-  where
-    go output defs typs [] =
-        output ++ concatMap Map.elems [
-          Map.intersectionWithKey (\k v t -> (PVar k, v, Just t)) defs typs,
-          Map.mapWithKey (\k v -> (PVar k, v, Nothing)) (Map.difference defs typs) ]
-    go output defs typs (d:ds) =
-        case d of
-          Def (PVar name) body ->
-              go output (Map.insert name body defs) typs ds
-          Def pattern body ->
-              go ((pattern, body, Nothing) : output) defs typs ds
-          TypeAnnotation name typ ->
-              go output defs (Map.insert name typ typs) ds
+expandPattern :: Def -> [Def]
+expandPattern def@(Definition pattern lexpr@(L s _) maybeType) =
+    case pattern of
+      PVar _ -> [def]
+      _ -> Definition (PVar x) lexpr maybeType : map toDef vars
+          where
+            vars = Set.toList $ boundVars pattern
+            x = "$" ++ concat vars
+            mkVar = L s . Var
+            toDef y = Definition (PVar y) (L s $ Case (mkVar x) [(pattern, mkVar y)]) Nothing
 
 try :: SrcSpan -> ErrorT (SrcSpan -> PP.Doc) IO a -> ErrorT [PP.Doc] IO a
 try span computation = do

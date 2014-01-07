@@ -17,8 +17,8 @@ import qualified Data.Text as Text
 
 import SourceSyntax.Helpers (isSymbol)
 import SourceSyntax.Type (Type(..))
-import SourceSyntax.Declaration (Declaration(..), Assoc(..))
-import SourceSyntax.Expression (Def(..))
+import qualified SourceSyntax.Expression as E
+import qualified SourceSyntax.Declaration as D
 
 import Text.Parsec hiding (newline,spaces)
 import Parse.Declaration (alias,datatype,infixDecl)
@@ -77,10 +77,10 @@ moduleDocs = do
   structure <- docComment
   return (List.intercalate "." names, exports, structure)
 
-document :: IParser [(String, Declaration t v, String)]
+document :: IParser [(String, D.ParseDeclaration, String)]
 document = onFreshLines (\t ts -> ts ++ [t]) [] docThing
 
-docThing :: IParser (String, Declaration t v, String)
+docThing :: IParser (String, D.ParseDeclaration, String)
 docThing = uncommentable <|> commented <|> uncommented ""
     where
       uncommentable = do
@@ -93,7 +93,7 @@ docThing = uncommentable <|> commented <|> uncommented ""
         uncommented comment
 
       uncommented comment = do
-        (src,def) <- withSource $ choice [ alias, datatype, Definition <$> typeAnnotation ]
+        (src,def) <- withSource $ choice [ alias, datatype, D.Definition <$> typeAnnotation ]
         return (comment, def, src)
 
 
@@ -121,7 +121,7 @@ collect infixes types aliases adts things =
           where
             nonCustomOps = Map.mapWithKey addDefaultInfix $ Map.difference types infixes
             addDefaultInfix name pairs
-                | all isSymbol name = addInfix (L, 9 :: Int) pairs
+                | all isSymbol name = addInfix (D.L, 9 :: Int) pairs
                 | otherwise = pairs
 
             customOps = Map.intersectionWith addInfix infixes types
@@ -130,16 +130,18 @@ collect infixes types aliases adts things =
 
       (comment, decl, source) : rest ->
           case decl of
-            Fixity assoc prec name ->
+            D.Fixity assoc prec name ->
                 collect (Map.insert name (assoc,prec) infixes) types aliases adts rest
-            Definition (TypeAnnotation name tipe) ->
+            D.Definition (E.TypeAnnotation name tipe) ->
                 collect infixes (insert name [ "type" .= tipe ] types) aliases adts rest
-            TypeAlias name vars tipe ->
-                let fields = ["typeVariables" .= vars, "type" .= tipe ]
+            D.TypeAlias name vars tipe derivations ->
+                let fields = ["typeVariables" .= vars, "type" .= tipe, "deriving" .= derivations ]
                 in  collect infixes types (insert name fields aliases) adts rest
-            Datatype name vars ctors ->
+            D.Datatype name vars ctors derivations ->
                 let tipe = Data name (map Var vars)
-                    fields = ["typeVariables" .= vars, "constructors" .= map (ctorToJson tipe) ctors ]
+                    fields = ["typeVariables" .= vars
+                             , "constructors" .= map (ctorToJson tipe) ctors
+                             , "deriving" .= derivations ]
                 in  collect infixes types aliases (insert name fields adts) rest
           where
             insert name fields dict = Map.insert name (obj name fields) dict
@@ -161,3 +163,6 @@ instance ToJSON Type where
 ctorToJson tipe (ctor, tipes) =
     object [ "name" .= ctor
            , "type" .= foldr Lambda tipe tipes ]
+
+instance ToJSON D.Derivation where
+    toJSON = toJSON . show

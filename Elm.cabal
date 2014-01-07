@@ -1,5 +1,5 @@
 Name:                Elm
-Version:             0.10.0.2
+Version:             0.10.1
 Synopsis:            The Elm language module.
 Description:         Elm aims to make client-side web-development more pleasant.
                      It is a statically/strongly typed, functional reactive
@@ -53,12 +53,13 @@ Library
                        Generate.Cases,
                        Transform.Canonicalize,
                        Transform.Check,
+                       Transform.Expression,
+                       Transform.Declaration,
+                       Transform.Definition,
                        Transform.SafeNames,
                        Transform.SortDefinitions,
                        Transform.Substitute,
-                       Transform.Optimize,
                        Metadata.Prelude,
-                       InterfaceSerialization,
                        Parse.Binop,
                        Parse.Declaration,
                        Parse.Expression,
@@ -85,6 +86,7 @@ Library
                        Build.Dependencies,
                        Build.File,
                        Build.Flags,
+                       Build.Interface,
                        Build.Print,
                        Build.Source,
                        Build.Utils,
@@ -131,12 +133,13 @@ Executable elm
                        Generate.Cases,
                        Transform.Canonicalize,
                        Transform.Check,
+                       Transform.Expression,
+                       Transform.Declaration,
+                       Transform.Definition,
                        Transform.SafeNames,
                        Transform.SortDefinitions,
                        Transform.Substitute,
-                       Transform.Optimize,
                        Metadata.Prelude,
-                       InterfaceSerialization,
                        Parse.Binop,
                        Parse.Declaration,
                        Parse.Expression,
@@ -163,6 +166,7 @@ Executable elm
                        Build.Dependencies,
                        Build.File,
                        Build.Flags,
+                       Build.Interface,
                        Build.Print,
                        Build.Source,
                        Build.Utils,
@@ -224,7 +228,8 @@ Executable elm-doc
                        pandoc >= 1.10,
                        parsec >= 3.1.1,
                        pretty,
-                       text
+                       text,
+                       union-find
 
 Test-Suite test-elm
   Type:            exitcode-stdio-1.0

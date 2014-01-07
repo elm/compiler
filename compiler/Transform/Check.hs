@@ -1,106 +1,99 @@
+{-# OPTIONS_GHC -Wall #-}
 module Transform.Check (mistakes) where
 
-import Transform.SortDefinitions (boundVars)
-import SourceSyntax.Declaration (Declaration(..))
-import SourceSyntax.Expression
-import SourceSyntax.Pattern
-import SourceSyntax.Location
-import SourceSyntax.PrettyPrint
-import qualified SourceSyntax.Type as T
-import Data.List as List
-import qualified Data.Map as Map
+import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
+
+import qualified SourceSyntax.Expression as E
+import qualified SourceSyntax.Declaration as D
+import qualified SourceSyntax.Pattern as Pattern
+import qualified SourceSyntax.Type as T
+import qualified Transform.Expression as Expr
+
+import SourceSyntax.PrettyPrint
 import Text.PrettyPrint as P
 
 
-mistakes :: [Declaration t v] -> [Doc]
+mistakes :: [D.Declaration] -> [Doc]
 mistakes decls =
     concat [ infiniteTypeAliases decls
            , illFormedTypes decls
            , map P.text (duplicateConstructors decls)
-           , map P.text (concatMap findErrors (getLets decls)) ]
-  where
-    findErrors defs = duplicates defs ++ badOrder defs
+           , map P.text (duplicates decls)
+           , badDerivations decls ]
 
-getLets :: [Declaration t v] -> [[Def t v]]
-getLets decls = defs : concatMap defLets defs
-    where
-      defs = [ d | Definition d <- decls ]
-
-      defLets def =
-          case def of
-            TypeAnnotation _ _ -> []
-            Def _ expr -> exprLets expr
-
-      exprLets (L _ expr) =
-          case expr of
-            Var _ -> []
-            Lambda p e -> exprLets e
-            Binop op e1 e2 -> exprLets e1 ++ exprLets e2
-            Case e cases -> exprLets e ++ concatMap (exprLets . snd) cases
-            Data name es -> concatMap exprLets es
-            Literal _ -> []
-            Range e1 e2 -> exprLets e1 ++ exprLets e2
-            ExplicitList es -> concatMap exprLets es
-            App e1 e2 -> exprLets e1 ++ exprLets e2
-            MultiIf branches -> concatMap (\(b,e) -> exprLets b ++ exprLets e) branches
-            Access e lbl -> exprLets e
-            Remove e lbl -> exprLets e
-            Insert e lbl v -> exprLets e ++ exprLets v
-            Modify e fields -> exprLets e ++ concatMap (exprLets . snd) fields
-            Record fields -> concatMap (exprLets . snd) fields
-            Markdown uid md es -> []
-            Let defs body -> [defs] ++ exprLets body
-
-dups :: Eq a => [a] -> [a]
-dups  = map head . filter ((>1) . length) . List.group
+dups :: Ord a => [a] -> [a]
+dups  = map head . filter ((>1) . length) . List.group . List.sort
 
 dupErr :: String -> String -> String
 dupErr err x = 
   "Syntax Error: There can only be one " ++ err ++ " '" ++ x ++ "'."
 
-duplicates :: [Def t v] -> [String]
-duplicates defs =
-    map defMsg (dups definitions) ++ map annMsg (dups annotations)
-  where
-    annotations = List.sort [ name | TypeAnnotation name _ <- defs ]
-    definitions = List.sort $ concatMap Set.toList [ boundVars pattern | Def pattern _ <- defs ]
-    defMsg = dupErr "definition of"
-    annMsg = dupErr "type annotation for"
+duplicates :: [D.Declaration] -> [String]
+duplicates decls =
+    map msg (dups (portNames ++ concatMap getNames defPatterns)) ++
+    case mapM exprDups (portExprs ++ defExprs) of
+      Left name -> [msg name]
+      Right _   -> []
 
-duplicateConstructors :: [Declaration t v] -> [String]
+  where
+    msg = dupErr "definition of"
+
+    (defPatterns, defExprs) =
+        unzip [ (pat,expr) | D.Definition (E.Definition pat expr _) <- decls ]
+
+    (portNames, portExprs) =
+        unzip $ flip map [ port | D.Port port <- decls ] $ \port ->
+            case port of
+              D.Send name expr _ -> (name,expr)
+              D.Recv name expr _ -> (name,expr)
+
+    getNames = Set.toList . Pattern.boundVars
+
+    exprDups :: E.LExpr -> Either String E.LExpr
+    exprDups expr = Expr.crawlLet defsDups expr
+
+    defsDups :: [E.Def] -> Either String [E.Def]
+    defsDups defs =
+        case dups $ concatMap (\(E.Definition name _ _) -> getNames name) defs of
+          []     -> Right defs
+          name:_ -> Left name
+
+duplicateConstructors :: [D.Declaration] -> [String]
 duplicateConstructors decls = 
-    map typeMsg (dups typeCtors) ++ map dataMsg (dups dataCtors)
+    map (dupErr "definition of type constructor") (dups typeCtors) ++
+    map (dupErr "definition of data constructor") (dups dataCtors)
   where
-    typeCtors = List.sort [ name | Datatype name _ _ <- decls ]
-    dataCtors = List.sort . concat $
-      [ map fst patterns | Datatype _ _ patterns <- decls ]
-    dataMsg = dupErr "definition of data constructor"
-    typeMsg = dupErr "definition of type constructor"
+    typeCtors = [ name | D.Datatype name _ _ _ <- decls ]
+    dataCtors = concat [ map fst patterns | D.Datatype _ _ patterns _ <- decls ]
 
-badOrder :: [Def t v] -> [String]
-badOrder defs = go defs
+badDerivations :: [D.Declaration] -> [Doc]
+badDerivations decls = concatMap badDerivation derivations
     where
-      msg x = "Syntax Error: The type annotation for '" ++ x ++
-              "' must be directly above its definition."
+      derivations =
+          [ (decl, tvars, derives) | decl@(D.TypeAlias _ tvars _ derives) <- decls ] ++
+          [ (decl, tvars, derives) | decl@(D.Datatype _ tvars _ derives) <- decls ]
 
-      go defs =
-          case defs of
-            TypeAnnotation name _ : Def (PVar name') _ : rest
-                | name == name' -> go rest
-
-            TypeAnnotation name _  : rest -> [msg name] ++ go rest
-
-            _ : rest -> go rest
-
+      badDerivation (decl, tvars, derives) =
+          case (tvars, derives) of
+            (_:_, _)
+                | D.Json   `elem` derives -> [report decl D.Json]
+                | D.Binary `elem` derives -> [report decl D.Binary]
             _ -> []
 
-illFormedTypes :: [Declaration t v] -> [Doc]
+      report decl derive =
+          P.vcat [ P.text $ "Error: cannot derive '" ++ show derive ++ "' from this type alias."
+                 , P.text "Make sure all type variables are replaced with concrete types:"
+                 , P.text "\n"
+                 , nest 4 (pretty decl)
+                 ]
+
+illFormedTypes :: [D.Declaration] -> [Doc]
 illFormedTypes decls = map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
     where
-      aliases = [ (decl, tvars, [tipe]) | decl@(TypeAlias _ tvars tipe) <- decls ]
-      adts = [ (decl, tvars, concatMap snd ctors) | decl@(Datatype _ tvars ctors) <- decls ]
+      aliases = [ (decl, tvars, [tipe]) | decl@(D.TypeAlias _ tvars tipe _) <- decls ]
+      adts = [ (decl, tvars, concatMap snd ctors) | decl@(D.Datatype _ tvars ctors _) <- decls ]
 
       freeVars tipe =
           case tipe of
@@ -132,7 +125,7 @@ illFormedTypes decls = map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
 
             addCommas xs
                 | length xs < 3 = concat xs
-                | otherwise = intercalate "," xs
+                | otherwise = List.intercalate "," xs
 
             addAnd xs
                 | length xs < 2 = xs
@@ -141,12 +134,13 @@ illFormedTypes decls = map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
             quote tvar = "'" ++ tvar ++ "'"
 
 
-infiniteTypeAliases :: [Declaration t v] -> [Doc]
+infiniteTypeAliases :: [D.Declaration] -> [Doc]
 infiniteTypeAliases decls =
-    [ report decl | decl@(TypeAlias name _ tipe) <- decls, isInfinite name tipe ]
+    [ report name tvars tipe ds | D.TypeAlias name tvars tipe ds <- decls
+                                , infiniteType name tipe ]
     where
-      isInfinite name tipe =
-          let infinite = isInfinite name in
+      infiniteType name tipe =
+          let infinite = infiniteType name in
           case tipe of
             T.Lambda a b -> infinite a || infinite b
             T.Var _ -> False
@@ -154,16 +148,17 @@ infiniteTypeAliases decls =
             T.EmptyRecord -> False
             T.Record fields ext -> infinite ext || any (infinite . snd) fields
 
-      report decl@(TypeAlias name args tipe) =
+      indented :: D.Declaration -> Doc
+      indented decl = P.text "\n    " <> pretty decl <> P.text "\n"
+
+      report name args tipe derivations =
           P.vcat [ P.text $ eightyCharLines 0 msg1
-                 , indented decl
+                 , indented $ D.TypeAlias name args tipe derivations
                  , P.text $ eightyCharLines 0 msg2
-                 , indented (Datatype name args [(name,[tipe])])
+                 , indented $ D.Datatype name args [(name,[tipe])] derivations
                  , P.text $ eightyCharLines 0 msg3 ++ "\n"
                  ]
           where
-            indented decl = P.text "\n    " <> pretty decl <> P.text "\n"
-
             msg1 = "Type alias '" ++ name ++ "' is an infinite type. " ++
                    "Notice that it appears in its own definition, so when \
                    \you expand it, it just keeps getting bigger:"

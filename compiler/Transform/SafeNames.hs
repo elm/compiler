@@ -27,7 +27,7 @@ pattern pat =
       PAlias x p -> PAlias (var x) (pattern p)
       PData name ps -> PData name (map pattern ps)
 
-expression :: LExpr t v -> LExpr t v
+expression :: LExpr -> LExpr
 expression (L loc expr) =
     let f = expression in
     L loc $
@@ -49,14 +49,14 @@ expression (L loc expr) =
       Modify r fs -> Modify (f r) (map (var *** f) fs)
       Record fs -> Record (map (var *** f) fs)
       Markdown uid md es -> Markdown uid md (map f es)
+      PortIn name st tt handler -> PortIn name st tt (f handler)
+      PortOut name st signal -> PortOut name st (f signal)
 
-definition :: Def t v -> Def t v
-definition def =
-    case def of
-      Def p e -> Def (pattern p) (expression e)
-      TypeAnnotation name t -> TypeAnnotation (var name) t
+definition :: Def -> Def
+definition (Definition p e t) =
+    Definition (pattern p) (expression e) t
 
-metadataModule :: MetadataModule t v -> MetadataModule t v
+metadataModule :: MetadataModule -> MetadataModule
 metadataModule modul =
     modul
     { names = map var (names modul)
@@ -64,15 +64,9 @@ metadataModule modul =
     , imports = map (first var) (imports modul)
     , program = expression (program modul)
     , aliases =
-        let makeSafe (name, tvars, tipe) = (var name, tvars, tipe)
+        let makeSafe (name,tvars,tipe,ds) = (var name, tvars, tipe, ds)
         in  map makeSafe (aliases modul)
     , datatypes =
-        let makeSafe (name,tvars,ctors) = (var name, tvars, map (first var) ctors)
+        let makeSafe (name,tvars,ctors,ds) = (var name, tvars, map (first var) ctors, ds)
         in  map makeSafe (datatypes modul)
-    , foreignImports =
-        let makeSafe (js,expr,elm,tipe) = (js, expression expr, var elm, tipe)
-        in  map makeSafe (foreignImports modul)
-    , foreignExports =
-        let makeSafe (js,elm,tipe) = (js, var elm, tipe)
-        in  map makeSafe (foreignExports modul)
     }

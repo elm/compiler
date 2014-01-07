@@ -1,54 +1,92 @@
+{-# OPTIONS_GHC -Wall #-}
 module SourceSyntax.Expression where
 
-import Data.List (intercalate)
 import SourceSyntax.PrettyPrint
 import Text.PrettyPrint as P
 import qualified SourceSyntax.Helpers as Help
 import qualified SourceSyntax.Location as Location
 import qualified SourceSyntax.Pattern as Pattern
-import qualified SourceSyntax.Type as Type
+import qualified SourceSyntax.Type as SrcType
 import qualified SourceSyntax.Literal as Literal
+import qualified Type.Type as Type
 
-type LExpr tipe var = Location.Located (Expr tipe var)
-data Expr t v
+{-| This is a located expression. -}
+type LExpr' def = Location.Located (Expr' def)
+
+{-| This is a fully general expression. The compilation process will enrich
+this data structure with additional information after the initial parse.
+The type holes let us reflect these structural changes in the types.
+
+  def: Parsing allows two kinds of definitions (type annotations or definitions),
+       but later checks will see that they are well formed and combine them.
+
+  t: for adding type information, currently unused
+
+  v: for enriching variables with information like provenonce, currently unused
+
+Please don't get on my case to take the unused ones out. I have considered it.
+It's a huge pain to add and remove, it will get used eventually, and it's not
+hurting anything as it is.
+-}
+data Expr' def
     = Literal Literal.Literal
     | Var String
-    | Range (LExpr t v) (LExpr t v)
-    | ExplicitList [LExpr t v]
-    | Binop String (LExpr t v) (LExpr t v)
-    | Lambda Pattern.Pattern (LExpr t v)
-    | App (LExpr t v) (LExpr t v)
-    | MultiIf [(LExpr t v,LExpr t v)]
-    | Let [Def t v] (LExpr t v)
-    | Case (LExpr t v) [(Pattern.Pattern, LExpr t v)]
-    | Data String [LExpr t v]
-    | Access (LExpr t v) String
-    | Remove (LExpr t v) String
-    | Insert (LExpr t v) String (LExpr t v)
-    | Modify (LExpr t v) [(String, LExpr t v)]
-    | Record [(String, LExpr t v)]
-    | Markdown String String [LExpr t v]
-      deriving (Eq)
+    | Range (LExpr' def) (LExpr' def)
+    | ExplicitList [LExpr' def]
+    | Binop String (LExpr' def) (LExpr' def)
+    | Lambda Pattern.Pattern (LExpr' def)
+    | App (LExpr' def) (LExpr' def)
+    | MultiIf [(LExpr' def,LExpr' def)]
+    | Let [def] (LExpr' def)
+    | Case (LExpr' def) [(Pattern.Pattern, LExpr' def)]
+    | Data String [LExpr' def]
+    | Access (LExpr' def) String
+    | Remove (LExpr' def) String
+    | Insert (LExpr' def) String (LExpr' def)
+    | Modify (LExpr' def) [(String, LExpr' def)]
+    | Record [(String, LExpr' def)]
+    | Markdown String String [LExpr' def]
+    -- for type checking and code gen only
+    | PortIn String SrcType.Type Type.Variable (LExpr' def)
+    | PortOut String SrcType.Type (LExpr' def)
 
-data Def tipe var
-    = Def Pattern.Pattern (LExpr tipe var)
-    | TypeAnnotation String Type.Type
-      deriving (Eq, Show)
+type ParseExpr = Expr' ParseDef
+type LParseExpr = LExpr' ParseDef
+type LExpr = LExpr' Def
+type Expr = Expr' Def
 
+{-| Style of definitions as they are parsed. Users specify them
+separately, and other checks will make sure they can be combined.
+-}
+data ParseDef
+    = Def Pattern.Pattern LParseExpr
+    | TypeAnnotation String SrcType.Type
+      deriving (Show)
+
+{-| After checking that type annotations and definitions are all
+valid, they can be combined.
+-}
+data Def = Definition Pattern.Pattern (LExpr' Def) (Maybe SrcType.Type)
+    deriving (Show)
+
+tuple :: [LExpr' def] -> Expr' def
 tuple es = Data ("_Tuple" ++ show (length es)) es
 
+delist :: LExpr' def -> [LExpr' def]
 delist (Location.L _ (Data "::" [h,t])) = h : delist t
 delist _ = []
 
+saveEnvName :: String
 saveEnvName = "_save_the_environment!!!"
 
+dummyLet :: Pretty def => [def] -> LExpr' def
 dummyLet defs = 
      Location.none $ Let defs (Location.none $ Var saveEnvName)
 
-instance Show (Expr t v) where
+instance Pretty def => Show (Expr' def) where
   show = render . pretty
 
-instance Pretty (Expr t v) where
+instance Pretty def => Pretty (Expr' def) where
   pretty expr =
    case expr of
      Literal lit -> pretty lit
@@ -73,44 +111,59 @@ instance Pretty (Expr t v) where
          P.hang pexpr 2 (P.vcat (map pretty' pats))
          where
            pexpr = P.sep [ P.text "case" <+> pretty e, P.text "of" ]
-           pretty' (p,e) = pretty p <+> P.text "->" <+> pretty e
+           pretty' (p,b) = pretty p <+> P.text "->" <+> pretty b
      Data "::" [hd,tl] -> pretty hd <+> P.text "::" <+> pretty tl
      Data "[]" [] -> P.text "[]"
      Data name es -> P.hang (P.text name) 2 (P.sep (map prettyParens es))
      Access e x -> prettyParens e <> P.text "." <> variable x
      Remove e x -> P.braces (pretty e <+> P.text "-" <+> variable x)
      Insert (Location.L _ (Remove e y)) x v ->
-         P.braces (pretty e <+> P.text "-" <+> variable y <+> P.text "|" <+> variable x <+> P.text "=" <+> pretty v)
+         P.braces (pretty e <+> P.text "-" <+> variable y <+> P.text "|" <+> variable x <+> P.equals <+> pretty v)
      Insert e x v ->
-         P.braces (pretty e <+> P.text "|" <+> variable x <+> P.text "=" <+> pretty v)
+         P.braces (pretty e <+> P.text "|" <+> variable x <+> P.equals <+> pretty v)
 
      Modify e fs ->
          P.braces $ P.hang (pretty e <+> P.text "|")
                            4
                            (commaSep $ map field fs)
        where
-         field (x,e) = variable x <+> P.text "<-" <+> pretty e
+         field (k,v) = variable k <+> P.text "<-" <+> pretty v
 
      Record fs ->
          P.braces $ P.nest 2 (commaSep $ map field fs)
        where
-         field (x,e) = variable x <+> P.text "=" <+> pretty e
+         field (x,e) = variable x <+> P.equals <+> pretty e
 
      Markdown _ _ _ -> P.text "[markdown| ... |]"
 
-instance Pretty (Def t v) where
+     PortIn _ _ _ handler -> pretty handler
+
+     PortOut _ _ signal -> pretty signal
+
+instance Pretty ParseDef where
   pretty def =
    case def of
      TypeAnnotation name tipe ->
-         variable name <+> P.text ":" <+> pretty tipe
+         variable name <+> P.colon <+> pretty tipe
      Def pattern expr ->
-         pretty pattern <+> P.text "=" <+> pretty expr
+         pretty pattern <+> P.equals <+> pretty expr
 
+instance Pretty Def where
+  pretty (Definition pattern expr maybeTipe) =
+      P.vcat [ annotation, definition ]
+      where
+        definition = pretty pattern <+> P.equals <+> pretty expr
+        annotation = case maybeTipe of
+                       Nothing -> P.empty
+                       Just tipe -> pretty pattern <+> P.colon <+> pretty tipe
+
+collectApps :: LExpr' def -> [LExpr' def]
 collectApps lexpr@(Location.L _ expr) =
   case expr of
     App a b -> collectApps a ++ [b]
     _ -> [lexpr]
 
+collectLambdas :: LExpr' def -> ([Doc], LExpr' def)
 collectLambdas lexpr@(Location.L _ expr) =
   case expr of
     Lambda pattern body ->
@@ -118,6 +171,7 @@ collectLambdas lexpr@(Location.L _ expr) =
         in  (pretty pattern : ps, body')
     _ -> ([], lexpr)
 
+prettyParens :: (Pretty def) => LExpr' def -> Doc
 prettyParens (Location.L _ expr) = parensIf needed (pretty expr)
   where
     needed =
@@ -128,5 +182,5 @@ prettyParens (Location.L _ expr) = parensIf needed (pretty expr)
         MultiIf _   -> True
         Let _ _     -> True
         Case _ _    -> True
-        Data name (x:xs) -> name /= "::"
+        Data name (_:_) -> name /= "::"
         _ -> False
