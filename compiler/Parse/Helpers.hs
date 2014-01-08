@@ -1,7 +1,8 @@
+{-# OPTIONS_GHC -W #-}
 module Parse.Helpers where
 
 import Prelude hiding (until)
-import Control.Applicative ((<$>),(<*>), (<$), pure)
+import Control.Applicative ((<$>),(<*>))
 import Control.Monad
 import Control.Monad.State
 import Data.Char (isUpper)
@@ -9,7 +10,7 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
-import qualified Text.Parsec.Token as P
+import qualified Text.Parsec.Token as T
 
 import SourceSyntax.Helpers as Help
 import SourceSyntax.Location as Location
@@ -311,31 +312,35 @@ markdown interpolation = try (string "[markdown|") >> closeMarkdown "" []
                       closeMarkdown (md ++ [c]) stuff
                  ]
 
-str :: IParser String
-str = expecting "String" $
-  choice [ quote >> manyTill multilineStringChar quote
-         , char '"' >> manyTill stringChar (char '"')
-         ]
-  >>= parseStringLiteral . wrapQuotes '\"' . join
-  where quote = try (string "\"\"\"")
+--str :: IParser String
+str = expecting "String" $ do
+        s <- choice [ multiStr, singleStr ]
+        processAs T.stringLiteral . sandwich '\"' $ concat s
+  where
+    rawString quote insides =
+        quote >> manyTill insides quote
 
-wrapQuotes :: Char -> String -> String
-wrapQuotes delim s = (delim:s ++ [delim])
+    multiStr  = rawString (try (string "\"\"\"")) multilineStringChar
+    singleStr = rawString (char '"') stringChar
 
-stringChar :: IParser String
-stringChar = newlineChar <|> escaped '\"' <|> (pure <$> satisfy (/= '\"'))
+    stringChar :: IParser String
+    stringChar = choice [ newlineChar, escaped '\"', (:[]) <$> satisfy (/= '\"') ]
 
-multilineStringChar :: IParser String
-multilineStringChar = noEnd
-                      >> (newlineChar <|> escaped '\"' <|> expandQuote <$> anyChar)
-  where noEnd = notFollowedBy (string "\"\"\"")
-        expandQuote c = if c == '\"'
-                        then "\\\""
-                        else [c]
+    multilineStringChar :: IParser String
+    multilineStringChar =
+        do noEnd
+           choice [ newlineChar, escaped '\"', expandQuote <$> anyChar ]
+        where
+          noEnd = notFollowedBy (string "\"\"\"")
+          expandQuote c = if c == '\"' then "\\\"" else [c]
 
-newlineChar :: IParser String
-newlineChar = ['\\', 'n'] <$ char '\n'
-              <|> ['\\', 'r'] <$ char '\r'
+    newlineChar :: IParser String
+    newlineChar =
+        choice [ char '\n' >> return "\\n"
+               , char '\r' >> return "\\r" ]
+
+sandwich :: Char -> String -> String
+sandwich delim s = delim : s ++ [delim]
 
 escaped :: Char -> IParser String
 escaped delim = try $ do
@@ -344,37 +349,33 @@ escaped delim = try $ do
   return ['\\', c]
 
 chr :: IParser Char
-chr = (betwixt '\'' '\''
-       (many1 (escaped '\'' <|> (pure <$> satisfy (/='\''))))
-       >>= parseCharLiteral . wrapQuotes '\'' . join
-      )
-      <?> "character"
+chr = betwixt '\'' '\'' character <?> "character"
+    where
+      character = do
+        c <- many1 $ choice [ escaped '\'', (:[]) <$> satisfy (/='\'') ]
+        processAs T.charLiteral . sandwich '\'' $ concat c
 
-calloutParser :: String -> IParser a -> IParser a
-calloutParser inp p = case iParse p inp of
-  Left err -> fail . show $ err
-  Right s  -> return s
+processAs :: (T.GenTokenParser String u SourceM -> IParser a) -> String -> IParser a
+processAs processor s = calloutParser s (processor lexer)
+    where
+      calloutParser :: String -> IParser a -> IParser a
+      calloutParser inp p = either (fail . show) return (iParse p inp)
 
-parseStringLiteral :: String -> IParser String
-parseStringLiteral s = calloutParser s . P.stringLiteral $ lexer
+      lexer :: T.GenTokenParser String u SourceM
+      lexer = T.makeTokenParser elmDef
 
-parseCharLiteral :: String -> IParser Char
-parseCharLiteral   s = calloutParser s . P.charLiteral   $ lexer
-
-lexer = P.makeTokenParser elmDef
-
--- I don't know how many of these are necessary for charLiteral/stringLiteral
-elmDef :: P.GenLanguageDef String u SourceM
-elmDef = P.LanguageDef {
-    P.commentStart    = "{-"
-  , P.commentEnd      = "-}"
-  , P.commentLine     = "--"
-  , P.nestedComments  = True
-  , P.identStart      = undefined
-  , P.identLetter     = undefined
-  , P.opStart         = undefined
-  , P.opLetter        = undefined
-  , P.reservedNames   = reserveds
-  , P.reservedOpNames = [":", "->", "<-", "|"]
-  , P.caseSensitive   = True
-  }
+      -- I don't know how many of these are necessary for charLiteral/stringLiteral
+      elmDef :: T.GenLanguageDef String u SourceM
+      elmDef = T.LanguageDef
+               { T.commentStart    = "{-"
+               , T.commentEnd      = "-}"
+               , T.commentLine     = "--"
+               , T.nestedComments  = True
+               , T.identStart      = undefined
+               , T.identLetter     = undefined
+               , T.opStart         = undefined
+               , T.opLetter        = undefined
+               , T.reservedNames   = reserveds
+               , T.reservedOpNames = [":", "->", "<-", "|"]
+               , T.caseSensitive   = True
+               }
