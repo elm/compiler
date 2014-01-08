@@ -83,7 +83,7 @@ reorder (L s expr) =
 
       Markdown uid md es -> Markdown uid md <$> mapM reorder es
 
-      GLShader _ _ -> return expr
+      GLShader _ _ _ -> return expr
 
       PortOut name st signal -> PortOut name st <$> reorder signal
 

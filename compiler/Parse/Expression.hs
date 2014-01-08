@@ -60,8 +60,8 @@ listTerm = markdown' <|> glShader' <|> braces (try range <|> ExplicitList <$> co
     glShader' = do
       pos <- getPosition
       let uid = show (sourceLine pos) ++ ":" ++ show (sourceColumn pos)
-      rawSrc <- glShader
-      return $ GLShader uid (filter (/='\r') rawSrc)
+      (rawSrc, tipe) <- glShader
+      return $ GLShader uid (filter (/='\r') rawSrc) tipe
 
     span uid index =
         "<span id=\"md-" ++ uid ++ "-" ++ show index ++ "\">{{ markdown interpolation is in the pipeline, but still needs more testing }}</span>"

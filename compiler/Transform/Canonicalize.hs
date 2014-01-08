@@ -174,7 +174,7 @@ rename env (L s expr) =
 
       PortOut name st signal -> PortOut name <$> renameType' env st <*> rnm signal
 
-      GLShader _ _ -> return expr
+      GLShader _ _ _ -> return expr
 
 renamePattern :: Env -> P.Pattern -> Either String P.Pattern
 renamePattern env pattern =

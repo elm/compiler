@@ -196,7 +196,7 @@ expression (L span expr) =
             pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
             md = pad ++ MD.toHtml doc ++ pad
 
-      GLShader _ src ->
+      GLShader _uid src _tipe ->
         return . literal $ Str src
           
       PortIn name _ _ handler ->

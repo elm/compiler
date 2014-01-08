@@ -49,7 +49,7 @@ data Expr' def
     -- for type checking and code gen only
     | PortIn String SrcType.Type Type.Variable (LExpr' def)
     | PortOut String SrcType.Type (LExpr' def)
-    | GLShader String String
+    | GLShader String String Literal.GLShaderTipe
 
 type ParseExpr = Expr' ParseDef
 type LParseExpr = LExpr' ParseDef
@@ -137,7 +137,7 @@ instance Pretty def => Pretty (Expr' def) where
 
      Markdown _ _ _ -> P.text "[markdown| ... |]"
 
-     GLShader _ _ -> P.text "[glShader| ... |]"
+     GLShader _ _ _ -> P.text "[glShader| ... |]"
 
      PortIn _ _ _ handler -> pretty handler
 

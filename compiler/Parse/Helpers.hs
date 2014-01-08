@@ -11,6 +11,7 @@ import qualified Data.Map as Map
 import qualified Language.GLSL.Parser as GLP
 import Language.GLSL.Syntax
 import SourceSyntax.Helpers as Help
+import SourceSyntax.Literal as Literal
 import SourceSyntax.Location as Location
 import SourceSyntax.Expression
 import SourceSyntax.PrettyPrint
@@ -328,38 +329,31 @@ markdown interpolation = try (string "[markdown|") >> closeMarkdown "" []
                       closeMarkdown (md ++ [c]) stuff
                  ]
 
-glShader :: IParser String
-glShader = try (string "[glShader|") >> closeShader "" where
+glShader :: IParser (String, Literal.GLShaderTipe)
+glShader = do
+  do
+    rawSrc <- try (string "[glShader|") >> closeShader ""
+    case glSource rawSrc of
+        Left err -> parserFail . show $ err
+        Right tipe -> return (rawSrc, tipe)
+    where
     closeShader src = choice
-        [ do 
-            try (string "|]")
-            return src
-        , do
-            c <- anyChar
-            closeShader (src ++ [c])
-        ]
+      [ do 
+        try (string "|]")
+        return src
+      , do
+        c <- anyChar
+        closeShader (src ++ [c])
+      ]
 
-data GLTipe = V3 | M4
-
-glTipeName :: GLTipe -> String
-glTipeName V3 = "MJS.V3"
-glTipeName M4 = "MJS.M4x4"
-
-data GLShaderDecls = GLShaderDecls 
-    { attribute :: Map String GLTipe
-    , uniform :: Map String GLTipe
-    , varying :: Map String GLTipe
-    }
-
---glSource :: String -> Maybe [(StorageQualifier, GLTipe, String)]
-glSource :: String -> Maybe GLShaderDecls
+glSource :: String -> Either ParseError Literal.GLShaderTipe
 glSource src =
   case GLP.parse src of
     Right (TranslationUnit decls) ->
-      Just . foldr addGLinput emptyDecls . join . map extractGLinputs $ decls
-    Left e -> Nothing
+      Right . foldr addGLinput emptyDecls . join . map extractGLinputs $ decls
+    Left e -> Left e
   where 
-    emptyDecls = GLShaderDecls Map.empty Map.empty Map.empty
+    emptyDecls = Literal.GLShaderTipe Map.empty Map.empty Map.empty
     addGLinput (qual,tipe,name) glDecls = case qual of
         Attribute -> glDecls { attribute = Map.insert name tipe $ attribute glDecls }
         Uniform -> glDecls { uniform = Map.insert name tipe $ uniform glDecls }

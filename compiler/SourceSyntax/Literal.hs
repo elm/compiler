@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module SourceSyntax.Literal where
 
+import Data.Map (Map)
 import SourceSyntax.PrettyPrint
 import qualified Text.PrettyPrint as PP
 
@@ -19,3 +20,16 @@ instance Pretty Literal where
       Chr c -> PP.quotes (PP.char c)
       Str s -> PP.text (show s)
       Boolean bool -> PP.text (show bool)
+
+data GLTipe = V3 | M4
+
+glTipeName :: GLTipe -> String
+glTipeName V3 = "MJS.V3"
+glTipeName M4 = "MJS.M4x4"
+
+data GLShaderTipe = GLShaderTipe
+    { attribute :: Map String GLTipe
+    , uniform :: Map String GLTipe
+    , varying :: Map String GLTipe
+    }
+
