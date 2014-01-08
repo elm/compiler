@@ -8,6 +8,7 @@ import Control.Applicative ((<$>))
 import qualified Control.Monad as Monad
 import Control.Monad.Error
 import qualified Text.PrettyPrint as PP
+
 import SourceSyntax.Literal as Lit
 import SourceSyntax.Location as Loc
 import SourceSyntax.Pattern (Pattern(PVar), boundVars)

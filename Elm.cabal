@@ -51,7 +51,6 @@ Library
                        Generate.Markdown,
                        Generate.Html,
                        Generate.Cases,
-                       Generate.Markdown,
                        Transform.Canonicalize,
                        Transform.Check,
                        Transform.Expression,
