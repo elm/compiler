@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -W #-}
 module Parse.Helpers where
 
 import Prelude hiding (until)
@@ -10,14 +11,16 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Language.GLSL.Parser as GLP
 import Language.GLSL.Syntax
+import Text.Parsec hiding (newline,spaces,State)
+import Text.Parsec.Indent
+import qualified Text.Parsec.Token as T
+
 import SourceSyntax.Helpers as Help
 import SourceSyntax.Literal as Literal
 import SourceSyntax.Location as Location
 import SourceSyntax.Expression
 import SourceSyntax.PrettyPrint
 import SourceSyntax.Declaration (Assoc)
-import Text.Parsec hiding (newline,spaces,State)
-import Text.Parsec.Indent
 
 reserveds = [ "if", "then", "else"
             , "case", "of"
@@ -49,7 +52,8 @@ jsReserveds = Set.fromList
 expecting = flip (<?>)
 
 type OpTable = Map.Map String (Int, Assoc)
-type IParser a = ParsecT String OpTable (State SourcePos) a
+type SourceM = State SourcePos
+type IParser a = ParsecT String OpTable SourceM a
 
 iParse :: IParser a -> String -> Either ParseError a
 iParse = iParseWithTable "" Map.empty
@@ -57,23 +61,6 @@ iParse = iParseWithTable "" Map.empty
 iParseWithTable :: SourceName -> OpTable -> IParser a -> String -> Either ParseError a
 iParseWithTable sourceName table aParser input =
   runIndent sourceName $ runParserT aParser table sourceName input
-
-readMaybe :: Read a => String -> Maybe a
-readMaybe s =
-    case [ x | (x,t) <- reads s, ("","") <- lex t ] of
-      [x] -> Just x
-      _ -> Nothing
-
-backslashed :: IParser Char
-backslashed = do
-  char '\\'
-  c <- anyChar
-  case readMaybe ['\'','\\',c,'\''] of
-    Just chr -> return chr
-    Nothing ->
-        fail $ "Did not recognize character '\\" ++ [c] ++
-               "'. If the backslash is meant to be a character of its own, " ++
-               "it should be escaped like this: \"\\\\" ++ [c] ++ "\""
 
 var :: IParser String
 var = makeVar (letter <|> char '_' <?> "variable")
@@ -369,24 +356,73 @@ glSource src =
             else []
         _ -> []
 
-str :: IParser String
-str = choice [ quote >> dewindows <$> manyTill (backslashed <|> anyChar) quote
-             , liftM dewindows . expecting "string" . betwixt '"' '"' . many $
-               backslashed <|> satisfy (/='"')
-             ]
-    where
-      quote = try (string "\"\"\"")
+--str :: IParser String
+str = expecting "String" $ do
+        s <- choice [ multiStr, singleStr ]
+        processAs T.stringLiteral . sandwich '\"' $ concat s
+  where
+    rawString quote insides =
+        quote >> manyTill insides quote
 
-      -- Remove \r from strings to fix generated JavaScript
-      dewindows [] = []
-      dewindows cs =
-          let (pre, suf) = break (`elem` ['\r','\n']) cs
-          in  pre ++ case suf of 
-                       ('\r':'\n':rest) -> '\n' : dewindows rest
-                       ('\n':rest)      -> '\n' : dewindows rest
-                       ('\r':rest)      -> '\n' : dewindows rest
-                       _                -> []
+    multiStr  = rawString (try (string "\"\"\"")) multilineStringChar
+    singleStr = rawString (char '"') stringChar
+
+    stringChar :: IParser String
+    stringChar = choice [ newlineChar, escaped '\"', (:[]) <$> satisfy (/= '\"') ]
+
+    multilineStringChar :: IParser String
+    multilineStringChar =
+        do noEnd
+           choice [ newlineChar, escaped '\"', expandQuote <$> anyChar ]
+        where
+          noEnd = notFollowedBy (string "\"\"\"")
+          expandQuote c = if c == '\"' then "\\\"" else [c]
+
+    newlineChar :: IParser String
+    newlineChar =
+        choice [ char '\n' >> return "\\n"
+               , char '\r' >> return "\\r" ]
+
+sandwich :: Char -> String -> String
+sandwich delim s = delim : s ++ [delim]
+
+escaped :: Char -> IParser String
+escaped delim = try $ do
+  char '\\'
+  c <- char '\\' <|> char delim
+  return ['\\', c]
 
 chr :: IParser Char
-chr = betwixt '\'' '\'' (backslashed <|> satisfy (/='\''))
-      <?> "character"
+chr = betwixt '\'' '\'' character <?> "character"
+    where
+      nonQuote = satisfy (/='\'')
+      character = do
+        c <- choice [ escaped '\''
+                    , (:) <$> char '\\' <*> many1 nonQuote
+                    , (:[]) <$> nonQuote ]
+        processAs T.charLiteral $ sandwich '\'' c
+
+processAs :: (T.GenTokenParser String u SourceM -> IParser a) -> String -> IParser a
+processAs processor s = calloutParser s (processor lexer)
+    where
+      calloutParser :: String -> IParser a -> IParser a
+      calloutParser inp p = either (fail . show) return (iParse p inp)
+
+      lexer :: T.GenTokenParser String u SourceM
+      lexer = T.makeTokenParser elmDef
+
+      -- I don't know how many of these are necessary for charLiteral/stringLiteral
+      elmDef :: T.GenLanguageDef String u SourceM
+      elmDef = T.LanguageDef
+               { T.commentStart    = "{-"
+               , T.commentEnd      = "-}"
+               , T.commentLine     = "--"
+               , T.nestedComments  = True
+               , T.identStart      = undefined
+               , T.identLetter     = undefined
+               , T.opStart         = undefined
+               , T.opLetter        = undefined
+               , T.reservedNames   = reserveds
+               , T.reservedOpNames = [":", "->", "<-", "|"]
+               , T.caseSensitive   = True
+               }
