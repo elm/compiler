@@ -3,8 +3,9 @@ module Main where
 
 import Control.Monad (foldM)
 import qualified Data.Maybe as Maybe
-import Text.Blaze.Html.Renderer.String (renderHtml)
-import qualified Data.ByteString.Lazy.Char8 as BS
+import qualified Data.Text.Lazy    as T
+import qualified Data.Text.Lazy.IO as TIO
+import Text.Blaze.Html.Renderer.Text (renderHtml)
 import qualified System.Console.CmdArgs as CmdArgs
 import System.Directory
 import System.FilePath
@@ -40,7 +41,7 @@ build flags rootFile =
        (moduleName, _) <-
            File.build flags (length files) builtIns "" files
 
-       js <- foldM appendToOutput BS.empty files
+       js <- foldM appendToOutput T.empty files
 
        (extension, code) <-
            if Flag.only_js flags
@@ -51,18 +52,18 @@ build flags rootFile =
 
        let targetFile = Utils.buildPath flags rootFile extension
        createDirectoryIfMissing True (takeDirectory targetFile)
-       BS.writeFile targetFile code
+       TIO.writeFile targetFile code
        putStrLn "Done"
 
     where
-      appendToOutput :: BS.ByteString -> FilePath -> IO BS.ByteString
+      appendToOutput :: T.Text -> FilePath -> IO T.Text
       appendToOutput js filePath = do
-        src <- BS.readFile (Utils.elmo flags filePath)
-        return (BS.append src js)
+        src <- TIO.readFile (Utils.elmo flags filePath)
+        return (T.append src js)
 
       sources js = map Html.Link (Flag.scripts flags) ++ [ Html.Source js ]
 
-      makeHtml js moduleName = ("html", BS.pack $ renderHtml html)
+      makeHtml js moduleName = ("html", renderHtml html)
           where
             rtsPath = Maybe.fromMaybe Path.runtime (Flag.runtime flags)
             html = Html.generate rtsPath (takeBaseName rootFile) (sources js) moduleName ""

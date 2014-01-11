@@ -1,13 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Generate.Html (generate, JSSource(..)) where
 
+import qualified Data.Text.Lazy as T
 import Text.Blaze (preEscapedToMarkup)
 import qualified Text.Blaze.Html5 as H
 import Text.Blaze.Html5 ((!))
 import qualified Text.Blaze.Html5.Attributes as A
-import qualified Data.ByteString.Lazy.Char8 as BS
 
-data JSSource = Link String | Source BS.ByteString
+data JSSource = Link String | Source T.Text
 
 makeScript :: JSSource -> H.Html
 makeScript source =
@@ -15,7 +15,7 @@ makeScript source =
       Link src -> H.script ! A.type_ "text/javascript" ! A.src (H.toValue src) $ ""
       Source src ->
           H.script ! A.type_ "text/javascript" $
-           preEscapedToMarkup $ BS.unpack src
+           preEscapedToMarkup $ src
 
 generate :: FilePath -> String -> [JSSource] -> String -> String -> H.Html
 generate libLoc title scripts moduleName noscript =
