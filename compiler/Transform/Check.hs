@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Transform.Check (mistakes) where
 
+import qualified Control.Arrow as Arrow
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
@@ -44,10 +45,11 @@ duplicates decls =
         unzip [ (pat,expr) | D.Definition (E.Definition pat expr _) <- decls ]
 
     (portNames, portExprs) =
-        unzip $ flip map [ port | D.Port port <- decls ] $ \port ->
+        Arrow.second Maybe.catMaybes $ unzip $ 
+        flip map [ port | D.Port port <- decls ] $ \port ->
             case port of
-              D.Out name expr _ -> (name,expr)
-              D.In name expr _ -> (name,expr)
+              D.Out name expr _ -> (name, Just expr)
+              D.In name expr _ -> (name, expr)
 
     getNames = Set.toList . Pattern.boundVars
 

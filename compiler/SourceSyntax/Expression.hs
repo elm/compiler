@@ -40,7 +40,7 @@ data Expr' def
     | Record [(String, LExpr' def)]
     | Markdown String String [LExpr' def]
     -- for type checking and code gen only
-    | PortIn String SrcType.Type Type.Variable (LExpr' def)
+    | PortIn String SrcType.Type Type.Variable (Maybe (LExpr' def))
     | PortOut String SrcType.Type (LExpr' def)
 
 type ParseExpr = Expr' ParseDef
@@ -129,7 +129,7 @@ instance Pretty def => Pretty (Expr' def) where
 
      Markdown _ _ _ -> P.text "[markdown| ... |]"
 
-     PortIn _ _ _ handler -> pretty handler
+     PortIn _ _ _ _ -> P.text "<port in>"
 
      PortOut _ _ signal -> pretty signal
 

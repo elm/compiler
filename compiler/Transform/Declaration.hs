@@ -62,6 +62,7 @@ combineAnnotations = go
 
                         Port (PPIn name' expr) : rest | name == name' ->
                             do expr' <- exprCombineAnnotations expr
-                               (:) (Port (In name expr' tipe)) <$> go rest
+                               (:) (Port (In name (Just expr') tipe)) <$> go rest
 
-                        _ -> Left (msg name)
+                        _ -> (:) (Port (In name Nothing tipe)) <$> go portRest
+

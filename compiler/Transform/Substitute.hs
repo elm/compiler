@@ -38,5 +38,5 @@ subst old new expr =
       Record fs -> Record (map (second f) fs)
       Literal _ -> expr
       Markdown uid md es -> Markdown uid md (map f es)
-      PortIn name st tt handler -> PortIn name st tt (f handler)
+      PortIn name st tt handler -> PortIn name st tt (fmap f handler)
       PortOut name st signal -> PortOut name st (f signal)

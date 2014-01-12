@@ -3,6 +3,7 @@ module Transform.SortDefinitions (sortDefs) where
 
 import Control.Monad.State
 import Control.Applicative ((<$>),(<*>))
+import Data.Traversable (traverse)
 import qualified Data.Map as Map
 import SourceSyntax.Expression
 import SourceSyntax.Location
@@ -85,7 +86,8 @@ reorder (L s expr) =
 
       PortOut name st signal -> PortOut name st <$> reorder signal
 
-      PortIn name st tt handler -> PortIn name st tt <$> reorder handler
+      PortIn name st tt handler ->
+          PortIn name st tt <$> traverse reorder handler
 
       -- Actually do some reordering
       Let defs body ->

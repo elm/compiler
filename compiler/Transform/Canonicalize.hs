@@ -4,6 +4,7 @@ module Transform.Canonicalize (interface, metadataModule) where
 import Control.Arrow ((***))
 import Control.Applicative (Applicative,(<$>),(<*>))
 import Control.Monad.Identity
+import Data.Traversable (traverse)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.List as List
@@ -169,7 +170,7 @@ rename env (L s expr) =
 
       PortIn name st tt handler ->
           do st' <- renameType' env st
-             handler' <- rnm handler
+             handler' <- traverse rnm handler
              return $ PortIn name st' tt handler'
 
       PortOut name st signal -> PortOut name <$> renameType' env st <*> rnm signal

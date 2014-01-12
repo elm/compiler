@@ -29,7 +29,7 @@ data ParsePort
 
 data Port
     = Out String Expr.LExpr T.Type
-    | In String Expr.LExpr T.Type
+    | In String (Maybe Expr.LExpr) T.Type
       deriving (Show)
 
 type ParseDeclaration = Declaration' ParsePort Expr.ParseDef
@@ -108,7 +108,10 @@ instance Pretty Port where
   pretty port =
     case port of
       Out name expr tipe -> mkPort "<-" name expr tipe
-      In name expr tipe -> mkPort "->" name expr tipe
+      In name mexpr tipe ->
+          case mexpr of
+            Nothing   -> prettyPort name ":" tipe
+            Just expr -> mkPort "->" name expr tipe
     where
       mkPort arrow name expr tipe = 
           P.vcat [ prettyPort name ":" tipe
