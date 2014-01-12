@@ -20,13 +20,6 @@ The type holes let us reflect these structural changes in the types.
   def: Parsing allows two kinds of definitions (type annotations or definitions),
        but later checks will see that they are well formed and combine them.
 
-  t: for adding type information, currently unused
-
-  v: for enriching variables with information like provenonce, currently unused
-
-Please don't get on my case to take the unused ones out. I have considered it.
-It's a huge pain to add and remove, it will get used eventually, and it's not
-hurting anything as it is.
 -}
 data Expr' def
     = Literal Literal.Literal
