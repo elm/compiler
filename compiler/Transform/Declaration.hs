@@ -52,16 +52,16 @@ combineAnnotations = go
             -- combine ports
             Port port : portRest ->
                 case port of
-                  SendDefinition name _ -> Left (msg name)
-                  RecvDefinition name _ -> Left (msg name)
-                  PortAnnotation name tipe ->
+                  PPOut name _ -> Left (msg name)
+                  PPIn name _ -> Left (msg name)
+                  PPAnnotation name tipe ->
                       case portRest of
-                        Port (SendDefinition name' expr) : rest | name == name' ->
+                        Port (PPOut name' expr) : rest | name == name' ->
                             do expr' <- exprCombineAnnotations expr
-                               (:) (Port (Send name expr' tipe)) <$> go rest
+                               (:) (Port (Out name expr' tipe)) <$> go rest
 
-                        Port (RecvDefinition name' expr) : rest | name == name' ->
+                        Port (PPIn name' expr) : rest | name == name' ->
                             do expr' <- exprCombineAnnotations expr
-                               (:) (Port (Recv name expr' tipe)) <$> go rest
+                               (:) (Port (In name expr' tipe)) <$> go rest
 
                         _ -> Left (msg name)

@@ -47,9 +47,9 @@ toDefs decl =
 
     Port port ->
         case port of
-          Send name expr@(L.L s _) tipe ->
+          Out name expr@(L.L s _) tipe ->
               [ definition name (L.L s $ E.PortOut name tipe expr) tipe ]
-          Recv name expr@(L.L s _) tipe ->
+          In name expr@(L.L s _) tipe ->
               unsafePerformIO $ do
                 tvar <- Type.var Type.Flexible
                 return $ [ definition name (L.L s $ E.PortIn name tipe tvar expr) tipe ]

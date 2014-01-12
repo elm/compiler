@@ -46,8 +46,8 @@ duplicates decls =
     (portNames, portExprs) =
         unzip $ flip map [ port | D.Port port <- decls ] $ \port ->
             case port of
-              D.Send name expr _ -> (name,expr)
-              D.Recv name expr _ -> (name,expr)
+              D.Out name expr _ -> (name,expr)
+              D.In name expr _ -> (name,expr)
 
     getNames = Set.toList . Pattern.boundVars
 

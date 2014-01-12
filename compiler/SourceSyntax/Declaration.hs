@@ -22,14 +22,14 @@ data Derivation = Json | JS | Binary | New
     deriving (Eq, Show)
 
 data ParsePort
-    = PortAnnotation String T.Type
-    | SendDefinition String Expr.LParseExpr
-    | RecvDefinition String Expr.LParseExpr
+    = PPAnnotation String T.Type
+    | PPOut String Expr.LParseExpr
+    | PPIn String Expr.LParseExpr
       deriving (Show)
 
 data Port
-    = Send String Expr.LExpr T.Type
-    | Recv String Expr.LExpr T.Type
+    = Out String Expr.LExpr T.Type
+    | In String Expr.LExpr T.Type
       deriving (Show)
 
 type ParseDeclaration = Declaration' ParsePort Expr.ParseDef
@@ -100,15 +100,15 @@ instance (Pretty port, Pretty def) => Pretty (Declaration' port def) where
 instance Pretty ParsePort where
   pretty port =
     case port of
-      PortAnnotation name tipe -> prettyPort name ":"  tipe
-      SendDefinition name expr -> prettyPort name "<-" expr
-      RecvDefinition name expr -> prettyPort name "->" expr
+      PPAnnotation name tipe -> prettyPort name ":"  tipe
+      PPOut name expr -> prettyPort name "<-" expr
+      PPIn name expr -> prettyPort name "->" expr
 
 instance Pretty Port where
   pretty port =
     case port of
-      Send name expr tipe -> mkPort "<-" name expr tipe
-      Recv name expr tipe -> mkPort "->" name expr tipe
+      Out name expr tipe -> mkPort "<-" name expr tipe
+      In name expr tipe -> mkPort "->" name expr tipe
     where
       mkPort arrow name expr tipe = 
           P.vcat [ prettyPort name ":" tipe
