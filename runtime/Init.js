@@ -189,7 +189,11 @@ function addReceivers(ports) {
         ports.stderr.subscribe(handler);
     }
     if ('title' in ports) {
-        ports.title.subscribe(function(v) { document.title = v; });
+        if (typeof ports.title === 'string') {
+            document.title = ports.title;
+        } else {
+            ports.title.subscribe(function(v) { document.title = v; });
+        }
     }
     if ('redirect' in ports) {
         ports.redirect.subscribe(function(v) {
