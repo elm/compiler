@@ -8,7 +8,6 @@ import qualified SourceSyntax.Location as Location
 import qualified SourceSyntax.Pattern as Pattern
 import qualified SourceSyntax.Type as SrcType
 import qualified SourceSyntax.Literal as Literal
-import qualified Type.Type as Type
 
 {-| This is a located expression. -}
 type LExpr' def = Location.Located (Expr' def)
@@ -40,7 +39,7 @@ data Expr' def
     | Record [(String, LExpr' def)]
     | Markdown String String [LExpr' def]
     -- for type checking and code gen only
-    | PortIn String SrcType.Type Type.Variable (Maybe (LExpr' def))
+    | PortIn String SrcType.Type
     | PortOut String SrcType.Type (LExpr' def)
 
 type ParseExpr = Expr' ParseDef
@@ -129,7 +128,7 @@ instance Pretty def => Pretty (Expr' def) where
 
      Markdown _ _ _ -> P.text "[markdown| ... |]"
 
-     PortIn _ _ _ _ -> P.text "<port in>"
+     PortIn name _ -> P.text $ "<port:" ++ name ++ ">"
 
      PortOut _ _ signal -> pretty signal
 

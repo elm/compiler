@@ -3,7 +3,6 @@ module Type.Constrain.Expression where
 
 import qualified Data.List as List
 import qualified Data.Map as Map
-import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import Control.Applicative ((<$>))
 import qualified Control.Monad as Monad
@@ -147,10 +146,7 @@ constrain env (L span expr) tipe =
                            (clet [Scheme rqs fqs (clet [monoscheme header] c2) header ]
                                  (c1 /\ c))
 
-      PortIn _ _ tt handler ->
-          constrain env (Maybe.fromMaybe identity handler) (VarN tt)
-          where
-            identity = Loc.none $ Lambda (PVar "x") (Loc.none $ Var "x")
+      PortIn _ _ -> return true
 
       PortOut _ _ signal ->
           constrain env signal tipe
