@@ -14,12 +14,12 @@ import qualified Type.State as TS
 import qualified Type.Alias as Alias
 import Text.PrettyPrint as P
 import SourceSyntax.PrettyPrint (pretty)
+import qualified SourceSyntax.Helpers as Help
 import qualified SourceSyntax.Type as T
 import qualified SourceSyntax.Expression as E
 import qualified SourceSyntax.Location as L
 import qualified Transform.Expression as Expr
 import qualified Data.Traversable as Traverse
-import System.IO.Unsafe
 
 throw err = Left [ P.vcat err ]
 
@@ -43,69 +43,60 @@ mainType rules env = mainCheck rules <$> Traverse.traverse toSrcType env
                     , P.nest 4 . pretty $ Alias.realias rules mainType
                     , P.text " " ]
 
+data Direction = In | Out
+
 portTypes :: Alias.Rules -> E.LExpr -> Either [P.Doc] ()
 portTypes rules expr =
   const () <$> Expr.checkPorts checkIn checkOut expr
   where
-    showType tipe = (P.nest 4 . pretty $ Alias.realias rules tipe) <> P.text "\n"
+    checkIn name st _ = isValidType In  name st
+    checkOut name st  = isValidType Out name st
 
-    checkIn name st tt =
-        do t <- getSignal name st
-           case unsafePerformIO (toSrcType tt) of
-             T.Lambda a b ->
-                 do isJsType "coming in" name a
-                    if b `elem` okayTypes then return () else throw msg
-                 where
-                   okayTypes = [ t
-                               , T.Data "Maybe.Maybe" [t]
-                               , T.Data "Either.Either" [T.Data "String.String" [], t]
-                               ]
-                   msg = [ P.text $ "Type Error: the handler for port '" ++ name ++
-                                    "' returns values of type:\n"
-                         , showType b
-                         , P.text $ "but the port's type annotation requires that the handler returns values"
-                         , P.text $ "with one of the following types:\n"
-                         ] ++ map showType okayTypes ++
-                         [ P.text "If the handler returns a Maybe or Either, invalid values will cause an"
-                         , P.text "error to be thrown to the JS error handler associated with this port." ]
-
-             tipe ->
-                 throw [ P.text $ "Type Error: the handler for port '" ++ name ++
-                                  "' must be a function!"
-                       , P.text "Instead it was given a value of type:\n"
-                       , showType tipe
-                       ]
-
-    checkOut name st =
-        do t <- getSignal name st
-           isJsType "sent out" name t
-
-    getSignal name tipe =
+    isValidType = isValid True
+    isValid firstOrder direction name tipe =
+        let valid = isValid firstOrder direction name in
         case tipe of
-          T.Data "Signal.Signal" [t] -> return t
-          _ -> throw [ P.text $ "Type Error: port '" ++ name ++ "' must be a Signal,"
-                     , P.text $ "but the type annotation says it has non-Signal type:\n"
-                     , showType tipe
-                     , P.text $ "Maybe instead you want the following type?\n"
-                     , showType (T.Data "Signal.Signal" [tipe])
-                     ]
+          T.Data ctor ts | okay ctor -> mapM_ valid ts
+                         | otherwise -> err "Algebraic Data Types"
 
-    isJsType msg name tipe =
-        case tipe of
-          T.Data ctor ts | okay ctor -> mapM_ (isJsType msg name) ts
-                         | otherwise -> throw $ err msg "Elm values"
-          T.Var _       -> throw $ err msg "type variables"
-          T.Lambda _ _  -> throw $ err msg "Elm functions"
-          T.Record _ _  -> throw $ err msg "Elm records"
+          T.Var _ -> err "free type variables"
+
+          T.Lambda t1 t2 ->
+              case direction of
+                In -> err "functions"
+                Out | firstOrder -> do isValid False direction name t1
+                                       valid t2
+                    | otherwise -> err "higher-order functions"
+
+          T.Record _ (Just _) -> err "extended records with free type variables"
+
+          T.Record fields Nothing ->
+              mapM_ (\(k,v) -> (,) k <$> valid v) fields
+
         where
-          okay ctor = and [ List.isPrefixOf "JavaScript." ctor
-                          , 1 == length (filter (=='.') ctor) ]
+          okay ctor = isJs ctor || isElm ctor
 
-          err msg kind =
-              [ P.text $ "Type Error: the values " ++ msg ++ " through port '" ++ name ++
-                         "' must be JavaScript values."
-              , P.text $ "The values sent through this port contain " ++ kind ++ " with type:\n"
-              , showType tipe
+          isJs ctor =
+              List.isPrefixOf "JavaScript." ctor
+              && length (filter (=='.') ctor) == 1
+
+          isElm ctor =
+              ctor `elem` ["Int","Float","String","Maybe.Maybe","_List","Signal.Signal"]
+              || Help.isTuple ctor
+
+          dir inMsg outMsg = case direction of { In -> inMsg ; Out -> outMsg }
+          txt = P.text . concat
+
+          err kind =
+              throw $
+              [ txt [ "Type Error: the value ", dir "coming in" "sent out"
+                    , " through port '", name, "' is invalid." ]
+              , txt [ "Acceptable values for ", dir "incoming" "outgoing"
+                    , " ports include JavaScript values and the following Elm values:" ]
+              , txt [ "Ints, Floats, Strings, Maybes, Lists, Tuples, "
+                    , dir "" "first-order functions, ", "and concrete records." ]
+              , txt [ "The values sent through this port contain ", kind, ":\n" ]
+              , (P.nest 4 . pretty $ Alias.realias rules tipe) <> P.text "\n"
               ]
 
 occurs :: (String, Variable) -> StateT TS.SolverState IO ()
