@@ -47,12 +47,9 @@ data Direction = In | Out
 
 portTypes :: Alias.Rules -> E.LExpr -> Either [P.Doc] ()
 portTypes rules expr =
-  const () <$> Expr.checkPorts checkIn checkOut expr
+  const () <$> Expr.checkPorts (check In) (check Out) expr
   where
-    checkIn name st _ = isValidType In  name st
-    checkOut name st  = isValidType Out name st
-
-    isValidType = isValid True
+    check = isValid True
     isValid firstOrder direction name tipe =
         let valid = isValid firstOrder direction name in
         case tipe of
@@ -81,7 +78,7 @@ portTypes rules expr =
               && length (filter (=='.') ctor) == 1
 
           isElm ctor =
-              ctor `elem` ["Int","Float","String","Maybe.Maybe","_List","Signal.Signal"]
+              ctor `elem` ["Int","Float","String","Bool","Maybe.Maybe","_List","Signal.Signal"]
               || Help.isTuple ctor
 
           dir inMsg outMsg = case direction of { In -> inMsg ; Out -> outMsg }
@@ -93,7 +90,7 @@ portTypes rules expr =
                     , " through port '", name, "' is invalid." ]
               , txt [ "Acceptable values for ", dir "incoming" "outgoing"
                     , " ports include JavaScript values and the following Elm values:" ]
-              , txt [ "Ints, Floats, Strings, Maybes, Lists, Tuples, "
+              , txt [ "Ints, Floats, Bools, Strings, Maybes, Lists, Tuples, "
                     , dir "" "first-order functions, ", "and concrete records." ]
               , txt [ "The values sent through this port contain ", kind, ":\n" ]
               , (P.nest 4 . pretty $ Alias.realias rules tipe) <> P.text "\n"
