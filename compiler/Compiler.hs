@@ -3,9 +3,11 @@ module Main where
 
 import Control.Monad (foldM)
 import qualified Data.Maybe as Maybe
-import qualified Data.Text.Lazy    as T
-import qualified Data.Text.Lazy.IO as TIO
-import Text.Blaze.Html.Renderer.Text (renderHtml)
+import qualified Data.ByteString.Lazy    as BS
+import qualified Data.Text.Lazy          as T
+import qualified Data.Text.Lazy.Encoding as TEncode
+import qualified Data.Text.Lazy.IO       as TIO
+import Text.Blaze.Html.Renderer.Utf8 (renderHtml)
 import qualified System.Console.CmdArgs as CmdArgs
 import System.Directory
 import System.FilePath
@@ -46,13 +48,13 @@ build flags rootFile =
        (extension, code) <-
            if Flag.only_js flags
            then do putStr "Generating JavaScript ... "
-                   return ("js", js)
+                   return ("js", TEncode.encodeUtf8 js)
            else do putStr "Generating HTML ... "
                    return (makeHtml js moduleName)
 
        let targetFile = Utils.buildPath flags rootFile extension
        createDirectoryIfMissing True (takeDirectory targetFile)
-       TIO.writeFile targetFile code
+       BS.writeFile targetFile code
        putStrLn "Done"
 
     where
