@@ -1,17 +1,15 @@
+{-# OPTIONS_GHC -Wall #-}
 module Build.File (build) where
 
-import Control.Applicative      ((<$>), (<*>), pure)
-import Control.Monad            (when)
+import Control.Applicative      ((<$>))
 import Control.Monad.Error      (runErrorT)
 import Control.Monad.RWS.Strict
-import Data.Monoid              (Last(..))
 import System.Directory
 import System.Exit
 import System.FilePath
 import System.IO
 
 import qualified Data.Binary            as Binary
-import qualified Data.List              as List
 import qualified Data.Maybe             as Maybe
 import qualified Data.Map               as Map
 import qualified Data.ByteString.Lazy   as L
@@ -37,10 +35,11 @@ type Build a = BuildT IO a
 type BInterfaces = Map.Map String (Bool, M.ModuleInterface)
 
 evalBuild :: Flag.Flags -> M.Interfaces -> Build () -> IO (Maybe String)
-evalBuild fs is b = do
-  (_, s) <- evalRWST b fs (fmap notUpdated is)
+evalBuild flags interfaces b = do
+  (_, s) <- evalRWST b flags (fmap notUpdated interfaces)
   return . getLast $ s
-  where notUpdated i = (False, i)
+  where
+    notUpdated i = (False, i)
 
 -- | Builds a list of files, returning the moduleName of the last one.
 --   Returns \"\" if the list is empty
@@ -49,7 +48,8 @@ build flags is = fmap (Maybe.fromMaybe "") . evalBuild flags is . buildAll
 
 buildAll :: [FilePath] -> Build ()
 buildAll fs = mapM_ (uncurry build1) (zip [1..] fs)
-  where build1 num fname = do
+  where build1 :: Integer -> FilePath -> Build ()
+        build1 num fname = do
           shouldCompile <- shouldBeCompiled fname
           if shouldCompile
             then compile number fname
