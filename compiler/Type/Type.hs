@@ -364,11 +364,15 @@ toSrcType variable = do
             return (Src.Data name (ts ++ [b']))
           Fun1 a b -> Src.Lambda <$> toSrcType a <*> toSrcType b
           Var1 a -> toSrcType a
-          EmptyRecord1 -> return Src.EmptyRecord
-          Record1 fs ext -> do
-            fs' <- traverse (mapM toSrcType) fs
-            let fs'' = concat [ map ((,) name) ts | (name,ts) <- Map.toList fs' ]
-            Src.Record fs'' <$> toSrcType ext
+          EmptyRecord1 -> return $ Src.Record [] Nothing
+          Record1 tfields extension -> do
+            fields' <- traverse (mapM toSrcType) tfields
+            let fields = concat [ map ((,) name) ts | (name,ts) <- Map.toList fields' ]
+            ext' <- toSrcType extension
+            return $ case ext' of
+                       Src.Record fs ext -> Src.Record (fs ++ fields) ext
+                       Src.Var x -> Src.Record fields (Just x)
+                       _ -> error "Used toSrcType on a type that is not well-formed"
     Nothing ->
         case name desc of
           Just x@(c:_) | Char.isLower c -> return (Src.Var x)

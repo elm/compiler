@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Parse.Type where
 
-import Control.Applicative ((<$>),(<*>))
+import Control.Applicative ((<$>),(<*>),(<*))
 import Data.List (intercalate)
 import Text.Parsec
 
@@ -23,19 +23,19 @@ tuple = do ts <- parens (commaSep expr)
 record :: IParser T.Type
 record =
   do char '{' ; whitespace
-     (ext,fs) <- extended <|> normal
+     rcrd <- extended <|> normal
      dumbWhitespace ; char '}'
-     return (T.Record fs ext)
+     return rcrd
   where
-    normal = (,) T.EmptyRecord <$> commaSep fields
+    normal = flip T.Record Nothing <$> commaSep field
 
     -- extended record types require at least one field
     extended = do
-      ext <- try (const <$> tvar <*> (whitespace >> string "|"))
+      ext <- try (lowVar <* (whitespace >> string "|"))
       whitespace
-      (,) ext <$> commaSep1 fields
+      flip T.Record (Just ext) <$> commaSep1 field
 
-    fields = do
+    field = do
       lbl <- rLabel
       whitespace >> hasType >> whitespace
       (,) lbl <$> expr

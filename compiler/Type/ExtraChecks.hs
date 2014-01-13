@@ -96,7 +96,6 @@ portTypes rules expr =
                          | otherwise -> throw $ err msg "Elm values"
           T.Var _       -> throw $ err msg "type variables"
           T.Lambda _ _  -> throw $ err msg "Elm functions"
-          T.EmptyRecord -> throw $ err msg "Elm records"
           T.Record _ _  -> throw $ err msg "Elm records"
         where
           okay ctor = and [ List.isPrefixOf "JavaScript." ctor

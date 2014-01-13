@@ -28,17 +28,15 @@ toDefs decl =
     TypeAlias name _ tipe@(T.Record fields ext) _ ->
         [ definition name (buildFunction record vars) (foldr T.Lambda tipe args) ]
       where
-        args = case ext of
-                 T.EmptyRecord -> map snd fields
-                 _ -> map snd fields ++ [ext]
+        args = map snd fields ++ maybe [] (\x -> [T.Var x]) ext
 
         var = L.none . E.Var
         vars = take (length args) arguments
 
         efields = zip (map fst fields) (map var vars)
         record = case ext of
-                   T.EmptyRecord -> L.none $ E.Record efields
-                   _ -> foldl (\r (f,v) -> L.none $ E.Insert r f v) (var $ last vars) efields
+                   Nothing -> L.none $ E.Record efields
+                   Just _ -> foldl (\r (f,v) -> L.none $ E.Insert r f v) (var $ last vars) efields
 
     -- Type aliases must be added to an extended equality dictionary,
     -- but they do not require any basic constraints.
