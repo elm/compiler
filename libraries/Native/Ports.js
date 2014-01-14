@@ -48,10 +48,18 @@ Elm.Native.Ports.make = function(elm) {
                             "' was not given an input!");
         }
         elm.ports.uses[name] += 1;
-        return converter(value);
+        try {
+            return converter(value);
+        } catch(e) {
+            throw new Error("Initialization Error on port '" + name + "': \n" + e.message);
+        }
     }
     function portOut(name, converter, value) {
-        elm.ports.outgoing[name] = converter(value);
+        try {
+            elm.ports.outgoing[name] = converter(value);
+        } catch(e) {
+            throw new Error("Initialization Error on port '" + name + "': \n" + e.message);
+        }
         return value;
     }
 
