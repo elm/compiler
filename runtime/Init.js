@@ -179,12 +179,16 @@ function addReceivers(ports) {
         ports.log.subscribe(function(v) { console.log(v) });
     }
     if ('stdout' in ports) {
-        var handler = process ? function(v) { process.stdout.write(v); }
+        var process = process || {};
+        var handler = process.stdout
+            ? function(v) { process.stdout.write(v); }
             : function(v) { console.log(v); };
         ports.stdout.subscribe(handler);
     }
     if ('stderr' in ports) {
-        var handler = process ? function(v) { process.stderr.write(v); }
+        var process = process || {};
+        var handler = process.stderr
+            ? function(v) { process.stderr.write(v); }
             : function(v) { console.log('Error:' + v); };
         ports.stderr.subscribe(handler);
     }
