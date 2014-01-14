@@ -128,7 +128,9 @@ instance Pretty def => Pretty (Expr' def) where
            pretty' (p,b) = pretty p <+> P.text "->" <+> pretty b
      Data "::" [hd,tl] -> pretty hd <+> P.text "::" <+> pretty tl
      Data "[]" [] -> P.text "[]"
-     Data name es -> P.hang (P.text name) 2 (P.sep (map prettyParens es))
+     Data name es
+         | Help.isTuple name -> P.parens (commaCat (map pretty es))
+         | otherwise -> P.hang (P.text name) 2 (P.sep (map prettyParens es))
      Access e x -> prettyParens e <> P.text "." <> variable x
      Remove e x -> P.braces (pretty e <+> P.text "-" <+> variable x)
      Insert (Location.L _ (Remove e y)) x v ->
