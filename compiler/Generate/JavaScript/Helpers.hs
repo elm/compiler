@@ -31,6 +31,7 @@ dotSep vars =
 obj = dotSep . split
 
 equal a b = InfixExpr () OpStrictEq a b
-instanceof tipe x = InfixExpr () OpInstanceof x (ref tipe)
+instanceof tipe x =
+    InfixExpr () OpLAnd (typeof "object" x) (InfixExpr () OpInstanceof x (ref tipe))
 typeof tipe x = equal (PrefixExpr () PrefixTypeof x) (string tipe)
 member field x = InfixExpr () OpIn (string field) x
