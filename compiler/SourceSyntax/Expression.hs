@@ -111,8 +111,10 @@ instance Pretty def => Pretty (Expr' def) where
          P.text "-" <> prettyParens e
      Binop op e1 e2 -> P.sep [ prettyParens e1 <+> P.text op', prettyParens e2 ]
          where op' = if Help.isOp op then op else "`" ++ op ++ "`"
-     Lambda p e -> let (ps,body) = collectLambdas (Location.none $ Lambda p e)
-                   in  P.text "\\" <> P.sep ps <+> P.text "->" <+> pretty body
+     Lambda p e -> P.text "\\" <> args <+> P.text "->" <+> pretty body
+         where
+           (ps,body) = collectLambdas (Location.none $ Lambda p e)
+           args = P.sep (map Pattern.prettyParens ps)
      App _ _ -> P.hang func 2 (P.sep args)
          where func:args = map prettyParens (collectApps (Location.none expr))
      MultiIf branches ->  P.text "if" $$ nest 3 (vcat $ map iff branches)
@@ -179,12 +181,11 @@ collectApps lexpr@(Location.L _ expr) =
     App a b -> collectApps a ++ [b]
     _ -> [lexpr]
 
-collectLambdas :: LExpr' def -> ([Doc], LExpr' def)
+collectLambdas :: LExpr' def -> ([Pattern.Pattern], LExpr' def)
 collectLambdas lexpr@(Location.L _ expr) =
   case expr of
-    Lambda pattern body ->
-        let (ps, body') = collectLambdas body
-        in  (pretty pattern : ps, body')
+    Lambda pattern body -> (pattern : ps, body')
+        where (ps, body') = collectLambdas body
     _ -> ([], lexpr)
 
 prettyParens :: (Pretty def) => LExpr' def -> Doc
