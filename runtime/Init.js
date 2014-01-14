@@ -142,8 +142,9 @@ function checkPorts(elm) {
         var uses = portUses[key]
         if (uses === 0) {
             throw new Error(
-                "Initialization Error: there is no port named '" + key + "'.\n" +
-                "You should probably remove that input from your initialization code.");
+                "Initialization Error: provided port '" + key +
+                "' to a module that does not take it as in input.\n" +
+                "Remove '" + key + "' from the module initialization code.");
         } else if (uses > 1) {
             throw new Error(
                 "Initialization Error: port '" + key +
