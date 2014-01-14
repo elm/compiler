@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -W #-}
 module SourceSyntax.Type where
 
 import Data.Binary
@@ -32,7 +32,12 @@ instance Pretty Type where
   pretty tipe =
     case tipe of
       Lambda _ _ -> P.sep [ t, P.sep (map (P.text "->" <+>) ts) ]
-        where t:ts = collectLambdas tipe
+        where
+          t:ts = map prettyLambda (collectLambdas tipe)
+          prettyLambda t = case t of
+                             Lambda _ _ -> P.parens (pretty t)
+                             _ -> pretty t
+
       Var x -> P.text x
       Data "_List" [t] -> P.brackets (pretty t)
       Data name tipes
@@ -46,12 +51,11 @@ instance Pretty Type where
             prettyField (f,t) = P.text f <+> P.text ":" <+> pretty t
             prettyFields = commaSep . map prettyField $ fields
 
-collectLambdas :: Type -> [Doc]
+collectLambdas :: Type -> [Type]
 collectLambdas tipe =
   case tipe of
-    Lambda arg@(Lambda _ _) body -> P.parens (pretty arg) : collectLambdas body
-    Lambda arg body -> pretty arg : collectLambdas body
-    _ -> [pretty tipe]
+    Lambda arg body -> arg : collectLambdas body
+    _ -> [tipe]
 
 prettyParens :: Type -> Doc
 prettyParens tipe = parensIf needed (pretty tipe)
