@@ -2,6 +2,7 @@
 module Transform.Expression (crawlLet, checkPorts) where
 
 import Control.Applicative ((<$>),(<*>))
+import Data.Traversable (traverse)
 import SourceSyntax.Expression
 import SourceSyntax.Location
 import qualified SourceSyntax.Type as ST
@@ -50,7 +51,7 @@ crawl portInCheck portOutCheck defsTransform = go
             Let defs body -> Let <$> defsTransform defs <*> go body
             PortIn name st tt handler ->
                 do portInCheck name st tt
-                   PortIn name st tt <$> go handler
+                   PortIn name st tt <$> traverse go handler
             PortOut name st signal ->
                 do portOutCheck name st
                    PortOut name st <$> go signal

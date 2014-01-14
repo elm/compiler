@@ -34,15 +34,35 @@ Insert, remove, and query operations all take *O(log n)* time.
 import open Basics
 import open Maybe
 import Native.Error
-import List as List
+import List
+import String
 import Native.Utils
 
 -- BBlack and NBlack should only be used during the deletion
 -- algorithm. Any other occurrence is a bug and should fail an assert.
-data NColor = Red | Black
-            | BBlack | NBlack
+data NColor = Red
+            | Black
+              -- ^ Double Black, counts as 2 blacks for the invariant
+            | BBlack
+              -- ^ Negative Black, counts as -1 blacks for the invariant
+            | NBlack
 
-data LeafColor = LBlack | LBBlack
+
+showNColor : NColor -> String
+showNColor c = case c of
+  Red    -> "Red"
+  Black  -> "Black"
+  BBlack -> "BBlack"
+  NBlack -> "NBlack"
+
+data LeafColor = LBlack
+                 -- ^ Double Black, counts as 2
+               | LBBlack
+
+showLColor : LeafColor -> String
+showLColor c = case c of
+  LBlack  -> "LBlack"
+  LBBlack -> "LBBlack"
 
 data Dict k v = RBNode NColor k v (Dict k v) (Dict k v)
               | RBEmpty LeafColor
@@ -93,51 +113,6 @@ member : comparable -> Dict comparable v -> Bool
 -- Does t contain k?
 member k t = isJust <| lookup k t
 
-rotateLeft : Dict k v -> Dict k v
-rotateLeft t =
- case t of
-   RBNode cy ky vy a (RBNode cz kz vz b c) -> RBNode cy kz vz (RBNode Red ky vy a b) c
-   _ -> Native.Error.raise "rotateLeft of a node without enough children"
-
--- rotateRight -- the reverse, and
--- makes Y have Z's color, and makes Z Red.
-rotateRight : Dict k v -> Dict k v
-rotateRight t =
- case t of
-   RBNode cz kz vz (RBNode cy ky vy a b) c -> RBNode cz ky vy a (RBNode Red kz vz b c)
-   _ -> Native.Error.raise "rotateRight of a node without enough children"
-
-rotateLeftIfNeeded : Dict k v -> Dict k v
-rotateLeftIfNeeded t =
- case t of
-   RBNode _ _ _ _ (RBNode Red _ _ _ _) -> rotateLeft t
-   _ -> t
-
-rotateRightIfNeeded : Dict k v -> Dict k v
-rotateRightIfNeeded t =
- case t of
-   RBNode _ _ _ (RBNode Red _ _ (RBNode Red _ _ _ _) _) _ -> rotateRight t
-   _ -> t
-
-otherColor c = case c of { Red -> Black ; Black -> Red }
-
-color_flip : Dict k v -> Dict k v
-color_flip t =
- case t of
-   RBNode c1 bk bv (RBNode c2 ak av la ra) (RBNode c3 ck cv lc rc) ->
-       RBNode (otherColor c1) bk bv
-              (RBNode (otherColor c2) ak av la ra)
-              (RBNode (otherColor c3) ck cv lc rc)
-   _ -> Native.Error.raise "color_flip called on a Empty or Node with a Empty child"
-
-color_flipIfNeeded : Dict k v -> Dict k v
-color_flipIfNeeded t =
- case t of
-   RBNode _ _ _ (RBNode Red _ _ _ _) (RBNode Red _ _ _ _) -> color_flip t
-   _ -> t
-
-fixUp t = color_flipIfNeeded (rotateRightIfNeeded (rotateLeftIfNeeded t))
-
 ensureBlackRoot : Dict k v -> Dict k v
 ensureBlackRoot t =
   case t of
@@ -158,6 +133,11 @@ remove k t = let u _ = Nothing in
   update k u t
 
 data Flag = Insert | Remove | Same
+showFlag : Flag -> String
+showFlag f = case f of
+  Insert -> "Insert"
+  Remove -> "Remove"
+  Same   -> "Same"
 
 {-| Update the value of a dictionary for a specific key with a given function. -}
 update : comparable -> (Maybe v -> Maybe v) -> Dict comparable v -> Dict comparable v
@@ -168,76 +148,87 @@ update k u t =
           Just v  -> (Insert, RBNode Red k v empty empty)
         RBNode c k' v l r -> case Native.Utils.compare k k' of
           EQ -> case u (Just v) of
-            Nothing -> (Remove, rem t)
+            Nothing -> (Remove, rem c l r)
             Just v' -> (Same,   RBNode c k' v' l r)
           LT -> let (fl, l') = up l in
             case fl of
               Same   -> (Same, RBNode c k' v l' r)
-              Insert -> (Insert, fixUp <| RBNode c k' v l' r)
+              Insert -> (Insert, balance c k' v l' r)
               Remove -> (Remove, bubble c k' v l' r)
           GT -> let (fl, r') = up r in
             case fl of
               Same   -> (Same, RBNode c k' v l r')
-              Insert -> (Insert, fixUp <| RBNode c k' v l r')
+              Insert -> (Insert, balance c k' v l r')
               Remove -> (Remove, bubble c k' v l r')
       (fl, t') = up t
   in case fl of
     Same   -> t'
     Insert -> ensureBlackRoot t'
     Remove -> blacken t'
-    
+
 {-| Create a dictionary with one key-value pair. -}
 singleton : comparable -> v -> Dict comparable v
 singleton k v = insert k v (RBEmpty LBlack)
 
-{- Remove helpers: everything from here to remove should only be used
-   internally by remove as they would otherwise break rb-invariants -}
-                
 isBBlack : Dict k v -> Bool
 isBBlack t = case t of
-  RBNode c _ _ _ _ -> case c of
-    BBlack -> True
-    _      -> False
+  RBNode BBlack _ _ _ _ -> True
   RBEmpty LBBlack -> True
   _               -> False
 
 moreBlack : NColor -> NColor
 moreBlack c = case c of
-  BBlack -> BBlack
   Black  -> BBlack
   Red    -> Black
   NBlack -> Red
+  BBlack -> Native.Error.raise "Can't make a double black node more black!"
+
 lessBlack : NColor -> NColor
 lessBlack c = case c of
   BBlack -> Black
   Black  -> Red
   Red    -> NBlack
-  NBlack -> NBlack
-
-moreBlackTree : Dict k v -> Dict k v
-moreBlackTree t = case t of
-  RBNode c k v l r -> RBNode (moreBlack c) k v l r
-  RBEmpty _        -> RBEmpty LBBlack
+  NBlack -> Native.Error.raise "Can't make a negative black node less black!"
 
 lessBlackTree : Dict k v -> Dict k v
 lessBlackTree t = case t of
   RBNode c k v l r -> RBNode (lessBlack c) k v l r
-  RBEmpty _ -> RBEmpty LBlack
+  RBEmpty LBBlack -> RBEmpty LBlack
+
+reportRemBug : String -> NColor -> String -> String -> a
+reportRemBug msg c lgot rgot =
+  Native.Error.raise . String.concat <| [
+    "Internal red-black tree invariant violated, expected ",
+    msg,
+    "and got",
+    showNColor c,
+    " ",
+    lgot,
+    " ",
+    rgot,
+    "\nPlease report this bug to https://github.com/evancz/Elm/issues"
+    ]
 
 -- Remove the top node from the tree, may leave behind BBlacks
-rem : Dict k v -> Dict k v
-rem t = case t of
-  RBNode c k v (RBEmpty _) (RBEmpty _) -> case c of
-    Red -> RBEmpty LBlack
+rem : NColor -> Dict k v -> Dict k v -> Dict k v
+rem c l r = case (l, r) of
+  ((RBEmpty _), (RBEmpty _)) -> case c of
+    Red   -> RBEmpty LBlack
     Black -> RBEmpty LBBlack
-  RBNode Black _ _ (RBEmpty _) (RBNode _ k v l r) ->
-    RBNode Black k v l r
-  RBNode Black _ _ (RBNode _ k v l r) (RBEmpty _) ->
-    RBNode Black k v l r
+  ((RBEmpty cl), (RBNode cr k' v' l' r')) ->
+    case (c, cl, cr) of
+      (Black, LBlack, Red) -> RBNode Black k' v' l' r'
+      _     -> reportRemBug "Black, LBlack, Red" c (showLColor cl) (showNColor cr)
+  ((RBNode cl k' v' l' r'), (RBEmpty cr)) ->
+    case (c, cl, cr) of
+      (Black, Red, LBlack) -> RBNode Black k' v' l' r'
+      _     -> reportRemBug "Black, Red, LBlack" c (showNColor cl) (showLColor cr)
   -- l and r are both RBNodes
-  RBNode c _ _ l r ->
-    let (k, v) = max l
-        l'     = remove_max l
+  ((RBNode cl kl vl ll rl), (RBNode cr kr vr lr rr)) ->
+    let l = RBNode cl kl vl ll rl
+        r = RBNode cr kr vr lr rr
+        (k, v) = max l
+        l'     = remove_max cl kl vl ll rl
     in bubble c k v l' r
 
 -- Kills a BBlack or moves it upward, may leave behind NBlack
@@ -245,19 +236,24 @@ bubble : NColor -> k -> v -> Dict k v -> Dict k v -> Dict k v
 bubble c k v l r = if isBBlack l || isBBlack r
                    then balance (moreBlack c) k v (lessBlackTree l) (lessBlackTree r)
                    else RBNode c k v l r
-                      
+
 -- Removes rightmost node, may leave root as BBlack
-remove_max : Dict k v -> Dict k v
-remove_max t = case t of
-  RBNode c k v l (RBEmpty _) -> rem t
-  RBNode c k v l r           -> bubble c k v l (remove_max r)
+remove_max : NColor -> k -> v -> Dict k v -> Dict k v -> Dict k v
+remove_max c k v l r = case r of
+  RBEmpty _ -> rem c l r
+  RBNode cr kr vr lr rr
+    -> bubble c k v l (remove_max cr kr vr lr rr)
 
 -- generalized tree balancing act
 balance : NColor -> k -> v -> Dict k v -> Dict k v -> Dict k v
-balance c k v l r = balance_node (RBNode c k v l r)
+balance c k v l r =
+
+  balance_node (RBNode c k v l r)
 
 blackish : Dict k v -> Bool
-blackish (RBNode c _ _ _ _) = c == Black || c == BBlack
+blackish t = case t of
+  RBNode c _ _ _ _ -> c == Black || c == BBlack
+  RBEmpty _        -> True
 
 balance_node : Dict k v -> Dict k v
 balance_node t = 
@@ -286,9 +282,7 @@ balance_node t =
          (RBNode Black _ _ _ _) -> 
            RBNode Black yk yv (balance Black xk xv (redden a) b) (RBNode Black zk zv c d)
          _ -> t
-
      _ -> t
-       
    else t
 
 -- make the top node black

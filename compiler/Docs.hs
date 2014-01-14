@@ -7,7 +7,7 @@ import System.FilePath
 import System.Exit
 import System.IO
 
-import Control.Applicative ((<$>), (<*>))
+import Control.Applicative ((<$>))
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import qualified Data.List as List
@@ -154,11 +154,10 @@ instance ToJSON Type where
           Lambda t1 t2 -> toJSON [ "->", toJSON t1, toJSON t2 ]
           Var x -> toJSON x
           Data name ts -> toJSON (toJSON name : map toJSON ts)
-          EmptyRecord -> object []
           Record fields ext -> object $ map (\(n,t) -> Text.pack n .= toJSON t) fields'
               where fields' = case ext of
-                                EmptyRecord -> fields
-                                _ -> ("_",ext) : fields
+                                Nothing -> fields
+                                Just x -> ("_", Var x) : fields
 
 ctorToJson tipe (ctor, tipes) =
     object [ "name" .= ctor

@@ -197,8 +197,10 @@ expression (L span expr) =
             md = pad ++ MD.toHtml doc ++ pad
 
       PortIn name _ _ handler ->
-          do handler' <- expression handler
-             return $ obj "Native.Ports.portIn" `call` [ string name, handler' ]
+          do handler' <- case handler of
+                           Nothing -> return []
+                           Just h -> (:[]) `fmap` expression h
+             return $ obj "Native.Ports.portIn" `call` ([ string name ] ++ handler')
 
       PortOut name _ signal ->
           do signal' <- expression signal
