@@ -49,20 +49,24 @@ portTypes :: Alias.Rules -> E.LExpr -> Either [P.Doc] ()
 portTypes rules expr =
   const () <$> Expr.checkPorts (check In) (check Out) expr
   where
-    check = isValid True
-    isValid firstOrder direction name tipe =
-        let valid = isValid firstOrder direction name in
+    check = isValid False False
+    isValid seenFunc seenSignal direction name tipe =
+        let valid = isValid seenFunc seenSignal direction name in
         case tipe of
-          T.Data ctor ts | okay ctor -> mapM_ valid ts
-                         | otherwise -> err "Algebraic Data Types"
+          T.Data ctor ts
+              | isJs ctor || isElm ctor -> mapM_ valid ts
+              | ctor == "Signal.Signal" -> handleSignal ts
+              | otherwise               -> err "Algebraic Data Types"
 
           T.Var _ -> err "free type variables"
 
           T.Lambda _ _ ->
               case direction of
                 In -> err "functions"
-                Out | firstOrder -> mapM_ (isValid False direction name) (T.collectLambdas tipe)
-                    | otherwise  -> err "higher-order functions"
+                Out | seenFunc   -> err "higher-order functions"
+                    | seenSignal -> err "signals that contain functions"
+                    | otherwise  ->
+                        mapM_ (isValid True seenSignal direction name) (T.collectLambdas tipe)
 
           T.Record _ (Just _) -> err "extended records with free type variables"
 
@@ -70,15 +74,18 @@ portTypes rules expr =
               mapM_ (\(k,v) -> (,) k <$> valid v) fields
 
         where
-          okay ctor = isJs ctor || isElm ctor
-
           isJs ctor =
               List.isPrefixOf "JavaScript." ctor
               && length (filter (=='.') ctor) == 1
 
           isElm ctor =
-              ctor `elem` ["Int","Float","String","Bool","Maybe.Maybe","_List","Signal.Signal"]
+              ctor `elem` ["Int","Float","String","Bool","Maybe.Maybe","_List"]
               || Help.isTuple ctor
+
+          handleSignal ts
+              | seenFunc   = err "functions that involve signals"
+              | seenSignal = err "signals-of-signals"
+              | otherwise  = mapM_ (isValid seenFunc True direction name) ts
 
           dir inMsg outMsg = case direction of { In -> inMsg ; Out -> outMsg }
           txt = P.text . concat
