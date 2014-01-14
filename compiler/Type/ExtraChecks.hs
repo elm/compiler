@@ -58,12 +58,11 @@ portTypes rules expr =
 
           T.Var _ -> err "free type variables"
 
-          T.Lambda t1 t2 ->
+          T.Lambda _ _ ->
               case direction of
                 In -> err "functions"
-                Out | firstOrder -> do isValid False direction name t1
-                                       valid t2
-                    | otherwise -> err "higher-order functions"
+                Out | firstOrder -> mapM_ (isValid False direction name) (T.collectLambdas tipe)
+                    | otherwise  -> err "higher-order functions"
 
           T.Record _ (Just _) -> err "extended records with free type variables"
 
