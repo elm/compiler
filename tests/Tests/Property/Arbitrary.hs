@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -W -fno-warn-orphans #-}
 module Tests.Property.Arbitrary where
 
 import Control.Applicative       ((<$>), (<*>), pure)
@@ -10,6 +10,7 @@ import qualified Parse.Helpers (reserveds)
 
 import SourceSyntax.Literal
 import SourceSyntax.Pattern
+import SourceSyntax.Type hiding (listOf)
 
 instance Arbitrary Literal where
   arbitrary = oneof [ IntNum   <$> arbitrary
@@ -54,6 +55,23 @@ instance Arbitrary Pattern where
     PAlias s p -> p : (PAlias <$> shrinkWHead s <*> shrink p)
     PData s ps -> ps ++ (PData <$> shrinkWHead s <*> shrink ps)
     where shrinkWHead (x:xs) = (x:) <$> shrink xs
+
+instance Arbitrary Type where
+  arbitrary = sized tipe
+    where tipe :: Int -> Gen Type
+          tipe n = oneof [ Lambda <$> depthTipe <*> depthTipe
+                         , Var    <$> arbitrary
+                         , Data   <$> arbitrary <*> listOf1 depthTipe
+                         , Record <$> listOf ((,) <$> arbitrary <*> depthTipe) <*> arbitrary
+                         ]
+            where depthTipe :: Gen Type
+                  depthTipe = choose (0,n) >>= tipe
+  
+  shrink tipe = case tipe of
+    Lambda s t    -> Lambda <$> shrink s <*> shrink t
+    Var _         -> []
+    Data n ts     -> Data n <$> shrink ts
+    Record fs t   -> Record <$> shrink fs <*> pure t
 
 lowVar :: Gen String
 lowVar = notReserved $ (:) <$> lower <*> listOf varLetter
