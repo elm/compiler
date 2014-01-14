@@ -6,14 +6,29 @@ import qualified SourceSyntax.Helpers as Help
 import SourceSyntax.Type
 import Language.ECMAScript3.Syntax
 
-check :: a -> [a -> Expression ()] -> Expression () -> Expression ()
-check x checks continue =
-    CondExpr () (foldl1 (InfixExpr () OpLOr) (map ($x) checks)) continue throw
+data JSType = JSNumber | JSBoolean | JSString | JSArray | JSObject [String]
+    deriving Show
+
+check :: Expression () -> JSType -> Expression () -> Expression ()
+check x jsType continue =
+    CondExpr () (jsFold OpLOr checks x) continue throw
   where
-    throw = obj "_E.raise" <| string "invalid input to port"
+    jsFold op checks value = foldl1 (InfixExpr () op) (map ($value) checks)
+    throw = obj "_E.raise" <| InfixExpr () OpAdd msg x
+    msg = string ("invalid input, expecting " ++ show jsType ++ " but got ")
+    checks = case jsType of
+               JSNumber  -> [typeof "number"]
+               JSBoolean -> [typeof "boolean"]
+               JSString  -> [typeof "string", instanceof "String"]
+               JSArray   -> [instanceof "Array"]
+               JSObject fields -> [jsFold OpLAnd (typeof "object" : map member fields)]
 
 incoming :: Type -> Expression ()
-incoming t = ["v"] ==> go t (ref "v")
+incoming tipe =
+  case tipe of
+    Data "Signal.Signal" [t] ->
+        obj "Native.Ports.incomingSignal" <| incoming t
+    _ -> ["v"] ==> go tipe (ref "v")
   where
     go :: Type -> Expression () -> Expression ()
     go tipe x =
@@ -21,15 +36,15 @@ incoming t = ["v"] ==> go t (ref "v")
       Lambda _ _ -> error "functions should not be allowed through input ports"
       Var _ -> error "type variables should not be allowed through input ports"
       Data ctor []
-          | ctor == "Int"    -> elm "Int"    [typeof "number"]
-          | ctor == "Float"  -> elm "Float"  [typeof "number"]
-          | ctor == "Bool"   -> elm "Bool"   [typeof "boolean"]
-          | ctor == "String" -> elm "String" [typeof "string", instanceof "String"]
-          | ctor == "JavaScript.JSNumber" -> js [typeof "number"]
-          | ctor == "JavaScript.JSBool"   -> js [typeof "boolean"]
-          | ctor == "JavaScript.JSString" -> js [typeof "string", instanceof "String"]
+          | ctor == "Int"    -> elm JSNumber
+          | ctor == "Float"  -> elm JSNumber
+          | ctor == "Bool"   -> elm JSBoolean
+          | ctor == "String" -> elm JSString
+          | ctor == "JavaScript.JSNumber" -> js JSNumber
+          | ctor == "JavaScript.JSBool"   -> js JSBoolean
+          | ctor == "JavaScript.JSString" -> js JSString
           where
-            elm out checks = check x checks (obj ("_J.to" ++ out) <| x)
+            elm checks = check x checks (obj ("_J.to" ++ ctor) <| x)
             js checks = check x checks x
 
       Data ctor [t]
@@ -38,15 +53,12 @@ incoming t = ["v"] ==> go t (ref "v")
                           (obj "Maybe.Nothing")
                           (obj "Maybe.Just" <| go t x)
 
-          | ctor == "Signal.Signal" ->
-              obj "Native.Ports.incomingSignal" <| incoming t
-
           | ctor == "_List" ->
-              check x [instanceof "Array"] (obj "_J.toList" <| array)
+              check x JSArray (obj "_J.toList" <| array)
               where
                 array = DotRef () x (var "map") <| incoming t
 
-      Data ctor ts | Help.isTuple ctor -> check x [instanceof "Array"] tuple
+      Data ctor ts | Help.isTuple ctor -> check x JSArray tuple
           where
             tuple = ObjectLit () $ (PropId () (var "ctor"), string ctor) : values
             values = zipWith convert [0..] ts
@@ -57,14 +69,17 @@ incoming t = ["v"] ==> go t (ref "v")
 
       Record _ (Just _) -> error "bad record got to port generation code"
 
-      Record fields Nothing ->
-          check x (typeof "object" : map (member . fst) fields) object
+      Record fields Nothing -> check x (JSObject (map fst fields)) object
           where
             object = ObjectLit () $ (PropId () (var "_"), ObjectLit () []) : keys
             keys = map convert fields
             convert (f,t) = (PropId () (var f), go t (DotRef () x (var f)))
 
-outgoing t = ["v"] ==> go t (ref "v")
+outgoing tipe =
+  case tipe of
+    Data "Signal.Signal" [t] ->
+        obj "Native.Ports.outgoingSignal" <| outgoing t
+    _ -> ["v"] ==> go tipe (ref "v")
   where
     go :: Type -> Expression () -> Expression ()
     go tipe x =
@@ -83,11 +98,8 @@ outgoing t = ["v"] ==> go t (ref "v")
                           (NullLit ())
                           (DotRef () x (var "_0"))
 
-          | ctor == "Signal.Signal" ->
-              obj "Native.Ports.outgoingSignal" <| incoming t
-
           | ctor == "_List" ->
-              DotRef () (obj "_J.fromList" <| x) (var "map") <| incoming t
+              DotRef () (obj "_J.fromList" <| x) (var "map") <| outgoing t
 
       Data ctor ts | Help.isTuple ctor ->
           ArrayLit () $ zipWith convert [0..] ts
