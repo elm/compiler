@@ -27,7 +27,7 @@ Elm.worker = function(module, ports) {
     return init(ElmRuntime.Display.NONE, {}, module, ports || {});
 };
 
-Elm.input = function(defaultValue, errorHandler) {
+Elm.signal = function(defaultValue, errorHandler) {
     var subscribers = []
     function subscribe(handler) {
         subscribers.push(handler);
@@ -133,7 +133,7 @@ function init(display, container, module, ports, moduleToReplace) {
   }
 
   reportAnyErrors();
-  return { swap:swap, output:elm.ports.outgoing };
+  return { swap:swap, ports:elm.ports.outgoing };
 };
 
 function checkPorts(elm) {
