@@ -3,7 +3,7 @@ module Generate.JavaScript.Ports (incoming, outgoing) where
 
 import Generate.JavaScript.Helpers
 import qualified SourceSyntax.Helpers as Help
-import SourceSyntax.Type
+import SourceSyntax.Type as T
 import Language.ECMAScript3.Syntax
 
 data JSType = JSNumber | JSBoolean | JSString | JSArray | JSObject [String]
@@ -28,10 +28,10 @@ incoming tipe =
   case tipe of
     Data "Signal.Signal" [t] ->
         obj "Native.Ports.incomingSignal" <| incoming t
-    _ -> ["v"] ==> go tipe (ref "v")
-  where
-    go :: Type -> Expression () -> Expression ()
-    go tipe x =
+    _ -> ["v"] ==> inc tipe (ref "v")
+
+inc :: Type -> Expression () -> Expression ()
+inc tipe x =
      case tipe of
       Lambda _ _ -> error "functions should not be allowed through input ports"
       Var _ -> error "type variables should not be allowed through input ports"
@@ -51,7 +51,7 @@ incoming tipe =
           | ctor == "Maybe.Maybe" ->
               CondExpr () (equal x (NullLit ()))
                           (obj "Maybe.Nothing")
-                          (obj "Maybe.Just" <| go t x)
+                          (obj "Maybe.Just" <| inc t x)
 
           | ctor == "_List" ->
               check x JSArray (obj "_J.toList" <| array)
@@ -63,7 +63,7 @@ incoming tipe =
             tuple = ObjectLit () $ (PropId () (var "ctor"), string ctor) : values
             values = zipWith convert [0..] ts
             convert n t = ( PropId () $ var ('_':show n)
-                          , go t (BracketRef () x (IntLit () n)))
+                          , inc t (BracketRef () x (IntLit () n)))
 
       Data _ _ -> error "bad ADT got to port generation code"
 
@@ -73,18 +73,31 @@ incoming tipe =
           where
             object = ObjectLit () $ (PropId () (var "_"), ObjectLit () []) : keys
             keys = map convert fields
-            convert (f,t) = (PropId () (var f), go t (DotRef () x (var f)))
+            convert (f,t) = (PropId () (var f), inc t (DotRef () x (var f)))
 
 outgoing tipe =
   case tipe of
     Data "Signal.Signal" [t] ->
         obj "Native.Ports.outgoingSignal" <| outgoing t
-    _ -> ["v"] ==> go tipe (ref "v")
-  where
-    go :: Type -> Expression () -> Expression ()
-    go tipe x =
-     case tipe of
-      Lambda _ _ -> error "unimplemented"
+    _ -> ["v"] ==> out tipe (ref "v")
+
+out :: Type -> Expression () -> Expression ()
+out tipe x =
+    case tipe of
+      Lambda _ _
+          | numArgs > 1 && numArgs < 10 ->
+              func (ref ('A':show numArgs) `call` (x:values))
+          | otherwise -> func (foldl (<|) x values)
+          where
+            ts = T.collectLambdas tipe
+            numArgs = length ts - 1
+            args = map (\n -> '_' : show n) [0..]
+            values = zipWith inc (init ts) (map ref args)
+            func body = function (take numArgs args)
+                        [ VarDeclStmt () [VarDecl () (var "_r") (Just body)]
+                        , ret (out (last ts) (ref "_r"))
+                        ]
+
       Var _ -> error "type variables should not be allowed through input ports"
       Data ctor []
           | ctor `elem` ["Int","Float","Bool","String"] -> obj ("_J.from" ++ ctor) <| x
@@ -104,7 +117,7 @@ outgoing tipe =
       Data ctor ts | Help.isTuple ctor ->
           ArrayLit () $ zipWith convert [0..] ts
           where
-            convert n t = go t $ DotRef () x $ var ('_':show n)
+            convert n t = out t $ DotRef () x $ var ('_':show n)
 
       Data _ _ -> error "bad ADT got to port generation code"
 
@@ -114,4 +127,4 @@ outgoing tipe =
           ObjectLit () keys
           where
             keys = map convert fields
-            convert (f,t) = (PropId () (var f), go t (DotRef () x (var f)))
+            convert (f,t) = (PropId () (var f), out t (DotRef () x (var f)))
