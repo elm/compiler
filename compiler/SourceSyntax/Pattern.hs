@@ -40,7 +40,7 @@ boundVars pattern =
 
 instance Pretty Pattern where
   pretty pattern =
-   PP.parens $ case pattern of
+   case pattern of
      PVar x -> variable x
      PLiteral lit -> pretty lit
      PRecord fs -> PP.braces (commaCat $ map variable fs)

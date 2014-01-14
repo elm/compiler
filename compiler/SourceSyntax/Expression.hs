@@ -20,13 +20,6 @@ The type holes let us reflect these structural changes in the types.
   def: Parsing allows two kinds of definitions (type annotations or definitions),
        but later checks will see that they are well formed and combine them.
 
-  t: for adding type information, currently unused
-
-  v: for enriching variables with information like provenonce, currently unused
-
-Please don't get on my case to take the unused ones out. I have considered it.
-It's a huge pain to add and remove, it will get used eventually, and it's not
-hurting anything as it is.
 -}
 data Expr' def
     = Literal Literal.Literal
@@ -47,7 +40,7 @@ data Expr' def
     | Record [(String, LExpr' def)]
     | Markdown String String [LExpr' def]
     -- for type checking and code gen only
-    | PortIn String SrcType.Type Type.Variable (LExpr' def)
+    | PortIn String SrcType.Type Type.Variable (Maybe (LExpr' def))
     | PortOut String SrcType.Type (LExpr' def)
 
 type ParseExpr = Expr' ParseDef
@@ -114,7 +107,6 @@ instance Pretty def => Pretty (Expr' def) where
            pretty' (p,b) = pretty p <+> P.text "->" <+> pretty b
      Data "::" [hd,tl] -> pretty hd <+> P.text "::" <+> pretty tl
      Data "[]" [] -> P.text "[]"
-     Data ('_':'T':'u':'p':'l':'e':_num) es -> P.parens (commaCat (map pretty es))
      Data name es -> P.hang (P.text name) 2 (P.sep (map prettyParens es))
      Access e x -> prettyParens e <> P.text "." <> variable x
      Remove e x -> P.braces (pretty e <+> P.text "-" <+> variable x)
@@ -137,7 +129,7 @@ instance Pretty def => Pretty (Expr' def) where
 
      Markdown _ _ _ -> P.text "[markdown| ... |]"
 
-     PortIn _ _ _ handler -> pretty handler
+     PortIn _ _ _ _ -> P.text "<port in>"
 
      PortOut _ _ signal -> pretty signal
 
