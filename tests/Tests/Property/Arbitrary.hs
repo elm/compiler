@@ -56,22 +56,31 @@ instance Arbitrary Pattern where
     PData s ps -> ps ++ (PData <$> shrinkWHead s <*> shrink ps)
     where shrinkWHead (x:xs) = (x:) <$> shrink xs
 
+isValidType :: Type -> Bool
+isValidType (Lambda s t)          = isValidType s && isValidType t
+isValidType (Record [] (Just _))  = False
+isValidType (Record (("",_):_) _) = False
+isValidType (Record fs _)         = all isValidType $ map snd fs
+isValidType (Data _ [])           = False
+isValidType (Data _ ts)           = all isValidType ts
+isValidType _                     = True
+
 instance Arbitrary Type where
-  arbitrary = sized tipe
+  arbitrary = sized tipe `suchThat` isValidType
     where tipe :: Int -> Gen Type
           tipe n = oneof [ Lambda <$> depthTipe <*> depthTipe
-                         , Var    <$> arbitrary
-                         , Data   <$> arbitrary <*> listOf1 depthTipe
-                         , Record <$> listOf ((,) <$> arbitrary <*> depthTipe) <*> arbitrary
+                         , Var    <$> lowVar
+                         , Data   <$> capVar <*> listOf1 depthTipe
+                         , Record <$> listOf ((,) <$> lowVar <*> depthTipe) <*> maybeOf lowVar
                          ]
             where depthTipe :: Gen Type
                   depthTipe = choose (0,n) >>= tipe
   
-  shrink tipe = case tipe of
+  shrink tipe = filter isValidType $ case tipe of
     Lambda s t    -> Lambda <$> shrink s <*> shrink t
     Var _         -> []
     Data n ts     -> Data n <$> shrink ts
-    Record fs t   -> Record <$> shrink fs <*> pure t
+    Record fs t   -> Record <$> shrink fs <*> pure t 
 
 lowVar :: Gen String
 lowVar = notReserved $ (:) <$> lower <*> listOf varLetter
@@ -83,6 +92,9 @@ capVar = notReserved $ (:) <$> upper <*> listOf varLetter
 
 varLetter :: Gen Char
 varLetter = elements $ ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ ['\'', '_']
+
+maybeOf :: Gen a -> Gen (Maybe a)
+maybeOf g = oneof [ pure Nothing, Just <$> g ]
 
 notReserved :: Gen String -> Gen String
 notReserved = flip exceptFor Parse.Helpers.reserveds
