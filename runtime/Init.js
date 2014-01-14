@@ -27,7 +27,7 @@ Elm.worker = function(module, ports) {
     return init(ElmRuntime.Display.NONE, {}, module, ports || {});
 };
 
-Elm.input = function(defaultValue, errorHandler) {
+Elm.signal = function(defaultValue, errorHandler) {
     var subscribers = []
     function subscribe(handler) {
         subscribers.push(handler);
@@ -133,7 +133,7 @@ function init(display, container, module, ports, moduleToReplace) {
   }
 
   reportAnyErrors();
-  return { swap:swap, output:elm.ports.outgoing };
+  return { swap:swap, ports:elm.ports.outgoing };
 };
 
 function checkPorts(elm) {
@@ -142,8 +142,9 @@ function checkPorts(elm) {
         var uses = portUses[key]
         if (uses === 0) {
             throw new Error(
-                "Initialization Error: there is no port named '" + key + "'.\n" +
-                "You should probably remove that input from your initialization code.");
+                "Initialization Error: provided port '" + key +
+                "' to a module that does not take it as in input.\n" +
+                "Remove '" + key + "' from the module initialization code.");
         } else if (uses > 1) {
             throw new Error(
                 "Initialization Error: port '" + key +
@@ -179,17 +180,25 @@ function addReceivers(ports) {
         ports.log.subscribe(function(v) { console.log(v) });
     }
     if ('stdout' in ports) {
-        var handler = process ? function(v) { process.stdout.write(v); }
+        var process = process || {};
+        var handler = process.stdout
+            ? function(v) { process.stdout.write(v); }
             : function(v) { console.log(v); };
         ports.stdout.subscribe(handler);
     }
     if ('stderr' in ports) {
-        var handler = process ? function(v) { process.stderr.write(v); }
+        var process = process || {};
+        var handler = process.stderr
+            ? function(v) { process.stderr.write(v); }
             : function(v) { console.log('Error:' + v); };
         ports.stderr.subscribe(handler);
     }
     if ('title' in ports) {
-        ports.title.subscribe(function(v) { document.title = v; });
+        if (typeof ports.title === 'string') {
+            document.title = ports.title;
+        } else {
+            ports.title.subscribe(function(v) { document.title = v; });
+        }
     }
     if ('redirect' in ports) {
         ports.redirect.subscribe(function(v) {

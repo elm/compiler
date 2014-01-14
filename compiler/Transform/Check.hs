@@ -45,11 +45,11 @@ duplicates decls =
         unzip [ (pat,expr) | D.Definition (E.Definition pat expr _) <- decls ]
 
     (portNames, portExprs) =
-        Arrow.second Maybe.catMaybes $ unzip $ 
+        Arrow.second concat $ unzip $ 
         flip map [ port | D.Port port <- decls ] $ \port ->
             case port of
-              D.Out name expr _ -> (name, Just expr)
-              D.In name expr _ -> (name, expr)
+              D.Out name expr _ -> (name, [expr])
+              D.In name _ -> (name, [])
 
     getNames = Set.toList . Pattern.boundVars
 

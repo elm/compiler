@@ -6,8 +6,6 @@ import qualified SourceSyntax.Expression as E
 import qualified SourceSyntax.Location as L
 import qualified SourceSyntax.Pattern as P
 import qualified SourceSyntax.Type as T
-import qualified Type.Type as Type
-import System.IO.Unsafe
 
 toExpr :: [Declaration] -> [E.Def]
 toExpr = concatMap toDefs
@@ -47,14 +45,8 @@ toDefs decl =
         case port of
           Out name expr@(L.L s _) tipe ->
               [ definition name (L.L s $ E.PortOut name tipe expr) tipe ]
-          In name mexpr tipe ->
-              unsafePerformIO $ do
-                tvar <- Type.var Type.Flexible
-                return $ [ definition name (loc $ E.PortIn name tipe tvar mexpr) tipe ]
-              where
-                loc = case mexpr of
-                        Just (L.L s _) -> L.L s
-                        Nothing -> L.none
+          In name tipe ->
+              [ definition name (L.none $ E.PortIn name tipe) tipe ]
 
     -- no constraints are needed for fixity declarations
     Fixity _ _ _ -> []

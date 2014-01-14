@@ -8,7 +8,9 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+import Generate.JavaScript.Helpers
 import qualified Generate.Cases as Case
+import qualified Generate.JavaScript.Ports as Port
 import qualified Generate.Markdown as MD
 import qualified SourceSyntax.Helpers as Help
 import SourceSyntax.Literal
@@ -20,38 +22,15 @@ import Language.ECMAScript3.Syntax
 import Language.ECMAScript3.PrettyPrint
 import qualified Transform.SafeNames as MakeSafe
 
-split :: String -> [String]
-split = go []
-  where
-    go vars str =
-        case break (=='.') str of
-          (x,_:rest) | Help.isOp x -> vars ++ [x ++ '.' : rest]
-                     | otherwise -> go (vars ++ [x]) rest
-          (x,[]) -> vars ++ [x]
-
-var name = Id () name
-ref name = VarRef () (var name)
-prop name = PropId () (var name)
-f <| x = CallExpr () f [x]
-args ==> e = FuncExpr () Nothing (map var args) [ ReturnStmt () (Just e) ]
-function args stmts = FuncExpr () Nothing (map var args) stmts
-call = CallExpr ()
-string = StringLit ()
-
-dotSep vars =
-    case vars of
-      x:xs -> foldl (DotRef ()) (ref x) (map var xs)
-      [] -> error "dotSep must be called on a non-empty list of variables"
-
-obj = dotSep . split
-
 varDecl :: String -> Expression () -> VarDecl ()
 varDecl x expr =
     VarDecl () (var x) (Just expr)
 
+include :: String -> String -> VarDecl ()
 include alias moduleName =
     varDecl alias (obj (moduleName ++ ".make") <| ref "_elm")
 
+internalImports :: String -> Statement ()
 internalImports name =
     VarDeclStmt () 
     [ varDecl "_N" (obj "Elm.Native")
@@ -155,7 +134,7 @@ expression (L span expr) =
           do let (defs',e') = flattenLets defs e 
              stmts <- concat <$> mapM definition defs'
              exp <- expression e'
-             return $ function [] (stmts ++ [ ReturnStmt () (Just exp) ]) `call` []
+             return $ function [] (stmts ++ [ ret exp ]) `call` []
 
       MultiIf branches ->
         do branches' <- forM branches $ \(b,e) -> (,) <$> expression b <*> expression e
@@ -196,15 +175,13 @@ expression (L span expr) =
             pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
             md = pad ++ MD.toHtml doc ++ pad
 
-      PortIn name _ _ handler ->
-          do handler' <- case handler of
-                           Nothing -> return []
-                           Just h -> (:[]) `fmap` expression h
-             return $ obj "Native.Ports.portIn" `call` ([ string name ] ++ handler')
+      PortIn name tipe ->
+          return $ obj "Native.Ports.portIn" `call` [ string name, Port.incoming tipe ]
 
-      PortOut name _ signal ->
-          do signal' <- expression signal
-             return $ obj "Native.Ports.portOut" `call` [ string name, signal' ]
+      PortOut name tipe value ->
+          do value' <- expression value
+             return $ obj "Native.Ports.portOut" `call`
+                        [ string name, Port.outgoing tipe, value' ]
 
 definition :: Def -> State Int [Statement ()]
 definition (Definition pattern expr@(L span _) _) = do
@@ -250,7 +227,7 @@ definition (Definition pattern expr@(L span _) _) = do
           toDef y = let expr =  L span $ Case (mkVar "$") [(pattern, mkVar y)]
                     in  definition $ Definition (PVar y) expr Nothing
 
-match :: (Show a) => a -> Case.Match -> State Int [Statement ()]
+match :: SrcSpan -> Case.Match -> State Int [Statement ()]
 match span mtch =
   case mtch of
     Case.Match name clauses mtch' ->
@@ -272,7 +249,7 @@ match span mtch =
     Case.Break -> return [BreakStmt () Nothing]
     Case.Other e ->
         do e' <- expression e
-           return [ ReturnStmt () (Just e') ]
+           return [ ret e' ]
     Case.Seq ms -> concat <$> mapM (match span) (dropEnd [] ms)
         where
           dropEnd acc [] = acc
@@ -281,6 +258,7 @@ match span mtch =
                 Case.Other _ -> acc ++ [m]
                 _ -> dropEnd (acc ++ [m]) ms
 
+clause :: SrcSpan -> String -> Case.Clause -> State Int (Bool, CaseClause ())
 clause span variable (Case.Clause value vars mtch) =
     (,) isChar . CaseClause () pattern <$> match span (Case.matchSubst (zip vars vars') mtch)
   where
@@ -295,6 +273,7 @@ clause span variable (Case.Clause value vars mtch) =
                                                      [] -> name
                                                      is -> drop (last is + 1) name
 
+flattenLets :: [Def] -> LExpr -> ([Def], LExpr)
 flattenLets defs lexpr@(L _ expr) =
     case expr of
       Let ds body -> flattenLets (defs ++ ds) body
@@ -310,13 +289,13 @@ generate unsafeModule =
     programStmts =
         concat
         [ setup (Just "_elm") (names modul ++ ["values"])
-        , [ IfSingleStmt () thisModule (ReturnStmt () (Just thisModule)) ]
+        , [ IfSingleStmt () thisModule (ret thisModule) ]
         , [ internalImports (List.intercalate "." (names modul)) ]
         , concatMap jsImport . Set.toList . Set.fromList . map fst $ imports modul
         , [ assign ["_op"] (ObjectLit () []) ]
         , concat $ evalState (mapM definition . fst . flattenLets [] $ program modul) 0
         , [ jsExports ]
-        , [ ReturnStmt () (Just thisModule) ]
+        , [ ret thisModule ]
         ]
 
     jsExports = assign ("_elm" : names modul ++ ["values"]) (ObjectLit () exs)
@@ -342,6 +321,7 @@ generate unsafeModule =
                     Nothing -> tail . init $ List.inits path
                     Just nmspc -> drop 2 . init . List.inits $ nmspc : path
 
+binop :: SrcSpan -> String -> LExpr -> LExpr -> State Int (Expression ())
 binop span op e1 e2 =
     case op of
       "Basics.." ->
