@@ -1,5 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
 module SourceSyntax.Expression where
+{-| The Abstract Syntax Tree (AST) for expressions comes in a couple formats.
+The first is the fully general version and is labeled with a prime (Expr').
+The others are specialized versions of the AST that represent specific phases
+of the compilation process. I expect there to be more phases as we begin to
+enrich the AST with more information.
+-}
+
 
 import SourceSyntax.PrettyPrint
 import Text.PrettyPrint as P
@@ -9,12 +16,18 @@ import qualified SourceSyntax.Pattern as Pattern
 import qualified SourceSyntax.Type as SrcType
 import qualified SourceSyntax.Literal as Literal
 
-{-| This is a located expression. -}
+---- GENERAL AST ----
+
+{-| This is a located expression, meaning it is tagged with info about where it
+came from in the source code. Expr' is defined in terms of LExpr' so that the
+location information does not need to be an extra field on every constructor.
+-}
 type LExpr' def = Location.Located (Expr' def)
 
-{-| This is a fully general expression. The compilation process will enrich
-this data structure with additional information after the initial parse.
-The type holes let us reflect these structural changes in the types.
+{-| This is a fully general Abstract Syntax Tree (AST) for expressions. It has
+"type holes" that allow us to enrich the AST with additional information as we
+move through the compilation process. The type holes let us show these
+structural changes in the types. The only type hole right now is:
 
   def: Parsing allows two kinds of definitions (type annotations or definitions),
        but later checks will see that they are well formed and combine them.
@@ -42,24 +55,33 @@ data Expr' def
     | PortIn String SrcType.Type
     | PortOut String SrcType.Type (LExpr' def)
 
+
+---- SPECIALIZED ASTs ----
+
+{-| Expressions created by the parser. These use a split representation of type
+annotations and definitions, which is how they appear in source code and how
+they are parsed.
+-}
 type ParseExpr = Expr' ParseDef
 type LParseExpr = LExpr' ParseDef
-type LExpr = LExpr' Def
-type Expr = Expr' Def
 
-{-| Style of definitions as they are parsed. Users specify them
-separately, and other checks will make sure they can be combined.
--}
 data ParseDef
     = Def Pattern.Pattern LParseExpr
     | TypeAnnotation String SrcType.Type
       deriving (Show)
 
-{-| After checking that type annotations and definitions are all
-valid, they can be combined.
+{-| "Normal" expressions. When the compiler checks that type annotations and
+ports are all paired with definitions in the appropriate order, it collapses
+them into a Def that is easier to work with in later phases of compilation.
 -}
-data Def = Definition Pattern.Pattern (LExpr' Def) (Maybe SrcType.Type)
+type LExpr = LExpr' Def
+type Expr = Expr' Def
+
+data Def = Definition Pattern.Pattern LExpr (Maybe SrcType.Type)
     deriving (Show)
+
+
+---- UTILITIES ----
 
 tuple :: [LExpr' def] -> Expr' def
 tuple es = Data ("_Tuple" ++ show (length es)) es
