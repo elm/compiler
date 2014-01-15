@@ -98,9 +98,6 @@ capVar = notReserved $ (:) <$> upper <*> listOf varLetter
 varLetter :: Gen Char
 varLetter = elements $ ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ ['\'', '_']
 
-maybeOf :: Gen a -> Gen (Maybe a)
-maybeOf g = oneof [ pure Nothing, Just <$> g ]
-
 notReserved :: Gen String -> Gen String
 notReserved = flip exceptFor Parse.Helpers.reserveds
 
