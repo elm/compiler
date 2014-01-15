@@ -76,7 +76,7 @@ instance Arbitrary Type where
                   field = (,) <$> lowVar <*> depthTipe
   
   shrink tipe = case tipe of
-    Lambda s t    -> Lambda <$> shrink s <*> shrink t
+    Lambda s t    -> s : t : (Lambda <$> shrink s <*> shrink t)
     Var _         -> []
     Data n ts     -> Data <$> shrinkWHead n <*> shrink ts
     Record fs t   -> case t of
