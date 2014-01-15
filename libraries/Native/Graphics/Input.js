@@ -20,6 +20,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
      var events = Signal.constant(entries[0]._1);
 
      var drop = newNode('select');
+     drop.style.pointerEvents = 'auto';
      drop.style.border = '0 solid';
      for (var i = 0; i < entries.length; ++i) {
          var option = newNode('option');
@@ -57,6 +58,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
 
      function render(model) {
          var b = newNode('button');
+         b.style.pointerEvents = 'auto';
          b.style.display = 'block';
          b.elmEvent = model.event;
          function click() { elm.notify(events.id, b.elmEvent); }
@@ -89,6 +91,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
 
      function render(model) {
          var btn = newNode('div');
+         btn.style.pointerEvents = 'auto';
          btn.elmEvent = model.event;
 
          btn.elmUp    = Render.render(model.up);
@@ -171,7 +174,9 @@ Elm.Native.Graphics.Input.make = function(elm) {
 
      function render(model) {
          var b = newNode('input');
+         b.style.pointerEvents = 'auto';
          b.type = 'checkbox';
+
          b.checked = model.checked;
          b.style.display = 'block';
          b.elmHandler = model.handler;
@@ -214,6 +219,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
 
      function render(model) {
          var field = newNode('input');
+         field.style.pointerEvents = 'auto';
          field.elmHandler = model.handler;
 
          field.id = 'test';
