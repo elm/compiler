@@ -54,33 +54,38 @@ instance Arbitrary Pattern where
     PLiteral l -> PLiteral <$> shrink l
     PAlias s p -> p : (PAlias <$> shrinkWHead s <*> shrink p)
     PData s ps -> ps ++ (PData <$> shrinkWHead s <*> shrink ps)
-    where shrinkWHead (x:xs) = (x:) <$> shrink xs
 
-isValidType :: Type -> Bool
-isValidType (Lambda s t)          = isValidType s && isValidType t
-isValidType (Record [] (Just _))  = False
-isValidType (Record (("",_):_) _) = False
-isValidType (Record fs _)         = all isValidType $ map snd fs
-isValidType (Data _ [])           = False
-isValidType (Data _ ts)           = all isValidType ts
-isValidType _                     = True
+shrinkWHead :: Arbitrary a => [a] -> [[a]]
+shrinkWHead [] = error "Should be nonempty"
+shrinkWHead (x:xs) = (x:) <$> shrink xs
 
 instance Arbitrary Type where
-  arbitrary = sized tipe `suchThat` isValidType
+  arbitrary = sized tipe
     where tipe :: Int -> Gen Type
           tipe n = oneof [ Lambda <$> depthTipe <*> depthTipe
                          , Var    <$> lowVar
-                         , Data   <$> capVar <*> listOf1 depthTipe
-                         , Record <$> listOf ((,) <$> lowVar <*> depthTipe) <*> maybeOf lowVar
+                         , Data   <$> capVar <*> listOf depthTipe
+                         , Record <$> listOf1 field <*> (Just <$> lowVar)
+                         , Record <$> listOf field <*> pure Nothing
                          ]
             where depthTipe :: Gen Type
-                  depthTipe = choose (0,n) >>= tipe
+                  depthTipe = do
+                    m <- choose (0,n) 
+                    tipe m
+                  field :: Gen (String, Type)
+                  field = (,) <$> lowVar <*> depthTipe
   
-  shrink tipe = filter isValidType $ case tipe of
+  shrink tipe = case tipe of
     Lambda s t    -> Lambda <$> shrink s <*> shrink t
     Var _         -> []
-    Data n ts     -> Data n <$> shrink ts
-    Record fs t   -> Record <$> shrink fs <*> pure t 
+    Data n ts     -> Data <$> shrinkWHead n <*> shrink ts
+    Record fs t   -> case t of
+      Nothing -> Record <$> shrinkList shrinkField fs <*> pure Nothing
+      Just _ ->
+        do
+          fields <- filter (not . null) $ shrinkList shrinkField fs
+          return $ Record fields t
+      where shrinkField (n,t) = (,) <$> shrinkWHead n <*> shrink t
 
 lowVar :: Gen String
 lowVar = notReserved $ (:) <$> lower <*> listOf varLetter
