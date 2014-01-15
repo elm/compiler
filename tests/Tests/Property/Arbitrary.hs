@@ -44,8 +44,8 @@ instance Arbitrary Pattern where
                         ]
             where sizedPats = do
                     len <- choose (0,n)
-                    let m = n `div` len in
-                      vectorOf len $ pat m
+                    let m = n `div` (len + 1)
+                    vectorOf len $ pat m
 
   shrink pat = case pat of
     PAnything  -> []
@@ -64,22 +64,28 @@ instance Arbitrary Type where
     where tipe :: Int -> Gen Type
           tipe n = oneof [ Lambda <$> depthTipe <*> depthTipe
                          , Var    <$> lowVar
-                         --, Data   <$> capVar <*> listOf depthTipe
-                         --, Record <$> listOf1 field <*> (Just <$> lowVar)
-                         --, Record <$> listOf field <*> pure Nothing
+                         , Data   <$> capVar <*> depthTipes
+                         , Record <$> fields <*> pure Nothing
+                         , Record <$> fields1 <*> (Just <$> lowVar)
                          ]
-            where depthTipe :: Gen Type
-                  depthTipe = do
-                    m <- choose (0,n) 
-                    tipe m
-                  field :: Gen (String, Type)
+            where depthTipe = choose (0,n) >>= tipe
+                  depthTipes = do
+                    len <- choose (0,n) 
+                    let m = n `div` (len + 1)
+                    vectorOf len $ tipe m
+
                   field = (,) <$> lowVar <*> depthTipe
-  
+                  fields = do
+                    len <- choose (0,n)
+                    let m = n `div` (len + 1)
+                    vectorOf len $ (,) <$> lowVar <*> tipe m
+                  fields1 = (:) <$> field <*> fields
+
   shrink tipe = case tipe of
     Lambda s t    -> s : t : (Lambda <$> shrink s <*> shrink t)
     Var _         -> []
-    Data n ts     -> Data <$> shrinkWHead n <*> shrink ts
-    Record fs t   -> case t of
+    Data n ts     -> ts ++ (Data <$> shrinkWHead n <*> shrink ts)
+    Record fs t   -> map snd fs ++ case t of
       Nothing -> Record <$> shrinkList shrinkField fs <*> pure Nothing
       Just _ ->
         do

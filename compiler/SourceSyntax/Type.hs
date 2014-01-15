@@ -33,7 +33,7 @@ instance Show Type where
 instance Pretty Type where
   pretty tipe =
     case tipe of
-      Lambda _ _ -> P.sep [ t, P.sep (map (P.text "->" <+>) ts) ]
+      Lambda _ _ -> P.hsep [ t, P.hsep (map (P.text "->" <+>) ts) ]
         where
           t:ts = map prettyLambda (collectLambdas tipe)
           prettyLambda t = case t of
