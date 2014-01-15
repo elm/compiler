@@ -64,9 +64,9 @@ instance Arbitrary Type where
     where tipe :: Int -> Gen Type
           tipe n = oneof [ Lambda <$> depthTipe <*> depthTipe
                          , Var    <$> lowVar
-                         , Data   <$> capVar <*> listOf depthTipe
-                         , Record <$> listOf1 field <*> (Just <$> lowVar)
-                         , Record <$> listOf field <*> pure Nothing
+                         --, Data   <$> capVar <*> listOf depthTipe
+                         --, Record <$> listOf1 field <*> (Just <$> lowVar)
+                         --, Record <$> listOf field <*> pure Nothing
                          ]
             where depthTipe :: Gen Type
                   depthTipe = do
