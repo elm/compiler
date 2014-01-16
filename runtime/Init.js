@@ -27,29 +27,6 @@ Elm.worker = function(module, ports) {
     return init(ElmRuntime.Display.NONE, {}, module, ports || {});
 };
 
-Elm.signal = function(defaultValue, errorHandler) {
-    var subscribers = []
-    function subscribe(handler) {
-        subscribers.push(handler);
-    }
-    function unsubscribe(handler) {
-        subscribers.pop(subscribers.indexOf(handler));
-    }
-    function send(value) {
-        var len = subscribers.length;
-        for (var i = 0; i < len; ++i) {
-            subscribers[i](value);
-        }
-    }
-    return {
-        send:send,
-        internal: { defaultValue:defaultValue,
-                    errorHandler:errorHandler,
-                    subscribe: subscribe,
-                    unsubscribe: unsubscribe }
-    };
-}
-
 function init(display, container, module, ports, moduleToReplace) {
   // defining state needed for an instance of the Elm RTS
   var inputs = [];
