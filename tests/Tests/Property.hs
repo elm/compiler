@@ -7,6 +7,7 @@ import Test.Framework.Providers.QuickCheck2
 import Test.HUnit (assert)
 import Test.QuickCheck
 import Text.Parsec.Combinator (eof)
+import Text.PrettyPrint as P
 
 import SourceSyntax.Literal as Lit
 import SourceSyntax.Pattern as Pat
@@ -50,4 +51,4 @@ prop_parse_print p x =
   either (const False) (== x) . parse_print p $ x
 
 parse_print :: (Pretty a) => IParser a -> a -> Either String a
-parse_print p = either (Left . show) (Right) . iParse (p <* eof) . show . pretty
+parse_print p = either (Left . show) (Right) . iParse (p <* eof) . P.renderStyle P.style {mode=P.LeftMode} . pretty
