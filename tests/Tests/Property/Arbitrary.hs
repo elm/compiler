@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -W -fno-warn-orphans #-}
 module Tests.Property.Arbitrary where
 
 import Control.Applicative       ((<$>), (<*>), pure)
@@ -10,6 +10,7 @@ import qualified Parse.Helpers (reserveds)
 
 import SourceSyntax.Literal
 import SourceSyntax.Pattern
+import SourceSyntax.Type hiding (listOf)
 
 instance Arbitrary Literal where
   arbitrary = oneof [ IntNum   <$> arbitrary
@@ -43,8 +44,8 @@ instance Arbitrary Pattern where
                         ]
             where sizedPats = do
                     len <- choose (0,n)
-                    let m = n `div` len in
-                      vectorOf len $ pat m
+                    let m = n `div` (len + 1)
+                    vectorOf len $ pat m
 
   shrink pat = case pat of
     PAnything  -> []
@@ -53,7 +54,44 @@ instance Arbitrary Pattern where
     PLiteral l -> PLiteral <$> shrink l
     PAlias s p -> p : (PAlias <$> shrinkWHead s <*> shrink p)
     PData s ps -> ps ++ (PData <$> shrinkWHead s <*> shrink ps)
-    where shrinkWHead (x:xs) = (x:) <$> shrink xs
+
+shrinkWHead :: Arbitrary a => [a] -> [[a]]
+shrinkWHead [] = error "Should be nonempty"
+shrinkWHead (x:xs) = (x:) <$> shrink xs
+
+instance Arbitrary Type where
+  arbitrary = sized tipe
+    where tipe :: Int -> Gen Type
+          tipe n = oneof [ Lambda <$> depthTipe <*> depthTipe
+                         , Var    <$> lowVar
+                         , Data   <$> capVar <*> depthTipes
+                         , Record <$> fields <*> pure Nothing
+                         , Record <$> fields1 <*> (Just <$> lowVar)
+                         ]
+            where depthTipe = choose (0,n) >>= tipe
+                  depthTipes = do
+                    len <- choose (0,n) 
+                    let m = n `div` (len + 1)
+                    vectorOf len $ tipe m
+
+                  field = (,) <$> lowVar <*> depthTipe
+                  fields = do
+                    len <- choose (0,n)
+                    let m = n `div` (len + 1)
+                    vectorOf len $ (,) <$> lowVar <*> tipe m
+                  fields1 = (:) <$> field <*> fields
+
+  shrink tipe = case tipe of
+    Lambda s t    -> s : t : (Lambda <$> shrink s <*> shrink t)
+    Var _         -> []
+    Data n ts     -> ts ++ (Data <$> shrinkWHead n <*> shrink ts)
+    Record fs t   -> map snd fs ++ case t of
+      Nothing -> Record <$> shrinkList shrinkField fs <*> pure Nothing
+      Just _ ->
+        do
+          fields <- filter (not . null) $ shrinkList shrinkField fs
+          return $ Record fields t
+      where shrinkField (n,t) = (,) <$> shrinkWHead n <*> shrink t
 
 lowVar :: Gen String
 lowVar = notReserved $ (:) <$> lower <*> listOf varLetter

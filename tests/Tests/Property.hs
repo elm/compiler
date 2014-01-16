@@ -7,22 +7,25 @@ import Test.Framework.Providers.QuickCheck2
 import Test.HUnit (assert)
 import Test.QuickCheck
 import Text.Parsec.Combinator (eof)
+import Text.PrettyPrint as P
 
 import SourceSyntax.Literal as Lit
 import SourceSyntax.Pattern as Pat
 import SourceSyntax.PrettyPrint  (Pretty, pretty)
 import Parse.Helpers             (IParser, iParse)
 import Parse.Literal             (literal)
-import Parse.Pattern             (expr)
+import qualified Parse.Pattern as Pat (expr)
+import qualified Parse.Type as Type (expr)
 import Tests.Property.Arbitrary
 
 propertyTests :: Test
 propertyTests =
   testGroup "Parse/Print Agreement Tests"
   [
-    testCase "Long Pattern test" $ assert (prop_parse_print expr longPat)
+    testCase "Long Pattern test" $ assert (prop_parse_print Pat.expr longPat)
   , testProperty "Literal test" $ prop_parse_print literal
-  , testProperty "Pattern test" $ prop_parse_print expr
+  , testProperty "Pattern test" $ prop_parse_print Pat.expr
+  , testProperty "Type test" $ prop_parse_print Type.expr
   ]
 
   where
@@ -48,4 +51,4 @@ prop_parse_print p x =
   either (const False) (== x) . parse_print p $ x
 
 parse_print :: (Pretty a) => IParser a -> a -> Either String a
-parse_print p = either (Left . show) (Right) . iParse (p <* eof) . show . pretty
+parse_print p = either (Left . show) (Right) . iParse (p <* eof) . P.renderStyle P.style {mode=P.LeftMode} . pretty
