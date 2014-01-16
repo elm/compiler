@@ -49,9 +49,8 @@ portTypes :: Alias.Rules -> E.LExpr -> Either [P.Doc] ()
 portTypes rules expr =
   const () <$> Expr.checkPorts (check In) (check Out) expr
   where
-    check = isValid False False
-    isValid seenFunc seenSignal direction name tipe =
-        let valid = isValid seenFunc seenSignal direction name in
+    check = isValid True False False
+    isValid isTopLevel seenFunc seenSignal direction name tipe =
         case tipe of
           T.Data ctor ts
               | isJs ctor || isElm ctor -> mapM_ valid ts
@@ -66,7 +65,8 @@ portTypes rules expr =
                 Out | seenFunc   -> err "higher-order functions"
                     | seenSignal -> err "signals that contain functions"
                     | otherwise  ->
-                        mapM_ (isValid True seenSignal direction name) (T.collectLambdas tipe)
+                        forM_ (T.collectLambdas tipe)
+                              (isValid' True seenSignal direction name)
 
           T.Record _ (Just _) -> err "extended records with free type variables"
 
@@ -74,6 +74,9 @@ portTypes rules expr =
               mapM_ (\(k,v) -> (,) k <$> valid v) fields
 
         where
+          isValid' = isValid False
+          valid = isValid' seenFunc seenSignal direction name
+
           isJs ctor =
               List.isPrefixOf "JavaScript." ctor
               && length (filter (=='.') ctor) == 1
@@ -85,7 +88,8 @@ portTypes rules expr =
           handleSignal ts
               | seenFunc   = err "functions that involve signals"
               | seenSignal = err "signals-of-signals"
-              | otherwise  = mapM_ (isValid seenFunc True direction name) ts
+              | isTopLevel = mapM_ (isValid' seenFunc True direction name) ts
+              | otherwise  = err "a signal within a data stucture"
 
           dir inMsg outMsg = case direction of { In -> inMsg ; Out -> outMsg }
           txt = P.text . concat
