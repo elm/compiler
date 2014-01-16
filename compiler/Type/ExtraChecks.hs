@@ -14,12 +14,12 @@ import qualified Type.State as TS
 import qualified Type.Alias as Alias
 import Text.PrettyPrint as P
 import SourceSyntax.PrettyPrint (pretty)
+import qualified SourceSyntax.Helpers as Help
 import qualified SourceSyntax.Type as T
 import qualified SourceSyntax.Expression as E
 import qualified SourceSyntax.Location as L
 import qualified Transform.Expression as Expr
 import qualified Data.Traversable as Traverse
-import System.IO.Unsafe
 
 throw err = Left [ P.vcat err ]
 
@@ -43,70 +43,69 @@ mainType rules env = mainCheck rules <$> Traverse.traverse toSrcType env
                     , P.nest 4 . pretty $ Alias.realias rules mainType
                     , P.text " " ]
 
+data Direction = In | Out
+
 portTypes :: Alias.Rules -> E.LExpr -> Either [P.Doc] ()
 portTypes rules expr =
-  const () <$> Expr.checkPorts checkIn checkOut expr
+  const () <$> Expr.checkPorts (check In) (check Out) expr
   where
-    showType tipe = (P.nest 4 . pretty $ Alias.realias rules tipe) <> P.text "\n"
-
-    checkIn name st tt =
-        do t <- getSignal name st
-           case unsafePerformIO (toSrcType tt) of
-             T.Lambda a b ->
-                 do isJsType "coming in" name a
-                    if b `elem` okayTypes then return () else throw msg
-                 where
-                   okayTypes = [ t
-                               , T.Data "Maybe.Maybe" [t]
-                               , T.Data "Either.Either" [T.Data "String.String" [], t]
-                               ]
-                   msg = [ P.text $ "Type Error: the handler for port '" ++ name ++
-                                    "' returns values of type:\n"
-                         , showType b
-                         , P.text $ "but the port's type annotation requires that the handler returns values"
-                         , P.text $ "with one of the following types:\n"
-                         ] ++ map showType okayTypes ++
-                         [ P.text "If the handler returns a Maybe or Either, invalid values will cause an"
-                         , P.text "error to be thrown to the JS error handler associated with this port." ]
-
-             tipe ->
-                 throw [ P.text $ "Type Error: the handler for port '" ++ name ++
-                                  "' must be a function!"
-                       , P.text "Instead it was given a value of type:\n"
-                       , showType tipe
-                       ]
-
-    checkOut name st =
-        do t <- getSignal name st
-           isJsType "sent out" name t
-
-    getSignal name tipe =
+    check = isValid False False
+    isValid seenFunc seenSignal direction name tipe =
+        let valid = isValid seenFunc seenSignal direction name in
         case tipe of
-          T.Data "Signal.Signal" [t] -> return t
-          _ -> throw [ P.text $ "Type Error: port '" ++ name ++ "' must be a Signal,"
-                     , P.text $ "but the type annotation says it has non-Signal type:\n"
-                     , showType tipe
-                     , P.text $ "Maybe instead you want the following type?\n"
-                     , showType (T.Data "Signal.Signal" [tipe])
-                     ]
+          T.Data ctor ts
+              | isJs ctor || isElm ctor -> mapM_ valid ts
+              | ctor == "Signal.Signal" -> handleSignal ts
+              | otherwise               -> err' True "an unsupported type"
 
-    isJsType msg name tipe =
-        case tipe of
-          T.Data ctor ts | okay ctor -> mapM_ (isJsType msg name) ts
-                         | otherwise -> throw $ err msg "Elm values"
-          T.Var _       -> throw $ err msg "type variables"
-          T.Lambda _ _  -> throw $ err msg "Elm functions"
-          T.EmptyRecord -> throw $ err msg "Elm records"
-          T.Record _ _  -> throw $ err msg "Elm records"
+          T.Var _ -> err "free type variables"
+
+          T.Lambda _ _ ->
+              case direction of
+                In -> err "functions"
+                Out | seenFunc   -> err "higher-order functions"
+                    | seenSignal -> err "signals that contain functions"
+                    | otherwise  ->
+                        mapM_ (isValid True seenSignal direction name) (T.collectLambdas tipe)
+
+          T.Record _ (Just _) -> err "extended records with free type variables"
+
+          T.Record fields Nothing ->
+              mapM_ (\(k,v) -> (,) k <$> valid v) fields
+
         where
-          okay ctor = and [ List.isPrefixOf "JavaScript." ctor
-                          , 1 == length (filter (=='.') ctor) ]
+          isJs ctor =
+              List.isPrefixOf "JavaScript." ctor
+              && length (filter (=='.') ctor) == 1
 
-          err msg kind =
-              [ P.text $ "Type Error: the values " ++ msg ++ " through port '" ++ name ++
-                         "' must be JavaScript values."
-              , P.text $ "The values sent through this port contain " ++ kind ++ " with type:\n"
-              , showType tipe
+          isElm ctor =
+              ctor `elem` ["Int","Float","String","Bool","Maybe.Maybe","_List"]
+              || Help.isTuple ctor
+
+          handleSignal ts
+              | seenFunc   = err "functions that involve signals"
+              | seenSignal = err "signals-of-signals"
+              | otherwise  = mapM_ (isValid seenFunc True direction name) ts
+
+          dir inMsg outMsg = case direction of { In -> inMsg ; Out -> outMsg }
+          txt = P.text . concat
+
+          err = err' False
+          err' couldBeAlias kind =
+              throw $
+              [ txt [ "Type Error: the value ", dir "coming in" "sent out"
+                    , " through port '", name, "' is invalid." ]
+              , txt [ "It contains ", kind, ":\n" ]
+              , (P.nest 4 . pretty $ Alias.realias rules tipe) <> P.text "\n"
+              , txt [ "Acceptable values for ", dir "incoming" "outgoing"
+                    , " ports include JavaScript values and" ]
+              , txt [ "the following Elm values: Ints, Floats, Bools, Strings, Maybes," ]
+              , txt [ "Lists, Tuples, ", dir "" "first-order functions, ", "and concrete records." ]
+              ] ++ if couldBeAlias then aliasWarning else []
+
+          aliasWarning =
+              [ txt [ "\nType aliases are not expanded for this check (yet) so you need to do that" ]
+              , txt [ "manually for now (e.g. {x:Int,y:Int} instead of a type alias of that type)." ]
               ]
 
 occurs :: (String, Variable) -> StateT TS.SolverState IO ()

@@ -5,12 +5,11 @@ import Control.Applicative ((<$>),(<*>))
 import SourceSyntax.Expression
 import SourceSyntax.Location
 import qualified SourceSyntax.Type as ST
-import qualified Type.Type as TT
 
 crawlLet :: ([def] -> Either a [def']) -> LExpr' def -> Either a (LExpr' def')
-crawlLet = crawl (\_ _ _ -> return ()) (\_ _ -> return ())
+crawlLet = crawl (\_ _ -> return ()) (\_ _ -> return ())
 
-checkPorts :: (String -> ST.Type -> TT.Variable -> Either a ())
+checkPorts :: (String -> ST.Type -> Either a ())
            -> (String -> ST.Type -> Either a ())
            -> LExpr
            -> Either a LExpr
@@ -21,7 +20,7 @@ checkPorts inCheck outCheck expr =
           do _ <- checkPorts inCheck outCheck body
              return def
 
-crawl :: (String -> ST.Type -> TT.Variable -> Either a ())
+crawl :: (String -> ST.Type -> Either a ())
       -> (String -> ST.Type -> Either a ())
       -> ([def] -> Either a [def'])
       -> LExpr' def
@@ -49,9 +48,9 @@ crawl portInCheck portOutCheck defsTransform = go
             Markdown uid md es -> Markdown uid md <$> mapM go es
             Let defs body -> Let <$> defsTransform defs <*> go body
             GLShader uid src gltipe -> return $ GLShader uid src gltipe
-            PortIn name st tt handler ->
-                do portInCheck name st tt
-                   PortIn name st tt <$> go handler
+            PortIn name st ->
+                do portInCheck name st
+                   return $ PortIn name st
             PortOut name st signal ->
                 do portOutCheck name st
                    PortOut name st <$> go signal

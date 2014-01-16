@@ -6,8 +6,6 @@ import qualified SourceSyntax.Expression as E
 import qualified SourceSyntax.Location as L
 import qualified SourceSyntax.Pattern as P
 import qualified SourceSyntax.Type as T
-import qualified Type.Type as Type
-import System.IO.Unsafe
 
 toExpr :: [Declaration] -> [E.Def]
 toExpr = concatMap toDefs
@@ -28,17 +26,15 @@ toDefs decl =
     TypeAlias name _ tipe@(T.Record fields ext) _ ->
         [ definition name (buildFunction record vars) (foldr T.Lambda tipe args) ]
       where
-        args = case ext of
-                 T.EmptyRecord -> map snd fields
-                 _ -> map snd fields ++ [ext]
+        args = map snd fields ++ maybe [] (\x -> [T.Var x]) ext
 
         var = L.none . E.Var
         vars = take (length args) arguments
 
         efields = zip (map fst fields) (map var vars)
         record = case ext of
-                   T.EmptyRecord -> L.none $ E.Record efields
-                   _ -> foldl (\r (f,v) -> L.none $ E.Insert r f v) (var $ last vars) efields
+                   Nothing -> L.none $ E.Record efields
+                   Just _ -> foldl (\r (f,v) -> L.none $ E.Insert r f v) (var $ last vars) efields
 
     -- Type aliases must be added to an extended equality dictionary,
     -- but they do not require any basic constraints.
@@ -47,12 +43,10 @@ toDefs decl =
 
     Port port ->
         case port of
-          Send name expr@(L.L s _) tipe ->
+          Out name expr@(L.L s _) tipe ->
               [ definition name (L.L s $ E.PortOut name tipe expr) tipe ]
-          Recv name expr@(L.L s _) tipe ->
-              unsafePerformIO $ do
-                tvar <- Type.var Type.Flexible
-                return $ [ definition name (L.L s $ E.PortIn name tipe tvar expr) tipe ]
+          In name tipe ->
+              [ definition name (L.none $ E.PortIn name tipe) tipe ]
 
     -- no constraints are needed for fixity declarations
     Fixity _ _ _ -> []

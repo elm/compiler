@@ -7,7 +7,6 @@ import Control.Monad
 import Control.Monad.State
 import Data.Char (isUpper)
 import qualified Data.Set as Set
-import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Language.GLSL.Parser as GLP
 import Language.GLSL.Syntax

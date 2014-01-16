@@ -156,8 +156,7 @@ constrain env (L span expr) tipe =
                            (clet [Scheme rqs fqs (clet [monoscheme header] c2) header ]
                                  (c1 /\ c))
 
-      PortIn _ _ tt handler ->
-          constrain env handler (VarN tt)
+      PortIn _ _ -> return true
 
       PortOut _ _ signal ->
           constrain env signal tipe

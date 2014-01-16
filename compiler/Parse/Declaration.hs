@@ -59,6 +59,5 @@ port =
      name <- lowVar
      whitespace
      let port' op ctor expr = do { try op ; whitespace ; ctor name <$> expr }
-     D.Port <$> choice [ port' hasType       D.PortAnnotation Type.expr
-                       , port' (string "<-") D.SendDefinition Expr.expr
-                       , port' (string "->") D.RecvDefinition Expr.expr ]
+     D.Port <$> choice [ port' hasType D.PPAnnotation Type.expr
+                       , port' equals  D.PPDef Expr.expr ]

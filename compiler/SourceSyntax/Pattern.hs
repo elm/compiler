@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module SourceSyntax.Pattern where
 
-import SourceSyntax.Helpers as Help
+import qualified SourceSyntax.Helpers as Help
 import SourceSyntax.PrettyPrint
 import Text.PrettyPrint as PP
 import qualified Data.Set as Set
@@ -51,7 +51,7 @@ instance Pretty Pattern where
                         PData "::" _ -> True
                         _ -> False
      PData name ps ->
-        if isTuple name then
+        if Help.isTuple name then
             PP.parens . commaCat $ map pretty ps
         else hsep (PP.text name : map prettyParens ps)
 
@@ -60,6 +60,6 @@ prettyParens pattern = parensIf needsThem (pretty pattern)
   where
     needsThem =
       case pattern of
-        PData name (_:_) | not (isTuple name) -> True
+        PData name (_:_) | not (Help.isTuple name) -> True
         PAlias _ _ -> True
         _ -> False

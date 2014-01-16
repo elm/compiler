@@ -4,6 +4,7 @@ module Transform.Canonicalize (interface, metadataModule) where
 import Control.Arrow ((***))
 import Control.Applicative (Applicative,(<$>),(<*>))
 import Control.Monad.Identity
+import qualified Data.Traversable as T
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.List as List
@@ -46,8 +47,7 @@ renameType renamer tipe =
       Type.Lambda a b -> Type.Lambda <$> rnm a <*> rnm b
       Type.Var _ -> return tipe
       Type.Data name ts -> Type.Data <$> renamer name <*> mapM rnm ts
-      Type.EmptyRecord -> return tipe
-      Type.Record fields ext -> Type.Record <$> mapM rnm' fields <*> rnm ext
+      Type.Record fields ext -> Type.Record <$> mapM rnm' fields <*> return ext
           where rnm' (f,t) = (,) f <$> rnm t
 
 metadataModule :: Interfaces -> MetadataModule -> Either [Doc] MetadataModule
@@ -150,9 +150,7 @@ rename env (L s expr) =
             rename' (Definition p body mtipe) =
                 Definition <$> format (renamePattern env' p)
                            <*> rename env' body
-                           <*> case mtipe of
-                                 Nothing -> return Nothing
-                                 Just tipe -> Just <$> renameType' env' tipe
+                           <*> T.traverse (renameType' env') mtipe
 
       Var x -> Var <$> format (replace "variable" env x)
 
@@ -167,10 +165,7 @@ rename env (L s expr) =
 
       Markdown uid md es -> Markdown uid md <$> mapM rnm es
 
-      PortIn name st tt handler ->
-          do st' <- renameType' env st
-             handler' <- rnm handler
-             return $ PortIn name st' tt handler'
+      PortIn name st -> PortIn name <$> renameType' env st
 
       PortOut name st signal -> PortOut name <$> renameType' env st <*> rnm signal
 

@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Transform.Check (mistakes) where
 
+import qualified Control.Arrow as Arrow
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
@@ -44,10 +45,11 @@ duplicates decls =
         unzip [ (pat,expr) | D.Definition (E.Definition pat expr _) <- decls ]
 
     (portNames, portExprs) =
-        unzip $ flip map [ port | D.Port port <- decls ] $ \port ->
+        Arrow.second concat $ unzip $ 
+        flip map [ port | D.Port port <- decls ] $ \port ->
             case port of
-              D.Send name expr _ -> (name,expr)
-              D.Recv name expr _ -> (name,expr)
+              D.Out name expr _ -> (name, [expr])
+              D.In name _ -> (name, [])
 
     getNames = Set.toList . Pattern.boundVars
 
@@ -100,8 +102,8 @@ illFormedTypes decls = map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
             T.Lambda t1 t2 -> Set.union (freeVars t1) (freeVars t2)
             T.Var x -> Set.singleton x
             T.Data _ ts -> Set.unions (map freeVars ts)
-            T.EmptyRecord -> Set.empty
-            T.Record fields ext -> Set.unions (freeVars ext : map (freeVars . snd) fields)
+            T.Record fields ext -> Set.unions (ext' : map (freeVars . snd) fields)
+                where ext' = maybe Set.empty Set.singleton ext
 
       undeclared tvars tipes = Set.difference used declared
           where
@@ -145,8 +147,7 @@ infiniteTypeAliases decls =
             T.Lambda a b -> infinite a || infinite b
             T.Var _ -> False
             T.Data name' ts -> name == name' || any infinite ts
-            T.EmptyRecord -> False
-            T.Record fields ext -> infinite ext || any (infinite . snd) fields
+            T.Record fields _ -> any (infinite . snd) fields
 
       indented :: D.Declaration -> Doc
       indented decl = P.text "\n    " <> pretty decl <> P.text "\n"

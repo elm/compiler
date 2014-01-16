@@ -162,7 +162,9 @@ instantiator env sourceType = go sourceType
             _ -> error $ "\nCould not find type constructor '" ++
                          name ++ "' while checking types."
 
-        Src.EmptyRecord -> return (TermN EmptyRecord1)
-
-        Src.Record fields ext ->
-          TermN <$> (Record1 <$> Traverse.traverse (mapM go) (Src.fieldMap fields) <*> go ext)
+        Src.Record fields ext -> do
+          fields' <- Traverse.traverse (mapM go) (Src.fieldMap fields)
+          ext' <- case ext of
+                    Nothing -> return $ TermN EmptyRecord1
+                    Just x -> go (Src.Var x)
+          return $ TermN (Record1 fields' ext')
