@@ -1,92 +1,137 @@
 {-# OPTIONS_GHC -W #-}
 module Build.File (build) where
 
-import Control.Monad (when)
-import qualified Data.Binary as Binary
-import qualified Data.Map as Map
+import Control.Applicative      ((<$>))
+import Control.Monad.Error      (runErrorT)
+import Control.Monad.RWS.Strict
 import System.Directory
 import System.Exit
 import System.FilePath
 import System.IO
 
+import qualified Data.Binary            as Binary
+import qualified Data.Maybe             as Maybe
+import qualified Data.Map               as Map
+import qualified Data.ByteString.Lazy   as L
+
+import qualified Build.Dependencies     as Deps
+import qualified Build.Flags            as Flag
+import qualified Build.Interface        as Interface
+import qualified Build.Print            as Print
+import qualified Build.Source           as Source
+import qualified Build.Utils            as Utils
+import qualified Generate.JavaScript    as JS
+import qualified Parse.Module           as Parser
+import qualified SourceSyntax.Module    as M
 import qualified Transform.Canonicalize as Canonical
 
-import qualified Data.ByteString.Lazy as L
+-- Reader: Runtime flags, always accessible
+-- Writer: Remember the last module to be accessed
+-- State:  Build up a map of the module interfaces
+type BuildT m a = RWST Flag.Flags (Last String) BInterfaces m a
+type Build a = BuildT IO a
 
-import qualified Build.Utils as Utils
-import qualified Build.Flags as Flag
-import qualified Build.Interface as Interface
-import qualified Build.Print as Print
-import qualified Build.Source as Source
-import qualified Generate.JavaScript as JS
-import qualified Parse.Module as Parser
-import qualified SourceSyntax.Module as M
+-- Interfaces, remembering if something was recompiled
+type BInterfaces = Map.Map String (Bool, M.ModuleInterface)
 
-build :: Flag.Flags -> Int -> M.Interfaces -> String -> [FilePath]
-      -> IO (String, M.Interfaces)
-build _ _ interfaces moduleName [] =
-    return (moduleName, interfaces)
-build flags numModules interfaces _ (filePath:rest) =
-    do (name,interface) <-
-           build1 flags (numModules - length rest) numModules interfaces filePath
-       let interfaces' = Map.insert name interface interfaces
-       build flags numModules interfaces' name rest
+evalBuild :: Flag.Flags -> M.Interfaces -> Build () -> IO (Maybe String)
+evalBuild flags interfaces b = do
+  (_, s) <- evalRWST b flags (fmap notUpdated interfaces)
+  return . getLast $ s
+  where
+    notUpdated i = (False, i)
 
+-- | Builds a list of files, returning the moduleName of the last one.
+--   Returns \"\" if the list is empty
+build :: Flag.Flags -> M.Interfaces -> [FilePath] -> IO String
+build flags is = fmap (Maybe.fromMaybe "") . evalBuild flags is . buildAll
 
-build1 :: Flag.Flags -> Int -> Int -> M.Interfaces -> FilePath
-       -> IO (String, M.ModuleInterface)
-build1 flags moduleNum numModules interfaces filePath =
-    do compiled <- alreadyCompiled flags filePath
-       case compiled of
-         False -> compile flags number interfaces filePath
-         True  -> retrieve flags interfaces filePath
-    where
-      number = "[" ++ show moduleNum ++ " of " ++ show numModules ++ "]"
+buildAll :: [FilePath] -> Build ()
+buildAll fs = mapM_ (uncurry build1) (zip [1..] fs)
+  where build1 :: Integer -> FilePath -> Build ()
+        build1 num fname = do
+          shouldCompile <- shouldBeCompiled fname
+          if shouldCompile
+            then compile number fname
+            else retrieve fname
 
+          where number = join ["[", show num, " of ", show total, "]"]
 
-alreadyCompiled :: Flag.Flags -> FilePath -> IO Bool
-alreadyCompiled flags filePath = do
-  existsi <- doesFileExist (Utils.elmi flags filePath)
-  existso <- doesFileExist (Utils.elmo flags filePath)
-  if not existsi || not existso
-    then return False
-    else do tsrc <- getModificationTime filePath
-            tint <- getModificationTime (Utils.elmo flags filePath)
-            return (tsrc <= tint)
+        total = length fs
 
-retrieve :: Flag.Flags -> Map.Map String M.ModuleInterface -> FilePath
-         -> IO (String, M.ModuleInterface)
-retrieve flags interfaces filePath = do
-  iface <- Interface.load (Utils.elmi flags filePath)
+shouldBeCompiled :: FilePath -> Build Bool
+shouldBeCompiled filePath = do
+  flags <- ask
+  let alreadyCompiled = liftIO $ do
+        existsi <- doesFileExist (Utils.elmi flags filePath)
+        existso <- doesFileExist (Utils.elmo flags filePath)
+        return $ existsi && existso
+
+      outDated = liftIO $ do
+        tsrc <- getModificationTime filePath
+        tint <- getModificationTime (Utils.elmo flags filePath)
+        return (tsrc > tint)
+
+      dependenciesUpdated = do
+        eDeps <- liftIO . runErrorT $ Deps.readDeps filePath
+        case eDeps of
+          -- Should never actually reach here
+          Left  err       -> liftIO $ Print.failure err
+          Right (_, deps) -> anyM wasCompiled deps
+        
+  
+    in (not <$> alreadyCompiled) `orM` outDated `orM` dependenciesUpdated
+
+wasCompiled :: String -> Build Bool
+wasCompiled modul = maybe False fst . Map.lookup modul <$> get
+  
+-- Short-circuiting monadic (||)
+infixr 2 `orM`
+orM :: (Monad m) => m Bool -> m Bool -> m Bool
+orM m1 m2 = do b1 <- m1
+               if b1
+                 then return b1
+                 else m2
+
+anyM :: (Monad m) => (a -> m Bool) -> [a] -> m Bool
+anyM f = foldr (orM . f) (return False)
+
+retrieve :: FilePath -> Build ()
+retrieve filePath = do
+  flags <- ask
+  iface <- liftIO $ Interface.load (Utils.elmi flags filePath)
   case Interface.isValid filePath iface of
     Right (name, interface) ->
-        do when (Flag.print_types flags) (Print.interfaceTypes interfaces interface)
-           return (name, interface)
-    Left err ->
-        do hPutStrLn stderr err
-           exitFailure
+      do binterfaces <- get
+         let interfaces = snd <$> binterfaces
+         liftIO $ when (Flag.print_types flags) (Print.interfaceTypes interfaces interface)
+         update name interface False
 
-compile :: Flag.Flags -> String -> M.Interfaces -> FilePath
-        -> IO (String, M.ModuleInterface)
-compile flags number interfaces filePath =
-  do source <- readFile filePath
-     let name = getName source
-     printStatus name
+    Left err -> liftIO $ Print.failure err
 
-     createDirectoryIfMissing True (Flag.cache_dir flags)
-     createDirectoryIfMissing True (Flag.build_dir flags)
+compile :: String -> FilePath -> Build ()
+compile number filePath =
+  do flags      <- ask
+     binterfaces <- get
+     source <- liftIO $ readFile filePath
+     let interfaces = snd <$> binterfaces
+         name = getName source
+     liftIO $ do
+       printStatus name
+       createDirectoryIfMissing True (Flag.cache_dir flags)
+       createDirectoryIfMissing True (Flag.build_dir flags)
 
-     metaModule <-
-         case Source.build (Flag.no_prelude flags) interfaces source of
+     metaModule <- 
+       liftIO $ case Source.build (Flag.no_prelude flags) interfaces source of
            Right modul -> return modul
            Left errors -> do Print.errors errors
                              exitFailure
 
-     when (Flag.print_types flags) $ Print.metaTypes interfaces metaModule
-
-     let intermediate = (name, Canonical.interface name $ M.metaToInterface metaModule)
-     generateCache intermediate metaModule
-     return intermediate
+     liftIO $ when (Flag.print_types flags) $ Print.metaTypes interfaces metaModule
+  
+     let newInters = Canonical.interface name $ M.metaToInterface metaModule
+     generateCache name newInters metaModule
+     update name newInters True
 
   where
     getName source = case Parser.getModuleName source of
@@ -98,8 +143,14 @@ compile flags number interfaces filePath =
                                   , replicate (max 1 (20 - length name)) ' '
                                   , "( " ++ filePath ++ " )" ]
 
-    generateCache intermediate metaModule = do
-      createDirectoryIfMissing True . dropFileName $ Utils.elmi flags filePath
-      writeFile (Utils.elmo flags filePath) (JS.generate metaModule)
-      withBinaryFile (Utils.elmi flags filePath) WriteMode $ \handle ->
-          L.hPut handle (Binary.encode intermediate)
+    generateCache name interfs metaModule = do
+      flags <- ask
+      liftIO $ do
+        createDirectoryIfMissing True . dropFileName $ Utils.elmi flags filePath
+        writeFile (Utils.elmo flags filePath) (JS.generate metaModule)
+        withBinaryFile (Utils.elmi flags filePath) WriteMode $ \handle ->
+          L.hPut handle (Binary.encode (name, interfs))
+
+update :: String -> M.ModuleInterface -> Bool -> Build ()
+update name inter wasUpdated = modify (Map.insert name (wasUpdated, inter))
+                               >> tell (Last . Just $ name)

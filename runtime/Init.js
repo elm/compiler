@@ -205,6 +205,24 @@ function addReceivers(ports) {
             if (v.length > 0) window.location = v;
         });
     }
+    if ('favicon' in ports) {
+        if (typeof ports.favicon === 'string') {
+            changeFavicon(ports.favicon);
+        } else {
+            ports.favicon.subscribe(changeFavicon);
+        }
+    }
+    function changeFavicon(src) {
+        var link = document.createElement('link');
+        var oldLink = document.getElementById('elm-favicon');
+        link.id = 'elm-favicon';
+        link.rel = 'shortcut icon';
+        link.href = src;
+        if (oldLink) {
+            document.head.removeChild(oldLink);
+        }
+        document.head.appendChild(link);
+    }
 }
 
 function initGraphics(elm, Module) {

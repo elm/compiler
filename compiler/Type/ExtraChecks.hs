@@ -56,7 +56,7 @@ portTypes rules expr =
           T.Data ctor ts
               | isJs ctor || isElm ctor -> mapM_ valid ts
               | ctor == "Signal.Signal" -> handleSignal ts
-              | otherwise               -> err "Algebraic Data Types"
+              | otherwise               -> err' True "an unsupported type"
 
           T.Var _ -> err "free type variables"
 
@@ -90,16 +90,22 @@ portTypes rules expr =
           dir inMsg outMsg = case direction of { In -> inMsg ; Out -> outMsg }
           txt = P.text . concat
 
-          err kind =
+          err = err' False
+          err' couldBeAlias kind =
               throw $
               [ txt [ "Type Error: the value ", dir "coming in" "sent out"
                     , " through port '", name, "' is invalid." ]
-              , txt [ "Acceptable values for ", dir "incoming" "outgoing"
-                    , " ports include JavaScript values and the following Elm values:" ]
-              , txt [ "Ints, Floats, Bools, Strings, Maybes, Lists, Tuples, "
-                    , dir "" "first-order functions, ", "and concrete records." ]
-              , txt [ "The values sent through this port contain ", kind, ":\n" ]
+              , txt [ "It contains ", kind, ":\n" ]
               , (P.nest 4 . pretty $ Alias.realias rules tipe) <> P.text "\n"
+              , txt [ "Acceptable values for ", dir "incoming" "outgoing"
+                    , " ports include JavaScript values and" ]
+              , txt [ "the following Elm values: Ints, Floats, Bools, Strings, Maybes," ]
+              , txt [ "Lists, Tuples, ", dir "" "first-order functions, ", "and concrete records." ]
+              ] ++ if couldBeAlias then aliasWarning else []
+
+          aliasWarning =
+              [ txt [ "\nType aliases are not expanded for this check (yet) so you need to do that" ]
+              , txt [ "manually for now (e.g. {x:Int,y:Int} instead of a type alias of that type)." ]
               ]
 
 occurs :: (String, Variable) -> StateT TS.SolverState IO ()
