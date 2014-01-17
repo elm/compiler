@@ -7,18 +7,8 @@ Elm.Native.Ports.make = function(elm) {
     var Signal = Elm.Signal.make(elm);
 
     function incomingSignal(converter) {
-        return function(port) {
-            var base = converter(port.internal.defaultValue);
-            var signal = Signal.constant(base);
-            port.internal.subscribe(function(v) {
-                try {
-                    elm.notify(signal.id, converter(v));
-                } catch(e) {
-                    port.internal.errorHandler(v);
-                }
-            });
-            return signal;
-        }
+        converter.isSignal = true;
+        return converter;
     }
 
     function outgoingSignal(converter) {
@@ -42,18 +32,39 @@ Elm.Native.Ports.make = function(elm) {
     }
 
     function portIn(name, converter) {
-        var value = elm.ports.incoming[name];
-        if (!value) {
+        var jsValue = elm.ports.incoming[name];
+        if (jsValue === undefined) {
             throw new Error("Initialization Error: port '" + name +
                             "' was not given an input!");
         }
         elm.ports.uses[name] += 1;
         try {
-            return converter(value);
+            var elmValue = converter(jsValue);
         } catch(e) {
             throw new Error("Initialization Error on port '" + name + "': \n" + e.message);
         }
+
+        // just return a static value if it is not a signal
+        if (!converter.isSignal) {
+            return elmValue;
+        }
+
+        // create a signal if necessary
+        var signal = Signal.constant(elmValue);
+        function send(jsValue) {
+            try {
+                var elmValue = converter(jsValue);
+            } catch(e) {
+                throw new Error("Error sending to port '" + name + "': \n" + e.message);
+            }
+            setTimeout(function() {
+                elm.notify(signal.id, elmValue);
+            }, 0);
+        }
+        elm.ports.outgoing[name] = { send:send };
+        return signal;
     }
+
     function portOut(name, converter, value) {
         try {
             elm.ports.outgoing[name] = converter(value);
