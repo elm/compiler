@@ -1,6 +1,5 @@
 Learn about the Elm programming language at [elm-lang.org](http://elm-lang.org/).
 
-
 ## Install
 
 **Arch Linux** &mdash; follow [these directions](https://github.com/evancz/Elm/wiki/Installing-Elm#arch-linux) and then
@@ -57,3 +56,5 @@ If you are stuck, email
 [the list](https://groups.google.com/forum/?fromgroups#!forum/elm-discuss)
 or ask a question in the
 [#Elm IRC channel](http://webchat.freenode.net/?channels=elm). 
+
+[![Build Status](https://travis-ci.org/evancz/Elm.png)](https://travis-ci.org/evancz/Elm)
