@@ -315,7 +315,7 @@ id x = x
 
 {-| Creates a [constant function](http://en.wikipedia.org/wiki/Constant_function),
 a function that *always* returns the same value regardless of what input you give.
-It is defined simply as:
+It is defined as:
 
         always a b = a
 
