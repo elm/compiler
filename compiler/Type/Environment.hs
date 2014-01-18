@@ -103,7 +103,7 @@ ctorToType env (name, tvars, ctors) =
 get :: Environment -> (Environment -> Map.Map String a) -> String -> a
 get env subDict key = Map.findWithDefault err key (subDict env)
   where
-    err = error $ "\nCould not find type constructor '" ++ key ++ "' while checking types."
+    err = error $ "\nget: Could not find type constructor '" ++ key ++ "' while checking types."
 
 
 freshDataScheme :: Environment -> String -> IO (Int, [Variable], [Type], Type)
@@ -159,7 +159,7 @@ instantiator env sourceType = go sourceType
                            t' <- go t
                            State.put (dict, aliases)
                            return t'
-            _ -> error $ "\nCould not find type constructor '" ++
+            _ -> error $ "\ninstantiator: Could not find type constructor '" ++
                          name ++ "' while checking types."
 
         Src.EmptyRecord -> return (TermN EmptyRecord1)
