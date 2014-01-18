@@ -12,7 +12,6 @@ import Generate.JavaScript.Helpers
 import qualified Generate.Cases as Case
 import qualified Generate.JavaScript.Ports as Port
 import qualified Generate.Markdown as MD
-import qualified Parse.Helpers as PHelp
 import qualified SourceSyntax.Helpers as Help
 import SourceSyntax.Literal
 import SourceSyntax.Pattern as Pattern
@@ -312,7 +311,7 @@ generate unsafeModule =
 
     jsImport modul = setup Nothing path ++ [ include ]
         where
-          path = PHelp.splitDots modul
+          path = Help.splitDots modul
           include = assign path $ dotSep ("Elm" : path ++ ["make"]) <| ref "_elm"
 
     setup namespace path = map create paths
@@ -352,7 +351,7 @@ binop span op e1 e2 =
     func | Help.isOp operator = BracketRef () (dotSep (init parts ++ ["_op"])) (string operator)
          | otherwise     = dotSep parts
         where
-          parts = PHelp.splitDots op
+          parts = Help.splitDots op
           operator = last parts
 
     opDict = Map.fromList (infixOps ++ specialOps)
