@@ -43,7 +43,7 @@ which happen to be radians.
 @docs fst, snd
 
 # Higher-Order Helpers
-@docs id, (<|), (|>), (.), flip, curry, uncurry
+@docs id, (<|), (|>), (.), always, flip, curry, uncurry
 
 -}
 
@@ -312,6 +312,22 @@ infixl 0 |>
 {-| Given a value, returns exactly the same value. -}
 id : a -> a
 id x = x
+
+{-| Creates a [constant function](http://en.wikipedia.org/wiki/Constant_function),
+a function that *always* returns the same value regardless of what input you give.
+It is defined as:
+
+        always a b = a
+
+It totally ignores the second argument, so `always 42` is a function that always
+returns in 42. When you are dealing with higher-order functions, this comes in
+handy more often than you might expect. For example, creating a zeroed out list
+of length ten would be:
+
+        map (always 0) [0..9]
+-}
+always : a -> b -> a
+always a _ = a
 
 {-| Given a 2-tuple, returns the first value. -}
 fst : (a,b) -> a

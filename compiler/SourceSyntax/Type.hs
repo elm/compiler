@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -W #-}
 module SourceSyntax.Type where
 
 import Data.Binary
@@ -10,16 +11,15 @@ import Text.PrettyPrint as P
 data Type = Lambda Type Type
           | Var String
           | Data String [Type]
-          | EmptyRecord
-          | Record [(String,Type)] Type
-            deriving (Eq, Show)
+          | Record [(String,Type)] (Maybe String)
+            deriving (Eq)
 
 fieldMap :: [(String,a)] -> Map.Map String [a]
 fieldMap fields =
     foldl (\r (x,t) -> Map.insertWith (++) x [t] r) Map.empty fields
 
 recordOf :: [(String,Type)] -> Type
-recordOf fields = Record fields EmptyRecord
+recordOf fields = Record fields Nothing
 
 listOf :: Type -> Type
 listOf t = Data "_List" [t]
@@ -27,39 +27,39 @@ listOf t = Data "_List" [t]
 tupleOf :: [Type] -> Type
 tupleOf ts = Data ("_Tuple" ++ show (length ts)) ts
 
+instance Show Type where
+  show = render . pretty
 
 instance Pretty Type where
   pretty tipe =
     case tipe of
-      Lambda t1 t2 -> P.sep [ t, P.sep (map (P.text "->" <+>) ts) ]
-        where t:ts = collectLambdas tipe
+      Lambda _ _ -> P.sep [ t, P.sep (map (P.text "->" <+>) ts) ]
+        where
+          t:ts = map prettyLambda (collectLambdas tipe)
+          prettyLambda t = case t of
+                             Lambda _ _ -> P.parens (pretty t)
+                             _ -> pretty t
+
       Var x -> P.text x
       Data "_List" [t] -> P.brackets (pretty t)
       Data name tipes
           | Help.isTuple name -> P.parens . P.sep . P.punctuate P.comma $ map pretty tipes
           | otherwise -> P.hang (P.text name) 2 (P.sep $ map prettyParens tipes)
-      EmptyRecord -> P.braces P.empty
-      Record _ _ -> P.braces $ case ext of
-                                 EmptyRecord -> prettyFields
-                                 _ -> P.hang (pretty ext <+> P.text "|") 4 prettyFields
+      Record fields ext ->
+          P.braces $ case ext of
+                       Nothing -> prettyFields
+                       Just x -> P.hang (P.text x <+> P.text "|") 4 prettyFields
           where
-            (fields, ext) = collectRecords tipe
             prettyField (f,t) = P.text f <+> P.text ":" <+> pretty t
             prettyFields = commaSep . map prettyField $ fields
 
+collectLambdas :: Type -> [Type]
 collectLambdas tipe =
   case tipe of
-    Lambda arg@(Lambda _ _) body -> P.parens (pretty arg) : collectLambdas body
-    Lambda arg body -> pretty arg : collectLambdas body
-    _ -> [pretty tipe]
+    Lambda arg body -> arg : collectLambdas body
+    _ -> [tipe]
 
-collectRecords = go []
-  where
-    go fields tipe =
-        case tipe of
-          Record fs ext -> go (fs ++ fields) ext
-          _ -> (fields, tipe)
-
+prettyParens :: Type -> Doc
 prettyParens tipe = parensIf needed (pretty tipe)
   where
     needed =
@@ -79,10 +79,8 @@ instance Binary Type where
             putWord8 1 >> put x
         Data ctor tipes ->
             putWord8 2 >> put ctor >> put tipes
-        EmptyRecord ->
-            putWord8 3
         Record fs ext ->
-            putWord8 4 >> put fs >> put ext
+            putWord8 3 >> put fs >> put ext
 
   get = do
       n <- getWord8
@@ -90,6 +88,5 @@ instance Binary Type where
         0 -> Lambda <$> get <*> get
         1 -> Var <$> get
         2 -> Data <$> get <*> get
-        3 -> return EmptyRecord
-        4 -> Record <$> get <*> get
+        3 -> Record <$> get <*> get
         _ -> error "Error reading a valid type from serialized string"

@@ -1,9 +1,9 @@
 module Generate.Cases (toMatch, Match (..), Clause (..), matchSubst, newVar) where
 
-import Control.Applicative ((<$>),(<*>))
-import Control.Arrow (first,second)
+import Control.Applicative ((<$>))
+import Control.Arrow (first)
 import Control.Monad.State
-import Data.List (groupBy,sortBy,lookup)
+import Data.List (groupBy,sortBy)
 import Data.Maybe (fromMaybe)
 
 import SourceSyntax.Location
@@ -13,7 +13,7 @@ import SourceSyntax.Expression
 import Transform.Substitute
 
 
-toMatch :: [(Pattern, LExpr t v)] -> State Int (String, Match t v)
+toMatch :: [(Pattern, LExpr)] -> State Int (String, Match)
 toMatch patterns = do
   v <- newVar
   (,) v <$> match [v] (map (first (:[])) patterns) Fail
@@ -23,19 +23,19 @@ newVar = do n <- get
             modify (+1)
             return $ "_v" ++ show n
 
-data Match t v
-    = Match String [Clause t v] (Match t v)
+data Match
+    = Match String [Clause] Match
     | Break
     | Fail
-    | Other (LExpr t v)
-    | Seq [Match t v]
+    | Other LExpr
+    | Seq [Match]
       deriving Show
 
-data Clause t v =
-    Clause (Either String Literal) [String] (Match t v)
+data Clause =
+    Clause (Either String Literal) [String] Match
     deriving Show
 
-matchSubst :: [(String,String)] -> Match t v -> Match t v
+matchSubst :: [(String,String)] -> Match -> Match
 matchSubst _ Break = Break
 matchSubst _ Fail = Fail
 matchSubst pairs (Seq ms) = Seq (map (matchSubst pairs) ms)
@@ -47,7 +47,7 @@ matchSubst pairs (Match n cs m) =
               clauseSubst (Clause c vs m) =
                   Clause c (map varSubst vs) (matchSubst pairs m)
 
-isCon (p:ps, e) =
+isCon (p:_, _) =
   case p of
     PData _ _  -> True
     PLiteral _ -> True
@@ -55,7 +55,7 @@ isCon (p:ps, e) =
 
 isVar p = not (isCon p)
 
-match :: [String] -> [([Pattern],LExpr t v)] -> Match t v -> State Int (Match t v)
+match :: [String] -> [([Pattern],LExpr)] -> Match -> State Int Match
 match [] [] def = return def
 match [] [([],e)] Fail  = return $ Other e
 match [] [([],e)] Break = return $ Other e
@@ -72,10 +72,10 @@ dealias v c@(p:ps, L s e) =
       PAlias x pattern -> (pattern:ps, L s $ subst x (Var v) e)
       _ -> c
 
-matchVar :: [String] -> [([Pattern],LExpr t v)] -> Match t v -> State Int (Match t v)
+matchVar :: [String] -> [([Pattern],LExpr)] -> Match -> State Int Match
 matchVar (v:vs) cs def = match vs (map subVar cs) def
   where
-    subVar (p:ps, ce@(L s e)) = (ps, L s $ subOnePattern p e)
+    subVar (p:ps, (L s e)) = (ps, L s $ subOnePattern p e)
         where
           subOnePattern pattern e =
             case pattern of
@@ -84,7 +84,7 @@ matchVar (v:vs) cs def = match vs (map subVar cs) def
               PRecord fs ->
                  foldr (\x -> subst x (Access (L s (Var v)) x)) e fs
 
-matchCon :: [String] -> [([Pattern],LExpr t v)] -> Match t v -> State Int (Match t v)
+matchCon :: [String] -> [([Pattern],LExpr)] -> Match -> State Int Match
 matchCon (v:vs) cs def = (flip (Match v) def) <$> mapM toClause css
     where
       css = groupBy eq (sortBy cmp cs)
@@ -106,10 +106,10 @@ matchCon (v:vs) cs def = (flip (Match v) def) <$> mapM toClause css
 
 matchClause :: Either String Literal
             -> [String]
-            -> [([Pattern],LExpr t v)]
-            -> Match t v
-            -> State Int (Clause t v)
-matchClause c (v:vs) cs def =
+            -> [([Pattern],LExpr)]
+            -> Match
+            -> State Int Clause
+matchClause c (_:vs) cs def =
     do vs' <- getVars
        Clause c vs' <$> match (vs' ++ vs) (map flatten cs) def
     where
@@ -124,6 +124,6 @@ matchClause c (v:vs) cs def =
             (PData _ ps : _, _) -> forM ps (const newVar)
             (PLiteral _ : _, _) -> return []
 
-matchMix :: [String] -> [([Pattern],LExpr t v)] -> Match t v -> State Int (Match t v)
+matchMix :: [String] -> [([Pattern],LExpr)] -> Match -> State Int Match
 matchMix vs cs def = foldM (flip $ match vs) def (reverse css)
     where css = groupBy (\p1 p2 -> isCon p1 == isCon p2) cs

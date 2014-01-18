@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -W #-}
 module Type.Alias (realias, rules, canonicalRealias, Rules) where
 
 import Control.Applicative ((<$>),(<*>))
@@ -9,7 +10,7 @@ import qualified Data.List as List
 import SourceSyntax.Type
 import SourceSyntax.Module
 
-type Rules = ([(String,[String],Type)], Type -> Type)
+type Rules = ([Alias], Type -> Type)
 
 rules interfaces moduleAliases moduleImports =
     (collect interfaces moduleAliases, localizer moduleImports)
@@ -20,7 +21,7 @@ collect interfaces moduleAliases =
       rawAliases =
           moduleAliases ++ concatMap iAliases (Map.elems interfaces)
 
-      isPrimitive (_,_,tipe) =
+      isPrimitive (_,_,tipe,_) =
           case tipe of
           Data _ [] -> True
           _ -> False
@@ -30,10 +31,9 @@ localizer moduleImports = go
     go tipe =
         case tipe of
           Var _ -> tipe
-          EmptyRecord -> tipe
           Lambda t1 t2 -> Lambda (go t1) (go t2)
           Data name ts -> Data (localize name) (map go ts)
-          Record fs ext -> Record (map (second go) fs) (go ext)
+          Record fs ext -> Record (map (second go) fs) ext
 
     byMethod = foldr (\(n,m) d -> Map.insertWith (++) n [m] d)
                Map.empty moduleImports
@@ -62,13 +62,13 @@ realias (aliases,localize) tipe = localize (canonicalRealias aliases tipe)
 
 -- Realias using canonical aliases, so results will have aliases
 -- that are fully qualified and possible to compare.
-canonicalRealias :: [(String,[String],Type)] -> Type -> Type
+canonicalRealias :: [Alias] -> Type -> Type
 canonicalRealias aliases tipe =
     case concatMap tryRealias aliases of
       [] -> if tipe == tipe' then tipe else f tipe'
       tipes -> f (bestType tipes)
   where
-    tryRealias (name, args, aliasTipe) =
+    tryRealias (name, args, aliasTipe, _) =
         case diff aliasTipe tipe of
           Nothing -> []
           Just kvs ->
@@ -83,10 +83,9 @@ canonicalRealias aliases tipe =
     tipe' =
         case tipe of
           Var _ -> tipe
-          EmptyRecord -> tipe
           Lambda t1 t2 -> Lambda (f t1) (f t2)
           Data name ts -> Data name (map f ts)
-          Record fs ext -> Record (map (second f) fs) (f ext)
+          Record fs ext -> Record (map (second f) fs) ext
 
 allEqual [] = True
 allEqual (x:xs) = all (==x) xs
@@ -102,8 +101,7 @@ bestType tipes = fst $ List.minimumBy (\a b -> compare (snd a) (snd b)) pairs
             Lambda t1 t2 -> numFields t1 + numFields t2
             Var _ -> 0
             Data _ ts -> sum (map numFields ts)
-            EmptyRecord -> 0
-            Record fields ext -> length fields + sum (map (numFields . snd) fields) + numFields ext
+            Record fields _ -> length fields + sum (map (numFields . snd) fields)
 
 diff :: Type -> Type -> Maybe [(String,Type)]
 diff general specific =
@@ -113,11 +111,11 @@ diff general specific =
       (Data gname gts, Data sname sts)
           | gname == sname && length gts == length sts ->
               concat <$> zipWithM diff gts sts
-      (EmptyRecord, EmptyRecord) -> Just []
-      (Record _ _, Record _ _) ->
-          let (gfs,gext) = collectRecords general
-              (sfs,sext) = collectRecords specific
-              gfields = collectFields gfs
+      (Record [] Nothing, Record [] Nothing) -> Just []
+      (Record _ _, Record [] Nothing) -> Nothing
+      (Record [] Nothing, Record _ _) -> Nothing
+      (Record gfs gext, Record sfs sext) ->
+          let gfields = collectFields gfs
               sfields = collectFields sfs
 
               overlap = Map.intersectionWith (\gs ss -> length gs == length ss) sfields gfields
@@ -126,10 +124,12 @@ diff general specific =
               case isAligned of
                 False -> Nothing
                 True -> let remaining = Map.difference sfields gfields
-                            sext' = if Map.null remaining then sext else
-                                        Record (flattenFields remaining) sext
+                            sext' = case sext of
+                                      Just x | Map.null remaining -> Var x
+                                      _ -> Record (flattenFields remaining) sext
+                            gext' = maybe (Record [] Nothing) Var gext
                             matchMap = Map.intersectionWith (zipWith diff) gfields sfields
-                        in  concat <$> sequence (diff gext sext' : concat (Map.elems matchMap))
+                        in  concat <$> sequence (diff gext' sext' : concat (Map.elems matchMap))
       (_,_) -> Nothing
 
 collectFields fields =

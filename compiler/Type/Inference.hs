@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -W #-}
 module Type.Inference where
 
 import qualified Data.Map as Map
@@ -5,27 +6,23 @@ import qualified Data.Map as Map
 import qualified Type.Type as T
 import qualified Type.Environment as Env
 import qualified Type.Constrain.Expression as TcExpr
-import qualified Type.Constrain.Declaration as TcDecl
 import qualified Type.Solve as Solve
 
 import SourceSyntax.Module as Module
-import qualified SourceSyntax.Expression as Expr
-import SourceSyntax.Location (Located, noneNoDocs)
-import SourceSyntax.PrettyPrint
+import SourceSyntax.Location (noneNoDocs)
 import SourceSyntax.Type (Type)
 import Text.PrettyPrint
 import qualified Type.State as TS
-import Type.ExtraChecks (extraChecks)
+import qualified Type.ExtraChecks as Check
 import Control.Monad.State (execStateT, forM)
 import Control.Monad.Error (runErrorT, liftIO)
-import Control.Arrow (second)
 import qualified Type.Alias as Alias
 
 import System.IO.Unsafe  -- Possible to switch over to the ST monad instead of
                          -- the IO monad. I don't think that'd be worthwhile.
 
 
-infer :: Interfaces -> MetadataModule t v -> Either [Doc] (Map.Map String Type)
+infer :: Interfaces -> MetadataModule -> Either [Doc] (Map.Map String Type)
 infer interfaces modul = unsafePerformIO $ do
   env <- Env.initialEnvironment
              (datatypes modul ++ concatMap iAdts (Map.elems interfaces))
@@ -55,4 +52,6 @@ infer interfaces modul = unsafePerformIO $ do
       let rules = Alias.rules interfaces (aliases modul) (imports modul)
       case TS.sErrors state of
         errors@(_:_) -> Left `fmap` sequence (map ($ rules) (reverse errors))
-        [] -> extraChecks rules (Map.difference (TS.sSavedEnv state) header)
+        [] -> case Check.portTypes rules (program modul) of
+                Right () -> Check.mainType rules (Map.difference (TS.sSavedEnv state) header)
+                Left err -> return (Left err)

@@ -1,5 +1,6 @@
 Learn about the Elm programming language at [elm-lang.org](http://elm-lang.org/).
 
+[![Build Status](https://travis-ci.org/evancz/Elm.png)](https://travis-ci.org/evancz/Elm)
 
 ## Install
 

@@ -1,10 +1,12 @@
+{-# OPTIONS_GHC -W #-}
+module Type.ExtraChecks (mainType, occurs, portTypes) where
 -- This module contains checks to be run *after* type inference has
 -- completed successfully. At that point we still need to do occurs
 -- checks and ensure that `main` has an acceptable type.
-module Type.ExtraChecks (extraChecks, occursCheck) where
 
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad.State
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.UnionFind.IO as UF
 import Type.Type ( Variable, structure, Term1(..), toSrcType )
@@ -12,33 +14,106 @@ import qualified Type.State as TS
 import qualified Type.Alias as Alias
 import Text.PrettyPrint as P
 import SourceSyntax.PrettyPrint (pretty)
-import SourceSyntax.Type (Type)
-import qualified SourceSyntax.Location as Location
-import qualified SourceSyntax.Expression as Expr
+import qualified SourceSyntax.Helpers as Help
+import qualified SourceSyntax.Type as T
+import qualified SourceSyntax.Expression as E
+import qualified SourceSyntax.Location as L
+import qualified Transform.Expression as Expr
 import qualified Data.Traversable as Traverse
 
-extraChecks :: Alias.Rules -> TS.Env -> IO (Either [P.Doc] (Map.Map String Type))
-extraChecks rules env =
-    mainCheck rules <$> Traverse.traverse toSrcType env
+throw err = Left [ P.vcat err ]
 
-mainCheck :: Alias.Rules -> (Map.Map String Type) -> Either [P.Doc] (Map.Map String Type)
-mainCheck rules env =
-    let acceptable = ["Graphics.Element.Element","Signal.Signal Graphics.Element.Element"] in
-    case Map.lookup "main" env of
-      Nothing -> Right env
-      Just tipe
-        | P.render (pretty (Alias.canonicalRealias (fst rules) tipe)) `elem` acceptable ->
-            Right env
-        | otherwise ->
-            Left [ P.vcat [ P.text "Type Error:"
-                          , P.text "Bad type for 'main'. It must have type Element or a (Signal Element)"
-                          , P.text "Instead 'main' has type:\n"
-                          , P.nest 4 . pretty $ Alias.realias rules tipe
-                          , P.text " " ]
-                 ]
+mainType :: Alias.Rules -> TS.Env -> IO (Either [P.Doc] (Map.Map String T.Type))
+mainType rules env = mainCheck rules <$> Traverse.traverse toSrcType env
+  where
+    mainCheck :: Alias.Rules -> Map.Map String T.Type -> Either [P.Doc] (Map.Map String T.Type)
+    mainCheck rules env =
+      case Map.lookup "main" env of
+        Nothing -> Right env
+        Just mainType
+            | tipe `elem` acceptable -> Right env
+            | otherwise              -> throw err
+            where
+              acceptable = [ "Graphics.Element.Element"
+                           , "Signal.Signal Graphics.Element.Element" ]
 
-occursCheck :: (String, Variable) -> StateT TS.SolverState IO ()
-occursCheck (name, variable) =
+              tipe = P.render . pretty $ Alias.canonicalRealias (fst rules) mainType
+              err = [ P.text "Type Error: 'main' must have type Element or (Signal Element)."
+                    , P.text "Instead 'main' has type:\n"
+                    , P.nest 4 . pretty $ Alias.realias rules mainType
+                    , P.text " " ]
+
+data Direction = In | Out
+
+portTypes :: Alias.Rules -> E.LExpr -> Either [P.Doc] ()
+portTypes rules expr =
+  const () <$> Expr.checkPorts (check In) (check Out) expr
+  where
+    check = isValid True False False
+    isValid isTopLevel seenFunc seenSignal direction name tipe =
+        case tipe of
+          T.Data ctor ts
+              | isJs ctor || isElm ctor -> mapM_ valid ts
+              | ctor == "Signal.Signal" -> handleSignal ts
+              | otherwise               -> err' True "an unsupported type"
+
+          T.Var _ -> err "free type variables"
+
+          T.Lambda _ _ ->
+              case direction of
+                In -> err "functions"
+                Out | seenFunc   -> err "higher-order functions"
+                    | seenSignal -> err "signals that contain functions"
+                    | otherwise  ->
+                        forM_ (T.collectLambdas tipe)
+                              (isValid' True seenSignal direction name)
+
+          T.Record _ (Just _) -> err "extended records with free type variables"
+
+          T.Record fields Nothing ->
+              mapM_ (\(k,v) -> (,) k <$> valid v) fields
+
+        where
+          isValid' = isValid False
+          valid = isValid' seenFunc seenSignal direction name
+
+          isJs ctor =
+              List.isPrefixOf "JavaScript." ctor
+              && length (filter (=='.') ctor) == 1
+
+          isElm ctor =
+              ctor `elem` ["Int","Float","String","Bool","Maybe.Maybe","_List"]
+              || Help.isTuple ctor
+
+          handleSignal ts
+              | seenFunc   = err "functions that involve signals"
+              | seenSignal = err "signals-of-signals"
+              | isTopLevel = mapM_ (isValid' seenFunc True direction name) ts
+              | otherwise  = err "a signal within a data stucture"
+
+          dir inMsg outMsg = case direction of { In -> inMsg ; Out -> outMsg }
+          txt = P.text . concat
+
+          err = err' False
+          err' couldBeAlias kind =
+              throw $
+              [ txt [ "Type Error: the value ", dir "coming in" "sent out"
+                    , " through port '", name, "' is invalid." ]
+              , txt [ "It contains ", kind, ":\n" ]
+              , (P.nest 4 . pretty $ Alias.realias rules tipe) <> P.text "\n"
+              , txt [ "Acceptable values for ", dir "incoming" "outgoing"
+                    , " ports include JavaScript values and" ]
+              , txt [ "the following Elm values: Ints, Floats, Bools, Strings, Maybes," ]
+              , txt [ "Lists, Tuples, ", dir "" "first-order functions, ", "and concrete records." ]
+              ] ++ if couldBeAlias then aliasWarning else []
+
+          aliasWarning =
+              [ txt [ "\nType aliases are not expanded for this check (yet) so you need to do that" ]
+              , txt [ "manually for now (e.g. {x:Int,y:Int} instead of a type alias of that type)." ]
+              ]
+
+occurs :: (String, Variable) -> StateT TS.SolverState IO ()
+occurs (name, variable) =
   do vars <- liftIO $ infiniteVars [] variable
      case vars of
        [] -> return ()
@@ -47,10 +122,10 @@ occursCheck (name, variable) =
          case structure desc of
            Nothing ->
                modify $ \state -> state { TS.sErrors = fallback : TS.sErrors state }
-           Just struct ->
+           Just _ ->
                do liftIO $ UF.setDescriptor var (desc { structure = Nothing })
                   var' <- liftIO $ UF.fresh desc
-                  TS.addError (Location.NoSpan name) (Just msg) var var'
+                  TS.addError (L.NoSpan name) (Just msg) var var'
   where
     msg = "Infinite types are not allowed"
     fallback _ = return $ P.text msg

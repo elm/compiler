@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wall #-}
 module SourceSyntax.Literal where
 
 import SourceSyntax.PrettyPrint
@@ -8,13 +9,13 @@ data Literal = IntNum Int
              | Chr Char
              | Str String
              | Boolean Bool
-               deriving (Eq, Ord, Show)
+             deriving (Eq, Ord, Show)
 
 instance Pretty Literal where
   pretty literal =
     case literal of
       IntNum n -> PP.int n
       FloatNum n -> PP.double n
-      Chr c -> PP.quotes (PP.char c)
-      Str s -> PP.text (show s)
+      Chr c -> PP.text . show $ c
+      Str s -> PP.text . show $ s
       Boolean bool -> PP.text (show bool)

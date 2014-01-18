@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -W #-}
 module Type.Unify (unify) where
 
 import Type.Type
@@ -5,7 +6,6 @@ import qualified Data.UnionFind.IO as UF
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Type.State as TS
-import Control.Arrow (first,second)
 import Control.Monad.State
 import SourceSyntax.Location
 import Type.PrettyPrint
@@ -193,8 +193,8 @@ actuallyUnify span variable1 variable2 = do
 
                 unmerged a b = Map.filter (not . null) $ Map.union (Map.intersectionWith eat a b) a
 
-                eat (x:xs) (y:ys) = eat xs ys
-                eat xs ys = xs
+                eat (_:xs) (_:ys) = eat xs ys
+                eat xs _ = xs
 
           _ -> TS.addError span Nothing variable1 variable2
 
