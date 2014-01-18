@@ -14,7 +14,7 @@ two-way inputs.
 @docs button, customButton, buttons, customButtons
 
 # Fields
-@docs field, password, email, fields, FieldState, emptyFieldState
+@docs field, password, email, fieldMultiline, fields, fieldsMultiline, FieldState, emptyFieldState
 
 # Checkboxes
 @docs checkbox, checkboxes
@@ -163,6 +163,20 @@ field placeHolder =
         changes = dropRepeats tfs.events
     in  (lift (tfs.field id placeHolder) changes,
          dropRepeats (lift .string changes))
+
+{-| Same as fields but multiline.
+-}
+fieldsMultiline : a -> { events : Signal a,
+                    field : (FieldState -> a) -> String -> FieldState -> Element }
+fieldsMultiline = Native.Graphics.Input.textareas
+
+fieldMultiline : String -> (Signal Element, Signal String)
+fieldMultiline placeHolder =
+    let tfs = fieldsMultiline emptyFieldState
+        changes = dropRepeats tfs.events
+    in  (lift (tfs.field id placeHolder) changes,
+         dropRepeats (lift .string changes))
+
 
 {-| Same as `field` but the UI element blocks out each characters. -}
 password : String -> (Signal Element, Signal String)
