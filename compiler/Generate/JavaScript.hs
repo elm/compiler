@@ -7,17 +7,19 @@ import Control.Monad.State
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Text.PrettyPrint (render)
 
 import Generate.JavaScript.Helpers
 import qualified Generate.Cases as Case
 import qualified Generate.JavaScript.Ports as Port
 import qualified Generate.Markdown as MD
 import qualified SourceSyntax.Helpers as Help
-import SourceSyntax.Literal
-import SourceSyntax.Pattern as Pattern
-import SourceSyntax.Location
 import SourceSyntax.Expression
+import SourceSyntax.Literal
+import SourceSyntax.Location
 import SourceSyntax.Module
+import SourceSyntax.Pattern as Pattern
+import SourceSyntax.PrettyPrint
 import Language.ECMAScript3.Syntax
 import Language.ECMAScript3.PrettyPrint
 import qualified Transform.SafeNames as MakeSafe
@@ -141,7 +143,7 @@ expression (L span expr) =
            return $ case last branches of
              (L _ (Var "Basics.otherwise"), _) -> safeIfs branches'
              (L _ (Literal (Boolean True)), _) -> safeIfs branches'
-             _ -> ifs branches' (obj "_E.If" `call` [ ref "$moduleName", string (show span) ])
+             _ -> ifs branches' (obj "_E.If" `call` [ ref "$moduleName", string (render . pretty $ span) ])
         where
           safeIfs branches = ifs (init branches) (snd (last branches))
           ifs branches finally = foldr iff finally branches
@@ -216,7 +218,7 @@ definition (Definition pattern expr@(L span _) _) = do
 
           safeAssign = varDecl "$" (CondExpr () if' (obj "$raw") exception)
           if' = InfixExpr () OpStrictEq (obj "$raw.ctor") (string name)
-          exception = obj "_E.Case" `call` [ref "$moduleName", string (show span)]
+          exception = obj "_E.Case" `call` [ref "$moduleName", string . render . pretty $ span]
 
     _ ->
         do defs' <- concat <$> mapM toDef vars
@@ -244,7 +246,7 @@ match span mtch =
               | otherwise = e
 
     Case.Fail ->
-        return [ ExprStmt () (obj "_E.Case" `call` [ref "$moduleName", string (show span)]) ]
+        return [ ExprStmt () (obj "_E.Case" `call` [ref "$moduleName", string (render. pretty $ span)]) ]
 
     Case.Break -> return [BreakStmt () Nothing]
     Case.Other e ->

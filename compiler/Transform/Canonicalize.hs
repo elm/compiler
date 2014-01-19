@@ -12,6 +12,7 @@ import qualified Data.Either as Either
 import SourceSyntax.Module
 import SourceSyntax.Expression
 import SourceSyntax.Location as Loc
+import SourceSyntax.PrettyPrint
 import qualified SourceSyntax.Pattern as P
 import qualified SourceSyntax.Type as Type
 import Text.PrettyPrint as P
@@ -110,7 +111,7 @@ replace variable env v =
 rename :: Env -> LExpr -> Either [Doc] LExpr
 rename env (L s expr) =
     let rnm = rename env
-        throw err = Left [ P.text $ "Error " ++ show s ++ "\n" ++ err ]
+        throw err = Left [ P.text $ "Error " ++ (P.render . pretty $ s) ++ "\n" ++ err ]
         format = Either.either throw return
         renameType' env = renameType (format . replace "variable" env)
     in

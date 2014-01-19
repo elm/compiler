@@ -45,14 +45,13 @@ data BasicConstraint a b
     | CAnd [Constraint a b]
     | CLet [Scheme a b] (Constraint a b)
     | CInstance SchemeName a
-    deriving Show
 
 data Scheme a b = Scheme {
     rigidQuantifiers :: [b],
     flexibleQuantifiers :: [b],
     constraint :: Constraint a b,
     header :: Map.Map String a
-} deriving Show
+}
 
 type TypeConstraint = Constraint Type Variable
 type TypeScheme = Scheme Type Variable

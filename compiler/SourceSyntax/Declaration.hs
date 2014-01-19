@@ -13,7 +13,6 @@ data Declaration' port def
     | TypeAlias String [String] T.Type [Derivation]
     | Port port
     | Fixity Assoc Int String
-      deriving (Show)
 
 data Assoc = L | N | R
     deriving (Eq)
@@ -24,12 +23,10 @@ data Derivation = Json | JS | Binary | New
 data ParsePort
     = PPAnnotation String T.Type
     | PPDef String Expr.LParseExpr
-      deriving (Show)
 
 data Port
     = Out String Expr.LExpr T.Type
     | In String T.Type
-      deriving (Show)
 
 type ParseDeclaration = Declaration' ParsePort Expr.ParseDef
 type Declaration = Declaration' Port Expr.Def
@@ -51,12 +48,12 @@ instance Binary Derivation where
                    Binary -> 2
                    New    -> 3
 
-instance Show Assoc where
-    show assoc =
-        case assoc of
-          L -> "left"
-          N -> "non"
-          R -> "right"
+instance Pretty Assoc where
+    pretty assoc =
+      text $ case assoc of
+        L -> "left"
+        N -> "non"
+        R -> "right"
 
 instance Binary Assoc where
     get = do n <- getWord8

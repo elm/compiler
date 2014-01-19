@@ -11,7 +11,7 @@ import qualified Text.PrettyPrint as PP
 import SourceSyntax.Pattern
 import SourceSyntax.Location
 import SourceSyntax.PrettyPrint
-import Text.PrettyPrint (render)
+import Text.PrettyPrint (render, (<>))
 import qualified SourceSyntax.Location as Loc
 import Type.Type
 import Type.Fragment
@@ -52,7 +52,7 @@ constrain env pattern tipe =
           let msg = concat [ "Constructor '", name, "' expects ", show kind
                            , " argument", if kind == 1 then "" else "s"
                            , " but was given ", show (length patterns), "." ]
-              err span = PP.vcat [ PP.text $ "Type error " ++ show span
+              err span = PP.vcat [ PP.text "Type error " <> pretty span
                                  , PP.text msg ]
           case length patterns == kind of
             False -> throwError err
@@ -76,5 +76,5 @@ constrain env pattern tipe =
 instance Error (SrcSpan -> PP.Doc) where
   noMsg _ = PP.empty
   strMsg str span =
-      PP.vcat [ PP.text $ "Type error " ++ show span
+      PP.vcat [ PP.text "Type error " <> pretty span
               , PP.text str ]
