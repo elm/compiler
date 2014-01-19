@@ -24,12 +24,10 @@ data Derivation = Json | JS | Binary | New
 data ParsePort
     = PPAnnotation String T.Type
     | PPDef String Expr.LParseExpr
-      deriving (Show)
 
 data Port
     = Out String Expr.LExpr T.Type
     | In String T.Type
-      deriving (Show)
 
 type ParseDeclaration = Declaration' ParsePort Expr.ParseDef
 type Declaration = Declaration' Port Expr.Def

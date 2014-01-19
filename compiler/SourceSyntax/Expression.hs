@@ -68,7 +68,6 @@ type LParseExpr = LExpr' ParseDef
 data ParseDef
     = Def Pattern.Pattern LParseExpr
     | TypeAnnotation String SrcType.Type
-      deriving (Show)
 
 {-| "Normal" expressions. When the compiler checks that type annotations and
 ports are all paired with definitions in the appropriate order, it collapses
@@ -78,7 +77,6 @@ type LExpr = LExpr' Def
 type Expr = Expr' Def
 
 data Def = Definition Pattern.Pattern LExpr (Maybe SrcType.Type)
-    deriving (Show)
 
 
 ---- UTILITIES ----
@@ -97,8 +95,8 @@ dummyLet :: Pretty def => [def] -> LExpr' def
 dummyLet defs = 
      Location.none $ Let defs (Location.none $ Var saveEnvName)
 
-instance Pretty def => Show (Expr' def) where
-  show = render . pretty
+-- instance Pretty def => Show (Expr' def) where
+--   show = render . pretty
 
 instance Pretty def => Pretty (Expr' def) where
   pretty expr =

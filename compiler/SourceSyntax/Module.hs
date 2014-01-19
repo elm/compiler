@@ -47,7 +47,7 @@ data MetadataModule =
     , fixities  :: [(Assoc, Int, String)]
     , aliases   :: [Alias]
     , datatypes :: [ADT]
-    } deriving Show
+    }
 
 type Interfaces = Map.Map String ModuleInterface
 type ADT = (String, [String], [(String,[Type])], [Derivation])

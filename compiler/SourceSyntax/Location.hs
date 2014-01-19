@@ -36,22 +36,17 @@ mergeOldDocs (L s1 _) (L s2 _) e = L span e
 
 sameAs (L s _) = L s
 
+instance Pretty SrcPos where
+    pretty (Pos r c) = int r <> char ',' <> int c
 
-instance Show SrcPos where
-    show (Pos r c) = show r ++ "," ++ show c
-
-instance Show SrcSpan where
-  show span = 
-      case span of
-        NoSpan _ -> ""
-        Span start end _ ->
-            case line start == line end of
-              False -> "between lines " ++ show (line start) ++ " and " ++ show (line end)
-              True -> "on line " ++ show (line end) ++ ", column " ++
-                      show (column start) ++ " to " ++ show (column end)
-
-instance Show e => Show (Located e) where
-  show (L _ e) = show e
+instance Pretty SrcSpan where
+  pretty span = case span of
+    NoSpan _ -> empty
+    Span start end _ ->
+      case line start == line end of
+        False -> text "between lines " <> int (line start) <> text " and " <> int (line end)
+        True -> text "on line " <> int (line end) <> text ", column " <>
+                int (column start) <> text " to " <> int (column end)
 
 instance Pretty a => Pretty (Located a) where
   pretty (L _ e) = pretty e

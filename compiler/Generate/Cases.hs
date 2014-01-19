@@ -29,11 +29,9 @@ data Match
     | Fail
     | Other LExpr
     | Seq [Match]
-      deriving Show
 
 data Clause =
     Clause (Either String Literal) [String] Match
-    deriving Show
 
 matchSubst :: [(String,String)] -> Match -> Match
 matchSubst _ Break = Break
