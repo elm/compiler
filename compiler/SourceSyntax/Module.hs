@@ -60,7 +60,7 @@ data ModuleInterface = ModuleInterface {
     iAdts     :: [ADT],
     iAliases  :: [Alias],
     iFixities :: [(Assoc, Int, String)]
-} deriving Show
+}
 
 metaToInterface :: MetadataModule -> ModuleInterface
 metaToInterface metaModule =

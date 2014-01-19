@@ -14,11 +14,13 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Text as Text
+import Text.PrettyPrint (render)
 
 import SourceSyntax.Helpers (isSymbol)
 import SourceSyntax.Type (Type(..))
 import qualified SourceSyntax.Expression as E
 import qualified SourceSyntax.Declaration as D
+import SourceSyntax.PrettyPrint (pretty)
 
 import Text.Parsec hiding (newline,spaces)
 import Parse.Declaration (alias,datatype,infixDecl)
@@ -126,7 +128,7 @@ collect infixes types aliases adts things =
 
             customOps = Map.intersectionWith addInfix infixes types
             addInfix (assoc,prec) pairs =
-                [ "associativity" .= show assoc, "precedence" .= prec ] ++ pairs
+                [ "associativity" .= (render . pretty $ assoc), "precedence" .= prec ] ++ pairs
 
       (comment, decl, source) : rest ->
           case decl of
