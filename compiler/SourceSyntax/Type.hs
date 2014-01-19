@@ -12,7 +12,7 @@ data Type = Lambda Type Type
           | Var String
           | Data String [Type]
           | Record [(String,Type)] (Maybe String)
-            deriving (Eq)
+          deriving (Show, Eq)
 
 fieldMap :: [(String,a)] -> Map.Map String [a]
 fieldMap fields =
@@ -26,9 +26,6 @@ listOf t = Data "_List" [t]
 
 tupleOf :: [Type] -> Type
 tupleOf ts = Data ("_Tuple" ++ show (length ts)) ts
-
-instance Show Type where
-  show = render . pretty
 
 instance Pretty Type where
   pretty tipe =
