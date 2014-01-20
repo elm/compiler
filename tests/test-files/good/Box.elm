@@ -1,7 +1,7 @@
 
 module Box where
 
-import MJS (V3,M4x4,v3,m4x4makeRotate,m4x4makePerspective,m4x4makeLookAt,m4x4mul)
+import MJS (V3,M4x4,v3,makeRotate,makePerspective,makeLookAt,mul)
 import Graphics.WebGL (Program, link, Triangle, zipTriangle, Buffer, bind, Model, encapsulate, webgl)
 import Window(dimensions)
 
@@ -66,15 +66,15 @@ buf : Buffer {pos : V3, color : V3}
 buf = bind mesh
 
 per : M4x4
-per = m4x4makePerspective 45 1 0.01 100
+per = makePerspective 45 1 0.01 100
 
 cam : M4x4
-cam = m4x4makeLookAt (v3 0 0 5) (v3 0 0 0) (v3 0 1 0)
+cam = makeLookAt (v3 0 0 5) (v3 0 0 0) (v3 0 1 0)
 
 angle : Signal Float
 angle = foldp (\_ n -> n + 0.02) 0 (fps 25)
 
-rot = (\t -> { rot = m4x4mul (m4x4makeRotate (3*t) (v3 0 1 0)) (m4x4makeRotate (2*t) (v3 1 0 0)), per = per, cam = cam }) <~ angle
+rot = (\t -> { rot = mul (makeRotate (3*t) (v3 0 1 0)) (makeRotate (2*t) (v3 1 0 0)), per = per, cam = cam }) <~ angle
 
 draw : Signal [Model]
 draw = combine [ (encapsulate prog buf) <~ rot ]

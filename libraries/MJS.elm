@@ -2,58 +2,124 @@ module MJS where
 
 {-| MJS
 
+A high performance linear algrbra library using
+native JS array types. Geared towards 3D graphics
+and used primarily by the Graphics.WebGL.
+
+Both vectors and matrices are immutable.
+
 -}
 
 import Native.MJS
 
 data V3 = Dummy_V3
-data M4x4 = Dummy_M4x4
 
 v3 : Float -> Float -> Float -> V3
 v3 = Native.MJS.v3
 
-v3add : V3 -> V3 -> V3
-v3add = Native.MJS.v3add
+add : V3 -> V3 -> V3
+add = Native.MJS.v3add
 
-v3sub : V3 -> V3 -> V3
-v3sub = Native.MJS.v3sub
+sub : V3 -> V3 -> V3
+sub = Native.MJS.v3sub
 
-v3length : V3 -> Float
-v3length = Native.MJS.v3length
+neg : V3 -> V3
+neg = Native.MJS.v3neg
 
-v3normalize : V3 -> V3
-v3normalize = Native.MJS.v3normalize
+{- The normalized direction from v1 to v2 -}
+direction : V3 -> V3 -> V3
+direction = Native.MJS.v3direction
 
-v3scale : V3 -> Float -> V3
-v3scale = Native.MJS.v3scale
+length : V3 -> Float
+length = Native.MJS.v3length
 
-v3dot : V3 -> V3 -> Float
-v3dot = Native.MJS.v3dot
+lengthSquared : V3 -> Float
+lengthSquared = Native.MJS.v3lengthSquared
 
-v3cross : V3 -> V3 -> V3
-v3cross = Native.MJS.v3cross
+normalize : V3 -> V3
+normalize = Native.MJS.v3normalize
 
-v3mul4x4 : M4x4 -> V3 -> V3
-v3mul4x4 = Native.MJS.v3mul4x4
+scale : V3 -> Float -> V3
+scale = Native.MJS.v3scale
 
-m4x4identity : M4x4
-m4x4identity = Native.MJS.m4x4identity
+dot : V3 -> V3 -> Float
+dot = Native.MJS.v3dot
 
-m4x4mul : M4x4 -> M4x4 -> M4x4
-m4x4mul = Native.MJS.m4x4mul
+cross : V3 -> V3 -> V3
+cross = Native.MJS.v3cross
 
-m4x4makeRotate : Float -> V3 -> M4x4
-m4x4makeRotate = Native.MJS.m4x4makeRotate
+data M4x4 = Dummy_M4x4
 
-m4x4makeTranslate : V3 -> M4x4
-m4x4makeTranslate = Native.MJS.m4x4makeTranslate
+mul4x4 : M4x4 -> V3 -> V3
+mul4x4 = Native.MJS.v3mul4x4
 
-m4x4makeLookAt : V3 -> V3 -> V3 -> M4x4
-m4x4makeLookAt = Native.MJS.m4x4makeLookAt
+--m4x4 : V3[16] -> M4x4 ?
 
-m4x4makePerspective : Float -> Float -> Float -> Float -> M4x4
-m4x4makePerspective = Native.MJS.m4x4makePerspective
+identity : M4x4
+identity = Native.MJS.m4x4identity
+
+--topLeft3x3 : M4x4 -> M3x3 ? 
+
+{- Assumes that m is orthonormal -}
+inverseOrthonormal : M4x4 -> M4x4
+inverseOrthonormal = Native.MJS.m4x4inverseOrthonormal
+
+--inverseTo3x3 : M4x4 -> M3x3 ?
+
+makeFrustrum : Float -> Float -> Float -> Float -> Float -> Float -> Float -> M4x4
+makeFrustrum = Native.MJS.m4x4makeFrustrum
+
+makePerspective : Float -> Float -> Float -> Float -> M4x4
+makePerspective = Native.MJS.m4x4makePerspective
+
+makeOrtho : Float -> Float -> Float -> Float -> Float -> Float -> Float -> M4x4
+makeOrtho = Native.MJS.m4x4makeOrtho
+
+makeOrtho2D : Float -> Float -> Float -> Float -> M4x4
+makeOrtho2D = Native.MJS.m4x4makeOrtho2D
+
+mul : M4x4 -> M4x4 -> M4x4
+mul = Native.MJS.m4x4mul
+
+mulAffine : M4x4 -> M4x4 -> M4x4
+mulAffine = Native.MJS.m4x4mulAffine
+
+makeRotate : Float -> V3 -> M4x4
+makeRotate = Native.MJS.m4x4makeRotate
+
+rotate : Float -> V3 -> M4x4 -> M4x4
+rotate = Native.MJS.m4x4rotate
+
+makeScale3 : Float -> Float -> Float -> M4x4
+makeScale3 = Native.MJS.m4x4makeScale3
+
+makeScale : V3 -> M4x4
+makeScale = Native.MJS.m4x4makeScale
+
+scaleM3 : Float -> Float -> Float -> M4x4 -> M4x4
+scaleM3 = Native.MJS.m4x4scale3
+
+scaleM : V3 -> M4x4 -> M4x4
+scaleM = Native.MJS.m4x4scale
+
+makeTranslate3 : Float -> Float -> Float -> M4x4
+makeTranslate3 = Native.MJS.m4x4makeTranslate3
+
+makeTranslate : V3 -> M4x4
+makeTranslate = Native.MJS.m4x4makeTranslate
+
+translate3 : Float -> Float -> Float -> M4x4 -> M4x4
+translate3 = Native.MJS.m4x4translate3
+
+translate : V3 -> M4x4 -> M4x4
+translate = Native.MJS.m4x4translate
+
+makeLookAt : V3 -> V3 -> V3 -> M4x4
+makeLookAt = Native.MJS.m4x4makeLookAt
+
+transpose : M4x4 -> M4x4
+transpose = Native.MJS.m4x4transpose
 
 {- Custom constructor for supplying arbitrary x,y,z axis -}
-m4x4makeCoords : V3 -> V3 -> V3 -> M4x4
-m4x4makeCoords = Native.MJS.m4x4makeCoords
+makeBasis : V3 -> V3 -> V3 -> M4x4
+makeBasis = Native.MJS.m4x4makeBasis
