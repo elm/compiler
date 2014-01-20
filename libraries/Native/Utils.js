@@ -74,8 +74,8 @@ Elm.Native.Utils.make = function(elm) {
         return t;
     }
 
-    function makeText(style, text) {
-        var style = style;
+    function makeText(text) {
+        var style = '';
         var line = '';
         var href = '';
         while (true) {
