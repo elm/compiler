@@ -82,8 +82,10 @@ since : Time -> Signal a -> Signal Bool
 since = Native.Time.since
 
 {-| Add a timestamp to any signal. Timestamps increase monotonically. Each
-timestamp is related to a specfic event, so `Mouse.x` and `Mouse.y` will always
-have the same timestamp because they both rely on the same underlying event.
+timestamp (except the initial value) is related to a specific event, so
+`Mouse.x` and `Mouse.y` will always have the same timestamp because they both
+rely on the same underlying event. The initial value of a `timestamp`ed signal
+carries the time at program start as its timestamp.
 -}
 timestamp : Signal a -> Signal (Time, a)
 timestamp = Native.Time.timestamp
