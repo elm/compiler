@@ -10,6 +10,7 @@ import System.FilePath
 import System.IO
 
 import qualified Data.Binary            as Binary
+import qualified Data.List              as List
 import qualified Data.Maybe             as Maybe
 import qualified Data.Map               as Map
 import qualified Data.ByteString.Lazy   as L
@@ -34,17 +35,37 @@ type Build a = BuildT IO a
 -- Interfaces, remembering if something was recompiled
 type BInterfaces = Map.Map String (Bool, M.ModuleInterface)
 
-evalBuild :: Flag.Flags -> M.Interfaces -> Build () -> IO (Maybe String)
-evalBuild flags interfaces b = do
-  (_, s) <- evalRWST b flags (fmap notUpdated interfaces)
-  return . getLast $ s
+evalBuild :: Flag.Flags -> M.Interfaces -> Build ()
+          -> IO (Map.Map String M.ModuleInterface, Maybe String)
+evalBuild flags interfaces build =
+  do (ifaces, moduleNames) <- execRWST build flags (fmap notUpdated interfaces)
+     return (fmap snd ifaces, getLast moduleNames)
   where
-    notUpdated i = (False, i)
+    notUpdated iface = (False, iface)
 
 -- | Builds a list of files, returning the moduleName of the last one.
 --   Returns \"\" if the list is empty
 build :: Flag.Flags -> M.Interfaces -> [FilePath] -> IO String
-build flags is = fmap (Maybe.fromMaybe "") . evalBuild flags is . buildAll
+build flags interfaces files =
+  do (ifaces, topName) <- evalBuild flags interfaces (buildAll files)
+     let removeTopName = Maybe.maybe id Map.delete topName
+     mapM_ (checkPorts topName) (Map.toList $ removeTopName ifaces)
+     return $ Maybe.fromMaybe "" topName
+  where
+    checkPorts topName (name,iface)
+        | null ports = return ()
+        | otherwise  = Print.failure msg
+        where
+          ports = M.iPorts iface
+          msg = concat
+            [ "Port Error: ports may only appear in the main module, but\n"
+            , "    sub-module ", name, " declares the following port"
+            , if length ports == 1 then "" else "s", ": "
+            , List.intercalate ", " ports
+            , case topName of
+                Nothing -> ""
+                Just tname -> "\n    All ports must appear in module " ++ tname
+            ]
 
 buildAll :: [FilePath] -> Build ()
 buildAll fs = mapM_ (uncurry build1) (zip [1..] fs)
@@ -152,5 +173,6 @@ compile number filePath =
           L.hPut handle (Binary.encode (name, interfs))
 
 update :: String -> M.ModuleInterface -> Bool -> Build ()
-update name inter wasUpdated = modify (Map.insert name (wasUpdated, inter))
-                               >> tell (Last . Just $ name)
+update name inter wasUpdated =
+  do modify (Map.insert name (wasUpdated, inter))
+     tell (Last . Just $ name)

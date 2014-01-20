@@ -21,8 +21,7 @@ mistakes decls =
     concat [ infiniteTypeAliases decls
            , illFormedTypes decls
            , map P.text (duplicateConstructors decls)
-           , map P.text (duplicates decls)
-           , badDerivations decls ]
+           , map P.text (duplicates decls) ]
 
 dups :: Ord a => [a] -> [a]
 dups  = map head . filter ((>1) . length) . List.group . List.sort
@@ -67,35 +66,14 @@ duplicateConstructors decls =
     map (dupErr "definition of type constructor") (dups typeCtors) ++
     map (dupErr "definition of data constructor") (dups dataCtors)
   where
-    typeCtors = [ name | D.Datatype name _ _ _ <- decls ]
-    dataCtors = concat [ map fst patterns | D.Datatype _ _ patterns _ <- decls ]
-
-badDerivations :: [D.Declaration] -> [Doc]
-badDerivations decls = concatMap badDerivation derivations
-    where
-      derivations =
-          [ (decl, tvars, derives) | decl@(D.TypeAlias _ tvars _ derives) <- decls ] ++
-          [ (decl, tvars, derives) | decl@(D.Datatype _ tvars _ derives) <- decls ]
-
-      badDerivation (decl, tvars, derives) =
-          case (tvars, derives) of
-            (_:_, _)
-                | D.Json   `elem` derives -> [report decl D.Json]
-                | D.Binary `elem` derives -> [report decl D.Binary]
-            _ -> []
-
-      report decl derive =
-          P.vcat [ P.text $ "Error: cannot derive '" ++ show derive ++ "' from this type alias."
-                 , P.text "Make sure all type variables are replaced with concrete types:"
-                 , P.text "\n"
-                 , nest 4 (pretty decl)
-                 ]
+    typeCtors = [ name | D.Datatype name _ _ <- decls ]
+    dataCtors = concat [ map fst patterns | D.Datatype _ _ patterns <- decls ]
 
 illFormedTypes :: [D.Declaration] -> [Doc]
 illFormedTypes decls = map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
     where
-      aliases = [ (decl, tvars, [tipe]) | decl@(D.TypeAlias _ tvars tipe _) <- decls ]
-      adts = [ (decl, tvars, concatMap snd ctors) | decl@(D.Datatype _ tvars ctors _) <- decls ]
+      aliases = [ (decl, tvars, [tipe]) | decl@(D.TypeAlias _ tvars tipe) <- decls ]
+      adts = [ (decl, tvars, concatMap snd ctors) | decl@(D.Datatype _ tvars ctors) <- decls ]
 
       freeVars tipe =
           case tipe of
@@ -138,8 +116,8 @@ illFormedTypes decls = map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
 
 infiniteTypeAliases :: [D.Declaration] -> [Doc]
 infiniteTypeAliases decls =
-    [ report name tvars tipe ds | D.TypeAlias name tvars tipe ds <- decls
-                                , infiniteType name tipe ]
+    [ report name tvars tipe | D.TypeAlias name tvars tipe <- decls
+                             , infiniteType name tipe ]
     where
       infiniteType name tipe =
           let infinite = infiniteType name in
@@ -152,11 +130,11 @@ infiniteTypeAliases decls =
       indented :: D.Declaration -> Doc
       indented decl = P.text "\n    " <> pretty decl <> P.text "\n"
 
-      report name args tipe derivations =
+      report name args tipe =
           P.vcat [ P.text $ eightyCharLines 0 msg1
-                 , indented $ D.TypeAlias name args tipe derivations
+                 , indented $ D.TypeAlias name args tipe
                  , P.text $ eightyCharLines 0 msg2
-                 , indented $ D.Datatype name args [(name,[tipe])] derivations
+                 , indented $ D.Datatype name args [(name,[tipe])]
                  , P.text $ eightyCharLines 0 msg3 ++ "\n"
                  ]
           where

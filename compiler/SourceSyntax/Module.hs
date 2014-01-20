@@ -47,20 +47,23 @@ data MetadataModule =
     , fixities  :: [(Assoc, Int, String)]
     , aliases   :: [Alias]
     , datatypes :: [ADT]
+    , ports     :: [String]
     } deriving Show
 
 type Interfaces = Map.Map String ModuleInterface
-type ADT = (String, [String], [(String,[Type])], [Derivation])
-type Alias = (String, [String], Type, [Derivation])
+type ADT = (String, [String], [(String,[Type])])
+type Alias = (String, [String], Type)
 
-data ModuleInterface = ModuleInterface {
-    iVersion  :: Version.Version,
-    iTypes    :: Map.Map String Type,
-    iImports  :: [(String, ImportMethod)],
-    iAdts     :: [ADT],
-    iAliases  :: [Alias],
-    iFixities :: [(Assoc, Int, String)]
-} deriving Show
+data ModuleInterface =
+    ModuleInterface
+    { iVersion  :: Version.Version
+    , iTypes    :: Map.Map String Type
+    , iImports  :: [(String, ImportMethod)]
+    , iAdts     :: [ADT]
+    , iAliases  :: [Alias]
+    , iFixities :: [(Assoc, Int, String)]
+    , iPorts    :: [String]
+    } deriving Show
 
 metaToInterface :: MetadataModule -> ModuleInterface
 metaToInterface metaModule =
@@ -71,10 +74,11 @@ metaToInterface metaModule =
     , iAdts     = datatypes metaModule
     , iAliases  = aliases metaModule
     , iFixities = fixities metaModule
+    , iPorts = ports metaModule
     }
 
 instance Binary ModuleInterface where
-  get = ModuleInterface <$> get <*> get <*> get <*> get <*> get <*> get
+  get = ModuleInterface <$> get <*> get <*> get <*> get <*> get <*> get <*> get
   put modul = do
       put (iVersion modul)
       put (iTypes modul)
@@ -82,3 +86,4 @@ instance Binary ModuleInterface where
       put (iAdts modul)
       put (iAliases modul)
       put (iFixities modul)
+      put (iPorts modul)

@@ -134,14 +134,13 @@ collect infixes types aliases adts things =
                 collect (Map.insert name (assoc,prec) infixes) types aliases adts rest
             D.Definition (E.TypeAnnotation name tipe) ->
                 collect infixes (insert name [ "type" .= tipe ] types) aliases adts rest
-            D.TypeAlias name vars tipe derivations ->
-                let fields = ["typeVariables" .= vars, "type" .= tipe, "deriving" .= derivations ]
+            D.TypeAlias name vars tipe ->
+                let fields = ["typeVariables" .= vars, "type" .= tipe ]
                 in  collect infixes types (insert name fields aliases) adts rest
-            D.Datatype name vars ctors derivations ->
+            D.Datatype name vars ctors ->
                 let tipe = Data name (map Var vars)
                     fields = ["typeVariables" .= vars
-                             , "constructors" .= map (ctorToJson tipe) ctors
-                             , "deriving" .= derivations ]
+                             , "constructors" .= map (ctorToJson tipe) ctors ]
                 in  collect infixes types aliases (insert name fields adts) rest
           where
             insert name fields dict = Map.insert name (obj name fields) dict
@@ -162,6 +161,3 @@ instance ToJSON Type where
 ctorToJson tipe (ctor, tipes) =
     object [ "name" .= ctor
            , "type" .= foldr Lambda tipe tipes ]
-
-instance ToJSON D.Derivation where
-    toJSON = toJSON . show
