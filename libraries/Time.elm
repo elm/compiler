@@ -10,13 +10,13 @@ module Time where
 @docs fps, fpsWhen, every
 
 # Timing
-@docs timestamp, delay, since
+@docs timestamp, timeStampAtStart, delay, since
 
 -}
 
 import open Basics
 import Native.Time
-import Signal (Signal)
+import Signal (Signal, lift, constant)
 
 {-| Type alias to make it clearer when you are working with time values.
 Using the `Time` constants instead of raw numbers is very highly recommended.
@@ -82,11 +82,17 @@ since : Time -> Signal a -> Signal Bool
 since = Native.Time.since
 
 {-| Add a timestamp to any signal. Timestamps increase monotonically. Each
-timestamp is related to a specfic event, so `Mouse.x` and `Mouse.y` will always
+timestamp is related to a specific event, so `Mouse.x` and `Mouse.y` will always
 have the same timestamp because they both rely on the same underlying event.
 -}
 timestamp : Signal a -> Signal (Time, a)
 timestamp = Native.Time.timestamp
+
+{-| A constant signal whose value is the timestamp valid at the start of the
+program.
+-}
+timeStampAtStart : Signal Time
+timeStampAtStart = lift fst (timestamp (constant ()))
 
 {-| Delay a signal by a certain amount of time. So `(delay second Mouse.clicks)`
 will update one second later than any mouse click.
