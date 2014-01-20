@@ -26,8 +26,8 @@ Elm.Native.Mouse.make = function(elm) {
     var node = elm.display === ElmRuntime.Display.FULLSCREEN ? document : elm.node;
 
     elm.addListener([isClicked.id, clicks.id], node, 'click', function click() {
-        elm.notify(isClicked.id, true);
         elm.notify(clicks.id, Utils.Tuple0);
+        elm.notify(isClicked.id, true);
         elm.notify(isClicked.id, false);
     });
     elm.addListener([isDown.id], node, 'mousedown', function down() {
