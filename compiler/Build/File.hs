@@ -152,5 +152,6 @@ compile number filePath =
           L.hPut handle (Binary.encode (name, interfs))
 
 update :: String -> M.ModuleInterface -> Bool -> Build ()
-update name inter wasUpdated = modify (Map.insert name (wasUpdated, inter))
-                               >> tell (Last . Just $ name)
+update name inter wasUpdated =
+  do modify (Map.insert name (wasUpdated, inter))
+     tell (Last . Just $ name)
