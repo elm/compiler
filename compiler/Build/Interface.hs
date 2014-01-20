@@ -4,28 +4,23 @@ module Build.Interface (load,isValid) where
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Binary as Binary
 
+import qualified Build.Print as Print
 import qualified Elm.Internal.Version as Version
 import System.Directory (doesFileExist)
-import System.Exit
-import System.IO
-
 import SourceSyntax.Module
 
 load :: Binary.Binary a => FilePath -> IO a
 load filePath =
   do exists <- doesFileExist filePath
      case exists of
-       False -> failure $ "Unable to find file " ++ filePath ++ " for deserialization!"
+       False -> Print.failure $ "Unable to find file " ++ filePath ++ " for deserialization!"
        True -> do
          bytes <- L.readFile filePath
          case Binary.decodeOrFail bytes of
            Right (_, _, binaryInfo) -> return binaryInfo
-           Left (_, offset, err) -> failure $ msg offset err
+           Left (_, offset, err) -> Print.failure $ msg offset err
 
   where
-    failure err = do hPutStrLn stderr err
-                     exitFailure
-
     msg offset err = concat
         [ "Error reading build artifact: ", filePath, "\n"
         , "    '", err, "' at offset ", show offset, "\n"
