@@ -28,6 +28,12 @@ data Port
     | In String T.Type
       deriving (Show)
 
+portName :: Port -> String
+portName port =
+    case port of
+      Out name _ _ -> name
+      In name _ -> name
+
 type ParseDeclaration = Declaration' ParsePort Expr.ParseDef
 type Declaration = Declaration' Port Expr.Def
 

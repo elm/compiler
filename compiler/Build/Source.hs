@@ -51,6 +51,7 @@ build noPrelude interfaces source =
          , datatypes = [ (name,vars,ctors) | Datatype name vars ctors <- decls ]
          , fixities = [ (assoc,level,op) | Fixity assoc level op <- decls ]
          , aliases = [ (name,tvs,tipe) | TypeAlias name tvs tipe <- decls ]
+         , ports = [ portName port | Port port <- decls ]
          }
 
      types <- TI.infer interfaces metaModule
