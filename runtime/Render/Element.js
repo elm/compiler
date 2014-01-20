@@ -158,10 +158,12 @@ function rawHtml(elem) {
     var html = elem.html;
     var args = elem.args;
     var guid = elem.guid;
+    var align = elem.align;
 
     var div = newElement('div');
     div.innerHTML = html;
     div.style.visibility = "hidden";
+    if (align) div.style.textAlign = align;
     document.body.appendChild(div);
 
     for (var i = args.length; i--; ) {

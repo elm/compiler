@@ -220,14 +220,15 @@ function initGraphics(elm, Module) {
   elm.node.appendChild(Render.render(currentScene));
 
   // set up updates so that the DOM is adjusted as necessary.
-  function domUpdate(newScene, currentScene) {
+  var savedScene = currentScene;
+  function domUpdate(newScene) {
       ElmRuntime.draw(function(_) {
-          Render.update(elm.node.firstChild, currentScene, newScene);
+          Render.update(elm.node.firstChild, savedScene, newScene);
           if (elm.Native.Window) elm.Native.Window.values.resizeIfNeeded();
+          savedScene = newScene;
       });
-      return newScene;
   }
-  var renderer = A3(Signal.foldp, F2(domUpdate), currentScene, signalGraph);
+  var renderer = A2(Signal.lift, domUpdate, signalGraph);
 
   // must check for resize after 'renderer' is created so
   // that changes show up.

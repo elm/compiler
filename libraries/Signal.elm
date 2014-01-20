@@ -106,13 +106,13 @@ countIf = Native.Signal.countIf
 
 {-| Keep only events that satisfy the given predicate. Elm does not allow
 undefined signals, so a base case must be provided in case the predicate is
-never satisfied. -}
+not satisfied initially. -}
 keepIf : (a -> Bool) -> a -> Signal a -> Signal a
 keepIf = Native.Signal.keepIf
 
 {-| Drop events that satisfy the given predicate. Elm does not allow undefined
-signals, so a base case must be provided in case the predicate is never
-satisfied. -}
+signals, so a base case must be provided in case the predicate is satisfied
+initially. -}
 dropIf : (a -> Bool) -> a -> Signal a -> Signal a
 dropIf = Native.Signal.dropIf
 
@@ -120,21 +120,24 @@ dropIf = Native.Signal.dropIf
 becomes true, the most recent value of the second signal will be propagated.
 Until the first signal becomes false again, all events will be propagated. Elm
 does not allow undefined signals, so a base case must be provided in case the
-first signal is never true. -}
+first signal is not true initially. -}
 keepWhen : Signal Bool -> a -> Signal a -> Signal a
 keepWhen = Native.Signal.keepWhen
 
 {-| Drop events when the first signal is true. When the first signal becomes
 false, the most recent value of the second signal will be propagated. Until the
 first signal becomes true again, all events will be propagated. Elm does not
-allow undefined signals, so a base case must be provided in case the first
-signal is always true. -}
+allow undefined signals, s oa base case must be provided in case the first
+signal is true initially. -}
 dropWhen : Signal Bool -> a -> Signal a -> Signal a
 dropWhen = Native.Signal.dropWhen
 
-{-| Drop sequential repeated values. For example, if a signal produces the
-sequence `[1,1,2,2,1]`, it becomes `[1,2,1]` by dropping the values that are the
-same as the previous value. -}
+{-| Drop updates that repeat the current value of the signal.
+
+Imagine a signal `numbers` has initial value
+0 and then updates with values 0, 0, 1, 1, and 2. `dropRepeats numbers`
+is a signal that has initial value 0 and updates as follows: ignore 0,
+ignore 0, update to 1, ignore 1, update to 2. -}
 dropRepeats : Signal a -> Signal a
 dropRepeats = Native.Signal.dropRepeats
 

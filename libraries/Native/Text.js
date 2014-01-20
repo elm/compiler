@@ -91,10 +91,11 @@ Elm.Native.Text.make = function(elm) {
     function position(align) {
         function create(text) {
             var raw = {
-                ctor:'RawHtml',
-                html: Utils.makeText('text-align:' + align + ';', text),
-                guid: null,
-                args: [],
+                ctor :'RawHtml',
+                html : Utils.makeText(text),
+                align: align,
+                guid : null,
+                args : [],
             };
             var pos = A2(Utils.htmlHeight, 0, raw);
             return A3(Element.newElement, pos._0, pos._1, raw);
@@ -106,6 +107,7 @@ Elm.Native.Text.make = function(elm) {
         var raw = {
             ctor:'RawHtml',
             html: text,
+            align: null,
             guid: guid,
             args: [],
         };

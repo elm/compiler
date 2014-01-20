@@ -25,13 +25,14 @@ interface moduleName iface =
     , iAdts = map (both prefix renameCtors) (iAdts iface)
     , iAliases = map (both prefix renameType') (iAliases iface)
     , iFixities = iFixities iface -- cannot have canonicalized operators while parsing
+    , iPorts = iPorts iface
     }
   where
-    both f g (a,b,c,d) = (f a, b, g c, d)
+    both f g (a,b,c) = (f a, b, g c)
     prefix name = moduleName ++ "." ++ name
 
     pair name = (name, moduleName ++ "." ++ name)
-    canon (name,_,_,_) = pair name
+    canon (name,_,_) = pair name
     canons = Map.fromList $ concat
              [ map canon (iAdts iface), map canon (iAliases iface) ]
 
@@ -56,24 +57,24 @@ metadataModule ifaces modul =
        [] -> Right ()
        missings -> Left [ P.text $ "The following imports were not found: " ++ List.intercalate ", " missings ]
      program' <- rename initialEnv (program modul)
-     aliases' <- mapM (three4 renameType') (aliases modul)
-     datatypes' <- mapM (three4 (mapM (two2 (mapM renameType')))) (datatypes modul)
+     aliases' <- mapM (three3 renameType') (aliases modul)
+     datatypes' <- mapM (three3 (mapM (two2 (mapM renameType')))) (datatypes modul)
      return $ modul { program = program'
                     , aliases = aliases'
                     , datatypes = datatypes' }
   where
     two2 f (a,b) = (,) a <$> f b
-    three4 f (a,b,c,d) = (,,,) a b <$> f c <*> return d
+    three3 f (a,b,c) = (,,) a b <$> f c
     renameType' =
         Either.either (\err -> Left [P.text err]) return . renameType (replace "type" initialEnv)
 
-    get1 (a,_,_,_) = a
+    get1 (a,_,_) = a
     canon (name, importMethod) =
         let pair pre var = (pre ++ drop (length name + 1) var, var)
             iface = ifaces Map.! name
             allNames = concat [ Map.keys (iTypes iface)
                               , map get1 (iAliases iface)
-                              , concat [ n : map fst ctors | (n,_,ctors,_) <- iAdts iface ] ]
+                              , concat [ n : map fst ctors | (n,_,ctors) <- iAdts iface ] ]
         in  case importMethod of
               As alias -> map (pair (alias ++ ".")) allNames
               Hiding vars -> map (pair "") $ filter (flip Set.notMember vs) allNames

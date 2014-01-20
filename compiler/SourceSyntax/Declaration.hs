@@ -9,17 +9,14 @@ import Text.PrettyPrint as P
 
 data Declaration' port def
     = Definition def
-    | Datatype String [String] [(String,[T.Type])] [Derivation]
-    | TypeAlias String [String] T.Type [Derivation]
+    | Datatype String [String] [(String,[T.Type])]
+    | TypeAlias String [String] T.Type
     | Port port
     | Fixity Assoc Int String
       deriving (Show)
 
 data Assoc = L | N | R
     deriving (Eq)
-
-data Derivation = Json | JS | Binary | New
-    deriving (Eq, Show)
 
 data ParsePort
     = PPAnnotation String T.Type
@@ -31,25 +28,14 @@ data Port
     | In String T.Type
       deriving (Show)
 
+portName :: Port -> String
+portName port =
+    case port of
+      Out name _ _ -> name
+      In name _ -> name
+
 type ParseDeclaration = Declaration' ParsePort Expr.ParseDef
 type Declaration = Declaration' Port Expr.Def
-
-instance Binary Derivation where
-  get = do n <- getWord8
-           return $ case n of
-             0 -> Json
-             1 -> JS
-             2 -> Binary
-             3 -> New
-             _ -> error "Unable to decode Derivation. You may have corrupted binary files,\n\
-                        \so please report an issue at <https://github.com/evancz/Elm/issues>"
-
-  put derivation =
-      putWord8 $ case derivation of
-                   Json   -> 0
-                   JS     -> 1
-                   Binary -> 2
-                   New    -> 3
 
 instance Show Assoc where
     show assoc =
@@ -73,19 +59,18 @@ instance (Pretty port, Pretty def) => Pretty (Declaration' port def) where
     case decl of
       Definition def -> pretty def
 
-      Datatype tipe tvars ctors deriveables ->
+      Datatype tipe tvars ctors ->
           P.hang (P.text "data" <+> P.text tipe <+> P.hsep (map P.text tvars)) 4
-               (P.sep $ zipWith join ("=" : repeat "|") ctors) <+> prettyDeriving deriveables
+               (P.sep $ zipWith join ("=" : repeat "|") ctors)
           where
             join c ctor = P.text c <+> prettyCtor ctor
             prettyCtor (name, tipes) =
                 P.hang (P.text name) 2 (P.sep (map T.prettyParens tipes))
 
-      TypeAlias name tvars tipe deriveables ->
-          alias <+> prettyDeriving deriveables
+      TypeAlias name tvars tipe ->
+          P.hang (P.text "type" <+> name' <+> P.equals) 4 (pretty tipe)
           where
             name' = P.text name <+> P.hsep (map P.text tvars)
-            alias = P.hang (P.text "type" <+> name' <+> P.equals) 4 (pretty tipe)
 
       Port port -> pretty port
 
@@ -112,11 +97,3 @@ instance Pretty Port where
 
 prettyPort :: (Pretty a) => String -> String -> a -> Doc
 prettyPort name op e = P.text "port" <+> P.text name <+> P.text op <+> pretty e
-
-prettyDeriving :: [Derivation] -> Doc
-prettyDeriving deriveables =
-    case deriveables of
-      []  -> P.empty
-      [d] -> P.text "deriving" <+> P.text (show d)
-      ds  -> P.text "deriving" <+>
-             P.parens (P.hsep $ P.punctuate P.comma $ map (P.text . show) ds)
