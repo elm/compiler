@@ -132,9 +132,12 @@ signal is always true. -}
 dropWhen : Signal Bool -> a -> Signal a -> Signal a
 dropWhen = Native.Signal.dropWhen
 
-{-| Drop sequential repeated values. For example, if a signal produces the
-sequence `[1,1,2,2,1]`, it becomes `[1,2,1]` by dropping the values that are the
-same as the previous value. -}
+{-| Drop updates that repeat the current value of the signal.
+
+Imagine a signal `numbers` has initial value
+0 and then updates with values 0, 0, 1, 1, and 2. `dropRepeats numbers`
+is a signal that has initial value 0 and updates as follows: ignore 0,
+ignore 0, update to 1, ignore 1, update to 2. -}
 dropRepeats : Signal a -> Signal a
 dropRepeats = Native.Signal.dropRepeats
 
