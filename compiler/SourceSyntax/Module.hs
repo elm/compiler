@@ -50,8 +50,8 @@ data MetadataModule =
     } deriving Show
 
 type Interfaces = Map.Map String ModuleInterface
-type ADT = (String, [String], [(String,[Type])], [Derivation])
-type Alias = (String, [String], Type, [Derivation])
+type ADT = (String, [String], [(String,[Type])])
+type Alias = (String, [String], Type)
 
 data ModuleInterface = ModuleInterface {
     iVersion  :: Version.Version,

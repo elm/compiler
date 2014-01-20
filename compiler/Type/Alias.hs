@@ -21,7 +21,7 @@ collect interfaces moduleAliases =
       rawAliases =
           moduleAliases ++ concatMap iAliases (Map.elems interfaces)
 
-      isPrimitive (_,_,tipe,_) =
+      isPrimitive (_,_,tipe) =
           case tipe of
           Data _ [] -> True
           _ -> False
@@ -68,7 +68,7 @@ canonicalRealias aliases tipe =
       [] -> if tipe == tipe' then tipe else f tipe'
       tipes -> f (bestType tipes)
   where
-    tryRealias (name, args, aliasTipe, _) =
+    tryRealias (name, args, aliasTipe) =
         case diff aliasTipe tipe of
           Nothing -> []
           Just kvs ->

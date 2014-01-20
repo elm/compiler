@@ -64,9 +64,9 @@ metadataModule modul =
     , imports = map (first var) (imports modul)
     , program = expression (program modul)
     , aliases =
-        let makeSafe (name,tvars,tipe,ds) = (var name, tvars, tipe, ds)
+        let makeSafe (name,tvars,tipe) = (var name, tvars, tipe)
         in  map makeSafe (aliases modul)
     , datatypes =
-        let makeSafe (name,tvars,ctors,ds) = (var name, tvars, map (first var) ctors, ds)
+        let makeSafe (name,tvars,ctors) = (var name, tvars, map (first var) ctors)
         in  map makeSafe (datatypes modul)
     }

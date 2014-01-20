@@ -24,11 +24,7 @@ alias = do
   args <- spacePrefix lowVar
   padded equals
   tipe <- Type.expr
-  json <- option [] $ do
-            try $ padded (reserved "deriving")
-            string "Json"
-            return [D.Json]
-  return (D.TypeAlias name args tipe json)
+  return (D.TypeAlias name args tipe)
 
 datatype :: IParser D.ParseDeclaration
 datatype = do
@@ -38,7 +34,7 @@ datatype = do
   args <- spacePrefix lowVar
   padded equals
   tcs <- pipeSep1 Type.constructor
-  return $ D.Datatype name args tcs []
+  return $ D.Datatype name args tcs
 
 
 infixDecl :: IParser D.ParseDeclaration
