@@ -19,9 +19,9 @@ main = asText <| fac 1000000000000
 Trampolining allows for long-running tail-recursive loops to be run without pushing calls onto the stack:
 ```haskell
 facT : Int -> Int -> Trampoline Int
-facT n acc = Trampoline <| if n <= 0 
-                           then Left acc
-                           else Right <| \() -> facT (n - 1) (n * acc)
+facT n acc = if n <= 0 
+             then Done acc
+             else Continue <| \() -> facT (n - 1) (n * acc)
 fac : Int -> Int
 fac n = trampoline <| facT n 0
 
