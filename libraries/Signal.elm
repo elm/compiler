@@ -134,7 +134,9 @@ dropWhen = Native.Signal.dropWhen
 
 {-| Drop sequential repeated values. For example, if a signal produces the
 sequence `[1,1,2,2,1]`, it becomes `[1,2,1]` by dropping the values that are the
-same as the previous value. -}
+same as the previous value. NB: When the initial value of the signal is the same
+as the first events, those first events will be dropped! This may seem puzzling
+when you use the result of `dropRepeats` in a `foldp`. -}
 dropRepeats : Signal a -> Signal a
 dropRepeats = Native.Signal.dropRepeats
 
