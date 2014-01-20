@@ -1,5 +1,4 @@
-module Trampoline (Trampoline, trampoline)
-       where
+module Trampoline where
 
 {-| Trampolining loops for unbounded recursion.
 Since most javascript implementations lack tail-call elimination, deeply tail-recursive functions will result in a stack overflow.
@@ -33,10 +32,10 @@ main = asText <| fac 1000000000000
 @docs Trampoline, trampoline
  -}
 import Native.Trampoline
-import open Either
 
 {-| A computation that might loop. A trampoline is either the resulting value or a thunk that needs to be run more. -}
-data Trampoline a = Trampoline (Either a (() -> Trampoline a))
+data Trampoline a = Done a
+                  | Continue (() -> Trampoline a)
 
 {-| Run a trampolining loop in constant space. -}
 trampoline : Trampoline a -> a

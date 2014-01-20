@@ -10,11 +10,11 @@ Elm.Native.Trampoline.make = function(elm) {
     trampoline = function(t) {
         var tramp = t;
         while(true) {
-            switch(tramp._0.ctor) {
-            case "Left":
-                return tramp._0._0;
-            case "Right":
-                tramp = tramp._0._0({ctor: "_Tuple0"});
+            switch(tramp.ctor) {
+            case "Done":
+                return tramp._0;
+            case "Continue":
+                tramp = tramp._0({ctor: "_Tuple0"});
                 continue;
             }
             _E.Case("Trampoline", "in Native.Trampoline.trampoline");
