@@ -6,13 +6,13 @@ module Maybe where
 @docs Maybe
 
 # Taking Maybes apart
-@docs maybe, isJust, isNothing
+@docs maybe, fromMaybe, isJust, isNothing
 
 # Maybes and Lists
 @docs justs
 -}
 
-import Basics (not, (.))
+import Basics (not, (.), id)
 import List (foldr)
 
 {-| The Maybe datatype. Useful when a computation may or may not
@@ -28,6 +28,12 @@ maybe : b -> (a -> b) -> Maybe a -> b
 maybe b f m = case m of
                 Just v  -> f v
                 Nothing -> b
+                
+{-| Extracts the value from the `Maybe` if it is a `Just`.
+Return default when given `Nothing`.
+-}
+fromMaybe : a -> Maybe a -> a
+fromMaybe d m = maybe d id m
 
 {-| Check if constructed with `Just`. 
 -}
