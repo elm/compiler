@@ -9,7 +9,7 @@ module Maybe where
 @docs maybe, isJust, isNothing
 
 # Maybes and Lists
-@docs justs
+@docs justs, headMaybe, tailMaybe, lastMaybe
 -}
 
 import Basics (not, (.))
@@ -45,3 +45,27 @@ cons mx xs = maybe xs (\x -> x :: xs) mx
 -}
 justs : [Maybe a] -> [a]
 justs = foldr cons []
+
+{-| Extract the first element of a list.
+`(headMaybe [1,2,3] == Just 1)`
+-}
+headMaybe : [a] -> Maybe a
+headMaybe xs = case xs of
+    []   -> Nothing
+    x::_ -> Just x
+
+{-| Extract the elements after the head of the list.
+`(tailMaybe [1,2,3] == Just [2,3])`
+-}
+tailMaybe : [a] -> Maybe [a]
+tailMaybe xs = case xs of
+    []    -> Nothing
+    _::xs -> Just xs
+    
+{-| Extract the last element of a list.
+`(lastMaybe [1,2,3] == Just 3)`
+-}
+lastMaybe : [a] -> Maybe a
+lastMaybe xs = case xs of
+    []  -> Nothing
+    _   -> Just (Native.List.last xs)
