@@ -34,7 +34,7 @@ ElmRuntime.filterDeadInputs = function(inputs) {
 
 // define the draw function
 var vendors = ['ms', 'moz', 'webkit', 'o'];
-var win = window || {};
+var win = typeof window !== 'undefined' ? window : {};
 for (var i = 0; i < vendors.length && !win.requestAnimationFrame; ++i) {
     win.requestAnimationFrame = win[vendors[i]+'RequestAnimationFrame'];
     win.cancelAnimationFrame  = win[vendors[i]+'CancelAnimationFrame'] ||
