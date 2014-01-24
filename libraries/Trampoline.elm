@@ -1,42 +1,49 @@
 module Trampoline where
+{-| A [trampoline](http://en.wikipedia.org/wiki/Tail-recursive_function#Through_trampolining)
+makes it possible to recursively call a function without growing the stack.
 
-{-| Trampolining loops for unbounded recursion.
-Since most javascript implementations lack tail-call elimination, deeply tail-recursive functions will result in a stack overflow.
+Popular JavaScript implementations do not perform any tail-call elimination, so
+recursive functions can cause a stack overflow if they go to deep. Trampolines
+permit unbounded recursion despite limitations in JavaScript.
 
-```haskell
-fac' : Int -> Int -> Int
-fac' n acc = if n <= 0 
-             then acc
-             else fac' (n - 1) (n * acc)
+This strategy may create many intermediate closures, which is very expensive in
+JavaScript, so use this library only when it is essential that you recurse deeply.
 
-fac : Int -> Int
-fac n = fac' n 1
+# Trampolines
+@docs trampoline, Trampoline
+-}
 
--- Stack overflow
-main = asText <| fac 1000000000000
-```
-
-Trampolining allows for long-running tail-recursive loops to be run without pushing calls onto the stack:
-```haskell
-facT : Int -> Int -> Trampoline Int
-facT n acc = if n <= 0 
-             then Done acc
-             else Continue <| \() -> facT (n - 1) (n * acc)
-fac : Int -> Int
-fac n = trampoline <| facT n 0
-
--- Doesn't stack overflow
-main = asText <| fac 1000000000000
-```
-# Trampoline
-@docs Trampoline, trampoline
- -}
 import Native.Trampoline
 
-{-| A computation that might loop. A trampoline is either the resulting value or a thunk that needs to be run more. -}
-data Trampoline a = Done a
-                  | Continue (() -> Trampoline a)
+{-| A way to build computations that may be deeply recursive. We will take an
+example of a tail-recursive function and rewrite it in a way that lets us use
+a trampoline:
 
-{-| Run a trampolining loop in constant space. -}
+      length : [a] -> Int
+      length list = length' 0 list
+
+      length' : Int -> [a] -> Int
+      length' accum list =
+          case list of
+            []     -> accum
+            hd::tl -> length' (accum+1) tl
+
+This finds the length of a list, but if the list is too long, it may cause a
+stack overflow. We can rewrite it as follows:
+
+      length : [a] -> Int
+      length list = trampoline (length' 0 list)
+
+      length' : Int -> [a] -> Trampoline Int
+      length' accum list =
+          case list of
+            []     -> Done accum
+            hd::tl -> Continue (\() -> length' (accum+1) tl)
+
+Now it uses a trampoline and can recurse without growing the stack!
+-}
+data Trampoline a = Done a | Continue (() -> Trampoline a)
+
+{-| Evaluate a trampolined value in constant space. -}
 trampoline : Trampoline a -> a
 trampoline = Native.Trampoline.trampoline
