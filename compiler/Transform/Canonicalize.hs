@@ -55,7 +55,9 @@ metadataModule :: Interfaces -> MetadataModule -> Either [Doc] MetadataModule
 metadataModule ifaces modul =
   do case filter (\m -> Map.notMember m ifaces) (map fst realImports) of
        [] -> Right ()
-       missings -> Left [ P.text $ "The following imports were not found: " ++ List.intercalate ", " missings ]
+       missings -> Left [ P.text $ "The following imports were not found: " ++ List.intercalate ", " missings ++
+                                   "\n    You may need to compile with the --make flag to detect modules you have written."
+                        ]
      program' <- rename initialEnv (program modul)
      aliases' <- mapM (three3 renameType') (aliases modul)
      datatypes' <- mapM (three3 (mapM (two2 (mapM renameType')))) (datatypes modul)
