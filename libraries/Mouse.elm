@@ -7,7 +7,7 @@ module Mouse where
 @docs position, x, y
 
 # Button Status
-@docs isDown, clicks, isClicked
+@docs isDown, clicks
 
 -}
 
@@ -30,11 +30,6 @@ y = Native.Mouse.y
 True when the button is down, and false otherwise. -}
 isDown : Signal Bool
 isDown = Native.Mouse.isDown
-
-{-| True immediately after the left mouse-button has been clicked,
-and false otherwise. -}
-isClicked : Signal Bool
-isClicked = Native.Mouse.isClicked
 
 {-| Always equal to unit. Event triggers on every mouse click. -}
 clicks : Signal ()
