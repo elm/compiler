@@ -36,6 +36,10 @@ read = Native.Date.read
 toTime : Date -> Time
 toTime = Native.Date.toTime
 
+{-| Create a date from UNIX time -}
+fromTime : Time -> Date
+fromTime = Native.Date.fromTime
+
 {-| Extract the year of a given date. Given the date 23 June 1990 at 11:45AM
 this returns the integer `1990`. -}
 year : Date -> Int
