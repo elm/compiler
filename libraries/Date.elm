@@ -5,7 +5,7 @@ module Date where
 issues with internationalization or locale formatting.
 
 # Conversions
-@docs read, toTime
+@docs read, toTime, fromTime
 
 # Extractions
 @docs year, month, Month, day, dayOfWeek, Day, hour, minute, second
@@ -35,6 +35,10 @@ read = Native.Date.read
 1990 at 11:45AM this returns the corresponding time. -}
 toTime : Date -> Time
 toTime = Native.Date.toTime
+
+{-| Take a UNIX time and convert it to a `Date` -}
+fromTime : Time -> Date
+fromTime = Native.Date.fromTime
 
 {-| Extract the year of a given date. Given the date 23 June 1990 at 11:45AM
 this returns the integer `1990`. -}
