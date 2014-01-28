@@ -311,7 +311,7 @@ generate unsafeModule =
 
     jsImport modul = setup Nothing path ++ [ include ]
         where
-          path = split modul
+          path = Help.splitDots modul
           include = assign path $ dotSep ("Elm" : path ++ ["make"]) <| ref "_elm"
 
     setup namespace path = map create paths
@@ -351,7 +351,7 @@ binop span op e1 e2 =
     func | Help.isOp operator = BracketRef () (dotSep (init parts ++ ["_op"])) (string operator)
          | otherwise     = dotSep parts
         where
-          parts = split op
+          parts = Help.splitDots op
           operator = last parts
 
     opDict = Map.fromList (infixOps ++ specialOps)
