@@ -29,10 +29,7 @@ getSortedDependencies srcDirs builtIns root =
        result <- runErrorT $ readAllDeps allSrcDirs builtIns root
        case result of
          Right deps -> sortDeps deps
-         Left err -> failure $ err ++ if Maybe.isJust extras then "" else msg
-             where msg = "\nYou may need to create a " ++
-                         Path.dependencyFile ++
-                         " file if you\nare trying to use a 3rd party library."
+         Left err -> failure err
 
 extraDependencies :: IO (Maybe [FilePath])
 extraDependencies =
@@ -75,20 +72,22 @@ sortDeps depends =
     msg = "A cyclical module dependency or was detected in:\n"
 
 readAllDeps :: [FilePath] -> Module.Interfaces -> FilePath -> ErrorT String IO [Deps]
-readAllDeps srcDirs builtIns root =
-  do let ifaces = (Set.fromList . Map.keys) builtIns
-     State.evalStateT (go ifaces root) Set.empty
+readAllDeps srcDirs rawBuiltIns filePath =
+    State.evalStateT (go Nothing filePath) Set.empty
   where
-    go :: Set.Set String -> FilePath -> State.StateT (Set.Set String) (ErrorT String IO) [Deps]
-    go builtIns root = do
-      root'        <- lift $ findSrcFile srcDirs root
-      (name, deps) <- lift $ readDeps root'
+    builtIns :: Set.Set String
+    builtIns = Set.fromList $ Map.keys rawBuiltIns
+
+    go :: Maybe String -> FilePath -> State.StateT (Set.Set String) (ErrorT String IO) [Deps]
+    go parentModuleName filePath = do
+      filePath' <- lift $ findSrcFile parentModuleName srcDirs filePath
+      (moduleName, deps) <- lift $ readDeps filePath'
       seen <- State.get
       let realDeps = Set.difference (Set.fromList deps) builtIns
           newDeps = Set.difference (Set.filter (not . isNative) realDeps) seen
-      State.put (Set.insert name (Set.union newDeps seen))
-      rest <- mapM (go builtIns . toFilePath) (Set.toList newDeps)
-      return ((makeRelative "." root', name, Set.toList realDeps) : concat rest)
+      State.put (Set.insert moduleName (Set.union newDeps seen))
+      rest <- mapM (go (Just moduleName) . toFilePath) (Set.toList newDeps)
+      return ((makeRelative "." filePath', moduleName, Set.toList realDeps) : concat rest)
 
 readDeps :: FilePath -> ErrorT String IO (String, [String])
 readDeps path = do
@@ -98,21 +97,30 @@ readDeps path = do
       where msg = "Error resolving dependencies in " ++ path ++ ":\n"
     Right o  -> return o
 
-findSrcFile :: [FilePath] -> FilePath -> ErrorT String IO FilePath
-findSrcFile dirs path = foldr tryDir notFound dirs
+findSrcFile :: Maybe String -> [FilePath] -> FilePath -> ErrorT String IO FilePath
+findSrcFile parentModuleName dirs path =
+    foldr tryDir notFound dirs
   where
-    notFound = throwError $ unlines
-        [ "Could not find file: " ++ path
-        , "    If it is not in the root directory of your project, use"
-        , "    --src-dir to declare additional locations for source files."
-        , "    If it is part of a 3rd party library, it needs to be declared"
-        , "    as a dependency in the " ++ Path.dependencyFile ++ " file." ]
     tryDir dir next = do
       let path' = dir </> path
       exists <- liftIO $ doesFileExist path'
       if exists
         then return path'
         else next
+
+    parentModuleName' =
+        case parentModuleName of
+          Just name -> "module '" ++ name ++ "'"
+          Nothing -> "the main module"
+
+    notFound = throwError $ unlines
+        [ "When finding the imports declared in " ++ parentModuleName' ++ ", could not find file: " ++ path
+        , "    If you created this module, but it is in a subdirectory that does not"
+        , "    exactly match the module name, you may need to use the --src-dir flag."
+        , ""
+        , "    If it is part of a 3rd party library, it needs to be declared"
+        , "    as a dependency in your project's " ++ Path.dependencyFile ++ " file."
+        ]
 
 isNative :: String -> Bool
 isNative name = List.isPrefixOf "Native." name

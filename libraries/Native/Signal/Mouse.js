@@ -20,15 +20,12 @@ Elm.Native.Mouse.make = function(elm) {
     y.defaultNumberOfKids = 0;
 
     var isDown    = Signal.constant(false);
-    var isClicked = Signal.constant(false);
     var clicks = Signal.constant(Utils.Tuple0);
 
     var node = elm.display === ElmRuntime.Display.FULLSCREEN ? document : elm.node;
 
-    elm.addListener([isClicked.id, clicks.id], node, 'click', function click() {
-        elm.notify(isClicked.id, true);
+    elm.addListener([clicks.id], node, 'click', function click() {
         elm.notify(clicks.id, Utils.Tuple0);
-        elm.notify(isClicked.id, false);
     });
     elm.addListener([isDown.id], node, 'mousedown', function down() {
         elm.notify(isDown.id, true);
@@ -44,7 +41,6 @@ Elm.Native.Mouse.make = function(elm) {
         position: position,
         x:x,
         y:y,
-        isClicked: isClicked,
         isDown: isDown,
         clicks: clicks
     };

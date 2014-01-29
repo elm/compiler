@@ -7,7 +7,7 @@ Learn about the Elm programming language at [elm-lang.org](http://elm-lang.org/)
 **Arch Linux** &mdash; follow [these directions](https://github.com/evancz/Elm/wiki/Installing-Elm#arch-linux) and then
 jump to the [My First Project](#my-first-project) section.
 <br/>
-**OS X 10.9** &mdash; follow
+**OS X 10.9 or XCode 5** &mdash; follow
 [these directions](http://justtesting.org/post/64947952690/the-glasgow-haskell-compiler-ghc-on-os-x-10-9)
 before continuing with the platform agnostic directions below.
 

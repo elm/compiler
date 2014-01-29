@@ -1,12 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
-module SourceSyntax.Expression where
+
 {-| The Abstract Syntax Tree (AST) for expressions comes in a couple formats.
 The first is the fully general version and is labeled with a prime (Expr').
 The others are specialized versions of the AST that represent specific phases
 of the compilation process. I expect there to be more phases as we begin to
 enrich the AST with more information.
 -}
-
+module SourceSyntax.Expression where
 
 import SourceSyntax.PrettyPrint
 import Text.PrettyPrint as P

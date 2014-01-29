@@ -320,7 +320,7 @@ It is defined as:
         always a b = a
 
 It totally ignores the second argument, so `always 42` is a function that always
-returns in 42. When you are dealing with higher-order functions, this comes in
+returns 42. When you are dealing with higher-order functions, this comes in
 handy more often than you might expect. For example, creating a zeroed out list
 of length ten would be:
 
