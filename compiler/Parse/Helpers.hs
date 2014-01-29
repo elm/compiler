@@ -268,7 +268,7 @@ ignoreUntil end = go
       ignore p = const () <$> p
       filler = choice [ try (ignore chr) <|> ignore str
                       , ignore multiComment
-                      , ignore (markdown (\_ _ -> mzero))
+                      , ignore (markdown (\_ -> mzero))
                       , ignore anyChar
                       ]
       go = choice [ Just <$> end
@@ -301,15 +301,15 @@ anyUntilPos pos = go
                 True -> return []
                 False -> (:) <$> anyChar <*> go
 
-markdown :: (String -> [a] -> IParser (String, [a])) -> IParser (String, [a])
-markdown interpolation = try (string "[markdown|") >> closeMarkdown "" []
+markdown :: ([a] -> IParser (String, [a])) -> IParser (String, [a])
+markdown interpolation = try (string "[markdown|") >> closeMarkdown (++ "") []
     where
       closeMarkdown md stuff =
           choice [ do try (string "|]")
-                      return (md, stuff)
-                 , uncurry closeMarkdown =<< interpolation md stuff
+                      return (md "", stuff)
+                 , (\(m,s) -> closeMarkdown (md . (m ++)) s) =<< interpolation stuff
                  , do c <- anyChar
-                      closeMarkdown (md ++ [c]) stuff
+                      closeMarkdown (md . ([c]++)) stuff
                  ]
 
 --str :: IParser String
