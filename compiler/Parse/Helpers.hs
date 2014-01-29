@@ -302,14 +302,14 @@ anyUntilPos pos = go
                 False -> (:) <$> anyChar <*> go
 
 markdown :: (String -> [a] -> IParser (String, [a])) -> IParser (String, [a])
-markdown interpolation = try (string "[markdown|") >> closeMarkdown "" []
+markdown interpolation = try (string "[markdown|") >> closeMarkdown (++ "") []
     where
       closeMarkdown md stuff =
           choice [ do try (string "|]")
-                      return (md, stuff)
-                 , uncurry closeMarkdown =<< interpolation md stuff
+                      return (md "", stuff)
+                 , (\(m,s) -> closeMarkdown (m ++) s) =<< interpolation (md "") stuff
                  , do c <- anyChar
-                      closeMarkdown (md ++ [c]) stuff
+                      closeMarkdown (md . ([c]++)) stuff
                  ]
 
 --str :: IParser String
