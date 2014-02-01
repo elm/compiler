@@ -9,6 +9,7 @@ import Text.PrettyPrint as P
 import SourceSyntax.Expression (LExpr)
 import SourceSyntax.Declaration
 import SourceSyntax.Type
+import Data.List (intercalate)
 
 import qualified Elm.Internal.Version as Version
 import SourceSyntax.PrettyPrint
@@ -25,18 +26,18 @@ data ImportMethod = As String | Importing [String] | Hiding [String]
                     deriving (Eq, Ord, Show)
 
 instance (Pretty def ) => Pretty (Module def) where
-  pretty (Module names exports imports decs) = 
+  pretty (Module modNames exportList importList decs) = 
     let 
-        exportPret = case exports of 
+        exportPret = case exportList of 
                           [] -> P.text " "
-                          _ -> P.parens $ P.sep $ map P.text exports
+                          _ -> P.parens $ commaCat $ map P.text exportList
         
         decPret = P.sep $ map pretty decs
-        modName = P.text $ intercalate "." names
+        modName = P.text $ intercalate "." modNames
         modPret = (P.text "module" <+> modName <+> exportPret <+>  P.text "where")
         
         
-        importPret = P.sep $ map prettyImport imports
+        importPret = P.vcat $ map prettyImport importList
         
         prettyImport (name, method) = 
           case method of
