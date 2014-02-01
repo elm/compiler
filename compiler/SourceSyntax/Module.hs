@@ -4,12 +4,15 @@ module SourceSyntax.Module where
 import Data.Binary
 import qualified Data.Map as Map
 import Control.Applicative ((<$>), (<*>))
+import Text.PrettyPrint as P
 
 import SourceSyntax.Expression (LExpr)
 import SourceSyntax.Declaration
 import SourceSyntax.Type
 
 import qualified Elm.Internal.Version as Version
+import SourceSyntax.PrettyPrint
+
 
 data Module def =
     Module [String] Exports Imports [def]
@@ -21,6 +24,31 @@ type Imports = [(String, ImportMethod)]
 data ImportMethod = As String | Importing [String] | Hiding [String]
                     deriving (Eq, Ord, Show)
 
+instance (Pretty def ) => Pretty (Module def) where
+  pretty (Module names exports imports decs) = 
+    let 
+        exportPret = case exports of 
+                          [] -> P.text " "
+                          _ -> P.parens $ P.sep $ map P.text exports
+        
+        decPret = P.sep $ map pretty decs
+        modName = P.text $ intercalate "." names
+        modPret = (P.text "module" <+> modName <+> exportPret <+>  P.text "where")
+        
+        
+        importPret = P.sep $ map prettyImport imports
+        
+        prettyImport (name, method) = 
+          case method of
+               As s -> if name == s 
+                          then P.text $ "import " ++ name 
+                          else P.text $ "import " ++ name ++ " as " ++ s
+               Importing strs -> (P.text $ "import " ++ name ++ " ") <+> (commaCat $ map P.text strs)
+               Hiding [] -> (P.text $ "import open " ++ name ++ " ")
+               Hiding strs -> (P.text $ "import open " ++ name ++ " ") <+> (commaCat $ map P.text strs)
+
+    in P.sep [modPret, importPret, decPret]                    
+                    
 instance Binary ImportMethod where
     put method =
         let put' n info = putWord8 n >> put info in
