@@ -5,7 +5,7 @@ import Control.Applicative
 import Control.Monad.Error
 import qualified Control.Monad.State as State
 import qualified Data.Aeson as Json
-import qualified Data.ByteString.Lazy.Char8 as BSC
+import qualified Data.ByteString.Lazy as BS
 import qualified Data.Graph as Graph
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -37,7 +37,7 @@ extraDependencies =
        if not exists then return Nothing else Just <$> getPaths
     where
       getPaths = do
-        raw <- BSC.readFile Path.dependencyFile
+        raw <- BS.readFile Path.dependencyFile
         case Json.eitherDecode raw of
           Right (Deps.Mini deps) -> mapM validate deps
           Left err ->
