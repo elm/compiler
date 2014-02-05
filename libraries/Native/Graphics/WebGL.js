@@ -31,7 +31,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
 
         var guid = Utils.guid();
 
-        console.log("Wrapped program #" + guid);
+        //console.log("Wrapped program #" + guid);
 
         return program = {
             guid: guid,
@@ -61,7 +61,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
         var vshader = createShader(vSrc, gl.VERTEX_SHADER);
         var fshader = createShader(fSrc, gl.FRAGMENT_SHADER);
         var program = gl.createProgram();
-        console.log("Created shaders and program");
+        //console.log("Created shaders and program");
 
         gl.attachShader(program, vshader);
         gl.attachShader(program, fshader);
@@ -78,7 +78,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
 
         var guid = Utils.guid();
 
-        console.log("Wrapped buffer #" + guid);
+        //console.log("Wrapped buffer #" + guid);
 
         return buffer = {
             guid: guid,
@@ -115,7 +115,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
                     var array = new Float32Array(data);
 
                     var buffer = gl.createBuffer();
-                    console.log("Created attribute buffer " + attribute.name);
+                    //console.log("Created attribute buffer " + attribute.name);
                     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
                     gl.bufferData(gl.ARRAY_BUFFER, array, gl.STATIC_DRAW);
 
@@ -132,7 +132,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
 
         var numIndices = 3 * List.length(bufferElems);
         var indices = List.toArray(List.range(0, numIndices - 1));
-        console.log("Created index buffer");
+        //console.log("Created index buffer");
         var indexBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
@@ -153,7 +153,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
 
         gl.viewport(0, 0, model.w, model.h);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        console.log("Drawing");
+        //console.log("Drawing");
 
         function drawModel(m) {
 
@@ -170,6 +170,15 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
                 var uniform = gl.getActiveUniform(program, i);
                 var uniformLocation = gl.getUniformLocation(program, uniform.name);
                 switch (uniform.type) {
+                    case gl.INT:
+                        gl.uniform1i(uniformLocation, m.uniforms[uniform.name]);
+                        break;
+                    case gl.FLOAT:
+                        gl.uniform1f(uniformLocation, m.uniforms[uniform.name]);
+                        break;
+                    case gl.FLOAT_VEC3:
+                        gl.uniform3fv(uniformLocation, m.uniforms[uniform.name]);
+                        break;
                     case gl.FLOAT_MAT4:
                         gl.uniformMatrix4fv(uniformLocation, false, m.uniforms[uniform.name]);
                         break;

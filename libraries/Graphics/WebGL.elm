@@ -4,7 +4,6 @@ module Graphics.WebGL (link, mapTriangle, zipTriangle, bind, encapsulate, webgl)
 
 import Graphics.Element (Element)
 import Native.Graphics.WebGL
-import Signal (Signal)
 
 data Shader a u v = Dummy_Shader
 data Program a u = Dummy_Program

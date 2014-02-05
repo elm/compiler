@@ -9,7 +9,7 @@ import Data.Char (isUpper)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Language.GLSL.Parser as GLP
-import Language.GLSL.Syntax
+import Language.GLSL.Syntax as GLS
 import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
 import qualified Text.Parsec.Token as T
@@ -349,8 +349,11 @@ glSource src =
         Declaration (InitDeclaration (TypeDeclarator (FullType (Just (TypeQualSto qual)) (TypeSpec _prec (TypeSpecNoPrecision tipe _mexpr1)))) [InitDecl name _mexpr2 _mexpr3]) ->
             if elem qual [Attribute, Varying, Uniform] 
             then case tipe of 
-                Vec3 -> return (qual,V3,name) 
-                Mat4 -> return (qual,M4,name)
+                GLS.Int -> return (qual,Literal.Int,name)
+                GLS.Float -> return (qual,Literal.Float,name)
+                GLS.Vec3 -> return (qual,V3,name) 
+                GLS.Vec4 -> return (qual,V4,name)
+                GLS.Mat4 -> return (qual,M4,name)
                 _ -> []
             else []
         _ -> []
