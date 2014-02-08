@@ -66,11 +66,11 @@ listTerm = markdown' <|> glShader' <|> braces (try range <|> ExplicitList <$> co
     span uid index =
         "<span id=\"md-" ++ uid ++ "-" ++ show index ++ "\">{{ markdown interpolation is in the pipeline, but still needs more testing }}</span>"
 
-    interpolation uid md exprs = do
+    interpolation uid exprs = do
       try (string "{{")
       e <- padded expr
       string "}}"
-      return (md ++ span uid (length exprs), exprs ++ [e])
+      return (span uid (length exprs), exprs ++ [e])
 
 parensTerm :: IParser LParseExpr
 parensTerm = try (parens opFn) <|> parens (tupleFn <|> parened)
