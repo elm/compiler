@@ -109,7 +109,7 @@ out tipe x =
           | ctor == "Maybe.Maybe" ->
               CondExpr () (equal (DotRef () x (var "ctor")) (string "Nothing"))
                           (NullLit ())
-                          (DotRef () x (var "_0"))
+                          (out t (DotRef () x (var "_0")))
 
           | ctor == "_List" ->
               DotRef () (obj "_J.fromList" <| x) (var "map") <| outgoing t
