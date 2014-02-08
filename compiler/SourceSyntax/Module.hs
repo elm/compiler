@@ -1,19 +1,18 @@
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -W #-}
 module SourceSyntax.Module where
 
 import Data.Binary
+import qualified Data.List as List
 import qualified Data.Map as Map
 import Control.Applicative ((<$>), (<*>))
 import Text.PrettyPrint as P
 
 import SourceSyntax.Expression (LExpr)
 import SourceSyntax.Declaration
+import SourceSyntax.PrettyPrint
 import SourceSyntax.Type
-import Data.List (intercalate)
 
 import qualified Elm.Internal.Version as Version
-import SourceSyntax.PrettyPrint
-
 
 data Module def =
     Module [String] Exports Imports [def]
@@ -25,30 +24,32 @@ type Imports = [(String, ImportMethod)]
 data ImportMethod = As String | Importing [String] | Hiding [String]
                     deriving (Eq, Ord, Show)
 
-instance (Pretty def ) => Pretty (Module def) where
-  pretty (Module modNames exportList importList decs) = 
-    let 
-        exportPret = case exportList of 
-                          [] -> P.text " "
-                          _ -> P.parens $ commaCat $ map P.text exportList
-        
-        decPret = P.sep $ map pretty decs
-        modName = P.text $ intercalate "." modNames
-        modPret = (P.text "module" <+> modName <+> exportPret <+>  P.text "where")
-        
-        
-        importPret = P.vcat $ map prettyImport importList
-        
-        prettyImport (name, method) = 
-          case method of
-               As s -> if name == s 
-                          then P.text $ "import " ++ name 
-                          else P.text $ "import " ++ name ++ " as " ++ s
-               Importing strs -> (P.text $ "import " ++ name ++ " ") <+> (commaCat $ map P.text strs)
-               Hiding [] -> (P.text $ "import open " ++ name ++ " ")
-               Hiding strs -> (P.text $ "import open " ++ name ++ " ") <+> (commaCat $ map P.text strs)
+instance (Pretty def) => Pretty (Module def) where
+  pretty (Module modNames exports imports decls) =
+      P.vcat [modul, P.text "", prettyImports, P.text "", prettyDecls]
+    where 
+      prettyDecls = P.sep $ map pretty decls
 
-    in P.sep [modPret, importPret, decPret]                    
+      modul = P.text "module" <+> moduleName <+> where'
+      moduleName = P.text $ List.intercalate "." modNames
+      where' =
+          case exports of
+            [] -> P.text "where"
+            _ -> P.parens (commaCat $ map P.text exports) <+> P.text "where"
+
+      prettyImports = P.vcat $ map prettyImport imports
+        
+      prettyImport (name, method) =
+          P.text "import" <+>
+          case method of
+            As alias ->
+                P.text $ name ++ (if name == alias then "" else " as " ++ alias)
+
+            Importing values ->
+                P.text name <+> P.parens (commaCat (map P.text values))
+
+            Hiding [] -> P.text ("open " ++ name)
+            Hiding _ -> error "invalid import declaration"
                     
 instance Binary ImportMethod where
     put method =
