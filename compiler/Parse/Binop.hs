@@ -1,10 +1,11 @@
+{-# OPTIONS_GHC -W #-}
 module Parse.Binop (binops, OpTable) where
 
 import Control.Applicative ((<$>))
-import Data.List (intercalate)
+import qualified Data.List as List
 import qualified Data.Map as Map
 
-import SourceSyntax.Location (merge)
+import SourceSyntax.Annotation (merge)
 import qualified SourceSyntax.Expression as E
 import SourceSyntax.Declaration (Assoc(..))
 import Text.Parsec
@@ -16,13 +17,13 @@ opLevel table op = fst $ Map.findWithDefault (9,L) op table
 opAssoc :: OpTable -> String -> Assoc
 opAssoc table op = snd $ Map.findWithDefault (9,L) op table
 
-hasLevel :: OpTable -> Int -> (String, E.LParseExpr) -> Bool
+hasLevel :: OpTable -> Int -> (String, E.ParseExpr) -> Bool
 hasLevel table n (op,_) = opLevel table op == n
 
-binops :: IParser E.LParseExpr
-       -> IParser E.LParseExpr
+binops :: IParser E.ParseExpr
+       -> IParser E.ParseExpr
        -> IParser String
-       -> IParser E.LParseExpr
+       -> IParser E.ParseExpr
 binops term last anyOp =
     do e <- term
        table <- getState
@@ -38,9 +39,9 @@ binops term last anyOp =
 
 split :: OpTable
       -> Int
-      -> E.LParseExpr
-      -> [(String, E.LParseExpr)]
-      -> IParser E.LParseExpr
+      -> E.ParseExpr
+      -> [(String, E.ParseExpr)]
+      -> IParser E.ParseExpr
 split _ _ e []  = return e
 split table n e eops = do
   assoc <- getAssoc table n eops
@@ -49,26 +50,26 @@ split table n e eops = do
   case assoc of R -> joinR es ops
                 _ -> joinL es ops
 
-splitLevel :: OpTable -> Int -> E.LParseExpr -> [(String, E.LParseExpr)]
-           -> [IParser E.LParseExpr]
+splitLevel :: OpTable -> Int -> E.ParseExpr -> [(String, E.ParseExpr)]
+           -> [IParser E.ParseExpr]
 splitLevel table n e eops =
     case break (hasLevel table n) eops of
-      (lops, (op,e'):rops) ->
+      (lops, (_op,e'):rops) ->
           split table (n+1) e lops : splitLevel table n e' rops
       (lops, []) -> [ split table (n+1) e lops ]
 
-joinL :: [E.LParseExpr] -> [String] -> IParser E.LParseExpr
+joinL :: [E.ParseExpr] -> [String] -> IParser E.ParseExpr
 joinL [e] [] = return e
 joinL (a:b:es) (op:ops) = joinL (merge a b (E.Binop op a b) : es) ops
 joinL _ _ = failure "Ill-formed binary expression. Report a compiler bug."
 
-joinR :: [E.LParseExpr] -> [String] -> IParser E.LParseExpr
+joinR :: [E.ParseExpr] -> [String] -> IParser E.ParseExpr
 joinR [e] [] = return e
 joinR (a:b:es) (op:ops) = do e <- joinR (b:es) ops
                              return (merge a e (E.Binop op a e))
 joinR _ _ = failure "Ill-formed binary expression. Report a compiler bug."
 
-getAssoc :: OpTable -> Int -> [(String,E.LParseExpr)] -> IParser Assoc
+getAssoc :: OpTable -> Int -> [(String,E.ParseExpr)] -> IParser Assoc
 getAssoc table n eops
     | all (==L) assocs = return L
     | all (==R) assocs = return R 
@@ -79,5 +80,5 @@ getAssoc table n eops
         assocs = map (opAssoc table . fst) levelOps
         msg problem =
             concat [ "Conflicting " ++ problem ++ " for binary operators ("
-                   , intercalate ", " (map fst eops), "). "
+                   , List.intercalate ", " (map fst eops), "). "
                    , "Consider adding parentheses to disambiguate." ]

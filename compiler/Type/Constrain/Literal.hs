@@ -1,14 +1,15 @@
+{-# OPTIONS_GHC -W #-}
 module Type.Constrain.Literal where
 
+import SourceSyntax.Annotation
 import SourceSyntax.Literal
-import SourceSyntax.Location
 import Type.Type
 import Type.Environment as Env
 
-constrain :: Environment -> SrcSpan -> Literal -> Type -> IO TypeConstraint
-constrain env span literal tipe =
+constrain :: Environment -> Region -> Literal -> Type -> IO TypeConstraint
+constrain env region literal tipe =
     do tipe' <- litType
-       return . L span $ CEqual tipe tipe'
+       return . A region $ CEqual tipe tipe'
     where
       prim name = return (Env.get env Env.types name)
 

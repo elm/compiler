@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -W #-}
 {-# LANGUAGE FlexibleInstances #-}
 module Type.Constrain.Pattern where
 
@@ -8,31 +9,29 @@ import Control.Monad.Error
 import qualified Data.Map as Map
 import qualified Text.PrettyPrint as PP
 
-import SourceSyntax.Pattern
-import SourceSyntax.Location
-import SourceSyntax.PrettyPrint
-import Text.PrettyPrint (render)
-import qualified SourceSyntax.Location as Loc
+import qualified SourceSyntax.Annotation as A
+import qualified SourceSyntax.Pattern as P
+import SourceSyntax.PrettyPrint (pretty)
 import Type.Type
 import Type.Fragment
 import Type.Environment as Env
 import qualified Type.Constrain.Literal as Literal
 
 
-constrain :: Environment -> Pattern -> Type -> ErrorT (SrcSpan -> PP.Doc) IO Fragment
+constrain :: Environment -> P.Pattern -> Type -> ErrorT (A.Region -> PP.Doc) IO Fragment
 constrain env pattern tipe =
-    let span = Loc.NoSpan (render $ pretty pattern)
-        t1 === t2 = Loc.L span (CEqual t1 t2)
-        x <? t = Loc.L span (CInstance x t)
+    let region = A.None (pretty pattern)
+        t1 === t2 = A.A region (CEqual t1 t2)
+        x <? t = A.A region (CInstance x t)
     in
     case pattern of
-      PAnything -> return emptyFragment
+      P.Anything -> return emptyFragment
 
-      PLiteral lit -> do
-          c <- liftIO $ Literal.constrain env span lit tipe
+      P.Literal lit -> do
+          c <- liftIO $ Literal.constrain env region lit tipe
           return $ emptyFragment { typeConstraint = c }
 
-      PVar name -> do
+      P.Var name -> do
           v <- liftIO $ var Flexible
           return $ Fragment {
               typeEnv    = Map.singleton name (VarN v),
@@ -40,14 +39,14 @@ constrain env pattern tipe =
               typeConstraint = VarN v === tipe
           }
 
-      PAlias name p -> do
+      P.Alias name p -> do
           fragment <- constrain env p tipe
           return $ fragment {
               typeEnv = Map.insert name tipe (typeEnv fragment),
               typeConstraint = name <? tipe /\ typeConstraint fragment
             }
 
-      PData name patterns -> do
+      P.Data name patterns -> do
           (kind, cvars, args, result) <- liftIO $ freshDataScheme env name
           let msg = concat [ "Constructor '", name, "' expects ", show kind
                            , " argument", if kind == 1 then "" else "s"
@@ -63,7 +62,7 @@ constrain env pattern tipe =
                 vars = cvars ++ vars fragment
               }
 
-      PRecord fields -> do
+      P.Record fields -> do
           pairs <- liftIO $ mapM (\name -> (,) name <$> var Flexible) fields
           let tenv = Map.fromList (map (second VarN) pairs)
           c <- exists $ \t -> return (tipe === record (Map.map (:[]) tenv) t)
@@ -73,7 +72,7 @@ constrain env pattern tipe =
               typeConstraint = c
           }
 
-instance Error (SrcSpan -> PP.Doc) where
+instance Error (A.Region -> PP.Doc) where
   noMsg _ = PP.empty
   strMsg str span =
       PP.vcat [ PP.text $ "Type error " ++ show span

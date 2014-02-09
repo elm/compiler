@@ -1,32 +1,35 @@
 {-# OPTIONS_GHC -W #-}
+
+{-| This module contains checks to be run *after* type inference has completed
+successfully. At that point we still need to do occurs checks and ensure that
+`main` has an acceptable type.
+-}
 module Type.ExtraChecks (mainType, occurs, portTypes) where
--- This module contains checks to be run *after* type inference has
--- completed successfully. At that point we still need to do occurs
--- checks and ensure that `main` has an acceptable type.
 
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad.State
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Traversable as Traverse
 import qualified Data.UnionFind.IO as UF
-import Type.Type ( Variable, structure, Term1(..), toSrcType )
+import Text.PrettyPrint as P
+
+import qualified SourceSyntax.Annotation as A
+import qualified SourceSyntax.Expression as E
+import qualified SourceSyntax.Helpers as Help
+import qualified SourceSyntax.PrettyPrint as SPP
+import qualified SourceSyntax.Type as ST
+import qualified Transform.Expression as Expr
+import qualified Type.Type as TT
 import qualified Type.State as TS
 import qualified Type.Alias as Alias
-import Text.PrettyPrint as P
-import SourceSyntax.PrettyPrint (pretty)
-import qualified SourceSyntax.Helpers as Help
-import qualified SourceSyntax.Type as T
-import qualified SourceSyntax.Expression as E
-import qualified SourceSyntax.Location as L
-import qualified Transform.Expression as Expr
-import qualified Data.Traversable as Traverse
 
 throw err = Left [ P.vcat err ]
 
-mainType :: Alias.Rules -> TS.Env -> IO (Either [P.Doc] (Map.Map String T.Type))
-mainType rules env = mainCheck rules <$> Traverse.traverse toSrcType env
+mainType :: Alias.Rules -> TS.Env -> IO (Either [P.Doc] (Map.Map String ST.Type))
+mainType rules env = mainCheck rules <$> Traverse.traverse TT.toSrcType env
   where
-    mainCheck :: Alias.Rules -> Map.Map String T.Type -> Either [P.Doc] (Map.Map String T.Type)
+    mainCheck :: Alias.Rules -> Map.Map String ST.Type -> Either [P.Doc] (Map.Map String ST.Type)
     mainCheck rules env =
       case Map.lookup "main" env of
         Nothing -> Right env
@@ -37,40 +40,40 @@ mainType rules env = mainCheck rules <$> Traverse.traverse toSrcType env
               acceptable = [ "Graphics.Element.Element"
                            , "Signal.Signal Graphics.Element.Element" ]
 
-              tipe = P.render . pretty $ Alias.canonicalRealias (fst rules) mainType
+              tipe = SPP.renderPretty $ Alias.canonicalRealias (fst rules) mainType
               err = [ P.text "Type Error: 'main' must have type Element or (Signal Element)."
                     , P.text "Instead 'main' has type:\n"
-                    , P.nest 4 . pretty $ Alias.realias rules mainType
+                    , P.nest 4 . SPP.pretty $ Alias.realias rules mainType
                     , P.text " " ]
 
 data Direction = In | Out
 
-portTypes :: Alias.Rules -> E.LExpr -> Either [P.Doc] ()
+portTypes :: Alias.Rules -> E.Expr -> Either [P.Doc] ()
 portTypes rules expr =
   const () <$> Expr.checkPorts (check In) (check Out) expr
   where
     check = isValid True False False
     isValid isTopLevel seenFunc seenSignal direction name tipe =
         case tipe of
-          T.Data ctor ts
+          ST.Data ctor ts
               | isJs ctor || isElm ctor -> mapM_ valid ts
               | ctor == "Signal.Signal" -> handleSignal ts
               | otherwise               -> err' True "an unsupported type"
 
-          T.Var _ -> err "free type variables"
+          ST.Var _ -> err "free type variables"
 
-          T.Lambda _ _ ->
+          ST.Lambda _ _ ->
               case direction of
                 In -> err "functions"
                 Out | seenFunc   -> err "higher-order functions"
                     | seenSignal -> err "signals that contain functions"
                     | otherwise  ->
-                        forM_ (T.collectLambdas tipe)
+                        forM_ (ST.collectLambdas tipe)
                               (isValid' True seenSignal direction name)
 
-          T.Record _ (Just _) -> err "extended records with free type variables"
+          ST.Record _ (Just _) -> err "extended records with free type variables"
 
-          T.Record fields Nothing ->
+          ST.Record fields Nothing ->
               mapM_ (\(k,v) -> (,) k <$> valid v) fields
 
         where
@@ -100,7 +103,7 @@ portTypes rules expr =
               [ txt [ "Type Error: the value ", dir "coming in" "sent out"
                     , " through port '", name, "' is invalid." ]
               , txt [ "It contains ", kind, ":\n" ]
-              , (P.nest 4 . pretty $ Alias.realias rules tipe) <> P.text "\n"
+              , (P.nest 4 . SPP.pretty $ Alias.realias rules tipe) <> P.text "\n"
               , txt [ "Acceptable values for ", dir "incoming" "outgoing"
                     , " ports include JavaScript values and" ]
               , txt [ "the following Elm values: Ints, Floats, Bools, Strings, Maybes," ]
@@ -112,37 +115,37 @@ portTypes rules expr =
               , txt [ "manually for now (e.g. {x:Int,y:Int} instead of a type alias of that type)." ]
               ]
 
-occurs :: (String, Variable) -> StateT TS.SolverState IO ()
+occurs :: (String, TT.Variable) -> StateT TS.SolverState IO ()
 occurs (name, variable) =
   do vars <- liftIO $ infiniteVars [] variable
      case vars of
        [] -> return ()
        var:_ -> do
          desc <- liftIO $ UF.descriptor var
-         case structure desc of
+         case TT.structure desc of
            Nothing ->
                modify $ \state -> state { TS.sErrors = fallback : TS.sErrors state }
            Just _ ->
-               do liftIO $ UF.setDescriptor var (desc { structure = Nothing })
+               do liftIO $ UF.setDescriptor var (desc { TT.structure = Nothing })
                   var' <- liftIO $ UF.fresh desc
-                  TS.addError (L.NoSpan name) (Just msg) var var'
+                  TS.addError (A.None (P.text name)) (Just msg) var var'
   where
     msg = "Infinite types are not allowed"
     fallback _ = return $ P.text msg
 
-    infiniteVars :: [Variable] -> Variable -> IO [Variable]
-    infiniteVars seen var =
+    infiniteVars :: [TT.Variable] -> TT.Variable -> IO [TT.Variable]
+    infiniteVars seen var = 
         let go = infiniteVars (var:seen) in
         if var `elem` seen
         then return [var]
         else do
           desc <- UF.descriptor var
-          case structure desc of
+          case TT.structure desc of
             Nothing -> return []
             Just struct ->
                 case struct of
-                  App1 a b -> (++) <$> go a <*> go b
-                  Fun1 a b -> (++) <$> go a <*> go b
-                  Var1 a   -> go a
-                  EmptyRecord1 -> return []
-                  Record1 fields ext -> concat <$> mapM go (ext : concat (Map.elems fields))
+                  TT.App1 a b -> (++) <$> go a <*> go b
+                  TT.Fun1 a b -> (++) <$> go a <*> go b
+                  TT.Var1 a   -> go a
+                  TT.EmptyRecord1 -> return []
+                  TT.Record1 fields ext -> concat <$> mapM go (ext : concat (Map.elems fields))

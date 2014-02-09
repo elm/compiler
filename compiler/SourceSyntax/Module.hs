@@ -7,7 +7,7 @@ import qualified Data.Map as Map
 import Control.Applicative ((<$>), (<*>))
 import Text.PrettyPrint as P
 
-import SourceSyntax.Expression (LExpr)
+import SourceSyntax.Expression (Expr)
 import SourceSyntax.Declaration
 import SourceSyntax.PrettyPrint
 import SourceSyntax.Type
@@ -72,7 +72,7 @@ data MetadataModule =
     , path      :: FilePath
     , exports   :: [String]
     , imports   :: [(String, ImportMethod)]
-    , program   :: LExpr
+    , program   :: Expr
     , types     :: Map.Map String Type
     , fixities  :: [(Assoc, Int, String)]
     , aliases   :: [Alias]
