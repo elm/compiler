@@ -30,12 +30,12 @@ instance (Pretty def) => Pretty (Module def) where
     where 
       prettyDecls = P.sep $ map pretty decls
 
-      modul = P.text "module" <+> moduleName <+> where'
+      modul = P.text "module" <+> moduleName <+> prettyExports <+> P.text "where"
       moduleName = P.text $ List.intercalate "." modNames
-      where' =
+      prettyExports =
           case exports of
-            [] -> P.text "where"
-            _ -> P.parens (commaCat $ map P.text exports) <+> P.text "where"
+            [] -> P.empty
+            _ -> P.parens . commaCat $ map P.text exports
 
       prettyImports = P.vcat $ map prettyImport imports
         
