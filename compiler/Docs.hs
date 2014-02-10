@@ -153,9 +153,10 @@ instance ToJSON T.Type where
     object $
     case tipe of
       T.Lambda t1 t2 ->
+          let tipes = T.collectLambdas tipe in
           [ "tag" .= ("function" :: Text.Text)
-          , "args" .= toJSON (T.collectLambdas t1)
-          , "result" .= toJSON t2
+          , "args" .= toJSON (init tipes)
+          , "result" .= toJSON (last tipes)
           ]
 
       T.Var x ->
