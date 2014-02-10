@@ -16,8 +16,8 @@ import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Text as Text
 
-import SourceSyntax.Helpers (isSymbol)
-import SourceSyntax.Type (Type(..))
+import qualified SourceSyntax.Helpers as Help
+import qualified SourceSyntax.Type as T
 import qualified SourceSyntax.Expression as E
 import qualified SourceSyntax.Declaration as D
 
@@ -122,7 +122,7 @@ collect infixes types aliases adts things =
           where
             nonCustomOps = Map.mapWithKey addDefaultInfix $ Map.difference types infixes
             addDefaultInfix name pairs
-                | all isSymbol name = addInfix (D.L, 9 :: Int) pairs
+                | all Help.isSymbol name = addInfix (D.L, 9 :: Int) pairs
                 | otherwise = pairs
 
             customOps = Map.intersectionWith addInfix infixes types
@@ -139,7 +139,7 @@ collect infixes types aliases adts things =
                 let fields = ["typeVariables" .= vars, "type" .= tipe ]
                 in  collect infixes types (insert name fields aliases) adts rest
             D.Datatype name vars ctors ->
-                let tipe = Data name (map Var vars)
+                let tipe = T.Data name (map T.Var vars)
                     fields = ["typeVariables" .= vars
                              , "constructors" .= map (ctorToJson tipe) ctors ]
                 in  collect infixes types aliases (insert name fields adts) rest
@@ -148,28 +148,28 @@ collect infixes types aliases adts things =
             obj name fields =
                 [ "name" .= name, "raw" .= source, "comment" .= comment ] ++ fields
 
-instance ToJSON Type where
+instance ToJSON T.Type where
   toJSON tipe =
     object $
     case tipe of
-      Lambda t1 t2 ->
+      T.Lambda t1 t2 ->
           [ "tag" .= ("function" :: Text.Text)
-          , "input" .= toJSON t1
-          , "output" .= toJSON t2
+          , "args" .= toJSON (T.collectLambdas t1)
+          , "result" .= toJSON t2
           ]
 
-      Var x ->
+      T.Var x ->
           [ "tag" .= ("var" :: Text.Text)
           , "name" .= toJSON x
           ]
       
-      Data name ts -> 
+      T.Data name ts -> 
           [ "tag" .= ("adt" :: Text.Text)
           , "name" .= toJSON name
           , "args" .= map toJSON ts
           ]
        
-      Record fields ext ->
+      T.Record fields ext ->
           [ "tag" .= ("record" :: Text.Text)
           , "fields" .= toJSON (map (toJSON . second toJSON) fields)
           , "extension" .= toJSON ext
@@ -177,4 +177,4 @@ instance ToJSON Type where
 
 ctorToJson tipe (ctor, tipes) =
     object [ "name" .= ctor
-           , "type" .= foldr Lambda tipe tipes ]
+           , "type" .= foldr T.Lambda tipe tipes ]
