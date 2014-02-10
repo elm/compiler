@@ -155,6 +155,19 @@ Elm.Native.MJS.make = function(elm) {
     V3.u = V3.x;
     V3.v = V3.y;
 
+    /* Function: V3.toTuple3
+     *
+     * Turn into an Elm Tuple 
+     */
+    V3.toTuple3 = function V3_toTuple3(a) {
+      return v = {
+        ctor:"_Tuple3",
+        _0:a[0],
+        _1:a[1],
+        _2:a[2]
+      };
+    };
+
     /*
      * Function: V3.add
      *
@@ -1727,6 +1740,7 @@ Elm.Native.MJS.make = function(elm) {
     return { 
         V3: V3,
         v3: F3(V3.$),
+        toTuple3: V3.toTuple3,
         v3add: F2(V3.add),
         v3sub: F2(V3.sub),
         v3neg: V3.neg,

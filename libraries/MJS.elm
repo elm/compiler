@@ -17,6 +17,9 @@ data V3 = Dummy_V3
 v3 : Float -> Float -> Float -> V3
 v3 = Native.MJS.v3
 
+toTuple3 : V3 -> (Float,Float,Float)
+toTuple3 = Native.MJS.toTuple3
+
 add : V3 -> V3 -> V3
 add = Native.MJS.v3add
 
