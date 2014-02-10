@@ -1,6 +1,10 @@
+{-# OPTIONS_GHC -Wall #-}
 module Elm.Internal.Paths where
 
-import System.IO.Unsafe
+import System.Directory (doesDirectoryExist)
+import System.Environment (getEnv)
+import System.FilePath ((</>))
+import System.IO.Unsafe (unsafePerformIO)
 import qualified Paths_Elm as This
 
 -- |Name of directory for all of a project's dependencies.
@@ -15,9 +19,20 @@ dependencyFile = "elm_dependencies.json"
 {-# NOINLINE runtime #-}
 -- |The absolute path to Elm's runtime system.
 runtime :: FilePath
-runtime = unsafePerformIO $ This.getDataFileName "elm-runtime.js"
+runtime = unsafePerformIO $ getDataFile "elm-runtime.js"
 
 {-# NOINLINE docs #-}
 -- |The absolute path to Elm's core library documentation.
 docs :: FilePath
-docs = unsafePerformIO $ This.getDataFileName "docs.json"
+docs = unsafePerformIO $ getDataFile "docs.json"
+
+-- |The absolute path to a data file
+getDataFile :: FilePath -> IO FilePath
+getDataFile name = do
+      path <- This.getDataFileName name
+      exists <- doesDirectoryExist path
+      if exists
+        then return path
+        else do
+          env <- getEnv "ELM_HOME"
+          return (env </> name)

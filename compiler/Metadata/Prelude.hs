@@ -3,7 +3,7 @@ module Metadata.Prelude (interfaces, add) where
 
 import qualified Data.Map as Map
 import qualified Control.Exception as E
-import qualified Paths_Elm as Path
+import qualified Elm.Internal.Paths as Path
 import System.Exit
 import System.IO
 import SourceSyntax.Module
@@ -30,8 +30,8 @@ prelude = string : text ++ map (\n -> (n, Hiding [])) modules
 interfaces :: Bool -> IO Interfaces
 interfaces noPrelude =
     if noPrelude
-    then return $ Map.empty
-    else safeReadDocs =<< Path.getDataFileName "interfaces.data"
+    then return Map.empty
+    else safeReadDocs =<< Path.getDataFile "interfaces.data"
 
 safeReadDocs :: FilePath -> IO Interfaces
 safeReadDocs name =
