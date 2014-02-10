@@ -7,7 +7,7 @@ import qualified Data.Map as Map
 import Control.Applicative ((<$>), (<*>))
 import Text.PrettyPrint as P
 
-import SourceSyntax.Expression (LExpr)
+import SourceSyntax.Expression (Expr)
 import SourceSyntax.Declaration
 import SourceSyntax.PrettyPrint
 import SourceSyntax.Type
@@ -30,12 +30,12 @@ instance (Pretty def) => Pretty (Module def) where
     where 
       prettyDecls = P.sep $ map pretty decls
 
-      modul = P.text "module" <+> moduleName <+> where'
+      modul = P.text "module" <+> moduleName <+> prettyExports <+> P.text "where"
       moduleName = P.text $ List.intercalate "." modNames
-      where' =
+      prettyExports =
           case exports of
-            [] -> P.text "where"
-            _ -> P.parens (commaCat $ map P.text exports) <+> P.text "where"
+            [] -> P.empty
+            _ -> P.parens . commaCat $ map P.text exports
 
       prettyImports = P.vcat $ map prettyImport imports
         
@@ -72,7 +72,7 @@ data MetadataModule =
     , path      :: FilePath
     , exports   :: [String]
     , imports   :: [(String, ImportMethod)]
-    , program   :: LExpr
+    , program   :: Expr
     , types     :: Map.Map String Type
     , fixities  :: [(Assoc, Int, String)]
     , aliases   :: [Alias]

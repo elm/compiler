@@ -32,7 +32,7 @@ dupErr err x =
 
 duplicates :: [D.Declaration] -> [String]
 duplicates decls =
-    map msg (dups (portNames ++ concatMap getNames defPatterns)) ++
+    map msg (dups (portNames ++ concatMap Pattern.boundVarList defPatterns)) ++
     case mapM exprDups (portExprs ++ defExprs) of
       Left name -> [msg name]
       Right _   -> []
@@ -50,14 +50,13 @@ duplicates decls =
               D.Out name expr _ -> (name, [expr])
               D.In name _ -> (name, [])
 
-    getNames = Set.toList . Pattern.boundVars
-
-    exprDups :: E.LExpr -> Either String E.LExpr
+    exprDups :: E.Expr -> Either String E.Expr
     exprDups expr = Expr.crawlLet defsDups expr
 
     defsDups :: [E.Def] -> Either String [E.Def]
     defsDups defs =
-        case dups $ concatMap (\(E.Definition name _ _) -> getNames name) defs of
+        let varsIn (E.Definition pattern _ _) = Pattern.boundVarList pattern in
+        case dups $ concatMap varsIn defs of
           []     -> Right defs
           name:_ -> Left name
 
