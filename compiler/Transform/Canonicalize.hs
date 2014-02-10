@@ -12,6 +12,7 @@ import qualified Data.Traversable as T
 import SourceSyntax.Annotation as A
 import SourceSyntax.Expression
 import SourceSyntax.Module
+import SourceSyntax.PrettyPrint (pretty)
 import qualified SourceSyntax.Pattern as P
 import qualified SourceSyntax.Type as Type
 import qualified SourceSyntax.Variable as Var
@@ -114,7 +115,10 @@ replace variable env v =
 rename :: Env -> Expr -> Either [Doc] Expr
 rename env (A ann expr) =
     let rnm = rename env
-        throw err = Left [ P.text $ "Error " ++ show ann ++ "\n" ++ err ]
+        throw err = Left [ P.vcat [ P.text "Error" <+> pretty ann <> P.colon
+                                  , P.text err
+                                  ]
+                         ]
         format = Either.either throw return
         renameType' environ = renameType (format . replace "variable" environ)
     in
