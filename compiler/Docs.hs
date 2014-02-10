@@ -8,6 +8,7 @@ import System.Exit
 import System.IO
 
 import Control.Applicative ((<$>))
+import Control.Arrow (second)
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import qualified Data.List as List
@@ -41,7 +42,7 @@ main = do
 
 config = Config { confIndent = 2, confCompare = keyOrder keys }
   where
-    keys = ["name","document","comment","raw","aliases","datatypes"
+    keys = ["tag","name","document","comment","raw","aliases","datatypes"
            ,"values","typeVariables","type","constructors"]
 
 parseFile path = do
@@ -148,15 +149,31 @@ collect infixes types aliases adts things =
                 [ "name" .= name, "raw" .= source, "comment" .= comment ] ++ fields
 
 instance ToJSON Type where
-    toJSON tipe =
-        case tipe of
-          Lambda t1 t2 -> toJSON [ "->", toJSON t1, toJSON t2 ]
-          Var x -> toJSON x
-          Data name ts -> toJSON (toJSON name : map toJSON ts)
-          Record fields ext -> object $ map (\(n,t) -> Text.pack n .= toJSON t) fields'
-              where fields' = case ext of
-                                Nothing -> fields
-                                Just x -> ("_", Var x) : fields
+  toJSON tipe =
+    object $
+    case tipe of
+      Lambda t1 t2 ->
+          [ "tag" .= ("function" :: Text.Text)
+          , "input" .= toJSON t1
+          , "output" .= toJSON t2
+          ]
+
+      Var x ->
+          [ "tag" .= ("var" :: Text.Text)
+          , "name" .= toJSON x
+          ]
+      
+      Data name ts -> 
+          [ "tag" .= ("adt" :: Text.Text)
+          , "name" .= toJSON name
+          , "args" .= map toJSON ts
+          ]
+       
+      Record fields ext ->
+          [ "tag" .= ("record" :: Text.Text)
+          , "fields" .= toJSON (map (toJSON . second toJSON) fields)
+          , "extension" .= toJSON ext
+          ]
 
 ctorToJson tipe (ctor, tipes) =
     object [ "name" .= ctor
