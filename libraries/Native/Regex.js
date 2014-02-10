@@ -15,7 +15,7 @@ Elm.Native.Regex.make = function(elm) {
     function caseInsensitive(re) {
         return new RegExp(re.source, 'gi');
     }
-    function pattern(raw) {
+    function regex(raw) {
         return new RegExp(raw, 'g');
     }
 
@@ -23,10 +23,8 @@ Elm.Native.Regex.make = function(elm) {
         return re.test(JS.fromString(string));
     }
 
-    function findAll(re, string) {
-        return find(Infinity, re, string);
-    }
     function find(n, re, str) {
+        n = n.ctor === "All" ? Infinity : n._0;
         var out = [];
         var number = 0;
         var string = JS.fromString(str);
@@ -51,10 +49,8 @@ Elm.Native.Regex.make = function(elm) {
         return JS.toList(out);
     }
 
-    function replaceAll(re, replacer, string) {
-        return replace(Infinity, re, replacer, string);
-    }
     function replace(n, re, replacer, string) {
+        n = n.ctor === "All" ? Infinity : n._0;
         var count = 0;
         function jsReplacer(match) {
             if (count++ > n) return match;
@@ -77,10 +73,10 @@ Elm.Native.Regex.make = function(elm) {
         return string.replace(re, jsReplacer);
     }
 
-    function split(re, string) {
-        return JS.toList(JS.fromString(string).split(re));
-    }
-    function splitN(n, re, str) {
+    function split(n, re, str) {
+        if (n === Infinity) {
+            return JS.toList(JS.fromString(string).split(re));
+        }
         var string = JS.fromString(str);
         var result;
         var out = [];
@@ -95,18 +91,13 @@ Elm.Native.Regex.make = function(elm) {
     }
 
     return Elm.Native.Regex.values = {
-        pattern: pattern,
+        regex: regex,
         caseInsensitive: caseInsensitive,
         escape: escape,
 
         contains: F2(contains),
-        findAll: F2(findAll),
         find: F3(find),
-
-        replaceAll: F3(replaceAll),
         replace: F4(replace),
-
-        split: F2(split),
-        splitN: F3(splitN),
+        split: F3(split),
     };
 };

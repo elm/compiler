@@ -3,16 +3,17 @@ module Regex where
 same kind of regular expressions accepted by JavaScript](https://developer.mozilla.org/en/docs/Web/JavaScript/Guide/Regular_Expressions).
 
 # Create
-@docs pattern, caseInsensitive, escape
+@docs regex, escape, caseInsensitive
 
-# Match
-@docs Match
+# Helpful Data Structures
 
-# Find and Replace
-@docs contains, find, findAll, replace, replaceAll
+These data structures are needed to help define functions like [`find`](#find)
+and [`replace`](#replace).
 
-# Split
-@docs split, splitN
+@docs HowMany, Match
+
+# Use
+@docs contains, find, replace, split
 
 -}
 
@@ -21,31 +22,35 @@ import Native.Regex
 
 data Regex = Regex
 
-{-| Escape all special characters. So `pattern (escape "$$$")`
-will match exactly `"$$$"` even though `$` is a special character.
+{-| Escape strings to be regular expressions, making all special characters
+safe. So `regex (escape "^a+")` will match exactly `"^a+"` instead of a series
+of `a`&rsquo;s that start at the beginning of the line.
 -}
 escape : String -> String
 escape = Native.Regex.escape
 
 {-| Create a Regex that matches patterns [as specified in JavaScript](https://developer.mozilla.org/en/docs/Web/JavaScript/Guide/Regular_Expressions#Writing_a_Regular_Expression_Pattern).
-Be careful to escape backslashes properly!
+
+Be careful to escape backslashes properly! For example, `"\w"` is escaping the
+letter `w` which is probably not what you want. You probably want `"\\w"`
+instead, which escapes the backslash.
 -}
-pattern : String -> Regex
-pattern = Native.Regex.pattern
+regex : String -> Regex
+regex = Native.Regex.regex
 
 
-{-| Make a pattern case insensitive -}
+{-| Make a regex case insensitive -}
 caseInsensitive : Regex -> Regex
 caseInsensitive = Native.Regex.caseInsensitive
 
 {-| Check to see if a Regex is contained in a string.
 
 ```haskell
-  contains (pattern "123") "12345" == True
-  contains (pattern "b+") "aabbcc" == True
+  contains (regex "123") "12345" == True
+  contains (regex "b+") "aabbcc" == True
 
-  contains (pattern "789") "12345" == False
-  contains (pattern "z+") "aabbcc" == False
+  contains (regex "789") "12345" == False
+  contains (regex "z+") "aabbcc" == False
 ```
 -}
 contains : Regex -> String -> Bool
@@ -55,79 +60,67 @@ contains = Native.Regex.contains
 Here are details on each field:
 
   * `match` &mdash; the full string of the match.
-  * `submatches` &mdash; a pattern might have [subpatterns, surrounded by
+  * `submatches` &mdash; a regex might have [subpatterns, surrounded by
     parentheses](https://developer.mozilla.org/en/docs/Web/JavaScript/Guide/Regular_Expressions#Using_Parenthesized_Substring_Matches).
     If there are N subpatterns, there will be N elements in the `submatches` list.
     Each submatch in this list is a `Maybe` because not all subpatterns may trigger.
-    For example, `(pattern "(a+)|(b+)")` will either match many `a`&rsquo;s or
+    For example, `(regex "(a+)|(b+)")` will either match many `a`&rsquo;s or
     many `b`&rsquo;s, but never both.
   * `index` &mdash; the index of the match in the original string.
   * `number` &mdash; if you find many matches, you can think of each one
     as being labeled with a `number` starting at one. So the first time you
     find a match, that is match `number` one. Second time is match `number` two.
-    This is useful when paired with `replaceAll` if replacement is dependent on how
+    This is useful when paired with `replace All` if replacement is dependent on how
     many times a pattern has appeared before.
 -}
 type Match = { match : String, submatches : [Maybe String], index : Int, number : Int }
 
-{-| Find all of the matches in a string:
+{-| `HowMany` is used to specify how many matches you want to make. So
+`replace All` would replace every match, but `replace (AtMost 2)` would
+replace at most two matches (i.e. zero, one, two, but never three or more).
+-}
+data HowMany = All | AtMost Int
+
+{-| Find matches in a string:
 
 ```haskell
-  words = findAll (pattern "\\w+") "hello world"
+  findTwoCommas = find (AtMost 2) (regex ",")
 
-    map .match words == ["hello","world"]
-    map .index words == [0,6]
+    -- map .index (findTwoCommas "a,b,c,d,e") == [1,3]
+    -- map .index (findTwoCommas "a b c d e") == []
 
-  places = findAll (pattern "[oi]n a (\\w+)") "I am on a boat in a lake."
+  places = find All (regex "[oi]n a (\\w+)") "I am on a boat in a lake."
 
-    map .match places== ["on a boat", "in a lake"]
-    map .submatches places == [ [Just "boat"], [Just "lake"] ]
+    -- map .match places == ["on a boat", "in a lake"]
+    -- map .submatches places == [ [Just "boat"], [Just "lake"] ]
 ```
 -}
-findAll : Regex -> String -> [Match]
-findAll = Native.Regex.findAll
-
-{-| Same as `findAll`, but `find` will quit searching after the *n<sup>th</sup>* match.
-That means the resulting list has maximum length N, but *it can be shorter*
-if there are not that many matches in the given string.
--}
-find : Int -> Regex -> String -> [Match]
+find : HowMany -> Regex -> String -> [Match]
 find = Native.Regex.find
 
-{-| Replace all matches. The function from `Match` to `String` lets
+{-| Replace matches. The function from `Match` to `String` lets
 you use the details of a specific match when making replacements.
 
 ```haskell
-  devowel = replaceAll (pattern "[aeiou]") (\_ -> "")
+  devowel = replace All (regex "[aeiou]") (\_ -> "")
 
-    devowel "The quick brown fox" == "Th qck brwn fx"
+    -- devowel "The quick brown fox" == "Th qck brwn fx"
 
-  reverseWords = replaceAll (pattern "\\w+") (\{match} -> String.reverse match)
+  reverseWords = replace All (regex "\\w+") (\{match} -> String.reverse match)
 
-    reverseWords "deliver mined parts" == "reviled denim strap"
+    -- reverseWords "deliver mined parts" == "reviled denim strap"
 ```
 -}
-replaceAll : Regex -> (Match -> String) -> String -> String
-replaceAll = Native.Regex.replaceAll
-
-{-| Same as `replaceAll`, but `replace` will quit after the *n<sup>th</sup>* match.-}
-replace : Int -> Regex -> (Match -> String) -> String -> String
+replace : HowMany -> Regex -> (Match -> String) -> String -> String
 replace = Native.Regex.replace
 
 {-| Split a string, using the regex as the separator.
 
 ```haskell
-  split (pattern " *, *") "a ,b, c,d" == ["a","b","c","d"]
+  split (AtMost 1) (regex ",") "tom,99,90,85" == ["tom","99,90,85"]
+
+  split All (regex ",") "a,b,c,d" == ["a","b","c","d"]
 ```
 -}
-split : Regex -> String -> [String]
+split : HowMany -> Regex -> String -> [String]
 split = Native.Regex.split
-
-{-| Same as `split` but stops after the *n<sup>th</sup>* match.
-
-```haskell
-  splitN 1 (pattern ": *") "tom: 99,90,85" == ["tom","99,90,85"]
-```
--}
-splitN : Int -> Regex -> String -> [String]
-splitN = Native.Regex.splitN
