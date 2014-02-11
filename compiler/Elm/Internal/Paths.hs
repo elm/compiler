@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Elm.Internal.Paths where
 
-import System.Directory (doesDirectoryExist)
+import System.Directory (doesFileExist)
 import System.Environment (getEnv)
 import System.FilePath ((</>))
 import System.IO.Unsafe (unsafePerformIO)
@@ -30,7 +30,7 @@ docs = unsafePerformIO $ getDataFile "docs.json"
 getDataFile :: FilePath -> IO FilePath
 getDataFile name = do
       path <- This.getDataFileName name
-      exists <- doesDirectoryExist path
+      exists <- doesFileExist path
       if exists
         then return path
         else do
