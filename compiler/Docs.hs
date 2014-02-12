@@ -31,20 +31,24 @@ data Flags = Flags
     { files :: [FilePath] }
     deriving (Data,Typeable,Show,Eq)
 
+defaultFlags :: Flags
 defaultFlags = Flags
   { files = def &= args &= typ "FILES"
   } &= help "Generate documentation for Elm"
     &= summary ("Generate documentation for Elm, (c) Evan Czaplicki")
 
+main :: IO ()
 main = do
   flags <- cmdArgs defaultFlags
-  mapM parseFile (files flags)
+  mapM_ parseFile (files flags)
 
+config :: Config
 config = Config { confIndent = 2, confCompare = keyOrder keys }
   where
     keys = ["tag","name","document","comment","raw","aliases","datatypes"
            ,"values","typeVariables","type","constructors"]
 
+parseFile :: FilePath -> IO ()
 parseFile path = do
   source <- readFile path
   case iParse docs source of
@@ -70,6 +74,7 @@ docComment = do
   let reversed = dropWhile (`elem` " \n\r") . drop 2 $ reverse contents
   return $ dropWhile (==' ') (reverse reversed)
 
+moduleDocs :: IParser (String, [String], String)
 moduleDocs = do
   optional freshLine
   (names,exports) <- moduleDef
@@ -152,7 +157,7 @@ instance ToJSON T.Type where
   toJSON tipe =
     object $
     case tipe of
-      T.Lambda t1 t2 ->
+      T.Lambda _ _ ->
           let tipes = T.collectLambdas tipe in
           [ "tag" .= ("function" :: Text.Text)
           , "args" .= toJSON (init tipes)
@@ -176,6 +181,7 @@ instance ToJSON T.Type where
           , "extension" .= toJSON ext
           ]
 
+ctorToJson :: T.Type -> (String, [T.Type]) -> Value
 ctorToJson tipe (ctor, tipes) =
     object [ "name" .= ctor
            , "type" .= foldr T.Lambda tipe tipes ]
