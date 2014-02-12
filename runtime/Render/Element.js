@@ -209,7 +209,9 @@ function update(node, curr, next) {
     case "RawHtml":
         // only markdown blocks have guids, so this must be a text block
         if (nextE.guid === null) {
-            node.innerHTML = nextE.html;
+            if(currE.html.valueOf() !== nextE.html.valueOf()) {
+                node.innerHTML = nextE.html;
+            }
             break;
         }
         if (nextE.guid !== currE.guid) {
