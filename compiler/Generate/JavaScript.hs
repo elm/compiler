@@ -293,7 +293,8 @@ generate unsafeModule =
     thisModule = dotSep ("_elm" : names modul ++ ["values"])
     programStmts =
         concat
-        [ setup (Just "_elm") (names modul ++ ["values"])
+        [ [ ExprStmt () $ string "use strict" ]
+        , setup (Just "_elm") (names modul ++ ["values"])
         , [ IfSingleStmt () thisModule (ret thisModule) ]
         , [ internalImports (List.intercalate "." (names modul)) ]
         , concatMap jsImport . Set.toList . Set.fromList . map fst $ imports modul
