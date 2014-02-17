@@ -53,7 +53,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
     }
 
     function dropDown(signal, values) {
-        return A3(newElement, w, h, {
+        return A3(newElement, 100, 24, {
             ctor: 'Custom',
             type: 'DropDown',
             render: renderDropDown(signal,values),
