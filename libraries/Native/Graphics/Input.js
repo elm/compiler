@@ -208,26 +208,24 @@ Elm.Native.Graphics.Input.make = function(elm) {
         field.elm_signal = model.signal;
         field.elm_handler = model.handler;
 
-        field.id = 'test';
-        field.type = type;
+        field.type = model.type;
         field.placeholder = JS.fromString(model.placeHolder);
-        field.value = JS.fromString(model.state.string);
-        setRange(field, model.state.selectionStart, model.state.selectionEnd, 'forward');
+        field.value = JS.fromString(model.content.string);
+        var selection = model.content.selection;
+        var direction = selection.direction.ctor === 'Forward' ? 'forward' : 'backward';
+        setRange(field, selection.start, selection.end, direction);
         field.style.border = 'none';
-        state = model.state;
 
         function update() {
-            var start = field.selectionStart;
-            var end = field.selectionEnd;
-            if (field.selectionDirection === 'backward') {
-                start = end;
-                end = field.selectionStart;
-            }
-            elm.notify(events.id, field.elm_handler({
+            var direction = field.selectionDirection === 'backward' ? 'Backward' : 'Forward';
+            elm.notify(field.elm_signal.id, field.elm_handler({
                 _:{},
                 string:JS.toString(field.value),
-                selectionStart:start,
-                selectionEnd:end
+                selection: {
+                    start:field.selectionStart,
+                    end:field.selectionEnd,
+                    direction: { ctor:direction }
+                },
             }));
         }
         function mousedown() {
@@ -246,16 +244,16 @@ Elm.Native.Graphics.Input.make = function(elm) {
 
     function updateField(node, oldModel, newModel) {
         node.elmHandler = newModel.handler;
-        var newStr = JS.fromString(newModel.state.string);
+        var newStr = JS.fromString(newModel.content.string);
         if (node.value !== newStr) node.value = newStr;
 
-        var start = newModel.state.selectionStart;
-        var end = newModel.state.selectionEnd;
-        var direction = 'forward';
+        var selection = newModel.content.selection;
+        var start = selection.start;
+        var end = selection.end;
+        var direction = selection.direction.ctor === 'Forward' ? 'forward' : 'backward';
         if (end < start) {
             start = end;
-            end = newModel.state.selectionStart;
-            direction = 'backward';
+            end = selection.start;
         }
         
         if (node.selectionStart !== start
@@ -266,17 +264,18 @@ Elm.Native.Graphics.Input.make = function(elm) {
     }
 
     function mkField(type) {
-        function field(signal, handler, placeHolder, state) {
+        function field(signal, handler, placeHolder, content) {
             return A3(newElement, 200, 30, {
                 ctor: 'Custom',
                 type: type + 'Input',
-                render: render,
-                update: update,
+                render: renderField,
+                update: updateField,
                 model: {
                     signal:signal,
                     handler:handler,
                     placeHolder:placeHolder,
-                    state:state
+                    content:content,
+                    type:type
                 }
             });
         }
