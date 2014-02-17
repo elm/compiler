@@ -31,6 +31,7 @@ Text fields come later.
 
 import Signal (Signal)
 import Graphics.Element (Element)
+import Native.Graphics.Input
 
 data SignalID a = SignalID
 
@@ -72,7 +73,7 @@ customButton : SignalID a -> a -> Element -> Element -> Element -> Element
 customButton = Native.Graphics.Input.customButton
 
 checkbox : SignalID a -> (Bool -> a) -> Bool -> Element
-checkbox = Native.Graphics.Input.checkboxes
+checkbox = Native.Graphics.Input.checkbox
 
 {-| Create a drop-down menu.  The following drop-down lets you choose your
 favorite British sport:
