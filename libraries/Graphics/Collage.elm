@@ -30,7 +30,7 @@ it as a single unit.
 
 -}
 
-import open Basics
+import Basics (..)
 import List
 import Either (Either, Left, Right)
 import Transform2D (Transform2D, identity)

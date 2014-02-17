@@ -14,7 +14,7 @@ module Time where
 
 -}
 
-import open Basics
+import Basics (..)
 import Native.Time
 import Signal (Signal)
 
