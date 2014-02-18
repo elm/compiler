@@ -33,8 +33,6 @@ import Signal (Signal)
 import Graphics.Element (Element)
 import Native.Graphics.Input
 
-data Handle a = Handle
-
 {-| This is the key abstraction of this library. An `Input` is a record
 of two fields:
 
@@ -44,6 +42,8 @@ of two fields:
 This will make more sense as you see more examples.
 -}
 type Input a = { signal : Signal a, handle : Handle a }
+
+data Handle a = Handle
 
 {-| Create a new `Input`. You just give the initial value for the
 input&rsquo;s `signal`.
@@ -78,9 +78,34 @@ users presses "2", `keys.signal` will update to `(Number 2)`.
 button : Handle a -> a -> String -> Element
 button = Native.Graphics.Input.button
 
+{-| Same as `button` but lets you customize buttons to look however you want.
+
+      click : Input ()
+      click = input ()
+
+      prettyButton : Element
+      prettyButton =
+          customButton click.handle
+              (image 100 40 "/button_up.jpg")
+              (image 100 40 "/button_hover.jpg")
+              (image 100 40 "/button_down.jpg")
+-}
 customButton : Handle a -> a -> Element -> Element -> Element -> Element
 customButton = Native.Graphics.Input.customButton
 
+{-| Create a checkbox. The following example creates three synced checkboxes:
+
+      check : Input Bool
+      check = input False
+
+      boxes : Bool -> Element
+      boxes checked =
+          let box = container 40 40 middle (checkbox check.handle id checked)
+          in  flow right [ box, box, box ]
+
+      main : Signal Element
+      main = boxes <~ check.signal
+-}
 checkbox : Handle a -> (Bool -> a) -> Bool -> Element
 checkbox = Native.Graphics.Input.checkbox
 
