@@ -17,7 +17,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
 
     function input(initialValue) {
         var sig = Signal.constant(initialValue);
-        return Tuple2(sig, sig);
+        return { _:{}, signal:sig, handle:sig };
     }
 
     function renderDropDown(signal, values) {
