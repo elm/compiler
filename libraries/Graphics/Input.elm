@@ -150,7 +150,7 @@ clickable = Native.Graphics.Input.clickable
 
 {-| Represents the current content of a text field. For example:
 
-        FieldContent "She sells sea shells" (Selection 0 3 Backward)
+      FieldContent "She sells sea shells" (Selection 0 3 Backward)
 
 This means the user highlighted the substring `"She"` backwards.
 -}
@@ -158,10 +158,10 @@ type FieldContent = { string:String, selection:Selection }
 
 {-| The selection within a text field. `start` is never greater than `end`:
 
-      Selection 0 0 Forward  -- cursor precedes all characters
+    Selection 0 0 Forward  -- cursor precedes all characters
 
-      Selection 5 9 Backward -- highlighting characters starting after
-                             -- the 5th and ending after the 9th
+    Selection 5 9 Backward -- highlighting characters starting after
+                           -- the 5th and ending after the 9th
 -}
 type Selection = { start:Int, end:Int, direction:Direction }
 
@@ -170,7 +170,7 @@ data Direction = Forward | Backward
 
 {-| A field with no content:
 
-      FieldContent "" (Selection 0 0 Forward)
+    FieldContent "" (Selection 0 0 Forward)
 -}
 noContent : FieldContent
 noContent = FieldContent "" (Selection 0 0 Forward)
