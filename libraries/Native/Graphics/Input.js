@@ -16,8 +16,8 @@ Elm.Native.Graphics.Input.make = function(elm) {
     var Tuple2 = Utils.Tuple2;
 
     function input(initialValue) {
-        var sig = Signal.constant(initialValue);
-        return { _:{}, signal:sig, handle:sig };
+        var signal = Signal.constant(initialValue);
+        return { _:{}, signal:signal, handle:signal };
     }
 
     function renderDropDown(signal, values) {
@@ -94,6 +94,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
 
     function renderCustomButton(model) {
         var btn = newNode('div');
+        btn.elm_signal = model.signal;
         btn.elm_value = model.value;
 
         btn.elm_up    = Render.render(model.up);
@@ -140,8 +141,16 @@ Elm.Native.Graphics.Input.make = function(elm) {
     }
 
     function updateCustomButton(node, oldModel, newModel) {
-        node.elm_signal = newModel.signal;
-        node.elm_value = newModel.value;
+        var signal = newModel.signal;
+        node.elm_up.elm_signal = signal;
+        node.elm_hover.elm_signal = signal;
+        node.elm_down.elm_signal = signal;
+
+        var value = newModel.value;
+        node.elm_up.elm_value = value;
+        node.elm_hover.elm_value = value;
+        node.elm_down.elm_value = value;
+
         Render.update(node.elm_up, oldModel.up, newModel.up)
         Render.update(node.elm_hover, oldModel.hover, newModel.hover)
         Render.update(node.elm_down, oldModel.down, newModel.down)
