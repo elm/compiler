@@ -14,7 +14,7 @@ you have very strict latency requirements.
 @docs Response
 -}
 
-import open Signal
+import Signal (..)
 import Native.Http
 
 {-| The datatype for responses. Success contains only the returned message.

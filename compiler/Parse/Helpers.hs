@@ -169,7 +169,8 @@ betwixt a b c = do char a ; out <- c
                    char b <?> "closing '" ++ [b] ++ "'" ; return out
 
 surround a z name p = do
-  char a ; v <- padded p
+  char a
+  v <- padded p
   char z <?> unwords ["closing", name, show z]
   return v
 
