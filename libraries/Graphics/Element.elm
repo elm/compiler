@@ -37,12 +37,12 @@ If you need more precision, you can create custom positions.
       midRightAt, topLeftAt, topRightAt, bottomLeftAt, bottomRightAt
 -}
 
-import open Basics
+import Basics (..)
 import Native.Utils
 import JavaScript as JS
 import JavaScript (JSString)
 import List as List
-import open Color
+import Color (..)
 import Maybe (Maybe, Just, Nothing)
 
 type Properties = {

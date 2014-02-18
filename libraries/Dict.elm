@@ -31,8 +31,8 @@ Insert, remove, and query operations all take *O(log n)* time.
 -}
 
 
-import open Basics
-import open Maybe
+import Basics (..)
+import Maybe (..)
 import Native.Error
 import List
 import String
