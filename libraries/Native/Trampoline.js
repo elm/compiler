@@ -5,6 +5,7 @@ Elm.Native.Trampoline.make = function(elm) {
     if (elm.Native.Trampoline.values) return elm.Native.Trampoline.values;
 
     // trampoline : Trampoline a -> a
+    var trampoline;
     trampoline = function(t) {
         var tramp = t;
         while(true) {
