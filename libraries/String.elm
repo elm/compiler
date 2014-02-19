@@ -231,7 +231,7 @@ any = Native.String.any
 
       all isDigit "90210" == True
       all isDigit "R2-D2" == False
-      any isDigit "heart" == False
+      all isDigit "heart" == False
 -}
 all : (Char -> Bool) -> String -> Bool
 all = Native.String.all
