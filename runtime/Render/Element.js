@@ -29,6 +29,7 @@ function setProps(props, e) {
     }
     if (props.hover.ctor !== '_Tuple0') {
         var overCount = 0;
+        e.style.pointerEvents = 'auto';
         e.addEventListener('mouseover', function() {
             if (overCount++ > 0) return;
             props.hover(true);
@@ -99,6 +100,8 @@ function goDown(e) { return e }
 function goRight(e) { e.style.styleFloat = e.style.cssFloat = "left"; return e; }
 function flowWith(f, array) {
     var container = newElement('div');
+    if (f == goIn) container.style.pointerEvents = 'none';
+
     for (var i = array.length; i--; ) {
         container.appendChild(f(render(array[i])));
     }
