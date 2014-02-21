@@ -39,8 +39,6 @@ If you need more precision, you can create custom positions.
 
 import Basics (..)
 import Native.Utils
-import JavaScript as JS
-import JavaScript (JSString)
 import List as List
 import Color (..)
 import Maybe (Maybe, Just, Nothing)
@@ -51,8 +49,8 @@ type Properties = {
   height  : Int,
   opacity : Float,
   color   : Maybe Color,
-  href    : JSString,
-  tag     : JSString,
+  href    : String,
+  tag     : String,
   hover   : (),
   click   : ()
  }
@@ -120,21 +118,20 @@ with a link like this: `/facts-about-animals.elm#all-about-badgers`
 -}
 tag : String -> Element -> Element
 tag  name e = let p = e.props in
-              { element=e.element, props={p | tag <- JS.fromString name} }
+              { element=e.element, props={p | tag <- name} }
 
 {-| Create an `Element` that is a hyper-link. -}
 link : String -> Element -> Element
 link href e = let p = e.props in
-              { element=e.element, props={p | href <- JS.fromString href} }
+              { element=e.element, props={p | href <- href} }
 
-emptyStr = JS.fromString ""
 newElement w h e =
-  { props = Properties (Native.Utils.guid ()) w h 1 Nothing emptyStr emptyStr () ()
+  { props = Properties (Native.Utils.guid ()) w h 1 Nothing "" "" () ()
   , element = e
   }
 
 data ElementPrim
-  = Image ImageStyle Int Int JSString
+  = Image ImageStyle Int Int String
   | Container Position Element
   | Flow Direction [Element]
   | Spacer
@@ -145,13 +142,13 @@ data ImageStyle = Plain | Fitted | Cropped (Int,Int) | Tiled
 
 {-| Create an image given a width, height, and image source. -}
 image : Int -> Int -> String -> Element
-image w h src = newElement w h (Image Plain w h (JS.fromString src))
+image w h src = newElement w h (Image Plain w h src)
 
 {-| Create a fitted image given a width, height, and image source.
 This will crop the picture to best fill the given dimensions.
 -}
 fittedImage : Int -> Int -> String -> Element
-fittedImage w h src = newElement w h (Image Fitted w h (JS.fromString src))
+fittedImage w h src = newElement w h (Image Fitted w h src)
 
 {-| Create a cropped image. Take a rectangle out of the picture starting
 at the given top left coordinate. If you have a 140-by-140 image,
@@ -161,11 +158,11 @@ the following will cut a 100-by-100 square out of the middle of it.
 -}
 croppedImage : (Int,Int) -> Int -> Int -> String -> Element
 croppedImage pos w h src =
-    newElement w h (Image (Cropped pos) w h (JS.fromString src))
+    newElement w h (Image (Cropped pos) w h src)
 
 tiledImage : Int -> Int -> String -> Element
 tiledImage w h src =
-    newElement w h (Image Tiled w h (JS.fromString src))
+    newElement w h (Image Tiled w h src)
 
 data Three = P | Z | N
 data Pos = Absolute Int | Relative Float
