@@ -60,39 +60,7 @@ Elm.Native.JavaScript.make = function(elm) {
       throw new Error("'fromRecord' must be called on a record.");
   }
 
-  function id(n) { return n; }
-
-  function toElement(w,h,domNode) {
-      return A3( newElement, w, h, {
-              ctor: 'Custom',
-              type: 'DomNode',
-              render: function(node) { return node; },
-              update: function(node,oldNode,newNode) {
-                  if (node === newNode) return;
-                  node.parentNode.replaceChild(newNode, node);
-              },
-              model: domNode
-          });
-  }
-
-  function fromElement(element) {
-      return Render.render(element);
-  }
-
   return elm.Native.JavaScript.values = {
-      toInt      : function(n) { return n|0; },
-      toFloat    : function(n) { return +n; },
-      toBool     : id,
-      toString   : id,
-      toList     : List.fromArray,
-      fromString : id,
-      fromList   : List.toArray,
-      fromInt    : id,
-      fromFloat  : id,
-      fromBool   : id,
-
-      toElement   : toElement,
-      fromElement : fromElement,
       toRecord    : fromJS,
       fromRecord  : fromRecord
   };
