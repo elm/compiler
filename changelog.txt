@@ -18,8 +18,8 @@ Improvements:
   * Drastically improved performance on markdown parsing (thanks to @Dandandan) 
   * Add Date.fromTime function
   * Use pointer-events to detect hovers on layered elements (thanks to @Xashili)
-  * Fix serious bugs in Bitwise library
-  * Fix bug in exporting Maybe values through ports
+  * Fix bugs in Bitwise library
+  * Fix bug when exporting Maybe values through ports
 
 ## 0.11
 
