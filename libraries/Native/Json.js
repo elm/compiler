@@ -15,11 +15,14 @@ Elm.Native.Json.make = function(elm) {
     switch (v.ctor) {
     case 'Null'   : return null;
     case 'String' : return JS.fromString(v._0);
+    case 'Number' : return v._0;
+    case 'Boolean': return v._0;
     case 'Object' :
       var obj = {};
       var array = JS.fromList(Dict.toList(v._0));
       for (var i = array.length; i--; ) {
-	obj[JS.fromString(array[i]._0)] = fromValue(array[i]._1);
+        var entry = array[i];
+        obj[JS.fromString(entry._0)] = fromValue(entry._1);
       }
       return obj;
     case 'Array'  :
@@ -28,20 +31,18 @@ Elm.Native.Json.make = function(elm) {
 	array[i] = fromValue(array[i]);
       }
       return array;
-    default :
-      return v._0;
     }
   }
 
-  function toPrettyJSString(sep, obj) {
-    return JSON.stringify(fromValue(obj), null, JS.fromString(sep));
+  function toString(sep, value) {
+    return JSON.stringify(fromValue(value), null, JS.fromString(sep));
   }
 
   function toValue(v) {
     switch (typeof v) {
-    case 'string' : return { ctor:"String", _0: JS.toString(v) };
-    case 'number' : return { ctor:"Number", _0: JS.toFloat(v)  };
-    case 'boolean': return { ctor:"Boolean"  , _0: JS.toBool(v)   };
+    case 'string' : return { ctor:"String" , _0: JS.toString(v) };
+    case 'number' : return { ctor:"Number" , _0: JS.toFloat(v)  };
+    case 'boolean': return { ctor:"Boolean", _0: JS.toBool(v)   };
     case 'object' :
       if (v === null) return { ctor:"Null" };
       if (v instanceof Array) {
@@ -54,19 +55,17 @@ Elm.Native.Json.make = function(elm) {
     }
   }
 
-  function fromJSString(str) {
+  function fromString(str) {
     try {
-	return Maybe.Just(toValue(JSON.parse(str)));
+	return Maybe.Just(toValue(JSON.parse(JS.fromString(str))));
     } catch (e) {
 	return Maybe.Nothing;
     }
   }
 
   return elm.Native.Json.values = {
-      toJSString : F2(toPrettyJSString),
-      fromJSString : fromJSString,
-      toJSObject : fromValue,
-      fromJSObject : toValue
+      toString : F2(toString),
+      fromString : fromString,
   };
 
 };
