@@ -296,7 +296,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
     }
 
 
-    function hoverable(signal, handler, element) {
+    function hoverable(signal, handler, elem) {
         function onHover(bool) {
             elm.notify(signal.id, handler(bool));
         }
@@ -304,7 +304,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
         return { props:props, element:elem.element };
     }
 
-    function clickable(signal, value, element) {
+    function clickable(signal, value, elem) {
         function onClick(bool) {
             elm.notify(signal.id, value);
         }
