@@ -8,8 +8,9 @@ improve as we find its key failings.
 @docs toRecord, fromRecord
 -}
 
-import JavaScript (JSObject)
 import Native.JavaScript
+
+data RawObject = RawObject
 
 {-| Turn arbitrary JavaScript objects into Elm records.
 Arrays are converted into lists, nested objects are allowed.
@@ -23,7 +24,7 @@ No `null` values or non-homogeneous arrays.
         { answer:null }
         { info:[true,42,'what'] }
 -}
-toRecord : JSObject -> a
+toRecord : RawObject -> a
 toRecord = Native.JavaScript.toRecord
 
 {-| Turn arbitrary Elm records into JavaScript objects.
@@ -37,5 +38,5 @@ Lists become arrays, nested records are allowed. No ADTs.
         { answer = Nothing }
         { result = Left "An error occurred" }
 -}
-fromRecord : a -> JSObject
+fromRecord : a -> RawObject
 fromRecord = Native.JavaScript.fromRecord
