@@ -13,7 +13,8 @@ Breaking Changes:
 
 Improvements:
 
-  * Support Trampolining (thanks to @maxsnew and @timthelion) 
+  * Add Trampoline library (thanks to @maxsnew and @timthelion) 
+  * Add Debug library (inspired by @timthelion)
   * Drastically improved performance on markdown parsing (thanks to @Dandandan) 
   * Add Date.fromTime function
   * Use pointer-events to detect hovers on layered elements (thanks to @Xashili)
