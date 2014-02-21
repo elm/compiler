@@ -20,7 +20,6 @@ import Basics (..)
 import Color (Color)
 import Graphics.Element (Element, Three, Pos, ElementPrim, Properties)
 import Maybe (Maybe)
-import JavaScript (JSString)
 import Native.Text
 
 data Text = Text
