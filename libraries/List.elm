@@ -10,7 +10,7 @@ list must have the same type.
 @docs head, tail, last, filter, take, drop
 
 # Putting Lists Together
-@docs concat, concatMap, join, intersperse, zip, zipWith
+@docs concat, concatMap, join, intersperse, zip, zipWith, repeat
 
 # Taking Lists Apart
 @docs partition, unzip

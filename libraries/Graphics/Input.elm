@@ -1,199 +1,228 @@
 module Graphics.Input where
-
 {-| This module is for creating standard input widgets such as buttons and
-text boxes. In general, functions in this library return a signal representing
-events from the user.
+text fields. All functions in this library follow a general pattern in which
+you create an `Input` that many elements can report to:
 
-The simplest inputs are *one-way inputs*, meaning the user can update
-them, but the programmer cannot. If you need to update an input from
-within the program you want the slightly more complex *two-way inputs*.
-This document will always show the one-way inputs first, *then* the
-two-way inputs.
+```haskell
+clicks : Input ()
+clicks = input ()
 
-# Buttons
-@docs button, customButton, buttons, customButtons
+clickableYogi : Element
+clickableYogi = clickable clicks.handle () (image 40 40 "/yogi.jpg")
+```
 
-# Fields
-@docs field, password, email, fields, FieldState, emptyFieldState
+Whenever the user clicks on the resulting `clickableYogi` element, it sends an
+update to the `clicks` input. You will see this pattern again and again in
+examples in this library, so just read on to get a better idea of how it works!
 
-# Checkboxes
-@docs checkbox, checkboxes
+# Creating Inputs
+@docs Input, input
 
-# Drop Downs
-@docs stringDropDown, dropDown
+# Basic Input Elements
+Text fields come later.
+@docs button, customButton, checkbox, dropDown
 
-# Mouse Hover
-@docs hoverable, hoverables
+# Clicks and Hovers
+@docs clickable, hoverable
+
+# Text Fields
+@docs field, password, email, noContent, FieldContent, Selection, Direction
 -}
 
-import Basics (String)
-import Signal (Signal,lift,dropRepeats)
-import Native.Graphics.Input
-import List
+import Signal (Signal)
 import Graphics.Element (Element)
-import Maybe (Maybe)
-import JavaScript (JSString)
+import Native.Graphics.Input
 
-id x = x
+{-| This is the key abstraction of this library. An `Input` is a record
+of two fields:
 
-{-| Create a group of buttons.
+  1. `signal` &mdash; all values coming to this input from &ldquo;the world&rdquo;
+  2. `handle` &mdash; a way to refer to this particular input and send it values
 
- * The first argument is the default value of the `events` signal.
- * The `events` signal represents all of the activity in this group
-   of buttons.
- * The `button` function creates a button
-   with the given name, like &ldquo;Submit&rdquo; or &ldquo;Cancel&rdquo;.
-   The `a` value is sent to `events` whenever the button is pressed.
+This will make more sense as you see more examples.
 -}
-buttons : a -> { events : Signal a,
-                 button : a -> String -> Element }
-buttons = Native.Graphics.Input.buttons
+type Input a = { signal : Signal a, handle : Handle a }
 
-{-| Create a button with a given label. The result is an `Element` and
-a signal of units. This signal triggers whenever the button is pressed.
+data Handle a = Handle
+
+{-| Create a new `Input`. You just give the initial value for the
+input&rsquo;s `signal`.
+
+Note for Advanced Users: creating an `Input` is an inherently imperative
+action, so this is one of very few impure functions in Elm. That means
+`(input ())` and `(input ())` are actually two different inputs with different
+signals and handles. By design, Elm&rsquo;s impure functions can only be useful
+as you build your signal graph at startup, so Elm is still pure at runtime.
 -}
-button : String -> (Element, Signal ())
-button txt =
-    let pool = buttons ()
-    in  (pool.button () txt, pool.events)
+input : a -> Input a
+input = Native.Graphics.Input.input
 
-{-| Create a group of custom buttons.
+{-| Create a standard button. The following example begins making a basic
+calculator:
 
- * The first argument is the default value of the `events` signal.
- * The `events` signal represents all of the activity in this group
-   of custom buttons.
- * The `customButton` function creates a button with three different visual
-   states, one for up, hovering, and down. The resulting button has dimensions
-   large enough to fit all three possible `Elements`.
-   The `a` value is sent to `events` whenever the button is pressed.
+      data Keys = Number Int | Plus | Minus | Clear
+
+      keys : Input Keys
+      keys = input Clear
+
+      calculator : Element
+      calculator =
+          flow right [ button keys.handle (Number 1) "1"
+                     , button keys.handle (Number 2) "2"
+                     , button keys.handle    Plus    "+"
+                     ]
+
+If the user presses the "+" button, `keys.signal` will update to `Plus`. If the
+users presses "2", `keys.signal` will update to `(Number 2)`.
 -}
-customButtons : a -> { events : Signal a,
-                       customButton : a -> Element -> Element -> Element -> Element }
-customButtons = Native.Graphics.Input.customButtons
+button : Handle a -> a -> String -> Element
+button = Native.Graphics.Input.button
 
-{-| Create a button with custom states for up, hovering, and down
-(given in that order). The result is an `Element` and  a signal of
-units. This signal triggers whenever the button is pressed.
+{-| Same as `button` but lets you customize buttons to look however you want.
+
+      click : Input ()
+      click = input ()
+
+      prettyButton : Element
+      prettyButton =
+          customButton click.handle
+              (image 100 40 "/button_up.jpg")
+              (image 100 40 "/button_hover.jpg")
+              (image 100 40 "/button_down.jpg")
 -}
-customButton : Element -> Element -> Element -> (Element, Signal ())
-customButton up hover down =
-    let pool = customButtons ()
-    in  (pool.customButton () up hover down, pool.events)
+customButton : Handle a -> a -> Element -> Element -> Element -> Element
+customButton = Native.Graphics.Input.customButton
 
-{-| Create a group of checkboxes.
+{-| Create a checkbox. The following example creates three synced checkboxes:
 
- * The first argument is the default value of the `events` signal.
- * The `events` signal represents all of the activity in this group
-   of checkboxes.
- * The `checkbox` function creates a
-   checkbox with a given state. The `(Bool -> a)` function is used
-   when the checkbox is modified. It takes the new state and turns
-   it into a value that can be sent to `events`. For example, this
-   lets you add an ID to distinguish between checkboxes.
+      check : Input Bool
+      check = input False
+
+      boxes : Bool -> Element
+      boxes checked =
+          let box = container 40 40 middle (checkbox check.handle id checked)
+          in  flow right [ box, box, box ]
+
+      main : Signal Element
+      main = boxes <~ check.signal
 -}
-checkboxes : a -> { events : Signal a,
-                    checkbox : (Bool -> a) -> Bool -> Element }
-checkboxes = Native.Graphics.Input.checkboxes
+checkbox : Handle a -> (Bool -> a) -> Bool -> Element
+checkbox = Native.Graphics.Input.checkbox
 
-{-| Create a checkbox with a given start state. Unlike `button`, this
-result is a *signal* of elements. That is because a checkbox has state
-that updates based on user input. The boolean signal represents the
-current state of the checkbox.
+{-| Create a drop-down menu.  The following drop-down lets you choose your
+favorite British sport:
+
+      data Sport = Football | Cricket | Snooker
+
+      sport : Input Sport
+      sport = input Nothing
+
+      sportDropDown : Element
+      sportDropDown =
+          dropDown sport.handle
+            [ (""        , Nothing)
+            , ("Football", Just Football)
+            , ("Cricket" , Just Cricket)
+            , ("Snooker" , Just Snooker)
+            ]
+
+If the user selects "Football" from the drop down menue, `sport.signal`
+will update to `Just Football`.
 -}
-checkbox : Bool -> (Signal Element, Signal Bool)
-checkbox b =
-    let cbs = checkboxes b
-    in  (lift (cbs.checkbox id) cbs.events, cbs.events)
+dropDown : Handle a -> [(String,a)] -> Element
+dropDown = Native.Graphics.Input.dropDown
 
-{-| Detect when the mouse is hovering over some elements. This
-allows you to create and destroy elements dynamically and still
-detect hover information.
+{-| Detect mouse hovers over a specific `Element`. In the following example,
+we will create a hoverable picture called `cat`.
+
+      hover : Input Bool
+      hover = input False
+
+      cat : Element
+      cat = image 30 30 "/cat.jpg"
+              |> hoverable hover.handle id
+
+When the mouse hovers above the `cat` element, `hover.signal` will become
+`True`. When the mouse leaves it, `hover.signal` will become `False`.
 -}
-hoverables : a -> { events : Signal a,
-                    hoverable : (Bool -> a) -> Element -> Element }
-hoverables = Native.Graphics.Input.hoverables
+hoverable : Handle a -> (Bool -> a) -> Element -> Element
+hoverable = Native.Graphics.Input.hoverable
 
-{-| Detect when the mouse is hovering over a specific `Element`. -}
-hoverable : Element -> (Element, Signal Bool)
-hoverable elem =
-    let pool = hoverables False
-    in  (pool.hoverable id elem, pool.events)
+{-| Detect mouse clicks on a specific `Element`. In the following example,
+we will create a clickable picture called `cat`.
 
-{-| Represents the current state of a text field. The `string` represents the
-characters filling the text field. The `selectionStart` and `selectionEnd`
-values represent what the user has selected with their mouse or keyboard.
-For example:
+      data Picture = Cat | Hat
 
-        { string="She sells sea shells", selectionStart=3, selectionEnd=0 }
+      picture : Input Picture
+      picture = input Cat
+
+      cat : Element
+      cat = image 30 30 "/cat.jpg"
+               |> clickable picture.handle Cat
+
+      hat : Element
+      hat = image 30 30 "/hat.jpg"
+               |> clickable picture.handle Hat
+
+When the user clicks on the `cat` element, `picture.signal` receives
+an update containing the value `Cat`. When the user clicks on the `hat` element,
+`picture.signal` receives an update containing the value `Hat`. This lets you
+distinguish which element was clicked. In a more complex example, they could be
+distinguished with IDs or more complex data structures.
+-}
+clickable : Handle a -> a -> Element -> Element
+clickable = Native.Graphics.Input.clickable
+
+{-| Represents the current content of a text field. For example:
+
+      FieldContent "She sells sea shells" (Selection 0 3 Backward)
 
 This means the user highlighted the substring `"She"` backwards.
 -}
-type FieldState = { string:String, selectionStart:Int, selectionEnd:Int }
+type FieldContent = { string:String, selection:Selection }
 
-{-| Create a group of text input fields.
+{-| The selection within a text field. `start` is never greater than `end`:
 
- * The first argument is the default value of the `events` signal.
- * The `events` signal represents all of the activity in this group
-   of text fields.
- * The `field` function creates a
-   field with the given ghost text and initial field state.
-   When the field is modified, the `(FieldState -> a)` function
-   takes the new state and turns
-   it into a value that can be sent to `events`. For example, this
-   lets you add an ID to distinguish between input fields.
+    Selection 0 0 Forward  -- cursor precedes all characters
+
+    Selection 5 9 Backward -- highlighting characters starting after
+                           -- the 5th and ending after the 9th
 -}
-fields : a -> { events : Signal a,
-                field : (FieldState -> a) -> String -> FieldState -> Element }
-fields = Native.Graphics.Input.fields
+type Selection = { start:Int, end:Int, direction:Direction }
 
-{-| The empty field state:
+{-| The direction of selection.-}
+data Direction = Forward | Backward
 
-        { string="", selectionStart=0, selectionEnd=0 }
+{-| A field with no content:
+
+    FieldContent "" (Selection 0 0 Forward)
 -}
-emptyFieldState : FieldState
-emptyFieldState = { string="", selectionStart=0, selectionEnd=0 }
+noContent : FieldContent
+noContent = FieldContent "" (Selection 0 0 Forward)
 
-{-| Create a field with the given default text. The output is an element
-that updates to match the user input and a signal of strings representing
-the content of the field.
+{-| Create a text field. The following example creates a time-varying element
+called `nameField`. As the user types their name, the field will be updated
+to match what they have entered.
+
+      name : Input FieldContent
+      name = input noContent
+
+      nameField : Signal Element
+      nameField = field name.handle (\content -> content) "Name" <~ nameContent
 -}
-field : String -> (Signal Element, Signal String)
-field placeHolder =
-    let tfs = fields emptyFieldState
-        changes = dropRepeats tfs.events
-    in  (lift (tfs.field id placeHolder) changes,
-         dropRepeats (lift .string changes))
+field : Handle a -> (FieldContent -> a) -> String -> FieldContent -> Element
+field = Native.Graphics.Input.field
 
 {-| Same as `field` but the UI element blocks out each characters. -}
-password : String -> (Signal Element, Signal String)
-password placeHolder =
-    let tfs = Native.Graphics.Input.passwords emptyFieldState
-        changes = dropRepeats tfs.events
-    in  (lift (tfs.field id placeHolder) changes,
-         dropRepeats (lift .string changes))
+password : Handle a -> (FieldContent -> a) -> String -> FieldContent -> Element
+password = Native.Graphics.Input.password
 
 {-| Same as `field` but it adds an annotation that this field is for email
 addresses. This is helpful for auto-complete and for mobile users who may
 get a custom keyboard with an `@` and `.com` button.
 -}
-email : String -> (Signal Element, Signal String)
-email placeHolder =
-    let tfs = Native.Graphics.Input.emails emptyFieldState
-        changes = dropRepeats tfs.events
-    in  (lift (tfs.field id placeHolder) changes,
-         dropRepeats (lift .string changes))
+email : Handle a -> (FieldContent -> a) -> String -> FieldContent -> Element
+email = Native.Graphics.Input.email
 
-{-| Create a drop-down menu. When the user selects a string,
-the current state of the drop-down is set to the associated
-value. This lets you avoid manually mapping the string onto
-functions and values.
--}
-dropDown : [(String,a)] -> (Signal Element, Signal a)
-dropDown = Native.Graphics.Input.dropDown
-
-{-| Create a drop-down menu for selecting strings. The resulting
-signal of strings represents the string that is currently selected.
--}
-stringDropDown : [String] -> (Signal Element, Signal String)
-stringDropDown strs =
-    dropDown (List.map (\s -> (s,s)) strs)
+-- area : Handle a -> (FieldContent -> a) -> Handle b -> ((Int,Int) -> b) -> (Int,Int) -> String -> FieldContent -> Element
+-- area = Native.Graphics.Input.area
