@@ -36,16 +36,12 @@ inc tipe x =
       Lambda _ _ -> error "functions should not be allowed through input ports"
       Var _ -> error "type variables should not be allowed through input ports"
       Data ctor []
-          | ctor == "Int"    -> elm JSNumber
-          | ctor == "Float"  -> elm JSNumber
-          | ctor == "Bool"   -> elm JSBoolean
-          | ctor == "String" -> elm JSString
-          | ctor == "JavaScript.JSNumber" -> js JSNumber
-          | ctor == "JavaScript.JSBool"   -> js JSBoolean
-          | ctor == "JavaScript.JSString" -> js JSString
+          | ctor == "Int"       -> from JSNumber
+          | ctor == "Float"     -> from JSNumber
+          | ctor == "Bool"      -> from JSBoolean
+          | ctor == "String"    -> from JSString
           where
-            elm checks = check x checks (obj ("_J.to" ++ ctor) <| x)
-            js checks = check x checks x
+            from checks = check x checks (obj ("_J.to" ++ ctor) <| x)
 
       Data ctor [t]
           | ctor == "Maybe.Maybe" ->
@@ -104,10 +100,8 @@ out tipe x =
 
       Var _ -> error "type variables should not be allowed through input ports"
       Data ctor []
-          | ctor `elem` ["Int","Float","Bool","String"] -> obj ("_J.from" ++ ctor) <| x
-          | ctor `elem` jsPrims -> x
-          where
-            jsPrims = map ("JavaScript.JS"++) ["Number","Bool","String"]
+          | ctor `elem` ["Int","Float","Bool","String"] ->
+              obj ("_J.from" ++ ctor) <| x
 
       Data ctor [t]
           | ctor == "Maybe.Maybe" ->
