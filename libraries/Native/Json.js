@@ -11,7 +11,7 @@ Elm.Native.Json.make = function(elm) {
     var JS = Elm.JavaScript.make(elm);
     var Utils = Elm.Native.Utils.make(elm);
 
-    function fromValue(v) {
+    function toJS(v) {
         switch (v.ctor) {
         case 'Null'   : return null;
         case 'String' : return JS.fromString(v._0);
@@ -22,23 +22,23 @@ Elm.Native.Json.make = function(elm) {
             var array = JS.fromList(Dict.toList(v._0));
             for (var i = array.length; i--; ) {
                 var entry = array[i];
-                obj[JS.fromString(entry._0)] = fromValue(entry._1);
+                obj[JS.fromString(entry._0)] = toJS(entry._1);
             }
             return obj;
         case 'Array'  :
             var array = JS.fromList(v._0);
             for (var i = array.length; i--; ) {
-	        array[i] = fromValue(array[i]);
+	        array[i] = toJS(array[i]);
             }
             return array;
         }
     }
 
     function toString(sep, value) {
-        return JSON.stringify(fromValue(value), null, JS.fromString(sep));
+        return JSON.stringify(toJS(value), null, JS.fromString(sep));
     }
 
-    function toValue(v) {
+    function fromJS(v) {
         switch (typeof v) {
         case 'string' : return { ctor:"String" , _0: JS.toString(v) };
         case 'number' : return { ctor:"Number" , _0: JS.toFloat(v)  };
@@ -46,18 +46,18 @@ Elm.Native.Json.make = function(elm) {
         case 'object' :
             if (v === null) return { ctor:"Null" };
             if (v instanceof Array) {
-                for (var i = v.length; i--; ) { v[i] = toValue(v[i]); }
+                for (var i = v.length; i--; ) { v[i] = fromJS(v[i]); }
 	        return { ctor:"Array", _0: JS.toList(v) };
             }
             var array = [];
-            for (var k in v) array.push(Utils.Tuple2(JS.toString(k), toValue(v[k])));
+            for (var k in v) array.push(Utils.Tuple2(JS.toString(k), fromJS(v[k])));
             return { ctor:"Object", _0: Dict.fromList(JS.toList(array)) };
         }
     }
 
     function fromString(str) {
         try {
-	    return Maybe.Just(toValue(JSON.parse(JS.fromString(str))));
+	    return Maybe.Just(fromJS(JSON.parse(JS.fromString(str))));
         } catch (e) {
 	    return Maybe.Nothing;
         }
