@@ -33,13 +33,16 @@ constrain env (L span expr) tipe =
       Literal lit -> liftIO $ Literal.constrain env span lit tipe
 
       GLShader _uid _src gltipe -> 
-        return . L span $ CEqual tipe (shaderTipe attribute uniform varying)
-            where
-          shaderTipe a u v = Env.get env Env.types "Graphics.WebGL.Shader" <| a <| u <| v
-          glTipe = Env.get env Env.types . Lit.glTipeName
-          attribute = record (Map.map (\t -> [glTipe t]) $ Lit.attribute gltipe) (TermN EmptyRecord1)
-          uniform = record (Map.map (\t -> [glTipe t]) $ Lit.uniform gltipe) (TermN EmptyRecord1)
-          varying = record (Map.map (\t -> [glTipe t]) $ Lit.varying gltipe) (TermN EmptyRecord1)
+          exists $ \attr -> 
+          exists $ \unif -> 
+            let 
+              shaderTipe a u v = Env.get env Env.types "Graphics.WebGL.Shader" <| a <| u <| v
+              glTipe = Env.get env Env.types . Lit.glTipeName
+              makeRec accessor baseRec = record (Map.map (\t -> [glTipe t]) $ accessor gltipe) baseRec
+              attribute = makeRec Lit.attribute attr
+              uniform = makeRec Lit.uniform unif
+              varying = makeRec Lit.varying (TermN EmptyRecord1)
+            in return . L span $ CEqual tipe (shaderTipe attribute uniform varying)
 
       Var name | name == saveEnvName -> return (L span CSaveEnv)
                | otherwise           -> return (name <? tipe)

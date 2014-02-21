@@ -176,7 +176,7 @@ expression (L span expr) =
             md = pad ++ MD.toHtml doc ++ pad
 
       GLShader _uid src _tipe ->
-        return . literal $ Str src
+        return $ ObjectLit () [(PropString () "src", literal (Str src))]
           
       PortIn name tipe ->
           return $ obj "Native.Ports.portIn" `call` [ string name, Port.incoming tipe ]

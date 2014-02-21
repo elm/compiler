@@ -2,7 +2,7 @@
 module Box where
 
 import MJS (V3,M4x4,v3,makeRotate,makePerspective,makeLookAt,mul)
-import Graphics.WebGL (Program, link, Triangle, zipTriangle, Buffer, bind, Model, encapsulate, webgl)
+import Graphics.WebGL (Triangle, zipTriangle, Shader, Model, model, webgl)
 import Window(dimensions)
 
 -- Define what our geometry looks like
@@ -39,6 +39,7 @@ colors = concat . map (\c -> repeat 2 (c,c,c)) <| [gray,red,green,blue,yellow,pu
 mesh : [Triangle {pos : V3, color : V3}]
 mesh = zipWith (zipTriangle (\pos color -> { pos = pos, color = color })) positions colors
 
+vert : Shader {a | pos : V3, color : V3} {b | rot : M4x4, per : M4x4, cam : M4x4} {vcolor : V3}
 vert = [glShader|
 attribute vec3 pos;
 attribute vec3 color;
@@ -52,18 +53,15 @@ void main () {
 }
 |]
 
+frag : Shader {} {b | shade : Float} {vcolor : V3}
 frag = [glShader|
 precision mediump float;
+uniform float shade;
 varying vec3 vcolor;
 void main () {
-    gl_FragColor = vec4(vcolor, 1.0);
+    gl_FragColor = shade * vec4(vcolor, 1.0);
 }
 |]
-
-prog = link vert frag
-
-buf : Buffer {pos : V3, color : V3}
-buf = bind mesh
 
 per : M4x4
 per = makePerspective 45 1 0.01 100
@@ -74,10 +72,11 @@ cam = makeLookAt (v3 0 0 5) (v3 0 0 0) (v3 0 1 0)
 angle : Signal Float
 angle = foldp (\_ n -> n + 0.02) 0 (fps 25)
 
-rot = (\t -> { rot = mul (makeRotate (3*t) (v3 0 1 0)) (makeRotate (2*t) (v3 1 0 0)), per = per, cam = cam }) <~ angle
+rot : Signal { rot : M4x4, per : M4x4, cam : M4x4, shade : Float }
+rot = (\t -> { rot = mul (makeRotate (3*t) (v3 0 1 0)) (makeRotate (2*t) (v3 1 0 0)), per = per, cam = cam, shade = 0.8 }) <~ angle
 
 draw : Signal [Model]
-draw = combine [ (encapsulate prog buf) <~ rot ]
+draw = combine [ (\rot -> (model vert frag mesh rot)) <~ rot ]
 
 main = webgl <~ dimensions ~ draw
 
