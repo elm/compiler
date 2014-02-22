@@ -217,7 +217,11 @@ Elm.Native.Graphics.Input.make = function(elm) {
 
     function renderField(model) {
         var field = newNode('input');
+        field.style.border = 'none';
+        field.style.outline = 'none';
+        field.style.backgroundColor = 'transparent';
         field.style.pointerEvents = 'auto';
+
         field.elm_signal = model.signal;
         field.elm_handler = model.handler;
 
@@ -227,53 +231,61 @@ Elm.Native.Graphics.Input.make = function(elm) {
         var selection = model.content.selection;
         var direction = selection.direction.ctor === 'Forward' ? 'forward' : 'backward';
         setRange(field, selection.start, selection.end, direction);
-        field.style.border = 'none';
 
-        function update() {
-            var direction = field.selectionDirection === 'backward' ? 'Backward' : 'Forward';
+        function keyUpdate(event) {
+            var curr = field.value;
+            var next = (curr.slice(0, field.selectionStart) +
+                        String.fromCharCode(event.keyCode) +
+                        curr.slice(field.selectionEnd));
+            var pos = field.selectionEnd + 1;
             elm.notify(field.elm_signal.id, field.elm_handler({
                 _:{},
-                string:JS.toString(field.value),
+                string: JS.toString(next),
                 selection: {
-                    start:field.selectionStart,
-                    end:field.selectionEnd,
-                    direction: { ctor:direction }
+                    start: pos,
+                    end: pos,
+                    direction: { ctor:'Forward' }
+                },
+            }));
+            event.preventDefault();
+        }
+
+        function mouseUpdate(event) {
+            var direction = field.selectionDirection === 'forward' ? 'Forward' : 'Backward';
+            elm.notify(field.elm_signal.id, field.elm_handler({
+                _:{},
+                string: field.value,
+                selection: {
+                    start: field.selectionStart,
+                    end: field.selectionEnd,
+                    direction: { ctor: direction }
                 },
             }));
         }
-        function mousedown() {
-            update();
+        function mousedown(event) {
+            mouseUpdate(event);
             elm.node.addEventListener('mouseup', mouseup);
         }
-        function mouseup() {
-            update();
+        function mouseup(event) {
+            mouseUpdate(event);
             elm.node.removeEventListener('mouseup', mouseup)
         }
-        field.addEventListener('keyup', update);
+        field.addEventListener('keypress', keyUpdate);
         field.addEventListener('mousedown', mousedown);
 
         return field;
     }
 
-    function updateField(node, oldModel, newModel) {
-        node.elmHandler = newModel.handler;
-        var newStr = JS.fromString(newModel.content.string);
-        if (node.value !== newStr) node.value = newStr;
+    function updateField(field, oldModel, newModel) {
+        field.elm_signal = newModel.signal;
+        field.elm_handler = newModel.handler;
 
+        field.type = newModel.type;
+        field.placeholder = JS.fromString(newModel.placeHolder);
+        field.value = JS.fromString(newModel.content.string);
         var selection = newModel.content.selection;
-        var start = selection.start;
-        var end = selection.end;
         var direction = selection.direction.ctor === 'Forward' ? 'forward' : 'backward';
-        if (end < start) {
-            start = end;
-            end = selection.start;
-        }
-        
-        if (node.selectionStart !== start
-            || node.selectionEnd !== end
-            || node.selectionDirection !== direction) {
-            setRange(node, start, end, direction);
-        }
+        setRange(field, selection.start, selection.end, direction);
     }
 
     function mkField(type) {
