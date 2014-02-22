@@ -222,15 +222,16 @@ Elm.Native.Graphics.Input.make = function(elm) {
         field.style.backgroundColor = 'transparent';
         field.style.pointerEvents = 'auto';
 
-        field.elm_signal = model.signal;
-        field.elm_handler = model.handler;
-
         field.type = model.type;
         field.placeholder = JS.fromString(model.placeHolder);
         field.value = JS.fromString(model.content.string);
         var selection = model.content.selection;
         var direction = selection.direction.ctor === 'Forward' ? 'forward' : 'backward';
         setRange(field, selection.start, selection.end, direction);
+
+        field.elm_signal = model.signal;
+        field.elm_handler = model.handler;
+        field.elm_old_value = field.value;
 
         function keyUpdate(event) {
             var curr = field.value;
@@ -248,6 +249,29 @@ Elm.Native.Graphics.Input.make = function(elm) {
                 },
             }));
             event.preventDefault();
+        }
+
+        function inputUpdate(event) {
+            var curr = field.elm_old_value;
+            var next = field.value;
+            if (curr === next) {
+                return;
+            }
+
+            var direction = field.selectionDirection === 'forward' ? 'Forward' : 'Backward';
+            var start = field.selectionStart;
+            var end = field.selectionEnd;
+            field.value = field.elm_old_value;
+
+            elm.notify(field.elm_signal.id, field.elm_handler({
+                _:{},
+                string: JS.toString(next),
+                selection: {
+                    start: start,
+                    end: end,
+                    direction: { ctor: direction }
+                },
+            }));
         }
 
         function mouseUpdate(event) {
@@ -271,6 +295,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
             elm.node.removeEventListener('mouseup', mouseup)
         }
         field.addEventListener('keypress', keyUpdate);
+        field.addEventListener('input', inputUpdate);
         field.addEventListener('mousedown', mousedown);
 
         return field;
@@ -282,7 +307,9 @@ Elm.Native.Graphics.Input.make = function(elm) {
 
         field.type = newModel.type;
         field.placeholder = JS.fromString(newModel.placeHolder);
-        field.value = JS.fromString(newModel.content.string);
+        var value = JS.fromString(newModel.content.string);
+        field.value = value;
+        field.elm_old_value = value;
         var selection = newModel.content.selection;
         var direction = selection.direction.ctor === 'Forward' ? 'forward' : 'backward';
         setRange(field, selection.start, selection.end, direction);
