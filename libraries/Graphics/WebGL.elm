@@ -1,4 +1,5 @@
-module Graphics.WebGL (link, mapTriangle, zipTriangle, bind, encapsulate, webgl) where
+
+module Graphics.WebGL (mapTriangle, zipTriangle, model, webgl) where
 
 {-| WebGL -}
 
@@ -13,9 +14,9 @@ mapTriangle f (x,y,z) = (f x, f y, f z)
 zipTriangle : (a -> b -> c) -> Triangle a -> Triangle b -> Triangle c
 zipTriangle f (x,y,z) (x',y',z') = (f x x', f y y', f z z')
 
-data Shader attr unif vary = Dummy_Shader
+data Shader attr unif vary = Shader
 
-data Model = Dummy_Model 
+data Model = Model 
 
 model : Shader attr unif vary -> Shader {} unif vary -> [Triangle attr] -> unif -> Model
 model = Native.Graphics.WebGL.model
