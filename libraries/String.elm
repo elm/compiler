@@ -103,6 +103,8 @@ foldr = Native.String.foldr
 
       split "," "cat,dog,cow"        == ["cat","dog","cow"]
       split "/" "home/evan/Desktop/" == ["home","evan","Desktop"]
+
+Use `Regex.split` if you need something more flexible.
 -}
 split : String -> String -> [String]
 split = Native.String.split
@@ -231,7 +233,7 @@ any = Native.String.any
 
       all isDigit "90210" == True
       all isDigit "R2-D2" == False
-      any isDigit "heart" == False
+      all isDigit "heart" == False
 -}
 all : (Char -> Bool) -> String -> Bool
 all = Native.String.all
@@ -241,6 +243,8 @@ all = Native.String.all
       contains "the" "theory" == True
       contains "hat" "theory" == False
       contains "THE" "theory" == False
+
+Use `Regex.contains` if you need something more flexible.
 -}
 contains : String -> String -> Bool
 contains = Native.String.contains

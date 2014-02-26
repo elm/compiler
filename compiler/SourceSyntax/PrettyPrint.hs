@@ -10,11 +10,16 @@ class Pretty a where
 instance Pretty () where
   pretty () = empty
 
+renderPretty :: (Pretty a) => a -> String
+renderPretty e = render (pretty e)
+
 commaCat docs = cat (punctuate comma docs)
 commaSep docs = sep (punctuate comma docs)
 
+parensIf :: Bool -> Doc -> Doc
 parensIf bool doc = if bool then parens doc else doc
 
+variable :: String -> Doc
 variable x =
     if Help.isOp x then parens (text x)
                    else text (reprime x)

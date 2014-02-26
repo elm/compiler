@@ -2,7 +2,6 @@
 module Build.Source (build) where
 
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 import System.FilePath as FP
 import Text.PrettyPrint (Doc)
 
@@ -33,7 +32,7 @@ build noPrelude interfaces source =
 
      let exports'
              | null exs =
-                 let get = Set.toList . Pattern.boundVars in
+                 let get = Pattern.boundVarList in
                  concat [ get pattern | Definition (Expr.Definition pattern _ _) <- decls ] ++
                  concat [ map fst ctors | Datatype _ _ ctors <- decls ] ++
                  [ name | TypeAlias name _ (Type.Record _ _) <- decls ]

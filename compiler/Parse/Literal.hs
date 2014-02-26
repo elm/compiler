@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
+{-# OPTIONS_GHC -W #-}
 module Parse.Literal (literal) where
 
 import Control.Applicative ((<$>))
@@ -7,16 +7,34 @@ import Parse.Helpers
 import SourceSyntax.Literal
 
 literal :: IParser Literal
-literal = num <|> (Str <$> str) <|> (Chr <$> chr)
+literal = num <|> (Str <$> str) <|> (Chr <$> chr) <?> "literal"
 
 num :: IParser Literal
-num = fmap toLit (preNum <?> "number")
-    where toLit n | '.' `elem` n = FloatNum (read n)
-                  | otherwise = IntNum (read n)
-          preNum  = concat <$> sequence [ option "" minus, many1 digit, option "" postNum ]
-          postNum = do try $ lookAhead (string "." >> digit)
-                       string "."
-                       ('.':) <$> many1 digit
-          minus = try $ do string "-"
-                           lookAhead digit
-                           return "-"
+num = toLit <$> (number <?> "number")
+  where
+    toLit n
+        | any (`elem` ".eE") n = FloatNum (read n)
+        | otherwise            = IntNum (read n)    
+
+    number = concat <$> sequence
+             [ option "" minus
+             , many1 digit
+             , option "" decimals
+             , option "" exponent ]
+
+    minus = try $ do
+              string "-"
+              lookAhead digit
+              return "-"
+
+    decimals = do
+      try $ lookAhead (string "." >> digit)
+      string "."
+      n <- many1 digit
+      return ('.' : n)
+
+    exponent = do
+      string "e" <|> string "E"
+      op <- option "" (string "+" <|> string "-")
+      n <- many1 digit
+      return ('e' : op ++ n)

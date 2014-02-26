@@ -9,7 +9,7 @@ import qualified Type.Constrain.Expression as TcExpr
 import qualified Type.Solve as Solve
 
 import SourceSyntax.Module as Module
-import SourceSyntax.Location (noneNoDocs)
+import SourceSyntax.Annotation (noneNoDocs)
 import SourceSyntax.Type (Type)
 import Text.PrettyPrint
 import qualified Type.State as TS

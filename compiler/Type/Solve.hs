@@ -3,15 +3,15 @@ module Type.Solve (solve) where
 
 import Control.Monad
 import Control.Monad.State
-import qualified Data.UnionFind.IO as UF
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Traversable as Traversable
-import qualified Data.List as List
+import qualified Data.UnionFind.IO as UF
 import Type.Type
 import Type.Unify
 import qualified Type.ExtraChecks as Check
 import qualified Type.State as TS
-import SourceSyntax.Location (Located(L), SrcSpan)
+import qualified SourceSyntax.Annotation as A
 
 
 -- | Every variable has rank less than or equal to the maxRank of the pool.
@@ -96,7 +96,7 @@ adjustRank youngMark visitedMark groupRank variable =
 
 
 solve :: TypeConstraint -> StateT TS.SolverState IO ()
-solve (L span constraint) =
+solve (A.A region constraint) =
   case constraint of
     CTrue -> return ()
 
@@ -105,11 +105,11 @@ solve (L span constraint) =
     CEqual term1 term2 -> do
         t1 <- TS.flatten term1
         t2 <- TS.flatten term2
-        unify span t1 t2
+        unify region t1 t2
 
     CAnd cs -> mapM_ solve cs
 
-    CLet [Scheme [] fqs constraint' _] (L _ CTrue) -> do
+    CLet [Scheme [] fqs constraint' _] (A.A _ CTrue) -> do
         oldEnv <- TS.getEnv
         mapM TS.introduce fqs
         solve constraint'
@@ -117,7 +117,7 @@ solve (L span constraint) =
 
     CLet schemes constraint' -> do
         oldEnv <- TS.getEnv
-        headers <- Map.unions `fmap` mapM (solveScheme span) schemes
+        headers <- Map.unions `fmap` mapM (solveScheme region) schemes
         TS.modifyEnv $ \env -> Map.union headers env
         solve constraint'
         mapM Check.occurs $ Map.toList headers
@@ -134,10 +134,10 @@ solve (L span constraint) =
                     error ("Could not find '" ++ name ++ "' when solving type constraints.")
 
         t <- TS.flatten term
-        unify span freshCopy t
+        unify region freshCopy t
 
-solveScheme :: SrcSpan -> TypeScheme -> StateT TS.SolverState IO (Map.Map String Variable)
-solveScheme span scheme =
+solveScheme :: A.Region -> TypeScheme -> StateT TS.SolverState IO (Map.Map String Variable)
+solveScheme region scheme =
     case scheme of
       Scheme [] [] constraint header -> do
           solve constraint
@@ -154,39 +154,39 @@ solveScheme span scheme =
           header' <- Traversable.traverse TS.flatten header
           solve constraint
 
-          allDistinct span rigidQuantifiers
+          allDistinct region rigidQuantifiers
           youngPool <- TS.getPool
           TS.switchToPool oldPool
           generalize youngPool
-          mapM (isGeneric span) rigidQuantifiers
+          mapM (isGeneric region) rigidQuantifiers
           return header'
 
 
 -- Checks that all of the given variables belong to distinct equivalence classes.
 -- Also checks that their structure is Nothing, so they represent a variable, not
 -- a more complex term.
-allDistinct :: SrcSpan -> [Variable] -> StateT TS.SolverState IO ()
-allDistinct span vars = do
+allDistinct :: A.Region -> [Variable] -> StateT TS.SolverState IO ()
+allDistinct region vars = do
   seen <- TS.uniqueMark
   let check var = do
         desc <- liftIO $ UF.descriptor var
         case structure desc of
-          Just _ -> TS.addError span (Just msg) var var
+          Just _ -> TS.addError region (Just msg) var var
               where msg = "Cannot generalize something that is not a type variable."
 
           Nothing -> do
             if mark desc == seen
               then let msg = "Duplicate variable during generalization."
-                   in  TS.addError span (Just msg) var var
+                   in  TS.addError region (Just msg) var var
               else return ()
             liftIO $ UF.setDescriptor var (desc { mark = seen })
   mapM_ check vars
 
 -- Check that a variable has rank == noRank, meaning that it can be generalized.
-isGeneric :: SrcSpan -> Variable -> StateT TS.SolverState IO ()
-isGeneric span var = do
+isGeneric :: A.Region -> Variable -> StateT TS.SolverState IO ()
+isGeneric region var = do
   desc <- liftIO $ UF.descriptor var
   if rank desc == noRank
     then return ()
     else let msg = "Unable to generalize a type variable. It is not unranked."
-         in  TS.addError span (Just msg) var var
+         in  TS.addError region (Just msg) var var

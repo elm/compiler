@@ -10,7 +10,7 @@ list must have the same type.
 @docs head, tail, last, filter, take, drop
 
 # Putting Lists Together
-@docs concat, concatMap, join, intersperse, zip, zipWith
+@docs concat, concatMap, join, intersperse, zip, zipWith, repeat
 
 # Taking Lists Apart
 @docs partition, unzip
@@ -25,7 +25,7 @@ list must have the same type.
 @docs sort, sortBy, sortWith
 -}
 
-import open Basics
+import Basics (..)
 import Native.List
 
 {-| Add an element to the front of a list `(1 :: [2,3] == [1,2,3])` -}

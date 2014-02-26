@@ -28,15 +28,30 @@ function setProps(props, e) {
         e.appendChild(a);
     }
     if (props.hover.ctor !== '_Tuple0') {
-        var overCount = 0;
+        e.style.pointerEvents = 'auto';
+        e.elm_hover_handler = props.hover;
+        e.elm_hover_count = 0;
         e.addEventListener('mouseover', function() {
-            if (overCount++ > 0) return;
-            props.hover(true);
+            if (e.elm_hover_count++ > 0) return;
+            var handler = e.elm_hover_handler;
+            if (handler !== null) {
+                handler(true);
+            }
         });
         e.addEventListener('mouseout', function(evt) {
             if (e.contains(evt.toElement || evt.relatedTarget)) return;
-            overCount = 0;
-            props.hover(false);
+            e.elm_hover_count = 0;
+            var handler = e.elm_hover_handler;
+            if (handler !== null) {
+                handler(false);
+            }
+        });
+    }
+    if (props.click.ctor !== '_Tuple0') {
+        e.style.pointerEvents = 'auto';
+        e.elm_click_handler = props.click;
+        e.addEventListener('click', function() {
+            e.elm_click_handler(Tuple0);
         });
     }
     return e;
@@ -99,6 +114,8 @@ function goDown(e) { return e }
 function goRight(e) { e.style.styleFloat = e.style.cssFloat = "left"; return e; }
 function flowWith(f, array) {
     var container = newElement('div');
+    if (f == goIn) container.style.pointerEvents = 'none';
+
     for (var i = array.length; i--; ) {
         container.appendChild(f(render(array[i])));
     }
@@ -209,7 +226,9 @@ function update(node, curr, next) {
     case "RawHtml":
         // only markdown blocks have guids, so this must be a text block
         if (nextE.guid === null) {
-            node.innerHTML = nextE.html;
+            if(currE.html.valueOf() !== nextE.html.valueOf()) {
+                node.innerHTML = nextE.html;
+            }
             break;
         }
         if (nextE.guid !== currE.guid) {
@@ -316,6 +335,20 @@ function updateProps(node, curr, next) {
         } else {
             node.lastNode.href = props.href;
         }
+    }
+
+    // update hover handlers
+    if (props.hover.ctor !== '_Tuple0') {
+        e.elm_hover_handler = props.hover;
+    } else if (e.elm_hover_handler) {
+        e.elm_hover_handler = null;
+    }
+
+    // update click handlers
+    if (props.click.ctor !== '_Tuple0') {
+        e.elm_click_handler = props.click;
+    } else if (e.elm_click_handler) {
+        e.elm_click_handler = null;
     }
 }
 

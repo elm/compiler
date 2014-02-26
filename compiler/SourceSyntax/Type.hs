@@ -1,18 +1,18 @@
 {-# OPTIONS_GHC -W #-}
 module SourceSyntax.Type where
 
+import Control.Applicative ((<$>), (<*>))
 import Data.Binary
 import qualified Data.Map as Map
-import qualified SourceSyntax.Helpers as Help
-import Control.Applicative ((<$>), (<*>))
 import SourceSyntax.PrettyPrint
+import qualified SourceSyntax.Helpers as Help
 import Text.PrettyPrint as P
 
 data Type = Lambda Type Type
           | Var String
           | Data String [Type]
           | Record [(String,Type)] (Maybe String)
-            deriving (Eq)
+            deriving (Eq,Show)
 
 fieldMap :: [(String,a)] -> Map.Map String [a]
 fieldMap fields =
@@ -26,9 +26,6 @@ listOf t = Data "_List" [t]
 
 tupleOf :: [Type] -> Type
 tupleOf ts = Data ("_Tuple" ++ show (length ts)) ts
-
-instance Show Type where
-  show = render . pretty
 
 instance Pretty Type where
   pretty tipe =

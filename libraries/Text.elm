@@ -16,7 +16,7 @@ module Text where
 
 -}
 
-import open Basics
+import Basics (..)
 import Color (Color)
 import Graphics.Element (Element, Three, Pos, ElementPrim, Properties)
 import Maybe (Maybe)

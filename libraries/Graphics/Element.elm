@@ -37,12 +37,12 @@ If you need more precision, you can create custom positions.
       midRightAt, topLeftAt, topRightAt, bottomLeftAt, bottomRightAt
 -}
 
-import open Basics
+import Basics (..)
 import Native.Utils
 import JavaScript as JS
 import JavaScript (JSString)
 import List as List
-import open Color
+import Color (..)
 import Maybe (Maybe, Just, Nothing)
 
 type Properties = {
@@ -53,7 +53,8 @@ type Properties = {
   color   : Maybe Color,
   href    : JSString,
   tag     : JSString,
-  hover   : ()
+  hover   : (),
+  click   : ()
  }
 
 type Element = { props : Properties, element : ElementPrim }
@@ -128,7 +129,9 @@ link href e = let p = e.props in
 
 emptyStr = JS.fromString ""
 newElement w h e =
-  { props = Properties (Native.Utils.guid ()) w h 1 Nothing emptyStr emptyStr (), element = e }
+  { props = Properties (Native.Utils.guid ()) w h 1 Nothing emptyStr emptyStr () ()
+  , element = e
+  }
 
 data ElementPrim
   = Image ImageStyle Int Int JSString

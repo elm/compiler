@@ -2,14 +2,16 @@
 module Transform.Substitute (subst) where
 
 import Control.Arrow (second, (***))
-import SourceSyntax.Expression
-import SourceSyntax.Location
-import qualified SourceSyntax.Pattern as Pattern
 import qualified Data.Set as Set
 
-subst :: String -> Expr -> Expr -> Expr
+import SourceSyntax.Annotation
+import SourceSyntax.Expression
+import qualified SourceSyntax.Pattern as Pattern
+import qualified SourceSyntax.Variable as V
+
+subst :: String -> Expr' -> Expr' -> Expr'
 subst old new expr =
-    let f (L s e) = L s (subst old new e) in
+    let f (A a e) = A a (subst old new e) in
     case expr of
       Range e1 e2 -> Range (f e1) (f e2)
       ExplicitList es -> ExplicitList (map f es)
@@ -28,7 +30,7 @@ subst old new expr =
           anyShadow =
               any (Set.member old . Pattern.boundVars) [ p | Definition p _ _ <- defs ]
 
-      Var x -> if x == old then new else expr
+      Var (V.Raw x) -> if x == old then new else expr
       Case e cases -> Case (f e) $ map (second f) cases
       Data name es -> Data name (map f es)
       Access e x -> Access (f e) x

@@ -20,11 +20,11 @@ data Assoc = L | N | R
 
 data ParsePort
     = PPAnnotation String T.Type
-    | PPDef String Expr.LParseExpr
+    | PPDef String Expr.ParseExpr
       deriving (Show)
 
 data Port
-    = Out String Expr.LExpr T.Type
+    = Out String Expr.Expr T.Type
     | In String T.Type
       deriving (Show)
 

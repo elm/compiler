@@ -14,12 +14,13 @@ import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
 import qualified Text.Parsec.Token as T
 
+import SourceSyntax.Annotation as Annotation
+import SourceSyntax.Declaration (Assoc)
+import SourceSyntax.Expression
 import SourceSyntax.Helpers as Help
 import SourceSyntax.Literal as Literal
-import SourceSyntax.Location as Location
-import SourceSyntax.Expression
 import SourceSyntax.PrettyPrint
-import SourceSyntax.Declaration (Assoc)
+import SourceSyntax.Variable as Variable
 
 reserveds = [ "if", "then", "else"
             , "case", "of"
@@ -171,7 +172,8 @@ betwixt a b c = do char a ; out <- c
                    char b <?> "closing '" ++ [b] ++ "'" ; return out
 
 surround a z name p = do
-  char a ; v <- padded p
+  char a
+  v <- padded p
   char z <?> unwords ["closing", name, show z]
   return v
 
@@ -184,10 +186,10 @@ parens   = surround '(' ')' "paren"
 brackets :: IParser a -> IParser a
 brackets = surround '{' '}' "bracket"
 
-addLocation :: (Pretty a) => IParser a -> IParser (Location.Located a)
+addLocation :: (Pretty a) => IParser a -> IParser (Annotation.Located a)
 addLocation expr = do
   (start, e, end) <- located expr
-  return (Location.at start end e)
+  return (Annotation.at start end e)
 
 located :: IParser a -> IParser (SourcePos, a, SourcePos)
 located p = do
@@ -196,10 +198,10 @@ located p = do
   end <- getPosition
   return (start, e, end)
 
-accessible :: IParser LParseExpr -> IParser LParseExpr
+accessible :: IParser ParseExpr -> IParser ParseExpr
 accessible expr = do
   start <- getPosition
-  ce@(L _ e) <- expr
+  ce@(A _ e) <- expr
   let rest f = do
         let dot = char '.' >> notFollowedBy (char '.')
         access <- optionMaybe (try dot <?> "field access (e.g. List.map)")
@@ -208,10 +210,12 @@ accessible expr = do
           Just _  -> accessible $ do
                        v <- var <?> "field access (e.g. List.map)"
                        end <- getPosition
-                       return (Location.at start end (f v))
-  case e of Var (c:cs) | isUpper c -> rest (\v -> Var (c:cs ++ '.':v))
-                       | otherwise -> rest (Access ce)
-            _ -> rest (Access ce)
+                       return (Annotation.at start end (f v))
+  case e of
+    Var (Variable.Raw (c:cs))
+        | isUpper c -> rest (\v -> rawVar (c:cs ++ '.':v))
+        | otherwise -> rest (Access ce)
+    _ -> rest (Access ce)
 
 
 spaces :: IParser String

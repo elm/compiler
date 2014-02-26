@@ -1,43 +1,44 @@
 {-# OPTIONS_GHC -Wall #-}
 module Transform.SafeNames (metadataModule) where
 
-import Control.Arrow           (first, (***))
-import Data.List               (intercalate)
-
+import Control.Arrow (first, (***))
+import qualified Data.List as List
 import qualified Data.Set as Set
 
-import qualified Parse.Helpers        as PHelp
+import qualified Parse.Helpers as PHelp
+import SourceSyntax.Annotation
 import SourceSyntax.Expression
 import qualified SourceSyntax.Helpers as SHelp
-import SourceSyntax.Location
 import SourceSyntax.Module
-import SourceSyntax.Pattern
+import qualified SourceSyntax.Pattern as P
+import qualified SourceSyntax.Variable as Variable
 
 var :: String -> String
-var = intercalate "." . map (dereserve . deprime) . SHelp.splitDots
+var = List.intercalate "." . map (dereserve . deprime) . SHelp.splitDots
   where
     deprime = map (\c -> if c == '\'' then '$' else c)
     dereserve x = case Set.member x PHelp.jsReserveds of
                     False -> x
                     True  -> "$" ++ x
 
-pattern :: Pattern -> Pattern
+pattern :: P.Pattern -> P.Pattern
 pattern pat =
     case pat of
-      PVar x -> PVar (var x)
-      PLiteral _ -> pat
-      PRecord fs -> PRecord (map var fs)
-      PAnything -> pat
-      PAlias x p -> PAlias (var x) (pattern p)
-      PData name ps -> PData name (map pattern ps)
+      P.Var x -> P.Var (var x)
+      P.Literal _ -> pat
+      P.Record fs -> P.Record (map var fs)
+      P.Anything -> pat
+      P.Alias x p -> P.Alias (var x) (pattern p)
+      P.Data name ps -> P.Data name (map pattern ps)
 
-expression :: LExpr -> LExpr
-expression (L loc expr) =
+-- TODO: should be "normal expression" -> "expression for JS generation"
+expression :: Expr -> Expr
+expression (A ann expr) =
     let f = expression in
-    L loc $
+    A ann $
     case expr of
       Literal _ -> expr
-      Var x -> Var (var x)
+      Var (Variable.Raw x) -> rawVar (var x)
       Range e1 e2 -> Range (f e1) (f e2)
       ExplicitList es -> ExplicitList (map f es)
       Binop op e1 e2 -> Binop op (f e1) (f e2)
