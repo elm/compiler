@@ -208,7 +208,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
         var attribute = gl.getActiveAttrib(program, i);
         var attribLocation = gl.getAttribLocation(program, attribute.name);
         gl.enableVertexAttribArray(attribLocation);
-        attributeBuffer = buffer.buffers[attribute.name];
+        var attributeBuffer = buffer.buffers[attribute.name];
 
         switch (attribute.type) {
           case gl.FLOAT_VEC3:

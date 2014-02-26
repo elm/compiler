@@ -46,7 +46,7 @@ Elm.Native.MJS.make = function(elm) {
      * mjs version number aa.bb.cc, encoded as an integer of the form:
      * 0xaabbcc.
      */
-    const MJS_VERSION = 0x000000;
+    var MJS_VERSION = 0x000000;
 
     /*
      * Constant: MJS_DO_ASSERT
@@ -56,7 +56,7 @@ Elm.Native.MJS.make = function(elm) {
      * For potentially more performance, the assert methods can be
      * commented out in each place where they are called.
      */
-    const MJS_DO_ASSERT = true;
+    //var MJS_DO_ASSERT = true;
 
     /*
      * Constant: MJS_FLOAT_ARRAY_TYPE
@@ -68,19 +68,19 @@ Elm.Native.MJS.make = function(elm) {
      * MJS_FLOAT_ARRAY_TYPE.  Also, the builtin constants such as (M4x4.I)
      * will be of this type.
      */
-    //const MJS_FLOAT_ARRAY_TYPE = WebGLFloatArray;
-    const MJS_FLOAT_ARRAY_TYPE = Float32Array;
-    //const MJS_FLOAT_ARRAY_TYPE = Float64Array;
-    //const MJS_FLOAT_ARRAY_TYPE = Array;
+    //MJS_FLOAT_ARRAY_TYPE = WebGLFloatArray;
+    var MJS_FLOAT_ARRAY_TYPE = Float32Array;
+    //MJS_FLOAT_ARRAY_TYPE = Float64Array;
+    //MJS_FLOAT_ARRAY_TYPE = Array;
 
-    if (MJS_DO_ASSERT) {
-        function MathUtils_assert(cond, msg) {
-            if (!cond)
-                throw "Assertion failed: " + msg;
-        }
-    } else {
-        function MathUtils_assert() { }
-    }
+    //if (MJS_DO_ASSERT) {
+        //function MathUtils_assert(cond, msg) {
+            //if (!cond)
+                //throw "Assertion failed: " + msg;
+        //}
+    //} else {
+    function MathUtils_assert() { }
+    //}
 
     /*
      * Class: V3
