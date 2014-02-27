@@ -45,14 +45,17 @@ type Input a = { signal : Signal a, handle : Handle a }
 
 data Handle a = Handle
 
-{-| Create a new `Input`. You just give the initial value for the
-input&rsquo;s `signal`.
+{-| This creates a new `Input`. You provide a single argument that will serve
+as the initial value of the input&rsquo;s `signal`. For example:
 
-Note for Advanced Users: creating an `Input` is an inherently imperative
-action, so this is one of very few impure functions in Elm. That means
-`(input ())` and `(input ())` are actually two different inputs with different
-signals and handles. By design, Elm&rsquo;s impure functions can only be useful
-as you build your signal graph at startup, so Elm is still pure at runtime.
+      numbers : Input Int
+      numbers = input 42
+
+The initial value of `numbers.signal` is 42, and you will be able
+to pipe updates to the input using `numbers.handle`.
+
+Note: This is an inherently impure function. Specifically, `(input ())` and
+`(input ())` are actually two different inputs with different signals and handles.
 -}
 input : a -> Input a
 input = Native.Graphics.Input.input
@@ -208,7 +211,7 @@ to match what they have entered.
       name = input noContent
 
       nameField : Signal Element
-      nameField = field name.handle (\content -> content) "Name" <~ nameContent
+      nameField = field name.handle id "Name" <~ name.signal
 -}
 field : Handle a -> (FieldContent -> a) -> String -> FieldContent -> Element
 field = Native.Graphics.Input.field
