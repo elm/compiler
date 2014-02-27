@@ -1,10 +1,12 @@
 
-module Graphics.WebGL (mapTriangle, zipTriangle, model, webgl) where
+module Graphics.WebGL (mapTriangle, zipTriangle, loadTex, model, webgl) where
 
 {-| WebGL -}
 
 import Graphics.Element (Element)
+import Http (Response)
 import Native.Graphics.WebGL
+import Signal (Signal)
 
 type Triangle a = (a,a,a)
 
@@ -15,6 +17,11 @@ zipTriangle : (a -> b -> c) -> Triangle a -> Triangle b -> Triangle c
 zipTriangle f (x,y,z) (x',y',z') = (f x x', f y y', f z z')
 
 data Shader attr unif vary = Shader
+
+data Texture = Texture
+
+loadTex : String -> Signal (Response Texture)
+loadTex = Native.Graphics.WebGL.loadTex
 
 data Model = Model 
 

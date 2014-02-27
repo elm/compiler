@@ -12,7 +12,9 @@ Both vectors and matrices are immutable.
 
 import Native.MJS
 
-data V3 = Dummy_V3
+data V2 = V2
+data V3 = V3
+data V4 = V4
 
 v3 : Float -> Float -> Float -> V3
 v3 = Native.MJS.v3

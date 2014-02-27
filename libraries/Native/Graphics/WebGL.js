@@ -9,13 +9,35 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
   if (elm.Native.Graphics.WebGL.values) return elm.Native.Graphics.WebGL.values;
 
   var newNode = ElmRuntime.use(ElmRuntime.Render.Utils).newElement;
-
-  var Signal = Elm.Signal.make(elm);
   var newElement = Elm.Graphics.Element.make(elm).newElement;
-  var Utils = Elm.Native.Utils.make(elm);
-  var Tuple2 = Utils.Tuple2;
-  var MJS = Elm.Native.MJS.make(elm);
+
   var List = Elm.Native.List.make(elm);
+  var MJS = Elm.Native.MJS.make(elm);
+  var Utils = Elm.Native.Utils.make(elm);
+  var Signal = Elm.Signal.make(elm);
+  var Tuple2 = Utils.Tuple2;
+
+  function loadTex(source) {
+
+    var response = Signal.constant(elm.Http.values.Waiting);
+
+    var img = new Image();
+
+    img.onload = function() {
+      var success = elm.Http.values.Success({img:img});
+      elm.notify(response.id, success);
+    }
+
+    img.onerror = function(e) {
+      var failure = A2(elm.Http.values.Failure,0,"Failed");
+      elm.notify(response.id, failure);
+    }
+
+    img.src = source;
+
+    return response;
+
+  }
 
   function model(vert, frag, buffer, uniforms) {
 
@@ -25,6 +47,21 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
       buffer: buffer,
       uniforms: uniforms
     };
+
+  }
+
+  function do_texture (gl, img) {
+
+    var tex = gl.createTexture();
+    console.log("Created texture");
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    //gl.bindTexture(gl.TEXTURE0, null);
+    return tex;
 
   }
 
@@ -171,6 +208,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
       gl.useProgram(program);
 
       var numUniforms = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
+      var textureCounter = 0;
       for (var i = 0; i < numUniforms; i += 1) {
         var uniform = gl.getActiveUniform(program, i);
         var uniformLocation = gl.getUniformLocation(program, uniform.name);
@@ -186,6 +224,23 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
             break;
           case gl.FLOAT_MAT4:
             gl.uniformMatrix4fv(uniformLocation, false, m.uniforms[uniform.name]);
+            break;
+          case gl.SAMPLER_2D:
+            var texture = m.uniforms[uniform.name];
+            var tex = undefined;
+            if (texture.id) {
+              tex = model.cache.textures[texture.id];
+            } else {
+              texture.id = Utils.guid();
+            }
+            if (!tex) {
+              tex = do_texture(gl, texture.img);
+            }
+            var activeName = 'TEXTURE' + textureCounter;
+            gl.activeTexture(gl[activeName]);
+            gl.bindTexture(gl.TEXTURE_2D,tex);
+            gl.uniform1i(uniformLocation, textureCounter);
+            textureCounter += 1;
             break;
           default:
             console.log("Unsupported uniform type: " + uniform.type);
@@ -296,6 +351,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
   }
 
   return elm.Native.Graphics.WebGL.values = {
+    loadTex:loadTex,
     model:F4(model),
     webgl:F2(webgl)
   };

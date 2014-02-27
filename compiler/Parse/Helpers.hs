@@ -355,9 +355,11 @@ glSource src =
             then case tipe of 
                 GLS.Int -> return (qual,Literal.Int,name)
                 GLS.Float -> return (qual,Literal.Float,name)
+                GLS.Vec2 -> return (qual,V2,name)
                 GLS.Vec3 -> return (qual,V3,name) 
                 GLS.Vec4 -> return (qual,V4,name)
                 GLS.Mat4 -> return (qual,M4,name)
+                GLS.Sampler2D -> return (qual,Texture,name)
                 _ -> []
             else []
         _ -> []

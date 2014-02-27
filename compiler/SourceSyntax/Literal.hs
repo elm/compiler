@@ -21,12 +21,13 @@ instance Pretty Literal where
       Str s -> PP.text . show $ s
       Boolean bool -> PP.text (show bool)
 
-data GLTipe = Int | Float | V3 | V4 | M4 | Texture
+data GLTipe = Int | Float | V2 | V3 | V4 | M4 | Texture
   deriving (Show)
 
 glTipeName :: GLTipe -> String
 glTipeName Int = "Int"
 glTipeName Float = "Float"
+glTipeName V2 = "MJS.V2"
 glTipeName V3 = "MJS.V3"
 glTipeName V4 = "MJS.V4"
 glTipeName M4 = "MJS.M4x4"
