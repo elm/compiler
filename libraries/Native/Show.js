@@ -6,10 +6,7 @@ Elm.Native.Show.make = function(elm) {
 
     var NList = Elm.Native.List.make(elm);
     var List = Elm.List.make(elm);
-    var Maybe = Elm.Maybe.make(elm);
-    var JS = Elm.JavaScript.make(elm);
     var Dict = Elm.Dict.make(elm);
-    var Json = Elm.Json.make(elm);
     var Tuple2 = Elm.Native.Utils.make(elm).Tuple2;
 
     var toString = function(v) {
