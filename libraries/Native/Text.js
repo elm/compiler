@@ -66,9 +66,8 @@ Elm.Native.Text.make = function(elm) {
     }
     function toLine(line) {
         var ctor = line.ctor;
-        var decoration = ctor === 'Under' ? 'underline' :
-                         ctor === 'Over'  ? 'overline'  : 'line-through';
-        return 'text-decoration:' + decoration + ';';
+        return ctor === 'Under' ? 'underline' :
+               ctor === 'Over'  ? 'overline'  : 'line-through';
     }
 
     // setting styles of Text
@@ -87,7 +86,7 @@ Elm.Native.Text.make = function(elm) {
             newText += 'font-style:italic;';
         }
         if (style.line.ctor !== 'Nothing') {
-            newText += toLine(style.line._0);
+            newText += 'text-decoration:' + toLine(style.line._0) + ';';
         }
         newText += '">' + Utils.makeText(text) + '</span>'
         return Utils.txt(newText);
@@ -111,7 +110,7 @@ Elm.Native.Text.make = function(elm) {
         return { href: toText(href), text:text };
     }
     function line(line, text) {
-        return { style: toLine(line), text:text };
+        return { style: 'text-decoration:' + toLine(line) + ';', text:text };
     }
 
     function color(color, text) {
@@ -161,5 +160,8 @@ Elm.Native.Text.make = function(elm) {
         centered     : block('center'),
         justified    : block('justify'),
         markdown     : markdown,
+
+        toTypefaces:toTypefaces,
+        toLine:toLine,
     };
 };
