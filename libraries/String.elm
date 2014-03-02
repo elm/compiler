@@ -28,6 +28,7 @@ Cosmetic operations such as padding with extra characters or trimming whitespace
 @docs map, filter, foldl, foldr, any, all
 -}
 
+import Native.Show
 import Native.String
 import Maybe (Maybe)
 
@@ -284,7 +285,7 @@ indices = Native.String.indexes
       show [1,2] == "[1,2]"
 -}
 show : a -> String
-show = Native.String.show
+show = Native.Show.show
 
 {-| Try to convert a string into an int, failing on improperly formatted strings.
 

@@ -10,7 +10,6 @@ Elm.Native.String.make = function(elm) {
     var Maybe = Elm.Maybe.make(elm);
     var JS = Elm.JavaScript.make(elm);
     var Utils = Elm.Native.Utils.make(elm);
-    var show = Elm.Native.Show.make(elm);
 
     function isEmpty(str) {
         return str.length === 0;
@@ -244,7 +243,6 @@ Elm.Native.String.make = function(elm) {
         endsWith: F2(endsWith),
         indexes: F2(indexes),
 
-        show:show,
         toInt: toInt,
         toFloat: toFloat,
         toList: toList,

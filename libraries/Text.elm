@@ -30,6 +30,7 @@ import Color (Color, black)
 import Graphics.Element (Element, Three, Pos, ElementPrim, Properties)
 import Maybe (Maybe, Nothing)
 import JavaScript (JSString)
+import Native.Show
 import Native.Text
 
 data Text = Text
@@ -145,4 +146,4 @@ Excellent for debugging.
 -}
 asText : a -> Element
 asText value =
-    leftAligned (monospace (toText (String.show value)))
+    leftAligned (monospace (toText (Native.Show.show value)))
