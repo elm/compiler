@@ -8,6 +8,8 @@ Elm.Native.Graphics.Input.make = function(elm) {
     var Render = ElmRuntime.use(ElmRuntime.Render.Element);
     var newNode = ElmRuntime.use(ElmRuntime.Render.Utils).newElement;
 
+    var toCss = Elm.Native.Color.make(elm).toCss;
+    var Text = Elm.Native.Text.make(elm);
     var Signal = Elm.Signal.make(elm);
     var newElement = Elm.Graphics.Element.make(elm).newElement;
     var JS = Elm.Native.JavaScript.make(elm);
@@ -78,7 +80,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
 
     function updateButton(node, oldModel, newModel) {
         node.elm_signal = newModel.signal;
-        node.elm_value = nemModel.value;
+        node.elm_value = newModel.value;
         var txt = newModel.text;
         if (oldModel.text !== txt) node.innerHTML = txt;
     }
@@ -215,11 +217,52 @@ Elm.Native.Graphics.Input.make = function(elm) {
         }
     }
 
+    function updateIfNeeded(css, attribute, latestAttribute) {
+        if (css[attribute] !== latestAttribute) {
+            css[attribute] = latestAttribute;
+        }
+    }
+    function cssDimensions(dimensions) {
+        return dimensions.top    + 'px ' +
+               dimensions.right  + 'px ' +
+               dimensions.bottom + 'px ' +
+               dimensions.left   + 'px';
+    }
+    function updateFieldStyle(css, style) {
+        updateIfNeeded(css, 'padding', cssDimensions(style.padding));
+
+        var outline = style.outline;
+        updateIfNeeded(css, 'border-width', cssDimensions(outline.width));
+        updateIfNeeded(css, 'border-color', toCss(outline.color));
+        updateIfNeeded(css, 'border-radius', outline.radius + 'px');
+
+        var highlight = style.highlight;
+        if (highlight.width === 0) {
+            css.outline = 'none';
+        } else {
+            updateIfNeeded(css, 'outline-width', highlight.width + 'px');
+            updateIfNeeded(css, 'outline-color', toCss(highlight.color));
+        }
+
+        var textStyle = style.style;
+        updateIfNeeded(css, 'color', toCss(textStyle.color));
+        if (textStyle.typeface.ctor !== '[]') {
+            updateIfNeeded(css, 'font-family', Text.toTypefaces(textStyle.typeface));
+        }
+        if (textStyle.height.ctor !== "Nothing") {
+            updateIfNeeded(css, 'font-size', textStyle.height._0 + 'px');
+        }
+        updateIfNeeded(css, 'font-weight', textStyle.bold ? 'bold' : 'normal');
+        updateIfNeeded(css, 'font-style', textStyle.italic ? 'italic' : 'normal');
+        if (textStyle.line.ctor !== 'Nothing') {
+            updateIfNeeded(css, 'text-decoration', Text.toLine(textStyle.line._0));
+        }
+    }
+
     function renderField(model) {
         var field = newNode('input');
-        field.style.border = 'none';
-        field.style.outline = 'none';
-        field.style.backgroundColor = 'transparent';
+        updateFieldStyle(field.style, model.style);
+        field.style.borderStyle = 'solid';
         field.style.pointerEvents = 'auto';
 
         field.type = model.type;
@@ -302,6 +345,9 @@ Elm.Native.Graphics.Input.make = function(elm) {
     }
 
     function updateField(field, oldModel, newModel) {
+        if (oldModel.style !== newModel.style) {
+            updateFieldStyle(field.style, newModel.style);
+        }
         field.elm_signal = newModel.signal;
         field.elm_handler = newModel.handler;
 
@@ -316,10 +362,16 @@ Elm.Native.Graphics.Input.make = function(elm) {
     }
 
     function mkField(type) {
-        function field(signal, handler, placeHolder, content) {
+        function field(signal, handler, style, placeHolder, content) {
+            var padding = style.padding;
+            var outline = style.outline.width;
+            var adjustWidth = padding.left + padding.right + outline.left + outline.right;
+            var adjustHeight = padding.top + padding.bottom + outline.top + outline.bottom;
             return A3(newElement, 200, 30, {
                 ctor: 'Custom',
-                type: type + 'Input',
+                type: type + 'Field',
+                adjustWidth: adjustWidth,
+                adjustHeight: adjustHeight,
                 render: renderField,
                 update: updateField,
                 model: {
@@ -327,13 +379,13 @@ Elm.Native.Graphics.Input.make = function(elm) {
                     handler:handler,
                     placeHolder:placeHolder,
                     content:content,
+                    style:style,
                     type:type
                 }
             });
         }
-        return F4(field);
+        return F5(field);
     }
-
 
     function hoverable(signal, handler, elem) {
         function onHover(bool) {

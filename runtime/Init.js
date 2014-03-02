@@ -91,7 +91,7 @@ function init(display, container, module, ports, moduleToReplace) {
       checkPorts(elm);
   } catch(e) {
       var directions = "<br/>&nbsp; &nbsp; Open the developer console for more details."
-      Module.main = Elm.Text.make(elm).text('<code>' + e.message + directions + '</code>');
+      Module.main = Elm.Text.make(elm).leftAligned('<code>' + e.message + directions + '</code>');
       reportAnyErrors = function() { throw e; }
   }
   inputs = ElmRuntime.filterDeadInputs(inputs);
