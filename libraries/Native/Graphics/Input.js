@@ -80,7 +80,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
 
     function updateButton(node, oldModel, newModel) {
         node.elm_signal = newModel.signal;
-        node.elm_value = nemModel.value;
+        node.elm_value = newModel.value;
         var txt = newModel.text;
         if (oldModel.text !== txt) node.innerHTML = txt;
     }
