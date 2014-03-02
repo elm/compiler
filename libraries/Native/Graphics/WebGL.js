@@ -235,6 +235,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
             }
             if (!tex) {
               tex = do_texture(gl, texture.img);
+              model.cache.textures[texture.id] = tex;
             }
             var activeName = 'TEXTURE' + textureCounter;
             gl.activeTexture(gl[activeName]);
@@ -307,6 +308,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
       model.cache.shaders = [];
       model.cache.programs = {};
       model.cache.buffers = [];
+      model.cache.textures = [];
 
       update(div, model, model);
 
