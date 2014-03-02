@@ -4,6 +4,7 @@ Elm.Native.Text.make = function(elm) {
     elm.Native.Text = elm.Native.Text || {};
     if (elm.Native.Text.values) return elm.Native.Text.values;
 
+    var Color = Elm.Native.Color.make(elm);
     var Element = Elm.Graphics.Element.make(elm);
     var List = Elm.Native.List.make(elm);
     var Utils = Elm.Native.Utils.make(elm);
@@ -69,16 +70,10 @@ Elm.Native.Text.make = function(elm) {
                          ctor === 'Over'  ? 'overline'  : 'line-through';
         return 'text-decoration:' + decoration + ';';
     }
-    function toColor(c) {
-        var color = (c._3 === 1)
-            ? ('rgb(' + c._0 + ', ' + c._1 + ', ' + c._2 + ')')
-            : ('rgba(' + c._0 + ', ' + c._1 + ', ' + c._2 + ', ' + c._3 + ')');
-        return 'color:' + color + ';';
-    }
 
     // setting styles of Text
     function style(style, text) {
-        var newText = '<span style="' + toColor(style.color);
+        var newText = '<span style="color:' + toCss(style.color) + ';'
         if (style.typeface.ctor !== '[]') {
             newText += 'font-family:' + toTypefaces(style.typeface) + ';'
         }
@@ -119,11 +114,8 @@ Elm.Native.Text.make = function(elm) {
         return { style: toLine(line), text:text };
     }
 
-    function color(c, text) {
-        var color = (c._3 === 1)
-            ? ('rgb(' + c._0 + ', ' + c._1 + ', ' + c._2 + ')')
-            : ('rgba(' + c._0 + ', ' + c._1 + ', ' + c._2 + ', ' + c._3 + ')');
-        return { style: 'color:' + color + ';', text:text };
+    function color(color, text) {
+        return { style: 'color:' + toCss(color) + ';', text:text };
     }
 
     function block(align) {
