@@ -8,7 +8,6 @@ Elm.Native.Text.make = function(elm) {
     var Element = Elm.Graphics.Element.make(elm);
     var List = Elm.Native.List.make(elm);
     var Utils = Elm.Native.Utils.make(elm);
-    var show = Elm.Native.Show.make(elm).show;
 
     function makeSpaces(s) {
         if (s.length == 0) { return s; }
