@@ -20,12 +20,12 @@ add noPrelude (Module name exs ims decls) = Module name exs (customIms ++ ims) d
                                 Just _      -> []
 
 prelude :: [(String, ImportMethod)]
-prelude = string : text ++ map (\n -> (n, Hiding [])) modules
+prelude = string ++ text ++ map (\n -> (n, Hiding [])) modules
   where
     text = map ((,) "Text") [ As "Text", Hiding ["link", "color", "height"] ]
-    string = ("String", As "String")
-    modules = [ "Basics", "Signal", "List", "Maybe", "Time", "Prelude"
-              , "Graphics.Element", "Color", "Graphics.Collage", "Native.Ports" ]
+    string = map ((,) "String") [ As "String", Importing ["show"] ]
+    modules = [ "Basics", "Signal", "List", "Maybe", "Time", "Color"
+              , "Graphics.Element", "Graphics.Collage", "Native.Ports" ]
 
 interfaces :: Bool -> IO Interfaces
 interfaces noPrelude =
