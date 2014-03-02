@@ -4,7 +4,7 @@ Elm.Native.Text.make = function(elm) {
     elm.Native.Text = elm.Native.Text || {};
     if (elm.Native.Text.values) return elm.Native.Text.values;
 
-    var Color = Elm.Native.Color.make(elm);
+    var toCss = Elm.Native.Color.make(elm).toCss;
     var Element = Elm.Graphics.Element.make(elm);
     var List = Elm.Native.List.make(elm);
     var Utils = Elm.Native.Utils.make(elm);
