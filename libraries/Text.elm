@@ -8,8 +8,8 @@ module Text where
 # Creating Elements
 @docs leftAligned, rightAligned, centered, justified
 
-# Style and Links
-@docs Style, style, Line, link
+# Links and Style
+@docs link, Style, style, Line, defaultStyle
 
 # Convenience Functions
 
@@ -26,9 +26,9 @@ There are also a bunch of functions to set parts of a `Style` individually:
 
 import Basics (..)
 import String
-import Color (Color)
+import Color (Color, black)
 import Graphics.Element (Element, Three, Pos, ElementPrim, Properties)
-import Maybe (Maybe)
+import Maybe (Maybe, Nothing)
 import JavaScript (JSString)
 import Native.Text
 
@@ -45,6 +45,27 @@ type Style =
   , bold     : Bool
   , italic   : Bool
   , line     : Maybe Line
+  }
+
+{-| Plain black text. It uses the browsers default typeface and text height.
+No decorations are used:
+
+      { typeface = []
+      , height = Nothing
+      , color = black
+      , bold = False
+      , italic = False
+      , line = Nothing
+      }
+-}
+defaultStyle : Style
+defaultStyle =
+  { typeface = []
+  , height = Nothing
+  , color = black
+  , bold = False
+  , italic = False
+  , line = Nothing
   }
 
 {-| Convert a string into text which can be styled and displayed. -}
