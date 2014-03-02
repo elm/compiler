@@ -25,6 +25,7 @@ There are also a bunch of functions to set parts of a `Style` individually:
 -}
 
 import Basics (..)
+import String
 import Color (Color)
 import Graphics.Element (Element, Three, Pos, ElementPrim, Properties)
 import Maybe (Maybe)
@@ -123,4 +124,4 @@ Excellent for debugging.
 -}
 asText : a -> Element
 asText value =
-    leftAligned (monospace (toText (show value)))
+    leftAligned (monospace (toText (String.show value)))
