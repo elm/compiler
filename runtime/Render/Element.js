@@ -7,7 +7,15 @@ var newElement = Utils.newElement, extract = Utils.extract,
     addTransform = Utils.addTransform, removeTransform = Utils.removeTransform,
     fromList = Utils.fromList, eq = Utils.eq;
 
-function setProps(props, e) {
+function setProps(elem, e) {
+    var props = elem.props;
+    var element = elem.element;
+    if (element.adjustWidth) {
+        props.width -= element.adjustWidth;
+    }
+    if (element.adjustHeight) {
+        props.height -= element.adjustHeight;
+    }
     e.style.width  = (props.width |0) + 'px';
     e.style.height = (props.height|0) + 'px';
     if (props.opacity !== 1) { e.style.opacity = props.opacity; }
@@ -200,7 +208,7 @@ function rawHtml(elem) {
     return div;
 }
 
-function render(elem) { return setProps(elem.props, makeElement(elem)); }
+function render(elem) { return setProps(elem, makeElement(elem)); }
 function makeElement(e) {
     var elem = e.element;
     switch(elem.ctor) {
@@ -308,7 +316,16 @@ function update(node, curr, next) {
 }
 
 function updateProps(node, curr, next) {
-    var props = next.props, currP = curr.props, e = node;
+    var props = next.props;
+    var currP = curr.props;
+    var e = node;
+    var element = next.element;
+    if (element.adjustWidth) {
+        props.width -= element.adjustWidth;
+    }
+    if (element.adjustHeight) {
+        props.height -= element.adjustHeight;
+    }
     if (props.width !== currP.width)   e.style.width  = (props.width |0) + 'px';
     if (props.height !== currP.height) e.style.height = (props.height|0) + 'px';
     if (props.opacity !== 1 && props.opacity !== currP.opacity) {
