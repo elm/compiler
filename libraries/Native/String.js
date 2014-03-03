@@ -144,7 +144,8 @@ Elm.Native.String.make = function(elm) {
         return str.indexOf(sub) === 0;
     }
     function endsWith(sub, str) {
-        return str.lastIndexOf(sub) === str.length - sub.length;
+        return str.length >= sub.length &&
+               str.lastIndexOf(sub) === str.length - sub.length;
     }
     function indexes(sub, str) {
         var subLen = sub.length;
