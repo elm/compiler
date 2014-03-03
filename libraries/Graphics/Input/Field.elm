@@ -1,5 +1,5 @@
 module Graphics.Input.Field where
-{-| This library specifically addresses text fields. It uses the same genral
+{-| This library specifically addresses text fields. It uses the same general
 approach as the [`Graphics.Input`](Graphics-Input) module for describing an
 `Input`, so this library focuses on creating and styling text fields.
 
@@ -110,7 +110,7 @@ to match what they have entered.
       name = input noContent
 
       nameField : Signal Element
-      nameField = field name.handle id "Name" <~ name.signal
+      nameField = field name.handle id defaultStyle "Name" <~ name.signal
 -}
 field : Handle a -> (Content -> a) -> Style -> String -> Content -> Element
 field = Native.Graphics.Input.field
