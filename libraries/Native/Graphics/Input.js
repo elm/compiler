@@ -209,6 +209,14 @@ Elm.Native.Graphics.Input.make = function(elm) {
         });
     }
 
+    function setRange(node, start, end, dir) {
+        if (node.parentNode) {
+            node.setSelectionRange(start, end, dir);
+        } else {
+            setTimeout(function(){node.setSelectionRange(start, end, dir);}, 0);
+        }
+    }
+
     function updateIfNeeded(css, attribute, latestAttribute) {
         if (css[attribute] !== latestAttribute) {
             css[attribute] = latestAttribute;
@@ -259,7 +267,10 @@ Elm.Native.Graphics.Input.make = function(elm) {
 
         field.type = model.type;
         field.placeholder = JS.fromString(model.placeHolder);
-        field.value = JS.fromString(model.content);
+        field.value = JS.fromString(model.content.string);
+        var selection = model.content.selection;
+        var direction = selection.direction.ctor === 'Forward' ? 'forward' : 'backward';
+        setRange(field, selection.start, selection.end, direction);
 
         field.elm_signal = model.signal;
         field.elm_handler = model.handler;
@@ -271,7 +282,15 @@ Elm.Native.Graphics.Input.make = function(elm) {
                         String.fromCharCode(event.keyCode) +
                         curr.slice(field.selectionEnd));
             var pos = field.selectionEnd + 1;
-            elm.notify(field.elm_signal.id, field.elm_handler(JS.toString(next)));
+            elm.notify(field.elm_signal.id, field.elm_handler({
+                _:{},
+                string: JS.toString(next),
+                selection: {
+                    start: pos,
+                    end: pos,
+                    direction: { ctor:'Forward' }
+                },
+            }));
             event.preventDefault();
         }
 
@@ -281,12 +300,46 @@ Elm.Native.Graphics.Input.make = function(elm) {
             if (curr === next) {
                 return;
             }
+
+            var direction = field.selectionDirection === 'forward' ? 'Forward' : 'Backward';
+            var start = field.selectionStart;
+            var end = field.selectionEnd;
             field.value = field.elm_old_value;
-            elm.notify(field.elm_signal.id, field.elm_handler(JS.toString(next)));
+
+            elm.notify(field.elm_signal.id, field.elm_handler({
+                _:{},
+                string: JS.toString(next),
+                selection: {
+                    start: start,
+                    end: end,
+                    direction: { ctor: direction }
+                },
+            }));
         }
 
+        function mouseUpdate(event) {
+            var direction = field.selectionDirection === 'forward' ? 'Forward' : 'Backward';
+            elm.notify(field.elm_signal.id, field.elm_handler({
+                _:{},
+                string: field.value,
+                selection: {
+                    start: field.selectionStart,
+                    end: field.selectionEnd,
+                    direction: { ctor: direction }
+                },
+            }));
+        }
+        function mousedown(event) {
+            mouseUpdate(event);
+            elm.node.addEventListener('mouseup', mouseup);
+        }
+        function mouseup(event) {
+            mouseUpdate(event);
+            elm.node.removeEventListener('mouseup', mouseup)
+        }
         field.addEventListener('keypress', keyUpdate);
         field.addEventListener('input', inputUpdate);
+        field.addEventListener('mousedown', mousedown);
 
         return field;
     }
@@ -300,9 +353,12 @@ Elm.Native.Graphics.Input.make = function(elm) {
 
         field.type = newModel.type;
         field.placeholder = JS.fromString(newModel.placeHolder);
-        var value = JS.fromString(newModel.content);
+        var value = JS.fromString(newModel.content.string);
         field.value = value;
         field.elm_old_value = value;
+        var selection = newModel.content.selection;
+        var direction = selection.direction.ctor === 'Forward' ? 'forward' : 'backward';
+        setRange(field, selection.start, selection.end, direction);
     }
 
     function mkField(type) {

@@ -6,6 +6,9 @@ approach as the [`Graphics.Input`](Graphics-Input) module for describing an
 # Create Fields
 @docs field, password, email
 
+# Field Content
+@docs Content, Selection, Direction, noContent
+
 # Field Style
 @docs Style, Outline, noOutline, Highlight, noHighlight, Dimensions, uniformly
 -}
@@ -72,29 +75,56 @@ defaultStyle =
   , style     = Text.defaultStyle
   }
 
+{-| Represents the current content of a text field. For example:
+
+      Content "She sells sea shells" (Selection 0 3 Backward)
+
+This means the user highlighted the substring `"She"` backwards.
+-}
+type Content = { string:String, selection:Selection }
+
+{-| The selection within a text field. `start` is never greater than `end`:
+
+    Selection 0 0 Forward  -- cursor precedes all characters
+
+    Selection 5 9 Backward -- highlighting characters starting after
+                           -- the 5th and ending after the 9th
+-}
+type Selection = { start:Int, end:Int, direction:Direction }
+
+{-| The direction of selection.-}
+data Direction = Forward | Backward
+
+{-| A field with no content:
+
+    Content "" (Selection 0 0 Forward)
+-}
+noContent : Content
+noContent = Content "" (Selection 0 0 Forward)
+
 {-| Create a text field. The following example creates a time-varying element
 called `nameField`. As the user types their name, the field will be updated
 to match what they have entered.
 
-      name : Input String
-      name = input ""
+      name : Input Content
+      name = input noContent
 
       nameField : Signal Element
       nameField = field name.handle id defaultStyle "Name" <~ name.signal
 -}
-field : Handle a -> (String -> a) -> Style -> String -> String -> Element
+field : Handle a -> (Content -> a) -> Style -> String -> Content -> Element
 field = Native.Graphics.Input.field
 
 {-| Same as `field` but the UI element blocks out each characters. -}
-password : Handle a -> (String -> a) -> Style -> String -> String -> Element
+password : Handle a -> (Content -> a) -> Style -> String -> Content -> Element
 password = Native.Graphics.Input.password
 
 {-| Same as `field` but it adds an annotation that this field is for email
 addresses. This is helpful for auto-complete and for mobile users who may
 get a custom keyboard with an `@` and `.com` button.
 -}
-email : Handle a -> (String -> a) -> Style -> String -> String -> Element
+email : Handle a -> (Content -> a) -> Style -> String -> Content -> Element
 email = Native.Graphics.Input.email
 
--- area : Handle a -> (String -> a) -> Handle b -> ((Int,Int) -> b) -> (Int,Int) -> String -> String -> Element
+-- area : Handle a -> (Content -> a) -> Handle b -> ((Int,Int) -> b) -> (Int,Int) -> String -> Content -> Element
 -- area = Native.Graphics.Input.area
