@@ -268,9 +268,6 @@ Elm.Native.Graphics.Input.make = function(elm) {
         field.type = model.type;
         field.placeholder = JS.fromString(model.placeHolder);
         field.value = JS.fromString(model.content.string);
-        var selection = model.content.selection;
-        var direction = selection.direction.ctor === 'Forward' ? 'forward' : 'backward';
-        setRange(field, selection.start, selection.end, direction);
 
         field.elm_signal = model.signal;
         field.elm_handler = model.handler;
@@ -340,6 +337,12 @@ Elm.Native.Graphics.Input.make = function(elm) {
         field.addEventListener('keypress', keyUpdate);
         field.addEventListener('input', inputUpdate);
         field.addEventListener('mousedown', mousedown);
+        field.addEventListener('focus', function() {
+            field.elm_hasFocus = true;
+        });
+        field.addEventListener('blur', function() {
+            field.elm_hasFocus = false;
+        });
 
         return field;
     }
@@ -356,9 +359,11 @@ Elm.Native.Graphics.Input.make = function(elm) {
         var value = JS.fromString(newModel.content.string);
         field.value = value;
         field.elm_old_value = value;
-        var selection = newModel.content.selection;
-        var direction = selection.direction.ctor === 'Forward' ? 'forward' : 'backward';
-        setRange(field, selection.start, selection.end, direction);
+        if (field.elm_hasFocus) {
+            var selection = newModel.content.selection;
+            var direction = selection.direction.ctor === 'Forward' ? 'forward' : 'backward';
+            setRange(field, selection.start, selection.end, direction);
+        }
     }
 
     function mkField(type) {
