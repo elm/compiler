@@ -20,7 +20,27 @@ Category:            Compiler, Language
 
 Build-type:          Custom
 
-Extra-source-files:  changelog.txt
+Extra-source-files:  changelog.txt,
+                     -- elm libs
+                     libraries/*.elm,
+                     libraries/*.elm.hidden,
+                     libraries/Graphics/*.elm,
+                     libraries/JavaScript/*.elm,
+                     -- js libs
+                     libraries/*.json,
+                     libraries/Native/*.js,
+                     libraries/Native/Graphics/*.js,
+                     libraries/Native/Signal/*.js,
+                     runtime/*.js,
+                     runtime/Render/*.js,
+                     -- tests
+                     tests/test-files/bad/*.elm,
+                     tests/test-files/bad/Strings/*.elm,
+                     tests/test-files/good/*.elm,
+                     tests/test-files/good/Soundness/*.elm,
+                     tests/test-files/good/Strings/*.elm,
+                     tests/test-files/good/Unify/*.elm
+
 Data-dir:            data
 Data-files:          elm-runtime.js interfaces.data docs.json
 Cabal-version:       >=1.9
@@ -97,8 +117,8 @@ Library
   Build-depends:       aeson,
                        base >=4.2 && <5,
                        binary >= 0.6.4.0,
-                       blaze-html == 0.5.* || == 0.6.*,
-                       blaze-markup,
+                       blaze-html >= 0.5 && < 0.8,
+                       blaze-markup >= 0.5.1 && < 0.7,
                        bytestring,
                        cmdargs,
                        containers >= 0.3,
@@ -179,8 +199,8 @@ Executable elm
   Build-depends:       aeson,
                        base >=4.2 && <5,
                        binary >= 0.6.4.0,
-                       blaze-html == 0.5.* || == 0.6.*,
-                       blaze-markup == 0.5.1.*,
+                       blaze-html >= 0.5 && < 0.8,
+                       blaze-markup >= 0.5.1 && < 0.7,
                        bytestring,
                        cmdargs,
                        containers >= 0.3,
@@ -258,8 +278,8 @@ Test-Suite test-elm
                    aeson,
                    base >=4.2 && <5,
                    binary >= 0.6.4.0,
-                   blaze-html == 0.5.* || == 0.6.*,
-                   blaze-markup == 0.5.1.*,
+                   blaze-html >= 0.5 && < 0.8,
+                   blaze-markup >= 0.5.1 && < 0.7,
                    bytestring,
                    cmdargs,
                    containers >= 0.3,
