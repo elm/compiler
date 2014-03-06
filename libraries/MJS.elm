@@ -2,9 +2,9 @@ module MJS where
 
 {-| MJS
 
-A high performance linear algrbra library using
-native JS array types. Geared towards 3D graphics
-and used primarily by the Graphics.WebGL.
+A high performance linear algebra library using
+native JS arrays. Geared towards 3D graphics
+and use with Graphics.WebGL.
 
 Both vectors and matrices are immutable.
 
@@ -15,6 +15,7 @@ import Native.MJS
 data V2 = V2
 data V3 = V3
 data V4 = V4
+data M4x4 = M4x4
 
 v3 : Float -> Float -> Float -> V3
 v3 = Native.MJS.v3
@@ -52,8 +53,6 @@ dot = Native.MJS.v3dot
 
 cross : V3 -> V3 -> V3
 cross = Native.MJS.v3cross
-
-data M4x4 = Dummy_M4x4
 
 mul4x4 : M4x4 -> V3 -> V3
 mul4x4 = Native.MJS.v3mul4x4

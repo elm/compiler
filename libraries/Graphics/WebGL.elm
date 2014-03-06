@@ -1,7 +1,28 @@
-
 module Graphics.WebGL (mapTriangle, zipTriangle, loadTex, model, webgl) where
 
-{-| WebGL -}
+{-| The WebGL API is for high performance drawing.
+
+# Triangle Convenience Functions
+@docs Triangle, mapTriangle, zipTriangle
+
+# Shaders
+Shaders are created using glsl blocks. 
+
+vertex : Shader { a | pos : V3 } {} {}
+vertex = [glsl|
+
+attribute vec3 pos;
+
+void main () {
+  gl_Position = vec4(pos,1.0);
+}
+
+|]
+
+# WebGL Element
+@docs webgl
+
+-}
 
 import Graphics.Element (Element)
 import Http (Response)
