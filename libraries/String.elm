@@ -15,7 +15,7 @@ are enclosed in `"double quotes"`. Strings are *not* lists of characters.
 @docs contains, startsWith, endsWith, indexes, indices
 
 # Conversions
-@docs toInt, toFloat, toList, fromList
+@docs show, toInt, toFloat, toList, fromList
 
 # Formatting
 Cosmetic operations such as padding with extra characters or trimming whitespace.
@@ -28,10 +28,15 @@ Cosmetic operations such as padding with extra characters or trimming whitespace
 @docs map, filter, foldl, foldr, any, all
 -}
 
+import Native.Show
 import Native.String
 import Maybe (Maybe)
 
-{-| Check if a string is empty `(isEmpty "" == True)` -}
+{-| Check if a string is empty.
+
+      isEmpty "" == True
+      isEmpty "the world" == False
+-}
 isEmpty : String -> Bool
 isEmpty = Native.String.isEmpty
 
@@ -63,7 +68,11 @@ append = Native.String.append
 concat : [String] -> String
 concat = Native.String.concat
 
-{-| Get the length of a string `(length "innumerable" == 11)` -}
+{-| Get the length of a string.
+
+      length "innumerable" == 11
+
+-}
 length : String -> Int
 length = Native.String.length
 
@@ -81,7 +90,10 @@ map = Native.String.map
 filter : (Char -> Bool) -> String -> String
 filter = Native.String.filter
 
-{-| Reverse a string. `(reverse "stressed" == "desserts")` -}
+{-| Reverse a string.
+
+      reverse "stressed" == "desserts"
+-}
 reverse : String -> String
 reverse = Native.String.reverse
 
@@ -117,7 +129,10 @@ split = Native.String.split
 join : String -> [String] -> String
 join = Native.String.join
 
-{-| Repeat a string N times `(repeat 3 "ha" == "hahaha")` -}
+{-| Repeat a string N times.
+
+      repeat 3 "ha" == "hahaha"
+-}
 repeat : Int -> String -> String
 repeat = Native.String.repeat
 
@@ -277,6 +292,14 @@ indexes = Native.String.indexes
 {-| Alias for `indexes` -}
 indices : String -> String -> [Int]
 indices = Native.String.indexes
+
+{-| Turn any kind of value into a string.
+
+      show 42    == "42"
+      show [1,2] == "[1,2]"
+-}
+show : a -> String
+show = Native.Show.show
 
 {-| Try to convert a string into an int, failing on improperly formatted strings.
 

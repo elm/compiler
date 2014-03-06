@@ -4,11 +4,10 @@ Elm.Native.Text.make = function(elm) {
     elm.Native.Text = elm.Native.Text || {};
     if (elm.Native.Text.values) return elm.Native.Text.values;
 
-    var JS = Elm.JavaScript.make(elm);
-    var Utils = Elm.Native.Utils.make(elm);
-    var Color = Elm.Native.Color.make(elm);
+    var toCss = Elm.Native.Color.make(elm).toCss;
     var Element = Elm.Graphics.Element.make(elm);
-    var show = Elm.Native.Show.make(elm).show;
+    var List = Elm.Native.List.make(elm);
+    var Utils = Elm.Native.Utils.make(elm);
 
     function makeSpaces(s) {
         if (s.length == 0) { return s; }
@@ -51,13 +50,51 @@ Elm.Native.Text.make = function(elm) {
         return arr.join('<br/>');
     }
 
-    function toText(str) { return Utils.txt(properEscape(JS.fromString(str))); }
+    function toText(str) { return Utils.txt(properEscape(str)); }
 
+    // conversions from Elm values to CSS
+    function toTypefaces(list) {
+        var typefaces = List.toArray(list);
+        for (var i = typefaces.length; i--; ) {
+            var typeface = typefaces[i];
+            if (typeface.contains(' ')) {
+                typefaces[i] = "'" + typeface + "'";
+            }
+        }
+        return typefaces.join(',');
+    }
+    function toLine(line) {
+        var ctor = line.ctor;
+        return ctor === 'Under' ? 'underline' :
+               ctor === 'Over'  ? 'overline'  : 'line-through';
+    }
+
+    // setting styles of Text
+    function style(style, text) {
+        var newText = '<span style="color:' + toCss(style.color) + ';'
+        if (style.typeface.ctor !== '[]') {
+            newText += 'font-family:' + toTypefaces(style.typeface) + ';'
+        }
+        if (style.height.ctor !== "Nothing") {
+            newText += 'font-size:' + style.height._0 + 'px;';
+        }
+        if (style.bold) {
+            newText += 'font-weight:bold;';
+        }
+        if (style.italic) {
+            newText += 'font-style:italic;';
+        }
+        if (style.line.ctor !== 'Nothing') {
+            newText += 'text-decoration:' + toLine(style.line._0) + ';';
+        }
+        newText += '">' + Utils.makeText(text) + '</span>'
+        return Utils.txt(newText);
+    }
     function height(px, text) {
         return { style: 'font-size:' + px + 'px;', text:text }
     }
-    function typeface(name, text) {
-        return { style: 'font-family:' + name + ';', text:text }
+    function typeface(names, text) {
+        return { style: 'font-family:' + toTypefaces(names) + ';', text:text }
     }
     function monospace(text) {
         return { style: 'font-family:monospace;', text:text }
@@ -71,25 +108,16 @@ Elm.Native.Text.make = function(elm) {
     function link(href, text) {
         return { href: toText(href), text:text };
     }
-    function underline(text) {
-        return { line: ' underline', text:text };
-    }
-    function overline(text) {
-        return { line: ' overline', text:text };
-    }
-    function strikeThrough(text) {
-        return { line: ' line-through', text:text };
+    function line(line, text) {
+        return { style: 'text-decoration:' + toLine(line) + ';', text:text };
     }
 
-    function color(c, text) {
-        var color = (c._3 === 1)
-            ? ('rgb(' + c._0 + ', ' + c._1 + ', ' + c._2 + ')')
-            : ('rgba(' + c._0 + ', ' + c._1 + ', ' + c._2 + ', ' + c._3 + ')');
-        return { style: 'color:' + color + ';', text:text };
+    function color(color, text) {
+        return { style: 'color:' + toCss(color) + ';', text:text };
     }
 
-    function position(align) {
-        function create(text) {
+    function block(align) {
+        return function(text) {
             var raw = {
                 ctor :'RawHtml',
                 html : Utils.makeText(text),
@@ -100,7 +128,6 @@ Elm.Native.Text.make = function(elm) {
             var pos = A2(Utils.htmlHeight, 0, raw);
             return A3(Element.newElement, pos._0, pos._1, raw);
         }
-        return create;
     }
 
     function markdown(text, guid) {
@@ -115,36 +142,25 @@ Elm.Native.Text.make = function(elm) {
         return A3(Element.newElement, pos._0, pos._1, raw);
     }
 
-    var text = position('left');
-    function asText(v) {
-        return text(monospace(toText(show(v))));
-    }
-
-    function plainText(v) {
-        return text(toText(v));
-    }
-
     return elm.Native.Text.values = {
         toText: toText,
 
         height : F2(height),
         italic : italic,
         bold : bold,
-        underline : underline,
-        overline : overline,
-        strikeThrough : strikeThrough,
+        line : F2(line),
         monospace : monospace,
         typeface : F2(typeface),
         color : F2(color),
         link : F2(link),
 
-        justified : position('justify'),
-        centered : position('center'),
-        righted : position('right'),
-        text : text,
-        plainText : plainText,
-        markdown : markdown,
+        leftAligned  : block('left'),
+        rightAligned : block('right'),
+        centered     : block('center'),
+        justified    : block('justify'),
+        markdown     : markdown,
 
-        asText : asText,
+        toTypefaces:toTypefaces,
+        toLine:toLine,
     };
 };
