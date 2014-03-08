@@ -7,10 +7,12 @@ Elm.Native.Debug.make = function(elm) {
     var show = Elm.Native.Show.make(elm).show;
 
     function log(tag,value) {
-        if (process && process.stdout) {
-            process.stdout.write(tag + ': ' + show(value));
+        var msg = tag + ': ' + show(value);
+        var process = process || {};
+        if (process.stdout) {
+            process.stdout.write(msg);
         } else {
-            console.log(tag + ': ' + show(value));
+            console.log(msg);
         }
         return value;
     }
