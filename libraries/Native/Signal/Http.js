@@ -11,7 +11,9 @@ Elm.Native.Http.make = function(elm) {
 
     function registerReq(queue,responses) {
         return function(req) {
-            if (req.url.ctor !== '[]') { sendReq(queue,responses,req); }
+            if (req.url.length > 0) {
+                sendReq(queue,responses,req);
+            }
         };
     }
 
@@ -29,9 +31,10 @@ Elm.Native.Http.make = function(elm) {
         var response = { value: { ctor:'Waiting' } };
         queue.push(response);
 
-        var request = null;
-        if (window.ActiveXObject)  { request = new ActiveXObject("Microsoft.XMLHTTP"); }
-        if (window.XMLHttpRequest) { request = new XMLHttpRequest(); }
+        var request = (window.ActiveXObject
+                       ? new ActiveXObject("Microsoft.XMLHTTP")
+                       : new XMLHttpRequest());
+
         request.onreadystatechange = function(e) {
             if (request.readyState === 4) {
                 response.value = (request.status >= 200 && request.status < 300 ?
@@ -55,5 +58,7 @@ Elm.Native.Http.make = function(elm) {
         return A3( Signal.lift2, f, responses, sender );
     }
 
-    return elm.Native.Http.values = {send:send};
+    return elm.Native.Http.values = {
+        send:send
+    };
 };
