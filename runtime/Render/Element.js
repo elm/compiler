@@ -151,7 +151,12 @@ function toPos(pos) {
 
 // must clear right, left, top, bottom, and transform
 // before calling this function
-function setPos(pos,w,h,e) {
+function setPos(pos,elem,e) {
+    var element = elem.element;
+    var props = elem.props;
+    var w = props.width + (element.adjustWidth ? element.adjustWidth : 0);
+    var h = props.height + (element.adjustHeight ? element.adjustHeight : 0);
+
     e.style.position = 'absolute';
     e.style.margin = 'auto';
     var transform = '';
@@ -171,7 +176,7 @@ function setPos(pos,w,h,e) {
 
 function container(pos,elem) {
     var e = render(elem);
-    setPos(pos, elem.props.width, elem.props.height, e);
+    setPos(pos, elem, e);
     var div = newElement('div');
     div.style.position = 'relative';
     div.style.overflow = 'hidden';
@@ -302,7 +307,7 @@ function update(node, curr, next) {
         break;
     case "Container":
         update(node.firstChild, currE._1, nextE._1);
-        setPos(nextE._0, nextE._1.props.width, nextE._1.props.height, node.firstChild);
+        setPos(nextE._0, nextE._1, node.firstChild);
         break;
     case "Custom":
         if (currE.type === nextE.type) {
