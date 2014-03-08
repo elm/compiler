@@ -140,20 +140,30 @@ to match what they have entered.
       name = input noContent
 
       nameField : Signal Element
-      nameField = field name.handle id defaultStyle "Name" <~ name.signal
+      nameField = field defaultStyle name.handle id "Name" <~ name.signal
+
+When we use the `field` function, we first give it a visual style. This is
+the first argument so that it is easier to define your own custom field
+(`myField = field myStyle`). The next two arguments are a `Handle` and a
+handler function that processes or augments events before sending them along
+to the associated `Input`. In the example above we use the `id` function to
+pass events along unchanged to the `name` `Input`. We then provide the
+place-holder message to use when no input has been provided yet. Finally,
+we give the current `Content` of the field. This argument is last because
+it is most likely to change frequently, making function composition easier.
 -}
-field : Handle a -> (Content -> a) -> Style -> String -> Content -> Element
+field : Style -> Handle a -> (Content -> a) -> String -> Content -> Element
 field = Native.Graphics.Input.field
 
 {-| Same as `field` but the UI element blocks out each characters. -}
-password : Handle a -> (Content -> a) -> Style -> String -> Content -> Element
+password : Style -> Handle a -> (Content -> a) -> String -> Content -> Element
 password = Native.Graphics.Input.password
 
 {-| Same as `field` but it adds an annotation that this field is for email
 addresses. This is helpful for auto-complete and for mobile users who may
 get a custom keyboard with an `@` and `.com` button.
 -}
-email : Handle a -> (Content -> a) -> Style -> String -> Content -> Element
+email : Style -> Handle a -> (Content -> a) -> String -> Content -> Element
 email = Native.Graphics.Input.email
 
 -- area : Handle a -> (Content -> a) -> Handle b -> ((Int,Int) -> b) -> (Int,Int) -> String -> Content -> Element

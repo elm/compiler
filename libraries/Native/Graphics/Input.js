@@ -367,7 +367,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
     }
 
     function mkField(type) {
-        function field(signal, handler, style, placeHolder, content) {
+        function field(style, signal, handler, placeHolder, content) {
             var padding = style.padding;
             var outline = style.outline.width;
             var adjustWidth = padding.left + padding.right + outline.left + outline.right;
