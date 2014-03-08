@@ -118,7 +118,7 @@ favorite British sport:
 
       data Sport = Football | Cricket | Snooker
 
-      sport : Input Sport
+      sport : Input (Maybe Sport)
       sport = input Nothing
 
       sportDropDown : Element
