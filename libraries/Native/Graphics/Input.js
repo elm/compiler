@@ -274,9 +274,13 @@ Elm.Native.Graphics.Input.make = function(elm) {
         field.elm_old_value = field.value;
 
         function keyUpdate(event) {
+            var character = String.fromCharCode(event.keyCode);
+            if (/[\f\n\r\t\v\u2028\u2029]/.test(character)) {
+                return;
+            }
             var curr = field.value;
             var next = (curr.slice(0, field.selectionStart) +
-                        String.fromCharCode(event.keyCode) +
+                        character +
                         curr.slice(field.selectionEnd));
             var pos = field.selectionEnd + 1;
             elm.notify(field.elm_signal.id, field.elm_handler({
