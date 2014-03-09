@@ -10,15 +10,13 @@ var newElement = Utils.newElement, extract = Utils.extract,
 function setProps(elem, e) {
     var props = elem.props;
     var element = elem.element;
-    if (element.adjustWidth) {
-        props.width -= element.adjustWidth;
+    var width = props.width - (element.adjustWidth || 0);
+    var height = props.height - (element.adjustHeight || 0);
+    e.style.width  = (width |0) + 'px';
+    e.style.height = (height|0) + 'px';
+    if (props.opacity !== 1) {
+        e.style.opacity = props.opacity;
     }
-    if (element.adjustHeight) {
-        props.height -= element.adjustHeight;
-    }
-    e.style.width  = (props.width |0) + 'px';
-    e.style.height = (props.height|0) + 'px';
-    if (props.opacity !== 1) { e.style.opacity = props.opacity; }
     if (props.color.ctor === 'Just') {
         e.style.backgroundColor = extract(props.color._0);
     }
@@ -325,14 +323,14 @@ function updateProps(node, curr, next) {
     var currP = curr.props;
     var e = node;
     var element = next.element;
-    if (element.adjustWidth) {
-        props.width -= element.adjustWidth;
+    var width = props.width - (element.adjustWidth || 0);
+    var height = props.height - (element.adjustHeight || 0);
+    if (width !== currP.width) {
+        e.style.width = (width|0) + 'px';
     }
-    if (element.adjustHeight) {
-        props.height -= element.adjustHeight;
+    if (height !== currP.height) {
+        e.style.height = (height|0) + 'px';
     }
-    if (props.width !== currP.width)   e.style.width  = (props.width |0) + 'px';
-    if (props.height !== currP.height) e.style.height = (props.height|0) + 'px';
     if (props.opacity !== 1 && props.opacity !== currP.opacity) {
         e.style.opacity = props.opacity;
     }
