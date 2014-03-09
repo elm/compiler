@@ -273,28 +273,6 @@ Elm.Native.Graphics.Input.make = function(elm) {
         field.elm_handler = model.handler;
         field.elm_old_value = field.value;
 
-        function keyUpdate(event) {
-            var character = String.fromCharCode(event.keyCode);
-            if (/[\f\n\r\t\v\u2028\u2029]/.test(character)) {
-                return;
-            }
-            var curr = field.value;
-            var next = (curr.slice(0, field.selectionStart) +
-                        character +
-                        curr.slice(field.selectionEnd));
-            var pos = field.selectionEnd + 1;
-            elm.notify(field.elm_signal.id, field.elm_handler({
-                _:{},
-                string: JS.toString(next),
-                selection: {
-                    start: pos,
-                    end: pos,
-                    direction: { ctor:'Forward' }
-                },
-            }));
-            event.preventDefault();
-        }
-
         function inputUpdate(event) {
             var curr = field.elm_old_value;
             var next = field.value;
@@ -338,7 +316,6 @@ Elm.Native.Graphics.Input.make = function(elm) {
             mouseUpdate(event);
             elm.node.removeEventListener('mouseup', mouseup)
         }
-        field.addEventListener('keypress', keyUpdate);
         field.addEventListener('input', inputUpdate);
         field.addEventListener('mousedown', mousedown);
         field.addEventListener('focus', function() {
