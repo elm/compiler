@@ -57,7 +57,7 @@ Elm.Native.Text.make = function(elm) {
         var typefaces = List.toArray(list);
         for (var i = typefaces.length; i--; ) {
             var typeface = typefaces[i];
-            if (typeface.contains(' ')) {
+            if (typeface.indexOf(' ') > -1) {
                 typefaces[i] = "'" + typeface + "'";
             }
         }
