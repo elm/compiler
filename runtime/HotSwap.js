@@ -5,8 +5,8 @@
 // structure.
 ElmRuntime.swap = function(from, to) {
     function similar(nodeOld,nodeNew) {
-        idOkay = nodeOld.id === nodeNew.id;
-        lengthOkay = nodeOld.kids.length === nodeNew.kids.length;
+        var idOkay = nodeOld.id === nodeNew.id;
+        var lengthOkay = nodeOld.kids.length === nodeNew.kids.length;
         return idOkay && lengthOkay;
     }
     function swap(nodeOld,nodeNew) {
