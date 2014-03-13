@@ -289,6 +289,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
                 _:{},
                 string: JS.toString(next),
                 selection: {
+                    _:{},
                     start: start,
                     end: end,
                     direction: { ctor: direction }
@@ -302,6 +303,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
                 _:{},
                 string: field.value,
                 selection: {
+                    _:{},
                     start: field.selectionStart,
                     end: field.selectionEnd,
                     direction: { ctor: direction }
