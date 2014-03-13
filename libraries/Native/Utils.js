@@ -9,7 +9,12 @@ Elm.Native.Utils.make = function(elm) {
         if (x === y) return true;
         if (typeof x === "object") {
             var c = 0;
-            for (var i in x) { ++c; if (!eq(x[i],y[i])) return false; }
+            for (var i in x) {
+                ++c;
+                if (!eq(x[i],y[i])) {
+                    return false;
+                }
+            }
             return c === Object.keys(y).length;
         }
         if (typeof x === 'function') {
