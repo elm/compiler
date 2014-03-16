@@ -20,7 +20,7 @@ Elm.Native.Regex.make = function(elm) {
     }
 
     function contains(re, string) {
-        return re.test(JS.fromString(string));
+        return JS.fromString(string).match(re).length === 0
     }
 
     function find(n, re, str) {
