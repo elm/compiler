@@ -30,6 +30,9 @@ are your tuples so big?
 # Number Conversions
 @docs round, floor, ceiling, truncate, toFloat
 
+# Floating Point Checks
+@docs isNaN, isFinite
+
 # Angle Conversions
 All angle conversions result in &ldquo;standard Elm angles&rdquo;
 which happen to be radians.
@@ -271,6 +274,17 @@ ceiling = Native.Basics.ceiling
 toFloat : Int -> Float
 toFloat = Native.Basics.toFloat
 
+{- | Determines whether a float is an undefined or unrepresentable number,
+such as 0/0. NaN stands for *not a number*.
+-}
+isNaN : Float -> Bool
+isNaN = Native.Basics.isNaN
+
+{- | Determines whether a float is finite. Positive and negative infinity are
+valid floating point numbers, created by computations like `1/0` and `-1/0`.
+-}
+isFinite : Float -> Bool
+isFinite = Native.Basics.isFinite
 
 -- Function Helpers
 
