@@ -271,6 +271,9 @@ ceiling = Native.Basics.ceiling
 toFloat : Int -> Float
 toFloat = Native.Basics.toFloat
 
+{- | Determines whether a value is an illegal number (Not-a-Number). -}
+isNaN : number -> Bool
+isNaN = Native.Basics.isNaN
 
 -- Function Helpers
 
