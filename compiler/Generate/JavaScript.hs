@@ -55,7 +55,7 @@ literal lit =
 expression :: Expr -> State Int (Expression ())
 expression (A region expr) =
     case expr of
-      Var (V.Raw x) -> return $ ref x
+      Var (V.Raw x) -> return $ obj x
       Literal lit -> return $ literal lit
 
       Range lo hi ->
@@ -243,7 +243,11 @@ match region mtch =
           isLiteral p = case p of
                           Case.Clause (Right _) _ _ -> True
                           _ -> False
-          access name = if any isLiteral clauses then ref name else dotSep [name,"ctor"]
+
+          access name
+              | any isLiteral clauses = obj name
+              | otherwise = dotSep (split name ++ ["ctor"])
+
           format isChars e
               | or isChars = InfixExpr () OpAdd e (string "")
               | otherwise = e
