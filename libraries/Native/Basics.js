@@ -53,6 +53,8 @@ Elm.Native.Basics.make = function(elm) {
       floor:Math.floor,
       round:Math.round,
       toFloat:function(x) { return x; },
+      isNaN:isNaN,
+      isFinite:isFinite
   };
 
   return elm.Native.Basics.values = basics;
