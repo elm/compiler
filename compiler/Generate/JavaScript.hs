@@ -87,10 +87,9 @@ expression (A region expr) =
           do fields' <- forM fields $ \(f,e) -> do
                           (,) f <$> expression e
              let fieldMap = List.foldl' combine Map.empty fields'
-             return $ ObjectLit () $ (PropId () (var "_"), hidden fieldMap) : visible fieldMap
+             return $ ObjectLit () $ (prop "_", hidden fieldMap) : visible fieldMap
           where
             combine r (k,v) = Map.insertWith (++) k [v] r
-            prop = PropId () . var
             hidden fs = ObjectLit () . map (prop *** ArrayLit ()) .
                         Map.toList . Map.filter (not . null) $ Map.map tail fs
             visible fs = map (first prop) . Map.toList $ Map.map head fs
@@ -311,7 +310,7 @@ generate unsafeModule =
     jsExports = assign ("_elm" : names modul ++ ["values"]) (ObjectLit () exs)
         where
           exs = map entry . filter (not . Help.isOp) $ "_op" : exports modul
-          entry x = (PropId () (var x), ref x)
+          entry x = (prop x, ref x)
           
     assign path expr =
              case path of
