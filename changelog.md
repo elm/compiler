@@ -1,7 +1,7 @@
 
-## next
+## 0.12
 
-Breaking Changes:
+#### Breaking Changes:
 
   * Overhaul Graphics.Input library (inspired by Spiros Eliopoulos and Jeff Smitts)
   * Overhaul Text library to accomodate new Graphics.Input.Field
@@ -13,7 +13,7 @@ Breaking Changes:
   * Revise the semantics of keepWhen and dropWhen to only update when
     the filtered signal changes (thanks Max New and Janis Voigtländer)
 
-Improvements:
+#### Improvements:
 
   * Add Graphics.Input.Field for customizable text fields
   * Add Trampoline library (thanks to @maxsnew and @timthelion) 

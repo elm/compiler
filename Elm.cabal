@@ -1,5 +1,5 @@
 Name:                Elm
-Version:             0.11
+Version:             0.12
 Synopsis:            The Elm language module.
 Description:         Elm aims to make client-side web-development more pleasant.
                      It is a statically/strongly typed, functional reactive
@@ -14,7 +14,7 @@ License-file:        LICENSE
 
 Author:              Evan Czaplicki
 Maintainer:          info@elm-lang.org
-Copyright:           Copyright: (c) 2011-2013 Evan Czaplicki
+Copyright:           Copyright: (c) 2011-2014 Evan Czaplicki
 
 Category:            Compiler, Language
 
