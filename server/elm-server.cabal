@@ -26,15 +26,14 @@ source-repository head
 Executable elm-server
   Main-is:             Server.hs
   Build-depends:       base >=4.2 && <5,
+                       bytestring,
+                       cmdargs,
                        containers >= 0.3,
                        directory,
-                       transformers >= 0.2,
-                       mtl >= 2,
-                       parsec >= 3.1.1,
-                       blaze-html >= 0.5.1,
-                       HTTP >= 4000,
-                       happstack-server,
-                       deepseq,
                        filepath,
-                       Elm >= 0.10.1,
-                       process
+                       Elm >= 0.11,
+                       snap-core,
+                       snap-server,
+                       mtl,
+                       process,
+                       unordered-containers
