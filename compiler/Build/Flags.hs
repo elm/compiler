@@ -41,4 +41,4 @@ flags = Flags
   } &= help "Compile Elm programs to HTML, CSS, and JavaScript."
     &= helpArg [explicit, name "help", name "h"]
     &= versionArg [explicit, name "version", name "v", summary (show Version.elmVersion)]
-    &= summary ("The Elm Compiler " ++ show Version.elmVersion ++ ", (c) Evan Czaplicki 2011-2013")
+    &= summary ("The Elm Compiler " ++ show Version.elmVersion ++ ", (c) Evan Czaplicki 2011-2014")
