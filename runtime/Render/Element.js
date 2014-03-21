@@ -331,7 +331,7 @@ function updateProps(node, curr, next) {
     if (height !== currP.height) {
         e.style.height = (height|0) + 'px';
     }
-    if (props.opacity !== 1 && props.opacity !== currP.opacity) {
+    if (props.opacity !== currP.opacity) {
         e.style.opacity = props.opacity;
     }
     var nextColor = (props.color.ctor === 'Just' ?
