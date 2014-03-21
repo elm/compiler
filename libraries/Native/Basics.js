@@ -19,6 +19,7 @@ Elm.Native.Basics.make = function(elm) {
       return Utils.cmp(n,lo) < 0 ? lo : Utils.cmp(n,hi) > 0 ? hi : n; }
   function xor(a,b) { return a !== b; }
   function not(b) { return !b; }
+  function isInfinite(n) { return n === Infinity || n === -Infinity }
 
   function truncate(n) { return n|0; }
 
@@ -54,7 +55,7 @@ Elm.Native.Basics.make = function(elm) {
       round:Math.round,
       toFloat:function(x) { return x; },
       isNaN:isNaN,
-      isFinite:isFinite
+      isInfinite:isInfinite
   };
 
   return elm.Native.Basics.values = basics;
