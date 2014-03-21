@@ -7,10 +7,16 @@ var newElement = Utils.newElement, extract = Utils.extract,
     addTransform = Utils.addTransform, removeTransform = Utils.removeTransform,
     fromList = Utils.fromList, eq = Utils.eq;
 
-function setProps(props, e) {
-    e.style.width  = (props.width |0) + 'px';
-    e.style.height = (props.height|0) + 'px';
-    if (props.opacity !== 1) { e.style.opacity = props.opacity; }
+function setProps(elem, e) {
+    var props = elem.props;
+    var element = elem.element;
+    var width = props.width - (element.adjustWidth || 0);
+    var height = props.height - (element.adjustHeight || 0);
+    e.style.width  = (width |0) + 'px';
+    e.style.height = (height|0) + 'px';
+    if (props.opacity !== 1) {
+        e.style.opacity = props.opacity;
+    }
     if (props.color.ctor === 'Just') {
         e.style.backgroundColor = extract(props.color._0);
     }
@@ -28,15 +34,30 @@ function setProps(props, e) {
         e.appendChild(a);
     }
     if (props.hover.ctor !== '_Tuple0') {
-        var overCount = 0;
+        e.style.pointerEvents = 'auto';
+        e.elm_hover_handler = props.hover;
+        e.elm_hover_count = 0;
         e.addEventListener('mouseover', function() {
-            if (overCount++ > 0) return;
-            props.hover(true);
+            if (e.elm_hover_count++ > 0) return;
+            var handler = e.elm_hover_handler;
+            if (handler !== null) {
+                handler(true);
+            }
         });
         e.addEventListener('mouseout', function(evt) {
             if (e.contains(evt.toElement || evt.relatedTarget)) return;
-            overCount = 0;
-            props.hover(false);
+            e.elm_hover_count = 0;
+            var handler = e.elm_hover_handler;
+            if (handler !== null) {
+                handler(false);
+            }
+        });
+    }
+    if (props.click.ctor !== '_Tuple0') {
+        e.style.pointerEvents = 'auto';
+        e.elm_click_handler = props.click;
+        e.addEventListener('click', function() {
+            e.elm_click_handler(Tuple0);
         });
     }
     return e;
@@ -99,6 +120,8 @@ function goDown(e) { return e }
 function goRight(e) { e.style.styleFloat = e.style.cssFloat = "left"; return e; }
 function flowWith(f, array) {
     var container = newElement('div');
+    if (f == goIn) container.style.pointerEvents = 'none';
+
     for (var i = array.length; i--; ) {
         container.appendChild(f(render(array[i])));
     }
@@ -126,7 +149,12 @@ function toPos(pos) {
 
 // must clear right, left, top, bottom, and transform
 // before calling this function
-function setPos(pos,w,h,e) {
+function setPos(pos,elem,e) {
+    var element = elem.element;
+    var props = elem.props;
+    var w = props.width + (element.adjustWidth ? element.adjustWidth : 0);
+    var h = props.height + (element.adjustHeight ? element.adjustHeight : 0);
+
     e.style.position = 'absolute';
     e.style.margin = 'auto';
     var transform = '';
@@ -146,7 +174,7 @@ function setPos(pos,w,h,e) {
 
 function container(pos,elem) {
     var e = render(elem);
-    setPos(pos, elem.props.width, elem.props.height, e);
+    setPos(pos, elem, e);
     var div = newElement('div');
     div.style.position = 'relative';
     div.style.overflow = 'hidden';
@@ -183,7 +211,7 @@ function rawHtml(elem) {
     return div;
 }
 
-function render(elem) { return setProps(elem.props, makeElement(elem)); }
+function render(elem) { return setProps(elem, makeElement(elem)); }
 function makeElement(e) {
     var elem = e.element;
     switch(elem.ctor) {
@@ -209,7 +237,9 @@ function update(node, curr, next) {
     case "RawHtml":
         // only markdown blocks have guids, so this must be a text block
         if (nextE.guid === null) {
-            node.innerHTML = nextE.html;
+            if(currE.html.valueOf() !== nextE.html.valueOf()) {
+                node.innerHTML = nextE.html;
+            }
             break;
         }
         if (nextE.guid !== currE.guid) {
@@ -275,7 +305,7 @@ function update(node, curr, next) {
         break;
     case "Container":
         update(node.firstChild, currE._1, nextE._1);
-        setPos(nextE._0, nextE._1.props.width, nextE._1.props.height, node.firstChild);
+        setPos(nextE._0, nextE._1, node.firstChild);
         break;
     case "Custom":
         if (currE.type === nextE.type) {
@@ -289,10 +319,19 @@ function update(node, curr, next) {
 }
 
 function updateProps(node, curr, next) {
-    var props = next.props, currP = curr.props, e = node;
-    if (props.width !== currP.width)   e.style.width  = (props.width |0) + 'px';
-    if (props.height !== currP.height) e.style.height = (props.height|0) + 'px';
-    if (props.opacity !== 1 && props.opacity !== currP.opacity) {
+    var props = next.props;
+    var currP = curr.props;
+    var e = node;
+    var element = next.element;
+    var width = props.width - (element.adjustWidth || 0);
+    var height = props.height - (element.adjustHeight || 0);
+    if (width !== currP.width) {
+        e.style.width = (width|0) + 'px';
+    }
+    if (height !== currP.height) {
+        e.style.height = (height|0) + 'px';
+    }
+    if (props.opacity !== currP.opacity) {
         e.style.opacity = props.opacity;
     }
     var nextColor = (props.color.ctor === 'Just' ?
@@ -316,6 +355,20 @@ function updateProps(node, curr, next) {
         } else {
             node.lastNode.href = props.href;
         }
+    }
+
+    // update hover handlers
+    if (props.hover.ctor !== '_Tuple0') {
+        e.elm_hover_handler = props.hover;
+    } else if (e.elm_hover_handler) {
+        e.elm_hover_handler = null;
+    }
+
+    // update click handlers
+    if (props.click.ctor !== '_Tuple0') {
+        e.elm_click_handler = props.click;
+    } else if (e.elm_click_handler) {
+        e.elm_click_handler = null;
     }
 }
 

@@ -1,27 +1,27 @@
 {-# OPTIONS_GHC -W #-}
 module Type.Unify (unify) where
 
-import Type.Type
-import qualified Data.UnionFind.IO as UF
+import Control.Monad.State
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
+import qualified Data.UnionFind.IO as UF
+import qualified SourceSyntax.Annotation as A
 import qualified Type.State as TS
-import Control.Monad.State
-import SourceSyntax.Location
+import Type.Type
 import Type.PrettyPrint
 import Text.PrettyPrint (render)
 
-unify :: SrcSpan -> Variable -> Variable -> StateT TS.SolverState IO ()
-unify span variable1 variable2 = do
+unify :: A.Region -> Variable -> Variable -> StateT TS.SolverState IO ()
+unify region variable1 variable2 = do
   equivalent <- liftIO $ UF.equivalent variable1 variable2
   if equivalent then return ()
-                else actuallyUnify span variable1 variable2
+                else actuallyUnify region variable1 variable2
 
-actuallyUnify :: SrcSpan -> Variable -> Variable -> StateT TS.SolverState IO ()
-actuallyUnify span variable1 variable2 = do
+actuallyUnify :: A.Region -> Variable -> Variable -> StateT TS.SolverState IO ()
+actuallyUnify region variable1 variable2 = do
   desc1 <- liftIO $ UF.descriptor variable1
   desc2 <- liftIO $ UF.descriptor variable2
-  let unify' = unify span
+  let unify' = unify region
 
       name' :: Maybe String
       name' = case (name desc1, name desc2) of
@@ -79,11 +79,11 @@ actuallyUnify span variable1 variable2 = do
 
       unifyNumber svar name
           | name `elem` ["Int","Float","number"] = flexAndUnify svar
-          | otherwise = TS.addError span (Just hint) variable1 variable2
+          | otherwise = TS.addError region (Just hint) variable1 variable2
           where hint = "A number must be an Int or Float."
 
       comparableError maybe =
-          TS.addError span (Just $ Maybe.fromMaybe msg maybe) variable1 variable2
+          TS.addError region (Just $ Maybe.fromMaybe msg maybe) variable1 variable2
           where msg = "A comparable must be an Int, Float, Char, String, list, or tuple."
 
       unifyComparable var name
@@ -110,7 +110,7 @@ actuallyUnify span variable1 variable2 = do
                List _ -> flexAndUnify varSuper
                _ -> comparableError Nothing
 
-      rigidError variable = TS.addError span (Just hint) variable1 variable2
+      rigidError variable = TS.addError region (Just hint) variable1 variable2
           where
             var = "'" ++ render (pretty Never variable) ++ "'"
             hint = "Cannot unify rigid type variable " ++ var ++
@@ -141,7 +141,7 @@ actuallyUnify span variable1 variable2 = do
 
             (Rigid, _, _, _) -> rigidError variable1
             (_, Rigid, _, _) -> rigidError variable2
-            _ -> TS.addError span Nothing variable1 variable2
+            _ -> TS.addError region Nothing variable1 variable2
 
   case (structure desc1, structure desc2) of
     (Nothing, Nothing) | flex desc1 == Flexible && flex desc1 == Flexible -> merge
@@ -196,5 +196,5 @@ actuallyUnify span variable1 variable2 = do
                 eat (_:xs) (_:ys) = eat xs ys
                 eat xs _ = xs
 
-          _ -> TS.addError span Nothing variable1 variable2
+          _ -> TS.addError region Nothing variable1 variable2
 

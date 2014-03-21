@@ -1,16 +1,17 @@
 {-# OPTIONS_GHC -W #-}
 module Type.State where
 
-import Type.Type
-import qualified Data.Map as Map
-import qualified Data.UnionFind.IO as UF
-import Control.Monad.State
 import Control.Applicative ((<$>),(<*>), Applicative)
+import Control.Monad.State
+import qualified Data.Map as Map
 import qualified Data.Traversable as Traversable
-import Text.PrettyPrint as P
+import qualified Data.UnionFind.IO as UF
+
+import qualified SourceSyntax.Annotation as A
 import SourceSyntax.PrettyPrint
-import SourceSyntax.Location
+import Text.PrettyPrint as P
 import qualified Type.Alias as Alias
+import Type.Type
 
 -- Pool
 -- Holds a bunch of variables
@@ -46,7 +47,7 @@ initialState = SS {
 modifyEnv  f = modify $ \state -> state { sEnv = f (sEnv state) }
 modifyPool f = modify $ \state -> state { sPool = f (sPool state) }
 
-addError span hint t1 t2 =
+addError region hint t1 t2 =
     modify $ \state -> state { sErrors = makeError : sErrors state }
   where
     makeError rules = do
@@ -54,23 +55,14 @@ addError span hint t1 t2 =
       t1' <- prettiest <$> toSrcType t1
       t2' <- prettiest <$> toSrcType t2
       return . P.vcat $
-         [ P.text $ "Type error" ++ location ++ ":"
+         [ P.text "Type error" <+> pretty region <> P.colon
          , maybe P.empty P.text hint
-         , display $ case span of { NoSpan msg -> msg ; Span _ _ msg -> msg }
+         , P.text ""
+         , P.nest 8 $ A.getRegionDocs region
+         , P.text ""
          , P.text "   Expected Type:" <+> t1'
          , P.text "     Actual Type:" <+> t2'
          ]
-
-    location = case span of
-                 NoSpan _ -> ""
-                 Span p1 p2 _ ->
-                     if line p1 == line p2 then " on line " ++ show (line p1)
-                     else " between lines " ++ show (line p1) ++ " and " ++ show (line p2)
-
-    display msg =
-        P.vcat [ P.text $ concatMap ("\n        "++) (lines msg)
-               , P.text " " ]
-
 
 switchToPool pool = modifyPool (\_ -> pool)
 

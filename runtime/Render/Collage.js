@@ -254,6 +254,7 @@ function makeCanvas(w,h) {
 function render(model) {
     var div = newElement('div');
     div.style.overflow = 'hidden';
+    div.style.position = 'relative';
     update(div, model, model);
     return div;
 }

@@ -2,17 +2,19 @@
 module Transform.Expression (crawlLet, checkPorts) where
 
 import Control.Applicative ((<$>),(<*>))
+import SourceSyntax.Annotation ( Annotated(A) )
 import SourceSyntax.Expression
-import SourceSyntax.Location
-import qualified SourceSyntax.Type as ST
+import SourceSyntax.Type (Type)
 
-crawlLet :: ([def] -> Either a [def']) -> LExpr' def -> Either a (LExpr' def')
+crawlLet :: ([def] -> Either a [def'])
+         -> GeneralExpr ann def var
+         -> Either a (GeneralExpr ann def' var)
 crawlLet = crawl (\_ _ -> return ()) (\_ _ -> return ())
 
-checkPorts :: (String -> ST.Type -> Either a ())
-           -> (String -> ST.Type -> Either a ())
-           -> LExpr
-           -> Either a LExpr
+checkPorts :: (String -> Type -> Either a ())
+           -> (String -> Type -> Either a ())
+           -> Expr
+           -> Either a Expr
 checkPorts inCheck outCheck expr =
     crawl inCheck outCheck (mapM checkDef) expr
     where
@@ -20,15 +22,15 @@ checkPorts inCheck outCheck expr =
           do _ <- checkPorts inCheck outCheck body
              return def
 
-crawl :: (String -> ST.Type -> Either a ())
-      -> (String -> ST.Type -> Either a ())
+crawl :: (String -> Type -> Either a ())
+      -> (String -> Type -> Either a ())
       -> ([def] -> Either a [def'])
-      -> LExpr' def
-      -> Either a (LExpr' def')
+      -> GeneralExpr ann def var
+      -> Either a (GeneralExpr ann def' var)
 crawl portInCheck portOutCheck defsTransform = go
     where
-      go (L srcSpan expr) =
-          L srcSpan <$>
+      go (A srcSpan expr) =
+          A srcSpan <$>
           case expr of
             Var x -> return (Var x)
             Lambda p e -> Lambda p <$> go e

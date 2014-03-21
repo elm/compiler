@@ -1,12 +1,15 @@
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -W #-}
 module SourceSyntax.Module where
 
 import Data.Binary
+import qualified Data.List as List
 import qualified Data.Map as Map
 import Control.Applicative ((<$>), (<*>))
+import Text.PrettyPrint as P
 
-import SourceSyntax.Expression (LExpr)
+import SourceSyntax.Expression (Expr)
 import SourceSyntax.Declaration
+import SourceSyntax.PrettyPrint
 import SourceSyntax.Type
 
 import qualified Elm.Internal.Version as Version
@@ -21,6 +24,33 @@ type Imports = [(String, ImportMethod)]
 data ImportMethod = As String | Importing [String] | Hiding [String]
                     deriving (Eq, Ord, Show)
 
+instance (Pretty def) => Pretty (Module def) where
+  pretty (Module modNames exports imports decls) =
+      P.vcat [modul, P.text "", prettyImports, P.text "", prettyDecls]
+    where 
+      prettyDecls = P.sep $ map pretty decls
+
+      modul = P.text "module" <+> moduleName <+> prettyExports <+> P.text "where"
+      moduleName = P.text $ List.intercalate "." modNames
+      prettyExports =
+          case exports of
+            [] -> P.empty
+            _ -> P.parens . commaCat $ map P.text exports
+
+      prettyImports = P.vcat $ map prettyImport imports
+        
+      prettyImport (name, method) =
+          P.text "import" <+>
+          case method of
+            As alias ->
+                P.text $ name ++ (if name == alias then "" else " as " ++ alias)
+
+            Importing values ->
+                P.text name <+> P.parens (commaCat (map P.text values))
+
+            Hiding [] -> P.text ("open " ++ name)
+            Hiding _ -> error "invalid import declaration"
+                    
 instance Binary ImportMethod where
     put method =
         let put' n info = putWord8 n >> put info in
@@ -42,7 +72,7 @@ data MetadataModule =
     , path      :: FilePath
     , exports   :: [String]
     , imports   :: [(String, ImportMethod)]
-    , program   :: LExpr
+    , program   :: Expr
     , types     :: Map.Map String Type
     , fixities  :: [(Assoc, Int, String)]
     , aliases   :: [Alias]

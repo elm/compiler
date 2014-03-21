@@ -32,7 +32,7 @@ incoming tipe =
 
 inc :: Type -> Expression () -> Expression ()
 inc tipe x =
-     case tipe of
+    case tipe of
       Lambda _ _ -> error "functions should not be allowed through input ports"
       Var _ -> error "type variables should not be allowed through input ports"
       Data ctor []
@@ -58,22 +58,26 @@ inc tipe x =
               where
                 array = DotRef () x (var "map") <| incoming t
 
-      Data ctor ts | Help.isTuple ctor -> check x JSArray tuple
+      Data ctor ts
+          | Help.isTuple ctor -> check x JSArray tuple
           where
-            tuple = ObjectLit () $ (PropId () (var "ctor"), string ctor) : values
+            tuple = ObjectLit () $ (prop "ctor", string ctor) : values
             values = zipWith convert [0..] ts
-            convert n t = ( PropId () $ var ('_':show n)
+            convert n t = ( prop ('_':show n)
                           , inc t (BracketRef () x (IntLit () n)))
 
-      Data _ _ -> error "bad ADT got to port generation code"
+      Data _ _ ->
+          error "bad ADT got to port generation code"
 
-      Record _ (Just _) -> error "bad record got to port generation code"
+      Record _ (Just _) ->
+          error "bad record got to port generation code"
 
-      Record fields Nothing -> check x (JSObject (map fst fields)) object
+      Record fields Nothing ->
+          check x (JSObject (map fst fields)) object
           where
-            object = ObjectLit () $ (PropId () (var "_"), ObjectLit () []) : keys
+            object = ObjectLit () $ (prop "_", ObjectLit () []) : keys
             keys = map convert fields
-            convert (f,t) = (PropId () (var f), inc t (DotRef () x (var f)))
+            convert (f,t) = (prop f, inc t (DotRef () x (var f)))
 
 outgoing tipe =
   case tipe of
@@ -109,19 +113,21 @@ out tipe x =
           | ctor == "Maybe.Maybe" ->
               CondExpr () (equal (DotRef () x (var "ctor")) (string "Nothing"))
                           (NullLit ())
-                          (DotRef () x (var "_0"))
+                          (out t (DotRef () x (var "_0")))
 
           | ctor == "_List" ->
               DotRef () (obj "_J.fromList" <| x) (var "map") <| outgoing t
 
-      Data ctor ts | Help.isTuple ctor ->
-          ArrayLit () $ zipWith convert [0..] ts
-          where
-            convert n t = out t $ DotRef () x $ var ('_':show n)
+      Data ctor ts
+          | Help.isTuple ctor ->
+              let convert n t = out t $ DotRef () x $ var ('_':show n)
+              in  ArrayLit () $ zipWith convert [0..] ts
+                       
+      Data _ _ ->
+          error "bad ADT got to port generation code"
 
-      Data _ _ -> error "bad ADT got to port generation code"
-
-      Record _ (Just _) -> error "bad record got to port generation code"
+      Record _ (Just _) ->
+          error "bad record got to port generation code"
 
       Record fields Nothing ->
           ObjectLit () keys

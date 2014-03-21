@@ -1,5 +1,5 @@
 Name:                Elm
-Version:             0.11
+Version:             0.12
 Synopsis:            The Elm language module.
 Description:         Elm aims to make client-side web-development more pleasant.
                      It is a statically/strongly typed, functional reactive
@@ -14,7 +14,7 @@ License-file:        LICENSE
 
 Author:              Evan Czaplicki
 Maintainer:          info@elm-lang.org
-Copyright:           Copyright: (c) 2011-2013 Evan Czaplicki
+Copyright:           Copyright: (c) 2011-2014 Evan Czaplicki
 
 Category:            Compiler, Language
 
@@ -37,19 +37,19 @@ Library
                        Elm.Internal.Utils,
                        Elm.Internal.Version
   Hs-Source-Dirs:      compiler
-  other-modules:       SourceSyntax.Declaration,
+  other-modules:       SourceSyntax.Annotation,
+                       SourceSyntax.Declaration,
                        SourceSyntax.Expression,
                        SourceSyntax.Helpers,
                        SourceSyntax.Literal,
-                       SourceSyntax.Location,
                        SourceSyntax.Module,
                        SourceSyntax.Pattern,
                        SourceSyntax.PrettyPrint,
                        SourceSyntax.Type,
+                       SourceSyntax.Variable,
                        Generate.JavaScript,
                        Generate.JavaScript.Helpers,
                        Generate.JavaScript.Ports,
-                       Generate.Noscript,
                        Generate.Markdown,
                        Generate.Html,
                        Generate.Cases,
@@ -97,7 +97,7 @@ Library
   Build-depends:       aeson,
                        base >=4.2 && <5,
                        binary >= 0.6.4.0,
-                       blaze-html == 0.5.* || == 0.6.*,
+                       blaze-html >= 0.5 && < 0.8,
                        blaze-markup,
                        bytestring,
                        cmdargs,
@@ -119,19 +119,19 @@ Executable elm
   Main-is:             Compiler.hs
   ghc-options:         -threaded -O2
   Hs-Source-Dirs:      compiler
-  other-modules:       SourceSyntax.Declaration,
+  other-modules:       SourceSyntax.Annotation,
+                       SourceSyntax.Declaration,
                        SourceSyntax.Expression,
                        SourceSyntax.Helpers,
                        SourceSyntax.Literal,
-                       SourceSyntax.Location,
                        SourceSyntax.Module,
                        SourceSyntax.Pattern,
                        SourceSyntax.PrettyPrint,
                        SourceSyntax.Type,
+                       SourceSyntax.Variable,
                        Generate.JavaScript,
                        Generate.JavaScript.Helpers,
                        Generate.JavaScript.Ports,
-                       Generate.Noscript,
                        Generate.Markdown,
                        Generate.Html,
                        Generate.Cases,
@@ -179,8 +179,8 @@ Executable elm
   Build-depends:       aeson,
                        base >=4.2 && <5,
                        binary >= 0.6.4.0,
-                       blaze-html == 0.5.* || == 0.6.*,
-                       blaze-markup == 0.5.1.*,
+                       blaze-html >= 0.5 && < 0.8,
+                       blaze-markup,
                        bytestring,
                        cmdargs,
                        containers >= 0.3,
@@ -200,15 +200,16 @@ Executable elm
 Executable elm-doc
   Main-is:             Docs.hs
   Hs-Source-Dirs:      compiler
-  other-modules:       SourceSyntax.Declaration,
+  other-modules:       SourceSyntax.Annotation,
+                       SourceSyntax.Declaration,
                        SourceSyntax.Expression,
                        SourceSyntax.Helpers,
                        SourceSyntax.Literal,
-                       SourceSyntax.Location,
                        SourceSyntax.Module,
                        SourceSyntax.Pattern,
                        SourceSyntax.PrettyPrint,
                        SourceSyntax.Type,
+                       SourceSyntax.Variable,
                        Parse.Binop,
                        Parse.Declaration,
                        Parse.Expression,

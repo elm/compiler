@@ -11,7 +11,7 @@ import Control.Applicative ((<$>),(<*>))
 import Control.Monad.State
 import Control.Monad.Error
 import Data.Traversable (traverse)
-import SourceSyntax.Location
+import SourceSyntax.Annotation
 import SourceSyntax.Helpers (isTuple)
 import qualified SourceSyntax.Type as Src
 
@@ -62,7 +62,7 @@ monoscheme headers = Scheme [] [] (noneNoDocs CTrue) headers
 infixl 8 /\
 
 (/\) :: Constraint a b -> Constraint a b -> Constraint a b
-a@(L _ c1) /\ b@(L _ c2) =
+a@(A _ c1) /\ b@(A _ c2) =
     case (c1, c2) of
       (CTrue, _) -> b
       (_, CTrue) -> a
@@ -128,15 +128,22 @@ structuredVar structure = UF.fresh $ Descriptor {
 
 -- ex qs constraint == exists qs. constraint
 ex :: [Variable] -> TypeConstraint -> TypeConstraint
-ex fqs constraint@(L s _) = L s $ CLet [Scheme [] fqs constraint Map.empty] (L s CTrue)
+ex fqs constraint@(A ann _) =
+    A ann $ CLet [Scheme [] fqs constraint Map.empty] (A ann CTrue)
 
 -- fl qs constraint == forall qs. constraint
 fl :: [Variable] -> TypeConstraint -> TypeConstraint
-fl rqs constraint@(L s _) = L s $ CLet [Scheme rqs [] constraint Map.empty] (L s CTrue)
+fl rqs constraint@(A ann _) =
+    A ann $ CLet [Scheme rqs [] constraint Map.empty] (A ann CTrue)
 
 exists :: Error e => (Type -> ErrorT e IO TypeConstraint) -> ErrorT e IO TypeConstraint
 exists f = do
   v <- liftIO $ var Flexible
+  ex [v] <$> f (VarN v)
+
+existsNumber :: Error e => (Type -> ErrorT e IO TypeConstraint) -> ErrorT e IO TypeConstraint
+existsNumber f = do
+  v <- liftIO $ var (Is Number)
   ex [v] <$> f (VarN v)
 
 
@@ -148,8 +155,8 @@ instance PrettyType a => PrettyType (UF.Point a) where
   pretty when point = unsafePerformIO $ fmap (pretty when) (UF.descriptor point)
 
 
-instance PrettyType a => PrettyType (Located a) where
-  pretty when (L _ e) = pretty when e
+instance PrettyType t => PrettyType (Annotated a t) where
+  pretty when (A _ e) = pretty when e
 
 
 instance PrettyType a => PrettyType (Term1 a) where
@@ -212,12 +219,12 @@ instance (PrettyType a, PrettyType b) => PrettyType (BasicConstraint a b) where
       CAnd cs ->
         P.parens . P.sep $ P.punctuate (P.text " and") (map (pretty Never) cs)
 
-      CLet [Scheme [] fqs constraint header] (L _ CTrue) | Map.null header ->
+      CLet [Scheme [] fqs constraint header] (A _ CTrue) | Map.null header ->
           P.sep [ binder, pretty Never c ]
         where
-          mergeExists vs (L _ c) =
+          mergeExists vs (A _ c) =
             case c of
-              CLet [Scheme [] fqs' c' _] (L _ CTrue) -> mergeExists (vs ++ fqs') c'
+              CLet [Scheme [] fqs' c' _] (A _ CTrue) -> mergeExists (vs ++ fqs') c'
               _ -> (vs, c)
 
           (fqs', c) = mergeExists fqs constraint
@@ -233,7 +240,7 @@ instance (PrettyType a, PrettyType b) => PrettyType (BasicConstraint a b) where
         P.text name <+> P.text "<" <+> prty tipe
 
 instance (PrettyType a, PrettyType b) => PrettyType (Scheme a b) where
-  pretty _ (Scheme rqs fqs (L _ constraint) headers) =
+  pretty _ (Scheme rqs fqs (A _ constraint) headers) =
       P.sep [ forall, cs, headers' ]
     where
       prty = pretty Never
@@ -297,8 +304,8 @@ class Crawl t where
         -> t
         -> StateT CrawlState IO t
 
-instance Crawl a => Crawl (Located a) where
-  crawl nextState (L s e) = L s <$> crawl nextState e
+instance Crawl e => Crawl (Annotated a e) where
+  crawl nextState (A ann e) = A ann <$> crawl nextState e
 
 instance (Crawl t, Crawl v) => Crawl (BasicConstraint t v) where
   crawl nextState constraint = 

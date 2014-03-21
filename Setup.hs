@@ -148,7 +148,8 @@ buildRuntime :: LocalBuildInfo -> [FilePath] -> IO ()
 buildRuntime lbi elmos = do
   createDirectoryIfMissing True (rtsDir lbi)
   let rts' = rts lbi
-  writeFile rts' "var Elm = {}; Elm.Native = {}; Elm.Native.Graphics = {};\n\
+  writeFile rts' "'use strict';\n\
+                 \var Elm = {}; Elm.Native = {}; Elm.Native.Graphics = {};\n\
                  \var ElmRuntime = {}; ElmRuntime.Render = {};\n"
   mapM_ (appendTo rts') =<< getFiles ".js" "libraries"
   mapM_ (appendTo rts') elmos

@@ -13,13 +13,13 @@ Elm.Native.Bitwise.make = function(elm) {
     function srl(a,offset) { return a >>> offset; }
 
     return elm.Native.Bitwise.values = {
-        and: A2(and),
-        or : A2(or ),
-        xor: A2(xor),
+        and: F2(and),
+        or : F2(or ),
+        xor: F2(xor),
         complement: not,
-        shiftLeft           : A2(sll),
-        shiftRightArithmatic: A2(sra),
-        shiftRightLogical   : A2(srl),
+        shiftLeft           : F2(sll),
+        shiftRightArithmatic: F2(sra),
+        shiftRightLogical   : F2(srl),
     };
     
 };

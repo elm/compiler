@@ -31,11 +31,10 @@ Insert, remove, and query operations all take *O(log n)* time.
 -}
 
 
-import open Basics
-import open Maybe
+import Basics (..)
+import Maybe (..)
 import Native.Error
 import List
-import String
 import Native.Utils
 
 -- BBlack and NBlack should only be used during the deletion
@@ -197,7 +196,7 @@ lessBlackTree t = case t of
 
 reportRemBug : String -> NColor -> String -> String -> a
 reportRemBug msg c lgot rgot =
-  Native.Error.raise . String.concat <| [
+  Native.Error.raise <| List.concat [
     "Internal red-black tree invariant violated, expected ",
     msg,
     "and got",

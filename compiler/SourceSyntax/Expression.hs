@@ -11,49 +11,54 @@ module SourceSyntax.Expression where
 import SourceSyntax.PrettyPrint
 import Text.PrettyPrint as P
 import qualified SourceSyntax.Helpers as Help
-import qualified SourceSyntax.Location as Location
+import qualified SourceSyntax.Annotation as Annotation
 import qualified SourceSyntax.Pattern as Pattern
 import qualified SourceSyntax.Type as SrcType
 import qualified SourceSyntax.Literal as Literal
+import qualified SourceSyntax.Variable as Variable
 
 ---- GENERAL AST ----
 
-{-| This is a located expression, meaning it is tagged with info about where it
-came from in the source code. Expr' is defined in terms of LExpr' so that the
-location information does not need to be an extra field on every constructor.
--}
-type LExpr' def = Location.Located (Expr' def)
-
 {-| This is a fully general Abstract Syntax Tree (AST) for expressions. It has
 "type holes" that allow us to enrich the AST with additional information as we
-move through the compilation process. The type holes let us show these
-structural changes in the types. The only type hole right now is:
+move through the compilation process. The type holes are used to represent:
 
-  def: Parsing allows two kinds of definitions (type annotations or definitions),
-       but later checks will see that they are well formed and combine them.
+  ann: Annotations for arbitrary expressions. Allows you to add information
+       to the AST like position in source code or inferred types.
+
+  def: Definition style. The source syntax separates type annotations and
+       definitions, but after parsing we check that they are well formed and
+       collapse them.
+
+  var: Representation of variables. Starts as strings, but is later enriched
+       with information about what module a variable came from.
 
 -}
-data Expr' def
+type GeneralExpr annotation definition variable =
+    Annotation.Annotated annotation (GeneralExpr' annotation definition variable)
+
+data GeneralExpr' ann def var
     = Literal Literal.Literal
-    | Var String
-    | Range (LExpr' def) (LExpr' def)
-    | ExplicitList [LExpr' def]
-    | Binop String (LExpr' def) (LExpr' def)
-    | Lambda Pattern.Pattern (LExpr' def)
-    | App (LExpr' def) (LExpr' def)
-    | MultiIf [(LExpr' def,LExpr' def)]
-    | Let [def] (LExpr' def)
-    | Case (LExpr' def) [(Pattern.Pattern, LExpr' def)]
-    | Data String [LExpr' def]
-    | Access (LExpr' def) String
-    | Remove (LExpr' def) String
-    | Insert (LExpr' def) String (LExpr' def)
-    | Modify (LExpr' def) [(String, LExpr' def)]
-    | Record [(String, LExpr' def)]
-    | Markdown String String [LExpr' def]
+    | Var var
+    | Range (GeneralExpr ann def var) (GeneralExpr ann def var)
+    | ExplicitList [GeneralExpr ann def var]
+    | Binop String (GeneralExpr ann def var) (GeneralExpr ann def var)
+    | Lambda Pattern.Pattern (GeneralExpr ann def var)
+    | App (GeneralExpr ann def var) (GeneralExpr ann def var)
+    | MultiIf [(GeneralExpr ann def var,GeneralExpr ann def var)]
+    | Let [def] (GeneralExpr ann def var)
+    | Case (GeneralExpr ann def var) [(Pattern.Pattern, GeneralExpr ann def var)]
+    | Data String [GeneralExpr ann def var]
+    | Access (GeneralExpr ann def var) String
+    | Remove (GeneralExpr ann def var) String
+    | Insert (GeneralExpr ann def var) String (GeneralExpr ann def var)
+    | Modify (GeneralExpr ann def var) [(String, GeneralExpr ann def var)]
+    | Record [(String, GeneralExpr ann def var)]
+    | Markdown String String [GeneralExpr ann def var]
     -- for type checking and code gen only
     | PortIn String SrcType.Type
-    | PortOut String SrcType.Type (LExpr' def)
+    | PortOut String SrcType.Type (GeneralExpr ann def var)
+    deriving (Show)
 
 
 ---- SPECIALIZED ASTs ----
@@ -62,81 +67,100 @@ data Expr' def
 annotations and definitions, which is how they appear in source code and how
 they are parsed.
 -}
-type ParseExpr = Expr' ParseDef
-type LParseExpr = LExpr' ParseDef
+type ParseExpr = GeneralExpr Annotation.Region ParseDef Variable.Raw
+type ParseExpr' = GeneralExpr' Annotation.Region ParseDef Variable.Raw
 
 data ParseDef
-    = Def Pattern.Pattern LParseExpr
+    = Def Pattern.Pattern ParseExpr
     | TypeAnnotation String SrcType.Type
-      deriving (Show)
+    deriving (Show)
 
 {-| "Normal" expressions. When the compiler checks that type annotations and
 ports are all paired with definitions in the appropriate order, it collapses
 them into a Def that is easier to work with in later phases of compilation.
 -}
-type LExpr = LExpr' Def
-type Expr = Expr' Def
+type Expr = GeneralExpr Annotation.Region Def Variable.Raw
+type Expr' = GeneralExpr' Annotation.Region Def Variable.Raw
 
-data Def = Definition Pattern.Pattern LExpr (Maybe SrcType.Type)
+data Def = Definition Pattern.Pattern Expr (Maybe SrcType.Type)
     deriving (Show)
+
 
 
 ---- UTILITIES ----
 
-tuple :: [LExpr' def] -> Expr' def
+rawVar :: String -> GeneralExpr' ann def Variable.Raw
+rawVar x = Var (Variable.Raw x)
+
+tuple :: [GeneralExpr ann def var] -> GeneralExpr' ann def var
 tuple es = Data ("_Tuple" ++ show (length es)) es
 
-delist :: LExpr' def -> [LExpr' def]
-delist (Location.L _ (Data "::" [h,t])) = h : delist t
+delist :: GeneralExpr ann def var -> [GeneralExpr ann def var]
+delist (Annotation.A _ (Data "::" [h,t])) = h : delist t
 delist _ = []
 
 saveEnvName :: String
 saveEnvName = "_save_the_environment!!!"
 
-dummyLet :: Pretty def => [def] -> LExpr' def
+dummyLet :: (Pretty def) => [def] -> GeneralExpr Annotation.Region def Variable.Raw
 dummyLet defs = 
-     Location.none $ Let defs (Location.none $ Var saveEnvName)
+     Annotation.none $ Let defs (Annotation.none $ rawVar saveEnvName)
 
-instance Pretty def => Show (Expr' def) where
-  show = render . pretty
-
-instance Pretty def => Pretty (Expr' def) where
+instance (Pretty def, Pretty var) => Pretty (GeneralExpr' ann def var) where
   pretty expr =
    case expr of
      Literal lit -> pretty lit
-     Var x -> variable x
+
+     Var x -> pretty x
+
      Range e1 e2 -> P.brackets (pretty e1 <> P.text ".." <> pretty e2)
+
      ExplicitList es -> P.brackets (commaCat (map pretty es))
-     Binop "-" (Location.L _ (Literal (Literal.IntNum 0))) e ->
+
+     Binop "-" (Annotation.A _ (Literal (Literal.IntNum 0))) e ->
          P.text "-" <> prettyParens e
+
      Binop op e1 e2 -> P.sep [ prettyParens e1 <+> P.text op', prettyParens e2 ]
-         where op' = if Help.isOp op then op else "`" ++ op ++ "`"
+         where
+           op' = if Help.isOp op then op else "`" ++ op ++ "`"
+
      Lambda p e -> P.text "\\" <> args <+> P.text "->" <+> pretty body
          where
-           (ps,body) = collectLambdas (Location.none $ Lambda p e)
+           (ps,body) = collectLambdas (Annotation.A undefined $ Lambda p e)
            args = P.sep (map Pattern.prettyParens ps)
+
      App _ _ -> P.hang func 2 (P.sep args)
-         where func:args = map prettyParens (collectApps (Location.none expr))
-     MultiIf branches ->  P.text "if" $$ nest 3 (vcat $ map iff branches)
+         where
+           func:args = map prettyParens (collectApps (Annotation.A undefined expr))
+
+     MultiIf branches -> P.text "if" $$ nest 3 (vcat $ map iff branches)
          where
            iff (b,e) = P.text "|" <+> P.hang (pretty b <+> P.text "->") 2 (pretty e)
+
      Let defs e ->
          P.sep [ P.hang (P.text "let") 4 (P.vcat (map pretty defs))
                , P.text "in" <+> pretty e ]
+
      Case e pats ->
          P.hang pexpr 2 (P.vcat (map pretty' pats))
          where
            pexpr = P.sep [ P.text "case" <+> pretty e, P.text "of" ]
            pretty' (p,b) = pretty p <+> P.text "->" <+> pretty b
+
      Data "::" [hd,tl] -> pretty hd <+> P.text "::" <+> pretty tl
      Data "[]" [] -> P.text "[]"
      Data name es
          | Help.isTuple name -> P.parens (commaCat (map pretty es))
          | otherwise -> P.hang (P.text name) 2 (P.sep (map prettyParens es))
+
      Access e x -> prettyParens e <> P.text "." <> variable x
+
      Remove e x -> P.braces (pretty e <+> P.text "-" <+> variable x)
-     Insert (Location.L _ (Remove e y)) x v ->
-         P.braces (pretty e <+> P.text "-" <+> variable y <+> P.text "|" <+> variable x <+> P.equals <+> pretty v)
+
+     Insert (Annotation.A _ (Remove e y)) x v ->
+         P.braces $ P.hsep [ pretty e, P.text "-", variable y, P.text "|"
+                           , variable x, P.equals, pretty v ]
+
      Insert e x v ->
          P.braces (pretty e <+> P.text "|" <+> variable x <+> P.equals <+> pretty v)
 
@@ -175,21 +199,23 @@ instance Pretty Def where
                        Nothing -> P.empty
                        Just tipe -> pretty pattern <+> P.colon <+> pretty tipe
 
-collectApps :: LExpr' def -> [LExpr' def]
-collectApps lexpr@(Location.L _ expr) =
+collectApps :: GeneralExpr ann def var -> [GeneralExpr ann def var]
+collectApps annExpr@(Annotation.A _ expr) =
   case expr of
     App a b -> collectApps a ++ [b]
-    _ -> [lexpr]
+    _ -> [annExpr]
 
-collectLambdas :: LExpr' def -> ([Pattern.Pattern], LExpr' def)
-collectLambdas lexpr@(Location.L _ expr) =
+collectLambdas :: GeneralExpr ann def var -> ([Pattern.Pattern], GeneralExpr ann def var)
+collectLambdas lexpr@(Annotation.A _ expr) =
   case expr of
-    Lambda pattern body -> (pattern : ps, body')
-        where (ps, body') = collectLambdas body
+    Lambda pattern body ->
+        let (ps, body') = collectLambdas body
+        in  (pattern : ps, body')
+
     _ -> ([], lexpr)
 
-prettyParens :: (Pretty def) => LExpr' def -> Doc
-prettyParens (Location.L _ expr) = parensIf needed (pretty expr)
+prettyParens :: (Pretty def, Pretty var) => GeneralExpr ann def var -> Doc
+prettyParens (Annotation.A _ expr) = parensIf needed (pretty expr)
   where
     needed =
       case expr of

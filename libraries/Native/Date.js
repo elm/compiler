@@ -27,6 +27,7 @@ Elm.Native.Date.make = function(elm) {
      minute  : function(d) { return d.getMinutes(); },
      second  : function(d) { return d.getSeconds(); },
      toTime  : function(d) { return d.getTime(); },
+     fromTime: function(t) { return new window.Date(t); },
      dayOfWeek : function(d) { return { ctor:dayTable[d.getDay()] }; }
  };
 

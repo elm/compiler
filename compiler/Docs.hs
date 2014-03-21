@@ -8,6 +8,7 @@ import System.Exit
 import System.IO
 
 import Control.Applicative ((<$>))
+import Control.Arrow (second)
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import qualified Data.List as List
@@ -15,8 +16,8 @@ import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Text as Text
 
-import SourceSyntax.Helpers (isSymbol)
-import SourceSyntax.Type (Type(..))
+import qualified SourceSyntax.Helpers as Help
+import qualified SourceSyntax.Type as T
 import qualified SourceSyntax.Expression as E
 import qualified SourceSyntax.Declaration as D
 
@@ -30,20 +31,24 @@ data Flags = Flags
     { files :: [FilePath] }
     deriving (Data,Typeable,Show,Eq)
 
+defaultFlags :: Flags
 defaultFlags = Flags
   { files = def &= args &= typ "FILES"
   } &= help "Generate documentation for Elm"
     &= summary ("Generate documentation for Elm, (c) Evan Czaplicki")
 
+main :: IO ()
 main = do
   flags <- cmdArgs defaultFlags
-  mapM parseFile (files flags)
+  mapM_ parseFile (files flags)
 
+config :: Config
 config = Config { confIndent = 2, confCompare = keyOrder keys }
   where
-    keys = ["name","document","comment","raw","aliases","datatypes"
+    keys = ["tag","name","document","comment","raw","aliases","datatypes"
            ,"values","typeVariables","type","constructors"]
 
+parseFile :: FilePath -> IO ()
 parseFile path = do
   source <- readFile path
   case iParse docs source of
@@ -69,6 +74,7 @@ docComment = do
   let reversed = dropWhile (`elem` " \n\r") . drop 2 $ reverse contents
   return $ dropWhile (==' ') (reverse reversed)
 
+moduleDocs :: IParser (String, [String], String)
 moduleDocs = do
   optional freshLine
   (names,exports) <- moduleDef
@@ -121,7 +127,7 @@ collect infixes types aliases adts things =
           where
             nonCustomOps = Map.mapWithKey addDefaultInfix $ Map.difference types infixes
             addDefaultInfix name pairs
-                | all isSymbol name = addInfix (D.L, 9 :: Int) pairs
+                | all Help.isSymbol name = addInfix (D.L, 9 :: Int) pairs
                 | otherwise = pairs
 
             customOps = Map.intersectionWith addInfix infixes types
@@ -138,7 +144,7 @@ collect infixes types aliases adts things =
                 let fields = ["typeVariables" .= vars, "type" .= tipe ]
                 in  collect infixes types (insert name fields aliases) adts rest
             D.Datatype name vars ctors ->
-                let tipe = Data name (map Var vars)
+                let tipe = T.Data name (map T.Var vars)
                     fields = ["typeVariables" .= vars
                              , "constructors" .= map (ctorToJson tipe) ctors ]
                 in  collect infixes types aliases (insert name fields adts) rest
@@ -147,17 +153,35 @@ collect infixes types aliases adts things =
             obj name fields =
                 [ "name" .= name, "raw" .= source, "comment" .= comment ] ++ fields
 
-instance ToJSON Type where
-    toJSON tipe =
-        case tipe of
-          Lambda t1 t2 -> toJSON [ "->", toJSON t1, toJSON t2 ]
-          Var x -> toJSON x
-          Data name ts -> toJSON (toJSON name : map toJSON ts)
-          Record fields ext -> object $ map (\(n,t) -> Text.pack n .= toJSON t) fields'
-              where fields' = case ext of
-                                Nothing -> fields
-                                Just x -> ("_", Var x) : fields
+instance ToJSON T.Type where
+  toJSON tipe =
+    object $
+    case tipe of
+      T.Lambda _ _ ->
+          let tipes = T.collectLambdas tipe in
+          [ "tag" .= ("function" :: Text.Text)
+          , "args" .= toJSON (init tipes)
+          , "result" .= toJSON (last tipes)
+          ]
 
+      T.Var x ->
+          [ "tag" .= ("var" :: Text.Text)
+          , "name" .= toJSON x
+          ]
+      
+      T.Data name ts -> 
+          [ "tag" .= ("adt" :: Text.Text)
+          , "name" .= toJSON name
+          , "args" .= map toJSON ts
+          ]
+       
+      T.Record fields ext ->
+          [ "tag" .= ("record" :: Text.Text)
+          , "fields" .= toJSON (map (toJSON . second toJSON) fields)
+          , "extension" .= toJSON ext
+          ]
+
+ctorToJson :: T.Type -> (String, [T.Type]) -> Value
 ctorToJson tipe (ctor, tipes) =
     object [ "name" .= ctor
-           , "type" .= foldr Lambda tipe tipes ]
+           , "type" .= foldr T.Lambda tipe tipes ]

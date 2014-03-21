@@ -3,11 +3,11 @@ module Metadata.Prelude (interfaces, add) where
 
 import qualified Data.Map as Map
 import qualified Control.Exception as E
-import qualified Paths_Elm as Path
 import System.Exit
 import System.IO
 import SourceSyntax.Module
 import qualified Build.Interface as Interface
+import Build.Utils (getDataFile)
 
 add :: Bool -> Module def -> Module def
 add noPrelude (Module name exs ims decls) = Module name exs (customIms ++ ims) decls
@@ -20,18 +20,18 @@ add noPrelude (Module name exs ims decls) = Module name exs (customIms ++ ims) d
                                 Just _      -> []
 
 prelude :: [(String, ImportMethod)]
-prelude = string : text ++ map (\n -> (n, Hiding [])) modules
+prelude = string ++ text ++ map (\n -> (n, Hiding [])) modules
   where
     text = map ((,) "Text") [ As "Text", Hiding ["link", "color", "height"] ]
-    string = ("String", As "String")
-    modules = [ "Basics", "Signal", "List", "Maybe", "Time", "Prelude"
-              , "Graphics.Element", "Color", "Graphics.Collage", "Native.Ports" ]
+    string = map ((,) "String") [ As "String", Importing ["show"] ]
+    modules = [ "Basics", "Signal", "List", "Maybe", "Time", "Color"
+              , "Graphics.Element", "Graphics.Collage", "Native.Ports" ]
 
 interfaces :: Bool -> IO Interfaces
 interfaces noPrelude =
     if noPrelude
-    then return $ Map.empty
-    else safeReadDocs =<< Path.getDataFileName "interfaces.data"
+    then return Map.empty
+    else safeReadDocs =<< getDataFile "interfaces.data"
 
 safeReadDocs :: FilePath -> IO Interfaces
 safeReadDocs name =

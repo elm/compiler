@@ -1,19 +1,21 @@
-{-# OPTIONS_GHC -W #-}
+{-# OPTIONS_GHC -Wall #-}
 module Transform.Canonicalize (interface, metadataModule) where
 
 import Control.Arrow ((***))
 import Control.Applicative (Applicative,(<$>),(<*>))
 import Control.Monad.Identity
-import qualified Data.Traversable as T
+import qualified Data.Either as Either
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Data.List as List
-import qualified Data.Either as Either
-import SourceSyntax.Module
+import qualified Data.Traversable as T
+import SourceSyntax.Annotation as A
 import SourceSyntax.Expression
-import SourceSyntax.Location as Loc
+import SourceSyntax.Module
+import SourceSyntax.PrettyPrint (pretty)
 import qualified SourceSyntax.Pattern as P
 import qualified SourceSyntax.Type as Type
+import qualified SourceSyntax.Variable as Var
 import Text.PrettyPrint as P
 
 interface :: String -> ModuleInterface -> ModuleInterface
@@ -55,7 +57,9 @@ metadataModule :: Interfaces -> MetadataModule -> Either [Doc] MetadataModule
 metadataModule ifaces modul =
   do case filter (\m -> Map.notMember m ifaces) (map fst realImports) of
        [] -> Right ()
-       missings -> Left [ P.text $ "The following imports were not found: " ++ List.intercalate ", " missings ]
+       missings -> Left [ P.text $ "The following imports were not found: " ++ List.intercalate ", " missings ++
+                                   "\n    You may need to compile with the --make flag to detect modules you have written."
+                        ]
      program' <- rename initialEnv (program modul)
      aliases' <- mapM (three3 renameType') (aliases modul)
      datatypes' <- mapM (three3 (mapM (two2 (mapM renameType')))) (datatypes modul)
@@ -94,8 +98,7 @@ type Env = Map.Map String String
 
 extend :: Env -> P.Pattern -> Env
 extend env pattern = Map.union (Map.fromList (zip xs xs)) env
-    where xs = Set.toList (P.boundVars pattern)
-
+    where xs = P.boundVarList pattern
 
 replace :: String -> Env -> String -> Either String String
 replace variable env v =
@@ -108,14 +111,18 @@ replace variable env v =
             msg = if null matches then "" else
                       "\nClose matches include: " ++ List.intercalate ", " matches
 
-rename :: Env -> LExpr -> Either [Doc] LExpr
-rename env (L s expr) =
+-- TODO: Var.Raw -> Var.Canonical
+rename :: Env -> Expr -> Either [Doc] Expr
+rename env (A ann expr) =
     let rnm = rename env
-        throw err = Left [ P.text $ "Error " ++ show s ++ "\n" ++ err ]
+        throw err = Left [ P.vcat [ P.text "Error" <+> pretty ann <> P.colon
+                                  , P.text err
+                                  ]
+                         ]
         format = Either.either throw return
-        renameType' env = renameType (format . replace "variable" env)
+        renameType' environ = renameType (format . replace "variable" environ)
     in
-    L s <$>
+    A ann <$>
     case expr of
       Literal _ -> return expr
 
@@ -153,7 +160,8 @@ rename env (L s expr) =
                            <*> rename env' body
                            <*> T.traverse (renameType' env') mtipe
 
-      Var x -> Var <$> format (replace "variable" env x)
+      -- TODO: Raw -> Canonical
+      Var (Var.Raw x) -> rawVar <$> format (replace "variable" env x)
 
       Data name es -> Data name <$> mapM rnm es
 
@@ -174,10 +182,10 @@ rename env (L s expr) =
 renamePattern :: Env -> P.Pattern -> Either String P.Pattern
 renamePattern env pattern =
     case pattern of
-      P.PVar _ -> return pattern
-      P.PLiteral _ -> return pattern
-      P.PRecord _ -> return pattern
-      P.PAnything -> return pattern
-      P.PAlias x p -> P.PAlias x <$> renamePattern env p
-      P.PData name ps -> P.PData <$> replace "pattern" env name
-                                 <*> mapM (renamePattern env) ps
+      P.Var _ -> return pattern
+      P.Literal _ -> return pattern
+      P.Record _ -> return pattern
+      P.Anything -> return pattern
+      P.Alias x p -> P.Alias x <$> renamePattern env p
+      P.Data name ps -> P.Data <$> replace "pattern" env name
+                               <*> mapM (renamePattern env) ps

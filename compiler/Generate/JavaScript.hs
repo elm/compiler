@@ -1,25 +1,27 @@
 {-# OPTIONS_GHC -W #-}
 module Generate.JavaScript (generate) where
 
-import Control.Arrow (first,(***))
 import Control.Applicative ((<$>),(<*>))
+import Control.Arrow (first,(***))
 import Control.Monad.State
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Language.ECMAScript3.PrettyPrint
+import Language.ECMAScript3.Syntax
 
 import Generate.JavaScript.Helpers
 import qualified Generate.Cases as Case
 import qualified Generate.JavaScript.Ports as Port
 import qualified Generate.Markdown as MD
+import SourceSyntax.Annotation
+import SourceSyntax.Expression
 import qualified SourceSyntax.Helpers as Help
 import SourceSyntax.Literal
-import SourceSyntax.Pattern as Pattern
-import SourceSyntax.Location
-import SourceSyntax.Expression
 import SourceSyntax.Module
-import Language.ECMAScript3.Syntax
-import Language.ECMAScript3.PrettyPrint
+import qualified SourceSyntax.Pattern as P
+import SourceSyntax.PrettyPrint (renderPretty)
+import qualified SourceSyntax.Variable as V
 import qualified Transform.SafeNames as MakeSafe
 
 varDecl :: String -> Expression () -> VarDecl ()
@@ -50,10 +52,10 @@ literal lit =
     FloatNum n -> NumLit () n
     Boolean  b -> BoolLit () b
 
-expression :: LExpr -> State Int (Expression ())
-expression (L span expr) =
+expression :: Expr -> State Int (Expression ())
+expression (A region expr) =
     case expr of
-      Var x -> return $ ref x
+      Var (V.Raw x) -> return $ obj x
       Literal lit -> return $ literal lit
 
       Range lo hi ->
@@ -85,17 +87,16 @@ expression (L span expr) =
           do fields' <- forM fields $ \(f,e) -> do
                           (,) f <$> expression e
              let fieldMap = List.foldl' combine Map.empty fields'
-             return $ ObjectLit () $ (PropId () (var "_"), hidden fieldMap) : visible fieldMap
+             return $ ObjectLit () $ (prop "_", hidden fieldMap) : visible fieldMap
           where
             combine r (k,v) = Map.insertWith (++) k [v] r
-            prop = PropId () . var
             hidden fs = ObjectLit () . map (prop *** ArrayLit ()) .
                         Map.toList . Map.filter (not . null) $ Map.map tail fs
             visible fs = map (first prop) . Map.toList $ Map.map head fs
 
-      Binop op e1 e2 -> binop span op e1 e2
+      Binop op e1 e2 -> binop region op e1 e2
 
-      Lambda p e@(L s _) ->
+      Lambda p e@(A ann _) ->
           do (args, body) <- foldM depattern ([], innerBody) (reverse patterns)
              body' <- expression body
              return $ case length args < 2 || length args > 9 of
@@ -104,13 +105,14 @@ expression (L span expr) =
           where
             depattern (args, body) pattern =
                 case pattern of
-                  PVar x -> return (args ++ [x], body)
+                  P.Var x -> return (args ++ [x], body)
                   _ -> do arg <- Case.newVar
-                          return (args ++ [arg], L s (Case (L s (Var arg)) [(pattern, body)]))
+                          return ( args ++ [arg]
+                                 , A ann (Case (A ann (rawVar arg)) [(pattern, body)]))
 
             (patterns, innerBody) = collect [p] e
 
-            collect patterns lexpr@(L _ expr) =
+            collect patterns lexpr@(A _ expr) =
                 case expr of
                   Lambda p e -> collect (p:patterns) e
                   _ -> (patterns, lexpr)
@@ -127,7 +129,7 @@ expression (L span expr) =
             (func, args) = getArgs e1 [e2]
             getArgs func args =
                 case func of
-                  (L _ (App f arg)) -> getArgs f (arg : args)
+                  (A _ (App f arg)) -> getArgs f (arg : args)
                   _ -> (func, args)
 
       Let defs e ->
@@ -139,9 +141,9 @@ expression (L span expr) =
       MultiIf branches ->
         do branches' <- forM branches $ \(b,e) -> (,) <$> expression b <*> expression e
            return $ case last branches of
-             (L _ (Var "Basics.otherwise"), _) -> safeIfs branches'
-             (L _ (Literal (Boolean True)), _) -> safeIfs branches'
-             _ -> ifs branches' (obj "_E.If" `call` [ ref "$moduleName", string (show span) ])
+             (A _ (Var (V.Raw "Basics.otherwise")), _) -> safeIfs branches'
+             (A _ (Literal (Boolean True)), _) -> safeIfs branches'
+             _ -> ifs branches' (obj "_E.If" `call` [ ref "$moduleName", string (renderPretty region) ])
         where
           safeIfs branches = ifs (init branches) (snd (last branches))
           ifs branches finally = foldr iff finally branches
@@ -151,10 +153,12 @@ expression (L span expr) =
           do (tempVar,initialMatch) <- Case.toMatch cases
              (revisedMatch, stmt) <-
                  case e of
-                   L _ (Var x) -> return (Case.matchSubst [(tempVar,x)] initialMatch, [])
-                   _ -> do e' <- expression e
-                           return (initialMatch, [VarDeclStmt () [varDecl tempVar e']])
-             match' <- match span revisedMatch
+                   A _ (Var (V.Raw x)) ->
+                       return (Case.matchSubst [(tempVar,x)] initialMatch, [])
+                   _ ->
+                       do e' <- expression e
+                          return (initialMatch, [VarDeclStmt () [varDecl tempVar e']])
+             match' <- match region revisedMatch
              return (function [] (stmt ++ match') `call` [])
 
       ExplicitList es ->
@@ -184,28 +188,28 @@ expression (L span expr) =
                         [ string name, Port.outgoing tipe, value' ]
 
 definition :: Def -> State Int [Statement ()]
-definition (Definition pattern expr@(L span _) _) = do
+definition (Definition pattern expr@(A region _) _) = do
   expr' <- expression expr
   let assign x = varDecl x expr'
   case pattern of
-    PVar x
+    P.Var x
         | Help.isOp x ->
             let op = LBracket () (ref "_op") (string x) in
             return [ ExprStmt () $ AssignExpr () OpAssign op expr' ]
         | otherwise ->
             return [ VarDeclStmt () [ assign x ] ]
 
-    PRecord fields ->
+    P.Record fields ->
         let setField f = varDecl f (dotSep ["$",f]) in
         return [ VarDeclStmt () (assign "$" : map setField fields) ]
 
-    PData name patterns | vars /= Nothing ->
+    P.Data name patterns | vars /= Nothing ->
         return [ VarDeclStmt () (setup (zipWith decl (maybe [] id vars) [0..])) ]
         where
           vars = getVars patterns
           getVars patterns =
               case patterns of
-                PVar x : rest -> (x:) `fmap` getVars rest
+                P.Var x : rest -> (x:) `fmap` getVars rest
                 [] -> Just []
                 _ -> Nothing
 
@@ -216,41 +220,45 @@ definition (Definition pattern expr@(L span _) _) = do
 
           safeAssign = varDecl "$" (CondExpr () if' (obj "$raw") exception)
           if' = InfixExpr () OpStrictEq (obj "$raw.ctor") (string name)
-          exception = obj "_E.Case" `call` [ref "$moduleName", string (show span)]
+          exception = obj "_E.Case" `call` [ref "$moduleName", string (renderPretty region)]
 
     _ ->
         do defs' <- concat <$> mapM toDef vars
            return (VarDeclStmt () [assign "$"] : defs')
         where
-          vars = Set.toList $ Pattern.boundVars pattern
-          mkVar = L span . Var
-          toDef y = let expr =  L span $ Case (mkVar "$") [(pattern, mkVar y)]
-                    in  definition $ Definition (PVar y) expr Nothing
+          vars = P.boundVarList pattern
+          mkVar = A region . rawVar
+          toDef y = let expr =  A region $ Case (mkVar "$") [(pattern, mkVar y)]
+                    in  definition $ Definition (P.Var y) expr Nothing
 
-match :: SrcSpan -> Case.Match -> State Int [Statement ()]
-match span mtch =
+match :: Region -> Case.Match -> State Int [Statement ()]
+match region mtch =
   case mtch of
     Case.Match name clauses mtch' ->
-        do (isChars, clauses') <- unzip <$> mapM (clause span name) clauses
-           mtch'' <- match span mtch'
+        do (isChars, clauses') <- unzip <$> mapM (clause region name) clauses
+           mtch'' <- match region mtch'
            return (SwitchStmt () (format isChars (access name)) clauses' : mtch'')
         where
           isLiteral p = case p of
                           Case.Clause (Right _) _ _ -> True
                           _ -> False
-          access name = if any isLiteral clauses then ref name else dotSep [name,"ctor"]
+
+          access name
+              | any isLiteral clauses = obj name
+              | otherwise = dotSep (split name ++ ["ctor"])
+
           format isChars e
               | or isChars = InfixExpr () OpAdd e (string "")
               | otherwise = e
 
     Case.Fail ->
-        return [ ExprStmt () (obj "_E.Case" `call` [ref "$moduleName", string (show span)]) ]
+        return [ ExprStmt () (obj "_E.Case" `call` [ref "$moduleName", string (renderPretty region)]) ]
 
     Case.Break -> return [BreakStmt () Nothing]
     Case.Other e ->
         do e' <- expression e
            return [ ret e' ]
-    Case.Seq ms -> concat <$> mapM (match span) (dropEnd [] ms)
+    Case.Seq ms -> concat <$> mapM (match region) (dropEnd [] ms)
         where
           dropEnd acc [] = acc
           dropEnd acc (m:ms) =
@@ -258,9 +266,9 @@ match span mtch =
                 Case.Other _ -> acc ++ [m]
                 _ -> dropEnd (acc ++ [m]) ms
 
-clause :: SrcSpan -> String -> Case.Clause -> State Int (Bool, CaseClause ())
-clause span variable (Case.Clause value vars mtch) =
-    (,) isChar . CaseClause () pattern <$> match span (Case.matchSubst (zip vars vars') mtch)
+clause :: Region -> String -> Case.Clause -> State Int (Bool, CaseClause ())
+clause region variable (Case.Clause value vars mtch) =
+    (,) isChar . CaseClause () pattern <$> match region (Case.matchSubst (zip vars vars') mtch)
   where
     vars' = map (\n -> variable ++ "._" ++ show n) [0..]
     (isChar, pattern) =
@@ -273,8 +281,8 @@ clause span variable (Case.Clause value vars mtch) =
                                                      [] -> name
                                                      is -> drop (last is + 1) name
 
-flattenLets :: [Def] -> LExpr -> ([Def], LExpr)
-flattenLets defs lexpr@(L _ expr) =
+flattenLets :: [Def] -> Expr -> ([Def], Expr)
+flattenLets defs lexpr@(A _ expr) =
     case expr of
       Let ds body -> flattenLets (defs ++ ds) body
       _ -> (defs, lexpr)
@@ -288,7 +296,8 @@ generate unsafeModule =
     thisModule = dotSep ("_elm" : names modul ++ ["values"])
     programStmts =
         concat
-        [ setup (Just "_elm") (names modul ++ ["values"])
+        [ [ ExprStmt () $ string "use strict" ]
+        , setup (Just "_elm") (names modul ++ ["values"])
         , [ IfSingleStmt () thisModule (ret thisModule) ]
         , [ internalImports (List.intercalate "." (names modul)) ]
         , concatMap jsImport . Set.toList . Set.fromList . map fst $ imports modul
@@ -301,7 +310,7 @@ generate unsafeModule =
     jsExports = assign ("_elm" : names modul ++ ["values"]) (ObjectLit () exs)
         where
           exs = map entry . filter (not . Help.isOp) $ "_op" : exports modul
-          entry x = (PropId () (var x), ref x)
+          entry x = (prop x, ref x)
           
     assign path expr =
              case path of
@@ -311,7 +320,7 @@ generate unsafeModule =
 
     jsImport modul = setup Nothing path ++ [ include ]
         where
-          path = split modul
+          path = Help.splitDots modul
           include = assign path $ dotSep ("Elm" : path ++ ["make"]) <| ref "_elm"
 
     setup namespace path = map create paths
@@ -321,8 +330,8 @@ generate unsafeModule =
                     Nothing -> tail . init $ List.inits path
                     Just nmspc -> drop 2 . init . List.inits $ nmspc : path
 
-binop :: SrcSpan -> String -> LExpr -> LExpr -> State Int (Expression ())
-binop span op e1 e2 =
+binop :: Region -> String -> Expr -> Expr -> State Int (Expression ())
+binop region op e1 e2 =
     case op of
       "Basics.." ->
           do es <- mapM expression (e1 : collect [] e2)
@@ -335,7 +344,7 @@ binop span op e1 e2 =
           do e1' <- expression e1
              e2' <- expression e2
              return $ obj "_L.append" `call` [e1', e2']
-      "::" -> expression (L span (Data "::" [e1,e2]))
+      "::" -> expression (A region (Data "::" [e1,e2]))
       _ ->
           do e1' <- expression e1
              e2' <- expression e2
@@ -345,13 +354,13 @@ binop span op e1 e2 =
   where
     collect es e =
         case e of
-          L _ (Binop op e1 e2) | op == "Basics.." -> collect (es ++ [e1]) e2
+          A _ (Binop op e1 e2) | op == "Basics.." -> collect (es ++ [e1]) e2
           _ -> es ++ [e]
 
     func | Help.isOp operator = BracketRef () (dotSep (init parts ++ ["_op"])) (string operator)
          | otherwise     = dotSep parts
         where
-          parts = split op
+          parts = Help.splitDots op
           operator = last parts
 
     opDict = Map.fromList (infixOps ++ specialOps)

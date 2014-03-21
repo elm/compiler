@@ -17,7 +17,7 @@ module Json where
 
 -}
 
-import open Basics
+import Basics (..)
 import Dict
 import Maybe (Maybe)
 import JavaScript as JS

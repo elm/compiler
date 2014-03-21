@@ -9,7 +9,12 @@ Elm.Native.Utils.make = function(elm) {
         if (x === y) return true;
         if (typeof x === "object") {
             var c = 0;
-            for (var i in x) { ++c; if (!eq(x[i],y[i])) return false; }
+            for (var i in x) {
+                ++c;
+                if (!eq(x[i],y[i])) {
+                    return false;
+                }
+            }
             return c === Object.keys(y).length;
         }
         if (typeof x === 'function') {
@@ -76,14 +81,8 @@ Elm.Native.Utils.make = function(elm) {
 
     function makeText(text) {
         var style = '';
-        var line = '';
         var href = '';
         while (true) {
-            if (text.line) {
-                line += text.line;
-                text = text.text;
-                continue;
-            }
             if (text.style) {
                 style += text.style;
                 text = text.text;
@@ -95,7 +94,6 @@ Elm.Native.Utils.make = function(elm) {
                 continue;
             }
             if (href) text = '<a href="' + href + '">' + text + '</a>';
-            if (line) style += 'text-decoration:' + line + ';';
             if (style) text = '<span style="' + style + '">' + text + '</span>';
             return text;
         }

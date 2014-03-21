@@ -16,7 +16,7 @@ combineAnnotations = go
 
       go defs =
           case defs of
-            TypeAnnotation name tipe : Def pat@(P.PVar name') expr : rest | name == name' ->
+            TypeAnnotation name tipe : Def pat@(P.Var name') expr : rest | name == name' ->
                 do expr' <- exprCombineAnnotations expr
                    let def = Definition pat expr' (Just tipe)
                    (:) def <$> go rest

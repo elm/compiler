@@ -3,23 +3,24 @@ module Transform.SortDefinitions (sortDefs) where
 
 import Control.Monad.State
 import Control.Applicative ((<$>),(<*>))
-import qualified Data.Map as Map
-import SourceSyntax.Expression
-import SourceSyntax.Location
-import qualified SourceSyntax.Pattern as P
 import qualified Data.Graph as Graph
-import qualified Data.Set as Set
+import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
+import qualified Data.Set as Set
+import SourceSyntax.Annotation
+import SourceSyntax.Expression
+import qualified SourceSyntax.Pattern as P
+import qualified SourceSyntax.Variable as V
 
 ctors :: P.Pattern -> [String]
 ctors pattern =
     case pattern of
-      P.PVar _ -> []
-      P.PAlias _ p -> ctors p
-      P.PData ctor ps -> ctor : concatMap ctors ps
-      P.PRecord _ -> []
-      P.PAnything -> []
-      P.PLiteral _ -> []
+      P.Var _ -> []
+      P.Alias _ p -> ctors p
+      P.Data ctor ps -> ctor : concatMap ctors ps
+      P.Record _ -> []
+      P.Anything -> []
+      P.Literal _ -> []
 
 free :: String -> State (Set.Set String) ()
 free x = modify (Set.insert x)
@@ -27,15 +28,15 @@ free x = modify (Set.insert x)
 bound :: Set.Set String -> State (Set.Set String) ()
 bound boundVars = modify (\freeVars -> Set.difference freeVars boundVars)
 
-sortDefs :: LExpr -> LExpr
+sortDefs :: Expr -> Expr
 sortDefs expr = evalState (reorder expr) Set.empty
 
-reorder :: LExpr -> State (Set.Set String) LExpr
-reorder (L s expr) =
-    L s <$>
+reorder :: Expr -> State (Set.Set String) Expr
+reorder (A ann expr) =
+    A ann <$>
     case expr of
       -- Be careful adding and restricting freeVars
-      Var x -> free x >> return expr
+      Var (V.Raw x) -> free x >> return expr
 
       Lambda p e ->
           uncurry Lambda <$> bindingReorder (p,e)
@@ -103,11 +104,11 @@ reorder (L s expr) =
                 bound (P.boundVars pattern)
                 mapM free (ctors pattern)
 
-             let L _ let' = foldr (\ds bod -> L s (Let ds bod)) body' defss
+             let A _ let' = foldr (\ds bod -> A ann (Let ds bod)) body' defss
 
              return let'
 
-bindingReorder :: (P.Pattern, LExpr) -> State (Set.Set String) (P.Pattern, LExpr)
+bindingReorder :: (P.Pattern, Expr) -> State (Set.Set String) (P.Pattern, Expr)
 bindingReorder (pattern,expr) =
     do expr' <- reorder expr
        bound (P.boundVars pattern)
