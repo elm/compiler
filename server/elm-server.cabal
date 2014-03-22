@@ -1,7 +1,9 @@
 Name:                elm-server
-Version:             0.10.1
-Synopsis:            The Elm language server.
-Description:         This package provides a standalone, Happstack-based Elm server.
+Version:             0.11
+Synopsis:            Server for developing Elm projects
+Description:         Provides a standalone Snap server that serves static files.
+                     For Elm files, it recompiles them and serves them as HTML,
+                     so you can just refresh to see the new version.
 
 Homepage:            http://elm-lang.org
 
