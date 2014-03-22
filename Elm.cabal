@@ -251,7 +251,7 @@ Test-Suite test-elm
                    Elm,
                    test-framework,
                    test-framework-hunit,
-                   test-framework-quickcheck2,
+                   test-framework-quickcheck2 >= 0.3,
                    HUnit,
                    pretty,
                    QuickCheck >= 2 && < 3,
