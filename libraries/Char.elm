@@ -52,7 +52,7 @@ toLocaleLower = Native.Char.toLocaleLower
 
 type KeyCode = Int
 
-{-| Convert to unicode. Used with the [`Keyboard`](/docs/Keyboard.elm)
+{-| Convert to unicode. Used with the [`Keyboard`](/library/Keyboard.elm)
 library, which expects the input to be uppercase. -}
 toCode : Char -> KeyCode
 toCode = Native.Char.toCode

@@ -20,8 +20,8 @@ import Signal (Signal)
 import Native.Keyboard
 
 {-| Type alias to make it clearer what integers are supposed to represent
-in this library. Use [`Char.toCode`](docs/Char.elm#toCode) and
-[`Char.fromCode`](/docs/Char.elm#fromCode) to convert key codes to characters.
+in this library. Use [`Char.toCode`](library/Char.elm#toCode) and
+[`Char.fromCode`](/library/Char.elm#fromCode) to convert key codes to characters.
 Use the uppercase character with `toCode`.
 -}
 type KeyCode = Int
