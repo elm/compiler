@@ -24,11 +24,14 @@ import Snap.Util.FileServe
 
 data Flags = Flags
   { port :: Int
+  , runtime :: Maybe FilePath
   } deriving (Data,Typeable,Show,Eq)
 
 flags :: Flags
 flags = Flags
   { port = 8000 &= help "set the port of the server"
+  , runtime = Nothing &= typFile
+              &= help "Specify a custom location for Elm's runtime system."
   } &= help "Quickly reload Elm projects in your browser. Just refresh to recompile.\n\
             \It serves static files and freshly recompiled Elm files."
     &= helpArg [explicit, name "help", name "h"]
@@ -49,7 +52,7 @@ main = do
   putStrLn $ "Elm Server " ++ Version.showVersion version ++
              ": Just refresh a page to recompile it!"
   httpServe (setPort (port cargs) config) $
-      serveRuntime
+      serveRuntime (maybe Elm.runtime id (runtime cargs))
       <|> serveElm
       <|> serveDirectoryWith directoryConfig "."
 
@@ -74,14 +77,14 @@ indexStyle =
     \th { background:rgb(90,99,120); color:white; text-align:left;\
     \     padding:10px; font-weight:normal; }"
 
-runtime :: String
-runtime = "elm-runtime.js"
+runtimeName :: String
+runtimeName = "elm-runtime.js"
 
-serveRuntime :: Snap ()
-serveRuntime =
+serveRuntime :: FilePath -> Snap ()
+serveRuntime runtimePath =
   do file <- BSC.unpack . rqPathInfo <$> getRequest
-     guard (file == runtime)
-     serveFileAs "application/javascript" Elm.runtime
+     guard (file == runtimeName)
+     serveFileAs "application/javascript" runtimePath
 
 serveElm :: Snap ()
 serveElm =
@@ -91,7 +94,7 @@ serveElm =
      onSuccess (compile file) (serve file)
   where
     compile file =
-        let elmArgs = [ "--make", "--runtime=" ++ runtime, file ]
+        let elmArgs = [ "--make", "--runtime=" ++ runtimeName, file ]
         in  createProcess $ (proc "elm" elmArgs) { std_out = CreatePipe }
 
     serve file =
