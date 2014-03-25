@@ -6,12 +6,11 @@ Elm.Native.WebSocket.make = function(elm) {
   if (elm.Native.WebSocket.values) return elm.Native.WebSocket.values;
 
   var Signal = Elm.Signal.make(elm);
-  var JS = Elm.JavaScript.make(elm);
   var List = Elm.Native.List.make(elm);
 
   function open(url, outgoing) {
     var incoming = Signal.constant(List.Nil);
-    var ws = new WebSocket(JS.fromString(url));
+    var ws = new WebSocket(url);
 
     var pending = [];
     var ready = false;
@@ -22,12 +21,11 @@ Elm.Native.WebSocket.make = function(elm) {
       ready = true;
     };
     ws.onmessage = function(event) {
-      elm.notify(incoming.id, JS.toString(event.data));
+      elm.notify(incoming.id, event.data);
     };
     
     function send(msg) {
-      var s = JS.fromString(msg);
-      ready ? ws.send(s) : pending.push(s);
+      ready ? ws.send(msg) : pending.push(msg);
     }
     
     function take1(x,y) { return x }

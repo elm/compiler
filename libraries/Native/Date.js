@@ -4,12 +4,11 @@ Elm.Native.Date.make = function(elm) {
  elm.Native.Date = elm.Native.Date || {};
  if (elm.Native.Date.values) return elm.Native.Date.values;
 
- var JS = Elm.JavaScript.make(elm);
  var Maybe = Elm.Maybe.make(elm);
 
  function dateNow() { return new window.Date; }
  function readDate(str) {
-     var d = new window.Date(JS.fromString(str));
+     var d = new window.Date(str);
      if (isNaN(d.getTime())) return Maybe.Nothing;
      return Maybe.Just(d);
  }

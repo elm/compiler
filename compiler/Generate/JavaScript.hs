@@ -39,7 +39,6 @@ internalImports name =
     , include "_U" "_N.Utils"
     , include "_L" "_N.List"
     , include "_E" "_N.Error"
-    , include "_J" "_N.JavaScript"
     , varDecl "$moduleName" (string name)
     ]
 
@@ -163,7 +162,7 @@ expression (A region expr) =
 
       ExplicitList es ->
           do es' <- mapM expression es
-             return $ obj "_J.toList" <| ArrayLit () es'
+             return $ obj "_L.fromArray" <| ArrayLit () es'
 
       Data name es ->
           do es' <- mapM expression es
