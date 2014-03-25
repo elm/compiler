@@ -141,6 +141,11 @@ exists f = do
   v <- liftIO $ var Flexible
   ex [v] <$> f (VarN v)
 
+existsNumber :: Error e => (Type -> ErrorT e IO TypeConstraint) -> ErrorT e IO TypeConstraint
+existsNumber f = do
+  v <- liftIO $ var (Is Number)
+  ex [v] <$> f (VarN v)
+
 
 instance Show a => Show (UF.Point a) where
   show point = unsafePerformIO $ fmap show (UF.descriptor point)

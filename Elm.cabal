@@ -1,5 +1,5 @@
 Name:                Elm
-Version:             0.11
+Version:             0.12
 Synopsis:            The Elm language module.
 Description:         Elm aims to make client-side web-development more pleasant.
                      It is a statically/strongly typed, functional reactive
@@ -14,13 +14,13 @@ License-file:        LICENSE
 
 Author:              Evan Czaplicki
 Maintainer:          info@elm-lang.org
-Copyright:           Copyright: (c) 2011-2013 Evan Czaplicki
+Copyright:           Copyright: (c) 2011-2014 Evan Czaplicki
 
 Category:            Compiler, Language
 
 Build-type:          Custom
 
-Extra-source-files:  changelog.txt
+Extra-source-files:  changelog.md
 Data-dir:            data
 Data-files:          elm-runtime.js interfaces.data docs.json
 Cabal-version:       >=1.9
@@ -251,7 +251,7 @@ Test-Suite test-elm
                    Elm,
                    test-framework,
                    test-framework-hunit,
-                   test-framework-quickcheck2,
+                   test-framework-quickcheck2 >= 0.3,
                    HUnit,
                    pretty,
                    QuickCheck >= 2 && < 3,

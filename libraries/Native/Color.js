@@ -6,6 +6,12 @@ Elm.Native.Color.make = function(elm) {
 
     var Utils = Elm.Native.Utils.make(elm);
 
+    function toCss(c) {
+        return (c._3 === 1)
+            ? ('rgb(' + c._0 + ', ' + c._1 + ', ' + c._2 + ')')
+            : ('rgba(' + c._0 + ', ' + c._1 + ', ' + c._2 + ', ' + c._3 + ')');
+    }
+
     function complement(rgb) {
         var hsv = toHSV(rgb);
         hsv.hue = (hsv.hue + 180) % 360;
@@ -63,7 +69,8 @@ Elm.Native.Color.make = function(elm) {
     return elm.Native.Color.values = {
         hsva:F4(hsva),
         hsv:F3(hsv),
-        complement:complement
+        complement:complement,
+        toCss:toCss
     };
 
 };

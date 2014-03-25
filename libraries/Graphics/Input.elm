@@ -19,14 +19,15 @@ examples in this library, so just read on to get a better idea of how it works!
 @docs Input, input
 
 # Basic Input Elements
-Text fields come later.
+
+To learn about text fields, see the
+[`Graphics.Input.Field`](Graphics-Input-Field) library.
+
 @docs button, customButton, checkbox, dropDown
 
 # Clicks and Hovers
 @docs clickable, hoverable
 
-# Text Fields
-@docs field, password, email, noContent, FieldContent, Selection, Direction
 -}
 
 import Signal (Signal)
@@ -45,14 +46,17 @@ type Input a = { signal : Signal a, handle : Handle a }
 
 data Handle a = Handle
 
-{-| Create a new `Input`. You just give the initial value for the
-input&rsquo;s `signal`.
+{-| This creates a new `Input`. You provide a single argument that will serve
+as the initial value of the input&rsquo;s `signal`. For example:
 
-Note for Advanced Users: creating an `Input` is an inherently imperative
-action, so this is one of very few impure functions in Elm. That means
-`(input ())` and `(input ())` are actually two different inputs with different
-signals and handles. By design, Elm&rsquo;s impure functions can only be useful
-as you build your signal graph at startup, so Elm is still pure at runtime.
+      numbers : Input Int
+      numbers = input 42
+
+The initial value of `numbers.signal` is 42, and you will be able
+to pipe updates to the input using `numbers.handle`.
+
+Note: This is an inherently impure function. Specifically, `(input ())` and
+`(input ())` are actually two different inputs with different signals and handles.
 -}
 input : a -> Input a
 input = Native.Graphics.Input.input
@@ -114,7 +118,7 @@ favorite British sport:
 
       data Sport = Football | Cricket | Snooker
 
-      sport : Input Sport
+      sport : Input (Maybe Sport)
       sport = input Nothing
 
       sportDropDown : Element
@@ -172,57 +176,3 @@ distinguished with IDs or more complex data structures.
 -}
 clickable : Handle a -> a -> Element -> Element
 clickable = Native.Graphics.Input.clickable
-
-{-| Represents the current content of a text field. For example:
-
-      FieldContent "She sells sea shells" (Selection 0 3 Backward)
-
-This means the user highlighted the substring `"She"` backwards.
--}
-type FieldContent = { string:String, selection:Selection }
-
-{-| The selection within a text field. `start` is never greater than `end`:
-
-    Selection 0 0 Forward  -- cursor precedes all characters
-
-    Selection 5 9 Backward -- highlighting characters starting after
-                           -- the 5th and ending after the 9th
--}
-type Selection = { start:Int, end:Int, direction:Direction }
-
-{-| The direction of selection.-}
-data Direction = Forward | Backward
-
-{-| A field with no content:
-
-    FieldContent "" (Selection 0 0 Forward)
--}
-noContent : FieldContent
-noContent = FieldContent "" (Selection 0 0 Forward)
-
-{-| Create a text field. The following example creates a time-varying element
-called `nameField`. As the user types their name, the field will be updated
-to match what they have entered.
-
-      name : Input FieldContent
-      name = input noContent
-
-      nameField : Signal Element
-      nameField = field name.handle (\content -> content) "Name" <~ nameContent
--}
-field : Handle a -> (FieldContent -> a) -> String -> FieldContent -> Element
-field = Native.Graphics.Input.field
-
-{-| Same as `field` but the UI element blocks out each characters. -}
-password : Handle a -> (FieldContent -> a) -> String -> FieldContent -> Element
-password = Native.Graphics.Input.password
-
-{-| Same as `field` but it adds an annotation that this field is for email
-addresses. This is helpful for auto-complete and for mobile users who may
-get a custom keyboard with an `@` and `.com` button.
--}
-email : Handle a -> (FieldContent -> a) -> String -> FieldContent -> Element
-email = Native.Graphics.Input.email
-
--- area : Handle a -> (FieldContent -> a) -> Handle b -> ((Int,Int) -> b) -> (Int,Int) -> String -> FieldContent -> Element
--- area = Native.Graphics.Input.area

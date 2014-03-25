@@ -36,10 +36,10 @@ constrain env (A region expr) tipe =
           | otherwise           -> return (name <? tipe)
 
       Range lo hi ->
-          exists $ \x -> do
-            clo <- constrain env lo x
-            chi <- constrain env hi x
-            return $ and [clo, chi, list x === tipe]
+          existsNumber $ \n -> do
+            clo <- constrain env lo n
+            chi <- constrain env hi n
+            return $ and [clo, chi, list n === tipe]
 
       ExplicitList exprs ->
           exists $ \x -> do

@@ -39,6 +39,9 @@ which happen to be radians.
 # Polar Coordinates
 @docs toPolar, fromPolar
 
+# Floating Point Checks
+@docs isNaN, isInfinite
+
 # Tuples
 @docs fst, snd
 
@@ -271,6 +274,30 @@ ceiling = Native.Basics.ceiling
 toFloat : Int -> Float
 toFloat = Native.Basics.toFloat
 
+{- | Determines whether a float is an undefined or unrepresentable number.
+NaN stands for *not a number* and it is [a standardized part of floating point
+numbers](http://en.wikipedia.org/wiki/NaN).
+
+      isNaN (0/0)     == True
+      isNaN (sqrt -1) == True
+      isNaN (1/0)     == False  -- infinity is a number
+      isNaN 1         == False
+-}
+isNaN : Float -> Bool
+isNaN = Native.Basics.isNaN
+
+{- | Determines whether a float is positive or negative infinity.
+
+      isInfinite (0/0)     == False
+      isInfinite (sqrt -1) == False
+      isInfinite (1/0)     == True
+      isInfinite 1         == False
+
+Notice that NaN is not infinite! For float `n` to be finite implies that
+`not (isInfinite n || isNaN n)` evaluates to `True`.
+-}
+isInfinite : Float -> Bool
+isInfinite = Native.Basics.isInfinite
 
 -- Function Helpers
 

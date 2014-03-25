@@ -8,6 +8,8 @@ Elm.Native.Graphics.Input.make = function(elm) {
     var Render = ElmRuntime.use(ElmRuntime.Render.Element);
     var newNode = ElmRuntime.use(ElmRuntime.Render.Utils).newElement;
 
+    var toCss = Elm.Native.Color.make(elm).toCss;
+    var Text = Elm.Native.Text.make(elm);
     var Signal = Elm.Signal.make(elm);
     var newElement = Elm.Graphics.Element.make(elm).newElement;
     var JS = Elm.Native.JavaScript.make(elm);
@@ -78,7 +80,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
 
     function updateButton(node, oldModel, newModel) {
         node.elm_signal = newModel.signal;
-        node.elm_value = nemModel.value;
+        node.elm_value = newModel.value;
         var txt = newModel.text;
         if (oldModel.text !== txt) node.innerHTML = txt;
     }
@@ -215,72 +217,149 @@ Elm.Native.Graphics.Input.make = function(elm) {
         }
     }
 
+    function updateIfNeeded(css, attribute, latestAttribute) {
+        if (css[attribute] !== latestAttribute) {
+            css[attribute] = latestAttribute;
+        }
+    }
+    function cssDimensions(dimensions) {
+        return dimensions.top    + 'px ' +
+               dimensions.right  + 'px ' +
+               dimensions.bottom + 'px ' +
+               dimensions.left   + 'px';
+    }
+    function updateFieldStyle(css, style) {
+        updateIfNeeded(css, 'padding', cssDimensions(style.padding));
+
+        var outline = style.outline;
+        updateIfNeeded(css, 'border-width', cssDimensions(outline.width));
+        updateIfNeeded(css, 'border-color', toCss(outline.color));
+        updateIfNeeded(css, 'border-radius', outline.radius + 'px');
+
+        var highlight = style.highlight;
+        if (highlight.width === 0) {
+            css.outline = 'none';
+        } else {
+            updateIfNeeded(css, 'outline-width', highlight.width + 'px');
+            updateIfNeeded(css, 'outline-color', toCss(highlight.color));
+        }
+
+        var textStyle = style.style;
+        updateIfNeeded(css, 'color', toCss(textStyle.color));
+        if (textStyle.typeface.ctor !== '[]') {
+            updateIfNeeded(css, 'font-family', Text.toTypefaces(textStyle.typeface));
+        }
+        if (textStyle.height.ctor !== "Nothing") {
+            updateIfNeeded(css, 'font-size', textStyle.height._0 + 'px');
+        }
+        updateIfNeeded(css, 'font-weight', textStyle.bold ? 'bold' : 'normal');
+        updateIfNeeded(css, 'font-style', textStyle.italic ? 'italic' : 'normal');
+        if (textStyle.line.ctor !== 'Nothing') {
+            updateIfNeeded(css, 'text-decoration', Text.toLine(textStyle.line._0));
+        }
+    }
+
     function renderField(model) {
         var field = newNode('input');
+        updateFieldStyle(field.style, model.style);
+        field.style.borderStyle = 'solid';
         field.style.pointerEvents = 'auto';
-        field.elm_signal = model.signal;
-        field.elm_handler = model.handler;
 
         field.type = model.type;
         field.placeholder = JS.fromString(model.placeHolder);
         field.value = JS.fromString(model.content.string);
-        var selection = model.content.selection;
-        var direction = selection.direction.ctor === 'Forward' ? 'forward' : 'backward';
-        setRange(field, selection.start, selection.end, direction);
-        field.style.border = 'none';
 
-        function update() {
-            var direction = field.selectionDirection === 'backward' ? 'Backward' : 'Forward';
+        field.elm_signal = model.signal;
+        field.elm_handler = model.handler;
+        field.elm_old_value = field.value;
+
+        function inputUpdate(event) {
+            var curr = field.elm_old_value;
+            var next = field.value;
+            if (curr === next) {
+                return;
+            }
+
+            var direction = field.selectionDirection === 'forward' ? 'Forward' : 'Backward';
+            var start = field.selectionStart;
+            var end = field.selectionEnd;
+            field.value = field.elm_old_value;
+
             elm.notify(field.elm_signal.id, field.elm_handler({
                 _:{},
-                string:JS.toString(field.value),
+                string: JS.toString(next),
                 selection: {
-                    start:field.selectionStart,
-                    end:field.selectionEnd,
-                    direction: { ctor:direction }
+                    _:{},
+                    start: start,
+                    end: end,
+                    direction: { ctor: direction }
                 },
             }));
         }
-        function mousedown() {
-            update();
+
+        function mouseUpdate(event) {
+            var direction = field.selectionDirection === 'forward' ? 'Forward' : 'Backward';
+            elm.notify(field.elm_signal.id, field.elm_handler({
+                _:{},
+                string: field.value,
+                selection: {
+                    _:{},
+                    start: field.selectionStart,
+                    end: field.selectionEnd,
+                    direction: { ctor: direction }
+                },
+            }));
+        }
+        function mousedown(event) {
+            mouseUpdate(event);
             elm.node.addEventListener('mouseup', mouseup);
         }
-        function mouseup() {
-            update();
+        function mouseup(event) {
+            mouseUpdate(event);
             elm.node.removeEventListener('mouseup', mouseup)
         }
-        field.addEventListener('keyup', update);
+        field.addEventListener('input', inputUpdate);
         field.addEventListener('mousedown', mousedown);
+        field.addEventListener('focus', function() {
+            field.elm_hasFocus = true;
+        });
+        field.addEventListener('blur', function() {
+            field.elm_hasFocus = false;
+        });
 
         return field;
     }
 
-    function updateField(node, oldModel, newModel) {
-        node.elmHandler = newModel.handler;
-        var newStr = JS.fromString(newModel.content.string);
-        if (node.value !== newStr) node.value = newStr;
-
-        var selection = newModel.content.selection;
-        var start = selection.start;
-        var end = selection.end;
-        var direction = selection.direction.ctor === 'Forward' ? 'forward' : 'backward';
-        if (end < start) {
-            start = end;
-            end = selection.start;
+    function updateField(field, oldModel, newModel) {
+        if (oldModel.style !== newModel.style) {
+            updateFieldStyle(field.style, newModel.style);
         }
-        
-        if (node.selectionStart !== start
-            || node.selectionEnd !== end
-            || node.selectionDirection !== direction) {
-            setRange(node, start, end, direction);
+        field.elm_signal = newModel.signal;
+        field.elm_handler = newModel.handler;
+
+        field.type = newModel.type;
+        field.placeholder = JS.fromString(newModel.placeHolder);
+        var value = JS.fromString(newModel.content.string);
+        field.value = value;
+        field.elm_old_value = value;
+        if (field.elm_hasFocus) {
+            var selection = newModel.content.selection;
+            var direction = selection.direction.ctor === 'Forward' ? 'forward' : 'backward';
+            setRange(field, selection.start, selection.end, direction);
         }
     }
 
     function mkField(type) {
-        function field(signal, handler, placeHolder, content) {
+        function field(style, signal, handler, placeHolder, content) {
+            var padding = style.padding;
+            var outline = style.outline.width;
+            var adjustWidth = padding.left + padding.right + outline.left + outline.right;
+            var adjustHeight = padding.top + padding.bottom + outline.top + outline.bottom;
             return A3(newElement, 200, 30, {
                 ctor: 'Custom',
-                type: type + 'Input',
+                type: type + 'Field',
+                adjustWidth: adjustWidth,
+                adjustHeight: adjustHeight,
                 render: renderField,
                 update: updateField,
                 model: {
@@ -288,13 +367,13 @@ Elm.Native.Graphics.Input.make = function(elm) {
                     handler:handler,
                     placeHolder:placeHolder,
                     content:content,
+                    style:style,
                     type:type
                 }
             });
         }
-        return F4(field);
+        return F5(field);
     }
-
 
     function hoverable(signal, handler, elem) {
         function onHover(bool) {
