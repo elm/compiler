@@ -1,6 +1,8 @@
 module Debug where
 {-| This library is for investigating bugs or performance problems. It should
 *not* be used in production code.
+
+@docs log
 -}
 
 import Native.Debug

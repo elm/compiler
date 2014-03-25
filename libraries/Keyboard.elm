@@ -1,5 +1,4 @@
 module Keyboard where
-
 {-| Library for working with keyboard input.
 
 # Representing Keys
@@ -20,9 +19,8 @@ import Signal (Signal)
 import Native.Keyboard
 
 {-| Type alias to make it clearer what integers are supposed to represent
-in this library. Use [`Char.toCode`](docs/Char.elm#toCode) and
-[`Char.fromCode`](/docs/Char.elm#fromCode) to convert key codes to characters.
-Use the uppercase character with `toCode`.
+in this library. Use `Char.toCode` and `Char.fromCode` to convert key codes
+to characters. Use the uppercase character with `toCode`.
 -}
 type KeyCode = Int
 

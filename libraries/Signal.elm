@@ -10,7 +10,7 @@ past-dependence.
 
 Some useful functions for working with time (e.g. setting FPS) and combining
 signals and time (e.g.  delaying updates, getting timestamps) can be found in
-the [`Time`](/docs/Signal/Time.elm) library.
+the `Time` library.
 
 # Combine
 @docs constant, lift, lift2, merge, merges, combine
