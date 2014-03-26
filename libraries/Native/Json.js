@@ -63,8 +63,10 @@ Elm.Native.Json.make = function(elm) {
     }
 
     return elm.Native.Json.values = {
-        toString : F2(toString),
+        toString   : F2(toString),
         fromString : fromString,
+        fromJS     : fromJS,
+        toJS       : toJS,
     };
 
 };
