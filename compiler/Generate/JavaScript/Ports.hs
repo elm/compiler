@@ -41,7 +41,7 @@ inc tipe x =
           | ctor == "Bool"      -> from JSBoolean
           | ctor == "String"    -> from JSString
           where
-            from checks = check x checks (obj ("_J.to" ++ ctor) <| x)
+            from checks = check x checks x
 
       Data ctor [t]
           | ctor == "Maybe.Maybe" ->
@@ -50,7 +50,7 @@ inc tipe x =
                           (obj "Maybe.Just" <| inc t x)
 
           | ctor == "_List" ->
-              check x JSArray (obj "_J.toList" <| array)
+              check x JSArray (obj "_L.fromArray" <| array)
               where
                 array = DotRef () x (var "map") <| incoming t
 
@@ -101,7 +101,7 @@ out tipe x =
       Var _ -> error "type variables should not be allowed through input ports"
       Data ctor []
           | ctor `elem` ["Int","Float","Bool","String"] ->
-              obj ("_J.from" ++ ctor) <| x
+              x
 
       Data ctor [t]
           | ctor == "Maybe.Maybe" ->
@@ -110,7 +110,7 @@ out tipe x =
                           (out t (DotRef () x (var "_0")))
 
           | ctor == "_List" ->
-              DotRef () (obj "_J.fromList" <| x) (var "map") <| outgoing t
+              DotRef () (obj "_L.toArray" <| x) (var "map") <| outgoing t
 
       Data ctor ts
           | Help.isTuple ctor ->
