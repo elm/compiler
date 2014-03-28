@@ -19,7 +19,6 @@
     , "Graphics.Input"
     , "Graphics.Input.Field"
     , "Http"
-    , "JavaScript"
     , "JavaScript.Experimental"
     , "Json"
     , "Keyboard"
