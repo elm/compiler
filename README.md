@@ -1,10 +1,10 @@
 Learn about the Elm programming language at [elm-lang.org](http://elm-lang.org/).
 
-[![Build Status](https://travis-ci.org/evancz/Elm.png)](https://travis-ci.org/evancz/Elm)
+[![Build Status](https://travis-ci.org/elm-lang/Elm.png)](https://travis-ci.org/elm-lang/Elm)
 
 ## Install
 
-**Arch Linux** &mdash; follow [these directions](https://github.com/evancz/Elm/wiki/Installing-Elm#arch-linux) and then
+**Arch Linux** &mdash; follow [these directions](https://github.com/elm-lang/Elm/wiki/Installing-Elm#arch-linux) and then
 jump to the [My First Project](#my-first-project) section.
 <br/>
 **OS X 10.9 or XCode 5** &mdash; follow
@@ -51,7 +51,7 @@ The `elm` package provides
 working with Elm in Haskell. This can be useful for creating tooling
 for Elm, and has been useful for projects like
 [the website](http://elm-lang.org/) and
-[`elm-get`](https://github.com/evancz/elm-get). Email the list if you
+[`elm-get`](https://github.com/elm-lang/elm-get). Email the list if you
 want to rely on these functions!
 
 If you are stuck, email
