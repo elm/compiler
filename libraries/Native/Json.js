@@ -45,8 +45,9 @@ Elm.Native.Json.make = function(elm) {
         case 'object' :
             if (v === null) return { ctor:"Null" };
             if (v instanceof Array) {
+                var array = new Array(v.length);
                 for (var i = v.length; i--; ) {
-                    v[i] = fromJS(v[i]);
+                    array[i] = fromJS(v[i]);
                 }
 	        return {
                     ctor:"Array",
