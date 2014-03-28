@@ -6,7 +6,7 @@ Elm.Native.Regex.make = function(elm) {
     if ('values' in Elm.Native.Regex)
         return elm.Native.Regex.values = Elm.Native.Regex.values;
 
-    var List = Elm.List.make(elm);
+    var List = Elm.Native.List.make(elm);
     var Maybe = Elm.Maybe.make(elm);
 
     function escape(str) {

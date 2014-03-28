@@ -6,7 +6,7 @@ Elm.Native.Touch.make = function(elm) {
     if (elm.Native.Touch.values) return elm.Native.Touch.values;
 
     var Signal = Elm.Signal.make(elm);
-    var List = Elm.List.make(elm);
+    var List = Elm.Native.List.make(elm);
     var Utils = Elm.Native.Utils.make(elm);
 
     function Dict() {

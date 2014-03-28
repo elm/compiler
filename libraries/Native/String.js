@@ -8,7 +8,7 @@ Elm.Native.String.make = function(elm) {
 
     var Char = Elm.Char.make(elm);
     var Maybe = Elm.Maybe.make(elm);
-    var List = Elm.List.make(elm);
+    var List = Elm.Native.List.make(elm);
     var Utils = Elm.Native.Utils.make(elm);
 
     function isEmpty(str) {
