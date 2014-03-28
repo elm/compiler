@@ -35,6 +35,10 @@ inc tipe x =
     case tipe of
       Lambda _ _ -> error "functions should not be allowed through input ports"
       Var _ -> error "type variables should not be allowed through input ports"
+
+      Data "Json.Value" [] ->
+          obj "Native.Json.fromJS" <| x
+                           
       Data ctor []
           | ctor == "Int"       -> from JSNumber
           | ctor == "Float"     -> from JSNumber
@@ -100,8 +104,9 @@ out tipe x =
 
       Var _ -> error "type variables should not be allowed through input ports"
       Data ctor []
-          | ctor `elem` ["Int","Float","Bool","String"] ->
-              x
+          | ctor `elem` ["Int","Float","Bool","String"] -> x
+          | ctor == "Json.Value" ->
+              obj "Native.Json.toJS" <| x
 
       Data ctor [t]
           | ctor == "Maybe.Maybe" ->

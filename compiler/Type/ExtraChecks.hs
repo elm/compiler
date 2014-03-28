@@ -59,9 +59,11 @@ portTypes rules expr =
               | ctor == "Signal.Signal" -> handleSignal ts
               | otherwise               -> err' True "an unsupported type"
               where
+                primitives =
+                    ["Int","Float","String","Bool","Maybe.Maybe","_List","Json.Value"]
+
                 validConstructor =
-                    ctor `elem` ["Int","Float","String","Bool","Maybe.Maybe","_List"]
-                    || Help.isTuple ctor
+                    ctor `elem` primitives || Help.isTuple ctor
 
           ST.Var _ -> err "free type variables"
 
