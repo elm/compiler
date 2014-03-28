@@ -84,6 +84,11 @@ function init(display, container, module, ports, moduleToReplace) {
       return newElm;
   }
 
+  function dispose() {
+    removeListeners(listeners);
+    inputs = [];
+  }
+
   var Module = {};
   var reportAnyErrors = function() {};
   try {
@@ -110,7 +115,11 @@ function init(display, container, module, ports, moduleToReplace) {
   }
 
   reportAnyErrors();
-  return { swap:swap, ports:elm.ports.outgoing };
+  return {
+    swap:swap,
+    ports:elm.ports.outgoing,
+    dispose:dispose
+  };
 };
 
 function checkPorts(elm) {

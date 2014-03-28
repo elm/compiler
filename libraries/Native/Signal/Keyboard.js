@@ -17,9 +17,10 @@ Elm.Native.Keyboard.make = function(elm) {
   var NList = Elm.Native.List.make(elm);
   var Utils = Elm.Native.Utils.make(elm);
 
-  var downEvents = Signal.constant(0);
-  var upEvents = Signal.constant(0);
-  var blurEvents = Signal.constant(0);
+  var NS = Elm.Native.Signal.make(elm);
+  var downEvents = NS.input(0);
+  var upEvents = NS.input(0);
+  var blurEvents = NS.input(0);
 
   elm.addListener([downEvents.id], document, 'keydown', function down(e) {
     elm.notify(downEvents.id, e.keyCode);
@@ -34,6 +35,8 @@ Elm.Native.Keyboard.make = function(elm) {
   });
 
   function KeyMerge(down, up, blur) {
+    this.nodeType = "merge";
+
     var args = [down,up,blur];
     this.id = Utils.guid();
     // Ignore starting values here

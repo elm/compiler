@@ -3,6 +3,8 @@ Elm.Native.Debug.make = function(elm) {
     elm.Native = elm.Native || {};
     elm.Native.Debug = elm.Native.Debug || {};
     if (elm.Native.Debug.values) return elm.Native.Debug.values;
+    if ('values' in Elm.Native.Debug)
+        return elm.Native.Debug.values = Elm.Native.Debug.values;
 
     var show = Elm.Native.Show.make(elm).show;
 
@@ -17,8 +19,14 @@ Elm.Native.Debug.make = function(elm) {
         return value;
     }
 
-    return elm.Native.Debug.values = {
-        log: F2(log)
+    function tracePath(debugId, elem) {
+        elem.props.debugTracePathId = debugId;
+        return elem;
+    }
+
+    Elm.Native.Debug.values = {
+        tracePath: F2(tracePath),
+        log: F2(log),
     };
-    
+    return elm.Native.Debug.values = Elm.Native.Debug.values;
 };
