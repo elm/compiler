@@ -101,10 +101,9 @@ portTypes rules expr =
                     , " through port '", name, "' is invalid." ]
               , txt [ "It contains ", kind, ":\n" ]
               , (P.nest 4 . SPP.pretty $ Alias.realias rules tipe) <> P.text "\n"
-              , txt [ "Acceptable values for ", dir "incoming" "outgoing"
-                    , " ports include JavaScript values and" ]
-              , txt [ "the following Elm values: Ints, Floats, Bools, Strings, Maybes," ]
-              , txt [ "Lists, Tuples, ", dir "" "first-order functions, ", "and concrete records." ]
+              , txt [ "Acceptable values for ", dir "incoming" "outgoing", " ports include:" ]
+              , txt [ "    Ints, Floats, Bools, Strings, Maybes, Lists, Tuples," ]
+              , txt [ "    Json.Values, ", dir "" "first-order functions, ", "and concrete records." ]
               ] ++ if couldBeAlias then aliasWarning else []
 
           aliasWarning =
