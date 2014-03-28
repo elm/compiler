@@ -7,7 +7,7 @@ Elm.Native.Json.make = function(elm) {
 
     var Maybe = Elm.Maybe.make(elm);
     var Dict = Elm.Dict.make(elm);
-    var List = Elm.List.make(elm);
+    var List = Elm.Native.List.make(elm);
     var Utils = Elm.Native.Utils.make(elm);
 
     function toJS(v) {
@@ -45,12 +45,24 @@ Elm.Native.Json.make = function(elm) {
         case 'object' :
             if (v === null) return { ctor:"Null" };
             if (v instanceof Array) {
-                for (var i = v.length; i--; ) { v[i] = fromJS(v[i]); }
-	        return { ctor:"Array", _0: List.fromArray(v) };
+                for (var i = v.length; i--; ) {
+                    v[i] = fromJS(v[i]);
+                }
+	        return {
+                    ctor:"Array",
+                    _0: List.fromArray(array)
+                };
             }
             var array = [];
-            for (var k in v) array.push(Utils.Tuple2(k, fromJS(v[k])));
-            return { ctor:"Object", _0: Dict.fromList(List.fromArray(array)) };
+            for (var key in v) {
+                var value = fromJS(v[key]);
+                array.push(Utils.Tuple2(key, value));
+            }
+            var list = List.fromArray(array);
+            return {
+                ctor:"Object",
+                _0: Dict.fromList(list)
+            };
         }
     }
 
