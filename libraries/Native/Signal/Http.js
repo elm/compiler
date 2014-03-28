@@ -5,7 +5,6 @@ Elm.Native.Http.make = function(elm) {
     elm.Native.Http = elm.Native.Http || {};
     if (elm.Native.Http.values) return elm.Native.Http.values;
 
-    var JS = Elm.JavaScript.make(elm);
     var List = Elm.List.make(elm);
     var Signal = Elm.Signal.make(elm);
 
@@ -38,17 +37,17 @@ Elm.Native.Http.make = function(elm) {
         request.onreadystatechange = function(e) {
             if (request.readyState === 4) {
                 response.value = (request.status >= 200 && request.status < 300 ?
-                                  { ctor:'Success', _0:JS.toString(request.responseText) } :
-                                  { ctor:'Failure', _0:request.status, _1:JS.toString(request.statusText) });
+                                  { ctor:'Success', _0:request.responseText } :
+                                  { ctor:'Failure', _0:request.status, _1:request.statusText });
                 setTimeout(function() { updateQueue(queue,responses); }, 0);
             }
         };
-        request.open(JS.fromString(req.verb), JS.fromString(req.url), true);
+        request.open(req.verb, req.url, true);
         function setHeader(pair) {
-            request.setRequestHeader( JS.fromString(pair._0), JS.fromString(pair._1) );
+            request.setRequestHeader( pair._0, pair._1 );
         }
-        List.map(setHeader)(req.headers);
-        request.send(JS.fromString(req.body));
+        A2( List.map, setHeader, req.headers );
+        request.send(req.body);
     }
 
     function send(requests) {

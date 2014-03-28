@@ -38,7 +38,6 @@ import Native.Graphics.Collage
 import Graphics.Element (Element)
 import Color (Color, black, Gradient)
 import Maybe (Maybe)
-import JavaScript (JSString)
 
 type Form = {
   theta : Float,

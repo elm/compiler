@@ -79,9 +79,11 @@ innerVarChar :: IParser Char
 innerVarChar = alphaNum <|> char '_' <|> char '\'' <?> "" 
 
 makeVar :: IParser Char -> IParser String
-makeVar p = do v <- (:) <$> p <*> many innerVarChar
-               guard (v `notElem` reserveds)
-               return v
+makeVar p = do
+  v <- (:) <$> p <*> many innerVarChar
+  if v `elem` reserveds
+    then fail $ "unexpected keyword '" ++ v ++ "', variables cannot be keywords"
+    else return v
 
 reserved :: String -> IParser String
 reserved word =
