@@ -10,15 +10,13 @@ var newElement = Utils.newElement, extract = Utils.extract,
 function setProps(elem, e) {
     var props = elem.props;
     var element = elem.element;
-    if (element.adjustWidth) {
-        props.width -= element.adjustWidth;
+    var width = props.width - (element.adjustWidth || 0);
+    var height = props.height - (element.adjustHeight || 0);
+    e.style.width  = (width |0) + 'px';
+    e.style.height = (height|0) + 'px';
+    if (props.opacity !== 1) {
+        e.style.opacity = props.opacity;
     }
-    if (element.adjustHeight) {
-        props.height -= element.adjustHeight;
-    }
-    e.style.width  = (props.width |0) + 'px';
-    e.style.height = (props.height|0) + 'px';
-    if (props.opacity !== 1) { e.style.opacity = props.opacity; }
     if (props.color.ctor === 'Just') {
         e.style.backgroundColor = extract(props.color._0);
     }
@@ -36,33 +34,57 @@ function setProps(elem, e) {
         e.appendChild(a);
     }
     if (props.hover.ctor !== '_Tuple0') {
-        e.style.pointerEvents = 'auto';
-        e.elm_hover_handler = props.hover;
-        e.elm_hover_count = 0;
-        e.addEventListener('mouseover', function() {
-            if (e.elm_hover_count++ > 0) return;
-            var handler = e.elm_hover_handler;
-            if (handler !== null) {
-                handler(true);
-            }
-        });
-        e.addEventListener('mouseout', function(evt) {
-            if (e.contains(evt.toElement || evt.relatedTarget)) return;
-            e.elm_hover_count = 0;
-            var handler = e.elm_hover_handler;
-            if (handler !== null) {
-                handler(false);
-            }
-        });
+        addHover(e, props.hover);
     }
     if (props.click.ctor !== '_Tuple0') {
-        e.style.pointerEvents = 'auto';
-        e.elm_click_handler = props.click;
-        e.addEventListener('click', function() {
-            e.elm_click_handler(Tuple0);
-        });
+        addClick(e, props.click);
     }
     return e;
+}
+
+function addClick(e, handler) {
+    e.style.pointerEvents = 'auto';
+    e.elm_click_handler = handler;
+    function trigger() {
+        e.elm_click_handler(Utils.Tuple0);
+    }
+    e.elm_click_trigger = trigger;
+    e.addEventListener('click', trigger);
+}
+
+function removeClick(e, handler) {
+    if (e.elm_click_trigger) {
+        e.removeEventListener('click', e.elm_click_trigger);
+    }
+}
+
+function addHover(e, handler) {
+    e.style.pointerEvents = 'auto';
+    e.elm_hover_handler = handler;
+    e.elm_hover_count = 0;
+
+    function over() {
+        if (e.elm_hover_count++ > 0) return;
+        e.elm_hover_handler(true);
+    }
+    function out(evt) {
+        if (e.contains(evt.toElement || evt.relatedTarget)) return;
+        e.elm_hover_count = 0;
+        e.elm_hover_handler(false);
+    }
+    e.elm_hover_over = over;
+    e.elm_hover_out = out;
+    e.addEventListener('mouseover', over);
+    e.addEventListener('mouseout', out);
+}
+
+function removeHover(e) {
+    if (e.elm_hover_over) {
+        e.removeEventListener('mouseover', e.elm_hover_over);
+    }
+    if (e.elm_hover_out) {
+        e.removeEventListener('mouseout', e.elm_hover_out);
+    }
 }
 
 function image(props, img) {
@@ -151,7 +173,12 @@ function toPos(pos) {
 
 // must clear right, left, top, bottom, and transform
 // before calling this function
-function setPos(pos,w,h,e) {
+function setPos(pos,elem,e) {
+    var element = elem.element;
+    var props = elem.props;
+    var w = props.width + (element.adjustWidth ? element.adjustWidth : 0);
+    var h = props.height + (element.adjustHeight ? element.adjustHeight : 0);
+
     e.style.position = 'absolute';
     e.style.margin = 'auto';
     var transform = '';
@@ -171,7 +198,7 @@ function setPos(pos,w,h,e) {
 
 function container(pos,elem) {
     var e = render(elem);
-    setPos(pos, elem.props.width, elem.props.height, e);
+    setPos(pos, elem, e);
     var div = newElement('div');
     div.style.position = 'relative';
     div.style.overflow = 'hidden';
@@ -302,7 +329,7 @@ function update(node, curr, next) {
         break;
     case "Container":
         update(node.firstChild, currE._1, nextE._1);
-        setPos(nextE._0, nextE._1.props.width, nextE._1.props.height, node.firstChild);
+        setPos(nextE._0, nextE._1, node.firstChild);
         break;
     case "Custom":
         if (currE.type === nextE.type) {
@@ -320,15 +347,15 @@ function updateProps(node, curr, next) {
     var currP = curr.props;
     var e = node;
     var element = next.element;
-    if (element.adjustWidth) {
-        props.width -= element.adjustWidth;
+    var width = props.width - (element.adjustWidth || 0);
+    var height = props.height - (element.adjustHeight || 0);
+    if (width !== currP.width) {
+        e.style.width = (width|0) + 'px';
     }
-    if (element.adjustHeight) {
-        props.height -= element.adjustHeight;
+    if (height !== currP.height) {
+        e.style.height = (height|0) + 'px';
     }
-    if (props.width !== currP.width)   e.style.width  = (props.width |0) + 'px';
-    if (props.height !== currP.height) e.style.height = (props.height|0) + 'px';
-    if (props.opacity !== 1 && props.opacity !== currP.opacity) {
+    if (props.opacity !== currP.opacity) {
         e.style.opacity = props.opacity;
     }
     var nextColor = (props.color.ctor === 'Just' ?
@@ -355,17 +382,21 @@ function updateProps(node, curr, next) {
     }
 
     // update hover handlers
-    if (props.hover.ctor !== '_Tuple0') {
-        e.elm_hover_handler = props.hover;
+    if (props.hover.ctor === '_Tuple0') {
+        removeHover(e);
     } else if (e.elm_hover_handler) {
-        e.elm_hover_handler = null;
+        e.elm_hover_handler = props.hover;
+    } else {
+        addHover(e, props.hover);
     }
 
     // update click handlers
-    if (props.click.ctor !== '_Tuple0') {
-        e.elm_click_handler = props.click;
+    if (props.click.ctor === '_Tuple0') {
+        removeClick(e);
     } else if (e.elm_click_handler) {
-        e.elm_click_handler = null;
+        e.elm_click_handler = props.click;
+    } else {
+        addClick(e, props.click);
     }
 }
 

@@ -273,24 +273,6 @@ Elm.Native.Graphics.Input.make = function(elm) {
         field.elm_handler = model.handler;
         field.elm_old_value = field.value;
 
-        function keyUpdate(event) {
-            var curr = field.value;
-            var next = (curr.slice(0, field.selectionStart) +
-                        String.fromCharCode(event.keyCode) +
-                        curr.slice(field.selectionEnd));
-            var pos = field.selectionEnd + 1;
-            elm.notify(field.elm_signal.id, field.elm_handler({
-                _:{},
-                string: JS.toString(next),
-                selection: {
-                    start: pos,
-                    end: pos,
-                    direction: { ctor:'Forward' }
-                },
-            }));
-            event.preventDefault();
-        }
-
         function inputUpdate(event) {
             var curr = field.elm_old_value;
             var next = field.value;
@@ -307,6 +289,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
                 _:{},
                 string: JS.toString(next),
                 selection: {
+                    _:{},
                     start: start,
                     end: end,
                     direction: { ctor: direction }
@@ -320,6 +303,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
                 _:{},
                 string: field.value,
                 selection: {
+                    _:{},
                     start: field.selectionStart,
                     end: field.selectionEnd,
                     direction: { ctor: direction }
@@ -334,7 +318,6 @@ Elm.Native.Graphics.Input.make = function(elm) {
             mouseUpdate(event);
             elm.node.removeEventListener('mouseup', mouseup)
         }
-        field.addEventListener('keypress', keyUpdate);
         field.addEventListener('input', inputUpdate);
         field.addEventListener('mousedown', mousedown);
         field.addEventListener('focus', function() {
@@ -367,7 +350,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
     }
 
     function mkField(type) {
-        function field(signal, handler, style, placeHolder, content) {
+        function field(style, signal, handler, placeHolder, content) {
             var padding = style.padding;
             var outline = style.outline.width;
             var adjustWidth = padding.left + padding.right + outline.left + outline.right;
