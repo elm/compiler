@@ -20,7 +20,6 @@
     , "Graphics.WebGL"
     , "Graphics.Input.Field"
     , "Http"
-    , "JavaScript"
     , "JavaScript.Experimental"
     , "Json"
     , "Keyboard"

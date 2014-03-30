@@ -1,4 +1,17 @@
 
+## 0.13
+
+#### Breaking Changes:
+
+  * Revamp Json library, simpler with better names
+  * Revamp JavaScript.Experimental library to have slightly better names
+  * Remove JavaScript library which was made redundant by ports
+
+## Improvements:
+
+  * Json.Value can flow through ports, so you can bring in values even
+    if they don't conform to a consistent type.
+
 ## 0.12
 
 #### Breaking Changes:
