@@ -111,7 +111,10 @@ zipWith f a b =
 empty : Array a
 empty = Native.Array.empty
 
-{-| Push an item to the end of an array. -}
+{-| Push an item to the end of an array.
+
+      push 3 (fromList [1,2]) == fromList [1,2,3]
+-}
 push : a -> Array a -> Array a
 push = Native.Array.push
 
