@@ -44,7 +44,7 @@ fromList = List.foldl (Native.Array.push) Native.Array.empty
       elements (fromList [3,5,8]) == [3,5,8]
 -}
 elements : Array a -> [a]
-elements = Native.Array.toList
+elements = Native.Array.elements
 
 {-| Create a list of the possible indices of an array.
 
