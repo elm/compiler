@@ -34,6 +34,7 @@ data Array a = Array
 fill : Int -> a -> Array a
 fill len e = fromList <| List.map (always e) [1..len]
 
+-- TODO: make this a native function.
 {-| Create an array from a list. -}
 fromList : [a] -> Array a
 fromList = List.foldl (Native.Array.push) Native.Array.empty
