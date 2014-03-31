@@ -8,7 +8,7 @@ If you use more then one map or zip function on an array, consider turning it
 into a list before operating on it, and then turning it back into an array.
 
 # Basics
-@docs empty, length, get, safeGet, getWithDefault
+@docs empty, length, get, getMaybe, getSafe
 
 # Putting Arrays Together
 @docs fill, fromList, concat, set, updates, push

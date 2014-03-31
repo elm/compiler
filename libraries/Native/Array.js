@@ -30,7 +30,7 @@ Elm.Native.Array.make = function(elm) {
         if (i < a.table.length) {
           return a.table[i];
         } else {
-          throw new Error("Index "+ i +" on the array is out of range. Check the length first or you safeGet.");
+          throw new Error("Index "+ i +" is out of range. Check the length of your array first or use getSafe or getMaybe.");
         }
       }
 
