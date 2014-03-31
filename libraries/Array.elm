@@ -4,7 +4,7 @@ module Array where
 array must have the same type. The arrays are implemented in Relaxed
 Radix Balanced-Trees for fast updating and concating.
 
-If you use more then one map or zip function on an array, consider turning it 
+If you use more then one map or zip function on an array, consider turning it
 first into a list, operating on it, and then turning it back into an array.
 
 # Basics
@@ -27,7 +27,7 @@ import List
 
 data Array a = Array
 
-{-| Fills an array with a given length and a default element. 
+{-| Fills an array with a given length and a default element.
 
       fill 3 5 == fromList [5,5,5]
 -}
@@ -59,7 +59,7 @@ indices a = [0..Native.Array.length a - 1]
 assocs : Array a -> [(Int, a)]
 assocs a = List.zip (indices a) (Native.Array.elements a)
 
-{-| Apply a function on every element in an array. 
+{-| Apply a function on every element in an array.
 
       map (\x -> x*x) (fromList [1,2,3]) == fromList [1,4,9]
 -}
@@ -73,7 +73,7 @@ map = Native.Array.map
 assocMap : (Int -> a -> b) -> Array a -> Array b
 assocMap = Native.Array.assocMap
 
-{-| Reduce an array from the left. 
+{-| Reduce an array from the left.
 
       foldl (+) 0 (fill 3 5) == 15
 -}
@@ -87,7 +87,7 @@ foldl = Native.Array.foldl
 foldr : (a -> b -> b) -> b -> Array a -> b
 foldr = Native.Array.foldr
 
-{-| Zip the elements of two arrays via a tuple into a new array. If one array is 
+{-| Zip the elements of two arrays via a tuple into a new array. If one array is
 longer, the extra elements are dropped.
 
       zip (fromList [1,2,3,4]) (fromList [0,0,0]) = fromList [(1,0), (2,0), (3,0)]
@@ -95,16 +95,16 @@ longer, the extra elements are dropped.
 zip : Array a -> Array b -> Array (a,b)
 zip = zipWith (,)
 
-{-| Zips the elements of two arrays via a function into a new array. If one array 
+{-| Zips the elements of two arrays via a function into a new array. If one array
 is longer, the extra elements are dropped.
 
       zipWith (+) (fill 3 5) (fill 5 8) == fill 3 13
 -}
 zipWith : (a -> b -> c) -> Array a -> Array b -> Array c
-zipWith f a b = 
+zipWith f a b =
   fromList <| List.zipWith f (Native.Array.elements a) (Native.Array.elements b)
 
-{-| Return an empty array. 
+{-| Return an empty array.
 
       length empty == 0
 -}
@@ -118,8 +118,8 @@ empty = Native.Array.empty
 push : a -> Array a -> Array a
 push = Native.Array.push
 
-{-| Return the value at the index. Breaks, if index is out of range. If the 
-array length is unkown, use safeGet oder getWithDefault. 
+{-| Return the value at the index. Breaks, if index is out of range. If the
+array length is unkown, use safeGet oder getWithDefault.
 
       get 2 (A.fromList [3,2,1]) == 1
 -}
@@ -136,7 +136,7 @@ safeGet i array = if Native.Array.length array > i
                   then Just (Native.Array.get i array)
                   else Nothing
 
-{-| Get the element at the index. If the index is out of range, the given default 
+{-| Get the element at the index. If the index is out of range, the given default
 elementis returned.
 
       getWithDefault 0 2 (A.fromList [3,2,1]) == 1
@@ -146,7 +146,7 @@ getWithDefault : a -> Int -> Array a -> a
 getWithDefault default i array = if Native.Array.length array > i
                                  then Native.Array.get i array else default
 
-{-| Set the element at the index. Returns the updated array, or if the index is 
+{-| Set the element at the index. Returns the updated array, or if the index is
 out of range, the unaltered array.
 
       set 1 7 (fromList [1,2,3]) == fromList [1,7,3]
@@ -162,7 +162,7 @@ updates : [(Int, a)] -> Array a -> Array a
 updates assocs array = List.foldl (uncurry Native.Array.set) array assocs
 
 {-| Slice an array given a range. The selection is inclusive, so the last
-element in the selection will also be in the new array. This may change in the 
+element in the selection will also be in the new array. This may change in the
 future.
 You can select from the end by giving a negative Int.
 
@@ -180,7 +180,7 @@ slice = Native.Array.slice
 length : Array a -> Int
 length = Native.Array.length
 
-{-| Concat two arrays to a new one. 
+{-| Concat two arrays to a new one.
 
       concat (fill 3 1) (fill 4 2) == fromList [1,1,1,2,2,2,2]
 -}

@@ -16,9 +16,9 @@ Elm.Native.Array.make = function(elm) {
     // M is the maximal node size. 32 seems fast. E is the allowed increase
     // of search steps when concatting to find an index. Lower values will 
     // decrease balancing, but will increase search steps.
-    var M = 32;	
+    var M = 32;
     var E = 2;
-    
+
     // An empty array.
     var empty = { ctor:"_Array", _0:0, _1:new Array() };
 
@@ -31,12 +31,12 @@ Elm.Native.Array.make = function(elm) {
           throw new Error("Index "+ i +" on the array is out of range. Check the length first or you safeGet.");
         }
       }
-      
+
       var slot = getSlot(i, a);
       var sub = slot > 0 ? a._2[slot-1] : 0;
       return get(i - sub, a._1[slot]);
-    }   
-   
+    }
+
     // Sets the value at the index i. Only the nodes leading to i will get
     // copied and updated.
     function set(i, item, a) {
@@ -81,7 +81,7 @@ Elm.Native.Array.make = function(elm) {
           return null;
         }
       }
-      
+
       // Recursively push
       var pushed = push_(item, botRight(a));
 
@@ -124,7 +124,7 @@ Elm.Native.Array.make = function(elm) {
     function map(f, a) {
       var newA = { ctor:"_Array", _0:a._0, _1:new Array(a._1) };
       if (a._0 > 0) { newA._2 = a._2; }
-      for (var i = 0; i < a._1.length; i++) {      
+      for (var i = 0; i < a._1.length; i++) {
         newA._1[i] = a._0 == 0 ? f(a._1[i]) : map(f, a._1[i]);
       }
       return newA;
@@ -156,7 +156,7 @@ Elm.Native.Array.make = function(elm) {
     // Returns a sliced tree. The to is inclusive, but this may change,
     // when I understand, why e.g. JS does not handle it this way. :-)
     // If from or to is negative, they will select from the end on.
-    // TODO: currently, it slices the right, then the left. This can be 
+    // TODO: currently, it slices the right, then the left. This can be
     // optimized.
     function slice(from, to, a) {
       if (from < 0) { from += length(a); }
@@ -184,7 +184,7 @@ Elm.Native.Array.make = function(elm) {
       if (right == 0) {
         return sliced;
       }
-      
+
       // Create new node.
       var newA = { ctor:"_Array", _0:a._0
                                 , _1:a._1.slice(0, right + 1)
@@ -219,7 +219,7 @@ Elm.Native.Array.make = function(elm) {
       var newA = { ctor:"_Array", _0:a._0
                                 , _1:a._1.slice(left, a._1.length + 1)
                                 , _2:new Array(a._1.length - left) };
-      newA._1[left] = sliced; 
+      newA._1[left] = sliced;
       var len = 0;
       for (var i = 0; i < newA._1.length; i++) {
         len += length(newA._1[i]);
@@ -258,7 +258,7 @@ Elm.Native.Array.make = function(elm) {
 
         return shuffle(a, b, toRemove);
       }
-       
+
       var concated = concat_(botRight(a), botLeft(b));
       a = nodeCopy(a), b = nodeCopy(b);
 
@@ -302,9 +302,9 @@ Elm.Native.Array.make = function(elm) {
         subLengths += b._1[i]._1.length;
       }
 
-      var toRemove = a._1.length + b._1.length 
+      var toRemove = a._1.length + b._1.length
       return toRemove - (Math.floor((subLengths - 1) / M) + 1);
-    }      
+    }
 
     // get2 and set2 are helpers for accessing over two arrays.
     function get2(a, b, index) {
@@ -333,7 +333,7 @@ Elm.Native.Array.make = function(elm) {
     function saveSlot(a, b, index, slot) {
       set2(a._1, b._1, index, slot);
 
-      var l = (index == 0 || index == a._2.length) ? 
+      var l = (index == 0 || index == a._2.length) ?
                 0 : get2(a._2, a._2, index - 1);
       set2(a._2, b._2, index, l + length(slot));
     }
@@ -384,12 +384,12 @@ Elm.Native.Array.make = function(elm) {
         }
 
         // Only create a new slot if the current one is filled up.
-        if (slot._1.length == M) {          
+        if (slot._1.length == M) {
           saveSlot(newA, newB, write, slot);
           slot = createNode(a._0 - 1,0);
           write++;
         }
-      } 
+      }
 
       // Cleanup after the loop. Copy the last slot into the new nodes.
       if (slot._1.length > 0) {
@@ -398,7 +398,7 @@ Elm.Native.Array.make = function(elm) {
       }
 
       // Shift the untouched slots to the left
-      while (read < a._1.length + b._1.length ) {        
+      while (read < a._1.length + b._1.length ) {
         saveSlot(newA, newB, write, get2(a._1, b._1, read));
         read++; write++;
       }
@@ -486,5 +486,3 @@ Elm.Native.Array.make = function(elm) {
 
     return elm.Native.Array.values = Elm.Native.Array.values;
 }
-
-
