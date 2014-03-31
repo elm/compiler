@@ -11,7 +11,7 @@ first into a list, operating on it, and then turning it back into an array.
 @docs empty, length, get, safeGet, getWithDefault
 
 # Putting Arrays Together
-@docs fill, fromList, concat, set, updates
+@docs fill, fromList, concat, set, updates, push
 
 # Taking Arrays Apart
 @docs elements, indices, assocs, slice
@@ -21,6 +21,7 @@ first into a list, operating on it, and then turning it back into an array.
 -}
 
 import Native.Array
+import Basic
 import List
 
 data Array a = Array
@@ -109,13 +110,9 @@ zipWith f a b =
 empty : Array a
 empty = Native.Array.empty
 
-{- Push an item to the end of an array.
-This is implemented in Native, but one should be forced to accumulate a list of 
-new elements, turning it into an array and then concatting it. So it will remain 
-commented out for the moment.
+{-| Push an item to the end of an array. -}
 push : a -> Array a -> Array a
 push = Native.Array.push
--}
 
 {-| Return the value at the index. Breaks, if index is out of range. If the 
 array length is unkown, use safeGet oder getWithDefault. 
@@ -158,7 +155,7 @@ set = Native.Array.set
       updates [(1,7),(2,8)] (fill 3 1) == fromList [1,7,8]
 -}
 updates : [(Int, a)] -> Array a -> Array a
-updates assocs array = List.foldl (uncurry Native.Array.set) array assocs
+updates assocs array = List.foldl (Basic.uncurry Native.Array.set) array assocs
 
 {-| Slice an array given a range. The selection is inclusive, so the last
 element in the selection will also be in the new array. This may change in the 
