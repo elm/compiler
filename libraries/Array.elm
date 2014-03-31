@@ -138,7 +138,7 @@ getMaybe i array = if Native.Array.length array > i
                   else Nothing
 
 {-| Get the element at the index. If the index is out of range, the given default
-elementis returned.
+element is returned.
 
       getSafe 0 2 (A.fromList [3,2,1]) == 1
       getSafe 0 5 (A.fromList [3,2,1]) == 0
