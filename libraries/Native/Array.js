@@ -111,13 +111,13 @@ Elm.Native.Array.make = function(elm) {
     }
 
     // Converts an array into a list of elements.
-    function elements(a) {
-      return elements_(List.Nil, a);
+    function toList(a) {
+      return toList_(List.Nil, a);
     }
 
-    function elements_(list, a) {
+    function toList_(list, a) {
       for (var i = a.table.length - 1; i >= 0; i--) {
-        list = a.height == 0 ? List.Cons(a.table[i], list) : elements_(list, a.table[i]);
+        list = a.height == 0 ? List.Cons(a.table[i], list) : toList_(list, a.table[i]);
       }
       return list;
     }
@@ -132,8 +132,8 @@ Elm.Native.Array.make = function(elm) {
       return newA;
     }
 
-    // Maps a function over the indices and elements of an array.
-    function assocMap(f, a) {
+    // Maps a function over the elements with their index as first argument.
+    function indexedMap(f, a) {
       var newA = { ctor:"_Array", height:a.height, table:new Array(a.table) };
       if (a.height > 0) { newA.lengths = a.lengths; }
       for (var i = 0; i < a.table.length; i++) {
@@ -474,14 +474,14 @@ Elm.Native.Array.make = function(elm) {
 
     Elm.Native.Array.values = {
       empty:empty,
-      elements:elements,
+      toList:toList,
       concat:F2(concat),
       push:F2(push),
       slice:F3(slice),
       get:F2(get),
       set:F3(set),
       map:F2(map),
-      assocMap:F2(assocMap),
+      indexedMap:F2(indexedMap),
       foldl:F3(foldl),
       foldr:F3(foldr),
       length:length

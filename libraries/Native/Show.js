@@ -45,7 +45,7 @@ Elm.Native.Show.make = function(elm) {
                 }
                 return "(" + output.join(",") + ")";
             } else if (v.ctor === "_Array") {
-                var list = Array.elements(v);
+                var list = Array.toList(v);
                 return "Array.fromList " + toString(list);
             } else if (v.ctor === "::") {
                 var output = '[' + toString(v._0);

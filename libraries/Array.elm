@@ -14,10 +14,10 @@ into a list before operating on it, and then turning it back into an array.
 @docs fill, fromList, concat, set, updates, push
 
 # Taking Arrays Apart
-@docs elements, indices, assocs, slice
+@docs toList, toIndexedList, indices, slice
 
 # Mapping, folding, zipping
-@docs map, assocMap, foldl, foldr, zip, zipWith
+@docs map, indexMap, foldl, foldr, zip, zipWith
 -}
 
 import Native.Array
@@ -41,10 +41,10 @@ fromList = List.foldl (Native.Array.push) Native.Array.empty
 
 {-| Create a list of elements from an array.
 
-      elements (fromList [3,5,8]) == [3,5,8]
+      toList (fromList [3,5,8]) == [3,5,8]
 -}
-elements : Array a -> [a]
-elements = Native.Array.elements
+toList : Array a -> [a]
+toList = Native.Array.toList
 
 {-| Create a list of the possible indices of an array.
 
@@ -53,12 +53,13 @@ elements = Native.Array.elements
 indices : Array a -> [Int]
 indices a = [0..Native.Array.length a - 1]
 
+-- TODO: make this a native function.
 {-| Create a list of tuples (Index, Element) from an array.
 
-      assocs (fromList [3,5,8]) == [(0,3), (1,5), (2,8)]
+      toIndexedList (fromList [3,5,8]) == [(0,3), (1,5), (2,8)]
 -}
-assocs : Array a -> [(Int, a)]
-assocs a = List.zip (indices a) (Native.Array.elements a)
+toIndexedList : Array a -> [(Int, a)]
+toIndexedList a = List.zip (indices a) (Native.Array.toList a)
 
 {-| Apply a function on every element in an array.
 
@@ -67,12 +68,12 @@ assocs a = List.zip (indices a) (Native.Array.elements a)
 map : (a -> b) -> Array a -> Array b
 map = Native.Array.map
 
-{-| Apply a function with an index on every element in an array.
+{-| Apply a function on every element with its index as first argument.
 
-      assocMap (*) (fromList [5,5,5]) == fromList [0,5,10]
+      indexedMap (*) (fromList [5,5,5]) == fromList [0,5,10]
 -}
-assocMap : (Int -> a -> b) -> Array a -> Array b
-assocMap = Native.Array.assocMap
+indexedMap : (Int -> a -> b) -> Array a -> Array b
+indexedMap = Native.Array.indexedMap
 
 {-| Reduce an array from the left.
 
@@ -103,7 +104,7 @@ is longer, the extra elements are dropped.
 -}
 zipWith : (a -> b -> c) -> Array a -> Array b -> Array c
 zipWith f a b =
-  fromList <| List.zipWith f (Native.Array.elements a) (Native.Array.elements b)
+  fromList <| List.zipWith f (Native.Array.toList a) (Native.Array.toList b)
 
 {-| Return an empty array.
 
@@ -160,7 +161,7 @@ set = Native.Array.set
       updates [(1,7),(2,8)] (fill 3 1) == fromList [1,7,8]
 -}
 updates : [(Int, a)] -> Array a -> Array a
-updates assocs array = List.foldl (uncurry Native.Array.set) array assocs
+updates us array = List.foldl (uncurry Native.Array.set) array us
 
 {-| Slice an array given a range. The selection is inclusive, so the last
 element in the selection will also be in the new array. This may change in the
