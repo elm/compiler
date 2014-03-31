@@ -6,8 +6,8 @@ Elm.Native.Regex.make = function(elm) {
     if ('values' in Elm.Native.Regex)
         return elm.Native.Regex.values = Elm.Native.Regex.values;
 
+    var List = Elm.Native.List.make(elm);
     var Maybe = Elm.Maybe.make(elm);
-    var JS = Elm.JavaScript.make(elm);
 
     function escape(str) {
         return str.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -20,14 +20,14 @@ Elm.Native.Regex.make = function(elm) {
     }
 
     function contains(re, string) {
-        return re.test(JS.fromString(string));
+        return string.match(re) !== null;
     }
 
     function find(n, re, str) {
         n = n.ctor === "All" ? Infinity : n._0;
         var out = [];
         var number = 0;
-        var string = JS.fromString(str);
+        var string = str;
         var result;
         while (number++ < n && (result = re.exec(string))) {
             var i = result.length - 1;
@@ -36,17 +36,17 @@ Elm.Native.Regex.make = function(elm) {
                 var submatch = result[i];
                 subs[--i] = submatch === undefined
                     ? Maybe.Nothing
-                    : Maybe.Just(JS.toString(submatch));
+                    : Maybe.Just(submatch);
             }
             out.push({
                 _:{},
-                match: JS.toString(result[0]),
-                submatches: JS.toList(subs),
+                match: result[0],
+                submatches: List.fromArray(subs),
                 index: result.index,
                 number: number,
             });
         }
-        return JS.toList(out);
+        return List.fromArray(out);
     }
 
     function replace(n, re, replacer, string) {
@@ -60,24 +60,24 @@ Elm.Native.Regex.make = function(elm) {
                 var submatch = arguments[i];
                 submatches[--i] = submatch === undefined
                     ? Maybe.Nothing
-                    : Maybe.Just(JS.toString(submatch));
+                    : Maybe.Just(submatch);
             }
-            return JS.fromString(replacer({
+            return replacer({
                 _:{},
                 match:match,
-                submatches:JS.toList(submatches),
+                submatches:List.fromArray(submatches),
                 index:arguments[i-1],
                 number:count
-            }));
+            });
         }
         return string.replace(re, jsReplacer);
     }
 
     function split(n, re, str) {
         if (n === Infinity) {
-            return JS.toList(JS.fromString(string).split(re));
+            return List.fromArray(string.split(re));
         }
-        var string = JS.fromString(str);
+        var string = str;
         var result;
         var out = [];
         var start = re.lastIndex;
@@ -87,7 +87,7 @@ Elm.Native.Regex.make = function(elm) {
             start = re.lastIndex;
         }
         out.push(string.slice(start));
-        return JS.toList(out);
+        return List.fromArray(out);
     }
 
     return Elm.Native.Regex.values = {

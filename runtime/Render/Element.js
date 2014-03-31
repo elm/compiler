@@ -34,33 +34,57 @@ function setProps(elem, e) {
         e.appendChild(a);
     }
     if (props.hover.ctor !== '_Tuple0') {
-        e.style.pointerEvents = 'auto';
-        e.elm_hover_handler = props.hover;
-        e.elm_hover_count = 0;
-        e.addEventListener('mouseover', function() {
-            if (e.elm_hover_count++ > 0) return;
-            var handler = e.elm_hover_handler;
-            if (handler !== null) {
-                handler(true);
-            }
-        });
-        e.addEventListener('mouseout', function(evt) {
-            if (e.contains(evt.toElement || evt.relatedTarget)) return;
-            e.elm_hover_count = 0;
-            var handler = e.elm_hover_handler;
-            if (handler !== null) {
-                handler(false);
-            }
-        });
+        addHover(e, props.hover);
     }
     if (props.click.ctor !== '_Tuple0') {
-        e.style.pointerEvents = 'auto';
-        e.elm_click_handler = props.click;
-        e.addEventListener('click', function() {
-            e.elm_click_handler(Tuple0);
-        });
+        addClick(e, props.click);
     }
     return e;
+}
+
+function addClick(e, handler) {
+    e.style.pointerEvents = 'auto';
+    e.elm_click_handler = handler;
+    function trigger() {
+        e.elm_click_handler(Utils.Tuple0);
+    }
+    e.elm_click_trigger = trigger;
+    e.addEventListener('click', trigger);
+}
+
+function removeClick(e, handler) {
+    if (e.elm_click_trigger) {
+        e.removeEventListener('click', e.elm_click_trigger);
+    }
+}
+
+function addHover(e, handler) {
+    e.style.pointerEvents = 'auto';
+    e.elm_hover_handler = handler;
+    e.elm_hover_count = 0;
+
+    function over() {
+        if (e.elm_hover_count++ > 0) return;
+        e.elm_hover_handler(true);
+    }
+    function out(evt) {
+        if (e.contains(evt.toElement || evt.relatedTarget)) return;
+        e.elm_hover_count = 0;
+        e.elm_hover_handler(false);
+    }
+    e.elm_hover_over = over;
+    e.elm_hover_out = out;
+    e.addEventListener('mouseover', over);
+    e.addEventListener('mouseout', out);
+}
+
+function removeHover(e) {
+    if (e.elm_hover_over) {
+        e.removeEventListener('mouseover', e.elm_hover_over);
+    }
+    if (e.elm_hover_out) {
+        e.removeEventListener('mouseout', e.elm_hover_out);
+    }
 }
 
 function image(props, img) {
@@ -331,7 +355,7 @@ function updateProps(node, curr, next) {
     if (height !== currP.height) {
         e.style.height = (height|0) + 'px';
     }
-    if (props.opacity !== 1 && props.opacity !== currP.opacity) {
+    if (props.opacity !== currP.opacity) {
         e.style.opacity = props.opacity;
     }
     var nextColor = (props.color.ctor === 'Just' ?
@@ -358,17 +382,21 @@ function updateProps(node, curr, next) {
     }
 
     // update hover handlers
-    if (props.hover.ctor !== '_Tuple0') {
-        e.elm_hover_handler = props.hover;
+    if (props.hover.ctor === '_Tuple0') {
+        removeHover(e);
     } else if (e.elm_hover_handler) {
-        e.elm_hover_handler = null;
+        e.elm_hover_handler = props.hover;
+    } else {
+        addHover(e, props.hover);
     }
 
     // update click handlers
-    if (props.click.ctor !== '_Tuple0') {
-        e.elm_click_handler = props.click;
+    if (props.click.ctor === '_Tuple0') {
+        removeClick(e);
     } else if (e.elm_click_handler) {
-        e.elm_click_handler = null;
+        e.elm_click_handler = props.click;
+    } else {
+        addClick(e, props.click);
     }
 }
 

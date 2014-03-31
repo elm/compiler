@@ -8,7 +8,7 @@ Elm.Native.String.make = function(elm) {
 
     var Char = Elm.Char.make(elm);
     var Maybe = Elm.Maybe.make(elm);
-    var JS = Elm.JavaScript.make(elm);
+    var List = Elm.Native.List.make(elm);
     var Utils = Elm.Native.Utils.make(elm);
 
     function isEmpty(str) {
@@ -26,7 +26,7 @@ Elm.Native.String.make = function(elm) {
         return a + b;
     }
     function concat(strs) {
-        return JS.fromList(strs).join('');
+        return List.toArray(strs).join('');
     }
     function length(str) {
         return str.length;
@@ -59,10 +59,10 @@ Elm.Native.String.make = function(elm) {
     }
 
     function split(sep, str) {
-        return JS.toList(str.split(sep));
+        return List.fromArray(str.split(sep));
     }
     function join(sep, strs) {
-        return JS.fromList(strs).join(sep);
+        return List.toArray(strs).join(sep);
     }
     function repeat(n, str) {
         var result = '';
@@ -111,10 +111,10 @@ Elm.Native.String.make = function(elm) {
     }
 
     function words(str) {
-        return JS.toList(str.split(/\s+/g));
+        return List.fromArray(str.split(/\s+/g));
     }
     function lines(str) {
-        return JS.toList(str.split(/\r\n|\r|\n/g));
+        return List.fromArray(str.split(/\r\n|\r|\n/g));
     }
 
     function toUpper(str) {
@@ -155,7 +155,7 @@ Elm.Native.String.make = function(elm) {
             is.push(i);
             i = i + subLen;
         }
-        return JS.toList(is);
+        return List.fromArray(is);
     }
 
     function toInt(s) {
@@ -193,10 +193,10 @@ Elm.Native.String.make = function(elm) {
     }
 
     function toList(str) {
-        return JS.toList(str.split('').map(Utils.chr));
+        return List.fromArray(str.split('').map(Utils.chr));
     }
     function fromList(chars) {
-        return JS.fromList(chars).join('');
+        return List.toArray(chars).join('');
     }
 
     return Elm.Native.String.values = {

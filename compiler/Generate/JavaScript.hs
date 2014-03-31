@@ -39,7 +39,6 @@ internalImports name =
     , include "_U" "_N.Utils"
     , include "_L" "_N.List"
     , include "_E" "_N.Error"
-    , include "_J" "_N.JavaScript"
     , varDecl "$moduleName" (string name)
     ]
 
@@ -55,7 +54,7 @@ literal lit =
 expression :: Expr -> State Int (Expression ())
 expression (A region expr) =
     case expr of
-      Var (V.Raw x) -> return $ ref x
+      Var (V.Raw x) -> return $ obj x
       Literal lit -> return $ literal lit
 
       Range lo hi ->
@@ -87,10 +86,9 @@ expression (A region expr) =
           do fields' <- forM fields $ \(f,e) -> do
                           (,) f <$> expression e
              let fieldMap = List.foldl' combine Map.empty fields'
-             return $ ObjectLit () $ (PropId () (var "_"), hidden fieldMap) : visible fieldMap
+             return $ ObjectLit () $ (prop "_", hidden fieldMap) : visible fieldMap
           where
             combine r (k,v) = Map.insertWith (++) k [v] r
-            prop = PropId () . var
             hidden fs = ObjectLit () . map (prop *** ArrayLit ()) .
                         Map.toList . Map.filter (not . null) $ Map.map tail fs
             visible fs = map (first prop) . Map.toList $ Map.map head fs
@@ -164,7 +162,7 @@ expression (A region expr) =
 
       ExplicitList es ->
           do es' <- mapM expression es
-             return $ obj "_J.toList" <| ArrayLit () es'
+             return $ obj "_L.fromArray" <| ArrayLit () es'
 
       Data name es ->
           do es' <- mapM expression es
@@ -243,7 +241,11 @@ match region mtch =
           isLiteral p = case p of
                           Case.Clause (Right _) _ _ -> True
                           _ -> False
-          access name = if any isLiteral clauses then ref name else dotSep [name,"ctor"]
+
+          access name
+              | any isLiteral clauses = obj name
+              | otherwise = dotSep (split name ++ ["ctor"])
+
           format isChars e
               | or isChars = InfixExpr () OpAdd e (string "")
               | otherwise = e
@@ -307,7 +309,7 @@ generate unsafeModule =
     jsExports = assign ("_elm" : names modul ++ ["values"]) (ObjectLit () exs)
         where
           exs = map entry . filter (not . Help.isOp) $ "_op" : exports modul
-          entry x = (PropId () (var x), ref x)
+          entry x = (prop x, ref x)
           
     assign path expr =
              case path of

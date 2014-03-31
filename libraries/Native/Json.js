@@ -1,72 +1,85 @@
 Elm.Native.Json = {};
 Elm.Native.Json.make = function(elm) {
 
-  elm.Native = elm.Native || {};
-  elm.Native.Json = elm.Native.Json || {};
-  if (elm.Native.Json.values) return elm.Native.Json.values;
+    elm.Native = elm.Native || {};
+    elm.Native.Json = elm.Native.Json || {};
+    if (elm.Native.Json.values) return elm.Native.Json.values;
 
-  var Maybe = Elm.Maybe.make(elm);
-  var Dict = Elm.Dict.make(elm);
-  var List = Elm.List.make(elm);
-  var JS = Elm.JavaScript.make(elm);
-  var Utils = Elm.Native.Utils.make(elm);
+    var Maybe = Elm.Maybe.make(elm);
+    var Dict = Elm.Dict.make(elm);
+    var List = Elm.Native.List.make(elm);
+    var Utils = Elm.Native.Utils.make(elm);
 
-  function fromValue(v) {
-    switch (v.ctor) {
-    case 'Null'   : return null;
-    case 'String' : return JS.fromString(v._0);
-    case 'Object' :
-      var obj = {};
-      var array = JS.fromList(Dict.toList(v._0));
-      for (var i = array.length; i--; ) {
-	obj[JS.fromString(array[i]._0)] = fromValue(array[i]._1);
-      }
-      return obj;
-    case 'Array'  :
-      var array = JS.fromList(v._0);
-      for (var i = array.length; i--; ) {
-	array[i] = fromValue(array[i]);
-      }
-      return array;
-    default :
-      return v._0;
+    function toJS(v) {
+        switch (v.ctor) {
+        case 'Null'   : return null;
+        case 'String' : return v._0;
+        case 'Number' : return v._0;
+        case 'Boolean': return v._0;
+        case 'Object' :
+            var obj = {};
+            var array = List.toArray(Dict.toList(v._0));
+            for (var i = array.length; i--; ) {
+                var entry = array[i];
+                obj[entry._0] = toJS(entry._1);
+            }
+            return obj;
+        case 'Array'  :
+            var array = List.toArray(v._0);
+            for (var i = array.length; i--; ) {
+	        array[i] = toJS(array[i]);
+            }
+            return array;
+        }
     }
-  }
 
-  function toPrettyJSString(sep, obj) {
-    return JSON.stringify(fromValue(obj), null, JS.fromString(sep));
-  }
-
-  function toValue(v) {
-    switch (typeof v) {
-    case 'string' : return { ctor:"String", _0: JS.toString(v) };
-    case 'number' : return { ctor:"Number", _0: JS.toFloat(v)  };
-    case 'boolean': return { ctor:"Boolean"  , _0: JS.toBool(v)   };
-    case 'object' :
-      if (v === null) return { ctor:"Null" };
-      if (v instanceof Array) {
-          for (var i = v.length; i--; ) { v[i] = toValue(v[i]); }
-	  return { ctor:"Array", _0: JS.toList(v) };
-      }
-      var array = [];
-      for (var k in v) array.push(Utils.Tuple2(JS.toString(k), toValue(v[k])));
-      return { ctor:"Object", _0: Dict.fromList(JS.toList(array)) };
+    function toString(sep, value) {
+        return JSON.stringify(toJS(value), null, sep);
     }
-  }
 
-  function fromJSString(str) {
-    try {
-	return Maybe.Just(toValue(JSON.parse(str)));
-    } catch (e) {
-	return Maybe.Nothing;
+    function fromJS(v) {
+        switch (typeof v) {
+        case 'string' : return { ctor:"String" , _0: v };
+        case 'number' : return { ctor:"Number" , _0: v };
+        case 'boolean': return { ctor:"Boolean", _0: v };
+        case 'object' :
+            if (v === null) return { ctor:"Null" };
+            if (v instanceof Array) {
+                var array = new Array(v.length);
+                for (var i = v.length; i--; ) {
+                    array[i] = fromJS(v[i]);
+                }
+	        return {
+                    ctor:"Array",
+                    _0: List.fromArray(array)
+                };
+            }
+            var array = [];
+            for (var key in v) {
+                var value = fromJS(v[key]);
+                array.push(Utils.Tuple2(key, value));
+            }
+            var list = List.fromArray(array);
+            return {
+                ctor:"Object",
+                _0: Dict.fromList(list)
+            };
+        }
     }
-  }
 
-  return elm.Native.Json.values = {
-      toJSString : F2(toPrettyJSString),
-      fromJSString : fromJSString,
-      toJSObject : fromValue,
-      fromJSObject : toValue
-  };
+    function fromString(str) {
+        try {
+	    return Maybe.Just(fromJS(JSON.parse(str)));
+        } catch (e) {
+	    return Maybe.Nothing;
+        }
+    }
+
+    return elm.Native.Json.values = {
+        toString   : F2(toString),
+        fromString : fromString,
+        fromJS     : fromJS,
+        toJS       : toJS,
+    };
 
 };

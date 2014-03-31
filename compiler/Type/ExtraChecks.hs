@@ -8,7 +8,6 @@ module Type.ExtraChecks (mainType, occurs, portTypes) where
 
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad.State
-import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Traversable as Traverse
 import qualified Data.UnionFind.IO as UF
@@ -56,9 +55,15 @@ portTypes rules expr =
     isValid isTopLevel seenFunc seenSignal direction name tipe =
         case tipe of
           ST.Data ctor ts
-              | isJs ctor || isElm ctor -> mapM_ valid ts
+              | validConstructor        -> mapM_ valid ts
               | ctor == "Signal.Signal" -> handleSignal ts
               | otherwise               -> err' True "an unsupported type"
+              where
+                primitives =
+                    ["Int","Float","String","Bool","Maybe.Maybe","_List","Json.Value"]
+
+                validConstructor =
+                    ctor `elem` primitives || Help.isTuple ctor
 
           ST.Var _ -> err "free type variables"
 
@@ -80,14 +85,6 @@ portTypes rules expr =
           isValid' = isValid False
           valid = isValid' seenFunc seenSignal direction name
 
-          isJs ctor =
-              List.isPrefixOf "JavaScript." ctor
-              && length (filter (=='.') ctor) == 1
-
-          isElm ctor =
-              ctor `elem` ["Int","Float","String","Bool","Maybe.Maybe","_List"]
-              || Help.isTuple ctor
-
           handleSignal ts
               | seenFunc   = err "functions that involve signals"
               | seenSignal = err "signals-of-signals"
@@ -104,10 +101,9 @@ portTypes rules expr =
                     , " through port '", name, "' is invalid." ]
               , txt [ "It contains ", kind, ":\n" ]
               , (P.nest 4 . SPP.pretty $ Alias.realias rules tipe) <> P.text "\n"
-              , txt [ "Acceptable values for ", dir "incoming" "outgoing"
-                    , " ports include JavaScript values and" ]
-              , txt [ "the following Elm values: Ints, Floats, Bools, Strings, Maybes," ]
-              , txt [ "Lists, Tuples, ", dir "" "first-order functions, ", "and concrete records." ]
+              , txt [ "Acceptable values for ", dir "incoming" "outgoing", " ports include:" ]
+              , txt [ "    Ints, Floats, Bools, Strings, Maybes, Lists, Tuples," ]
+              , txt [ "    Json.Values, ", dir "" "first-order functions, ", "and concrete records." ]
               ] ++ if couldBeAlias then aliasWarning else []
 
           aliasWarning =

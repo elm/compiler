@@ -1,9 +1,22 @@
 
-## next
+## 0.13
 
-Breaking Changes:
+#### Breaking Changes:
 
-  * Overhaul Graphics.Input library (inspired by @seliopou and Jeff Smits)
+  * Revamp Json library, simpler with better names
+  * Revamp JavaScript.Experimental library to have slightly better names
+  * Remove JavaScript library which was made redundant by ports
+
+## Improvements:
+
+  * Json.Value can flow through ports, so you can bring in values even
+    if they don't conform to a consistent type.
+
+## 0.12
+
+#### Breaking Changes:
+
+  * Overhaul Graphics.Input library (inspired by Spiros Eliopoulos and Jeff Smitts)
   * Overhaul Text library to accomodate new Graphics.Input.Field
     library and make the API more consistent overall
   * Overhaul Regex library (inspired by Attila Gazso)
@@ -13,7 +26,7 @@ Breaking Changes:
   * Revise the semantics of keepWhen and dropWhen to only update when
     the filtered signal changes (thanks Max New and Janis Voigtländer)
 
-Improvements:
+#### Improvements:
 
   * Add Graphics.Input.Field for customizable text fields
   * Add Trampoline library (thanks to @maxsnew and @timthelion) 

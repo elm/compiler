@@ -1,9 +1,9 @@
-{ "version": "0.11"
+{ "version": "0.12"
 , "summary": "Elm's standard libraries"
-, "description": "The full set of standard libraries for Elm. This library is pegged to the version number of the compiler, so if you are using Elm 0.11, you should be using version 0.11 of the standard libraries."
+, "description": "The full set of standard libraries for Elm. This library is pegged to the version number of the compiler, so if you are using Elm 0.12, you should be using version 0.12 of the standard libraries."
 , "license": "BSD3"
 , "repository": "http://github.com/evancz/Elm.git"
-, "elm-version": "0.11"
+, "elm-version": "0.12"
 , "dependencies": {}
 , "exposed-modules":
     [ "Basics"
@@ -17,8 +17,8 @@
     , "Graphics.Element"
     , "Graphics.Collage"
     , "Graphics.Input"
+    , "Graphics.Input.Field"
     , "Http"
-    , "JavaScript"
     , "JavaScript.Experimental"
     , "Json"
     , "Keyboard"

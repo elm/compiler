@@ -1,7 +1,9 @@
 Name:                elm-server
-Version:             0.10.1
-Synopsis:            The Elm language server.
-Description:         This package provides a standalone, Happstack-based Elm server.
+Version:             0.11
+Synopsis:            Server for developing Elm projects
+Description:         Provides a standalone Snap server that serves static files.
+                     For Elm files, it recompiles them and serves them as HTML,
+                     so you can just refresh to see the new version.
 
 Homepage:            http://elm-lang.org
 
@@ -10,7 +12,7 @@ License-file:        LICENSE
 
 Author:              Evan Czaplicki
 Maintainer:          info@elm-lang.org
-Copyright:           Copyright: (c) 2011-2013 Evan Czaplicki
+Copyright:           Copyright: (c) 2011-2014 Evan Czaplicki
 
 Category:            Compiler, Language
 
@@ -26,15 +28,14 @@ source-repository head
 Executable elm-server
   Main-is:             Server.hs
   Build-depends:       base >=4.2 && <5,
+                       bytestring,
+                       cmdargs,
                        containers >= 0.3,
                        directory,
-                       transformers >= 0.2,
-                       mtl >= 2,
-                       parsec >= 3.1.1,
-                       blaze-html >= 0.5.1,
-                       HTTP >= 4000,
-                       happstack-server,
-                       deepseq,
                        filepath,
-                       Elm >= 0.10.1,
-                       process
+                       Elm >= 0.11,
+                       snap-core,
+                       snap-server,
+                       mtl,
+                       process,
+                       unordered-containers
