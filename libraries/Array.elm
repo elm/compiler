@@ -126,24 +126,24 @@ array length is unkown, use safeGet oder getWithDefault.
 get : Int -> Array a -> a
 get = Native.Array.get
 
-{-| Return Just the element at the index or Nothing.
+{-| Return Just the element at the index or Nothing if the index is out of range.
 
-      safeGet 2 (A.fromList [3,2,1]) == Just 2
-      safeGet 5 (A.fromList [3,2,1]) == Nothing
+      getMaybe 2 (A.fromList [3,2,1]) == Just 2
+      getMaybe 5 (A.fromList [3,2,1]) == Nothing
 -}
-safeGet : Int -> Array a -> Maybe a
-safeGet i array = if Native.Array.length array > i
+getMaybe : Int -> Array a -> Maybe a
+getMaybe i array = if Native.Array.length array > i
                   then Just (Native.Array.get i array)
                   else Nothing
 
 {-| Get the element at the index. If the index is out of range, the given default
 elementis returned.
 
-      getWithDefault 0 2 (A.fromList [3,2,1]) == 1
-      getWithDefault 0 5 (A.fromList [3,2,1]) == 0
+      getSafe 0 2 (A.fromList [3,2,1]) == 1
+      getSafe 0 5 (A.fromList [3,2,1]) == 0
 -}
-getWithDefault : a -> Int -> Array a -> a
-getWithDefault default i array = if Native.Array.length array > i
+getSafe : a -> Int -> Array a -> a
+getSafe default i array = if Native.Array.length array > i
                                  then Native.Array.get i array else default
 
 {-| Set the element at the index. Returns the updated array, or if the index is
