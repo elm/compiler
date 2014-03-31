@@ -21,7 +21,8 @@ first into a list, operating on it, and then turning it back into an array.
 -}
 
 import Native.Array
-import Basic
+import Basics (..)
+import Maybe (..)
 import List
 
 data Array a = Array
@@ -155,7 +156,7 @@ set = Native.Array.set
       updates [(1,7),(2,8)] (fill 3 1) == fromList [1,7,8]
 -}
 updates : [(Int, a)] -> Array a -> Array a
-updates assocs array = List.foldl (Basic.uncurry Native.Array.set) array assocs
+updates assocs array = List.foldl (uncurry Native.Array.set) array assocs
 
 {-| Slice an array given a range. The selection is inclusive, so the last
 element in the selection will also be in the new array. This may change in the 
