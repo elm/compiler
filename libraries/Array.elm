@@ -4,8 +4,8 @@ module Array where
 array must have the same type. The arrays are implemented in Relaxed
 Radix Balanced-Trees for fast updating and concating.
 
-If you use more then one map or zip function, consider turning the array
-into a list and afterwards back into an array.
+If you use more then one map or zip function on an array, consider turning it 
+first into a list, operating on it, and then turning it back into an array.
 
 # Basics
 @docs empty, length, get, safeGet, getWithDefault
