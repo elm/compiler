@@ -13,7 +13,6 @@ import qualified SourceSyntax.Pattern as P
 import qualified SourceSyntax.Variable as V
 import Transform.Substitute
 
-
 toMatch :: [(P.Pattern, Expr)] -> State Int (String, Match)
 toMatch patterns = do
   v <- newVar
@@ -37,16 +36,19 @@ data Clause =
     deriving Show
 
 matchSubst :: [(String,String)] -> Match -> Match
-matchSubst _ Break = Break
-matchSubst _ Fail = Fail
-matchSubst pairs (Seq ms) = Seq (map (matchSubst pairs) ms)
-matchSubst pairs (Other (A a e)) =
-    Other . A a $ foldr ($) e $ map (\(x,y) -> subst x (rawVar y)) pairs
-matchSubst pairs (Match n cs m) =
-    Match (varSubst n) (map clauseSubst cs) (matchSubst pairs m)
-        where varSubst v = fromMaybe v (lookup v pairs)
-              clauseSubst (Clause c vs m) =
-                  Clause c (map varSubst vs) (matchSubst pairs m)
+matchSubst pairs match =
+    case match of
+      Break -> Break
+      Fail  -> Fail
+      Seq ms -> Seq (map (matchSubst pairs) ms)
+      Other (A a e) ->
+          Other . A a $ foldr ($) e $ map (\(x,y) -> subst x (rawVar y)) pairs
+      Match n cs m ->
+          Match (varSubst n) (map clauseSubst cs) (matchSubst pairs m)
+          where
+            varSubst v = fromMaybe v (lookup v pairs)
+            clauseSubst (Clause c vs m) =
+                Clause c (map varSubst vs) (matchSubst pairs m)
 
 isCon (p:_, _) =
   case p of
@@ -68,6 +70,7 @@ match vs@(v:_) cs def
   where
     cs' = map (dealias v) cs
 
+dealias :: String -> ([P.Pattern],Expr) -> ([P.Pattern],Expr)
 dealias v c@(p:ps, A a e) =
     case p of
       P.Alias x pattern -> (pattern:ps, A a $ subst x (rawVar v) e)

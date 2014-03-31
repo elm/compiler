@@ -255,9 +255,11 @@ match region mtch =
         return [ ExprStmt () (obj "_E.Case" `call` [ref "$moduleName", string (renderPretty region)]) ]
 
     Case.Break -> return [BreakStmt () Nothing]
+
     Case.Other e ->
         do e' <- expression e
            return [ ret e' ]
+
     Case.Seq ms -> concat <$> mapM (match region) (dropEnd [] ms)
         where
           dropEnd acc [] = acc
