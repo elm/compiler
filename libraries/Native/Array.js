@@ -122,7 +122,7 @@ Elm.Native.Array.make = function(elm) {
       return list;
     }
 
-    // Maps a function over an array.
+    // Maps a function over the elements of an array.
     function map(f, a) {
       var newA = { ctor:"_Array", height:a.height, table:new Array(a.table) };
       if (a.height > 0) { newA.lengths = a.lengths; }
@@ -132,6 +132,7 @@ Elm.Native.Array.make = function(elm) {
       return newA;
     }
 
+    // Maps a function over the indices and elements of an array.
     function assocMap(f, a) {
       var newA = { ctor:"_Array", height:a.height, table:new Array(a.table) };
       if (a.height > 0) { newA.lengths = a.lengths; }
@@ -155,9 +156,9 @@ Elm.Native.Array.make = function(elm) {
       return b;
     }
 
-    // Returns a sliced tree. The to is inclusive, but this may change,
+    // Returns a sliced tree. "to" is inclusive, but this may change,
     // when I understand, why e.g. JS does not handle it this way. :-)
-    // If from or to is negative, they will select from the end on.
+    // If "from" or "to" is negative, they will select from the end on.
     // TODO: currently, it slices the right, then the left. This can be
     // optimized.
     function slice(from, to, a) {
@@ -308,7 +309,7 @@ Elm.Native.Array.make = function(elm) {
       return toRemove - (Math.floor((subLengths - 1) / M) + 1);
     }
 
-    // get2 and set2 are helpers for accessing over two arrays.
+    // get2, set2 and saveSlot are helpers for accessing elements over two arrays.
     function get2(a, b, index) {
       return index < a.length ? a[index] : b[index - a.length];
     }
@@ -321,6 +322,14 @@ Elm.Native.Array.make = function(elm) {
       }
     }
 
+    function saveSlot(a, b, index, slot) {
+      set2(a.table, b.table, index, slot);
+
+      var l = (index == 0 || index == a.lengths.length) ?
+                0 : get2(a.lengths, a.lengths, index - 1);
+      set2(a.lengths, b.lengths, index, l + length(slot));
+    }
+
     // Creates a node or leaf with a given length at their arrays for perfomance.
     // Is only used by shuffle.
     function createNode(h, length) {
@@ -330,14 +339,6 @@ Elm.Native.Array.make = function(elm) {
         a.lengths = new Array(length);
       }
       return a;
-    }
-
-    function saveSlot(a, b, index, slot) {
-      set2(a.table, b.table, index, slot);
-
-      var l = (index == 0 || index == a.lengths.length) ?
-                0 : get2(a.lengths, a.lengths, index - 1);
-      set2(a.lengths, b.lengths, index, l + length(slot));
     }
 
     // Returns an array of two balanced nodes.
@@ -430,8 +431,8 @@ Elm.Native.Array.make = function(elm) {
       }
     }
 
-    // Calculates in which slot the item probably is, then
-    // find the exact slot in "lengths". Returns the index.
+    // Calculates in which slot of "table" the item probably is, then
+    // find the exact slot via forward searching in  "lengths". Returns the index.
     function getSlot(i, a) {
       var slot = Math.floor(i / (Math.pow(M, a.height)));
       while (a.lengths[slot] <= i) {
