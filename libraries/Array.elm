@@ -1,8 +1,8 @@
 module Array where
 
-{-| A library for manipulating arrays of elements. The elements in an
-array must have the same type. The arrays are implemented in Relaxed
-Radix Balanced-Trees for fast updating and concating.
+{-| A library for immutable arrays. The elements in an array must have the same
+type. The arrays are implemented in Relaxed Radix Balanced-Trees for fast
+reads, updates, and concatenation.
 
 If you use more then one map or zip function on an array, consider turning it
 into a list before operating on it, and then turning it back into an array.
@@ -132,9 +132,10 @@ get = Native.Array.get
       safeGet 5 (A.fromList [3,2,1]) == Nothing
 -}
 safeGet : Int -> Array a -> Maybe a
-safeGet i array = if Native.Array.length array > i
-                  then Just (Native.Array.get i array)
-                  else Nothing
+safeGet i array =
+    if i < Native.Array.length array
+      then Just (Native.Array.get i array)
+      else Nothing
 
 {-| Get the element at the index. If the index is out of range, the given default
 elementis returned.
@@ -143,8 +144,10 @@ elementis returned.
       getWithDefault 0 5 (A.fromList [3,2,1]) == 0
 -}
 getWithDefault : a -> Int -> Array a -> a
-getWithDefault default i array = if Native.Array.length array > i
-                                 then Native.Array.get i array else default
+getWithDefault default i array =
+    if i < Native.Array.length array
+      then Native.Array.get i array
+      else default
 
 {-| Set the element at the index. Returns the updated array, or if the index is
 out of range, the unaltered array.
