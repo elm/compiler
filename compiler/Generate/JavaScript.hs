@@ -56,6 +56,7 @@ expression :: Expr -> State Int (Expression ())
 expression (A region expr) =
     case expr of
       Var (V.Raw x) -> return $ obj x
+
       Literal lit -> return $ literal lit
 
       Range lo hi ->
@@ -216,19 +217,19 @@ definition (Definition pattern expr@(A region _) _) = do
           decl x n = varDecl x (dotSep ["$","_" ++ show n])
           setup vars
               | Help.isTuple name = assign "$" : vars
-              | otherwise = assign "$raw" : safeAssign : vars
+              | otherwise = assign "_raw" : safeAssign : vars
 
-          safeAssign = varDecl "$" (CondExpr () if' (obj "$raw") exception)
-          if' = InfixExpr () OpStrictEq (obj "$raw.ctor") (string name)
+          safeAssign = varDecl "$" (CondExpr () if' (obj "_raw") exception)
+          if' = InfixExpr () OpStrictEq (obj "_raw.ctor") (string name)
           exception = obj "_E.Case" `call` [ref "$moduleName", string (renderPretty region)]
 
     _ ->
         do defs' <- concat <$> mapM toDef vars
-           return (VarDeclStmt () [assign "$"] : defs')
+           return (VarDeclStmt () [assign "_"] : defs')
         where
           vars = P.boundVarList pattern
           mkVar = A region . rawVar
-          toDef y = let expr =  A region $ Case (mkVar "$") [(pattern, mkVar y)]
+          toDef y = let expr =  A region $ Case (mkVar "_") [(pattern, mkVar y)]
                     in  definition $ Definition (P.Var y) expr Nothing
 
 match :: Region -> Case.Match -> State Int [Statement ()]
