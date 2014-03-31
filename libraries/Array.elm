@@ -17,7 +17,7 @@ into a list before operating on it, and then turning it back into an array.
 @docs toList, toIndexedList, indices, slice
 
 # Mapping, folding, zipping
-@docs map, indexMap, foldl, foldr, zip, zipWith
+@docs map, indexedMap, foldl, foldr, zip, zipWith
 -}
 
 import Native.Array

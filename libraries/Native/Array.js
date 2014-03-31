@@ -137,7 +137,7 @@ Elm.Native.Array.make = function(elm) {
       var newA = { ctor:"_Array", height:a.height, table:new Array(a.table) };
       if (a.height > 0) { newA.lengths = a.lengths; }
       for (var i = 0; i < a.table.length; i++) {
-        newA.table[i] = a.height == 0 ? A2(f, i, a.table[i]) : assocMap(f, a.table[i]);
+        newA.table[i] = a.height == 0 ? A2(f, i, a.table[i]) : indexedMap(f, a.table[i]);
       }
       return newA;
     }
