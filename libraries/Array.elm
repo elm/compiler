@@ -5,7 +5,7 @@ array must have the same type. The arrays are implemented in Relaxed
 Radix Balanced-Trees for fast updating and concating.
 
 If you use more then one map or zip function on an array, consider turning it
-first into a list, operating on it, and then turning it back into an array.
+into a list before operating on it, and then turning it back into an array.
 
 # Basics
 @docs empty, length, get, safeGet, getWithDefault
@@ -111,14 +111,14 @@ zipWith f a b =
 empty : Array a
 empty = Native.Array.empty
 
-{-| Push an item to the end of an array.
+{-| Push an element to the end of an array.
 
       push 3 (fromList [1,2]) == fromList [1,2,3]
 -}
 push : a -> Array a -> Array a
 push = Native.Array.push
 
-{-| Return the value at the index. Breaks, if index is out of range. If the
+{-| Return the element at the index. Breaks, if index is out of range. If the
 array length is unkown, use safeGet oder getWithDefault.
 
       get 2 (A.fromList [3,2,1]) == 1
