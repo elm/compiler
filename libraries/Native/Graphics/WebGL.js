@@ -17,6 +17,10 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
   var Signal = Elm.Signal.make(elm);
   var Tuple2 = Utils.Tuple2;
 
+  function unsafeCoerceGLSL(src) {
+    return { src : src };
+  }
+
   function loadTex(source) {
 
     var response = Signal.constant(elm.Http.values.Waiting);
@@ -172,7 +176,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
         var progid = m.vert.id + '#' + m.frag.id;
         program = model.cache.programs[progid];
       }
-      
+
       if (!program) {
 
         var vshader = undefined;
@@ -181,7 +185,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
         } else {
           m.vert.id = Utils.guid();
         }
-        
+
         if (!vshader) {
           vshader = do_compile(gl, m.vert.src, gl.VERTEX_SHADER);
           model.cache.shaders[m.vert.id] = vshader;
@@ -353,6 +357,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
   }
 
   return elm.Native.Graphics.WebGL.values = {
+    unsafeCoerceGLSL:unsafeCoerceGLSL,
     loadTex:loadTex,
     model:F4(model),
     webgl:F2(webgl)

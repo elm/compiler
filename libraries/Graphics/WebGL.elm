@@ -29,6 +29,9 @@ import Http (Response)
 import Native.Graphics.WebGL
 import Signal (Signal)
 
+unsafeCoerceGLSL : String -> Shader attr unif vary
+unsafeCoerceGLSL = Native.Graphics.WebGL.unsafeCoerceGLSL
+
 type Triangle a = (a,a,a)
 
 mapTriangle : (a -> b) -> Triangle a -> Triangle b
