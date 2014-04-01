@@ -322,20 +322,18 @@ markdown interpolation = try (string "[markdown|") >> closeMarkdown (++ "") []
                  ]
 
 glShader :: IParser (String, Literal.GLShaderTipe)
-glShader = do
-  do
-    rawSrc <- try (string "[glShader|") >> closeShader ""
-    case glSource rawSrc of
-        Left err -> parserFail . show $ err
-        Right tipe -> return (rawSrc, tipe)
-    where
-    closeShader src = choice
-      [ do 
-        try (string "|]")
-        return src
-      , do
-        c <- anyChar
-        closeShader (src ++ [c])
+glShader =
+  do try (string "[glShader|")
+     rawSrc <- closeShader id
+     case glSource rawSrc of
+       Left err -> parserFail . show $ err
+       Right tipe -> return (rawSrc, tipe)
+  where
+    closeShader builder = choice
+      [ do try (string "|]")
+           return (builder "")
+      , do c <- anyChar
+           closeShader (builder . (c:))
       ]
 
 glSource :: String -> Either ParseError Literal.GLShaderTipe
