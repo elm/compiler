@@ -179,6 +179,9 @@ expression (A region expr) =
             pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
             md = pad ++ MD.toHtml doc ++ pad
 
+      GLShader _uid src _tipe ->
+        return $ ObjectLit () [(PropString () "src", literal (Str src))]
+          
       PortIn name tipe ->
           return $ obj "Native.Ports.portIn" `call` [ string name, Port.incoming tipe ]
 

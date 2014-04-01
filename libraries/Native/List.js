@@ -289,6 +289,16 @@ Elm.Native.List.make = function(elm) {
         return fromArray(out);
     }
 
+    /*
+     * Only to be used internally; do some side effects for each elem
+     */
+    function each(action, xs) {
+        while(xs.ctor !== '[]') {
+            action(xs._0);
+            xs = xs._1;
+        }
+    }
+
     Elm.Native.List.values = {
         Nil:Nil,
         Cons:Cons,
@@ -328,7 +338,9 @@ Elm.Native.List.make = function(elm) {
         drop:F2(drop),
         repeat:F2(repeat),
 
-        join:F2(join)
+        join:F2(join),
+
+        each:each
     };
     return elm.Native.List.values = Elm.Native.List.values;
 

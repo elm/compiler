@@ -58,6 +58,7 @@ data GeneralExpr' ann def var
     -- for type checking and code gen only
     | PortIn String SrcType.Type
     | PortOut String SrcType.Type (GeneralExpr ann def var)
+    | GLShader String String Literal.GLShaderTipe
     deriving (Show)
 
 
@@ -177,6 +178,8 @@ instance (Pretty def, Pretty var) => Pretty (GeneralExpr' ann def var) where
          field (x,e) = variable x <+> P.equals <+> pretty e
 
      Markdown _ _ _ -> P.text "[markdown| ... |]"
+
+     GLShader _ _ _ -> P.text "[glShader| ... |]"
 
      PortIn name _ -> P.text $ "<port:" ++ name ++ ">"
 

@@ -1,5 +1,5 @@
 Name:                elm-server
-Version:             0.11
+Version:             0.12
 Synopsis:            Server for developing Elm projects
 Description:         Provides a standalone Snap server that serves static files.
                      For Elm files, it recompiles them and serves them as HTML,
@@ -33,7 +33,7 @@ Executable elm-server
                        containers >= 0.3,
                        directory,
                        filepath,
-                       Elm >= 0.11,
+                       Elm >= 0.12,
                        snap-core,
                        snap-server,
                        mtl,
