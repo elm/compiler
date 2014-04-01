@@ -9,11 +9,11 @@ import IO.IO (..)
 import IO.Runner (Request, Response)
 import IO.Runner as Run
 
+import Test.String as String
 import Test.Trampoline as Trampoline
     
-{- Failing test to get it going -}
 tests : [Test]
-tests = Trampoline.tests
+tests = String.tests ++ Trampoline.tests
 
 console : IO ()
 console = runDisplay tests

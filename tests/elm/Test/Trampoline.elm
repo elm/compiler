@@ -1,9 +1,10 @@
 module Test.Trampoline (tests) where
 
-import ElmTest.Test (..)
-    
 import Trampoline (..)
 
+import ElmTest.Assertion (..)
+import ElmTest.Test (..)
+    
 badSum : Int -> Int
 badSum n =
     let loop x acc =
@@ -20,5 +21,9 @@ goodSum n =
               _ -> Continue (\_ -> sumT (x-1) (acc+x))
     in trampoline <| sumT n 0
 
-tests = goodSum 1000000 `equals` 500000500000 :: map (\n -> badSum n `equals` goodSum n) [0..50]
-        
+tests : [Test]
+tests =
+    let mkLoopCheck n = test ("Equivalent Loop Check #"++ show n) (assertEqual (badSum n) (goodSum n))
+        loopChecks = map mkLoopCheck [0..25]
+        noStackOverflow = test "Trampoline Deep Recursion Test" (assertEqual 500000500000 (goodSum 1000000))
+    in noStackOverflow :: loopChecks
