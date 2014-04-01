@@ -9,6 +9,7 @@ improve as we find its key failings.
 -}
 
 import Native.JavaScript
+import Native.Json
 import Json
 
 data RawObject = RawObject
