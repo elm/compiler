@@ -311,14 +311,17 @@ anyUntilPos pos = go
                 False -> (:) <$> anyChar <*> go
 
 markdown :: ([a] -> IParser (String, [a])) -> IParser (String, [a])
-markdown interpolation = try (string "[markdown|") >> closeMarkdown (++ "") []
+markdown interpolation =
+    do try (string "[markdown|")
+       closeMarkdown id []
     where
-      closeMarkdown md stuff =
+      closeMarkdown markdownBuilder stuff =
           choice [ do try (string "|]")
-                      return (md "", stuff)
-                 , (\(m,s) -> closeMarkdown (md . (m ++)) s) =<< interpolation stuff
+                      return (markdownBuilder "", stuff)
+                 , do (markdown,stuff') <- interpolation stuff
+                      closeMarkdown (markdownBuilder . (markdown++)) stuff'
                  , do c <- anyChar
-                      closeMarkdown (md . ([c]++)) stuff
+                      closeMarkdown (markdownBuilder . (c:)) stuff
                  ]
 
 glShader :: IParser (String, Literal.GLShaderTipe)
