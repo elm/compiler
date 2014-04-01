@@ -25,13 +25,15 @@ data GLTipe = Int | Float | V2 | V3 | V4 | M4 | Texture
   deriving (Show)
 
 glTipeName :: GLTipe -> String
-glTipeName Int = "Int"
-glTipeName Float = "Float"
-glTipeName V2 = "MJS.V2"
-glTipeName V3 = "MJS.V3"
-glTipeName V4 = "MJS.V4"
-glTipeName M4 = "MJS.M4x4"
-glTipeName Texture = "Graphics.WebGL.Texture"
+glTipeName glTipe =
+    case glTipe of
+      Int     -> "Int"
+      Float   -> "Float"
+      V2      -> "MJS.V2"
+      V3      -> "MJS.V3"
+      V4      -> "MJS.V4"
+      M4      -> "MJS.M4x4"
+      Texture -> "Graphics.WebGL.Texture"
 
 data GLShaderTipe = GLShaderTipe
     { attribute :: Map String GLTipe
