@@ -120,20 +120,18 @@ initially. -}
 dropIf : (a -> Bool) -> a -> Signal a -> Signal a
 dropIf = Native.Signal.dropIf
 
-{-| Keep events only when the first signal is true. When the first signal
-becomes true, the most recent value of the second signal will be propagated.
-Until the first signal becomes false again, all events will be propagated. Elm
-does not allow undefined signals, so a base case must be provided in case the
-first signal is not true initially. -}
+{-| Keep events only when the first signal is true. Elm does not allow undefined
+signals, so a base case must be provided in case the first signal is not true
+initially.
+-}
 keepWhen : Signal Bool -> a -> Signal a -> Signal a
 keepWhen bs def sig = 
   snd <~ (keepIf fst (False, def) ((,) <~ (sampleOn sig bs) ~ sig))
 
-{-| Drop events when the first signal is true. When the first signal becomes
-false, the most recent value of the second signal will be propagated. Until the
-first signal becomes true again, all events will be propagated. Elm does not
-allow undefined signals, s oa base case must be provided in case the first
-signal is true initially. -}
+{-| Drop events when the first signal is true. Elm does not allow undefined
+signals, so a base case must be provided in case the first signal is true
+initially.
+-}
 dropWhen : Signal Bool -> a -> Signal a -> Signal a
 dropWhen bs = keepWhen (not <~ bs)
 
