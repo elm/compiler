@@ -14,7 +14,7 @@ main = do
   runCmd "git submodule init"
   runCmd "npm install jsdom"
   setCurrentDirectory $ top</>"tests"</>"elm"
-  runCmd $ concat ["elm --make --only-js --src-dir=" , top</>"automaton", " --src-dir=", top</>"IO", " --src-dir=", top</>"Elm-Test", " Test.elm"]
+  runCmd $ concat [top</>"dist"</>"build"</>"elm"</>"elm --make --only-js --src-dir=" , top</>"automaton", " --src-dir=", top</>"IO", " --src-dir=", top</>"Elm-Test", " Test.elm"]
   runCmd $ unwords ["cat ", ioScript "prescript.js", Elm.runtime, "build"</>"Test.js", ioScript "handler.js", "> exe.js"]
   exitWith =<< waitForProcess =<< (runCommand "node exe.js")
   where runCmd cmd = do
