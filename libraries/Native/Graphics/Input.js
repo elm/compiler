@@ -137,8 +137,6 @@ Elm.Native.Graphics.Input.make = function(elm) {
         var clicker = newNode('div');
         clicker.style.width = btn.elm_up.style.width;
         clicker.style.height = btn.elm_up.style.height;
-        clicker.style.position = 'absolute';
-        clicker.style.top = 0;
         btn.appendChild(clicker);
 
         return btn;
