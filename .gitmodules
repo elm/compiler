@@ -1,9 +1,9 @@
 [submodule "IO"]
 	path = IO
-	url = git@github.com:maxsnew/IO.git
+	url = https://github.com/maxsnew/IO.git
 [submodule "automaton"]
 	path = automaton
-	url = git@github.com:evancz/automaton.git
+	url = https://github.com/evancz/automaton.git
 [submodule "Elm-Test"]
 	path = Elm-Test
-	url = git@github.com:deadfoxygrandpa/Elm-Test.git
+	url = https://github.com/deadfoxygrandpa/Elm-Test.git
