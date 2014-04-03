@@ -64,14 +64,16 @@ function addHover(e, handler) {
     e.elm_hover_handler = handler;
     e.elm_hover_count = 0;
 
-    function over() {
+    function over(evt) {
         if (e.elm_hover_count++ > 0) return;
         e.elm_hover_handler(true);
+        evt.stopPropagation();
     }
     function out(evt) {
         if (e.contains(evt.toElement || evt.relatedTarget)) return;
         e.elm_hover_count = 0;
         e.elm_hover_handler(false);
+        evt.stopPropagation();
     }
     e.elm_hover_over = over;
     e.elm_hover_out = out;
