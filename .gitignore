@@ -11,3 +11,6 @@ data
 */ElmFiles/*
 .DS_Store
 *~
+tests/elm/build/
+tests/elm/cache/
+tests/elm/exe.js
