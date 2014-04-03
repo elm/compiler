@@ -45,8 +45,9 @@ function setProps(elem, e) {
 function addClick(e, handler) {
     e.style.pointerEvents = 'auto';
     e.elm_click_handler = handler;
-    function trigger() {
+    function trigger(ev) {
         e.elm_click_handler(Utils.Tuple0);
+        ev.stopPropagation();
     }
     e.elm_click_trigger = trigger;
     e.addEventListener('click', trigger);
