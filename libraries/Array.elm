@@ -123,12 +123,13 @@ get = Native.Array.get
 
 {-| Return Just the element at the index or Nothing if the index is out of range.
 
-      getMaybe 2 (fromList [3,2,1]) == Just 2
-      getMaybe 5 (fromList [3,2,1]) == Nothing
+      getMaybe  2 (fromList [3,2,1]) == Just 2
+      getMaybe  5 (fromList [3,2,1]) == Nothing
+      getMaybe -1 (fromList [3,2,1]) == Nothing
 -}
 getMaybe : Int -> Array a -> Maybe a
 getMaybe i array =
-    if Native.Array.length array > i
+    if 0 <= i && i < Native.Array.length array
       then Just (Native.Array.get i array)
       else Nothing
 
@@ -140,7 +141,7 @@ element is returned.
 -}
 getWithDefault : a -> Int -> Array a -> a
 getWithDefault default i array =
-    if Native.Array.length array > i
+    if 0 <= i && i < Native.Array.length array
       then Native.Array.get i array
       else default
 

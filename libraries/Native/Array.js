@@ -25,18 +25,21 @@ Elm.Native.Array.make = function(elm) {
     var empty = { ctor:"_Array", height:0, table:new Array() };
 
     // Gets the value at index i recursively.
-    function get(i, a) {
-      if (a.height == 0) {
-        if (i < a.table.length) {
-          return a.table[i];
-        } else {
-          throw new Error("Index "+ i +" is out of range. Check the length of your array first or use getSafe or getMaybe.");
+    function get(i, array) {
+        if (i < 0 || i >= length(array)) {
+            throw new Error("Index " + i + " is out of range. Check the length of " +
+                            "your array first or use getMaybe or getWithDefault.");
         }
-      }
+        return unsafeGet(i, array);
+    }
 
-      var slot = getSlot(i, a);
-      var sub = slot > 0 ? a.lengths[slot-1] : 0;
-      return get(i - sub, a.table[slot]);
+    function unsafeGet(i, array) {
+        if (array.height == 0) {
+            return array.table[i];
+        }
+        var slot = getSlot(i, array);
+        var offset = slot > 0 ? array.lengths[slot-1] : 0;
+        return unsafeGet(i - offset, array.table[slot]);
     }
 
     // Sets the value at the index i. Only the nodes leading to i will get
@@ -65,7 +68,7 @@ Elm.Native.Array.make = function(elm) {
         return pushed;
       }
 
-      newTree = create(item, a.height);
+      var newTree = create(item, a.height);
       return siblise(a, newTree);
     }
 
@@ -423,11 +426,11 @@ Elm.Native.Array.make = function(elm) {
     }
 
     // Returns how many items are in the tree.
-    function length(a) {
-      if (a.height == 0) {
-        return a.table.length;
+    function length(array) {
+      if (array.height == 0) {
+        return array.table.length;
       } else {
-        return a.lengths[a.lengths.length - 1];
+        return array.lengths[array.lengths.length - 1];
       }
     }
 
