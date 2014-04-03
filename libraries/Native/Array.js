@@ -430,7 +430,7 @@ Elm.Native.Array.make = function(elm) {
       if (array.height == 0) {
         return array.table.length;
       } else {
-        return array.lengths[array.lengths.length - 1];
+        return array.sizes[array.sizes.length - 1];
       }
     }
 
