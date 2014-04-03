@@ -232,15 +232,15 @@ Elm.Native.Array.make = function(elm) {
       return newA;
     }
 
-    // Concats two trees.
-    // TODO: Add support for concatting trees of different sizes. Current
-    // behavior will just rise the lower tree and then concat them.
-    function concat(a, b) {
-      if (b.height > a.height) { return concat(parentise(a, b.height), b); }
-      if (a.height > b.height) { return concat(a, parentise(b, a.height)); }
-      if (a.height == 0) { return concat(parentise(a, 1), parentise(b, 1)); }
+    // Appends two trees.
+    // TODO: Add support for appending trees of different sizes. Current
+    // behavior will just rise the lower tree and then append them.
+    function append(a,b) {
+      if (b.height > a.height) { return append(parentise(a, b.height), b); }
+      if (a.height > b.height) { return append(a, parentise(b, a.height)); }
+      if (a.height == 0) { return append(parentise(a, 1), parentise(b, 1)); }
 
-      var c = concat_(a, b);
+      var c = append_(a, b);
       if (c[1].table.length > 0) {
         return siblise(c[0], c[1]);
       } else {
@@ -249,9 +249,9 @@ Elm.Native.Array.make = function(elm) {
     }
 
     // Returns an array of two nodes. The second node _may_ be empty. This case
-    // needs to be handled by the function, that called concat_. May be only
+    // needs to be handled by the function, that called append_. May be only
     // called for trees with an minimal height of 1.
-    function concat_(a, b) {
+    function append_(a, b) {
       if (a.height == 1) {
         // Check if balancing is needed and return based on that.
         var toRemove = calcToRemove(a, b);
@@ -262,18 +262,18 @@ Elm.Native.Array.make = function(elm) {
         return shuffle(a, b, toRemove);
       }
 
-      var concated = concat_(botRight(a), botLeft(b));
+      var appended = append_(botRight(a), botLeft(b));
       a = nodeCopy(a), b = nodeCopy(b);
 
       // Adjust the bottom right side of the new tree.
-      a.table[a.table.length - 1] = concated[0];
-      a.lengths[a.lengths.length - 1] = length(concated[0])
+      a.table[a.table.length - 1] = appended[0];
+      a.lengths[a.lengths.length - 1] = length(appended[0])
       a.lengths[a.lengths.length - 1] += a.lengths.length > 1 ? a.lengths[a.lengths.length - 2] : 0;
 
       // Adjust the bottom left side of the new tree.
-      if (concated[1].table.length > 0) {
-        b.table[0] = concated[1];
-        b.lengths[0] = length(concated[1]);
+      if (appended[1].table.length > 0) {
+        b.table[0] = appended[1];
+        b.lengths[0] = length(appended[1]);
         for (var i = 1, len = length(b.table[0]); i < b.lengths.length; i++) {
           len += length(b.table[i]);
           b.lengths[i] = len;
@@ -475,7 +475,7 @@ Elm.Native.Array.make = function(elm) {
     Elm.Native.Array.values = {
       empty:empty,
       toList:toList,
-      concat:F2(concat),
+      append:F2(append),
       push:F2(push),
       slice:F3(slice),
       get:F2(get),
