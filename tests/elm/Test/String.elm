@@ -18,7 +18,7 @@ tests =
         appendTest = test "append test" <| assertEqual "butterfly"    (append "butter" "fly")
         concatTest = test "concat test" <| assertEqual "nevertheless" (concat ["never","the","less"])
         splitTests = [test "split commas" <| assertEqual ["cat","dog","cow"] (split "," "cat,dog,cow"),
-                     test "split slashes"<| assertEqual ["home","evan","Desktop"] (split "/" "home/evan/Desktop/")]
+                     test "split slashes"<| assertEqual ["home","evan","Desktop", ""] (split "/" "home/evan/Desktop/")]
         joinTests = [test "join spaces"  <| assertEqual "cat dog cow" (join " " ["cat","dog","cow"]),
                      test "join slashes" <| assertEqual "home/evan/Desktop" (join "/" ["home","evan","Desktop"])]
         
