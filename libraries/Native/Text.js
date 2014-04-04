@@ -153,6 +153,7 @@ Elm.Native.Text.make = function(elm) {
         typeface : F2(typeface),
         color : F2(color),
         link : F2(link),
+        style : F2(style),
 
         leftAligned  : block('left'),
         rightAligned : block('right'),
