@@ -295,29 +295,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
             }));
         }
 
-        function mouseUpdate(event) {
-            var direction = field.selectionDirection === 'forward' ? 'Forward' : 'Backward';
-            elm.notify(field.elm_signal.id, field.elm_handler({
-                _:{},
-                string: field.value,
-                selection: {
-                    _:{},
-                    start: field.selectionStart,
-                    end: field.selectionEnd,
-                    direction: { ctor: direction }
-                },
-            }));
-        }
-        function mousedown(event) {
-            mouseUpdate(event);
-            elm.node.addEventListener('mouseup', mouseup);
-        }
-        function mouseup(event) {
-            mouseUpdate(event);
-            elm.node.removeEventListener('mouseup', mouseup)
-        }
         field.addEventListener('input', inputUpdate);
-        field.addEventListener('mousedown', mousedown);
         field.addEventListener('focus', function() {
             field.elm_hasFocus = true;
         });
