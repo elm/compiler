@@ -408,6 +408,7 @@ function createCanvas() {
   c.style.position = "absolute";
   c.style.top = "0";
   c.style.left = "0";
+  c.style.pointerEvents = "none";
   return c;
 }
 
