@@ -31,6 +31,7 @@ function setProps(elem, e) {
         a.style.display = 'block';
         a.style.position = 'absolute';
         e.style.position = 'relative';
+        a.style.pointerEvents = 'auto';
         e.appendChild(a);
     }
     if (props.hover.ctor !== '_Tuple0') {
@@ -378,6 +379,7 @@ function updateProps(node, curr, next) {
             a.style.display = 'block';
             a.style.position = 'absolute';
             e.style.position = 'relative';
+            a.style.pointerEvents = 'auto';
             e.appendChild(a);
         } else {
             node.lastNode.href = props.href;
