@@ -236,6 +236,7 @@ function rawHtml(elem) {
     }
     document.body.removeChild(div);
     div.style.visibility = 'visible';
+    div.style.pointerEvents = 'auto';
     return div;
 }
 
