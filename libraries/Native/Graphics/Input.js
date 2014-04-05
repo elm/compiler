@@ -134,11 +134,6 @@ Elm.Native.Graphics.Input.make = function(elm) {
 
         btn.appendChild(btn.elm_up);
 
-        var clicker = newNode('div');
-        clicker.style.width = btn.elm_up.style.width;
-        clicker.style.height = btn.elm_up.style.height;
-        btn.appendChild(clicker);
-
         return btn;
     }
 
