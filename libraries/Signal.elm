@@ -31,10 +31,7 @@ the `Time` library.
 
 import Native.Signal
 import List (foldr)
-
 import Basics (fst, snd, not)
-import Native.Error
-import Maybe as M
 
 data Signal a = Signal
 
