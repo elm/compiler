@@ -212,8 +212,9 @@ function addReceivers(ports) {
 }
 
 function initGraphics(elm, Module) {
-  if (!('main' in Module))
+  if (!('main' in Module)) {
       throw new Error("'main' is missing! What do I display?!");
+  }
 
   var signalGraph = Module.main;
 
