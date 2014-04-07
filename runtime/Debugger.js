@@ -121,6 +121,12 @@ function debugModule(module, runtime) {
 
   var assignedPropTracker = Object.create(wrappedRuntime);
   var moduleInstance = module.make(assignedPropTracker);
+  
+  // make sure the signal graph is actually a signal & extract the visual model
+  if ( !('recv' in moduleInstance.main) ) {
+      moduleInstance.main = Elm.Signal.make(runtime).constant(moduleInstance.main);
+  }
+
   // The main module stores imported modules onto the runtime.
   // To ensure only one instance of each module is created,
   // we assign them back on the original runtime object.
