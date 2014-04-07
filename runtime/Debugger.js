@@ -32,6 +32,7 @@ function debugModule(module, runtime) {
   var programPaused = false;
   var recordedEvents = [];
   var asyncCallbacks = [];
+  var watchTracker = Elm.Native.Debug.make(runtime).watchTracker;
 
   function wrapNotify(id, v) {
     var timestep = Date.now();
@@ -63,6 +64,7 @@ function debugModule(module, runtime) {
   }
 
   function recordEvent(id, v, timestep) {
+    watchTracker.pushFrame();
     recordedEvents.push({ id:id, value:v, timestep:timestep });
   }
 
@@ -143,7 +145,8 @@ function debugModule(module, runtime) {
     loadRecordedEvents: loadRecordedEvents,
     getPaused: getPaused,
     setPaused: setPaused,
-    tracePath: tracePath
+    tracePath: tracePath,
+    watchTracker: watchTracker,
   };
 }
 
@@ -158,6 +161,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
 
   function restartProgram() {
     resetProgram();
+    debugModule.watchTracker.clear();
     debugModule.tracePath.clearTraces();
     debugModule.clearRecordedEvents();
     debugModule.setPaused(false);
@@ -262,6 +266,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
       getHotSwapState: getHotSwapState,
       dispose: dispose,
       allNodes: debugModule.moduleNodes,
+      watchTracker: debugModule.watchTracker,
       mainNode: debugModule.moduleInstance.main
   };
 
