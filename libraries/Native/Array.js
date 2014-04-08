@@ -61,6 +61,102 @@ Elm.Native.Array.make = function(elm) {
       return newA;
     }
 
+    function initialize(len, f) {
+      if (len == 0) { return empty; }
+      var h = Math.floor(Math.log(len)/Math.log(M));
+      return initialize_(f, h, 0, len);
+    }
+
+    function initialize_(f, h, from, to) {
+      if (h == 0) {
+        var table = new Array((to - from) % (M + 1));
+        for (var i = 0; i < table.length; i++) {
+          table[i] = f(from + i);
+        }
+        return { ctor:"_Array", height:0, table:table };
+      }
+
+      var step = Math.pow(M, h);
+      var table = new Array(Math.ceil((to - from) / step));
+      var lengths = new Array(table.length);
+      for (var i = 0; i < table.length; i++) {
+        table[i] = initialize_( f, h - 1, from + (i * step)
+                              , Math.min(from + ((i + 1) * step), to));
+        lengths[i] = length(table[i]) + (i > 0 ? lengths[i-1] : 0);
+      }
+      return { ctor:"_Array", height:h, table:table, lengths:lengths };
+    }
+
+    function fromList(list) {
+      if (list == List.Nil) { return empty; }
+
+      // Allocate M sized blocks (table) and write list elements to it.
+      var table = new Array(M);
+      var nodes = new Array();
+      var i = 0;
+
+      while (list.ctor !== '[]') {
+        table[i] = list._0;
+        list = list._1;
+        i++;
+
+        // table is full, so we can push a leaf containing it into the
+        // next node.
+        if (i == M) {
+          fromListPush({ ctor:"_Array", height:0, table:table }
+                      , nodes);
+          table = new Array(M);
+          i = 0;
+        }
+      }
+
+      // Maybe there is something left on the table.
+      if (i > 0) {
+        fromListPush({ ctor:"_Array", height:0, table:table.splice(0,i) }
+                    , nodes);
+      }
+
+      // Go through all of the nodes and eventually push them into higher nodes.
+      for (var h = 0; h < nodes.length - 1; h++) {
+        if (nodes[h].table.length > 0) {
+          fromListPush(nodes[h], nodes);
+        }
+      }
+
+      var head = nodes[nodes.length - 1];
+      if (head.height > 0 && head.table.length == 1) {
+        return head.table[0];
+      } else {
+        return head;
+      }
+    }
+
+    // Push a node into a higher node as a child.
+    function fromListPush(toPush, nodes) {
+      var h = toPush.height;
+
+      // Maybe the node on this height does not exist.
+      if (nodes.length == h) {
+        nodes.push({ ctor:"_Array", height:h + 1
+                                  , table:new Array()
+                                  , lengths:new Array() });
+      }
+
+      nodes[h].table.push(toPush);
+      var len = length(toPush);
+      if (nodes[h].lengths.length > 0) {
+        len += nodes[h].lengths[nodes[h].lengths.length - 1];
+      }
+      nodes[h].lengths.push(len);
+
+      if (nodes[h].table.length == M) {
+        fromListPush(nodes[h], nodes);
+        nodes[h] = { ctor:"_Array", height:h + 1
+                                  , table:new Array()
+                                  , lengths:new Array() };
+      }
+    }
+
     // Pushes an item via push_ to the bottom right of a tree.
     function push(item, a) {
       var pushed = push_(item, a);
@@ -477,7 +573,9 @@ Elm.Native.Array.make = function(elm) {
 
     Elm.Native.Array.values = {
       empty:empty,
+      fromList:fromList,
       toList:toList,
+      initialize:F2(initialize),
       append:F2(append),
       push:F2(push),
       slice:F3(slice),
