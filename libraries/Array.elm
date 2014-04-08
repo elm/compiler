@@ -49,7 +49,7 @@ repeat n e = initialize n (always e)
 
 {-| Create an array from a list. -}
 fromList : [a] -> Array a
-fromList xs = Native.Array.fromList xs
+fromList = Native.Array.fromList
 
 {-| Create a list of elements from an array.
 
