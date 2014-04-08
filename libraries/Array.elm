@@ -27,7 +27,6 @@ import List
 
 data Array a = Array
 
--- TODO: make this a native function
 {-| Initialize an array. `initialize n f` creates an array of length `n` with
 the element at index `i` initialized to the result of `(f i)`.
 
@@ -36,8 +35,7 @@ the element at index `i` initialized to the result of `(f i)`.
       initialize 4 (always 0)  == fromList [0,0,0,0]
 -}
 initialize : Int -> (Int -> a) -> Array a
-initialize n initializer =
-    fromList <| List.map initializer [ 0 .. n - 1 ]
+initialize = Native.Array.initialize
 
 {-| Creates an array with a given length, filled with a default element.
 
@@ -49,10 +47,9 @@ Notice that `repeat 3 x` is the same as `initialize 3 (always x)`.
 repeat : Int -> a -> Array a
 repeat n e = initialize n (always e)
 
--- TODO: make this a native function.
 {-| Create an array from a list. -}
 fromList : [a] -> Array a
-fromList xs = List.foldl Native.Array.push Native.Array.empty xs
+fromList xs = Native.Array.fromList xs
 
 {-| Create a list of elements from an array.
 
