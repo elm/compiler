@@ -82,7 +82,7 @@ Elm.Native.Array.make = function(elm) {
       for (var i = 0; i < table.length; i++) {
         table[i] = initialize_( f, h - 1, from + (i * step)
                               , Math.min(from + ((i + 1) * step), to));
-        if (i > 0) { lengths[i] = lengths[i-1] + length(table[i]); }
+        lengths[i] = length(table[i]) + (i > 0 ? lengths[i-1] : 0);
       }
       return { ctor:"_Array", height:h, table:table, lengths:lengths };
     }
