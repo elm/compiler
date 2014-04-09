@@ -22,7 +22,7 @@ tests =
         basicsTests = [ test "length" <| assertEqual (Array.length (Array.fromList [1,2,3])) 3
                       , test "length - Long" <| assertEqual (Array.length (Array.repeat 10000 0)) 10000
                       , test "push" <| assertEqual (Array.push 3 (Array.fromList [1,2])) (Array.fromList [1,2,3])
-                      , test "append" <| assertEqual (Array.append (Array.repeat 2 42) (Array.repeat 3 81)) (Array.fromList [42,42,81,81,81])
+                      , test "append" <| assertEqual (Array.toList <| Array.append (Array.repeat 2 42) (Array.repeat 3 81)) ([42,42,81,81,81])
                       ]
         getAndSetTests = [ test "get" <| assertEqual (Array.get 2 (Array.fromList [3,2,1])) 1
                          , test "getMaybe" <| assertEqual (Array.getMaybe 1 (Array.fromList [3,2,1])) (Just 2)
