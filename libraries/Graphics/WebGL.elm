@@ -3,11 +3,12 @@ module Graphics.WebGL (mapTriangle, zipTriangle, loadTex, model, webgl) where
 {-| The WebGL API is for high performance drawing.
 
 # Triangle Convenience Functions
-@docs mapTriangle, zipTriangle
+@docs Triangle, mapTriangle, zipTriangle
 
 # Shaders
 Shaders are created using glsl blocks. 
 
+```haskell
 vertex : Shader { a | pos : V3 } {} {}
 vertex = [glsl|
 
@@ -18,6 +19,7 @@ void main () {
 }
 
 \]
+```
 
 # WebGL Element
 @docs loadTex, model, webgl
@@ -32,7 +34,8 @@ import Signal (Signal)
 unsafeCoerceGLSL : String -> Shader attr unif vary
 unsafeCoerceGLSL = Native.Graphics.WebGL.unsafeCoerceGLSL
 
-{-| An alias for a 3-tuple -}
+{-| Triangles are only homogenous 3-tuples. Each element describes something about each vertex, and must be a record to be used with GLSL shaders.
+-}
 type Triangle a = (a,a,a)
 
 {-| Apply a function to each vertex -}
