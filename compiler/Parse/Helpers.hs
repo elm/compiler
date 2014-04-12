@@ -12,12 +12,13 @@ import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
 import qualified Text.Parsec.Token as T
 
-import SourceSyntax.Annotation as Annotation
-import SourceSyntax.Declaration (Assoc)
-import SourceSyntax.Expression
-import SourceSyntax.Helpers as Help
-import SourceSyntax.PrettyPrint
-import SourceSyntax.Variable as Variable
+import AST.Annotation as Annotation
+import AST.Declaration (Assoc)
+import AST.Expression.General
+import qualified AST.Expression.Source as Source
+import AST.Helpers as Help
+import AST.PrettyPrint
+import qualified AST.Variable as Variable
 
 reserveds = [ "if", "then", "else"
             , "case", "of"
@@ -197,7 +198,7 @@ located p = do
   end <- getPosition
   return (start, e, end)
 
-accessible :: IParser ParseExpr -> IParser ParseExpr
+accessible :: IParser Source.Expr -> IParser Source.Expr
 accessible expr = do
   start <- getPosition
   ce@(A _ e) <- expr

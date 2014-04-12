@@ -4,7 +4,7 @@ module Parse.Literal (literal) where
 import Control.Applicative ((<$>))
 import Text.Parsec hiding (newline,spaces)
 import Parse.Helpers
-import SourceSyntax.Literal
+import AST.Literal
 
 literal :: IParser Literal
 literal = num <|> (Str <$> str) <|> (Chr <$> chr) <?> "literal"

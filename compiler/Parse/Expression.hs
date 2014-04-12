@@ -11,39 +11,41 @@ import Parse.Literal
 import qualified Parse.Pattern as Pattern
 import qualified Parse.Type as Type
 
-import SourceSyntax.Annotation as Annotation
-import qualified SourceSyntax.Pattern as P
-import qualified SourceSyntax.Literal as L
-import SourceSyntax.Expression
+import AST.Annotation as Annotation
+import AST.Expression.General
+import qualified AST.Expression.Source as Source
+import qualified AST.Literal as L
+import qualified AST.Pattern as P
+import qualified AST.Variable as Var
 
 
 --------  Basic Terms  --------
 
-varTerm :: IParser ParseExpr'
+varTerm :: IParser Source.Expr'
 varTerm = toVar <$> var <?> "variable"
 
-toVar :: String -> ParseExpr'
+toVar :: String -> Source.Expr'
 toVar v = case v of "True"  -> Literal (L.Boolean True)
                     "False" -> Literal (L.Boolean False)
                     _       -> rawVar v
 
-accessor :: IParser ParseExpr'
+accessor :: IParser Source.Expr'
 accessor = do
   (start, lbl, end) <- located (try (string "." >> rLabel))
   let loc e = Annotation.at start end e
   return (Lambda (P.Var "_") (loc $ Access (loc $ rawVar "_") lbl))
 
-negative :: IParser ParseExpr'
+negative :: IParser Source.Expr'
 negative = do
   (start, nTerm, end) <-
       located (try (char '-' >> notFollowedBy (char '.' <|> char '-')) >> term)
   let loc e = Annotation.at start end e
-  return (Binop "-" (loc $ Literal (L.IntNum 0)) nTerm)
+  return (Binop (Var.Raw "-") (loc $ Literal (L.IntNum 0)) nTerm)
 
 
 --------  Complex Terms  --------
 
-listTerm :: IParser ParseExpr'
+listTerm :: IParser Source.Expr'
 listTerm = markdown' <|> braces (try range <|> ExplicitList <$> commaSep expr)
   where
     range = do
@@ -66,14 +68,14 @@ listTerm = markdown' <|> braces (try range <|> ExplicitList <$> commaSep expr)
       string "}}"
       return (span uid (length exprs), exprs ++ [e])
 
-parensTerm :: IParser ParseExpr
+parensTerm :: IParser Source.Expr
 parensTerm = try (parens opFn) <|> parens (tupleFn <|> parened)
   where
     opFn = do
       (start, op, end) <- located anyOp
       let loc = Annotation.at start end
       return . loc . Lambda (P.Var "x") . loc . Lambda (P.Var "y") . loc $
-             Binop op (loc $ rawVar "x") (loc $ rawVar "y")
+             Binop (Var.Raw op) (loc (rawVar "x")) (loc (rawVar "y"))
 
     tupleFn = do
       let comma = char ',' <?> "comma ','"
@@ -89,7 +91,7 @@ parensTerm = try (parens opFn) <|> parens (tupleFn <|> parened)
                  [e] -> e
                  _   -> Annotation.at start end (tuple es)
 
-recordTerm :: IParser ParseExpr
+recordTerm :: IParser Source.Expr
 recordTerm = brackets $ choice [ misc, addLocation record ]
     where
       field = do
@@ -123,14 +125,14 @@ recordTerm = brackets $ choice [ misc, addLocation record ]
                  Nothing -> try (insert record) <|> try (modify record)
                         
 
-term :: IParser ParseExpr
+term :: IParser Source.Expr
 term =  addLocation (choice [ Literal <$> literal, listTerm, accessor, negative ])
     <|> accessible (addLocation varTerm <|> parensTerm <|> recordTerm)
     <?> "basic term (4, x, 'c', etc.)"
 
 --------  Applications  --------
 
-appExpr :: IParser ParseExpr
+appExpr :: IParser Source.Expr
 appExpr = do
   t <- term
   ts <- constrainedSpacePrefix term $ \str ->
@@ -141,12 +143,12 @@ appExpr = do
 
 --------  Normal Expressions  --------
 
-binaryExpr :: IParser ParseExpr
+binaryExpr :: IParser Source.Expr
 binaryExpr = binops appExpr lastExpr anyOp
   where lastExpr = addLocation (choice [ ifExpr, letExpr, caseExpr ])
                 <|> lambdaExpr
 
-ifExpr :: IParser ParseExpr'
+ifExpr :: IParser Source.Expr'
 ifExpr = reserved "if" >> whitespace >> (normal <|> multiIf)
     where
       normal = do
@@ -162,7 +164,7 @@ ifExpr = reserved "if" >> whitespace >> (normal <|> multiIf)
                          b <- expr ; padded arrow
                          (,) b <$> expr
 
-lambdaExpr :: IParser ParseExpr
+lambdaExpr :: IParser Source.Expr
 lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
                 whitespace
                 args <- spaceSep1 Pattern.term
@@ -170,17 +172,17 @@ lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
                 body <- expr
                 return (makeFunction args body)
 
-defSet :: IParser [ParseDef]
+defSet :: IParser [Source.Def]
 defSet = block (do d <- def ; whitespace ; return d)
 
-letExpr :: IParser ParseExpr'
+letExpr :: IParser Source.Expr'
 letExpr = do
   reserved "let" ; whitespace
   defs <- defSet
   padded (reserved "in")
   Let defs <$> expr
 
-caseExpr :: IParser ParseExpr'
+caseExpr :: IParser Source.Expr'
 caseExpr = do
   reserved "case"; e <- padded expr; reserved "of"; whitespace
   Case e <$> (with <|> without)
@@ -190,13 +192,13 @@ caseExpr = do
           with    = brackets (semiSep1 (case_ <?> "cases { x -> ... }"))
           without = block (do c <- case_ ; whitespace ; return c)
 
-expr :: IParser ParseExpr
+expr :: IParser Source.Expr
 expr = addLocation (choice [ ifExpr, letExpr, caseExpr ])
     <|> lambdaExpr
     <|> binaryExpr 
     <?> "an expression"
 
-defStart :: IParser [P.Pattern]
+defStart :: IParser [Pattern.RawPattern]
 defStart =
     choice [ do p1 <- try Pattern.term
                 infics p1 <|> func p1
@@ -216,24 +218,24 @@ defStart =
         return $ if o == '`' then [ P.Var $ takeWhile (/='`') p, p1, p2 ]
                              else [ P.Var (o:p), p1, p2 ]
 
-makeFunction :: [P.Pattern] -> ParseExpr -> ParseExpr
+makeFunction :: [Pattern.RawPattern] -> Source.Expr -> Source.Expr
 makeFunction args body@(A ann _) =
     foldr (\arg body' -> A ann $ Lambda arg body') body args
 
-definition :: IParser ParseDef
+definition :: IParser Source.Def
 definition = withPos $ do
   (name:args) <- defStart
   padded equals
   body <- expr
-  return . Def name $ makeFunction args body
+  return . Source.Definition name $ makeFunction args body
 
-typeAnnotation :: IParser ParseDef
-typeAnnotation = TypeAnnotation <$> try start <*> Type.expr
+typeAnnotation :: IParser Source.Def
+typeAnnotation = Source.TypeAnnotation <$> try start <*> Type.expr
   where
     start = do
       v <- lowVar <|> parens symOp
       padded hasType
       return v
 
-def :: IParser ParseDef
+def :: IParser Source.Def
 def = typeAnnotation <|> definition

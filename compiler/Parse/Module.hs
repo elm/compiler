@@ -5,10 +5,8 @@ import Data.List (intercalate)
 import Text.Parsec hiding (newline,spaces)
 
 import Parse.Helpers
-import SourceSyntax.Module (ImportMethod(..), Imports)
-
-varList ::  IParser [String]
-varList = commaSep1 (var <|> parens symOp)
+import AST.Module (ImportMethod(..))
+import AST.Variable (Listing(..), Value(..))
 
 getModuleName :: String -> Maybe String
 getModuleName source =
@@ -21,18 +19,18 @@ getModuleName source =
         (names, _) <- moduleDef
         return (intercalate "." names)
 
-moduleDef :: IParser ([String], [String])
+moduleDef :: IParser ([String], Listing Value)
 moduleDef = do
   try (reserved "module")
   whitespace
   names <- dotSep1 capVar <?> "name of module"
   whitespace
-  exports <- option [] (parens varList)
+  exports <- option (Listing [] True) (listing value)
   whitespace <?> "reserved word 'where'"
   reserved "where"
   return (names, exports)
 
-imports :: IParser Imports
+imports :: IParser [(String, ImportMethod)]
 imports = option [] ((:) <$> import' <*> many (try (freshLine >> import')))
 
 import' :: IParser (String, ImportMethod)
@@ -53,7 +51,16 @@ import' =
       As <$> capVar <?> "alias for module"
 
     importing' :: IParser ImportMethod
-    importing' =
-        parens (choice [ const (Hiding []) <$> string ".."
-                       , Importing <$> varList
-                       ] <?> "listing of imported values (x,y,z)")
+    importing' = Open <$> listing value
+
+listing :: IParser a -> IParser (Listing a)
+listing item = 
+    parens (choice [ const (Listing [] True) <$> string ".."
+                   , Listing <$> commaSep1 item <*> return False
+                   ] <?> "listing of values (x,y,z)")
+
+value :: IParser Value
+value = choice [ Value <$> (lowVar <|> parens symOp)
+               , ADT <$> capVar <*> listing capVar
+               ]
+
