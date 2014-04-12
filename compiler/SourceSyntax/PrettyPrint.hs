@@ -1,14 +1,17 @@
-
+{-# LANGUAGE FlexibleInstances #-}
 module SourceSyntax.PrettyPrint where
 
-import Text.PrettyPrint
+import Text.PrettyPrint as P
 import qualified SourceSyntax.Helpers as Help
 
 class Pretty a where
   pretty :: a -> Doc
 
-instance Pretty () where
-  pretty () = empty
+instance Pretty Doc where
+  pretty doc = doc
+
+instance Pretty String where
+  pretty = P.text
 
 renderPretty :: (Pretty a) => a -> String
 renderPretty e = render (pretty e)
