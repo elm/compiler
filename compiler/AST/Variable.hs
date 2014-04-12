@@ -15,6 +15,7 @@ newtype Raw = Raw String
 
 data Home
     = Local
+    | BuiltIn
     | Module !String
     deriving (Eq,Ord,Show)
 
