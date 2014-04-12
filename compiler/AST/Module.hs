@@ -6,9 +6,9 @@ import qualified Data.Map as Map
 import Control.Applicative ((<$>),(<*>))
 
 import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Declaration as Decl
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
-import qualified SourceSyntax.Declaration as Decl
 
 import qualified Elm.Internal.Version as Version
 

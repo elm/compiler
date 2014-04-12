@@ -7,8 +7,8 @@ import qualified Data.Map as Map
 
 import AST.Variable (Raw(Raw))
 import qualified AST.Variable as Var
-import SourceSyntax.PrettyPrint
-import qualified SourceSyntax.Helpers as Help
+import AST.PrettyPrint
+import qualified AST.Helpers as Help
 import Text.PrettyPrint as P
 
 data Type var

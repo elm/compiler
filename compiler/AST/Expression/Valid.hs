@@ -2,13 +2,13 @@
 
 module AST.Expression.Valid where
 
-import SourceSyntax.PrettyPrint
+import AST.PrettyPrint
 import Text.PrettyPrint as P
 import qualified AST.Expression.General as General
 import AST.Type (Type)
 import qualified AST.Variable as Var
-import qualified SourceSyntax.Annotation as Annotation
-import qualified SourceSyntax.Pattern as Pattern
+import qualified AST.Annotation as Annotation
+import qualified AST.Pattern as Pattern
 
 
 {-| "Normal" expressions. When the compiler checks that type annotations and

@@ -2,13 +2,13 @@
 
 module AST.Expression.Canonical where
 
-import SourceSyntax.PrettyPrint
+import AST.PrettyPrint
 import Text.PrettyPrint as P
 import qualified AST.Expression.General as General
 import AST.Type (Type)
+import qualified AST.Annotation as Annotation
+import qualified AST.Pattern as Pattern
 import qualified AST.Variable as Var
-import qualified SourceSyntax.Annotation as Annotation
-import qualified SourceSyntax.Pattern as Pattern
 
 
 {-| Canonicalized expressions. All variables are fully resolved to the module

@@ -4,11 +4,11 @@ module AST.Variable where
 import Data.Binary
 import Control.Applicative ((<$>), (<*>))
 import Text.PrettyPrint as P
-import SourceSyntax.PrettyPrint
+import AST.PrettyPrint
 
 import qualified Data.List as List
 import qualified Text.PrettyPrint as P
-import SourceSyntax.PrettyPrint
+import AST.PrettyPrint
 
 newtype Raw = Raw String
     deriving (Eq,Ord,Show)

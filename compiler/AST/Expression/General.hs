@@ -8,14 +8,15 @@ enrich the AST with more information.
 -}
 module AST.Expression.General where
 
-import SourceSyntax.PrettyPrint
+import AST.PrettyPrint
 import Text.PrettyPrint as P
 import AST.Type (Type)
+
+import qualified AST.Annotation as Annotation
+import qualified AST.Helpers as Help
+import qualified AST.Literal as Literal
+import qualified AST.Pattern as Pattern
 import qualified AST.Variable as Var
-import qualified SourceSyntax.Helpers as Help
-import qualified SourceSyntax.Annotation as Annotation
-import qualified SourceSyntax.Pattern as Pattern
-import qualified SourceSyntax.Literal as Literal
 
 ---- GENERAL AST ----
 

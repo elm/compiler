@@ -2,13 +2,13 @@
 
 module AST.Expression.Source where
 
-import SourceSyntax.PrettyPrint
+import AST.PrettyPrint
 import Text.PrettyPrint as P
 import qualified AST.Expression.General as General
 import AST.Type (Type)
 import qualified AST.Variable as Var
-import qualified SourceSyntax.Annotation as Annotation
-import qualified SourceSyntax.Pattern as Pattern
+import qualified AST.Annotation as Annotation
+import qualified AST.Pattern as Pattern
 
 
 {-| Expressions created by the parser. These use a split representation of type
