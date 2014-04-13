@@ -198,7 +198,7 @@ expr = addLocation (choice [ ifExpr, letExpr, caseExpr ])
     <|> binaryExpr 
     <?> "an expression"
 
-defStart :: IParser [Pattern.RawPattern]
+defStart :: IParser [P.RawPattern]
 defStart =
     choice [ do p1 <- try Pattern.term
                 infics p1 <|> func p1
@@ -218,7 +218,7 @@ defStart =
         return $ if o == '`' then [ P.Var $ takeWhile (/='`') p, p1, p2 ]
                              else [ P.Var (o:p), p1, p2 ]
 
-makeFunction :: [Pattern.RawPattern] -> Source.Expr -> Source.Expr
+makeFunction :: [P.RawPattern] -> Source.Expr -> Source.Expr
 makeFunction args body@(A ann _) =
     foldr (\arg body' -> A ann $ Lambda arg body') body args
 

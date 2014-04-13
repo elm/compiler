@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -W #-}
-module Parse.Pattern (term, expr, RawPattern) where
+module Parse.Pattern (term, expr) where
 
 import Control.Applicative ((<$>))
 import Data.Char (isUpper)
@@ -12,9 +12,7 @@ import AST.Literal
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
 
-type RawPattern = P.Pattern Var.Raw
-
-basic :: IParser RawPattern
+basic :: IParser P.RawPattern
 basic = choice
     [ char '_' >> return P.Anything
     , do v <- var
@@ -26,31 +24,31 @@ basic = choice
     , P.Literal <$> literal
     ]
 
-asPattern :: RawPattern -> IParser RawPattern
+asPattern :: P.RawPattern -> IParser P.RawPattern
 asPattern pattern = do
   var <- optionMaybe (try (whitespace >> reserved "as" >> whitespace >> lowVar))
   return $ case var of
              Just v -> P.Alias v pattern
              Nothing -> pattern
 
-record :: IParser RawPattern
+record :: IParser P.RawPattern
 record = P.Record <$> brackets (commaSep1 lowVar)
 
-tuple :: IParser RawPattern
+tuple :: IParser P.RawPattern
 tuple = do
   ps <- parens (commaSep expr)
   return $ case ps of
              [p] -> p
              _ -> P.tuple ps
 
-list :: IParser RawPattern
+list :: IParser P.RawPattern
 list = P.list <$> braces (commaSep expr)
 
-term :: IParser RawPattern
+term :: IParser P.RawPattern
 term =
      (choice [ record, tuple, list, basic ]) <?> "pattern"
 
-patternConstructor :: IParser RawPattern
+patternConstructor :: IParser P.RawPattern
 patternConstructor = do
   v <- List.intercalate "." <$> dotSep1 capVar
   case v of
@@ -58,7 +56,7 @@ patternConstructor = do
     "False" -> return $ P.Literal (Boolean False)
     _       -> P.Data (Var.Raw v) <$> spacePrefix term
 
-expr :: IParser RawPattern
+expr :: IParser P.RawPattern
 expr = do
   patterns <- consSep1 (patternConstructor <|> term)
   asPattern (foldr1 P.cons patterns) <?> "pattern"
