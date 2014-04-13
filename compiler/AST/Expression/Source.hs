@@ -5,7 +5,7 @@ module AST.Expression.Source where
 import AST.PrettyPrint
 import Text.PrettyPrint as P
 import qualified AST.Expression.General as General
-import AST.Type (Type)
+import AST.Type (RawType)
 import qualified AST.Variable as Var
 import qualified AST.Annotation as Annotation
 import qualified AST.Pattern as Pattern
@@ -19,8 +19,8 @@ type Expr = General.Expr Annotation.Region Def Var.Raw
 type Expr' = General.Expr' Annotation.Region Def Var.Raw
 
 data Def
-    = Definition (Pattern.Pattern Var.Raw) Expr
-    | TypeAnnotation String (Type Var.Raw)
+    = Definition Pattern.RawPattern Expr
+    | TypeAnnotation String RawType
     deriving (Show)
 
 instance Pretty Def where

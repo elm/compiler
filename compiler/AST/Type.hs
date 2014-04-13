@@ -5,7 +5,6 @@ import Control.Applicative ((<$>), (<*>))
 import Data.Binary
 import qualified Data.Map as Map
 
-import AST.Variable (Raw(Raw))
 import qualified AST.Variable as Var
 import AST.PrettyPrint
 import qualified AST.Helpers as Help
@@ -19,6 +18,9 @@ data Type var
     | Aliased Var.Canonical (Type var)
     deriving (Eq,Show)
 
+type RawType = Type Var.Raw
+type CanonicalType = Type Var.Canonical
+
 fieldMap :: [(String,a)] -> Map.Map String [a]
 fieldMap fields =
     foldl (\r (x,t) -> Map.insertWith (++) x [t] r) Map.empty fields
@@ -26,11 +28,11 @@ fieldMap fields =
 recordOf :: [(String, Type var)] -> Type var
 recordOf fields = Record fields Nothing
 
-listOf :: Type Raw -> Type Raw
-listOf t = Data (Raw "_List") [t]
+listOf :: RawType -> RawType
+listOf t = Data (Var.Raw "_List") [t]
 
-tupleOf :: [Type Raw] -> Type Raw
-tupleOf ts = Data (Raw $ "_Tuple" ++ show (length ts)) ts
+tupleOf :: [RawType] -> RawType
+tupleOf ts = Data (Var.Raw $ "_Tuple" ++ show (length ts)) ts
 
 instance (Var.ToString var, Pretty var) => Pretty (Type var) where
   pretty tipe =

@@ -9,21 +9,19 @@ import qualified AST.Type as T
 import qualified AST.Variable as Var
 import Parse.Helpers
 
-type RawType = T.Type Var.Raw
-
-tvar :: IParser RawType
+tvar :: IParser T.RawType
 tvar = T.Var <$> lowVar <?> "type variable"
 
-list :: IParser RawType
+list :: IParser T.RawType
 list = T.listOf <$> braces expr
 
-tuple :: IParser RawType
+tuple :: IParser T.RawType
 tuple = do ts <- parens (commaSep expr)
            return $ case ts of
                       [t] -> t
                       _   -> T.tupleOf ts
 
-record :: IParser RawType
+record :: IParser T.RawType
 record =
   do char '{' ; whitespace
      rcrd <- extended <|> normal
@@ -46,15 +44,15 @@ record =
 capTypeVar :: IParser String
 capTypeVar = intercalate "." <$> dotSep1 capVar
 
-constructor0 :: IParser RawType
+constructor0 :: IParser T.RawType
 constructor0 =
   do name <- capTypeVar
      return (T.Data (Var.Raw name) [])
 
-term :: IParser RawType
+term :: IParser T.RawType
 term = list <|> tuple <|> record <|> tvar <|> constructor0
 
-app :: IParser RawType
+app :: IParser T.RawType
 app =
   do name <- capTypeVar <|> try tupleCtor <?> "type constructor"
      args <- spacePrefix term
@@ -64,7 +62,7 @@ app =
       n <- length <$> parens (many (char ','))
       return $ "_Tuple" ++ show (if n == 0 then 0 else n+1)
 
-expr :: IParser RawType
+expr :: IParser T.RawType
 expr =
   do t1 <- app <|> term
      arr <- optionMaybe $ try (whitespace >> arrow)
@@ -72,6 +70,6 @@ expr =
        Just _  -> T.Lambda t1 <$> (whitespace >> expr)
        Nothing -> return t1
 
-constructor :: IParser (String, [RawType])
+constructor :: IParser (String, [T.RawType])
 constructor = (,) <$> (capTypeVar <?> "another type constructor")
                   <*> spacePrefix term

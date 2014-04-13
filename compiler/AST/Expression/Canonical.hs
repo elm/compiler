@@ -5,7 +5,7 @@ module AST.Expression.Canonical where
 import AST.PrettyPrint
 import Text.PrettyPrint as P
 import qualified AST.Expression.General as General
-import AST.Type (Type)
+import AST.Type (CanonicalType)
 import qualified AST.Annotation as Annotation
 import qualified AST.Pattern as Pattern
 import qualified AST.Variable as Var
@@ -17,7 +17,7 @@ they came from.
 type Expr = General.Expr Annotation.Region Def Var.Canonical
 type Expr' = General.Expr' Annotation.Region Def Var.Canonical
 
-data Def = Definition (Pattern.Pattern Var.Canonical) Expr (Maybe (Type Var.Canonical))
+data Def = Definition Pattern.CanonicalPattern Expr (Maybe CanonicalType)
     deriving (Show)
 
 instance Pretty Def where

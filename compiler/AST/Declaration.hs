@@ -22,7 +22,7 @@ data Assoc = L | N | R
     deriving (Eq)
 
 data RawPort
-    = PPAnnotation String (T.Type Var.Raw)
+    = PPAnnotation String T.RawType
     | PPDef String Source.Expr
       deriving (Show)
 

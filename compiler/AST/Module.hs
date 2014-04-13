@@ -39,9 +39,9 @@ type CanonicalModule = Module [Var.Value] CanonicalBody
 
 type Interfaces = Map.Map String Interface
 
-type Types   = Map.Map String (Type.Type Var.Canonical)
-type ADTs    = Map.Map String ( [String], [(String, [Type.Type Var.Canonical])] )
-type Aliases = Map.Map String ( [String], Type.Type Var.Canonical )
+type Types   = Map.Map String Type.CanonicalType
+type ADTs    = Map.Map String ( [String], [(String, [Type.CanonicalType])] )
+type Aliases = Map.Map String ( [String], Type.CanonicalType )
 
 data Interface = Interface
     { iVersion  :: Version.Version
