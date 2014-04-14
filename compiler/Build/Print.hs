@@ -5,8 +5,8 @@ import System.Exit (exitFailure)
 
 import qualified Data.Map as Map
 import qualified Data.List as List
-import qualified SourceSyntax.Module as M
-import qualified SourceSyntax.PrettyPrint as Pretty
+import qualified AST.Module as M
+import qualified AST.PrettyPrint as Pretty
 import qualified Type.Alias as Alias
 import qualified Text.PrettyPrint as P
 

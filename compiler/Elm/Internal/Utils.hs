@@ -6,7 +6,7 @@ import qualified Data.List as List
 import qualified Generate.JavaScript as JS
 import qualified Build.Source as Source
 import qualified Parse.Module as Parser
-import qualified SourceSyntax.Module as M
+import qualified AST.Module as M
 import qualified Text.PrettyPrint as P
 import qualified Metadata.Prelude as Prelude
 import System.IO.Unsafe

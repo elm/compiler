@@ -15,7 +15,7 @@ import qualified Metadata.Prelude as Prelude
 import qualified Transform.Check as Check
 import qualified Transform.SortDefinitions as SD
 import qualified Type.Inference as TI
-import qualified Type.Constrain.Declaration as TcDecl
+import qualified Transform.Declaration as TcDecl
 import qualified Transform.Canonicalize as Canonical
 
 build :: Bool -> Interfaces -> String -> Either [Doc] MetadataModule

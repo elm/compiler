@@ -7,8 +7,8 @@ import Control.Arrow (second)
 import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.List as List
-import SourceSyntax.Type
-import SourceSyntax.Module
+import AST.Type
+import AST.Module
 
 type Rules = ([Alias], Type -> Type)
 

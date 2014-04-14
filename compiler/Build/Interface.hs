@@ -7,7 +7,7 @@ import qualified Data.Binary as Binary
 import qualified Build.Print as Print
 import qualified Elm.Internal.Version as Version
 import System.Directory (doesFileExist)
-import SourceSyntax.Module
+import AST.Module
 
 load :: Binary.Binary a => FilePath -> IO a
 load filePath =

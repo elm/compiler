@@ -5,12 +5,13 @@ import qualified Data.Map as Map
 import qualified Control.Exception as E
 import System.Exit
 import System.IO
-import SourceSyntax.Module
+import AST.Module
 import qualified Build.Interface as Interface
 import Build.Utils (getDataFile)
 
-add :: Bool -> Module def -> Module def
-add noPrelude (Module name exs ims decls) = Module name exs (customIms ++ ims) decls
+add :: Bool -> Module exs body -> Module exs body
+add noPrelude (Module name path exs ims decls) =
+    Module name path exs (customIms ++ ims) decls
     where
       customIms = if noPrelude then [] else concatMap addModule prelude
 
