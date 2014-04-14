@@ -7,6 +7,7 @@ Elm.Native.Debug.make = function(elm) {
         return elm.Native.Debug.values = Elm.Native.Debug.values;
 
     var show = Elm.Native.Show.make(elm).show;
+    var replace = Elm.Native.Utils.make(elm).replace;
 
     function log(tag, value) {
         var msg = tag + ': ' + show(value);
@@ -20,8 +21,8 @@ Elm.Native.Debug.make = function(elm) {
     }
 
     function tracePath(debugId, elem) {
-        elem.props.debugTracePathId = debugId;
-        return elem;
+        var props = replace([["debugTracePathId",debugId]], elem.props);
+        return replace([["props",props]], elem);
     }
 
     function WatchTracker() {
