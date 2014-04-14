@@ -1,8 +1,11 @@
 {-# OPTIONS_GHC -W #-}
 module Generate.JavaScript.Helpers where
 
-import qualified SourceSyntax.Helpers as Help
+import qualified AST.Helpers as Help
 import Language.ECMAScript3.Syntax
+
+dolarize :: String -> String
+dolarize x = map (\c -> if c == '.' then '$' else c) x
 
 split :: String -> [String]
 split = go []
@@ -13,8 +16,12 @@ split = go []
                      | otherwise -> go (vars ++ [x]) rest
           (x,[]) -> vars ++ [x]
 
+var :: String -> Id ()
 var name = Id () name
+
+ref :: String -> Expression ()
 ref name = VarRef () (var name)
+
 prop name = PropId () (var name)
 f <| x = CallExpr () f [x]
 ret e = ReturnStmt () (Just e)
@@ -23,6 +30,7 @@ function args stmts = FuncExpr () Nothing (map var args) stmts
 call = CallExpr ()
 string = StringLit ()
 
+dotSep :: [String] -> Expression ()
 dotSep vars =
     case vars of
       x:xs -> foldl (DotRef ()) (ref x) (map var xs)

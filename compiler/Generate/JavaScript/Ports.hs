@@ -2,8 +2,9 @@
 module Generate.JavaScript.Ports (incoming, outgoing) where
 
 import Generate.JavaScript.Helpers
-import qualified SourceSyntax.Helpers as Help
-import SourceSyntax.Type as T
+import qualified AST.Helpers as Help
+import AST.Type as T
+import qualified AST.Variable as Var
 import Language.ECMAScript3.Syntax
 
 data JSType = JSNumber | JSBoolean | JSString | JSArray | JSObject [String]
@@ -23,23 +24,28 @@ check x jsType continue =
                JSArray   -> [instanceof "Array"]
                JSObject fields -> [jsFold OpLAnd (typeof "object" : map member fields)]
 
-incoming :: Type -> Expression ()
+incoming :: CanonicalType -> Expression ()
 incoming tipe =
   case tipe of
-    Data "Signal.Signal" [t] ->
+    Aliased _ t -> incoming t
+
+    Data (Var.Canonical (Var.Module "Signal") "Signal") [t] ->
         obj "Native.Ports.incomingSignal" <| incoming t
+
     _ -> ["v"] ==> inc tipe (ref "v")
 
-inc :: Type -> Expression () -> Expression ()
+inc :: CanonicalType -> Expression () -> Expression ()
 inc tipe x =
     case tipe of
       Lambda _ _ -> error "functions should not be allowed through input ports"
       Var _ -> error "type variables should not be allowed through input ports"
+      Aliased _ t ->
+          inc t x
 
-      Data "Json.Value" [] ->
+      Data (Var.Canonical (Var.Module "Json") "Value") [] ->
           obj "Native.Json.fromJS" <| x
                            
-      Data ctor []
+      Data (Var.Canonical Var.BuiltIn ctor) []
           | ctor == "Int"       -> from JSNumber
           | ctor == "Float"     -> from JSNumber
           | ctor == "Bool"      -> from JSBoolean
@@ -47,18 +53,17 @@ inc tipe x =
           where
             from checks = check x checks x
 
-      Data ctor [t]
-          | ctor == "Maybe.Maybe" ->
-              CondExpr () (equal x (NullLit ()))
-                          (obj "Maybe.Nothing")
-                          (obj "Maybe.Just" <| inc t x)
+      Data (Var.Canonical (Var.Module "Maybe") "Maybe") [t] ->
+          CondExpr () (equal x (NullLit ()))
+                      (obj "Maybe.Nothing")
+                      (obj "Maybe.Just" <| inc t x)
 
-          | ctor == "_List" ->
-              check x JSArray (obj "_L.fromArray" <| array)
-              where
-                array = DotRef () x (var "map") <| incoming t
+      Data (Var.Canonical Var.BuiltIn "_List") [t] ->
+          check x JSArray (obj "_L.fromArray" <| array)
+          where
+            array = DotRef () x (var "map") <| incoming t
 
-      Data ctor ts
+      Data (Var.Canonical Var.BuiltIn ctor) ts
           | Help.isTuple ctor -> check x JSArray tuple
           where
             tuple = ObjectLit () $ (prop "ctor", string ctor) : values
@@ -79,15 +84,21 @@ inc tipe x =
             keys = map convert fields
             convert (f,t) = (prop f, inc t (DotRef () x (var f)))
 
+outgoing :: CanonicalType -> Expression ()
 outgoing tipe =
   case tipe of
-    Data "Signal.Signal" [t] ->
+    Aliased _ t -> outgoing t
+
+    Data (Var.Canonical (Var.Module "Signal") "Signal") [t] ->
         obj "Native.Ports.outgoingSignal" <| outgoing t
+
     _ -> ["v"] ==> out tipe (ref "v")
 
-out :: Type -> Expression () -> Expression ()
+out :: CanonicalType -> Expression () -> Expression ()
 out tipe x =
     case tipe of
+      Aliased _ t -> out t x
+
       Lambda _ _
           | numArgs > 1 && numArgs < 10 ->
               func (ref ('A':show numArgs) `call` (x:values))
@@ -103,21 +114,22 @@ out tipe x =
                         ]
 
       Var _ -> error "type variables should not be allowed through input ports"
-      Data ctor []
+
+      Data (Var.Canonical Var.BuiltIn ctor) []
           | ctor `elem` ["Int","Float","Bool","String"] -> x
-          | ctor == "Json.Value" ->
-              obj "Native.Json.toJS" <| x
 
-      Data ctor [t]
-          | ctor == "Maybe.Maybe" ->
-              CondExpr () (equal (DotRef () x (var "ctor")) (string "Nothing"))
-                          (NullLit ())
-                          (out t (DotRef () x (var "_0")))
+      Data (Var.Canonical (Var.Module "Json") "Value") [] ->
+          obj "Native.Json.toJS" <| x
 
-          | ctor == "_List" ->
-              DotRef () (obj "_L.toArray" <| x) (var "map") <| outgoing t
+      Data (Var.Canonical (Var.Module "Maybe") "Maybe") [t] ->
+          CondExpr () (equal (DotRef () x (var "ctor")) (string "Nothing"))
+                      (NullLit ())
+                      (out t (DotRef () x (var "_0")))
 
-      Data ctor ts
+      Data (Var.Canonical Var.BuiltIn "_List") [t] ->
+          DotRef () (obj "_L.toArray" <| x) (var "map") <| outgoing t
+
+      Data (Var.Canonical Var.BuiltIn ctor) ts
           | Help.isTuple ctor ->
               let convert n t = out t $ DotRef () x $ var ('_':show n)
               in  ArrayLit () $ zipWith convert [0..] ts
