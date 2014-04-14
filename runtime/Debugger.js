@@ -316,7 +316,7 @@ function tracePathInit(runtime, mainNode) {
       {
         List.map(F2(processForm)(offset))(elem.element.model.forms);
       }
-      else if (elem.element.ctor == "Image" && elem.props.debugTracePathId)
+      if (elem.props.debugTracePathId)
       {
         positions[elem.props.debugTracePathId] = new Point(offset.x, offset.y);
       }
@@ -374,7 +374,7 @@ function tracePathInit(runtime, mainNode) {
         }
       }
       ctx.lineWidth = 1;
-      ctx.strokeStyle = "#888a85";
+      ctx.strokeStyle = "rgba(50, 50, 50, 0.4)";
       ctx.stroke();
 
       for (var i=0; i < points.length; i++)
@@ -382,7 +382,7 @@ function tracePathInit(runtime, mainNode) {
         var p = points[i];
         ctx.beginPath();
         ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
-        ctx.fillStyle = "#2e3436";
+        ctx.fillStyle = "rgba(50, 50, 50, 0.4)";
         ctx.fill();
       }
     }
