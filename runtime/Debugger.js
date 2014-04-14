@@ -227,8 +227,10 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
   }
 
   function redrawGraphics() {
-    var graphicsNode = debugModule.moduleInstance.main.kids[0];
-    graphicsNode.recv(Date.now(), true, debugModule.moduleInstance.main.id);
+    var main = debugModule.moduleInstance.main
+    for (var i = main.kids.length ; i-- ; ) {
+      main.kids[i].recv(Date.now(), true, main.id);
+    }
   }
 
   function getHotSwapState() {
