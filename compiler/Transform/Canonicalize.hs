@@ -1,191 +1,339 @@
-{-# OPTIONS_GHC -Wall #-}
-module Transform.Canonicalize (interface, metadataModule) where
+{-# OPTIONS_GHC -W #-}
+module Transform.Canonicalize {-(interface, metadataModule)-} where
 
-import Control.Arrow ((***))
-import Control.Applicative (Applicative,(<$>),(<*>))
-import Control.Monad.Identity
+import Control.Applicative ((<$>),(<*>))
+import Control.Arrow (first)
+import Control.Monad (foldM)
 import qualified Data.Either as Either
 import qualified Data.List as List
+import Data.Map ((!))
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 import qualified Data.Traversable as T
-import SourceSyntax.Annotation as A
-import SourceSyntax.Expression
-import SourceSyntax.Module
-import SourceSyntax.PrettyPrint (pretty)
-import qualified SourceSyntax.Pattern as P
-import qualified SourceSyntax.Type as Type
-import qualified SourceSyntax.Variable as Var
+
+import AST.Expression.General (Expr'(..), dummyLet)
+import qualified AST.Expression.Valid as Valid
+import qualified AST.Expression.Canonical as Canonical
+
+import AST.Module (Interfaces, Interface(..), Module(..), CanonicalBody(..), ImportMethod)
+import qualified AST.Module as Module
+import qualified AST.Type as Type
+import qualified AST.Variable as Var
+import qualified AST.Annotation as A
+import AST.Declaration as D
+import AST.PrettyPrint (pretty, commaSep)
+import qualified AST.Pattern as P
 import Text.PrettyPrint as P
 
-interface :: String -> ModuleInterface -> ModuleInterface
-interface moduleName iface =
-    ModuleInterface
-    { iVersion = iVersion iface
-    , iTypes = Map.mapKeys prefix (Map.map renameType' (iTypes iface))
-    , iImports = iImports iface
-    , iAdts = map (both prefix renameCtors) (iAdts iface)
-    , iAliases = map (both prefix renameType') (iAliases iface)
-    , iFixities = iFixities iface -- cannot have canonicalized operators while parsing
-    , iPorts = iPorts iface
-    }
-  where
-    both f g (a,b,c) = (f a, b, g c)
-    prefix name = moduleName ++ "." ++ name
+import Transform.Canonicalize.Environment
+import Transform.Canonicalize.Type
+import Transform.Canonicalize.Variable (variable, pvar)
+import qualified Transform.SortDefinitions as Transform
+import qualified Transform.Declaration as Transform
 
-    pair name = (name, moduleName ++ "." ++ name)
-    canon (name,_,_) = pair name
-    canons = Map.fromList $ concat
-             [ map canon (iAdts iface), map canon (iAliases iface) ]
+environment :: Interfaces -> Module.ValidModule -> Either [Doc] Environment
+environment interfaces (Module.Module _ _ _ ims decls) =
+  do () <- allImportsAvailable interfaces ims
+     nonLocalEnv <- foldM (toEnv interfaces) builtIns ims
+     foldM (flip addDecl) nonLocalEnv decls
 
-    renameCtors ctors =
-        map (prefix *** map renameType') ctors
-    renameType' =
-        runIdentity . renameType (\name -> return $ Map.findWithDefault name name canons)
+toEnv :: Interfaces -> Environment -> (String, ImportMethod) -> Either [Doc] Environment
+toEnv interfaces environ (name,method) =
+    case method of
+      Module.As name' ->
+          return (env (name' ++ "."))
 
-renameType :: (Applicative m, Monad m) => (String -> m String) -> Type.Type -> m Type.Type
-renameType renamer tipe =
-    let rnm = renameType renamer in
-    case tipe of
-      Type.Lambda a b -> Type.Lambda <$> rnm a <*> rnm b
-      Type.Var _ -> return tipe
-      Type.Data name ts -> Type.Data <$> renamer name <*> mapM rnm ts
-      Type.Record fields ext -> Type.Record <$> mapM rnm' fields <*> return ext
-          where rnm' (f,t) = (,) f <$> rnm t
+      Module.Open (Var.Listing vs open)
+          | open -> return (env "")
+          | otherwise -> foldM (addValue name interface) environ vs
+    where
+      interface = interfaces ! name
 
-metadataModule :: Interfaces -> MetadataModule -> Either [Doc] MetadataModule
-metadataModule ifaces modul =
-  do case filter (\m -> Map.notMember m ifaces) (map fst realImports) of
-       [] -> Right ()
-       missings -> Left [ P.text $ "The following imports were not found: " ++ List.intercalate ", " missings ++
-                                   "\n    You may need to compile with the --make flag to detect modules you have written."
-                        ]
-     program' <- rename initialEnv (program modul)
-     aliases' <- mapM (three3 renameType') (aliases modul)
-     datatypes' <- mapM (three3 (mapM (two2 (mapM renameType')))) (datatypes modul)
-     return $ modul { program = program'
-                    , aliases = aliases'
-                    , datatypes = datatypes' }
-  where
-    two2 f (a,b) = (,) a <$> f b
-    three3 f (a,b,c) = (,,) a b <$> f c
-    renameType' =
-        Either.either (\err -> Left [P.text err]) return . renameType (replace "type" initialEnv)
+      env prefix =
+          let dict' = dict . map (first (prefix++)) in
+          Env { _values   = dict' $ map pair (Map.keys (iTypes interface)) ++ ctors
+              , _adts     = dict' $ map pair (Map.keys (iAdts interface))
+              , _aliases  = dict' $ map alias (Map.toList (iAliases interface))
+              , _patterns = dict' $ ctors
+              }
 
-    get1 (a,_,_) = a
-    canon (name, importMethod) =
-        let pair pre var = (pre ++ drop (length name + 1) var, var)
-            iface = ifaces Map.! name
-            allNames = concat [ Map.keys (iTypes iface)
-                              , map get1 (iAliases iface)
-                              , concat [ n : map fst ctors | (n,_,ctors) <- iAdts iface ] ]
-        in  case importMethod of
-              As alias -> map (pair (alias ++ ".")) allNames
-              Hiding vars -> map (pair "") $ filter (flip Set.notMember vs) allNames
-                  where vs = Set.fromList vars
-              Importing vars -> map (pair "") $ filter (flip Set.member vs) allNames
-                  where vs = Set.fromList $ map (\v -> name ++ "." ++ v) vars
+      canonical :: String -> Var.Canonical
+      canonical = Var.Canonical (Var.Module name)
 
-    two n = (n,n)
-    localEnv = map two (map get1 (aliases modul) ++ map get1 (datatypes modul))
-    globalEnv =
-        map two $ ["_List",saveEnvName,"::","[]","Int","Float","Char","Bool","String"] ++
-                  map (\n -> "_Tuple" ++ show (n :: Int)) [0..9]
-    realImports = filter (not . List.isPrefixOf "Native." . fst) (imports modul)
-    initialEnv = Map.fromList (concatMap canon realImports ++ localEnv ++ globalEnv)
+      pair :: String -> (String, Var.Canonical)
+      pair key = (key, canonical key)
 
-type Env = Map.Map String String
+      alias (x,(tvars,tipe)) = (x, (canonical x, tvars, tipe))
 
-extend :: Env -> P.Pattern -> Env
-extend env pattern = Map.union (Map.fromList (zip xs xs)) env
-    where xs = P.boundVarList pattern
+      ctors = concatMap (map (pair . fst) . snd . snd) (Map.toList (iAdts interface))
 
-replace :: String -> Env -> String -> Either String String
-replace variable env v =
-    if List.isPrefixOf "Native." v then return v else
-    case Map.lookup v env of
-      Just v' -> return v'
-      Nothing -> Left $ "Could not find " ++ variable ++ " '" ++ v ++ "'." ++ msg
+addValue :: String -> Module.Interface -> Environment -> Var.Value
+         -> Either [Doc] Environment
+addValue name interface env value =
+    let insert' x = insert x (Var.Canonical (Var.Module name) x)
+        notFound x = Left [ P.text $
+            "Import Error: Could not import value '" ++ name ++ "." ++ x ++ "'.\n" ++
+            "    It is not exported by module " ++ name ++ "." ]
+    in
+    case value of
+      Var.Value x
+          | Map.notMember x (iTypes interface) -> notFound x
+          | otherwise ->
+              return $ env { _values = insert' x (_values env) }
+
+      Var.Alias x ->
+          case Map.lookup x (iAliases interface) of
+            Nothing -> notFound x
+            Just (tvars, t) ->
+                let v = (Var.Canonical (Var.Module name) x, tvars, t) in
+                return $ env { _aliases = insert x v (_aliases env) }
+
+      Var.ADT x (Var.Listing xs open) ->
+          case Map.lookup x (iAdts interface) of
+            Nothing -> notFound x
+            Just (_tvars, ctors) ->
+                do ctors <- filterNames (map fst ctors)
+                   return $ env { _adts = insert' x (_adts env)
+                                , _values = foldr insert' (_values env) ctors
+                                , _patterns = foldr insert' (_patterns env) ctors
+                                }
+                where
+                  filterNames names
+                      | open = return names
+                      | otherwise =
+                          case filter (`notElem` names) xs of
+                            [] -> return names
+                            c:_ -> notFound c
+
+addDecl :: D.ValidDecl -> Environment -> Either [Doc] Environment
+addDecl decl env =
+    case decl of
+      D.Definition (Valid.Definition pattern _ _) ->
+          return $ env
+           { _values = foldr add (_values env) (P.boundVarList pattern) }
+        where
+          add x e = insert x (Var.local x) e
+
+      D.Datatype name _ ctors ->
+          return $ env
+           { _values   = addCtors (_values env)
+           , _adts     = insert name (Var.local name) (_adts env)
+           , _patterns = addCtors (_patterns env)
+           }
+        where
+          addCtors e = foldr add e (map fst ctors)
+          add name e = insert name (Var.local name) e
+
+      D.TypeAlias name tvars alias ->
+          do alias' <- Either.either throw return (tipe env alias)
+             return $ env
+              { _aliases = insert name (Var.local name, tvars, alias') (_aliases env)
+              , _values = case alias of
+                            Type.Record _ _ -> insert name (Var.local name) (_values env)
+                            _ -> _values env
+              }
           where
-            matches = filter (List.isInfixOf v) (Map.keys env)
-            msg = if null matches then "" else
-                      "\nClose matches include: " ++ List.intercalate ", " matches
+            throw err = Left [ P.vcat [ P.text $ "Error in type alias '" ++ name ++ "':"
+                                      , P.text err
+                                      ]
+                             ]
 
--- TODO: Var.Raw -> Var.Canonical
-rename :: Env -> Expr -> Either [Doc] Expr
-rename env (A ann expr) =
-    let rnm = rename env
+      D.Port _ -> return env
+
+      D.Fixity _ _ _ -> return env
+
+module' :: Interfaces -> Module.ValidModule -> Either [Doc] Module.CanonicalModule
+module' interfaces modul@(Module.Module _ _ exs _ decls) =
+  do env <- environment interfaces modul
+     canonicalDecls <- mapM (declaration env) decls
+     exports' <- delist locals exs
+     return $ modul { exports = exports'
+                    , body = body canonicalDecls
+                    }
+  where
+    locals :: [Var.Value]
+    locals = concatMap declToValue decls
+
+    body :: [D.CanonicalDecl] -> CanonicalBody
+    body decls =
+      CanonicalBody
+         { program = Transform.sortDefs . dummyLet $ Transform.toExpr decls
+         , types = Map.empty
+         , datatypes = Map.fromList [ (name,(vars,ctors)) | Datatype name vars ctors <- decls ]
+         , fixities = [ (assoc,level,op) | Fixity assoc level op <- decls ]
+         , aliases = Map.fromList [ (name,(tvs,alias)) | TypeAlias name tvs alias <- decls ]
+         , ports = [ portName port | Port port <- decls ]
+         }
+
+delist :: [Var.Value] -> Var.Listing Var.Value -> Either [Doc] [Var.Value]
+delist fullList (Var.Listing partial open)
+    | open = return fullList
+    | otherwise = go [] (List.sort fullList) (List.sort partial)
+    where
+      notFound xs =
+          Left $ [ P.text "Export Error: trying to export non-existent values:" <+>
+                   commaSep (map pretty xs)
+                 ]
+
+      go list full partial =
+        case (full, partial) of
+          (_, []) -> return list
+          ([], _) -> notFound partial
+          (x:xs, y:ys) ->
+              case (x,y) of
+                (Var.Value x', Var.Value y') | x' == y' ->
+                    go (x : list) xs ys
+
+                (Var.Alias x', Var.Alias y') | x' == y' ->
+                   go (x : list) xs ys
+
+                (Var.ADT x' (Var.Listing xctors _   ),
+                 Var.ADT y' (Var.Listing yctors open)) | x' == y' ->
+                    if open
+                    then go (x : list) xs ys
+                    else case filter (`notElem` xctors) yctors of
+                           [] -> go (y : list) xs ys
+                           bads -> notFound bads
+
+                _ -> go list xs partial
+
+declToValue :: D.ValidDecl -> [Var.Value]
+declToValue decl =
+    case decl of
+      D.Definition (Valid.Definition pattern _ _) ->
+          map Var.Value (P.boundVarList pattern)
+
+      D.Datatype name _tvs ctors ->
+          [ Var.ADT name (Var.Listing (map fst ctors) False) ]
+
+      D.TypeAlias name _ (Type.Record _ _) ->
+          [ Var.Alias name ]
+
+      _ -> []
+
+declaration :: Environment -> D.ValidDecl -> Either [Doc] D.CanonicalDecl
+declaration env decl =
+    let canonicalize kind context pattern env v =
+            case kind env v of
+              Right v' -> Right v'
+              Left err -> Left [ P.vcat [ ctx, P.text err ] ]
+                  where ctx = P.text ("Error in " ++ context) <+> pretty pattern <> P.colon
+    in
+    case decl of
+      D.Definition (Valid.Definition p e t) ->
+          do p' <- canonicalize pattern "definition" p env p
+             e' <- expression env e
+             t' <- T.traverse (canonicalize tipe "definition" p env) t
+             return $ D.Definition (Canonical.Definition p' e' t')
+
+      D.Datatype name tvars ctors ->
+          D.Datatype name tvars <$> mapM canonicalize' ctors
+          where
+            canonicalize' (ctor,args) =
+                (,) ctor <$> mapM (canonicalize tipe "datatype" name env) args
+
+      D.TypeAlias name tvars expanded ->
+          D.TypeAlias name tvars <$> canonicalize tipe "type alias" name env expanded
+
+      D.Port port ->
+          D.Port <$> case port of
+                       D.In name t -> D.In name <$> canonicalize tipe "port" name env t
+                       D.Out name e t ->
+                           do e' <- expression env e
+                              t' <- canonicalize tipe "port" name env t
+                              return (D.Out name e' t')
+
+      D.Fixity assoc prec op -> return $ D.Fixity assoc prec op
+
+
+allImportsAvailable :: Interfaces -> [(String,ImportMethod)] -> Either [Doc] ()
+allImportsAvailable interfaces imports =
+  case filter (`Map.notMember` interfaces) modules of
+    [] -> Right ()
+    missings -> Left [ P.text (missingModuleError missings) ]
+  where
+    modules = map fst imports
+
+    missingModuleError missings =
+        concat [ "The following imports were not found: "
+               , List.intercalate ", " missings
+               ,  "\n    You may need to compile with the --make "
+               , "flag to detect modules you have written." ]
+
+expression :: Environment -> Valid.Expr -> Either [Doc] Canonical.Expr
+expression env (A.A ann expr) =
+    let go = expression env
+        tipe' environ = format . tipe environ
         throw err = Left [ P.vcat [ P.text "Error" <+> pretty ann <> P.colon
                                   , P.text err
                                   ]
                          ]
         format = Either.either throw return
-        renameType' environ = renameType (format . replace "variable" environ)
     in
-    A ann <$>
+    A.A ann <$>
     case expr of
-      Literal _ -> return expr
+      Literal lit -> return (Literal lit)
 
-      Range e1 e2 -> Range <$> rnm e1 <*> rnm e2
+      Range e1 e2 -> Range <$> go e1 <*> go e2
 
-      Access e x -> Access <$> rnm e <*> return x
+      Access e x -> Access <$> go e <*> return x
 
-      Remove e x -> flip Remove x <$> rnm e
+      Remove e x -> flip Remove x <$> go e
 
-      Insert e x v -> flip Insert x <$> rnm e <*> rnm v
+      Insert e x v -> flip Insert x <$> go e <*> go v
 
       Modify e fs ->
-          Modify <$> rnm e <*> mapM (\(k,v) -> (,) k <$> rnm v) fs
+          Modify <$> go e <*> mapM (\(k,v) -> (,) k <$> go v) fs
 
-      Record fs -> Record <$> mapM (\(k,v) -> (,) k <$> rnm v) fs
+      Record fs -> Record <$> mapM (\(k,v) -> (,) k <$> go v) fs
 
-      Binop op e1 e2 ->
-          do op' <- format (replace "variable" env op)
-             Binop op' <$> rnm e1 <*> rnm e2
+      Binop (Var.Raw op) e1 e2 ->
+          do op' <- format (variable env op)
+             Binop op' <$> go e1 <*> go e2
 
-      Lambda pattern e ->
-          let env' = extend env pattern in
-          Lambda <$> format (renamePattern env' pattern) <*> rename env' e
+      Lambda p e ->
+          let env' = update p env in
+          Lambda <$> format (pattern env' p) <*> expression env' e
 
-      App e1 e2 -> App <$> rnm e1 <*> rnm e2
+      App e1 e2 -> App <$> go e1 <*> go e2
 
-      MultiIf ps -> MultiIf <$> mapM grnm ps
-              where grnm (b,e) = (,) <$> rnm b <*> rnm e
+      MultiIf ps -> MultiIf <$> mapM go' ps
+              where go' (b,e) = (,) <$> go b <*> go e
 
-      Let defs e -> Let <$> mapM rename' defs <*> rename env' e
+      Let defs e -> Let <$> mapM rename' defs <*> expression env' e
           where
-            env' = foldl extend env $ map (\(Definition p _ _) -> p) defs
-            rename' (Definition p body mtipe) =
-                Definition <$> format (renamePattern env' p)
-                           <*> rename env' body
-                           <*> T.traverse (renameType' env') mtipe
+            env' = foldr update env $ map (\(Valid.Definition p _ _) -> p) defs
+            rename' (Valid.Definition p body mtipe) =
+                Canonical.Definition
+                    <$> format (pattern env' p)
+                    <*> expression env' body
+                    <*> T.traverse (tipe' env') mtipe
 
-      -- TODO: Raw -> Canonical
-      Var (Var.Raw x) -> rawVar <$> format (replace "variable" env x)
+      Var (Var.Raw x) -> Var <$> format (variable env x)
 
-      Data name es -> Data name <$> mapM rnm es
+      Data name es -> Data name <$> mapM go es
 
-      ExplicitList es -> ExplicitList <$> mapM rnm es
+      ExplicitList es -> ExplicitList <$> mapM go es
 
-      Case e cases -> Case <$> rnm e <*> mapM branch cases
+      Case e cases -> Case <$> go e <*> mapM branch cases
           where
-            branch (pattern,b) = (,) <$> format (renamePattern env pattern)
-                                     <*> rename (extend env pattern) b
+            branch (p,b) = (,) <$> format (pattern env p)
+                               <*> expression (update p env) b
 
-      Markdown uid md es -> Markdown uid md <$> mapM rnm es
+      Markdown uid md es -> Markdown uid md <$> mapM go es
 
-      PortIn name st -> PortIn name <$> renameType' env st
+      PortIn name st -> PortIn name <$> tipe' env st
 
-      PortOut name st signal -> PortOut name <$> renameType' env st <*> rnm signal
+      PortOut name st signal -> PortOut name <$> tipe' env st <*> go signal
 
 
-renamePattern :: Env -> P.Pattern -> Either String P.Pattern
-renamePattern env pattern =
-    case pattern of
-      P.Var _ -> return pattern
-      P.Literal _ -> return pattern
-      P.Record _ -> return pattern
-      P.Anything -> return pattern
-      P.Alias x p -> P.Alias x <$> renamePattern env p
-      P.Data name ps -> P.Data <$> replace "pattern" env name
-                               <*> mapM (renamePattern env) ps
+pattern :: Environment -> P.RawPattern -> Either String P.CanonicalPattern
+pattern env ptrn =
+    case ptrn of
+      P.Var x       -> return $ P.Var x
+      P.Literal lit -> return $ P.Literal lit
+      P.Record fs   -> return $ P.Record fs
+      P.Anything    -> return P.Anything
+      P.Alias x p   -> P.Alias x <$> pattern env p
+      P.Data (Var.Raw name) ps ->
+          P.Data <$> pvar env name
+                 <*> mapM (pattern env) ps

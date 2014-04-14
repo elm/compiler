@@ -4,12 +4,13 @@ module Transform.Substitute (subst) where
 import Control.Arrow (second, (***))
 import qualified Data.Set as Set
 
-import SourceSyntax.Annotation
-import SourceSyntax.Expression
-import qualified SourceSyntax.Pattern as Pattern
-import qualified SourceSyntax.Variable as V
+import AST.Annotation
+import AST.Expression.General (Expr'(..))
+import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Pattern as Pattern
+import qualified AST.Variable as V
 
-subst :: String -> Expr' -> Expr' -> Expr'
+subst :: String -> Canonical.Expr' -> Canonical.Expr' -> Canonical.Expr'
 subst old new expr =
     let f (A a e) = A a (subst old new e) in
     case expr of
@@ -26,11 +27,16 @@ subst old new expr =
           | anyShadow -> expr
           | otherwise -> Let (map substDef defs) (f body)
         where
-          substDef (Definition p e t) = Definition p (f e) t
+          substDef (Canonical.Definition p e t) = Canonical.Definition p (f e) t
           anyShadow =
-              any (Set.member old . Pattern.boundVars) [ p | Definition p _ _ <- defs ]
+              any (Set.member old . Pattern.boundVars) [ p | Canonical.Definition p _ _ <- defs ]
 
-      Var (V.Raw x) -> if x == old then new else expr
+      Var (V.Canonical home x) ->
+          case home of
+            V.Module _ -> expr
+            V.BuiltIn -> expr
+            V.Local -> if x == old then new else expr
+
       Case e cases -> Case (f e) $ map (second f) cases
       Data name es -> Data name (map f es)
       Access e x -> Access (f e) x

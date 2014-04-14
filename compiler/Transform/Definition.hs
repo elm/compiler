@@ -2,11 +2,12 @@
 module Transform.Definition where
 
 import Control.Applicative ((<$>))
-import qualified SourceSyntax.Pattern as P
-import SourceSyntax.Expression
+import qualified AST.Pattern as P
+import qualified AST.Expression.Source as Source
+import qualified AST.Expression.Valid as Valid
 import qualified Transform.Expression as Expr
 
-combineAnnotations :: [ParseDef] -> Either String [Def]
+combineAnnotations :: [Source.Def] -> Either String [Valid.Def]
 combineAnnotations = go
     where
       msg x = "Syntax Error: The type annotation for '" ++ x ++
@@ -16,16 +17,19 @@ combineAnnotations = go
 
       go defs =
           case defs of
-            TypeAnnotation name tipe : Def pat@(P.Var name') expr : rest | name == name' ->
-                do expr' <- exprCombineAnnotations expr
-                   let def = Definition pat expr' (Just tipe)
-                   (:) def <$> go rest
+            Source.TypeAnnotation name tipe : rest ->
+                case rest of
+                  Source.Definition pat@(P.Var name') expr : rest'
+                      | name == name' ->
+                          do expr' <- exprCombineAnnotations expr
+                             let def = Valid.Definition pat expr' (Just tipe)
+                             (:) def <$> go rest'
 
-            TypeAnnotation name _  : _ -> Left (msg name)
+                  _ -> Left (msg name)
 
-            Def pat expr : rest ->
+            Source.Definition pat expr : rest ->
                 do expr' <- exprCombineAnnotations expr
-                   let def = Definition pat expr' Nothing
+                   let def = Valid.Definition pat expr' Nothing
                    (:) def <$> go rest
 
             [] -> return []

@@ -2,31 +2,32 @@
 module Transform.Expression (crawlLet, checkPorts) where
 
 import Control.Applicative ((<$>),(<*>))
-import SourceSyntax.Annotation ( Annotated(A) )
-import SourceSyntax.Expression
-import SourceSyntax.Type (Type)
+import AST.Annotation ( Annotated(A) )
+import AST.Expression.General
+import qualified AST.Expression.Canonical as Canonical
+import AST.Type (Type, CanonicalType)
 
 crawlLet :: ([def] -> Either a [def'])
-         -> GeneralExpr ann def var
-         -> Either a (GeneralExpr ann def' var)
+         -> Expr ann def var
+         -> Either a (Expr ann def' var)
 crawlLet = crawl (\_ _ -> return ()) (\_ _ -> return ())
 
-checkPorts :: (String -> Type -> Either a ())
-           -> (String -> Type -> Either a ())
-           -> Expr
-           -> Either a Expr
+checkPorts :: (String -> CanonicalType -> Either a ())
+           -> (String -> CanonicalType -> Either a ())
+           -> Canonical.Expr
+           -> Either a Canonical.Expr
 checkPorts inCheck outCheck expr =
     crawl inCheck outCheck (mapM checkDef) expr
     where
-      checkDef def@(Definition _ body _) =
+      checkDef def@(Canonical.Definition _ body _) =
           do _ <- checkPorts inCheck outCheck body
              return def
 
-crawl :: (String -> Type -> Either a ())
-      -> (String -> Type -> Either a ())
+crawl :: (String -> Type var -> Either a ())
+      -> (String -> Type var -> Either a ())
       -> ([def] -> Either a [def'])
-      -> GeneralExpr ann def var
-      -> Either a (GeneralExpr ann def' var)
+      -> Expr ann def var
+      -> Either a (Expr ann def' var)
 crawl portInCheck portOutCheck defsTransform = go
     where
       go (A srcSpan expr) =
