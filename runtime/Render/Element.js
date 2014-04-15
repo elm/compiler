@@ -31,6 +31,7 @@ function setProps(elem, e) {
         a.style.display = 'block';
         a.style.position = 'absolute';
         e.style.position = 'relative';
+        a.style.pointerEvents = 'auto';
         e.appendChild(a);
     }
     if (props.hover.ctor !== '_Tuple0') {
@@ -45,8 +46,9 @@ function setProps(elem, e) {
 function addClick(e, handler) {
     e.style.pointerEvents = 'auto';
     e.elm_click_handler = handler;
-    function trigger() {
+    function trigger(ev) {
         e.elm_click_handler(Utils.Tuple0);
+        ev.stopPropagation();
     }
     e.elm_click_trigger = trigger;
     e.addEventListener('click', trigger);
@@ -63,14 +65,16 @@ function addHover(e, handler) {
     e.elm_hover_handler = handler;
     e.elm_hover_count = 0;
 
-    function over() {
+    function over(evt) {
         if (e.elm_hover_count++ > 0) return;
         e.elm_hover_handler(true);
+        evt.stopPropagation();
     }
     function out(evt) {
         if (e.contains(evt.toElement || evt.relatedTarget)) return;
         e.elm_hover_count = 0;
         e.elm_hover_handler(false);
+        evt.stopPropagation();
     }
     e.elm_hover_over = over;
     e.elm_hover_out = out;
@@ -232,6 +236,7 @@ function rawHtml(elem) {
     }
     document.body.removeChild(div);
     div.style.visibility = 'visible';
+    div.style.pointerEvents = 'auto';
     return div;
 }
 
@@ -375,6 +380,7 @@ function updateProps(node, curr, next) {
             a.style.display = 'block';
             a.style.position = 'absolute';
             e.style.position = 'relative';
+            a.style.pointerEvents = 'auto';
             e.appendChild(a);
         } else {
             node.lastNode.href = props.href;

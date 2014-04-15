@@ -96,7 +96,7 @@ Library
 
   Build-depends:       aeson,
                        base >=4.2 && <5,
-                       binary >= 0.6.4.0,
+                       binary >= 0.7.0.0,
                        blaze-html >= 0.5 && < 0.8,
                        blaze-markup,
                        bytestring,
@@ -179,7 +179,7 @@ Executable elm
 
   Build-depends:       aeson,
                        base >=4.2 && <5,
-                       binary >= 0.6.4.0,
+                       binary >= 0.7.0.0,
                        blaze-html >= 0.5 && < 0.8,
                        blaze-markup,
                        bytestring,
@@ -224,7 +224,7 @@ Executable elm-doc
   Build-depends:       aeson,
                        aeson-pretty,
                        base >=4.2 && <5,
-                       binary >= 0.6.4.0,
+                       binary >= 0.7.0.0,
                        bytestring,
                        cmdargs,
                        containers >= 0.3,
@@ -239,35 +239,32 @@ Executable elm-doc
                        text,
                        union-find
 
-Test-Suite test-elm
+Test-Suite compiler-tests
   Type:            exitcode-stdio-1.0
-  Hs-Source-Dirs:  tests, compiler
-  Main-is:         Main.hs
+  Hs-Source-Dirs:  tests/hs, compiler
+  Main-is:         CompilerTest.hs
   other-modules:   Tests.Compiler
                    Tests.Property
                    Tests.Property.Arbitrary
                    SourceSyntax.Helpers
                    SourceSyntax.Literal
                    SourceSyntax.PrettyPrint
-  build-depends:   base,
-                   directory,
-                   Elm,
-                   test-framework,
+  build-depends:   test-framework,
                    test-framework-hunit,
                    test-framework-quickcheck2 >= 0.3,
                    HUnit,
-                   pretty,
                    QuickCheck >= 2 && < 3,
-                   filemanip,
                    aeson,
                    base >=4.2 && <5,
-                   binary >= 0.6.4.0,
+                   binary >= 0.7.0.0,
                    blaze-html == 0.5.* || == 0.6.*,
                    blaze-markup == 0.5.1.*,
                    bytestring,
                    cmdargs,
                    containers >= 0.3,
                    directory,
+                   Elm,
+                   filemanip,
                    filepath,
                    indents,
                    language-ecmascript >=0.15 && < 1.0,
@@ -280,3 +277,13 @@ Test-Suite test-elm
                    transformers >= 0.2,
                    union-find,
                    unordered-containers
+
+Test-Suite lib-tests
+  Type:            exitcode-stdio-1.0
+  Hs-Source-Dirs:  tests/hs
+  Main-is:         LibTest.hs
+  build-depends:   base,
+                   directory,
+                   Elm,
+                   filepath,
+                   process >= 1.2
