@@ -1,6 +1,8 @@
 module Dict (empty,singleton,insert,update
             ,lookup,findWithDefault
             ,remove,member
+            ,filter,filterWithKey
+            ,partition,partitionWithKey
             ,foldl,foldr,map
             ,union,intersect,diff
             ,keys,values
@@ -327,9 +329,7 @@ union t1 t2 = foldl insert t2 t1
 {-| Keep a key-value pair when its key appears in the second dictionary.
 Preference is given to values in the first dictionary. -}
 intersect : Dict comparable v -> Dict comparable v -> Dict comparable v
-intersect t1 t2 =
- let combine k v t = if k `member` t2 then insert k v t else t
- in  foldl combine empty t1
+intersect t1 t2 = filterWithKey (\k _ -> k `member` t2) t1
 
 {-| Keep a key-value pair when its key does not appear in the second dictionary.
 Preference is given to the first dictionary. -}
@@ -354,6 +354,30 @@ fromList assocs = List.foldl (\(k,v) d -> insert k v d) empty assocs
 
 {-| Keep only key-value pairs where the value satisfies a predicate. -}
 filter : (v -> Bool) -> Dict comparable v -> Dict comparable v
-filter p =
-  let add k v t = if p v then insert k v t else t
-  in foldl combine empty
+filter p = filterWithKey (\_ v -> p v)
+
+{-| Keep only key-value pairs which satisfy a predicate. -}
+filterWithKey : (comparable -> v -> Bool)
+              -> Dict comparable v
+              -> Dict comparable v
+filterWithKey p =
+  let add k v t = if p k v then insert k v t else t
+  in foldl add empty
+
+{-| Partition the Dict according to a predicate. The first Dict contains all
+values which satisfy a predicate; the second contains the rest. -}
+partition : (v -> Bool)
+          -> Dict comparable v
+          -> (Dict comparable v, Dict comparable v)
+partition p = partitionWithKey (\_ v -> p v)
+
+{-| Partition the Dict according to a predicate. The first Dict contains all
+key-value pairs which satisfy a predicate; the second contains the rest. -}
+partitionWithKey : (comparable -> v -> Bool)
+                 -> Dict comparable v
+                 -> (Dict comparable v, Dict comparable v)
+partitionWithKey p =
+  let add k v (t1, t2) = if p k v
+                            then (insert k v t1,  t2)
+                            else (t1, insert k v t2)
+  in foldl add (empty, empty)
