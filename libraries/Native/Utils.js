@@ -211,7 +211,7 @@ Elm.Native.Utils.make = function(elm) {
     }
 
     function isJSArray(a) {
-        return Array.isArray(a);
+        return a instanceof Array;
     }
 
     return elm.Native.Utils.values = {
