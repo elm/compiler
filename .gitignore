@@ -14,3 +14,4 @@ data
 tests/elm/build/
 tests/elm/cache/
 tests/elm/exe.js
+node_modules/
