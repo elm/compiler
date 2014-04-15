@@ -210,6 +210,10 @@ Elm.Native.Utils.make = function(elm) {
         return Tuple2(posx, posy);
     }
 
+    function isJSArray(a) {
+        return Array.isArray(a);
+    }
+
     return elm.Native.Utils.values = {
         eq:eq,
         cmp:cmp,
@@ -229,6 +233,7 @@ Elm.Native.Utils.make = function(elm) {
         mod : F2(mod),
         htmlHeight: F2(htmlHeight),
         getXY: getXY,
+        isJSArray: isJSArray,
         toFloat: function(x) { return +x; }
     };
 };
