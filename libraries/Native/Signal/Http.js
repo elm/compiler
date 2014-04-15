@@ -57,7 +57,47 @@ Elm.Native.Http.make = function(elm) {
         return A3( Signal.lift2, f, responses, sender );
     }
 
+    function registerJsonp(queue,responses) {
+        return function(url) {
+            if (url.length > 0) {
+                jsonp(queue,responses,url);
+            }
+        };
+    }
+
+    var rjsonp = /(=)\?(?=&|$)|\?\?/;
+    function jsonp(queue,responses,url) {
+        var response = { value: { ctor:'Waiting' } };
+        queue.push(response);
+
+        var callbackName = 'jsonpCallback_' + new String(Math.random()).replace(/\D/g, '');
+        window[callbackName] = function(data) {
+            response.value = { ctor:'Success', _0:data };
+            setTimeout(function() { updateQueue(queue,responses); }, 0);
+
+            try {
+                delete window[callbackName];
+                script.parentNode.removeChild(script);
+            } catch (e) {}
+        };
+
+        var script = document.createElement('script');
+        script.type = 'text/javascript';
+        script.async = true;
+        script.src = url.replace(rjsonp, '$1' + callbackName);
+
+        document.getElementsByTagName('head')[0].appendChild(script);
+    }
+
+    function sendJsonp(urls) {
+        var responses = Signal.constant(elm.Http.values.Waiting);
+        var sender = A2( Signal.lift, registerJsonp([],responses), urls );
+        function f(x) { return function(y) { return x; } }
+        return A3( Signal.lift2, f, responses, sender );
+    }
+
     return elm.Native.Http.values = {
-        send:send
+        send: send,
+        sendJsonp: sendJsonp
     };
 };

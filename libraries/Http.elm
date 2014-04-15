@@ -3,22 +3,33 @@ module Http where
 library if you have very strict latency requirements.
 
 # Sending Requests
-@docs send, sendGet
+@docs send, sendGet, sendJsonp
 
 # Creating Requests
 @docs get, post, request
 
 # Responses
-@docs Response
+@docs Response, map
 -}
 
 import Signal (..)
 import Native.Http
 
-{-| The datatype for responses. Success contains only the returned message.
-Failures contain both an error code and an error message.
+import Json
+import JavaScript.Experimental as JS
+
+{-| The datatype for responses. `Success` contains only the returned message.
+`Failure`s contain both an error code and an error message.
 -}
 data Response a = Success a | Waiting | Failure Int String
+
+{-| Apply a function to the contents of a `Response`, if it's a `Success`. -}
+map : (a -> b) -> Response a -> Response b
+map f req =
+  case req of
+    Success x -> Success (f x)
+    Waiting -> Waiting
+    Failure status error -> Failure status error
 
 type Request a = {
   verb : String,
@@ -52,3 +63,9 @@ that carries the responses.
 -}
 sendGet : Signal String -> Signal (Response String)
 sendGet reqs = send (lift get reqs)
+
+{-| Performs a JSONP request with the given urls (set callback parameter
+to "?"). Produces a signal that carries the responses.
+-}
+sendJsonp : Signal String -> Signal (Response Json.Value)
+sendJsonp urls = map JS.toJson <~ Native.Http.sendJsonp urls
