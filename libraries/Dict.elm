@@ -351,3 +351,9 @@ toList t = foldr (\k v acc -> (k,v) :: acc) [] t
 {-| Convert an association list into a dictionary. -}
 fromList : [(comparable,v)] -> Dict comparable v
 fromList assocs = List.foldl (\(k,v) d -> insert k v d) empty assocs
+
+{-| Keep only key-value pairs where the value satisfies a predicate. -}
+filter : (v -> Bool) -> Dict comparable v -> Dict comparable v
+filter p =
+  let add k v t = if p v then insert k v t else t
+  in foldl combine empty
