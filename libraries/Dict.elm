@@ -1,5 +1,5 @@
 module Dict (empty,singleton,insert,update
-            ,lookup,findWithDefault
+            ,lookup,findWithDefault,equals
             ,remove,member
             ,foldl,foldr,map
             ,union,intersect,diff
@@ -17,7 +17,7 @@ Insert, remove, and query operations all take *O(log n)* time.
 @docs empty, singleton, insert, update, remove
 
 # Query
-@docs member, lookup, findWithDefault
+@docs member, lookup, findWithDefault, equals
 
 # Combine
 @docs union, intersect, diff
@@ -111,6 +111,18 @@ findWithDefault base k t =
 member : comparable -> Dict comparable v -> Bool
 -- Does t contain k?
 member k t = isJust <| lookup k t
+
+{-| Check if the contents of all keys and values are equal.
+-}
+equals : Dict comparable v -> Dict comparable v -> Bool
+equals a b =
+  let go lists =
+          case lists of
+            (x::xs,y::ys) -> x == y && go (xs,ys)
+            ([],[])       -> True
+            _             -> False
+  in
+      go (toList a, toList b)
 
 ensureBlackRoot : Dict k v -> Dict k v
 ensureBlackRoot t =

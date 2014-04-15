@@ -8,7 +8,7 @@ reads, updates, and appends.
 @docs empty, repeat, initialize, fromList
 
 # Basics
-@docs length, push, append
+@docs length, equals, push, append
 
 # Get and Set
 @docs get, getMaybe, getWithDefault, set
@@ -102,6 +102,22 @@ foldr = Native.Array.foldr
 -}
 empty : Array a
 empty = Native.Array.empty
+
+{-| Check if all values of the array are equal. True if both arrays are the same
+length and the values are equal at every index.
+
+      equals (fromList [2,2]) (repeat 2 2) == True
+      equals (fromList [1,2]) (repeat 2 2) == False
+-}
+equals : Array a -> Array a -> Bool
+equals a b =
+  let go lists =
+          case lists of
+            (x::xs,y::ys) -> x == y && go (xs,ys)
+            ([],[])       -> True
+            _             -> False
+  in
+      go (Native.Array.toList a, Native.Array.toList b)
 
 {-| Push an element to the end of an array.
 
