@@ -1,4 +1,4 @@
-﻿Elm.Native.Array = {};
+Elm.Native.Array = {};
 Elm.Native.Array.make = function(elm) {
     elm.Native = elm.Native || {};
     elm.Native.Array = elm.Native.Array || {};
