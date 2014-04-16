@@ -82,14 +82,14 @@ map = Native.Array.map
 indexedMap : (Int -> a -> b) -> Array a -> Array b
 indexedMap = Native.Array.indexedMap
 
-{-| Reduce an array from the left.
+{-| Reduce an array from the left. Read `foldl` as &ldquo;fold from the left&rdquo;.
 
       foldl (::) [] (fromList [1,2,3]) == [3,2,1]
 -}
 foldl : (a -> b -> b) -> b -> Array a -> b
 foldl = Native.Array.foldl
 
-{-| Reduce an array from the right.
+{-| Reduce an array from the right. Read `foldr` as &ldquo;fold from the right&rdquo;.
 
       foldr (+) 0 (repeat 3 5) == 15
 -}

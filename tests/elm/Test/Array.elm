@@ -40,8 +40,8 @@ tests =
                                  ]
         mappingAndFoldingTests = [ test "map" <| assertEqual (Array.map sqrt (Array.fromList [1,4,9])) (Array.fromList [1,2,3])
                                  , test "indexedMap" <| assertEqual (Array.indexedMap (*) (Array.fromList [5,5,5])) (Array.fromList [0,5,10])
-                                 , test "foldl" <| assertEqual (Array.foldl (::) [] (Array.fromList [1,2,3])) [1,2,3]
+                                 , test "foldl" <| assertEqual (Array.foldl (::) [] (Array.fromList [1,2,3])) [3,2,1]
                                  , test "foldr" <| assertEqual (Array.foldr (+) 0 (Array.repeat 3 5)) 15
-                                 , test "foldl 2" <| assertEqual (Array.foldr (::) [] (Array.fromList [1,2,3])) [3,2,1]
+                                 , test "foldr 2" <| assertEqual (Array.foldr (::) [] (Array.fromList [1,2,3])) [1,2,3]
                                  ]
     in List.concat [creationTests, basicsTests, getAndSetTests, takingArraysApartTests, mappingAndFoldingTests]
