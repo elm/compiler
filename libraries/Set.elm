@@ -92,11 +92,11 @@ map f s = fromList (List.map f (toList s))
 
 {-| Create a new set consisting only of elements which satisfy a predicate. -}
 filter : (comparable -> Bool) -> Set comparable -> Set comparable
-filter p = Dict.filterWithKey (\k _ -> p k)
+filter p = Dict.filter (\k _ -> p k)
 
 {-| Create two new sets; the first consisting of elements which satisfy a
 predicate, the second consisting of elements which do not. -}
 partition : (comparable -> Bool)
           -> Set comparable
           -> (Set comparable, Set comparable)
-partition p = Dict.partitionWithKey (\k _ -> p k)
+partition p = Dict.partition (\k _ -> p k)
