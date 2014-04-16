@@ -353,20 +353,16 @@ fromList : [(comparable,v)] -> Dict comparable v
 fromList assocs = List.foldl (\(k,v) d -> insert k v d) empty assocs
 
 {-| Keep a key-value pair when it satisfies a predicate. -}
-filter : (comparable -> v -> Bool)
-              -> Dict comparable v
-              -> Dict comparable v
-filter p =
+filter : (comparable -> v -> Bool) -> Dict comparable v -> Dict comparable v
+filter p dict =
   let add k v t = if p k v then insert k v t else t
-  in foldl add empty
+  in  foldl add empty dict
 
 {-| Partition the Dict according to a predicate. The first Dict contains all
 key-value pairs which satisfy it; the second contains the rest. -}
-partition : (comparable -> v -> Bool)
-          -> Dict comparable v
-          -> (Dict comparable v, Dict comparable v)
-partition p =
+partition : (comparable -> v -> Bool) -> Dict comparable v -> (Dict comparable v, Dict comparable v)
+partition p dict =
   let add k v (t1, t2) = if p k v
                             then (insert k v t1,  t2)
                             else (t1, insert k v t2)
-  in foldl add (empty, empty)
+  in  foldl add (empty, empty) dict

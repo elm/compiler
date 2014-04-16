@@ -26,7 +26,7 @@ Insert, remove, and query operations all take *O(log n)* time.
 @docs toList, fromList
 
 # Transform
-@docs map, foldl, foldr
+@docs map, foldl, foldr, filter, partition
 
 -}
 
@@ -92,11 +92,9 @@ map f s = fromList (List.map f (toList s))
 
 {-| Create a new set consisting only of elements which satisfy a predicate. -}
 filter : (comparable -> Bool) -> Set comparable -> Set comparable
-filter p = Dict.filter (\k _ -> p k)
+filter p set = Dict.filter (\k _ -> p k) set
 
 {-| Create two new sets; the first consisting of elements which satisfy a
 predicate, the second consisting of elements which do not. -}
-partition : (comparable -> Bool)
-          -> Set comparable
-          -> (Set comparable, Set comparable)
-partition p = Dict.partition (\k _ -> p k)
+partition : (comparable -> Bool) -> Set comparable -> (Set comparable, Set comparable)
+partition p set = Dict.partition (\k _ -> p k) set
