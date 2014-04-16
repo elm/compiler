@@ -43,5 +43,6 @@ tests =
                                  , test "foldl" <| assertEqual (Array.foldl (::) [] (Array.fromList [1,2,3])) [3,2,1]
                                  , test "foldr" <| assertEqual (Array.foldr (+) 0 (Array.repeat 3 5)) 15
                                  , test "foldr 2" <| assertEqual (Array.foldr (::) [] (Array.fromList [1,2,3])) [1,2,3]
+                                 , test "filter" <| assertEqual (Array.filter (\x -> x `mod` 2 == 0) (Array.fromList [1..6])) (Array.fromList [2,4,6])
                                  ]
     in List.concat [creationTests, basicsTests, getAndSetTests, takingArraysApartTests, mappingAndFoldingTests]

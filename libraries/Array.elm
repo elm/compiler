@@ -96,6 +96,16 @@ foldl = Native.Array.foldl
 foldr : (a -> b -> b) -> b -> Array a -> b
 foldr = Native.Array.foldr
 
+{-| Keep only elements that satisfy the predicate:
+
+      filter isEven (fromList [1..6]) == (fromList [2,4,6])
+-}
+filter : (a -> Bool) -> Array a -> Array a
+filter isOkay arr =
+    let update x xs = if isOkay x then Native.Array.push x xs else xs
+    in
+        Native.Array.foldl update Native.Array.empty arr
+
 {-| Return an empty array.
 
       length empty == 0
