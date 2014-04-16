@@ -28,7 +28,7 @@ Insert, remove, and query operations all take *O(log n)* time.
 @docs keys, values, toList, fromList
 
 # Transform
-@docs map, foldl, foldr
+@docs map, foldl, foldr, filter, partition
 
 -}
 
