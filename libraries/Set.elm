@@ -2,6 +2,7 @@
 module Set (empty,singleton,insert,remove
            ,member
            ,foldl,foldr,map
+           ,filter,partition
            ,union,intersect,diff
            ,toList,fromList
            ) where
@@ -88,3 +89,14 @@ foldr f b s = Dict.foldr (\k _ b -> f k b) b s
 {-| Map a function onto a set, creating a new set with no duplicates. -}
 map : (comparable -> comparable') -> Set comparable -> Set comparable'
 map f s = fromList (List.map f (toList s))
+
+{-| Create a new set consisting only of elements which satisfy a predicate. -}
+filter : (comparable -> Bool) -> Set comparable -> Set comparable
+filter p = Dict.filter (\k _ -> p k)
+
+{-| Create two new sets; the first consisting of elements which satisfy a
+predicate, the second consisting of elements which do not. -}
+partition : (comparable -> Bool)
+          -> Set comparable
+          -> (Set comparable, Set comparable)
+partition p = Dict.partition (\k _ -> p k)
