@@ -20,7 +20,7 @@ check x jsType continue =
                JSNumber  -> [typeof "number"]
                JSBoolean -> [typeof "boolean"]
                JSString  -> [typeof "string", instanceof "String"]
-               JSArray   -> [instanceof "Array"]
+               JSArray   -> [(obj "_U.isJSArray" <|)]
                JSObject fields -> [jsFold OpLAnd (typeof "object" : map member fields)]
 
 incoming :: Type -> Expression ()
