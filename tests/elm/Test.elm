@@ -12,9 +12,10 @@ import IO.Runner as Run
 import Test.String as String
 import Test.Trampoline as Trampoline
 import Test.Array as Array
+import Test.Dict as Dict
     
 tests : [Test]
-tests = String.tests ++ Trampoline.tests ++ Array.tests
+tests = String.tests ++ Trampoline.tests ++ Array.tests ++ Dict.tests
 
 console : IO ()
 console = runDisplay tests

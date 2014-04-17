@@ -1,5 +1,5 @@
 module Dict (empty,singleton,insert,update
-            ,lookup,findWithDefault
+            ,get,getMaybe,getWithDefault
             ,remove,member
             ,filter
             ,partition
@@ -19,7 +19,7 @@ Insert, remove, and query operations all take *O(log n)* time.
 @docs empty, singleton, insert, update, remove
 
 # Query
-@docs member, lookup, findWithDefault
+@docs member, get, getMaybe, getWithDefault
 
 # Combine
 @docs union, intersect, diff
@@ -37,6 +37,7 @@ import Basics (..)
 import Maybe (..)
 import Native.Error
 import List
+import String
 import Native.Utils
 
 -- BBlack and NBlack should only be used during the deletion
@@ -86,33 +87,71 @@ max t =
     RBNode _ _ _ _ r -> max r
     RBEmpty _ -> Native.Error.raise "(max Empty) is not defined"
 
-{-| Lookup the value associated with a key. -}
-lookup : comparable -> Dict comparable v -> Maybe v
-lookup k t =
+{-| Get the value associated with a key.
+
+      animals = fromList [ ("Tom", Cat), ("Jerry", Mouse) ]
+
+      get "Tom"   animals == Cat
+      get "Mouse" animals == Mouse
+      get "Spike" animals -- Runtime Error!
+
+Warning: this function will result in a runtime error if the key is not found,
+so it is best to use `getMaybe` or `getWithDefault` unless you are very
+confident the key will be found.
+-}
+get : comparable -> Dict comparable v -> v
+get k t =
+ case t of
+   RBEmpty LBlack -> Native.Error.raise <| String.concat [ "key ", String.show k, " not found." ]
+   RBNode _ k' v l r ->
+    case Native.Utils.compare k k' of
+      LT -> get k l
+      EQ -> v
+      GT -> get k r
+
+{-| Get the value associated with a key. If the key is not found, return
+`Nothing`. This is useful when you are not sure if a key will be in the
+dictionary.
+
+      animals = fromList [ ("Tom", Cat), ("Jerry", Mouse) ]
+
+      getMaybe "Tom"   animals == Just Cat
+      getMaybe "Mouse" animals == Just Mouse
+      getMaybe "Spike" animals == Nothing
+-}
+getMaybe : comparable -> Dict comparable v -> Maybe v
+getMaybe k t =
  case t of
    RBEmpty LBlack -> Nothing
    RBNode _ k' v l r ->
     case Native.Utils.compare k k' of
-      LT -> lookup k l
+      LT -> getMaybe k l
       EQ -> Just v
-      GT -> lookup k r
+      GT -> getMaybe k r
 
-{-| Find the value associated with a key. If the key is not found,
-return the default value. -}
-findWithDefault : v -> comparable -> Dict comparable v -> v
-findWithDefault base k t =
+{-| Get the value associated with a key. If the key is not found,
+return a default value.
+
+      animals = fromList [ ("Tom", Cat), ("Jerry", Mouse) ]
+
+      getWithDefault Dog "Tom"   animals == Cat
+      getWithDefault Dog "Mouse" animals == Mouse
+      getWithDefault Dog "Spike" animals == Dog
+-}
+getWithDefault : v -> comparable -> Dict comparable v -> v
+getWithDefault base k t =
  case t of
    RBEmpty LBlack -> base
    RBNode _ k' v l r ->
     case Native.Utils.compare k k' of
-      LT -> findWithDefault base k l
+      LT -> getWithDefault base k l
       EQ -> v
-      GT -> findWithDefault base k r
+      GT -> getWithDefault base k r
 
 {-| Determine if a key is in a dictionary. -}
 member : comparable -> Dict comparable v -> Bool
 -- Does t contain k?
-member k t = isJust <| lookup k t
+member k t = isJust <| getMaybe k t
 
 ensureBlackRoot : Dict k v -> Dict k v
 ensureBlackRoot t =
@@ -358,8 +397,10 @@ filter p dict =
   let add k v t = if p k v then insert k v t else t
   in  foldl add empty dict
 
-{-| Partition the Dict according to a predicate. The first Dict contains all
-key-value pairs which satisfy it; the second contains the rest. -}
+{-| Partition a dictionary according to a predicate. The first dictionary
+contains all key-value pairs which satisfy the predicate, and the second
+contains the rest.
+-}
 partition : (comparable -> v -> Bool) -> Dict comparable v -> (Dict comparable v, Dict comparable v)
 partition p dict =
   let add k v (t1, t2) = if p k v

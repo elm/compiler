@@ -2,28 +2,25 @@ module Test.Dict (tests) where
 
 import Dict
 import List
-import Char
 
 import ElmTest.Assertion (..)
 import ElmTest.Test (..)
 
-parseDigit : Char -> Int
-parseDigit ch = Char.toCode ch - 48
-
-dict1List = [(1,'1'),(2,'2'),(3,'3'),(5,'5')]
-
-dict1 : Dict Int Char
-dict1 = Dict.fromList dict1List
-
-dict1Part1 : Dict Int Char
-dict1Part1 = Dict.fromList (take 2 dict1List)
-
-dict1Part2 : Dict Int Char
-dict1Part2 = Dict.fromList (drop 2 dict1List)
+animals : Dict.Dict String String
+animals = Dict.fromList [ ("Tom", "cat"), ("Jerry", "mouse") ]
 
 tests : [Test]
 tests =
-    let
-      filterTests = [assertEqual dict1Part2 <| filter (\v -> parseDigit v > 2) dict1]
-      partitionTests = [assertEqual (dict1Part1, dict1Part2) <| partition (\v -> v != '3' && v != '5') dict1]
-    in List.concat [filterTests, partitionTests]
+  let getTests =
+        [ test "get" <| assertEqual "cat" (Dict.get "Tom" animals)
+        , test "getMaybe 1" <| assertEqual (Just "cat") (Dict.getMaybe "Tom" animals)
+        , test "getMaybe 2" <| assertEqual Nothing (Dict.getMaybe "Spike" animals)
+        , test "getWithDefault 1" <| assertEqual "mouse" (Dict.getWithDefault "dog" "Jerry" animals)
+        , test "getWithDefault 2" <| assertEqual "dog" (Dict.getWithDefault "dog" "Spike" animals)
+        ]
+      filterTests =
+        [ test "filter" <| assertEqual (Dict.singleton "Tom" "cat") (Dict.filter (\k v -> k == "Tom") animals)
+        , test "partition" <| assertEqual (Dict.singleton "Tom" "cat", Dict.singleton "Jerry" "mouse") (Dict.partition (\k v -> k == "Tom") animals)
+        ]
+  in
+      List.concat [ getTests, filterTests ]
