@@ -163,7 +163,13 @@ maximum = foldl1 max
 minimum : [comparable] -> comparable
 minimum = foldl1 min
 
-{-| Split a list based on the predicate. -}
+{-| Partition a list based on a predicate. The first list contains all values
+that satisfy the predicate, and the second list contains all the value that do
+not.
+
+      partition (\x -> x < 3) [0..5] == ([0,1,2], [3,4,5])
+      partition isEven        [0..5] == ([0,2,4], [1,3,5])
+-}
 partition : (a -> Bool) -> [a] -> ([a],[a])
 partition pred lst =
     case lst of
