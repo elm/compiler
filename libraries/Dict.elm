@@ -1,5 +1,5 @@
 module Dict (empty,singleton,insert,update
-            ,get,getMaybe,getWithDefault
+            ,get,getSafe,getUnsafe
             ,remove,member
             ,filter
             ,partition
@@ -87,71 +87,74 @@ max t =
     RBNode _ _ _ _ r -> max r
     RBEmpty _ -> Native.Error.raise "(max Empty) is not defined"
 
-{-| Get the value associated with a key.
-
-      animals = fromList [ ("Tom", Cat), ("Jerry", Mouse) ]
-
-      get "Tom"   animals == Cat
-      get "Mouse" animals == Mouse
-      get "Spike" animals -- Runtime Error!
-
-Warning: this function will result in a runtime error if the key is not found,
-so it is best to use `getMaybe` or `getWithDefault` unless you are very
-confident the key will be found.
--}
-get : comparable -> Dict comparable v -> v
-get k t =
- case t of
-   RBEmpty LBlack -> Native.Error.raise <| String.concat [ "key ", String.show k, " not found." ]
-   RBNode _ k' v l r ->
-    case Native.Utils.compare k k' of
-      LT -> get k l
-      EQ -> v
-      GT -> get k r
-
 {-| Get the value associated with a key. If the key is not found, return
 `Nothing`. This is useful when you are not sure if a key will be in the
 dictionary.
 
       animals = fromList [ ("Tom", Cat), ("Jerry", Mouse) ]
 
-      getMaybe "Tom"   animals == Just Cat
-      getMaybe "Mouse" animals == Just Mouse
-      getMaybe "Spike" animals == Nothing
+      get "Tom"   animals == Just Cat
+      get "Mouse" animals == Just Mouse
+      get "Spike" animals == Nothing
+
+The `getSafe` and `getUnsafe` are built-in ways to handle common ways of
+using the resulting `Maybe`.
 -}
-getMaybe : comparable -> Dict comparable v -> Maybe v
-getMaybe k t =
+get : comparable -> Dict comparable v -> Maybe v
+get k t =
  case t of
    RBEmpty LBlack -> Nothing
    RBNode _ k' v l r ->
     case Native.Utils.compare k k' of
-      LT -> getMaybe k l
+      LT -> get k l
       EQ -> Just v
-      GT -> getMaybe k r
+      GT -> get k r
 
 {-| Get the value associated with a key. If the key is not found,
 return a default value.
 
       animals = fromList [ ("Tom", Cat), ("Jerry", Mouse) ]
 
-      getWithDefault Dog "Tom"   animals == Cat
-      getWithDefault Dog "Mouse" animals == Mouse
-      getWithDefault Dog "Spike" animals == Dog
+      getSafe Dog "Tom"   animals == Cat
+      getSafe Dog "Mouse" animals == Mouse
+      getSafe Dog "Spike" animals == Dog
 -}
-getWithDefault : v -> comparable -> Dict comparable v -> v
-getWithDefault base k t =
+getSafe : v -> comparable -> Dict comparable v -> v
+getSafe base k t =
  case t of
    RBEmpty LBlack -> base
    RBNode _ k' v l r ->
     case Native.Utils.compare k k' of
-      LT -> getWithDefault base k l
+      LT -> getSafe base k l
       EQ -> v
-      GT -> getWithDefault base k r
+      GT -> getSafe base k r
+
+{-| Get the value associated with a key.
+
+      animals = fromList [ ("Tom", Cat), ("Jerry", Mouse) ]
+
+      get "Tom"   animals == Cat
+      get "Mouse" animals == Mouse
+      get "Spike" animals == -- Runtime Error!
+
+Warning: this function will result in a runtime error if the key is not found,
+so it is best to use `get` or `getSafe` unless you are very confident the key
+will be found.
+-}
+getUnsafe : comparable -> Dict comparable v -> v
+getUnsafe k t =
+ case t of
+   RBEmpty LBlack -> Native.Error.raise <| String.concat [ "key ", String.show k, " not found." ]
+   RBNode _ k' v l r ->
+    case Native.Utils.compare k k' of
+      LT -> getUnsafe k l
+      EQ -> v
+      GT -> getUnsafe k r
 
 {-| Determine if a key is in a dictionary. -}
 member : comparable -> Dict comparable v -> Bool
 -- Does t contain k?
-member k t = isJust <| getMaybe k t
+member k t = isJust <| get k t
 
 ensureBlackRoot : Dict k v -> Dict k v
 ensureBlackRoot t =

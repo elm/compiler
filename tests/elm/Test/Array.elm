@@ -24,12 +24,12 @@ tests =
                       , test "push" <| assertEqual (Array.push 3 (Array.fromList [1,2])) (Array.fromList [1,2,3])
                       , test "append" <| assertEqual (Array.toList <| Array.append (Array.repeat 2 42) (Array.repeat 3 81)) ([42,42,81,81,81])
                       ]
-        getAndSetTests = [ test "get" <| assertEqual (Array.get 2 (Array.fromList [3,2,1])) 1
-                         , test "getMaybe" <| assertEqual (Array.getMaybe 1 (Array.fromList [3,2,1])) (Just 2)
-                         , test "getMaybe 2" <| assertEqual (Array.getMaybe 5 (Array.fromList [3,2,1])) Nothing
-                         , test "getMaybe 3" <| assertEqual (Array.getMaybe -1 (Array.fromList [3,2,1])) Nothing
-                         , test "getWithDefault" <| assertEqual (Array.getWithDefault 0 2 (Array.fromList [3,2,1])) 1
-                         , test "getWithDefault 2" <| assertEqual (Array.getWithDefault 0 5 (Array.fromList [3,2,1])) 0
+        getAndSetTests = [ test "get" <| assertEqual (Array.get 1 (Array.fromList [3,2,1])) (Just 2)
+                         , test "get 2" <| assertEqual (Array.get 5 (Array.fromList [3,2,1])) Nothing
+                         , test "get 3" <| assertEqual (Array.get -1 (Array.fromList [3,2,1])) Nothing
+                         , test "getSafe 1" <| assertEqual (Array.getSafe 0 2 (Array.fromList [3,2,1])) 1
+                         , test "getSafe 2" <| assertEqual (Array.getSafe 0 5 (Array.fromList [3,2,1])) 0
+                         , test "getUnsafe" <| assertEqual (Array.getUnsafe 2 (Array.fromList [3,2,1])) 1
                          , test "set" <| assertEqual (Array.set 1 7 (Array.fromList [1,2,3])) (Array.fromList [1,7,3])
                          ]
         takingArraysApartTests = [ test "toList" <| assertEqual (Array.toList (Array.fromList [3,5,8])) [3,5,8]
