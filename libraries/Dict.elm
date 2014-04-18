@@ -37,7 +37,6 @@ import Basics (..)
 import Maybe (..)
 import Native.Error
 import List
-import String
 import Native.Utils
 
 -- BBlack and NBlack should only be used during the deletion
@@ -144,7 +143,7 @@ will be found.
 getUnsafe : comparable -> Dict comparable v -> v
 getUnsafe k t =
  case t of
-   RBEmpty LBlack -> Native.Error.raise <| String.concat [ "key ", String.show k, " not found." ]
+   RBEmpty LBlack -> Native.Error.raise "key not found when using 'getUnsafe'"
    RBNode _ k' v l r ->
     case Native.Utils.compare k k' of
       LT -> getUnsafe k l
