@@ -36,11 +36,11 @@ Elm.Native.Time.make = function(elm) {
 
   function every(t) {
     var clock = NS.input(Date.now());
-    var id = elm.runDelayed(function tellTime() {
-            if (elm.notify(clock.id, Date.now())) {
-                elm.runDelayed(tellTime, t);
-            }
-        }, t);
+    function tellTime() {
+        elm.notify(clock.id, Date.now());
+        elm.runDelayed(tellTime, t);
+    }
+    elm.runDelayed(tellTime, t);
     return clock;
   }
 
