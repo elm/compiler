@@ -11,7 +11,7 @@ reads, updates, and appends.
 @docs length, push, append
 
 # Get and Set
-@docs get, getMaybe, getWithDefault, set
+@docs get, getSafe, getUnsafe, set
 
 # Taking Arrays Apart
 @docs toList, toIndexedList, slice
@@ -82,19 +82,29 @@ map = Native.Array.map
 indexedMap : (Int -> a -> b) -> Array a -> Array b
 indexedMap = Native.Array.indexedMap
 
-{-| Reduce an array from the left.
+{-| Reduce an array from the left. Read `foldl` as &ldquo;fold from the left&rdquo;.
 
       foldl (::) [] (fromList [1,2,3]) == [3,2,1]
 -}
 foldl : (a -> b -> b) -> b -> Array a -> b
 foldl = Native.Array.foldl
 
-{-| Reduce an array from the right.
+{-| Reduce an array from the right. Read `foldr` as &ldquo;fold from the right&rdquo;.
 
       foldr (+) 0 (repeat 3 5) == 15
 -}
 foldr : (a -> b -> b) -> b -> Array a -> b
 foldr = Native.Array.foldr
+
+{-| Keep only elements that satisfy the predicate:
+
+      filter isEven (fromList [1..6]) == (fromList [2,4,6])
+-}
+filter : (a -> Bool) -> Array a -> Array a
+filter isOkay arr =
+    let update x xs = if isOkay x then Native.Array.push x xs else xs
+    in
+        Native.Array.foldl update Native.Array.empty arr
 
 {-| Return an empty array.
 
@@ -110,22 +120,25 @@ empty = Native.Array.empty
 push : a -> Array a -> Array a
 push = Native.Array.push
 
-{-| Return the element at the index. Breaks, if index is out of range. If the
-array length is unkown, use withDefaultGet oder getWithDefault.
+{-| Get the element at a particular index.
 
-      get 2 (A.fromList [3,2,1]) == 1
+      getUnsafe 2 (A.fromList [3,2,1]) == 1
+
+Warning: this function will result in a runtime error if the index is not found,
+so it is best to use `get` or `getSafe` unless you are very confident the index
+will be found.
 -}
-get : Int -> Array a -> a
-get = Native.Array.get
+getUnsafe : Int -> Array a -> a
+getUnsafe = Native.Array.get
 
 {-| Return Just the element at the index or Nothing if the index is out of range.
 
-      getMaybe  2 (fromList [3,2,1]) == Just 2
-      getMaybe  5 (fromList [3,2,1]) == Nothing
-      getMaybe -1 (fromList [3,2,1]) == Nothing
+      get  2 (fromList [3,2,1]) == Just 2
+      get  5 (fromList [3,2,1]) == Nothing
+      get -1 (fromList [3,2,1]) == Nothing
 -}
-getMaybe : Int -> Array a -> Maybe a
-getMaybe i array =
+get : Int -> Array a -> Maybe a
+get i array =
     if 0 <= i && i < Native.Array.length array
       then Just (Native.Array.get i array)
       else Nothing
@@ -133,11 +146,11 @@ getMaybe i array =
 {-| Get the element at the index. If the index is out of range, the given default
 element is returned.
 
-      getWithDefault 0 2 (fromList [3,2,1]) == 1
-      getWithDefault 0 5 (fromList [3,2,1]) == 0
+      getSafe 0 2 (fromList [3,2,1]) == 1
+      getSafe 0 5 (fromList [3,2,1]) == 0
 -}
-getWithDefault : a -> Int -> Array a -> a
-getWithDefault default i array =
+getSafe : a -> Int -> Array a -> a
+getSafe default i array =
     if 0 <= i && i < Native.Array.length array
       then Native.Array.get i array
       else default

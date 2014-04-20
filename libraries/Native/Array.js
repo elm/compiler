@@ -242,14 +242,14 @@ Elm.Native.Array.make = function(elm) {
     }
 
     function foldl(f, b, a) {
-      for (var i = a.table.length - 1; i >= 0; i--) {
+      for (var i = 0; i < a.table.length; i++) {
         b = A2(f, a.height == 0 ? a.table[i] : foldl(f, b, a.table[i]), b);
       }
       return b;
     }
 
     function foldr(f, b, a) {
-      for (var i = 0; i < a.table.length; i++) {
+      for (var i = a.table.length; i--; ) {
         b = A2(f, a.height == 0 ? a.table[i] : foldr(f, b, a.table[i]), b);
       }
       return b;
