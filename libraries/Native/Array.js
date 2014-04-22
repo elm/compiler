@@ -34,12 +34,20 @@ Elm.Native.Array.make = function(elm) {
     }
 
     function unsafeGet(i, array) {
-        if (array.height == 0) {
-            return array.table[i];
+      var slotSize = Math.pow(M, array.height);
+
+      while (true) {
+        var slot = Math.floor(i / slotSize);
+        while (array.lengths[slot] <= i) {
+          slot++;
         }
-        var slot = getSlot(i, array);
-        var offset = slot > 0 ? array.lengths[slot-1] : 0;
-        return unsafeGet(i - offset, array.table[slot]);
+        i -= slot > 0 ? array.lengths[slot - 1] : 0;
+        array = array.table[slot];
+        if (array.height == 0) {
+          return array.table[i];
+        }
+        slotSize /= M;
+      }
     }
 
     // Sets the value at the index i. Only the nodes leading to i will get
