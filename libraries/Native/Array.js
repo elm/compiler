@@ -49,7 +49,6 @@ Elm.Native.Array.make = function(elm) {
         return a;
       }
       var newA = nodeCopy(a);
-      newA.table = a.table.slice();
 
       if (a.height == 0) {
         newA.table[i] = item;
