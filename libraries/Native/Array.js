@@ -36,10 +36,8 @@ Elm.Native.Array.make = function(elm) {
     function unsafeGet(i, array) {
       for (var x = array.height; x > 0; x--) {
         var slot = Math.floor(i / cache[x]);
-        while (array.lengths[slot] <= i) {
-          slot++;
-        }
-        i -= slot > 0 ? array.lengths[slot - 1] : 0;
+        while (array.lengths[slot] <= i) { slot++; }
+        if (slot > 0) { i -= array.lengths[slot - 1]; }
         array = array.table[slot];
       }
       return array.table[i];
