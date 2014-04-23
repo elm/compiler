@@ -24,7 +24,6 @@ Elm.Native.Array.make = function(elm) {
     // An empty array.
     var empty = { ctor:"_Array", height:0, table:new Array() };
 
-    // Gets the value at index i recursively.
     function get(i, array) {
         if (i < 0 || i >= length(array)) {
             throw new Error("Index " + i + " is out of range. Check the length of " +
