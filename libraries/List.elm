@@ -108,6 +108,15 @@ scanl1 = Native.List.scanl1
 filter : (a -> Bool) -> [a] -> [a]
 filter = Native.List.filter
 
+{-| Find an elment of a list if it's there
+`(find (\x -> x == 20) [10, 20, 15, 40] == Just 20)`
+-}
+find : (a -> Bool) -> [a] -> Maybe a
+find p l =
+    case l of
+      [] -> Nothing
+      h::t -> if p h then Just h else find p t
+
 {-| Determine the length of a list: `(length [1,2,3] == 3)` -}
 length : [a] -> Int
 length = Native.List.length
@@ -215,7 +224,7 @@ join = Native.List.join
 -}
 intersperse : a -> [a] -> [a]
 intersperse sep xs =
-  case xs of 
+  case xs of
     a::b::cs -> a :: sep :: intersperse sep (b::cs)
     [a] -> [a]
     []  -> []
