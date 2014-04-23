@@ -54,17 +54,19 @@ Elm.Native.Array.make = function(elm) {
       return unsafeSet(i, item, array);
     }
 
-    function unsafeSet(i, item, a) {
-      var newA = nodeCopy(a);
+    function unsafeSet(i, item, array) {
+      array = nodeCopy(array);
 
-      if (a.height == 0) {
-        newA.table[i] = item;
+      if (array.height == 0) {
+        array.table[i] = item;
       } else {
-        var slot = getSlot(i, a);
-        var sub = slot > 0 ? a.lengths[slot-1] : 0;
-        newA.table[slot] = unsafeSet(i - sub, item, a.table[slot]);
+        var slot = getSlot(i, array);
+        if (slot > 0) {
+          i -= array.lengths[slot - 1];
+        }
+        array.table[slot] = unsafeSet(i, item, array.table[slot]);
       }
-      return newA;
+      return array;
     }
 
     function initialize(len, f) {
