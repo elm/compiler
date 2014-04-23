@@ -47,10 +47,14 @@ Elm.Native.Array.make = function(elm) {
 
     // Sets the value at the index i. Only the nodes leading to i will get
     // copied and updated.
-    function set(i, item, a) {
-      if (length(a) <= i) {
-        return a;
+    function set(i, item, array) {
+      if (i < 0 || length(array) <= i) {
+        return array;
       }
+      return unsafeSet(i, item, array);
+    }
+
+    function unsafeSet(i, item, a) {
       var newA = nodeCopy(a);
 
       if (a.height == 0) {
@@ -58,7 +62,7 @@ Elm.Native.Array.make = function(elm) {
       } else {
         var slot = getSlot(i, a);
         var sub = slot > 0 ? a.lengths[slot-1] : 0;
-        newA.table[slot] = set(i - sub, item, a.table[slot]);
+        newA.table[slot] = unsafeSet(i - sub, item, a.table[slot]);
       }
       return newA;
     }
