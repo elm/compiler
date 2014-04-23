@@ -539,10 +539,8 @@ Elm.Native.Array.make = function(elm) {
     // Calculates in which slot of "table" the item probably is, then
     // find the exact slot via forward searching in  "lengths". Returns the index.
     function getSlot(i, a) {
-      var slot = i << (5 * a.height);
-      while (a.lengths[slot - 1] > i) {
-        slot++;
-      }
+      var slot = i >> (5 * a.height);
+      while (a.lengths[slot - 1] > i) { slot--; }
       return slot;
     }
 
