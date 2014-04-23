@@ -37,7 +37,7 @@ Elm.Native.Array.make = function(elm) {
       for (var x = array.height; x > 0; x--) {
         var slot = i >> (x * 5);
         if (slot > 0) {
-          while (array.lengths[slot - 1] >= i) { slot--; }
+          while (array.lengths[slot - 1] > i) { slot--; }
           i -= array.lengths[slot - 1];
         }
         array = array.table[slot];
@@ -542,7 +542,7 @@ Elm.Native.Array.make = function(elm) {
     // find the exact slot via forward searching in  "lengths". Returns the index.
     function getSlot(i, a) {
       var slot = i >> (5 * a.height);
-      while (a.lengths[slot - 1] >= i) { slot--; }
+      while (a.lengths[slot - 1] > i) { slot--; }
       return slot;
     }
 
