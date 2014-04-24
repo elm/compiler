@@ -16,8 +16,14 @@ import Test.Set as Set
 import Test.String as String
 import Test.Trampoline as Trampoline
 
-tests : [Test]
-tests = String.tests ++ Trampoline.tests ++ Array.tests ++ Dict.tests ++ Set.tests ++ List.tests
+tests : Test
+tests = Suite "Elm Standard Library Tests" [ List.tests,
+                                             String.tests, 
+                                             Trampoline.tests,
+                                             Array.tests,
+                                             Dict.tests,
+                                             Set.tests
+                                           ]
 
 console : IO ()
 console = runDisplay tests
