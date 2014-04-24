@@ -22,14 +22,14 @@ tests =
              ]
       unzipTests = [
        test "unzip doc check" <| assertEqual ([0,17,1337],[True,False,True]) (unzip [(0, True), (17, False), (1337, True)]),
-       let n = 1000000
+       let n = 100000
            ts = repeat n True
            fs = repeat n False
        in test "unzip stress test" <| assertEqual (ts, fs) (unzip (zip ts fs))
       ]
       intersperseTests = [
        test "intersperse doc check" <| assertEqual ["turtles","on","turtles","on","turtles"] (intersperse "on" ["turtles","turtles","turtles"]),
-       let n = 1000000
+       let n = 100000
            ts = repeat n True
            fs = repeat n False
        in test "intersperse stress test" <| assertEqual (tail . List.concat <| zipWith (\x y -> [x,y]) fs ts)
