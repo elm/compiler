@@ -170,8 +170,9 @@ not.
       partition (\x -> x < 3) [0..5] == ([0,1,2], [3,4,5])
       partition isEven        [0..5] == ([0,2,4], [1,3,5])
 -}
+-- | TODO: foldify
 partition : (a -> Bool) -> [a] -> ([a],[a])
-partition pred lst =
+partition pred lst = 
     case lst of
       []    -> ([],[])
       x::xs -> let (bs,cs) = partition pred xs in
@@ -194,7 +195,10 @@ If one list is longer, the extra elements are dropped.
 zipWith : (a -> b -> c) -> [a] -> [b] -> [c]
 zipWith = Native.List.zipWith
 
-{-| Decompose a list of tuples. -}
+{-| Decompose a list of tuples. 
+      unzip [(0, True), (17, False), (1337, True)] == ([0,17,1337], [True,False,True])
+-}
+-- | TODO: foldify
 unzip : [(a,b)] -> ([a],[b])
 unzip pairs =
   case pairs of
@@ -213,6 +217,7 @@ join = Native.List.join
 
       intersperse "on" ["turtles","turtles","turtles"] == ["turtles","on","turtles","on","turtles"]
 -}
+-- | TODO: foldify
 intersperse : a -> [a] -> [a]
 intersperse sep xs =
   case xs of 
