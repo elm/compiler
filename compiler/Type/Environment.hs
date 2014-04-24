@@ -12,8 +12,9 @@ import qualified Data.Map as Map
 import Data.List (isPrefixOf)
 import qualified Text.PrettyPrint as PP
 
-import qualified AST.Type as Src
-import AST.Module (ADT, Alias)
+import AST.Module (ADTs)
+import qualified AST.Type as T
+import qualified AST.Variable as V
 import Type.Type
 
 type TypeDict = Map.Map String Type
@@ -21,32 +22,27 @@ type VarDict = Map.Map String Variable
 
 data Environment = Environment {
   constructor :: Map.Map String (IO (Int, [Variable], [Type], Type)),
-  aliases :: Map.Map String ([String], Src.Type),
   types :: TypeDict,
   value :: TypeDict
 }
 
-initialEnvironment :: [ADT] -> [Alias] -> IO Environment
-initialEnvironment datatypes aliases = do
+initialEnvironment :: ADTs -> IO Environment
+initialEnvironment datatypes = do
     types <- makeTypes datatypes
-    let aliases' = Map.fromList $ map (\(a,b,c) -> (a,(b,c))) aliases
-        env = Environment {
-                constructor = Map.empty,
-                value = Map.empty,
-                types = types,
-                aliases = aliases' }
-
+    let env = Environment
+              { constructor = Map.empty
+              , value = Map.empty
+              , types = types
+              }
     return $ env { constructor = makeConstructors env datatypes }
 
-makeTypes :: [ADT] -> IO TypeDict
-makeTypes datatypes = 
-    Map.fromList <$> mapM makeCtor (builtins ++ map nameAndKind datatypes)
+makeTypes :: ADTs -> IO TypeDict
+makeTypes datatypes =
+  do adts <- Traverse.sequence (Map.mapWithKey make datatypes)
+     bs   <- Map.fromList . zip (map fst builtins) <$> mapM (uncurry make) builtins
+     return (Map.union adts bs)
   where
-    nameAndKind (name, tvars, _) = (name, length tvars)
-
-    makeCtor (name, _) = do
-      ctor <- VarN <$> namedVar Constant name
-      return (name, ctor)
+    make name _ = VarN <$> namedVar Constant name
 
     tuple n = ("_Tuple" ++ show n, n)
 
@@ -60,7 +56,7 @@ makeTypes datatypes =
 
 
 makeConstructors :: Environment
-                 -> [ADT]
+                 -> ADTs
                  -> Map.Map String (IO (Int, [Variable], [Type], Type))
 makeConstructors env datatypes = Map.fromList builtins
   where
@@ -80,23 +76,23 @@ makeConstructors env datatypes = Map.fromList builtins
     builtins = [ ("[]", inst 1 $ \ [t] -> ([], list t))
                , ("::", inst 1 $ \ [t] -> ([t, list t], list t))
                ] ++ map tupleCtor [0..9]
-                 ++ concatMap (ctorToType env) datatypes
+                 ++ concatMap (ctorToType env) (Map.toList datatypes)
 
 
-ctorToType :: Environment -> ADT -> [ (String, IO (Int, [Variable], [Type], Type)) ]
-ctorToType env (name, tvars, ctors) =
+--ctorToType :: Environment -> ADT -> [ (String, IO (Int, [Variable], [Type], Type)) ]
+ctorToType env (name, (tvars, ctors)) =
     zip (map fst ctors) (map inst ctors)
   where
-    inst :: (String, [Src.Type]) -> IO (Int, [Variable], [Type], Type)
+    inst :: (String, [T.CanonicalType]) -> IO (Int, [Variable], [Type], Type)
     inst ctor = do
-      ((args, tipe), (dict,_)) <- State.runStateT (go ctor) (Map.empty, Map.empty)
+      ((args, tipe), dict) <- State.runStateT (go ctor) Map.empty
       return (length args, Map.elems dict, args, tipe)
       
 
-    go :: (String, [Src.Type]) -> State.StateT (VarDict, TypeDict) IO ([Type], Type)
+    go :: (String, [T.CanonicalType]) -> State.StateT VarDict IO ([Type], Type)
     go (_, args) = do
       types <- mapM (instantiator env) args
-      returnType <- instantiator env (Src.Data name (map Src.Var tvars))
+      returnType <- instantiator env (T.Data (error "name") (map T.Var tvars))
       return (types, returnType)
 
 
@@ -112,30 +108,28 @@ freshDataScheme env name = get env constructor name
 instance ErrorList PP.Doc where
   listMsg str = [PP.text str]
 
-instantiateType :: Environment -> Src.Type -> VarDict -> ErrorT [PP.Doc] IO ([Variable], Type)
+instantiateType :: Environment -> T.CanonicalType -> VarDict -> ErrorT [PP.Doc] IO ([Variable], Type)
 instantiateType env sourceType dict =
-  do result <- liftIO $ try (State.runStateT (instantiator env sourceType) (dict, Map.empty))
-     case result :: Either SomeException (Type, (VarDict, TypeDict)) of
+  do result <- liftIO $ try (State.runStateT (instantiator env sourceType) dict)
+     case result :: Either SomeException (Type, VarDict) of
        Left someError -> throwError [ PP.text $ show someError ]
-       Right (tipe, (dict',_)) -> return (Map.elems dict', tipe)
+       Right (tipe, dict') -> return (Map.elems dict', tipe)
 
-instantiator :: Environment -> Src.Type
-             -> State.StateT (VarDict, TypeDict) IO Type
+instantiator :: Environment -> T.CanonicalType -> State.StateT VarDict IO Type
 instantiator env sourceType = go sourceType
   where
-    go :: Src.Type -> State.StateT (VarDict, TypeDict) IO Type
+    go :: T.CanonicalType -> State.StateT VarDict IO Type
     go sourceType =
       case sourceType of
-        Src.Lambda t1 t2 -> (==>) <$> go t1 <*> go t2
+        T.Lambda t1 t2 -> (==>) <$> go t1 <*> go t2
 
-        Src.Var x -> do
-          (dict, aliases) <- State.get
-          case (Map.lookup x dict, Map.lookup x aliases) of
-            (_, Just t) -> return t
-            (Just v, _) -> return (VarN v)
-            _ ->
+        T.Var x -> do
+          dict <- State.get
+          case Map.lookup x dict of
+            Just v -> return (VarN v)
+            Nothing ->
                 do var <- State.liftIO $ namedVar flex x
-                   State.put (Map.insert x var dict, aliases)
+                   State.put (Map.insert x var dict)
                    return (VarN var)
                 where
                   flex | "number"     `isPrefixOf` x = Is Number
@@ -143,28 +137,16 @@ instantiator env sourceType = go sourceType
                        | "appendable" `isPrefixOf` x = Is Appendable
                        | otherwise = Flexible
 
-        Src.Data name ts -> do
+        T.Data name ts -> do
           ts' <- mapM go ts
-          case (Map.lookup name (types env), Map.lookup name (aliases env)) of
-            (Just t, _) -> return $ foldl (<|) t ts'
-            (_, Just (tvars, t)) ->
-                let tvarLen = length tvars
-                    msg = "\nType alias '" ++ name ++ "' expects " ++ show tvarLen ++
-                          " type argument" ++ (if tvarLen == 1 then "" else "s") ++
-                          " but was given " ++ show (length ts')
-                in  if length ts' /= length tvars then error msg else
-                        do (dict, aliases) <- State.get
-                           let aliases' = Map.union (Map.fromList $ zip tvars ts') aliases
-                           State.put (dict, aliases')
-                           t' <- go t
-                           State.put (dict, aliases)
-                           return t'
-            _ -> error $ "\nCould not find type constructor '" ++
-                         name ++ "' while checking types."
+          case Map.lookup (V.toString name) (types env) of
+            Just t -> return $ foldl (<|) t ts'
+            Nothing -> error $ "\nCould not find type constructor '" ++
+                               V.toString name ++ "' while checking types."
 
-        Src.Record fields ext -> do
-          fields' <- Traverse.traverse (mapM go) (Src.fieldMap fields)
+        T.Record fields ext -> do
+          fields' <- Traverse.traverse (mapM go) (T.fieldMap fields)
           ext' <- case ext of
                     Nothing -> return $ TermN EmptyRecord1
-                    Just x -> go (Src.Var x)
+                    Just x -> go x
           return $ TermN (Record1 fields' ext')
