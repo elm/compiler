@@ -10,11 +10,12 @@ import qualified Data.List as List
 import AST.Type
 import AST.Module
 
-type Rules = ([Alias], Type -> Type)
+type Rules = (Aliases, CanonicalType -> CanonicalType)
 
 rules interfaces moduleAliases moduleImports =
-    (collect interfaces moduleAliases, localizer moduleImports)
-
+    (error "Type.Alias.rules is not defined")
+    --(collect interfaces moduleAliases, localizer moduleImports)
+{--
 collect interfaces moduleAliases =
     filter (not . isPrimitive) rawAliases
     where
@@ -25,7 +26,8 @@ collect interfaces moduleAliases =
           case tipe of
           Data _ [] -> True
           _ -> False
-
+--}
+{--
 localizer moduleImports = go
   where
     go tipe =
@@ -56,14 +58,18 @@ localizer moduleImports = go
           Hiding xs | name `notElem` xs -> [name]
           Importing xs | name `elem` xs -> [name]
           _ -> []
-
-realias :: Rules -> Type -> Type
-realias (aliases,localize) tipe = localize (canonicalRealias aliases tipe)
+--}
+realias :: Rules -> CanonicalType -> CanonicalType
+realias (aliases,localize) tipe =
+    (error "Type.Alias.realias is not defined")
+    -- localize (canonicalRealias aliases tipe)
 
 -- Realias using canonical aliases, so results will have aliases
 -- that are fully qualified and possible to compare.
-canonicalRealias :: [Alias] -> Type -> Type
+canonicalRealias :: Aliases -> CanonicalType -> CanonicalType
 canonicalRealias aliases tipe =
+    (error "Type.Alias.rules is not defined")
+{--
     case concatMap tryRealias aliases of
       [] -> if tipe == tipe' then tipe else f tipe'
       tipes -> f (bestType tipes)
@@ -86,10 +92,12 @@ canonicalRealias aliases tipe =
           Lambda t1 t2 -> Lambda (f t1) (f t2)
           Data name ts -> Data name (map f ts)
           Record fs ext -> Record (map (second f) fs) ext
+--}
 
 allEqual [] = True
 allEqual (x:xs) = all (==x) xs
 
+{--
 bestType tipes = fst $ List.minimumBy (\a b -> compare (snd a) (snd b)) pairs
     where
       pairs :: [(Type,Int)]
@@ -103,7 +111,7 @@ bestType tipes = fst $ List.minimumBy (\a b -> compare (snd a) (snd b)) pairs
             Data _ ts -> sum (map numFields ts)
             Record fields _ -> length fields + sum (map (numFields . snd) fields)
 
-diff :: Type -> Type -> Maybe [(String,Type)]
+diff :: CanonicalType -> CanonicalType -> Maybe [(String,CanonicalType)]
 diff general specific =
     case (general, specific) of
       (Lambda g1 g2, Lambda s1 s2) -> (++) <$> diff g1 s1 <*> diff g2 s2
@@ -137,3 +145,4 @@ collectFields fields =
 
 flattenFields fields =
     concatMap (\(f,ts) -> map ((,) f) ts) (Map.toList fields)
+--}

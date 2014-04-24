@@ -1,8 +1,8 @@
 {-# OPTIONS_GHC -W #-}
 module Type.Constrain.Literal where
 
-import SourceSyntax.Annotation
-import SourceSyntax.Literal
+import AST.Annotation
+import AST.Literal
 import Type.Type
 import Type.Environment as Env
 

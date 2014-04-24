@@ -5,11 +5,11 @@ import qualified Data.Map as Map
 import System.FilePath as FP
 import Text.PrettyPrint (Doc)
 
-import SourceSyntax.Declaration
-import SourceSyntax.Module
-import qualified SourceSyntax.Expression as Expr
-import qualified SourceSyntax.Pattern as Pattern
-import qualified SourceSyntax.Type as Type
+import AST.Declaration
+import AST.Module
+import qualified AST.Expression.General as Expr
+import qualified AST.Pattern as Pattern
+import qualified AST.Type as Type
 import qualified Parse.Parse as Parse
 import qualified Metadata.Prelude as Prelude
 import qualified Transform.Check as Check

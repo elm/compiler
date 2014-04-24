@@ -23,7 +23,7 @@ import qualified Build.Source           as Source
 import qualified Build.Utils            as Utils
 import qualified Generate.JavaScript    as JS
 import qualified Parse.Module           as Parser
-import qualified SourceSyntax.Module    as M
+import qualified AST.Module             as M
 import qualified Transform.Canonicalize as Canonical
 
 -- Reader: Runtime flags, always accessible

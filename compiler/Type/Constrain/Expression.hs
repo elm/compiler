@@ -8,12 +8,12 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Text.PrettyPrint as PP
 
-import SourceSyntax.Literal as Lit
-import SourceSyntax.Annotation as Ann
-import SourceSyntax.Expression
-import qualified SourceSyntax.Pattern as P
-import qualified SourceSyntax.Type as ST
-import qualified SourceSyntax.Variable as V
+import AST.Literal as Lit
+import AST.Annotation as Ann
+import AST.Expression.General
+import qualified AST.Pattern as P
+import qualified AST.Type as ST
+import qualified AST.Variable as V
 import Type.Type hiding (Descriptor(..))
 import Type.Fragment
 import qualified Type.Environment as Env

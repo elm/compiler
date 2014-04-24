@@ -9,9 +9,9 @@ import Control.Monad.Error
 import qualified Data.Map as Map
 import qualified Text.PrettyPrint as PP
 
-import qualified SourceSyntax.Annotation as A
-import qualified SourceSyntax.Pattern as P
-import SourceSyntax.PrettyPrint (pretty)
+import qualified AST.Annotation as A
+import qualified AST.Pattern as P
+import AST.PrettyPrint (pretty)
 import Type.Type
 import Type.Fragment
 import Type.Environment as Env

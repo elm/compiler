@@ -7,8 +7,8 @@ import qualified Data.Map as Map
 import qualified Data.Traversable as Traversable
 import qualified Data.UnionFind.IO as UF
 
-import qualified SourceSyntax.Annotation as A
-import SourceSyntax.PrettyPrint
+import qualified AST.Annotation as A
+import AST.PrettyPrint
 import Text.PrettyPrint as P
 import qualified Type.Alias as Alias
 import Type.Type

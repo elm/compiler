@@ -11,7 +11,7 @@ import Type.Type
 import Type.Unify
 import qualified Type.ExtraChecks as Check
 import qualified Type.State as TS
-import qualified SourceSyntax.Annotation as A
+import qualified AST.Annotation as A
 
 
 -- | Every variable has rank less than or equal to the maxRank of the pool.

@@ -8,9 +8,9 @@ import qualified Type.Environment as Env
 import qualified Type.Constrain.Expression as TcExpr
 import qualified Type.Solve as Solve
 
-import SourceSyntax.Module as Module
-import SourceSyntax.Annotation (noneNoDocs)
-import SourceSyntax.Type (Type)
+import AST.Module as Module
+import AST.Annotation (noneNoDocs)
+import AST.Type (Type)
 import Text.PrettyPrint
 import qualified Type.State as TS
 import qualified Type.ExtraChecks as Check

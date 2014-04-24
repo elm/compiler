@@ -11,9 +11,10 @@ import Control.Applicative ((<$>),(<*>))
 import Control.Monad.State
 import Control.Monad.Error
 import Data.Traversable (traverse)
-import SourceSyntax.Annotation
-import SourceSyntax.Helpers (isTuple)
-import qualified SourceSyntax.Type as Src
+import AST.Annotation
+import AST.Helpers (isTuple)
+import qualified AST.Type as T
+import qualified AST.Variable as Var
 
 data Term1 a
     = App1 a a
@@ -359,31 +360,31 @@ instance Crawl Descriptor where
     return $ desc { name = name', structure = structure' }
 
                
-toSrcType :: Variable -> IO Src.Type
+toSrcType :: Variable -> IO T.CanonicalType
 toSrcType variable = do
   desc <- UF.descriptor =<< addNames variable
   case structure desc of
     Just term ->
         case term of
           App1 a b -> do
-            Src.Data name ts <- toSrcType a
+            T.Data name ts <- toSrcType a
             b' <- toSrcType b
-            return (Src.Data name (ts ++ [b']))
-          Fun1 a b -> Src.Lambda <$> toSrcType a <*> toSrcType b
+            return (T.Data name (ts ++ [b']))
+          Fun1 a b -> T.Lambda <$> toSrcType a <*> toSrcType b
           Var1 a -> toSrcType a
-          EmptyRecord1 -> return $ Src.Record [] Nothing
+          EmptyRecord1 -> return $ T.Record [] Nothing
           Record1 tfields extension -> do
             fields' <- traverse (mapM toSrcType) tfields
             let fields = concat [ map ((,) name) ts | (name,ts) <- Map.toList fields' ]
             ext' <- toSrcType extension
             return $ case ext' of
-                       Src.Record fs ext -> Src.Record (fs ++ fields) ext
-                       Src.Var x -> Src.Record fields (Just x)
+                       T.Record fs ext -> T.Record (fs ++ fields) ext
+                       T.Var x -> T.Record fields (Just ext')
                        _ -> error "Used toSrcType on a type that is not well-formed"
     Nothing ->
         case name desc of
-          Just x@(c:_) | Char.isLower c -> return (Src.Var x)
-                       | otherwise      -> return (Src.Data x [])
+          Just x@(c:_) | Char.isLower c -> return (T.Var x)
+                       | otherwise      -> return (T.Data (Var.Canonical (error "did not finish converting toSrcType") x) [])
           _ -> error $ concat
                         [ "Problem converting the following type "
                         , "from a type-checker type to a source-syntax type:"

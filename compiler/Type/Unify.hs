@@ -5,7 +5,7 @@ import Control.Monad.State
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.UnionFind.IO as UF
-import qualified SourceSyntax.Annotation as A
+import qualified AST.Annotation as A
 import qualified Type.State as TS
 import Type.Type
 import Type.PrettyPrint

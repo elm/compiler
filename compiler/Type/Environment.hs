@@ -12,8 +12,8 @@ import qualified Data.Map as Map
 import Data.List (isPrefixOf)
 import qualified Text.PrettyPrint as PP
 
-import qualified SourceSyntax.Type as Src
-import SourceSyntax.Module (ADT, Alias)
+import qualified AST.Type as Src
+import AST.Module (ADT, Alias)
 import Type.Type
 
 type TypeDict = Map.Map String Type

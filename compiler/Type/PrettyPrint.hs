@@ -2,7 +2,7 @@
 module Type.PrettyPrint where
 
 import Text.PrettyPrint
-import qualified SourceSyntax.PrettyPrint as Src
+import qualified AST.PrettyPrint as Src
 
 data ParensWhen = Fn | App | Never
 

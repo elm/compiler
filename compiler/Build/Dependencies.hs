@@ -16,7 +16,7 @@ import System.FilePath as FP
 
 import Build.Print (failure)
 
-import qualified SourceSyntax.Module as Module
+import qualified AST.Module as Module
 import qualified Parse.Parse as Parse
 import qualified Elm.Internal.Paths as Path
 import qualified Elm.Internal.Name as N
