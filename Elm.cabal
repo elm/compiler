@@ -248,16 +248,11 @@ Test-Suite compiler-tests
                    AST.Helpers
                    AST.Literal
                    AST.PrettyPrint
-  build-depends:   base,
-                   directory,
-                   Elm,
-                   test-framework,
+  build-depends:   test-framework,
                    test-framework-hunit,
                    test-framework-quickcheck2 >= 0.3,
                    HUnit,
-                   pretty,
                    QuickCheck >= 2 && < 3,
-                   filemanip,
                    aeson,
                    base >=4.2 && <5,
                    binary >= 0.7.0.0,
@@ -267,6 +262,8 @@ Test-Suite compiler-tests
                    cmdargs,
                    containers >= 0.3,
                    directory,
+                   Elm,
+                   filemanip,
                    filepath,
                    indents,
                    language-ecmascript >=0.15 && < 1.0,
