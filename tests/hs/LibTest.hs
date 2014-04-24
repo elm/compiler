@@ -13,7 +13,7 @@ main :: IO ()
 main = do
   top <- getCurrentDirectory
   let ioScript s = top</>"IO"</>s
-  runCmd "git submodule init"
+  runCmd "git submodule update --init"
   out <- readProcess "npm" ["ls", "--parseable"] ""
   unless ("jsdom" `isInfixOf` out) $ runCmd "npm install jsdom"
   setCurrentDirectory $ top</>"tests"</>"elm"
