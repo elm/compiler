@@ -99,6 +99,8 @@ reorder (A ann expr) =
 
       Markdown uid md es -> Markdown uid md <$> mapM reorder es
 
+      GLShader _ _ _ -> return expr
+
       PortOut name st signal -> PortOut name st <$> reorder signal
 
       PortIn name st -> return $ PortIn name st

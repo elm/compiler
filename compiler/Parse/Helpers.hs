@@ -8,6 +8,8 @@ import Control.Monad.State
 import Data.Char (isUpper)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
+import qualified Language.GLSL.Parser as GLP
+import Language.GLSL.Syntax as GLS
 import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
 import qualified Text.Parsec.Token as T
@@ -309,15 +311,61 @@ anyUntilPos pos = go
                 False -> (:) <$> anyChar <*> go
 
 markdown :: ([a] -> IParser (String, [a])) -> IParser (String, [a])
-markdown interpolation = try (string "[markdown|") >> closeMarkdown (++ "") []
+markdown interpolation =
+    do try (string "[markdown|")
+       closeMarkdown id []
     where
-      closeMarkdown md stuff =
+      closeMarkdown markdownBuilder stuff =
           choice [ do try (string "|]")
-                      return (md "", stuff)
-                 , (\(m,s) -> closeMarkdown (md . (m ++)) s) =<< interpolation stuff
+                      return (markdownBuilder "", stuff)
+                 , do (markdown,stuff') <- interpolation stuff
+                      closeMarkdown (markdownBuilder . (markdown++)) stuff'
                  , do c <- anyChar
-                      closeMarkdown (md . ([c]++)) stuff
+                      closeMarkdown (markdownBuilder . (c:)) stuff
                  ]
+
+glShader :: IParser (String, Literal.GLShaderTipe)
+glShader =
+  do try (string "[glShader|")
+     rawSrc <- closeShader id
+     case glSource rawSrc of
+       Left err -> parserFail . show $ err
+       Right tipe -> return (rawSrc, tipe)
+  where
+    closeShader builder = choice
+      [ do try (string "|]")
+           return (builder "")
+      , do c <- anyChar
+           closeShader (builder . (c:))
+      ]
+
+glSource :: String -> Either ParseError Literal.GLShaderTipe
+glSource src =
+  case GLP.parse src of
+    Right (TranslationUnit decls) ->
+      Right . foldr addGLinput emptyDecls . join . map extractGLinputs $ decls
+    Left e -> Left e
+  where 
+    emptyDecls = Literal.GLShaderTipe Map.empty Map.empty Map.empty
+    addGLinput (qual,tipe,name) glDecls = case qual of
+        Attribute -> glDecls { attribute = Map.insert name tipe $ attribute glDecls }
+        Uniform -> glDecls { uniform = Map.insert name tipe $ uniform glDecls }
+        Varying -> glDecls { varying = Map.insert name tipe $ varying glDecls }
+        _ -> error "Should never happen due to below filter"
+    extractGLinputs decl = case decl of
+        Declaration (InitDeclaration (TypeDeclarator (FullType (Just (TypeQualSto qual)) (TypeSpec _prec (TypeSpecNoPrecision tipe _mexpr1)))) [InitDecl name _mexpr2 _mexpr3]) ->
+            if elem qual [Attribute, Varying, Uniform] 
+            then case tipe of 
+                GLS.Int -> return (qual,Literal.Int,name)
+                GLS.Float -> return (qual,Literal.Float,name)
+                GLS.Vec2 -> return (qual,V2,name)
+                GLS.Vec3 -> return (qual,V3,name) 
+                GLS.Vec4 -> return (qual,V4,name)
+                GLS.Mat4 -> return (qual,M4,name)
+                GLS.Sampler2D -> return (qual,Texture,name)
+                _ -> []
+            else []
+        _ -> []
 
 --str :: IParser String
 str = expecting "String" $ do

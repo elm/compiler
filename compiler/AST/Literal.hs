@@ -2,6 +2,7 @@
 module AST.Literal where
 
 import AST.PrettyPrint
+import Data.Map (Map)
 import qualified Text.PrettyPrint as PP
 
 data Literal = IntNum Int
@@ -19,3 +20,24 @@ instance Pretty Literal where
       Chr c -> PP.text . show $ c
       Str s -> PP.text . show $ s
       Boolean bool -> PP.text (show bool)
+
+data GLTipe = Int | Float | V2 | V3 | V4 | M4 | Texture
+  deriving (Show)
+
+glTipeName :: GLTipe -> String
+glTipeName glTipe =
+    case glTipe of
+      Int     -> "Int"
+      Float   -> "Float"
+      V2      -> "MJS.V2"
+      V3      -> "MJS.V3"
+      V4      -> "MJS.V4"
+      M4      -> "MJS.M4x4"
+      Texture -> "Graphics.WebGL.Texture"
+
+data GLShaderTipe = GLShaderTipe
+    { attribute :: Map String GLTipe
+    , uniform :: Map String GLTipe
+    , varying :: Map String GLTipe
+    } deriving (Show)
+

@@ -46,5 +46,6 @@ subst old new expr =
       Record fs -> Record (map (second f) fs)
       Literal _ -> expr
       Markdown uid md es -> Markdown uid md (map f es)
+      GLShader _ _ _ -> expr
       PortIn name st -> PortIn name st
       PortOut name st signal -> PortOut name st (f signal)

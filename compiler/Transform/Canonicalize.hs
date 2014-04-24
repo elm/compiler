@@ -325,6 +325,7 @@ expression env (A.A ann expr) =
 
       PortOut name st signal -> PortOut name <$> tipe' env st <*> go signal
 
+      GLShader _ _ _ -> return expr
 
 pattern :: Environment -> P.RawPattern -> Either String P.CanonicalPattern
 pattern env ptrn =
