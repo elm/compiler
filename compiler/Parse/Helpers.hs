@@ -19,6 +19,7 @@ import AST.Declaration (Assoc)
 import AST.Expression.General
 import qualified AST.Expression.Source as Source
 import AST.Helpers as Help
+import AST.Literal as Literal
 import AST.PrettyPrint
 import qualified AST.Variable as Variable
 
