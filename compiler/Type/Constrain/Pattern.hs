@@ -11,6 +11,7 @@ import qualified Text.PrettyPrint as PP
 
 import qualified AST.Annotation as A
 import qualified AST.Pattern as P
+import qualified AST.Variable as V
 import AST.PrettyPrint (pretty)
 import Type.Type
 import Type.Fragment
@@ -18,7 +19,8 @@ import Type.Environment as Env
 import qualified Type.Constrain.Literal as Literal
 
 
-constrain :: Environment -> P.Pattern -> Type -> ErrorT (A.Region -> PP.Doc) IO Fragment
+constrain :: Environment -> P.CanonicalPattern -> Type
+          -> ErrorT (A.Region -> PP.Doc) IO Fragment
 constrain env pattern tipe =
     let region = A.None (pretty pattern)
         t1 === t2 = A.A region (CEqual t1 t2)
@@ -47,8 +49,8 @@ constrain env pattern tipe =
             }
 
       P.Data name patterns -> do
-          (kind, cvars, args, result) <- liftIO $ freshDataScheme env name
-          let msg = concat [ "Constructor '", name, "' expects ", show kind
+          (kind, cvars, args, result) <- liftIO $ freshDataScheme env (V.toString name)
+          let msg = concat [ "Constructor '", V.toString name, "' expects ", show kind
                            , " argument", if kind == 1 then "" else "s"
                            , " but was given ", show (length patterns), "." ]
               err span = PP.vcat [ PP.text $ "Type error " ++ show span

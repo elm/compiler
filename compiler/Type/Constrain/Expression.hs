@@ -11,6 +11,7 @@ import qualified Text.PrettyPrint as PP
 import AST.Literal as Lit
 import AST.Annotation as Ann
 import AST.Expression.General
+import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Pattern as P
 import qualified AST.Type as ST
 import qualified AST.Variable as V
@@ -20,7 +21,8 @@ import qualified Type.Environment as Env
 import qualified Type.Constrain.Literal as Literal
 import qualified Type.Constrain.Pattern as Pattern
 
-constrain :: Env.Environment -> Expr -> Type -> ErrorT [PP.Doc] IO TypeConstraint
+constrain :: Env.Environment -> Canonical.Expr -> Type
+          -> ErrorT [PP.Doc] IO TypeConstraint
 constrain env (A region expr) tipe =
     let list t = Env.get env Env.types "_List" <| t
         and = A region . CAnd
@@ -48,9 +50,11 @@ constrain env (A region expr) tipe =
               varying = makeRec Lit.varying (TermN EmptyRecord1)
             in return . A region $ CEqual tipe (shaderTipe attribute uniform varying)
 
-      Var (V.Raw name)
+      Var var
           | name == saveEnvName -> return (A region CSaveEnv)
           | otherwise           -> return (name <? tipe)
+          where
+            name = V.toString var
 
       Range lo hi ->
           existsNumber $ \n -> do
@@ -68,7 +72,7 @@ constrain env (A region expr) tipe =
           exists $ \t2 -> do
             c1 <- constrain env e1 t1
             c2 <- constrain env e2 t2
-            return $ and [ c1, c2, op <? (t1 ==> t2 ==> tipe) ]
+            return $ and [ c1, c2, V.toString op <? (t1 ==> t2 ==> tipe) ]
 
       Lambda p e ->
           exists $ \t1 ->
@@ -169,7 +173,7 @@ constrain env (A region expr) tipe =
       PortOut _ _ signal ->
           constrain env signal tipe
 
-constrainDef env info (Definition pattern expr maybeTipe) =
+constrainDef env info (Canonical.Definition pattern expr maybeTipe) =
     let qs = [] -- should come from the def, but I'm not sure what would live there...
         (schemes, rigidQuantifiers, flexibleQuantifiers, headers, c2, c1) = info
     in
@@ -208,16 +212,16 @@ constrainDef env info (Definition pattern expr maybeTipe) =
 
          _ -> error (show pattern)
 
-expandPattern :: Def -> [Def]
-expandPattern def@(Definition pattern lexpr@(A r _) maybeType) =
+expandPattern :: Canonical.Def -> [Canonical.Def]
+expandPattern def@(Canonical.Definition pattern lexpr@(A r _) maybeType) =
     case pattern of
       P.Var _ -> [def]
-      _ -> Definition (P.Var x) lexpr maybeType : map toDef vars
+      _ -> Canonical.Definition (P.Var x) lexpr maybeType : map toDef vars
           where
             vars = P.boundVarList pattern
             x = "$" ++ concat vars
-            mkVar = A r . rawVar
-            toDef y = Definition (P.Var y) (A r $ Case (mkVar x) [(pattern, mkVar y)]) Nothing
+            mkVar = A r . localVar
+            toDef y = Canonical.Definition (P.Var y) (A r $ Case (mkVar x) [(pattern, mkVar y)]) Nothing
 
 try :: Region -> ErrorT (Region -> PP.Doc) IO a -> ErrorT [PP.Doc] IO a
 try region computation = do
