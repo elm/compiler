@@ -24,7 +24,6 @@ Elm.Native.Array.make = function(elm) {
     // An empty array.
     var empty = { ctor:"_Array", height:0, table:new Array() };
 
-    // Gets the value at index i recursively.
     function get(i, array) {
         if (i < 0 || i >= length(array)) {
             throw new Error("Index " + i + " is out of range. Check the length of " +
@@ -34,31 +33,39 @@ Elm.Native.Array.make = function(elm) {
     }
 
     function unsafeGet(i, array) {
-        if (array.height == 0) {
-            return array.table[i];
+      for (var x = array.height; x > 0; x--) {
+        var slot = i >> (x * 5);
+        if (slot > 0) {
+          while (array.lengths[slot - 1] > i) { slot--; }
+          i -= array.lengths[slot - 1];
         }
-        var slot = getSlot(i, array);
-        var offset = slot > 0 ? array.lengths[slot-1] : 0;
-        return unsafeGet(i - offset, array.table[slot]);
+        array = array.table[slot];
+      }
+      return array.table[i];
     }
 
     // Sets the value at the index i. Only the nodes leading to i will get
     // copied and updated.
-    function set(i, item, a) {
-      if (length(a) <= i) {
-        return a;
+    function set(i, item, array) {
+      if (i < 0 || length(array) <= i) {
+        return array;
       }
-      var newA = nodeCopy(a);
-      newA.table = a.table.slice();
+      return unsafeSet(i, item, array);
+    }
 
-      if (a.height == 0) {
-        newA.table[i] = item;
+    function unsafeSet(i, item, array) {
+      array = nodeCopy(array);
+
+      if (array.height == 0) {
+        array.table[i] = item;
       } else {
-        var slot = getSlot(i, a);
-        var sub = slot > 0 ? a.lengths[slot-1] : 0;
-        newA.table[slot] = set(i - sub, item, a.table[slot]);
+        var slot = getSlot(i, array);
+        if (slot > 0) {
+          i -= array.lengths[slot - 1];
+        }
+        array.table[slot] = unsafeSet(i, item, array.table[slot]);
       }
-      return newA;
+      return array;
     }
 
     function initialize(len, f) {
@@ -533,10 +540,8 @@ Elm.Native.Array.make = function(elm) {
     // Calculates in which slot of "table" the item probably is, then
     // find the exact slot via forward searching in  "lengths". Returns the index.
     function getSlot(i, a) {
-      var slot = Math.floor(i / (Math.pow(M, a.height)));
-      while (a.lengths[slot] <= i) {
-        slot++
-      }
+      var slot = i >> (5 * a.height);
+      while (a.lengths[slot - 1] > i) { slot--; }
       return slot;
     }
 

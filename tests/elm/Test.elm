@@ -9,13 +9,15 @@ import IO.IO (..)
 import IO.Runner (Request, Response)
 import IO.Runner as Run
 
-import Test.String as String
-import Test.Trampoline as Trampoline
 import Test.Array as Array
 import Test.Dict as Dict
-    
+import Test.List as List
+import Test.Set as Set
+import Test.String as String
+import Test.Trampoline as Trampoline
+
 tests : [Test]
-tests = String.tests ++ Trampoline.tests ++ Array.tests ++ Dict.tests
+tests = String.tests ++ Trampoline.tests ++ Array.tests ++ Dict.tests ++ Set.tests ++ List.tests
 
 console : IO ()
 console = runDisplay tests
