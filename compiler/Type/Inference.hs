@@ -10,7 +10,7 @@ import qualified Type.Solve as Solve
 
 import AST.Module as Module
 import AST.Annotation (noneNoDocs)
-import AST.Type (Type)
+import AST.Type (CanonicalType)
 import Text.PrettyPrint
 import qualified Type.State as TS
 import qualified Type.ExtraChecks as Check
@@ -22,7 +22,7 @@ import System.IO.Unsafe  -- Possible to switch over to the ST monad instead of
                          -- the IO monad. I don't think that'd be worthwhile.
 
 
-infer :: Interfaces -> MetadataModule -> Either [Doc] (Map.Map String Type)
+infer :: Interfaces -> CanonicalModule -> Either [Doc] (Map.Map String CanonicalType)
 infer interfaces modul = unsafePerformIO $ do
   env <- Env.initialEnvironment
              (datatypes modul ++ concatMap iAdts (Map.elems interfaces))
