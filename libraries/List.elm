@@ -195,6 +195,7 @@ zipWith : (a -> b -> c) -> [a] -> [b] -> [c]
 zipWith = Native.List.zipWith
 
 {-| Decompose a list of tuples. 
+
       unzip [(0, True), (17, False), (1337, True)] == ([0,17,1337], [True,False,True])
 -}
 unzip : [(a,b)] -> ([a],[b])
