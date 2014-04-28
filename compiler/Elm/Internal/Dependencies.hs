@@ -39,12 +39,11 @@ instance FromJSON MiniDeps where
 
 instance ToJSON Deps where
   toJSON d = object [
-    "name"            .= name d,
     "version"         .= version d,
     "summary"         .= summary d,
     "description"     .= description d,
     "license"         .= license d,
-    "repo"            .= repo d,
+    "repository"      .= repo d,
     "exposed-modules" .= exposed d,
     "elm-version"     .= elmVersion d,
     "dependencies"    .= (jsonDeps . dependencies $ d)
