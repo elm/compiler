@@ -95,6 +95,7 @@ Library
                        Paths_Elm
 
   Build-depends:       aeson,
+                       aeson-pretty,
                        base >=4.2 && <5,
                        binary >= 0.7.0.0,
                        blaze-html >= 0.5 && < 0.8,
@@ -177,6 +178,7 @@ Executable elm
                        Paths_Elm
 
   Build-depends:       aeson,
+                       aeson-pretty,
                        base >=4.2 && <5,
                        binary >= 0.7.0.0,
                        blaze-html >= 0.5 && < 0.8,
@@ -252,6 +254,7 @@ Test-Suite compiler-tests
                    HUnit,
                    QuickCheck >= 2 && < 3,
                    aeson,
+                   aeson-pretty,
                    base >=4.2 && <5,
                    binary >= 0.7.0.0,
                    blaze-html,
