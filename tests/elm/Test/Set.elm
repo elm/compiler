@@ -19,9 +19,9 @@ setPart2 = Set.fromList [51..100]
 pred : Int -> Bool
 pred x = x <= 50
 
-tests : [Test]
+tests : Test
 tests =
     let
-      filterTests = [test "Simple filter" <| assertEqual setPart1 <| Set.filter pred set]
-      partitionTests = [test "Simple partition" <| assertEqual (setPart1, setPart2) <| Set.partition pred set]
-    in List.concat [partitionTests, filterTests]
+      filterTests = suite "filter Tests" [test "Simple filter" <| assertEqual setPart1 <| Set.filter pred set]
+      partitionTests = suite "partition Tests" [test "Simple partition" <| assertEqual (setPart1, setPart2) <| Set.partition pred set]
+    in suite "Set Tests" [partitionTests, filterTests]

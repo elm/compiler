@@ -9,7 +9,7 @@ import ElmTest.Test (..)
 animals : Dict.Dict String String
 animals = Dict.fromList [ ("Tom", "cat"), ("Jerry", "mouse") ]
 
-tests : [Test]
+tests : Test
 tests =
   let getTests =
         [ test "get 1" <| assertEqual (Just "cat") (Dict.get "Tom" animals)
@@ -23,4 +23,4 @@ tests =
         , test "partition" <| assertEqual (Dict.singleton "Tom" "cat", Dict.singleton "Jerry" "mouse") (Dict.partition (\k v -> k == "Tom") animals)
         ]
   in
-      List.concat [ getTests, filterTests ]
+    suite "Dict Tests" <| List.concat [ getTests, filterTests ]
