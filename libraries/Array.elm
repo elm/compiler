@@ -11,7 +11,7 @@ reads, updates, and appends.
 @docs length, push, append
 
 # Get and Set
-@docs get, getSafe, getUnsafe, set
+@docs get, getOrElse, getOrFail, set
 
 # Taking Arrays Apart
 @docs toList, toIndexedList, slice
@@ -122,14 +122,14 @@ push = Native.Array.push
 
 {-| Get the element at a particular index.
 
-      getUnsafe 2 (A.fromList [3,2,1]) == 1
+      getOrFail 2 (A.fromList [3,2,1]) == 1
 
 Warning: this function will result in a runtime error if the index is not found,
-so it is best to use `get` or `getSafe` unless you are very confident the index
-will be found.
+so it is best to use `get` or `getOrElse` unless you are sure the index will be
+found.
 -}
-getUnsafe : Int -> Array a -> a
-getUnsafe = Native.Array.get
+getOrFail : Int -> Array a -> a
+getOrFail = Native.Array.get
 
 {-| Return Just the element at the index or Nothing if the index is out of range.
 
@@ -143,14 +143,14 @@ get i array =
       then Just (Native.Array.get i array)
       else Nothing
 
-{-| Get the element at the index. If the index is out of range, the given default
-element is returned.
+{-| Get the element at the index. Or if the index is out of range, a default
+value is returned.
 
-      getSafe 0 2 (fromList [3,2,1]) == 1
-      getSafe 0 5 (fromList [3,2,1]) == 0
+      getOrElse 0 2 (fromList [3,2,1]) == 1
+      getOrElse 0 5 (fromList [3,2,1]) == 0
 -}
-getSafe : a -> Int -> Array a -> a
-getSafe default i array =
+getOrElse : a -> Int -> Array a -> a
+getOrElse default i array =
     if 0 <= i && i < Native.Array.length array
       then Native.Array.get i array
       else default

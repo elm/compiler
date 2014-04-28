@@ -14,9 +14,9 @@ tests =
   let getTests =
         [ test "get 1" <| assertEqual (Just "cat") (Dict.get "Tom" animals)
         , test "get 2" <| assertEqual Nothing (Dict.get "Spike" animals)
-        , test "getSafe 1" <| assertEqual "mouse" (Dict.getSafe "dog" "Jerry" animals)
-        , test "getSafe 2" <| assertEqual "dog" (Dict.getSafe "dog" "Spike" animals)
-        , test "getUnsafe" <| assertEqual "cat" (Dict.getUnsafe "Tom" animals)
+        , test "getOrElse 1" <| assertEqual "mouse" (Dict.getOrElse "dog" "Jerry" animals)
+        , test "getOrElse 2" <| assertEqual "dog" (Dict.getOrElse "dog" "Spike" animals)
+        , test "getOrFail" <| assertEqual "cat" (Dict.getOrFail "Tom" animals)
         ]
       filterTests =
         [ test "filter" <| assertEqual (Dict.singleton "Tom" "cat") (Dict.filter (\k v -> k == "Tom") animals)

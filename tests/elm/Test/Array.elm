@@ -30,9 +30,9 @@ tests =
         [ test "get" <| assertEqual (Array.get 1 (Array.fromList [3,2,1])) (Just 2)
         , test "get 2" <| assertEqual (Array.get 5 (Array.fromList [3,2,1])) Nothing
         , test "get 3" <| assertEqual (Array.get -1 (Array.fromList [3,2,1])) Nothing
-        , test "getSafe 1" <| assertEqual (Array.getSafe 0 2 (Array.fromList [3,2,1])) 1
-        , test "getSafe 2" <| assertEqual (Array.getSafe 0 5 (Array.fromList [3,2,1])) 0
-        , test "getUnsafe" <| assertEqual (Array.getUnsafe 2 (Array.fromList [3,2,1])) 1
+        , test "getOrElse 1" <| assertEqual (Array.getOrElse 0 2 (Array.fromList [3,2,1])) 1
+        , test "getOrElse 2" <| assertEqual (Array.getOrElse 0 5 (Array.fromList [3,2,1])) 0
+        , test "getOrFail" <| assertEqual (Array.getOrFail 2 (Array.fromList [3,2,1])) 1
         , test "set" <| assertEqual (Array.set 1 7 (Array.fromList [1,2,3])) (Array.fromList [1,7,3])
         ]
       takingArraysApartTests =
