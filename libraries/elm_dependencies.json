@@ -6,7 +6,8 @@
 , "elm-version": "0.12.1"
 , "dependencies": {}
 , "exposed-modules":
-    [ "Basics"
+    [ "Array"
+    , "Basics"
     , "Bitwise"
     , "Char"
     , "Color"
