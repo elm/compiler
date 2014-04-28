@@ -24,6 +24,6 @@ goodSum n =
 tests : Test
 tests =
     let mkLoopCheck n = test ("Equivalent Loop Check #"++ show n) (assertEqual (badSum n) (goodSum n))
-        loopChecks = Suite "Equivalent to untrampolined Tests" <| map mkLoopCheck [0..25]
+        loopChecks = suite "Equivalent to untrampolined Tests" <| map mkLoopCheck [0..25]
         noStackOverflow = test "Trampoline Deep Recursion Test" (assertEqual 500000500000 (goodSum 1000000))
-    in Suite "Trampoline Tests" [noStackOverflow, loopChecks]
+    in suite "Trampoline Tests" [noStackOverflow, loopChecks]

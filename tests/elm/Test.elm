@@ -17,7 +17,7 @@ import Test.String as String
 import Test.Trampoline as Trampoline
 
 tests : Test
-tests = Suite "Elm Standard Library Tests" [ List.tests,
+tests = suite "Elm Standard Library Tests" [ List.tests,
                                              String.tests, 
                                              Trampoline.tests,
                                              Array.tests,

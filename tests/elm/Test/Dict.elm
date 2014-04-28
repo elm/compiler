@@ -23,4 +23,4 @@ tests =
         , test "partition" <| assertEqual (Dict.singleton "Tom" "cat", Dict.singleton "Jerry" "mouse") (Dict.partition (\k v -> k == "Tom") animals)
         ]
   in
-    Suite "Dict Tests" <| List.concat [ getTests, filterTests ]
+    suite "Dict Tests" <| List.concat [ getTests, filterTests ]

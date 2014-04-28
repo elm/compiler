@@ -22,6 +22,6 @@ pred x = x <= 50
 tests : Test
 tests =
     let
-      filterTests = Suite "filter Tests" [test "Simple filter" <| assertEqual setPart1 <| Set.filter pred set]
-      partitionTests = Suite "partition Tests" [test "Simple partition" <| assertEqual (setPart1, setPart2) <| Set.partition pred set]
-    in Suite "Set Tests" [partitionTests, filterTests]
+      filterTests = suite "filter Tests" [test "Simple filter" <| assertEqual setPart1 <| Set.filter pred set]
+      partitionTests = suite "partition Tests" [test "Simple partition" <| assertEqual (setPart1, setPart2) <| Set.partition pred set]
+    in suite "Set Tests" [partitionTests, filterTests]
