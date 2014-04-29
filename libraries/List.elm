@@ -26,6 +26,7 @@ list must have the same type.
 -}
 
 import Basics (..)
+import Maybe (Maybe, Just, Nothing)
 import Native.List
 
 {-| Add an element to the front of a list `(1 :: [2,3] == [1,2,3])` -}

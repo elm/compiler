@@ -13,6 +13,7 @@ module Maybe where
 -}
 
 import Basics (not, (.))
+import Native.List -- using Native to avoid loop, see #591
 
 {-| The Maybe datatype. Useful when a computation may or may not
 result in a value (e.g. logarithm is defined only for positive
@@ -61,7 +62,5 @@ cons mx xs = maybe xs (\x -> x :: xs) mx
       justs [Just 0, Nothing, Just 5, Just 7] == [0,5,7]
 -}
 justs : [Maybe a] -> [a]
-justs ms =
-    case ms of
-      [] -> []
-      x :: xs -> cons x <| justs xs
+justs ms = Native.List.foldr cons []
+
