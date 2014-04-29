@@ -131,8 +131,9 @@ withDeps handle path =
         case result of
           Right bytes -> return bytes
           Left _ -> throwError $
-                    "could not find file " ++ path ++
-                    "\n    You may need to create a dependency file for your project."
+                    "could not find " ++ path ++ " file. You may need to create one.\n" ++
+                    "    For an example of how to fill in the dependencies file, check out\n" ++
+                    "    <https://github.com/evancz/automaton/blob/master/elm_dependencies.json>"
 
 depsAt :: FilePath -> ErrorT String IO Deps
 depsAt = withDeps id
