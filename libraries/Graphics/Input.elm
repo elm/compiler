@@ -136,6 +136,18 @@ will update to `Just Football`.
 dropDown : Handle a -> [(String,a)] -> Element
 dropDown = Native.Graphics.Input.dropDown
 
+{-| Create a range slider. The following slider lets you choose a multiple
+of 0.5 between -5 and 5, with default value 1:
+
+      slide : Input Float
+      slide = input 1
+
+      slideSlider : Signal Element
+      slideSlider = slider slide.handle id -5 5 0.5 <~ slide.signal
+-}
+slider : Handle a -> (Float -> a) -> Float -> Float -> Float -> Float -> Element
+slider = Native.Graphics.Input.slider
+
 {-| Detect mouse hovers over a specific `Element`. In the following example,
 we will create a hoverable picture called `cat`.
 
