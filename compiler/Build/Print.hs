@@ -10,11 +10,13 @@ import qualified AST.PrettyPrint as Pretty
 import qualified Type.Alias as Alias
 import qualified Text.PrettyPrint as P
 
-metaTypes :: Map.Map String M.ModuleInterface -> M.MetadataModule -> IO ()
-metaTypes interfaces meta =
-    types interfaces (M.types meta) (M.aliases meta) (M.imports meta)
+moduleTypes :: Map.Map String M.Interface -> M.CanonicalModule -> IO ()
+moduleTypes interfaces modul =
+    types interfaces (M.types body) (M.aliases body) (M.imports modul)
+    where
+      body = M.body modul
 
-interfaceTypes :: Map.Map String M.ModuleInterface -> M.ModuleInterface -> IO ()
+interfaceTypes :: Map.Map String M.Interface -> M.Interface -> IO ()
 interfaceTypes interfaces iface =
     types interfaces (M.iTypes iface) (M.iAliases iface) (M.iImports iface)
 
