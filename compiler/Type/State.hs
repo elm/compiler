@@ -18,10 +18,10 @@ import Type.Type
 -- The rank of each variable is less than or equal to the pool's "maxRank"
 -- The young pool exists to make it possible to identify these vars in constant time.
 
-data Pool = Pool {
-  maxRank :: Int,
-  inhabitants :: [Variable]
-} deriving Show
+data Pool = Pool
+    { maxRank :: Int
+    , inhabitants :: [Variable]
+    } deriving Show
 
 emptyPool = Pool { maxRank = outermostRank, inhabitants = [] }
 

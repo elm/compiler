@@ -23,6 +23,9 @@ data Canonical = Canonical
 local :: String -> Canonical
 local x = Canonical Local x
 
+builtin :: String -> Canonical
+builtin x = Canonical BuiltIn x
+
 class ToString a where
   toString :: a -> String
 

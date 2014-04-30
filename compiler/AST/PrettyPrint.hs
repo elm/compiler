@@ -24,11 +24,7 @@ parensIf bool doc = if bool then parens doc else doc
 
 variable :: String -> Doc
 variable x =
-    if Help.isOp x then parens (text x)
-                   else text (reprime x)
-
-reprime :: String -> String
-reprime = map (\c -> if c == '$' then '\'' else c)
+    if Help.isOp x then parens (text x) else text x
 
 eightyCharLines :: Int -> String -> String
 eightyCharLines indent message = answer

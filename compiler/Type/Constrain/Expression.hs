@@ -210,7 +210,7 @@ constrainDef env info (Canonical.Definition pattern expr maybeTipe) =
                     , c /\ c2
                     , c1 )
 
-         _ -> error (show pattern)
+         _ -> error ("problem in constrainDef with " ++ show pattern)
 
 expandPattern :: Canonical.Def -> [Canonical.Def]
 expandPattern def@(Canonical.Definition pattern lexpr@(A r _) maybeType) =

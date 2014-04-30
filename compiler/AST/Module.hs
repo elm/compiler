@@ -24,6 +24,10 @@ data Module exs body = Module
     , body    :: body
     }
 
+getName :: Module exs body -> String
+getName modul =
+    List.intercalate "." (names modul)
+
 data CanonicalBody = CanonicalBody
     { program   :: Canonical.Expr
     , types     :: Types
