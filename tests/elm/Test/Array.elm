@@ -51,7 +51,7 @@ tests =
         , test "foldr 2" <| assertEqual (Array.foldr (::) [] (Array.fromList [1,2,3])) [1,2,3]
         , test "filter" <| assertEqual (Array.filter (\x -> x `mod` 2 == 0) (Array.fromList [1..6])) (Array.fromList [2,4,6])
         ]
-      nativeTests =
+      nativeTests = suite "Conversion to JS Arrays"
         [ test "jsArrays" <| assertEqual (Array.fromList [1..1100]) (Native.Array.fromJSArray (Native.Array.toJSArray (Array.fromList [1..1100])))
         ]
   in
