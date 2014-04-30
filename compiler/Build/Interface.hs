@@ -7,7 +7,7 @@ import qualified Data.Binary as Binary
 import qualified Build.Print as Print
 import qualified Elm.Internal.Version as Version
 import System.Directory (doesFileExist)
-import AST.Module
+import AST.Module as Module
 
 load :: Binary.Binary a => FilePath -> IO a
 load filePath =
@@ -28,7 +28,7 @@ load filePath =
         , "    Please remove the file and try again."
         ]
 
-isValid :: FilePath -> (String, ModuleInterface) -> Either String (String, ModuleInterface)
+isValid :: FilePath -> (String, Module.Interface) -> Either String (String, Module.Interface)
 isValid filePath (name, interface) =
     let version = iVersion interface in
     if version == Version.elmVersion
