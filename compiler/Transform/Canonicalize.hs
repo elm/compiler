@@ -6,7 +6,6 @@ import Control.Arrow (first)
 import Control.Monad (foldM)
 import qualified Data.Either as Either
 import qualified Data.List as List
-import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Traversable as T
 
@@ -24,7 +23,7 @@ import AST.PrettyPrint (pretty, commaSep)
 import qualified AST.Pattern as P
 import Text.PrettyPrint as P
 
-import Transform.Canonicalize.Environment
+import Transform.Canonicalize.Environment as Env
 import Transform.Canonicalize.Type
 import Transform.Canonicalize.Variable (variable, pvar)
 import qualified Transform.SortDefinitions as Transform
@@ -33,23 +32,26 @@ import qualified Transform.Declaration as Transform
 environment :: Interfaces -> Module.ValidModule -> Either [Doc] Environment
 environment interfaces (Module.Module _ _ _ ims decls) =
   do () <- allImportsAvailable interfaces ims
-     nonLocalEnv <- foldM (toEnv interfaces) builtIns ims
-     foldM (flip addDecl) nonLocalEnv decls
+     nonLocalEnv <- foldM (toEnv interfaces) Env.builtIns ims
+     foldM addDecl nonLocalEnv decls
 
 toEnv :: Interfaces -> Environment -> (String, ImportMethod) -> Either [Doc] Environment
-toEnv interfaces environ (name,method) =
-    case method of
-      Module.As name' ->
-          return (env (name' ++ "."))
+toEnv interfaces environ (name,method)
+    | List.isPrefixOf "Native." name = return environ
+    | otherwise =
+        case method of
+          Module.As name' ->
+              return (updateEnviron (name' ++ "."))
 
-      Module.Open (Var.Listing vs open)
-          | open -> return (env "")
-          | otherwise -> foldM (addValue name interface) environ vs
+          Module.Open (Var.Listing vs open)
+              | open -> return (updateEnviron "")
+              | otherwise -> foldM (addValue name interface) environ vs
     where
-      interface = interfaces ! name
+      interface = (Map.!) interfaces name
 
-      env prefix =
+      updateEnviron prefix =
           let dict' = dict . map (first (prefix++)) in
+          merge environ $
           Env { _values   = dict' $ map pair (Map.keys (iTypes interface)) ++ ctors
               , _adts     = dict' $ map pair (Map.keys (iAdts interface))
               , _aliases  = dict' $ map alias (Map.toList (iAliases interface))
@@ -104,8 +106,8 @@ addValue name interface env value =
                             [] -> return names
                             c:_ -> notFound c
 
-addDecl :: D.ValidDecl -> Environment -> Either [Doc] Environment
-addDecl decl env =
+addDecl :: Environment -> D.ValidDecl -> Either [Doc] Environment
+addDecl env decl =
     case decl of
       D.Definition (Valid.Definition pattern _ _) ->
           return $ env
@@ -247,11 +249,13 @@ declaration env decl =
 
 allImportsAvailable :: Interfaces -> [(String,ImportMethod)] -> Either [Doc] ()
 allImportsAvailable interfaces imports =
-  case filter (`Map.notMember` interfaces) modules of
+  case filter (not . found) modules of
     [] -> Right ()
     missings -> Left [ P.text (missingModuleError missings) ]
   where
     modules = map fst imports
+
+    found m = Map.member m interfaces || List.isPrefixOf "Native." m
 
     missingModuleError missings =
         concat [ "The following imports were not found: "
