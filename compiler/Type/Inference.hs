@@ -24,9 +24,9 @@ import System.IO.Unsafe  -- Possible to switch over to the ST monad instead of
 
 infer :: Interfaces -> CanonicalModule -> Either [Doc] (Map.Map String CanonicalType)
 infer interfaces modul = unsafePerformIO $ do
-  env <- Env.initialEnvironment
-             (datatypes modul ++ concatMap iAdts (Map.elems interfaces))
-             (aliases modul ++ concatMap iAliases (Map.elems interfaces))
+  let moduleBody = body modul
+      adts = Map.unions (datatypes moduleBody : map iAdts (Map.elems interfaces))
+  env <- Env.initialEnvironment adts
   ctors <- forM (Map.keys (Env.constructor env)) $ \name ->
                do (_, vars, args, result) <- Env.freshDataScheme env name
                   return (name, (vars, foldr (T.==>) result args))
@@ -42,16 +42,16 @@ infer interfaces modul = unsafePerformIO $ do
         environ = noneNoDocs . T.CLet [ T.Scheme vars [] (noneNoDocs T.CTrue) header ]
 
     fvar <- liftIO $ T.var T.Flexible
-    c <- TcExpr.constrain env (program modul) (T.VarN fvar)
+    c <- TcExpr.constrain env (program moduleBody) (T.VarN fvar)
     return (header, environ c)
 
   case attemptConstraint of
     Left err -> return $ Left err
     Right (header, constraint) -> do
       state <- execStateT (Solve.solve constraint) TS.initialState
-      let rules = Alias.rules interfaces (aliases modul) (imports modul)
+      let rules = Alias.rules interfaces (aliases moduleBody) (imports modul)
       case TS.sErrors state of
         errors@(_:_) -> Left `fmap` sequence (map ($ rules) (reverse errors))
-        [] -> case Check.portTypes rules (program modul) of
+        [] -> case Check.portTypes rules (program moduleBody) of
                 Right () -> Check.mainType rules (Map.difference (TS.sSavedEnv state) header)
                 Left err -> return (Left err)
