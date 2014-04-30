@@ -2,6 +2,7 @@ module Test.Array (tests) where
 
 import List
 import Array
+import Native.Array
 
 import ElmTest.Assertion (..)
 import ElmTest.Test (..)
@@ -44,4 +45,5 @@ tests =
                                  , test "foldr" <| assertEqual (Array.foldr (+) 0 (Array.repeat 3 5)) 15
                                  , test "foldl 2" <| assertEqual (Array.foldr (::) [] (Array.fromList [1,2,3])) [3,2,1]
                                  ]
-    in List.concat [creationTests, basicsTests, getAndSetTests, takingArraysApartTests, mappingAndFoldingTests]
+        nativeTests = [ test "jsArrays" <| assertEqual (Array.repeat 1050) (Array.fromJSArray (Array.toJSArray (Array.repeat 1050) ]
+    in List.concat [creationTests, basicsTests, getAndSetTests, takingArraysApartTests, mappingAndFoldingTests, nativeTests]
