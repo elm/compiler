@@ -38,6 +38,7 @@ internalImports name =
     [ varDecl "_N" (obj "Elm.Native")
     , include "_U" "_N.Utils"
     , include "_L" "_N.List"
+    , include "_A" "_N.Array"
     , include "_E" "_N.Error"
     , varDecl "$moduleName" (string name)
     ]

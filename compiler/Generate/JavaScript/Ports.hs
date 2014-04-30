@@ -55,8 +55,12 @@ inc tipe x =
 
           | ctor == "_List" ->
               check x JSArray (obj "_L.fromArray" <| array)
-              where
-                array = DotRef () x (var "map") <| incoming t
+
+          | ctor == "Array.Array" ->
+              check x JSArray (obj "_A.fromJSArray" <| array)
+
+          where
+            array = DotRef () x (var "map") <| incoming t
 
       Data ctor ts
           | Help.isTuple ctor -> check x JSArray tuple
@@ -116,6 +120,9 @@ out tipe x =
 
           | ctor == "_List" ->
               DotRef () (obj "_L.toArray" <| x) (var "map") <| outgoing t
+
+          | ctor == "Array.Array" ->
+              DotRef () (obj "_A.toJSArray" <| x) (var "map") <| outgoing t
 
       Data ctor ts
           | Help.isTuple ctor ->
