@@ -1,5 +1,5 @@
 module Dict (empty,singleton,insert,update
-            ,get,getSafe,getUnsafe
+            ,get,getOrElse,getOrFail
             ,remove,member
             ,filter
             ,partition
@@ -19,7 +19,7 @@ Insert, remove, and query operations all take *O(log n)* time.
 @docs empty, singleton, insert, update, remove
 
 # Query
-@docs member, get, getMaybe, getWithDefault
+@docs member, get, getOrElse, getOrFail
 
 # Combine
 @docs union, intersect, diff
@@ -96,7 +96,7 @@ dictionary.
       get "Mouse" animals == Just Mouse
       get "Spike" animals == Nothing
 
-The `getSafe` and `getUnsafe` are built-in ways to handle common ways of
+The `getOrElse` and `getOrFail` are built-in ways to handle common ways of
 using the resulting `Maybe`.
 -}
 get : comparable -> Dict comparable v -> Maybe v
@@ -114,41 +114,41 @@ return a default value.
 
       animals = fromList [ ("Tom", Cat), ("Jerry", Mouse) ]
 
-      getSafe Dog "Tom"   animals == Cat
-      getSafe Dog "Mouse" animals == Mouse
-      getSafe Dog "Spike" animals == Dog
+      getOrElse Dog "Tom"   animals == Cat
+      getOrElse Dog "Mouse" animals == Mouse
+      getOrElse Dog "Spike" animals == Dog
 -}
-getSafe : v -> comparable -> Dict comparable v -> v
-getSafe base k t =
+getOrElse : v -> comparable -> Dict comparable v -> v
+getOrElse base k t =
  case t of
    RBEmpty LBlack -> base
    RBNode _ k' v l r ->
     case Native.Utils.compare k k' of
-      LT -> getSafe base k l
+      LT -> getOrElse base k l
       EQ -> v
-      GT -> getSafe base k r
+      GT -> getOrElse base k r
 
 {-| Get the value associated with a key.
 
       animals = fromList [ ("Tom", Cat), ("Jerry", Mouse) ]
 
-      get "Tom"   animals == Cat
-      get "Mouse" animals == Mouse
-      get "Spike" animals == -- Runtime Error!
+      getOrFail "Tom"   animals == Cat
+      getOrFail "Mouse" animals == Mouse
+      getOrFail "Spike" animals == -- Runtime Error!
 
 Warning: this function will result in a runtime error if the key is not found,
-so it is best to use `get` or `getSafe` unless you are very confident the key
-will be found.
+so it is best to use `get` or `getOrElse` unless you are sure the key will be
+found.
 -}
-getUnsafe : comparable -> Dict comparable v -> v
-getUnsafe k t =
+getOrFail : comparable -> Dict comparable v -> v
+getOrFail k t =
  case t of
-   RBEmpty LBlack -> Native.Error.raise "key not found when using 'getUnsafe'"
+   RBEmpty LBlack -> Native.Error.raise "key not found when using 'getOrFail'"
    RBNode _ k' v l r ->
     case Native.Utils.compare k k' of
-      LT -> getUnsafe k l
+      LT -> getOrFail k l
       EQ -> v
-      GT -> getUnsafe k r
+      GT -> getOrFail k r
 
 {-| Determine if a key is in a dictionary. -}
 member : comparable -> Dict comparable v -> Bool
