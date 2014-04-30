@@ -5,7 +5,7 @@ import qualified Data.Map as Map
 import qualified Control.Exception as E
 import System.Exit
 import System.IO
-import AST.Module
+import AST.Module as Module
 import qualified Build.Interface as Interface
 import Build.Utils (getDataFile)
 
@@ -21,10 +21,9 @@ add noPrelude (Module name path exs ims decls) =
                                 Just _      -> []
 
 prelude :: [(String, ImportMethod)]
-prelude = string ++ text ++ map (\n -> (n, Hiding [])) modules
+prelude = string : map (\n -> (n, Module.open)) modules
   where
-    text = map ((,) "Text") [ As "Text", Hiding ["link", "color", "height"] ]
-    string = map ((,) "String") [ As "String", Importing ["show"] ]
+    string = ("String", Module.importing ["show"])
     modules = [ "Basics", "Signal", "List", "Maybe", "Time", "Color"
               , "Graphics.Element", "Graphics.Collage"
               , "Native.Ports", "Native.Json"
@@ -50,7 +49,7 @@ safeReadDocs name =
 readDocs :: FilePath -> IO Interfaces
 readDocs filePath = do
   interfaces <- Interface.load filePath
-  case mapM (Interface.isValid filePath) (interfaces :: [(String, ModuleInterface)]) of
+  case mapM (Interface.isValid filePath) (interfaces :: [(String, Module.Interface)]) of
     Left err -> do
       hPutStrLn stderr err
       exitFailure
