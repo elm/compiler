@@ -45,5 +45,5 @@ tests =
                                  , test "foldr" <| assertEqual (Array.foldr (+) 0 (Array.repeat 3 5)) 15
                                  , test "foldl 2" <| assertEqual (Array.foldr (::) [] (Array.fromList [1,2,3])) [3,2,1]
                                  ]
-        nativeTests = [ test "jsArrays" <| assertEqual (Array.repeat 100) (Native.Array.fromJSArray (Native.Array.toJSArray (Array.repeat 100))) ]
+        nativeTests = [ test "jsArrays" <| assertEqual (Array.fromList [1..1100]) (Native.Array.fromJSArray (Native.Array.toJSArray (Array.fromList [1..1100]))) ]
     in List.concat [creationTests, basicsTests, getAndSetTests, takingArraysApartTests, mappingAndFoldingTests, nativeTests]
