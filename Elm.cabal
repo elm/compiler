@@ -27,7 +27,7 @@ Cabal-version:       >=1.9
 
 source-repository head
   type:     git
-  location: git://github.com/evancz/Elm.git
+  location: git://github.com/elm-lang/Elm.git
 
 Library
   exposed-modules:     Elm.Internal.Dependencies,
