@@ -26,7 +26,7 @@ data Environment = Env
 
 builtIns :: Environment
 builtIns =
-    Env { _values   = builtIn (tuples ++ [saveEnvName,"::","[]"])
+    Env { _values   = builtIn (tuples ++ [saveEnvName])
         , _adts     = builtIn (tuples ++ ["_List","Int","Float","Char","Bool","String"])
         , _aliases  = dict []
         , _patterns = builtIn (tuples ++ ["::","[]"])
