@@ -23,8 +23,7 @@ import qualified Build.Source           as Source
 import qualified Build.Utils            as Utils
 import qualified Generate.JavaScript    as JS
 import qualified Parse.Module           as Parser
-import qualified AST.Module             as M
-import qualified Transform.Canonicalize as Canonical
+import qualified AST.Module             as Module
 
 -- Reader: Runtime flags, always accessible
 -- Writer: Remember the last module to be accessed
@@ -33,10 +32,10 @@ type BuildT m a = RWST Flag.Flags (Last String) BInterfaces m a
 type Build a = BuildT IO a
 
 -- Interfaces, remembering if something was recompiled
-type BInterfaces = Map.Map String (Bool, M.ModuleInterface)
+type BInterfaces = Map.Map String (Bool, Module.Interface)
 
-evalBuild :: Flag.Flags -> M.Interfaces -> Build ()
-          -> IO (Map.Map String M.ModuleInterface, Maybe String)
+evalBuild :: Flag.Flags -> Module.Interfaces -> Build ()
+          -> IO (Map.Map String Module.Interface, Maybe String)
 evalBuild flags interfaces build =
   do (ifaces, moduleNames) <- execRWST build flags (fmap notUpdated interfaces)
      return (fmap snd ifaces, getLast moduleNames)
@@ -45,7 +44,7 @@ evalBuild flags interfaces build =
 
 -- | Builds a list of files, returning the moduleName of the last one.
 --   Returns \"\" if the list is empty
-build :: Flag.Flags -> M.Interfaces -> [FilePath] -> IO String
+build :: Flag.Flags -> Module.Interfaces -> [FilePath] -> IO String
 build flags interfaces files =
   do (ifaces, topName) <- evalBuild flags interfaces (buildAll files)
      let removeTopName = Maybe.maybe id Map.delete topName
@@ -56,7 +55,7 @@ build flags interfaces files =
         | null ports = return ()
         | otherwise  = Print.failure msg
         where
-          ports = M.iPorts iface
+          ports = Module.iPorts iface
           msg = concat
             [ "Port Error: ports may only appear in the main module, but\n"
             , "    sub-module ", name, " declares the following port"
@@ -142,16 +141,16 @@ compile number filePath =
        createDirectoryIfMissing True (Flag.cache_dir flags)
        createDirectoryIfMissing True (Flag.build_dir flags)
 
-     metaModule <- 
+     canonicalModule <- 
        liftIO $ case Source.build (Flag.no_prelude flags) interfaces source of
            Right modul -> return modul
            Left errors -> do Print.errors errors
                              exitFailure
 
-     liftIO $ when (Flag.print_types flags) $ Print.metaTypes interfaces metaModule
+     liftIO $ when (Flag.print_types flags) $ Print.moduleTypes interfaces canonicalModule
   
-     let newInters = Canonical.interface name $ M.metaToInterface metaModule
-     generateCache name newInters metaModule
+     let newInters = Module.toInterface canonicalModule
+     generateCache name newInters canonicalModule
      update name newInters True
 
   where
@@ -164,15 +163,15 @@ compile number filePath =
                                   , replicate (max 1 (20 - length name)) ' '
                                   , "( " ++ filePath ++ " )" ]
 
-    generateCache name interfs metaModule = do
+    generateCache name interfs canonicalModule = do
       flags <- ask
       liftIO $ do
         createDirectoryIfMissing True . dropFileName $ Utils.elmi flags filePath
-        writeFile (Utils.elmo flags filePath) (JS.generate metaModule)
+        writeFile (Utils.elmo flags filePath) (JS.generate canonicalModule)
         withBinaryFile (Utils.elmi flags filePath) WriteMode $ \handle ->
           L.hPut handle (Binary.encode (name, interfs))
 
-update :: String -> M.ModuleInterface -> Bool -> Build ()
+update :: String -> Module.Interface -> Bool -> Build ()
 update name inter wasUpdated =
   do modify (Map.insert name (wasUpdated, inter))
      tell (Last . Just $ name)
