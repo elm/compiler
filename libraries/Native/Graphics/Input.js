@@ -12,7 +12,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
     var Text = Elm.Native.Text.make(elm);
     var Signal = Elm.Signal.make(elm);
     var newElement = Elm.Graphics.Element.make(elm).newElement;
-    var JS = Elm.Native.JavaScript.make(elm);
+    var List = Elm.Native.List.make(elm);
     var Utils = Elm.Native.Utils.make(elm);
     var Tuple2 = Utils.Tuple2;
 
@@ -23,14 +23,14 @@ Elm.Native.Graphics.Input.make = function(elm) {
 
     function renderDropDown(signal, values) {
         return function(_) {
-            var entries = JS.fromList(values);
+            var entries = List.toArray(values);
 
             var drop = newNode('select');
             drop.style.border = '0 solid';
             drop.style.pointerEvents = 'auto';
             for (var i = 0; i < entries.length; ++i) {
                 var option = newNode('option');
-                var name = JS.fromString(entries[i]._0);
+                var name = entries[i]._0;
                 option.value = name;
                 option.innerHTML = name;
                 drop.appendChild(option);
@@ -91,7 +91,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
             type: 'Button',
             render: renderButton,
             update: updateButton,
-            model: { signal:signal, value:value, text:JS.fromString(text) }
+            model: { signal:signal, value:value, text:text }
         });
     }
 
@@ -133,13 +133,6 @@ Elm.Native.Graphics.Input.make = function(elm) {
         btn.addEventListener('mouseup'  , up);
 
         btn.appendChild(btn.elm_up);
-
-        var clicker = newNode('div');
-        clicker.style.width = btn.elm_up.style.width;
-        clicker.style.height = btn.elm_up.style.height;
-        clicker.style.position = 'absolute';
-        clicker.style.top = 0;
-        btn.appendChild(clicker);
 
         return btn;
     }
@@ -266,8 +259,8 @@ Elm.Native.Graphics.Input.make = function(elm) {
         field.style.pointerEvents = 'auto';
 
         field.type = model.type;
-        field.placeholder = JS.fromString(model.placeHolder);
-        field.value = JS.fromString(model.content.string);
+        field.placeholder = model.placeHolder;
+        field.value = model.content.string;
 
         field.elm_signal = model.signal;
         field.elm_handler = model.handler;
@@ -287,7 +280,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
 
             elm.notify(field.elm_signal.id, field.elm_handler({
                 _:{},
-                string: JS.toString(next),
+                string: next,
                 selection: {
                     _:{},
                     start: start,
@@ -297,29 +290,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
             }));
         }
 
-        function mouseUpdate(event) {
-            var direction = field.selectionDirection === 'forward' ? 'Forward' : 'Backward';
-            elm.notify(field.elm_signal.id, field.elm_handler({
-                _:{},
-                string: field.value,
-                selection: {
-                    _:{},
-                    start: field.selectionStart,
-                    end: field.selectionEnd,
-                    direction: { ctor: direction }
-                },
-            }));
-        }
-        function mousedown(event) {
-            mouseUpdate(event);
-            elm.node.addEventListener('mouseup', mouseup);
-        }
-        function mouseup(event) {
-            mouseUpdate(event);
-            elm.node.removeEventListener('mouseup', mouseup)
-        }
         field.addEventListener('input', inputUpdate);
-        field.addEventListener('mousedown', mousedown);
         field.addEventListener('focus', function() {
             field.elm_hasFocus = true;
         });
@@ -338,8 +309,8 @@ Elm.Native.Graphics.Input.make = function(elm) {
         field.elm_handler = newModel.handler;
 
         field.type = newModel.type;
-        field.placeholder = JS.fromString(newModel.placeHolder);
-        var value = JS.fromString(newModel.content.string);
+        field.placeholder = newModel.placeHolder;
+        var value = newModel.content.string;
         field.value = value;
         field.elm_old_value = value;
         if (field.elm_hasFocus) {

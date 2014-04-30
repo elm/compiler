@@ -20,7 +20,7 @@ check x jsType continue =
                JSNumber  -> [typeof "number"]
                JSBoolean -> [typeof "boolean"]
                JSString  -> [typeof "string", instanceof "String"]
-               JSArray   -> [instanceof "Array"]
+               JSArray   -> [(obj "_U.isJSArray" <|)]
                JSObject fields -> [jsFold OpLAnd (typeof "object" : map member fields)]
 
 incoming :: Type -> Expression ()
@@ -35,17 +35,17 @@ inc tipe x =
     case tipe of
       Lambda _ _ -> error "functions should not be allowed through input ports"
       Var _ -> error "type variables should not be allowed through input ports"
+
+      Data "Json.Value" [] ->
+          obj "Native.Json.fromJS" <| x
+                           
       Data ctor []
-          | ctor == "Int"    -> elm JSNumber
-          | ctor == "Float"  -> elm JSNumber
-          | ctor == "Bool"   -> elm JSBoolean
-          | ctor == "String" -> elm JSString
-          | ctor == "JavaScript.JSNumber" -> js JSNumber
-          | ctor == "JavaScript.JSBool"   -> js JSBoolean
-          | ctor == "JavaScript.JSString" -> js JSString
+          | ctor == "Int"       -> from JSNumber
+          | ctor == "Float"     -> from JSNumber
+          | ctor == "Bool"      -> from JSBoolean
+          | ctor == "String"    -> from JSString
           where
-            elm checks = check x checks (obj ("_J.to" ++ ctor) <| x)
-            js checks = check x checks x
+            from checks = check x checks x
 
       Data ctor [t]
           | ctor == "Maybe.Maybe" ->
@@ -54,7 +54,7 @@ inc tipe x =
                           (obj "Maybe.Just" <| inc t x)
 
           | ctor == "_List" ->
-              check x JSArray (obj "_J.toList" <| array)
+              check x JSArray (obj "_L.fromArray" <| array)
               where
                 array = DotRef () x (var "map") <| incoming t
 
@@ -104,10 +104,9 @@ out tipe x =
 
       Var _ -> error "type variables should not be allowed through input ports"
       Data ctor []
-          | ctor `elem` ["Int","Float","Bool","String"] -> obj ("_J.from" ++ ctor) <| x
-          | ctor `elem` jsPrims -> x
-          where
-            jsPrims = map ("JavaScript.JS"++) ["Number","Bool","String"]
+          | ctor `elem` ["Int","Float","Bool","String"] -> x
+          | ctor == "Json.Value" ->
+              obj "Native.Json.toJS" <| x
 
       Data ctor [t]
           | ctor == "Maybe.Maybe" ->
@@ -116,7 +115,7 @@ out tipe x =
                           (out t (DotRef () x (var "_0")))
 
           | ctor == "_List" ->
-              DotRef () (obj "_J.fromList" <| x) (var "map") <| outgoing t
+              DotRef () (obj "_L.toArray" <| x) (var "map") <| outgoing t
 
       Data ctor ts
           | Help.isTuple ctor ->

@@ -10,7 +10,7 @@ import qualified Data.Maybe as Maybe
 import Data.Typeable
 
 data Name = Name { user :: String, project :: String }
-    deriving (Typeable,Eq)
+    deriving (Typeable,Eq, Ord)
 
 instance Binary Name where
   get = Name <$> get <*> get

@@ -114,7 +114,7 @@ foldr = Native.String.foldr
 {-| Split a string using a given separator.
 
       split "," "cat,dog,cow"        == ["cat","dog","cow"]
-      split "/" "home/evan/Desktop/" == ["home","evan","Desktop"]
+      split "/" "home/evan/Desktop/" == ["home","evan","Desktop", ""]
 
 Use `Regex.split` if you need something more flexible.
 -}

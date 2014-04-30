@@ -5,23 +5,30 @@ Elm.Native.Utils.make = function(elm) {
     elm.Native.Utils = elm.Native.Utils || {};
     if (elm.Native.Utils.values) return elm.Native.Utils.values;
 
-    function eq(x,y) {
-        if (x === y) return true;
-        if (typeof x === "object") {
-            var c = 0;
-            for (var i in x) {
-                ++c;
-                if (!eq(x[i],y[i])) {
-                    return false;
+    function eq(l,r) {
+        var stack = [{'x': l, 'y': r}]
+        while (stack.length > 0) {
+            var front = stack.pop();
+            var x = front.x;
+            var y = front.y;
+            if (x === y) continue;
+            if (typeof x === "object") {
+                var c = 0;
+                for (var i in x) {
+                    ++c;
+                    stack.push({ 'x': x[i], 'y': y[i] });
                 }
+                if (c !== Object.keys(y).length) {
+                    return false;
+                };
+            } else if (typeof x === 'function') {
+                throw new Error('Equality error: general function equality is ' +
+                                'undecidable, and therefore, unsupported');
+            } else {
+                return false;
             }
-            return c === Object.keys(y).length;
         }
-        if (typeof x === 'function') {
-            throw new Error('Equality error: general function equality is ' +
-                            'undecidable, and therefore, unsupported');
-        }
-        return x === y;
+        return true;
     }
 
     // code in Generate/JavaScript.hs depends on the particular
@@ -30,11 +37,15 @@ Elm.Native.Utils.make = function(elm) {
     function compare(x,y) { return { ctor: ord[cmp(x,y)+1] } }
     function cmp(x,y) {
         var ord;
-        if (typeof x !== 'object' || x instanceof String){
+        if (typeof x !== 'object'){
             return x === y ? EQ : x < y ? LT : GT;
         }
-
-        if (x.ctor === "::" || x.ctor === "[]") {
+        else if (x.isChar){
+            var a = x.toString();
+            var b = y.toString();
+            return a === b ? EQ : a < b ? LT : GT;
+        }
+        else if (x.ctor === "::" || x.ctor === "[]") {
             while (true) {
                 if (x.ctor === "[]" && y.ctor === "[]") return EQ;
                 if (x.ctor !== y.ctor) return x.ctor === '[]' ? LT : GT;
@@ -44,8 +55,7 @@ Elm.Native.Utils.make = function(elm) {
                 y = y._1;
             }
         }
-
-        if (x.ctor.slice(0,6) === '_Tuple') {
+        else if (x.ctor.slice(0,6) === '_Tuple') {
             var n = x.ctor.slice(6) - 0;
             var err = 'cannot compare tuples with more than 6 elements.';
             if (n === 0) return EQ;
@@ -58,9 +68,11 @@ Elm.Native.Utils.make = function(elm) {
             if (n >= 7) throw new Error('Comparison error: ' + err); } } } } } }
             return EQ;
         }
-        throw new Error('Comparison error: comparison is only defined on ints, ' +
-                        'floats, times, chars, strings, lists of comparable values, ' +
-                        'and tuples of comparable values.')
+        else {
+            throw new Error('Comparison error: comparison is only defined on ints, ' +
+                            'floats, times, chars, strings, lists of comparable values, ' +
+                            'and tuples of comparable values.');
+        }
     }
 
 
@@ -205,6 +217,10 @@ Elm.Native.Utils.make = function(elm) {
         return Tuple2(posx, posy);
     }
 
+    function isJSArray(a) {
+        return a instanceof Array;
+    }
+
     return elm.Native.Utils.values = {
         eq:eq,
         cmp:cmp,
@@ -224,6 +240,7 @@ Elm.Native.Utils.make = function(elm) {
         mod : F2(mod),
         htmlHeight: F2(htmlHeight),
         getXY: getXY,
+        isJSArray: isJSArray,
         toFloat: function(x) { return +x; }
     };
 };

@@ -25,7 +25,9 @@ prelude = string ++ text ++ map (\n -> (n, Hiding [])) modules
     text = map ((,) "Text") [ As "Text", Hiding ["link", "color", "height"] ]
     string = map ((,) "String") [ As "String", Importing ["show"] ]
     modules = [ "Basics", "Signal", "List", "Maybe", "Time", "Color"
-              , "Graphics.Element", "Graphics.Collage", "Native.Ports" ]
+              , "Graphics.Element", "Graphics.Collage"
+              , "Native.Ports", "Native.Json"
+              ]
 
 interfaces :: Bool -> IO Interfaces
 interfaces noPrelude =

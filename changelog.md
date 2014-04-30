@@ -1,4 +1,19 @@
 
+## 0.12.1
+
+## Improvements:
+
+  * New Array library (thanks entirely to @Xashili)
+  * Json.Value can flow through ports
+  * Improve speed and stack usage in List library (thanks to @maxsnew)
+  * Add Dict.filter and Dict.partition (thanks to @hdgarrood)
+
+#### Breaking Changes:
+
+  * Revamp Json library, simpler with better names
+  * Revamp JavaScript.Experimental library to have slightly better names
+  * Remove JavaScript library which was made redundant by ports
+
 ## 0.12
 
 #### Breaking Changes:
