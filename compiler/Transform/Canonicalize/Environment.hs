@@ -26,10 +26,10 @@ data Environment = Env
 
 builtIns :: Environment
 builtIns =
-    Env { _values   = builtIn ([saveEnvName,"::","[]"] ++ tuples)
-        , _adts     = builtIn ["_List","Int","Float","Char","Bool","String"]
+    Env { _values   = builtIn (tuples ++ [saveEnvName,"::","[]"])
+        , _adts     = builtIn (tuples ++ ["_List","Int","Float","Char","Bool","String"])
         , _aliases  = dict []
-        , _patterns = builtIn (["::","[]"] ++ tuples)
+        , _patterns = builtIn (tuples ++ ["::","[]"])
         }
     where
       builtIn xs = dict $ map (\x -> (x, Var.Canonical Var.BuiltIn x)) xs
