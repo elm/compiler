@@ -122,7 +122,7 @@ push = Native.Array.push
 
 {-| Get the element at a particular index.
 
-      getOrFail 2 (A.fromList [3,2,1]) == 1
+      getOrFail 0 (A.fromList [0,1,2]) == 0
 
 Warning: this function will result in a runtime error if the index is not found,
 so it is best to use `get` or `getOrElse` unless you are sure the index will be
@@ -133,9 +133,10 @@ getOrFail = Native.Array.get
 
 {-| Return Just the element at the index or Nothing if the index is out of range.
 
-      get  2 (fromList [3,2,1]) == Just 2
-      get  5 (fromList [3,2,1]) == Nothing
-      get -1 (fromList [3,2,1]) == Nothing
+      get  0 (fromList [0,1,2]) == Just 0
+      get  2 (fromList [0,1,2]) == Just 2
+      get  5 (fromList [0,1,2]) == Nothing
+      get -1 (fromList [0,1,2]) == Nothing
 -}
 get : Int -> Array a -> Maybe a
 get i array =
@@ -146,8 +147,8 @@ get i array =
 {-| Get the element at the index. Or if the index is out of range, a default
 value is returned.
 
-      getOrElse 0 2 (fromList [3,2,1]) == 1
-      getOrElse 0 5 (fromList [3,2,1]) == 0
+      getOrElse 0 2 (fromList [0,1,2]) == 2
+      getOrElse 0 5 (fromList [0,1,2]) == 0
 -}
 getOrElse : a -> Int -> Array a -> a
 getOrElse default i array =
