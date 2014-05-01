@@ -22,37 +22,40 @@ tests =
         , test "fromList" <| assertEqual (Array.fromList []) Array.empty
         ]
       basicsTests = suite "Basics"
-        [ test "length" <| assertEqual (Array.length (Array.fromList [1,2,3])) 3
-        , test "length - Long" <| assertEqual (Array.length (Array.repeat 10000 0)) 10000
-        , test "push" <| assertEqual (Array.push 3 (Array.fromList [1,2])) (Array.fromList [1,2,3])
-        , test "append" <| assertEqual (Array.toList <| Array.append (Array.repeat 2 42) (Array.repeat 3 81)) ([42,42,81,81,81])
+        [ test "length" <| assertEqual 3 (Array.length (Array.fromList [1,2,3]))
+        , test "length - Long" <| assertEqual 10000 (Array.length (Array.repeat 10000 0))
+        , test "push" <| assertEqual (Array.fromList [1,2,3]) (Array.push 3 (Array.fromList [1,2]))
+        , test "append" <| assertEqual [42,42,81,81,81] (Array.toList (Array.append (Array.repeat 2 42) (Array.repeat 3 81)))
         ]
       getAndSetTests = suite "Get and Set"
-        [ test "get" <| assertEqual (Array.get 1 (Array.fromList [3,2,1])) (Just 2)
-        , test "get 2" <| assertEqual (Array.get 5 (Array.fromList [3,2,1])) Nothing
-        , test "get 3" <| assertEqual (Array.get -1 (Array.fromList [3,2,1])) Nothing
-        , test "getOrElse 1" <| assertEqual (Array.getOrElse 0 2 (Array.fromList [3,2,1])) 1
-        , test "getOrElse 2" <| assertEqual (Array.getOrElse 0 5 (Array.fromList [3,2,1])) 0
-        , test "getOrFail" <| assertEqual (Array.getOrFail 2 (Array.fromList [3,2,1])) 1
-        , test "set" <| assertEqual (Array.set 1 7 (Array.fromList [1,2,3])) (Array.fromList [1,7,3])
+        [ test "get" <| assertEqual (Just 2) (Array.get 1 (Array.fromList [3,2,1]))
+        , test "get 2" <| assertEqual Nothing (Array.get 5 (Array.fromList [3,2,1]))
+        , test "get 3" <| assertEqual Nothing (Array.get -1 (Array.fromList [3,2,1]))
+        , test "getOrElse 1" <| assertEqual 1 (Array.getOrElse 0 2 (Array.fromList [3,2,1]))
+        , test "getOrElse 2" <| assertEqual 0 (Array.getOrElse 0 5 (Array.fromList [3,2,1]))
+        , test "getOrFail" <| assertEqual 1 (Array.getOrFail 2 (Array.fromList [3,2,1]))
+        , test "set" <| assertEqual (Array.fromList [1,7,3]) (Array.set 1 7 (Array.fromList [1,2,3]))
         ]
       takingArraysApartTests = suite "Taking Arrays Apart"
-        [ test "toList" <| assertEqual (Array.toList (Array.fromList [3,5,8])) [3,5,8]
-        , test "toIndexedList" <| assertEqual (Array.toIndexedList (Array.fromList ["cat","dog"])) [(0,"cat"), (1,"dog")]
-        , test "slice" <| assertEqual (Array.slice 1 2 (Array.fromList [0,1,2,3,4])) (Array.fromList [1,2])
-        , test "slice 2" <| assertEqual (Array.slice 1 -2 (Array.fromList [0,1,2,3,4])) (Array.fromList [1,2,3])
-        , test "slice 3" <| assertEqual (Array.slice -3 -2 (Array.fromList [0,1,2,3,4])) (Array.fromList [2,3])
+        [ test "toList" <| assertEqual [3,5,8] (Array.toList (Array.fromList [3,5,8]))
+        , test "toIndexedList" <| assertEqual [(0,"cat"), (1,"dog")] (Array.toIndexedList (Array.fromList ["cat","dog"]))
+        , test "slice 1" <| assertEqual (Array.fromList [1,2]) (Array.slice 1 2 (Array.fromList [0,1,2,3,4]))
+        , test "slice 2" <| assertEqual (Array.fromList [1,2,3]) (Array.slice 1 -2 (Array.fromList [0,1,2,3,4]))
+        , test "slice 3" <| assertEqual (Array.fromList [2,3]) (Array.slice -3 -2 (Array.fromList [0,1,2,3,4]))
         ]
       mappingAndFoldingTests = suite "Mapping and Folding"
-        [ test "map" <| assertEqual (Array.map sqrt (Array.fromList [1,4,9])) (Array.fromList [1,2,3])
-        , test "indexedMap" <| assertEqual (Array.indexedMap (*) (Array.fromList [5,5,5])) (Array.fromList [0,5,10])
-        , test "foldl" <| assertEqual (Array.foldl (::) [] (Array.fromList [1,2,3])) [3,2,1]
-        , test "foldr" <| assertEqual (Array.foldr (+) 0 (Array.repeat 3 5)) 15
-        , test "foldr 2" <| assertEqual (Array.foldr (::) [] (Array.fromList [1,2,3])) [1,2,3]
-        , test "filter" <| assertEqual (Array.filter (\x -> x `mod` 2 == 0) (Array.fromList [1..6])) (Array.fromList [2,4,6])
+        [ test "map" <| assertEqual (Array.fromList [1,2,3]) (Array.map sqrt (Array.fromList [1,4,9]))
+        , test "indexedMap" <| assertEqual (Array.fromList [0,5,10]) (Array.indexedMap (*) (Array.fromList [5,5,5]))
+        , test "foldl" <| assertEqual [3,2,1] (Array.foldl (::) [] (Array.fromList [1,2,3]))
+        , test "foldr 1" <| assertEqual 15 (Array.foldr (+) 0 (Array.repeat 3 5))
+        , test "foldr 2" <| assertEqual [1,2,3] (Array.foldr (::) [] (Array.fromList [1,2,3]))
+        , test "filter" <| assertEqual (Array.fromList [2,4,6]) (Array.filter (\x -> x `mod` 2 == 0) (Array.fromList [1..6]))
         ]
       nativeTests = suite "Conversion to JS Arrays"
         [ test "jsArrays" <| assertEqual (Array.fromList [1..1100]) (Native.Array.fromJSArray (Native.Array.toJSArray (Array.fromList [1..1100])))
         ]
   in
-      suite "Array Tests" [creationTests, basicsTests, getAndSetTests, takingArraysApartTests, mappingAndFoldingTests, nativeTests]
+      suite "Array"
+        [ creationTests, basicsTests, getAndSetTests
+        , takingArraysApartTests, mappingAndFoldingTests, nativeTests
+        ]
