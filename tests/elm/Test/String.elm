@@ -28,6 +28,10 @@ tests =
         , test "split slashes"<| assertEqual ["home","steve","Desktop", ""] (split "/" "home/steve/Desktop/")
         , test "join spaces"  <| assertEqual "cat dog cow" (join " " ["cat","dog","cow"])
         , test "join slashes" <| assertEqual "home/steve/Desktop" (join "/" ["home","steve","Desktop"])
+        , test "slice 1" <| assertEqual "c" (slice 2 3 "abcd")
+        , test "slice 2" <| assertEqual "abc" (slice 0 3 "abcd")
+        , test "slice 3" <| assertEqual "abc" (slice 0 -1 "abcd")
+        , test "slice 4" <| assertEqual "cd" (slice -2 4 "abcd")
         ]
   in
       suite "String" [ simpleTests, combiningTests ]
