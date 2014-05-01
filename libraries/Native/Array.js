@@ -1,4 +1,4 @@
-﻿Elm.Native.Array = {};
+Elm.Native.Array = {};
 Elm.Native.Array.make = function(elm) {
     elm.Native = elm.Native || {};
     elm.Native.Array = elm.Native.Array || {};
@@ -262,9 +262,6 @@ Elm.Native.Array.make = function(elm) {
       return b;
     }
 
-    // Returns a sliced tree. "to" is inclusive, but this may change,
-    // when I understand, why e.g. JS does not handle it this way. :-)
-    // If "from" or "to" is negative, they will select from the end on.
     // TODO: currently, it slices the right, then the left. This can be
     // optimized.
     function slice(from, to, a) {
@@ -281,7 +278,7 @@ Elm.Native.Array.make = function(elm) {
       // Handle leaf level.
       if (a.height == 0) {
         var newA = { ctor:"_Array", height:0 };
-        newA.table = a.table.slice(0, to + 1);
+        newA.table = a.table.slice(0, to);
         return newA;
       }
 
@@ -576,6 +573,46 @@ Elm.Native.Array.make = function(elm) {
                             , lengths:[length(a), length(a) + length(b)] };
     }
 
+    function toJSArray(a) {
+      var jsArray = new Array(length(a));
+      toJSArray_(jsArray, 0, a);
+      return jsArray;
+    }
+
+    function toJSArray_(jsArray, i, a) {
+      for (var t = 0; t < a.table.length; t++) {
+        if (a.height == 0) {
+          jsArray[i + t] = a.table[t];
+        } else {
+          var inc = t == 0 ? 0 : a.lengths[t - 1];
+          toJSArray_(jsArray, i + inc, a.table[t]);
+        }
+      }
+    }
+
+    function fromJSArray(jsArray) {
+      if (jsArray.length == 0) { return empty; }
+      var h = Math.floor(Math.log(jsArray.length) / Math.log(M));
+      return fromJSArray_(jsArray, h, 0, jsArray.length);
+    }
+
+    function fromJSArray_(jsArray, h, from, to) {
+      if (h == 0) {
+        return { ctor:"_Array", height:0
+                              , table:jsArray.slice(from, to) };
+      }
+
+      var step = Math.pow(M, h);
+      var table = new Array(Math.ceil((to - from) / step));
+      var lengths = new Array(table.length);
+      for (var i = 0; i < table.length; i++) {
+        table[i] = fromJSArray_( jsArray, h - 1, from + (i * step)
+                               , Math.min(from + ((i + 1) * step), to));
+        lengths[i] = length(table[i]) + (i > 0 ? lengths[i-1] : 0);
+      }
+      return { ctor:"_Array", height:h, table:table, lengths:lengths };
+    }
+
     Elm.Native.Array.values = {
       empty:empty,
       fromList:fromList,
@@ -590,7 +627,10 @@ Elm.Native.Array.make = function(elm) {
       indexedMap:F2(indexedMap),
       foldl:F3(foldl),
       foldr:F3(foldr),
-      length:length
+      length:length,
+
+      toJSArray:toJSArray,
+      fromJSArray:fromJSArray
     };
 
     return elm.Native.Array.values = Elm.Native.Array.values;

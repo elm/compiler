@@ -14,7 +14,7 @@ reads, updates, and appends.
 @docs get, getOrElse, getOrFail, set
 
 # Taking Arrays Apart
-@docs toList, toIndexedList, slice
+@docs slice, toList, toIndexedList
 
 # Mapping and Folding
 @docs map, indexedMap, foldl, foldr
@@ -122,7 +122,7 @@ push = Native.Array.push
 
 {-| Get the element at a particular index.
 
-      getOrFail 2 (A.fromList [3,2,1]) == 1
+      getOrFail 0 (A.fromList [0,1,2]) == 0
 
 Warning: this function will result in a runtime error if the index is not found,
 so it is best to use `get` or `getOrElse` unless you are sure the index will be
@@ -133,9 +133,10 @@ getOrFail = Native.Array.get
 
 {-| Return Just the element at the index or Nothing if the index is out of range.
 
-      get  2 (fromList [3,2,1]) == Just 2
-      get  5 (fromList [3,2,1]) == Nothing
-      get -1 (fromList [3,2,1]) == Nothing
+      get  0 (fromList [0,1,2]) == Just 0
+      get  2 (fromList [0,1,2]) == Just 2
+      get  5 (fromList [0,1,2]) == Nothing
+      get -1 (fromList [0,1,2]) == Nothing
 -}
 get : Int -> Array a -> Maybe a
 get i array =
@@ -146,8 +147,8 @@ get i array =
 {-| Get the element at the index. Or if the index is out of range, a default
 value is returned.
 
-      getOrElse 0 2 (fromList [3,2,1]) == 1
-      getOrElse 0 5 (fromList [3,2,1]) == 0
+      getOrElse 0 2 (fromList [0,1,2]) == 2
+      getOrElse 0 5 (fromList [0,1,2]) == 0
 -}
 getOrElse : a -> Int -> Array a -> a
 getOrElse default i array =
@@ -163,13 +164,21 @@ If the index is out of range, the array is unaltered.
 set : Int -> a -> Array a -> Array a
 set = Native.Array.set
 
-{-| Slice an array given a range. The selection is inclusive, so the last
-element in the selection will also be in the new array. This may change in the
-future. You can select from the end by giving a negative Int.
+{-| Get a sub-section of an array: `(slice start end array)`. The `start` is a
+zero-based index where we will start our slice. The `end` is a zero-based index
+that indicates the end of the slice. The slice extracts up to but not including
+`end`.
 
-      slice  1  2 (fromList [0,1,2,3,4]) == fromList [1,2]
-      slice  1 -2 (fromList [0,1,2,3,4]) == fromList [1,2,3]
-      slice -3 -2 (fromList [0,1,2,3,4]) == fromList [2,3]
+      slice  0  3 (fromList [0,1,2,3,4]) == fromList [0,1,2]
+      slice  1  4 (fromList [0,1,2,3,4]) == fromList [1,2,3]
+
+Both the `start` and `end` indexes can be negative, indicating an offset from
+the end of the array.
+
+      slice  1 -1 (fromList [0,1,2,3,4]) == fromList [1,2,3]
+      slice -2  5 (fromList [0,1,2,3,4]) == fromList [3,4]
+
+This makes it pretty easy to `pop` the last element off of an array: `slice 0 -1 array`
 -}
 slice : Int -> Int -> Array a -> Array a
 slice = Native.Array.slice
