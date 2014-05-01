@@ -14,7 +14,7 @@ reads, updates, and appends.
 @docs get, getOrElse, getOrFail, set
 
 # Taking Arrays Apart
-@docs toList, toIndexedList, slice
+@docs slice, toList, toIndexedList
 
 # Mapping and Folding
 @docs map, indexedMap, foldl, foldr
@@ -163,13 +163,21 @@ If the index is out of range, the array is unaltered.
 set : Int -> a -> Array a -> Array a
 set = Native.Array.set
 
-{-| Slice an array given a range. The selection is inclusive, so the last
-element in the selection will also be in the new array. This may change in the
-future. You can select from the end by giving a negative Int.
+{-| Get a sub-section of an array: `(slice start end array)`. The `start` is a
+zero-based index where we will start our slice. The `end` is a zero-based index
+that indicates the end of the slice. The slice extracts up to but not including
+`end`.
 
-      slice  1  2 (fromList [0,1,2,3,4]) == fromList [1,2]
-      slice  1 -2 (fromList [0,1,2,3,4]) == fromList [1,2,3]
-      slice -3 -2 (fromList [0,1,2,3,4]) == fromList [2,3]
+      slice  0  3 (fromList [0,1,2,3,4]) == fromList [0,1,2]
+      slice  1  4 (fromList [0,1,2,3,4]) == fromList [1,2,3]
+
+Both the `start` and `end` indexes can be negative, indicating an offset from
+the end of the array.
+
+      slice  1 -1 (fromList [0,1,2,3,4]) == fromList [1,2,3]
+      slice -2  5 (fromList [0,1,2,3,4]) == fromList [3,4]
+
+This makes it pretty easy to `pop` the last element off of an array: `slice 0 -1 array`
 -}
 slice : Int -> Int -> Array a -> Array a
 slice = Native.Array.slice
