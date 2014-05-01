@@ -73,7 +73,7 @@ Elm.Native.String.make = function(elm) {
         return result;
     }
 
-    function sub(start, end, str) {
+    function slice(start, end, str) {
         return str.slice(start,end);
     }
     function left(n, str) {
@@ -216,7 +216,7 @@ Elm.Native.String.make = function(elm) {
         join: F2(join),
         repeat: F2(repeat),
 
-        sub: F3(sub),
+        slice: F3(slice),
         left: F2(left),
         right: F2(right),
         dropLeft: F2(dropLeft),

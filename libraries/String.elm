@@ -6,10 +6,10 @@ are enclosed in `"double quotes"`. Strings are *not* lists of characters.
 @docs isEmpty, length, reverse, repeat
 
 # Building and Splitting
-@docs  cons, uncons, append, concat, split, join, words, lines
+@docs cons, uncons, append, concat, split, join, words, lines
 
 # Get Substrings
-@docs sub, left, right, dropLeft, dropRight
+@docs slice, left, right, dropLeft, dropRight
 
 # Check for Substrings
 @docs contains, startsWith, endsWith, indexes, indices
@@ -139,13 +139,13 @@ repeat = Native.String.repeat
 {-| Take a substring given a start and end index. Negative indexes
 are taken starting from the *end* of the list.
 
-      sub  7  9 "snakes on a plane!" == "on"
-      sub  0  6 "snakes on a plane!" == "snakes"
-      sub  0 -7 "snakes on a plane!" == "snakes on a"
-      sub -6 -1 "snakes on a plane!" == "plane"
+      slice  7  9 "snakes on a plane!" == "on"
+      slice  0  6 "snakes on a plane!" == "snakes"
+      slice  0 -7 "snakes on a plane!" == "snakes on a"
+      slice -6 -1 "snakes on a plane!" == "plane"
 -}
-sub : Int -> Int -> String -> String
-sub = Native.String.sub
+slice : Int -> Int -> String -> String
+slice = Native.String.slice
 
 {-| Take N characters from the left side of a string. -}
 left : Int -> String -> String

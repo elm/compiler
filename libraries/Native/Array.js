@@ -262,9 +262,6 @@ Elm.Native.Array.make = function(elm) {
       return b;
     }
 
-    // Returns a sliced tree. "to" is inclusive, but this may change,
-    // when I understand, why e.g. JS does not handle it this way. :-)
-    // If "from" or "to" is negative, they will select from the end on.
     // TODO: currently, it slices the right, then the left. This can be
     // optimized.
     function slice(from, to, a) {
@@ -281,7 +278,7 @@ Elm.Native.Array.make = function(elm) {
       // Handle leaf level.
       if (a.height == 0) {
         var newA = { ctor:"_Array", height:0 };
-        newA.table = a.table.slice(0, to + 1);
+        newA.table = a.table.slice(0, to);
         return newA;
       }
 
