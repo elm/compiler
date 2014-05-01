@@ -1,6 +1,8 @@
 module Dict (empty,singleton,insert,update
-            ,lookup,findWithDefault
+            ,get,getOrElse,getOrFail
             ,remove,member
+            ,filter
+            ,partition
             ,foldl,foldr,map
             ,union,intersect,diff
             ,keys,values
@@ -17,7 +19,7 @@ Insert, remove, and query operations all take *O(log n)* time.
 @docs empty, singleton, insert, update, remove
 
 # Query
-@docs member, lookup, findWithDefault
+@docs member, get, getOrElse, getOrFail
 
 # Combine
 @docs union, intersect, diff
@@ -26,7 +28,7 @@ Insert, remove, and query operations all take *O(log n)* time.
 @docs keys, values, toList, fromList
 
 # Transform
-@docs map, foldl, foldr
+@docs map, foldl, foldr, filter, partition
 
 -}
 
@@ -84,33 +86,74 @@ max t =
     RBNode _ _ _ _ r -> max r
     RBEmpty _ -> Native.Error.raise "(max Empty) is not defined"
 
-{-| Lookup the value associated with a key. -}
-lookup : comparable -> Dict comparable v -> Maybe v
-lookup k t =
+{-| Get the value associated with a key. If the key is not found, return
+`Nothing`. This is useful when you are not sure if a key will be in the
+dictionary.
+
+      animals = fromList [ ("Tom", Cat), ("Jerry", Mouse) ]
+
+      get "Tom"   animals == Just Cat
+      get "Mouse" animals == Just Mouse
+      get "Spike" animals == Nothing
+
+The `getOrElse` and `getOrFail` are built-in ways to handle common ways of
+using the resulting `Maybe`.
+-}
+get : comparable -> Dict comparable v -> Maybe v
+get k t =
  case t of
    RBEmpty LBlack -> Nothing
    RBNode _ k' v l r ->
     case Native.Utils.compare k k' of
-      LT -> lookup k l
+      LT -> get k l
       EQ -> Just v
-      GT -> lookup k r
+      GT -> get k r
 
-{-| Find the value associated with a key. If the key is not found,
-return the default value. -}
-findWithDefault : v -> comparable -> Dict comparable v -> v
-findWithDefault base k t =
+{-| Get the value associated with a key. If the key is not found,
+return a default value.
+
+      animals = fromList [ ("Tom", Cat), ("Jerry", Mouse) ]
+
+      getOrElse Dog "Tom"   animals == Cat
+      getOrElse Dog "Mouse" animals == Mouse
+      getOrElse Dog "Spike" animals == Dog
+-}
+getOrElse : v -> comparable -> Dict comparable v -> v
+getOrElse base k t =
  case t of
    RBEmpty LBlack -> base
    RBNode _ k' v l r ->
     case Native.Utils.compare k k' of
-      LT -> findWithDefault base k l
+      LT -> getOrElse base k l
       EQ -> v
-      GT -> findWithDefault base k r
+      GT -> getOrElse base k r
+
+{-| Get the value associated with a key.
+
+      animals = fromList [ ("Tom", Cat), ("Jerry", Mouse) ]
+
+      getOrFail "Tom"   animals == Cat
+      getOrFail "Mouse" animals == Mouse
+      getOrFail "Spike" animals == -- Runtime Error!
+
+Warning: this function will result in a runtime error if the key is not found,
+so it is best to use `get` or `getOrElse` unless you are sure the key will be
+found.
+-}
+getOrFail : comparable -> Dict comparable v -> v
+getOrFail k t =
+ case t of
+   RBEmpty LBlack -> Native.Error.raise "key not found when using 'getOrFail'"
+   RBNode _ k' v l r ->
+    case Native.Utils.compare k k' of
+      LT -> getOrFail k l
+      EQ -> v
+      GT -> getOrFail k r
 
 {-| Determine if a key is in a dictionary. -}
 member : comparable -> Dict comparable v -> Bool
 -- Does t contain k?
-member k t = isJust <| lookup k t
+member k t = isJust <| get k t
 
 ensureBlackRoot : Dict k v -> Dict k v
 ensureBlackRoot t =
@@ -327,9 +370,7 @@ union t1 t2 = foldl insert t2 t1
 {-| Keep a key-value pair when its key appears in the second dictionary.
 Preference is given to values in the first dictionary. -}
 intersect : Dict comparable v -> Dict comparable v -> Dict comparable v
-intersect t1 t2 =
- let combine k v t = if k `member` t2 then insert k v t else t
- in  foldl combine empty t1
+intersect t1 t2 = filter (\k _ -> k `member` t2) t1
 
 {-| Keep a key-value pair when its key does not appear in the second dictionary.
 Preference is given to the first dictionary. -}
@@ -351,3 +392,20 @@ toList t = foldr (\k v acc -> (k,v) :: acc) [] t
 {-| Convert an association list into a dictionary. -}
 fromList : [(comparable,v)] -> Dict comparable v
 fromList assocs = List.foldl (\(k,v) d -> insert k v d) empty assocs
+
+{-| Keep a key-value pair when it satisfies a predicate. -}
+filter : (comparable -> v -> Bool) -> Dict comparable v -> Dict comparable v
+filter p dict =
+  let add k v t = if p k v then insert k v t else t
+  in  foldl add empty dict
+
+{-| Partition a dictionary according to a predicate. The first dictionary
+contains all key-value pairs which satisfy the predicate, and the second
+contains the rest.
+-}
+partition : (comparable -> v -> Bool) -> Dict comparable v -> (Dict comparable v, Dict comparable v)
+partition p dict =
+  let add k v (t1, t2) = if p k v
+                            then (insert k v t1,  t2)
+                            else (t1, insert k v t2)
+  in  foldl add (empty, empty) dict

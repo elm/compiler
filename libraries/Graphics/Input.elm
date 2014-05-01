@@ -89,7 +89,7 @@ button = Native.Graphics.Input.button
 
       prettyButton : Element
       prettyButton =
-          customButton click.handle
+          customButton click.handle ()
               (image 100 40 "/button_up.jpg")
               (image 100 40 "/button_hover.jpg")
               (image 100 40 "/button_down.jpg")

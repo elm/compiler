@@ -5,9 +5,12 @@ import Control.Applicative
 import Control.Monad.Error
 import qualified Control.Exception as E
 import Data.Aeson
+import Data.Aeson.Encode.Pretty
 import qualified Data.List as List
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.HashMap.Strict as Map
+import qualified Data.Text as T
+
 import qualified Elm.Internal.Name as N
 import qualified Elm.Internal.Version as V
 import qualified Elm.Internal.Paths as Path
@@ -22,13 +25,31 @@ data Deps = Deps
     , exposed :: [String]
     , elmVersion :: V.Version
     , dependencies :: [(N.Name,V.Version)]
-    } deriving Show
+    } deriving (Show, Eq, Ord)
 
 data MiniDeps = Mini [(N.Name,V.Version)]
+              deriving (Show, Eq, Ord)
+
+instance ToJSON MiniDeps where
+  toJSON (Mini m) = toJSON m
 
 instance FromJSON MiniDeps where
     parseJSON (Object obj) = Mini <$> getDependencies obj
     parseJSON _ = mzero
+
+instance ToJSON Deps where
+  toJSON d = object [
+    "version"         .= version d,
+    "summary"         .= summary d,
+    "description"     .= description d,
+    "license"         .= license d,
+    "repository"      .= repo d,
+    "exposed-modules" .= exposed d,
+    "elm-version"     .= elmVersion d,
+    "dependencies"    .= (jsonDeps . dependencies $ d)
+    ]
+    where jsonDeps = Map.fromList . map (mapFst (T.pack . show))
+          mapFst f (a,b) = (f a, b)
 
 instance FromJSON Deps where
     parseJSON (Object obj) =
@@ -110,8 +131,24 @@ withDeps handle path =
         case result of
           Right bytes -> return bytes
           Left _ -> throwError $
-                    "could not find file " ++ path ++
-                    "\n    You may need to create a dependency file for your project."
+                    "could not find " ++ path ++ " file. You may need to create one.\n" ++
+                    "    For an example of how to fill in the dependencies file, check out\n" ++
+                    "    <https://github.com/evancz/automaton/blob/master/elm_dependencies.json>"
 
 depsAt :: FilePath -> ErrorT String IO Deps
 depsAt = withDeps id
+
+-- | Encode dependencies in a canonical JSON format
+prettyJSON :: Deps -> BS.ByteString
+prettyJSON = encodePretty' config
+  where config = defConfig { confCompare = order }
+        order = keyOrder [ "name",
+                           "version",
+                           "summary",
+                           "description",
+                           "license",
+                           "repo",
+                           "exposed-modules",
+                           "elm-version",
+                           "dependencies"
+                         ]

@@ -1,4 +1,4 @@
-﻿Elm.Native.Array = {};
+Elm.Native.Array = {};
 Elm.Native.Array.make = function(elm) {
     elm.Native = elm.Native || {};
     elm.Native.Array = elm.Native.Array || {};
@@ -24,38 +24,144 @@ Elm.Native.Array.make = function(elm) {
     // An empty array.
     var empty = { ctor:"_Array", height:0, table:new Array() };
 
-    // Gets the value at index i recursively.
-    function get(i, a) {
-      if (a.height == 0) {
-        if (i < a.table.length) {
-          return a.table[i];
-        } else {
-          throw new Error("Index "+ i +" is out of range. Check the length of your array first or use getSafe or getMaybe.");
+    function get(i, array) {
+        if (i < 0 || i >= length(array)) {
+            throw new Error("Index " + i + " is out of range. Check the length of " +
+                            "your array first or use getMaybe or getWithDefault.");
         }
-      }
+        return unsafeGet(i, array);
+    }
 
-      var slot = getSlot(i, a);
-      var sub = slot > 0 ? a.lengths[slot-1] : 0;
-      return get(i - sub, a.table[slot]);
+    function unsafeGet(i, array) {
+      for (var x = array.height; x > 0; x--) {
+        var slot = i >> (x * 5);
+        if (slot > 0) {
+          while (array.lengths[slot - 1] > i) { slot--; }
+          i -= array.lengths[slot - 1];
+        }
+        array = array.table[slot];
+      }
+      return array.table[i];
     }
 
     // Sets the value at the index i. Only the nodes leading to i will get
     // copied and updated.
-    function set(i, item, a) {
-      if (length(a) <= i) {
-        return a;
+    function set(i, item, array) {
+      if (i < 0 || length(array) <= i) {
+        return array;
       }
-      var newA = nodeCopy(a);
-      newA.table = a.table.slice();
+      return unsafeSet(i, item, array);
+    }
 
-      if (a.height == 0) {
-        newA.table[i] = item;
+    function unsafeSet(i, item, array) {
+      array = nodeCopy(array);
+
+      if (array.height == 0) {
+        array.table[i] = item;
       } else {
-        var slot = getSlot(i, a);
-        var sub = slot > 0 ? a.lengths[slot-1] : 0;
-        newA.table[slot] = set(i - sub, item, a.table[slot]);
+        var slot = getSlot(i, array);
+        if (slot > 0) {
+          i -= array.lengths[slot - 1];
+        }
+        array.table[slot] = unsafeSet(i, item, array.table[slot]);
       }
-      return newA;
+      return array;
+    }
+
+    function initialize(len, f) {
+      if (len == 0) { return empty; }
+      var h = Math.floor(Math.log(len)/Math.log(M));
+      return initialize_(f, h, 0, len);
+    }
+
+    function initialize_(f, h, from, to) {
+      if (h == 0) {
+        var table = new Array((to - from) % (M + 1));
+        for (var i = 0; i < table.length; i++) {
+          table[i] = f(from + i);
+        }
+        return { ctor:"_Array", height:0, table:table };
+      }
+
+      var step = Math.pow(M, h);
+      var table = new Array(Math.ceil((to - from) / step));
+      var lengths = new Array(table.length);
+      for (var i = 0; i < table.length; i++) {
+        table[i] = initialize_( f, h - 1, from + (i * step)
+                              , Math.min(from + ((i + 1) * step), to));
+        lengths[i] = length(table[i]) + (i > 0 ? lengths[i-1] : 0);
+      }
+      return { ctor:"_Array", height:h, table:table, lengths:lengths };
+    }
+
+    function fromList(list) {
+      if (list == List.Nil) { return empty; }
+
+      // Allocate M sized blocks (table) and write list elements to it.
+      var table = new Array(M);
+      var nodes = new Array();
+      var i = 0;
+
+      while (list.ctor !== '[]') {
+        table[i] = list._0;
+        list = list._1;
+        i++;
+
+        // table is full, so we can push a leaf containing it into the
+        // next node.
+        if (i == M) {
+          fromListPush({ ctor:"_Array", height:0, table:table }
+                      , nodes);
+          table = new Array(M);
+          i = 0;
+        }
+      }
+
+      // Maybe there is something left on the table.
+      if (i > 0) {
+        fromListPush({ ctor:"_Array", height:0, table:table.splice(0,i) }
+                    , nodes);
+      }
+
+      // Go through all of the nodes and eventually push them into higher nodes.
+      for (var h = 0; h < nodes.length - 1; h++) {
+        if (nodes[h].table.length > 0) {
+          fromListPush(nodes[h], nodes);
+        }
+      }
+
+      var head = nodes[nodes.length - 1];
+      if (head.height > 0 && head.table.length == 1) {
+        return head.table[0];
+      } else {
+        return head;
+      }
+    }
+
+    // Push a node into a higher node as a child.
+    function fromListPush(toPush, nodes) {
+      var h = toPush.height;
+
+      // Maybe the node on this height does not exist.
+      if (nodes.length == h) {
+        nodes.push({ ctor:"_Array", height:h + 1
+                                  , table:new Array()
+                                  , lengths:new Array() });
+      }
+
+      nodes[h].table.push(toPush);
+      var len = length(toPush);
+      if (nodes[h].lengths.length > 0) {
+        len += nodes[h].lengths[nodes[h].lengths.length - 1];
+      }
+      nodes[h].lengths.push(len);
+
+      if (nodes[h].table.length == M) {
+        fromListPush(nodes[h], nodes);
+        nodes[h] = { ctor:"_Array", height:h + 1
+                                  , table:new Array()
+                                  , lengths:new Array() };
+      }
     }
 
     // Pushes an item via push_ to the bottom right of a tree.
@@ -65,7 +171,7 @@ Elm.Native.Array.make = function(elm) {
         return pushed;
       }
 
-      newTree = create(item, a.height);
+      var newTree = create(item, a.height);
       return siblise(a, newTree);
     }
 
@@ -143,22 +249,19 @@ Elm.Native.Array.make = function(elm) {
     }
 
     function foldl(f, b, a) {
-      for (var i = a.table.length - 1; i >= 0; i--) {
+      for (var i = 0; i < a.table.length; i++) {
         b = A2(f, a.height == 0 ? a.table[i] : foldl(f, b, a.table[i]), b);
       }
       return b;
     }
 
     function foldr(f, b, a) {
-      for (var i = 0; i < a.table.length; i++) {
+      for (var i = a.table.length; i--; ) {
         b = A2(f, a.height == 0 ? a.table[i] : foldr(f, b, a.table[i]), b);
       }
       return b;
     }
 
-    // Returns a sliced tree. "to" is inclusive, but this may change,
-    // when I understand, why e.g. JS does not handle it this way. :-)
-    // If "from" or "to" is negative, they will select from the end on.
     // TODO: currently, it slices the right, then the left. This can be
     // optimized.
     function slice(from, to, a) {
@@ -175,7 +278,7 @@ Elm.Native.Array.make = function(elm) {
       // Handle leaf level.
       if (a.height == 0) {
         var newA = { ctor:"_Array", height:0 };
-        newA.table = a.table.slice(0, to + 1);
+        newA.table = a.table.slice(0, to);
         return newA;
       }
 
@@ -232,15 +335,15 @@ Elm.Native.Array.make = function(elm) {
       return newA;
     }
 
-    // Concats two trees.
-    // TODO: Add support for concatting trees of different sizes. Current
-    // behavior will just rise the lower tree and then concat them.
-    function concat(a, b) {
-      if (b.height > a.height) { return concat(parentise(a, b.height), b); }
-      if (a.height > b.height) { return concat(a, parentise(b, a.height)); }
-      if (a.height == 0) { return concat(parentise(a, 1), parentise(b, 1)); }
+    // Appends two trees.
+    // TODO: Add support for appending trees of different sizes. Current
+    // behavior will just rise the lower tree and then append them.
+    function append(a,b) {
+      if (b.height > a.height) { return append(parentise(a, b.height), b); }
+      if (a.height > b.height) { return append(a, parentise(b, a.height)); }
+      if (a.height == 0) { return append(parentise(a, 1), parentise(b, 1)); }
 
-      var c = concat_(a, b);
+      var c = append_(a, b);
       if (c[1].table.length > 0) {
         return siblise(c[0], c[1]);
       } else {
@@ -249,9 +352,9 @@ Elm.Native.Array.make = function(elm) {
     }
 
     // Returns an array of two nodes. The second node _may_ be empty. This case
-    // needs to be handled by the function, that called concat_. May be only
+    // needs to be handled by the function, that called append_. May be only
     // called for trees with an minimal height of 1.
-    function concat_(a, b) {
+    function append_(a, b) {
       if (a.height == 1) {
         // Check if balancing is needed and return based on that.
         var toRemove = calcToRemove(a, b);
@@ -262,18 +365,18 @@ Elm.Native.Array.make = function(elm) {
         return shuffle(a, b, toRemove);
       }
 
-      var concated = concat_(botRight(a), botLeft(b));
+      var appended = append_(botRight(a), botLeft(b));
       a = nodeCopy(a), b = nodeCopy(b);
 
       // Adjust the bottom right side of the new tree.
-      a.table[a.table.length - 1] = concated[0];
-      a.lengths[a.lengths.length - 1] = length(concated[0])
+      a.table[a.table.length - 1] = appended[0];
+      a.lengths[a.lengths.length - 1] = length(appended[0])
       a.lengths[a.lengths.length - 1] += a.lengths.length > 1 ? a.lengths[a.lengths.length - 2] : 0;
 
       // Adjust the bottom left side of the new tree.
-      if (concated[1].table.length > 0) {
-        b.table[0] = concated[1];
-        b.lengths[0] = length(concated[1]);
+      if (appended[1].table.length > 0) {
+        b.table[0] = appended[1];
+        b.lengths[0] = length(appended[1]);
         for (var i = 1, len = length(b.table[0]); i < b.lengths.length; i++) {
           len += length(b.table[i]);
           b.lengths[i] = len;
@@ -423,21 +526,19 @@ Elm.Native.Array.make = function(elm) {
     }
 
     // Returns how many items are in the tree.
-    function length(a) {
-      if (a.height == 0) {
-        return a.table.length;
+    function length(array) {
+      if (array.height == 0) {
+        return array.table.length;
       } else {
-        return a.lengths[a.lengths.length - 1];
+        return array.lengths[array.lengths.length - 1];
       }
     }
 
     // Calculates in which slot of "table" the item probably is, then
     // find the exact slot via forward searching in  "lengths". Returns the index.
     function getSlot(i, a) {
-      var slot = Math.floor(i / (Math.pow(M, a.height)));
-      while (a.lengths[slot] <= i) {
-        slot++
-      }
+      var slot = i >> (5 * a.height);
+      while (a.lengths[slot - 1] > i) { slot--; }
       return slot;
     }
 
@@ -472,10 +573,52 @@ Elm.Native.Array.make = function(elm) {
                             , lengths:[length(a), length(a) + length(b)] };
     }
 
+    function toJSArray(a) {
+      var jsArray = new Array(length(a));
+      toJSArray_(jsArray, 0, a);
+      return jsArray;
+    }
+
+    function toJSArray_(jsArray, i, a) {
+      for (var t = 0; t < a.table.length; t++) {
+        if (a.height == 0) {
+          jsArray[i + t] = a.table[t];
+        } else {
+          var inc = t == 0 ? 0 : a.lengths[t - 1];
+          toJSArray_(jsArray, i + inc, a.table[t]);
+        }
+      }
+    }
+
+    function fromJSArray(jsArray) {
+      if (jsArray.length == 0) { return empty; }
+      var h = Math.floor(Math.log(jsArray.length) / Math.log(M));
+      return fromJSArray_(jsArray, h, 0, jsArray.length);
+    }
+
+    function fromJSArray_(jsArray, h, from, to) {
+      if (h == 0) {
+        return { ctor:"_Array", height:0
+                              , table:jsArray.slice(from, to) };
+      }
+
+      var step = Math.pow(M, h);
+      var table = new Array(Math.ceil((to - from) / step));
+      var lengths = new Array(table.length);
+      for (var i = 0; i < table.length; i++) {
+        table[i] = fromJSArray_( jsArray, h - 1, from + (i * step)
+                               , Math.min(from + ((i + 1) * step), to));
+        lengths[i] = length(table[i]) + (i > 0 ? lengths[i-1] : 0);
+      }
+      return { ctor:"_Array", height:h, table:table, lengths:lengths };
+    }
+
     Elm.Native.Array.values = {
       empty:empty,
+      fromList:fromList,
       toList:toList,
-      concat:F2(concat),
+      initialize:F2(initialize),
+      append:F2(append),
       push:F2(push),
       slice:F3(slice),
       get:F2(get),
@@ -484,7 +627,10 @@ Elm.Native.Array.make = function(elm) {
       indexedMap:F2(indexedMap),
       foldl:F3(foldl),
       foldr:F3(foldr),
-      length:length
+      length:length,
+
+      toJSArray:toJSArray,
+      fromJSArray:fromJSArray
     };
 
     return elm.Native.Array.values = Elm.Native.Array.values;

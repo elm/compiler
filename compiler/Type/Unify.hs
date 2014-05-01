@@ -86,6 +86,10 @@ actuallyUnify region variable1 variable2 = do
           TS.addError region (Just $ Maybe.fromMaybe msg maybe) variable1 variable2
           where msg = "A comparable must be an Int, Float, Char, String, list, or tuple."
 
+      appendableError maybe =
+          TS.addError region (Just $ Maybe.fromMaybe msg maybe) variable1 variable2
+          where msg = "An appendable must be of type String, List, or Text."
+
       unifyComparable var name
           | name `elem` ["Int","Float","Char","String","comparable"] = flexAndUnify var
           | otherwise = comparableError Nothing
@@ -108,7 +112,7 @@ actuallyUnify region variable1 variable2 = do
           do struct <- liftIO $ collectApps varFlex
              case struct of
                List _ -> flexAndUnify varSuper
-               _ -> comparableError Nothing
+               _      -> appendableError Nothing
 
       rigidError variable = TS.addError region (Just hint) variable1 variable2
           where
