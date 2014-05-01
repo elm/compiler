@@ -38,7 +38,7 @@ inc tipe x =
 
       Data "Json.Value" [] ->
           obj "Native.Json.fromJS" <| x
-                           
+
       Data ctor []
           | ctor == "Int"       -> from JSNumber
           | ctor == "Float"     -> from JSNumber
@@ -71,10 +71,10 @@ inc tipe x =
                           , inc t (BracketRef () x (IntLit () n)))
 
       Data _ _ ->
-          error "bad ADT got to port generation code"
+          error "bad ADT got to incoming port generation code"
 
       Record _ (Just _) ->
-          error "bad record got to port generation code"
+          error "bad record got to incoming port generation code"
 
       Record fields Nothing ->
           check x (JSObject (map fst fields)) object
@@ -128,12 +128,12 @@ out tipe x =
           | Help.isTuple ctor ->
               let convert n t = out t $ DotRef () x $ var ('_':show n)
               in  ArrayLit () $ zipWith convert [0..] ts
-                       
+
       Data _ _ ->
-          error "bad ADT got to port generation code"
+          error "bad ADT got to outgoing port generation code"
 
       Record _ (Just _) ->
-          error "bad record got to port generation code"
+          error "bad record got to outgoing port generation code"
 
       Record fields Nothing ->
           ObjectLit () keys

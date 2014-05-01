@@ -34,7 +34,7 @@ include alias moduleName =
 
 internalImports :: String -> Statement ()
 internalImports name =
-    VarDeclStmt () 
+    VarDeclStmt ()
     [ varDecl "_N" (obj "Elm.Native")
     , include "_U" "_N.Utils"
     , include "_L" "_N.List"
