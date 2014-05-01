@@ -54,13 +54,10 @@ isJust = maybe False (\_ -> True)
 isNothing : Maybe a -> Bool
 isNothing = not . isJust
 
-cons : Maybe a -> [a] -> [a]
-cons mx xs = maybe xs (\x -> x :: xs) mx
-
 {-| Filters out Nothings and extracts the remaining values.
 
       justs [Just 0, Nothing, Just 5, Just 7] == [0,5,7]
 -}
 justs : [Maybe a] -> [a]
-justs ms = Native.List.foldr cons []
-
+justs = let cons mx xs = maybe xs (\x -> x :: xs) mx
+        in Native.List.foldr cons []
