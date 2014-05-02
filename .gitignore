@@ -13,7 +13,5 @@ data
 build
 cache
 *~
-tests/elm/build/
-tests/elm/cache/
-tests/elm/exe.js
+exe.js
 node_modules/
