@@ -143,29 +143,37 @@ function croppedImage(elem, w, h, src) {
     return e;
 }
 
-function goIn(e) { e.style.position = 'absolute'; return e; }
+function goOut(e) { e.style.position = 'absolute'; return e; }
 function goDown(e) { return e }
 function goRight(e) { e.style.styleFloat = e.style.cssFloat = "left"; return e; }
-function flowWith(f, array) {
-    var container = newElement('div');
-    if (f == goIn) container.style.pointerEvents = 'none';
 
-    for (var i = array.length; i--; ) {
-        container.appendChild(f(render(array[i])));
-    }
-    return container;
+var directionTable = {
+    DUp    : goDown,
+    DDown  : goDown,
+    DLeft  : goRight,
+    DRight : goRight,
+    DIn    : goOut,
+    DOut   : goOut
+};
+function needsReversal(dir) {
+    return dir == 'DUp' || dir == 'DLeft' || dir == 'DIn';
 }
 
 function flow(dir,elist) {
     var array = fromList(elist);
-    switch(dir.ctor) {
-    case "DDown":  array.reverse();
-    case "DUp":    return flowWith(goDown,array);
-    case "DRight": array.reverse();
-    case "DLeft":  return flowWith(goRight,array);
-    case "DOut":   array.reverse();
-    case "DIn":    return flowWith(goIn,array);
+    var container = newElement('div');
+    var goDir = directionTable[dir];
+    if (goDir == goOut) {
+        container.style.pointerEvents = 'none';
     }
+    if (needsReversal(dir)) {
+        array.reverse();
+    }
+    var len = array.length;
+    for (var i = 0; i < len; ++i) {
+        container.appendChild(goDir(render(array[i])));
+    }
+    return container;
 }
 
 function toPos(pos) {
@@ -245,7 +253,7 @@ function makeElement(e) {
     var elem = e.element;
     switch(elem.ctor) {
     case 'Image':     return image(e.props, elem);
-    case 'Flow':      return flow(elem._0, elem._1);
+    case 'Flow':      return flow(elem._0.ctor, elem._1);
     case 'Container': return container(elem._0, elem._1);
     case 'Spacer':    return newElement('div');
     case 'RawHtml':   return rawHtml(elem);
@@ -321,14 +329,12 @@ function update(node, curr, next) {
             return true;
         }
         var currs = fromList(currE._1);
-        var goDir = function(x) { return x; };
-        switch(nextE._0.ctor) {
-        case "DDown":  case "DUp":   goDir = goDown; break;
-        case "DRight": case "DLeft": goDir = goRight; break;
-        case "DOut":   case "DIn":   goDir = goIn; break;
-        }
-        for (var i = kids.length; i-- ;) {
-            update(kids[i],currs[i],nexts[i]);
+        var dir = nextE._0.ctor;
+        var goDir = directionTable[dir];
+        var toReverse = needsReversal(dir);
+        var len = kids.length;
+        for (var i = len; i-- ;) {
+            update(kids[toReverse ? len - i - 1 : i],currs[i],nexts[i]);
             goDir(kids[i]);
         }
         break;
