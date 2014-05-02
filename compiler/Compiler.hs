@@ -1,12 +1,13 @@
 {-# OPTIONS_GHC -W #-}
 module Main where
 
-import Control.Monad (foldM)
+import Control.Monad (foldM, when)
 import qualified Data.Maybe as Maybe
 import Text.Blaze.Html.Renderer.String (renderHtml)
 import qualified Data.ByteString.Lazy.Char8 as BS
 import qualified System.Console.CmdArgs as CmdArgs
 import System.Directory
+import System.Exit (exitSuccess)
 import System.FilePath
 import GHC.Conc
 
@@ -24,7 +25,10 @@ main = do setNumCapabilities =<< getNumProcessors
 
 compileArgs :: Flag.Flags -> IO ()
 compileArgs flags =
-    case Flag.files flags of
+  do when (Flag.show_runtime flags) $ 
+         do putStrLn Path.runtime
+            exitSuccess
+     case Flag.files flags of
       [] -> putStrLn "Usage: elm [OPTIONS] [FILES]\nFor more help: elm --help"
       fs -> mapM_ (build flags) fs
 
