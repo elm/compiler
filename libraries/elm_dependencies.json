@@ -1,12 +1,13 @@
-{ "version": "0.12"
+{ "version": "0.12.1"
 , "summary": "Elm's standard libraries"
-, "description": "The full set of standard libraries for Elm. This library is pegged to the version number of the compiler, so if you are using Elm 0.12, you should be using version 0.12 of the standard libraries."
+, "description": "The full set of standard libraries for Elm. This library is pegged to the version number of the compiler, so if you are using Elm 0.12.1, you should be using version 0.12.1 of the standard libraries."
 , "license": "BSD3"
-, "repository": "http://github.com/evancz/Elm.git"
-, "elm-version": "0.12"
+, "repository": "http://github.com/elm-lang/Elm.git"
+, "elm-version": "0.12.1"
 , "dependencies": {}
 , "exposed-modules":
-    [ "Basics"
+    [ "Array"
+    , "Basics"
     , "Bitwise"
     , "Char"
     , "Color"

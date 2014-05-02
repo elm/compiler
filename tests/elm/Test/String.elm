@@ -6,21 +6,32 @@ import String (..)
 import ElmTest.Assertion (..)
 import ElmTest.Test (..)
 
-tests : [Test]
+tests : Test
 tests =
-    let isEmptyTests = [test "empty is empty" <| assert <| isEmpty "",
-                        test "not empty" <| assert <|  not . isEmpty <| "the world"]
-        lengthTest = test "length of innumerable" <| assertEqual 11 (length "innumerable")
-        reverseTest = test "reverse test" <| assertEqual "desserts" (reverse "stressed")
-        repeatTest = test "repeat test" <| assertEqual "hahaha" (repeat 3 "ha")
-        unconsTests = [test "nonempty uncons" <| assertEqual (Just ('a',"bc")) (uncons "abc"),
-                       test "empty uncons"    <| assertEqual Nothing           (uncons "")]
-        appendTest = test "append test" <| assertEqual "butterfly"    (append "butter" "fly")
-        concatTest = test "concat test" <| assertEqual "nevertheless" (concat ["never","the","less"])
-        splitTests = [test "split commas" <| assertEqual ["cat","dog","cow"] (split "," "cat,dog,cow"),
-                     test "split slashes"<| assertEqual ["home","evan","Desktop", ""] (split "/" "home/evan/Desktop/")]
-        joinTests = [test "join spaces"  <| assertEqual "cat dog cow" (join " " ["cat","dog","cow"]),
-                     test "join slashes" <| assertEqual "home/evan/Desktop" (join "/" ["home","evan","Desktop"])]
-        
-        endsWithTest = test "endsWith Check" (assert <| endsWith "h" "th")
-    in List.concat [isEmptyTests, [lengthTest, reverseTest, repeatTest], unconsTests, [appendTest, concatTest], splitTests, joinTests, [endsWithTest]]
+  let simpleTests = suite "Simple Stuff"
+        [ test "is empty" <| assert (isEmpty "")
+        , test "is not empty" <| assert (not (isEmpty ("the world")))
+        , test "length" <| assertEqual 11 (length "innumerable")
+        , test "endsWith" (assert <| endsWith "ship" "spaceship")
+        , test "reverse" <| assertEqual "desserts" (reverse "stressed")
+        , test "repeat" <| assertEqual "hahaha" (repeat 3 "ha")
+        ]
+
+      combiningTests = suite "Combining Strings"
+        [ test "uncons non-empty" <| assertEqual (Just ('a',"bc")) (uncons "abc")
+        , test "uncons empty" <| assertEqual Nothing (uncons "")
+        , test "append 1" <| assertEqual "butterfly" (append "butter" "fly")
+        , test "append 2" <| assertEqual "butter" (append "butter" "")
+        , test "append 3" <| assertEqual "butter" (append "" "butter")
+        , test "concat" <| assertEqual "nevertheless" (concat ["never","the","less"])
+        , test "split commas" <| assertEqual ["cat","dog","cow"] (split "," "cat,dog,cow")
+        , test "split slashes"<| assertEqual ["home","steve","Desktop", ""] (split "/" "home/steve/Desktop/")
+        , test "join spaces"  <| assertEqual "cat dog cow" (join " " ["cat","dog","cow"])
+        , test "join slashes" <| assertEqual "home/steve/Desktop" (join "/" ["home","steve","Desktop"])
+        , test "slice 1" <| assertEqual "c" (slice 2 3 "abcd")
+        , test "slice 2" <| assertEqual "abc" (slice 0 3 "abcd")
+        , test "slice 3" <| assertEqual "abc" (slice 0 -1 "abcd")
+        , test "slice 4" <| assertEqual "cd" (slice -2 4 "abcd")
+        ]
+  in
+      suite "String" [ simpleTests, combiningTests ]

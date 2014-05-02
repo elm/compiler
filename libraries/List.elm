@@ -171,11 +171,11 @@ not.
       partition isEven        [0..5] == ([0,2,4], [1,3,5])
 -}
 partition : (a -> Bool) -> [a] -> ([a],[a])
-partition pred lst =
-    case lst of
-      []    -> ([],[])
-      x::xs -> let (bs,cs) = partition pred xs in
-               if pred x then (x::bs,cs) else (bs,x::cs)
+partition pred =
+    let step x (ts, fs) = if pred x
+                          then (x::ts, fs)
+                          else (ts, x::fs)
+    in foldr step ([],[])
 
 {-| Combine two lists, combining them into tuples pairwise.
 If one list is longer, the extra elements are dropped.
@@ -194,12 +194,14 @@ If one list is longer, the extra elements are dropped.
 zipWith : (a -> b -> c) -> [a] -> [b] -> [c]
 zipWith = Native.List.zipWith
 
-{-| Decompose a list of tuples. -}
+{-| Decompose a list of tuples. 
+
+      unzip [(0, True), (17, False), (1337, True)] == ([0,17,1337], [True,False,True])
+-}
 unzip : [(a,b)] -> ([a],[b])
-unzip pairs =
-  case pairs of
-    []        -> ([],[])
-    (x,y)::ps -> let (xs,ys) = (unzip ps) in (x::xs,y::ys)
+unzip =
+    let step (x,y) (xs, ys) = (x::xs, y::ys)
+    in foldr step ([], [])
 
 {-| Places the given value between all of the lists in the second
 argument and concatenates the result.
@@ -215,10 +217,12 @@ join = Native.List.join
 -}
 intersperse : a -> [a] -> [a]
 intersperse sep xs =
-  case xs of 
-    a::b::cs -> a :: sep :: intersperse sep (b::cs)
-    [a] -> [a]
-    []  -> []
+    case xs of
+      [] -> []
+      hd::tl ->
+          let step x rest = sep :: x :: rest
+              spersed = foldr step [] tl
+          in hd :: spersed
 
 {-| Take the first n members of a list: `(take 2 [1,2,3,4] == [1,2])` -}
 take : Int -> [a] -> [a]
