@@ -1,4 +1,4 @@
-module Graphics.WebGL (Triangle, Shader, mapTriangle, zipTriangle, unsafeCoerceGLSL, loadTex, model, webgl) where
+module Graphics.WebGL (mapTriangle, zipTriangle, unsafeCoerceGLSL, loadTex, model, webgl) where
 
 {-| The WebGL API is for high performance drawing.
 
