@@ -3,7 +3,7 @@ ElmRuntime.Render.Element = function() {
 'use strict';
 
 var Utils = ElmRuntime.use(ElmRuntime.Render.Utils);
-var newElement = Utils.newElement, extract = Utils.extract,
+var newElement = Utils.newElement, colorToCss = Utils.colorToCss,
     addTransform = Utils.addTransform, removeTransform = Utils.removeTransform,
     fromList = Utils.fromList, eq = Utils.eq;
 
@@ -18,7 +18,7 @@ function setProps(elem, e) {
         e.style.opacity = props.opacity;
     }
     if (props.color.ctor === 'Just') {
-        e.style.backgroundColor = extract(props.color._0);
+        e.style.backgroundColor = colorToCss(props.color._0);
     }
     if (props.tag !== '') { e.id = props.tag; }
     if (props.href !== '') {
@@ -370,7 +370,7 @@ function updateProps(node, curr, next) {
         e.style.opacity = props.opacity;
     }
     var nextColor = (props.color.ctor === 'Just' ?
-                     extract(props.color._0) : '');
+                     colorToCss(props.color._0) : '');
     if (e.style.backgroundColor !== nextColor) {
         e.style.backgroundColor = (nextColor === '' ? 'transparent' : nextColor);
     }
