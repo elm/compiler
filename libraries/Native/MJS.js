@@ -160,7 +160,7 @@ Elm.Native.MJS.make = function(elm) {
      * Turn into an Elm Tuple 
      */
     V3.toTuple3 = function V3_toTuple3(a) {
-      return v = {
+      return {
         ctor:"_Tuple3",
         _0:a[0],
         _1:a[1],
