@@ -55,6 +55,31 @@ rgba = RGBA
 rgb : Int -> Int -> Int -> Color
 rgb r g b = RGBA r g b 1
 
+{-| Create [HSL colors](http://en.wikipedia.org/wiki/HSL_and_HSV)
+with an alpha component for transparency.
+-}
+hsla : Float -> Float -> Float -> Float -> Color
+hsla hue saturation lightness alpha =
+    HSLA (hue - toFloat (floor (hue / (2*pi)))) saturation lightness alpha
+
+{-| Create [HSL colors](http://en.wikipedia.org/wiki/HSL_and_HSV). This gives
+you access to colors more like a color wheel, where all hues are aranged in a
+circle that you specify with standard Elm angles (radians).
+
+      red   = hsl (degrees   0) 1 0.5
+      green = hsl (degrees 120) 1 0.5
+      blue  = hsl (degrees 240) 1 0.5
+
+      pastelRed = hsl (degrees 0) 0.7 0.7
+
+To cycle through all colors, just cycle through degrees. The saturation level
+is how vibrant the color is, like a dial between grey and bright colors. The
+lightness level is a dial between white and black.
+-}
+hsl : Float -> Float -> Float -> Color
+hsl hue saturation lightness =
+    hsla hue saturation lightness 1
+
 {-| Produce a gray based on the input. 0 is white, 1 is black. -}
 grayscale : Float -> Color
 grayscale p = HSLA 0 0 (1-p) 1
@@ -71,21 +96,6 @@ complement color =
       HSLA h s l a -> hsla (h + degrees 180) s l a
       RGBA r g b a -> let (h,s,l) = rgbToHsl r g b
                       in  hsla (h + degrees 180) s l a
-
-{-| Create [HSL colors](http://en.wikipedia.org/wiki/HSL_and_HSV)
-with an alpha component for transparency.
--}
-hsla : Float -> Float -> Float -> Float -> Color
-hsla hue saturation lightness alpha =
-    HSLA (hue - toFloat (floor (hue / (2*pi)))) saturation lightness alpha
-
-{-| Create [HSL colors](http://en.wikipedia.org/wiki/HSL_and_HSV). This is very
-convenient for creating colors that cycle and shift. Hue is an angle and should
-be given in standard Elm angles (radians).
--}
-hsl : Float -> Float -> Float -> Color
-hsl hue saturation lightness =
-    hsla hue saturation lightness 1
 
 {-| Extract the the components of a color in the HSL format.
 -}
