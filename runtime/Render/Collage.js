@@ -5,7 +5,7 @@ var Render = ElmRuntime.use(ElmRuntime.Render.Element);
 var Transform = Elm.Transform2D.make({});
 var Utils = ElmRuntime.use(ElmRuntime.Render.Utils);
 var newElement = Utils.newElement,
-    extract = Utils.extract, fromList = Utils.fromList,
+    colorToCss = Utils.colorToCss, fromList = Utils.fromList,
     fromString = Utils.fromString, addTransform = Utils.addTransform;
 
 function trace(ctx, path) {
@@ -70,7 +70,7 @@ function drawLine(ctx, style, path) {
     ctx.lineJoin = join === 'Smooth' ? 'round' :
                    join === 'Sharp' ? 'miter' : 'bevel';
     ctx.miterLimit = style.join._0 || 10;
-    ctx.strokeStyle = extract(style.color);
+    ctx.strokeStyle = colorToCss(style.color);
     return line(ctx, style, path);
 }
 
@@ -96,7 +96,7 @@ function gradient(ctx, grad) {
   var len = stops.length;
   for (var i = 0; i < len; ++i) {
     var stop = stops[i];
-    g.addColorStop(stop._0, extract(stop._1));
+    g.addColorStop(stop._0, colorToCss(stop._1));
   }
   return g;
 }
@@ -105,7 +105,7 @@ function drawShape(redo, ctx, style, path) {
     trace(ctx, path);
     var sty = style.ctor;
     ctx.fillStyle =
-        sty === 'Solid' ? extract(style._0) :
+        sty === 'Solid' ? colorToCss(style._0) :
         sty === 'Texture' ? texture(redo, ctx, style._0) : gradient(ctx, style._0);
     ctx.scale(1,-1);
     ctx.fill();
