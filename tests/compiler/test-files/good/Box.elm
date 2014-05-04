@@ -25,22 +25,38 @@ bottom = [(p3,p4,p7),(p7,p2,p3)]
 
 positions = front ++ back ++ right ++ left ++ top ++ bottom
 
-gray   = v3 0.7 0.7 0.7
-red     = v3 1 0 0
-green   = v3 0 1 0
-blue    = v3 0 0 1
-yellow  = v3 1 1 0
-purple  = v3 0 1 1
+toV3 color =
+  let c = toRgb color
+  in  v3 (toFloat c.red / 255) (toFloat c.green / 255) (toFloat c.blue / 255)
 
-repeat n elem = map (\_ -> elem) [0..n-1]
-
-colors = concat . map (\c -> repeat 2 (c,c,c)) <| [gray,red,green,blue,yellow,purple]
+colors : [Triangle V3]
+colors =
+  concatMap (\c' -> let c = toV3 c' in repeat 2 (c,c,c))
+  [gray,red,green,blue,yellow,purple]
 
 mesh : [Triangle {pos : V3, color : V3}]
 mesh = zipWith (zipTriangle (\pos color -> { pos = pos, color = color })) positions colors
 
-vert : Shader {a | pos : V3, color : V3} {b | rot : M4x4, per : M4x4, cam : M4x4} {vcolor : V3}
-vert = [glShader|
+per : M4x4
+per = makePerspective 45 1 0.01 100
+
+cam : M4x4
+cam = makeLookAt (v3 0 0 5) (v3 0 0 0) (v3 0 1 0)
+
+angle : Signal Float
+angle = foldp (\dt theta -> theta + dt / 10000) 0 (fps 25)
+
+rot : Signal { rot : M4x4, per : M4x4, cam : M4x4, shade : Float }
+rot = (\t -> { rot = mul (makeRotate (3*t) (v3 0 1 0)) (makeRotate (2*t) (v3 1 0 0)), per = per, cam = cam, shade = 0.8 }) <~ angle
+
+draw : Signal [Model]
+draw = combine [ model vertexShader fragmentShader mesh <~ rot ]
+
+main = webgl <~ dimensions ~ draw
+
+vertexShader : Shader {a | pos : V3, color : V3} {b | rot : M4x4, per : M4x4, cam : M4x4} {vcolor : V3}
+vertexShader = [glShader|
+
 attribute vec3 pos;
 attribute vec3 color;
 uniform mat4 per;
@@ -51,32 +67,17 @@ void main () {
     gl_Position = per * cam * rot * vec4(pos, 1.0);
     vcolor = color;
 }
+
 |]
 
-frag : Shader {} {b | shade : Float} {vcolor : V3}
-frag = [glShader|
+fragmentShader : Shader {} {b | shade : Float} {vcolor : V3}
+fragmentShader = [glShader|
+
 precision mediump float;
 uniform float shade;
 varying vec3 vcolor;
 void main () {
     gl_FragColor = shade * vec4(vcolor, 1.0);
 }
+
 |]
-
-per : M4x4
-per = makePerspective 45 1 0.01 100
-
-cam : M4x4
-cam = makeLookAt (v3 0 0 5) (v3 0 0 0) (v3 0 1 0)
-
-angle : Signal Float
-angle = foldp (\_ n -> n + 0.02) 0 (fps 25)
-
-rot : Signal { rot : M4x4, per : M4x4, cam : M4x4, shade : Float }
-rot = (\t -> { rot = mul (makeRotate (3*t) (v3 0 1 0)) (makeRotate (2*t) (v3 1 0 0)), per = per, cam = cam, shade = 0.8 }) <~ angle
-
-draw : Signal [Model]
-draw = combine [ (\rot -> (model vert frag mesh rot)) <~ rot ]
-
-main = webgl <~ dimensions ~ draw
-
