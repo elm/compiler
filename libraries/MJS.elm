@@ -274,9 +274,9 @@ Creates a transformation matrix for a camera.
 
 Parameters:
   
-  eye - The location of the camera
-  center - The location of the focused object
-  up - The "up" direction according to the camera
+ * eye - The location of the camera
+ * center - The location of the focused object
+ * up - The "up" direction according to the camera
 -}
 makeLookAt : V3 -> V3 -> V3 -> M4x4
 makeLookAt = Native.MJS.m4x4makeLookAt
