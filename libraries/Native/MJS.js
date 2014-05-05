@@ -30,7 +30,7 @@
  * File: mjs
  *
  * Vector and Matrix math utilities for JavaScript, optimized for WebGL.
- * Edited to work with Elm Programming Language
+ * Edited to work with the Elm Programming Language
  */
 
 Elm.Native.MJS = {};
@@ -56,7 +56,7 @@ Elm.Native.MJS.make = function(elm) {
      * For potentially more performance, the assert methods can be
      * commented out in each place where they are called.
      */
-    //var MJS_DO_ASSERT = true;
+    var MJS_DO_ASSERT = false;
 
     /*
      * Constant: MJS_FLOAT_ARRAY_TYPE
@@ -73,14 +73,15 @@ Elm.Native.MJS.make = function(elm) {
     //MJS_FLOAT_ARRAY_TYPE = Float64Array;
     //MJS_FLOAT_ARRAY_TYPE = Array;
 
-    //if (MJS_DO_ASSERT) {
-        //function MathUtils_assert(cond, msg) {
-            //if (!cond)
-                //throw "Assertion failed: " + msg;
-        //}
-    //} else {
-    function MathUtils_assert() { }
-    //}
+    if (MJS_DO_ASSERT) {
+        function MathUtils_assert(cond, msg) {
+            if (!cond) {
+                throw "Assertion failed: " + msg;
+            }
+        }
+    } else {
+        function MathUtils_assert() { }
+    }
 
     /*
      * Class: V3
@@ -104,11 +105,6 @@ Elm.Native.MJS.make = function(elm) {
         V3.$ = function V3_$(x, y, z) {
             return [x, y, z];
         };
-
-        V3.clone = function V3_clone(a) {
-            //MathUtils_assert(a.length == 3, "a.length == 3");
-            return [a[0], a[1], a[2]];
-        };
     } else {
         V3.x = new MJS_FLOAT_ARRAY_TYPE([1.0, 0.0, 0.0]);
         V3.y = new MJS_FLOAT_ARRAY_TYPE([0.0, 1.0, 0.0]);
@@ -131,34 +127,21 @@ Elm.Native.MJS.make = function(elm) {
         V3.$ = function V3_$(x, y, z) {
             return new MJS_FLOAT_ARRAY_TYPE([x, y, z]);
         };
-
-        /*
-         * Function: V3.clone
-         *
-         * Clone the given 3-element vector.
-         *
-         * Parameters:
-         *
-         *   a - the 3-element vector to clone
-         *
-         * Returns:
-         *
-         * A new vector with the same values as the passed-in one.
-         */
-
-        V3.clone = function V3_clone(a) {
-            //MathUtils_assert(a.length == 3, "a.length == 3");
-            return new MJS_FLOAT_ARRAY_TYPE(a);
-        };
     }
 
     V3.u = V3.x;
     V3.v = V3.y;
 
-    /* Function: V3.toTuple3
-     *
-     * Turn into an Elm Tuple 
-     */
+    V3.getX = function V3_getX(a) {
+        return a[0];
+    }
+    V3.getY = function V3_getY(a) {
+        return a[1];
+    }
+    V3.getZ = function V3_getZ(a) {
+        return a[2];
+    }
+
     V3.toTuple3 = function V3_toTuple3(a) {
       return {
         ctor:"_Tuple3",
@@ -166,6 +149,21 @@ Elm.Native.MJS.make = function(elm) {
         _1:a[1],
         _2:a[2]
       };
+    };
+    V3.fromTuple3 = function V3_fromTuple3(t) {
+      return new MJS_FLOAT_ARRAY_TYPE([t._0, t._1, t._2]);
+    };
+
+    V3.toRecord3 = function V3_toRecord3(a) {
+      return {
+        _:{},
+        x:a[0],
+        y:a[1],
+        z:a[2]
+      };
+    };
+    V3.fromRecord3 = function V3_fromRecord3(r) {
+      return new MJS_FLOAT_ARRAY_TYPE([r.x, r.y, r.z]);
     };
 
     /*
@@ -506,14 +504,6 @@ Elm.Native.MJS.make = function(elm) {
             m08, m09, m10, m11,
             m12, m13, m14, m15];
         };
-
-        M4x4.clone = function M4x4_clone(m) {
-            //MathUtils_assert(m.length == 16, "m.length == 16");
-            return new [m[0], m[1], m[2], m[3],
-                   m[4], m[5], m[6], m[7],
-                   m[8], m[9], m[10], m[11],
-                   m[12], m[13], m[14], m[15]];
-        };
     } else {
         M4x4.I = new MJS_FLOAT_ARRAY_TYPE([1.0, 0.0, 0.0, 0.0,
                 0.0, 1.0, 0.0, 0.0,
@@ -542,24 +532,6 @@ Elm.Native.MJS.make = function(elm) {
                     m04, m05, m06, m07,
                     m08, m09, m10, m11,
                     m12, m13, m14, m15]);
-        };
-
-        /*
-         * Function: M4x4.clone
-         *
-         * Clone the given 4x4 matrix.
-         *
-         * Parameters:
-         *
-         *   m - the 4x4 matrix to clone
-         *
-         * Returns:
-         *
-         * A new matrix with the same values as the passed-in one.
-         */
-        M4x4.clone = function M4x4_clone(m) {
-            //MathUtils_assert(m.length == 16, "m.length == 16");
-            return new MJS_FLOAT_ARRAY_TYPE(m);
         };
     }
 
@@ -1740,7 +1712,13 @@ Elm.Native.MJS.make = function(elm) {
     return { 
         V3: V3,
         v3: F3(V3.$),
+        getX: V3.getX,
+        getY: V3.getY,
+        getZ: V3.getZ,
         toTuple3: V3.toTuple3,
+        toRecord3: V3.toRecord3,
+        fromTuple3: V3.fromTuple3,
+        fromRecord3: V3.fromRecord3,
         v3add: F2(V3.add),
         v3sub: F2(V3.sub),
         v3neg: V3.neg,

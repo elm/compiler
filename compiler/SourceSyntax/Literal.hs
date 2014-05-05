@@ -29,10 +29,10 @@ glTipeName glTipe =
     case glTipe of
       Int     -> "Int"
       Float   -> "Float"
-      V2      -> "MJS.V2"
-      V3      -> "MJS.V3"
-      V4      -> "MJS.V4"
-      M4      -> "MJS.M4x4"
+      V2      -> "Math.Vector.Vec2"
+      V3      -> "Math.Vector.Vec3"
+      V4      -> "Math.Vector.Vec4"
+      M4      -> "Math.Matrix.Mat4"
       Texture -> "Graphics.WebGL.Texture"
 
 data GLShaderTipe = GLShaderTipe
