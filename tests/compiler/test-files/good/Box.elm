@@ -1,15 +1,16 @@
 
 module Box where
 
-import MJS (V3,M4x4,v3,makeRotate,makePerspective,makeLookAt,mul)
+import Math.Vector (..)
+import Math.Matrix (..)
 import Graphics.WebGL (Triangle, zipTriangle, Shader, Model, model, webgl)
 import Window(dimensions)
 
 -- Create a cube in which each point has a color
 
-type ColorPoint = { color:V3, point:V3 }
+type ColorPoint = { color:Vec3, point:Vec3 }
 
-face : Color -> V3 -> V3 -> V3 -> V3 -> [Triangle ColorPoint]
+face : Color -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> [Triangle ColorPoint]
 face color a b c d =
   let toV3 color =
         let c = toRgb color
@@ -47,7 +48,7 @@ scene : Float -> [Model]
 scene angle =
     [ model vertexShader fragmentShader cube (uniforms angle) ]
 
-uniforms : Float -> { rotation:M4x4, perspective:M4x4, camera:M4x4, shade:Float }
+uniforms : Float -> { rotation:Mat4, perspective:Mat4, camera:Mat4, shade:Float }
 uniforms t =
     { rotation = mul (makeRotate (3*t) (v3 0 1 0)) (makeRotate (2*t) (v3 1 0 0))
     , perspective = makePerspective 45 1 0.01 100
@@ -57,9 +58,9 @@ uniforms t =
 
 -- Shaders
 
-vertexShader : Shader { attr | point:V3, color:V3 }
-                      { unif | rotation:M4x4, perspective:M4x4, camera:M4x4 }
-                      { vcolor:V3 }
+vertexShader : Shader { attr | point:Vec3, color:Vec3 }
+                      { unif | rotation:Mat4, perspective:Mat4, camera:Mat4 }
+                      { vcolor:Vec3 }
 vertexShader = [glShader|
 
 attribute vec3 point;
@@ -75,7 +76,7 @@ void main () {
 
 |]
 
-fragmentShader : Shader {} {u | shade : Float} {vcolor : V3}
+fragmentShader : Shader {} { u | shade:Float } { vcolor:Vec3 }
 fragmentShader = [glShader|
 
 precision mediump float;

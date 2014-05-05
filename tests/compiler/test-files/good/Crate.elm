@@ -2,14 +2,15 @@
 module Crate where
 
 import Http (..)
-import MJS (..)
+import Math.Vector (..)
+import Math.Matrix (..)
 import Graphics.WebGL (..)
 
 -- Define the mesh for a crate
-crate : [Triangle { pos:V3, coord:V3 }]
+crate : [Triangle { pos:Vec3, coord:Vec3 }]
 crate = concatMap rotatedFace [ (0,0), (90,0), (180,0), (270,0), (0,90), (0,-90) ]
 
-rotatedFace : (Float,Float) -> [Triangle { pos:V3, coord:V3 }]
+rotatedFace : (Float,Float) -> [Triangle { pos:Vec3, coord:Vec3 }]
 rotatedFace (angleX,angleY) = 
   let x = makeRotate (degrees angleX) (v3 1 0 0)
       y = makeRotate (degrees angleY) (v3 0 1 0)
@@ -17,7 +18,7 @@ rotatedFace (angleX,angleY) =
   in
       map (mapTriangle (\x -> {x | pos <- mul4x4 t x.pos })) face
 
-face : [Triangle { pos:V3, coord:V3 }]
+face : [Triangle { pos:Vec3, coord:Vec3 }]
 face =
   let topLeft     = { pos = v3 -1  1 0, coord = v3 0 1 0 }
       topRight    = { pos = v3  1  1 0, coord = v3 1 1 0 }
@@ -27,7 +28,7 @@ face =
       [ (topLeft,topRight,bottomLeft), (bottomLeft,topRight,bottomRight) ]
 
 -- View
-view : Float -> M4x4
+view : Float -> Mat4
 view angle =
     foldr1 mul [ perspective
                , camera
@@ -35,10 +36,10 @@ view angle =
                , makeRotate (2*angle) (v3 1 0 0)
                ]
 
-perspective : M4x4
+perspective : Mat4
 perspective = makePerspective 45 1 0.01 100
 
-camera : M4x4
+camera : Mat4
 camera = makeLookAt (v3 0 0 5) (v3 0 0 0) (v3 0 1 0)
 
 -- Putting it together
@@ -48,7 +49,7 @@ main = webgl (400,400) <~ lift2 scene (loadTex "woodCrate.jpg") (view <~ angle)
 angle : Signal Float
 angle = foldp (\dt theta -> theta + dt / 10000) 0 (fps 25)
 
-scene : Response Texture -> M4x4 -> [Model]
+scene : Response Texture -> Mat4 -> [Model]
 scene response view =
   case response of
     Waiting     -> []
@@ -56,7 +57,7 @@ scene response view =
     Success tex -> [model vertexShader fragmentShader crate { crate = tex, view = view }]
 
 -- Shaders
-vertexShader : Shader { pos:V3, coord:V3 } { u | view:M4x4 } { vcoord:V2 }
+vertexShader : Shader { pos:Vec3, coord:Vec3 } { u | view:Mat4 } { vcoord:Vec2 }
 vertexShader = [glShader|
 
 attribute vec3 pos;
@@ -70,7 +71,7 @@ void main () {
 
 |]
 
-fragmentShader : Shader {} { u | crate:Texture } { vcoord:V2 }
+fragmentShader : Shader {} { u | crate:Texture } { vcoord:Vec2 }
 fragmentShader = [glShader|
 
 precision mediump float;
