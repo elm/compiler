@@ -1759,7 +1759,6 @@ Elm.Native.MJS.make = function(elm) {
         v3dot: F2(V3.dot),
         v3cross: F2(V3.cross),
         v3mul4x4: F2(V3.mul4x4),
-        M4x4:M4x4,
         m4x4identity: M4x4.identity,
         m4x4topLeft3x3: M4x4.topLeft3x3,
         m4x4inverseOrthonormal: M4x4.inverseOrthonormal,
