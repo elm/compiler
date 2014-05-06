@@ -11,6 +11,7 @@ import IO.Runner as Run
 
 import Test.Array as Array
 import Test.Dict as Dict
+import Test.Eq as Eq
 import Test.List as List
 import Test.Set as Set
 import Test.String as String
@@ -18,6 +19,7 @@ import Test.Trampoline as Trampoline
 
 tests : Test
 tests = suite "Elm Standard Library Tests" [ List.tests,
+                                             Eq.tests,
                                              String.tests, 
                                              Trampoline.tests,
                                              Array.tests,
