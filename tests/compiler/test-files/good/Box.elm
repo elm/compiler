@@ -1,8 +1,8 @@
 
 module Box where
 
-import Math.Vector (..)
-import Math.Matrix (..)
+import Math.Vector3 (..)
+import Math.Matrix4 (..)
 import Graphics.WebGL (Triangle, zipTriangle, Shader, Model, model, webgl)
 import Window(dimensions)
 

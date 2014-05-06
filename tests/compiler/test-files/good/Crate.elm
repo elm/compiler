@@ -2,8 +2,9 @@
 module Crate where
 
 import Http (..)
-import Math.Vector (..)
-import Math.Matrix (..)
+import Math.Vector2 (Vec2)
+import Math.Vector3 (..)
+import Math.Matrix4 (..)
 import Graphics.WebGL (..)
 
 -- Define the mesh for a crate
