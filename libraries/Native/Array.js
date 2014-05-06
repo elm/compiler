@@ -240,13 +240,20 @@ Elm.Native.Array.make = function(elm) {
 
     // Maps a function over the elements with their index as first argument.
     function indexedMap(f, a) {
+      return indexedMap_(f, a, 0);
+    }
+
+    function indexedMap_(f, a, from) {
       var newA = { ctor:"_Array", height:a.height, table:new Array(a.table) };
       if (a.height > 0) { newA.lengths = a.lengths; }
       for (var i = 0; i < a.table.length; i++) {
-        newA.table[i] = a.height == 0 ? A2(f, i, a.table[i]) : indexedMap(f, a.table[i]);
+        newA.table[i] = a.height == 0 ? A2(f, from + i, a.table[i])
+                                      : indexedMap_( f, a.table[i]
+                                                   , i == 0 ? 0 : a.lengths[i - 1]);
       }
       return newA;
     }
+
 
     function foldl(f, b, a) {
       for (var i = 0; i < a.table.length; i++) {
