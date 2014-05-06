@@ -29,9 +29,9 @@ glTipeName glTipe =
     case glTipe of
       Int     -> "Int"
       Float   -> "Float"
-      V2      -> "Math.Vector.Vec2"
-      V3      -> "Math.Vector.Vec3"
-      V4      -> "Math.Vector.Vec4"
+      V2      -> "Math.Vector2.Vec2"
+      V3      -> "Math.Vector3.Vec3"
+      V4      -> "Math.Vector4.Vec4"
       M4      -> "Math.Matrix.Mat4"
       Texture -> "Graphics.WebGL.Texture"
 

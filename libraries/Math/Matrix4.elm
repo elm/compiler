@@ -24,7 +24,7 @@ existing matrix.
 -}
 
 import Native.MJS
-import Math.Vector (Vec3)
+import Math.Vector3 (Vec3)
 
 data Mat4 = Mat4
 

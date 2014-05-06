@@ -141,6 +141,15 @@ Elm.Native.MJS.make = function(elm) {
     V3.getZ = function V3_getZ(a) {
         return a[2];
     }
+    V3.setX = function V3_setX(x, a) {
+        return new MJS_FLOAT_ARRAY_TYPE(x, a[1], a[2]);
+    }
+    V3.setY = function V3_setY(y, a) {
+        return new MJS_FLOAT_ARRAY_TYPE(a[0], y, a[2]);
+    }
+    V3.setZ = function V3_setZ(z, a) {
+        return new MJS_FLOAT_ARRAY_TYPE(a[0], a[1], z);
+    }
 
     V3.toTuple3 = function V3_toTuple3(a) {
       return {
@@ -317,6 +326,20 @@ Elm.Native.MJS.make = function(elm) {
         //MathUtils_assert(a.length == 3, "a.length == 3");
 
         return a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
+    };
+
+    V3.distance = function V3_distance(a, b) {
+        var dx = a[0] - b[0];
+        var dy = a[1] - b[1];
+        var dz = a[2] - b[2];
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    };
+
+    V3.distanceSquared = function V3_distanceSquared(a) {
+        var dx = a[0] - b[0];
+        var dy = a[1] - b[1];
+        var dz = a[2] - b[2];
+        return dx * dx + dy * dy + dz * dz;
     };
 
     /*
@@ -1712,9 +1735,12 @@ Elm.Native.MJS.make = function(elm) {
     return { 
         V3: V3,
         v3: F3(V3.$),
-        getX: V3.getX,
-        getY: V3.getY,
-        getZ: V3.getZ,
+        v3getX: V3.getX,
+        v3getY: V3.getY,
+        v3getZ: V3.getZ,
+        v3setX: F2(V3.setX),
+        v3setY: F2(V3.setY),
+        v3setZ: F2(V3.setZ),
         toTuple3: V3.toTuple3,
         toRecord3: V3.toRecord3,
         fromTuple3: V3.fromTuple3,
@@ -1725,6 +1751,8 @@ Elm.Native.MJS.make = function(elm) {
         v3direction: F2(V3.direction),
         v3length: V3.length,
         v3lengthSquared: V3.lengthSquared,
+        v3distance: F2(V3.distance),
+        v3distanceSquared: F2(V3.distanceSquared),
         v3normalize: V3.normalize,
         v3scale: F2(V3.scale),
         v3dot: F2(V3.dot),
