@@ -254,7 +254,6 @@ Elm.Native.Array.make = function(elm) {
       return newA;
     }
 
-
     function foldl(f, b, a) {
       for (var i = 0; i < a.table.length; i++) {
         b = A2(f, a.height == 0 ? a.table[i] : foldl(f, b, a.table[i]), b);
