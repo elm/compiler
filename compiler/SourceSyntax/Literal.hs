@@ -32,7 +32,7 @@ glTipeName glTipe =
       V2      -> "Math.Vector2.Vec2"
       V3      -> "Math.Vector3.Vec3"
       V4      -> "Math.Vector4.Vec4"
-      M4      -> "Math.Matrix.Mat4"
+      M4      -> "Math.Matrix4.Mat4"
       Texture -> "Graphics.WebGL.Texture"
 
 data GLShaderTipe = GLShaderTipe
