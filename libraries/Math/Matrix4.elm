@@ -7,19 +7,25 @@ This library uses the convention that the prefix `make` is creating a new
 array, whereas without the prefix, you are applying some transform to an
 existing matrix.
 
-@docs mul4x4
+# Create
+
+@docs identity
 
 # Operations
 
-@docs identity, inverseOrthonormal, mul, mulAffine, transpose, makeBasis
+@docs inverseOrthonormal, mul, mulAffine, mulVec3, transpose, makeBasis
 
 # Projections
 
 @docs makeFrustrum, makePerspective, makeOrtho, makeOrtho2D, makeLookAt
 
-# Transforms
+# Apply Transformations
 
-@docs makeRotate, rotate, makeScale3, makeScale, scaleM3, scaleM, makeTranslate3, makeTranslate, translate3, translate
+@docs rotate, scale, scale3, translate, translate3
+
+# Create Transformations
+
+@docs makeRotate, makeScale, makeScale3, makeTranslate, makeTranslate3
 
 -}
 
@@ -30,8 +36,8 @@ data Mat4 = Mat4
 
 {-| Multiply a vector by a 4x4 matrix: m * v
 -}
-mul4x4 : Mat4 -> Vec3 -> Vec3
-mul4x4 = Native.MJS.v3mul4x4
+mulVec3 : Mat4 -> Vec3 -> Vec3
+mulVec3 = Native.MJS.v3mul4x4
 
 {-| A matrix with all 0s, except 1s on the diagonal.
 -}
@@ -114,7 +120,7 @@ mulAffine = Native.MJS.m4x4mulAffine
 makeRotate : Float -> Vec3 -> Mat4
 makeRotate = Native.MJS.m4x4makeRotate
 
-{-| Concatenates a rotation of angle radians about the axis to the given matrix.
+{-| Concatenates a rotation in radians about an axis to the given matrix.
 -}
 rotate : Float -> Vec3 -> Mat4 -> Mat4
 rotate = Native.MJS.m4x4rotate
@@ -133,13 +139,13 @@ makeScale = Native.MJS.m4x4makeScale
 
 {-| Concatenates a scaling to the given matrix.
 -}
-scaleM3 : Float -> Float -> Float -> Mat4 -> Mat4
-scaleM3 = Native.MJS.m4x4scale3
+scale3 : Float -> Float -> Float -> Mat4 -> Mat4
+scale3 = Native.MJS.m4x4scale3
 
 {-| Concatenates a scaling to the given matrix.
 -}
-scaleM : Vec3 -> Mat4 -> Mat4
-scaleM = Native.MJS.m4x4scale
+scale : Vec3 -> Mat4 -> Mat4
+scale = Native.MJS.m4x4scale
 
 {-|
 Creates a transformation matrix for translating by 3 scalar values, one for
