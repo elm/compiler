@@ -14,4 +14,4 @@ tests =
                      , test "A left neq" <| assert . not <| (A "a" == B [1])
                      , test "A left neq" <| assert . not <| (B [1] == A "a")
                      ]
-    in suite "Equality Tests" []
+    in suite "Equality Tests" [diff_tests]
