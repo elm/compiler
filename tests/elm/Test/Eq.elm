@@ -14,4 +14,9 @@ tests =
                      , test "A left neq" <| assert . not <| (A "a" == B [1])
                      , test "A left neq" <| assert . not <| (B [1] == A "a")
                      ]
-    in suite "Equality Tests" [diff_tests]
+        record_tests = suite "record type eq"
+                       [ test "empty same" <| assert ({} == {})
+                       , test "ctor same"  <| assert ({ctor = Just 3} == {ctor = Just 3})
+                       , test "ctor diff"  . assert . not <| ({ctor = Just 3} == {ctor = Nothing})
+                       ]
+    in suite "Equality Tests" [diff_tests, record_tests]
