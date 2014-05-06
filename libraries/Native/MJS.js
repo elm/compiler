@@ -56,7 +56,7 @@ Elm.Native.MJS.make = function(elm) {
      * For potentially more performance, the assert methods can be
      * commented out in each place where they are called.
      */
-    var MJS_DO_ASSERT = false;
+    // var MJS_DO_ASSERT = false;
 
     /*
      * Constant: MJS_FLOAT_ARRAY_TYPE
@@ -73,6 +73,7 @@ Elm.Native.MJS.make = function(elm) {
     //MJS_FLOAT_ARRAY_TYPE = Float64Array;
     //MJS_FLOAT_ARRAY_TYPE = Array;
 
+    /*
     if (MJS_DO_ASSERT) {
         function MathUtils_assert(cond, msg) {
             if (!cond) {
@@ -80,8 +81,9 @@ Elm.Native.MJS.make = function(elm) {
             }
         }
     } else {
+    */
         function MathUtils_assert() { }
-    }
+    //}
 
     /*
      * Class: V3
