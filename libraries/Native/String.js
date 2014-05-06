@@ -247,6 +247,6 @@ Elm.Native.String.make = function(elm) {
         toInt: toInt,
         toFloat: toFloat,
         toList: toList,
-        fromList: fromList,
+        fromList: fromList
     };
 };

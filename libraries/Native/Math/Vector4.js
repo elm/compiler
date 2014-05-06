@@ -218,7 +218,7 @@ Elm.Native.Math.Vector4.make = function(elm) {
         distanceSquared: F2(V4.distanceSquared),
         normalize: V4.normalize,
         scale: F2(V4.scale),
-        dot: F2(V4.dot),
+        dot: F2(V4.dot)
     };
 
 }

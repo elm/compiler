@@ -19,7 +19,7 @@ Elm.Native.Bitwise.make = function(elm) {
         complement: not,
         shiftLeft           : F2(sll),
         shiftRightArithmatic: F2(sra),
-        shiftRightLogical   : F2(srl),
+        shiftRightLogical   : F2(srl)
     };
     
 };

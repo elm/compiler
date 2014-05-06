@@ -1733,7 +1733,6 @@ Elm.Native.MJS.make = function(elm) {
     };
 
     return { 
-        V3: V3,
         v3: F3(V3.$),
         v3getX: V3.getX,
         v3getY: V3.getY,
@@ -1783,7 +1782,7 @@ Elm.Native.MJS.make = function(elm) {
         m4x4makeLookAt: F3(M4x4.makeLookAt),
         m4x4transpose: M4x4.transpose,
         m4x4transformPoint: F2(M4x4.transformPoint),
-        m4x4makeBasis: F3(M4x4.makeBasis),
+        m4x4makeBasis: F3(M4x4.makeBasis)
     };
 
 }

@@ -79,7 +79,7 @@ Elm.Native.Json.make = function(elm) {
         toString   : F2(toString),
         fromString : fromString,
         fromJS     : fromJS,
-        toJS       : toJS,
+        toJS       : toJS
     };
 
 };

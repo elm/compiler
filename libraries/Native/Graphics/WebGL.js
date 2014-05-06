@@ -293,7 +293,6 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
 
     if (!window.WebGLRenderingContext) {
       throw new Error("It appears your browser does not support WebGL! http://get.webgl.org/troubleshooting");
-      return;
     }
 
     var w = dimensions._0;
@@ -348,7 +347,7 @@ Elm.Native.Graphics.WebGL.make = function(elm) {
         models: models,
         cache: {},
         w: w,
-        h: h,
+        h: h
       }
     };
 
