@@ -1,4 +1,4 @@
-module Math.Matrix where
+module Math.Matrix4 where
 
 {-| A high performance linear algebra library using native JS arrays. Geared
 towards 3D graphics and use with `Graphics.WebGL`. All matrices are immutable.
