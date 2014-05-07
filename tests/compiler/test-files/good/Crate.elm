@@ -17,7 +17,7 @@ rotatedFace (angleX,angleY) =
       y = makeRotate (degrees angleY) (v3 0 1 0)
       t = x `mul` y `mul` makeTranslate (v3 0 0 1)
   in
-      map (mapTriangle (\x -> {x | pos <- mul4x4 t x.pos })) face
+      map (mapTriangle (\x -> {x | pos <- mulVec3 t x.pos })) face
 
 face : [Triangle { pos:Vec3, coord:Vec3 }]
 face =
