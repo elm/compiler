@@ -2,10 +2,13 @@
 module Elm.Internal.Dependencies where
 
 import Control.Applicative
+import Control.Arrow (first)
 import Control.Monad.Error
 import qualified Control.Exception as E
 import Data.Aeson
+import Data.Aeson.Types (Parser)
 import Data.Aeson.Encode.Pretty
+import Data.Maybe (fromMaybe)
 import qualified Data.List as List
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.HashMap.Strict as Map
@@ -23,6 +26,7 @@ data Deps = Deps
     , license :: String
     , repo :: String
     , exposed :: [String]
+    , native :: [String]
     , elmVersion :: V.Version
     , dependencies :: [(N.Name,V.Version)]
     } deriving (Show, Eq, Ord)
@@ -38,18 +42,22 @@ instance FromJSON MiniDeps where
     parseJSON _ = mzero
 
 instance ToJSON Deps where
-  toJSON d = object [
-    "version"         .= version d,
-    "summary"         .= summary d,
-    "description"     .= description d,
-    "license"         .= license d,
-    "repository"      .= repo d,
-    "exposed-modules" .= exposed d,
-    "elm-version"     .= elmVersion d,
-    "dependencies"    .= (jsonDeps . dependencies $ d)
-    ]
-    where jsonDeps = Map.fromList . map (mapFst (T.pack . show))
-          mapFst f (a,b) = (f a, b)
+  toJSON d =
+      object $
+      [ "version"         .= version d
+      , "summary"         .= summary d
+      , "description"     .= description d
+      , "license"         .= license d
+      , "repository"      .= repo d
+      , "exposed-modules" .= exposed d
+      , "elm-version"     .= elmVersion d
+      , "dependencies"    .= (jsonDeps . dependencies $ d)
+      ] ++ nativeModules
+    where
+      jsonDeps = Map.fromList . map (first (T.pack . show))
+      nativeModules
+          | null (native d) = []
+          | otherwise       = [ "native-modules" .= native d ]
 
 instance FromJSON Deps where
     parseJSON (Object obj) =
@@ -69,15 +77,18 @@ instance FromJSON Deps where
                      Right nm -> return nm
 
            exposed <- get obj "exposed-modules" "a list of modules exposed to users"
+           
+           native <- fromMaybe [] <$> (obj .:? "native-modules")
 
            elmVersion <- get obj "elm-version" "the version of the Elm compiler you are using"
 
            deps <- getDependencies obj
 
-           return $ Deps name version summary desc license repo exposed elmVersion deps
+           return $ Deps name version summary desc license repo exposed native elmVersion deps
 
     parseJSON _ = mzero
 
+getDependencies :: Object -> Parser [(N.Name, V.Version)]
 getDependencies obj = 
     toDeps =<< get obj "dependencies" "a listing of your project's dependencies"
     where
@@ -88,7 +99,7 @@ getDependencies obj =
                 (Nothing, _) -> fail $ N.errorMsg f
                 (_, Nothing) -> fail $ "invalid version number " ++ v
 
-
+get :: FromJSON a => Object -> T.Text -> String -> Parser a
 get obj field desc =
     do maybe <- obj .:? field
        case maybe of
@@ -142,13 +153,14 @@ depsAt = withDeps id
 prettyJSON :: Deps -> BS.ByteString
 prettyJSON = encodePretty' config
   where config = defConfig { confCompare = order }
-        order = keyOrder [ "name",
-                           "version",
-                           "summary",
-                           "description",
-                           "license",
-                           "repo",
-                           "exposed-modules",
-                           "elm-version",
-                           "dependencies"
+        order = keyOrder [ "name"
+                         , "version"
+                         , "summary"
+                         , "description"
+                         , "license"
+                         , "repo"
+                         , "exposed-modules"
+                         , "native-modules"
+                         , "elm-version"
+                         , "dependencies"
                          ]
