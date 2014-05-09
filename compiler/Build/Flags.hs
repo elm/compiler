@@ -15,6 +15,7 @@ data Flags = Flags
     , cache_dir :: FilePath
     , build_dir :: FilePath
     , src_dir :: [FilePath]
+    , show_runtime :: Bool
     }
     deriving (Data,Typeable,Show,Eq)
              
@@ -37,7 +38,9 @@ flags = Flags
   , src_dir = ["."] &= typFile
               &= help "Additional source directories besides project root. Searched when using --make"
   , print_types = False
-                  &= help "Print out infered types of top-level definitions."
+                  &= help "Print out inferred types of top-level definitions."
+  , show_runtime = False
+                   &= help "Print the absolute path to the default Elm runtime."
   } &= help "Compile Elm programs to HTML, CSS, and JavaScript."
     &= helpArg [explicit, name "help", name "h"]
     &= versionArg [explicit, name "version", name "v", summary (show Version.elmVersion)]
