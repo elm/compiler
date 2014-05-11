@@ -25,7 +25,7 @@ main = do setNumCapabilities =<< getNumProcessors
 
 compileArgs :: Flag.Flags -> IO ()
 compileArgs flags =
-  do when (Flag.show_runtime flags) $ 
+  do when (Flag.get_runtime flags) $ 
          do putStrLn Path.runtime
             exitSuccess
      case Flag.files flags of
@@ -67,5 +67,5 @@ build flags rootFile =
 
       makeHtml js moduleName = ("html", BS.pack $ renderHtml html)
           where
-            rtsPath = Maybe.fromMaybe Path.runtime (Flag.runtime flags)
+            rtsPath = Maybe.fromMaybe Path.runtime (Flag.set_runtime flags)
             html = Html.generate rtsPath (takeBaseName rootFile) (sources js) moduleName ""
