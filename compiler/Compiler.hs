@@ -10,7 +10,7 @@ import System.Directory
 import System.FilePath
 import GHC.Conc
 
-import Build.Dependencies (getSortedDependencies)
+import Build.Dependencies (getBuildRecipe, Recipe(..))
 import qualified Generate.Html as Html
 import qualified Metadata.Prelude as Prelude
 import qualified Build.Utils as Utils
@@ -33,13 +33,15 @@ build flags rootFile =
     do let noPrelude = Flag.no_prelude flags
        builtIns <- Prelude.interfaces noPrelude
 
-       files <- if Flag.make flags
-                then getSortedDependencies (Flag.src_dir flags) builtIns rootFile
-                else return [rootFile]
+       (Recipe elmFiles jsFiles) <-
+           if Flag.make flags
+             then Utils.run (getBuildRecipe (Flag.src_dir flags) builtIns rootFile)
+             else return (Recipe [rootFile] [])
 
-       moduleName <- File.build flags builtIns files
+       moduleName <- File.build flags builtIns elmFiles
 
-       js <- foldM appendToOutput BS.empty files
+       let elmos = map (Utils.elmo flags) elmFiles
+       js <- foldM appendToOutput BS.empty (elmos ++ jsFiles)
 
        (extension, code) <-
            if Flag.only_js flags
@@ -56,7 +58,7 @@ build flags rootFile =
     where
       appendToOutput :: BS.ByteString -> FilePath -> IO BS.ByteString
       appendToOutput js filePath = do
-        src <- BS.readFile (Utils.elmo flags filePath)
+        src <- BS.readFile filePath
         return (BS.append src js)
 
       sources js = map Html.Link (Flag.scripts flags) ++ [ Html.Source js ]

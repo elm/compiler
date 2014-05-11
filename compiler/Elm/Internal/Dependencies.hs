@@ -31,16 +31,6 @@ data Deps = Deps
     , dependencies :: [(N.Name,V.Version)]
     } deriving (Show, Eq, Ord)
 
-data MiniDeps = Mini [(N.Name,V.Version)]
-              deriving (Show, Eq, Ord)
-
-instance ToJSON MiniDeps where
-  toJSON (Mini m) = toJSON m
-
-instance FromJSON MiniDeps where
-    parseJSON (Object obj) = Mini <$> getDependencies obj
-    parseJSON _ = mzero
-
 instance ToJSON Deps where
   toJSON d =
       object $
@@ -128,12 +118,12 @@ repoToName repo
             \like <https://github.com/USER/PROJECT.git> where USER is your GitHub name\n\
             \and PROJECT is the repo you want to upload."
 
-withDeps :: (Deps -> a) -> FilePath -> ErrorT String IO a
-withDeps handle path =
+withDeps :: FilePath -> (Deps -> ErrorT String IO a) -> ErrorT String IO a
+withDeps path handle =
     do json <- readPath
        case eitherDecode json of
          Left err -> throwError $ "Error reading file " ++ path ++ ":\n    " ++ err
-         Right ds -> return (handle ds)
+         Right ds -> handle ds
     where
       readPath :: ErrorT String IO BS.ByteString
       readPath = do
@@ -147,7 +137,7 @@ withDeps handle path =
                     "    <https://github.com/evancz/automaton/blob/master/elm_dependencies.json>"
 
 depsAt :: FilePath -> ErrorT String IO Deps
-depsAt = withDeps id
+depsAt filePath = withDeps filePath return
 
 -- | Encode dependencies in a canonical JSON format
 prettyJSON :: Deps -> BS.ByteString
