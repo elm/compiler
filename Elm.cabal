@@ -107,6 +107,7 @@ Library
                        filepath,
                        indents,
                        language-ecmascript >=0.15 && < 1.0,
+                       language-glsl,
                        mtl >= 2,
                        pandoc >= 1.10,
                        parsec >= 3.1.1,
@@ -190,6 +191,7 @@ Executable elm
                        filepath,
                        indents,
                        language-ecmascript >=0.15 && < 1.0,
+                       language-glsl,
                        mtl >= 2,
                        pandoc >= 1.10,
                        parsec >= 3.1.1,
@@ -231,6 +233,7 @@ Executable elm-doc
                        directory,
                        filepath,
                        indents,
+                       language-glsl,
                        mtl >= 2,
                        pandoc >= 1.10,
                        parsec >= 3.1.1,
@@ -240,7 +243,7 @@ Executable elm-doc
 
 Test-Suite compiler-tests
   Type:            exitcode-stdio-1.0
-  Hs-Source-Dirs:  tests/hs, compiler
+  Hs-Source-Dirs:  tests/compiler, compiler
   Main-is:         CompilerTest.hs
   other-modules:   Tests.Compiler
                    Tests.Property
@@ -268,6 +271,7 @@ Test-Suite compiler-tests
                    filepath,
                    indents,
                    language-ecmascript >=0.15 && < 1.0,
+                   language-glsl,
                    mtl >= 2,
                    pandoc >= 1.10,
                    parsec >= 3.1.1,
@@ -277,10 +281,10 @@ Test-Suite compiler-tests
                    union-find,
                    unordered-containers
 
-Test-Suite lib-tests
+Test-Suite library-tests
   Type:            exitcode-stdio-1.0
-  Hs-Source-Dirs:  tests/hs
-  Main-is:         LibTest.hs
+  Hs-Source-Dirs:  tests/libraries
+  Main-is:         LibraryTest.hs
   build-depends:   base,
                    directory,
                    Elm,

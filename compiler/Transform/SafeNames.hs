@@ -54,6 +54,7 @@ expression (A ann expr) =
       Modify r fs -> Modify (f r) (map (var *** f) fs)
       Record fs -> Record (map (var *** f) fs)
       Markdown uid md es -> Markdown uid md (map f es)
+      GLShader _ _ _ -> expr
       PortIn name st -> PortIn name st
       PortOut name st signal -> PortOut name st (f signal)
 

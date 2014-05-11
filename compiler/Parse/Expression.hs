@@ -44,7 +44,7 @@ negative = do
 --------  Complex Terms  --------
 
 listTerm :: IParser ParseExpr'
-listTerm = markdown' <|> braces (try range <|> ExplicitList <$> commaSep expr)
+listTerm = markdown' <|> glShader' <|> braces (try range <|> ExplicitList <$> commaSep expr)
   where
     range = do
       lo <- expr
@@ -56,6 +56,12 @@ listTerm = markdown' <|> braces (try range <|> ExplicitList <$> commaSep expr)
       let uid = show (sourceLine pos) ++ ":" ++ show (sourceColumn pos)
       (rawText, exprs) <- markdown (interpolation uid)
       return (Markdown uid (filter (/='\r') rawText) exprs)
+
+    glShader' = do
+      pos <- getPosition
+      let uid = show (sourceLine pos) ++ ":" ++ show (sourceColumn pos)
+      (rawSrc, tipe) <- glShader
+      return $ GLShader uid (filter (/='\r') rawSrc) tipe
 
     span uid index =
         "<span id=\"md-" ++ uid ++ "-" ++ show index ++ "\">{{ markdown interpolation is in the pipeline, but still needs more testing }}</span>"
