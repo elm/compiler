@@ -7,7 +7,8 @@ import System.Console.CmdArgs
 data Flags = Flags
     { make :: Bool
     , files :: [FilePath]
-    , runtime :: Maybe FilePath
+    , set_runtime :: Maybe FilePath
+    , get_runtime :: Bool
     , only_js :: Bool
     , print_types :: Bool
     , scripts :: [FilePath]
@@ -28,8 +29,10 @@ flags = Flags
                  &= help "Do not import Prelude by default, used only when compiling standard libraries."
   , scripts = [] &= typFile
               &= help "Load JavaScript files in generated HTML. Files will be included in the given order."
-  , runtime = Nothing &= typFile
-              &= help "Specify a custom location for Elm's runtime system."
+  , set_runtime = Nothing &= typFile
+                  &= help "Specify a custom location for Elm's runtime system."
+  , get_runtime = False
+                  &= help "Print the absolute path to the default Elm runtime."
   , cache_dir = "cache" &= typFile
                 &= help "Directory for files cached to make builds faster. Defaults to cache/ directory."
   , build_dir = "build" &= typFile
@@ -37,7 +40,7 @@ flags = Flags
   , src_dir = ["."] &= typFile
               &= help "Additional source directories besides project root. Searched when using --make"
   , print_types = False
-                  &= help "Print out infered types of top-level definitions."
+                  &= help "Print out inferred types of top-level definitions."
   } &= help "Compile Elm programs to HTML, CSS, and JavaScript."
     &= helpArg [explicit, name "help", name "h"]
     &= versionArg [explicit, name "version", name "v", summary (show Version.elmVersion)]
