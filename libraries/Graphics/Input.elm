@@ -23,7 +23,7 @@ examples in this library, so just read on to get a better idea of how it works!
 To learn about text fields, see the
 [`Graphics.Input.Field`](Graphics-Input-Field) library.
 
-@docs button, customButton, checkbox, dropDown
+@docs button, customButton, checkbox, dropDown, slider
 
 # Clicks and Hovers
 @docs clickable, hoverable
@@ -144,6 +144,10 @@ of 0.5 between -5 and 5, with default value 1:
 
       slideSlider : Signal Element
       slideSlider = slider slide.handle id -5 5 0.5 <~ slide.signal
+
+The first two `Float` arguments set the maximum and minimum values of the slider,
+respectively. The third `Float` argument sets the slider's step size, and the
+fourth `Float` argument sets the slider's value.
 -}
 slider : Handle a -> (Float -> a) -> Float -> Float -> Float -> Float -> Element
 slider = Native.Graphics.Input.slider
