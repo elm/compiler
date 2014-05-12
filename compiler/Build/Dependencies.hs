@@ -62,7 +62,10 @@ getDependencies =
 
 nativeFiles :: [FilePath] -> ErrorT String IO [FilePath]
 nativeFiles directories =
-    concat `fmap` mapM getNativeFiles directories
+  do exists <- liftIO $ doesFileExist Path.dependencyFile
+     if not exists
+       then return []
+       else concat `fmap` mapM getNativeFiles directories
   where
     getNativeFiles dir =
         Deps.withDeps (dir </> Path.dependencyFile) $ \deps ->
