@@ -1,10 +1,12 @@
 {-# OPTIONS_GHC -W #-}
 module Build.Utils where
 
+import Control.Monad.Error
 import System.Directory (doesFileExist)
 import System.Environment (getEnv)
 import System.FilePath ((</>), replaceExtension)
 import qualified Build.Flags as Flag
+import qualified Build.Print as Print
 import qualified Paths_Elm as This
 
 buildPath :: Flag.Flags -> FilePath -> String -> FilePath
@@ -33,3 +35,10 @@ getDataFile name = do
     else do
       env <- getEnv "ELM_HOME"
       return (env </> name)
+
+run :: ErrorT String IO a -> IO a
+run command = do
+  either <- runErrorT command
+  case either of
+    Left err -> Print.failure err
+    Right result -> return result

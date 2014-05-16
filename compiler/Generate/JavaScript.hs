@@ -34,10 +34,11 @@ include alias moduleName =
 
 internalImports :: String -> Statement ()
 internalImports name =
-    VarDeclStmt () 
+    VarDeclStmt ()
     [ varDecl "_N" (obj "Elm.Native")
     , include "_U" "_N.Utils"
     , include "_L" "_N.List"
+    , include "_A" "_N.Array"
     , include "_E" "_N.Error"
     , varDecl "$moduleName" (string name)
     ]
@@ -179,6 +180,9 @@ expression (A region expr) =
             pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
             md = pad ++ MD.toHtml doc ++ pad
 
+      GLShader _uid src _tipe ->
+        return $ ObjectLit () [(PropString () "src", literal (Str src))]
+          
       PortIn name tipe ->
           return $ obj "Native.Ports.portIn" `call` [ string name, Port.incoming tipe ]
 

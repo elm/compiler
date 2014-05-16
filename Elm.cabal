@@ -1,5 +1,5 @@
 Name:                Elm
-Version:             0.12.1.3
+Version:             0.12.2
 Synopsis:            The Elm language module.
 Description:         Elm aims to make client-side web-development more pleasant.
                      It is a statically/strongly typed, functional reactive
@@ -107,14 +107,17 @@ Library
                        filepath,
                        indents,
                        language-ecmascript >=0.15 && < 1.0,
+                       language-glsl,
                        mtl >= 2,
                        pandoc >= 1.10,
                        parsec >= 3.1.1,
                        pretty,
+                       scientific,
                        text,
                        transformers >= 0.2,
                        union-find,
-                       unordered-containers
+                       unordered-containers,
+                       yaml
 
 Executable elm
   Main-is:             Compiler.hs
@@ -190,14 +193,17 @@ Executable elm
                        filepath,
                        indents,
                        language-ecmascript >=0.15 && < 1.0,
+                       language-glsl,
                        mtl >= 2,
                        pandoc >= 1.10,
                        parsec >= 3.1.1,
+                       scientific,
                        pretty,
                        text,
                        transformers >= 0.2,
                        union-find,
-                       unordered-containers
+                       unordered-containers,
+                       yaml
 
 Executable elm-doc
   Main-is:             Docs.hs
@@ -231,16 +237,19 @@ Executable elm-doc
                        directory,
                        filepath,
                        indents,
+                       language-glsl,
                        mtl >= 2,
                        pandoc >= 1.10,
                        parsec >= 3.1.1,
                        pretty,
+                       scientific,
                        text,
-                       union-find
+                       union-find,
+                       yaml
 
 Test-Suite compiler-tests
   Type:            exitcode-stdio-1.0
-  Hs-Source-Dirs:  tests/hs, compiler
+  Hs-Source-Dirs:  tests/compiler, compiler
   Main-is:         CompilerTest.hs
   other-modules:   Tests.Compiler
                    Tests.Property
@@ -268,19 +277,22 @@ Test-Suite compiler-tests
                    filepath,
                    indents,
                    language-ecmascript >=0.15 && < 1.0,
+                   language-glsl,
                    mtl >= 2,
                    pandoc >= 1.10,
                    parsec >= 3.1.1,
                    pretty,
+                   scientific,
                    text,
                    transformers >= 0.2,
                    union-find,
-                   unordered-containers
+                   unordered-containers,
+                   yaml
 
-Test-Suite lib-tests
+Test-Suite library-tests
   Type:            exitcode-stdio-1.0
-  Hs-Source-Dirs:  tests/hs
-  Main-is:         LibTest.hs
+  Hs-Source-Dirs:  tests/libraries
+  Main-is:         LibraryTest.hs
   build-depends:   base,
                    directory,
                    Elm,

@@ -46,7 +46,8 @@ tests =
         ]
       mappingAndFoldingTests = suite "Mapping and Folding"
         [ test "map" <| assertEqual (Array.fromList [1,2,3]) (Array.map sqrt (Array.fromList [1,4,9]))
-        , test "indexedMap" <| assertEqual (Array.fromList [0,5,10]) (Array.indexedMap (*) (Array.fromList [5,5,5]))
+        , test "indexedMap 1" <| assertEqual (Array.fromList [0,5,10]) (Array.indexedMap (*) (Array.fromList [5,5,5]))
+        , test "indexedMap 2" <| assertEqual [0..99] (Array.toList (Array.indexedMap always (Array.repeat 100 0)))
         , test "foldl" <| assertEqual [3,2,1] (Array.foldl (::) [] (Array.fromList [1,2,3]))
         , test "foldr 1" <| assertEqual 15 (Array.foldr (+) 0 (Array.repeat 3 5))
         , test "foldr 2" <| assertEqual [1,2,3] (Array.foldr (::) [] (Array.fromList [1,2,3]))

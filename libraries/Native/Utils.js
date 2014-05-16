@@ -16,7 +16,16 @@ Elm.Native.Utils.make = function(elm) {
                 var c = 0;
                 for (var i in x) {
                     ++c;
-                    stack.push({ 'x': x[i], 'y': y[i] });
+                    if (i in y) {
+                        if (i !== 'ctor') {
+                            stack.push({ 'x': x[i], 'y': y[i] });
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+                if ('ctor' in x) {
+                    stack.push({'x': x.ctor, 'y': y.ctor});
                 }
                 if (c !== Object.keys(y).length) {
                     return false;

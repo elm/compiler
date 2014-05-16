@@ -60,8 +60,7 @@ portTypes rules expr =
               | otherwise               -> err' True "an unsupported type"
               where
                 primitives =
-                    ["Int","Float","String","Bool","Maybe.Maybe","_List","Json.Value"]
-
+                    ["Int","Float","String","Bool","Maybe.Maybe","_List","Array.Array","Json.Value"]
                 validConstructor =
                     ctor `elem` primitives || Help.isTuple ctor
 
@@ -102,7 +101,7 @@ portTypes rules expr =
               , txt [ "It contains ", kind, ":\n" ]
               , (P.nest 4 . SPP.pretty $ Alias.realias rules tipe) <> P.text "\n"
               , txt [ "Acceptable values for ", dir "incoming" "outgoing", " ports include:" ]
-              , txt [ "    Ints, Floats, Bools, Strings, Maybes, Lists, Tuples," ]
+              , txt [ "    Ints, Floats, Bools, Strings, Maybes, Lists, Arrays, Tuples," ]
               , txt [ "    Json.Values, ", dir "" "first-order functions, ", "and concrete records." ]
               ] ++ if couldBeAlias then aliasWarning else []
 

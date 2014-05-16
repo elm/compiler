@@ -111,7 +111,7 @@ Elm.Native.String.make = function(elm) {
     }
 
     function words(str) {
-        return List.fromArray(str.split(/\s+/g));
+        return List.fromArray(str.trim().split(/\s+/g));
     }
     function lines(str) {
         return List.fromArray(str.split(/\r\n|\r|\n/g));
@@ -247,6 +247,6 @@ Elm.Native.String.make = function(elm) {
         toInt: toInt,
         toFloat: toFloat,
         toList: toList,
-        fromList: fromList,
+        fromList: fromList
     };
 };

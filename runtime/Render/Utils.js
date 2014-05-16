@@ -10,11 +10,6 @@ ElmRuntime.Render.Utils = function() {
       container.appendChild(elem);
   }
 
-  function extract(c) {
-      if (c._3 === 1) { return 'rgb(' + c._0 + ', ' + c._1 + ', ' + c._2 + ')'; }
-      return 'rgba(' + c._0 + ', ' + c._1 + ', ' + c._2 + ', ' + c._3 + ')';
-  }
-
   function addTransform(style, trans) {
     style.transform       = trans;
     style.msTransform     = trans;
@@ -34,8 +29,8 @@ ElmRuntime.Render.Utils = function() {
   var List = Elm.Native.List.make({});
 
   return {addTo:addTo,
-          newElement:newElement,
-          extract : extract,
+          newElement: newElement,
+          colorToCss: Elm.Native.Color.make({}).toCss,
           fromList: List.toArray,
           fromString: function(s) { return s; },
           toString: function(s) { return s; },

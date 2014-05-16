@@ -4,8 +4,6 @@ Elm.Native.Error.make = function(elm) {
     elm.Native.Error = elm.Native.Error || {};
     if (elm.Native.Error.values) return elm.Native.Error.values;
 
-    var fromString = Elm.Native.JavaScript.make(elm).fromString;
-
     function indent(lines) {
         var msg = '';
         for (var i = 0; i < lines.length; ++i) {
@@ -26,7 +24,7 @@ Elm.Native.Error.make = function(elm) {
 	throw new Error('Runtime error in module ' + moduleName + ' (' + span + '):' + msg);
     }
 
-    function raise(str) { throw new Error(fromString(str)); }
+    function raise(str) { throw new Error(str); }
 
     return elm.Native.Error.values = { Case: Case, If: If, raise: raise };
 };

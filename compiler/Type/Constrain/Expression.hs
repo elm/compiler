@@ -8,6 +8,7 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Text.PrettyPrint as PP
 
+import SourceSyntax.Literal as Lit
 import SourceSyntax.Annotation as Ann
 import SourceSyntax.Expression
 import qualified SourceSyntax.Pattern as P
@@ -30,6 +31,22 @@ constrain env (A region expr) tipe =
     in
     case expr of
       Literal lit -> liftIO $ Literal.constrain env region lit tipe
+
+      GLShader _uid _src gltipe -> 
+          exists $ \attr -> 
+          exists $ \unif -> 
+            let 
+              shaderTipe a u v = Env.get env Env.types "Graphics.WebGL.Shader" <| a <| u <| v
+              glTipe = Env.get env Env.types . Lit.glTipeName
+              makeRec accessor baseRec = 
+                let decls = accessor gltipe
+                in if Map.size decls == 0
+                   then baseRec
+                   else record (Map.map (\t -> [glTipe t]) decls) baseRec
+              attribute = makeRec Lit.attribute attr
+              uniform = makeRec Lit.uniform unif
+              varying = makeRec Lit.varying (TermN EmptyRecord1)
+            in return . A region $ CEqual tipe (shaderTipe attribute uniform varying)
 
       Var (V.Raw name)
           | name == saveEnvName -> return (A region CSaveEnv)
