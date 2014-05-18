@@ -62,6 +62,9 @@ portTypes rules expr =
           ST.Data (V.Canonical (V.Module "Maybe") "Maybe") [t] ->
               valid t
 
+          ST.Data (V.Canonical (V.Module "Array") "Array") [t] ->
+              valid t
+
           ST.Data (V.Canonical (V.Module "Json") "Value") [] ->
               return ()
 
@@ -109,7 +112,7 @@ portTypes rules expr =
               , txt [ "It contains ", kind, ":\n" ]
               , (P.nest 4 . PP.pretty $ Alias.realias rules tipe) <> P.text "\n"
               , txt [ "Acceptable values for ", dir "incoming" "outgoing", " ports include:" ]
-              , txt [ "    Ints, Floats, Bools, Strings, Maybes, Lists, Tuples," ]
+              , txt [ "    Ints, Floats, Bools, Strings, Maybes, Lists, Arrays, Tuples," ]
               , txt [ "    Json.Values, ", dir "" "first-order functions, ", "and concrete records." ]
               ] ++ if couldBeAlias then aliasWarning else []
 

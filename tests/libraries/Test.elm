@@ -11,19 +11,22 @@ import IO.Runner as Run
 
 import Test.Array as Array
 import Test.Dict as Dict
+import Test.Equality as Equality
 import Test.List as List
 import Test.Set as Set
 import Test.String as String
 import Test.Trampoline as Trampoline
 
 tests : Test
-tests = suite "Elm Standard Library Tests" [ List.tests,
-                                             String.tests, 
-                                             Trampoline.tests,
-                                             Array.tests,
-                                             Dict.tests,
-                                             Set.tests
-                                           ]
+tests = suite "Elm Standard Library Tests"
+        [ Array.tests
+        , Dict.tests
+        , Equality.tests
+        , List.tests
+        , Set.tests
+        , String.tests
+        , Trampoline.tests
+        ]
 
 console : IO ()
 console = runDisplay tests

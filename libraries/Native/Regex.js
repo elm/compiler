@@ -43,7 +43,7 @@ Elm.Native.Regex.make = function(elm) {
                 match: result[0],
                 submatches: List.fromArray(subs),
                 index: result.index,
-                number: number,
+                number: number
             });
         }
         return List.fromArray(out);
@@ -98,6 +98,6 @@ Elm.Native.Regex.make = function(elm) {
         contains: F2(contains),
         find: F3(find),
         replace: F4(replace),
-        split: F3(split),
+        split: F3(split)
     };
 };

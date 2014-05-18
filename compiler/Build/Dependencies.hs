@@ -1,55 +1,57 @@
 {-# OPTIONS_GHC -W #-}
-module Build.Dependencies (getSortedDependencies, readDeps) where
+module Build.Dependencies (Recipe(..), getBuildRecipe, readDeps) where
 
-import Control.Applicative
 import Control.Monad.Error
 import qualified Control.Monad.State as State
-import qualified Data.Aeson as Json
-import qualified Data.ByteString.Lazy.Char8 as BSC
 import qualified Data.Graph as Graph
 import qualified Data.List as List
 import qualified Data.Map as Map
-import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import System.Directory
 import System.FilePath as FP
-
-import Build.Print (failure)
 
 import qualified AST.Module as Module
 import qualified Parse.Parse as Parse
 import qualified Elm.Internal.Paths as Path
 import qualified Elm.Internal.Name as N
+import qualified Elm.Internal.Version as V
 import qualified Elm.Internal.Dependencies as Deps
 
-getSortedDependencies :: [FilePath] -> Module.Interfaces -> FilePath -> IO [String]
-getSortedDependencies srcDirs builtIns root =
-    do extras <- extraDependencies
-       let allSrcDirs = srcDirs ++ Maybe.fromMaybe [] extras
-       result <- runErrorT $ readAllDeps allSrcDirs builtIns root
-       case result of
-         Right deps -> sortDeps deps
-         Left err -> failure err
+data Recipe = Recipe
+    { _elmFiles :: [FilePath]
+    , _jsFiles :: [FilePath]
+    }
 
-extraDependencies :: IO (Maybe [FilePath])
-extraDependencies =
-    do exists <- doesFileExist Path.dependencyFile
-       if not exists then return Nothing else Just <$> getPaths
+getBuildRecipe :: [FilePath] -> Module.Interfaces -> FilePath -> ErrorT String IO Recipe
+getBuildRecipe srcDirs builtIns root =
+  do directories <- getDependencies
+     jsFiles <- nativeFiles ("." : directories)
+     let allSrcDirs = srcDirs ++ directories
+     nodes <- collectDependencies allSrcDirs builtIns root
+     elmFiles <- sortElmFiles nodes
+     return (Recipe elmFiles jsFiles)
+
+-- | Based on the projects elm_dependencies.json, find all of the paths and
+--   dependency information we might need.
+getDependencies :: ErrorT String IO [FilePath]
+getDependencies =
+    do exists <- liftIO $ doesFileExist Path.dependencyFile
+       if not exists then return [] else getPaths
     where
-      getPaths = do
-        raw <- BSC.readFile Path.dependencyFile
-        case Json.eitherDecode raw of
-          Right (Deps.Mini deps) -> mapM validate deps
-          Left err ->
-              failure $ "Error reading the " ++ Path.dependencyFile ++ " file:\n" ++ err
+      getPaths :: ErrorT String IO [FilePath]
+      getPaths =
+        Deps.withDeps Path.dependencyFile $ \deps ->
+            mapM getPath (Deps.dependencies deps)
 
-      validate (name,version) = do
-        let path = Path.dependencyDirectory </> toPath name version
-        exists <- doesDirectoryExist path
-        if exists then return path else failure (notFound name version)
+      getPath :: (N.Name, V.Version) -> ErrorT String IO FilePath
+      getPath (name,version) = do
+        let path = Path.dependencyDirectory </> N.toFilePath name </> show version
+        exists <- liftIO $ doesDirectoryExist path
+        if exists
+          then return path
+          else throwError (notFound name version)
 
-      toPath name version = N.toFilePath name </> show version
-
+      notFound :: N.Name -> V.Version -> String
       notFound name version =
           unlines
           [ "Your " ++ Path.dependencyFile ++ " file says you depend on library"
@@ -58,27 +60,50 @@ extraDependencies =
           , ""
           , "    elm-get install " ++ show name ++ " " ++ show version ]
 
-type Deps = (FilePath, String, [String])
+nativeFiles :: [FilePath] -> ErrorT String IO [FilePath]
+nativeFiles directories =
+  do exists <- liftIO $ doesFileExist Path.dependencyFile
+     if not exists
+       then return []
+       else concat `fmap` mapM getNativeFiles directories
+  where
+    getNativeFiles dir =
+        Deps.withDeps (dir </> Path.dependencyFile) $ \deps ->
+            return (map (toPath dir) (Deps.native deps))
 
-sortDeps :: [Deps] -> IO [String]
-sortDeps depends =
+    toPath dir moduleName =
+        dir </> joinPath (split moduleName) <.> "js"
+        
+split :: String -> [String]
+split moduleName = go [] moduleName
+  where
+    go paths str =
+        case break (=='.') str of
+          (path, _:rest) -> go (paths ++ [path]) rest
+          (path, [])     -> paths ++ [path]
+
+type DependencyNode = (FilePath, String, [String])
+
+sortElmFiles :: [DependencyNode] -> ErrorT String IO [FilePath]
+sortElmFiles depends =
     if null mistakes
       then return (concat sccs)
-      else failure $ msg ++ unlines (map show mistakes)
+      else throwError $ msg ++ unlines (map show mistakes)
   where
     sccs = map Graph.flattenSCC $ Graph.stronglyConnComp depends
 
     mistakes = filter (\scc -> length scc > 1) sccs
     msg = "A cyclical module dependency or was detected in:\n"
 
-readAllDeps :: [FilePath] -> Module.Interfaces -> FilePath -> ErrorT String IO [Deps]
-readAllDeps srcDirs rawBuiltIns filePath =
+collectDependencies :: [FilePath] -> Module.Interfaces -> FilePath
+                    -> ErrorT String IO [DependencyNode]
+collectDependencies srcDirs rawBuiltIns filePath =
     State.evalStateT (go Nothing filePath) Set.empty
   where
     builtIns :: Set.Set String
     builtIns = Set.fromList $ Map.keys rawBuiltIns
 
-    go :: Maybe String -> FilePath -> State.StateT (Set.Set String) (ErrorT String IO) [Deps]
+    go :: Maybe String -> FilePath -> State.StateT (Set.Set String) (ErrorT String IO) [DependencyNode]
     go parentModuleName filePath = do
       filePath' <- lift $ findSrcFile parentModuleName srcDirs filePath
       (moduleName, deps) <- lift $ readDeps filePath'
@@ -93,9 +118,9 @@ readDeps :: FilePath -> ErrorT String IO (String, [String])
 readDeps path = do
   txt <- lift $ readFile path
   case Parse.dependencies txt of
+    Right o  -> return o
     Left err -> throwError $ msg ++ show err
       where msg = "Error resolving dependencies in " ++ path ++ ":\n"
-    Right o  -> return o
 
 findSrcFile :: Maybe String -> [FilePath] -> FilePath -> ErrorT String IO FilePath
 findSrcFile parentModuleName dirs path =

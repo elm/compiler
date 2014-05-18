@@ -44,7 +44,7 @@ inc tipe x =
 
       Data (Var.Canonical (Var.Module "Json") "Value") [] ->
           obj "Native.Json.fromJS" <| x
-                           
+
       Data (Var.Canonical Var.BuiltIn ctor) []
           | ctor == "Int"       -> from JSNumber
           | ctor == "Float"     -> from JSNumber
@@ -58,8 +58,13 @@ inc tipe x =
                       (obj "Maybe.Nothing")
                       (obj "Maybe.Just" <| inc t x)
 
-      Data (Var.Canonical Var.BuiltIn "_List") [t] ->
-          check x JSArray (obj "_L.fromArray" <| array)
+      Data (Var.Canonical Var.BuiltIn ctor) [t]
+          | ctor == "_List" ->
+              check x JSArray (obj "_L.fromArray" <| array)
+
+          | ctor == "Array.Array" ->
+              check x JSArray (obj "_A.fromJSArray" <| array)
+
           where
             array = DotRef () x (var "map") <| incoming t
 
@@ -72,10 +77,10 @@ inc tipe x =
                           , inc t (BracketRef () x (IntLit () n)))
 
       Data _ _ ->
-          error "bad ADT got to port generation code"
+          error "bad ADT got to incoming port generation code"
 
       Record _ (Just _) ->
-          error "bad record got to port generation code"
+          error "bad record got to incoming port generation code"
 
       Record fields Nothing ->
           check x (JSObject (map fst fields)) object
@@ -126,6 +131,9 @@ out tipe x =
                       (NullLit ())
                       (out t (DotRef () x (var "_0")))
 
+      Data (Var.Canonical (Var.Module "Array") "Array") [t] ->
+          DotRef () (obj "_A.toJSArray" <| x) (var "map") <| outgoing t
+
       Data (Var.Canonical Var.BuiltIn "_List") [t] ->
           DotRef () (obj "_L.toArray" <| x) (var "map") <| outgoing t
 
@@ -133,12 +141,12 @@ out tipe x =
           | Help.isTuple ctor ->
               let convert n t = out t $ DotRef () x $ var ('_':show n)
               in  ArrayLit () $ zipWith convert [0..] ts
-                       
+
       Data _ _ ->
-          error "bad ADT got to port generation code"
+          error "bad ADT got to outgoing port generation code"
 
       Record _ (Just _) ->
-          error "bad record got to port generation code"
+          error "bad record got to outgoing port generation code"
 
       Record fields Nothing ->
           ObjectLit () keys
