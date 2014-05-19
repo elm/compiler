@@ -326,7 +326,7 @@ markdown interpolation =
 
 shader :: IParser (String, Literal.GLShaderTipe)
 shader =
-  do try (string "[shader|")
+  do try (string "[glsl|")
      rawSrc <- closeShader id
      case glSource rawSrc of
        Left err -> parserFail . show $ err
