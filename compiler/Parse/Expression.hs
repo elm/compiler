@@ -6,7 +6,7 @@ import Text.Parsec hiding (newline,spaces)
 import Text.Parsec.Indent
 
 import Parse.Binop
-import Parse.Helpers
+import Parse.Helpers as Help
 import Parse.Literal
 import qualified Parse.Pattern as Pattern
 import qualified Parse.Type as Type
@@ -46,7 +46,7 @@ negative = do
 --------  Complex Terms  --------
 
 listTerm :: IParser Source.Expr'
-listTerm = markdown' <|> glShader' <|> braces (try range <|> ExplicitList <$> commaSep expr)
+listTerm = markdown' <|> shader' <|> braces (try range <|> ExplicitList <$> commaSep expr)
   where
     range = do
       lo <- expr
@@ -56,17 +56,18 @@ listTerm = markdown' <|> glShader' <|> braces (try range <|> ExplicitList <$> co
     markdown' = do
       pos <- getPosition
       let uid = show (sourceLine pos) ++ ":" ++ show (sourceColumn pos)
-      (rawText, exprs) <- markdown (interpolation uid)
+      (rawText, exprs) <- Help.markdown (interpolation uid)
       return (Markdown uid (filter (/='\r') rawText) exprs)
 
-    glShader' = do
+    shader' = do
       pos <- getPosition
       let uid = show (sourceLine pos) ++ ":" ++ show (sourceColumn pos)
-      (rawSrc, tipe) <- glShader
+      (rawSrc, tipe) <- Help.shader
       return $ GLShader uid (filter (/='\r') rawSrc) tipe
 
     span uid index =
-        "<span id=\"md-" ++ uid ++ "-" ++ show index ++ "\">{{ markdown interpolation is in the pipeline, but still needs more testing }}</span>"
+        "<span id=\"md-" ++ uid ++ "-" ++ show index ++
+        "\">{{ markdown interpolation is in the pipeline, but still needs more testing }}</span>"
 
     interpolation uid exprs = do
       try (string "{{")
