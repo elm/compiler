@@ -159,7 +159,7 @@ instance (Pretty def, Pretty var, Var.ToString var) => Pretty (Expr' ann def var
 
      Markdown _ _ _ -> P.text "[markdown| ... |]"
 
-     GLShader _ _ _ -> P.text "[glShader| ... |]"
+     GLShader _ _ _ -> P.text "[glsl| ... |]"
 
      PortIn name _ -> P.text $ "<port:" ++ name ++ ">"
 
