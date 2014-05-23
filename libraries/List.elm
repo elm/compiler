@@ -23,6 +23,15 @@ list must have the same type.
 
 # Sorting
 @docs sort, sortBy, sortWith
+
+# Additional Zips
+@docs zip3, zip4, zip5, zipWith3, zipWith4, zipWith5
+
+If you can think of a legitimate use of `zipN` or `zipWithN` where `N` is 6 or
+more, please let us know on [the
+list](https://groups.google.com/forum/#!forum/elm-discuss). The current
+sentiment is that it is already quite error prone once you get to 4 and
+possibly should be approached another way.
 -}
 
 import Basics (..)
@@ -186,6 +195,15 @@ If one list is longer, the extra elements are dropped.
 zip : [a] -> [b] -> [(a,b)]
 zip = Native.List.zip
 
+zip3 : [a] -> [b] -> [c] -> [(a,b,c)]
+zip3 = Native.List.zipWith3 (,,)
+
+zip4 : [a] -> [b] -> [c] -> [d] -> [(a,b,c,d)]
+zip4 = Native.List.zipWith4 (,,,)
+
+zip5 : [a] -> [b] -> [c] -> [d] -> [e] -> [(a,b,c,d,e)]
+zip5 = Native.List.zipWith5 (,,,,)
+
 {-| Combine two lists, combining them with the given function.
 If one list is longer, the extra elements are dropped.
 
@@ -193,6 +211,15 @@ If one list is longer, the extra elements are dropped.
 -}
 zipWith : (a -> b -> c) -> [a] -> [b] -> [c]
 zipWith = Native.List.zipWith
+
+zipWith3 : (a -> b -> c -> x) -> [a] -> [b] -> [c] -> [x]
+zipWith3 = Native.List.zipWith3
+
+zipWith4 : (a -> b -> c -> d -> x) -> [a] -> [b] -> [c] -> [d] -> [x]
+zipWith4 = Native.List.zipWith4
+
+zipWith5 : (a -> b -> c -> d -> e -> x) -> [a] -> [b] -> [c] -> [d] -> [e] -> [x]
+zipWith5 = Native.List.zipWith5
 
 {-| Decompose a list of tuples. 
 
