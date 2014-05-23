@@ -43,7 +43,7 @@ instance ToString Canonical where
 data Listing a = Listing
     { _explicits :: [a]
     , _open :: Bool
-    } deriving (Eq,Ord)
+    } deriving (Eq,Ord,Show)
 
 openListing :: Listing a
 openListing = Listing [] True
@@ -53,7 +53,7 @@ data Value
     = Value !String
     | Alias !String
     | ADT !String !(Listing String)
-    deriving (Eq,Ord)
+    deriving (Eq,Ord,Show)
 
 instance Pretty Raw where
     pretty (Raw var) = variable var

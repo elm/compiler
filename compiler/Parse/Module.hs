@@ -6,7 +6,7 @@ import Text.Parsec hiding (newline,spaces)
 
 import Parse.Helpers
 import AST.Module (ImportMethod(..))
-import AST.Variable (Listing(..), Value(..))
+import AST.Variable (Listing(..), Value(..), openListing)
 
 getModuleName :: String -> Maybe String
 getModuleName source =
@@ -41,12 +41,11 @@ import' =
      (,) name <$> option (As name) method
   where
     method :: IParser ImportMethod
-    method = try $ do whitespace
-                      as' <|> importing'
+    method = as' <|> importing'
 
     as' :: IParser ImportMethod
     as' = do
-      reserved "as"
+      try (whitespace >> reserved "as")
       whitespace
       As <$> capVar <?> "alias for module"
 
@@ -54,13 +53,24 @@ import' =
     importing' = Open <$> listing value
 
 listing :: IParser a -> IParser (Listing a)
-listing item = 
-    parens (choice [ const (Listing [] True) <$> string ".."
-                   , Listing <$> commaSep1 item <*> return False
-                   ] <?> "listing of values (x,y,z)")
+listing item =
+  do try (whitespace >> char '(')
+     whitespace
+     listing <- choice [ const openListing <$> string ".."
+                       , Listing <$> commaSep1 item <*> return False
+                       ] <?> "listing of values (x,y,z)"
+     whitespace
+     char ')'
+     return listing
 
 value :: IParser Value
-value = choice [ Value <$> (lowVar <|> parens symOp)
-               , ADT <$> capVar <*> listing capVar
-               ]
+value = val <|> tipe
+    where
+      val = Value <$> (lowVar <|> parens symOp)
 
+      tipe = do
+        name <- capVar
+        maybeCtors <- optionMaybe (listing capVar)
+        case maybeCtors of
+          Nothing -> return (Alias name)
+          Just ctors -> return (ADT name ctors)
