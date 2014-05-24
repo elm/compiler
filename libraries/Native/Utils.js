@@ -5,23 +5,39 @@ Elm.Native.Utils.make = function(elm) {
     elm.Native.Utils = elm.Native.Utils || {};
     if (elm.Native.Utils.values) return elm.Native.Utils.values;
 
-    function eq(x,y) {
-        if (x === y) return true;
-        if (typeof x === "object") {
-            var c = 0;
-            for (var i in x) {
-                ++c;
-                if (!eq(x[i],y[i])) {
-                    return false;
+    function eq(l,r) {
+        var stack = [{'x': l, 'y': r}]
+        while (stack.length > 0) {
+            var front = stack.pop();
+            var x = front.x;
+            var y = front.y;
+            if (x === y) continue;
+            if (typeof x === "object") {
+                var c = 0;
+                for (var i in x) {
+                    ++c;
+                    if (i in y) {
+                        if (i !== 'ctor') {
+                            stack.push({ 'x': x[i], 'y': y[i] });
+                        }
+                    } else {
+                        return false;
+                    }
                 }
+                if ('ctor' in x) {
+                    stack.push({'x': x.ctor, 'y': y.ctor});
+                }
+                if (c !== Object.keys(y).length) {
+                    return false;
+                };
+            } else if (typeof x === 'function') {
+                throw new Error('Equality error: general function equality is ' +
+                                'undecidable, and therefore, unsupported');
+            } else {
+                return false;
             }
-            return c === Object.keys(y).length;
         }
-        if (typeof x === 'function') {
-            throw new Error('Equality error: general function equality is ' +
-                            'undecidable, and therefore, unsupported');
-        }
-        return x === y;
+        return true;
     }
 
     // code in Generate/JavaScript.hs depends on the particular
@@ -210,6 +226,10 @@ Elm.Native.Utils.make = function(elm) {
         return Tuple2(posx, posy);
     }
 
+    function isJSArray(a) {
+        return a instanceof Array;
+    }
+
     return elm.Native.Utils.values = {
         eq:eq,
         cmp:cmp,
@@ -229,6 +249,7 @@ Elm.Native.Utils.make = function(elm) {
         mod : F2(mod),
         htmlHeight: F2(htmlHeight),
         getXY: getXY,
+        isJSArray: isJSArray,
         toFloat: function(x) { return +x; }
     };
 };

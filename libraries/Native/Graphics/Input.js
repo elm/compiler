@@ -286,7 +286,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
                     start: start,
                     end: end,
                     direction: { ctor: direction }
-                },
+                }
             }));
         }
 

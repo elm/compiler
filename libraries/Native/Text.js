@@ -123,7 +123,7 @@ Elm.Native.Text.make = function(elm) {
                 html : Utils.makeText(text),
                 align: align,
                 guid : null,
-                args : [],
+                args : []
             };
             var pos = A2(Utils.htmlHeight, 0, raw);
             return A3(Element.newElement, pos._0, pos._1, raw);
@@ -136,7 +136,7 @@ Elm.Native.Text.make = function(elm) {
             html: text,
             align: null,
             guid: guid,
-            args: [],
+            args: []
         };
         var pos = A2(Utils.htmlHeight, 0, raw);
         return A3(Element.newElement, pos._0, pos._1, raw);
@@ -162,6 +162,6 @@ Elm.Native.Text.make = function(elm) {
         markdown     : markdown,
 
         toTypefaces:toTypefaces,
-        toLine:toLine,
+        toLine:toLine
     };
 };

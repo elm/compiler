@@ -199,6 +199,16 @@ Elm.Native.List.make = function(elm) {
         return false;
     }
 
+    function zip(xs, ys) {
+        var arr = [];
+        while (xs.ctor !== '[]' && ys.ctor !== '[]') {
+            arr.push(Utils.Tuple2(xs._0, ys._0));
+            xs = xs._1;
+            ys = ys._1;
+        }
+        return fromArray(arr);
+    }
+
     function zipWith(f, xs, ys) {
         var arr = [];
         while (xs.ctor !== '[]' && ys.ctor !== '[]') {
@@ -209,12 +219,47 @@ Elm.Native.List.make = function(elm) {
         return fromArray(arr);
     }
 
-    function zip(xs, ys) {
+    function zipWith3(f, xs, ys, zs) {
         var arr = [];
-        while (xs.ctor !== '[]' && ys.ctor !== '[]') {
-            arr.push(Utils.Tuple2(xs._0, ys._0));
+        while (xs.ctor !== '[]' && ys.ctor !== '[]' && zs.ctor !== '[]') {
+            arr.push(A3(f, xs._0, ys._0, zs._0));
             xs = xs._1;
             ys = ys._1;
+            zs = zs._1;
+        }
+        return fromArray(arr);
+    }
+
+    function zipWith4(f, ws, xs, ys, zs) {
+        var arr = [];
+        while (   ws.ctor !== '[]'
+               && xs.ctor !== '[]'
+               && ys.ctor !== '[]'
+               && zs.ctor !== '[]')
+        {
+            arr.push(A4(f, ws._0, xs._0, ys._0, zs._0));
+            ws = ws._1;
+            xs = xs._1;
+            ys = ys._1;
+            zs = zs._1;
+        }
+        return fromArray(arr);
+    }
+
+    function zipWith5(f, vs, ws, xs, ys, zs) {
+        var arr = [];
+        while (   vs.ctor !== '[]'
+               && ws.ctor !== '[]'
+               && xs.ctor !== '[]'
+               && ys.ctor !== '[]'
+               && zs.ctor !== '[]')
+        {
+            arr.push(A5(f, vs._0, ws._0, xs._0, ys._0, zs._0));
+            vs = vs._1;
+            ws = ws._1;
+            xs = xs._1;
+            ys = ys._1;
+            zs = zs._1;
         }
         return fromArray(arr);
     }
@@ -289,6 +334,16 @@ Elm.Native.List.make = function(elm) {
         return fromArray(out);
     }
 
+    /*
+     * Only to be used internally; do some side effects for each elem
+     */
+    function each(action, xs) {
+        while(xs.ctor !== '[]') {
+            action(xs._0);
+            xs = xs._1;
+        }
+    }
+
     Elm.Native.List.values = {
         Nil:Nil,
         Cons:Cons,
@@ -318,7 +373,10 @@ Elm.Native.List.make = function(elm) {
 
         all:F2(all),
         any:F2(any),
-        zipWith:F3(zipWith),
+        zipWith :F3(zipWith ),
+        zipWith3:F4(zipWith3),
+        zipWith4:F5(zipWith4),
+        zipWith5:F6(zipWith5),
         zip:F2(zip),
         sort:sort,
         sortBy:F2(sortBy),
@@ -328,7 +386,9 @@ Elm.Native.List.make = function(elm) {
         drop:F2(drop),
         repeat:F2(repeat),
 
-        join:F2(join)
+        join:F2(join),
+
+        each:each
     };
     return elm.Native.List.values = Elm.Native.List.values;
 

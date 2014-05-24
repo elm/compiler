@@ -49,6 +49,7 @@ crawl portInCheck portOutCheck defsTransform = go
             Record fields -> Record <$> mapM (\(k,v) -> (,) k <$> go v) fields
             Markdown uid md es -> Markdown uid md <$> mapM go es
             Let defs body -> Let <$> defsTransform defs <*> go body
+            GLShader uid src gltipe -> return $ GLShader uid src gltipe
             PortIn name st ->
                 do portInCheck name st
                    return $ PortIn name st

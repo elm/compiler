@@ -23,6 +23,15 @@ list must have the same type.
 
 # Sorting
 @docs sort, sortBy, sortWith
+
+# Additional Zips
+@docs zip3, zip4, zip5, zipWith3, zipWith4, zipWith5
+
+If you can think of a legitimate use of `zipN` or `zipWithN` where `N` is 6 or
+more, please let us know on [the
+list](https://groups.google.com/forum/#!forum/elm-discuss). The current
+sentiment is that it is already quite error prone once you get to 4 and
+possibly should be approached another way.
 -}
 
 import Basics (..)
@@ -163,13 +172,19 @@ maximum = foldl1 max
 minimum : [comparable] -> comparable
 minimum = foldl1 min
 
-{-| Split a list based on the predicate. -}
+{-| Partition a list based on a predicate. The first list contains all values
+that satisfy the predicate, and the second list contains all the value that do
+not.
+
+      partition (\x -> x < 3) [0..5] == ([0,1,2], [3,4,5])
+      partition isEven        [0..5] == ([0,2,4], [1,3,5])
+-}
 partition : (a -> Bool) -> [a] -> ([a],[a])
-partition pred lst =
-    case lst of
-      []    -> ([],[])
-      x::xs -> let (bs,cs) = partition pred xs in
-               if pred x then (x::bs,cs) else (bs,x::cs)
+partition pred =
+    let step x (ts, fs) = if pred x
+                          then (x::ts, fs)
+                          else (ts, x::fs)
+    in foldr step ([],[])
 
 {-| Combine two lists, combining them into tuples pairwise.
 If one list is longer, the extra elements are dropped.
@@ -180,6 +195,15 @@ If one list is longer, the extra elements are dropped.
 zip : [a] -> [b] -> [(a,b)]
 zip = Native.List.zip
 
+zip3 : [a] -> [b] -> [c] -> [(a,b,c)]
+zip3 = Native.List.zipWith3 (,,)
+
+zip4 : [a] -> [b] -> [c] -> [d] -> [(a,b,c,d)]
+zip4 = Native.List.zipWith4 (,,,)
+
+zip5 : [a] -> [b] -> [c] -> [d] -> [e] -> [(a,b,c,d,e)]
+zip5 = Native.List.zipWith5 (,,,,)
+
 {-| Combine two lists, combining them with the given function.
 If one list is longer, the extra elements are dropped.
 
@@ -188,12 +212,23 @@ If one list is longer, the extra elements are dropped.
 zipWith : (a -> b -> c) -> [a] -> [b] -> [c]
 zipWith = Native.List.zipWith
 
-{-| Decompose a list of tuples. -}
+zipWith3 : (a -> b -> c -> x) -> [a] -> [b] -> [c] -> [x]
+zipWith3 = Native.List.zipWith3
+
+zipWith4 : (a -> b -> c -> d -> x) -> [a] -> [b] -> [c] -> [d] -> [x]
+zipWith4 = Native.List.zipWith4
+
+zipWith5 : (a -> b -> c -> d -> e -> x) -> [a] -> [b] -> [c] -> [d] -> [e] -> [x]
+zipWith5 = Native.List.zipWith5
+
+{-| Decompose a list of tuples. 
+
+      unzip [(0, True), (17, False), (1337, True)] == ([0,17,1337], [True,False,True])
+-}
 unzip : [(a,b)] -> ([a],[b])
-unzip pairs =
-  case pairs of
-    []        -> ([],[])
-    (x,y)::ps -> let (xs,ys) = (unzip ps) in (x::xs,y::ys)
+unzip =
+    let step (x,y) (xs, ys) = (x::xs, y::ys)
+    in foldr step ([], [])
 
 {-| Places the given value between all of the lists in the second
 argument and concatenates the result.
@@ -209,10 +244,12 @@ join = Native.List.join
 -}
 intersperse : a -> [a] -> [a]
 intersperse sep xs =
-  case xs of 
-    a::b::cs -> a :: sep :: intersperse sep (b::cs)
-    [a] -> [a]
-    []  -> []
+    case xs of
+      [] -> []
+      hd::tl ->
+          let step x rest = sep :: x :: rest
+              spersed = foldr step [] tl
+          in hd :: spersed
 
 {-| Take the first n members of a list: `(take 2 [1,2,3,4] == [1,2])` -}
 take : Int -> [a] -> [a]

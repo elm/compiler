@@ -5,6 +5,7 @@ Elm.Native.Show.make = function(elm) {
     if (elm.Native.Show.values) return elm.Native.Show.values;
 
     var NList = Elm.Native.List.make(elm);
+    var Array = Elm.Array.make(elm);
     var List = Elm.List.make(elm);
     var Dict = Elm.Dict.make(elm);
     var Tuple2 = Elm.Native.Utils.make(elm).Tuple2;
@@ -43,6 +44,9 @@ Elm.Native.Show.make = function(elm) {
                     output.push(toString(v[k]));
                 }
                 return "(" + output.join(",") + ")";
+            } else if (v.ctor === "_Array") {
+                var list = Array.toList(v);
+                return "Array.fromList " + toString(list);
             } else if (v.ctor === "::") {
                 var output = '[' + toString(v._0);
                 v = v._1;

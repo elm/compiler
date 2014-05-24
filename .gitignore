@@ -10,8 +10,8 @@ cabal-dev
 data
 */ElmFiles/*
 .DS_Store
+build
+cache
 *~
-tests/elm/build/
-tests/elm/cache/
-tests/elm/exe.js
+exe.js
 node_modules/

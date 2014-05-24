@@ -1,5 +1,5 @@
 Name:                Elm
-Version:             0.12
+Version:             0.12.3
 Synopsis:            The Elm language module.
 Description:         Elm aims to make client-side web-development more pleasant.
                      It is a statically/strongly typed, functional reactive
@@ -27,7 +27,7 @@ Cabal-version:       >=1.9
 
 source-repository head
   type:     git
-  location: git://github.com/evancz/Elm.git
+  location: git://github.com/elm-lang/Elm.git
 
 Library
   exposed-modules:     Elm.Internal.Dependencies,
@@ -95,6 +95,7 @@ Library
                        Paths_Elm
 
   Build-depends:       aeson,
+                       aeson-pretty,
                        base >=4.2 && <5,
                        binary >= 0.7.0.0,
                        blaze-html >= 0.5 && < 0.8,
@@ -106,14 +107,17 @@ Library
                        filepath,
                        indents,
                        language-ecmascript >=0.15 && < 1.0,
+                       language-glsl >= 0.0.2,
                        mtl >= 2,
                        pandoc >= 1.10,
                        parsec >= 3.1.1,
                        pretty,
+                       scientific,
                        text,
                        transformers >= 0.2,
                        union-find,
-                       unordered-containers
+                       unordered-containers,
+                       yaml
 
 Executable elm
   Main-is:             Compiler.hs
@@ -177,6 +181,7 @@ Executable elm
                        Paths_Elm
 
   Build-depends:       aeson,
+                       aeson-pretty,
                        base >=4.2 && <5,
                        binary >= 0.7.0.0,
                        blaze-html >= 0.5 && < 0.8,
@@ -188,14 +193,17 @@ Executable elm
                        filepath,
                        indents,
                        language-ecmascript >=0.15 && < 1.0,
+                       language-glsl >= 0.0.2,
                        mtl >= 2,
                        pandoc >= 1.10,
                        parsec >= 3.1.1,
+                       scientific,
                        pretty,
                        text,
                        transformers >= 0.2,
                        union-find,
-                       unordered-containers
+                       unordered-containers,
+                       yaml
 
 Executable elm-doc
   Main-is:             Docs.hs
@@ -229,16 +237,19 @@ Executable elm-doc
                        directory,
                        filepath,
                        indents,
+                       language-glsl >= 0.0.2,
                        mtl >= 2,
                        pandoc >= 1.10,
                        parsec >= 3.1.1,
                        pretty,
+                       scientific,
                        text,
-                       union-find
+                       union-find,
+                       yaml
 
 Test-Suite compiler-tests
   Type:            exitcode-stdio-1.0
-  Hs-Source-Dirs:  tests/hs, compiler
+  Hs-Source-Dirs:  tests/compiler, compiler
   Main-is:         CompilerTest.hs
   other-modules:   Tests.Compiler
                    Tests.Property
@@ -246,43 +257,44 @@ Test-Suite compiler-tests
                    SourceSyntax.Helpers
                    SourceSyntax.Literal
                    SourceSyntax.PrettyPrint
-  build-depends:   base,
-                   directory,
-                   Elm,
-                   test-framework,
+  build-depends:   test-framework,
                    test-framework-hunit,
                    test-framework-quickcheck2 >= 0.3,
                    HUnit,
-                   pretty,
                    QuickCheck >= 2 && < 3,
-                   filemanip,
                    aeson,
+                   aeson-pretty,
                    base >=4.2 && <5,
                    binary >= 0.7.0.0,
-                   blaze-html == 0.5.* || == 0.6.*,
-                   blaze-markup == 0.5.1.*,
+                   blaze-html,
+                   blaze-markup,
                    bytestring,
                    cmdargs,
                    containers >= 0.3,
                    directory,
+                   Elm,
+                   filemanip,
                    filepath,
                    indents,
                    language-ecmascript >=0.15 && < 1.0,
+                   language-glsl >= 0.0.2,
                    mtl >= 2,
                    pandoc >= 1.10,
                    parsec >= 3.1.1,
                    pretty,
+                   scientific,
                    text,
                    transformers >= 0.2,
                    union-find,
-                   unordered-containers
+                   unordered-containers,
+                   yaml
 
-Test-Suite lib-tests
+Test-Suite library-tests
   Type:            exitcode-stdio-1.0
-  Hs-Source-Dirs:  tests/hs
-  Main-is:         LibTest.hs
+  Hs-Source-Dirs:  tests/libraries
+  Main-is:         LibraryTest.hs
   build-depends:   base,
                    directory,
                    Elm,
                    filepath,
-                   process >= 1.2
+                   process
