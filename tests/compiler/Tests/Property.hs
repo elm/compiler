@@ -9,11 +9,11 @@ import Test.QuickCheck
 import Text.Parsec.Combinator (eof)
 import Text.PrettyPrint as P
 
-import SourceSyntax.Literal as Lit
-import qualified SourceSyntax.Pattern as P
-import SourceSyntax.PrettyPrint  (Pretty, pretty)
-import Parse.Helpers             (IParser, iParse)
-import Parse.Literal             (literal)
+import AST.Literal as Lit
+import qualified AST.Pattern as P
+import AST.PrettyPrint (Pretty, pretty)
+import Parse.Helpers (IParser, iParse)
+import Parse.Literal (literal)
 import qualified Parse.Pattern as Pat (expr)
 import qualified Parse.Type as Type (expr)
 import Tests.Property.Arbitrary

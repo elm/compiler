@@ -8,9 +8,9 @@ import Test.QuickCheck.Gen
 import qualified Data.Set as Set
 import qualified Parse.Helpers (reserveds)
 
-import qualified SourceSyntax.Literal as L
-import qualified SourceSyntax.Pattern as P
-import qualified SourceSyntax.Type as T
+import qualified AST.Literal as L
+import qualified AST.Pattern as P
+import qualified AST.Type as T
 
 instance Arbitrary L.Literal where
   arbitrary =
