@@ -11,6 +11,11 @@ import qualified Parse.Helpers (reserveds)
 import qualified AST.Literal as L
 import qualified AST.Pattern as P
 import qualified AST.Type as T
+import qualified AST.Variable as V
+
+instance Arbitrary V.Raw where
+  arbitrary = V.Raw <$> arbitrary
+  shrink (V.Raw v) = V.Raw <$> shrink v
 
 instance Arbitrary L.Literal where
   arbitrary =
@@ -41,10 +46,10 @@ genVector n generator = do
   let m = n `div` (len + 1)
   vectorOf len $ generator m
 
-instance Arbitrary P.Pattern where
+instance Arbitrary v => Arbitrary (P.Pattern v) where
   arbitrary = sized pat
     where
-      pat :: Int -> Gen P.Pattern
+      pat :: (Arbitrary v) => Int -> Gen (P.Pattern v)
       pat n =
           oneof
           [ pure P.Anything
@@ -52,7 +57,7 @@ instance Arbitrary P.Pattern where
           , P.Record  <$> (listOf1 lowVar)
           , P.Literal <$> arbitrary
           , P.Alias   <$> lowVar <*> pat (n-1)
-          , P.Data    <$> capVar <*> genVector n pat
+          , P.Data    <$> arbitrary <*> genVector n pat
           ]
 
   shrink pat =
@@ -61,7 +66,7 @@ instance Arbitrary P.Pattern where
       P.Var v     -> P.Var <$> shrinkWHead v
       P.Literal l -> P.Literal <$> shrink l
       P.Alias s p -> p : (P.Alias <$> shrinkWHead s <*> shrink p)
-      P.Data s ps -> ps ++ (P.Data <$> shrinkWHead s <*> shrink ps)
+      P.Data s ps -> ps ++ (P.Data <$> shrink s <*> shrink ps)
       P.Record fs ->
           P.Record <$> filter (all notNull) (filter notNull (shrink fs))
           where
@@ -71,10 +76,10 @@ shrinkWHead :: Arbitrary a => [a] -> [[a]]
 shrinkWHead [] = error "Should be nonempty"
 shrinkWHead (x:xs) = (x:) <$> shrink xs
 
-instance Arbitrary T.Type where
+instance Arbitrary v => Arbitrary (T.Type v) where
   arbitrary = sized tipe
     where
-      tipe :: Int -> Gen T.Type
+      tipe :: Arbitrary v => Int -> Gen (T.Type v)
       tipe n =
           let depthTipe = tipe =<< choose (0,n)
               field = (,) <$> lowVar <*> depthTipe
@@ -84,16 +89,16 @@ instance Arbitrary T.Type where
               oneof
               [ T.Lambda <$> depthTipe <*> depthTipe
               , T.Var    <$> lowVar
-              , T.Data   <$> capVar <*> genVector n tipe
+              , T.Data   <$> arbitrary <*> genVector n tipe
               , T.Record <$> fields <*> pure Nothing
-              , T.Record <$> fields1 <*> (Just <$> lowVar)
+              , T.Record <$> fields1 <*> (Just . T.Var <$> lowVar)
               ]
 
   shrink tipe =
     case tipe of
       T.Lambda s t  -> s : t : (T.Lambda <$> shrink s <*> shrink t)
       T.Var _       -> []
-      T.Data n ts   -> ts ++ (T.Data <$> shrinkWHead n <*> shrink ts)
+      T.Data n ts   -> ts ++ (T.Data <$> shrink n <*> shrink ts)
       T.Record fs t -> map snd fs ++ record
           where
             record =
