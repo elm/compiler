@@ -9,10 +9,10 @@ Elm.Native.Signal.make = function(elm) {
   var Utils = Elm.Native.Utils.make(elm);
   var foldr1 = Elm.List.make(elm).foldr1;
 
-  function send(node, timestep, changed) {
+  function send(node, timestep, updated, duplicate) {
     var kids = node.kids;
     for (var i = kids.length; i--; ) {
-      kids[i].recv(timestep, changed, node.id);
+      kids[i].recv(timestep, updated, duplicate, node.id);
     }
   }
 
@@ -22,9 +22,11 @@ Elm.Native.Signal.make = function(elm) {
     this.kids = [];
     this.defaultNumberOfKids = 0;
     this.recv = function(timestep, eid, v) {
-      var changed = eid === this.id;
-      if (changed) { this.value = v; }
-      send(this, timestep, changed);
+      var updated = eid === this.id;
+      if (updated) { this.value = v; }
+      // TODO: consider changing this to an actual duplicate check
+      var duplicate = !updated;
+      send(this, timestep, updated, duplicate);
       return changed;
     };
     elm.inputs.push(this);
@@ -37,15 +39,15 @@ Elm.Native.Signal.make = function(elm) {
 
     var n = args.length;
     var count = 0;
-    var isChanged = false;
+    var isUpdated = false;
 
-    this.recv = function(timestep, changed, parentID) {
+    this.recv = function(timestep, updated, duplicate, parentID) {
       ++count;
-      if (changed) { isChanged = true; }
+      if (updated) { isUpdated = true; }
       if (count == n) {
-        if (isChanged) { this.value = update(); }
-        send(this, timestep, isChanged);
-        isChanged = false;
+        if (isUpdated) { this.value = update(); }
+        send(this, timestep, isUpdated, duplicate);
+        isUpdated = false;
         count = 0;
       }
     };
@@ -90,11 +92,11 @@ Elm.Native.Signal.make = function(elm) {
     this.value = state;
     this.kids = [];
 
-    this.recv = function(timestep, changed, parentID) {
-      if (changed) {
+    this.recv = function(timestep, updated, duplicate, parentID) {
+      if (updated) {
           this.value = A2( step, input.value, this.value );
       }
-      send(this, timestep, changed);
+      send(this, timestep, updated, duplicate);
     };
     input.kids.push(this);
   }
@@ -107,10 +109,10 @@ Elm.Native.Signal.make = function(elm) {
     this.id = Utils.guid();
     this.value = pred(input.value) ? base : input.value;
     this.kids = [];
-    this.recv = function(timestep, changed, parentID) {
-      var chng = changed && !pred(input.value);
+    this.recv = function(timestep, updated, duplicate, parentID) {
+      var chng = updated && !pred(input.value);
       if (chng) { this.value = input.value; }
-      send(this, timestep, chng);
+      send(this, timestep, chng, duplicate);
     };
     input.kids.push(this);
   }
@@ -119,10 +121,10 @@ Elm.Native.Signal.make = function(elm) {
     this.id = Utils.guid();
     this.value = input.value;
     this.kids = [];
-    this.recv = function(timestep, changed, parentID) {
-      var chng = changed && !Utils.eq(this.value,input.value);
+    this.recv = function(timestep, updated, duplicate, parentID) {
+      var chng = updated && !Utils.eq(this.value,input.value);
       if (chng) { this.value = input.value; }
-      send(this, timestep, chng);
+      send(this, timestep, chng, duplicate);
     };
     input.kids.push(this);
   }
@@ -138,16 +140,16 @@ Elm.Native.Signal.make = function(elm) {
     this.kids = [];
 
     var count = 0;
-    var isChanged = false;
+    var isUpdated = false;
 
-    this.recv = function(timestep, changed, parentID) {
-      if (parentID === s1.id) isChanged = changed;
+    this.recv = function(timestep, updated, duplicate, parentID) {
+      if (parentID === s1.id) isUpdated = updated;
       ++count;
       if (count == 2) {
-        if (isChanged) { this.value = s2.value; }
-        send(this, timestep, isChanged);
+        if (isUpdated) { this.value = s2.value; }
+        send(this, timestep, isUpdated, duplicate);
         count = 0;
-        isChanged = false;
+        isUpdated = false;
       }
     };
     s1.kids.push(this);
@@ -174,20 +176,20 @@ Elm.Native.Signal.make = function(elm) {
 
       var next = null;
       var count = 0;
-      var isChanged = false;
+      var isUpdated = false;
 
-      this.recv = function(timestep, changed, parentID) {
+      this.recv = function(timestep, updated, duplicate, parentID) {
         ++count;
-        if (changed) {
-            isChanged = true;
+        if (updated) {
+            isUpdated = true;
             if (parentID == s2.id && next === null) { next = s2.value; }
             if (parentID == s1.id) { next = s1.value; }
         }
 
         if (count == 2) {
-            if (isChanged) { this.value = next; next = null; }
-            send(this, timestep, isChanged);
-            isChanged = false;
+            if (isUpdated) { this.value = next; next = null; }
+            send(this, timestep, isUpdated, duplicate);
+            isUpdated = false;
             count = 0;
         }
       };
