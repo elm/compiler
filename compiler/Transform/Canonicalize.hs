@@ -73,7 +73,7 @@ toEnv interfaces environ (name,method)
 addValue :: String -> Module.Interface -> Environment -> Var.Value
          -> Either [Doc] Environment
 addValue name interface env value =
-    let insert' x = insert x (Var.Canonical (Var.Module name) x)
+    let insert' x = Env.insert x (Var.Canonical (Var.Module name) x)
         msg x = "Import Error: Could not import value '" ++ name ++ "." ++ x ++
                 "'.\n    It is not exported by module " ++ name ++ "."
         notFound x = Left [ P.text (msg x) ]
@@ -88,7 +88,7 @@ addValue name interface env value =
           case Map.lookup x (iAliases interface) of
             Just (tvars, t) ->
                 let v = (Var.Canonical (Var.Module name) x, tvars, t) in
-                return $ env { _aliases = insert x v (_aliases env) }
+                return $ env { _aliases = Env.insert x v (_aliases env) }
             Nothing ->
                 case Map.lookup x (iAdts interface) of
                   Nothing -> notFound x
@@ -118,8 +118,8 @@ addValue name interface env value =
 addDecl :: String -> Environment -> D.ValidDecl -> Either [Doc] Environment
 addDecl moduleName env decl =
     let namespacedVar     = Var.Canonical (Var.Module moduleName)
-        addLocal      x e = insert x (Var.local     x) e
-        addNamespaced x e = insert x (namespacedVar x) e
+        addLocal      x e = Env.insert x (Var.local     x) e
+        addNamespaced x e = Env.insert x (namespacedVar x) e
     in
     case decl of
       D.Definition (Valid.Definition pattern _ _) ->
@@ -138,7 +138,7 @@ addDecl moduleName env decl =
       D.TypeAlias name tvars alias ->
           do alias' <- Either.either throw return (Canonicalize.tipe env alias)
              return $ env
-              { _aliases = insert name (namespacedVar name, tvars, alias') (_aliases env)
+              { _aliases = Env.insert name (namespacedVar name, tvars, alias') (_aliases env)
               , _values = case alias of
                             Type.Record _ _ -> addLocal name (_values env)
                             _               -> _values env
