@@ -111,33 +111,36 @@ addValue name interface env value =
                             [] -> return names
                             c:_ -> notFound c
 
+-- When canonicalizing, all _values should be Local, but all _adts and _patterns
+-- should be fully namespaced. With _adts, they may appear in types that can
+-- escape the module.
 addDecl :: String -> Environment -> D.ValidDecl -> Either [Doc] Environment
 addDecl moduleName env decl =
-    let typeVar = Var.Canonical (Var.Module moduleName) in
+    let namespacedVar     = Var.Canonical (Var.Module moduleName)
+        addLocal      x e = insert x (Var.local     x) e
+        addNamespaced x e = insert x (namespacedVar x) e
+    in
     case decl of
       D.Definition (Valid.Definition pattern _ _) ->
           return $ env
-           { _values = foldr add (_values env) (P.boundVarList pattern) }
-        where
-          add x e = insert x (Var.local x) e
+           { _values = foldr addLocal (_values env) (P.boundVarList pattern) }
 
       D.Datatype name _ ctors ->
           return $ env
-           { _values   = addCtors (_values env)
-           , _adts     = insert name (typeVar name) (_adts env)
-           , _patterns = addCtors (_patterns env)
+           { _values   = addCtors addLocal (_values env)
+           , _adts     = addNamespaced name (_adts env)
+           , _patterns = addCtors addNamespaced (_patterns env)
            }
         where
-          addCtors e = foldr add e (map fst ctors)
-          add name e = insert name (typeVar name) e
+          addCtors how e = foldr how e (map fst ctors)
 
       D.TypeAlias name tvars alias ->
           do alias' <- Either.either throw return (tipe env alias)
              return $ env
-              { _aliases = insert name (typeVar name, tvars, alias') (_aliases env)
+              { _aliases = insert name (namespacedVar name, tvars, alias') (_aliases env)
               , _values = case alias of
-                            Type.Record _ _ -> insert name (typeVar name) (_values env)
-                            _ -> _values env
+                            Type.Record _ _ -> addLocal name (_values env)
+                            _               -> _values env
               }
           where
             throw err = Left [ P.vcat [ P.text $ "Error in type alias '" ++ name ++ "':"
