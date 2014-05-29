@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -W #-}
 module Type.Type where
 
 import qualified Data.Char as Char
@@ -12,7 +13,6 @@ import Control.Monad.State
 import Control.Monad.Error
 import Data.Traversable (traverse)
 import AST.Annotation
-import AST.Helpers (isTuple)
 import qualified AST.Type as T
 import qualified AST.Variable as Var
 
@@ -36,7 +36,7 @@ type Type = TermN Variable
 type Variable = UF.Point Descriptor
 
 type SchemeName = String
-type TypeName = String
+type TypeName = Var.Canonical
 
 type Constraint a b = Located (BasicConstraint a b)
 data BasicConstraint a b
@@ -96,7 +96,7 @@ data Flex = Rigid | Flexible | Constant | Is SuperType
 data SuperType = Number | Comparable | Appendable
      deriving (Show, Eq)
 
-namedVar :: Flex -> String -> IO Variable
+namedVar :: Flex -> Var.Canonical -> IO Variable
 namedVar flex name = UF.fresh $ Descriptor {
     structure = Nothing,
     rank = noRank,
@@ -203,8 +203,12 @@ instance PrettyType Descriptor where
   pretty when desc =
     case (structure desc, name desc) of
       (Just term, _) -> pretty when term
-      (_, Just name) -> if not (isTuple name) then P.text name else
-                            P.parens . P.text $ replicate (read (drop 6 name) - 1) ','
+      (_, Just name)
+          | Var.isTuple name ->
+              P.parens . P.text $ replicate (read (drop 6 (Var.toString name)) - 1) ','
+          | otherwise ->
+              P.text (Var.toString name)
+                            
       _ -> P.text "?"
 
 
@@ -278,23 +282,20 @@ addNames value = do
     getNames desc state@(vars, a, b, c) =
         let name' = name desc in
         case name' of
-          Just var -> (name', (var:vars, a, b, c))
-          Nothing -> (name', state)
+          Just (Var.Canonical _ var) -> (name', (var:vars, a, b, c))
+          _ -> (name', state)
 
     rename desc state@(vars, a, b, c) =
       case name desc of
         Just var -> (Just var, state)
         Nothing ->
             case flex desc of
-              Is Number     -> (Just $ "number"     ++ replicate a '\'', (vars, a+1, b, c))
-              Is Comparable -> (Just $ "comparable" ++ replicate b '\'', (vars, a, b+1, c))
-              Is Appendable -> (Just $ "appendable" ++ replicate c '\'', (vars, a, b, c+1))
-              other         -> (Just $ head vars, (tail vars, a, b, c))
-                  where mark = case other of
-                                 Flexible -> ""
-                                 Rigid    -> "!"
-                                 Constant -> "#"
-
+              Is Number     -> (local $ "number"     ++ replicate a '\'', (vars, a+1, b, c))
+              Is Comparable -> (local $ "comparable" ++ replicate b '\'', (vars, a, b+1, c))
+              Is Appendable -> (local $ "appendable" ++ replicate c '\'', (vars, a, b, c+1))
+              _             -> (local $ head vars, (tail vars, a, b, c))
+            where
+              local v = Just (Var.local v)
 
 type CrawlState = ([String], Int, Int, Int)
 
@@ -367,24 +368,33 @@ toSrcType variable = do
     Just term ->
         case term of
           App1 a b -> do
-            T.Data name ts <- toSrcType a
+            a' <- toSrcType a
             b' <- toSrcType b
-            return (T.Data name (ts ++ [b']))
+            case a' of
+              T.App f args -> return $ T.App f (args ++ [b'])
+              _            -> return $ T.App a' [b']
+
           Fun1 a b -> T.Lambda <$> toSrcType a <*> toSrcType b
+
           Var1 a -> toSrcType a
+
           EmptyRecord1 -> return $ T.Record [] Nothing
+
           Record1 tfields extension -> do
             fields' <- traverse (mapM toSrcType) tfields
             let fields = concat [ map ((,) name) ts | (name,ts) <- Map.toList fields' ]
             ext' <- toSrcType extension
             return $ case ext' of
                        T.Record fs ext -> T.Record (fs ++ fields) ext
-                       T.Var x -> T.Record fields (Just ext')
+                       T.Var _ -> T.Record fields (Just ext')
                        _ -> error "Used toSrcType on a type that is not well-formed"
+
     Nothing ->
         case name desc of
-          Just x@(c:_) | Char.isLower c -> return (T.Var x)
-                       | otherwise      -> return (T.Data (Var.Canonical (error "did not finish converting toSrcType") x) [])
+          Just var@(Var.Canonical _ x@(c:_))
+              | Char.isLower c -> return (T.Var x)
+              | otherwise -> return $ T.Type var
+
           _ -> error $ concat
                         [ "Problem converting the following type "
                         , "from a type-checker type to a source-syntax type:"
@@ -399,10 +409,10 @@ collectApps variable = go [] variable
       desc <- UF.descriptor variable
       case (structure desc, vars) of
         (Nothing, [v]) -> case name desc of
-                             Just "_List" -> return (List v)
+                             Just n | Var.isList n -> return (List v)
                              _ -> return Other
         (Nothing,  vs) -> case name desc of
-                             Just ctor | isTuple ctor -> return (Tuple vs)
+                             Just n | Var.isTuple n -> return (Tuple vs)
                              _ -> return Other
         (Just term, _) -> case term of
                             App1 a b -> go (vars ++ [b]) a

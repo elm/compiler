@@ -2,10 +2,12 @@
 module Type.Unify (unify) where
 
 import Control.Monad.State
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.UnionFind.IO as UF
 import qualified AST.Annotation as A
+import qualified AST.Variable as Var
 import qualified Type.State as TS
 import Type.Type
 import Type.PrettyPrint
@@ -23,7 +25,7 @@ actuallyUnify region variable1 variable2 = do
   desc2 <- liftIO $ UF.descriptor variable2
   let unify' = unify region
 
-      name' :: Maybe String
+      name' :: Maybe Var.Canonical
       name' = case (name desc1, name desc2) of
                 (Just name1, Just name2) ->
                     case (flex desc1, flex desc2) of
@@ -77,10 +79,12 @@ actuallyUnify region variable1 variable2 = do
         liftIO $ UF.modifyDescriptor var $ \desc -> desc { flex = Flexible }
         unify' variable1 variable2
 
-      unifyNumber svar name
-          | name `elem` ["Int","Float","number"] = flexAndUnify svar
-          | otherwise = TS.addError region (Just hint) variable1 variable2
-          where hint = "A number must be an Int or Float."
+      unifyNumber svar (Var.Canonical home name) =
+          case home of
+            Var.BuiltIn | name `elem` ["Int","Float"]   -> flexAndUnify svar
+            Var.Local   | List.isPrefixOf "number" name -> flexAndUnify svar
+            _ -> let hint = "A number must be an Int or Float."
+                 in  TS.addError region (Just hint) variable1 variable2
 
       comparableError maybe =
           TS.addError region (Just $ Maybe.fromMaybe msg maybe) variable1 variable2
@@ -90,9 +94,11 @@ actuallyUnify region variable1 variable2 = do
           TS.addError region (Just $ Maybe.fromMaybe msg maybe) variable1 variable2
           where msg = "An appendable must be of type String, List, or Text."
 
-      unifyComparable var name
-          | name `elem` ["Int","Float","Char","String","comparable"] = flexAndUnify var
-          | otherwise = comparableError Nothing
+      unifyComparable var (Var.Canonical home name) =
+          case home of
+            Var.BuiltIn | name `elem` ["Int","Float","Char","String"] -> flexAndUnify var
+            Var.Local   | List.isPrefixOf "comparable" name           -> flexAndUnify var
+            _ -> comparableError Nothing
 
       unifyComparableStructure varSuper varFlex =
           do struct <- liftIO $ collectApps varFlex
@@ -136,10 +142,10 @@ actuallyUnify region variable1 variable2 = do
             (Is Comparable, _, _, _) -> unifyComparableStructure variable1 variable2
             (_, Is Comparable, _, _) -> unifyComparableStructure variable2 variable1
 
-            (Is Appendable, _, _, Just ctor)
-                | ctor `elem` ["Text.Text","String"] -> flexAndUnify variable1
-            (_, Is Appendable, Just ctor, _)
-                | ctor `elem` ["Text.Text","String"] -> flexAndUnify variable2
+            (Is Appendable, _, _, Just name)
+                | Var.isText name || Var.isPrim "String" name -> flexAndUnify variable1
+            (_, Is Appendable, Just name, _)
+                | Var.isText name || Var.isPrim "String" name -> flexAndUnify variable2
             (Is Appendable, _, _, _) -> unifyAppendable variable1 variable2
             (_, Is Appendable, _, _) -> unifyAppendable variable2 variable1
 

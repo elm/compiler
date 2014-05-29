@@ -12,21 +12,21 @@ import qualified Data.Map as Map
 import Data.List (isPrefixOf)
 import qualified Text.PrettyPrint as PP
 
-import AST.Module (ADTs)
 import qualified AST.Type as T
 import qualified AST.Variable as V
+import AST.Module (CanonicalAdt, AdtInfo)
 import Type.Type
 
 type TypeDict = Map.Map String Type
 type VarDict = Map.Map String Variable
 
-data Environment = Environment {
-  constructor :: Map.Map String (IO (Int, [Variable], [Type], Type)),
-  types :: TypeDict,
-  value :: TypeDict
-}
+data Environment = Environment
+    { constructor :: Map.Map String (IO (Int, [Variable], [Type], Type))
+    , types :: TypeDict
+    , value :: TypeDict
+    }
 
-initialEnvironment :: ADTs -> IO Environment
+initialEnvironment :: [CanonicalAdt] -> IO Environment
 initialEnvironment datatypes = do
     types <- makeTypes datatypes
     let env = Environment
@@ -36,27 +36,35 @@ initialEnvironment datatypes = do
               }
     return $ env { constructor = makeConstructors env datatypes }
 
-makeTypes :: ADTs -> IO TypeDict
+makeTypes :: [CanonicalAdt] -> IO TypeDict
 makeTypes datatypes =
-  do adts <- Traverse.sequence (Map.mapWithKey make datatypes)
-     bs   <- Map.fromList . zip (map fst builtins) <$> mapM (uncurry make) builtins
-     return (Map.union adts bs)
+  do adts <- mapM makeImported datatypes
+     bs   <- mapM makeBuiltin builtins
+     return (Map.fromList (adts ++ bs))
   where
-    make name _ = VarN <$> namedVar Constant name
+    makeImported :: (V.Canonical, AdtInfo V.Canonical) -> IO (String, Type)
+    makeImported (var, _) = do
+      tvar <- namedVar Constant var
+      return (V.toString var, VarN tvar)
 
-    tuple n = ("_Tuple" ++ show n, n)
+    makeBuiltin :: (String, Int) -> IO (String, Type)
+    makeBuiltin (name, _) = do
+      name' <- namedVar Constant (V.builtin name)
+      return (name, VarN name')
 
-    kind n names = map (\name -> (name, n)) names
-
-    builtins :: [(String,Int)]
+    builtins :: [(String, Int)]
     builtins = concat [ map tuple [0..9]
                       , kind 1 ["_List"]
                       , kind 0 ["Int","Float","Char","String","Bool"]
                       ]
+      where
+        tuple n = ("_Tuple" ++ show n, n)
+        kind n names = map (\name -> (name, n)) names
+
 
 
 makeConstructors :: Environment
-                 -> ADTs
+                 -> [CanonicalAdt]
                  -> Map.Map String (IO (Int, [Variable], [Type], Type))
 makeConstructors env datatypes = Map.fromList builtins
   where
@@ -76,30 +84,32 @@ makeConstructors env datatypes = Map.fromList builtins
     builtins = [ ("[]", inst 1 $ \ [t] -> ([], list t))
                , ("::", inst 1 $ \ [t] -> ([t, list t], list t))
                ] ++ map tupleCtor [0..9]
-                 ++ concatMap (ctorToType env) (Map.toList datatypes)
+                 ++ concatMap (ctorToType env) datatypes
 
 
---ctorToType :: Environment -> ADT -> [ (String, IO (Int, [Variable], [Type], Type)) ]
+ctorToType :: Environment
+           -> (V.Canonical, AdtInfo V.Canonical)
+           -> [(String, IO (Int, [Variable], [Type], Type))]
 ctorToType env (name, (tvars, ctors)) =
-    zip (map fst ctors) (map inst ctors)
+    zip (map (V.toString . fst) ctors) (map inst ctors)
   where
-    inst :: (String, [T.CanonicalType]) -> IO (Int, [Variable], [Type], Type)
+    inst :: (V.Canonical, [T.CanonicalType]) -> IO (Int, [Variable], [Type], Type)
     inst ctor = do
       ((args, tipe), dict) <- State.runStateT (go ctor) Map.empty
       return (length args, Map.elems dict, args, tipe)
       
 
-    go :: (String, [T.CanonicalType]) -> State.StateT VarDict IO ([Type], Type)
+    go :: (V.Canonical, [T.CanonicalType]) -> State.StateT VarDict IO ([Type], Type)
     go (_, args) = do
       types <- mapM (instantiator env) args
-      returnType <- instantiator env (T.Data (error "name") (map T.Var tvars))
+      returnType <- instantiator env (T.App (T.Type name) (map T.Var tvars))
       return (types, returnType)
 
 
 get :: Environment -> (Environment -> Map.Map String a) -> String -> a
 get env subDict key = Map.findWithDefault err key (subDict env)
   where
-    err = error $ "\nCould not find type constructor '" ++ key ++ "' while checking types."
+    err = error $ "Could not find type constructor '" ++ key ++ "' while checking types."
 
 
 freshDataScheme :: Environment -> String -> IO (Int, [Variable], [Type], Type)
@@ -128,7 +138,7 @@ instantiator env sourceType = go sourceType
           case Map.lookup x dict of
             Just v -> return (VarN v)
             Nothing ->
-                do var <- State.liftIO $ namedVar flex x
+                do var <- State.liftIO $ namedVar flex (V.local x)
                    State.put (Map.insert x var dict)
                    return (VarN var)
                 where
@@ -137,12 +147,18 @@ instantiator env sourceType = go sourceType
                        | "appendable" `isPrefixOf` x = Is Appendable
                        | otherwise = Flexible
 
-        T.Data name ts -> do
+        T.Aliased _ t -> go t
+
+        T.Type var ->
+          case Map.lookup (V.toString var) (types env) of
+            Just t  -> return t
+            Nothing -> error $ "Could not find type constructor '" ++
+                               V.toString var ++ "' while checking types."
+
+        T.App t ts -> do
+          t'  <- go t
           ts' <- mapM go ts
-          case Map.lookup (V.toString name) (types env) of
-            Just t -> return $ foldl (<|) t ts'
-            Nothing -> error $ "\nCould not find type constructor '" ++
-                               V.toString name ++ "' while checking types."
+          return $ foldl (<|) t' ts'
 
         T.Record fields ext -> do
           fields' <- Traverse.traverse (mapM go) (T.fieldMap fields)
