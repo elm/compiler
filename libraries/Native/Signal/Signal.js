@@ -118,25 +118,25 @@ Elm.Native.Signal.make = function(elm) {
     this.kids = [];
     
     this.recv = function(timestep, updated, duplicate, parentID) {
-      if(duplicate) {
+      if (duplicate) {
         // runtime sanity check
         // can be commented out when reasonably certain this doesn't occur.
-        if(!Utils.eq(this.value, input.value) {
+        if (!Utils.eq(this.value, input.value) {
           throw new Error(
               'Runtime check of duplicate tracking went wrong!\n' +
               'A changed value was called a duplicate.\n' +
               'Definitely report this to <https://github.com/evancz/Elm/issues>\n');
         }
       }
-      if(duplicate && lastPred) { // Duplicate, pred
+      if (duplicate && lastPred) { // Duplicate, pred
         updated = false;              // -> NoUpdate 
       }
-      if(!duplicate) {            // MaybeChanged
+      if (!duplicate) {            // MaybeChanged
         lastPred = pred(input.value); // -> update pred
-        if(lastPred) {            // MaybeChanged,  pred
+        if (lastPred) {            // MaybeChanged,  pred
           updated   = false;          // -> NoUpdate
           duplicate = true;           // -> Duplicate
-        } else {                  // MaybeChanged, !pred
+        } else {                   // MaybeChanged, !pred
           this.value = input.value;   // -> update value
         }
       }
@@ -150,10 +150,10 @@ Elm.Native.Signal.make = function(elm) {
     this.value = input.value;
     this.kids = [];
     this.recv = function(timestep, updated, duplicate, parentID) {
-      if(duplicate || Utils.eq(this.value,input.value)) { // Duplicate || MaybeChanged but found to be a duplicate
+      if (duplicate || Utils.eq(this.value,input.value)) { // Duplicate || MaybeChanged but found to be a duplicate
         duplicate = true;         // -> Duplicate
         updated   = false;        // -> NoUpdate
-      } else {                                            // really changed value
+      } else {                                             // really changed value
         this.value = input.value; // -> update value
       }
       send(this, timestep, updated, duplicate);
@@ -186,12 +186,12 @@ Elm.Native.Signal.make = function(elm) {
       ++count;
       if (count === 2) {
         if (s1Updated) {
-          if(s2Duplicate && skip) { // if an update from s2 was skipped
+          if (s2Duplicate && skip) { // if an update from s2 was skipped
             s2Duplicate = false; // then this event could change the output
           }
           this.value = s2.value;
           skip = false;
-        } else if(!s2Duplicate) {
+        } else if (!s2Duplicate) {
           skip = true;
         }
         send(this, timestep, s1Updated, s2Duplicate);
@@ -216,7 +216,7 @@ Elm.Native.Signal.make = function(elm) {
       //  duplicates from being sent to the new input. 
       var subscription = {
         recv: function(timestep, updated, duplicate, parentID) {
-          if(updated) {
+          if (updated) {
             if (firstEvent) { firstEvent = false; return; }
             setTimeout(function() { elm.notify(delayed.id, v); }, t);
           }
@@ -232,28 +232,37 @@ Elm.Native.Signal.make = function(elm) {
 
   function Merge(s1,s2) {
       this.id = Utils.guid();
-      this.value = s1.value;
-      this.kids = [];
 
-      var last  = s1;
-      var count = 0;
-      var oneUpdated = false;
+      var count      = 0;
+      var current    = { s         : s1
+                       , updated   : true
+                       , duplicate : false    };
+      var next = null;
+      
+      this.value = current.value;
+      this.kids = [];
 
       this.recv = function(timestep, updated, duplicate, parentID) {
         ++count;
-        if (updated) {
-            oneUpdated = true;
-            if (parentID === s2.id && count === 1) { last = s2; }
-            else if (parentID === s1.id) { last = s1; }
+        if (parentID === s2.id && next === null) {
+          next = { s         : s2
+                 , updated   : updated
+                 , duplicate : duplicate };
+        } else if (parentID === s1.id) {
+          next = { s         : s1
+                 , updated   : updated
+                 , duplicate : duplicate };
         }
 
         if (count === 2) {
-            this.value = last.value;
-            // TODO do something better that not tracking duplicates
-            send(this, timestep, oneUpdated, false);
-            oneUpdated = false;
-            allDuplicate = true;
-            count = 0;
+          if (current.s !== next.s) {
+            next.duplicate = false;
+          }
+          current = next;
+          this.value = current.s.value;
+          send(this, timestep, current.updated, current.duplicate);
+          next = null;
+          count = 0;
         }
       };
       s1.kids.push(this);
