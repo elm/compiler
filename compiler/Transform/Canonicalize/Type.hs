@@ -11,7 +11,7 @@ import qualified AST.Type as T
 import qualified AST.Variable as Var
 
 import Transform.Canonicalize.Environment
-import Transform.Canonicalize.Variable (tvar)
+import qualified Transform.Canonicalize.Variable as Canonicalize
 
 tipe :: Environment -> T.RawType -> Either String T.CanonicalType
 tipe env typ =
@@ -33,7 +33,7 @@ canonicalizeApp :: Environment -> T.RawType -> [T.RawType]
 canonicalizeApp env f args =
   case f of
     T.Type (Var.Raw rawName) ->
-        do answer <- tvar env rawName
+        do answer <- Canonicalize.tvar env rawName
            case answer of
              Right alias -> canonicalizeAlias env alias args
              Left name -> case args of

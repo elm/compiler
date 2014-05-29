@@ -24,8 +24,8 @@ import qualified AST.Pattern as P
 import Text.PrettyPrint as P
 
 import Transform.Canonicalize.Environment as Env
-import Transform.Canonicalize.Type
-import Transform.Canonicalize.Variable (variable, pvar)
+import qualified Transform.Canonicalize.Type as Canonicalize
+import qualified Transform.Canonicalize.Variable as Canonicalize
 import qualified Transform.SortDefinitions as Transform
 import qualified Transform.Declaration as Transform
 
@@ -136,7 +136,7 @@ addDecl moduleName env decl =
           addCtors how e = foldr how e (map fst ctors)
 
       D.TypeAlias name tvars alias ->
-          do alias' <- Either.either throw return (tipe env alias)
+          do alias' <- Either.either throw return (Canonicalize.tipe env alias)
              return $ env
               { _aliases = insert name (namespacedVar name, tvars, alias') (_aliases env)
               , _values = case alias of
@@ -259,24 +259,27 @@ declaration env decl =
       D.Definition (Valid.Definition p e t) ->
           do p' <- canonicalize pattern "definition" p env p
              e' <- expression env e
-             t' <- T.traverse (canonicalize tipe "definition" p env) t
+             t' <- T.traverse (canonicalize Canonicalize.tipe "definition" p env) t
              return $ D.Definition (Canonical.Definition p' e' t')
 
       D.Datatype name tvars ctors ->
           D.Datatype name tvars <$> mapM canonicalize' ctors
           where
             canonicalize' (ctor,args) =
-                (,) ctor <$> mapM (canonicalize tipe "datatype" name env) args
+                (,) ctor <$> mapM (canonicalize Canonicalize.tipe "datatype" name env) args
 
       D.TypeAlias name tvars expanded ->
-          D.TypeAlias name tvars <$> canonicalize tipe "type alias" name env expanded
+          do expanded' <- canonicalize Canonicalize.tipe "type alias" name env expanded
+             return (D.TypeAlias name tvars expanded')
 
       D.Port port ->
           D.Port <$> case port of
-                       D.In name t -> D.In name <$> canonicalize tipe "port" name env t
+                       D.In name t ->
+                           do t' <- canonicalize Canonicalize.tipe "port" name env t
+                              return (D.In name t')
                        D.Out name e t ->
                            do e' <- expression env e
-                              t' <- canonicalize tipe "port" name env t
+                              t' <- canonicalize Canonicalize.tipe "port" name env t
                               return (D.Out name e' t')
 
       D.Fixity assoc prec op -> return $ D.Fixity assoc prec op
@@ -303,11 +306,10 @@ allImportsAvailable interfaces imports =
 expression :: Environment -> Valid.Expr -> Either [Doc] Canonical.Expr
 expression env (A.A ann expr) =
     let go = expression env
-        tipe' environ = format . tipe environ
-        throw err = Left [ P.vcat [ P.text "Error" <+> pretty ann <> P.colon
-                                  , P.text err
-                                  ]
-                         ]
+        tipe' environ = format . Canonicalize.tipe environ
+        throw err =
+            let msg = P.text "Error" <+> pretty ann <> P.colon
+            in  Left [ P.vcat [ msg, P.text err ] ]
         format = Either.either throw return
     in
     A.A ann <$>
@@ -328,7 +330,7 @@ expression env (A.A ann expr) =
       Record fs -> Record <$> mapM (\(k,v) -> (,) k <$> go v) fs
 
       Binop (Var.Raw op) e1 e2 ->
-          do op' <- format (variable env op)
+          do op' <- format (Canonicalize.variable env op)
              Binop op' <$> go e1 <*> go e2
 
       Lambda p e ->
@@ -349,7 +351,7 @@ expression env (A.A ann expr) =
                     <*> expression env' body
                     <*> T.traverse (tipe' env') mtipe
 
-      Var (Var.Raw x) -> Var <$> format (variable env x)
+      Var (Var.Raw x) -> Var <$> format (Canonicalize.variable env x)
 
       Data name es -> Data name <$> mapM go es
 
@@ -377,5 +379,5 @@ pattern env ptrn =
       P.Anything    -> return P.Anything
       P.Alias x p   -> P.Alias x <$> pattern env p
       P.Data (Var.Raw name) ps ->
-          P.Data <$> pvar env name
+          P.Data <$> Canonicalize.pvar env name
                  <*> mapM (pattern env) ps
