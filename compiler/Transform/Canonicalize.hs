@@ -73,8 +73,8 @@ addValue :: String -> Module.Interface -> Environment -> Var.Value
          -> Either [Doc] Environment
 addValue name interface env value =
     let insert' x = insert x (Var.Canonical (Var.Module name) x)
-        msg x =  "Import Error: Could not import value '" ++ name ++ "." ++ x ++
-                 "'.\n    It is not exported by module " ++ name ++ "."
+        msg x = "Import Error: Could not import value '" ++ name ++ "." ++ x ++
+                "'.\n    It is not exported by module " ++ name ++ "."
         notFound x = Left [ P.text (msg x) ]
     in
     case value of
@@ -85,10 +85,14 @@ addValue name interface env value =
 
       Var.Alias x ->
           case Map.lookup x (iAliases interface) of
-            Nothing -> notFound x
             Just (tvars, t) ->
                 let v = (Var.Canonical (Var.Module name) x, tvars, t) in
                 return $ env { _aliases = insert x v (_aliases env) }
+            Nothing ->
+                case Map.lookup x (iAdts interface) of
+                  Nothing -> notFound x
+                  Just (_,_) ->
+                      return $ env { _adts = insert' x (_adts env) }
 
       Var.ADT x (Var.Listing xs open) ->
           case Map.lookup x (iAdts interface) of
@@ -188,7 +192,10 @@ delist fullList (Var.Listing partial open)
                     go (x : list) xs ys
 
                 (Var.Alias x', Var.Alias y') | x' == y' ->
-                   go (x : list) xs ys
+                    go (x : list) xs ys
+
+                (Var.ADT x' _, Var.Alias y') | x' == y' ->
+                    go (Var.ADT x' (Var.Listing [] False) : list) xs ys
 
                 (Var.ADT x' (Var.Listing xctors _   ),
                  Var.ADT y' (Var.Listing yctors open)) | x' == y' ->
