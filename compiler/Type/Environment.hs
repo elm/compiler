@@ -107,9 +107,9 @@ ctorToType env (name, (tvars, ctors)) =
 
 
 get :: Environment -> (Environment -> Map.Map String a) -> String -> a
-get env subDict key = Map.findWithDefault err key (subDict env)
+get env subDict key = Map.findWithDefault (error msg) key (subDict env)
   where
-    err = error $ "Could not find type constructor '" ++ key ++ "' while checking types."
+    msg = "Could not find type constructor '" ++ key ++ "' while checking types."
 
 
 freshDataScheme :: Environment -> String -> IO (Int, [Variable], [Type], Type)
