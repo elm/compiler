@@ -13,12 +13,12 @@ import AST.Expression.General (Expr'(..), dummyLet)
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Expression.Canonical as Canonical
 
-import AST.Module (Interfaces, Interface(..), Module(..), CanonicalBody(..), ImportMethod)
+import AST.Module (Interface(iAdts, iTypes, iAliases), CanonicalBody(..))
 import qualified AST.Module as Module
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified AST.Annotation as A
-import AST.Declaration as D
+import qualified AST.Declaration as D
 import AST.PrettyPrint (pretty, commaSep)
 import qualified AST.Pattern as P
 import Text.PrettyPrint as P
@@ -29,14 +29,15 @@ import Transform.Canonicalize.Variable (variable, pvar)
 import qualified Transform.SortDefinitions as Transform
 import qualified Transform.Declaration as Transform
 
-environment :: Interfaces -> Module.ValidModule -> Either [Doc] Environment
+environment :: Module.Interfaces -> Module.ValidModule -> Either [Doc] Environment
 environment interfaces m@(Module.Module _ _ _ ims decls) =
   do () <- allImportsAvailable interfaces ims
      nonLocalEnv <- foldM (toEnv interfaces) Env.builtIns ims
      let moduleName = Module.getName m
      foldM (addDecl moduleName) nonLocalEnv decls
 
-toEnv :: Interfaces -> Environment -> (String, ImportMethod) -> Either [Doc] Environment
+toEnv :: Module.Interfaces -> Environment -> (String, Module.ImportMethod)
+      -> Either [Doc] Environment
 toEnv interfaces environ (name,method)
     | List.isPrefixOf "Native." name = return environ
     | otherwise =
@@ -151,27 +152,33 @@ addDecl moduleName env decl =
 
       D.Fixity _ _ _ -> return env
 
-module' :: Interfaces -> Module.ValidModule -> Either [Doc] Module.CanonicalModule
+module' :: Module.Interfaces -> Module.ValidModule -> Either [Doc] Module.CanonicalModule
 module' interfaces modul@(Module.Module _ _ exs _ decls) =
   do env <- environment interfaces modul
      canonicalDecls <- mapM (declaration env) decls
      exports' <- delist locals exs
-     return $ modul { exports = exports'
-                    , body = body canonicalDecls
+     return $ modul { Module.exports = exports'
+                    , Module.body    = body canonicalDecls
                     }
   where
     locals :: [Var.Value]
     locals = concatMap declToValue decls
 
-    body :: [D.CanonicalDecl] -> CanonicalBody
+    body :: [D.CanonicalDecl] -> Module.CanonicalBody
     body decls =
-      CanonicalBody
-         { program = Transform.sortDefs . dummyLet $ Transform.toExpr (Module.getName modul) decls
+      Module.CanonicalBody
+         { program =
+               let expr = Transform.toExpr (Module.getName modul) decls
+               in  Transform.sortDefs (dummyLet expr)
          , types = Map.empty
-         , datatypes = Map.fromList [ (name,(vars,ctors)) | Datatype name vars ctors <- decls ]
-         , fixities = [ (assoc,level,op) | Fixity assoc level op <- decls ]
-         , aliases = Map.fromList [ (name,(tvs,alias)) | TypeAlias name tvs alias <- decls ]
-         , ports = [ portName port | Port port <- decls ]
+         , datatypes =
+             Map.fromList [ (name,(vars,ctors)) | D.Datatype name vars ctors <- decls ]
+         , fixities =
+             [ (assoc,level,op) | D.Fixity assoc level op <- decls ]
+         , aliases =
+             Map.fromList [ (name,(tvs,alias)) | D.TypeAlias name tvs alias <- decls ]
+         , ports =
+             [ D.portName port | D.Port port <- decls ]
          }
 
 delist :: [Var.Value] -> Var.Listing Var.Value -> Either [Doc] [Var.Value]
@@ -275,7 +282,9 @@ declaration env decl =
       D.Fixity assoc prec op -> return $ D.Fixity assoc prec op
 
 
-allImportsAvailable :: Interfaces -> [(String,ImportMethod)] -> Either [Doc] ()
+allImportsAvailable :: Module.Interfaces
+                    -> [(String, Module.ImportMethod)]
+                    -> Either [Doc] ()
 allImportsAvailable interfaces imports =
   case filter (not . found) modules of
     [] -> Right ()
