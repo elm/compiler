@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -W #-}
-module Transform.Canonicalize {-(interface, metadataModule)-} where
+module Transform.Canonicalize (module', filterExports) where
 
 import Control.Applicative ((<$>),(<*>))
 import Control.Arrow (first)
