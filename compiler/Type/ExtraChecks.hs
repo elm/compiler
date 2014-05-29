@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -W #-}
+{-# OPTIONS_GHC -Wall #-}
 
 {-| This module contains checks to be run *after* type inference has completed
 successfully. At that point we still need to do occurs checks and ensure that
@@ -14,9 +14,7 @@ import qualified Data.UnionFind.IO as UF
 import Text.PrettyPrint as P
 
 import qualified AST.Annotation as A
-import qualified AST.Expression.General as E
 import qualified AST.Expression.Canonical as Canonical
-import qualified AST.Helpers as Help
 import qualified AST.PrettyPrint as PP
 import qualified AST.Type as ST
 import qualified AST.Variable as V
@@ -25,26 +23,28 @@ import qualified Type.Type as TT
 import qualified Type.State as TS
 import qualified Type.Alias as Alias
 
+throw :: [Doc] -> Either [Doc] a
 throw err = Left [ P.vcat err ]
 
 mainType :: Alias.Rules -> TS.Env -> IO (Either [P.Doc] (Map.Map String ST.CanonicalType))
-mainType rules env = mainCheck rules <$> Traverse.traverse TT.toSrcType env
+mainType aliasRules environment =
+    mainCheck aliasRules <$> Traverse.traverse TT.toSrcType environment
   where
     mainCheck :: Alias.Rules -> Map.Map String ST.CanonicalType -> Either [P.Doc] (Map.Map String ST.CanonicalType)
     mainCheck rules env =
       case Map.lookup "main" env of
         Nothing -> Right env
-        Just mainType
+        Just typeOfMain
             | tipe `elem` acceptable -> Right env
             | otherwise              -> throw err
             where
               acceptable = [ "Graphics.Element.Element"
                            , "Signal.Signal Graphics.Element.Element" ]
 
-              tipe = PP.renderPretty $ Alias.canonicalRealias (fst rules) mainType
+              tipe = PP.renderPretty $ Alias.canonicalRealias (fst rules) typeOfMain
               err = [ P.text "Type Error: 'main' must have type Element or (Signal Element)."
                     , P.text "Instead 'main' has type:\n"
-                    , P.nest 4 . PP.pretty $ Alias.realias rules mainType
+                    , P.nest 4 . PP.pretty $ Alias.realias rules typeOfMain
                     , P.text " " ]
 
 data Direction = In | Out
@@ -56,24 +56,25 @@ portTypes rules expr =
     check = isValid True False False
     isValid isTopLevel seenFunc seenSignal direction name tipe =
         case tipe of
-          ST.Data (V.Canonical (V.Module "Signal") "Signal") [t] ->
-              handleSignal t
+          ST.Aliased _ t -> valid t
 
-          ST.Data (V.Canonical (V.Module "Maybe") "Maybe") [t] ->
-              valid t
+          ST.Type v
+              | V.isJson v      -> return ()
+              | V.isPrimitive v -> return ()
+              | otherwise       -> err' True "an unsupported type"
 
-          ST.Data (V.Canonical (V.Module "Array") "Array") [t] ->
-              valid t
+          ST.App t [] -> valid t
 
-          ST.Data (V.Canonical (V.Module "Json") "Value") [] ->
-              return ()
+          ST.App (ST.Type v) [t]
+              | V.isSignal v -> handleSignal t
+              | V.isMaybe  v -> valid t
+              | V.isArray  v -> valid t
+              | V.isList   v -> valid t
 
-          ST.Data (V.Canonical V.BuiltIn ctor) ts
-              | ctor `elem` primitives || Help.isTuple ctor -> mapM_ valid ts
-              where
-                primitives = ["Int","Float","String","Bool","_List"]
+          ST.App (ST.Type v) ts
+              | V.isTuple v -> mapM_ valid ts
                     
-          ST.Data _ _ -> err' True "an unsupported type"
+          ST.App _ _ -> err' True "an unsupported type"
 
           ST.Var _ -> err "free type variables"
 
@@ -130,7 +131,7 @@ occurs (name, variable) =
          desc <- liftIO $ UF.descriptor var
          case TT.structure desc of
            Nothing ->
-               modify $ \state -> state { TS.sErrors = fallback : TS.sErrors state }
+               modify $ \s -> s { TS.sErrors = fallback : TS.sErrors s }
            Just _ ->
                do liftIO $ UF.setDescriptor var (desc { TT.structure = Nothing })
                   var' <- liftIO $ UF.fresh desc

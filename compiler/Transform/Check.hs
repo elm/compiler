@@ -79,7 +79,8 @@ illFormedTypes decls = map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
           case tipe of
             T.Lambda t1 t2 -> Set.union (freeVars t1) (freeVars t2)
             T.Var x -> Set.singleton x
-            T.Data _ ts -> Set.unions (map freeVars ts)
+            T.Type _ -> Set.empty
+            T.App t ts -> Set.unions (map freeVars (t:ts))
             T.Record fields ext -> Set.unions (ext' : map (freeVars . snd) fields)
                 where ext' = maybe Set.empty freeVars ext
             T.Aliased _ t -> freeVars t
@@ -126,7 +127,8 @@ infiniteTypeAliases decls =
           case tipe of
             T.Lambda a b -> infinite a || infinite b
             T.Var _ -> False
-            T.Data (Var.Raw name') ts -> name == name' || any infinite ts
+            T.Type (Var.Raw name') -> name == name'
+            T.App t ts -> any infinite (t:ts)
             T.Record fields _ -> any (infinite . snd) fields
             T.Aliased _ t -> infinite t
 

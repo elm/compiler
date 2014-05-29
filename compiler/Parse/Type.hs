@@ -47,20 +47,23 @@ capTypeVar = intercalate "." <$> dotSep1 capVar
 constructor0 :: IParser T.RawType
 constructor0 =
   do name <- capTypeVar
-     return (T.Data (Var.Raw name) [])
+     return (T.Type (Var.Raw name))
 
 term :: IParser T.RawType
 term = list <|> tuple <|> record <|> tvar <|> constructor0
 
 app :: IParser T.RawType
 app =
-  do name <- capTypeVar <|> try tupleCtor <?> "type constructor"
+  do f <- constructor0 <|> tvar <|> try tupleCtor <?> "type constructor"
      args <- spacePrefix term
-     return (T.Data (Var.Raw name) args)
+     return $ case args of
+                [] -> f
+                _  -> T.App f args
   where
     tupleCtor = do
       n <- length <$> parens (many (char ','))
-      return $ "_Tuple" ++ show (if n == 0 then 0 else n+1)
+      let ctor = "_Tuple" ++ show (if n == 0 then 0 else n+1)
+      return (T.Type (Var.Raw ctor))
 
 expr :: IParser T.RawType
 expr =

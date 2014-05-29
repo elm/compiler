@@ -2,7 +2,6 @@
 module Generate.JavaScript.Ports (incoming, outgoing) where
 
 import Generate.JavaScript.Helpers
-import qualified AST.Helpers as Help
 import AST.Type as T
 import qualified AST.Variable as Var
 import Language.ECMAScript3.Syntax
@@ -29,8 +28,8 @@ incoming tipe =
   case tipe of
     Aliased _ t -> incoming t
 
-    Data (Var.Canonical (Var.Module "Signal") "Signal") [t] ->
-        obj "Native.Ports.incomingSignal" <| incoming t
+    App (Type v) [t]
+        | Var.isSignal v -> obj "Native.Ports.incomingSignal" <| incoming t
 
     _ -> ["v"] ==> inc tipe (ref "v")
 
@@ -42,42 +41,44 @@ inc tipe x =
       Aliased _ t ->
           inc t x
 
-      Data (Var.Canonical (Var.Module "Json") "Value") [] ->
-          obj "Native.Json.fromJS" <| x
-
-      Data (Var.Canonical Var.BuiltIn ctor) []
-          | ctor == "Int"       -> from JSNumber
-          | ctor == "Float"     -> from JSNumber
-          | ctor == "Bool"      -> from JSBoolean
-          | ctor == "String"    -> from JSString
+      Type (Var.Canonical Var.BuiltIn name)
+          | name == "Int"    -> from JSNumber
+          | name == "Float"  -> from JSNumber
+          | name == "Bool"   -> from JSBoolean
+          | name == "String" -> from JSString
           where
             from checks = check x checks x
 
-      Data (Var.Canonical (Var.Module "Maybe") "Maybe") [t] ->
-          CondExpr () (equal x (NullLit ()))
-                      (obj "Maybe.Nothing")
-                      (obj "Maybe.Just" <| inc t x)
+      Type name
+          | Var.isJson name -> obj "Native.Json.fromJS" <| x
+          | otherwise -> error "bad type got to incoming port generation code"
 
-      Data (Var.Canonical Var.BuiltIn ctor) [t]
-          | ctor == "_List" ->
-              check x JSArray (obj "_L.fromArray" <| array)
+      App f args ->
+          case f : args of
+            Type name : [t]
+                | Var.isMaybe name -> CondExpr () (equal x (NullLit ()))
+                                                  (obj "Maybe.Nothing")
+                                                  (obj "Maybe.Just" <| inc t x)
 
-          | ctor == "Array.Array" ->
-              check x JSArray (obj "_A.fromJSArray" <| array)
+                | Var.isList name  -> check x JSArray (obj "_L.fromArray" <| array)
 
-          where
-            array = DotRef () x (var "map") <| incoming t
+                | Var.isArray name -> check x JSArray (obj "_A.fromJSArray" <| array)
+                where
+                  array = DotRef () x (var "map") <| incoming t
 
-      Data (Var.Canonical Var.BuiltIn ctor) ts
-          | Help.isTuple ctor -> check x JSArray tuple
-          where
-            tuple = ObjectLit () $ (prop "ctor", string ctor) : values
-            values = zipWith convert [0..] ts
-            convert n t = ( prop ('_':show n)
-                          , inc t (BracketRef () x (IntLit () n)))
+            Type name : ts
+                | Var.isTuple name -> check x JSArray tuple
+                where
+                  tuple = ObjectLit () $ (prop "ctor", ctor) : values
 
-      Data _ _ ->
-          error "bad ADT got to incoming port generation code"
+                  ctor = string ("_Tuple" ++ show (length ts))
+                  values = zipWith convert [0..] ts
+
+                  convert n t = ( prop ('_':show n)
+                                , inc t (BracketRef () x (IntLit () n))
+                                )
+
+            _ -> error "bad ADT got to incoming port generation code"
 
       Record _ (Just _) ->
           error "bad record got to incoming port generation code"
@@ -94,8 +95,8 @@ outgoing tipe =
   case tipe of
     Aliased _ t -> outgoing t
 
-    Data (Var.Canonical (Var.Module "Signal") "Signal") [t] ->
-        obj "Native.Ports.outgoingSignal" <| outgoing t
+    App (Type v) [t]
+        | Var.isSignal v -> obj "Native.Ports.outgoingSignal" <| outgoing t
 
     _ -> ["v"] ==> out tipe (ref "v")
 
@@ -120,30 +121,33 @@ out tipe x =
 
       Var _ -> error "type variables should not be allowed through input ports"
 
-      Data (Var.Canonical Var.BuiltIn ctor) []
-          | ctor `elem` ["Int","Float","Bool","String"] -> x
+      Type (Var.Canonical Var.BuiltIn name)
+          | name `elem` ["Int","Float","Bool","String"] -> x
 
-      Data (Var.Canonical (Var.Module "Json") "Value") [] ->
-          obj "Native.Json.toJS" <| x
+      Type name
+          | Var.isJson name -> obj "Native.Json.toJS" <| x
+          | otherwise -> error "bad type got to outgoing port generation code"
 
-      Data (Var.Canonical (Var.Module "Maybe") "Maybe") [t] ->
-          CondExpr () (equal (DotRef () x (var "ctor")) (string "Nothing"))
-                      (NullLit ())
-                      (out t (DotRef () x (var "_0")))
+      App f args ->
+          case f : args of
+            Type name : [t]
+                | Var.isMaybe name ->
+                    CondExpr () (equal (DotRef () x (var "ctor")) (string "Nothing"))
+                                 (NullLit ())
+                                 (out t (DotRef () x (var "_0")))
 
-      Data (Var.Canonical (Var.Module "Array") "Array") [t] ->
-          DotRef () (obj "_A.toJSArray" <| x) (var "map") <| outgoing t
+                | Var.isArray name ->
+                    DotRef () (obj "_A.toJSArray" <| x) (var "map") <| outgoing t
 
-      Data (Var.Canonical Var.BuiltIn "_List") [t] ->
-          DotRef () (obj "_L.toArray" <| x) (var "map") <| outgoing t
+                | Var.isList name ->
+                    DotRef () (obj "_L.toArray" <| x) (var "map") <| outgoing t
 
-      Data (Var.Canonical Var.BuiltIn ctor) ts
-          | Help.isTuple ctor ->
-              let convert n t = out t $ DotRef () x $ var ('_':show n)
-              in  ArrayLit () $ zipWith convert [0..] ts
+            Type name : ts
+                | Var.isTuple name ->
+                    let convert n t = out t $ DotRef () x $ var ('_':show n)
+                    in  ArrayLit () $ zipWith convert [0..] ts
 
-      Data _ _ ->
-          error "bad ADT got to outgoing port generation code"
+            _ -> error "bad ADT got to outgoing port generation code"
 
       Record _ (Just _) ->
           error "bad record got to outgoing port generation code"

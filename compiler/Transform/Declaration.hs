@@ -70,11 +70,12 @@ combineAnnotations = go
                         _ -> (:) (D.Port (D.In name tipe)) <$> go portRest
 
 
-toExpr :: [D.CanonicalDecl] -> [Canonical.Def]
-toExpr = concatMap toDefs
+toExpr :: String -> [D.CanonicalDecl] -> [Canonical.Def]
+toExpr moduleName = concatMap (toDefs moduleName)
 
-toDefs :: D.CanonicalDecl -> [Canonical.Def]
-toDefs decl =
+toDefs :: String -> D.CanonicalDecl -> [Canonical.Def]
+toDefs moduleName decl =
+  let typeVar = Var.Canonical (Var.Module moduleName) in
   case decl of
     D.Definition def -> [def]
 
@@ -82,7 +83,7 @@ toDefs decl =
       where
         toDefs' (ctor, tipes) =
             let vars = take (length tipes) arguments
-                tbody = T.Data (Var.local name) $ map T.Var tvars
+                tbody = T.App (T.Type (typeVar name)) (map T.Var tvars)
                 body = A.none . E.Data ctor $ map (A.none . E.localVar) vars
             in  [ definition ctor (buildFunction body vars) (foldr T.Lambda tbody tipes) ]
 

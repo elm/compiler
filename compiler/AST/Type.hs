@@ -13,7 +13,8 @@ import Text.PrettyPrint as P
 data Type var
     = Lambda (Type var) (Type var)
     | Var String
-    | Data var [Type var]
+    | Type var
+    | App (Type var) [Type var]
     | Record [(String, Type var)] (Maybe (Type var))
     | Aliased Var.Canonical (Type var)
     deriving (Eq,Show)
@@ -29,10 +30,12 @@ recordOf :: [(String, Type var)] -> Type var
 recordOf fields = Record fields Nothing
 
 listOf :: RawType -> RawType
-listOf t = Data (Var.Raw "_List") [t]
+listOf t = App (Type (Var.Raw "_List")) [t]
 
 tupleOf :: [RawType] -> RawType
-tupleOf ts = Data (Var.Raw $ "_Tuple" ++ show (length ts)) ts
+tupleOf ts = App (Type t) ts
+  where
+    t = Var.Raw ("_Tuple" ++ show (length ts))
 
 instance (Var.ToString var, Pretty var) => Pretty (Type var) where
   pretty tipe =
@@ -46,14 +49,18 @@ instance (Var.ToString var, Pretty var) => Pretty (Type var) where
 
       Var x -> P.text x
 
-      Data name [t] | Var.toString name == "_List" ->
-          P.brackets (pretty t)
+      Type v -> P.text (Var.toString v)
 
-      Data name tipes
-          | Help.isTuple (Var.toString name) ->
-              P.parens . P.sep . P.punctuate P.comma $ map pretty tipes
-          | otherwise ->
-              P.hang (P.text (Var.toString name)) 2 (P.sep $ map prettyParens tipes)
+      App f args ->
+          case (f,args) of
+            (Type name, [t])
+                | Var.toString name == "_List" -> P.brackets (pretty t)
+
+            (Type name, _)
+                | Help.isTuple (Var.toString name) ->
+                    P.parens . P.sep . P.punctuate P.comma $ map pretty args
+
+            _ -> P.hang (pretty f) 2 (P.sep $ map prettyParens args)
 
       Record _ _ ->
           P.braces $ case flattenRecord tipe of
@@ -78,10 +85,14 @@ prettyParens tipe = parensIf (needed tipe) (pretty tipe)
     needed t =
       case t of
         Aliased _ t' -> needed t'
+
         Lambda _ _ -> True
-        Data name [_] | Var.toString name == "_List" -> False
-        Data _ [] -> False
-        Data _ _ -> True
+
+        App (Type name) [_] | Var.toString name == "_List"     -> False
+        App (Type name) _   | Help.isTuple (Var.toString name) -> False
+        App t' [] -> needed t'
+        App _ _ -> True
+
         _ -> False
 
 flattenRecord :: Type var -> ( [(String, Type var)], Maybe String )
@@ -106,19 +117,22 @@ instance Binary var => Binary (Type var) where
             putWord8 0 >> put t1 >> put t2
         Var x ->
             putWord8 1 >> put x
-        Data ctor tipes ->
-            putWord8 2 >> put ctor >> put tipes
+        Type name ->
+            putWord8 2 >> put name
+        App t1 t2 ->
+            putWord8 3 >> put t1 >> put t2
         Record fs ext ->
-            putWord8 3 >> put fs >> put ext
+            putWord8 4 >> put fs >> put ext
         Aliased var t ->
-            putWord8 4 >> put var >> put t
+            putWord8 5 >> put var >> put t
 
   get = do
       n <- getWord8
       case n of
         0 -> Lambda <$> get <*> get
         1 -> Var <$> get
-        2 -> Data <$> get <*> get
-        3 -> Record <$> get <*> get
-        4 -> Aliased <$> get <*> get
+        2 -> Type <$> get
+        3 -> App <$> get <*> get
+        4 -> Record <$> get <*> get
+        5 -> Aliased <$> get <*> get
         _ -> error "Error reading a valid type from serialized string"

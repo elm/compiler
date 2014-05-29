@@ -89,7 +89,8 @@ instance Arbitrary v => Arbitrary (T.Type v) where
               oneof
               [ T.Lambda <$> depthTipe <*> depthTipe
               , T.Var    <$> lowVar
-              , T.Data   <$> arbitrary <*> genVector n tipe
+              , T.Type   <$> arbitrary
+              , T.App    <$> arbitrary <*> genVector n tipe
               , T.Record <$> fields <*> pure Nothing
               , T.Record <$> fields1 <*> (Just . T.Var <$> lowVar)
               ]
@@ -98,7 +99,9 @@ instance Arbitrary v => Arbitrary (T.Type v) where
     case tipe of
       T.Lambda s t  -> s : t : (T.Lambda <$> shrink s <*> shrink t)
       T.Var _       -> []
-      T.Data n ts   -> ts ++ (T.Data <$> shrink n <*> shrink ts)
+      T.Aliased _ t -> [t]
+      T.Type _      -> []
+      T.App t ts    -> t : ts ++ (T.App <$> shrink t <*> shrink ts)
       T.Record fs t -> map snd fs ++ record
           where
             record =
