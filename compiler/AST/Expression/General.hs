@@ -83,7 +83,7 @@ saveEnvName = "_save_the_environment!!!"
 
 dummyLet :: (Pretty def) => [def] -> Expr Annotation.Region def Var.Canonical
 dummyLet defs = 
-     Annotation.none $ Let defs (Annotation.none $ localVar saveEnvName)
+     Annotation.none $ Let defs (Annotation.none $ Var (Var.builtin saveEnvName))
 
 instance (Pretty def, Pretty var, Var.ToString var) => Pretty (Expr' ann def var) where
   pretty expr =
@@ -191,5 +191,5 @@ prettyParens (Annotation.A _ expr) = parensIf needed (pretty expr)
         MultiIf _   -> True
         Let _ _     -> True
         Case _ _    -> True
-        Data name (_:_) -> name /= "::"
+        Data name (_:_) -> not (name == "::" || Help.isTuple name)
         _ -> False

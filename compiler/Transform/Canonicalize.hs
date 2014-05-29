@@ -30,10 +30,11 @@ import qualified Transform.SortDefinitions as Transform
 import qualified Transform.Declaration as Transform
 
 environment :: Interfaces -> Module.ValidModule -> Either [Doc] Environment
-environment interfaces (Module.Module _ _ _ ims decls) =
+environment interfaces m@(Module.Module _ _ _ ims decls) =
   do () <- allImportsAvailable interfaces ims
      nonLocalEnv <- foldM (toEnv interfaces) Env.builtIns ims
-     foldM addDecl nonLocalEnv decls
+     let moduleName = Module.getName m
+     foldM (addDecl moduleName) nonLocalEnv decls
 
 toEnv :: Interfaces -> Environment -> (String, ImportMethod) -> Either [Doc] Environment
 toEnv interfaces environ (name,method)
@@ -72,9 +73,9 @@ addValue :: String -> Module.Interface -> Environment -> Var.Value
          -> Either [Doc] Environment
 addValue name interface env value =
     let insert' x = insert x (Var.Canonical (Var.Module name) x)
-        notFound x = Left [ P.text $
-            "Import Error: Could not import value '" ++ name ++ "." ++ x ++ "'.\n" ++
-            "    It is not exported by module " ++ name ++ "." ]
+        msg x =  "Import Error: Could not import value '" ++ name ++ "." ++ x ++
+                 "'.\n    It is not exported by module " ++ name ++ "."
+        notFound x = Left [ P.text (msg x) ]
     in
     case value of
       Var.Value x
@@ -106,8 +107,9 @@ addValue name interface env value =
                             [] -> return names
                             c:_ -> notFound c
 
-addDecl :: Environment -> D.ValidDecl -> Either [Doc] Environment
-addDecl env decl =
+addDecl :: String -> Environment -> D.ValidDecl -> Either [Doc] Environment
+addDecl moduleName env decl =
+    let typeVar = Var.Canonical (Var.Module moduleName) in
     case decl of
       D.Definition (Valid.Definition pattern _ _) ->
           return $ env
@@ -118,19 +120,19 @@ addDecl env decl =
       D.Datatype name _ ctors ->
           return $ env
            { _values   = addCtors (_values env)
-           , _adts     = insert name (Var.local name) (_adts env)
+           , _adts     = insert name (typeVar name) (_adts env)
            , _patterns = addCtors (_patterns env)
            }
         where
           addCtors e = foldr add e (map fst ctors)
-          add name e = insert name (Var.local name) e
+          add name e = insert name (typeVar name) e
 
       D.TypeAlias name tvars alias ->
           do alias' <- Either.either throw return (tipe env alias)
              return $ env
-              { _aliases = insert name (Var.local name, tvars, alias') (_aliases env)
+              { _aliases = insert name (typeVar name, tvars, alias') (_aliases env)
               , _values = case alias of
-                            Type.Record _ _ -> insert name (Var.local name) (_values env)
+                            Type.Record _ _ -> insert name (typeVar name) (_values env)
                             _ -> _values env
               }
           where
@@ -158,7 +160,7 @@ module' interfaces modul@(Module.Module _ _ exs _ decls) =
     body :: [D.CanonicalDecl] -> CanonicalBody
     body decls =
       CanonicalBody
-         { program = Transform.sortDefs . dummyLet $ Transform.toExpr decls
+         { program = Transform.sortDefs . dummyLet $ Transform.toExpr (Module.getName modul) decls
          , types = Map.empty
          , datatypes = Map.fromList [ (name,(vars,ctors)) | Datatype name vars ctors <- decls ]
          , fixities = [ (assoc,level,op) | Fixity assoc level op <- decls ]
@@ -197,6 +199,23 @@ delist fullList (Var.Listing partial open)
                            bads -> notFound bads
 
                 _ -> go list xs partial
+
+filterExports :: Module.Types -> [Var.Value] -> Module.Types
+filterExports types values =
+    Map.fromList (concatMap getValue values)
+  where
+    getValue :: Var.Value -> [(String, Type.CanonicalType)]
+    getValue value =
+        case value of
+          Var.Value x -> get x
+          Var.Alias x -> get x
+          Var.ADT _ (Var.Listing ctors _) -> concatMap get ctors
+
+    get :: String -> [(String, Type.CanonicalType)]
+    get x =
+        case Map.lookup x types of
+          Just t  -> [(x,t)]
+          Nothing -> []
 
 declToValue :: D.ValidDecl -> [Var.Value]
 declToValue decl =

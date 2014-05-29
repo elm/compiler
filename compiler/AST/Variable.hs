@@ -4,15 +4,16 @@ module AST.Variable where
 import Data.Binary
 import Control.Applicative ((<$>), (<*>))
 import Text.PrettyPrint as P
+import qualified AST.Helpers as Help
 import AST.PrettyPrint
 
 newtype Raw = Raw String
     deriving (Eq,Ord,Show)
 
 data Home
-    = Local
-    | BuiltIn
+    = BuiltIn
     | Module !String
+    | Local
     deriving (Eq,Ord,Show)
 
 data Canonical = Canonical
@@ -26,6 +27,47 @@ local x = Canonical Local x
 builtin :: String -> Canonical
 builtin x = Canonical BuiltIn x
 
+-- To help with pattern matching on some common canonical variables:
+is :: String -> String -> Canonical -> Bool
+is home name var =
+    var == Canonical (Module home) name
+
+isJson :: Canonical -> Bool
+isJson = is "Json" "Value"
+
+isMaybe :: Canonical -> Bool
+isMaybe = is "Maybe" "Maybe"
+
+isArray :: Canonical -> Bool
+isArray = is "Array" "Array"
+
+isSignal :: Canonical -> Bool
+isSignal = is "Signal" "Signal"
+
+isList :: Canonical -> Bool
+isList v = v == Canonical BuiltIn "_List"
+
+isTuple :: Canonical -> Bool
+isTuple v =
+    case v of
+      Canonical BuiltIn name -> Help.isTuple name
+      _ -> False
+
+isPrimitive :: Canonical -> Bool
+isPrimitive v =
+    case v of
+      Canonical BuiltIn name -> name `elem` ["Int","Float","String","Bool"]
+      _ -> False
+
+isPrim :: String -> Canonical -> Bool
+isPrim prim v =
+    case v of
+      Canonical BuiltIn name -> name == prim
+      _ -> False
+
+isText :: Canonical -> Bool
+isText = is "Text" "Text"
+
 class ToString a where
   toString :: a -> String
 
@@ -35,9 +77,9 @@ instance ToString Raw where
 instance ToString Canonical where
   toString (Canonical home name) =
     case home of
-      Local -> name
       BuiltIn -> name
       Module path -> path ++ "." ++ name
+      Local -> name
 
 -- | A listing of values. Something like (a,b,c) or (..) or (a,b,..)
 data Listing a = Listing
@@ -78,15 +120,15 @@ instance Pretty Value where
 instance Binary Canonical where
     put (Canonical home name) =
         case home of
-          Local -> putWord8 0 >> put name
-          BuiltIn -> putWord8 1 >> put name
-          Module path -> putWord8 2 >> put path >> put name
+          BuiltIn     -> putWord8 0 >> put name
+          Module path -> putWord8 1 >> put path >> put name
+          Local       -> putWord8 2 >> put name
 
     get = do tag <- getWord8
              case tag of
-               0 -> Canonical Local <$> get
-               1 -> Canonical BuiltIn <$> get
-               2 -> Canonical . Module <$> get <*> get
+               0 -> Canonical BuiltIn <$> get
+               1 -> Canonical . Module <$> get <*> get
+               2 -> Canonical Local <$> get
                _ -> error "Unexpected tag when deserializing canonical variable"
 
 instance Binary Value where
