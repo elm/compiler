@@ -12,8 +12,8 @@ import AST.Module
 
 type Rules = (Aliases, CanonicalType -> CanonicalType)
 
-rules interfaces moduleAliases moduleImports =
-    (error "Type.Alias.rules is not defined")
+rules interfaces moduleAliases moduleImports = (Map.empty, id)
+    --(error "Type.Alias.rules is not defined")
     --(collect interfaces moduleAliases, localizer moduleImports)
 {--
 collect interfaces moduleAliases =
@@ -60,15 +60,15 @@ localizer moduleImports = go
           _ -> []
 --}
 realias :: Rules -> CanonicalType -> CanonicalType
-realias (aliases,localize) tipe =
-    (error "Type.Alias.realias is not defined")
+realias (aliases,localize) tipe = tipe
+    -- (error "Type.Alias.realias is not defined")
     -- localize (canonicalRealias aliases tipe)
 
 -- Realias using canonical aliases, so results will have aliases
 -- that are fully qualified and possible to compare.
 canonicalRealias :: Aliases -> CanonicalType -> CanonicalType
-canonicalRealias aliases tipe =
-    (error "Type.Alias.rules is not defined")
+canonicalRealias aliases tipe = tipe
+--    (error "Type.Alias.rules is not defined")
 {--
     case concatMap tryRealias aliases of
       [] -> if tipe == tipe' then tipe else f tipe'
