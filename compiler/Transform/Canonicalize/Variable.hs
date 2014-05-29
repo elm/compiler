@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -W #-}
+{-# OPTIONS_GHC -Wall #-}
 module Transform.Canonicalize.Variable where
 
 import qualified Data.List as List
@@ -20,45 +20,62 @@ variable env var =
 
     _ -> case Map.lookup var (_values env) of
            Just [v] -> return v
-           Just vs   -> Left (ambiguous "variable" (map Var.toString vs) var)
-           Nothing  -> Left (notFound "variable" (Map.keys (_values env)) var)
+           Just vs  -> preferLocals "variable" vs var
+           Nothing  -> notFound "variable" (Map.keys (_values env)) var
   where
     (modul, name) = case Help.splitDots var of
                       [x] -> (Nothing, x)
                       xs  -> (Just (init xs), last xs)
 
 tvar :: Environment -> String
-     -> Either String (Either Var.Canonical (Var.Canonical, [String], Type.Type Var.Canonical))
+     -> Either String (Either Var.Canonical (Var.Canonical, [String], Type.CanonicalType))
 tvar env var =
   case adts ++ aliases of
-    []  -> Left $ notFound "type" (Map.keys (_adts env) ++ Map.keys (_aliases env)) var
+    []  -> notFound "type" (Map.keys (_adts env) ++ Map.keys (_aliases env)) var
     [v] -> return v
-    vs  -> Left $ ambiguous "type" (map toString vs) var
+    vs  -> preferLocals' extract "type" vs var
   where
-    adts    = map Left  . fromMaybe [] $ Map.lookup var (_adts env)
+    adts    = map Left .  fromMaybe [] $ Map.lookup var (_adts env)
     aliases = map Right . fromMaybe [] $ Map.lookup var (_aliases env)
-    toString v =
-        Var.toString $ case v of
-                         Left x -> x
-                         Right (x,_,_) -> x
+
+    extract value =
+        case value of
+          Left v -> v
+          Right (v,_,_) -> v
 
 pvar :: Environment -> String -> Either String Var.Canonical
 pvar env var =
     case Map.lookup var (_patterns env) of
       Just [v] -> return v
-      Just vs  -> Left (ambiguous "pattern" (map Var.toString vs) var)
-      Nothing  -> Left (notFound "pattern" (Map.keys (_patterns env)) var)
+      Just vs  -> preferLocals "pattern" vs var
+      Nothing  -> notFound "pattern" (Map.keys (_patterns env)) var
 
-notFound :: String -> [String] -> String -> String
+notFound :: String -> [String] -> String -> Either String a
 notFound kind possibilities var =
-    "Could not find " ++ kind ++ " '" ++ var ++ "'." ++ msg
+    Left $ "Could not find " ++ kind ++ " '" ++ var ++ "'." ++ msg
   where
     matches = filter (List.isInfixOf var) possibilities
     msg = if null matches then "" else
               "\nClose matches include: " ++ List.intercalate ", " matches
 
-ambiguous :: String -> [String] -> String -> String
-ambiguous kind possibilities var =
-    "Ambiguous usage of " ++ kind ++ " '" ++ var ++ "'.\n" ++
-    "    Disambiguate between: " ++ List.intercalate ", " possibilities
+preferLocals :: String -> [Var.Canonical] -> String -> Either String Var.Canonical
+preferLocals = preferLocals' id
+
+preferLocals' :: (a -> Var.Canonical) -> String -> [a] -> String -> Either String a
+preferLocals' extract kind possibilities var =
+    case filter (isLocal . extract) possibilities of
+      []     -> ambiguous possibilities
+      [v]    -> return v
+      locals -> ambiguous locals
+    where
+      isLocal :: Var.Canonical -> Bool
+      isLocal (Var.Canonical Var.Local _) = True
+      isLocal (Var.Canonical _         _) = False
+
+      ambiguous possibleVars =
+          Left msg
+        where
+          vars = map (Var.toString . extract) possibleVars
+          msg = "Ambiguous usage of " ++ kind ++ " '" ++ var ++ "'.\n" ++
+                "    Disambiguate between: " ++ List.intercalate ", " vars
 
