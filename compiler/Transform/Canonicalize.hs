@@ -143,10 +143,9 @@ addDecl moduleName env decl =
                             _               -> _values env
               }
           where
-            throw err = Left [ P.vcat [ P.text $ "Error in type alias '" ++ name ++ "':"
-                                      , P.text err
-                                      ]
-                             ]
+            throw err =
+                let msg = "Error in type alias '" ++ name ++ "':"
+                in  Left [ P.vcat [ P.text msg, P.text err ] ]
 
       D.Port _ -> return env
 
