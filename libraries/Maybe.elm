@@ -13,7 +13,7 @@ module Maybe where
 -}
 
 import Basics (not, (.))
-import List (foldr)
+import List (foldr, (::))
 
 {-| The Maybe datatype. Useful when a computation may or may not
 result in a value (e.g. logarithm is defined only for positive
