@@ -147,7 +147,8 @@ compile number filePath =
            Left errors -> do Print.errors errors
                              exitFailure
 
-     liftIO $ when (Flag.print_types flags) $ Print.moduleTypes interfaces canonicalModule
+     liftIO $ when (Flag.print_types flags) $ do
+       Print.moduleTypes interfaces canonicalModule
   
      let newInters = Module.toInterface canonicalModule
      generateCache name newInters canonicalModule
