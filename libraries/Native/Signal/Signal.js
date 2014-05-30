@@ -135,28 +135,28 @@ Elm.Native.Signal.make = function(elm) {
   function DropIf(pred,base,input) {
     this.id = Utils.guid();
     
-    var lastPred = pred(input.value);
+    var shouldDrop = pred(input.value);
     
-    this.value = lastPred ? base : input.value;
+    this.value = shouldDrop ? base : input.value;
     this.kids = [];
     
     this.recv = function(timestep, updated, duplicate, parentID) {
       if (duplicate) {
         // runtime sanity check
         // can be commented out when reasonably certain this doesn't occur.
-        if (!Utils.eq(this.value, input.value) {
+        if (!Utils.eq(this.value, input.value)) {
           throw new Error(
               'Runtime check of duplicate tracking went wrong!\n' +
               'A changed value was called a duplicate.\n' +
-              'Definitely report this to <https://github.com/evancz/Elm/issues>\n');
+              'Definitely report this to <https://github.com/elm-lang/Elm/issues>\n');
         }
       }
-      if (duplicate && lastPred) { // Duplicate, pred
+      if (duplicate && shouldDrop) { // Duplicate, pred
         updated = false;              // -> NoUpdate 
       }
       if (!duplicate) {            // MaybeChanged
-        lastPred = pred(input.value); // -> update pred
-        if (lastPred) {            // MaybeChanged,  pred
+        shouldDrop = pred(input.value); // -> update pred
+        if (shouldDrop) {            // MaybeChanged,  pred
           updated   = false;          // -> NoUpdate
           duplicate = true;           // -> Duplicate
         } else {                   // MaybeChanged, !pred
