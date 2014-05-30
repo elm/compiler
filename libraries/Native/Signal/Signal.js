@@ -234,13 +234,14 @@ Elm.Native.Signal.make = function(elm) {
       var delayed = new Input(s.value);
       var firstEvent = true;
       
-      rawLift(function(_){}, function(this) {
+      function update(rawLiftNode) {
         return function(timestep, updated, duplicate, parentID) {
           if(updated) {
             setTimeout(function() { elm.notify(delayed.id, s.value); }, t);
           }
         }
-      }, s);
+      }
+      A3(rawLift, function(_){}, update, s);
       
       function first(a,b) { return a; }
       // TODO find out why you would even do this whole 

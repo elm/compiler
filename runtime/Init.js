@@ -228,7 +228,7 @@ function initGraphics(elm, Module) {
           savedScene = newScene;
       });
   }
-  function domUpdate2(this) {
+  function domUpdate2(rawLiftNode) {
     return function(timestep, updated, duplicate, parentID) {
       if(updated && !duplicate) {
         domUpdate(signalGraph.value);
