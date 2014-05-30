@@ -167,6 +167,8 @@ Elm.Native.Signal.make = function(elm) {
     };
     input.kids.push(this);
   }
+  
+  function dropIf(pred,base,sig) { return new DropIf(pred,base,sig); }
 
   function DropRepeats(input) {
     this.id = Utils.guid();
@@ -185,8 +187,8 @@ Elm.Native.Signal.make = function(elm) {
   }
 
   function timestamp(a) {
-    function update() { return Utils.Tuple2(Date.now(), a.value); }
-    return new LiftN(update, [a]);
+    function update(value) { return Utils.Tuple2(Date.now(), value); }
+    return liftImpure(update, a);
   }
 
   function SampleOn(s1,s2) {
@@ -246,7 +248,7 @@ Elm.Native.Signal.make = function(elm) {
       function first(a,b) { return a; }
       // TODO find out why you would even do this whole 
       //  `sampleOn delayed (uncurry fst <~ delayed ~ s)`
-      return new SampleOn(delayed, lift2(F2(first), delayed, s));
+      return sampleOn(delayed, lift2(F2(first), delayed, s));
   }
 
   function Merge(s1,s2) {
@@ -313,8 +315,8 @@ Elm.Native.Signal.make = function(elm) {
       return foldp(F2(function(x,c){
         return pred(x) ? c+1 : c; }), 0, s)}),
     keepIf : F3(function(pred,base,sig) {
-      return new DropIf(function(x) {return !pred(x);},base,sig); }),
-    dropIf : F3(function(pred,base,sig) { return new DropIf(pred,base,sig); }),
+      return dropIf(function(x) {return !pred(x);},base,sig); }),
+    dropIf : F3(dropIf),
     dropRepeats : function(s) { return new DropRepeats(s);},
     sampleOn : F2(sampleOn),
     timestamp : timestamp
