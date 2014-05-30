@@ -27,7 +27,7 @@ Elm.Native.Signal.make = function(elm) {
       // TODO: consider changing this to an actual duplicate check
       var duplicate = !updated;
       send(this, timestep, updated, duplicate);
-      return changed;
+      return updated;
     };
     elm.inputs.push(this);
   }

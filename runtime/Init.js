@@ -210,6 +210,7 @@ function initGraphics(elm, Module) {
 
   // make sure the signal graph is actually a signal & extract the visual model
   var Signal = Elm.Signal.make(elm);
+  var NS = Elm.Native.Signal.make(elm);
   if (!('recv' in signalGraph)) {
       signalGraph = Signal.constant(signalGraph);
   }
@@ -232,10 +233,12 @@ function initGraphics(elm, Module) {
     return function(timestep, updated, duplicate, parentID) {
       if(updated && !duplicate) {
         domUpdate(signalGraph.value);
+      } else {
+        console.log("dropped message { " + timestep + ", " + updated + ", " + duplicate + ", " + parentID + " }");
       }
     };
   }
-  var renderer = A3(Signal.rawLift, domUpdate, domUpdate2, signalGraph);
+  var renderer = A3(NS.rawLift, domUpdate, domUpdate2, signalGraph);
 
   // must check for resize after 'renderer' is created so
   // that changes show up.
