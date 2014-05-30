@@ -32,7 +32,7 @@ Elm.Native.Signal.make = function(elm) {
     elm.inputs.push(this);
   }
 
-  function LiftN(update, args) {
+  function LiftN(pure, update, args) {
     this.id = Utils.guid();
     this.value = update();
     this.kids = [];
@@ -47,8 +47,8 @@ Elm.Native.Signal.make = function(elm) {
       if (updated) { oneUpdated = true; }
       if (!duplicate) { allDuplicate = false; }
       if (count === n) {
-        if (!allDuplicate) { this.value = update(); }
-        send(this, timestep, oneUpdated, allDuplicate);
+        if (!(pure && allDuplicate)) { this.value = update(); }
+        send(this, timestep, oneUpdated, pure && allDuplicate);
         oneUpdated = false;
         allDuplicate = true;
         count = 0;
@@ -59,35 +59,58 @@ Elm.Native.Signal.make = function(elm) {
 
   function lift(func, a) {
     function update() { return func(a.value); }
-    return new LiftN(update, [a]);
+    return new LiftN(true, update, [a]);
   }
   function lift2(func, a, b) {
     function update() { return A2( func, a.value, b.value ); }
-    return new LiftN(update, [a,b]);
+    return new LiftN(true, update, [a,b]);
   }
   function lift3(func, a, b, c) {
     function update() { return A3( func, a.value, b.value, c.value ); }
-    return new LiftN(update, [a,b,c]);
+    return new LiftN(true, update, [a,b,c]);
   }
   function lift4(func, a, b, c, d) {
     function update() { return A4( func, a.value, b.value, c.value, d.value ); }
-    return new LiftN(update, [a,b,c,d]);
+    return new LiftN(true, update, [a,b,c,d]);
   }
   function lift5(func, a, b, c, d, e) {
     function update() { return A5( func, a.value, b.value, c.value, d.value, e.value ); }
-    return new LiftN(update, [a,b,c,d,e]);
+    return new LiftN(true, update, [a,b,c,d,e]);
   }
   function lift6(func, a, b, c, d, e, f) {
     function update() { return A6( func, a.value, b.value, c.value, d.value, e.value, f.value ); }
-    return new LiftN(update, [a,b,c,d,e,f]);
+    return new LiftN(true, update, [a,b,c,d,e,f]);
   }
   function lift7(func, a, b, c, d, e, f, g) {
     function update() { return A7( func, a.value, b.value, c.value, d.value, e.value, f.value, g.value ); }
-    return new LiftN(update, [a,b,c,d,e,f,g]);
+    return new LiftN(true, update, [a,b,c,d,e,f,g]);
   }
   function lift8(func, a, b, c, d, e, f, g, h) {
     function update() { return A8( func, a.value, b.value, c.value, d.value, e.value, f.value, g.value, h.value ); }
-    return new LiftN(update, [a,b,c,d,e,f,g,h]);
+    return new LiftN(true, update, [a,b,c,d,e,f,g,h]);
+  }
+  
+  function liftImpure(func, a) {
+    function update() { return func(a.value); }
+    return new LiftN(false, update, [a]);
+  }
+  function liftImpure2(func, a, b) {
+    function update() { return A2( func, a.value, b.value ); }
+    return new LiftN(false, update, [a,b]);
+  }
+  
+  //For lifting side-effecting functions
+  function RawLift(func, recvF, s) {
+    this.id = Utils.guid();
+    this.value = func(s.value);
+    this.kids = [];
+    
+    this.recv = recvF(this);
+    s.kids.push(this);
+  }
+  
+  function rawLift(f, r, a) {
+    return new RawLift(f,r,a);
   }
 
   function Foldp(step, state, input) {
@@ -211,18 +234,13 @@ Elm.Native.Signal.make = function(elm) {
       var delayed = new Input(s.value);
       var firstEvent = true;
       
-      // Not using a normal lift node here because the update function
-      //  wouldn't be pure. Therefore the duplicate tracking would keep
-      //  duplicates from being sent to the new input. 
-      var subscription = {
-        recv: function(timestep, updated, duplicate, parentID) {
-          if (updated) {
-            if (firstEvent) { firstEvent = false; return; }
-            setTimeout(function() { elm.notify(delayed.id, v); }, t);
+      rawLift(function(_){}, function(this) {
+        return function(timestep, updated, duplicate, parentID) {
+          if(updated) {
+            setTimeout(function() { elm.notify(delayed.id, s.value); }, t);
           }
         }
-      }
-      s.kids.push(subscription);
+      }, s);
       
       function first(a,b) { return a; }
       // TODO find out why you would even do this whole 
@@ -282,6 +300,9 @@ Elm.Native.Signal.make = function(elm) {
     lift6 : F7(lift6),
     lift7 : F8(lift7),
     lift8 : F9(lift8),
+    liftImpure  : F2(liftImpure ),
+    liftImpure2 : F3(liftImpure2),
+    rawLift : F3(rawLift),
     foldp : F3(foldp),
     delay : F2(delay),
     merge : F2(merge),

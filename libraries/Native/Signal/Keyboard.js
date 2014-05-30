@@ -6,10 +6,10 @@ Elm.Native.Keyboard.make = function(elm) {
   if (elm.Native.Keyboard.values) return elm.Native.Keyboard.values;
 
   // Duplicated from Native.Signal
-  function send(node, timestep, changed) {
+  function send(node, timestep, updated, duplicate) {
     var kids = node.kids;
     for (var i = kids.length; i--; ) {
-      kids[i].recv(timestep, changed, node.id);
+      kids[i].recv(timestep, updated, duplicate, node.id);
     }
   }
 
@@ -42,29 +42,29 @@ Elm.Native.Keyboard.make = function(elm) {
     
     var n = args.length;
     var count = 0;
-    var isChanged = false;
+    var oneUpdated = false;
 
-    this.recv = function(timestep, changed, parentID) {
+    this.recv = function(timestep, updated, duplicate, parentID) {
       ++count;
-      if (changed) { 
+      if (updated) { 
         // We know this a change must only be one of the following cases
         if (parentID === down.id && !(NList.member(down.value)(this.value))) {
-          isChanged = true;
+          oneUpdated = true;
           this.value = NList.Cons(down.value, this.value); 
         } 
         if (parentID === up.id) {
-          isChanged = true;
+          oneUpdated = true;
           var notEq = function(kc) { return kc !== up.value };
           this.value = NList.filter(notEq)(this.value);
         } 
         if (parentID === blur.id) {
-          isChanged = true;
+          oneUpdated = true;
           this.value = NList.Nil;
         }
       }
       if (count == n) {
-        send(this, timestep, isChanged);
-        isChanged = false;
+        send(this, timestep, oneUpdated, !oneUpdated);
+        oneUpdated = false;
         count = 0;
       }
     };

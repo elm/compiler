@@ -31,7 +31,7 @@ Elm.Native.Time.make = function(elm) {
       wasOn = isOn;
       return t;
     }
-    return A3( Signal.lift2, F2(f), isOn, ticker );
+    return A3( NS.liftImpure2, F2(f), isOn, ticker );
   }
 
   function every(t) {

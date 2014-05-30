@@ -6,6 +6,7 @@ Elm.Native.Touch.make = function(elm) {
     if (elm.Native.Touch.values) return elm.Native.Touch.values;
 
     var Signal = Elm.Signal.make(elm);
+    var NS = Elm.Native.Signal.make(elm);
     var List = Elm.Native.List.make(elm);
     var Utils = Elm.Native.Utils.make(elm);
 
@@ -130,7 +131,7 @@ Elm.Native.Touch.make = function(elm) {
     });
 
     function dependency(f) {
-        var sig = A2( Signal.lift, f, root );
+        var sig = A2( NS.liftImpure, f, root );
         root.defaultNumberOfKids += 1;
         sig.defaultNumberOfKids = 0;
         return sig;

@@ -105,7 +105,7 @@ function init(display, container, module, ports, moduleToReplace) {
 
       // rerender scene if graphics are enabled.
       if (typeof graphicsNode !== 'undefined') {
-          graphicsNode.recv(0, true, 0);
+          graphicsNode.recv(0, true, false, 0);
       }
   }
 
@@ -228,7 +228,14 @@ function initGraphics(elm, Module) {
           savedScene = newScene;
       });
   }
-  var renderer = A2(Signal.lift, domUpdate, signalGraph);
+  function domUpdate2(this) {
+    return function(timestep, updated, duplicate, parentID) {
+      if(updated && !duplicate) {
+        domUpdate(signalGraph.value);
+      }
+    };
+  }
+  var renderer = A3(Signal.rawLift, domUpdate, domUpdate2, signalGraph);
 
   // must check for resize after 'renderer' is created so
   // that changes show up.
