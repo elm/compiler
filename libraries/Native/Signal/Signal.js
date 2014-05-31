@@ -23,9 +23,8 @@ Elm.Native.Signal.make = function(elm) {
     this.defaultNumberOfKids = 0;
     this.recv = function(timestep, eid, v) {
       var updated = eid === this.id;
+      var duplicate = !updated || this.value === v;
       if (updated) { this.value = v; }
-      // TODO: consider changing this to an actual duplicate check
-      var duplicate = !updated;
       send(this, timestep, updated, duplicate);
       return updated;
     };
@@ -47,8 +46,13 @@ Elm.Native.Signal.make = function(elm) {
       if (updated) { oneUpdated = true; }
       if (!duplicate) { allDuplicate = false; }
       if (count === n) {
-        if (!(pure && allDuplicate)) { this.value = update(); }
-        send(this, timestep, oneUpdated, pure && allDuplicate);
+        duplicate = pure && allDuplicate;
+        if (!duplicate) {
+          var newValue = update();
+          duplicate = this.value === newValue;
+          this.value = newValue;
+        }
+        send(this, timestep, oneUpdated, duplicate);
         oneUpdated = false;
         allDuplicate = true;
         count = 0;
@@ -118,11 +122,13 @@ Elm.Native.Signal.make = function(elm) {
     this.value = state;
     this.kids = [];
 
-    this.recv = function(timestep, updated, _, parentID) {
+    this.recv = function(timestep, updated, duplicate, parentID) {
       if (updated) {
-          this.value = A2( step, input.value, this.value );
+        var newValue = A2(step, input.value, this.value);
+        duplicate = this.value === newValue;
+        this.value = newValue;
       }
-      var duplicate = !updated;
+      duplicate = !updated || duplicate;
       send(this, timestep, updated, duplicate);
     };
     input.kids.push(this);
@@ -152,7 +158,7 @@ Elm.Native.Signal.make = function(elm) {
         }
       }
       if (duplicate && shouldDrop) { // Duplicate, pred
-        updated = false;              // -> NoUpdate 
+        updated = false;              // -> NoUpdate
       }
       if (!duplicate) {            // MaybeChanged
         shouldDrop = pred(input.value); // -> update pred
@@ -160,6 +166,7 @@ Elm.Native.Signal.make = function(elm) {
           updated   = false;          // -> NoUpdate
           duplicate = true;           // -> Duplicate
         } else {                   // MaybeChanged, !pred
+          duplicate = this.value === input.value;
           this.value = input.value;   // -> update value
         }
       }
@@ -197,8 +204,8 @@ Elm.Native.Signal.make = function(elm) {
     this.kids = [];
 
     var count = 0;
-    var s1Updated = false;
-    var s2Updated = false;
+    var s1Updated   = false;
+    var s2Updated   = false;
     var s2Duplicate = false;
     var skip = false;
 
@@ -211,8 +218,8 @@ Elm.Native.Signal.make = function(elm) {
       ++count;
       if (count === 2) {
         if (s1Updated) {
-          if (s2Duplicate && skip) { // if an update from s2 was skipped
-            s2Duplicate = false; // then this event could change the output
+          if (s2Duplicate && skip) {
+            s2Duplicate = this.value === s2.value;
           }
           this.value = s2.value;
           skip = false;
@@ -254,35 +261,40 @@ Elm.Native.Signal.make = function(elm) {
   function Merge(s1,s2) {
       this.id = Utils.guid();
 
-      var count      = 0;
-      var current    = { s         : s1
-                       , updated   : true
-                       , duplicate : false    };
-      var next = null;
+      var count = 0;
+      var s1Evt = { updated   : true
+                  , duplicate : false };
+      var s2Evt = { updated   : true
+                  , duplicate : false };
+      var last  = s1;
       
-      this.value = current.value;
+      this.value = s1.value;
       this.kids = [];
 
       this.recv = function(timestep, updated, duplicate, parentID) {
         ++count;
-        if (parentID === s2.id && next === null) {
-          next = { s         : s2
-                 , updated   : updated
-                 , duplicate : duplicate };
-        } else if (parentID === s1.id) {
-          next = { s         : s1
-                 , updated   : updated
-                 , duplicate : duplicate };
+        if (parentID === s1.id) {
+          s1Evt = { updated   : updated
+                  , duplicate : duplicate };
+        }
+        if (parentID === s2.id) {
+          s2Evt = { updated   : updated
+                  , duplicate : duplicate };
         }
 
         if (count === 2) {
-          if (current.s !== next.s) {
-            next.duplicate = false;
+          if (s1Evt.updated) {
+            updated = true;
+            duplicate = (last === s1 && s1Evt.duplicate) || this.value === s1.value;
+            last = s1;
+            this.value = s1.value;
+          } else if (s2Evt.updated) {
+            updated = true;
+            duplicate = (last === s2 && s2Evt.duplicate) || this.value === s2.value;
+            last = s2;
+            this.value = s2.value;
           }
-          current = next;
-          this.value = current.s.value;
-          send(this, timestep, current.updated, current.duplicate);
-          next = null;
+          send(this, timestep, updated, duplicate);
           count = 0;
         }
       };
