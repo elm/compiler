@@ -233,8 +233,6 @@ function initGraphics(elm, Module) {
     return function(timestep, updated, duplicate, parentID) {
       if(updated && !duplicate) {
         domUpdate(signalGraph.value);
-      } else {
-        console.log("dropped message { " + timestep + ", " + updated + ", " + duplicate + ", " + parentID + " }");
       }
     };
   }

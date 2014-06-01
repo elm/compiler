@@ -104,7 +104,7 @@ Elm.Native.Signal.make = function(elm) {
   }
   
   //For lifting side-effecting functions
-  function RawLift(func, recvF, s) {
+  function Sink(func, recvF, s) {
     this.id = Utils.guid();
     this.value = func(s.value);
     this.kids = [];
@@ -113,8 +113,8 @@ Elm.Native.Signal.make = function(elm) {
     s.kids.push(this);
   }
   
-  function rawLift(f, r, a) {
-    return new RawLift(f,r,a);
+  function sink(f, r, a) {
+    return new Sink(f,r,a);
   }
 
   function Foldp(step, state, input) {
@@ -147,16 +147,6 @@ Elm.Native.Signal.make = function(elm) {
     this.kids = [];
     
     this.recv = function(timestep, updated, duplicate, parentID) {
-      if (duplicate) {
-        // runtime sanity check
-        // can be commented out when reasonably certain this doesn't occur.
-        if (!Utils.eq(this.value, input.value)) {
-          throw new Error(
-              'Runtime check of duplicate tracking went wrong!\n' +
-              'A changed value was called a duplicate.\n' +
-              'Definitely report this to <https://github.com/elm-lang/Elm/issues>\n');
-        }
-      }
       if (duplicate && shouldDrop) { // Duplicate, pred
         updated = false;              // -> NoUpdate
       }
@@ -241,20 +231,21 @@ Elm.Native.Signal.make = function(elm) {
 
   function delay(t,s) {
       var delayed = new Input(s.value);
-      var firstEvent = true;
       
-      function update(rawLiftNode) {
+      function update(sinkNode) {
         return function(timestep, updated, duplicate, parentID) {
           if(updated) {
             setTimeout(function() { elm.notify(delayed.id, s.value); }, t);
           }
         }
       }
-      A3(rawLift, function(_){}, update, s);
+      sink(function(_){}, update, s);
       
       function first(a,b) { return a; }
       // TODO find out why you would even do this whole 
-      //  `sampleOn delayed (uncurry fst <~ delayed ~ s)`
+      //  ```sampleOn delayed (always <~ delayed ~ s)```
+      //  because I'm pretty sure that code is no different from simply
+      //  returning `delayed`.
       return sampleOn(delayed, lift2(F2(first), delayed, s));
   }
 
@@ -317,7 +308,7 @@ Elm.Native.Signal.make = function(elm) {
     lift8 : F9(lift8),
     liftImpure  : F2(liftImpure ),
     liftImpure2 : F3(liftImpure2),
-    rawLift : F3(rawLift),
+    sink : F3(sink),
     foldp : F3(foldp),
     delay : F2(delay),
     merge : F2(merge),
