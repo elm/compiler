@@ -1,4 +1,4 @@
-module Maybe where
+module Maybe (Maybe(..), maybe, isJust, isNothing, justs) where
 
 {-| Represents an optional value. Maybe it is there, maybe it is not.
 
