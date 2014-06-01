@@ -104,18 +104,14 @@ Elm.Native.Signal.make = function(elm) {
   }
   
   //For lifting side-effecting functions
-  function Sink(func, recvF, s) {
-    this.id = Utils.guid();
-    this.value = func(s.value);
-    this.kids = [];
+  function Sink(func, recv, s) {
+    func(s.value);
     
-    this.recv = recvF(this);
+    this.recv = recv;
     s.kids.push(this);
   }
   
-  function sink(f, r, a) {
-    return new Sink(f,r,a);
-  }
+  function sink(f,r,a) { return new Sink(f,r,a); }
 
   function Foldp(step, state, input) {
     this.id = Utils.guid();
@@ -232,11 +228,9 @@ Elm.Native.Signal.make = function(elm) {
   function delay(t,s) {
       var delayed = new Input(s.value);
       
-      function update(sinkNode) {
-        return function(timestep, updated, duplicate, parentID) {
-          if(updated) {
-            setTimeout(function() { elm.notify(delayed.id, s.value); }, t);
-          }
+      function update(timestep, updated, duplicate, parentID) {
+        if(updated) {
+          setTimeout(function() { elm.notify(delayed.id, s.value); }, t);
         }
       }
       sink(function(_){}, update, s);
