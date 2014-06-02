@@ -96,10 +96,9 @@ importing xs = Open (Var.Listing (map Var.Value xs) False)
 
 instance Binary ImportMethod where
     put method =
-        let put' n info = putWord8 n >> put info in
         case method of
-          As alias     -> put' 0 alias
-          Open listing -> put' 1 listing
+          As alias     -> putWord8 0 >> put alias
+          Open listing -> putWord8 1 >> put listing
 
     get = do tag <- getWord8
              case tag of

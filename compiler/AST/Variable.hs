@@ -133,13 +133,10 @@ instance Binary Canonical where
 
 instance Binary Value where
     put portable =
-        let put' n info = putWord8 n >> put info in
         case portable of
-          Value name -> put' 0 name
-          Alias name -> put' 1 name
-          ADT name ctors ->
-              do put' 2 name
-                 put ctors
+          Value name     -> putWord8 0 >> put name
+          Alias name     -> putWord8 1 >> put name
+          ADT name ctors -> putWord8 2 >> put name >> put ctors
 
     get = do tag <- getWord8
              case tag of
@@ -150,7 +147,6 @@ instance Binary Value where
 
 instance (Binary a) => Binary (Listing a) where
     put (Listing explicits open) =
-        do put explicits
-           put open
+        put explicits >> put open
 
     get = Listing <$> get <*> get
