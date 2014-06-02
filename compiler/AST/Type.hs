@@ -113,18 +113,12 @@ flattenRecord tipe =
 instance Binary var => Binary (Type var) where
   put tipe =
       case tipe of
-        Lambda t1 t2 ->
-            putWord8 0 >> put t1 >> put t2
-        Var x ->
-            putWord8 1 >> put x
-        Type name ->
-            putWord8 2 >> put name
-        App t1 t2 ->
-            putWord8 3 >> put t1 >> put t2
-        Record fs ext ->
-            putWord8 4 >> put fs >> put ext
-        Aliased var t ->
-            putWord8 5 >> put var >> put t
+        Lambda t1 t2  -> putWord8 0 >> put t1 >> put t2
+        Var x         -> putWord8 1 >> put x
+        Type name     -> putWord8 2 >> put name
+        App t1 t2     -> putWord8 3 >> put t1 >> put t2
+        Record fs ext -> putWord8 4 >> put fs >> put ext
+        Aliased var t -> putWord8 5 >> put var >> put t
 
   get = do
       n <- getWord8
