@@ -25,7 +25,7 @@ prelude = string : map (\n -> (n, Module.open)) modules
   where
     string = ("String", Module.importing ["show"])
     modules = [ "Basics", "Signal", "List", "Maybe", "Time", "Color"
-              , "Graphics.Element", "Graphics.Collage"
+              , "Graphics.Element", "Graphics.Collage", "Text"
               , "Native.Ports", "Native.Json"
               ]
 
