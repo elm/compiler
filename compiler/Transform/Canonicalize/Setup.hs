@@ -166,9 +166,9 @@ addTypeAliases moduleName nodes environ =
     datatype (n,ts,t) = D.Datatype n ts [(n,[t])]
 
     indented :: [D.ValidDecl] -> Doc
-    indented decls = P.vcat (map prty decls)
+    indented decls = P.vcat (map prty decls) <> P.text "\n"
         where
-          prty decl = P.text "\n    " <> pretty decl <> P.text "\n"
+          prty decl = P.text "\n    " <> pretty decl
 
     msg1 = "The following type aliases are mutually recursive, forming an \
            \infinite type. When you expand them, they just keep getting bigger:"
