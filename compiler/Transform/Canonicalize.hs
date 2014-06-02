@@ -2,8 +2,6 @@
 module Transform.Canonicalize (module', filterExports) where
 
 import Control.Applicative ((<$>),(<*>))
-import Control.Arrow (first)
-import Control.Monad (foldM)
 import qualified Data.Either as Either
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -13,7 +11,7 @@ import AST.Expression.General (Expr'(..), dummyLet)
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Expression.Canonical as Canonical
 
-import AST.Module (Interface(iAdts, iTypes, iAliases), CanonicalBody(..))
+import AST.Module (CanonicalBody(..))
 import qualified AST.Module as Module
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
@@ -24,137 +22,15 @@ import qualified AST.Pattern as P
 import Text.PrettyPrint as P
 
 import Transform.Canonicalize.Environment as Env
+import qualified Transform.Canonicalize.Setup as Setup
 import qualified Transform.Canonicalize.Type as Canonicalize
 import qualified Transform.Canonicalize.Variable as Canonicalize
 import qualified Transform.SortDefinitions as Transform
 import qualified Transform.Declaration as Transform
 
-environment :: Module.Interfaces -> Module.ValidModule -> Either [Doc] Environment
-environment interfaces m@(Module.Module _ _ _ ims decls) =
-  do () <- allImportsAvailable interfaces ims
-     nonLocalEnv <- foldM (toEnv interfaces) Env.builtIns ims
-     let moduleName = Module.getName m
-     foldM (addDecl moduleName) nonLocalEnv decls
-
-toEnv :: Module.Interfaces -> Environment -> (String, Module.ImportMethod)
-      -> Either [Doc] Environment
-toEnv interfaces environ (name,method)
-    | List.isPrefixOf "Native." name = return environ
-    | otherwise =
-        case method of
-          Module.As name' ->
-              return (updateEnviron (name' ++ "."))
-
-          Module.Open (Var.Listing vs open)
-              | open -> return (updateEnviron "")
-              | otherwise -> foldM (addValue name interface) environ vs
-    where
-      interface = (Map.!) interfaces name
-
-      updateEnviron prefix =
-          let dict' = dict . map (first (prefix++)) in
-          merge environ $
-          Env { _values   = dict' $ map pair (Map.keys (iTypes interface)) ++ ctors
-              , _adts     = dict' $ map pair (Map.keys (iAdts interface))
-              , _aliases  = dict' $ map alias (Map.toList (iAliases interface))
-              , _patterns = dict' $ ctors
-              }
-
-      canonical :: String -> Var.Canonical
-      canonical = Var.Canonical (Var.Module name)
-
-      pair :: String -> (String, Var.Canonical)
-      pair key = (key, canonical key)
-
-      alias (x,(tvars,tipe)) = (x, (canonical x, tvars, tipe))
-
-      ctors = concatMap (map (pair . fst) . snd . snd) (Map.toList (iAdts interface))
-
-addValue :: String -> Module.Interface -> Environment -> Var.Value
-         -> Either [Doc] Environment
-addValue name interface env value =
-    let insert' x = Env.insert x (Var.Canonical (Var.Module name) x)
-        msg x = "Import Error: Could not import value '" ++ name ++ "." ++ x ++
-                "'.\n    It is not exported by module " ++ name ++ "."
-        notFound x = Left [ P.text (msg x) ]
-    in
-    case value of
-      Var.Value x
-          | Map.notMember x (iTypes interface) -> notFound x
-          | otherwise ->
-              return $ env { _values = insert' x (_values env) }
-
-      Var.Alias x ->
-          case Map.lookup x (iAliases interface) of
-            Just (tvars, t) ->
-                let v = (Var.Canonical (Var.Module name) x, tvars, t) in
-                return $ env { _aliases = Env.insert x v (_aliases env) }
-            Nothing ->
-                case Map.lookup x (iAdts interface) of
-                  Nothing -> notFound x
-                  Just (_,_) ->
-                      return $ env { _adts = insert' x (_adts env) }
-
-      Var.ADT x (Var.Listing xs open) ->
-          case Map.lookup x (iAdts interface) of
-            Nothing -> notFound x
-            Just (_tvars, ctors) ->
-                do ctors <- filterNames (map fst ctors)
-                   return $ env { _adts = insert' x (_adts env)
-                                , _values = foldr insert' (_values env) ctors
-                                , _patterns = foldr insert' (_patterns env) ctors
-                                }
-                where
-                  filterNames names
-                      | open = return names
-                      | otherwise =
-                          case filter (`notElem` names) xs of
-                            [] -> return names
-                            c:_ -> notFound c
-
--- When canonicalizing, all _values should be Local, but all _adts and _patterns
--- should be fully namespaced. With _adts, they may appear in types that can
--- escape the module.
-addDecl :: String -> Environment -> D.ValidDecl -> Either [Doc] Environment
-addDecl moduleName env decl =
-    let namespacedVar     = Var.Canonical (Var.Module moduleName)
-        addLocal      x e = Env.insert x (Var.local     x) e
-        addNamespaced x e = Env.insert x (namespacedVar x) e
-    in
-    case decl of
-      D.Definition (Valid.Definition pattern _ _) ->
-          return $ env
-           { _values = foldr addLocal (_values env) (P.boundVarList pattern) }
-
-      D.Datatype name _ ctors ->
-          return $ env
-           { _values   = addCtors addLocal (_values env)
-           , _adts     = addNamespaced name (_adts env)
-           , _patterns = addCtors addNamespaced (_patterns env)
-           }
-        where
-          addCtors how e = foldr how e (map fst ctors)
-
-      D.TypeAlias name tvars alias ->
-          do alias' <- Either.either throw return (Canonicalize.tipe env alias)
-             return $ env
-              { _aliases = Env.insert name (namespacedVar name, tvars, alias') (_aliases env)
-              , _values = case alias of
-                            Type.Record _ _ -> addLocal name (_values env)
-                            _               -> _values env
-              }
-          where
-            throw err =
-                let msg = "Error in type alias '" ++ name ++ "':"
-                in  Left [ P.vcat [ P.text msg, P.text err ] ]
-
-      D.Port _ -> return env
-
-      D.Fixity _ _ _ -> return env
-
 module' :: Module.Interfaces -> Module.ValidModule -> Either [Doc] Module.CanonicalModule
 module' interfaces modul@(Module.Module _ _ exs _ decls) =
-  do env <- environment interfaces modul
+  do env <- Setup.environment interfaces modul
      canonicalDecls <- mapM (declaration env) decls
      exports' <- delist locals exs
      return $ modul { Module.exports = exports'
@@ -284,24 +160,6 @@ declaration env decl =
 
       D.Fixity assoc prec op -> return $ D.Fixity assoc prec op
 
-
-allImportsAvailable :: Module.Interfaces
-                    -> [(String, Module.ImportMethod)]
-                    -> Either [Doc] ()
-allImportsAvailable interfaces imports =
-  case filter (not . found) modules of
-    [] -> Right ()
-    missings -> Left [ P.text (missingModuleError missings) ]
-  where
-    modules = map fst imports
-
-    found m = Map.member m interfaces || List.isPrefixOf "Native." m
-
-    missingModuleError missings =
-        concat [ "The following imports were not found: "
-               , List.intercalate ", " missings
-               ,  "\n    You may need to compile with the --make "
-               , "flag to detect modules you have written." ]
 
 expression :: Environment -> Valid.Expr -> Either [Doc] Canonical.Expr
 expression env (A.A ann expr) =
