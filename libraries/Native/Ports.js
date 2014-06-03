@@ -5,6 +5,7 @@ Elm.Native.Ports.make = function(elm) {
     if (elm.Native.Ports.values) return elm.Native.Ports.values;
 
     var Signal = Elm.Signal.make(elm);
+    var NS = Elm.Native.Signal.make(elm);
 
     function incomingSignal(converter) {
         converter.isSignal = true;
@@ -20,13 +21,15 @@ Elm.Native.Ports.make = function(elm) {
             function unsubscribe(handler) {
                 subscribers.pop(subscribers.indexOf(handler));
             }
-            A2( Signal.lift, function(value) {
+            function update(value) {
                 var val = converter(value);
                 var len = subscribers.length;
                 for (var i = 0; i < len; ++i) {
                     subscribers[i](val);
                 }
-            }, signal);
+            }
+            function onUpdated(updated, duplicate) { return updated; }
+            A3( NS.simpleSink, update, onUpdated, signal);
             return { subscribe:subscribe, unsubscribe:unsubscribe };
         }
     }

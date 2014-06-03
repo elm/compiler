@@ -229,12 +229,10 @@ function initGraphics(elm, Module) {
           savedScene = newScene;
       });
   }
-  function domUpdate2(timestep, updated, duplicate, parentID) {
-    if(updated && !duplicate) {
-      domUpdate(signalGraph.value);
-    }
+  function domUpdateWhen(updated, duplicate) {
+    return updated && !duplicate;
   }
-  var renderer = A3(NS.sink, domUpdate, domUpdate2, signalGraph);
+  var renderer = A3(NS.simpleSink, domUpdate, domUpdateWhen, signalGraph);
 
   // must check for resize after 'renderer' is created so
   // that changes show up.

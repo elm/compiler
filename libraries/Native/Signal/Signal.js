@@ -103,7 +103,7 @@ Elm.Native.Signal.make = function(elm) {
     return new LiftN(false, update, [a,b]);
   }
   
-  //For lifting side-effecting functions
+  // For lifting side-effecting end-points
   function Sink(func, recv, s) {
     func(s.value);
     
@@ -111,7 +111,14 @@ Elm.Native.Signal.make = function(elm) {
     s.kids.push(this);
   }
   
-  function sink(f,r,a) { return new Sink(f,r,a); }
+  function sink(f,r,s) { return new Sink(f,r,s); }
+  function simpleSink(f,p,s) {
+    return new Sink(f, function(timestep, updated, duplicate, parentID) {
+      if(p(updated, duplicate)) {
+        f(s.value);
+      }
+    },s);
+  }
 
   function Foldp(step, state, input) {
     this.id = Utils.guid();
@@ -303,6 +310,7 @@ Elm.Native.Signal.make = function(elm) {
     liftImpure  : F2(liftImpure ),
     liftImpure2 : F3(liftImpure2),
     sink : F3(sink),
+    simpleSink : F3(simpleSink),
     foldp : F3(foldp),
     delay : F2(delay),
     merge : F2(merge),
