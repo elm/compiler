@@ -10,9 +10,10 @@ import qualified Data.Set as Set
 import Language.ECMAScript3.PrettyPrint
 import Language.ECMAScript3.Syntax
 
-import Generate.JavaScript.Helpers
+import Generate.JavaScript.Helpers as Help
 import qualified Generate.Cases as Case
 import qualified Generate.JavaScript.Ports as Port
+import qualified Generate.JavaScript.Variable as Var
 import qualified Generate.Markdown as MD
 
 import AST.Annotation
@@ -23,62 +24,52 @@ import qualified AST.Module as Module
 import qualified AST.Helpers as Help
 import AST.Literal
 import qualified AST.Pattern as P
-import AST.PrettyPrint (renderPretty)
 import qualified AST.Variable as Var
 
 varDecl :: String -> Expression () -> VarDecl ()
 varDecl x expr =
     VarDecl () (var x) (Just expr)
 
-include :: String -> String -> VarDecl ()
-include alias moduleName =
-    varDecl alias (obj (moduleName ++ ".make") <| ref "_elm")
-
-internalImports :: String -> Statement ()
+internalImports :: String -> [VarDecl ()]
 internalImports name =
-    VarDeclStmt ()
-    [ varDecl "_N" (obj "Elm.Native")
-    , include "_U" "_N.Utils"
-    , include "_L" "_N.List"
-    , include "_A" "_N.Array"
-    , include "_E" "_N.Error"
-    , varDecl "$moduleName" (string name)
+    [ varDecl "_N" (obj ["Elm","Native"])
+    , include "_U" "Utils"
+    , include "_L" "List" 
+    , include "_A" "Array"
+    , include "_E" "Error"
+    , varDecl Help.localModuleName (string name)
     ]
+    where
+      include :: String -> String -> VarDecl ()
+      include alias modul =
+          varDecl alias (obj ["_N", modul, "make"] <| ref "_elm")
+
+_Utils :: String -> Expression ()
+_Utils x = obj ["_U", x]
+
+_List :: String -> Expression ()
+_List x = obj ["_L", x]
 
 literal :: Literal -> Expression ()
 literal lit =
   case lit of
-    Chr c -> obj "_U.chr" <| string [c]
+    Chr c -> _Utils "chr" <| string [c]
     Str s -> string s
     IntNum   n -> IntLit () n
     FloatNum n -> NumLit () n
     Boolean  b -> BoolLit () b
 
-canonical :: Var.Canonical -> Expression ()
-canonical (Var.Canonical home name) =
-  case Help.isOp name of
-    True  -> BracketRef () (dotSep (home' ++ ["_op"])) (string name)
-    False -> dotSep (home' ++ [map (swap '\'' '$') name])
-  where
-    swap from to c = if c == from then to else c
-
-    home' =
-      case home of
-        Var.Local       -> []
-        Var.BuiltIn     -> []
-        Var.Module path -> [ map (swap '.' '$') path ]
-
 expression :: Canonical.Expr -> State Int (Expression ())
 expression (A region expr) =
     case expr of
-      Var var -> return $ canonical var
+      Var var -> return $ Var.canonical var
 
       Literal lit -> return $ literal lit
 
       Range lo hi ->
           do lo' <- expression lo
              hi' <- expression hi
-             return $ obj "_L.range" `call` [lo',hi']
+             return $ _List "range" `call` [lo',hi']
 
       Access e x ->
           do e' <- expression e
@@ -86,19 +77,19 @@ expression (A region expr) =
 
       Remove e x ->
           do e' <- expression e
-             return $ obj "_U.remove" `call` [string x, e']
+             return $ _Utils "remove" `call` [string x, e']
 
       Insert e x v ->
           do v' <- expression v
              e' <- expression e
-             return $ obj "_U.insert" `call` [string x, v', e']
+             return $ _Utils "insert" `call` [string x, v', e']
 
       Modify e fs ->
           do e' <- expression e
              fs' <- forM fs $ \(f,v) -> do
                       v' <- expression v
                       return $ ArrayLit () [string f, v']
-             return $ obj "_U.replace" `call` [ArrayLit () fs', e']
+             return $ _Utils "replace" `call` [ArrayLit () fs', e']
 
       Record fields ->
           do fields' <- forM fields $ \(f,e) -> do
@@ -122,7 +113,7 @@ expression (A region expr) =
           where
             depattern (args, body) pattern =
                 case pattern of
-                  P.Var x -> return (args ++ [x], body)
+                  P.Var x -> return (args ++ [ Var.varName x ], body)
                   _ -> do arg <- Case.newVar
                           return ( args ++ [arg]
                                  , A ann (Case (A ann (localVar arg)) [(pattern, body)]))
@@ -161,7 +152,7 @@ expression (A region expr) =
              (A _ (Var (Var.Canonical (Var.Module "Basics") "otherwise")), _) ->
                  safeIfs branches'
              (A _ (Literal (Boolean True)), _) -> safeIfs branches'
-             _ -> ifs branches' (obj "_E.If" `call` [ ref "$moduleName", string (renderPretty region) ])
+             _ -> ifs branches' (throw "If" region)
         where
           safeIfs branches = ifs (init branches) (snd (last branches))
           ifs branches finally = foldr iff finally branches
@@ -181,7 +172,7 @@ expression (A region expr) =
 
       ExplicitList es ->
           do es' <- mapM expression es
-             return $ obj "_L.fromArray" <| ArrayLit () es'
+             return $ _List "fromArray" <| ArrayLit () es'
 
       Data name es ->
           do es' <- mapM expression es
@@ -192,7 +183,7 @@ expression (A region expr) =
 
       Markdown uid doc es ->
           do es' <- mapM expression es
-             return $ obj "Text.markdown" `call` (string md : string uid : es')
+             return $ obj ["Text","markdown"] `call` (string md : string uid : es')
           where
             pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
             md = pad ++ MD.toHtml doc ++ pad
@@ -201,11 +192,11 @@ expression (A region expr) =
         return $ ObjectLit () [(PropString () "src", literal (Str src))]
           
       PortIn name tipe ->
-          return $ obj "Native.Ports.portIn" `call` [ string name, Port.incoming tipe ]
+          return $ obj ["Native","Ports","portIn"] `call` [ string name, Port.incoming tipe ]
 
       PortOut name tipe value ->
           do value' <- expression value
-             return $ obj "Native.Ports.portOut" `call`
+             return $ obj ["Native","Ports","portOut"] `call`
                         [ string name, Port.outgoing tipe, value' ]
 
 definition :: Canonical.Def -> State Int [Statement ()]
@@ -218,10 +209,10 @@ definition (Canonical.Definition pattern expr@(A region _) _) = do
             let op = LBracket () (ref "_op") (string x) in
             return [ ExprStmt () $ AssignExpr () OpAssign op expr' ]
         | otherwise ->
-            return [ VarDeclStmt () [ assign x ] ]
+            return [ VarDeclStmt () [ assign (Var.varName x) ] ]
 
     P.Record fields ->
-        let setField f = varDecl f (dotSep ["$",f]) in
+        let setField f = varDecl f (obj ["$",f]) in
         return [ VarDeclStmt () (assign "$" : map setField fields) ]
 
     P.Data (Var.Canonical _ name) patterns | vars /= Nothing ->
@@ -230,18 +221,18 @@ definition (Canonical.Definition pattern expr@(A region _) _) = do
           vars = getVars patterns
           getVars patterns =
               case patterns of
-                P.Var x : rest -> (x:) `fmap` getVars rest
+                P.Var x : rest -> (Var.varName x :) `fmap` getVars rest
                 [] -> Just []
                 _ -> Nothing
 
-          decl x n = varDecl x (dotSep ["$","_" ++ show n])
+          decl x n = varDecl x (obj ["$","_" ++ show n])
           setup vars
               | Help.isTuple name = assign "$" : vars
               | otherwise = assign "_raw" : safeAssign : vars
 
-          safeAssign = varDecl "$" (CondExpr () if' (obj "_raw") exception)
-          if' = InfixExpr () OpStrictEq (obj "_raw.ctor") (string name)
-          exception = obj "_E.Case" `call` [ref "$moduleName", string (renderPretty region)]
+          safeAssign = varDecl "$" (CondExpr () if' (ref "_raw") exception)
+          if' = InfixExpr () OpStrictEq (obj ["_raw","ctor"]) (string name)
+          exception = Help.throw "Case" region
 
     _ ->
         do defs' <- concat <$> mapM toDef vars
@@ -265,15 +256,15 @@ match region mtch =
                           _ -> False
 
           access name
-              | any isLiteral clauses = obj name
-              | otherwise = dotSep (split name ++ ["ctor"])
+              | any isLiteral clauses = obj [name]
+              | otherwise = obj (Help.splitDots name ++ ["ctor"])
 
           format isChars e
               | or isChars = InfixExpr () OpAdd e (string "")
               | otherwise = e
 
     Case.Fail ->
-        return [ ExprStmt () (obj "_E.Case" `call` [ref "$moduleName", string (renderPretty region)]) ]
+        return [ ExprStmt () (Help.throw "Case" region) ]
 
     Case.Break -> return [BreakStmt () Nothing]
 
@@ -314,21 +305,47 @@ generate modul =
     show . prettyPrint $ setup "Elm" (names ++ ["make"]) ++
              [ assign ("Elm" : names ++ ["make"]) (function ["_elm"] programStmts) ]
   where
+    names :: [String]
     names = Module.names modul
 
-    thisModule = dotSep ("_elm" : names ++ ["values"])
+    thisModule :: Expression ()
+    thisModule = obj ("_elm" : names ++ ["values"])
+
+    programStmts :: [Statement ()]
     programStmts =
         concat
-        [ [ ExprStmt () $ string "use strict" ]
+        [ [ ExprStmt () (string "use strict") ]
         , setup "_elm" (names ++ ["values"])
         , [ IfSingleStmt () thisModule (ret thisModule) ]
-        , [ internalImports (List.intercalate "." names) ]
-        , map jsImport . Set.toList . Set.fromList . map fst $ Module.imports modul
-        , [ assign ["_op"] (ObjectLit () []) ]
-        , concat $ evalState (mapM definition . fst . flattenLets [] $ Module.program (Module.body modul)) 0
+        , [ VarDeclStmt () localVars ]
+        , body
         , [ jsExports ]
         , [ ret thisModule ]
         ]
+
+    localVars :: [VarDecl ()]
+    localVars = varDecl "_op" (ObjectLit () []) :
+                internalImports (Module.getName modul) ++
+                explicitImports
+      where
+        explicitImports :: [VarDecl ()]
+        explicitImports =
+            map jsImport . Set.toList . Set.fromList . map fst $ Module.imports modul
+
+        jsImport :: String -> VarDecl ()
+        jsImport name =
+            varDecl (Var.moduleName name) $
+                obj ("Elm" : Help.splitDots name ++ ["make"]) <| ref "_elm"
+
+    body :: [Statement ()]
+    body = concat $ evalState defs 0
+      where
+        defs = mapM definition . fst . flattenLets [] $ Module.program (Module.body modul)
+
+    setup namespace path = map create paths
+      where
+        create name = assign name (InfixExpr () OpLOr (obj name) (ObjectLit () []))
+        paths = drop 2 . init . List.inits $ namespace : path
 
     jsExports = assign ("_elm" : names ++ ["values"]) (ObjectLit () exs)
         where
@@ -345,19 +362,11 @@ generate modul =
              case path of
                [x] -> VarDeclStmt () [ varDecl x expr ]
                _   -> ExprStmt () $
-                      AssignExpr () OpAssign (LDot () (dotSep (init path)) (last path)) expr
-
-    jsImport name =
-        assign [dolarize name] $ dotSep ("Elm" : Help.splitDots name ++ ["make"]) <| ref "_elm"
-
-    setup namespace path = map create paths
-        where
-          create name = assign name (InfixExpr () OpLOr (dotSep name) (ObjectLit () []))
-          paths = drop 2 . init . List.inits $ namespace : path
+                      AssignExpr () OpAssign (LDot () (obj (init path)) (last path)) expr
 
 binop :: Region -> Var.Canonical -> Canonical.Expr -> Canonical.Expr
       -> State Int (Expression ())
-binop region (Var.Canonical home op) e1 e2 =
+binop region func@(Var.Canonical home op) e1 e2 =
     case (home, op) of
       (Var.Module "Basics", ".") ->
           do es <- mapM expression (e1 : collect [] e2)
@@ -371,7 +380,7 @@ binop region (Var.Canonical home op) e1 e2 =
       (Var.Module "List", "++") ->
           do e1' <- expression e1
              e2' <- expression e2
-             return $ obj "_L.append" `call` [e1', e2']
+             return $ _List "append" `call` [e1', e2']
 
       (Var.BuiltIn, "::") ->
           expression (A region (Data "::" [e1,e2]))
@@ -381,12 +390,12 @@ binop region (Var.Canonical home op) e1 e2 =
              e2' <- expression e2
              return $ case Map.lookup op basicOps of
                         Just f -> f e1' e2'
-                        Nothing -> ref "A2" `call` [ func, e1', e2' ]
+                        Nothing -> ref "A2" `call` [ Var.canonical func, e1', e2' ]
 
       _ ->
           do e1' <- expression e1
              e2' <- expression e2
-             return (ref "A2" `call` [ func, e1', e2' ])
+             return (ref "A2" `call` [ Var.canonical func, e1', e2' ])
 
   where
     collect es e =
@@ -394,14 +403,6 @@ binop region (Var.Canonical home op) e1 e2 =
           A _ (Binop (Var.Canonical (Var.Module "Basics") ".") e1 e2) ->
               collect (es ++ [e1]) e2
           _ -> es ++ [e]
-
-    func | Help.isOp op = BracketRef () (dotSep (path ++ ["_op"])) (string op)
-         | otherwise    = dotSep (path ++ [op])
-         where
-           path = case home of
-                    Var.Local -> []
-                    Var.BuiltIn -> []
-                    Var.Module m -> [dolarize m]
 
     basicOps = Map.fromList (infixOps ++ specialOps)
 
@@ -416,10 +417,10 @@ binop region (Var.Canonical home op) e1 e2 =
         ]
 
     specialOps =
-        [ (,) "^"   $ \a b -> obj "Math.pow" `call` [a,b]
+        [ (,) "^"   $ \a b -> obj ["Math","pow"] `call` [a,b]
         , (,) "|>"  $ flip (<|)
-        , (,) "=="  $ \a b -> obj "_U.eq" `call` [a,b]
-        , (,) "/="  $ \a b -> PrefixExpr () PrefixLNot (obj "_U.eq" `call` [a,b])
+        , (,) "=="  $ \a b -> _Utils "eq" `call` [a,b]
+        , (,) "/="  $ \a b -> PrefixExpr () PrefixLNot (_Utils "eq" `call` [a,b])
         , (,) "<"   $ cmp OpLT 0
         , (,) ">"   $ cmp OpGT 0
         , (,) "<="  $ cmp OpLT 1
@@ -427,4 +428,4 @@ binop region (Var.Canonical home op) e1 e2 =
         , (,) "div" $ \a b -> InfixExpr () OpBOr (InfixExpr () OpDiv a b) (IntLit () 0)
         ]
 
-    cmp op n a b = InfixExpr () op (obj "_U.cmp" `call` [a,b]) (IntLit () n)
+    cmp op n a b = InfixExpr () op (_Utils "cmp" `call` [a,b]) (IntLit () n)

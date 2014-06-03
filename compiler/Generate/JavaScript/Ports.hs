@@ -14,13 +14,13 @@ check x jsType continue =
     CondExpr () (jsFold OpLOr checks x) continue throw
   where
     jsFold op checks value = foldl1 (InfixExpr () op) (map ($value) checks)
-    throw = obj "_E.raise" <| InfixExpr () OpAdd msg x
+    throw = obj ["_E","raise"] <| InfixExpr () OpAdd msg x
     msg = string ("invalid input, expecting " ++ show jsType ++ " but got ")
     checks = case jsType of
                JSNumber  -> [typeof "number"]
                JSBoolean -> [typeof "boolean"]
                JSString  -> [typeof "string", instanceof "String"]
-               JSArray   -> [(obj "_U.isJSArray" <|)]
+               JSArray   -> [(obj ["_U","isJSArray"] <|)]
                JSObject fields -> [jsFold OpLAnd (typeof "object" : map member fields)]
 
 incoming :: CanonicalType -> Expression ()
@@ -29,7 +29,7 @@ incoming tipe =
     Aliased _ t -> incoming t
 
     App (Type v) [t]
-        | Var.isSignal v -> obj "Native.Ports.incomingSignal" <| incoming t
+        | Var.isSignal v -> obj ["Native","Ports","incomingSignal"] <| incoming t
 
     _ -> ["v"] ==> inc tipe (ref "v")
 
@@ -50,19 +50,19 @@ inc tipe x =
             from checks = check x checks x
 
       Type name
-          | Var.isJson name -> obj "Native.Json.fromJS" <| x
+          | Var.isJson name -> obj ["Native","Json","fromJS"] <| x
           | otherwise -> error "bad type got to incoming port generation code"
 
       App f args ->
           case f : args of
             Type name : [t]
                 | Var.isMaybe name -> CondExpr () (equal x (NullLit ()))
-                                                  (obj "Maybe.Nothing")
-                                                  (obj "Maybe.Just" <| inc t x)
+                                                  (obj ["Maybe","Nothing"])
+                                                  (obj ["Maybe","Just"] <| inc t x)
 
-                | Var.isList name  -> check x JSArray (obj "_L.fromArray" <| array)
+                | Var.isList name  -> check x JSArray (obj ["_L","fromArray"] <| array)
 
-                | Var.isArray name -> check x JSArray (obj "_A.fromJSArray" <| array)
+                | Var.isArray name -> check x JSArray (obj ["_A","fromJSArray"] <| array)
                 where
                   array = DotRef () x (var "map") <| incoming t
 
@@ -96,7 +96,7 @@ outgoing tipe =
     Aliased _ t -> outgoing t
 
     App (Type v) [t]
-        | Var.isSignal v -> obj "Native.Ports.outgoingSignal" <| outgoing t
+        | Var.isSignal v -> obj ["Native","Ports","outgoingSignal"] <| outgoing t
 
     _ -> ["v"] ==> out tipe (ref "v")
 
@@ -125,7 +125,7 @@ out tipe x =
           | name `elem` ["Int","Float","Bool","String"] -> x
 
       Type name
-          | Var.isJson name -> obj "Native.Json.toJS" <| x
+          | Var.isJson name -> obj ["Native","Json","toJS"] <| x
           | otherwise -> error "bad type got to outgoing port generation code"
 
       App f args ->
@@ -137,10 +137,10 @@ out tipe x =
                                  (out t (DotRef () x (var "_0")))
 
                 | Var.isArray name ->
-                    DotRef () (obj "_A.toJSArray" <| x) (var "map") <| outgoing t
+                    DotRef () (obj ["_A","toJSArray"] <| x) (var "map") <| outgoing t
 
                 | Var.isList name ->
-                    DotRef () (obj "_L.toArray" <| x) (var "map") <| outgoing t
+                    DotRef () (obj ["_L","toArray"] <| x) (var "map") <| outgoing t
 
             Type name : ts
                 | Var.isTuple name ->
