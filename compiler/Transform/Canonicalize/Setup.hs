@@ -3,7 +3,7 @@ module Transform.Canonicalize.Setup (environment) where
 
 import Control.Arrow (first)
 import Control.Monad (foldM)
-import qualified Data.Either as Either
+import Control.Monad.Error (throwError)
 import qualified Data.Graph as Graph
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -22,7 +22,7 @@ import Text.PrettyPrint as P
 import Transform.Canonicalize.Environment as Env
 import qualified Transform.Canonicalize.Type as Canonicalize
 
-environment :: Module.Interfaces -> Module.ValidModule -> Either [Doc] Environment
+environment :: Module.Interfaces -> Module.ValidModule -> Canonicalizer [Doc] Environment
 environment interfaces modul@(Module.Module _ _ _ imports decls) =
   do () <- allImportsAvailable
      nonLocalEnv <- foldM (addImports interfaces) builtIns imports
@@ -30,11 +30,11 @@ environment interfaces modul@(Module.Module _ _ _ imports decls) =
          (aliases, env) = List.foldl' (addDecl moduleName) ([], nonLocalEnv) decls
      addTypeAliases moduleName aliases env
   where
-    allImportsAvailable :: Either [Doc] ()
+    allImportsAvailable :: Canonicalizer [Doc] ()
     allImportsAvailable =
         case filter (not . found) modules of
-          [] -> Right ()
-          missings -> Left [ P.text (missingModuleError missings) ]
+          [] -> return ()
+          missings -> throwError [ P.text (missingModuleError missings) ]
         where
           modules = map fst imports
 
@@ -47,7 +47,7 @@ environment interfaces modul@(Module.Module _ _ _ imports decls) =
                      , "flag to detect modules you have written." ]
 
 addImports :: Module.Interfaces -> Environment -> (String, Module.ImportMethod)
-           -> Either [Doc] Environment
+           -> Canonicalizer [Doc] Environment
 addImports interfaces environ (name,method)
     | List.isPrefixOf "Native." name = return environ
     | otherwise =
@@ -81,12 +81,12 @@ addImports interfaces environ (name,method)
       ctors = concatMap (map (pair . fst) . snd . snd) (Map.toList (iAdts interface))
 
 addValue :: String -> Module.Interface -> Environment -> Var.Value
-         -> Either [Doc] Environment
+         -> Canonicalizer [Doc] Environment
 addValue name interface env value =
     let insert' x = insert x (Var.Canonical (Var.Module name) x)
         msg x = "Import Error: Could not import value '" ++ name ++ "." ++ x ++
                 "'.\n    It is not exported by module " ++ name ++ "."
-        notFound x = Left [ P.text (msg x) ]
+        notFound x = throwError [ P.text (msg x) ]
     in
     case value of
       Var.Value x
@@ -136,31 +136,31 @@ node name tvars alias = ((name, tvars, alias), name, edges alias)
             Type.Record fs ext -> maybe [] edges ext ++ concatMap (edges . snd) fs
             Type.Aliased _ t -> edges t
 
-addTypeAliases :: String -> [Node] -> Environment -> Either [Doc] Environment
+addTypeAliases :: String -> [Node] -> Environment -> Canonicalizer [Doc] Environment
 addTypeAliases moduleName nodes environ =
     foldM addTypeAlias environ (Graph.stronglyConnComp nodes)
   where
     addTypeAlias :: Environment -> Graph.SCC (String, [String], Type.RawType)
-                 -> Either [Doc] Environment
+                 -> Canonicalizer [Doc] Environment
     addTypeAlias env scc =
       case Graph.flattenSCC scc of
         [(name, tvars, alias)] ->
-            do alias' <- Either.either throw return (Canonicalize.tipe env alias)
+            do alias' <- Env.onError throw (Canonicalize.tipe env alias)
                let value = (Var.Canonical (Var.Module moduleName) name, tvars, alias')
                return $ env { _aliases = insert name value (_aliases env) }
             where
               throw err =
                   let msg = "Problem with type alias '" ++ name ++ "':"
-                  in  Left [ P.vcat [ P.text msg, P.text err ] ]
+                  in  P.vcat [ P.text msg, P.text err ]
 
         aliases ->
-            Left [ P.vcat [ P.text (eightyCharLines 0 msg1)
-                          , indented (map typeAlias aliases)
-                          , P.text (eightyCharLines 0 msg2)
-                          , indented (map datatype aliases)
-                          , P.text (eightyCharLines 0 msg3)
-                          ]
-                 ]
+            throwError [ P.vcat [ P.text (eightyCharLines 0 msg1)
+                                , indented (map typeAlias aliases)
+                                , P.text (eightyCharLines 0 msg2)
+                                , indented (map datatype aliases)
+                                , P.text (eightyCharLines 0 msg3)
+                                ]
+                       ]
 
     typeAlias (n,ts,t) = D.TypeAlias n ts t
     datatype (n,ts,t) = D.Datatype n ts [(n,[t])]

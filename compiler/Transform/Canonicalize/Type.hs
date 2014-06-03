@@ -3,7 +3,7 @@ module Transform.Canonicalize.Type (tipe) where
 
 import Control.Arrow (second)
 import Control.Applicative ((<$>),(<*>))
-import Control.Monad (when)
+import Control.Monad.Error
 import qualified Data.Map as Map
 import Data.Traversable (traverse)
 
@@ -13,7 +13,7 @@ import qualified AST.Variable as Var
 import Transform.Canonicalize.Environment
 import qualified Transform.Canonicalize.Variable as Canonicalize
 
-tipe :: Environment -> T.RawType -> Either String T.CanonicalType
+tipe :: Environment -> T.RawType -> Canonicalizer String T.CanonicalType
 tipe env typ =
     let go = tipe env in
     case typ of
@@ -29,7 +29,7 @@ tipe env typ =
           in  T.Record <$> mapM go' fields <*> traverse go ext
 
 canonicalizeApp :: Environment -> T.RawType -> [T.RawType]
-                -> Either String T.CanonicalType
+                -> Canonicalizer String T.CanonicalType
 canonicalizeApp env f args =
   case f of
     T.Type (Var.Raw rawName) ->
@@ -44,9 +44,9 @@ canonicalizeApp env f args =
 
 canonicalizeAlias :: Environment -> (Var.Canonical, [String], T.CanonicalType)
                   -> [T.RawType]
-                  -> Either String T.CanonicalType
+                  -> Canonicalizer String T.CanonicalType
 canonicalizeAlias env (name, tvars, dealiasedTipe) tipes =
-  do when (tipesLen /= tvarsLen) (Left msg)
+  do when (tipesLen /= tvarsLen) (throwError msg)
      tipes' <- mapM (tipe env) tipes
      let tipe' = replace (Map.fromList (zip tvars tipes')) dealiasedTipe
      return $ T.Aliased name tipe'

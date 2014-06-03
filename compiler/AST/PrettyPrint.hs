@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 module AST.PrettyPrint where
 
+import Control.Monad.Trans.Error
 import Text.PrettyPrint as P
 import qualified AST.Helpers as Help
 
@@ -36,3 +37,6 @@ eightyCharLines indent message = answer
       step (sentence, slen, space) (word, wlen)
           | slen + wlen > 79 = (sentence ++ "\n" ++ spaces ++ word, indent + wlen, " ")
           | otherwise        = (sentence ++ space ++ word, slen + wlen + length space, " ")
+
+instance ErrorList Doc where
+    listMsg str = [ P.text str ]

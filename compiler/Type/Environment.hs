@@ -4,7 +4,6 @@ module Type.Environment where
 import Control.Applicative ((<$>), (<*>))
 import Control.Exception (try, SomeException)
 import Control.Monad
-import Control.Monad.Trans.Error (ErrorList(..))
 import Control.Monad.Error (ErrorT, throwError, liftIO)
 import qualified Control.Monad.State as State
 import qualified Data.Traversable as Traverse
@@ -114,9 +113,6 @@ get env subDict key = Map.findWithDefault (error msg) key (subDict env)
 
 freshDataScheme :: Environment -> String -> IO (Int, [Variable], [Type], Type)
 freshDataScheme env name = get env constructor name
-
-instance ErrorList PP.Doc where
-  listMsg str = [PP.text str]
 
 instantiateType :: Environment -> T.CanonicalType -> VarDict -> ErrorT [PP.Doc] IO ([Variable], Type)
 instantiateType env sourceType dict =

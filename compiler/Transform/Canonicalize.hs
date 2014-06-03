@@ -2,9 +2,11 @@
 module Transform.Canonicalize (module', filterExports) where
 
 import Control.Applicative ((<$>),(<*>))
-import qualified Data.Either as Either
+import Control.Monad.Error (runErrorT, throwError)
+import Control.Monad.State (runState)
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.Traversable as T
 
 import AST.Expression.General (Expr'(..), dummyLet)
@@ -29,7 +31,18 @@ import qualified Transform.SortDefinitions as Transform
 import qualified Transform.Declaration as Transform
 
 module' :: Module.Interfaces -> Module.ValidModule -> Either [Doc] Module.CanonicalModule
-module' interfaces modul@(Module.Module _ _ exs _ decls) =
+module' interfaces modul =
+    filterImports <$> modul'
+  where
+    canonicalizer = moduleHelp interfaces modul
+    (modul', usedModules) = runState (runErrorT canonicalizer) Set.empty
+    filterImports m =
+        let used (name,_) = Set.member name usedModules
+        in  m { Module.imports = filter used (Module.imports m) }
+
+moduleHelp :: Module.Interfaces -> Module.ValidModule
+           -> Canonicalizer [Doc] Module.CanonicalModule
+moduleHelp interfaces modul@(Module.Module _ _ exs _ decls) =
   do env <- Setup.environment interfaces modul
      canonicalDecls <- mapM (declaration env) decls
      exports' <- delist locals exs
@@ -57,15 +70,15 @@ module' interfaces modul@(Module.Module _ _ exs _ decls) =
              [ D.portName port | D.Port port <- decls ]
          }
 
-delist :: [Var.Value] -> Var.Listing Var.Value -> Either [Doc] [Var.Value]
+delist :: [Var.Value] -> Var.Listing Var.Value -> Canonicalizer [Doc] [Var.Value]
 delist fullList (Var.Listing partial open)
     | open = return fullList
     | otherwise = go [] (List.sort fullList) (List.sort partial)
     where
       notFound xs =
-          Left $ [ P.text "Export Error: trying to export non-existent values:" <+>
-                   commaSep (map pretty xs)
-                 ]
+          throwError [ P.text "Export Error: trying to export non-existent values:" <+>
+                       commaSep (map pretty xs)
+                     ]
 
       go list full partial =
         case (full, partial) of
@@ -123,13 +136,13 @@ declToValue decl =
 
       _ -> []
 
-declaration :: Environment -> D.ValidDecl -> Either [Doc] D.CanonicalDecl
+declaration :: Environment -> D.ValidDecl -> Canonicalizer [Doc] D.CanonicalDecl
 declaration env decl =
     let canonicalize kind context pattern env v =
-            case kind env v of
-              Right v' -> Right v'
-              Left err -> Left [ P.vcat [ ctx, P.text err ] ]
-                  where ctx = P.text ("Error in " ++ context) <+> pretty pattern <> P.colon
+            let ctx = P.text ("Error in " ++ context) <+> pretty pattern <> P.colon
+                throw err = P.vcat [ ctx, P.text err ]
+            in 
+                Env.onError throw (kind env v)
     in
     case decl of
       D.Definition (Valid.Definition p e t) ->
@@ -161,14 +174,13 @@ declaration env decl =
       D.Fixity assoc prec op -> return $ D.Fixity assoc prec op
 
 
-expression :: Environment -> Valid.Expr -> Either [Doc] Canonical.Expr
+expression :: Environment -> Valid.Expr -> Canonicalizer [Doc] Canonical.Expr
 expression env (A.A ann expr) =
     let go = expression env
         tipe' environ = format . Canonicalize.tipe environ
-        throw err =
-            let msg = P.text "Error" <+> pretty ann <> P.colon
-            in  Left [ P.vcat [ msg, P.text err ] ]
-        format = Either.either throw return
+        throw err = P.vcat [ P.text "Error" <+> pretty ann <> P.colon
+                           , P.text err ]
+        format = Env.onError throw
     in
     A.A ann <$>
     case expr of
@@ -228,7 +240,7 @@ expression env (A.A ann expr) =
 
       GLShader uid src tipe -> return (GLShader uid src tipe)
 
-pattern :: Environment -> P.RawPattern -> Either String P.CanonicalPattern
+pattern :: Environment -> P.RawPattern -> Canonicalizer String P.CanonicalPattern
 pattern env ptrn =
     case ptrn of
       P.Var x       -> return $ P.Var x

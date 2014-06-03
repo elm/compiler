@@ -256,6 +256,7 @@ Executable elm-doc
                        pretty,
                        scientific,
                        text,
+                       transformers >= 0.2,
                        union-find,
                        yaml
 
