@@ -75,14 +75,14 @@ a ==> b = TermN (Fun1 a b)
 
 f <| a = TermN (App1 f a)
 
-data Descriptor = Descriptor {
-    structure :: Maybe (Term1 Variable),
-    rank :: Int,
-    flex :: Flex,
-    name :: Maybe TypeName,
-    copy :: Maybe Variable,
-    mark :: Int
-} deriving Show
+data Descriptor = Descriptor
+    { structure :: Maybe (Term1 Variable)
+    , rank :: Int
+    , flex :: Flex
+    , name :: Maybe TypeName
+    , copy :: Maybe Variable
+    , mark :: Int
+    } deriving Show
 
 noRank = -1
 outermostRank = 0 :: Int
@@ -97,33 +97,23 @@ data SuperType = Number | Comparable | Appendable
      deriving (Show, Eq)
 
 namedVar :: Flex -> Var.Canonical -> IO Variable
-namedVar flex name = UF.fresh $ Descriptor {
-    structure = Nothing,
-    rank = noRank,
-    flex = flex,
-    name = Just name,
-    copy = Nothing,
-    mark = noMark
+namedVar flex name = UF.fresh $ Descriptor
+  { structure = Nothing
+  , rank = noRank
+  , flex = flex
+  , name = Just name
+  , copy = Nothing
+  , mark = noMark
   }
 
 var :: Flex -> IO Variable
-var flex = UF.fresh $ Descriptor {
-    structure = Nothing,
-    rank = noRank,
-    flex = flex,
-    name = Nothing,
-    copy = Nothing,
-    mark = noMark
-  }
-
-structuredVar :: Term1 Variable -> IO Variable
-structuredVar structure = UF.fresh $ Descriptor {
-    structure = Just structure,
-    rank = noRank,
-    flex = Flexible,
-    name = Nothing,
-    copy = Nothing,
-    mark = noMark
+var flex = UF.fresh $ Descriptor
+  { structure = Nothing
+  , rank = noRank
+  , flex = flex
+  , name = Nothing
+  , copy = Nothing
+  , mark = noMark
   }
 
 
@@ -362,10 +352,23 @@ instance Crawl Descriptor where
 
                
 toSrcType :: Variable -> IO T.CanonicalType
-toSrcType variable = do
-  desc <- UF.descriptor =<< addNames variable
-  case structure desc of
-    Just term ->
+toSrcType variable =
+  do desc    <- UF.descriptor =<< addNames variable
+     srcType <- maybe (backupSrcType desc) termToSrcType (structure desc)
+     return srcType
+  where
+    backupSrcType desc = 
+        case name desc of
+          Just var@(Var.Canonical _ x@(c:_))
+              | Char.isLower c -> return (T.Var x)
+              | otherwise -> return $ T.Type var
+
+          _ -> error $ concat
+                        [ "Problem converting the following type "
+                        , "from a type-checker type to a source-syntax type:"
+                        , P.render (pretty Never variable) ]
+
+    termToSrcType term =
         case term of
           App1 a b -> do
             a' <- toSrcType a
@@ -389,16 +392,6 @@ toSrcType variable = do
                        T.Var _ -> T.Record fields (Just ext')
                        _ -> error "Used toSrcType on a type that is not well-formed"
 
-    Nothing ->
-        case name desc of
-          Just var@(Var.Canonical _ x@(c:_))
-              | Char.isLower c -> return (T.Var x)
-              | otherwise -> return $ T.Type var
-
-          _ -> error $ concat
-                        [ "Problem converting the following type "
-                        , "from a type-checker type to a source-syntax type:"
-                        , P.render (pretty Never variable) ]
 
 data AppStructure = List Variable | Tuple [Variable] | Other
 
