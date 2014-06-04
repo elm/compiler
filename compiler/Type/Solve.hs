@@ -65,25 +65,15 @@ generalize youngPool = do
 -- move deeper into a variable.
 adjustRank :: Int -> Int -> Int -> Variable -> StateT TS.SolverState IO Int
 adjustRank youngMark visitedMark groupRank variable =
-    let adjust = adjustRank youngMark visitedMark groupRank in
     do desc <- liftIO $ UF.descriptor variable
        case () of
          () | mark desc == youngMark ->
                 do -- Set the variable as marked first because it may be cyclic.
-                   liftIO $ UF.modifyDescriptor variable $ \desc -> desc { mark = visitedMark }
-                   rank' <- case structure desc of
-                              Nothing -> return groupRank
-                              Just term ->
-                                  case term of
-                                    App1 a b -> max `liftM` adjust a `ap` adjust b
-                                    Fun1 a b -> max `liftM` adjust a `ap` adjust b
-                                    Var1 x -> adjust x
-                                    EmptyRecord1 -> return outermostRank
-                                    Record1 fields extension ->
-                                        do ranks <- mapM adjust (concat (Map.elems fields))
-                                           rnk <- adjust extension
-                                           return . maximum $ rnk : ranks
-                   liftIO $ UF.modifyDescriptor variable $ \desc -> desc { rank = rank' }
+                   liftIO $ UF.modifyDescriptor variable $ \desc ->
+                       desc { mark = visitedMark }
+                   rank' <- maybe (return groupRank) adjustTerm (structure desc)
+                   liftIO $ UF.modifyDescriptor variable $ \desc ->
+                       desc { rank = rank' }
                    return rank'
 
             | mark desc /= visitedMark ->
@@ -93,6 +83,19 @@ adjustRank youngMark visitedMark groupRank variable =
 
             | otherwise -> return (rank desc)
 
+    where
+      adjust = adjustRank youngMark visitedMark groupRank
+
+      adjustTerm term =
+          case term of
+            App1 a b -> max `liftM` adjust a `ap` adjust b
+            Fun1 a b -> max `liftM` adjust a `ap` adjust b
+            Var1 x -> adjust x
+            EmptyRecord1 -> return outermostRank
+            Record1 fields extension ->
+                do ranks <- mapM adjust (concat (Map.elems fields))
+                   rnk <- adjust extension
+                   return . maximum $ rnk : ranks
 
 
 solve :: TypeConstraint -> StateT TS.SolverState IO ()
