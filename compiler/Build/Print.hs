@@ -5,23 +5,14 @@ import System.Exit (exitFailure)
 
 import qualified Data.Map as Map
 import qualified Data.List as List
-import qualified AST.Module as M
+import qualified AST.Module as Module
 import qualified AST.PrettyPrint as Pretty
 import qualified Text.PrettyPrint as P
 
-moduleTypes :: Map.Map String M.Interface -> M.CanonicalModule -> IO ()
-moduleTypes interfaces modul =
-    types interfaces (M.types body) (M.aliases body) (M.imports modul)
-    where
-      body = M.body modul
-
-interfaceTypes :: Map.Map String M.Interface -> M.Interface -> IO ()
-interfaceTypes interfaces iface =
-    types interfaces (M.iTypes iface) (M.iAliases iface) (M.iImports iface)
-
-types interfaces types' aliases imports =
+types :: Module.Types -> IO ()
+types ts =
     do putStrLn ""
-       mapM_ printType (Map.toList types')
+       mapM_ printType (Map.toList ts)
        putStrLn ""
     where
       printType (n,t) = do

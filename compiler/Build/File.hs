@@ -122,9 +122,7 @@ retrieve filePath = do
   iface <- liftIO $ Interface.load (Utils.elmi flags filePath)
   case Interface.isValid filePath iface of
     Right (name, interface) ->
-      do binterfaces <- get
-         let interfaces = snd <$> binterfaces
-         liftIO $ when (Flag.print_types flags) (Print.interfaceTypes interfaces interface)
+      do liftIO $ when (Flag.print_types flags) (Print.types (Module.iTypes interface))
          update name interface False
 
     Left err -> liftIO $ Print.failure err
@@ -148,7 +146,7 @@ compile number filePath =
                              exitFailure
 
      liftIO $ when (Flag.print_types flags) $ do
-       Print.moduleTypes interfaces canonicalModule
+       Print.types (Module.types (Module.body canonicalModule))
   
      let newInters = Module.toInterface canonicalModule
      generateCache name newInters canonicalModule
