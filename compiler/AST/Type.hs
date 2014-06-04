@@ -49,7 +49,9 @@ instance (Var.ToString var, Pretty var) => Pretty (Type var) where
 
       Var x -> P.text x
 
-      Type v -> P.text (Var.toString v)
+      Type var ->
+          let v = Var.toString var in
+          P.text (if v == "_Tuple0" then "()" else v)
 
       App f args ->
           case (f,args) of
