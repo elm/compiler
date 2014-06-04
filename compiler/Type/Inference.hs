@@ -18,7 +18,6 @@ import qualified Type.ExtraChecks as Check
 import Control.Arrow (first, second)
 import Control.Monad.State (execStateT, forM)
 import Control.Monad.Error (ErrorT, runErrorT, liftIO)
-import qualified Type.Alias as Alias
 
 import System.IO.Unsafe  -- Possible to switch over to the ST monad instead of
                          -- the IO monad. I don't think that'd be worthwhile.
@@ -49,12 +48,11 @@ infer interfaces modul = unsafePerformIO $ do
     Left err -> return $ Left err
     Right (header, constraint) -> do
       state <- execStateT (Solve.solve constraint) TS.initialState
-      let rules = Alias.rules interfaces (aliases moduleBody) (imports modul)
       case TS.sErrors state of
-        errors@(_:_) -> Left `fmap` sequence (map ($ rules) (reverse errors))
-        [] -> case Check.portTypes rules (program moduleBody) of
+        errors@(_:_) -> return (Left errors)
+        [] -> case Check.portTypes (program moduleBody) of
                 Left err -> return (Left err)
-                Right () -> Check.mainType rules types
+                Right () -> Check.mainType types
                     where
                       header' = Map.delete "::" header
                       types = Map.difference (TS.sSavedEnv state) header'

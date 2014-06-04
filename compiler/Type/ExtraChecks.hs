@@ -21,17 +21,16 @@ import qualified AST.Variable as V
 import qualified Transform.Expression as Expr
 import qualified Type.Type as TT
 import qualified Type.State as TS
-import qualified Type.Alias as Alias
 
 throw :: [Doc] -> Either [Doc] a
 throw err = Left [ P.vcat err ]
 
-mainType :: Alias.Rules -> TS.Env -> IO (Either [P.Doc] (Map.Map String ST.CanonicalType))
-mainType aliasRules environment =
-    mainCheck aliasRules <$> Traverse.traverse TT.toSrcType environment
+mainType :: TS.Env -> IO (Either [P.Doc] (Map.Map String ST.CanonicalType))
+mainType environment =
+    mainCheck <$> Traverse.traverse TT.toSrcType environment
   where
-    mainCheck :: Alias.Rules -> Map.Map String ST.CanonicalType -> Either [P.Doc] (Map.Map String ST.CanonicalType)
-    mainCheck rules env =
+    mainCheck :: Map.Map String ST.CanonicalType -> Either [P.Doc] (Map.Map String ST.CanonicalType)
+    mainCheck env =
       case Map.lookup "main" env of
         Nothing -> Right env
         Just typeOfMain
@@ -41,16 +40,16 @@ mainType aliasRules environment =
               acceptable = [ "Graphics.Element.Element"
                            , "Signal.Signal Graphics.Element.Element" ]
 
-              tipe = PP.renderPretty $ Alias.canonicalRealias (fst rules) typeOfMain
+              tipe = PP.renderPretty typeOfMain
               err = [ P.text "Type Error: 'main' must have type Element or (Signal Element)."
                     , P.text "Instead 'main' has type:\n"
-                    , P.nest 4 . PP.pretty $ Alias.realias rules typeOfMain
+                    , P.nest 4 (PP.pretty typeOfMain)
                     , P.text " " ]
 
 data Direction = In | Out
 
-portTypes :: Alias.Rules -> Canonical.Expr -> Either [P.Doc] ()
-portTypes rules expr =
+portTypes :: Canonical.Expr -> Either [P.Doc] ()
+portTypes expr =
   const () <$> Expr.checkPorts (check In) (check Out) expr
   where
     check = isValid True False False
@@ -111,7 +110,7 @@ portTypes rules expr =
               [ txt [ "Type Error: the value ", dir "coming in" "sent out"
                     , " through port '", name, "' is invalid." ]
               , txt [ "It contains ", kind, ":\n" ]
-              , (P.nest 4 . PP.pretty $ Alias.realias rules tipe) <> P.text "\n"
+              , P.nest 4 (PP.pretty tipe) <> P.text "\n"
               , txt [ "Acceptable values for ", dir "incoming" "outgoing", " ports include:" ]
               , txt [ "    Ints, Floats, Bools, Strings, Maybes, Lists, Arrays, Tuples," ]
               , txt [ "    Json.Values, ", dir "" "first-order functions, ", "and concrete records." ]
@@ -131,17 +130,16 @@ occurs (name, variable) =
          desc <- liftIO $ UF.descriptor var
          case TT.structure desc of
            Nothing ->
-               modify $ \s -> s { TS.sErrors = fallback : TS.sErrors s }
+               modify $ \s -> s { TS.sErrors = P.text msg : TS.sErrors s }
            Just _ ->
                do liftIO $ UF.setDescriptor var (desc { TT.structure = Nothing })
                   var' <- liftIO $ UF.fresh desc
                   TS.addError (A.None (P.text name)) (Just msg) var var'
   where
     msg = "Infinite types are not allowed"
-    fallback _ = return $ P.text msg
 
     infiniteVars :: [TT.Variable] -> TT.Variable -> IO [TT.Variable]
-    infiniteVars seen var = 
+    infiniteVars seen var =
         let go = infiniteVars (var:seen) in
         if var `elem` seen
         then return [var]

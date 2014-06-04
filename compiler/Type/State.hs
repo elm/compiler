@@ -10,7 +10,6 @@ import qualified Data.UnionFind.IO as UF
 import qualified AST.Annotation as A
 import AST.PrettyPrint
 import Text.PrettyPrint as P
-import qualified Type.Alias as Alias
 import Type.Type
 
 -- Pool
@@ -33,7 +32,7 @@ data SolverState = SS {
     sSavedEnv :: Env,
     sPool :: Pool,
     sMark :: Int,
-    sErrors :: [Alias.Rules -> IO P.Doc]
+    sErrors :: [P.Doc]
 }
 
 initialState = SS {
@@ -47,13 +46,15 @@ initialState = SS {
 modifyEnv  f = modify $ \state -> state { sEnv = f (sEnv state) }
 modifyPool f = modify $ \state -> state { sPool = f (sPool state) }
 
+addError :: A.Region -> Maybe String -> UF.Point Descriptor -> UF.Point Descriptor
+         -> StateT SolverState IO ()
 addError region hint t1 t2 =
-    modify $ \state -> state { sErrors = makeError : sErrors state }
+  do err <- liftIO makeError
+     modify $ \state -> state { sErrors = err : sErrors state }
   where
-    makeError rules = do
-      let prettiest = pretty . Alias.realias rules
-      t1' <- prettiest <$> toSrcType t1
-      t2' <- prettiest <$> toSrcType t2
+    makeError = do
+      t1' <- pretty <$> toSrcType t1
+      t2' <- pretty <$> toSrcType t2
       return . P.vcat $
          [ P.text "Type error" <+> pretty region <> P.colon
          , maybe P.empty P.text hint

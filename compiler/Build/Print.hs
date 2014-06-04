@@ -7,7 +7,6 @@ import qualified Data.Map as Map
 import qualified Data.List as List
 import qualified AST.Module as M
 import qualified AST.PrettyPrint as Pretty
-import qualified Type.Alias as Alias
 import qualified Text.PrettyPrint as P
 
 moduleTypes :: Map.Map String M.Interface -> M.CanonicalModule -> IO ()
@@ -25,12 +24,10 @@ types interfaces types' aliases imports =
        mapM_ printType (Map.toList types')
        putStrLn ""
     where
-      rules = Alias.rules interfaces aliases imports
-
       printType (n,t) = do
         print $ P.hsep [ Pretty.variable n
                        , P.text ":"
-                       , Pretty.pretty (Alias.realias rules t) ]
+                       , Pretty.pretty t ]
 
 errors :: [P.Doc] -> IO ()
 errors errs =
