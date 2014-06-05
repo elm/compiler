@@ -88,8 +88,10 @@ toDefs moduleName decl =
             in  [ definition ctor (buildFunction body vars) (foldr T.Lambda tbody tipes) ]
 
     D.TypeAlias name _ tipe@(T.Record fields ext) ->
-        [ definition name (buildFunction record vars) (foldr T.Lambda tipe args) ]
+        [ definition name (buildFunction record vars) (foldr T.Lambda result args) ]
       where
+        result = T.Aliased (typeVar name) tipe
+
         args = map snd fields ++ maybe [] (:[]) ext
 
         var = A.none . E.localVar
