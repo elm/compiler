@@ -47,7 +47,7 @@ constrain env (A region expr) tipe =
                    else record (Map.map (\t -> [glTipe t]) decls) baseRec
               attribute = makeRec Lit.attribute attr
               uniform = makeRec Lit.uniform unif
-              varying = makeRec Lit.varying (TermN EmptyRecord1)
+              varying = makeRec Lit.varying (termN EmptyRecord1)
             in return . A region $ CEqual tipe (shaderTipe attribute uniform varying)
 
       Var var
@@ -107,7 +107,7 @@ constrain env (A region expr) tipe =
 
       Data name exprs ->
           do vars <- forM exprs $ \_ -> liftIO (var Flexible)
-             let pairs = zip exprs (map VarN vars)
+             let pairs = zip exprs (map varN vars)
              (ctipe, cs) <- Monad.foldM step (tipe,true) (reverse pairs)
              return $ ex vars (cs /\ name <? ctipe)
           where
@@ -134,27 +134,27 @@ constrain env (A region expr) tipe =
       Modify e fields ->
           exists $ \t -> do
               oldVars <- forM fields $ \_ -> liftIO (var Flexible)
-              let oldFields = ST.fieldMap (zip (map fst fields) (map VarN oldVars))
+              let oldFields = ST.fieldMap (zip (map fst fields) (map varN oldVars))
               cOld <- ex oldVars <$> constrain env e (record oldFields t)
 
               newVars <- forM fields $ \_ -> liftIO (var Flexible)
-              let newFields = ST.fieldMap (zip (map fst fields) (map VarN newVars))
+              let newFields = ST.fieldMap (zip (map fst fields) (map varN newVars))
               let cNew = tipe === record newFields t
 
-              cs <- zipWithM (constrain env) (map snd fields) (map VarN newVars)
+              cs <- zipWithM (constrain env) (map snd fields) (map varN newVars)
 
               return $ cOld /\ ex newVars (and (cNew : cs))
 
       Record fields ->
           do vars <- forM fields $ \_ -> liftIO (var Flexible)
-             cs <- zipWithM (constrain env) (map snd fields) (map VarN vars)
-             let fields' = ST.fieldMap (zip (map fst fields) (map VarN vars))
-                 recordType = record fields' (TermN EmptyRecord1)
+             cs <- zipWithM (constrain env) (map snd fields) (map varN vars)
+             let fields' = ST.fieldMap (zip (map fst fields) (map varN vars))
+                 recordType = record fields' (termN EmptyRecord1)
              return . ex vars . and $ tipe === recordType : cs
 
       Markdown _ _ es ->
           do vars <- forM es $ \_ -> liftIO (var Flexible)
-             let tvars = map VarN vars
+             let tvars = map varN vars
              cs <- zipWithM (constrain env) es tvars
              return . ex vars $ and ("Text.markdown" <? tipe : cs)
 
@@ -182,7 +182,7 @@ constrainDef env info (Canonical.Definition pattern expr maybeTipe) =
        case (pattern, maybeTipe) of
          (P.Var name, Just tipe) -> do
              flexiVars <- forM qs (\_ -> liftIO $ var Flexible)
-             let inserts = zipWith (\arg typ -> Map.insert arg (VarN typ)) qs flexiVars
+             let inserts = zipWith (\arg typ -> Map.insert arg (varN typ)) qs flexiVars
                  env' = env { Env.value = List.foldl' (\x f -> f x) (Env.value env) inserts }
              (vars, typ) <- Env.instantiateType env tipe Map.empty
              let scheme = Scheme { rigidQuantifiers = [],
@@ -199,8 +199,8 @@ constrainDef env info (Canonical.Definition pattern expr maybeTipe) =
 
          (P.Var name, Nothing) -> do
              v <- liftIO $ var Flexible
-             let tipe = VarN v
-                 inserts = zipWith (\arg typ -> Map.insert arg (VarN typ)) qs rigidVars
+             let tipe = varN v
+                 inserts = zipWith (\arg typ -> Map.insert arg (varN typ)) qs rigidVars
                  env' = env { Env.value = List.foldl' (\x f -> f x) (Env.value env) inserts }
              c <- constrain env' expr tipe
              return ( schemes

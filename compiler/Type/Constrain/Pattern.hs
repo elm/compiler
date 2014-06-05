@@ -36,9 +36,9 @@ constrain env pattern tipe =
       P.Var name -> do
           v <- liftIO $ var Flexible
           return $ Fragment {
-              typeEnv    = Map.singleton name (VarN v),
+              typeEnv    = Map.singleton name (varN v),
               vars       = [v],
-              typeConstraint = VarN v === tipe
+              typeConstraint = varN v === tipe
           }
 
       P.Alias name p -> do
@@ -66,7 +66,7 @@ constrain env pattern tipe =
 
       P.Record fields -> do
           pairs <- liftIO $ mapM (\name -> (,) name <$> var Flexible) fields
-          let tenv = Map.fromList (map (second VarN) pairs)
+          let tenv = Map.fromList (map (second varN) pairs)
           c <- exists $ \t -> return (tipe === record (Map.map (:[]) tenv) t)
           return $ Fragment {
               typeEnv        = tenv,

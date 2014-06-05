@@ -15,7 +15,7 @@ constrain env region literal tipe =
 
       litType =
           case literal of
-            IntNum _   -> VarN `fmap` var (Is Number)
+            IntNum _   -> varN `fmap` var (Is Number)
             FloatNum _ -> prim "Float"
             Chr _      -> prim "Char"
             Str _      -> prim "String"

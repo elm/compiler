@@ -41,7 +41,7 @@ infer interfaces modul = unsafePerformIO $ do
         environ = noneNoDocs . T.CLet [ T.Scheme vars [] (noneNoDocs T.CTrue) header ]
 
     fvar <- liftIO $ T.var T.Flexible
-    c <- TcExpr.constrain env (program moduleBody) (T.VarN fvar)
+    c <- TcExpr.constrain env (program moduleBody) (T.varN fvar)
     return (header, environ c)
 
   case attemptConstraint of
@@ -62,7 +62,7 @@ canonicalizeValues :: Env.Environment -> (String, Interface)
 canonicalizeValues env (moduleName, iface) =
     forM (Map.toList (iTypes iface)) $ \(name,tipe) -> do
       tipe' <- Env.instantiateType env tipe Map.empty
-      return (moduleName ++ "." ++ name, tipe') 
+      return (moduleName ++ "." ++ name, tipe')
 
 canonicalizeAdts :: Interfaces -> CanonicalModule -> [CanonicalAdt]
 canonicalizeAdts interfaces modul =

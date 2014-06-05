@@ -104,17 +104,20 @@ introduce variable = do
 flatten :: Type -> StateT SolverState IO Variable
 flatten term =
   case term of
-    VarN v -> return v
-    TermN t -> do
+    VarN alias v -> do
+      liftIO $ UF.modifyDescriptor v $ \desc -> desc { alias = alias }
+      return v
+    TermN alias t -> do
       flatStructure <- traverseTerm flatten t
       pool <- getPool
-      var <- liftIO . UF.fresh $ Descriptor {
-               structure = Just flatStructure,
-               rank = maxRank pool,
-               flex = Flexible,
-               name = Nothing,
-               copy = Nothing,
-               mark = noMark
+      var <- liftIO . UF.fresh $ Descriptor
+             { structure = Just flatStructure
+             , rank = maxRank pool
+             , flex = Flexible
+             , name = Nothing
+             , copy = Nothing
+             , mark = noMark
+             , alias = alias
              }
       register var
 
@@ -140,18 +143,19 @@ makeCopy alreadyCopied variable = do
 
        | otherwise -> do
            pool <- getPool
-           newVar <- liftIO $ UF.fresh $ Descriptor {
-                                   structure = Nothing,
-                                   rank = maxRank pool,
-                                   mark = noMark,
-                                   flex = case flex desc of
-                                            Is s -> Is s
-                                            _ -> Flexible,
-                                   copy = Nothing,
-                                   name = case flex desc of
-                                            Rigid -> Nothing
-                                            _ -> name desc
-                                 }
+           newVar <- liftIO $ UF.fresh $ Descriptor
+                     { structure = Nothing
+                     , rank = maxRank pool
+                     , mark = noMark
+                     , flex = case flex desc of
+                                Is s -> Is s
+                                _ -> Flexible
+                     , copy = Nothing
+                     , name = case flex desc of
+                                Rigid -> Nothing
+                                _ -> name desc
+                     , alias = Nothing
+                     }
            register newVar
 
            -- Link the original variable to the new variable. This lets us

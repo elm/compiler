@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -W #-}
 module Type.Unify (unify) where
 
+import Control.Applicative ((<|>))
 import Control.Monad.State
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -51,32 +52,48 @@ actuallyUnify region variable1 variable2 = do
       rank' :: Int
       rank' = min (rank desc1) (rank desc2)
 
+      alias' :: Maybe Var.Canonical
+      alias' = alias desc1 <|> alias desc2
+
       merge1 :: StateT TS.SolverState IO ()
       merge1 = liftIO $ do
         if rank desc1 < rank desc2 then UF.union variable2 variable1
                                    else UF.union variable1 variable2
         UF.modifyDescriptor variable1 $ \desc ->
-            desc { structure = structure desc1, flex = flex', name = name' }
+            desc { structure = structure desc1
+                 , flex = flex'
+                 , name = name'
+                 , alias = alias'
+                 }
 
       merge2 :: StateT TS.SolverState IO ()
       merge2 = liftIO $ do
         if rank desc1 < rank desc2 then UF.union variable2 variable1
                                    else UF.union variable1 variable2
         UF.modifyDescriptor variable2 $ \desc ->
-            desc { structure = structure desc2, flex = flex', name = name' }
+            desc { structure = structure desc2
+                 , flex = flex'
+                 , name = name'
+                 , alias = alias'
+                 }
 
       merge = if rank desc1 < rank desc2 then merge1 else merge2
 
       fresh :: Maybe (Term1 Variable) -> StateT TS.SolverState IO Variable
       fresh structure = do
-        var <- liftIO . UF.fresh $ Descriptor {
-                 structure = structure, rank = rank', flex = flex',
-                 name = name', copy = Nothing, mark = noMark
-               }
-        TS.register var
+        v <- liftIO . UF.fresh $ Descriptor
+             { structure = structure
+             , rank = rank'
+             , flex = flex'
+             , name = name'
+             , copy = Nothing
+             , mark = noMark
+             , alias = alias'
+             }
+        TS.register v
 
-      flexAndUnify var = do
-        liftIO $ UF.modifyDescriptor var $ \desc -> desc { flex = Flexible }
+      flexAndUnify v = do
+        liftIO $ UF.modifyDescriptor v $ \desc -> desc { flex = Flexible }
         unify' variable1 variable2
 
       unifyNumber svar (Var.Canonical home name) =
@@ -94,10 +111,10 @@ actuallyUnify region variable1 variable2 = do
           TS.addError region (Just $ Maybe.fromMaybe msg maybe) variable1 variable2
           where msg = "An appendable must be of type String, List, or Text."
 
-      unifyComparable var (Var.Canonical home name) =
+      unifyComparable v (Var.Canonical home name) =
           case home of
-            Var.BuiltIn | name `elem` ["Int","Float","Char","String"] -> flexAndUnify var
-            Var.Local   | List.isPrefixOf "comparable" name           -> flexAndUnify var
+            Var.BuiltIn | name `elem` ["Int","Float","Char","String"] -> flexAndUnify v
+            Var.Local   | List.isPrefixOf "comparable" name           -> flexAndUnify v
             _ -> comparableError Nothing
 
       unifyComparableStructure varSuper varFlex =
@@ -122,8 +139,8 @@ actuallyUnify region variable1 variable2 = do
 
       rigidError variable = TS.addError region (Just hint) variable1 variable2
           where
-            var = "'" ++ render (pretty Never variable) ++ "'"
-            hint = "Cannot unify rigid type variable " ++ var ++
+            v = "'" ++ render (pretty Never variable) ++ "'"
+            hint = "Cannot unify rigid type variable " ++ v ++
                    ".\nThe problem probably relates to a type annotation. Note that rigid type\n\
                    \variables are not shared between a top-level and let-bound type annotations."
 

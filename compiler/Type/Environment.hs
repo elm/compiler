@@ -44,12 +44,12 @@ makeTypes datatypes =
     makeImported :: (V.Canonical, AdtInfo V.Canonical) -> IO (String, Type)
     makeImported (var, _) = do
       tvar <- namedVar Constant var
-      return (V.toString var, VarN tvar)
+      return (V.toString var, varN tvar)
 
     makeBuiltin :: (String, Int) -> IO (String, Type)
     makeBuiltin (name, _) = do
       name' <- namedVar Constant (V.builtin name)
-      return (name, VarN name')
+      return (name, varN name')
 
     builtins :: [(String, Int)]
     builtins = concat [ map tuple [0..9]
@@ -72,7 +72,7 @@ makeConstructors env datatypes = Map.fromList builtins
     inst :: Int -> ([Type] -> ([Type], Type)) -> IO (Int, [Variable], [Type], Type)
     inst numTVars tipe = do
       vars <- forM [1..numTVars] $ \_ -> var Flexible
-      let (args, result) = tipe (map VarN vars)
+      let (args, result) = tipe (map (varN) vars)
       return (length args, vars, args, result)
 
     tupleCtor n =
@@ -132,24 +132,28 @@ instantiator env sourceType = go sourceType
         T.Var x -> do
           dict <- State.get
           case Map.lookup x dict of
-            Just v -> return (VarN v)
+            Just v -> return (varN v)
             Nothing ->
-                do var <- State.liftIO $ namedVar flex (V.local x)
-                   State.put (Map.insert x var dict)
-                   return (VarN var)
+                do v <- State.liftIO $ namedVar flex (V.local x)
+                   State.put (Map.insert x v dict)
+                   return (varN v)
                 where
                   flex | "number"     `isPrefixOf` x = Is Number
                        | "comparable" `isPrefixOf` x = Is Comparable
                        | "appendable" `isPrefixOf` x = Is Appendable
                        | otherwise = Flexible
 
-        T.Aliased _ t -> go t
+        T.Aliased name t -> do
+          t' <- go t
+          case t' of
+            VarN _ v     -> return (VarN (Just name) v)
+            TermN _ term -> return (TermN (Just name) term)
 
-        T.Type var ->
-          case Map.lookup (V.toString var) (types env) of
+        T.Type name ->
+          case Map.lookup (V.toString name) (types env) of
             Just t  -> return t
             Nothing -> error $ "Could not find type constructor '" ++
-                               V.toString var ++ "' while checking types."
+                               V.toString name ++ "' while checking types."
 
         T.App t ts -> do
           t'  <- go t
@@ -159,6 +163,6 @@ instantiator env sourceType = go sourceType
         T.Record fields ext -> do
           fields' <- Traverse.traverse (mapM go) (T.fieldMap fields)
           ext' <- case ext of
-                    Nothing -> return $ TermN EmptyRecord1
+                    Nothing -> return $ termN EmptyRecord1
                     Just x -> go x
-          return $ TermN (Record1 fields' ext')
+          return $ termN (Record1 fields' ext')

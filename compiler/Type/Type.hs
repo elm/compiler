@@ -13,6 +13,7 @@ import Control.Monad.State
 import Control.Monad.Error
 import Data.Traversable (traverse)
 import AST.Annotation
+import qualified AST.PrettyPrint as PP
 import qualified AST.Type as T
 import qualified AST.Variable as Var
 
@@ -25,12 +26,18 @@ data Term1 a
     deriving Show
 
 data TermN a
-    = VarN a
-    | TermN (Term1 (TermN a))
+    = VarN  (Maybe Var.Canonical) a
+    | TermN (Maybe Var.Canonical) (Term1 (TermN a))
     deriving Show
 
+varN :: a -> TermN a
+varN = VarN Nothing
+
+termN :: (Term1 (TermN a)) -> TermN a
+termN = TermN Nothing
+
 record :: Map.Map String [TermN a] -> TermN a -> TermN a
-record fs rec = TermN (Record1 fs rec)
+record fs rec = termN (Record1 fs rec)
 
 type Type = TermN Variable
 type Variable = UF.Point Descriptor
@@ -71,9 +78,9 @@ a@(A _ c1) /\ b@(A _ c2) =
 
 infixr 9 ==>
 (==>) :: Type -> Type -> Type
-a ==> b = TermN (Fun1 a b)
+a ==> b = termN (Fun1 a b)
 
-f <| a = TermN (App1 f a)
+f <| a = termN (App1 f a)
 
 data Descriptor = Descriptor
     { structure :: Maybe (Term1 Variable)
@@ -82,6 +89,7 @@ data Descriptor = Descriptor
     , name :: Maybe TypeName
     , copy :: Maybe Variable
     , mark :: Int
+    , alias :: Maybe Var.Canonical
     } deriving Show
 
 noRank = -1
@@ -104,6 +112,7 @@ namedVar flex name = UF.fresh $ Descriptor
   , name = Just name
   , copy = Nothing
   , mark = noMark
+  , alias = Nothing
   }
 
 var :: Flex -> IO Variable
@@ -114,6 +123,7 @@ var flex = UF.fresh $ Descriptor
   , name = Nothing
   , copy = Nothing
   , mark = noMark
+  , alias = Nothing
   }
 
 
@@ -130,12 +140,12 @@ fl rqs constraint@(A ann _) =
 exists :: Error e => (Type -> ErrorT e IO TypeConstraint) -> ErrorT e IO TypeConstraint
 exists f = do
   v <- liftIO $ var Flexible
-  ex [v] <$> f (VarN v)
+  ex [v] <$> f (varN v)
 
 existsNumber :: Error e => (Type -> ErrorT e IO TypeConstraint) -> ErrorT e IO TypeConstraint
 existsNumber f = do
   v <- liftIO $ var (Is Number)
-  ex [v] <$> f (VarN v)
+  ex [v] <$> f (varN v)
 
 
 instance Show a => Show (UF.Point a) where
@@ -185,9 +195,13 @@ instance PrettyType a => PrettyType (Term1 a) where
 instance PrettyType a => PrettyType (TermN a) where
   pretty when term =
     case term of
-      VarN x -> pretty when x
-      TermN t1 -> pretty when t1
-
+      VarN alias x -> either alias (pretty when x)
+      TermN alias t1 -> either alias (pretty when t1)
+    where
+      either maybeAlias doc =
+          case maybeAlias of
+            Just alias -> PP.pretty alias
+            Nothing -> doc
 
 instance PrettyType Descriptor where
   pretty when desc =
@@ -321,8 +335,8 @@ instance (Crawl t, Crawl v) => Crawl (Scheme t v) where
 instance Crawl t => Crawl (TermN t) where
   crawl nextState tipe =
     case tipe of
-      VarN x -> VarN <$> crawl nextState x
-      TermN term -> TermN <$> crawl nextState term
+      VarN a x -> VarN a <$> crawl nextState x
+      TermN a term -> TermN a <$> crawl nextState term
 
 instance Crawl t => Crawl (Term1 t) where
   crawl nextState term =
@@ -355,7 +369,7 @@ toSrcType :: Variable -> IO T.CanonicalType
 toSrcType variable =
   do desc    <- UF.descriptor =<< addNames variable
      srcType <- maybe (backupSrcType desc) termToSrcType (structure desc)
-     return srcType
+     return $ maybe srcType (\name -> T.Aliased name srcType) (alias desc)
   where
     backupSrcType desc = 
         case name desc of
@@ -402,11 +416,11 @@ collectApps variable = go [] variable
       desc <- UF.descriptor variable
       case (structure desc, vars) of
         (Nothing, [v]) -> case name desc of
-                             Just n | Var.isList n -> return (List v)
-                             _ -> return Other
+                            Just n | Var.isList n -> return (List v)
+                            _ -> return Other
         (Nothing,  vs) -> case name desc of
-                             Just n | Var.isTuple n -> return (Tuple vs)
-                             _ -> return Other
+                            Just n | Var.isTuple n -> return (Tuple vs)
+                            _ -> return Other
         (Just term, _) -> case term of
                             App1 a b -> go (vars ++ [b]) a
                             _ -> return Other
