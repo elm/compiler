@@ -40,7 +40,7 @@ infer interfaces modul = unsafePerformIO $ do
         header = Map.map snd (Map.fromList allTypes)
         environ = noneNoDocs . T.CLet [ T.Scheme vars [] (noneNoDocs T.CTrue) header ]
 
-    fvar <- liftIO $ T.var T.Flexible
+    fvar <- liftIO $ T.variable T.Flexible
     c <- TcExpr.constrain env (program moduleBody) (T.varN fvar)
     return (header, environ c)
 

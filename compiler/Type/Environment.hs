@@ -71,7 +71,7 @@ makeConstructors env datatypes = Map.fromList builtins
 
     inst :: Int -> ([Type] -> ([Type], Type)) -> IO (Int, [Variable], [Type], Type)
     inst numTVars tipe = do
-      vars <- forM [1..numTVars] $ \_ -> var Flexible
+      vars <- forM [1..numTVars] $ \_ -> variable Flexible
       let (args, result) = tipe (map (varN) vars)
       return (length args, vars, args, result)
 

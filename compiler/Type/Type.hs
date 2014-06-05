@@ -9,8 +9,8 @@ import Type.PrettyPrint
 import Text.PrettyPrint as P
 import System.IO.Unsafe
 import Control.Applicative ((<$>),(<*>))
-import Control.Monad.State
-import Control.Monad.Error
+import Control.Monad.State (StateT, get, put, execStateT, runStateT)
+import Control.Monad.Error (ErrorT, Error, liftIO)
 import Data.Traversable (traverse)
 import AST.Annotation
 import qualified AST.PrettyPrint as PP
@@ -65,6 +65,7 @@ data Scheme a b = Scheme {
 type TypeConstraint = Constraint Type Variable
 type TypeScheme = Scheme Type Variable
 
+monoscheme :: Map.Map String a -> Scheme a b
 monoscheme headers = Scheme [] [] (noneNoDocs CTrue) headers
 
 infixl 8 /\
@@ -80,6 +81,7 @@ infixr 9 ==>
 (==>) :: Type -> Type -> Type
 a ==> b = termN (Fun1 a b)
 
+(<|) :: TermN a -> TermN a -> TermN a
 f <| a = termN (App1 f a)
 
 data Descriptor = Descriptor
@@ -92,10 +94,16 @@ data Descriptor = Descriptor
     , alias :: Maybe Var.Canonical
     } deriving Show
 
+noRank :: Int
 noRank = -1
-outermostRank = 0 :: Int
 
+outermostRank :: Int
+outermostRank = 0
+
+noMark :: Int
 noMark = 0
+
+initialMark :: Int
 initialMark = 1
 
 data Flex = Rigid | Flexible | Constant | Is SuperType
@@ -115,8 +123,8 @@ namedVar flex name = UF.fresh $ Descriptor
   , alias = Nothing
   }
 
-var :: Flex -> IO Variable
-var flex = UF.fresh $ Descriptor
+variable :: Flex -> IO Variable
+variable flex = UF.fresh $ Descriptor
   { structure = Nothing
   , rank = noRank
   , flex = flex
@@ -139,12 +147,12 @@ fl rqs constraint@(A ann _) =
 
 exists :: Error e => (Type -> ErrorT e IO TypeConstraint) -> ErrorT e IO TypeConstraint
 exists f = do
-  v <- liftIO $ var Flexible
+  v <- liftIO $ variable Flexible
   ex [v] <$> f (varN v)
 
 existsNumber :: Error e => (Type -> ErrorT e IO TypeConstraint) -> ErrorT e IO TypeConstraint
 existsNumber f = do
-  v <- liftIO $ var (Is Number)
+  v <- liftIO $ variable (Is Number)
   ex [v] <$> f (varN v)
 
 
@@ -278,7 +286,7 @@ addNames value = do
     (rawVars, _, _, _) <- execStateT (crawl getNames value) ([], 0, 0, 0)
     let vars = map head . List.group $ List.sort rawVars
         suffix s = map (++s) (map (:[]) ['a'..'z'])
-        allVars = concatMap suffix $ ["","'","_"] ++ map show [0..]
+        allVars = concatMap suffix $ ["","'","_"] ++ map show [ (0 :: Int) .. ]
         okayVars = filter (`notElem` vars) allVars
     runStateT (crawl rename value) (okayVars, 0, 0, 0)
     return value
@@ -366,21 +374,21 @@ instance Crawl Descriptor where
 
                
 toSrcType :: Variable -> IO T.CanonicalType
-toSrcType variable =
-  do desc    <- UF.descriptor =<< addNames variable
+toSrcType var =
+  do desc    <- UF.descriptor =<< addNames var
      srcType <- maybe (backupSrcType desc) termToSrcType (structure desc)
      return $ maybe srcType (\name -> T.Aliased name srcType) (alias desc)
   where
     backupSrcType desc = 
         case name desc of
-          Just var@(Var.Canonical _ x@(c:_))
+          Just v@(Var.Canonical _ x@(c:_))
               | Char.isLower c -> return (T.Var x)
-              | otherwise -> return $ T.Type var
+              | otherwise -> return $ T.Type v
 
           _ -> error $ concat
                         [ "Problem converting the following type "
                         , "from a type-checker type to a source-syntax type:"
-                        , P.render (pretty Never variable) ]
+                        , P.render (pretty Never var) ]
 
     termToSrcType term =
         case term of
@@ -410,10 +418,10 @@ toSrcType variable =
 data AppStructure = List Variable | Tuple [Variable] | Other
 
 collectApps :: Variable -> IO AppStructure
-collectApps variable = go [] variable
+collectApps var = go [] var
   where
-    go vars variable = do
-      desc <- UF.descriptor variable
+    go vars var = do
+      desc <- UF.descriptor var
       case (structure desc, vars) of
         (Nothing, [v]) -> case name desc of
                             Just n | Var.isList n -> return (List v)

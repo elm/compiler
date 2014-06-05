@@ -122,13 +122,13 @@ actuallyUnify region variable1 variable2 = do
              case struct of
                Other -> comparableError Nothing
                List v -> do flexAndUnify varSuper
-                            unify' v =<< liftIO (var $ Is Comparable)
+                            unify' v =<< liftIO (variable $ Is Comparable)
                Tuple vs
                    | length vs > 6 ->
                        comparableError $ Just "Cannot compare a tuple with more than 6 elements."
                    | otherwise -> 
                        do flexAndUnify varSuper
-                          cmpVars <- liftIO $ forM [1..length vs] $ \_ -> var (Is Comparable)
+                          cmpVars <- liftIO $ forM [1..length vs] $ \_ -> variable (Is Comparable)
                           zipWithM_ unify' vs cmpVars
 
       unifyAppendable varSuper varFlex =
@@ -137,10 +137,10 @@ actuallyUnify region variable1 variable2 = do
                List _ -> flexAndUnify varSuper
                _      -> appendableError Nothing
 
-      rigidError variable = TS.addError region (Just hint) variable1 variable2
+      rigidError var = TS.addError region (Just hint) variable1 variable2
           where
-            v = "'" ++ render (pretty Never variable) ++ "'"
-            hint = "Cannot unify rigid type variable " ++ v ++
+            var' = "'" ++ render (pretty Never var) ++ "'"
+            hint = "Cannot unify rigid type variable " ++ var' ++
                    ".\nThe problem probably relates to a type annotation. Note that rigid type\n\
                    \variables are not shared between a top-level and let-bound type annotations."
 

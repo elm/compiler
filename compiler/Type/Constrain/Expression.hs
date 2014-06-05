@@ -106,7 +106,7 @@ constrain env (A region expr) tipe =
             and . (:) ce <$> mapM branch branches
 
       Data name exprs ->
-          do vars <- forM exprs $ \_ -> liftIO (var Flexible)
+          do vars <- forM exprs $ \_ -> liftIO (variable Flexible)
              let pairs = zip exprs (map varN vars)
              (ctipe, cs) <- Monad.foldM step (tipe,true) (reverse pairs)
              return $ ex vars (cs /\ name <? ctipe)
@@ -133,11 +133,11 @@ constrain env (A region expr) tipe =
 
       Modify e fields ->
           exists $ \t -> do
-              oldVars <- forM fields $ \_ -> liftIO (var Flexible)
+              oldVars <- forM fields $ \_ -> liftIO (variable Flexible)
               let oldFields = ST.fieldMap (zip (map fst fields) (map varN oldVars))
               cOld <- ex oldVars <$> constrain env e (record oldFields t)
 
-              newVars <- forM fields $ \_ -> liftIO (var Flexible)
+              newVars <- forM fields $ \_ -> liftIO (variable Flexible)
               let newFields = ST.fieldMap (zip (map fst fields) (map varN newVars))
               let cNew = tipe === record newFields t
 
@@ -146,14 +146,14 @@ constrain env (A region expr) tipe =
               return $ cOld /\ ex newVars (and (cNew : cs))
 
       Record fields ->
-          do vars <- forM fields $ \_ -> liftIO (var Flexible)
+          do vars <- forM fields $ \_ -> liftIO (variable Flexible)
              cs <- zipWithM (constrain env) (map snd fields) (map varN vars)
              let fields' = ST.fieldMap (zip (map fst fields) (map varN vars))
                  recordType = record fields' (termN EmptyRecord1)
              return . ex vars . and $ tipe === recordType : cs
 
       Markdown _ _ es ->
-          do vars <- forM es $ \_ -> liftIO (var Flexible)
+          do vars <- forM es $ \_ -> liftIO (variable Flexible)
              let tvars = map varN vars
              cs <- zipWithM (constrain env) es tvars
              return . ex vars $ and ("Text.markdown" <? tipe : cs)
@@ -177,11 +177,11 @@ constrainDef env info (Canonical.Definition pattern expr maybeTipe) =
     let qs = [] -- should come from the def, but I'm not sure what would live there...
         (schemes, rigidQuantifiers, flexibleQuantifiers, headers, c2, c1) = info
     in
-    do rigidVars <- forM qs (\_ -> liftIO $ var Rigid) -- Some mistake may be happening here.
+    do rigidVars <- forM qs (\_ -> liftIO $ variable Rigid) -- Some mistake may be happening here.
                                                        -- Currently, qs is always [].
        case (pattern, maybeTipe) of
          (P.Var name, Just tipe) -> do
-             flexiVars <- forM qs (\_ -> liftIO $ var Flexible)
+             flexiVars <- forM qs (\_ -> liftIO $ variable Flexible)
              let inserts = zipWith (\arg typ -> Map.insert arg (varN typ)) qs flexiVars
                  env' = env { Env.value = List.foldl' (\x f -> f x) (Env.value env) inserts }
              (vars, typ) <- Env.instantiateType env tipe Map.empty
@@ -198,7 +198,7 @@ constrainDef env info (Canonical.Definition pattern expr maybeTipe) =
                     , fl rigidVars c /\ c1 )
 
          (P.Var name, Nothing) -> do
-             v <- liftIO $ var Flexible
+             v <- liftIO $ variable Flexible
              let tipe = varN v
                  inserts = zipWith (\arg typ -> Map.insert arg (varN typ)) qs rigidVars
                  env' = env { Env.value = List.foldl' (\x f -> f x) (Env.value env) inserts }
