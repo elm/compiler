@@ -26,34 +26,7 @@ actuallyUnify region variable1 variable2 = do
   desc2 <- liftIO $ UF.descriptor variable2
   let unify' = unify region
 
-      name' :: Maybe Var.Canonical
-      name' = case (name desc1, name desc2) of
-                (Just name1, Just name2) ->
-                    case (flex desc1, flex desc2) of
-                      (_, Flexible) -> Just name1
-                      (Flexible, _) -> Just name2
-                      (Is Number, Is _) -> Just name1
-                      (Is _, Is Number) -> Just name2
-                      (Is _, Is _) -> Just name1
-                      (_, _) -> Nothing
-                (Just name1, _) -> Just name1
-                (_, Just name2) -> Just name2
-                _ -> Nothing
-
-      flex' :: Flex
-      flex' = case (flex desc1, flex desc2) of
-                (f, Flexible) -> f
-                (Flexible, f) -> f
-                (Is Number, Is _) -> Is Number
-                (Is _, Is Number) -> Is Number
-                (Is super, Is _) -> Is super
-                (_, _) -> Flexible
-
-      rank' :: Int
-      rank' = min (rank desc1) (rank desc2)
-
-      alias' :: Maybe Var.Canonical
-      alias' = alias desc1 <|> alias desc2
+      (name', flex', rank', alias') = combinedDescriptors desc1 desc2
 
       merge1 :: StateT TS.SolverState IO ()
       merge1 = liftIO $ do
@@ -170,6 +143,7 @@ actuallyUnify region variable1 variable2 = do
             (_, Rigid, _, _) -> rigidError variable2
             _ -> TS.addError region Nothing variable1 variable2
 
+  liftIO (print (alias desc1, alias desc2, alias'))
   case (structure desc1, structure desc2) of
     (Nothing, Nothing) | flex desc1 == Flexible && flex desc1 == Flexible -> merge
     (Nothing, _) | flex desc1 == Flexible -> merge2
@@ -225,3 +199,36 @@ actuallyUnify region variable1 variable2 = do
 
           _ -> TS.addError region Nothing variable1 variable2
 
+combinedDescriptors :: Descriptor -> Descriptor
+                    -> (Maybe Var.Canonical, Flex, Int, Maybe Var.Canonical)
+combinedDescriptors desc1 desc2 =
+    (name', flex', rank', alias')
+  where
+    rank' :: Int
+    rank' = min (rank desc1) (rank desc2)
+
+    alias' :: Maybe Var.Canonical
+    alias' = alias desc1 <|> alias desc2
+
+    name' :: Maybe Var.Canonical
+    name' = case (name desc1, name desc2) of
+              (Just name1, Just name2) ->
+                  case (flex desc1, flex desc2) of
+                    (_, Flexible)     -> Just name1
+                    (Flexible, _)     -> Just name2
+                    (Is Number, Is _) -> Just name1
+                    (Is _, Is Number) -> Just name2
+                    (Is _, Is _)      -> Just name1
+                    (_, _)            -> Nothing
+              (Just name1, _) -> Just name1
+              (_, Just name2) -> Just name2
+              _ -> Nothing
+
+    flex' :: Flex
+    flex' = case (flex desc1, flex desc2) of
+              (f, Flexible)     -> f
+              (Flexible, f)     -> f
+              (Is Number, Is _) -> Is Number
+              (Is _, Is Number) -> Is Number
+              (Is super, Is _)  -> Is super
+              (_, _)            -> Flexible
