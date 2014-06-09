@@ -255,19 +255,31 @@ Elm.Native.Array.make = function(elm) {
     }
 
     function foldl(f, b, a) {
-      for (var i = 0; i < a.table.length; i++) {
-        b = A2(f, a.height == 0 ? a.table[i] : foldl(f, b, a.table[i]), b);
+      if (a.height == 0) {
+        for (var i = 0; i < a.table.length; i++) {
+          b = A2(f, a.table[i], b);
+        }
+      } else {
+        for (var i = 0; i < a.table.length; i++) {
+          b = foldl(f, b, a.table[i]);
+        }
       }
       return b;
     }
 
     function foldr(f, b, a) {
-      for (var i = a.table.length; i--; ) {
-        b = A2(f, a.height == 0 ? a.table[i] : foldr(f, b, a.table[i]), b);
+      if (a.height == 0) {
+        for (var i = a.table.length; i--; ) {
+          b = A2(f, a.table[i], b);
+        }
+      } else {
+        for (var i = a.table.length; i--; ) {
+          b = foldl(f, b, a.table[i]);
+        }
       }
       return b;
     }
-
+
     // TODO: currently, it slices the right, then the left. This can be
     // optimized.
     function slice(from, to, a) {
