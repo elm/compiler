@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -W #-}
 module Type.State where
 
-import Control.Applicative ((<$>),(<*>), Applicative)
+import Control.Applicative ( (<$>), (<*>), Applicative, (<|>) )
 import Control.Monad.State
 import qualified Data.Map as Map
 import qualified Data.Traversable as Traversable
@@ -104,8 +104,8 @@ introduce variable = do
 flatten :: Type -> StateT SolverState IO Variable
 flatten term =
   case term of
-    VarN alias v -> do
-      liftIO $ UF.modifyDescriptor v $ \desc -> desc { alias = alias }
+    VarN maybeAlias v -> do
+      liftIO $ UF.modifyDescriptor v $ \desc -> desc { alias = maybeAlias <|> alias desc }
       return v
     TermN alias t -> do
       flatStructure <- traverseTerm flatten t
