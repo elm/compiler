@@ -279,7 +279,7 @@ Elm.Native.Array.make = function(elm) {
       }
       return b;
     }
-
+
     // TODO: currently, it slices the right, then the left. This can be
     // optimized.
     function slice(from, to, a) {
