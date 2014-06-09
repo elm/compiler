@@ -212,10 +212,11 @@ instance PrettyType a => PrettyType (TermN a) where
             Nothing -> doc
 
 instance PrettyType Descriptor where
-  pretty when desc =
-    case (structure desc, name desc) of
-      (Just term, _) -> pretty when term
-      (_, Just name)
+  pretty when desc = do
+    case (alias desc, structure desc, name desc) of
+      (Just name, _, _) -> PP.pretty name
+      (_, Just term, _) -> pretty when term
+      (_, _, Just name)
           | Var.isTuple name ->
               P.parens . P.text $ replicate (read (drop 6 (Var.toString name)) - 1) ','
           | otherwise ->
