@@ -143,7 +143,6 @@ actuallyUnify region variable1 variable2 = do
             (_, Rigid, _, _) -> rigidError variable2
             _ -> TS.addError region Nothing variable1 variable2
 
-  liftIO (print (alias desc1, alias desc2, alias'))
   case (structure desc1, structure desc2) of
     (Nothing, Nothing) | flex desc1 == Flexible && flex desc1 == Flexible -> merge
     (Nothing, _) | flex desc1 == Flexible -> merge2
