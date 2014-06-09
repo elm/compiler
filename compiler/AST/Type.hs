@@ -73,7 +73,11 @@ instance (Var.ToString var, Pretty var) => Pretty (Type var) where
             prettyField (f,t) = P.text f <+> P.text ":" <+> pretty t
             prettyFields fields = commaSep (map prettyField fields)
 
-      Aliased name _ -> pretty name
+      Aliased name t ->
+          let t' = pretty t in
+          if show t' `elem` ["Int", "Float", "String", "Char", "Bool"]
+            then t'
+            else pretty name
 
 collectLambdas :: Type var -> [Type var]
 collectLambdas tipe =
