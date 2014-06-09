@@ -107,7 +107,7 @@ flatten term =
     VarN maybeAlias v -> do
       liftIO $ UF.modifyDescriptor v $ \desc -> desc { alias = maybeAlias <|> alias desc }
       return v
-    TermN alias t -> do
+    TermN maybeAlias t -> do
       flatStructure <- traverseTerm flatten t
       pool <- getPool
       var <- liftIO . UF.fresh $ Descriptor
@@ -117,7 +117,7 @@ flatten term =
              , name = Nothing
              , copy = Nothing
              , mark = noMark
-             , alias = alias
+             , alias = maybeAlias
              }
       register var
 
