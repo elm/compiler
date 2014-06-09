@@ -26,6 +26,8 @@ tests =
         , test "length - Long" <| assertEqual 10000 (Array.length (Array.repeat 10000 0))
         , test "push" <| assertEqual (Array.fromList [1,2,3]) (Array.push 3 (Array.fromList [1,2]))
         , test "append" <| assertEqual [42,42,81,81,81] (Array.toList (Array.append (Array.repeat 2 42) (Array.repeat 3 81)))
+        , test "appendEmpty 1" <| assertEqual [1..33] (Array.toList (Array.append Array.empty (Array.fromList [1..33])))
+        , test "appendEmpty 2" <| assertEqual [1..33] (Array.toList (Array.append (Array.fromList [1..33]) Array.empty))
         ]
       getAndSetTests = suite "Get and Set"
         [ test "get" <| assertEqual (Just 2) (Array.get 1 (Array.fromList [3,2,1]))
