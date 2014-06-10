@@ -7,6 +7,7 @@ successfully. At that point we still need to do occurs checks and ensure that
 module Type.ExtraChecks (mainType, occurs, portTypes) where
 
 import Control.Applicative ((<$>),(<*>))
+import Control.Monad.Error
 import Control.Monad.State
 import qualified Data.Map as Map
 import qualified Data.Traversable as Traverse
@@ -25,17 +26,19 @@ import qualified Type.State as TS
 throw :: [Doc] -> Either [Doc] a
 throw err = Left [ P.vcat err ]
 
-mainType :: TS.Env -> IO (Either [P.Doc] (Map.Map String ST.CanonicalType))
+mainType :: TS.Env -> ErrorT [P.Doc] IO (Map.Map String ST.CanonicalType)
 mainType environment =
-    mainCheck <$> Traverse.traverse TT.toSrcType environment
+  do environment' <- liftIO $ Traverse.traverse TT.toSrcType environment
+     mainCheck environment'
   where
-    mainCheck :: Map.Map String ST.CanonicalType -> Either [P.Doc] (Map.Map String ST.CanonicalType)
+    mainCheck :: (Monad m) => Map.Map String ST.CanonicalType
+              -> ErrorT [P.Doc] m (Map.Map String ST.CanonicalType)
     mainCheck env =
       case Map.lookup "main" env of
-        Nothing -> Right env
+        Nothing -> return env
         Just typeOfMain
-            | tipe `elem` acceptable -> Right env
-            | otherwise              -> throw err
+            | tipe `elem` acceptable -> return env
+            | otherwise              -> throwError err
             where
               acceptable = [ "Graphics.Element.Element"
                            , "Signal.Signal Graphics.Element.Element" ]
@@ -48,9 +51,11 @@ mainType environment =
 
 data Direction = In | Out
 
-portTypes :: Canonical.Expr -> Either [P.Doc] ()
+portTypes :: (Monad m) => Canonical.Expr -> ErrorT [P.Doc] m ()
 portTypes expr =
-  const () <$> Expr.checkPorts (check In) (check Out) expr
+  case Expr.checkPorts (check In) (check Out) expr of
+    Left err -> throwError err
+    Right _  -> return ()
   where
     check = isValid True False False
     isValid isTopLevel seenFunc seenSignal direction name tipe =

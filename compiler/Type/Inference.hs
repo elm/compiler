@@ -8,8 +8,8 @@ import qualified Type.Environment as Env
 import qualified Type.Constrain.Expression as TcExpr
 import qualified Type.Solve as Solve
 
+import qualified AST.Annotation as A
 import AST.Module as Module
-import AST.Annotation (noneNoDocs)
 import AST.Type (CanonicalType)
 import qualified AST.Variable as Var
 import Text.PrettyPrint
@@ -17,45 +17,50 @@ import qualified Type.State as TS
 import qualified Type.ExtraChecks as Check
 import Control.Arrow (first, second)
 import Control.Monad.State (execStateT, forM)
-import Control.Monad.Error (ErrorT, runErrorT, liftIO)
+import Control.Monad.Error (ErrorT, runErrorT, liftIO, throwError)
 
 import System.IO.Unsafe  -- Possible to switch over to the ST monad instead of
                          -- the IO monad. I don't think that'd be worthwhile.
 
 
 infer :: Interfaces -> CanonicalModule -> Either [Doc] (Map.Map String CanonicalType)
-infer interfaces modul = unsafePerformIO $ do
-  let moduleBody = body modul
+infer interfaces modul = unsafePerformIO $ runErrorT $ do
+  (header, constraint) <- genConstraints interfaces modul
 
-  env <- Env.initialEnvironment (canonicalizeAdts interfaces modul)
-  ctors <- forM (Map.keys (Env.constructor env)) $ \name ->
-               do (_, vars, args, result) <- Env.freshDataScheme env name
-                  return (name, (vars, foldr (T.==>) result args))
+  state <- liftIO $ execStateT (Solve.solve constraint) TS.initialState
 
-  attemptConstraint <- runErrorT $ do
-    importedVars <- mapM (canonicalizeValues env) (Map.toList interfaces)
+  () <- case TS.sErrors state of
+          errors@(_:_) -> throwError errors
+          []           -> return ()
 
-    let allTypes = concat (ctors : importedVars)
-        vars = concatMap (fst . snd) allTypes
-        header = Map.map snd (Map.fromList allTypes)
-        environ = noneNoDocs . T.CLet [ T.Scheme vars [] (noneNoDocs T.CTrue) header ]
+  () <- Check.portTypes (program (body modul))
 
-    fvar <- liftIO $ T.variable T.Flexible
-    c <- TcExpr.constrain env (program moduleBody) (T.varN fvar)
-    return (header, environ c)
+  let header' = Map.delete "::" header
+      types = Map.difference (TS.sSavedEnv state) header'
 
-  case attemptConstraint of
-    Left err -> return $ Left err
-    Right (header, constraint) -> do
-      state <- execStateT (Solve.solve constraint) TS.initialState
-      case TS.sErrors state of
-        errors@(_:_) -> return (Left errors)
-        [] -> case Check.portTypes (program moduleBody) of
-                Left err -> return (Left err)
-                Right () -> Check.mainType types
-                    where
-                      header' = Map.delete "::" header
-                      types = Map.difference (TS.sSavedEnv state) header'
+  Check.mainType types
+
+
+genConstraints :: Interfaces -> CanonicalModule
+               -> ErrorT [Doc] IO (Env.TypeDict, T.TypeConstraint)
+genConstraints interfaces modul = do
+  env <- liftIO $ Env.initialEnvironment (canonicalizeAdts interfaces modul)
+
+  ctors <- forM (Map.keys (Env.constructor env)) $ \name -> do
+             (_, vars, args, result) <- liftIO $ Env.freshDataScheme env name
+             return (name, (vars, foldr (T.==>) result args))
+
+  importedVars <- mapM (canonicalizeValues env) (Map.toList interfaces)
+
+  let allTypes = concat (ctors : importedVars)
+      vars = concatMap (fst . snd) allTypes
+      header = Map.map snd (Map.fromList allTypes)
+      environ = A.noneNoDocs . T.CLet [ T.Scheme vars [] (A.noneNoDocs T.CTrue) header ]
+
+  fvar <- liftIO $ T.variable T.Flexible
+  c <- TcExpr.constrain env (program (body modul)) (T.varN fvar)
+  return (header, environ c)
+
 
 canonicalizeValues :: Env.Environment -> (String, Interface)
                    -> ErrorT [Doc] IO [(String, ([T.Variable], T.Type))]
