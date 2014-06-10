@@ -34,8 +34,9 @@ module' :: Module.Interfaces -> Module.ValidModule -> Either [Doc] Module.Canoni
 module' interfaces modul =
     filterImports <$> modul'
   where
-    canonicalizer = moduleHelp interfaces modul
-    (modul', usedModules) = runState (runErrorT canonicalizer) Set.empty
+    (modul', usedModules) =
+        runState (runErrorT (moduleHelp interfaces modul)) Set.empty
+
     filterImports m =
         let used (name,_) = Set.member name usedModules
         in  m { Module.imports = filter used (Module.imports m) }
