@@ -30,6 +30,14 @@ varName x = map (swap '\'' '$') x'
     where
       x' = if Set.member x jsReserveds then '$' : x else x
 
+nativeJson :: String -> JS.Expression ()
+nativeJson value =
+    canonical (Var.Canonical (Var.Module "Native.Json") value)
+
+nativePorts :: String -> JS.Expression ()
+nativePorts value =
+    canonical (Var.Canonical (Var.Module "Native.Ports") value)
+
 jsReserveds :: Set.Set String
 jsReserveds = Set.fromList
     [ "null", "undefined", "Nan", "Infinity", "true", "false", "eval"

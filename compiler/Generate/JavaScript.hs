@@ -37,7 +37,6 @@ internalImports name =
     , include "_L" "List" 
     , include "_A" "Array"
     , include "_E" "Error"
-    , include "_P" "Ports"
     , varDecl Help.localModuleName (string name)
     ]
     where
@@ -193,11 +192,11 @@ expression (A region expr) =
         return $ ObjectLit () [(PropString () "src", literal (Str src))]
           
       PortIn name tipe ->
-          return $ obj ["_P","portIn"] `call` [ string name, Port.incoming tipe ]
+          return $ Var.nativePorts "portIn" `call` [ string name, Port.incoming tipe ]
 
       PortOut name tipe value ->
           do value' <- expression value
-             return $ obj ["_P","portOut"] `call`
+             return $ Var.nativePorts "portOut" `call`
                         [ string name, Port.outgoing tipe, value' ]
 
 definition :: Canonical.Def -> State Int [Statement ()]

@@ -2,10 +2,10 @@
 module Generate.JavaScript.Ports (incoming, outgoing) where
 
 import Generate.JavaScript.Helpers
+import Generate.JavaScript.Variable (nativePorts, nativeJson)
 import AST.Type as T
 import qualified AST.Variable as Var
 import Language.ECMAScript3.Syntax
-import Generate.JavaScript.Variable (canonical)
 
 data JSType = JSNumber | JSBoolean | JSString | JSArray | JSObject [String]
     deriving Show
@@ -30,7 +30,7 @@ incoming tipe =
     Aliased _ t -> incoming t
 
     App (Type v) [t]
-        | Var.isSignal v -> obj ["_P","incomingSignal"] <| incoming t
+        | Var.isSignal v -> nativePorts "incomingSignal" <| incoming t
 
     _ -> ["v"] ==> inc tipe (ref "v")
 
@@ -51,11 +51,8 @@ inc tipe x =
             from checks = check x checks x
 
       Type name
-          | Var.isJson name -> canonical fromJS <| x
+          | Var.isJson name -> nativeJson "fromJS" <| x
           | otherwise -> error "bad type got to incoming port generation code"
-          where
-            fromJS = Var.Canonical (Var.Module "Native.Json") "fromJS"
-
 
       App f args ->
           case f : args of
@@ -100,7 +97,7 @@ outgoing tipe =
     Aliased _ t -> outgoing t
 
     App (Type v) [t]
-        | Var.isSignal v -> obj ["_P","outgoingSignal"] <| outgoing t
+        | Var.isSignal v -> nativePorts "outgoingSignal" <| outgoing t
 
     _ -> ["v"] ==> out tipe (ref "v")
 
@@ -129,10 +126,8 @@ out tipe x =
           | name `elem` ["Int","Float","Bool","String"] -> x
 
       Type name
-          | Var.isJson name -> canonical toJS <| x
+          | Var.isJson name -> nativeJson "toJS" <| x
           | otherwise -> error "bad type got to outgoing port generation code"
-          where
-            toJS = Var.Canonical (Var.Module "Native.Json") "toJS"
 
       App f args ->
           case f : args of

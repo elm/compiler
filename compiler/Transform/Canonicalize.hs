@@ -38,7 +38,8 @@ module' interfaces modul =
         runState (runErrorT (moduleHelp interfaces modul)) Set.empty
 
     filterImports m =
-        let used (name,_) = Set.member name usedModules
+        let usedModules' = Set.insert "Native.Ports" usedModules
+            used (name,_) = Set.member name usedModules'
         in  m { Module.imports = filter used (Module.imports m) }
 
 moduleHelp :: Module.Interfaces -> Module.ValidModule
