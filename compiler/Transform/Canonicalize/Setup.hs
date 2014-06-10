@@ -209,6 +209,11 @@ addDecl moduleName info@(nodes,env) decl =
                          _               -> _values env
            }
 
-      D.Port _ -> info
+      D.Port port ->
+          let portName = case port of
+                           D.Out name _ _ -> name
+                           D.In name _    -> name
+          in
+              (,) nodes $ env { _values = addLocal portName (_values env) }
 
       D.Fixity _ _ _ -> info
