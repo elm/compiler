@@ -14,7 +14,7 @@ import qualified AST.Type as T
 import qualified AST.Variable as V
 
 instance Arbitrary V.Raw where
-  arbitrary = V.Raw <$> arbitrary
+  arbitrary = V.Raw <$> capVar
   shrink (V.Raw v) = V.Raw <$> shrink v
 
 instance Arbitrary L.Literal where
@@ -85,12 +85,13 @@ instance Arbitrary v => Arbitrary (T.Type v) where
               field = (,) <$> lowVar <*> depthTipe
               fields = genVector n (\m -> (,) <$> lowVar <*> tipe m)
               fields1 = (:) <$> field <*> fields
+              depthTipes = (:) <$> depthTipe <*> genVector n tipe
           in
               oneof
               [ T.Lambda <$> depthTipe <*> depthTipe
               , T.Var    <$> lowVar
               , T.Type   <$> arbitrary
-              , T.App    <$> arbitrary <*> genVector n tipe
+              , T.App    <$> (T.Type <$> arbitrary) <*> depthTipes
               , T.Record <$> fields <*> pure Nothing
               , T.Record <$> fields1 <*> (Just . T.Var <$> lowVar)
               ]
@@ -99,8 +100,8 @@ instance Arbitrary v => Arbitrary (T.Type v) where
     case tipe of
       T.Lambda s t  -> s : t : (T.Lambda <$> shrink s <*> shrink t)
       T.Var _       -> []
-      T.Aliased _ t -> [t]
-      T.Type _      -> []
+      T.Aliased v t -> t : (T.Aliased v <$> shrink t)
+      T.Type v      -> T.Type <$> shrink v
       T.App t ts    -> t : ts ++ (T.App <$> shrink t <*> shrink ts)
       T.Record fs t -> map snd fs ++ record
           where
