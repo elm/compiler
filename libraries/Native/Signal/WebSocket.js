@@ -6,6 +6,7 @@ Elm.Native.WebSocket.make = function(elm) {
   if (elm.Native.WebSocket.values) return elm.Native.WebSocket.values;
 
   var Signal = Elm.Signal.make(elm);
+  var NS = Elm.Native.Signal.make(elm);
   var List = Elm.Native.List.make(elm);
 
   function open(url, outgoing) {
@@ -29,7 +30,7 @@ Elm.Native.WebSocket.make = function(elm) {
     }
     
     function take1(x,y) { return x }
-    return A3(Signal.lift2, F2(take1), incoming, A2(Signal.lift, send, outgoing));
+    return A3(Signal.lift2, F2(take1), incoming, A2(NS.liftImpure, send, outgoing));
   }
 
   return elm.Native.WebSocket.values = { connect: F2(open) };

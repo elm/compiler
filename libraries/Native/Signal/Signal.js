@@ -9,10 +9,10 @@ Elm.Native.Signal.make = function(elm) {
   var Utils = Elm.Native.Utils.make(elm);
   var foldr1 = Elm.List.make(elm).foldr1;
 
-  function send(node, timestep, changed) {
+  function send(node, timestep, updated, duplicate) {
     var kids = node.kids;
     for (var i = kids.length; i--; ) {
-      kids[i].recv(timestep, changed, node.id);
+      kids[i].recv(timestep, updated, duplicate, node.id);
     }
   }
 
@@ -22,30 +22,39 @@ Elm.Native.Signal.make = function(elm) {
     this.kids = [];
     this.defaultNumberOfKids = 0;
     this.recv = function(timestep, eid, v) {
-      var changed = eid === this.id;
-      if (changed) { this.value = v; }
-      send(this, timestep, changed);
-      return changed;
+      var updated = eid === this.id;
+      var duplicate = !updated || this.value === v;
+      if (updated) { this.value = v; }
+      send(this, timestep, updated, duplicate);
+      return updated;
     };
     elm.inputs.push(this);
   }
 
-  function LiftN(update, args) {
+  function LiftN(pure, update, args) {
     this.id = Utils.guid();
     this.value = update();
     this.kids = [];
 
     var n = args.length;
     var count = 0;
-    var isChanged = false;
+    var oneUpdated = false;
+    var allDuplicate = true;
 
-    this.recv = function(timestep, changed, parentID) {
+    this.recv = function(timestep, updated, duplicate, parentID) {
       ++count;
-      if (changed) { isChanged = true; }
-      if (count == n) {
-        if (isChanged) { this.value = update(); }
-        send(this, timestep, isChanged);
-        isChanged = false;
+      if (updated) { oneUpdated = true; }
+      if (!duplicate) { allDuplicate = false; }
+      if (count === n) {
+        duplicate = pure && allDuplicate;
+        if (!duplicate) {
+          var newValue = update();
+          duplicate = this.value === newValue;
+          this.value = newValue;
+        }
+        send(this, timestep, oneUpdated, duplicate);
+        oneUpdated = false;
+        allDuplicate = true;
         count = 0;
       }
     };
@@ -54,35 +63,61 @@ Elm.Native.Signal.make = function(elm) {
 
   function lift(func, a) {
     function update() { return func(a.value); }
-    return new LiftN(update, [a]);
+    return new LiftN(true, update, [a]);
   }
   function lift2(func, a, b) {
     function update() { return A2( func, a.value, b.value ); }
-    return new LiftN(update, [a,b]);
+    return new LiftN(true, update, [a,b]);
   }
   function lift3(func, a, b, c) {
     function update() { return A3( func, a.value, b.value, c.value ); }
-    return new LiftN(update, [a,b,c]);
+    return new LiftN(true, update, [a,b,c]);
   }
   function lift4(func, a, b, c, d) {
     function update() { return A4( func, a.value, b.value, c.value, d.value ); }
-    return new LiftN(update, [a,b,c,d]);
+    return new LiftN(true, update, [a,b,c,d]);
   }
   function lift5(func, a, b, c, d, e) {
     function update() { return A5( func, a.value, b.value, c.value, d.value, e.value ); }
-    return new LiftN(update, [a,b,c,d,e]);
+    return new LiftN(true, update, [a,b,c,d,e]);
   }
   function lift6(func, a, b, c, d, e, f) {
     function update() { return A6( func, a.value, b.value, c.value, d.value, e.value, f.value ); }
-    return new LiftN(update, [a,b,c,d,e,f]);
+    return new LiftN(true, update, [a,b,c,d,e,f]);
   }
   function lift7(func, a, b, c, d, e, f, g) {
     function update() { return A7( func, a.value, b.value, c.value, d.value, e.value, f.value, g.value ); }
-    return new LiftN(update, [a,b,c,d,e,f,g]);
+    return new LiftN(true, update, [a,b,c,d,e,f,g]);
   }
   function lift8(func, a, b, c, d, e, f, g, h) {
     function update() { return A8( func, a.value, b.value, c.value, d.value, e.value, f.value, g.value, h.value ); }
-    return new LiftN(update, [a,b,c,d,e,f,g,h]);
+    return new LiftN(true, update, [a,b,c,d,e,f,g,h]);
+  }
+  
+  function liftImpure(func, a) {
+    function update() { return func(a.value); }
+    return new LiftN(false, update, [a]);
+  }
+  function liftImpure2(func, a, b) {
+    function update() { return A2( func, a.value, b.value ); }
+    return new LiftN(false, update, [a,b]);
+  }
+  
+  // For lifting side-effecting end-points
+  function Sink(func, recv, s) {
+    func(s.value);
+    
+    this.recv = recv;
+    s.kids.push(this);
+  }
+  
+  function sink(f,r,s) { return new Sink(f,r,s); }
+  function simpleSink(f,p,s) {
+    return new Sink(f, function(timestep, updated, duplicate, parentID) {
+      if(p(updated, duplicate)) {
+        f(s.value);
+      }
+    },s);
   }
 
   function Foldp(step, state, input) {
@@ -90,11 +125,14 @@ Elm.Native.Signal.make = function(elm) {
     this.value = state;
     this.kids = [];
 
-    this.recv = function(timestep, changed, parentID) {
-      if (changed) {
-          this.value = A2( step, input.value, this.value );
+    this.recv = function(timestep, updated, duplicate, parentID) {
+      if (updated) {
+        var newValue = A2(step, input.value, this.value);
+        duplicate = this.value === newValue;
+        this.value = newValue;
       }
-      send(this, timestep, changed);
+      duplicate = !updated || duplicate;
+      send(this, timestep, updated, duplicate);
     };
     input.kids.push(this);
   }
@@ -105,31 +143,52 @@ Elm.Native.Signal.make = function(elm) {
 
   function DropIf(pred,base,input) {
     this.id = Utils.guid();
-    this.value = pred(input.value) ? base : input.value;
+    
+    var shouldDrop = pred(input.value);
+    
+    this.value = shouldDrop ? base : input.value;
     this.kids = [];
-    this.recv = function(timestep, changed, parentID) {
-      var chng = changed && !pred(input.value);
-      if (chng) { this.value = input.value; }
-      send(this, timestep, chng);
+    
+    this.recv = function(timestep, updated, duplicate, parentID) {
+      if (duplicate && shouldDrop) { // Duplicate, pred
+        updated = false;              // -> NoUpdate
+      }
+      if (!duplicate) {            // MaybeChanged
+        shouldDrop = pred(input.value); // -> update pred
+        if (shouldDrop) {            // MaybeChanged,  pred
+          updated   = false;          // -> NoUpdate
+          duplicate = true;           // -> Duplicate
+        } else {                   // MaybeChanged, !pred
+          duplicate = this.value === input.value;
+          this.value = input.value;   // -> update value
+        }
+      }
+      send(this, timestep, updated, duplicate);
     };
     input.kids.push(this);
   }
+  
+  function dropIf(pred,base,sig) { return new DropIf(pred,base,sig); }
 
   function DropRepeats(input) {
     this.id = Utils.guid();
     this.value = input.value;
     this.kids = [];
-    this.recv = function(timestep, changed, parentID) {
-      var chng = changed && !Utils.eq(this.value,input.value);
-      if (chng) { this.value = input.value; }
-      send(this, timestep, chng);
+    this.recv = function(timestep, updated, duplicate, parentID) {
+      if (duplicate || Utils.eq(this.value,input.value)) { // Duplicate || MaybeChanged but found to be a duplicate
+        duplicate = true;         // -> Duplicate
+        updated   = false;        // -> NoUpdate
+      } else {                                             // really changed value
+        this.value = input.value; // -> update value
+      }
+      send(this, timestep, updated, duplicate);
     };
     input.kids.push(this);
   }
 
   function timestamp(a) {
-    function update() { return Utils.Tuple2(Date.now(), a.value); }
-    return new LiftN(update, [a]);
+    function update(value) { return Utils.Tuple2(Date.now(), value); }
+    return liftImpure(update, a);
   }
 
   function SampleOn(s1,s2) {
@@ -138,16 +197,33 @@ Elm.Native.Signal.make = function(elm) {
     this.kids = [];
 
     var count = 0;
-    var isChanged = false;
+    var s1Updated   = false;
+    var s2Updated   = false;
+    var s2Duplicate = false;
+    var skip = false;
 
-    this.recv = function(timestep, changed, parentID) {
-      if (parentID === s1.id) isChanged = changed;
+    this.recv = function(timestep, updated, duplicate, parentID) {
+      if (parentID === s1.id) { s1Updated = updated; }
+      if (parentID === s2.id) {
+        s2Updated   = updated;
+        s2Duplicate = duplicate;
+      }
       ++count;
-      if (count == 2) {
-        if (isChanged) { this.value = s2.value; }
-        send(this, timestep, isChanged);
+      if (count === 2) {
+        if (s1Updated) {
+          if (s2Duplicate && skip) {
+            s2Duplicate = this.value === s2.value;
+          }
+          this.value = s2.value;
+          skip = false;
+        } else if (!s2Duplicate) {
+          skip = true;
+        }
+        send(this, timestep, s1Updated, s2Duplicate);
         count = 0;
-        isChanged = false;
+        s1Updated   = false;
+        s2Updated   = false;
+        s2Duplicate = false;
       }
     };
     s1.kids.push(this);
@@ -158,37 +234,60 @@ Elm.Native.Signal.make = function(elm) {
 
   function delay(t,s) {
       var delayed = new Input(s.value);
-      var firstEvent = true;
-      function update(v) {
-        if (firstEvent) { firstEvent = false; return; }
-        setTimeout(function() { elm.notify(delayed.id, v); }, t);
+      
+      function update(timestep, updated, duplicate, parentID) {
+        if(updated) {
+          setTimeout(function() { elm.notify(delayed.id, s.value); }, t);
+        }
       }
+      sink(function(_){}, update, s);
+      
       function first(a,b) { return a; }
-      return new SampleOn(delayed, lift2(F2(first), delayed, lift(update,s)));
+      // TODO find out why you would even do this whole 
+      //  ```sampleOn delayed (always <~ delayed ~ s)```
+      //  because I'm pretty sure that code is no different from simply
+      //  returning `delayed`.
+      return sampleOn(delayed, lift2(F2(first), delayed, s));
   }
 
   function Merge(s1,s2) {
       this.id = Utils.guid();
+
+      var count = 0;
+      var s1Evt = { updated   : true
+                  , duplicate : false };
+      var s2Evt = { updated   : true
+                  , duplicate : false };
+      var last  = s1;
+      
       this.value = s1.value;
       this.kids = [];
 
-      var next = null;
-      var count = 0;
-      var isChanged = false;
-
-      this.recv = function(timestep, changed, parentID) {
+      this.recv = function(timestep, updated, duplicate, parentID) {
         ++count;
-        if (changed) {
-            isChanged = true;
-            if (parentID == s2.id && next === null) { next = s2.value; }
-            if (parentID == s1.id) { next = s1.value; }
+        if (parentID === s1.id) {
+          s1Evt = { updated   : updated
+                  , duplicate : duplicate };
+        }
+        if (parentID === s2.id) {
+          s2Evt = { updated   : updated
+                  , duplicate : duplicate };
         }
 
-        if (count == 2) {
-            if (isChanged) { this.value = next; next = null; }
-            send(this, timestep, isChanged);
-            isChanged = false;
-            count = 0;
+        if (count === 2) {
+          if (s1Evt.updated) {
+            updated = true;
+            duplicate = (last === s1 && s1Evt.duplicate) || this.value === s1.value;
+            last = s1;
+            this.value = s1.value;
+          } else if (s2Evt.updated) {
+            updated = true;
+            duplicate = (last === s2 && s2Evt.duplicate) || this.value === s2.value;
+            last = s2;
+            this.value = s2.value;
+          }
+          send(this, timestep, updated, duplicate);
+          count = 0;
         }
       };
       s1.kids.push(this);
@@ -208,6 +307,10 @@ Elm.Native.Signal.make = function(elm) {
     lift6 : F7(lift6),
     lift7 : F8(lift7),
     lift8 : F9(lift8),
+    liftImpure  : F2(liftImpure ),
+    liftImpure2 : F3(liftImpure2),
+    sink : F3(sink),
+    simpleSink : F3(simpleSink),
     foldp : F3(foldp),
     delay : F2(delay),
     merge : F2(merge),
@@ -217,8 +320,8 @@ Elm.Native.Signal.make = function(elm) {
       return foldp(F2(function(x,c){
         return pred(x) ? c+1 : c; }), 0, s)}),
     keepIf : F3(function(pred,base,sig) {
-      return new DropIf(function(x) {return !pred(x);},base,sig); }),
-    dropIf : F3(function(pred,base,sig) { return new DropIf(pred,base,sig); }),
+      return dropIf(function(x) {return !pred(x);},base,sig); }),
+    dropIf : F3(dropIf),
     dropRepeats : function(s) { return new DropRepeats(s);},
     sampleOn : F2(sampleOn),
     timestamp : timestamp
