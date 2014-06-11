@@ -2,7 +2,7 @@
 module Generate.JavaScript.Ports (incoming, outgoing) where
 
 import Generate.JavaScript.Helpers
-import Generate.JavaScript.Variable (nativePorts, nativeJson)
+import qualified Generate.JavaScript.Variable as V
 import AST.Type as T
 import qualified AST.Variable as Var
 import Language.ECMAScript3.Syntax
@@ -30,7 +30,7 @@ incoming tipe =
     Aliased _ t -> incoming t
 
     App (Type v) [t]
-        | Var.isSignal v -> nativePorts "incomingSignal" <| incoming t
+        | Var.isSignal v -> V.value "Native.Ports" "incomingSignal" <| incoming t
 
     _ -> ["v"] ==> inc tipe (ref "v")
 
@@ -51,15 +51,15 @@ inc tipe x =
             from checks = check x checks x
 
       Type name
-          | Var.isJson name -> nativeJson "fromJS" <| x
+          | Var.isJson name -> V.value "Native.Json" "fromJS" <| x
           | otherwise -> error "bad type got to incoming port generation code"
 
       App f args ->
           case f : args of
             Type name : [t]
                 | Var.isMaybe name -> CondExpr () (equal x (NullLit ()))
-                                                  (obj ["Maybe","Nothing"])
-                                                  (obj ["Maybe","Just"] <| inc t x)
+                                                  (V.value "Maybe" "Nothing")
+                                                  (V.value "Maybe" "Just" <| inc t x)
 
                 | Var.isList name  -> check x JSArray (obj ["_L","fromArray"] <| array)
 
@@ -97,7 +97,7 @@ outgoing tipe =
     Aliased _ t -> outgoing t
 
     App (Type v) [t]
-        | Var.isSignal v -> nativePorts "outgoingSignal" <| outgoing t
+        | Var.isSignal v -> V.value "Native.Ports" "outgoingSignal" <| outgoing t
 
     _ -> ["v"] ==> out tipe (ref "v")
 
@@ -126,7 +126,7 @@ out tipe x =
           | name `elem` ["Int","Float","Bool","String"] -> x
 
       Type name
-          | Var.isJson name -> nativeJson "toJS" <| x
+          | Var.isJson name -> V.value "Native.Json" "toJS" <| x
           | otherwise -> error "bad type got to outgoing port generation code"
 
       App f args ->

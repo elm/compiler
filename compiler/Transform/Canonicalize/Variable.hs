@@ -21,7 +21,7 @@ variable env var =
 
     _ -> case Map.lookup var (_values env) of
            Just [v] -> Env.using v
-           Just vs  -> Env.using =<< preferLocals "variable" vs var
+           Just vs  -> preferLocals "variable" vs var
            Nothing  -> notFound "variable" (Map.keys (_values env)) var
   where
     (modul, name) = case Help.splitDots var of
@@ -33,7 +33,8 @@ tvar :: Environment -> String
 tvar env var =
   case adts ++ aliases of
     []  -> notFound "type" (Map.keys (_adts env) ++ Map.keys (_aliases env)) var
-    [v] -> return v
+    [v] -> do _ <- Env.using (extract v)
+              return v
     vs  -> preferLocals' extract "type" vs var
   where
     adts    = map Left .  fromMaybe [] $ Map.lookup var (_adts env)
@@ -48,7 +49,7 @@ pvar :: Environment -> String -> Canonicalizer String Var.Canonical
 pvar env var =
     case Map.lookup var (_patterns env) of
       Just [v] -> Env.using v
-      Just vs  -> Env.using =<< preferLocals "pattern" vs var
+      Just vs  -> preferLocals "pattern" vs var
       Nothing  -> notFound "pattern" (Map.keys (_patterns env)) var
 
 notFound :: String -> [String] -> String -> Canonicalizer String a
@@ -66,7 +67,8 @@ preferLocals' :: (a -> Var.Canonical) -> String -> [a] -> String -> Canonicalize
 preferLocals' extract kind possibilities var =
     case filter (isLocal . extract) possibilities of
       []     -> ambiguous possibilities
-      [v]    -> return v
+      [v]    -> do _ <- Env.using (extract v)
+                   return v
       locals -> ambiguous locals
     where
       isLocal :: Var.Canonical -> Bool

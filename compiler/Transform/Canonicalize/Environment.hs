@@ -25,11 +25,15 @@ insert key value = Map.insertWith (++) key [value]
 
 type Canonicalizer err a = Error.ErrorT err (State.State (Set.Set String)) a
 
+uses :: (Error.Error e) => String -> Canonicalizer e ()
+uses home =
+    Error.lift (State.modify (Set.insert home))
+
 using :: Var.Canonical -> Canonicalizer String Var.Canonical
 using var@(Var.Canonical home _) =
   do case home of
        Var.BuiltIn     -> return ()
-       Var.Module path -> Error.lift (State.modify (Set.insert path))
+       Var.Module path -> uses path
        Var.Local       -> return ()
      return var
 

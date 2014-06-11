@@ -38,8 +38,7 @@ module' interfaces modul =
         runState (runErrorT (moduleHelp interfaces modul)) Set.empty
 
     filterImports m =
-        let usedModules' = Set.insert "Native.Ports" usedModules
-            used (name,_) = Set.member name usedModules'
+        let used (name,_) = Set.member name usedModules
         in  m { Module.imports = filter used (Module.imports m) }
 
 moduleHelp :: Module.Interfaces -> Module.ValidModule
@@ -163,7 +162,9 @@ declaration env decl =
           do expanded' <- canonicalize Canonicalize.tipe "type alias" name env expanded
              return (D.TypeAlias name tvars expanded')
 
-      D.Port port ->
+      D.Port port -> do
+          Env.uses "Native.Ports"
+          Env.uses "Native.Json"
           D.Port <$> case port of
                        D.In name t ->
                            do t' <- canonicalize Canonicalize.tipe "port" name env t
