@@ -23,7 +23,6 @@ main = do
   let localCompiler = joinPath [ top, "dist", "build", "elm", "elm" ]
   runCmd localCompiler [ "--make"
                        , "--only-js"
-                       , "--src-dir=" ++ top </> "automaton"
                        , "--src-dir=" ++ top </> "IO"
                        , "--src-dir=" ++ top </> "Elm-Test"
                        , "Test.elm"
