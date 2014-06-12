@@ -1,7 +1,13 @@
 
+## 0.12.3
+
+  * Minor changes to support webgl as a separate library
+  * Switch from HSV to HSL
+  * Programmatic access to colors with toHsl and toRgb
+
 ## 0.12.1
 
-## Improvements:
+#### Improvements:
 
   * New Array library (thanks entirely to @Xashili)
   * Json.Value can flow through ports
