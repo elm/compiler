@@ -42,7 +42,7 @@ safeReadDocs name =
       hPutStrLn stderr $ unlines $
          [ "Error reading types for standard library from file " ++ name
          , "    If you are using a stable version of Elm, please report an issue at"
-         , "    <http://github.com/evancz/Elm/issues> specifying version numbers for"
+         , "    <http://github.com/elm-lang/Elm/issues> specifying version numbers for"
          , "    Elm and your OS." ]
       exitFailure
 

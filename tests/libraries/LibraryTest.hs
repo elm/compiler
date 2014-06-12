@@ -45,7 +45,9 @@ main = do
 runCmd :: String -> [String] -> IO ()
 runCmd cmd args = do
   putStrLn (cmd ++ " " ++ unwords args)
-  (exitCode, _stdout, stderr) <- readProcessWithExitCode cmd args ""
+  (exitCode, stdout, stderr) <- readProcessWithExitCode cmd args ""
+  putStr stdout
+  putStr stderr
   case exitCode of
     ExitSuccess   -> return ()
-    ExitFailure _ -> error stderr
+    ExitFailure _ -> exitWith exitCode

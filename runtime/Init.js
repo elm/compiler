@@ -37,7 +37,7 @@ function init(display, container, module, ports, moduleToReplace) {
           throw new Error(
               'The notify function has been called synchronously!\n' +
               'This can lead to frames being dropped.\n' +
-              'Definitely report this to <https://github.com/evancz/Elm/issues>\n');
+              'Definitely report this to <https://github.com/elm-lang/Elm/issues>\n');
       }
       updateInProgress = true;
       var timestep = Date.now();
