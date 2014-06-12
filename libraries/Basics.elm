@@ -150,7 +150,7 @@ atan2 : Float -> Float -> Float
 atan2 = Native.Basics.atan2
 
 {-| Take the square root of a number. -}
-sqrt : number -> number
+sqrt : Float -> Float
 sqrt = Native.Basics.sqrt
 
 {-| Take the absolute value of a number. -}
@@ -158,7 +158,7 @@ abs : number -> number
 abs = Native.Basics.abs
 
 {-| Calculate the logarithm of a number with a given base: `logBase 10 100 == 2` -}
-logBase : number -> number -> number
+logBase : Float -> Float -> Float
 logBase = Native.Basics.logBase
 
 {-| Clamps a number within a given range. With the expression

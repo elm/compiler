@@ -13,6 +13,7 @@
 #### Breaking Changes:
 
   * Unambiguous syntax for importing ADTs and type aliases (whoo!)
+  * sqrt and logBase both only work on Floats now
 
 ## 0.12.3
 
