@@ -25,12 +25,12 @@ main = do setNumCapabilities =<< getNumProcessors
 
 compileArgs :: Flag.Flags -> IO ()
 compileArgs flags =
-  do when (Flag.get_runtime flags) $ 
-         do putStrLn Path.runtime
-            exitSuccess
+  do when (Flag.get_runtime flags) $ do
+       putStrLn Path.runtime
+       exitSuccess
      case Flag.files flags of
-      [] -> putStrLn "Usage: elm [OPTIONS] [FILES]\nFor more help: elm --help"
-      fs -> mapM_ (build flags) fs
+       [] -> putStrLn "Usage: elm [OPTIONS] [FILES]\nFor more help: elm --help"
+       fs -> mapM_ (build flags) fs
 
 build :: Flag.Flags -> FilePath -> IO ()
 build flags rootFile =
