@@ -1,4 +1,19 @@
 
+## 0.13
+
+#### Improvements:
+
+  * Error on ambiguious use of imported variables
+  * Higher kinded polymorphism (a.k.a. higher-order types)
+  * Many bug fixes for importing types
+  * Better architecture for compiler. Uses types to make compilation pipeline
+    safer, setting things up for giving programmatic access to the AST to
+    improve editor and IDE support.
+
+#### Breaking Changes:
+
+  * Unambiguous syntax for importing ADTs and type aliases (whoo!)
+
 ## 0.12.3
 
   * Minor changes to support webgl as a separate library
