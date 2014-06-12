@@ -32,6 +32,46 @@ function init(display, container, module, ports, moduleToReplace) {
   var inputs = [];
 
   var updateInProgress = false;
+  function propagate(startNode, timestep) {
+      var parentMap = {};
+      var heap = new ElmRuntime.BinaryHeap(function (i) { return i.node.id; });
+      for (var i = 0, l = startNode.kids.length; i < l; i++) {
+        var node = startNode.kids[i];
+        if (node.parentRank) {
+          parentMap[node.id] = startNode.id;
+        }
+        heap.push({node: node, parent: startNode.id});
+      }
+
+      var prev = null;
+      while (heap.size() > 0) {
+        var next = heap.pop(), node = next.node;
+        if (node.id == prev) {
+          continue;
+        }
+        var goOn = false;
+        if (node.parentRank) {
+          if (parentMap[next.node.id]) {
+            goOn = node.update(timestep, parentMap[node.id]);
+          }
+        } else {
+          goOn = node.update(timestep, next.parent);
+        }
+        if (goOn) {
+          for (var i = 0, l = node.kids.length; i < l; i++) {
+            var child = node.kids[i];
+            if (child.parentRank) {
+              if (child.parentRank[parentMap[child.id]] > child.parentRank[node.id]) {
+                parentMap[child.id] = node.id;
+              }
+            }
+            heap.push({node: child, parent: node.id});
+          }
+        }
+        prev = node.id;
+      }
+  }
+
   function notify(id, v) {
       if (updateInProgress) {
           throw new Error(
@@ -40,10 +80,17 @@ function init(display, container, module, ports, moduleToReplace) {
               'Definitely report this to <https://github.com/elm-lang/Elm/issues>\n');
       }
       updateInProgress = true;
-      var timestep = Date.now();
+      var timestep = Date.now(), input = null;
+
       for (var i = inputs.length; i--; ) {
-          inputs[i].recv(timestep, id, v);
+          if (inputs[i].id == id) {
+            input = inputs[i];
+            break;
+          }
       }
+
+      input.value = v;
+      propagate(input, timestep);
       updateInProgress = false;
   }
 
@@ -105,7 +152,9 @@ function init(display, container, module, ports, moduleToReplace) {
 
       // rerender scene if graphics are enabled.
       if (typeof graphicsNode !== 'undefined') {
-          graphicsNode.recv(0, true, 0);
+          if (graphicsNode.update(0, 0)) {
+            propagate(graphicsNode, 0);
+          }
       }
   }
 
@@ -210,7 +259,7 @@ function initGraphics(elm, Module) {
 
   // make sure the signal graph is actually a signal & extract the visual model
   var Signal = Elm.Signal.make(elm);
-  if (!('recv' in signalGraph)) {
+  if (!('update' in signalGraph)) {
       signalGraph = Signal.constant(signalGraph);
   }
   var currentScene = signalGraph.value;

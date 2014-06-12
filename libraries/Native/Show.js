@@ -77,7 +77,7 @@ Elm.Native.Show.make = function(elm) {
                 return v.ctor + output;
             }
         }
-        if (type === 'object' && 'recv' in v) return '<signal>';
+        if (type === 'object' && 'update' in v) return '<signal>';
         return "<internal structure>";
     };
 
