@@ -9,6 +9,7 @@ data Flags = Flags
     , files :: [FilePath]
     , set_runtime :: Maybe FilePath
     , get_runtime :: Bool
+    , bundle_runtime :: Bool
     , only_js :: Bool
     , print_types :: Bool
     , scripts :: [FilePath]
@@ -40,6 +41,9 @@ flags = Flags
 
   , get_runtime = False
       &= help "Print the absolute path to the default Elm runtime."
+
+  , bundle_runtime = False
+      &= help "Bundle the runtime with the generated html or js to create a standalone file."
 
   , cache_dir = "cache" &= typFile
       &= help "Directory for files cached to make builds faster. Defaults to cache/ directory."
