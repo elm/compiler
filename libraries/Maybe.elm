@@ -1,4 +1,4 @@
-module Maybe where
+module Maybe (Maybe(..), maybe, isJust, isNothing, justs) where
 
 {-| Represents an optional value. Maybe it is there, maybe it is not.
 
@@ -13,7 +13,7 @@ module Maybe where
 -}
 
 import Basics (not, (.))
-import List (foldr)
+import List (foldr, (::))
 
 {-| The Maybe datatype. Useful when a computation may or may not
 result in a value (e.g. logarithm is defined only for positive

@@ -7,16 +7,15 @@ import Text.Parsec hiding (newline,spaces)
 import Parse.Helpers
 import qualified Parse.Expression as Expr
 import qualified Parse.Type as Type
-import qualified SourceSyntax.Declaration as D
+import qualified AST.Declaration as D
 
-
-declaration :: IParser D.ParseDeclaration
+declaration :: IParser D.SourceDecl
 declaration = alias <|> datatype <|> infixDecl <|> port <|> definition
 
-definition :: IParser D.ParseDeclaration
+definition :: IParser D.SourceDecl
 definition = D.Definition <$> Expr.def
 
-alias :: IParser D.ParseDeclaration
+alias :: IParser D.SourceDecl
 alias = do
   reserved "type" <?> "type alias (type Point = {x:Int, y:Int})"
   forcedWS
@@ -26,7 +25,7 @@ alias = do
   tipe <- Type.expr
   return (D.TypeAlias name args tipe)
 
-datatype :: IParser D.ParseDeclaration
+datatype :: IParser D.SourceDecl
 datatype = do
   reserved "data" <?> "datatype definition (data T = A | B | ...)"
   forcedWS
@@ -37,7 +36,7 @@ datatype = do
   return $ D.Datatype name args tcs
 
 
-infixDecl :: IParser D.ParseDeclaration
+infixDecl :: IParser D.SourceDecl
 infixDecl = do
   assoc <- choice [ reserved "infixl" >> return D.L
                   , reserved "infix"  >> return D.N
@@ -48,7 +47,7 @@ infixDecl = do
   D.Fixity assoc (read [n]) <$> anyOp
 
 
-port :: IParser D.ParseDeclaration
+port :: IParser D.SourceDecl
 port =
   do try (reserved "port")
      whitespace

@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -W #-}
 {-# LANGUAGE OverloadedStrings, DeriveDataTypeable #-}
 module Main where
 
@@ -16,10 +17,11 @@ import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Text as Text
 
-import qualified SourceSyntax.Helpers as Help
-import qualified SourceSyntax.Type as T
-import qualified SourceSyntax.Expression as E
-import qualified SourceSyntax.Declaration as D
+import qualified AST.Helpers as Help
+import qualified AST.Type as T
+import qualified AST.Declaration as D
+import qualified AST.Expression.Source as Src
+import qualified AST.Variable as Var
 
 import Text.Parsec hiding (newline,spaces)
 import Parse.Declaration (alias,datatype,infixDecl)
@@ -74,7 +76,7 @@ docComment = do
   let reversed = dropWhile (`elem` " \n\r") . drop 2 $ reverse contents
   return $ dropWhile (==' ') (reverse reversed)
 
-moduleDocs :: IParser (String, [String], String)
+--moduleDocs :: IParser (String, [String], String)
 moduleDocs = do
   optional freshLine
   (names,exports) <- moduleDef
@@ -83,10 +85,10 @@ moduleDocs = do
   structure <- docComment
   return (List.intercalate "." names, exports, structure)
 
-document :: IParser [(String, D.ParseDeclaration, String)]
+--document :: IParser [(String, D.SourceDecl, String)]
 document = onFreshLines (\t ts -> ts ++ [t]) [] docThing
 
-docThing :: IParser (String, D.ParseDeclaration, String)
+--docThing :: IParser (String, D.SourceDecl, String)
 docThing = uncommentable <|> commented <|> uncommented ""
     where
       uncommentable = do
@@ -106,10 +108,11 @@ docThing = uncommentable <|> commented <|> uncommented ""
 documentToJson name exports structure things =
     object $ [ "name"      .= name
              , "document"  .= structure
-             , "values"    .= toList values
-             , "aliases"   .= toList aliases
-             , "datatypes" .= toList adts
+--             , "values"    .= toList values
+--             , "aliases"   .= toList aliases
+--             , "datatypes" .= toList adts
              ]
+{--
   where
     (values, aliases, adts) = collect Map.empty Map.empty Map.empty Map.empty things
     
@@ -120,7 +123,8 @@ documentToJson name exports structure things =
         case Map.null exportMap of
           True -> dict
           False -> Map.filterWithKey (\k _ -> Map.member k exportMap) dict
-
+--}
+{--
 collect infixes types aliases adts things =
     case things of
       [] -> (Map.union customOps nonCustomOps, aliases, adts)
@@ -138,13 +142,13 @@ collect infixes types aliases adts things =
           case decl of
             D.Fixity assoc prec name ->
                 collect (Map.insert name (assoc,prec) infixes) types aliases adts rest
-            D.Definition (E.TypeAnnotation name tipe) ->
+            D.Definition (Src.TypeAnnotation name tipe) ->
                 collect infixes (insert name [ "type" .= tipe ] types) aliases adts rest
             D.TypeAlias name vars tipe ->
                 let fields = ["typeVariables" .= vars, "type" .= tipe ]
                 in  collect infixes types (insert name fields aliases) adts rest
             D.Datatype name vars ctors ->
-                let tipe = T.Data name (map T.Var vars)
+                let tipe = T.App (T.Type name) (map T.Var vars)
                     fields = ["typeVariables" .= vars
                              , "constructors" .= map (ctorToJson tipe) ctors ]
                 in  collect infixes types aliases (insert name fields adts) rest
@@ -152,8 +156,8 @@ collect infixes types aliases adts things =
             insert name fields dict = Map.insert name (obj name fields) dict
             obj name fields =
                 [ "name" .= name, "raw" .= source, "comment" .= comment ] ++ fields
-
-instance ToJSON T.Type where
+--}
+instance Var.ToString var => ToJSON (T.Type var) where
   toJSON tipe =
     object $
     case tipe of
@@ -168,10 +172,16 @@ instance ToJSON T.Type where
           [ "tag" .= ("var" :: Text.Text)
           , "name" .= toJSON x
           ]
-      
-      T.Data name ts -> 
+
+      T.Type name ->
           [ "tag" .= ("adt" :: Text.Text)
-          , "name" .= toJSON name
+          , "name" .= toJSON (Var.toString name)
+          , "args" .= ([] :: [()])
+          ]
+
+      T.App (T.Type name) ts -> 
+          [ "tag" .= ("adt" :: Text.Text)
+          , "name" .= toJSON (Var.toString name)
           , "args" .= map toJSON ts
           ]
        
@@ -181,7 +191,7 @@ instance ToJSON T.Type where
           , "extension" .= toJSON ext
           ]
 
-ctorToJson :: T.Type -> (String, [T.Type]) -> Value
+ctorToJson :: Var.ToString var => T.Type var -> (String, [T.Type var]) -> Value
 ctorToJson tipe (ctor, tipes) =
     object [ "name" .= ctor
            , "type" .= foldr T.Lambda tipe tipes ]

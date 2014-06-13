@@ -6,7 +6,6 @@ import Control.Applicative ((<$>),(<*>))
 import Control.Monad
 import Control.Monad.State
 import Data.Char (isUpper)
-import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Language.GLSL.Parser as GLP
 import Language.GLSL.Syntax as GLS
@@ -14,13 +13,14 @@ import Text.Parsec hiding (newline,spaces,State)
 import Text.Parsec.Indent
 import qualified Text.Parsec.Token as T
 
-import SourceSyntax.Annotation as Annotation
-import SourceSyntax.Declaration (Assoc)
-import SourceSyntax.Expression
-import SourceSyntax.Helpers as Help
-import SourceSyntax.Literal as Literal
-import SourceSyntax.PrettyPrint
-import SourceSyntax.Variable as Variable
+import AST.Annotation as Annotation
+import AST.Declaration (Assoc)
+import AST.Expression.General
+import qualified AST.Expression.Source as Source
+import AST.Helpers as Help
+import AST.Literal as Literal
+import AST.PrettyPrint
+import qualified AST.Variable as Variable
 
 reserveds = [ "if", "then", "else"
             , "case", "of"
@@ -29,25 +29,8 @@ reserveds = [ "if", "then", "else"
             , "module", "where"
             , "import", "as", "hiding", "open"
             , "export", "foreign"
-            , "deriving", "port" ]
-
-jsReserveds :: Set.Set String
-jsReserveds = Set.fromList
-    [ "null", "undefined", "Nan", "Infinity", "true", "false", "eval"
-    , "arguments", "int", "byte", "char", "goto", "long", "final", "float"
-    , "short", "double", "native", "throws", "boolean", "abstract", "volatile"
-    , "transient", "synchronized", "function", "break", "case", "catch"
-    , "continue", "debugger", "default", "delete", "do", "else", "finally"
-    , "for", "function", "if", "in", "instanceof", "new", "return", "switch"
-    , "this", "throw", "try", "typeof", "var", "void", "while", "with", "class"
-    , "const", "enum", "export", "extends", "import", "super", "implements"
-    , "interface", "let", "package", "private", "protected", "public"
-    , "static", "yield"
-    -- reserved by the Elm runtime system
-    , "Elm", "ElmRuntime"
-    , "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9"
-    , "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9"
-    ]
+            , "deriving", "port"
+            ]
 
 expecting = flip (<?>)
 
@@ -200,7 +183,7 @@ located p = do
   end <- getPosition
   return (start, e, end)
 
-accessible :: IParser ParseExpr -> IParser ParseExpr
+accessible :: IParser Source.Expr -> IParser Source.Expr
 accessible expr = do
   start <- getPosition
   ce@(A _ e) <- expr

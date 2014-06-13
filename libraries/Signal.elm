@@ -30,7 +30,7 @@ the `Time` library.
 -}
 
 import Native.Signal
-import List (foldr)
+import List (foldr, (::))
 import Basics (fst, snd, not)
 
 data Signal a = Signal

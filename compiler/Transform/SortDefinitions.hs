@@ -7,42 +7,57 @@ import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
-import SourceSyntax.Annotation
-import SourceSyntax.Expression
-import qualified SourceSyntax.Pattern as P
-import qualified SourceSyntax.Variable as V
 
-ctors :: P.Pattern -> [String]
+import AST.Annotation
+import AST.Expression.General (Expr'(..))
+import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Pattern as P
+import qualified AST.Variable as V
+
+ctors :: P.CanonicalPattern -> [String]
 ctors pattern =
     case pattern of
       P.Var _ -> []
       P.Alias _ p -> ctors p
-      P.Data ctor ps -> ctor : concatMap ctors ps
       P.Record _ -> []
       P.Anything -> []
       P.Literal _ -> []
+      P.Data (V.Canonical home name) ps ->
+          case home of
+            V.Local -> name : rest
+            V.BuiltIn -> rest
+            V.Module _ -> rest
+          where
+            rest = concatMap ctors ps
 
 free :: String -> State (Set.Set String) ()
 free x = modify (Set.insert x)
 
+freeIfLocal :: V.Canonical -> State (Set.Set String) ()
+freeIfLocal (V.Canonical home name) =
+    do case home of
+         V.Local -> free name
+         V.BuiltIn -> return ()
+         V.Module _ -> return ()
+
 bound :: Set.Set String -> State (Set.Set String) ()
 bound boundVars = modify (\freeVars -> Set.difference freeVars boundVars)
 
-sortDefs :: Expr -> Expr
+sortDefs :: Canonical.Expr -> Canonical.Expr
 sortDefs expr = evalState (reorder expr) Set.empty
 
-reorder :: Expr -> State (Set.Set String) Expr
+reorder :: Canonical.Expr -> State (Set.Set String) Canonical.Expr
 reorder (A ann expr) =
     A ann <$>
     case expr of
       -- Be careful adding and restricting freeVars
-      Var (V.Raw x) -> free x >> return expr
+      Var var -> freeIfLocal var >> return expr
 
       Lambda p e ->
           uncurry Lambda <$> bindingReorder (p,e)
 
       Binop op e1 e2 ->
-          do free op
+          do freeIfLocal op
              Binop op <$> reorder e1 <*> reorder e2
 
       Case e cases ->
@@ -102,7 +117,7 @@ reorder (A ann expr) =
              let defss = map Graph.flattenSCC sccs
              
              -- remove let-bound variables from the context
-             forM_ defs $ \(Definition pattern _ _) -> do
+             forM_ defs $ \(Canonical.Definition pattern _ _) -> do
                 bound (P.boundVars pattern)
                 mapM free (ctors pattern)
 
@@ -110,7 +125,8 @@ reorder (A ann expr) =
 
              return let'
 
-bindingReorder :: (P.Pattern, Expr) -> State (Set.Set String) (P.Pattern, Expr)
+bindingReorder :: (P.CanonicalPattern, Canonical.Expr)
+               -> State (Set.Set String) (P.CanonicalPattern, Canonical.Expr)
 bindingReorder (pattern,expr) =
     do expr' <- reorder expr
        bound (P.boundVars pattern)
@@ -118,8 +134,8 @@ bindingReorder (pattern,expr) =
        return (pattern, expr')
 
 
-reorderAndGetDependencies :: Def -> State (Set.Set String) (Def, [String])
-reorderAndGetDependencies (Definition pattern expr mType) =
+reorderAndGetDependencies :: Canonical.Def -> State (Set.Set String) (Canonical.Def, [String])
+reorderAndGetDependencies (Canonical.Definition pattern expr mType) =
     do globalFrees <- get
        -- work in a fresh environment
        put Set.empty
@@ -127,28 +143,28 @@ reorderAndGetDependencies (Definition pattern expr mType) =
        localFrees <- get
        -- merge with global frees
        modify (Set.union globalFrees)
-       return (Definition pattern expr' mType, Set.toList localFrees)
+       return (Canonical.Definition pattern expr' mType, Set.toList localFrees)
 
 
 -- This also reorders the all of the sub-expressions in the Def list.
-buildDefDict :: [Def] -> State (Set.Set String) [(Def, Int, [Int])]
+buildDefDict :: [Canonical.Def] -> State (Set.Set String) [(Canonical.Def, Int, [Int])]
 buildDefDict defs =
   do pdefsDeps <- mapM reorderAndGetDependencies defs
      return $ realDeps (addKey pdefsDeps)
 
   where
-    addKey :: [(Def, [String])] -> [(Def, Int, [String])]
+    addKey :: [(Canonical.Def, [String])] -> [(Canonical.Def, Int, [String])]
     addKey = zipWith (\n (pdef,deps) -> (pdef,n,deps)) [0..]
 
-    variableToKey :: (Def, Int, [String]) -> [(String, Int)]
-    variableToKey (Definition pattern _ _, key, _) =
+    variableToKey :: (Canonical.Def, Int, [String]) -> [(String, Int)]
+    variableToKey (Canonical.Definition pattern _ _, key, _) =
         [ (var, key) | var <- Set.toList (P.boundVars pattern) ]
 
-    variableToKeyMap :: [(Def, Int, [String])] -> Map.Map String Int
+    variableToKeyMap :: [(Canonical.Def, Int, [String])] -> Map.Map String Int
     variableToKeyMap pdefsDeps =
         Map.fromList (concatMap variableToKey pdefsDeps)
 
-    realDeps :: [(Def, Int, [String])] -> [(Def, Int, [Int])]
+    realDeps :: [(Canonical.Def, Int, [String])] -> [(Canonical.Def, Int, [Int])]
     realDeps pdefsDeps = map convert pdefsDeps
         where
           varDict = variableToKeyMap pdefsDeps

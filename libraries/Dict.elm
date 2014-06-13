@@ -37,6 +37,7 @@ import Basics (..)
 import Maybe (..)
 import Native.Error
 import List
+import List ((::))
 import Native.Utils
 
 -- BBlack and NBlack should only be used during the deletion

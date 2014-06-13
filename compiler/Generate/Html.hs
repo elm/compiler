@@ -17,13 +17,13 @@ makeScript source =
           H.script ! A.type_ "text/javascript" $
            preEscapedToMarkup $ BS.unpack src
 
-generate :: FilePath -> String -> [JSSource] -> String -> String -> H.Html
-generate libLoc title scripts moduleName noscript =
+generate :: JSSource -> String -> [JSSource] -> String -> String -> H.Html
+generate runtime title scripts moduleName noscript =
     H.docTypeHtml $ do 
       H.head $ do
         H.meta ! A.charset "UTF-8"
         H.title . H.toHtml $ title
-        makeScript (Link libLoc)
+        makeScript runtime
         mapM_ makeScript scripts
       H.body $ do
         H.script ! A.type_ "text/javascript" $

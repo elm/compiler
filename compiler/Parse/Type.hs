@@ -5,22 +5,23 @@ import Control.Applicative ((<$>),(<*>),(<*))
 import Data.List (intercalate)
 import Text.Parsec
 
-import SourceSyntax.Type as T
+import qualified AST.Type as T
+import qualified AST.Variable as Var
 import Parse.Helpers
 
-tvar :: IParser T.Type
+tvar :: IParser T.RawType
 tvar = T.Var <$> lowVar <?> "type variable"
 
-list :: IParser T.Type
-list = listOf <$> braces expr
+list :: IParser T.RawType
+list = T.listOf <$> braces expr
 
-tuple :: IParser T.Type
+tuple :: IParser T.RawType
 tuple = do ts <- parens (commaSep expr)
            return $ case ts of
                       [t] -> t
-                      _   -> tupleOf ts
+                      _   -> T.tupleOf ts
 
-record :: IParser T.Type
+record :: IParser T.RawType
 record =
   do char '{' ; whitespace
      rcrd <- extended <|> normal
@@ -33,7 +34,7 @@ record =
     extended = do
       ext <- try (lowVar <* (whitespace >> string "|"))
       whitespace
-      flip T.Record (Just ext) <$> commaSep1 field
+      flip T.Record (Just (T.Var ext)) <$> commaSep1 field
 
     field = do
       lbl <- rLabel
@@ -43,25 +44,28 @@ record =
 capTypeVar :: IParser String
 capTypeVar = intercalate "." <$> dotSep1 capVar
 
-constructor0 :: IParser T.Type
+constructor0 :: IParser T.RawType
 constructor0 =
   do name <- capTypeVar
-     return (T.Data name [])
+     return (T.Type (Var.Raw name))
 
-term :: IParser T.Type
+term :: IParser T.RawType
 term = list <|> tuple <|> record <|> tvar <|> constructor0
 
-app :: IParser T.Type
+app :: IParser T.RawType
 app =
-  do name <- capTypeVar <|> try tupleCtor <?> "type constructor"
+  do f <- constructor0 <|> tvar <|> try tupleCtor <?> "type constructor"
      args <- spacePrefix term
-     return (T.Data name args)
+     return $ case args of
+                [] -> f
+                _  -> T.App f args
   where
     tupleCtor = do
       n <- length <$> parens (many (char ','))
-      return $ "_Tuple" ++ show (if n == 0 then 0 else n+1)
+      let ctor = "_Tuple" ++ show (if n == 0 then 0 else n+1)
+      return (T.Type (Var.Raw ctor))
 
-expr :: IParser T.Type
+expr :: IParser T.RawType
 expr =
   do t1 <- app <|> term
      arr <- optionMaybe $ try (whitespace >> arrow)
@@ -69,6 +73,6 @@ expr =
        Just _  -> T.Lambda t1 <$> (whitespace >> expr)
        Nothing -> return t1
 
-constructor :: IParser (String, [T.Type])
+constructor :: IParser (String, [T.RawType])
 constructor = (,) <$> (capTypeVar <?> "another type constructor")
                   <*> spacePrefix term

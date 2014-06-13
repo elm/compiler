@@ -1,8 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
-module SourceSyntax.Literal where
+module AST.Literal where
 
+import AST.PrettyPrint
 import Data.Map (Map)
-import SourceSyntax.PrettyPrint
 import qualified Text.PrettyPrint as PP
 
 data Literal = IntNum Int

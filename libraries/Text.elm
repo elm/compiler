@@ -34,7 +34,7 @@ import Basics (..)
 import String
 import Color (Color, black)
 import Graphics.Element (Element, Three, Pos, ElementPrim, Properties)
-import Maybe (Maybe, Nothing)
+import Maybe (Maybe(Nothing))
 import Native.Show
 import Native.Text
 

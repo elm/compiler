@@ -41,7 +41,7 @@ import Basics (..)
 import Native.Utils
 import List as List
 import Color (..)
-import Maybe (Maybe, Just, Nothing)
+import Maybe ( Maybe(..) )
 
 type Properties = {
   id      : Int,

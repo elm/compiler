@@ -6,17 +6,18 @@ import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 
-import qualified SourceSyntax.Expression as E
-import qualified SourceSyntax.Declaration as D
-import qualified SourceSyntax.Pattern as Pattern
-import qualified SourceSyntax.Type as T
+import qualified AST.Expression.Valid as Valid
+import qualified AST.Declaration as D
+import qualified AST.Pattern as Pattern
+import qualified AST.Type as T
+import qualified AST.Variable as Var
 import qualified Transform.Expression as Expr
 
-import SourceSyntax.PrettyPrint
+import AST.PrettyPrint
 import Text.PrettyPrint as P
 
 
-mistakes :: [D.Declaration] -> [Doc]
+mistakes :: [D.ValidDecl] -> [Doc]
 mistakes decls =
     concat [ infiniteTypeAliases decls
            , illFormedTypes decls
@@ -30,7 +31,7 @@ dupErr :: String -> String -> String
 dupErr err x = 
   "Syntax Error: There can only be one " ++ err ++ " '" ++ x ++ "'."
 
-duplicates :: [D.Declaration] -> [String]
+duplicates :: [D.ValidDecl] -> [String]
 duplicates decls =
     map msg (dups (portNames ++ concatMap Pattern.boundVarList defPatterns)) ++
     case mapM exprDups (portExprs ++ defExprs) of
@@ -41,7 +42,7 @@ duplicates decls =
     msg = dupErr "definition of"
 
     (defPatterns, defExprs) =
-        unzip [ (pat,expr) | D.Definition (E.Definition pat expr _) <- decls ]
+        unzip [ (pat,expr) | D.Definition (Valid.Definition pat expr _) <- decls ]
 
     (portNames, portExprs) =
         Arrow.second concat $ unzip $ 
@@ -50,17 +51,17 @@ duplicates decls =
               D.Out name expr _ -> (name, [expr])
               D.In name _ -> (name, [])
 
-    exprDups :: E.Expr -> Either String E.Expr
+    exprDups :: Valid.Expr -> Either String Valid.Expr
     exprDups expr = Expr.crawlLet defsDups expr
 
-    defsDups :: [E.Def] -> Either String [E.Def]
+    defsDups :: [Valid.Def] -> Either String [Valid.Def]
     defsDups defs =
-        let varsIn (E.Definition pattern _ _) = Pattern.boundVarList pattern in
+        let varsIn (Valid.Definition pattern _ _) = Pattern.boundVarList pattern in
         case dups $ concatMap varsIn defs of
           []     -> Right defs
           name:_ -> Left name
 
-duplicateConstructors :: [D.Declaration] -> [String]
+duplicateConstructors :: [D.ValidDecl] -> [String]
 duplicateConstructors decls = 
     map (dupErr "definition of type constructor") (dups typeCtors) ++
     map (dupErr "definition of data constructor") (dups dataCtors)
@@ -68,7 +69,7 @@ duplicateConstructors decls =
     typeCtors = [ name | D.Datatype name _ _ <- decls ]
     dataCtors = concat [ map fst patterns | D.Datatype _ _ patterns <- decls ]
 
-illFormedTypes :: [D.Declaration] -> [Doc]
+illFormedTypes :: [D.ValidDecl] -> [Doc]
 illFormedTypes decls = map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
     where
       aliases = [ (decl, tvars, [tipe]) | decl@(D.TypeAlias _ tvars tipe) <- decls ]
@@ -78,9 +79,11 @@ illFormedTypes decls = map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
           case tipe of
             T.Lambda t1 t2 -> Set.union (freeVars t1) (freeVars t2)
             T.Var x -> Set.singleton x
-            T.Data _ ts -> Set.unions (map freeVars ts)
+            T.Type _ -> Set.empty
+            T.App t ts -> Set.unions (map freeVars (t:ts))
             T.Record fields ext -> Set.unions (ext' : map (freeVars . snd) fields)
-                where ext' = maybe Set.empty Set.singleton ext
+                where ext' = maybe Set.empty freeVars ext
+            T.Aliased _ t -> freeVars t
 
       undeclared tvars tipes = Set.difference used declared
           where
@@ -113,20 +116,23 @@ illFormedTypes decls = map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
             quote tvar = "'" ++ tvar ++ "'"
 
 
-infiniteTypeAliases :: [D.Declaration] -> [Doc]
+infiniteTypeAliases :: [D.ValidDecl] -> [Doc]
 infiniteTypeAliases decls =
     [ report name tvars tipe | D.TypeAlias name tvars tipe <- decls
                              , infiniteType name tipe ]
     where
+      infiniteType :: String -> T.Type Var.Raw -> Bool
       infiniteType name tipe =
           let infinite = infiniteType name in
           case tipe of
             T.Lambda a b -> infinite a || infinite b
             T.Var _ -> False
-            T.Data name' ts -> name == name' || any infinite ts
+            T.Type (Var.Raw name') -> name == name'
+            T.App t ts -> any infinite (t:ts)
             T.Record fields _ -> any (infinite . snd) fields
+            T.Aliased _ t -> infinite t
 
-      indented :: D.Declaration -> Doc
+      indented :: D.ValidDecl -> Doc
       indented decl = P.text "\n    " <> pretty decl <> P.text "\n"
 
       report name args tipe =

@@ -5,12 +5,13 @@ import qualified Data.Map as Map
 import qualified Control.Exception as E
 import System.Exit
 import System.IO
-import SourceSyntax.Module
+import AST.Module as Module
 import qualified Build.Interface as Interface
 import Build.Utils (getDataFile)
 
-add :: Bool -> Module def -> Module def
-add noPrelude (Module name exs ims decls) = Module name exs (customIms ++ ims) decls
+add :: Bool -> Module exs body -> Module exs body
+add noPrelude (Module name path exs ims decls) =
+    Module name path exs (customIms ++ ims) decls
     where
       customIms = if noPrelude then [] else concatMap addModule prelude
 
@@ -20,12 +21,11 @@ add noPrelude (Module name exs ims decls) = Module name exs (customIms ++ ims) d
                                 Just _      -> []
 
 prelude :: [(String, ImportMethod)]
-prelude = string ++ text ++ map (\n -> (n, Hiding [])) modules
+prelude = string : map (\n -> (n, Module.open)) modules
   where
-    text = map ((,) "Text") [ As "Text", Hiding ["link", "color", "height"] ]
-    string = map ((,) "String") [ As "String", Importing ["show"] ]
+    string = ("String", Module.importing ["show"])
     modules = [ "Basics", "Signal", "List", "Maybe", "Time", "Color"
-              , "Graphics.Element", "Graphics.Collage"
+              , "Graphics.Element", "Graphics.Collage", "Text"
               , "Native.Ports", "Native.Json"
               ]
 
@@ -49,7 +49,7 @@ safeReadDocs name =
 readDocs :: FilePath -> IO Interfaces
 readDocs filePath = do
   interfaces <- Interface.load filePath
-  case mapM (Interface.isValid filePath) (interfaces :: [(String, ModuleInterface)]) of
+  case mapM (Interface.isValid filePath) (interfaces :: [(String, Module.Interface)]) of
     Left err -> do
       hPutStrLn stderr err
       exitFailure

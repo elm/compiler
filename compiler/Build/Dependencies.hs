@@ -10,7 +10,7 @@ import qualified Data.Set as Set
 import System.Directory
 import System.FilePath as FP
 
-import qualified SourceSyntax.Module as Module
+import qualified AST.Module as Module
 import qualified Parse.Parse as Parse
 import qualified Elm.Internal.Paths as Path
 import qualified Elm.Internal.Name as N

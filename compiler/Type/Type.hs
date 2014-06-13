@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -W #-}
 module Type.Type where
 
 import qualified Data.Char as Char
@@ -8,12 +9,13 @@ import Type.PrettyPrint
 import Text.PrettyPrint as P
 import System.IO.Unsafe
 import Control.Applicative ((<$>),(<*>))
-import Control.Monad.State
-import Control.Monad.Error
+import Control.Monad.State (StateT, get, put, execStateT, runStateT)
+import Control.Monad.Error (ErrorT, Error, liftIO)
 import Data.Traversable (traverse)
-import SourceSyntax.Annotation
-import SourceSyntax.Helpers (isTuple)
-import qualified SourceSyntax.Type as Src
+import AST.Annotation
+import qualified AST.PrettyPrint as PP
+import qualified AST.Type as T
+import qualified AST.Variable as Var
 
 data Term1 a
     = App1 a a
@@ -24,18 +26,24 @@ data Term1 a
     deriving Show
 
 data TermN a
-    = VarN a
-    | TermN (Term1 (TermN a))
+    = VarN  (Maybe Var.Canonical) a
+    | TermN (Maybe Var.Canonical) (Term1 (TermN a))
     deriving Show
 
+varN :: a -> TermN a
+varN = VarN Nothing
+
+termN :: (Term1 (TermN a)) -> TermN a
+termN = TermN Nothing
+
 record :: Map.Map String [TermN a] -> TermN a -> TermN a
-record fs rec = TermN (Record1 fs rec)
+record fs rec = termN (Record1 fs rec)
 
 type Type = TermN Variable
 type Variable = UF.Point Descriptor
 
 type SchemeName = String
-type TypeName = String
+type TypeName = Var.Canonical
 
 type Constraint a b = Located (BasicConstraint a b)
 data BasicConstraint a b
@@ -57,6 +65,7 @@ data Scheme a b = Scheme {
 type TypeConstraint = Constraint Type Variable
 type TypeScheme = Scheme Type Variable
 
+monoscheme :: Map.Map String a -> Scheme a b
 monoscheme headers = Scheme [] [] (noneNoDocs CTrue) headers
 
 infixl 8 /\
@@ -70,23 +79,31 @@ a@(A _ c1) /\ b@(A _ c2) =
 
 infixr 9 ==>
 (==>) :: Type -> Type -> Type
-a ==> b = TermN (Fun1 a b)
+a ==> b = termN (Fun1 a b)
 
-f <| a = TermN (App1 f a)
+(<|) :: TermN a -> TermN a -> TermN a
+f <| a = termN (App1 f a)
 
-data Descriptor = Descriptor {
-    structure :: Maybe (Term1 Variable),
-    rank :: Int,
-    flex :: Flex,
-    name :: Maybe TypeName,
-    copy :: Maybe Variable,
-    mark :: Int
-} deriving Show
+data Descriptor = Descriptor
+    { structure :: Maybe (Term1 Variable)
+    , rank :: Int
+    , flex :: Flex
+    , name :: Maybe TypeName
+    , copy :: Maybe Variable
+    , mark :: Int
+    , alias :: Maybe Var.Canonical
+    } deriving Show
 
+noRank :: Int
 noRank = -1
-outermostRank = 0 :: Int
 
+outermostRank :: Int
+outermostRank = 0
+
+noMark :: Int
 noMark = 0
+
+initialMark :: Int
 initialMark = 1
 
 data Flex = Rigid | Flexible | Constant | Is SuperType
@@ -95,34 +112,26 @@ data Flex = Rigid | Flexible | Constant | Is SuperType
 data SuperType = Number | Comparable | Appendable
      deriving (Show, Eq)
 
-namedVar :: Flex -> String -> IO Variable
-namedVar flex name = UF.fresh $ Descriptor {
-    structure = Nothing,
-    rank = noRank,
-    flex = flex,
-    name = Just name,
-    copy = Nothing,
-    mark = noMark
+namedVar :: Flex -> Var.Canonical -> IO Variable
+namedVar flex name = UF.fresh $ Descriptor
+  { structure = Nothing
+  , rank = noRank
+  , flex = flex
+  , name = Just name
+  , copy = Nothing
+  , mark = noMark
+  , alias = Nothing
   }
 
-var :: Flex -> IO Variable
-var flex = UF.fresh $ Descriptor {
-    structure = Nothing,
-    rank = noRank,
-    flex = flex,
-    name = Nothing,
-    copy = Nothing,
-    mark = noMark
-  }
-
-structuredVar :: Term1 Variable -> IO Variable
-structuredVar structure = UF.fresh $ Descriptor {
-    structure = Just structure,
-    rank = noRank,
-    flex = Flexible,
-    name = Nothing,
-    copy = Nothing,
-    mark = noMark
+variable :: Flex -> IO Variable
+variable flex = UF.fresh $ Descriptor
+  { structure = Nothing
+  , rank = noRank
+  , flex = flex
+  , name = Nothing
+  , copy = Nothing
+  , mark = noMark
+  , alias = Nothing
   }
 
 
@@ -138,13 +147,13 @@ fl rqs constraint@(A ann _) =
 
 exists :: Error e => (Type -> ErrorT e IO TypeConstraint) -> ErrorT e IO TypeConstraint
 exists f = do
-  v <- liftIO $ var Flexible
-  ex [v] <$> f (VarN v)
+  v <- liftIO $ variable Flexible
+  ex [v] <$> f (varN v)
 
 existsNumber :: Error e => (Type -> ErrorT e IO TypeConstraint) -> ErrorT e IO TypeConstraint
 existsNumber f = do
-  v <- liftIO $ var (Is Number)
-  ex [v] <$> f (VarN v)
+  v <- liftIO $ variable (Is Number)
+  ex [v] <$> f (varN v)
 
 
 instance Show a => Show (UF.Point a) where
@@ -187,23 +196,32 @@ instance PrettyType a => PrettyType (Term1 a) where
           prettyExt = prty ext
           extend | P.render prettyExt == "{}" = P.empty
                  | otherwise = prettyExt <+> P.text "|"
-          mkPretty f t = P.text (reprime f) <+> P.text ":" <+> prty t
+          mkPretty f t = P.text f <+> P.text ":" <+> prty t
           prettyFields = concatMap (\(f,ts) -> map (mkPretty f) ts) (Map.toList fields)
 
 
 instance PrettyType a => PrettyType (TermN a) where
   pretty when term =
     case term of
-      VarN x -> pretty when x
-      TermN t1 -> pretty when t1
-
+      VarN alias x -> either alias (pretty when x)
+      TermN alias t1 -> either alias (pretty when t1)
+    where
+      either maybeAlias doc =
+          case maybeAlias of
+            Just alias -> PP.pretty alias
+            Nothing -> doc
 
 instance PrettyType Descriptor where
-  pretty when desc =
-    case (structure desc, name desc) of
-      (Just term, _) -> pretty when term
-      (_, Just name) -> if not (isTuple name) then P.text (reprime name) else
-                            P.parens . P.text $ replicate (read (drop 6 name) - 1) ','
+  pretty when desc = do
+    case (alias desc, structure desc, name desc) of
+      (Just name, _, _) -> PP.pretty name
+      (_, Just term, _) -> pretty when term
+      (_, _, Just name)
+          | Var.isTuple name ->
+              P.parens . P.text $ replicate (read (drop 6 (Var.toString name)) - 1) ','
+          | otherwise ->
+              P.text (Var.toString name)
+                            
       _ -> P.text "?"
 
 
@@ -269,7 +287,7 @@ addNames value = do
     (rawVars, _, _, _) <- execStateT (crawl getNames value) ([], 0, 0, 0)
     let vars = map head . List.group $ List.sort rawVars
         suffix s = map (++s) (map (:[]) ['a'..'z'])
-        allVars = concatMap suffix $ ["","'","_"] ++ map show [0..]
+        allVars = concatMap suffix $ ["","'","_"] ++ map show [ (0 :: Int) .. ]
         okayVars = filter (`notElem` vars) allVars
     runStateT (crawl rename value) (okayVars, 0, 0, 0)
     return value
@@ -277,23 +295,20 @@ addNames value = do
     getNames desc state@(vars, a, b, c) =
         let name' = name desc in
         case name' of
-          Just var -> (name', (var:vars, a, b, c))
-          Nothing -> (name', state)
+          Just (Var.Canonical _ var) -> (name', (var:vars, a, b, c))
+          _ -> (name', state)
 
     rename desc state@(vars, a, b, c) =
       case name desc of
         Just var -> (Just var, state)
         Nothing ->
             case flex desc of
-              Is Number     -> (Just $ "number"     ++ replicate a '\'', (vars, a+1, b, c))
-              Is Comparable -> (Just $ "comparable" ++ replicate b '\'', (vars, a, b+1, c))
-              Is Appendable -> (Just $ "appendable" ++ replicate c '\'', (vars, a, b, c+1))
-              other         -> (Just $ head vars, (tail vars, a, b, c))
-                  where mark = case other of
-                                 Flexible -> ""
-                                 Rigid    -> "!"
-                                 Constant -> "#"
-
+              Is Number     -> (local $ "number"     ++ replicate a '\'', (vars, a+1, b, c))
+              Is Comparable -> (local $ "comparable" ++ replicate b '\'', (vars, a, b+1, c))
+              Is Appendable -> (local $ "appendable" ++ replicate c '\'', (vars, a, b, c+1))
+              _             -> (local $ head vars, (tail vars, a, b, c))
+            where
+              local v = Just (Var.local v)
 
 type CrawlState = ([String], Int, Int, Int)
 
@@ -329,8 +344,8 @@ instance (Crawl t, Crawl v) => Crawl (Scheme t v) where
 instance Crawl t => Crawl (TermN t) where
   crawl nextState tipe =
     case tipe of
-      VarN x -> VarN <$> crawl nextState x
-      TermN term -> TermN <$> crawl nextState term
+      VarN a x -> VarN a <$> crawl nextState x
+      TermN a term -> TermN a <$> crawl nextState term
 
 instance Crawl t => Crawl (Term1 t) where
   crawl nextState term =
@@ -359,50 +374,62 @@ instance Crawl Descriptor where
     return $ desc { name = name', structure = structure' }
 
                
-toSrcType :: Variable -> IO Src.Type
-toSrcType variable = do
-  desc <- UF.descriptor =<< addNames variable
-  case structure desc of
-    Just term ->
+toSrcType :: Variable -> IO T.CanonicalType
+toSrcType var =
+  do desc    <- UF.descriptor =<< addNames var
+     srcType <- maybe (backupSrcType desc) termToSrcType (structure desc)
+     return $ maybe srcType (\name -> T.Aliased name srcType) (alias desc)
+  where
+    backupSrcType desc = 
+        case name desc of
+          Just v@(Var.Canonical _ x@(c:_))
+              | Char.isLower c -> return (T.Var x)
+              | otherwise -> return $ T.Type v
+
+          _ -> error $ concat
+                        [ "Problem converting the following type "
+                        , "from a type-checker type to a source-syntax type:"
+                        , P.render (pretty Never var) ]
+
+    termToSrcType term =
         case term of
           App1 a b -> do
-            Src.Data name ts <- toSrcType a
+            a' <- toSrcType a
             b' <- toSrcType b
-            return (Src.Data name (ts ++ [b']))
-          Fun1 a b -> Src.Lambda <$> toSrcType a <*> toSrcType b
+            case a' of
+              T.App f args -> return $ T.App f (args ++ [b'])
+              _            -> return $ T.App a' [b']
+
+          Fun1 a b -> T.Lambda <$> toSrcType a <*> toSrcType b
+
           Var1 a -> toSrcType a
-          EmptyRecord1 -> return $ Src.Record [] Nothing
+
+          EmptyRecord1 -> return $ T.Record [] Nothing
+
           Record1 tfields extension -> do
             fields' <- traverse (mapM toSrcType) tfields
             let fields = concat [ map ((,) name) ts | (name,ts) <- Map.toList fields' ]
             ext' <- toSrcType extension
             return $ case ext' of
-                       Src.Record fs ext -> Src.Record (fs ++ fields) ext
-                       Src.Var x -> Src.Record fields (Just x)
+                       T.Record fs ext -> T.Record (fs ++ fields) ext
+                       T.Var _ -> T.Record fields (Just ext')
                        _ -> error "Used toSrcType on a type that is not well-formed"
-    Nothing ->
-        case name desc of
-          Just x@(c:_) | Char.isLower c -> return (Src.Var x)
-                       | otherwise      -> return (Src.Data x [])
-          _ -> error $ concat
-                        [ "Problem converting the following type "
-                        , "from a type-checker type to a source-syntax type:"
-                        , P.render (pretty Never variable) ]
+
 
 data AppStructure = List Variable | Tuple [Variable] | Other
 
 collectApps :: Variable -> IO AppStructure
-collectApps variable = go [] variable
+collectApps var = go [] var
   where
-    go vars variable = do
-      desc <- UF.descriptor variable
+    go vars var = do
+      desc <- UF.descriptor var
       case (structure desc, vars) of
         (Nothing, [v]) -> case name desc of
-                             Just "_List" -> return (List v)
-                             _ -> return Other
+                            Just n | Var.isList n -> return (List v)
+                            _ -> return Other
         (Nothing,  vs) -> case name desc of
-                             Just ctor | isTuple ctor -> return (Tuple vs)
-                             _ -> return Other
+                            Just n | Var.isTuple n -> return (Tuple vs)
+                            _ -> return Other
         (Just term, _) -> case term of
                             App1 a b -> go (vars ++ [b]) a
                             _ -> return Other

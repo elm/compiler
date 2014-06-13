@@ -1,5 +1,4 @@
-module Tests.Compiler (compilerTests)
-       where
+module Tests.Compiler (compilerTests) where
 
 import Data.Functor                   ((<$>))
 import Data.Traversable               (traverse)
@@ -13,31 +12,36 @@ import Text.Parsec                    (ParseError)
 import Elm.Internal.Utils as Elm
 
 compilerTests :: Test
-compilerTests = buildTest $ do
-  goods <- mkTests goodCompile  =<< getElms "good"
-  bads  <- mkTests badCompile   =<< getElms "bad"
-  return $ testGroup "Compile Tests"
-    [
-      testGroup "Good Tests" goods
-    , testGroup "Bad Tests"  bads
-    ]
+compilerTests =
+  buildTest $ do
+    goods <- mkTests goodCompile =<< getElms "good"
+    bads  <- mkTests badCompile  =<< getElms "bad"
+    return $ testGroup "Compile Tests"
+             [ testGroup "Good Tests" goods
+             , testGroup "Bad Tests"  bads
+             ]
+  where
+    getElms :: FilePath -> IO [FilePath]
+    getElms fname = find (return True) (extension ==? ".elm") (testsDir </> fname)
 
-  where getElms :: FilePath -> IO [FilePath]
-        getElms fname = find (return True) (extension ==? ".elm") (testsDir </> fname)
+    mkTests :: (Either String String -> Assertion) -> [FilePath] -> IO [Test]
+    mkTests h = traverse setupTest
+        where setupTest f = testCase f . mkCompileTest h <$> readFile f
 
-        mkTests :: (Either String String -> Assertion) -> [FilePath] -> IO [Test]
-        mkTests h = traverse setupTest
-          where setupTest f = testCase f . mkCompileTest h <$> readFile f
-
-        testsDir = "tests" </> "test-files"
+    testsDir :: FilePath
+    testsDir = "tests" </> "compiler" </> "test-files"
 
 goodCompile :: Either String String -> Assertion
-goodCompile (Left err) = assertFailure err
-goodCompile (Right _)  = assertBool "" True
+goodCompile result =
+    case result of
+      Left err -> assertFailure err
+      Right _  -> assertBool "" True
 
 badCompile :: Either String String -> Assertion
-badCompile (Left _)  = assertBool "" True
-badCompile (Right _) = assertFailure "Compilation succeeded but should have failed"
+badCompile result =
+    case result of
+      Left  _ -> assertBool "" True
+      Right _ -> assertFailure "Compilation succeeded but should have failed"
   
 mkCompileTest :: ((Either String String) -> Assertion) -- ^ Handler
                  -> String -- ^ File Contents

@@ -2,8 +2,9 @@
 module Generate.JavaScript.Ports (incoming, outgoing) where
 
 import Generate.JavaScript.Helpers
-import qualified SourceSyntax.Helpers as Help
-import SourceSyntax.Type as T
+import qualified Generate.JavaScript.Variable as V
+import AST.Type as T
+import qualified AST.Variable as Var
 import Language.ECMAScript3.Syntax
 
 data JSType = JSNumber | JSBoolean | JSString | JSArray | JSObject [String]
@@ -14,64 +15,71 @@ check x jsType continue =
     CondExpr () (jsFold OpLOr checks x) continue throw
   where
     jsFold op checks value = foldl1 (InfixExpr () op) (map ($value) checks)
-    throw = obj "_E.raise" <| InfixExpr () OpAdd msg x
+    throw = obj ["_E","raise"] <| InfixExpr () OpAdd msg x
     msg = string ("invalid input, expecting " ++ show jsType ++ " but got ")
     checks = case jsType of
                JSNumber  -> [typeof "number"]
                JSBoolean -> [typeof "boolean"]
                JSString  -> [typeof "string", instanceof "String"]
-               JSArray   -> [(obj "_U.isJSArray" <|)]
+               JSArray   -> [(obj ["_U","isJSArray"] <|)]
                JSObject fields -> [jsFold OpLAnd (typeof "object" : map member fields)]
 
-incoming :: Type -> Expression ()
+incoming :: CanonicalType -> Expression ()
 incoming tipe =
   case tipe of
-    Data "Signal.Signal" [t] ->
-        obj "Native.Ports.incomingSignal" <| incoming t
+    Aliased _ t -> incoming t
+
+    App (Type v) [t]
+        | Var.isSignal v -> V.value "Native.Ports" "incomingSignal" <| incoming t
+
     _ -> ["v"] ==> inc tipe (ref "v")
 
-inc :: Type -> Expression () -> Expression ()
+inc :: CanonicalType -> Expression () -> Expression ()
 inc tipe x =
     case tipe of
       Lambda _ _ -> error "functions should not be allowed through input ports"
       Var _ -> error "type variables should not be allowed through input ports"
+      Aliased _ t ->
+          inc t x
 
-      Data "Json.Value" [] ->
-          obj "Native.Json.fromJS" <| x
-
-      Data ctor []
-          | ctor == "Int"       -> from JSNumber
-          | ctor == "Float"     -> from JSNumber
-          | ctor == "Bool"      -> from JSBoolean
-          | ctor == "String"    -> from JSString
+      Type (Var.Canonical Var.BuiltIn name)
+          | name == "Int"    -> from JSNumber
+          | name == "Float"  -> from JSNumber
+          | name == "Bool"   -> from JSBoolean
+          | name == "String" -> from JSString
           where
             from checks = check x checks x
 
-      Data ctor [t]
-          | ctor == "Maybe.Maybe" ->
-              CondExpr () (equal x (NullLit ()))
-                          (obj "Maybe.Nothing")
-                          (obj "Maybe.Just" <| inc t x)
+      Type name
+          | Var.isJson name -> V.value "Native.Json" "fromJS" <| x
+          | otherwise -> error "bad type got to incoming port generation code"
 
-          | ctor == "_List" ->
-              check x JSArray (obj "_L.fromArray" <| array)
+      App f args ->
+          case f : args of
+            Type name : [t]
+                | Var.isMaybe name -> CondExpr () (equal x (NullLit ()))
+                                                  (V.value "Maybe" "Nothing")
+                                                  (V.value "Maybe" "Just" <| inc t x)
 
-          | ctor == "Array.Array" ->
-              check x JSArray (obj "_A.fromJSArray" <| array)
+                | Var.isList name  -> check x JSArray (obj ["_L","fromArray"] <| array)
 
-          where
-            array = DotRef () x (var "map") <| incoming t
+                | Var.isArray name -> check x JSArray (obj ["_A","fromJSArray"] <| array)
+                where
+                  array = DotRef () x (var "map") <| incoming t
 
-      Data ctor ts
-          | Help.isTuple ctor -> check x JSArray tuple
-          where
-            tuple = ObjectLit () $ (prop "ctor", string ctor) : values
-            values = zipWith convert [0..] ts
-            convert n t = ( prop ('_':show n)
-                          , inc t (BracketRef () x (IntLit () n)))
+            Type name : ts
+                | Var.isTuple name -> check x JSArray tuple
+                where
+                  tuple = ObjectLit () $ (prop "ctor", ctor) : values
 
-      Data _ _ ->
-          error "bad ADT got to incoming port generation code"
+                  ctor = string ("_Tuple" ++ show (length ts))
+                  values = zipWith convert [0..] ts
+
+                  convert n t = ( prop ('_':show n)
+                                , inc t (BracketRef () x (IntLit () n))
+                                )
+
+            _ -> error "bad ADT got to incoming port generation code"
 
       Record _ (Just _) ->
           error "bad record got to incoming port generation code"
@@ -83,15 +91,21 @@ inc tipe x =
             keys = map convert fields
             convert (f,t) = (prop f, inc t (DotRef () x (var f)))
 
+outgoing :: CanonicalType -> Expression ()
 outgoing tipe =
   case tipe of
-    Data "Signal.Signal" [t] ->
-        obj "Native.Ports.outgoingSignal" <| outgoing t
+    Aliased _ t -> outgoing t
+
+    App (Type v) [t]
+        | Var.isSignal v -> V.value "Native.Ports" "outgoingSignal" <| outgoing t
+
     _ -> ["v"] ==> out tipe (ref "v")
 
-out :: Type -> Expression () -> Expression ()
+out :: CanonicalType -> Expression () -> Expression ()
 out tipe x =
     case tipe of
+      Aliased _ t -> out t x
+
       Lambda _ _
           | numArgs > 1 && numArgs < 10 ->
               func (ref ('A':show numArgs) `call` (x:values))
@@ -107,30 +121,34 @@ out tipe x =
                         ]
 
       Var _ -> error "type variables should not be allowed through input ports"
-      Data ctor []
-          | ctor `elem` ["Int","Float","Bool","String"] -> x
-          | ctor == "Json.Value" ->
-              obj "Native.Json.toJS" <| x
 
-      Data ctor [t]
-          | ctor == "Maybe.Maybe" ->
-              CondExpr () (equal (DotRef () x (var "ctor")) (string "Nothing"))
-                          (NullLit ())
-                          (out t (DotRef () x (var "_0")))
+      Type (Var.Canonical Var.BuiltIn name)
+          | name `elem` ["Int","Float","Bool","String"] -> x
 
-          | ctor == "_List" ->
-              DotRef () (obj "_L.toArray" <| x) (var "map") <| outgoing t
+      Type name
+          | Var.isJson name -> V.value "Native.Json" "toJS" <| x
+          | otherwise -> error "bad type got to outgoing port generation code"
 
-          | ctor == "Array.Array" ->
-              DotRef () (obj "_A.toJSArray" <| x) (var "map") <| outgoing t
+      App f args ->
+          case f : args of
+            Type name : [t]
+                | Var.isMaybe name ->
+                    CondExpr () (equal (DotRef () x (var "ctor")) (string "Nothing"))
+                                 (NullLit ())
+                                 (out t (DotRef () x (var "_0")))
 
-      Data ctor ts
-          | Help.isTuple ctor ->
-              let convert n t = out t $ DotRef () x $ var ('_':show n)
-              in  ArrayLit () $ zipWith convert [0..] ts
+                | Var.isArray name ->
+                    DotRef () (obj ["_A","toJSArray"] <| x) (var "map") <| outgoing t
 
-      Data _ _ ->
-          error "bad ADT got to outgoing port generation code"
+                | Var.isList name ->
+                    DotRef () (obj ["_L","toArray"] <| x) (var "map") <| outgoing t
+
+            Type name : ts
+                | Var.isTuple name ->
+                    let convert n t = out t $ DotRef () x $ var ('_':show n)
+                    in  ArrayLit () $ zipWith convert [0..] ts
+
+            _ -> error "bad ADT got to outgoing port generation code"
 
       Record _ (Just _) ->
           error "bad record got to outgoing port generation code"

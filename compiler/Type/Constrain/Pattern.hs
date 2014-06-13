@@ -9,16 +9,18 @@ import Control.Monad.Error
 import qualified Data.Map as Map
 import qualified Text.PrettyPrint as PP
 
-import qualified SourceSyntax.Annotation as A
-import qualified SourceSyntax.Pattern as P
-import SourceSyntax.PrettyPrint (pretty)
+import qualified AST.Annotation as A
+import qualified AST.Pattern as P
+import qualified AST.Variable as V
+import AST.PrettyPrint (pretty)
 import Type.Type
 import Type.Fragment
 import Type.Environment as Env
 import qualified Type.Constrain.Literal as Literal
 
 
-constrain :: Environment -> P.Pattern -> Type -> ErrorT (A.Region -> PP.Doc) IO Fragment
+constrain :: Environment -> P.CanonicalPattern -> Type
+          -> ErrorT (A.Region -> PP.Doc) IO Fragment
 constrain env pattern tipe =
     let region = A.None (pretty pattern)
         t1 === t2 = A.A region (CEqual t1 t2)
@@ -32,11 +34,11 @@ constrain env pattern tipe =
           return $ emptyFragment { typeConstraint = c }
 
       P.Var name -> do
-          v <- liftIO $ var Flexible
+          v <- liftIO $ variable Flexible
           return $ Fragment {
-              typeEnv    = Map.singleton name (VarN v),
+              typeEnv    = Map.singleton name (varN v),
               vars       = [v],
-              typeConstraint = VarN v === tipe
+              typeConstraint = varN v === tipe
           }
 
       P.Alias name p -> do
@@ -47,8 +49,8 @@ constrain env pattern tipe =
             }
 
       P.Data name patterns -> do
-          (kind, cvars, args, result) <- liftIO $ freshDataScheme env name
-          let msg = concat [ "Constructor '", name, "' expects ", show kind
+          (kind, cvars, args, result) <- liftIO $ freshDataScheme env (V.toString name)
+          let msg = concat [ "Constructor '", V.toString name, "' expects ", show kind
                            , " argument", if kind == 1 then "" else "s"
                            , " but was given ", show (length patterns), "." ]
               err span = PP.vcat [ PP.text $ "Type error " ++ show span
@@ -63,8 +65,8 @@ constrain env pattern tipe =
               }
 
       P.Record fields -> do
-          pairs <- liftIO $ mapM (\name -> (,) name <$> var Flexible) fields
-          let tenv = Map.fromList (map (second VarN) pairs)
+          pairs <- liftIO $ mapM (\name -> (,) name <$> variable Flexible) fields
+          let tenv = Map.fromList (map (second varN) pairs)
           c <- exists $ \t -> return (tipe === record (Map.map (:[]) tenv) t)
           return $ Fragment {
               typeEnv        = tenv,
