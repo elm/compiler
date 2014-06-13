@@ -3,6 +3,7 @@
 
 #### Improvements:
 
+  * Type aliases are allowed in port types
   * Error on ambiguious use of imported variables
   * Higher kinded polymorphism (a.k.a. higher-order types)
   * Many bug fixes for importing types

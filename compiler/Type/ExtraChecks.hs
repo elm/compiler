@@ -65,7 +65,7 @@ portTypes expr =
           ST.Type v
               | V.isJson v      -> return ()
               | V.isPrimitive v -> return ()
-              | otherwise       -> err' True "an unsupported type"
+              | otherwise       -> err "an unsupported type"
 
           ST.App t [] -> valid t
 
@@ -78,7 +78,7 @@ portTypes expr =
           ST.App (ST.Type v) ts
               | V.isTuple v -> mapM_ valid ts
                     
-          ST.App _ _ -> err' True "an unsupported type"
+          ST.App _ _ -> err "an unsupported type"
 
           ST.Var _ -> err "free type variables"
 
@@ -109,8 +109,7 @@ portTypes expr =
           dir inMsg outMsg = case direction of { In -> inMsg ; Out -> outMsg }
           txt = P.text . concat
 
-          err = err' False
-          err' couldBeAlias kind =
+          err kind =
               throw $
               [ txt [ "Type Error: the value ", dir "coming in" "sent out"
                     , " through port '", name, "' is invalid." ]
@@ -119,11 +118,6 @@ portTypes expr =
               , txt [ "Acceptable values for ", dir "incoming" "outgoing", " ports include:" ]
               , txt [ "    Ints, Floats, Bools, Strings, Maybes, Lists, Arrays, Tuples," ]
               , txt [ "    Json.Values, ", dir "" "first-order functions, ", "and concrete records." ]
-              ] ++ if couldBeAlias then aliasWarning else []
-
-          aliasWarning =
-              [ txt [ "\nType aliases are not expanded for this check (yet) so you need to do that" ]
-              , txt [ "manually for now (e.g. {x:Int,y:Int} instead of a type alias of that type)." ]
               ]
 
 occurs :: (String, TT.Variable) -> StateT TS.SolverState IO ()
