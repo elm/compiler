@@ -29,7 +29,7 @@ compilerTests = buildTest $ do
         mkTests h = traverse setupTest
           where setupTest f = testCase f . mkCompileTest h <$> readFile f
 
-        testsDir = "tests" </> "test-files"
+        testsDir = "tests" </> "compiler" </> "test-files"
 
 goodCompile :: Either String String -> Assertion
 goodCompile (Left err) = assertFailure err
