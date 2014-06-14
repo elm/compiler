@@ -15,13 +15,13 @@ import Native.Window
 
 {-| The current width and height of the window (i.e. the area viewable to the
 user, not including scroll bars). -}
-dimensions : Signal (Int,Int)
+dimensions : Signal (Float,Float)
 dimensions = Native.Window.dimensions
 
 {-| The current width of the window. -}
-width : Signal Int
+width : Signal Float
 width = Native.Window.width
 
 {-| The current height of the window. -}
-height : Signal Int
+height : Signal Float
 height = Native.Window.height

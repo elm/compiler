@@ -253,7 +253,14 @@ Elm.Native.Graphics.Input.make = function(elm) {
     }
 
     function renderField(model) {
-        var field = newNode('input');
+        var field;
+        if (model.style.lines.ctor === "SingleLine") {
+            field = newNode('input');
+        }
+        else { // MultiLine
+            field = newNode('textarea');
+            field.style.resize = 'none';
+        }
         updateFieldStyle(field.style, model.style);
         field.style.borderStyle = 'solid';
         field.style.pointerEvents = 'auto';

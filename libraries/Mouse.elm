@@ -15,15 +15,15 @@ import Signal (Signal)
 import Native.Mouse
 
 {-| The current mouse position. -}
-position : Signal (Int,Int)
+position : Signal (Float,Float)
 position = Native.Mouse.position
 
 {-| The current x-coordinate of the mouse. -}
-x : Signal Int
+x : Signal Float
 x = Native.Mouse.x
 
 {-| The current y-coordinate of the mouse. -}
-y : Signal Int
+y : Signal Float
 y = Native.Mouse.y
 
 {-| The current state of the left mouse-button.

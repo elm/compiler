@@ -11,7 +11,7 @@ text fields programmatically.
 @docs Content, Selection, Direction, noContent
 
 # Field Style
-@docs Style, Outline, noOutline, Highlight, noHighlight, Dimensions, uniformly
+@docs Style, Outline, noOutline, Lines, Highlight, noHighlight, Dimensions, uniformly
 -}
 
 import Color (Color)
@@ -86,6 +86,7 @@ type Style =
   , outline   : Outline
   , highlight : Highlight
   , style     : Text.Style
+  , lines     : Lines
   }
 
 {-| The default style for a text field. The outline is `Color.grey` with width
@@ -98,6 +99,7 @@ defaultStyle =
   , outline   = Outline Color.grey (uniformly 1) 2
   , highlight = Highlight Color.blue 1
   , style     = Text.defaultStyle
+  , lines     = SingleLine
   }
 
 {-| Represents the current content of a text field. For example:
@@ -108,6 +110,9 @@ This means the user highlighted the substring `"She"` backwards. The value of
 `content.string` is `"She sells sea shells"`.
 -}
 type Content = { string:String, selection:Selection }
+
+{-| Represents whether the text field allows single or multiple lines as input -}
+data Lines = SingleLine | MultiLine
 
 {-| The selection within a text field. `start` is never greater than `end`:
 
