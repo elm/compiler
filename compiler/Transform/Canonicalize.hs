@@ -235,7 +235,9 @@ expression env (A.A ann expr) =
             branch (p,b) = (,) <$> format (pattern env p)
                                <*> expression (update p env) b
 
-      Markdown uid md es -> Markdown uid md <$> mapM go es
+      Markdown uid md es ->
+          do Env.uses "Text"
+             Markdown uid md <$> mapM go es
 
       PortIn name st -> PortIn name <$> tipe' env st
 

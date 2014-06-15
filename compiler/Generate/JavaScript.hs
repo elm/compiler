@@ -183,7 +183,7 @@ expression (A region expr) =
 
       Markdown uid doc es ->
           do es' <- mapM expression es
-             return $ obj ["Text","markdown"] `call` (string md : string uid : es')
+             return $ Var.value "Text" "markdown" `call` (string md : string uid : es')
           where
             pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
             md = pad ++ MD.toHtml doc ++ pad
@@ -356,8 +356,8 @@ generate modul =
               case value of
                 Var.Alias _ -> []
                 Var.Value x | Help.isOp x -> []
-                            | otherwise   -> [x]
-                Var.ADT _ (Var.Listing ctors _) -> ctors
+                            | otherwise   -> [Var.varName x]
+                Var.ADT _ (Var.Listing ctors _) -> map Var.varName ctors
           
     assign path expr =
              case path of
