@@ -33,8 +33,7 @@ tvar :: Environment -> String
 tvar env var =
   case adts ++ aliases of
     []  -> notFound "type" (Map.keys (_adts env) ++ Map.keys (_aliases env)) var
-    [v] -> do _ <- Env.using (extract v)
-              return v
+    [v] -> found extract v
     vs  -> preferLocals' extract "type" vs var
   where
     adts    = map Left .  fromMaybe [] $ Map.lookup var (_adts env)
@@ -52,6 +51,11 @@ pvar env var =
       Just vs  -> preferLocals "pattern" vs var
       Nothing  -> notFound "pattern" (Map.keys (_patterns env)) var
 
+found :: (a -> Var.Canonical) -> a -> Canonicalizer String a
+found extract v = do
+  _ <- Env.using (extract v)
+  return v
+
 notFound :: String -> [String] -> String -> Canonicalizer String a
 notFound kind possibilities var =
     throwError $ "Could not find " ++ kind ++ " '" ++ var ++ "'." ++ msg
@@ -67,13 +71,11 @@ preferLocals' :: (a -> Var.Canonical) -> String -> [a] -> String -> Canonicalize
 preferLocals' extract kind possibilities var =
     case filter (isLocal . extract) possibilities of
       []     -> ambiguous possibilities
-      [v]    -> do _ <- Env.using (extract v)
-                   return v
+      [v]    -> found extract v
       locals -> ambiguous locals
     where
       isLocal :: Var.Canonical -> Bool
-      isLocal (Var.Canonical Var.Local _) = True
-      isLocal (Var.Canonical _         _) = False
+      isLocal (Var.Canonical home _) = home == Var.Local
 
       ambiguous possibleVars =
           throwError msg
