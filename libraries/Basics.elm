@@ -58,25 +58,25 @@ radians t = t
 
 {-| Convert degrees to standard Elm angles (radians). -}
 degrees : Float -> Float
-degrees d = d * Native.Basics.pi / 180
+degrees = Native.Basics.degrees
 
 {-| Convert turns to standard Elm angles (radians).
 One turn is equal to 360&deg;.
 -}
 turns : Float -> Float
-turns r = 2 * Native.Basics.pi * r
+turns = Native.Basics.turns
 
 {-| Start with polar coordinates (r,&theta;)
 and get out cartesian coordinates (x,y).
 -}
 fromPolar : (Float,Float) -> (Float,Float)
-fromPolar (r,t) = (r * Native.Basics.cos t, r * Native.Basics.sin t)
+fromPolar = Native.Basics.fromPolar
 
 {-| Start with cartesian coordinates (x,y)
 and get out polar coordinates (r,&theta;).
 -}
 toPolar : (Float,Float) -> (Float,Float)
-toPolar (x,y) = (Native.Basics.sqrt (x^2 + y^2), Native.Basics.atan2 y x)
+toPolar = Native.Basics.toPolar
 
 (+) : number -> number -> number
 (+) = Native.Basics.add
