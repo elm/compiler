@@ -409,11 +409,17 @@ toSrcType var =
           Record1 tfields extension -> do
             fields' <- traverse (mapM toSrcType) tfields
             let fields = concat [ map ((,) name) ts | (name,ts) <- Map.toList fields' ]
-            ext' <- toSrcType extension
+            ext' <- dealias <$> toSrcType extension
             return $ case ext' of
                        T.Record fs ext -> T.Record (fs ++ fields) ext
                        T.Var _ -> T.Record fields (Just ext')
                        _ -> error "Used toSrcType on a type that is not well-formed"
+
+    dealias :: T.CanonicalType -> T.CanonicalType
+    dealias t =
+        case t of
+          T.Aliased _ t' -> t'
+          _ -> t
 
 
 data AppStructure = List Variable | Tuple [Variable] | Other
