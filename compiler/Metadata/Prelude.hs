@@ -21,13 +21,18 @@ add noPrelude (Module name path exs ims decls) =
                                 Just _      -> []
 
 prelude :: [(String, ImportMethod)]
-prelude = string : map (\n -> (n, Module.open)) modules
+prelude = text : string : map (\n -> (n, Module.open)) modules
   where
     string = ("String", Module.importing ["show"])
     modules = [ "Basics", "Signal", "List", "Maybe", "Time", "Color"
-              , "Graphics.Element", "Graphics.Collage", "Text"
+              , "Graphics.Element", "Graphics.Collage"
               , "Native.Ports", "Native.Json"
               ]
+    text = ("Text", Module.importing textImports)
+    textImports =
+        [ "toText", "leftAligned", "rightAligned", "centered", "justified"
+        , "plainText", "asText", "typeface", "monospace", "bold", "italic" 
+        ]
 
 interfaces :: Bool -> IO Interfaces
 interfaces noPrelude =
