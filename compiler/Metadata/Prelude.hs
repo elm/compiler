@@ -6,6 +6,7 @@ import qualified Control.Exception as E
 import System.Exit
 import System.IO
 import AST.Module as Module
+import qualified AST.Variable as Var
 import qualified Build.Interface as Interface
 import Build.Utils (getDataFile)
 
@@ -23,15 +24,16 @@ add noPrelude (Module name path exs ims decls) =
 prelude :: [(String, ImportMethod)]
 prelude = text : string : map (\n -> (n, Module.open)) modules
   where
-    string = ("String", Module.importing ["show"])
+    string = ("String", Module.importing [Var.Value "show"])
     modules = [ "Basics", "Signal", "List", "Maybe", "Time", "Color"
               , "Graphics.Element", "Graphics.Collage"
               , "Native.Ports", "Native.Json"
               ]
     text = ("Text", Module.importing textImports)
     textImports =
+        Var.ADT "Text" (Var.Listing [] False) : map Var.Value
         [ "toText", "leftAligned", "rightAligned", "centered", "justified"
-        , "plainText", "asText", "typeface", "monospace", "bold", "italic" 
+        , "plainText", "asText", "typeface", "monospace", "bold", "italic"
         ]
 
 interfaces :: Bool -> IO Interfaces

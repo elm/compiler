@@ -91,8 +91,8 @@ data ImportMethod
 open :: ImportMethod
 open = Open (Var.openListing)
 
-importing :: [String] -> ImportMethod
-importing xs = Open (Var.Listing (map Var.Value xs) False)
+importing :: [Var.Value] -> ImportMethod
+importing xs = Open (Var.Listing xs False)
 
 instance Binary ImportMethod where
     put method =
