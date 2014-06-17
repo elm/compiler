@@ -12,7 +12,6 @@ import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 
-import AST.PrettyPrint ()
 import Text.PrettyPrint (Doc)
 
 type Dict a = Map.Map String [a]
@@ -48,15 +47,17 @@ onError handler canonicalizer =
        Right x  -> return x
 
 data Environment = Env
-    { _values   :: Dict Var.Canonical
+    { _home     :: String
+    , _values   :: Dict Var.Canonical
     , _adts     :: Dict Var.Canonical
     , _aliases  :: Dict (Var.Canonical, [String], Type.CanonicalType)
     , _patterns :: Dict Var.Canonical
     }
 
-builtIns :: Environment
-builtIns =
-    Env { _values   = builtIn (tuples ++ [saveEnvName])
+builtIns :: String -> Environment
+builtIns home =
+    Env { _home     = home
+        , _values   = builtIn (tuples ++ [saveEnvName])
         , _adts     = builtIn (tuples ++ ["_List","Int","Float","Char","Bool","String"])
         , _aliases  = dict []
         , _patterns = builtIn (tuples ++ ["::","[]"])
@@ -72,9 +73,12 @@ update ptrn env =
       put x = Map.insert x [Var.local x]
 
 merge :: Environment -> Environment -> Environment
-merge (Env v1 t1 a1 p1) (Env v2 t2 a2 p2) =
-    Env { _values   = Map.unionWith (++) v1 v2
-        , _adts     = Map.unionWith (++) t1 t2
-        , _aliases  = Map.unionWith (++) a1 a2
-        , _patterns = Map.unionWith (++) p1 p2
-        }
+merge (Env n1 v1 t1 a1 p1) (Env n2 v2 t2 a2 p2)
+    | n1 /= n2 = error "trying to merge incompatable environments"
+    | otherwise =
+        Env { _home     = n1
+            , _values   = Map.unionWith (++) v1 v2
+            , _adts     = Map.unionWith (++) t1 t2
+            , _aliases  = Map.unionWith (++) a1 a2
+            , _patterns = Map.unionWith (++) p1 p2
+            }

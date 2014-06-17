@@ -25,9 +25,9 @@ import qualified Transform.Canonicalize.Type as Canonicalize
 environment :: Module.Interfaces -> Module.ValidModule -> Canonicalizer [Doc] Environment
 environment interfaces modul@(Module.Module _ _ _ imports decls) =
   do () <- allImportsAvailable
-     nonLocalEnv <- foldM (addImports interfaces) builtIns imports
      let moduleName = Module.getName modul
-         (aliases, env) = List.foldl' (addDecl moduleName) ([], nonLocalEnv) decls
+     nonLocalEnv <- foldM (addImports moduleName interfaces) (builtIns moduleName) imports
+     let (aliases, env) = List.foldl' (addDecl moduleName) ([], nonLocalEnv) decls
      addTypeAliases moduleName aliases env
   where
     allImportsAvailable :: Canonicalizer [Doc] ()
@@ -46,9 +46,9 @@ environment interfaces modul@(Module.Module _ _ _ imports decls) =
                      , "\n    You may need to compile with the --make "
                      , "flag to detect modules you have written." ]
 
-addImports :: Module.Interfaces -> Environment -> (String, Module.ImportMethod)
+addImports :: String -> Module.Interfaces -> Environment -> (String, Module.ImportMethod)
            -> Canonicalizer [Doc] Environment
-addImports interfaces environ (name,method)
+addImports moduleName interfaces environ (name,method)
     | List.isPrefixOf "Native." name = return environ
     | otherwise =
         case method of
@@ -64,7 +64,8 @@ addImports interfaces environ (name,method)
       updateEnviron prefix =
           let dict' = dict . map (first (prefix++)) in
           merge environ $
-          Env { _values   = dict' $ map pair (Map.keys (iTypes interface)) ++ ctors
+          Env { _home     = moduleName
+              , _values   = dict' $ map pair (Map.keys (iTypes interface)) ++ ctors
               , _adts     = dict' $ map pair (Map.keys (iAdts interface))
               , _aliases  = dict' $ map alias (Map.toList (iAliases interface))
               , _patterns = dict' $ ctors

@@ -21,7 +21,7 @@ variable env var =
 
     _ -> case Map.lookup var (_values env) of
            Just [v] -> Env.using v
-           Just vs  -> preferLocals "variable" vs var
+           Just vs  -> preferLocals env "variable" vs var
            Nothing  -> notFound "variable" (Map.keys (_values env)) var
   where
     (modul, name) = case Help.splitDots var of
@@ -34,7 +34,7 @@ tvar env var =
   case adts ++ aliases of
     []  -> notFound "type" (Map.keys (_adts env) ++ Map.keys (_aliases env)) var
     [v] -> found extract v
-    vs  -> preferLocals' extract "type" vs var
+    vs  -> preferLocals' env extract "type" vs var
   where
     adts    = map Left .  fromMaybe [] $ Map.lookup var (_adts env)
     aliases = map Right . fromMaybe [] $ Map.lookup var (_aliases env)
@@ -48,7 +48,7 @@ pvar :: Environment -> String -> Canonicalizer String Var.Canonical
 pvar env var =
     case Map.lookup var (_patterns env) of
       Just [v] -> Env.using v
-      Just vs  -> preferLocals "pattern" vs var
+      Just vs  -> preferLocals env "pattern" vs var
       Nothing  -> notFound "pattern" (Map.keys (_patterns env)) var
 
 found :: (a -> Var.Canonical) -> a -> Canonicalizer String a
@@ -64,18 +64,24 @@ notFound kind possibilities var =
     msg = if null matches then "" else
               "\nClose matches include: " ++ List.intercalate ", " matches
 
-preferLocals :: String -> [Var.Canonical] -> String -> Canonicalizer String Var.Canonical
-preferLocals = preferLocals' id
+preferLocals :: Environment -> String -> [Var.Canonical] -> String
+             -> Canonicalizer String Var.Canonical
+preferLocals env = preferLocals' env id
 
-preferLocals' :: (a -> Var.Canonical) -> String -> [a] -> String -> Canonicalizer String a
-preferLocals' extract kind possibilities var =
+preferLocals' :: Environment -> (a -> Var.Canonical) -> String -> [a] -> String
+              -> Canonicalizer String a
+preferLocals' env extract kind possibilities var =
     case filter (isLocal . extract) possibilities of
       []     -> ambiguous possibilities
       [v]    -> found extract v
       locals -> ambiguous locals
     where
       isLocal :: Var.Canonical -> Bool
-      isLocal (Var.Canonical home _) = home == Var.Local
+      isLocal (Var.Canonical home _) =
+          case home of
+            Var.Local -> True
+            Var.BuiltIn -> False
+            Var.Module name -> name == Env._home env
 
       ambiguous possibleVars =
           throwError msg
