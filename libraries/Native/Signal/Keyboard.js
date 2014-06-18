@@ -5,14 +5,6 @@ Elm.Native.Keyboard.make = function(elm) {
   elm.Native.Keyboard = elm.Native.Keyboard || {};
   if (elm.Native.Keyboard.values) return elm.Native.Keyboard.values;
 
-  // Duplicated from Native.Signal
-  function send(node, timestep, changed) {
-    var kids = node.kids;
-    for (var i = kids.length; i--; ) {
-      kids[i].recv(timestep, changed, node.id);
-    }
-  }
-
   var Signal = Elm.Signal.make(elm);
   var NList = Elm.Native.List.make(elm);
   var Utils = Elm.Native.Utils.make(elm);
@@ -39,35 +31,28 @@ Elm.Native.Keyboard.make = function(elm) {
     // Ignore starting values here
     this.value = NList.Nil
     this.kids = [];
-    
+
     var n = args.length;
     var count = 0;
     var isChanged = false;
 
-    this.recv = function(timestep, changed, parentID) {
-      ++count;
-      if (changed) { 
-        // We know this a change must only be one of the following cases
-        if (parentID === down.id && !(NList.member(down.value)(this.value))) {
-          isChanged = true;
-          this.value = NList.Cons(down.value, this.value); 
-        } 
-        if (parentID === up.id) {
-          isChanged = true;
-          var notEq = function(kc) { return kc !== up.value };
-          this.value = NList.filter(notEq)(this.value);
-        } 
-        if (parentID === blur.id) {
-          isChanged = true;
-          this.value = NList.Nil;
-        }
+    this.update = function(timestep, parentID) {
+      // We know this a change must only be one of the following cases
+      if (parentID === down.id && !(NList.member(down.value)(this.value))) {
+        this.value = NList.Cons(down.value, this.value);
+        return true;
+      } 
+      if (parentID === up.id) {
+        var notEq = function(kc) { return kc !== up.value };
+        this.value = NList.filter(notEq)(this.value);
+        return true;
+      } 
+      if (parentID === blur.id) {
+        this.value = NList.Nil;
+        return true;
       }
-      if (count == n) {
-        send(this, timestep, isChanged);
-        isChanged = false;
-        count = 0;
-      }
-    };
+      return false;
+    }
 
     for (var i = n; i--; ) { args[i].kids.push(this); }
 

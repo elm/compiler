@@ -9,24 +9,11 @@ Elm.Native.Signal.make = function(elm) {
   var Utils = Elm.Native.Utils.make(elm);
   var foldr1 = Elm.List.make(elm).foldr1;
 
-  function send(node, timestep, changed) {
-    var kids = node.kids;
-    for (var i = kids.length; i--; ) {
-      kids[i].recv(timestep, changed, node.id);
-    }
-  }
-
   function Input(base) {
     this.id = Utils.guid();
     this.value = base;
     this.kids = [];
     this.defaultNumberOfKids = 0;
-    this.recv = function(timestep, eid, v) {
-      var changed = eid === this.id;
-      if (changed) { this.value = v; }
-      send(this, timestep, changed);
-      return changed;
-    };
     elm.inputs.push(this);
   }
 
@@ -39,15 +26,9 @@ Elm.Native.Signal.make = function(elm) {
     var count = 0;
     var isChanged = false;
 
-    this.recv = function(timestep, changed, parentID) {
-      ++count;
-      if (changed) { isChanged = true; }
-      if (count == n) {
-        if (isChanged) { this.value = update(); }
-        send(this, timestep, isChanged);
-        isChanged = false;
-        count = 0;
-      }
+    this.update = function(timestep, parentID) {
+      this.value = update();
+      return true;
     };
     for (var i = n; i--; ) { args[i].kids.push(this); }
   }
@@ -90,11 +71,9 @@ Elm.Native.Signal.make = function(elm) {
     this.value = state;
     this.kids = [];
 
-    this.recv = function(timestep, changed, parentID) {
-      if (changed) {
-          this.value = A2( step, input.value, this.value );
-      }
-      send(this, timestep, changed);
+    this.update = function(timestep, parentID) {
+      this.value = A2( step, input.value, this.value );
+      return true;
     };
     input.kids.push(this);
   }
@@ -107,10 +86,13 @@ Elm.Native.Signal.make = function(elm) {
     this.id = Utils.guid();
     this.value = pred(input.value) ? base : input.value;
     this.kids = [];
-    this.recv = function(timestep, changed, parentID) {
-      var chng = changed && !pred(input.value);
-      if (chng) { this.value = input.value; }
-      send(this, timestep, chng);
+    this.update = function(timestep, parentID) {
+      if (!pred(input.value)) {
+        this.value = input.value;
+        return true;
+      } else {
+        return false;
+      }
     };
     input.kids.push(this);
   }
@@ -119,11 +101,14 @@ Elm.Native.Signal.make = function(elm) {
     this.id = Utils.guid();
     this.value = input.value;
     this.kids = [];
-    this.recv = function(timestep, changed, parentID) {
-      var chng = changed && !Utils.eq(this.value,input.value);
-      if (chng) { this.value = input.value; }
-      send(this, timestep, chng);
-    };
+    this.update = function(timestep, parentID) {
+      if (!Utils.eq(this.value,input.value)) {
+        this.value = input.value;
+        return true;
+      } else {
+        return false;
+      }
+    }
     input.kids.push(this);
   }
 
@@ -140,18 +125,11 @@ Elm.Native.Signal.make = function(elm) {
     var count = 0;
     var isChanged = false;
 
-    this.recv = function(timestep, changed, parentID) {
-      if (parentID === s1.id) isChanged = changed;
-      ++count;
-      if (count == 2) {
-        if (isChanged) { this.value = s2.value; }
-        send(this, timestep, isChanged);
-        count = 0;
-        isChanged = false;
-      }
-    };
+    this.update = function(timestep, parentID) {
+      this.value = s2.value;
+      return true;
+    }
     s1.kids.push(this);
-    s2.kids.push(this);
   }
 
   function sampleOn(s1,s2) { return new SampleOn(s1,s2); }
@@ -171,26 +149,19 @@ Elm.Native.Signal.make = function(elm) {
       this.id = Utils.guid();
       this.value = s1.value;
       this.kids = [];
+      this.parentRank = {};
+      this.parentRank[s1.id] = 1;
+      this.parentRank[s2.id] = 2;
 
       var next = null;
       var count = 0;
       var isChanged = false;
 
-      this.recv = function(timestep, changed, parentID) {
-        ++count;
-        if (changed) {
-            isChanged = true;
-            if (parentID == s2.id && next === null) { next = s2.value; }
-            if (parentID == s1.id) { next = s1.value; }
-        }
-
-        if (count == 2) {
-            if (isChanged) { this.value = next; next = null; }
-            send(this, timestep, isChanged);
-            isChanged = false;
-            count = 0;
-        }
-      };
+      this.update = function(timestep, parentID) {
+        if (s1.id == parentID) this.value = s1.value;
+        if (s2.id == parentID) this.value = s2.value;
+        return true;
+      }
       s1.kids.push(this);
       s2.kids.push(this);
   }
