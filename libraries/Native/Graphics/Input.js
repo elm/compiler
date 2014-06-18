@@ -28,6 +28,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
             var drop = newNode('select');
             drop.style.border = '0 solid';
             drop.style.pointerEvents = 'auto';
+            drop.style.display = 'block';
             for (var i = 0; i < entries.length; ++i) {
                 var option = newNode('option');
                 var name = entries[i]._0;
