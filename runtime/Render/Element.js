@@ -261,7 +261,10 @@ function makeElement(e) {
 }
 
 function update(node, curr, next) {
-    if (node.tagName === 'A') { node = node.firstChild; }
+    if (node.tagName === 'A') {
+        updateProps(node, curr, next);
+        node = node.firstChild;
+    }
     if (curr.props.id === next.props.id) return updateProps(node, curr, next);
     if (curr.element.ctor !== next.element.ctor) {
         node.parentNode.replaceChild(render(next),node);
