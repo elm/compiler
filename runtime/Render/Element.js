@@ -12,16 +12,15 @@ function setProps(elem, e) {
     var element = elem.element;
     var width = props.width - (element.adjustWidth || 0);
     var height = props.height - (element.adjustHeight || 0);
-    var nodeTree = e;
-    nodeTree.style.width  = (width |0) + 'px';
-    nodeTree.style.height = (height|0) + 'px';
+    e.style.width  = (width |0) + 'px';
+    e.style.height = (height|0) + 'px';
     if (props.opacity !== 1) {
-        nodeTree.style.opacity = props.opacity;
+        e.style.opacity = props.opacity;
     }
     if (props.color.ctor === 'Just') {
-        nodeTree.style.backgroundColor = colorToCss(props.color._0);
+        e.style.backgroundColor = colorToCss(props.color._0);
     }
-    if (props.tag !== '') { nodeTree.id = props.tag; }
+    if (props.tag !== '') { e.id = props.tag; }
     if (props.href !== '') {
         var a = newElement('a');
         a.style.display = 'hidden';
@@ -30,17 +29,17 @@ function setProps(elem, e) {
         a.style.height = (height|0) + 'px';
         a.style.position = 'relative';
         a.style.pointerEvents = 'auto';
-        a.appendChild(nodeTree);
+        a.appendChild(e);
         a.style.display = 'block';
-        nodeTree = a;
+        e = a;
     }
     if (props.hover.ctor !== '_Tuple0') {
-        addHover(nodeTree, props.hover);
+        addHover(e, props.hover);
     }
     if (props.click.ctor !== '_Tuple0') {
-        addClick(nodeTree, props.click);
+        addClick(e, props.click);
     }
-    return nodeTree;
+    return e;
 }
 
 function addClick(e, handler) {
@@ -378,16 +377,15 @@ function updateProps(node, curr, next) {
     if (props.href !== currP.href) {
         if (currP.href === '') {
             var a = newElement('a');
+            a.style.display = 'hidden';
             a.href = props.href;
-            a.style.width = '100%';
-            a.style.height = '100%';
-            a.style.top = 0;
-            a.style.left = 0;
-            a.style.display = 'block';
-            a.style.position = 'absolute';
-            e.style.position = 'relative';
+            a.style.width  = (width |0) + 'px';
+            a.style.height = (height|0) + 'px';
+            a.style.position = 'relative';
             a.style.pointerEvents = 'auto';
-            e.appendChild(a);
+            a.appendChild(e);
+            a.style.display = 'block';
+            e = a;
         } else {
             node.lastNode.href = props.href;
         }
