@@ -48,16 +48,16 @@ Elm.Native.Keyboard.make = function(elm) {
             ++count;
             if (changed) { 
                 // We know this a change must only be one of the following cases
-                if (parentID === down.id && !(NList.member(down.value)(this.value))) {
+                if (parentID === down.id && !A2(NList.member, down.value, this.value)) {
                     isChanged = true;
                     this.value = NList.Cons(down.value, this.value); 
-                } 
-                if (parentID === up.id) {
+                }
+                else if (parentID === up.id) {
                     isChanged = true;
                     var notEq = function(kc) { return kc !== up.value };
-                    this.value = NList.filter(notEq)(this.value);
-                } 
-                if (parentID === blur.id) {
+                    this.value = A2(NList.filter, notEq, this.value);
+                }
+                else if (parentID === blur.id) {
                     isChanged = true;
                     this.value = NList.Nil;
                 }
@@ -69,8 +69,9 @@ Elm.Native.Keyboard.make = function(elm) {
             }
         };
 
-        for (var i = n; i--; ) { args[i].kids.push(this); }
-
+        for (var i = n; i--; ) {
+            args[i].kids.push(this);
+        }
     }
 
     var keysDown = Signal.dropRepeats(new KeyMerge(downEvents,upEvents,blurEvents));
