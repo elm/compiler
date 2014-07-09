@@ -8,7 +8,10 @@ module Keyboard where
 @docs arrows, wasd, directions
 
 # Specific Keys
-@docs shift, enter, space, ctrl
+The following signals are `True` when the particular key is pressed and `False`
+otherwise.
+
+@docs enter, space, ctrl, shift, alt, meta
 
 # General Keypresses
 @docs isDown, keysDown, lastPressed
@@ -50,19 +53,23 @@ wasd = directions 87 83 65 68
 isDown : KeyCode -> Signal Bool
 isDown = Native.Keyboard.isDown
 
-{-| Whether the shift key is pressed. -}
+alt   : Signal Bool
+alt   = Native.Keyboard.alt
+
+ctrl  : Signal Bool
+ctrl  = isDown 17
+
+{-| The meta key is the Windows key on Windows and the Command key on Mac.
+-}
+meta  : Signal Bool
+meta  = Native.Keyboard.meta
+
 shift : Signal Bool
 shift = isDown 16
 
-{-| Whether the control key is pressed. -}
-ctrl : Signal Bool
-ctrl = isDown 17
-
-{-| Whether the space key is pressed. -}
 space : Signal Bool
 space = isDown 32
 
-{-| Whether the enter key is pressed. -}
 enter : Signal Bool
 enter = isDown 13
 
