@@ -46,7 +46,7 @@ which happen to be radians.
 @docs fst, snd
 
 # Higher-Order Helpers
-@docs id, (<|), (|>), (.), always, flip, curry, uncurry
+@docs id, always, (<|), (|>), (.), flip, curry, uncurry
 
 -}
 
@@ -301,7 +301,19 @@ isInfinite = Native.Basics.isInfinite
 
 -- Function Helpers
 
-{-| Function composition: `(f . g == (\\x -> f (g x)))` -}
+{-| Function composition. For example, the following code checks if the square
+root of a number is odd:
+
+      not . isEven . sqrt
+
+You can think of this operator as equivalent to the following:
+
+      (f . g)  ==  (\x -> f (g x))
+
+So our example is expanding things out to this:
+
+      \number -> not (isEven (sqrt number))
+-}
 (.) : (b -> c) -> (a -> b) -> (a -> c)
 (.) f g x = f (g x)
 
