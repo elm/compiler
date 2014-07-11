@@ -369,13 +369,17 @@ binop :: Region -> Var.Canonical -> Canonical.Expr -> Canonical.Expr
       -> State Int (Expression ())
 binop region func@(Var.Canonical home op) e1 e2 =
     case (home, op) of
-      (Var.Module "Basics", ".") ->
-          do es <- mapM expression (e1 : collect [] e2)
+      (Var.Module "Basics", ">>") ->
+          do es <- mapM expression (collectLeftAssoc [e2] e1)
+             return $ ["$"] ==> List.foldl' (\e f -> f <| e) (ref "$") es
+
+      (Var.Module "Basics", "<<") ->
+          do es <- mapM expression (e1 : collectRightAssoc [] e2)
              return $ ["$"] ==> foldr (<|) (ref "$") es
 
       (Var.Module "Basics", "<|") ->
           do e2' <- expression e2
-             es <- mapM expression (collect [] e1)
+             es <- mapM expression (collectRightAssoc [] e1)
              return $ foldr (<|) e2' es
 
       (Var.Module "List", "++") ->
@@ -399,11 +403,17 @@ binop region func@(Var.Canonical home op) e1 e2 =
              return (ref "A2" `call` [ Var.canonical func, e1', e2' ])
 
   where
-    collect es e =
+    collectRightAssoc es e =
         case e of
-          A _ (Binop (Var.Canonical (Var.Module "Basics") ".") e1 e2) ->
-              collect (es ++ [e1]) e2
+          A _ (Binop (Var.Canonical (Var.Module "Basics") "<<") e1 e2) ->
+              collectRightAssoc (es ++ [e1]) e2
           _ -> es ++ [e]
+
+    collectLeftAssoc es e =
+        case e of
+          A _ (Binop (Var.Canonical (Var.Module "Basics") ">>") e1 e2) ->
+              collectLeftAssoc (e2 : es) e1
+          _ -> e : es
 
     basicOps = Map.fromList (infixOps ++ specialOps)
 

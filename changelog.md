@@ -17,6 +17,7 @@
 
   * Unambiguous syntax for importing ADTs and type aliases (whoo!)
   * sqrt and logBase both only work on Floats now
+  * (.) is replaced by (<<) and (>>) as in F#
 
 ## 0.12.3
 

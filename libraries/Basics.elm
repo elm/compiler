@@ -46,7 +46,7 @@ which happen to be radians.
 @docs fst, snd
 
 # Higher-Order Helpers
-@docs id, always, (<|), (|>), (.), flip, curry, uncurry
+@docs id, always, (<|), (|>), (<<), (>>), flip, curry, uncurry
 
 -}
 
@@ -301,21 +301,32 @@ isInfinite = Native.Basics.isInfinite
 
 -- Function Helpers
 
-{-| Function composition. For example, the following code checks if the square
-root of a number is odd:
+{-| Function composition, passing results along in the suggested direction. For
+example, the following code checks if the square root of a number is odd:
 
-      not . isEven . sqrt
+      not << isEven << sqrt
 
 You can think of this operator as equivalent to the following:
 
-      (f . g)  ==  (\x -> f (g x))
+      (g << f)  ==  (\x -> g (f x))
 
-So our example is expanding things out to this:
+So our example expands out to something like this:
 
-      \number -> not (isEven (sqrt number))
+      \n -> not (isEven (sqrt n))
 -}
-(.) : (b -> c) -> (a -> b) -> (a -> c)
-(.) f g x = f (g x)
+(<<) : (b -> c) -> (a -> b) -> (a -> c)
+(<<) g f x = g (f x)
+
+{-| Function composition, passing results along in the suggested direction. For
+example, the following code checks if the square root of a number is odd:
+
+      sqrt >> isEven >> not
+
+This direction of function composition seems less pleasant than `(<<)` which
+reads nicely in expressions like: `filter (not << isRegistered) students`
+-}
+(>>) : (a -> b) -> (b -> c) -> (a -> c)
+(>>) f g x = g (f x)
 
 {-| Forward function application `x |> f == f x`. This function is useful
 for avoiding parenthesis and writing code in a more natural way.
@@ -344,7 +355,8 @@ This can also be written as:
 (<|) : (a -> b) -> a -> b
 f <| x = f x
 
-infixr 9 .
+infixr 9 <<
+infixl 9 >>
 infixr 0 <|
 infixl 0 |>
 
