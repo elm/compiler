@@ -12,7 +12,7 @@ module Maybe (Maybe(..), maybe, isJust, isNothing, justs) where
 @docs justs
 -}
 
-import Basics (not, (.))
+import Basics (not)
 import List (foldr, (::))
 
 {-| The Maybe datatype. Useful when a computation may or may not
@@ -52,7 +52,7 @@ isJust = maybe False (\_ -> True)
       isNothing Nothing   == True
 -}
 isNothing : Maybe a -> Bool
-isNothing = not . isJust
+isNothing m = not (isJust m)
 
 cons : Maybe a -> [a] -> [a]
 cons mx xs = maybe xs (\x -> x :: xs) mx
