@@ -7,7 +7,7 @@ list must have the same type.
 @docs (::), (++), isEmpty, length, reverse, map
 
 # Sub-lists
-@docs head, tail, last, filter, take, drop
+@docs head, init, tail, last, filter, take, drop
 
 # Putting Lists Together
 @docs concat, concatMap, join, intersperse, zip, zipWith, repeat
@@ -57,6 +57,12 @@ infixr 5 ++
 -}
 head : [a] -> a
 head = Native.List.head
+
+{-| Extract the elements before the last of the list. List must be non-empty.
+`(init [1,2,3] == [1,2])`
+-}
+init : [a] -> [a]
+init = Native.List.init
 
 {-| Extract the elements after the head of the list. List must be non-empty.
 `(tail [1,2,3] == [2,3])`
