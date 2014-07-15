@@ -23,15 +23,22 @@ function setProps(elem, e) {
     if (props.tag !== '') { e.id = props.tag; }
     if (props.href !== '') {
         var a = newElement('a');
-        a.style.display = 'hidden';
         a.href = props.href;
-        a.style.width  = (width |0) + 'px';
-        a.style.height = (height|0) + 'px';
-        a.style.position = 'relative';
+        a.style.width = '100%';
+        a.style.height = '100%';
+        a.style.top = 0;
+        a.style.left = 0;
         a.style.pointerEvents = 'auto';
-        a.appendChild(e);
-        a.style.display = 'block';
-        e = a;
+        if (element.ctor === 'Image') {
+            a.style.position = 'relative';
+            a.appendChild(e);
+            e = a;
+        } else {
+            a.style.display = 'block';
+            a.style.position = 'absolute';
+            e.style.position = 'relative';
+            e.appendChild(a);
+        }
     }
     if (props.hover.ctor !== '_Tuple0') {
         addHover(e, props.hover);
@@ -261,10 +268,7 @@ function makeElement(e) {
 }
 
 function update(node, curr, next) {
-    if (node.tagName === 'A') {
-        updateProps(node, curr, next);
-        node = node.firstChild;
-    }
+    if (node.tagName === 'A') { node = node.firstChild; }
     if (curr.props.id === next.props.id) return updateProps(node, curr, next);
     if (curr.element.ctor !== next.element.ctor) {
         node.parentNode.replaceChild(render(next),node);
@@ -380,15 +384,22 @@ function updateProps(node, curr, next) {
     if (props.href !== currP.href) {
         if (currP.href === '') {
             var a = newElement('a');
-            a.style.display = 'hidden';
             a.href = props.href;
-            a.style.width  = (width |0) + 'px';
-            a.style.height = (height|0) + 'px';
-            a.style.position = 'relative';
+            a.style.width = '100%';
+            a.style.height = '100%';
+            a.style.top = 0;
+            a.style.left = 0;
             a.style.pointerEvents = 'auto';
-            a.appendChild(e);
-            a.style.display = 'block';
-            e = a;
+            if (element.ctor === 'Image') {
+                a.style.position = 'relative';
+                a.appendChild(e);
+                e = a;
+            } else {
+                a.style.display = 'block';
+                a.style.position = 'absolute';
+                e.style.position = 'relative';
+                e.appendChild(a);
+            }
         } else {
             node.lastNode.href = props.href;
         }
