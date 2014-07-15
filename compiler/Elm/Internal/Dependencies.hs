@@ -88,7 +88,7 @@ getDependencies obj =
               case (N.fromString f, C.fromString c) of
                 (Just name, Just constr) -> return (name, constr)
                 (Nothing, _) -> fail $ N.errorMsg f
-                (_, Nothing) -> fail $ "Invalid constraint: " ++ v
+                (_, Nothing) -> fail $ "Invalid constraint: " ++ c
 
 get :: FromJSON a => Object -> T.Text -> String -> Parser a
 get obj field desc =
