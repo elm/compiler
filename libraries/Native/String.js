@@ -116,6 +116,10 @@ Elm.Native.String.make = function(elm) {
     function lines(str) {
         return List.fromArray(str.split(/\r\n|\r|\n/g));
     }
+    function unlines(strs) {
+        return List.toArray(strs).join('\n');
+    }
+
 
     function toUpper(str) {
         return str.toUpperCase();
@@ -232,6 +236,7 @@ Elm.Native.String.make = function(elm) {
 
         words: words,
         lines: lines,
+        unlines: unlines,
 
         toUpper: toUpper,
         toLower: toLower,

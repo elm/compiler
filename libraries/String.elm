@@ -6,7 +6,7 @@ are enclosed in `"double quotes"`. Strings are *not* lists of characters.
 @docs isEmpty, length, reverse, repeat
 
 # Building and Splitting
-@docs cons, uncons, append, concat, split, join, words, lines
+@docs cons, uncons, append, concat, split, join, words, lines, unlines
 
 # Get Substrings
 @docs slice, left, right, dropLeft, dropRight
@@ -224,6 +224,13 @@ words = Native.String.words
 -}
 lines : String -> [String]
 lines = Native.String.lines
+
+{-| Join lines into a String, appending newlines to each.
+
+      unlines ["How are you?", "Good?"] == "How are you?\nGood?"
+-}
+unlines : [String] -> String
+unlines = Native.String.unlines
 
 {-| Convert a string to all upper case. Useful for case insensitive comparisons
 and VIRTUAL YELLING.
