@@ -13,9 +13,10 @@ import System.FilePath as FP
 import qualified AST.Module as Module
 import qualified Parse.Parse as Parse
 import qualified Elm.Internal.Paths as Path
+import qualified Elm.Internal.Dependencies as Deps (withNative)
+import qualified Elm.Internal.Libraries as L (withVersions)
 import qualified Elm.Internal.Name as N
 import qualified Elm.Internal.Version as V
-import qualified Elm.Internal.Dependencies as Deps
 
 data Recipe = Recipe
     { _elmFiles :: [FilePath]
@@ -40,8 +41,8 @@ getDependencies =
     where
       getPaths :: ErrorT String IO [FilePath]
       getPaths =
-        Deps.withDeps Path.dependencyFile $ \deps ->
-            mapM getPath (Deps.dependencies deps)
+        L.withVersions Path.librariesFile $ \vers ->
+            mapM getPath vers
 
       getPath :: (N.Name, V.Version) -> ErrorT String IO FilePath
       getPath (name,version) = do
@@ -68,8 +69,8 @@ nativeFiles directories =
        else concat `fmap` mapM getNativeFiles directories
   where
     getNativeFiles dir =
-        Deps.withDeps (dir </> Path.dependencyFile) $ \deps ->
-            return (map (toPath dir) (Deps.native deps))
+        Deps.withNative (dir </> Path.dependencyFile) $ \native ->
+            return (map (toPath dir) native)
 
     toPath dir moduleName =
         dir </> joinPath (split moduleName) <.> "js"
