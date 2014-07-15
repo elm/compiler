@@ -113,6 +113,9 @@ Elm.Native.String.make = function(elm) {
     function words(str) {
         return List.fromArray(str.trim().split(/\s+/g));
     }
+    function unwords(strs) {
+        return List.toArray(strs).join(' ');
+    }
     function lines(str) {
         return List.fromArray(str.split(/\r\n|\r|\n/g));
     }
@@ -231,6 +234,7 @@ Elm.Native.String.make = function(elm) {
         trimRight: trimRight,
 
         words: words,
+        unwords: unwords,
         lines: lines,
 
         toUpper: toUpper,

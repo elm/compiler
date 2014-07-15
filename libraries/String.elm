@@ -6,7 +6,7 @@ are enclosed in `"double quotes"`. Strings are *not* lists of characters.
 @docs isEmpty, length, reverse, repeat
 
 # Building and Splitting
-@docs cons, uncons, append, concat, split, join, words, lines
+@docs cons, uncons, append, concat, split, join, words, unwords, lines
 
 # Get Substrings
 @docs slice, left, right, dropLeft, dropRight
@@ -217,6 +217,13 @@ trimRight = Native.String.trimRight
 -}
 words : String -> [String]
 words = Native.String.words
+
+{-| Join words into a String, appending spaces to each.
+
+      unwords ["How","are","you?","Good?"] == "How are you? Good?"
+-}
+unwords : [String] -> String
+unwords = Native.String.unwords
 
 {-| Break a string into lines, splitting on newlines.
 
