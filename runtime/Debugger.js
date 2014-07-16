@@ -199,6 +199,16 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
   function continueProgram() {
     if (debugModule.getPaused())
     {
+      if(eventCounter === 0) {
+        restartProgram();
+        return;
+      }
+      resetProgram();
+      var index = eventCounter;
+      eventCounter = 0;
+      debugModule.tracePath.clearTraces();
+      debugModule.tracePath.startRecording();
+      stepTo(index);
       debugModule.setPausedAt(false, eventCounter);
     }
   }
@@ -216,10 +226,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     if (index < eventCounter) {
       resetProgram();
       eventCounter = 0;
-      debugModule.tracePath.clearTraces();
     }
-
-    debugModule.tracePath.startRecording();
 
     assert(index >= eventCounter, "index must be bad");
     while (eventCounter < index) {
@@ -229,7 +236,6 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
       eventCounter += 1;
     }
     assert(eventCounter == index, "while loop didn't work");
-    debugModule.tracePath.stopRecording();
   }
 
   function getMaxSteps() {
