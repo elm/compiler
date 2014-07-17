@@ -108,22 +108,21 @@ function debugModule(module, runtime) {
     recordedEvents = events.slice();
   }
 
-  function setPausedAt(v, position) {
-    programPaused = v;
-    if (programPaused) {
-      clearAsyncCallbacks();
-      tracePath.stopRecording();
+  function setPaused() {
+    programPaused = true;
+    clearAsyncCallbacks();
+    tracePath.stopRecording();
+  }
+
+  function setContinue(position) {
+    programPaused = false;
+    if (position > 0) {
+      // If we're not unpausing at the head, then we need to dump the
+      // events that are ahead of where we're continuing.
+      recordedEvents = recordedEvents.slice(0,position);
+      executeCallbacks(asyncCallbacks, false);
     }
-    else {
-      // executeCallbacks should only be called when continuing, not when restarting.
-      if(position > 0) {
-        // If we're unpausing not at the head, then we need to dump the
-        // events that are ahead of where we're continuing.
-        recordedEvents = recordedEvents.slice(0,position);
-        executeCallbacks(asyncCallbacks, false);
-      }
-      tracePath.startRecording();
-    }
+    tracePath.startRecording();
   }
 
   function getPaused() {
@@ -167,7 +166,8 @@ function debugModule(module, runtime) {
     copyRecordedEvents: copyRecordedEvents,
     loadRecordedEvents: loadRecordedEvents,
     getPaused: getPaused,
-    setPausedAt: setPausedAt,
+    setPaused: setPaused,
+    setContinue: setContinue,
     tracePath: tracePath,
     watchTracker: watchTracker,
   };
@@ -187,12 +187,12 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     debugModule.watchTracker.clear();
     debugModule.tracePath.clearTraces();
     debugModule.clearRecordedEvents();
-    debugModule.setPausedAt(false, 0);
+    debugModule.setContinue(0);
     executeCallbacks(debugModule.initialAsyncCallbacks, true);
   }
 
   function pauseProgram() {
-    debugModule.setPausedAt(true);
+    debugModule.setPaused();
     eventCounter = debugModule.getRecordedEventsLength();
   }
 
@@ -209,13 +209,13 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
       debugModule.tracePath.clearTraces();
       debugModule.tracePath.startRecording();
       stepTo(index);
-      debugModule.setPausedAt(false, eventCounter);
+      debugModule.setContinue(eventCounter);
     }
   }
 
   function stepTo(index) {
     if (!debugModule.getPaused()) {
-      debugModule.setPausedAt(true);
+      debugModule.setPaused();
       resetProgram();
     }
 
@@ -283,8 +283,8 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     // and the new modules are being generated. So we can ask the
     // debugging console what it thinks the pause state is and go
     // from there.
-    var pauseState = top.debug.paused;
-    debugModule.setPausedAt(true);
+    var paused = top.debug.paused;
+    debugModule.setPaused();
     debugModule.loadRecordedEvents(hotSwapState.recordedEvents);
 
     // draw new trace path
@@ -293,7 +293,11 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     debugModule.tracePath.stopRecording();
 
     stepTo(hotSwapState.eventCounter);
-    debugModule.setPausedAt(pauseState, hotSwapState.eventCounter);
+    if (paused) {
+      debugModule.setPaused();
+    } else {
+      debugModule.setContinue(hotSwapState.eventCounter);
+    }
   }
 
   runtime.node.parentNode.appendChild(debugModule.tracePath.canvas);
