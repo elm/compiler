@@ -1,4 +1,8 @@
-module Elm.Internal.Constraint where
+module Elm.Internal.Constraint ( Constraint(..)
+                               , fromString
+                               , exact
+                               , satisfyConstraint
+                               ) where
 
 import Data.Aeson
 import Control.Applicative ((<$>), (<*>))
@@ -31,18 +35,18 @@ renderLower point = case point of
   Excluded v -> ">" ++ show v
 
 data Constraint = Range Endpoint Endpoint
-                | Exact Version
                 deriving (Eq, Ord)
+
+exact :: V.Version -> Constraint
+exact v = Range (Included v) (Included v)
 
 satisfyConstraint :: Constraint -> Version -> Bool
 satisfyConstraint c version = case c of
   Range lower upper -> satisfyLower lower version && satisfyUpper upper version
-  Exact v -> version == v
 
 instance Show Constraint where
   show constr = case constr of
     Range lower upper -> concat [renderLower lower, " ", renderUpper upper]
-    Exact version -> show version
 
 parseLower :: String -> Maybe Endpoint
 parseLower str = case str of
@@ -59,8 +63,10 @@ parseUpper str = case str of
 fromString :: String -> Maybe Constraint
 fromString str = case words str of
   [elem] -> case elem of
-    '=' : '=' : rest -> Exact <$> V.fromString rest
-    _ -> Nothing
+    '=' : '=' : rest -> exact <$> V.fromString rest
+    -- second case is written to ease transition from exact versions to constraints,
+    -- and should be removed after a couple of releases
+    _ -> exact <$> V.fromString elem
   [elem1, elem2] -> case parseLower elem1 of
     Just ep -> Range ep <$> parseUpper elem2
     Nothing -> (flip Range) <$> parseUpper elem1 <*> parseLower elem2

@@ -49,3 +49,14 @@ withVersions path handle =
        Left err ->
          do liftIO $ putStrLn $ "Error reading file " ++ path
             handle []
+
+getVersions :: (MonadError String m, MonadIO m) => FilePath -> m [(N.Name, V.Version)]
+getVersions path = withVersions path return
+
+getVersionsSafe :: MonadIO m => FilePath -> m (Maybe [(N.Name, V.Version)])
+getVersionsSafe path =
+  do let catch err = return $ Left (err :: IOError)
+     fileRead <- liftIO $ E.catch (Right <$> BS.readFile path) catch
+     case fileRead of
+       Right bytes -> return $ fmap (map libToTuple . getLibraries) $ decode bytes
+       Left _ -> return Nothing
