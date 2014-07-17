@@ -60,6 +60,11 @@ function debugModule(module, runtime) {
   };
 
   function wrapRunDelayed(func, delayMs) {
+    if (programPaused) {
+      // Don't push timers and such to the callback stack while we're paused.
+      // It causes too many callbacks to be fired during unpausing.
+      return 0;
+    }
     var cbObj = { func:func, delayMs:delayMs, timerId:0, executed:false };
     var timerId = setTimeout(function() {
         cbObj.executed = true;
@@ -103,17 +108,21 @@ function debugModule(module, runtime) {
     recordedEvents = events.slice();
   }
 
-  function setPaused(v) {
-    programPaused = v;
-    if (programPaused) {
-      clearAsyncCallbacks();
-      tracePath.stopRecording();
+  function setPaused() {
+    programPaused = true;
+    clearAsyncCallbacks();
+    tracePath.stopRecording();
+  }
+
+  function setContinue(position) {
+    programPaused = false;
+    if (position > 0) {
+      // If we're not unpausing at the head, then we need to dump the
+      // events that are ahead of where we're continuing.
+      recordedEvents = recordedEvents.slice(0,position);
+      executeCallbacks(asyncCallbacks, false);
     }
-    else {
-      // executeCallbacks should only be called when continuing, not when restarting.
-      //executeCallbacks(asyncCallbacks, false);
-      tracePath.startRecording();
-    }
+    tracePath.startRecording();
   }
 
   function getPaused() {
@@ -158,6 +167,7 @@ function debugModule(module, runtime) {
     loadRecordedEvents: loadRecordedEvents,
     getPaused: getPaused,
     setPaused: setPaused,
+    setContinue: setContinue,
     tracePath: tracePath,
     watchTracker: watchTracker,
   };
@@ -177,25 +187,35 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     debugModule.watchTracker.clear();
     debugModule.tracePath.clearTraces();
     debugModule.clearRecordedEvents();
-    debugModule.setPaused(false);
+    debugModule.setContinue(0);
     executeCallbacks(debugModule.initialAsyncCallbacks, true);
   }
 
   function pauseProgram() {
-    debugModule.setPaused(true);
+    debugModule.setPaused();
     eventCounter = debugModule.getRecordedEventsLength();
   }
 
   function continueProgram() {
     if (debugModule.getPaused())
     {
-      debugModule.setPaused(false);
+      if(eventCounter === 0) {
+        restartProgram();
+        return;
+      }
+      resetProgram();
+      var index = eventCounter;
+      eventCounter = 0;
+      debugModule.tracePath.clearTraces();
+      debugModule.tracePath.startRecording();
+      stepTo(index);
+      debugModule.setContinue(eventCounter);
     }
   }
 
   function stepTo(index) {
     if (!debugModule.getPaused()) {
-      debugModule.setPaused(true);
+      debugModule.setPaused();
       resetProgram();
     }
 
@@ -258,7 +278,13 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
   }
 
   if (hotSwapState) {
-    debugModule.setPaused(true);
+    // The problem is that we want to previous paused state. But
+    // by the time JS reaches here, the old code has been swapped out
+    // and the new modules are being generated. So we can ask the
+    // debugging console what it thinks the pause state is and go
+    // from there.
+    var paused = top.debug.paused;
+    debugModule.setPaused();
     debugModule.loadRecordedEvents(hotSwapState.recordedEvents);
 
     // draw new trace path
@@ -267,6 +293,11 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     debugModule.tracePath.stopRecording();
 
     stepTo(hotSwapState.eventCounter);
+    if (paused) {
+      debugModule.setPaused();
+    } else {
+      debugModule.setContinue(hotSwapState.eventCounter);
+    }
   }
 
   runtime.node.parentNode.appendChild(debugModule.tracePath.canvas);
@@ -416,6 +447,7 @@ function executeCallbacks(callbacks, reexecute) {
   callbacks.forEach(function(timer) {
     if (reexecute || !timer.executed) {
       var func = timer.func;
+      timer.executed = true;
       func();
     }
   });
