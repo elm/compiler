@@ -30,7 +30,7 @@ data Deps = Deps
     , native :: [String]
     , elmVersion :: V.Version
     , dependencies :: [(N.Name,C.Constraint)]
-    } deriving (Show, Eq, Ord)
+    } deriving (Show, Eq)
 
 instance ToJSON Deps where
   toJSON d =

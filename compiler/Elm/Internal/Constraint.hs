@@ -15,37 +15,38 @@ data Endpoint = Included Version
               deriving (Show, Eq, Ord)
 
 satisfyUpper :: Endpoint -> Version -> Bool
-satisfyUpper ep version = case ep of
-  Included p -> version <= p
-  Excluded p -> version < p
+satisfyUpper endpoint v = case endpoint of
+  Included p -> v <= p
+  Excluded p -> v < p
 
 satisfyLower :: Endpoint -> Version -> Bool
-satisfyLower ep version = case ep of
-  Included p -> version >= p
-  Excluded p -> version > p
+satisfyLower endpoint v = case endpoint of
+  Included p -> v >= p
+  Excluded p -> v > p
 
 renderUpper :: Endpoint -> String
-renderUpper point = case point of
+renderUpper endpoint = case endpoint of
   Included v -> "<=" ++ show v
   Excluded v -> "<" ++ show v
 
 renderLower :: Endpoint -> String
-renderLower point = case point of
+renderLower endpoint = case endpoint of
   Included v -> ">=" ++ show v
   Excluded v -> ">" ++ show v
 
 data Constraint = Range Endpoint Endpoint
-                deriving (Eq, Ord)
+                deriving (Eq)
 
 exact :: V.Version -> Constraint
 exact v = Range (Included v) (Included v)
 
 satisfyConstraint :: Constraint -> Version -> Bool
-satisfyConstraint c version = case c of
-  Range lower upper -> satisfyLower lower version && satisfyUpper upper version
+satisfyConstraint (Range lower upper) version =
+  satisfyLower lower version && satisfyUpper upper version
 
 instance Show Constraint where
   show constr = case constr of
+    Range (Included v1) (Included v2) | v1 == v2 -> "==" ++ show v1
     Range lower upper -> concat [renderLower lower, " ", renderUpper upper]
 
 parseLower :: String -> Maybe Endpoint
