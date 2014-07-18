@@ -37,6 +37,7 @@ internalImports name =
     , include "_L" "List" 
     , include "_A" "Array"
     , include "_E" "Error"
+    , include "_S" "Show"
     , varDecl Help.localModuleName (string name)
     ]
     where
