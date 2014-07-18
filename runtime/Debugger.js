@@ -40,7 +40,6 @@ function debugModule(module, runtime) {
   var recordedEvents = [];
   var asyncCallbacks = [];
   var watchTracker = Elm.Native.Debug.make(runtime).watchTracker;
-  var timerOffset = 0;
   var now = 0;
 
   function wrapNotify(id, v) {
@@ -70,7 +69,7 @@ function debugModule(module, runtime) {
     var cbObj = { func:func, delayMs:delayMs, timerId:0, executed:false };
     var timerId = setTimeout(function() {
         cbObj.executed = true;
-        func(timerOffset);
+        func();
       }, delayMs);
     cbObj.timerId = timerId;
     asyncCallbacks.push(cbObj);
@@ -110,10 +109,6 @@ function debugModule(module, runtime) {
     recordedEvents = events.slice();
   }
 
-  function resetTimeOffset() {
-    timerOffset = 0;
-  }
-
   function setPaused() {
     programPaused = true;
     clearAsyncCallbacks();
@@ -122,13 +117,14 @@ function debugModule(module, runtime) {
   }
 
   function setContinue(position) {
-    timerOffset += Date.now() - now;
+    var timerDelay = Date.now() - now;
+    Elm.timer.addDelay(timerDelay);
     programPaused = false;
     if (position > 0) {
       // If we're not unpausing at the head, then we need to dump the
       // events that are ahead of where we're continuing.
       recordedEvents = recordedEvents.slice(0,position);
-      executeCallbacks(asyncCallbacks, false, timerOffset);
+      executeCallbacks(asyncCallbacks, false);
     }
     tracePath.startRecording();
   }
@@ -173,7 +169,6 @@ function debugModule(module, runtime) {
     getRecordedEventAt: getRecordedEventAt,
     copyRecordedEvents: copyRecordedEvents,
     loadRecordedEvents: loadRecordedEvents,
-    resetTimeOffset: resetTimeOffset,
     getPaused: getPaused,
     setPaused: setPaused,
     setContinue: setContinue,
@@ -197,8 +192,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     debugModule.tracePath.clearTraces();
     debugModule.clearRecordedEvents();
     debugModule.setContinue(0);
-    debugModule.resetTimeOffset();
-    executeCallbacks(debugModule.initialAsyncCallbacks, true, 0);
+    executeCallbacks(debugModule.initialAsyncCallbacks, true);
   }
 
   function pauseProgram() {
@@ -453,12 +447,12 @@ function tracePathInit(runtime, mainNode) {
 }
 
 
-function executeCallbacks(callbacks, reexecute, offset) {
+function executeCallbacks(callbacks, reexecute) {
   callbacks.forEach(function(timer) {
     if (reexecute || !timer.executed) {
       var func = timer.func;
       timer.executed = true;
-      func(offset);
+      func();
     }
   });
 }

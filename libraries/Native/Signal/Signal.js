@@ -138,7 +138,7 @@ Elm.Native.Signal.make = function(elm) {
   }
 
   function timestamp(a) {
-    function update() { return Utils.Tuple2(Date.now(), a.value); }
+    function update() { return Utils.Tuple2(Elm.timer.now(), a.value); }
     return new LiftN(update, [a]);
   }
 
