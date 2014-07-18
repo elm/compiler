@@ -15,14 +15,14 @@ data Endpoint = Included Version
               deriving (Show, Eq, Ord)
 
 satisfyUpper :: Endpoint -> Version -> Bool
-satisfyUpper endpoint v = case endpoint of
-  Included p -> v <= p
-  Excluded p -> v < p
+satisfyUpper endpoint version = case endpoint of
+  Included v -> version <= v
+  Excluded v -> version < v
 
 satisfyLower :: Endpoint -> Version -> Bool
-satisfyLower endpoint v = case endpoint of
-  Included p -> v >= p
-  Excluded p -> v > p
+satisfyLower endpoint version = case endpoint of
+  Included v -> version >= v
+  Excluded v -> version > v
 
 renderUpper :: Endpoint -> String
 renderUpper endpoint = case endpoint of

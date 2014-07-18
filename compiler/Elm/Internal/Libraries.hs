@@ -15,12 +15,14 @@ import qualified Data.ByteString.Lazy as BS
 import qualified Elm.Internal.Name as N
 import qualified Elm.Internal.Version as V
 
-newtype Libraries = Libraries { getLibraries :: [Library] }
-                    deriving Show
+newtype Libraries = Libraries
+    { getLibraries :: [Library]
+    } deriving Show
 
-data Library = Library { libraryName :: N.Name
-                       , libraryVersion :: V.Version
-                       } deriving (Generic, Show)
+data Library = Library
+    { libraryName :: N.Name
+    , libraryVersion :: V.Version
+    } deriving (Generic, Show)
 
 instance FromJSON Library
 instance ToJSON Library
