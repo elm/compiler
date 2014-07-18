@@ -21,7 +21,7 @@ Elm.Native.Time.make = function(elm) {
          * or minutes, we introduce a way to offset real time by the amount
          * of time spend paused.
          */
-        curr = Date.now() - (offset|0;
+        curr = Date.now() - (offset|0);
         diff = zero ? 0 : curr - prev;
         prev = curr;
         elm.notify(ticker.id, diff);
