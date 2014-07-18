@@ -14,8 +14,14 @@ Elm.Native.Time.make = function(elm) {
     var msPerFrame = 1000 / desiredFPS;
     var prev = Date.now(), curr = prev, diff = 0, wasOn = true;
     var ticker = NS.input(diff);
-    function tick(zero) { return function() {
-        curr = Date.now();
+    function tick(zero) { return function(offset) {
+        /**
+         * The offset is used for the debugger module. To pause and
+         * unpause time in a continuous way (not jumping ahead by seconds)
+         * or minutes, we introduce a way to offset real time by the amount
+         * of time spend paused.
+         */
+        curr = Date.now() - (offset|0 || 0);
         diff = zero ? 0 : curr - prev;
         prev = curr;
         elm.notify(ticker.id, diff);
@@ -36,8 +42,9 @@ Elm.Native.Time.make = function(elm) {
 
   function every(t) {
     var clock = NS.input(Date.now());
-    function tellTime() {
-        elm.notify(clock.id, Date.now());
+    function tellTime(offset) {
+        // Leave the offset. It's for debugging. See above. 
+        elm.notify(clock.id, Date.now() - (offset|0 || 0));
         elm.runDelayed(tellTime, t);
     }
     elm.runDelayed(tellTime, t);
