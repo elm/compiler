@@ -4,7 +4,6 @@ import ElmTest.Assertion as A
 import ElmTest.Run as R
 import ElmTest.Runner.Console (runDisplay)
 import ElmTest.Test (..)
-
 import IO.IO (..)
 import IO.Runner (Request, Response)
 import IO.Runner as Run
@@ -33,10 +32,7 @@ tests = suite "Elm Standard Library Tests"
 console : IO ()
 console = runDisplay tests
 
-port requests : Signal [{ mPut  : Maybe String
-                        , mExit : Maybe Int
-                        , mGet  : Bool
-                        }]
+port requests : Signal Request
 port requests = Run.run responses console
 
-port responses : Signal (Maybe String)
+port responses : Signal Response
