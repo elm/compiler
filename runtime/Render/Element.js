@@ -24,6 +24,7 @@ function setProps(elem, e) {
     if (props.href !== '') {
         var a = newElement('a');
         a.href = props.href;
+        a.target = props.target;
         a.style.width = '100%';
         a.style.height = '100%';
         a.style.top = 0;

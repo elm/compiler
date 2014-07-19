@@ -50,6 +50,7 @@ type Properties = {
   opacity : Float,
   color   : Maybe Color,
   href    : String,
+  target  : String,
   tag     : String,
   hover   : (),
   click   : ()
@@ -125,8 +126,15 @@ link : String -> Element -> Element
 link href e = let p = e.props in
               { element=e.element, props={p | href <- href} }
 
+{-| Create an `Element` that is a hyper-link with a target attribute. -}
+linkWithTarget : String -> String -> Element -> Element
+linkWithTarget href target e =
+    let p = e.props
+    in { element=e.element, props={p | href <- href
+                                     , target <- target} }
+
 newElement w h e =
-  { props = Properties (Native.Utils.guid ()) w h 1 Nothing "" "" () ()
+  { props = Properties (Native.Utils.guid ()) w h 1 Nothing "" "" "" () ()
   , element = e
   }
 
