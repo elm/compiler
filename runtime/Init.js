@@ -45,8 +45,10 @@ function init(display, container, module, ports, moduleToReplace) {
     };
 
     var addDelay = function(d) {
-      var delay = (d|0);
-      inducedDelay += delay;
+      if (typeof d !== "number") {
+        throw "addDelay must take a number (preferably an int), not: " + d
+      }
+      inducedDelay += d;
       return inducedDelay;
     }
 
