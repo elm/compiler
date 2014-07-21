@@ -27,33 +27,33 @@ Elm.worker = function(module, ports) {
     return init(ElmRuntime.Display.NONE, {}, module, ports || {});
 };
 
-/* OFFSET
- * Elm's time traveling debugger lets you interrupt the smooth flow of time
- * by pausing and continuing program execution. To ensure the user sees a
- * program that moves smoothly through the pause/continue time gap,
- * we need to adjsut the value of Date.now().
- */
-Elm.timer = function() {
-  var inducedDelay = 0;
-
-  var now = function() {
-    return Date.now() - inducedDelay;
-  };
-
-  var addDelay = function(d) {
-    var delay = (d|0);
-    inducedDelay += delay;
-    return inducedDelay;
-  }
-
-  return { now : now
-         , addDelay : addDelay
-         }
-}();
-
 function init(display, container, module, ports, moduleToReplace) {
   // defining state needed for an instance of the Elm RTS
   var inputs = [];
+
+  /* OFFSET
+   * Elm's time traveling debugger lets you interrupt the smooth flow of time
+   * by pausing and continuing program execution. To ensure the user sees a
+   * program that moves smoothly through the pause/continue time gap,
+   * we need to adjsut the value of Date.now().
+   */
+  var timer = function() {
+    var inducedDelay = 0;
+
+    var now = function() {
+      return Date.now() - inducedDelay;
+    };
+
+    var addDelay = function(d) {
+      var delay = (d|0);
+      inducedDelay += delay;
+      return inducedDelay;
+    }
+
+    return { now : now
+           , addDelay : addDelay
+           }
+  }();
 
   var updateInProgress = false;
   function notify(id, v) {
@@ -64,7 +64,7 @@ function init(display, container, module, ports, moduleToReplace) {
               'Definitely report this to <https://github.com/evancz/Elm/issues>\n');
       }
       updateInProgress = true;
-      var timestep = Elm.timer.now();
+      var timestep = timer.now();
       for (var i = inputs.length; i--; ) {
           inputs[i].recv(timestep, id, v);
       }
@@ -96,6 +96,7 @@ function init(display, container, module, ports, moduleToReplace) {
       id:ElmRuntime.guid(),
       addListener:addListener,
       inputs:inputs,
+      timer:timer,
       ports: { incoming:ports, outgoing:{}, uses:portUses }
   };
 

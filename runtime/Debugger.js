@@ -118,7 +118,7 @@ function debugModule(module, runtime) {
 
   function setContinue(position) {
     var timerDelay = Date.now() - now;
-    Elm.timer.addDelay(timerDelay);
+    runtime.timer.addDelay(timerDelay);
     programPaused = false;
     if (position > 0) {
       // If we're not unpausing at the head, then we need to dump the
