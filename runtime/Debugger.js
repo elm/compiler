@@ -40,6 +40,7 @@ function debugModule(module, runtime) {
   var recordedEvents = [];
   var asyncCallbacks = [];
   var watchTracker = Elm.Native.Debug.make(runtime).watchTracker;
+  var now = 0;
 
   function wrapNotify(id, v) {
     var timestep = Date.now();
@@ -112,9 +113,12 @@ function debugModule(module, runtime) {
     programPaused = true;
     clearAsyncCallbacks();
     tracePath.stopRecording();
+    now = Date.now();
   }
 
   function setContinue(position) {
+    var timerDelay = Date.now() - now;
+    runtime.timer.addDelay(timerDelay);
     programPaused = false;
     if (position > 0) {
       // If we're not unpausing at the head, then we need to dump the

@@ -12,10 +12,10 @@ Elm.Native.Time.make = function(elm) {
 
   function fpsWhen(desiredFPS, isOn) {
     var msPerFrame = 1000 / desiredFPS;
-    var prev = Date.now(), curr = prev, diff = 0, wasOn = true;
+    var prev = elm.timer.now(), curr = prev, diff = 0, wasOn = true;
     var ticker = NS.input(diff);
     function tick(zero) { return function() {
-        curr = Date.now();
+        curr = elm.timer.now();
         diff = zero ? 0 : curr - prev;
         prev = curr;
         elm.notify(ticker.id, diff);
@@ -35,9 +35,9 @@ Elm.Native.Time.make = function(elm) {
   }
 
   function every(t) {
-    var clock = NS.input(Date.now());
+    var clock = NS.input(elm.timer.now());
     function tellTime() {
-        elm.notify(clock.id, Date.now());
+        elm.notify(clock.id, elm.timer.now());
         elm.runDelayed(tellTime, t);
     }
     elm.runDelayed(tellTime, t);
