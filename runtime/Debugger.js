@@ -320,13 +320,25 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     // and the new modules are being generated. So we can ask the
     // debugging console what it thinks the pause state is and go
     // from there.
-    var paused = top.debug.paused;
     debugModule.setPaused();
+    resetProgram(0);
     debugModule.loadRecordedEvents(hotSwapState.recordedEvents);
+    var paused = top.debug.paused;
+    var index = getMaxSteps();
+    eventCounter = 0;
+    var eventsBeforeSave = debugModule.EVENTS_PER_SAVE;
 
     // draw new trace path
     debugModule.tracePath.startRecording();
-    stepTo(getMaxSteps());
+    while (eventCounter < index) {
+      var nextEvent = debugModule.getRecordedEventAt(eventCounter);
+      runtime.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
+      if ((eventsBeforeSave--) === 1) {
+        debugModule.saveState();
+        eventsBeforeSave = debugModule.EVENTS_PER_SAVE;
+      }
+      eventCounter += 1;
+    }
     debugModule.tracePath.stopRecording();
 
     stepTo(hotSwapState.eventCounter);
