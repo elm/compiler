@@ -156,10 +156,6 @@ function debugModule(module, runtime) {
     return nodeSaveStates[savePosition];
   }
 
-  function getEventsPerSave() {
-    return EVENTS_PER_SAVE;
-  }
-
   function setPaused() {
     programPaused = true;
     clearAsyncCallbacks();
@@ -202,7 +198,7 @@ function debugModule(module, runtime) {
     clearSaveStates : clearSaveStates,
     getSaveStatesLength: getSaveStatesLength,
     getSaveStateAt: getSaveStateAt,
-    getEventsPerSave: getEventsPerSave,
+    EVENTS_PER_SAVE: EVENTS_PER_SAVE,
     getPaused: getPaused,
     setPaused: setPaused,
     setContinue: setContinue,
@@ -216,7 +212,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
 
   function resetProgram(position) {
     var closestSaveState = debugModule.getSaveStateAt(position);
-    var eventsPerSave = debugModule.getEventsPerSave();
+    var eventsPerSave = debugModule.EVENTS_PER_SAVE;
     debugModule.clearAsyncCallbacks();
     restoreNodeValues(debugModule.moduleNodes, closestSaveState);
     redrawGraphics();
@@ -245,7 +241,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
         return;
       }
       var continueTime = debugModule.getRecordedEventAt(eventCounter - 1).timestep
-      var eventsPerSave = debugModule.getEventsPerSave();
+      var eventsPerSave = debugModule.EVENTS_PER_SAVE;
       var index = eventCounter;
 
       debugModule.tracePath.stopRecording();
@@ -269,7 +265,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     }
 
     if (index < eventCounter) {
-      var eventsPerSave = debugModule.getEventsPerSave();
+      var eventsPerSave = debugModule.EVENTS_PER_SAVE;
       resetProgram(index);
       eventCounter = ((index / eventsPerSave)|0) * eventsPerSave;
     }
