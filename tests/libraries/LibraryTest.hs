@@ -25,13 +25,13 @@ main = do
                        , "--src-dir=IO"
                        , "--src-dir=Elm-Test"
                        , "--src-dir=" ++ "tests" </> "libraries"
-                       , "Test.elm"
+                       , testFile <.> "elm"
                        ]
 
   -- run tests
   let files = [ "IO" </> "share" </> "prescript.js"
               , Elm.runtime
-              , "build" </> "Test.js"
+              , "build" </> testFile <.> "js"
               , "IO" </> "share" </> "handler.js"
               ]
       testRunner = "build" </> "TestRunner.js"
@@ -41,6 +41,8 @@ main = do
   removeDirectoryRecursive "cache"
   removeDirectoryRecursive "build"
   exitWith exitCode
+  where
+    testFile = "tests" </> "libraries" </> "Test"
 
 runCmd :: String -> [String] -> IO ()
 runCmd cmd args = do

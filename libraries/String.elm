@@ -220,7 +220,7 @@ words = Native.String.words
 
 {-| Break a string into lines, splitting on newlines.
 
-      lines "How are you?\nGood? == ["How are you?", "Good?"]
+      lines "How are you?\nGood?" == ["How are you?", "Good?"]
 -}
 lines : String -> [String]
 lines = Native.String.lines
