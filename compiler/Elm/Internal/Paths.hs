@@ -2,11 +2,16 @@
 module Elm.Internal.Paths where
 
 import Build.Utils (getDataFile)
+import System.FilePath ((</>))
 import System.IO.Unsafe (unsafePerformIO)
 
 -- |Name of directory for all of a project's dependencies.
 dependencyDirectory :: FilePath
 dependencyDirectory = "elm_dependencies"
+
+-- |Name of file for all of libraries currently installed in a project
+librariesFile :: FilePath
+librariesFile = dependencyDirectory </> "elm_libraries.json"
 
 -- |Name of the dependency file, specifying dependencies and
 --  other metadata for building and sharing projects.
