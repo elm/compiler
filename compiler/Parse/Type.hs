@@ -54,7 +54,7 @@ term = list <|> tuple <|> record <|> tvar <|> constructor0
 
 app :: IParser T.RawType
 app =
-  do f <- constructor0 <|> tvar <|> try tupleCtor <?> "type constructor"
+  do f <- constructor0 <|> try tupleCtor <?> "type constructor"
      args <- spacePrefix term
      return $ case args of
                 [] -> f
