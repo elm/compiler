@@ -8,7 +8,6 @@
   * Add Keyboard.alt and Keyboard.meta
   * Add Debug.crash
   * Add --bundle-runtime flag which creates stand-alone Elm programs
-  * Higher kinded polymorphism (a.k.a. higher-order types)
   * Many bug fixes for imports and exports
   * Better architecture for compiler. Uses types to make compilation pipeline
     safer, setting things up for giving programmatic access to the AST to
