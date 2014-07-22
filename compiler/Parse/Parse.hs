@@ -25,12 +25,15 @@ decls = do d <- Decl.declaration <?> "at least one datatype or variable definiti
 
 program :: OpTable -> String -> Either [P.Doc] M.ValidModule
 program table src =
-    do (M.Module names filePath exs ims parseDecls) <-
+    do (M.Module names filePath exs ims _ sourceDecls) <-
            setupParserWithTable table programParser src
 
+       let (parseDecls, doc) = case sourceDecls of
+             D.DocComment doc : rest -> (rest, doc)
+             _ -> (sourceDecls, "")
        decls <-
            either (\err -> Left [P.text err]) Right (combineAnnotations parseDecls)
-       return $ M.Module names filePath exs ims decls
+       return $ M.Module names filePath exs ims doc decls
 
 programParser :: IParser M.SourceModule
 programParser =
@@ -41,7 +44,7 @@ programParser =
                  imports `followedBy` freshLine) <|> return []
        declarations <- decls
        optional freshLine ; optional spaces ; eof
-       return $ M.Module names "" exports is declarations
+       return $ M.Module names "" exports is "" declarations
 
 dependencies :: String -> Either [P.Doc] (String, [String])
 dependencies =

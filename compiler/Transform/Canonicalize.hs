@@ -43,7 +43,7 @@ module' interfaces modul =
 
 moduleHelp :: Module.Interfaces -> Module.ValidModule
            -> Canonicalizer [Doc] Module.CanonicalModule
-moduleHelp interfaces modul@(Module.Module _ _ exs _ decls) =
+moduleHelp interfaces modul@(Module.Module _ _ exs _ _ decls) =
   do env <- Setup.environment interfaces modul
      canonicalDecls <- mapM (declaration env) decls
      exports' <- delist locals exs

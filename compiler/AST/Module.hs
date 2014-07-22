@@ -21,6 +21,7 @@ data Module exs body = Module
     , path    :: FilePath
     , exports :: exs
     , imports :: [(String, ImportMethod)]
+    , comment :: String
     , body    :: body
     }
 
@@ -107,7 +108,7 @@ instance Binary ImportMethod where
                _ -> error "Error reading valid ImportMethod type from serialized string"
 
 instance (Pretty exs, Pretty body) => Pretty (Module exs body) where
-  pretty (Module names _ exs ims body) =
+  pretty (Module names _ exs ims _ body) =
       P.vcat [modul, P.text "", prettyImports, P.text "", pretty body]
     where 
       modul = P.text "module" <+> name <+> pretty exs <+> P.text "where"

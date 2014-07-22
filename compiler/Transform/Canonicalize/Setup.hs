@@ -23,7 +23,7 @@ import Transform.Canonicalize.Environment as Env
 import qualified Transform.Canonicalize.Type as Canonicalize
 
 environment :: Module.Interfaces -> Module.ValidModule -> Canonicalizer [Doc] Environment
-environment interfaces modul@(Module.Module _ _ _ imports decls) =
+environment interfaces modul@(Module.Module _ _ _ imports _ decls) =
   do () <- allImportsAvailable
      let moduleName = Module.getName modul
      nonLocalEnv <- foldM (addImports moduleName interfaces) (builtIns moduleName) imports
