@@ -45,21 +45,29 @@ function debugModule(module, runtime) {
   var now = 0;
   var eventsBeforeSave = EVENTS_PER_SAVE;
 
-  /* We must use a closure so that everyone can be on the same page.
+  /* We must use a synchronized object so that we have a consistent idea
+   * of which event record we are processing right now. Notify is called on
+   * any signal change but a trace is created when the screen is refreshed.
+   * On Mario this is when `fps 25` fires. Keypresses will create an event
+   * record but not a screen update. To continue at a given point in the
+   * program's execution, we need to eject all recorded events after that
+   * given point as that version of the program's future isn't garaunteed
+   * to happen. We need a numbering scheme so that we can safely say that
+   * and event or trace beyond that given point can be removed.
    */
   var syncedEvents = (function() {
     var internalCounter = 0;
     var set = function(v) {
       internalCounter = v;
     };
-    var counter = function() {
+    var value = function() {
       return internalCounter;
     }
     var increment = function() {
       return ++internalCounter;
     }
     return { set : set
-           , counter : counter
+           , value : value
            , increment : increment
            };
   })();
@@ -255,26 +263,27 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
 
   function pauseProgram() {
     debugModule.setPaused();
-    debugModule.syncedEvents.set(debugModule.getRecordedEventsLength());
+    var endOfEvents = debugModule.getRecordedEventsLength()
+    debugModule.syncedEvents.set(endOfEvents);
   }
 
   function continueProgram() {
-    var eventCounter = debugModule.syncedEvents.counter();
+    var currentLocation = debugModule.syncedEvents.value();
     if (debugModule.getPaused())
     {
-      if(eventCounter === 0) {
+      if (currentLocation === 0) {
         restartProgram();
         return;
       }
       var eventsPerSave = debugModule.EVENTS_PER_SAVE;
-      var index = eventCounter;
+      var checkpoint = ((currentLocation / eventsPerSave)|0) * eventsPerSave;
 
-      debugModule.tracePath.stopRecording();
-      resetProgram(eventCounter);
+      resetProgram(currentLocation);
       
-      debugModule.syncedEvents.set(((eventCounter / eventsPerSave)|0) * eventsPerSave);
-      stepTo(index); // Note that stepTo changes eventCounter!
-      debugModule.setContinue(debugModule.syncedEvents.counter());
+      debugModule.syncedEvents.set(checkpoint);
+      stepTo(currentLocation);
+      currentLocation = debugModule.syncedEvents.value()
+      debugModule.setContinue(currentLocation);
     }
   }
 
@@ -288,20 +297,21 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
       throw "Index out of bounds: " + index;
     }
 
-    if (index < debugModule.syncedEvents.counter()) {
+    var currentLocation = debugModule.syncedEvents.value();
+    if (index < currentLocation) {
       var eventsPerSave = debugModule.EVENTS_PER_SAVE;
       resetProgram(index);
-      debugModule.syncedEvents.set(((index / eventsPerSave)|0) * eventsPerSave);
+      var checkpoint = ((index / eventsPerSave)|0) * eventsPerSave;
+      debugModule.syncedEvents.set(checkpoint);
     }
 
-    // assert(index >= eventCounter, "index must be bad");
-    while (debugModule.syncedEvents.counter() < index) {
-      var nextEvent = debugModule.getRecordedEventAt(debugModule.syncedEvents.counter());
+    while (debugModule.syncedEvents.value() < index) {
+      var nextEventLocation = debugModule.syncedEvents.value();
+      var nextEvent = debugModule.getRecordedEventAt(nextEventLocation);
       runtime.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
 
       debugModule.syncedEvents.increment();
     }
-    // assert(eventCounter == index, "while loop didn't work");
   }
 
   function getMaxSteps() {
@@ -316,7 +326,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
   }
 
   function getHotSwapState() {
-    var counter = debugModule.syncedEvents.counter();
+    var counter = debugModule.syncedEvents.value();
     if (!debugModule.getPaused()) {
       counter = getMaxSteps();
     }
@@ -340,16 +350,17 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     // from there.
     debugModule.setPaused();
     resetProgram(0);
+    debugModule.syncedEvents.set(0);
     debugModule.loadRecordedEvents(hotSwapState.recordedEvents);
     var paused = top.debug.paused;
     var index = getMaxSteps();
-    debugModule.syncedEvents.set(0);
     var eventsBeforeSave = debugModule.EVENTS_PER_SAVE;
 
     // draw new trace path
     debugModule.tracePath.startRecording();
-    while (debugModule.syncedEvents.counter() < index) {
-      var nextEvent = debugModule.getRecordedEventAt(debugModule.syncedEvents.counter());
+    while (debugModule.syncedEvents.value() < index) {
+      var nextEventLocation = debugModule.syncedEvents.value();
+      var nextEvent = debugModule.getRecordedEventAt(nextEventLocation);
       runtime.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
       if ((eventsBeforeSave--) === 1) {
         debugModule.saveState();
@@ -360,7 +371,6 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     debugModule.tracePath.stopRecording();
 
     stepTo(hotSwapState.eventCounter);
-
     if (!paused) {
       continueProgram();
     }
@@ -385,13 +395,13 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
   return elmDebugger;
 }
 
-function Point(x, y, counter) {
+function Point(x, y, sequenceNumber) {
   this.x = x;
   this.y = y;
-  this.counter = counter
+  this.sequenceNumber = sequenceNumber
 
   this.translate = function(x, y) {
-    return new Point(this.x + x, this.y + y, counter);
+    return new Point(this.x + x, this.y + y, sequenceNumber);
   }
 
   this.equals = function(p) {
@@ -416,7 +426,8 @@ function tracePathInit(runtime, mainNode, syncedEvents) {
       }
       if (elem.props.debugTracePathId)
       {
-        positions[elem.props.debugTracePathId] = new Point(offset.x, offset.y, syncedEvents.counter());
+        var currentEvent = syncedEvents.value();
+        positions[elem.props.debugTracePathId] = new Point(offset.x, offset.y, currentEvent);
       }
     }
 
@@ -426,7 +437,8 @@ function tracePathInit(runtime, mainNode, syncedEvents) {
         processElement(form.form._0, offset.translate(form.x, -form.y));
       }
     }
-    processElement(currentScene, new Point(0, 0, syncedEvents.counter()));
+
+    processElement(currentScene, new Point(0, 0, syncedEvents.value()));
     return positions;
   }
 
@@ -449,6 +461,7 @@ function tracePathInit(runtime, mainNode, syncedEvents) {
     if (!recordingTraces) {
       return;
     }
+
     var ctx = tracePathCanvas.getContext('2d');
     ctx.clearRect(0, 0, tracePathCanvas.width, tracePathCanvas.height);
 
@@ -482,6 +495,7 @@ function tracePathInit(runtime, mainNode, syncedEvents) {
         ctx.fill();
       }
     }
+
     ctx.restore();
   }
 
@@ -502,7 +516,7 @@ function tracePathInit(runtime, mainNode, syncedEvents) {
     for (var id in tracePositions) {
       newTraces[id] = [];
       for (var i = 0; i < tracePositions[id].length; i++) {
-        if (tracePositions[id][i].counter <= counter) {
+        if (tracePositions[id][i].sequenceNumber <= counter) {
           newTraces[id].push(tracePositions[id][i]);
         }
       }
