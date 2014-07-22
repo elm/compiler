@@ -45,6 +45,25 @@ function debugModule(module, runtime) {
   var now = 0;
   var eventsBeforeSave = EVENTS_PER_SAVE;
 
+  /* We must use a closure so that everyone can be on the same page.
+   */
+  var syncedEvents = (function() {
+    var internalCounter = 0;
+    var set = function(v) {
+      internalCounter = v;
+    };
+    var counter = function() {
+      return internalCounter;
+    }
+    var increment = function() {
+      return ++internalCounter;
+    }
+    return { set : set
+           , counter : counter
+           , increment : increment
+           };
+  })();
+
   // runtime is the prototype of wrappedRuntime
   // so we can access all runtime properties too
   var wrappedRuntime = Object.create(runtime);
@@ -67,7 +86,7 @@ function debugModule(module, runtime) {
   });
 
   var moduleNodes = flattenNodes(wrappedRuntime.inputs);
-  var tracePath = tracePathInit(runtime, moduleInstance.main);
+  var tracePath = tracePathInit(runtime, moduleInstance.main, syncedEvents);
 
   nodeSaveStates.push(saveNodeValues(moduleNodes));
 
@@ -111,6 +130,7 @@ function debugModule(module, runtime) {
 
   function recordEvent(id, v, timestep) {
     watchTracker.pushFrame();
+    syncedEvents.increment();
     recordedEvents.push({ id:id, value:v, timestep:timestep });
   }
 
@@ -208,18 +228,18 @@ function debugModule(module, runtime) {
     setPaused: setPaused,
     setContinue: setContinue,
     tracePath: tracePath,
-    watchTracker: watchTracker
+    watchTracker: watchTracker,
+    syncedEvents: syncedEvents
   };
 }
 
 function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
-  var eventCounter = 0;
 
   function resetProgram(position) {
     var closestSaveState = debugModule.getSaveStateAt(position);
-    var eventsPerSave = debugModule.EVENTS_PER_SAVE;
     debugModule.clearAsyncCallbacks();
     restoreNodeValues(debugModule.moduleNodes, closestSaveState);
+    debugModule.tracePath.clearTracesAfter(position);
     redrawGraphics();
   }
 
@@ -235,28 +255,26 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
 
   function pauseProgram() {
     debugModule.setPaused();
-    eventCounter = debugModule.getRecordedEventsLength();
+    debugModule.syncedEvents.set(debugModule.getRecordedEventsLength());
   }
 
   function continueProgram() {
+    var eventCounter = debugModule.syncedEvents.counter();
     if (debugModule.getPaused())
     {
       if(eventCounter === 0) {
         restartProgram();
         return;
       }
-      var lastEvent = debugModule.getRecordedEventAt(eventCounter);
-      var continueTime = lastEvent ? lastEvent.timestep : runtime.timer.now();
       var eventsPerSave = debugModule.EVENTS_PER_SAVE;
       var index = eventCounter;
 
       debugModule.tracePath.stopRecording();
       resetProgram(eventCounter);
-      debugModule.tracePath.clearTracesAfter(continueTime);
       
-      eventCounter = ((eventCounter / eventsPerSave)|0) * eventsPerSave
-      stepTo(index);
-      debugModule.setContinue(eventCounter);
+      debugModule.syncedEvents.set(((eventCounter / eventsPerSave)|0) * eventsPerSave);
+      stepTo(index); // Note that stepTo changes eventCounter!
+      debugModule.setContinue(debugModule.syncedEvents.counter());
     }
   }
 
@@ -270,20 +288,20 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
       throw "Index out of bounds: " + index;
     }
 
-    if (index < eventCounter) {
+    if (index < debugModule.syncedEvents.counter()) {
       var eventsPerSave = debugModule.EVENTS_PER_SAVE;
       resetProgram(index);
-      eventCounter = ((index / eventsPerSave)|0) * eventsPerSave;
+      debugModule.syncedEvents.set(((index / eventsPerSave)|0) * eventsPerSave);
     }
 
-    assert(index >= eventCounter, "index must be bad");
-    while (eventCounter < index) {
-      var nextEvent = debugModule.getRecordedEventAt(eventCounter);
+    // assert(index >= eventCounter, "index must be bad");
+    while (debugModule.syncedEvents.counter() < index) {
+      var nextEvent = debugModule.getRecordedEventAt(debugModule.syncedEvents.counter());
       runtime.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
 
-      eventCounter += 1;
+      debugModule.syncedEvents.increment();
     }
-    assert(eventCounter == index, "while loop didn't work");
+    // assert(eventCounter == index, "while loop didn't work");
   }
 
   function getMaxSteps() {
@@ -298,7 +316,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
   }
 
   function getHotSwapState() {
-    var counter = eventCounter;
+    var counter = debugModule.syncedEvents.counter();
     if (!debugModule.getPaused()) {
       counter = getMaxSteps();
     }
@@ -325,25 +343,26 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     debugModule.loadRecordedEvents(hotSwapState.recordedEvents);
     var paused = top.debug.paused;
     var index = getMaxSteps();
-    eventCounter = 0;
+    debugModule.syncedEvents.set(0);
     var eventsBeforeSave = debugModule.EVENTS_PER_SAVE;
 
     // draw new trace path
     debugModule.tracePath.startRecording();
-    while (eventCounter < index) {
-      var nextEvent = debugModule.getRecordedEventAt(eventCounter);
+    while (debugModule.syncedEvents.counter() < index) {
+      var nextEvent = debugModule.getRecordedEventAt(debugModule.syncedEvents.counter());
       runtime.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
       if ((eventsBeforeSave--) === 1) {
         debugModule.saveState();
         eventsBeforeSave = debugModule.EVENTS_PER_SAVE;
       }
-      eventCounter += 1;
+      debugModule.syncedEvents.increment();
     }
     debugModule.tracePath.stopRecording();
 
     stepTo(hotSwapState.eventCounter);
+
     if (!paused) {
-      debugModule.setContinue(hotSwapState.eventCounter);
+      continueProgram();
     }
   }
 
@@ -366,13 +385,13 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
   return elmDebugger;
 }
 
-function Point(x, y, timestamp) {
+function Point(x, y, counter) {
   this.x = x;
   this.y = y;
-  this.timestamp = timestamp
+  this.counter = counter
 
   this.translate = function(x, y) {
-    return new Point(this.x + x, this.y + y, timestamp);
+    return new Point(this.x + x, this.y + y, counter);
   }
 
   this.equals = function(p) {
@@ -380,7 +399,7 @@ function Point(x, y, timestamp) {
   }
 }
 
-function tracePathInit(runtime, mainNode) {
+function tracePathInit(runtime, mainNode, syncedEvents) {
   var List = Elm.List.make(runtime);
   var Signal = Elm.Signal.make(runtime);
   var tracePathNode = A2(Signal.lift, graphicsUpdate, mainNode);
@@ -397,7 +416,7 @@ function tracePathInit(runtime, mainNode) {
       }
       if (elem.props.debugTracePathId)
       {
-        positions[elem.props.debugTracePathId] = new Point(offset.x, offset.y, runtime.timer.now());
+        positions[elem.props.debugTracePathId] = new Point(offset.x, offset.y, syncedEvents.counter());
       }
     }
 
@@ -407,7 +426,7 @@ function tracePathInit(runtime, mainNode) {
         processElement(form.form._0, offset.translate(form.x, -form.y));
       }
     }
-    processElement(currentScene, new Point(0, 0, runtime.timer.now()));
+    processElement(currentScene, new Point(0, 0, syncedEvents.counter()));
     return positions;
   }
 
@@ -430,7 +449,6 @@ function tracePathInit(runtime, mainNode) {
     if (!recordingTraces) {
       return;
     }
-
     var ctx = tracePathCanvas.getContext('2d');
     ctx.clearRect(0, 0, tracePathCanvas.width, tracePathCanvas.height);
 
@@ -464,7 +482,6 @@ function tracePathInit(runtime, mainNode) {
         ctx.fill();
       }
     }
-
     ctx.restore();
   }
 
@@ -480,12 +497,12 @@ function tracePathInit(runtime, mainNode) {
     recordingTraces = true;
   }
 
-  function clearTracesAfter(time) {
+  function clearTracesAfter(counter) {
     var newTraces = {};
     for (var id in tracePositions) {
       newTraces[id] = [];
       for (var i = 0; i < tracePositions[id].length; i++) {
-        if (tracePositions[id][i].timestamp <= time) {
+        if (tracePositions[id][i].counter <= counter) {
           newTraces[id].push(tracePositions[id][i]);
         }
       }
