@@ -55,20 +55,20 @@ moduleHelp interfaces modul@(Module.Module _ _ exs _ decls) =
     locals = concatMap declToValue decls
 
     body :: [D.CanonicalDecl] -> Module.CanonicalBody
-    body decls =
+    body decls = let decls' = map snd decls in
       Module.CanonicalBody
          { program =
                let expr = Transform.toExpr (Module.getName modul) decls
                in  Transform.sortDefs (dummyLet expr)
          , types = Map.empty
          , datatypes =
-             Map.fromList [ (name,(vars,ctors)) | D.Datatype name vars ctors <- decls ]
+             Map.fromList [ (name,(vars,ctors)) | D.Datatype name vars ctors <- decls' ]
          , fixities =
-             [ (assoc,level,op) | D.Fixity assoc level op <- decls ]
+             [ (assoc,level,op) | D.Fixity assoc level op <- decls' ]
          , aliases =
-             Map.fromList [ (name,(tvs,alias)) | D.TypeAlias name tvs alias <- decls ]
+             Map.fromList [ (name,(tvs,alias)) | D.TypeAlias name tvs alias <- decls' ]
          , ports =
-             [ D.portName port | D.Port port <- decls ]
+             [ D.portName port | D.Port port <- decls' ]
          }
 
 delist :: [Var.Value] -> Var.Listing Var.Value -> Canonicalizer [Doc] [Var.Value]
@@ -124,7 +124,7 @@ filterExports types values =
           Nothing -> []
 
 declToValue :: D.ValidDecl -> [Var.Value]
-declToValue decl =
+declToValue (_, decl) =
     case decl of
       D.Definition (Valid.Definition pattern _ _) ->
           map Var.Value (P.boundVarList pattern)
@@ -138,14 +138,14 @@ declToValue decl =
       _ -> []
 
 declaration :: Environment -> D.ValidDecl -> Canonicalizer [Doc] D.CanonicalDecl
-declaration env decl =
+declaration env (doc, decl) =
     let canonicalize kind context pattern env v =
             let ctx = P.text ("Error in " ++ context) <+> pretty pattern <> P.colon
                 throw err = P.vcat [ ctx, P.text err ]
             in 
                 Env.onError throw (kind env v)
     in
-    case decl of
+    (,) doc <$> case decl of
       D.Definition (Valid.Definition p e t) ->
           do p' <- canonicalize pattern "definition" p env p
              e' <- expression env e
@@ -175,6 +175,8 @@ declaration env decl =
                               return (D.Out name e' t')
 
       D.Fixity assoc prec op -> return $ D.Fixity assoc prec op
+
+      D.DocComment{} -> error "Error: DocComment in canonical declaration"
 
 
 expression :: Environment -> Valid.Expr -> Canonicalizer [Doc] Canonical.Expr

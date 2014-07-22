@@ -10,7 +10,7 @@ import qualified Parse.Type as Type
 import qualified AST.Declaration as D
 
 declaration :: IParser D.SourceDecl
-declaration = alias <|> datatype <|> infixDecl <|> port <|> definition
+declaration = docComment <|> alias <|> datatype <|> infixDecl <|> port <|> definition
 
 definition :: IParser D.SourceDecl
 definition = D.Definition <$> Expr.def
@@ -34,6 +34,10 @@ datatype = do
   padded equals
   tcs <- pipeSep1 Type.constructor
   return $ D.Datatype name args tcs
+
+
+docComment :: IParser D.SourceDecl
+docComment = D.DocComment <$> multiComment
 
 
 infixDecl :: IParser D.SourceDecl

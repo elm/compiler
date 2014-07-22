@@ -19,7 +19,7 @@ build noPrelude interfaces source =
      -- Parse the source code and validate that it is well formed.
      validModule <- do
        modul <- Prelude.add noPrelude `fmap` Parse.program infixes source
-       case Check.mistakes (body modul) of
+       case Check.mistakes (map snd $ body modul) of
          [] -> return modul
          ms -> Left ms
 

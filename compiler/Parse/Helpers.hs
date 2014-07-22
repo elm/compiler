@@ -206,6 +206,9 @@ accessible expr = do
 spaces :: IParser String
 spaces = concat <$> many1 (multiComment <|> string " ") <?> "spaces"
 
+spaces' :: IParser String
+spaces' = concat <$> many1 (string " ") <?> "spaces'"
+
 forcedWS :: IParser String
 forcedWS = choice [ try $ (++) <$> spaces <*> (concat <$> many nl_space)
                   , try $ concat <$> many1 nl_space ]
@@ -221,6 +224,10 @@ whitespace = option "" forcedWS <?> "whitespace"
 freshLine :: IParser [[String]]
 freshLine = try (many1 newline >> many space_nl) <|> try (many1 space_nl) <?> ""
     where space_nl = try $ spaces >> many1 newline
+
+freshLine' :: IParser [[String]]
+freshLine' = try (many1 newline >> many space_nl) <|> try (many1 space_nl) <?> ""
+    where space_nl = try $ spaces' >> many1 newline
 
 newline :: IParser String
 newline = simpleNewline <|> lineComment <?> "newline"

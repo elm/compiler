@@ -2,6 +2,8 @@
 module Transform.Declaration (combineAnnotations, toExpr) where
 
 import Control.Applicative ((<$>))
+import Data.List (stripPrefix)
+import Data.Char (isSpace)
 
 import qualified AST.Annotation as A
 import qualified AST.Declaration as D
@@ -16,9 +18,40 @@ import qualified AST.Variable as Var
 import qualified Transform.Expression as Expr
 import qualified Transform.Definition as Def
 
+extractDocComment :: String -> Maybe String
+extractDocComment doc =
+  do prefixLess <- stripPrefix "{-|" doc
+     suffixLess <- stripSuffix "-}" prefixLess
+     return $ dropWhile isSpace suffixLess
+  where stripSuffix suf str =
+          let (part1, part2) = splitAt (length str - length suf) str
+          in case part2 == suf of
+            False -> Nothing
+            True -> Just part1
+
+-- Attach document comments to following definitions.
+-- Two doccomments in a row is an error, doccomment at the end of the file
+-- is an error. Notice that any resulting declaration can't be a DocComment
+attachComments :: [D.ValidDecl'] -> Either String [D.ValidDecl]
+attachComments decls =
+  case decls of
+    D.DocComment _ : D.DocComment _ : _ ->
+      Left "Two consequent document comments found!"
+    D.DocComment doc : next : rest ->
+      (:) (Just doc, next) <$> attachComments rest
+    D.DocComment _ : [] ->
+      Left "Document comment at the end of the file!"
+    next : rest ->
+      (:) (Nothing, next) <$> attachComments rest
+    [] -> return []
 
 combineAnnotations :: [D.SourceDecl] -> Either String [D.ValidDecl]
-combineAnnotations = go
+combineAnnotations decls =
+  do step1 <- attachTypeSignatures decls
+     attachComments step1
+
+attachTypeSignatures :: [D.SourceDecl] -> Either String [D.ValidDecl']
+attachTypeSignatures = go
     where
       msg x = "Syntax Error: The type annotation for '" ++ x ++
               "' must be directly above its definition."
@@ -38,6 +71,12 @@ combineAnnotations = go
 
             D.Fixity assoc prec op : rest ->
                 (:) (D.Fixity assoc prec op) <$> go rest
+
+            -- remove all multiline comments which are not doccomments
+            D.DocComment comment : rest ->
+              case extractDocComment comment of
+                Just doc -> (:) (D.DocComment doc) <$> go rest
+                Nothing -> go rest
 
             -- combine definitions
             D.Definition def : defRest ->
@@ -76,7 +115,7 @@ toExpr moduleName = concatMap (toDefs moduleName)
 toDefs :: String -> D.CanonicalDecl -> [Canonical.Def]
 toDefs moduleName decl =
   let typeVar = Var.Canonical (Var.Module moduleName) in
-  case decl of
+  case snd decl of
     D.Definition def -> [def]
 
     D.Datatype name tvars constructors -> concatMap toDefs' constructors
@@ -104,7 +143,7 @@ toDefs moduleName decl =
 
     -- Type aliases must be added to an extended equality dictionary,
     -- but they do not require any basic constraints.
-    D.TypeAlias _ _ _ -> []
+    D.TypeAlias{} -> []
 
     D.Port port ->
         case port of
@@ -114,7 +153,10 @@ toDefs moduleName decl =
               [ definition name (A.none $ E.PortIn name tipe) tipe ]
 
     -- no constraints are needed for fixity declarations
-    D.Fixity _ _ _ -> []
+    D.Fixity{} -> []
+
+    -- doccomments shouldn't be in a canonical declaration
+    D.DocComment{} -> error "Error: DocComment in canonical declaration"
 
 
 arguments :: [String]

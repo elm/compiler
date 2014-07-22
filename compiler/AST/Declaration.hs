@@ -16,6 +16,7 @@ data Declaration' port def var
     | TypeAlias String [String] (T.Type var)
     | Port port
     | Fixity Assoc Int String
+    | DocComment String -- only for source phase
       deriving (Show)
 
 data Assoc = L | N | R
@@ -31,11 +32,16 @@ data Port expr var
     | In String (T.Type var)
       deriving (Show)
 
-type SourceDecl    = Declaration' RawPort Source.Def Var.Raw
-type ValidDecl     = Declaration' (Port Valid.Expr Var.Raw) Valid.Def Var.Raw
-type CanonicalDecl = Declaration' (Port Canonical.Expr Var.Canonical)
-                                  Canonical.Def
-                                  Var.Canonical
+type SourceDecl =
+  Declaration' RawPort Source.Def Var.Raw
+
+type ValidDecl' =
+  Declaration' (Port Valid.Expr Var.Raw) Valid.Def Var.Raw
+type ValidDecl = (Maybe String, ValidDecl')
+
+type CanonicalDecl' =
+  Declaration' (Port Canonical.Expr Var.Canonical) Canonical.Def Var.Canonical
+type CanonicalDecl = (Maybe String, CanonicalDecl')
 
 portName :: Port expr var -> String
 portName port =
@@ -87,6 +93,7 @@ instance (Pretty port, Pretty def, Pretty var, Var.ToString var) =>
                        L -> P.text "l"
                        N -> P.empty
                        R -> P.text "r"
+      DocComment comment -> P.text $ concat ["{-| ", comment, "\n-}"]
 
 instance Pretty RawPort where
   pretty port =
