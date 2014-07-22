@@ -83,7 +83,7 @@ function debugModule(module, runtime) {
       var changed = runtime.notify(id, v, timestep);
       recordEvent(id, v, timestep);
       if ((eventsBeforeSave--) === 1) { // save a "quickjump" every EVENTS_PER_SAVE states
-        nodeSaveStates.push(saveNodeValues(moduleNodes));
+        saveState();
         eventsBeforeSave = EVENTS_PER_SAVE;
       }
       if (parent.window) {
@@ -156,6 +156,10 @@ function debugModule(module, runtime) {
     return nodeSaveStates[savePosition];
   }
 
+  function saveState() {
+    nodeSaveStates.push(saveNodeValues(moduleNodes));
+  }
+
   function setPaused() {
     programPaused = true;
     clearAsyncCallbacks();
@@ -198,6 +202,7 @@ function debugModule(module, runtime) {
     clearSaveStates : clearSaveStates,
     getSaveStatesLength: getSaveStatesLength,
     getSaveStateAt: getSaveStateAt,
+    saveState: saveState,
     EVENTS_PER_SAVE: EVENTS_PER_SAVE,
     getPaused: getPaused,
     setPaused: setPaused,
@@ -240,7 +245,8 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
         restartProgram();
         return;
       }
-      var continueTime = debugModule.getRecordedEventAt(eventCounter - 1).timestep
+      var lastEvent = debugModule.getRecordedEventAt(eventCounter);
+      var continueTime = lastEvent ? lastEvent.timestep : Date.now();
       var eventsPerSave = debugModule.EVENTS_PER_SAVE;
       var index = eventCounter;
 
