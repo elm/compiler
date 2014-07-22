@@ -35,7 +35,9 @@ Library
                        Elm.Internal.Name,
                        Elm.Internal.Paths,
                        Elm.Internal.Utils,
-                       Elm.Internal.Version
+                       Elm.Internal.Version,
+                       Elm.Internal.Constraint,
+                       Elm.Internal.Libraries
   Hs-Source-Dirs:      compiler
   other-modules:       AST.Annotation,
                        AST.Declaration,

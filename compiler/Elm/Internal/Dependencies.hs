@@ -16,6 +16,7 @@ import qualified Data.Text as T
 
 import qualified Elm.Internal.Name as N
 import qualified Elm.Internal.Version as V
+import qualified Elm.Internal.Constraint as C
 import qualified Elm.Internal.Paths as Path
 
 data Deps = Deps
@@ -28,8 +29,8 @@ data Deps = Deps
     , exposed :: [String]
     , native :: [String]
     , elmVersion :: V.Version
-    , dependencies :: [(N.Name,V.Version)]
-    } deriving (Show, Eq, Ord)
+    , dependencies :: [(N.Name,C.Constraint)]
+    } deriving (Show, Eq)
 
 instance ToJSON Deps where
   toJSON d =
@@ -78,16 +79,16 @@ instance FromJSON Deps where
 
     parseJSON _ = mzero
 
-getDependencies :: Object -> Parser [(N.Name, V.Version)]
+getDependencies :: Object -> Parser [(N.Name, C.Constraint)]
 getDependencies obj = 
     toDeps =<< get obj "dependencies" "a listing of your project's dependencies"
     where
       toDeps deps =
-          forM (Map.toList deps) $ \(f,v) ->
-              case (N.fromString f, V.fromString v) of
-                (Just name, Just version) -> return (name,version)
+          forM (Map.toList deps) $ \(f,c) ->
+              case (N.fromString f, C.fromString c) of
+                (Just name, Just constr) -> return (name, constr)
                 (Nothing, _) -> fail $ N.errorMsg f
-                (_, Nothing) -> fail $ "invalid version number " ++ v
+                (_, Nothing) -> fail $ "Invalid constraint: " ++ c
 
 get :: FromJSON a => Object -> T.Text -> String -> Parser a
 get obj field desc =
@@ -135,6 +136,9 @@ withDeps path handle =
                     "could not find " ++ path ++ " file. You may need to create one.\n" ++
                     "    For an example of how to fill in the dependencies file, check out\n" ++
                     "    <https://github.com/evancz/automaton/blob/master/elm_dependencies.json>"
+
+withNative :: FilePath -> ([String] -> ErrorT String IO a) -> ErrorT String IO a
+withNative path handle = withDeps path (handle . native)
 
 depsAt :: FilePath -> ErrorT String IO Deps
 depsAt filePath = withDeps filePath return
