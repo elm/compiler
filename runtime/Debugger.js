@@ -72,7 +72,7 @@ function debugModule(module, runtime) {
   nodeSaveStates.push(saveNodeValues(moduleNodes));
 
   function wrapNotify(id, v) {
-    var timestep = Date.now();
+    var timestep = runtime.timer.now();
 
     if (programPaused) {
       // ignore async events generated while playing back
@@ -246,7 +246,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
         return;
       }
       var lastEvent = debugModule.getRecordedEventAt(eventCounter);
-      var continueTime = lastEvent ? lastEvent.timestep : Date.now();
+      var continueTime = lastEvent ? lastEvent.timestep : runtime.timer.now();
       var eventsPerSave = debugModule.EVENTS_PER_SAVE;
       var index = eventCounter;
 
@@ -293,7 +293,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
   function redrawGraphics() {
     var main = debugModule.moduleInstance.main
     for (var i = main.kids.length ; i-- ; ) {
-      main.kids[i].recv(Date.now(), true, main.id);
+      main.kids[i].recv(runtime.timer.now(), true, main.id);
     }
   }
 
@@ -397,7 +397,7 @@ function tracePathInit(runtime, mainNode) {
       }
       if (elem.props.debugTracePathId)
       {
-        positions[elem.props.debugTracePathId] = new Point(offset.x, offset.y, Date.now());
+        positions[elem.props.debugTracePathId] = new Point(offset.x, offset.y, runtime.timer.now());
       }
     }
 
@@ -407,7 +407,7 @@ function tracePathInit(runtime, mainNode) {
         processElement(form.form._0, offset.translate(form.x, -form.y));
       }
     }
-    processElement(currentScene, new Point(0, 0, Date.now()));
+    processElement(currentScene, new Point(0, 0, runtime.timer.now()));
     return positions;
   }
 
