@@ -3,12 +3,11 @@
 
 #### Improvements:
 
-  * Type aliases are allowed in port types
-  * Error on ambiguious use of imported variables
+  * Type aliases in port types 
   * Add Keyboard.alt and Keyboard.meta
   * Add Debug.crash
   * Add --bundle-runtime flag which creates stand-alone Elm programs
-  * Many bug fixes for imports and exports
+  * Error on ambiguious use of imported variables
   * Better architecture for compiler. Uses types to make compilation pipeline
     safer, setting things up for giving programmatic access to the AST to
     improve editor and IDE support.
