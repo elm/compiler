@@ -284,9 +284,7 @@ function debuggerInit(debugModule, runtime, hotSwapState) {
     debugModule.tracePath.stopRecording();
 
     stepTo(hotSwapState.currentEventIndex);
-    if (paused) {
-      debugModule.setPaused();
-    } else {
+    if (!paused) {
       debugModule.setContinue(hotSwapState.currentEventIndex);
     }
   }
