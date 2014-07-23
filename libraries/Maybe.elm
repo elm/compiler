@@ -1,4 +1,4 @@
-module Maybe (Maybe(..), maybe, isJust, isNothing) where
+module Maybe (Maybe(..), maybe, isJust, isNothing, map) where
 
 {-| Represents an optional value. Maybe it is there, maybe it is not.
 
@@ -8,6 +8,8 @@ module Maybe (Maybe(..), maybe, isJust, isNothing) where
 # Taking Maybes apart
 @docs maybe, isJust, isNothing
 
+# Map
+@docs map
 -}
 
 import Basics (not, (.))
@@ -24,9 +26,6 @@ function to the associated value.
 
       isPositive : Maybe Int -> Bool
       isPositive maybeInt = maybe False (\n -> n > 0) maybeInt
-
-      map : (a -> b) -> Maybe a -> Maybe b
-      map f m = maybe Nothing (\x -> Just (f x)) m
 -}
 maybe : b -> (a -> b) -> Maybe a -> b
 maybe b f m =
@@ -51,3 +50,14 @@ isJust = maybe False (\_ -> True)
 -}
 isNothing : Maybe a -> Bool
 isNothing = not . isJust
+
+{-| Transform the contents of a `Maybe` with a given function:
+
+      map sqrt (Just 9) == Just 3
+      map sqrt Nothing  == Nothing
+-}
+map : (a -> b) -> Maybe a -> Maybe b
+map f maybe =
+    case maybe of
+      Just v  -> Just (f v)
+      Nothing -> Nothing
