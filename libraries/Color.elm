@@ -97,7 +97,7 @@ complement color =
       RGBA r g b a -> let (h,s,l) = rgbToHsl r g b
                       in  hsla (h + degrees 180) s l a
 
-{-| Extract the the components of a color in the HSL format.
+{-| Extract the components of a color in the HSL format.
 -}
 toHsl : Color -> { hue:Float, saturation:Float, lightness:Float, alpha:Float }
 toHsl color =
@@ -107,7 +107,7 @@ toHsl color =
           let (h,s,l) = rgbToHsl r g b
           in  { hue=h, saturation=s, lightness=l, alpha=a }
 
-{-| Extract the the components of a color in the RGB format.
+{-| Extract the components of a color in the RGB format.
 -}
 toRgb : Color -> { red:Int, green:Int, blue:Int, alpha:Float }
 toRgb color =
