@@ -474,10 +474,10 @@ function assert(bool, msg) {
   }
 }
 
-function snapshotSignalGraph(allNodes) {
+function snapshotSignalGraph(signalGraphNodes) {
   var nodeValues = [];
 
-  allNodes.forEach(function(node) {
+  signalGraphNodes.forEach(function(node) {
     nodeValues.push({ value: node.value, id: node.id });
   });
 
@@ -485,10 +485,10 @@ function snapshotSignalGraph(allNodes) {
 };
 
 
-function restoreSnapshot(allNodes, snapshot) {
-  assert(allNodes.length == snapshot.length, "saved program state has wrong length");
-  for (var i=0; i < allNodes.length; i++) {
-    var node = allNodes[i];
+function restoreSnapshot(signalGraphNodes, snapshot) {
+  assert(signalGraphNodes.length == snapshot.length, "saved program state has wrong length");
+  for (var i=0; i < signalGraphNodes.length; i++) {
+    var node = signalGraphNodes[i];
     var state = snapshot[i];
     assert(node.id == state.id, "the nodes moved position");
 
