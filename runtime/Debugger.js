@@ -39,11 +39,67 @@ function debugModule(module, runtime) {
   var programPaused = false;
   var recordedEvents = [];
   var asyncCallbacks = [];
+  var nodeSaveStates = [];
+  var EVENTS_PER_SAVE = 100;
   var watchTracker = Elm.Native.Debug.make(runtime).watchTracker;
   var now = 0;
+  var eventsBeforeSave = EVENTS_PER_SAVE;
+
+  /* We must use a synchronized object so that we have a consistent idea
+   * of which event record we are processing right now. Notify is called on
+   * any signal change but a trace is created when the screen is refreshed.
+   * On Mario this is when `fps 25` fires. Keypresses will create an event
+   * record but not a screen update. To continue at a given point in the
+   * program's execution, we need to eject all recorded events after that
+   * given point as that version of the program's future isn't garaunteed
+   * to happen. We need a numbering scheme so that we can safely say that
+   * and event or trace beyond that given point can be removed.
+   */
+  var syncedEvents = (function() {
+    var internalCounter = 0;
+    var set = function(v) {
+      internalCounter = v;
+    };
+    var value = function() {
+      return internalCounter;
+    }
+    var increment = function() {
+      return ++internalCounter;
+    }
+    return { set : set
+           , value : value
+           , increment : increment
+           };
+  })();
+
+  // runtime is the prototype of wrappedRuntime
+  // so we can access all runtime properties too
+  var wrappedRuntime = Object.create(runtime);
+  wrappedRuntime.notify = wrapNotify;
+  wrappedRuntime.runDelayed = wrapRunDelayed;
+
+  var assignedPropTracker = Object.create(wrappedRuntime);
+  var moduleInstance = module.make(assignedPropTracker);
+  
+  // make sure the signal graph is actually a signal & extract the visual model
+  if ( !('recv' in moduleInstance.main) ) {
+      moduleInstance.main = Elm.Signal.make(runtime).constant(moduleInstance.main);
+  }
+
+  // The main module stores imported modules onto the runtime.
+  // To ensure only one instance of each module is created,
+  // we assign them back on the original runtime object.
+  Object.keys(assignedPropTracker).forEach(function(key) {
+    runtime[key] = assignedPropTracker[key];
+  });
+
+  var moduleNodes = flattenNodes(wrappedRuntime.inputs);
+  var tracePath = tracePathInit(runtime, moduleInstance.main, syncedEvents);
+
+  nodeSaveStates.push(saveNodeValues(moduleNodes));
 
   function wrapNotify(id, v) {
-    var timestep = Date.now();
+    var timestep = runtime.timer.now();
 
     if (programPaused) {
       // ignore async events generated while playing back
@@ -53,6 +109,10 @@ function debugModule(module, runtime) {
     else {
       var changed = runtime.notify(id, v, timestep);
       recordEvent(id, v, timestep);
+      if ((eventsBeforeSave--) === 1) { // save a "quickjump" every EVENTS_PER_SAVE states
+        saveState();
+        eventsBeforeSave = EVENTS_PER_SAVE;
+      }
       if (parent.window) {
         parent.window.postMessage("elmNotify", window.location.origin);
       }
@@ -78,6 +138,7 @@ function debugModule(module, runtime) {
 
   function recordEvent(id, v, timestep) {
     watchTracker.pushFrame();
+    syncedEvents.increment();
     recordedEvents.push({ id:id, value:v, timestep:timestep });
   }
 
@@ -109,6 +170,24 @@ function debugModule(module, runtime) {
     recordedEvents = events.slice();
   }
 
+  function clearSaveStates() {
+    nodeSaveStates = [saveNodeValues(moduleNodes)];
+  }
+
+  function getSaveStatesLength() {
+    return nodeSaveStates.length;
+  }
+
+  function getSaveStateAt(i) {
+    var savePosition = (i / EVENTS_PER_SAVE)|0;
+    assert(savePosition < nodeSaveStates.length && savePosition >= 0, "Out of bounds index: " + savePosition);
+    return nodeSaveStates[savePosition];
+  }
+
+  function saveState() {
+    nodeSaveStates.push(saveNodeValues(moduleNodes));
+  }
+
   function setPaused() {
     programPaused = true;
     clearAsyncCallbacks();
@@ -123,7 +202,10 @@ function debugModule(module, runtime) {
     if (position > 0) {
       // If we're not unpausing at the head, then we need to dump the
       // events that are ahead of where we're continuing.
-      recordedEvents = recordedEvents.slice(0,position);
+      var lastSaveNode = ((position / EVENTS_PER_SAVE)|0) + 1;
+      eventsBeforeSave = EVENTS_PER_SAVE - (position % EVENTS_PER_SAVE);
+      nodeSaveStates = nodeSaveStates.slice(0, lastSaveNode);
+      recordedEvents = recordedEvents.slice(0, position);
       executeCallbacks(asyncCallbacks, false);
     }
     tracePath.startRecording();
@@ -132,30 +214,6 @@ function debugModule(module, runtime) {
   function getPaused() {
     return programPaused;
   }
-
-  // runtime is the prototype of wrappedRuntime
-  // so we can access all runtime properties too
-  var wrappedRuntime = Object.create(runtime);
-  wrappedRuntime.notify = wrapNotify;
-  wrappedRuntime.runDelayed = wrapRunDelayed;
-
-  var assignedPropTracker = Object.create(wrappedRuntime);
-  var moduleInstance = module.make(assignedPropTracker);
-  
-  // make sure the signal graph is actually a signal & extract the visual model
-  if ( !('recv' in moduleInstance.main) ) {
-      moduleInstance.main = Elm.Signal.make(runtime).constant(moduleInstance.main);
-  }
-
-  // The main module stores imported modules onto the runtime.
-  // To ensure only one instance of each module is created,
-  // we assign them back on the original runtime object.
-  Object.keys(assignedPropTracker).forEach(function(key) {
-    runtime[key] = assignedPropTracker[key];
-  });
-
-  var moduleNodes = flattenNodes(wrappedRuntime.inputs);
-  var tracePath = tracePathInit(runtime, moduleInstance.main);
 
   return {
     moduleInstance: moduleInstance,
@@ -169,103 +227,106 @@ function debugModule(module, runtime) {
     getRecordedEventAt: getRecordedEventAt,
     copyRecordedEvents: copyRecordedEvents,
     loadRecordedEvents: loadRecordedEvents,
+    clearSaveStates : clearSaveStates,
+    getSaveStatesLength: getSaveStatesLength,
+    getSaveStateAt: getSaveStateAt,
+    saveState: saveState,
+    EVENTS_PER_SAVE: EVENTS_PER_SAVE,
     getPaused: getPaused,
     setPaused: setPaused,
     setContinue: setContinue,
     tracePath: tracePath,
     watchTracker: watchTracker,
+    syncedEvents: syncedEvents
   };
 }
 
 function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
-  var eventCounter = 0;
 
-  function resetProgram() {
+  function resetProgram(position) {
+    var closestSaveState = debugModule.getSaveStateAt(position);
     debugModule.clearAsyncCallbacks();
-    restoreNodeValues(debugModule.moduleNodes, debugModule.initialNodeValues);
+    restoreNodeValues(debugModule.moduleNodes, closestSaveState);
+    debugModule.tracePath.clearTracesAfter(position);
     redrawGraphics();
   }
 
   function restartProgram() {
-    resetProgram();
+    resetProgram(0);
     debugModule.watchTracker.clear();
     debugModule.tracePath.clearTraces();
     debugModule.clearRecordedEvents();
+    debugModule.clearSaveStates();
     debugModule.setContinue(0);
     executeCallbacks(debugModule.initialAsyncCallbacks, true);
   }
 
   function pauseProgram() {
     debugModule.setPaused();
-    eventCounter = debugModule.getRecordedEventsLength();
+    var endOfEvents = debugModule.getRecordedEventsLength()
+    debugModule.syncedEvents.set(endOfEvents);
   }
 
   function continueProgram() {
+    var currentLocation = debugModule.syncedEvents.value();
     if (debugModule.getPaused())
     {
-      if(eventCounter === 0) {
+      if (currentLocation === 0) {
         restartProgram();
         return;
       }
-      resetProgram();
-      var index = eventCounter;
-      eventCounter = 0;
-      debugModule.tracePath.clearTraces();
-      debugModule.tracePath.startRecording();
-      stepTo(index);
-      debugModule.setContinue(eventCounter);
+      var eventsPerSave = debugModule.EVENTS_PER_SAVE;
+      var checkpoint = ((currentLocation / eventsPerSave)|0) * eventsPerSave;
+
+      resetProgram(currentLocation);
+      
+      debugModule.syncedEvents.set(checkpoint);
+      stepTo(currentLocation);
+      currentLocation = debugModule.syncedEvents.value()
+      debugModule.setContinue(currentLocation);
     }
   }
 
   function stepTo(index) {
     if (!debugModule.getPaused()) {
       debugModule.setPaused();
-      resetProgram();
+      resetProgram(0);
     }
 
     if (index < 0 || index > getMaxSteps()) {
       throw "Index out of bounds: " + index;
     }
 
-    if (index < eventCounter) {
-      resetProgram();
-      eventCounter = 0;
+    var currentLocation = debugModule.syncedEvents.value();
+    if (index < currentLocation) {
+      var eventsPerSave = debugModule.EVENTS_PER_SAVE;
+      resetProgram(index);
+      var checkpoint = ((index / eventsPerSave)|0) * eventsPerSave;
+      debugModule.syncedEvents.set(checkpoint);
     }
 
-    assert(index >= eventCounter, "index must be bad");
-    while (eventCounter < index) {
-      var nextEvent = debugModule.getRecordedEventAt(eventCounter);
+    while (debugModule.syncedEvents.value() < index) {
+      var nextEventLocation = debugModule.syncedEvents.value();
+      var nextEvent = debugModule.getRecordedEventAt(nextEventLocation);
       runtime.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
 
-      eventCounter += 1;
+      debugModule.syncedEvents.increment();
     }
-    assert(eventCounter == index, "while loop didn't work");
   }
 
   function getMaxSteps() {
     return debugModule.getRecordedEventsLength();
   }
 
-  function doPlayback(eventList) {
-    var x = eventList.shift();
-    var time = x[2];
-    runtime.notify(x[0], x[1], x[2]);
-
-    if (eventList.length > 0) {
-      var delta = eventList[0][2] - time;
-      setTimeout(function() { doPlayback(eventList); }, delta);
-    }
-  }
-
   function redrawGraphics() {
     var main = debugModule.moduleInstance.main
     for (var i = main.kids.length ; i-- ; ) {
-      main.kids[i].recv(Date.now(), true, main.id);
+      main.kids[i].recv(runtime.timer.now(), true, main.id);
     }
   }
 
   function getHotSwapState() {
-    var counter = eventCounter;
+    var counter = debugModule.syncedEvents.value();
     if (!debugModule.getPaused()) {
       counter = getMaxSteps();
     }
@@ -287,20 +348,31 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     // and the new modules are being generated. So we can ask the
     // debugging console what it thinks the pause state is and go
     // from there.
-    var paused = top.debug.paused;
     debugModule.setPaused();
+    resetProgram(0);
+    debugModule.syncedEvents.set(0);
     debugModule.loadRecordedEvents(hotSwapState.recordedEvents);
+    var paused = top.debug.paused;
+    var index = getMaxSteps();
+    var eventsBeforeSave = debugModule.EVENTS_PER_SAVE;
 
     // draw new trace path
     debugModule.tracePath.startRecording();
-    stepTo(getMaxSteps());
+    while (debugModule.syncedEvents.value() < index) {
+      var nextEventLocation = debugModule.syncedEvents.value();
+      var nextEvent = debugModule.getRecordedEventAt(nextEventLocation);
+      runtime.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
+      if ((eventsBeforeSave--) === 1) {
+        debugModule.saveState();
+        eventsBeforeSave = debugModule.EVENTS_PER_SAVE;
+      }
+      debugModule.syncedEvents.increment();
+    }
     debugModule.tracePath.stopRecording();
 
     stepTo(hotSwapState.eventCounter);
-    if (paused) {
-      debugModule.setPaused();
-    } else {
-      debugModule.setContinue(hotSwapState.eventCounter);
+    if (!paused) {
+      continueProgram();
     }
   }
 
@@ -323,12 +395,13 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
   return elmDebugger;
 }
 
-function Point(x, y) {
+function Point(x, y, sequenceNumber) {
   this.x = x;
   this.y = y;
+  this.sequenceNumber = sequenceNumber
 
   this.translate = function(x, y) {
-    return new Point(this.x + x, this.y + y);
+    return new Point(this.x + x, this.y + y, sequenceNumber);
   }
 
   this.equals = function(p) {
@@ -336,7 +409,7 @@ function Point(x, y) {
   }
 }
 
-function tracePathInit(runtime, mainNode) {
+function tracePathInit(runtime, mainNode, syncedEvents) {
   var List = Elm.List.make(runtime);
   var Signal = Elm.Signal.make(runtime);
   var tracePathNode = A2(Signal.lift, graphicsUpdate, mainNode);
@@ -353,7 +426,8 @@ function tracePathInit(runtime, mainNode) {
       }
       if (elem.props.debugTracePathId)
       {
-        positions[elem.props.debugTracePathId] = new Point(offset.x, offset.y);
+        var currentEvent = syncedEvents.value();
+        positions[elem.props.debugTracePathId] = new Point(offset.x, offset.y, currentEvent);
       }
     }
 
@@ -364,7 +438,7 @@ function tracePathInit(runtime, mainNode) {
       }
     }
 
-    processElement(currentScene, new Point(0, 0));
+    processElement(currentScene, new Point(0, 0, syncedEvents.value()));
     return positions;
   }
 
@@ -437,12 +511,26 @@ function tracePathInit(runtime, mainNode) {
     recordingTraces = true;
   }
 
+  function clearTracesAfter(counter) {
+    var newTraces = {};
+    for (var id in tracePositions) {
+      newTraces[id] = [];
+      for (var i = 0; i < tracePositions[id].length; i++) {
+        if (tracePositions[id][i].sequenceNumber <= counter) {
+          newTraces[id].push(tracePositions[id][i]);
+        }
+      }
+    }
+    tracePositions = newTraces;
+  }
+
   return {
     graphicsUpdate: graphicsUpdate,
     canvas: tracePathCanvas,
     clearTraces: clearTraces,
     stopRecording: stopRecording,
-    startRecording: startRecording
+    startRecording: startRecording,
+    clearTracesAfter: clearTracesAfter
   }
 }
 
