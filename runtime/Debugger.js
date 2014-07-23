@@ -10,7 +10,7 @@ if (!window.location.origin) {
 }
 
 Elm.Debugger = null;
-Elm.debuggerAttach = function(module, hotSwapState /* =undefined */) {
+Elm.debuggerAttach = function(module, hotSwapState) {
   return {
     make: function(runtime) {
       var wrappedModule = debugModule(module, runtime);
@@ -23,7 +23,7 @@ Elm.debuggerAttach = function(module, hotSwapState /* =undefined */) {
 
 function dispatchElmDebuggerInit() {
   if (parent.window) {
-    var dispatch = function(_) {
+    var dispatch = function() {
       parent.window.postMessage("elmDebuggerInit", window.location.origin);
     };
     if (parent.window.document.readyState === "complete") {
@@ -123,7 +123,7 @@ function debugModule(module, runtime) {
     if (position > 0) {
       // If we're not unpausing at the head, then we need to dump the
       // events that are ahead of where we're continuing.
-      recordedEvents = recordedEvents.slice(0,position);
+      recordedEvents = recordedEvents.slice(0, position);
       executeCallbacks(asyncCallbacks, false);
     }
     tracePath.startRecording();
@@ -177,7 +177,7 @@ function debugModule(module, runtime) {
   };
 }
 
-function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
+function debuggerInit(debugModule, runtime, hotSwapState) {
   var currentEventIndex = 0;
 
   function resetProgram() {
@@ -203,7 +203,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
   function continueProgram() {
     if (debugModule.getPaused())
     {
-      if(currentEventIndex === 0) {
+      if (currentEventIndex === 0) {
         restartProgram();
         return;
       }
