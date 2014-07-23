@@ -43,7 +43,7 @@ function debugModule(module, runtime) {
   var now = 0;
 
   function wrapNotify(id, v) {
-    var timestep = Date.now();
+    var timestep = runtime.timer.now();
 
     if (programPaused) {
       // ignore async events generated while playing back
@@ -260,7 +260,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
   function redrawGraphics() {
     var main = debugModule.moduleInstance.main
     for (var i = main.kids.length ; i-- ; ) {
-      main.kids[i].recv(Date.now(), true, main.id);
+      main.kids[i].recv(runtime.timer.now(), true, main.id);
     }
   }
 
