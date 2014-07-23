@@ -29,9 +29,10 @@ function to the associated value.
       map f m = maybe Nothing (\x -> Just (f x)) m
 -}
 maybe : b -> (a -> b) -> Maybe a -> b
-maybe b f m = case m of
-                Just v  -> f v
-                Nothing -> b
+maybe b f m =
+    case m of
+      Just v  -> f v
+      Nothing -> b
 
 {-| Check if a maybe happens to be a `Just`.
 
