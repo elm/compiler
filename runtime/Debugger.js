@@ -178,7 +178,7 @@ function debugModule(module, runtime) {
 }
 
 function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
-  var eventCounter = 0;
+  var currentEventIndex = 0;
 
   function resetProgram() {
     debugModule.clearAsyncCallbacks();
@@ -197,23 +197,23 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
 
   function pauseProgram() {
     debugModule.setPaused();
-    eventCounter = debugModule.getRecordedEventsLength();
+    currentEventIndex = debugModule.getRecordedEventsLength();
   }
 
   function continueProgram() {
     if (debugModule.getPaused())
     {
-      if(eventCounter === 0) {
+      if(currentEventIndex === 0) {
         restartProgram();
         return;
       }
       resetProgram();
-      var continueIndex = eventCounter;
-      eventCounter = 0;
+      var continueIndex = currentEventIndex;
+      currentEventIndex = 0;
       debugModule.tracePath.clearTraces();
       debugModule.tracePath.startRecording();
       stepTo(continueIndex);
-      debugModule.setContinue(eventCounter);
+      debugModule.setContinue(currentEventIndex);
     }
   }
 
@@ -227,19 +227,19 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
       throw "Index out of bounds: " + index;
     }
 
-    if (index < eventCounter) {
+    if (index < currentEventIndex) {
       resetProgram();
-      eventCounter = 0;
+      currentEventIndex = 0;
     }
 
-    assert(index >= eventCounter, "index must be bad");
-    while (eventCounter < index) {
-      var nextEvent = debugModule.getRecordedEventAt(eventCounter);
+    assert(index >= currentEventIndex, "index must be bad");
+    while (currentEventIndex < index) {
+      var nextEvent = debugModule.getRecordedEventAt(currentEventIndex);
       runtime.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
 
-      eventCounter += 1;
+      currentEventIndex += 1;
     }
-    assert(eventCounter == index, "while loop didn't work");
+    assert(currentEventIndex == index, "while loop didn't work");
   }
 
   function getMaxSteps() {
@@ -265,13 +265,13 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
   }
 
   function getHotSwapState() {
-    var continueIndex = eventCounter;
+    var continueIndex = currentEventIndex;
     if (!debugModule.getPaused()) {
       continueIndex = getMaxSteps();
     }
     return {
       recordedEvents: debugModule.copyRecordedEvents(),
-      eventCounter: continueIndex
+      currentEventIndex: continueIndex
     };
   }
 
@@ -296,11 +296,11 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     stepTo(getMaxSteps());
     debugModule.tracePath.stopRecording();
 
-    stepTo(hotSwapState.eventCounter);
+    stepTo(hotSwapState.currentEventIndex);
     if (paused) {
       debugModule.setPaused();
     } else {
-      debugModule.setContinue(hotSwapState.eventCounter);
+      debugModule.setContinue(hotSwapState.currentEventIndex);
     }
   }
 
@@ -317,7 +317,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
       dispose: dispose,
       allNodes: debugModule.signalGraphNodes,
       watchTracker: debugModule.watchTracker,
-      mainSignalNode: debugModule.debuggedModule.main
+      signalGraphMain: debugModule.debuggedModule.main
   };
 
   return elmDebugger;
@@ -336,10 +336,10 @@ function Point(x, y) {
   }
 }
 
-function tracePathInit(runtime, mainSignalNode) {
+function tracePathInit(runtime, signalGraphMain) {
   var List = Elm.List.make(runtime);
   var Signal = Elm.Signal.make(runtime);
-  var tracePathNode = A2(Signal.lift, graphicsUpdate, mainSignalNode);
+  var tracePathNode = A2(Signal.lift, graphicsUpdate, signalGraphMain);
   var tracePathCanvas = createCanvas();
   var tracePositions = {};
   var recordingTraces = true;
