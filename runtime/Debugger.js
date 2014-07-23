@@ -9,7 +9,7 @@ if (!window.location.origin) {
 }
 
 Elm.Debugger = null;
-Elm.debuggerAttach = function(module, hotSwapState) {
+Elm.debuggerAttach = function(module, hotSwapState /* =undefined */) {
   return {
     make: function(runtime) {
       var wrappedModule = debugModule(module, runtime);
@@ -177,7 +177,7 @@ function debugModule(module, runtime) {
   };
 }
 
-function debuggerInit(debugModule, runtime, hotSwapState) {
+function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
   var currentEventIndex = 0;
 
   function resetProgram() {
