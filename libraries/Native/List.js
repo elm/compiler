@@ -76,6 +76,17 @@ Elm.Native.List.make = function(elm) {
     }
 
     function head(v) { return v.ctor === '[]' ? throwError('head') : v._0; }
+
+    function init(xs) {
+        if (xs.ctor === '[]') { throwError('init'); }
+        var arr = [];
+        while (xs._1.ctor !== '[]') {
+            arr.push(xs._0);
+            xs = xs._1;
+        }
+        return fromArray(arr);
+    }
+
     function tail(v) { return v.ctor === '[]' ? throwError('tail') : v._1; }
 
     function last(xs) {
@@ -354,6 +365,7 @@ Elm.Native.List.make = function(elm) {
         append:append,
 
         head:head,
+        init:init,
         tail:tail,
         last:last,
 
