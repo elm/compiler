@@ -1,4 +1,4 @@
-module Maybe (Maybe(..), maybe, isJust, isNothing, justs) where
+module Maybe (Maybe(..), maybe, isJust, isNothing) where
 
 {-| Represents an optional value. Maybe it is there, maybe it is not.
 
@@ -8,12 +8,9 @@ module Maybe (Maybe(..), maybe, isJust, isNothing, justs) where
 # Taking Maybes apart
 @docs maybe, isJust, isNothing
 
-# Maybes and Lists
-@docs justs
 -}
 
 import Basics (not, (.))
-import List (foldr, (::))
 
 {-| The Maybe datatype. Useful when a computation may or may not
 result in a value (e.g. logarithm is defined only for positive
@@ -53,13 +50,3 @@ isJust = maybe False (\_ -> True)
 -}
 isNothing : Maybe a -> Bool
 isNothing = not . isJust
-
-cons : Maybe a -> [a] -> [a]
-cons mx xs = maybe xs (\x -> x :: xs) mx
-
-{-| Filters out Nothings and extracts the remaining values.
-
-      justs [Just 0, Nothing, Just 5, Just 7] == [0,5,7]
--}
-justs : [Maybe a] -> [a]
-justs = foldr cons []
