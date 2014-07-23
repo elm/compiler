@@ -20,6 +20,8 @@ Elm.debuggerAttach = function(module, hotSwapState /* =undefined */) {
   };
 };
 
+var EVENTS_PER_SAVE = 100;
+
 function dispatchElmDebuggerInit() {
   if (parent.window) {
     var dispatch = function() {
@@ -38,8 +40,10 @@ function debugModule(module, runtime) {
   var programPaused = false;
   var recordedEvents = [];
   var asyncCallbacks = [];
+  var snapshots = [];
   var watchTracker = Elm.Native.Debug.make(runtime).watchTracker;
   var pauseTime = 0;
+  var eventsUntilSnapshot = EVENTS_PER_SAVE;
 
   // runtime is the prototype of wrappedRuntime
   // so we can access all runtime properties too
@@ -66,6 +70,8 @@ function debugModule(module, runtime) {
   var signalGraphNodes = flattenSignalGraph(wrappedRuntime.inputs);
   var tracePath = tracePathInit(runtime, debuggedModule.main);
 
+  snapshots.push(snapshotSignalGraph(signalGraphNodes));
+
   function wrapNotify(id, v) {
     var timestep = runtime.timer.now();
 
@@ -77,6 +83,11 @@ function debugModule(module, runtime) {
     else {
       var changed = runtime.notify(id, v, timestep);
       recordEvent(id, v, timestep);
+      if (eventsUntilSnapshot <= 1) {
+        saveSnapshot();
+        eventsUntilSnapshot = EVENTS_PER_SAVE;
+      }
+      eventsUntilSnapshot -= 1;
       if (parent.window) {
         parent.window.postMessage("elmNotify", window.location.origin);
       }
@@ -133,6 +144,20 @@ function debugModule(module, runtime) {
     recordedEvents = events.slice();
   }
 
+  function clearSnapshots() {
+    snapshots = [snapshotSignalGraph(signalGraphNodes)];
+  }
+
+  function getSnapshotAt(i) {
+    var snapshotEvent = Math.floor(i / EVENTS_PER_SAVE);
+    assert(snapshotEvent < snapshots.length && snapshotEvent >= 0, "Out of bounds index: " + snapshotEvent);
+    return snapshots[snapshotEvent];
+  }
+
+  function saveSnapshot() {
+    snapshots.push(snapshotSignalGraph(signalGraphNodes));
+  }
+
   function setPaused() {
     programPaused = true;
     clearAsyncCallbacks();
@@ -147,6 +172,9 @@ function debugModule(module, runtime) {
     if (position > 0) {
       // If we're not unpausing at the head, then we need to dump the
       // events that are ahead of where we're continuing.
+      var lastSnapshotPosition = Math.ceil(position / EVENTS_PER_SAVE);
+      eventsUntilSnapshot = EVENTS_PER_SAVE - (position % EVENTS_PER_SAVE);
+      snapshots = snapshots.slice(0, lastSnapshotPosition);
       recordedEvents = recordedEvents.slice(0, position);
       executeCallbacks(asyncCallbacks, false);
     }
@@ -169,6 +197,9 @@ function debugModule(module, runtime) {
     getRecordedEventAt: getRecordedEventAt,
     copyRecordedEvents: copyRecordedEvents,
     loadRecordedEvents: loadRecordedEvents,
+    clearSnapshots: clearSnapshots,
+    getSnapshotAt: getSnapshotAt,
+    saveSnapshot: saveSnapshot,
     getPaused: getPaused,
     setPaused: setPaused,
     setContinue: setContinue,
@@ -180,17 +211,20 @@ function debugModule(module, runtime) {
 function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
   var currentEventIndex = 0;
 
-  function resetProgram() {
+  function resetProgram(position) {
+    var closestSnapshot = debugModule.getSnapshotAt(position);
     debugModule.clearAsyncCallbacks();
-    restoreSnapshot(debugModule.signalGraphNodes, debugModule.initialSnapshot);
+    restoreSnapshot(debugModule.signalGraphNodes, closestSnapshot);
+    // clear traces here.
     redrawGraphics();
   }
 
   function restartProgram() {
-    resetProgram();
+    resetProgram(0);
     debugModule.watchTracker.clear();
     debugModule.tracePath.clearTraces();
     debugModule.clearRecordedEvents();
+    debugModule.clearSnapshots();
     debugModule.setContinue(0);
     executeCallbacks(debugModule.initialAsyncCallbacks, true);
   }
@@ -207,11 +241,10 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
         restartProgram();
         return;
       }
-      resetProgram();
+      var closestSnapshotIndex = Math.floor(currentEventIndex / EVENTS_PER_SAVE) * EVENTS_PER_SAVE;
+      resetProgram(currentEventIndex);
       var continueIndex = currentEventIndex;
-      currentEventIndex = 0;
-      debugModule.tracePath.clearTraces();
-      debugModule.tracePath.startRecording();
+      currentEventIndex = closestSnapshotIndex;
       stepTo(continueIndex);
       debugModule.setContinue(currentEventIndex);
     }
@@ -228,8 +261,9 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     }
 
     if (index < currentEventIndex) {
-      resetProgram();
-      currentEventIndex = 0;
+      var closestSnapshotIndex = Math.floor(index / EVENTS_PER_SAVE) * EVENTS_PER_SAVE;
+      resetProgram(index);
+      currentEventIndex = closestSnapshotIndex;
     }
 
     while (currentEventIndex < index) {
@@ -277,10 +311,21 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     var paused = top.debug.paused;
     debugModule.setPaused();
     debugModule.loadRecordedEvents(hotSwapState.recordedEvents);
+    var index = getMaxSteps();
+    var eventsUntilSnapshot = EVENTS_PER_SAVE;
 
     // draw new trace path
     debugModule.tracePath.startRecording();
-    stepTo(getMaxSteps());
+    while(currentEventIndex < index) {
+      var nextEvent = debugModule.getRecordedEventAt(currentEventIndex);
+      runtime.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
+      if (eventsUntilSnapshot <= 1) {
+        debugModule.saveSnapshot();
+        eventsUntilSnapshot = EVENTS_PER_SAVE;
+      }
+      eventsUntilSnapshot -= 1;
+      currentEventIndex += 1;
+    }
     debugModule.tracePath.stopRecording();
 
     stepTo(hotSwapState.currentEventIndex);
