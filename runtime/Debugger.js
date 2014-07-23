@@ -16,7 +16,7 @@ Elm.debuggerAttach = function(module, hotSwapState /* =undefined */) {
       var wrappedModule = debugModule(module, runtime);
       Elm.Debugger = debuggerInit(wrappedModule, runtime, hotSwapState);
       dispatchElmDebuggerInit();
-      return wrappedModule.moduleInstance;
+      return wrappedModule.debuggedModule;
     }
   };
 };
@@ -40,7 +40,7 @@ function debugModule(module, runtime) {
   var recordedEvents = [];
   var asyncCallbacks = [];
   var watchTracker = Elm.Native.Debug.make(runtime).watchTracker;
-  var now = 0;
+  var pauseTime = 0;
 
   function wrapNotify(id, v) {
     var timestep = runtime.timer.now();
@@ -113,11 +113,11 @@ function debugModule(module, runtime) {
     programPaused = true;
     clearAsyncCallbacks();
     tracePath.stopRecording();
-    now = Date.now();
+    pauseTime = Date.now();
   }
 
   function setContinue(position) {
-    var timerDelay = Date.now() - now;
+    var timerDelay = Date.now() - pauseTime;
     runtime.timer.addDelay(timerDelay);
     programPaused = false;
     if (position > 0) {
@@ -140,11 +140,11 @@ function debugModule(module, runtime) {
   wrappedRuntime.runDelayed = wrapRunDelayed;
 
   var assignedPropTracker = Object.create(wrappedRuntime);
-  var moduleInstance = module.make(assignedPropTracker);
+  var debuggedModule = module.make(assignedPropTracker);
   
   // make sure the signal graph is actually a signal & extract the visual model
-  if ( !('recv' in moduleInstance.main) ) {
-      moduleInstance.main = Elm.Signal.make(runtime).constant(moduleInstance.main);
+  if ( !('recv' in debuggedModule.main) ) {
+      debuggedModule.main = Elm.Signal.make(runtime).constant(debuggedModule.main);
   }
 
   // The main module stores imported modules onto the runtime.
@@ -154,13 +154,13 @@ function debugModule(module, runtime) {
     runtime[key] = assignedPropTracker[key];
   });
 
-  var moduleNodes = flattenNodes(wrappedRuntime.inputs);
-  var tracePath = tracePathInit(runtime, moduleInstance.main);
+  var signalGraphNodes = flattenSignalGraph(wrappedRuntime.inputs);
+  var tracePath = tracePathInit(runtime, debuggedModule.main);
 
   return {
-    moduleInstance: moduleInstance,
-    moduleNodes: moduleNodes,
-    initialNodeValues: saveNodeValues(moduleNodes),
+    debuggedModule: debuggedModule,
+    signalGraphNodes: signalGraphNodes,
+    initialSnapshot: snapshotSignalGraph(signalGraphNodes),
     initialAsyncCallbacks: asyncCallbacks.slice(),
     // API functions
     clearAsyncCallbacks: clearAsyncCallbacks,
@@ -182,7 +182,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
 
   function resetProgram() {
     debugModule.clearAsyncCallbacks();
-    restoreNodeValues(debugModule.moduleNodes, debugModule.initialNodeValues);
+    restoreSnapshot(debugModule.signalGraphNodes, debugModule.initialSnapshot);
     redrawGraphics();
   }
 
@@ -208,11 +208,11 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
         return;
       }
       resetProgram();
-      var index = eventCounter;
+      var continueIndex = eventCounter;
       eventCounter = 0;
       debugModule.tracePath.clearTraces();
       debugModule.tracePath.startRecording();
-      stepTo(index);
+      stepTo(continueIndex);
       debugModule.setContinue(eventCounter);
     }
   }
@@ -258,20 +258,20 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
   }
 
   function redrawGraphics() {
-    var main = debugModule.moduleInstance.main
+    var main = debugModule.debuggedModule.main
     for (var i = main.kids.length ; i-- ; ) {
       main.kids[i].recv(runtime.timer.now(), true, main.id);
     }
   }
 
   function getHotSwapState() {
-    var counter = eventCounter;
+    var continueIndex = eventCounter;
     if (!debugModule.getPaused()) {
-      counter = getMaxSteps();
+      continueIndex = getMaxSteps();
     }
     return {
       recordedEvents: debugModule.copyRecordedEvents(),
-      eventCounter: counter
+      eventCounter: continueIndex
     };
   }
 
@@ -315,9 +315,9 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
       getPaused: debugModule.getPaused,
       getHotSwapState: getHotSwapState,
       dispose: dispose,
-      allNodes: debugModule.moduleNodes,
+      allNodes: debugModule.signalGraphNodes,
       watchTracker: debugModule.watchTracker,
-      mainNode: debugModule.moduleInstance.main
+      mainSignalNode: debugModule.debuggedModule.main
   };
 
   return elmDebugger;
@@ -336,10 +336,10 @@ function Point(x, y) {
   }
 }
 
-function tracePathInit(runtime, mainNode) {
+function tracePathInit(runtime, mainSignalNode) {
   var List = Elm.List.make(runtime);
   var Signal = Elm.Signal.make(runtime);
-  var tracePathNode = A2(Signal.lift, graphicsUpdate, mainNode);
+  var tracePathNode = A2(Signal.lift, graphicsUpdate, mainSignalNode);
   var tracePathCanvas = createCanvas();
   var tracePositions = {};
   var recordingTraces = true;
@@ -474,7 +474,7 @@ function assert(bool, msg) {
   }
 }
 
-function saveNodeValues(allNodes) {
+function snapshotSignalGraph(allNodes) {
   var nodeValues = [];
 
   allNodes.forEach(function(node) {
@@ -485,18 +485,18 @@ function saveNodeValues(allNodes) {
 };
 
 
-function restoreNodeValues(allNodes, nodeStates) {
-  assert(allNodes.length == nodeStates.length, "saved program state has wrong length");
+function restoreSnapshot(allNodes, snapshot) {
+  assert(allNodes.length == snapshot.length, "saved program state has wrong length");
   for (var i=0; i < allNodes.length; i++) {
     var node = allNodes[i];
-    var state = nodeStates[i];
+    var state = snapshot[i];
     assert(node.id == state.id, "the nodes moved position");
 
     node.value = state.value;
   }
 }
 
-function flattenNodes(nodes) {
+function flattenSignalGraph(nodes) {
   var nodesById = {};
 
   function addAllToDict(node) {
