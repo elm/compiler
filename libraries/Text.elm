@@ -212,7 +212,7 @@ markdown = Native.Text.markdown
 {-| Convert anything to its textual representation and make it displayable in
 the browser:
 
-        asText value = text (monospace (show value))
+        asText value = leftAligned (monospace (toText (show value)))
 
 Excellent for debugging.
 -}
