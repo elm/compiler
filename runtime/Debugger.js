@@ -173,7 +173,7 @@ function debugModule(module, runtime) {
     setPaused: setPaused,
     setContinue: setContinue,
     tracePath: tracePath,
-    watchTracker: watchTracker,
+    watchTracker: watchTracker
   };
 }
 
