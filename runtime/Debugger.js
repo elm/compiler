@@ -303,8 +303,7 @@ function debuggerInit(debugModule, runtime, hotSwapState) {
       getHotSwapState: getHotSwapState,
       dispose: dispose,
       allNodes: debugModule.signalGraphNodes,
-      watchTracker: debugModule.watchTracker,
-      signalGraphMain: debugModule.debuggedModule.main
+      watchTracker: debugModule.watchTracker
   };
 
   return elmDebugger;
