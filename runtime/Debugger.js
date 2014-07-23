@@ -232,29 +232,16 @@ function debuggerInit(debugModule, runtime, hotSwapState) {
       currentEventIndex = 0;
     }
 
-    assert(index >= currentEventIndex, "index must be bad");
     while (currentEventIndex < index) {
       var nextEvent = debugModule.getRecordedEventAt(currentEventIndex);
       runtime.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
 
       currentEventIndex += 1;
     }
-    assert(currentEventIndex == index, "while loop didn't work");
   }
 
   function getMaxSteps() {
     return debugModule.getRecordedEventsLength();
-  }
-
-  function doPlayback(eventList) {
-    var x = eventList.shift();
-    var time = x[2];
-    runtime.notify(x[0], x[1], x[2]);
-
-    if (eventList.length > 0) {
-      var delta = eventList[0][2] - time;
-      setTimeout(function() { doPlayback(eventList); }, delta);
-    }
   }
 
   function redrawGraphics() {
