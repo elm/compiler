@@ -1,4 +1,3 @@
-
 (function() {
 'use strict';
 
@@ -432,7 +431,6 @@ function tracePathInit(runtime, signalGraphMain) {
   }
 }
 
-
 function executeCallbacks(callbacks, reexecute) {
   callbacks.forEach(function(timer) {
     if (reexecute || !timer.executed) {
@@ -469,7 +467,6 @@ function snapshotSignalGraph(signalGraphNodes) {
 
   return nodeValues;
 };
-
 
 function restoreSnapshot(signalGraphNodes, snapshot) {
   assert(signalGraphNodes.length == snapshot.length, "saved program state has wrong length");
