@@ -1,4 +1,3 @@
-
 (function() {
 'use strict';
 
@@ -23,7 +22,7 @@ Elm.debuggerAttach = function(module, hotSwapState /* =undefined */) {
 
 function dispatchElmDebuggerInit() {
   if (parent.window) {
-    var dispatch = function(_) {
+    var dispatch = function() {
       parent.window.postMessage("elmDebuggerInit", window.location.origin);
     };
     if (parent.window.document.readyState === "complete") {
@@ -41,6 +40,31 @@ function debugModule(module, runtime) {
   var asyncCallbacks = [];
   var watchTracker = Elm.Native.Debug.make(runtime).watchTracker;
   var pauseTime = 0;
+
+  // runtime is the prototype of wrappedRuntime
+  // so we can access all runtime properties too
+  var wrappedRuntime = Object.create(runtime);
+  wrappedRuntime.notify = wrapNotify;
+  wrappedRuntime.runDelayed = wrapRunDelayed;
+
+  // make a copy of the wrappedRuntime
+  var assignedPropTracker = Object.create(wrappedRuntime);
+  var debuggedModule = module.make(assignedPropTracker);
+
+  // make sure the signal graph is actually a signal & extract the visual model
+  if ( !('recv' in debuggedModule.main) ) {
+    debuggedModule.main = Elm.Signal.make(runtime).constant(debuggedModule.main);
+  }
+
+  // The main module stores imported modules onto the runtime.
+  // To ensure only one instance of each module is created,
+  // we assign them back on the original runtime object.
+  Object.keys(assignedPropTracker).forEach(function(key) {
+    runtime[key] = assignedPropTracker[key];
+  });
+
+  var signalGraphNodes = flattenSignalGraph(wrappedRuntime.inputs);
+  var tracePath = tracePathInit(runtime, debuggedModule.main);
 
   function wrapNotify(id, v) {
     var timestep = runtime.timer.now();
@@ -123,7 +147,7 @@ function debugModule(module, runtime) {
     if (position > 0) {
       // If we're not unpausing at the head, then we need to dump the
       // events that are ahead of where we're continuing.
-      recordedEvents = recordedEvents.slice(0,position);
+      recordedEvents = recordedEvents.slice(0, position);
       executeCallbacks(asyncCallbacks, false);
     }
     tracePath.startRecording();
@@ -132,30 +156,6 @@ function debugModule(module, runtime) {
   function getPaused() {
     return programPaused;
   }
-
-  // runtime is the prototype of wrappedRuntime
-  // so we can access all runtime properties too
-  var wrappedRuntime = Object.create(runtime);
-  wrappedRuntime.notify = wrapNotify;
-  wrappedRuntime.runDelayed = wrapRunDelayed;
-
-  var assignedPropTracker = Object.create(wrappedRuntime);
-  var debuggedModule = module.make(assignedPropTracker);
-  
-  // make sure the signal graph is actually a signal & extract the visual model
-  if ( !('recv' in debuggedModule.main) ) {
-      debuggedModule.main = Elm.Signal.make(runtime).constant(debuggedModule.main);
-  }
-
-  // The main module stores imported modules onto the runtime.
-  // To ensure only one instance of each module is created,
-  // we assign them back on the original runtime object.
-  Object.keys(assignedPropTracker).forEach(function(key) {
-    runtime[key] = assignedPropTracker[key];
-  });
-
-  var signalGraphNodes = flattenSignalGraph(wrappedRuntime.inputs);
-  var tracePath = tracePathInit(runtime, debuggedModule.main);
 
   return {
     debuggedModule: debuggedModule,
@@ -173,7 +173,7 @@ function debugModule(module, runtime) {
     setPaused: setPaused,
     setContinue: setContinue,
     tracePath: tracePath,
-    watchTracker: watchTracker,
+    watchTracker: watchTracker
   };
 }
 
@@ -203,7 +203,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
   function continueProgram() {
     if (debugModule.getPaused())
     {
-      if(currentEventIndex === 0) {
+      if (currentEventIndex === 0) {
         restartProgram();
         return;
       }
@@ -232,29 +232,16 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
       currentEventIndex = 0;
     }
 
-    assert(index >= currentEventIndex, "index must be bad");
     while (currentEventIndex < index) {
       var nextEvent = debugModule.getRecordedEventAt(currentEventIndex);
       runtime.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
 
       currentEventIndex += 1;
     }
-    assert(currentEventIndex == index, "while loop didn't work");
   }
 
   function getMaxSteps() {
     return debugModule.getRecordedEventsLength();
-  }
-
-  function doPlayback(eventList) {
-    var x = eventList.shift();
-    var time = x[2];
-    runtime.notify(x[0], x[1], x[2]);
-
-    if (eventList.length > 0) {
-      var delta = eventList[0][2] - time;
-      setTimeout(function() { doPlayback(eventList); }, delta);
-    }
   }
 
   function redrawGraphics() {
@@ -297,9 +284,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     debugModule.tracePath.stopRecording();
 
     stepTo(hotSwapState.currentEventIndex);
-    if (paused) {
-      debugModule.setPaused();
-    } else {
+    if (!paused) {
       debugModule.setContinue(hotSwapState.currentEventIndex);
     }
   }
@@ -316,8 +301,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
       getHotSwapState: getHotSwapState,
       dispose: dispose,
       allNodes: debugModule.signalGraphNodes,
-      watchTracker: debugModule.watchTracker,
-      signalGraphMain: debugModule.debuggedModule.main
+      watchTracker: debugModule.watchTracker
   };
 
   return elmDebugger;
@@ -446,7 +430,6 @@ function tracePathInit(runtime, signalGraphMain) {
   }
 }
 
-
 function executeCallbacks(callbacks, reexecute) {
   callbacks.forEach(function(timer) {
     if (reexecute || !timer.executed) {
@@ -483,7 +466,6 @@ function snapshotSignalGraph(signalGraphNodes) {
 
   return nodeValues;
 };
-
 
 function restoreSnapshot(signalGraphNodes, snapshot) {
   assert(signalGraphNodes.length == snapshot.length, "saved program state has wrong length");
