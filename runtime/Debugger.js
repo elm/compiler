@@ -144,7 +144,7 @@ function debugModule(module, runtime) {
   
   // make sure the signal graph is actually a signal & extract the visual model
   if ( !('recv' in debuggedModule.main) ) {
-      debuggedModule.main = Elm.Signal.make(runtime).constant(debuggedModule.main);
+    debuggedModule.main = Elm.Signal.make(runtime).constant(debuggedModule.main);
   }
 
   // The main module stores imported modules onto the runtime.
