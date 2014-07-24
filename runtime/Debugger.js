@@ -84,12 +84,7 @@ function debugModule(module, runtime) {
     else {
       recordEvent(id, v, timestep);
       var changed = runtime.notify(id, v, timestep);
-      if (eventsUntilSnapshot === 1) {
-        saveSnapshot();
-        eventsUntilSnapshot = EVENTS_PER_SAVE;
-      } else {
-        eventsUntilSnapshot -= 1;
-      }
+      snapshotOnCheckpoint();
       if (parent.window) {
         parent.window.postMessage("elmNotify", window.location.origin);
       }
@@ -159,8 +154,13 @@ function debugModule(module, runtime) {
     return snapshots[snapshotEvent];
   }
 
-  function saveSnapshot() {
-    snapshots.push(snapshotSignalGraph(signalGraphNodes));
+  function snapshotOnCheckpoint() {
+    if (eventsUntilSnapshot === 1) {
+      snapshots.push(snapshotSignalGraph(signalGraphNodes));
+      eventsUntilSnapshot = EVENTS_PER_SAVE;
+    } else {
+      eventsUntilSnapshot -= 1;
+    }
   }
 
   function setPaused() {
@@ -206,7 +206,7 @@ function debugModule(module, runtime) {
     loadRecordedEvents: loadRecordedEvents,
     clearSnapshots: clearSnapshots,
     getSnapshotAt: getSnapshotAt,
-    saveSnapshot: saveSnapshot,
+    snapshotOnCheckpoint: snapshotOnCheckpoint,
     getPaused: getPaused,
     setPaused: setPaused,
     setContinue: setContinue,
@@ -319,7 +319,6 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     debugModule.setPaused();
     debugModule.loadRecordedEvents(hotSwapState.recordedEvents);
     var index = getMaxSteps();
-    var eventsUntilSnapshot = EVENTS_PER_SAVE;
     eventCounter = 0;
     debugModule.tracePath.clearTraces();
 
@@ -329,12 +328,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
       var nextEvent = debugModule.getRecordedEventAt(currentEventIndex);
       eventCounter += 1;
       runtime.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
-      if (eventsUntilSnapshot === 1) {
-        debugModule.saveSnapshot();
-        eventsUntilSnapshot = EVENTS_PER_SAVE;
-      } else {
-        eventsUntilSnapshot -= 1;
-      }
+      debugModule.snapshotOnCheckpoint();
       currentEventIndex += 1;
     }
     debugModule.tracePath.stopRecording();
