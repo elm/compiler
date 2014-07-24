@@ -451,15 +451,6 @@ function tracePathInit(runtime, signalGraphMain) {
       ctx.lineWidth = 1;
       ctx.strokeStyle = "rgba(50, 50, 50, 0.4)";
       ctx.stroke();
-
-      for (var i=0; i < points.length; i++)
-      {
-        var p = points[i];
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(50, 50, 50, 0.4)";
-        ctx.fill();
-      }
     }
 
     ctx.restore();
