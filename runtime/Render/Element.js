@@ -356,25 +356,24 @@ function update(node, curr, next) {
 function updateProps(node, curr, next) {
     var props = next.props;
     var currP = curr.props;
-    var e = node;
     var element = next.element;
     var width = props.width - (element.adjustWidth || 0);
     var height = props.height - (element.adjustHeight || 0);
     if (width !== currP.width) {
-        e.style.width = (width|0) + 'px';
+        node.style.width = (width|0) + 'px';
     }
     if (height !== currP.height) {
-        e.style.height = (height|0) + 'px';
+        node.style.height = (height|0) + 'px';
     }
     if (props.opacity !== currP.opacity) {
-        e.style.opacity = props.opacity;
+        node.style.opacity = props.opacity;
     }
     var nextColor = (props.color.ctor === 'Just' ?
                      colorToCss(props.color._0) : '');
-    if (e.style.backgroundColor !== nextColor) {
-        e.style.backgroundColor = (nextColor === '' ? 'transparent' : nextColor);
+    if (node.style.backgroundColor !== nextColor) {
+        node.style.backgroundColor = (nextColor === '' ? 'transparent' : nextColor);
     }
-    if (props.tag !== currP.tag) { e.id = props.tag; }
+    if (props.tag !== currP.tag) { node.id = props.tag; }
     if (props.href !== currP.href) {
         if (currP.href === '') {
             var a = newElement('a');
@@ -385,9 +384,9 @@ function updateProps(node, curr, next) {
             a.style.left = 0;
             a.style.display = 'block';
             a.style.position = 'absolute';
-            e.style.position = 'relative';
+            node.style.position = 'relative';
             a.style.pointerEvents = 'auto';
-            e.appendChild(a);
+            node.appendChild(a);
         } else {
             node.lastNode.href = props.href;
         }
@@ -395,20 +394,20 @@ function updateProps(node, curr, next) {
 
     // update hover handlers
     if (props.hover.ctor === '_Tuple0') {
-        removeHover(e);
-    } else if (e.elm_hover_handler) {
-        e.elm_hover_handler = props.hover;
+        removeHover(node);
+    } else if (node.elm_hover_handler) {
+        node.elm_hover_handler = props.hover;
     } else {
-        addHover(e, props.hover);
+        addHover(node, props.hover);
     }
 
     // update click handlers
     if (props.click.ctor === '_Tuple0') {
-        removeClick(e);
-    } else if (e.elm_click_handler) {
-        e.elm_click_handler = props.click;
+        removeClick(node);
+    } else if (node.elm_click_handler) {
+        node.elm_click_handler = props.click;
     } else {
-        addClick(e, props.click);
+        addClick(node, props.click);
     }
 }
 
