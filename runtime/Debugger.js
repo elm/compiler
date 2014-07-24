@@ -21,6 +21,7 @@ Elm.debuggerAttach = function(module, hotSwapState /* =undefined */) {
 };
 
 var EVENTS_PER_SAVE = 100;
+var eventCounter = 0;
 
 function dispatchElmDebuggerInit() {
   if (parent.window) {
@@ -81,8 +82,8 @@ function debugModule(module, runtime) {
       return false;
     }
     else {
-      var changed = runtime.notify(id, v, timestep);
       recordEvent(id, v, timestep);
+      var changed = runtime.notify(id, v, timestep);
       if (eventsUntilSnapshot === 1) {
         saveSnapshot();
         eventsUntilSnapshot = EVENTS_PER_SAVE;
@@ -115,6 +116,7 @@ function debugModule(module, runtime) {
   function recordEvent(id, v, timestep) {
     watchTracker.pushFrame();
     recordedEvents.push({ id:id, value:v, timestep:timestep });
+    eventCounter += 1;
   }
 
   function clearAsyncCallbacks() {
@@ -127,6 +129,7 @@ function debugModule(module, runtime) {
 
   function clearRecordedEvents() {
     recordedEvents = [];
+    eventCounter = 0;
   }
 
   function getRecordedEventsLength() {
@@ -177,6 +180,8 @@ function debugModule(module, runtime) {
       eventsUntilSnapshot = EVENTS_PER_SAVE - (position % EVENTS_PER_SAVE);
       snapshots = snapshots.slice(0, lastSnapshotPosition);
       recordedEvents = recordedEvents.slice(0, position);
+      tracePath.clearTracesAfter(position);
+      eventCounter = position;
       executeCallbacks(asyncCallbacks, false);
     }
     tracePath.startRecording();
@@ -216,7 +221,6 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     var closestSnapshot = debugModule.getSnapshotAt(position);
     debugModule.clearAsyncCallbacks();
     restoreSnapshot(debugModule.signalGraphNodes, closestSnapshot);
-    // clear traces here.
     redrawGraphics();
   }
 
@@ -314,11 +318,14 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     debugModule.loadRecordedEvents(hotSwapState.recordedEvents);
     var index = getMaxSteps();
     var eventsUntilSnapshot = EVENTS_PER_SAVE;
+    eventCounter = 0;
+    debugModule.tracePath.clearTraces();
 
     // draw new trace path
     debugModule.tracePath.startRecording();
     while(currentEventIndex < index) {
       var nextEvent = debugModule.getRecordedEventAt(currentEventIndex);
+      eventCounter += 1;
       runtime.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
       if (eventsUntilSnapshot === 1) {
         debugModule.saveSnapshot();
@@ -403,14 +410,19 @@ function tracePathInit(runtime, signalGraphMain) {
     for (var id in positions) {
       var pos = positions[id];
       if (tracePositions.hasOwnProperty(id)) {
-        var points = tracePositions[id];
-        if (!pos.equals(points[points.length-1])) {
-          points.push(pos);
-        }
+        tracePositions[id].push(pos);
       }
       else {
         tracePositions[id] = [pos];
       }
+      if (tracePositions[id].length < eventCounter) {
+        var padCount = eventCounter - tracePositions[id].length;
+        var lastTracePosition = tracePositions[id][tracePositions[id].length - 1];
+        for (var i = padCount; i--;) {
+          tracePositions[id].push(lastTracePosition)
+        }
+      }
+      assert(tracePositions[id].length === eventCounter, "We don't have a 1-1 mapping of trace positions to events")
     }
   }
 
@@ -468,10 +480,19 @@ function tracePathInit(runtime, signalGraphMain) {
     recordingTraces = true;
   }
 
+  function clearTracesAfter(position) {
+    var newTraces = {};
+    for (var id in tracePositions) {
+      newTraces[id] = tracePositions[id].slice(0,position);
+    }
+    tracePositions = newTraces;
+  }
+
   return {
     graphicsUpdate: graphicsUpdate,
     canvas: tracePathCanvas,
     clearTraces: clearTraces,
+    clearTracesAfter: clearTracesAfter,
     stopRecording: stopRecording,
     startRecording: startRecording
   }
