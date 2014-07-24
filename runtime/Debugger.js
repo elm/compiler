@@ -154,7 +154,8 @@ function debugModule(module, runtime) {
 
   function getSnapshotAt(i) {
     var snapshotEvent = Math.floor(i / EVENTS_PER_SAVE);
-    assert(snapshotEvent < snapshots.length && snapshotEvent >= 0, "Out of bounds index: " + snapshotEvent);
+    assert(snapshotEvent < snapshots.length && snapshotEvent >= 0,
+           "Out of bounds index: " + snapshotEvent);
     return snapshots[snapshotEvent];
   }
 
@@ -246,7 +247,8 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
         restartProgram();
         return;
       }
-      var closestSnapshotIndex = Math.floor(currentEventIndex / EVENTS_PER_SAVE) * EVENTS_PER_SAVE;
+      var closestSnapshotIndex =
+          Math.floor(currentEventIndex / EVENTS_PER_SAVE) * EVENTS_PER_SAVE;
       resetProgram(currentEventIndex);
       var continueIndex = currentEventIndex;
       currentEventIndex = closestSnapshotIndex;
@@ -422,7 +424,8 @@ function tracePathInit(runtime, signalGraphMain) {
           tracePositions[id].push(lastTracePosition)
         }
       }
-      assert(tracePositions[id].length === eventCounter, "We don't have a 1-1 mapping of trace positions to events")
+      assert(tracePositions[id].length === eventCounter,
+             "We don't have a 1-1 mapping of trace positions to events");
     }
   }
 
@@ -536,7 +539,8 @@ function snapshotSignalGraph(signalGraphNodes) {
 };
 
 function restoreSnapshot(signalGraphNodes, snapshot) {
-  assert(signalGraphNodes.length == snapshot.length, "saved program state has wrong length");
+  assert(signalGraphNodes.length == snapshot.length,
+         "saved program state has wrong length");
   for (var i=0; i < signalGraphNodes.length; i++) {
     var node = signalGraphNodes[i];
     var state = snapshot[i];
