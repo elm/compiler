@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -W #-}
 module Parse.Parse (program, dependencies) where
 
-import Control.Applicative ((<$>), (<*>))
+import Control.Applicative ((<$>))
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Text.Parsec hiding (newline,spaces)
@@ -17,7 +17,7 @@ import qualified Parse.Declaration as Decl
 import Transform.Declaration (combineAnnotations)
 
 freshDef = commitIf (freshLine >> (letter <|> char '_')) $ do
-             freshLine'
+             freshLine
              Decl.declaration <?> "another datatype or variable definition"
 
 decls = do d <- Decl.declaration <?> "at least one datatype or variable definition"
@@ -25,34 +25,42 @@ decls = do d <- Decl.declaration <?> "at least one datatype or variable definiti
 
 program :: OpTable -> String -> Either [P.Doc] M.ValidModule
 program table src =
-    do (M.Module names filePath exs ims _ sourceDecls) <-
+    do (M.Module names filePath exs ims doc parseDecls) <-
            setupParserWithTable table programParser src
 
-       let (parseDecls, doc) = case sourceDecls of
-             D.DocComment doc : rest -> (rest, doc)
-             _ -> (sourceDecls, "")
        decls <-
            either (\err -> Left [P.text err]) Right (combineAnnotations parseDecls)
        return $ M.Module names filePath exs ims doc decls
 
-programParser :: IParser M.SourceModule
-programParser =
+data ProgramHeader = ProgramHeader
+    { _phNames :: [String]
+    , _phExports :: Var.Listing Var.Value
+    , _phDocComment :: Maybe String
+    , _phImports :: [(String, M.ImportMethod)]
+    } deriving (Show)
+
+programHeader :: IParser ProgramHeader
+programHeader =
     do optional freshLine
-       (names,exports) <-
+       (names, exports) <-
            option (["Main"], Var.openListing) (moduleDef `followedBy` freshLine)
+       doc <- optionMaybe (docComment `followedBy` freshLine)
        is <- (do try (lookAhead $ reserved "import")
                  imports `followedBy` freshLine) <|> return []
-       declarations <- decls
-       optional freshLine ; optional spaces ; eof
-       return $ M.Module names "" exports is "" declarations
+       return $ ProgramHeader names exports doc is
+
+programParser :: IParser M.SourceModule
+programParser =
+  do (ProgramHeader names exports doc is) <- programHeader
+     declarations <- decls
+     optional freshLine ; optional spaces ; eof
+     return $ M.Module names "" exports is doc declarations
 
 dependencies :: String -> Either [P.Doc] (String, [String])
 dependencies =
-    let getName = List.intercalate "." . fst in
-    setupParser $ do
-      optional freshLine
-      (,) <$> option "Main" (getName <$> moduleDef `followedBy` freshLine)
-          <*> option [] (map fst <$> imports `followedBy` freshLine)
+  let getName = List.intercalate "." in
+  setupParser $ do header <- programHeader
+                   return (getName $ _phNames header, map fst $ _phImports header)
 
 setupParserWithTable :: OpTable -> IParser a -> String -> Either [P.Doc] a
 setupParserWithTable table p source =

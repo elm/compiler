@@ -206,9 +206,6 @@ accessible expr = do
 spaces :: IParser String
 spaces = concat <$> many1 (multiComment <|> string " ") <?> "spaces"
 
-spaces' :: IParser String
-spaces' = concat <$> many1 (string " ") <?> "spaces'"
-
 forcedWS :: IParser String
 forcedWS = choice [ try $ (++) <$> spaces <*> (concat <$> many nl_space)
                   , try $ concat <$> many1 nl_space ]
@@ -225,10 +222,6 @@ freshLine :: IParser [[String]]
 freshLine = try (many1 newline >> many space_nl) <|> try (many1 space_nl) <?> ""
     where space_nl = try $ spaces >> many1 newline
 
-freshLine' :: IParser [[String]]
-freshLine' = try (many1 newline >> many space_nl) <|> try (many1 space_nl) <?> ""
-    where space_nl = try $ spaces' >> many1 newline
-
 newline :: IParser String
 newline = simpleNewline <|> lineComment <?> "newline"
 
@@ -241,8 +234,16 @@ lineComment = do
   comment <- anyUntil $ simpleNewline <|> (eof >> return "\n")
   return ("--" ++ comment)
 
-multiComment :: IParser String
-multiComment = (++) <$> try (string "{-") <*> closeComment
+genMultiComment :: IParser String -> IParser String
+genMultiComment startParser =
+  do prefix <- try $ do prefix <- string "{-"
+                        intermediate <- startParser
+                        return $ prefix ++ intermediate
+     suffix <- closeComment
+     return $ prefix ++ suffix
+
+multiComment = genMultiComment (notFollowedBy (char '|') >> return "")
+docComment = genMultiComment (char '|' >> return "|")
 
 closeComment :: IParser String
 closeComment =
@@ -267,6 +268,7 @@ ignoreUntil end = go
       ignore p = const () <$> p
       filler = choice [ try (ignore chr) <|> ignore str
                       , ignore multiComment
+                      , ignore docComment
                       , ignore (markdown (\_ -> mzero))
                       , ignore anyChar
                       ]
@@ -357,7 +359,7 @@ glSource src =
             else []
         _ -> []
 
---str :: IParser String
+str :: IParser String
 str = expecting "String" $ do
         s <- choice [ multiStr, singleStr ]
         processAs T.stringLiteral . sandwich '\"' $ concat s

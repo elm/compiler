@@ -26,7 +26,7 @@ import qualified AST.Variable as Var
 import Text.Parsec hiding (newline,spaces)
 import Parse.Declaration (alias,datatype,infixDecl)
 import Parse.Expression (typeAnnotation)
-import Parse.Helpers
+import Parse.Helpers hiding (docComment)
 import Parse.Module (moduleDef)
 
 data Flags = Flags

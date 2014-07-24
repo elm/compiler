@@ -10,7 +10,7 @@ import qualified Parse.Type as Type
 import qualified AST.Declaration as D
 
 declaration :: IParser D.SourceDecl
-declaration = docComment <|> alias <|> datatype <|> infixDecl <|> port <|> definition
+declaration = docDeclComment <|> alias <|> datatype <|> infixDecl <|> port <|> definition
 
 definition :: IParser D.SourceDecl
 definition = D.Definition <$> Expr.def
@@ -36,8 +36,8 @@ datatype = do
   return $ D.Datatype name args tcs
 
 
-docComment :: IParser D.SourceDecl
-docComment = D.DocComment <$> multiComment
+docDeclComment :: IParser D.SourceDecl
+docDeclComment = D.DocComment <$> docComment
 
 
 infixDecl :: IParser D.SourceDecl

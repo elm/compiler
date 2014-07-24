@@ -21,7 +21,7 @@ data Module exs body = Module
     , path    :: FilePath
     , exports :: exs
     , imports :: [(String, ImportMethod)]
-    , comment :: String
+    , comment :: Maybe String
     , body    :: body
     } deriving (Show)
 
