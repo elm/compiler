@@ -83,11 +83,12 @@ function debugModule(module, runtime) {
     else {
       var changed = runtime.notify(id, v, timestep);
       recordEvent(id, v, timestep);
-      if (eventsUntilSnapshot <= 1) {
+      if (eventsUntilSnapshot === 1) {
         saveSnapshot();
         eventsUntilSnapshot = EVENTS_PER_SAVE;
+      } else {
+        eventsUntilSnapshot -= 1;
       }
-      eventsUntilSnapshot -= 1;
       if (parent.window) {
         parent.window.postMessage("elmNotify", window.location.origin);
       }
@@ -319,11 +320,12 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     while(currentEventIndex < index) {
       var nextEvent = debugModule.getRecordedEventAt(currentEventIndex);
       runtime.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
-      if (eventsUntilSnapshot <= 1) {
+      if (eventsUntilSnapshot === 1) {
         debugModule.saveSnapshot();
         eventsUntilSnapshot = EVENTS_PER_SAVE;
+      } else {
+        eventsUntilSnapshot -= 1;
       }
-      eventsUntilSnapshot -= 1;
       currentEventIndex += 1;
     }
     debugModule.tracePath.stopRecording();
