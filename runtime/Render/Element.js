@@ -24,15 +24,24 @@ function setProps(elem, e) {
     if (props.href !== '') {
         var a = newElement('a');
         a.href = props.href;
-        a.style.width = '100%';
-        a.style.height = '100%';
-        a.style.top = 0;
-        a.style.left = 0;
-        a.style.display = 'block';
-        a.style.position = 'absolute';
-        e.style.position = 'relative';
         a.style.pointerEvents = 'auto';
-        e.appendChild(a);
+        if (element.ctor === 'Image') {
+            a.style.width  = (width |0) + 'px';
+            a.style.height = (height|0) + 'px';
+            a.style.position = 'relative';
+            a.appendChild(e);
+            e = a;
+        } else {
+            a.style.width = '100%';
+            a.style.height = '100%';
+            a.style.top = 0;
+            a.style.left = 0;
+            a.style.display = 'block';
+            a.style.position = 'absolute';
+            e.style.position = 'relative';
+            e.appendChild(a);
+        }
+        a.style.display = 'block';
     }
     if (props.hover.ctor !== '_Tuple0') {
         addHover(e, props.hover);
@@ -379,15 +388,24 @@ function updateProps(node, curr, next) {
         if (currP.href === '') {
             var a = newElement('a');
             a.href = props.href;
-            a.style.width = '100%';
-            a.style.height = '100%';
-            a.style.top = 0;
-            a.style.left = 0;
-            a.style.display = 'block';
-            a.style.position = 'absolute';
-            e.style.position = 'relative';
             a.style.pointerEvents = 'auto';
-            e.appendChild(a);
+            if (element.ctor === 'Image') {
+                a.style.width  = (width |0) + 'px';
+                a.style.height = (height|0) + 'px';
+                a.style.position = 'relative';
+                a.appendChild(e);
+                e = a;
+            } else {
+                a.style.width = '100%';
+                a.style.height = '100%';
+                a.style.top = 0;
+                a.style.left = 0;
+                a.style.display = 'block';
+                a.style.position = 'absolute';
+                e.style.position = 'relative';
+                e.appendChild(a);
+            }
+            a.style.display = 'block';
         } else {
             node.lastNode.href = props.href;
         }
