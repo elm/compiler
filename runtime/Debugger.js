@@ -177,9 +177,9 @@ function debugModule(module, runtime) {
     if (position > 0) {
       // If we're not unpausing at the head, then we need to dump the
       // events that are ahead of where we're continuing.
-      var lastSnapshotPosition = Math.ceil(position / EVENTS_PER_SAVE);
+      var lastSnapshotPosition = Math.floor(position / EVENTS_PER_SAVE);
       eventsUntilSnapshot = EVENTS_PER_SAVE - (position % EVENTS_PER_SAVE);
-      snapshots = snapshots.slice(0, lastSnapshotPosition);
+      snapshots = snapshots.slice(0, lastSnapshotPosition + 1);
       recordedEvents = recordedEvents.slice(0, position);
       tracePath.clearTracesAfter(position);
       eventCounter = position;
