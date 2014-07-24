@@ -356,6 +356,7 @@ function update(node, curr, next) {
 function updateProps(node, curr, next) {
     var nextProps = next.props;
     var currProps = curr.props;
+
     var element = next.element;
     var width = nextProps.width - (element.adjustWidth || 0);
     var height = nextProps.height - (element.adjustHeight || 0);
@@ -365,15 +366,22 @@ function updateProps(node, curr, next) {
     if (height !== currProps.height) {
         node.style.height = (height|0) + 'px';
     }
+
     if (nextProps.opacity !== currProps.opacity) {
         node.style.opacity = nextProps.opacity;
     }
-    var nextColor = (nextProps.color.ctor === 'Just' ?
-                     colorToCss(nextProps.color._0) : '');
+
+    var nextColor = nextProps.color.ctor === 'Just'
+        ? colorToCss(nextProps.color._0)
+        : '';
     if (node.style.backgroundColor !== nextColor) {
         node.style.backgroundColor = (nextColor === '' ? 'transparent' : nextColor);
     }
-    if (nextProps.tag !== currProps.tag) { node.id = nextProps.tag; }
+
+    if (nextProps.tag !== currProps.tag) {
+        node.id = nextProps.tag;
+    }
+
     if (nextProps.href !== currProps.href) {
         if (currProps.href === '') {
             var a = newElement('a');
