@@ -20,6 +20,9 @@ Elm.debuggerAttach = function(module, hotSwapState /* =undefined */) {
   };
 };
 
+var EVENTS_PER_SAVE = 100;
+var eventCounter = 0;
+
 function dispatchElmDebuggerInit() {
   if (parent.window) {
     var dispatch = function() {
@@ -38,8 +41,10 @@ function debugModule(module, runtime) {
   var programPaused = false;
   var recordedEvents = [];
   var asyncCallbacks = [];
+  var snapshots = [];
   var watchTracker = Elm.Native.Debug.make(runtime).watchTracker;
   var pauseTime = 0;
+  var eventsUntilSnapshot = EVENTS_PER_SAVE;
 
   // runtime is the prototype of wrappedRuntime
   // so we can access all runtime properties too
@@ -66,6 +71,8 @@ function debugModule(module, runtime) {
   var signalGraphNodes = flattenSignalGraph(wrappedRuntime.inputs);
   var tracePath = tracePathInit(runtime, debuggedModule.main);
 
+  snapshots.push(snapshotSignalGraph(signalGraphNodes));
+
   function wrapNotify(id, v) {
     var timestep = runtime.timer.now();
 
@@ -75,8 +82,9 @@ function debugModule(module, runtime) {
       return false;
     }
     else {
-      var changed = runtime.notify(id, v, timestep);
       recordEvent(id, v, timestep);
+      var changed = runtime.notify(id, v, timestep);
+      snapshotOnCheckpoint();
       if (parent.window) {
         parent.window.postMessage("elmNotify", window.location.origin);
       }
@@ -103,6 +111,7 @@ function debugModule(module, runtime) {
   function recordEvent(id, v, timestep) {
     watchTracker.pushFrame();
     recordedEvents.push({ id:id, value:v, timestep:timestep });
+    eventCounter += 1;
   }
 
   function clearAsyncCallbacks() {
@@ -115,6 +124,7 @@ function debugModule(module, runtime) {
 
   function clearRecordedEvents() {
     recordedEvents = [];
+    eventCounter = 0;
   }
 
   function getRecordedEventsLength() {
@@ -133,6 +143,26 @@ function debugModule(module, runtime) {
     recordedEvents = events.slice();
   }
 
+  function clearSnapshots() {
+    snapshots = [snapshotSignalGraph(signalGraphNodes)];
+  }
+
+  function getSnapshotAt(i) {
+    var snapshotEvent = Math.floor(i / EVENTS_PER_SAVE);
+    assert(snapshotEvent < snapshots.length && snapshotEvent >= 0,
+           "Out of bounds index: " + snapshotEvent);
+    return snapshots[snapshotEvent];
+  }
+
+  function snapshotOnCheckpoint() {
+    if (eventsUntilSnapshot === 1) {
+      snapshots.push(snapshotSignalGraph(signalGraphNodes));
+      eventsUntilSnapshot = EVENTS_PER_SAVE;
+    } else {
+      eventsUntilSnapshot -= 1;
+    }
+  }
+
   function setPaused() {
     programPaused = true;
     clearAsyncCallbacks();
@@ -147,7 +177,12 @@ function debugModule(module, runtime) {
     if (position > 0) {
       // If we're not unpausing at the head, then we need to dump the
       // events that are ahead of where we're continuing.
+      var lastSnapshotPosition = Math.floor(position / EVENTS_PER_SAVE);
+      eventsUntilSnapshot = EVENTS_PER_SAVE - (position % EVENTS_PER_SAVE);
+      snapshots = snapshots.slice(0, lastSnapshotPosition + 1);
       recordedEvents = recordedEvents.slice(0, position);
+      tracePath.clearTracesAfter(position);
+      eventCounter = position;
       executeCallbacks(asyncCallbacks, false);
     }
     tracePath.startRecording();
@@ -169,6 +204,9 @@ function debugModule(module, runtime) {
     getRecordedEventAt: getRecordedEventAt,
     copyRecordedEvents: copyRecordedEvents,
     loadRecordedEvents: loadRecordedEvents,
+    clearSnapshots: clearSnapshots,
+    getSnapshotAt: getSnapshotAt,
+    snapshotOnCheckpoint: snapshotOnCheckpoint,
     getPaused: getPaused,
     setPaused: setPaused,
     setContinue: setContinue,
@@ -180,17 +218,19 @@ function debugModule(module, runtime) {
 function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
   var currentEventIndex = 0;
 
-  function resetProgram() {
+  function resetProgram(position) {
+    var closestSnapshot = debugModule.getSnapshotAt(position);
     debugModule.clearAsyncCallbacks();
-    restoreSnapshot(debugModule.signalGraphNodes, debugModule.initialSnapshot);
+    restoreSnapshot(debugModule.signalGraphNodes, closestSnapshot);
     redrawGraphics();
   }
 
   function restartProgram() {
-    resetProgram();
+    resetProgram(0);
     debugModule.watchTracker.clear();
     debugModule.tracePath.clearTraces();
     debugModule.clearRecordedEvents();
+    debugModule.clearSnapshots();
     debugModule.setContinue(0);
     executeCallbacks(debugModule.initialAsyncCallbacks, true);
   }
@@ -207,11 +247,11 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
         restartProgram();
         return;
       }
-      resetProgram();
+      var closestSnapshotIndex =
+          Math.floor(currentEventIndex / EVENTS_PER_SAVE) * EVENTS_PER_SAVE;
+      resetProgram(currentEventIndex);
       var continueIndex = currentEventIndex;
-      currentEventIndex = 0;
-      debugModule.tracePath.clearTraces();
-      debugModule.tracePath.startRecording();
+      currentEventIndex = closestSnapshotIndex;
       stepTo(continueIndex);
       debugModule.setContinue(currentEventIndex);
     }
@@ -228,8 +268,9 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     }
 
     if (index < currentEventIndex) {
-      resetProgram();
-      currentEventIndex = 0;
+      var closestSnapshotIndex = Math.floor(index / EVENTS_PER_SAVE) * EVENTS_PER_SAVE;
+      resetProgram(index);
+      currentEventIndex = closestSnapshotIndex;
     }
 
     while (currentEventIndex < index) {
@@ -277,10 +318,19 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     var paused = top.debug.paused;
     debugModule.setPaused();
     debugModule.loadRecordedEvents(hotSwapState.recordedEvents);
+    var index = getMaxSteps();
+    eventCounter = 0;
+    debugModule.tracePath.clearTraces();
 
     // draw new trace path
     debugModule.tracePath.startRecording();
-    stepTo(getMaxSteps());
+    while(currentEventIndex < index) {
+      var nextEvent = debugModule.getRecordedEventAt(currentEventIndex);
+      eventCounter += 1;
+      runtime.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
+      debugModule.snapshotOnCheckpoint();
+      currentEventIndex += 1;
+    }
     debugModule.tracePath.stopRecording();
 
     stepTo(hotSwapState.currentEventIndex);
@@ -356,14 +406,20 @@ function tracePathInit(runtime, signalGraphMain) {
     for (var id in positions) {
       var pos = positions[id];
       if (tracePositions.hasOwnProperty(id)) {
-        var points = tracePositions[id];
-        if (!pos.equals(points[points.length-1])) {
-          points.push(pos);
-        }
+        tracePositions[id].push(pos);
       }
       else {
         tracePositions[id] = [pos];
       }
+      if (tracePositions[id].length < eventCounter) {
+        var padCount = eventCounter - tracePositions[id].length;
+        var lastTracePosition = tracePositions[id][tracePositions[id].length - 1];
+        for (var i = padCount; i--;) {
+          tracePositions[id].push(lastTracePosition)
+        }
+      }
+      assert(tracePositions[id].length === eventCounter,
+             "We don't have a 1-1 mapping of trace positions to events");
     }
   }
 
@@ -421,10 +477,19 @@ function tracePathInit(runtime, signalGraphMain) {
     recordingTraces = true;
   }
 
+  function clearTracesAfter(position) {
+    var newTraces = {};
+    for (var id in tracePositions) {
+      newTraces[id] = tracePositions[id].slice(0,position);
+    }
+    tracePositions = newTraces;
+  }
+
   return {
     graphicsUpdate: graphicsUpdate,
     canvas: tracePathCanvas,
     clearTraces: clearTraces,
+    clearTracesAfter: clearTracesAfter,
     stopRecording: stopRecording,
     startRecording: startRecording
   }
@@ -468,7 +533,8 @@ function snapshotSignalGraph(signalGraphNodes) {
 };
 
 function restoreSnapshot(signalGraphNodes, snapshot) {
-  assert(signalGraphNodes.length == snapshot.length, "saved program state has wrong length");
+  assert(signalGraphNodes.length == snapshot.length,
+         "saved program state has wrong length");
   for (var i=0; i < signalGraphNodes.length; i++) {
     var node = signalGraphNodes[i];
     var state = snapshot[i];
