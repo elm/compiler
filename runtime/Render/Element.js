@@ -354,30 +354,30 @@ function update(node, curr, next) {
 }
 
 function updateProps(node, curr, next) {
-    var props = next.props;
-    var currP = curr.props;
+    var nextProps = next.props;
+    var currProps = curr.props;
     var element = next.element;
-    var width = props.width - (element.adjustWidth || 0);
-    var height = props.height - (element.adjustHeight || 0);
-    if (width !== currP.width) {
+    var width = nextProps.width - (element.adjustWidth || 0);
+    var height = nextProps.height - (element.adjustHeight || 0);
+    if (width !== currProps.width) {
         node.style.width = (width|0) + 'px';
     }
-    if (height !== currP.height) {
+    if (height !== currProps.height) {
         node.style.height = (height|0) + 'px';
     }
-    if (props.opacity !== currP.opacity) {
-        node.style.opacity = props.opacity;
+    if (nextProps.opacity !== currProps.opacity) {
+        node.style.opacity = nextProps.opacity;
     }
-    var nextColor = (props.color.ctor === 'Just' ?
-                     colorToCss(props.color._0) : '');
+    var nextColor = (nextProps.color.ctor === 'Just' ?
+                     colorToCss(nextProps.color._0) : '');
     if (node.style.backgroundColor !== nextColor) {
         node.style.backgroundColor = (nextColor === '' ? 'transparent' : nextColor);
     }
-    if (props.tag !== currP.tag) { node.id = props.tag; }
-    if (props.href !== currP.href) {
-        if (currP.href === '') {
+    if (nextProps.tag !== currProps.tag) { node.id = nextProps.tag; }
+    if (nextProps.href !== currProps.href) {
+        if (currProps.href === '') {
             var a = newElement('a');
-            a.href = props.href;
+            a.href = nextProps.href;
             a.style.width = '100%';
             a.style.height = '100%';
             a.style.top = 0;
@@ -388,26 +388,26 @@ function updateProps(node, curr, next) {
             a.style.pointerEvents = 'auto';
             node.appendChild(a);
         } else {
-            node.lastNode.href = props.href;
+            node.lastNode.href = nextProps.href;
         }
     }
 
     // update hover handlers
-    if (props.hover.ctor === '_Tuple0') {
+    if (nextProps.hover.ctor === '_Tuple0') {
         removeHover(node);
     } else if (node.elm_hover_handler) {
-        node.elm_hover_handler = props.hover;
+        node.elm_hover_handler = nextProps.hover;
     } else {
-        addHover(node, props.hover);
+        addHover(node, nextProps.hover);
     }
 
     // update click handlers
-    if (props.click.ctor === '_Tuple0') {
+    if (nextProps.click.ctor === '_Tuple0') {
         removeClick(node);
     } else if (node.elm_click_handler) {
-        node.elm_click_handler = props.click;
+        node.elm_click_handler = nextProps.click;
     } else {
-        addClick(node, props.click);
+        addClick(node, nextProps.click);
     }
 }
 
