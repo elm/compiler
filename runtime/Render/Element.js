@@ -7,20 +7,27 @@ var newElement = Utils.newElement, colorToCss = Utils.colorToCss,
     addTransform = Utils.addTransform, removeTransform = Utils.removeTransform,
     fromList = Utils.fromList, eq = Utils.eq;
 
-function setProps(elem, e) {
+function setProps(elem, node) {
     var props = elem.props;
+
     var element = elem.element;
     var width = props.width - (element.adjustWidth || 0);
     var height = props.height - (element.adjustHeight || 0);
-    e.style.width  = (width |0) + 'px';
-    e.style.height = (height|0) + 'px';
+    node.style.width  = (width |0) + 'px';
+    node.style.height = (height|0) + 'px';
+
     if (props.opacity !== 1) {
-        e.style.opacity = props.opacity;
+        node.style.opacity = props.opacity;
     }
+
     if (props.color.ctor === 'Just') {
-        e.style.backgroundColor = colorToCss(props.color._0);
+        node.style.backgroundColor = colorToCss(props.color._0);
     }
-    if (props.tag !== '') { e.id = props.tag; }
+
+    if (props.tag !== '') {
+        node.id = props.tag;
+    }
+
     if (props.href !== '') {
         var a = newElement('a');
         a.href = props.href;
@@ -30,17 +37,20 @@ function setProps(elem, e) {
         a.style.left = 0;
         a.style.display = 'block';
         a.style.position = 'absolute';
-        e.style.position = 'relative';
+        node.style.position = 'relative';
         a.style.pointerEvents = 'auto';
-        e.appendChild(a);
+        node.appendChild(a);
     }
+
     if (props.hover.ctor !== '_Tuple0') {
-        addHover(e, props.hover);
+        addHover(node, props.hover);
     }
+
     if (props.click.ctor !== '_Tuple0') {
-        addClick(e, props.click);
+        addClick(node, props.click);
     }
-    return e;
+
+    return node;
 }
 
 function addClick(e, handler) {
