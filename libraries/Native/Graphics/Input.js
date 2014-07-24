@@ -106,52 +106,63 @@ Elm.Native.Graphics.Input.make = function(elm) {
         btn.elm_hover = Render.render(model.hover);
         btn.elm_down  = Render.render(model.down);
 
-        function replace(node) {
-            if (node !== btn.firstChild) {
-                btn.replaceChild(node, btn.firstChild);
-            }
+        btn.elm_up.style.display = 'block';
+        btn.elm_hover.style.display = 'none';
+        btn.elm_down.style.display = 'none';
+  
+        btn.appendChild(btn.elm_up);
+        btn.appendChild(btn.elm_hover);
+        btn.appendChild(btn.elm_down);
+
+        function swap(visibleNode, hiddenNode1, hiddenNode2) {
+            visibleNode.style.display = 'block';
+            hiddenNode1.style.display = 'none';
+            hiddenNode2.style.display = 'none';
         }
+
         var overCount = 0;
         function over(e) {
             if (overCount++ > 0) return;
-            replace(btn.elm_hover);
+            swap(btn.elm_hover, btn.elm_down, btn.elm_up);
         }
         function out(e) {
             if (btn.contains(e.toElement || e.relatedTarget)) return;
             overCount = 0;
-            replace(btn.elm_up);
+            swap(btn.elm_up, btn.elm_down, btn.elm_hover);
         }
         function up() {
-            replace(btn.elm_hover);
+            swap(btn.elm_hover, btn.elm_down, btn.elm_up);
             elm.notify(btn.elm_signal.id, btn.elm_value);
         }
         function down() {
-            replace(btn.elm_down);
+            swap(btn.elm_down, btn.elm_hover, btn.elm_up);
         }
+
         btn.addEventListener('mouseover', over);
         btn.addEventListener('mouseout' , out);
         btn.addEventListener('mousedown', down);
         btn.addEventListener('mouseup'  , up);
 
-        btn.appendChild(btn.elm_up);
-
         return btn;
     }
 
     function updateCustomButton(node, oldModel, newModel) {
-        var signal = newModel.signal;
-        node.elm_up.elm_signal = signal;
-        node.elm_hover.elm_signal = signal;
-        node.elm_down.elm_signal = signal;
+        node.elm_signal = newModel.signal;
+        node.elm_value = newModel.value;
 
-        var value = newModel.value;
-        node.elm_up.elm_value = value;
-        node.elm_hover.elm_value = value;
-        node.elm_down.elm_value = value;
+        var kids = node.childNodes;
+        var styleUp    = kids[0].style.display;
+        var styleHover = kids[1].style.display;
+        var styleDown  = kids[2].style.display;
 
-        Render.update(node.elm_up, oldModel.up, newModel.up)
-        Render.update(node.elm_hover, oldModel.hover, newModel.hover)
-        Render.update(node.elm_down, oldModel.down, newModel.down)
+        Render.update(kids[0], oldModel.up, newModel.up);
+        Render.update(kids[1], oldModel.hover, newModel.hover);
+        Render.update(kids[2], oldModel.down, newModel.down);
+
+        var kids = node.childNodes;
+        kids[0].style.display = styleUp;
+        kids[1].style.display = styleHover;
+        kids[2].style.display = styleDown;
     }
 
     function max3(a,b,c) {
