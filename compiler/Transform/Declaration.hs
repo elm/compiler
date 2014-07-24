@@ -38,11 +38,11 @@ attachComments decls =
     D.DocComment _ : D.DocComment _ : _ ->
       Left "Two consequent document comments found!"
     D.DocComment doc : next : rest ->
-      (:) (Just doc, next) <$> attachComments rest
+      (:) (D.Declaration next (Just doc)) <$> attachComments rest
     D.DocComment _ : [] ->
       Left "Document comment at the end of the file!"
     next : rest ->
-      (:) (Nothing, next) <$> attachComments rest
+      (:) (D.Declaration next Nothing) <$> attachComments rest
     [] -> return []
 
 combineAnnotations :: [D.SourceDecl] -> Either String [D.ValidDecl]
@@ -115,7 +115,7 @@ toExpr moduleName = concatMap (toDefs moduleName)
 toDefs :: String -> D.CanonicalDecl -> [Canonical.Def]
 toDefs moduleName decl =
   let typeVar = Var.Canonical (Var.Module moduleName) in
-  case snd decl of
+  case D.declBody decl of
     D.Definition def -> [def]
 
     D.Datatype name tvars constructors -> concatMap toDefs' constructors

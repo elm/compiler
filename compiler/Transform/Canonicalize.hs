@@ -55,7 +55,8 @@ moduleHelp interfaces modul@(Module.Module _ _ exs _ _ decls) =
     locals = concatMap declToValue decls
 
     body :: [D.CanonicalDecl] -> Module.CanonicalBody
-    body decls = let decls' = map snd decls in
+    body decls =
+      let decls' = map D.declBody decls in
       Module.CanonicalBody
          { program =
                let expr = Transform.toExpr (Module.getName modul) decls
@@ -124,8 +125,8 @@ filterExports types values =
           Nothing -> []
 
 declToValue :: D.ValidDecl -> [Var.Value]
-declToValue (_, decl) =
-    case decl of
+declToValue decl =
+    case D.declBody decl of
       D.Definition (Valid.Definition pattern _ _) ->
           map Var.Value (P.boundVarList pattern)
 
@@ -138,14 +139,14 @@ declToValue (_, decl) =
       _ -> []
 
 declaration :: Environment -> D.ValidDecl -> Canonicalizer [Doc] D.CanonicalDecl
-declaration env (doc, decl) =
+declaration env decl'@(D.Declaration decl _) =
     let canonicalize kind context pattern env v =
             let ctx = P.text ("Error in " ++ context) <+> pretty pattern <> P.colon
                 throw err = P.vcat [ ctx, P.text err ]
             in 
                 Env.onError throw (kind env v)
     in
-    (,) doc <$> case decl of
+    (\x -> decl' { D.declBody = x }) <$> case decl of
       D.Definition (Valid.Definition p e t) ->
           do p' <- canonicalize pattern "definition" p env p
              e' <- expression env e

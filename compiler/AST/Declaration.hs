@@ -19,6 +19,11 @@ data Declaration' port def var
     | DocComment String -- only for source phase
       deriving (Show)
 
+data Declaration a = Declaration
+    { declBody :: a
+    , declComment :: Maybe String
+    } deriving (Show)
+
 data Assoc = L | N | R
     deriving (Eq)
 
@@ -37,11 +42,11 @@ type SourceDecl =
 
 type ValidDecl' =
   Declaration' (Port Valid.Expr Var.Raw) Valid.Def Var.Raw
-type ValidDecl = (Maybe String, ValidDecl')
+type ValidDecl = Declaration ValidDecl'
 
 type CanonicalDecl' =
   Declaration' (Port Canonical.Expr Var.Canonical) Canonical.Def Var.Canonical
-type CanonicalDecl = (Maybe String, CanonicalDecl')
+type CanonicalDecl = Declaration CanonicalDecl'
 
 portName :: Port expr var -> String
 portName port =
