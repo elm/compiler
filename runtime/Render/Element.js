@@ -28,26 +28,21 @@ function setProps(elem, node) {
         node.id = props.tag;
     }
 
-    if (props.href !== '') {
-        var a = newElement('a');
-        a.href = props.href;
-        a.style.width = '100%';
-        a.style.height = '100%';
-        a.style.top = 0;
-        a.style.left = 0;
-        a.style.display = 'block';
-        a.style.position = 'absolute';
-        node.style.position = 'relative';
-        a.style.pointerEvents = 'auto';
-        node.appendChild(a);
-    }
-
     if (props.hover.ctor !== '_Tuple0') {
         addHover(node, props.hover);
     }
 
     if (props.click.ctor !== '_Tuple0') {
         addClick(node, props.click);
+    }
+
+    if (props.href !== '') {
+        var anchor = newElement('a');
+        anchor.href = props.href;
+        anchor.style.display = 'block';
+        anchor.style.pointerEvents = 'auto';
+        anchor.appendChild(node);
+        node = anchor;
     }
 
     return node;
@@ -394,19 +389,21 @@ function updateProps(node, curr, next) {
 
     if (nextProps.href !== currProps.href) {
         if (currProps.href === '') {
-            var a = newElement('a');
-            a.href = nextProps.href;
-            a.style.width = '100%';
-            a.style.height = '100%';
-            a.style.top = 0;
-            a.style.left = 0;
-            a.style.display = 'block';
-            a.style.position = 'absolute';
-            node.style.position = 'relative';
-            a.style.pointerEvents = 'auto';
-            node.appendChild(a);
+            // add a surrounding href
+            var anchor = newElement('a');
+            anchor.href = nextProps.href;
+            anchor.style.display = 'block';
+            anchor.style.pointerEvents = 'auto';
+
+            node.parentNode.replaceChild(anchor, node);
+            anchor.appendChild(node);
+        } else if (nextProps.href === '') {
+            // remove the surrounding href
+            var anchor = node.parentNode;
+            anchor.parentNode.replaceChild(node, anchor);
         } else {
-            node.lastNode.href = nextProps.href;
+            // just update the link
+            node.parentNode.href = nextProps.href;
         }
     }
 
