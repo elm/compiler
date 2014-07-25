@@ -60,7 +60,7 @@ with an alpha component for transparency.
 -}
 hsla : Float -> Float -> Float -> Float -> Color
 hsla hue saturation lightness alpha =
-    HSLA (hue - toFloat (floor (hue / (2*pi)))) saturation lightness alpha
+    HSLA (hue - turns (toFloat (floor (hue / (2*pi))))) saturation lightness alpha
 
 {-| Create [HSL colors](http://en.wikipedia.org/wiki/HSL_and_HSV). This gives
 you access to colors more like a color wheel, where all hues are aranged in a
