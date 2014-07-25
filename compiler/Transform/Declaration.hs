@@ -1,7 +1,9 @@
 {-# OPTIONS_GHC -Wall #-}
-module Transform.Declaration (combineAnnotations, toExpr) where
+module Transform.Declaration (validate, toExpr) where
 
 import Control.Applicative ((<$>))
+import Data.List (stripPrefix)
+import Data.Char (isSpace)
 
 import qualified AST.Annotation as A
 import qualified AST.Declaration as D
@@ -16,58 +18,123 @@ import qualified AST.Variable as Var
 import qualified Transform.Expression as Expr
 import qualified Transform.Definition as Def
 
+validate :: [D.SourceDecl] -> Either String [D.ValidDecl]
+validate decls =
+    combineAnnotations =<< attachComments decls
 
-combineAnnotations :: [D.SourceDecl] -> Either String [D.ValidDecl]
+(<:>) :: (Functor f) => a -> f [a] -> f [a]
+x <:> f = (:) x <$> f
+
+attachComments :: [D.SourceDecl] -> Either String [D.AnnotatedDecl D.SourceDecl']
+attachComments srcDecls =
+    go Nothing srcDecls
+  where
+    go maybeComment decls =
+        case decls of
+          D.DocComment doc : rest ->
+              case maybeComment of
+                Just _ -> Left msgTwo
+                Nothing -> go (extractDocComment doc) rest
+
+          D.Decl decl : rest ->
+              D.AnnotatedDecl decl maybeComment <:> go Nothing rest
+
+          [] -> maybe (return []) (const (Left msgEnd)) maybeComment
+
+    extractDocComment :: String -> Maybe String
+    extractDocComment doc =
+        do prefixLess <- stripPrefix "{-|" doc
+           suffixLess <- stripSuffix "-}" prefixLess
+           return $ dropWhile isSpace suffixLess
+        where
+          stripSuffix suf str =
+              let (part1, part2) = splitAt (length str - length suf) str
+              in  if part2 == suf
+                    then Nothing
+                    else Just part1
+
+    msgTwo =
+        "Found two document comments in a row! All document comments\
+        \ must be associated with a top level declaration.\
+        \ Maybe you commented out a declaration?"
+
+    msgEnd =
+        "Found document comment at the end of the file! All document\
+        \ comments must be associated with a top level declaration.\
+        \ Maybe you commented out a declaration?"
+
+combineAnnotations :: [D.AnnotatedDecl D.SourceDecl'] -> Either String [D.ValidDecl]
 combineAnnotations = go
-    where
-      msg x = "Syntax Error: The type annotation for '" ++ x ++
-              "' must be directly above its definition."
+  where
+    msg x = "Syntax Error: The type annotation for '" ++ x ++
+            "' must be directly above its definition."
 
-      exprCombineAnnotations = Expr.crawlLet Def.combineAnnotations
+    exprCombineAnnotations = Expr.crawlLet Def.combineAnnotations
 
-      go decls =
-          case decls of
-            -- simple cases, pass them through with no changes
-            [] -> return []
+    go decls =
+      case decls of
+        [] -> return []
+        (D.AnnotatedDecl decl comment) : rest ->
+          let goAfter d = D.AnnotatedDecl d comment <:> go rest in
+          case decl of
+            -- actually combine type annotations
+            D.Definition def -> combineDefinitions def comment rest
 
-            D.Datatype name tvars ctors : rest ->
-                (:) (D.Datatype name tvars ctors) <$> go rest
+            D.Port port -> combinePorts port comment rest
 
-            D.TypeAlias name tvars alias : rest ->
-                (:) (D.TypeAlias name tvars alias) <$> go rest
+            -- simple pass through
+            D.Datatype name tvars ctors ->
+                goAfter (D.Datatype name tvars ctors)
 
-            D.Fixity assoc prec op : rest ->
-                (:) (D.Fixity assoc prec op) <$> go rest
+            D.TypeAlias name tvars alias ->
+                goAfter (D.TypeAlias name tvars alias)
 
-            -- combine definitions
-            D.Definition def : defRest ->
-                case def of
-                  Source.Definition pat expr ->
-                      do expr' <- exprCombineAnnotations expr
-                         let def' = Valid.Definition pat expr' Nothing
-                         (:) (D.Definition def') <$> go defRest
+            D.Fixity assoc prec op ->
+                goAfter (D.Fixity assoc prec op)
 
-                  Source.TypeAnnotation name tipe ->
-                      case defRest of
-                        D.Definition (Source.Definition pat@(P.Var name') expr) : rest
-                            | name == name' ->
-                                do expr' <- exprCombineAnnotations expr
-                                   let def' = Valid.Definition pat expr' (Just tipe)
-                                   (:) (D.Definition def') <$> go rest
+    noComment doc value =
+        case doc of
+          Nothing -> value
+          Just _ -> Left "A document comment can not come after a type annotation!"
 
-                        _ -> Left (msg name)
+    combineDefinitions def comment rest =
+      let continue decl remaining = D.AnnotatedDecl decl comment <:> go remaining in
+      case def of
+        Source.Definition pat expr ->
+            do expr' <- exprCombineAnnotations expr
+               let def' = Valid.Definition pat expr' Nothing
+               continue (D.Definition def') rest
 
-            -- combine ports
-            D.Port port : portRest ->
-                case port of
-                  D.PPDef name _ -> Left (msg name)
-                  D.PPAnnotation name tipe ->
-                      case portRest of
-                        D.Port (D.PPDef name' expr) : rest | name == name' ->
+        Source.TypeAnnotation name tipe ->
+            case rest of
+              [] -> Left (msg name)
+              (D.AnnotatedDecl decl doc) : rest2 ->
+                  noComment doc $
+                  case decl of
+                    D.Definition (Source.Definition pat@(P.Var name') expr)
+                        | name == name' ->
                             do expr' <- exprCombineAnnotations expr
-                               (:) (D.Port (D.Out name expr' tipe)) <$> go rest
+                               let def' = Valid.Definition pat expr' (Just tipe)
+                               continue (D.Definition def') rest2
 
-                        _ -> (:) (D.Port (D.In name tipe)) <$> go portRest
+                    _ -> Left (msg name)
+
+    combinePorts port comment rest =
+      let continue decl remaining = D.AnnotatedDecl decl comment <:> go remaining in
+      case port of
+        D.PPDef name _ -> Left (msg name)
+        D.PPAnnotation name tipe ->
+            case rest of
+              [] -> continue (D.Port (D.In name tipe)) []
+
+              (D.AnnotatedDecl decl doc) : rest2 ->
+                  noComment doc $
+                  case decl of
+                    D.Port (D.PPDef name' expr) | name == name' ->
+                        do expr' <- exprCombineAnnotations expr
+                           continue (D.Port (D.Out name expr' tipe)) rest2
+
+                    _ -> continue (D.Port (D.In name tipe)) rest
 
 
 toExpr :: String -> [D.CanonicalDecl] -> [Canonical.Def]
@@ -76,7 +143,7 @@ toExpr moduleName = concatMap (toDefs moduleName)
 toDefs :: String -> D.CanonicalDecl -> [Canonical.Def]
 toDefs moduleName decl =
   let typeVar = Var.Canonical (Var.Module moduleName) in
-  case decl of
+  case D.decl decl of
     D.Definition def -> [def]
 
     D.Datatype name tvars constructors -> concatMap toDefs' constructors
@@ -115,7 +182,6 @@ toDefs moduleName decl =
 
     -- no constraints are needed for fixity declarations
     D.Fixity _ _ _ -> []
-
 
 arguments :: [String]
 arguments = map (:[]) ['a'..'z'] ++ map (\n -> "_" ++ show (n :: Int)) [1..]

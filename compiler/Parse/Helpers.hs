@@ -234,8 +234,16 @@ lineComment = do
   comment <- anyUntil $ simpleNewline <|> (eof >> return "\n")
   return ("--" ++ comment)
 
-multiComment :: IParser String
-multiComment = (++) <$> try (string "{-") <*> closeComment
+genMultiComment :: IParser String -> IParser String
+genMultiComment startParser =
+  do prefix <- try $ do prefix <- string "{-"
+                        intermediate <- startParser
+                        return $ prefix ++ intermediate
+     suffix <- closeComment
+     return $ prefix ++ suffix
+
+multiComment = genMultiComment (notFollowedBy (char '|') >> return "")
+docComment = genMultiComment (char '|' >> return "|")
 
 closeComment :: IParser String
 closeComment =
@@ -260,6 +268,7 @@ ignoreUntil end = go
       ignore p = const () <$> p
       filler = choice [ try (ignore chr) <|> ignore str
                       , ignore multiComment
+                      , ignore docComment
                       , ignore (markdown (\_ -> mzero))
                       , ignore anyChar
                       ]
@@ -350,7 +359,7 @@ glSource src =
             else []
         _ -> []
 
---str :: IParser String
+str :: IParser String
 str = expecting "String" $ do
         s <- choice [ multiStr, singleStr ]
         processAs T.stringLiteral . sandwich '\"' $ concat s

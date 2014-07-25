@@ -36,7 +36,7 @@ getBuildRecipe srcDirs builtIns root =
 --   dependency information we might need.
 getDependencies :: ErrorT String IO [FilePath]
 getDependencies =
-    do exists <- liftIO $ doesFileExist Path.dependencyFile
+    do exists <- liftIO $ doesFileExist Path.librariesFile
        if not exists then return [] else getPaths
     where
       getPaths :: ErrorT String IO [FilePath]
@@ -52,6 +52,7 @@ getDependencies =
           then return path
           else throwError (notFound name version)
 
+      -- TODO: This message should be changed
       notFound :: N.Name -> V.Version -> String
       notFound name version =
           unlines

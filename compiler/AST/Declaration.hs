@@ -18,6 +18,11 @@ data Declaration' port def var
     | Fixity Assoc Int String
       deriving (Show)
 
+data AnnotatedDecl decl = AnnotatedDecl
+    { decl :: decl
+    , comment :: Maybe String
+    } deriving (Show)
+
 data Assoc = L | N | R
     deriving (Eq)
 
@@ -31,11 +36,17 @@ data Port expr var
     | In String (T.Type var)
       deriving (Show)
 
-type SourceDecl    = Declaration' RawPort Source.Def Var.Raw
-type ValidDecl     = Declaration' (Port Valid.Expr Var.Raw) Valid.Def Var.Raw
-type CanonicalDecl = Declaration' (Port Canonical.Expr Var.Canonical)
-                                  Canonical.Def
-                                  Var.Canonical
+type SourceDecl' = Declaration' RawPort Source.Def Var.Raw
+data SourceDecl
+    = Decl SourceDecl'
+    | DocComment String
+
+type ValidDecl' = Declaration' (Port Valid.Expr Var.Raw) Valid.Def Var.Raw
+type ValidDecl = AnnotatedDecl ValidDecl'
+
+type CanonicalDecl' =
+    Declaration' (Port Canonical.Expr Var.Canonical) Canonical.Def Var.Canonical
+type CanonicalDecl = AnnotatedDecl CanonicalDecl'
 
 portName :: Port expr var -> String
 portName port =
@@ -62,8 +73,8 @@ instance Binary Assoc where
 
 instance (Pretty port, Pretty def, Pretty var, Var.ToString var) =>
     Pretty (Declaration' port def var) where
-  pretty decl =
-    case decl of
+  pretty declaration =
+    case declaration of
       Definition def -> pretty def
 
       Datatype tipe tvars ctors ->

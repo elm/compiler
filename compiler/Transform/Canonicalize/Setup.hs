@@ -23,11 +23,11 @@ import Transform.Canonicalize.Environment as Env
 import qualified Transform.Canonicalize.Type as Canonicalize
 
 environment :: Module.Interfaces -> Module.ValidModule -> Canonicalizer [Doc] Environment
-environment interfaces modul@(Module.Module _ _ _ imports decls) =
+environment interfaces modul@(Module.Module _ _ _ imports _ decls) =
   do () <- allImportsAvailable
      let moduleName = Module.getName modul
      nonLocalEnv <- foldM (addImports moduleName interfaces) (builtIns moduleName) imports
-     let (aliases, env) = List.foldl' (addDecl moduleName) ([], nonLocalEnv) decls
+     let (aliases, env) = List.foldl' (addDecl moduleName) ([], nonLocalEnv) $ map D.decl decls
      addTypeAliases moduleName aliases env
   where
     allImportsAvailable :: Canonicalizer [Doc] ()
@@ -166,7 +166,7 @@ addTypeAliases moduleName nodes environ =
     typeAlias (n,ts,t) = D.TypeAlias n ts t
     datatype (n,ts,t) = D.Datatype n ts [(n,[t])]
 
-    indented :: [D.ValidDecl] -> Doc
+    indented :: [D.ValidDecl'] -> Doc
     indented decls = P.vcat (map prty decls) <> P.text "\n"
         where
           prty decl = P.text "\n    " <> pretty decl
@@ -183,7 +183,7 @@ addTypeAliases moduleName nodes environ =
 -- When canonicalizing, all _values should be Local, but all _adts and _patterns
 -- should be fully namespaced. With _adts, they may appear in types that can
 -- escape the module.
-addDecl :: String -> ([Node], Environment) -> D.ValidDecl -> ([Node], Environment)
+addDecl :: String -> ([Node], Environment) -> D.ValidDecl' -> ([Node], Environment)
 addDecl moduleName info@(nodes,env) decl =
     let namespacedVar     = Var.Canonical (Var.Module moduleName)
         addLocal      x e = insert x (Var.local     x) e

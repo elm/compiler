@@ -21,8 +21,9 @@ data Module exs body = Module
     , path    :: FilePath
     , exports :: exs
     , imports :: [(String, ImportMethod)]
+    , comment :: Maybe String
     , body    :: body
-    }
+    } deriving (Show)
 
 getName :: Module exs body -> String
 getName modul =
@@ -35,7 +36,7 @@ data CanonicalBody = CanonicalBody
     , aliases   :: Aliases
     , datatypes :: ADTs
     , ports     :: [String]
-    }
+    } deriving (Show)
 
 type SourceModule    = Module (Var.Listing Var.Value) [Decl.SourceDecl]
 type ValidModule     = Module (Var.Listing Var.Value) [Decl.ValidDecl]
@@ -58,7 +59,7 @@ data Interface = Interface
     , iAliases  :: Aliases
     , iFixities :: [(Decl.Assoc, Int, String)]
     , iPorts    :: [String]
-    }
+    } deriving (Show)
 
 toInterface :: CanonicalModule -> Interface
 toInterface modul =
@@ -87,6 +88,7 @@ instance Binary Interface where
 data ImportMethod
     = As !String
     | Open !(Var.Listing Var.Value)
+    deriving (Show)
 
 open :: ImportMethod
 open = Open (Var.openListing)
@@ -107,7 +109,7 @@ instance Binary ImportMethod where
                _ -> error "Error reading valid ImportMethod type from serialized string"
 
 instance (Pretty exs, Pretty body) => Pretty (Module exs body) where
-  pretty (Module names _ exs ims body) =
+  pretty (Module names _ exs ims _ body) =
       P.vcat [modul, P.text "", prettyImports, P.text "", pretty body]
     where 
       modul = P.text "module" <+> name <+> pretty exs <+> P.text "where"

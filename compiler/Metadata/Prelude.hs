@@ -11,8 +11,8 @@ import qualified Build.Interface as Interface
 import Build.Utils (getDataFile)
 
 add :: Bool -> Module exs body -> Module exs body
-add noPrelude (Module name path exs ims decls) =
-    Module name path exs (customIms ++ ims) decls
+add noPrelude (Module name path exs ims doc decls) =
+    Module name path exs (customIms ++ ims) doc decls
     where
       customIms = if noPrelude then [] else concatMap addModule prelude
 

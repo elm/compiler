@@ -17,7 +17,7 @@ import AST.PrettyPrint
 import Text.PrettyPrint as P
 
 
-mistakes :: [D.ValidDecl] -> [Doc]
+mistakes :: [D.ValidDecl'] -> [Doc]
 mistakes decls =
     concat [ infiniteTypeAliases decls
            , illFormedTypes decls
@@ -31,7 +31,7 @@ dupErr :: String -> String -> String
 dupErr err x = 
   "Syntax Error: There can only be one " ++ err ++ " '" ++ x ++ "'."
 
-duplicates :: [D.ValidDecl] -> [String]
+duplicates :: [D.ValidDecl'] -> [String]
 duplicates decls =
     map msg (dups (portNames ++ concatMap Pattern.boundVarList defPatterns)) ++
     case mapM exprDups (portExprs ++ defExprs) of
@@ -61,7 +61,7 @@ duplicates decls =
           []     -> Right defs
           name:_ -> Left name
 
-duplicateConstructors :: [D.ValidDecl] -> [String]
+duplicateConstructors :: [D.ValidDecl'] -> [String]
 duplicateConstructors decls = 
     map (dupErr "definition of type constructor") (dups typeCtors) ++
     map (dupErr "definition of data constructor") (dups dataCtors)
@@ -69,7 +69,7 @@ duplicateConstructors decls =
     typeCtors = [ name | D.Datatype name _ _ <- decls ]
     dataCtors = concat [ map fst patterns | D.Datatype _ _ patterns <- decls ]
 
-illFormedTypes :: [D.ValidDecl] -> [Doc]
+illFormedTypes :: [D.ValidDecl'] -> [Doc]
 illFormedTypes decls = map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
     where
       aliases = [ (decl, tvars, [tipe]) | decl@(D.TypeAlias _ tvars tipe) <- decls ]
@@ -116,7 +116,7 @@ illFormedTypes decls = map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
             quote tvar = "'" ++ tvar ++ "'"
 
 
-infiniteTypeAliases :: [D.ValidDecl] -> [Doc]
+infiniteTypeAliases :: [D.ValidDecl'] -> [Doc]
 infiniteTypeAliases decls =
     [ report name tvars tipe | D.TypeAlias name tvars tipe <- decls
                              , infiniteType name tipe ]
@@ -132,7 +132,7 @@ infiniteTypeAliases decls =
             T.Record fields _ -> any (infinite . snd) fields
             T.Aliased _ t -> infinite t
 
-      indented :: D.ValidDecl -> Doc
+      indented :: D.ValidDecl' -> Doc
       indented decl = P.text "\n    " <> pretty decl <> P.text "\n"
 
       report name args tipe =
