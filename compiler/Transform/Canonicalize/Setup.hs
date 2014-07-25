@@ -27,7 +27,7 @@ environment interfaces modul@(Module.Module _ _ _ imports _ decls) =
   do () <- allImportsAvailable
      let moduleName = Module.getName modul
      nonLocalEnv <- foldM (addImports moduleName interfaces) (builtIns moduleName) imports
-     let (aliases, env) = List.foldl' (addDecl moduleName) ([], nonLocalEnv) $ map D.body decls
+     let (aliases, env) = List.foldl' (addDecl moduleName) ([], nonLocalEnv) $ map D.decl decls
      addTypeAliases moduleName aliases env
   where
     allImportsAvailable :: Canonicalizer [Doc] ()
@@ -217,4 +217,4 @@ addDecl moduleName info@(nodes,env) decl =
           in
               (,) nodes $ env { _values = addLocal portName (_values env) }
 
-      D.Fixity{} -> info
+      D.Fixity _ _ _ -> info

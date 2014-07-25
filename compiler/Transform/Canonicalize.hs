@@ -55,21 +55,21 @@ moduleHelp interfaces modul@(Module.Module _ _ exs _ _ decls) =
     locals = concatMap declToValue decls
 
     body :: [D.CanonicalDecl] -> Module.CanonicalBody
-    body decls =
-      let decls' = map D.body decls in
+    body annotatedDecls =
+      let decls = map D.decl annotatedDecls in
       Module.CanonicalBody
          { program =
-               let expr = Transform.toExpr (Module.getName modul) decls
+               let expr = Transform.toExpr (Module.getName modul) annotatedDecls
                in  Transform.sortDefs (dummyLet expr)
          , types = Map.empty
          , datatypes =
-             Map.fromList [ (name,(vars,ctors)) | D.Datatype name vars ctors <- decls' ]
+             Map.fromList [ (name,(vars,ctors)) | D.Datatype name vars ctors <- decls ]
          , fixities =
-             [ (assoc,level,op) | D.Fixity assoc level op <- decls' ]
+             [ (assoc,level,op) | D.Fixity assoc level op <- decls ]
          , aliases =
-             Map.fromList [ (name,(tvs,alias)) | D.TypeAlias name tvs alias <- decls' ]
+             Map.fromList [ (name,(tvs,alias)) | D.TypeAlias name tvs alias <- decls ]
          , ports =
-             [ D.portName port | D.Port port <- decls' ]
+             [ D.portName port | D.Port port <- decls ]
          }
 
 delist :: [Var.Value] -> Var.Listing Var.Value -> Canonicalizer [Doc] [Var.Value]
@@ -125,8 +125,8 @@ filterExports types values =
           Nothing -> []
 
 declToValue :: D.ValidDecl -> [Var.Value]
-declToValue decl =
-    case D.body decl of
+declToValue annotatedDecl =
+    case D.decl annotatedDecl of
       D.Definition (Valid.Definition pattern _ _) ->
           map Var.Value (P.boundVarList pattern)
 
@@ -139,14 +139,15 @@ declToValue decl =
       _ -> []
 
 declaration :: Environment -> D.ValidDecl -> Canonicalizer [Doc] D.CanonicalDecl
-declaration env decl'@(D.Declaration decl _) =
+declaration env (D.AnnotatedDecl decl doc) =
     let canonicalize kind context pattern env v =
             let ctx = P.text ("Error in " ++ context) <+> pretty pattern <> P.colon
                 throw err = P.vcat [ ctx, P.text err ]
             in 
                 Env.onError throw (kind env v)
     in
-    (\x -> decl' { D.body = x }) <$> case decl of
+    flip D.AnnotatedDecl doc <$>
+    case decl of
       D.Definition (Valid.Definition p e t) ->
           do p' <- canonicalize pattern "definition" p env p
              e' <- expression env e
