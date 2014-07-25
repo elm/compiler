@@ -1,8 +1,8 @@
 {-# OPTIONS_GHC -W #-}
 module Type.Constrain.Literal where
 
-import SourceSyntax.Annotation
-import SourceSyntax.Literal
+import AST.Annotation
+import AST.Literal
 import Type.Type
 import Type.Environment as Env
 
@@ -15,7 +15,7 @@ constrain env region literal tipe =
 
       litType =
           case literal of
-            IntNum _   -> VarN `fmap` var (Is Number)
+            IntNum _   -> varN `fmap` variable (Is Number)
             FloatNum _ -> prim "Float"
             Chr _      -> prim "Char"
             Str _      -> prim "String"

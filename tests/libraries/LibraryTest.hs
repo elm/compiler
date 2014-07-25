@@ -19,31 +19,37 @@ main = do
   unless ("jsdom" `isInfixOf` out) $ runCmd "npm" ["install","jsdom"]
 
   -- setup actual library tests
-  setCurrentDirectory $ top </> "tests" </> "libraries"
-  let localCompiler = joinPath [ top, "dist", "build", "elm", "elm" ]
+  let localCompiler = joinPath [ "dist", "build", "elm", "elm" ]
   runCmd localCompiler [ "--make"
                        , "--only-js"
-                       , "--src-dir=" ++ top </> "automaton"
-                       , "--src-dir=" ++ top </> "IO"
-                       , "--src-dir=" ++ top </> "Elm-Test"
-                       , "Test.elm"
+                       , "--src-dir=IO"
+                       , "--src-dir=Elm-Test"
+                       , "--src-dir=" ++ "tests" </> "libraries"
+                       , testFile <.> "elm"
                        ]
 
   -- run tests
-  let ioScript s = top </> "IO" </> s
-      files = [ ioScript "prescript.js"
+  let files = [ "IO" </> "share" </> "prescript.js"
               , Elm.runtime
-              , "build" </> "Test.js"
-              , ioScript "handler.js"
+              , "build" </> testFile <.> "js"
+              , "IO" </> "share" </> "handler.js"
               ]
+      testRunner = "build" </> "TestRunner.js"
   exe <- readProcess "cat" files ""
-  writeFile "exe.js" exe
-  exitWith =<< waitForProcess =<< (runCommand "node exe.js")
+  writeFile testRunner exe
+  exitCode <- rawSystem "node" [testRunner]
+  removeDirectoryRecursive "cache"
+  removeDirectoryRecursive "build"
+  exitWith exitCode
+  where
+    testFile = "tests" </> "libraries" </> "Test"
 
 runCmd :: String -> [String] -> IO ()
 runCmd cmd args = do
   putStrLn (cmd ++ " " ++ unwords args)
-  (exitCode, _stdout, stderr) <- readProcessWithExitCode cmd args ""
+  (exitCode, stdout, stderr) <- readProcessWithExitCode cmd args ""
+  putStr stdout
+  putStr stderr
   case exitCode of
     ExitSuccess   -> return ()
-    ExitFailure _ -> error stderr
+    ExitFailure _ -> exitWith exitCode

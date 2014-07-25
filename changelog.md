@@ -1,7 +1,38 @@
 
+## 0.13
+
+#### Improvements:
+
+  * Type aliases in port types 
+  * Add Keyboard.alt and Keyboard.meta
+  * Add Debug.crash
+  * Add List.indexedMap and List.filterMap
+  * Add Maybe.map
+  * Add --bundle-runtime flag which creates stand-alone Elm programs
+  * Error on ambiguious use of imported variables
+  * Better architecture for compiler. Uses types to make compilation pipeline
+    safer, setting things up for giving programmatic access to the AST to
+    improve editor and IDE support.
+
+#### Breaking Changes:
+
+  * Rename Maybe.maybe to Maybe.extract 
+  * Rename Either.either to Either.extract 
+  * Remove Maybe.justs for (List.filterMap id)
+  * Remove List.and for (List.foldl (&&) True)
+  * Remove List.or  for (List.foldl (||) False)
+  * Unambiguous syntax for importing ADTs and type aliases (whoo!)
+  * sqrt and logBase both only work on Floats now
+
+## 0.12.3
+
+  * Minor changes to support webgl as a separate library
+  * Switch from HSV to HSL
+  * Programmatic access to colors with toHsl and toRgb
+
 ## 0.12.1
 
-## Improvements:
+#### Improvements:
 
   * New Array library (thanks entirely to @Xashili)
   * Json.Value can flow through ports

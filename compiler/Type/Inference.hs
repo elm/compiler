@@ -8,50 +8,86 @@ import qualified Type.Environment as Env
 import qualified Type.Constrain.Expression as TcExpr
 import qualified Type.Solve as Solve
 
-import SourceSyntax.Module as Module
-import SourceSyntax.Annotation (noneNoDocs)
-import SourceSyntax.Type (Type)
+import qualified AST.Annotation as A
+import AST.Module as Module
+import AST.Type (CanonicalType)
+import qualified AST.Variable as Var
 import Text.PrettyPrint
 import qualified Type.State as TS
 import qualified Type.ExtraChecks as Check
+import Control.Arrow (first, second)
 import Control.Monad.State (execStateT, forM)
-import Control.Monad.Error (runErrorT, liftIO)
-import qualified Type.Alias as Alias
+import Control.Monad.Error (ErrorT, runErrorT, liftIO, throwError)
 
 import System.IO.Unsafe  -- Possible to switch over to the ST monad instead of
                          -- the IO monad. I don't think that'd be worthwhile.
 
 
-infer :: Interfaces -> MetadataModule -> Either [Doc] (Map.Map String Type)
-infer interfaces modul = unsafePerformIO $ do
-  env <- Env.initialEnvironment
-             (datatypes modul ++ concatMap iAdts (Map.elems interfaces))
-             (aliases modul ++ concatMap iAliases (Map.elems interfaces))
-  ctors <- forM (Map.keys (Env.constructor env)) $ \name ->
-               do (_, vars, args, result) <- Env.freshDataScheme env name
-                  return (name, (vars, foldr (T.==>) result args))
+infer :: Interfaces -> CanonicalModule -> Either [Doc] (Map.Map String CanonicalType)
+infer interfaces modul = unsafePerformIO $ runErrorT $ do
+  (header, constraint) <- genConstraints interfaces modul
 
-  attemptConstraint <- runErrorT $ do
-    importedVars <-
-        forM (concatMap (Map.toList . iTypes) $ Map.elems interfaces) $ \(name,tipe) ->
-            (,) name `fmap` Env.instantiateType env tipe Map.empty
+  state <- liftIO $ execStateT (Solve.solve constraint) TS.initialState
 
-    let allTypes = ctors ++ importedVars
-        vars = concatMap (fst . snd) allTypes
-        header = Map.map snd (Map.fromList allTypes)
-        environ = noneNoDocs . T.CLet [ T.Scheme vars [] (noneNoDocs T.CTrue) header ]
+  () <- case TS.sErrors state of
+          errors@(_:_) -> throwError errors
+          []           -> return ()
 
-    fvar <- liftIO $ T.var T.Flexible
-    c <- TcExpr.constrain env (program modul) (T.VarN fvar)
-    return (header, environ c)
+  () <- Check.portTypes (program (body modul))
 
-  case attemptConstraint of
-    Left err -> return $ Left err
-    Right (header, constraint) -> do
-      state <- execStateT (Solve.solve constraint) TS.initialState
-      let rules = Alias.rules interfaces (aliases modul) (imports modul)
-      case TS.sErrors state of
-        errors@(_:_) -> Left `fmap` sequence (map ($ rules) (reverse errors))
-        [] -> case Check.portTypes rules (program modul) of
-                Right () -> Check.mainType rules (Map.difference (TS.sSavedEnv state) header)
-                Left err -> return (Left err)
+  let header' = Map.delete "::" header
+      types = Map.difference (TS.sSavedEnv state) header'
+
+  Check.mainType types
+
+
+genConstraints :: Interfaces -> CanonicalModule
+               -> ErrorT [Doc] IO (Env.TypeDict, T.TypeConstraint)
+genConstraints interfaces modul = do
+  env <- liftIO $ Env.initialEnvironment (canonicalizeAdts interfaces modul)
+
+  ctors <- forM (Map.keys (Env.constructor env)) $ \name -> do
+             (_, vars, args, result) <- liftIO $ Env.freshDataScheme env name
+             return (name, (vars, foldr (T.==>) result args))
+
+  importedVars <- mapM (canonicalizeValues env) (Map.toList interfaces)
+
+  let allTypes = concat (ctors : importedVars)
+      vars = concatMap (fst . snd) allTypes
+      header = Map.map snd (Map.fromList allTypes)
+      environ = A.noneNoDocs . T.CLet [ T.Scheme vars [] (A.noneNoDocs T.CTrue) header ]
+
+  fvar <- liftIO $ T.variable T.Flexible
+  c <- TcExpr.constrain env (program (body modul)) (T.varN fvar)
+  return (header, environ c)
+
+
+canonicalizeValues :: Env.Environment -> (String, Interface)
+                   -> ErrorT [Doc] IO [(String, ([T.Variable], T.Type))]
+canonicalizeValues env (moduleName, iface) =
+    forM (Map.toList (iTypes iface)) $ \(name,tipe) -> do
+      tipe' <- Env.instantiateType env tipe Map.empty
+      return (moduleName ++ "." ++ name, tipe')
+
+canonicalizeAdts :: Interfaces -> CanonicalModule -> [CanonicalAdt]
+canonicalizeAdts interfaces modul =
+    localAdts ++ importedAdts
+  where
+    localAdts :: [CanonicalAdt]
+    localAdts = format (Module.getName modul, datatypes (body modul))
+
+    importedAdts :: [CanonicalAdt]
+    importedAdts = concatMap (format . second iAdts) (Map.toList interfaces)
+
+    format :: (String, Module.ADTs) -> [CanonicalAdt]
+    format (home, adts) =
+        map canonical (Map.toList adts)
+      where
+        canonical :: (String, AdtInfo String) -> CanonicalAdt
+        canonical (name, (tvars, ctors)) =
+            ( toVar name
+            , (tvars, map (first toVar) ctors)
+            )
+
+        toVar :: String -> Var.Canonical
+        toVar = Var.Canonical (Var.Module home)

@@ -32,7 +32,7 @@ it as a single unit.
 
 import Basics (..)
 import List
-import Either (Either, Left, Right)
+import Either (Either(Left, Right))
 import Transform2D (Transform2D, identity)
 import Native.Graphics.Collage
 import Graphics.Element (Element)

@@ -23,6 +23,23 @@ Elm.Native.Basics.make = function(elm) {
 
   function truncate(n) { return n|0; }
 
+  function degrees(d) {
+      return d * Math.PI / 180;
+  }
+  function turns(t) {
+      return 2 * Math.PI * t;
+  }
+  function fromPolar(point) {
+      var r = point._0;
+      var t = point._1;
+      return Utils.Tuple2(r * Math.cos(t), r * Math.sin(t));
+  }
+  function toPolar(point) {
+      var x = point._0;
+      var y = point._1;
+      return Utils.Tuple2(Math.sqrt(x * x + y * y), Math.atan2(y,x));
+  }
+
   var basics = {
       div:F2(div),
       rem:F2(rem),
@@ -37,6 +54,11 @@ Elm.Native.Basics.make = function(elm) {
       asin:Math.asin,
       atan:Math.atan,
       atan2:F2(Math.atan2),
+
+      degrees: degrees,
+      turns: turns,
+      fromPolar: fromPolar,
+      toPolar: toPolar,
 
       sqrt:Math.sqrt,
       abs:abs,

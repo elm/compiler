@@ -63,7 +63,7 @@ function init(display, container, module, ports, moduleToReplace) {
           throw new Error(
               'The notify function has been called synchronously!\n' +
               'This can lead to frames being dropped.\n' +
-              'Definitely report this to <https://github.com/evancz/Elm/issues>\n');
+              'Definitely report this to <https://github.com/elm-lang/Elm/issues>\n');
       }
       updateInProgress = true;
       var timestep = timer.now();
@@ -258,8 +258,9 @@ function initGraphics(elm, Module) {
 
   // set up updates so that the DOM is adjusted as necessary.
   var savedScene = currentScene;
+  var previousDrawId = 0;
   function domUpdate(newScene) {
-      ElmRuntime.draw(function(_) {
+      previousDrawId = ElmRuntime.draw(previousDrawId, function(_) {
           Render.update(elm.node.firstChild, savedScene, newScene);
           if (elm.Native.Window) elm.Native.Window.values.resizeIfNeeded();
           savedScene = newScene;

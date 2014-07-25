@@ -60,7 +60,7 @@ with an alpha component for transparency.
 -}
 hsla : Float -> Float -> Float -> Float -> Color
 hsla hue saturation lightness alpha =
-    HSLA (hue - toFloat (floor (hue / (2*pi)))) saturation lightness alpha
+    HSLA (hue - turns (toFloat (floor (hue / (2*pi))))) saturation lightness alpha
 
 {-| Create [HSL colors](http://en.wikipedia.org/wiki/HSL_and_HSV). This gives
 you access to colors more like a color wheel, where all hues are aranged in a
@@ -97,7 +97,7 @@ complement color =
       RGBA r g b a -> let (h,s,l) = rgbToHsl r g b
                       in  hsla (h + degrees 180) s l a
 
-{-| Extract the the components of a color in the HSL format.
+{-| Extract the components of a color in the HSL format.
 -}
 toHsl : Color -> { hue:Float, saturation:Float, lightness:Float, alpha:Float }
 toHsl color =
@@ -107,7 +107,7 @@ toHsl color =
           let (h,s,l) = rgbToHsl r g b
           in  { hue=h, saturation=s, lightness=l, alpha=a }
 
-{-| Extract the the components of a color in the RGB format.
+{-| Extract the components of a color in the RGB format.
 -}
 toRgb : Color -> { red:Int, green:Int, blue:Int, alpha:Float }
 toRgb color =

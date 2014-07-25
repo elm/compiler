@@ -9,7 +9,7 @@ Elm.Native.WebSocket.make = function(elm) {
   var List = Elm.Native.List.make(elm);
 
   function open(url, outgoing) {
-    var incoming = Signal.constant(List.Nil);
+    var incoming = Signal.constant("");
     var ws = new WebSocket(url);
 
     var pending = [];

@@ -32,7 +32,13 @@ ElmRuntime.filterDeadInputs = function(inputs) {
     return temp;
 };
 
-// define the draw function
+// define function for drawing efficiently
+//
+//   draw : RequestID -> (() -> ()) -> RequestID
+//
+// Takes a "RequestID" allowing you to cancel old requests if possible.
+// Returns a "RequestID" so you can refer to past requests.
+//
 var vendors = ['ms', 'moz', 'webkit', 'o'];
 var win = typeof window !== 'undefined' ? window : {};
 for (var i = 0; i < vendors.length && !win.requestAnimationFrame; ++i) {
@@ -42,13 +48,15 @@ for (var i = 0; i < vendors.length && !win.requestAnimationFrame; ++i) {
 }
 
 if (win.requestAnimationFrame && win.cancelAnimationFrame) {
-    var previous = 0;
-    ElmRuntime.draw = function(callback) {
-        win.cancelAnimationFrame(previous);
-        previous = win.requestAnimationFrame(callback);
+    ElmRuntime.draw = function(previousRequestID, callback) {
+        win.cancelAnimationFrame(previousRequestID);
+        return win.requestAnimationFrame(callback);
     };
 } else {
-    ElmRuntime.draw = function(callback) { callback(); };
+    ElmRuntime.draw = function(previousRequestID, callback) {
+        callback();
+        return previousRequestID;
+    };
 }
 
 }());

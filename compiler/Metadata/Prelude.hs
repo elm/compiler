@@ -5,12 +5,14 @@ import qualified Data.Map as Map
 import qualified Control.Exception as E
 import System.Exit
 import System.IO
-import SourceSyntax.Module
+import AST.Module as Module
+import qualified AST.Variable as Var
 import qualified Build.Interface as Interface
 import Build.Utils (getDataFile)
 
-add :: Bool -> Module def -> Module def
-add noPrelude (Module name exs ims decls) = Module name exs (customIms ++ ims) decls
+add :: Bool -> Module exs body -> Module exs body
+add noPrelude (Module name path exs ims decls) =
+    Module name path exs (customIms ++ ims) decls
     where
       customIms = if noPrelude then [] else concatMap addModule prelude
 
@@ -20,14 +22,25 @@ add noPrelude (Module name exs ims decls) = Module name exs (customIms ++ ims) d
                                 Just _      -> []
 
 prelude :: [(String, ImportMethod)]
-prelude = string ++ text ++ map (\n -> (n, Hiding [])) modules
+prelude = string : text : maybe : map (\n -> (n, Module.open)) modules
   where
-    text = map ((,) "Text") [ As "Text", Hiding ["link", "color", "height"] ]
-    string = map ((,) "String") [ As "String", Importing ["show"] ]
-    modules = [ "Basics", "Signal", "List", "Maybe", "Time", "Color"
+    modules = [ "Basics", "Signal", "List", "Time", "Color"
               , "Graphics.Element", "Graphics.Collage"
               , "Native.Ports", "Native.Json"
               ]
+
+    string = ("String", Module.importing [Var.Value "show"])
+
+    text = ("Text", Module.importing textImports)
+    textImports =
+        Var.ADT "Text" (Var.Listing [] False) : map Var.Value
+        [ "toText", "leftAligned", "rightAligned", "centered", "justified"
+        , "plainText", "asText", "typeface", "monospace", "bold", "italic"
+        ]
+
+    maybe =
+        let imports = [ Var.ADT "Maybe" (Var.Listing ["Just", "Nothing"] False) ]
+        in  ("Maybe", Module.importing imports)
 
 interfaces :: Bool -> IO Interfaces
 interfaces noPrelude =
@@ -42,14 +55,14 @@ safeReadDocs name =
       hPutStrLn stderr $ unlines $
          [ "Error reading types for standard library from file " ++ name
          , "    If you are using a stable version of Elm, please report an issue at"
-         , "    <http://github.com/evancz/Elm/issues> specifying version numbers for"
+         , "    <http://github.com/elm-lang/Elm/issues> specifying version numbers for"
          , "    Elm and your OS." ]
       exitFailure
 
 readDocs :: FilePath -> IO Interfaces
 readDocs filePath = do
   interfaces <- Interface.load filePath
-  case mapM (Interface.isValid filePath) (interfaces :: [(String, ModuleInterface)]) of
+  case mapM (Interface.isValid filePath) (interfaces :: [(String, Module.Interface)]) of
     Left err -> do
       hPutStrLn stderr err
       exitFailure

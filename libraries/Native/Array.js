@@ -255,15 +255,27 @@ Elm.Native.Array.make = function(elm) {
     }
 
     function foldl(f, b, a) {
-      for (var i = 0; i < a.table.length; i++) {
-        b = A2(f, a.height == 0 ? a.table[i] : foldl(f, b, a.table[i]), b);
+      if (a.height == 0) {
+        for (var i = 0; i < a.table.length; i++) {
+          b = A2(f, a.table[i], b);
+        }
+      } else {
+        for (var i = 0; i < a.table.length; i++) {
+          b = foldl(f, b, a.table[i]);
+        }
       }
       return b;
     }
 
     function foldr(f, b, a) {
-      for (var i = a.table.length; i--; ) {
-        b = A2(f, a.height == 0 ? a.table[i] : foldr(f, b, a.table[i]), b);
+      if (a.height == 0) {
+        for (var i = a.table.length; i--; ) {
+          b = A2(f, a.table[i], b);
+        }
+      } else {
+        for (var i = a.table.length; i--; ) {
+          b = foldl(f, b, a.table[i]);
+        }
       }
       return b;
     }
@@ -345,9 +357,11 @@ Elm.Native.Array.make = function(elm) {
     // TODO: Add support for appending trees of different sizes. Current
     // behavior will just rise the lower tree and then append them.
     function append(a,b) {
-      if (b.height > a.height) { return append(parentise(a, b.height), b); }
-      if (a.height > b.height) { return append(a, parentise(b, a.height)); }
-      if (a.height == 0) { return append(parentise(a, 1), parentise(b, 1)); }
+      if (a.table.length == 0) return b;
+      if (b.table.length == 0) return a;
+      if (b.height > a.height) return append(parentise(a, b.height), b);
+      if (a.height > b.height) return append(a, parentise(b, a.height));
+      if (a.height == 0)       return append(parentise(a, 1), parentise(b, 1));
 
       var c = append_(a, b);
       if (c[1].table.length > 0) {

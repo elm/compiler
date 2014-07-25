@@ -8,7 +8,6 @@ change to make it more flexible.
 -}
 
 import Signal (Signal)
-import Basics (String)
 import Native.WebSocket
 
 {-| Create a web-socket. The first argument is the URL of the desired

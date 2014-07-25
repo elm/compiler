@@ -1,14 +1,18 @@
+{-# LANGUAGE FlexibleInstances #-}
+module AST.PrettyPrint where
 
-module SourceSyntax.PrettyPrint where
-
-import Text.PrettyPrint
-import qualified SourceSyntax.Helpers as Help
+import Control.Monad.Trans.Error
+import Text.PrettyPrint as P
+import qualified AST.Helpers as Help
 
 class Pretty a where
   pretty :: a -> Doc
 
-instance Pretty () where
-  pretty () = empty
+instance Pretty Doc where
+  pretty doc = doc
+
+instance Pretty String where
+  pretty = P.text
 
 renderPretty :: (Pretty a) => a -> String
 renderPretty e = render (pretty e)
@@ -21,11 +25,7 @@ parensIf bool doc = if bool then parens doc else doc
 
 variable :: String -> Doc
 variable x =
-    if Help.isOp x then parens (text x)
-                   else text (reprime x)
-
-reprime :: String -> String
-reprime = map (\c -> if c == '$' then '\'' else c)
+    if Help.isOp x then parens (text x) else text x
 
 eightyCharLines :: Int -> String -> String
 eightyCharLines indent message = answer
@@ -37,3 +37,6 @@ eightyCharLines indent message = answer
       step (sentence, slen, space) (word, wlen)
           | slen + wlen > 79 = (sentence ++ "\n" ++ spaces ++ word, indent + wlen, " ")
           | otherwise        = (sentence ++ space ++ word, slen + wlen + length space, " ")
+
+instance ErrorList Doc where
+    listMsg str = [ P.text str ]

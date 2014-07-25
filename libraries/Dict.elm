@@ -37,6 +37,7 @@ import Basics (..)
 import Maybe (..)
 import Native.Error
 import List
+import List ((::))
 import Native.Utils
 
 -- BBlack and NBlack should only be used during the deletion
@@ -248,7 +249,7 @@ reportRemBug msg c lgot rgot =
     lgot,
     " ",
     rgot,
-    "\nPlease report this bug to https://github.com/evancz/Elm/issues"
+    "\nPlease report this bug to https://github.com/elm-lang/Elm/issues"
     ]
 
 -- Remove the top node from the tree, may leave behind BBlacks

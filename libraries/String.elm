@@ -123,6 +123,7 @@ split = Native.String.split
 
 {-| Put many strings together with a given separator.
 
+      join "a" ["H","w","ii","n"]        == "Hawaiian"
       join " " ["cat","dog","cow"]       == "cat dog cow"
       join "/" ["home","evan","Desktop"] == "home/evan/Desktop"
 -}
@@ -204,7 +205,7 @@ trim = Native.String.trim
 trimLeft : String -> String
 trimLeft = Native.String.trimLeft
 
-{-| Get rid of whitespace on the left of a string.
+{-| Get rid of whitespace on the right of a string.
 
       trimRight "  hats  \n" == "  hats"
 -}
@@ -220,7 +221,7 @@ words = Native.String.words
 
 {-| Break a string into lines, splitting on newlines.
 
-      lines "How are you?\nGood? == ["How are you?", "Good?"]
+      lines "How are you?\nGood?" == ["How are you?", "Good?"]
 -}
 lines : String -> [String]
 lines = Native.String.lines

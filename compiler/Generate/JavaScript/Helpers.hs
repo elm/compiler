@@ -1,37 +1,66 @@
 {-# OPTIONS_GHC -W #-}
 module Generate.JavaScript.Helpers where
 
-import qualified SourceSyntax.Helpers as Help
+import AST.Annotation (Region)
+import qualified AST.PrettyPrint as PP
 import Language.ECMAScript3.Syntax
 
-split :: String -> [String]
-split = go []
-  where
-    go vars str =
-        case break (=='.') str of
-          (x,_:rest) | Help.isOp x -> vars ++ [x ++ '.' : rest]
-                     | otherwise -> go (vars ++ [x]) rest
-          (x,[]) -> vars ++ [x]
+-- Creating Variables
 
+var :: String -> Id ()
 var name = Id () name
+
+ref :: String -> Expression ()
 ref name = VarRef () (var name)
+
+prop :: String -> Prop ()
 prop name = PropId () (var name)
-f <| x = CallExpr () f [x]
-ret e = ReturnStmt () (Just e)
-args ==> e = FuncExpr () Nothing (map var args) [ ret e ]
-function args stmts = FuncExpr () Nothing (map var args) stmts
-call = CallExpr ()
+
 string = StringLit ()
 
-dotSep vars =
+obj :: [String] -> Expression ()
+obj vars =
     case vars of
       x:xs -> foldl (DotRef ()) (ref x) (map var xs)
       [] -> error "dotSep must be called on a non-empty list of variables"
 
-obj = dotSep . split
+-- Specific Utilities
 
+localModuleName :: String
+localModuleName = "$moduleName"
+
+throw :: String -> Region -> Expression ()
+throw kind region =
+    obj ["_E",kind] `call` [ ref localModuleName, string (PP.renderPretty region) ]
+
+-- Function Calls
+
+(<|) :: Expression () -> Expression () -> Expression ()
+(<|) f x = CallExpr () f [x]
+
+ret :: Expression () -> Statement ()
+ret e = ReturnStmt () (Just e)
+
+(==>) :: [String] -> Expression () -> Expression ()
+(==>) args e = FuncExpr () Nothing (map var args) [ ret e ]
+
+function :: [String] -> [Statement ()] -> Expression ()
+function args stmts = FuncExpr () Nothing (map var args) stmts
+
+call :: Expression () -> [Expression ()] -> Expression ()
+call = CallExpr ()
+
+-- Checks
+
+equal :: Expression () -> Expression () -> Expression ()
 equal a b = InfixExpr () OpStrictEq a b
+
+instanceof :: String -> Expression () -> Expression ()
 instanceof tipe x =
     InfixExpr () OpLAnd (typeof "object" x) (InfixExpr () OpInstanceof x (ref tipe))
+
+typeof :: String -> Expression () -> Expression ()
 typeof tipe x = equal (PrefixExpr () PrefixTypeof x) (string tipe)
+
+member :: String -> Expression () -> Expression ()
 member field x = InfixExpr () OpIn (string field) x

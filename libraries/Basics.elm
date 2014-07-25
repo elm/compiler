@@ -46,7 +46,7 @@ which happen to be radians.
 @docs fst, snd
 
 # Higher-Order Helpers
-@docs id, (<|), (|>), (.), always, flip, curry, uncurry
+@docs id, always, (<|), (|>), (.), flip, curry, uncurry
 
 -}
 
@@ -58,25 +58,25 @@ radians t = t
 
 {-| Convert degrees to standard Elm angles (radians). -}
 degrees : Float -> Float
-degrees d = d * Native.Basics.pi / 180
+degrees = Native.Basics.degrees
 
 {-| Convert turns to standard Elm angles (radians).
 One turn is equal to 360&deg;.
 -}
 turns : Float -> Float
-turns r = 2 * Native.Basics.pi * r
+turns = Native.Basics.turns
 
 {-| Start with polar coordinates (r,&theta;)
 and get out cartesian coordinates (x,y).
 -}
 fromPolar : (Float,Float) -> (Float,Float)
-fromPolar (r,t) = (r * Native.Basics.cos t, r * Native.Basics.sin t)
+fromPolar = Native.Basics.fromPolar
 
 {-| Start with cartesian coordinates (x,y)
 and get out polar coordinates (r,&theta;).
 -}
 toPolar : (Float,Float) -> (Float,Float)
-toPolar (x,y) = (Native.Basics.sqrt (x^2 + y^2), Native.Basics.atan2 y x)
+toPolar = Native.Basics.toPolar
 
 (+) : number -> number -> number
 (+) = Native.Basics.add
@@ -150,7 +150,7 @@ atan2 : Float -> Float -> Float
 atan2 = Native.Basics.atan2
 
 {-| Take the square root of a number. -}
-sqrt : number -> number
+sqrt : Float -> Float
 sqrt = Native.Basics.sqrt
 
 {-| Take the absolute value of a number. -}
@@ -158,7 +158,7 @@ abs : number -> number
 abs = Native.Basics.abs
 
 {-| Calculate the logarithm of a number with a given base: `logBase 10 100 == 2` -}
-logBase : number -> number -> number
+logBase : Float -> Float -> Float
 logBase = Native.Basics.logBase
 
 {-| Clamps a number within a given range. With the expression
@@ -301,7 +301,19 @@ isInfinite = Native.Basics.isInfinite
 
 -- Function Helpers
 
-{-| Function composition: `(f . g == (\\x -> f (g x)))` -}
+{-| Function composition. For example, the following code checks if the square
+root of a number is odd:
+
+      not . isEven . sqrt
+
+You can think of this operator as equivalent to the following:
+
+      (f . g)  ==  (\x -> f (g x))
+
+So our example is expanding things out to this:
+
+      \number -> not (isEven (sqrt number))
+-}
 (.) : (b -> c) -> (a -> b) -> (a -> c)
 (.) f g x = f (g x)
 

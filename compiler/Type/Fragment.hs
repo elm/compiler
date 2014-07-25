@@ -4,8 +4,8 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 
 import Type.Type
-import SourceSyntax.Pattern
-import SourceSyntax.Annotation (noneNoDocs)
+import AST.Pattern
+import AST.Annotation (noneNoDocs)
 
 data Fragment = Fragment
     { typeEnv        :: Map.Map String Type

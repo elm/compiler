@@ -1,9 +1,9 @@
 {-# OPTIONS_GHC -W #-}
-module SourceSyntax.Annotation where
+module AST.Annotation where
 
 import qualified Text.Parsec.Pos as Parsec
 import qualified Text.PrettyPrint as P
-import SourceSyntax.PrettyPrint
+import AST.PrettyPrint
 
 data Annotated annotation expr = A annotation expr
     deriving (Show)

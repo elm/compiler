@@ -1,16 +1,15 @@
 {-# OPTIONS_GHC -W #-}
 module Type.State where
 
-import Control.Applicative ((<$>),(<*>), Applicative)
+import Control.Applicative ( (<$>), (<*>), Applicative, (<|>) )
 import Control.Monad.State
 import qualified Data.Map as Map
 import qualified Data.Traversable as Traversable
 import qualified Data.UnionFind.IO as UF
 
-import qualified SourceSyntax.Annotation as A
-import SourceSyntax.PrettyPrint
+import qualified AST.Annotation as A
+import AST.PrettyPrint
 import Text.PrettyPrint as P
-import qualified Type.Alias as Alias
 import Type.Type
 
 -- Pool
@@ -18,10 +17,10 @@ import Type.Type
 -- The rank of each variable is less than or equal to the pool's "maxRank"
 -- The young pool exists to make it possible to identify these vars in constant time.
 
-data Pool = Pool {
-  maxRank :: Int,
-  inhabitants :: [Variable]
-} deriving Show
+data Pool = Pool
+    { maxRank :: Int
+    , inhabitants :: [Variable]
+    } deriving Show
 
 emptyPool = Pool { maxRank = outermostRank, inhabitants = [] }
 
@@ -33,7 +32,7 @@ data SolverState = SS {
     sSavedEnv :: Env,
     sPool :: Pool,
     sMark :: Int,
-    sErrors :: [Alias.Rules -> IO P.Doc]
+    sErrors :: [P.Doc]
 }
 
 initialState = SS {
@@ -47,13 +46,15 @@ initialState = SS {
 modifyEnv  f = modify $ \state -> state { sEnv = f (sEnv state) }
 modifyPool f = modify $ \state -> state { sPool = f (sPool state) }
 
+addError :: A.Region -> Maybe String -> UF.Point Descriptor -> UF.Point Descriptor
+         -> StateT SolverState IO ()
 addError region hint t1 t2 =
-    modify $ \state -> state { sErrors = makeError : sErrors state }
+  do err <- liftIO makeError
+     modify $ \state -> state { sErrors = err : sErrors state }
   where
-    makeError rules = do
-      let prettiest = pretty . Alias.realias rules
-      t1' <- prettiest <$> toSrcType t1
-      t2' <- prettiest <$> toSrcType t2
+    makeError = do
+      t1' <- pretty <$> toSrcType t1
+      t2' <- pretty <$> toSrcType t2
       return . P.vcat $
          [ P.text "Type error" <+> pretty region <> P.colon
          , maybe P.empty P.text hint
@@ -103,17 +104,20 @@ introduce variable = do
 flatten :: Type -> StateT SolverState IO Variable
 flatten term =
   case term of
-    VarN v -> return v
-    TermN t -> do
+    VarN maybeAlias v -> do
+      liftIO $ UF.modifyDescriptor v $ \desc -> desc { alias = maybeAlias <|> alias desc }
+      return v
+    TermN maybeAlias t -> do
       flatStructure <- traverseTerm flatten t
       pool <- getPool
-      var <- liftIO . UF.fresh $ Descriptor {
-               structure = Just flatStructure,
-               rank = maxRank pool,
-               flex = Flexible,
-               name = Nothing,
-               copy = Nothing,
-               mark = noMark
+      var <- liftIO . UF.fresh $ Descriptor
+             { structure = Just flatStructure
+             , rank = maxRank pool
+             , flex = Flexible
+             , name = Nothing
+             , copy = Nothing
+             , mark = noMark
+             , alias = maybeAlias
              }
       register var
 
@@ -139,18 +143,19 @@ makeCopy alreadyCopied variable = do
 
        | otherwise -> do
            pool <- getPool
-           newVar <- liftIO $ UF.fresh $ Descriptor {
-                                   structure = Nothing,
-                                   rank = maxRank pool,
-                                   mark = noMark,
-                                   flex = case flex desc of
-                                            Is s -> Is s
-                                            _ -> Flexible,
-                                   copy = Nothing,
-                                   name = case flex desc of
-                                            Rigid -> Nothing
-                                            _ -> name desc
-                                 }
+           newVar <- liftIO $ UF.fresh $ Descriptor
+                     { structure = Nothing
+                     , rank = maxRank pool
+                     , mark = noMark
+                     , flex = case flex desc of
+                                Is s -> Is s
+                                _ -> Flexible
+                     , copy = Nothing
+                     , name = case flex desc of
+                                Rigid -> Nothing
+                                _ -> name desc
+                     , alias = Nothing
+                     }
            register newVar
 
            -- Link the original variable to the new variable. This lets us
