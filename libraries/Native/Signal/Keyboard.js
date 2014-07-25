@@ -29,7 +29,7 @@ Elm.Native.Keyboard.make = function(elm) {
         elm.notify(upEvents.id, e);
     });
 
-    elm.addListener([blurEvents.id], document, 'blur', function blur(e) {
+    elm.addListener([blurEvents.id], window, 'blur', function blur(e) {
         elm.notify(blurEvents.id, null);
     });
 

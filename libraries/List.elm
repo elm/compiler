@@ -10,16 +10,19 @@ list must have the same type.
 @docs head, tail, last, filter, take, drop
 
 # Putting Lists Together
-@docs concat, concatMap, join, intersperse, zip, zipWith, repeat
+@docs concat, join, intersperse, zip, zipWith, repeat
 
 # Taking Lists Apart
 @docs partition, unzip
 
 # Folds
-@docs foldr, foldl, foldr1, foldl1, scanl, scanl1
+@docs foldr, foldl
+
+# Special Maps
+@docs filterMap, concatMap, indexedMap
 
 # Special Folds
-@docs sum, product, maximum, minimum, all, any, and, or
+@docs sum, product, maximum, minimum, all, any, foldr1, foldl1, scanl, scanl1
 
 # Sorting
 @docs sort, sortBy, sortWith
@@ -35,6 +38,7 @@ possibly should be approached another way.
 -}
 
 import Basics (..)
+import Maybe ( Maybe(Just,Nothing) )
 import Native.List
 
 {-| Add an element to the front of a list `(1 :: [2,3] == [1,2,3])` -}
@@ -81,6 +85,15 @@ isEmpty xs =
 map : (a -> b) -> [a] -> [b]
 map = Native.List.map
 
+{-| Same as `map` but the function is also applied to the index of each
+element (starting at zero).
+
+      indexedMap (,) ["Tom","Sue","Bob"] == [ (0,"Tom"), (1,"Sue"), (2,"Bob") ]
+-}
+indexedMap : (Int -> a -> b) -> [a] -> [b]
+indexedMap f xs =
+    zipWith f [ 0 .. length xs - 1 ] xs
+
 {-| Reduce a list from the left: `(foldl (::) [] [1,2,3] == [3,2,1])` -}
 foldl : (a -> b -> b) -> b -> [a] -> b
 foldl = Native.List.foldl
@@ -117,6 +130,22 @@ scanl1 = Native.List.scanl1
 filter : (a -> Bool) -> [a] -> [a]
 filter = Native.List.filter
 
+{-| Apply a function that may succeed to all values in the list, but only keep
+the successes.
+
+      toInt : String -> Maybe Int
+
+      filterMap toInt ["3", "4.0", "5", "hats"] == [3,5]
+-}
+filterMap : (a -> Maybe b) -> [a] -> [b]
+filterMap xs = Native.List.foldr maybeCons [] xs
+
+maybeCons : Maybe a -> [a] -> [a]
+maybeCons mx xs =
+    case mx of
+      Just x -> x :: xs
+      Nothing -> xs
+
 {-| Determine the length of a list: `(length [1,2,3] == 3)` -}
 length : [a] -> Int
 length = Native.List.length
@@ -132,14 +161,6 @@ all = Native.List.all
 {-| Check to see if any elements satisfy the predicate. -}
 any : (a -> Bool) -> [a] -> Bool
 any = Native.List.any
-
-{-| Check to see if all elements are True. -}
-and : [Bool] -> Bool
-and = foldl (&&) True
-
-{-| Check to see if any elements are True. -}
-or : [Bool] -> Bool
-or = foldl (||) False
 
 {-| Concatenate a list of appendable things:
 
