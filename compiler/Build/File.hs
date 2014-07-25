@@ -1,29 +1,29 @@
 {-# OPTIONS_GHC -W #-}
 module Build.File (build) where
 
-import Control.Applicative      ((<$>))
-import Control.Monad.Error      (runErrorT)
+import Control.Applicative ((<$>))
+import Control.Monad.Error (runErrorT)
 import Control.Monad.RWS.Strict
 import System.Directory
 import System.Exit
 import System.FilePath
 import System.IO
 
-import qualified Data.Binary            as Binary
-import qualified Data.List              as List
-import qualified Data.Maybe             as Maybe
-import qualified Data.Map               as Map
-import qualified Data.ByteString.Lazy   as L
+import qualified Data.Binary as Binary
+import qualified Data.List as List
+import qualified Data.Maybe as Maybe
+import qualified Data.Map as Map
+import qualified Data.ByteString.Lazy as L
 
-import qualified Build.Dependencies     as Deps
-import qualified Build.Flags            as Flag
-import qualified Build.Interface        as Interface
-import qualified Build.Print            as Print
-import qualified Build.Source           as Source
-import qualified Build.Utils            as Utils
-import qualified Generate.JavaScript    as JS
-import qualified Parse.Module           as Parser
-import qualified AST.Module             as Module
+import qualified Build.Dependencies as Deps
+import qualified Build.Flags as Flag
+import qualified Build.Interface as Interface
+import qualified Build.Print as Print
+import qualified Build.Source as Source
+import qualified Build.Utils as Utils
+import qualified Generate.JavaScript as JS
+import qualified Parse.Module as Parser
+import qualified AST.Module as Module
 
 -- Reader: Runtime flags, always accessible
 -- Writer: Remember the last module to be accessed
