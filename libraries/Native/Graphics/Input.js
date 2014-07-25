@@ -21,47 +21,67 @@ Elm.Native.Graphics.Input.make = function(elm) {
         return { _:{}, signal:signal, handle:signal };
     }
 
-    function renderDropDown(signal, values) {
-        return function(_) {
-            var entries = List.toArray(values);
+    function renderDropDown(model) {
+        var drop = newNode('select');
+        drop.style.border = '0 solid';
+        drop.style.pointerEvents = 'auto';
+        drop.style.display = 'block';
 
-            var drop = newNode('select');
-            drop.style.border = '0 solid';
-            drop.style.pointerEvents = 'auto';
-            drop.style.display = 'block';
-            for (var i = 0; i < entries.length; ++i) {
-                var option = newNode('option');
-                var name = entries[i]._0;
-                option.value = name;
-                option.innerHTML = name;
-                drop.appendChild(option);
-            }
-            drop.addEventListener('change', function() {
-                elm.notify(signal.id, entries[drop.selectedIndex]._1);
-            });
+        drop.elm_signal = model.signal;
+        drop.elm_values = List.toArray(model.values);
+        var values = drop.elm_values;
 
-            var t = drop.cloneNode(true);
-            t.style.visibility = "hidden";
+        for (var i = 0; i < values.length; ++i) {
+            var option = newNode('option');
+            var name = values[i]._0;
+            option.value = name;
+            option.innerHTML = name;
+            drop.appendChild(option);
+        }
+        drop.addEventListener('change', function() {
+            elm.notify(drop.elm_signal.id, drop.elm_values[drop.selectedIndex]._1);
+        });
 
-            elm.node.appendChild(t);
-            var style = window.getComputedStyle(t, null);
-            var w = Math.ceil(style.getPropertyValue("width").slice(0,-2) - 0);
-            var h = Math.ceil(style.getPropertyValue("height").slice(0,-2) - 0);
-            elm.node.removeChild(t);
-            return drop;
-        };
+        return drop;
     }
 
     function updateDropDown(node, oldModel, newModel) {
+        node.elm_signal = newModel.signal;
+        node.elm_values = List.toArray(newModel.values);
+
+        var values = node.elm_values;
+        var kids = node.childNodes;
+        var kidsLength = kids.length;
+
+        var i = 0;
+        for (; i < kidsLength && i < values.length; ++i) {
+            var option = kids[i];
+            var name = values[i]._0;
+            option.value = name;
+            option.innerHTML = name;
+        }
+        for (; i < kidsLength; ++i) {
+            node.removeChild(node.lastChild);
+        }
+        for (; i < values.length; ++i) {
+            var option = newNode('option');
+            var name = values[i]._0;
+            option.value = name;
+            option.innerHTML = name;
+            node.appendChild(option);
+        }
     }
 
     function dropDown(signal, values) {
         return A3(newElement, 100, 24, {
             ctor: 'Custom',
             type: 'DropDown',
-            render: renderDropDown(signal,values),
+            render: renderDropDown,
             update: updateDropDown,
-            model: {}
+            model: {
+                signal: signal,
+                values: values
+            }
         });
     }
 
