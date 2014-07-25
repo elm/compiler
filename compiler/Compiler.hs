@@ -14,6 +14,7 @@ import GHC.Conc
 import Build.Dependencies (getBuildRecipe, Recipe(..))
 import qualified Generate.Html as Html
 import qualified Metadata.Prelude as Prelude
+import qualified Build.SrcFile as SrcFile
 import qualified Build.Utils as Utils
 import qualified Build.Flags as Flag
 import qualified Build.File as File
@@ -37,10 +38,11 @@ build flags rootFile =
     do let noPrelude = Flag.no_prelude flags
        builtIns <- Prelude.interfaces noPrelude
 
+       rootSrc <- SrcFile.make rootFile
        (Recipe elmFiles jsFiles) <-
            if Flag.make flags
              then Utils.run (getBuildRecipe (Flag.src_dir flags) builtIns rootFile)
-             else return (Recipe [rootFile] [])
+             else return (Recipe [rootSrc] [])
 
        moduleName <- File.build flags builtIns elmFiles
 
@@ -54,7 +56,7 @@ build flags rootFile =
            else do putStr "Generating HTML ... "
                    makeHtml js moduleName
 
-       let targetFile = Utils.buildPath flags rootFile extension
+       let targetFile = Utils.buildPath flags rootSrc extension
        createDirectoryIfMissing True (takeDirectory targetFile)
        BS.writeFile targetFile code
        putStrLn "Done"

@@ -96,6 +96,7 @@ Library
                        Build.Interface,
                        Build.Print,
                        Build.Source,
+                       Build.SrcFile,
                        Build.Utils,
                        Paths_Elm
 
@@ -187,6 +188,7 @@ Executable elm
                        Build.Interface,
                        Build.Print,
                        Build.Source,
+                       Build.SrcFile,
                        Build.Utils,
                        Paths_Elm
 

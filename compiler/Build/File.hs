@@ -20,6 +20,8 @@ import qualified Build.Flags            as Flag
 import qualified Build.Interface        as Interface
 import qualified Build.Print            as Print
 import qualified Build.Source           as Source
+import qualified Build.SrcFile          as SrcFile
+import Build.SrcFile (SrcFile)
 import qualified Build.Utils            as Utils
 import qualified Generate.JavaScript    as JS
 import qualified Parse.Module           as Parser
@@ -44,7 +46,7 @@ evalBuild flags interfaces build =
 
 -- | Builds a list of files, returning the moduleName of the last one.
 --   Returns \"\" if the list is empty
-build :: Flag.Flags -> Module.Interfaces -> [FilePath] -> IO String
+build :: Flag.Flags -> Module.Interfaces -> [SrcFile] -> IO String
 build flags interfaces files =
   do (ifaces, topName) <- evalBuild flags interfaces (buildAll files)
      let removeTopName = Maybe.maybe id Map.delete topName
@@ -66,9 +68,9 @@ build flags interfaces files =
                 Just tname -> "\n    All ports must appear in module " ++ tname
             ]
 
-buildAll :: [FilePath] -> Build ()
+buildAll :: [SrcFile] -> Build ()
 buildAll fs = mapM_ (uncurry build1) (zip [1..] fs)
-  where build1 :: Integer -> FilePath -> Build ()
+  where build1 :: Integer -> SrcFile -> Build ()
         build1 num fname = do
           shouldCompile <- shouldBeCompiled fname
           if shouldCompile
@@ -79,17 +81,19 @@ buildAll fs = mapM_ (uncurry build1) (zip [1..] fs)
 
         total = length fs
 
-shouldBeCompiled :: FilePath -> Build Bool
-shouldBeCompiled filePath = do
+shouldBeCompiled :: SrcFile -> Build Bool
+shouldBeCompiled src = do
   flags <- ask
-  let alreadyCompiled = liftIO $ do
-        existsi <- doesFileExist (Utils.elmi flags filePath)
-        existso <- doesFileExist (Utils.elmo flags filePath)
+  let filePath = SrcFile.toPath src
+
+      alreadyCompiled = liftIO $ do
+        existsi <- doesFileExist (Utils.elmi flags src)
+        existso <- doesFileExist (Utils.elmo flags src)
         return $ existsi && existso
 
       outDated = liftIO $ do
-        tsrc <- getModificationTime filePath
-        tint <- getModificationTime (Utils.elmo flags filePath)
+        tsrc <- getModificationTime $ filePath
+        tint <- getModificationTime (Utils.elmo flags src)
         return (tsrc > tint)
 
       dependenciesUpdated = do
@@ -116,19 +120,19 @@ orM m1 m2 = do b1 <- m1
 anyM :: (Monad m) => (a -> m Bool) -> [a] -> m Bool
 anyM f = foldr (orM . f) (return False)
 
-retrieve :: FilePath -> Build ()
-retrieve filePath = do
+retrieve :: SrcFile -> Build ()
+retrieve src = do
   flags <- ask
-  iface <- liftIO $ Interface.load (Utils.elmi flags filePath)
-  case Interface.isValid filePath iface of
+  iface <- liftIO $ Interface.load (Utils.elmi flags src)
+  case Interface.isValid (SrcFile.toPath src) iface of
     Right (name, interface) ->
       do liftIO $ when (Flag.print_types flags) (Print.types (Module.iTypes interface))
          update name interface False
 
     Left err -> liftIO $ Print.failure err
 
-compile :: String -> FilePath -> Build ()
-compile number filePath =
+compile :: String -> SrcFile -> Build ()
+compile number src =
   do flags      <- ask
      binterfaces <- get
      source <- liftIO $ readFile filePath
@@ -153,6 +157,8 @@ compile number filePath =
      update name newInters True
 
   where
+    filePath = SrcFile.toPath src
+    
     getName source = case Parser.getModuleName source of
                        Just n -> n
                        Nothing -> "Main"
@@ -165,9 +171,9 @@ compile number filePath =
     generateCache name interfs canonicalModule = do
       flags <- ask
       liftIO $ do
-        createDirectoryIfMissing True . dropFileName $ Utils.elmi flags filePath
-        writeFile (Utils.elmo flags filePath) (JS.generate canonicalModule)
-        withBinaryFile (Utils.elmi flags filePath) WriteMode $ \handle ->
+        createDirectoryIfMissing True . dropFileName $ Utils.elmi flags src
+        writeFile (Utils.elmo flags src) (JS.generate canonicalModule)
+        withBinaryFile (Utils.elmi flags src) WriteMode $ \handle ->
           L.hPut handle (Binary.encode (name, interfs))
 
 update :: String -> Module.Interface -> Bool -> Build ()
