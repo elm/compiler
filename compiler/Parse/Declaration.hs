@@ -11,8 +11,10 @@ import qualified AST.Declaration as D
 
 declaration :: IParser D.SourceDecl
 declaration =
-  (D.DocComment <$> docComment) <|>
-  (D.Decl <$> (alias <|> datatype <|> infixDecl <|> port <|> definition))
+    choice
+    [ D.DocComment <$> docComment
+    , D.Decl <$> (alias <|> datatype <|> infixDecl <|> port <|> definition)
+    ]
 
 definition :: IParser D.SourceDecl'
 definition = D.Definition <$> Expr.def
@@ -25,7 +27,7 @@ alias = do
   args <- spacePrefix lowVar
   padded equals
   tipe <- Type.expr
-  return $ D.TypeAlias name args tipe
+  return (D.TypeAlias name args tipe)
 
 datatype :: IParser D.SourceDecl'
 datatype = do

@@ -14,7 +14,7 @@ import Parse.Helpers
 import Parse.Declaration (infixDecl)
 import Parse.Module
 import qualified Parse.Declaration as Decl
-import Transform.Declaration (combineAnnotations)
+import Transform.Declaration (validate)
 
 freshDef = commitIf (freshLine >> (letter <|> char '_')) $ do
              freshLine
@@ -25,11 +25,11 @@ decls = do d <- Decl.declaration <?> "at least one datatype or variable definiti
 
 program :: OpTable -> String -> Either [P.Doc] M.ValidModule
 program table src =
-    do (M.Module names filePath exs ims doc parseDecls) <-
+    do (M.Module names filePath exs ims doc sourceDecls) <-
            setupParserWithTable table programParser src
 
        decls <-
-           either (\err -> Left [P.text err]) Right (combineAnnotations parseDecls)
+           either (\err -> Left [P.text err]) Right (validate sourceDecls)
        return $ M.Module names filePath exs ims doc decls
 
 data ProgramHeader = ProgramHeader
