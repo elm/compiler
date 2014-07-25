@@ -54,9 +54,6 @@ interfaces lbi = rtsDir lbi </> "interfaces.data"
 elm :: LocalBuildInfo -> FilePath
 elm lbi = buildDir lbi </> "elm" </> "elm"
 
-document :: LocalBuildInfo -> FilePath
-document lbi = buildDir lbi </> "elm-doc" </> "elm-doc"
-
 -- Care!  This appears to be based on an unstable API
 -- See: http://www.haskell.org/cabal/release/cabal-latest/doc/API/Cabal/Distribution-Simple.html#2
 
@@ -108,14 +105,13 @@ compileLibraries lbi = do
   createDirectoryIfMissing True rts
   out_c <- canonicalizePath temp            -- temp (root folder)
   elm_c <- canonicalizePath (elm lbi)       -- dist/build/elm/elm
-  doc_c <- canonicalizePath (document lbi)  -- dist/build/elm-doc/elm-doc
   rtd_c <- canonicalizePath rts             -- data
 
   let make file = do
         -- replace 'system' call with 'runProcess' which handles args better
         -- and allows env variable "Elm_datadir" which is used by LoadLibraries
         -- to find docs.json
-        let args = [ "--only-js", "--make", "--no-prelude"
+        let args = [ "--only-js", "--make", "--no-prelude", "--with-docs"
                    , "--cache-dir="++out_c, "--build-dir="++out_c, file ]
             arg = Just [("Elm_datadir", rtd_c)]
         handle <- runProcess elm_c args Nothing arg Nothing Nothing Nothing
@@ -126,7 +122,6 @@ compileLibraries lbi = do
   setCurrentDirectory "libraries"
   paths <- getFiles ".elm" "."
   files <- unzip `fmap` mapM make paths
-  mapM_ (\path -> rawSystem doc_c [path]) paths
   setCurrentDirectory ".."
   return files
 

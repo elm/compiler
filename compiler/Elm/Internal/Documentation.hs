@@ -4,10 +4,12 @@
 module Elm.Internal.Documentation where
 
 import Data.Aeson
-import qualified Data.Map as Map
+import Data.List (intercalate)
 import Data.Map (Map)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import GHC.Generics
+import qualified Data.Map as Map
 
 import qualified AST.Type as T
 import qualified AST.Variable as Var
@@ -23,14 +25,23 @@ data ModuleDocument = ModuleDocument
     , datatypes :: [Document]
     } deriving (Generic)
 
-instance ToJSON ModuleDocument
-
 data Document = Document
     { docName :: String
     , raw :: String
     , comment :: String
     , body :: Map Text Value
     } deriving (Show)
+
+generateDocumentation :: M.CanonicalModule -> ModuleDocument
+generateDocumentation modul = ModuleDocument
+    { name = intercalate "." $ M.names modul
+    , document = fromMaybe "" $ M.comment modul
+    , values = []
+    , aliases = []
+    , datatypes = []
+    }
+
+instance ToJSON ModuleDocument
 
 instance ToJSON Document where
   toJSON doc =

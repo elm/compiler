@@ -17,7 +17,7 @@ data Flags = Flags
     , cache_dir :: FilePath
     , build_dir :: FilePath
     , src_dir :: [FilePath]
-    , doc_path :: Maybe FilePath
+    , with_docs :: Bool
     }
     deriving (Data,Typeable,Show,Eq)
 
@@ -58,8 +58,8 @@ flags = Flags
   , print_types = False
       &= help "Print out inferred types of top-level definitions."
 
-  , doc_path = Nothing &= typFile
-      &= help "Save machine-readable documentation of compiled source to given path"
+  , with_docs = False
+      &= help "Save machine-readable documentation of compiled source to docs/"
   } &= help "Compile Elm programs to HTML, CSS, and JavaScript."
     &= helpArg [explicit, name "help", name "h"]
     &= versionArg [explicit, name "version", name "v", summary (show Version.elmVersion)]

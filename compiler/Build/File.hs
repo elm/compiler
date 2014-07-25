@@ -9,12 +9,14 @@ import System.Exit
 import System.FilePath
 import System.IO
 
+import qualified Data.Aeson as Aeson
 import qualified Data.Binary as Binary
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy as L
 
+import qualified Elm.Internal.Documentation as Doc
 import qualified Build.Dependencies as Deps
 import qualified Build.Flags as Flag
 import qualified Build.Interface as Interface
@@ -144,6 +146,11 @@ compile number filePath =
            Right modul -> return modul
            Left errors -> do Print.errors errors
                              exitFailure
+
+     let documentation = Doc.generateDocumentation canonicalModule
+     liftIO $ do let docPath = "docs" </> replaceExtension filePath ".json"
+                 createDirectoryIfMissing True (takeDirectory docPath)
+                 L.writeFile docPath $ Aeson.encode documentation
 
      liftIO $ when (Flag.print_types flags) $ do
        Print.types (Module.types (Module.body canonicalModule))
