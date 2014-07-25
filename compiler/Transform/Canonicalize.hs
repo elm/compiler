@@ -56,7 +56,7 @@ moduleHelp interfaces modul@(Module.Module _ _ exs _ _ decls) =
 
     body :: [D.CanonicalDecl] -> Module.CanonicalBody
     body decls =
-      let decls' = map D.declBody decls in
+      let decls' = map D.body decls in
       Module.CanonicalBody
          { program =
                let expr = Transform.toExpr (Module.getName modul) decls
@@ -126,7 +126,7 @@ filterExports types values =
 
 declToValue :: D.ValidDecl -> [Var.Value]
 declToValue decl =
-    case D.declBody decl of
+    case D.body decl of
       D.Definition (Valid.Definition pattern _ _) ->
           map Var.Value (P.boundVarList pattern)
 
@@ -146,7 +146,7 @@ declaration env decl'@(D.Declaration decl _) =
             in 
                 Env.onError throw (kind env v)
     in
-    (\x -> decl' { D.declBody = x }) <$> case decl of
+    (\x -> decl' { D.body = x }) <$> case decl of
       D.Definition (Valid.Definition p e t) ->
           do p' <- canonicalize pattern "definition" p env p
              e' <- expression env e
@@ -176,8 +176,6 @@ declaration env decl'@(D.Declaration decl _) =
                               return (D.Out name e' t')
 
       D.Fixity assoc prec op -> return $ D.Fixity assoc prec op
-
-      D.DocComment{} -> error "Error: DocComment in canonical declaration"
 
 
 expression :: Environment -> Valid.Expr -> Canonicalizer [Doc] Canonical.Expr

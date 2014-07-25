@@ -29,28 +29,38 @@ extractDocComment doc =
             False -> Nothing
             True -> Just part1
 
--- Attach document comments to following definitions.
--- Two doccomments in a row is an error, doccomment at the end of the file
--- is an error. Notice that any resulting declaration can't be a DocComment
-attachComments :: [D.ValidDecl'] -> Either String [D.ValidDecl]
-attachComments decls =
-  case decls of
-    D.DocComment _ : D.DocComment _ : _ ->
-      Left "Two consequent document comments found!"
-    D.DocComment doc : next : rest ->
-      (:) (D.Declaration next (Just doc)) <$> attachComments rest
-    D.DocComment _ : [] ->
-      Left "Document comment at the end of the file!"
-    next : rest ->
-      (:) (D.Declaration next Nothing) <$> attachComments rest
-    [] -> return []
-
 combineAnnotations :: [D.SourceDecl] -> Either String [D.ValidDecl]
-combineAnnotations decls =
-  do step1 <- attachTypeSignatures decls
-     attachComments step1
+combineAnnotations decls = attachComments decls >>= attachTypeSignatures
 
-attachTypeSignatures :: [D.SourceDecl] -> Either String [D.ValidDecl']
+(<:>) :: (Functor f) => a -> f [a] -> f [a]
+x <:> f = (:) x <$> f
+
+attachComments :: [D.SourceDecl] -> Either String [D.Declaration D.SourceDecl']
+attachComments = go Nothing
+  where go Nothing ls = case ls of
+          D.DocComment doc : rest ->
+            go (extractDocComment doc) rest
+          D.Decl decl : rest ->
+            D.Declaration decl Nothing <:> go Nothing rest
+          [] ->
+            return []
+        go doc@(Just _) ls = case ls of
+          D.DocComment _ : _ ->
+            Left msgTwo
+          D.Decl decl : rest ->
+            D.Declaration decl doc <:> go Nothing rest
+          [] ->
+            Left msgEnd
+
+        msgTwo = "Found two document comments in a row! All document comments"
+                 ++ " must be associated with a top level declaration."
+                 ++ " Maybe you commented out a declaration?"
+
+        msgEnd = "Found document comment at the end of the file! All document"
+                 ++ " comments must be associated with a top level declaration."
+                 ++ " Maybe you commented out a declaration?"
+
+attachTypeSignatures :: [D.Declaration D.SourceDecl'] -> Either String [D.ValidDecl]
 attachTypeSignatures = go
     where
       msg x = "Syntax Error: The type annotation for '" ++ x ++
@@ -58,55 +68,56 @@ attachTypeSignatures = go
 
       exprCombineAnnotations = Expr.crawlLet Def.combineAnnotations
 
+      attachComment comment decl = D.Declaration decl comment
+
+      noComment (D.Declaration body doc) f =
+        case doc of
+          Just _ -> Left "Every definition should have at most one comment!"
+          Nothing -> f body
+
       go decls =
-          case decls of
-            -- simple cases, pass them through with no changes
-            [] -> return []
+        case decls of
+          [] -> return []
+          (D.Declaration body doc) : rest -> let wrap = attachComment doc in case body of
+            D.Datatype name tvars ctors ->
+                wrap (D.Datatype name tvars ctors) <:> go rest
 
-            D.Datatype name tvars ctors : rest ->
-                (:) (D.Datatype name tvars ctors) <$> go rest
+            D.TypeAlias name tvars alias ->
+                wrap (D.TypeAlias name tvars alias) <:> go rest
 
-            D.TypeAlias name tvars alias : rest ->
-                (:) (D.TypeAlias name tvars alias) <$> go rest
-
-            D.Fixity assoc prec op : rest ->
-                (:) (D.Fixity assoc prec op) <$> go rest
-
-            -- remove all multiline comments which are not doccomments
-            D.DocComment comment : rest ->
-              case extractDocComment comment of
-                Just doc -> (:) (D.DocComment doc) <$> go rest
-                Nothing -> go rest
+            D.Fixity assoc prec op ->
+                wrap (D.Fixity assoc prec op) <:> go rest
 
             -- combine definitions
-            D.Definition def : defRest ->
+            D.Definition def ->
                 case def of
                   Source.Definition pat expr ->
                       do expr' <- exprCombineAnnotations expr
                          let def' = Valid.Definition pat expr' Nothing
-                         (:) (D.Definition def') <$> go defRest
+                         wrap (D.Definition def') <:> go rest
 
-                  Source.TypeAnnotation name tipe ->
-                      case defRest of
-                        D.Definition (Source.Definition pat@(P.Var name') expr) : rest
+                  Source.TypeAnnotation name tipe -> case rest of
+                    decl : rest2 -> noComment decl $ \body2 -> case body2 of
+                        D.Definition (Source.Definition pat@(P.Var name') expr)
                             | name == name' ->
                                 do expr' <- exprCombineAnnotations expr
                                    let def' = Valid.Definition pat expr' (Just tipe)
-                                   (:) (D.Definition def') <$> go rest
-
+                                   wrap (D.Definition def') <:> go rest2
                         _ -> Left (msg name)
+                    _ -> Left (msg name)
 
             -- combine ports
-            D.Port port : portRest ->
+            D.Port port ->
                 case port of
                   D.PPDef name _ -> Left (msg name)
-                  D.PPAnnotation name tipe ->
-                      case portRest of
-                        D.Port (D.PPDef name' expr) : rest | name == name' ->
+                  D.PPAnnotation name tipe -> case rest of
+                    decl : rest2 -> noComment decl $ \body2 -> case body2 of
+                        D.Port (D.PPDef name' expr) | name == name' ->
                             do expr' <- exprCombineAnnotations expr
-                               (:) (D.Port (D.Out name expr' tipe)) <$> go rest
+                               wrap (D.Port (D.Out name expr' tipe)) <:> go rest2
+                        _ -> wrap (D.Port (D.In name tipe)) <:> go rest
 
-                        _ -> (:) (D.Port (D.In name tipe)) <$> go portRest
+                    _ -> wrap (D.Port (D.In name tipe)) <:> go rest
 
 
 toExpr :: String -> [D.CanonicalDecl] -> [Canonical.Def]
@@ -115,7 +126,7 @@ toExpr moduleName = concatMap (toDefs moduleName)
 toDefs :: String -> D.CanonicalDecl -> [Canonical.Def]
 toDefs moduleName decl =
   let typeVar = Var.Canonical (Var.Module moduleName) in
-  case D.declBody decl of
+  case D.body decl of
     D.Definition def -> [def]
 
     D.Datatype name tvars constructors -> concatMap toDefs' constructors
@@ -154,10 +165,6 @@ toDefs moduleName decl =
 
     -- no constraints are needed for fixity declarations
     D.Fixity{} -> []
-
-    -- doccomments shouldn't be in a canonical declaration
-    D.DocComment{} -> error "Error: DocComment in canonical declaration"
-
 
 arguments :: [String]
 arguments = map (:[]) ['a'..'z'] ++ map (\n -> "_" ++ show (n :: Int)) [1..]

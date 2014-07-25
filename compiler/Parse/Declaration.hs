@@ -10,12 +10,14 @@ import qualified Parse.Type as Type
 import qualified AST.Declaration as D
 
 declaration :: IParser D.SourceDecl
-declaration = docDeclComment <|> alias <|> datatype <|> infixDecl <|> port <|> definition
+declaration =
+  (D.DocComment <$> docComment) <|>
+  (D.Decl <$> (alias <|> datatype <|> infixDecl <|> port <|> definition))
 
-definition :: IParser D.SourceDecl
+definition :: IParser D.SourceDecl'
 definition = D.Definition <$> Expr.def
 
-alias :: IParser D.SourceDecl
+alias :: IParser D.SourceDecl'
 alias = do
   reserved "type" <?> "type alias (type Point = {x:Int, y:Int})"
   forcedWS
@@ -23,9 +25,9 @@ alias = do
   args <- spacePrefix lowVar
   padded equals
   tipe <- Type.expr
-  return (D.TypeAlias name args tipe)
+  return $ D.TypeAlias name args tipe
 
-datatype :: IParser D.SourceDecl
+datatype :: IParser D.SourceDecl'
 datatype = do
   reserved "data" <?> "datatype definition (data T = A | B | ...)"
   forcedWS
@@ -35,12 +37,7 @@ datatype = do
   tcs <- pipeSep1 Type.constructor
   return $ D.Datatype name args tcs
 
-
-docDeclComment :: IParser D.SourceDecl
-docDeclComment = D.DocComment <$> docComment
-
-
-infixDecl :: IParser D.SourceDecl
+infixDecl :: IParser D.SourceDecl'
 infixDecl = do
   assoc <- choice [ reserved "infixl" >> return D.L
                   , reserved "infix"  >> return D.N
@@ -51,7 +48,7 @@ infixDecl = do
   D.Fixity assoc (read [n]) <$> anyOp
 
 
-port :: IParser D.SourceDecl
+port :: IParser D.SourceDecl'
 port =
   do try (reserved "port")
      whitespace

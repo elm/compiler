@@ -33,10 +33,10 @@ program table src =
        return $ M.Module names filePath exs ims doc decls
 
 data ProgramHeader = ProgramHeader
-    { _phNames :: [String]
-    , _phExports :: Var.Listing Var.Value
-    , _phDocComment :: Maybe String
-    , _phImports :: [(String, M.ImportMethod)]
+    { _names :: [String]
+    , _exports :: Var.Listing Var.Value
+    , _docComment :: Maybe String
+    , _imports :: [(String, M.ImportMethod)]
     } deriving (Show)
 
 programHeader :: IParser ProgramHeader
@@ -60,7 +60,7 @@ dependencies :: String -> Either [P.Doc] (String, [String])
 dependencies =
   let getName = List.intercalate "." in
   setupParser $ do header <- programHeader
-                   return (getName $ _phNames header, map fst $ _phImports header)
+                   return (getName $ _names header, map fst $ _imports header)
 
 setupParserWithTable :: OpTable -> IParser a -> String -> Either [P.Doc] a
 setupParserWithTable table p source =
