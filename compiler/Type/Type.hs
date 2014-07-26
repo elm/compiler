@@ -376,10 +376,13 @@ instance Crawl Descriptor where
                
 toSrcType :: Variable -> IO T.CanonicalType
 toSrcType var =
-  do desc    <- UF.descriptor =<< addNames var
-     srcType <- maybe (backupSrcType desc) termToSrcType (structure desc)
-     return $ maybe srcType (\name -> T.Aliased name srcType) (alias desc)
+    go =<< addNames var
   where
+    go v = do
+      desc <- UF.descriptor v
+      srcType <- maybe (backupSrcType desc) termToSrcType (structure desc)
+      return $ maybe srcType (\name -> T.Aliased name srcType) (alias desc)
+
     backupSrcType desc = 
         case name desc of
           Just v@(Var.Canonical _ x@(c:_))
@@ -394,22 +397,22 @@ toSrcType var =
     termToSrcType term =
         case term of
           App1 a b -> do
-            a' <- toSrcType a
-            b' <- toSrcType b
+            a' <- go a
+            b' <- go b
             case a' of
               T.App f args -> return $ T.App f (args ++ [b'])
               _            -> return $ T.App a' [b']
 
-          Fun1 a b -> T.Lambda <$> toSrcType a <*> toSrcType b
+          Fun1 a b -> T.Lambda <$> go a <*> go b
 
-          Var1 a -> toSrcType a
+          Var1 a -> go a
 
           EmptyRecord1 -> return $ T.Record [] Nothing
 
           Record1 tfields extension -> do
-            fields' <- traverse (mapM toSrcType) tfields
+            fields' <- traverse (mapM go) tfields
             let fields = concat [ map ((,) name) ts | (name,ts) <- Map.toList fields' ]
-            ext' <- dealias <$> toSrcType extension
+            ext' <- dealias <$> go extension
             return $ case ext' of
                        T.Record fs ext -> T.Record (fs ++ fields) ext
                        T.Var _ -> T.Record fields (Just ext')
