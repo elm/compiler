@@ -2,6 +2,7 @@
 module AST.Declaration where
 
 import Data.Binary
+import qualified AST.Annotation as A
 import qualified AST.Expression.Source as Source
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Expression.Canonical as Canonical
@@ -18,10 +19,7 @@ data Declaration' port def var
     | Fixity Assoc Int String
       deriving (Show)
 
-data AnnotatedDecl decl = AnnotatedDecl
-    { decl :: decl
-    , comment :: Maybe String
-    } deriving (Show)
+type AnnotatedDecl = A.Annotated (Maybe String)
 
 data Assoc = L | N | R
     deriving (Eq)

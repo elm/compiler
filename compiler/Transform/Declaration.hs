@@ -37,7 +37,7 @@ attachComments srcDecls =
                 Nothing -> go (extractDocComment doc) rest
 
           D.Decl decl : rest ->
-              D.AnnotatedDecl decl maybeComment <:> go Nothing rest
+              A.A maybeComment decl <:> go Nothing rest
 
           [] -> maybe (return []) (const (Left msgEnd)) maybeComment
 
@@ -74,8 +74,8 @@ combineAnnotations = go
     go decls =
       case decls of
         [] -> return []
-        (D.AnnotatedDecl decl comment) : rest ->
-          let goAfter d = D.AnnotatedDecl d comment <:> go rest in
+        (A.A comment decl) : rest ->
+          let goAfter d = A.A comment d <:> go rest in
           case decl of
             -- actually combine type annotations
             D.Definition def -> combineDefinitions def comment rest
@@ -92,13 +92,14 @@ combineAnnotations = go
             D.Fixity assoc prec op ->
                 goAfter (D.Fixity assoc prec op)
 
+    noComment :: Maybe String -> Either String a -> Either String a
     noComment doc value =
         case doc of
           Nothing -> value
           Just _ -> Left "A document comment can not come after a type annotation!"
 
     combineDefinitions def comment rest =
-      let continue decl remaining = D.AnnotatedDecl decl comment <:> go remaining in
+      let continue decl remaining = A.A comment decl <:> go remaining in
       case def of
         Source.Definition pat expr ->
             do expr' <- exprCombineAnnotations expr
@@ -108,7 +109,7 @@ combineAnnotations = go
         Source.TypeAnnotation name tipe ->
             case rest of
               [] -> Left (msg name)
-              (D.AnnotatedDecl decl doc) : rest2 ->
+              (A.A doc decl) : rest2 ->
                   noComment doc $
                   case decl of
                     D.Definition (Source.Definition pat@(P.Var name') expr)
@@ -120,14 +121,14 @@ combineAnnotations = go
                     _ -> Left (msg name)
 
     combinePorts port comment rest =
-      let continue decl remaining = D.AnnotatedDecl decl comment <:> go remaining in
+      let continue decl remaining = A.A comment decl <:> go remaining in
       case port of
         D.PPDef name _ -> Left (msg name)
         D.PPAnnotation name tipe ->
             case rest of
               [] -> continue (D.Port (D.In name tipe)) []
 
-              (D.AnnotatedDecl decl doc) : rest2 ->
+              (A.A doc decl) : rest2 ->
                   noComment doc $
                   case decl of
                     D.Port (D.PPDef name' expr) | name == name' ->
@@ -143,7 +144,7 @@ toExpr moduleName = concatMap (toDefs moduleName)
 toDefs :: String -> D.CanonicalDecl -> [Canonical.Def]
 toDefs moduleName decl =
   let typeVar = Var.Canonical (Var.Module moduleName) in
-  case D.decl decl of
+  case A.value decl of
     D.Definition def -> [def]
 
     D.Datatype name tvars constructors -> concatMap toDefs' constructors

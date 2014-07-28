@@ -5,7 +5,7 @@ import qualified Data.Map as Map
 import Text.PrettyPrint (Doc)
 
 import AST.Module as Module
-import qualified AST.Declaration as Decl
+import qualified AST.Annotation as A
 import qualified Parse.Parse as Parse
 import qualified Metadata.Prelude as Prelude
 import qualified Transform.Check as Check
@@ -20,7 +20,7 @@ build noPrelude interfaces source =
      -- Parse the source code and validate that it is well formed.
      validModule <- do
        modul <- Prelude.add noPrelude `fmap` Parse.program infixes source
-       case Check.mistakes (map Decl.decl $ body modul) of
+       case Check.mistakes (map A.value $ body modul) of
          [] -> return modul
          ms -> Left ms
 
