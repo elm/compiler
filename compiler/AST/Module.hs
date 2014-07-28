@@ -6,6 +6,8 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import Control.Applicative ((<$>),(<*>))
 
+import AST.Declaration (AnnotatedDecl)
+import qualified AST.Annotation as A
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Declaration as Decl
 import qualified AST.Type as Type
@@ -32,10 +34,10 @@ getName modul =
 data CanonicalBody = CanonicalBody
     { program   :: Canonical.Expr
     , types     :: Types
-    , fixities  :: [(Decl.Assoc, Int, String)]
+    , fixities  :: [AnnotatedDecl (Decl.Assoc, Int, String)]
     , aliases   :: Aliases
     , datatypes :: ADTs
-    , ports     :: [String]
+    , ports     :: [AnnotatedDecl String]
     } deriving (Show)
 
 type SourceModule    = Module (Var.Listing Var.Value) [Decl.SourceDecl]
@@ -45,18 +47,18 @@ type CanonicalModule = Module [Var.Value] CanonicalBody
 type Interfaces = Map.Map String Interface
 
 type Types   = Map.Map String Type.CanonicalType
-type Aliases = Map.Map String ( [String], Type.CanonicalType )
-type ADTs    = Map.Map String (AdtInfo String)
+type Aliases = Map.Map String (AnnotatedDecl ([String], Type.CanonicalType))
+type ADTs    = Map.Map String (AnnotatedDecl (AdtInfo String))
 
 type AdtInfo v = ( [String], [(v, [Type.CanonicalType])] )
 type CanonicalAdt = (Var.Canonical, AdtInfo Var.Canonical)
 
 data Interface = Interface
     { iVersion  :: Version.Version
-    , iTypes    :: Types
+    , iTypes    :: Map.Map String Type.CanonicalType
     , iImports  :: [(String, ImportMethod)]
-    , iAdts     :: ADTs
-    , iAliases  :: Aliases
+    , iAdts     :: Map.Map String (AdtInfo String)
+    , iAliases  :: Map.Map String ([String], Type.CanonicalType)
     , iFixities :: [(Decl.Assoc, Int, String)]
     , iPorts    :: [String]
     } deriving (Show)
@@ -68,10 +70,10 @@ toInterface modul =
     { iVersion  = Version.elmVersion
     , iTypes    = types body'
     , iImports  = imports modul
-    , iAdts     = datatypes body'
-    , iAliases  = aliases body'
-    , iFixities = fixities body'
-    , iPorts    = ports body'
+    , iAdts     = Map.map A.value $ datatypes body'
+    , iAliases  = Map.map A.value $ aliases body'
+    , iFixities = map A.value $ fixities body'
+    , iPorts    = map A.value $ ports body'
     }
 
 instance Binary Interface where

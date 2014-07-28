@@ -74,12 +74,11 @@ canonicalizeAdts interfaces modul =
     localAdts ++ importedAdts
   where
     localAdts :: [CanonicalAdt]
-    localAdts = format (Module.getName modul, datatypes (body modul))
+    localAdts = format (Module.getName modul, Map.map A.value $ datatypes (body modul))
 
     importedAdts :: [CanonicalAdt]
     importedAdts = concatMap (format . second iAdts) (Map.toList interfaces)
 
-    format :: (String, Module.ADTs) -> [CanonicalAdt]
     format (home, adts) =
         map canonical (Map.toList adts)
       where

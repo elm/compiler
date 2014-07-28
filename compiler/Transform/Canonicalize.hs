@@ -54,22 +54,33 @@ moduleHelp interfaces modul@(Module.Module _ _ exs _ _ decls) =
     locals :: [Var.Value]
     locals = concatMap declToValue decls
 
+    collect = go Map.empty [] Map.empty [] where
+      go datatypes fixities aliases ports ls = case ls of
+        [] -> (datatypes, fixities, aliases, ports)
+        (A.A doc decl) : rest -> case decl of
+          D.Datatype name vars ctors ->
+            go (Map.insert name (A.A doc (vars, ctors)) datatypes) fixities aliases ports rest
+          D.Fixity assoc level op ->
+            go datatypes (A.A doc (assoc, level, op) : fixities) aliases ports rest
+          D.TypeAlias name tvs alias ->
+            go datatypes fixities (Map.insert name (A.A doc (tvs, alias)) aliases) ports rest
+          D.Port port ->
+            go datatypes fixities aliases (A.A doc (D.portName port) : ports) rest
+          _ ->
+            go datatypes fixities aliases ports rest
+
     body :: [D.CanonicalDecl] -> Module.CanonicalBody
     body annotatedDecls =
-      let decls = map A.value annotatedDecls in
+      let (datatypes, fixities, aliases, ports) = collect annotatedDecls in
       Module.CanonicalBody
          { program =
                let expr = Transform.toExpr (Module.getName modul) annotatedDecls
                in  Transform.sortDefs (dummyLet expr)
          , types = Map.empty
-         , datatypes =
-             Map.fromList [ (name,(vars,ctors)) | D.Datatype name vars ctors <- decls ]
-         , fixities =
-             [ (assoc,level,op) | D.Fixity assoc level op <- decls ]
-         , aliases =
-             Map.fromList [ (name,(tvs,alias)) | D.TypeAlias name tvs alias <- decls ]
-         , ports =
-             [ D.portName port | D.Port port <- decls ]
+         , datatypes = datatypes
+         , fixities = fixities
+         , aliases = aliases
+         , ports = ports
          }
 
 delist :: [Var.Value] -> Var.Listing Var.Value -> Canonicalizer [Doc] [Var.Value]
@@ -111,14 +122,12 @@ filterExports :: Module.Types -> [Var.Value] -> Module.Types
 filterExports types values =
     Map.fromList (concatMap getValue values)
   where
-    getValue :: Var.Value -> [(String, Type.CanonicalType)]
     getValue value =
         case value of
           Var.Value x -> get x
           Var.Alias x -> get x
           Var.ADT _ (Var.Listing ctors _) -> concatMap get ctors
 
-    get :: String -> [(String, Type.CanonicalType)]
     get x =
         case Map.lookup x types of
           Just t  -> [(x,t)]
