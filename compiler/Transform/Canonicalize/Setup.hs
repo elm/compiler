@@ -9,6 +9,7 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 
 import qualified AST.Expression.Valid as Valid
+import qualified AST.Annotation as A
 
 import AST.Module (Interface(iAdts, iTypes, iAliases))
 import qualified AST.Module as Module
@@ -27,7 +28,7 @@ environment interfaces modul@(Module.Module _ _ _ imports _ decls) =
   do () <- allImportsAvailable
      let moduleName = Module.getName modul
      nonLocalEnv <- foldM (addImports moduleName interfaces) (builtIns moduleName) imports
-     let (aliases, env) = List.foldl' (addDecl moduleName) ([], nonLocalEnv) $ map D.decl decls
+     let (aliases, env) = List.foldl' (addDecl moduleName) ([], nonLocalEnv) $ map A.value decls
      addTypeAliases moduleName aliases env
   where
     allImportsAvailable :: Canonicalizer [Doc] ()

@@ -5,8 +5,10 @@ import qualified Text.Parsec.Pos as Parsec
 import qualified Text.PrettyPrint as P
 import AST.PrettyPrint
 
-data Annotated annotation expr = A annotation expr
-    deriving (Show)
+data Annotated annotation value = A
+    { annotation :: annotation
+    , value :: value
+    } deriving (Show)
 
 data Region
     = Span Position Position P.Doc
