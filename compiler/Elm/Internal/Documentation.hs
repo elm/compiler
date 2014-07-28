@@ -11,6 +11,8 @@ import Data.Text (Text)
 import GHC.Generics
 import qualified Data.Map as Map
 
+import qualified AST.Annotation as A
+import qualified AST.Declaration as Decl
 import qualified AST.Type as T
 import qualified AST.Variable as Var
 import qualified AST.Module as M
@@ -37,10 +39,39 @@ generateDocumentation modul = ModuleDocument
     { name = intercalate "." $ M.names modul
     , document = fromMaybe "" $ M.comment modul
     , values = []
-    , aliases = []
-    , datatypes = []
+    , aliases = processAll generateAliasDoc $ M.aliases $ M.body modul
+    , datatypes = processAll generateDatatypeDoc $ M.datatypes $ M.body modul
     }
+  where
+    processAll fn = map (uncurry fn) . Map.toList
 
+    generateAliasDoc :: String -> Decl.AnnotatedDecl ([String], T.CanonicalType) -> Document
+    generateAliasDoc name (A.A doc (vars, tipe)) =
+      Document { docName = name
+               , raw = "???"
+               , comment = fromMaybe "" doc
+               , body = Map.fromList
+                        [ ("typeVariables", toJSON vars)
+                        , ("type", typeToJSON tipe) ]
+               }
+
+    generateDatatypeDoc :: String -> Decl.AnnotatedDecl (M.AdtInfo String) -> Document
+    generateDatatypeDoc name (A.A doc (vars, ctors)) =
+      let var = T.Type . Var.Canonical Var.Local
+          tipe = T.App (var name) (map var vars) in
+      Document { docName = name
+               , raw = "???"
+               , comment = fromMaybe "" doc
+               , body = Map.fromList
+                        [ ("typeVariables", toJSON vars)
+                        , ("constructors", toJSON $ map (ctorToJSON tipe) ctors) ]
+               }
+
+    ctorToJSON :: T.CanonicalType -> (String, [T.CanonicalType]) -> Value
+    ctorToJSON tipe (ctor, tipes) =
+      object [ "name" .= ctor
+             , "type" .= (typeToJSON $ foldr T.Lambda tipe tipes) ]
+    
 instance ToJSON ModuleDocument
 
 instance ToJSON Document where
@@ -51,15 +82,15 @@ instance ToJSON Document where
              , "comment" .= comment doc
              ] ++ map processPair (Map.toList $ body doc)
 
-instance ToJSON var => ToJSON (T.Type var) where
-  toJSON tipe =
-    object $
+typeToJSON :: T.CanonicalType -> Value
+typeToJSON tipe =
+  object $
     case tipe of
       T.Lambda _ _ ->
         let tipes = T.collectLambdas tipe in
         [ "tag" .= ("function" :: Text)
-        , "args" .= toJSON (init tipes)
-        , "result" .= toJSON (last tipes)
+        , "args" .= map typeToJSON (init tipes)
+        , "result" .= typeToJSON (last tipes)
         ]
 
       T.Var x ->
@@ -69,13 +100,13 @@ instance ToJSON var => ToJSON (T.Type var) where
 
       T.App n ts ->
         [ "tag" .= ("adt" :: Text)
-        , "name" .= toJSON n
-        , "args" .= map toJSON ts
+        , "name" .= typeToJSON n
+        , "args" .= map typeToJSON ts
         ]
 
       T.Record fields ext ->
         [ "tag" .= ("record" :: Text)
-        , "extension" .= toJSON ext
+        , "extension" .= ("FIXME" :: Text) -- toJSON ext
         ]
 
       T.Type var ->
@@ -85,7 +116,7 @@ instance ToJSON var => ToJSON (T.Type var) where
 
       T.Aliased _ typ ->
         [ "tag" .= ("aliased" :: Text) -- ???
-        , "type" .= toJSON typ
+        , "type" .= typeToJSON typ
         ]
 
 instance ToJSON Var.Canonical where
