@@ -34,6 +34,7 @@ getName modul =
 data CanonicalBody = CanonicalBody
     { program   :: Canonical.Expr
     , types     :: Types
+    , defDocs   :: Map.Map String String
     , fixities  :: [AnnotatedDecl (Decl.Assoc, Int, String)]
     , aliases   :: Aliases
     , datatypes :: ADTs

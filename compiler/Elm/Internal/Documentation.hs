@@ -34,20 +34,35 @@ data Document = Document
     , body :: Map Text Value
     } deriving (Show)
 
+joinMapValues :: Ord k => Map k v1 -> Map k v2 -> Map k (v1, Maybe v2)
+joinMapValues map1 map2 = Map.mapWithKey f map1
+  where f key value = (value, Map.lookup key map2)
+
 generateDocumentation :: M.CanonicalModule -> ModuleDocument
-generateDocumentation modul = ModuleDocument
+generateDocumentation modul =
+  let body = M.body modul in
+  ModuleDocument
     { name = intercalate "." $ M.names modul
     , document = fromMaybe "" $ M.comment modul
-    , values = []
-    , aliases = processAll generateAliasDoc $ M.aliases $ M.body modul
-    , datatypes = processAll generateDatatypeDoc $ M.datatypes $ M.body modul
+    , values = processAll generateValueDoc $ joinMapValues (M.types body) (M.defDocs body)
+    , aliases = processAll generateAliasDoc $ M.aliases body
+    , datatypes = processAll generateDatatypeDoc $ M.datatypes body
     }
   where
     processAll fn = map (uncurry fn) . Map.toList
 
+    generateValueDoc :: String -> (T.CanonicalType, Maybe String) -> Document
+    generateValueDoc n (tipe, doc) =
+      Document { docName = n
+               , raw = "???"
+               , comment = fromMaybe "" doc
+               , body = Map.fromList
+                        [ ("type", typeToJSON tipe) ]
+               }
+
     generateAliasDoc :: String -> Decl.AnnotatedDecl ([String], T.CanonicalType) -> Document
-    generateAliasDoc name (A.A doc (vars, tipe)) =
-      Document { docName = name
+    generateAliasDoc n (A.A doc (vars, tipe)) =
+      Document { docName = n
                , raw = "???"
                , comment = fromMaybe "" doc
                , body = Map.fromList
@@ -56,10 +71,10 @@ generateDocumentation modul = ModuleDocument
                }
 
     generateDatatypeDoc :: String -> Decl.AnnotatedDecl (M.AdtInfo String) -> Document
-    generateDatatypeDoc name (A.A doc (vars, ctors)) =
+    generateDatatypeDoc n (A.A doc (vars, ctors)) =
       let var = T.Type . Var.Canonical Var.Local
-          tipe = T.App (var name) (map var vars) in
-      Document { docName = name
+          tipe = T.App (var n) (map var vars) in
+      Document { docName = n
                , raw = "???"
                , comment = fromMaybe "" doc
                , body = Map.fromList
@@ -111,14 +126,10 @@ typeToJSON tipe =
 
       T.Type var ->
         [ "tag" .= ("type" :: Text) -- ???
-        , "name" .= toJSON var
+        , "name" .= (toJSON $ Var.name var)
         ]
 
       T.Aliased _ typ ->
         [ "tag" .= ("aliased" :: Text) -- ???
         , "type" .= typeToJSON typ
         ]
-
-instance ToJSON Var.Canonical where
-  toJSON var = toJSON $ Var.name var
-

@@ -4,6 +4,7 @@ module Transform.Canonicalize (module', filterExports) where
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad.Error (runErrorT, throwError)
 import Control.Monad.State (runState)
+import Data.Maybe (fromMaybe)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -54,24 +55,29 @@ moduleHelp interfaces modul@(Module.Module _ _ exs _ _ decls) =
     locals :: [Var.Value]
     locals = concatMap declToValue decls
 
-    collect = go Map.empty [] Map.empty [] where
-      go datatypes fixities aliases ports ls = case ls of
-        [] -> (datatypes, fixities, aliases, ports)
+    collect = go Map.empty [] Map.empty [] Map.empty where
+      go datatypes fixities aliases ports defDocs ls = case ls of
+        [] -> (datatypes, fixities, aliases, ports, defDocs)
         (A.A doc decl) : rest -> case decl of
           D.Datatype name vars ctors ->
-            go (Map.insert name (A.A doc (vars, ctors)) datatypes) fixities aliases ports rest
+            go (Map.insert name (A.A doc (vars, ctors)) datatypes) fixities aliases ports defDocs rest
           D.Fixity assoc level op ->
-            go datatypes (A.A doc (assoc, level, op) : fixities) aliases ports rest
+            go datatypes (A.A doc (assoc, level, op) : fixities) aliases ports defDocs rest
           D.TypeAlias name tvs alias ->
-            go datatypes fixities (Map.insert name (A.A doc (tvs, alias)) aliases) ports rest
+            go datatypes fixities (Map.insert name (A.A doc (tvs, alias)) aliases) ports defDocs rest
           D.Port port ->
-            go datatypes fixities aliases (A.A doc (D.portName port) : ports) rest
+            go datatypes fixities aliases (A.A doc (D.portName port) : ports) defDocs rest
+          -- TODO: that wouldn't work for definitions that use pattern-matching
+          -- This should probably need to be rewritten to incorporate all
+          -- possible definitions
+          D.Definition (Canonical.Definition (P.Var name) _ _) ->
+            go datatypes fixities aliases ports (Map.insert name (fromMaybe "" doc) defDocs) rest
           _ ->
-            go datatypes fixities aliases ports rest
+            go datatypes fixities aliases ports defDocs rest
 
     body :: [D.CanonicalDecl] -> Module.CanonicalBody
     body annotatedDecls =
-      let (datatypes, fixities, aliases, ports) = collect annotatedDecls in
+      let (datatypes, fixities, aliases, ports, defDocs) = collect annotatedDecls in
       Module.CanonicalBody
          { program =
                let expr = Transform.toExpr (Module.getName modul) annotatedDecls
@@ -81,6 +87,7 @@ moduleHelp interfaces modul@(Module.Module _ _ exs _ _ decls) =
          , fixities = fixities
          , aliases = aliases
          , ports = ports
+         , defDocs = defDocs
          }
 
 delist :: [Var.Value] -> Var.Listing Var.Value -> Canonicalizer [Doc] [Var.Value]
