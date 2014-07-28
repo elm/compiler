@@ -253,7 +253,9 @@ function rawHtml(elem) {
     return div;
 }
 
-function render(elem) { return setProps(elem, makeElement(elem)); }
+function render(elem) {
+    return setProps(elem, makeElement(elem));
+}
 function makeElement(e) {
     var elem = e.element;
     switch(elem.ctor) {
@@ -267,8 +269,12 @@ function makeElement(e) {
 }
 
 function update(node, curr, next) {
-    if (node.tagName === 'A') { node = node.firstChild; }
-    if (curr.props.id === next.props.id) return updateProps(node, curr, next);
+    if (node.tagName === 'A') {
+        node = node.firstChild;
+    }
+    if (curr.props.id === next.props.id) {
+        return updateProps(node, curr, next);
+    }
     if (curr.element.ctor !== next.element.ctor) {
         node.parentNode.replaceChild(render(next),node);
         return true;
