@@ -38,7 +38,7 @@ build flags rootFile =
     do let noPrelude = Flag.no_prelude flags
        builtIns <- Prelude.interfaces noPrelude
 
-       rootSrc <- SrcFile.make rootFile
+       rootSrc <- SrcFile.find rootFile
        (Recipe elmFiles jsFiles) <-
            if Flag.make flags
              then Utils.run (getBuildRecipe (Flag.src_dir flags) builtIns rootSrc)

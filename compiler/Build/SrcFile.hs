@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Build.SrcFile (SrcFile(SrcFile), baseDir, relPath, toPath, make)
+module Build.SrcFile (SrcFile, baseDir, relPath, toPath, fromComponents, find)
        where
 
 import System.FilePath ((</>), splitFileName, splitDirectories, joinPath)
@@ -22,9 +22,12 @@ relPath = _relPath
 toPath :: SrcFile -> FilePath
 toPath (SrcFile dir rel) = dir </> rel
 
+fromComponents :: FilePath -> FilePath -> SrcFile
+fromComponents = SrcFile
+
 -- | Find the top level of a project and split FilePath into SrcFile components
-make :: FilePath -> IO SrcFile
-make f = do
+find :: FilePath -> IO SrcFile
+find f = do
   txt <- readFile f
   return $ case getModuleNames txt of
     Nothing -> uncurry SrcFile . splitFileName $ f

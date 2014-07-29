@@ -12,7 +12,7 @@ import System.FilePath as FP
 
 import qualified AST.Module as Module
 import qualified Build.SrcFile as SrcFile
-import Build.SrcFile (SrcFile(..))
+import Build.SrcFile (SrcFile)
 import qualified Parse.Parse as Parse
 import qualified Elm.Internal.Paths as Path
 import qualified Elm.Internal.Name as N
@@ -138,7 +138,7 @@ findSrcFile parentModuleName dirs path =
       let path' = dir </> path
       exists <- liftIO $ doesFileExist path'
       if exists
-        then return (SrcFile dir path)
+        then return (SrcFile.fromComponents dir path)
         else next
 
     parentModuleName' =
