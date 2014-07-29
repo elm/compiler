@@ -1,4 +1,4 @@
-module Parse.Module (moduleDef, getModuleName, imports) where
+module Parse.Module (moduleDef, getModuleName, getModuleNames, imports) where
 
 import Control.Applicative ((<$>), (<*>))
 import Data.List (intercalate)
@@ -8,16 +8,18 @@ import Parse.Helpers
 import AST.Module (ImportMethod(..))
 import AST.Variable (Listing(..), Value(..), openListing)
 
-getModuleName :: String -> Maybe String
-getModuleName source =
+getModuleNames :: String -> Maybe [String]
+getModuleNames source =
     case iParse getModuleName source of
-      Right name -> Just name
+      Right names -> Just names
       Left _     -> Nothing
     where
       getModuleName = do
         optional freshLine
-        (names, _) <- moduleDef
-        return (intercalate "." names)
+        fst <$> moduleDef
+
+getModuleName :: String -> Maybe String
+getModuleName = fmap (intercalate ".") . getModuleNames
 
 moduleDef :: IParser ([String], Listing Value)
 moduleDef = do

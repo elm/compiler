@@ -31,7 +31,7 @@ main = do
   -- run tests
   let files = [ "IO" </> "share" </> "prescript.js"
               , Elm.runtime
-              , "build" </> testFile <.> "js"
+              , "build" </> "Test" <.> "js"
               , "IO" </> "share" </> "handler.js"
               ]
       testRunner = "build" </> "TestRunner.js"

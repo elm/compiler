@@ -11,6 +11,8 @@ import System.Directory
 import System.FilePath as FP
 
 import qualified AST.Module as Module
+import qualified Build.SrcFile as SrcFile
+import Build.SrcFile (SrcFile)
 import qualified Parse.Parse as Parse
 import qualified Elm.Internal.Paths as Path
 import qualified Elm.Internal.Name as N
@@ -18,11 +20,11 @@ import qualified Elm.Internal.Version as V
 import qualified Elm.Internal.Dependencies as Deps
 
 data Recipe = Recipe
-    { _elmFiles :: [FilePath]
-    , _jsFiles :: [FilePath]
+    { _elmFiles :: [SrcFile]
+    , _jsFiles  :: [FilePath]
     }
 
-getBuildRecipe :: [FilePath] -> Module.Interfaces -> FilePath -> ErrorT String IO Recipe
+getBuildRecipe :: [FilePath] -> Module.Interfaces -> SrcFile -> ErrorT String IO Recipe
 getBuildRecipe srcDirs builtIns root =
   do directories <- getDependencies
      jsFiles <- nativeFiles ("." : directories)
@@ -82,39 +84,45 @@ split moduleName = go [] moduleName
           (path, _:rest) -> go (paths ++ [path]) rest
           (path, [])     -> paths ++ [path]
 
-type DependencyNode = (FilePath, String, [String])
+type ModuleName = String
+type DependencyNode = (SrcFile, -- ^ Elm Module File
+                       ModuleName, -- ^ Modules' name
+                       [ModuleName] -- ^ Dependencies' Module names
+                      )
 
-sortElmFiles :: [DependencyNode] -> ErrorT String IO [FilePath]
+sortElmFiles :: [DependencyNode] -> ErrorT String IO [SrcFile]
 sortElmFiles depends =
     if null mistakes
       then return (concat sccs)
-      else throwError $ msg ++ unlines (map show mistakes)
+      else throwError $ msg ++ unlines (map (show . map SrcFile.toPath) mistakes)
   where
     sccs = map Graph.flattenSCC $ Graph.stronglyConnComp depends
 
     mistakes = filter (\scc -> length scc > 1) sccs
     msg = "A cyclical module dependency or was detected in:\n"
 
-collectDependencies :: [FilePath] -> Module.Interfaces -> FilePath
+collectDependencies :: [FilePath] -> Module.Interfaces -> SrcFile
                     -> ErrorT String IO [DependencyNode]
-collectDependencies srcDirs rawBuiltIns filePath =
-    State.evalStateT (go Nothing filePath) Set.empty
+collectDependencies srcDirs rawBuiltIns srcFile =
+    State.evalStateT (go Nothing (Left srcFile)) Set.empty
   where
     builtIns :: Set.Set String
     builtIns = Set.fromList $ Map.keys rawBuiltIns
 
-    go :: Maybe String -> FilePath -> State.StateT (Set.Set String) (ErrorT String IO) [DependencyNode]
-    go parentModuleName filePath = do
-      filePath' <- lift $ findSrcFile parentModuleName srcDirs filePath
-      (moduleName, deps) <- lift $ readDeps filePath'
+    go :: Maybe String -> Either SrcFile ModuleName -> State.StateT (Set.Set String) (ErrorT String IO) [DependencyNode]
+    go parentModuleName file = do
+      srcFile            <- lift $ case file of
+        Left  srcFile -> return srcFile
+        Right modul   -> findSrcFile parentModuleName srcDirs modul
+      (moduleName, deps) <- lift $ readDeps (SrcFile.toPath srcFile)
       seen <- State.get
       let realDeps = Set.difference (Set.fromList deps) builtIns
           newDeps = Set.difference (Set.filter (not . isNative) realDeps) seen
       State.put (Set.insert moduleName (Set.union newDeps seen))
-      rest <- mapM (go (Just moduleName) . toFilePath) (Set.toList newDeps)
-      return ((makeRelative "." filePath', moduleName, Set.toList realDeps) : concat rest)
+      rest <- mapM (go (Just moduleName) . Right) (Set.toList newDeps)
+      return $ (srcFile, moduleName, Set.toList realDeps) : concat rest
 
-readDeps :: FilePath -> ErrorT String IO (String, [String])
+readDeps :: FilePath -> ErrorT String IO (ModuleName, [ModuleName])
 readDeps path = do
   txt <- lift $ readFile path
   case Parse.dependencies txt of
@@ -122,15 +130,18 @@ readDeps path = do
     Left err -> throwError $ msg ++ show err
       where msg = "Error resolving dependencies in " ++ path ++ ":\n"
 
-findSrcFile :: Maybe String -> [FilePath] -> FilePath -> ErrorT String IO FilePath
-findSrcFile parentModuleName dirs path =
+findSrcFile :: Maybe String -> [FilePath] -> ModuleName -> ErrorT String IO SrcFile
+findSrcFile parentModuleName dirs modul =
     foldr tryDir notFound dirs
   where
+    path = toFilePath modul
+
+    tryDir :: FilePath -> ErrorT String IO SrcFile -> ErrorT String IO SrcFile
     tryDir dir next = do
       let path' = dir </> path
       exists <- liftIO $ doesFileExist path'
       if exists
-        then return path'
+        then return (SrcFile.fromComponents dir path)
         else next
 
     parentModuleName' =
@@ -150,7 +161,7 @@ findSrcFile parentModuleName dirs path =
 isNative :: String -> Bool
 isNative name = List.isPrefixOf "Native." name
 
-toFilePath :: String -> FilePath
+toFilePath :: ModuleName -> FilePath
 toFilePath name = map swapDots name ++ ext
   where
     swapDots '.' = '/'

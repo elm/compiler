@@ -5,23 +5,29 @@ import Control.Monad.Error
 import System.Directory (doesFileExist)
 import System.Environment (getEnv)
 import System.FilePath ((</>), replaceExtension)
+
 import qualified Build.Flags as Flag
 import qualified Build.Print as Print
+import qualified Build.SrcFile as SrcFile
+import Build.SrcFile (SrcFile)
 import qualified Paths_Elm as This
 
-buildPath :: Flag.Flags -> FilePath -> String -> FilePath
-buildPath flags filePath ext =
-    Flag.build_dir flags </> replaceExtension filePath ext
+buildPath :: Flag.Flags -> SrcFile -> String -> FilePath
+buildPath = flaggedPath Flag.build_dir
 
-cachePath :: Flag.Flags -> FilePath -> String -> FilePath
-cachePath flags filePath ext =
-    Flag.cache_dir flags </> replaceExtension filePath ext
+cachePath :: Flag.Flags -> SrcFile -> String -> FilePath
+cachePath = flaggedPath Flag.cache_dir
 
-elmo :: Flag.Flags -> FilePath -> FilePath
+flaggedPath :: (Flag.Flags -> FilePath) -> Flag.Flags -> SrcFile -> String -> FilePath
+flaggedPath accessor flags src ext = flagDir </> relFile
+  where flagDir = accessor flags
+        relFile = replaceExtension (SrcFile.relPath src) ext
+
+elmo :: Flag.Flags -> SrcFile -> FilePath
 elmo flags filePath =
     cachePath flags filePath "elmo"
 
-elmi :: Flag.Flags -> FilePath -> FilePath
+elmi :: Flag.Flags -> SrcFile -> FilePath
 elmi flags filePath =
     cachePath flags filePath "elmi"
 
