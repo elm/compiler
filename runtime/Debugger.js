@@ -394,7 +394,8 @@ function tracePathInit(runtime, signalGraphMain) {
       }
       if (form.form.ctor == "FGroup")
       {
-        List.map(F2(processForm)(offset))(form.form._1);
+        var newOffset = offset.translate(form.x, -form.y);
+        List.map(F2(processForm)(newOffset))(form.form._1);
       }
       if (form.debugTracePathId)
       {
