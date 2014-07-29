@@ -226,6 +226,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
   }
 
   function restartProgram() {
+    pauseProgram();
     resetProgram(0);
     debugModule.watchTracker.clear();
     debugModule.tracePath.clearTraces();
