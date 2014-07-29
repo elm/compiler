@@ -9,7 +9,7 @@ if (!window.location.origin) {
 }
 
 Elm.Debugger = null;
-Elm.debuggerAttach = function(module, hotSwapState /* =undefined */) {
+function debuggerAttach(module, hotSwapState /* =undefined */) {
   return {
     make: function(runtime) {
       var wrappedModule = debugModule(module, runtime);
@@ -18,6 +18,11 @@ Elm.debuggerAttach = function(module, hotSwapState /* =undefined */) {
       return wrappedModule.debuggedModule;
     }
   };
+};
+
+Elm.debugFullscreen = function(module, ports, hotSwapState /* =undefined */) {
+  var debuggedModule = debuggerAttach(module, hotSwapState);
+  return Elm.fullscreen(debuggedModule, ports);
 };
 
 var EVENTS_PER_SAVE = 100;
