@@ -9,7 +9,7 @@ if (!window.location.origin) {
 }
 
 Elm.Debugger = null;
-function debuggerAttach(module, hotSwapState /* =undefined */) {
+Elm.debuggerAttach = function(module, hotSwapState /* =undefined */) {
   return {
     make: function(runtime) {
       var wrappedModule = debugModule(module, runtime);
@@ -20,9 +20,11 @@ function debuggerAttach(module, hotSwapState /* =undefined */) {
   };
 };
 
-Elm.debugFullscreen = function(module, ports, hotSwapState /* =undefined */) {
-  var debuggedModule = debuggerAttach(module, hotSwapState);
-  return Elm.fullscreen(debuggedModule, ports);
+var filename = "";
+Elm.debugFullscreen = function(module, moduleFile, hotSwapState /* =undefined */) {
+  filename = moduleFile;
+  var debuggedModule = Elm.debuggerAttach(module, hotSwapState);
+  return Elm.fullscreen(debuggedModule);
 };
 
 var EVENTS_PER_SAVE = 100;
@@ -357,6 +359,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
       getHotSwapState: getHotSwapState,
       dispose: dispose,
       allNodes: debugModule.signalGraphNodes,
+      filename: filename,
       watchTracker: debugModule.watchTracker
   };
 
