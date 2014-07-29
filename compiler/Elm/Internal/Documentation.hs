@@ -16,7 +16,9 @@ import qualified Data.Map as Map
 
 import qualified AST.Annotation as A
 import qualified AST.Declaration as Decl
+import qualified AST.Helpers as Help
 import qualified AST.Module as M
+import qualified AST.PrettyPrint as PP
 import qualified AST.Type as T
 import qualified AST.Variable as Var
 
@@ -43,21 +45,25 @@ joinMapValues map1 map2 = Map.mapWithKey f map1
 
 generateDocumentation :: M.CanonicalModule -> ModuleDocument
 generateDocumentation modul =
-  let body = M.body modul in
+  let b = M.body modul in
   ModuleDocument
     { name = intercalate "." $ M.names modul
     , document = fromMaybe "" $ M.comment modul
-    , values = processAll generateValueDoc $ joinMapValues (M.types body) (M.defDocs body)
-    , aliases = processAll generateAliasDoc $ M.aliases body
-    , datatypes = processAll generateDatatypeDoc $ M.datatypes body
+    , values = processAll generateValueDoc $ joinMapValues (M.types b) (M.defDocs b)
+    , aliases = processAll generateAliasDoc $ M.aliases b
+    , datatypes = processAll generateDatatypeDoc $ M.datatypes b
     }
   where
     processAll fn = map (uncurry fn) . Map.toList
 
     generateValueDoc :: String -> (T.CanonicalType, Maybe String) -> Document
     generateValueDoc n (tipe, doc) =
+      let prettyName = if Help.isOp n
+                         then "(" ++ n ++ ")"
+                         else n
+      in
       Document { docName = n
-               , raw = "???"
+               , raw = concat [prettyName, " : ", PP.renderPretty tipe]
                , comment = fromMaybe "" doc
                , body = Map.fromList
                         [ ("type", typeToJSON tipe) ]
@@ -66,19 +72,30 @@ generateDocumentation modul =
     generateAliasDoc :: String -> Decl.AnnotatedDecl ([String], T.CanonicalType) -> Document
     generateAliasDoc n (A.A doc (vars, tipe)) =
       Document { docName = n
-               , raw = "???"
+               , raw = concat ["type ", n, concatMap (' ':) vars, " = ", PP.renderPretty tipe]
                , comment = fromMaybe "" doc
                , body = Map.fromList
                         [ ("typeVariables", toJSON vars)
                         , ("type", typeToJSON tipe) ]
                }
 
+    prettyCtors ls =
+      case ls of
+        [] -> ""
+        (x : xs) -> prettyCtor "  =" x ++
+                    concatMap ((++ "\n") . prettyCtor "  |") xs
+      where
+        prettyCtor :: String -> (String, [T.CanonicalType]) -> String
+        prettyCtor prefix (n, types) =
+          concat [prefix, " ", n, concatMap (("\n" ++) . PP.renderPretty) types]
+
     generateDatatypeDoc :: String -> Decl.AnnotatedDecl (M.AdtInfo String) -> Document
     generateDatatypeDoc n (A.A doc (vars, ctors)) =
       let var = T.Type . Var.Canonical Var.Local
           tipe = T.App (var n) (map var vars) in
       Document { docName = n
-               , raw = "???"
+               , raw = concat ["data ", n, concatMap (' ':) vars, "\n"] ++
+                       prettyCtors ctors
                , comment = fromMaybe "" doc
                , body = Map.fromList
                         [ ("typeVariables", toJSON vars)
@@ -116,9 +133,9 @@ typeToJSON tipe =
         , "name" .= toJSON x
         ]
 
-      T.App (T.Type name) ts ->
+      T.App (T.Type n) ts ->
         [ "tag" .= ("adt" :: Text)
-        , "name" .= toJSON (Var.name name)
+        , "name" .= toJSON (Var.name n)
         , "args" .= map typeToJSON ts
         ]
 
