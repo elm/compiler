@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
-{-# OPTIONS -W -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
+
+{-# OPTIONS -W -Wall #-}
 module Elm.Internal.Documentation where
 
 import Data.Aeson
@@ -13,9 +14,9 @@ import qualified Data.Map as Map
 
 import qualified AST.Annotation as A
 import qualified AST.Declaration as Decl
+import qualified AST.Module as M
 import qualified AST.Type as T
 import qualified AST.Variable as Var
-import qualified AST.Module as M
 
 type Type = T.CanonicalType
 

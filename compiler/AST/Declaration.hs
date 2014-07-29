@@ -38,6 +38,7 @@ type SourceDecl' = Declaration' RawPort Source.Def Var.Raw
 data SourceDecl
     = Decl SourceDecl'
     | DocComment String
+    deriving (Show)
 
 type ValidDecl' = Declaration' (Port Valid.Expr Var.Raw) Valid.Def Var.Raw
 type ValidDecl = AnnotatedDecl ValidDecl'

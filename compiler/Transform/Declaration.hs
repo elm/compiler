@@ -20,7 +20,8 @@ import qualified Transform.Definition as Def
 
 validate :: [D.SourceDecl] -> Either String [D.ValidDecl]
 validate decls =
-    combineAnnotations =<< attachComments decls
+  do commented <- attachComments decls
+     combineAnnotations commented
 
 (<:>) :: (Functor f) => a -> f [a] -> f [a]
 x <:> f = (:) x <$> f
@@ -49,9 +50,9 @@ attachComments srcDecls =
         where
           stripSuffix suf str =
               let (part1, part2) = splitAt (length str - length suf) str
-              in  if part2 == suf
-                    then Nothing
-                    else Just part1
+              in if part2 == suf
+                   then Just part1
+                   else Nothing
 
     msgTwo =
         "Found two document comments in a row! All document comments\
