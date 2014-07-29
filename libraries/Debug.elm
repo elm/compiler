@@ -9,7 +9,7 @@ module Debug where
 @docs watch, watchSummary, trace
 -}
 
-import Graphics.Element (Element)
+import Graphics.Collage (Form)
 import Native.Debug
 import Native.Error
 
@@ -60,7 +60,7 @@ watch = Native.Debug.watch
 watchSummary : String -> (a -> b) -> a -> a
 watchSummary = Native.Debug.watchSummary
 
-{-| Trace an Element over time in the reactive debugger.
+{-| Trace a Form over time in the reactive debugger.
 -}
-trace : String -> Element -> Element
+trace : String -> Form -> Form
 trace = Native.Debug.tracePath
