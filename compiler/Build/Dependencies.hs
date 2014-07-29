@@ -24,7 +24,7 @@ data Recipe = Recipe
     , _jsFiles  :: [FilePath]
     }
 
-getBuildRecipe :: [FilePath] -> Module.Interfaces -> FilePath -> ErrorT String IO Recipe
+getBuildRecipe :: [FilePath] -> Module.Interfaces -> SrcFile -> ErrorT String IO Recipe
 getBuildRecipe srcDirs builtIns root =
   do directories <- getDependencies
      jsFiles <- nativeFiles ("." : directories)
@@ -100,23 +100,25 @@ sortElmFiles depends =
     mistakes = filter (\scc -> length scc > 1) sccs
     msg = "A cyclical module dependency or was detected in:\n"
 
-collectDependencies :: [FilePath] -> Module.Interfaces -> FilePath
+collectDependencies :: [FilePath] -> Module.Interfaces -> SrcFile
                     -> ErrorT String IO [DependencyNode]
-collectDependencies srcDirs rawBuiltIns filePath =
-    State.evalStateT (go Nothing filePath) Set.empty
+collectDependencies srcDirs rawBuiltIns srcFile =
+    State.evalStateT (go Nothing (Left srcFile)) Set.empty
   where
     builtIns :: Set.Set String
     builtIns = Set.fromList $ Map.keys rawBuiltIns
 
-    go :: Maybe String -> FilePath -> State.StateT (Set.Set String) (ErrorT String IO) [DependencyNode]
-    go parentModuleName filePath = do
-      srcFile            <- lift $ findSrcFile parentModuleName srcDirs filePath
+    go :: Maybe String -> Either SrcFile FilePath -> State.StateT (Set.Set String) (ErrorT String IO) [DependencyNode]
+    go parentModuleName file = do
+      srcFile            <- lift $ case file of
+        Left  srcFile  -> return srcFile
+        Right filePath -> findSrcFile parentModuleName srcDirs filePath
       (moduleName, deps) <- lift $ readDeps (SrcFile.toPath srcFile)
       seen <- State.get
       let realDeps = Set.difference (Set.fromList deps) builtIns
           newDeps = Set.difference (Set.filter (not . isNative) realDeps) seen
       State.put (Set.insert moduleName (Set.union newDeps seen))
-      rest <- mapM (go (Just moduleName) . toFilePath) (Set.toList newDeps)
+      rest <- mapM (go (Just moduleName) . Right . toFilePath) (Set.toList newDeps)
       return $ (srcFile, moduleName, Set.toList realDeps) : concat rest
 
 readDeps :: FilePath -> ErrorT String IO (String, [String])

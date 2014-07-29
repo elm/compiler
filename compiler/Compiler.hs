@@ -41,7 +41,7 @@ build flags rootFile =
        rootSrc <- SrcFile.make rootFile
        (Recipe elmFiles jsFiles) <-
            if Flag.make flags
-             then Utils.run (getBuildRecipe (Flag.src_dir flags) builtIns rootFile)
+             then Utils.run (getBuildRecipe (Flag.src_dir flags) builtIns rootSrc)
              else return (Recipe [rootSrc] [])
 
        moduleName <- File.build flags builtIns elmFiles
