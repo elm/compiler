@@ -4,6 +4,8 @@
 {-# OPTIONS -W -Wall #-}
 module Elm.Internal.Documentation where
 
+import Control.Applicative ((<$>))
+import Control.Arrow (second)
 import Data.Aeson
 import Data.List (intercalate)
 import Data.Map (Map)
@@ -114,23 +116,28 @@ typeToJSON tipe =
         , "name" .= toJSON x
         ]
 
-      T.App n ts ->
+      T.App (T.Type name) ts ->
         [ "tag" .= ("adt" :: Text)
-        , "name" .= typeToJSON n
+        , "name" .= toJSON (Var.name name)
         , "args" .= map typeToJSON ts
         ]
 
+      T.App _ _ -> error "Elm.Internal.Documentation: incorrect type in function position"
+
       T.Record fields ext ->
         [ "tag" .= ("record" :: Text)
-        , "extension" .= ("FIXME" :: Text) -- toJSON ext
+        , "extension" .= toJSON (typeToJSON <$> ext)
+        , "field" .= toJSON (map (toJSON . second typeToJSON) fields)
         ]
 
       T.Type var ->
-        [ "tag" .= ("type" :: Text) -- ???
+        [ "tag" .= ("adt" :: Text)
         , "name" .= (toJSON $ Var.name var)
+        , "args" .= map typeToJSON []
         ]
 
-      T.Aliased _ typ ->
-        [ "tag" .= ("aliased" :: Text) -- ???
+      T.Aliased alias typ ->
+        [ "tag" .= ("alias" :: Text)
+        , "alias" .= toJSON (Var.name alias)
         , "type" .= typeToJSON typ
         ]
