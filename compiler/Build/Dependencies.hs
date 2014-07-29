@@ -84,9 +84,10 @@ split moduleName = go [] moduleName
           (path, _:rest) -> go (paths ++ [path]) rest
           (path, [])     -> paths ++ [path]
 
+type ModuleName = String
 type DependencyNode = (SrcFile, -- ^ Elm Module File
-                       String , -- ^ Modules' name
-                       [String] -- ^ Dependencies' Module names
+                       ModuleName, -- ^ Modules' name
+                       [ModuleName] -- ^ Dependencies' Module names
                       )
 
 sortElmFiles :: [DependencyNode] -> ErrorT String IO [SrcFile]
@@ -108,20 +109,20 @@ collectDependencies srcDirs rawBuiltIns srcFile =
     builtIns :: Set.Set String
     builtIns = Set.fromList $ Map.keys rawBuiltIns
 
-    go :: Maybe String -> Either SrcFile FilePath -> State.StateT (Set.Set String) (ErrorT String IO) [DependencyNode]
+    go :: Maybe String -> Either SrcFile ModuleName -> State.StateT (Set.Set String) (ErrorT String IO) [DependencyNode]
     go parentModuleName file = do
       srcFile            <- lift $ case file of
-        Left  srcFile  -> return srcFile
-        Right filePath -> findSrcFile parentModuleName srcDirs filePath
+        Left  srcFile -> return srcFile
+        Right modul   -> findSrcFile parentModuleName srcDirs modul
       (moduleName, deps) <- lift $ readDeps (SrcFile.toPath srcFile)
       seen <- State.get
       let realDeps = Set.difference (Set.fromList deps) builtIns
           newDeps = Set.difference (Set.filter (not . isNative) realDeps) seen
       State.put (Set.insert moduleName (Set.union newDeps seen))
-      rest <- mapM (go (Just moduleName) . Right . toFilePath) (Set.toList newDeps)
+      rest <- mapM (go (Just moduleName) . Right) (Set.toList newDeps)
       return $ (srcFile, moduleName, Set.toList realDeps) : concat rest
 
-readDeps :: FilePath -> ErrorT String IO (String, [String])
+readDeps :: FilePath -> ErrorT String IO (ModuleName, [ModuleName])
 readDeps path = do
   txt <- lift $ readFile path
   case Parse.dependencies txt of
@@ -129,10 +130,12 @@ readDeps path = do
     Left err -> throwError $ msg ++ show err
       where msg = "Error resolving dependencies in " ++ path ++ ":\n"
 
-findSrcFile :: Maybe String -> [FilePath] -> FilePath -> ErrorT String IO SrcFile
-findSrcFile parentModuleName dirs path =
+findSrcFile :: Maybe String -> [FilePath] -> ModuleName -> ErrorT String IO SrcFile
+findSrcFile parentModuleName dirs modul =
     foldr tryDir notFound dirs
   where
+    path = toFilePath modul
+
     tryDir :: FilePath -> ErrorT String IO SrcFile -> ErrorT String IO SrcFile
     tryDir dir next = do
       let path' = dir </> path
@@ -158,7 +161,7 @@ findSrcFile parentModuleName dirs path =
 isNative :: String -> Bool
 isNative name = List.isPrefixOf "Native." name
 
-toFilePath :: String -> FilePath
+toFilePath :: ModuleName -> FilePath
 toFilePath name = map swapDots name ++ ext
   where
     swapDots '.' = '/'
