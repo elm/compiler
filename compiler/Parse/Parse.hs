@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -W #-}
-module Parse.Parse (program, dependencies) where
+module Parse.Parse (program, programHeader, dependencies) where
 
 import Control.Applicative ((<$>))
+import Control.Arrow (first)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Text.Parsec hiding (newline,spaces)
@@ -9,6 +10,7 @@ import qualified Text.PrettyPrint as P
 
 import qualified AST.Declaration as D
 import qualified AST.Module as M
+import AST.ProgramHeader
 import qualified AST.Variable as Var
 import Parse.Helpers
 import Parse.Declaration (infixDecl)
@@ -32,13 +34,6 @@ program table src =
            either (\err -> Left [P.text err]) Right (validate sourceDecls)
        return $ M.Module names filePath exs ims doc decls
 
-data ProgramHeader = ProgramHeader
-    { _names :: [String]
-    , _exports :: Var.Listing Var.Value
-    , _docComment :: Maybe String
-    , _imports :: [(String, M.ImportMethod)]
-    } deriving (Show)
-
 programHeader :: IParser ProgramHeader
 programHeader =
     do optional freshLine
@@ -54,13 +49,13 @@ programParser =
   do (ProgramHeader names exports doc is) <- programHeader
      declarations <- decls
      optional freshLine ; optional spaces ; eof
-     return $ M.Module names "" exports is doc declarations
+     let stringyImports = map (first toName) is
+     return $ M.Module names "" exports stringyImports doc declarations
 
 dependencies :: String -> Either [P.Doc] (String, [String])
 dependencies =
-  let getName = List.intercalate "." in
   setupParser $ do header <- programHeader
-                   return (getName $ _names header, map fst $ _imports header)
+                   return (toName $ _names header, map (toName . fst) $ _imports header)
 
 setupParserWithTable :: OpTable -> IParser a -> String -> Either [P.Doc] a
 setupParserWithTable table p source =

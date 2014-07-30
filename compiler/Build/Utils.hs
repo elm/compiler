@@ -4,24 +4,34 @@ module Build.Utils where
 import Control.Monad.Error
 import System.Directory (doesFileExist)
 import System.Environment (getEnv)
-import System.FilePath ((</>), replaceExtension)
+import System.FilePath ((</>), (<.>))
+
 import qualified Build.Flags as Flag
 import qualified Build.Print as Print
+import Build.SrcFile (SrcFile)
+import qualified Build.SrcFile as SrcFile
+import qualified Elm.Internal.Name as Name
 import qualified Paths_Elm as This
 
-buildPath :: Flag.Flags -> FilePath -> String -> FilePath
-buildPath flags filePath ext =
-    Flag.build_dir flags </> replaceExtension filePath ext
+buildPath :: Flag.Flags -> SrcFile a -> String -> FilePath
+buildPath = flaggedPath Flag.build_dir
 
-cachePath :: Flag.Flags -> FilePath -> String -> FilePath
-cachePath flags filePath ext =
-    Flag.cache_dir flags </> replaceExtension filePath ext
+cachePath :: Flag.Flags -> SrcFile a -> String -> FilePath
+cachePath = flaggedPath Flag.cache_dir
 
-elmo :: Flag.Flags -> FilePath -> FilePath
+flaggedPath :: (Flag.Flags -> FilePath) -> Flag.Flags -> SrcFile a -> String -> FilePath
+flaggedPath acc flags srcFile ext =
+  acc flags </> pkgPath </> modul <.> ext
+  where pkgPath = case SrcFile.pkg srcFile of
+          Nothing -> ""
+          Just name -> Name.toFilePath name
+        modul = SrcFile.modulePath srcFile
+
+elmo :: Flag.Flags -> SrcFile a -> FilePath
 elmo flags filePath =
     cachePath flags filePath "elmo"
 
-elmi :: Flag.Flags -> FilePath -> FilePath
+elmi :: Flag.Flags -> SrcFile a -> FilePath
 elmi flags filePath =
     cachePath flags filePath "elmi"
 
