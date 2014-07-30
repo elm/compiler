@@ -13,6 +13,7 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import GHC.Generics
 import qualified Data.Map as Map
+import qualified Text.PrettyPrint as P
 
 import qualified AST.Annotation as A
 import qualified AST.Declaration as Decl
@@ -63,7 +64,7 @@ generateDocumentation modul =
                          else n
       in
       Document { docName = n
-               , raw = concat [prettyName, " : ", PP.renderPretty tipe]
+               , raw = P.render $ P.hsep [P.text prettyName, P.colon, PP.pretty tipe]
                , comment = fromMaybe "" doc
                , body = Map.fromList
                         [ ("type", typeToJSON tipe) ]
@@ -72,7 +73,7 @@ generateDocumentation modul =
     generateAliasDoc :: String -> Decl.AnnotatedDecl ([String], T.CanonicalType) -> Document
     generateAliasDoc n (A.A doc (vars, tipe)) =
       Document { docName = n
-               , raw = concat ["type ", n, concatMap (' ':) vars, " = ", PP.renderPretty tipe]
+               , raw = P.render $ P.hsep $ (P.text "type" : P.text n : map PP.pretty vars) ++ [P.text "=", PP.pretty tipe]
                , comment = fromMaybe "" doc
                , body = Map.fromList
                         [ ("typeVariables", toJSON vars)
@@ -81,21 +82,22 @@ generateDocumentation modul =
 
     prettyCtors ls =
       case ls of
-        [] -> ""
-        (x : xs) -> prettyCtor "  =" x ++
-                    concatMap ((++ "\n") . prettyCtor "  |") xs
+        [] -> []
+        (x : xs) -> P.text "=" P.<+> prettyCtor x :
+                    map ((P.text "|" P.<+>) . prettyCtor) xs
+
       where
-        prettyCtor :: String -> (String, [T.CanonicalType]) -> String
-        prettyCtor prefix (n, types) =
-          concat [prefix, " ", n, concatMap (("\n" ++) . PP.renderPretty) types]
+        prettyCtor :: (String, [T.CanonicalType]) -> P.Doc
+        prettyCtor (n, types) =
+          P.hsep (P.text n : map PP.pretty types)
 
     generateDatatypeDoc :: String -> Decl.AnnotatedDecl (M.AdtInfo String) -> Document
     generateDatatypeDoc n (A.A doc (vars, ctors)) =
       let var = T.Type . Var.Canonical Var.Local
           tipe = T.App (var n) (map var vars) in
       Document { docName = n
-               , raw = concat ["data ", n, concatMap (' ':) vars, "\n"] ++
-                       prettyCtors ctors
+               , raw = P.render (P.hsep (P.text "data" : P.text n : map PP.pretty vars) P.$$
+                                 (P.nest 4 $ P.vcat (prettyCtors ctors)))
                , comment = fromMaybe "" doc
                , body = Map.fromList
                         [ ("typeVariables", toJSON vars)
