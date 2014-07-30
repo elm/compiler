@@ -44,7 +44,8 @@ function debugModule(module, runtime) {
   var watchTracker = Elm.Native.Debug.make(runtime).watchTracker;
   var pauseTime = 0;
   var eventsUntilSnapshot = EVENTS_PER_SAVE;
-  runtime.eventCounter = runtime.eventCounter || 0;
+  runtime.DebugStatus = runtime.DebugStatus || {};
+  runtime.DebugStatus.eventCounter = runtime.DebugStatus.eventCounter || 0;
 
   // runtime is the prototype of wrappedRuntime
   // so we can access all runtime properties too
@@ -111,7 +112,7 @@ function debugModule(module, runtime) {
   function recordEvent(id, v, timestep) {
     watchTracker.pushFrame();
     recordedEvents.push({ id:id, value:v, timestep:timestep });
-    runtime.eventCounter += 1;
+    runtime.DebugStatus.eventCounter += 1;
   }
 
   function clearAsyncCallbacks() {
@@ -124,7 +125,7 @@ function debugModule(module, runtime) {
 
   function clearRecordedEvents() {
     recordedEvents = [];
-    runtime.eventCounter = 0;
+    runtime.DebugStatus.eventCounter = 0;
   }
 
   function getRecordedEventsLength() {
@@ -182,7 +183,7 @@ function debugModule(module, runtime) {
       snapshots = snapshots.slice(0, lastSnapshotPosition + 1);
       recordedEvents = recordedEvents.slice(0, position);
       tracePath.clearTracesAfter(position);
-      runtime.eventCounter = position;
+      runtime.DebugStatus.eventCounter = position;
       executeCallbacks(asyncCallbacks, false);
     }
     tracePath.startRecording();
@@ -320,14 +321,14 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     debugModule.setPaused();
     debugModule.loadRecordedEvents(hotSwapState.recordedEvents);
     var index = getMaxSteps();
-    runtime.eventCounter = 0;
+    runtime.DebugStatus.eventCounter = 0;
     debugModule.tracePath.clearTraces();
 
     // draw new trace path
     debugModule.tracePath.startRecording();
     while(currentEventIndex < index) {
       var nextEvent = debugModule.getRecordedEventAt(currentEventIndex);
-      runtime.eventCounter += 1;
+      runtime.DebugStatus.eventCounter += 1;
       runtime.notify(nextEvent.id, nextEvent.value, nextEvent.timestep);
       debugModule.snapshotOnCheckpoint();
       currentEventIndex += 1;
@@ -412,14 +413,14 @@ function tracePathInit(runtime, signalGraphMain) {
       else {
         tracePositions[id] = [pos];
       }
-      if (tracePositions[id].length < runtime.eventCounter) {
-        var padCount = runtime.eventCounter - tracePositions[id].length;
+      if (tracePositions[id].length < runtime.DebugStatus.eventCounter) {
+        var padCount = runtime.DebugStatus.eventCounter - tracePositions[id].length;
         var lastTracePosition = tracePositions[id][tracePositions[id].length - 1];
         for (var i = padCount; i--;) {
           tracePositions[id].push(lastTracePosition)
         }
       }
-      assert(tracePositions[id].length === runtime.eventCounter,
+      assert(tracePositions[id].length === runtime.DebugStatus.eventCounter,
              "We don't have a 1-1 mapping of trace positions to events");
     }
   }
