@@ -24,7 +24,6 @@ constrain :: Environment -> P.CanonicalPattern -> Type
 constrain env pattern tipe =
     let region = A.None (pretty pattern)
         t1 === t2 = A.A region (CEqual t1 t2)
-        x <? t = A.A region (CInstance x t)
     in
     case pattern of
       P.Anything -> return emptyFragment
@@ -42,10 +41,12 @@ constrain env pattern tipe =
           }
 
       P.Alias name p -> do
+          v <- liftIO $ variable Flexible
           fragment <- constrain env p tipe
-          return $ fragment {
-              typeEnv = Map.insert name tipe (typeEnv fragment),
-              typeConstraint = name <? tipe /\ typeConstraint fragment
+          return $ fragment
+            { typeEnv = Map.insert name (varN v) (typeEnv fragment)
+            , vars    = v : vars fragment
+            , typeConstraint = varN v === tipe /\ typeConstraint fragment
             }
 
       P.Data name patterns -> do

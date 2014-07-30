@@ -301,7 +301,7 @@ function nodeStepper(w,h,div) {
             : (Render.update(kid, kid.oldElement, elem), kids[i]);
 
         node.style.position = 'absolute';
-        node.style.opacity = alpha * form.alpha;
+        node.style.opacity = alpha * form.alpha * elem.props.opacity;
         addTransform(node.style, makeTransform(w, h, form, matrices));
         node.oldElement = elem;
         ++i;
