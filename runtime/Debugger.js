@@ -20,10 +20,15 @@ Elm.debuggerAttach = function(module, hotSwapState /* =undefined */) {
   };
 };
 
-var filename = "";
 Elm.debugFullscreen = function(module, moduleFile, hotSwapState /* =undefined */) {
-  filename = moduleFile;
-  var debuggedModule = Elm.debuggerAttach(module, hotSwapState);
+  var debuggedModule = {
+    make: function(runtime) {
+      var wrappedModule = debugModule(module, runtime);
+      Elm.Debugger = debuggerInit(wrappedModule, runtime, hotSwapState, moduleFile);
+      dispatchElmDebuggerInit();
+      return wrappedModule.debuggedModule;
+    }
+  }
   return Elm.fullscreen(debuggedModule);
 };
 
@@ -222,7 +227,8 @@ function debugModule(module, runtime) {
   };
 }
 
-function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
+function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */, moduleFile /* =undefined */) {
+  var filename = moduleFile || "";
   var currentEventIndex = 0;
 
   function resetProgram(position) {
