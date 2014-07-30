@@ -187,7 +187,7 @@ function debugModule(module, runtime) {
       recordedEvents = recordedEvents.slice(0, position);
       tracePath.clearTracesAfter(position);
       eventCounter = position;
-      executeCallbacks(asyncCallbacks, false);
+      executeCallbacks(asyncCallbacks, false, lastEventTime);
     }
     tracePath.startRecording();
   }
@@ -491,12 +491,12 @@ function tracePathInit(runtime, signalGraphMain) {
   }
 }
 
-function executeCallbacks(callbacks, reexecute) {
+function executeCallbacks(callbacks, reexecute, previousTime /* =undefined */) {
   callbacks.forEach(function(timer) {
     if (reexecute || !timer.executed) {
       var func = timer.func;
       timer.executed = true;
-      func();
+      func(previousTime);
     }
   });
 }
