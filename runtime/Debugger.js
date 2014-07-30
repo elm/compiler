@@ -180,6 +180,10 @@ function debugModule(module, runtime) {
       var lastSnapshotPosition = Math.floor(position / EVENTS_PER_SAVE);
       eventsUntilSnapshot = EVENTS_PER_SAVE - (position % EVENTS_PER_SAVE);
       snapshots = snapshots.slice(0, lastSnapshotPosition + 1);
+
+      var lastEventTime = recordedEvents[position-1].timestep;
+      runtime.timer.setDelay(Date.now() - lastEventTime);
+
       recordedEvents = recordedEvents.slice(0, position);
       tracePath.clearTracesAfter(position);
       eventCounter = position;

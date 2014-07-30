@@ -49,8 +49,14 @@ function init(display, container, module, ports, moduleToReplace) {
       return inducedDelay;
     }
 
+    var setDelay = function(d) {
+      inducedDelay = d;
+      return inducedDelay;
+    }
+
     return { now : now
            , addDelay : addDelay
+           , setDelay : setDelay
            }
   }();
 
