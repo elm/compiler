@@ -50,24 +50,33 @@ generateDocumentation modul =
   ModuleDocument
     { name = intercalate "." $ M.names modul
     , document = fromMaybe "" $ M.comment modul
-    , values = processAll generateValueDoc $ joinMapValues (M.types b) (M.defDocs b)
+    , values = processAll (generateValueDoc (M.defDocs b) (buildFixityMap $ M.fixities b)) (M.types b)
     , aliases = processAll generateAliasDoc $ M.aliases b
     , datatypes = processAll generateDatatypeDoc $ M.datatypes b
     }
   where
     processAll fn = map (uncurry fn) . Map.toList
 
-    generateValueDoc :: String -> (T.CanonicalType, Maybe String) -> Document
-    generateValueDoc n (tipe, doc) =
+    buildFixityMap = Map.fromList . map f
+      where f (A.A _ (x, y, z)) = (z, (x, y))
+
+    generateValueDoc :: Map String String -> Map String (Decl.Assoc, Int) -> String -> T.CanonicalType -> Document
+    generateValueDoc docs fixityMap n tipe =
       let prettyName = if Help.isOp n
                          then "(" ++ n ++ ")"
                          else n
+          doc = Map.lookup n docs
+          fixityPart =
+            case Map.lookup n fixityMap of
+              Just (assoc, p) -> [ ("associativity", toJSON $ show assoc)
+                                 , ("precedence", toJSON p) ]
+              Nothing -> []
       in
       Document { docName = n
                , raw = P.render $ P.hsep [P.text prettyName, P.colon, PP.pretty tipe]
                , comment = fromMaybe "" doc
-               , body = Map.fromList
-                        [ ("type", typeToJSON tipe) ]
+               , body = Map.fromList $
+                        [ ("type", typeToJSON tipe) ] ++ fixityPart
                }
 
     generateAliasDoc :: String -> Decl.AnnotatedDecl ([String], T.CanonicalType) -> Document
