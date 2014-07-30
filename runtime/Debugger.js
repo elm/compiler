@@ -171,8 +171,6 @@ function debugModule(module, runtime) {
   }
 
   function setContinue(position) {
-    var timerDelay = Date.now() - pauseTime;
-    runtime.timer.addDelay(timerDelay);
     programPaused = false;
     if (position > 0) {
       // If we're not unpausing at the head, then we need to dump the
@@ -188,6 +186,8 @@ function debugModule(module, runtime) {
       tracePath.clearTracesAfter(position);
       eventCounter = position;
       executeCallbacks(asyncCallbacks, false, lastEventTime);
+    } else {
+      runtime.timer.setDelay(0);
     }
     tracePath.startRecording();
   }

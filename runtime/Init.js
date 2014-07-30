@@ -44,18 +44,12 @@ function init(display, container, module, ports, moduleToReplace) {
       return Date.now() - inducedDelay;
     };
 
-    var addDelay = function(d) {
-      inducedDelay += d;
-      return inducedDelay;
-    }
-
     var setDelay = function(d) {
       inducedDelay = d;
       return inducedDelay;
     }
 
     return { now : now
-           , addDelay : addDelay
            , setDelay : setDelay
            }
   }();
