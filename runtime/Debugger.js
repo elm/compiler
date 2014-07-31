@@ -180,14 +180,13 @@ function debugModule(module, runtime) {
       snapshots = snapshots.slice(0, lastSnapshotPosition + 1);
 
       var lastEventTime = recordedEvents[position-1].timestep;
-      runtime.timer.setDelay(Date.now() - lastEventTime);
+      var scrubTime = runtime.timer.now() - lastEventTime;
+      runtime.timer.addDelay(scrubTime);
 
       recordedEvents = recordedEvents.slice(0, position);
       tracePath.clearTracesAfter(position);
       eventCounter = position;
-      executeCallbacks(asyncCallbacks, false, lastEventTime);
-    } else {
-      runtime.timer.setDelay(0);
+      executeCallbacks(asyncCallbacks, false);
     }
     tracePath.startRecording();
   }
@@ -491,12 +490,12 @@ function tracePathInit(runtime, signalGraphMain) {
   }
 }
 
-function executeCallbacks(callbacks, reexecute, previousTime /* =undefined */) {
+function executeCallbacks(callbacks, reexecute) {
   callbacks.forEach(function(timer) {
     if (reexecute || !timer.executed) {
       var func = timer.func;
       timer.executed = true;
-      func(previousTime);
+      func();
     }
   });
 }
