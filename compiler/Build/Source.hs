@@ -31,7 +31,5 @@ build noPrelude interfaces source =
      types <- TI.infer interfaces canonicalModule
 
      -- Trim down the set of exported values to the stuff that is actually exported.
-     let types' = Canonical.filterExports types (Module.exports canonicalModule)
-         body'  = (body canonicalModule) { types = types' }
-
-     return $ canonicalModule { body = body' }
+     -- Add documentation to any types that have it.
+     return $ Canonical.addTypes types canonicalModule

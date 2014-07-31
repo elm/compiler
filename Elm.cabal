@@ -221,50 +221,6 @@ Executable elm
                        unordered-containers,
                        yaml
 
-Executable elm-doc
-  Main-is:             Docs.hs
-  Hs-Source-Dirs:      compiler
-  other-modules:       AST.Annotation,
-                       AST.Declaration,
-                       AST.Expression.General,
-                       AST.Helpers,
-                       AST.Literal,
-                       AST.Module,
-                       AST.Pattern,
-                       AST.PrettyPrint,
-                       AST.ProgramHeader,
-                       AST.Type,
-                       AST.Variable,
-                       Parse.Binop,
-                       Parse.Declaration,
-                       Parse.Expression,
-                       Parse.Helpers,
-                       Parse.Literal,
-                       Parse.Module,
-                       Parse.Pattern,
-                       Parse.Type
-
-  Build-depends:       aeson,
-                       aeson-pretty,
-                       base >=4.2 && <5,
-                       binary >= 0.7.0.0,
-                       bytestring,
-                       cmdargs,
-                       containers >= 0.3,
-                       directory,
-                       filepath,
-                       indents,
-                       language-glsl >= 0.0.2,
-                       mtl >= 2,
-                       pandoc >= 1.10,
-                       parsec >= 3.1.1,
-                       pretty,
-                       scientific,
-                       text,
-                       transformers >= 0.2,
-                       union-find,
-                       yaml
-
 Test-Suite compiler-tests
   Type:            exitcode-stdio-1.0
   Hs-Source-Dirs:  tests/compiler, compiler

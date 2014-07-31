@@ -1,9 +1,10 @@
 {-# OPTIONS_GHC -W #-}
-module Transform.Canonicalize (module', filterExports) where
+module Transform.Canonicalize (module', addTypes) where
 
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad.Error (runErrorT, throwError)
 import Control.Monad.State (runState)
+import Data.Maybe (fromMaybe)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -30,7 +31,8 @@ import qualified Transform.Canonicalize.Variable as Canonicalize
 import qualified Transform.SortDefinitions as Transform
 import qualified Transform.Declaration as Transform
 
-module' :: Module.Interfaces -> Module.ValidModule -> Either [Doc] Module.CanonicalModule
+module' :: Module.Interfaces -> Module.ValidModule
+        -> Either [Doc] Module.CanonicalModuleNoTypes
 module' interfaces modul =
     filterImports <$> modul'
   where
@@ -42,35 +44,64 @@ module' interfaces modul =
         in  m { Module.imports = filter used (Module.imports m) }
 
 moduleHelp :: Module.Interfaces -> Module.ValidModule
-           -> Canonicalizer [Doc] Module.CanonicalModule
+           -> Canonicalizer [Doc] Module.CanonicalModuleNoTypes
 moduleHelp interfaces modul@(Module.Module _ _ exs _ _ decls) =
   do env <- Setup.environment interfaces modul
      canonicalDecls <- mapM (declaration env) decls
      exports' <- delist locals exs
      return $ modul { Module.exports = exports'
-                    , Module.body    = body canonicalDecls
+                    , Module.body = body (Module.getName modul) canonicalDecls
                     }
   where
     locals :: [Var.Value]
     locals = concatMap declToValue decls
 
-    body :: [D.CanonicalDecl] -> Module.CanonicalBody
-    body annotatedDecls =
-      let decls = map A.value annotatedDecls in
-      Module.CanonicalBody
-         { program =
-               let expr = Transform.toExpr (Module.getName modul) annotatedDecls
-               in  Transform.sortDefs (dummyLet expr)
-         , types = Map.empty
-         , datatypes =
-             Map.fromList [ (name,(vars,ctors)) | D.Datatype name vars ctors <- decls ]
-         , fixities =
-             [ (assoc,level,op) | D.Fixity assoc level op <- decls ]
-         , aliases =
-             Map.fromList [ (name,(tvs,alias)) | D.TypeAlias name tvs alias <- decls ]
-         , ports =
-             [ D.portName port | D.Port port <- decls ]
-         }
+body :: String -> [D.CanonicalDecl] -> Module.CanonicalBody String
+body moduleName commentedDecls =
+    Module.CanonicalBody
+    { program = program
+    , types = types
+    , datatypes = datatypes
+    , fixities = fixities
+    , aliases = aliases
+    , ports = ports
+    }
+  where
+    program =
+        let expr = Transform.toExpr moduleName commentedDecls
+        in  Transform.sortDefs (dummyLet expr)
+
+    (types, datatypes, fixities, aliases, ports) =
+        collect Map.empty Map.empty [] Map.empty [] commentedDecls
+
+    collect ts ds fs as ps commentedDecls = 
+        case commentedDecls of
+          [] -> (ts, ds, fs, as, ps)
+          (A.A comment decl) : rest ->
+              let doc = A.A comment in
+              case decl of
+                D.Definition (Canonical.Definition (P.Var name) _ _) ->
+                    let ts' = Map.insert name (fromMaybe "" comment) ts in
+                    collect ts' ds fs as ps rest
+
+                D.Datatype name vars ctors ->
+                    let ds' = Map.insert name (doc (vars, ctors)) ds in
+                    collect ts ds' fs as ps rest
+
+                D.Fixity assoc level op ->
+                    let fs' = doc (assoc, level, op) : fs in
+                    collect ts ds fs' as ps rest
+
+                D.TypeAlias name tvs alias ->
+                    let as' = Map.insert name (doc (tvs, alias)) as in
+                    collect ts ds fs as' ps rest
+
+                D.Port port ->
+                    let ps' = doc (D.portName port) : ps in
+                    collect ts ds fs as ps' rest
+
+                _ -> collect ts ds fs as ps rest
+
 
 delist :: [Var.Value] -> Var.Listing Var.Value -> Canonicalizer [Doc] [Var.Value]
 delist fullList (Var.Listing partial open)
@@ -107,18 +138,35 @@ delist fullList (Var.Listing partial open)
 
                 _ -> go list xs partial
 
+addTypes :: Map.Map String Type.CanonicalType -> Module.CanonicalModuleNoTypes
+         -> Module.CanonicalModule
+addTypes rawTypes canonicalModule =
+    canonicalModule { Module.body = typedBody }
+  where
+    body = Module.body canonicalModule
+
+    typedBody = body { Module.types = documentedTypes }
+
+    documentedTypes =
+        let combine (A.A _ tipe) comment = Just (A.A (Just comment) tipe) in
+        Map.differenceWith combine undocumentedTypes (Module.types body)
+        
+    undocumentedTypes =
+        Map.map (A.A Nothing) exportedTypes
+
+    exportedTypes =
+        filterExports rawTypes (Module.exports canonicalModule)
+
 filterExports :: Module.Types -> [Var.Value] -> Module.Types
 filterExports types values =
     Map.fromList (concatMap getValue values)
   where
-    getValue :: Var.Value -> [(String, Type.CanonicalType)]
     getValue value =
         case value of
           Var.Value x -> get x
           Var.Alias x -> get x
           Var.ADT _ (Var.Listing ctors _) -> concatMap get ctors
 
-    get :: String -> [(String, Type.CanonicalType)]
     get x =
         case Map.lookup x types of
           Just t  -> [(x,t)]

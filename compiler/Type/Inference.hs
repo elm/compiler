@@ -23,7 +23,7 @@ import System.IO.Unsafe  -- Possible to switch over to the ST monad instead of
                          -- the IO monad. I don't think that'd be worthwhile.
 
 
-infer :: Interfaces -> CanonicalModule -> Either [Doc] (Map.Map String CanonicalType)
+infer :: Interfaces -> CanonicalModuleNoTypes -> Either [Doc] (Map.Map String CanonicalType)
 infer interfaces modul = unsafePerformIO $ runErrorT $ do
   (header, constraint) <- genConstraints interfaces modul
 
@@ -41,7 +41,7 @@ infer interfaces modul = unsafePerformIO $ runErrorT $ do
   Check.mainType types
 
 
-genConstraints :: Interfaces -> CanonicalModule
+genConstraints :: Interfaces -> CanonicalModuleNoTypes
                -> ErrorT [Doc] IO (Env.TypeDict, T.TypeConstraint)
 genConstraints interfaces modul = do
   env <- liftIO $ Env.initialEnvironment (canonicalizeAdts interfaces modul)
@@ -69,17 +69,16 @@ canonicalizeValues env (moduleName, iface) =
       tipe' <- Env.instantiateType env tipe Map.empty
       return (moduleName ++ "." ++ name, tipe')
 
-canonicalizeAdts :: Interfaces -> CanonicalModule -> [CanonicalAdt]
+canonicalizeAdts :: Interfaces -> CanonicalModuleNoTypes -> [CanonicalAdt]
 canonicalizeAdts interfaces modul =
     localAdts ++ importedAdts
   where
     localAdts :: [CanonicalAdt]
-    localAdts = format (Module.getName modul, datatypes (body modul))
+    localAdts = format (Module.getName modul, Map.map A.value $ datatypes (body modul))
 
     importedAdts :: [CanonicalAdt]
     importedAdts = concatMap (format . second iAdts) (Map.toList interfaces)
 
-    format :: (String, Module.ADTs) -> [CanonicalAdt]
     format (home, adts) =
         map canonical (Map.toList adts)
       where

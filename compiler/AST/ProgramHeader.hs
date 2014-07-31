@@ -10,8 +10,8 @@ import qualified Elm.Internal.Name as Package
 type ModuleName = [String] -- | Invariant: Nonempty
 type ModuleId   = (Maybe Package.Name, ModuleName)
 
-toName :: ModuleName -> String
-toName = List.intercalate "."
+moduleName :: ModuleName -> String
+moduleName = List.intercalate "."
 
 modulePath :: ModuleName -> FilePath
 modulePath = foldr1 (</>) 
