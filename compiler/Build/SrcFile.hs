@@ -1,6 +1,10 @@
 {-# OPTIONS_GHC -Wall #-}
-module Build.SrcFile (SrcFile, UnresolvedSrcFile, ResolvedSrcFile, getDeps, header, load, moduleId, moduleName, modulePath, path, pkg, resolve, resolvedDeps)
-       where
+module Build.SrcFile
+    ( SrcFile, Unresolved, Resolved
+    , getDeps, header, load
+    , moduleId, moduleName, modulePath
+    , path, pkg, resolve, resolvedDeps
+    ) where
 
 import Control.Arrow ((&&&))
 import Control.Monad.Error (ErrorT, throwError)
@@ -15,8 +19,8 @@ import Parse.Parse (programHeader)
 
 -- | This module is intended to be imported qualified.
 
-type UnresolvedSrcFile = SrcFile ()
-type ResolvedSrcFile = SrcFile [ModuleId] -- ^ Includes resolved dependencies (package and module)
+type Unresolved = SrcFile ()
+type Resolved = SrcFile [ModuleId] -- ^ Includes resolved dependencies (package and module)
 
 data SrcFile meta = SrcFile
     { _path     :: FilePath
@@ -43,16 +47,16 @@ modulePath src = foldr1 (</>) (_names . header $ src)
 getDeps :: SrcFile a -> [ModuleName]
 getDeps = map fst . ProgramHeader._imports . header
 
-resolvedDeps :: ResolvedSrcFile -> [ModuleId]
+resolvedDeps :: Resolved -> [ModuleId]
 resolvedDeps = _metadata
 
 path :: SrcFile a -> FilePath
 path = _path
 
-resolve :: UnresolvedSrcFile -> [ModuleId] -> ResolvedSrcFile
+resolve :: Unresolved -> [ModuleId] -> Resolved
 resolve (SrcFile pth pkg' headr _) ids = SrcFile pth pkg' headr ids
 
-load :: Maybe Package.Name -> FilePath -> ErrorT String IO UnresolvedSrcFile
+load :: Maybe Package.Name -> FilePath -> ErrorT String IO Unresolved
 load name f = do
   txt <- liftIO $ readFile f
   case iParse programHeader txt of

@@ -10,7 +10,7 @@ import qualified Text.PrettyPrint as P
 
 import qualified AST.Declaration as D
 import qualified AST.Module as M
-import AST.ProgramHeader
+import qualified AST.ProgramHeader as PH
 import qualified AST.Variable as Var
 import Parse.Helpers
 import Parse.Declaration (infixDecl)
@@ -34,7 +34,7 @@ program table src =
            either (\err -> Left [P.text err]) Right (validate sourceDecls)
        return $ M.Module names filePath exs ims doc decls
 
-programHeader :: IParser ProgramHeader
+programHeader :: IParser PH.ProgramHeader
 programHeader =
     do optional freshLine
        (names, exports) <-
@@ -42,20 +42,23 @@ programHeader =
        doc <- optionMaybe (docComment `followedBy` freshLine)
        is <- (do try (lookAhead $ reserved "import")
                  imports `followedBy` freshLine) <|> return []
-       return $ ProgramHeader names exports doc is
+       return $ PH.ProgramHeader names exports doc is
 
 programParser :: IParser M.SourceModule
 programParser =
-  do (ProgramHeader names exports doc is) <- programHeader
+  do (PH.ProgramHeader names exports doc is) <- programHeader
      declarations <- decls
      optional freshLine ; optional spaces ; eof
-     let stringyImports = map (first toName) is
+     let stringyImports = map (first PH.moduleName) is
      return $ M.Module names "" exports stringyImports doc declarations
 
 dependencies :: String -> Either [P.Doc] (String, [String])
 dependencies =
-  setupParser $ do header <- programHeader
-                   return (toName $ _names header, map (toName . fst) $ _imports header)
+    setupParser $ do
+      header <- programHeader
+      return ( PH.moduleName (PH._names header)
+             , map (PH.moduleName . fst) (PH._imports header)
+             )
 
 setupParserWithTable :: OpTable -> IParser a -> String -> Either [P.Doc] a
 setupParserWithTable table p source =
