@@ -9,10 +9,12 @@ import Control.Arrow (second)
 import Data.Aeson
 import Data.List (intercalate)
 import Data.Map (Map)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isJust)
+import Data.Set (Set)
 import Data.Text (Text)
 import GHC.Generics
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Text.PrettyPrint as P
 
 import qualified AST.Annotation as A
@@ -37,12 +39,9 @@ data Document = Document
     { docName :: String
     , raw :: String
     , comment :: String
+    , exposed :: Bool
     , body :: Map Text Value
     } deriving (Show)
-
-joinMapValues :: Ord k => Map k v1 -> Map k v2 -> Map k (v1, Maybe v2)
-joinMapValues map1 map2 = Map.mapWithKey f map1
-  where f key value = (value, Map.lookup key map2)
 
 generateDocumentation :: M.CanonicalModule -> ModuleDocument
 generateDocumentation modul =
@@ -75,8 +74,9 @@ generateDocumentation modul =
       Document { docName = n
                , raw = P.render $ P.hsep [P.text prettyName, P.colon, PP.pretty tipe]
                , comment = fromMaybe "" doc
+               , exposed = Set.member n exportedValues
                , body = Map.fromList $
-                        [ ("type", typeToJSON tipe) ] ++ fixityPart
+                        ("type", typeToJSON tipe) : fixityPart
                }
 
     generateAliasDoc :: String -> Decl.AnnotatedDecl ([String], T.CanonicalType) -> Document
@@ -84,6 +84,7 @@ generateDocumentation modul =
       Document { docName = n
                , raw = P.render $ P.hsep $ (P.text "type" : P.text n : map PP.pretty vars) ++ [P.text "=", PP.pretty tipe]
                , comment = fromMaybe "" doc
+               , exposed = Set.member n exportedAliases
                , body = Map.fromList
                         [ ("typeVariables", toJSON vars)
                         , ("type", typeToJSON tipe) ]
@@ -103,20 +104,45 @@ generateDocumentation modul =
     generateDatatypeDoc :: String -> Decl.AnnotatedDecl (M.AdtInfo String) -> Document
     generateDatatypeDoc n (A.A doc (vars, ctors)) =
       let var = T.Type . Var.Canonical Var.Local
-          tipe = T.App (var n) (map var vars) in
+          tipe = T.App (var n) (map var vars)
+          listing = Map.lookup n exportedDatas
+      in
       Document { docName = n
                , raw = P.render (P.hsep (P.text "data" : P.text n : map PP.pretty vars) P.$$
                                  (P.nest 4 $ P.vcat (prettyCtors ctors)))
                , comment = fromMaybe "" doc
+               , exposed = isJust listing
                , body = Map.fromList
                         [ ("typeVariables", toJSON vars)
-                        , ("constructors", toJSON $ map (ctorToJSON tipe) ctors) ]
+                        , ("constructors", toJSON $ map (ctorToJSON tipe listing) ctors) ]
                }
 
-    ctorToJSON :: T.CanonicalType -> (String, [T.CanonicalType]) -> Value
-    ctorToJSON tipe (ctor, tipes) =
+    ctorToJSON :: T.CanonicalType -> Maybe (Var.Listing String) -> (String, [T.CanonicalType]) -> Value
+    ctorToJSON tipe lst (ctor, tipes) =
       object [ "name" .= ctor
-             , "type" .= (typeToJSON $ foldr T.Lambda tipe tipes) ]
+             , "type" .= (typeToJSON $ foldr T.Lambda tipe tipes)
+             , "exposed" .=
+               case lst of
+                 Just l | Var._open l || ctor `elem` Var._explicits l -> True
+                 _ -> False
+             ]
+
+    (exportedValues, exportedAliases, exportedDatas) = analyzeExports (M.exports modul)
+
+    analyzeExports :: [Var.Value] -> (Set String, Set String, Map String (Var.Listing String))
+    analyzeExports = go Set.empty Set.empty Map.empty
+      where go vs as datas ls =
+              case ls of
+                [] -> (vs, as, datas)
+
+                Var.Value value : rest ->
+                  go (Set.insert value vs) as datas rest
+
+                Var.Alias value : rest ->
+                  go vs (Set.insert value as) datas rest
+
+                Var.ADT value lst : rest ->
+                  go vs as (Map.insert value lst datas) rest
     
 instance ToJSON ModuleDocument
 
@@ -126,6 +152,7 @@ instance ToJSON Document where
     object $ [ "name" .= docName doc
              , "raw" .= raw doc
              , "comment" .= comment doc
+             , "exposed" .= exposed doc
              ] ++ map processPair (Map.toList $ body doc)
 
 typeToJSON :: T.CanonicalType -> Value
