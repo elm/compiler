@@ -79,7 +79,7 @@ generateDocumentation modul =
                         ("type", typeToJSON tipe) : fixityPart
                }
 
-    generateAliasDoc :: String -> Decl.AnnotatedDecl ([String], T.CanonicalType) -> Document
+    generateAliasDoc :: String -> A.Commented ([String], T.CanonicalType) -> Document
     generateAliasDoc n (A.A doc (vars, tipe)) =
       Document { docName = n
                , raw = P.render $ P.hsep $ (P.text "type" : P.text n : map PP.pretty vars) ++ [P.text "=", PP.pretty tipe]
@@ -101,7 +101,7 @@ generateDocumentation modul =
         prettyCtor (n, types) =
           P.hsep (P.text n : map PP.pretty types)
 
-    generateDatatypeDoc :: String -> Decl.AnnotatedDecl (M.AdtInfo String) -> Document
+    generateDatatypeDoc :: String -> A.Commented (M.AdtInfo String) -> Document
     generateDatatypeDoc n (A.A doc (vars, ctors)) =
       let var = T.Type . Var.Canonical Var.Local
           tipe = T.App (var n) (map var vars)

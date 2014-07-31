@@ -10,6 +10,8 @@ data Annotated annotation value = A
     , value :: value
     } deriving (Show)
 
+type Commented = Annotated (Maybe String)
+
 data Region
     = Span Position Position P.Doc
     | None P.Doc

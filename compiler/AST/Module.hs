@@ -6,7 +6,6 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import Control.Applicative ((<$>),(<*>))
 
-import AST.Declaration (AnnotatedDecl)
 import qualified AST.Annotation as A
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Declaration as Decl
@@ -35,10 +34,10 @@ data CanonicalBody = CanonicalBody
     { program   :: Canonical.Expr
     , types     :: Types
     , defDocs   :: Map.Map String String
-    , fixities  :: [AnnotatedDecl (Decl.Assoc, Int, String)]
+    , fixities  :: [A.Commented (Decl.Assoc, Int, String)]
     , aliases   :: Aliases
     , datatypes :: ADTs
-    , ports     :: [AnnotatedDecl String]
+    , ports     :: [A.Commented String]
     } deriving (Show)
 
 type SourceModule    = Module (Var.Listing Var.Value) [Decl.SourceDecl]
@@ -48,8 +47,8 @@ type CanonicalModule = Module [Var.Value] CanonicalBody
 type Interfaces = Map.Map String Interface
 
 type Types   = Map.Map String Type.CanonicalType
-type Aliases = Map.Map String (AnnotatedDecl ([String], Type.CanonicalType))
-type ADTs    = Map.Map String (AnnotatedDecl (AdtInfo String))
+type Aliases = Map.Map String (A.Commented ([String], Type.CanonicalType))
+type ADTs    = Map.Map String (A.Commented (AdtInfo String))
 
 type AdtInfo v = ( [String], [(v, [Type.CanonicalType])] )
 type CanonicalAdt = (Var.Canonical, AdtInfo Var.Canonical)

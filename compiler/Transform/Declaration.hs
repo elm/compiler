@@ -26,7 +26,7 @@ validate decls =
 (<:>) :: (Functor f) => a -> f [a] -> f [a]
 x <:> f = (:) x <$> f
 
-attachComments :: [D.SourceDecl] -> Either String [D.AnnotatedDecl D.SourceDecl']
+attachComments :: [D.SourceDecl] -> Either String [A.Commented D.SourceDecl']
 attachComments srcDecls =
     go Nothing srcDecls
   where
@@ -64,7 +64,7 @@ attachComments srcDecls =
         \ comments must be associated with a top level declaration.\
         \ Maybe you commented out a declaration?"
 
-combineAnnotations :: [D.AnnotatedDecl D.SourceDecl'] -> Either String [D.ValidDecl]
+combineAnnotations :: [A.Commented D.SourceDecl'] -> Either String [D.ValidDecl]
 combineAnnotations = go
   where
     msg x = "Syntax Error: The type annotation for '" ++ x ++

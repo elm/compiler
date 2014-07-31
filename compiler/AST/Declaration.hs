@@ -19,8 +19,6 @@ data Declaration' port def var
     | Fixity Assoc Int String
       deriving (Show)
 
-type AnnotatedDecl = A.Annotated (Maybe String)
-
 data Assoc = L | N | R
     deriving (Eq)
 
@@ -41,11 +39,11 @@ data SourceDecl
     deriving (Show)
 
 type ValidDecl' = Declaration' (Port Valid.Expr Var.Raw) Valid.Def Var.Raw
-type ValidDecl = AnnotatedDecl ValidDecl'
+type ValidDecl = A.Commented ValidDecl'
 
 type CanonicalDecl' =
     Declaration' (Port Canonical.Expr Var.Canonical) Canonical.Def Var.Canonical
-type CanonicalDecl = AnnotatedDecl CanonicalDecl'
+type CanonicalDecl = A.Commented CanonicalDecl'
 
 portName :: Port expr var -> String
 portName port =
