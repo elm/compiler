@@ -6,12 +6,14 @@ module Elm.Internal.Documentation where
 import Control.Applicative ((<$>))
 import Control.Arrow (second)
 import Data.Aeson
+import Data.Aeson.Encode.Pretty (encodePretty', Config(..), keyOrder)
 import Data.List (intercalate)
 import Data.Map (Map)
 import Data.Maybe (fromMaybe, isJust)
 import Data.Set (Set)
 import Data.Text (Text)
 import GHC.Generics
+import qualified Data.ByteString.Lazy as BS
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Text.PrettyPrint as P
@@ -42,8 +44,19 @@ data Document = Document
     , body :: Map Text Value
     } deriving (Show)
 
-generateDocumentation :: M.CanonicalModule -> ModuleDocument
+generateDocumentation :: M.CanonicalModule -> BS.ByteString
 generateDocumentation modul =
+    encodePretty' config (generateModuleDoc modul)
+  where
+    config :: Config
+    config = Config { confIndent = 2, confCompare = keyOrder keys }
+
+    keys = [ "tag", "name", "document", "comment", "raw", "aliases", "datatypes"
+           , "values", "typeVariables", "type", "constructors"
+           ]
+
+generateModuleDoc :: M.CanonicalModule -> ModuleDocument
+generateModuleDoc modul =
   let b = M.body modul in
   ModuleDocument
     { name = intercalate "." $ M.names modul

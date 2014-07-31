@@ -9,7 +9,6 @@ import System.Exit
 import System.FilePath
 import System.IO
 
-import qualified Data.Aeson as Aeson
 import qualified Data.Binary as Binary
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
@@ -151,7 +150,7 @@ compile number filePath =
      let documentation = Doc.generateDocumentation canonicalModule
      liftIO $ do let docPath = "docs" </> replaceExtension filePath ".json"
                  createDirectoryIfMissing True (takeDirectory docPath)
-                 L.writeFile docPath $ Aeson.encode documentation
+                 L.writeFile docPath documentation
 
      liftIO $ when (Flag.print_types flags) $ do
        Print.types (Map.map A.value (Module.types (Module.body canonicalModule)))
