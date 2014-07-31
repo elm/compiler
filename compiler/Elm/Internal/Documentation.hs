@@ -3,15 +3,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.Internal.Documentation where
 
-import Control.Applicative ((<$>))
-import Control.Arrow (second)
 import Data.Aeson
 import Data.Aeson.Encode.Pretty (encodePretty', Config(..), keyOrder)
 import Data.List (intercalate)
 import Data.Map (Map)
 import Data.Maybe (fromMaybe, isJust)
 import Data.Set (Set)
-import Data.Text (Text)
+import Data.Text (Text, pack)
 import GHC.Generics
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Map as Map
@@ -189,26 +187,31 @@ typeToJSON tipe =
 
       T.App (T.Type n) ts ->
         [ "tag" .= ("adt" :: Text)
-        , "name" .= toJSON (Var.name n)
+        , "name" .= toJSON (Var.toString n)
         , "args" .= map typeToJSON ts
         ]
 
-      T.App _ _ -> error "Elm.Internal.Documentation: incorrect type in function position"
-
-      T.Record fields ext ->
-        [ "tag" .= ("record" :: Text)
-        , "extension" .= toJSON (typeToJSON <$> ext)
-        , "field" .= toJSON (map (toJSON . second typeToJSON) fields)
-        ]
+      T.App _ _ -> error "Elm.Internal.Documentation: cannot serialize types with higher-kinded polymorphism yet"
 
       T.Type var ->
         [ "tag" .= ("adt" :: Text)
-        , "name" .= (toJSON $ Var.name var)
+        , "name" .= toJSON (Var.toString var)
         , "args" .= map typeToJSON []
         ]
 
-      T.Aliased alias typ ->
+      T.Aliased alias _ ->
         [ "tag" .= ("alias" :: Text)
-        , "alias" .= toJSON (Var.name alias)
-        , "type" .= typeToJSON typ
+        , "alias" .= toJSON (Var.toString alias)
         ]
+
+      T.Record fields ext ->
+        [ "tag" .= ("record" :: Text)
+        , "extension" .= toJSON (fmap typeToJSON ext)
+        , "fields" .= toJSON (map field fields)
+        ]
+        where
+          field (n,t) =
+              object [ "name" .= pack n
+                     , "type" .= typeToJSON t
+                     ]
+
