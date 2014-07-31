@@ -70,10 +70,10 @@ toInterface modul =
     { iVersion  = Version.elmVersion
     , iTypes    = types body'
     , iImports  = imports modul
-    , iAdts     = Map.map A.value $ datatypes body'
-    , iAliases  = Map.map A.value $ aliases body'
-    , iFixities = map A.value $ fixities body'
-    , iPorts    = map A.value $ ports body'
+    , iAdts     = Map.map A.value (datatypes body')
+    , iAliases  = Map.map A.value (aliases body')
+    , iFixities = map A.value (fixities body')
+    , iPorts    = map A.value (ports body')
     }
 
 instance Binary Interface where
