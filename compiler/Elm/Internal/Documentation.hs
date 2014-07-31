@@ -1,7 +1,6 @@
+{-# OPTIONS -Wall #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
-
-{-# OPTIONS -W -Wall #-}
 module Elm.Internal.Documentation where
 
 import Control.Applicative ((<$>))
