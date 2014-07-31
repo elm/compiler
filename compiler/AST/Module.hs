@@ -30,9 +30,17 @@ type CanonicalAdt = (Var.Canonical, AdtInfo Var.Canonical)
 
 -- MODULES
 
-type SourceModule = Module (Var.Listing Var.Value) [Decl.SourceDecl]
-type ValidModule = Module (Var.Listing Var.Value) [Decl.ValidDecl]
-type CanonicalModule = Module [Var.Value] CanonicalBody
+type SourceModule =
+    Module (Var.Listing Var.Value) [Decl.SourceDecl]
+
+type ValidModule =
+    Module (Var.Listing Var.Value) [Decl.ValidDecl]
+
+type CanonicalModuleNoTypes =
+    Module [Var.Value] (CanonicalBody String)
+
+type CanonicalModule =
+    Module [Var.Value] (CanonicalBody (A.Commented Type.CanonicalType)) 
 
 getName :: Module exs body -> String
 getName modul =
@@ -47,10 +55,9 @@ data Module exports body = Module
     , body    :: body
     } deriving (Show)
 
-data CanonicalBody = CanonicalBody
+data CanonicalBody types = CanonicalBody
     { program   :: Canonical.Expr
-    , types     :: Types
-    , defDocs   :: Map.Map String String
+    , types     :: Map.Map String types
     , fixities  :: [A.Commented (Decl.Assoc, Int, String)]
     , aliases   :: Aliases
     , datatypes :: ADTs
@@ -76,7 +83,7 @@ toInterface modul =
     let body' = body modul in
     Interface
     { iVersion  = Version.elmVersion
-    , iTypes    = types body'
+    , iTypes    = Map.map A.value (types body')
     , iImports  = imports modul
     , iAdts     = Map.map A.value (datatypes body')
     , iAliases  = Map.map A.value (aliases body')

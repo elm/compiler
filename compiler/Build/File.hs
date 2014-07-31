@@ -25,6 +25,7 @@ import qualified Build.Source as Source
 import qualified Build.Utils as Utils
 import qualified Generate.JavaScript as JS
 import qualified Parse.Module as Parser
+import qualified AST.Annotation as A
 import qualified AST.Module as Module
 
 -- Reader: Runtime flags, always accessible
@@ -153,7 +154,7 @@ compile number filePath =
                  L.writeFile docPath $ Aeson.encode documentation
 
      liftIO $ when (Flag.print_types flags) $ do
-       Print.types (Module.types (Module.body canonicalModule))
+       Print.types (Map.map A.value (Module.types (Module.body canonicalModule)))
   
      let newInters = Module.toInterface canonicalModule
      generateCache name newInters canonicalModule

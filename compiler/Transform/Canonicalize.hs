@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -W #-}
-module Transform.Canonicalize (module', filterExports) where
+module Transform.Canonicalize (module', addTypes) where
 
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad.Error (runErrorT, throwError)
@@ -31,7 +31,8 @@ import qualified Transform.Canonicalize.Variable as Canonicalize
 import qualified Transform.SortDefinitions as Transform
 import qualified Transform.Declaration as Transform
 
-module' :: Module.Interfaces -> Module.ValidModule -> Either [Doc] Module.CanonicalModule
+module' :: Module.Interfaces -> Module.ValidModule
+        -> Either [Doc] Module.CanonicalModuleNoTypes
 module' interfaces modul =
     filterImports <$> modul'
   where
@@ -43,7 +44,7 @@ module' interfaces modul =
         in  m { Module.imports = filter used (Module.imports m) }
 
 moduleHelp :: Module.Interfaces -> Module.ValidModule
-           -> Canonicalizer [Doc] Module.CanonicalModule
+           -> Canonicalizer [Doc] Module.CanonicalModuleNoTypes
 moduleHelp interfaces modul@(Module.Module _ _ exs _ _ decls) =
   do env <- Setup.environment interfaces modul
      canonicalDecls <- mapM (declaration env) decls
@@ -55,23 +56,22 @@ moduleHelp interfaces modul@(Module.Module _ _ exs _ _ decls) =
     locals :: [Var.Value]
     locals = concatMap declToValue decls
 
-body :: String -> [D.CanonicalDecl] -> Module.CanonicalBody
+body :: String -> [D.CanonicalDecl] -> Module.CanonicalBody String
 body moduleName commentedDecls =
     Module.CanonicalBody
     { program = program
-    , types = Map.empty
+    , types = types
     , datatypes = datatypes
     , fixities = fixities
     , aliases = aliases
     , ports = ports
-    , defDocs = defDocs
     }
   where
     program =
         let expr = Transform.toExpr moduleName commentedDecls
         in  Transform.sortDefs (dummyLet expr)
 
-    (defDocs, datatypes, fixities, aliases, ports) =
+    (types, datatypes, fixities, aliases, ports) =
         collect Map.empty Map.empty [] Map.empty [] commentedDecls
 
     collect ts ds fs as ps commentedDecls = 
@@ -137,6 +137,25 @@ delist fullList (Var.Listing partial open)
                            bads -> notFound bads
 
                 _ -> go list xs partial
+
+addTypes :: Map.Map String Type.CanonicalType -> Module.CanonicalModuleNoTypes
+         -> Module.CanonicalModule
+addTypes rawTypes canonicalModule =
+    canonicalModule { Module.body = typedBody }
+  where
+    body = Module.body canonicalModule
+
+    typedBody = body { Module.types = documentedTypes }
+
+    documentedTypes =
+        let combine (A.A _ tipe) comment = Just (A.A (Just comment) tipe) in
+        Map.differenceWith combine undocumentedTypes (Module.types body)
+        
+    undocumentedTypes =
+        Map.map (A.A Nothing) exportedTypes
+
+    exportedTypes =
+        filterExports rawTypes (Module.exports canonicalModule)
 
 filterExports :: Module.Types -> [Var.Value] -> Module.Types
 filterExports types values =

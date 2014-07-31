@@ -49,7 +49,7 @@ generateDocumentation modul =
   ModuleDocument
     { name = intercalate "." $ M.names modul
     , document = fromMaybe "" $ M.comment modul
-    , values = processAll (generateValueDoc (M.defDocs b) (buildFixityMap $ M.fixities b)) (M.types b)
+    , values = processAll (generateValueDoc (buildFixityMap $ M.fixities b)) (M.types b)
     , aliases = processAll generateAliasDoc $ M.aliases b
     , datatypes = processAll generateDatatypeDoc $ M.datatypes b
     }
@@ -59,17 +59,21 @@ generateDocumentation modul =
     buildFixityMap = Map.fromList . map f
       where f (A.A _ (x, y, z)) = (z, (x, y))
 
-    generateValueDoc :: Map String String -> Map String (Decl.Assoc, Int) -> String -> T.CanonicalType -> Document
-    generateValueDoc docs fixityMap n tipe =
-      let prettyName = if Help.isOp n
-                         then "(" ++ n ++ ")"
-                         else n
-          doc = Map.lookup n docs
+    generateValueDoc :: Map String (Decl.Assoc, Int) -> String
+                     -> A.Commented T.CanonicalType -> Document
+    generateValueDoc fixityMap n (A.A doc tipe) =
+      let prettyName =
+              if Help.isOp n
+                then "(" ++ n ++ ")"
+                else n
+
           fixityPart =
-            case Map.lookup n fixityMap of
-              Just (assoc, p) -> [ ("associativity", toJSON $ show assoc)
-                                 , ("precedence", toJSON p) ]
-              Nothing -> []
+              case Map.lookup n fixityMap of
+                Nothing -> []
+                Just (assoc, p) ->
+                    [ ("associativity", toJSON $ show assoc)
+                    , ("precedence", toJSON p)
+                    ]
       in
       Document { docName = n
                , raw = P.render $ P.hsep [P.text prettyName, P.colon, PP.pretty tipe]
