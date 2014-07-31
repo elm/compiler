@@ -49,46 +49,59 @@ moduleHelp interfaces modul@(Module.Module _ _ exs _ _ decls) =
      canonicalDecls <- mapM (declaration env) decls
      exports' <- delist locals exs
      return $ modul { Module.exports = exports'
-                    , Module.body    = body canonicalDecls
+                    , Module.body = body (Module.getName modul) canonicalDecls
                     }
   where
     locals :: [Var.Value]
     locals = concatMap declToValue decls
 
-    collect = go Map.empty [] Map.empty [] Map.empty where
-      go datatypes fixities aliases ports defDocs ls = case ls of
-        [] -> (datatypes, fixities, aliases, ports, defDocs)
-        (A.A doc decl) : rest -> case decl of
-          D.Datatype name vars ctors ->
-            go (Map.insert name (A.A doc (vars, ctors)) datatypes) fixities aliases ports defDocs rest
-          D.Fixity assoc level op ->
-            go datatypes (A.A doc (assoc, level, op) : fixities) aliases ports defDocs rest
-          D.TypeAlias name tvs alias ->
-            go datatypes fixities (Map.insert name (A.A doc (tvs, alias)) aliases) ports defDocs rest
-          D.Port port ->
-            go datatypes fixities aliases (A.A doc (D.portName port) : ports) defDocs rest
-          -- TODO: that wouldn't work for definitions that use pattern-matching
-          -- This should probably need to be rewritten to incorporate all
-          -- possible definitions
-          D.Definition (Canonical.Definition (P.Var name) _ _) ->
-            go datatypes fixities aliases ports (Map.insert name (fromMaybe "" doc) defDocs) rest
-          _ ->
-            go datatypes fixities aliases ports defDocs rest
+body :: String -> [D.CanonicalDecl] -> Module.CanonicalBody
+body moduleName commentedDecls =
+    Module.CanonicalBody
+    { program = program
+    , types = Map.empty
+    , datatypes = datatypes
+    , fixities = fixities
+    , aliases = aliases
+    , ports = ports
+    , defDocs = defDocs
+    }
+  where
+    program =
+        let expr = Transform.toExpr moduleName commentedDecls
+        in  Transform.sortDefs (dummyLet expr)
 
-    body :: [D.CanonicalDecl] -> Module.CanonicalBody
-    body annotatedDecls =
-      let (datatypes, fixities, aliases, ports, defDocs) = collect annotatedDecls in
-      Module.CanonicalBody
-         { program =
-               let expr = Transform.toExpr (Module.getName modul) annotatedDecls
-               in  Transform.sortDefs (dummyLet expr)
-         , types = Map.empty
-         , datatypes = datatypes
-         , fixities = fixities
-         , aliases = aliases
-         , ports = ports
-         , defDocs = defDocs
-         }
+    (defDocs, datatypes, fixities, aliases, ports) =
+        collect Map.empty Map.empty [] Map.empty [] commentedDecls
+
+    collect ts ds fs as ps commentedDecls = 
+        case commentedDecls of
+          [] -> (ts, ds, fs, as, ps)
+          (A.A comment decl) : rest ->
+              let doc = A.A comment in
+              case decl of
+                D.Definition (Canonical.Definition (P.Var name) _ _) ->
+                    let ts' = Map.insert name (fromMaybe "" comment) ts in
+                    collect ts' ds fs as ps rest
+
+                D.Datatype name vars ctors ->
+                    let ds' = Map.insert name (doc (vars, ctors)) ds in
+                    collect ts ds' fs as ps rest
+
+                D.Fixity assoc level op ->
+                    let fs' = doc (assoc, level, op) : fs in
+                    collect ts ds fs' as ps rest
+
+                D.TypeAlias name tvs alias ->
+                    let as' = Map.insert name (doc (tvs, alias)) as in
+                    collect ts ds fs as' ps rest
+
+                D.Port port ->
+                    let ps' = doc (D.portName port) : ps in
+                    collect ts ds fs as ps' rest
+
+                _ -> collect ts ds fs as ps rest
+
 
 delist :: [Var.Value] -> Var.Listing Var.Value -> Canonicalizer [Doc] [Var.Value]
 delist fullList (Var.Listing partial open)
