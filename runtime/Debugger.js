@@ -43,6 +43,7 @@ function debugModule(module, runtime) {
   var asyncCallbacks = [];
   var snapshots = [];
   var watchTracker = Elm.Native.Debug.make(runtime).watchTracker;
+  var pauseTime = 0;
   var eventsUntilSnapshot = EVENTS_PER_SAVE;
 
   // runtime is the prototype of wrappedRuntime
@@ -166,9 +167,12 @@ function debugModule(module, runtime) {
     programPaused = true;
     clearAsyncCallbacks();
     tracePath.stopRecording();
+    pauseTime = Date.now();
   }
 
   function setContinue(position) {
+    var pauseDelay = Date.now() - pauseTime;
+    runtime.timer.addDelay(pauseDelay);
     programPaused = false;
     if (position > 0) {
       // If we're not unpausing at the head, then we need to dump the
