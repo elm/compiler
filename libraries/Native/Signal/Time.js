@@ -14,9 +14,13 @@ Elm.Native.Time.make = function(elm) {
     var msPerFrame = 1000 / desiredFPS;
     var prev = elm.timer.now(), curr = prev, diff = 0, wasOn = true;
     var ticker = NS.input(diff);
-    function tick(zero) { return function() {
+    function tick(zero) {
+      return function() {
         curr = elm.timer.now();
         diff = zero ? 0 : curr - prev;
+        if (prev > curr) {
+          diff = 0;
+        }
         prev = curr;
         elm.notify(ticker.id, diff);
       };

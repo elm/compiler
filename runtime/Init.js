@@ -47,7 +47,7 @@ function init(display, container, module, ports, moduleToReplace) {
     var addDelay = function(d) {
       inducedDelay += d;
       return inducedDelay;
-    }
+    };
 
     return { now : now
            , addDelay : addDelay

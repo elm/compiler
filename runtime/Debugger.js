@@ -171,8 +171,8 @@ function debugModule(module, runtime) {
   }
 
   function setContinue(position) {
-    var timerDelay = Date.now() - pauseTime;
-    runtime.timer.addDelay(timerDelay);
+    var pauseDelay = Date.now() - pauseTime;
+    runtime.timer.addDelay(pauseDelay);
     programPaused = false;
     if (position > 0) {
       // If we're not unpausing at the head, then we need to dump the
@@ -180,6 +180,11 @@ function debugModule(module, runtime) {
       var lastSnapshotPosition = Math.floor(position / EVENTS_PER_SAVE);
       eventsUntilSnapshot = EVENTS_PER_SAVE - (position % EVENTS_PER_SAVE);
       snapshots = snapshots.slice(0, lastSnapshotPosition + 1);
+
+      var lastEventTime = recordedEvents[position-1].timestep;
+      var scrubTime = runtime.timer.now() - lastEventTime;
+      runtime.timer.addDelay(scrubTime);
+
       recordedEvents = recordedEvents.slice(0, position);
       tracePath.clearTracesAfter(position);
       eventCounter = position;
