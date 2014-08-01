@@ -20,6 +20,18 @@ Elm.debuggerAttach = function(module, hotSwapState /* =undefined */) {
   };
 };
 
+Elm.debugFullscreen = function(module, moduleFile, hotSwapState /* =undefined */) {
+  var debuggedModule = {
+    make: function(runtime) {
+      var wrappedModule = debugModule(module, runtime);
+      Elm.Debugger = debuggerInit(wrappedModule, runtime, hotSwapState, moduleFile);
+      dispatchElmDebuggerInit();
+      return wrappedModule.debuggedModule;
+    }
+  }
+  return Elm.fullscreen(debuggedModule);
+};
+
 var EVENTS_PER_SAVE = 100;
 var eventCounter = 0;
 
@@ -220,7 +232,8 @@ function debugModule(module, runtime) {
   };
 }
 
-function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
+function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */, moduleFile /* =undefined */) {
+  var filename = moduleFile || "";
   var currentEventIndex = 0;
 
   function resetProgram(position) {
@@ -357,6 +370,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
       getHotSwapState: getHotSwapState,
       dispose: dispose,
       allNodes: debugModule.signalGraphNodes,
+      filename: filename,
       watchTracker: debugModule.watchTracker
   };
 
