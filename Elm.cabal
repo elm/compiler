@@ -33,7 +33,7 @@ Library
   exposed-modules:     Elm.Internal.Dependencies,
                        Elm.Internal.Documentation,
                        Elm.Internal.Name,
-                       Elm.Internal.Paths,
+                       Elm.Internal.Assets,
                        Elm.Internal.Utils,
                        Elm.Internal.Version,
                        Elm.Internal.Constraint,

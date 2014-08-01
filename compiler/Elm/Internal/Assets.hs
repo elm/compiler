@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Elm.Internal.Paths where
+module Elm.Internal.Assets where
 
 import Build.Utils (getDataFile)
 import System.FilePath ((</>))

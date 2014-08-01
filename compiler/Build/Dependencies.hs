@@ -14,7 +14,7 @@ import qualified AST.Module as Module
 import AST.ProgramHeader
 import qualified AST.ProgramHeader as ProgramHeader
 import qualified Build.SrcFile as SrcFile
-import qualified Elm.Internal.Paths as Path
+import qualified Elm.Internal.Assets as Asset
 import qualified Elm.Internal.Dependencies as Deps (withNative)
 import qualified Elm.Internal.Libraries as L (withVersions)
 import qualified Elm.Internal.Name as N
@@ -60,17 +60,17 @@ getBuildRecipe isMake srcDirs builtIns srcFile =
 --   dependency information we might need.
 getDependencies :: ErrorT String IO [(N.Name, FilePath)]
 getDependencies =
-    do exists <- liftIO $ doesFileExist Path.librariesFile
+    do exists <- liftIO $ doesFileExist Asset.librariesFile
        if not exists then return [] else getPaths
     where
       getPaths :: ErrorT String IO [(N.Name, FilePath)]
       getPaths =
-        L.withVersions Path.librariesFile $ \vers ->
+        L.withVersions Asset.librariesFile $ \vers ->
             mapM getPath vers
 
       getPath :: (N.Name, V.Version) -> ErrorT String IO (N.Name, FilePath)
       getPath (name,version) = do
-        let path = Path.dependencyDirectory </> N.toFilePath name </> show version
+        let path = Asset.dependencyDirectory </> N.toFilePath name </> show version
         exists <- liftIO $ doesDirectoryExist path
         if exists
           then return (name, path)
@@ -80,7 +80,7 @@ getDependencies =
       notFound :: N.Name -> V.Version -> String
       notFound name version =
           unlines
-          [ "Your " ++ Path.dependencyFile ++ " file says you depend on library"
+          [ "Your " ++ Asset.dependencyFile ++ " file says you depend on library"
           , show name ++ " " ++ show version ++ " but it was not found."
           , "You may need to install it with:"
           , ""
@@ -88,13 +88,13 @@ getDependencies =
 
 nativeFiles :: [FilePath] -> ErrorT String IO [FilePath]
 nativeFiles directories =
-  do exists <- liftIO $ doesFileExist Path.dependencyFile
+  do exists <- liftIO $ doesFileExist Asset.dependencyFile
      if not exists
        then return []
        else concat `fmap` mapM getNativeFiles directories
   where
     getNativeFiles dir =
-        Deps.withNative (dir </> Path.dependencyFile) $ \native ->
+        Deps.withNative (dir </> Asset.dependencyFile) $ \native ->
             return (map (toPath dir) native)
 
     toPath dir moduleName =
@@ -197,7 +197,7 @@ findSrcFile (parentPkg, parentName) dirs name =
         , "    exactly match the module name, you may need to use the --src-dir flag."
         , ""
         , "    If it is part of a 3rd party library, it needs to be declared"
-        , "    as a dependency in your project's " ++ Path.dependencyFile ++ " file."
+        , "    as a dependency in your project's " ++ Asset.dependencyFile ++ " file."
         ]
       where
         parentModuleName =

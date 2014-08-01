@@ -18,7 +18,7 @@ import qualified Metadata.Prelude as Prelude
 import qualified Build.Utils as Utils
 import qualified Build.Flags as Flag
 import qualified Build.File as File
-import qualified Elm.Internal.Paths as Path
+import qualified Elm.Internal.Assets as Asset
 
 main :: IO ()
 main = do setNumCapabilities =<< getNumProcessors
@@ -27,7 +27,7 @@ main = do setNumCapabilities =<< getNumProcessors
 compileArgs :: Flag.Flags -> IO ()
 compileArgs flags =
   do when (Flag.get_runtime flags) $ do
-       putStrLn Path.runtime
+       putStrLn Asset.runtime
        exitSuccess
      case Flag.files flags of
        [] -> putStrLn "Usage: elm [OPTIONS] [FILES]\nFor more help: elm --help"
@@ -67,7 +67,7 @@ build flags rootFile =
 
       getRuntime :: IO Html.JSSource
       getRuntime =
-          let runtimePath = Maybe.fromMaybe Path.runtime (Flag.set_runtime flags) in
+          let runtimePath = Maybe.fromMaybe Asset.runtime (Flag.set_runtime flags) in
           case Flag.bundle_runtime flags of
             False -> return (Html.Link runtimePath)
             True  -> Html.Source `fmap` BS.readFile runtimePath
