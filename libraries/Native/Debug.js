@@ -20,9 +20,8 @@ Elm.Native.Debug.make = function(elm) {
         return value;
     }
 
-    function tracePath(debugId, elem) {
-        var props = replace([["debugTracePathId",debugId]], elem.props);
-        return replace([["props",props]], elem);
+    function tracePath(debugId, form) {
+        return replace([["debugTracePathId",debugId]], form);
     }
 
     function WatchTracker() {

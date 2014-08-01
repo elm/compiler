@@ -391,16 +391,21 @@ function tracePathInit(runtime, signalGraphMain) {
       {
         List.map(F2(processForm)(offset))(elem.element.model.forms);
       }
-      if (elem.props.debugTracePathId)
-      {
-        positions[elem.props.debugTracePathId] = new Point(offset.x, offset.y);
-      }
     }
 
     function processForm(offset, form) {
       if (form.form.ctor == "FElement")
       {
         processElement(form.form._0, offset.translate(form.x, -form.y));
+      }
+      if (form.form.ctor == "FGroup")
+      {
+        var newOffset = offset.translate(form.x, -form.y);
+        List.map(F2(processForm)(newOffset))(form.form._1);
+      }
+      if (form.debugTracePathId)
+      {
+        positions[form.debugTracePathId] = new Point(form.x + offset.x, -form.y + offset.y);
       }
     }
 
