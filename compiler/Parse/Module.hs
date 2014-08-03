@@ -6,7 +6,7 @@ import Text.Parsec hiding (newline,spaces)
 
 import Parse.Helpers
 import AST.Module (ImportMethod(..))
-import AST.ProgramHeader (ModuleName)
+import qualified AST.Module as Module
 import AST.Variable (Listing(..), Value(..), openListing)
 
 getModuleName :: String -> Maybe String
@@ -31,10 +31,10 @@ moduleDef = do
   reserved "where"
   return (names, exports)
 
-imports :: IParser [(ModuleName, ImportMethod)]
+imports :: IParser [(Module.Name, ImportMethod)]
 imports = option [] ((:) <$> import' <*> many (try (freshLine >> import')))
 
-import' :: IParser (ModuleName, ImportMethod)
+import' :: IParser (Module.Name, ImportMethod)
 import' =
   do reserved "import"
      whitespace

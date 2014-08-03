@@ -5,25 +5,32 @@ import Build.Utils (getDataFile)
 import System.FilePath ((</>))
 import System.IO.Unsafe (unsafePerformIO)
 
--- |Name of directory for all of a project's dependencies.
-dependencyDirectory :: FilePath
-dependencyDirectory = "elm_dependencies"
+{-| Name of directory for all of a project's dependencies. -}
+packagesDirectory :: FilePath
+packagesDirectory = "elm_packages"
 
--- |Name of file for all of libraries currently installed in a project
-librariesFile :: FilePath
-librariesFile = dependencyDirectory </> "elm_libraries.json"
+{-| Describes the exact versions of every library used for your project. This
+information is written by elm-get when it solves and installs dependencies.
+-}
+solvedDependencies :: FilePath
+solvedDependencies =
+    packagesDirectory </> "solved-dependencies.json"
 
--- |Name of the dependency file, specifying dependencies and
---  other metadata for building and sharing projects.
+{-| Name of the dependency file, specifying dependencies and other metadata
+for building and sharing projects.
+-}
 dependencyFile :: FilePath
-dependencyFile = "elm_dependencies.json"
+dependencyFile =
+    "elm_package.json"
 
+{-| The absolute path to Elm's runtime system. -}
 {-# NOINLINE runtime #-}
--- |The absolute path to Elm's runtime system.
 runtime :: FilePath
-runtime = unsafePerformIO $ getDataFile "elm-runtime.js"
+runtime =
+    unsafePerformIO $ getDataFile "elm-runtime.js"
 
+{-| The absolute path to Elm's core library documentation. -}
 {-# NOINLINE docs #-}
--- |The absolute path to Elm's core library documentation.
 docs :: FilePath
-docs = unsafePerformIO $ getDataFile "docs.json"
+docs =
+    unsafePerformIO $ getDataFile "docs.json"

@@ -50,7 +50,6 @@ Library
                        AST.Module,
                        AST.Pattern,
                        AST.PrettyPrint,
-                       AST.ProgramHeader,
                        AST.Type,
                        AST.Variable,
                        Generate.JavaScript,
@@ -97,9 +96,9 @@ Library
                        Build.File,
                        Build.Flags,
                        Build.Interface,
+                       Build.Metadata,
                        Build.Print,
                        Build.Source,
-                       Build.SrcFile,
                        Build.Utils,
                        Paths_Elm
 
@@ -143,7 +142,6 @@ Executable elm
                        AST.Module,
                        AST.Pattern,
                        AST.PrettyPrint,
-                       AST.ProgramHeader,
                        AST.Type,
                        AST.Variable,
                        Generate.JavaScript,
@@ -190,9 +188,9 @@ Executable elm
                        Build.File,
                        Build.Flags,
                        Build.Interface,
+                       Build.Metadata,
                        Build.Print,
                        Build.Source,
-                       Build.SrcFile,
                        Build.Utils,
                        Paths_Elm
 

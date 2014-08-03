@@ -11,8 +11,7 @@ import System.Exit (exitSuccess)
 import System.FilePath
 import GHC.Conc
 
-import Build.Dependencies (getBuildRecipe, Recipe(..))
-import qualified Build.SrcFile as SrcFile
+import qualified Build.Dependencies as Deps
 import qualified Generate.Html as Html
 import qualified Metadata.Prelude as Prelude
 import qualified Build.Utils as Utils
@@ -34,13 +33,16 @@ compileArgs flags =
        fs -> mapM_ (build flags) fs
 
 build :: Flag.Flags -> FilePath -> IO ()
-build flags rootFile =
+build flags filePath =
     do let noPrelude = Flag.no_prelude flags
        builtIns <- Prelude.interfaces noPrelude
 
-       rootSrcFile <- Utils.run $ SrcFile.load Nothing rootFile
-       (Recipe elmFiles jsFiles) <-
-         Utils.run $ getBuildRecipe (Flag.make flags) (Flag.src_dir flags) builtIns rootSrcFile
+       (Deps.Recipe elmFiles jsFiles) <-
+           Utils.run $ Deps.getBuildRecipe
+                         (Flag.make flags)
+                         (Flag.src_dir flags)
+                         builtIns
+                         filePath
 
        moduleName <- File.build flags builtIns elmFiles
 
@@ -54,7 +56,7 @@ build flags rootFile =
            else do putStr "Generating HTML ... "
                    makeHtml js moduleName
 
-       let targetFile = Utils.buildPath flags rootSrcFile extension
+       let targetFile = Utils.buildPath flags (last elmFiles) extension
        createDirectoryIfMissing True (takeDirectory targetFile)
        BS.writeFile targetFile code
        putStrLn "Done"
@@ -86,4 +88,4 @@ build flags rootFile =
         where
           sources js = map Html.Link (Flag.scripts flags) ++ [ Html.Source js ]
           html runtime =
-              Html.generate runtime (takeBaseName rootFile) (sources js) moduleName ""
+              Html.generate runtime moduleName (sources js) moduleName ""

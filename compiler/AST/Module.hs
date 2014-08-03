@@ -44,10 +44,10 @@ type CanonicalModule =
 
 getName :: Module exs body -> String
 getName modul =
-    List.intercalate "." (names modul)
+    nameToString (names modul)
 
 data Module exports body = Module
-    { names   :: [String]
+    { names   :: Name
     , path    :: FilePath
     , exports :: exports
     , imports :: [(String, ImportMethod)]
@@ -63,6 +63,22 @@ data CanonicalBody types = CanonicalBody
     , datatypes :: ADTs
     , ports     :: [A.Commented String]
     } deriving (Show)
+
+
+-- HEADERS
+
+{-| Basic info needed to identify modules and determine dependencies. -}
+data Header = Header
+    { _names :: Name
+    , _exports :: Var.Listing Var.Value
+    , _docComment :: Maybe String
+    , _imports :: [(Name, ImportMethod)]
+    } deriving (Show)
+
+type Name = [String] -- must be non-empty
+
+nameToString :: Name -> String
+nameToString = List.intercalate "."
 
 
 -- INTERFACES

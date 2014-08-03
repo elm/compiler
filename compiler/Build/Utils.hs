@@ -7,33 +7,39 @@ import System.Environment (getEnv)
 import System.FilePath ((</>), (<.>))
 
 import qualified Build.Flags as Flag
+import qualified Build.Metadata as Metadata
 import qualified Build.Print as Print
-import Build.SrcFile (SrcFile)
-import qualified Build.SrcFile as SrcFile
-import qualified Elm.Internal.Name as Name
+import qualified Elm.Internal.Name as N
 import qualified Paths_Elm as This
 
-buildPath :: Flag.Flags -> SrcFile a -> String -> FilePath
-buildPath = flaggedPath Flag.build_dir
+path :: Metadata.Metadata a -> String -> FilePath
+path metadata fileExtension =
+    case Metadata._pkg metadata of
+      Nothing -> filePath
+      Just name -> N.toFilePath name </> filePath
+    where
+      filePath =
+          foldr1 (</>) (Metadata._name metadata) <.> fileExtension
 
-cachePath :: Flag.Flags -> SrcFile a -> String -> FilePath
-cachePath = flaggedPath Flag.cache_dir
+docsPath :: Metadata.Metadata a -> FilePath
+docsPath metadata =
+    "docs" </> path metadata "json"
 
-flaggedPath :: (Flag.Flags -> FilePath) -> Flag.Flags -> SrcFile a -> String -> FilePath
-flaggedPath acc flags srcFile ext =
-  acc flags </> pkgPath </> modul <.> ext
-  where pkgPath = case SrcFile.pkg srcFile of
-          Nothing -> ""
-          Just name -> Name.toFilePath name
-        modul = SrcFile.modulePath srcFile
+buildPath :: Flag.Flags -> Metadata.Metadata a -> String -> FilePath
+buildPath flags metadata fileExtension =
+    Flag.build_dir flags </> path metadata fileExtension
 
-elmo :: Flag.Flags -> SrcFile a -> FilePath
-elmo flags filePath =
-    cachePath flags filePath "elmo"
+cachePath :: Flag.Flags -> Metadata.Metadata a -> String -> FilePath
+cachePath flags metadata fileExtension =
+    Flag.cache_dir flags </> path metadata fileExtension
 
-elmi :: Flag.Flags -> SrcFile a -> FilePath
-elmi flags filePath =
-    cachePath flags filePath "elmi"
+elmo :: Flag.Flags -> Metadata.Metadata a -> FilePath
+elmo flags metadata =
+    cachePath flags metadata "elmo"
+
+elmi :: Flag.Flags -> Metadata.Metadata a -> FilePath
+elmi flags metadata =
+    cachePath flags metadata "elmi"
 
 -- |The absolute path to a data file
 getDataFile :: FilePath -> IO FilePath

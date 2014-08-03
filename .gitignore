@@ -12,8 +12,6 @@ cabal.sandbox.config
 data
 */ElmFiles/*
 .DS_Store
-build
-cache
 *~
 exe.js
 node_modules/
