@@ -2,7 +2,6 @@
 module Build.File (build) where
 
 import Control.Applicative ((<$>))
-import Control.Monad.Error (runErrorT)
 import Control.Monad.RWS.Strict
 import System.Directory
 import System.Exit
@@ -15,162 +14,188 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy as L
 
-import qualified Build.Dependencies as Deps
+import AST.Helpers (splitDots)
+import qualified AST.Annotation as A
+import qualified AST.Module as Module
+import qualified Elm.Internal.Documentation as Doc
 import qualified Build.Flags as Flag
 import qualified Build.Interface as Interface
+import qualified Build.Metadata as Metadata
 import qualified Build.Print as Print
 import qualified Build.Source as Source
 import qualified Build.Utils as Utils
 import qualified Generate.JavaScript as JS
-import qualified Parse.Module as Parser
-import qualified AST.Module as Module
 
 -- Reader: Runtime flags, always accessible
 -- Writer: Remember the last module to be accessed
 -- State:  Build up a map of the module interfaces
-type BuildT m a = RWST Flag.Flags (Last String) BInterfaces m a
+type BuildT m a =
+    RWST Flag.Flags (Last Metadata.WithDeps) BuiltInterfaces m a
+
 type Build a = BuildT IO a
 
 -- Interfaces, remembering if something was recompiled
-type BInterfaces = Map.Map String (Bool, Module.Interface)
+type BuiltInterfaces =
+    Map.Map Metadata.WithDeps (Bool, Module.Interface)
 
-evalBuild :: Flag.Flags -> Module.Interfaces -> Build ()
-          -> IO (Map.Map String Module.Interface, Maybe String)
-evalBuild flags interfaces build =
-  do (ifaces, moduleNames) <- execRWST build flags (fmap notUpdated interfaces)
-     return (fmap snd ifaces, getLast moduleNames)
+runBuild :: Flag.Flags -> Module.Interfaces -> Build ()
+          -> IO (Map.Map Metadata.WithDeps Module.Interface, Maybe Metadata.WithDeps)
+runBuild flags builtins build =
+  do (interfaces, moduleNames) <-
+         execRWST build flags builtInterfaces
+     return ( Map.map snd interfaces
+            , getLast moduleNames
+            )
   where
-    notUpdated iface = (False, iface)
+    builtInterfaces =
+         Map.map ((,) False) (Map.mapKeys dummyPath builtins)
+
+    dummyPath name =
+        Metadata.Metadata "" (splitDots name) Nothing []
 
 -- | Builds a list of files, returning the moduleName of the last one.
 --   Returns \"\" if the list is empty
-build :: Flag.Flags -> Module.Interfaces -> [FilePath] -> IO String
-build flags interfaces files =
-  do (ifaces, topName) <- evalBuild flags interfaces (buildAll files)
-     let removeTopName = Maybe.maybe id Map.delete topName
-     mapM_ (checkPorts topName) (Map.toList $ removeTopName ifaces)
-     return $ Maybe.fromMaybe "" topName
+build :: Flag.Flags -> Module.Interfaces -> [Metadata.WithDeps] -> IO String
+build flags builtins paths =
+  do (ifaces, rootPath) <- runBuild flags builtins (createBuild paths)
+
+     -- Check to see that no ports appear outside of the root module.
+     let removeRoot = Maybe.maybe id Map.delete rootPath
+     mapM_ (checkPorts rootPath) (Map.toList (removeRoot ifaces))
+
+     -- TODO: maybe return a Maybe or a Module.Name?
+     return (Maybe.maybe "" Metadata.moduleName rootPath)
   where
-    checkPorts topName (name,iface)
+    checkPorts rootPath (metadata, iface)
         | null ports = return ()
         | otherwise  = Print.failure msg
         where
           ports = Module.iPorts iface
+          name  = Metadata.moduleName metadata
           msg = concat
             [ "Port Error: ports may only appear in the main module, but\n"
             , "    sub-module ", name, " declares the following port"
             , if length ports == 1 then "" else "s", ": "
             , List.intercalate ", " ports
-            , case topName of
+            , case rootPath of
                 Nothing -> ""
-                Just tname -> "\n    All ports must appear in module " ++ tname
+                Just mdata ->
+                    "\n    All ports must appear in module " ++ Metadata.moduleName mdata
             ]
 
-buildAll :: [FilePath] -> Build ()
-buildAll fs = mapM_ (uncurry build1) (zip [1..] fs)
-  where build1 :: Integer -> FilePath -> Build ()
-        build1 num fname = do
-          shouldCompile <- shouldBeCompiled fname
-          if shouldCompile
-            then compile number fname
-            else retrieve fname
+createBuild :: [Metadata.WithDeps] -> Build ()
+createBuild paths =
+    mapM_ build1 (zip [1..] paths)
+  where
+    progress num =
+        "[" ++ show num ++ " of " ++ show (length paths) ++ "]"
 
-          where number = join ["[", show num, " of ", show total, "]"]
+    build1 :: (Int, Metadata.WithDeps) -> Build ()
+    build1 (num, path) =
+      do shouldCompile <- shouldBeCompiled path
+         if shouldCompile
+           then compile (progress num) path
+           else retrieve path
 
-        total = length fs
+shouldBeCompiled :: Metadata.WithDeps -> Build Bool
+shouldBeCompiled path =
+  do flags <- ask
+     let elmi = Utils.elmi flags path
+         elmo = Utils.elmo flags path
+     (not <$> alreadyCompiled elmi elmo) `orM` outdated elmo `orM` dependenciesUpdated
 
-shouldBeCompiled :: FilePath -> Build Bool
-shouldBeCompiled filePath = do
-  flags <- ask
-  let alreadyCompiled = liftIO $ do
-        existsi <- doesFileExist (Utils.elmi flags filePath)
-        existso <- doesFileExist (Utils.elmo flags filePath)
-        return $ existsi && existso
+  where
+    alreadyCompiled elmi elmo =
+        liftIO $ do
+          existsi <- doesFileExist elmi
+          existso <- doesFileExist elmo
+          return (existsi && existso)
 
-      outDated = liftIO $ do
-        tsrc <- getModificationTime filePath
-        tint <- getModificationTime (Utils.elmo flags filePath)
-        return (tsrc > tint)
+    outdated elmo =
+        liftIO $ do
+          tsrc <- getModificationTime (Metadata._path path)
+          tint <- getModificationTime elmo
+          return (tsrc > tint)
 
-      dependenciesUpdated = do
-        eDeps <- liftIO . runErrorT $ Deps.readDeps filePath
-        case eDeps of
-          -- Should never actually reach here
-          Left  err       -> liftIO $ Print.failure err
-          Right (_, deps) -> anyM wasCompiled deps
-        
-  
-    in (not <$> alreadyCompiled) `orM` outDated `orM` dependenciesUpdated
+    dependenciesUpdated =
+        do builtInterfaces <- Map.toList <$> get
+           return $ any (wasUpdated builtInterfaces) (Metadata._deps path)
+        where
+          wasUpdated builtInterfaces location =
+              any (matchingUpdate (Metadata._name location)) builtInterfaces 
 
-wasCompiled :: String -> Build Bool
-wasCompiled modul = maybe False fst . Map.lookup modul <$> get
+          matchingUpdate name (path, (updated, _interface)) =
+              Metadata._name path == name && updated
   
 -- Short-circuiting monadic (||)
 infixr 2 `orM`
 orM :: (Monad m) => m Bool -> m Bool -> m Bool
-orM m1 m2 = do b1 <- m1
-               if b1
-                 then return b1
-                 else m2
+orM check1 check2 =
+  do result <- check1
+     if result then return True else check2
 
-anyM :: (Monad m) => (a -> m Bool) -> [a] -> m Bool
-anyM f = foldr (orM . f) (return False)
+retrieve :: Metadata.WithDeps -> Build ()
+retrieve path =
+  do flags <- ask
+     iface <- liftIO $ Interface.load (Utils.elmi flags path)
+     case Interface.isValid (Metadata._path path) iface of
+       Left err ->
+           liftIO $ Print.failure err
 
-retrieve :: FilePath -> Build ()
-retrieve filePath = do
-  flags <- ask
-  iface <- liftIO $ Interface.load (Utils.elmi flags filePath)
-  case Interface.isValid filePath iface of
-    Right (name, interface) ->
-      do liftIO $ when (Flag.print_types flags) (Print.types (Module.iTypes interface))
-         update name interface False
+       Right (_, interface) ->
+           do liftIO $ when (Flag.print_types flags) (Print.types (Module.iTypes interface))
+              addBuiltInterface path interface False
 
-    Left err -> liftIO $ Print.failure err
-
-compile :: String -> FilePath -> Build ()
-compile number filePath =
-  do flags      <- ask
+compile :: String -> Metadata.WithDeps -> Build ()
+compile number path =
+  do flags <- ask
      binterfaces <- get
-     source <- liftIO $ readFile filePath
-     let interfaces = snd <$> binterfaces
-         name = getName source
+     source <- liftIO $ readFile (Metadata._path path)
+     let interfaces = toInterfaces binterfaces
+         name = Metadata.moduleName path
      liftIO $ do
        printStatus name
        createDirectoryIfMissing True (Flag.cache_dir flags)
        createDirectoryIfMissing True (Flag.build_dir flags)
 
      canonicalModule <- 
-       liftIO $ case Source.build (Flag.no_prelude flags) interfaces source of
+       liftIO $ do
+         case Source.build (Flag.no_prelude flags) interfaces source of
            Right modul -> return modul
            Left errors -> do Print.errors errors
                              exitFailure
 
+     let documentation = Doc.generateDocumentation canonicalModule
+     liftIO $ do let docPath = Utils.docsPath path
+                 createDirectoryIfMissing True (takeDirectory docPath)
+                 L.writeFile docPath documentation
+
      liftIO $ when (Flag.print_types flags) $ do
-       Print.types (Module.types (Module.body canonicalModule))
+       Print.types (Map.map A.value (Module.types (Module.body canonicalModule)))
   
-     let newInters = Module.toInterface canonicalModule
-     generateCache name newInters canonicalModule
-     update name newInters True
+     let newInterface = Module.toInterface canonicalModule
+     generateCache name newInterface canonicalModule
+     addBuiltInterface path newInterface True
 
   where
-    getName source = case Parser.getModuleName source of
-                       Just n -> n
-                       Nothing -> "Main"
-
+    toInterfaces :: BuiltInterfaces -> Module.Interfaces
+    toInterfaces builtInterfaces =
+        Map.mapKeys Metadata.moduleName (Map.map snd builtInterfaces)
+    
     printStatus name =
-        hPutStrLn stdout $ concat [ number, " Compiling ", name
-                                  , replicate (max 1 (20 - length name)) ' '
-                                  , "( " ++ filePath ++ " )" ]
+        hPutStrLn stdout $ concat [ number, " Compiling ", name ]
 
     generateCache name interfs canonicalModule = do
       flags <- ask
+      let elmi = Utils.elmi flags path
+          elmo = Utils.elmo flags path
       liftIO $ do
-        createDirectoryIfMissing True . dropFileName $ Utils.elmi flags filePath
-        writeFile (Utils.elmo flags filePath) (JS.generate canonicalModule)
-        withBinaryFile (Utils.elmi flags filePath) WriteMode $ \handle ->
+        createDirectoryIfMissing True . dropFileName $ elmi
+        writeFile elmo (JS.generate canonicalModule)
+        withBinaryFile elmi WriteMode $ \handle ->
           L.hPut handle (Binary.encode (name, interfs))
 
-update :: String -> Module.Interface -> Bool -> Build ()
-update name inter wasUpdated =
-  do modify (Map.insert name (wasUpdated, inter))
-     tell (Last . Just $ name)
+addBuiltInterface :: Metadata.WithDeps -> Module.Interface -> Bool -> Build ()
+addBuiltInterface name interface wasUpdated =
+  do modify (Map.insert name (wasUpdated, interface))
+     tell (Last (Just name))

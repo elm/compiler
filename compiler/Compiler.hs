@@ -11,13 +11,13 @@ import System.Exit (exitSuccess)
 import System.FilePath
 import GHC.Conc
 
-import Build.Dependencies (getBuildRecipe, Recipe(..))
+import qualified Build.Dependencies as Deps
 import qualified Generate.Html as Html
 import qualified Metadata.Prelude as Prelude
 import qualified Build.Utils as Utils
 import qualified Build.Flags as Flag
 import qualified Build.File as File
-import qualified Elm.Internal.Paths as Path
+import qualified Elm.Internal.Assets as Asset
 
 main :: IO ()
 main = do setNumCapabilities =<< getNumProcessors
@@ -26,21 +26,23 @@ main = do setNumCapabilities =<< getNumProcessors
 compileArgs :: Flag.Flags -> IO ()
 compileArgs flags =
   do when (Flag.get_runtime flags) $ do
-       putStrLn Path.runtime
+       putStrLn Asset.runtime
        exitSuccess
      case Flag.files flags of
        [] -> putStrLn "Usage: elm [OPTIONS] [FILES]\nFor more help: elm --help"
        fs -> mapM_ (build flags) fs
 
 build :: Flag.Flags -> FilePath -> IO ()
-build flags rootFile =
+build flags filePath =
     do let noPrelude = Flag.no_prelude flags
        builtIns <- Prelude.interfaces noPrelude
 
-       (Recipe elmFiles jsFiles) <-
-           if Flag.make flags
-             then Utils.run (getBuildRecipe (Flag.src_dir flags) builtIns rootFile)
-             else return (Recipe [rootFile] [])
+       (Deps.Recipe elmFiles jsFiles) <-
+           Utils.run $ Deps.getBuildRecipe
+                         (Flag.make flags)
+                         (Flag.src_dir flags)
+                         builtIns
+                         filePath
 
        moduleName <- File.build flags builtIns elmFiles
 
@@ -54,7 +56,7 @@ build flags rootFile =
            else do putStr "Generating HTML ... "
                    makeHtml js moduleName
 
-       let targetFile = Utils.buildPath flags rootFile extension
+       let targetFile = Utils.buildPath flags (last elmFiles) extension
        createDirectoryIfMissing True (takeDirectory targetFile)
        BS.writeFile targetFile code
        putStrLn "Done"
@@ -67,7 +69,7 @@ build flags rootFile =
 
       getRuntime :: IO Html.JSSource
       getRuntime =
-          let runtimePath = Maybe.fromMaybe Path.runtime (Flag.set_runtime flags) in
+          let runtimePath = Maybe.fromMaybe Asset.runtime (Flag.set_runtime flags) in
           case Flag.bundle_runtime flags of
             False -> return (Html.Link runtimePath)
             True  -> Html.Source `fmap` BS.readFile runtimePath
@@ -86,4 +88,4 @@ build flags rootFile =
         where
           sources js = map Html.Link (Flag.scripts flags) ++ [ Html.Source js ]
           html runtime =
-              Html.generate runtime (takeBaseName rootFile) (sources js) moduleName ""
+              Html.generate runtime moduleName (sources js) moduleName ""

@@ -6,57 +6,90 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import Control.Applicative ((<$>),(<*>))
 
+import qualified AST.Annotation as A
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Declaration as Decl
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
-
 import AST.PrettyPrint
 import Text.PrettyPrint as P
-
 import qualified Elm.Internal.Version as Version
 
-data Module exs body = Module
-    { names   :: [String]
+
+-- HELPFUL TYPE ALIASES
+
+type Interfaces = Map.Map String Interface
+
+type Types   = Map.Map String Type.CanonicalType
+type Aliases = Map.Map String (A.Commented ([String], Type.CanonicalType))
+type ADTs    = Map.Map String (A.Commented (AdtInfo String))
+
+type AdtInfo v = ( [String], [(v, [Type.CanonicalType])] )
+type CanonicalAdt = (Var.Canonical, AdtInfo Var.Canonical)
+
+
+-- MODULES
+
+type SourceModule =
+    Module (Var.Listing Var.Value) [Decl.SourceDecl]
+
+type ValidModule =
+    Module (Var.Listing Var.Value) [Decl.ValidDecl]
+
+type CanonicalModuleNoTypes =
+    Module [Var.Value] (CanonicalBody String)
+
+type CanonicalModule =
+    Module [Var.Value] (CanonicalBody (A.Commented Type.CanonicalType)) 
+
+getName :: Module exs body -> String
+getName modul =
+    nameToString (names modul)
+
+data Module exports body = Module
+    { names   :: Name
     , path    :: FilePath
-    , exports :: exs
+    , exports :: exports
     , imports :: [(String, ImportMethod)]
     , comment :: Maybe String
     , body    :: body
     } deriving (Show)
 
-getName :: Module exs body -> String
-getName modul =
-    List.intercalate "." (names modul)
-
-data CanonicalBody = CanonicalBody
+data CanonicalBody types = CanonicalBody
     { program   :: Canonical.Expr
-    , types     :: Types
-    , fixities  :: [(Decl.Assoc, Int, String)]
+    , types     :: Map.Map String types
+    , fixities  :: [A.Commented (Decl.Assoc, Int, String)]
     , aliases   :: Aliases
     , datatypes :: ADTs
-    , ports     :: [String]
+    , ports     :: [A.Commented String]
     } deriving (Show)
 
-type SourceModule    = Module (Var.Listing Var.Value) [Decl.SourceDecl]
-type ValidModule     = Module (Var.Listing Var.Value) [Decl.ValidDecl]
-type CanonicalModule = Module [Var.Value] CanonicalBody
 
-type Interfaces = Map.Map String Interface
+-- HEADERS
 
-type Types   = Map.Map String Type.CanonicalType
-type Aliases = Map.Map String ( [String], Type.CanonicalType )
-type ADTs    = Map.Map String (AdtInfo String)
+{-| Basic info needed to identify modules and determine dependencies. -}
+data Header = Header
+    { _names :: Name
+    , _exports :: Var.Listing Var.Value
+    , _docComment :: Maybe String
+    , _imports :: [(Name, ImportMethod)]
+    } deriving (Show)
 
-type AdtInfo v = ( [String], [(v, [Type.CanonicalType])] )
-type CanonicalAdt = (Var.Canonical, AdtInfo Var.Canonical)
+type Name = [String] -- must be non-empty
 
+nameToString :: Name -> String
+nameToString = List.intercalate "."
+
+
+-- INTERFACES
+
+{-| Key facts about a module, used when reading info from .elmi files. -}
 data Interface = Interface
     { iVersion  :: Version.Version
-    , iTypes    :: Types
+    , iTypes    :: Map.Map String Type.CanonicalType
     , iImports  :: [(String, ImportMethod)]
-    , iAdts     :: ADTs
-    , iAliases  :: Aliases
+    , iAdts     :: Map.Map String (AdtInfo String)
+    , iAliases  :: Map.Map String ([String], Type.CanonicalType)
     , iFixities :: [(Decl.Assoc, Int, String)]
     , iPorts    :: [String]
     } deriving (Show)
@@ -66,12 +99,12 @@ toInterface modul =
     let body' = body modul in
     Interface
     { iVersion  = Version.elmVersion
-    , iTypes    = types body'
+    , iTypes    = Map.map A.value (types body')
     , iImports  = imports modul
-    , iAdts     = datatypes body'
-    , iAliases  = aliases body'
-    , iFixities = fixities body'
-    , iPorts    = ports body'
+    , iAdts     = Map.map A.value (datatypes body')
+    , iAliases  = Map.map A.value (aliases body')
+    , iFixities = map A.value (fixities body')
+    , iPorts    = map A.value (ports body')
     }
 
 instance Binary Interface where
@@ -84,6 +117,9 @@ instance Binary Interface where
       put (iAliases modul)
       put (iFixities modul)
       put (iPorts modul)
+
+
+-- IMPORT METHOD
 
 data ImportMethod
     = As !String
@@ -107,6 +143,9 @@ instance Binary ImportMethod where
                0 -> As   <$> get
                1 -> Open <$> get
                _ -> error "Error reading valid ImportMethod type from serialized string"
+
+
+-- PRETTY PRINTING
 
 instance (Pretty exs, Pretty body) => Pretty (Module exs body) where
   pretty (Module names _ exs ims _ body) =

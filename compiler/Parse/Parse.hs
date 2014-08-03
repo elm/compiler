@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -W #-}
-module Parse.Parse (program, dependencies) where
+module Parse.Parse (program, programHeader, dependencies) where
 
 import Control.Applicative ((<$>))
+import Control.Arrow (first)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Text.Parsec hiding (newline,spaces)
@@ -32,14 +33,7 @@ program table src =
            either (\err -> Left [P.text err]) Right (validate sourceDecls)
        return $ M.Module names filePath exs ims doc decls
 
-data ProgramHeader = ProgramHeader
-    { _names :: [String]
-    , _exports :: Var.Listing Var.Value
-    , _docComment :: Maybe String
-    , _imports :: [(String, M.ImportMethod)]
-    } deriving (Show)
-
-programHeader :: IParser ProgramHeader
+programHeader :: IParser M.Header
 programHeader =
     do optional freshLine
        (names, exports) <-
@@ -47,20 +41,23 @@ programHeader =
        doc <- optionMaybe (docComment `followedBy` freshLine)
        is <- (do try (lookAhead $ reserved "import")
                  imports `followedBy` freshLine) <|> return []
-       return $ ProgramHeader names exports doc is
+       return $ M.Header names exports doc is
 
 programParser :: IParser M.SourceModule
 programParser =
-  do (ProgramHeader names exports doc is) <- programHeader
+  do (M.Header names exports doc is) <- programHeader
      declarations <- decls
      optional freshLine ; optional spaces ; eof
-     return $ M.Module names "" exports is doc declarations
+     let stringyImports = map (first M.nameToString) is
+     return $ M.Module names "" exports stringyImports doc declarations
 
 dependencies :: String -> Either [P.Doc] (String, [String])
 dependencies =
-  let getName = List.intercalate "." in
-  setupParser $ do header <- programHeader
-                   return (getName $ _names header, map fst $ _imports header)
+    setupParser $ do
+      header <- programHeader
+      return ( M.nameToString (M._names header)
+             , map (M.nameToString . fst) (M._imports header)
+             )
 
 setupParserWithTable :: OpTable -> IParser a -> String -> Either [P.Doc] a
 setupParserWithTable table p source =

@@ -17,7 +17,7 @@ import qualified Data.Text as T
 import qualified Elm.Internal.Name as N
 import qualified Elm.Internal.Version as V
 import qualified Elm.Internal.Constraint as C
-import qualified Elm.Internal.Paths as Path
+import qualified Elm.Internal.Assets as Asset
 
 data Deps = Deps
     { name :: N.Name
@@ -96,7 +96,7 @@ get obj field desc =
        case maybe of
          Just value -> return value
          Nothing -> fail $ "Missing field " ++ show field ++ ", " ++ desc ++ ".\n" ++
-                           "    Check out an example " ++ Path.dependencyFile ++ " file here:" ++
+                           "    Check out an example " ++ Asset.dependencyFile ++ " file here:" ++
                            "    <https://github.com/evancz/automaton/blob/master/elm_dependencies.json>"
 
 repoToName :: String -> Either String N.Name

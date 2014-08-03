@@ -1,76 +1,94 @@
 {-# OPTIONS_GHC -W #-}
-module Build.Dependencies (Recipe(..), getBuildRecipe, readDeps) where
+module Build.Dependencies (Recipe(..), getBuildRecipe) where
 
+import Control.Applicative ((<$>))
 import Control.Monad.Error
 import qualified Control.Monad.State as State
 import qualified Data.Graph as Graph
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import System.Directory
 import System.FilePath as FP
 
+import Build.Metadata (Root)
+import qualified Build.Metadata as Metadata
 import qualified AST.Module as Module
-import qualified Parse.Parse as Parse
-import qualified Elm.Internal.Paths as Path
+import qualified Elm.Internal.Assets as Asset
 import qualified Elm.Internal.Dependencies as Deps (withNative)
 import qualified Elm.Internal.Libraries as L (withVersions)
 import qualified Elm.Internal.Name as N
 import qualified Elm.Internal.Version as V
+import Parse.Helpers (iParse)
+import Parse.Parse (programHeader)
+
+---- RECIPES ----
 
 data Recipe = Recipe
-    { _elmFiles :: [FilePath]
+    { _elmFiles :: [Metadata.WithDeps]
     , _jsFiles :: [FilePath]
     }
 
-getBuildRecipe :: [FilePath] -> Module.Interfaces -> FilePath -> ErrorT String IO Recipe
-getBuildRecipe srcDirs builtIns root =
-  do directories <- getDependencies
-     jsFiles <- nativeFiles ("." : directories)
-     let allSrcDirs = srcDirs ++ directories
-     nodes <- collectDependencies allSrcDirs builtIns root
-     elmFiles <- sortElmFiles nodes
-     return (Recipe elmFiles jsFiles)
+getBuildRecipe :: Bool -> [FilePath] -> Module.Interfaces -> FilePath
+               -> ErrorT String IO Recipe
+getBuildRecipe isMake srcDirs interfaces filePath =
+  do packages <- getPackages
+     let roots = map Metadata.SrcDir srcDirs ++ map (uncurry Metadata.Package) packages
+     case isMake of
+       False ->
+           do header <- readModuleHeader filePath
+              let metadata =
+                      Metadata.Metadata filePath (Module._names header) Nothing []
+              return (Recipe [metadata] [])
 
--- | Based on the projects elm_dependencies.json, find all of the paths and
---   dependency information we might need.
-getDependencies :: ErrorT String IO [FilePath]
-getDependencies =
-    do exists <- liftIO $ doesFileExist Path.librariesFile
+       True ->
+           do jsFiles <- nativeFiles ("." : (map snd packages))
+              pathNodes <- transitiveDependencies roots interfaces filePath
+              elmFiles <- sort pathNodes
+              return (Recipe elmFiles jsFiles)
+
+{-| Read the solved dependencies to find all possible Roots
+-}
+getPackages :: ErrorT String IO [(N.Name, FilePath)]
+getPackages =
+    do exists <- liftIO $ doesFileExist Asset.solvedDependencies
        if not exists then return [] else getPaths
     where
-      getPaths :: ErrorT String IO [FilePath]
+      getPaths :: ErrorT String IO [(N.Name, FilePath)]
       getPaths =
-        L.withVersions Path.librariesFile $ \vers ->
+        L.withVersions Asset.solvedDependencies $ \vers ->
             mapM getPath vers
 
-      getPath :: (N.Name, V.Version) -> ErrorT String IO FilePath
+      getPath :: (N.Name, V.Version) -> ErrorT String IO (N.Name, FilePath)
       getPath (name,version) = do
-        let path = Path.dependencyDirectory </> N.toFilePath name </> show version
+        let path = Asset.packagesDirectory </> N.toFilePath name </> show version
         exists <- liftIO $ doesDirectoryExist path
         if exists
-          then return path
+          then return (name, path)
           else throwError (notFound name version)
 
-      -- TODO: This message should be changed
       notFound :: N.Name -> V.Version -> String
       notFound name version =
           unlines
-          [ "Your " ++ Path.dependencyFile ++ " file says you depend on library"
-          , show name ++ " " ++ show version ++ " but it was not found."
-          , "You may need to install it with:"
+          [ "Error: the " ++ Asset.packagesDirectory ++ " directory may be corrupted."
+          , "    The " ++ Asset.solvedDependencies ++ " file says you depend on package"
+          , "    " ++ show name ++ " " ++ show version ++ " but it was not found."
           , ""
-          , "    elm-get install " ++ show name ++ " " ++ show version ]
+          , "Rebuild the " ++ Asset.packagesDirectory ++ " by deleting the directory and running:"
+          , ""
+          , "    elm-get install"
+          ]
 
 nativeFiles :: [FilePath] -> ErrorT String IO [FilePath]
 nativeFiles directories =
-  do exists <- liftIO $ doesFileExist Path.dependencyFile
+  do exists <- liftIO $ doesFileExist Asset.dependencyFile
      if not exists
        then return []
-       else concat `fmap` mapM getNativeFiles directories
+       else concat <$> mapM getNativeFiles directories
   where
     getNativeFiles dir =
-        Deps.withNative (dir </> Path.dependencyFile) $ \native ->
+        Deps.withNative (dir </> Asset.dependencyFile) $ \native ->
             return (map (toPath dir) native)
 
     toPath dir moduleName =
@@ -83,78 +101,183 @@ split moduleName = go [] moduleName
         case break (=='.') str of
           (path, _:rest) -> go (paths ++ [path]) rest
           (path, [])     -> paths ++ [path]
+--}
 
-type DependencyNode = (FilePath, String, [String])
+---- DEPENDENCIES ----
 
-sortElmFiles :: [DependencyNode] -> ErrorT String IO [FilePath]
-sortElmFiles depends =
+type Loc = Metadata.Located
+
+type MetadataNode = (Metadata.WithDeps, Loc, [Loc])
+
+sort :: [MetadataNode] -> ErrorT String IO [Metadata.WithDeps]
+sort nodes =
     if null mistakes
       then return (concat sccs)
       else throwError $ msg ++ unlines (map show mistakes)
   where
-    sccs = map Graph.flattenSCC $ Graph.stronglyConnComp depends
+    sccs = map Graph.flattenSCC (Graph.stronglyConnComp nodes)
 
     mistakes = filter (\scc -> length scc > 1) sccs
-    msg = "A cyclical module dependency or was detected in:\n"
+    msg = "A cyclical module dependency was detected in:\n"
 
-collectDependencies :: [FilePath] -> Module.Interfaces -> FilePath
-                    -> ErrorT String IO [DependencyNode]
-collectDependencies srcDirs rawBuiltIns filePath =
-    State.evalStateT (go Nothing filePath) Set.empty
+
+-- TRANSITIVE DEPENDENCIES
+
+{-| Start with a given path and find all of the transitive dependencies. Results
+are split up into Native files and normal files. Neither are sorted in any
+particular order.
+-}
+transitiveDependencies :: [Root] -> Module.Interfaces -> FilePath
+                       -> ErrorT String IO [MetadataNode]
+transitiveDependencies roots interfaces filePath =
+    State.evalStateT (go filePath Nothing) Set.empty
   where
-    builtIns :: Set.Set String
-    builtIns = Set.fromList $ Map.keys rawBuiltIns
+    go :: FilePath -> Maybe N.Name
+       -> State.StateT (Set.Set Loc) (ErrorT String IO) [MetadataNode]
+    go filePath package =
+      do header <- lift $ readModuleHeader filePath
 
-    go :: Maybe String -> FilePath -> State.StateT (Set.Set String) (ErrorT String IO) [DependencyNode]
-    go parentModuleName filePath = do
-      filePath' <- lift $ findSrcFile parentModuleName srcDirs filePath
-      (moduleName, deps) <- lift $ readDeps filePath'
-      seen <- State.get
-      let realDeps = Set.difference (Set.fromList deps) builtIns
-          newDeps = Set.difference (Set.filter (not . isNative) realDeps) seen
-      State.put (Set.insert moduleName (Set.union newDeps seen))
-      rest <- mapM (go (Just moduleName) . toFilePath) (Set.toList newDeps)
-      return ((makeRelative "." filePath', moduleName, Set.toList realDeps) : concat rest)
+         let location = Metadata.Metadata filePath (Module._names header) package ()
 
-readDeps :: FilePath -> ErrorT String IO (String, [String])
-readDeps path = do
-  txt <- lift $ readFile path
-  case Parse.dependencies txt of
-    Right o  -> return o
-    Left err -> throwError $ msg ++ show err
-      where msg = "Error resolving dependencies in " ++ path ++ ":\n"
+         let dependencyNames = map fst (Module._imports header)
 
-findSrcFile :: Maybe String -> [FilePath] -> FilePath -> ErrorT String IO FilePath
-findSrcFile parentModuleName dirs path =
-    foldr tryDir notFound dirs
+         let (thirdParty, _native, _builtIn) =
+                 categorizeModules interfaces dependencyNames
+
+         thirdPartyLocations <-
+             lift $ mapM (locateModule location roots) thirdParty
+
+         -- Determine which paths are new for future exploration
+         -- Then mark all dependencies as visited so that we don't traverse them
+         -- again while exploring the new paths.
+         newLocations <- freshLocations thirdPartyLocations
+         markVisited (location : thirdPartyLocations)
+
+         -- create fully fleshed out metadata
+         let metadata = Metadata.addDeps thirdPartyLocations location
+
+         let node = (metadata, location, thirdPartyLocations)
+
+         dependencyNodes <-
+             forM newLocations $ \location ->
+                 go (Metadata._path location) (Metadata._pkg location)
+
+         return (node : concat dependencyNodes)
+
+{-| Read the module header from a particular file. -}
+readModuleHeader :: FilePath -> ErrorT String IO Module.Header
+readModuleHeader filePath =
+  do txt <- liftIO $ readFile filePath
+     case iParse programHeader txt of
+       Left err ->
+           throwError ("Error parsing file " ++ filePath ++ ":\n" ++ show err)
+
+       Right header ->
+           return header
+
+{-| Based on a list of third party dependencies, figure out which paths still
+need to be explored.
+-}
+freshLocations :: (Monad m) => [Loc]
+               -> State.StateT (Set.Set Loc) m [Loc]
+freshLocations locations =
+  do visited <- State.get
+     let fresh = Set.difference (Set.fromList locations) visited
+     return (Set.toList fresh)
+
+{-| Mark a set of paths as visited. -}
+markVisited :: (Monad m) => [Loc] -> State.StateT (Set.Set Loc) m ()
+markVisited paths =
+    State.modify (Set.union (Set.fromList paths))
+
+{-| Categorize modules to make them easy to locate. -}
+categorizeModules :: Module.Interfaces -> [Module.Name]
+                  -> ([Module.Name], [Module.Name], [Module.Name])
+categorizeModules interfaces moduleNames =
+    (thirdParty, native, builtIn)
   where
-    tryDir dir next = do
-      let path' = dir </> path
-      exists <- liftIO $ doesFileExist path'
-      if exists
-        then return path'
-        else next
+    (native , rest      ) = List.partition isNative moduleNames
+    (builtIn, thirdParty) = List.partition isBuiltIn rest
 
-    parentModuleName' =
-        case parentModuleName of
-          Just name -> "module '" ++ name ++ "'"
-          Nothing -> "the main module"
+    isNative :: Module.Name -> Bool
+    isNative name =
+        case name of
+          "Native":_ -> True
+          _          -> False
 
-    notFound = throwError $ unlines
-        [ "When finding the imports declared in " ++ parentModuleName' ++ ", could not find file: " ++ path
-        , "    If you created this module, but it is in a subdirectory that does not"
-        , "    exactly match the module name, you may need to use the --src-dir flag."
-        , ""
-        , "    If it is part of a 3rd party library, it needs to be declared"
-        , "    as a dependency in your project's " ++ Path.dependencyFile ++ " file."
+    isBuiltIn :: Module.Name -> Bool
+    isBuiltIn name =
+        Map.member (Module.nameToString name) interfaces
+
+locateModule :: Loc -> [Root] -> Module.Name -> ErrorT String IO Loc
+locateModule parentLocation roots moduleName =
+  do possibleRoots <- Maybe.catMaybes <$> mapM tryRoot roots
+     case possibleRoots of
+       [] -> throwError notFound
+
+       [root] -> found root
+
+       -- If the parent module is in a package, we should resolve to the
+       -- module in the same package if possible.
+       _ ->
+           case Metadata._pkg parentLocation of
+             Nothing -> throwError (tooMany possibleRoots)
+             name ->
+                 case List.find ((==) name . Metadata.packageName) possibleRoots of
+                   Nothing -> throwError (tooMany possibleRoots)
+                   Just root -> found root
+  where
+    filePath = foldr1 (</>) moduleName <.> "elm"
+
+    tryRoot root =
+      do let fullPath = Metadata.rootDirectory root </> filePath
+         exists <- liftIO $ doesFileExist fullPath
+         if exists
+           then return (Just root)
+           else return Nothing
+
+    found root =
+        let fullPath = Metadata.rootDirectory root </> filePath
+            pkg = Metadata.packageName root
+        in  return $ Metadata.Metadata fullPath moduleName pkg ()
+
+
+    parentModuleName =
+        Module.nameToString (Metadata._name parentLocation)
+
+    indent str = "    " ++ str ++ "\n"
+
+    report msg =
+        "Error: " ++ msg ++ " '" ++ Module.nameToString moduleName ++
+        "'\nIt is imported by module '" ++ parentModuleName ++ "'"
+
+    notFound =
+        unlines
+        [ report "could not find module"
+        , "We searched in the following locations:"
+        , listLocations roots
+        , "Potential problems could be:"
+        , "  * Misspelled the module name"
+        , "  * Need a --src-dir flag to explore additional directories"
+        , "  * Need to declare a new dependency in " ++ Asset.dependencyFile
         ]
 
-isNative :: String -> Bool
-isNative name = List.isPrefixOf "Native." name
+    tooMany roots =
+        report "found multiple modules named" ++
+        "\nModules with that name were found in the following locations:\n" ++
+        listLocations roots
 
-toFilePath :: String -> FilePath
-toFilePath name = map swapDots name ++ ext
-  where
-    swapDots '.' = '/'
-    swapDots  c  =  c
-    ext = if isNative name then ".js" else ".elm"
+    listLocations roots =
+        listSrcDirs roots ++ listPackages roots
+
+    listSrcDirs roots =
+        case Metadata.srcDirs roots of
+          [] -> ""
+          [srcDir] -> "\nSource directory:\n" ++ indent srcDir
+          srcDirs -> "\nSource directories:\n" ++ concatMap indent srcDirs
+
+    listPackages roots =
+        case Metadata.packages roots of
+          [] -> ""
+          [pkg] -> "\nPackage:\n" ++ indent (show pkg)
+          pkgs -> "\nPackages:\n" ++ concatMap (indent . show) pkgs
