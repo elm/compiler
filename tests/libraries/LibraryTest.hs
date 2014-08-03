@@ -7,7 +7,7 @@ import System.Exit
 import System.FilePath
 import System.Process
 
-import Elm.Internal.Paths as Elm
+import Elm.Internal.Assets as Elm
 
 main :: IO ()
 main = do
