@@ -60,8 +60,8 @@ getAnd path handle =
 get :: (MonadError String m, MonadIO m) => FilePath -> m [(N.Name, V.Version)]
 get path = getAnd path return
 
-getVersionsSafe :: MonadIO m => FilePath -> m (Maybe [(N.Name, V.Version)])
-getVersionsSafe path =
+getSafe :: MonadIO m => FilePath -> m (Maybe [(N.Name, V.Version)])
+getSafe path =
   do let catch err = return $ Left (err :: IOError)
      fileRead <- liftIO $ E.catch (Right <$> BS.readFile path) catch
      case fileRead of
