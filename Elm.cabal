@@ -37,7 +37,7 @@ Library
                        Elm.Internal.Utils,
                        Elm.Internal.Version,
                        Elm.Internal.Constraint,
-                       Elm.Internal.Libraries
+                       Elm.Internal.SolvedDependencies
   Hs-Source-Dirs:      compiler
   other-modules:       AST.Annotation,
                        AST.Declaration,

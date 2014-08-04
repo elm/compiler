@@ -17,7 +17,7 @@ import qualified Build.Metadata as Metadata
 import qualified AST.Module as Module
 import qualified Elm.Internal.Assets as Asset
 import qualified Elm.Internal.Dependencies as Deps (withNative)
-import qualified Elm.Internal.Libraries as L (withVersions)
+import qualified Elm.Internal.SolvedDependencies as SD
 import qualified Elm.Internal.Name as N
 import qualified Elm.Internal.Version as V
 import Parse.Helpers (iParse)
@@ -57,7 +57,7 @@ getPackages =
     where
       getPaths :: ErrorT String IO [(N.Name, FilePath)]
       getPaths =
-        L.withVersions Asset.solvedDependencies $ \vers ->
+        SD.getAnd Asset.solvedDependencies $ \vers ->
             mapM getPath vers
 
       getPath :: (N.Name, V.Version) -> ErrorT String IO (N.Name, FilePath)

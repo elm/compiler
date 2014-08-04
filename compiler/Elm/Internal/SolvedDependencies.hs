@@ -1,7 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
-module Elm.Internal.Libraries where
+{-# OPTIONS_GHC -Wall #-}
+module Elm.Internal.SolvedDependencies where
 
 import Control.Applicative ((<$>))
 import Control.Monad.IO.Class (liftIO, MonadIO)
@@ -40,20 +41,24 @@ instance ToJSON Libraries where
 libToTuple :: Library -> (N.Name, V.Version)
 libToTuple lib = (libraryName lib, libraryVersion lib)
 
-withVersions :: (MonadError String m, MonadIO m) => FilePath -> ([(N.Name, V.Version)] -> m a) -> m a
-withVersions path handle =
+getAnd :: (MonadError String m, MonadIO m) => FilePath -> ([(N.Name, V.Version)] -> m a) -> m a
+getAnd path handle =
   do let catch err = return $ Left (err :: IOError)
      fileRead <- liftIO $ E.catch (Right <$> BS.readFile path) catch
      case fileRead of
-       Right bytes -> case eitherDecode bytes of
-         Right (Libraries libs) -> handle $ map libToTuple libs
-         Left parseErr -> throwError $ "Can't parse exact versions from " ++ path
-       Left err ->
+       Right bytes ->
+           case eitherDecode bytes of
+             Right (Libraries libs) ->
+                 handle $ map libToTuple libs
+             Left _parseErr ->
+                 throwError $ "Can't parse exact versions from " ++ path
+
+       Left _err ->
          do liftIO $ putStrLn $ "Error reading file " ++ path
             handle []
 
-getVersions :: (MonadError String m, MonadIO m) => FilePath -> m [(N.Name, V.Version)]
-getVersions path = withVersions path return
+get :: (MonadError String m, MonadIO m) => FilePath -> m [(N.Name, V.Version)]
+get path = getAnd path return
 
 getVersionsSafe :: MonadIO m => FilePath -> m (Maybe [(N.Name, V.Version)])
 getVersionsSafe path =
