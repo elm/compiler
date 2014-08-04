@@ -3,9 +3,12 @@ ElmRuntime.Render.Element = function() {
 'use strict';
 
 var Utils = ElmRuntime.use(ElmRuntime.Render.Utils);
-var newElement = Utils.newElement, colorToCss = Utils.colorToCss,
-    addTransform = Utils.addTransform, removeTransform = Utils.removeTransform,
-    fromList = Utils.fromList, eq = Utils.eq;
+var newElement = Utils.newElement;
+var colorToCss = Utils.colorToCss;
+var addTransform = Utils.addTransform;
+var removeTransform = Utils.removeTransform;
+var fromList = Utils.fromList;
+var eq = Utils.eq;
 
 function setProps(elem, node) {
     var props = elem.props;
@@ -253,7 +256,9 @@ function rawHtml(elem) {
     return div;
 }
 
-function render(elem) { return setProps(elem, makeElement(elem)); }
+function render(elem) {
+    return setProps(elem, makeElement(elem));
+}
 function makeElement(e) {
     var elem = e.element;
     switch(elem.ctor) {
@@ -267,8 +272,12 @@ function makeElement(e) {
 }
 
 function update(node, curr, next) {
-    if (node.tagName === 'A') { node = node.firstChild; }
-    if (curr.props.id === next.props.id) return updateProps(node, curr, next);
+    if (node.tagName === 'A') {
+        node = node.firstChild;
+    }
+    if (curr.props.id === next.props.id) {
+        return updateProps(node, curr, next);
+    }
     if (curr.element.ctor !== next.element.ctor) {
         node.parentNode.replaceChild(render(next),node);
         return true;
