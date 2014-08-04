@@ -118,12 +118,10 @@ Library
                        mtl >= 2,
                        parsec >= 3.1.1,
                        pretty,
-                       scientific,
                        text,
                        transformers >= 0.2,
                        union-find,
-                       unordered-containers,
-                       yaml
+                       unordered-containers
 
 Executable elm
   Main-is:             Compiler.hs
@@ -209,13 +207,11 @@ Executable elm
                        language-glsl >= 0.0.2,
                        mtl >= 2,
                        parsec >= 3.1.1,
-                       scientific,
                        pretty,
                        text,
                        transformers >= 0.2,
                        union-find,
-                       unordered-containers,
-                       yaml
+                       unordered-containers
 
 Executable elm-doc
   Main-is:             Docs.hs
@@ -251,14 +247,11 @@ Executable elm-doc
                        indents,
                        language-glsl >= 0.0.2,
                        mtl >= 2,
-                       pandoc >= 1.10,
                        parsec >= 3.1.1,
                        pretty,
-                       scientific,
                        text,
                        transformers >= 0.2,
-                       union-find,
-                       yaml
+                       union-find
 
 Test-Suite compiler-tests
   Type:            exitcode-stdio-1.0
@@ -282,25 +275,24 @@ Test-Suite compiler-tests
                    blaze-html,
                    blaze-markup,
                    bytestring,
+                   cheapskate,
                    cmdargs,
                    containers >= 0.3,
                    directory,
                    Elm,
                    filemanip,
                    filepath,
+                   highlighting-kate,
                    indents,
                    language-ecmascript >=0.15 && < 1.0,
                    language-glsl >= 0.0.2,
                    mtl >= 2,
-                   pandoc >= 1.10,
                    parsec >= 3.1.1,
                    pretty,
-                   scientific,
                    text,
                    transformers >= 0.2,
                    union-find,
-                   unordered-containers,
-                   yaml
+                   unordered-containers
 
 Test-Suite library-tests
   Type:            exitcode-stdio-1.0
