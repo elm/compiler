@@ -10,6 +10,7 @@
   * Add Maybe.map
   * Add --bundle-runtime flag which creates stand-alone Elm programs
   * Error on ambiguious use of imported variables
+  * Replace dependency on Pandoc with cheapskate+kate
   * Better architecture for compiler. Uses types to make compilation pipeline
     safer, setting things up for giving programmatic access to the AST to
     improve editor and IDE support.
