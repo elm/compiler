@@ -20,8 +20,13 @@ instance Binary Name where
 instance Show Name where
   show name = user name ++ "/" ++ project name
 
+toString :: Name -> String
+toString name =
+    user name ++ "/" ++ project name
+
 toFilePath :: Name -> FilePath
-toFilePath name = user name ++ "-" ++ project name
+toFilePath name =
+    user name ++ "-" ++ project name
 
 fromString :: String -> Maybe Name
 fromString string =

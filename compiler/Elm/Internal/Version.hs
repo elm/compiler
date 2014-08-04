@@ -38,6 +38,10 @@ instance Binary Version where
 tagless :: Version -> Bool
 tagless (V _ tag) = null tag
 
+toString :: Version -> String
+toString (V ns tag) =
+    List.intercalate "." (map show ns) ++ if null tag then "" else "-" ++ tag
+
 fromString :: String -> Maybe Version
 fromString version = V <$> splitNumbers possibleNumbers <*> tag
     where

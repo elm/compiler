@@ -57,7 +57,7 @@ getPackages =
     where
       getPaths :: ErrorT String IO [(N.Name, FilePath)]
       getPaths =
-        SD.getAnd Asset.solvedDependencies $ \vers ->
+        SD.readAnd Asset.solvedDependencies $ \vers ->
             mapM getPath vers
 
       getPath :: (N.Name, V.Version) -> ErrorT String IO (N.Name, FilePath)
