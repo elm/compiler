@@ -75,10 +75,10 @@ main = defaultMainWithHooks simpleUserHooks { postBuild = myPostBuild }
 -- (in a Maybe) and the executables list.  We want a PackageDescription that
 -- only mentions the executable 'name'
 filterExe :: String -> PackageDescription -> PackageDescription
-filterExe name pd = pd {
-    library = Nothing,
-    executables = filter (\x -> (exeName x == name)) (executables pd)
-    }
+filterExe name pd =
+    pd { library = Nothing
+       , executables = filter (\x -> (exeName x == name)) (executables pd)
+       }
 
 
 -- Post Build
