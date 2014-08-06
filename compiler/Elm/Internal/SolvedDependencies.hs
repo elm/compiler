@@ -3,7 +3,7 @@ module Elm.Internal.SolvedDependencies where
 
 import Prelude hiding (read)
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Error (runErrorT, throwError, ErrorT)
+import Control.Monad.Error (runErrorT, throwError, ErrorT, catchError)
 import Data.Aeson
 import Data.Aeson.Encode.Pretty (encodePretty)
 import qualified Data.ByteString.Lazy as BS
@@ -63,7 +63,7 @@ read path = readAnd path return
 
 readMaybe :: FilePath -> IO (Maybe [(N.Name, V.Version)])
 readMaybe path =
-  do eitherPairs <- runErrorT (read path)
+  do eitherPairs <- runErrorT (read path `catchError` const (throwError "IO error"))
      case eitherPairs of
        Right pairs -> return (Just pairs)
        Left _ -> return Nothing
