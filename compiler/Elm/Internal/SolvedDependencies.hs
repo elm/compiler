@@ -2,13 +2,14 @@
 module Elm.Internal.SolvedDependencies where
 
 import Prelude hiding (read)
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Error (runErrorT, throwError, ErrorT)
+import Control.Monad (when)
+import Control.Monad.Error (runErrorT, throwError, ErrorT, liftIO)
 import Data.Aeson
 import Data.Aeson.Encode.Pretty (encodePretty)
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Text as Text
 import qualified Data.Map as Map
+import System.Directory (doesFileExist)
 
 import qualified Elm.Internal.Name as N
 import qualified Elm.Internal.Version as V
@@ -50,13 +51,19 @@ write filePath pairs =
 
 readAnd :: FilePath -> ([(N.Name, V.Version)] -> ErrorT String IO a) -> ErrorT String IO a
 readAnd path handle =
-  do byteString <- liftIO $ BS.readFile path
-     pairs <- either corrupted fromJson (eitherDecode byteString)
+  do exists <- liftIO (doesFileExist path)
+     when (not exists) throwDoesNotExist
+     byteString <- liftIO $ BS.readFile path
+     pairs <- either throwCorrupted fromJson (eitherDecode byteString)
      handle pairs
   where
-    corrupted _msg =
+    throwCorrupted _msg =
         throwError $ "Unable to extract package information from the " ++ path ++
                      " file.\nIt may be corrupted."
+
+    throwDoesNotExist =
+        throwError ("File " ++ path ++ " does not exist.")
+
 
 read :: FilePath -> ErrorT String IO [(N.Name, V.Version)]
 read path = readAnd path return
