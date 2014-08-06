@@ -1,9 +1,9 @@
-{ "version": "0.12.3"
+{ "version": "0.12.2"
 , "summary": "Elm's standard libraries"
 , "description": "The full set of standard libraries for Elm. This library is pegged to the version number of the compiler, so if you are using Elm 0.12.3, you should be using version 0.12.3 of the standard libraries."
 , "license": "BSD3"
 , "repository": "http://github.com/elm-lang/Elm.git"
-, "elm-version": "0.12.3"
+, "elm-version": "0.12.2"
 , "dependencies": {}
 , "exposed-modules":
     [ "Array"
