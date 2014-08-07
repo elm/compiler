@@ -5,15 +5,15 @@ import Control.Applicative ((<$>))
 import Control.Arrow (first)
 import qualified Data.List as List
 import qualified Data.Map as Map
-import Text.Parsec hiding (newline,spaces)
+import Text.Parsec ((<|>), (<?>), char, eof, letter, lookAhead, many, option, optional, optionMaybe, putState, try)
 import qualified Text.PrettyPrint as P
 
 import qualified AST.Declaration as D
 import qualified AST.Module as M
 import qualified AST.Variable as Var
-import Parse.Helpers
+import Parse.Helpers (OpTable, IParser, commitIf, docComment, iParse, followedBy, freshLine, onFreshLines, spaces, reserved)
 import Parse.Declaration (infixDecl)
-import Parse.Module
+import Parse.Module (imports, moduleDef)
 import qualified Parse.Declaration as Decl
 import Transform.Declaration (validate)
 
