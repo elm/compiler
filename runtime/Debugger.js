@@ -181,8 +181,8 @@ function debugModule(module, runtime) {
     eventsUntilSnapshot = EVENTS_PER_SAVE - (position % EVENTS_PER_SAVE);
     snapshots = snapshots.slice(0, lastSnapshotPosition + 1);
 
-    if (position > 0) {
-      var lastEventTime = recordedEvents[position-1].timestep;
+    if (position < getRecordedEventsLength()) {
+      var lastEventTime = recordedEvents[position].timestep;
       var scrubTime = runtime.timer.now() - lastEventTime;
       runtime.timer.addDelay(scrubTime);
     }
@@ -251,10 +251,6 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
   function continueProgram() {
     if (debugModule.getPaused())
     {
-      if (currentEventIndex === 0) {
-        restartProgram();
-        return;
-      }
       var closestSnapshotIndex =
           Math.floor(currentEventIndex / EVENTS_PER_SAVE) * EVENTS_PER_SAVE;
       resetProgram(currentEventIndex);
