@@ -175,22 +175,23 @@ function debugModule(module, runtime) {
     var pauseDelay = Date.now() - pauseTime;
     runtime.timer.addDelay(pauseDelay);
     programPaused = false;
-    if (position > 0) {
-      // If we're not unpausing at the head, then we need to dump the
-      // events that are ahead of where we're continuing.
-      var lastSnapshotPosition = Math.floor(position / EVENTS_PER_SAVE);
-      eventsUntilSnapshot = EVENTS_PER_SAVE - (position % EVENTS_PER_SAVE);
-      snapshots = snapshots.slice(0, lastSnapshotPosition + 1);
 
+    // we need to dump the events that are ahead of where we're continuing.
+    var lastSnapshotPosition = Math.floor(position / EVENTS_PER_SAVE);
+    eventsUntilSnapshot = EVENTS_PER_SAVE - (position % EVENTS_PER_SAVE);
+    snapshots = snapshots.slice(0, lastSnapshotPosition + 1);
+
+    if (position > 0) {
       var lastEventTime = recordedEvents[position-1].timestep;
       var scrubTime = runtime.timer.now() - lastEventTime;
       runtime.timer.addDelay(scrubTime);
-
-      recordedEvents = recordedEvents.slice(0, position);
-      tracePath.clearTracesAfter(position);
-      runtime.debuggerStatus.eventCounter = position;
-      executeCallbacks(asyncCallbacks, false);
     }
+
+    recordedEvents = recordedEvents.slice(0, position);
+    tracePath.clearTracesAfter(position);
+    runtime.debuggerStatus.eventCounter = position;
+        executeCallbacks(asyncCallbacks, false);
+
     tracePath.startRecording();
   }
 
