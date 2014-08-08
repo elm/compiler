@@ -45,6 +45,7 @@ tests =
         , test "slice 2" <| assertEqual (Array.fromList [1,2,3]) (Array.slice  1  4 (Array.fromList [0,1,2,3,4]))
         , test "slice 3" <| assertEqual (Array.fromList [1,2,3]) (Array.slice  1 -1 (Array.fromList [0,1,2,3,4]))
         , test "slice 4" <| assertEqual (Array.fromList [2])     (Array.slice -3 -2 (Array.fromList [0,1,2,3,4]))
+        , test "slice 5" <| assertEqual 63 (Array.length <| Array.slice 65 (65 + 63) <| Array.fromList [1..200])
         ]
       mappingAndFoldingTests = suite "Mapping and Folding"
         [ test "map" <| assertEqual (Array.fromList [1,2,3]) (Array.map sqrt (Array.fromList [1,4,9]))

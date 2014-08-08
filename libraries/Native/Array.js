@@ -35,8 +35,10 @@ Elm.Native.Array.make = function(elm) {
     function unsafeGet(i, array) {
       for (var x = array.height; x > 0; x--) {
         var slot = i >> (x * 5);
+        while (array.lengths[slot] <= i) {
+          slot++;
+        }
         if (slot > 0) {
-          while (array.lengths[slot - 1] > i) { slot--; }
           i -= array.lengths[slot - 1];
         }
         array = array.table[slot];
@@ -311,10 +313,12 @@ Elm.Native.Array.make = function(elm) {
 
       // Create new node.
       var newA = { ctor:"_Array", height:a.height
-                                , table:a.table.slice(0, right + 1)
-                                , lengths:a.lengths.slice(0, right + 1) };
-      newA.table[right] = sliced;
-      newA.lengths[right] = length(sliced) + (right > 0 ? newA.lengths[right - 1] : 0);
+                                , table:a.table.slice(0, right)
+                                , lengths:a.lengths.slice(0, right) };
+      if (sliced.table.length > 0) {
+        newA.table[right] = sliced;
+        newA.lengths[right] = length(sliced) + (right > 0 ? newA.lengths[right - 1] : 0);
+      }
       return newA;
     }
 
@@ -343,7 +347,7 @@ Elm.Native.Array.make = function(elm) {
       var newA = { ctor:"_Array", height:a.height
                                 , table:a.table.slice(left, a.table.length + 1)
                                 , lengths:new Array(a.table.length - left) };
-      newA.table[left] = sliced;
+      newA.table[0] = sliced;
       var len = 0;
       for (var i = 0; i < newA.table.length; i++) {
         len += length(newA.table[i]);
@@ -558,7 +562,9 @@ Elm.Native.Array.make = function(elm) {
     // find the exact slot via forward searching in  "lengths". Returns the index.
     function getSlot(i, a) {
       var slot = i >> (5 * a.height);
-      while (a.lengths[slot - 1] > i) { slot--; }
+      while (a.lengths[slot] <= i) {
+        slot++;
+      }
       return slot;
     }
 
