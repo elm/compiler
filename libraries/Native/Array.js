@@ -35,8 +35,12 @@ Elm.Native.Array.make = function(elm) {
     function unsafeGet(i, array) {
       for (var x = array.height; x > 0; x--) {
         var slot = i >> (x * 5);
-        while (array.lengths[slot] <= i) slot++;
-        if (slot > 0)  i -= array.lengths[slot - 1];
+        while (array.lengths[slot] <= i) {
+          slot++;
+        }
+        if (slot > 0) {
+          i -= array.lengths[slot - 1];
+        }
         array = array.table[slot];
       }
       return array.table[i];
@@ -558,7 +562,9 @@ Elm.Native.Array.make = function(elm) {
     // find the exact slot via forward searching in  "lengths". Returns the index.
     function getSlot(i, a) {
       var slot = i >> (5 * a.height);
-      while (a.lengths[slot] <= i) slot++;
+      while (a.lengths[slot] <= i) {
+        slot++;
+      }
       return slot;
     }
 
