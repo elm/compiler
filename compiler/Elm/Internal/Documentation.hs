@@ -23,7 +23,7 @@ import qualified AST.Module as M
 import qualified AST.PrettyPrint as PP
 import qualified AST.Type as T
 import qualified AST.Variable as Var
-import qualified Transform.PrettifyTypes as PT
+import qualified Transform.Localize as Localize
 
 type Type = T.CanonicalType
 
@@ -70,8 +70,8 @@ generateModuleDoc modul =
     buildFixityMap = Map.fromList . map f
       where f (A.A _ (x, y, z)) = (z, (x, y))
 
-    allImports = PT.allImports modul
-    prettyType = PP.pretty . PT.prettifyType allImports
+    allImports = Localize.environment modul
+    prettyType = PP.pretty . Localize.tipe allImports
 
     generateValueDoc :: Map String (Decl.Assoc, Int) -> String
                      -> A.Commented T.CanonicalType -> Document
