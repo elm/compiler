@@ -309,10 +309,12 @@ Elm.Native.Array.make = function(elm) {
 
       // Create new node.
       var newA = { ctor:"_Array", height:a.height
-                                , table:a.table.slice(0, right + 1)
-                                , lengths:a.lengths.slice(0, right + 1) };
-      newA.table[right] = sliced;
-      newA.lengths[right] = length(sliced) + (right > 0 ? newA.lengths[right - 1] : 0);
+                                , table:a.table.slice(0, right)
+                                , lengths:a.lengths.slice(0, right) };
+      if (sliced.table.length > 0) {
+        newA.table[right] = sliced;
+        newA.lengths[right] = length(sliced) + (right > 0 ? newA.lengths[right - 1] : 0);
+      }
       return newA;
     }
 
