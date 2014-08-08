@@ -2,12 +2,12 @@ module Parse.Module (moduleDef, getModuleName, imports) where
 
 import Control.Applicative ((<$>), (<*>))
 import Data.List (intercalate)
-import Text.Parsec hiding (newline,spaces)
+import Text.Parsec ((<|>), (<?>), char, choice, many, option, optional, optionMaybe, string, try)
 
-import Parse.Helpers
-import AST.Module (ImportMethod(..))
+import Parse.Helpers (IParser, capVar, commaSep1, dotSep1, freshLine, lowVar, iParse, parens, reserved, symOp, whitespace)
+import AST.Module (ImportMethod(As, Open))
 import qualified AST.Module as Module
-import AST.Variable (Listing(..), Value(..), openListing)
+import AST.Variable (Listing(Listing), Value(Alias, ADT, Value), openListing)
 
 getModuleName :: String -> Maybe String
 getModuleName source =
