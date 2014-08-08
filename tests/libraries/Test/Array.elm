@@ -7,6 +7,15 @@ import Native.Array
 import ElmTest.Assertion (..)
 import ElmTest.Test (..)
 
+mergeSplit : Int -> Array.Array a -> Array.Array a
+mergeSplit n arr =
+  let left = Array.slice 0 n arr
+      right = Array.slice n (Array.length arr) arr
+  in Array.append left right
+
+holeArray : Array.Array Int
+holeArray = foldl mergeSplit (Array.fromList [0..100]) [0..100]
+
 tests : Test
 tests =
   let creationTests = suite "Creation"
@@ -28,6 +37,7 @@ tests =
         , test "append" <| assertEqual [42,42,81,81,81] (Array.toList (Array.append (Array.repeat 2 42) (Array.repeat 3 81)))
         , test "appendEmpty 1" <| assertEqual [1..33] (Array.toList (Array.append Array.empty (Array.fromList [1..33])))
         , test "appendEmpty 2" <| assertEqual [1..33] (Array.toList (Array.append (Array.fromList [1..33]) Array.empty))
+        , test "appendAndSlice" <| assertEqual [0..100] (Array.toList holeArray)
         ]
       getAndSetTests = suite "Get and Set"
         [ test "get" <| assertEqual (Just 2) (Array.get 1 (Array.fromList [3,2,1]))
