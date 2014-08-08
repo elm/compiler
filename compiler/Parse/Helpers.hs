@@ -3,23 +3,26 @@ module Parse.Helpers where
 
 import Prelude hiding (until)
 import Control.Applicative ((<$>),(<*>))
-import Control.Monad
-import Control.Monad.State
+import Control.Monad (guard, join, mzero)
+import Control.Monad.State (State)
 import Data.Char (isUpper)
 import qualified Data.Map as Map
 import qualified Language.GLSL.Parser as GLP
-import Language.GLSL.Syntax as GLS
-import Text.Parsec hiding (newline,spaces,State)
-import Text.Parsec.Indent
+import Language.GLSL.Syntax (Declaration(InitDeclaration), ExternalDeclaration(Declaration), InitDeclarator(InitDecl), FullType(FullType), InvariantOrType(TypeDeclarator), TranslationUnit(TranslationUnit), TypeQualifier(TypeQualSto), TypeSpecifier(TypeSpec), TypeSpecifierNoPrecision(TypeSpecNoPrecision), StorageQualifier(Attribute, Uniform, Varying))
+import qualified Language.GLSL.Syntax as GLS
+import Text.Parsec (ParsecT, ParseError, SourceName, SourcePos, (<|>), (<?>), alphaNum, anyChar, anyToken, char, choice, eof, getInput, getParserState, getPosition, letter, lookAhead, lower, many, many1, manyTill, notFollowedBy, oneOf, option, optionMaybe, parserFail, runParserT, satisfy, setInput, setParserState, string, try, upper)
+import Text.Parsec.Indent (indented, runIndent)
 import qualified Text.Parsec.Token as T
 
-import AST.Annotation as Annotation
+import AST.Annotation (Annotated(A))
+import qualified AST.Annotation as Annotation
 import AST.Declaration (Assoc)
-import AST.Expression.General
+import AST.Expression.General (Expr'(Access, Var), rawVar)
 import qualified AST.Expression.Source as Source
-import AST.Helpers as Help
-import AST.Literal as Literal
-import AST.PrettyPrint
+import qualified AST.Helpers as Help
+import AST.Literal (GLTipe(M4, Texture, V2, V3, V4), attribute, uniform, varying)
+import qualified AST.Literal as Literal
+import AST.PrettyPrint (Pretty)
 import qualified AST.Variable as Variable
 
 reserveds = [ "if", "then", "else"
