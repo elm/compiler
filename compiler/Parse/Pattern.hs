@@ -4,11 +4,11 @@ module Parse.Pattern (term, expr) where
 import Control.Applicative ((<$>))
 import Data.Char (isUpper)
 import qualified Data.List as List
-import Text.Parsec hiding (newline,spaces,State)
+import Text.Parsec ((<|>), (<?>), char, choice, optionMaybe, try)
 
-import Parse.Helpers
-import Parse.Literal
-import AST.Literal
+import Parse.Helpers (IParser, braces, brackets, capVar, commaSep, commaSep1, consSep1, dotSep1, lowVar, parens, reserved, spacePrefix, var, whitespace)
+import Parse.Literal (literal)
+import AST.Literal (Literal(Boolean))
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
 
