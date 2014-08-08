@@ -343,7 +343,7 @@ Elm.Native.Array.make = function(elm) {
       var newA = { ctor:"_Array", height:a.height
                                 , table:a.table.slice(left, a.table.length + 1)
                                 , lengths:new Array(a.table.length - left) };
-      newA.table[left] = sliced;
+      newA.table[0] = sliced;
       var len = 0;
       for (var i = 0; i < newA.table.length; i++) {
         len += length(newA.table[i]);
