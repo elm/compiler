@@ -358,68 +358,113 @@ Elm.Native.Array.make = function(elm) {
     }
 
     // Appends two trees.
-    // TODO: Add support for appending trees of different sizes. Current
-    // behavior will just rise the lower tree and then append them.
     function append(a,b) {
-      if (a.table.length == 0) return b;
-      if (b.table.length == 0) return a;
-      if (b.height > a.height) return append(parentise(a, b.height), b);
-      if (a.height > b.height) return append(a, parentise(b, a.height));
-      if (a.height == 0)       return append(parentise(a, 1), parentise(b, 1));
+      if (a.table.length == 0) {
+        return b;
+      }
+      if (b.table.length == 0) {
+        return a;
+      }
 
       var c = append_(a, b);
-      if (c[1].table.length > 0) {
-        return siblise(c[0], c[1]);
-      } else {
+
+      // Check if both nodes can be crunshed together.
+      if (c[0].table.length + c[1].table.length <= M) {
+        if (c[0].table.length == 0) {
+          return c[1];
+        }
+        if (c[1].table.length == 0) {
+          return c[0];
+        }
+
+        // Adjust .table and .lengths
+        c[0].table = c[0].table.concat(c[1].table);
+        if (c[0].height > 0) {
+          var len = length(c[0]);
+          for (var i = 0; i < c[1].lengths.length; i++) {
+            c[1].lengths[i] += len;
+          }
+          c[0].lengths = c[0].lengths.concat(c[1].lengths);
+        }
+
         return c[0];
       }
-    }
 
-    // Returns an array of two nodes. The second node _may_ be empty. This case
-    // needs to be handled by the function, that called append_. May be only
-    // called for trees with an minimal height of 1.
-    function append_(a, b) {
-      if (a.height == 1) {
-        // Check if balancing is needed and return based on that.
-        var toRemove = calcToRemove(a, b);
-        if (toRemove <= E) {
-          return [a,b];
-        }
-
-        return shuffle(a, b, toRemove);
+      var toRemove = calcToRemove(a, b);
+      if (toRemove > E) {
+        c = shuffle(c[0], c[1], toRemove);
       }
 
-      var appended = append_(botRight(a), botLeft(b));
-      a = nodeCopy(a), b = nodeCopy(b);
+      return siblise(c[0], c[1]);
+    }
 
-      // Adjust the bottom right side of the new tree.
-      a.table[a.table.length - 1] = appended[0];
-      a.lengths[a.lengths.length - 1] = length(appended[0])
-      a.lengths[a.lengths.length - 1] += a.lengths.length > 1 ? a.lengths[a.lengths.length - 2] : 0;
+    // Returns an array of two nodes; right and left. One node _may_ be empty.
+    function append_(a, b) {
+      if (a.height == 0 && b.height == 0) {
+        return [a, b];
+      }
 
-      // Adjust the bottom left side of the new tree.
-      if (appended[1].table.length > 0) {
-        b.table[0] = appended[1];
-        b.lengths[0] = length(appended[1]);
-        for (var i = 1, len = length(b.table[0]); i < b.lengths.length; i++) {
-          len += length(b.table[i]);
-          b.lengths[i] = len;
+      if (a.height != 1 || b.height != 1) {
+        if (a.height == b.height) {
+          a = nodeCopy(a), b = nodeCopy(b);
+          var appended = append_(botRight(a), botLeft(b));
+
+          insertRight(a, appended[1]);
+          insertLeft(b, appended[0]);
+        } else if (a.height > b.height) {
+          a = nodeCopy(a);
+          var appended = append_(botRight(a), b);
+
+          insertRight(a, appended[0]);
+          b = parentise(appended[1], appended[1].height + 1);
+        } else {
+          b = nodeCopy(b);
+          var appended = append_(a, botLeft(b));
+
+          var left = appended[0].table.length == 0 ? 0 : 1;
+          var right = left == 0 ? 1 : 0;
+          insertLeft(b, appended[left]);
+          a = parentise(appended[right], appended[right].height + 1);
         }
-      } else {
-        b.table.shift();
-        for (var i = 1; i < b.lengths.length; i++) {
-          b.lengths[i] = b.lengths[i] - b.lengths[0];
-        }
-        b.lengths.shift();
       }
 
       // Check if balancing is needed and return based on that.
-      var toRemove = calcToRemove(a, b);
-      if (toRemove <= E || b.table.length == 0) {
+      if (a.table.length == 0 || b.table.length == 0) {
         return [a,b];
       }
 
+      var toRemove = calcToRemove(a, b);
+      if (toRemove <= E) {
+        return [a,b];
+      }
       return shuffle(a, b, toRemove);
+    }
+
+    // Helperfunctions for append_. Replaces a child node at the side of the parent.
+    function insertRight(parent, node) {
+      var index = parent.table.length - 1;
+      parent.table[index] = node;
+      parent.lengths[index] = length(node)
+      parent.lengths[index] += index > 0 ? parent.lengths[index - 1] : 0;
+    }
+
+    function insertLeft(parent, node) {
+      if (node.table.length > 0) {
+        parent.table[0] = node;
+        parent.lengths[0] = length(node);
+
+        var len = length(parent.table[0]);
+        for (var i = 1; i < parent.lengths.length; i++) {
+          len += length(parent.table[i]);
+          parent.lengths[i] = len;
+        }
+      } else {
+        parent.table.shift();
+        for (var i = 1; i < parent.lengths.length; i++) {
+          parent.lengths[i] = parent.lengths[i] - parent.lengths[0];
+        }
+        parent.lengths.shift();
+      }
     }
 
     // Returns the extra search steps for E. Refer to the paper.
