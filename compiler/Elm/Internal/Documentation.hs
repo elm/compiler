@@ -23,6 +23,7 @@ import qualified AST.Module as M
 import qualified AST.PrettyPrint as PP
 import qualified AST.Type as T
 import qualified AST.Variable as Var
+import qualified Transform.Localize as Localize
 
 type Type = T.CanonicalType
 
@@ -69,6 +70,9 @@ generateModuleDoc modul =
     buildFixityMap = Map.fromList . map f
       where f (A.A _ (x, y, z)) = (z, (x, y))
 
+    allImports = Localize.environment modul
+    prettyType = PP.pretty . Localize.tipe allImports
+
     generateValueDoc :: Map String (Decl.Assoc, Int) -> String
                      -> A.Commented T.CanonicalType -> Document
     generateValueDoc fixityMap n (A.A doc tipe) =
@@ -86,7 +90,7 @@ generateModuleDoc modul =
                     ]
       in
       Document { docName = n
-               , raw = P.render $ P.hsep [P.text prettyName, P.colon, PP.pretty tipe]
+               , raw = P.render $ P.hsep [P.text prettyName, P.colon, prettyType tipe]
                , comment = fromMaybe "" doc
                , exposed = Set.member n exportedValues
                , body = Map.fromList $
@@ -96,7 +100,7 @@ generateModuleDoc modul =
     generateAliasDoc :: String -> A.Commented ([String], T.CanonicalType) -> Document
     generateAliasDoc n (A.A doc (vars, tipe)) =
       Document { docName = n
-               , raw = P.render $ P.hsep $ (P.text "type" : P.text n : map PP.pretty vars) ++ [P.text "=", PP.pretty tipe]
+               , raw = P.render $ P.hsep $ (P.text "type" : P.text n : map PP.pretty vars) ++ [P.text "=", prettyType tipe]
                , comment = fromMaybe "" doc
                , exposed = Set.member n exportedAliases
                , body = Map.fromList
@@ -113,7 +117,7 @@ generateModuleDoc modul =
       where
         prettyCtor :: (String, [T.CanonicalType]) -> P.Doc
         prettyCtor (n, types) =
-          P.hsep (P.text n : map PP.pretty types)
+          P.hsep (P.text n : map prettyType types)
 
     generateDatatypeDoc :: String -> A.Commented (M.AdtInfo String) -> Document
     generateDatatypeDoc n (A.A doc (vars, ctors)) =
