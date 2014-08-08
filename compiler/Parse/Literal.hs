@@ -3,8 +3,8 @@ module Parse.Literal (literal) where
 
 import Control.Applicative ((<$>))
 import Text.Parsec hiding (newline,spaces)
-import Parse.Helpers
-import AST.Literal
+import Parse.Helpers (IParser, chr, str)
+import AST.Literal (Literal(Chr, FloatNum, IntNum, Str))
 
 literal :: IParser Literal
 literal = num <|> (Str <$> str) <|> (Chr <$> chr) <?> "literal"
