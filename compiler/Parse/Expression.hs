@@ -2,17 +2,19 @@ module Parse.Expression (def,term,typeAnnotation,expr) where
 
 import Control.Applicative ((<$>), (<*>))
 import Data.List (foldl')
-import Text.Parsec hiding (newline,spaces)
-import Text.Parsec.Indent
+import Text.Parsec ((<|>), (<?>), char, choice, getPosition, lookAhead, many, notFollowedBy, optionMaybe, sourceColumn, sourceLine, string, try)
+import Text.Parsec.Indent (block, withPos)
 
-import Parse.Binop
-import Parse.Helpers as Help
-import Parse.Literal
+import Parse.Binop (binops)
+import Parse.Helpers (IParser, arrow, accessible, addLocation, anyOp, braces, brackets, commaSep, commaSep1, constrainedSpacePrefix, equals, hasType, located, lowVar, padded, parens, reserved, rLabel, semiSep1, spacePrefix, spaceSep1, symOp, whitespace, var)
+import qualified Parse.Helpers as Help
+import Parse.Literal (literal)
 import qualified Parse.Pattern as Pattern
 import qualified Parse.Type as Type
 
-import AST.Annotation as Annotation
-import AST.Expression.General
+import AST.Annotation (Annotated(A))
+import qualified AST.Annotation as Annotation
+import AST.Expression.General (Expr'(Access, App, Binop, Case, ExplicitList, GLShader, Insert, Let, Lambda, Literal, Markdown, Modify, MultiIf, Range, Record, Remove), rawVar, tuple)
 import qualified AST.Expression.Source as Source
 import qualified AST.Literal as L
 import qualified AST.Pattern as P
