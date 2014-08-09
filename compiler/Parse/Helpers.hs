@@ -3,23 +3,30 @@ module Parse.Helpers where
 
 import Prelude hiding (until)
 import Control.Applicative ((<$>),(<*>))
-import Control.Monad
-import Control.Monad.State
+import Control.Monad (guard, join, mzero)
+import Control.Monad.State (State)
 import Data.Char (isUpper)
 import qualified Data.Map as Map
 import qualified Language.GLSL.Parser as GLP
-import Language.GLSL.Syntax as GLS
-import Text.Parsec hiding (newline,spaces,State)
-import Text.Parsec.Indent
+import qualified Language.GLSL.Syntax as GLS
+import Text.Parsec ( ParsecT, ParseError, SourceName, SourcePos, (<|>), (<?>)
+                   , alphaNum, anyChar, anyToken, char, choice, eof
+                   , getInput, getParserState, getPosition, letter, lookAhead
+                   , lower, many, many1, manyTill, notFollowedBy, oneOf, option
+                   , optionMaybe, parserFail, runParserT, satisfy
+                   , setInput, setParserState, string, try, upper
+                   )
+import Text.Parsec.Indent (indented, runIndent)
 import qualified Text.Parsec.Token as T
 
-import AST.Annotation as Annotation
+import AST.Annotation (Annotated(A))
+import qualified AST.Annotation as Annotation
 import AST.Declaration (Assoc)
-import AST.Expression.General
+import AST.Expression.General (Expr'(Access, Var), rawVar)
 import qualified AST.Expression.Source as Source
-import AST.Helpers as Help
-import AST.Literal as Literal
-import AST.PrettyPrint
+import qualified AST.Helpers as Help
+import qualified AST.Literal as L
+import AST.PrettyPrint (Pretty)
 import qualified AST.Variable as Variable
 
 reserveds = [ "if", "then", "else"
@@ -316,7 +323,7 @@ markdown interpolation =
                       closeMarkdown (markdownBuilder . (c:)) stuff
                  ]
 
-shader :: IParser (String, Literal.GLShaderTipe)
+shader :: IParser (String, L.GLShaderTipe)
 shader =
   do try (string "[glsl|")
      rawSrc <- closeShader id
@@ -331,32 +338,50 @@ shader =
            closeShader (builder . (c:))
       ]
 
-glSource :: String -> Either ParseError Literal.GLShaderTipe
+glSource :: String -> Either ParseError L.GLShaderTipe
 glSource src =
   case GLP.parse src of
-    Right (TranslationUnit decls) ->
+    Right (GLS.TranslationUnit decls) ->
       Right . foldr addGLinput emptyDecls . join . map extractGLinputs $ decls
     Left e -> Left e
   where 
-    emptyDecls = Literal.GLShaderTipe Map.empty Map.empty Map.empty
-    addGLinput (qual,tipe,name) glDecls = case qual of
-        Attribute -> glDecls { attribute = Map.insert name tipe $ attribute glDecls }
-        Uniform -> glDecls { uniform = Map.insert name tipe $ uniform glDecls }
-        Varying -> glDecls { varying = Map.insert name tipe $ varying glDecls }
+    emptyDecls = L.GLShaderTipe Map.empty Map.empty Map.empty
+
+    addGLinput (qual,tipe,name) glDecls =
+      case qual of
+        GLS.Attribute ->
+            glDecls { L.attribute = Map.insert name tipe $ L.attribute glDecls }
+
+        GLS.Uniform ->
+            glDecls { L.uniform = Map.insert name tipe $ L.uniform glDecls }
+
+        GLS.Varying ->
+            glDecls { L.varying = Map.insert name tipe $ L.varying glDecls }
+
         _ -> error "Should never happen due to below filter"
-    extractGLinputs decl = case decl of
-        Declaration (InitDeclaration (TypeDeclarator (FullType (Just (TypeQualSto qual)) (TypeSpec _prec (TypeSpecNoPrecision tipe _mexpr1)))) [InitDecl name _mexpr2 _mexpr3]) ->
-            if elem qual [Attribute, Varying, Uniform] 
-            then case tipe of 
-                GLS.Int -> return (qual,Literal.Int,name)
-                GLS.Float -> return (qual,Literal.Float,name)
-                GLS.Vec2 -> return (qual,V2,name)
-                GLS.Vec3 -> return (qual,V3,name) 
-                GLS.Vec4 -> return (qual,V4,name)
-                GLS.Mat4 -> return (qual,M4,name)
-                GLS.Sampler2D -> return (qual,Texture,name)
-                _ -> []
-            else []
+
+    extractGLinputs decl =
+      case decl of
+        GLS.Declaration
+          (GLS.InitDeclaration
+             (GLS.TypeDeclarator
+                (GLS.FullType
+                   (Just (GLS.TypeQualSto qual))
+                   (GLS.TypeSpec _prec (GLS.TypeSpecNoPrecision tipe _mexpr1))))
+             [GLS.InitDecl name _mexpr2 _mexpr3]
+          ) ->
+            case elem qual [GLS.Attribute, GLS.Varying, GLS.Uniform] of
+              False -> []
+              True ->
+                  case tipe of 
+                    GLS.Int -> return (qual, L.Int,name)
+                    GLS.Float -> return (qual, L.Float,name)
+                    GLS.Vec2 -> return (qual, L.V2,name)
+                    GLS.Vec3 -> return (qual, L.V3,name) 
+                    GLS.Vec4 -> return (qual, L.V4,name)
+                    GLS.Mat4 -> return (qual, L.M4,name)
+                    GLS.Sampler2D -> return (qual, L.Texture,name)
+                    _ -> []
         _ -> []
 
 str :: IParser String

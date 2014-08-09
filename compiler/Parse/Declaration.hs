@@ -2,12 +2,12 @@
 module Parse.Declaration where
 
 import Control.Applicative ((<$>))
-import Text.Parsec hiding (newline,spaces)
+import Text.Parsec ((<|>), (<?>), choice, digit, try)
 
-import Parse.Helpers
-import qualified Parse.Expression as Expr
-import qualified Parse.Type as Type
 import qualified AST.Declaration as D
+import qualified Parse.Expression as Expr
+import Parse.Helpers (IParser, anyOp, capVar, docComment, equals, forcedWS, hasType, lowVar, padded, pipeSep1, reserved, spacePrefix, whitespace)
+import qualified Parse.Type as Type
 
 declaration :: IParser D.SourceDecl
 declaration =

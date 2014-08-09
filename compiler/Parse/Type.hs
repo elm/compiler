@@ -3,11 +3,14 @@ module Parse.Type where
 
 import Control.Applicative ((<$>),(<*>),(<*))
 import Data.List (intercalate)
-import Text.Parsec
+import Text.Parsec ((<|>), (<?>), char, many, optionMaybe, string, try)
 
 import qualified AST.Type as T
 import qualified AST.Variable as Var
-import Parse.Helpers
+import Parse.Helpers ( IParser, arrow, braces, capVar, commaSep, commaSep1
+                     , dotSep1, dumbWhitespace, hasType, lowVar, parens, rLabel
+                     , spacePrefix, whitespace
+                     )
 
 tvar :: IParser T.RawType
 tvar = T.Var <$> lowVar <?> "type variable"

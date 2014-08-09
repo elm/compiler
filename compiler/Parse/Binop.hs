@@ -4,14 +4,14 @@ module Parse.Binop (binops, OpTable) where
 import Control.Applicative ((<$>))
 import qualified Data.List as List
 import qualified Data.Map as Map
+import Text.Parsec ((<|>), choice, getState, try)
 
 import AST.Annotation (merge)
-import AST.Declaration (Assoc(..))
+import AST.Declaration (Assoc(L, N, R))
 import AST.Expression.General (Expr'(Binop))
 import qualified AST.Expression.Source as Source
 import qualified AST.Variable as Var
-import Text.Parsec
-import Parse.Helpers
+import Parse.Helpers (IParser, OpTable, commitIf, failure, whitespace)
 
 opLevel :: OpTable -> String -> Int
 opLevel table op = fst $ Map.findWithDefault (9,L) op table

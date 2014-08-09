@@ -2,17 +2,19 @@ module Parse.Expression (def,term,typeAnnotation,expr) where
 
 import Control.Applicative ((<$>), (<*>))
 import Data.List (foldl')
-import Text.Parsec hiding (newline,spaces)
-import Text.Parsec.Indent
+import Text.Parsec ((<|>), (<?>), char, choice, getPosition, lookAhead, many, notFollowedBy, optionMaybe, sourceColumn, sourceLine, string, try)
+import Text.Parsec.Indent (block, withPos)
 
-import Parse.Binop
-import Parse.Helpers as Help
-import Parse.Literal
+import Parse.Binop (binops)
+import Parse.Helpers (IParser, arrow, accessible, addLocation, anyOp, braces, brackets, commaSep, commaSep1, constrainedSpacePrefix, equals, hasType, located, lowVar, padded, parens, reserved, rLabel, semiSep1, spacePrefix, spaceSep1, symOp, whitespace, var)
+import qualified Parse.Helpers as Help
+import Parse.Literal (literal)
 import qualified Parse.Pattern as Pattern
 import qualified Parse.Type as Type
 
-import AST.Annotation as Annotation
-import AST.Expression.General
+import AST.Annotation (Annotated(A))
+import qualified AST.Annotation as Annotation
+import qualified AST.Expression.General as E
 import qualified AST.Expression.Source as Source
 import qualified AST.Literal as L
 import qualified AST.Pattern as P
@@ -25,45 +27,45 @@ varTerm :: IParser Source.Expr'
 varTerm = toVar <$> var <?> "variable"
 
 toVar :: String -> Source.Expr'
-toVar v = case v of "True"  -> Literal (L.Boolean True)
-                    "False" -> Literal (L.Boolean False)
-                    _       -> rawVar v
+toVar v = case v of "True"  -> E.Literal (L.Boolean True)
+                    "False" -> E.Literal (L.Boolean False)
+                    _       -> E.rawVar v
 
 accessor :: IParser Source.Expr'
 accessor = do
   (start, lbl, end) <- located (try (string "." >> rLabel))
   let loc e = Annotation.at start end e
-  return (Lambda (P.Var "_") (loc $ Access (loc $ rawVar "_") lbl))
+  return (E.Lambda (P.Var "_") (loc $ E.Access (loc $ E.rawVar "_") lbl))
 
 negative :: IParser Source.Expr'
 negative = do
   (start, nTerm, end) <-
       located (try (char '-' >> notFollowedBy (char '.' <|> char '-')) >> term)
   let loc e = Annotation.at start end e
-  return (Binop (Var.Raw "-") (loc $ Literal (L.IntNum 0)) nTerm)
+  return (E.Binop (Var.Raw "-") (loc $ E.Literal (L.IntNum 0)) nTerm)
 
 
 --------  Complex Terms  --------
 
 listTerm :: IParser Source.Expr'
-listTerm = markdown' <|> shader' <|> braces (try range <|> ExplicitList <$> commaSep expr)
+listTerm = markdown' <|> shader' <|> braces (try range <|> E.ExplicitList <$> commaSep expr)
   where
     range = do
       lo <- expr
       padded (string "..")
-      Range lo <$> expr
+      E.Range lo <$> expr
 
     markdown' = do
       pos <- getPosition
       let uid = show (sourceLine pos) ++ ":" ++ show (sourceColumn pos)
       (rawText, exprs) <- Help.markdown (interpolation uid)
-      return (Markdown uid (filter (/='\r') rawText) exprs)
+      return (E.Markdown uid (filter (/='\r') rawText) exprs)
 
     shader' = do
       pos <- getPosition
       let uid = show (sourceLine pos) ++ ":" ++ show (sourceColumn pos)
       (rawSrc, tipe) <- Help.shader
-      return $ GLShader uid (filter (/='\r') rawSrc) tipe
+      return $ E.GLShader uid (filter (/='\r') rawSrc) tipe
 
     span uid index =
         "<span id=\"md-" ++ uid ++ "-" ++ show index ++
@@ -81,22 +83,22 @@ parensTerm = try (parens opFn) <|> parens (tupleFn <|> parened)
     opFn = do
       (start, op, end) <- located anyOp
       let loc = Annotation.at start end
-      return . loc . Lambda (P.Var "x") . loc . Lambda (P.Var "y") . loc $
-             Binop (Var.Raw op) (loc (rawVar "x")) (loc (rawVar "y"))
+      return . loc . E.Lambda (P.Var "x") . loc . E.Lambda (P.Var "y") . loc $
+             E.Binop (Var.Raw op) (loc (E.rawVar "x")) (loc (E.rawVar "y"))
 
     tupleFn = do
       let comma = char ',' <?> "comma ','"
       (start, commas, end) <- located (comma >> many (whitespace >> comma))
       let vars = map (('v':) . show) [ 0 .. length commas + 1 ]
           loc = Annotation.at start end
-      return $ foldr (\x e -> loc $ Lambda x e)
-                 (loc . tuple $ map (loc . rawVar) vars) (map P.Var vars)
+      return $ foldr (\x e -> loc $ E.Lambda x e)
+                 (loc . E.tuple $ map (loc . E.rawVar) vars) (map P.Var vars)
     
     parened = do
       (start, es, end) <- located (commaSep expr)
       return $ case es of
                  [e] -> e
-                 _   -> Annotation.at start end (tuple es)
+                 _   -> Annotation.at start end (E.tuple es)
 
 recordTerm :: IParser Source.Expr
 recordTerm = brackets $ choice [ misc, addLocation record ]
@@ -108,24 +110,24 @@ recordTerm = brackets $ choice [ misc, addLocation record ]
         body <- expr
         return (label, makeFunction patterns body)
               
-      record = Record <$> commaSep field
+      record = E.Record <$> commaSep field
 
       change = do
         lbl <- rLabel
         padded (string "<-")
         (,) lbl <$> expr
 
-      remove r = addLocation (string "-" >> whitespace >> Remove r <$> rLabel)
+      remove r = addLocation (string "-" >> whitespace >> E.Remove r <$> rLabel)
 
       insert r = addLocation $ do
                    string "|" >> whitespace
-                   Insert r <$> rLabel <*> (padded equals >> expr)
+                   E.Insert r <$> rLabel <*> (padded equals >> expr)
 
       modify r =
-          addLocation (string "|" >> whitespace >> Modify r <$> commaSep1 change)
+          addLocation (string "|" >> whitespace >> E.Modify r <$> commaSep1 change)
 
       misc = try $ do
-               record <- addLocation (rawVar <$> rLabel)
+               record <- addLocation (E.rawVar <$> rLabel)
                opt <- padded (optionMaybe (remove record))
                case opt of
                  Just e  -> try (insert e) <|> return e
@@ -133,7 +135,7 @@ recordTerm = brackets $ choice [ misc, addLocation record ]
                         
 
 term :: IParser Source.Expr
-term =  addLocation (choice [ Literal <$> literal, listTerm, accessor, negative ])
+term =  addLocation (choice [ E.Literal <$> literal, listTerm, accessor, negative ])
     <|> accessible (addLocation varTerm <|> parensTerm <|> recordTerm)
     <?> "basic term (4, x, 'c', etc.)"
 
@@ -146,7 +148,7 @@ appExpr = do
             if null str then notFollowedBy (char '-') else return ()
   return $ case ts of
              [] -> t
-             _  -> foldl' (\f x -> Annotation.merge f x $ App f x) t ts
+             _  -> foldl' (\f x -> Annotation.merge f x $ E.App f x) t ts
 
 --------  Normal Expressions  --------
 
@@ -164,9 +166,12 @@ ifExpr = reserved "if" >> whitespace >> (normal <|> multiIf)
         thenBranch <- expr
         whitespace <?> "an 'else' branch" ; reserved "else" <?> "an 'else' branch" ; whitespace
         elseBranch <- expr
-        return $ MultiIf [(bool, thenBranch),
-                          (Annotation.sameAs elseBranch (Literal . L.Boolean $ True), elseBranch)]
-      multiIf = MultiIf <$> spaceSep1 iff
+        return $ E.MultiIf
+          [ (bool, thenBranch)
+          , (Annotation.sameAs elseBranch (E.Literal . L.Boolean $ True), elseBranch)
+          ]
+
+      multiIf = E.MultiIf <$> spaceSep1 iff
           where iff = do string "|" ; whitespace
                          b <- expr ; padded arrow
                          (,) b <$> expr
@@ -187,12 +192,12 @@ letExpr = do
   reserved "let" ; whitespace
   defs <- defSet
   padded (reserved "in")
-  Let defs <$> expr
+  E.Let defs <$> expr
 
 caseExpr :: IParser Source.Expr'
 caseExpr = do
   reserved "case"; e <- padded expr; reserved "of"; whitespace
-  Case e <$> (with <|> without)
+  E.Case e <$> (with <|> without)
     where case_ = do p <- Pattern.expr
                      padded arrow
                      (,) p <$> expr
@@ -227,7 +232,7 @@ defStart =
 
 makeFunction :: [P.RawPattern] -> Source.Expr -> Source.Expr
 makeFunction args body@(A ann _) =
-    foldr (\arg body' -> A ann $ Lambda arg body') body args
+    foldr (\arg body' -> A ann $ E.Lambda arg body') body args
 
 definition :: IParser Source.Def
 definition = withPos $ do
