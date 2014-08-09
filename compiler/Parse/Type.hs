@@ -7,7 +7,10 @@ import Text.Parsec ((<|>), (<?>), char, many, optionMaybe, string, try)
 
 import qualified AST.Type as T
 import qualified AST.Variable as Var
-import Parse.Helpers (IParser, arrow, braces, capVar, commaSep, commaSep1, dotSep1, dumbWhitespace, hasType, lowVar, parens, rLabel, spacePrefix, whitespace)
+import Parse.Helpers ( IParser, arrow, braces, capVar, commaSep, commaSep1
+                     , dotSep1, dumbWhitespace, hasType, lowVar, parens, rLabel
+                     , spacePrefix, whitespace
+                     )
 
 tvar :: IParser T.RawType
 tvar = T.Var <$> lowVar <?> "type variable"
