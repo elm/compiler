@@ -6,9 +6,12 @@ import Data.Char (isUpper)
 import qualified Data.List as List
 import Text.Parsec ((<|>), (<?>), char, choice, optionMaybe, try)
 
-import Parse.Helpers (IParser, braces, brackets, capVar, commaSep, commaSep1, consSep1, dotSep1, lowVar, parens, reserved, spacePrefix, var, whitespace)
+import Parse.Helpers ( IParser, braces, brackets, capVar, commaSep, commaSep1
+                     , consSep1, dotSep1, lowVar, parens, reserved, spacePrefix
+                     , var, whitespace
+                     )
 import Parse.Literal (literal)
-import AST.Literal (Literal(Boolean))
+import qualified AST.Literal as L
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
 
@@ -17,8 +20,8 @@ basic = choice
     [ char '_' >> return P.Anything
     , do v <- var
          return $ case v of
-                    "True"          -> P.Literal (Boolean True)
-                    "False"         -> P.Literal (Boolean False)
+                    "True"          -> P.Literal (L.Boolean True)
+                    "False"         -> P.Literal (L.Boolean False)
                     c:_ | isUpper c -> P.Data (Var.Raw v) []
                     _               -> P.Var v
     , P.Literal <$> literal
@@ -52,8 +55,8 @@ patternConstructor :: IParser P.RawPattern
 patternConstructor = do
   v <- List.intercalate "." <$> dotSep1 capVar
   case v of
-    "True"  -> return $ P.Literal (Boolean True)
-    "False" -> return $ P.Literal (Boolean False)
+    "True"  -> return $ P.Literal (L.Boolean True)
+    "False" -> return $ P.Literal (L.Boolean False)
     _       -> P.Data (Var.Raw v) <$> spacePrefix term
 
 expr :: IParser P.RawPattern
