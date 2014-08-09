@@ -359,10 +359,10 @@ Elm.Native.Array.make = function(elm) {
 
     // Appends two trees.
     function append(a,b) {
-      if (a.table.length == 0) {
+      if (a.table.length === 0) {
         return b;
       }
-      if (b.table.length == 0) {
+      if (b.table.length === 0) {
         return a;
       }
 
@@ -370,10 +370,10 @@ Elm.Native.Array.make = function(elm) {
 
       // Check if both nodes can be crunshed together.
       if (c[0].table.length + c[1].table.length <= M) {
-        if (c[0].table.length == 0) {
+        if (c[0].table.length === 0) {
           return c[1];
         }
-        if (c[1].table.length == 0) {
+        if (c[1].table.length === 0) {
           return c[0];
         }
 
@@ -400,13 +400,14 @@ Elm.Native.Array.make = function(elm) {
 
     // Returns an array of two nodes; right and left. One node _may_ be empty.
     function append_(a, b) {
-      if (a.height == 0 && b.height == 0) {
+      if (a.height === 0 && b.height === 0) {
         return [a, b];
       }
 
-      if (a.height != 1 || b.height != 1) {
-        if (a.height == b.height) {
-          a = nodeCopy(a), b = nodeCopy(b);
+      if (a.height !== 1 || b.height !== 1) {
+        if (a.height === b.height) {
+          a = nodeCopy(a);
+          b = nodeCopy(b);
           var appended = append_(botRight(a), botLeft(b));
 
           insertRight(a, appended[1]);
@@ -421,15 +422,15 @@ Elm.Native.Array.make = function(elm) {
           b = nodeCopy(b);
           var appended = append_(a, botLeft(b));
 
-          var left = appended[0].table.length == 0 ? 0 : 1;
-          var right = left == 0 ? 1 : 0;
+          var left = appended[0].table.length === 0 ? 0 : 1;
+          var right = left === 0 ? 1 : 0;
           insertLeft(b, appended[left]);
           a = parentise(appended[right], appended[right].height + 1);
         }
       }
 
       // Check if balancing is needed and return based on that.
-      if (a.table.length == 0 || b.table.length == 0) {
+      if (a.table.length === 0 || b.table.length === 0) {
         return [a,b];
       }
 
