@@ -203,44 +203,47 @@ function debugModule(module, runtime) {
 
   function preventInputEvents(){
     var events =
-        [ "click", "mousemove", "mouseup", "mousedown", "mouseclick"
-        , "keydown", "keypress", "keyup", "touchstart", "touchend"
-        , "touchcancel", "touchleave", "touchmove", "pointermove"
-        , "pointerdown", "pointerup", "pointerover", "pointerout"
-        , "pointerenter", "pointerleave", "pointercancel"
-        ];
+      [ "click", "mousemove", "mouseup", "mousedown", "mouseclick"
+      , "keydown", "keypress", "keyup", "touchstart", "touchend"
+      , "touchcancel", "touchleave", "touchmove", "pointermove"
+      , "pointerdown", "pointerup", "pointerover", "pointerout"
+      , "pointerenter", "pointerleave", "pointercancel"
+      ];
 
     var ignore = function(e) {
-        var evt = e ? e : window.event;
-        if (evt.stopPropagation) {
-          evt.stopPropagation();
-        }
-        if (evt.cabcelBubble !== null) {
-          evt.cabcelBubble = true;
-        }
-        if (evt.preventDefault) {
-          evt.preventDefault();
-        }
-        return false;
+      var evt = e ? e : window.event;
+      if (evt.stopPropagation) {
+        evt.stopPropagation();
+      }
+      if (evt.cabcelBubble !== null) {
+        evt.cabcelBubble = true;
+      }
+      if (evt.preventDefault) {
+        evt.preventDefault();
+      }
+      return false;
     };
 
-    var blackHole = document.createElement("div");
-    blackHole.id = "elmEventIgnorer";
-    blackHole.style.position = "absolute";
-    blackHole.style.top = "0px";
-    blackHole.style.left = "0px";
-    blackHole.style.width = "100%";
-    blackHole.style.height = "100%";
+    var ignoringDiv = document.getElementById("elmEventIgnorer");
+    if (!ignoringDiv) {
+      ignoringDiv = document.createElement("div");
+      ignoringDiv.id = "elmEventIgnorer";
+      ignoringDiv.style.position = "absolute";
+      ignoringDiv.style.top = "0px";
+      ignoringDiv.style.left = "0px";
+      ignoringDiv.style.width = "100%";
+      ignoringDiv.style.height = "100%";
 
-    for (var i = events.length; i-- ;) {
-      blackHole.addEventListener(events[i], ignore, true);
+      for (var i = events.length; i-- ;) {
+        ignoringDiv.addEventListener(events[i], ignore, true);
+      }
+      runtime.node.appendChild(ignoringDiv);
     }
-    runtime.node.appendChild(blackHole);
   }
 
   function permitInputEvents(){
-    var blackHole = document.getElementById("elmEventIgnorer");
-    blackHole.parentNode.removeChild(blackHole);
+    var ignoringDiv = document.getElementById("elmEventIgnorer");
+    ignoringDiv.parentNode.removeChild(ignoringDiv);
   }
 
   return {
