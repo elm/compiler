@@ -167,8 +167,9 @@ function debugModule(module, runtime) {
   function setPaused() {
     programPaused = true;
     clearAsyncCallbacks();
-    tracePath.stopRecording();
     pauseTime = Date.now();
+    tracePath.stopRecording();
+    preventInputEvents();
   }
 
   function setContinue(position) {
@@ -190,13 +191,50 @@ function debugModule(module, runtime) {
     recordedEvents = recordedEvents.slice(0, position);
     tracePath.clearTracesAfter(position);
     runtime.debuggerStatus.eventCounter = position;
-        executeCallbacks(asyncCallbacks);
+    executeCallbacks(asyncCallbacks);
+    permitInputEvents();
 
     tracePath.startRecording();
   }
 
   function getPaused() {
     return programPaused;
+  }
+
+  function preventInputEvents(){
+    var events =
+        [ "click", "mousemove", "mouseup", "mousedown", "mouseclick"
+        , "keydown", "keypress", "keyup", "touchstart", "touchend"
+        , "touchcancel", "touchleave", "touchmove", "pointermove"
+        , "pointerdown", "pointerup", "pointerover", "pointerout"
+        , "pointerenter", "pointerleave", "pointercancel"
+        ];
+
+    var gobbler = function(e) {
+        var evt = e ? e : window.event;
+        if (evt.stopPropagation) evt.stopPropagation();
+        if (evt.cabcelBubble !== null) evt.cabcelBubble = true;
+        if (evt.preventDefault) evt.preventDefault();
+        return false;
+    };
+
+    var blackHole = document.createElement("div");
+    blackHole.id = "elmEventGobbler";
+    blackHole.style.position = "absolute";
+    blackHole.style.top = "0px";
+    blackHole.style.left = "0px";
+    blackHole.style.width = "100%";
+    blackHole.style.height = "100%";
+
+    for (var i = events.length; i-- ;) {
+      blackHole.addEventListener(events[i], gobbler, true);
+    }
+    runtime.node.appendChild(blackHole);
+  }
+
+  function permitInputEvents(){
+    var blackHole = document.getElementById("elmEventGobbler");
+    blackHole.parentNode.removeChild(blackHole);
   }
 
   return {
