@@ -190,7 +190,7 @@ function debugModule(module, runtime) {
     recordedEvents = recordedEvents.slice(0, position);
     tracePath.clearTracesAfter(position);
     runtime.debuggerStatus.eventCounter = position;
-        executeCallbacks(asyncCallbacks, false);
+        executeCallbacks(asyncCallbacks);
 
     tracePath.startRecording();
   }
@@ -240,7 +240,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     debugModule.clearRecordedEvents();
     debugModule.clearSnapshots();
     debugModule.setContinue(0);
-    executeCallbacks(debugModule.initialAsyncCallbacks, true);
+    executeCallbacks(debugModule.initialAsyncCallbacks);
   }
 
   function pauseProgram() {
@@ -495,9 +495,9 @@ function tracePathInit(runtime, signalGraphMain) {
   }
 }
 
-function executeCallbacks(callbacks, reexecute) {
+function executeCallbacks(callbacks) {
   callbacks.forEach(function(timer) {
-    if (reexecute || !timer.executed) {
+    if (!timer.executed) {
       var func = timer.func;
       timer.executed = true;
       func();
