@@ -210,16 +210,22 @@ function debugModule(module, runtime) {
         , "pointerenter", "pointerleave", "pointercancel"
         ];
 
-    var gobbler = function(e) {
+    var ignore = function(e) {
         var evt = e ? e : window.event;
-        if (evt.stopPropagation) evt.stopPropagation();
-        if (evt.cabcelBubble !== null) evt.cabcelBubble = true;
-        if (evt.preventDefault) evt.preventDefault();
+        if (evt.stopPropagation) {
+          evt.stopPropagation();
+        }
+        if (evt.cabcelBubble !== null) {
+          evt.cabcelBubble = true;
+        }
+        if (evt.preventDefault) {
+          evt.preventDefault();
+        }
         return false;
     };
 
     var blackHole = document.createElement("div");
-    blackHole.id = "elmEventGobbler";
+    blackHole.id = "elmEventIgnorer";
     blackHole.style.position = "absolute";
     blackHole.style.top = "0px";
     blackHole.style.left = "0px";
@@ -227,13 +233,13 @@ function debugModule(module, runtime) {
     blackHole.style.height = "100%";
 
     for (var i = events.length; i-- ;) {
-      blackHole.addEventListener(events[i], gobbler, true);
+      blackHole.addEventListener(events[i], ignore, true);
     }
     runtime.node.appendChild(blackHole);
   }
 
   function permitInputEvents(){
-    var blackHole = document.getElementById("elmEventGobbler");
+    var blackHole = document.getElementById("elmEventIgnorer");
     blackHole.parentNode.removeChild(blackHole);
   }
 
