@@ -269,7 +269,11 @@ function debugModule(module, runtime) {
   };
 }
 
-function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
+// The debuggerHistory variable is passed in on hotswap. It represents
+// the a state of the debugger for it to assume during init. It contains
+// the paused state of the debugger, the recorded events, and the current
+// event being processed.
+function debuggerInit(debugModule, runtime, debuggerHistory /* =undefined */) {
   var currentEventIndex = 0;
 
   function resetProgram(position) {
@@ -349,6 +353,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
       continueIndex = getMaxSteps();
     }
     return {
+      paused: debugModule.getPaused(),
       recordedEvents: debugModule.copyRecordedEvents(),
       currentEventIndex: continueIndex
     };
@@ -360,15 +365,15 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     parentNode.removeChild(runtime.node);
   }
 
-  if (hotSwapState) {
+  if (debuggerHistory) {
     // The problem is that we want to previous paused state. But
     // by the time JS reaches here, the old code has been swapped out
     // and the new modules are being generated. So we can ask the
     // debugging console what it thinks the pause state is and go
     // from there.
-    var paused = top.debug.paused;
+    var paused = debuggerHistory.paused;
     debugModule.setPaused();
-    debugModule.loadRecordedEvents(hotSwapState.recordedEvents);
+    debugModule.loadRecordedEvents(debuggerHistory.recordedEvents);
     var index = getMaxSteps();
     runtime.debuggerStatus.eventCounter = 0;
     debugModule.tracePath.clearTraces();
@@ -384,9 +389,9 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     }
     debugModule.tracePath.stopRecording();
 
-    stepTo(hotSwapState.currentEventIndex);
+    stepTo(debuggerHistory.currentEventIndex);
     if (!paused) {
-      debugModule.setContinue(hotSwapState.currentEventIndex);
+      debugModule.setContinue(debuggerHistory.currentEventIndex);
     }
   }
 
