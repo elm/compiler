@@ -52,7 +52,7 @@ instance ToJSON Deps where
           | otherwise       = [ "native-modules" .= native d ]
       sourceDirectories
           | null (sourceDirs d) = []
-          | otherwise = [ "source-dirs" .= sourceDirs d ]
+          | otherwise = [ "source-directories" .= sourceDirs d ]
 
 instance FromJSON Deps where
     parseJSON (Object obj) =
@@ -77,7 +77,7 @@ instance FromJSON Deps where
 
            elmVersion <- get obj "elm-version" "the version of the Elm compiler you are using"
 
-           sourceDirs <- fromMaybe [] <$> (obj .:? "source-dirs")
+           sourceDirs <- fromMaybe [] <$> (obj .:? "source-directories")
 
            deps <- getDependencies obj
 
@@ -162,6 +162,6 @@ prettyJSON = encodePretty' config
                          , "exposed-modules"
                          , "native-modules"
                          , "elm-version"
-                         , "source-dirs"
+                         , "source-directories"
                          , "dependencies"
                          ]
