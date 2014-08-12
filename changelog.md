@@ -17,6 +17,8 @@
 
 #### Breaking Changes:
 
+  * Rename Basics.div to (//)
+  * Rename Basics.mod to (%)
   * Rename Maybe.maybe to Maybe.extract 
   * Rename Either.either to Either.extract 
   * Remove Maybe.justs for (List.filterMap id)

@@ -124,7 +124,7 @@ toRgb color =
 fmod : Float -> Int -> Float
 fmod f n =
   let integer = floor f
-  in  toFloat (integer `mod` n) + f - toFloat integer
+  in  toFloat (integer % n) + f - toFloat integer
 
 rgbToHsl : Int -> Int -> Int -> (Float,Float,Float)
 rgbToHsl red green blue =

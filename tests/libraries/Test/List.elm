@@ -10,7 +10,7 @@ tests =
   let partitionTests = 
           let p1 = id
               p2 x = x < 3
-              isEven n = n `mod` 2 == 0
+              isEven n = n % 2 == 0
           in suite "partition Tests" [ test "simple partition" <| assertEqual ([True],[False]) (List.partition p1 [False, True]),
                test "order check"      <| assertEqual ([2,1], [5,6])   (List.partition p2 [2,5,6,1]),
                test "partition doc check 1"      <| assertEqual ([0,1,2], [3,4,5]) (partition p2 [0..5]),
