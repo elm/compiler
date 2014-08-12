@@ -29,6 +29,7 @@ data Deps = Deps
     , exposed :: [String]
     , native :: [String]
     , elmVersion :: V.Version
+    , sourceDirs :: [FilePath]
     , dependencies :: [(N.Name,C.Constraint)]
     } deriving (Show, Eq)
 
@@ -43,12 +44,15 @@ instance ToJSON Deps where
       , "exposed-modules" .= exposed d
       , "elm-version"     .= elmVersion d
       , "dependencies"    .= (jsonDeps . dependencies $ d)
-      ] ++ nativeModules
+      ] ++ sourceDirectories ++ nativeModules
     where
       jsonDeps = Map.fromList . map (first (T.pack . show))
       nativeModules
           | null (native d) = []
           | otherwise       = [ "native-modules" .= native d ]
+      sourceDirectories
+          | null (sourceDirs d) = []
+          | otherwise = [ "source-directories" .= sourceDirs d ]
 
 instance FromJSON Deps where
     parseJSON (Object obj) =
@@ -73,9 +77,11 @@ instance FromJSON Deps where
 
            elmVersion <- get obj "elm-version" "the version of the Elm compiler you are using"
 
+           sourceDirs <- fromMaybe [] <$> (obj .:? "source-directories")
+
            deps <- getDependencies obj
 
-           return $ Deps name version summary desc license repo exposed native elmVersion deps
+           return $ Deps name version summary desc license repo exposed native elmVersion sourceDirs deps
 
     parseJSON _ = mzero
 
@@ -156,5 +162,6 @@ prettyJSON = encodePretty' config
                          , "exposed-modules"
                          , "native-modules"
                          , "elm-version"
+                         , "source-directories"
                          , "dependencies"
                          ]
