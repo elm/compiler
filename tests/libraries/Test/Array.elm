@@ -20,10 +20,10 @@ tests : Test
 tests =
   let creationTests = suite "Creation"
         [ test "empty" <| assertEqual Array.empty (Array.fromList [])
-        , test "initialize" <| assertEqual (Array.initialize 4 id) (Array.fromList [0,1,2,3])
+        , test "initialize" <| assertEqual (Array.initialize 4 identity) (Array.fromList [0,1,2,3])
         , test "initialize 2" <| assertEqual (Array.initialize 4 (\n -> n*n)) (Array.fromList [0,1,4,9])
         , test "initialize 3" <| assertEqual (Array.initialize 4 (always 0)) (Array.fromList [0,0,0,0])
-        , test "initialize Empty" <| assertEqual (Array.initialize 0 id) Array.empty
+        , test "initialize Empty" <| assertEqual (Array.initialize 0 identity) Array.empty
         , test "initialize 4" <| assertEqual (Array.initialize 2 (always 0)) (Array.fromList [0,0])
         , test "repeat" <| assertEqual (Array.repeat 5 40) (Array.fromList [40,40,40,40,40])
         , test "repeat 2" <| assertEqual (Array.repeat 5 0) (Array.fromList [0,0,0,0,0])

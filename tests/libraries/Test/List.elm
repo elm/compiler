@@ -8,7 +8,7 @@ import ElmTest.Test (..)
 tests : Test
 tests = 
   let partitionTests = 
-          let p1 = id
+          let p1 = identity
               p2 x = x < 3
               isEven n = n % 2 == 0
           in suite "partition Tests" [ test "simple partition" <| assertEqual ([True],[False]) (List.partition p1 [False, True]),

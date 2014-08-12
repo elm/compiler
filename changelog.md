@@ -17,6 +17,7 @@
 
 #### Breaking Changes:
 
+  * Rename Basics.id to Basics.identity
   * Rename Basics.div to (//)
   * Rename Basics.mod to (%)
   * Rename Maybe.maybe to Maybe.extract 

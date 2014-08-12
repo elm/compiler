@@ -46,7 +46,7 @@ which happen to be radians.
 @docs fst, snd
 
 # Higher-Order Helpers
-@docs id, always, (<|), (|>), (.), flip, curry, uncurry
+@docs identity, always, (<|), (|>), (.), flip, curry, uncurry
 
 -}
 
@@ -356,9 +356,11 @@ infixr 9 .
 infixr 0 <|
 infixl 0 |>
 
-{-| Given a value, returns exactly the same value. -}
-id : a -> a
-id x = x
+{-| Given a value, returns exactly the same value. This is called
+[the identity function](http://en.wikipedia.org/wiki/Identity_function).
+-}
+identity : a -> a
+identity x = x
 
 {-| Creates a [constant function](http://en.wikipedia.org/wiki/Constant_function),
 a function that *always* returns the same value regardless of what input you give.
