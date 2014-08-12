@@ -366,7 +366,7 @@ function debuggerInit(debugModule, runtime, hotSwapState /* =undefined */) {
     // and the new modules are being generated. So we can ask the
     // debugging console what it thinks the pause state is and go
     // from there.
-    var paused = top.debug.paused;
+    var paused = elmPauseState || false;
     debugModule.setPaused();
     debugModule.loadRecordedEvents(hotSwapState.recordedEvents);
     var index = getMaxSteps();
