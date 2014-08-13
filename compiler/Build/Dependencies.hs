@@ -16,7 +16,7 @@ import Build.Metadata (Root)
 import qualified Build.Metadata as Metadata
 import qualified AST.Module as Module
 import qualified Elm.Internal.Assets as Asset
-import qualified Elm.Internal.Dependencies as Deps (withNative)
+import qualified Elm.Internal.Dependencies as Deps
 import qualified Elm.Internal.SolvedDependencies as SD
 import qualified Elm.Internal.Name as N
 import qualified Elm.Internal.Version as V
@@ -44,7 +44,13 @@ getBuildRecipe isMake srcDirs interfaces filePath =
 
        True ->
            do jsFiles <- nativeFiles ("." : (map snd packages))
-              pathNodes <- transitiveDependencies roots interfaces filePath
+              buildingPackage <- liftIO $ doesFileExist Asset.dependencyFile
+              packageSrcDirs <-
+                case buildingPackage of
+                  True -> Deps.withDeps Asset.dependencyFile (return . Deps.sourceDirs)
+                  False -> return []
+              let allRoots = map Metadata.SrcDir packageSrcDirs ++ roots
+              pathNodes <- transitiveDependencies allRoots interfaces filePath
               elmFiles <- sort pathNodes
               return (Recipe elmFiles jsFiles)
 
