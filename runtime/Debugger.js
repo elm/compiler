@@ -215,8 +215,8 @@ function debugModule(module, runtime) {
       if (evt.stopPropagation) {
         evt.stopPropagation();
       }
-      if (evt.cabcelBubble !== null) {
-        evt.cabcelBubble = true;
+      if (evt.cancelBubble !== null) {
+        evt.cancelBubble = true;
       }
       if (evt.preventDefault) {
         evt.preventDefault();
