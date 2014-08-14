@@ -8,21 +8,20 @@ if (!window.location.origin) {
       (window.location.port ? (':' + window.location.port) : '');
 }
 
-var exposedDebugger = null;
 Elm.fullscreenDebugHooks = function(module, hotSwapState /* =undefined */) {
+  var exposedDebugger = {};
+  function debuggerAttach(module, hotSwapState) {
+    return {
+      make: function(runtime) {
+        var wrappedModule = debugModule(module, runtime);
+        exposedDebugger = debuggerInit(wrappedModule, runtime, hotSwapState);
+        return wrappedModule.debuggedModule;
+      }
+    }
+  }
   var mainHandle = Elm.fullscreen(debuggerAttach(module,hotSwapState));
   mainHandle.debugger = exposedDebugger;
   return mainHandle;
-};
-
-function debuggerAttach(module, hotSwapState /* =undefined */) {
-  return {
-    make: function(runtime) {
-      var wrappedModule = debugModule(module, runtime);
-      exposedDebugger = debuggerInit(wrappedModule, runtime, hotSwapState);
-      return wrappedModule.debuggedModule;
-    }
-  };
 };
 
 var EVENTS_PER_SAVE = 100;
