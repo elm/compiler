@@ -22,7 +22,7 @@ are your tuples so big?
 @docs not, (&&), (||), xor, otherwise
 
 # Mathematics
-@docs (+), (-), (*), (/), (^), div, rem, mod, abs, sqrt, clamp, logBase, e
+@docs (+), (-), (*), (/), (^), (//), rem, (%), abs, sqrt, clamp, logBase, e
 
 # Trigonometry
 @docs pi, cos, sin, tan, acos, asin, atan, atan2
@@ -46,7 +46,7 @@ which happen to be radians.
 @docs fst, snd
 
 # Higher-Order Helpers
-@docs id, always, (<|), (|>), (.), flip, curry, uncurry
+@docs identity, always, (<|), (|>), (.), flip, curry, uncurry
 
 -}
 
@@ -97,21 +97,29 @@ infixl 7 *
 infixl 7 /
 infixl 8 ^
 
-infixl 7 `div`
-infixl 7 `mod`
+infixl 7 //
+infixl 7 %
 infixl 7 `rem`
 
 {-| Integer division, remainder is discarded. -}
-div : Int -> Int -> Int
-div = Native.Basics.div
+(//) : Int -> Int -> Int
+(//) = Native.Basics.div
 
-{-| Finds the remainder after dividing one number by another: ``4 `rem` 3 == 1`` -}
+{-| Finds the remainder after dividing one number by another:
+
+       7 `rem` 2 == 1
+      -1 `rem` 4 == 1
+-}
 rem : Int -> Int -> Int
 rem = Native.Basics.rem
 
-{-| Perform modular arithmetic: ``7 `mod` 2 == 1`` -}
-mod : Int -> Int -> Int
-mod = Native.Basics.mod
+{-| Perform [modular arithmetic](http://en.wikipedia.org/wiki/Modular_arithmetic):
+
+       7 % 2 == 1
+      -1 % 4 == 3
+-}
+(%) : Int -> Int -> Int
+(%) = Native.Basics.mod
 
 {-| Exponentiation: `3^2 == 9` -}
 (^) : number -> number -> number
@@ -348,9 +356,11 @@ infixr 9 .
 infixr 0 <|
 infixl 0 |>
 
-{-| Given a value, returns exactly the same value. -}
-id : a -> a
-id x = x
+{-| Given a value, returns exactly the same value. This is called
+[the identity function](http://en.wikipedia.org/wiki/Identity_function).
+-}
+identity : a -> a
+identity x = x
 
 {-| Creates a [constant function](http://en.wikipedia.org/wiki/Constant_function),
 a function that *always* returns the same value regardless of what input you give.

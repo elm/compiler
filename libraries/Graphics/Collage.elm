@@ -33,7 +33,8 @@ it as a single unit.
 import Basics (..)
 import List
 import Either (Either(Left, Right))
-import Transform2D (Transform2D, identity)
+import Transform2D (Transform2D)
+import Transform2D as T
 import Native.Graphics.Collage
 import Graphics.Element (Element)
 import Color (Color, black, Gradient)
@@ -153,7 +154,7 @@ toForm e = form (FElement e)
 as a single unit, making it possible to build small, modular components.
 -}
 group : [Form] -> Form
-group fs = form (FGroup identity fs)
+group fs = form (FGroup T.identity fs)
 
 {-| Flatten many forms into a single `Form` and then apply a matrix
 transformation.

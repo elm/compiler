@@ -7,14 +7,23 @@ import Native.Array
 import ElmTest.Assertion (..)
 import ElmTest.Test (..)
 
+mergeSplit : Int -> Array.Array a -> Array.Array a
+mergeSplit n arr =
+  let left = Array.slice 0 n arr
+      right = Array.slice n (Array.length arr) arr
+  in Array.append left right
+
+holeArray : Array.Array Int
+holeArray = foldl mergeSplit (Array.fromList [0..100]) [0..100]
+
 tests : Test
 tests =
   let creationTests = suite "Creation"
         [ test "empty" <| assertEqual Array.empty (Array.fromList [])
-        , test "initialize" <| assertEqual (Array.initialize 4 id) (Array.fromList [0,1,2,3])
+        , test "initialize" <| assertEqual (Array.initialize 4 identity) (Array.fromList [0,1,2,3])
         , test "initialize 2" <| assertEqual (Array.initialize 4 (\n -> n*n)) (Array.fromList [0,1,4,9])
         , test "initialize 3" <| assertEqual (Array.initialize 4 (always 0)) (Array.fromList [0,0,0,0])
-        , test "initialize Empty" <| assertEqual (Array.initialize 0 id) Array.empty
+        , test "initialize Empty" <| assertEqual (Array.initialize 0 identity) Array.empty
         , test "initialize 4" <| assertEqual (Array.initialize 2 (always 0)) (Array.fromList [0,0])
         , test "repeat" <| assertEqual (Array.repeat 5 40) (Array.fromList [40,40,40,40,40])
         , test "repeat 2" <| assertEqual (Array.repeat 5 0) (Array.fromList [0,0,0,0,0])
@@ -28,6 +37,7 @@ tests =
         , test "append" <| assertEqual [42,42,81,81,81] (Array.toList (Array.append (Array.repeat 2 42) (Array.repeat 3 81)))
         , test "appendEmpty 1" <| assertEqual [1..33] (Array.toList (Array.append Array.empty (Array.fromList [1..33])))
         , test "appendEmpty 2" <| assertEqual [1..33] (Array.toList (Array.append (Array.fromList [1..33]) Array.empty))
+        , test "appendAndSlice" <| assertEqual [0..100] (Array.toList holeArray)
         ]
       getAndSetTests = suite "Get and Set"
         [ test "get" <| assertEqual (Just 2) (Array.get 1 (Array.fromList [3,2,1]))
@@ -45,6 +55,7 @@ tests =
         , test "slice 2" <| assertEqual (Array.fromList [1,2,3]) (Array.slice  1  4 (Array.fromList [0,1,2,3,4]))
         , test "slice 3" <| assertEqual (Array.fromList [1,2,3]) (Array.slice  1 -1 (Array.fromList [0,1,2,3,4]))
         , test "slice 4" <| assertEqual (Array.fromList [2])     (Array.slice -3 -2 (Array.fromList [0,1,2,3,4]))
+        , test "slice 5" <| assertEqual 63 (Array.length <| Array.slice 65 (65 + 63) <| Array.fromList [1..200])
         ]
       mappingAndFoldingTests = suite "Mapping and Folding"
         [ test "map" <| assertEqual (Array.fromList [1,2,3]) (Array.map sqrt (Array.fromList [1,4,9]))
@@ -55,7 +66,7 @@ tests =
         , test "foldr 1" <| assertEqual 15 (Array.foldr (+) 0 (Array.repeat 3 5))
         , test "foldr 2" <| assertEqual [1,2,3] (Array.foldr (::) [] (Array.fromList [1,2,3]))
         , test "foldr 3" <| assertEqual 53 (Array.foldr (-) 54 (Array.fromList [10,11]))
-        , test "filter" <| assertEqual (Array.fromList [2,4,6]) (Array.filter (\x -> x `mod` 2 == 0) (Array.fromList [1..6]))
+        , test "filter" <| assertEqual (Array.fromList [2,4,6]) (Array.filter (\x -> x % 2 == 0) (Array.fromList [1..6]))
         ]
       nativeTests = suite "Conversion to JS Arrays"
         [ test "jsArrays" <| assertEqual (Array.fromList [1..1100]) (Native.Array.fromJSArray (Native.Array.toJSArray (Array.fromList [1..1100])))

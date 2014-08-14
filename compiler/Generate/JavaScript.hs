@@ -418,15 +418,15 @@ binop region func@(Var.Canonical home op) e1 e2 =
         ]
 
     specialOps =
-        [ (,) "^"   $ \a b -> obj ["Math","pow"] `call` [a,b]
-        , (,) "|>"  $ flip (<|)
-        , (,) "=="  $ \a b -> _Utils "eq" `call` [a,b]
-        , (,) "/="  $ \a b -> PrefixExpr () PrefixLNot (_Utils "eq" `call` [a,b])
-        , (,) "<"   $ cmp OpLT 0
-        , (,) ">"   $ cmp OpGT 0
-        , (,) "<="  $ cmp OpLT 1
-        , (,) ">="  $ cmp OpGT (-1)
-        , (,) "div" $ \a b -> InfixExpr () OpBOr (InfixExpr () OpDiv a b) (IntLit () 0)
+        [ (,) "^"  $ \a b -> obj ["Math","pow"] `call` [a,b]
+        , (,) "|>" $ flip (<|)
+        , (,) "==" $ \a b -> _Utils "eq" `call` [a,b]
+        , (,) "/=" $ \a b -> PrefixExpr () PrefixLNot (_Utils "eq" `call` [a,b])
+        , (,) "<"  $ cmp OpLT 0
+        , (,) ">"  $ cmp OpGT 0
+        , (,) "<=" $ cmp OpLT 1
+        , (,) ">=" $ cmp OpGT (-1)
+        , (,) "//" $ \a b -> InfixExpr () OpBOr (InfixExpr () OpDiv a b) (IntLit () 0)
         ]
 
     cmp op n a b = InfixExpr () op (_Utils "cmp" `call` [a,b]) (IntLit () n)
