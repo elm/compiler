@@ -9,9 +9,8 @@ if (!window.location.origin) {
 }
 
 var exposedDebugger = null;
-Elm.debug = function(module, moduleFile, hotSwapState /* =undefined */) {
+Elm.fullscreenDebugHooks = function(module, hotSwapState /* =undefined */) {
   var mainHandle = Elm.fullscreen(debuggerAttach(module,hotSwapState));
-  mainHandle.fileName = moduleFile;
   mainHandle.debugger = exposedDebugger;
   return mainHandle;
 };
