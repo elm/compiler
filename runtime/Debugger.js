@@ -8,33 +8,23 @@ if (!window.location.origin) {
       (window.location.port ? (':' + window.location.port) : '');
 }
 
-Elm.Debugger = null;
-Elm.debuggerAttach = function(module, hotSwapState /* =undefined */) {
-  return {
-    make: function(runtime) {
-      var wrappedModule = debugModule(module, runtime);
-      Elm.Debugger = debuggerInit(wrappedModule, runtime, hotSwapState);
-      dispatchElmDebuggerInit();
-      return wrappedModule.debuggedModule;
+Elm.fullscreenDebugHooks = function(module, hotSwapState /* =undefined */) {
+  var exposedDebugger = {};
+  function debuggerAttach(module, hotSwapState) {
+    return {
+      make: function(runtime) {
+        var wrappedModule = debugModule(module, runtime);
+        exposedDebugger = debuggerInit(wrappedModule, runtime, hotSwapState);
+        return wrappedModule.debuggedModule;
+      }
     }
-  };
+  }
+  var mainHandle = Elm.fullscreen(debuggerAttach(module,hotSwapState));
+  mainHandle.debugger = exposedDebugger;
+  return mainHandle;
 };
 
 var EVENTS_PER_SAVE = 100;
-
-function dispatchElmDebuggerInit() {
-  if (parent.window) {
-    var dispatch = function() {
-      parent.window.postMessage("elmDebuggerInit", window.location.origin);
-    };
-    if (parent.window.document.readyState === "complete") {
-      dispatch();
-    }
-    else {
-      parent.window.addEventListener("load", dispatch);
-    }
-  }
-}
 
 function debugModule(module, runtime) {
   var programPaused = false;
