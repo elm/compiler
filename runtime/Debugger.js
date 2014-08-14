@@ -20,27 +20,12 @@ function debuggerAttach(module, hotSwapState /* =undefined */) {
     make: function(runtime) {
       var wrappedModule = debugModule(module, runtime);
       exposedDebugger = debuggerInit(wrappedModule, runtime, hotSwapState);
-      dispatchElmDebuggerInit();
       return wrappedModule.debuggedModule;
     }
   };
 };
 
 var EVENTS_PER_SAVE = 100;
-
-function dispatchElmDebuggerInit() {
-  if (parent.window) {
-    var dispatch = function() {
-      parent.window.postMessage("elmDebuggerInit", window.location.origin);
-    };
-    if (parent.window.document.readyState === "complete") {
-      dispatch();
-    }
-    else {
-      parent.window.addEventListener("load", dispatch);
-    }
-  }
-}
 
 function debugModule(module, runtime) {
   var programPaused = false;
