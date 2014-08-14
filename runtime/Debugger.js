@@ -40,8 +40,8 @@ function debugModule(module, runtime) {
   // runtime is the prototype of wrappedRuntime
   // so we can access all runtime properties too
   var wrappedRuntime = Object.create(runtime);
-  wrappedRuntime.notify = wrapNotify;
-  wrappedRuntime.runDelayed = wrapRunDelayed;
+  wrappedRuntime.notify = notifyWrapper;
+  wrappedRuntime.runDelayed = setTimeoutWrapper;
 
   // make a copy of the wrappedRuntime
   var assignedPropTracker = Object.create(wrappedRuntime);
@@ -64,7 +64,7 @@ function debugModule(module, runtime) {
 
   snapshots.push(snapshotSignalGraph(signalGraphNodes));
 
-  function wrapNotify(id, v) {
+  function notifyWrapper(id, v) {
     var timestep = runtime.timer.now();
 
     if (programPaused) {
@@ -83,7 +83,7 @@ function debugModule(module, runtime) {
     }
   };
 
-  function wrapRunDelayed(func, delayMs) {
+  function setTimeoutWrapper(func, delayMs) {
     if (programPaused) {
       // Don't push timers and such to the callback stack while we're paused.
       // It causes too many callbacks to be fired during unpausing.
