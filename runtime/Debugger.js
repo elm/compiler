@@ -9,7 +9,13 @@ if (!window.location.origin) {
 }
 
 Elm.Debugger = null;
-Elm.debuggerAttach = function(module, hotSwapState /* =undefined */) {
+Elm.debug = function(module, moduleFile, hotSwapState /* =undefined */) {
+  var mainHandle = Elm.fulscreen(debuggerAttach(module,hotSwapState));
+  mainHandle.fileName = moduleFile;
+  mainHandle.debug = Elm.Debugger;
+};
+
+function debuggerAttach(module, hotSwapState /* =undefined */) {
   return {
     make: function(runtime) {
       var wrappedModule = debugModule(module, runtime);
