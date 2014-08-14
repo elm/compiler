@@ -28,7 +28,7 @@ Elm.Native.Time.make = function(elm) {
     var timeoutID = 0;
     function f(isOn, t) {
       if (isOn) {
-        timeoutID = elm.runDelayed(tick(!wasOn && isOn), msPerFrame);
+        timeoutID = elm.setTimeout(tick(!wasOn && isOn), msPerFrame);
       } else if (wasOn) {
         clearTimeout(timeoutID);
       }
@@ -42,9 +42,9 @@ Elm.Native.Time.make = function(elm) {
     var clock = NS.input(elm.timer.now());
     function tellTime() {
         elm.notify(clock.id, elm.timer.now());
-        elm.runDelayed(tellTime, t);
+        elm.setTimeout(tellTime, t);
     }
-    elm.runDelayed(tellTime, t);
+    elm.setTimeout(tellTime, t);
     return clock;
   }
 

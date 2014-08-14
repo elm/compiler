@@ -69,6 +69,9 @@ function init(display, container, module, ports, moduleToReplace) {
       }
       updateInProgress = false;
   }
+  function setTimeout(func, delay) {
+    window.setTimeout(func, delay);
+  }
 
   var listeners = [];
   function addListener(relevantInputs, domNode, eventName, func) {
@@ -90,6 +93,7 @@ function init(display, container, module, ports, moduleToReplace) {
   // object. This permits many Elm programs to be embedded per document.
   var elm = {
       notify:notify,
+      setTimeout:setTimeout,
       node:container,
       display:display,
       id:ElmRuntime.guid(),

@@ -41,7 +41,7 @@ function debugModule(module, runtime) {
   // so we can access all runtime properties too
   var wrappedRuntime = Object.create(runtime);
   wrappedRuntime.notify = notifyWrapper;
-  wrappedRuntime.runDelayed = setTimeoutWrapper;
+  wrappedRuntime.setTimeout = setTimeoutWrapper;
 
   // make a copy of the wrappedRuntime
   var assignedPropTracker = Object.create(wrappedRuntime);
