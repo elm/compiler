@@ -31,6 +31,29 @@ function init(display, container, module, ports, moduleToReplace) {
   // defining state needed for an instance of the Elm RTS
   var inputs = [];
 
+  /* OFFSET
+   * Elm's time traveling debugger lets you interrupt the smooth flow of time
+   * by pausing and continuing program execution. To ensure the user sees a
+   * program that moves smoothly through the pause/continue time gap,
+   * we need to adjsut the value of Date.now().
+   */
+  var timer = function() {
+    var inducedDelay = 0;
+
+    var now = function() {
+      return Date.now() - inducedDelay;
+    };
+
+    var addDelay = function(d) {
+      inducedDelay += d;
+      return inducedDelay;
+    };
+
+    return { now : now
+           , addDelay : addDelay
+           }
+  }();
+
   var updateInProgress = false;
   function notify(id, v) {
       if (updateInProgress) {
@@ -40,11 +63,14 @@ function init(display, container, module, ports, moduleToReplace) {
               'Definitely report this to <https://github.com/elm-lang/Elm/issues>\n');
       }
       updateInProgress = true;
-      var timestep = Date.now();
+      var timestep = timer.now();
       for (var i = inputs.length; i--; ) {
           inputs[i].recv(timestep, id, v);
       }
       updateInProgress = false;
+  }
+  function setTimeout(func, delay) {
+    window.setTimeout(func, delay);
   }
 
   var listeners = [];
@@ -67,11 +93,13 @@ function init(display, container, module, ports, moduleToReplace) {
   // object. This permits many Elm programs to be embedded per document.
   var elm = {
       notify:notify,
+      setTimeout:setTimeout,
       node:container,
       display:display,
       id:ElmRuntime.guid(),
       addListener:addListener,
       inputs:inputs,
+      timer:timer,
       ports: { incoming:ports, outgoing:{}, uses:portUses }
   };
 
@@ -82,6 +110,11 @@ function init(display, container, module, ports, moduleToReplace) {
       inputs = [];
       // elm.swap = newElm.swap;
       return newElm;
+  }
+
+  function dispose() {
+    removeListeners(listeners);
+    inputs = [];
   }
 
   var Module = {};
@@ -110,7 +143,11 @@ function init(display, container, module, ports, moduleToReplace) {
   }
 
   reportAnyErrors();
-  return { swap:swap, ports:elm.ports.outgoing };
+  return {
+    swap:swap,
+    ports:elm.ports.outgoing,
+    dispose:dispose
+  };
 };
 
 function checkPorts(elm) {
@@ -203,8 +240,9 @@ function addReceivers(ports) {
 }
 
 function initGraphics(elm, Module) {
-  if (!('main' in Module))
+  if (!('main' in Module)) {
       throw new Error("'main' is missing! What do I display?!");
+  }
 
   var signalGraph = Module.main;
 

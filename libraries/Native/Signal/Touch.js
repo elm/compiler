@@ -61,11 +61,11 @@ Elm.Native.Touch.make = function(elm) {
         dict.insert(e.identifier,
                     {x: point._0,
                      y: point._1,
-                     t: Date.now()});
+                     t: elm.timer.now()});
     }
     function end(e) {
         var t = dict.remove(e.identifier);
-        if (Date.now() - t.t < tapTime) {
+        if (elm.timer.now() - t.t < tapTime) {
             hasTap = true;
             tap = {_:{}, x:t.x, y:t.y};
         }

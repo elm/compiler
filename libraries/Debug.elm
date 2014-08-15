@@ -2,9 +2,14 @@ module Debug where
 {-| This library is for investigating bugs or performance problems. It should
 *not* be used in production code.
 
+# Console Debugging
 @docs log, crash
+
+# Time-Travel Debugging
+@docs watch, watchSummary, trace
 -}
 
+import Graphics.Collage (Form)
 import Native.Debug
 import Native.Error
 
@@ -44,3 +49,18 @@ Use the `Maybe` or `Either` libraries instead.
 -}
 crash : String -> a
 crash = Native.Error.raise
+
+{-| Watch a particular value in the reactive debugger.
+-}
+watch : String -> a -> a
+watch = Native.Debug.watch
+
+{-| Watch a particular value in the reactive debugger.
+-}
+watchSummary : String -> (a -> b) -> a -> a
+watchSummary = Native.Debug.watchSummary
+
+{-| Trace a Form over time in the reactive debugger.
+-}
+trace : String -> Form -> Form
+trace = Native.Debug.tracePath
