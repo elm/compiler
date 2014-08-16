@@ -2,12 +2,9 @@ module Generate.Markdown where
 
 import qualified Cheapskate as CS
 import qualified Cheapskate.Html as CS
-import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Text.Blaze.Html.Renderer.String as Blaze
 import qualified Text.Highlighting.Kate as Kate
-
-import Debug.Trace
 
 (|>) :: a -> (a -> b) -> b
 x |> f = f x
