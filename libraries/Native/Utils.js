@@ -126,7 +126,11 @@ Elm.Native.Utils.make = function(elm) {
     function copy(oldRecord) {
         var newRecord = {};
         for (var key in oldRecord) {
-            newRecord[key] = oldRecord[key];
+            var value = key === '_'
+                ? copy(oldRecord._)
+                : oldRecord[key]
+                ;
+            newRecord[key] = value;
         }
         return newRecord;
     }
