@@ -123,38 +123,46 @@ Elm.Native.Utils.make = function(elm) {
     var count = 0;
     function guid(_) { return count++ }
 
-    function copy(r) {
-        var o = {};
-        for (var i in r) { o[i] = r[i]; }
-        return o;
+    function copy(oldRecord) {
+        var newRecord = {};
+        for (var key in oldRecord) {
+            newRecord[key] = oldRecord[key];
+        }
+        return newRecord;
     }
 
-    function remove(x,r) {
-        var o = copy(r);
-        if (x in o._) {
-            o[x] = o._[x][0];
-            o._[x] = o._[x].slice(1);
-            if (o._[x].length === 0) { delete o._[x]; }
+    function remove(key, oldRecord) {
+        var record = copy(oldRecord);
+        if (key in record._) {
+            record[key] = record._[key][0];
+            record._[key] = record._[key].slice(1);
+            if (record._[key].length === 0) {
+                delete record._[key];
+            }
         } else {
-            delete o[x];
+            delete record[key];
         }
-        return o;
+        return record;
     }
 
-    function replace(kvs,r) {
-        var o = copy(r);
-        for (var i = kvs.length; i--; ) {
-            var kvsi = kvs[i];
-            o[kvsi[0]] = kvsi[1];
+    function replace(keyValuePairs, oldRecord) {
+        var record = copy(oldRecord);
+        for (var i = keyValuePairs.length; i--; ) {
+            var pair = keyValuePairs[i];
+            record[pair[0]] = pair[1];
         }
-        return o;
+        return record;
     }
 
-    function insert(x,v,r) {
-        var o = copy(r);
-        if (x in o) o._[x] = [o[x]].concat(x in o._ ? o._[x].slice(0) : []);
-        o[x] = v;
-        return o;
+    function insert(key, value, oldRecord) {
+        var newRecord = copy(oldRecord);
+        if (key in newRecord) {
+            var values = newRecord._[key];
+            var copiedValues = values ? values.slice(0) : [];
+            newRecord._[key] = [newRecord[key]].concat(copiedValues);
+        }
+        newRecord[key] = value;
+        return newRecord;
     }
 
     function max(a,b) { return a > b ? a : b }
