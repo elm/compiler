@@ -3,17 +3,17 @@ module Generate.Cases (toMatch, Match (..), Clause (..), matchSubst, newVar) whe
 
 import Control.Applicative ((<$>))
 import Control.Arrow (first)
-import Control.Monad.State
+import Control.Monad.State (State, foldM, forM, get, modify)
 import Data.List (groupBy,sortBy)
 import Data.Maybe (fromMaybe)
 
-import AST.Annotation 
-import AST.Expression.General
-import AST.Expression.Canonical as Canonical
-import AST.Literal
+import AST.Annotation (Annotated(A))
+import qualified AST.Expression.General as E
+import qualified AST.Expression.Canonical as Canonical
+import AST.Literal (Literal)
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
-import Transform.Substitute
+import Transform.Substitute (subst)
 
 toMatch :: [(P.CanonicalPattern, Canonical.Expr)] -> State Int (String, Match)
 toMatch patterns = do
@@ -44,7 +44,7 @@ matchSubst pairs match =
       Fail  -> Fail
       Seq ms -> Seq (map (matchSubst pairs) ms)
       Other (A a e) ->
-          Other . A a $ foldr ($) e $ map (\(x,y) -> subst x (localVar y)) pairs
+          Other . A a $ foldr ($) e $ map (\(x,y) -> subst x (E.localVar y)) pairs
       Match n cs m ->
           Match (varSubst n) (map clauseSubst cs) (matchSubst pairs m)
           where
@@ -79,7 +79,7 @@ dealias :: String -> ([P.CanonicalPattern], Canonical.Expr) -> ([P.CanonicalPatt
 dealias _ ([], _) = noMatch "dealias"
 dealias v c@(p:ps, A a e) =
     case p of
-      P.Alias x pattern -> (pattern:ps, A a $ subst x (localVar v) e)
+      P.Alias x pattern -> (pattern:ps, A a $ subst x (E.localVar v) e)
       _ -> c
 
 matchVar :: [String] -> [([P.CanonicalPattern], Canonical.Expr)] -> Match -> State Int Match
@@ -91,10 +91,10 @@ matchVar (v:vs) cs def = match vs (map subVar cs) def
         where
           subOnePattern pattern e =
             case pattern of
-              P.Var x     -> subst x (localVar v) e
+              P.Var x     -> subst x (E.localVar v) e
               P.Anything  -> e
               P.Record fs ->
-                 foldr (\x -> subst x (Access (A a (localVar v)) x)) e fs
+                 foldr (\x -> subst x (E.Access (A a (E.localVar v)) x)) e fs
               _ -> noMatch "matchVar.subVar"
 
 matchCon :: [String] -> [([P.CanonicalPattern], Canonical.Expr)] -> Match -> State Int Match
