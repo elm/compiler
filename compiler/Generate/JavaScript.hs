@@ -417,15 +417,15 @@ binop region func@(Var.Canonical home op) e1 e2 =
         ]
 
     specialOps =
-        [ (,) "^"   $ \a b -> obj ["Math","pow"] `call` [a,b]
-        , (,) "|>"  $ flip (<|)
-        , (,) "=="  $ \a b -> _Utils "eq" `call` [a,b]
-        , (,) "/="  $ \a b -> JS.PrefixExpr () JS.PrefixLNot (_Utils "eq" `call` [a,b])
-        , (,) "<"   $ cmp JS.OpLT 0
-        , (,) ">"   $ cmp JS.OpGT 0
-        , (,) "<="  $ cmp JS.OpLT 1
-        , (,) ">="  $ cmp JS.OpGT (-1)
-        , (,) "div" $ \a b -> JS.InfixExpr () JS.OpBOr (JS.InfixExpr () JS.OpDiv a b) (JS.IntLit () 0)
+        [ (,) "^"  $ \a b -> obj ["Math","pow"] `call` [a,b]
+        , (,) "|>" $ flip (<|)
+        , (,) "==" $ \a b -> _Utils "eq" `call` [a,b]
+        , (,) "/=" $ \a b -> JS.PrefixExpr () JS.PrefixLNot (_Utils "eq" `call` [a,b])
+        , (,) "<"  $ cmp JS.OpLT 0
+        , (,) ">"  $ cmp JS.OpGT 0
+        , (,) "<=" $ cmp JS.OpLT 1
+        , (,) ">=" $ cmp JS.OpGT (-1)
+        , (,) "//" $ \a b -> JS.InfixExpr () JS.OpBOr (JS.InfixExpr () JS.OpDiv a b) (JS.IntLit () 0)
         ]
 
     cmp op n a b = JS.InfixExpr () op (_Utils "cmp" `call` [a,b]) (JS.IntLit () n)

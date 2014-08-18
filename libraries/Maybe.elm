@@ -12,8 +12,6 @@ module Maybe (Maybe(..), maybe, isJust, isNothing, map) where
 @docs map
 -}
 
-import Basics (not, (.))
-
 {-| The Maybe datatype. Useful when a computation may or may not
 result in a value (e.g. logarithm is defined only for positive
 numbers). 
@@ -49,7 +47,7 @@ isJust = maybe False (\_ -> True)
       isNothing Nothing   == True
 -}
 isNothing : Maybe a -> Bool
-isNothing = not . isJust
+isNothing = maybe True (\_ -> False)
 
 {-| Transform the contents of a `Maybe` with a given function:
 

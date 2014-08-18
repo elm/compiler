@@ -2,6 +2,7 @@
 module Metadata.Prelude (interfaces, add) where
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Control.Exception as E
 import System.Exit
 import System.IO
@@ -10,37 +11,88 @@ import qualified AST.Variable as Var
 import qualified Build.Interface as Interface
 import Build.Utils (getDataFile)
 
-add :: Bool -> Module exs body -> Module exs body
-add noPrelude (Module name path exs ims doc decls) =
-    Module name path exs (customIms ++ ims) doc decls
-    where
-      customIms = if noPrelude then [] else concatMap addModule prelude
 
-      addModule (n, method) = case lookup n ims of
-                                Nothing     -> [(n, method)]
-                                Just (As _) -> [(n, method)]
-                                Just _      -> []
+-- DEFINITION OF THE PRELUDE
 
-prelude :: [(String, ImportMethod)]
-prelude = string : text : maybe : map (\n -> (n, Module.open)) modules
+type ImportDict =
+    Map.Map String ([String], Var.Listing Var.Value)
+
+prelude :: ImportDict
+prelude = Map.unions [ string, text, maybe, openImports ]
   where
-    modules = [ "Basics", "Signal", "List", "Time", "Color"
-              , "Graphics.Element", "Graphics.Collage"
-              , "Native.Ports", "Native.Json"
-              ]
+    importing :: String -> [Var.Value] -> ImportDict
+    importing name values =
+        Map.singleton name ([], Var.Listing values False)
 
-    string = ("String", Module.importing [Var.Value "show"])
-
-    text = ("Text", Module.importing textImports)
-    textImports =
-        Var.ADT "Text" (Var.Listing [] False) : map Var.Value
-        [ "toText", "leftAligned", "rightAligned", "centered", "justified"
-        , "plainText", "asText", "typeface", "monospace", "bold", "italic"
+    openImports :: ImportDict
+    openImports =
+        Map.fromList $ map (\name -> (name, ([], Var.openListing))) $
+        [ "Basics", "Signal", "List", "Time", "Color"
+        , "Graphics.Element", "Graphics.Collage"
+        , "Native.Ports", "Native.Json"
         ]
 
-    maybe =
-        let imports = [ Var.ADT "Maybe" (Var.Listing ["Just", "Nothing"] False) ]
-        in  ("Maybe", Module.importing imports)
+    maybe :: ImportDict
+    maybe = importing "Maybe" [ Var.ADT "Maybe" Var.openListing ]
+
+    string :: ImportDict
+    string = importing "String" [Var.Value "show"]
+
+    text :: ImportDict
+    text = importing "Text" (Var.ADT "Text" (Var.Listing [] False) : values)
+      where
+        values =
+            map Var.Value
+            [ "toText", "leftAligned", "rightAligned", "centered", "justified"
+            , "plainText", "asText", "typeface", "monospace", "bold", "italic"
+            ]
+
+
+-- ADDING PRELUDE TO A MODULE
+
+add :: Bool -> Module exs body -> Module exs body
+add noPrelude (Module moduleName path exports imports comment decls) =
+    Module moduleName path exports ammendedImports comment decls
+  where
+    ammendedImports =
+      importDictToList $
+        foldr addImport (if noPrelude then Map.empty else prelude) imports
+
+importDictToList :: ImportDict -> [(String, ImportMethod)]
+importDictToList dict =
+    concatMap toImports (Map.toList dict)
+  where
+    toImports (name, (qualifiers, listing@(Var.Listing explicits open))) =
+        map (\qualifier -> (name, As qualifier)) qualifiers
+        ++
+        if open || not (null explicits)
+          then [(name, Open listing)]
+          else []
+
+addImport :: (String, ImportMethod) -> ImportDict -> ImportDict
+addImport (name, method) importDict =
+    Map.alter mergeMethods name importDict
+  where
+    mergeMethods :: Maybe ([String], Var.Listing Var.Value)
+                 -> Maybe ([String], Var.Listing Var.Value)
+    mergeMethods entry =
+      let (qualifiers, listing) =
+              case entry of
+                Nothing -> ([], Var.Listing [] False)
+                Just v -> v
+      in
+          case method of
+            As qualifier -> Just (qualifier : qualifiers, listing)
+            Open newListing ->
+                Just (qualifiers, mergeListings newListing listing)
+
+    mergeListings (Var.Listing explicits1 open1) (Var.Listing explicits2 open2) =
+        Var.Listing
+          (Set.toList (Set.fromList (explicits1 ++ explicits2)))
+          (open1 || open2)
+
+
+-- EXTRACT INTERFACES FROM STATIC FILE
 
 interfaces :: Bool -> IO Interfaces
 interfaces noPrelude =
