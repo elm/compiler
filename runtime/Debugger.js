@@ -278,10 +278,9 @@ function debuggerInit(debugModule, runtime, debuggerHistory /* =undefined */) {
     resetProgram(0);
     debugModule.watchTracker.clear();
     debugModule.tracePath.clearTraces();
+    debugModule.setContinue(0);
     debugModule.clearRecordedEvents();
     debugModule.clearSnapshots();
-    debugModule.setContinue(0);
-    executeCallbacks(debugModule.initialAsyncCallbacks);
   }
 
   function pauseProgram() {
