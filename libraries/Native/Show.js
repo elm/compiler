@@ -20,7 +20,7 @@ Elm.Native.Show.make = function(elm) {
             return v ? "True" : "False";
         }
         else if (type === "number") {
-            return v.toFixed(2).replace(/\.0+$/g, '');
+            return v + "";
         }
         else if ((v instanceof String) && v.isChar) {
             return "'" + addSlashes(v) + "'";
