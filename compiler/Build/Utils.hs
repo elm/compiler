@@ -1,10 +1,10 @@
 {-# OPTIONS_GHC -W #-}
 module Build.Utils where
 
-import Control.Monad.Error
+import Control.Monad.Error (ErrorT, runErrorT)
 import System.Directory (doesFileExist)
 import System.Environment (getEnv)
-import System.FilePath ((</>), (<.>), replaceExtension)
+import System.FilePath ((</>), (<.>))
 import System.IO.Error (tryIOError)
 import qualified Build.Flags as Flag
 import qualified Build.Metadata as Metadata
