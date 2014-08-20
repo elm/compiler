@@ -12,10 +12,6 @@ Elm.Native.Basics.make = function(elm) {
   function rem(a,b) { return a % b; }
   var mod = Utils.mod;
   function logBase(base,n) { return Math.log(n) / Math.log(base); }
-  function min(a,b) { return Utils.cmp(a,b) < 0 ? a : b; }
-  function max(a,b) { return Utils.cmp(a,b) > 0 ? a : b; }
-  function clamp(lo,hi,n) {
-      return Utils.cmp(n,lo) < 0 ? lo : Utils.cmp(n,hi) > 0 ? hi : n; }
   function xor(a,b) { return a !== b; }
   function not(b) { return !b; }
   function isInfinite(n) { return n === Infinity || n === -Infinity }
@@ -61,9 +57,6 @@ Elm.Native.Basics.make = function(elm) {
 
       sqrt:Math.sqrt,
       logBase:F2(logBase),
-      min:F2(min),
-      max:F2(max),
-      clamp:F3(clamp),
       compare:Utils.compare,
 
       xor:F2(xor),

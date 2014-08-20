@@ -181,7 +181,10 @@ logBase = Native.Basics.logBase
       200     if 200 <= x
 -}
 clamp : number -> number -> number -> number
-clamp = Native.Basics.clamp
+clamp lo hi n =
+    if  | n < lo    -> lo
+        | n > hi    -> hi
+        | otherwise -> n
 
 {-| An approximation of pi. -}
 pi : Float
@@ -230,11 +233,11 @@ data Order = LT | EQ | GT
 
 {-| Given two comparables, returns the smaller one. -}
 min : comparable -> comparable -> comparable
-min = Native.Basics.min
+min a b = if a < b then a else b
 
 {-| Given two comparables, returns the larger one. -}
 max : comparable -> comparable -> comparable
-max = Native.Basics.max
+max a b = if a > b then a else b
 
 {-| The and operator. True if both inputs are True.
 This operator short-circuits if the first argument is False.
