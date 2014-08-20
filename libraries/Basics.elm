@@ -22,7 +22,7 @@ are your tuples so big?
 @docs not, (&&), (||), xor, otherwise
 
 # Mathematics
-@docs (+), (-), (*), (/), (^), (//), rem, (%), abs, sqrt, clamp, logBase, e
+@docs (+), (-), (*), (/), (^), (//), rem, (%), negate, abs, sqrt, clamp, logBase, e
 
 # Trigonometry
 @docs pi, cos, sin, tan, acos, asin, atan, atan2
@@ -160,6 +160,10 @@ atan2 = Native.Basics.atan2
 {-| Take the square root of a number. -}
 sqrt : Float -> Float
 sqrt = Native.Basics.sqrt
+
+{-| Negate any number: `negate 42 == -42` -}
+negate : number -> number
+negate n = -n
 
 {-| Take the absolute value of a number. -}
 abs : number -> number
