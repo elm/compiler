@@ -1,7 +1,7 @@
 (function() {
 'use strict';
 
-if (!window.location.origin) {
+if (typeof window != 'undefined' && !window.location.origin) {
   window.location.origin =
       window.location.protocol + "//" +
       window.location.hostname +
