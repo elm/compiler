@@ -22,7 +22,7 @@ are your tuples so big?
 @docs not, (&&), (||), xor, otherwise
 
 # Mathematics
-@docs (+), (-), (*), (/), (^), (//), rem, (%), abs, sqrt, clamp, logBase, e
+@docs (+), (-), (*), (/), (^), (//), rem, (%), negate, abs, sqrt, clamp, logBase, e
 
 # Trigonometry
 @docs pi, cos, sin, tan, acos, asin, atan, atan2
@@ -161,9 +161,13 @@ atan2 = Native.Basics.atan2
 sqrt : Float -> Float
 sqrt = Native.Basics.sqrt
 
+{-| Negate any number: `negate 42 == -42` -}
+negate : number -> number
+negate n = -n
+
 {-| Take the absolute value of a number. -}
 abs : number -> number
-abs = Native.Basics.abs
+abs n = if n < 0 then -n else n
 
 {-| Calculate the logarithm of a number with a given base: `logBase 10 100 == 2` -}
 logBase : Float -> Float -> Float
@@ -177,7 +181,10 @@ logBase = Native.Basics.logBase
       200     if 200 <= x
 -}
 clamp : number -> number -> number -> number
-clamp = Native.Basics.clamp
+clamp lo hi n =
+    if  | n < lo    -> lo
+        | n > hi    -> hi
+        | otherwise -> n
 
 {-| An approximation of pi. -}
 pi : Float
@@ -226,11 +233,11 @@ data Order = LT | EQ | GT
 
 {-| Given two comparables, returns the smaller one. -}
 min : comparable -> comparable -> comparable
-min = Native.Basics.min
+min a b = if a < b then a else b
 
 {-| Given two comparables, returns the larger one. -}
 max : comparable -> comparable -> comparable
-max = Native.Basics.max
+max a b = if a > b then a else b
 
 {-| The and operator. True if both inputs are True.
 This operator short-circuits if the first argument is False.

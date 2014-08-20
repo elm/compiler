@@ -107,7 +107,7 @@ Elm.Native.Touch.make = function(elm) {
         root.value.push(touch(e));
         elm.notify(root.id, root.value);
     });
-    elm.addListener([root.id], node, "mouseup", function up(e) {
+    elm.addListener([root.id], document, "mouseup", function up(e) {
         node.removeEventListener("mousemove", move);
         e.identifier = mouseID;
         end(e);

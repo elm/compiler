@@ -42,9 +42,8 @@ Elm.Native.Time.make = function(elm) {
     var clock = NS.input(elm.timer.now());
     function tellTime() {
         elm.notify(clock.id, elm.timer.now());
-        elm.setTimeout(tellTime, t);
     }
-    elm.setTimeout(tellTime, t);
+    setInterval(tellTime, t);
     return clock;
   }
 

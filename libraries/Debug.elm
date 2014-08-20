@@ -50,17 +50,39 @@ Use the `Maybe` or `Either` libraries instead.
 crash : String -> a
 crash = Native.Error.raise
 
-{-| Watch a particular value in the reactive debugger.
+{-| Watch a particular value in the debugger. Say we want to know the value of
+a variable called `velocity` because it may not be updated correctly. Adding
+`Debug.watch` allows us to name the value and show it with the debugger.
+
+	  Debug.watch "velocity" velocity == velocity
+
+Notice that the result of evaluating this expression is exactly the same as
+not having the expression at all. That means it's easy to add to any value.
 -}
 watch : String -> a -> a
 watch = Native.Debug.watch
 
-{-| Watch a particular value in the reactive debugger.
+{-| Watch a summary of a particular value in the debugger. This function is
+pretty much the same as `watch` but it lets you specify a way to summarize
+the value you are interested in. For example, maybe you only want to see part
+of a record:
+
+	  Debug.watchSummary "velocity" .velocity object
+
+This is the same as just writing `object`, but it creates a watch that *only*
+looks at the value of `object.velocity`. You can also show summary statistics
+like length of a list:
+
+	  Debug.watchSummary "Number of clicks" length clicks
+
+Again, this evaluates to `clicks` but we get to see how long that list is in
+the debugger.
 -}
 watchSummary : String -> (a -> b) -> a -> a
 watchSummary = Native.Debug.watchSummary
 
-{-| Trace a Form over time in the reactive debugger.
+{-| Trace all past positions of a `Form` in the debugger. Add this to a `Form`
+and you will see a line tracing its entire history.
 -}
 trace : String -> Form -> Form
 trace = Native.Debug.tracePath

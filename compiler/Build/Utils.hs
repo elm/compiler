@@ -51,7 +51,7 @@ getDataFile name = do
     else do
       environment <- tryIOError (getEnv "ELM_HOME")
       case environment of
-        Right env -> return (env </> name)
+        Right env -> return (env </> "compiler" </> name)
         Left _ ->
           fail $ unlines
             [ "Unable to find the ELM_HOME environment variable when searching"
@@ -64,8 +64,8 @@ getDataFile name = do
             , ""
             , "  * On Mac it is /usr/local/share/elm"
             , "  * On Windows it is one of the following:"
-            , "      C:/Program Files/Elm Platform/0.12.3/share"
-            , "      C:/Program Files (x86)/Elm Platform/0.12.3/share"
+            , "      C:/Program Files/Elm Platform/0.13/share"
+            , "      C:/Program Files (x86)/Elm Platform/0.13/share"
             , ""
             , "If it seems like a more complex issue, please report it here:"
             , "    <https://github.com/elm-lang/elm-platform/issues>"

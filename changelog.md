@@ -8,6 +8,7 @@
   * Add Debug.crash
   * Add List.indexedMap and List.filterMap
   * Add Maybe.map
+  * Add Basics.negate
   * Add --bundle-runtime flag which creates stand-alone Elm programs
   * Error on ambiguious use of imported variables
   * Replace dependency on Pandoc with cheapskate+kate

@@ -17,8 +17,6 @@ Elm.Native.Signal.make = function(elm) {
   }
 
   function Input(base) {
-    this.nodeType = "input";
-
     this.id = Utils.guid();
     this.value = base;
     this.kids = [];
@@ -33,8 +31,6 @@ Elm.Native.Signal.make = function(elm) {
   }
 
   function LiftN(update, args) {
-    this.nodeType = "lift";
-
     this.id = Utils.guid();
     this.value = update();
     this.kids = [];
@@ -90,8 +86,6 @@ Elm.Native.Signal.make = function(elm) {
   }
 
   function Foldp(step, state, input) {
-    this.nodeType = "foldp";
-
     this.id = Utils.guid();
     this.value = state;
     this.kids = [];
@@ -110,8 +104,6 @@ Elm.Native.Signal.make = function(elm) {
   }
 
   function DropIf(pred,base,input) {
-    this.nodeType = "dropIf";
-
     this.id = Utils.guid();
     this.value = pred(input.value) ? base : input.value;
     this.kids = [];
@@ -124,8 +116,6 @@ Elm.Native.Signal.make = function(elm) {
   }
 
   function DropRepeats(input) {
-    this.nodeType = "dropRepeats";
-
     this.id = Utils.guid();
     this.value = input.value;
     this.kids = [];
@@ -143,9 +133,6 @@ Elm.Native.Signal.make = function(elm) {
   }
 
   function SampleOn(s1,s2) {
-    this.nodeType = "sampleOn";
-    this.indirectParent = s1;
-
     this.id = Utils.guid();
     this.value = s2.value;
     this.kids = [];
@@ -170,8 +157,6 @@ Elm.Native.Signal.make = function(elm) {
   function sampleOn(s1,s2) { return new SampleOn(s1,s2); }
 
   function delay(t,s) {
-      this.nodeType = "delay";
-
       var delayed = new Input(s.value);
       var firstEvent = true;
       function update(v) {
@@ -183,8 +168,6 @@ Elm.Native.Signal.make = function(elm) {
   }
 
   function Merge(s1,s2) {
-      this.nodeType = "merge";
-
       this.id = Utils.guid();
       this.value = s1.value;
       this.kids = [];
@@ -217,11 +200,7 @@ Elm.Native.Signal.make = function(elm) {
 
   return elm.Native.Signal.values = {
     input: function(v) { return new Input(v); },
-    constant : function(v) {
-      var s = new Input(v);
-      s.nodeType = "constant";
-      return s;
-    },
+    constant : function(v) { return new Input(v); },
     lift  : F2(lift ),
     lift2 : F3(lift2),
     lift3 : F4(lift3),
