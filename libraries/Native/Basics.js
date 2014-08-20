@@ -11,7 +11,6 @@ Elm.Native.Basics.make = function(elm) {
   function div(a,b) { return (a/b)|0; }
   function rem(a,b) { return a % b; }
   var mod = Utils.mod;
-  function abs(x) { return x < 0 ? -x : x; }
   function logBase(base,n) { return Math.log(n) / Math.log(base); }
   function min(a,b) { return Utils.cmp(a,b) < 0 ? a : b; }
   function max(a,b) { return Utils.cmp(a,b) > 0 ? a : b; }
@@ -61,7 +60,6 @@ Elm.Native.Basics.make = function(elm) {
       toPolar: toPolar,
 
       sqrt:Math.sqrt,
-      abs:abs,
       logBase:F2(logBase),
       min:F2(min),
       max:F2(max),

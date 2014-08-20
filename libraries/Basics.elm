@@ -167,7 +167,7 @@ negate n = -n
 
 {-| Take the absolute value of a number. -}
 abs : number -> number
-abs = Native.Basics.abs
+abs n = if n < 0 then -n else n
 
 {-| Calculate the logarithm of a number with a given base: `logBase 10 100 == 2` -}
 logBase : Float -> Float -> Float
