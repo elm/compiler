@@ -36,7 +36,7 @@ getDataFile name = do
     else do
       environment <- tryIOError (getEnv "ELM_HOME")
       case environment of
-        Right env -> return (env </> name)
+        Right env -> return (env </> "compiler" </> name)
         Left _ ->
           fail $ unlines
             [ "Unable to find the ELM_HOME environment variable when searching"
