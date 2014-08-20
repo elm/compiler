@@ -7,7 +7,7 @@ import qualified Data.Binary as Binary
 import qualified Build.Print as Print
 import qualified Elm.Internal.Version as Version
 import System.Directory (doesFileExist)
-import AST.Module as Module
+import qualified AST.Module as Module
 
 load :: Binary.Binary a => FilePath -> IO a
 load filePath =
@@ -30,7 +30,7 @@ load filePath =
 
 isValid :: FilePath -> (String, Module.Interface) -> Either String (String, Module.Interface)
 isValid filePath (name, interface) =
-    let version = iVersion interface in
+    let version = Module.iVersion interface in
     if version == Version.elmVersion
     then Right (name, interface)
     else Left $ concat

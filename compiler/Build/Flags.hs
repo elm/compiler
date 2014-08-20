@@ -2,7 +2,8 @@
 module Build.Flags where
 
 import qualified Elm.Internal.Version as Version
-import System.Console.CmdArgs
+import System.Console.CmdArgs (Data, Typeable, (&=), args, def, explicit, help,
+                               helpArg, name, summary, typ, typFile, versionArg)
 
 data Flags = Flags
     { make :: Bool

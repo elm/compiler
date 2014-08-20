@@ -2,11 +2,12 @@
 module Build.File (build) where
 
 import Control.Applicative ((<$>))
-import Control.Monad.RWS.Strict
-import System.Directory
-import System.Exit
-import System.FilePath
-import System.IO
+import Control.Monad.RWS.Strict (Last(Last), RWST, execRWST, ask, get, getLast,
+                                 liftIO, modify, tell, when)
+import System.Directory (createDirectoryIfMissing, doesFileExist, getModificationTime)
+import System.Exit (exitFailure)
+import System.FilePath (dropFileName, takeDirectory)
+import System.IO (IOMode(WriteMode), hPutStrLn, stdout, withBinaryFile)
 
 import qualified Data.Binary as Binary
 import qualified Data.List as List

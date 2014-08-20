@@ -2,14 +2,14 @@
 module Build.Dependencies (Recipe(..), getBuildRecipe) where
 
 import Control.Applicative ((<$>))
-import Control.Monad.Error
+import Control.Monad.Error (ErrorT, forM, lift, liftIO, throwError)
 import qualified Control.Monad.State as State
 import qualified Data.Graph as Graph
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
-import System.Directory
+import System.Directory (doesFileExist, doesDirectoryExist)
 import System.FilePath as FP
 
 import Build.Metadata (Root)
