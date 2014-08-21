@@ -5,7 +5,7 @@
 
   * Type aliases in port types 
   * Add Keyboard.alt and Keyboard.meta
-  * Add Debug.crash
+  * Add Debug.crash, Debug.watch, Debug.watchSummary, and Debug.trace
   * Add List.indexedMap and List.filterMap
   * Add Maybe.map
   * Add Basics.negate
