@@ -19,6 +19,7 @@
 #### Breaking Changes:
 
   * Rename Basics.id to Basics.identity
+  * (.) is replaced by (<<) and (>>) as in F#
   * Rename Basics.div to (//)
   * Rename Basics.mod to (%)
   * Rename Maybe.maybe to Maybe.extract 
