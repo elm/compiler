@@ -21,7 +21,7 @@ function trace(ctx, path) {
 }
 
 function line(ctx,style,path) {
-    style.dashing.ctor === 'Nil' ? trace(ctx, path) : customLineHelp(ctx, style, path);
+    style.dashing.ctor === '[]' ? trace(ctx, path) : customLineHelp(ctx, style, path);
     ctx.scale(1,-1);
     ctx.stroke();
 }
