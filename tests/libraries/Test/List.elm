@@ -27,7 +27,7 @@ tests =
         ]
       intersperseTests = suite "intersperse Tests"
         [ test "intersperse doc check" <| assertEqual ["turtles","on","turtles","on","turtles"] (intersperse "on" ["turtles","turtles","turtles"])
-        , test "intersperse stress test" <| assertEqual (tail . List.concat <| zipWith (\x y -> [x,y]) falseList trueList) (intersperse False trueList)
+        , test "intersperse stress test" <| assertEqual (tail <| List.concat <| zipWith (\x y -> [x,y]) falseList trueList) (intersperse False trueList)
         ]
   in
       suite "List Tests"
