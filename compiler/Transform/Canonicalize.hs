@@ -106,22 +106,53 @@ delist fullList (Var.Listing partial open)
 
                 _ -> go list xs partial
 
-filterExports :: Module.Types -> [Var.Value] -> Module.Types
-filterExports types values =
-    Map.fromList (concatMap getValue values)
+filterExports :: Module.CanonicalBody -> [Var.Value] -> Module.CanonicalBody
+filterExports body exportedValues =
+    body
+    { Module.types =
+        Map.fromList (concatMap getTypes exportedValues)
+    , Module.aliases =
+        Map.fromList (concatMap getAliases exportedValues)
+    , Module.datatypes =
+        Map.fromList (concatMap getAdts exportedValues)
+    }
   where
-    getValue :: Var.Value -> [(String, Type.CanonicalType)]
-    getValue value =
-        case value of
-          Var.Value x -> get x
-          Var.Alias x -> get x
-          Var.ADT _ (Var.Listing ctors _) -> concatMap get ctors
-
-    get :: String -> [(String, Type.CanonicalType)]
-    get x =
-        case Map.lookup x types of
+    get :: Map.Map String a -> String -> [(String, a)]
+    get dict x =
+        case Map.lookup x dict of
           Just t  -> [(x,t)]
           Nothing -> []
+
+    getTypes :: Var.Value -> [(String, Type.CanonicalType)]
+    getTypes value =
+        case value of
+          Var.Value x -> getType x
+          Var.Alias _ -> []
+          Var.ADT _ (Var.Listing ctors _) -> concatMap getType ctors
+
+    getType :: String -> [(String, Type.CanonicalType)]
+    getType = get (Module.types body)
+
+    getAliases :: Var.Value -> [(String, ([String], Type.CanonicalType))]
+    getAliases value =
+        case value of
+          Var.Value _ -> []
+          Var.Alias name -> get (Module.aliases body) name
+          Var.ADT _ _ -> []
+
+    getAdts :: Var.Value -> [(String, Module.AdtInfo String)]
+    getAdts value =
+        case value of
+          Var.Value _ -> []
+          Var.Alias _ -> []
+          Var.ADT name (Var.Listing exportedCtors _) ->
+              case Map.lookup name (Module.datatypes body) of
+                Nothing -> []
+                Just (tvars, ctors) ->
+                    [(name, (tvars, filter isExported ctors))]
+                  where
+                    isExported (ctor, _) = ctor `elem` exportedCtors
+
 
 declToValue :: D.ValidDecl -> [Var.Value]
 declToValue decl =
@@ -132,8 +163,11 @@ declToValue decl =
       D.Datatype name _tvs ctors ->
           [ Var.ADT name (Var.Listing (map fst ctors) False) ]
 
-      D.TypeAlias name _ (Type.Record _ _) ->
-          [ Var.Alias name ]
+      D.TypeAlias name _ tipe ->
+          case tipe of
+            Type.Record _ _ ->
+                [ Var.Alias name, Var.Value name ]
+            _ -> [ Var.Alias name ]
 
       _ -> []
 

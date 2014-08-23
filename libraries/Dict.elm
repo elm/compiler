@@ -1,13 +1,15 @@
-module Dict (empty,singleton,insert,update
-            ,get,getOrElse,getOrFail
-            ,remove,member
-            ,filter
-            ,partition
-            ,foldl,foldr,map
-            ,union,intersect,diff
-            ,keys,values
-            ,toList,fromList
-            ) where
+module Dict
+    ( Dict
+    , empty, singleton, insert, update
+    , get, getOrElse, getOrFail
+    , remove, member
+    , filter
+    , partition
+    , foldl, foldr, map
+    , union, intersect, diff
+    , keys, values
+    , toList, fromList
+    ) where
 
 {-| A dictionary mapping unique keys to values. The keys can be any comparable
 type. This includes `Int`, `Float`, `Time`, `Char`, `String`, and tuples or
@@ -40,34 +42,39 @@ import List
 import List ((::))
 import Native.Utils
 
+type Fakeout = (Int, Int)
+
+type Another = (Int, Int)
+
 -- BBlack and NBlack should only be used during the deletion
 -- algorithm. Any other occurrence is a bug and should fail an assert.
-data NColor = Red
-            | Black
-              -- ^ Double Black, counts as 2 blacks for the invariant
-            | BBlack
-              -- ^ Negative Black, counts as -1 blacks for the invariant
-            | NBlack
+data NColor
+    = Red
+    | Black
+    | BBlack  -- Double Black, counts as 2 blacks for the invariant
+    | NBlack  -- Negative Black, counts as -1 blacks for the invariant
 
 
 showNColor : NColor -> String
-showNColor c = case c of
-  Red    -> "Red"
-  Black  -> "Black"
-  BBlack -> "BBlack"
-  NBlack -> "NBlack"
+showNColor c =
+  case c of
+    Red    -> "Red"
+    Black  -> "Black"
+    BBlack -> "BBlack"
+    NBlack -> "NBlack"
 
-data LeafColor = LBlack
-                 -- ^ Double Black, counts as 2
-               | LBBlack
+data LeafColor
+    = LBlack
+    | LBBlack -- Double Black, counts as 2
 
 showLColor : LeafColor -> String
 showLColor c = case c of
   LBlack  -> "LBlack"
   LBBlack -> "LBBlack"
 
-data Dict k v = RBNode NColor k v (Dict k v) (Dict k v)
-              | RBEmpty LeafColor
+data Dict k v
+    = RBNode NColor k v (Dict k v) (Dict k v)
+    | RBEmpty LeafColor
 
 {-| Create an empty dictionary. -}
 empty : Dict comparable v
