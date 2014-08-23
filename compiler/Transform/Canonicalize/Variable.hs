@@ -19,14 +19,16 @@ variable env var =
             where
               home = Var.Module (List.intercalate "." ms)
 
-    _ -> case Map.lookup var (_values env) of
-           Just [v] -> Env.using v
-           Just vs  -> preferLocals env "variable" vs var
-           Nothing  -> notFound "variable" (Map.keys (_values env)) var
+    _ ->
+        case Map.lookup var (_values env) of
+          Just [v] -> Env.using v
+          Just vs  -> preferLocals env "variable" vs var
+          Nothing  -> notFound "variable" (Map.keys (_values env)) var
   where
-    (modul, name) = case Help.splitDots var of
-                      [x] -> (Nothing, x)
-                      xs  -> (Just (init xs), last xs)
+    (modul, name) =
+      case Help.splitDots var of
+        [x] -> (Nothing, x)
+        xs  -> (Just (init xs), last xs)
 
 tvar :: Environment -> String
      -> Canonicalizer String (Either Var.Canonical (Var.Canonical, [String], Type.CanonicalType))
