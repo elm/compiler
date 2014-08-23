@@ -9,6 +9,7 @@
   * Add List.indexedMap and List.filterMap
   * Add Maybe.map
   * Add Basics.negate
+  * Add (<<) and (>>) to Basics as in F#
   * Add --bundle-runtime flag which creates stand-alone Elm programs
   * Error on ambiguious use of imported variables
   * Replace dependency on Pandoc with cheapskate+kate
@@ -19,15 +20,12 @@
 #### Breaking Changes:
 
   * Rename Basics.id to Basics.identity
-  * (.) is replaced by (<<) and (>>) as in F#
   * Rename Basics.div to (//)
   * Rename Basics.mod to (%)
-  * Rename Maybe.maybe to Maybe.extract 
-  * Rename Either.either to Either.extract 
-  * Remove Maybe.justs for (List.filterMap id)
+  * Remove Maybe.justs for (List.filterMap identity)
   * Remove List.and for (List.foldl (&&) True)
   * Remove List.or  for (List.foldl (||) False)
-  * Unambiguous syntax for importing ADTs and type aliases (whoo!)
+  * Unambiguous syntax for importing ADTs and type aliases
   * sqrt and logBase both only work on Floats now
 
 ## 0.12.3
