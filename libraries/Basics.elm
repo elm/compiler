@@ -46,7 +46,7 @@ which happen to be radians.
 @docs fst, snd
 
 # Higher-Order Helpers
-@docs identity, always, (<|), (|>), (<<), (>>), flip, curry, uncurry
+@docs identity, always, (<|), (|>), (<<), (>>), (.), flip, curry, uncurry
 
 -}
 
@@ -339,6 +339,10 @@ reads nicely in expressions like: `filter (not << isRegistered) students`
 -}
 (>>) : (a -> b) -> (b -> c) -> (a -> c)
 (>>) f g x = g (f x)
+
+{-| DEPRECATED: use (<<) instead. -}
+(.) : (b -> c) -> (a -> b) -> (a -> c)
+(.) g f x = g (f x)
 
 {-| Forward function application `x |> f == f x`. This function is useful
 for avoiding parenthesis and writing code in a more natural way.
