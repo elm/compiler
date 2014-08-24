@@ -1,49 +1,62 @@
+{-# OPTIONS_GHC -W #-}
 module Tests.Compiler (compilerTests) where
 
-import Data.Functor                   ((<$>))
-import Data.Traversable               (traverse)
-import System.FilePath                ((</>))
-import System.FilePath.Find           (find, (==?), extension)
+import Data.Traversable (traverse)
+
+import System.Exit
+import System.FilePath ((</>))
+import System.FilePath.Find (find, (==?), extension)
+import System.Process (readProcessWithExitCode)
+
 import Test.Framework
 import Test.Framework.Providers.HUnit (testCase)
-import Test.HUnit                     (Assertion, assertFailure, assertBool)
-import Text.Parsec                    (ParseError)
-
-import Elm.Internal.Utils as Elm
+import Test.HUnit (Assertion, assertFailure, assertBool)
 
 compilerTests :: Test
 compilerTests =
   buildTest $ do
-    goods <- mkTests goodCompile =<< getElms "good"
-    bads  <- mkTests badCompile  =<< getElms "bad"
+    goods <- testIf isSuccess =<< getElms "good"
+    bads  <- testIf isFailure =<< getElms "bad"
     return $ testGroup "Compile Tests"
              [ testGroup "Good Tests" goods
              , testGroup "Bad Tests"  bads
              ]
+
+-- COLLECT FILES
+
+getElms :: FilePath -> IO [FilePath]
+getElms filePath =
+    find (return True) (extension ==? ".elm") (testsDir </> filePath)
+
+testsDir :: FilePath
+testsDir = "tests" </> "compiler" </> "test-files"
+
+
+-- RUN COMPILER
+
+testIf :: (ExitCode -> String -> Assertion) -> [FilePath] -> IO [Test]
+testIf handler filePaths =
+    traverse setupTest filePaths
   where
-    getElms :: FilePath -> IO [FilePath]
-    getElms fname = find (return True) (extension ==? ".elm") (testsDir </> fname)
+    setupTest filePath = do
+      let args = [ "--make", "--src-dir=" ++ testsDir, filePath ]
+      (exitCode, _stdout, stderr) <- readProcessWithExitCode compiler args ""
+      return (testCase filePath (handler exitCode stderr))
 
-    mkTests :: (Either String String -> Assertion) -> [FilePath] -> IO [Test]
-    mkTests h = traverse setupTest
-        where setupTest f = testCase f . mkCompileTest h <$> readFile f
+compiler :: FilePath
+compiler = "dist" </> "build" </> "Elm" </> "elm"
 
-    testsDir :: FilePath
-    testsDir = "tests" </> "compiler" </> "test-files"
 
-goodCompile :: Either String String -> Assertion
-goodCompile result =
-    case result of
-      Left err -> assertFailure err
-      Right _  -> assertBool "" True
+-- CHECK RESULTS
 
-badCompile :: Either String String -> Assertion
-badCompile result =
-    case result of
-      Left  _ -> assertBool "" True
-      Right _ -> assertFailure "Compilation succeeded but should have failed"
-  
-mkCompileTest :: ((Either String String) -> Assertion) -- ^ Handler
-                 -> String -- ^ File Contents
-                 -> Assertion
-mkCompileTest handle = handle . Elm.compile
+isSuccess :: ExitCode -> String -> Assertion
+isSuccess exitCode stderr =
+    case exitCode of
+      ExitSuccess -> assertBool "" True
+      ExitFailure _ -> assertFailure stderr
+
+isFailure :: ExitCode -> String -> Assertion
+isFailure exitCode _stderr =
+    case exitCode of
+      ExitSuccess -> assertFailure "Compilation succeeded but should have failed"
+      ExitFailure _ -> assertBool "" True
