@@ -40,11 +40,11 @@ testIf handler filePaths =
   where
     setupTest filePath = do
       let args = [ "--make", "--src-dir=" ++ testsDir, filePath ]
-      (exitCode, _stdout, stderr) <- readProcessWithExitCode compiler args ""
-      return (testCase filePath (handler exitCode stderr))
+      (exitCode, stdout, stderr) <- readProcessWithExitCode compiler args ""
+      return (testCase filePath (handler exitCode (stdout ++ stderr)))
 
 compiler :: FilePath
-compiler = "dist" </> "build" </> "Elm" </> "elm"
+compiler = "dist" </> "build" </> "elm" </> "elm"
 
 
 -- CHECK RESULTS
