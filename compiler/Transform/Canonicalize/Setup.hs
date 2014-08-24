@@ -99,8 +99,17 @@ addValue name interface env value =
       Var.Alias x ->
           case Map.lookup x (iAliases interface) of
             Just (tvars, t) ->
-                let v = (Var.Canonical (Var.Module name) x, tvars, t) in
-                return $ env { _aliases = insert x v (_aliases env) }
+                return $ env
+                    { _aliases = insert x v (_aliases env)
+                    , _values = updatedValues
+                    }
+              where
+                v = (Var.Canonical (Var.Module name) x, tvars, t)
+                updatedValues =
+                    if Map.member x (iTypes interface)
+                      then insert' x (_values env)
+                      else _values env
+
             Nothing ->
                 case Map.lookup x (iAdts interface) of
                   Nothing -> notFound x

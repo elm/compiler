@@ -43,10 +43,10 @@ module' interfaces modul =
 
 moduleHelp :: Module.Interfaces -> Module.ValidModule
            -> Canonicalizer [Doc] Module.CanonicalModule
-moduleHelp interfaces modul@(Module.Module _ _ exs _ decls) =
+moduleHelp interfaces modul@(Module.Module _ _ exports _ decls) =
   do env <- Setup.environment interfaces modul
      canonicalDecls <- mapM (declaration env) decls
-     exports' <- delist locals exs
+     exports' <- resolveExports locals exports
      return $ modul { Module.exports = exports'
                     , Module.body    = body canonicalDecls
                     }
@@ -71,40 +71,71 @@ moduleHelp interfaces modul@(Module.Module _ _ exs _ decls) =
              [ D.portName port | D.Port port <- decls ]
          }
 
-delist :: [Var.Value] -> Var.Listing Var.Value -> Canonicalizer [Doc] [Var.Value]
-delist fullList (Var.Listing partial open)
-    | open = return fullList
-    | otherwise = go [] (List.sort fullList) (List.sort partial)
+resolveExports :: [Var.Value] -> Var.Listing Var.Value -> Canonicalizer [Doc] [Var.Value]
+resolveExports fullList (Var.Listing partialList open) =
+    if open
+      then return fullList
+      else do
+        valueExports <- getValueExports
+        aliasExports <- concat `fmap` mapM getAliasExport aliases
+        adtExports <- mapM getAdtExport adts
+        return $ valueExports ++ aliasExports ++ adtExports
     where
+      (allValues, allAliases, allAdts) = splitValues fullList
+
+      (values, aliases, adts) = splitValues partialList
+
+      getValueExports =
+        case Set.toList (Set.difference values' allValues') of
+          [] -> return (map Var.Value values)
+          xs -> notFound xs
+        where
+          allValues' = Set.fromList allValues
+          values' = Set.fromList values
+
+      getAliasExport alias
+          | alias `elem` allAliases =
+              let recordConstructor =
+                      if alias `elem` allValues then [Var.Value alias] else []
+              in
+                  return $ Var.Alias alias : recordConstructor
+
+          | otherwise =
+              case List.find (\(name, _ctors) -> name == alias) allAdts of
+                Nothing -> notFound [alias]
+                Just (name, _ctor) ->
+                    return [Var.ADT name (Var.Listing [] False)]
+
+      getAdtExport (name, Var.Listing ctors open) =
+        case lookup name allAdts of
+          Nothing -> notFound [name]
+          Just (Var.Listing allCtors _)
+            | open -> return $ Var.ADT name (Var.Listing allCtors False)
+            | otherwise ->
+                case filter (`notElem` allCtors) ctors of
+                  [] -> return $ Var.ADT name (Var.Listing ctors False)
+                  unfoundCtors -> notFound unfoundCtors
+
       notFound xs =
           throwError [ P.text "Export Error: trying to export non-existent values:" <+>
                        commaSep (map pretty xs)
                      ]
 
-      go list full partial =
-        case (full, partial) of
-          (_, []) -> return list
-          ([], _) -> notFound partial
-          (x:xs, y:ys) ->
-              case (x,y) of
-                (Var.Value x', Var.Value y') | x' == y' ->
-                    go (x : list) xs ys
+{-| Split a list of values into categories so we can work with them
+independently.
+-}
+splitValues :: [Var.Value] -> ([String], [String], [(String, Var.Listing String)])
+splitValues mixedValues =
+  case mixedValues of
+    [] -> ([], [], [])
+    x:xs ->
+      let (values, aliases, adts) = splitValues xs in
+      case x of
+        Var.Value name -> (name : values, aliases, adts)
+        Var.Alias name -> (values, name : aliases, adts)
+        Var.ADT name listing ->
+            (values, aliases, (name, listing) : adts)
 
-                (Var.Alias x', Var.Alias y') | x' == y' ->
-                    go (x : list) xs ys
-
-                (Var.ADT x' _, Var.Alias y') | x' == y' ->
-                    go (Var.ADT x' (Var.Listing [] False) : list) xs ys
-
-                (Var.ADT x' (Var.Listing xctors _   ),
-                 Var.ADT y' (Var.Listing yctors open)) | x' == y' ->
-                    if open
-                    then go (x : list) xs ys
-                    else case filter (`notElem` xctors) yctors of
-                           [] -> go (y : list) xs ys
-                           bads -> notFound bads
-
-                _ -> go list xs partial
 
 
 declToValue :: D.ValidDecl -> [Var.Value]
