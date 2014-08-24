@@ -34,7 +34,8 @@ filterExports interface =
           Var.ADT _ (Var.Listing ctors _) -> concatMap getType ctors
 
     getType :: String -> [(String, Type.CanonicalType)]
-    getType = get (Module.iTypes interface)
+    getType name =
+        get (Module.iTypes interface) name
 
     getAliases :: Var.Value -> [(String, ([String], Type.CanonicalType))]
     getAliases value =
