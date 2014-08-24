@@ -21,6 +21,7 @@ import Text.PrettyPrint as P
 
 import Transform.Canonicalize.Environment as Env
 import qualified Transform.Canonicalize.Type as Canonicalize
+import qualified Transform.Interface as Interface
 
 environment :: Module.Interfaces -> Module.ValidModule -> Canonicalizer [Doc] Environment
 environment interfaces modul@(Module.Module _ _ _ imports decls) =
@@ -48,7 +49,7 @@ environment interfaces modul@(Module.Module _ _ _ imports decls) =
 
 addImports :: String -> Module.Interfaces -> Environment -> (String, Module.ImportMethod)
            -> Canonicalizer [Doc] Environment
-addImports moduleName interfaces environ (name,method)
+addImports moduleName interfaces environ (name, method)
     | List.isPrefixOf "Native." name = return environ
     | otherwise =
         case method of
@@ -59,7 +60,7 @@ addImports moduleName interfaces environ (name,method)
               | open -> return (updateEnviron "")
               | otherwise -> foldM (addValue name interface) environ vs
     where
-      interface = (Map.!) interfaces name
+      interface = Interface.filterExports ((Map.!) interfaces name)
 
       updateEnviron prefix =
           let dict' = dict . map (first (prefix++)) in

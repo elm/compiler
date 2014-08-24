@@ -29,8 +29,7 @@ build noPrelude interfaces source =
      -- Run type inference on the program.
      types <- TI.infer interfaces canonicalModule
 
-     -- Trim down the set of exported values to the stuff that is actually exported.
-     let bodyWithTypes = (Module.body canonicalModule) { Module.types = types }
-         body = Canonical.filterExports bodyWithTypes (Module.exports canonicalModule)
+     -- Add the real list of tyes
+     let body = (Module.body canonicalModule) { Module.types = types }
 
      return $ canonicalModule { Module.body = body }

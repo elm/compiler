@@ -52,6 +52,7 @@ type CanonicalAdt = (Var.Canonical, AdtInfo Var.Canonical)
 
 data Interface = Interface
     { iVersion  :: Version.Version
+    , iExports  :: [Var.Value]
     , iTypes    :: Types
     , iImports  :: [(String, ImportMethod)]
     , iAdts     :: ADTs
@@ -65,6 +66,7 @@ toInterface modul =
     let body' = body modul in
     Interface
     { iVersion  = Version.elmVersion
+    , iExports  = exports modul
     , iTypes    = types body'
     , iImports  = imports modul
     , iAdts     = datatypes body'
@@ -74,9 +76,10 @@ toInterface modul =
     }
 
 instance Binary Interface where
-  get = Interface <$> get <*> get <*> get <*> get <*> get <*> get <*> get
+  get = Interface <$> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get
   put modul = do
       put (iVersion modul)
+      put (iExports modul)
       put (iTypes modul)
       put (iImports modul)
       put (iAdts modul)

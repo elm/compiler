@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -W #-}
-module Transform.Canonicalize (module', filterExports) where
+module Transform.Canonicalize (module') where
 
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad.Error (runErrorT, throwError)
@@ -105,53 +105,6 @@ delist fullList (Var.Listing partial open)
                            bads -> notFound bads
 
                 _ -> go list xs partial
-
-filterExports :: Module.CanonicalBody -> [Var.Value] -> Module.CanonicalBody
-filterExports body exportedValues =
-    body
-    { Module.types =
-        Map.fromList (concatMap getTypes exportedValues)
-    , Module.aliases =
-        Map.fromList (concatMap getAliases exportedValues)
-    , Module.datatypes =
-        Map.fromList (concatMap getAdts exportedValues)
-    }
-  where
-    get :: Map.Map String a -> String -> [(String, a)]
-    get dict x =
-        case Map.lookup x dict of
-          Just t  -> [(x,t)]
-          Nothing -> []
-
-    getTypes :: Var.Value -> [(String, Type.CanonicalType)]
-    getTypes value =
-        case value of
-          Var.Value x -> getType x
-          Var.Alias _ -> []
-          Var.ADT _ (Var.Listing ctors _) -> concatMap getType ctors
-
-    getType :: String -> [(String, Type.CanonicalType)]
-    getType = get (Module.types body)
-
-    getAliases :: Var.Value -> [(String, ([String], Type.CanonicalType))]
-    getAliases value =
-        case value of
-          Var.Value _ -> []
-          Var.Alias name -> get (Module.aliases body) name
-          Var.ADT _ _ -> []
-
-    getAdts :: Var.Value -> [(String, Module.AdtInfo String)]
-    getAdts value =
-        case value of
-          Var.Value _ -> []
-          Var.Alias _ -> []
-          Var.ADT name (Var.Listing exportedCtors _) ->
-              case Map.lookup name (Module.datatypes body) of
-                Nothing -> []
-                Just (tvars, ctors) ->
-                    [(name, (tvars, filter isExported ctors))]
-                  where
-                    isExported (ctor, _) = ctor `elem` exportedCtors
 
 
 declToValue :: D.ValidDecl -> [Var.Value]
