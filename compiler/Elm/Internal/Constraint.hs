@@ -58,7 +58,7 @@ parseLower str = case str of
 parseUpper :: String -> Maybe Endpoint
 parseUpper str = case str of
   '<' : '=' : rest -> Included <$> V.fromString rest
-  '<' : rest -> Included <$> V.fromString rest
+  '<' : rest -> Excluded <$> V.fromString rest
   _ -> Nothing
 
 fromString :: String -> Maybe Constraint
