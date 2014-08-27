@@ -163,7 +163,7 @@ expression (A region expr) =
              (revisedMatch, stmt) <-
                  case e of
                    A _ (Var (Var.Canonical Var.Local x)) ->
-                       return (Case.matchSubst [(tempVar,x)] initialMatch, [])
+                       return (Case.matchSubst [(tempVar, Var.varName x)] initialMatch, [])
                    _ ->
                        do e' <- expression e
                           return (initialMatch, [VarDeclStmt () [varDecl tempVar e']])
