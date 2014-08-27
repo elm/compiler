@@ -9,6 +9,7 @@ import IO.Runner (Request, Response)
 import IO.Runner as Run
 
 import Test.Array as Array
+import Test.Basics as Basics
 import Test.Char as Char
 import Test.Dict as Dict
 import Test.Equality as Equality
@@ -20,6 +21,7 @@ import Test.Trampoline as Trampoline
 tests : Test
 tests = suite "Elm Standard Library Tests"
         [ Array.tests
+        , Basics.tests
         , Char.tests
         , Dict.tests
         , Equality.tests
