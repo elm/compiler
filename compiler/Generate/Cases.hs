@@ -3,27 +3,28 @@ module Generate.Cases (toMatch, Match (..), Clause (..), matchSubst, newVar) whe
 
 import Control.Applicative ((<$>))
 import Control.Arrow (first)
-import Control.Monad.State
+import qualified Control.Monad.State as State
 import Data.List (groupBy,sortBy)
 import Data.Maybe (fromMaybe)
 
-import AST.Annotation 
-import AST.Expression.General
+import qualified AST.Annotation as A
+import qualified AST.Expression.General as Expr
 import AST.Expression.Canonical as Canonical
-import AST.Literal
+import qualified AST.Literal as Literal
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
-import Transform.Substitute
+import Transform.Substitute (subst)
 
-toMatch :: [(P.CanonicalPattern, Canonical.Expr)] -> State Int (String, Match)
+toMatch :: [(P.CanonicalPattern, Canonical.Expr)] -> State.State Int (String, Match)
 toMatch patterns = do
   v <- newVar
   (,) v <$> match [v] (map (first (:[])) patterns) Fail
 
-newVar :: State Int String
-newVar = do n <- get
-            modify (+1)
-            return $ "_v" ++ show n
+newVar :: State.State Int String
+newVar =
+ do n <- State.get
+    State.modify (+1)
+    return $ "_v" ++ show n
 
 data Match
     = Match String [Clause] Match
@@ -34,7 +35,7 @@ data Match
       deriving Show
 
 data Clause =
-    Clause (Either Var.Canonical Literal) [String] Match
+    Clause (Either Var.Canonical Literal.Literal) [String] Match
     deriving Show
 
 matchSubst :: [(String,String)] -> Match -> Match
@@ -43,8 +44,8 @@ matchSubst pairs match =
       Break -> Break
       Fail  -> Fail
       Seq ms -> Seq (map (matchSubst pairs) ms)
-      Other (A a e) ->
-          Other . A a $ foldr ($) e $ map (\(x,y) -> subst x (localVar y)) pairs
+      Other (A.A a e) ->
+          Other . A.A a $ foldr ($) e $ map (\(x,y) -> subst x (Expr.localVar y)) pairs
       Match n cs m ->
           Match (varSubst n) (map clauseSubst cs) (matchSubst pairs m)
           where
@@ -63,7 +64,7 @@ isCon (p:_, _) =
 isVar :: ([P.Pattern var], expr) -> Bool
 isVar p = not (isCon p)
 
-match :: [String] -> [([P.CanonicalPattern], Canonical.Expr)] -> Match -> State Int Match
+match :: [String] -> [([P.CanonicalPattern], Canonical.Expr)] -> Match -> State.State Int Match
 match [] [] def = return def
 match [] [([],e)] Fail  = return $ Other e
 match [] [([],e)] Break = return $ Other e
@@ -77,27 +78,27 @@ match vs@(v:_) cs def
 
 dealias :: String -> ([P.CanonicalPattern], Canonical.Expr) -> ([P.CanonicalPattern], Canonical.Expr)
 dealias _ ([], _) = noMatch "dealias"
-dealias v c@(p:ps, A a e) =
+dealias v c@(p:ps, A.A a e) =
     case p of
-      P.Alias x pattern -> (pattern:ps, A a $ subst x (localVar v) e)
+      P.Alias x pattern -> (pattern:ps, A.A a $ subst x (Expr.localVar v) e)
       _ -> c
 
-matchVar :: [String] -> [([P.CanonicalPattern], Canonical.Expr)] -> Match -> State Int Match
+matchVar :: [String] -> [([P.CanonicalPattern], Canonical.Expr)] -> Match -> State.State Int Match
 matchVar [] _ _ = noMatch "matchVar"
 matchVar (v:vs) cs def = match vs (map subVar cs) def
   where
     subVar ([], _) = noMatch "matchVar.subVar"
-    subVar (p:ps, (A a e)) = (ps, A a $ subOnePattern p e)
+    subVar (p:ps, (A.A a e)) = (ps, A.A a $ subOnePattern p e)
         where
           subOnePattern pattern e =
             case pattern of
-              P.Var x     -> subst x (localVar v) e
+              P.Var x     -> subst x (Expr.localVar v) e
               P.Anything  -> e
               P.Record fs ->
-                 foldr (\x -> subst x (Access (A a (localVar v)) x)) e fs
+                 foldr (\x -> subst x (Expr.Access (A.A a (Expr.localVar v)) x)) e fs
               _ -> noMatch "matchVar.subVar"
 
-matchCon :: [String] -> [([P.CanonicalPattern], Canonical.Expr)] -> Match -> State Int Match
+matchCon :: [String] -> [([P.CanonicalPattern], Canonical.Expr)] -> Match -> State.State Int Match
 matchCon [] _ _ = noMatch "matchCon"
 matchCon (v:vs) cs def = (flip (Match v) def) <$> mapM toClause css
     where
@@ -121,11 +122,11 @@ matchCon (v:vs) cs def = (flip (Match v) def) <$> mapM toClause css
           (P.Literal lit : _, _) -> matchClause (Right lit) (v:vs) cs Break
           _ -> noMatch "matchCon"
 
-matchClause :: Either Var.Canonical Literal
+matchClause :: Either Var.Canonical Literal.Literal
             -> [String]
             -> [([P.CanonicalPattern], Canonical.Expr)]
             -> Match
-            -> State Int Clause
+            -> State.State Int Clause
 matchClause _ [] _ _ = noMatch "matchClause"
 matchClause c (_:vs) cs def =
     do vs' <- getVars
@@ -140,13 +141,15 @@ matchClause c (_:vs) cs def =
 
       getVars =
           case head cs of
-            (P.Data _ ps : _, _) -> forM ps (const newVar)
+            (P.Data _ ps : _, _) -> State.forM ps (const newVar)
             (P.Literal _ : _, _) -> return []
             _ -> noMatch "matchClause.getVars"
 
-matchMix :: [String] -> [([P.CanonicalPattern], Canonical.Expr)] -> Match -> State Int Match
-matchMix vs cs def = foldM (flip $ match vs) def (reverse css)
-    where css = groupBy (\p1 p2 -> isCon p1 == isCon p2) cs
+matchMix :: [String] -> [([P.CanonicalPattern], Canonical.Expr)] -> Match -> State.State Int Match
+matchMix vs cs def =
+    State.foldM (flip $ match vs) def (reverse css)
+  where
+    css = groupBy (\p1 p2 -> isCon p1 == isCon p2) cs
 
 noMatch :: String -> a
 noMatch name =
