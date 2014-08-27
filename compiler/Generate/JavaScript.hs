@@ -147,16 +147,16 @@ expression (A region expr) =
              return $ function [] (stmts ++ [ ret exp ]) `call` []
 
       MultiIf branches ->
-        do branches' <- forM branches $ \(b,e) -> (,) <$> expression b <*> expression e
-           return $ case last branches of
-             (A _ (Var (Var.Canonical (Var.Module "Basics") "otherwise")), _) ->
-                 safeIfs branches'
-             (A _ (Literal (Boolean True)), _) -> safeIfs branches'
-             _ -> ifs branches' (throw "If" region)
-        where
-          safeIfs branches = ifs (init branches) (snd (last branches))
-          ifs branches finally = foldr iff finally branches
-          iff (if', then') else' = CondExpr () if' then' else'
+          do branches' <- forM branches $ \(b,e) -> (,) <$> expression b <*> expression e
+             return $ case last branches of
+               (A _ (Var (Var.Canonical (Var.Module "Basics") "otherwise")), _) ->
+                   safeIfs branches'
+               (A _ (Literal (Boolean True)), _) -> safeIfs branches'
+               _ -> ifs branches' (throw "If" region)
+          where
+            safeIfs branches = ifs (init branches) (snd (last branches))
+            ifs branches finally = foldr iff finally branches
+            iff (if', then') else' = CondExpr () if' then' else'
 
       Case e cases ->
           do (tempVar,initialMatch) <- Case.toMatch cases
