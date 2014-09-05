@@ -8,18 +8,18 @@ if (typeof window != 'undefined' && !window.location.origin) {
       (window.location.port ? (':' + window.location.port) : '');
 }
 
-Elm.fullscreenDebugHooks = function(module, hotSwapState /* =undefined */) {
+Elm.fullscreenDebugHooks = function(module, debuggerHistory /* =undefined */) {
   var exposedDebugger = {};
-  function debuggerAttach(module, hotSwapState) {
+  function debuggerAttach(module, debuggerHistory) {
     return {
       make: function(runtime) {
         var wrappedModule = debugModule(module, runtime);
-        exposedDebugger = debuggerInit(wrappedModule, runtime, hotSwapState);
+        exposedDebugger = debuggerInit(wrappedModule, runtime, debuggerHistory);
         return wrappedModule.debuggedModule;
       }
     }
   }
-  var mainHandle = Elm.fullscreen(debuggerAttach(module,hotSwapState));
+  var mainHandle = Elm.fullscreen(debuggerAttach(module, debuggerHistory));
   mainHandle.debugger = exposedDebugger;
   return mainHandle;
 };
@@ -259,7 +259,7 @@ function debugModule(module, runtime) {
   };
 }
 
-// The debuggerHistory variable is passed in on hotswap. It represents
+// The debuggerHistory variable is passed in on swap. It represents
 // the a state of the debugger for it to assume during init. It contains
 // the paused state of the debugger, the recorded events, and the current
 // event being processed.
@@ -337,7 +337,7 @@ function debuggerInit(debugModule, runtime, debuggerHistory /* =undefined */) {
     }
   }
 
-  function getHotSwapState() {
+  function getSwapState() {
     var continueIndex = currentEventIndex;
     if (!debugModule.getPaused()) {
       continueIndex = getMaxSteps();
@@ -394,7 +394,7 @@ function debuggerInit(debugModule, runtime, debuggerHistory /* =undefined */) {
       getMaxSteps: getMaxSteps,
       stepTo: stepTo,
       getPaused: debugModule.getPaused,
-      getHotSwapState: getHotSwapState,
+      getSwapState: getSwapState,
       dispose: dispose,
       allNodes: debugModule.signalGraphNodes,
       watchTracker: debugModule.watchTracker
