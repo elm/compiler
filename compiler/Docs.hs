@@ -12,6 +12,7 @@ import Control.Applicative ((<$>))
 import Control.Arrow (second)
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
+import Data.Aeson.Types (Pair)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy as BS
@@ -65,9 +66,9 @@ parseFile path = do
 
 docs :: IParser Value
 docs = do
-  (name, exports, structure) <- moduleDocs
+  (name, _exports, structure) <- moduleDocs
   things <- document
-  return $ documentToJson name exports structure things
+  return $ documentToJson name structure things
 
 docComment :: IParser String
 docComment = do
@@ -76,7 +77,7 @@ docComment = do
   let reversed = dropWhile (`elem` " \n\r") . drop 2 $ reverse contents
   return $ dropWhile (==' ') (reverse reversed)
 
---moduleDocs :: IParser (String, [String], String)
+moduleDocs :: IParser (String, Var.Listing Var.Value, String)
 moduleDocs = do
   optional freshLine
   (names,exports) <- moduleDef
@@ -85,10 +86,10 @@ moduleDocs = do
   structure <- docComment
   return (List.intercalate "." names, exports, structure)
 
---document :: IParser [(String, D.SourceDecl, String)]
+document :: IParser [(String, D.SourceDecl, String)]
 document = onFreshLines (\t ts -> ts ++ [t]) [] docThing
 
---docThing :: IParser (String, D.SourceDecl, String)
+docThing :: IParser (String, D.SourceDecl, String)
 docThing = uncommentable <|> commented <|> uncommented ""
     where
       uncommentable = do
@@ -105,26 +106,28 @@ docThing = uncommentable <|> commented <|> uncommented ""
         return (comment, def, src)
 
 
-documentToJson name exports structure things =
-    object $ [ "name"      .= name
-             , "document"  .= structure
---             , "values"    .= toList values
---             , "aliases"   .= toList aliases
---             , "datatypes" .= toList adts
-             ]
-{--
+documentToJson :: String -> String -> [(String, D.SourceDecl, String)] -> Value
+documentToJson name structure things =
+    object
+        [ "name"      .= name
+        , "document"  .= structure
+        , "values"    .= toList values
+        , "aliases"   .= toList aliases
+        , "datatypes" .= toList adts
+        ]
   where
-    (values, aliases, adts) = collect Map.empty Map.empty Map.empty Map.empty things
+    (values, aliases, adts) =
+        collect Map.empty Map.empty Map.empty Map.empty things
     
-    toList dict = map object . Map.elems $ filterPublics dict
+    toList :: Map.Map String [Pair] -> [Value]
+    toList dict =
+        map object (Map.elems dict)
 
-    exportMap = Map.fromList (zip exports exports)
-    filterPublics dict =
-        case Map.null exportMap of
-          True -> dict
-          False -> Map.filterWithKey (\k _ -> Map.member k exportMap) dict
---}
-{--
+type Pairs = Map.Map String [Pair]
+
+collect :: Map.Map String (D.Assoc, Int) -> Pairs -> Pairs -> Pairs
+        -> [(String, D.SourceDecl, String)]
+        -> (Pairs, Pairs, Pairs)
 collect infixes types aliases adts things =
     case things of
       [] -> (Map.union customOps nonCustomOps, aliases, adts)
@@ -139,59 +142,83 @@ collect infixes types aliases adts things =
                 [ "associativity" .= show assoc, "precedence" .= prec ] ++ pairs
 
       (comment, decl, source) : rest ->
+          let insert name fields dict = Map.insert name (obj name fields) dict
+              obj name fields =
+                  [ "name" .= name
+                  , "raw" .= source
+                  , "comment" .= comment
+                  ] ++ fields
+          in
           case decl of
+            D.Definition def ->
+                case def of
+                  Src.TypeAnnotation name tipe ->
+                      collect infixes (insert name [ "type" .= tipe ] types) aliases adts rest
+
+                  Src.Definition _ _ ->
+                      collect infixes types aliases adts rest
+
+            D.Datatype name vars ctors ->
+                let tipe = T.App (T.Type (Var.Raw name)) (map T.Var vars)
+                    fields = [ "typeVariables" .= vars
+                             , "constructors" .= map (ctorToJson tipe) ctors
+                             ]
+                in  collect infixes types aliases (insert name fields adts) rest
+
+            D.TypeAlias name vars tipe ->
+                let fields = [ "typeVariables" .= vars, "type" .= tipe ]
+                in  collect infixes types (insert name fields aliases) adts rest
+
+            D.Port _ ->
+                collect infixes types aliases adts rest
+
             D.Fixity assoc prec name ->
                 collect (Map.insert name (assoc,prec) infixes) types aliases adts rest
-            D.Definition (Src.TypeAnnotation name tipe) ->
-                collect infixes (insert name [ "type" .= tipe ] types) aliases adts rest
-            D.TypeAlias name vars tipe ->
-                let fields = ["typeVariables" .= vars, "type" .= tipe ]
-                in  collect infixes types (insert name fields aliases) adts rest
-            D.Datatype name vars ctors ->
-                let tipe = T.App (T.Type name) (map T.Var vars)
-                    fields = ["typeVariables" .= vars
-                             , "constructors" .= map (ctorToJson tipe) ctors ]
-                in  collect infixes types aliases (insert name fields adts) rest
-          where
-            insert name fields dict = Map.insert name (obj name fields) dict
-            obj name fields =
-                [ "name" .= name, "raw" .= source, "comment" .= comment ] ++ fields
---}
+
+
 instance Var.ToString var => ToJSON (T.Type var) where
   toJSON tipe =
-    object $
-    case tipe of
-      T.Lambda _ _ ->
-          let tipes = T.collectLambdas tipe in
-          [ "tag" .= ("function" :: Text.Text)
-          , "args" .= toJSON (init tipes)
-          , "result" .= toJSON (last tipes)
-          ]
+      object (getFields tipe)
+    where
+      getFields tipe =
+          case tipe of
+            T.Lambda _ _ ->
+                let tipes = T.collectLambdas tipe in
+                [ "tag" .= ("function" :: Text.Text)
+                , "args" .= toJSON (init tipes)
+                , "result" .= toJSON (last tipes)
+                ]
 
-      T.Var x ->
-          [ "tag" .= ("var" :: Text.Text)
-          , "name" .= toJSON x
-          ]
+            T.Var x ->
+                [ "tag" .= ("var" :: Text.Text)
+                , "name" .= toJSON x
+                ]
 
-      T.Type name ->
-          [ "tag" .= ("adt" :: Text.Text)
-          , "name" .= toJSON (Var.toString name)
-          , "args" .= ([] :: [()])
-          ]
+            T.Type name ->
+                [ "tag" .= ("adt" :: Text.Text)
+                , "name" .= toJSON (Var.toString name)
+                , "args" .= ([] :: [()])
+                ]
 
-      T.App (T.Type name) ts -> 
-          [ "tag" .= ("adt" :: Text.Text)
-          , "name" .= toJSON (Var.toString name)
-          , "args" .= map toJSON ts
-          ]
-       
-      T.Record fields ext ->
-          [ "tag" .= ("record" :: Text.Text)
-          , "fields" .= toJSON (map (toJSON . second toJSON) fields)
-          , "extension" .= toJSON ext
-          ]
+            T.App (T.Type name) ts -> 
+                [ "tag" .= ("adt" :: Text.Text)
+                , "name" .= toJSON (Var.toString name)
+                , "args" .= map toJSON ts
+                ]
 
-ctorToJson :: Var.ToString var => T.Type var -> (String, [T.Type var]) -> Value
+            T.App _ _ -> error "This is an unexpected error with elm-doc, please report it at <https://github.com/elm-lang/Elm/issues>"
+             
+            T.Record fields ext ->
+                [ "tag" .= ("record" :: Text.Text)
+                , "fields" .= toJSON (map (toJSON . second toJSON) fields)
+                , "extension" .= toJSON ext
+                ]
+
+            T.Aliased _ t ->
+                getFields t
+
+ctorToJson :: T.RawType -> (String, [T.RawType]) -> Value
 ctorToJson tipe (ctor, tipes) =
     object [ "name" .= ctor
-           , "type" .= foldr T.Lambda tipe tipes ]
+           , "type" .= foldr T.Lambda tipe tipes
+           ]
