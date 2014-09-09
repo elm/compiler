@@ -137,7 +137,10 @@ Elm.Native.Keyboard.make = function(elm) {
         });
     }
 
-    var lastPressed = downEvents;
+    var lastPressed = A2(Signal.lift, function(e) {
+        return e ? e.keyCode : 0;
+    }, downEvents);
+    downEvents.defaultNumberOfKids += 1;
 
     return elm.Native.Keyboard.values = {
         isDown:is,
