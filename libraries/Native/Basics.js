@@ -11,12 +11,24 @@ Elm.Native.Basics.make = function(elm) {
   function div(a, b) {
       return (a/b)|0;
   }
+  function floatdiv(a, b) {
+      return a / b;
+  }
   function rem(a, b) {
       return a % b;
   }
   var mod = Utils.mod;
   function logBase(base, n) {
       return Math.log(n) / Math.log(base);
+  }
+  function add(a, b) {
+      return a + b;
+  }
+  function sub(a, b) {
+      return a - b;
+  }
+  function mul(a, b) {
+      return a * b;
   }
 
   function min(a, b) {
@@ -27,6 +39,25 @@ Elm.Native.Basics.make = function(elm) {
   }
   function clamp(lo, hi, n) {
       return Utils.cmp(n,lo) < 0 ? lo : Utils.cmp(n,hi) > 0 ? hi : n;
+  }
+
+  function eq(a, b) {
+      return Utils.eq(a, b);
+  }
+  function neq(a, b) {
+      return !eq(a, b);
+  }
+  function lt(a, b) {
+      return Utils.cmp(a, b) < 0;
+  }
+  function gt(a, b) {
+      return Utils.cmp(a, b) > 0;
+  }
+  function le(a, b) {
+      return Utils.cmp(a, b) <= 0;
+  }
+  function ge(a, b) {
+      return Utils.cmp(a, b) >= 0;
   }
 
   function xor(a, b) {
@@ -62,8 +93,12 @@ Elm.Native.Basics.make = function(elm) {
 
   var basics = {
       div: F2(div),
+      floatdiv: F2(floatdiv),
       rem: F2(rem),
       mod: mod,
+      add: F2(add),
+      sub: F2(sub),
+      mul: F2(mul),
 
       pi: Math.PI,
       e: Math.E,
@@ -86,6 +121,13 @@ Elm.Native.Basics.make = function(elm) {
       max: F2(max),
       clamp: F3(clamp),
       compare: Utils.compare,
+
+      eq: F2(eq),
+      neq: F2(neq),
+      lt: F2(lt),
+      gt: F2(gt),
+      le: F2(le),
+      ge: F2(ge),
 
       xor: F2(xor),
       not: not,
