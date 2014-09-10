@@ -20,8 +20,13 @@ features.
 
 ## Opening a pull request
 
-**Please open PRs against the [master branch of
-Elm](http://github.com/elm-lang/elm/tree/master) whenever possible.**
+Please open PRs against the [master branch of
+Elm](https://github.com/elm-lang/elm/tree/master).  
+When you're working on a fairly large feature, ask for feedback on the
+[mailinglist](mailto:elm-discuss@googlegroups.com). There you will be
+advised to either open a PR to master or if a separate branch will be
+made.  
+Please don't send personal messages to Evan (@evancz) for feedback.
 
 Note that changes in the master branch of [Elm](https://github.com/elm-lang/Elm/)
 are able to be compiled against the master branch of the [elm-lang.org
