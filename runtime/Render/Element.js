@@ -64,7 +64,10 @@ function addClick(e, handler) {
 
 function removeClick(e, handler) {
     if (e.elm_click_trigger) {
+        e.style.pointerEvents = 'none';
         e.removeEventListener('click', e.elm_click_trigger);
+        e.elm_click_trigger = null;
+        e.elm_click_handler = null;
     }
 }
 
