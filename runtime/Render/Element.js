@@ -64,7 +64,6 @@ function addClick(e, handler) {
 
 function removeClick(e, handler) {
     if (e.elm_click_trigger) {
-        e.style.pointerEvents = 'none';
         e.removeEventListener('click', e.elm_click_trigger);
         e.elm_click_trigger = null;
         e.elm_click_handler = null;
@@ -94,11 +93,14 @@ function addHover(e, handler) {
 }
 
 function removeHover(e) {
+    e.elm_hover_handler = null;
     if (e.elm_hover_over) {
         e.removeEventListener('mouseover', e.elm_hover_over);
+        e.elm_hover_over = null;
     }
     if (e.elm_hover_out) {
         e.removeEventListener('mouseout', e.elm_hover_out);
+        e.elm_hover_out = null;
     }
 }
 
@@ -419,8 +421,12 @@ function updateProps(node, curr, next) {
         }
     }
 
+    // update click and hover handlers
+    var removed = false;
+
     // update hover handlers
     if (nextProps.hover.ctor === '_Tuple0') {
+        removed = true;
         removeHover(node);
     } else if (node.elm_hover_handler) {
         node.elm_hover_handler = nextProps.hover;
@@ -430,11 +436,20 @@ function updateProps(node, curr, next) {
 
     // update click handlers
     if (nextProps.click.ctor === '_Tuple0') {
+        removed = true;
         removeClick(node);
     } else if (node.elm_click_handler) {
         node.elm_click_handler = nextProps.click;
     } else {
         addClick(node, nextProps.click);
+    }
+
+    // stop capturing clicks if 
+    if (removed
+        && nextProps.hover.ctor === '_Tuple0'
+        && nextProps.click.ctor === '_Tuple0')
+    {
+        node.style.pointerEvents = 'none';
     }
 }
 
