@@ -117,7 +117,7 @@ portTypes expr =
               , txt [ "It contains ", kind, ":\n" ]
               , P.nest 4 (PP.pretty tipe) <> P.text "\n"
               , txt [ "Acceptable values for ", dir "incoming" "outgoing", " ports include:" ]
-              , txt [ "    Ints, Floats, Bools, Strings, Maybes, Lists, Arrays, Tuples," ]
+              , txt [ "    Ints, Floats, Bools, Strings, Maybes, Lists, Arrays, Tuples, unit values," ]
               , txt [ "    Json.Values, ", dir "" "first-order functions, ", "and concrete records." ]
               ]
 
