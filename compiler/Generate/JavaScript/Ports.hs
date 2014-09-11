@@ -52,6 +52,7 @@ inc tipe x =
 
       Type name
           | Var.isJson name -> V.value "Native.Json" "fromJS" <| x
+          | Var.isTuple name -> incomingTuple [] x
           | otherwise -> error "bad type got to incoming port generation code"
 
       App f args ->
@@ -68,16 +69,7 @@ inc tipe x =
                   array = DotRef () x (var "map") <| incoming t
 
             Type name : ts
-                | Var.isTuple name -> check x JSArray tuple
-                where
-                  tuple = ObjectLit () $ (prop "ctor", ctor) : values
-
-                  ctor = string ("_Tuple" ++ show (length ts))
-                  values = zipWith convert [0..] ts
-
-                  convert n t = ( prop ('_':show n)
-                                , inc t (BracketRef () x (IntLit () n))
-                                )
+                | Var.isTuple name -> incomingTuple ts x
 
             _ -> error "bad ADT got to incoming port generation code"
 
@@ -90,6 +82,19 @@ inc tipe x =
             object = ObjectLit () $ (prop "_", ObjectLit () []) : keys
             keys = map convert fields
             convert (f,t) = (prop f, inc t (DotRef () x (var f)))
+
+incomingTuple :: [CanonicalType] -> Expression () -> Expression ()
+incomingTuple types x =
+    check x JSArray (ObjectLit () fields)
+  where
+    fields = (prop "ctor", ctor) : zipWith convert [0..] types
+
+    ctor = string ("_Tuple" ++ show (length types))
+
+    convert n t =
+        ( prop ('_':show n)
+        , inc t (BracketRef () x (IntLit () n))
+        )
 
 outgoing :: CanonicalType -> Expression ()
 outgoing tipe =
@@ -127,6 +132,7 @@ out tipe x =
 
       Type name
           | Var.isJson name -> V.value "Native.Json" "toJS" <| x
+          | Var.isTuple name -> ArrayLit () []
           | otherwise -> error "bad type got to outgoing port generation code"
 
       App f args ->

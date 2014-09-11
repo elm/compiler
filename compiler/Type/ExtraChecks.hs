@@ -65,6 +65,7 @@ portTypes expr =
           ST.Type v
               | V.isJson v      -> return ()
               | V.isPrimitive v -> return ()
+              | V.isTuple v     -> return ()
               | otherwise       -> err "an unsupported type"
 
           ST.App t [] -> valid t
