@@ -17,12 +17,13 @@ check x jsType continue =
     jsFold op checks value = foldl1 (InfixExpr () op) (map ($value) checks)
     throw = obj ["_E","raise"] <| InfixExpr () OpAdd msg x
     msg = string ("invalid input, expecting " ++ show jsType ++ " but got ")
-    checks = case jsType of
-               JSNumber  -> [typeof "number"]
-               JSBoolean -> [typeof "boolean"]
-               JSString  -> [typeof "string", instanceof "String"]
-               JSArray   -> [(obj ["_U","isJSArray"] <|)]
-               JSObject fields -> [jsFold OpLAnd (typeof "object" : map member fields)]
+    checks =
+        case jsType of
+          JSNumber  -> [typeof "number"]
+          JSBoolean -> [typeof "boolean"]
+          JSString  -> [typeof "string", instanceof "String"]
+          JSArray   -> [(obj ["_U","isJSArray"] <|)]
+          JSObject fields -> [jsFold OpLAnd (typeof "object" : map member fields)]
 
 incoming :: CanonicalType -> Expression ()
 incoming tipe =
@@ -58,13 +59,17 @@ inc tipe x =
       App f args ->
           case f : args of
             Type name : [t]
-                | Var.isMaybe name -> CondExpr () (equal x (NullLit ()))
-                                                  (V.value "Maybe" "Nothing")
-                                                  (V.value "Maybe" "Just" <| inc t x)
+                | Var.isMaybe name ->
+                    CondExpr ()
+                        (equal x (NullLit ()))
+                        (V.value "Maybe" "Nothing")
+                        (V.value "Maybe" "Just" <| inc t x)
 
-                | Var.isList name  -> check x JSArray (obj ["_L","fromArray"] <| array)
+                | Var.isList name ->
+                    check x JSArray (obj ["_L","fromArray"] <| array)
 
-                | Var.isArray name -> check x JSArray (obj ["_A","fromJSArray"] <| array)
+                | Var.isArray name ->
+                    check x JSArray (obj ["_A","fromJSArray"] <| array)
                 where
                   array = DotRef () x (var "map") <| incoming t
 
@@ -120,10 +125,11 @@ out tipe x =
             numArgs = length ts - 1
             args = map (\n -> '_' : show n) [0..]
             values = zipWith inc (init ts) (map ref args)
-            func body = function (take numArgs args)
-                        [ VarDeclStmt () [VarDecl () (var "_r") (Just body)]
-                        , ret (out (last ts) (ref "_r"))
-                        ]
+            func body =
+                function (take numArgs args)
+                    [ VarDeclStmt () [VarDecl () (var "_r") (Just body)]
+                    , ret (out (last ts) (ref "_r"))
+                    ]
 
       Var _ -> error "type variables should not be allowed through input ports"
 
@@ -139,9 +145,10 @@ out tipe x =
           case f : args of
             Type name : [t]
                 | Var.isMaybe name ->
-                    CondExpr () (equal (DotRef () x (var "ctor")) (string "Nothing"))
-                                 (NullLit ())
-                                 (out t (DotRef () x (var "_0")))
+                    CondExpr ()
+                        (equal (DotRef () x (var "ctor")) (string "Nothing"))
+                        (NullLit ())
+                        (out t (DotRef () x (var "_0")))
 
                 | Var.isArray name ->
                     DotRef () (obj ["_A","toJSArray"] <| x) (var "map") <| outgoing t
