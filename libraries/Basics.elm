@@ -163,11 +163,11 @@ sqrt = Native.Basics.sqrt
 
 {-| Negate any number: `negate 42 == -42` -}
 negate : number -> number
-negate n = -n
+negate = Native.Basics.negate
 
 {-| Take the absolute value of a number. -}
 abs : number -> number
-abs n = if n < 0 then -n else n
+abs = Native.Basics.abs
 
 {-| Calculate the logarithm of a number with a given base: `logBase 10 100 == 2` -}
 logBase : Float -> Float -> Float

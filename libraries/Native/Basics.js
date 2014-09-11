@@ -18,6 +18,12 @@ Elm.Native.Basics.make = function(elm) {
   function logBase(base, n) {
       return Math.log(n) / Math.log(base);
   }
+  function negate(n) {
+      return -n;
+  }
+  function abs(n) {
+      return n < 0 ? -n : n;
+  }
 
   function min(a, b) {
       return Utils.cmp(a,b) < 0 ? a : b;
@@ -82,6 +88,8 @@ Elm.Native.Basics.make = function(elm) {
 
       sqrt: Math.sqrt,
       logBase: F2(logBase),
+      negate: negate,
+      abs: abs,
       min: F2(min),
       max: F2(max),
       clamp: F3(clamp),
