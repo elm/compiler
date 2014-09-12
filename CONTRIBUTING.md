@@ -1,7 +1,21 @@
 # Contributing to Elm
 
 Thanks helping with the development of Elm! This document describes the basic
-standards for opening pull requests:
+standards for opening pull requests and making the review process as smooth as
+possible.
+
+## Licensing
+
+You need to sign the [contributor agreement](ContributorAgreement.pdf)
+and send it to <info@elm-lang.org> before opening your pull request.
+
+## Style Guide
+
+  * Haskell &mdash; conform to [these guidelines][haskell]
+  * JavaScript &mdash; use [Google's JS style guide][js]
+
+[haskell]: https://gist.github.com/evancz/0a1f3717c92fe71702be
+[js]: https://google-styleguide.googlecode.com/svn/trunk/javascriptguide.xml
 
 ## Branches
 
@@ -21,18 +35,9 @@ in as its own branch and do some testing before bringing it into the master
 branch. This way we can keep releases of the master branch independent of new
 features.
 
-## Opening a pull request
-
-**Please open PRs against the [master branch of Elm][master] whenever possible.**
-
 Note that the master branch of the compiler should always be in sync with the
 master branch of the [website][], and the stable branch of the compiler should
 always be in sync with the stable branch of the [website][]. Make sure that
 your changes maintain this compatibility.
 
 [website]: https://github.com/elm-lang/elm-lang.org
-
-## Licensing
-
-You need to sign the [contributor agreement](ContributorAgreement.pdf)
-and send it to <info@elm-lang.org> before opening your pull request.
