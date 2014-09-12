@@ -9,7 +9,7 @@
   * Add List.indexedMap and List.filterMap
   * Add Maybe.map
   * Add Basics.negate
-  * Add (<<) and (>>) to Basics as in F#
+  * Add (>>) to Basics as in F#
   * Add --bundle-runtime flag which creates stand-alone Elm programs
   * Error on ambiguious use of imported variables
   * Replace dependency on Pandoc with cheapskate+kate
@@ -19,6 +19,7 @@
 
 #### Breaking Changes:
 
+  * Rename (.) with (<<) as in F#
   * Rename Basics.id to Basics.identity
   * Rename Basics.div to (//)
   * Rename Basics.mod to (%)
