@@ -192,7 +192,7 @@ length = Native.Array.length
 
 {-| Append two arrays to a new one.
 
-      append (array 2 42) (array 3 81) == fromList [42,42,81,81,81]
+      append (repeat 2 42) (repeat 3 81) == fromList [42,42,81,81,81]
 -}
 append : Array a -> Array a -> Array a
 append = Native.Array.append
