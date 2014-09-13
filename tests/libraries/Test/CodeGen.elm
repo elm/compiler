@@ -25,6 +25,13 @@ caseQualified =
         Maybe.Just x -> x
         Nothing -> 0
 
+caseScope : String
+caseScope =
+    case "Not this one!" of
+        string ->
+            case "Hi" of
+                string -> string
+
 tests : Test
 tests =
     let primes =
@@ -37,8 +44,12 @@ tests =
             [ test "let" <| assertEqual 42 letQualified
             , test "case" <| assertEqual 42 caseQualified
             ]
+        scope =
+            suite "Scoping"
+            [ test "case" <| assertEqual "Hi" caseScope ]
     in
         suite "CodeGen"
             [ primes
             , qualifiedPatterns
+            , scope
             ]

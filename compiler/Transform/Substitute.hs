@@ -52,7 +52,12 @@ subst old new expression =
             V.Local -> if x == old then new else expression
 
       Case e cases ->
-          Case (f e) $ map (second f) cases
+          Case (f e) (map substCase cases)
+        where
+          substCase (pattern, expr) =
+              if Set.member old (Pattern.boundVars pattern)
+                then (pattern, expr)
+                else (pattern, f expr)
 
       Data tag values ->
           Data tag (map f values)
