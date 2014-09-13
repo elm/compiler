@@ -65,16 +65,27 @@ isVar :: ([P.Pattern var], expr) -> Bool
 isVar p = not (isCon p)
 
 match :: [String] -> [([P.CanonicalPattern], Canonical.Expr)] -> Match -> State.State Int Match
-match [] [] def = return def
-match [] [([],e)] Fail  = return $ Other e
-match [] [([],e)] Break = return $ Other e
-match [] cs def = return $ Seq (map (Other . snd) cs ++ [def])
-match vs@(v:_) cs def
-    | all isVar cs' = matchVar vs cs' def
-    | all isCon cs' = matchCon vs cs' def
-    | otherwise     = matchMix vs cs' def
-  where
-    cs' = map (dealias v) cs
+match variables cases match =
+    case (variables, cases, match) of
+      ([], [], _) ->
+          return match
+
+      ([], [([], expr)], Fail) ->
+          return $ Other expr
+
+      ([], [([], expr)], Break) ->
+          return $ Other expr
+
+      ([], _, _) ->
+          return $ Seq (map (Other . snd) cases ++ [match])
+
+      (var:_, _, _)
+          | all isVar cases' -> matchVar variables cases' match
+          | all isCon cases' -> matchCon variables cases' match
+          | otherwise        -> matchMix variables cases' match
+          where
+            cases' = map (dealias var) cases
+
 
 dealias :: String -> ([P.CanonicalPattern], Canonical.Expr) -> ([P.CanonicalPattern], Canonical.Expr)
 dealias _ ([], _) = noMatch "dealias"
