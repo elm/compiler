@@ -425,23 +425,34 @@ function updateProps(node, curr, next) {
     var removed = false;
 
     // update hover handlers
-    if (nextProps.hover.ctor === '_Tuple0') {
-        removed = true;
-        removeHover(node);
-    } else if (node.elm_hover_handler) {
-        node.elm_hover_handler = nextProps.hover;
-    } else {
-        addHover(node, nextProps.hover);
+    if (currProps.hover.ctor === '_Tuple0') {
+        if (nextProps.hover.ctor !== '_Tuple0') {
+            addHover(node, nextProps.hover);
+        }
+    }
+    else {
+        if (nextProps.hover.ctor === '_Tuple0') {
+            removed = true;
+            removeHover(node);
+        }
+        else {
+            node.elm_hover_handler = nextProps.hover;
+        }
     }
 
     // update click handlers
-    if (nextProps.click.ctor === '_Tuple0') {
-        removed = true;
-        removeClick(node);
-    } else if (node.elm_click_handler) {
-        node.elm_click_handler = nextProps.click;
-    } else {
-        addClick(node, nextProps.click);
+    if (currProps.click.ctor === '_Tuple0') {
+        if (nextProps.click.ctor !== '_Tuple0') {
+            addClick(node, nextProps.click);
+        }
+    }
+    else {
+        if (nextProps.click.ctor === '_Tuple0') {
+            removed = true;
+            removeClick(node);
+        } else {
+            node.elm_click_handler = nextProps.click;
+        }
     }
 
     // stop capturing clicks if 
