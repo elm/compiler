@@ -138,11 +138,11 @@ the successes.
       filterMap toInt ["3", "4.0", "5", "hats"] == [3,5]
 -}
 filterMap : (a -> Maybe b) -> [a] -> [b]
-filterMap xs = Native.List.foldr maybeCons [] xs
+filterMap f xs = foldr (maybeCons f) [] xs
 
-maybeCons : Maybe a -> [a] -> [a]
-maybeCons mx xs =
-    case mx of
+maybeCons : (a -> Maybe b) -> a -> [b] -> [b]
+maybeCons f mx xs =
+    case f mx of
       Just x -> x :: xs
       Nothing -> xs
 
