@@ -9,11 +9,14 @@ import qualified Parse.Expression as Expr
 import qualified Parse.Type as Type
 import qualified AST.Declaration as D
 
+
 declaration :: IParser D.SourceDecl
 declaration = typeDecl <|> infixDecl <|> port <|> definition
 
+
 definition :: IParser D.SourceDecl
 definition = D.Definition <$> Expr.def
+
 
 typeDecl :: IParser D.SourceDecl
 typeDecl =
