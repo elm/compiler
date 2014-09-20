@@ -16,15 +16,16 @@ import Native.Date
 import Time (Time)
 import Maybe (Maybe)
 
-data Date = Date
+type Date = Date
 
 {-| Represents the days of the week. -}
-data Day = Mon | Tue | Wed | Thu | Fri | Sat | Sun
+type Day = Mon | Tue | Wed | Thu | Fri | Sat | Sun
 
 {-| Represents the month of the year. -}
-data Month = Jan | Feb | Mar | Apr
-           | May | Jun | Jul | Aug
-           | Sep | Oct | Nov | Dec
+type Month
+    = Jan | Feb | Mar | Apr
+    | May | Jun | Jul | Aug
+    | Sep | Oct | Nov | Dec
 
 {-| Attempt to read a date from a string. -}
 read : String -> Maybe Date

@@ -42,7 +42,7 @@ that has never helped me remember which one I should be writing.
 
 import Basics (..)
 
-data Color
+type Color
     = RGBA Int Int Int Float
     | HSLA Float Float Float Float
 
@@ -174,7 +174,7 @@ hslToRgb hue saturation lightness =
 
 --toV4 : Color -> V4
 
-data Gradient
+type Gradient
   = Linear (Float,Float) (Float,Float) [(Float,Color)]
   | Radial (Float,Float) Float (Float,Float) Float [(Float,Color)]
 

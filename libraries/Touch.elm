@@ -21,7 +21,14 @@ A touch also keeps info about the initial point and time of contact:
 `x0`, `y0`, and `t0`. This helps compute more complicated gestures
 like taps, drags, and swipes which need to know about timing or direction.
 -}
-type Touch = { x:Int, y:Int, id:Int, x0:Int, y0:Int, t0:Time }
+type alias Touch =
+    { x:Int
+    , y:Int
+    , id:Int
+    , x0:Int
+    , y0:Int
+    , t0:Time
+    }
 
 {-| A list of ongoing touches. -}
 touches : Signal [Touch]

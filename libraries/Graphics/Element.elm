@@ -43,7 +43,7 @@ import List as List
 import Color (..)
 import Maybe ( Maybe(..) )
 
-type Properties = {
+type alias Properties = {
   id      : Int,
   width   : Int,
   height  : Int,
@@ -55,7 +55,10 @@ type Properties = {
   click   : ()
  }
 
-type Element = { props : Properties, element : ElementPrim }
+type alias Element =
+    { props : Properties
+    , element : ElementPrim
+    }
 
 {-| An Element that takes up no space. Good for things that appear conditionally:
 
@@ -130,15 +133,15 @@ newElement w h e =
   , element = e
   }
 
-data ElementPrim
-  = Image ImageStyle Int Int String
-  | Container Position Element
-  | Flow Direction [Element]
-  | Spacer
-  | RawHtml
-  | Custom -- for custom Elements implemented in JS, see collage for example
+type ElementPrim
+    = Image ImageStyle Int Int String
+    | Container Position Element
+    | Flow Direction [Element]
+    | Spacer
+    | RawHtml
+    | Custom -- for custom Elements implemented in JS, see collage for example
 
-data ImageStyle = Plain | Fitted | Cropped (Int,Int) | Tiled
+type ImageStyle = Plain | Fitted | Cropped (Int,Int) | Tiled
 
 {-| Create an image given a width, height, and image source. -}
 image : Int -> Int -> String -> Element
@@ -164,9 +167,14 @@ tiledImage : Int -> Int -> String -> Element
 tiledImage w h src =
     newElement w h (Image Tiled w h src)
 
-data Three = P | Z | N
-data Pos = Absolute Int | Relative Float
-type Position = { horizontal : Three, vertical : Three, x : Pos, y : Pos }
+type Three = P | Z | N
+type Pos = Absolute Int | Relative Float
+type alias Position =
+    { horizontal : Three
+    , vertical : Three
+    , x : Pos
+    , y : Pos
+    }
 
 {-| Put an element in a container. This lets you position the element really
 easily, and there are tons of ways to set the `Position`.
@@ -185,7 +193,7 @@ for making borders.
 spacer : Int -> Int -> Element
 spacer w h = newElement w h Spacer
 
-data Direction = DUp | DDown | DLeft | DRight | DIn | DOut
+type Direction = DUp | DDown | DLeft | DRight | DIn | DOut
 
 {-| Have a list of elements flow in a particular direction.
 The `Direction` starts from the first element in the list.

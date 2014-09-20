@@ -16,7 +16,7 @@ module Maybe (Maybe(..), maybe, isJust, isNothing, map) where
 result in a value (e.g. logarithm is defined only for positive
 numbers). 
 -}
-data Maybe a = Just a | Nothing
+type Maybe a = Just a | Nothing
 
 {-| Provide a default value and a function to extract the contents of a `Maybe`.
 When given `Nothing` you get the default, when given a `Just` you apply the

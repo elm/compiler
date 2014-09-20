@@ -25,7 +25,7 @@ import Native.Keyboard
 in this library. Use `Char.toCode` and `Char.fromCode` to convert key codes
 to characters. Use the uppercase character with `toCode`.
 -}
-type KeyCode = Int
+type alias KeyCode = Int
 
 {-| Custom key directions to support different locales. The order is up, down,
 left, right.

@@ -18,9 +18,12 @@ import Native.Http
 {-| The datatype for responses. Success contains only the returned message.
 Failures contain both an error code and an error message.
 -}
-data Response a = Success a | Waiting | Failure Int String
+type Response a
+    = Success a
+    | Waiting
+    | Failure Int String
 
-type Request a = {
+type alias Request a = {
   verb : String,
   url  : String,
   body : a,

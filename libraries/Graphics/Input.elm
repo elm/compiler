@@ -42,9 +42,9 @@ of two fields:
 
 This will make more sense as you see more examples.
 -}
-type Input a = { signal : Signal a, handle : Handle a }
+type alias Input a = { signal : Signal a, handle : Handle a }
 
-data Handle a = Handle
+type Handle a = Handle
 
 {-| This creates a new `Input`. You provide a single argument that will serve
 as the initial value of the input&rsquo;s `signal`. For example:

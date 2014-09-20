@@ -21,7 +21,7 @@ import Signal (Signal)
 {-| Type alias to make it clearer when you are working with time values.
 Using the `Time` constants instead of raw numbers is very highly recommended.
 -}
-type Time = Float
+type alias Time = Float
 
 {-| Units of time, making it easier to specify things like a half-second
 `(500 * milliseconds)` without remembering Elm&rsquo;s underlying units of time.

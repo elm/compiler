@@ -40,40 +40,40 @@ import Graphics.Element (Element)
 import Color (Color, black, Gradient)
 import Maybe (Maybe)
 
-type Form = {
-  theta : Float,
-  scale : Float,
-  x : Float,
-  y : Float,
-  alpha : Float,
-  form : BasicForm
- }
+type alias Form =
+    { theta : Float
+    , scale : Float
+    , x : Float
+    , y : Float
+    , alpha : Float
+    , form : BasicForm
+    }
 
-data FillStyle
-  = Solid Color
-  | Texture String
-  | Grad Gradient
+type FillStyle
+    = Solid Color
+    | Texture String
+    | Grad Gradient
 
 {-| The shape of the ends of a line. -}
-data LineCap = Flat | Round | Padded
+type LineCap = Flat | Round | Padded
 
 {-| The shape of the &ldquo;joints&rdquo; of a line, where each line segment
 meets. `Sharp` takes an argument to limit the length of the joint. This
 defaults to 10.
 -}
-data LineJoin = Smooth | Sharp Float | Clipped
+type LineJoin = Smooth | Sharp Float | Clipped
 
 {-| All of the attributes of a line style. This lets you build up a line style
 however you want. You can also update existing line styles with record updates.
 -}
-type LineStyle = {
-  color : Color,
-  width : Float,
-  cap   : LineCap,
-  join  : LineJoin,
-  dashing    : [Int],
-  dashOffset : Int
- }
+type alias LineStyle =
+    { color : Color
+    , width : Float
+    , cap   : LineCap
+    , join  : LineJoin
+    , dashing : [Int]
+    , dashOffset : Int
+    }
 
 {-| The default line style, which is solid black with flat caps and sharp joints.
 You can use record updates to build the line style you
@@ -82,14 +82,14 @@ want. For example, to make a thicker line, you could say:
         { defaultLine | width <- 10 }
 -}
 defaultLine : LineStyle
-defaultLine = {
-  color = black,
-  width = 1,
-  cap   = Flat,
-  join  = Sharp 10,
-  dashing = [],
-  dashOffset = 0
- }
+defaultLine =
+    { color = black
+    , width = 1
+    , cap   = Flat
+    , join  = Sharp 10
+    , dashing = []
+    , dashOffset = 0
+    }
 
 {-| Create a solid line style with a given color. -}
 solid : Color -> LineStyle
@@ -103,12 +103,12 @@ dashed clr = { defaultLine | color <- clr, dashing <- [8,4] }
 dotted : Color -> LineStyle
 dotted clr = { defaultLine | color <- clr, dashing <- [3,3] }
 
-data BasicForm
-  = FPath LineStyle Path
-  | FShape (Either LineStyle FillStyle) Shape
-  | FImage Int Int (Int,Int) String
-  | FElement Element
-  | FGroup Transform2D [Form]
+type BasicForm
+    = FPath LineStyle Path
+    | FShape (Either LineStyle FillStyle) Shape
+    | FImage Int Int (Int,Int) String
+    | FElement Element
+    | FGroup Transform2D [Form]
 
 form : BasicForm -> Form
 form f = { theta=0, scale=1, x=0, y=0, alpha=1, form=f }
@@ -204,7 +204,7 @@ collage : Int -> Int -> [Form] -> Element
 collage = Native.Graphics.Collage.collage
 
 
-type Path = [(Float,Float)]
+type alias Path = [(Float,Float)]
 
 {-| Create a path that follows a sequence of points. -}
 path : [(Float,Float)] -> Path
@@ -214,7 +214,7 @@ path ps = ps
 segment : (Float,Float) -> (Float,Float) -> Path
 segment p1 p2 = [p1,p2]
 
-type Shape = [(Float,Float)]
+type alias Shape = [(Float,Float)]
 
 {-| Create an arbitrary polygon by specifying its corners in order.
 `polygon` will automatically close all shapes, so the given list

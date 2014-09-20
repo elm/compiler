@@ -40,7 +40,12 @@ dimensions such that the left and right are twice as wide as the top and bottom:
       myDimensions : Int -> Dimensions
       myDimensions n = { left = 2 * n, right = 2 * n, top = n, bottom = n }
 -}
-type Dimensions = { left:Int, right:Int, top:Int, bottom:Int }
+type alias Dimensions =
+    { left:Int
+    , right:Int
+    , top:Int
+    , bottom:Int
+    }
 
 {-| A field can have a outline around it. This lets you set its color, width,
 and radius. The radius allows you to round the corners of your field. Set the
@@ -49,7 +54,11 @@ and thin with slightly rounded corners:
 
       { color = grey, width = uniformly 1, radius = 4 }
 -}
-type Outline = { color:Color, width:Dimensions, radius:Int }
+type alias Outline =
+    { color:Color
+    , width:Dimensions
+    , radius:Int
+    }
 
 {-| An outline with zero width, so you cannot see it. -}
 noOutline : Outline
@@ -62,7 +71,10 @@ is blue and thin:
 
       { color = blue, width = 1 }
 -}
-type Highlight = { color:Color, width:Int }
+type alias Highlight =
+    { color:Color
+    , width:Int
+    }
 
 {-| An highlight with zero width, so you cannot see it. -}
 noHighlight : Highlight
@@ -81,12 +93,12 @@ from the total height to determine how much room there is for text. The
 `padding` and `outline` appear on the top and bottom, so there will be 28
 vertical pixels remaining for the text (40 - 1 - 5 - 5 - 1).
 -}
-type Style =
-  { padding   : Dimensions
-  , outline   : Outline
-  , highlight : Highlight
-  , style     : Text.Style
-  }
+type alias Style =
+    { padding   : Dimensions
+    , outline   : Outline
+    , highlight : Highlight
+    , style     : Text.Style
+    }
 
 {-| The default style for a text field. The outline is `Color.grey` with width
 1 and radius 2. The highlight is `Color.blue` with width 1, and the default
@@ -94,11 +106,11 @@ text color is black.
 -}
 defaultStyle : Style
 defaultStyle =
-  { padding   = uniformly 4
-  , outline   = Outline Color.grey (uniformly 1) 2
-  , highlight = Highlight Color.blue 1
-  , style     = Text.defaultStyle
-  }
+    { padding   = uniformly 4
+    , outline   = Outline Color.grey (uniformly 1) 2
+    , highlight = Highlight Color.blue 1
+    , style     = Text.defaultStyle
+    }
 
 {-| Represents the current content of a text field. For example:
 
@@ -107,7 +119,10 @@ defaultStyle =
 This means the user highlighted the substring `"She"` backwards. The value of
 `content.string` is `"She sells sea shells"`.
 -}
-type Content = { string:String, selection:Selection }
+type alias Content =
+    { string:String
+    , selection:Selection
+    }
 
 {-| The selection within a text field. `start` is never greater than `end`:
 
@@ -116,14 +131,18 @@ type Content = { string:String, selection:Selection }
       Selection 5 9 Backward -- highlighting characters starting after
                              -- the 5th and ending after the 9th
 -}
-type Selection = { start:Int, end:Int, direction:Direction }
+type alias Selection =
+    { start:Int
+    , end:Int
+    , direction:Direction
+    }
 
 {-| The direction of selection. When the user highlights a selection in a text
 field, they must do it in a particular direction. This determines which end of
 the selection moves when they change the selection by pressing Shift-Left or
 Shift-Right.
 -}
-data Direction = Forward | Backward
+type Direction = Forward | Backward
 
 {-| A field with no content:
 

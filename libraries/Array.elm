@@ -25,7 +25,7 @@ import Basics (..)
 import Maybe (..)
 import List
 
-data Array a = Array
+type Array a = Array
 
 {-| Initialize an array. `initialize n f` creates an array of length `n` with
 the element at index `i` initialized to the result of `(f i)`.

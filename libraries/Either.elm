@@ -23,7 +23,9 @@ This can also be used for error handling `(Either String a)` where
 error messages are stored on the left, and the correct values
 (&ldquo;right&rdquo; values) are stored on the right.
 -}
-data Either a b = Left a | Right b
+type Either a b
+    = Left a
+    | Right b
 
 {-| Apply the first function to a `Left` and the second function to a `Right`.
 This allows the extraction of a value from an `Either`.

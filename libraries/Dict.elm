@@ -42,13 +42,10 @@ import List
 import List ((::))
 import Native.Utils
 
-type Fakeout = (Int, Int)
-
-type Another = (Int, Int)
 
 -- BBlack and NBlack should only be used during the deletion
 -- algorithm. Any other occurrence is a bug and should fail an assert.
-data NColor
+type NColor
     = Red
     | Black
     | BBlack  -- Double Black, counts as 2 blacks for the invariant
@@ -63,7 +60,7 @@ showNColor c =
     BBlack -> "BBlack"
     NBlack -> "NBlack"
 
-data LeafColor
+type LeafColor
     = LBlack
     | LBBlack -- Double Black, counts as 2
 
@@ -72,7 +69,7 @@ showLColor c = case c of
   LBlack  -> "LBlack"
   LBBlack -> "LBBlack"
 
-data Dict k v
+type Dict k v
     = RBNode NColor k v (Dict k v) (Dict k v)
     | RBEmpty LeafColor
 
@@ -160,7 +157,6 @@ getOrFail k t =
 
 {-| Determine if a key is in a dictionary. -}
 member : comparable -> Dict comparable v -> Bool
--- Does t contain k?
 member k t = isJust <| get k t
 
 ensureBlackRoot : Dict k v -> Dict k v
@@ -182,7 +178,8 @@ remove : comparable -> Dict comparable v -> Dict comparable v
 remove k t = let u _ = Nothing in
   update k u t
 
-data Flag = Insert | Remove | Same
+type Flag = Insert | Remove | Same
+
 showFlag : Flag -> String
 showFlag f = case f of
   Insert -> "Insert"

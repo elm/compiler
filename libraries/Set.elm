@@ -36,7 +36,7 @@ import Maybe (Maybe)
 import Dict as Dict
 import List as List
 
-type Set t = Dict.Dict t ()
+type alias Set t = Dict.Dict t ()
 
 {-| Create an empty set. -}
 empty : Set comparable
