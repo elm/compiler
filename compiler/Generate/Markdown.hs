@@ -1,39 +1,42 @@
 module Generate.Markdown where
 
-import Text.Pandoc
+import qualified Cheapskate as CS
+import qualified Cheapskate.Html as CS
 import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified Text.Blaze.Html.Renderer.String as Blaze
+import qualified Text.Highlighting.Kate as Kate
+
+import Debug.Trace
+
+(|>) :: a -> (a -> b) -> b
+x |> f = f x
 
 toHtml :: String -> String
-toHtml = writeHtmlString writeOptions . readMarkdown readOptions
+toHtml rawMarkdown =
+    Text.pack rawMarkdown
+        |> CS.markdown options
+        |> CS.walk highlightCode
+        |> CS.renderDoc
+        |> Blaze.renderHtml
 
-readOptions =
-    def { readerExtensions  = elmExtensions
-        , readerApplyMacros = False
-        }
+options :: CS.Options
+options =
+    CS.Options
+    { CS.sanitize = False
+    , CS.allowRawHtml = True
+    , CS.preserveHardBreaks = False
+    , CS.debug = False
+    }
 
-writeOptions =
-    def { writerExtensions = elmExtensions
-        , writerHighlight = True
-        }
+highlightCode :: CS.Block -> CS.Block
+highlightCode block =
+    case block of
+      CS.CodeBlock (CS.CodeAttr lang _info) src ->
+        Kate.highlightAs (Text.unpack lang) (Text.unpack src)
+            |> Kate.formatHtmlBlock Kate.defaultFormatOpts
+            |> Blaze.renderHtml
+            |> Text.pack
+            |> CS.HtmlBlock
 
-elmExtensions :: Set.Set Extension
-elmExtensions = Set.fromList
-  [ Ext_raw_html
-  , Ext_fenced_code_blocks
-  , Ext_fenced_code_attributes
-  , Ext_backtick_code_blocks
-  , Ext_inline_code_attributes
-  , Ext_markdown_in_html_blocks
-  , Ext_escaped_line_breaks
-  , Ext_fancy_lists
-  , Ext_startnum
-  , Ext_definition_lists
-  , Ext_example_lists
-  , Ext_all_symbols_escapable
-  , Ext_intraword_underscores
-  , Ext_blank_before_blockquote
-  , Ext_blank_before_header
-  , Ext_auto_identifiers
-  , Ext_header_attributes
-  , Ext_implicit_header_references
-  ]
+      _ -> block

@@ -15,15 +15,20 @@ Elm.Native.Show.make = function(elm) {
         if (type === "function") {
             var name = v.func ? v.func.name : v.name;
             return '<function' + (name === '' ? '' : ': ') + name + '>';
-        } else if (type === "boolean") {
+        }
+        else if (type === "boolean") {
             return v ? "True" : "False";
-        } else if (type === "number") {
-            return v+"";
-        } else if ((v instanceof String) && v.isChar) {
+        }
+        else if (type === "number") {
+            return v + "";
+        }
+        else if ((v instanceof String) && v.isChar) {
             return "'" + addSlashes(v) + "'";
-        } else if (type === "string") {
+        }
+        else if (type === "string") {
             return '"' + addSlashes(v) + '"';
-        } else if (type === "object" && '_' in v && probablyPublic(v)) {
+        }
+        else if (type === "object" && '_' in v && probablyPublic(v)) {
             var output = [];
             for (var k in v._) {
                 for (var i = v._[k].length; i--; ) {
@@ -34,9 +39,12 @@ Elm.Native.Show.make = function(elm) {
                 if (k === '_') continue;
                 output.push(k + " = " + toString(v[k]));
             }
-            if (output.length === 0) return "{}";
+            if (output.length === 0) {
+                return "{}";
+            }
             return "{ " + output.join(", ") + " }";
-        } else if (type === "object" && 'ctor' in v) {
+        }
+        else if (type === "object" && 'ctor' in v) {
             if (v.ctor.substring(0,6) === "_Tuple") {
                 var output = [];
                 for (var k in v) {
@@ -44,10 +52,12 @@ Elm.Native.Show.make = function(elm) {
                     output.push(toString(v[k]));
                 }
                 return "(" + output.join(",") + ")";
-            } else if (v.ctor === "_Array") {
+            }
+            else if (v.ctor === "_Array") {
                 var list = Array.toList(v);
                 return "Array.fromList " + toString(list);
-            } else if (v.ctor === "::") {
+            }
+            else if (v.ctor === "::") {
                 var output = '[' + toString(v._0);
                 v = v._1;
                 while (v.ctor === "::") {
@@ -55,9 +65,11 @@ Elm.Native.Show.make = function(elm) {
                     v = v._1;
                 }
                 return output + ']';
-            } else if (v.ctor === "[]") {
+            }
+            else if (v.ctor === "[]") {
                 return "[]";
-            } else if (v.ctor === "RBNode" || v.ctor === "RBEmpty") {
+            }
+            else if (v.ctor === "RBNode" || v.ctor === "RBEmpty") {
                 var cons = F3(function(k,v,acc){return NList.Cons(Tuple2(k,v),acc)});
                 var list = A3(Dict.foldr, cons, NList.Nil, v);
                 var name = "Dict";
@@ -66,7 +78,8 @@ Elm.Native.Show.make = function(elm) {
                     list = A2(List.map, function(x){return x._0}, list);
                 }
                 return name + ".fromList " + toString(list);
-            } else {
+            }
+            else {
                 var output = "";
                 for (var i in v) {
                     if (i === 'ctor') continue;
@@ -77,7 +90,9 @@ Elm.Native.Show.make = function(elm) {
                 return v.ctor + output;
             }
         }
-        if (type === 'object' && 'recv' in v) return '<signal>';
+        if (type === 'object' && 'recv' in v) {
+            return '<signal>';
+        }
         return "<internal structure>";
     };
 

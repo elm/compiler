@@ -33,8 +33,8 @@ edges all have width 1:
 uniformly : Int -> Dimensions
 uniformly n = Dimensions n n n n
 
-{-| For setting dimensions of a fields padding or border. The left, right, top,
-and bottom may all have different sizes. The following example creates
+{-| For setting dimensions of a field's padding or outline. The left, right,
+top, and bottom may all have different sizes. The following example creates
 dimensions such that the left and right are twice as wide as the top and bottom:
 
       myDimensions : Int -> Dimensions
@@ -69,8 +69,8 @@ noHighlight : Highlight
 noHighlight = Highlight Color.blue 0
 
 {-| Describe the style of a text box. `style` describes the style of the text
-itself using [`Text.Style`](/Text#Style). `outline` describes the glowing blue
-outline that shows up when the field has focus. `outline` describes the line
+itself using [`Text.Style`](/Text#Style). `highlight` describes the glowing blue
+highlight that shows up when the field has focus. `outline` describes the line
 surrounding the text field, and `padding` adds whitespace between the `outline`
 and the text.
 

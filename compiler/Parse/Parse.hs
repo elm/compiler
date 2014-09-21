@@ -7,8 +7,9 @@ import qualified Data.Map as Map
 import Text.Parsec hiding (newline,spaces)
 import qualified Text.PrettyPrint as P
 
-import qualified SourceSyntax.Declaration as D
-import qualified SourceSyntax.Module as M
+import qualified AST.Declaration as D
+import qualified AST.Module as M
+import qualified AST.Variable as Var
 import Parse.Helpers
 import Parse.Declaration (infixDecl)
 import Parse.Module
@@ -22,21 +23,24 @@ freshDef = commitIf (freshLine >> (letter <|> char '_')) $ do
 decls = do d <- Decl.declaration <?> "at least one datatype or variable definition"
            (d:) <$> many freshDef
 
-program :: OpTable -> String -> Either [P.Doc] (M.Module D.Declaration)
+program :: OpTable -> String -> Either [P.Doc] M.ValidModule
 program table src =
-    do (M.Module names exs ims parseDecls) <- setupParserWithTable table programParser src
-       decls <- either (\err -> Left [P.text err]) Right (combineAnnotations parseDecls)
-       return $ M.Module names exs ims decls
+    do (M.Module names filePath exs ims parseDecls) <-
+           setupParserWithTable table programParser src
+       decls <-
+           either (\err -> Left [P.text err]) Right (combineAnnotations parseDecls)
+       return $ M.Module names filePath exs ims decls
 
-programParser :: IParser (M.Module D.ParseDeclaration)
+programParser :: IParser M.SourceModule
 programParser =
     do optional freshLine
-       (names,exports) <- option (["Main"],[]) (moduleDef `followedBy` freshLine)
+       (names,exports) <-
+           option (["Main"], Var.openListing) (moduleDef `followedBy` freshLine)
        is <- (do try (lookAhead $ reserved "import")
                  imports `followedBy` freshLine) <|> return []
        declarations <- decls
        optional freshLine ; optional spaces ; eof
-       return $ M.Module names exports is declarations
+       return $ M.Module names "" exports is declarations
 
 dependencies :: String -> Either [P.Doc] (String, [String])
 dependencies =

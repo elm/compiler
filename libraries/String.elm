@@ -71,6 +71,7 @@ concat = Native.String.concat
 {-| Get the length of a string.
 
       length "innumerable" == 11
+      length "" == 0
 
 -}
 length : String -> Int
@@ -123,6 +124,7 @@ split = Native.String.split
 
 {-| Put many strings together with a given separator.
 
+      join "a" ["H","w","ii","n"]        == "Hawaiian"
       join " " ["cat","dog","cow"]       == "cat dog cow"
       join "/" ["home","evan","Desktop"] == "home/evan/Desktop"
 -}
@@ -204,7 +206,7 @@ trim = Native.String.trim
 trimLeft : String -> String
 trimLeft = Native.String.trimLeft
 
-{-| Get rid of whitespace on the left of a string.
+{-| Get rid of whitespace on the right of a string.
 
       trimRight "  hats  \n" == "  hats"
 -}
@@ -220,7 +222,7 @@ words = Native.String.words
 
 {-| Break a string into lines, splitting on newlines.
 
-      lines "How are you?\nGood? == ["How are you?", "Good?"]
+      lines "How are you?\nGood?" == ["How are you?", "Good?"]
 -}
 lines : String -> [String]
 lines = Native.String.lines
@@ -253,7 +255,7 @@ any = Native.String.any
 all : (Char -> Bool) -> String -> Bool
 all = Native.String.all
 
-{-| See if a string contains another one.
+{-| See if the second string contains the first one.
 
       contains "the" "theory" == True
       contains "hat" "theory" == False
@@ -264,7 +266,7 @@ Use `Regex.contains` if you need something more flexible.
 contains : String -> String -> Bool
 contains = Native.String.contains
 
-{-| See if a string starts with another one.
+{-| See if the second string starts with the first one.
 
       startsWith "the" "theory" == True
       startsWith "ory" "theory" == False
@@ -272,7 +274,7 @@ contains = Native.String.contains
 startsWith : String -> String -> Bool
 startsWith = Native.String.startsWith
 
-{-| See if a string ends with another one.
+{-| See if the second string ends with the first one.
 
       endsWith "the" "theory" == False
       endsWith "ory" "theory" == True
@@ -280,7 +282,7 @@ startsWith = Native.String.startsWith
 endsWith : String -> String -> Bool
 endsWith = Native.String.endsWith
 
-{-| Get all of the indexes for a substring.
+{-| Get all of the indexes for a substring in another string.
 
       indexes "i" "Mississippi"   == [1,4,7,10]
       indexes "ss" "Mississippi"  == [2,5]

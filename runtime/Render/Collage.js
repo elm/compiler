@@ -21,7 +21,7 @@ function trace(ctx, path) {
 }
 
 function line(ctx,style,path) {
-    style.dashing.ctor === 'Nil' ? trace(ctx, path) : customLineHelp(ctx, style, path);
+    style.dashing.ctor === '[]' ? trace(ctx, path) : customLineHelp(ctx, style, path);
     ctx.scale(1,-1);
     ctx.stroke();
 }
@@ -301,7 +301,7 @@ function nodeStepper(w,h,div) {
             : (Render.update(kid, kid.oldElement, elem), kids[i]);
 
         node.style.position = 'absolute';
-        node.style.opacity = alpha * form.alpha;
+        node.style.opacity = alpha * form.alpha * elem.props.opacity;
         addTransform(node.style, makeTransform(w, h, form, matrices));
         node.oldElement = elem;
         ++i;

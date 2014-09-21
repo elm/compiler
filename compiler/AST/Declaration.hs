@@ -1,16 +1,19 @@
 {-# OPTIONS_GHC -Wall #-}
-module SourceSyntax.Declaration where
+module AST.Declaration where
 
 import Data.Binary
-import qualified SourceSyntax.Expression as Expr
-import qualified SourceSyntax.Type as T
-import SourceSyntax.PrettyPrint
+import qualified AST.Expression.Source as Source
+import qualified AST.Expression.Valid as Valid
+import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Type as T
+import qualified AST.Variable as Var
+import AST.PrettyPrint
 import Text.PrettyPrint as P
 
-data Declaration' port def
+data Declaration' port def var
     = Definition def
-    | Datatype String [String] [(String,[T.Type])]
-    | TypeAlias String [String] T.Type
+    | Datatype String [String] [(String, [T.Type var])]
+    | TypeAlias String [String] (T.Type var)
     | Port port
     | Fixity Assoc Int String
       deriving (Show)
@@ -18,24 +21,27 @@ data Declaration' port def
 data Assoc = L | N | R
     deriving (Eq)
 
-data ParsePort
-    = PPAnnotation String T.Type
-    | PPDef String Expr.ParseExpr
+data RawPort
+    = PPAnnotation String T.RawType
+    | PPDef String Source.Expr
       deriving (Show)
 
-data Port
-    = Out String Expr.Expr T.Type
-    | In String T.Type
+data Port expr var
+    = Out String expr (T.Type var)
+    | In String (T.Type var)
       deriving (Show)
 
-portName :: Port -> String
+type SourceDecl    = Declaration' RawPort Source.Def Var.Raw
+type ValidDecl     = Declaration' (Port Valid.Expr Var.Raw) Valid.Def Var.Raw
+type CanonicalDecl = Declaration' (Port Canonical.Expr Var.Canonical)
+                                  Canonical.Def
+                                  Var.Canonical
+
+portName :: Port expr var -> String
 portName port =
     case port of
       Out name _ _ -> name
       In name _ -> name
-
-type ParseDeclaration = Declaration' ParsePort Expr.ParseDef
-type Declaration = Declaration' Port Expr.Def
 
 instance Show Assoc where
     show assoc =
@@ -54,7 +60,8 @@ instance Binary Assoc where
 
     put assoc = putWord8 $ case assoc of { L -> 0 ; N -> 1 ; R -> 2 }
 
-instance (Pretty port, Pretty def) => Pretty (Declaration' port def) where
+instance (Pretty port, Pretty def, Pretty var, Var.ToString var) =>
+    Pretty (Declaration' port def var) where
   pretty decl =
     case decl of
       Definition def -> pretty def
@@ -81,13 +88,13 @@ instance (Pretty port, Pretty def) => Pretty (Declaration' port def) where
                        N -> P.empty
                        R -> P.text "r"
 
-instance Pretty ParsePort where
+instance Pretty RawPort where
   pretty port =
     case port of
       PPAnnotation name tipe -> prettyPort name ":"  tipe
       PPDef        name expr -> prettyPort name "=" expr
 
-instance Pretty Port where
+instance (Pretty expr, Pretty var, Var.ToString var) => Pretty (Port expr var) where
   pretty port =
     case port of
       In name tipe -> prettyPort name ":" tipe

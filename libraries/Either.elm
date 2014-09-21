@@ -14,8 +14,9 @@ module Either where
 -}
 
 import List
+import List ((::))
 
-{-| Represents any data may take two forms. For example, a user ID may be
+{-| Represents any data that can take two forms. For example, a user ID may be
 either an `Int` or a `String`.
 
 This can also be used for error handling `(Either String a)` where

@@ -1,11 +1,13 @@
 
-module Set (empty,singleton,insert,remove
-           ,member
-           ,foldl,foldr,map
-           ,filter,partition
-           ,union,intersect,diff
-           ,toList,fromList
-           ) where
+module Set
+    ( Set
+    , empty, singleton, insert, remove
+    , member
+    , foldl, foldr, map
+    , filter, partition
+    , union, intersect, diff
+    , toList, fromList
+    ) where
 
 {-| A set of unique values. The values can be any comparable type. This
 includes `Int`, `Float`, `Time`, `Char`, `String`, and tuples or lists

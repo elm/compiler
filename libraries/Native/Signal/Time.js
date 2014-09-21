@@ -12,11 +12,15 @@ Elm.Native.Time.make = function(elm) {
 
   function fpsWhen(desiredFPS, isOn) {
     var msPerFrame = 1000 / desiredFPS;
-    var prev = Date.now(), curr = prev, diff = 0, wasOn = true;
-    var ticker = Signal.constant(diff);
-    function tick(zero) { return function() {
-        curr = Date.now();
+    var prev = elm.timer.now(), curr = prev, diff = 0, wasOn = true;
+    var ticker = NS.input(diff);
+    function tick(zero) {
+      return function() {
+        curr = elm.timer.now();
         diff = zero ? 0 : curr - prev;
+        if (prev > curr) {
+          diff = 0;
+        }
         prev = curr;
         elm.notify(ticker.id, diff);
       };
@@ -24,7 +28,7 @@ Elm.Native.Time.make = function(elm) {
     var timeoutID = 0;
     function f(isOn, t) {
       if (isOn) {
-        timeoutID = setTimeout(tick(!wasOn && isOn), msPerFrame);
+        timeoutID = elm.setTimeout(tick(!wasOn && isOn), msPerFrame);
       } else if (wasOn) {
         clearTimeout(timeoutID);
       }
@@ -35,10 +39,11 @@ Elm.Native.Time.make = function(elm) {
   }
 
   function every(t) {
-    var clock = Signal.constant(Date.now());
-    setInterval(function() {
-        elm.notify(clock.id, Date.now());
-    }, t);
+    var clock = NS.input(elm.timer.now());
+    function tellTime() {
+        elm.notify(clock.id, elm.timer.now());
+    }
+    setInterval(tellTime, t);
     return clock;
   }
 

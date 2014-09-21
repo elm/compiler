@@ -3,44 +3,52 @@ ElmRuntime.Render.Element = function() {
 'use strict';
 
 var Utils = ElmRuntime.use(ElmRuntime.Render.Utils);
-var newElement = Utils.newElement, colorToCss = Utils.colorToCss,
-    addTransform = Utils.addTransform, removeTransform = Utils.removeTransform,
-    fromList = Utils.fromList, eq = Utils.eq;
+var newElement = Utils.newElement;
+var colorToCss = Utils.colorToCss;
+var addTransform = Utils.addTransform;
+var removeTransform = Utils.removeTransform;
+var fromList = Utils.fromList;
+var eq = Utils.eq;
 
-function setProps(elem, e) {
+function setProps(elem, node) {
     var props = elem.props;
+
     var element = elem.element;
     var width = props.width - (element.adjustWidth || 0);
     var height = props.height - (element.adjustHeight || 0);
-    e.style.width  = (width |0) + 'px';
-    e.style.height = (height|0) + 'px';
+    node.style.width  = (width |0) + 'px';
+    node.style.height = (height|0) + 'px';
+
     if (props.opacity !== 1) {
-        e.style.opacity = props.opacity;
+        node.style.opacity = props.opacity;
     }
+
     if (props.color.ctor === 'Just') {
-        e.style.backgroundColor = colorToCss(props.color._0);
+        node.style.backgroundColor = colorToCss(props.color._0);
     }
-    if (props.tag !== '') { e.id = props.tag; }
-    if (props.href !== '') {
-        var a = newElement('a');
-        a.href = props.href;
-        a.style.width = '100%';
-        a.style.height = '100%';
-        a.style.top = 0;
-        a.style.left = 0;
-        a.style.display = 'block';
-        a.style.position = 'absolute';
-        e.style.position = 'relative';
-        a.style.pointerEvents = 'auto';
-        e.appendChild(a);
+
+    if (props.tag !== '') {
+        node.id = props.tag;
     }
+
     if (props.hover.ctor !== '_Tuple0') {
-        addHover(e, props.hover);
+        addHover(node, props.hover);
     }
+
     if (props.click.ctor !== '_Tuple0') {
-        addClick(e, props.click);
+        addClick(node, props.click);
     }
-    return e;
+
+    if (props.href !== '') {
+        var anchor = newElement('a');
+        anchor.href = props.href;
+        anchor.style.display = 'block';
+        anchor.style.pointerEvents = 'auto';
+        anchor.appendChild(node);
+        node = anchor;
+    }
+
+    return node;
 }
 
 function addClick(e, handler) {
@@ -57,6 +65,8 @@ function addClick(e, handler) {
 function removeClick(e, handler) {
     if (e.elm_click_trigger) {
         e.removeEventListener('click', e.elm_click_trigger);
+        e.elm_click_trigger = null;
+        e.elm_click_handler = null;
     }
 }
 
@@ -83,11 +93,14 @@ function addHover(e, handler) {
 }
 
 function removeHover(e) {
+    e.elm_hover_handler = null;
     if (e.elm_hover_over) {
         e.removeEventListener('mouseover', e.elm_hover_over);
+        e.elm_hover_over = null;
     }
     if (e.elm_hover_out) {
         e.removeEventListener('mouseout', e.elm_hover_out);
+        e.elm_hover_out = null;
     }
 }
 
@@ -248,7 +261,9 @@ function rawHtml(elem) {
     return div;
 }
 
-function render(elem) { return setProps(elem, makeElement(elem)); }
+function render(elem) {
+    return setProps(elem, makeElement(elem));
+}
 function makeElement(e) {
     var elem = e.element;
     switch(elem.ctor) {
@@ -262,8 +277,12 @@ function makeElement(e) {
 }
 
 function update(node, curr, next) {
-    if (node.tagName === 'A') { node = node.firstChild; }
-    if (curr.props.id === next.props.id) return updateProps(node, curr, next);
+    if (node.tagName === 'A') {
+        node = node.firstChild;
+    }
+    if (curr.props.id === next.props.id) {
+        return updateProps(node, curr, next);
+    }
     if (curr.element.ctor !== next.element.ctor) {
         node.parentNode.replaceChild(render(next),node);
         return true;
@@ -354,61 +373,94 @@ function update(node, curr, next) {
 }
 
 function updateProps(node, curr, next) {
-    var props = next.props;
-    var currP = curr.props;
-    var e = node;
+    var nextProps = next.props;
+    var currProps = curr.props;
+
     var element = next.element;
-    var width = props.width - (element.adjustWidth || 0);
-    var height = props.height - (element.adjustHeight || 0);
-    if (width !== currP.width) {
-        e.style.width = (width|0) + 'px';
+    var width = nextProps.width - (element.adjustWidth || 0);
+    var height = nextProps.height - (element.adjustHeight || 0);
+    if (width !== currProps.width) {
+        node.style.width = (width|0) + 'px';
     }
-    if (height !== currP.height) {
-        e.style.height = (height|0) + 'px';
+    if (height !== currProps.height) {
+        node.style.height = (height|0) + 'px';
     }
-    if (props.opacity !== currP.opacity) {
-        e.style.opacity = props.opacity;
+
+    if (nextProps.opacity !== currProps.opacity) {
+        node.style.opacity = nextProps.opacity;
     }
-    var nextColor = (props.color.ctor === 'Just' ?
-                     colorToCss(props.color._0) : '');
-    if (e.style.backgroundColor !== nextColor) {
-        e.style.backgroundColor = (nextColor === '' ? 'transparent' : nextColor);
+
+    var nextColor = nextProps.color.ctor === 'Just'
+        ? colorToCss(nextProps.color._0)
+        : 'transparent';
+    if (node.style.backgroundColor !== nextColor) {
+        node.style.backgroundColor = nextColor;
     }
-    if (props.tag !== currP.tag) { e.id = props.tag; }
-    if (props.href !== currP.href) {
-        if (currP.href === '') {
-            var a = newElement('a');
-            a.href = props.href;
-            a.style.width = '100%';
-            a.style.height = '100%';
-            a.style.top = 0;
-            a.style.left = 0;
-            a.style.display = 'block';
-            a.style.position = 'absolute';
-            e.style.position = 'relative';
-            a.style.pointerEvents = 'auto';
-            e.appendChild(a);
+
+    if (nextProps.tag !== currProps.tag) {
+        node.id = nextProps.tag;
+    }
+
+    if (nextProps.href !== currProps.href) {
+        if (currProps.href === '') {
+            // add a surrounding href
+            var anchor = newElement('a');
+            anchor.href = nextProps.href;
+            anchor.style.display = 'block';
+            anchor.style.pointerEvents = 'auto';
+
+            node.parentNode.replaceChild(anchor, node);
+            anchor.appendChild(node);
+        } else if (nextProps.href === '') {
+            // remove the surrounding href
+            var anchor = node.parentNode;
+            anchor.parentNode.replaceChild(node, anchor);
         } else {
-            node.lastNode.href = props.href;
+            // just update the link
+            node.parentNode.href = nextProps.href;
         }
     }
 
+    // update click and hover handlers
+    var removed = false;
+
     // update hover handlers
-    if (props.hover.ctor === '_Tuple0') {
-        removeHover(e);
-    } else if (e.elm_hover_handler) {
-        e.elm_hover_handler = props.hover;
-    } else {
-        addHover(e, props.hover);
+    if (currProps.hover.ctor === '_Tuple0') {
+        if (nextProps.hover.ctor !== '_Tuple0') {
+            addHover(node, nextProps.hover);
+        }
+    }
+    else {
+        if (nextProps.hover.ctor === '_Tuple0') {
+            removed = true;
+            removeHover(node);
+        }
+        else {
+            node.elm_hover_handler = nextProps.hover;
+        }
     }
 
     // update click handlers
-    if (props.click.ctor === '_Tuple0') {
-        removeClick(e);
-    } else if (e.elm_click_handler) {
-        e.elm_click_handler = props.click;
-    } else {
-        addClick(e, props.click);
+    if (currProps.click.ctor === '_Tuple0') {
+        if (nextProps.click.ctor !== '_Tuple0') {
+            addClick(node, nextProps.click);
+        }
+    }
+    else {
+        if (nextProps.click.ctor === '_Tuple0') {
+            removed = true;
+            removeClick(node);
+        } else {
+            node.elm_click_handler = nextProps.click;
+        }
+    }
+
+    // stop capturing clicks if 
+    if (removed
+        && nextProps.hover.ctor === '_Tuple0'
+        && nextProps.click.ctor === '_Tuple0')
+    {
+        node.style.pointerEvents = 'none';
     }
 }
 

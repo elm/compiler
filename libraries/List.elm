@@ -10,22 +10,35 @@ list must have the same type.
 @docs head, tail, last, filter, take, drop
 
 # Putting Lists Together
-@docs concat, concatMap, join, intersperse, zip, zipWith, repeat
+@docs concat, join, intersperse, zip, zipWith, repeat
 
 # Taking Lists Apart
 @docs partition, unzip
 
 # Folds
-@docs foldr, foldl, foldr1, foldl1, scanl, scanl1
+@docs foldr, foldl
+
+# Special Maps
+@docs filterMap, concatMap, indexedMap
 
 # Special Folds
-@docs sum, product, maximum, minimum, all, any, and, or
+@docs sum, product, maximum, minimum, all, any, foldr1, foldl1, scanl, scanl1
 
 # Sorting
 @docs sort, sortBy, sortWith
+
+# Additional Zips
+@docs zip3, zip4, zip5, zipWith3, zipWith4, zipWith5
+
+If you can think of a legitimate use of `zipN` or `zipWithN` where `N` is 6 or
+more, please let us know on [the
+list](https://groups.google.com/forum/#!forum/elm-discuss). The current
+sentiment is that it is already quite error prone once you get to 4 and
+possibly should be approached another way.
 -}
 
 import Basics (..)
+import Maybe ( Maybe(Just,Nothing) )
 import Native.List
 
 {-| Add an element to the front of a list `(1 :: [2,3] == [1,2,3])` -}
@@ -72,6 +85,15 @@ isEmpty xs =
 map : (a -> b) -> [a] -> [b]
 map = Native.List.map
 
+{-| Same as `map` but the function is also applied to the index of each
+element (starting at zero).
+
+      indexedMap (,) ["Tom","Sue","Bob"] == [ (0,"Tom"), (1,"Sue"), (2,"Bob") ]
+-}
+indexedMap : (Int -> a -> b) -> [a] -> [b]
+indexedMap f xs =
+    zipWith f [ 0 .. length xs - 1 ] xs
+
 {-| Reduce a list from the left: `(foldl (::) [] [1,2,3] == [3,2,1])` -}
 foldl : (a -> b -> b) -> b -> [a] -> b
 foldl = Native.List.foldl
@@ -108,6 +130,22 @@ scanl1 = Native.List.scanl1
 filter : (a -> Bool) -> [a] -> [a]
 filter = Native.List.filter
 
+{-| Apply a function that may succeed to all values in the list, but only keep
+the successes.
+
+      toInt : String -> Maybe Int
+
+      filterMap toInt ["3", "4.0", "5", "hats"] == [3,5]
+-}
+filterMap : (a -> Maybe b) -> [a] -> [b]
+filterMap f xs = foldr (maybeCons f) [] xs
+
+maybeCons : (a -> Maybe b) -> a -> [b] -> [b]
+maybeCons f mx xs =
+    case f mx of
+      Just x -> x :: xs
+      Nothing -> xs
+
 {-| Determine the length of a list: `(length [1,2,3] == 3)` -}
 length : [a] -> Int
 length = Native.List.length
@@ -123,14 +161,6 @@ all = Native.List.all
 {-| Check to see if any elements satisfy the predicate. -}
 any : (a -> Bool) -> [a] -> Bool
 any = Native.List.any
-
-{-| Check to see if all elements are True. -}
-and : [Bool] -> Bool
-and = foldl (&&) True
-
-{-| Check to see if any elements are True. -}
-or : [Bool] -> Bool
-or = foldl (||) False
 
 {-| Concatenate a list of appendable things:
 
@@ -186,6 +216,15 @@ If one list is longer, the extra elements are dropped.
 zip : [a] -> [b] -> [(a,b)]
 zip = Native.List.zip
 
+zip3 : [a] -> [b] -> [c] -> [(a,b,c)]
+zip3 = Native.List.zipWith3 (,,)
+
+zip4 : [a] -> [b] -> [c] -> [d] -> [(a,b,c,d)]
+zip4 = Native.List.zipWith4 (,,,)
+
+zip5 : [a] -> [b] -> [c] -> [d] -> [e] -> [(a,b,c,d,e)]
+zip5 = Native.List.zipWith5 (,,,,)
+
 {-| Combine two lists, combining them with the given function.
 If one list is longer, the extra elements are dropped.
 
@@ -193,6 +232,15 @@ If one list is longer, the extra elements are dropped.
 -}
 zipWith : (a -> b -> c) -> [a] -> [b] -> [c]
 zipWith = Native.List.zipWith
+
+zipWith3 : (a -> b -> c -> x) -> [a] -> [b] -> [c] -> [x]
+zipWith3 = Native.List.zipWith3
+
+zipWith4 : (a -> b -> c -> d -> x) -> [a] -> [b] -> [c] -> [d] -> [x]
+zipWith4 = Native.List.zipWith4
+
+zipWith5 : (a -> b -> c -> d -> e -> x) -> [a] -> [b] -> [c] -> [d] -> [e] -> [x]
+zipWith5 = Native.List.zipWith5
 
 {-| Decompose a list of tuples. 
 

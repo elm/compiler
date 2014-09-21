@@ -11,7 +11,7 @@ import Type.Type
 import Type.Unify
 import qualified Type.ExtraChecks as Check
 import qualified Type.State as TS
-import qualified SourceSyntax.Annotation as A
+import qualified AST.Annotation as A
 
 
 -- | Every variable has rank less than or equal to the maxRank of the pool.
@@ -21,9 +21,9 @@ generalize youngPool = do
   youngMark <- TS.uniqueMark 
   let youngRank = TS.maxRank youngPool
       insert dict var = do
-        desc <- liftIO $ UF.descriptor var
+        descriptor <- liftIO $ UF.descriptor var
         liftIO $ UF.modifyDescriptor var (\desc -> desc { mark = youngMark })
-        return $ Map.insertWith (++) (rank desc) [var] dict
+        return $ Map.insertWith (++) (rank descriptor) [var] dict
 
   -- Sort the youngPool variables by rank.
   rankDict <- foldM insert Map.empty (TS.inhabitants youngPool)
@@ -32,7 +32,8 @@ generalize youngPool = do
   -- start at low ranks so that we only have to pass
   -- over the information once.
   visitedMark <- TS.uniqueMark
-  mapM (\(poolRank, vars) -> mapM (adjustRank youngMark visitedMark poolRank) vars) (Map.toList rankDict)
+  forM (Map.toList rankDict) $ \(poolRank, vars) ->
+      mapM (adjustRank youngMark visitedMark poolRank) vars
 
   -- For variables that have rank lowerer than youngRank, register them in
   -- the old pool if they are not redundant.
@@ -64,35 +65,38 @@ generalize youngPool = do
 -- adjust the ranks of variables such that ranks never increase as you
 -- move deeper into a variable.
 adjustRank :: Int -> Int -> Int -> Variable -> StateT TS.SolverState IO Int
-adjustRank youngMark visitedMark groupRank variable =
-    let adjust = adjustRank youngMark visitedMark groupRank in
-    do desc <- liftIO $ UF.descriptor variable
+adjustRank youngMark visitedMark groupRank var =
+    do descriptor <- liftIO $ UF.descriptor var
        case () of
-         () | mark desc == youngMark ->
+         () | mark descriptor == youngMark ->
                 do -- Set the variable as marked first because it may be cyclic.
-                   liftIO $ UF.modifyDescriptor variable $ \desc -> desc { mark = visitedMark }
-                   rank' <- case structure desc of
-                              Nothing -> return groupRank
-                              Just term ->
-                                  case term of
-                                    App1 a b -> max `liftM` adjust a `ap` adjust b
-                                    Fun1 a b -> max `liftM` adjust a `ap` adjust b
-                                    Var1 x -> adjust x
-                                    EmptyRecord1 -> return outermostRank
-                                    Record1 fields extension ->
-                                        do ranks <- mapM adjust (concat (Map.elems fields))
-                                           rnk <- adjust extension
-                                           return . maximum $ rnk : ranks
-                   liftIO $ UF.modifyDescriptor variable $ \desc -> desc { rank = rank' }
+                   liftIO $ UF.modifyDescriptor var $ \desc ->
+                       desc { mark = visitedMark }
+                   rank' <- maybe (return groupRank) adjustTerm (structure descriptor)
+                   liftIO $ UF.modifyDescriptor var $ \desc ->
+                       desc { rank = rank' }
                    return rank'
 
-            | mark desc /= visitedMark ->
-                do let rank' = min groupRank (rank desc)
-                   liftIO $ UF.setDescriptor variable (desc { mark = visitedMark, rank = rank' })
+            | mark descriptor /= visitedMark ->
+                do let rank' = min groupRank (rank descriptor)
+                   liftIO $ UF.setDescriptor var (descriptor { mark = visitedMark, rank = rank' })
                    return rank'
 
-            | otherwise -> return (rank desc)
+            | otherwise -> return (rank descriptor)
 
+    where
+      adjust = adjustRank youngMark visitedMark groupRank
+
+      adjustTerm term =
+          case term of
+            App1 a b -> max `liftM` adjust a `ap` adjust b
+            Fun1 a b -> max `liftM` adjust a `ap` adjust b
+            Var1 x -> adjust x
+            EmptyRecord1 -> return outermostRank
+            Record1 fields extension ->
+                do ranks <- mapM adjust (concat (Map.elems fields))
+                   rnk <- adjust extension
+                   return . maximum $ rnk : ranks
 
 
 solve :: TypeConstraint -> StateT TS.SolverState IO ()
@@ -129,7 +133,7 @@ solve (A.A region constraint) =
             case Map.lookup name env of
               Just tipe -> TS.makeInstance tipe
               Nothing
-                | List.isPrefixOf "Native." name -> liftIO (var Flexible)
+                | List.isPrefixOf "Native." name -> liftIO (variable Flexible)
                 | otherwise ->
                     error ("Could not find '" ++ name ++ "' when solving type constraints.")
 

@@ -22,7 +22,7 @@ are your tuples so big?
 @docs not, (&&), (||), xor, otherwise
 
 # Mathematics
-@docs (+), (-), (*), (/), (^), div, rem, mod, abs, sqrt, clamp, logBase, e
+@docs (+), (-), (*), (/), (^), (//), rem, (%), negate, abs, sqrt, clamp, logBase, e
 
 # Trigonometry
 @docs pi, cos, sin, tan, acos, asin, atan, atan2
@@ -46,7 +46,7 @@ which happen to be radians.
 @docs fst, snd
 
 # Higher-Order Helpers
-@docs id, (<|), (|>), (.), always, flip, curry, uncurry
+@docs identity, always, (<|), (|>), (<<), (>>), flip, curry, uncurry
 
 -}
 
@@ -58,25 +58,25 @@ radians t = t
 
 {-| Convert degrees to standard Elm angles (radians). -}
 degrees : Float -> Float
-degrees d = d * Native.Basics.pi / 180
+degrees = Native.Basics.degrees
 
 {-| Convert turns to standard Elm angles (radians).
 One turn is equal to 360&deg;.
 -}
 turns : Float -> Float
-turns r = 2 * Native.Basics.pi * r
+turns = Native.Basics.turns
 
 {-| Start with polar coordinates (r,&theta;)
 and get out cartesian coordinates (x,y).
 -}
 fromPolar : (Float,Float) -> (Float,Float)
-fromPolar (r,t) = (r * Native.Basics.cos t, r * Native.Basics.sin t)
+fromPolar = Native.Basics.fromPolar
 
 {-| Start with cartesian coordinates (x,y)
 and get out polar coordinates (r,&theta;).
 -}
 toPolar : (Float,Float) -> (Float,Float)
-toPolar (x,y) = (Native.Basics.sqrt (x^2 + y^2), Native.Basics.atan2 y x)
+toPolar = Native.Basics.toPolar
 
 (+) : number -> number -> number
 (+) = Native.Basics.add
@@ -97,21 +97,29 @@ infixl 7 *
 infixl 7 /
 infixl 8 ^
 
-infixl 7 `div`
-infixl 7 `mod`
+infixl 7 //
+infixl 7 %
 infixl 7 `rem`
 
 {-| Integer division, remainder is discarded. -}
-div : Int -> Int -> Int
-div = Native.Basics.div
+(//) : Int -> Int -> Int
+(//) = Native.Basics.div
 
-{-| Finds the remainder after dividing one number by another: ``4 `rem` 3 == 1`` -}
+{-| Finds the remainder after dividing one number by another:
+
+       7 `rem` 2 == 1
+      -1 `rem` 4 == 1
+-}
 rem : Int -> Int -> Int
 rem = Native.Basics.rem
 
-{-| Perform modular arithmetic: ``7 `mod` 2 == 1`` -}
-mod : Int -> Int -> Int
-mod = Native.Basics.mod
+{-| Perform [modular arithmetic](http://en.wikipedia.org/wiki/Modular_arithmetic):
+
+       7 % 2 == 1
+      -1 % 4 == 3
+-}
+(%) : Int -> Int -> Int
+(%) = Native.Basics.mod
 
 {-| Exponentiation: `3^2 == 9` -}
 (^) : number -> number -> number
@@ -150,15 +158,19 @@ atan2 : Float -> Float -> Float
 atan2 = Native.Basics.atan2
 
 {-| Take the square root of a number. -}
-sqrt : number -> number
+sqrt : Float -> Float
 sqrt = Native.Basics.sqrt
+
+{-| Negate any number: `negate 42 == -42` -}
+negate : number -> number
+negate = Native.Basics.negate
 
 {-| Take the absolute value of a number. -}
 abs : number -> number
 abs = Native.Basics.abs
 
 {-| Calculate the logarithm of a number with a given base: `logBase 10 100 == 2` -}
-logBase : number -> number -> number
+logBase : Float -> Float -> Float
 logBase = Native.Basics.logBase
 
 {-| Clamps a number within a given range. With the expression
@@ -301,9 +313,32 @@ isInfinite = Native.Basics.isInfinite
 
 -- Function Helpers
 
-{-| Function composition: `(f . g == (\\x -> f (g x)))` -}
-(.) : (b -> c) -> (a -> b) -> (a -> c)
-(.) f g x = f (g x)
+{-| Function composition, passing results along in the suggested direction. For
+example, the following code checks if the square root of a number is odd:
+
+      not << isEven << sqrt
+
+You can think of this operator as equivalent to the following:
+
+      (g << f)  ==  (\x -> g (f x))
+
+So our example expands out to something like this:
+
+      \n -> not (isEven (sqrt n))
+-}
+(<<) : (b -> c) -> (a -> b) -> (a -> c)
+(<<) g f x = g (f x)
+
+{-| Function composition, passing results along in the suggested direction. For
+example, the following code checks if the square root of a number is odd:
+
+      sqrt >> isEven >> not
+
+This direction of function composition seems less pleasant than `(<<)` which
+reads nicely in expressions like: `filter (not << isRegistered) students`
+-}
+(>>) : (a -> b) -> (b -> c) -> (a -> c)
+(>>) f g x = g (f x)
 
 {-| Forward function application `x |> f == f x`. This function is useful
 for avoiding parenthesis and writing code in a more natural way.
@@ -332,13 +367,16 @@ This can also be written as:
 (<|) : (a -> b) -> a -> b
 f <| x = f x
 
-infixr 9 .
+infixr 9 <<
+infixl 9 >>
 infixr 0 <|
 infixl 0 |>
 
-{-| Given a value, returns exactly the same value. -}
-id : a -> a
-id x = x
+{-| Given a value, returns exactly the same value. This is called
+[the identity function](http://en.wikipedia.org/wiki/Identity_function).
+-}
+identity : a -> a
+identity x = x
 
 {-| Creates a [constant function](http://en.wikipedia.org/wiki/Constant_function),
 a function that *always* returns the same value regardless of what input you give.

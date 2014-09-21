@@ -128,7 +128,7 @@ Elm.Native.Signal.make = function(elm) {
   }
 
   function timestamp(a) {
-    function update() { return Utils.Tuple2(Date.now(), a.value); }
+    function update() { return Utils.Tuple2(elm.timer.now(), a.value); }
     return new LiftN(update, [a]);
   }
 
@@ -199,6 +199,7 @@ Elm.Native.Signal.make = function(elm) {
   function merges(ss) { return A2(foldr1, F2(merge), ss); }
 
   return elm.Native.Signal.values = {
+    input: function(v) { return new Input(v); },
     constant : function(v) { return new Input(v); },
     lift  : F2(lift ),
     lift2 : F3(lift2),

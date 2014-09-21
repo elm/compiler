@@ -1,4 +1,8 @@
-module Transform2D where
+module Transform2D ( Transform2D
+                   , identity, matrix, multiply
+                   , rotation, translation
+                   , scale, scaleX, scaleY
+                   ) where
 {-| A library for performing [2D matrix transformations][affine].
 It is used primarily with the `groupTransform` function from `Graphics.Collage` and
 allows you to do things like rotation, scaling, translation, shearing, and reflection.

@@ -5,42 +5,24 @@ import System.Exit (exitFailure)
 
 import qualified Data.Map as Map
 import qualified Data.List as List
-import qualified SourceSyntax.Type as T
-import qualified SourceSyntax.Module as M
-import qualified SourceSyntax.PrettyPrint as Pretty
-import qualified Type.Alias as Alias
+import qualified AST.Module as Module
+import qualified AST.PrettyPrint as Pretty
 import qualified Text.PrettyPrint as P
 
-metaTypes :: Map.Map String M.ModuleInterface -> M.MetadataModule -> IO ()
-metaTypes interfaces meta =
-    types interfaces (M.types meta) (M.aliases meta) (M.imports meta)
-
-interfaceTypes :: Map.Map String M.ModuleInterface -> M.ModuleInterface -> IO ()
-interfaceTypes interfaces iface =
-    types interfaces (M.iTypes iface) (M.iAliases iface) (M.iImports iface)
-
-types :: Map.Map k M.ModuleInterface
-      -> Map.Map String T.Type
-      -> [M.Alias]
-      -> [(String, M.ImportMethod)]
-      -> IO ()
-types interfaces types' aliases imports =
+types :: Module.Types -> IO ()
+types ts =
     do putStrLn ""
-       mapM_ printType (Map.toList types')
+       mapM_ printType (Map.toList ts)
        putStrLn ""
     where
-      rules = Alias.rules interfaces aliases imports
-
       printType (n,t) = do
         print $ P.hsep [ Pretty.variable n
                        , P.text ":"
-                       , Pretty.pretty (Alias.realias rules t) ]
+                       , Pretty.pretty t ]
 
 errors :: [P.Doc] -> IO ()
 errors errs =
   mapM_ print (List.intersperse (P.text " ") errs)
 
 failure :: String -> IO a
-failure msg =
-    do hPutStrLn stderr msg
-       exitFailure
+failure msg = hPutStrLn stderr msg >> exitFailure
