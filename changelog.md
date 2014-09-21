@@ -19,7 +19,7 @@
 
 #### Breaking Changes:
 
-  * Rename (.) with (<<) as in F#
+  * Rename (.) to (<<) as in F#
   * Rename Basics.id to Basics.identity
   * Rename Basics.div to (//)
   * Rename Basics.mod to (%)
