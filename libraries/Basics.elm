@@ -108,7 +108,7 @@ infixl 7 `rem`
 {-| Finds the remainder after dividing one number by another:
 
        7 `rem` 2 == 1
-      -1 `rem` 4 == 1
+      -1 `rem` 4 == -1
 -}
 rem : Int -> Int -> Int
 rem = Native.Basics.rem
