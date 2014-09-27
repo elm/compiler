@@ -180,7 +180,7 @@ data Gradient
 
 {-| Create a linear gradient. Takes a start and end point and then a series of
 &ldquo;color stops&rdquo; that indicate how to interpolate between the start and
-end points. See [this example](/edit/examples/Elements/LinearGradient.elm) for a
+end points. See [this example](http://elm-lang.org/edit/examples/Elements/LinearGradient.elm) for a
 more visual explanation. -}
 linear : (number, number) -> (number, number) -> [(Float,Color)] -> Gradient
 linear = Linear
@@ -188,7 +188,7 @@ linear = Linear
 {-| Create a radial gradient. First takes a start point and inner radius.  Then
 takes an end point and outer radius. It then takes a series of &ldquo;color
 stops&rdquo; that indicate how to interpolate between the inner and outer
-circles. See [this example](/edit/examples/Elements/RadialGradient.elm) for a
+circles. See [this example](http://elm-lang.org/edit/examples/Elements/RadialGradient.elm) for a
 more visual explanation. -}
 radial : (number,number) -> number -> (number,number) -> number -> [(Float,Color)] -> Gradient
 radial = Radial
