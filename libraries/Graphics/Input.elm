@@ -104,7 +104,7 @@ customButton = Native.Graphics.Input.customButton
 
       boxes : Bool -> Element
       boxes checked =
-          let box = container 40 40 middle (checkbox check.handle id checked)
+          let box = container 40 40 middle (checkbox check.handle identity checked)
           in  flow right [ box, box, box ]
 
       main : Signal Element

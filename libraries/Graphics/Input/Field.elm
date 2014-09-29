@@ -11,7 +11,7 @@ text fields programmatically.
 @docs Content, Selection, Direction, noContent
 
 # Field Style
-@docs Style, Outline, noOutline, Highlight, noHighlight, Dimensions, uniformly
+@docs defaultStyle, Style, Outline, noOutline, Highlight, noHighlight, Dimensions, uniformly
 -}
 
 import Color (Color)
@@ -140,7 +140,7 @@ to match what they have entered.
       name = input noContent
 
       nameField : Signal Element
-      nameField = field defaultStyle name.handle id "Name" <~ name.signal
+      nameField = field defaultStyle name.handle identity "Name" <~ name.signal
 
 When we use the `field` function, we first give it a visual style. This is
 the first argument so that it is easier to define your own custom field

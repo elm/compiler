@@ -30,7 +30,7 @@ data Array a = Array
 {-| Initialize an array. `initialize n f` creates an array of length `n` with
 the element at index `i` initialized to the result of `(f i)`.
 
-      initialize 4 id          == fromList [0,1,2,3]
+      initialize 4 identity    == fromList [0,1,2,3]
       initialize 4 (\n -> n*n) == fromList [0,1,4,9]
       initialize 4 (always 0)  == fromList [0,0,0,0]
 -}
