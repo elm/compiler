@@ -392,7 +392,7 @@ function updateProps(node, curr, next) {
 
     var nextColor = nextProps.color.ctor === 'Just'
         ? colorToCss(nextProps.color._0)
-        : 'transparent';
+        : '';
     if (node.style.backgroundColor !== nextColor) {
         node.style.backgroundColor = nextColor;
     }
