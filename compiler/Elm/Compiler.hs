@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts #-}
-module Elm.Compiler (version, moduleNameToPath, moduleNameToString, parseDependencies, elmToJs) where
+module Elm.Compiler (version, ModuleName, moduleNameToPath, moduleNameToString, parseDependencies, elmToJs) where
 
 import Control.Monad.Error (MonadError, MonadIO, liftIO, throwError)
 import qualified Data.List as List
