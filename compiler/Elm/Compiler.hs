@@ -65,5 +65,5 @@ elmToJs source =
 {-# NOINLINE interfaces #-}
 interfaces :: Module.Interfaces
 interfaces =
-    unsafePerformIO $ Prelude.interfaces False
+    error "unsafePerformIO $ Prelude.interfaces False"
 

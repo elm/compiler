@@ -1,15 +1,16 @@
 {-# OPTIONS_GHC -W #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Metadata.Prelude (interfaces, add) where
 
+import Control.Monad.Error (MonadError, throwError, MonadIO, liftIO)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Control.Exception as E
-import System.Exit
-import System.IO
-import AST.Module as Module
+
+import qualified AST.Module as Module
 import qualified AST.Variable as Var
-import qualified Build.Interface as Interface
-import Build.Utils (getDataFile)
+import qualified Build.Artifact as Artifact
+import qualified Build.Utils as Utils
+import qualified Elm.Compiler.Version as Compiler
 
 
 -- DEFINITION OF THE PRELUDE
@@ -17,8 +18,10 @@ import Build.Utils (getDataFile)
 type ImportDict =
     Map.Map String ([String], Var.Listing Var.Value)
 
+
 prelude :: ImportDict
-prelude = Map.unions [ string, text, maybe, openImports ]
+prelude =
+    Map.unions [ string, text, maybe, openImports ]
   where
     importing :: String -> [Var.Value] -> ImportDict
     importing name values =
@@ -50,26 +53,28 @@ prelude = Map.unions [ string, text, maybe, openImports ]
 
 -- ADDING PRELUDE TO A MODULE
 
-add :: Bool -> Module exs body -> Module exs body
-add noPrelude (Module moduleName path exports imports decls) =
-    Module moduleName path exports ammendedImports decls
+add :: Bool -> Module.Module exs body -> Module.Module exs body
+add noPrelude (Module.Module moduleName path exports imports decls) =
+    Module.Module moduleName path exports ammendedImports decls
   where
     ammendedImports =
       importDictToList $
         foldr addImport (if noPrelude then Map.empty else prelude) imports
 
-importDictToList :: ImportDict -> [(String, ImportMethod)]
+
+importDictToList :: ImportDict -> [(String, Module.ImportMethod)]
 importDictToList dict =
     concatMap toImports (Map.toList dict)
   where
     toImports (name, (qualifiers, listing@(Var.Listing explicits open))) =
-        map (\qualifier -> (name, As qualifier)) qualifiers
+        map (\qualifier -> (name, Module.As qualifier)) qualifiers
         ++
         if open || not (null explicits)
-          then [(name, Open listing)]
+          then [(name, Module.Open listing)]
           else []
 
-addImport :: (String, ImportMethod) -> ImportDict -> ImportDict
+
+addImport :: (String, Module.ImportMethod) -> ImportDict -> ImportDict
 addImport (name, method) importDict =
     Map.alter mergeMethods name importDict
   where
@@ -82,8 +87,10 @@ addImport (name, method) importDict =
                 Just v -> v
       in
           case method of
-            As qualifier -> Just (qualifier : qualifiers, listing)
-            Open newListing ->
+            Module.As qualifier ->
+                Just (qualifier : qualifiers, listing)
+
+            Module.Open newListing ->
                 Just (qualifiers, mergeListings newListing listing)
 
     mergeListings (Var.Listing explicits1 open1) (Var.Listing explicits2 open2) =
@@ -94,33 +101,34 @@ addImport (name, method) importDict =
 
 -- EXTRACT INTERFACES FROM STATIC FILE
 
-interfaces :: Bool -> IO Interfaces
-interfaces noPrelude =
-    if noPrelude
-    then return Map.empty
-    else safeReadDocs =<< getDataFile "interfaces.data"
+interfaces :: (MonadIO m, MonadError String m) => Bool -> m Module.Interfaces
+interfaces noPrelude
+    | noPrelude = return Map.empty
+    | otherwise =
+        do  filePath <- liftIO (Utils.getDataFile "interfaces.data")
+            readInterfaces filePath
 
-safeReadDocs :: FilePath -> IO Interfaces
-safeReadDocs name =
-    E.catch (readDocs name) $ \err -> do
-      let _ = err :: IOError
-      hPutStrLn stderr $ unlines $
-         [ "Error reading types for standard library from file " ++ name
-         , "    If you are using a stable version of Elm, please report an issue at"
-         , "    <http://github.com/elm-lang/Elm/issues> specifying version numbers for"
-         , "    Elm and your OS." ]
-      exitFailure
 
-readDocs :: FilePath -> IO Interfaces
-readDocs filePath = do
-  interfaces <- Interface.load filePath
-  case mapM (Interface.isValid filePath) (interfaces :: [(String, Module.Interface)]) of
-    Left err -> do
-      hPutStrLn stderr err
-      exitFailure
+readInterfaces :: (MonadIO m, MonadError String m) => FilePath -> m Module.Interfaces
+readInterfaces filePath =
+  do  interfaces <- mapM (isValid filePath) =<< Artifact.read filePath
+      case interfaces of
+        [] -> throwError "No interfaces found in serialized Prelude!"
+        _  -> return (Map.fromList interfaces)
 
-    Right [] -> do
-      hPutStrLn stderr "No interfaces found in serialized Prelude!"
-      exitFailure
 
-    Right ifaces -> return $ Map.fromList ifaces
+isValid :: (MonadError String m) => FilePath -> (String, Module.Interface) -> m (String, Module.Interface)
+isValid filePath (name, interface) =
+    if version == Compiler.version
+        then return (name, interface)
+        else throwError badVersion
+  where
+    version = Module.iVersion interface
+
+    badVersion =
+        concat
+        [ "Error reading build artifact: ", filePath, "\n"
+        , "    It was generated by version ", version, " of the compiler,\n"
+        , "    but you are using version ", Compiler.version, "\n"
+        , "    Please remove the file and try again.\n"
+        ]
