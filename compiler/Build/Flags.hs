@@ -1,8 +1,9 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 module Build.Flags where
 
-import qualified Elm.Internal.Version as Version
+import qualified Elm.Compiler.Version as Compiler
 import System.Console.CmdArgs
+
 
 data Flags = Flags
     { make :: Bool
@@ -59,5 +60,5 @@ flags = Flags
 
   } &= help "Compile Elm programs to HTML, CSS, and JavaScript."
     &= helpArg [explicit, name "help", name "h"]
-    &= versionArg [explicit, name "version", name "v", summary (show Version.elmVersion)]
-    &= summary ("The Elm Compiler " ++ show Version.elmVersion ++ ", (c) Evan Czaplicki 2011-2014")
+    &= versionArg [explicit, name "version", name "v", summary Compiler.version]
+    &= summary ("The Elm Compiler " ++ Compiler.version ++ ", (c) Evan Czaplicki 2011-2014")

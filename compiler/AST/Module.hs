@@ -11,8 +11,8 @@ import qualified AST.Declaration as Decl
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import AST.PrettyPrint
+import qualified Elm.Compiler.Version as Compiler
 import Text.PrettyPrint as P
-import qualified Elm.Internal.Version as Version
 
 
 -- HELPFUL TYPE ALIASES
@@ -79,7 +79,7 @@ nameToString = List.intercalate "."
 
 {-| Key facts about a module, used when reading info from .elmi files. -}
 data Interface = Interface
-    { iVersion  :: Version.Version
+    { iVersion  :: String
     , iExports  :: [Var.Value]
     , iTypes    :: Types
     , iImports  :: [(String, ImportMethod)]
@@ -93,7 +93,7 @@ toInterface :: CanonicalModule -> Interface
 toInterface modul =
     let body' = body modul in
     Interface
-    { iVersion  = Version.elmVersion
+    { iVersion  = Compiler.version
     , iExports  = exports modul
     , iTypes    = types body'
     , iImports  = imports modul

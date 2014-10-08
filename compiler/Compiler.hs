@@ -1,32 +1,19 @@
-{-# OPTIONS_GHC -W #-}
+{-# OPTIONS_GHC -Wall #-}
 module Main where
 
-import Control.Monad (foldM, when)
-import qualified Data.Maybe as Maybe
-import Text.Blaze.Html.Renderer.String (renderHtml)
-import qualified Data.ByteString.Lazy.Char8 as BS
-import qualified System.Console.CmdArgs as CmdArgs
-import System.Directory
-import System.Exit (exitSuccess)
-import System.FilePath
-import GHC.Conc
+import GHC.Conc (getNumProcessors, setNumCapabilities)
 
-import Build.Dependencies (getBuildRecipe, Recipe(..))
-import qualified Generate.Html as Html
-import qualified Metadata.Prelude as Prelude
-import qualified Build.Utils as Utils
-import qualified Build.Flags as Flag
-import qualified Build.File as File
-import qualified Elm.Internal.Paths as Path
 
 main :: IO ()
-main = do setNumCapabilities =<< getNumProcessors
-          compileArgs =<< CmdArgs.cmdArgs Flag.flags
+main =
+  do  setNumCapabilities =<< getNumProcessors
+      error "currently out of order"
 
+{--
 compileArgs :: Flag.Flags -> IO ()
 compileArgs flags =
   do when (Flag.get_runtime flags) $ do
-       putStrLn Path.runtime
+       putStrLn Utils.runtime
        exitSuccess
      case Flag.files flags of
        [] -> putStrLn "Usage: elm [OPTIONS] [FILES]\nFor more help: elm --help"
@@ -67,7 +54,7 @@ build flags rootFile =
 
       getRuntime :: IO Html.JSSource
       getRuntime =
-          let runtimePath = Maybe.fromMaybe Path.runtime (Flag.set_runtime flags) in
+          let runtimePath = Maybe.fromMaybe Utils.runtime (Flag.set_runtime flags) in
           case Flag.bundle_runtime flags of
             False -> return (Html.Link runtimePath)
             True  -> Html.Source `fmap` BS.readFile runtimePath
@@ -87,3 +74,4 @@ build flags rootFile =
           sources js = map Html.Link (Flag.scripts flags) ++ [ Html.Source js ]
           html runtime =
               Html.generate runtime (takeBaseName rootFile) (sources js) moduleName ""
+--}

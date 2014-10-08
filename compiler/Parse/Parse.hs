@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -W #-}
-module Parse.Parse (program, dependencies) where
+module Parse.Parse (program) where
 
 import Control.Applicative ((<$>))
 import Control.Arrow (first)
@@ -39,14 +39,6 @@ programParser =
      optional freshLine ; optional spaces ; eof
      let stringyImports = map (first M.nameToString) imports
      return $ M.Module names "" exports stringyImports declarations
-
-dependencies :: String -> Either [P.Doc] (String, [String])
-dependencies =
-    setupParser $ do
-      header <- Module.headerAndImports
-      return ( M.nameToString (M._names header)
-             , map (M.nameToString . fst) (M._imports header)
-             )
 
 setupParserWithTable :: OpTable -> IParser a -> String -> Either [P.Doc] a
 setupParserWithTable table p source =

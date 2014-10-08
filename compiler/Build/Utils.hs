@@ -6,6 +6,7 @@ import System.Directory (doesFileExist)
 import System.Environment (getEnv)
 import System.FilePath ((</>), replaceExtension)
 import System.IO.Error (tryIOError)
+import System.IO.Unsafe (unsafePerformIO)
 import qualified Build.Flags as Flag
 import qualified Build.Print as Print
 import qualified Paths_Elm as This
@@ -25,6 +26,14 @@ elmo flags filePath =
 elmi :: Flag.Flags -> FilePath -> FilePath
 elmi flags filePath =
     cachePath flags filePath "elmi"
+
+
+{-# NOINLINE runtime #-}
+-- |The absolute path to Elm's runtime system.
+runtime :: FilePath
+runtime =
+    unsafePerformIO $ getDataFile "elm-runtime.js"
+
 
 -- |The absolute path to a data file
 getDataFile :: FilePath -> IO FilePath
