@@ -40,7 +40,7 @@ Library
 
     exposed-modules:
         Elm.Compiler,
-        Elm.Internal.Documentation
+        Elm.Docs
 
     other-modules:
         Elm.Compiler.Version,
