@@ -3,23 +3,23 @@ module Parse.Helpers where
 
 import Prelude hiding (until)
 import Control.Applicative ((<$>),(<*>))
-import Control.Monad
-import Control.Monad.State
+import Control.Monad (guard, join, mzero)
+import Control.Monad.State (State)
 import Data.Char (isUpper)
 import qualified Data.Map as Map
 import qualified Language.GLSL.Parser as GLP
-import Language.GLSL.Syntax as GLS
+import qualified Language.GLSL.Syntax as GLS
 import Text.Parsec hiding (newline,spaces,State)
-import Text.Parsec.Indent
+import Text.Parsec.Indent (indented, runIndent)
 import qualified Text.Parsec.Token as T
 
-import AST.Annotation as Annotation
-import AST.Declaration (Assoc)
-import AST.Expression.General
+import qualified AST.Annotation as Annotation
+import qualified AST.Declaration as Decl
+import qualified AST.Expression.General as E
 import qualified AST.Expression.Source as Source
-import AST.Helpers as Help
-import AST.Literal as Literal
-import AST.PrettyPrint
+import qualified AST.Helpers as Help
+import qualified AST.Literal as L
+import qualified AST.PrettyPrint as P
 import qualified AST.Variable as Variable
 
 reserveds = [ "if", "then", "else"
@@ -34,7 +34,7 @@ reserveds = [ "if", "then", "else"
 
 expecting = flip (<?>)
 
-type OpTable = Map.Map String (Int, Assoc)
+type OpTable = Map.Map String (Int, Decl.Assoc)
 type SourceM = State SourcePos
 type IParser a = ParsecT String OpTable SourceM a
 
@@ -171,7 +171,7 @@ parens   = surround '(' ')' "paren"
 brackets :: IParser a -> IParser a
 brackets = surround '{' '}' "bracket"
 
-addLocation :: (Pretty a) => IParser a -> IParser (Annotation.Located a)
+addLocation :: (P.Pretty a) => IParser a -> IParser (Annotation.Located a)
 addLocation expr = do
   (start, e, end) <- located expr
   return (Annotation.at start end e)
@@ -186,7 +186,7 @@ located p = do
 accessible :: IParser Source.Expr -> IParser Source.Expr
 accessible expr = do
   start <- getPosition
-  ce@(A _ e) <- expr
+  ce@(Annotation.A _ e) <- expr
   let rest f = do
         let dot = char '.' >> notFollowedBy (char '.')
         access <- optionMaybe (try dot <?> "field access (e.g. List.map)")
@@ -197,10 +197,10 @@ accessible expr = do
                        end <- getPosition
                        return (Annotation.at start end (f v))
   case e of
-    Var (Variable.Raw (c:cs))
-        | isUpper c -> rest (\v -> rawVar (c:cs ++ '.':v))
-        | otherwise -> rest (Access ce)
-    _ -> rest (Access ce)
+    E.Var (Variable.Raw (c:cs))
+        | isUpper c -> rest (\v -> E.rawVar (c:cs ++ '.':v))
+        | otherwise -> rest (E.Access ce)
+    _ -> rest (E.Access ce)
 
 
 spaces :: IParser String
@@ -307,7 +307,7 @@ markdown interpolation =
                       closeMarkdown (markdownBuilder . (c:)) stuff
                  ]
 
-shader :: IParser (String, Literal.GLShaderTipe)
+shader :: IParser (String, L.GLShaderTipe)
 shader =
   do try (string "[glsl|")
      rawSrc <- closeShader id
@@ -322,35 +322,53 @@ shader =
            closeShader (builder . (c:))
       ]
 
-glSource :: String -> Either ParseError Literal.GLShaderTipe
+glSource :: String -> Either ParseError L.GLShaderTipe
 glSource src =
   case GLP.parse src of
-    Right (TranslationUnit decls) ->
+    Right (GLS.TranslationUnit decls) ->
       Right . foldr addGLinput emptyDecls . join . map extractGLinputs $ decls
     Left e -> Left e
   where 
-    emptyDecls = Literal.GLShaderTipe Map.empty Map.empty Map.empty
-    addGLinput (qual,tipe,name) glDecls = case qual of
-        Attribute -> glDecls { attribute = Map.insert name tipe $ attribute glDecls }
-        Uniform -> glDecls { uniform = Map.insert name tipe $ uniform glDecls }
-        Varying -> glDecls { varying = Map.insert name tipe $ varying glDecls }
+    emptyDecls = L.GLShaderTipe Map.empty Map.empty Map.empty
+
+    addGLinput (qual,tipe,name) glDecls =
+      case qual of
+        GLS.Attribute ->
+            glDecls { L.attribute = Map.insert name tipe $ L.attribute glDecls }
+
+        GLS.Uniform ->
+            glDecls { L.uniform = Map.insert name tipe $ L.uniform glDecls }
+
+        GLS.Varying ->
+            glDecls { L.varying = Map.insert name tipe $ L.varying glDecls }
+
         _ -> error "Should never happen due to below filter"
-    extractGLinputs decl = case decl of
-        Declaration (InitDeclaration (TypeDeclarator (FullType (Just (TypeQualSto qual)) (TypeSpec _prec (TypeSpecNoPrecision tipe _mexpr1)))) [InitDecl name _mexpr2 _mexpr3]) ->
-            if elem qual [Attribute, Varying, Uniform] 
-            then case tipe of 
-                GLS.Int -> return (qual,Literal.Int,name)
-                GLS.Float -> return (qual,Literal.Float,name)
-                GLS.Vec2 -> return (qual,V2,name)
-                GLS.Vec3 -> return (qual,V3,name) 
-                GLS.Vec4 -> return (qual,V4,name)
-                GLS.Mat4 -> return (qual,M4,name)
-                GLS.Sampler2D -> return (qual,Texture,name)
-                _ -> []
-            else []
+
+    extractGLinputs decl =
+      case decl of
+        GLS.Declaration
+          (GLS.InitDeclaration
+             (GLS.TypeDeclarator
+                (GLS.FullType
+                   (Just (GLS.TypeQualSto qual))
+                   (GLS.TypeSpec _prec (GLS.TypeSpecNoPrecision tipe _mexpr1))))
+             [GLS.InitDecl name _mexpr2 _mexpr3]
+          ) ->
+            case elem qual [GLS.Attribute, GLS.Varying, GLS.Uniform] of
+              False -> []
+              True ->
+                  case tipe of 
+                    GLS.Int -> return (qual, L.Int,name)
+                    GLS.Float -> return (qual, L.Float,name)
+                    GLS.Vec2 -> return (qual, L.V2,name)
+                    GLS.Vec3 -> return (qual, L.V3,name) 
+                    GLS.Vec4 -> return (qual, L.V4,name)
+                    GLS.Mat4 -> return (qual, L.M4,name)
+                    GLS.Sampler2D -> return (qual, L.Texture,name)
+                    _ -> []
         _ -> []
 
---str :: IParser String
+str :: IParser String
 str = expecting "String" $ do
         s <- choice [ multiStr, singleStr ]
         processAs T.stringLiteral . sandwich '\"' $ concat s

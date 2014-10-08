@@ -28,7 +28,7 @@ import Text.Parsec hiding (newline,spaces)
 import Parse.Declaration (alias,datatype,infixDecl)
 import Parse.Expression (typeAnnotation)
 import Parse.Helpers
-import Parse.Module (moduleDef)
+import qualified Parse.Module as Module
 
 data Flags = Flags
     { files :: [FilePath] }
@@ -80,7 +80,7 @@ docComment = do
 moduleDocs :: IParser (String, Var.Listing Var.Value, String)
 moduleDocs = do
   optional freshLine
-  (names,exports) <- moduleDef
+  (names,exports) <- Module.header
   manyTill (string " " <|> newline <?> "more whitespace")
            (lookAhead (string "{-|") <?> "module documentation comment")
   structure <- docComment

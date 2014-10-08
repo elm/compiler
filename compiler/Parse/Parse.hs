@@ -1,18 +1,18 @@
 {-# OPTIONS_GHC -W #-}
 module Parse.Parse (program, dependencies) where
 
-import Control.Applicative ((<$>), (<*>))
+import Control.Applicative ((<$>))
+import Control.Arrow (first)
 import qualified Data.List as List
 import qualified Data.Map as Map
-import Text.Parsec hiding (newline,spaces)
+import Text.Parsec hiding (newline, spaces)
 import qualified Text.PrettyPrint as P
 
 import qualified AST.Declaration as D
 import qualified AST.Module as M
-import qualified AST.Variable as Var
 import Parse.Helpers
 import Parse.Declaration (infixDecl)
-import Parse.Module
+import qualified Parse.Module as Module
 import qualified Parse.Declaration as Decl
 import Transform.Declaration (combineAnnotations)
 
@@ -25,30 +25,28 @@ decls = do d <- Decl.declaration <?> "at least one datatype or variable definiti
 
 program :: OpTable -> String -> Either [P.Doc] M.ValidModule
 program table src =
-    do (M.Module names filePath exs ims parseDecls) <-
+    do (M.Module names filePath exs ims sourceDecls) <-
            setupParserWithTable table programParser src
+
        decls <-
-           either (\err -> Left [P.text err]) Right (combineAnnotations parseDecls)
+           either (\err -> Left [P.text err]) Right (combineAnnotations sourceDecls)
        return $ M.Module names filePath exs ims decls
 
 programParser :: IParser M.SourceModule
 programParser =
-    do optional freshLine
-       (names,exports) <-
-           option (["Main"], Var.openListing) (moduleDef `followedBy` freshLine)
-       is <- (do try (lookAhead $ reserved "import")
-                 imports `followedBy` freshLine) <|> return []
-       declarations <- decls
-       optional freshLine ; optional spaces ; eof
-       return $ M.Module names "" exports is declarations
+  do (M.HeaderAndImports names exports imports) <- Module.headerAndImports
+     declarations <- decls
+     optional freshLine ; optional spaces ; eof
+     let stringyImports = map (first M.nameToString) imports
+     return $ M.Module names "" exports stringyImports declarations
 
 dependencies :: String -> Either [P.Doc] (String, [String])
 dependencies =
-    let getName = List.intercalate "." . fst in
     setupParser $ do
-      optional freshLine
-      (,) <$> option "Main" (getName <$> moduleDef `followedBy` freshLine)
-          <*> option [] (map fst <$> imports `followedBy` freshLine)
+      header <- Module.headerAndImports
+      return ( M.nameToString (M._names header)
+             , map (M.nameToString . fst) (M._imports header)
+             )
 
 setupParserWithTable :: OpTable -> IParser a -> String -> Either [P.Doc] a
 setupParserWithTable table p source =

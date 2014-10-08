@@ -3,7 +3,7 @@ module Parse.Type where
 
 import Control.Applicative ((<$>),(<*>),(<*))
 import Data.List (intercalate)
-import Text.Parsec
+import Text.Parsec ((<|>), (<?>), char, many, optionMaybe, string, try)
 
 import qualified AST.Type as T
 import qualified AST.Variable as Var

@@ -1,12 +1,12 @@
-module Parse.Module (moduleDef, getModuleName, imports) where
+module Parse.Module (header, headerAndImports, getModuleName) where
 
 import Control.Applicative ((<$>), (<*>))
 import Data.List (intercalate)
-import Text.Parsec hiding (newline,spaces)
+import Text.Parsec hiding (newline, spaces)
 
 import Parse.Helpers
-import AST.Module (ImportMethod(..))
-import AST.Variable (Listing(..), Value(..), openListing)
+import qualified AST.Module as Module
+import qualified AST.Variable as Var
 
 getModuleName :: String -> Maybe String
 getModuleName source =
@@ -16,61 +16,73 @@ getModuleName source =
     where
       getModuleName = do
         optional freshLine
-        (names, _) <- moduleDef
+        (names, _) <- header
         return (intercalate "." names)
 
-moduleDef :: IParser ([String], Listing Value)
-moduleDef = do
+headerAndImports :: IParser Module.HeaderAndImports
+headerAndImports =
+    do optional freshLine
+       (names, exports) <-
+           option (["Main"], Var.openListing) (header `followedBy` freshLine)
+       imports' <- commitToImports <|> return []
+       return $ Module.HeaderAndImports names exports imports'
+    where
+      commitToImports =
+          do  try (lookAhead $ reserved "import")
+              imports `followedBy` freshLine
+
+header :: IParser ([String], Var.Listing Var.Value)
+header = do
   try (reserved "module")
   whitespace
   names <- dotSep1 capVar <?> "name of module"
   whitespace
-  exports <- option (Listing [] True) (listing value)
+  exports <- option Var.openListing (listing value)
   whitespace <?> "reserved word 'where'"
   reserved "where"
   return (names, exports)
 
-imports :: IParser [(String, ImportMethod)]
+imports :: IParser [(Module.Name, Module.ImportMethod)]
 imports = option [] ((:) <$> import' <*> many (try (freshLine >> import')))
 
-import' :: IParser (String, ImportMethod)
+import' :: IParser (Module.Name, Module.ImportMethod)
 import' =
   do reserved "import"
      whitespace
-     name <- intercalate "." <$> dotSep1 capVar
-     (,) name <$> option (As name) method
+     names <- dotSep1 capVar
+     (,) names <$> option (Module.As (intercalate "." names)) method
   where
-    method :: IParser ImportMethod
+    method :: IParser Module.ImportMethod
     method = as' <|> importing'
 
-    as' :: IParser ImportMethod
+    as' :: IParser Module.ImportMethod
     as' = do
       try (whitespace >> reserved "as")
       whitespace
-      As <$> capVar <?> "alias for module"
+      Module.As <$> capVar <?> "alias for module"
 
-    importing' :: IParser ImportMethod
-    importing' = Open <$> listing value
+    importing' :: IParser Module.ImportMethod
+    importing' = Module.Open <$> listing value
 
-listing :: IParser a -> IParser (Listing a)
+listing :: IParser a -> IParser (Var.Listing a)
 listing item =
   do try (whitespace >> char '(')
      whitespace
-     listing <- choice [ const openListing <$> string ".."
-                       , Listing <$> commaSep1 item <*> return False
+     listing <- choice [ const Var.openListing <$> string ".."
+                       , Var.Listing <$> commaSep1 item <*> return False
                        ] <?> "listing of values (x,y,z)"
      whitespace
      char ')'
      return listing
 
-value :: IParser Value
+value :: IParser Var.Value
 value = val <|> tipe
     where
-      val = Value <$> (lowVar <|> parens symOp)
+      val = Var.Value <$> (lowVar <|> parens symOp)
 
       tipe = do
         name <- capVar
         maybeCtors <- optionMaybe (listing capVar)
         case maybeCtors of
-          Nothing -> return (Alias name)
-          Just ctors -> return (ADT name ctors)
+          Nothing -> return (Var.Alias name)
+          Just ctors -> return (Var.ADT name ctors)

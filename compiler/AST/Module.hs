@@ -10,23 +10,45 @@ import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Declaration as Decl
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
-
 import AST.PrettyPrint
 import Text.PrettyPrint as P
-
 import qualified Elm.Internal.Version as Version
 
-data Module exs body = Module
-    { names   :: [String]
-    , path    :: FilePath
-    , exports :: exs
-    , imports :: [(String, ImportMethod)]
-    , body    :: body
-    }
+
+-- HELPFUL TYPE ALIASES
+
+type Interfaces = Map.Map String Interface
+
+type Types   = Map.Map String Type.CanonicalType
+type Aliases = Map.Map String ([String], Type.CanonicalType)
+type ADTs    = Map.Map String (AdtInfo String)
+
+type AdtInfo v = ( [String], [(v, [Type.CanonicalType])] )
+type CanonicalAdt = (Var.Canonical, AdtInfo Var.Canonical)
+
+
+-- MODULES
+
+type SourceModule =
+    Module (Var.Listing Var.Value) [Decl.SourceDecl]
+
+type ValidModule =
+    Module (Var.Listing Var.Value) [Decl.ValidDecl]
+
+type CanonicalModule =
+    Module [Var.Value] CanonicalBody
 
 getName :: Module exs body -> String
 getName modul =
-    List.intercalate "." (names modul)
+    nameToString (names modul)
+
+data Module exports body = Module
+    { names   :: Name
+    , path    :: FilePath
+    , exports :: exports
+    , imports :: [(String, ImportMethod)]
+    , body    :: body
+    }
 
 data CanonicalBody = CanonicalBody
     { program   :: Canonical.Expr
@@ -37,19 +59,25 @@ data CanonicalBody = CanonicalBody
     , ports     :: [String]
     }
 
-type SourceModule    = Module (Var.Listing Var.Value) [Decl.SourceDecl]
-type ValidModule     = Module (Var.Listing Var.Value) [Decl.ValidDecl]
-type CanonicalModule = Module [Var.Value] CanonicalBody
 
-type Interfaces = Map.Map String Interface
+-- HEADERS
 
-type Types   = Map.Map String Type.CanonicalType
-type Aliases = Map.Map String ( [String], Type.CanonicalType )
-type ADTs    = Map.Map String (AdtInfo String)
+{-| Basic info needed to identify modules and determine dependencies. -}
+data HeaderAndImports = HeaderAndImports
+    { _names :: Name
+    , _exports :: Var.Listing Var.Value
+    , _imports :: [(Name, ImportMethod)]
+    }
 
-type AdtInfo v = ( [String], [(v, [Type.CanonicalType])] )
-type CanonicalAdt = (Var.Canonical, AdtInfo Var.Canonical)
+type Name = [String] -- must be non-empty
 
+nameToString :: Name -> String
+nameToString = List.intercalate "."
+
+
+-- INTERFACES
+
+{-| Key facts about a module, used when reading info from .elmi files. -}
 data Interface = Interface
     { iVersion  :: Version.Version
     , iExports  :: [Var.Value]
@@ -87,6 +115,9 @@ instance Binary Interface where
       put (iFixities modul)
       put (iPorts modul)
 
+
+-- IMPORT METHOD
+
 data ImportMethod
     = As !String
     | Open !(Var.Listing Var.Value)
@@ -108,6 +139,9 @@ instance Binary ImportMethod where
                0 -> As   <$> get
                1 -> Open <$> get
                _ -> error "Error reading valid ImportMethod type from serialized string"
+
+
+-- PRETTY PRINTING
 
 instance (Pretty exs, Pretty body) => Pretty (Module exs body) where
   pretty (Module names _ exs ims body) =
