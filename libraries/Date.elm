@@ -36,7 +36,7 @@ read = Native.Date.read
 toTime : Date -> Time
 toTime = Native.Date.toTime
 
-{-| Take a UNIX time and convert it to a `Date` -}
+{-| Take a UNIX time and convert it to a `Date`. -}
 fromTime : Time -> Date
 fromTime = Native.Date.fromTime
 

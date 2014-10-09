@@ -49,11 +49,10 @@ or a strike out text:
 -}
 data Line = Under | Over | Through
 
-{-| Representation of all the ways you can style `Text`. If the `typeface` list
-is empty or the `height` is `Nothing`, the users will fall back on their
-browser's default settings. The following `Style` is black, 16 pixel tall,
-underlined, and Times New Roman (assuming that typeface is available on the
-user's computer):
+{-| Represents all the ways you can style `Text`. If the `typeface` list is
+empty or the `height` is `Nothing`, the users will fall back on their browser's
+default settings. The following `Style` is black, 16 pixel tall, underlined, and
+Times New Roman (assuming that typeface is available on the user's computer):
 
       { typeface = [ "Times New Roman", "serif" ]
       , height   = Just 16
@@ -73,7 +72,7 @@ type Style =
   }
 
 {-| Plain black text. It uses the browsers default typeface and text height.
-No decorations are used:
+No decorations are used.
 
       { typeface = []
       , height = Nothing
@@ -129,42 +128,42 @@ typeface = Native.Text.typeface
 monospace : Text -> Text
 monospace = Native.Text.monospace
 
-{-| Create a link by providing a URL and the text of the link:
+{-| Create a link by providing a URL and the text of the link.
 
       link "http://elm-lang.org" (toText "Elm Website")
 -}
 link : String -> Text -> Text
 link = Native.Text.link
 
-{-| Set the height of some text:
+{-| Set the height of some text.
 
       height 40 (toText "Title")
 -}
 height : Float -> Text -> Text
 height = Native.Text.height
 
-{-| Set the color of some text:
+{-| Set the color of some text.
 
       color red (toText "Red")
 -}
 color : Color -> Text -> Text
 color = Native.Text.color
 
-{-| Make text bold:
+{-| Make text bold.
 
       toText "sometimes you want " ++ bold (toText "emphasis")
 -}
 bold : Text -> Text
 bold = Native.Text.bold
 
-{-| Make text italic:
+{-| Make text italic.
 
       toText "make it " ++ italic (toText "important")
 -}
 italic : Text -> Text
 italic = Native.Text.italic
 
-{-| Put lines on text:
+{-| Put lines on text.
 
       line Under   (toText "underlined")
       line Over    (toText "overlined")
@@ -173,31 +172,31 @@ italic = Native.Text.italic
 line : Line -> Text -> Text
 line = Native.Text.line
 
-{-| `Text` is aligned along the left side of the text block. This is sometimes
-known as *ragged right*.
+{-| Align text along the left side of the text block. This is sometimes known as
+*ragged right*.
 -}
 leftAligned : Text -> Element
 leftAligned = Native.Text.leftAligned
 
-{-| `Text` is aligned along the right side of the text block. This is sometimes
-known as *ragged left*.
+{-| Align text along the right side of the text block. This is sometimes known
+as *ragged left*.
 -}
 rightAligned : Text -> Element
 rightAligned = Native.Text.rightAligned
 
-{-| `Text` is centered in the text block. There is equal spacing on either side
-of a line of text.
+{-| Center text in the text block. There is equal spacing on either side of a
+line of text.
 -}
 centered : Text -> Element
 centered = Native.Text.centered
 
-{-| `Text` is aligned along the left and right sides of the text block. Word
-spacing is adjusted to make this possible.
+{-| Align text along the left and right sides of the text block. Word spacing is
+adjusted to make this possible.
 -}
 justified : Text -> Element
 justified = Native.Text.justified
 
-{-| Display a string with no styling:
+{-| Display a string with no styling.
 
       plainText string = leftAligned (toText string)
 -}
@@ -210,11 +209,9 @@ markdown : Element
 markdown = Native.Text.markdown
 
 {-| Convert anything to its textual representation and make it displayable in
-the browser:
+the browser. Excellent for debugging.
 
         asText value = leftAligned (monospace (toText (show value)))
-
-Excellent for debugging.
 -}
 asText : a -> Element
 asText value =
