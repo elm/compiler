@@ -153,6 +153,8 @@ filter = Native.List.filter
 {-| Apply a function that may succeed to all values in the list, but only keep
 the successes.
 
+      String.toInt : String -> Maybe Int
+
       filterMap String.toInt ["3", "4.0", "5", "hats"] == [3,5]
 -}
 filterMap : (a -> Maybe b) -> [a] -> [b]
@@ -212,6 +214,7 @@ concatMap : (a -> appendable) -> [a] -> appendable
 concatMap f list = concat (map f list)
 
 {-| Get the sum of the list elements.
+
       sum [1..4] == 10
 -}
 sum : [number] -> number
