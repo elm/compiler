@@ -1,13 +1,13 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts #-}
-module Elm.Compiler (version, ModuleName, moduleNameToPath, moduleNameToString, parseDependencies, elmToJs) where
+module Elm.Compiler (version, parseDependencies, elmToJs) where
 
 import Control.Monad.Error (MonadError, MonadIO, liftIO, throwError)
 import qualified Data.List as List
-import System.FilePath ((</>))
 import System.IO.Unsafe (unsafePerformIO)
 
-import qualified AST.Module as Module
+import qualified AST.Module as Module (HeaderAndImports(HeaderAndImports), Interfaces)
+import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Version as Version
 import qualified Metadata.Prelude as Prelude
 import qualified Parse.Helpers as Help
@@ -21,33 +21,16 @@ version =
     Version.version
 
 
--- MODULE NAMES
-
-newtype ModuleName =
-    ModuleName [String]
-
-
-moduleNameToPath :: ModuleName -> FilePath
-moduleNameToPath (ModuleName names) =
-    List.foldl1 (</>) names
-
-
-moduleNameToString :: ModuleName -> String
-moduleNameToString (ModuleName names) =
-    List.intercalate "." names
-
-
 -- DEPENDENCIES
 
-parseDependencies :: (MonadIO m, MonadError String m) => FilePath -> m (ModuleName, [ModuleName])
-parseDependencies filePath =
-    do  src <- liftIO (readFile filePath)
-        case Help.iParse Parse.headerAndImports src of
-            Left msg ->
-                throwError (show msg)
+parseDependencies :: (MonadError String m) => String -> m (Module.Name, [Module.Name])
+parseDependencies src =
+    case Help.iParse Parse.headerAndImports src of
+        Left msg ->
+            throwError (show msg)
 
-            Right (Module.HeaderAndImports names _exports imports) ->
-                return ( ModuleName names, map (ModuleName . fst) imports )
+        Right (Module.HeaderAndImports names _exports imports) ->
+            return ( Module.Name names, map (Module.Name . fst) imports )
 
 
 -- COMPILATION
