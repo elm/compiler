@@ -344,5 +344,5 @@ inList milk store itemEq == False
 inList : a -> [a] -> (a -> a -> Bool) -> Bool
 inList item list eqFunction = case list of
                                 [] -> False
-                                (i::is) -> if | eqFunction item b -> True
-                                              | otherwise -> inList item is
+                                (x::xs) -> if | eqFunction item x -> True
+                                              | otherwise -> inList item xs
