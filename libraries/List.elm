@@ -1,4 +1,3 @@
-
 module List where
 
 {-| A library for manipulating lists of values. Every value in a
