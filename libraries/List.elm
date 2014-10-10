@@ -1,3 +1,4 @@
+
 module List where
 
 {-| A library for manipulating lists of values. Every value in a
@@ -324,3 +325,25 @@ to define any other: `sort == sortWith compare`
 -}
 sortWith : (a -> a -> Order) ->  [a] -> [a]
 sortWith = Native.List.sortWith
+
+{- | Test if item is in a list given an equality function.
+
+```haskell
+type StoreItem = { item:String, price=Int }
+bread = { item="bread", price=1 }
+egg = { item="egg", price=2 }
+milk = { item="milk", price=3 }
+
+itemEq = \x y -> x.item == y.item
+
+store = [bread, egg]
+
+inList bread store itemEq == True
+inList milk store itemEq == False
+```
+-}
+inList : a -> [a] -> (a -> a -> Bool) -> Bool
+inList item list eqFunction = case list of
+                                [] -> False
+                                (i::is) -> if | eqFunction item b -> True
+                                              | otherwise -> inList item is
