@@ -41,11 +41,15 @@ import Basics (..)
 import Maybe ( Maybe(Just,Nothing) )
 import Native.List
 
-{-| Add an element to the front of a list `(1 :: [2,3] == [1,2,3])` -}
+{-| Add an element to the front of a list. Pronounced *cons*.
+
+      1 :: [2,3] == [1,2,3]
+      1 :: [] == [1]
+-}
 (::) : a -> [a] -> [a]
 (::) = Native.List.cons
 
-{-| Puts two appendable things together:
+{-| Put two appendable things together.
 
       [1,1] ++ [2,3] == [1,1,2,3]
       "abc" ++ "123" == "abc123"
@@ -57,31 +61,40 @@ infixr 5 ::
 infixr 5 ++
 
 {-| Extract the first element of a list. List must be non-empty.
-`(head [1,2,3] == 1)`
+
+      head [1,2,3] == 1
 -}
 head : [a] -> a
 head = Native.List.head
 
 {-| Extract the elements after the head of the list. List must be non-empty.
-`(tail [1,2,3] == [2,3])`
+
+      tail [1,2,3] == [2,3]
 -}
 tail : [a] -> [a]
 tail = Native.List.tail
 
 {-| Extract the last element of a list. List must be non-empty.
-`(last [1,2,3] == 3)`
+
+      last [1,2,3] == 3
 -}
 last : [a] -> a
 last = Native.List.last
 
-{-| Check if a list is empty `(isEmpty [] == True)` -}
+{-| Determine if a list is empty.
+
+      isEmpty [] == True
+-}
 isEmpty : [a] -> Bool
 isEmpty xs =
     case xs of
       [] -> True
       _  -> False
 
-{-| Apply a function to every element of a list: `(map sqrt [1,4,9] == [1,2,3])` -}
+{-| Apply a function to every element of a list.
+
+      map sqrt [1,4,9] == [1,2,3]
+-}
 map : (a -> b) -> [a] -> [b]
 map = Native.List.map
 
@@ -94,11 +107,17 @@ indexedMap : (Int -> a -> b) -> [a] -> [b]
 indexedMap f xs =
     zipWith f [ 0 .. length xs - 1 ] xs
 
-{-| Reduce a list from the left: `(foldl (::) [] [1,2,3] == [3,2,1])` -}
+{-| Reduce a list from the left.
+
+      foldl (::) [] [1,2,3] == [3,2,1]
+-}
 foldl : (a -> b -> b) -> b -> [a] -> b
 foldl = Native.List.foldl
 
-{-| Reduce a list from the right: `(foldr (+) 0 [1,2,3] == 6)` -}
+{-| Reduce a list from the right.
+
+      foldr (+) 0 [1,2,3] == 6
+-}
 foldr : (a -> b -> b) -> b -> [a] -> b
 foldr = Native.List.foldr
 
@@ -124,8 +143,9 @@ scanl = Native.List.scanl
 scanl1 : (a -> a -> a) -> [a] -> [a]
 scanl1 = Native.List.scanl1
 
-{-| Keep only elements that satisfy the predicate:
-`(filter isEven [1..6] == [2,4,6])`
+{-| Keep only elements that satisfy the predicate.
+
+      filter isEven [1..6] == [2,4,6]
 -}
 filter : (a -> Bool) -> [a] -> [a]
 filter = Native.List.filter
@@ -133,9 +153,9 @@ filter = Native.List.filter
 {-| Apply a function that may succeed to all values in the list, but only keep
 the successes.
 
-      toInt : String -> Maybe Int
+      String.toInt : String -> Maybe Int
 
-      filterMap toInt ["3", "4.0", "5", "hats"] == [3,5]
+      filterMap String.toInt ["3", "4.0", "5", "hats"] == [3,5]
 -}
 filterMap : (a -> Maybe b) -> [a] -> [b]
 filterMap f xs = foldr (maybeCons f) [] xs
@@ -146,19 +166,35 @@ maybeCons f mx xs =
       Just x -> x :: xs
       Nothing -> xs
 
-{-| Determine the length of a list: `(length [1,2,3] == 3)` -}
+{-| Determine the length of a list.
+
+      length [1,2,3] == 3
+-}
 length : [a] -> Int
 length = Native.List.length
 
-{-| Reverse a list. `(reverse [1..4] == [4,3,2,1])` -}
+{-| Reverse a list.
+
+      reverse [1..4] == [4,3,2,1]
+-}
 reverse : [a] -> [a]
 reverse = Native.List.reverse
 
-{-| Check to see if all elements satisfy the predicate. -}
+{-| Determine if all elements satisfy the predicate.
+
+      all isEven [2,4] == True
+      all isEven [2,3] == False
+      all isEven [] == True
+-}
 all : (a -> Bool) -> [a] -> Bool
 all = Native.List.all
 
-{-| Check to see if any elements satisfy the predicate. -}
+{-| Determine if any elements satisfy the predicate.
+
+      any isEven [2,3] == True
+      any isEven [1,3] == False
+      any isEven [] == False
+-}
 any : (a -> Bool) -> [a] -> Bool
 any = Native.List.any
 
@@ -177,19 +213,28 @@ concat = Native.List.concat
 concatMap : (a -> appendable) -> [a] -> appendable
 concatMap f list = concat (map f list)
 
-{-| Get the sum of the list elements. `(sum [1..4] == 10)` -}
+{-| Get the sum of the list elements.
+
+      sum [1..4] == 10
+-}
 sum : [number] -> number
 sum = foldl (+) 0
 
-{-| Get the product of the list elements. `(product [1..4] == 24)` -}
+{-| Get the product of the list elements.
+      product [1..4] == 24
+-}
 product : [number] -> number
 product = foldl (*) 1
 
-{-| Find the maximum element in a non-empty list: `maximum [1,4,2] == 4` -}
+{-| Find the maximum element in a non-empty list.
+      maximum [1,4,2] == 4
+-}
 maximum : [comparable] -> comparable
 maximum = foldl1 max
 
-{-| Find the minimum element in a non-empty list: `minimum [3,2,1] == 1` -}
+{-| Find the minimum element in a non-empty list.
+      minimum [3,2,1] == 1
+-}
 minimum : [comparable] -> comparable
 minimum = foldl1 min
 
@@ -242,7 +287,7 @@ zipWith4 = Native.List.zipWith4
 zipWith5 : (a -> b -> c -> d -> e -> x) -> [a] -> [b] -> [c] -> [d] -> [e] -> [x]
 zipWith5 = Native.List.zipWith5
 
-{-| Decompose a list of tuples. 
+{-| Decompose a list of tuples into a tuple of lists.
 
       unzip [(0, True), (17, False), (1337, True)] == ([0,17,1337], [True,False,True])
 -}
@@ -251,8 +296,7 @@ unzip =
     let step (x,y) (xs, ys) = (x::xs, y::ys)
     in foldr step ([], [])
 
-{-| Places the given value between all of the lists in the second
-argument and concatenates the result.
+{-| Place a value between all elements in a list and concatenates the result.
 
       join "a" ["H","w","ii","n"] == "Hawaiian"
 -}
@@ -272,21 +316,30 @@ intersperse sep xs =
               spersed = foldr step [] tl
           in hd :: spersed
 
-{-| Take the first n members of a list: `(take 2 [1,2,3,4] == [1,2])` -}
+{-| Take the first *n* members of a list.
+
+      take 2 [1,2,3,4] == [1,2]
+-}
 take : Int -> [a] -> [a]
 take = Native.List.take
 
-{-| Drop the first n members of a list: `(drop 2 [1,2,3,4] == [3,4])` -}
+{-| Drop the first *n* members of a list.
+
+      drop 2 [1,2,3,4] == [3,4]
+-}
 drop : Int -> [a] -> [a]
 drop = Native.List.drop
 
-{-| Creates a list with *n* copies of a value:
-`(repeat 3 (0,0) == [(0,0),(0,0),(0,0)]`
+{-| Create a list with *n* copies of a value:
+
+      repeat 3 (0,0) == [(0,0),(0,0),(0,0)]
 -}
 repeat : Int -> a -> [a]
 repeat = Native.List.repeat
 
-{-| Sort values from lowest to highest: `sort [3,1,5] == [1,3,5]`
+{-| Sort values from lowest to highest
+
+      sort [3,1,5] == [1,3,5]
 -}
 sort : [comparable] -> [comparable]
 sort = Native.List.sort

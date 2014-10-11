@@ -34,7 +34,7 @@ base case.
 identity : Transform2D
 identity = Native.Transform2D.identity
 
-{-| Creates a transformation matrix. This lets you create transforms
+{-| Create a transformation matrix. This lets you create transforms
 such as scales, shears, reflections, and translations.
 
       matrix a b c d x y
@@ -47,8 +47,10 @@ Note that `x` and `y` are the translation values.
 matrix : Float -> Float -> Float -> Float -> Float -> Float -> Transform2D
 matrix = Native.Transform2D.matrix
 
-{-| Creates a [rotation matrix](http://en.wikipedia.org/wiki/Rotation_matrix).
+{-| Create a [rotation matrix](http://en.wikipedia.org/wiki/Rotation_matrix).
 Given an angle t, it creates a counterclockwise rotation matrix:
+
+      rotation t
 
           / cos t  -sin t  0 \
           \ sin t   cos t  0 /
@@ -56,9 +58,9 @@ Given an angle t, it creates a counterclockwise rotation matrix:
 rotation : Float -> Transform2D
 rotation = Native.Transform2D.rotation
 
-{-| Creates a transformation matrix for translation:
+{-| Create a transformation matrix for translation.
 
-    translation x y
+      translation x y
 
           / 1 0 x \
           \ 0 1 y /
@@ -66,9 +68,9 @@ rotation = Native.Transform2D.rotation
 translation : Float -> Float -> Transform2D
 translation x y = matrix 1 0 0 1 x y
 
-{-| Creates a transformation matrix for scaling by a all directions:
+{-| Creates a transformation matrix for scaling by a all directions.
 
-    scale s
+      scale s
 
         / s 0 0 \
         \ 0 s 0 /
@@ -76,17 +78,17 @@ translation x y = matrix 1 0 0 1 x y
 scale : Float -> Transform2D
 scale s = matrix s 0 0 s 0 0
 
-{-| Creates a transformation for horizontal scaling -}
+{-| Create a transformation for horizontal scaling. -}
 scaleX : Float -> Transform2D
 scaleX x = matrix x 0 0 1 0 0
 
-{-| Creates a transformation for vertical scaling -}
+{-| Create a transformation for vertical scaling. -}
 scaleY : Float -> Transform2D
 scaleY y = matrix 1 0 0 y 0 0
 
-{-| Multiplies two transforms together:
+{-| Multiply two transforms together.
 
-      multiply m n
+       multiply m n
 
           / ma mb mx \     / na nb nx \
           | mc md my |  .  | nc nd ny |

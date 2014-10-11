@@ -66,15 +66,11 @@ One turn is equal to 360&deg;.
 turns : Float -> Float
 turns = Native.Basics.turns
 
-{-| Start with polar coordinates (r,&theta;)
-and get out cartesian coordinates (x,y).
--}
+{-| Convert polar coordinates (r,&theta;) to cartesian coordinates (x,y). -}
 fromPolar : (Float,Float) -> (Float,Float)
 fromPolar = Native.Basics.fromPolar
 
-{-| Start with cartesian coordinates (x,y)
-and get out polar coordinates (r,&theta;).
--}
+{-| Convert cartesian coordinates (x,y) to polar coordinates (r,&theta;). -}
 toPolar : (Float,Float) -> (Float,Float)
 toPolar = Native.Basics.toPolar
 
@@ -101,11 +97,11 @@ infixl 7 //
 infixl 7 %
 infixl 7 `rem`
 
-{-| Integer division, remainder is discarded. -}
+{-| Integer division. The remainder is discarded. -}
 (//) : Int -> Int -> Int
 (//) = Native.Basics.div
 
-{-| Finds the remainder after dividing one number by another:
+{-| Find the remainder after dividing one number by another.
 
        7 `rem` 2 == 1
       -1 `rem` 4 == -1
@@ -113,7 +109,7 @@ infixl 7 `rem`
 rem : Int -> Int -> Int
 rem = Native.Basics.rem
 
-{-| Perform [modular arithmetic](http://en.wikipedia.org/wiki/Modular_arithmetic):
+{-| Perform [modular arithmetic](http://en.wikipedia.org/wiki/Modular_arithmetic).
 
        7 % 2 == 1
       -1 % 4 == 3
@@ -121,7 +117,10 @@ rem = Native.Basics.rem
 (%) : Int -> Int -> Int
 (%) = Native.Basics.mod
 
-{-| Exponentiation: `3^2 == 9` -}
+{-| Exponentiation
+
+      3^2 == 9`
+-}
 (^) : number -> number -> number
 (^) = Native.Basics.exp
 
@@ -161,7 +160,12 @@ atan2 = Native.Basics.atan2
 sqrt : Float -> Float
 sqrt = Native.Basics.sqrt
 
-{-| Negate any number: `negate 42 == -42` -}
+{-| Negate a number.
+
+      negate 42 == -42
+      negate -42 == 42
+      negate 0 == 0
+-}
 negate : number -> number
 negate = Native.Basics.negate
 
@@ -169,7 +173,11 @@ negate = Native.Basics.negate
 abs : number -> number
 abs = Native.Basics.abs
 
-{-| Calculate the logarithm of a number with a given base: `logBase 10 100 == 2` -}
+{-| Calculate the logarithm of a number with a given base.
+
+      logBase 10 100 == 2
+      logBase 2 256 == 8
+-}
 logBase : Float -> Float -> Float
 logBase = Native.Basics.logBase
 
@@ -228,22 +236,22 @@ The relations are less than, equal to, and greater than.
 -}
 data Order = LT | EQ | GT
 
-{-| Given two comparables, returns the smaller one. -}
+{-| Find the smaller of two comparables. -}
 min : comparable -> comparable -> comparable
 min = Native.Basics.min
 
-{-| Given two comparables, returns the larger one. -}
+{-| Find the larger of two comparables. -}
 max : comparable -> comparable -> comparable
 max = Native.Basics.max
 
-{-| The and operator. True if both inputs are True.
-This operator short-circuits if the first argument is False.
+{-| The logical AND operator. `True` if both inputs are `True`.
+This operator short-circuits to `False` if the first argument is `False`.
 -}
 (&&) : Bool -> Bool -> Bool
 (&&) = Native.Basics.and
 
-{-| The or operator. True if one or both inputs are True.
-This operator short-circuits if the first argument is True.
+{-| The logical OR operator. `True` if one or both inputs are `True`.
+This operator short-circuits to `True` if the first argument is True.
 -}
 (||) : Bool -> Bool -> Bool
 (||) = Native.Basics.or
@@ -251,15 +259,19 @@ This operator short-circuits if the first argument is True.
 infixr 3 &&
 infixr 2 ||
 
-{-| The exclusive-or operator. True if exactly one input is True. -}
+{-| The exclusive-or operator. `True` if exactly one input is `True`. -}
 xor : Bool -> Bool -> Bool
 xor = Native.Basics.xor
 
-{-| Negate a boolean value: `(not True == False)` and `(not False == True)` -}
+{-| Negate a boolean value.
+
+    not True == False
+    not False == True
+-}
 not : Bool -> Bool
 not = Native.Basics.not
 
-{-| Equal to true. Useful as the last case of a multi-way-if. -}
+{-| Equal to `True`. Useful as the last case of a multi-way-if. -}
 otherwise : Bool
 otherwise = True
 
@@ -270,7 +282,7 @@ otherwise = True
 round : Float -> Int
 round = Native.Basics.round
 
-{-| Truncate a decimal number, rounding towards zero. -}
+{-| Truncate a number, rounding towards zero. -}
 truncate : Float -> Int
 truncate = Native.Basics.truncate
 
@@ -286,7 +298,7 @@ ceiling = Native.Basics.ceiling
 toFloat : Int -> Float
 toFloat = Native.Basics.toFloat
 
-{- | Determines whether a float is an undefined or unrepresentable number.
+{- | Determine whether a float is an undefined or unrepresentable number.
 NaN stands for *not a number* and it is [a standardized part of floating point
 numbers](http://en.wikipedia.org/wiki/NaN).
 
@@ -298,7 +310,7 @@ numbers](http://en.wikipedia.org/wiki/NaN).
 isNaN : Float -> Bool
 isNaN = Native.Basics.isNaN
 
-{- | Determines whether a float is positive or negative infinity.
+{- | Determine whether a float is positive or negative infinity.
 
       isInfinite (0/0)     == False
       isInfinite (sqrt -1) == False
@@ -355,8 +367,8 @@ This can also be written as:
 (|>) : a -> (a -> b) -> b
 x |> f = f x
 
-{-| Function application `f <| x == f x`. This function is useful for avoiding
-parenthesis. Consider the following code to create a text element:
+{-| Backward function application `f <| x == f x`. This function is useful for
+avoiding parenthesis. Consider the following code to create a text element:
 
         text (monospace (toText "code"))
 
@@ -378,7 +390,7 @@ infixl 0 |>
 identity : a -> a
 identity x = x
 
-{-| Creates a [constant function](http://en.wikipedia.org/wiki/Constant_function),
+{-| Create a [constant function](http://en.wikipedia.org/wiki/Constant_function),
 a function that *always* returns the same value regardless of what input you give.
 It is defined as:
 
@@ -402,7 +414,7 @@ fst (a,_) = a
 snd : (a,b) -> b
 snd (_,b) = b
 
-{-| Flips the order of the first two arguments to a function. -}
+{-| Flip the order of the first two arguments to a function. -}
 flip : (a -> b -> c) -> (b -> a -> c)
 flip f b a = f a b
 

@@ -32,7 +32,7 @@ import Native.Show
 import Native.String
 import Maybe (Maybe)
 
-{-| Check if a string is empty.
+{-| Determine if a string is empty.
 
       isEmpty "" == True
       isEmpty "the world" == False
@@ -40,7 +40,7 @@ import Maybe (Maybe)
 isEmpty : String -> Bool
 isEmpty = Native.String.isEmpty
 
-{-| Add a character to the beginning of a string -}
+{-| Add a character to the beginning of a string. -}
 cons : Char -> String -> String
 cons = Native.String.cons
 
@@ -84,7 +84,7 @@ length = Native.String.length
 map : (Char -> Char) -> String -> String
 map = Native.String.map
 
-{-| Keep only the characters that satisfy the predicate:
+{-| Keep only the characters that satisfy the predicate.
 
       filter isDigit "R2-D2" == "22"
 -}
@@ -98,14 +98,14 @@ filter = Native.String.filter
 reverse : String -> String
 reverse = Native.String.reverse
 
-{-| Reduce a string from the left:
+{-| Reduce a string from the left.
 
       foldl cons "" "time" == "emit"
 -}
 foldl : (Char -> b -> b) -> b -> String -> b
 foldl = Native.String.foldl
 
-{-| Reduce a string from the right:
+{-| Reduce a string from the right.
 
       foldr cons "" "time" == "time"
 -}
@@ -131,7 +131,7 @@ split = Native.String.split
 join : String -> [String] -> String
 join = Native.String.join
 
-{-| Repeat a string N times.
+{-| Repeat a string *n* times.
 
       repeat 3 "ha" == "hahaha"
 -}
@@ -149,19 +149,19 @@ are taken starting from the *end* of the list.
 slice : Int -> Int -> String -> String
 slice = Native.String.slice
 
-{-| Take N characters from the left side of a string. -}
+{-| Take *n* characters from the left side of a string. -}
 left : Int -> String -> String
 left = Native.String.left
 
-{-| Take N characters from the right side of a string. -}
+{-| Take *n* characters from the right side of a string. -}
 right : Int -> String -> String
 right = Native.String.right
 
-{-| Drop N characters from the left side of a string. -}
+{-| Drop *n* characters from the left side of a string. -}
 dropLeft : Int -> String -> String
 dropLeft = Native.String.dropLeft
 
-{-| Drop N characters from the right side of a string. -}
+{-| Drop *n* characters from the right side of a string. -}
 dropRight : Int -> String -> String
 dropRight = Native.String.dropRight
 
@@ -237,7 +237,7 @@ toUpper = Native.String.toUpper
 toLower : String -> String
 toLower = Native.String.toLower
 
-{-| Check to see if *any* characters satisfy a predicate.
+{-| Determine whether *any* characters satisfy a predicate.
 
       any isDigit "90210" == True
       any isDigit "R2-D2" == True
@@ -246,7 +246,7 @@ toLower = Native.String.toLower
 any : (Char -> Bool) -> String -> Bool
 any = Native.String.any
 
-{-| Check to see if *all* characters satisfy a predicate.
+{-| Determine whether *all* characters satisfy a predicate.
 
       all isDigit "90210" == True
       all isDigit "R2-D2" == False
