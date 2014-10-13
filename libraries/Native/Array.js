@@ -390,9 +390,11 @@ Elm.Native.Array.make = function(elm) {
         return c[0];
       }
 
-      var toRemove = calcToRemove(a, b);
-      if (toRemove > E) {
-        c = shuffle(c[0], c[1], toRemove);
+      if (c[0].height > 0) {
+        var toRemove = calcToRemove(a, b);
+        if (toRemove > E) {
+          c = shuffle(c[0], c[1], toRemove);
+        }
       }
 
       return siblise(c[0], c[1]);
