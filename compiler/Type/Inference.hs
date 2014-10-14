@@ -62,24 +62,24 @@ genConstraints interfaces modul = do
   return (header, environ c)
 
 
-canonicalizeValues :: Env.Environment -> (String, Interface)
+canonicalizeValues :: Env.Environment -> (Module.Name, Interface)
                    -> ErrorT [Doc] IO [(String, ([T.Variable], T.Type))]
 canonicalizeValues env (moduleName, iface) =
     forM (Map.toList (iTypes iface)) $ \(name,tipe) -> do
       tipe' <- Env.instantiateType env tipe Map.empty
-      return (moduleName ++ "." ++ name, tipe')
+      return (Module.nameToString moduleName ++ "." ++ name, tipe')
 
 canonicalizeAdts :: Interfaces -> CanonicalModule -> [CanonicalAdt]
 canonicalizeAdts interfaces modul =
     localAdts ++ importedAdts
   where
     localAdts :: [CanonicalAdt]
-    localAdts = format (Module.getName modul, datatypes (body modul))
+    localAdts = format (Module.names modul, datatypes (body modul))
 
     importedAdts :: [CanonicalAdt]
     importedAdts = concatMap (format . second iAdts) (Map.toList interfaces)
 
-    format :: (String, Module.ADTs) -> [CanonicalAdt]
+    format :: (Module.Name, Module.ADTs) -> [CanonicalAdt]
     format (home, adts) =
         map canonical (Map.toList adts)
       where

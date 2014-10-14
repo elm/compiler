@@ -31,7 +31,7 @@ incoming tipe =
     Aliased _ t -> incoming t
 
     App (Type v) [t]
-        | Var.isSignal v -> V.value "Native.Ports" "incomingSignal" <| incoming t
+        | Var.isSignal v -> V.value ["Native","Ports"] "incomingSignal" <| incoming t
 
     _ -> ["v"] ==> inc tipe (ref "v")
 
@@ -52,7 +52,7 @@ inc tipe x =
             from checks = check x checks x
 
       Type name
-          | Var.isJson name -> V.value "Native.Json" "fromJS" <| x
+          | Var.isJson name -> V.value ["Native","Json"] "fromJS" <| x
           | Var.isTuple name -> incomingTuple [] x
           | otherwise -> error "bad type got to incoming port generation code"
 
@@ -62,8 +62,8 @@ inc tipe x =
                 | Var.isMaybe name ->
                     CondExpr ()
                         (equal x (NullLit ()))
-                        (V.value "Maybe" "Nothing")
-                        (V.value "Maybe" "Just" <| inc t x)
+                        (V.value ["Maybe"] "Nothing")
+                        (V.value ["Maybe"] "Just" <| inc t x)
 
                 | Var.isList name ->
                     check x JSArray (obj ["_L","fromArray"] <| array)
@@ -107,7 +107,7 @@ outgoing tipe =
     Aliased _ t -> outgoing t
 
     App (Type v) [t]
-        | Var.isSignal v -> V.value "Native.Ports" "outgoingSignal" <| outgoing t
+        | Var.isSignal v -> V.value ["Native","Ports"] "outgoingSignal" <| outgoing t
 
     _ -> ["v"] ==> out tipe (ref "v")
 
@@ -137,7 +137,7 @@ out tipe x =
           | name `elem` ["Int","Float","Bool","String"] -> x
 
       Type name
-          | Var.isJson name -> V.value "Native.Json" "toJS" <| x
+          | Var.isJson name -> V.value ["Native","Json"] "toJS" <| x
           | Var.isTuple name -> ArrayLit () []
           | otherwise -> error "bad type got to outgoing port generation code"
 

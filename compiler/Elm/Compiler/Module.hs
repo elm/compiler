@@ -1,4 +1,8 @@
-module Elm.Compiler.Module (Name(Name), nameToPath, nameToString, nameFromString) where
+module Elm.Compiler.Module
+    ( Interface(Interface), Name(Name)
+    , nameToPath, nameToString, nameFromString
+    )
+  where
 
 import Control.Monad (mzero)
 import qualified Data.Aeson as Json
@@ -8,6 +12,8 @@ import qualified Data.Text as Text
 import System.FilePath ((</>))
 import qualified AST.Module as Module
 
+
+newtype Interface = Interface Module.Interface
 
 newtype Name = Name [String]
     deriving (Eq, Ord)

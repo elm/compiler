@@ -23,10 +23,11 @@ import Transform.Canonicalize.Environment as Env
 import qualified Transform.Canonicalize.Type as Canonicalize
 import qualified Transform.Interface as Interface
 
+
 environment :: Module.Interfaces -> Module.ValidModule -> Canonicalizer [Doc] Environment
 environment interfaces modul@(Module.Module _ _ _ imports decls) =
   do () <- allImportsAvailable
-     let moduleName = Module.getName modul
+     let moduleName = Module.names modul
      nonLocalEnv <- foldM (addImports moduleName interfaces) (builtIns moduleName) imports
      let (aliases, env) = List.foldl' (addDecl moduleName) ([], nonLocalEnv) decls
      addTypeAliases moduleName aliases env
@@ -39,18 +40,19 @@ environment interfaces modul@(Module.Module _ _ _ imports decls) =
         where
           modules = map fst imports
 
-          found m = Map.member m interfaces || List.isPrefixOf "Native." m
+          found m = Map.member m interfaces || Module.nameIsNative m
 
           missingModuleError missings =
               concat [ "The following imports were not found: "
-                     , List.intercalate ", " missings
+                     , List.intercalate ", " (map Module.nameToString missings)
                      , "\n    You may need to compile with the --make "
                      , "flag to detect modules you have written." ]
 
-addImports :: String -> Module.Interfaces -> Environment -> (String, Module.ImportMethod)
+
+addImports :: Module.Name -> Module.Interfaces -> Environment -> (Module.Name, Module.ImportMethod)
            -> Canonicalizer [Doc] Environment
 addImports moduleName interfaces environ (name, method)
-    | List.isPrefixOf "Native." name = return environ
+    | Module.nameIsNative name = return environ
     | otherwise =
         case method of
           Module.As name' ->
@@ -82,10 +84,11 @@ addImports moduleName interfaces environ (name, method)
 
       ctors = concatMap (map (pair . fst) . snd . snd) (Map.toList (iAdts interface))
 
-addValue :: String -> Module.Interface -> Environment -> Var.Value
+addValue :: Module.Name -> Module.Interface -> Environment -> Var.Value
          -> Canonicalizer [Doc] Environment
-addValue name interface env value =
-    let insert' x = insert x (Var.Canonical (Var.Module name) x)
+addValue moduleName interface env value =
+    let name = Module.nameToString moduleName
+        insert' x = insert x (Var.Canonical (Var.Module moduleName) x)
         msg x = "Import Error: Could not import value '" ++ name ++ "." ++ x ++
                 "'.\n    It is not exported by module " ++ name ++ "."
         notFound x = throwError [ P.text (msg x) ]
@@ -104,7 +107,7 @@ addValue name interface env value =
                     , _values = updatedValues
                     }
               where
-                v = (Var.Canonical (Var.Module name) x, tvars, t)
+                v = (Var.Canonical (Var.Module moduleName) x, tvars, t)
                 updatedValues =
                     if Map.member x (iTypes interface)
                       then insert' x (_values env)
@@ -147,7 +150,7 @@ node name tvars alias = ((name, tvars, alias), name, edges alias)
             Type.Record fs ext -> maybe [] edges ext ++ concatMap (edges . snd) fs
             Type.Aliased _ t -> edges t
 
-addTypeAliases :: String -> [Node] -> Environment -> Canonicalizer [Doc] Environment
+addTypeAliases :: Module.Name -> [Node] -> Environment -> Canonicalizer [Doc] Environment
 addTypeAliases moduleName nodes environ =
     foldM addTypeAlias environ (Graph.stronglyConnComp nodes)
   where
@@ -193,7 +196,7 @@ addTypeAliases moduleName nodes environ =
 -- When canonicalizing, all _values should be Local, but all _adts and _patterns
 -- should be fully namespaced. With _adts, they may appear in types that can
 -- escape the module.
-addDecl :: String -> ([Node], Environment) -> D.ValidDecl -> ([Node], Environment)
+addDecl :: Module.Name -> ([Node], Environment) -> D.ValidDecl -> ([Node], Environment)
 addDecl moduleName info@(nodes,env) decl =
     let namespacedVar     = Var.Canonical (Var.Module moduleName)
         addLocal      x e = insert x (Var.local     x) e

@@ -16,33 +16,33 @@ import qualified Elm.Compiler.Version as Compiler
 -- DEFINITION OF THE PRELUDE
 
 type ImportDict =
-    Map.Map String ([String], Var.Listing Var.Value)
+    Map.Map Module.Name ([String], Var.Listing Var.Value)
 
 
 prelude :: ImportDict
 prelude =
     Map.unions [ string, text, maybe, openImports ]
   where
-    importing :: String -> [Var.Value] -> ImportDict
+    importing :: Module.Name -> [Var.Value] -> ImportDict
     importing name values =
         Map.singleton name ([], Var.Listing values False)
 
     openImports :: ImportDict
     openImports =
         Map.fromList $ map (\name -> (name, ([], Var.openListing))) $
-        [ "Basics", "Signal", "List", "Time", "Color"
-        , "Graphics.Element", "Graphics.Collage"
-        , "Native.Ports", "Native.Json"
+        [ ["Basics"], ["Signal"], ["List"], ["Time"], ["Color"]
+        , ["Graphics","Element"], ["Graphics","Collage"]
+        , ["Native","Ports"], ["Native","Json"]
         ]
 
     maybe :: ImportDict
-    maybe = importing "Maybe" [ Var.ADT "Maybe" Var.openListing ]
+    maybe = importing ["Maybe"] [ Var.ADT "Maybe" Var.openListing ]
 
     string :: ImportDict
-    string = importing "String" [Var.Value "show"]
+    string = importing ["String"] [Var.Value "show"]
 
     text :: ImportDict
-    text = importing "Text" (Var.ADT "Text" (Var.Listing [] False) : values)
+    text = importing ["Text"] (Var.ADT "Text" (Var.Listing [] False) : values)
       where
         values =
             map Var.Value
@@ -62,7 +62,7 @@ add noPrelude (Module.Module moduleName path exports imports decls) =
         foldr addImport (if noPrelude then Map.empty else prelude) imports
 
 
-importDictToList :: ImportDict -> [(String, Module.ImportMethod)]
+importDictToList :: ImportDict -> [(Module.Name, Module.ImportMethod)]
 importDictToList dict =
     concatMap toImports (Map.toList dict)
   where
@@ -74,7 +74,7 @@ importDictToList dict =
           else []
 
 
-addImport :: (String, Module.ImportMethod) -> ImportDict -> ImportDict
+addImport :: (Module.Name, Module.ImportMethod) -> ImportDict -> ImportDict
 addImport (name, method) importDict =
     Map.alter mergeMethods name importDict
   where
@@ -117,7 +117,11 @@ readInterfaces filePath =
         _  -> return (Map.fromList interfaces)
 
 
-isValid :: (MonadError String m) => FilePath -> (String, Module.Interface) -> m (String, Module.Interface)
+isValid
+    :: (MonadError String m)
+    => FilePath
+    -> (Module.Name, Module.Interface)
+    -> m (Module.Name, Module.Interface)
 isValid filePath (name, interface) =
     if version == Compiler.version
         then return (name, interface)

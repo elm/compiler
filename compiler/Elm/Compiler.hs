@@ -1,14 +1,18 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts #-}
-module Elm.Compiler (version, parseDependencies, elmToJs) where
+module Elm.Compiler (version, parseDependencies, compile) where
 
 import Control.Monad.Error (MonadError, MonadIO, liftIO, throwError)
 import qualified Data.List as List
+import qualified Data.Map as Map
 import System.IO.Unsafe (unsafePerformIO)
+import qualified Text.PrettyPrint as P
 
 import qualified AST.Module as Module (HeaderAndImports(HeaderAndImports), Interfaces)
-import qualified Elm.Compiler.Module as Module
+import qualified Build.Source as Source
+import qualified Elm.Compiler.Module as PublicModule
 import qualified Elm.Compiler.Version as Version
+import qualified Generate.JavaScript as JS
 import qualified Metadata.Prelude as Prelude
 import qualified Parse.Helpers as Help
 import qualified Parse.Module as Parse
@@ -23,27 +27,38 @@ version =
 
 -- DEPENDENCIES
 
-parseDependencies :: (MonadError String m) => String -> m (Module.Name, [Module.Name])
+parseDependencies
+    :: (MonadError String m)
+    => String
+    -> m (PublicModule.Name, [PublicModule.Name])
 parseDependencies src =
     case Help.iParse Parse.headerAndImports src of
         Left msg ->
             throwError (show msg)
 
         Right (Module.HeaderAndImports names _exports imports) ->
-            return ( Module.Name names, map (Module.Name . fst) imports )
+            return
+                ( PublicModule.Name names
+                , map (PublicModule.Name . fst) imports
+                )
 
 
 -- COMPILATION
 
 {-| Compiles Elm source code to JavaScript. -}
-elmToJs :: String -> Either String String
-elmToJs source =
-    error "elmToJs is not working yet"
-{-
-    case Source.build False interfaces source of
+compile
+    :: String
+    -> Map.Map PublicModule.Name PublicModule.Interface
+    -> Either String PublicModule.Interface
+compile source interfaces =
+    case Source.build False unwrappedInterfaces source of
       Left docs -> Left . unlines . List.intersperse "" $ map P.render docs
-      Right modul -> Right $ JS.generate modul
--}
+      Right modul -> Right $ error "JS.generate modul"
+  where
+    unwrappedInterfaces =
+        Map.map (\(PublicModule.Interface iface) -> iface) $
+        Map.mapKeysMonotonic (\(PublicModule.Name name) -> name) interfaces
+
 
 {-# NOINLINE interfaces #-}
 interfaces :: Module.Interfaces

@@ -9,6 +9,7 @@ import qualified AST.Expression.General as E
 import qualified AST.Expression.Source as Source
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Module as Module
 import qualified AST.Pattern as P
 import qualified AST.Type as T
 import qualified AST.Variable as Var
@@ -70,10 +71,10 @@ combineAnnotations = go
                         _ -> (:) (D.Port (D.In name tipe)) <$> go portRest
 
 
-toExpr :: String -> [D.CanonicalDecl] -> [Canonical.Def]
+toExpr :: Module.Name -> [D.CanonicalDecl] -> [Canonical.Def]
 toExpr moduleName = concatMap (toDefs moduleName)
 
-toDefs :: String -> D.CanonicalDecl -> [Canonical.Def]
+toDefs :: Module.Name -> D.CanonicalDecl -> [Canonical.Def]
 toDefs moduleName decl =
   let typeVar = Var.Canonical (Var.Module moduleName) in
   case decl of

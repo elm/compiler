@@ -8,23 +8,29 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import AST.Expression.General (saveEnvName)
+import qualified AST.Module as Module
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 
 import Text.PrettyPrint (Doc)
 
+
 type Dict a = Map.Map String [a]
 
 dict :: [(String,a)] -> Dict a
-dict pairs = Map.fromList $ map (second (:[])) pairs
+dict pairs =
+    Map.fromList $ map (second (:[])) pairs
 
 insert :: String -> a -> Dict a -> Dict a
-insert key value = Map.insertWith (++) key [value]
+insert key value =
+    Map.insertWith (++) key [value]
 
-type Canonicalizer err a = Error.ErrorT err (State.State (Set.Set String)) a
 
-uses :: (Error.Error e) => String -> Canonicalizer e ()
+type Canonicalizer err a =
+    Error.ErrorT err (State.State (Set.Set Module.Name)) a
+
+uses :: (Error.Error e) => Module.Name -> Canonicalizer e ()
 uses home =
     Error.lift (State.modify (Set.insert home))
 
@@ -46,15 +52,16 @@ onError handler canonicalizer =
        Left err -> Error.throwError [handler err]
        Right x  -> return x
 
+
 data Environment = Env
-    { _home     :: String
+    { _home     :: Module.Name
     , _values   :: Dict Var.Canonical
     , _adts     :: Dict Var.Canonical
     , _aliases  :: Dict (Var.Canonical, [String], Type.CanonicalType)
     , _patterns :: Dict Var.Canonical
     }
 
-builtIns :: String -> Environment
+builtIns :: Module.Name -> Environment
 builtIns home =
     Env { _home     = home
         , _values   = builtIn (tuples ++ [saveEnvName])

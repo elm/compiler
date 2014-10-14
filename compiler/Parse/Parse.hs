@@ -2,7 +2,6 @@
 module Parse.Parse (program) where
 
 import Control.Applicative ((<$>))
-import Control.Arrow (first)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Text.Parsec hiding (newline, spaces)
@@ -37,8 +36,7 @@ programParser =
   do (M.HeaderAndImports names exports imports) <- Module.headerAndImports
      declarations <- decls
      optional freshLine ; optional spaces ; eof
-     let stringyImports = map (first M.nameToString) imports
-     return $ M.Module names "" exports stringyImports declarations
+     return $ M.Module names "" exports imports declarations
 
 setupParserWithTable :: OpTable -> IParser a -> String -> Either [P.Doc] a
 setupParserWithTable table p source =

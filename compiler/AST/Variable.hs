@@ -1,8 +1,9 @@
 {-# OPTIONS_GHC -W #-}
 module AST.Variable where
 
-import Data.Binary
 import Control.Applicative ((<$>), (<*>))
+import Data.Binary
+import qualified Data.List as List
 import Text.PrettyPrint as P
 import qualified AST.Helpers as Help
 import AST.PrettyPrint
@@ -12,7 +13,7 @@ newtype Raw = Raw String
 
 data Home
     = BuiltIn
-    | Module !String
+    | Module [String]
     | Local
     deriving (Eq,Ord,Show)
 
@@ -28,24 +29,25 @@ builtin :: String -> Canonical
 builtin x = Canonical BuiltIn x
 
 -- To help with pattern matching on some common canonical variables:
-is :: String -> String -> Canonical -> Bool
+is :: [String] -> String -> Canonical -> Bool
 is home name var =
     var == Canonical (Module home) name
 
 isJson :: Canonical -> Bool
-isJson = is "Json" "Value"
+isJson = is ["Json"] "Value"
 
 isMaybe :: Canonical -> Bool
-isMaybe = is "Maybe" "Maybe"
+isMaybe = is ["Maybe"] "Maybe"
 
 isArray :: Canonical -> Bool
-isArray = is "Array" "Array"
+isArray = is ["Array"] "Array"
 
 isSignal :: Canonical -> Bool
-isSignal = is "Signal" "Signal"
+isSignal = is ["Signal"] "Signal"
 
 isList :: Canonical -> Bool
-isList v = v == Canonical BuiltIn "_List"
+isList v =
+    v == Canonical BuiltIn "_List"
 
 isTuple :: Canonical -> Bool
 isTuple v =
@@ -66,7 +68,7 @@ isPrim prim v =
       _ -> False
 
 isText :: Canonical -> Bool
-isText = is "Text" "Text"
+isText = is ["Text"] "Text"
 
 class ToString a where
   toString :: a -> String
@@ -78,7 +80,7 @@ instance ToString Canonical where
   toString (Canonical home name) =
     case home of
       BuiltIn -> name
-      Module path -> path ++ "." ++ name
+      Module path -> List.intercalate "." (path ++ [name])
       Local -> name
 
 -- | A listing of values. Something like (a,b,c) or (..) or (a,b,..)

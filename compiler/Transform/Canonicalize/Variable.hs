@@ -7,6 +7,7 @@ import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 
 import AST.Helpers as Help
+import qualified AST.Module as Module
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import Transform.Canonicalize.Environment as Env
@@ -14,10 +15,9 @@ import Transform.Canonicalize.Environment as Env
 variable :: Environment -> String -> Canonicalizer String Var.Canonical
 variable env var =
   case modul of
-    Just ms@(m:_)
-        | m == "Native" -> Env.using (Var.Canonical home name)
-            where
-              home = Var.Module (List.intercalate "." ms)
+    Just name
+        | Module.nameIsNative name ->
+            Env.using (Var.Canonical (Var.Module name) varName)
 
     _ ->
         case Map.lookup var (_values env) of
@@ -25,7 +25,7 @@ variable env var =
           Just vs  -> preferLocals env "variable" vs var
           Nothing  -> notFound "variable" (Map.keys (_values env)) var
   where
-    (modul, name) =
+    (modul, varName) =
       case Help.splitDots var of
         [x] -> (Nothing, x)
         xs  -> (Just (init xs), last xs)
@@ -83,7 +83,8 @@ preferLocals' env extract kind possibilities var =
           case home of
             Var.Local -> True
             Var.BuiltIn -> False
-            Var.Module name -> name == Env._home env
+            Var.Module name ->
+                name == Env._home env
 
       ambiguous possibleVars =
           throwError msg

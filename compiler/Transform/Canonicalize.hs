@@ -58,7 +58,7 @@ moduleHelp interfaces modul@(Module.Module _ _ exports _ decls) =
     body decls =
       Module.CanonicalBody
          { program =
-               let expr = Transform.toExpr (Module.getName modul) decls
+               let expr = Transform.toExpr (Module.names modul) decls
                in  Transform.sortDefs (dummyLet expr)
          , types = Map.empty
          , datatypes =
@@ -181,16 +181,17 @@ declaration env decl =
              return (D.TypeAlias name tvars expanded')
 
       D.Port port -> do
-          Env.uses "Native.Ports"
-          Env.uses "Native.Json"
-          D.Port <$> case port of
-                       D.In name t ->
-                           do t' <- canonicalize Canonicalize.tipe "port" name env t
-                              return (D.In name t')
-                       D.Out name e t ->
-                           do e' <- expression env e
-                              t' <- canonicalize Canonicalize.tipe "port" name env t
-                              return (D.Out name e' t')
+          Env.uses ["Native","Ports"]
+          Env.uses ["Native","Json"]
+          D.Port <$>
+              case port of
+                D.In name t ->
+                    do  t' <- canonicalize Canonicalize.tipe "port" name env t
+                        return (D.In name t')
+                D.Out name e t ->
+                    do  e' <- expression env e
+                        t' <- canonicalize Canonicalize.tipe "port" name env t
+                        return (D.Out name e' t')
 
       D.Fixity assoc prec op -> return $ D.Fixity assoc prec op
 
@@ -254,7 +255,7 @@ expression env (A.A ann expr) =
                                <*> expression (update p env) b
 
       Markdown uid md es ->
-          do Env.uses "Text"
+          do Env.uses ["Text"]
              Markdown uid md <$> mapM go es
 
       PortIn name st -> PortIn name <$> tipe' env st

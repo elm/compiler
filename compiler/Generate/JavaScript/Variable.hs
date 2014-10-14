@@ -2,7 +2,9 @@
 module Generate.JavaScript.Variable where
 
 import qualified AST.Helpers as Help
+import qualified AST.Module as Module
 import qualified AST.Variable as Var
+import qualified Data.List as List
 import qualified Data.Set as Set
 import qualified Generate.JavaScript.Helpers as JS
 import qualified Language.ECMAScript3.Syntax as JS
@@ -22,15 +24,16 @@ canonical (Var.Canonical home name) =
         Var.BuiltIn     -> []
         Var.Module path -> [ moduleName path ]
 
-moduleName :: String -> String
-moduleName x = '$' : map (swap '.' '$') x
+moduleName :: Module.Name -> String
+moduleName name =
+    '$' : List.intercalate "$" name
 
 varName :: String -> String
 varName x = map (swap '\'' '$') x'
     where
       x' = if Set.member x jsReserveds then '$' : x else x
 
-value :: String -> String -> JS.Expression ()
+value :: Module.Name -> String -> JS.Expression ()
 value home name =
     canonical (Var.Canonical (Var.Module home) name)
 

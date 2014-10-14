@@ -30,14 +30,14 @@ varDecl :: String -> Expression () -> VarDecl ()
 varDecl x expr =
     VarDecl () (var x) (Just expr)
 
-internalImports :: String -> [VarDecl ()]
+internalImports :: Module.Name -> [VarDecl ()]
 internalImports name =
     [ varDecl "_N" (obj ["Elm","Native"])
     , include "_U" "Utils"
     , include "_L" "List" 
     , include "_A" "Array"
     , include "_E" "Error"
-    , varDecl Help.localModuleName (string name)
+    , varDecl Help.localModuleName (string (Module.nameToString name))
     ]
     where
       include :: String -> String -> VarDecl ()
@@ -149,7 +149,7 @@ expression (A region expr) =
       MultiIf branches ->
           do branches' <- forM branches $ \(b,e) -> (,) <$> expression b <*> expression e
              return $ case last branches of
-               (A _ (Var (Var.Canonical (Var.Module "Basics") "otherwise")), _) ->
+               (A _ (Var (Var.Canonical (Var.Module ["Basics"]) "otherwise")), _) ->
                    safeIfs branches'
                (A _ (Literal (Boolean True)), _) -> safeIfs branches'
                _ -> ifs branches' (throw "If" region)
@@ -183,7 +183,7 @@ expression (A region expr) =
 
       Markdown uid doc es ->
           do es' <- mapM expression es
-             return $ Var.value "Text" "markdown" `call` (string md : string uid : es')
+             return $ Var.value ["Text"] "markdown" `call` (string md : string uid : es')
           where
             pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
             md = pad ++ MD.toHtml doc ++ pad
@@ -192,12 +192,12 @@ expression (A region expr) =
         return $ ObjectLit () [(PropString () "src", literal (Str src))]
           
       PortIn name tipe ->
-          return $ Var.value "Native.Ports" "portIn" `call`
+          return $ Var.value ["Native","Ports"] "portIn" `call`
                      [ string name, Port.incoming tipe ]
 
       PortOut name tipe value ->
           do value' <- expression value
-             return $ Var.value "Native.Ports" "portOut" `call`
+             return $ Var.value ["Native","Ports"] "portOut" `call`
                         [ string name, Port.outgoing tipe, value' ]
 
 definition :: Canonical.Def -> State Int [Statement ()]
@@ -326,17 +326,17 @@ generate modul =
 
     localVars :: [VarDecl ()]
     localVars = varDecl "_op" (ObjectLit () []) :
-                internalImports (Module.getName modul) ++
+                internalImports (Module.names modul) ++
                 explicitImports
       where
         explicitImports :: [VarDecl ()]
         explicitImports =
             map jsImport . Set.toList . Set.fromList . map fst $ Module.imports modul
 
-        jsImport :: String -> VarDecl ()
+        jsImport :: Module.Name -> VarDecl ()
         jsImport name =
             varDecl (Var.moduleName name) $
-                obj ("Elm" : Help.splitDots name ++ ["make"]) <| ref "_elm"
+                obj ("Elm" : name ++ ["make"]) <| ref "_elm"
 
     body :: [Statement ()]
     body = concat $ evalState defs 0
@@ -369,20 +369,20 @@ binop :: Region -> Var.Canonical -> Canonical.Expr -> Canonical.Expr
       -> State Int (Expression ())
 binop region func@(Var.Canonical home op) e1 e2 =
     case (home, op) of
-      (Var.Module "Basics", ">>") ->
+      (Var.Module ["Basics"], ">>") ->
           do es <- mapM expression (collectLeftAssoc [e2] e1)
              return $ ["$"] ==> List.foldl' (\e f -> f <| e) (ref "$") es
 
-      (Var.Module "Basics", "<<") ->
+      (Var.Module ["Basics"], "<<") ->
           do es <- mapM expression (e1 : collectRightAssoc [] e2)
              return $ ["$"] ==> foldr (<|) (ref "$") es
 
-      (Var.Module "Basics", "<|") ->
+      (Var.Module ["Basics"], "<|") ->
           do e2' <- expression e2
              es <- mapM expression (collectRightAssoc [] e1)
              return $ foldr (<|) e2' es
 
-      (Var.Module "List", "++") ->
+      (Var.Module ["List"], "++") ->
           do e1' <- expression e1
              e2' <- expression e2
              return $ _List "append" `call` [e1', e2']
@@ -390,7 +390,7 @@ binop region func@(Var.Canonical home op) e1 e2 =
       (Var.BuiltIn, "::") ->
           expression (A region (Data "::" [e1,e2]))
 
-      (Var.Module "Basics", _) ->
+      (Var.Module ["Basics"], _) ->
           do e1' <- expression e1
              e2' <- expression e2
              return $ case Map.lookup op basicOps of
@@ -405,13 +405,13 @@ binop region func@(Var.Canonical home op) e1 e2 =
   where
     collectRightAssoc es e =
         case e of
-          A _ (Binop (Var.Canonical (Var.Module "Basics") "<<") e1 e2) ->
+          A _ (Binop (Var.Canonical (Var.Module ["Basics"]) "<<") e1 e2) ->
               collectRightAssoc (es ++ [e1]) e2
           _ -> es ++ [e]
 
     collectLeftAssoc es e =
         case e of
-          A _ (Binop (Var.Canonical (Var.Module "Basics") ">>") e1 e2) ->
+          A _ (Binop (Var.Canonical (Var.Module ["Basics"]) ">>") e1 e2) ->
               collectLeftAssoc (e2 : es) e1
           _ -> e : es
 

@@ -17,7 +17,7 @@ import Text.PrettyPrint as P
 
 -- HELPFUL TYPE ALIASES
 
-type Interfaces = Map.Map String Interface
+type Interfaces = Map.Map Name Interface
 
 type Types   = Map.Map String Type.CanonicalType
 type Aliases = Map.Map String ([String], Type.CanonicalType)
@@ -38,15 +38,12 @@ type ValidModule =
 type CanonicalModule =
     Module [Var.Value] CanonicalBody
 
-getName :: Module exs body -> String
-getName modul =
-    nameToString (names modul)
 
 data Module exports body = Module
     { names   :: Name
     , path    :: FilePath
     , exports :: exports
-    , imports :: [(String, ImportMethod)]
+    , imports :: [(Name, ImportMethod)]
     , body    :: body
     }
 
@@ -74,6 +71,13 @@ type Name = [String] -- must be non-empty
 nameToString :: Name -> String
 nameToString = List.intercalate "."
 
+nameIsNative :: Name -> Bool
+nameIsNative name =
+  case name of
+    "Native" : _ -> True
+    _ -> False
+
+
 
 -- INTERFACES
 
@@ -82,7 +86,7 @@ data Interface = Interface
     { iVersion  :: String
     , iExports  :: [Var.Value]
     , iTypes    :: Types
-    , iImports  :: [(String, ImportMethod)]
+    , iImports  :: [(Name, ImportMethod)]
     , iAdts     :: ADTs
     , iAliases  :: Aliases
     , iFixities :: [(Decl.Assoc, Int, String)]
@@ -150,13 +154,16 @@ instance (Pretty exs, Pretty body) => Pretty (Module exs body) where
       modul = P.text "module" <+> name <+> pretty exs <+> P.text "where"
       name = P.text (List.intercalate "." names)
 
-      prettyImports = P.vcat $ map prettyMethod ims
+      prettyImports =
+          P.vcat $ map prettyMethod ims
 
-prettyMethod :: (String, ImportMethod) -> Doc
-prettyMethod (name, method) =
-    case method of
-      As alias
+
+prettyMethod :: (Name, ImportMethod) -> Doc
+prettyMethod import' =
+    case import' of
+      ([name], As alias)
           | name == alias -> P.empty
-          | otherwise     -> P.text "as" <+> P.text alias
 
-      Open listing -> pretty listing
+      (_, As alias) -> P.text "as" <+> P.text alias
+
+      (_, Open listing) -> pretty listing
