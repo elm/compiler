@@ -101,8 +101,7 @@ Library
         Build.Flags,
         Build.Print,
         Build.Source,
-        Build.Utils,
-        Paths_Elm
+        Paths_elm_compiler
 
     Build-depends:
         aeson >= 0.7 && < 0.9,
@@ -200,8 +199,7 @@ Executable elm-compiler
         Build.Flags,
         Build.Print,
         Build.Source,
-        Build.Utils,
-        Paths_Elm
+        Paths_elm_compiler
 
     Build-depends:
         aeson >= 0.7 && < 0.9,
