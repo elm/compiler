@@ -1,5 +1,5 @@
 
-Name: Elm
+Name: elm-compiler
 Version: 0.13
 
 Synopsis:
@@ -22,12 +22,10 @@ Copyright:  Copyright (c) 2011-2014 Evan Czaplicki
 
 Category: Compiler, Language
 
-Data-dir: data
-Data-files: elm-runtime.js interfaces.data docs.json
 Extra-source-files: changelog.md
 
 Cabal-version: >=1.9
-Build-type: Custom
+Build-type: Simple
 
 source-repository head
     type:     git
@@ -40,6 +38,7 @@ Library
 
     exposed-modules:
         Elm.Compiler,
+        Elm.Compiler.Module,
         Elm.Docs
 
     other-modules:
@@ -131,7 +130,7 @@ Library
         unordered-containers >= 0.1 && < 0.3
 
 
-Executable elm
+Executable elm-compiler
     ghc-options:
         -threaded -O2
 
@@ -329,20 +328,3 @@ Test-Suite compiler-tests
         union-find >= 0.2 && < 0.3,
         unordered-containers >= 0.1 && < 0.3
 
-
-Test-Suite library-tests
-    Type:
-        exitcode-stdio-1.0
-
-    Hs-Source-Dirs:
-        tests/libraries
-
-    Main-is:
-        LibraryTest.hs
-
-    build-depends:
-        base >= 4.2 && <5,
-        directory >= 1.0 && < 2.0,
-        Elm,
-        filepath >= 1 && < 2.0,
-        process >= 1 && < 2.0
