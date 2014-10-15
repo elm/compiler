@@ -5,7 +5,6 @@ module Elm.Compiler (version, parseDependencies, compile) where
 import Control.Monad.Error (MonadError, MonadIO, liftIO, throwError)
 import qualified Data.List as List
 import qualified Data.Map as Map
-import System.IO.Unsafe (unsafePerformIO)
 import qualified Text.PrettyPrint as P
 
 import qualified AST.Module as Module (HeaderAndImports(HeaderAndImports), Interfaces)
@@ -56,12 +55,4 @@ compile source interfaces =
       Right modul -> Right $ error "JS.generate modul"
   where
     unwrappedInterfaces =
-        Map.map (\(PublicModule.Interface iface) -> iface) $
         Map.mapKeysMonotonic (\(PublicModule.Name name) -> name) interfaces
-
-
-{-# NOINLINE interfaces #-}
-interfaces :: Module.Interfaces
-interfaces =
-    error "unsafePerformIO $ Prelude.interfaces False"
-

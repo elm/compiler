@@ -1,5 +1,5 @@
 module Elm.Compiler.Module
-    ( Interface(Interface), Name(Name)
+    ( Interface, Name(Name)
     , nameToPath, nameToString, nameFromString
     )
   where
@@ -13,7 +13,7 @@ import System.FilePath ((</>))
 import qualified AST.Module as Module
 
 
-newtype Interface = Interface Module.Interface
+type Interface = Module.Interface
 
 newtype Name = Name [String]
     deriving (Eq, Ord)
