@@ -34,7 +34,7 @@ source-repository head
 
 Library
     Hs-Source-Dirs:
-        compiler
+        src
 
     exposed-modules:
         Elm.Compiler,
@@ -134,7 +134,7 @@ Executable elm-compiler
         -threaded -O2
 
     Hs-Source-Dirs:
-        compiler
+        src
 
     Main-is:
         Compiler.hs
@@ -229,7 +229,7 @@ Executable elm-compiler
 
 Executable elm-doc
     Hs-Source-Dirs:
-        compiler
+        src
 
     Main-is:
         Docs.hs
@@ -280,7 +280,7 @@ Test-Suite compiler-tests
         exitcode-stdio-1.0
 
     Hs-Source-Dirs:
-        tests/compiler, compiler
+        tests/compiler, src
 
     Main-is:
         CompilerTest.hs
