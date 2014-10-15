@@ -50,7 +50,7 @@ compile
     -> Map.Map PublicModule.Name PublicModule.Interface
     -> Either String PublicModule.Interface
 compile source interfaces =
-    case Source.build False unwrappedInterfaces source of
+    case Source.build True unwrappedInterfaces source of
       Left docs -> Left . unlines . List.intersperse "" $ map P.render docs
       Right modul -> Right $ error "JS.generate modul"
   where
