@@ -101,17 +101,10 @@ addImport (name, method) importDict =
 
 -- EXTRACT INTERFACES FROM STATIC FILE
 
-interfaces :: (MonadIO m, MonadError String m) => Bool -> m Module.Interfaces
-interfaces noPrelude
-    | noPrelude = return Map.empty
-    | otherwise =
-        do  filePath <- liftIO (Utils.getDataFile "interfaces.data")
-            readInterfaces filePath
-
-
-readInterfaces :: (MonadIO m, MonadError String m) => FilePath -> m Module.Interfaces
-readInterfaces filePath =
-  do  interfaces <- mapM (isValid filePath) =<< Artifact.read filePath
+interfaces :: (MonadIO m, MonadError String m) => m Module.Interfaces
+interfaces =
+  do  filePath <- liftIO (Utils.getDataFile "interfaces.data")
+      interfaces <- mapM (isValid filePath) =<< Artifact.read filePath
       case interfaces of
         [] -> throwError "No interfaces found in serialized Prelude!"
         _  -> return (Map.fromList interfaces)
