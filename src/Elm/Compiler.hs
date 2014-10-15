@@ -7,7 +7,7 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Text.PrettyPrint as P
 
-import qualified AST.Module as Module (HeaderAndImports(HeaderAndImports), Interfaces)
+import qualified AST.Module as Module (HeaderAndImports(HeaderAndImports), Interfaces, toInterface)
 import qualified Build.Source as Source
 import qualified Elm.Compiler.Module as PublicModule
 import qualified Elm.Compiler.Version as Version
@@ -52,7 +52,7 @@ compile
 compile source interfaces =
     case Source.build True unwrappedInterfaces source of
       Left docs -> Left . unlines . List.intersperse "" $ map P.render docs
-      Right modul -> Right $ error "JS.generate modul"
+      Right modul -> Right (Module.toInterface modul)
   where
     unwrappedInterfaces =
         Map.mapKeysMonotonic (\(PublicModule.Name name) -> name) interfaces
