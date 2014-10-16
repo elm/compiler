@@ -9,32 +9,35 @@ import qualified Parse.Expression as Expr
 import Parse.Helpers
 import qualified Parse.Type as Type
 
+
 declaration :: IParser D.SourceDecl
 declaration =
-    alias <|> datatype <|> infixDecl <|> port <|> definition
+    typeDecl <|> infixDecl <|> port <|> definition
+
 
 definition :: IParser D.SourceDecl
 definition = D.Definition <$> Expr.def
 
-alias :: IParser D.SourceDecl
-alias = do
-  reserved "type" <?> "type alias (type Point = {x:Int, y:Int})"
-  forcedWS
-  name <- capVar
-  args <- spacePrefix lowVar
-  padded equals
-  tipe <- Type.expr
-  return (D.TypeAlias name args tipe)
 
-datatype :: IParser D.SourceDecl
-datatype = do
-  reserved "data" <?> "datatype definition (data T = A | B | ...)"
-  forcedWS
-  name <- capVar <?> "name of data-type"
-  args <- spacePrefix lowVar
-  padded equals
-  tcs <- pipeSep1 Type.constructor
-  return $ D.Datatype name args tcs
+typeDecl :: IParser D.SourceDecl
+typeDecl =
+ do reserved "type" <?> "type declaration"
+    forcedWS
+    isAlias <- optionMaybe (string "alias" >> forcedWS)
+    case isAlias of
+      Just _ ->
+          do  name <- capVar
+              args <- spacePrefix lowVar
+              padded equals
+              tipe <- Type.expr
+              return (D.TypeAlias name args tipe)
+
+      Nothing ->
+          do  name <- capVar <?> "name of data-type"
+              args <- spacePrefix lowVar
+              padded equals
+              tcs <- pipeSep1 Type.constructor
+              return $ D.Datatype name args tcs
 
 
 infixDecl :: IParser D.SourceDecl

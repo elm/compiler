@@ -25,7 +25,7 @@ import qualified AST.Expression.Source as Src
 import qualified AST.Variable as Var
 
 import Text.Parsec hiding (newline,spaces)
-import Parse.Declaration (alias,datatype,infixDecl)
+import Parse.Declaration (typeDecl,infixDecl)
 import Parse.Expression (typeAnnotation)
 import Parse.Helpers
 import qualified Parse.Module as Module
@@ -102,7 +102,7 @@ docThing = uncommentable <|> commented <|> uncommented ""
         uncommented comment
 
       uncommented comment = do
-        (src,def) <- withSource $ choice [ alias, datatype, D.Definition <$> typeAnnotation ]
+        (src,def) <- withSource $ choice [ typeDecl, D.Definition <$> typeAnnotation ]
         return (comment, def, src)
 
 

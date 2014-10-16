@@ -22,15 +22,17 @@ import qualified AST.Literal as L
 import qualified AST.PrettyPrint as P
 import qualified AST.Variable as Variable
 
-reserveds = [ "if", "then", "else"
-            , "case", "of"
-            , "let", "in"
-            , "data", "type"
-            , "module", "where"
-            , "import", "as", "hiding", "open"
-            , "export", "foreign"
-            , "deriving", "port"
-            ]
+reserveds :: [String]
+reserveds =
+    [ "if", "then", "else"
+    , "case", "of"
+    , "let", "in"
+    , "data", "type"
+    , "module", "where"
+    , "import", "as", "hiding", "open"
+    , "export", "foreign"
+    , "deriving", "port"
+    ]
 
 expecting = flip (<?>)
 

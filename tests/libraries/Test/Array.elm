@@ -37,6 +37,8 @@ tests =
         , test "append" <| assertEqual [42,42,81,81,81] (Array.toList (Array.append (Array.repeat 2 42) (Array.repeat 3 81)))
         , test "appendEmpty 1" <| assertEqual [1..33] (Array.toList (Array.append Array.empty (Array.fromList [1..33])))
         , test "appendEmpty 2" <| assertEqual [1..33] (Array.toList (Array.append (Array.fromList [1..33]) Array.empty))
+        , test "appendSmall 1" <| assertEqual [1..33] (Array.toList (Array.append (Array.fromList [1..30]) (Array.fromList [31..33])))
+        , test "appendSmall 2" <| assertEqual [1..33] (Array.toList (Array.append (Array.fromList [1..3]) (Array.fromList [4..33])))
         , test "appendAndSlice" <| assertEqual [0..100] (Array.toList holeArray)
         ]
       getAndSetTests = suite "Get and Set"
