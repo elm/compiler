@@ -50,7 +50,7 @@ toLocaleUpper = Native.Char.toLocaleUpper
 toLocaleLower : Char -> Char
 toLocaleLower = Native.Char.toLocaleLower
 
-type KeyCode = Int
+type alias KeyCode = Int
 
 {-| Convert to unicode. Used with the `Keyboard` library, which expects the
 input to be uppercase. -}

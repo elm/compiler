@@ -12,7 +12,7 @@ import Native.JavaScript
 import Native.Json
 import Json
 
-data RawObject = RawObject
+type RawObject = RawObject
 
 {-| Turn arbitrary JavaScript objects into Elm records.
 Arrays are converted into lists, nested objects are allowed.

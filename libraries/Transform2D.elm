@@ -22,7 +22,7 @@ always `0 0 1` in these matrices, it is omitted in the diagrams below.
 
 import Native.Transform2D
 
-data Transform2D = Transform2D
+type Transform2D = Transform2D
 
 {-| Create an identity transform. Transforming by the identity does
 not change anything, but it can come in handy as a default or

@@ -19,7 +19,7 @@ through ports, and the runtime will do a conversion like this:
 JSON is an intentional subset of JavaScript values which excludes functions.
 This ensures that impure functions cannot sneak into Elm through ports.
 -}
-data Value
+type Value
     = String String
     | Number Float
     | Boolean Bool

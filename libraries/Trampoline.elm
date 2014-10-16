@@ -42,7 +42,9 @@ stack overflow. We can rewrite it as follows:
 
 Now it uses a trampoline and can recurse without growing the stack!
 -}
-data Trampoline a = Done a | Continue (() -> Trampoline a)
+type Trampoline a
+    = Done a
+    | Continue (() -> Trampoline a)
 
 {-| Evaluate a trampolined value in constant space. -}
 trampoline : Trampoline a -> a

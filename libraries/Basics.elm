@@ -234,7 +234,7 @@ compare = Native.Basics.compare
 {-| Represents the relative ordering of two things.
 The relations are less than, equal to, and greater than.
 -}
-data Order = LT | EQ | GT
+type Order = LT | EQ | GT
 
 {-| Find the smaller of two comparables. -}
 min : comparable -> comparable -> comparable

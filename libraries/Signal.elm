@@ -33,7 +33,7 @@ import Native.Signal
 import List (foldr, (::))
 import Basics (fst, snd, not)
 
-data Signal a = Signal
+type Signal a = Signal
 
 {-| Create a constant signal that never changes. -}
 constant : a -> Signal a

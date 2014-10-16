@@ -20,7 +20,7 @@ and [`replace`](#replace).
 import Maybe (Maybe)
 import Native.Regex
 
-data Regex = Regex
+type Regex = Regex
 
 {-| Escape strings to be regular expressions, making all special characters
 safe. So `regex (escape "^a+")` will match exactly `"^a+"` instead of a series
@@ -73,13 +73,18 @@ Here are details on each field:
     This is useful when paired with `replace All` if replacement is dependent on how
     many times a pattern has appeared before.
 -}
-type Match = { match : String, submatches : [Maybe String], index : Int, number : Int }
+type alias Match =
+    { match : String
+    , submatches : [Maybe String]
+    , index : Int
+    , number : Int
+    }
 
 {-| `HowMany` is used to specify how many matches you want to make. So
 `replace All` would replace every match, but `replace (AtMost 2)` would
 replace at most two matches (i.e. zero, one, two, but never three or more).
 -}
-data HowMany = All | AtMost Int
+type HowMany = All | AtMost Int
 
 {-| Find matches in a string:
 

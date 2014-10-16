@@ -38,7 +38,7 @@ import Maybe (Maybe(Nothing))
 import Native.Show
 import Native.Text
 
-data Text = Text
+type Text = Text
 
 {-| Styles for lines on text. This allows you to add an underline, an overline,
 or a strike out text:
@@ -47,7 +47,7 @@ or a strike out text:
       line Over    (toText "overline")
       line Through (toText "strike out")
 -}
-data Line = Under | Over | Through
+type Line = Under | Over | Through
 
 {-| Represents all the ways you can style `Text`. If the `typeface` list is
 empty or the `height` is `Nothing`, the users will fall back on their browser's
@@ -62,7 +62,7 @@ Times New Roman (assuming that typeface is available on the user's computer):
       , line     = Just Under
       }
 -}
-type Style =
+type alias Style =
   { typeface : [String]
   , height   : Maybe Float
   , color    : Color
