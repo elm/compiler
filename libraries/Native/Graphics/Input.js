@@ -85,6 +85,44 @@ Elm.Native.Graphics.Input.make = function(elm) {
         });
     }
 
+    function renderSlider(model) {
+        var node = newNode('input');
+        node.type = 'range';
+
+        node.min = model.min;
+        node.max = model.max;
+        node.step = model.step;
+        node.value = model.val;
+
+        node.style.display = 'block';
+        node.style.pointerEvents = 'auto';
+        node.elm_signal = model.signal;
+        node.elm_handler = model.handler;
+        node.addEventListener('input', function() {
+            elm.notify(node.elm_signal.id, node.elm_handler(node.value));
+        });
+        return node;
+    }
+
+    function updateSlider(node, oldModel, newModel) {
+        node.elm_signal = newModel.signal;
+        node.elm_handler = newModel.handler;
+        node.min = newModel.min;
+        node.max = newModel.max;
+        node.step = newModel.step;
+        node.value = newModel.val;
+    }
+
+    function slider(signal, handler, min, max, step, val) {
+        return A3(newElement, 100, 24, {
+            ctor: 'Custom',
+            type: 'Slider',
+            render: renderSlider,
+            update: updateSlider,
+            model: { signal:signal, handler:handler, min:min, max:max, step:step, val:val }
+        });
+    }
+
     function renderButton(model) {
         var node = newNode('button');
         node.style.display = 'block';
@@ -400,6 +438,7 @@ Elm.Native.Graphics.Input.make = function(elm) {
         customButton:F5(customButton),
         checkbox:F3(checkbox),
         dropDown:F2(dropDown),
+        slider:F6(slider),
         field:mkField('text'),
         email:mkField('email'),
         password:mkField('password'),
