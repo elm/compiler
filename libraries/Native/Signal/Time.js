@@ -62,6 +62,7 @@ Elm.Native.Time.make = function(elm) {
       every : every,
       delay : NS.delay,
       timestamp : NS.timestamp,
+      utcOffset : Signal.constant(new Date().getTimezoneOffset() * -60000),
       since : F2(since),
       toDate : function(t) { return new window.Date(t); },
       read   : read

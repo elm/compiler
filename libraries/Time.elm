@@ -67,11 +67,18 @@ of time that the output signal has been running.
 fpsWhen : number -> Signal Bool -> Signal Time
 fpsWhen = Native.Time.fpsWhen
 
-{-| Takes a time interval t. The resulting signal is the current time, updated
-every t.
+{-| Takes a time interval t. The resulting signal is the current UTC time,
+updated every t.
 -}
 every : Time -> Signal Time
 every = Native.Time.every
+
+{-| The difference between UTC time and local time. The expected use is `lift2
+(+) (every second) utcOffset`. The value varies based on the user's location and
+time of year (due to daylight savings time), although currently it does not
+update while the program is running. -}
+utcOffset : Signal Time
+utcOffset = Native.Time.utcOffset
 
 {-| Takes a time `t` and any signal. The resulting boolean signal is true for
 time `t` after every event on the input signal. So ``(second `since`
