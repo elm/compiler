@@ -163,6 +163,10 @@ croppedImage : (Int,Int) -> Int -> Int -> String -> Element
 croppedImage pos w h src =
     newElement w h (Image (Cropped pos) w h src)
 
+{-| Create a tiled image given a width, height and image source.
+
+        tiledImage 600 400 "yogi.jpg"
+-}
 tiledImage : Int -> Int -> String -> Element
 tiledImage w h src =
     newElement w h (Image Tiled w h src)
