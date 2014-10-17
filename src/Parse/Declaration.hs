@@ -2,7 +2,7 @@
 module Parse.Declaration where
 
 import Control.Applicative ((<$>))
-import Text.Parsec ((<|>), (<?>), choice, digit, try)
+import Text.Parsec ((<|>), (<?>), choice, digit, optionMaybe, string, try)
 
 import qualified AST.Declaration as D
 import qualified Parse.Expression as Expr
