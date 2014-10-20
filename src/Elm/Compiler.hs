@@ -48,11 +48,11 @@ parseDependencies src =
 compile
     :: String
     -> Map.Map PublicModule.Name PublicModule.Interface
-    -> Either String PublicModule.Interface
+    -> Either String (PublicModule.Interface, String)
 compile source interfaces =
     case Source.build True unwrappedInterfaces source of
       Left docs -> Left . unlines . List.intersperse "" $ map P.render docs
-      Right modul -> Right (Module.toInterface modul)
+      Right modul -> Right (Module.toInterface modul, JS.generate modul)
   where
     unwrappedInterfaces =
         Map.mapKeysMonotonic (\(PublicModule.Name name) -> name) interfaces
