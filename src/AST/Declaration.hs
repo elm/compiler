@@ -16,20 +16,21 @@ data Declaration' port def var
     | TypeAlias String [String] (T.Type var)
     | Port port
     | Fixity Assoc Int String
-      deriving (Show)
+
 
 data Assoc = L | N | R
     deriving (Eq)
 
+
 data RawPort
     = PPAnnotation String T.RawType
     | PPDef String Source.Expr
-      deriving (Show)
+
 
 data Port expr var
     = Out String expr (T.Type var)
     | In String (T.Type var)
-      deriving (Show)
+
 
 type SourceDecl    = Declaration' RawPort Source.Def Var.Raw
 type ValidDecl     = Declaration' (Port Valid.Expr Var.Raw) Valid.Def Var.Raw
@@ -43,12 +44,12 @@ portName port =
       Out name _ _ -> name
       In name _ -> name
 
-instance Show Assoc where
-    show assoc =
-        case assoc of
-          L -> "left"
-          N -> "non"
-          R -> "right"
+assocToString :: Assoc -> String
+assocToString assoc =
+    case assoc of
+      L -> "left"
+      N -> "non"
+      R -> "right"
 
 instance Binary Assoc where
     get = do n <- getWord8
