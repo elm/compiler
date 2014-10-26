@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module AST.Module where
 
 import Data.Binary

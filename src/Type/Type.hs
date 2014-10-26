@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module Type.Type where
 
 import qualified Data.Char as Char

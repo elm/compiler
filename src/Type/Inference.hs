@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module Type.Inference where
 
 import qualified Data.Map as Map

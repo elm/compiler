@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module Generate.JavaScript (generate) where
 
 import Control.Applicative ((<$>),(<*>))

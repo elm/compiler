@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module Generate.JavaScript.Ports (incoming, outgoing) where
 
 import Generate.JavaScript.Helpers

@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module Parse.Binop (binops, OpTable) where
 
 import Control.Applicative ((<$>))

@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module Type.Environment where
 
 import Control.Applicative ((<$>), (<*>))

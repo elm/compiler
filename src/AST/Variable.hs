@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module AST.Variable where
 
 import Control.Applicative ((<$>), (<*>))

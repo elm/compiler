@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module Generate.Cases (toMatch, Match (..), Clause (..), matchSubst, newVar) where
 
 import Control.Applicative ((<$>))

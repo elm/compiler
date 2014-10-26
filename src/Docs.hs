@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 {-# LANGUAGE OverloadedStrings, DeriveDataTypeable #-}
 module Main where
 

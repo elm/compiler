@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module Type.State where
 
 import Control.Applicative ( (<$>), (<*>), Applicative, (<|>) )

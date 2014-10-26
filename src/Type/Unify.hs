@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module Type.Unify (unify) where
 
 import Control.Applicative ((<|>))

@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module Parse.Helpers where
 
 import Prelude hiding (until)

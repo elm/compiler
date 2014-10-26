@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 {-# LANGUAGE FlexibleInstances #-}
 module Type.Constrain.Pattern where
 

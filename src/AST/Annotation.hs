@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module AST.Annotation where
 
 import qualified Text.Parsec.Pos as Parsec

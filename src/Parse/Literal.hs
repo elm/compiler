@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module Parse.Literal (literal) where
 
 import Control.Applicative ((<$>))

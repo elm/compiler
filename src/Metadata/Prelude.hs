@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 {-# LANGUAGE FlexibleContexts #-}
 module Metadata.Prelude (add) where
 

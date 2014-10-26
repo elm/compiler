@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module Type.Solve (solve) where
 
 import Control.Monad

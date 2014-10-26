@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module Build.Source (build) where
 
 import qualified Data.Map as Map

@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module Parse.Pattern (term, expr) where
 
 import Control.Applicative ((<$>))

@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module Transform.Interface (filterExports) where
 
 import qualified Data.Map as Map

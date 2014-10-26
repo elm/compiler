@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module Generate.JavaScript.Helpers where
 
 import AST.Annotation (Region)

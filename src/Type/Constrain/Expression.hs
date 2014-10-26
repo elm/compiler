@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module Type.Constrain.Expression where
 
 import Control.Applicative ((<$>))

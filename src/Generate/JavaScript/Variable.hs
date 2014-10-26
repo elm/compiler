@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module Generate.JavaScript.Variable where
 
 import qualified AST.Helpers as Help

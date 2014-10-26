@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -W #-}
 module Transform.Canonicalize (module') where
 
 import Control.Applicative ((<$>),(<*>))
