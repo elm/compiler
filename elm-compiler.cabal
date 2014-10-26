@@ -33,6 +33,9 @@ source-repository head
 
 
 Library
+    ghc-options:
+        -threaded -O2 -W
+
     Hs-Source-Dirs:
         src
 
@@ -130,7 +133,7 @@ Library
 
 Executable elm-compiler
     ghc-options:
-        -threaded -O2
+        -threaded -O2 -W
 
     Hs-Source-Dirs:
         src
