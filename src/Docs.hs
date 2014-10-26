@@ -10,215 +10,221 @@ import System.IO
 
 import Control.Applicative ((<$>))
 import Control.Arrow (second)
-import Data.Aeson
-import Data.Aeson.Encode.Pretty
-import Data.Aeson.Types (Pair)
-import qualified Data.List as List
+import qualified Data.Aeson.Encode.Pretty as Json
 import qualified Data.Map as Map
-import qualified Data.ByteString.Lazy as BS
-import qualified Data.Text as Text
+import qualified Data.ByteString.Lazy.Char8 as BS
 
-import qualified AST.Helpers as Help
-import qualified AST.Type as T
-import qualified AST.Declaration as D
-import qualified AST.Expression.Source as Src
+import qualified AST.Type as Type
+import qualified AST.Declaration as Decl
+import qualified AST.Expression.Source as Source
 import qualified AST.Variable as Var
 
-import Text.Parsec hiding (newline,spaces)
-import Parse.Declaration (typeDecl,infixDecl)
-import Parse.Expression (typeAnnotation)
-import Parse.Helpers
-import qualified Parse.Module as Module
+import Text.Parsec hiding (newline, spaces)
+import qualified Parse.Declaration as Parse (typeDecl, infixDecl)
+import qualified Parse.Expression as Parse (typeAnnotation)
+import qualified Parse.Helpers as Parse
+import qualified Parse.Module as Parse (header)
+import qualified Elm.Compiler.Module as Module
+import qualified Elm.Docs as Docs
+
+
+-- FLAGS
 
 data Flags = Flags
-    { files :: [FilePath] }
+    { input :: FilePath
+    , output :: Maybe FilePath
+    }
     deriving (Data,Typeable,Show,Eq)
+
 
 defaultFlags :: Flags
 defaultFlags = Flags
-  { files = def &= args &= typ "FILES"
+  { input = def &= args &= typ "FILE"
+
+  , output = Nothing &= typFile
+      &= help "file name for generated JSON documentation"
+
   } &= help "Generate documentation for Elm"
-    &= summary ("Generate documentation for Elm, (c) Evan Czaplicki")
+    &= summary "Generate documentation for Elm, (c) Evan Czaplicki"
+
+
+-- GENERATE DOCUMENTATION
 
 main :: IO ()
-main = do
-  flags <- cmdArgs defaultFlags
-  mapM_ parseFile (files flags)
+main =
+  do  flags <- cmdArgs defaultFlags
+      source <- readFile (input flags)
+      case Parse.iParse documentation source of
+        Right docs ->
+            let json = Json.encodePretty' config docs in
+            case output flags of
+              Nothing -> BS.putStrLn json
+              Just docPath ->
+                do  createDirectoryIfMissing True (dropFileName docPath)
+                    BS.writeFile docPath json
 
-config :: Config
-config = Config { confIndent = 2, confCompare = keyOrder keys }
+        Left err ->
+          do  hPutStrLn stderr (show err)
+              exitFailure
+
+
+config :: Json.Config
+config =
+    Json.Config
+    { Json.confIndent = 2
+    , Json.confCompare = Json.keyOrder keys
+    }
   where
-    keys = ["tag","name","document","comment","raw","aliases","datatypes"
-           ,"values","typeVariables","type","constructors"]
-
-parseFile :: FilePath -> IO ()
-parseFile path = do
-  source <- readFile path
-  case iParse docs source of
-    Right json -> do
-      putStrLn $ "Documenting " ++ path
-      let docPath = "docs" </> replaceExtension path ".json"
-      createDirectoryIfMissing True (dropFileName docPath)
-      BS.writeFile docPath (encodePretty' config json)
-    Left err -> do
-      hPutStrLn stderr $ "Parse error in " ++ path ++ " at " ++ show err
-      exitFailure
-
-docs :: IParser Value
-docs = do
-  (name, _exports, structure) <- moduleDocs
-  things <- document
-  return $ documentToJson name structure things
-
-docComment :: IParser String
-docComment = do
-  try (string "{-|")
-  contents <- closeComment
-  let reversed = dropWhile (`elem` " \n\r") . drop 2 $ reverse contents
-  return $ dropWhile (==' ') (reverse reversed)
-
-moduleDocs :: IParser (String, Var.Listing Var.Value, String)
-moduleDocs = do
-  optional freshLine
-  (names,exports) <- Module.header
-  manyTill (string " " <|> newline <?> "more whitespace")
-           (lookAhead (string "{-|") <?> "module documentation comment")
-  structure <- docComment
-  return (List.intercalate "." names, exports, structure)
-
-document :: IParser [(String, D.SourceDecl, String)]
-document = onFreshLines (\t ts -> ts ++ [t]) [] docThing
-
-docThing :: IParser (String, D.SourceDecl, String)
-docThing = uncommentable <|> commented <|> uncommented ""
-    where
-      uncommentable = do
-        ifx <- infixDecl
-        return ("", ifx, "")
-
-      commented = do
-        comment <- docComment
-        freshLine
-        uncommented comment
-
-      uncommented comment = do
-        (src,def) <- withSource $ choice [ typeDecl, D.Definition <$> typeAnnotation ]
-        return (comment, def, src)
-
-
-documentToJson :: String -> String -> [(String, D.SourceDecl, String)] -> Value
-documentToJson name structure things =
-    object
-        [ "name"      .= name
-        , "document"  .= structure
-        , "values"    .= toList values
-        , "aliases"   .= toList aliases
-        , "datatypes" .= toList adts
+    keys =
+        [ "tag", "name", "comment", "aliases", "types"
+        , "values", "func", "args", "type", "cases"
         ]
+
+
+-- PARSE DOCUMENTATION
+
+documentation :: Parse.IParser Docs.Documentation
+documentation =
+  do  optional Parse.freshLine
+      (names, _exports) <- Parse.header
+
+      manyTill (string " " <|> Parse.newline <?> "more whitespace")
+               (lookAhead (string "{-|") <?> "module documentation comment")
+
+      overview <- docComment
+
+      decls <- allDeclarations
+
+      let (aliases, unions, values) = categorizeDeclarations decls
+
+      return (Docs.Documentation (Module.Name names) overview aliases unions values)
+
+
+docComment :: Parse.IParser String
+docComment =
+  do  try (string "{-|")
+      contents <- Parse.closeComment
+
+      let reversed =
+              dropWhile (`elem` " \n\r") . drop 2 $ reverse contents
+
+      return $ dropWhile (==' ') (reverse reversed)
+
+
+allDeclarations :: Parse.IParser [(String, Decl.SourceDecl)]
+allDeclarations =
+    Parse.onFreshLines (:) [] declaration
+
+
+declaration :: Parse.IParser (String, Decl.SourceDecl)
+declaration =
+    uncommentable <|> commented <|> uncommented ""
   where
-    (values, aliases, adts) =
-        collect Map.empty Map.empty Map.empty Map.empty things
-    
-    toList :: Map.Map String [Pair] -> [Value]
-    toList dict =
-        map object (Map.elems dict)
+    uncommentable =
+        (,) "" <$> Parse.infixDecl
 
-type Pairs = Map.Map String [Pair]
+    commented =
+      do  comment <- docComment
+          Parse.freshLine
+          uncommented comment
 
-collect :: Map.Map String (D.Assoc, Int) -> Pairs -> Pairs -> Pairs
-        -> [(String, D.SourceDecl, String)]
-        -> (Pairs, Pairs, Pairs)
-collect infixes types aliases adts things =
-    case things of
-      [] -> (Map.union customOps nonCustomOps, aliases, adts)
-          where
-            nonCustomOps = Map.mapWithKey addDefaultInfix $ Map.difference types infixes
-            addDefaultInfix name pairs
-                | all Help.isSymbol name = addInfix (D.L, 9 :: Int) pairs
-                | otherwise = pairs
+    uncommented comment =
+        (,) comment
+            <$> choice [ Parse.typeDecl, Decl.Definition <$> Parse.typeAnnotation ]
 
-            customOps = Map.intersectionWith addInfix infixes types
-            addInfix (assoc,prec) pairs =
-                [ "associativity" .= show assoc, "precedence" .= prec ] ++ pairs
 
-      (comment, decl, source) : rest ->
-          let insert name fields dict = Map.insert name (obj name fields) dict
-              obj name fields =
-                  [ "name" .= name
-                  , "raw" .= source
-                  , "comment" .= comment
-                  ] ++ fields
+-- CATEGORIZE DECLARATIONS
+
+data CategoryInfo = CategoryInfo
+    { aliases :: [Docs.Alias]
+    , unions :: [Docs.Union]
+    , values :: Map.Map String Docs.Value
+    , infixes :: Map.Map String (String, Int)
+    }
+
+
+emptyInfo :: CategoryInfo
+emptyInfo =
+    CategoryInfo [] [] Map.empty Map.empty
+
+
+categorizeDeclarations :: [(String, Decl.SourceDecl)] -> ([Docs.Alias], [Docs.Union], [Docs.Value])
+categorizeDeclarations decls =
+    (aliases, unions, Map.elems values)
+  where
+    (CategoryInfo aliases unions rawValues infixes) =
+        foldr collectInfo emptyInfo decls
+
+    values =
+        Map.union
+            (Map.intersectionWith addInfixInfo rawValues infixes)
+            rawValues
+
+
+addInfixInfo :: Docs.Value -> (String, Int) -> Docs.Value
+addInfixInfo value infixInfo =
+    value { Docs.valueAssocPrec = Just infixInfo }
+
+
+collectInfo :: (String, Decl.SourceDecl) -> CategoryInfo -> CategoryInfo
+collectInfo (comment, decl) info =
+    case decl of
+      Decl.Definition def ->
+          case def of
+            Source.Definition _ _ -> error errorMessage
+            Source.TypeAnnotation name tipe ->
+                let value = Docs.Value name comment (toDocType tipe) Nothing
+                in
+                    info { values = Map.insert name value (values info) }
+
+      Decl.Datatype name args cases ->
+          let cases' = map (second (map toDocType)) cases
+              union = Docs.Union name comment args cases'
           in
-          case decl of
-            D.Definition def ->
-                case def of
-                  Src.TypeAnnotation name tipe ->
-                      collect infixes (insert name [ "type" .= tipe ] types) aliases adts rest
+              info { unions = union : unions info }
 
-                  Src.Definition _ _ ->
-                      collect infixes types aliases adts rest
+      Decl.TypeAlias name args tipe ->
+          let alias = Docs.Alias name comment args (toDocType tipe)
+          in
+              info { aliases = alias : aliases info }
 
-            D.Datatype name vars ctors ->
-                let tipe = T.App (T.Type (Var.Raw name)) (map T.Var vars)
-                    fields = [ "typeVariables" .= vars
-                             , "constructors" .= map (ctorToJson tipe) ctors
-                             ]
-                in  collect infixes types aliases (insert name fields adts) rest
+      Decl.Fixity assoc prec name ->
+          let infixInfo = (Decl.assocToString assoc, prec)
+          in
+              info { infixes = Map.insert name infixInfo (infixes info) }
 
-            D.TypeAlias name vars tipe ->
-                let fields = [ "typeVariables" .= vars, "type" .= tipe ]
-                in  collect infixes types (insert name fields aliases) adts rest
-
-            D.Port _ ->
-                collect infixes types aliases adts rest
-
-            D.Fixity assoc prec name ->
-                collect (Map.insert name (assoc,prec) infixes) types aliases adts rest
+      Decl.Port _ ->
+          error errorMessage
 
 
-instance Var.ToString var => ToJSON (T.Type var) where
-  toJSON tipe =
-      object (getFields tipe)
-    where
-      getFields tipe =
-          case tipe of
-            T.Lambda _ _ ->
-                let tipes = T.collectLambdas tipe in
-                [ "tag" .= ("function" :: Text.Text)
-                , "args" .= toJSON (init tipes)
-                , "result" .= toJSON (last tipes)
-                ]
+errorMessage :: String
+errorMessage =
+    "there appears to be a bug in this tool.\n" ++
+    "Please report it to <https://github.com/elm-lang/Elm/issues>"
 
-            T.Var x ->
-                [ "tag" .= ("var" :: Text.Text)
-                , "name" .= toJSON x
-                ]
 
-            T.Type name ->
-                [ "tag" .= ("adt" :: Text.Text)
-                , "name" .= toJSON (Var.toString name)
-                , "args" .= ([] :: [()])
-                ]
+-- AST TYPE TO DOC TYPE
 
-            T.App (T.Type name) ts -> 
-                [ "tag" .= ("adt" :: Text.Text)
-                , "name" .= toJSON (Var.toString name)
-                , "args" .= map toJSON ts
-                ]
+toDocType :: Type.Type Var.Raw -> Docs.Type
+toDocType astType =
+    case astType of
+      Type.Lambda t1 t2 ->
+          Docs.Lambda (toDocType t1) (toDocType t2)
 
-            T.App _ _ -> error "This is an unexpected error with elm-doc, please report it at <https://github.com/elm-lang/Elm/issues>"
-             
-            T.Record fields ext ->
-                [ "tag" .= ("record" :: Text.Text)
-                , "fields" .= toJSON (map (toJSON . second toJSON) fields)
-                , "extension" .= toJSON ext
-                ]
+      Type.Var x ->
+          Docs.Var x
 
-            T.Aliased _ t ->
-                getFields t
+      Type.Type (Var.Raw name) ->
+          Docs.Type name
 
-ctorToJson :: T.RawType -> (String, [T.RawType]) -> Value
-ctorToJson tipe (ctor, tipes) =
-    object [ "name" .= ctor
-           , "type" .= foldr T.Lambda tipe tipes
-           ]
+      Type.App t ts ->
+          Docs.App (toDocType t) (map toDocType ts)
+
+      Type.Record fields ext ->
+          Docs.Record (map (second toDocType) fields) (fmap toDocType ext)
+
+      Type.Aliased _ t ->
+          toDocType t
+
+
+
