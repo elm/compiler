@@ -226,6 +226,9 @@ Executable elm-compiler
 
 
 Executable elm-doc
+    ghc-options:
+        -threaded -O2 -W
+
     Hs-Source-Dirs:
         src
 
