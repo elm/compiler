@@ -1,4 +1,11 @@
 
+## 0.14
+
+#### Breaking Changes
+
+  * Keyword `data` renamed to `type`
+  * Keyword `type` renamed to `type alias`
+
 ## 0.13
 
 #### Improvements:

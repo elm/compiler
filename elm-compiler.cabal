@@ -1,0 +1,332 @@
+
+Name: elm-compiler
+Version: 0.13
+
+Synopsis:
+    Values to help with elm-package, elm-make, and elm-lang.org.
+
+Description:
+    Elm aims to make client-side web-development pleasant. It is a
+    statically/strongly typed, functional reactive language that compiles to
+    HTML, CSS, and JS. This package provides a couple helpful values that are
+    intended for use in packages such as elm-package and elm-make.
+
+Homepage: http://elm-lang.org
+
+License: BSD3
+License-file: LICENSE
+
+Author:     Evan Czaplicki
+Maintainer: info@elm-lang.org
+Copyright:  Copyright (c) 2011-2014 Evan Czaplicki
+
+Category: Compiler, Language
+
+Extra-source-files: changelog.md
+
+Cabal-version: >=1.9
+Build-type: Simple
+
+source-repository head
+    type:     git
+    location: git://github.com/elm-lang/Elm.git
+
+
+Library
+    ghc-options:
+        -threaded -O2 -W
+
+    Hs-Source-Dirs:
+        src
+
+    exposed-modules:
+        Elm.Compiler,
+        Elm.Compiler.Module,
+        Elm.Docs
+
+    other-modules:
+        Elm.Compiler.Version,
+        AST.Annotation,
+        AST.Declaration,
+        AST.Expression.General,
+        AST.Expression.Source,
+        AST.Expression.Valid,
+        AST.Expression.Canonical,
+        AST.Helpers,
+        AST.Literal,
+        AST.Module,
+        AST.Pattern,
+        AST.PrettyPrint,
+        AST.Type,
+        AST.Variable,
+        Generate.JavaScript,
+        Generate.JavaScript.Helpers,
+        Generate.JavaScript.Ports,
+        Generate.JavaScript.Variable,
+        Generate.Markdown,
+        Generate.Html,
+        Generate.Cases,
+        Transform.Canonicalize,
+        Transform.Canonicalize.Environment,
+        Transform.Canonicalize.Setup,
+        Transform.Canonicalize.Type,
+        Transform.Canonicalize.Variable,
+        Transform.Check,
+        Transform.Expression,
+        Transform.Declaration,
+        Transform.Definition,
+        Transform.Interface,
+        Transform.SortDefinitions,
+        Transform.Substitute,
+        Metadata.Prelude,
+        Parse.Binop,
+        Parse.Declaration,
+        Parse.Expression,
+        Parse.Helpers,
+        Parse.Literal,
+        Parse.Module,
+        Parse.Parse,
+        Parse.Pattern,
+        Parse.Type,
+        Type.Constrain.Expression,
+        Type.Constrain.Literal,
+        Type.Constrain.Pattern,
+        Type.Environment,
+        Type.ExtraChecks,
+        Type.Fragment,
+        Type.Inference,
+        Type.PrettyPrint,
+        Type.Solve,
+        Type.State,
+        Type.Type,
+        Type.Unify,
+        Build.Flags,
+        Build.Print,
+        Build.Source,
+        Paths_elm_compiler
+
+    Build-depends:
+        aeson >= 0.7 && < 0.9,
+        aeson-pretty >= 0.7 && < 0.8,
+        base >=4.2 && <5,
+        binary >= 0.7.0.0 && < 0.8,
+        blaze-html >= 0.5 && < 0.8,
+        blaze-markup >= 0.5.1 && < 0.7,
+        bytestring >= 0.9 && < 0.11,
+        cheapskate >= 0.1 && < 0.2,
+        cmdargs >= 0.7 && < 0.11,
+        containers >= 0.3 && < 0.6,
+        directory >= 1.0 && < 2.0,
+        filepath >= 1 && < 2.0,
+        highlighting-kate >= 0.5 && < 0.6,
+        indents >= 0.3 && < 0.4,
+        language-ecmascript >=0.15 && < 0.17,
+        language-glsl >= 0.0.2 && < 0.2,
+        mtl >= 2 && < 3,
+        parsec >= 3.1.1 && < 3.5,
+        pretty >= 1.0 && < 2.0,
+        text >= 1 && < 2,
+        transformers >= 0.2 && < 0.5,
+        union-find >= 0.2 && < 0.3,
+        unordered-containers >= 0.1 && < 0.3
+
+
+Executable elm-compiler
+    ghc-options:
+        -threaded -O2 -W
+
+    Hs-Source-Dirs:
+        src
+
+    Main-is:
+        Compiler.hs
+
+    other-modules:
+        Elm.Compiler.Version,
+        AST.Annotation,
+        AST.Declaration,
+        AST.Expression.General,
+        AST.Expression.Source,
+        AST.Expression.Valid,
+        AST.Expression.Canonical,
+        AST.Helpers,
+        AST.Literal,
+        AST.Module,
+        AST.Pattern,
+        AST.PrettyPrint,
+        AST.Type,
+        AST.Variable,
+        Generate.JavaScript,
+        Generate.JavaScript.Helpers,
+        Generate.JavaScript.Ports,
+        Generate.JavaScript.Variable,
+        Generate.Markdown,
+        Generate.Html,
+        Generate.Cases,
+        Transform.Canonicalize,
+        Transform.Canonicalize.Environment,
+        Transform.Canonicalize.Setup,
+        Transform.Canonicalize.Type,
+        Transform.Canonicalize.Variable,
+        Transform.Check,
+        Transform.Expression,
+        Transform.Declaration,
+        Transform.Definition,
+        Transform.Interface,
+        Transform.SortDefinitions,
+        Transform.Substitute,
+        Metadata.Prelude,
+        Parse.Binop,
+        Parse.Declaration,
+        Parse.Expression,
+        Parse.Helpers,
+        Parse.Literal,
+        Parse.Module,
+        Parse.Parse,
+        Parse.Pattern,
+        Parse.Type,
+        Type.Constrain.Expression,
+        Type.Constrain.Literal,
+        Type.Constrain.Pattern,
+        Type.Environment,
+        Type.ExtraChecks,
+        Type.Fragment,
+        Type.Inference,
+        Type.PrettyPrint,
+        Type.Solve,
+        Type.State,
+        Type.Type,
+        Type.Unify,
+        Build.Flags,
+        Build.Print,
+        Build.Source,
+        Paths_elm_compiler
+
+    Build-depends:
+        aeson >= 0.7 && < 0.9,
+        aeson-pretty >= 0.7 && < 0.8,
+        base >=4.2 && <5,
+        binary >= 0.7.0.0 && < 0.8,
+        blaze-html >= 0.5 && < 0.8,
+        blaze-markup >= 0.5.1 && < 0.7,
+        bytestring >= 0.9 && < 0.11,
+        cheapskate >= 0.1 && < 0.2,
+        cmdargs >= 0.7 && < 0.11,
+        containers >= 0.3 && < 0.6,
+        directory >= 1.0 && < 2.0,
+        filepath >= 1 && < 2.0,
+        highlighting-kate >= 0.5 && < 0.6,
+        indents >= 0.3 && < 0.4,
+        language-ecmascript >=0.15 && < 0.17,
+        language-glsl >= 0.0.2 && < 0.2,
+        mtl >= 2 && < 3,
+        parsec >= 3.1.1 && < 3.5,
+        pretty >= 1.0 && < 2.0,
+        text >= 1 && < 2,
+        transformers >= 0.2 && < 0.5,
+        union-find >= 0.2 && < 0.3,
+        unordered-containers >= 0.1 && < 0.3
+
+
+Executable elm-doc
+    ghc-options:
+        -threaded -O2 -W
+
+    Hs-Source-Dirs:
+        src
+
+    Main-is:
+        Docs.hs
+
+    other-modules:
+        Elm.Compiler.Version,
+        AST.Annotation,
+        AST.Declaration,
+        AST.Expression.General,
+        AST.Helpers,
+        AST.Literal,
+        AST.Module,
+        AST.Pattern,
+        AST.PrettyPrint,
+        AST.Type,
+        AST.Variable,
+        Parse.Binop,
+        Parse.Declaration,
+        Parse.Expression,
+        Parse.Helpers,
+        Parse.Literal,
+        Parse.Module,
+        Parse.Pattern,
+        Parse.Type
+
+    Build-depends:
+        aeson >= 0.7 && < 0.9,
+        aeson-pretty >= 0.7 && < 0.8,
+        base >=4.2 && <5,
+        binary >= 0.7.0.0 && < 0.8,
+        bytestring >= 0.9 && < 0.11,
+        cmdargs >= 0.7 && < 0.11,
+        containers >= 0.3 && < 0.6,
+        directory >= 1.0 && < 2.0,
+        filepath >= 1 && < 2.0,
+        indents >= 0.3 && < 0.4,
+        language-glsl >= 0.0.2 && < 0.2,
+        mtl >= 2 && < 3,
+        parsec >= 3.1.1 && < 3.5,
+        pretty >= 1.0 && < 2.0,
+        text >= 1 && < 2,
+        transformers >= 0.2 && < 0.5,
+        union-find >= 0.2 && < 0.3
+
+
+Test-Suite compiler-tests
+    Type:
+        exitcode-stdio-1.0
+
+    Hs-Source-Dirs:
+        tests/compiler, src
+
+    Main-is:
+        CompilerTest.hs
+
+    other-modules:
+        Tests.Compiler
+        Tests.Property
+        Tests.Property.Arbitrary
+        AST.Helpers
+        AST.Literal
+        AST.PrettyPrint
+
+    build-depends:
+        test-framework > 0.8 && < 0.9,
+        test-framework-hunit >= 0.3 && < 0.4,
+        test-framework-quickcheck2 >= 0.3 && < 0.4,
+        HUnit >= 1.1 && < 2,
+        QuickCheck >= 2 && < 3,
+        aeson >= 0.7 && < 0.9,
+        aeson-pretty >= 0.7 && < 0.8,
+        base >=4.2 && <5,
+        binary >= 0.7.0.0 && < 0.8,
+        blaze-html >= 0.5 && < 0.8,
+        blaze-markup >= 0.5.1 && < 0.7,
+        bytestring >= 0.9 && < 0.11,
+        cheapskate >= 0.1 && < 0.2,
+        cmdargs >= 0.7 && < 0.11,
+        containers >= 0.3 && < 0.6,
+        directory >= 1.0 && < 2.0,
+        Elm,
+        filemanip >= 0.3.5 && < 0.4,
+        filepath >= 1 && < 2.0,
+        highlighting-kate >= 0.5 && < 0.6,
+        indents >= 0.3 && < 0.4,
+        language-ecmascript >=0.15 && < 0.17,
+        language-glsl >= 0.0.2 && < 0.2,
+        mtl >= 2 && < 3,
+        parsec >= 3.1.1 && < 3.5,
+        pretty >= 1.0 && < 2.0,
+        process,
+        text >= 1 && < 2,
+        transformers >= 0.2 && < 0.5,
+        union-find >= 0.2 && < 0.3,
+        unordered-containers >= 0.1 && < 0.3
+
