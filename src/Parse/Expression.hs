@@ -59,8 +59,8 @@ listTerm = markdown' <|> shader' <|> braces (try range <|> E.ExplicitList <$> co
     markdown' = do
       pos <- getPosition
       let uid = show (sourceLine pos) ++ ":" ++ show (sourceColumn pos)
-      (rawText, exprs) <- Help.markdown (interpolation uid)
-      return (E.Markdown uid (filter (/='\r') rawText) exprs)
+      rawText <- Help.markdown
+      return (E.Markdown uid (filter (/='\r') rawText))
 
     shader' = do
       pos <- getPosition
@@ -68,15 +68,6 @@ listTerm = markdown' <|> shader' <|> braces (try range <|> E.ExplicitList <$> co
       (rawSrc, tipe) <- Help.shader
       return $ E.GLShader uid (filter (/='\r') rawSrc) tipe
 
-    span uid index =
-        "<span id=\"md-" ++ uid ++ "-" ++ show index ++
-        "\">{{ markdown interpolation is in the pipeline, but still needs more testing }}</span>"
-
-    interpolation uid exprs = do
-      try (string "{{")
-      e <- padded expr
-      string "}}"
-      return (span uid (length exprs), exprs ++ [e])
 
 parensTerm :: IParser Source.Expr
 parensTerm = try (parens opFn) <|> parens (tupleFn <|> parened)

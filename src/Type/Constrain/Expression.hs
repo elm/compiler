@@ -151,11 +151,8 @@ constrain env (A region expr) tipe =
                  recordType = record fields' (termN EmptyRecord1)
              return . ex vars . and $ tipe === recordType : cs
 
-      Markdown _ _ es ->
-          do vars <- forM es $ \_ -> liftIO (variable Flexible)
-             let tvars = map varN vars
-             cs <- zipWithM (constrain env) es tvars
-             return . ex vars $ and ("Text.markdown" <? tipe : cs)
+      Markdown _ _ ->
+          return ("Text.markdown" <? tipe)
 
       Let defs body ->
           do c <- constrain env body tipe

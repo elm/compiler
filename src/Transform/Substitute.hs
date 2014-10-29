@@ -79,8 +79,7 @@ subst old new expression =
 
       Literal _ -> expression
 
-      Markdown uid md exprs ->
-          Markdown uid md (map f exprs)
+      Markdown _ _ -> expression
 
       GLShader _ _ _ -> expression
 

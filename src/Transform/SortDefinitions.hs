@@ -97,7 +97,7 @@ reorder (A ann expr) =
       Record fields ->
           Record <$> mapM (\(k,v) -> (,) k <$> reorder v) fields
 
-      Markdown uid md es -> Markdown uid md <$> mapM reorder es
+      Markdown uid md -> return $ Markdown uid md
 
       GLShader _ _ _ -> return expr
 

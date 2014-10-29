@@ -180,12 +180,11 @@ expression (A region expr) =
             ctor = (prop "ctor", string name)
             fields = zipWith (\n e -> (prop ("_" ++ show n), e)) [0..]
 
-      Markdown uid doc es ->
-          do es' <- mapM expression es
-             return $ Var.value ["Text"] "markdown" `call` (string md : string uid : es')
-          where
-            pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
-            md = pad ++ MD.toHtml doc ++ pad
+      Markdown uid doc ->
+          return $ Var.value ["Text"] "markdown" `call` [ string md, string uid ]
+        where
+          pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
+          md = pad ++ MD.toHtml doc ++ pad
 
       GLShader _uid src _tipe ->
         return $ ObjectLit () [(PropString () "src", literal (Str src))]

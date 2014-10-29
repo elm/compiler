@@ -282,9 +282,9 @@ expression env (A.A ann expr) =
               (,) <$> format (pattern env p)
                   <*> expression (update p env) b
 
-      Markdown uid md es ->
+      Markdown uid md ->
           do  Env.uses ["Text"]
-              Markdown uid md <$> mapM go es
+              return (Markdown uid md)
 
       PortIn name st ->
           PortIn name <$> tipe' env st

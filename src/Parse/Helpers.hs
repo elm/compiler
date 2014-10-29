@@ -2,7 +2,7 @@ module Parse.Helpers where
 
 import Prelude hiding (until)
 import Control.Applicative ((<$>),(<*>))
-import Control.Monad (guard, join, mzero)
+import Control.Monad (guard, join)
 import Control.Monad.State (State)
 import Data.Char (isUpper)
 import qualified Data.Map as Map
@@ -261,7 +261,7 @@ ignoreUntil end = go
       ignore p = const () <$> p
       filler = choice [ try (ignore chr) <|> ignore str
                       , ignore multiComment
-                      , ignore (markdown (\_ -> mzero))
+                      , ignore markdown
                       , ignore anyChar
                       ]
       go = choice [ Just <$> end
@@ -294,18 +294,16 @@ anyUntilPos pos = go
                 True -> return []
                 False -> (:) <$> anyChar <*> go
 
-markdown :: ([a] -> IParser (String, [a])) -> IParser (String, [a])
-markdown interpolation =
+markdown :: IParser String
+markdown =
     do try (string "[markdown|")
-       closeMarkdown id []
+       closeMarkdown id
     where
-      closeMarkdown markdownBuilder stuff =
+      closeMarkdown markdownBuilder =
           choice [ do try (string "|]")
-                      return (markdownBuilder "", stuff)
-                 , do (markdown,stuff') <- interpolation stuff
-                      closeMarkdown (markdownBuilder . (markdown++)) stuff'
+                      return (markdownBuilder "")
                  , do c <- anyChar
-                      closeMarkdown (markdownBuilder . (c:)) stuff
+                      closeMarkdown (markdownBuilder . (c:))
                  ]
 
 shader :: IParser (String, L.GLShaderTipe)
