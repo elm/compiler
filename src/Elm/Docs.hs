@@ -14,7 +14,7 @@ import qualified Elm.Compiler.Module as Module
 
 data Documentation = Documentation
     { moduleName :: Module.Name
-    , overview :: String
+    , comment :: String
     , aliases :: [Alias]
     , types :: [Union]
     , values :: [Value]
