@@ -16,34 +16,11 @@ type ImportDict =
 
 prelude :: ImportDict
 prelude =
-    Map.unions [ string, text, maybe, openImports ]
-  where
-    importing :: Module.Name -> [Var.Value] -> ImportDict
-    importing name values =
-        Map.singleton name ([], Var.Listing values False)
-
-    openImports :: ImportDict
-    openImports =
-        Map.fromList $ map (\name -> (name, ([], Var.openListing))) $
-        [ ["Basics"], ["Signal"], ["List"], ["Time"], ["Color"]
-        , ["Graphics","Element"], ["Graphics","Collage"]
-        , ["Native","Ports"], ["Native","Json"]
-        ]
-
-    maybe :: ImportDict
-    maybe = importing ["Maybe"] [ Var.ADT "Maybe" Var.openListing ]
-
-    string :: ImportDict
-    string = importing ["String"] [Var.Value "show"]
-
-    text :: ImportDict
-    text = importing ["Text"] (Var.ADT "Text" (Var.Listing [] False) : values)
-      where
-        values =
-            map Var.Value
-            [ "toText", "leftAligned", "rightAligned", "centered", "justified"
-            , "plainText", "asText", "typeface", "monospace", "bold", "italic"
-            ]
+    Map.fromList $ map (\name -> (name, ([], Var.openListing))) $
+    [ -- ["Basics"]
+      ["Native","Ports"]
+    , ["Native","Json"]
+    ]
 
 
 -- ADDING PRELUDE TO A MODULE
