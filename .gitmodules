@@ -1,6 +1,0 @@
-[submodule "IO"]
-	path = IO
-	url = https://github.com/maxsnew/IO.git
-[submodule "Elm-Test"]
-	path = Elm-Test
-	url = https://github.com/deadfoxygrandpa/Elm-Test.git
