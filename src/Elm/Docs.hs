@@ -40,7 +40,7 @@ data Union = Union
 data Value = Value
     { valueName :: String
     , valueComment :: String
-    , valueTipe :: Type
+    , valueType :: Type
     , valueAssocPrec :: Maybe (String,Int)
     }
 
