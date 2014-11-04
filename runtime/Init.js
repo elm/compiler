@@ -2,6 +2,9 @@
 (function() {
 'use strict';
 
+var Display = { FULLSCREEN: 0, COMPONENT: 1, NONE: 2 };
+
+
 Elm.fullscreen = function(module, ports) {
     var style = document.createElement('style');
     style.type = 'text/css';
@@ -10,7 +13,7 @@ Elm.fullscreen = function(module, ports) {
     document.head.appendChild(style);
     var container = document.createElement('div');
     document.body.appendChild(container);
-    return init(ElmRuntime.Display.FULLSCREEN, container, module, ports || {});
+    return init(Display.FULLSCREEN, container, module, ports || {});
 };
 
 Elm.embed = function(module, container, ports) {
@@ -20,11 +23,11 @@ Elm.embed = function(module, container, ports) {
     } else if (container.hasChildNodes()) {
         throw new Error('Elm.node must be given an empty DIV. No children allowed!');
     }
-    return init(ElmRuntime.Display.COMPONENT, container, module, ports || {});
+    return init(Display.COMPONENT, container, module, ports || {});
 };
 
 Elm.worker = function(module, ports) {
-    return init(ElmRuntime.Display.NONE, {}, module, ports || {});
+    return init(Display.NONE, {}, module, ports || {});
 };
 
 function init(display, container, module, ports, moduleToReplace) {
@@ -96,7 +99,6 @@ function init(display, container, module, ports, moduleToReplace) {
       setTimeout:setTimeout,
       node:container,
       display:display,
-      id:ElmRuntime.guid(),
       addListener:addListener,
       inputs:inputs,
       timer:timer,
@@ -127,10 +129,10 @@ function init(display, container, module, ports, moduleToReplace) {
       Module.main = Elm.Text.make(elm).leftAligned('<code>' + e.message + directions + '</code>');
       reportAnyErrors = function() { throw e; }
   }
-  inputs = ElmRuntime.filterDeadInputs(inputs);
+  inputs = filterDeadInputs(inputs);
   filterListeners(inputs, listeners);
   addReceivers(elm.ports.outgoing);
-  if (display !== ElmRuntime.Display.NONE) {
+  if (display !== Display.NONE) {
       var graphicsNode = initGraphics(elm, Module);
   }
   if (typeof moduleToReplace !== 'undefined') {
@@ -239,6 +241,31 @@ function addReceivers(ports) {
     }
 }
 
+
+function filterDeadInputs(inputs) {
+    var temp = [];
+    for (var i = inputs.length; i--; ) {
+        if (isAlive(inputs[i])) temp.push(inputs[i]);
+    }
+    return temp;
+}
+
+
+function isAlive(input) {
+    if (!('defaultNumberOfKids' in input)) return true;
+    var len = input.kids.length;
+    if (len === 0) return false;
+    if (len > input.defaultNumberOfKids) return true;
+    var alive = false;
+    for (var i = len; i--; ) {
+        alive = alive || isAlive(input.kids[i]);
+    }
+    return alive;
+}
+
+
+////  RENDERING  ////
+
 function initGraphics(elm, Module) {
   if (!('main' in Module)) {
       throw new Error("'main' is missing! What do I display?!");
@@ -254,15 +281,15 @@ function initGraphics(elm, Module) {
   var currentScene = signalGraph.value;
 
  // Add the currentScene to the DOM
-  var Render = ElmRuntime.use(ElmRuntime.Render.Element);
-  elm.node.appendChild(Render.render(currentScene));
+  var Element = Elm.Native.Graphics.Element.make(elm);
+  elm.node.appendChild(Element.render(currentScene));
 
   // set up updates so that the DOM is adjusted as necessary.
   var savedScene = currentScene;
   var previousDrawId = 0;
   function domUpdate(newScene) {
-      previousDrawId = ElmRuntime.draw(previousDrawId, function(_) {
-          Render.update(elm.node.firstChild, savedScene, newScene);
+      previousDrawId = draw(previousDrawId, function(_) {
+          Element.update(elm.node.firstChild, savedScene, newScene);
           if (elm.Native.Window) elm.Native.Window.values.resizeIfNeeded();
           savedScene = newScene;
       });
@@ -274,6 +301,33 @@ function initGraphics(elm, Module) {
   if (elm.Native.Window) elm.Native.Window.values.resizeIfNeeded();
 
   return renderer;
+}
+
+
+// define function for drawing efficiently
+//
+//   draw : RequestID -> (() -> ()) -> RequestID
+//
+// Takes a "RequestID" allowing you to cancel old requests if possible.
+// Returns a "RequestID" so you can refer to past requests.
+//
+function draw(previousRequestID, callback) {
+    callback();
+    return previousRequestID;
+}
+
+var vendors = ['ms', 'moz', 'webkit', 'o'];
+var win = typeof window !== 'undefined' ? window : {};
+for (var i = 0; i < vendors.length && !win.requestAnimationFrame; ++i) {
+    win.requestAnimationFrame = win[vendors[i]+'RequestAnimationFrame'];
+    win.cancelAnimationFrame  = win[vendors[i]+'CancelAnimationFrame'] ||
+                                win[vendors[i]+'CancelRequestAnimationFrame'];
+}
+if (win.requestAnimationFrame && win.cancelAnimationFrame) {
+    draw = function(previousRequestID, callback) {
+        win.cancelAnimationFrame(previousRequestID);
+        return win.requestAnimationFrame(callback);
+    };
 }
 
 }());
