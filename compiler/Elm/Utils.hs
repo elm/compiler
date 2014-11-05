@@ -1,10 +1,14 @@
 {-# OPTIONS_GHC -Wall #-}
-module Elm.Utils ((|>), (<|), getAsset) where
+{-# LANGUAGE FlexibleContexts #-}
+module Elm.Utils ((|>), (<|), getAsset, run, unwrappedRun, CommandError(..)) where
 
+import Control.Monad.Error (MonadError, MonadIO, liftIO, throwError)
 import System.Directory (doesFileExist)
 import System.Environment (getEnv)
+import System.Exit (ExitCode(ExitSuccess, ExitFailure))
 import System.FilePath ((</>))
 import System.IO.Error (tryIOError)
+import System.Process (readProcessWithExitCode)
 
 
 {-| Forward function application `x |> f == f x`. This function is useful
@@ -24,6 +28,49 @@ f <| x = f x
 infixr 0 <|
 infixl 0 |>
 
+
+-- RUN EXECUTABLES
+
+data CommandError
+    = MissingExe
+    | CommandFailed String
+
+
+{-| Run a command, throw an error if the command is not found or if something
+goes wrong.
+-}
+run :: (MonadError String m, MonadIO m) => String -> [String] -> m String
+run command args =
+  do  result <- liftIO (unwrappedRun command args)
+      case result of
+        Right out -> return out
+        Left err ->
+          throwError (context (message err))
+  where
+    context msg =
+      "failure when running:" ++ concatMap (' ':) (command:args) ++ "\n" ++ msg
+    
+    message err =
+      case err of
+        CommandFailed msg -> msg
+        MissingExe -> 
+          "Could not find command '" ++ command ++ "'. Do you have it installed?\n\
+          \    Can it be run from anywhere? Is it on your PATH?"
+
+
+unwrappedRun :: String -> [String] -> IO (Either CommandError String)
+unwrappedRun command args =
+  do  (exitCode, stdout, stderr) <- readProcessWithExitCode command args ""
+      return $
+          case exitCode of
+            ExitSuccess -> Right stdout
+            ExitFailure code
+                | code == 127  -> Left MissingExe  -- UNIX
+                | code == 9009 -> Left MissingExe  -- Windows
+                | otherwise    -> Left (CommandFailed stderr)
+
+
+-- GET STATIC ASSETS
 
 {-| Get the absolute path to a data file. If you install with cabal it will look
 -}
