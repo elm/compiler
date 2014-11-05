@@ -95,14 +95,17 @@ function init(display, container, module, ports, moduleToReplace) {
   // create the actual RTS. Any impure modules will attach themselves to this
   // object. This permits many Elm programs to be embedded per document.
   var elm = {
-      notify:notify,
-      setTimeout:setTimeout,
-      node:container,
-      display:display,
-      addListener:addListener,
-      inputs:inputs,
-      timer:timer,
-      ports: { incoming:ports, outgoing:{}, uses:portUses }
+      notify: notify,
+      setTimeout: setTimeout,
+      node: container,
+      addListener: addListener,
+      inputs: inputs,
+      timer: timer,
+      ports: { incoming:ports, outgoing:{}, uses:portUses },
+
+      isFullscreen: function() { return display === Display.FULLSCREEN; },
+      isEmbed: function() { return display === Display.COMPONENT; },
+      isWorker: function() { return display === Display.NONE; }
   };
 
   function swap(newModule) {
@@ -169,7 +172,13 @@ function checkPorts(elm) {
         }
     }
 }
-    
+
+
+//// FILTER SIGNALS ////
+
+// TODO: move this code into the signal module and create a function
+// Signal.initializeGraph that actually instantiates everything.
+
 function filterListeners(inputs, listeners) {
     loop:
     for (var i = listeners.length; i--; ) {
