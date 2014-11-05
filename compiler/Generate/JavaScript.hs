@@ -34,7 +34,6 @@ internalImports name =
     [ varDecl "_N" (obj ["Elm","Native"])
     , include "_U" "Utils"
     , include "_L" "List" 
-    , include "_E" "Error"
     , varDecl Help.localModuleName (string (Module.nameToString name))
     ]
     where
@@ -150,7 +149,7 @@ expression (A region expr) =
                (A _ (Var (Var.Canonical (Var.Module ["Basics"]) "otherwise")), _) ->
                    safeIfs branches'
                (A _ (Literal (Boolean True)), _) -> safeIfs branches'
-               _ -> ifs branches' (throw "If" region)
+               _ -> ifs branches' (throw "badIf" region)
           where
             safeIfs branches = ifs (init branches) (snd (last branches))
             ifs branches finally = foldr iff finally branches
@@ -230,7 +229,7 @@ definition (Canonical.Definition pattern expr@(A region _) _) = do
 
           safeAssign = varDecl "$" (CondExpr () if' (ref "_raw") exception)
           if' = InfixExpr () OpStrictEq (obj ["_raw","ctor"]) (string name)
-          exception = Help.throw "Case" region
+          exception = Help.throw "badCase" region
 
     _ ->
         do defs' <- concat <$> mapM toDef vars
@@ -262,7 +261,7 @@ match region mtch =
               | otherwise = e
 
     Case.Fail ->
-        return [ ExprStmt () (Help.throw "Case" region) ]
+        return [ ExprStmt () (Help.throw "badCase" region) ]
 
     Case.Break -> return [BreakStmt () Nothing]
 

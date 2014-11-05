@@ -30,7 +30,7 @@ localModuleName = "$moduleName"
 
 throw :: String -> Region -> Expression ()
 throw kind region =
-    obj ["_E",kind] `call` [ ref localModuleName, string (PP.renderPretty region) ]
+    obj ["_U",kind] `call` [ ref localModuleName, string (PP.renderPretty region) ]
 
 -- Function Calls
 
