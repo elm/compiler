@@ -6,11 +6,6 @@ var Display = { FULLSCREEN: 0, COMPONENT: 1, NONE: 2 };
 
 
 Elm.fullscreen = function(module, ports) {
-    var style = document.createElement('style');
-    style.type = 'text/css';
-    style.innerHTML = "html,head,body { padding:0; margin:0; }" +
-        "body { font-family: calibri, helvetica, arial, sans-serif; }";
-    document.head.appendChild(style);
     var container = document.createElement('div');
     document.body.appendChild(container);
     return init(Display.FULLSCREEN, container, module, ports || {});
