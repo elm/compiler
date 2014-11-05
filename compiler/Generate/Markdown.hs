@@ -6,10 +6,8 @@ import qualified Cheapskate.Html as CS
 import qualified Data.Text as Text
 import qualified Text.Blaze.Html.Renderer.String as Blaze
 import qualified Text.Highlighting.Kate as Kate
+import Elm.Utils ((|>))
 
-
-(|>) :: a -> (a -> b) -> b
-x |> f = f x
 
 toHtml :: String -> String
 toHtml rawMarkdown =
