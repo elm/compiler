@@ -133,7 +133,7 @@ Executable elm-doc
         -threaded -O2 -W
 
     Hs-Source-Dirs:
-        src
+        compiler
 
     Main-is:
         Docs.hs
