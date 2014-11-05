@@ -34,7 +34,6 @@ internalImports name =
     [ varDecl "_N" (obj ["Elm","Native"])
     , include "_U" "Utils"
     , include "_L" "List" 
-    , include "_A" "Array"
     , include "_E" "Error"
     , varDecl Help.localModuleName (string (Module.nameToString name))
     ]

@@ -21,7 +21,7 @@ check x jsType continue =
           JSNumber  -> [typeof "number"]
           JSBoolean -> [typeof "boolean"]
           JSString  -> [typeof "string", instanceof "String"]
-          JSArray   -> [(obj ["_U","isJSArray"] <|)]
+          JSArray   -> [instanceof "Array"]
           JSObject fields -> [jsFold OpLAnd (typeof "object" : map member fields)]
 
 incoming :: CanonicalType -> Expression ()
