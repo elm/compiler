@@ -281,7 +281,7 @@ function initGraphics(elm, Module) {
   var signalGraph = Module.main;
 
   // make sure the signal graph is actually a signal & extract the visual model
-  var Signal = Elm.Signal.make(elm);
+  var Signal = Elm.Native.Signal.make(elm);
   if (!('recv' in signalGraph)) {
       signalGraph = Signal.constant(signalGraph);
   }
