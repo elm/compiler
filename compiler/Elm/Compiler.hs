@@ -2,17 +2,16 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Elm.Compiler (version, parseDependencies, compile) where
 
-import Control.Monad.Error (MonadError, MonadIO, liftIO, throwError)
+import Control.Monad.Error (MonadError, throwError)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Text.PrettyPrint as P
 
-import qualified AST.Module as Module (HeaderAndImports(HeaderAndImports), Interfaces, toInterface)
+import qualified AST.Module as Module (HeaderAndImports(HeaderAndImports), toInterface)
 import qualified Build.Source as Source
 import qualified Elm.Compiler.Module as PublicModule
 import qualified Elm.Compiler.Version as Version
 import qualified Generate.JavaScript as JS
-import qualified Metadata.Prelude as Prelude
 import qualified Parse.Helpers as Help
 import qualified Parse.Module as Parse
 
