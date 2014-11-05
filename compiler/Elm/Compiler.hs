@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts #-}
-module Elm.Compiler (version, parseDependencies, compile) where
+module Elm.Compiler (version, parseDependencies, compile, runtimePath) where
 
 import Control.Monad.Error (MonadError, throwError)
 import qualified Data.List as List
@@ -11,9 +11,11 @@ import qualified AST.Module as Module (HeaderAndImports(HeaderAndImports), toInt
 import qualified Build.Source as Source
 import qualified Elm.Compiler.Module as PublicModule
 import qualified Elm.Compiler.Version as Version
+import qualified Elm.Utils as Utils
 import qualified Generate.JavaScript as JS
 import qualified Parse.Helpers as Help
 import qualified Parse.Module as Parse
+import qualified Paths_elm_compiler as Compiler
 
 
 -- VERSION
@@ -55,3 +57,12 @@ compile source interfaces =
   where
     unwrappedInterfaces =
         Map.mapKeysMonotonic (\(PublicModule.Name name) -> name) interfaces
+
+
+-- DATA FILES
+
+{-| Path to the runtime.
+-}
+runtimePath :: IO FilePath
+runtimePath =
+    Utils.getAsset "compiler" Compiler.getDataFileName "runtime/core.js"
