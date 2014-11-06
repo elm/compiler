@@ -1,6 +1,8 @@
 module Elm.Compiler.Module
     ( Interface, Name(Name)
-    , nameToPath, nameToString, nameFromString
+    , nameToPath
+    , nameToString, nameFromString
+    , hyphenate, dehyphenate
     )
   where
 
@@ -30,11 +32,26 @@ nameToString (Name names) =
 
 
 nameFromString :: String -> Maybe Name
-nameFromString raw =
+nameFromString =
+    fromString '.'
+
+
+hyphenate :: Name -> String
+hyphenate (Name names) =
+    List.intercalate "-" names
+
+
+dehyphenate :: String -> Maybe Name
+dehyphenate =
+    fromString '-'
+
+
+fromString :: Char -> String -> Maybe Name
+fromString sep raw =
     Name `fmap` mapM isLegit names
   where
     names =
-        filter (/= ".") (List.groupBy (\a b -> a /= '.' && b /= '.') raw)
+        filter (/= [sep]) (List.groupBy (\a b -> a /= sep && b /= sep) raw)
 
     isLegit name =
         case name of
