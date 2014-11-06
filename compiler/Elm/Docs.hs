@@ -207,7 +207,7 @@ instance Json.FromJSON Type where
                   Type <$> obj .: "name"
 
               "app" ->
-                  App <$> obj .: "func" <*> obj .: "arg"
+                  App <$> obj .: "func" <*> obj .: "args"
 
               "record" ->
                   Record <$> obj .: "fields" <*> obj .: "extension"
