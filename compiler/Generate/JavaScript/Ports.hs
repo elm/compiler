@@ -1,21 +1,42 @@
 module Generate.JavaScript.Ports (incoming, outgoing) where
 
+import qualified Data.List as List
 import Generate.JavaScript.Helpers
 import qualified Generate.JavaScript.Variable as V
 import AST.Type as T
 import qualified AST.Variable as Var
 import Language.ECMAScript3.Syntax
 
-data JSType = JSNumber | JSBoolean | JSString | JSArray | JSObject [String]
-    deriving Show
+
+data JSType
+    = JSNumber
+    | JSBoolean
+    | JSString
+    | JSArray
+    | JSObject [String]
+
+
+typeToString :: JSType -> String
+typeToString tipe =
+  case tipe of
+    JSNumber -> "a number"
+    JSBoolean -> "a boolean (true or false)"
+    JSString -> "a string"
+    JSArray -> "an array"
+    JSObject fields ->
+      "an object with fields " ++ List.intercalate ", " fields
+
 
 check :: Expression () -> JSType -> Expression () -> Expression ()
 check x jsType continue =
     CondExpr () (jsFold OpLOr checks x) continue throw
   where
-    jsFold op checks value = foldl1 (InfixExpr () op) (map ($value) checks)
-    throw = obj ["_E","raise"] <| InfixExpr () OpAdd msg x
-    msg = string ("invalid input, expecting " ++ show jsType ++ " but got ")
+    jsFold op checks value =
+        foldl1 (InfixExpr () op) (map ($ value) checks)
+
+    throw =
+        obj ["_U","badPort"] `call` [ string (typeToString jsType), x ]
+
     checks =
         case jsType of
           JSNumber  -> [typeof "number"]
@@ -24,13 +45,14 @@ check x jsType continue =
           JSArray   -> [instanceof "Array"]
           JSObject fields -> [jsFold OpLAnd (typeof "object" : map member fields)]
 
+
 incoming :: CanonicalType -> Expression ()
 incoming tipe =
   case tipe of
     Aliased _ t -> incoming t
 
     App (Type v) [t]
-        | Var.isSignal v -> V.value ["Native","Ports"] "incomingSignal" <| incoming t
+        | Var.isSignal v -> obj ["_P","incomingSignal"] <| incoming t
 
     _ -> ["v"] ==> inc tipe (ref "v")
 
@@ -106,7 +128,7 @@ outgoing tipe =
     Aliased _ t -> outgoing t
 
     App (Type v) [t]
-        | Var.isSignal v -> V.value ["Native","Ports"] "outgoingSignal" <| outgoing t
+        | Var.isSignal v -> obj ["_P","outgoingSignal"] <| outgoing t
 
     _ -> ["v"] ==> out tipe (ref "v")
 

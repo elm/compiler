@@ -18,8 +18,6 @@ prelude :: ImportDict
 prelude =
     Map.fromList $ map (\name -> (name, ([], Var.openListing))) $
     [ -- ["Basics"]
-      ["Native","Ports"]
-    , ["Native","Json"]
     ]
 
 
