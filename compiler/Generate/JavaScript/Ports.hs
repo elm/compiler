@@ -73,9 +73,17 @@ inc tipe x =
             from checks = check x checks x
 
       Type name
-          | Var.isJson name -> V.value ["Native","Json"] "fromJS" <| x
-          | Var.isTuple name -> incomingTuple [] x
-          | otherwise -> error "bad type got to incoming port generation code"
+          | Var.isJavaScript name ->
+              x
+
+          | Var.isJson name ->
+              V.value ["Native","Json"] "fromJS" <| x
+
+          | Var.isTuple name ->
+              incomingTuple [] x
+
+          | otherwise ->
+              error "bad type got to incoming port generation code"
 
       App f args ->
           case f : args of

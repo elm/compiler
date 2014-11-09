@@ -62,11 +62,10 @@ portTypes expr =
         case tipe of
           ST.Aliased _ t -> valid t
 
-          ST.Type v
-              | V.isJson v      -> return ()
-              | V.isPrimitive v -> return ()
-              | V.isTuple v     -> return ()
-              | otherwise       -> err "an unsupported type"
+          ST.Type v ->
+              case any ($ v) [ V.isJson, V.isPrimitive, V.isTuple, V.isJavaScript ] of
+                True -> return ()
+                False -> err "an unsupported type"
 
           ST.App t [] -> valid t
 

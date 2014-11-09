@@ -32,6 +32,9 @@ is :: [String] -> String -> Canonical -> Bool
 is home name var =
     var == Canonical (Module home) name
 
+isJavaScript :: Canonical -> Bool
+isJavaScript = is ["JavaScript"] "Value"
+
 isJson :: Canonical -> Bool
 isJson = is ["Json"] "Value"
 
