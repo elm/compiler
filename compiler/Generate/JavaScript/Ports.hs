@@ -24,7 +24,7 @@ typeToString tipe =
     JSString -> "a string"
     JSArray -> "an array"
     JSObject fields ->
-      "an object with fields " ++ List.intercalate ", " fields
+      "an object with fields '" ++ List.intercalate "', '" fields ++ "'"
 
 
 check :: Expression () -> JSType -> Expression () -> Expression ()
