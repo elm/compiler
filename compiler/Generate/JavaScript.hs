@@ -379,11 +379,6 @@ binop region func@(Var.Canonical home op) e1 e2 =
              es <- mapM expression (collectRightAssoc [] e1)
              return $ foldr (<|) e2' es
 
-      (Var.Module ["List"], "++") ->
-          do e1' <- expression e1
-             e2' <- expression e2
-             return $ _List "append" `call` [e1', e2']
-
       (Var.BuiltIn, "::") ->
           expression (A region (Data "::" [e1,e2]))
 
