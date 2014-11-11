@@ -84,9 +84,4 @@ addImport (name, method) importDict =
                 Just (qualifier : qualifiers, listing)
 
             Module.Open newListing ->
-                Just (qualifiers, mergeListings newListing listing)
-
-    mergeListings (Var.Listing explicits1 open1) (Var.Listing explicits2 open2) =
-        Var.Listing
-          (Set.toList (Set.fromList (explicits1 ++ explicits2)))
-          (open1 || open2)
+                Just (qualifiers, newListing)
