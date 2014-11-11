@@ -5,7 +5,7 @@ import Text.PrettyPrint (Doc)
 
 import qualified AST.Module as Module
 import qualified Parse.Parse as Parse
-import qualified Metadata.Prelude as Prelude
+import qualified Transform.AddDefaultImports as DefaultImports
 import qualified Transform.Check as Check
 import qualified Type.Inference as TI
 import qualified Transform.Canonicalize as Canonical
@@ -17,7 +17,7 @@ build noPrelude interfaces source =
 
      -- Parse the source code and validate that it is well formed.
      validModule <- do
-       modul <- Prelude.add noPrelude `fmap` Parse.program infixes source
+       modul <- DefaultImports.add noPrelude `fmap` Parse.program infixes source
        case Check.mistakes (Module.body modul) of
          [] -> return modul
          ms -> Left ms
