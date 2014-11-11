@@ -39,7 +39,7 @@ Library
         -threaded -O2 -W
 
     Hs-Source-Dirs:
-        compiler
+        src
 
     exposed-modules:
         Elm.Compiler,
@@ -137,7 +137,7 @@ Executable elm-doc
         -threaded -O2 -W
 
     Hs-Source-Dirs:
-        compiler
+        src
 
     Main-is:
         Docs.hs
