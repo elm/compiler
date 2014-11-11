@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Transform.AddDefaultImports (add) where
 
+import Prelude hiding (maybe)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -20,7 +21,7 @@ type ImportDict =
 
 defaultImports :: ImportDict
 defaultImports =
-    Map.fromList $ map (\name -> (name, ([], Var.openListing))) $
+    Map.fromList
     [ ["Basics"] ==> ([], Var.openListing)
     , ["Maybe"] ==> ([], Var.Listing [maybe] False)
     , ["Result"] ==> ([], Var.Listing [result] False)
@@ -28,17 +29,17 @@ defaultImports =
     ]
 
 
-maybe : [Var.Value]
+maybe :: Var.Value
 maybe =
     Var.ADT "Maybe" Var.openListing
 
 
-result : Var.Value
+result :: Var.Value
 result =
     Var.ADT "Result" Var.openListing
 
 
-signal : Var.Value
+signal :: Var.Value
 signal =
     Var.ADT "Signal" (Var.Listing [] False)
 
