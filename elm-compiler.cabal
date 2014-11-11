@@ -62,6 +62,7 @@ Library
         AST.PrettyPrint,
         AST.Type,
         AST.Variable,
+        Compile,
         Generate.JavaScript,
         Generate.JavaScript.Helpers,
         Generate.JavaScript.Ports,
@@ -102,7 +103,6 @@ Library
         Type.State,
         Type.Type,
         Type.Unify,
-        Build.Source,
         Paths_elm_compiler
 
     Build-depends:

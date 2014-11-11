@@ -8,14 +8,14 @@ import qualified Data.Map as Map
 import qualified Text.PrettyPrint as P
 
 import qualified AST.Module as Module (HeaderAndImports(HeaderAndImports), toInterface)
-import qualified Build.Source as Source
+import qualified Compile
 import qualified Elm.Compiler.Module as PublicModule
 import qualified Elm.Compiler.Version as Version
 import qualified Elm.Utils as Utils
 import qualified Generate.JavaScript as JS
 import qualified Parse.Helpers as Help
 import qualified Parse.Module as Parse
-import qualified Paths_elm_compiler as Compiler
+import qualified Paths_elm_compiler as Paths
 
 
 -- VERSION
@@ -51,7 +51,7 @@ compile
     -> Map.Map PublicModule.Name PublicModule.Interface
     -> Either String (PublicModule.Interface, String)
 compile source interfaces =
-    case Source.build False unwrappedInterfaces source of
+    case Compile.compile False unwrappedInterfaces source of
       Left docs -> Left . unlines . List.intersperse "" $ map P.render docs
       Right modul -> Right (Module.toInterface modul, JS.generate modul)
   where
@@ -65,4 +65,4 @@ compile source interfaces =
 -}
 runtimePath :: IO FilePath
 runtimePath =
-    Utils.getAsset "compiler" Compiler.getDataFileName "runtime/core.js"
+    Utils.getAsset "compiler" Paths.getDataFileName "runtime/core.js"

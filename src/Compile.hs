@@ -1,4 +1,4 @@
-module Build.Source (build) where
+module Compile (compile) where
 
 import qualified Data.Map as Map
 import Text.PrettyPrint (Doc)
@@ -10,8 +10,9 @@ import qualified Transform.Check as Check
 import qualified Type.Inference as TI
 import qualified Transform.Canonicalize as Canonical
 
-build :: Bool -> Module.Interfaces -> String -> Either [Doc] Module.CanonicalModule
-build noPrelude interfaces source =
+
+compile :: Bool -> Module.Interfaces -> String -> Either [Doc] Module.CanonicalModule
+compile noPrelude interfaces source =
   do let infixes = Map.fromList . map (\(assoc,lvl,op) -> (op,(lvl,assoc)))
                  . concatMap Module.iFixities $ Map.elems interfaces
 
