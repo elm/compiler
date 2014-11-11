@@ -7,8 +7,12 @@ import Text.PrettyPrint as P
 import qualified AST.Helpers as Help
 import AST.PrettyPrint
 
+
+-- VARIABLES
+
 newtype Raw = Raw String
     deriving (Eq,Ord,Show)
+
 
 data Home
     = BuiltIn
@@ -16,18 +20,24 @@ data Home
     | Local
     deriving (Eq,Ord,Show)
 
+
 data Canonical = Canonical
     { home :: !Home
     , name :: !String
-    } deriving (Eq,Ord,Show)
+    }
+    deriving (Eq,Ord,Show)
+
 
 local :: String -> Canonical
 local x = Canonical Local x
 
+
 builtin :: String -> Canonical
 builtin x = Canonical BuiltIn x
 
--- To help with pattern matching on some common canonical variables:
+
+-- VARIABLE RECOGNIZERS
+
 is :: [String] -> String -> Canonical -> Bool
 is home name var =
     var == Canonical (Module home) name
@@ -83,11 +93,15 @@ isText =
     is ["Text"] "Text"
 
 
+-- VARIABLE TO STRING
+
 class ToString a where
   toString :: a -> String
 
+
 instance ToString Raw where
   toString (Raw x) = x
+
 
 instance ToString Canonical where
   toString (Canonical home name) =
@@ -96,14 +110,20 @@ instance ToString Canonical where
       Module path -> List.intercalate "." (path ++ [name])
       Local -> name
 
+
+-- LISTINGS
+
 -- | A listing of values. Something like (a,b,c) or (..) or (a,b,..)
 data Listing a = Listing
     { _explicits :: [a]
     , _open :: Bool
     } deriving (Eq,Ord,Show)
 
+
 openListing :: Listing a
-openListing = Listing [] True
+openListing =
+    Listing [] True
+
 
 -- | A value that can be imported or exported
 data Value
@@ -112,17 +132,23 @@ data Value
     | ADT !String !(Listing String)
     deriving (Eq,Ord,Show)
 
+
+-- PRETTY VARIABLES
+
 instance Pretty Raw where
     pretty (Raw var) = variable var
 
+
 instance Pretty Canonical where
     pretty var = P.text (toString var)
+
 
 instance Pretty a => Pretty (Listing a) where
   pretty (Listing explicits open) =
       P.parens (commaCat (map pretty explicits ++ dots))
       where
         dots = [if open then P.text ".." else P.empty]
+
 
 instance Pretty Value where
   pretty portable =
@@ -131,6 +157,9 @@ instance Pretty Value where
       Alias name -> P.text name
       ADT name ctors ->
           P.text name <> pretty (ctors { _explicits = map P.text (_explicits ctors) })
+
+
+-- BINARY SERIALIZATION
 
 instance Binary Canonical where
     put (Canonical home name) =
@@ -146,6 +175,7 @@ instance Binary Canonical where
                2 -> Canonical Local <$> get
                _ -> error "Unexpected tag when deserializing canonical variable"
 
+
 instance Binary Value where
     put portable =
         case portable of
@@ -159,6 +189,7 @@ instance Binary Value where
                1 -> Alias <$> get
                2 -> ADT <$> get <*> get
                _ -> error "Error reading valid import/export information from serialized string"
+
 
 instance (Binary a) => Binary (Listing a) where
     put (Listing explicits open) =
