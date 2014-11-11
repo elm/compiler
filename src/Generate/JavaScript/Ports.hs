@@ -73,11 +73,8 @@ inc tipe x =
             from checks = check x checks x
 
       Type name
-          | Var.isJavaScript name ->
-              x
-
           | Var.isJson name ->
-              V.value ["Native","Json"] "fromJS" <| x
+              x
 
           | Var.isTuple name ->
               incomingTuple [] x

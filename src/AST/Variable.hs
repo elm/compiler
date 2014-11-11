@@ -32,24 +32,30 @@ is :: [String] -> String -> Canonical -> Bool
 is home name var =
     var == Canonical (Module home) name
 
-isJavaScript :: Canonical -> Bool
-isJavaScript = is ["JavaScript"] "Value"
 
 isJson :: Canonical -> Bool
-isJson = is ["Json"] "Value"
+isJson =
+    is ["Json", "Encode"] "Json"
+
 
 isMaybe :: Canonical -> Bool
-isMaybe = is ["Maybe"] "Maybe"
+isMaybe =
+    is ["Maybe"] "Maybe"
 
 isArray :: Canonical -> Bool
-isArray = is ["Array"] "Array"
+isArray =
+    is ["Array"] "Array"
+
 
 isSignal :: Canonical -> Bool
-isSignal = is ["Signal"] "Signal"
+isSignal =
+    is ["Signal"] "Signal"
+
 
 isList :: Canonical -> Bool
 isList v =
     v == Canonical BuiltIn "_List"
+
 
 isTuple :: Canonical -> Bool
 isTuple v =
@@ -57,11 +63,13 @@ isTuple v =
       Canonical BuiltIn name -> Help.isTuple name
       _ -> False
 
+
 isPrimitive :: Canonical -> Bool
 isPrimitive v =
     case v of
       Canonical BuiltIn name -> name `elem` ["Int","Float","String","Bool"]
       _ -> False
+
 
 isPrim :: String -> Canonical -> Bool
 isPrim prim v =
@@ -69,8 +77,11 @@ isPrim prim v =
       Canonical BuiltIn name -> name == prim
       _ -> False
 
+
 isText :: Canonical -> Bool
-isText = is ["Text"] "Text"
+isText =
+    is ["Text"] "Text"
+
 
 class ToString a where
   toString :: a -> String
