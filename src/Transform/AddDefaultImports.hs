@@ -47,12 +47,12 @@ signal =
 -- ADDING DEFAULT IMPORTS TO A MODULE
 
 add :: Bool -> Module.Module exs body -> Module.Module exs body
-add noPrelude (Module.Module moduleName path exports imports decls) =
+add needsDefaults (Module.Module moduleName path exports imports decls) =
     Module.Module moduleName path exports ammendedImports decls
   where
     ammendedImports =
       importDictToList $
-        foldr addImport (if noPrelude then Map.empty else defaultImports) imports
+        foldr addImport (if needsDefaults then defaultImports else Map.empty) imports
 
 
 importDictToList :: ImportDict -> [(Module.Name, Module.ImportMethod)]

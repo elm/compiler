@@ -11,6 +11,7 @@ import qualified AST.Module as Module (HeaderAndImports(HeaderAndImports), toInt
 import qualified Compile
 import qualified Elm.Compiler.Module as PublicModule
 import qualified Elm.Compiler.Version as Version
+import Elm.Utils ((|>))
 import qualified Elm.Utils as Utils
 import qualified Generate.JavaScript as JS
 import qualified Parse.Helpers as Help
@@ -48,15 +49,23 @@ parseDependencies src =
 {-| Compiles Elm source code to JavaScript. -}
 compile
     :: String
+    -> String
+    -> String
     -> Map.Map PublicModule.Name PublicModule.Interface
     -> Either String (PublicModule.Interface, String)
-compile source interfaces =
-    case Compile.compile False unwrappedInterfaces source of
-      Left docs -> Left . unlines . List.intersperse "" $ map P.render docs
-      Right modul -> Right (Module.toInterface modul, JS.generate modul)
-  where
-    unwrappedInterfaces =
+compile user packageName source interfaces =
+  let unwrappedInterfaces =
         Map.mapKeysMonotonic (\(PublicModule.Name name) -> name) interfaces
+  in
+      case Compile.compile user packageName unwrappedInterfaces source of
+        Right modul ->
+            Right (Module.toInterface modul, JS.generate modul)
+
+        Left docs ->
+            map P.render docs
+              |> List.intersperse ""
+              |> unlines
+              |> Left
 
 
 -- DATA FILES
