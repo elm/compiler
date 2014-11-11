@@ -68,7 +68,7 @@ Library
         Generate.JavaScript.Variable,
         Generate.Markdown,
         Generate.Cases,
-          Transform.AddDefaultImports,
+        Transform.AddDefaultImports,
         Transform.Canonicalize,
         Transform.Canonicalize.Environment,
         Transform.Canonicalize.Setup,
