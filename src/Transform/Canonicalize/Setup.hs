@@ -43,10 +43,9 @@ environment interfaces modul@(Module.Module _ _ _ imports decls) =
           found m = Map.member m interfaces || Module.nameIsNative m
 
           missingModuleError missings =
-              concat [ "The following imports were not found: "
+              concat [ "The following imports were not found:\n    "
                      , List.intercalate ", " (map Module.nameToString missings)
-                     , "\n    You may need to compile with the --make "
-                     , "flag to detect modules you have written." ]
+                     ]
 
 
 addImports :: Module.Name -> Module.Interfaces -> Environment -> (Module.Name, Module.ImportMethod)
