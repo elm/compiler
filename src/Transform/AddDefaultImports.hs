@@ -1,9 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
-module Transform.AddDefaultImports (add) where
+module Transform.AddDefaultImports (add, defaultImports) where
 
 import Prelude hiding (maybe)
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 
 import qualified AST.Module as Module
 import qualified AST.Variable as Var

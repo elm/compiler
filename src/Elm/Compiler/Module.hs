@@ -3,6 +3,7 @@ module Elm.Compiler.Module
     , nameToPath
     , nameToString, nameFromString
     , hyphenate, dehyphenate
+    , defaultImports
     )
   where
 
@@ -10,15 +11,23 @@ import Control.Monad (mzero)
 import qualified Data.Aeson as Json
 import qualified Data.Char as Char
 import qualified Data.List as List
+import qualified Data.Map as Map
 import qualified Data.Text as Text
 import System.FilePath ((</>))
+
 import qualified AST.Module as Module
+import qualified Transform.AddDefaultImports as Defaults
 
 
 type Interface = Module.Interface
 
 newtype Name = Name [String]
     deriving (Eq, Ord)
+
+
+defaultImports :: [Name]
+defaultImports =
+    map Name (Map.keys Defaults.defaultImports)
 
 
 nameToPath :: Name -> FilePath
