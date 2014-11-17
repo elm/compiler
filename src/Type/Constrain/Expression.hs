@@ -23,7 +23,7 @@ import qualified Type.Constrain.Pattern as Pattern
 constrain :: Env.Environment -> Canonical.Expr -> Type
           -> ErrorT [PP.Doc] IO TypeConstraint
 constrain env (A region expr) tipe =
-    let list t = Env.get env Env.types "_List" <| t
+    let list t = Env.get env Env.types "List" <| t
         and = A region . CAnd
         true = A region CTrue
         t1 === t2 = A region (CEqual t1 t2)

@@ -12,8 +12,6 @@ import Parse.Helpers
 tvar :: IParser T.RawType
 tvar = T.Var <$> lowVar <?> "type variable"
 
-list :: IParser T.RawType
-list = T.listOf <$> braces expr
 
 tuple :: IParser T.RawType
 tuple = do ts <- parens (commaSep expr)
@@ -50,7 +48,7 @@ constructor0 =
      return (T.Type (Var.Raw name))
 
 term :: IParser T.RawType
-term = list <|> tuple <|> record <|> tvar <|> constructor0
+term = tuple <|> record <|> tvar <|> constructor0
 
 app :: IParser T.RawType
 app =
