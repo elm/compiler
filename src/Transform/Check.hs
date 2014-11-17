@@ -45,7 +45,7 @@ duplicateValues decls =
 
   where
     msg x =
-        "Naming Error: There can only be one definition of '" ++ x ++ "'."
+        "Name Collision: There can only be one definition of '" ++ x ++ "'."
 
     (defPatterns, defExprs) =
         unzip [ (pat,expr) | D.Definition (Valid.Definition pat expr _) <- decls ]
@@ -85,12 +85,14 @@ duplicateTypeDeclarations decls =
 
 dupTypeError :: String -> String
 dupTypeError name =
-  "Naming Error: There can only be one type named '" ++ name ++ "'"
+  "Name Collision: There can only be one type named '" ++ name ++ "'"
 
 
 dupCtorError :: String -> String
 dupCtorError name =
-  "Naming Error: There can only be one type or record constructor named '" ++ name ++ "'"
+  "Name Collision: There can only be one constructor named '" ++ name ++ "'.\n"
+  ++ "    Constructors are created for record type aliases and for union types, so\n"
+  ++ "    something should be renamed or moved to a different module."
 
 
 illFormedTypes :: [D.ValidDecl] -> [Doc]
