@@ -14,32 +14,38 @@ import qualified AST.Variable as Var
 import qualified Transform.Expression as Expr
 
 import AST.PrettyPrint
+import Elm.Utils ((|>))
 import Text.PrettyPrint as P
 
 
 mistakes :: [D.ValidDecl] -> [Doc]
 mistakes decls =
-    concat [ infiniteTypeAliases decls
-           , illFormedTypes decls
-           , map P.text (duplicateConstructors decls)
-           , map P.text (duplicates decls) ]
+    concat
+      [ infiniteTypeAliases decls
+      , illFormedTypes decls
+      , map P.text (duplicateTypeDeclarations decls)
+      , map P.text (duplicateValues decls)
+      ]
+
 
 dups :: Ord a => [a] -> [a]
-dups  = map head . filter ((>1) . length) . List.group . List.sort
+dups names =
+    List.sort names
+      |> List.group
+      |> filter ((>1) . length)
+      |> map head
 
-dupErr :: String -> String -> String
-dupErr err x = 
-  "Syntax Error: There can only be one " ++ err ++ " '" ++ x ++ "'."
 
-duplicates :: [D.ValidDecl] -> [String]
-duplicates decls =
+duplicateValues :: [D.ValidDecl] -> [String]
+duplicateValues decls =
     map msg (dups (portNames ++ concatMap Pattern.boundVarList defPatterns)) ++
     case mapM exprDups (portExprs ++ defExprs) of
       Left name -> [msg name]
       Right _   -> []
 
   where
-    msg = dupErr "definition of"
+    msg x =
+        "Naming Error: There can only be one definition of '" ++ x ++ "'."
 
     (defPatterns, defExprs) =
         unzip [ (pat,expr) | D.Definition (Valid.Definition pat expr _) <- decls ]
@@ -61,13 +67,31 @@ duplicates decls =
           []     -> Right defs
           name:_ -> Left name
 
-duplicateConstructors :: [D.ValidDecl] -> [String]
-duplicateConstructors decls = 
-    map (dupErr "definition of type constructor") (dups typeCtors) ++
-    map (dupErr "definition of data constructor") (dups dataCtors)
+
+duplicateTypeDeclarations :: [D.ValidDecl] -> [String]
+duplicateTypeDeclarations decls = 
+    map dupTypeError (dups (typeNames ++ aliasNames))
+    ++ map dupCtorError (dups (ctorNames ++ aliasNames))
   where
-    typeCtors = [ name | D.Datatype name _ _ <- decls ]
-    dataCtors = concat [ map fst patterns | D.Datatype _ _ patterns <- decls ]
+    typeNames =
+        [ name | D.Datatype name _ _ <- decls ]
+
+    aliasNames =
+        [ name | D.TypeAlias name _ _ <- decls ]
+
+    ctorNames =
+        concat [ map fst patterns | D.Datatype _ _ patterns <- decls ]
+
+
+dupTypeError :: String -> String
+dupTypeError name =
+  "Naming Error: There can only be one type named '" ++ name ++ "'"
+
+
+dupCtorError :: String -> String
+dupCtorError name =
+  "Naming Error: There can only be one type or record constructor named '" ++ name ++ "'"
+
 
 illFormedTypes :: [D.ValidDecl] -> [Doc]
 illFormedTypes decls = map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
