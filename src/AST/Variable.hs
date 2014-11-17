@@ -64,7 +64,7 @@ isSignal =
 
 isList :: Canonical -> Bool
 isList v =
-    v == Canonical BuiltIn "_List"
+    v == Canonical BuiltIn "List"
 
 
 isTuple :: Canonical -> Bool

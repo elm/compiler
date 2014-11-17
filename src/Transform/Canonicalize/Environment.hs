@@ -65,7 +65,7 @@ builtIns :: Module.Name -> Environment
 builtIns home =
     Env { _home     = home
         , _values   = builtIn (tuples ++ [saveEnvName])
-        , _adts     = builtIn (tuples ++ ["_List","Int","Float","Char","Bool","String"])
+        , _adts     = builtIn (tuples ++ ["List","Int","Float","Char","Bool","String"])
         , _aliases  = dict []
         , _patterns = builtIn (tuples ++ ["::","[]"])
         }

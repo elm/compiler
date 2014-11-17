@@ -52,7 +52,7 @@ makeTypes datatypes =
 
     builtins :: [(String, Int)]
     builtins = concat [ map tuple [0..9]
-                      , kind 1 ["_List"]
+                      , kind 1 ["List"]
                       , kind 0 ["Int","Float","Char","String","Bool"]
                       ]
       where
@@ -66,7 +66,7 @@ makeConstructors :: Environment
                  -> Map.Map String (IO (Int, [Variable], [Type], Type))
 makeConstructors env datatypes = Map.fromList builtins
   where
-    list t = (types env Map.! "_List") <| t
+    list t = (types env Map.! "List") <| t
 
     inst :: Int -> ([Type] -> ([Type], Type)) -> IO (Int, [Variable], [Type], Type)
     inst numTVars tipe = do

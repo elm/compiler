@@ -29,7 +29,7 @@ recordOf :: [(String, Type var)] -> Type var
 recordOf fields = Record fields Nothing
 
 listOf :: RawType -> RawType
-listOf t = App (Type (Var.Raw "_List")) [t]
+listOf t = App (Type (Var.Raw "List")) [t]
 
 tupleOf :: [RawType] -> RawType
 tupleOf ts = App (Type t) ts
@@ -54,9 +54,6 @@ instance (Var.ToString var, Pretty var) => Pretty (Type var) where
 
       App f args ->
           case (f,args) of
-            (Type name, [t])
-                | Var.toString name == "_List" -> P.brackets (pretty t)
-
             (Type name, _)
                 | Help.isTuple (Var.toString name) ->
                     P.parens . P.sep . P.punctuate P.comma $ map pretty args
@@ -93,7 +90,6 @@ prettyParens tipe = parensIf (needed tipe) (pretty tipe)
 
         Lambda _ _ -> True
 
-        App (Type name) [_] | Var.toString name == "_List"     -> False
         App (Type name) _   | Help.isTuple (Var.toString name) -> False
         App t' [] -> needed t'
         App _ _ -> True

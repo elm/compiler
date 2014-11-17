@@ -171,8 +171,8 @@ instance PrettyType a => PrettyType (Term1 a) where
   pretty when term =
     let prty = pretty Never in
     case term of
-      App1 f x | P.render px == "_List" -> P.brackets (pretty Never x)
-               | otherwise -> parensIf needed (px <+> pretty App x)
+      App1 f x ->
+          parensIf needed (px <+> pretty App x)
         where
           px = prty f
           needed = case when of
