@@ -4,6 +4,7 @@ module Elm.Compiler.Module
     , nameToString, nameFromString
     , hyphenate, dehyphenate
     , defaultImports
+    , interfacePorts
     )
   where
 
@@ -21,6 +22,7 @@ import qualified Transform.AddDefaultImports as Defaults
 
 type Interface = Module.Interface
 
+
 newtype Name = Name [String]
     deriving (Eq, Ord)
 
@@ -29,6 +31,13 @@ defaultImports :: [Name]
 defaultImports =
     map Name (Map.keys Defaults.defaultImports)
 
+
+interfacePorts :: Interface -> [String]
+interfacePorts interface =
+    Module.iPorts interface
+
+
+-- STRING CONVERSIONS
 
 nameToPath :: Name -> FilePath
 nameToPath (Name names) =
@@ -73,6 +82,8 @@ fromString sep raw =
     legitChar char =
         Char.isAlphaNum char || char `elem` "_'"
 
+
+-- JSON CONVERSIONS
 
 instance Json.ToJSON Name where
     toJSON name =
