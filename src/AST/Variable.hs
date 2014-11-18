@@ -45,7 +45,7 @@ is home name var =
 
 isJson :: Canonical -> Bool
 isJson =
-    is ["Json", "Encode"] "Json"
+    is ["Json", "Encode"] "Value"
 
 
 isMaybe :: Canonical -> Bool
