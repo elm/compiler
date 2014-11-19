@@ -32,8 +32,8 @@ infixl 0 |>
 -- RUN EXECUTABLES
 
 data CommandError
-    = MissingExe
-    | CommandFailed (String, String)
+    = MissingExe String
+    | CommandFailed String String
 
 
 {-| Run a command, throw an error if the command is not found or if something
@@ -52,11 +52,10 @@ run command args =
     
     message err =
       case err of
-        CommandFailed (stderr, stdout) ->
+        CommandFailed stderr stdout ->
           stdout ++ stderr
-        MissingExe -> 
-          "Could not find command '" ++ command ++ "'. Do you have it installed?\n\
-          \    Can it be run from anywhere? Is it on your PATH?"
+        MissingExe msg -> 
+          msg
 
 
 unwrappedRun :: String -> [String] -> IO (Either CommandError String)
@@ -66,9 +65,17 @@ unwrappedRun command args =
           case exitCode of
             ExitSuccess -> Right stdout
             ExitFailure code
-                | code == 127  -> Left MissingExe  -- UNIX
-                | code == 9009 -> Left MissingExe  -- Windows
-                | otherwise    -> Left (CommandFailed (stdout, stderr))
+                | code == 127  -> Left (missingExe command)  -- UNIX
+                | code == 9009 -> Left (missingExe command)  -- Windows
+                | otherwise    -> Left (CommandFailed stdout stderr)
+
+
+missingExe :: String -> CommandError
+missingExe command =
+  MissingExe $
+    "Could not find command '" ++ command ++ "'. Do you have it installed?\n\
+    \    Can it be run from anywhere? Is it on your PATH?"
+
 
 
 -- GET STATIC ASSETS
