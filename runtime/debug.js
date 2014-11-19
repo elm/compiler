@@ -8,18 +8,18 @@ if (typeof window != 'undefined' && !window.location.origin) {
       (window.location.port ? (':' + window.location.port) : '');
 }
 
-Elm.fullscreenDebugHooks = function(module, debuggerHistory /* =undefined */) {
+Elm.fullscreenDebugHooks = function(elmModule, debuggerHistory /* =undefined */) {
   var exposedDebugger = {};
-  function debuggerAttach(module, debuggerHistory) {
+  function debuggerAttach(elmModule, debuggerHistory) {
     return {
       make: function(runtime) {
-        var wrappedModule = debugModule(module, runtime);
+        var wrappedModule = debugModule(elmModule, runtime);
         exposedDebugger = debuggerInit(wrappedModule, runtime, debuggerHistory);
         return wrappedModule.debuggedModule;
       }
     }
   }
-  var mainHandle = Elm.fullscreen(debuggerAttach(module, debuggerHistory));
+  var mainHandle = Elm.fullscreen(debuggerAttach(elmModule, debuggerHistory));
   mainHandle.debugger = exposedDebugger;
   return mainHandle;
 };
@@ -419,7 +419,7 @@ function Point(x, y) {
 function tracePathInit(runtime, signalGraphMain) {
   var List = Elm.List.make(runtime);
   var Signal = Elm.Signal.make(runtime);
-  var tracePathNode = A2(Signal.lift, graphicsUpdate, signalGraphMain);
+  var tracePathNode = A2(Signal.map, graphicsUpdate, signalGraphMain);
   var tracePathCanvas = createCanvas();
   var tracePositions = {};
   var recordingTraces = true;

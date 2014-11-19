@@ -1,5 +1,5 @@
 
-var Elm = {
+var Elm = Elm || {
     Native: {}
 };
 
@@ -281,7 +281,7 @@ function initGraphics(elm, Module) {
   var signalGraph = Module.main;
 
   // make sure the signal graph is actually a signal & extract the visual model
-  var Signal = Elm.Native.Signal.make(elm);
+  var Signal = Elm.Signal.make(elm);
   if (!('recv' in signalGraph)) {
       signalGraph = Signal.constant(signalGraph);
   }
@@ -301,7 +301,7 @@ function initGraphics(elm, Module) {
           savedScene = newScene;
       });
   }
-  var renderer = A2(Signal.lift, domUpdate, signalGraph);
+  var renderer = A2(Signal.map, domUpdate, signalGraph);
 
   // must check for resize after 'renderer' is created so
   // that changes show up.

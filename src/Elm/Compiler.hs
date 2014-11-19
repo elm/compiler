@@ -1,6 +1,10 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts #-}
-module Elm.Compiler (version, parseDependencies, compile, runtimePath) where
+module Elm.Compiler
+    ( version
+    , parseDependencies, compile
+    , runtimePath, runtimeDebugPath
+    ) where
 
 import Control.Monad.Error (MonadError, throwError)
 import qualified Data.List as List
@@ -75,3 +79,10 @@ compile user packageName source interfaces =
 runtimePath :: IO FilePath
 runtimePath =
     Utils.getAsset "compiler" Paths.getDataFileName "runtime/core.js"
+
+
+{-| Path to the debugger runtime.
+-}
+runtimeDebugPath :: IO FilePath
+runtimeDebugPath =
+    Utils.getAsset "compiler" Paths.getDataFileName "runtime/debug.js"
