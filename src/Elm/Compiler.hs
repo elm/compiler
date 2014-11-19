@@ -1,15 +1,18 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, TemplateHaskell #-}
 module Elm.Compiler
     ( version
     , parseDependencies, compile
     , runtimePath, runtimeDebugPath
+    , runtimeSource, runtimeDebugSource
     ) where
 
 import Control.Monad.Error (MonadError, throwError)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Text.PrettyPrint as P
+import qualified Data.FileEmbed as Embed
+import qualified Data.ByteString.Char8 as Char8
 
 import qualified AST.Module as Module (HeaderAndImports(HeaderAndImports), toInterface)
 import qualified Compile
@@ -80,9 +83,18 @@ runtimePath :: IO FilePath
 runtimePath =
     Utils.getAsset "compiler" Paths.getDataFileName "runtime/core.js"
 
+{-| Javascript source for the runtime.
+-}
+runtimeSource :: String
+runtimeSource = Char8.unpack $(Embed.embedFile "runtime/core.js")
 
 {-| Path to the debugger runtime.
 -}
 runtimeDebugPath :: IO FilePath
 runtimeDebugPath =
     Utils.getAsset "compiler" Paths.getDataFileName "runtime/debug.js"
+  
+{-| Javascript source for the debugger runtime.
+-}  
+runtimeDebugSource :: String
+runtimeDebugSource = Char8.unpack $(Embed.embedFile "runtime/debug.js")
