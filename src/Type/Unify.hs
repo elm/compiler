@@ -12,12 +12,16 @@ import qualified Type.State as TS
 import Type.Type
 import Type.PrettyPrint
 import Text.PrettyPrint (render)
+import Elm.Utils ((|>))
+
 
 unify :: A.Region -> Variable -> Variable -> StateT TS.SolverState IO ()
 unify region variable1 variable2 = do
   equivalent <- liftIO $ UF.equivalent variable1 variable2
-  if equivalent then return ()
-                else actuallyUnify region variable1 variable2
+  if equivalent
+      then return ()
+      else actuallyUnify region variable1 variable2
+
 
 actuallyUnify :: A.Region -> Variable -> Variable -> StateT TS.SolverState IO ()
 actuallyUnify region variable1 variable2 = do
@@ -171,26 +175,38 @@ actuallyUnify region variable1 variable2 = do
           (EmptyRecord1, Record1 fields ext) | Map.null fields -> unify' ext variable1
 
           (Record1 fields1 ext1, Record1 fields2 ext2) ->
-              do sequence . concat . Map.elems $ Map.intersectionWith (zipWith unify') fields1 fields2
-                 let mkRecord fs ext = fresh . Just $ Record1 fs ext
-                 case (Map.null fields1', Map.null fields2') of
-                   (True , True ) -> unify' ext1 ext2
-                   (True , False) -> do
-                      record2' <- mkRecord fields2' ext2
-                      unify' ext1 record2'
-                   (False, True ) -> do
-                      record1' <- mkRecord fields1' ext1
-                      unify' record1' ext2
-                   (False, False) -> do
-                      record1' <- mkRecord fields1' =<< fresh Nothing
-                      record2' <- mkRecord fields2' =<< fresh Nothing
-                      unify' record1' ext2
-                      unify' ext1 record2'
+              do  Map.intersectionWith (zipWith unify') fields1 fields2
+                      |> Map.elems 
+                      |> concat
+                      |> sequence
+
+                  let mkRecord fs ext =
+                        fresh (Just (Record1 fs ext))
+
+                  case (Map.null fields1', Map.null fields2') of
+                    (True, True) ->
+                      unify' ext1 ext2
+
+                    (True, False) ->
+                      do  record2' <- mkRecord fields2' ext2
+                          unify' ext1 record2'
+
+                    (False, True) ->
+                      do  record1' <- mkRecord fields1' ext1
+                          unify' record1' ext2
+
+                    (False, False) ->
+                      do  record1' <- mkRecord fields1' =<< fresh Nothing
+                          record2' <- mkRecord fields2' =<< fresh Nothing
+                          unify' record1' ext2
+                          unify' ext1 record2'
               where
                 fields1' = unmerged fields1 fields2
                 fields2' = unmerged fields2 fields1
 
-                unmerged a b = Map.filter (not . null) $ Map.union (Map.intersectionWith eat a b) a
+                unmerged a b =
+                    Map.union (Map.intersectionWith eat a b) a
+                        |> Map.filter (not . null)
 
                 eat (_:xs) (_:ys) = eat xs ys
                 eat xs _ = xs
