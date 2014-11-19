@@ -183,35 +183,38 @@ actuallyUnify region variable1 variable2 = do
                   let mkRecord fs ext =
                         fresh (Just (Record1 fs ext))
 
-                  case (Map.null fields1', Map.null fields2') of
+                  let uniqueFields1 = diffFields fields1 fields2
+                  let uniqueFields2 = diffFields fields2 fields1
+
+                  case (Map.null uniqueFields1, Map.null uniqueFields2) of
                     (True, True) ->
                       unify' ext1 ext2
 
                     (True, False) ->
-                      do  record2' <- mkRecord fields2' ext2
+                      do  record2' <- mkRecord uniqueFields2 ext2
                           unify' ext1 record2'
 
                     (False, True) ->
-                      do  record1' <- mkRecord fields1' ext1
+                      do  record1' <- mkRecord uniqueFields1 ext1
                           unify' record1' ext2
 
                     (False, False) ->
-                      do  record1' <- mkRecord fields1' =<< fresh Nothing
-                          record2' <- mkRecord fields2' =<< fresh Nothing
+                      do  record1' <- mkRecord uniqueFields1 =<< fresh Nothing
+                          record2' <- mkRecord uniqueFields2 =<< fresh Nothing
                           unify' record1' ext2
                           unify' ext1 record2'
-              where
-                fields1' = unmerged fields1 fields2
-                fields2' = unmerged fields2 fields1
-
-                unmerged a b =
-                    Map.union (Map.intersectionWith eat a b) a
-                        |> Map.filter (not . null)
-
-                eat (_:xs) (_:ys) = eat xs ys
-                eat xs _ = xs
 
           _ -> TS.addError region Nothing variable1 variable2
+
+
+diffFields :: Map.Map String [a] -> Map.Map String [a] -> Map.Map String [a]
+diffFields fields1 fields2 =
+  let eat (_:xs) (_:ys) = eat xs ys
+      eat xs _ = xs
+  in
+      Map.union (Map.intersectionWith eat fields1 fields2) fields1
+        |> Map.filter (not . null)
+
 
 combinedDescriptors :: Descriptor -> Descriptor
                     -> (Maybe Var.Canonical, Flex, Int, Maybe Var.Canonical)
