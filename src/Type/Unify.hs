@@ -305,7 +305,9 @@ fieldMismatchError :: Map.Map String a -> String
 fieldMismatchError missingFields =
     case Map.keys missingFields of
       [] -> ""
-      [key] -> "Looks like one record is missing field " ++ key
+      [key] ->
+        "Looks like a record is missing the field '" ++ key ++ "'.\n" ++
+        "Maybe there is a misspelling in a record access or record update?"
       keys ->
         "Looks like one record is missing fields "
         ++ List.intercalate ", " (init keys) ++ ", and " ++ last keys
