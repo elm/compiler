@@ -76,16 +76,24 @@ actuallyUnify region variable1 variable2 = do
           case home of
             Var.BuiltIn | name `elem` ["Int","Float"]   -> flexAndUnify svar
             Var.Local   | List.isPrefixOf "number" name -> flexAndUnify svar
-            _ -> let hint = "A number must be an Int or Float."
-                 in  TS.addError region (Just hint) variable1 variable2
+            _ ->
+              let hint = "Looks like something besides an Int or Float is being used as a number."
+              in
+                  TS.addError region (Just hint) variable1 variable2
 
       comparableError maybe =
           TS.addError region (Just $ Maybe.fromMaybe msg maybe) variable1 variable2
-          where msg = "A comparable must be an Int, Float, Char, String, list, or tuple."
+        where
+          msg =
+            "Looks like you want something comparable, but the only valid comparable\n\
+            \types are Int, Float, Char, String, lists, or tuples."
 
       appendableError maybe =
           TS.addError region (Just $ Maybe.fromMaybe msg maybe) variable1 variable2
-          where msg = "An appendable must be of type String, List, or Text."
+        where
+          msg =
+            "Looks like you want something appendable, but the only Strings, Lists,\n\
+            \and Text can be appended with the (++) operator."
 
       unifyComparable v (Var.Canonical home name) =
           case home of
@@ -113,12 +121,13 @@ actuallyUnify region variable1 variable2 = do
                List _ -> flexAndUnify varSuper
                _      -> appendableError Nothing
 
-      rigidError var = TS.addError region (Just hint) variable1 variable2
-          where
-            var' = "'" ++ render (pretty Never var) ++ "'"
-            hint = "Cannot unify rigid type variable " ++ var' ++
-                   ".\nThe problem probably relates to a type annotation. Note that rigid type\n\
-                   \variables are not shared between a top-level and let-bound type annotations."
+      rigidError var =
+          TS.addError region (Just hint) variable1 variable2
+        where
+          hint =
+            "Could not unify rigid type variable '" ++ render (pretty Never var) ++ "'.\n" ++
+            "The problem probably relates to the type variable being shared between a\n\
+            \top-level type annotation and a related let-bound type annotation."
 
       superUnify =
           case (flex desc1, flex desc2, name desc1, name desc2) of
@@ -174,37 +183,89 @@ actuallyUnify region variable1 variable2 = do
           (Record1 fields ext, EmptyRecord1) | Map.null fields -> unify' ext variable2
           (EmptyRecord1, Record1 fields ext) | Map.null fields -> unify' ext variable1
 
-          (Record1 fields1 ext1, Record1 fields2 ext2) ->
-              do  Map.intersectionWith (zipWith unify') fields1 fields2
-                      |> Map.elems 
-                      |> concat
-                      |> sequence
-
-                  let mkRecord fs ext =
-                        fresh (Just (Record1 fs ext))
-
-                  let uniqueFields1 = diffFields fields1 fields2
-                  let uniqueFields2 = diffFields fields2 fields1
-
-                  case (Map.null uniqueFields1, Map.null uniqueFields2) of
-                    (True, True) ->
-                      unify' ext1 ext2
-
-                    (True, False) ->
-                      do  record2' <- mkRecord uniqueFields2 ext2
-                          unify' ext1 record2'
-
-                    (False, True) ->
-                      do  record1' <- mkRecord uniqueFields1 ext1
-                          unify' record1' ext2
-
-                    (False, False) ->
-                      do  record1' <- mkRecord uniqueFields1 =<< fresh Nothing
-                          record2' <- mkRecord uniqueFields2 =<< fresh Nothing
-                          unify' record1' ext2
-                          unify' ext1 record2'
+          (Record1 _ _, Record1 _ _) ->
+              recordUnify region fresh variable1 variable2
 
           _ -> TS.addError region Nothing variable1 variable2
+
+
+-- RECORD UNIFICATION
+
+recordUnify
+    :: A.Region
+    -> (Maybe (Term1 Variable) -> StateT TS.SolverState IO Variable)
+    -> Variable
+    -> Variable
+    -> StateT TS.SolverState IO ()
+recordUnify region fresh variable1 variable2 =
+  do  (ExpandedRecord fields1 ext1) <- liftIO (gatherFields variable1)
+      (ExpandedRecord fields2 ext2) <- liftIO (gatherFields variable2)
+
+      unifyOverlappingFields region fields1 fields2
+
+      let freshRecord fields ext =
+            fresh (Just (Record1 fields ext))
+
+      let uniqueFields1 = diffFields fields1 fields2
+      let uniqueFields2 = diffFields fields2 fields1
+
+      let addFieldMismatchError missingFields =
+            let msg = fieldMismatchError missingFields
+            in
+                TS.addError region (Just msg) variable1 variable2
+
+      case (ext1, ext2) of
+        (Empty _, Empty _) ->
+            case Map.null uniqueFields1 && Map.null uniqueFields2 of
+              True -> return ()
+              False -> TS.addError region Nothing variable1 variable2
+
+        (Empty var1, Extension var2) ->
+            case (Map.null uniqueFields1, Map.null uniqueFields2) of
+              (_, False) -> addFieldMismatchError uniqueFields2
+              (True, True) -> unify region var1 var2
+              (False, True) ->
+                do  subRecord <- freshRecord uniqueFields1 var1
+                    unify region subRecord var2
+
+        (Extension var1, Empty var2) ->
+            case (Map.null uniqueFields1, Map.null uniqueFields2) of
+              (False, _) -> addFieldMismatchError uniqueFields1
+              (True, True) -> unify region var1 var2
+              (True, False) ->
+                do  subRecord <- freshRecord uniqueFields2 var2
+                    unify region var1 subRecord
+
+        (Extension var1, Extension var2) ->
+            case (Map.null uniqueFields1, Map.null uniqueFields2) of
+              (True, True) ->
+                unify region var1 var2
+
+              (True, False) ->
+                do  subRecord <- freshRecord uniqueFields2 var2
+                    unify region var1 subRecord
+
+              (False, True) ->
+                do  subRecord <- freshRecord uniqueFields1 var1
+                    unify region subRecord var2
+
+              (False, False) ->
+                do  record1' <- freshRecord uniqueFields1 =<< fresh Nothing
+                    record2' <- freshRecord uniqueFields2 =<< fresh Nothing
+                    unify region record1' var2
+                    unify region var1 record2'
+
+
+unifyOverlappingFields
+    :: A.Region
+    -> Map.Map String [Variable]
+    -> Map.Map String [Variable]
+    -> StateT TS.SolverState IO ()
+unifyOverlappingFields region fields1 fields2 =
+    Map.intersectionWith (zipWith (unify region)) fields1 fields2
+        |> Map.elems 
+        |> concat
+        |> sequence_
 
 
 diffFields :: Map.Map String [a] -> Map.Map String [a] -> Map.Map String [a]
@@ -214,6 +275,40 @@ diffFields fields1 fields2 =
   in
       Map.union (Map.intersectionWith eat fields1 fields2) fields1
         |> Map.filter (not . null)
+
+
+data ExpandedRecord = ExpandedRecord
+    { fields :: Map.Map String [Variable]
+    , extension :: Extension
+    }
+
+data Extension = Empty Variable | Extension Variable
+
+
+gatherFields :: Variable -> IO ExpandedRecord
+gatherFields var =
+  do  desc <- UF.descriptor var
+      case structure desc of
+        (Just (Record1 fields ext)) ->
+          do  (ExpandedRecord deeperFields rootExt) <- gatherFields ext
+              return (ExpandedRecord (Map.unionWith (++) fields deeperFields) rootExt)
+
+        (Just EmptyRecord1) ->
+          return (ExpandedRecord Map.empty (Empty var))
+
+        _ ->
+          return (ExpandedRecord Map.empty (Extension var))
+
+
+-- assumes that one of the dicts has stuff in it
+fieldMismatchError :: Map.Map String a -> String
+fieldMismatchError missingFields =
+    case Map.keys missingFields of
+      [] -> ""
+      [key] -> "Looks like one record is missing field " ++ key
+      keys ->
+        "Looks like one record is missing fields "
+        ++ List.intercalate ", " (init keys) ++ ", and " ++ last keys
 
 
 combinedDescriptors :: Descriptor -> Descriptor

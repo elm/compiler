@@ -45,8 +45,13 @@ initialState = SS {
 modifyEnv  f = modify $ \state -> state { sEnv = f (sEnv state) }
 modifyPool f = modify $ \state -> state { sPool = f (sPool state) }
 
-addError :: A.Region -> Maybe String -> UF.Point Descriptor -> UF.Point Descriptor
-         -> StateT SolverState IO ()
+
+addError
+    :: A.Region
+    -> Maybe String
+    -> UF.Point Descriptor
+    -> UF.Point Descriptor
+    -> StateT SolverState IO ()
 addError region hint t1 t2 =
   do err <- liftIO makeError
      modify $ \state -> state { sErrors = err : sErrors state }
@@ -55,16 +60,16 @@ addError region hint t1 t2 =
       t1' <- pretty <$> toSrcType t1
       t2' <- pretty <$> toSrcType t2
       return . foldr ($+$) P.empty $
-         [ P.text "Type mismatch" <+> pretty region <> P.text "."
-         , maybe P.empty P.text hint
-         , P.text ""
-         , P.nest 8 $ A.getRegionDocs region
-         , P.text ""
-         , P.text "    Something is causing a mismatch between the following types:"
+         [ P.text "Type mismatch between the following types:"
          , P.text ""
          , P.nest 8 t1'
          , P.text ""
          , P.nest 8 t2'
+         , P.text ""
+         , maybe P.empty (P.nest 4 . P.text) hint
+         , P.text "    It is related to the expression" <+> pretty region 
+         , P.text ""
+         , P.nest 8 $ A.getRegionDocs region
          ]
 
 switchToPool pool = modifyPool (\_ -> pool)
