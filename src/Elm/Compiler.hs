@@ -3,7 +3,7 @@
 module Elm.Compiler
     ( version
     , parseDependencies, compile
-    , runtimePath, runtimeDebugPath
+    , runtimeDebugPath
     ) where
 
 import Control.Monad.Error (MonadError, throwError)
@@ -73,13 +73,6 @@ compile user packageName source interfaces =
 
 
 -- DATA FILES
-
-{-| Path to the runtime.
--}
-runtimePath :: IO FilePath
-runtimePath =
-    Utils.getAsset "compiler" Paths.getDataFileName "runtime/core.js"
-
 
 {-| Path to the debugger runtime.
 -}

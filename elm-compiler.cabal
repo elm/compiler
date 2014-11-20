@@ -28,7 +28,6 @@ Cabal-version: >=1.9
 Build-type: Simple
 
 Data-files:
-    runtime/core.js
     runtime/debug.js
 
 source-repository head
