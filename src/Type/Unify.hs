@@ -175,36 +175,59 @@ actuallyUnify region variable1 variable2 = do
           (EmptyRecord1, Record1 fields ext) | Map.null fields -> unify' ext variable1
 
           (Record1 fields1 ext1, Record1 fields2 ext2) ->
-              do  Map.intersectionWith (zipWith unify') fields1 fields2
-                      |> Map.elems 
-                      |> concat
-                      |> sequence
-
-                  let mkRecord fs ext =
-                        fresh (Just (Record1 fs ext))
-
-                  let uniqueFields1 = diffFields fields1 fields2
-                  let uniqueFields2 = diffFields fields2 fields1
-
-                  case (Map.null uniqueFields1, Map.null uniqueFields2) of
-                    (True, True) ->
-                      unify' ext1 ext2
-
-                    (True, False) ->
-                      do  record2' <- mkRecord uniqueFields2 ext2
-                          unify' ext1 record2'
-
-                    (False, True) ->
-                      do  record1' <- mkRecord uniqueFields1 ext1
-                          unify' record1' ext2
-
-                    (False, False) ->
-                      do  record1' <- mkRecord uniqueFields1 =<< fresh Nothing
-                          record2' <- mkRecord uniqueFields2 =<< fresh Nothing
-                          unify' record1' ext2
-                          unify' ext1 record2'
+              recordUnify region fresh fields1 ext1 fields2 ext2
 
           _ -> TS.addError region Nothing variable1 variable2
+
+
+-- RECORD UNIFICATION
+
+recordUnify
+    :: A.Region
+    -> (Maybe (Term1 Variable) -> StateT TS.SolverState IO Variable)
+    -> Map.Map String [Variable]
+    -> Variable
+    -> Map.Map String [Variable]
+    -> Variable
+    -> StateT TS.SolverState IO ()
+recordUnify region fresh fields1 ext1 fields2 ext2 =
+  do  unifyOverlappingFields region fields1 fields2
+
+      let mkRecord fs ext =
+            fresh (Just (Record1 fs ext))
+
+      let uniqueFields1 = diffFields fields1 fields2
+      let uniqueFields2 = diffFields fields2 fields1
+
+      case (Map.null uniqueFields1, Map.null uniqueFields2) of
+        (True, True) ->
+          unify region ext1 ext2
+
+        (True, False) ->
+          do  record2' <- mkRecord uniqueFields2 ext2
+              unify region ext1 record2'
+
+        (False, True) ->
+          do  record1' <- mkRecord uniqueFields1 ext1
+              unify region record1' ext2
+
+        (False, False) ->
+          do  record1' <- mkRecord uniqueFields1 =<< fresh Nothing
+              record2' <- mkRecord uniqueFields2 =<< fresh Nothing
+              unify region record1' ext2
+              unify region ext1 record2'
+
+
+unifyOverlappingFields
+    :: A.Region
+    -> Map.Map String [Variable]
+    -> Map.Map String [Variable]
+    -> StateT TS.SolverState IO ()
+unifyOverlappingFields region fields1 fields2 =
+    Map.intersectionWith (zipWith (unify region)) fields1 fields2
+        |> Map.elems 
+        |> concat
+        |> sequence_
 
 
 diffFields :: Map.Map String [a] -> Map.Map String [a] -> Map.Map String [a]
