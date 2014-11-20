@@ -54,14 +54,17 @@ addError region hint t1 t2 =
     makeError = do
       t1' <- pretty <$> toSrcType t1
       t2' <- pretty <$> toSrcType t2
-      return . P.vcat $
-         [ P.text "Type error" <+> pretty region <> P.colon
+      return . foldr ($+$) P.empty $
+         [ P.text "Type mismatch" <+> pretty region <> P.text "."
          , maybe P.empty P.text hint
          , P.text ""
          , P.nest 8 $ A.getRegionDocs region
          , P.text ""
-         , P.text "   Expected Type:" <+> t1'
-         , P.text "     Actual Type:" <+> t2'
+         , P.text "    Something is causing a mismatch between the following types:"
+         , P.text ""
+         , P.nest 8 t1'
+         , P.text ""
+         , P.nest 8 t2'
          ]
 
 switchToPool pool = modifyPool (\_ -> pool)
