@@ -6,13 +6,14 @@ module Elm.Compiler.Type
 
 import Control.Applicative ((<$>), (<*>))
 import Control.Arrow (second)
-import Data.Aeson ((.:), (.:?), (.=))
+import Data.Aeson ((.:), (.=))
 import qualified Data.Aeson as Json
 import qualified Data.ByteString.Lazy.Char8 as BS
+import qualified Data.List as List
 import qualified Data.Text as Text
 
-import qualified AST.Type as Type
-import qualified AST.Variable as Var
+import qualified AST.Helpers as Help
+import Elm.Utils ((|>))
 
 
 data Type
@@ -25,14 +26,74 @@ data Type
 
 -- TO STRING
 
+data Context = None | ADT | Function
+
+
 toString :: Type -> String
 toString tipe =
-    case tipe of
-      Lambda t t' -> undefined
-      Var x -> undefined
-      Type name -> undefined
-      App t ts -> undefined
-      Record fields maybeExtension -> undefined
+  toStringHelp None tipe
+
+
+toStringHelp :: Context -> Type -> String
+toStringHelp context tipe =
+  case tipe of
+    Lambda t1 t2 ->
+        let string = toStringHelp Function t1 ++ " -> " ++ toString t2
+        in
+            case context of
+              None -> string
+              _ -> parens string
+
+    Var name -> name
+
+    Type name -> name
+
+    App (Type "List") [t] ->
+        sandwich "[" "]" (toString t)
+
+    App (Type name) args
+        | Help.isTuple name ->
+            map toString args
+                |> List.intercalate ", "
+                |> parens
+
+        | otherwise ->
+            let string = name ++ spacePrefix (map (toStringHelp ADT) args)
+            in
+                case (context, args) of
+                  (ADT, _ : _) -> parens string
+                  _ -> string
+
+    Record fields maybeExtension ->
+        let viewField (key, value) =
+                key ++ " : " ++ toString value
+
+            viewExtension maybeType =
+                case maybeType of
+                  Nothing -> ""
+                  Just t -> toString t ++ " | "
+        in
+            sandwich "{ " " }" $
+              concat
+              [ viewExtension maybeExtension
+              , map viewField fields
+                  |> List.intercalate ", "
+              ]
+
+
+parens :: String -> String
+parens string =
+  sandwich "(" ")" string
+
+
+spacePrefix :: [String] -> String
+spacePrefix strings =
+  concatMap (" " ++) strings
+
+
+sandwich :: String -> String -> String -> String
+sandwich start stop string =
+    start ++ string ++ stop
 
 
 -- JSON for TYPE
