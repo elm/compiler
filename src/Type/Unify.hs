@@ -278,8 +278,8 @@ diffFields fields1 fields2 =
 
 
 data ExpandedRecord = ExpandedRecord
-    { fields :: Map.Map String [Variable]
-    , extension :: Extension
+    { _fields :: Map.Map String [Variable]
+    , _extension :: Extension
     }
 
 data Extension = Empty Variable | Extension Variable
