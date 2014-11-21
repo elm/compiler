@@ -44,11 +44,11 @@ Library
     exposed-modules:
         Elm.Compiler,
         Elm.Compiler.Module,
+        Elm.Compiler.Type,
         Elm.Docs,
         Elm.Utils
 
     other-modules:
-        Elm.Compiler.Version,
         AST.Annotation,
         AST.Declaration,
         AST.Expression.General,
@@ -63,6 +63,8 @@ Library
         AST.Type,
         AST.Variable,
         Compile,
+        Elm.Compiler.Type.Extract,
+        Elm.Compiler.Version,
         Generate.JavaScript,
         Generate.JavaScript.Helpers,
         Generate.JavaScript.Ports,

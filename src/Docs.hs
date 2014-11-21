@@ -13,10 +13,8 @@ import qualified Data.Aeson.Encode.Pretty as Json
 import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy.Char8 as BS
 
-import qualified AST.Type as Type
 import qualified AST.Declaration as Decl
 import qualified AST.Expression.Source as Source
-import qualified AST.Variable as Var
 
 import Text.Parsec hiding (newline, spaces)
 import qualified Parse.Declaration as Parse (typeDecl, infixDecl)
@@ -24,6 +22,7 @@ import qualified Parse.Expression as Parse (typeAnnotation)
 import qualified Parse.Helpers as Parse
 import qualified Parse.Module as Parse (header)
 import qualified Elm.Compiler.Module as Module
+import qualified Elm.Compiler.Type.Extract as Type
 import qualified Elm.Docs as Docs
 
 
@@ -172,18 +171,18 @@ collectInfo (comment, decl) info =
           case def of
             Source.Definition _ _ -> error errorMessage
             Source.TypeAnnotation name tipe ->
-                let value = Docs.Value name comment (toDocType tipe) Nothing
+                let value = Docs.Value name comment (Type.fromInternalType tipe) Nothing
                 in
                     info { values = Map.insert name value (values info) }
 
       Decl.Datatype name args cases ->
-          let cases' = map (second (map toDocType)) cases
+          let cases' = map (second (map Type.fromInternalType)) cases
               union = Docs.Union name comment args cases'
           in
               info { unions = union : unions info }
 
       Decl.TypeAlias name args tipe ->
-          let alias = Docs.Alias name comment args (toDocType tipe)
+          let alias = Docs.Alias name comment args (Type.fromInternalType tipe)
           in
               info { aliases = alias : aliases info }
 
@@ -200,30 +199,4 @@ errorMessage :: String
 errorMessage =
     "there appears to be a bug in this tool.\n" ++
     "Please report it to <https://github.com/elm-lang/Elm/issues>"
-
-
--- AST TYPE TO DOC TYPE
-
-toDocType :: Type.Type Var.Raw -> Docs.Type
-toDocType astType =
-    case astType of
-      Type.Lambda t1 t2 ->
-          Docs.Lambda (toDocType t1) (toDocType t2)
-
-      Type.Var x ->
-          Docs.Var x
-
-      Type.Type (Var.Raw name) ->
-          Docs.Type name
-
-      Type.App t ts ->
-          Docs.App (toDocType t) (map toDocType ts)
-
-      Type.Record fields ext ->
-          Docs.Record (map (second toDocType) fields) (fmap toDocType ext)
-
-      Type.Aliased _ t ->
-          toDocType t
-
-
 
