@@ -61,13 +61,24 @@ instance (Var.ToString var, Pretty var) => Pretty (Type var) where
             _ -> P.hang (pretty f) 2 (P.sep $ map prettyParens args)
 
       Record _ _ ->
-          P.braces $ case flattenRecord tipe of
-                       (fields, Nothing) -> prettyFields fields
-                       (fields, Just x) ->
-                           P.hang (P.text x <+> P.text "|") 4 (prettyFields fields)
+          case flattenRecord tipe of
+            (fields, Nothing) ->
+                P.sep
+                  [ P.cat (zipWith (<+>) (P.lbrace : repeat P.comma) (map prettyField fields))
+                  , P.rbrace
+                  ]
+
+            (fields, Just x) ->
+                P.hang
+                    (P.lbrace <+> P.text x <+> P.text "|")
+                    4
+                    (P.sep
+                      [ P.cat (zipWith (<+>) (P.space : repeat P.comma) (map prettyField fields))
+                      , P.rbrace
+                      ])
           where
-            prettyField (f,t) = P.text f <+> P.text ":" <+> pretty t
-            prettyFields fields = commaSep (map prettyField fields)
+            prettyField (field, tipe) =
+                P.text field <+> P.text ":" <+> pretty tipe
 
       Aliased name t ->
           let t' = pretty t in
