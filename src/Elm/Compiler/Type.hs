@@ -48,9 +48,6 @@ toStringHelp context tipe =
 
     Type name -> name
 
-    App (Type "List") [t] ->
-        sandwich "[" "]" (toString t)
-
     App (Type name) args
         | Help.isTuple name ->
             map toString args
