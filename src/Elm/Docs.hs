@@ -2,12 +2,10 @@
 module Elm.Docs where
 
 import Control.Applicative ((<$>),(<*>))
-import Control.Arrow (second)
 import Control.Monad
 import Data.Aeson ((.:), (.:?), (.=))
 import qualified Data.Aeson as Json
 import qualified Data.ByteString.Lazy.Char8 as BS
-import qualified Data.Text as Text
 
 import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Type as Type
