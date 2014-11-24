@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Type.State where
 
 import Control.Applicative ( (<$>), (<*>), Applicative, (<|>) )
@@ -21,29 +22,47 @@ data Pool = Pool
     , inhabitants :: [Variable]
     }
 
-emptyPool = Pool { maxRank = outermostRank, inhabitants = [] }
+
+emptyPool :: Pool
+emptyPool =
+    Pool
+    { maxRank = outermostRank
+    , inhabitants = []
+    }
+
 
 type Env = Map.Map String Variable
 
+
 -- Keeps track of the environment, type variable pool, and a list of errors
-data SolverState = SS {
-    sEnv :: Env,
-    sSavedEnv :: Env,
-    sPool :: Pool,
-    sMark :: Int,
-    sErrors :: [P.Doc]
-}
+data SolverState = SS
+    { sEnv :: Env
+    , sSavedEnv :: Env
+    , sPool :: Pool
+    , sMark :: Int
+    , sErrors :: [P.Doc]
+    }
 
-initialState = SS {
-    sEnv = Map.empty,
-    sSavedEnv = Map.empty,
-    sPool = emptyPool,
-    sMark = noMark + 1,  -- The mark must never be equal to noMark!
-    sErrors = []
-}
 
-modifyEnv  f = modify $ \state -> state { sEnv = f (sEnv state) }
-modifyPool f = modify $ \state -> state { sPool = f (sPool state) }
+initialState :: SolverState
+initialState =
+    SS
+    { sEnv = Map.empty
+    , sSavedEnv = Map.empty
+    , sPool = emptyPool
+    , sMark = noMark + 1  -- The mark must never be equal to noMark!
+    , sErrors = []
+    }
+
+
+modifyEnv :: (MonadState SolverState m) => (Env -> Env) -> m ()
+modifyEnv f =
+    modify $ \state -> state { sEnv = f (sEnv state) }
+
+
+modifyPool :: (MonadState SolverState m) => (Pool -> Pool) -> m ()
+modifyPool f =
+    modify $ \state -> state { sPool = f (sPool state) }
 
 
 addError
@@ -72,68 +91,84 @@ addError region hint t1 t2 =
          , P.nest 8 $ A.getRegionDocs region
          ]
 
-switchToPool pool = modifyPool (\_ -> pool)
+
+switchToPool :: (MonadState SolverState m) => Pool -> m ()
+switchToPool pool =
+    modifyPool (\_ -> pool)
+
 
 getPool :: StateT SolverState IO Pool
-getPool = sPool <$> get
+getPool =
+    gets sPool
+
 
 getEnv :: StateT SolverState IO Env
-getEnv = sEnv <$> get
+getEnv =
+    gets sEnv
+
 
 saveLocalEnv :: StateT SolverState IO ()
-saveLocalEnv = do
-  env <- sEnv <$> get
-  modify $ \state -> state { sSavedEnv = env }
+saveLocalEnv =
+  do  env <- sEnv <$> get
+      modify $ \state -> state { sSavedEnv = env }
+
 
 uniqueMark :: StateT SolverState IO Int
-uniqueMark = do
-  state <- get
-  let mark = sMark state
-  put $ state { sMark = mark + 1 }
-  return mark
+uniqueMark =
+  do  state <- get
+      let mark = sMark state
+      put $ state { sMark = mark + 1 }
+      return mark
+
 
 nextRankPool :: StateT SolverState IO Pool
-nextRankPool = do
-  pool <- getPool
-  return $ Pool { maxRank = maxRank pool + 1, inhabitants = [] }
+nextRankPool =
+  do  pool <- getPool
+      return $ Pool { maxRank = maxRank pool + 1, inhabitants = [] }
+
 
 register :: Variable -> StateT SolverState IO Variable
-register variable = do
-    modifyPool $ \pool -> pool { inhabitants = variable : inhabitants pool }
-    return variable
+register variable =
+  do  modifyPool $ \pool -> pool { inhabitants = variable : inhabitants pool }
+      return variable
+
 
 introduce :: Variable -> StateT SolverState IO Variable
-introduce variable = do
-  pool <- getPool
-  liftIO $ UF.modifyDescriptor variable (\desc -> desc { rank = maxRank pool })
-  register variable
+introduce variable =
+  do  pool <- getPool
+      liftIO $ UF.modifyDescriptor variable (\desc -> desc { rank = maxRank pool })
+      register variable
+
 
 flatten :: Type -> StateT SolverState IO Variable
 flatten term =
   case term of
-    VarN maybeAlias v -> do
-      liftIO $ UF.modifyDescriptor v $ \desc -> desc { alias = maybeAlias <|> alias desc }
-      return v
-    TermN maybeAlias t -> do
-      flatStructure <- traverseTerm flatten t
-      pool <- getPool
-      var <- liftIO . UF.fresh $ Descriptor
-             { structure = Just flatStructure
-             , rank = maxRank pool
-             , flex = Flexible
-             , name = Nothing
-             , copy = Nothing
-             , mark = noMark
-             , alias = maybeAlias
-             }
-      register var
+    VarN maybeAlias v ->
+      do  liftIO $ UF.modifyDescriptor v $ \desc -> desc { alias = maybeAlias <|> alias desc }
+          return v
+
+    TermN maybeAlias t ->
+      do  flatStructure <- traverseTerm flatten t
+          pool <- getPool
+          var <- liftIO . UF.fresh $ Descriptor
+                 { structure = Just flatStructure
+                 , rank = maxRank pool
+                 , flex = Flexible
+                 , name = Nothing
+                 , copy = Nothing
+                 , mark = noMark
+                 , alias = maybeAlias
+                 }
+          register var
+
 
 makeInstance :: Variable -> StateT SolverState IO Variable
-makeInstance var = do
-  alreadyCopied <- uniqueMark
-  freshVar <- makeCopy alreadyCopied var
-  restore alreadyCopied var
-  return freshVar
+makeInstance var =
+  do  alreadyCopied <- uniqueMark
+      freshVar <- makeCopy alreadyCopied var
+      restore alreadyCopied var
+      return freshVar
+
 
 makeCopy :: Int -> Variable -> StateT SolverState IO Variable
 makeCopy alreadyCopied variable = do
@@ -184,17 +219,19 @@ makeCopy alreadyCopied variable = do
                      desc { structure = Just newTerm }
                  return newVar
 
+
 restore :: Int -> Variable -> StateT SolverState IO Variable
-restore alreadyCopied variable = do
-  desc <- liftIO $ UF.descriptor variable
-  if mark desc /= alreadyCopied
-    then return variable
-    else do
-      restoredStructure <-
-          Traversable.traverse (traverseTerm (restore alreadyCopied)) (structure desc)
-      liftIO $ UF.modifyDescriptor variable $ \desc ->
-          desc { mark = noMark, rank = noRank, structure = restoredStructure }
-      return variable
+restore alreadyCopied variable =
+  do  desc <- liftIO $ UF.descriptor variable
+      case mark desc /= alreadyCopied of
+        True -> return variable
+        False ->
+          do  restoredStructure <-
+                  Traversable.traverse (traverseTerm (restore alreadyCopied)) (structure desc)
+              liftIO $ UF.modifyDescriptor variable $ \desc ->
+                  desc { mark = noMark, rank = noRank, structure = restoredStructure }
+              return variable
+
 
 traverseTerm :: (Monad f, Applicative f) => (a -> f b) -> Term1 a -> f (Term1 b)
 traverseTerm f term =
