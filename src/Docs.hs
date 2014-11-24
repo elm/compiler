@@ -10,11 +10,14 @@ import System.IO
 import Control.Applicative ((<$>))
 import Control.Arrow (second)
 import qualified Data.Aeson.Encode.Pretty as Json
-import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy.Char8 as BS
+import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
+import qualified Data.Set as Set
 
 import qualified AST.Declaration as Decl
 import qualified AST.Expression.Source as Source
+import qualified AST.Variable as Var
 
 import Text.Parsec hiding (newline, spaces)
 import qualified Parse.Declaration as Parse (typeDecl, infixDecl)
@@ -84,7 +87,7 @@ config =
 documentation :: Parse.IParser Docs.Documentation
 documentation =
   do  optional Parse.freshLine
-      (names, _exports) <- Parse.header
+      (names, exports) <- Parse.header
 
       manyTill (string " " <|> Parse.newline <?> "more whitespace")
                (lookAhead (string "{-|") <?> "module documentation comment")
@@ -95,7 +98,13 @@ documentation =
 
       let (aliases, unions, values) = categorizeDeclarations decls
 
-      return (Docs.Documentation (Module.Name names) overview aliases unions values)
+      return $
+          Docs.Documentation
+              (Module.Name names)
+              overview
+              (filterAliases exports aliases)
+              (filterUnions exports unions)
+              (filterValues exports values)
 
 
 docComment :: Parse.IParser String
@@ -199,4 +208,55 @@ errorMessage :: String
 errorMessage =
     "there appears to be a bug in this tool.\n" ++
     "Please report it to <https://github.com/elm-lang/Elm/issues>"
+
+
+-- FILTER OUT UNEXPORTED VALUES, ALIASES, and UNIONS
+
+filterValues :: Var.Listing Var.Value -> [Docs.Value] -> [Docs.Value]
+filterValues (Var.Listing exports open) values =
+  case open of
+    True -> values
+    False ->
+      let names =
+            Set.fromList (Var.getValues exports)
+      in
+          filter (\value -> Set.member (Docs.valueName value) names) values
+
+
+filterAliases :: Var.Listing Var.Value -> [Docs.Alias] -> [Docs.Alias]
+filterAliases (Var.Listing exports open) aliases =
+  case open of
+    True -> aliases
+    False ->
+      let names =
+            Set.fromList (Var.getAliases exports)
+      in
+          filter (\value -> Set.member (Docs.aliasName value) names) aliases
+
+
+filterUnions :: Var.Listing Var.Value -> [Docs.Union] -> [Docs.Union]
+filterUnions (Var.Listing exports open) unions =
+  case open of
+    True -> unions
+    False ->
+        Maybe.mapMaybe (filterUnion exportedUnions) unions
+      where
+        exportedUnions =
+            Map.fromList (Var.getUnions exports)
+
+
+filterUnion :: Map.Map String (Var.Listing String) -> Docs.Union -> Maybe Docs.Union
+filterUnion exportedUnions union =
+  case Map.lookup (Docs.unionName union) exportedUnions of
+    Nothing ->
+        Nothing
+
+    Just (Var.Listing tags unionOpen)
+      | unionOpen ->
+          Just union
+      | otherwise ->
+          let publicTags =
+                filter (\(tag, _) -> tag `elem` tags) (Docs.unionCases union)
+          in
+              Just (union { Docs.unionCases = publicTags })
 
