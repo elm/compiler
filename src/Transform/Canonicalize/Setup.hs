@@ -1,5 +1,9 @@
 {-# OPTIONS_GHC -Wall #-}
-module Transform.Canonicalize.Setup (environment) where
+module Transform.Canonicalize.Setup
+    ( environment
+    , typeAliasErrorSegue
+    , typeAliasErrorExplanation
+    ) where
 
 import Control.Arrow (first)
 import Control.Monad (foldM)
@@ -178,11 +182,11 @@ addTypeAlias moduleName env scc =
     aliases ->
         throwError 
           [ P.vcat
-              [ P.text (eightyCharLines 0 msg1)
+              [ P.text (eightyCharLines 0 mutuallyRecursiveMessage)
               , indented (map typeAlias aliases)
-              , P.text (eightyCharLines 0 msg2)
+              , P.text (eightyCharLines 0 typeAliasErrorSegue)
               , indented (map datatype aliases)
-              , P.text (eightyCharLines 0 msg3)
+              , P.text (eightyCharLines 0 typeAliasErrorExplanation)
               ]
            ]
 
@@ -207,18 +211,22 @@ indented decls = P.vcat (map prty decls) <> P.text "\n"
       prty decl = P.text "\n    " <> pretty decl
 
 
-msg1 :: String
-msg1 = "The following type aliases are mutually recursive, forming an \
-       \infinite type. When you expand them, they just keep getting bigger:"
+mutuallyRecursiveMessage :: String
+mutuallyRecursiveMessage =
+  "The following type aliases are mutually recursive, forming an \
+  \infinite type. When you expand them, they just keep getting bigger:"
 
-msg2 :: String
-msg2 = "Instead, you can try something like this:"
 
-msg3 :: String
-msg3 =
-  "It looks very similar, but the 'type' keyword creates a brand new type. \
-  \By giving the type an explicit name, we can avoid infinitely expanding \
-  \it during type inference."
+typeAliasErrorSegue :: String
+typeAliasErrorSegue =
+  "Try this instead:"
+
+
+typeAliasErrorExplanation :: String
+typeAliasErrorExplanation =
+  "It looks very similar, but the 'type' keyword creates a brand new type, \
+  \not just an alias for an existing one. This lets us avoid infinitely \
+  \expanding it during type inference."
 
 
 -- When canonicalizing, all _values should be Local, but all _adts and _patterns

@@ -12,6 +12,7 @@ import qualified AST.Pattern as Pattern
 import qualified AST.Type as T
 import qualified AST.Variable as Var
 import qualified Transform.Expression as Expr
+import qualified Transform.Canonicalize.Setup as Setup
 
 import AST.PrettyPrint
 import Elm.Utils ((|>))
@@ -162,18 +163,15 @@ infiniteTypeAliases decls =
       indented decl = P.text "\n    " <> pretty decl <> P.text "\n"
 
       report name args tipe =
-          P.vcat [ P.text $ eightyCharLines 0 msg1
-                 , indented $ D.TypeAlias name args tipe
-                 , P.text $ eightyCharLines 0 msg2
-                 , indented $ D.Datatype name args [(name,[tipe])]
-                 , P.text $ eightyCharLines 0 msg3 ++ "\n"
-                 ]
+          P.vcat
+            [ P.text $ eightyCharLines 0 msg1
+            , indented $ D.TypeAlias name args tipe
+            , P.text $ eightyCharLines 0 Setup.typeAliasErrorSegue
+            , indented $ D.Datatype name args [(name,[tipe])]
+            , P.text $ eightyCharLines 0 Setup.typeAliasErrorExplanation ++ "\n"
+            ]
           where
-            msg1 = "Type alias '" ++ name ++ "' is an infinite type. " ++
-                   "Notice that it appears in its own definition, so when \
-                   \you expand it, it just keeps getting bigger:"
-            msg2 = "Try this instead:"
-            msg3 = "It looks very similar, but an algebraic data type (ADT) \
-                   \actually creates a new type. Unlike with a type alias, this \
-                   \freshly created type is meaningful on its own, so an ADT \
-                   \does not need to be expanded."
+            msg1 =
+                "Type alias '" ++ name ++ "' is an infinite type. " ++
+                "Notice that it appears in its own definition, so when \
+                \you expand it, it just keeps getting bigger:"
