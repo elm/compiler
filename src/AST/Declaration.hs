@@ -10,6 +10,8 @@ import qualified AST.Variable as Var
 import AST.PrettyPrint
 import Text.PrettyPrint as P
 
+
+
 data Declaration' port def var
     = Definition def
     | Datatype String [String] [(String, [T.Type var])]
@@ -38,11 +40,13 @@ type CanonicalDecl = Declaration' (Port Canonical.Expr Var.Canonical)
                                   Canonical.Def
                                   Var.Canonical
 
+
 portName :: Port expr var -> String
 portName port =
     case port of
       Out name _ _ -> name
       In name _ -> name
+
 
 assocToString :: Assoc -> String
 assocToString assoc =
@@ -51,15 +55,27 @@ assocToString assoc =
       N -> "non"
       R -> "right"
 
-instance Binary Assoc where
-    get = do n <- getWord8
-             return $ case n of
-                0 -> L
-                1 -> N
-                2 -> R
-                _ -> error "Error reading valid associativity from serialized string"
 
-    put assoc = putWord8 $ case assoc of { L -> 0 ; N -> 1 ; R -> 2 }
+-- BINARY CONVERSION
+
+instance Binary Assoc where
+    get =
+      do  n <- getWord8
+          return $ case n of
+            0 -> L
+            1 -> N
+            2 -> R
+            _ -> error "Error reading valid associativity from serialized string"
+
+    put assoc =
+      putWord8 $
+        case assoc of
+          L -> 0
+          N -> 1
+          R -> 2
+
+
+-- PRETTY STRINGS
 
 instance (Pretty port, Pretty def, Pretty var, Var.ToString var) =>
     Pretty (Declaration' port def var) where
@@ -68,40 +84,61 @@ instance (Pretty port, Pretty def, Pretty var, Var.ToString var) =>
       Definition def -> pretty def
 
       Datatype tipe tvars ctors ->
-          P.hang (P.text "data" <+> P.text tipe <+> P.hsep (map P.text tvars)) 4
-               (P.sep $ zipWith join ("=" : repeat "|") ctors)
-          where
-            join c ctor = P.text c <+> prettyCtor ctor
-            prettyCtor (name, tipes) =
-                P.hang (P.text name) 2 (P.sep (map T.prettyParens tipes))
+          P.hang
+              (P.text "type" <+> P.text tipe <+> P.hsep (map P.text tvars))
+              4
+              (P.sep $ zipWith (<+>) seperators (map prettyCtor ctors))
+        where
+          seperators =
+              map P.text ("=" : repeat "|")
+
+          prettyCtor (name, tipes) =
+              P.hang (P.text name) 2 (P.sep (map T.prettyParens tipes))
 
       TypeAlias name tvars tipe ->
-          P.hang (P.text "type" <+> name' <+> P.equals) 4 (pretty tipe)
-          where
-            name' = P.text name <+> P.hsep (map P.text tvars)
+          P.hang
+              (P.text "type" <+> P.text "alias" <+> name' <+> P.equals)
+              4
+              (pretty tipe)
+        where
+          name' =
+              P.text name <+> P.hsep (map P.text tvars)
 
       Port port -> pretty port
 
-      Fixity assoc prec op -> P.text "infix" <> assoc' <+> P.int prec <+> P.text op
-          where
-            assoc' = case assoc of
-                       L -> P.text "l"
-                       N -> P.empty
-                       R -> P.text "r"
+      Fixity assoc prec op ->
+          P.text "infix" <> assoc' <+> P.int prec <+> P.text op
+        where
+          assoc' =
+              case assoc of
+                L -> P.text "l"
+                N -> P.empty
+                R -> P.text "r"
+
 
 instance Pretty RawPort where
   pretty port =
     case port of
-      PPAnnotation name tipe -> prettyPort name ":"  tipe
-      PPDef        name expr -> prettyPort name "=" expr
+      PPAnnotation name tipe ->
+          prettyPort name ":" tipe
+
+      PPDef name expr ->
+          prettyPort name "=" expr
+
 
 instance (Pretty expr, Pretty var, Var.ToString var) => Pretty (Port expr var) where
   pretty port =
     case port of
-      In name tipe -> prettyPort name ":" tipe
-      Out name expr tipe -> P.vcat [ prettyPort name ":" tipe
-                                   , prettyPort name "=" expr ]
+      In name tipe ->
+          prettyPort name ":" tipe
+
+      Out name expr tipe ->
+          P.vcat
+            [ prettyPort name ":" tipe
+            , prettyPort name "=" expr
+            ]
           
 
 prettyPort :: (Pretty a) => String -> String -> a -> Doc
-prettyPort name op e = P.text "port" <+> P.text name <+> P.text op <+> pretty e
+prettyPort name op e =
+    P.text "port" <+> P.text name <+> P.text op <+> pretty e
