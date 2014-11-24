@@ -23,13 +23,11 @@ data Term1 a
     | Var1 a
     | EmptyRecord1
     | Record1 (Map.Map String [a]) a
-    deriving Show
 
 
 data TermN a
     = VarN  (Maybe Var.Canonical) a
     | TermN (Maybe Var.Canonical) (Term1 (TermN a))
-    deriving Show
 
 
 varN :: a -> TermN a
@@ -66,7 +64,6 @@ data BasicConstraint a b
     | CAnd [Constraint a b]
     | CLet [Scheme a b] (Constraint a b)
     | CInstance SchemeName a
-    deriving Show
 
 
 data Scheme a b = Scheme
@@ -75,7 +72,6 @@ data Scheme a b = Scheme
     , constraint :: Constraint a b
     , header :: Map.Map String a
     }
-    deriving Show
 
 
 type TypeConstraint = Constraint Type Variable
@@ -116,7 +112,6 @@ data Descriptor = Descriptor
     , mark :: Int
     , alias :: Maybe Var.Canonical
     }
-    deriving Show
 
 
 noRank :: Int
@@ -140,14 +135,14 @@ data Flex
     | Flexible
     | Constant
     | Is SuperType
-    deriving (Show, Eq)
+    deriving (Eq)
 
 
 data SuperType
     = Number
     | Comparable
     | Appendable
-    deriving (Show, Eq)
+    deriving (Eq)
 
 
 namedVar :: Flex -> Var.Canonical -> IO Variable
@@ -199,11 +194,6 @@ existsNumber f =
 
 
 -- TYPES TO PRETTY STRINGS
-
-instance Show a => Show (UF.Point a) where
-  show point =
-      unsafePerformIO $ fmap show (UF.descriptor point)
-
 
 instance PrettyType a => PrettyType (UF.Point a) where
   pretty when point =

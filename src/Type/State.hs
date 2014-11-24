@@ -19,7 +19,7 @@ import Type.Type
 data Pool = Pool
     { maxRank :: Int
     , inhabitants :: [Variable]
-    } deriving Show
+    }
 
 emptyPool = Pool { maxRank = outermostRank, inhabitants = [] }
 

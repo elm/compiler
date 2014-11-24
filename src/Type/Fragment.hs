@@ -10,7 +10,7 @@ data Fragment = Fragment
     { typeEnv        :: Map.Map String Type
     , vars           :: [Variable]
     , typeConstraint :: TypeConstraint
-    } deriving Show
+    }
 
 emptyFragment = Fragment Map.empty [] (noneNoDocs CTrue)
 
