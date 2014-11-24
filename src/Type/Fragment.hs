@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wall #-}
 module Type.Fragment where
 
 import qualified Data.List as List
@@ -12,15 +13,31 @@ data Fragment = Fragment
     , typeConstraint :: TypeConstraint
     }
 
-emptyFragment = Fragment Map.empty [] (noneNoDocs CTrue)
 
-joinFragment f1 f2 = Fragment
-    { typeEnv        = Map.union (typeEnv f1) (typeEnv f2)
-    , vars           = vars f1 ++ vars f2
-    , typeConstraint = typeConstraint f1 /\ typeConstraint f2
+emptyFragment :: Fragment
+emptyFragment =
+    Fragment Map.empty [] (noneNoDocs CTrue)
+
+
+joinFragment :: Fragment -> Fragment -> Fragment
+joinFragment f1 f2 =
+    Fragment
+    { typeEnv =
+        Map.union (typeEnv f1) (typeEnv f2)
+
+    , vars =
+        vars f1 ++ vars f2
+
+    , typeConstraint =
+        typeConstraint f1 /\ typeConstraint f2
     }
 
-joinFragments = List.foldl' (flip joinFragment) emptyFragment
 
+joinFragments :: [Fragment] -> Fragment
+joinFragments =
+    List.foldl' (flip joinFragment) emptyFragment
+
+
+toScheme :: Fragment -> Scheme Type Variable
 toScheme fragment =
     Scheme [] (vars fragment) (typeConstraint fragment) (typeEnv fragment)
