@@ -16,6 +16,7 @@ import qualified AST.PrettyPrint as PP
 import qualified AST.Type as T
 import qualified AST.Variable as Var
 
+
 data Term1 a
     = App1 a a
     | Fun1 a a
@@ -24,27 +25,40 @@ data Term1 a
     | Record1 (Map.Map String [a]) a
     deriving Show
 
+
 data TermN a
     = VarN  (Maybe Var.Canonical) a
     | TermN (Maybe Var.Canonical) (Term1 (TermN a))
     deriving Show
 
+
 varN :: a -> TermN a
 varN = VarN Nothing
+
 
 termN :: (Term1 (TermN a)) -> TermN a
 termN = TermN Nothing
 
+
 record :: Map.Map String [TermN a] -> TermN a -> TermN a
 record fs rec = termN (Record1 fs rec)
 
+
 type Type = TermN Variable
+
+
 type Variable = UF.Point Descriptor
 
+
 type SchemeName = String
+
+
 type TypeName = Var.Canonical
 
+
 type Constraint a b = Located (BasicConstraint a b)
+
+
 data BasicConstraint a b
     = CTrue
     | CSaveEnv
@@ -54,18 +68,24 @@ data BasicConstraint a b
     | CInstance SchemeName a
     deriving Show
 
-data Scheme a b = Scheme {
-    rigidQuantifiers :: [b],
-    flexibleQuantifiers :: [b],
-    constraint :: Constraint a b,
-    header :: Map.Map String a
-} deriving Show
+
+data Scheme a b = Scheme
+    { rigidQuantifiers :: [b]
+    , flexibleQuantifiers :: [b]
+    , constraint :: Constraint a b
+    , header :: Map.Map String a
+    }
+    deriving Show
+
 
 type TypeConstraint = Constraint Type Variable
+
 type TypeScheme = Scheme Type Variable
+
 
 monoscheme :: Map.Map String a -> Scheme a b
 monoscheme headers = Scheme [] [] (noneNoDocs CTrue) headers
+
 
 infixl 8 /\
 
@@ -76,12 +96,16 @@ a@(A _ c1) /\ b@(A _ c2) =
       (_, CTrue) -> a
       _ -> mergeOldDocs a b (CAnd [a,b])
 
+
 infixr 9 ==>
+
 (==>) :: Type -> Type -> Type
 a ==> b = termN (Fun1 a b)
 
+
 (<|) :: TermN a -> TermN a -> TermN a
 f <| a = termN (App1 f a)
+
 
 data Descriptor = Descriptor
     { structure :: Maybe (Term1 Variable)
@@ -91,25 +115,40 @@ data Descriptor = Descriptor
     , copy :: Maybe Variable
     , mark :: Int
     , alias :: Maybe Var.Canonical
-    } deriving Show
+    }
+    deriving Show
+
 
 noRank :: Int
 noRank = -1
 
+
 outermostRank :: Int
 outermostRank = 0
+
 
 noMark :: Int
 noMark = 0
 
+
 initialMark :: Int
 initialMark = 1
 
-data Flex = Rigid | Flexible | Constant | Is SuperType
-     deriving (Show, Eq)
 
-data SuperType = Number | Comparable | Appendable
-     deriving (Show, Eq)
+data Flex
+    = Rigid
+    | Flexible
+    | Constant
+    | Is SuperType
+    deriving (Show, Eq)
+
+
+data SuperType
+    = Number
+    | Comparable
+    | Appendable
+    deriving (Show, Eq)
+
 
 namedVar :: Flex -> Var.Canonical -> IO Variable
 namedVar flex name = UF.fresh $ Descriptor
@@ -121,6 +160,7 @@ namedVar flex name = UF.fresh $ Descriptor
   , mark = noMark
   , alias = Nothing
   }
+
 
 variable :: Flex -> IO Variable
 variable flex = UF.fresh $ Descriptor
@@ -139,32 +179,40 @@ ex :: [Variable] -> TypeConstraint -> TypeConstraint
 ex fqs constraint@(A ann _) =
     A ann $ CLet [Scheme [] fqs constraint Map.empty] (A ann CTrue)
 
+
 -- fl qs constraint == forall qs. constraint
 fl :: [Variable] -> TypeConstraint -> TypeConstraint
 fl rqs constraint@(A ann _) =
     A ann $ CLet [Scheme rqs [] constraint Map.empty] (A ann CTrue)
 
+
 exists :: Error e => (Type -> ErrorT e IO TypeConstraint) -> ErrorT e IO TypeConstraint
-exists f = do
-  v <- liftIO $ variable Flexible
-  ex [v] <$> f (varN v)
+exists f =
+  do  v <- liftIO $ variable Flexible
+      ex [v] <$> f (varN v)
+
 
 existsNumber :: Error e => (Type -> ErrorT e IO TypeConstraint) -> ErrorT e IO TypeConstraint
-existsNumber f = do
-  v <- liftIO $ variable (Is Number)
-  ex [v] <$> f (varN v)
+existsNumber f =
+  do  v <- liftIO $ variable (Is Number)
+      ex [v] <$> f (varN v)
 
+
+-- TYPES TO PRETTY STRINGS
 
 instance Show a => Show (UF.Point a) where
-  show point = unsafePerformIO $ fmap show (UF.descriptor point)
+  show point =
+      unsafePerformIO $ fmap show (UF.descriptor point)
 
 
 instance PrettyType a => PrettyType (UF.Point a) where
-  pretty when point = unsafePerformIO $ fmap (pretty when) (UF.descriptor point)
+  pretty when point =
+      unsafePerformIO $ fmap (pretty when) (UF.descriptor point)
 
 
 instance PrettyType t => PrettyType (Annotated a t) where
-  pretty when (A _ e) = pretty when e
+  pretty when (A _ e) =
+      pretty when e
 
 
 instance PrettyType a => PrettyType (Term1 a) where
@@ -190,7 +238,8 @@ instance PrettyType a => PrettyType (Term1 a) where
 
       EmptyRecord1 -> P.braces P.empty
 
-      Record1 fields ext -> P.braces (extend <+> commaSep prettyFields)
+      Record1 fields ext ->
+          P.braces (extend <+> commaSep prettyFields)
         where
           prettyExt = prty ext
           extend | P.render prettyExt == "{}" = P.empty
@@ -209,6 +258,7 @@ instance PrettyType a => PrettyType (TermN a) where
           case maybeAlias of
             Just alias -> PP.pretty alias
             Nothing -> doc
+
 
 instance PrettyType Descriptor where
   pretty when desc = do
@@ -256,6 +306,7 @@ instance (PrettyType a, PrettyType b) => PrettyType (BasicConstraint a b) where
       CInstance name tipe ->
         P.text name <+> P.text "<" <+> prty tipe
 
+
 instance (PrettyType a, PrettyType b) => PrettyType (Scheme a b) where
   pretty _ (Scheme rqs fqs (A _ constraint) headers) =
       P.sep [ forall, cs, headers' ]
@@ -280,6 +331,9 @@ instance (PrettyType a, PrettyType b) => PrettyType (Scheme a b) where
 
 extraPretty :: (PrettyType t, Crawl t) => t -> IO Doc
 extraPretty t = pretty Never <$> addNames t
+
+
+-- ADDING NAMES TO TYPES
 
 addNames :: (Crawl t) => t -> IO t
 addNames value = do
@@ -309,7 +363,11 @@ addNames value = do
             where
               local v = Just (Var.local v)
 
+
+-- CRAWLING OVER TYPES
+
 type CrawlState = ([String], Int, Int, Int)
+
 
 -- Code for traversing all the type data-structures and giving
 -- names to the variables embedded deep in there.
@@ -318,8 +376,10 @@ class Crawl t where
         -> t
         -> StateT CrawlState IO t
 
+
 instance Crawl e => Crawl (Annotated a e) where
   crawl nextState (A ann e) = A ann <$> crawl nextState e
+
 
 instance (Crawl t, Crawl v) => Crawl (BasicConstraint t v) where
   crawl nextState constraint = 
@@ -332,19 +392,31 @@ instance (Crawl t, Crawl v) => Crawl (BasicConstraint t v) where
       CLet schemes c -> CLet <$> crawl nextState schemes <*> crawl nextState c 
       CInstance name tipe -> CInstance name <$> rnm tipe
 
+
 instance Crawl a => Crawl [a] where
   crawl nextState list = mapM (crawl nextState) list
 
+
 instance (Crawl t, Crawl v) => Crawl (Scheme t v) where
   crawl nextState (Scheme rqs fqs c headers) =
-    let rnm = crawl nextState in
-    Scheme <$> rnm rqs <*> rnm fqs <*> crawl nextState c <*> return headers
+    let rnm = crawl nextState
+    in
+        Scheme
+            <$> rnm rqs
+            <*> rnm fqs
+            <*> crawl nextState c
+            <*> return headers
+
 
 instance Crawl t => Crawl (TermN t) where
   crawl nextState tipe =
     case tipe of
-      VarN a x -> VarN a <$> crawl nextState x
-      TermN a term -> TermN a <$> crawl nextState term
+      VarN a x ->
+          VarN a <$> crawl nextState x
+
+      TermN a term ->
+          TermN a <$> crawl nextState term
+
 
 instance Crawl t => Crawl (Term1 t) where
   crawl nextState term =
@@ -357,30 +429,32 @@ instance Crawl t => Crawl (Term1 t) where
       Record1 fields ext ->
           Record1 <$> traverse (mapM rnm) fields <*> rnm ext
 
+
 instance Crawl a => Crawl (UF.Point a) where
-  crawl nextState point = do
-    desc <- liftIO $ UF.descriptor point
-    desc' <- crawl nextState desc
-    liftIO $ UF.setDescriptor point desc'
-    return point
+  crawl nextState point =
+    do  desc <- liftIO $ UF.descriptor point
+        desc' <- crawl nextState desc
+        liftIO $ UF.setDescriptor point desc'
+        return point
+
 
 instance Crawl Descriptor where
-  crawl nextState desc = do
-    state <- get
-    let (name', state') = nextState desc state
-    structure' <- traverse (crawl nextState) (structure desc)
-    put state'
-    return $ desc { name = name', structure = structure' }
+  crawl nextState desc =
+    do  state <- get
+        let (name', state') = nextState desc state
+        structure' <- traverse (crawl nextState) (structure desc)
+        put state'
+        return $ desc { name = name', structure = structure' }
 
                
 toSrcType :: Variable -> IO T.CanonicalType
 toSrcType var =
     go =<< addNames var
   where
-    go v = do
-      desc <- UF.descriptor v
-      srcType <- maybe (backupSrcType desc) termToSrcType (structure desc)
-      return $ maybe srcType (\name -> T.Aliased name srcType) (alias desc)
+    go v =
+      do  desc <- UF.descriptor v
+          srcType <- maybe (backupSrcType desc) termToSrcType (structure desc)
+          return $ maybe srcType (\name -> T.Aliased name srcType) (alias desc)
 
     backupSrcType desc = 
         case name desc of
@@ -426,18 +500,24 @@ toSrcType var =
 
 data AppStructure = List Variable | Tuple [Variable] | Other
 
+
 collectApps :: Variable -> IO AppStructure
 collectApps var = go [] var
   where
     go vars var = do
       desc <- UF.descriptor var
       case (structure desc, vars) of
-        (Nothing, [v]) -> case name desc of
-                            Just n | Var.isList n -> return (List v)
-                            _ -> return Other
-        (Nothing,  vs) -> case name desc of
-                            Just n | Var.isTuple n -> return (Tuple vs)
-                            _ -> return Other
-        (Just term, _) -> case term of
-                            App1 a b -> go (vars ++ [b]) a
-                            _ -> return Other
+        (Nothing, [v]) ->
+            case name desc of
+              Just n | Var.isList n -> return (List v)
+              _ -> return Other
+
+        (Nothing,  vs) ->
+            case name desc of
+              Just n | Var.isTuple n -> return (Tuple vs)
+              _ -> return Other
+
+        (Just term, _) ->
+            case term of
+              App1 a b -> go (vars ++ [b]) a
+              _ -> return Other
