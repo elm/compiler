@@ -129,7 +129,7 @@ openListing =
 data Value
     = Value !String
     | Alias !String
-    | ADT !String !(Listing String)
+    | Union !String !(Listing String)
     deriving (Eq,Ord,Show)
 
 
@@ -155,7 +155,7 @@ instance Pretty Value where
     case portable of
       Value name -> P.text name
       Alias name -> P.text name
-      ADT name ctors ->
+      Union name ctors ->
           P.text name <> pretty (ctors { _explicits = map P.text (_explicits ctors) })
 
 
@@ -181,13 +181,13 @@ instance Binary Value where
         case portable of
           Value name     -> putWord8 0 >> put name
           Alias name     -> putWord8 1 >> put name
-          ADT name ctors -> putWord8 2 >> put name >> put ctors
+          Union name ctors -> putWord8 2 >> put name >> put ctors
 
     get = do tag <- getWord8
              case tag of
                0 -> Value <$> get
                1 -> Alias <$> get
-               2 -> ADT <$> get <*> get
+               2 -> Union <$> get <*> get
                _ -> error "Error reading valid import/export information from serialized string"
 
 

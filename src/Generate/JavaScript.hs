@@ -352,9 +352,13 @@ generate modul =
           extract value =
               case value of
                 Var.Alias _ -> []
-                Var.Value x | Help.isOp x -> []
-                            | otherwise   -> [Var.varName x]
-                Var.ADT _ (Var.Listing ctors _) -> map Var.varName ctors
+
+                Var.Value x
+                  | Help.isOp x -> []
+                  | otherwise   -> [Var.varName x]
+
+                Var.Union _ (Var.Listing ctors _) ->
+                    map Var.varName ctors
           
     assign path expr =
              case path of

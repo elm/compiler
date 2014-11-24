@@ -30,7 +30,7 @@ filterExports interface =
         case value of
           Var.Value x -> getType x
           Var.Alias _ -> []
-          Var.ADT _ (Var.Listing ctors _) -> concatMap getType ctors
+          Var.Union _ (Var.Listing ctors _) -> concatMap getType ctors
 
     getType :: String -> [(String, Type.CanonicalType)]
     getType name =
@@ -41,14 +41,14 @@ filterExports interface =
         case value of
           Var.Value _ -> []
           Var.Alias name -> get (Module.iAliases interface) name
-          Var.ADT _ _ -> []
+          Var.Union _ _ -> []
 
     getAdts :: Var.Value -> [(String, Module.AdtInfo String)]
     getAdts value =
         case value of
           Var.Value _ -> []
           Var.Alias _ -> []
-          Var.ADT name (Var.Listing exportedCtors _) ->
+          Var.Union name (Var.Listing exportedCtors _) ->
               case Map.lookup name (Module.iAdts interface) of
                 Nothing -> []
                 Just (tvars, ctors) ->

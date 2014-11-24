@@ -118,7 +118,7 @@ addValue moduleName interface env value =
                   Just (_,_) ->
                       return $ env { _adts = insert' x (_adts env) }
 
-      Var.ADT x (Var.Listing xs open) ->
+      Var.Union x (Var.Listing xs open) ->
           case Map.lookup x (iAdts interface) of
             Nothing -> notFound x
             Just (_tvars, ctors) ->

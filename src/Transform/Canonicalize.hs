@@ -107,16 +107,16 @@ resolveExports fullList (Var.Listing partialList open) =
               case List.find (\(name, _ctors) -> name == alias) allAdts of
                 Nothing -> notFound [alias]
                 Just (name, _ctor) ->
-                    return [Var.ADT name (Var.Listing [] False)]
+                    return [Var.Union name (Var.Listing [] False)]
 
       getAdtExport (name, Var.Listing ctors open) =
         case lookup name allAdts of
           Nothing -> notFound [name]
           Just (Var.Listing allCtors _)
-            | open -> return $ Var.ADT name (Var.Listing allCtors False)
+            | open -> return $ Var.Union name (Var.Listing allCtors False)
             | otherwise ->
                 case filter (`notElem` allCtors) ctors of
-                  [] -> return $ Var.ADT name (Var.Listing ctors False)
+                  [] -> return $ Var.Union name (Var.Listing ctors False)
                   unfoundCtors -> notFound unfoundCtors
 
       notFound xs =
@@ -141,7 +141,7 @@ splitValues mixedValues =
         Var.Alias name ->
             (values, name : aliases, adts)
 
-        Var.ADT name listing ->
+        Var.Union name listing ->
             (values, aliases, (name, listing) : adts)
 
 
@@ -153,7 +153,7 @@ declToValue decl =
           map Var.Value (P.boundVarList pattern)
 
       D.Datatype name _tvs ctors ->
-          [ Var.ADT name (Var.Listing (map fst ctors) False) ]
+          [ Var.Union name (Var.Listing (map fst ctors) False) ]
 
       D.TypeAlias name _ tipe ->
           case tipe of

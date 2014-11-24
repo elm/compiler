@@ -85,4 +85,4 @@ value = val <|> tipe
         maybeCtors <- optionMaybe (listing capVar)
         case maybeCtors of
           Nothing -> return (Var.Alias name)
-          Just ctors -> return (Var.ADT name ctors)
+          Just ctors -> return (Var.Union name ctors)

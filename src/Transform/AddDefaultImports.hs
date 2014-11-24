@@ -30,17 +30,17 @@ defaultImports =
 
 maybe :: Var.Value
 maybe =
-    Var.ADT "Maybe" Var.openListing
+    Var.Union "Maybe" Var.openListing
 
 
 result :: Var.Value
 result =
-    Var.ADT "Result" Var.openListing
+    Var.Union "Result" Var.openListing
 
 
 signal :: Var.Value
 signal =
-    Var.ADT "Signal" (Var.Listing [] False)
+    Var.Union "Signal" (Var.Listing [] False)
 
 
 -- ADDING DEFAULT IMPORTS TO A MODULE
