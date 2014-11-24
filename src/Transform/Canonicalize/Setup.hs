@@ -149,47 +149,76 @@ node name tvars alias = ((name, tvars, alias), name, edges alias)
             Type.Record fs ext -> maybe [] edges ext ++ concatMap (edges . snd) fs
             Type.Aliased _ t -> edges t
 
-addTypeAliases :: Module.Name -> [Node] -> Environment -> Canonicalizer [Doc] Environment
+
+addTypeAliases
+    :: Module.Name
+    -> [Node]
+    -> Environment
+    -> Canonicalizer [Doc] Environment
 addTypeAliases moduleName nodes environ =
-    foldM addTypeAlias environ (Graph.stronglyConnComp nodes)
-  where
-    addTypeAlias :: Environment -> Graph.SCC (String, [String], Type.RawType)
-                 -> Canonicalizer [Doc] Environment
-    addTypeAlias env scc =
-      case Graph.flattenSCC scc of
-        [(name, tvars, alias)] ->
-            do alias' <- Env.onError throw (Canonicalize.tipe env alias)
-               let value = (Var.Canonical (Var.Module moduleName) name, tvars, alias')
-               return $ env { _aliases = insert name value (_aliases env) }
-            where
-              throw err =
-                  let msg = "Problem with type alias '" ++ name ++ "':"
-                  in  P.vcat [ P.text msg, P.text err ]
+    foldM (addTypeAlias moduleName) environ (Graph.stronglyConnComp nodes)
 
-        aliases ->
-            throwError [ P.vcat [ P.text (eightyCharLines 0 msg1)
-                                , indented (map typeAlias aliases)
-                                , P.text (eightyCharLines 0 msg2)
-                                , indented (map datatype aliases)
-                                , P.text (eightyCharLines 0 msg3)
-                                ]
-                       ]
 
-    typeAlias (n,ts,t) = D.TypeAlias n ts t
-    datatype (n,ts,t) = D.Datatype n ts [(n,[t])]
-
-    indented :: [D.ValidDecl] -> Doc
-    indented decls = P.vcat (map prty decls) <> P.text "\n"
+addTypeAlias
+    :: Module.Name
+    -> Environment
+    -> Graph.SCC (String, [String], Type.RawType)
+    -> Canonicalizer [Doc] Environment
+addTypeAlias moduleName env scc =
+  case Graph.flattenSCC scc of
+    [(name, tvars, alias)] ->
+        do  alias' <- Env.onError throw (Canonicalize.tipe env alias)
+            let value = (Var.Canonical (Var.Module moduleName) name, tvars, alias')
+            return $ env { _aliases = insert name value (_aliases env) }
         where
-          prty decl = P.text "\n    " <> pretty decl
+          throw err =
+              let msg = "Problem with type alias '" ++ name ++ "':"
+              in  P.vcat [ P.text msg, P.text err ]
 
-    msg1 = "The following type aliases are mutually recursive, forming an \
-           \infinite type. When you expand them, they just keep getting bigger:"
-    msg2 = "Instead, you can try something like this:"
-    msg3 = "It looks very similar, but an algebraic data type (ADT) \
-           \actually creates a new type. Unlike with a type alias, this \
-           \freshly created type is meaningful on its own, so an ADT \
-           \does not need to be expanded."
+    aliases ->
+        throwError 
+          [ P.vcat
+              [ P.text (eightyCharLines 0 msg1)
+              , indented (map typeAlias aliases)
+              , P.text (eightyCharLines 0 msg2)
+              , indented (map datatype aliases)
+              , P.text (eightyCharLines 0 msg3)
+              ]
+           ]
+
+
+typeAlias
+    :: (String, [String], Type.Type var)
+    -> D.Declaration' port def var
+typeAlias (n,ts,t) =
+    D.TypeAlias n ts t
+
+
+datatype
+    :: (String, [String], Type.Type var)
+    -> D.Declaration' port def var
+datatype (n,ts,t) =
+    D.Datatype n ts [(n,[t])]
+
+
+indented :: [D.ValidDecl] -> Doc
+indented decls = P.vcat (map prty decls) <> P.text "\n"
+    where
+      prty decl = P.text "\n    " <> pretty decl
+
+
+msg1 :: String
+msg1 = "The following type aliases are mutually recursive, forming an \
+       \infinite type. When you expand them, they just keep getting bigger:"
+
+msg2 :: String
+msg2 = "Instead, you can try something like this:"
+
+msg3 :: String
+msg3 =
+  "It looks very similar, but the 'type' keyword creates a brand new type. \
+  \By giving the type an explicit name, we can avoid infinitely expanding \
+  \it during type inference."
 
 
 -- When canonicalizing, all _values should be Local, but all _adts and _patterns
