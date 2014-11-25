@@ -12,14 +12,24 @@ num :: IParser L.Literal
 num = toLit <$> (number <?> "number")
   where
     toLit n
+        | 'x' `elem` n         = L.IntNum (read n)
         | any (`elem` ".eE") n = L.FloatNum (read n)
         | otherwise            = L.IntNum (read n)    
 
     number = concat <$> sequence
              [ option "" minus
-             , many1 digit
+             , hexNum <|> decNum ]
+
+    decNum = concat <$> sequence
+             [ many1 digit
              , option "" decimals
              , option "" exponent ]
+
+    hexNum = do
+      try $ lookAhead (string "0x" >> hexDigit)
+      string "0x"
+      n <- many1 hexDigit
+      return $ "0x" ++ n
 
     minus = try $ do
               string "-"
