@@ -31,11 +31,11 @@ typeDecl =
 
     case isAlias of
       Just _ ->
-          do  tipe <- Type.expr <?> "type"
+          do  tipe <- Type.expr <?> "a type"
               return (D.TypeAlias name args tipe)
 
       Nothing ->
-          do  tcs <- pipeSep1 Type.constructor <?> "constructor for a union type"
+          do  tcs <- pipeSep1 Type.constructor <?> "a constructor for a union type"
               return $ D.Datatype name args tcs
 
 

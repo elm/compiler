@@ -281,7 +281,9 @@ padded p =
 
 spaces :: IParser String
 spaces =
-  concat <$> many1 (string " " <|> multiComment) <?> "spaces"
+  let space = string " " <|> multiComment <?> "whitespace"
+  in
+      concat <$> many1 space
 
 
 forcedWS :: IParser String
@@ -315,7 +317,7 @@ freshLine =
 
 newline :: IParser String
 newline =
-  simpleNewline <|> lineComment <?> "newline"
+  simpleNewline <|> lineComment <?> "a newline"
 
 
 simpleNewline :: IParser String
