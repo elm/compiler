@@ -24,19 +24,18 @@ typeDecl =
  do reserved "type" <?> "type declaration"
     forcedWS
     isAlias <- optionMaybe (string "alias" >> forcedWS)
+
+    name <- capVar
+    args <- spacePrefix lowVar
+    padded equals
+
     case isAlias of
       Just _ ->
-          do  name <- capVar
-              args <- spacePrefix lowVar
-              padded equals
-              tipe <- Type.expr
+          do  tipe <- Type.expr <?> "type"
               return (D.TypeAlias name args tipe)
 
       Nothing ->
-          do  name <- capVar <?> "name of data-type"
-              args <- spacePrefix lowVar
-              padded equals
-              tcs <- pipeSep1 Type.constructor
+          do  tcs <- pipeSep1 Type.constructor <?> "constructor for a union type"
               return $ D.Datatype name args tcs
 
 
