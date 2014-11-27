@@ -26,7 +26,7 @@ reserveds =
     [ "if", "then", "else"
     , "case", "of"
     , "let", "in"
-    , "data", "type"
+    , "type"
     , "module", "where"
     , "import", "as", "hiding", "open"
     , "export", "foreign"
