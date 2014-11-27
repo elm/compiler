@@ -287,8 +287,8 @@ spaces =
 forcedWS :: IParser String
 forcedWS =
   choice
-    [ try $ (++) <$> spaces <*> (concat <$> many nl_space)
-    , try $ concat <$> many1 nl_space
+    [ (++) <$> spaces <*> (concat <$> many nl_space)
+    , concat <$> many1 nl_space
     ]
   where
     nl_space =
