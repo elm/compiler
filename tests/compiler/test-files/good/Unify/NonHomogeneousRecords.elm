@@ -1,5 +1,9 @@
 
-type Thing = { x:Float, y:Float }
+type alias Thing =
+    { x:Float
+    , y:Float
+    }
+
 
 f : Thing -> Thing
 f t =

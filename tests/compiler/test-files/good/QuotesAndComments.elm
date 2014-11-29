@@ -1,12 +1,16 @@
-f x =
- let
-  x' = x+1
- in
- x'
 
-g = '\"'
 
-n = '\''
+variablesWithPrimes x =
+  let x' = x
+  in
+      x'
+
+
+doubleQuote = '\"'
+
+
+singleQuote = '\''
+
 
 {- this is an {- embeded comment -} -}
-main = plainText "{-"
+commentStart = "{-"

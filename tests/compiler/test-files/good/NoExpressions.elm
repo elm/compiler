@@ -1,3 +1,3 @@
 
-type Width = Float
-type Height = Float
+type alias Width = Float
+type alias Height = Float
