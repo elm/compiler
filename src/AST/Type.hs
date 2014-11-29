@@ -67,7 +67,8 @@ instance (Var.ToString var, Pretty var) => Pretty (Type var) where
 
             (fields, Nothing) ->
                 P.sep
-                  [ P.cat (zipWith (<+>) (P.lbrace : repeat P.comma) (map prettyField fields))
+                  [ P.lbrace
+                  , P.sep $ P.punctuate P.comma (map prettyField fields)
                   , P.rbrace
                   ]
 
