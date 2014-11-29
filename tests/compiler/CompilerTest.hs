@@ -6,6 +6,8 @@ import Tests.Compiler
 import Tests.Property
 
 main :: IO () 
-main = defaultMain [ compilerTests
-                   , propertyTests
-                   ]
+main =
+  defaultMain
+    [ compilerTests
+    , propertyTests
+    ]
