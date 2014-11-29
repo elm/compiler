@@ -1,4 +1,4 @@
-module Tests.Property where
+module Test.Property where
 
 import Control.Applicative ((<*))
 import Test.Framework
@@ -17,7 +17,8 @@ import Parse.Helpers (IParser, iParse)
 import Parse.Literal (literal)
 import qualified Parse.Pattern as Pat (expr)
 import qualified Parse.Type as Type (expr)
-import Tests.Property.Arbitrary
+import Test.Property.Arbitrary
+
 
 propertyTests :: Test
 propertyTests =
@@ -48,9 +49,20 @@ propertyTests =
               , P.Var "su'BrrbPUK6I33Eq"
               ]
 
+
 prop_parse_print :: (Pretty a, Arbitrary a, Eq a) => IParser a -> a -> Bool
-prop_parse_print p x =
-  either (const False) (== x) . parse_print p $ x
+prop_parse_print parser value =
+  either (const False) (== value) (parse_print parser value)
+
 
 parse_print :: (Pretty a) => IParser a -> a -> Either String a
-parse_print p = either (Left . show) Right . iParse (p <* eof) . P.renderStyle P.style {mode=P.LeftMode} . pretty
+parse_print parser value =
+  let doc =
+        pretty value
+
+      string =
+        P.renderStyle P.style { mode = P.LeftMode } doc
+  in
+      case iParse (parser <* eof) string of
+        Left msg -> Left (show msg)
+        Right x -> Right x 

@@ -191,15 +191,15 @@ Test-Suite compiler-tests
         exitcode-stdio-1.0
 
     Hs-Source-Dirs:
-        tests/compiler, src
+        tests, src
 
     Main-is:
-        CompilerTest.hs
+        Test.hs
 
     other-modules:
-        Tests.Compiler
-        Tests.Property
-        Tests.Property.Arbitrary
+        Test.Compiler
+        Test.Property
+        Test.Property.Arbitrary
         AST.Helpers
         AST.Literal
         AST.PrettyPrint

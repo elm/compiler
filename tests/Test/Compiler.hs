@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -W #-}
-module Tests.Compiler (compilerTests) where
+module Test.Compiler (compilerTests) where
 
 import qualified Data.Map as Map
 import Data.Traversable (traverse)

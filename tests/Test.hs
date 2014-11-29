@@ -2,8 +2,9 @@ module Main where
 
 import Test.Framework
 
-import Tests.Compiler
-import Tests.Property
+import Test.Compiler
+import Test.Property
+
 
 main :: IO () 
 main =
