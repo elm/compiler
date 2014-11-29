@@ -56,6 +56,7 @@ incoming tipe =
 
     _ -> ["v"] ==> inc tipe (ref "v")
 
+
 inc :: CanonicalType -> Expression () -> Expression ()
 inc tipe x =
     case tipe of
@@ -114,6 +115,7 @@ inc tipe x =
             keys = map convert fields
             convert (f,t) = (prop f, inc t (DotRef () x (var f)))
 
+
 incomingTuple :: [CanonicalType] -> Expression () -> Expression ()
 incomingTuple types x =
     check x JSArray (ObjectLit () fields)
@@ -127,6 +129,7 @@ incomingTuple types x =
         , inc t (BracketRef () x (IntLit () n))
         )
 
+
 outgoing :: CanonicalType -> Expression ()
 outgoing tipe =
   case tipe of
@@ -136,6 +139,7 @@ outgoing tipe =
         | Var.isSignal v -> obj ["_P","outgoingSignal"] <| outgoing t
 
     _ -> ["v"] ==> out tipe (ref "v")
+
 
 out :: CanonicalType -> Expression () -> Expression ()
 out tipe x =
@@ -163,7 +167,7 @@ out tipe x =
           | name `elem` ["Int","Float","Bool","String"] -> x
 
       Type name
-          | Var.isJson name -> V.value ["Native","Json"] "toJS" <| x
+          | Var.isJson name -> x
           | Var.isTuple name -> ArrayLit () []
           | otherwise -> error "bad type got to outgoing port generation code"
 
