@@ -62,6 +62,9 @@ instance (Var.ToString var, Pretty var) => Pretty (Type var) where
 
       Record _ _ ->
           case flattenRecord tipe of
+            ([], Nothing) ->
+                P.text "{}"
+
             (fields, Nothing) ->
                 P.sep
                   [ P.cat (zipWith (<+>) (P.lbrace : repeat P.comma) (map prettyField fields))
@@ -85,6 +88,7 @@ instance (Var.ToString var, Pretty var) => Pretty (Type var) where
           if show t' `elem` ["Int", "Float", "String", "Char", "Bool"]
             then t'
             else pretty name
+
 
 collectLambdas :: Type var -> [Type var]
 collectLambdas tipe =
