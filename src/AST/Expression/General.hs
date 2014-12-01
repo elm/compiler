@@ -55,7 +55,6 @@ data Expr' ann def var
     | Insert (Expr ann def var) String (Expr ann def var)
     | Modify (Expr ann def var) [(String, Expr ann def var)]
     | Record [(String, Expr ann def var)]
-    | Markdown String String
     -- for type checking and code gen only
     | PortIn String (Type var)
     | PortOut String (Type var) (Expr ann def var)
@@ -178,8 +177,6 @@ instance (Pretty def, Pretty var, Var.ToString var) => Pretty (Expr' ann def var
         where
           field (field, value) =
              variable field <+> P.equals <+> pretty value
-
-      Markdown _ _ -> P.text "[markdown| ... |]"
 
       GLShader _ _ _ -> P.text "[glsl| ... |]"
 

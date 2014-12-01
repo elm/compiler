@@ -49,18 +49,12 @@ negative = do
 --------  Complex Terms  --------
 
 listTerm :: IParser Source.Expr'
-listTerm = markdown' <|> shader' <|> braces (try range <|> E.ExplicitList <$> commaSep expr)
+listTerm = shader' <|> braces (try range <|> E.ExplicitList <$> commaSep expr)
   where
     range = do
       lo <- expr
       padded (string "..")
       E.Range lo <$> expr
-
-    markdown' = do
-      pos <- getPosition
-      let uid = show (sourceLine pos) ++ ":" ++ show (sourceColumn pos)
-      rawText <- Help.markdown
-      return (E.Markdown uid (filter (/='\r') rawText))
 
     shader' = do
       pos <- getPosition
