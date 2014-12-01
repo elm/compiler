@@ -8,8 +8,11 @@ import qualified Data.Set as Set
 import qualified Generate.JavaScript.Helpers as JS
 import qualified Language.ECMAScript3.Syntax as JS
 
+
 swap :: Char -> Char -> Char -> Char
-swap from to c = if c == from then to else c
+swap from to c =
+  if c == from then to else c
+
 
 canonical :: Var.Canonical -> JS.Expression ()
 canonical (Var.Canonical home name) =
@@ -23,18 +26,22 @@ canonical (Var.Canonical home name) =
         Var.BuiltIn     -> []
         Var.Module path -> [ moduleName path ]
 
+
 moduleName :: Module.Name -> String
 moduleName name =
     '$' : List.intercalate "$" name
+
 
 varName :: String -> String
 varName x = map (swap '\'' '$') x'
     where
       x' = if Set.member x jsReserveds then '$' : x else x
 
+
 value :: Module.Name -> String -> JS.Expression ()
 value home name =
     canonical (Var.Canonical (Var.Module home) name)
+
 
 jsReserveds :: Set.Set String
 jsReserveds = Set.fromList
