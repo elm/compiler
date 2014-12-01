@@ -13,7 +13,6 @@ import Generate.JavaScript.Helpers as Help
 import qualified Generate.Cases as Case
 import qualified Generate.JavaScript.Ports as Port
 import qualified Generate.JavaScript.Variable as Var
-import qualified Generate.Markdown as MD
 
 import AST.Annotation
 import AST.Module
@@ -191,18 +190,6 @@ expression (A region expr) =
           where
             ctor = (prop "ctor", string name)
             fields = zipWith (\n e -> (prop ("_" ++ show n), e)) [0..]
-
-      Markdown uid doc ->
-          let text =
-                obj ["Elm","Text","make"] <| ref localRuntime
-
-              pad =
-                "<div style=\"height:0;width:0;\">&nbsp;</div>"
-
-              md =
-                pad ++ MD.toHtml doc ++ pad
-          in
-              return (DotRef () text (var "markdown") `call` [ string md, string uid ])
 
       GLShader _uid src _tipe ->
         return $ ObjectLit () [(PropString () "src", literal (Str src))]

@@ -381,7 +381,6 @@ ignoreUntil end =
       choice
         [ try (ignore chr) <|> ignore str
         , ignore multiComment
-        , ignore markdown
         , ignore anyChar
         ]
 
@@ -424,20 +423,6 @@ anyUntilPos pos =
 
 
 -- BASIC LANGUAGE LITERALS
-
-markdown :: IParser String
-markdown =
-  do  try (string "[markdown|")
-      closeMarkdown id
-  where
-    closeMarkdown markdownBuilder =
-      choice
-        [ do  try (string "|]")
-              return (markdownBuilder "")
-        , do  c <- anyChar
-              closeMarkdown (markdownBuilder . (c:))
-        ]
-
 
 shader :: IParser (String, L.GLShaderTipe)
 shader =

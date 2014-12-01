@@ -151,9 +151,6 @@ constrain env (A region expr) tipe =
                  recordType = record fields' (termN EmptyRecord1)
              return . ex vars . and $ tipe === recordType : cs
 
-      Markdown _ _ ->
-          return ("Text.markdown" <? tipe)
-
       Let defs body ->
           do c <- constrain env body tipe
              (schemes, rqs, fqs, header, c2, c1) <-

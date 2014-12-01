@@ -85,9 +85,6 @@ crawl portInCheck portOutCheck defsTransform =
           Record fields ->
               Record <$> mapM (\(k,v) -> (,) k <$> go v) fields
 
-          Markdown uid md ->
-              return $ Markdown uid md
-
           Let defs body ->
               Let <$> defsTransform defs <*> go body
 

@@ -79,8 +79,6 @@ subst old new expression =
 
       Literal _ -> expression
 
-      Markdown _ _ -> expression
-
       GLShader _ _ _ -> expression
 
       PortIn name st ->
