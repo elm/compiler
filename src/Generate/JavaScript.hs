@@ -25,9 +25,11 @@ import AST.Literal
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
 
+
 varDecl :: String -> Expression () -> VarDecl ()
 varDecl x expr =
     VarDecl () (var x) (Just expr)
+
 
 internalImports :: Module.Name -> [VarDecl ()]
 internalImports name =
@@ -42,11 +44,16 @@ internalImports name =
       include alias modul =
           varDecl alias (obj ["_N", modul, "make"] <| ref "_elm")
 
+
 _Utils :: String -> Expression ()
-_Utils x = obj ["_U", x]
+_Utils x =
+    obj ["_U", x]
+
 
 _List :: String -> Expression ()
-_List x = obj ["_L", x]
+_List x =
+    obj ["_L", x]
+
 
 literal :: Literal -> Expression ()
 literal lit =
@@ -56,6 +63,7 @@ literal lit =
     IntNum   n -> IntLit () n
     FloatNum n -> NumLit () n
     Boolean  b -> BoolLit () b
+
 
 expression :: Canonical.Expr -> State Int (Expression ())
 expression (A region expr) =
@@ -197,6 +205,7 @@ expression (A region expr) =
              return $ obj ["_P","portOut"] `call`
                         [ string name, Port.outgoing tipe, value' ]
 
+
 definition :: Canonical.Def -> State Int [Statement ()]
 definition (Canonical.Definition pattern expr@(A region _) _) = do
   expr' <- expression expr
@@ -238,8 +247,11 @@ definition (Canonical.Definition pattern expr@(A region _) _) = do
         where
           vars = P.boundVarList pattern
           mkVar = A region . localVar
-          toDef y = let expr =  A region $ Case (mkVar "_") [(pattern, mkVar y)]
-                    in  definition $ Canonical.Definition (P.Var y) expr Nothing
+          toDef y =
+            let expr =  A region $ Case (mkVar "_") [(pattern, mkVar y)]
+            in
+                definition $ Canonical.Definition (P.Var y) expr Nothing
+
 
 match :: Region -> Case.Match -> State Int [Statement ()]
 match region mtch =
@@ -278,6 +290,7 @@ match region mtch =
                 Case.Other _ -> acc ++ [m]
                 _ -> dropEnd (acc ++ [m]) ms
 
+
 clause :: Region -> String -> Case.Clause -> State Int (Bool, CaseClause ())
 clause region variable (Case.Clause value vars mtch) =
     (,) isChar . CaseClause () pattern <$> match region (Case.matchSubst (zip vars vars') mtch)
@@ -286,17 +299,21 @@ clause region variable (Case.Clause value vars mtch) =
     (isChar, pattern) =
         case value of
           Right (Chr c) -> (True, string [c])
-          _ -> (,) False $ case value of
-                             Right (Boolean b) -> BoolLit () b
-                             Right lit -> literal lit
-                             Left (Var.Canonical _ name) ->
-                                 string name
+          _ ->
+            (,) False $
+              case value of
+                Right (Boolean b) -> BoolLit () b
+                Right lit -> literal lit
+                Left (Var.Canonical _ name) ->
+                    string name
+
 
 flattenLets :: [Canonical.Def] -> Canonical.Expr -> ([Canonical.Def], Canonical.Expr)
 flattenLets defs lexpr@(A _ expr) =
     case expr of
       Let ds body -> flattenLets (defs ++ ds) body
       _ -> (defs, lexpr)
+
 
 generate :: CanonicalModule -> String 
 generate modul =
@@ -361,42 +378,51 @@ generate modul =
                     map Var.varName ctors
           
     assign path expr =
-             case path of
-               [x] -> VarDeclStmt () [ varDecl x expr ]
-               _   -> ExprStmt () $
-                      AssignExpr () OpAssign (LDot () (obj (init path)) (last path)) expr
+      case path of
+        [x] -> VarDeclStmt () [ varDecl x expr ]
+        _ ->
+          ExprStmt () $
+          AssignExpr () OpAssign (LDot () (obj (init path)) (last path)) expr
 
-binop :: Region -> Var.Canonical -> Canonical.Expr -> Canonical.Expr
-      -> State Int (Expression ())
+
+binop
+    :: Region
+    -> Var.Canonical
+    -> Canonical.Expr
+    -> Canonical.Expr
+    -> State Int (Expression ())
 binop region func@(Var.Canonical home op) e1 e2 =
     case (home, op) of
       (Var.Module ["Basics"], ">>") ->
-          do es <- mapM expression (collectLeftAssoc [e2] e1)
-             return $ ["$"] ==> List.foldl' (\e f -> f <| e) (ref "$") es
+        do  es <- mapM expression (collectLeftAssoc [e2] e1)
+            return $ ["$"] ==> List.foldl' (\e f -> f <| e) (ref "$") es
 
       (Var.Module ["Basics"], "<<") ->
-          do es <- mapM expression (e1 : collectRightAssoc [] e2)
-             return $ ["$"] ==> foldr (<|) (ref "$") es
+        do  es <- mapM expression (e1 : collectRightAssoc [] e2)
+            return $ ["$"] ==> foldr (<|) (ref "$") es
 
       (Var.Module ["Basics"], "<|") ->
-          do e2' <- expression e2
-             es <- mapM expression (collectRightAssoc [] e1)
-             return $ foldr (<|) e2' es
+        do  e2' <- expression e2
+            es <- mapM expression (collectRightAssoc [] e1)
+            return $ foldr (<|) e2' es
 
       (Var.BuiltIn, "::") ->
-          expression (A region (Data "::" [e1,e2]))
+        expression (A region (Data "::" [e1,e2]))
 
       (Var.Module ["Basics"], _) ->
-          do e1' <- expression e1
-             e2' <- expression e2
-             return $ case Map.lookup op basicOps of
-                        Just f -> f e1' e2'
-                        Nothing -> ref "A2" `call` [ Var.canonical func, e1', e2' ]
+        do  e1' <- expression e1
+            e2' <- expression e2
+            case Map.lookup op basicOps of
+              Just f ->
+                  return (f e1' e2')
+
+              Nothing ->
+                  return (ref "A2" `call` [ Var.canonical func, e1', e2' ])
 
       _ ->
-          do e1' <- expression e1
-             e2' <- expression e2
-             return (ref "A2" `call` [ Var.canonical func, e1', e2' ])
+        do  e1' <- expression e1
+            e2' <- expression e2
+            return (ref "A2" `call` [ Var.canonical func, e1', e2' ])
 
   where
     collectRightAssoc es e =
@@ -411,7 +437,8 @@ binop region func@(Var.Canonical home op) e1 e2 =
               collectLeftAssoc (e2 : es) e1
           _ -> e : es
 
-    basicOps = Map.fromList (infixOps ++ specialOps)
+    basicOps =
+        Map.fromList (infixOps ++ specialOps)
 
     infixOps =
         let infixOp str op = (str, InfixExpr () op) in
@@ -435,4 +462,5 @@ binop region func@(Var.Canonical home op) e1 e2 =
         , (,) "//" $ \a b -> InfixExpr () OpBOr (InfixExpr () OpDiv a b) (IntLit () 0)
         ]
 
-    cmp op n a b = InfixExpr () op (_Utils "cmp" `call` [a,b]) (IntLit () n)
+    cmp op n a b =
+        InfixExpr () op (_Utils "cmp" `call` [a,b]) (IntLit () n)
