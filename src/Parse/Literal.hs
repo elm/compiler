@@ -2,7 +2,7 @@ module Parse.Literal (literal) where
 
 import Prelude hiding (exponent)
 import Control.Applicative ((<$>))
-import Text.Parsec ((<|>), (<?>), digit, hexDigit, lookAhead, many1, oneOf, option, string, try)
+import Text.Parsec ((<|>), (<?>), digit, hexDigit, lookAhead, many1, option, string, try)
 import Parse.Helpers (IParser, chr, str)
 import qualified AST.Literal as L
 
