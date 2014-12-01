@@ -31,6 +31,11 @@ varDecl x expr =
     VarDecl () (var x) (Just expr)
 
 
+localRuntime :: String
+localRuntime =
+    "_elm"
+
+
 internalImports :: Module.Name -> [VarDecl ()]
 internalImports name =
     [ varDecl "_N" (obj ["Elm","Native"])
@@ -42,7 +47,7 @@ internalImports name =
     where
       include :: String -> String -> VarDecl ()
       include alias modul =
-          varDecl alias (obj ["_N", modul, "make"] <| ref "_elm")
+          varDecl alias (obj ["_N", modul, "make"] <| ref localRuntime)
 
 
 _Utils :: String -> Expression ()
@@ -318,19 +323,19 @@ flattenLets defs lexpr@(A _ expr) =
 generate :: CanonicalModule -> String 
 generate modul =
     show . prettyPrint $ setup "Elm" (names ++ ["make"]) ++
-             [ assign ("Elm" : names ++ ["make"]) (function ["_elm"] programStmts) ]
+             [ assign ("Elm" : names ++ ["make"]) (function [localRuntime] programStmts) ]
   where
     names :: [String]
     names = Module.names modul
 
     thisModule :: Expression ()
-    thisModule = obj ("_elm" : names ++ ["values"])
+    thisModule = obj (localRuntime : names ++ ["values"])
 
     programStmts :: [Statement ()]
     programStmts =
         concat
         [ [ ExprStmt () (string "use strict") ]
-        , setup "_elm" (names ++ ["values"])
+        , setup localRuntime (names ++ ["values"])
         , [ IfSingleStmt () thisModule (ret thisModule) ]
         , [ VarDeclStmt () localVars ]
         , body
@@ -350,7 +355,7 @@ generate modul =
         jsImport :: Module.Name -> VarDecl ()
         jsImport name =
             varDecl (Var.moduleName name) $
-                obj ("Elm" : name ++ ["make"]) <| ref "_elm"
+                obj ("Elm" : name ++ ["make"]) <| ref localRuntime
 
     body :: [Statement ()]
     body = concat $ evalState defs 0
@@ -362,7 +367,7 @@ generate modul =
         create name = assign name (InfixExpr () OpLOr (obj name) (ObjectLit () []))
         paths = drop 2 . init . List.inits $ namespace : path
 
-    jsExports = assign ("_elm" : names ++ ["values"]) (ObjectLit () exs)
+    jsExports = assign (localRuntime : names ++ ["values"]) (ObjectLit () exs)
         where
           exs = map entry $ "_op" : concatMap extract (exports modul)
           entry x = (prop x, ref x)
