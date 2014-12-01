@@ -2,7 +2,6 @@ module Generate.JavaScript.Ports (incoming, outgoing) where
 
 import qualified Data.List as List
 import Generate.JavaScript.Helpers
-import qualified Generate.JavaScript.Variable as V
 import AST.Type as T
 import qualified AST.Variable as Var
 import Language.ECMAScript3.Syntax
@@ -25,6 +24,21 @@ typeToString tipe =
     JSArray -> "an array"
     JSObject fields ->
       "an object with fields '" ++ List.intercalate "', '" fields ++ "'"
+
+
+_Array :: String -> Expression ()
+_Array functionName =
+    useLazy ["Elm","Native","Array"] functionName
+
+
+_List :: String -> Expression ()
+_List functionName =
+    useLazy ["Elm","Native","List"] functionName
+
+
+_Maybe :: String -> Expression ()
+_Maybe functionName =
+    useLazy ["Elm","Maybe"] functionName
 
 
 check :: Expression () -> JSType -> Expression () -> Expression ()
@@ -89,14 +103,14 @@ inc tipe x =
                 | Var.isMaybe name ->
                     CondExpr ()
                         (equal x (NullLit ()))
-                        (V.value ["Maybe"] "Nothing")
-                        (V.value ["Maybe"] "Just" <| inc t x)
+                        (_Maybe "Nothing")
+                        (_Maybe "Just" <| inc t x)
 
                 | Var.isList name ->
-                    check x JSArray (obj ["_L","fromArray"] <| array)
+                    check x JSArray (_List "fromArray" <| array)
 
                 | Var.isArray name ->
-                    check x JSArray (obj ["_A","fromJSArray"] <| array)
+                    check x JSArray (_Array "fromJSArray" <| array)
                 where
                   array = DotRef () x (var "map") <| incoming t
 
@@ -181,10 +195,10 @@ out tipe x =
                         (out t (DotRef () x (var "_0")))
 
                 | Var.isArray name ->
-                    DotRef () (obj ["_A","toJSArray"] <| x) (var "map") <| outgoing t
+                    DotRef () (_Array "toJSArray" <| x) (var "map") <| outgoing t
 
                 | Var.isList name ->
-                    DotRef () (obj ["_L","toArray"] <| x) (var "map") <| outgoing t
+                    DotRef () (_List "toArray" <| x) (var "map") <| outgoing t
 
             Type name : ts
                 | Var.isTuple name ->

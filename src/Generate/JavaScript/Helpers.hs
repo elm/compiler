@@ -4,6 +4,27 @@ import AST.Annotation (Region)
 import qualified AST.PrettyPrint as PP
 import Language.ECMAScript3.Syntax
 
+
+localRuntime :: String
+localRuntime =
+    "_elm"
+
+
+varDecl :: String -> Expression () -> VarDecl ()
+varDecl x expr =
+    VarDecl () (var x) (Just expr)
+
+
+make :: [String] -> Expression ()
+make moduleName =
+    obj (moduleName ++ ["make"]) <| ref localRuntime
+
+
+useLazy :: [String] -> String -> Expression ()
+useLazy moduleName functionName =
+    DotRef () (make moduleName) (var functionName)
+
+
 -- Creating Variables
 
 var :: String -> Id ()

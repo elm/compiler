@@ -25,16 +25,6 @@ import qualified AST.Pattern as P
 import qualified AST.Variable as Var
 
 
-varDecl :: String -> Expression () -> VarDecl ()
-varDecl x expr =
-    VarDecl () (var x) (Just expr)
-
-
-localRuntime :: String
-localRuntime =
-    "_elm"
-
-
 internalImports :: Module.Name -> [VarDecl ()]
 internalImports name =
     [ varDecl "_N" (obj ["Elm","Native"])
@@ -46,7 +36,7 @@ internalImports name =
     where
       include :: String -> String -> VarDecl ()
       include alias modul =
-          varDecl alias (obj ["_N", modul, "make"] <| ref localRuntime)
+          varDecl alias (Help.make ["_N", modul])
 
 
 _Utils :: String -> Expression ()
