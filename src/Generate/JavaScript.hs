@@ -193,10 +193,16 @@ expression (A region expr) =
             fields = zipWith (\n e -> (prop ("_" ++ show n), e)) [0..]
 
       Markdown uid doc ->
-          return $ Var.value ["Text"] "markdown" `call` [ string md, string uid ]
-        where
-          pad = "<div style=\"height:0;width:0;\">&nbsp;</div>"
-          md = pad ++ MD.toHtml doc ++ pad
+          let text =
+                obj ["Elm","Text","make"] <| ref localRuntime
+
+              pad =
+                "<div style=\"height:0;width:0;\">&nbsp;</div>"
+
+              md =
+                pad ++ MD.toHtml doc ++ pad
+          in
+              return (DotRef () text (var "markdown") `call` [ string md, string uid ])
 
       GLShader _uid src _tipe ->
         return $ ObjectLit () [(PropString () "src", literal (Str src))]
