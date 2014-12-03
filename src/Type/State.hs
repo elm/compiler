@@ -79,14 +79,14 @@ addError region hint t1 t2 =
       t1' <- pretty <$> toSrcType t1
       t2' <- pretty <$> toSrcType t2
       return . foldr ($+$) P.empty $
-         [ P.text "Type mismatch between the following types:"
+         [ P.text "Type mismatch between the following types" <+> pretty region <> P.text ":"
          , P.text ""
          , P.nest 8 t1'
          , P.text ""
          , P.nest 8 t2'
          , P.text ""
          , maybe P.empty (P.nest 4 . P.text) hint
-         , P.text "    It is related to the expression" <+> pretty region 
+         , P.text "    It is related to the following expression:"
          , P.text ""
          , P.nest 8 $ A.getRegionDocs region
          ]
