@@ -5,12 +5,14 @@ import AST.PrettyPrint
 import Data.Map (Map)
 import qualified Text.PrettyPrint as PP
 
-data Literal = IntNum Int
-             | FloatNum Double
-             | Chr Char
-             | Str String
-             | Boolean Bool
-             deriving (Eq, Ord, Show)
+data Literal
+    = IntNum Int
+    | FloatNum Double
+    | Chr Char
+    | Str String
+    | Boolean Bool
+    deriving (Eq, Ord, Show)
+
 
 instance Pretty Literal where
   pretty literal =
@@ -21,8 +23,17 @@ instance Pretty Literal where
       Str s -> PP.text . show $ s
       Boolean bool -> PP.text (show bool)
 
-data GLTipe = Int | Float | V2 | V3 | V4 | M4 | Texture
-  deriving (Show)
+
+data GLTipe
+    = Int
+    | Float
+    | V2
+    | V3
+    | V4
+    | M4
+    | Texture
+    deriving (Show)
+
 
 glTipeName :: GLTipe -> String
 glTipeName glTipe =
@@ -33,11 +44,12 @@ glTipeName glTipe =
       V3      -> "Math.Vector3.Vec3"
       V4      -> "Math.Vector4.Vec4"
       M4      -> "Math.Matrix4.Mat4"
-      Texture -> "Graphics.WebGL.Texture"
+      Texture -> "WebGL.Texture"
+
 
 data GLShaderTipe = GLShaderTipe
     { attribute :: Map String GLTipe
     , uniform :: Map String GLTipe
     , varying :: Map String GLTipe
-    } deriving (Show)
-
+    }
+    deriving (Show)

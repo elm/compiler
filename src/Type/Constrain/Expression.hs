@@ -20,8 +20,12 @@ import qualified Type.Environment as Env
 import qualified Type.Constrain.Literal as Literal
 import qualified Type.Constrain.Pattern as Pattern
 
-constrain :: Env.Environment -> Canonical.Expr -> Type
-          -> ErrorT [PP.Doc] IO TypeConstraint
+
+constrain
+    :: Env.Environment
+    -> Canonical.Expr
+    -> Type
+    -> ErrorT [PP.Doc] IO TypeConstraint
 constrain env (A region expr) tipe =
     let list t = Env.get env Env.types "List" <| t
         and = A region . CAnd
@@ -37,7 +41,7 @@ constrain env (A region expr) tipe =
           exists $ \attr -> 
           exists $ \unif -> 
             let 
-              shaderTipe a u v = Env.get env Env.types "Graphics.WebGL.Shader" <| a <| u <| v
+              shaderTipe a u v = Env.get env Env.types "WebGL.Shader" <| a <| u <| v
               glTipe = Env.get env Env.types . Lit.glTipeName
               makeRec accessor baseRec = 
                 let decls = accessor gltipe
@@ -166,6 +170,7 @@ constrain env (A region expr) tipe =
       PortOut _ _ signal ->
           constrain env signal tipe
 
+
 constrainDef env info (Canonical.Definition pattern expr maybeTipe) =
     let qs = [] -- should come from the def, but I'm not sure what would live there...
         (schemes, rigidQuantifiers, flexibleQuantifiers, headers, c2, c1) = info
@@ -205,6 +210,7 @@ constrainDef env info (Canonical.Definition pattern expr maybeTipe) =
 
          _ -> error ("problem in constrainDef with " ++ show pattern)
 
+
 expandPattern :: Canonical.Def -> [Canonical.Def]
 expandPattern def@(Canonical.Definition pattern lexpr@(A r _) maybeType) =
     case pattern of
@@ -216,9 +222,10 @@ expandPattern def@(Canonical.Definition pattern lexpr@(A r _) maybeType) =
             mkVar = A r . localVar
             toDef y = Canonical.Definition (P.Var y) (A r $ Case (mkVar x) [(pattern, mkVar y)]) Nothing
 
+
 try :: Region -> ErrorT (Region -> PP.Doc) IO a -> ErrorT [PP.Doc] IO a
-try region computation = do
-  result <- liftIO $ runErrorT computation
-  case result of
-    Left err -> throwError [err region]
-    Right value -> return value
+try region computation =
+  do  result <- liftIO $ runErrorT computation
+      case result of
+        Left err -> throwError [err region]
+        Right value -> return value
