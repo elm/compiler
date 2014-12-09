@@ -10,6 +10,8 @@ import System.FilePath ((</>))
 import System.IO.Error (tryIOError)
 import System.Process (readProcessWithExitCode)
 
+import qualified Elm.Compiler.Version as Version
+
 
 {-| Forward function application `x |> f == f x`. This function is useful
 for avoiding parenthesis and writing code in a more natural way.
@@ -111,8 +113,8 @@ errorNotFound name =
     , ""
     , "  * On Mac it is /usr/local/share/elm"
     , "  * On Windows it is one of the following:"
-    , "      C:/Program Files/Elm Platform/0.13/share"
-    , "      C:/Program Files (x86)/Elm Platform/0.13/share"
+    , "      C:/Program Files/Elm Platform/" ++ Version.version ++ "/share"
+    , "      C:/Program Files (x86)/Elm Platform/" ++ Version.version ++ "/share"
     , ""
     , "If it seems like a more complex issue, please report it here:"
     , "    <https://github.com/elm-lang/elm-platform/issues>"
