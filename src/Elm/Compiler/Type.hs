@@ -9,11 +9,10 @@ import Control.Arrow (second)
 import Data.Aeson ((.:), (.=))
 import qualified Data.Aeson as Json
 import qualified Data.ByteString.Lazy.Char8 as BS
-import qualified Data.List as List
 import qualified Data.Text as Text
+import Text.PrettyPrint as P
 
 import qualified AST.Helpers as Help
-import Elm.Utils ((|>))
 
 
 data Type
@@ -31,66 +30,87 @@ data Context = None | ADT | Function
 
 toString :: Type -> String
 toString tipe =
-  toStringHelp None tipe
+  P.render (toDoc None tipe)
 
 
-toStringHelp :: Context -> Type -> String
-toStringHelp context tipe =
+toDoc :: Context -> Type -> P.Doc
+toDoc context tipe =
   case tipe of
-    Lambda t1 t2 ->
-        let string = toStringHelp Function t1 ++ " -> " ++ toString t2
+    Lambda _ _ ->
+        let t:ts =
+              map (toDoc Function) (collectLambdas tipe)
+
+            lambda =
+              P.sep [ t, P.sep (map (P.text "->" <+>) ts) ]
         in
             case context of
-              None -> string
-              _ -> parens string
+              None -> lambda
+              _ -> P.parens lambda
 
-    Var name -> name
+    Var name ->
+        P.text name
 
-    Type name -> name
+    Type name ->
+        P.text (if name == "_Tuple0" then "()" else name)
 
     App (Type name) args
         | Help.isTuple name ->
-            map toString args
-                |> List.intercalate ", "
-                |> parens
-
-        | otherwise ->
-            let string = name ++ spacePrefix (map (toStringHelp ADT) args)
-            in
-                case (context, args) of
-                  (ADT, _ : _) -> parens string
-                  _ -> string
-
-    Record fields maybeExtension ->
-        let viewField (key, value) =
-                key ++ " : " ++ toString value
-
-            viewExtension maybeType =
-                case maybeType of
-                  Nothing -> ""
-                  Just t -> toString t ++ " | "
-        in
-            sandwich "{ " " }" $
-              concat
-              [ viewExtension maybeExtension
-              , map viewField fields
-                  |> List.intercalate ", "
+            P.sep
+              [ P.cat (zipWith (<+>) (P.lparen : repeat P.comma) (map (toDoc None) args))
+              , P.rparen
               ]
 
+        | otherwise ->
+            let adt = P.hang (P.text name) 2 (P.sep $ map (toDoc ADT) args)
+            in
+                case (context, args) of
+                  (ADT, _ : _) -> P.parens adt
+                  _ -> adt
 
-parens :: String -> String
-parens string =
-  sandwich "(" ")" string
+    Record _ _ ->
+        case flattenRecord tipe of
+            ([], Nothing) ->
+                P.text "{}"
+
+            (fields, Nothing) ->
+                P.sep
+                  [ P.cat (zipWith (<+>) (P.lbrace : repeat P.comma) (map prettyField fields))
+                  , P.rbrace
+                  ]
+
+            (fields, Just x) ->
+                P.hang
+                    (P.lbrace <+> P.text x <+> P.text "|")
+                    4
+                    (P.sep
+                      [ P.cat (zipWith (<+>) (P.space : repeat P.comma) (map prettyField fields))
+                      , P.rbrace
+                      ])
+          where
+            prettyField (field, tipe) =
+                P.text field <+> P.text ":" <+> toDoc None tipe
 
 
-spacePrefix :: [String] -> String
-spacePrefix strings =
-  concatMap (" " ++) strings
+collectLambdas :: Type -> [Type]
+collectLambdas tipe =
+  case tipe of
+    Lambda arg body -> arg : collectLambdas body
+    _ -> [tipe]
 
 
-sandwich :: String -> String -> String -> String
-sandwich start stop string =
-    start ++ string ++ stop
+flattenRecord :: Type -> ( [(String, Type)], Maybe String )
+flattenRecord tipe =
+    case tipe of
+      Var x -> ([], Just x)
+
+      Record fields Nothing -> (fields, Nothing)
+
+      Record fields (Just ext) ->
+          let (fields',ext') = flattenRecord ext
+          in
+              (fields' ++ fields, ext')
+
+      _ -> error "Trying to flatten ill-formed record."
 
 
 -- JSON for TYPE
