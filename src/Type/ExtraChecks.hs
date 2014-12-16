@@ -20,6 +20,7 @@ import qualified AST.PrettyPrint as PP
 import qualified AST.Type as ST
 import qualified AST.Variable as V
 import qualified Transform.Expression as Expr
+import qualified Type.Hint as Hint
 import qualified Type.Type as TT
 import qualified Type.State as TS
 
@@ -143,12 +144,13 @@ occurs (name, variable) =
           do  desc <- liftIO $ UF.descriptor var
               case TT.structure desc of
                 Nothing ->
-                  modify $ \s -> s { TS.sErrors = P.text msg : TS.sErrors s }
+                  TS.addHint (P.text msg)
 
                 Just _ ->
                   do  liftIO $ UF.setDescriptor var (desc { TT.structure = Nothing })
                       var' <- liftIO $ UF.fresh desc
-                      TS.addError (A.None (P.text name)) (Just msg) var var'
+                      hint <- liftIO $ Hint.create (A.None (P.text name)) (Just msg) var var'
+                      TS.addHint hint
   where
     msg = "Infinite types are not allowed"
 

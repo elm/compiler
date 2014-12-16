@@ -38,5 +38,9 @@ eightyCharLines indent message = answer
           | slen + wlen > 79 = (sentence ++ "\n" ++ spaces ++ word, indent + wlen, " ")
           | otherwise        = (sentence ++ space ++ word, slen + wlen + length space, " ")
 
+instance Error Doc where
+    noMsg = P.empty
+    strMsg = P.text
+
 instance ErrorList Doc where
     listMsg str = [ P.text str ]

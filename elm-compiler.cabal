@@ -98,6 +98,7 @@ Library
         Type.Environment,
         Type.ExtraChecks,
         Type.Fragment,
+        Type.Hint,
         Type.Inference,
         Type.PrettyPrint,
         Type.Solve,
