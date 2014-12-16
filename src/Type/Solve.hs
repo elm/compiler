@@ -9,6 +9,7 @@ import qualified Data.UnionFind.IO as UF
 import Type.Type
 import Type.Unify
 import qualified Type.ExtraChecks as Check
+import qualified Type.Hint as Hint
 import qualified Type.State as TS
 import qualified AST.Annotation as A
 
@@ -169,6 +170,17 @@ solveScheme region scheme =
             return header'
 
 
+addHint
+    :: A.Region
+    -> Maybe String
+    -> UF.Point Descriptor
+    -> UF.Point Descriptor
+    -> StateT TS.SolverState IO ()
+addHint region hint t1 t2 =
+  do  msg <- liftIO (Hint.create region hint t1 t2)
+      TS.addHint msg
+
+
 -- Checks that all of the given variables belong to distinct equivalence classes.
 -- Also checks that their structure is Nothing, so they represent a variable, not
 -- a more complex term.
@@ -178,15 +190,16 @@ allDistinct region vars =
       forM_ vars $ \var ->
         do  desc <- liftIO $ UF.descriptor var
             case structure desc of
-              Just _ -> TS.addError region (Just msg) var var
-                  where msg = "Cannot generalize something that is not a type variable."
+              Just _ ->
+                let msg = "Cannot generalize something that is not a type variable."
+                in
+                    addHint region (Just msg) var var
 
-              Nothing -> do
-                if mark desc == seen
-                  then let msg = "Duplicate variable during generalization."
-                       in  TS.addError region (Just msg) var var
-                  else return ()
-                liftIO $ UF.setDescriptor var (desc { mark = seen })
+              Nothing ->
+                do  when (mark desc == seen) $
+                      do  let msg = "Duplicate variable during generalization."
+                          addHint region (Just msg) var var
+                    liftIO $ UF.setDescriptor var (desc { mark = seen })
 
 
 -- Check that a variable has rank == noRank, meaning that it can be generalized.
@@ -197,4 +210,4 @@ isGeneric region var =
         then return ()
         else
           let msg = "Unable to generalize a type variable. It is not unranked."
-          in  TS.addError region (Just msg) var var
+          in  addHint region (Just msg) var var

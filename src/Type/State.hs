@@ -7,10 +7,9 @@ import qualified Data.Map as Map
 import qualified Data.Traversable as Traversable
 import qualified Data.UnionFind.IO as UF
 
-import qualified AST.Annotation as A
-import AST.PrettyPrint
-import Text.PrettyPrint as P
+import qualified Type.Hint as Hint
 import Type.Type
+
 
 -- Pool
 -- Holds a bunch of variables
@@ -40,7 +39,7 @@ data SolverState = SS
     , sSavedEnv :: Env
     , sPool :: Pool
     , sMark :: Int
-    , sErrors :: [P.Doc]
+    , sHint :: [Hint.Hint]
     }
 
 
@@ -51,7 +50,7 @@ initialState =
     , sSavedEnv = Map.empty
     , sPool = emptyPool
     , sMark = noMark + 1  -- The mark must never be equal to noMark!
-    , sErrors = []
+    , sHint = []
     }
 
 
@@ -65,31 +64,9 @@ modifyPool f =
     modify $ \state -> state { sPool = f (sPool state) }
 
 
-addError
-    :: A.Region
-    -> Maybe String
-    -> UF.Point Descriptor
-    -> UF.Point Descriptor
-    -> StateT SolverState IO ()
-addError region hint t1 t2 =
-  do err <- liftIO makeError
-     modify $ \state -> state { sErrors = err : sErrors state }
-  where
-    makeError = do
-      t1' <- pretty <$> toSrcType t1
-      t2' <- pretty <$> toSrcType t2
-      return . foldr ($+$) P.empty $
-         [ P.text "Type mismatch between the following types" <+> pretty region <> P.text ":"
-         , P.text ""
-         , P.nest 8 t1'
-         , P.text ""
-         , P.nest 8 t2'
-         , P.text ""
-         , maybe P.empty (P.nest 4 . P.text) hint
-         , P.text "    It is related to the following expression:"
-         , P.text ""
-         , P.nest 8 $ A.getRegionDocs region
-         ]
+addHint :: Hint.Hint -> StateT SolverState IO ()
+addHint hint =
+    modify $ \state -> state { sHint = hint : sHint state }
 
 
 switchToPool :: (MonadState SolverState m) => Pool -> m ()
@@ -109,8 +86,8 @@ getEnv =
 
 saveLocalEnv :: StateT SolverState IO ()
 saveLocalEnv =
-  do  env <- sEnv <$> get
-      modify $ \state -> state { sSavedEnv = env }
+  do  currentEnv <- getEnv
+      modify $ \state -> state { sSavedEnv = currentEnv }
 
 
 uniqueMark :: StateT SolverState IO Int

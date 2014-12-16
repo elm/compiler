@@ -95,8 +95,10 @@ makeVar p =
 
 reserved :: String -> IParser String
 reserved word =
-  (try (string word >> notFollowedBy innerVarChar) >> return word)
-  <?> "reserved word '" ++ word ++ "'"
+  expecting ("reserved word '" ++ word ++ "'") $
+    do  string word
+        notFollowedBy innerVarChar
+        return word
 
 
 -- INFIX OPERATORS
@@ -114,7 +116,6 @@ symOp =
       guard (op `notElem` [ "=", "..", "->", "--", "|", "\8594", ":" ])
       case op of
         "." -> notFollowedBy lower >> return op
-        "\8728" -> return "."
         _   -> return op
 
 

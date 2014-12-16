@@ -139,62 +139,94 @@ appExpr = do
 --------  Normal Expressions  --------
 
 binaryExpr :: IParser Source.Expr
-binaryExpr = Binop.binops appExpr lastExpr anyOp
-  where lastExpr = addLocation (choice [ ifExpr, letExpr, caseExpr ])
-                <|> lambdaExpr
+binaryExpr =
+    Binop.binops appExpr lastExpr anyOp
+  where
+    lastExpr = addLocation (choice [ ifExpr, letExpr, caseExpr ])
+            <|> lambdaExpr
+
 
 ifExpr :: IParser Source.Expr'
-ifExpr = reserved "if" >> whitespace >> (normal <|> multiIf)
-    where
-      normal = do
-        bool <- expr
-        padded (reserved "then")
-        thenBranch <- expr
-        whitespace <?> "an 'else' branch" ; reserved "else" <?> "an 'else' branch" ; whitespace
-        elseBranch <- expr
-        return $ E.MultiIf
-          [ (bool, thenBranch)
-          , (Annotation.sameAs elseBranch (E.Literal . L.Boolean $ True), elseBranch)
-          ]
+ifExpr =
+  do  try (reserved "if")
+      whitespace
+      normal <|> multiIf
+  where
+    normal = do
+      bool <- expr
+      padded (reserved "then")
+      thenBranch <- expr
+      whitespace <?> "an 'else' branch"
+      reserved "else" <?> "an 'else' branch"
+      whitespace
+      elseBranch <- expr
+      return $ E.MultiIf
+        [ (bool, thenBranch)
+        , (Annotation.sameAs elseBranch (E.Literal . L.Boolean $ True), elseBranch)
+        ]
 
-      multiIf = E.MultiIf <$> spaceSep1 iff
-          where iff = do string "|" ; whitespace
-                         b <- expr ; padded arrow
-                         (,) b <$> expr
+    multiIf =
+        E.MultiIf <$> spaceSep1 iff
+      where
+        iff =
+            do  string "|" ; whitespace
+                b <- expr ; padded arrow
+                (,) b <$> expr
+
 
 lambdaExpr :: IParser Source.Expr
-lambdaExpr = do char '\\' <|> char '\x03BB' <?> "anonymous function"
-                whitespace
-                args <- spaceSep1 Pattern.term
-                padded arrow
-                body <- expr
-                return (makeFunction args body)
+lambdaExpr =
+  do  char '\\' <|> char '\x03BB' <?> "anonymous function"
+      whitespace
+      args <- spaceSep1 Pattern.term
+      padded arrow
+      body <- expr
+      return (makeFunction args body)
+
 
 defSet :: IParser [Source.Def]
-defSet = block (do d <- def ; whitespace ; return d)
+defSet =
+  block $
+    do  d <- def
+        whitespace
+        return d
+
 
 letExpr :: IParser Source.Expr'
-letExpr = do
-  reserved "let" ; whitespace
-  defs <- defSet
-  padded (reserved "in")
-  E.Let defs <$> expr
+letExpr =
+  do  try (reserved "let")
+      whitespace
+      defs <- defSet
+      padded (reserved "in")
+      E.Let defs <$> expr
+
 
 caseExpr :: IParser Source.Expr'
-caseExpr = do
-  reserved "case"; e <- padded expr; reserved "of"; whitespace
-  E.Case e <$> (with <|> without)
-    where case_ = do p <- Pattern.expr
-                     padded arrow
-                     (,) p <$> expr
-          with    = brackets (semiSep1 (case_ <?> "cases { x -> ... }"))
-          without = block (do c <- case_ ; whitespace ; return c)
+caseExpr =
+  do  try (reserved "case")
+      e <- padded expr
+      reserved "of"
+      whitespace
+      E.Case e <$> (with <|> without)
+  where
+    case_ =
+      do  p <- Pattern.expr
+          padded arrow
+          (,) p <$> expr
+
+    with =
+      brackets (semiSep1 (case_ <?> "cases { x -> ... }"))
+
+    without =
+      block (do c <- case_ ; whitespace ; return c)
+
 
 expr :: IParser Source.Expr
 expr = addLocation (choice [ ifExpr, letExpr, caseExpr ])
     <|> lambdaExpr
     <|> binaryExpr 
     <?> "an expression"
+
 
 defStart :: IParser [P.RawPattern]
 defStart =

@@ -20,19 +20,24 @@ import qualified AST.PrettyPrint as PP
 import qualified AST.Type as ST
 import qualified AST.Variable as V
 import qualified Transform.Expression as Expr
+import qualified Type.Hint as Hint
 import qualified Type.Type as TT
 import qualified Type.State as TS
 
+
 throw :: [Doc] -> Either [Doc] a
-throw err = Left [ P.vcat err ]
+throw err =
+  Left [ P.vcat err ]
+
 
 mainType :: TS.Env -> ErrorT [P.Doc] IO (Map.Map String ST.CanonicalType)
 mainType environment =
-  do environment' <- liftIO $ Traverse.traverse TT.toSrcType environment
-     mainCheck environment'
+  do  environment' <- liftIO $ Traverse.traverse TT.toSrcType environment
+      mainCheck environment'
   where
-    mainCheck :: (Monad m) => Map.Map String ST.CanonicalType
-              -> ErrorT [P.Doc] m (Map.Map String ST.CanonicalType)
+    mainCheck
+        :: (Monad m) => Map.Map String ST.CanonicalType
+        -> ErrorT [P.Doc] m (Map.Map String ST.CanonicalType)
     mainCheck env =
       case Map.lookup "main" env of
         Nothing -> return env
@@ -40,16 +45,23 @@ mainType environment =
             | tipe `elem` acceptable -> return env
             | otherwise              -> throwError err
             where
-              acceptable = [ "Graphics.Element.Element"
-                           , "Signal.Signal Graphics.Element.Element" ]
+              acceptable =
+                  [ "Graphics.Element.Element"
+                  , "Signal.Signal Graphics.Element.Element"
+                  ]
 
               tipe = PP.renderPretty typeOfMain
-              err = [ P.text "Type Error: 'main' must have type Element or (Signal Element)."
-                    , P.text "Instead 'main' has type:\n"
-                    , P.nest 4 (PP.pretty typeOfMain)
-                    , P.text " " ]
+
+              err =
+                  [ P.text "Type Error: 'main' must have type Element or (Signal Element)."
+                  , P.text "Instead 'main' has type:\n"
+                  , P.nest 4 (PP.pretty typeOfMain)
+                  , P.text " "
+                  ]
+
 
 data Direction = In | Out
+
 
 portTypes :: (Monad m) => Canonical.Expr -> ErrorT [P.Doc] m ()
 portTypes expr =
@@ -120,20 +132,25 @@ portTypes expr =
               , txt [ "    Json.Values, ", dir "" "first-order functions, ", "and concrete records." ]
               ]
 
+
 occurs :: (String, TT.Variable) -> StateT TS.SolverState IO ()
 occurs (name, variable) =
-  do vars <- liftIO $ infiniteVars [] variable
-     case vars of
-       [] -> return ()
-       var:_ -> do
-         desc <- liftIO $ UF.descriptor var
-         case TT.structure desc of
-           Nothing ->
-               modify $ \s -> s { TS.sErrors = P.text msg : TS.sErrors s }
-           Just _ ->
-               do liftIO $ UF.setDescriptor var (desc { TT.structure = Nothing })
-                  var' <- liftIO $ UF.fresh desc
-                  TS.addError (A.None (P.text name)) (Just msg) var var'
+  do  vars <- liftIO $ infiniteVars [] variable
+      case vars of
+        [] ->
+          return ()
+
+        var : _ ->
+          do  desc <- liftIO $ UF.descriptor var
+              case TT.structure desc of
+                Nothing ->
+                  TS.addHint (P.text msg)
+
+                Just _ ->
+                  do  liftIO $ UF.setDescriptor var (desc { TT.structure = Nothing })
+                      var' <- liftIO $ UF.fresh desc
+                      hint <- liftIO $ Hint.create (A.None (P.text name)) (Just msg) var var'
+                      TS.addHint hint
   where
     msg = "Infinite types are not allowed"
 

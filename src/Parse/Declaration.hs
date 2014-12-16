@@ -21,29 +21,32 @@ definition = D.Definition <$> Expr.def
 
 typeDecl :: IParser D.SourceDecl
 typeDecl =
- do reserved "type" <?> "type declaration"
-    forcedWS
-    isAlias <- optionMaybe (string "alias" >> forcedWS)
+  do  try (reserved "type") <?> "type declaration"
+      forcedWS
+      isAlias <- optionMaybe (string "alias" >> forcedWS)
 
-    name <- capVar
-    args <- spacePrefix lowVar
-    padded equals
+      name <- capVar
+      args <- spacePrefix lowVar
+      padded equals
 
-    case isAlias of
-      Just _ ->
-          do  tipe <- Type.expr <?> "a type"
-              return (D.TypeAlias name args tipe)
+      case isAlias of
+        Just _ ->
+            do  tipe <- Type.expr <?> "a type"
+                return (D.TypeAlias name args tipe)
 
-      Nothing ->
-          do  tcs <- pipeSep1 Type.constructor <?> "a constructor for a union type"
-              return $ D.Datatype name args tcs
+        Nothing ->
+            do  tcs <- pipeSep1 Type.constructor <?> "a constructor for a union type"
+                return $ D.Datatype name args tcs
 
 
 infixDecl :: IParser D.SourceDecl
 infixDecl = do
-  assoc <- choice [ reserved "infixl" >> return D.L
-                  , reserved "infix"  >> return D.N
-                  , reserved "infixr" >> return D.R ]
+  assoc <-
+      choice
+        [ try (reserved "infixl") >> return D.L
+        , try (reserved "infixr") >> return D.R
+        , try (reserved "infix")  >> return D.N
+        ]
   forcedWS
   n <- digit
   forcedWS
@@ -52,10 +55,17 @@ infixDecl = do
 
 port :: IParser D.SourceDecl
 port =
-  do try (reserved "port")
-     whitespace
-     name <- lowVar
-     whitespace
-     let port' op ctor expr = do { try op ; whitespace ; ctor name <$> expr }
-     D.Port <$> choice [ port' hasType D.PPAnnotation Type.expr
-                       , port' equals  D.PPDef Expr.expr ]
+  do  try (reserved "port")
+      whitespace
+      name <- lowVar
+      whitespace
+      let port' op ctor expr =
+            do  try op
+                whitespace
+                ctor name <$> expr
+
+      D.Port <$>
+          choice
+            [ port' hasType D.PPAnnotation Type.expr
+            , port' equals  D.PPDef Expr.expr
+            ]

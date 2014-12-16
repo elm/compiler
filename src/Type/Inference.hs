@@ -29,9 +29,9 @@ infer interfaces modul =
 
         state <- liftIO $ execStateT (Solve.solve constraint) TS.initialState
 
-        () <- case TS.sErrors state of
-                errors@(_:_) -> throwError errors
-                []           -> return ()
+        () <- case TS.sHint state of
+                hints@(_:_) -> throwError hints
+                []          -> return ()
 
         () <- Check.portTypes (program (body modul))
 
