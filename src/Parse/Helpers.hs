@@ -95,8 +95,10 @@ makeVar p =
 
 reserved :: String -> IParser String
 reserved word =
-  (try (string word >> notFollowedBy innerVarChar) >> return word)
-  <?> "reserved word '" ++ word ++ "'"
+  expecting ("reserved word '" ++ word ++ "'") $
+    do  string word
+        notFollowedBy innerVarChar
+        return word
 
 
 -- INFIX OPERATORS

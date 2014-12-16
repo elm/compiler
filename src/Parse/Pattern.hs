@@ -25,12 +25,17 @@ basic = choice
           c:_ | isUpper c -> P.Data (Var.Raw v) []
           _               -> P.Var v
 
+
 asPattern :: P.RawPattern -> IParser P.RawPattern
-asPattern pattern = do
-  var <- optionMaybe (try (whitespace >> reserved "as" >> whitespace >> lowVar))
-  return $ case var of
-             Just v -> P.Alias v pattern
-             Nothing -> pattern
+asPattern pattern =
+  do  var <- optionMaybe (try (whitespace >> reserved "as") >> whitespace >> lowVar)
+      case var of
+        Just v ->
+          return (P.Alias v pattern)
+
+        Nothing ->
+          return pattern
+
 
 record :: IParser P.RawPattern
 record = P.Record <$> brackets (commaSep1 lowVar)

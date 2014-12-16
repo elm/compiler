@@ -26,12 +26,8 @@ headerAndImports =
   do  optional freshLine
       (names, exports) <-
           option (["Main"], Var.openListing) (header `followedBy` freshLine)
-      imports' <- commitToImports <|> return []
+      imports' <- imports
       return $ Module.HeaderAndImports names exports imports'
-  where
-    commitToImports =
-        do  try (lookAhead $ reserved "import")
-            imports `followedBy` freshLine
 
 
 header :: IParser ([String], Var.Listing Var.Value)
@@ -48,12 +44,12 @@ header =
 
 imports :: IParser [(Module.Name, Module.ImportMethod)]
 imports =
-  option [] ((:) <$> import' <*> many (try (freshLine >> import')))
+  many (import' `followedBy` freshLine)
 
 
 import' :: IParser (Module.Name, Module.ImportMethod)
 import' =
-  do  reserved "import"
+  do  try (reserved "import")
       whitespace
       names <- dotSep1 capVar
       (,) names <$> option (Module.As (intercalate "." names)) method
