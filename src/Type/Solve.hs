@@ -175,8 +175,8 @@ solveScheme region scheme =
 allDistinct :: A.Region -> [Variable] -> StateT TS.SolverState IO ()
 allDistinct region vars =
   do  seen <- TS.uniqueMark
-      let check var = do
-            desc <- liftIO $ UF.descriptor var
+      forM_ vars $ \var ->
+        do  desc <- liftIO $ UF.descriptor var
             case structure desc of
               Just _ -> TS.addError region (Just msg) var var
                   where msg = "Cannot generalize something that is not a type variable."
@@ -187,7 +187,6 @@ allDistinct region vars =
                        in  TS.addError region (Just msg) var var
                   else return ()
                 liftIO $ UF.setDescriptor var (desc { mark = seen })
-      mapM_ check vars
 
 
 -- Check that a variable has rank == noRank, meaning that it can be generalized.
