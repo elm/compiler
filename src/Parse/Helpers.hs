@@ -116,7 +116,6 @@ symOp =
       guard (op `notElem` [ "=", "..", "->", "--", "|", "\8594", ":" ])
       case op of
         "." -> notFollowedBy lower >> return op
-        "\8728" -> return "."
         _   -> return op
 
 
