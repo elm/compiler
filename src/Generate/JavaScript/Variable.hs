@@ -33,9 +33,11 @@ moduleName name =
 
 
 varName :: String -> String
-varName x = map (swap '\'' '$') x'
-    where
-      x' = if Set.member x jsReserveds then '$' : x else x
+varName name =
+    let saferName =
+          if Set.member name jsReserveds then '$' : name else name
+    in
+        map (swap '\'' '$') saferName
 
 
 value :: Module.Name -> String -> JS.Expression ()
@@ -56,7 +58,7 @@ jsReserveds = Set.fromList
     , "interface", "let", "package", "private", "protected", "public"
     , "static", "yield"
     -- reserved by the Elm runtime system
-    , "Elm", "ElmRuntime"
+    , "Elm"
     , "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9"
     , "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9"
     ]
