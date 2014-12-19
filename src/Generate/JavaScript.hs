@@ -71,36 +71,47 @@ expression (A region expr) =
              hi' <- expression hi
              return $ _List "range" `call` [lo',hi']
 
-      Access e x ->
+      Access e field ->
           do e' <- expression e
-             return $ DotRef () e' (var x)
+             return $ DotRef () e' (var (varName field))
 
-      Remove e x ->
+      Remove e field ->
           do e' <- expression e
-             return $ _Utils "remove" `call` [string x, e']
+             return $ _Utils "remove" `call` [ string (varName field), e' ]
 
-      Insert e x v ->
-          do v' <- expression v
+      Insert e field value ->
+          do value' <- expression value
              e' <- expression e
-             return $ _Utils "insert" `call` [string x, v', e']
+             return $ _Utils "insert" `call` [ string (varName field), value', e' ]
 
-      Modify e fs ->
+      Modify e fields ->
           do e' <- expression e
-             fs' <- forM fs $ \(f,v) -> do
-                      v' <- expression v
-                      return $ ArrayLit () [string f, v']
-             return $ _Utils "replace" `call` [ArrayLit () fs', e']
+             fields' <-
+                forM fields $ \(field, value) ->
+                  do  value' <- expression value
+                      return $ ArrayLit () [ string (varName field), value' ]
+
+             return $ _Utils "replace" `call` [ArrayLit () fields', e']
 
       Record fields ->
-          do fields' <- forM fields $ \(f,e) -> do
-                          (,) f <$> expression e
-             let fieldMap = List.foldl' combine Map.empty fields'
+          do fields' <-
+                forM fields $ \(field, e) ->
+                    (,) (varName field) <$> expression e
+
+             let fieldMap =
+                    List.foldl' combine Map.empty fields'
+
              return $ ObjectLit () $ (prop "_", hidden fieldMap) : visible fieldMap
           where
-            combine r (k,v) = Map.insertWith (++) k [v] r
-            hidden fs = ObjectLit () . map (prop *** ArrayLit ()) .
-                        Map.toList . Map.filter (not . null) $ Map.map tail fs
-            visible fs = map (first prop) . Map.toList $ Map.map head fs
+            combine record (field, value) =
+                Map.insertWith (++) field [value] record
+
+            hidden fs =
+                ObjectLit () . map (prop *** ArrayLit ()) $
+                  Map.toList (Map.filter (not . null) (Map.map tail fs))
+
+            visible fs =
+                map (first prop) (Map.toList (Map.map head fs))
 
       Binop op e1 e2 -> binop region op e1 e2
 
