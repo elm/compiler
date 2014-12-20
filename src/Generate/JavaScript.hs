@@ -73,30 +73,30 @@ expression (A region expr) =
 
       Access e field ->
           do e' <- expression e
-             return $ DotRef () e' (var (varName field))
+             return $ DotRef () e' (var (Var.varName field))
 
       Remove e field ->
           do e' <- expression e
-             return $ _Utils "remove" `call` [ string (varName field), e' ]
+             return $ _Utils "remove" `call` [ string (Var.varName field), e' ]
 
       Insert e field value ->
           do value' <- expression value
              e' <- expression e
-             return $ _Utils "insert" `call` [ string (varName field), value', e' ]
+             return $ _Utils "insert" `call` [ string (Var.varName field), value', e' ]
 
       Modify e fields ->
           do e' <- expression e
              fields' <-
                 forM fields $ \(field, value) ->
                   do  value' <- expression value
-                      return $ ArrayLit () [ string (varName field), value' ]
+                      return $ ArrayLit () [ string (Var.varName field), value' ]
 
              return $ _Utils "replace" `call` [ArrayLit () fields', e']
 
       Record fields ->
           do fields' <-
                 forM fields $ \(field, e) ->
-                    (,) (varName field) <$> expression e
+                    (,) (Var.varName field) <$> expression e
 
              let fieldMap =
                     List.foldl' combine Map.empty fields'
