@@ -43,17 +43,23 @@ mainType environment =
         Nothing -> return env
         Just typeOfMain
             | tipe `elem` acceptable -> return env
-            | otherwise              -> throwError err
+            | otherwise              -> throwError [ err ]
             where
               acceptable =
                   [ "Graphics.Element.Element"
                   , "Signal.Signal Graphics.Element.Element"
+                  , "Html.Html"
+                  , "Signal.Signal Html.Html"
                   ]
 
               tipe = PP.renderPretty typeOfMain
 
               err =
-                  [ P.text "Type Error: 'main' must have type Element or (Signal Element)."
+                P.vcat
+                  [ P.text "Type Error: 'main' must have one of the following types:"
+                  , P.text " "
+                  , P.text "    Element, Html, Signal Element, Signal Html"
+                  , P.text " "
                   , P.text "Instead 'main' has type:\n"
                   , P.nest 4 (PP.pretty typeOfMain)
                   , P.text " "
