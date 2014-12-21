@@ -3,7 +3,6 @@
 module Elm.Compiler
     ( version
     , parseDependencies, compile
-    , runtimeDebugPath
     ) where
 
 import Control.Monad.Error (MonadError, throwError)
@@ -16,11 +15,9 @@ import qualified Compile
 import qualified Elm.Compiler.Module as PublicModule
 import qualified Elm.Compiler.Version as Version
 import Elm.Utils ((|>))
-import qualified Elm.Utils as Utils
 import qualified Generate.JavaScript as JS
 import qualified Parse.Helpers as Help
 import qualified Parse.Module as Parse
-import qualified Paths_elm_compiler as Paths
 
 
 -- VERSION
@@ -70,12 +67,3 @@ compile user packageName source interfaces =
               |> List.intersperse ""
               |> unlines
               |> Left
-
-
--- DATA FILES
-
-{-| Path to the debugger runtime.
--}
-runtimeDebugPath :: IO FilePath
-runtimeDebugPath =
-    Utils.getAsset "compiler" Paths.getDataFileName "runtime/debug.js"

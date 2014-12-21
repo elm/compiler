@@ -27,9 +27,6 @@ Extra-source-files: changelog.md
 Cabal-version: >=1.9
 Build-type: Simple
 
-Data-files:
-    runtime/debug.js
-
 source-repository head
     type:     git
     location: git://github.com/elm-lang/elm-compiler.git
