@@ -22,6 +22,7 @@ defaultImports :: ImportDict
 defaultImports =
     Map.fromList
     [ ["Basics"] ==> ([], Var.openListing)
+    , ["List"] ==> ([], Var.Listing [Var.Value "::"] False)
     , ["Maybe"] ==> ([], Var.Listing [maybe] False)
     , ["Result"] ==> ([], Var.Listing [result] False)
     , ["Signal"] ==> ([], Var.Listing [signal] False)
