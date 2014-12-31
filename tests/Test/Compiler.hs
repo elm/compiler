@@ -39,7 +39,7 @@ getElms filePath =
 
 testsDir :: FilePath
 testsDir =
-    "tests" </> "compiler" </> "test-files"
+    "tests" </> "test-files"
 
 
 -- RUN COMPILER
