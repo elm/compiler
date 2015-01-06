@@ -2,7 +2,9 @@
 
 Thanks helping with the development of Elm! This document describes the basic
 standards for opening pull requests and making the review process as smooth as
-possible.
+possible. Please also read [How to Request Features][feature-request].
+
+[feature-request]: https://github.com/elm-lang/elm-compiler/blob/master/How%20to%20Request%20Features.md
 
 ## Licensing
 
@@ -27,8 +29,8 @@ and send it to <info@elm-lang.org> before opening your pull request.
     This branch is handy for folks who want to build the most recent public
     release from source.
 
-[master]: http://github.com/elm-lang/elm/tree/master
-[stable]: http://github.com/elm-lang/elm/tree/stable
+[master]: http://github.com/elm-lang/elm-compiler/tree/master
+[stable]: http://github.com/elm-lang/elm-compiler/tree/stable
 
 If you are working on a fairly large feature, we will probably want to merge it
 in as its own branch and do some testing before bringing it into the master
