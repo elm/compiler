@@ -51,6 +51,12 @@ obj vars =
       x:xs -> foldl (DotRef ()) (ref x) (map var xs)
       [] -> error "dotSep must be called on a non-empty list of variables"
 
+bracketObj :: [String] -> Expression ()
+bracketObj vars =
+    case vars of
+      x:xs -> foldl (BracketRef ()) (ref x) (map (StringLit ()) xs)
+      [] -> error "bracketObj must be called on a non-empty list of variables"
+
 
 -- Specific Utilities
 
