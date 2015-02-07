@@ -1,7 +1,6 @@
 module Parse.Module (header, headerAndImports, getModuleName) where
 
 import Control.Applicative ((<$>), (<*>))
-import Data.List (intercalate)
 import Text.Parsec hiding (newline, spaces)
 
 import Parse.Helpers
@@ -18,7 +17,7 @@ getModuleName source =
     getModuleName =
       do  optional freshLine
           (names, _) <- header
-          return (intercalate "." names)
+          return (Module.nameToString names)
 
 
 headerAndImports :: IParser Module.HeaderAndImports
@@ -52,19 +51,25 @@ import' =
   do  try (reserved "import")
       whitespace
       names <- dotSep1 capVar
-      (,) names <$> option (Module.As (intercalate "." names)) method
+      (,) names <$> method (Module.nameToString names)
   where
-    method :: IParser Module.ImportMethod
-    method = as' <|> importing'
+    method :: String -> IParser Module.ImportMethod
+    method defaultAlias =
+      Module.ImportMethod
+          <$> option (Just defaultAlias) (Just <$> as')
+          <*> option Var.closedListing exposing
 
-    as' :: IParser Module.ImportMethod
-    as' = do
-      try (whitespace >> reserved "as")
-      whitespace
-      Module.As <$> capVar <?> "alias for module"
+    as' :: IParser String
+    as' =
+      do  try (whitespace >> reserved "as")
+          whitespace
+          capVar <?> "alias for module"
 
-    importing' :: IParser Module.ImportMethod
-    importing' = Module.Open <$> listing value
+    exposing :: IParser (Var.Listing Var.Value)
+    exposing =
+      do  try (whitespace >> reserved "exposing")
+          whitespace
+          listing value
 
 
 listing :: IParser a -> IParser (Var.Listing a)

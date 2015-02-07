@@ -1,4 +1,14 @@
-module AST.Module where
+module AST.Module
+    ( Interfaces
+    , Types, Aliases, ADTs
+    , AdtInfo, CanonicalAdt
+    , SourceModule, ValidModule, CanonicalModule
+    , Module(..), CanonicalBody(..)
+    , HeaderAndImports(..)
+    , Name, nameToString, nameIsNative
+    , Interface(..), toInterface
+    , ImportMethod(..)
+    ) where
 
 import Data.Binary
 import qualified Data.List as List
@@ -65,10 +75,14 @@ data HeaderAndImports = HeaderAndImports
     , _imports :: [(Name, ImportMethod)]
     }
 
+
 type Name = [String] -- must be non-empty
 
+
 nameToString :: Name -> String
-nameToString = List.intercalate "."
+nameToString =
+  List.intercalate "."
+
 
 nameIsNative :: Name -> Bool
 nameIsNative name =
@@ -121,27 +135,19 @@ instance Binary Interface where
 
 -- IMPORT METHOD
 
-data ImportMethod
-    = As !String
-    | Open !(Var.Listing Var.Value)
+data ImportMethod = ImportMethod
+    { alias :: Maybe String
+    , exposedVars :: !(Var.Listing Var.Value)
+    }
 
-open :: ImportMethod
-open = Open (Var.openListing)
-
-importing :: [Var.Value] -> ImportMethod
-importing xs = Open (Var.Listing xs False)
 
 instance Binary ImportMethod where
-    put method =
-        case method of
-          As alias     -> putWord8 0 >> put alias
-          Open listing -> putWord8 1 >> put listing
+    put (ImportMethod alias exposedVars) =
+      do  put alias
+          put exposedVars
 
-    get = do tag <- getWord8
-             case tag of
-               0 -> As   <$> get
-               1 -> Open <$> get
-               _ -> error "Error reading valid ImportMethod type from serialized string"
+    get =
+      ImportMethod <$> get <*> get
 
 
 -- PRETTY PRINTING
@@ -150,19 +156,22 @@ instance (Pretty exs, Pretty body) => Pretty (Module exs body) where
   pretty (Module names _ exs ims body) =
       P.vcat [modul, P.text "", prettyImports, P.text "", pretty body]
     where 
-      modul = P.text "module" <+> name <+> pretty exs <+> P.text "where"
-      name = P.text (List.intercalate "." names)
+      modul =
+        P.text "module" <+> name <+> pretty exs <+> P.text "where"
+
+      name =
+        P.text (nameToString names)
 
       prettyImports =
-          P.vcat $ map prettyMethod ims
+        P.vcat $ map prettyMethod ims
 
 
 prettyMethod :: (Name, ImportMethod) -> Doc
-prettyMethod import' =
-    case import' of
-      ([name], As alias)
-          | name == alias -> P.empty
-
-      (_, As alias) -> P.text "as" <+> P.text alias
-
-      (_, Open listing) -> pretty listing
+prettyMethod (name, ImportMethod maybeAlias exposedVars) =
+  let prettyAlias =
+        case maybeAlias of
+          Nothing -> P.empty
+          Just alias ->
+            P.text "as" <+> P.text alias
+  in
+      prettyAlias <+> pretty exposedVars

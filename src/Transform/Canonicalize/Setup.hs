@@ -73,20 +73,26 @@ addImports moduleName interfaces environ (name, method)
         return environ
 
     | otherwise =
-        case method of
-          Module.As name' ->
-              return (updateEnviron (name' ++ "."))
+        let (Module.ImportMethod maybeAlias listing) = method
 
-          Module.Open (Var.Listing vs open)
-              | open -> return (updateEnviron "")
-              | otherwise -> foldM (addValue name interface) environ vs
+            (Var.Listing exposedVars open) = listing
+
+            qualifier =
+              maybe (Module.nameToString name) id maybeAlias
+
+            env =
+              updateEnviron (qualifier ++ ".") environ
+        in
+            if open
+              then return (updateEnviron "" env)
+              else foldM (addValue name interface) env exposedVars
   where
     interface =
         Interface.filterExports ((Map.!) interfaces name)
 
-    updateEnviron prefix =
+    updateEnviron prefix env =
         let dict' = dict . map (first (prefix++)) in
-        merge environ $
+        merge env $
         Env { _home     = moduleName
             , _values   = dict' $ map pair (Map.keys (iTypes interface)) ++ ctors
             , _adts     = dict' $ map pair (Map.keys (iAdts interface))
@@ -106,7 +112,9 @@ addImports moduleName interfaces environ (name, method)
         (x, (canonical x, tvars, tipe))
 
     ctors =
-        concatMap (map (pair . fst) . snd . snd) (Map.toList (iAdts interface))
+        concatMap
+            (map (pair . fst) . snd . snd)
+            (Map.toList (iAdts interface))
 
 
 addValue
