@@ -12,6 +12,7 @@ import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import Transform.Canonicalize.Environment as Env
 
+
 variable :: Environment -> String -> Canonicalizer String Var.Canonical
 variable env var =
   case modul of
@@ -30,8 +31,11 @@ variable env var =
         [x] -> (Nothing, x)
         xs  -> (Just (init xs), last xs)
 
-tvar :: Environment -> String
-     -> Canonicalizer String (Either Var.Canonical (Var.Canonical, [String], Type.CanonicalType))
+
+tvar
+    :: Environment
+    -> String
+    -> Canonicalizer String (Either Var.Canonical (Var.Canonical, [String], Type.CanonicalType))
 tvar env var =
   case adts ++ aliases of
     []  -> notFound "type" (Map.keys (_adts env) ++ Map.keys (_aliases env)) var
@@ -46,6 +50,7 @@ tvar env var =
           Left v -> v
           Right (v,_,_) -> v
 
+
 pvar :: Environment -> String -> Canonicalizer String Var.Canonical
 pvar env var =
     case Map.lookup var (_patterns env) of
@@ -53,10 +58,12 @@ pvar env var =
       Just vs  -> preferLocals env "pattern" vs var
       Nothing  -> notFound "pattern" (Map.keys (_patterns env)) var
 
+
 found :: (a -> Var.Canonical) -> a -> Canonicalizer String a
-found extract v = do
-  _ <- Env.using (extract v)
-  return v
+found extract v =
+  do  _ <- Env.using (extract v)
+      return v
+
 
 notFound :: String -> [String] -> String -> Canonicalizer String a
 notFound kind possibilities var =
@@ -66,12 +73,24 @@ notFound kind possibilities var =
     msg = if null matches then "" else
               "\nClose matches include: " ++ List.intercalate ", " matches
 
-preferLocals :: Environment -> String -> [Var.Canonical] -> String
-             -> Canonicalizer String Var.Canonical
-preferLocals env = preferLocals' env id
 
-preferLocals' :: Environment -> (a -> Var.Canonical) -> String -> [a] -> String
-              -> Canonicalizer String a
+preferLocals
+    :: Environment
+    -> String
+    -> [Var.Canonical]
+    -> String
+    -> Canonicalizer String Var.Canonical
+preferLocals env =
+  preferLocals' env id
+
+
+preferLocals'
+    :: Environment
+    -> (a -> Var.Canonical)
+    -> String
+    -> [a]
+    -> String
+    -> Canonicalizer String a
 preferLocals' env extract kind possibilities var =
     case filter (isLocal . extract) possibilities of
       []     -> ambiguous possibilities
