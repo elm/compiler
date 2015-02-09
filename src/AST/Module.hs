@@ -174,4 +174,4 @@ prettyMethod (name, ImportMethod maybeAlias exposedVars) =
           Just alias ->
             P.text "as" <+> P.text alias
   in
-      prettyAlias <+> pretty exposedVars
+      prettyAlias <+> P.text "exposing" <+> pretty exposedVars
