@@ -16,48 +16,7 @@ import qualified AST.Variable as Var
 import Text.PrettyPrint (Doc)
 
 
-type Dict a =
-    Map.Map String [a]
-
-
-dict :: [(String,a)] -> Dict a
-dict pairs =
-  Map.fromList $ map (second (:[])) pairs
-
-
-insert :: String -> a -> Dict a -> Dict a
-insert key value =
-  Map.insertWith (++) key [value]
-
-
-type Canonicalizer err a =
-    Error.ErrorT err (State.State (Set.Set Module.Name)) a
-
-
-uses :: (Error.Error e) => Module.Name -> Canonicalizer e ()
-uses home =
-  Error.lift (State.modify (Set.insert home))
-
-
-using :: Var.Canonical -> Canonicalizer String Var.Canonical
-using var@(Var.Canonical home _) =
-  do  case home of
-        Var.BuiltIn     -> return ()
-        Var.Module path -> uses path
-        Var.Local       -> return ()
-      return var
-
-
-onError :: (String -> Doc) -> Canonicalizer String a -> Canonicalizer [Doc] a
-onError handler canonicalizer =
-  do  usedModules <- Error.lift State.get
-      let (result, usedModules') =
-            State.runState (Error.runErrorT canonicalizer) usedModules
-      Error.lift (State.put usedModules')
-      case result of
-        Left err -> Error.throwError [handler err]
-        Right x  -> return x
-
+-- ENVIRONMENT
 
 data Environment = Env
     { _home     :: Module.Name
@@ -101,3 +60,50 @@ merge (Env n1 v1 t1 a1 p1) (Env n2 v2 t2 a2 p2)
           , _aliases  = Map.unionWith (++) a1 a2
           , _patterns = Map.unionWith (++) p1 p2
           }
+
+
+-- RAW NAMES to CANONICAL NAMES
+
+type Dict a =
+    Map.Map String [a]
+
+
+dict :: [(String,a)] -> Dict a
+dict pairs =
+  Map.fromList $ map (second (:[])) pairs
+
+
+insert :: String -> a -> Dict a -> Dict a
+insert key value =
+  Map.insertWith (++) key [value]
+
+
+-- CANONICALIZATION MANAGER
+
+type Canonicalizer err a =
+    Error.ErrorT err (State.State (Set.Set Module.Name)) a
+
+
+uses :: (Error.Error e) => Module.Name -> Canonicalizer e ()
+uses home =
+  Error.lift (State.modify (Set.insert home))
+
+
+using :: Var.Canonical -> Canonicalizer String Var.Canonical
+using var@(Var.Canonical home _) =
+  do  case home of
+        Var.BuiltIn     -> return ()
+        Var.Module path -> uses path
+        Var.Local       -> return ()
+      return var
+
+
+onError :: (String -> Doc) -> Canonicalizer String a -> Canonicalizer [Doc] a
+onError handler canonicalizer =
+  do  usedModules <- Error.lift State.get
+      let (result, usedModules') =
+            State.runState (Error.runErrorT canonicalizer) usedModules
+      Error.lift (State.put usedModules')
+      case result of
+        Left err -> Error.throwError [handler err]
+        Right x  -> return x
