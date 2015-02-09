@@ -101,7 +101,8 @@ class ToString a where
 
 
 instance ToString Raw where
-  toString (Raw x) = x
+  toString (Raw name) =
+      name
 
 
 instance ToString Canonical where
@@ -178,11 +179,13 @@ getUnion value =
 -- PRETTY VARIABLES
 
 instance Pretty Raw where
-    pretty (Raw var) = variable var
+  pretty (Raw name) =
+      variable name
 
 
 instance Pretty Canonical where
-    pretty var = P.text (toString var)
+  pretty var =
+      P.text (toString var)
 
 
 instance Pretty a => Pretty (Listing a) where

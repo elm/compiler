@@ -9,6 +9,7 @@ import AST.PrettyPrint
 import qualified AST.Helpers as Help
 import Text.PrettyPrint as P
 
+
 data Type var
     = Lambda (Type var) (Type var)
     | Var String
@@ -18,47 +19,64 @@ data Type var
     | Aliased Var.Canonical (Type var)
     deriving (Eq,Show)
 
-type RawType = Type Var.Raw
-type CanonicalType = Type Var.Canonical
+
+type RawType =
+    Type Var.Raw
+
+
+type CanonicalType =
+    Type Var.Canonical
+
 
 fieldMap :: [(String,a)] -> Map.Map String [a]
 fieldMap fields =
-    foldl (\r (x,t) -> Map.insertWith (++) x [t] r) Map.empty fields
+  foldl (\r (field,tipe) -> Map.insertWith (++) field [tipe] r) Map.empty fields
+
 
 recordOf :: [(String, Type var)] -> Type var
-recordOf fields = Record fields Nothing
+recordOf fields =
+  Record fields Nothing
+
 
 listOf :: RawType -> RawType
-listOf t = App (Type (Var.Raw "List")) [t]
+listOf tipe =
+  App (Type (Var.Raw "List")) [tipe]
+
 
 tupleOf :: [RawType] -> RawType
-tupleOf ts = App (Type t) ts
-  where
-    t = Var.Raw ("_Tuple" ++ show (length ts))
+tupleOf types =
+  let name = Var.Raw ("_Tuple" ++ show (length types))
+  in
+      App (Type name) types
+    
 
 instance (Var.ToString var, Pretty var) => Pretty (Type var) where
   pretty tipe =
     case tipe of
-      Lambda _ _ -> P.sep [ t, P.sep (map (P.text "->" <+>) ts) ]
+      Lambda _ _ ->
+          P.sep [ t, P.sep (map (P.text "->" <+>) ts) ]
         where
           t:ts = map prettyLambda (collectLambdas tipe)
-          prettyLambda t = case t of
-                             Lambda _ _ -> P.parens (pretty t)
-                             _ -> pretty t
+          prettyLambda t =
+              case t of
+                Lambda _ _ -> P.parens (pretty t)
+                _ -> pretty t
 
-      Var x -> P.text x
+      Var x ->
+          P.text x
 
       Type var ->
-          let v = Var.toString var in
-          P.text (if v == "_Tuple0" then "()" else v)
+          let v = Var.toString var
+          in
+              P.text (if v == "_Tuple0" then "()" else v)
 
       App f args ->
           case (f,args) of
             (Type name, _)
                 | Help.isTuple (Var.toString name) ->
-                    P.parens . P.sep . P.punctuate P.comma $ map pretty args
+                    P.parens (P.sep (P.punctuate P.comma (map pretty args)))
 
-            _ -> P.hang (pretty f) 2 (P.sep $ map prettyParens args)
+            _ -> P.hang (pretty f) 2 (P.sep (map prettyParens args))
 
       Record _ _ ->
           case flattenRecord tipe of
@@ -84,20 +102,26 @@ instance (Var.ToString var, Pretty var) => Pretty (Type var) where
                 P.text field <+> P.text ":" <+> pretty tipe
 
       Aliased name t ->
-          let t' = pretty t in
-          if show t' `elem` ["Int", "Float", "String", "Char", "Bool"]
-            then t'
-            else pretty name
+          let t' = pretty t
+          in
+              if show t' `elem` ["Int", "Float", "String", "Char", "Bool"]
+                then t'
+                else pretty name
 
 
 collectLambdas :: Type var -> [Type var]
 collectLambdas tipe =
   case tipe of
-    Lambda arg body -> arg : collectLambdas body
-    _ -> [tipe]
+    Lambda arg body ->
+        arg : collectLambdas body
+
+    _ ->
+        [tipe]
+
 
 prettyParens :: (Var.ToString var, Pretty var) => Type var -> Doc
-prettyParens tipe = parensIf (needed tipe) (pretty tipe)
+prettyParens tipe =
+    parensIf (needed tipe) (pretty tipe)
   where
     needed t =
       case t of
@@ -105,26 +129,37 @@ prettyParens tipe = parensIf (needed tipe) (pretty tipe)
 
         Lambda _ _ -> True
 
-        App (Type name) _   | Help.isTuple (Var.toString name) -> False
+        App (Type name) _
+          | Help.isTuple (Var.toString name) ->
+              False
+
         App t' [] -> needed t'
+
         App _ _ -> True
 
         _ -> False
 
+
 flattenRecord :: Type var -> ( [(String, Type var)], Maybe String )
 flattenRecord tipe =
-    case tipe of
-      Var x -> ([], Just x)
+  case tipe of
+    Var x ->
+        ([], Just x)
 
-      Record fields Nothing -> (fields, Nothing)
+    Record fields Nothing ->
+        (fields, Nothing)
 
-      Record fields (Just ext) ->
-          let (fields',ext') = flattenRecord ext
-          in  (fields' ++ fields, ext')
+    Record fields (Just ext) ->
+        let (fields',ext') = flattenRecord ext
+        in
+            (fields' ++ fields, ext')
 
-      Aliased _ tipe' -> flattenRecord tipe'
+    Aliased _ tipe' ->
+        flattenRecord tipe'
 
-      _ -> error "Trying to flatten ill-formed record."
+    _ ->
+        error "Trying to flatten ill-formed record."
+
 
 instance Binary var => Binary (Type var) where
   put tipe =

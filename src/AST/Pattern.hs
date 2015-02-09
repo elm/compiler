@@ -9,6 +9,7 @@ import qualified Data.Set as Set
 import qualified AST.Variable as Var
 import AST.Literal as Literal
 
+
 data Pattern var
     = Data var [Pattern var]
     | Record [String]
@@ -18,55 +19,84 @@ data Pattern var
     | Literal Literal.Literal
     deriving (Eq, Ord, Show)
 
-type RawPattern = Pattern Var.Raw
-type CanonicalPattern = Pattern Var.Canonical
+
+type RawPattern =
+    Pattern Var.Raw
+
+
+type CanonicalPattern =
+    Pattern Var.Canonical
+
 
 cons :: RawPattern -> RawPattern -> RawPattern
-cons h t = Data (Var.Raw "::") [h,t]
+cons h t =
+  Data (Var.Raw "::") [h,t]
+
 
 nil :: RawPattern
-nil = Data (Var.Raw "[]") []
+nil =
+  Data (Var.Raw "[]") []
+
 
 list :: [RawPattern] -> RawPattern
-list = foldr cons nil
+list patterns =
+  foldr cons nil patterns
+
 
 tuple :: [RawPattern] -> RawPattern
-tuple es = Data (Var.Raw ("_Tuple" ++ show (length es))) es
+tuple patterns =
+  Data (Var.Raw ("_Tuple" ++ show (length patterns))) patterns
+
 
 boundVarList :: Pattern var -> [String]
-boundVarList = Set.toList . boundVars
+boundVarList pattern =
+  Set.toList (boundVars pattern)
+
 
 boundVars :: Pattern var -> Set.Set String
 boundVars pattern =
-    case pattern of
-      Var x -> Set.singleton x
-      Alias x p -> Set.insert x (boundVars p)
-      Data _ ps -> Set.unions (map boundVars ps)
-      Record fields -> Set.fromList fields
-      Anything -> Set.empty
-      Literal _ -> Set.empty
+  case pattern of
+    Var x -> Set.singleton x
+    Alias x p -> Set.insert x (boundVars p)
+    Data _ ps -> Set.unions (map boundVars ps)
+    Record fields -> Set.fromList fields
+    Anything -> Set.empty
+    Literal _ -> Set.empty
 
 
 instance Var.ToString var => Pretty (Pattern var) where
   pretty pattern =
-   case pattern of
-     Var x -> variable x
-     Literal lit -> pretty lit
-     Record fs -> PP.braces (commaCat $ map variable fs)
-     Alias x p -> prettyParens p <+> PP.text "as" <+> variable x
-     Anything -> PP.text "_"
-     Data name [hd,tl] | Var.toString name == "::" ->
-         parensIf isCons (pretty hd) <+> PP.text "::" <+> pretty tl
-       where
-         isCons = case hd of
-                    Data ctor _ -> Var.toString ctor == "::"
-                    _ -> False
+    case pattern of
+      Var x ->
+          variable x
 
-     Data name ps
-         | Help.isTuple name' -> PP.parens . commaCat $ map pretty ps
-         | otherwise          -> hsep (PP.text name' : map prettyParens ps)
-         where
-           name' = Var.toString name
+      Literal literal ->
+          pretty literal
+
+      Record fields ->
+          PP.braces (commaCat (map variable fields))
+
+      Alias x p ->
+          prettyParens p <+> PP.text "as" <+> variable x
+
+      Anything ->
+          PP.text "_"
+
+      Data name [hd,tl] | Var.toString name == "::" ->
+          parensIf isCons (pretty hd) <+> PP.text "::" <+> pretty tl
+        where
+          isCons =
+            case hd of
+              Data ctor _ -> Var.toString ctor == "::"
+              _ -> False
+ 
+      Data name ps ->
+        let name' = Var.toString name
+        in
+            if Help.isTuple name'
+              then PP.parens (commaCat (map pretty ps))
+              else hsep (PP.text name' : map prettyParens ps)
+          
 
 prettyParens :: Var.ToString var => Pattern var -> Doc
 prettyParens pattern = 
