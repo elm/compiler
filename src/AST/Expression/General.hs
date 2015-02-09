@@ -18,6 +18,7 @@ import qualified AST.Literal as Literal
 import qualified AST.Pattern as Pattern
 import qualified AST.Variable as Var
 
+
 ---- GENERAL AST ----
 
 {-| This is a fully general Abstract Syntax Tree (AST) for expressions. It has
@@ -37,6 +38,7 @@ move through the compilation process. The type holes are used to represent:
 -}
 type Expr annotation definition variable =
     Annotation.Annotated annotation (Expr' annotation definition variable)
+
 
 data Expr' ann def var
     = Literal Literal.Literal
@@ -65,24 +67,29 @@ data Expr' ann def var
 ---- UTILITIES ----
 
 rawVar :: String -> Expr' ann def Var.Raw
-rawVar x = Var (Var.Raw x)
+rawVar x =
+  Var (Var.Raw x)
+
 
 localVar :: String -> Expr' ann def Var.Canonical
-localVar x = Var (Var.Canonical Var.Local x)
+localVar x =
+  Var (Var.Canonical Var.Local x)
+
 
 tuple :: [Expr ann def var] -> Expr' ann def var
-tuple es = Data ("_Tuple" ++ show (length es)) es
+tuple expressions =
+  Data ("_Tuple" ++ show (length expressions)) expressions
 
-delist :: Expr ann def var -> [Expr ann def var]
-delist (Annotation.A _ (Data "::" [h,t])) = h : delist t
-delist _ = []
 
 saveEnvName :: String
-saveEnvName = "_save_the_environment!!!"
+saveEnvName =
+  "_save_the_environment!!!"
+
 
 dummyLet :: (Pretty def) => [def] -> Expr Annotation.Region def Var.Canonical
 dummyLet defs = 
-     Annotation.none $ Let defs (Annotation.none $ Var (Var.builtin saveEnvName))
+  Annotation.none $ Let defs (Annotation.none $ Var (Var.builtin saveEnvName))
+
 
 instance (Pretty def, Pretty var, Var.ToString var) => Pretty (Expr' ann def var) where
   pretty expr =
@@ -138,11 +145,17 @@ instance (Pretty def, Pretty var, Var.ToString var) => Pretty (Expr' ann def var
           pexpr = P.sep [ P.text "case" <+> pretty e, P.text "of" ]
           pretty' (p,b) = pretty p <+> P.text "->" <+> pretty b
 
-      Data "::" [hd,tl] -> pretty hd <+> P.text "::" <+> pretty tl
-      Data "[]" [] -> P.text "[]"
+      Data "::" [hd,tl] ->
+          pretty hd <+> P.text "::" <+> pretty tl
+
+      Data "[]" [] ->
+          P.text "[]"
+
       Data name es
-          | Help.isTuple name -> P.parens (commaCat (map pretty es))
-          | otherwise -> P.hang (P.text name) 2 (P.sep (map prettyParens es))
+        | Help.isTuple name ->
+            P.parens (commaCat (map pretty es))
+        | otherwise ->
+            P.hang (P.text name) 2 (P.sep (map prettyParens es))
 
       Access e x ->
           prettyParens e <> P.text "." <> variable x
@@ -178,11 +191,14 @@ instance (Pretty def, Pretty var, Var.ToString var) => Pretty (Expr' ann def var
           field (field, value) =
              variable field <+> P.equals <+> pretty value
 
-      GLShader _ _ _ -> P.text "[glsl| ... |]"
+      GLShader _ _ _ ->
+          P.text "[glsl| ... |]"
 
-      PortIn name _ -> P.text $ "<port:" ++ name ++ ">"
+      PortIn name _ ->
+          P.text $ "<port:" ++ name ++ ">"
 
-      PortOut _ _ signal -> pretty signal
+      PortOut _ _ signal ->
+          pretty signal
 
 
 collectApps :: Expr ann def var -> [Expr ann def var]
