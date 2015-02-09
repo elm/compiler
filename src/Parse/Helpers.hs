@@ -251,23 +251,33 @@ located p =
 
 
 accessible :: IParser Source.Expr -> IParser Source.Expr
-accessible expr =
+accessible exprParser =
   do  start <- getPosition
-      ce@(Annotation.A _ e) <- expr
-      let rest f = do
-            let dot = char '.' >> notFollowedBy (char '.')
-            access <- optionMaybe (try dot <?> "field access (e.g. List.map)")
-            case access of
-              Nothing -> return ce
-              Just _  -> accessible $ do
-                           v <- var <?> "field access (e.g. List.map)"
-                           end <- getPosition
-                           return (Annotation.at start end (f v))
-      case e of
-        E.Var (Variable.Raw (c:cs))
-            | isUpper c -> rest (\v -> E.rawVar (c:cs ++ '.':v))
-            | otherwise -> rest (E.Access ce)
-        _ -> rest (E.Access ce)
+
+      annotatedRootExpr@(Annotation.A _ rootExpr) <- exprParser
+
+      access <- optionMaybe (try dot <?> "field access (e.g. List.map)")
+
+      case access of
+        Nothing ->
+          return annotatedRootExpr
+
+        Just _ ->
+          accessible $
+            do  v <- var <?> "field access (e.g. List.map)"
+                end <- getPosition
+                return . Annotation.at start end $
+                    case rootExpr of
+                      E.Var (Variable.Raw name@(c:_))
+                        | isUpper c ->
+                            E.rawVar (name ++ '.' : v)
+                      _ ->
+                        E.Access annotatedRootExpr v
+
+
+dot :: IParser ()
+dot =
+  char '.' >> notFollowedBy (char '.')
 
 
 -- WHITESPACE
