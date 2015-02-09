@@ -69,9 +69,13 @@ notFound :: String -> [String] -> String -> Canonicalizer String a
 notFound kind possibilities var =
     throwError $ "Could not find " ++ kind ++ " '" ++ var ++ "'." ++ msg
   where
-    matches = filter (List.isInfixOf var) possibilities
-    msg = if null matches then "" else
-              "\nClose matches include: " ++ List.intercalate ", " matches
+    matches =
+      filter (List.isInfixOf var) possibilities
+
+    msg =
+      if null matches
+        then ""
+        else "\nClose matches include: " ++ List.intercalate ", " matches
 
 
 preferLocals
