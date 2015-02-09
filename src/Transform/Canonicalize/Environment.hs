@@ -40,14 +40,15 @@ builtIns home =
           dict $ map (\x -> (x, Var.Canonical Var.BuiltIn x)) xs
 
       tuples =
-          map (\n -> "_Tuple" ++ show (n :: Int)) [0..9]
+          map (\n -> "_Tuple" ++ show n) [0 .. 9 :: Int]
 
 
-update :: P.Pattern var -> Environment -> Environment
-update ptrn env =
+addPattern :: P.Pattern var -> Environment -> Environment
+addPattern ptrn env =
     env { _values = foldr put (_values env) (P.boundVarList ptrn) }
   where
-    put x = Map.insert x [Var.local x]
+    put x =
+      Map.insert x [Var.local x]
 
 
 merge :: Environment -> Environment -> Environment
@@ -70,7 +71,7 @@ type Dict a =
 
 dict :: [(String,a)] -> Dict a
 dict pairs =
-  Map.fromList $ map (second (:[])) pairs
+  Map.fromList (map (second (:[])) pairs)
 
 
 insert :: String -> a -> Dict a -> Dict a

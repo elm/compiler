@@ -22,7 +22,7 @@ import AST.PrettyPrint (pretty, commaSep)
 import qualified AST.Pattern as P
 import Text.PrettyPrint as P
 
-import Transform.Canonicalize.Environment as Env
+import qualified Transform.Canonicalize.Environment as Env
 import qualified Transform.Canonicalize.Setup as Setup
 import qualified Transform.Canonicalize.Type as Canonicalize
 import qualified Transform.Canonicalize.Variable as Canonicalize
@@ -30,7 +30,10 @@ import qualified Transform.SortDefinitions as Transform
 import qualified Transform.Declaration as Transform
 
 
-module' :: Module.Interfaces -> Module.ValidModule -> Either [Doc] Module.CanonicalModule
+module'
+    :: Module.Interfaces
+    -> Module.ValidModule
+    -> Either [Doc] Module.CanonicalModule
 module' interfaces modul =
     filterImports <$> modul'
   where
@@ -39,11 +42,14 @@ module' interfaces modul =
 
     filterImports m =
         let used (name,_) = Set.member name usedModules
-        in  m { Module.imports = filter used (Module.imports m) }
+        in
+            m { Module.imports = filter used (Module.imports m) }
 
 
-moduleHelp :: Module.Interfaces -> Module.ValidModule
-           -> Canonicalizer [Doc] Module.CanonicalModule
+moduleHelp
+    :: Module.Interfaces
+    -> Module.ValidModule
+    -> Env.Canonicalizer [Doc] Module.CanonicalModule
 moduleHelp interfaces modul@(Module.Module _ _ exports _ decls) =
   do  env <- Setup.environment interfaces modul
       canonicalDecls <- mapM (declaration env) decls
@@ -74,7 +80,10 @@ moduleHelp interfaces modul@(Module.Module _ _ exports _ decls) =
          }
 
 
-resolveExports :: [Var.Value] -> Var.Listing Var.Value -> Canonicalizer [Doc] [Var.Value]
+resolveExports
+    :: [Var.Value]
+    -> Var.Listing Var.Value
+    -> Env.Canonicalizer [Doc] [Var.Value]
 resolveExports fullList (Var.Listing partialList open) =
     if open
       then return fullList
@@ -164,7 +173,10 @@ declToValue decl =
       _ -> []
 
 
-declaration :: Environment -> D.ValidDecl -> Canonicalizer [Doc] D.CanonicalDecl
+declaration
+    :: Env.Environment
+    -> D.ValidDecl
+    -> Env.Canonicalizer [Doc] D.CanonicalDecl
 declaration env decl =
     let canonicalize kind context pattern env v =
             let ctx = P.text ("Error in " ++ context) <+> pretty pattern <> P.colon
@@ -206,7 +218,10 @@ declaration env decl =
           return $ D.Fixity assoc prec op
 
 
-expression :: Environment -> Valid.Expr -> Canonicalizer [Doc] Canonical.Expr
+expression
+    :: Env.Environment
+    -> Valid.Expr
+    -> Env.Canonicalizer [Doc] Canonical.Expr
 expression env (A.A ann expr) =
     let go = expression env
         tipe' environ = format . Canonicalize.tipe environ
@@ -245,8 +260,9 @@ expression env (A.A ann expr) =
               Binop op' <$> go e1 <*> go e2
 
       Lambda p e ->
-          let env' = update p env in
-          Lambda <$> format (pattern env' p) <*> expression env' e
+          let env' = Env.addPattern p env
+          in
+              Lambda <$> format (pattern env' p) <*> expression env' e
 
       App e1 e2 ->
           App <$> go e1 <*> go e2
@@ -259,7 +275,7 @@ expression env (A.A ann expr) =
       Let defs e ->
           Let <$> mapM rename' defs <*> expression env' e
         where
-          env' = foldr update env $ map (\(Valid.Definition p _ _) -> p) defs
+          env' = foldr Env.addPattern env $ map (\(Valid.Definition p _ _) -> p) defs
           rename' (Valid.Definition p body mtipe) =
               Canonical.Definition
                   <$> format (pattern env' p)
@@ -280,7 +296,7 @@ expression env (A.A ann expr) =
         where
           branch (p,b) =
               (,) <$> format (pattern env p)
-                  <*> expression (update p env) b
+                  <*> expression (Env.addPattern p env) b
 
       PortIn name st ->
           PortIn name <$> tipe' env st
@@ -292,7 +308,10 @@ expression env (A.A ann expr) =
           return (GLShader uid src tipe)
 
 
-pattern :: Environment -> P.RawPattern -> Canonicalizer String P.CanonicalPattern
+pattern
+    :: Env.Environment
+    -> P.RawPattern
+    -> Env.Canonicalizer String P.CanonicalPattern
 pattern env ptrn =
     case ptrn of
       P.Var x       -> return $ P.Var x
