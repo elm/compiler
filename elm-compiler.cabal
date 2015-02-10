@@ -216,6 +216,7 @@ Test-Suite compiler-tests
         cmdargs >= 0.7 && < 0.11,
         containers >= 0.3 && < 0.6,
         directory >= 1.0 && < 2.0,
+        edit-distance >= 0.2 && < 0.3,
         elm-compiler,
         filemanip >= 0.3.5 && < 0.4,
         filepath >= 1 && < 2.0,
