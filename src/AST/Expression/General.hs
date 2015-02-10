@@ -224,7 +224,7 @@ prettyParens (Annotation.A _ expr) =
   where
     needed =
       case expr of
-        Binop _ _ _ -> True
+        Binop name _ _ -> not ((Var.toString name) == "::")
         Lambda _ _  -> True
         App _ _     -> True
         MultiIf _   -> True
