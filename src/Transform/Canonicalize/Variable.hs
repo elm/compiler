@@ -2,21 +2,26 @@
 module Transform.Canonicalize.Variable where
 
 import Control.Monad.Error
+import qualified Data.Either as Either
+import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, mapMaybe)
+import qualified Data.Set as Set
+import qualified Text.EditDistance as Dist
 
-import AST.Helpers as Help
+import qualified AST.Helpers as Help
 import qualified AST.Module as Module
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import Transform.Canonicalize.Environment as Env
+import Elm.Utils ((|>))
 
 
 variable :: Environment -> String -> Canonicalizer String Var.Canonical
 variable env var =
-  case modul of
-    Just name
+  case splitName var of
+    Right (name, varName)
         | Module.nameIsNative name ->
             Env.using (Var.Canonical (Var.Module name) varName)
 
@@ -25,11 +30,6 @@ variable env var =
           Just [v] -> Env.using v
           Just vs  -> preferLocals env "variable" vs var
           Nothing  -> notFound "variable" (Map.keys (_values env)) var
-  where
-    (modul, varName) =
-      case Help.splitDots var of
-        [x] -> (Nothing, x)
-        xs  -> (Just (init xs), last xs)
 
 
 tvar
@@ -42,8 +42,11 @@ tvar env var =
     [v] -> found extract v
     vs  -> preferLocals' env extract "type" vs var
   where
-    adts    = map Left .  fromMaybe [] $ Map.lookup var (_adts env)
-    aliases = map Right . fromMaybe [] $ Map.lookup var (_aliases env)
+    adts =
+        map Left (fromMaybe [] (Map.lookup var (_adts env)))
+
+    aliases =
+        map Right (fromMaybe [] (Map.lookup var (_aliases env)))
 
     extract value =
         case value of
@@ -59,23 +62,12 @@ pvar env var =
       Nothing  -> notFound "pattern" (Map.keys (_patterns env)) var
 
 
+-- FOUND
+
 found :: (a -> Var.Canonical) -> a -> Canonicalizer String a
 found extract v =
   do  _ <- Env.using (extract v)
       return v
-
-
-notFound :: String -> [String] -> String -> Canonicalizer String a
-notFound kind possibilities var =
-    throwError $ "Could not find " ++ kind ++ " '" ++ var ++ "'." ++ msg
-  where
-    matches =
-      filter (List.isInfixOf var) possibilities
-
-    msg =
-      if null matches
-        then ""
-        else "\nClose matches include: " ++ List.intercalate ", " matches
 
 
 preferLocals
@@ -115,4 +107,137 @@ preferLocals' env extract kind possibilities var =
           vars = map (Var.toString . extract) possibleVars
           msg = "Ambiguous usage of " ++ kind ++ " '" ++ var ++ "'.\n" ++
                 "    Disambiguate between: " ++ List.intercalate ", " vars
+
+
+-- NOT FOUND HELPERS
+
+splitName :: String -> Either String ([String], String)
+splitName var =
+  case Help.splitDots var of
+    [x] -> Left x
+    xs -> Right (init xs, last xs)
+
+
+getName :: Either String ([String], String) -> String
+getName name =
+  case name of
+    Left x -> x
+    Right (_, x) -> x
+
+
+nameToString :: ([String], String) -> String
+nameToString (modul, name) =
+  Module.nameToString (modul ++ [name])
+
+
+isOp :: Either String ([String], String) -> Bool
+isOp name =
+  Help.isOp (getName name)
+
+
+distance :: String -> String -> Int
+distance x y =
+  Dist.restrictedDamerauLevenshteinDistance Dist.defaultEditCosts x y
+
+
+nearbyNames :: (a -> String) -> a -> [a] -> [a]
+nearbyNames format name names =
+  let editDistance =
+        if length (format name) < 3 then 1 else 2
+  in
+      names
+        |> map (\x -> (distance (format name) (format x), x))
+        |> List.sortBy (compare `on` fst)
+        |> filter ( (<= editDistance) . abs . fst )
+        |> map snd
+
+
+-- NOT FOUND
+
+notFound :: String -> [String] -> String -> Canonicalizer String a
+notFound kind possibilities var =
+  let possibleNames =
+        map splitName possibilities
+
+      name =
+        splitName var
+
+      closeNames =
+        possibleNames
+          |> filter (\n -> isOp name == isOp n)
+          |> nearbyNames getName name
+
+      (exposed, qualified) =
+        Either.partitionEithers closeNames
+
+      message =
+        case name of
+          Left _ ->
+              closeExposedMessage exposed ++ closeQualifiedMessage qualified
+
+          Right (modul, _) ->
+              qualifiedMessage modul (Either.rights possibleNames) qualified
+
+    in
+        throwError $ "Could not find " ++ kind ++ " '" ++ var ++ "'." ++ message
+
+
+
+closeExposedMessage :: [String] -> String
+closeExposedMessage exposed =
+  if null exposed
+    then ""
+    else
+      "\n\nClose matches include:" ++ concatMap ("\n    " ++) exposed
+
+
+closeQualifiedMessage :: [([String], String)] -> String
+closeQualifiedMessage qualified =
+  if null qualified
+    then ""
+    else
+      "\n\nMaybe you forgot to say which module it came from?\n"
+      ++ "Close qualified names include:"
+      ++ concatMap (("\n    " ++) . nameToString) qualified
+      ++ usingImportsMessage
+
+
+qualifiedMessage :: [String] -> [([String], String)] -> [([String], String)] -> String
+qualifiedMessage modul allQualified qualified =
+  let availableModules =
+        Set.fromList (map fst allQualified)
+  in
+      case Set.member modul availableModules of
+        True ->
+          let inSameModule =
+                filter ((==) modul . fst) qualified
+          in
+            if null inSameModule
+              then ""
+              else
+                "\n\nClose matches include:"
+                ++ concatMap (("\n    " ++) . nameToString) inSameModule
+
+        False ->
+          let closeModules =
+                Set.toList availableModules
+                  |> map Module.nameToString
+                  |> nearbyNames id (Module.nameToString modul)
+          in
+            case closeModules of
+              [] ->
+                "\n\nLooks like the prefix '" ++ Module.nameToString modul
+                ++ "' is not in scope. Is it spelled correctly?"
+                ++ "\nIs it imported correctly?"
+                ++ usingImportsMessage
+
+              _ ->
+                "\n\nClose matches to '" ++ Module.nameToString modul ++ "' include:"
+                ++ concatMap ("\n    " ++) closeModules
+
+
+usingImportsMessage :: String
+usingImportsMessage =
+  "\n\nYou can read about how imports work at the following address:"
+  ++ "\n<http://elm-lang.org/learn/Syntax.elm#modules>"
 

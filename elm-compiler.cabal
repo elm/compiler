@@ -115,6 +115,7 @@ Library
         cmdargs >= 0.7 && < 0.11,
         containers >= 0.3 && < 0.6,
         directory >= 1.0 && < 2.0,
+        edit-distance >= 0.2 && < 0.3,
         filepath >= 1 && < 2.0,
         indents >= 0.3 && < 0.4,
         language-ecmascript >= 0.15 && < 0.18,
