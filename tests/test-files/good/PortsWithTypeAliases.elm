@@ -6,7 +6,7 @@ type alias Point a b =
     { x:a, y:b }
 
 
-port points : Signal Point2D
+input points : Signal Point2D
 
 
-port pairs : Signal (Point String String)
+input pairs : Signal (Point String String)
