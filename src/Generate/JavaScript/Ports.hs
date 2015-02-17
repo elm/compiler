@@ -66,7 +66,8 @@ incoming tipe =
     Aliased _ t -> incoming t
 
     App (Type v) [t]
-        | Var.isSignal v -> obj ["_P","incomingSignal"] <| incoming t
+      | Var.isSignal v ->
+          obj ["_P","incomingSignal"] <| incoming t
 
     _ -> ["v"] ==> inc tipe (ref "v")
 
@@ -124,10 +125,10 @@ inc tipe x =
 
       Record fields Nothing ->
           check x (JSObject (map fst fields)) object
-          where
-            object = ObjectLit () $ (prop "_", ObjectLit () []) : keys
-            keys = map convert fields
-            convert (f,t) = (prop f, inc t (DotRef () x (var f)))
+        where
+          object = ObjectLit () $ (prop "_", ObjectLit () []) : keys
+          keys = map convert fields
+          convert (f,t) = (prop f, inc t (DotRef () x (var f)))
 
 
 incomingTuple :: [CanonicalType] -> Expression () -> Expression ()
@@ -146,11 +147,25 @@ incomingTuple types x =
 
 outgoing :: CanonicalType -> Expression ()
 outgoing tipe =
-  case tipe of
-    Aliased _ t -> outgoing t
+  case T.dealias tipe of
+    App (Type signal) [ App (Type promise) [_,_] ]
+      | Var.isSignal signal && Var.isPromise promise ->
+          obj ["_P","promiseStream"]
 
+    App (Type promise) [_,_]
+      | Var.isPromise promise ->
+          obj ["_P","promise"]
+
+    _ ->
+        outgoingFunc tipe
+
+
+outgoingFunc :: CanonicalType -> Expression ()
+outgoingFunc tipe =
+  case tipe of
     App (Type v) [t]
-        | Var.isSignal v -> obj ["_P","outgoingSignal"] <| outgoing t
+      | Var.isSignal v ->
+          obj ["_P","outgoingSignal"] <| outgoingFunc t
 
     _ -> ["v"] ==> out tipe (ref "v")
 
@@ -195,10 +210,10 @@ out tipe x =
                         (out t (DotRef () x (var "_0")))
 
                 | Var.isArray name ->
-                    DotRef () (_Array "toJSArray" <| x) (var "map") <| outgoing t
+                    DotRef () (_Array "toJSArray" <| x) (var "map") <| outgoingFunc t
 
                 | Var.isList name ->
-                    DotRef () (_List "toArray" <| x) (var "map") <| outgoing t
+                    DotRef () (_List "toArray" <| x) (var "map") <| outgoingFunc t
 
             Type name : ts
                 | Var.isTuple name ->

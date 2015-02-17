@@ -1,6 +1,7 @@
 module AST.Type where
 
 import Control.Applicative ((<$>), (<*>))
+import Control.Arrow (second)
 import Data.Binary
 import qualified Data.Map as Map
 
@@ -30,7 +31,10 @@ type CanonicalType =
 
 fieldMap :: [(String,a)] -> Map.Map String [a]
 fieldMap fields =
-  foldl (\r (field,tipe) -> Map.insertWith (++) field [tipe] r) Map.empty fields
+  let add r (field,tipe) =
+        Map.insertWith (++) field [tipe] r
+  in
+      foldl add Map.empty fields
 
 
 recordOf :: [(String, Type var)] -> Type var
@@ -49,6 +53,28 @@ tupleOf types =
   in
       App (Type name) types
     
+
+dealias :: Type v -> Type v
+dealias tipe =
+  case tipe of
+    Lambda arg body ->
+        Lambda (dealias arg) (dealias body)
+
+    Var _ ->
+        tipe
+
+    Type _ ->
+        tipe
+
+    App f args ->
+        App (dealias f) (map dealias args)
+
+    Record fields ext ->
+        Record (map (second dealias) fields) (fmap dealias ext)
+
+    Aliased _ t ->
+        dealias t
+
 
 instance (Var.ToString var, Pretty var) => Pretty (Type var) where
   pretty tipe =

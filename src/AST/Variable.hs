@@ -63,6 +63,11 @@ isSignal =
     is ["Signal"] "Signal"
 
 
+isPromise :: Canonical -> Bool
+isPromise =
+    is ["Promise"] "Promise"
+
+
 isList :: Canonical -> Bool
 isList v =
     v == Canonical BuiltIn "List"

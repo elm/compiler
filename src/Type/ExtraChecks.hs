@@ -93,6 +93,12 @@ portTypes expr =
               | V.isArray  v -> valid t
               | V.isList   v -> valid t
 
+          ST.App (ST.Type v) [_, _]
+              | V.isPromise v ->
+                  case direction of
+                    In -> err "promises"
+                    Out -> return ()
+
           ST.App (ST.Type v) ts
               | V.isTuple v -> mapM_ valid ts
                     
@@ -135,7 +141,7 @@ portTypes expr =
               , P.nest 4 (PP.pretty tipe) <> P.text "\n"
               , txt [ "Acceptable values for ", dir "incoming" "outgoing", " ports include:" ]
               , txt [ "    Ints, Floats, Bools, Strings, Maybes, Lists, Arrays, Tuples, unit values," ]
-              , txt [ "    Json.Values, ", dir "" "first-order functions, ", "and concrete records." ]
+              , txt [ "    Json.Values, ", dir "" "first-order functions, promises, ", "and concrete records." ]
               ]
 
 
