@@ -12,7 +12,7 @@ import qualified Parse.Type as Type
 
 declaration :: IParser D.SourceDecl
 declaration =
-    typeDecl <|> infixDecl <|> port <|> definition
+    typeDecl <|> infixDecl <|> input <|> output <|> definition
 
 
 definition :: IParser D.SourceDecl
@@ -53,19 +53,35 @@ infixDecl = do
   D.Fixity assoc (read [n]) <$> anyOp
 
 
-port :: IParser D.SourceDecl
-port =
-  do  try (reserved "port")
+input :: IParser D.SourceDecl
+input =
+  do  try (reserved "input")
       whitespace
       name <- lowVar
       whitespace
-      let port' op ctor expr =
-            do  try op
-                whitespace
-                ctor name <$> expr
+      ioEnding D.InputAnnotation name hasType Type.expr
 
-      D.Port <$>
-          choice
-            [ port' hasType D.PPAnnotation Type.expr
-            , port' equals  D.PPDef Expr.expr
-            ]
+
+output :: IParser D.SourceDecl
+output =
+  do  try (reserved "output")
+      whitespace
+      name <- lowVar
+      whitespace
+      choice
+        [ ioEnding D.OutputAnnotation name hasType Type.expr
+        , ioEnding D.OutputDef name equals Expr.expr
+        ]
+
+
+ioEnding
+    :: (String -> a -> D.RawPort)
+    -> String
+    -> IParser String
+    -> IParser a
+    -> IParser D.SourceDecl
+ioEnding decl name op valueParser =
+      do  op
+          whitespace
+          value <- valueParser
+          return (D.Port (decl name value))

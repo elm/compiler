@@ -11,7 +11,6 @@ import AST.PrettyPrint
 import Text.PrettyPrint as P
 
 
-
 data Declaration' port def var
     = Definition def
     | Datatype String [String] [(String, [T.Type var])]
@@ -25,8 +24,9 @@ data Assoc = L | N | R
 
 
 data RawPort
-    = PPAnnotation String T.RawType
-    | PPDef String Source.Expr
+    = InputAnnotation String T.RawType
+    | OutputAnnotation String T.RawType
+    | OutputDef String Source.Expr
 
 
 data Port expr var
@@ -34,11 +34,16 @@ data Port expr var
     | In String (T.Type var)
 
 
-type SourceDecl    = Declaration' RawPort Source.Def Var.Raw
-type ValidDecl     = Declaration' (Port Valid.Expr Var.Raw) Valid.Def Var.Raw
-type CanonicalDecl = Declaration' (Port Canonical.Expr Var.Canonical)
-                                  Canonical.Def
-                                  Var.Canonical
+type SourceDecl =
+  Declaration' RawPort Source.Def Var.Raw
+
+
+type ValidDecl =
+  Declaration' (Port Valid.Expr Var.Raw) Valid.Def Var.Raw
+
+
+type CanonicalDecl =
+  Declaration' (Port Canonical.Expr Var.Canonical) Canonical.Def Var.Canonical
 
 
 portName :: Port expr var -> String
@@ -119,26 +124,29 @@ instance (Pretty port, Pretty def, Pretty var, Var.ToString var) =>
 instance Pretty RawPort where
   pretty port =
     case port of
-      PPAnnotation name tipe ->
-          prettyPort name ":" tipe
+      InputAnnotation name tipe ->
+          prettyPort "input" name ":" tipe
 
-      PPDef name expr ->
-          prettyPort name "=" expr
+      OutputAnnotation name tipe ->
+          prettyPort "output" name ":" tipe
+
+      OutputDef name expr ->
+          prettyPort "output" name "=" expr
 
 
 instance (Pretty expr, Pretty var, Var.ToString var) => Pretty (Port expr var) where
   pretty port =
     case port of
       In name tipe ->
-          prettyPort name ":" tipe
+          prettyPort "input" name ":" tipe
 
       Out name expr tipe ->
           P.vcat
-            [ prettyPort name ":" tipe
-            , prettyPort name "=" expr
+            [ prettyPort "output" name ":" tipe
+            , prettyPort "output" name "=" expr
             ]
           
 
-prettyPort :: (Pretty a) => String -> String -> a -> Doc
-prettyPort name op e =
-    P.text "port" <+> P.text name <+> P.text op <+> pretty e
+prettyPort :: (Pretty a) => String -> String -> String -> a -> Doc
+prettyPort keyword name op e =
+    P.text keyword <+> P.text name <+> P.text op <+> pretty e
