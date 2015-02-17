@@ -33,10 +33,10 @@ internalImports name =
     , include "_P" "Ports"
     , varDecl Help.localModuleName (string (Module.nameToString name))
     ]
-    where
-      include :: String -> String -> VarDecl ()
-      include alias modul =
-          varDecl alias (Help.make ["_N", modul])
+  where
+    include :: String -> String -> VarDecl ()
+    include alias modul =
+        varDecl alias (Help.make ["_N", modul])
 
 
 _Utils :: String -> Expression ()
@@ -256,13 +256,14 @@ match :: Region -> Case.Match -> State Int [Statement ()]
 match region mtch =
   case mtch of
     Case.Match name clauses mtch' ->
-        do (isChars, clauses') <- unzip <$> mapM (clause region name) clauses
-           mtch'' <- match region mtch'
-           return (SwitchStmt () (format isChars (access name)) clauses' : mtch'')
+        do  (isChars, clauses') <- unzip <$> mapM (clause region name) clauses
+            mtch'' <- match region mtch'
+            return (SwitchStmt () (format isChars (access name)) clauses' : mtch'')
         where
-          isLiteral p = case p of
-                          Case.Clause (Right _) _ _ -> True
-                          _ -> False
+          isLiteral p =
+            case p of
+              Case.Clause (Right _) _ _ -> True
+              _ -> False
 
           access name
               | any isLiteral clauses = obj [name]
@@ -275,26 +276,30 @@ match region mtch =
     Case.Fail ->
         return [ ExprStmt () (Help.throw "badCase" region) ]
 
-    Case.Break -> return [BreakStmt () Nothing]
+    Case.Break ->
+        return [BreakStmt () Nothing]
 
     Case.Other e ->
-        do e' <- expression e
-           return [ ret e' ]
+        do  e' <- expression e
+            return [ ret e' ]
 
-    Case.Seq ms -> concat <$> mapM (match region) (dropEnd [] ms)
-        where
-          dropEnd acc [] = acc
-          dropEnd acc (m:ms) =
-              case m of
-                Case.Other _ -> acc ++ [m]
-                _ -> dropEnd (acc ++ [m]) ms
+    Case.Seq ms ->
+        concat <$> mapM (match region) (dropEnd [] ms)
+      where
+        dropEnd acc [] = acc
+        dropEnd acc (m:ms) =
+            case m of
+              Case.Other _ -> acc ++ [m]
+              _ -> dropEnd (acc ++ [m]) ms
 
 
 clause :: Region -> String -> Case.Clause -> State Int (Bool, CaseClause ())
 clause region variable (Case.Clause value vars mtch) =
     (,) isChar . CaseClause () pattern <$> match region (Case.matchSubst (zip vars vars') mtch)
   where
-    vars' = map (\n -> variable ++ "._" ++ show n) [0..]
+    vars' =
+        map (\n -> variable ++ "._" ++ show n) [0..]
+
     (isChar, pattern) =
         case value of
           Right (Chr c) -> (True, string [c])
