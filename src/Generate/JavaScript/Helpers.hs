@@ -42,6 +42,11 @@ prop name =
     PropId () (var name)
 
 
+propBracketRef :: Expression () -> String -> Expression ()
+propBracketRef expr prop =
+    BracketRef () expr (StringLit () prop)
+
+
 string = StringLit ()
 
 

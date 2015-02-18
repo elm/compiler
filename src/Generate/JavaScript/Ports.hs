@@ -127,7 +127,7 @@ inc tipe x =
           where
             object = ObjectLit () $ (prop "_", ObjectLit () []) : keys
             keys = map convert fields
-            convert (f,t) = (prop f, inc t (DotRef () x (var f)))
+            convert (f,t) = (prop f, inc t (propBracketRef x f))
 
 
 incomingTuple :: [CanonicalType] -> Expression () -> Expression ()
@@ -214,4 +214,4 @@ out tipe x =
           ObjectLit () keys
           where
             keys = map convert fields
-            convert (f,t) = (PropId () (var f), out t (DotRef () x (var f)))
+            convert (f,t) = (PropString () f, out t (DotRef () x (var f)))
