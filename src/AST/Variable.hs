@@ -37,6 +37,11 @@ builtin :: String -> Canonical
 builtin x = Canonical BuiltIn x
 
 
+fromModule :: [String] -> String -> Canonical
+fromModule home name =
+    Canonical (Module home) name
+
+
 -- VARIABLE RECOGNIZERS
 
 is :: [String] -> String -> Canonical -> Bool

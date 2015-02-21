@@ -18,7 +18,7 @@ import qualified AST.Annotation as A
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.PrettyPrint as PP
 import qualified AST.Type as ST
-import qualified AST.Variable as V
+import qualified AST.Variable as Var
 import qualified Transform.Expression as Expr
 import qualified Type.Hint as Hint
 import qualified Type.Type as TT
@@ -30,41 +30,90 @@ throw err =
   Left [ P.vcat err ]
 
 
+-- MAIN TYPE
+
 mainType :: TS.Env -> ErrorT [P.Doc] IO (Map.Map String ST.CanonicalType)
 mainType environment =
   do  environment' <- liftIO $ Traverse.traverse TT.toSrcType environment
       mainCheck environment'
+
+
+mainCheck
+    :: (Monad m)
+    => Map.Map String ST.CanonicalType
+    -> ErrorT [P.Doc] m (Map.Map String ST.CanonicalType)
+mainCheck env =
+  case Map.lookup "main" env of
+    Nothing ->
+        return env
+
+    Just typeOfMain ->
+        let tipe = ST.dealias typeOfMain
+        in
+            if tipe `elem` validMainTypes
+              then return env
+              else throwError [ badMainMessage typeOfMain ]
+
+
+validMainTypes :: [ST.CanonicalType]
+validMainTypes =
+    [ element
+    , html
+    , varying element
+    , varying html
+    ]
   where
-    mainCheck
-        :: (Monad m) => Map.Map String ST.CanonicalType
-        -> ErrorT [P.Doc] m (Map.Map String ST.CanonicalType)
-    mainCheck env =
-      case Map.lookup "main" env of
-        Nothing -> return env
-        Just typeOfMain
-            | tipe `elem` acceptable -> return env
-            | otherwise              -> throwError [ err ]
-            where
-              acceptable =
-                  [ "Graphics.Element.Element"
-                  , "Signal.Signal Graphics.Element.Element"
-                  , "Html.Html"
-                  , "Signal.Signal Html.Html"
-                  ]
+    fromModule :: [String] -> String -> ST.CanonicalType
+    fromModule home name =
+      ST.Type (Var.fromModule home name)
 
-              tipe = PP.renderPretty typeOfMain
+    html =
+        fromModule ["VirtualDom"] "Node"
 
-              err =
-                P.vcat
-                  [ P.text "Type Error: 'main' must have one of the following types:"
-                  , P.text " "
-                  , P.text "    Element, Html, Signal Element, Signal Html"
-                  , P.text " "
-                  , P.text "Instead 'main' has type:\n"
-                  , P.nest 4 (PP.pretty typeOfMain)
-                  , P.text " "
-                  ]
+    varying tipe =
+        ST.App (fromModule ["Signal"] "Varying") [ tipe ]
 
+    element =
+      let builtin name =
+            ST.Type (Var.builtin name)
+
+          maybe tipe =
+            ST.App (fromModule ["Maybe"] "Maybe") [ tipe ]
+      in
+        ST.Record
+          [ ("element", fromModule ["Graphics","Element"] "ElementPrim")
+          , ("props",
+              ST.Record
+                [ ("click"  , builtin "_Tuple0")
+                , ("color"  , maybe (fromModule ["Color"] "Color"))
+                , ("height" , builtin "Int")
+                , ("hover"  , builtin "_Tuple0")
+                , ("href"   , builtin "String")
+                , ("id"     , builtin "Int")
+                , ("opacity", builtin "Float")
+                , ("tag"    , builtin "String")
+                , ("width"  , builtin "Int")
+                ]
+                Nothing
+            )
+          ]
+          Nothing
+
+
+badMainMessage :: ST.CanonicalType -> P.Doc
+badMainMessage typeOfMain =
+  P.vcat
+    [ P.text "Type Error: 'main' must have one of the following types:"
+    , P.text " "
+    , P.text "    Element, Html, Varying Element, Varying Html"
+    , P.text " "
+    , P.text "Instead 'main' has type:\n"
+    , P.nest 4 (PP.pretty typeOfMain)
+    , P.text " "
+    ]
+
+
+-- PORT TYPES
 
 data Direction = In | Out
 
@@ -81,27 +130,27 @@ portTypes expr =
           ST.Aliased _ t -> valid t
 
           ST.Type v ->
-              case any ($ v) [ V.isJson, V.isPrimitive, V.isTuple ] of
+              case any ($ v) [ Var.isJson, Var.isPrimitive, Var.isTuple ] of
                 True -> return ()
                 False -> err "an unsupported type"
 
           ST.App t [] -> valid t
 
           ST.App (ST.Type v) [t]
-              | V.isSignal v -> handleSignal t
-              | V.isMaybe  v -> valid t
-              | V.isArray  v -> valid t
-              | V.isList   v -> valid t
+              | Var.isSignal v -> handleSignal t
+              | Var.isMaybe  v -> valid t
+              | Var.isArray  v -> valid t
+              | Var.isList   v -> valid t
 
           ST.App (ST.Type v) [_, _]
-              | V.isPromise v ->
+              | Var.isPromise v ->
                   case direction of
                     In -> err "promises"
                     Out -> return ()
 
           ST.App (ST.Type v) ts
-              | V.isTuple v -> mapM_ valid ts
-                    
+              | Var.isTuple v -> mapM_ valid ts
+
           ST.App _ _ -> err "an unsupported type"
 
           ST.Var _ -> err "free type variables"
