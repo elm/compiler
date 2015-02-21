@@ -12,6 +12,7 @@ data JSType
     | JSBoolean
     | JSString
     | JSArray
+    | JSDate
     | JSObject [String]
 
 
@@ -22,6 +23,7 @@ typeToString tipe =
     JSBoolean -> "a boolean (true or false)"
     JSString -> "a string"
     JSArray -> "an array"
+    JSDate -> "a date"
     JSObject fields ->
       "an object with fields '" ++ List.intercalate "', '" fields ++ "'"
 
@@ -29,6 +31,11 @@ typeToString tipe =
 _Array :: String -> Expression ()
 _Array functionName =
     useLazy ["Elm","Native","Array"] functionName
+
+
+_Date :: String -> Expression ()
+_Date functionName =
+    useLazy ["Elm","Native","Date"] functionName
 
 
 _List :: String -> Expression ()
@@ -57,6 +64,7 @@ check x jsType continue =
           JSBoolean -> [typeof "boolean"]
           JSString  -> [typeof "string", instanceof "String"]
           JSArray   -> [instanceof "Array"]
+          JSDate    -> [instanceof "Date"]
           JSObject fields -> [jsFold OpLAnd (typeof "object" : map member fields)]
 
 
@@ -84,6 +92,7 @@ inc tipe x =
           | name == "Float"  -> from JSNumber
           | name == "Bool"   -> from JSBoolean
           | name == "String" -> from JSString
+          | name == "Date"   -> from JSDate
           where
             from checks = check x checks x
 
@@ -178,7 +187,7 @@ out tipe x =
       Var _ -> error "type variables should not be allowed through input ports"
 
       Type (Var.Canonical Var.BuiltIn name)
-          | name `elem` ["Int","Float","Bool","String"] -> x
+          | name `elem` ["Int","Float","Bool","String","Date"] -> x
 
       Type name
           | Var.isJson name -> x
