@@ -137,6 +137,16 @@ openListing =
     Listing [] True
 
 
+closedListing :: Listing a
+closedListing =
+    Listing [] False
+
+
+listing :: [a] -> Listing a
+listing xs =
+    Listing xs False
+
+
 -- | A value that can be imported or exported
 data Value
     = Value !String

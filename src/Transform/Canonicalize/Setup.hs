@@ -30,11 +30,18 @@ import qualified Transform.Interface as Interface
 
 environment :: Module.Interfaces -> Module.ValidModule -> Canonicalizer [Doc] Environment
 environment interfaces modul@(Module.Module _ _ _ imports decls) =
-  do () <- allImportsAvailable
-     let moduleName = Module.names modul
-     nonLocalEnv <- foldM (addImports moduleName interfaces) (builtIns moduleName) imports
-     let (aliases, env) = List.foldl' (addDecl moduleName) ([], nonLocalEnv) decls
-     addTypeAliases moduleName aliases env
+  do  () <- allImportsAvailable
+      let moduleName =
+            Module.names modul
+
+      nonLocalEnv <-
+          foldM (addImports moduleName interfaces) (builtIns moduleName) imports
+
+      let (aliases, env) =
+            List.foldl' (addDecl moduleName) ([], nonLocalEnv) decls
+
+      addTypeAliases moduleName aliases env
+
   where
     allImportsAvailable :: Canonicalizer [Doc] ()
     allImportsAvailable =
@@ -42,53 +49,80 @@ environment interfaces modul@(Module.Module _ _ _ imports decls) =
           [] -> return ()
           missings -> throwError [ P.text (missingModuleError missings) ]
         where
-          modules = map fst imports
+          modules =
+              map fst imports
 
-          found m = Map.member m interfaces || Module.nameIsNative m
+          found m =
+              Map.member m interfaces || Module.nameIsNative m
 
           missingModuleError missings =
-              concat [ "The following imports were not found:\n    "
-                     , List.intercalate ", " (map Module.nameToString missings)
-                     ]
+              concat
+                [ "The following imports were not found:\n    "
+                , List.intercalate ", " (map Module.nameToString missings)
+                ]
 
 
-addImports :: Module.Name -> Module.Interfaces -> Environment -> (Module.Name, Module.ImportMethod)
-           -> Canonicalizer [Doc] Environment
+addImports
+    :: Module.Name
+    -> Module.Interfaces
+    -> Environment
+    -> (Module.Name, Module.ImportMethod)
+    -> Canonicalizer [Doc] Environment
 addImports moduleName interfaces environ (name, method)
-    | Module.nameIsNative name = return environ
+    | Module.nameIsNative name =
+        return environ
+
     | otherwise =
-        case method of
-          Module.As name' ->
-              return (updateEnviron (name' ++ "."))
+        let (Module.ImportMethod maybeAlias listing) = method
 
-          Module.Open (Var.Listing vs open)
-              | open -> return (updateEnviron "")
-              | otherwise -> foldM (addValue name interface) environ vs
-    where
-      interface = Interface.filterExports ((Map.!) interfaces name)
+            (Var.Listing exposedVars open) = listing
 
-      updateEnviron prefix =
-          let dict' = dict . map (first (prefix++)) in
-          merge environ $
-          Env { _home     = moduleName
-              , _values   = dict' $ map pair (Map.keys (iTypes interface)) ++ ctors
-              , _adts     = dict' $ map pair (Map.keys (iAdts interface))
-              , _aliases  = dict' $ map alias (Map.toList (iAliases interface))
-              , _patterns = dict' $ ctors
-              }
+            qualifier =
+              maybe (Module.nameToString name) id maybeAlias
 
-      canonical :: String -> Var.Canonical
-      canonical = Var.Canonical (Var.Module name)
+            env =
+              updateEnviron (qualifier ++ ".") environ
+        in
+            if open
+              then return (updateEnviron "" env)
+              else foldM (addValue name interface) env exposedVars
+  where
+    interface =
+        Interface.filterExports ((Map.!) interfaces name)
 
-      pair :: String -> (String, Var.Canonical)
-      pair key = (key, canonical key)
+    updateEnviron prefix env =
+        let dict' = dict . map (first (prefix++)) in
+        merge env $
+        Env { _home     = moduleName
+            , _values   = dict' $ map pair (Map.keys (iTypes interface)) ++ ctors
+            , _adts     = dict' $ map pair (Map.keys (iAdts interface))
+            , _aliases  = dict' $ map alias (Map.toList (iAliases interface))
+            , _patterns = dict' $ ctors
+            }
 
-      alias (x,(tvars,tipe)) = (x, (canonical x, tvars, tipe))
+    canonical :: String -> Var.Canonical
+    canonical =
+        Var.Canonical (Var.Module name)
 
-      ctors = concatMap (map (pair . fst) . snd . snd) (Map.toList (iAdts interface))
+    pair :: String -> (String, Var.Canonical)
+    pair key =
+        (key, canonical key)
 
-addValue :: Module.Name -> Module.Interface -> Environment -> Var.Value
-         -> Canonicalizer [Doc] Environment
+    alias (x,(tvars,tipe)) =
+        (x, (canonical x, tvars, tipe))
+
+    ctors =
+        concatMap
+            (map (pair . fst) . snd . snd)
+            (Map.toList (iAdts interface))
+
+
+addValue
+    :: Module.Name
+    -> Module.Interface
+    -> Environment
+    -> Var.Value
+    -> Canonicalizer [Doc] Environment
 addValue moduleName interface env value =
     let name = Module.nameToString moduleName
         insert' x = insert x (Var.Canonical (Var.Module moduleName) x)
@@ -98,7 +132,9 @@ addValue moduleName interface env value =
     in
     case value of
       Var.Value x
-          | Map.notMember x (iTypes interface) -> notFound x
+          | Map.notMember x (iTypes interface) ->
+              notFound x
+
           | otherwise ->
               return $ env { _values = insert' x (_values env) }
 
@@ -126,11 +162,12 @@ addValue moduleName interface env value =
           case Map.lookup x (iAdts interface) of
             Nothing -> notFound x
             Just (_tvars, ctors) ->
-                do ctors' <- filterNames (map fst ctors)
-                   return $ env { _adts = insert' x (_adts env)
-                                , _values = foldr insert' (_values env) ctors'
-                                , _patterns = foldr insert' (_patterns env) ctors'
-                                }
+                do  ctors' <- filterNames (map fst ctors)
+                    return $ env
+                        { _adts = insert' x (_adts env)
+                        , _values = foldr insert' (_values env) ctors'
+                        , _patterns = foldr insert' (_patterns env) ctors'
+                        }
                 where
                   filterNames names
                       | open = return names
@@ -139,19 +176,22 @@ addValue moduleName interface env value =
                             [] -> return names
                             c:_ -> notFound c
 
+
 type Node = ((String, [String], Type.RawType), String, [String])
 
+
 node :: String -> [String] -> Type.RawType -> Node
-node name tvars alias = ((name, tvars, alias), name, edges alias)
-    where
-      edges tipe =
-          case tipe of
-            Type.Lambda t1 t2 -> edges t1 ++ edges t2
-            Type.Var _ -> []
-            Type.Type (Var.Raw x) -> [x]
-            Type.App t ts -> edges t ++ concatMap edges ts
-            Type.Record fs ext -> maybe [] edges ext ++ concatMap (edges . snd) fs
-            Type.Aliased _ t -> edges t
+node name tvars alias =
+    ((name, tvars, alias), name, edges alias)
+  where
+    edges tipe =
+        case tipe of
+          Type.Lambda t1 t2 -> edges t1 ++ edges t2
+          Type.Var _ -> []
+          Type.Type (Var.Raw x) -> [x]
+          Type.App t ts -> edges t ++ concatMap edges ts
+          Type.Record fs ext -> maybe [] edges ext ++ concatMap (edges . snd) fs
+          Type.Aliased _ t -> edges t
 
 
 addTypeAliases
@@ -232,7 +272,11 @@ typeAliasErrorExplanation =
 -- When canonicalizing, all _values should be Local, but all _adts and _patterns
 -- should be fully namespaced. With _adts, they may appear in types that can
 -- escape the module.
-addDecl :: Module.Name -> ([Node], Environment) -> D.ValidDecl -> ([Node], Environment)
+addDecl
+    :: Module.Name
+    -> ([Node], Environment)
+    -> D.ValidDecl
+    -> ([Node], Environment)
 addDecl moduleName info@(nodes,env) decl =
     let namespacedVar     = Var.Canonical (Var.Module moduleName)
         addLocal      x e = insert x (Var.local     x) e
@@ -241,29 +285,41 @@ addDecl moduleName info@(nodes,env) decl =
     case decl of
       D.Definition (Valid.Definition pattern _ _) ->
           (,) nodes $ env
-           { _values = foldr addLocal (_values env) (P.boundVarList pattern) }
+              { _values =
+                  foldr addLocal (_values env) (P.boundVarList pattern)
+              }
 
       D.Datatype name _ ctors ->
           (,) nodes $ env
-           { _values   = addCtors addLocal (_values env)
-           , _adts     = addNamespaced name (_adts env)
-           , _patterns = addCtors addNamespaced (_patterns env)
-           }
+              { _values =
+                  addCtors addLocal (_values env)
+              , _adts =
+                  addNamespaced name (_adts env)
+              , _patterns =
+                  addCtors addNamespaced (_patterns env)
+              }
         where
           addCtors how e = foldr how e (map fst ctors)
 
       D.TypeAlias name tvars alias ->
           (,) (node name tvars alias : nodes) $ env
-           { _values = case alias of
-                         Type.Record _ _ -> addLocal name (_values env)
-                         _               -> _values env
-           }
+              { _values =
+                  case alias of
+                    Type.Record _ _ ->
+                        addLocal name (_values env)
+                    _ ->
+                        _values env
+              }
 
       D.Port port ->
-          let portName = case port of
-                           D.Out name _ _ -> name
-                           D.In name _    -> name
+          let portName =
+                case port of
+                  D.Out name _ _ -> name
+                  D.In name _    -> name
           in
-              (,) nodes $ env { _values = addLocal portName (_values env) }
+              (,) nodes $ env
+                  { _values =
+                      addLocal portName (_values env)
+                  }
 
       D.Fixity _ _ _ -> info

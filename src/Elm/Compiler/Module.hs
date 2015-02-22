@@ -34,7 +34,7 @@ newtype Name = Name [String]
 
 defaultImports :: [Name]
 defaultImports =
-    map Name (Map.keys Defaults.defaultImports)
+    map (Name . fst) Defaults.defaultImports
 
 
 -- POKING AROUND INTERFACES
