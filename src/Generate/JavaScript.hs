@@ -62,46 +62,48 @@ literal lit =
 expression :: Canonical.Expr -> State Int (Expression ())
 expression (A region expr) =
     case expr of
-      Var var -> return $ Var.canonical var
+      Var var ->
+          return $ Var.canonical var
 
-      Literal lit -> return $ literal lit
+      Literal lit ->
+          return $ literal lit
 
       Range lo hi ->
-          do lo' <- expression lo
-             hi' <- expression hi
-             return $ _List "range" `call` [lo',hi']
+          do  lo' <- expression lo
+              hi' <- expression hi
+              return $ _List "range" `call` [lo',hi']
 
       Access e field ->
-          do e' <- expression e
-             return $ DotRef () e' (var (Var.varName field))
+          do  e' <- expression e
+              return $ DotRef () e' (var (Var.varName field))
 
       Remove e field ->
-          do e' <- expression e
-             return $ _Utils "remove" `call` [ string (Var.varName field), e' ]
+          do  e' <- expression e
+              return $ _Utils "remove" `call` [ string (Var.varName field), e' ]
 
       Insert e field value ->
-          do value' <- expression value
-             e' <- expression e
-             return $ _Utils "insert" `call` [ string (Var.varName field), value', e' ]
+          do  value' <- expression value
+              e' <- expression e
+              return $ _Utils "insert" `call` [ string (Var.varName field), value', e' ]
 
       Modify e fields ->
-          do e' <- expression e
-             fields' <-
+          do  e' <- expression e
+              fields' <-
                 forM fields $ \(field, value) ->
                   do  value' <- expression value
                       return $ ArrayLit () [ string (Var.varName field), value' ]
 
-             return $ _Utils "replace" `call` [ArrayLit () fields', e']
+              return $ _Utils "replace" `call` [ArrayLit () fields', e']
 
       Record fields ->
-          do fields' <-
+          do  fields' <-
                 forM fields $ \(field, e) ->
                     (,) (Var.varName field) <$> expression e
 
-             let fieldMap =
+              let fieldMap =
                     List.foldl' combine Map.empty fields'
 
-             return $ ObjectLit () $ (prop "_", hidden fieldMap) : visible fieldMap
+              return $ ObjectLit () $ (prop "_", hidden fieldMap) : visible fieldMap
           where
             combine record (field, value) =
                 Map.insertWith (++) field [value] record
@@ -113,21 +115,26 @@ expression (A region expr) =
             visible fs =
                 map (first prop) (Map.toList (Map.map head fs))
 
-      Binop op e1 e2 -> binop region op e1 e2
+      Binop op e1 e2 ->
+          binop region op e1 e2
 
       Lambda p e@(A ann _) ->
-          do (args, body) <- foldM depattern ([], innerBody) (reverse patterns)
-             body' <- expression body
-             return $ case length args < 2 || length args > 9 of
-                        True  -> foldr (==>) body' (map (:[]) args)
-                        False -> ref ("F" ++ show (length args)) <| (args ==> body')
+          do  (args, body) <- foldM depattern ([], innerBody) (reverse patterns)
+              body' <- expression body
+              return $
+                case length args < 2 || length args > 9 of
+                  True  -> foldr (==>) body' (map (:[]) args)
+                  False -> ref ("F" ++ show (length args)) <| (args ==> body')
           where
             depattern (args, body) pattern =
                 case pattern of
-                  P.Var x -> return (args ++ [ Var.varName x ], body)
-                  _ -> do arg <- Case.newVar
+                  P.Var x ->
+                      return (args ++ [ Var.varName x ], body)
+                  _ ->
+                      do  arg <- Case.newVar
                           return ( args ++ [arg]
-                                 , A ann (Case (A ann (localVar arg)) [(pattern, body)]))
+                                 , A ann (Case (A ann (localVar arg)) [(pattern, body)])
+                                 )
 
             (patterns, innerBody) = collect [p] e
 
@@ -137,12 +144,13 @@ expression (A region expr) =
                   _ -> (patterns, lexpr)
 
       App e1 e2 ->
-          do func' <- expression func
-             args' <- mapM expression args
-             return $ case args' of
-                        [arg] -> func' <| arg
-                        _ | length args' <= 9 -> ref aN `call` (func':args')
-                          | otherwise         -> foldl1 (<|) (func':args')
+          do  func' <- expression func
+              args' <- mapM expression args
+              return $
+                case args' of
+                  [arg] -> func' <| arg
+                  _ | length args' <= 9 -> ref aN `call` (func':args')
+                    | otherwise         -> foldl1 (<|) (func':args')
           where
             aN = "A" ++ show (length args)
             (func, args) = getArgs e1 [e2]
@@ -152,49 +160,50 @@ expression (A region expr) =
                   _ -> (func, args)
 
       Let defs e ->
-          do let (defs',e') = flattenLets defs e 
-             stmts <- concat <$> mapM definition defs'
-             exp <- expression e'
-             return $ function [] (stmts ++ [ ret exp ]) `call` []
+          do  let (defs',e') = flattenLets defs e
+              stmts <- concat <$> mapM definition defs'
+              exp <- expression e'
+              return $ function [] (stmts ++ [ ret exp ]) `call` []
 
       MultiIf branches ->
-          do branches' <- forM branches $ \(b,e) -> (,) <$> expression b <*> expression e
-             return $ case last branches of
-               (A _ (Var (Var.Canonical (Var.Module ["Basics"]) "otherwise")), _) ->
-                   safeIfs branches'
-               (A _ (Literal (Boolean True)), _) -> safeIfs branches'
-               _ -> ifs branches' (throw "badIf" region)
+          do  branches' <- forM branches $ \(b,e) -> (,) <$> expression b <*> expression e
+              return $
+                case last branches of
+                  (A _ (Var (Var.Canonical (Var.Module ["Basics"]) "otherwise")), _) ->
+                      safeIfs branches'
+                  (A _ (Literal (Boolean True)), _) -> safeIfs branches'
+                  _ -> ifs branches' (throw "badIf" region)
           where
             safeIfs branches = ifs (init branches) (snd (last branches))
             ifs branches finally = foldr iff finally branches
             iff (if', then') else' = CondExpr () if' then' else'
 
       Case e cases ->
-          do (tempVar,initialMatch) <- Case.toMatch cases
-             (revisedMatch, stmt) <-
-                 case e of
-                   A _ (Var (Var.Canonical Var.Local x)) ->
-                       return (Case.matchSubst [(tempVar, Var.varName x)] initialMatch, [])
-                   _ ->
-                       do e' <- expression e
-                          return (initialMatch, [VarDeclStmt () [varDecl tempVar e']])
-             match' <- match region revisedMatch
-             return (function [] (stmt ++ match') `call` [])
+          do  (tempVar,initialMatch) <- Case.toMatch cases
+              (revisedMatch, stmt) <-
+                  case e of
+                    A _ (Var (Var.Canonical Var.Local x)) ->
+                        return (Case.matchSubst [(tempVar, Var.varName x)] initialMatch, [])
+                    _ ->
+                        do  e' <- expression e
+                            return (initialMatch, [VarDeclStmt () [varDecl tempVar e']])
+              match' <- match region revisedMatch
+              return (function [] (stmt ++ match') `call` [])
 
       ExplicitList es ->
-          do es' <- mapM expression es
-             return $ _List "fromArray" <| ArrayLit () es'
+          do  es' <- mapM expression es
+              return $ _List "fromArray" <| ArrayLit () es'
 
       Data name es ->
-          do es' <- mapM expression es
-             return $ ObjectLit () (ctor : fields es')
+          do  es' <- mapM expression es
+              return $ ObjectLit () (ctor : fields es')
           where
             ctor = (prop "ctor", string name)
             fields = zipWith (\n e -> (prop ("_" ++ show n), e)) [0..]
 
       GLShader _uid src _tipe ->
-        return $ ObjectLit () [(PropString () "src", literal (Str src))]
-          
+          return $ ObjectLit () [(PropString () "src", literal (Str src))]
+
       PortIn name tipe ->
           return $ obj ["_P","portIn"] `call`
                      [ string name, Port.incoming tipe ]
@@ -319,7 +328,7 @@ flattenLets defs lexpr@(A _ expr) =
       _ -> (defs, lexpr)
 
 
-generate :: CanonicalModule -> String 
+generate :: CanonicalModule -> String
 generate modul =
     show . prettyPrint $ setup "Elm" (names ++ ["make"]) ++
              [ assign ("Elm" : names ++ ["make"]) (function [localRuntime] programStmts) ]
@@ -380,7 +389,7 @@ generate modul =
 
                 Var.Union _ (Var.Listing ctors _) ->
                     map Var.varName ctors
-          
+
     assign path expr =
       case path of
         [x] -> VarDeclStmt () [ varDecl x expr ]
