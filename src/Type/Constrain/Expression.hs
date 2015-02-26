@@ -37,13 +37,13 @@ constrain env (A region expr) tipe =
     case expr of
       Literal lit -> liftIO $ Literal.constrain env region lit tipe
 
-      GLShader _uid _src gltipe -> 
-          exists $ \attr -> 
-          exists $ \unif -> 
-            let 
+      GLShader _uid _src gltipe ->
+          exists $ \attr ->
+          exists $ \unif ->
+            let
               shaderTipe a u v = Env.get env Env.types "WebGL.Shader" <| a <| u <| v
               glTipe = Env.get env Env.types . Lit.glTipeName
-              makeRec accessor baseRec = 
+              makeRec accessor baseRec =
                 let decls = accessor gltipe
                 in if Map.size decls == 0
                    then baseRec
@@ -93,7 +93,7 @@ constrain env (A region expr) tipe =
             return $ c1 /\ c2
 
       MultiIf branches -> and <$> mapM constrain' branches
-          where 
+          where
              bool = Env.get env Env.types "Bool"
              constrain' (b,e) = do
                   cb <- constrain env b bool
