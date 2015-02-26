@@ -22,6 +22,7 @@ import qualified AST.PrettyPrint as P
 import qualified AST.Variable as Variable
 import Elm.Utils ((|>))
 
+
 reserveds :: [String]
 reserveds =
     [ "if", "then", "else"
@@ -83,7 +84,7 @@ rLabel = lowVar
 
 innerVarChar :: IParser Char
 innerVarChar =
-  alphaNum <|> char '_' <|> char '\'' <?> "" 
+  alphaNum <|> char '_' <|> char '\'' <?> ""
 
 
 makeVar :: IParser Char -> IParser String
@@ -459,10 +460,10 @@ glSource src =
     Left e -> Left e
     Right (GLS.TranslationUnit decls) ->
       map extractGLinputs decls
-        |> join 
+        |> join
         |> foldr addGLinput emptyDecls
         |> Right
-  where 
+  where
     emptyDecls = L.GLShaderTipe Map.empty Map.empty Map.empty
 
     addGLinput (qual,tipe,name) glDecls =
@@ -491,11 +492,11 @@ glSource src =
             case elem qual [GLS.Attribute, GLS.Varying, GLS.Uniform] of
               False -> []
               True ->
-                  case tipe of 
+                  case tipe of
                     GLS.Int -> return (qual, L.Int,name)
                     GLS.Float -> return (qual, L.Float,name)
                     GLS.Vec2 -> return (qual, L.V2,name)
-                    GLS.Vec3 -> return (qual, L.V3,name) 
+                    GLS.Vec3 -> return (qual, L.V3,name)
                     GLS.Vec4 -> return (qual, L.V4,name)
                     GLS.Mat4 -> return (qual, L.M4,name)
                     GLS.Sampler2D -> return (qual, L.Texture,name)
