@@ -52,7 +52,7 @@ duplicateValues decls =
         unzip [ (pat,expr) | D.Definition (Valid.Definition pat expr _) <- decls ]
 
     (portNames, portExprs) =
-        Arrow.second concat $ unzip $ 
+        Arrow.second concat $ unzip $
         flip map [ port | D.Port port <- decls ] $ \port ->
             case port of
               D.Out name expr _ -> (name, [expr])
@@ -70,7 +70,7 @@ duplicateValues decls =
 
 
 duplicateTypeDeclarations :: [D.ValidDecl] -> [String]
-duplicateTypeDeclarations decls = 
+duplicateTypeDeclarations decls =
     map dupTypeError (dups (typeNames ++ aliasNames))
     ++ map dupCtorError (dups (ctorNames ++ aliasNames))
   where
@@ -118,7 +118,7 @@ illFormedTypes decls = map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
             declared = Set.fromList tvars
 
       isIllFormed (decl, tvars, tipes) =
-          let unbound = undeclared tvars tipes in 
+          let unbound = undeclared tvars tipes in
           if Set.null unbound then Nothing
                               else Just (decl, Set.toList unbound)
 
