@@ -76,7 +76,7 @@ moduleHelp interfaces modul@(Module.Module _ _ exports _ decls) =
          , aliases =
              Map.fromList [ (name,(tvs,alias)) | D.TypeAlias name tvs alias <- decls ]
          , ports =
-             [ D.portName port | D.Port port <- decls ]
+             [ D.wireName wire | D.Wire wire <- decls ]
          }
 
 
@@ -181,7 +181,7 @@ declaration env decl =
     let canonicalize kind context pattern env v =
             let ctx = P.text ("Error in " ++ context) <+> pretty pattern <> P.colon
                 throw err = P.vcat [ ctx, P.text err ]
-            in 
+            in
                 Env.onError throw (kind env v)
     in
     case decl of
@@ -201,18 +201,24 @@ declaration env decl =
           do  expanded' <- canonicalize Canonicalize.tipe "type alias" name env expanded
               return (D.TypeAlias name tvars expanded')
 
-      D.Port port ->
+      D.Wire wire ->
           do  Env.uses ["Native","Ports"]
               Env.uses ["Native","Json"]
-              D.Port <$>
-                  case port of
-                    D.In name t ->
-                        do  t' <- canonicalize Canonicalize.tipe "port" name env t
-                            return (D.In name t')
-                    D.Out name e t ->
+              D.Wire <$>
+                  case wire of
+                    D.Input name t ->
+                        do  t' <- canonicalize Canonicalize.tipe "input" name env t
+                            return (D.Input name t')
+
+                    D.Output name e t ->
                         do  e' <- expression env e
-                            t' <- canonicalize Canonicalize.tipe "port" name env t
-                            return (D.Out name e' t')
+                            t' <- canonicalize Canonicalize.tipe "output" name env t
+                            return (D.Output name e' t')
+
+                    D.Loopback name maybeExpr t ->
+                        do  maybeExpr' <- T.traverse (expression env) maybeExpr
+                            t' <- canonicalize Canonicalize.tipe "input" name env t
+                            return (D.Loopback name maybeExpr' t')
 
       D.Fixity assoc prec op ->
           return $ D.Fixity assoc prec op
@@ -298,11 +304,14 @@ expression env (A.A ann expr) =
               (,) <$> format (pattern env p)
                   <*> expression (Env.addPattern p env) b
 
-      PortIn name st ->
-          PortIn name <$> tipe' env st
+      Input name tipe ->
+          Input name <$> tipe' env tipe
 
-      PortOut name st signal ->
-          PortOut name <$> tipe' env st <*> go signal
+      Output name st signal ->
+          Output name <$> tipe' env st <*> go signal
+
+      Loopback name st maybeExpr ->
+          Loopback name <$> tipe' env st <*> T.traverse go maybeExpr
 
       GLShader uid src tipe ->
           return (GLShader uid src tipe)

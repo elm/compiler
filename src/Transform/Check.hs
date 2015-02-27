@@ -52,11 +52,12 @@ duplicateValues decls =
         unzip [ (pat,expr) | D.Definition (Valid.Definition pat expr _) <- decls ]
 
     (portNames, portExprs) =
-        Arrow.second concat $ unzip $
-        flip map [ port | D.Port port <- decls ] $ \port ->
-            case port of
-              D.Out name expr _ -> (name, [expr])
-              D.In name _ -> (name, [])
+        Arrow.second Maybe.catMaybes $ unzip $
+        flip map [ wire | D.Wire wire <- decls ] $ \wire ->
+            case wire of
+              D.Input name _ -> (name, Nothing)
+              D.Output name expr _ -> (name, Just expr)
+              D.Loopback name maybeExpr _ -> (name, maybeExpr)
 
     exprDups :: Valid.Expr -> Either String Valid.Expr
     exprDups expr = Expr.crawlLet defsDups expr

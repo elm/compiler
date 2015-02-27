@@ -165,10 +165,18 @@ constrain env (A region expr) tipe =
                            (clet [Scheme rqs fqs (clet [monoscheme header] c2) header ]
                                  (c1 /\ c))
 
-      PortIn _ _ -> return true
+      Input _ _ ->
+          return true
 
-      PortOut _ _ signal ->
+      Output _ _ signal ->
           constrain env signal tipe
+
+      Loopback _ _ maybeExpr ->
+          case maybeExpr of
+            Nothing ->
+                return true
+            Just expr ->
+                constrain env expr tipe
 
 
 constrainDef env info (Canonical.Definition pattern expr maybeTipe) =

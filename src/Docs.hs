@@ -200,7 +200,7 @@ collectInfo (comment, decl) info =
           in
               info { infixes = Map.insert name infixInfo (infixes info) }
 
-      Decl.Port _ ->
+      Decl.Wire _ ->
           error errorMessage
 
 

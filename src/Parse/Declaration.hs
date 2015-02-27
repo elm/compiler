@@ -12,11 +12,12 @@ import qualified Parse.Type as Type
 
 declaration :: IParser D.SourceDecl
 declaration =
-    typeDecl <|> infixDecl <|> input <|> output <|> definition
+  typeDecl <|> infixDecl <|> loopback <|> input <|> output <|> definition
 
 
 definition :: IParser D.SourceDecl
-definition = D.Definition <$> Expr.def
+definition =
+  D.Definition <$> Expr.def
 
 
 typeDecl :: IParser D.SourceDecl
@@ -40,48 +41,55 @@ typeDecl =
 
 
 infixDecl :: IParser D.SourceDecl
-infixDecl = do
-  assoc <-
-      choice
-        [ try (reserved "infixl") >> return D.L
-        , try (reserved "infixr") >> return D.R
-        , try (reserved "infix")  >> return D.N
-        ]
-  forcedWS
-  n <- digit
-  forcedWS
-  D.Fixity assoc (read [n]) <$> anyOp
+infixDecl =
+  do  assoc <-
+          choice
+            [ try (reserved "infixl") >> return D.L
+            , try (reserved "infixr") >> return D.R
+            , try (reserved "infix")  >> return D.N
+            ]
+      forcedWS
+      n <- digit
+      forcedWS
+      D.Fixity assoc (read [n]) <$> anyOp
 
 
 input :: IParser D.SourceDecl
 input =
-  do  try (reserved "input")
-      whitespace
-      name <- lowVar
-      whitespace
-      ioEnding D.InputAnnotation name hasType Type.expr
+  do  name <- wireBegining "input"
+      wireEnding (D.InputAnnotation name) hasType Type.expr
 
 
 output :: IParser D.SourceDecl
 output =
-  do  try (reserved "output")
-      whitespace
-      name <- lowVar
-      whitespace
+  do  name <- wireBegining "output"
       choice
-        [ ioEnding D.OutputAnnotation name hasType Type.expr
-        , ioEnding D.OutputDef name equals Expr.expr
+        [ wireEnding (D.OutputAnnotation name) hasType Type.expr
+        , wireEnding (D.OutputDefinition name) equals Expr.expr
         ]
 
 
-ioEnding
-    :: (String -> a -> D.RawPort)
-    -> String
-    -> IParser String
-    -> IParser a
-    -> IParser D.SourceDecl
-ioEnding decl name op valueParser =
-      do  op
-          whitespace
-          value <- valueParser
-          return (D.Port (decl name value))
+loopback :: IParser D.SourceDecl
+loopback =
+  do  name <- wireBegining "loopback"
+      choice
+        [ wireEnding (D.LoopbackAnnotation name) hasType Type.expr
+        , wireEnding (D.LoopbackDefinition name) equals Expr.expr
+        ]
+
+
+wireBegining :: String -> IParser String
+wireBegining keyword =
+  do  try (reserved keyword)
+      whitespace
+      name <- lowVar
+      whitespace
+      return name
+
+
+wireEnding :: (a -> D.RawWire) -> IParser String -> IParser a -> IParser D.SourceDecl
+wireEnding makeWire op valueParser =
+  do  op
+      whitespace
+      value <- valueParser
+      return (D.Wire (makeWire value))

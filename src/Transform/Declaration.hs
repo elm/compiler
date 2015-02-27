@@ -22,15 +22,18 @@ combineAnnotations :: [D.SourceDecl] -> Either String [D.ValidDecl]
 combineAnnotations =
     go
   where
-    msg x = "Syntax Error: The type annotation for '" ++ x ++
-            "' must be directly above its definition."
+    errorMessage kind name =
+        "Syntax Error: The type annotation for " ++ kind ++ " '" ++
+        name ++ "' must be directly above its definition."
 
-    exprCombineAnnotations = Expr.crawlLet Def.combineAnnotations
+    exprCombineAnnotations =
+        Expr.crawlLet Def.combineAnnotations
 
     go decls =
         case decls of
           -- simple cases, pass them through with no changes
-          [] -> return []
+          [] ->
+              return []
 
           D.Datatype name tvars ctors : rest ->
               (:) (D.Datatype name tvars ctors) <$> go rest
@@ -45,37 +48,49 @@ combineAnnotations =
           D.Definition def : defRest ->
               case def of
                 Source.Definition pat expr ->
-                    do expr' <- exprCombineAnnotations expr
-                       let def' = Valid.Definition pat expr' Nothing
-                       (:) (D.Definition def') <$> go defRest
+                    do  expr' <- exprCombineAnnotations expr
+                        let def' = Valid.Definition pat expr' Nothing
+                        (:) (D.Definition def') <$> go defRest
 
                 Source.TypeAnnotation name tipe ->
                     case defRest of
                       D.Definition (Source.Definition pat@(P.Var name') expr) : rest
                           | name == name' ->
-                              do expr' <- exprCombineAnnotations expr
-                                 let def' = Valid.Definition pat expr' (Just tipe)
-                                 (:) (D.Definition def') <$> go rest
+                              do  expr' <- exprCombineAnnotations expr
+                                  let def' = Valid.Definition pat expr' (Just tipe)
+                                  (:) (D.Definition def') <$> go rest
 
-                      _ -> Left (msg name)
+                      _ -> Left (errorMessage "value" name)
 
-          -- combine ports
-          D.Port port : portRest ->
-              case port of
+          -- combine wires
+          D.Wire wire : wireRest ->
+              case wire of
                 D.InputAnnotation name tipe ->
-                    (:) (D.Port (D.In name tipe)) <$> go portRest
+                    (:) (D.Wire (D.Input name tipe)) <$> go wireRest
 
-                D.OutputDef name _ ->
-                    Left (msg name)
+                D.OutputDefinition name _ ->
+                    Left (errorMessage "output" name)
 
                 D.OutputAnnotation name tipe ->
-                    case portRest of
-                      D.Port (D.OutputDef name' expr) : rest | name == name' ->
+                    case wireRest of
+                      D.Wire (D.OutputDefinition name' expr) : rest | name == name' ->
                           do  expr' <- exprCombineAnnotations expr
-                              (:) (D.Port (D.Out name expr' tipe)) <$> go rest
+                              (:) (D.Wire (D.Output name expr' tipe)) <$> go rest
 
                       _ ->
-                          Left (msg name)
+                          Left (errorMessage "output" name)
+
+                D.LoopbackDefinition name tipe ->
+                    Left (errorMessage "loopback" name)
+
+                D.LoopbackAnnotation name tipe ->
+                    case wireRest of
+                      D.Wire (D.LoopbackDefinition name' expr) : rest | name == name' ->
+                          do  expr' <- exprCombineAnnotations expr
+                              (:) (D.Wire (D.Loopback name (Just expr') tipe)) <$> go rest
+
+                      _ ->
+                          (:) (D.Wire (D.Loopback name Nothing tipe)) <$> go wireRest
 
 
 toExpr :: Module.Name -> [D.CanonicalDecl] -> [Canonical.Def]
@@ -122,12 +137,14 @@ toDefs moduleName decl =
     D.TypeAlias _ _ _ ->
         []
 
-    D.Port port ->
-        case port of
-          D.Out name expr@(A.A s _) tipe ->
-              [ definition name (A.A s $ E.PortOut name tipe expr) tipe ]
-          D.In name tipe ->
-              [ definition name (A.none $ E.PortIn name tipe) tipe ]
+    D.Wire wire ->
+        case wire of
+          D.Output name expr@(A.A s _) tipe ->
+              [ definition name (A.A s $ E.Output name tipe expr) tipe ]
+          D.Input name tipe ->
+              [ definition name (A.none $ E.Input name tipe) tipe ]
+          D.Loopback name maybeExpr tipe ->
+              [ definition name (A.none $ E.Loopback name tipe maybeExpr) tipe ]
 
     -- no constraints are needed for fixity declarations
     D.Fixity _ _ _ ->

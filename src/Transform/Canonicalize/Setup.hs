@@ -220,7 +220,7 @@ addTypeAlias moduleName env scc =
               in  P.vcat [ P.text msg, P.text err ]
 
     aliases ->
-        throwError 
+        throwError
           [ P.vcat
               [ P.text (eightyCharLines 0 mutuallyRecursiveMessage)
               , indented (map typeAlias aliases)
@@ -311,15 +311,10 @@ addDecl moduleName info@(nodes,env) decl =
                         _values env
               }
 
-      D.Port port ->
-          let portName =
-                case port of
-                  D.Out name _ _ -> name
-                  D.In name _    -> name
-          in
-              (,) nodes $ env
-                  { _values =
-                      addLocal portName (_values env)
-                  }
+      D.Wire wire ->
+          (,) nodes $ env
+              { _values =
+                  addLocal (D.wireName wire) (_values env)
+              }
 
       D.Fixity _ _ _ -> info

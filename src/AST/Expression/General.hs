@@ -58,8 +58,9 @@ data Expr' ann def var
     | Modify (Expr ann def var) [(String, Expr ann def var)]
     | Record [(String, Expr ann def var)]
     -- for type checking and code gen only
-    | PortIn String (Type var)
-    | PortOut String (Type var) (Expr ann def var)
+    | Input String (Type var)
+    | Output String (Type var) (Expr ann def var)
+    | Loopback String (Type var) (Maybe (Expr ann def var))
     | GLShader String String Literal.GLShaderTipe
     deriving (Show)
 
@@ -87,7 +88,7 @@ saveEnvName =
 
 
 dummyLet :: (Pretty def) => [def] -> Expr Annotation.Region def Var.Canonical
-dummyLet defs = 
+dummyLet defs =
   Annotation.none $ Let defs (Annotation.none $ Var (Var.builtin saveEnvName))
 
 
@@ -194,11 +195,14 @@ instance (Pretty def, Pretty var, Var.ToString var) => Pretty (Expr' ann def var
       GLShader _ _ _ ->
           P.text "[glsl| ... |]"
 
-      PortIn name _ ->
-          P.text $ "<port:" ++ name ++ ">"
+      Input name _ ->
+          P.text ("<input:" ++ name ++ ">")
 
-      PortOut _ _ signal ->
-          pretty signal
+      Output name _ _ ->
+          P.text ("<output:" ++ name ++ ">")
+
+      Loopback name _ _ ->
+          P.text ("<loopback:" ++ name ++ ">")
 
 
 collectApps :: Expr ann def var -> [Expr ann def var]

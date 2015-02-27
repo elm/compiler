@@ -11,11 +11,11 @@ import AST.PrettyPrint
 import Text.PrettyPrint as P
 
 
-data Declaration' port def var
+data Declaration' wire def var
     = Definition def
     | Datatype String [String] [(String, [T.Type var])]
     | TypeAlias String [String] (T.Type var)
-    | Port port
+    | Wire wire
     | Fixity Assoc Int String
 
 
@@ -23,34 +23,38 @@ data Assoc = L | N | R
     deriving (Eq)
 
 
-data RawPort
+data RawWire
     = InputAnnotation String T.RawType
     | OutputAnnotation String T.RawType
-    | OutputDef String Source.Expr
+    | OutputDefinition String Source.Expr
+    | LoopbackAnnotation String T.RawType
+    | LoopbackDefinition String Source.Expr
 
 
-data Port expr var
-    = Out String expr (T.Type var)
-    | In String (T.Type var)
+data Wire expr var
+    = Output String expr (T.Type var)
+    | Input String (T.Type var)
+    | Loopback String (Maybe expr) (T.Type var)
 
 
 type SourceDecl =
-  Declaration' RawPort Source.Def Var.Raw
+  Declaration' RawWire Source.Def Var.Raw
 
 
 type ValidDecl =
-  Declaration' (Port Valid.Expr Var.Raw) Valid.Def Var.Raw
+  Declaration' (Wire Valid.Expr Var.Raw) Valid.Def Var.Raw
 
 
 type CanonicalDecl =
-  Declaration' (Port Canonical.Expr Var.Canonical) Canonical.Def Var.Canonical
+  Declaration' (Wire Canonical.Expr Var.Canonical) Canonical.Def Var.Canonical
 
 
-portName :: Port expr var -> String
-portName port =
-    case port of
-      Out name _ _ -> name
-      In name _ -> name
+wireName :: Wire expr var -> String
+wireName wire =
+    case wire of
+      Input name _ -> name
+      Output name _ _ -> name
+      Loopback name _ _ -> name
 
 
 assocToString :: Assoc -> String
@@ -82,8 +86,8 @@ instance Binary Assoc where
 
 -- PRETTY STRINGS
 
-instance (Pretty port, Pretty def, Pretty var, Var.ToString var) =>
-    Pretty (Declaration' port def var) where
+instance (Pretty wire, Pretty def, Pretty var, Var.ToString var) =>
+    Pretty (Declaration' wire def var) where
   pretty decl =
     case decl of
       Definition def -> pretty def
@@ -109,7 +113,7 @@ instance (Pretty port, Pretty def, Pretty var, Var.ToString var) =>
           name' =
               P.text name <+> P.hsep (map P.text tvars)
 
-      Port port -> pretty port
+      Wire wire -> pretty wire
 
       Fixity assoc prec op ->
           P.text "infix" <> assoc' <+> P.int prec <+> P.text op
@@ -121,32 +125,48 @@ instance (Pretty port, Pretty def, Pretty var, Var.ToString var) =>
                 R -> P.text "r"
 
 
-instance Pretty RawPort where
-  pretty port =
-    case port of
+instance Pretty RawWire where
+  pretty wire =
+    case wire of
       InputAnnotation name tipe ->
-          prettyPort "input" name ":" tipe
+          prettyWire "input" name ":" tipe
 
       OutputAnnotation name tipe ->
-          prettyPort "output" name ":" tipe
+          prettyWire "output" name ":" tipe
 
-      OutputDef name expr ->
-          prettyPort "output" name "=" expr
+      OutputDefinition name expr ->
+          prettyWire "output" name "=" expr
+
+      LoopbackAnnotation name tipe ->
+          prettyWire "loopback" name ":" tipe
+
+      LoopbackDefinition name expr ->
+          prettyWire "loopback" name "=" expr
 
 
-instance (Pretty expr, Pretty var, Var.ToString var) => Pretty (Port expr var) where
-  pretty port =
-    case port of
-      In name tipe ->
-          prettyPort "input" name ":" tipe
+instance (Pretty expr, Pretty var, Var.ToString var) => Pretty (Wire expr var) where
+  pretty wire =
+    case wire of
+      Input name tipe ->
+          prettyWire "input" name ":" tipe
 
-      Out name expr tipe ->
+      Output name expr tipe ->
           P.vcat
-            [ prettyPort "output" name ":" tipe
-            , prettyPort "output" name "=" expr
+            [ prettyWire "output" name ":" tipe
+            , prettyWire "output" name "=" expr
             ]
-          
 
-prettyPort :: (Pretty a) => String -> String -> String -> a -> Doc
-prettyPort keyword name op e =
+      Loopback name maybeExpr tipe ->
+          P.vcat
+            [ prettyWire "loopback" name ":" tipe
+            , case maybeExpr of
+                Just expr ->
+                    prettyWire "loopback" name "=" expr
+                Nothing ->
+                    P.empty
+            ]
+
+
+prettyWire :: (Pretty a) => String -> String -> String -> a -> Doc
+prettyWire keyword name op e =
     P.text keyword <+> P.text name <+> P.text op <+> pretty e

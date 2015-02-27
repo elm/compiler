@@ -31,9 +31,9 @@ reserveds =
     , "type"
     , "module", "where"
     , "import", "as", "hiding", "exposing"
-    , "export", "foreign"
+    , "export"
     , "deriving"
-    , "input", "output"
+    , "input", "output", "loopback"
     ]
 
 

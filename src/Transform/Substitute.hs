@@ -81,8 +81,11 @@ subst old new expression =
 
       GLShader _ _ _ -> expression
 
-      PortIn name st ->
-          PortIn name st
+      Input name st ->
+          Input name st
 
-      PortOut name st signal ->
-          PortOut name st (f signal)
+      Output name st expr ->
+          Output name st (f expr)
+
+      Loopback name tipe maybeExpr ->
+          Loopback name tipe (fmap f maybeExpr)

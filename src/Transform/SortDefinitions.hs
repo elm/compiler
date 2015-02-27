@@ -111,11 +111,15 @@ reorder (A ann expr) =
       GLShader _ _ _ ->
           return expr
 
-      PortOut name st signal ->
-          PortOut name st <$> reorder signal
+      Input name st ->
+          return $ Input name st
 
-      PortIn name st ->
-          return $ PortIn name st
+      Output name st signal ->
+          Output name st <$> reorder signal
+
+      Loopback name st maybeExpr ->
+          Loopback name st <$>
+              maybe (return Nothing) (fmap Just . reorder) maybeExpr
 
       -- Actually do some reordering
       Let defs body ->

@@ -63,9 +63,14 @@ isArray =
     is ["Array"] "Array"
 
 
-isSignal :: Canonical -> Bool
-isSignal =
-    is ["Signal"] "Signal"
+isStream :: Canonical -> Bool
+isStream =
+    is ["Signal"] "Stream"
+
+
+isVarying :: Canonical -> Bool
+isVarying =
+    is ["Signal"] "Varying"
 
 
 isPromise :: Canonical -> Bool
