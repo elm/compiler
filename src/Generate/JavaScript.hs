@@ -204,14 +204,20 @@ expression (A region expr) =
       GLShader _uid src _tipe ->
           return $ ObjectLit () [(PropString () "src", literal (Str src))]
 
-      PortIn name tipe ->
-          return $ obj ["_P","portIn"] `call`
-                     [ string name, Foreign.incoming tipe ]
+      Input name tipe ->
+          return (Foreign.input name tipe)
 
-      PortOut name tipe value ->
-          do value' <- expression value
-             return $ obj ["_P","portOut"] `call`
-                        [ string name, Foreign.outgoing tipe, value' ]
+      Output name tipe value ->
+          do  value' <- expression value
+              return (Foreign.output name tipe value')
+
+      Loopback name tipe maybeExpr ->
+          case maybeExpr of
+            Nothing ->
+                error "create writable stream"
+
+            Just expr ->
+              error "run the promises"
 
 
 definition :: Canonical.Def -> State Int [Statement ()]

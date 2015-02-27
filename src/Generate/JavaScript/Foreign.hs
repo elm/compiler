@@ -1,4 +1,4 @@
-module Generate.JavaScript.Foreign (incoming, outgoing) where
+module Generate.JavaScript.Foreign (input, output) where
 
 import qualified Data.List as List
 import Generate.JavaScript.Helpers
@@ -57,28 +57,42 @@ check x jsType continue =
           JSBoolean -> [typeof "boolean"]
           JSString  -> [typeof "string", instanceof "String"]
           JSArray   -> [instanceof "Array"]
-          JSObject fields -> [jsFold OpLAnd (typeof "object" : map member fields)]
+          JSObject fields ->
+              [jsFold OpLAnd (typeof "object" : map member fields)]
 
 
-incoming :: CanonicalType -> Expression ()
-incoming tipe =
-  case tipe of
-    Aliased _ t -> incoming t
+-- INPUT
 
-    App (Type v) [t]
-      | Var.isSignal v ->
-          obj ["_P","incomingSignal"] <| incoming t
+input :: String -> CanonicalType -> Expression ()
+input name tipe =
+  case T.dealias tipe of
+    App (Type signal) [t]
+        | Var.isStream signal ->
+            obj ["_P","inputStream"] <| toTypeFunction t
 
-    _ -> ["v"] ==> inc tipe (ref "v")
+        | Var.isVarying signal ->
+            obj ["_P","inputVarying"] <| toTypeFunction t
+
+    dealiasedType ->
+        obj ["_P","inputValue"] <| toTypeFunction dealiasedType
 
 
-inc :: CanonicalType -> Expression () -> Expression ()
-inc tipe x =
+toTypeFunction :: CanonicalType -> Expression ()
+toTypeFunction tipe =
+    ["v"] ==> toType tipe (ref "v")
+
+
+toType :: CanonicalType -> Expression () -> Expression ()
+toType tipe x =
     case tipe of
-      Lambda _ _ -> error "functions should not be allowed through input ports"
-      Var _ -> error "type variables should not be allowed through input ports"
+      Lambda _ _ ->
+          error "functions should not be allowed through input ports"
+
+      Var _ ->
+          error "type variables should not be allowed through input ports"
+
       Aliased _ t ->
-          inc t x
+          toType t x
 
       Type (Var.Canonical Var.BuiltIn name)
           | name == "Int"    -> from JSNumber
@@ -93,10 +107,10 @@ inc tipe x =
               x
 
           | Var.isTuple name ->
-              incomingTuple [] x
+              toTuple [] x
 
           | otherwise ->
-              error "bad type got to incoming port generation code"
+              error "bad type got to foreign input conversion"
 
       App f args ->
           case f : args of
@@ -105,7 +119,7 @@ inc tipe x =
                     CondExpr ()
                         (equal x (NullLit ()))
                         (_Maybe "Nothing")
-                        (_Maybe "Just" <| inc t x)
+                        (_Maybe "Just" <| toType t x)
 
                 | Var.isList name ->
                     check x JSArray (_List "fromArray" <| array)
@@ -113,92 +127,95 @@ inc tipe x =
                 | Var.isArray name ->
                     check x JSArray (_Array "fromJSArray" <| array)
                 where
-                  array = DotRef () x (var "map") <| incoming t
+                  array = DotRef () x (var "map") <| toTypeFunction t
 
             Type name : ts
-                | Var.isTuple name -> incomingTuple ts x
+                | Var.isTuple name ->
+                    toTuple ts x
 
-            _ -> error "bad ADT got to incoming port generation code"
+            _ -> error "bad ADT got to foreign input conversion"
 
       Record _ (Just _) ->
-          error "bad record got to incoming port generation code"
+          error "bad record got to foreign input conversion"
 
       Record fields Nothing ->
           check x (JSObject (map fst fields)) object
         where
           object = ObjectLit () $ (prop "_", ObjectLit () []) : keys
           keys = map convert fields
-          convert (f,t) = (prop f, inc t (DotRef () x (var f)))
+          convert (f,t) = (prop f, toType t (DotRef () x (var f)))
 
 
-incomingTuple :: [CanonicalType] -> Expression () -> Expression ()
-incomingTuple types x =
+toTuple :: [CanonicalType] -> Expression () -> Expression ()
+toTuple types x =
     check x JSArray (ObjectLit () fields)
   where
-    fields = (prop "ctor", ctor) : zipWith convert [0..] types
+    fields =
+        (prop "ctor", ctor) : zipWith convert [0..] types
 
-    ctor = string ("_Tuple" ++ show (length types))
+    ctor =
+        string ("_Tuple" ++ show (length types))
 
     convert n t =
         ( prop ('_':show n)
-        , inc t (BracketRef () x (IntLit () n))
+        , toType t (BracketRef () x (IntLit () n))
         )
 
 
-outgoing :: CanonicalType -> Expression ()
-outgoing tipe =
+-- OUTPUT
+
+output :: String -> CanonicalType -> Expression () -> Expression ()
+output name tipe value =
   case T.dealias tipe of
-    App (Type signal) [ App (Type promise) [_,_] ]
-      | Var.isSignal signal && Var.isPromise promise ->
-          obj ["_P","promiseStream"]
+    App (Type signal) [t]
+        | Var.isStream signal ->
+            obj ["_P","outputStream"] `call` [ fromTypeFunction t, value ]
 
-    App (Type promise) [_,_]
-      | Var.isPromise promise ->
-          obj ["_P","promise"]
+        | Var.isVarying signal ->
+            obj ["_P","outputVarying"] `call` [ fromTypeFunction t, value ]
 
-    _ ->
-        outgoingFunc tipe
-
-
-outgoingFunc :: CanonicalType -> Expression ()
-outgoingFunc tipe =
-  case tipe of
-    App (Type v) [t]
-      | Var.isSignal v ->
-          obj ["_P","outgoingSignal"] <| outgoingFunc t
-
-    _ -> ["v"] ==> out tipe (ref "v")
+    dealiasedType ->
+        obj ["_P","outputValue"] `call` [ fromTypeFunction dealiasedType, value ]
 
 
-out :: CanonicalType -> Expression () -> Expression ()
-out tipe x =
+fromTypeFunction :: CanonicalType -> Expression ()
+fromTypeFunction tipe =
+    ["v"] ==> fromType tipe (ref "v")
+
+
+fromType :: CanonicalType -> Expression () -> Expression ()
+fromType tipe x =
     case tipe of
-      Aliased _ t -> out t x
+      Aliased _ t ->
+          fromType t x
 
       Lambda _ _
           | numArgs > 1 && numArgs < 10 ->
               func (ref ('A':show numArgs) `call` (x:values))
-          | otherwise -> func (foldl (<|) x values)
+          | otherwise ->
+              func (foldl (<|) x values)
           where
             ts = T.collectLambdas tipe
             numArgs = length ts - 1
             args = map (\n -> '_' : show n) [0..]
-            values = zipWith inc (init ts) (map ref args)
+            values = zipWith toType (init ts) (map ref args)
             func body =
                 function (take numArgs args)
                     [ VarDeclStmt () [VarDecl () (var "_r") (Just body)]
-                    , ret (out (last ts) (ref "_r"))
+                    , ret (fromType (last ts) (ref "_r"))
                     ]
 
-      Var _ -> error "type variables should not be allowed through input ports"
+      Var _ ->
+          error "type variables should not be allowed through outputs"
 
       Type (Var.Canonical Var.BuiltIn name)
-          | name `elem` ["Int","Float","Bool","String"] -> x
+          | name `elem` ["Int","Float","Bool","String"] ->
+              x
 
       Type name
           | Var.isJson name -> x
           | Var.isTuple name -> ArrayLit () []
-          | otherwise -> error "bad type got to outgoing port generation code"
+          | otherwise -> error "bad type got to an output"
 
       App f args ->
           case f : args of
@@ -207,26 +224,27 @@ out tipe x =
                     CondExpr ()
                         (equal (DotRef () x (var "ctor")) (string "Nothing"))
                         (NullLit ())
-                        (out t (DotRef () x (var "_0")))
+                        (fromType t (DotRef () x (var "_0")))
 
                 | Var.isArray name ->
-                    DotRef () (_Array "toJSArray" <| x) (var "map") <| outgoingFunc t
+                    DotRef () (_Array "toJSArray" <| x) (var "map") <| fromTypeFunction t
 
                 | Var.isList name ->
-                    DotRef () (_List "toArray" <| x) (var "map") <| outgoingFunc t
+                    DotRef () (_List "toArray" <| x) (var "map") <| fromTypeFunction t
 
             Type name : ts
                 | Var.isTuple name ->
-                    let convert n t = out t $ DotRef () x $ var ('_':show n)
+                    let convert n t = fromType t $ DotRef () x $ var ('_':show n)
                     in  ArrayLit () $ zipWith convert [0..] ts
 
-            _ -> error "bad ADT got to outgoing port generation code"
+            _ -> error "bad ADT got to an output"
 
       Record _ (Just _) ->
-          error "bad record got to outgoing port generation code"
+          error "bad record got to an output"
 
       Record fields Nothing ->
           ObjectLit () keys
-          where
-            keys = map convert fields
-            convert (f,t) = (PropId () (var f), out t (DotRef () x (var f)))
+        where
+          keys = map convert fields
+          convert (f,t) =
+              (PropId () (var f), fromType t (DotRef () x (var f)))
