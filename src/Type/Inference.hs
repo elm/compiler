@@ -33,7 +33,7 @@ infer interfaces modul =
                 hints@(_:_) -> throwError hints
                 []          -> return ()
 
-        () <- Check.portTypes (program (body modul))
+        () <- Check.wireTypes (program (body modul))
 
         let header' = Map.delete "::" header
             types = Map.difference (TS.sSavedEnv state) header'

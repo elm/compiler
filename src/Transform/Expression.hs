@@ -1,11 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
-module Transform.Expression (crawlLet, checkPorts) where
+module Transform.Expression (crawlLet, checkWires) where
 
 import Control.Applicative ((<$>),(<*>))
 import AST.Annotation ( Annotated(A) )
 import AST.Expression.General
 import qualified AST.Expression.Canonical as Canonical
 import AST.Type (Type, CanonicalType)
+
 
 crawlLet
     :: ([def] -> Either a [def'])
@@ -15,17 +16,17 @@ crawlLet =
     crawl (\_ _ -> return ()) (\_ _ -> return ())
 
 
-checkPorts
+checkWires
     :: (String -> CanonicalType -> Either a ())
     -> (String -> CanonicalType -> Either a ())
     -> Canonical.Expr
     -> Either a Canonical.Expr
-checkPorts inCheck outCheck expr =
-    crawl inCheck outCheck (mapM checkDef) expr
-    where
-      checkDef def@(Canonical.Definition _ body _) =
-          do _ <- checkPorts inCheck outCheck body
-             return def
+checkWires inputCheck outputCheck expr =
+    crawl inputCheck outputCheck (mapM checkDef) expr
+  where
+    checkDef def@(Canonical.Definition _ body _) =
+        do  _ <- checkWires inputCheck outputCheck body
+            return def
 
 
 crawl
@@ -34,7 +35,7 @@ crawl
     -> ([def] -> Either a [def'])
     -> Expr ann def var
     -> Either a (Expr ann def' var)
-crawl portInCheck portOutCheck defsTransform =
+crawl inputCheck outputCheck defsTransform =
     go
   where
     go (A srcSpan expr) =
@@ -91,10 +92,17 @@ crawl portInCheck portOutCheck defsTransform =
           GLShader uid src gltipe ->
               return $ GLShader uid src gltipe
 
-          PortIn name st ->
-              do portInCheck name st
-                 return $ PortIn name st
+          Input name st ->
+              do  inputCheck name st
+                  return $ Input name st
 
-          PortOut name st signal ->
-              do portOutCheck name st
-                 PortOut name st <$> go signal
+          Output name st signal ->
+              do  outputCheck name st
+                  Output name st <$> go signal
+
+          Loopback name st maybeExpr ->
+              case maybeExpr of
+                Nothing ->
+                    error "loopback check"
+                Just expr ->
+                    error "loopback check"

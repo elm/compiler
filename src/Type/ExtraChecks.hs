@@ -4,8 +4,9 @@
 successfully. At that point we still need to do occurs checks and ensure that
 `main` has an acceptable type.
 -}
-module Type.ExtraChecks (mainType, occurs, portTypes) where
+module Type.ExtraChecks (mainType, occurs, wireTypes) where
 
+import Prelude hiding (maybe)
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad.Error
 import Control.Monad.State
@@ -118,81 +119,142 @@ badMainMessage typeOfMain =
 data Direction = In | Out
 
 
-portTypes :: (Monad m) => Canonical.Expr -> ErrorT [P.Doc] m ()
-portTypes expr =
-  case Expr.checkPorts (check In) (check Out) expr of
+wireTypes :: (Monad m) => Canonical.Expr -> ErrorT [P.Doc] m ()
+wireTypes expr =
+  case Expr.checkWires (checkWires In) (checkWires Out) expr of
     Left err -> throwError err
     Right _  -> return ()
-  where
-    check = isValid True False False
-    isValid isTopLevel seenFunc seenSignal direction name tipe =
-        case tipe of
-          ST.Aliased _ t -> valid t
 
-          ST.Type v ->
-              case any ($ v) [ Var.isJson, Var.isPrimitive, Var.isTuple ] of
-                True -> return ()
-                False -> err "an unsupported type"
 
-          ST.App t [] -> valid t
+checkWires :: Direction -> String -> ST.CanonicalType -> Either [P.Doc] ()
+checkWires direction name tipe =
+  checkWiresHelp direction name tipe tipe
 
-          ST.App (ST.Type v) [t]
-              | Var.isSignal v -> handleSignal t
-              | Var.isMaybe  v -> valid t
-              | Var.isArray  v -> valid t
-              | Var.isList   v -> valid t
 
-          ST.App (ST.Type v) [_, _]
-              | Var.isPromise v ->
-                  case direction of
-                    In -> err "promises"
-                    Out -> return ()
+checkWiresHelp
+    :: Direction
+    -> String
+    -> ST.CanonicalType
+    -> ST.CanonicalType
+    -> Either [P.Doc] ()
+checkWiresHelp direction name rootType tipe =
+  case tipe of
+    ST.Aliased _ t ->
+        checkWiresHelp direction name rootType t
 
-          ST.App (ST.Type v) ts
-              | Var.isTuple v -> mapM_ valid ts
+    ST.App (ST.Type signal) [t]
+        | Var.isStream signal ->
+            validWireType False (Just Stream) direction name rootType t
 
-          ST.App _ _ -> err "an unsupported type"
+        | Var.isVarying signal ->
+            validWireType False (Just Varying) direction name rootType t
 
-          ST.Var _ -> err "free type variables"
+    _ ->
+        validWireType False Nothing direction name rootType tipe
 
-          ST.Lambda _ _ ->
-              case direction of
-                In -> err "functions"
-                Out | seenFunc   -> err "higher-order functions"
-                    | seenSignal -> err "signals that contain functions"
-                    | otherwise  ->
+
+data Signal = Stream | Varying
+
+
+validWireType
+    :: Bool
+    -> Maybe Signal
+    -> Direction
+    -> String
+    -> ST.CanonicalType
+    -> ST.CanonicalType
+    -> Either [P.Doc] ()
+validWireType seenFunc seenSignal direction name rootType tipe =
+    let valid localType =
+            validWireType seenFunc seenSignal direction name rootType localType
+
+        err kind =
+            throw (wireError name direction rootType tipe kind)
+    in
+    case tipe of
+      ST.Aliased _ t ->
+          valid t
+
+      ST.Type v ->
+          case any ($ v) [ Var.isJson, Var.isPrimitive, Var.isTuple ] of
+            True -> return ()
+            False -> err "It contains an unsupported type"
+
+      ST.App t [] ->
+          valid t
+
+      ST.App (ST.Type v) [t]
+          | Var.isMaybe v -> valid t
+          | Var.isArray v -> valid t
+          | Var.isList  v -> valid t
+
+      ST.App (ST.Type v) ts
+          | Var.isTuple v -> mapM_ valid ts
+
+      ST.App _ _ ->
+          err "It contains an unsupported type"
+
+      ST.Var _ ->
+          err "It contains a free type variable"
+
+      ST.Lambda _ _ ->
+          case direction of
+            In -> err "It contains functions"
+            Out ->
+              if seenFunc
+                then err "It contains higher-order functions"
+                else
+                  case seenSignal of
+                    Just Stream ->
+                        err "It is a streams that contains a function"
+
+                    Just Varying ->
+                        err "It is a varying value that contains a function"
+
+                    Nothing ->
                         forM_ (ST.collectLambdas tipe)
-                              (isValid' True seenSignal direction name)
+                              (validWireType True seenSignal direction name rootType)
 
-          ST.Record _ (Just _) -> err "extended records with free type variables"
+      ST.Record _ (Just _) ->
+          err "It contains extended records with free type variables"
 
-          ST.Record fields Nothing ->
-              mapM_ (\(k,v) -> (,) k <$> valid v) fields
+      ST.Record fields Nothing ->
+          mapM_ (\(k,v) -> (,) k <$> valid v) fields
 
-        where
-          isValid' = isValid False
-          valid = isValid' seenFunc seenSignal direction name
 
-          handleSignal t
-              | seenFunc   = err "functions that involve signals"
-              | seenSignal = err "signals-of-signals"
-              | isTopLevel = isValid' seenFunc True direction name t
-              | otherwise  = err "a signal within a data stucture"
+wireError
+    :: String
+    -> Direction
+    -> ST.CanonicalType
+    -> ST.CanonicalType
+    -> String
+    -> [P.Doc]
+wireError name direction rootType localType problemMessage =
+    [ P.text (dir "Input" "Output" ++ " Error:")
+    , P.nest 2 $
+        P.vcat
+          [ txt [ "The ", wire, " named '", name, "' was has an invalid type.\n" ]
+          , P.nest 2 (PP.pretty rootType) <> P.text "\n"
+          , txt [ problemMessage, ":\n" ]
+          , P.nest 2 (PP.pretty localType) <> P.text "\n"
+          , txt [ "Acceptable values for ", wire, "s include:" ]
+          , txt [ "  Ints, Floats, Bools, Strings, Maybes, Lists, Arrays, Tuples, unit values," ]
+          , txt [ "  Json.Values, ", dir "" "first-order functions, promises, ", "and concrete records." ]
+          ]
+    ]
+  where
+    dir inMsg outMsg =
+        case direction of
+          In -> inMsg
+          Out -> outMsg
 
-          dir inMsg outMsg = case direction of { In -> inMsg ; Out -> outMsg }
-          txt = P.text . concat
+    txt = P.text . concat
 
-          err kind =
-              throw $
-              [ txt [ "Type Error: the value ", dir "coming in" "sent out"
-                    , " through port '", name, "' is invalid." ]
-              , txt [ "It contains ", kind, ":\n" ]
-              , P.nest 4 (PP.pretty tipe) <> P.text "\n"
-              , txt [ "Acceptable values for ", dir "incoming" "outgoing", " ports include:" ]
-              , txt [ "    Ints, Floats, Bools, Strings, Maybes, Lists, Arrays, Tuples, unit values," ]
-              , txt [ "    Json.Values, ", dir "" "first-order functions, promises, ", "and concrete records." ]
-              ]
+    wire =
+        dir "input" "output"
 
+
+-- INFINITE TYPES
 
 occurs :: (String, TT.Variable) -> StateT TS.SolverState IO ()
 occurs (name, variable) =
