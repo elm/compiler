@@ -215,50 +215,51 @@ expression (A region expr) =
 
 
 definition :: Canonical.Def -> State Int [Statement ()]
-definition (Canonical.Definition pattern expr@(A region _) _) = do
-  expr' <- expression expr
-  let assign x = varDecl x expr'
-  case pattern of
-    P.Var x
-        | Help.isOp x ->
-            let op = LBracket () (ref "_op") (string x) in
-            return [ ExprStmt () $ AssignExpr () OpAssign op expr' ]
-        | otherwise ->
-            return [ VarDeclStmt () [ assign (Var.varName x) ] ]
+definition (Canonical.Definition pattern expr@(A region _) _) =
+  do  expr' <- expression expr
+      let assign x = varDecl x expr'
+      case pattern of
+        P.Var x
+            | Help.isOp x ->
+                let op = LBracket () (ref "_op") (string x) in
+                return [ ExprStmt () $ AssignExpr () OpAssign op expr' ]
 
-    P.Record fields ->
-        let setField f = varDecl f (obj ["$",f]) in
-        return [ VarDeclStmt () (assign "$" : map setField fields) ]
+            | otherwise ->
+                return [ VarDeclStmt () [ assign (Var.varName x) ] ]
 
-    P.Data (Var.Canonical _ name) patterns | vars /= Nothing ->
-        return [ VarDeclStmt () (setup (zipWith decl (maybe [] id vars) [0..])) ]
-        where
-          vars = getVars patterns
-          getVars patterns =
-              case patterns of
-                P.Var x : rest -> (Var.varName x :) `fmap` getVars rest
-                [] -> Just []
-                _ -> Nothing
+        P.Record fields ->
+            let setField f = varDecl f (obj ["$",f]) in
+            return [ VarDeclStmt () (assign "$" : map setField fields) ]
 
-          decl x n = varDecl x (obj ["$","_" ++ show n])
-          setup vars
-              | Help.isTuple name = assign "$" : vars
-              | otherwise = assign "_raw" : safeAssign : vars
+        P.Data (Var.Canonical _ name) patterns | vars /= Nothing ->
+            return [ VarDeclStmt () (setup (zipWith decl (maybe [] id vars) [0..])) ]
+          where
+            vars = getVars patterns
+            getVars patterns =
+                case patterns of
+                  P.Var x : rest -> (Var.varName x :) `fmap` getVars rest
+                  [] -> Just []
+                  _ -> Nothing
 
-          safeAssign = varDecl "$" (CondExpr () if' (ref "_raw") exception)
-          if' = InfixExpr () OpStrictEq (obj ["_raw","ctor"]) (string name)
-          exception = Help.throw "badCase" region
+            decl x n = varDecl x (obj ["$","_" ++ show n])
+            setup vars
+                | Help.isTuple name = assign "$" : vars
+                | otherwise = assign "_raw" : safeAssign : vars
 
-    _ ->
-        do defs' <- concat <$> mapM toDef vars
-           return (VarDeclStmt () [assign "_"] : defs')
-        where
-          vars = P.boundVarList pattern
-          mkVar = A region . localVar
-          toDef y =
-            let expr =  A region $ Case (mkVar "_") [(pattern, mkVar y)]
-            in
-                definition $ Canonical.Definition (P.Var y) expr Nothing
+            safeAssign = varDecl "$" (CondExpr () if' (ref "_raw") exception)
+            if' = InfixExpr () OpStrictEq (obj ["_raw","ctor"]) (string name)
+            exception = Help.throw "badCase" region
+
+        _ ->
+            do  defs' <- concat <$> mapM toDef vars
+                return (VarDeclStmt () [assign "_"] : defs')
+            where
+              vars = P.boundVarList pattern
+              mkVar = A region . localVar
+              toDef y =
+                let expr =  A region $ Case (mkVar "_") [(pattern, mkVar y)]
+                in
+                    definition $ Canonical.Definition (P.Var y) expr Nothing
 
 
 match :: Region -> Case.Match -> State Int [Statement ()]
