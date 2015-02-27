@@ -11,7 +11,7 @@ import Language.ECMAScript3.Syntax
 
 import Generate.JavaScript.Helpers as Help
 import qualified Generate.Cases as Case
-import qualified Generate.JavaScript.Ports as Port
+import qualified Generate.JavaScript.Foreign as Foreign
 import qualified Generate.JavaScript.Variable as Var
 
 import AST.Annotation
@@ -206,12 +206,12 @@ expression (A region expr) =
 
       PortIn name tipe ->
           return $ obj ["_P","portIn"] `call`
-                     [ string name, Port.incoming tipe ]
+                     [ string name, Foreign.incoming tipe ]
 
       PortOut name tipe value ->
           do value' <- expression value
              return $ obj ["_P","portOut"] `call`
-                        [ string name, Port.outgoing tipe, value' ]
+                        [ string name, Foreign.outgoing tipe, value' ]
 
 
 definition :: Canonical.Def -> State Int [Statement ()]

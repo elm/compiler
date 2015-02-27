@@ -1,4 +1,4 @@
-module Generate.JavaScript.Ports (incoming, outgoing) where
+module Generate.JavaScript.Foreign (incoming, outgoing) where
 
 import qualified Data.List as List
 import Generate.JavaScript.Helpers
