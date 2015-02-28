@@ -121,7 +121,7 @@ data Direction = In | Out
 
 wireTypes :: (Monad m) => Canonical.Expr -> ErrorT [P.Doc] m ()
 wireTypes expr =
-  case Expr.checkWires (checkWires In) (checkWires Out) expr of
+  case Expr.checkWires (checkWires In) (checkWires Out) checkLoobacks expr of
     Left err -> throwError err
     Right _  -> return ()
 
@@ -252,6 +252,29 @@ wireError name direction rootType localType problemMessage =
 
     wire =
         dir "input" "output"
+
+
+checkLoobacks :: String -> ST.CanonicalType -> Bool -> Either [P.Doc] ()
+checkLoobacks name tipe hasExpr =
+  checkLoobacksHelp name tipe tipe hasExpr
+
+
+checkLoobacksHelp :: String -> ST.CanonicalType -> ST.CanonicalType -> Bool -> Either [P.Doc] ()
+checkLoobacksHelp name rootType tipe hasExpr =
+  case tipe of
+    ST.Aliased _ t ->
+        checkLoobacksHelp name rootType t hasExpr
+
+    ST.App (ST.Type signal) [ ST.App (ST.Type result) [_,_] ]
+        | hasExpr && Var.isStream signal && Var.isResult result ->
+            return ()
+
+    ST.App (ST.Type signal) [ _ ]
+        | not hasExpr && Var.isWritableStream signal ->
+            return ()
+
+    _ ->
+        throw [ P.text "no good loopback" ]
 
 
 -- INFINITE TYPES

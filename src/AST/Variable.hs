@@ -68,6 +68,11 @@ isStream =
     is ["Signal"] "Stream"
 
 
+isWritableStream :: Canonical -> Bool
+isWritableStream =
+    is ["Signal"] "WritableStream"
+
+
 isVarying :: Canonical -> Bool
 isVarying =
     is ["Signal"] "Varying"
@@ -76,6 +81,11 @@ isVarying =
 isPromise :: Canonical -> Bool
 isPromise =
     is ["Promise"] "Promise"
+
+
+isResult   :: Canonical -> Bool
+isResult =
+    is ["Result"] "Result"
 
 
 isList :: Canonical -> Bool

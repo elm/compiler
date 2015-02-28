@@ -13,30 +13,35 @@ crawlLet
     -> Expr ann def var
     -> Either a (Expr ann def' var)
 crawlLet =
-    crawl (\_ _ -> return ()) (\_ _ -> return ())
+    crawl
+      (\_ _ -> return ())
+      (\_ _ -> return ())
+      (\_ _ _ -> return ())
 
 
 checkWires
     :: (String -> CanonicalType -> Either a ())
     -> (String -> CanonicalType -> Either a ())
+    -> (String -> CanonicalType -> Bool -> Either a ())
     -> Canonical.Expr
     -> Either a Canonical.Expr
-checkWires inputCheck outputCheck expr =
-    crawl inputCheck outputCheck (mapM checkDef) expr
+checkWires inputCheck outputCheck loopbackCheck expr =
+    crawl inputCheck outputCheck loopbackCheck (mapM checkDef) expr
   where
     checkDef def@(Canonical.Definition _ body _) =
-        do  _ <- checkWires inputCheck outputCheck body
+        do  _ <- checkWires inputCheck outputCheck loopbackCheck body
             return def
 
 
 crawl
     :: (String -> Type var -> Either a ())
     -> (String -> Type var -> Either a ())
+    -> (String -> Type var -> Bool -> Either a ())
     -> ([def] -> Either a [def'])
     -> Expr ann def var
     -> Either a (Expr ann def' var)
-crawl inputCheck outputCheck defsTransform =
-    go
+crawl inputCheck outputCheck loopbackCheck defsTransform expression =
+    go expression
   where
     go (A srcSpan expr) =
         A srcSpan <$>
@@ -101,8 +106,10 @@ crawl inputCheck outputCheck defsTransform =
                   Output name st <$> go signal
 
           Loopback name st maybeExpr ->
-              case maybeExpr of
-                Nothing ->
-                    error "loopback check"
-                Just expr ->
-                    error "loopback check"
+              do  let hasExpr = maybe False (const True) maybeExpr
+                  loopbackCheck name st hasExpr
+                  case maybeExpr of
+                    Nothing ->
+                        return (Loopback name st Nothing)
+                    Just expr ->
+                        (Loopback name st . Just) <$> go expr
