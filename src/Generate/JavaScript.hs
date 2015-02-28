@@ -201,7 +201,8 @@ expression (A region expr) =
               return $ ObjectLit () (ctor : fields es')
           where
             ctor = (prop "ctor", string name)
-            fields = zipWith (\n e -> (prop ("_" ++ show n), e)) [0..]
+            fields =
+                zipWith (\n e -> (prop ("_" ++ show n), e)) [ 0 :: Int .. ]
 
       GLShader _uid src _tipe ->
           return $ ObjectLit () [(PropString () "src", literal (Str src))]
@@ -216,7 +217,7 @@ expression (A region expr) =
       Loopback name tipe maybeExpr ->
           case maybeExpr of
             Nothing ->
-                error "create writable stream"
+                return $ obj ["_P","writableStream"] `call` [ string name ]
 
             Just expr ->
               error "run the promises"
