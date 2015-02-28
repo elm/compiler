@@ -17,6 +17,19 @@ import qualified AST.Type as T
 import qualified AST.Variable as Var
 
 
+-- CONCRETE TYPES
+
+type Type = TermN Variable
+
+type Variable = UF.Point Descriptor
+
+type TypeConstraint = Constraint Type Variable
+
+type TypeScheme = Scheme Type Variable
+
+
+-- TYPE PRIMITIVES
+
 data Term1 a
     = App1 a a
     | Fun1 a a
@@ -26,82 +39,26 @@ data Term1 a
 
 
 data TermN a
-    = VarN  (Maybe Var.Canonical) a
+    = VarN (Maybe Var.Canonical) a
     | TermN (Maybe Var.Canonical) (Term1 (TermN a))
 
 
 varN :: a -> TermN a
-varN = VarN Nothing
+varN =
+  VarN Nothing
 
 
 termN :: (Term1 (TermN a)) -> TermN a
-termN = TermN Nothing
+termN =
+  TermN Nothing
 
 
 record :: Map.Map String [TermN a] -> TermN a -> TermN a
-record fs rec = termN (Record1 fs rec)
+record fs rec =
+  termN (Record1 fs rec)
 
 
-type Type = TermN Variable
-
-
-type Variable = UF.Point Descriptor
-
-
-type SchemeName = String
-
-
-type TypeName = Var.Canonical
-
-
-type Constraint a b = Located (BasicConstraint a b)
-
-
-data BasicConstraint a b
-    = CTrue
-    | CSaveEnv
-    | CEqual a a
-    | CAnd [Constraint a b]
-    | CLet [Scheme a b] (Constraint a b)
-    | CInstance SchemeName a
-
-
-data Scheme a b = Scheme
-    { rigidQuantifiers :: [b]
-    , flexibleQuantifiers :: [b]
-    , constraint :: Constraint a b
-    , header :: Map.Map String a
-    }
-
-
-type TypeConstraint = Constraint Type Variable
-
-type TypeScheme = Scheme Type Variable
-
-
-monoscheme :: Map.Map String a -> Scheme a b
-monoscheme headers = Scheme [] [] (noneNoDocs CTrue) headers
-
-
-infixl 8 /\
-
-(/\) :: Constraint a b -> Constraint a b -> Constraint a b
-a@(A _ c1) /\ b@(A _ c2) =
-    case (c1, c2) of
-      (CTrue, _) -> b
-      (_, CTrue) -> a
-      _ -> mergeOldDocs a b (CAnd [a,b])
-
-
-infixr 9 ==>
-
-(==>) :: Type -> Type -> Type
-a ==> b = termN (Fun1 a b)
-
-
-(<|) :: TermN a -> TermN a -> TermN a
-f <| a = termN (App1 f a)
-
+-- DESCRIPTORS
 
 data Descriptor = Descriptor
     { structure :: Maybe (Term1 Variable)
@@ -113,22 +70,17 @@ data Descriptor = Descriptor
     , alias :: Maybe Var.Canonical
     }
 
-
 noRank :: Int
 noRank = -1
-
 
 outermostRank :: Int
 outermostRank = 0
 
-
 noMark :: Int
 noMark = 0
 
-
 initialMark :: Int
 initialMark = 1
-
 
 data Flex
     = Rigid
@@ -137,13 +89,53 @@ data Flex
     | Is SuperType
     deriving (Eq)
 
-
 data SuperType
     = Number
     | Comparable
     | Appendable
     deriving (Eq)
 
+
+-- CONSTRAINTS
+
+type Constraint a b =
+    Located (BasicConstraint a b)
+
+data BasicConstraint a b
+    = CTrue
+    | CSaveEnv
+    | CEqual a a
+    | CAnd [Constraint a b]
+    | CLet [Scheme a b] (Constraint a b)
+    | CInstance SchemeName a
+
+type SchemeName = String
+
+type TypeName = Var.Canonical
+
+data Scheme a b = Scheme
+    { rigidQuantifiers :: [b]
+    , flexibleQuantifiers :: [b]
+    , constraint :: Constraint a b
+    , header :: Map.Map String a
+    }
+
+
+-- TYPE HELPERS
+
+infixr 9 ==>
+
+(==>) :: Type -> Type -> Type
+(==>) a b =
+  termN (Fun1 a b)
+
+
+(<|) :: TermN a -> TermN a -> TermN a
+(<|) f a =
+  termN (App1 f a)
+
+
+-- VARIABLE HELPERS
 
 namedVar :: Flex -> Var.Canonical -> IO Variable
 namedVar flex name = UF.fresh $ Descriptor
@@ -167,6 +159,23 @@ variable flex = UF.fresh $ Descriptor
   , mark = noMark
   , alias = Nothing
   }
+
+
+-- CONSTRAINT HELPERS
+
+monoscheme :: Map.Map String a -> Scheme a b
+monoscheme headers =
+  Scheme [] [] (noneNoDocs CTrue) headers
+
+
+infixl 8 /\
+
+(/\) :: Constraint a b -> Constraint a b -> Constraint a b
+(/\) a@(A _ c1) b@(A _ c2) =
+    case (c1, c2) of
+      (CTrue, _) -> b
+      (_, CTrue) -> a
+      _ -> mergeOldDocs a b (CAnd [a,b])
 
 
 -- ex qs constraint == exists qs. constraint
@@ -213,36 +222,51 @@ instance PrettyType a => PrettyType (Term1 a) where
           parensIf needed (px <+> pretty App x)
         where
           px = prty f
-          needed = case when of
-                     App -> True
-                     _ -> False
+          needed =
+            case when of
+              App -> True
+              _ -> False
 
       Fun1 arg body ->
           parensIf needed (pretty Fn arg <+> P.text "->" <+> prty body)
         where
-          needed = case when of
-                     Never -> False
-                     _ -> True
+          needed =
+            case when of
+              Never -> False
+              _ -> True
 
-      Var1 x -> prty x
+      Var1 x ->
+          prty x
 
-      EmptyRecord1 -> P.braces P.empty
+      EmptyRecord1 ->
+          P.braces P.empty
 
       Record1 fields ext ->
           P.braces (extend <+> commaSep prettyFields)
         where
           prettyExt = prty ext
-          extend | P.render prettyExt == "{}" = P.empty
-                 | otherwise = prettyExt <+> P.text "|"
-          mkPretty f t = P.text f <+> P.text ":" <+> prty t
-          prettyFields = concatMap (\(f,ts) -> map (mkPretty f) ts) (Map.toList fields)
+
+          extend
+            | P.render prettyExt == "{}" =
+                P.empty
+            | otherwise =
+                prettyExt <+> P.text "|"
+
+          mkPretty f t =
+            P.text f <+> P.text ":" <+> prty t
+
+          prettyFields =
+            concatMap (\(f,ts) -> map (mkPretty f) ts) (Map.toList fields)
 
 
 instance PrettyType a => PrettyType (TermN a) where
   pretty when term =
     case term of
-      VarN alias x -> either alias (pretty when x)
-      TermN alias t1 -> either alias (pretty when t1)
+      VarN alias x ->
+          either alias (pretty when x)
+
+      TermN alias t1 ->
+          either alias (pretty when t1)
     where
       either maybeAlias doc =
           case maybeAlias of
@@ -251,16 +275,20 @@ instance PrettyType a => PrettyType (TermN a) where
 
 
 instance PrettyType Descriptor where
-  pretty when desc = do
+  pretty when desc =
     case (alias desc, structure desc, name desc) of
-      (Just name, _, _) -> PP.pretty name
-      (_, Just term, _) -> pretty when term
+      (Just name, _, _) ->
+          PP.pretty name
+
+      (_, Just term, _) ->
+          pretty when term
+
       (_, _, Just name)
           | Var.isTuple name ->
               P.parens . P.text $ replicate (read (drop 6 (Var.toString name)) - 1) ','
           | otherwise ->
               P.text (Var.toString name)
-                            
+
       _ -> P.text "?"
 
 
@@ -320,20 +348,27 @@ instance (PrettyType a, PrettyType b) => PrettyType (Scheme a b) where
 
 
 extraPretty :: (PrettyType t, Crawl t) => t -> IO Doc
-extraPretty t = pretty Never <$> addNames t
+extraPretty t =
+  pretty Never <$> addNames t
 
 
 -- ADDING NAMES TO TYPES
 
 addNames :: (Crawl t) => t -> IO t
-addNames value = do
-    (rawVars, _, _, _) <- execStateT (crawl getNames value) ([], 0, 0, 0)
-    let vars = map head . List.group $ List.sort rawVars
-        suffix s = map (++s) (map (:[]) ['a'..'z'])
-        allVars = concatMap suffix $ ["","'","_"] ++ map show [ (0 :: Int) .. ]
-        okayVars = filter (`notElem` vars) allVars
-    runStateT (crawl rename value) (okayVars, 0, 0, 0)
-    return value
+addNames value =
+  do  (rawVars, _, _, _) <- execStateT (crawl getNames value) ([], 0, 0, 0)
+
+      let vars = map head . List.group $ List.sort rawVars
+
+      let suffix s = map (++s) (map (:[]) ['a'..'z'])
+
+      let allVars = concatMap suffix $ ["","'","_"] ++ map show [ (0 :: Int) .. ]
+
+      let okayVars = filter (`notElem` vars) allVars
+
+      runStateT (crawl rename value) (okayVars, 0, 0, 0)
+
+      return value
   where
     getNames desc state@(vars, a, b, c) =
         let name' = name desc in
@@ -368,23 +403,25 @@ class Crawl t where
 
 
 instance Crawl e => Crawl (Annotated a e) where
-  crawl nextState (A ann e) = A ann <$> crawl nextState e
+  crawl nextState (A ann e) =
+      A ann <$> crawl nextState e
 
 
 instance (Crawl t, Crawl v) => Crawl (BasicConstraint t v) where
-  crawl nextState constraint = 
+  crawl nextState constraint =
     let rnm = crawl nextState in
     case constraint of
       CTrue -> return CTrue
       CSaveEnv -> return CSaveEnv
       CEqual a b -> CEqual <$> rnm a <*> rnm b
       CAnd cs -> CAnd <$> crawl nextState cs
-      CLet schemes c -> CLet <$> crawl nextState schemes <*> crawl nextState c 
+      CLet schemes c -> CLet <$> crawl nextState schemes <*> crawl nextState c
       CInstance name tipe -> CInstance name <$> rnm tipe
 
 
 instance Crawl a => Crawl [a] where
-  crawl nextState list = mapM (crawl nextState) list
+  crawl nextState list =
+      mapM (crawl nextState) list
 
 
 instance (Crawl t, Crawl v) => Crawl (Scheme t v) where
@@ -410,14 +447,24 @@ instance Crawl t => Crawl (TermN t) where
 
 instance Crawl t => Crawl (Term1 t) where
   crawl nextState term =
-     let rnm = crawl nextState in
-     case term of
-      App1 a b -> App1 <$> rnm a <*> rnm b
-      Fun1 a b -> Fun1 <$> rnm a <*> rnm b
-      Var1 a -> Var1 <$> rnm a
-      EmptyRecord1 -> return EmptyRecord1
+    let rnm = crawl nextState in
+    case term of
+      App1 a b ->
+          App1 <$> rnm a <*> rnm b
+
+      Fun1 a b ->
+          Fun1 <$> rnm a <*> rnm b
+
+      Var1 a ->
+          Var1 <$> rnm a
+
+      EmptyRecord1 ->
+          return EmptyRecord1
+
       Record1 fields ext ->
-          Record1 <$> traverse (mapM rnm) fields <*> rnm ext
+          Record1
+            <$> traverse (mapM rnm) fields
+            <*> rnm ext
 
 
 instance Crawl a => Crawl (UF.Point a) where
@@ -436,7 +483,7 @@ instance Crawl Descriptor where
         put state'
         return $ desc { name = name', structure = structure' }
 
-               
+
 toSrcType :: Variable -> IO T.CanonicalType
 toSrcType var =
     go =<< addNames var
@@ -446,40 +493,53 @@ toSrcType var =
           srcType <- maybe (backupSrcType desc) termToSrcType (structure desc)
           return $ maybe srcType (\name -> T.Aliased name srcType) (alias desc)
 
-    backupSrcType desc = 
+    backupSrcType :: Descriptor -> IO T.CanonicalType
+    backupSrcType desc =
         case name desc of
           Just v@(Var.Canonical _ x@(c:_))
-              | Char.isLower c -> return (T.Var x)
-              | otherwise -> return $ T.Type v
+              | Char.isLower c ->
+                  return (T.Var x)
+              | otherwise ->
+                  return $ T.Type v
 
-          _ -> error $ concat
-                        [ "Problem converting the following type "
-                        , "from a type-checker type to a source-syntax type:"
-                        , P.render (pretty Never var) ]
+          _ ->
+              error $
+                concat
+                  [ "Problem converting the following type "
+                  , "from a type-checker type to a source-syntax type:"
+                  , P.render (pretty Never var)
+                  ]
 
+    termToSrcType :: Term1 Variable -> IO T.CanonicalType
     termToSrcType term =
         case term of
-          App1 a b -> do
-            a' <- go a
-            b' <- go b
-            case a' of
-              T.App f args -> return $ T.App f (args ++ [b'])
-              _            -> return $ T.App a' [b']
+          App1 a b ->
+              do  a' <- go a
+                  b' <- go b
+                  case a' of
+                    T.App f args ->
+                        return $ T.App f (args ++ [b'])
+                    _ ->
+                        return $ T.App a' [b']
 
-          Fun1 a b -> T.Lambda <$> go a <*> go b
+          Fun1 a b ->
+              T.Lambda <$> go a <*> go b
 
-          Var1 a -> go a
+          Var1 a ->
+              go a
 
-          EmptyRecord1 -> return $ T.Record [] Nothing
+          EmptyRecord1 ->
+              return $ T.Record [] Nothing
 
-          Record1 tfields extension -> do
-            fields' <- traverse (mapM go) tfields
-            let fields = concat [ map ((,) name) ts | (name,ts) <- Map.toList fields' ]
-            ext' <- dealias <$> go extension
-            return $ case ext' of
-                       T.Record fs ext -> T.Record (fs ++ fields) ext
-                       T.Var _ -> T.Record fields (Just ext')
-                       _ -> error "Used toSrcType on a type that is not well-formed"
+          Record1 tfields extension ->
+            do  fields' <- traverse (mapM go) tfields
+                let fields = concat [ map ((,) name) ts | (name,ts) <- Map.toList fields' ]
+                ext' <- dealias <$> go extension
+                return $
+                    case ext' of
+                      T.Record fs ext -> T.Record (fs ++ fields) ext
+                      T.Var _ -> T.Record fields (Just ext')
+                      _ -> error "Used toSrcType on a type that is not well-formed"
 
     dealias :: T.CanonicalType -> T.CanonicalType
     dealias t =
@@ -488,11 +548,15 @@ toSrcType var =
           _ -> t
 
 
-data AppStructure = List Variable | Tuple [Variable] | Other
+data AppStructure
+    = List Variable
+    | Tuple [Variable]
+    | Other
 
 
 collectApps :: Variable -> IO AppStructure
-collectApps var = go [] var
+collectApps var =
+    go [] var
   where
     go vars var = do
       desc <- UF.descriptor var
