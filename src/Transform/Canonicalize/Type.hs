@@ -80,17 +80,29 @@ canonicalizeAlias env (name, tvars, dealiasedTipe) tipes =
     tvarsLen = length tvars
 
     msg :: String
-    msg = "Type alias '" ++ Var.toString name ++ "' expects " ++ show tvarsLen ++
-          " type argument" ++ (if tvarsLen == 1 then "" else "s") ++
-          " but was given " ++ show tipesLen
+    msg =
+        "Type alias '" ++ Var.toString name ++ "' expects " ++ show tvarsLen ++
+        " type argument" ++ (if tvarsLen == 1 then "" else "s") ++
+        " but was given " ++ show tipesLen
 
     replace :: Map.Map String T.CanonicalType -> T.CanonicalType -> T.CanonicalType
     replace typeTable t =
         let go = replace typeTable in
         case t of
-          T.Lambda a b          -> T.Lambda (go a) (go b)
-          T.Var x               -> Map.findWithDefault t x typeTable
-          T.Record fields ext   -> T.Record (map (second go) fields) (fmap go ext)
-          T.Aliased original t' -> T.Aliased original (go t')
-          T.Type _              -> t
-          T.App f args          -> T.App (go f) (map go args)
+          T.Lambda a b ->
+              T.Lambda (go a) (go b)
+
+          T.Var x ->
+              Map.findWithDefault t x typeTable
+
+          T.Record fields ext ->
+              T.Record (map (second go) fields) (fmap go ext)
+
+          T.Aliased original t' ->
+              T.Aliased original (go t')
+
+          T.Type _ ->
+              t
+
+          T.App f args ->
+              T.App (go f) (map go args)
