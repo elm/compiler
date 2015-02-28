@@ -231,12 +231,12 @@ wireError
     -> [P.Doc]
 wireError name direction rootType localType problemMessage =
     [ P.text (dir "Input" "Output" ++ " Error:")
-    , P.nest 2 $
+    , P.nest 4 $
         P.vcat
-          [ txt [ "The ", wire, " named '", name, "' was has an invalid type.\n" ]
-          , P.nest 2 (PP.pretty rootType) <> P.text "\n"
+          [ txt [ "The ", wire, " named '", name, "' has an invalid type.\n" ]
+          , P.nest 4 (PP.pretty rootType) <> P.text "\n"
           , txt [ problemMessage, ":\n" ]
-          , P.nest 2 (PP.pretty localType) <> P.text "\n"
+          , P.nest 4 (PP.pretty localType) <> P.text "\n"
           , txt [ "Acceptable values for ", wire, "s include:" ]
           , txt [ "  Ints, Floats, Bools, Strings, Maybes, Lists, Arrays, Tuples, unit values," ]
           , txt [ "  Json.Values, ", dir "" "first-order functions, promises, ", "and concrete records." ]
@@ -274,7 +274,14 @@ checkLoobacksHelp name rootType tipe hasExpr =
             return ()
 
     _ ->
-        throw [ P.text "no good loopback" ]
+        throw $
+          [ P.text "Loopback Error:"
+          , P.nest 4 $
+              P.vcat
+                [ P.text ("The loopback named '" ++ name ++ "' has an invalid type.\n")
+                , P.nest 4 (PP.pretty rootType) <> P.text "\n"
+                ]
+          ]
 
 
 -- INFINITE TYPES
