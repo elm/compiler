@@ -261,16 +261,21 @@ checkLoobacks name tipe hasExpr =
 
 checkLoobacksHelp :: String -> ST.CanonicalType -> ST.CanonicalType -> Bool -> Either [P.Doc] ()
 checkLoobacksHelp name rootType tipe hasExpr =
-  case tipe of
-    ST.Aliased _ t ->
-        checkLoobacksHelp name rootType t hasExpr
+  case ST.dealias tipe of
+    ST.Record
+      [ ("mailbox", ST.App (ST.Type mailbox) [a])
+      , ("stream", ST.App (ST.Type stream) [b])
+      ]
+      Nothing
+        | not hasExpr
+          && Var.isStream stream
+          && Var.isMailbox mailbox
+          && a == b
+          ->
+            return ()
 
     ST.App (ST.Type signal) [ ST.App (ST.Type result) [_,_] ]
         | hasExpr && Var.isStream signal && Var.isResult result ->
-            return ()
-
-    ST.App (ST.Type signal) [ _ ]
-        | not hasExpr && Var.isWritableStream signal ->
             return ()
 
     _ ->
