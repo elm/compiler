@@ -23,11 +23,13 @@ mistakes :: [D.ValidDecl] -> [Doc]
 mistakes decls =
     concat
       [ infiniteTypeAliases decls
-      , illFormedTypes decls
+      , illFormedTypeDecls decls
       , map P.text (duplicateTypeDeclarations decls)
       , map P.text (duplicateValues decls)
       ]
 
+
+-- DUPLICATES
 
 dups :: Ord a => [a] -> [a]
 dups names =
@@ -97,82 +99,118 @@ dupCtorError name =
   ++ "    something should be renamed or moved to a different module."
 
 
-illFormedTypes :: [D.ValidDecl] -> [Doc]
-illFormedTypes decls = map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
-    where
-      aliases = [ (decl, tvars, [tipe]) | decl@(D.TypeAlias _ tvars tipe) <- decls ]
-      adts = [ (decl, tvars, concatMap snd ctors) | decl@(D.Datatype _ tvars ctors) <- decls ]
+-- FREE TYPE VARIABLES IN TYPE DECLARATIONS
 
-      freeVars tipe =
-          case tipe of
-            T.Lambda t1 t2 -> Set.union (freeVars t1) (freeVars t2)
-            T.Var x -> Set.singleton x
-            T.Type _ -> Set.empty
-            T.App t ts -> Set.unions (map freeVars (t:ts))
-            T.Record fields ext -> Set.unions (ext' : map (freeVars . snd) fields)
-                where ext' = maybe Set.empty freeVars ext
-            T.Aliased _ t -> freeVars t
+illFormedTypeDecls :: [D.ValidDecl] -> [Doc]
+illFormedTypeDecls decls =
+    map report (Maybe.mapMaybe isIllFormed (aliases ++ adts))
+  where
+    aliases =
+        [ (decl, tvars, [tipe]) | decl@(D.TypeAlias _ tvars tipe) <- decls ]
 
-      undeclared tvars tipes = Set.difference used declared
-          where
-            used = Set.unions (map freeVars tipes)
-            declared = Set.fromList tvars
+    adts =
+        [ (decl, tvars, concatMap snd ctors) | decl@(D.Datatype _ tvars ctors) <- decls ]
 
-      isIllFormed (decl, tvars, tipes) =
-          let unbound = undeclared tvars tipes in
-          if Set.null unbound then Nothing
-                              else Just (decl, Set.toList unbound)
+    freeVars tipe =
+        case tipe of
+          T.Lambda t1 t2 ->
+              Set.union (freeVars t1) (freeVars t2)
 
-      report (decl, tvars) =
-          P.vcat [ P.text $ "Error: type variable" ++ listing ++ " unbound in:"
-                 , P.text "\n"
-                 , nest 4 (pretty decl) ]
-          where
-            listing =
-                case tvars of
-                  [tvar] -> " " ++ quote tvar ++ " is"
-                  _ -> "s" ++ addCommas (map ((++) " ") (addAnd (map quote tvars))) ++ " are"
+          T.Var x ->
+              Set.singleton x
 
-            addCommas xs
-                | length xs < 3 = concat xs
-                | otherwise = List.intercalate "," xs
+          T.Type _ ->
+              Set.empty
 
-            addAnd xs
-                | length xs < 2 = xs
-                | otherwise = zipWith (++) (replicate (length xs - 1) "" ++ ["and "]) xs
+          T.App t ts ->
+              Set.unions (map freeVars (t:ts))
 
-            quote tvar = "'" ++ tvar ++ "'"
+          T.Record fields ext ->
+              let ext' = maybe Set.empty freeVars ext
+              in
+                  Set.unions (ext' : map (freeVars . snd) fields)
 
+          T.Aliased _ t ->
+              freeVars t
+
+    undeclared tvars tipes =
+        Set.difference used declared
+      where
+        used = Set.unions (map freeVars tipes)
+        declared = Set.fromList tvars
+
+    isIllFormed (decl, tvars, tipes) =
+        let unbound = undeclared tvars tipes in
+        if Set.null unbound
+          then Nothing
+          else Just (decl, Set.toList unbound)
+
+    report (decl, tvars) =
+        P.vcat [ P.text $ "Error: type variable" ++ listing ++ " unbound in:"
+               , P.text "\n"
+               , nest 4 (pretty decl) ]
+      where
+        listing =
+            case tvars of
+              [tvar] -> " " ++ quote tvar ++ " is"
+              _ -> "s" ++ addCommas (map ((++) " ") (addAnd (map quote tvars))) ++ " are"
+
+        addCommas xs
+            | length xs < 3 = concat xs
+            | otherwise = List.intercalate "," xs
+
+        addAnd xs
+            | length xs < 2 = xs
+            | otherwise = zipWith (++) (replicate (length xs - 1) "" ++ ["and "]) xs
+
+        quote tvar = "'" ++ tvar ++ "'"
+
+
+-- INFINITE TYPE ALIASES
 
 infiniteTypeAliases :: [D.ValidDecl] -> [Doc]
 infiniteTypeAliases decls =
-    [ report name tvars tipe | D.TypeAlias name tvars tipe <- decls
-                             , infiniteType name tipe ]
-    where
-      infiniteType :: String -> T.Type Var.Raw -> Bool
-      infiniteType name tipe =
-          let infinite = infiniteType name in
-          case tipe of
-            T.Lambda a b -> infinite a || infinite b
-            T.Var _ -> False
-            T.Type (Var.Raw name') -> name == name'
-            T.App t ts -> any infinite (t:ts)
-            T.Record fields _ -> any (infinite . snd) fields
-            T.Aliased _ t -> infinite t
+    [ report name tvars tipe
+        | D.TypeAlias name tvars tipe <- decls
+        , infiniteType name tipe
+    ]
+  where
+    infiniteType :: String -> T.Type Var.Raw -> Bool
+    infiniteType name tipe =
+        let infinite = infiniteType name in
+        case tipe of
+          T.Lambda a b ->
+              infinite a || infinite b
 
-      indented :: D.ValidDecl -> Doc
-      indented decl = P.text "\n    " <> pretty decl <> P.text "\n"
+          T.Var _ ->
+              False
 
-      report name args tipe =
-          P.vcat
-            [ P.text $ eightyCharLines 0 msg1
-            , indented $ D.TypeAlias name args tipe
-            , P.text $ eightyCharLines 0 Setup.typeAliasErrorSegue
-            , indented $ D.Datatype name args [(name,[tipe])]
-            , P.text $ eightyCharLines 0 Setup.typeAliasErrorExplanation ++ "\n"
-            ]
-          where
-            msg1 =
-                "Type alias '" ++ name ++ "' is an infinite type. " ++
-                "Notice that it appears in its own definition, so when \
-                \you expand it, it just keeps getting bigger:"
+          T.Type (Var.Raw name') ->
+              name == name'
+
+          T.App t ts ->
+              any infinite (t:ts)
+
+          T.Record fields _ ->
+              any (infinite . snd) fields
+
+          T.Aliased _ t ->
+              infinite t
+
+    indented :: D.ValidDecl -> Doc
+    indented decl =
+        P.text "\n    " <> pretty decl <> P.text "\n"
+
+    report name args tipe =
+        P.vcat
+          [ P.text $ eightyCharLines 0 msg1
+          , indented $ D.TypeAlias name args tipe
+          , P.text $ eightyCharLines 0 Setup.typeAliasErrorSegue
+          , indented $ D.Datatype name args [(name,[tipe])]
+          , P.text $ eightyCharLines 0 Setup.typeAliasErrorExplanation ++ "\n"
+          ]
+        where
+          msg1 =
+              "Type alias '" ++ name ++ "' is an infinite type. " ++
+              "Notice that it appears in its own definition, so when \
+              \you expand it, it just keeps getting bigger:"
