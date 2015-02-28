@@ -6,7 +6,7 @@ import qualified Data.Either as Either
 import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
-import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import qualified Text.EditDistance as Dist
 
