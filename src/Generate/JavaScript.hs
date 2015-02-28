@@ -171,8 +171,10 @@ expression (A region expr) =
                 case last branches of
                   (A _ (Var (Var.Canonical (Var.Module ["Basics"]) "otherwise")), _) ->
                       safeIfs branches'
-                  (A _ (Literal (Boolean True)), _) -> safeIfs branches'
-                  _ -> ifs branches' (throw "badIf" region)
+                  (A _ (Literal (Boolean True)), _) ->
+                      safeIfs branches'
+                  _ ->
+                      ifs branches' (throw "badIf" region)
           where
             safeIfs branches = ifs (init branches) (snd (last branches))
             ifs branches finally = foldr iff finally branches
