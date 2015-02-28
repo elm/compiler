@@ -2,6 +2,7 @@ module Generate.JavaScript.Foreign (input, output) where
 
 import qualified Data.List as List
 import Generate.JavaScript.Helpers
+import AST.PrettyPrint (pretty)
 import AST.Type as T
 import qualified AST.Variable as Var
 import Language.ECMAScript3.Syntax
@@ -65,16 +66,22 @@ check x jsType continue =
 
 input :: String -> CanonicalType -> Expression ()
 input name tipe =
-  case T.dealias tipe of
+  let args t =
+        [ string name, string (show (pretty t)), toTypeFunction t ]
+  in
+  case tipe of
+    Aliased _ t ->
+        input name t
+
     App (Type signal) [t]
         | Var.isStream signal ->
-            obj ["_P","inputStream"] <| toTypeFunction t
+            obj ["_P","inputStream"] `call` args t
 
         | Var.isVarying signal ->
-            obj ["_P","inputVarying"] <| toTypeFunction t
+            obj ["_P","inputVarying"] `call` args t
 
-    dealiasedType ->
-        obj ["_P","inputValue"] <| toTypeFunction dealiasedType
+    _ ->
+        obj ["_P","inputValue"] `call` args tipe
 
 
 toTypeFunction :: CanonicalType -> Expression ()
@@ -166,16 +173,22 @@ toTuple types x =
 
 output :: String -> CanonicalType -> Expression () -> Expression ()
 output name tipe value =
-  case T.dealias tipe of
+  let args t =
+        [ string name, fromTypeFunction t, value ]
+  in
+  case tipe of
+    Aliased _ t ->
+        output name t value
+
     App (Type signal) [t]
         | Var.isStream signal ->
-            obj ["_P","outputStream"] `call` [ fromTypeFunction t, value ]
+            obj ["_P","outputStream"] `call` args t
 
         | Var.isVarying signal ->
-            obj ["_P","outputVarying"] `call` [ fromTypeFunction t, value ]
+            obj ["_P","outputVarying"] `call` args t
 
-    dealiasedType ->
-        obj ["_P","outputValue"] `call` [ fromTypeFunction dealiasedType, value ]
+    _ ->
+        obj ["_P","outputValue"] `call` args tipe
 
 
 fromTypeFunction :: CanonicalType -> Expression ()
