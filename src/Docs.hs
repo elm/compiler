@@ -9,6 +9,7 @@ import System.IO
 
 import Control.Applicative ((<$>))
 import Control.Arrow (second)
+import Control.Monad (when)
 import qualified Data.Aeson.Encode.Pretty as Json
 import qualified Data.ByteString.Lazy.Char8 as BS
 import qualified Data.Map as Map
@@ -54,7 +55,17 @@ defaultFlags = Flags
 main :: IO ()
 main =
   do  flags <- cmdArgs defaultFlags
-      source <- readFile (input flags)
+      let inputFileName = input flags
+
+      exists <- doesFileExist inputFileName
+      when (not exists) $
+          do  hPutStrLn stderr $
+                  if null inputFileName
+                    then "Error: you must provide a file to document!"
+                    else "Error: could not find a file named '" ++ inputFileName ++ "'"
+              exitFailure
+
+      source <- readFile inputFileName
       case Parse.iParse documentation source of
         Right docs ->
             let json = Json.encodePretty' config docs in
