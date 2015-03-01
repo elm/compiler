@@ -155,7 +155,7 @@ instance Binary ImportMethod where
 instance (Pretty exs, Pretty body) => Pretty (Module exs body) where
   pretty (Module names _ exs ims body) =
       P.vcat [modul, P.text "", prettyImports, P.text "", pretty body]
-    where 
+    where
       modul =
         P.text "module" <+> name <+> pretty exs <+> P.text "where"
 
@@ -173,5 +173,13 @@ prettyMethod (name, ImportMethod maybeAlias exposedVars) =
           Nothing -> P.empty
           Just alias ->
             P.text "as" <+> P.text alias
+
+      prettyExposed =
+        if exposedVars == Var.closedListing
+          then P.empty
+          else P.text "exposing" <+> pretty exposedVars
   in
-      prettyAlias <+> P.text "exposing" <+> pretty exposedVars
+      P.text "import"
+          <+> P.text (nameToString name)
+          <+> prettyAlias
+          <+> prettyExposed
