@@ -40,20 +40,20 @@ crawl
     -> ([def] -> Either a [def'])
     -> Expr ann def var
     -> Either a (Expr ann def' var)
-crawl inputCheck outputCheck loopbackCheck defsTransform expression =
-    go expression
+crawl inputCheck outputCheck loopbackCheck defsTransform annotatedExpression =
+    go annotatedExpression
   where
-    go (A srcSpan expr) =
+    go (A srcSpan expression) =
         A srcSpan <$>
-        case expr of
+        case expression of
           Var x ->
               return (Var x)
 
-          Lambda p e ->
-              Lambda p <$> go e
+          Lambda pattern body ->
+              Lambda pattern <$> go body
 
-          Binop op e1 e2 ->
-              Binop op <$> go e1 <*> go e2
+          Binop op leftExpr rightExpr ->
+              Binop op <$> go leftExpr <*> go rightExpr
 
           Case e cases ->
               Case <$> go e <*> mapM (\(p,b) -> (,) p <$> go b) cases
@@ -64,32 +64,34 @@ crawl inputCheck outputCheck loopbackCheck defsTransform expression =
           Literal lit ->
               return (Literal lit)
 
-          Range e1 e2 ->
-              Range <$> go e1 <*> go e2
+          Range lowExpr highExpr ->
+              Range <$> go lowExpr <*> go highExpr
 
-          ExplicitList es ->
-              ExplicitList <$> mapM go es
+          ExplicitList expressions ->
+              ExplicitList <$> mapM go expressions
 
-          App e1 e2 ->
-              App <$> go e1 <*> go e2
+          App funcExpr argExpr ->
+              App <$> go funcExpr <*> go argExpr
 
           MultiIf branches ->
               MultiIf <$> mapM (\(b,e) -> (,) <$> go b <*> go e) branches
 
-          Access e lbl ->
-              Access <$> go e <*> return lbl
+          Access record field ->
+              Access <$> go record <*> return field
 
-          Remove e lbl ->
-              Remove <$> go e <*> return lbl
+          Remove record field ->
+              Remove <$> go record <*> return field
 
-          Insert e lbl v ->
-              Insert <$> go e <*> return lbl <*> go v
+          Insert record field expr ->
+              Insert <$> go record <*> return field <*> go expr
 
-          Modify e fields ->
-              Modify <$> go e <*> mapM (\(k,v) -> (,) k <$> go v) fields
+          Modify record fields ->
+              Modify
+                <$> go record
+                <*> mapM (\(field,expr) -> (,) field <$> go expr) fields
 
           Record fields ->
-              Record <$> mapM (\(k,v) -> (,) k <$> go v) fields
+              Record <$> mapM (\(field,expr) -> (,) field <$> go expr) fields
 
           Let defs body ->
               Let <$> defsTransform defs <*> go body
@@ -101,9 +103,9 @@ crawl inputCheck outputCheck loopbackCheck defsTransform expression =
               do  inputCheck name st
                   return $ Input name st
 
-          Output name st signal ->
+          Output name st expr ->
               do  outputCheck name st
-                  Output name st <$> go signal
+                  Output name st <$> go expr
 
           Loopback name st maybeExpr ->
               do  let hasExpr = maybe False (const True) maybeExpr
