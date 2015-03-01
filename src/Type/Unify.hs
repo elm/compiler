@@ -57,45 +57,50 @@ actuallyUnify region variable1 variable2 = do
       (name', flex', rank', alias') = combinedDescriptors desc1 desc2
 
       merge1 :: Unify ()
-      merge1 = liftIO $ do
-        if rank desc1 < rank desc2 then UF.union variable2 variable1
-                                   else UF.union variable1 variable2
-        UF.modifyDescriptor variable1 $ \desc ->
-            desc { structure = structure desc1
-                 , flex = flex'
-                 , name = name'
-                 , alias = alias'
-                 }
+      merge1 =
+        liftIO $ do
+            if rank desc1 < rank desc2
+                then UF.union variable2 variable1
+                else UF.union variable1 variable2
+            UF.modifyDescriptor variable1 $ \desc ->
+                desc { structure = structure desc1
+                     , flex = flex'
+                     , name = name'
+                     , alias = alias'
+                     }
 
       merge2 :: Unify ()
-      merge2 = liftIO $ do
-        if rank desc1 < rank desc2 then UF.union variable2 variable1
-                                   else UF.union variable1 variable2
-        UF.modifyDescriptor variable2 $ \desc ->
-            desc { structure = structure desc2
-                 , flex = flex'
-                 , name = name'
-                 , alias = alias'
-                 }
+      merge2 =
+        liftIO $ do
+            if rank desc1 < rank desc2
+                then UF.union variable2 variable1
+                else UF.union variable1 variable2
+            UF.modifyDescriptor variable2 $ \desc ->
+                desc { structure = structure desc2
+                     , flex = flex'
+                     , name = name'
+                     , alias = alias'
+                     }
 
-      merge = if rank desc1 < rank desc2 then merge1 else merge2
+      merge =
+        if rank desc1 < rank desc2 then merge1 else merge2
 
       fresh :: Maybe (Term1 Variable) -> Unify Variable
-      fresh structure = do
-        v <- liftIO . UF.fresh $ Descriptor
-             { structure = structure
-             , rank = rank'
-             , flex = flex'
-             , name = name'
-             , copy = Nothing
-             , mark = noMark
-             , alias = alias'
-             }
-        lift (TS.register v)
+      fresh structure =
+        do  v <- liftIO . UF.fresh $ Descriptor
+                 { structure = structure
+                 , rank = rank'
+                 , flex = flex'
+                 , name = name'
+                 , copy = Nothing
+                 , mark = noMark
+                 , alias = alias'
+                 }
+            lift (TS.register v)
 
-      flexAndUnify v = do
-        liftIO $ UF.modifyDescriptor v $ \desc -> desc { flex = Flexible }
-        unifyHelp' variable1 variable2
+      flexAndUnify v =
+        do  liftIO $ UF.modifyDescriptor v $ \desc -> desc { flex = Flexible }
+            unifyHelp' variable1 variable2
 
       unifyNumber svar (Var.Canonical home name) =
           case home of
@@ -127,24 +132,28 @@ actuallyUnify region variable1 variable2 = do
             _ -> comparableError Nothing
 
       unifyComparableStructure varSuper varFlex =
-          do struct <- liftIO $ collectApps varFlex
-             case struct of
-               Other -> comparableError Nothing
-               List v -> do flexAndUnify varSuper
-                            unifyHelp' v =<< liftIO (variable $ Is Comparable)
-               Tuple vs
-                   | length vs > 6 ->
-                       comparableError $ Just "Cannot compare a tuple with more than 6 elements."
-                   | otherwise -> 
-                       do flexAndUnify varSuper
+          do  struct <- liftIO $ collectApps varFlex
+              case struct of
+                Other ->
+                    comparableError Nothing
+
+                List v ->
+                    do  flexAndUnify varSuper
+                        unifyHelp' v =<< liftIO (variable $ Is Comparable)
+
+                Tuple vs
+                  | length vs > 6 ->
+                      comparableError $ Just "Cannot compare a tuple with more than 6 elements."
+                  | otherwise ->
+                      do  flexAndUnify varSuper
                           cmpVars <- liftIO $ forM [1..length vs] $ \_ -> variable (Is Comparable)
                           zipWithM_ unifyHelp' vs cmpVars
 
       unifyAppendable varSuper varFlex =
-          do struct <- liftIO $ collectApps varFlex
-             case struct of
-               List _ -> flexAndUnify varSuper
-               _      -> appendableError Nothing
+          do  struct <- liftIO $ collectApps varFlex
+              case struct of
+                List _ -> flexAndUnify varSuper
+                _      -> appendableError Nothing
 
       rigidError var =
           typeError region (Just hint) variable1 variable2
@@ -160,7 +169,7 @@ actuallyUnify region variable1 variable2 = do
                 | super1 == super2 -> merge
             (Is Number, Is Comparable, _, _) -> merge1
             (Is Comparable, Is Number, _, _) -> merge2
-                   
+
             (Is Number, _, _, Just name) -> unifyNumber variable1 name
             (_, Is Number, Just name, _) -> unifyNumber variable2 name
 
@@ -181,15 +190,26 @@ actuallyUnify region variable1 variable2 = do
             _ -> typeError region Nothing variable1 variable2
 
   case (structure desc1, structure desc2) of
-    (Nothing, Nothing) | flex desc1 == Flexible && flex desc1 == Flexible -> merge
-    (Nothing, _) | flex desc1 == Flexible -> merge2
-    (_, Nothing) | flex desc2 == Flexible -> merge1
+    (Nothing, Nothing) | flex desc1 == Flexible && flex desc1 == Flexible ->
+        merge
 
-    (Just (Var1 v), _) -> unifyHelp' v variable2
-    (_, Just (Var1 v)) -> unifyHelp' v variable1
+    (Nothing, _) | flex desc1 == Flexible ->
+        merge2
 
-    (Nothing, _) -> superUnify
-    (_, Nothing) -> superUnify
+    (_, Nothing) | flex desc2 == Flexible ->
+        merge1
+
+    (Just (Var1 v), _) ->
+        unifyHelp' v variable2
+
+    (_, Just (Var1 v)) ->
+        unifyHelp' v variable1
+
+    (Nothing, _) ->
+        superUnify
+
+    (_, Nothing) ->
+        superUnify
 
     (Just type1, Just type2) ->
         case (type1,type2) of
@@ -288,7 +308,7 @@ unifyOverlappingFields
     -> Unify ()
 unifyOverlappingFields region fields1 fields2 =
     Map.intersectionWith (zipWith (unifyHelp region)) fields1 fields2
-        |> Map.elems 
+        |> Map.elems
         |> concat
         |> sequence_
 
@@ -338,36 +358,42 @@ fieldMismatchError missingFields =
         ++ List.intercalate ", " (init keys) ++ ", and " ++ last keys
 
 
-combinedDescriptors :: Descriptor -> Descriptor
-                    -> (Maybe Var.Canonical, Flex, Int, Maybe Var.Canonical)
+combinedDescriptors
+    :: Descriptor
+    -> Descriptor
+    -> (Maybe Var.Canonical, Flex, Int, Maybe Var.Canonical)
 combinedDescriptors desc1 desc2 =
     (name', flex', rank', alias')
   where
     rank' :: Int
-    rank' = min (rank desc1) (rank desc2)
+    rank' =
+      min (rank desc1) (rank desc2)
 
     alias' :: Maybe Var.Canonical
-    alias' = alias desc1 <|> alias desc2
+    alias' =
+      alias desc1 <|> alias desc2
 
     name' :: Maybe Var.Canonical
-    name' = case (name desc1, name desc2) of
-              (Just name1, Just name2) ->
-                  case (flex desc1, flex desc2) of
-                    (_, Flexible)     -> Just name1
-                    (Flexible, _)     -> Just name2
-                    (Is Number, Is _) -> Just name1
-                    (Is _, Is Number) -> Just name2
-                    (Is _, Is _)      -> Just name1
-                    (_, _)            -> Nothing
-              (Just name1, _) -> Just name1
-              (_, Just name2) -> Just name2
-              _ -> Nothing
+    name' =
+      case (name desc1, name desc2) of
+        (Just name1, Just name2) ->
+            case (flex desc1, flex desc2) of
+              (_, Flexible)     -> Just name1
+              (Flexible, _)     -> Just name2
+              (Is Number, Is _) -> Just name1
+              (Is _, Is Number) -> Just name2
+              (Is _, Is _)      -> Just name1
+              (_, _)            -> Nothing
+        (Just name1, _) -> Just name1
+        (_, Just name2) -> Just name2
+        _ -> Nothing
 
     flex' :: Flex
-    flex' = case (flex desc1, flex desc2) of
-              (f, Flexible)     -> f
-              (Flexible, f)     -> f
-              (Is Number, Is _) -> Is Number
-              (Is _, Is Number) -> Is Number
-              (Is super, Is _)  -> Is super
-              (_, _)            -> Flexible
+    flex' =
+      case (flex desc1, flex desc2) of
+        (f, Flexible)     -> f
+        (Flexible, f)     -> f
+        (Is Number, Is _) -> Is Number
+        (Is _, Is Number) -> Is Number
+        (Is super, Is _)  -> Is super
+        (_, _)            -> Flexible
