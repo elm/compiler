@@ -28,7 +28,10 @@ import qualified Transform.Canonicalize.Type as Canonicalize
 import qualified Transform.Interface as Interface
 
 
-environment :: Module.Interfaces -> Module.ValidModule -> Canonicalizer [Doc] Environment
+environment
+    :: Module.Interfaces
+    -> Module.ValidModule
+    -> Canonicalizer [Doc] Environment
 environment interfaces modul@(Module.Module _ _ _ imports decls) =
   do  () <- allImportsAvailable
       let moduleName =
@@ -186,12 +189,23 @@ node name tvars alias =
   where
     edges tipe =
         case tipe of
-          Type.Lambda t1 t2 -> edges t1 ++ edges t2
-          Type.Var _ -> []
-          Type.Type (Var.Raw x) -> [x]
-          Type.App t ts -> edges t ++ concatMap edges ts
-          Type.Record fs ext -> maybe [] edges ext ++ concatMap (edges . snd) fs
-          Type.Aliased _ t -> edges t
+          Type.Lambda t1 t2 ->
+              edges t1 ++ edges t2
+
+          Type.Var _ ->
+              []
+
+          Type.Type (Var.Raw x) ->
+              [x]
+
+          Type.App t ts ->
+              edges t ++ concatMap edges ts
+
+          Type.Record fs ext ->
+              maybe [] edges ext ++ concatMap (edges . snd) fs
+
+          Type.Aliased _ t ->
+              edges t
 
 
 addTypeAliases
@@ -233,22 +247,23 @@ addTypeAlias moduleName env scc =
 
 typeAlias
     :: (String, [String], Type.Type var)
-    -> D.Declaration' port def var
+    -> D.Declaration' wire def var
 typeAlias (n,ts,t) =
     D.TypeAlias n ts t
 
 
 datatype
     :: (String, [String], Type.Type var)
-    -> D.Declaration' port def var
+    -> D.Declaration' wire def var
 datatype (n,ts,t) =
     D.Datatype n ts [(n,[t])]
 
 
 indented :: [D.ValidDecl] -> Doc
-indented decls = P.vcat (map prty decls) <> P.text "\n"
-    where
-      prty decl = P.text "\n    " <> pretty decl
+indented decls =
+    P.vcat (map prty decls) <> P.text "\n"
+  where
+    prty decl = P.text "\n    " <> pretty decl
 
 
 mutuallyRecursiveMessage :: String
@@ -317,4 +332,5 @@ addDecl moduleName info@(nodes,env) decl =
                   addLocal (D.wireName wire) (_values env)
               }
 
-      D.Fixity _ _ _ -> info
+      D.Fixity _ _ _ ->
+          info
