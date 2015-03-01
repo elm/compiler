@@ -189,8 +189,8 @@ instance (Pretty def, Pretty var, Var.ToString var) => Pretty (Expr' ann def var
             , P.rbrace
             ]
         where
-          field (field, value) =
-             variable field <+> P.equals <+> pretty value
+          field (name, value) =
+             variable name <+> P.equals <+> pretty value
 
       GLShader _ _ _ ->
           P.text "[glsl| ... |]"
