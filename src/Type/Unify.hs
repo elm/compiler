@@ -203,7 +203,7 @@ actuallyUnify region variable1 variable2 = do
         unifyHelp' v variable2
 
     (_, Just (Var1 v)) ->
-        unifyHelp' v variable1
+        unifyHelp' variable1 v
 
     (Nothing, _) ->
         superUnify
@@ -226,7 +226,7 @@ actuallyUnify region variable1 variable2 = do
               return ()
 
           (Record1 fields ext, EmptyRecord1) | Map.null fields -> unifyHelp' ext variable2
-          (EmptyRecord1, Record1 fields ext) | Map.null fields -> unifyHelp' ext variable1
+          (EmptyRecord1, Record1 fields ext) | Map.null fields -> unifyHelp' variable1 ext
 
           (Record1 _ _, Record1 _ _) ->
               recordUnify region fresh variable1 variable2
