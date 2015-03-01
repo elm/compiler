@@ -137,8 +137,8 @@ instance Arbitrary v => Arbitrary (T.Type v) where
       T.Var _ ->
           []
 
-      T.Aliased v t ->
-          t : (T.Aliased v <$> shrink t)
+      T.Aliased name tvars rootType ->
+          rootType : (T.Aliased name <$> shrinkList shrinkPair tvars <*> shrink rootType)
 
       T.Type name ->
           T.Type <$> shrink name
@@ -152,14 +152,14 @@ instance Arbitrary v => Arbitrary (T.Type v) where
           record =
               case extension of
                 Nothing ->
-                    T.Record <$> shrinkList shrinkField fields <*> pure Nothing
+                    T.Record <$> shrinkList shrinkPair fields <*> pure Nothing
 
                 Just _ ->
-                    do fields' <- filter (not . null) $ shrinkList shrinkField fields
+                    do fields' <- filter (not . null) $ shrinkList shrinkPair fields
                        return $ T.Record fields' extension
-
-          shrinkField (name, tipe) =
-              (,) <$> consAndShrink name <*> shrink tipe
+    where
+      shrinkPair (name, tipe) =
+          (,) <$> consAndShrink name <*> shrink tipe
 
 
 lowVar :: Gen String
