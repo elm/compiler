@@ -204,8 +204,8 @@ node name tvars alias =
           Type.Record fs ext ->
               maybe [] edges ext ++ concatMap (edges . snd) fs
 
-          Type.Aliased _ t ->
-              edges t
+          Type.Aliased _ args t ->
+              edges t ++ concatMap (edges . snd) args
 
 
 addTypeAliases

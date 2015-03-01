@@ -130,8 +130,8 @@ illFormedTypeDecls decls =
               in
                   Set.unions (ext' : map (freeVars . snd) fields)
 
-          T.Aliased _ t ->
-              freeVars t
+          T.Aliased _ args t ->
+              freeVars (T.dealias args t)
 
     undeclared tvars tipes =
         Set.difference used declared
@@ -194,8 +194,8 @@ infiniteTypeAliases decls =
           T.Record fields _ ->
               any (infinite . snd) fields
 
-          T.Aliased _ t ->
-              infinite t
+          T.Aliased _ args t ->
+              infinite t || any (infinite . snd) args
 
     indented :: D.ValidDecl -> Doc
     indented decl =

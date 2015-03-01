@@ -1,4 +1,10 @@
-module AST.Type where
+module AST.Type
+    ( Type(..), RawType, CanonicalType
+    , fieldMap, recordOf, listOf, tupleOf
+    , deepDealias, dealias
+    , collectLambdas
+    , prettyParens
+    ) where
 
 import Control.Applicative ((<$>), (<*>))
 import Control.Arrow (second)
@@ -11,13 +17,15 @@ import qualified AST.Helpers as Help
 import Text.PrettyPrint as P
 
 
+-- DEFINITION
+
 data Type var
     = Lambda (Type var) (Type var)
     | Var String
     | Type var
     | App (Type var) [Type var]
     | Record [(String, Type var)] (Maybe (Type var))
-    | Aliased Var.Canonical (Type var)
+    | Aliased Var.Canonical [(String, Type var)] (Type var)
     deriving (Eq,Show)
 
 
@@ -52,29 +60,64 @@ tupleOf types =
   let name = Var.Raw ("_Tuple" ++ show (length types))
   in
       App (Type name) types
-    
 
-dealias :: Type v -> Type v
-dealias tipe =
+
+-- DEALIASING
+
+deepDealias :: Type v -> Type v
+deepDealias tipe =
+  let go = deepDealias in
   case tipe of
-    Lambda arg body ->
-        Lambda (dealias arg) (dealias body)
+    Lambda a b ->
+          Lambda (go a) (go b)
 
     Var _ ->
         tipe
+
+    Record fields ext ->
+        Record (map (second go) fields) (fmap go ext)
+
+    Aliased _name args tipe' ->
+        dealias args tipe'
 
     Type _ ->
         tipe
 
     App f args ->
-        App (dealias f) (map dealias args)
+        App (go f) (map go args)
 
-    Record fields ext ->
-        Record (map (second dealias) fields) (fmap dealias ext)
 
-    Aliased _ t ->
-        dealias t
+dealias :: [(String, Type v)] -> Type v -> Type v
+dealias args tipe =
+    replace (Map.fromList args) tipe
 
+
+replace :: Map.Map String (Type var) -> Type var -> Type var
+replace typeTable t =
+    let go = replace typeTable in
+    case t of
+      Lambda a b ->
+          Lambda (go a) (go b)
+
+      Var x ->
+          Map.findWithDefault t x typeTable
+
+      Record fields ext ->
+          Record (map (second go) fields) (fmap go ext)
+
+      Aliased original args t' ->
+          let typeTable' = foldr Map.delete typeTable (map fst args)
+          in
+              Aliased original (map (second go) args) (replace typeTable' t')
+
+      Type _ ->
+          t
+
+      App f args ->
+          App (go f) (map go args)
+
+
+-- PRETTY PRINTING
 
 instance (Var.ToString var, Pretty var) => Pretty (Type var) where
   pretty tipe =
@@ -127,12 +170,15 @@ instance (Var.ToString var, Pretty var) => Pretty (Type var) where
             prettyField (field, tipe) =
                 P.text field <+> P.text ":" <+> pretty tipe
 
-      Aliased name t ->
+      Aliased name [] t ->
           let t' = pretty t
           in
               if show t' `elem` ["Int", "Float", "String", "Char", "Bool"]
                 then t'
                 else pretty name
+
+      Aliased name args _ ->
+          P.hang (pretty name) 2 (P.sep (map (prettyParens . snd) args))
 
 
 collectLambdas :: Type var -> [Type var]
@@ -151,7 +197,9 @@ prettyParens tipe =
   where
     needed t =
       case t of
-        Aliased _ t' -> needed t'
+        Aliased _ [] _ -> False
+
+        Aliased _ _ _ -> True
 
         Lambda _ _ -> True
 
@@ -180,22 +228,35 @@ flattenRecord tipe =
         in
             (fields' ++ fields, ext')
 
-    Aliased _ tipe' ->
+    Aliased _ _ tipe' ->
         flattenRecord tipe'
 
     _ ->
         error "Trying to flatten ill-formed record."
 
 
+-- BINARY
+
 instance Binary var => Binary (Type var) where
   put tipe =
       case tipe of
-        Lambda t1 t2  -> putWord8 0 >> put t1 >> put t2
-        Var x         -> putWord8 1 >> put x
-        Type name     -> putWord8 2 >> put name
-        App t1 t2     -> putWord8 3 >> put t1 >> put t2
-        Record fs ext -> putWord8 4 >> put fs >> put ext
-        Aliased var t -> putWord8 5 >> put var >> put t
+        Lambda t1 t2 ->
+            putWord8 0 >> put t1 >> put t2
+
+        Var x ->
+            putWord8 1 >> put x
+
+        Type name ->
+            putWord8 2 >> put name
+
+        App t1 t2 ->
+            putWord8 3 >> put t1 >> put t2
+
+        Record fs ext ->
+            putWord8 4 >> put fs >> put ext
+
+        Aliased var args t ->
+            putWord8 5 >> put var >> put args >> put t
 
   get = do
       n <- getWord8
@@ -205,5 +266,5 @@ instance Binary var => Binary (Type var) where
         2 -> Type <$> get
         3 -> App <$> get <*> get
         4 -> Record <$> get <*> get
-        5 -> Aliased <$> get <*> get
+        5 -> Aliased <$> get <*> get <*> get
         _ -> error "Error reading a valid type from serialized string"

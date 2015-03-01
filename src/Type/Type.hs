@@ -27,6 +27,8 @@ type TypeConstraint = Constraint Type Variable
 
 type TypeScheme = Scheme Type Variable
 
+type Alias a = Maybe (Var.Canonical, [(String,a)])
+
 
 -- TYPE PRIMITIVES
 
@@ -39,8 +41,9 @@ data Term1 a
 
 
 data TermN a
-    = VarN (Maybe Var.Canonical) a
-    | TermN (Maybe Var.Canonical) (Term1 (TermN a))
+    = PlaceHolder String
+    | VarN (Alias (TermN a)) a
+    | TermN (Alias (TermN a)) (Term1 (TermN a))
 
 
 varN :: a -> TermN a
@@ -67,7 +70,7 @@ data Descriptor = Descriptor
     , name :: Maybe TypeName
     , copy :: Maybe Variable
     , mark :: Int
-    , alias :: Maybe Var.Canonical
+    , alias :: Alias Variable
     }
 
 noRank :: Int
@@ -262,6 +265,9 @@ instance PrettyType a => PrettyType (Term1 a) where
 instance PrettyType a => PrettyType (TermN a) where
   pretty when term =
     case term of
+      PlaceHolder _ ->
+          error "problem prettifying type, probably indicates a bigger problem"
+
       VarN alias x ->
           either alias (pretty when x)
 
@@ -270,15 +276,16 @@ instance PrettyType a => PrettyType (TermN a) where
     where
       either maybeAlias doc =
           case maybeAlias of
-            Just alias -> PP.pretty alias
             Nothing -> doc
+            Just (name, args) ->
+                P.hang (PP.pretty name) 2 (P.sep (map (pretty App . snd) args))
 
 
 instance PrettyType Descriptor where
   pretty when desc =
     case (alias desc, structure desc, name desc) of
-      (Just name, _, _) ->
-          PP.pretty name
+      (Just (name, args), _, _) ->
+          P.hang (PP.pretty name) 4 (P.sep (map (pretty App . snd) args))
 
       (_, Just term, _) ->
           pretty when term
@@ -438,6 +445,9 @@ instance (Crawl t, Crawl v) => Crawl (Scheme t v) where
 instance Crawl t => Crawl (TermN t) where
   crawl nextState tipe =
     case tipe of
+      PlaceHolder name ->
+          return (PlaceHolder name)
+
       VarN a x ->
           VarN a <$> crawl nextState x
 
@@ -484,6 +494,8 @@ instance Crawl Descriptor where
         return $ desc { name = name', structure = structure' }
 
 
+-- TODO: Attach resulting type to the descriptor so that you
+-- never have to do extra work, particularly nice for aliased types
 toSrcType :: Variable -> IO T.CanonicalType
 toSrcType var =
     go =<< addNames var
@@ -491,7 +503,13 @@ toSrcType var =
     go v =
       do  desc <- UF.descriptor v
           srcType <- maybe (backupSrcType desc) termToSrcType (structure desc)
-          return $ maybe srcType (\name -> T.Aliased name srcType) (alias desc)
+          case alias desc of
+            Nothing ->
+                return srcType
+
+            Just (name, args) ->
+                do  args' <- mapM (\(arg,tvar) -> (,) arg <$> go tvar) args
+                    return (T.Aliased name args' srcType)
 
     backupSrcType :: Descriptor -> IO T.CanonicalType
     backupSrcType desc =
@@ -542,10 +560,12 @@ toSrcType var =
                       _ -> error "Used toSrcType on a type that is not well-formed"
 
     dealias :: T.CanonicalType -> T.CanonicalType
-    dealias t =
-        case t of
-          T.Aliased _ t' -> t'
-          _ -> t
+    dealias tipe =
+        case tipe of
+          T.Aliased _ args tipe' ->
+              T.dealias args tipe'
+          _ ->
+              tipe
 
 
 data AppStructure

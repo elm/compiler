@@ -7,6 +7,7 @@ import Control.Monad.Error (ErrorT, throwError, liftIO)
 import qualified Control.Monad.State as State
 import qualified Data.Traversable as Traverse
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.List (isPrefixOf)
 import qualified Text.PrettyPrint as PP
 
@@ -150,35 +151,55 @@ instantiator
     -> T.CanonicalType
     -> State.StateT VarDict IO Type
 instantiator env sourceType =
-    go sourceType
-  where
-    go :: T.CanonicalType -> State.StateT VarDict IO Type
-    go sourceType =
-      case sourceType of
-        T.Lambda t1 t2 ->
+    instantiatorHelp env Set.empty sourceType
+
+
+instantiatorHelp
+    :: Environment
+    -> Set.Set String
+    -> T.CanonicalType
+    -> State.StateT VarDict IO Type
+instantiatorHelp env aliasVars sourceType =
+    let go = instantiatorHelp env aliasVars
+    in
+    case sourceType of
+      T.Lambda t1 t2 ->
           (==>) <$> go t1 <*> go t2
 
-        T.Var x ->
+      T.Var x ->
           do  dict <- State.get
-              case Map.lookup x dict of
-                Just v -> return (varN v)
-                Nothing ->
-                    do  v <- State.liftIO $ namedVar flex (V.local x)
-                        State.put (Map.insert x v dict)
-                        return (varN v)
-                    where
-                      flex | "number"     `isPrefixOf` x = Is Number
-                           | "comparable" `isPrefixOf` x = Is Comparable
-                           | "appendable" `isPrefixOf` x = Is Appendable
-                           | otherwise = Flexible
+              case Set.member x aliasVars of
+                True ->
+                    return (PlaceHolder x)
+                False ->
+                    case Map.lookup x dict of
+                      Just v ->
+                          return (varN v)
 
-        T.Aliased name t ->
-          do  t' <- go t
-              case t' of
-                VarN _ v     -> return (VarN (Just name) v)
-                TermN _ term -> return (TermN (Just name) term)
+                      Nothing ->
+                          do  v <- State.liftIO $ namedVar flex (V.local x)
+                              State.put (Map.insert x v dict)
+                              return (varN v)
+                          where
+                            flex | "number"     `isPrefixOf` x = Is Number
+                                 | "comparable" `isPrefixOf` x = Is Comparable
+                                 | "appendable" `isPrefixOf` x = Is Appendable
+                                 | otherwise = Flexible
 
-        T.Type name ->
+      T.Aliased name args aliasedType ->
+          do  args' <- mapM (\(arg,tipe) -> (,) arg <$> go tipe) args
+              aliasedType' <- instantiatorHelp env (Set.fromList (map fst args)) aliasedType
+              case aliasedType' of
+                PlaceHolder x ->
+                    return (PlaceHolder x)
+
+                VarN _ v ->
+                    return (VarN (Just (name,args')) v)
+
+                TermN _ t ->
+                    return (TermN (Just (name, args')) t)
+
+      T.Type name ->
           case Map.lookup (V.toString name) (types env) of
             Just t  -> return t
             Nothing ->
@@ -186,12 +207,12 @@ instantiator env sourceType =
                   "Could not find type constructor '" ++
                   V.toString name ++ "' while checking types."
 
-        T.App t ts ->
+      T.App t ts ->
           do  t'  <- go t
               ts' <- mapM go ts
               return $ foldl (<|) t' ts'
 
-        T.Record fields ext ->
+      T.Record fields ext ->
           do  fields' <- Traverse.traverse (mapM go) (T.fieldMap fields)
               ext' <-
                   case ext of

@@ -361,7 +361,7 @@ fieldMismatchError missingFields =
 combinedDescriptors
     :: Descriptor
     -> Descriptor
-    -> (Maybe Var.Canonical, Flex, Int, Maybe Var.Canonical)
+    -> (Maybe Var.Canonical, Flex, Int, Alias Variable)
 combinedDescriptors desc1 desc2 =
     (name', flex', rank', alias')
   where
@@ -369,7 +369,7 @@ combinedDescriptors desc1 desc2 =
     rank' =
       min (rank desc1) (rank desc2)
 
-    alias' :: Maybe Var.Canonical
+    alias' :: Alias Variable
     alias' =
       alias desc1 <|> alias desc2
 

@@ -70,8 +70,8 @@ input name tipe =
         [ string name, string (show (pretty t)), toTypeFunction t ]
   in
   case tipe of
-    Aliased _ t ->
-        input name t
+    Aliased _ args t ->
+        input name (dealias args t)
 
     App (Type signal) [t]
         | Var.isStream signal ->
@@ -98,8 +98,8 @@ toType tipe x =
       Var _ ->
           error "type variables should not be allowed through input ports"
 
-      Aliased _ t ->
-          toType t x
+      Aliased _ args t ->
+          toType (dealias args t) x
 
       Type (Var.Canonical Var.BuiltIn name)
           | name == "Int"    -> from JSNumber
@@ -177,8 +177,8 @@ output name tipe value =
         [ string name, fromTypeFunction t, value ]
   in
   case tipe of
-    Aliased _ t ->
-        output name t value
+    Aliased _ args t ->
+        output name (dealias args t) value
 
     App (Type signal) [t]
         | Var.isStream signal ->
@@ -199,8 +199,8 @@ fromTypeFunction tipe =
 fromType :: CanonicalType -> Expression () -> Expression ()
 fromType tipe x =
     case tipe of
-      Aliased _ t ->
-          fromType t x
+      Aliased _ args t ->
+          fromType (dealias args t) x
 
       Lambda _ _
           | numArgs > 1 && numArgs < 10 ->

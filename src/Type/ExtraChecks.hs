@@ -49,7 +49,7 @@ mainCheck env =
         return env
 
     Just typeOfMain ->
-        let tipe = ST.dealias typeOfMain
+        let tipe = ST.deepDealias typeOfMain
         in
             if tipe `elem` validMainTypes
               then return env
@@ -139,8 +139,8 @@ checkWiresHelp
     -> Either [P.Doc] ()
 checkWiresHelp direction name rootType tipe =
   case tipe of
-    ST.Aliased _ t ->
-        checkWiresHelp direction name rootType t
+    ST.Aliased _ args t ->
+        checkWiresHelp direction name rootType (ST.dealias args t)
 
     ST.App (ST.Type signal) [t]
         | Var.isStream signal ->
@@ -172,8 +172,8 @@ validWireType seenFunc seenSignal direction name rootType tipe =
             throw (wireError name direction rootType tipe kind)
     in
     case tipe of
-      ST.Aliased _ t ->
-          valid t
+      ST.Aliased _ args t ->
+          valid (ST.dealias args t)
 
       ST.Type v ->
           case any ($ v) [ Var.isJson, Var.isPrimitive, Var.isTuple ] of
@@ -261,7 +261,7 @@ checkLoobacks name tipe hasExpr =
 
 checkLoobacksHelp :: String -> ST.CanonicalType -> ST.CanonicalType -> Bool -> Either [P.Doc] ()
 checkLoobacksHelp name rootType tipe hasExpr =
-  case ST.dealias tipe of
+  case ST.deepDealias tipe of
     ST.Record
       [ ("mailbox", ST.App (ST.Type mailbox) [a])
       , ("stream", ST.App (ST.Type stream) [b])
@@ -323,8 +323,17 @@ occurs (name, variable) =
             Nothing -> return []
             Just struct ->
                 case struct of
-                  TT.App1 a b -> (++) <$> go a <*> go b
-                  TT.Fun1 a b -> (++) <$> go a <*> go b
-                  TT.Var1 a   -> go a
-                  TT.EmptyRecord1 -> return []
-                  TT.Record1 fields ext -> concat <$> mapM go (ext : concat (Map.elems fields))
+                  TT.App1 a b ->
+                      (++) <$> go a <*> go b
+
+                  TT.Fun1 a b ->
+                      (++) <$> go a <*> go b
+
+                  TT.Var1 a ->
+                      go a
+
+                  TT.EmptyRecord1 ->
+                      return []
+
+                  TT.Record1 fields ext ->
+                      concat <$> mapM go (ext : concat (Map.elems fields))

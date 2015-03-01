@@ -1,8 +1,9 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Type.State where
 
-import Control.Applicative ( (<$>), (<*>), Applicative, (<|>) )
+import Control.Applicative ( Applicative, (<$>), (<*>), (<|>) )
 import Control.Monad.State
+import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Traversable as Traversable
 import qualified Data.UnionFind.IO as UF
@@ -119,13 +120,25 @@ introduce variable =
 
 flatten :: Type -> StateT SolverState IO Variable
 flatten term =
+  flattenHelp Map.empty term
+
+
+flattenHelp :: Map.Map String Variable -> Type -> StateT SolverState IO Variable
+flattenHelp aliasDict term =
   case term of
+    PlaceHolder name ->
+      return (aliasDict ! name)
+
     VarN maybeAlias v ->
-      do  liftIO $ UF.modifyDescriptor v $ \desc -> desc { alias = maybeAlias <|> alias desc }
+      do  maybeAlias' <- Traversable.traverse flattenAlias maybeAlias
+          liftIO $ UF.modifyDescriptor v $ \desc ->
+              desc { alias = maybeAlias' <|> alias desc }
           return v
 
-    TermN maybeAlias t ->
-      do  flatStructure <- traverseTerm flatten t
+    TermN maybeAlias subTerm ->
+      do  maybeAlias' <- Traversable.traverse flattenAlias maybeAlias
+          let localDict = maybe aliasDict (Map.fromList . snd) maybeAlias'
+          flatStructure <- traverseTerm (flattenHelp localDict) subTerm
           pool <- getPool
           var <-
               liftIO . UF.fresh $ Descriptor
@@ -135,9 +148,17 @@ flatten term =
                 , name = Nothing
                 , copy = Nothing
                 , mark = noMark
-                , alias = maybeAlias
+                , alias = maybeAlias'
                 }
           register var
+  where
+    flattenAlias (name, args) =
+        let flattenPair (arg, subTerm) =
+              (,) arg <$> flattenHelp aliasDict subTerm
+        in
+            (,) name <$> mapM flattenPair args
+
+
 
 
 makeInstance :: Variable -> StateT SolverState IO Variable

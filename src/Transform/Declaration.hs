@@ -80,7 +80,7 @@ combineAnnotations =
                       _ ->
                           Left (errorMessage "output" name)
 
-                D.LoopbackDefinition name tipe ->
+                D.LoopbackDefinition name _tipe ->
                     Left (errorMessage "loopback" name)
 
                 D.LoopbackAnnotation name tipe ->
@@ -115,12 +115,14 @@ toDefs moduleName decl =
             in
                 [ definition ctor (buildFunction body vars) (foldr T.Lambda tbody tipes) ]
 
-    D.TypeAlias name _ tipe@(T.Record fields ext) ->
+    D.TypeAlias name tvars tipe@(T.Record fields ext) ->
         [ definition name (buildFunction record vars) (foldr T.Lambda result args) ]
       where
-        result = T.Aliased (typeVar name) tipe
+        result =
+          T.Aliased (typeVar name) (zip tvars (map T.Var tvars)) tipe
 
-        args = map snd fields ++ maybe [] (:[]) ext
+        args =
+          map snd fields ++ maybe [] (:[]) ext
 
         var = A.none . E.localVar
         vars = take (length args) arguments
