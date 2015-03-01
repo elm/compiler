@@ -39,7 +39,7 @@ getElms filePath =
 
 testsDir :: FilePath
 testsDir =
-    "tests" </> "compiler" </> "test-files"
+    "tests" </> "test-files"
 
 
 -- RUN COMPILER
@@ -69,5 +69,5 @@ isSuccess result =
 isFailure :: Either a b -> Assertion
 isFailure result =
     case result of
-      Left _ -> assertFailure "Compilation succeeded but should have failed"
-      Right _ -> assertBool "" True
+      Right _ -> assertFailure "Compilation succeeded but should have failed"
+      Left _ -> assertBool "" True
