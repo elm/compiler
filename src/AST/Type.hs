@@ -78,7 +78,7 @@ deepDealias tipe =
         Record (map (second go) fields) (fmap go ext)
 
     Aliased _name args tipe' ->
-        dealias args tipe'
+        deepDealias (dealias args tipe')
 
     Type _ ->
         tipe
