@@ -1,7 +1,7 @@
 
 
-type alias Vec2Ext a =
-    { a | x:Float, y:Float }
+type alias Vec2Ext record =
+    { record | x:Float, y:Float }
 
 
 type alias Vec2 =

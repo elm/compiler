@@ -1,12 +1,13 @@
 
+
 type alias Point2D =
     Point Float Float
 
-type alias Point a b =
-    { x:a, y:b }
+type alias Point x y =
+    { x:x, y:y }
 
 
-input points : Signal Point2D
+input points : Point2D
 
 
-input pairs : Signal (Point String String)
+input pairs : Point String String
