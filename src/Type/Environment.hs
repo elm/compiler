@@ -190,14 +190,22 @@ instantiatorHelp env aliasVars sourceType =
           do  args' <- mapM (\(arg,tipe) -> (,) arg <$> go tipe) args
               aliasedType' <- instantiatorHelp env (Set.fromList (map fst args)) aliasedType
               case aliasedType' of
-                PlaceHolder x ->
-                    return (PlaceHolder x)
+                PlaceHolder _ ->
+                    error "problem instantiating type"
 
-                VarN _ v ->
-                    return (VarN (Just (name,args')) v)
+                VarN maybeSubAlias v ->
+                    case maybeSubAlias of
+                      Nothing ->
+                          return (VarN (Just (name,args')) v)
+                      Just subAlias ->
+                          return (TermN (Just (name,args')) (Var1 aliasedType'))
 
-                TermN _ t ->
-                    return (TermN (Just (name, args')) t)
+                TermN maybeSubAlias t ->
+                    case maybeSubAlias of
+                      Nothing ->
+                          return (TermN (Just (name, args')) t)
+                      Just subAlias ->
+                          return (TermN (Just (name,args')) (Var1 aliasedType'))
 
       T.Type name ->
           case Map.lookup (V.toString name) (types env) of
