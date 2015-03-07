@@ -62,7 +62,8 @@ duplicateValues decls =
               D.Loopback name maybeExpr _ -> (name, maybeExpr)
 
     exprDups :: Valid.Expr -> Either String Valid.Expr
-    exprDups expr = Expr.crawlLet defsDups expr
+    exprDups expr =
+        Expr.crawlLet defsDups expr
 
     defsDups :: [Valid.Def] -> Either String [Valid.Def]
     defsDups defs =
