@@ -77,15 +77,17 @@ subst old new expression =
       Record fields ->
           Record (map (second f) fields)
 
-      Literal _ -> expression
+      Literal _ ->
+          expression
 
-      GLShader _ _ _ -> expression
+      GLShader _ _ _ ->
+          expression
 
-      Input name st ->
-          Input name st
+      Input _ _ ->
+          expression
 
-      Output name st expr ->
-          Output name st (f expr)
+      Output name tipe expr ->
+          Output name tipe (f expr)
 
       Loopback name tipe maybeExpr ->
           Loopback name tipe (fmap f maybeExpr)
