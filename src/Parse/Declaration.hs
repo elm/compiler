@@ -74,7 +74,7 @@ loopback =
   do  name <- wireBegining "loopback"
       choice
         [ wireEnding (D.LoopbackAnnotation name) hasType Type.expr
-        --, wireEnding (D.LoopbackDefinition name) equals Expr.expr
+        , wireEnding (D.LoopbackDefinition name) (string "<-") Expr.expr
         ]
 
 

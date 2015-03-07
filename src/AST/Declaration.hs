@@ -161,7 +161,7 @@ instance (Pretty expr, Pretty var, Var.ToString var) => Pretty (Wire expr var) w
             [ prettyWire "loopback" name ":" tipe
             , case maybeExpr of
                 Just expr ->
-                    prettyWire "loopback" name "=" expr
+                    prettyWire "loopback" name "<-" expr
                 Nothing ->
                     P.empty
             ]
