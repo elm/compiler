@@ -197,14 +197,14 @@ instantiatorHelp env aliasVars sourceType =
                     case maybeSubAlias of
                       Nothing ->
                           return (VarN (Just (name,args')) v)
-                      Just subAlias ->
+                      Just _subAlias ->
                           return (TermN (Just (name,args')) (Var1 aliasedType'))
 
                 TermN maybeSubAlias t ->
                     case maybeSubAlias of
                       Nothing ->
                           return (TermN (Just (name, args')) t)
-                      Just subAlias ->
+                      Just _subAlias ->
                           return (TermN (Just (name,args')) (Var1 aliasedType'))
 
       T.Type name ->
