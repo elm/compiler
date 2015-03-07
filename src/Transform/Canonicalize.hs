@@ -228,7 +228,7 @@ expression
     :: Env.Environment
     -> Valid.Expr
     -> Env.Canonicalizer [Doc] Canonical.Expr
-expression env (A.A ann expr) =
+expression env (A.A ann validExpr) =
     let go = expression env
         tipe' environ = format . Canonicalize.tipe environ
         throw err =
@@ -239,49 +239,55 @@ expression env (A.A ann expr) =
         format = Env.onError throw
     in
     A.A ann <$>
-    case expr of
+    case validExpr of
       Literal lit ->
           return (Literal lit)
 
-      Range e1 e2 ->
-          Range <$> go e1 <*> go e2
+      Range lowExpr highExpr ->
+          Range <$> go lowExpr <*> go highExpr
 
-      Access e x ->
-          Access <$> go e <*> return x
+      Access record field ->
+          Access <$> go record <*> return field
 
-      Remove e x ->
-          flip Remove x <$> go e
+      Remove record field ->
+          flip Remove field <$> go record
 
-      Insert e x v ->
-          flip Insert x <$> go e <*> go v
+      Insert record field expr ->
+          flip Insert field <$> go record <*> go expr
 
-      Modify e fs ->
-          Modify <$> go e <*> mapM (\(k,v) -> (,) k <$> go v) fs
+      Modify record fields ->
+          Modify
+            <$> go record
+            <*> mapM (\(field,expr) -> (,) field <$> go expr) fields
 
-      Record fs ->
-          Record <$> mapM (\(k,v) -> (,) k <$> go v) fs
+      Record fields ->
+          Record
+            <$> mapM (\(field,expr) -> (,) field <$> go expr) fields
 
-      Binop (Var.Raw op) e1 e2 ->
+      Binop (Var.Raw op) leftExpr rightExpr ->
           do  op' <- format (Canonicalize.variable env op)
-              Binop op' <$> go e1 <*> go e2
+              Binop op' <$> go leftExpr <*> go rightExpr
 
-      Lambda p e ->
-          let env' = Env.addPattern p env
+      Lambda arg body ->
+          let env' = Env.addPattern arg env
           in
-              Lambda <$> format (pattern env' p) <*> expression env' e
+              Lambda <$> format (pattern env' arg) <*> expression env' body
 
-      App e1 e2 ->
-          App <$> go e1 <*> go e2
+      App func arg ->
+          App <$> go func <*> go arg
 
-      MultiIf ps ->
-          MultiIf <$> mapM go' ps
+      MultiIf branches ->
+          MultiIf <$> mapM go' branches
         where
-          go' (b,e) = (,) <$> go b <*> go e
+          go' (condition, branch) =
+              (,) <$> go condition <*> go branch
 
-      Let defs e ->
-          Let <$> mapM rename' defs <*> expression env' e
+      Let defs body ->
+          Let <$> mapM rename' defs <*> expression env' body
         where
-          env' = foldr Env.addPattern env $ map (\(Valid.Definition p _ _) -> p) defs
+          env' =
+              foldr Env.addPattern env $ map (\(Valid.Definition p _ _) -> p) defs
+
           rename' (Valid.Definition p body mtipe) =
               Canonical.Definition
                   <$> format (pattern env' p)
@@ -291,14 +297,14 @@ expression env (A.A ann expr) =
       Var (Var.Raw x) ->
           Var <$> format (Canonicalize.variable env x)
 
-      Data name es ->
-          Data name <$> mapM go es
+      Data name exprs ->
+          Data name <$> mapM go exprs
 
-      ExplicitList es ->
-          ExplicitList <$> mapM go es
+      ExplicitList exprs ->
+          ExplicitList <$> mapM go exprs
 
-      Case e cases ->
-          Case <$> go e <*> mapM branch cases
+      Case expr cases ->
+          Case <$> go expr <*> mapM branch cases
         where
           branch (p,b) =
               (,) <$> format (pattern env p)
@@ -307,11 +313,11 @@ expression env (A.A ann expr) =
       Input name tipe ->
           Input name <$> tipe' env tipe
 
-      Output name st signal ->
-          Output name <$> tipe' env st <*> go signal
+      Output name tipe expr ->
+          Output name <$> tipe' env tipe <*> go expr
 
-      Loopback name st maybeExpr ->
-          Loopback name <$> tipe' env st <*> T.traverse go maybeExpr
+      Loopback name tipe maybeExpr ->
+          Loopback name <$> tipe' env tipe <*> T.traverse go maybeExpr
 
       GLShader uid src tipe ->
           return (GLShader uid src tipe)
