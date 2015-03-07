@@ -51,74 +51,78 @@ bound boundVars =
 
 
 sortDefs :: Canonical.Expr -> Canonical.Expr
-sortDefs expr =
-  evalState (reorder expr) Set.empty
+sortDefs expression =
+  evalState (reorder expression) Set.empty
 
 
 reorder :: Canonical.Expr -> State (Set.Set String) Canonical.Expr
-reorder (A ann expr) =
+reorder (A ann expression) =
     A ann <$>
-    case expr of
+    case expression of
       -- Be careful adding and restricting freeVars
       Var var ->
-          freeIfLocal var >> return expr
+          do  freeIfLocal var
+              return expression
 
-      Lambda p e ->
-          uncurry Lambda <$> bindingReorder (p,e)
+      Lambda pattern body ->
+          uncurry Lambda <$> bindingReorder (pattern,body)
 
-      Binop op e1 e2 ->
+      Binop op leftExpr rightExpr ->
           do  freeIfLocal op
-              Binop op <$> reorder e1 <*> reorder e2
+              Binop op <$> reorder leftExpr <*> reorder rightExpr
 
-      Case e cases ->
-          Case <$> reorder e <*> mapM bindingReorder cases
+      Case expr cases ->
+          Case <$> reorder expr <*> mapM bindingReorder cases
 
-      Data name es ->
+      Data name exprs ->
           do  free name
-              Data name <$> mapM reorder es
+              Data name <$> mapM reorder exprs
 
       -- Just pipe the reorder though
       Literal _ ->
-          return expr
+          return expression
 
-      Range e1 e2 ->
-          Range <$> reorder e1 <*> reorder e2
+      Range lowExpr highExpr ->
+          Range <$> reorder lowExpr <*> reorder highExpr
 
       ExplicitList es ->
           ExplicitList <$> mapM reorder es
 
-      App e1 e2 ->
-          App <$> reorder e1 <*> reorder e2
+      App func arg ->
+          App <$> reorder func <*> reorder arg
 
       MultiIf branches ->
-          MultiIf <$> mapM (\(e1,e2) -> (,) <$> reorder e1 <*> reorder e2) branches
+          MultiIf <$> mapM (\(cond,branch) -> (,) <$> reorder cond <*> reorder branch) branches
 
-      Access e lbl ->
-          Access <$> reorder e <*> return lbl
+      Access record field ->
+          Access <$> reorder record <*> return field
 
-      Remove e lbl ->
-          Remove <$> reorder e <*> return lbl
+      Remove record field ->
+          Remove <$> reorder record <*> return field
 
-      Insert e lbl v ->
-          Insert <$> reorder e <*> return lbl <*> reorder v
+      Insert record field expr ->
+          Insert <$> reorder record <*> return field <*> reorder expr
 
-      Modify e fields ->
-          Modify <$> reorder e <*> mapM (\(k,v) -> (,) k <$> reorder v) fields
+      Modify record fields ->
+          Modify
+            <$> reorder record
+            <*> mapM (\(field,expr) -> (,) field <$> reorder expr) fields
 
       Record fields ->
-          Record <$> mapM (\(k,v) -> (,) k <$> reorder v) fields
+          Record
+            <$> mapM (\(field,expr) -> (,) field <$> reorder expr) fields
 
       GLShader _ _ _ ->
-          return expr
+          return expression
 
-      Input name st ->
-          return $ Input name st
+      Input name tipe ->
+          return $ Input name tipe
 
-      Output name st signal ->
-          Output name st <$> reorder signal
+      Output name tipe signal ->
+          Output name tipe <$> reorder signal
 
-      Loopback name st maybeExpr ->
-          Loopback name st <$>
+      Loopback name tipe maybeExpr ->
+          Loopback name tipe <$>
               maybe (return Nothing) (fmap Just . reorder) maybeExpr
 
       -- Actually do some reordering
