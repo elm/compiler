@@ -59,7 +59,7 @@ duplicateValues decls =
             case wire of
               D.Input name _ -> (name, Nothing)
               D.Output name expr _ -> (name, Just expr)
-              D.Loopback name maybeExpr _ -> (name, maybeExpr)
+              D.Loopback (D.ValidLoopback name maybeExpr _) -> (name, maybeExpr)
 
     exprDups :: Valid.Expr -> Either String Valid.Expr
     exprDups expr =

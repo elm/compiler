@@ -121,9 +121,11 @@ reorder (A ann expression) =
       Output name tipe signal ->
           Output name tipe <$> reorder signal
 
-      Loopback name tipe maybeExpr ->
-          Loopback name tipe <$>
-              maybe (return Nothing) (fmap Just . reorder) maybeExpr
+      LoopbackIn name source ->
+          return $ LoopbackIn name source
+
+      LoopbackOut name expr ->
+          LoopbackOut name <$> reorder expr
 
       -- Actually do some reordering
       Let defs body ->

@@ -89,5 +89,8 @@ subst old new expression =
       Output name tipe expr ->
           Output name tipe (f expr)
 
-      Loopback name tipe maybeExpr ->
-          Loopback name tipe (fmap f maybeExpr)
+      LoopbackIn _ _ ->
+          expression
+
+      LoopbackOut name expr ->
+          LoopbackOut name (f expr)

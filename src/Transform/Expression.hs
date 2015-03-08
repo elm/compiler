@@ -1,46 +1,16 @@
 {-# OPTIONS_GHC -Wall #-}
-module Transform.Expression (crawlLet, checkWires) where
+module Transform.Expression (crawlLet) where
 
 import Control.Applicative ((<$>),(<*>))
 import AST.Annotation ( Annotated(A) )
 import AST.Expression.General
-import qualified AST.Expression.Canonical as Canonical
-import AST.Type (Type, CanonicalType)
 
 
 crawlLet
     :: ([def] -> Either a [def'])
     -> Expr ann def var
     -> Either a (Expr ann def' var)
-crawlLet =
-    crawl
-      (\_ _ -> return ())
-      (\_ _ -> return ())
-      (\_ _ _ -> return ())
-
-
-checkWires
-    :: (String -> CanonicalType -> Either a ())
-    -> (String -> CanonicalType -> Either a ())
-    -> (String -> CanonicalType -> Bool -> Either a ())
-    -> Canonical.Expr
-    -> Either a Canonical.Expr
-checkWires inputCheck outputCheck loopbackCheck expr =
-    crawl inputCheck outputCheck loopbackCheck (mapM checkDef) expr
-  where
-    checkDef def@(Canonical.Definition _ body _) =
-        do  _ <- checkWires inputCheck outputCheck loopbackCheck body
-            return def
-
-
-crawl
-    :: (String -> Type var -> Either a ())
-    -> (String -> Type var -> Either a ())
-    -> (String -> Type var -> Bool -> Either a ())
-    -> ([def] -> Either a [def'])
-    -> Expr ann def var
-    -> Either a (Expr ann def' var)
-crawl inputCheck outputCheck loopbackCheck defsTransform annotatedExpression =
+crawlLet defsTransform annotatedExpression =
     go annotatedExpression
   where
     go (A srcSpan expression) =
@@ -99,19 +69,14 @@ crawl inputCheck outputCheck loopbackCheck defsTransform annotatedExpression =
           GLShader uid src gltipe ->
               return $ GLShader uid src gltipe
 
-          Input name st ->
-              do  inputCheck name st
-                  return $ Input name st
+          Input name tipe ->
+              return $ Input name tipe
 
-          Output name st expr ->
-              do  outputCheck name st
-                  Output name st <$> go expr
+          Output name tipe expr ->
+              Output name tipe <$> go expr
 
-          Loopback name st maybeExpr ->
-              do  let hasExpr = maybe False (const True) maybeExpr
-                  loopbackCheck name st hasExpr
-                  case maybeExpr of
-                    Nothing ->
-                        return (Loopback name st Nothing)
-                    Just expr ->
-                        (Loopback name st . Just) <$> go expr
+          LoopbackIn name source ->
+              return (LoopbackIn name source)
+
+          LoopbackOut name expr ->
+              LoopbackOut name <$> go expr

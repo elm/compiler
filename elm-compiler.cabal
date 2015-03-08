@@ -73,6 +73,7 @@ Library
         Transform.Canonicalize.Setup,
         Transform.Canonicalize.Type,
         Transform.Canonicalize.Variable,
+        Transform.Canonicalize.Wire,
         Transform.Check,
         Transform.Expression,
         Transform.Declaration,

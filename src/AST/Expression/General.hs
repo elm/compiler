@@ -60,8 +60,15 @@ data Expr' ann def var
     -- for type checking and code gen only
     | Input String (Type var)
     | Output String (Type var) (Expr ann def var)
-    | Loopback String (Type var) (Maybe (Expr ann def var))
+    | LoopbackIn String Source
+    | LoopbackOut String (Expr ann def var)
     | GLShader String String Literal.GLShaderTipe
+    deriving (Show)
+
+
+data Source
+    = Mailbox
+    | PromiseStream
     deriving (Show)
 
 
@@ -201,8 +208,11 @@ instance (Pretty def, Pretty var, Var.ToString var) => Pretty (Expr' ann def var
       Output name _ _ ->
           P.text ("<output:" ++ name ++ ">")
 
-      Loopback name _ _ ->
-          P.text ("<loopback:" ++ name ++ ">")
+      LoopbackIn name _ ->
+          P.text ("<loopback-in:" ++ name ++ ">")
+
+      LoopbackOut name _ ->
+          P.text ("<loopback-out:" ++ name ++ ">")
 
 
 collectApps :: Expr ann def var -> [Expr ann def var]

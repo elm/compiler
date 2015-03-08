@@ -171,12 +171,11 @@ constrain env (A region expr) tipe =
       Output _ _ signal ->
           constrain env signal tipe
 
-      Loopback _ _ maybeExpr ->
-          case maybeExpr of
-            Nothing ->
-                return true
-            Just expr ->
-                constrain env expr tipe
+      LoopbackIn _ _ ->
+          return true
+
+      LoopbackOut _ expr ->
+          constrain env expr tipe
 
 
 constrainDef env info (Canonical.Definition pattern expr maybeTipe) =

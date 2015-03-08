@@ -327,10 +327,16 @@ addDecl moduleName info@(nodes,env) decl =
               }
 
       D.Wire wire ->
-          (,) nodes $ env
-              { _values =
-                  addLocal (D.wireName wire) (_values env)
-              }
+        let wireName =
+              case wire of
+                D.Input name _ -> name
+                D.Output name _ _ -> name
+                D.Loopback (D.ValidLoopback name _ _) -> name
+        in
+            (,) nodes $ env
+                { _values =
+                    addLocal wireName (_values env)
+                }
 
       D.Fixity _ _ _ ->
           info

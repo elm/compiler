@@ -11,6 +11,8 @@ import AST.PrettyPrint
 import Text.PrettyPrint as P
 
 
+-- DECLARATIONS
+
 data Declaration' wire def var
     = Definition def
     | Datatype String [String] [(String, [T.Type var])]
@@ -23,6 +25,22 @@ data Assoc = L | N | R
     deriving (Eq)
 
 
+-- DECLARATION PHASES
+
+type SourceDecl =
+  Declaration' RawWire Source.Def Var.Raw
+
+
+type ValidDecl =
+  Declaration' ValidWire Valid.Def Var.Raw
+
+
+type CanonicalDecl =
+  Declaration' CanonicalWire Canonical.Def Var.Canonical
+
+
+-- WIRES
+
 data RawWire
     = InputAnnotation String T.RawType
     | OutputAnnotation String T.RawType
@@ -31,38 +49,27 @@ data RawWire
     | LoopbackDefinition String Source.Expr
 
 
-data Wire expr var
-    = Output String expr (T.Type var)
-    | Input String (T.Type var)
-    | Loopback String (Maybe expr) (T.Type var)
+data Wire expr var loopback
+    = Input String (T.Type var)
+    | Output String expr (T.Type var)
+    | Loopback loopback
 
 
-type SourceDecl =
-  Declaration' RawWire Source.Def Var.Raw
+data ValidLoopback =
+    ValidLoopback String (Maybe Valid.Expr) T.RawType
 
 
-type ValidDecl =
-  Declaration' (Wire Valid.Expr Var.Raw) Valid.Def Var.Raw
+data CanonicalLoopback
+    = Mailbox String T.CanonicalType
+    | Promise String T.CanonicalType Canonical.Expr T.CanonicalType
 
 
-type CanonicalDecl =
-  Declaration' (Wire Canonical.Expr Var.Canonical) Canonical.Def Var.Canonical
+type ValidWire =
+    Wire Valid.Expr Var.Raw ValidLoopback
 
 
-wireName :: Wire expr var -> String
-wireName wire =
-    case wire of
-      Input name _ -> name
-      Output name _ _ -> name
-      Loopback name _ _ -> name
-
-
-assocToString :: Assoc -> String
-assocToString assoc =
-    case assoc of
-      L -> "left"
-      N -> "non"
-      R -> "right"
+type CanonicalWire =
+    Wire Canonical.Expr Var.Canonical CanonicalLoopback
 
 
 -- BINARY CONVERSION
@@ -85,6 +92,14 @@ instance Binary Assoc where
 
 
 -- PRETTY STRINGS
+
+assocToString :: Assoc -> String
+assocToString assoc =
+    case assoc of
+      L -> "left"
+      N -> "non"
+      R -> "right"
+
 
 instance (Pretty wire, Pretty def, Pretty var, Var.ToString var) =>
     Pretty (Declaration' wire def var) where
@@ -141,10 +156,11 @@ instance Pretty RawWire where
           prettyWire "loopback" name ":" tipe
 
       LoopbackDefinition name expr ->
-          prettyWire "loopback" name "=" expr
+          prettyWire "loopback" name "<-" expr
 
 
-instance (Pretty expr, Pretty var, Var.ToString var) => Pretty (Wire expr var) where
+instance (Pretty expr, Pretty var, Var.ToString var, Pretty loopback) =>
+    Pretty (Wire expr var loopback) where
   pretty wire =
     case wire of
       Input name tipe ->
@@ -156,15 +172,29 @@ instance (Pretty expr, Pretty var, Var.ToString var) => Pretty (Wire expr var) w
             , prettyWire "output" name "=" expr
             ]
 
-      Loopback name maybeExpr tipe ->
-          P.vcat
-            [ prettyWire "loopback" name ":" tipe
-            , case maybeExpr of
-                Just expr ->
-                    prettyWire "loopback" name "<-" expr
-                Nothing ->
-                    P.empty
-            ]
+      Loopback loopback ->
+          pretty loopback
+
+
+instance Pretty ValidLoopback where
+  pretty (ValidLoopback name maybeExpr tipe) =
+      P.vcat
+        [ prettyWire "loopback" name ":" tipe
+        , maybe P.empty (prettyWire "loopback" name "<-") maybeExpr
+        ]
+
+
+instance Pretty CanonicalLoopback where
+  pretty loopback =
+      case loopback of
+        Mailbox name tipe ->
+            prettyWire "loopback" name ":" tipe
+
+        Promise name _promiseType expr resultType ->
+            P.vcat
+              [ prettyWire "loopback" name ":" resultType
+              , prettyWire "loopback" name "<-" expr
+              ]
 
 
 prettyWire :: (Pretty a) => String -> String -> String -> a -> Doc

@@ -214,13 +214,17 @@ expression (A region expr) =
           do  value' <- expression value
               return (Foreign.output name tipe value')
 
-      Loopback name tipe maybeExpr ->
-          case maybeExpr of
-            Nothing ->
+      LoopbackIn name source ->
+          case source of
+            Mailbox ->
                 return $ obj ["_P","writableStream"] `call` [ string name ]
 
-            Just expr ->
-              error "run the promises"
+            PromiseStream ->
+                return $ obj ["_P","loopbackIn"] `call` [ string name ]
+
+      LoopbackOut name expr ->
+          do  expr' <- expression expr
+              return $ obj ["_P","loopbackOut"] `call` [ string name, expr' ]
 
 
 definition :: Canonical.Def -> State Int [Statement ()]

@@ -87,10 +87,12 @@ combineAnnotations =
                     case wireRest of
                       D.Wire (D.LoopbackDefinition name' expr) : rest | name == name' ->
                           do  expr' <- exprCombineAnnotations expr
-                              (:) (D.Wire (D.Loopback name (Just expr') tipe)) <$> go rest
+                              let loop = D.ValidLoopback name (Just expr') tipe
+                              (:) (D.Wire (D.Loopback loop)) <$> go rest
 
                       _ ->
-                          (:) (D.Wire (D.Loopback name Nothing tipe)) <$> go wireRest
+                          do  let loop = D.ValidLoopback name Nothing tipe
+                              (:) (D.Wire (D.Loopback loop)) <$> go wireRest
 
 
 toExpr :: Module.Name -> [D.CanonicalDecl] -> [Canonical.Def]
@@ -143,10 +145,22 @@ toDefs moduleName decl =
         case wire of
           D.Output name expr@(A.A s _) tipe ->
               [ definition name (A.A s $ E.Output name tipe expr) tipe ]
+
           D.Input name tipe ->
               [ definition name (A.none $ E.Input name tipe) tipe ]
-          D.Loopback name maybeExpr tipe ->
-              [ definition name (A.none $ E.Loopback name tipe maybeExpr) tipe ]
+
+          D.Loopback loopback ->
+              case loopback of
+                D.Mailbox name tipe ->
+                    [ definition name (A.none $ E.LoopbackIn name E.Mailbox) tipe ]
+
+                D.Promise name promiseType expr resultType ->
+                    let dummyName =
+                          "$" ++ name ++ "$effect"
+                    in
+                        [ definition name (A.none $ E.LoopbackIn name E.PromiseStream) resultType
+                        , definition dummyName (A.none $ E.LoopbackOut name expr) promiseType
+                        ]
 
     -- no constraints are needed for fixity declarations
     D.Fixity _ _ _ ->
