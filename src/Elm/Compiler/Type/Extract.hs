@@ -26,5 +26,5 @@ fromInternalType astType =
       Type.Record fields ext ->
           T.Record (map (second fromInternalType) fields) (fmap fromInternalType ext)
 
-      Type.Aliased name args t ->
+      Type.Aliased _name args t ->
           fromInternalType (Type.dealias args t)
