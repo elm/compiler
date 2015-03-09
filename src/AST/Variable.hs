@@ -68,9 +68,9 @@ isStream =
     is ["Signal"] "Stream"
 
 
-isMailbox :: Canonical -> Bool
-isMailbox =
-    is ["Mailbox"] "Mailbox"
+isAddress :: Canonical -> Bool
+isAddress =
+    is ["Stream"] "Address"
 
 
 isVarying :: Canonical -> Bool

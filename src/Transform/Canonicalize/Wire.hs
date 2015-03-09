@@ -163,17 +163,17 @@ loopback name maybeExpr tipe =
     Nothing ->
         case ST.deepDealias tipe of
           ST.Record
-            [ ("mailbox", ST.App (ST.Type mailbox) [a])
+            [ ("address", ST.App (ST.Type address) [a])
             , ("stream", ST.App (ST.Type stream) [b])
             ]
             Nothing
-              | Var.isStream stream && Var.isMailbox mailbox && a == b ->
+              | Var.isStream stream && Var.isAddress address && a == b ->
                   return (D.Mailbox name tipe)
 
 
           _ ->
               throw $ loopbackError name tipe $
-                [ P.text "A loopback like this must be a WritableStream." ]
+                [ P.text "A loopback like this must be a Mailbox." ]
 
     Just expr ->
         case ST.deepDealias tipe of
