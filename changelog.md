@@ -1,3 +1,77 @@
+# 0.15
+
+### Improve Import Syntax
+
+The changes in 0.14 meant that people were seeing pretty long import sections,
+sometimes with two lines for a single module to bring it in qualified and to
+expose some unqualified values. The new syntax is like this:
+
+```elm
+import List
+  -- Just bring `List` into scope, allowing you to say `List.map`,
+  -- `List.filter`, etc.
+
+import List exposing (map, filter)
+  -- Bring `List` into scope, but also bring in `map` and `filter`
+  -- without any prefix.
+
+import List exposing (..)
+  -- Bring `List` into scope, and bring in all the values in the
+  -- module without a prefix.
+
+import List as L
+  -- Bring `L` into scope, but not `List`. This lets you say `L.map`,
+  -- `L.filter`, etc.
+
+import List as L exposing (map, filter)
+  -- Bring `L` into scope along with unqualified versions of `map`
+  -- and `filter`.
+
+import List as L exposing (..)
+  -- Bring in all the values unqualified and qualified with `L`.
+```
+
+This means you are doing more with each import, writing less overall. It also
+makes the default imports more comprehensive because you now can refer to
+`List` and `Result` without importing them explicitly as they are in the
+defaults.
+
+### Revise Port Syntax
+
+One common confusion with the `port` syntax is that the only difference
+between incoming ports and outgoing ports is whether the type annotation comes
+with a definition. To make things a bit clearer, each case is getting a
+keyword.
+
+```elm
+input dbResults : Stream String
+
+output dbRequests : Stream String
+output dbRequests =
+    Stream.map toRequest userNames
+```
+
+### Loopbacks
+
+The biggest change in 0.15 is the addition of promises. To bring this concept
+into Elm in a nice way, we needed to give it support at the declaration level.
+There are two ways to specify loopbacks. First is a loopback that you write to
+manually.
+
+```elm
+loopback actions : Mailbox Action
+```
+
+This creates a `Mailbox` that you can send messages to. The second kind of
+loopback runs promises, so it gets all of its values from a stream of promises.
+
+```elm
+loopback dbResults : Stream (Result Http.Error String)
+loopback dbResults <-
+    Stream.map toRequest userNames
+```
+
+
 # 0.14.1
 
 Modify default import of `List` to expose `(::)` as well.
