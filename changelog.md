@@ -1,3 +1,7 @@
+# 0.14.1
+
+Modify default import of `List` to expose `(::)` as well.
+
 
 ## 0.14
 
@@ -5,6 +9,7 @@
 
   * Keyword `data` renamed to `type`
   * Keyword `type` renamed to `type alias`
+
 
 ## 0.13
 
