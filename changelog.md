@@ -77,17 +77,17 @@ loopback dbResults <-
 Modify default import of `List` to expose `(::)` as well.
 
 
-## 0.14
+# 0.14
 
-#### Breaking Changes
+### Breaking Changes
 
   * Keyword `data` renamed to `type`
   * Keyword `type` renamed to `type alias`
 
 
-## 0.13
+# 0.13
 
-#### Improvements:
+### Improvements:
 
   * Type aliases in port types 
   * Add Keyboard.alt and Keyboard.meta
@@ -103,7 +103,7 @@ Modify default import of `List` to expose `(::)` as well.
     safer, setting things up for giving programmatic access to the AST to
     improve editor and IDE support.
 
-#### Breaking Changes:
+### Breaking Changes:
 
   * Rename (.) to (<<) as in F#
   * Rename Basics.id to Basics.identity
@@ -115,30 +115,30 @@ Modify default import of `List` to expose `(::)` as well.
   * Unambiguous syntax for importing ADTs and type aliases
   * sqrt and logBase both only work on Floats now
 
-## 0.12.3
+# 0.12.3
 
   * Minor changes to support webgl as a separate library
   * Switch from HSV to HSL
   * Programmatic access to colors with toHsl and toRgb
 
-## 0.12.1
+# 0.12.1
 
-#### Improvements:
+### Improvements:
 
   * New Array library (thanks entirely to @Xashili)
   * Json.Value can flow through ports
   * Improve speed and stack usage in List library (thanks to @maxsnew)
   * Add Dict.filter and Dict.partition (thanks to @hdgarrood)
 
-#### Breaking Changes:
+### Breaking Changes:
 
   * Revamp Json library, simpler with better names
   * Revamp JavaScript.Experimental library to have slightly better names
   * Remove JavaScript library which was made redundant by ports
 
-## 0.12
+# 0.12
 
-#### Breaking Changes:
+### Breaking Changes:
 
   * Overhaul Graphics.Input library (inspired by Spiros Eliopoulos and Jeff Smitts)
   * Overhaul Text library to accomodate new Graphics.Input.Field
@@ -150,7 +150,7 @@ Modify default import of `List` to expose `(::)` as well.
   * Revise the semantics of keepWhen and dropWhen to only update when
     the filtered signal changes (thanks Max New and Janis Voigtländer)
 
-#### Improvements:
+### Improvements:
 
   * Add Graphics.Input.Field for customizable text fields
   * Add Trampoline library (thanks to @maxsnew and @timthelion) 
@@ -161,12 +161,12 @@ Modify default import of `List` to expose `(::)` as well.
   * Fix bugs in Bitwise library
   * Fix bug when exporting Maybe values through ports
 
-## 0.11
+# 0.11
 
   * Ports, a new FFI that is more general and much nicer to use
   * Basic compiler tests (thanks to Max New)
 
-## 0.10.1
+# 0.10.1
 
   * sort, sortBy, sortWith (thanks to Max Goldstein)
   * elm-repl
@@ -174,7 +174,7 @@ Modify default import of `List` to expose `(::)` as well.
   * Regex library
   * Improve Transform2D library (thanks to Michael Søndergaard)
 
-## 0.10
+# 0.10
 
   * Native strings
   * Tango colors
@@ -188,7 +188,7 @@ Modify default import of `List` to expose `(::)` as well.
   * Make compatable with cabal-1.18 (thank you Justin Leitgeb)
   * All functions with 10+ arguments (thanks to Max New)
 
-## 0.9.1
+# 0.9.1
 
   * Allow custom precedence and associativity for user-defined infix ops
   * Realias types before printing
@@ -198,7 +198,7 @@ Modify default import of `List` to expose `(::)` as well.
   * Fix miscellaneous bugs in type checker
   * Switch name of Matrix2D to Transform2D
 
-## 0.9
+# 0.9
 
 Build Improvements:
   * Major speed improvements to type-checker
@@ -249,7 +249,7 @@ Website:
 forgot to fill this in again...
 
 
-## 0.7.2
+# 0.7.2
 
 * Add a WebSockets library.
 * Add support for the mathematical looking operator for function composition (U+2218).
@@ -258,7 +258,7 @@ forgot to fill this in again...
 forgot to fill this in for a while...
 
 
-## 0.5.0
+# 0.5.0
 
 * Add Dict, Set, and Automaton libraries!
 
@@ -286,7 +286,7 @@ forgot to fill this in for a while...
 
 
 
-## 0.4.0
+# 0.4.0
 
 This version is all about graphics: nicer API with more features and major
 efficiency improvements. I am really excited about this release!
@@ -316,7 +316,7 @@ efficiency improvements. I am really excited about this release!
 
 
 
-## 0.3.6
+# 0.3.6
 
 * Add JSON library.
 
@@ -348,7 +348,7 @@ efficiency improvements. I am really excited about this release!
 
 
 
-## 0.3.5
+# 0.3.5
 
 * Add JavaScript event interface. Allows Elm to import and export JS values
   and events. This makes it possible to import and export Elements, so users
@@ -395,10 +395,9 @@ efficiency improvements. I am really excited about this release!
 
 
 
-## 0.3.0
+# 0.3.0
 
-Major Changes (Read this part!)
--------------------------------
+### Major Changes (Read this part!)
 
 * Add a basic module system.
 * Elm's JavaScript runtime is now distributed with the elm package.
@@ -412,8 +411,7 @@ Major Changes (Read this part!)
 * Improve error messages for parse errors and runtime errors.
 
 
-New Functions and Other Additions
----------------------------------
+### New Functions and Other Additions
 
 * Add support for keyboard events: Keyboard.Raw
 * Add buttons in Signal.Input:
