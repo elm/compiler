@@ -217,7 +217,7 @@ expression (A region expr) =
       LoopbackIn name source ->
           case source of
             Mailbox ->
-                return $ obj ["_P","writableStream"] `call` [ string name ]
+                return $ obj ["_P","mailbox"] `call` [ string name ]
 
             PromiseStream ->
                 return $ obj ["_P","loopbackIn"] `call` [ string name ]
