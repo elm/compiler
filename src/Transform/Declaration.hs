@@ -69,7 +69,7 @@ combineAnnotations =
                     (:) (D.Wire (D.Input name tipe)) <$> go wireRest
 
                 D.OutputDefinition name _ ->
-                    Left (errorMessage "output" name)
+                    Left (errorMessage "foreign output" name)
 
                 D.OutputAnnotation name tipe ->
                     case wireRest of
@@ -78,10 +78,10 @@ combineAnnotations =
                               (:) (D.Wire (D.Output name expr' tipe)) <$> go rest
 
                       _ ->
-                          Left (errorMessage "output" name)
+                          Left (errorMessage "foreign output" name)
 
                 D.LoopbackDefinition name _tipe ->
-                    Left (errorMessage "loopback" name)
+                    Left (errorMessage "input" name)
 
                 D.LoopbackAnnotation name tipe ->
                     case wireRest of
@@ -149,10 +149,10 @@ toDefs moduleName decl =
           D.Input name tipe ->
               [ definition name (A.none $ E.Input name tipe) tipe ]
 
-          D.Loopback loopback ->
-              case loopback of
-                D.Mailbox name tipe ->
-                    [ definition name (A.none $ E.LoopbackIn name E.Mailbox) tipe ]
+          D.Loopback input ->
+              case input of
+                D.Address name tipe ->
+                    [ definition name (A.none $ E.LoopbackIn name E.Address) tipe ]
 
                 D.Promise name promiseType expr resultType ->
                     let dummyName =

@@ -49,10 +49,10 @@ data RawWire
     | LoopbackDefinition String Source.Expr
 
 
-data Wire expr var loopback
+data Wire expr var input
     = Input String (T.Type var)
     | Output String expr (T.Type var)
-    | Loopback loopback
+    | Loopback input
 
 
 data ValidLoopback =
@@ -60,7 +60,7 @@ data ValidLoopback =
 
 
 data CanonicalLoopback
-    = Mailbox String T.CanonicalType
+    = Address String T.CanonicalType
     | Promise String T.CanonicalType Canonical.Expr T.CanonicalType
 
 
@@ -144,56 +144,56 @@ instance Pretty RawWire where
   pretty wire =
     case wire of
       InputAnnotation name tipe ->
-          prettyWire "input" name ":" tipe
+          prettyWire "foreign input" name ":" tipe
 
       OutputAnnotation name tipe ->
-          prettyWire "output" name ":" tipe
+          prettyWire "foreign output" name ":" tipe
 
       OutputDefinition name expr ->
-          prettyWire "output" name "=" expr
+          prettyWire "foreign output" name "=" expr
 
       LoopbackAnnotation name tipe ->
-          prettyWire "loopback" name ":" tipe
+          prettyWire "input" name ":" tipe
 
       LoopbackDefinition name expr ->
-          prettyWire "loopback" name "<-" expr
+          prettyWire "input" name "from" expr
 
 
-instance (Pretty expr, Pretty var, Var.ToString var, Pretty loopback) =>
-    Pretty (Wire expr var loopback) where
+instance (Pretty expr, Pretty var, Var.ToString var, Pretty input) =>
+    Pretty (Wire expr var input) where
   pretty wire =
     case wire of
       Input name tipe ->
-          prettyWire "input" name ":" tipe
+          prettyWire "foreign input" name ":" tipe
 
       Output name expr tipe ->
           P.vcat
-            [ prettyWire "output" name ":" tipe
-            , prettyWire "output" name "=" expr
+            [ prettyWire "foreign output" name ":" tipe
+            , prettyWire "foreign output" name "=" expr
             ]
 
-      Loopback loopback ->
-          pretty loopback
+      Loopback input ->
+          pretty input
 
 
 instance Pretty ValidLoopback where
   pretty (ValidLoopback name maybeExpr tipe) =
       P.vcat
-        [ prettyWire "loopback" name ":" tipe
-        , maybe P.empty (prettyWire "loopback" name "<-") maybeExpr
+        [ prettyWire "input" name ":" tipe
+        , maybe P.empty (prettyWire "input" name "<-") maybeExpr
         ]
 
 
 instance Pretty CanonicalLoopback where
-  pretty loopback =
-      case loopback of
-        Mailbox name tipe ->
-            prettyWire "loopback" name ":" tipe
+  pretty input =
+      case input of
+        Address name tipe ->
+            prettyWire "input" name ":" tipe
 
         Promise name _promiseType expr resultType ->
             P.vcat
-              [ prettyWire "loopback" name ":" resultType
-              , prettyWire "loopback" name "<-" expr
+              [ prettyWire "input" name ":" resultType
+              , prettyWire "input" name "<-" expr
               ]
 
 

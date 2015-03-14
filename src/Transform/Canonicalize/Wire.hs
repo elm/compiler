@@ -1,4 +1,4 @@
-module Transform.Canonicalize.Wire (checkInput, checkOutput, loopback) where
+module Transform.Canonicalize.Wire (checkForeignInput, checkForeignOutput, input) where
 
 import Control.Applicative ((<$>))
 import Control.Monad.Error (forM_, throwError)
@@ -17,45 +17,45 @@ throw err =
   throwError [ P.vcat err ]
 
 
-checkInput :: String -> ST.CanonicalType -> Env.Canonicalizer [P.Doc] ()
-checkInput name tipe =
-    checkWire In name tipe tipe
+checkForeignInput :: String -> ST.CanonicalType -> Env.Canonicalizer [P.Doc] ()
+checkForeignInput name tipe =
+    checkForeign In name tipe tipe
 
 
-checkOutput :: String -> ST.CanonicalType -> Env.Canonicalizer [P.Doc] ()
-checkOutput name tipe =
-    checkWire Out name tipe tipe
+checkForeignOutput :: String -> ST.CanonicalType -> Env.Canonicalizer [P.Doc] ()
+checkForeignOutput name tipe =
+    checkForeign Out name tipe tipe
 
 
 data Direction = In | Out
 
 
-checkWire
+checkForeign
     :: Direction
     -> String
     -> ST.CanonicalType
     -> ST.CanonicalType
     -> Env.Canonicalizer [P.Doc] ()
-checkWire direction name rootType tipe =
+checkForeign direction name rootType tipe =
   case tipe of
     ST.Aliased _ args t ->
-        checkWire direction name rootType (ST.dealias args t)
+        checkForeign direction name rootType (ST.dealias args t)
 
     ST.App (ST.Type signal) [t]
         | Var.isStream signal ->
-            validWireType False (Just Stream) direction name rootType t
+            validForeignType False (Just Stream) direction name rootType t
 
         | Var.isVarying signal ->
-            validWireType False (Just Varying) direction name rootType t
+            validForeignType False (Just Varying) direction name rootType t
 
     _ ->
-        validWireType False Nothing direction name rootType tipe
+        validForeignType False Nothing direction name rootType tipe
 
 
 data Signal = Stream | Varying
 
 
-validWireType
+validForeignType
     :: Bool
     -> Maybe Signal
     -> Direction
@@ -63,12 +63,12 @@ validWireType
     -> ST.CanonicalType
     -> ST.CanonicalType
     -> Env.Canonicalizer [P.Doc] ()
-validWireType seenFunc seenSignal direction name rootType tipe =
+validForeignType seenFunc seenSignal direction name rootType tipe =
     let valid localType =
-            validWireType seenFunc seenSignal direction name rootType localType
+            validForeignType seenFunc seenSignal direction name rootType localType
 
         err kind =
-            throw (wireError name direction rootType tipe kind)
+            throw (foreignError name direction rootType tipe kind)
     in
     case tipe of
       ST.Aliased _ args t ->
@@ -112,7 +112,7 @@ validWireType seenFunc seenSignal direction name rootType tipe =
 
                     Nothing ->
                         forM_ (ST.collectLambdas tipe)
-                              (validWireType True seenSignal direction name rootType)
+                              (validForeignType True seenSignal direction name rootType)
 
       ST.Record _ (Just _) ->
           err "It contains extended records with free type variables"
@@ -121,22 +121,22 @@ validWireType seenFunc seenSignal direction name rootType tipe =
           mapM_ (\(k,v) -> (,) k <$> valid v) fields
 
 
-wireError
+foreignError
     :: String
     -> Direction
     -> ST.CanonicalType
     -> ST.CanonicalType
     -> String
     -> [P.Doc]
-wireError name direction rootType localType problemMessage =
-    [ P.text (dir "Input" "Output" ++ " Error:")
+foreignError name direction rootType localType problemMessage =
+    [ P.text ("Foreign " ++ dir "Input" "Output" ++ " Error:")
     , P.nest 4 $
         P.vcat
-          [ txt [ "The ", wire, " named '", name, "' has an invalid type.\n" ]
+          [ txt [ "The foreign ", wire, " named '", name, "' has an invalid type.\n" ]
           , P.nest 4 (PP.pretty rootType) <> P.text "\n"
           , txt [ problemMessage, ":\n" ]
           , P.nest 4 (PP.pretty localType) <> P.text "\n"
-          , txt [ "Acceptable values for ", wire, "s include:" ]
+          , txt [ "Acceptable values for foreign ", wire, "s include:" ]
           , txt [ "  Ints, Floats, Bools, Strings, Maybes, Lists, Arrays, Tuples, unit values," ]
           , txt [ "  Json.Values, ", dir "" "first-order functions, promises, ", "and concrete records." ]
           ]
@@ -153,12 +153,12 @@ wireError name direction rootType localType problemMessage =
         dir "input" "output"
 
 
-loopback
+input
     :: String
     -> Maybe Canonical.Expr
     -> ST.CanonicalType
     -> Env.Canonicalizer [P.Doc] D.CanonicalLoopback
-loopback name maybeExpr tipe =
+input name maybeExpr tipe =
   case maybeExpr of
     Nothing ->
         case ST.deepDealias tipe of
@@ -168,12 +168,12 @@ loopback name maybeExpr tipe =
             ]
             Nothing
               | Var.isStream stream && Var.isAddress address && a == b ->
-                  return (D.Mailbox name tipe)
+                  return (D.Address name tipe)
 
 
           _ ->
-              throw $ loopbackError name tipe $
-                [ P.text "A loopback like this must be a Mailbox." ]
+              throw $ inputError name tipe $
+                [ P.text "An input like this must be a Stream.Input" ]
 
     Just expr ->
         case ST.deepDealias tipe of
@@ -187,20 +187,20 @@ loopback name maybeExpr tipe =
                       return (D.Promise name promiseType expr tipe)
 
           _ ->
-              throw $ loopbackError name tipe $
-                [ P.text "A loopback that runs promises must be a stream of results."
+              throw $ inputError name tipe $
+                [ P.text "An input that runs promises must be a stream of results."
                 , P.text "Something like the following:\n"
                 , P.text "    Stream (Result Http.Error String)"
                 , P.text "    Stream (Result x ())"
                 ]
 
 
-loopbackError :: String -> ST.CanonicalType -> [Doc] -> [Doc]
-loopbackError name tipe message =
-  [ P.text "Loopback Error:"
+inputError :: String -> ST.CanonicalType -> [Doc] -> [Doc]
+inputError name tipe message =
+  [ P.text "Input Error:"
   , P.nest 4 $
       P.vcat $
-        [ P.text ("The loopback named '" ++ name ++ "' has an invalid type.\n")
+        [ P.text ("The input named '" ++ name ++ "' has an invalid type.\n")
         , P.nest 4 (PP.pretty tipe) <> P.text "\n"
         ]
         ++ message

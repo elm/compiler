@@ -85,7 +85,7 @@ moduleHelp interfaces modul@(Module.Module _ _ exports _ decls) =
       case wire of
         D.Input name _ -> name
         D.Output name _ _ -> name
-        D.Loopback (D.Mailbox name _) -> name
+        D.Loopback (D.Address name _) -> name
         D.Loopback (D.Promise name _ _ _) -> name
 
 
@@ -216,21 +216,21 @@ declaration env decl =
               D.Wire <$>
                   case wire of
                     D.Input name tipe ->
-                        do  tipe' <- canonicalize Canonicalize.tipe "input" name env tipe
-                            Wire.checkInput name tipe'
+                        do  tipe' <- canonicalize Canonicalize.tipe "foreign input" name env tipe
+                            Wire.checkForeignInput name tipe'
                             return (D.Input name tipe')
 
                     D.Output name expr tipe ->
                         do  expr' <- expression env expr
-                            tipe' <- canonicalize Canonicalize.tipe "output" name env tipe
-                            Wire.checkOutput name tipe'
+                            tipe' <- canonicalize Canonicalize.tipe "foreign output" name env tipe
+                            Wire.checkForeignOutput name tipe'
                             return (D.Output name expr' tipe')
 
                     D.Loopback (D.ValidLoopback name maybeExpr tipe) ->
                         do  maybeExpr' <- T.traverse (expression env) maybeExpr
-                            tipe' <- canonicalize Canonicalize.tipe "loopback" name env tipe
-                            loopback' <- Wire.loopback name maybeExpr' tipe'
-                            return (D.Loopback loopback')
+                            tipe' <- canonicalize Canonicalize.tipe "input" name env tipe
+                            input' <- Wire.input name maybeExpr' tipe'
+                            return (D.Loopback input')
 
       D.Fixity assoc prec op ->
           return $ D.Fixity assoc prec op

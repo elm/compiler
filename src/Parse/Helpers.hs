@@ -33,7 +33,7 @@ reserveds =
     , "import", "as", "hiding", "exposing"
     , "export"
     , "deriving"
-    , "input", "output", "loopback"
+    , "input", "output", "foreign"
     ]
 
 

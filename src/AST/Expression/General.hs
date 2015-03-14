@@ -67,7 +67,7 @@ data Expr' ann def var
 
 
 data Source
-    = Mailbox
+    = Address
     | PromiseStream
     deriving (Show)
 

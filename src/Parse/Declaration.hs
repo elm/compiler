@@ -12,7 +12,7 @@ import qualified Parse.Type as Type
 
 declaration :: IParser D.SourceDecl
 declaration =
-  typeDecl <|> infixDecl <|> loopback <|> input <|> output <|> definition
+  typeDecl <|> infixDecl <|> foreign <|> input <|> definition
 
 
 definition :: IParser D.SourceDecl
@@ -54,27 +54,27 @@ infixDecl =
       D.Fixity assoc (read [n]) <$> anyOp
 
 
-input :: IParser D.SourceDecl
-input =
-  do  name <- wireBegining "input"
-      wireEnding (D.InputAnnotation name) hasType Type.expr
-
-
-output :: IParser D.SourceDecl
-output =
-  do  name <- wireBegining "output"
+foreign :: IParser D.SourceDecl
+foreign =
+  do  try (reserved "foreign")
+      whitespace
       choice
-        [ wireEnding (D.OutputAnnotation name) hasType Type.expr
-        , wireEnding (D.OutputDefinition name) equals Expr.expr
+        [ do  name <- wireBegining "input"
+              wireEnding (D.InputAnnotation name) hasType Type.expr
+        , do  name <- wireBegining "output"
+              choice
+                [ wireEnding (D.OutputAnnotation name) hasType Type.expr
+                , wireEnding (D.OutputDefinition name) equals Expr.expr
+                ]
         ]
 
 
-loopback :: IParser D.SourceDecl
-loopback =
-  do  name <- wireBegining "loopback"
+input :: IParser D.SourceDecl
+input =
+  do  name <- wireBegining "input"
       choice
         [ wireEnding (D.LoopbackAnnotation name) hasType Type.expr
-        , wireEnding (D.LoopbackDefinition name) (string "<-") Expr.expr
+        , wireEnding (D.LoopbackDefinition name) (string "from") Expr.expr
         ]
 
 
