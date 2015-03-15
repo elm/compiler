@@ -154,12 +154,12 @@ toDefs moduleName decl =
                 D.Address name tipe ->
                     [ definition name (A.none $ E.LoopbackIn name E.Address) tipe ]
 
-                D.Promise name promiseType expr resultType ->
+                D.Command name commandType expr resultType ->
                     let dummyName =
                           "$" ++ name ++ "$effect"
                     in
-                        [ definition name (A.none $ E.LoopbackIn name E.PromiseStream) resultType
-                        , definition dummyName (A.none $ E.LoopbackOut name expr) promiseType
+                        [ definition name (A.none $ E.LoopbackIn name E.CommandStream) resultType
+                        , definition dummyName (A.none $ E.LoopbackOut name expr) commandType
                         ]
 
     -- no constraints are needed for fixity declarations

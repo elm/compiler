@@ -68,7 +68,7 @@ data Expr' ann def var
 
 data Source
     = Address
-    | PromiseStream
+    | CommandStream
     deriving (Show)
 
 

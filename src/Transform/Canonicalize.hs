@@ -86,7 +86,7 @@ moduleHelp interfaces modul@(Module.Module _ _ exports _ decls) =
         D.Input name _ -> name
         D.Output name _ _ -> name
         D.Loopback (D.Address name _) -> name
-        D.Loopback (D.Promise name _ _ _) -> name
+        D.Loopback (D.Command name _ _ _) -> name
 
 
 resolveExports

@@ -78,9 +78,9 @@ isVarying =
     is ["Signal"] "Varying"
 
 
-isPromise :: Canonical -> Bool
-isPromise =
-    is ["Promise"] "Promise"
+isCommand :: Canonical -> Bool
+isCommand =
+    is ["Command"] "Command"
 
 
 isResult   :: Canonical -> Bool

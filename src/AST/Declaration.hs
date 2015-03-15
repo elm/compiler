@@ -61,7 +61,7 @@ data ValidLoopback =
 
 data CanonicalLoopback
     = Address String T.CanonicalType
-    | Promise String T.CanonicalType Canonical.Expr T.CanonicalType
+    | Command String T.CanonicalType Canonical.Expr T.CanonicalType
 
 
 type ValidWire =
@@ -180,7 +180,7 @@ instance Pretty ValidLoopback where
   pretty (ValidLoopback name maybeExpr tipe) =
       P.vcat
         [ prettyWire "input" name ":" tipe
-        , maybe P.empty (prettyWire "input" name "<-") maybeExpr
+        , maybe P.empty (prettyWire "input" name "with") maybeExpr
         ]
 
 
@@ -190,10 +190,10 @@ instance Pretty CanonicalLoopback where
         Address name tipe ->
             prettyWire "input" name ":" tipe
 
-        Promise name _promiseType expr resultType ->
+        Command name _commandType expr resultType ->
             P.vcat
               [ prettyWire "input" name ":" resultType
-              , prettyWire "input" name "<-" expr
+              , prettyWire "input" name "with" expr
               ]
 
 
