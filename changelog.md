@@ -40,37 +40,46 @@ defaults.
 
 One common confusion with the `port` syntax is that the only difference
 between incoming ports and outgoing ports is whether the type annotation comes
-with a definition. To make things a bit clearer, each case is getting a
-keyword.
+with a definition. To make things a bit clearer, we are using the keywords
+`foreign input` and `foreign output`.
 
 ```elm
-input dbResults : Stream String
+foreign input dbResults : Stream String
 
-output dbRequests : Stream String
-output dbRequests =
+foreign output dbRequests : Stream String
+foreign output dbRequests =
     Stream.map toRequest userNames
 ```
 
-### Loopbacks
+### Input / Output
 
-The biggest change in 0.15 is the addition of promises. To bring this concept
-into Elm in a nice way, we needed to give it support at the declaration level.
-There are two ways to specify loopbacks. First is a loopback that you write to
-manually.
+The biggest change in 0.15 is the addition of tasks, allowing us to represent
+arbitrary effects in Elm in a safe way. This parallels how ports work, so we
+are trying to draw attention to that in syntax. First addition is a way to
+create new inputs to an Elm program.
 
 ```elm
-loopback actions : Mailbox Action
+input actions : Input Action
 ```
 
-This creates a `Mailbox` that you can send messages to. The second kind of
-loopback runs promises, so it gets all of its values from a stream of promises.
+This creates a `Input` that is made up of an `Address` you can send messages to
+and a `Stream` of those messages. This is similar to a `foreign input` except
+there we use the name as the address. The second addition is a way to run
+tasks.
 
 ```elm
-loopback dbResults : Stream (Result Http.Error String)
-loopback dbResults <-
+output Stream.map toRequest userNames
+```
+
+This lets us turn tasks into effects in the world. Sometimes it is useful to
+pipe the results of these tasks back into Elm. For that, we have the third and
+final addition.
+
+```elm
+input results : Stream (Result Http.Error String)
+input results from
     Stream.map toRequest userNames
 ```
-
 
 # 0.14.1
 
