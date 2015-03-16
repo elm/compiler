@@ -219,7 +219,7 @@ expression (A region expr) =
             Address ->
                 return $ obj ["_P","input"] `call` [ string name ]
 
-            CommandStream ->
+            TaskStream ->
                 return $ obj ["_P","loopbackIn"] `call` [ string name ]
 
       LoopbackOut name expr ->

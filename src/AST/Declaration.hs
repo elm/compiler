@@ -61,7 +61,7 @@ data ValidLoopback =
 
 data CanonicalLoopback
     = Address String T.CanonicalType
-    | Command String T.CanonicalType Canonical.Expr T.CanonicalType
+    | Task String T.CanonicalType Canonical.Expr T.CanonicalType
 
 
 type ValidWire =
@@ -190,7 +190,7 @@ instance Pretty CanonicalLoopback where
         Address name tipe ->
             prettyWire "input" name ":" tipe
 
-        Command name _commandType expr resultType ->
+        Task name _taskType expr resultType ->
             P.vcat
               [ prettyWire "input" name ":" resultType
               , prettyWire "input" name "with" expr

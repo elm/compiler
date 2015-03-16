@@ -138,7 +138,7 @@ foreignError name direction rootType localType problemMessage =
           , P.nest 4 (PP.pretty localType) <> P.text "\n"
           , txt [ "Acceptable values for foreign ", wire, "s include:" ]
           , txt [ "  Ints, Floats, Bools, Strings, Maybes, Lists, Arrays, Tuples, unit values," ]
-          , txt [ "  Json.Values, ", dir "" "first-order functions, commands, ", "and concrete records." ]
+          , txt [ "  Json.Values, ", dir "" "first-order functions, tasks, ", "and concrete records." ]
           ]
     ]
   where
@@ -179,16 +179,16 @@ input name maybeExpr tipe =
         case ST.deepDealias tipe of
           ST.App (ST.Type signal) [ ST.App (ST.Type result) [failure,success] ]
               | Var.isStream signal && Var.isResult result ->
-                  let command =
-                        Var.fromModule ["Command"] "Command"
-                      commandType =
-                        ST.App (ST.Type signal) [ ST.App (ST.Type command) [failure,success] ]
+                  let task =
+                        Var.fromModule ["Task"] "Task"
+                      taskType =
+                        ST.App (ST.Type signal) [ ST.App (ST.Type task) [failure,success] ]
                   in
-                      return (D.Command name commandType expr tipe)
+                      return (D.Task name taskType expr tipe)
 
           _ ->
               throw $ inputError name tipe $
-                [ P.text "An input that runs commands must be a stream of results."
+                [ P.text "An input that runs tasks must be a stream of results."
                 , P.text "Something like the following:\n"
                 , P.text "    Stream (Result Http.Error String)"
                 , P.text "    Stream (Result x ())"

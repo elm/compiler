@@ -68,7 +68,7 @@ data Expr' ann def var
 
 data Source
     = Address
-    | CommandStream
+    | TaskStream
     deriving (Show)
 
 
