@@ -245,16 +245,12 @@ addTypeAlias moduleName env scc =
            ]
 
 
-typeAlias
-    :: (String, [String], Type.Type var)
-    -> D.Declaration' wire def var
+typeAlias :: (String, [String], Type.Type var) -> D.Declaration' pk def var
 typeAlias (n,ts,t) =
     D.TypeAlias n ts t
 
 
-datatype
-    :: (String, [String], Type.Type var)
-    -> D.Declaration' wire def var
+datatype :: (String, [String], Type.Type var) -> D.Declaration' pk def var
 datatype (n,ts,t) =
     D.Datatype n ts [(n,[t])]
 
@@ -326,17 +322,11 @@ addDecl moduleName info@(nodes,env) decl =
                         _values env
               }
 
-      D.Wire wire ->
-        let wireName =
-              case wire of
-                D.Input name _ -> name
-                D.Output name _ _ -> name
-                D.Loopback (D.ValidLoopback name _ _) -> name
-        in
-            (,) nodes $ env
-                { _values =
-                    addLocal wireName (_values env)
-                }
+      D.Port name _ ->
+          (,) nodes $ env
+              { _values =
+                  addLocal name (_values env)
+              }
 
       D.Fixity _ _ _ ->
           info

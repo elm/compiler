@@ -63,31 +63,6 @@ isArray =
     is ["Array"] "Array"
 
 
-isStream :: Canonical -> Bool
-isStream =
-    is ["Signal"] "Stream"
-
-
-isAddress :: Canonical -> Bool
-isAddress =
-    is ["Stream"] "Address"
-
-
-isVarying :: Canonical -> Bool
-isVarying =
-    is ["Signal"] "Varying"
-
-
-isTask :: Canonical -> Bool
-isTask =
-    is ["Task"] "Task"
-
-
-isResult   :: Canonical -> Bool
-isResult =
-    is ["Result"] "Result"
-
-
 isList :: Canonical -> Bool
 isList v =
     v == Canonical BuiltIn "List"

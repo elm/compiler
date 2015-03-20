@@ -31,9 +31,8 @@ reserveds =
     , "type"
     , "module", "where"
     , "import", "as", "hiding", "exposing"
-    , "export"
+    , "port", "export", "foreign"
     , "deriving"
-    , "input", "output", "foreign"
     ]
 
 

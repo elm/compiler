@@ -69,14 +69,5 @@ crawlLet defsTransform annotatedExpression =
           GLShader uid src gltipe ->
               return $ GLShader uid src gltipe
 
-          Input name tipe ->
-              return $ Input name tipe
-
-          Output name tipe expr ->
-              Output name tipe <$> go expr
-
-          LoopbackIn name source ->
-              return (LoopbackIn name source)
-
-          LoopbackOut name expr ->
-              LoopbackOut name <$> go expr
+          Port name tipe ->
+              return $ Port name tipe

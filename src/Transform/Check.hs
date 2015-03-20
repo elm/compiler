@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 module Transform.Check (mistakes) where
 
-import qualified Control.Arrow as Arrow
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
@@ -42,7 +41,7 @@ dups names =
 duplicateValues :: [D.ValidDecl] -> [String]
 duplicateValues decls =
     map msg (dups (portNames ++ concatMap Pattern.boundVarList defPatterns)) ++
-    case mapM exprDups (portExprs ++ defExprs) of
+    case mapM exprDups defExprs of
       Left name -> [msg name]
       Right _   -> []
 
@@ -53,13 +52,8 @@ duplicateValues decls =
     (defPatterns, defExprs) =
         unzip [ (pat,expr) | D.Definition (Valid.Definition pat expr _) <- decls ]
 
-    (portNames, portExprs) =
-        Arrow.second Maybe.catMaybes $ unzip $
-        flip map [ wire | D.Wire wire <- decls ] $ \wire ->
-            case wire of
-              D.Input name _ -> (name, Nothing)
-              D.Output name expr _ -> (name, Just expr)
-              D.Loopback (D.ValidLoopback name maybeExpr _) -> (name, maybeExpr)
+    portNames =
+        [ name | D.Port name _ <- decls ]
 
     exprDups :: Valid.Expr -> Either String Valid.Expr
     exprDups expr =

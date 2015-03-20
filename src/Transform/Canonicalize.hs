@@ -26,7 +26,7 @@ import qualified Transform.Canonicalize.Environment as Env
 import qualified Transform.Canonicalize.Setup as Setup
 import qualified Transform.Canonicalize.Type as Canonicalize
 import qualified Transform.Canonicalize.Variable as Canonicalize
-import qualified Transform.Canonicalize.Wire as Wire
+import qualified Transform.Canonicalize.Port as Port
 import qualified Transform.SortDefinitions as Transform
 import qualified Transform.Declaration as Transform
 
@@ -77,16 +77,8 @@ moduleHelp interfaces modul@(Module.Module _ _ exports _ decls) =
          , aliases =
              Map.fromList [ (name,(tvs,alias)) | D.TypeAlias name tvs alias <- decls ]
          , ports =
-             [ wireName wire | D.Wire wire <- decls ]
+             [ name | D.Port name _ <- decls ]
          }
-
-    wireName :: D.CanonicalWire -> String
-    wireName wire =
-      case wire of
-        D.Input name _ -> name
-        D.Output name _ _ -> name
-        D.Loopback (D.Address name _) -> name
-        D.Loopback (D.Task name _ _ _) -> name
 
 
 resolveExports
@@ -210,27 +202,12 @@ declaration env decl =
           do  expanded' <- canonicalize Canonicalize.tipe "type alias" name env expanded
               return (D.TypeAlias name tvars expanded')
 
-      D.Wire wire ->
+      D.Port name tipe ->
           do  Env.uses ["Native","Ports"]
               Env.uses ["Native","Json"]
-              D.Wire <$>
-                  case wire of
-                    D.Input name tipe ->
-                        do  tipe' <- canonicalize Canonicalize.tipe "foreign input" name env tipe
-                            Wire.checkForeignInput name tipe'
-                            return (D.Input name tipe')
-
-                    D.Output name expr tipe ->
-                        do  expr' <- expression env expr
-                            tipe' <- canonicalize Canonicalize.tipe "foreign output" name env tipe
-                            Wire.checkForeignOutput name tipe'
-                            return (D.Output name expr' tipe')
-
-                    D.Loopback (D.ValidLoopback name maybeExpr tipe) ->
-                        do  maybeExpr' <- T.traverse (expression env) maybeExpr
-                            tipe' <- canonicalize Canonicalize.tipe "input" name env tipe
-                            input' <- Wire.input name maybeExpr' tipe'
-                            return (D.Loopback input')
+              tipe' <- canonicalize Canonicalize.tipe "port" name env tipe
+              portType <- Port.check name tipe'
+              return $ D.Port name portType
 
       D.Fixity assoc prec op ->
           return $ D.Fixity assoc prec op
@@ -322,17 +299,12 @@ expression env (A.A ann validExpr) =
               (,) <$> format (pattern env p)
                   <*> expression (Env.addPattern p env) b
 
-      Input name tipe ->
-          Input name <$> tipe' env tipe
-
-      Output name tipe expr ->
-          Output name <$> tipe' env tipe <*> go expr
-
-      LoopbackIn name source ->
-          return (LoopbackIn name source)
-
-      LoopbackOut name expr ->
-          LoopbackOut name <$> go expr
+      Port name portType ->
+          Port name <$>
+              case portType of
+                Type.Inbound tipe -> Type.Inbound <$> tipe' env tipe
+                Type.Internal tipe -> Type.Internal <$> tipe' env tipe
+                Type.Outbound tipe -> Type.Outbound <$> tipe' env tipe
 
       GLShader uid src tipe ->
           return (GLShader uid src tipe)

@@ -13,11 +13,11 @@ import Text.PrettyPrint as P
 
 -- DECLARATIONS
 
-data Declaration' wire def var
+data Declaration' portType def var
     = Definition def
     | Datatype String [String] [(String, [T.Type var])]
     | TypeAlias String [String] (T.Type var)
-    | Wire wire
+    | Port String portType
     | Fixity Assoc Int String
 
 
@@ -28,48 +28,15 @@ data Assoc = L | N | R
 -- DECLARATION PHASES
 
 type SourceDecl =
-  Declaration' RawWire Source.Def Var.Raw
+  Declaration' T.RawType Source.Def Var.Raw
 
 
 type ValidDecl =
-  Declaration' ValidWire Valid.Def Var.Raw
+  Declaration' T.RawType Valid.Def Var.Raw
 
 
 type CanonicalDecl =
-  Declaration' CanonicalWire Canonical.Def Var.Canonical
-
-
--- WIRES
-
-data RawWire
-    = InputAnnotation String T.RawType
-    | OutputAnnotation String T.RawType
-    | OutputDefinition String Source.Expr
-    | LoopbackAnnotation String T.RawType
-    | LoopbackDefinition String Source.Expr
-
-
-data Wire expr var input
-    = Input String (T.Type var)
-    | Output String expr (T.Type var)
-    | Loopback input
-
-
-data ValidLoopback =
-    ValidLoopback String (Maybe Valid.Expr) T.RawType
-
-
-data CanonicalLoopback
-    = Address String T.CanonicalType
-    | Task String T.CanonicalType Canonical.Expr T.CanonicalType
-
-
-type ValidWire =
-    Wire Valid.Expr Var.Raw ValidLoopback
-
-
-type CanonicalWire =
-    Wire Canonical.Expr Var.Canonical CanonicalLoopback
+  Declaration' (T.PortType Var.Canonical) Canonical.Def Var.Canonical
 
 
 -- BINARY CONVERSION
@@ -101,8 +68,8 @@ assocToString assoc =
       R -> "right"
 
 
-instance (Pretty wire, Pretty def, Pretty var, Var.ToString var) =>
-    Pretty (Declaration' wire def var) where
+instance (Pretty portType, Pretty def, Pretty var, Var.ToString var) =>
+    Pretty (Declaration' portType def var) where
   pretty decl =
     case decl of
       Definition def -> pretty def
@@ -128,7 +95,8 @@ instance (Pretty wire, Pretty def, Pretty var, Var.ToString var) =>
           name' =
               P.text name <+> P.hsep (map P.text tvars)
 
-      Wire wire -> pretty wire
+      Port name tipe ->
+          P.text "port" <+> P.text name <+> P.colon <+> pretty tipe
 
       Fixity assoc prec op ->
           P.text "infix" <> assoc' <+> P.int prec <+> P.text op
@@ -138,65 +106,3 @@ instance (Pretty wire, Pretty def, Pretty var, Var.ToString var) =>
                 L -> P.text "l"
                 N -> P.empty
                 R -> P.text "r"
-
-
-instance Pretty RawWire where
-  pretty wire =
-    case wire of
-      InputAnnotation name tipe ->
-          prettyWire "foreign input" name ":" tipe
-
-      OutputAnnotation name tipe ->
-          prettyWire "foreign output" name ":" tipe
-
-      OutputDefinition name expr ->
-          prettyWire "foreign output" name "=" expr
-
-      LoopbackAnnotation name tipe ->
-          prettyWire "input" name ":" tipe
-
-      LoopbackDefinition name expr ->
-          prettyWire "input" name "from" expr
-
-
-instance (Pretty expr, Pretty var, Var.ToString var, Pretty input) =>
-    Pretty (Wire expr var input) where
-  pretty wire =
-    case wire of
-      Input name tipe ->
-          prettyWire "foreign input" name ":" tipe
-
-      Output name expr tipe ->
-          P.vcat
-            [ prettyWire "foreign output" name ":" tipe
-            , prettyWire "foreign output" name "=" expr
-            ]
-
-      Loopback input ->
-          pretty input
-
-
-instance Pretty ValidLoopback where
-  pretty (ValidLoopback name maybeExpr tipe) =
-      P.vcat
-        [ prettyWire "input" name ":" tipe
-        , maybe P.empty (prettyWire "input" name "with") maybeExpr
-        ]
-
-
-instance Pretty CanonicalLoopback where
-  pretty input =
-      case input of
-        Address name tipe ->
-            prettyWire "input" name ":" tipe
-
-        Task name _taskType expr resultType ->
-            P.vcat
-              [ prettyWire "input" name ":" resultType
-              , prettyWire "input" name "with" expr
-              ]
-
-
-prettyWire :: (Pretty a) => String -> String -> String -> a -> Doc
-prettyWire keyword name op e =
-    P.text keyword <+> P.text name <+> P.text op <+> pretty e

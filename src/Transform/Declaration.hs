@@ -44,6 +44,9 @@ combineAnnotations =
           D.Fixity assoc prec op : rest ->
               (:) (D.Fixity assoc prec op) <$> go rest
 
+          D.Port name tipe : rest ->
+              (:) (D.Port name tipe) <$> go rest
+
           -- combine definitions
           D.Definition def : defRest ->
               case def of
@@ -61,38 +64,6 @@ combineAnnotations =
                                   (:) (D.Definition def') <$> go rest
 
                       _ -> Left (errorMessage "value" name)
-
-          -- combine wires
-          D.Wire wire : wireRest ->
-              case wire of
-                D.InputAnnotation name tipe ->
-                    (:) (D.Wire (D.Input name tipe)) <$> go wireRest
-
-                D.OutputDefinition name _ ->
-                    Left (errorMessage "foreign output" name)
-
-                D.OutputAnnotation name tipe ->
-                    case wireRest of
-                      D.Wire (D.OutputDefinition name' expr) : rest | name == name' ->
-                          do  expr' <- exprCombineAnnotations expr
-                              (:) (D.Wire (D.Output name expr' tipe)) <$> go rest
-
-                      _ ->
-                          Left (errorMessage "foreign output" name)
-
-                D.LoopbackDefinition name _tipe ->
-                    Left (errorMessage "input" name)
-
-                D.LoopbackAnnotation name tipe ->
-                    case wireRest of
-                      D.Wire (D.LoopbackDefinition name' expr) : rest | name == name' ->
-                          do  expr' <- exprCombineAnnotations expr
-                              let loop = D.ValidLoopback name (Just expr') tipe
-                              (:) (D.Wire (D.Loopback loop)) <$> go rest
-
-                      _ ->
-                          do  let loop = D.ValidLoopback name Nothing tipe
-                              (:) (D.Wire (D.Loopback loop)) <$> go wireRest
 
 
 toExpr :: Module.Name -> [D.CanonicalDecl] -> [Canonical.Def]
@@ -141,26 +112,8 @@ toDefs moduleName decl =
     D.TypeAlias _ _ _ ->
         []
 
-    D.Wire wire ->
-        case wire of
-          D.Output name expr@(A.A s _) tipe ->
-              [ definition name (A.A s $ E.Output name tipe expr) tipe ]
-
-          D.Input name tipe ->
-              [ definition name (A.none $ E.Input name tipe) tipe ]
-
-          D.Loopback input ->
-              case input of
-                D.Address name tipe ->
-                    [ definition name (A.none $ E.LoopbackIn name E.Address) tipe ]
-
-                D.Task name taskType expr resultType ->
-                    let dummyName =
-                          "$" ++ name ++ "$effect"
-                    in
-                        [ definition name (A.none $ E.LoopbackIn name E.TaskStream) resultType
-                        , definition dummyName (A.none $ E.LoopbackOut name expr) taskType
-                        ]
+    D.Port name tipe ->
+        [ definition name (A.none $ E.Port name tipe) (T.portTypeToType tipe) ]
 
     -- no constraints are needed for fixity declarations
     D.Fixity _ _ _ ->

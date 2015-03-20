@@ -11,7 +11,7 @@ import Language.ECMAScript3.Syntax
 
 import Generate.JavaScript.Helpers as Help
 import qualified Generate.Cases as Case
-import qualified Generate.JavaScript.Foreign as Foreign
+import qualified Generate.JavaScript.Port as Port
 import qualified Generate.JavaScript.Variable as Var
 
 import AST.Annotation
@@ -22,6 +22,7 @@ import qualified AST.Module as Module
 import qualified AST.Helpers as Help
 import AST.Literal
 import qualified AST.Pattern as P
+import qualified AST.Type as T
 import qualified AST.Variable as Var
 
 
@@ -30,7 +31,6 @@ internalImports name =
     [ varDecl "_N" (obj ["Elm","Native"])
     , include "_U" "Utils"
     , include "_L" "List"
-    , include "_P" "Ports"
     , varDecl Help.localModuleName (string (Module.nameToString name))
     ]
   where
@@ -207,24 +207,17 @@ expression (A region expr) =
       GLShader _uid src _tipe ->
           return $ ObjectLit () [(PropString () "src", literal (Str src))]
 
-      Input name tipe ->
-          return (Foreign.input name tipe)
+      Port name portType ->
+          case portType of
+            T.Inbound tipe ->
+                return (Port.inbound name tipe)
 
-      Output name tipe value ->
-          do  value' <- expression value
-              return (Foreign.output name tipe value')
+            T.Internal _ ->
+                return (Port.internal name)
 
-      LoopbackIn name source ->
-          case source of
-            Address ->
-                return $ obj ["_P","input"] `call` [ string name ]
+            T.Outbound tipe ->
+                return (Port.outbound name tipe)
 
-            TaskStream ->
-                return $ obj ["_P","loopbackIn"] `call` [ string name ]
-
-      LoopbackOut name expr ->
-          do  expr' <- expression expr
-              return $ obj ["_P","loopbackOut"] `call` [ string name, expr' ]
 
 
 definition :: Canonical.Def -> State Int [Statement ()]

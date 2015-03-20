@@ -1,4 +1,4 @@
-module Generate.JavaScript.Foreign (input, output) where
+module Generate.JavaScript.Port (inbound, internal, outbound) where
 
 import qualified Data.List as List
 import Generate.JavaScript.Helpers
@@ -42,6 +42,11 @@ _Maybe functionName =
     useLazy ["Elm","Maybe"] functionName
 
 
+_Port :: String -> Expression ()
+_Port functionName =
+    useLazy ["Elm","Native","Port"] functionName
+
+
 check :: Expression () -> JSType -> Expression () -> Expression ()
 check x jsType continue =
     CondExpr () (jsFold OpLOr checks x) continue throw
@@ -62,26 +67,22 @@ check x jsType continue =
               [jsFold OpLAnd (typeof "object" : map member fields)]
 
 
--- INPUT
+-- INTERNAL
 
-input :: String -> CanonicalType -> Expression ()
-input name tipe =
-  let args t =
-        [ string name, string (show (pretty t)), toTypeFunction t ]
-  in
-  case tipe of
-    Aliased _ args t ->
-        input name (dealias args t)
+internal :: String -> Expression ()
+internal name =
+  _Port "port" `call` [ string name ]
 
-    App (Type signal) [t]
-        | Var.isStream signal ->
-            obj ["_P","inputStream"] `call` args t
 
-        | Var.isVarying signal ->
-            obj ["_P","inputVarying"] `call` args t
+-- INBOUND
 
-    _ ->
-        obj ["_P","inputValue"] `call` args tipe
+inbound :: String -> CanonicalType -> Expression ()
+inbound name tipe =
+      _Port "inbound" `call`
+          [ string name
+          , string (show (pretty tipe))
+          , toTypeFunction tipe
+          ]
 
 
 toTypeFunction :: CanonicalType -> Expression ()
@@ -169,26 +170,11 @@ toTuple types x =
         )
 
 
--- OUTPUT
+-- OUTBOUND
 
-output :: String -> CanonicalType -> Expression () -> Expression ()
-output name tipe value =
-  let args t =
-        [ string name, fromTypeFunction t, value ]
-  in
-  case tipe of
-    Aliased _ args t ->
-        output name (dealias args t) value
-
-    App (Type signal) [t]
-        | Var.isStream signal ->
-            obj ["_P","outputStream"] `call` args t
-
-        | Var.isVarying signal ->
-            obj ["_P","outputVarying"] `call` args t
-
-    _ ->
-        obj ["_P","outputValue"] `call` args tipe
+outbound :: String -> CanonicalType -> Expression ()
+outbound name tipe =
+  _Port "outbound" `call` [ string name, fromTypeFunction tipe ]
 
 
 fromTypeFunction :: CanonicalType -> Expression ()

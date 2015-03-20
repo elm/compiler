@@ -12,7 +12,7 @@ import qualified Parse.Type as Type
 
 declaration :: IParser D.SourceDecl
 declaration =
-  typeDecl <|> infixDecl <|> foreign <|> input <|> definition
+  typeDecl <|> infixDecl <|> port <|> definition
 
 
 definition :: IParser D.SourceDecl
@@ -54,42 +54,11 @@ infixDecl =
       D.Fixity assoc (read [n]) <$> anyOp
 
 
-foreign :: IParser D.SourceDecl
-foreign =
-  do  try (reserved "foreign")
-      whitespace
-      choice
-        [ do  name <- wireBegining "input"
-              wireEnding (D.InputAnnotation name) hasType Type.expr
-        , do  name <- wireBegining "output"
-              choice
-                [ wireEnding (D.OutputAnnotation name) hasType Type.expr
-                , wireEnding (D.OutputDefinition name) equals Expr.expr
-                ]
-        ]
-
-
-input :: IParser D.SourceDecl
-input =
-  do  name <- wireBegining "input"
-      choice
-        [ wireEnding (D.LoopbackAnnotation name) hasType Type.expr
-        , wireEnding (D.LoopbackDefinition name) (string "from") Expr.expr
-        ]
-
-
-wireBegining :: String -> IParser String
-wireBegining keyword =
-  do  try (reserved keyword)
+port :: IParser D.SourceDecl
+port =
+  do  try (reserved "port")
       whitespace
       name <- lowVar
       whitespace
-      return name
-
-
-wireEnding :: (a -> D.RawWire) -> IParser String -> IParser a -> IParser D.SourceDecl
-wireEnding makeWire op valueParser =
-  do  op
-      whitespace
-      value <- valueParser
-      return (D.Wire (makeWire value))
+      tipe <- Type.expr <?> "a type"
+      return (D.Port name tipe)

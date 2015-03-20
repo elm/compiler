@@ -83,14 +83,5 @@ subst old new expression =
       GLShader _ _ _ ->
           expression
 
-      Input _ _ ->
+      Port _ _ ->
           expression
-
-      Output name tipe expr ->
-          Output name tipe (f expr)
-
-      LoopbackIn _ _ ->
-          expression
-
-      LoopbackOut name expr ->
-          LoopbackOut name (f expr)

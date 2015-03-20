@@ -10,7 +10,7 @@ module AST.Expression.General where
 
 import AST.PrettyPrint
 import Text.PrettyPrint as P
-import AST.Type (Type)
+import AST.Type (Type, PortType)
 
 import qualified AST.Annotation as Annotation
 import qualified AST.Helpers as Help
@@ -58,17 +58,8 @@ data Expr' ann def var
     | Modify (Expr ann def var) [(String, Expr ann def var)]
     | Record [(String, Expr ann def var)]
     -- for type checking and code gen only
-    | Input String (Type var)
-    | Output String (Type var) (Expr ann def var)
-    | LoopbackIn String Source
-    | LoopbackOut String (Expr ann def var)
+    | Port String (PortType var)
     | GLShader String String Literal.GLShaderTipe
-    deriving (Show)
-
-
-data Source
-    = Address
-    | TaskStream
     deriving (Show)
 
 
@@ -202,17 +193,8 @@ instance (Pretty def, Pretty var, Var.ToString var) => Pretty (Expr' ann def var
       GLShader _ _ _ ->
           P.text "[glsl| ... |]"
 
-      Input name _ ->
-          P.text ("<input:" ++ name ++ ">")
-
-      Output name _ _ ->
-          P.text ("<output:" ++ name ++ ">")
-
-      LoopbackIn name _ ->
-          P.text ("<loopback-in:" ++ name ++ ">")
-
-      LoopbackOut name _ ->
-          P.text ("<loopback-out:" ++ name ++ ">")
+      Port name _ ->
+          P.text ("<port:" ++ name ++ ">")
 
 
 collectApps :: Expr ann def var -> [Expr ann def var]

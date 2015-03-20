@@ -115,17 +115,8 @@ reorder (A ann expression) =
       GLShader _ _ _ ->
           return expression
 
-      Input name tipe ->
-          return $ Input name tipe
-
-      Output name tipe signal ->
-          Output name tipe <$> reorder signal
-
-      LoopbackIn name source ->
-          return $ LoopbackIn name source
-
-      LoopbackOut name expr ->
-          LoopbackOut name <$> reorder expr
+      Port name tipe ->
+          return $ Port name tipe
 
       -- Actually do some reordering
       Let defs body ->
