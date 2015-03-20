@@ -15,7 +15,7 @@ import qualified Parse.Type as Type
 
 declaration :: IParser D.SourceDecl
 declaration =
-  typeDecl <|> infixDecl <|> port <|> definition <|> perform
+  typeDecl <|> infixDecl <|> port <|> perform <|> definition
 
 
 definition :: IParser D.SourceDecl
