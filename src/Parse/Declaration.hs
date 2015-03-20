@@ -2,7 +2,10 @@
 module Parse.Declaration where
 
 import Control.Applicative ((<$>))
-import Text.Parsec ((<|>), (<?>), choice, digit, optionMaybe, string, try)
+import Text.Parsec
+    ( (<|>), (<?>), choice, digit, getPosition
+    , optionMaybe, sourceLine, string, try
+    )
 
 import qualified AST.Declaration as D
 import qualified Parse.Expression as Expr
@@ -12,7 +15,7 @@ import qualified Parse.Type as Type
 
 declaration :: IParser D.SourceDecl
 declaration =
-  typeDecl <|> infixDecl <|> port <|> definition
+  typeDecl <|> infixDecl <|> port <|> definition <|> perform
 
 
 definition :: IParser D.SourceDecl
@@ -62,3 +65,12 @@ port =
       whitespace
       tipe <- Type.expr <?> "a type"
       return (D.Port name tipe)
+
+
+perform :: IParser D.SourceDecl
+perform =
+  do  try (reserved "perform")
+      line <- sourceLine <$> getPosition
+      whitespace
+      D.Perform line <$> Expr.expr
+

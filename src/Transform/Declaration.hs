@@ -47,6 +47,10 @@ combineAnnotations =
           D.Port name tipe : rest ->
               (:) (D.Port name tipe) <$> go rest
 
+          D.Perform line expr : rest ->
+              do  expr' <- exprCombineAnnotations expr
+                  (:) (D.Perform line expr') <$> go rest
+
           -- combine definitions
           D.Definition def : defRest ->
               case def of
@@ -114,6 +118,11 @@ toDefs moduleName decl =
 
     D.Port name tipe ->
         [ definition name (A.none $ E.Port name tipe) (T.portTypeToType tipe) ]
+
+    D.Perform line expr ->
+        let name = "$perform$" ++ show line
+        in
+            [ Canonical.Definition (P.Var name) (A.none $ E.Perform expr) Nothing ]
 
     -- no constraints are needed for fixity declarations
     D.Fixity _ _ _ ->

@@ -218,6 +218,9 @@ expression (A region expr) =
             T.Outbound tipe ->
                 return (Port.outbound name tipe)
 
+      Perform expr ->
+          do  expr' <- expression expr
+              return (useLazy ["Elm","Native","Task"] "perform" <| expr')
 
 
 definition :: Canonical.Def -> State Int [Statement ()]

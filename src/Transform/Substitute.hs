@@ -85,3 +85,6 @@ subst old new expression =
 
       Port _ _ ->
           expression
+
+      Perform expr ->
+          Perform (f expr)

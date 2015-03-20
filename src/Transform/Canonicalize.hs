@@ -203,11 +203,16 @@ declaration env decl =
               return (D.TypeAlias name tvars expanded')
 
       D.Port name tipe ->
-          do  Env.uses ["Native","Ports"]
-              Env.uses ["Native","Json"]
+          do  Env.uses ["Native","Port"]
+              Env.uses ["Native","JavaScript"]
               tipe' <- canonicalize Canonicalize.tipe "port" name env tipe
               portType <- Port.check name tipe'
               return $ D.Port name portType
+
+      D.Perform line expr ->
+          do  Env.uses ["Native","Task"]
+              expr' <- expression env expr
+              return $ D.Perform line expr'
 
       D.Fixity assoc prec op ->
           return $ D.Fixity assoc prec op
@@ -305,6 +310,9 @@ expression env (A.A ann validExpr) =
                 Type.Inbound tipe -> Type.Inbound <$> tipe' env tipe
                 Type.Internal tipe -> Type.Internal <$> tipe' env tipe
                 Type.Outbound tipe -> Type.Outbound <$> tipe' env tipe
+
+      Perform expr ->
+          Perform <$> go expr
 
       GLShader uid src tipe ->
           return (GLShader uid src tipe)

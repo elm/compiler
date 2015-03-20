@@ -180,6 +180,9 @@ constrain env (A region expression) tipe =
       Port _ _ ->
           return true
 
+      Perform expr ->
+          constrain env expr tipe
+
 
 expandPattern :: Canonical.Def -> [Canonical.Def]
 expandPattern def@(Canonical.Definition pattern lexpr@(A r _) maybeType) =

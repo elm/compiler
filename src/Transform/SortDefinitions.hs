@@ -118,6 +118,9 @@ reorder (A ann expression) =
       Port name tipe ->
           return $ Port name tipe
 
+      Perform expr ->
+          Perform <$> reorder expr
+
       -- Actually do some reordering
       Let defs body ->
           do  body' <- reorder body

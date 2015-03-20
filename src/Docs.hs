@@ -189,7 +189,9 @@ collectInfo (comment, decl) info =
     case decl of
       Decl.Definition def ->
           case def of
-            Source.Definition _ _ -> error errorMessage
+            Source.Definition _ _ ->
+                error (errorMessage "unannotated definitions")
+
             Source.TypeAnnotation name tipe ->
                 let value = Docs.Value name comment (Type.fromInternalType tipe) Nothing
                 in
@@ -212,13 +214,16 @@ collectInfo (comment, decl) info =
               info { infixes = Map.insert name infixInfo (infixes info) }
 
       Decl.Port _ _ ->
-          error errorMessage
+          error (errorMessage "ports")
+
+      Decl.Perform _ _ ->
+          error (errorMessage "perform declarations")
 
 
-errorMessage :: String
-errorMessage =
-    "there appears to be a bug in this tool.\n" ++
-    "Please report it to <https://github.com/elm-lang/Elm/issues>"
+errorMessage :: String -> String
+errorMessage name =
+    "Unable to deal with annotations on " ++ name ++ " at this time.\n" ++
+    "Please report your use case to <https://github.com/elm-lang/elm-compiler/issues>"
 
 
 -- FILTER OUT UNEXPORTED VALUES, ALIASES, and UNIONS

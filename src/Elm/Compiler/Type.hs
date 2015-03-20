@@ -67,6 +67,11 @@ toDoc context tipe =
                   (ADT, _ : _) -> P.parens adt
                   _ -> adt
 
+    App _ _ ->
+        error $
+          "Somehow ended up with an unexpected type, please post a minimal example that\n"
+          ++ "reproduces this error to <https://github.com/elm-lang/elm-compiler/issues>"
+
     Record _ _ ->
         case flattenRecord tipe of
             ([], Nothing) ->
@@ -137,7 +142,7 @@ instance Json.ToJSON Type where
                   , "name" .= Json.toJSON name
                   ]
 
-              App t ts -> 
+              App t ts ->
                   [ "tag" .= ("app" :: Text.Text)
                   , "func" .= Json.toJSON t
                   , "args" .= Json.toJSON ts

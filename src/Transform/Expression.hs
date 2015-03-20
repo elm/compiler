@@ -71,3 +71,6 @@ crawlLet defsTransform annotatedExpression =
 
           Port name tipe ->
               return $ Port name tipe
+
+          Perform expr ->
+              Perform <$> go expr

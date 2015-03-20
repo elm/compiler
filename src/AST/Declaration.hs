@@ -13,11 +13,12 @@ import Text.PrettyPrint as P
 
 -- DECLARATIONS
 
-data Declaration' portType def var
+data Declaration' portType def var expr
     = Definition def
     | Datatype String [String] [(String, [T.Type var])]
     | TypeAlias String [String] (T.Type var)
     | Port String portType
+    | Perform Int expr
     | Fixity Assoc Int String
 
 
@@ -28,15 +29,15 @@ data Assoc = L | N | R
 -- DECLARATION PHASES
 
 type SourceDecl =
-  Declaration' T.RawType Source.Def Var.Raw
+  Declaration' T.RawType Source.Def Var.Raw Source.Expr
 
 
 type ValidDecl =
-  Declaration' T.RawType Valid.Def Var.Raw
+  Declaration' T.RawType Valid.Def Var.Raw Valid.Expr
 
 
 type CanonicalDecl =
-  Declaration' (T.PortType Var.Canonical) Canonical.Def Var.Canonical
+  Declaration' (T.PortType Var.Canonical) Canonical.Def Var.Canonical Canonical.Expr
 
 
 -- BINARY CONVERSION
@@ -68,8 +69,8 @@ assocToString assoc =
       R -> "right"
 
 
-instance (Pretty portType, Pretty def, Pretty var, Var.ToString var) =>
-    Pretty (Declaration' portType def var) where
+instance (Pretty portType, Pretty def, Pretty var, Var.ToString var, Pretty expr) =>
+    Pretty (Declaration' portType def var expr) where
   pretty decl =
     case decl of
       Definition def -> pretty def
@@ -97,6 +98,9 @@ instance (Pretty portType, Pretty def, Pretty var, Var.ToString var) =>
 
       Port name tipe ->
           P.text "port" <+> P.text name <+> P.colon <+> pretty tipe
+
+      Perform _ expr ->
+          P.text "perform" <+> pretty expr
 
       Fixity assoc prec op ->
           P.text "infix" <> assoc' <+> P.int prec <+> P.text op
