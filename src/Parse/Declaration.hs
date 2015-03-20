@@ -62,7 +62,7 @@ port =
   do  try (reserved "port")
       whitespace
       name <- lowVar
-      whitespace
+      padded hasType
       tipe <- Type.expr <?> "a type"
       return (D.Port name tipe)
 
