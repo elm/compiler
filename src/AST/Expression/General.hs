@@ -10,7 +10,7 @@ module AST.Expression.General where
 
 import AST.PrettyPrint
 import Text.PrettyPrint as P
-import AST.Type (PortType)
+import AST.Type (PortDirection)
 
 import qualified AST.Annotation as Annotation
 import qualified AST.Helpers as Help
@@ -58,7 +58,7 @@ data Expr' ann def var
     | Modify (Expr ann def var) [(String, Expr ann def var)]
     | Record [(String, Expr ann def var)]
     -- for type checking and code gen only
-    | Port String (PortType var)
+    | Port String (PortDirection var)
     | Perform (Expr ann def var)
     | GLShader String String Literal.GLShaderTipe
     deriving (Show)

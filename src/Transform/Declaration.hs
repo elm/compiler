@@ -117,7 +117,7 @@ toDefs moduleName decl =
         []
 
     D.Port name tipe ->
-        [ definition name (A.none $ E.Port name tipe) (T.portTypeToType tipe) ]
+        [ definition name (A.none $ E.Port name (T.direction tipe)) (T.tipe tipe) ]
 
     D.Perform line expr ->
         let name = "$perform$" ++ show line

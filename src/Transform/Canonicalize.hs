@@ -206,8 +206,8 @@ declaration env decl =
           do  Env.uses ["Native","Port"]
               Env.uses ["Native","JavaScript"]
               tipe' <- canonicalize Canonicalize.tipe "port" name env tipe
-              portType <- Port.check name tipe'
-              return $ D.Port name portType
+              portDirection <- Port.check name tipe'
+              return $ D.Port name (Type.PortType portDirection tipe')
 
       D.Perform line expr ->
           do  Env.uses ["Native","Task"]
@@ -304,12 +304,17 @@ expression env (A.A ann validExpr) =
               (,) <$> format (pattern env p)
                   <*> expression (Env.addPattern p env) b
 
-      Port name portType ->
+      Port name direction ->
           Port name <$>
-              case portType of
-                Type.Inbound tipe -> Type.Inbound <$> tipe' env tipe
-                Type.Internal tipe -> Type.Internal <$> tipe' env tipe
-                Type.Outbound tipe -> Type.Outbound <$> tipe' env tipe
+              case direction of
+                Type.Inbound tipe ->
+                    Type.Inbound <$> tipe' env tipe
+
+                Type.Internal ->
+                    return Type.Internal
+
+                Type.Outbound tipe ->
+                    Type.Outbound <$> tipe' env tipe
 
       Perform expr ->
           Perform <$> go expr

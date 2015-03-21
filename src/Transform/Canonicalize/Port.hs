@@ -20,7 +20,7 @@ throw err =
 check
     :: String
     -> T.CanonicalType
-    -> Env.Canonicalizer [P.Doc] (T.PortType Var.Canonical)
+    -> Env.Canonicalizer [P.Doc] (T.PortDirection Var.Canonical)
 check name tipe =
   checkHelp name tipe tipe
 
@@ -29,12 +29,12 @@ checkHelp
     :: String
     -> T.CanonicalType
     -> T.CanonicalType
-    -> Env.Canonicalizer [P.Doc] (T.PortType Var.Canonical)
+    -> Env.Canonicalizer [P.Doc] (T.PortDirection Var.Canonical)
 checkHelp name rootType tipe =
   case tipe of
     T.Aliased alias [(_,arg)] _
         | Var.is ["Port"] "Port" alias ->
-            return (T.Internal arg)
+            return T.Internal
 
         | Var.is ["Port"] "InboundPort" alias ->
             do  validForeignType name In arg arg

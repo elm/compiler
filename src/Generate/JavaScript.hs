@@ -212,7 +212,7 @@ expression (A region expr) =
             T.Inbound tipe ->
                 return (Port.inbound name tipe)
 
-            T.Internal _ ->
+            T.Internal ->
                 return (Port.internal name)
 
             T.Outbound tipe ->

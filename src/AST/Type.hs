@@ -1,6 +1,7 @@
 module AST.Type
-    ( Type(..), RawType, CanonicalType, PortType(..)
-    , portTypeToType, fieldMap, recordOf, listOf, tupleOf
+    ( Type(..), RawType, CanonicalType
+    , PortType(..), PortDirection(..)
+    , fieldMap, recordOf, listOf, tupleOf
     , deepDealias, dealias
     , collectLambdas
     , prettyParens
@@ -37,22 +38,18 @@ type CanonicalType =
     Type Var.Canonical
 
 
-data PortType var
-    = Inbound (Type var)
-    | Internal (Type var)
-    | Outbound (Type var)
+data PortType var = PortType
+    { direction :: PortDirection var
+    , tipe :: Type var
+    }
     deriving (Show)
 
 
-portTypeToType :: PortType Var.Canonical -> CanonicalType
-portTypeToType portType =
-  let makeType name tipe =
-        App (Type (Var.fromModule ["Port"] name)) [tipe]
-  in
-  case portType of
-    Inbound tipe -> makeType "InboundPort" tipe
-    Internal tipe -> makeType "Port" tipe
-    Outbound tipe -> makeType "OutboundPort" tipe
+data PortDirection var
+    = Inbound (Type var)
+    | Internal
+    | Outbound (Type var)
+    deriving (Show)
 
 
 fieldMap :: [(String,a)] -> Map.Map String [a]
@@ -139,15 +136,7 @@ replace typeTable t =
 
 instance (Pretty var, Var.ToString var) => Pretty (PortType var) where
   pretty portType =
-    case portType of
-      Inbound tipe ->
-          P.text "InboundPort" <+> pretty tipe
-
-      Internal tipe ->
-          P.text "Port" <+> pretty tipe
-
-      Outbound tipe ->
-          P.text "OutboundPort" <+> pretty tipe
+      pretty (tipe portType)
 
 
 instance (Var.ToString var, Pretty var) => Pretty (Type var) where
