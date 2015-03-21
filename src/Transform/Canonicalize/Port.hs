@@ -32,7 +32,7 @@ checkHelp
     -> Env.Canonicalizer [P.Doc] (T.PortType Var.Canonical)
 checkHelp name rootType tipe =
   case tipe of
-    T.Aliased alias _ arg
+    T.Aliased alias [(_,arg)] _
         | Var.is ["Port"] "Port" alias ->
             return (T.Internal arg)
 
@@ -44,8 +44,8 @@ checkHelp name rootType tipe =
             do  validForeignType name Out arg arg
                 return (T.Outbound arg)
 
-        | otherwise ->
-            checkHelp name rootType arg
+    T.Aliased _ args t ->
+        checkHelp name rootType (T.dealias args t)
 
     _ ->
         throw $
@@ -53,8 +53,8 @@ checkHelp name rootType tipe =
           , P.nest 4 $
               P.vcat $
                 [ P.text ("The port named '" ++ name ++ "' has an invalid type.\n")
-                , P.nest 4 (PP.pretty tipe) <> P.text "\n"
-                , P.text "It must be a Port, InboundPort, or OutboundPort."
+                , P.nest 4 (PP.pretty rootType) <> P.text "\n"
+                , P.text "It must be a Port.Port, Port.InboundPort, or Port.OutboundPort."
                 , P.text "See the Port module for more details:"
                 , P.text "<http://package.elm-lang.org/packages/elm-lang/core/latest/Port>"
                 ]
