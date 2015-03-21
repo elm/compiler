@@ -15,7 +15,7 @@ Use [this script][build] to build the entire Elm Platform from source: the compi
 REPL, package manager, and reactor. Be sure to read all the instructions to learn
 how the script works and what your workflow will be like.
 
-[build]: https://github.com/elm-lang/elm-platform/blob/master/src/BuildFromSource.hs
+[build]: https://github.com/elm-lang/elm-platform/blob/master/installers/BuildFromSource.hs
 
 ## Help
 
