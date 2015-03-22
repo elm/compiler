@@ -120,7 +120,7 @@ toDefs moduleName decl =
         [ definition name (A.none $ E.Port name (T.direction tipe)) (T.tipe tipe) ]
 
     D.Perform line expr ->
-        let name = "$perform$" ++ show line
+        let name = Var.toEffectName line
         in
             [ Canonical.Definition (P.Var name) (A.none $ E.Perform expr) Nothing ]
 

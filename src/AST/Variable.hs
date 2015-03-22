@@ -42,6 +42,18 @@ fromModule home name =
     Canonical (Module home) name
 
 
+toEffectName :: Int -> String
+toEffectName lineNumber =
+    "$perform$" ++ show lineNumber
+
+
+fromEffectName :: String -> Maybe String
+fromEffectName name =
+    case List.splitAt 9 name of
+      ("$perform$", number) -> Just number
+      _ -> Nothing
+
+
 -- VARIABLE RECOGNIZERS
 
 is :: [String] -> String -> Canonical -> Bool
@@ -61,6 +73,11 @@ isMaybe =
 isArray :: Canonical -> Bool
 isArray =
     is ["Array"] "Array"
+
+
+isTask :: Canonical -> Bool
+isTask =
+    is ["Task"] "Task"
 
 
 isList :: Canonical -> Bool

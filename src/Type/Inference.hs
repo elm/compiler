@@ -36,7 +36,7 @@ infer interfaces modul =
         let header' = Map.delete "::" header
             types = Map.difference (TS.sSavedEnv state) header'
 
-        Check.mainType types
+        Check.effectTypes types
 
 
 genConstraints
