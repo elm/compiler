@@ -51,12 +51,12 @@ run command args =
   where
     context msg =
       "failure when running:" ++ concatMap (' ':) (command:args) ++ "\n" ++ msg
-    
+
     message err =
       case err of
         CommandFailed stderr stdout ->
           stdout ++ stderr
-        MissingExe msg -> 
+        MissingExe msg ->
           msg
 
 
