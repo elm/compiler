@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts #-}
 module Elm.Compiler
-    ( version
+    ( version, rawVersion
     , parseDependencies, compile
     ) where
 
@@ -25,6 +25,11 @@ import qualified Parse.Module as Parse
 version :: String
 version =
     Version.version
+
+
+rawVersion :: [Int]
+rawVersion =
+    Version.rawVersion
 
 
 -- DEPENDENCIES
