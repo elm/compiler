@@ -1,20 +1,22 @@
 module Type.Type where
 
+import Control.Applicative ((<$>),(<*>))
+import Control.Monad.State (StateT)
+import qualified Control.Monad.State as State
+import Control.Monad.Error (ErrorT, Error, liftIO)
 import qualified Data.Char as Char
-import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Set as Set
+import qualified Data.Traversable as Traverse (traverse)
 import qualified Data.UnionFind.IO as UF
-import Type.PrettyPrint
 import Text.PrettyPrint as P
 import System.IO.Unsafe
-import Control.Applicative ((<$>),(<*>))
-import Control.Monad.State (StateT, get, put, execStateT, runStateT)
-import Control.Monad.Error (ErrorT, Error, liftIO)
-import Data.Traversable (traverse)
+
 import AST.Annotation
 import qualified AST.PrettyPrint as PP
 import qualified AST.Type as T
 import qualified AST.Variable as Var
+import Type.PrettyPrint
 
 
 -- CONCRETE TYPES
@@ -354,163 +356,28 @@ instance (PrettyType a, PrettyType b) => PrettyType (Scheme a b) where
       prettyPair (n,t) = P.text n <+> P.text ":" <+> pretty Never t
 
 
-extraPretty :: (PrettyType t, Crawl t) => t -> IO Doc
-extraPretty t =
-  pretty Never <$> addNames t
-
-
--- ADDING NAMES TO TYPES
-
-addNames :: (Crawl t) => t -> IO t
-addNames value =
-  do  (rawVars, _, _, _) <- execStateT (crawl getNames value) ([], 0, 0, 0)
-
-      let vars = map head . List.group $ List.sort rawVars
-
-      let suffix s = map (++s) (map (:[]) ['a'..'z'])
-
-      let allVars = concatMap suffix $ ["","'","_"] ++ map show [ (0 :: Int) .. ]
-
-      let okayVars = filter (`notElem` vars) allVars
-
-      runStateT (crawl rename value) (okayVars, 0, 0, 0)
-
-      return value
-  where
-    getNames desc state@(vars, a, b, c) =
-        let name' = name desc in
-        case name' of
-          Just (Var.Canonical _ var) -> (name', (var:vars, a, b, c))
-          _ -> (name', state)
-
-    rename desc state@(vars, a, b, c) =
-      case name desc of
-        Just var -> (Just var, state)
-        Nothing ->
-            case flex desc of
-              Is Number     -> (local $ "number"     ++ replicate a '\'', (vars, a+1, b, c))
-              Is Comparable -> (local $ "comparable" ++ replicate b '\'', (vars, a, b+1, c))
-              Is Appendable -> (local $ "appendable" ++ replicate c '\'', (vars, a, b, c+1))
-              _             -> (local $ head vars, (tail vars, a, b, c))
-            where
-              local v = Just (Var.local v)
-
-
--- CRAWLING OVER TYPES
-
-type CrawlState = ([String], Int, Int, Int)
-
-
--- Code for traversing all the type data-structures and giving
--- names to the variables embedded deep in there.
-class Crawl t where
-  crawl :: (Descriptor -> CrawlState -> (Maybe TypeName, CrawlState))
-        -> t
-        -> StateT CrawlState IO t
-
-
-instance Crawl e => Crawl (Annotated a e) where
-  crawl nextState (A ann e) =
-      A ann <$> crawl nextState e
-
-
-instance (Crawl t, Crawl v) => Crawl (BasicConstraint t v) where
-  crawl nextState constraint =
-    let rnm = crawl nextState in
-    case constraint of
-      CTrue -> return CTrue
-      CSaveEnv -> return CSaveEnv
-      CEqual a b -> CEqual <$> rnm a <*> rnm b
-      CAnd cs -> CAnd <$> crawl nextState cs
-      CLet schemes c -> CLet <$> crawl nextState schemes <*> crawl nextState c
-      CInstance name tipe -> CInstance name <$> rnm tipe
-
-
-instance Crawl a => Crawl [a] where
-  crawl nextState list =
-      mapM (crawl nextState) list
-
-
-instance (Crawl t, Crawl v) => Crawl (Scheme t v) where
-  crawl nextState (Scheme rqs fqs c headers) =
-    let rnm = crawl nextState
-    in
-        Scheme
-            <$> rnm rqs
-            <*> rnm fqs
-            <*> crawl nextState c
-            <*> return headers
-
-
-instance Crawl t => Crawl (TermN t) where
-  crawl nextState tipe =
-    case tipe of
-      PlaceHolder name ->
-          return (PlaceHolder name)
-
-      VarN a x ->
-          VarN a <$> crawl nextState x
-
-      TermN a term ->
-          TermN a <$> crawl nextState term
-
-
-instance Crawl t => Crawl (Term1 t) where
-  crawl nextState term =
-    let rnm = crawl nextState in
-    case term of
-      App1 a b ->
-          App1 <$> rnm a <*> rnm b
-
-      Fun1 a b ->
-          Fun1 <$> rnm a <*> rnm b
-
-      Var1 a ->
-          Var1 <$> rnm a
-
-      EmptyRecord1 ->
-          return EmptyRecord1
-
-      Record1 fields ext ->
-          Record1
-            <$> traverse (mapM rnm) fields
-            <*> rnm ext
-
-
-instance Crawl a => Crawl (UF.Point a) where
-  crawl nextState point =
-    do  desc <- liftIO $ UF.descriptor point
-        desc' <- crawl nextState desc
-        liftIO $ UF.setDescriptor point desc'
-        return point
-
-
-instance Crawl Descriptor where
-  crawl nextState desc =
-    do  state <- get
-        let (name', state') = nextState desc state
-        structure' <- traverse (crawl nextState) (structure desc)
-        put state'
-        return $ desc { name = name', structure = structure' }
-
+-- CONVERT TO SOURCE TYPES
 
 -- TODO: Attach resulting type to the descriptor so that you
 -- never have to do extra work, particularly nice for aliased types
 toSrcType :: Variable -> IO T.CanonicalType
-toSrcType var =
-    go =<< addNames var
+toSrcType variable =
+  do  addNames variable
+      variableToSrcType variable variable
+
+
+variableToSrcType :: Variable -> Variable -> IO T.CanonicalType
+variableToSrcType rootVariable variable =
+  do  desc <- UF.descriptor variable
+      srcType <- maybe (backupSrcType desc) (termToSrcType rootVariable) (structure desc)
+      case alias desc of
+        Nothing ->
+            return srcType
+
+        Just (name, args) ->
+            do  args' <- mapM (\(arg,tvar) -> (,) arg <$> variableToSrcType rootVariable tvar) args
+                return (T.Aliased name args' srcType)
   where
-    go v =
-      do  desc <- UF.descriptor v
-          srcType <- maybe (backupSrcType desc) termToSrcType (structure desc)
-          case alias desc of
-            Nothing ->
-                return srcType
-
-            Just (name, args) ->
-                do  args' <- mapM (\(arg,tvar) -> (,) arg <$> go tvar) args
-                    return (T.Aliased name args' srcType)
-
     backupSrcType :: Descriptor -> IO T.CanonicalType
     backupSrcType desc =
         case name desc of
@@ -525,48 +392,200 @@ toSrcType var =
                 concat
                   [ "Problem converting the following type "
                   , "from a type-checker type to a source-syntax type:"
-                  , P.render (pretty Never var)
+                  , P.render (pretty Never rootVariable)
                   ]
 
-    termToSrcType :: Term1 Variable -> IO T.CanonicalType
-    termToSrcType term =
-        case term of
-          App1 a b ->
-              do  a' <- go a
-                  b' <- go b
-                  case a' of
-                    T.App f args ->
-                        return $ T.App f (args ++ [b'])
-                    _ ->
-                        return $ T.App a' [b']
 
-          Fun1 a b ->
-              T.Lambda <$> go a <*> go b
+termToSrcType :: Variable -> Term1 Variable -> IO T.CanonicalType
+termToSrcType rootVariable term =
+  let go = variableToSrcType rootVariable in
+  case term of
+    App1 a b ->
+        do  a' <- go a
+            b' <- go b
+            case a' of
+              T.App f args ->
+                  return $ T.App f (args ++ [b'])
+              _ ->
+                  return $ T.App a' [b']
 
-          Var1 a ->
-              go a
+    Fun1 a b ->
+        T.Lambda <$> go a <*> go b
 
-          EmptyRecord1 ->
-              return $ T.Record [] Nothing
+    Var1 a ->
+        go a
 
-          Record1 tfields extension ->
-            do  fields' <- traverse (mapM go) tfields
-                let fields = concat [ map ((,) name) ts | (name,ts) <- Map.toList fields' ]
-                ext' <- dealias <$> go extension
-                return $
-                    case ext' of
-                      T.Record fs ext -> T.Record (fs ++ fields) ext
-                      T.Var _ -> T.Record fields (Just ext')
-                      _ -> error "Used toSrcType on a type that is not well-formed"
+    EmptyRecord1 ->
+        return $ T.Record [] Nothing
 
-    dealias :: T.CanonicalType -> T.CanonicalType
-    dealias tipe =
-        case tipe of
-          T.Aliased _ args tipe' ->
-              T.dealias args tipe'
-          _ ->
-              tipe
+    Record1 tfields extension ->
+      do  fields' <- Traverse.traverse (mapM go) tfields
+          let fields = concat [ map ((,) name) ts | (name,ts) <- Map.toList fields' ]
+          ext' <- dealias <$> go extension
+          return $
+              case ext' of
+                T.Record fs ext -> T.Record (fs ++ fields) ext
+                T.Var _ -> T.Record fields (Just ext')
+                _ -> error "Used toSrcType on a type that is not well-formed"
+      where
+        dealias :: T.CanonicalType -> T.CanonicalType
+        dealias tipe =
+            case tipe of
+              T.Aliased _ args tipe' ->
+                  T.dealias args tipe'
+              _ ->
+                  tipe
 
+
+-- ADD NAMES TO TYPES
+
+addNames :: Variable -> IO ()
+addNames variable =
+  do  usedNames <- getVarNames variable
+      let freeNames = makeFreeNames usedNames
+      State.runStateT (varAddNames variable) (NameState freeNames 0 0 0)
+      return ()
+
+
+makeFreeNames :: Set.Set String -> [String]
+makeFreeNames usedNames =
+  let makeName suffix =
+          map (:suffix) ['a'..'z']
+
+      allNames =
+          concatMap makeName ("" : "'" : "_" : map show [ (0 :: Int) .. ])
+  in
+      filter (\name -> Set.notMember name usedNames) allNames
+
+
+data NameState = NameState
+    { freeNames :: [String]
+    , numberPrimes :: Int
+    , comparablePrimes :: Int
+    , appendablePrimes :: Int
+    }
+
+
+varAddNames :: Variable -> StateT NameState IO ()
+varAddNames var =
+  do  desc <- liftIO (UF.descriptor var)
+      case alias desc of
+        Nothing ->
+            return ()
+
+        Just (_name, args) ->
+            mapM_ (\(v,t) -> (,) v <$> varAddNames t) args
+
+      case structure desc of
+        Just term ->
+            termAddNames term
+
+        Nothing ->
+            case name desc of
+              Just _ -> return ()
+              Nothing ->
+                  do  name' <- createName desc
+                      liftIO $ UF.modifyDescriptor var $ \desc ->
+                          desc { name = Just (Var.local name') }
+
+
+termAddNames :: Term1 Variable -> StateT NameState IO ()
+termAddNames term =
+  case term of
+    App1 a b ->
+        do  varAddNames a
+            varAddNames b
+
+    Fun1 a b ->
+        do  varAddNames a
+            varAddNames b
+
+    Var1 a ->
+        varAddNames a
+
+    EmptyRecord1 ->
+        return ()
+
+    Record1 fields extension ->
+        do  mapM_ varAddNames (concat (Map.elems fields))
+            varAddNames extension
+
+
+createName :: (Monad m) => Descriptor -> StateT NameState m String
+createName desc =
+  case flex desc of
+    Is Number ->
+        do  primes <- State.gets numberPrimes
+            State.modify (\state -> state { numberPrimes = primes + 1 })
+            return ("number" ++ replicate primes '\'')
+
+    Is Comparable ->
+        do  primes <- State.gets comparablePrimes
+            State.modify (\state -> state { comparablePrimes = primes + 1 })
+            return ("comparable" ++ replicate primes '\'')
+
+    Is Appendable ->
+        do  primes <- State.gets appendablePrimes
+            State.modify (\state -> state { appendablePrimes = primes + 1 })
+            return ("appendable" ++ replicate primes '\'')
+
+    _ ->
+        do  names <- State.gets freeNames
+            State.modify (\state -> state { freeNames = tail names })
+            return (head names)
+
+
+-- GET ALL VARIABLE NAMES
+
+getVarNames :: Variable -> IO (Set.Set String)
+getVarNames var =
+  do  desc <- UF.descriptor var
+
+      let baseSet =
+            case name desc of
+              Just var -> Set.singleton (Var.toString var)
+              Nothing -> Set.empty
+
+      structureSet <-
+          case structure desc of
+            Nothing -> return Set.empty
+            Just term -> getVarNamesTerm term
+
+      aliasSet <-
+          case alias desc of
+            Nothing ->
+                return Set.empty
+
+            Just (_name, args) ->
+                do  let set = Set.fromList (map fst args)
+                    sets <- mapM (getVarNames . snd) args
+                    return (Set.unions (set : sets))
+
+      return (Set.unions [ baseSet, structureSet, aliasSet ])
+
+
+getVarNamesTerm :: Term1 Variable -> IO (Set.Set String)
+getVarNamesTerm term =
+  let go = getVarNames in
+  case term of
+    App1 a b ->
+        Set.union <$> go a <*> go b
+
+    Fun1 a b ->
+        Set.union <$> go a <*> go b
+
+    Var1 a ->
+        go a
+
+    EmptyRecord1 ->
+        return Set.empty
+
+    Record1 fields extension ->
+        do  fieldVars <- Set.unions <$> mapM go (concat (Map.elems fields))
+            Set.union fieldVars <$> go extension
+
+
+-- COLLECT APPLICATIONS
 
 data AppStructure
     = List Variable
