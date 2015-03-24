@@ -104,29 +104,27 @@ deepDealias tipe =
 
 dealias :: [(String, Type v)] -> Type v -> Type v
 dealias args tipe =
-    replace (Map.fromList args) tipe
+    dealiasHelp (Map.fromList args) tipe
 
 
-replace :: Map.Map String (Type var) -> Type var -> Type var
-replace typeTable t =
-    let go = replace typeTable in
-    case t of
+dealiasHelp :: Map.Map String (Type var) -> Type var -> Type var
+dealiasHelp typeTable tipe =
+    let go = dealiasHelp typeTable in
+    case tipe of
       Lambda a b ->
           Lambda (go a) (go b)
 
       Var x ->
-          Map.findWithDefault t x typeTable
+          Map.findWithDefault tipe x typeTable
 
       Record fields ext ->
           Record (map (second go) fields) (fmap go ext)
 
       Aliased original args t' ->
-          let typeTable' = foldr Map.delete typeTable (map fst args)
-          in
-              Aliased original (map (second go) args) (replace typeTable' t')
+          Aliased original (map (second go) args) t'
 
       Type _ ->
-          t
+          tipe
 
       App f args ->
           App (go f) (map go args)
