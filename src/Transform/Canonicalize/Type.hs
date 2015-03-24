@@ -34,11 +34,11 @@ tipe env typ =
       T.Lambda a b ->
           T.Lambda <$> go a <*> go b
 
-      T.Aliased name args t ->
-          T.Aliased name <$> mapM goSnd args <*> go t
-
       T.Record fields ext ->
           T.Record <$> mapM goSnd fields <*> traverse go ext
+
+      T.Aliased _ _ _ ->
+          error "a RawType should never have an alias in it"
 
 
 canonicalizeApp
@@ -72,7 +72,7 @@ canonicalizeAlias
 canonicalizeAlias env (name, tvars, dealiasedTipe) tipes =
   do  when (tipesLen /= tvarsLen) (throwError msg)
       tipes' <- mapM (tipe env) tipes
-      return $ T.Aliased name (zip tvars tipes') dealiasedTipe
+      return $ T.Aliased name (zip tvars tipes') (T.Holey dealiasedTipe)
   where
     tipesLen = length tipes
     tvarsLen = length tvars

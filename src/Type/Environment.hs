@@ -186,9 +186,15 @@ instantiatorHelp env aliasVars sourceType =
                                  | "appendable" `isPrefixOf` x = Is Appendable
                                  | otherwise = Flexible
 
-      T.Aliased name args aliasedType ->
+      T.Aliased name args aliasType ->
           do  args' <- mapM (\(arg,tipe) -> (,) arg <$> go tipe) args
-              aliasedType' <- instantiatorHelp env (Set.fromList (map fst args)) aliasedType
+              aliasedType' <-
+                  case aliasType of
+                    T.Filled tipe ->
+                        instantiatorHelp env Set.empty tipe
+                    T.Holey tipe ->
+                        instantiatorHelp env (Set.fromList (map fst args)) tipe
+
               case aliasedType' of
                 PlaceHolder _ ->
                     error "problem instantiating type"

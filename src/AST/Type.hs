@@ -1,5 +1,6 @@
 module AST.Type
-    ( Type(..), RawType, CanonicalType
+    ( Type(..), AliasType(..)
+    , RawType, CanonicalType
     , PortType(..), PortDirection(..)
     , fieldMap, recordOf, listOf, tupleOf
     , deepDealias, dealias
@@ -26,7 +27,13 @@ data Type var
     | Type var
     | App (Type var) [Type var]
     | Record [(String, Type var)] (Maybe (Type var))
-    | Aliased Var.Canonical [(String, Type var)] (Type var)
+    | Aliased Var.Canonical [(String, Type var)] (AliasType var)
+    deriving (Eq,Show)
+
+
+data AliasType var
+    = Holey (Type var)
+    | Filled (Type var)
     deriving (Eq,Show)
 
 
@@ -102,9 +109,14 @@ deepDealias tipe =
         App (go f) (map go args)
 
 
-dealias :: [(String, Type v)] -> Type v -> Type v
-dealias args tipe =
-    dealiasHelp (Map.fromList args) tipe
+dealias :: [(String, Type v)] -> AliasType v -> Type v
+dealias args aliasType =
+  case aliasType of
+    Holey tipe ->
+        dealiasHelp (Map.fromList args) tipe
+
+    Filled tipe ->
+        tipe
 
 
 dealiasHelp :: Map.Map String (Type var) -> Type var -> Type var
@@ -188,13 +200,6 @@ instance (Var.ToString var, Pretty var) => Pretty (Type var) where
             prettyField (field, tipe) =
                 P.text field <+> P.text ":" <+> pretty tipe
 
-      Aliased name [] t ->
-          let t' = pretty t
-          in
-              if show t' `elem` ["Int", "Float", "String", "Char", "Bool"]
-                then t'
-                else pretty name
-
       Aliased name args _ ->
           P.hang (pretty name) 2 (P.sep (map (prettyParens . snd) args))
 
@@ -246,8 +251,8 @@ flattenRecord tipe =
         in
             (fields' ++ fields, ext')
 
-    Aliased _ _ tipe' ->
-        flattenRecord tipe'
+    Aliased _ args tipe' ->
+        flattenRecord (dealias args tipe')
 
     _ ->
         error "Trying to flatten ill-formed record."
@@ -285,4 +290,21 @@ instance Binary var => Binary (Type var) where
         3 -> App <$> get <*> get
         4 -> Record <$> get <*> get
         5 -> Aliased <$> get <*> get <*> get
+        _ -> error "Error reading a valid type from serialized string"
+
+
+instance Binary var => Binary (AliasType var) where
+  put aliasType =
+      case aliasType of
+        Holey tipe ->
+            putWord8 0 >> put tipe
+
+        Filled tipe ->
+            putWord8 1 >> put tipe
+
+  get = do
+      n <- getWord8
+      case n of
+        0 -> Holey <$> get
+        1 -> Filled <$> get
         _ -> error "Error reading a valid type from serialized string"

@@ -376,7 +376,7 @@ variableToSrcType rootVariable variable =
 
         Just (name, args) ->
             do  args' <- mapM (\(arg,tvar) -> (,) arg <$> variableToSrcType rootVariable tvar) args
-                return (T.Aliased name args' srcType)
+                return (T.Aliased name args' (T.Filled srcType))
   where
     backupSrcType :: Descriptor -> IO T.CanonicalType
     backupSrcType desc =

@@ -189,8 +189,13 @@ infiniteTypeAliases decls =
           T.Record fields _ ->
               any (infinite . snd) fields
 
-          T.Aliased _ args t ->
-              infinite t || any (infinite . snd) args
+          T.Aliased _ args aliasType ->
+              case aliasType of
+                T.Holey t ->
+                    infinite t || any (infinite . snd) args
+
+                T.Filled t ->
+                    infinite t
 
     indented :: D.ValidDecl -> Doc
     indented decl =

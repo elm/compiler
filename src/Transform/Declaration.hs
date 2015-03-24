@@ -96,7 +96,7 @@ toDefs moduleName decl =
         [ definition name (buildFunction record vars) (foldr T.Lambda result args) ]
       where
         result =
-          T.Aliased (typeVar name) (zip tvars (map T.Var tvars)) tipe
+          T.Aliased (typeVar name) (zip tvars (map T.Var tvars)) (T.Holey tipe)
 
         args =
           map snd fields ++ maybe [] (:[]) ext
