@@ -57,8 +57,8 @@ validMainTypes :: [ST.CanonicalType]
 validMainTypes =
     [ element
     , html
-    , varying element
-    , varying html
+    , signal element
+    , signal html
     ]
   where
     fromModule :: [String] -> String -> ST.CanonicalType
@@ -68,8 +68,8 @@ validMainTypes =
     html =
         fromModule ["VirtualDom"] "Node"
 
-    varying tipe =
-        ST.App (fromModule ["Signal"] "Varying") [ tipe ]
+    signal tipe =
+        ST.App (fromModule ["SignalTypes"] "Signal") [ tipe ]
 
     element =
       let builtin name =
@@ -103,7 +103,7 @@ badMainMessage typeOfMain =
   P.vcat
     [ P.text "Type Error: 'main' must have one of the following types:"
     , P.text " "
-    , P.text "    Element, Html, Varying Element, Varying Html"
+    , P.text "    Element, Html, Signal Element, Signal Html"
     , P.text " "
     , P.text "Instead 'main' has type:\n"
     , P.nest 4 (PP.pretty typeOfMain)
