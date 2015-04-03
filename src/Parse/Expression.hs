@@ -275,7 +275,6 @@ defStart =
       [ do  p1 <- try Pattern.term
             infics p1 <|> func p1
       , func =<< (P.Var <$> parens symOp)
-      , (:[]) <$> Pattern.expr
       ]
       <?> "the definition of a variable (x = ...)"
     where
