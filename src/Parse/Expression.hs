@@ -1,4 +1,4 @@
-module Parse.Expression (def, term, typeAnnotation, expr) where
+module Parse.Expression (term, typeAnnotation, definition, expr) where
 
 import Control.Applicative ((<$>), (<*>))
 import qualified Data.List as List
@@ -232,25 +232,16 @@ letExpr :: IParser Source.Expr'
 letExpr =
   do  try (reserved "let")
       whitespace
-      defs <- defSet
+      defs <-
+        block $
+          do  def <- typeAnnotation <|> definition
+              whitespace
+              return def
       padded (reserved "in")
       E.Let defs <$> expr
 
 
-defSet :: IParser [Source.Def]
-defSet =
-  block $
-    do  d <- def
-        whitespace
-        return d
-
-
--- DEFINITIONS
-
-def :: IParser Source.Def
-def =
-  typeAnnotation <|> definition
-
+-- TYPE ANNOTATION
 
 typeAnnotation :: IParser Source.Def
 typeAnnotation =
@@ -261,6 +252,8 @@ typeAnnotation =
           padded hasType
           return v
 
+
+-- DEFINITION
 
 definition :: IParser Source.Def
 definition =
@@ -299,4 +292,3 @@ defStart =
                 if o == '`'
                   then [ P.Var $ takeWhile (/='`') p, p1, p2 ]
                   else [ P.Var (o:p), p1, p2 ]
-

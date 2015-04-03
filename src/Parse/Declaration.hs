@@ -17,7 +17,7 @@ declaration =
 
 definition :: IParser D.SourceDecl
 definition =
-  D.Definition <$> Expr.def
+  D.Definition <$> (Expr.typeAnnotation <|> Expr.definition)
 
 
 typeDecl :: IParser D.SourceDecl
