@@ -30,7 +30,6 @@ effectTypes :: TS.Env -> ErrorT [P.Doc] IO (Map.Map String ST.CanonicalType)
 effectTypes environment =
   do  environment' <- liftIO $ Traverse.traverse TT.toSrcType environment
       mainCheck environment'
-      performCheck environment'
       return environment'
 
 
@@ -107,39 +106,6 @@ badMainMessage typeOfMain =
     , P.text " "
     , P.text "Instead 'main' has type:\n"
     , P.nest 4 (PP.pretty typeOfMain)
-    , P.text " "
-    ]
-
-
--- PERFORM TYPE
-
-performCheck
-    :: (Monad m)
-    => Map.Map String ST.CanonicalType
-    -> ErrorT [P.Doc] m ()
-performCheck env =
-  let check (name, tipe) =
-        case Var.fromEffectName name of
-          Nothing ->
-              return ()
-
-          Just lineNumber ->
-              case ST.deepDealias tipe of
-                ST.App (ST.Type task) [_, _]
-                    | Var.isTask task ->
-                        return ()
-                _ ->
-                    throwError [ badPerformMessage lineNumber tipe ]
-    in
-        mapM_ check (Map.toList env)
-
-
-badPerformMessage :: String -> ST.CanonicalType -> P.Doc
-badPerformMessage lineNumber tipe =
-  P.vcat
-    [ P.text $ "Type Error: the 'perform' declaration on line " ++ lineNumber
-    , P.text "It must have type Task, but instead it has type:\n"
-    , P.nest 4 (PP.pretty tipe)
     , P.text " "
     ]
 
