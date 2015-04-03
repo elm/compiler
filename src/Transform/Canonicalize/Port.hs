@@ -84,7 +84,7 @@ validForeignType name portKind rootType tipe =
           valid (T.dealias args t)
 
       T.Type v ->
-          case any ($ v) [ Var.isJson, Var.isPrimitive, Var.isTuple ] of
+          case any ($ v) [ Var.isJSValue, Var.isPrimitive, Var.isTuple ] of
             True -> return ()
             False -> err "It contains an unsupported type"
 
