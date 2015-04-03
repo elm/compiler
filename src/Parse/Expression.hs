@@ -1,4 +1,4 @@
-module Parse.Expression (def,term,typeAnnotation,expr) where
+module Parse.Expression (def, term, typeAnnotation, expr) where
 
 import Control.Applicative ((<$>), (<*>))
 import qualified Data.List as List
@@ -85,7 +85,7 @@ parensTerm =
           loc = Annotation.at start end
       return $ foldr (\x e -> loc $ E.Lambda x e)
                  (loc . E.tuple $ map (loc . E.rawVar) vars) (map P.Var vars)
-    
+
     parened = do
       (start, es, end) <- located (commaSep expr)
       return $ case es of
@@ -102,7 +102,7 @@ recordTerm =
           padded equals
           body <- expr
           return (label, makeFunction patterns body)
-            
+
     record =
       E.Record <$> commaSep field
 
@@ -129,7 +129,7 @@ recordTerm =
         case opt of
           Just e  -> try (insert e) <|> return e
           Nothing -> try (insert record) <|> try (modify record)
-                      
+
 
 term :: IParser Source.Expr
 term =  addLocation (choice [ E.Literal <$> Literal.literal, listTerm, accessor, negative ])
@@ -151,6 +151,14 @@ appExpr =
 
 
 --------  Normal Expressions  --------
+
+expr :: IParser Source.Expr
+expr =
+  addLocation (choice [ ifExpr, letExpr, caseExpr ])
+    <|> lambdaExpr
+    <|> binaryExpr
+    <?> "an expression"
+
 
 binaryExpr :: IParser Source.Expr
 binaryExpr =
@@ -198,23 +206,6 @@ lambdaExpr =
       return (makeFunction args body)
 
 
-defSet :: IParser [Source.Def]
-defSet =
-  block $
-    do  d <- def
-        whitespace
-        return d
-
-
-letExpr :: IParser Source.Expr'
-letExpr =
-  do  try (reserved "let")
-      whitespace
-      defs <- defSet
-      padded (reserved "in")
-      E.Let defs <$> expr
-
-
 caseExpr :: IParser Source.Expr'
 caseExpr =
   do  try (reserved "case")
@@ -235,45 +226,30 @@ caseExpr =
       block (do c <- case_ ; whitespace ; return c)
 
 
-expr :: IParser Source.Expr
-expr = addLocation (choice [ ifExpr, letExpr, caseExpr ])
-    <|> lambdaExpr
-    <|> binaryExpr 
-    <?> "an expression"
+-- LET
+
+letExpr :: IParser Source.Expr'
+letExpr =
+  do  try (reserved "let")
+      whitespace
+      defs <- defSet
+      padded (reserved "in")
+      E.Let defs <$> expr
 
 
-defStart :: IParser [P.RawPattern]
-defStart =
-    choice [ do p1 <- try Pattern.term
-                infics p1 <|> func p1
-           , func =<< (P.Var <$> parens symOp)
-           , (:[]) <$> Pattern.expr
-           ] <?> "the definition of a variable (x = ...)"
-    where
-      func pattern =
-          case pattern of
-            P.Var _ -> (pattern:) <$> spacePrefix Pattern.term
-            _ -> do try (lookAhead (whitespace >> string "="))
-                    return [pattern]
-
-      infics p1 = do
-        o:p <- try (whitespace >> anyOp)
-        p2  <- (whitespace >> Pattern.term)
-        return $ if o == '`' then [ P.Var $ takeWhile (/='`') p, p1, p2 ]
-                             else [ P.Var (o:p), p1, p2 ]
-
-makeFunction :: [P.RawPattern] -> Source.Expr -> Source.Expr
-makeFunction args body@(Annotation.A ann _) =
-    foldr (\arg body' -> Annotation.A ann $ E.Lambda arg body') body args
+defSet :: IParser [Source.Def]
+defSet =
+  block $
+    do  d <- def
+        whitespace
+        return d
 
 
-definition :: IParser Source.Def
-definition =
-  withPos $
-    do  (name:args) <- defStart
-        padded equals
-        body <- expr
-        return . Source.Definition name $ makeFunction args body
+-- DEFINITIONS
+
+def :: IParser Source.Def
+def =
+  typeAnnotation <|> definition
 
 
 typeAnnotation :: IParser Source.Def
@@ -286,6 +262,41 @@ typeAnnotation =
           return v
 
 
-def :: IParser Source.Def
-def =
-  typeAnnotation <|> definition
+definition :: IParser Source.Def
+definition =
+  withPos $
+    do  (name:args) <- defStart
+        padded equals
+        body <- expr
+        return . Source.Definition name $ makeFunction args body
+
+
+makeFunction :: [P.RawPattern] -> Source.Expr -> Source.Expr
+makeFunction args body@(Annotation.A ann _) =
+    foldr (\arg body' -> Annotation.A ann $ E.Lambda arg body') body args
+
+
+defStart :: IParser [P.RawPattern]
+defStart =
+    choice
+      [ do  p1 <- try Pattern.term
+            infics p1 <|> func p1
+      , func =<< (P.Var <$> parens symOp)
+      , (:[]) <$> Pattern.expr
+      ]
+      <?> "the definition of a variable (x = ...)"
+    where
+      func pattern =
+          case pattern of
+            P.Var _ -> (pattern:) <$> spacePrefix Pattern.term
+            _ -> do try (lookAhead (whitespace >> string "="))
+                    return [pattern]
+
+      infics p1 =
+        do  o:p <- try (whitespace >> anyOp)
+            p2  <- (whitespace >> Pattern.term)
+            return $
+                if o == '`'
+                  then [ P.Var $ takeWhile (/='`') p, p1, p2 ]
+                  else [ P.Var (o:p), p1, p2 ]
+
