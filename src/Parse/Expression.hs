@@ -132,7 +132,8 @@ recordTerm =
 
 
 term :: IParser Source.Expr
-term =  addLocation (choice [ E.Literal <$> Literal.literal, listTerm, accessor, negative ])
+term =
+  addLocation (choice [ E.Literal <$> Literal.literal, listTerm, accessor, negative ])
     <|> accessible (addLocation varTerm <|> parensTerm <|> recordTerm)
     <?> "basic term (4, x, 'c', etc.)"
 
