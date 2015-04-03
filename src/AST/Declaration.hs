@@ -13,12 +13,11 @@ import Text.PrettyPrint as P
 
 -- DECLARATIONS
 
-data Declaration' portType def var expr
+data Declaration' port def var expr
     = Definition def
     | Datatype String [String] [(String, [T.Type var])]
     | TypeAlias String [String] (T.Type var)
-    | Port String portType
-    | Perform Int expr
+    | Port port
     | Fixity Assoc Int String
 
 
@@ -29,15 +28,38 @@ data Assoc = L | N | R
 -- DECLARATION PHASES
 
 type SourceDecl =
-  Declaration' T.RawType Source.Def Var.Raw Source.Expr
+  Declaration' RawPort Source.Def Var.Raw Source.Expr
 
 
 type ValidDecl =
-  Declaration' T.RawType Valid.Def Var.Raw Valid.Expr
+  Declaration' (Port Valid.Expr T.RawType) Valid.Def Var.Raw Valid.Expr
 
 
 type CanonicalDecl =
-  Declaration' (T.PortType Var.Canonical) Canonical.Def Var.Canonical Canonical.Expr
+  Declaration' CanonicalPort Canonical.Def Var.Canonical Canonical.Expr
+
+
+-- PORTS
+
+data RawPort
+    = PortAnnotation String T.RawType
+    | PortDefinition String Source.Expr
+
+
+data Port expr tipe
+    = Inbound String tipe
+    | Outbound String expr tipe
+
+
+type CanonicalPort =
+    Port Canonical.Expr (T.PortType Var.Canonical)
+
+
+getName :: Port expr tipe -> String
+getName port =
+  case port of
+    Inbound name _ -> name
+    Outbound name _ _ -> name
 
 
 -- BINARY CONVERSION
@@ -69,8 +91,8 @@ assocToString assoc =
       R -> "right"
 
 
-instance (Pretty portType, Pretty def, Pretty var, Var.ToString var, Pretty expr) =>
-    Pretty (Declaration' portType def var expr) where
+instance (Pretty port, Pretty def, Pretty var, Var.ToString var, Pretty expr) =>
+    Pretty (Declaration' port def var expr) where
   pretty decl =
     case decl of
       Definition def -> pretty def
@@ -96,11 +118,8 @@ instance (Pretty portType, Pretty def, Pretty var, Var.ToString var, Pretty expr
           name' =
               P.text name <+> P.hsep (map P.text tvars)
 
-      Port name tipe ->
-          P.text "port" <+> P.text name <+> P.colon <+> pretty tipe
-
-      Perform _ expr ->
-          P.text "perform" <+> pretty expr
+      Port port ->
+          pretty port
 
       Fixity assoc prec op ->
           P.text "infix" <> assoc' <+> P.int prec <+> P.text op
@@ -110,3 +129,26 @@ instance (Pretty portType, Pretty def, Pretty var, Var.ToString var, Pretty expr
                 L -> P.text "l"
                 N -> P.empty
                 R -> P.text "r"
+
+
+instance Pretty RawPort where
+  pretty port =
+    case port of
+      PortAnnotation name tipe ->
+          P.text "port" <+> P.text name <+> P.colon <+> pretty tipe
+
+      PortDefinition name expr ->
+          P.text "port" <+> P.text name <+> P.equals <+> pretty expr
+
+
+instance (Pretty expr, Pretty tipe) => Pretty (Port expr tipe) where
+  pretty port =
+    case port of
+      Inbound name tipe ->
+          P.text "port" <+> P.text name <+> P.colon <+> pretty tipe
+
+      Outbound name expr tipe ->
+          P.vcat
+            [ P.text "port" <+> P.text name <+> P.colon <+> pretty tipe
+            , P.hang (P.text "port" <+> P.text name <+> P.equals) 4 (pretty expr)
+            ]

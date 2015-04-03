@@ -9,6 +9,7 @@ import qualified Data.Set as Set
 import qualified Data.Traversable as T
 
 import AST.Expression.General (Expr'(..), dummyLet)
+import qualified AST.Expression.General as E
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Expression.Canonical as Canonical
 
@@ -77,7 +78,7 @@ moduleHelp interfaces modul@(Module.Module _ _ exports _ decls) =
          , aliases =
              Map.fromList [ (name,(tvs,alias)) | D.TypeAlias name tvs alias <- decls ]
          , ports =
-             [ name | D.Port name _ <- decls ]
+             [ D.getName port | D.Port port <- decls ]
          }
 
 
@@ -202,17 +203,21 @@ declaration env decl =
           do  expanded' <- canonicalize Canonicalize.tipe "type alias" name env expanded
               return (D.TypeAlias name tvars expanded')
 
-      D.Port name tipe ->
+      D.Port port ->
           do  Env.uses ["Native","Port"]
               Env.uses ["Native","JavaScript"]
-              tipe' <- canonicalize Canonicalize.tipe "port" name env tipe
-              portDirection <- Port.check name tipe'
-              return $ D.Port name (Type.PortType portDirection tipe')
+              case port of
+                D.Inbound name tipe ->
+                    do  tipe' <- canonicalize Canonicalize.tipe "port" name env tipe
+                        port' <- Port.check name Nothing tipe'
+                        return (D.Port port')
 
-      D.Perform line expr ->
-          do  Env.uses ["Native","Task"]
-              expr' <- expression env expr
-              return $ D.Perform line expr'
+
+                D.Outbound name expr tipe ->
+                    do  expr' <- expression env expr
+                        tipe' <- canonicalize Canonicalize.tipe "port" name env tipe
+                        port' <- Port.check name (Just expr') tipe'
+                        return (D.Port port')
 
       D.Fixity assoc prec op ->
           return $ D.Fixity assoc prec op
@@ -304,20 +309,22 @@ expression env (A.A ann validExpr) =
               (,) <$> format (pattern env p)
                   <*> expression (Env.addPattern p env) b
 
-      Port name direction ->
-          Port name <$>
-              case direction of
-                Type.Inbound tipe ->
-                    Type.Inbound <$> tipe' env tipe
+      Port name impl ->
+          let portType pt =
+                case pt of
+                  Type.Normal t ->
+                      Type.Normal <$> tipe' env t
 
-                Type.Internal ->
-                    return Type.Internal
+                  Type.Stream root arg ->
+                      Type.Stream <$> tipe' env root <*> tipe' env arg
+          in
+              Port name <$>
+                  case impl of
+                    E.Inbound pt ->
+                        E.Inbound <$> portType pt
 
-                Type.Outbound tipe ->
-                    Type.Outbound <$> tipe' env tipe
-
-      Perform expr ->
-          Perform <$> go expr
+                    E.Outbound pt expr ->
+                        E.Outbound <$> portType pt <*> go expr
 
       GLShader uid src tipe ->
           return (GLShader uid src tipe)

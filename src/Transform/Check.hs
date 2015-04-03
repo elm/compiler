@@ -53,7 +53,7 @@ duplicateValues decls =
         unzip [ (pat,expr) | D.Definition (Valid.Definition pat expr _) <- decls ]
 
     portNames =
-        [ name | D.Port name _ <- decls ]
+        [ D.getName port | D.Port port <- decls ]
 
     exprDups :: Valid.Expr -> Either String Valid.Expr
     exprDups expr =

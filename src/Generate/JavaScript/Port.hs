@@ -1,11 +1,15 @@
-module Generate.JavaScript.Port (inbound, internal, outbound) where
+module Generate.JavaScript.Port
+    ( inbound, inboundStream
+    , outbound, outboundStream
+    ) where
 
 import qualified Data.List as List
-import Generate.JavaScript.Helpers
+import Language.ECMAScript3.Syntax
+
 import AST.PrettyPrint (pretty)
 import AST.Type as T
 import qualified AST.Variable as Var
-import Language.ECMAScript3.Syntax
+import Generate.JavaScript.Helpers
 
 
 data JSType
@@ -67,22 +71,24 @@ check x jsType continue =
               [jsFold OpLAnd (typeof "object" : map member fields)]
 
 
--- INTERNAL
-
-internal :: String -> Expression ()
-internal name =
-  _Port "port" `call` [ string name ]
-
-
 -- INBOUND
 
 inbound :: String -> CanonicalType -> Expression ()
 inbound name tipe =
-      _Port "inbound" `call`
-          [ string name
-          , string (show (pretty tipe))
-          , toTypeFunction tipe
-          ]
+    _Port "inbound" `call`
+        [ string name
+        , string (show (pretty tipe))
+        , toTypeFunction tipe
+        ]
+
+
+inboundStream :: String -> CanonicalType -> Expression ()
+inboundStream name tipe =
+    _Port "inboundStream" `call`
+        [ string name
+        , string (show (pretty tipe))
+        , toTypeFunction tipe
+        ]
 
 
 toTypeFunction :: CanonicalType -> Expression ()
@@ -111,7 +117,7 @@ toType tipe x =
             from checks = check x checks x
 
       Type name
-          | Var.isJson name ->
+          | Var.isJavaScript name ->
               x
 
           | Var.isTuple name ->
@@ -172,9 +178,14 @@ toTuple types x =
 
 -- OUTBOUND
 
-outbound :: String -> CanonicalType -> Expression ()
-outbound name tipe =
-  _Port "outbound" `call` [ string name, fromTypeFunction tipe ]
+outbound :: String -> CanonicalType -> Expression () -> Expression ()
+outbound name tipe expr =
+    _Port "outbound" `call` [ string name, fromTypeFunction tipe, expr ]
+
+
+outboundStream :: String -> CanonicalType -> Expression () -> Expression ()
+outboundStream name tipe expr =
+    _Port "outboundStream" `call` [ string name, fromTypeFunction tipe, expr ]
 
 
 fromTypeFunction :: CanonicalType -> Expression ()
@@ -212,7 +223,7 @@ fromType tipe x =
               x
 
       Type name
-          | Var.isJson name -> x
+          | Var.isJavaScript name -> x
           | Var.isTuple name -> ArrayLit () []
           | otherwise -> error "bad type got to an output"
 

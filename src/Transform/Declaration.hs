@@ -44,13 +44,6 @@ combineAnnotations =
           D.Fixity assoc prec op : rest ->
               (:) (D.Fixity assoc prec op) <$> go rest
 
-          D.Port name tipe : rest ->
-              (:) (D.Port name tipe) <$> go rest
-
-          D.Perform line expr : rest ->
-              do  expr' <- exprCombineAnnotations expr
-                  (:) (D.Perform line expr') <$> go rest
-
           -- combine definitions
           D.Definition def : defRest ->
               case def of
@@ -68,6 +61,22 @@ combineAnnotations =
                                   (:) (D.Definition def') <$> go rest
 
                       _ -> Left (errorMessage "value" name)
+
+          D.Port port : rest ->
+              case port of
+                D.PortAnnotation name tipe ->
+                    case rest of
+                      D.Port (D.PortDefinition name' expr) : restRest
+                          | name == name' ->
+                              do  expr' <- exprCombineAnnotations expr
+                                  let port' = D.Outbound name expr' tipe
+                                  (:) (D.Port port') <$> go restRest
+
+                      _ ->
+                          (:) (D.Port (D.Inbound name tipe)) <$> go rest
+
+                D.PortDefinition name _ ->
+                    Left (errorMessage "port" name)
 
 
 toExpr :: Module.Name -> [D.CanonicalDecl] -> [Canonical.Def]
@@ -116,13 +125,19 @@ toDefs moduleName decl =
     D.TypeAlias _ _ _ ->
         []
 
-    D.Port name tipe ->
-        [ definition name (A.none $ E.Port name (T.direction tipe)) (T.tipe tipe) ]
+    D.Port port ->
+        case port of
+          D.Inbound name portType ->
+              let portExpr = E.Port name (E.Inbound portType)
+                  tipe = T.portType portType
+              in
+                  [ definition name (A.none portExpr) tipe ]
 
-    D.Perform line expr ->
-        let name = Var.toEffectName line
-        in
-            [ Canonical.Definition (P.Var name) (A.none $ E.Perform expr) Nothing ]
+          D.Outbound name expr portType ->
+              let portExpr = E.Port name (E.Outbound portType expr)
+                  tipe = T.portType portType
+              in
+                  [ definition name (A.none portExpr) tipe ]
 
     -- no constraints are needed for fixity declarations
     D.Fixity _ _ _ ->

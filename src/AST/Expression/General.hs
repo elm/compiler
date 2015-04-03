@@ -10,12 +10,12 @@ module AST.Expression.General where
 
 import AST.PrettyPrint
 import Text.PrettyPrint as P
-import AST.Type (PortDirection)
 
 import qualified AST.Annotation as Annotation
 import qualified AST.Helpers as Help
 import qualified AST.Literal as Literal
 import qualified AST.Pattern as Pattern
+import qualified AST.Type as Type
 import qualified AST.Variable as Var
 
 
@@ -58,9 +58,14 @@ data Expr' ann def var
     | Modify (Expr ann def var) [(String, Expr ann def var)]
     | Record [(String, Expr ann def var)]
     -- for type checking and code gen only
-    | Port String (PortDirection var)
-    | Perform (Expr ann def var)
+    | Port String (PortImpl (Expr ann def var) var)
     | GLShader String String Literal.GLShaderTipe
+    deriving (Show)
+
+
+data PortImpl expr var
+    = Inbound (Type.PortType var)
+    | Outbound (Type.PortType var) expr
     deriving (Show)
 
 
@@ -197,9 +202,6 @@ instance (Pretty def, Pretty var, Var.ToString var) => Pretty (Expr' ann def var
 
       Port name _ ->
           P.text ("<port:" ++ name ++ ">")
-
-      Perform expr ->
-          P.text "perform" <+> pretty expr
 
 
 collectApps :: Expr ann def var -> [Expr ann def var]

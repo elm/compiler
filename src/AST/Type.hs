@@ -1,7 +1,7 @@
 module AST.Type
     ( Type(..), AliasType(..)
     , RawType, CanonicalType
-    , PortType(..), PortDirection(..)
+    , PortType(..), portType
     , fieldMap, recordOf, listOf, tupleOf
     , deepDealias, dealias
     , collectLambdas
@@ -45,18 +45,17 @@ type CanonicalType =
     Type Var.Canonical
 
 
-data PortType var = PortType
-    { direction :: PortDirection var
-    , tipe :: Type var
-    }
+data PortType var
+    = Normal (Type var)
+    | Stream { root :: Type var, arg :: Type var }
     deriving (Show)
 
 
-data PortDirection var
-    = Inbound (Type var)
-    | Internal
-    | Outbound (Type var)
-    deriving (Show)
+portType :: PortType var -> Type var
+portType portType =
+  case portType of
+    Normal tipe -> tipe
+    Stream tipe _ -> tipe
 
 
 fieldMap :: [(String,a)] -> Map.Map String [a]
@@ -146,7 +145,12 @@ dealiasHelp typeTable tipe =
 
 instance (Pretty var, Var.ToString var) => Pretty (PortType var) where
   pretty portType =
-      pretty (tipe portType)
+    case portType of
+      Normal tipe ->
+          pretty tipe
+
+      Stream tipe _ ->
+          pretty tipe
 
 
 instance (Var.ToString var, Pretty var) => Pretty (Type var) where

@@ -115,11 +115,8 @@ reorder (A ann expression) =
       GLShader _ _ _ ->
           return expression
 
-      Port name tipe ->
-          return $ Port name tipe
-
-      Perform expr ->
-          Perform <$> reorder expr
+      Port name impl ->
+          return $ Port name impl
 
       -- Actually do some reordering
       Let defs body ->

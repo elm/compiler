@@ -18,11 +18,11 @@ import AST.Annotation
 import AST.Module
 import AST.Expression.General
 import qualified AST.Expression.Canonical as Canonical
-import qualified AST.Module as Module
 import qualified AST.Helpers as Help
 import AST.Literal
+import qualified AST.Module as Module
 import qualified AST.Pattern as P
-import qualified AST.Type as T
+import qualified AST.Type as Type
 import qualified AST.Variable as Var
 
 
@@ -207,20 +207,21 @@ expression (A region expr) =
       GLShader _uid src _tipe ->
           return $ ObjectLit () [(PropString () "src", literal (Str src))]
 
-      Port name portType ->
-          case portType of
-            T.Inbound tipe ->
+      Port name impl ->
+          case impl of
+            Inbound (Type.Normal tipe) ->
                 return (Port.inbound name tipe)
 
-            T.Internal ->
-                return (Port.internal name)
+            Inbound (Type.Stream _ tipe) ->
+                return (Port.inboundStream name tipe)
 
-            T.Outbound tipe ->
-                return (Port.outbound name tipe)
+            Outbound (Type.Normal tipe) expr ->
+                do  expr' <- expression expr
+                    return (Port.outbound name tipe expr')
 
-      Perform expr ->
-          do  expr' <- expression expr
-              return (useLazy ["Elm","Native","Task"] "perform" <| expr')
+            Outbound (Type.Stream _ tipe) expr ->
+                do  expr' <- expression expr
+                    return (Port.outboundStream name tipe expr')
 
 
 definition :: Canonical.Def -> State Int [Statement ()]

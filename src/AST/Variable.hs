@@ -61,9 +61,9 @@ is home name var =
     var == Canonical (Module home) name
 
 
-isJson :: Canonical -> Bool
-isJson =
-    is ["Json", "Encode"] "Value"
+isJavaScript :: Canonical -> Bool
+isJavaScript =
+    is ["JavaScript", "Encode"] "Value"
 
 
 isMaybe :: Canonical -> Bool
@@ -78,6 +78,11 @@ isArray =
 isTask :: Canonical -> Bool
 isTask =
     is ["Task"] "Task"
+
+
+isStream :: Canonical -> Bool
+isStream =
+    is ["SignalTypes"] "Stream"
 
 
 isList :: Canonical -> Bool

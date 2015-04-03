@@ -213,11 +213,8 @@ collectInfo (comment, decl) info =
           in
               info { infixes = Map.insert name infixInfo (infixes info) }
 
-      Decl.Port _ _ ->
+      Decl.Port _ ->
           error (errorMessage "ports")
-
-      Decl.Perform _ _ ->
-          error (errorMessage "perform declarations")
 
 
 errorMessage :: String -> String

@@ -2,10 +2,7 @@
 module Parse.Declaration where
 
 import Control.Applicative ((<$>))
-import Text.Parsec
-    ( (<|>), (<?>), choice, digit, getPosition
-    , optionMaybe, sourceLine, string, try
-    )
+import Text.Parsec ( (<|>), (<?>), choice, digit, optionMaybe, string, try )
 
 import qualified AST.Declaration as D
 import qualified Parse.Expression as Expr
@@ -15,7 +12,7 @@ import qualified Parse.Type as Type
 
 declaration :: IParser D.SourceDecl
 declaration =
-  typeDecl <|> infixDecl <|> port <|> perform <|> definition
+  typeDecl <|> infixDecl <|> port <|> definition
 
 
 definition :: IParser D.SourceDecl
@@ -62,15 +59,18 @@ port =
   do  try (reserved "port")
       whitespace
       name <- lowVar
-      padded hasType
-      tipe <- Type.expr <?> "a type"
-      return (D.Port name tipe)
-
-
-perform :: IParser D.SourceDecl
-perform =
-  do  try (reserved "perform")
-      line <- sourceLine <$> getPosition
       whitespace
-      D.Perform line <$> Expr.expr
+      choice [ portAnnotation name, portDefinition name ]
+  where
+    portAnnotation name =
+      do  try hasType
+          whitespace
+          tipe <- Type.expr <?> "a type"
+          return (D.Port (D.PortAnnotation name tipe))
+
+    portDefinition name =
+      do  try equals
+          whitespace
+          expr <- Expr.expr
+          return (D.Port (D.PortDefinition name expr))
 

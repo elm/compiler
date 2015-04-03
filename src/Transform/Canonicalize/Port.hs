@@ -4,6 +4,8 @@ import Control.Applicative ((<$>))
 import Control.Monad.Error (throwError)
 import Text.PrettyPrint as P
 
+import qualified AST.Declaration as D
+import qualified AST.Expression.Canonical as Canonical
 import qualified AST.PrettyPrint as PP
 import qualified AST.Type as T
 import qualified AST.Variable as Var
@@ -19,46 +21,44 @@ throw err =
 
 check
     :: String
+    -> Maybe Canonical.Expr
     -> T.CanonicalType
-    -> Env.Canonicalizer [P.Doc] (T.PortDirection Var.Canonical)
-check name tipe =
-  checkHelp name tipe tipe
+    -> Env.Canonicalizer [P.Doc] D.CanonicalPort
+check name maybeExpr rootType =
+  checkHelp name maybeExpr rootType rootType
 
 
 checkHelp
     :: String
+    -> Maybe Canonical.Expr
     -> T.CanonicalType
     -> T.CanonicalType
-    -> Env.Canonicalizer [P.Doc] (T.PortDirection Var.Canonical)
-checkHelp name rootType tipe =
+    -> Env.Canonicalizer [P.Doc] D.CanonicalPort
+checkHelp name maybeExpr rootType tipe =
   case tipe of
-    T.Aliased alias [(_,arg)] _
-        | Var.is ["Port"] "Port" alias ->
-            return T.Internal
-
-        | Var.is ["Port"] "InboundPort" alias ->
-            do  validForeignType name In arg arg
-                return (T.Inbound arg)
-
-        | Var.is ["Port"] "OutboundPort" alias ->
-            do  validForeignType name Out arg arg
-                return (T.Outbound arg)
-
     T.Aliased _ args t ->
-        checkHelp name rootType (T.dealias args t)
+        checkHelp name maybeExpr rootType (T.dealias args t)
+
+    T.App (T.Type stream) [arg]
+        | Var.isStream stream ->
+            case maybeExpr of
+              Nothing ->
+                  do  validForeignType name In arg arg
+                      return (D.Inbound name (T.Stream rootType arg))
+
+              Just expr ->
+                  do  validForeignType name Out arg arg
+                      return (D.Outbound name expr (T.Stream rootType arg))
 
     _ ->
-        throw $
-          [ P.text "Port Error:"
-          , P.nest 4 $
-              P.vcat $
-                [ P.text ("The port named '" ++ name ++ "' has an invalid type.\n")
-                , P.nest 4 (PP.pretty rootType) <> P.text "\n"
-                , P.text "It must be a Port.Port, Port.InboundPort, or Port.OutboundPort."
-                , P.text "See the Port module for more details:"
-                , P.text "<http://package.elm-lang.org/packages/elm-lang/core/latest/Port>"
-                ]
-          ]
+        case maybeExpr of
+          Nothing ->
+              do  validForeignType name In rootType tipe
+                  return (D.Inbound name (T.Normal rootType))
+
+          Just expr ->
+              do  validForeignType name Out rootType tipe
+                  return (D.Outbound name expr (T.Normal rootType))
 
 
 -- CHECK INBOUND AND OUTBOUND TYPES
@@ -84,7 +84,7 @@ validForeignType name portKind rootType tipe =
           valid (T.dealias args t)
 
       T.Type v ->
-          case any ($ v) [ Var.isJson, Var.isPrimitive, Var.isTuple ] of
+          case any ($ v) [ Var.isJavaScript, Var.isPrimitive, Var.isTuple ] of
             True -> return ()
             False -> err "It contains an unsupported type"
 
@@ -130,9 +130,9 @@ foreignError name portKind rootType localType problemMessage =
           , P.nest 4 (PP.pretty rootType) <> P.text "\n"
           , txt [ problemMessage, ":\n" ]
           , P.nest 4 (PP.pretty localType) <> P.text "\n"
-          , txt [ "Acceptable values for ", port, "s include:" ]
+          , txt [ "The kinds of values that can flow through ", port, "s include:" ]
           , txt [ "    Ints, Floats, Bools, Strings, Maybes, Lists, Arrays," ]
-          , txt [ "    Tuples, unit values, Json.Values, and concrete records." ]
+          , txt [ "    Tuples, JavaScript.Values, and concrete records." ]
           ]
     ]
   where
