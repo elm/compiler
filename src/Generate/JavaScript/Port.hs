@@ -111,7 +111,7 @@ toType tipe x =
             from checks = check x checks x
 
       Type name
-          | Var.isJson name ->
+          | Var.isJSValue name ->
               x
 
           | Var.isTuple name ->
@@ -212,7 +212,7 @@ fromType tipe x =
               x
 
       Type name
-          | Var.isJson name -> x
+          | Var.isJSValue name -> x
           | Var.isTuple name -> ArrayLit () []
           | otherwise -> error "bad type got to an output"
 
