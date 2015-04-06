@@ -15,18 +15,25 @@ import qualified AST.Pattern as Pattern
 annotations and definitions, which is how they appear in source code and how
 they are parsed.
 -}
-type Expr = General.Expr Annotation.Region Def Var.Raw
-type Expr' = General.Expr' Annotation.Region Def Var.Raw
+type Expr =
+  General.Expr Annotation.Region Def Var.Raw
+
+
+type Expr' =
+  General.Expr' Annotation.Region Def Var.Raw
+
 
 data Def
     = Definition Pattern.RawPattern Expr
     | TypeAnnotation String RawType
     deriving (Show)
 
+
 instance Pretty Def where
   pretty def =
-   case def of
-     TypeAnnotation name tipe ->
-         variable name <+> P.colon <+> pretty tipe
-     Definition pattern expr ->
-         pretty pattern <+> P.equals <+> pretty expr
+    case def of
+      TypeAnnotation name tipe ->
+          variable name <+> P.colon <+> pretty tipe
+
+      Definition pattern expr ->
+          pretty pattern <+> P.equals <+> pretty expr

@@ -15,17 +15,29 @@ import qualified AST.Pattern as Pattern
 ports are all paired with definitions in the appropriate order, it collapses
 them into a Def that is easier to work with in later phases of compilation.
 -}
-type Expr = General.Expr Annotation.Region Def Var.Raw
-type Expr' = General.Expr' Annotation.Region Def Var.Raw
+type Expr =
+  General.Expr Annotation.Region Def Var.Raw
+
+
+type Expr' =
+  General.Expr' Annotation.Region Def Var.Raw
+
 
 data Def = Definition Pattern.RawPattern Expr (Maybe RawType)
     deriving (Show)
 
+
 instance Pretty Def where
   pretty (Definition pattern expr maybeTipe) =
       P.vcat [ annotation, definition ]
-      where
-        definition = pretty pattern <+> P.equals <+> pretty expr
-        annotation = case maybeTipe of
-                       Nothing -> P.empty
-                       Just tipe -> pretty pattern <+> P.colon <+> pretty tipe
+    where
+      definition =
+          pretty pattern <+> P.equals <+> pretty expr
+
+      annotation =
+          case maybeTipe of
+            Nothing ->
+                P.empty
+
+            Just tipe ->
+                pretty pattern <+> P.colon <+> pretty tipe
