@@ -15,10 +15,14 @@ declaration =
   typeDecl <|> infixDecl <|> port <|> definition
 
 
+-- TYPE ANNOTATIONS and DEFINITIONS
+
 definition :: IParser D.SourceDecl
 definition =
   D.Definition <$> (Expr.typeAnnotation <|> Expr.definition)
 
+
+-- TYPE ALIAS and UNION TYPES
 
 typeDecl :: IParser D.SourceDecl
 typeDecl =
@@ -40,6 +44,8 @@ typeDecl =
                 return $ D.Datatype name args tcs
 
 
+-- INFIX
+
 infixDecl :: IParser D.SourceDecl
 infixDecl =
   do  assoc <-
@@ -53,6 +59,8 @@ infixDecl =
       forcedWS
       D.Fixity assoc (read [n]) <$> anyOp
 
+
+-- PORT
 
 port :: IParser D.SourceDecl
 port =
