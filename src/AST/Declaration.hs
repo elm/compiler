@@ -2,6 +2,7 @@
 module AST.Declaration where
 
 import Data.Binary
+import qualified AST.Expression.General as General
 import qualified AST.Expression.Source as Source
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Expression.Canonical as Canonical
@@ -28,11 +29,11 @@ data Assoc = L | N | R
 -- DECLARATION PHASES
 
 type SourceDecl =
-  Declaration' RawPort Source.Def Var.Raw Source.Expr
+  Declaration' SourcePort Source.Def Var.Raw Source.Expr
 
 
 type ValidDecl =
-  Declaration' (Port Valid.Expr T.RawType) Valid.Def Var.Raw Valid.Expr
+  Declaration' ValidPort Valid.Def Var.Raw Valid.Expr
 
 
 type CanonicalDecl =
@@ -41,25 +42,25 @@ type CanonicalDecl =
 
 -- PORTS
 
-data RawPort
+data SourcePort
     = PortAnnotation String T.RawType
     | PortDefinition String Source.Expr
 
 
-data Port expr tipe
-    = Inbound String tipe
-    | Outbound String expr tipe
+data ValidPort
+    = In String T.RawType
+    | Out String Valid.Expr T.RawType
 
 
-type CanonicalPort =
-    Port Canonical.Expr (T.PortType Var.Canonical)
+newtype CanonicalPort
+    = CanonicalPort (General.PortImpl Canonical.Expr Var.Canonical)
 
 
-getName :: Port expr tipe -> String
-getName port =
+validPortName :: ValidPort -> String
+validPortName port =
   case port of
-    Inbound name _ -> name
-    Outbound name _ _ -> name
+    In name _ -> name
+    Out name _ _ -> name
 
 
 -- BINARY CONVERSION
@@ -131,24 +132,53 @@ instance (Pretty port, Pretty def, Pretty var, Var.ToString var, Pretty expr) =>
                 R -> P.text "r"
 
 
-instance Pretty RawPort where
+instance Pretty SourcePort where
   pretty port =
     case port of
       PortAnnotation name tipe ->
-          P.text "port" <+> P.text name <+> P.colon <+> pretty tipe
+          prettyPortType name tipe
 
       PortDefinition name expr ->
-          P.text "port" <+> P.text name <+> P.equals <+> pretty expr
+          prettyPortDef name expr
 
 
-instance (Pretty expr, Pretty tipe) => Pretty (Port expr tipe) where
+instance Pretty ValidPort where
   pretty port =
     case port of
-      Inbound name tipe ->
-          P.text "port" <+> P.text name <+> P.colon <+> pretty tipe
+      In name tipe ->
+          prettyPortType name tipe
 
-      Outbound name expr tipe ->
-          P.vcat
-            [ P.text "port" <+> P.text name <+> P.colon <+> pretty tipe
-            , P.hang (P.text "port" <+> P.text name <+> P.equals) 4 (pretty expr)
-            ]
+      Out name expr tipe ->
+          prettyPort name expr tipe
+
+
+instance Pretty CanonicalPort where
+  pretty (CanonicalPort impl) =
+    case impl of
+      General.In name tipe ->
+          prettyPortType name tipe
+
+      General.Out name expr tipe ->
+          prettyPort name expr tipe
+
+      General.Task name expr tipe ->
+          prettyPort name expr tipe
+
+
+
+prettyPort :: (Pretty expr, Pretty tipe) => String -> expr -> tipe -> P.Doc
+prettyPort name expr tipe =
+  P.vcat
+    [ prettyPortType name tipe
+    , prettyPortDef name expr
+    ]
+
+
+prettyPortType :: (Pretty tipe) => String -> tipe -> P.Doc
+prettyPortType name tipe =
+    P.text "port" <+> P.text name <+> P.colon <+> pretty tipe
+
+
+prettyPortDef :: (Pretty expr) => String -> expr -> P.Doc
+prettyPortDef name expr =
+    P.hang (P.text "port" <+> P.text name <+> P.equals) 4 (pretty expr)

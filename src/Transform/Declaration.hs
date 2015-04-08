@@ -69,11 +69,11 @@ combineAnnotations =
                       D.Port (D.PortDefinition name' expr) : restRest
                           | name == name' ->
                               do  expr' <- exprCombineAnnotations expr
-                                  let port' = D.Outbound name expr' tipe
+                                  let port' = D.Out name expr' tipe
                                   (:) (D.Port port') <$> go restRest
 
                       _ ->
-                          (:) (D.Port (D.Inbound name tipe)) <$> go rest
+                          (:) (D.Port (D.In name tipe)) <$> go rest
 
                 D.PortDefinition name _ ->
                     Left (errorMessage "port" name)
@@ -125,19 +125,18 @@ toDefs moduleName decl =
     D.TypeAlias _ _ _ ->
         []
 
-    D.Port port ->
-        case port of
-          D.Inbound name portType ->
-              let portExpr = E.Port name (E.Inbound portType)
-                  tipe = T.portType portType
-              in
-                  [ definition name (A.none portExpr) tipe ]
+    D.Port (D.CanonicalPort impl) ->
+        let body = A.none (E.Port impl)
+        in
+        case impl of
+          E.In name tipe ->
+              [ definition name body (T.portType tipe) ]
 
-          D.Outbound name expr portType ->
-              let portExpr = E.Port name (E.Outbound portType expr)
-                  tipe = T.portType portType
-              in
-                  [ definition name (A.none portExpr) tipe ]
+          E.Out name _expr tipe ->
+              [ definition name body (T.portType tipe) ]
+
+          E.Task name _expr tipe ->
+              [ definition name body (T.portType tipe) ]
 
     -- no constraints are needed for fixity declarations
     D.Fixity _ _ _ ->

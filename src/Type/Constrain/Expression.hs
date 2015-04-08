@@ -177,8 +177,16 @@ constrain env (A region expression) tipe =
 
               return $ clet schemes (clet letScheme (c1 /\ c))
 
-      Port _ _ ->
-          return true
+      Port impl ->
+          case impl of
+            In _ _ ->
+                return true
+
+            Out _ expr _ ->
+                constrain env expr tipe
+
+            Task _ expr _ ->
+                constrain env expr tipe
 
 
 expandPattern :: Canonical.Def -> [Canonical.Def]

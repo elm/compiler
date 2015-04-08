@@ -1,7 +1,4 @@
-module Generate.JavaScript.Port
-    ( inbound, inboundSignal
-    , outbound, outboundSignal
-    ) where
+module Generate.JavaScript.Port (inbound, outbound, task) where
 
 import qualified Data.List as List
 import Language.ECMAScript3.Syntax
@@ -11,6 +8,21 @@ import AST.Type as T
 import qualified AST.Variable as Var
 import Generate.JavaScript.Helpers
 
+
+-- TASK
+
+task :: String -> Expression () -> T.PortType var -> Expression ()
+task name expr portType =
+  case portType of
+    T.Normal _ ->
+        _Task "perform" `call` [ expr ]
+
+    T.Signal _ _ ->
+        _Task "performSignal" `call` [ string name, expr ]
+
+
+
+-- HELPERS
 
 data JSType
     = JSNumber
@@ -51,6 +63,11 @@ _Port functionName =
     useLazy ["Elm","Native","Port"] functionName
 
 
+_Task :: String -> Expression ()
+_Task functionName =
+    useLazy ["Elm","Native","Task"] functionName
+
+
 check :: Expression () -> JSType -> Expression () -> Expression ()
 check x jsType continue =
     CondExpr () (jsFold OpLOr checks x) continue throw
@@ -73,22 +90,22 @@ check x jsType continue =
 
 -- INBOUND
 
-inbound :: String -> CanonicalType -> Expression ()
-inbound name tipe =
-    _Port "inbound" `call`
-        [ string name
-        , string (show (pretty tipe))
-        , toTypeFunction tipe
-        ]
+inbound :: String -> T.PortType Var.Canonical -> Expression ()
+inbound name portType =
+  case portType of
+    T.Normal tipe ->
+        _Port "inbound" `call`
+            [ string name
+            , string (show (pretty tipe))
+            , toTypeFunction tipe
+            ]
 
-
-inboundSignal :: String -> CanonicalType -> Expression ()
-inboundSignal name tipe =
-    _Port "inboundSignal" `call`
-        [ string name
-        , string (show (pretty tipe))
-        , toTypeFunction tipe
-        ]
+    T.Signal _root arg ->
+        _Port "inboundSignal" `call`
+            [ string name
+            , string (show (pretty arg))
+            , toTypeFunction arg
+            ]
 
 
 toTypeFunction :: CanonicalType -> Expression ()
@@ -178,14 +195,14 @@ toTuple types x =
 
 -- OUTBOUND
 
-outbound :: String -> CanonicalType -> Expression () -> Expression ()
-outbound name tipe expr =
-    _Port "outbound" `call` [ string name, fromTypeFunction tipe, expr ]
+outbound :: String -> Expression () -> T.PortType Var.Canonical -> Expression ()
+outbound name expr portType =
+  case portType of
+    T.Normal tipe ->
+        _Port "outbound" `call` [ string name, fromTypeFunction tipe, expr ]
 
-
-outboundSignal :: String -> CanonicalType -> Expression () -> Expression ()
-outboundSignal name tipe expr =
-    _Port "outboundSignal" `call` [ string name, fromTypeFunction tipe, expr ]
+    T.Signal _ arg ->
+        _Port "outboundSignal" `call` [ string name, fromTypeFunction arg, expr ]
 
 
 fromTypeFunction :: CanonicalType -> Expression ()

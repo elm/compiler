@@ -329,7 +329,7 @@ addDecl moduleName info@(nodes,env) decl =
       D.Port port ->
           (,) nodes $ env
               { _values =
-                  addLocal (D.getName port) (_values env)
+                  addLocal (D.validPortName port) (_values env)
               }
 
       D.Fixity _ _ _ ->

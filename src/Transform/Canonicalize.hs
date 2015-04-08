@@ -78,7 +78,7 @@ moduleHelp interfaces modul@(Module.Module _ _ exports _ decls) =
          , aliases =
              Map.fromList [ (name,(tvs,alias)) | D.TypeAlias name tvs alias <- decls ]
          , ports =
-             [ D.getName port | D.Port port <- decls ]
+             [ E.portName impl | D.Port (D.CanonicalPort impl) <- decls ]
          }
 
 
@@ -203,17 +203,17 @@ declaration env decl =
           do  expanded' <- canonicalize Canonicalize.tipe "type alias" name env expanded
               return (D.TypeAlias name tvars expanded')
 
-      D.Port port ->
+      D.Port validPort ->
           do  Env.uses ["Native","Port"]
-              Env.uses ["Native","JavaScript"]
-              case port of
-                D.Inbound name tipe ->
+              Env.uses ["Native","Json"]
+              case validPort of
+                D.In name tipe ->
                     do  tipe' <- canonicalize Canonicalize.tipe "port" name env tipe
                         port' <- Port.check name Nothing tipe'
                         return (D.Port port')
 
 
-                D.Outbound name expr tipe ->
+                D.Out name expr tipe ->
                     do  expr' <- expression env expr
                         tipe' <- canonicalize Canonicalize.tipe "port" name env tipe
                         port' <- Port.check name (Just expr') tipe'
@@ -309,7 +309,7 @@ expression env (A.A ann validExpr) =
               (,) <$> format (pattern env p)
                   <*> expression (Env.addPattern p env) b
 
-      Port name impl ->
+      Port impl ->
           let portType pt =
                 case pt of
                   Type.Normal t ->
@@ -318,13 +318,16 @@ expression env (A.A ann validExpr) =
                   Type.Signal root arg ->
                       Type.Signal <$> tipe' env root <*> tipe' env arg
           in
-              Port name <$>
+              Port <$>
                   case impl of
-                    E.Inbound pt ->
-                        E.Inbound <$> portType pt
+                    E.In name tipe ->
+                        E.In name <$> portType tipe
 
-                    E.Outbound pt expr ->
-                        E.Outbound <$> portType pt <*> go expr
+                    E.Out name expr tipe ->
+                        E.Out name <$> go expr <*> portType tipe
+
+                    E.Task name expr tipe ->
+                        E.Task name <$> go expr <*> portType tipe
 
       GLShader uid src tipe ->
           return (GLShader uid src tipe)

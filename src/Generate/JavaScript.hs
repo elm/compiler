@@ -22,7 +22,6 @@ import qualified AST.Helpers as Help
 import AST.Literal
 import qualified AST.Module as Module
 import qualified AST.Pattern as P
-import qualified AST.Type as Type
 import qualified AST.Variable as Var
 
 
@@ -207,21 +206,18 @@ expression (A region expr) =
       GLShader _uid src _tipe ->
           return $ ObjectLit () [(PropString () "src", literal (Str src))]
 
-      Port name impl ->
+      Port impl ->
           case impl of
-            Inbound (Type.Normal tipe) ->
-                return (Port.inbound name tipe)
+            In name portType ->
+                return (Port.inbound name portType)
 
-            Inbound (Type.Signal _ tipe) ->
-                return (Port.inboundSignal name tipe)
-
-            Outbound (Type.Normal tipe) expr ->
+            Out name expr portType ->
                 do  expr' <- expression expr
-                    return (Port.outbound name tipe expr')
+                    return (Port.outbound name expr' portType)
 
-            Outbound (Type.Signal _ tipe) expr ->
+            Task name expr portType ->
                 do  expr' <- expression expr
-                    return (Port.outboundSignal name tipe expr')
+                    return (Port.task name expr' portType)
 
 
 definition :: Canonical.Def -> State Int [Statement ()]

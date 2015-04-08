@@ -5,6 +5,7 @@ import Control.Monad.Error (throwError)
 import Text.PrettyPrint as P
 
 import qualified AST.Declaration as D
+import qualified AST.Expression.General as E
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.PrettyPrint as PP
 import qualified AST.Type as T
@@ -25,7 +26,8 @@ check
     -> T.CanonicalType
     -> Env.Canonicalizer [P.Doc] D.CanonicalPort
 check name maybeExpr rootType =
-  checkHelp name maybeExpr rootType rootType
+  do  impl <- checkHelp name maybeExpr rootType rootType
+      return (D.CanonicalPort impl)
 
 
 checkHelp
@@ -33,32 +35,42 @@ checkHelp
     -> Maybe Canonical.Expr
     -> T.CanonicalType
     -> T.CanonicalType
-    -> Env.Canonicalizer [P.Doc] D.CanonicalPort
+    -> Env.Canonicalizer [P.Doc] (E.PortImpl Canonical.Expr Var.Canonical)
 checkHelp name maybeExpr rootType tipe =
-  case tipe of
-    T.Aliased _ args t ->
+  case (maybeExpr, tipe) of
+    (_, T.Aliased _ args t) ->
         checkHelp name maybeExpr rootType (T.dealias args t)
 
-    T.App (T.Type signal) [arg]
+    (Just expr, T.App (T.Type task) [ _x, _a ])
+        | Var.isTask task ->
+            return (E.Task name expr (T.Normal tipe))
+
+
+    (Just expr, T.App (T.Type signal) [ arg@(T.App (T.Type task) [ _x, _a ]) ])
+        | Var.isSignal signal && Var.isTask task ->
+            return (E.Task name expr (T.Signal tipe arg))
+
+
+    (_, T.App (T.Type signal) [arg])
         | Var.isSignal signal ->
             case maybeExpr of
               Nothing ->
                   do  validForeignType name In arg arg
-                      return (D.Inbound name (T.Signal rootType arg))
+                      return (E.In name (T.Signal rootType arg))
 
               Just expr ->
                   do  validForeignType name Out arg arg
-                      return (D.Outbound name expr (T.Signal rootType arg))
+                      return (E.Out name expr (T.Signal rootType arg))
 
     _ ->
         case maybeExpr of
           Nothing ->
               do  validForeignType name In rootType tipe
-                  return (D.Inbound name (T.Normal rootType))
+                  return (E.In name (T.Normal rootType))
 
           Just expr ->
               do  validForeignType name Out rootType tipe
-                  return (D.Outbound name expr (T.Normal rootType))
+                  return (E.Out name expr (T.Normal rootType))
 
 
 -- CHECK INBOUND AND OUTBOUND TYPES

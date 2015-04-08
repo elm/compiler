@@ -5,7 +5,7 @@ import Control.Arrow (second, (***))
 import qualified Data.Set as Set
 
 import AST.Annotation
-import AST.Expression.General (Expr'(..))
+import AST.Expression.General (Expr'(..), PortImpl(..))
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Pattern as Pattern
 import qualified AST.Variable as V
@@ -83,5 +83,14 @@ subst old new expression =
       GLShader _ _ _ ->
           expression
 
-      Port _ _ ->
-          expression
+      Port impl ->
+          Port $
+            case impl of
+              In _ _ ->
+                  impl
+
+              Out name expr tipe ->
+                  Out name (f expr) tipe
+
+              Task name expr tipe ->
+                  Task name (f expr) tipe

@@ -69,11 +69,16 @@ crawlLet defsTransform annotatedExpression =
           GLShader uid src gltipe ->
               return $ GLShader uid src gltipe
 
-          Port name impl ->
-              Port name <$>
+          Port impl ->
+              Port <$>
                   case impl of
-                    Inbound tipe ->
-                        return (Inbound tipe)
+                    In name tipe ->
+                        return (In name tipe)
 
-                    Outbound tipe expr ->
-                        Outbound tipe <$> go expr
+                    Out name expr tipe ->
+                        do  expr' <- go expr
+                            return (Out name expr' tipe)
+
+                    Task name expr tipe ->
+                        do  expr' <- go expr
+                            return (Task name expr' tipe)
