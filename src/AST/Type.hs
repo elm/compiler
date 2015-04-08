@@ -47,7 +47,7 @@ type CanonicalType =
 
 data PortType var
     = Normal (Type var)
-    | Stream { root :: Type var, arg :: Type var }
+    | Signal { root :: Type var, arg :: Type var }
     deriving (Show)
 
 
@@ -55,7 +55,7 @@ portType :: PortType var -> Type var
 portType portType =
   case portType of
     Normal tipe -> tipe
-    Stream tipe _ -> tipe
+    Signal tipe _ -> tipe
 
 
 fieldMap :: [(String,a)] -> Map.Map String [a]
@@ -149,7 +149,7 @@ instance (Pretty var, Var.ToString var) => Pretty (PortType var) where
       Normal tipe ->
           pretty tipe
 
-      Stream tipe _ ->
+      Signal tipe _ ->
           pretty tipe
 
 

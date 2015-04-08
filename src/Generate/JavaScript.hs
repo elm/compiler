@@ -212,16 +212,16 @@ expression (A region expr) =
             Inbound (Type.Normal tipe) ->
                 return (Port.inbound name tipe)
 
-            Inbound (Type.Stream _ tipe) ->
-                return (Port.inboundStream name tipe)
+            Inbound (Type.Signal _ tipe) ->
+                return (Port.inboundSignal name tipe)
 
             Outbound (Type.Normal tipe) expr ->
                 do  expr' <- expression expr
                     return (Port.outbound name tipe expr')
 
-            Outbound (Type.Stream _ tipe) expr ->
+            Outbound (Type.Signal _ tipe) expr ->
                 do  expr' <- expression expr
-                    return (Port.outboundStream name tipe expr')
+                    return (Port.outboundSignal name tipe expr')
 
 
 definition :: Canonical.Def -> State Int [Statement ()]

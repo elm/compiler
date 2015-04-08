@@ -39,16 +39,16 @@ checkHelp name maybeExpr rootType tipe =
     T.Aliased _ args t ->
         checkHelp name maybeExpr rootType (T.dealias args t)
 
-    T.App (T.Type stream) [arg]
-        | Var.isStream stream ->
+    T.App (T.Type signal) [arg]
+        | Var.isSignal signal ->
             case maybeExpr of
               Nothing ->
                   do  validForeignType name In arg arg
-                      return (D.Inbound name (T.Stream rootType arg))
+                      return (D.Inbound name (T.Signal rootType arg))
 
               Just expr ->
                   do  validForeignType name Out arg arg
-                      return (D.Outbound name expr (T.Stream rootType arg))
+                      return (D.Outbound name expr (T.Signal rootType arg))
 
     _ ->
         case maybeExpr of
@@ -84,7 +84,7 @@ validForeignType name portKind rootType tipe =
           valid (T.dealias args t)
 
       T.Type v ->
-          case any ($ v) [ Var.isJavaScript, Var.isPrimitive, Var.isTuple ] of
+          case any ($ v) [ Var.isJson, Var.isPrimitive, Var.isTuple ] of
             True -> return ()
             False -> err "It contains an unsupported type"
 

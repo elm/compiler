@@ -1,6 +1,6 @@
 module Generate.JavaScript.Port
-    ( inbound, inboundStream
-    , outbound, outboundStream
+    ( inbound, inboundSignal
+    , outbound, outboundSignal
     ) where
 
 import qualified Data.List as List
@@ -82,9 +82,9 @@ inbound name tipe =
         ]
 
 
-inboundStream :: String -> CanonicalType -> Expression ()
-inboundStream name tipe =
-    _Port "inboundStream" `call`
+inboundSignal :: String -> CanonicalType -> Expression ()
+inboundSignal name tipe =
+    _Port "inboundSignal" `call`
         [ string name
         , string (show (pretty tipe))
         , toTypeFunction tipe
@@ -117,7 +117,7 @@ toType tipe x =
             from checks = check x checks x
 
       Type name
-          | Var.isJavaScript name ->
+          | Var.isJson name ->
               x
 
           | Var.isTuple name ->
@@ -183,9 +183,9 @@ outbound name tipe expr =
     _Port "outbound" `call` [ string name, fromTypeFunction tipe, expr ]
 
 
-outboundStream :: String -> CanonicalType -> Expression () -> Expression ()
-outboundStream name tipe expr =
-    _Port "outboundStream" `call` [ string name, fromTypeFunction tipe, expr ]
+outboundSignal :: String -> CanonicalType -> Expression () -> Expression ()
+outboundSignal name tipe expr =
+    _Port "outboundSignal" `call` [ string name, fromTypeFunction tipe, expr ]
 
 
 fromTypeFunction :: CanonicalType -> Expression ()
@@ -223,7 +223,7 @@ fromType tipe x =
               x
 
       Type name
-          | Var.isJavaScript name -> x
+          | Var.isJson name -> x
           | Var.isTuple name -> ArrayLit () []
           | otherwise -> error "bad type got to an output"
 

@@ -315,8 +315,8 @@ expression env (A.A ann validExpr) =
                   Type.Normal t ->
                       Type.Normal <$> tipe' env t
 
-                  Type.Stream root arg ->
-                      Type.Stream <$> tipe' env root <*> tipe' env arg
+                  Type.Signal root arg ->
+                      Type.Signal <$> tipe' env root <*> tipe' env arg
           in
               Port name <$>
                   case impl of

@@ -17,7 +17,6 @@ defaultImports =
     , ["Maybe"] ==> exposing [Var.Union "Maybe" Var.openListing]
     , ["Result"] ==> exposing [Var.Union "Result" Var.openListing]
     , ["Signal"] ==> exposing [Var.Alias "Signal"]
-    , ["Stream"] ==> exposing [Var.Alias "Stream"]
     ]
 
 
