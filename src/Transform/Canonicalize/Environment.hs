@@ -48,7 +48,7 @@ addPattern ptrn env =
     env { _values = foldr put (_values env) (P.boundVarList ptrn) }
   where
     put x =
-      Map.insert x [Var.local x]
+      Map.insert x (Set.singleton (Var.local x))
 
 
 merge :: Environment -> Environment -> Environment
@@ -56,27 +56,27 @@ merge (Env n1 v1 t1 a1 p1) (Env n2 v2 t2 a2 p2)
   | n1 /= n2 = error "trying to merge incompatable environments"
   | otherwise =
       Env { _home     = n1
-          , _values   = Map.unionWith (++) v1 v2
-          , _adts     = Map.unionWith (++) t1 t2
-          , _aliases  = Map.unionWith (++) a1 a2
-          , _patterns = Map.unionWith (++) p1 p2
+          , _values   = Map.unionWith Set.union v1 v2
+          , _adts     = Map.unionWith Set.union t1 t2
+          , _aliases  = Map.unionWith Set.union a1 a2
+          , _patterns = Map.unionWith Set.union p1 p2
           }
 
 
 -- RAW NAMES to CANONICAL NAMES
 
 type Dict a =
-    Map.Map String [a]
+    Map.Map String (Set.Set a)
 
 
 dict :: [(String,a)] -> Dict a
 dict pairs =
-  Map.fromList (map (second (:[])) pairs)
+  Map.fromList (map (second Set.singleton) pairs)
 
 
-insert :: String -> a -> Dict a -> Dict a
+insert :: (Ord a) => String -> a -> Dict a -> Dict a
 insert key value =
-  Map.insertWith (++) key [value]
+  Map.insertWith Set.union key (Set.singleton value)
 
 
 -- CANONICALIZATION MANAGER

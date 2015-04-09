@@ -28,13 +28,13 @@ data Type var
     | App (Type var) [Type var]
     | Record [(String, Type var)] (Maybe (Type var))
     | Aliased Var.Canonical [(String, Type var)] (AliasType var)
-    deriving (Eq,Show)
+    deriving (Eq, Ord, Show)
 
 
 data AliasType var
     = Holey (Type var)
     | Filled (Type var)
-    deriving (Eq,Show)
+    deriving (Eq, Ord, Show)
 
 
 type RawType =

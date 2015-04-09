@@ -6,7 +6,6 @@ import qualified Data.Either as Either
 import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
-import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import qualified Text.EditDistance as Dist
 
@@ -26,7 +25,7 @@ variable env var =
             Env.using (Var.Canonical (Var.Module name) varName)
 
     _ ->
-        case Map.lookup var (_values env) of
+        case Set.toList `fmap` Map.lookup var (_values env) of
           Just [v] -> Env.using v
           Just vs  -> preferLocals env "variable" vs var
           Nothing  -> notFound "variable" (Map.keys (_values env)) var
@@ -43,10 +42,10 @@ tvar env var =
     vs  -> preferLocals' env extract "type" vs var
   where
     adts =
-        map Left (fromMaybe [] (Map.lookup var (_adts env)))
+        map Left (maybe [] Set.toList (Map.lookup var (_adts env)))
 
     aliases =
-        map Right (fromMaybe [] (Map.lookup var (_aliases env)))
+        map Right (maybe [] Set.toList (Map.lookup var (_aliases env)))
 
     extract value =
         case value of
@@ -56,7 +55,7 @@ tvar env var =
 
 pvar :: Environment -> String -> Canonicalizer String Var.Canonical
 pvar env var =
-    case Map.lookup var (_patterns env) of
+    case Set.toList `fmap` Map.lookup var (_patterns env) of
       Just [v] -> Env.using v
       Just vs  -> preferLocals env "pattern" vs var
       Nothing  -> notFound "pattern" (Map.keys (_patterns env)) var
