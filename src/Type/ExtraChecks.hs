@@ -68,7 +68,7 @@ validMainTypes =
         fromModule ["VirtualDom"] "Node"
 
     signal tipe =
-        ST.App (fromModule ["SignalTypes"] "Signal") [ tipe ]
+        ST.App (fromModule ["Signal"] "Signal") [ tipe ]
 
     element =
       let builtin name =
