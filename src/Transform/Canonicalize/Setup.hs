@@ -23,7 +23,9 @@ import AST.PrettyPrint (pretty, eightyCharLines)
 import qualified AST.Pattern as P
 import Text.PrettyPrint as P
 
-import Transform.Canonicalize.Environment as Env
+import Transform.Canonicalize.Environment
+    ( Canonicalizer, Environment(Env, _home, _values, _adts, _aliases, _patterns) )
+import qualified Transform.Canonicalize.Environment as Env
 import qualified Transform.Canonicalize.Type as Canonicalize
 import qualified Transform.Interface as Interface
 
@@ -38,7 +40,7 @@ environment interfaces modul@(Module.Module _ _ _ imports decls) =
             Module.names modul
 
       nonLocalEnv <-
-          foldM (addImports moduleName interfaces) (builtIns moduleName) imports
+          foldM (addImports moduleName interfaces) (Env.builtIns moduleName) imports
 
       let (aliases, env) =
             List.foldl' (addDecl moduleName) ([], nonLocalEnv) decls
@@ -94,14 +96,16 @@ addImports moduleName interfaces environ (name, method)
         Interface.filterExports ((Map.!) interfaces name)
 
     updateEnviron prefix env =
-        let dict' = dict . map (first (prefix++)) in
-        merge env $
-        Env { _home     = moduleName
-            , _values   = dict' $ map pair (Map.keys (iTypes interface)) ++ ctors
-            , _adts     = dict' $ map pair (Map.keys (iAdts interface))
-            , _aliases  = dict' $ map alias (Map.toList (iAliases interface))
-            , _patterns = dict' $ ctors
-            }
+        let dict' pairs = Env.dict (map (first (prefix++)) pairs)
+        in
+            Env.merge env $
+              Env
+                { _home     = moduleName
+                , _values   = dict' $ map pair (Map.keys (iTypes interface)) ++ ctors
+                , _adts     = dict' $ map pair (Map.keys (iAdts interface))
+                , _aliases  = dict' $ map alias (Map.toList (iAliases interface))
+                , _patterns = dict' $ ctors
+                }
 
     canonical :: String -> Var.Canonical
     canonical =
@@ -128,7 +132,7 @@ addValue
     -> Canonicalizer [Doc] Environment
 addValue moduleName interface env value =
     let name = Module.nameToString moduleName
-        insert' x = insert x (Var.Canonical (Var.Module moduleName) x)
+        insert' x = Env.insert x (Var.Canonical (Var.Module moduleName) x)
         msg x = "Import Error: Could not import value '" ++ name ++ "." ++ x ++
                 "'.\n    It is not exported by module " ++ name ++ "."
         notFound x = throwError [ P.text (msg x) ]
@@ -145,7 +149,7 @@ addValue moduleName interface env value =
           case Map.lookup x (iAliases interface) of
             Just (tvars, t) ->
                 return $ env
-                    { _aliases = insert x v (_aliases env)
+                    { _aliases = Env.insert x v (_aliases env)
                     , _values = updatedValues
                     }
               where
@@ -231,7 +235,7 @@ addTypeAlias moduleName env scc =
     [(name, tvars, alias)] ->
         do  alias' <- Env.onError throw (Canonicalize.tipe env alias)
             let value = (Var.Canonical (Var.Module moduleName) name, tvars, alias')
-            return $ env { _aliases = insert name value (_aliases env) }
+            return $ env { _aliases = Env.insert name value (_aliases env) }
         where
           throw err =
               let msg = "Problem with type alias '" ++ name ++ "':"
@@ -294,8 +298,8 @@ addDecl
     -> ([Node], Environment)
 addDecl moduleName info@(nodes,env) decl =
     let namespacedVar     = Var.Canonical (Var.Module moduleName)
-        addLocal      x e = insert x (Var.local     x) e
-        addNamespaced x e = insert x (namespacedVar x) e
+        addLocal      x e = Env.insert x (Var.local     x) e
+        addNamespaced x e = Env.insert x (namespacedVar x) e
     in
     case decl of
       D.Definition (Valid.Definition pattern _ _) ->
