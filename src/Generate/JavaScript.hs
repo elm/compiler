@@ -337,7 +337,7 @@ flattenLets defs lexpr@(A _ expr) =
 
 generate :: CanonicalModule -> String
 generate modul =
-    show . prettyPrint $ setup "Elm" (names ++ ["make"]) ++
+    show . prettyPrint $ setup withExposedNamespaceInit "Elm" (names ++ ["make"]) ++
              [ assign ("Elm" : names ++ ["make"]) (function [localRuntime] programStmts) ]
   where
     names :: [String]
@@ -350,7 +350,7 @@ generate modul =
     programStmts =
         concat
         [ [ ExprStmt () (string "use strict") ]
-        , setup localRuntime (names ++ ["values"])
+        , setup withNamespaceInit localRuntime (names ++ ["values"])
         , [ IfSingleStmt () thisModule (ret thisModule) ]
         , [ VarDeclStmt () localVars ]
         , body
@@ -377,9 +377,17 @@ generate modul =
       where
         defs = mapM definition . fst . flattenLets [] $ Module.program (Module.body modul)
 
-    setup namespace path = map create paths
+    withNamespaceInit path = (InfixExpr () OpLOr (obj path) (ObjectLit () []))
+
+    withExposedNamespaceInit path =
+        AssignExpr () OpAssign exposedNs (withNamespaceInit path)
       where
-        create name = assign name (InfixExpr () OpLOr (obj name) (ObjectLit () []))
+          exposedNs = (LBracket () (bracketObj (init path)) (StringLit () (last path)))
+
+
+    setup makeRhs namespace path = map create paths
+      where
+        create name = assign name (makeRhs name)
         paths = drop 2 . init . List.inits $ namespace : path
 
     jsExports = assign (localRuntime : names ++ ["values"]) (ObjectLit () exs)
