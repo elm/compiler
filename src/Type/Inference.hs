@@ -1,25 +1,25 @@
 module Type.Inference where
 
+import Control.Arrow (first, second)
+import Control.Monad.State (execStateT, forM)
+import Control.Monad.Error (ErrorT, runErrorT, liftIO, throwError)
 import qualified Data.Map as Map
-
-import qualified Type.Type as T
-import qualified Type.Environment as Env
-import qualified Type.Constrain.Expression as TcExpr
-import qualified Type.Solve as Solve
+import Text.PrettyPrint
 
 import qualified AST.Annotation as A
 import AST.Module as Module
 import AST.Type (CanonicalType)
 import qualified AST.Variable as Var
-import Text.PrettyPrint
-import qualified Type.State as TS
+import qualified Type.Constrain.Expression as TcExpr
+import qualified Type.Environment as Env
 import qualified Type.ExtraChecks as Check
-import Control.Arrow (first, second)
-import Control.Monad.State (execStateT, forM)
-import Control.Monad.Error (ErrorT, runErrorT, liftIO, throwError)
+import qualified Type.Solve as Solve
+import qualified Type.State as TS
+import qualified Type.Type as T
 
-import System.IO.Unsafe  -- Possible to switch over to the ST monad instead of
-                         -- the IO monad. I don't think that'd be worthwhile.
+import System.IO.Unsafe
+    -- Maybe possible to switch over to ST instead of IO.
+    -- I don't think that'd be worthwhile though.
 
 
 infer :: Interfaces -> CanonicalModule -> Either [Doc] (Map.Map String CanonicalType)
