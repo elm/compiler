@@ -51,7 +51,7 @@ fromPattern p = case p of
 data ErrorType = ConstructorNotFound Var.Canonical
 
 checkModule :: [CanonicalAdt] -> Module exports CanonicalBody -> [(Either ErrorType MatchResult, Annotation.Region)]
-checkModule (Module {body, datatypes}) = checkBody body where
+checkModule adts (Module {body}) = checkBody body where
     checkBody :: CanonicalBody -> [(Either ErrorType MatchResult, Annotation.Region)]
     checkBody  (CanonicalBody {program}) = checkExpr program
 
@@ -86,7 +86,7 @@ checkModule (Module {body, datatypes}) = checkBody body where
         m =
             Map.fromList $ concatMap (\adt@(_adtName, (_tyVars, ctors)) ->
                 map (\(ctor,_args) -> (ctor, adt)) ctors)
-                datatypes
+                adts
 
     ctorToAdtExn :: Var.Canonical -> Either ErrorType CanonicalAdt
     ctorToAdtExn c = case ctorToAdt c of
