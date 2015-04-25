@@ -1,31 +1,22 @@
 {-# OPTIONS_GHC -Wall #-}
-module Transform.Canonicalize.Setup
-    ( environment
-    , typeAliasErrorSegue
-    , typeAliasErrorExplanation
-    ) where
+module Transform.Canonicalize.Setup (environment) where
 
-import Control.Arrow (first)
-import Control.Monad (foldM)
-import Control.Monad.Error (throwError)
+import Control.Applicative ((<$>))
 import qualified Data.Graph as Graph
-import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
+import qualified Data.Traversable as Trav
 
+import qualified AST.Declaration as D
 import qualified AST.Expression.Valid as Valid
-
-import AST.Module (Interface(iAdts, iTypes, iAliases))
 import qualified AST.Module as Module
+import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
-import qualified AST.Declaration as D
-import AST.PrettyPrint (pretty, eightyCharLines)
-import qualified AST.Pattern as P
-import Text.PrettyPrint as P
-
-import Transform.Canonicalize.Environment
-    ( Canonicalizer, Environment(Env, _home, _values, _adts, _aliases, _patterns) )
+import Elm.Utils ((|>))
 import qualified Transform.Canonicalize.Environment as Env
+import qualified Transform.Canonicalize.Error as Error
+import qualified Transform.Canonicalize.Result as Result
 import qualified Transform.Canonicalize.Type as Canonicalize
 import qualified Transform.Interface as Interface
 
@@ -33,156 +24,164 @@ import qualified Transform.Interface as Interface
 environment
     :: Module.Interfaces
     -> Module.ValidModule
-    -> Canonicalizer [Doc] Environment
+    -> Result.Result Env.Environment
 environment interfaces modul@(Module.Module _ _ _ imports decls) =
-  do  () <- allImportsAvailable
-      let moduleName =
-            Module.names modul
+  let moduleName =
+          Module.names modul
 
-      nonLocalEnv <-
-          foldM (addImports moduleName interfaces) (Env.builtIns moduleName) imports
+      importPatchesResult =
+          concat <$>
+            Trav.traverse (importPatches interfaces) imports
 
-      let (aliases, env) =
-            List.foldl' (addDecl moduleName) ([], nonLocalEnv) decls
+      (typeAliasNodes, declPatches) =
+          declarationsToPatches moduleName decls
 
-      addTypeAliases moduleName aliases env
-
-  where
-    allImportsAvailable :: Canonicalizer [Doc] ()
-    allImportsAvailable =
-        case filter (not . found) modules of
-          [] -> return ()
-          missings -> throwError [ P.text (missingModuleError missings) ]
-        where
-          modules =
-              map fst imports
-
-          found m =
-              Map.member m interfaces || Module.nameIsNative m
-
-          missingModuleError missings =
-              concat
-                [ "The following imports were not found:\n    "
-                , List.intercalate ", " (map Module.nameToString missings)
-                ]
+      patches =
+          (++) (Env.builtinPatches ++ declPatches) <$> importPatchesResult
+  in
+      (Env.fromPatches moduleName <$> patches)
+          `Result.andThen` addTypeAliases moduleName typeAliasNodes
 
 
-addImports
-    :: Module.Name
-    -> Module.Interfaces
-    -> Environment
+-- PATCHES FOR IMPORTS
+
+importPatches
+    :: Module.Interfaces
     -> (Module.Name, Module.ImportMethod)
-    -> Canonicalizer [Doc] Environment
-addImports moduleName interfaces environ (name, method)
-    | Module.nameIsNative name =
-        return environ
+    -> Result.Result [Env.Patch]
+importPatches allInterfaces (importName, method) =
+  case Interface.filterExports <$> Map.lookup importName allInterfaces of
+    Nothing
+        | Module.nameIsNative importName ->
+            Result.ok []
 
-    | otherwise =
-        let (Module.ImportMethod maybeAlias listing) = method
+        | otherwise ->
+            allInterfaces
+              |> Map.keys
+              |> Error.nearbyNames Module.nameToString importName
+              |> Error.moduleNotFound importName
+              |> Result.err
 
-            (Var.Listing exposedVars open) = listing
+    Just interface ->
+        let (Module.ImportMethod maybeAlias listing) =
+                method
+
+            (Var.Listing exposedValues open) =
+                listing
 
             qualifier =
-              maybe (Module.nameToString name) id maybeAlias
+                maybe (Module.nameToString importName) id maybeAlias
 
-            env =
-              updateEnviron (qualifier ++ ".") environ
+            qualifiedPatches =
+                interfacePatches importName (qualifier ++ ".") interface
+
+            unqualifiedPatches =
+                if open
+                  then Result.ok (interfacePatches importName "" interface)
+                  else concat <$> Trav.traverse (valueToPatches importName interface) exposedValues
         in
-            if open
-              then return (updateEnviron "" env)
-              else foldM (addValue name interface) env exposedVars
-  where
-    interface =
-        Interface.filterExports ((Map.!) interfaces name)
-
-    updateEnviron prefix env =
-        let dict' pairs = Env.dict (map (first (prefix++)) pairs)
-        in
-            Env.merge env $
-              Env
-                { _home     = moduleName
-                , _values   = dict' $ map pair (Map.keys (iTypes interface)) ++ ctors
-                , _adts     = dict' $ map pair (Map.keys (iAdts interface))
-                , _aliases  = dict' $ map alias (Map.toList (iAliases interface))
-                , _patterns = dict' $ ctors
-                }
-
-    canonical :: String -> Var.Canonical
-    canonical =
-        Var.Canonical (Var.Module name)
-
-    pair :: String -> (String, Var.Canonical)
-    pair key =
-        (key, canonical key)
-
-    alias (x,(tvars,tipe)) =
-        (x, (canonical x, tvars, tipe))
-
-    ctors =
-        concatMap
-            (map (pair . fst) . snd . snd)
-            (Map.toList (iAdts interface))
+            (++) qualifiedPatches <$> unqualifiedPatches
 
 
-addValue
+interfacePatches :: Module.Name -> String -> Module.Interface -> [Env.Patch]
+interfacePatches moduleName prefix interface =
+    let genericPatch mkPatch name value =
+            mkPatch (prefix ++ name) value
+
+        patch mkPatch name =
+            genericPatch mkPatch name (Var.fromModule moduleName name)
+
+        aliasPatch (name, (tvars, tipe)) =
+            genericPatch Env.Alias name
+                (Var.fromModule moduleName name, tvars, tipe)
+
+        ctorNames =
+            concatMap (map fst . snd) (Map.elems (Module.iAdts interface))
+    in
+        concat
+          [ map (patch Env.Value) (Map.keys (Module.iTypes interface))
+          , map (patch Env.Value) ctorNames
+          , map (patch Env.Union) (Map.keys (Module.iAdts interface))
+          , map aliasPatch (Map.toList (Module.iAliases interface))
+          , map (patch Env.Pattern) ctorNames
+          ]
+
+
+-- PATCHES FOR INDIVIDUAL VALUES
+
+valueToPatches
     :: Module.Name
     -> Module.Interface
-    -> Environment
     -> Var.Value
-    -> Canonicalizer [Doc] Environment
-addValue moduleName interface env value =
-    let name = Module.nameToString moduleName
-        insert' x = Env.insert x (Var.Canonical (Var.Module moduleName) x)
-        msg x = "Import Error: Could not import value '" ++ name ++ "." ++ x ++
-                "'.\n    It is not exported by module " ++ name ++ "."
-        notFound x = throwError [ P.text (msg x) ]
-    in
-    case value of
-      Var.Value x
-          | Map.notMember x (iTypes interface) ->
-              notFound x
+    -> Result.Result [Env.Patch]
+valueToPatches moduleName interface value =
+  let patch mkPatch x =
+          mkPatch x (Var.fromModule moduleName x)
 
-          | otherwise ->
-              return $ env { _values = insert' x (_values env) }
+      notFound getNames x =
+          Module.iExports interface
+            |> getNames
+            |> Error.nearbyNames id x
+            |> Error.valueNotFound moduleName x
+            |> Result.err
+  in
+  case value of
+    Var.Value x
+        | Map.notMember x (Module.iTypes interface) ->
+            notFound Var.getValues x
 
-      Var.Alias x ->
-          case Map.lookup x (iAliases interface) of
-            Just (tvars, t) ->
-                return $ env
-                    { _aliases = Env.insert x v (_aliases env)
-                    , _values = updatedValues
-                    }
-              where
-                v = (Var.Canonical (Var.Module moduleName) x, tvars, t)
-                updatedValues =
-                    if Map.member x (iTypes interface)
-                      then insert' x (_values env)
-                      else _values env
+        | otherwise ->
+            Result.ok [patch Env.Value x]
 
-            Nothing ->
-                case Map.lookup x (iAdts interface) of
-                  Nothing -> notFound x
-                  Just (_,_) ->
-                      return $ env { _adts = insert' x (_adts env) }
+    Var.Alias x ->
+        case Map.lookup x (Module.iAliases interface) of
+          Just (tvars, t) ->
+              let alias =
+                    Env.Alias x (Var.fromModule moduleName x, tvars, t)
+              in
+                  Result.ok $
+                      if Map.member x (Module.iTypes interface)
+                          then [alias, patch Env.Value x]
+                          else [alias]
 
-      Var.Union x (Var.Listing xs open) ->
-          case Map.lookup x (iAdts interface) of
-            Nothing -> notFound x
-            Just (_tvars, ctors) ->
-                do  ctors' <- filterNames (map fst ctors)
-                    return $ env
-                        { _adts = insert' x (_adts env)
-                        , _values = foldr insert' (_values env) ctors'
-                        , _patterns = foldr insert' (_patterns env) ctors'
-                        }
-                where
-                  filterNames names
-                      | open = return names
-                      | otherwise =
-                          case filter (`notElem` names) xs of
-                            [] -> return names
-                            c:_ -> notFound c
+          Nothing ->
+              case Map.lookup x (Module.iAdts interface) of
+                Just (_,_) ->
+                    Result.ok [patch Env.Union x]
 
+                Nothing ->
+                    let getNames values =
+                            Var.getAliases values
+                            ++ map fst (Var.getUnions values)
+                    in
+                        notFound getNames x
+
+    Var.Union givenName (Var.Listing givenCtorNames open) ->
+        case Map.lookup givenName (Module.iAdts interface) of
+          Nothing ->
+              notFound (map fst . Var.getUnions) givenName
+
+          Just (_tvars, realCtors) ->
+              patches <$>
+                  if open
+                    then Result.ok realCtorNames
+                    else Trav.traverse ctorExists givenCtorNames
+            where
+              realCtorNames =
+                  map fst realCtors
+
+              ctorExists givenCtorName =
+                  if givenCtorName `elem` realCtorNames
+                    then Result.ok givenCtorName
+                    else notFound (const realCtorNames) givenCtorName
+
+              patches ctorNames =
+                  patch Env.Union givenName
+                  : map (patch Env.Value) ctorNames
+                  ++ map (patch Env.Pattern) ctorNames
+
+
+-- PATCHES FOR TYPE ALIASES
 
 type Node = ((String, [String], Type.RawType), String, [String])
 
@@ -219,122 +218,92 @@ node name tvars alias =
 addTypeAliases
     :: Module.Name
     -> [Node]
-    -> Environment
-    -> Canonicalizer [Doc] Environment
-addTypeAliases moduleName nodes environ =
-    foldM (addTypeAlias moduleName) environ (Graph.stronglyConnComp nodes)
+    -> Env.Environment
+    -> Result.Result Env.Environment
+addTypeAliases moduleName typeAliasNodes initialEnv =
+    Result.foldl
+        (addTypeAlias moduleName)
+        initialEnv
+        (Graph.stronglyConnComp typeAliasNodes)
 
 
 addTypeAlias
     :: Module.Name
-    -> Environment
     -> Graph.SCC (String, [String], Type.RawType)
-    -> Canonicalizer [Doc] Environment
-addTypeAlias moduleName env scc =
-  case Graph.flattenSCC scc of
-    [(name, tvars, alias)] ->
-        do  alias' <- Env.onError throw (Canonicalize.tipe env alias)
-            let value = (Var.Canonical (Var.Module moduleName) name, tvars, alias')
-            return $ env { _aliases = Env.insert name value (_aliases env) }
-        where
-          throw err =
-              let msg = "Problem with type alias '" ++ name ++ "':"
-              in  P.vcat [ P.text msg, P.text err ]
+    -> Env.Environment
+    -> Result.Result Env.Environment
+addTypeAlias moduleName scc env =
+  case scc of
+    Graph.AcyclicSCC (name, tvars, alias) ->
+        addToEnv <$> Canonicalize.tipe env alias
+      where
+        addToEnv alias' =
+            let value =
+                  (Var.fromModule moduleName name, tvars, alias')
+            in
+                env { Env._aliases = Env.insert name value (Env._aliases env) }
 
-    aliases ->
-        throwError
-          [ P.vcat
-              [ P.text (eightyCharLines 0 mutuallyRecursiveMessage)
-              , indented (map typeAlias aliases)
-              , P.text (eightyCharLines 0 typeAliasErrorSegue)
-              , indented (map datatype aliases)
-              , P.text (eightyCharLines 0 typeAliasErrorExplanation)
-              ]
-           ]
+    Graph.CyclicSCC aliases ->
+        Result.err (Error.recursiveAlias aliases)
 
 
-typeAlias :: (String, [String], Type.Type var) -> D.Declaration' pk def var expr
-typeAlias (n,ts,t) =
-    D.TypeAlias n ts t
+-- DECLARATIONS TO PATCHES
 
-
-datatype :: (String, [String], Type.Type var) -> D.Declaration' pk def var expr
-datatype (n,ts,t) =
-    D.Datatype n ts [(n,[t])]
-
-
-indented :: [D.ValidDecl] -> Doc
-indented decls =
-    P.vcat (map prty decls) <> P.text "\n"
-  where
-    prty decl = P.text "\n    " <> pretty decl
-
-
-mutuallyRecursiveMessage :: String
-mutuallyRecursiveMessage =
-  "The following type aliases are mutually recursive, forming an \
-  \infinite type. When you expand them, they just keep getting bigger:"
-
-
-typeAliasErrorSegue :: String
-typeAliasErrorSegue =
-  "Try this instead:"
-
-
-typeAliasErrorExplanation :: String
-typeAliasErrorExplanation =
-  "It looks very similar, but the 'type' keyword creates a brand new type, \
-  \not just an alias for an existing one. This lets us avoid infinitely \
-  \expanding it during type inference."
+declarationsToPatches
+    :: Module.Name
+    -> [D.ValidDecl]
+    -> ([Node], [Env.Patch])
+declarationsToPatches moduleName decls =
+  let (maybeNodes, patchLists) =
+          unzip (map (declToPatches moduleName) decls)
+  in
+      (Maybe.catMaybes maybeNodes, concat patchLists)
 
 
 -- When canonicalizing, all _values should be Local, but all _adts and _patterns
 -- should be fully namespaced. With _adts, they may appear in types that can
 -- escape the module.
-addDecl
+declToPatches
     :: Module.Name
-    -> ([Node], Environment)
     -> D.ValidDecl
-    -> ([Node], Environment)
-addDecl moduleName info@(nodes,env) decl =
-    let namespacedVar     = Var.Canonical (Var.Module moduleName)
-        addLocal      x e = Env.insert x (Var.local     x) e
-        addNamespaced x e = Env.insert x (namespacedVar x) e
-    in
-    case decl of
-      D.Definition (Valid.Definition pattern _ _) ->
-          (,) nodes $ env
-              { _values =
-                  foldr addLocal (_values env) (P.boundVarList pattern)
-              }
+    -> (Maybe Node, [Env.Patch])
+declToPatches moduleName decl =
+  let local mkPatch x =
+          mkPatch x (Var.local x)
 
-      D.Datatype name _ ctors ->
-          (,) nodes $ env
-              { _values =
-                  addCtors addLocal (_values env)
-              , _adts =
-                  addNamespaced name (_adts env)
-              , _patterns =
-                  addCtors addNamespaced (_patterns env)
-              }
-        where
-          addCtors how e = foldr how e (map fst ctors)
+      namespaced mkPatch x =
+          mkPatch x (Var.fromModule moduleName x)
+  in
+  case decl of
+    D.Definition (Valid.Definition pattern _ _) ->
+        ( Nothing
+        , map (local Env.Value) (P.boundVarList pattern)
+        )
 
-      D.TypeAlias name tvars alias ->
-          (,) (node name tvars alias : nodes) $ env
-              { _values =
-                  case alias of
-                    Type.Record _ _ ->
-                        addLocal name (_values env)
-                    _ ->
-                        _values env
-              }
+    D.Datatype name _ ctors ->
+        let ctorNames = map fst ctors
+        in
+            ( Nothing
+            , namespaced Env.Union name
+              : map (local Env.Value) ctorNames
+              ++ map (namespaced Env.Pattern) ctorNames
+            )
 
-      D.Port port ->
-          (,) nodes $ env
-              { _values =
-                  addLocal (D.validPortName port) (_values env)
-              }
+    D.TypeAlias name tvars alias ->
+        ( Just (node name tvars alias)
+        , case alias of
+            Type.Record _ _ ->
+                [local Env.Value name]
+            _ ->
+                []
+        )
 
-      D.Fixity _ _ _ ->
-          info
+    D.Port port ->
+        ( Nothing
+        , [local Env.Value (D.validPortName port)]
+        )
+
+    D.Fixity _ _ _ ->
+        ( Nothing
+        , []
+        )

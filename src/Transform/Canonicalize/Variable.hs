@@ -1,44 +1,51 @@
 {-# OPTIONS_GHC -Wall #-}
 module Transform.Canonicalize.Variable where
 
-import Control.Monad.Error
 import qualified Data.Either as Either
-import Data.Function (on)
-import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Text.EditDistance as Dist
 
 import qualified AST.Helpers as Help
 import qualified AST.Module as Module
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import Transform.Canonicalize.Environment as Env
+import qualified Transform.Canonicalize.Error as Error
+import qualified Transform.Canonicalize.Result as Result
 import Elm.Utils ((|>))
 
 
-variable :: Environment -> String -> Canonicalizer String Var.Canonical
+variable :: Environment -> String -> Result.Result Var.Canonical
 variable env var =
-  case splitName var of
+  case toVarName var of
     Right (name, varName)
         | Module.nameIsNative name ->
-            Env.using (Var.Canonical (Var.Module name) varName)
+            Result.var (Var.Canonical (Var.Module name) varName)
 
     _ ->
         case Set.toList `fmap` Map.lookup var (_values env) of
-          Just [v] -> Env.using v
-          Just vs  -> preferLocals env "variable" vs var
-          Nothing  -> notFound "variable" (Map.keys (_values env)) var
+          Just [v] ->
+              Result.var v
+
+          Just vs  ->
+              preferLocals env "variable" vs var
+
+          Nothing  ->
+              notFound "variable" (Map.keys (_values env)) var
 
 
 tvar
     :: Environment
     -> String
-    -> Canonicalizer String (Either Var.Canonical (Var.Canonical, [String], Type.CanonicalType))
+    -> Result.Result
+          (Either
+              Var.Canonical
+              (Var.Canonical, [String], Type.CanonicalType)
+          )
 tvar env var =
   case adts ++ aliases of
     []  -> notFound "type" (Map.keys (_adts env) ++ Map.keys (_aliases env)) var
-    [v] -> found extract v
+    [v] -> Result.var' extract v
     vs  -> preferLocals' env extract "type" vs var
   where
     adts =
@@ -53,28 +60,27 @@ tvar env var =
           Right (v,_,_) -> v
 
 
-pvar :: Environment -> String -> Canonicalizer String Var.Canonical
+pvar :: Environment -> String -> Result.Result Var.Canonical
 pvar env var =
-    case Set.toList `fmap` Map.lookup var (_patterns env) of
-      Just [v] -> Env.using v
-      Just vs  -> preferLocals env "pattern" vs var
-      Nothing  -> notFound "pattern" (Map.keys (_patterns env)) var
+  case Set.toList `fmap` Map.lookup var (_patterns env) of
+    Just [v] ->
+        Result.var v
+
+    Just vs ->
+        preferLocals env "pattern" vs var
+
+    Nothing ->
+        notFound "pattern" (Map.keys (_patterns env)) var
 
 
 -- FOUND
-
-found :: (a -> Var.Canonical) -> a -> Canonicalizer String a
-found extract v =
-  do  _ <- Env.using (extract v)
-      return v
-
 
 preferLocals
     :: Environment
     -> String
     -> [Var.Canonical]
     -> String
-    -> Canonicalizer String Var.Canonical
+    -> Result.Result Var.Canonical
 preferLocals env =
   preferLocals' env id
 
@@ -85,12 +91,17 @@ preferLocals'
     -> String
     -> [a]
     -> String
-    -> Canonicalizer String a
+    -> Result.Result a
 preferLocals' env extract kind possibilities var =
     case filter (isLocal . extract) possibilities of
-      []     -> ambiguous possibilities
-      [v]    -> found extract v
-      locals -> ambiguous locals
+      [] ->
+          ambiguous possibilities
+
+      [v] ->
+          Result.var' extract v
+
+      locals ->
+          ambiguous locals
     where
       isLocal :: Var.Canonical -> Bool
       isLocal (Var.Canonical home _) =
@@ -101,142 +112,91 @@ preferLocals' env extract kind possibilities var =
                 name == Env._home env
 
       ambiguous possibleVars =
-          throwError msg
+          Result.err (Error.var kind var (Error.Ambiguous vars))
         where
           vars = map (Var.toString . extract) possibleVars
-          msg = "Ambiguous usage of " ++ kind ++ " '" ++ var ++ "'.\n" ++
-                "    Disambiguate between: " ++ List.intercalate ", " vars
 
 
 -- NOT FOUND HELPERS
 
-splitName :: String -> Either String ([String], String)
-splitName var =
+type VarName =
+    Either String (Module.Name, String)
+
+
+toVarName :: String -> VarName
+toVarName var =
   case Help.splitDots var of
     [x] -> Left x
     xs -> Right (init xs, last xs)
 
 
-getName :: Either String ([String], String) -> String
-getName name =
+noQualifier :: VarName -> String
+noQualifier name =
   case name of
     Left x -> x
     Right (_, x) -> x
 
 
-nameToString :: ([String], String) -> String
-nameToString (modul, name) =
+qualifiedToString :: (Module.Name, String) -> String
+qualifiedToString (modul, name) =
   Module.nameToString (modul ++ [name])
 
 
-isOp :: Either String ([String], String) -> Bool
+isOp :: VarName -> Bool
 isOp name =
-  Help.isOp (getName name)
-
-
-distance :: String -> String -> Int
-distance x y =
-  Dist.restrictedDamerauLevenshteinDistance Dist.defaultEditCosts x y
-
-
-nearbyNames :: (a -> String) -> a -> [a] -> [a]
-nearbyNames format name names =
-  let editDistance =
-        if length (format name) < 3 then 1 else 2
-  in
-      names
-        |> map (\x -> (distance (format name) (format x), x))
-        |> List.sortBy (compare `on` fst)
-        |> filter ( (<= editDistance) . abs . fst )
-        |> map snd
+  Help.isOp (noQualifier name)
 
 
 -- NOT FOUND
 
-notFound :: String -> [String] -> String -> Canonicalizer String a
+notFound :: String -> [String] -> String -> Result.Result a
 notFound kind possibilities var =
-  let possibleNames =
-        map splitName possibilities
+  let name =
+          toVarName var
 
-      name =
-        splitName var
+      possibleNames =
+          map toVarName possibilities
 
-      closeNames =
-        possibleNames
-          |> filter (\n -> isOp name == isOp n)
-          |> nearbyNames getName name
+      problem =
+          case name of
+            Left _ ->
+                exposedProblem name possibleNames
 
-      (exposed, qualified) =
-        Either.partitionEithers closeNames
-
-      message =
-        case name of
-          Left _ ->
-              closeExposedMessage exposed ++ closeQualifiedMessage qualified
-
-          Right (modul, _) ->
-              qualifiedMessage modul (Either.rights possibleNames) qualified
-
+            Right (modul, varName) ->
+                qualifiedProblem modul varName (Either.rights possibleNames)
     in
-        throwError $ "Could not find " ++ kind ++ " '" ++ var ++ "'." ++ message
+        Result.err (Error.var kind var problem)
 
 
-
-closeExposedMessage :: [String] -> String
-closeExposedMessage exposed =
-  if null exposed
-    then ""
-    else
-      "\n\nClose matches include:" ++ concatMap ("\n    " ++) exposed
-
-
-closeQualifiedMessage :: [([String], String)] -> String
-closeQualifiedMessage qualified =
-  if null qualified
-    then ""
-    else
-      "\n\nMaybe you forgot to say which module it came from?\n"
-      ++ "Close qualified names include:"
-      ++ concatMap (("\n    " ++) . nameToString) qualified
-      ++ usingImportsMessage
+exposedProblem :: VarName -> [VarName] -> Error.VarProblem
+exposedProblem name possibleNames =
+  let (exposed, qualified) =
+          possibleNames
+            |> filter (\n -> isOp name == isOp n)
+            |> Error.nearbyNames noQualifier name
+            |> Either.partitionEithers
+  in
+      Error.ExposedUnknown exposed (map qualifiedToString qualified)
 
 
-qualifiedMessage :: [String] -> [([String], String)] -> [([String], String)] -> String
-qualifiedMessage modul allQualified qualified =
+qualifiedProblem
+    :: Module.Name
+    -> String
+    -> [(Module.Name, String)]
+    -> Error.VarProblem
+qualifiedProblem moduleName name allQualified =
   let availableModules =
         Set.fromList (map fst allQualified)
   in
-      case Set.member modul availableModules of
+      case Set.member moduleName availableModules of
         True ->
-          let inSameModule =
-                filter ((==) modul . fst) qualified
-          in
-            if null inSameModule
-              then ""
-              else
-                "\n\nClose matches include:"
-                ++ concatMap (("\n    " ++) . nameToString) inSameModule
+            allQualified
+              |> filter ((==) moduleName . fst)
+              |> map snd
+              |> Error.nearbyNames id name
+              |> Error.QualifiedUnknown
 
         False ->
-          let closeModules =
-                Set.toList availableModules
-                  |> map Module.nameToString
-                  |> nearbyNames id (Module.nameToString modul)
-          in
-            case closeModules of
-              [] ->
-                "\n\nLooks like the prefix '" ++ Module.nameToString modul
-                ++ "' is not in scope. Is it spelled correctly?"
-                ++ "\nIs it imported correctly?"
-                ++ usingImportsMessage
-
-              _ ->
-                "\n\nClose matches to '" ++ Module.nameToString modul ++ "' include:"
-                ++ concatMap ("\n    " ++) closeModules
-
-
-usingImportsMessage :: String
-usingImportsMessage =
-  "\n\nYou can read about how imports work at the following address:"
-  ++ "\n<http://elm-lang.org/learn/Syntax.elm#modules>"
-
+            Set.toList availableModules
+              |> Error.nearbyNames Module.nameToString moduleName
+              |> Error.UnknownQualifier

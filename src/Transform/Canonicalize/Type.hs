@@ -2,20 +2,21 @@
 module Transform.Canonicalize.Type (tipe) where
 
 import Control.Applicative ((<$>),(<*>))
-import Control.Monad.Error
-import Data.Traversable (traverse)
+import qualified Data.Traversable as Trav
 
 import qualified AST.Type as T
 import qualified AST.Variable as Var
 
-import Transform.Canonicalize.Environment
+import qualified Transform.Canonicalize.Environment as Env
+import qualified Transform.Canonicalize.Error as Error
+import qualified Transform.Canonicalize.Result as Result
 import qualified Transform.Canonicalize.Variable as Canonicalize
 
 
 tipe
-    :: Environment
+    :: Env.Environment
     -> T.RawType
-    -> Canonicalizer String T.CanonicalType
+    -> Result.Result T.CanonicalType
 tipe env typ =
     let go = tipe env
         goSnd (name,t) =
@@ -23,7 +24,7 @@ tipe env typ =
     in
     case typ of
       T.Var x ->
-          return (T.Var x)
+          Result.ok (T.Var x)
 
       T.Type _ ->
           canonicalizeApp env typ []
@@ -35,50 +36,52 @@ tipe env typ =
           T.Lambda <$> go a <*> go b
 
       T.Record fields ext ->
-          T.Record <$> mapM goSnd fields <*> traverse go ext
+          T.Record <$> Trav.traverse goSnd fields <*> Trav.traverse go ext
 
       T.Aliased _ _ _ ->
           error "a RawType should never have an alias in it"
 
 
 canonicalizeApp
-    :: Environment
+    :: Env.Environment
     -> T.RawType
     -> [T.RawType]
-    -> Canonicalizer String T.CanonicalType
+    -> Result.Result T.CanonicalType
 canonicalizeApp env f args =
   case f of
     T.Type (Var.Raw rawName) ->
-      do  answer <- Canonicalize.tvar env rawName
-          case answer of
-            Right alias ->
-                canonicalizeAlias env alias args
-
-            Left name ->
-                case args of
-                  [] -> return (T.Type name)
-                  _ ->
-                    T.App (T.Type name) <$> mapM (tipe env) args
+        Canonicalize.tvar env rawName
+          `Result.andThen` canonicalizeWithTvar
 
     _ ->
-      T.App <$> tipe env f <*> mapM (tipe env) args
+        T.App <$> tipe env f <*> Trav.traverse (tipe env) args
+
+  where
+    canonicalizeWithTvar tvar =
+        case tvar of
+          Right alias ->
+              canonicalizeAlias env alias args
+
+          Left name ->
+              case args of
+                [] ->
+                    Result.ok (T.Type name)
+                _ ->
+                    T.App (T.Type name) <$> Trav.traverse (tipe env) args
 
 
 canonicalizeAlias
-    :: Environment
+    :: Env.Environment
     -> (Var.Canonical, [String], T.CanonicalType)
     -> [T.RawType]
-    -> Canonicalizer String T.CanonicalType
-canonicalizeAlias env (name, tvars, dealiasedTipe) tipes =
-  do  when (tipesLen /= tvarsLen) (throwError msg)
-      tipes' <- mapM (tipe env) tipes
-      return $ T.Aliased name (zip tvars tipes') (T.Holey dealiasedTipe)
+    -> Result.Result T.CanonicalType
+canonicalizeAlias env (name, tvars, dealiasedTipe) types =
+  if typesLen /= tvarsLen
+    then Result.err (Error.alias name tvarsLen typesLen)
+    else toAlias <$> Trav.traverse (tipe env) types
   where
-    tipesLen = length tipes
+    typesLen = length types
     tvarsLen = length tvars
 
-    msg :: String
-    msg =
-        "Type alias '" ++ Var.toString name ++ "' expects " ++ show tvarsLen ++
-        " type argument" ++ (if tvarsLen == 1 then "" else "s") ++
-        " but was given " ++ show tipesLen
+    toAlias canonicalTypes =
+        T.Aliased name (zip tvars canonicalTypes) (T.Holey dealiasedTipe)
