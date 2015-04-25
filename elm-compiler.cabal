@@ -33,7 +33,7 @@ source-repository head
 
 Library
     ghc-options:
-        -threaded -O2 -W -Werror
+        -threaded -O2 -W -Wall
 
     Hs-Source-Dirs:
         src
