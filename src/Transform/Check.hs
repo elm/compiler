@@ -58,8 +58,10 @@ duplicateValues decls =
 
     defsDups :: [Valid.Def] -> Either String [Valid.Def]
     defsDups defs =
-        let varsIn (Valid.Definition pattern _ _) = Pattern.boundVarList pattern in
-        case dups $ concatMap varsIn defs of
+        let varsIn (Valid.Definition pattern _ _) =
+              Pattern.boundVarList pattern
+        in
+        case dups (concatMap varsIn defs) of
           []     -> Right defs
           name:_ -> Left name
 
