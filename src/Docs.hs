@@ -123,7 +123,7 @@ docComment =
       contents <- Parse.closeComment
 
       let reversed =
-              dropWhile (`elem` " \n\r") . drop 2 $ reverse contents
+              dropWhile (`elem` (" \n\r" :: String)) . drop 2 $ reverse contents
 
       return $ dropWhile (==' ') (reverse reversed)
 
