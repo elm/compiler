@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Type.State where
 
-import Control.Applicative ( Applicative, (<$>), (<*>), (<|>) )
+import Control.Applicative ((<|>))
 import Control.Monad.State
 import Data.Map ((!))
 import qualified Data.Map as Map

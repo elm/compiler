@@ -1,6 +1,5 @@
 module Type.Type where
 
-import Control.Applicative ((<$>),(<*>))
 import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
 import Control.Monad.Error (ErrorT, Error, liftIO)

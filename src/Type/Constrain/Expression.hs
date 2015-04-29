@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 module Type.Constrain.Expression where
 
-import Control.Applicative ((<$>))
 import qualified Control.Monad as Monad
 import Control.Monad.Error
 import qualified Data.List as List

@@ -1,6 +1,5 @@
 module Type.Environment where
 
-import Control.Applicative ((<$>), (<*>))
 import Control.Exception (try, SomeException)
 import Control.Monad
 import Control.Monad.Error (ErrorT, throwError, liftIO)

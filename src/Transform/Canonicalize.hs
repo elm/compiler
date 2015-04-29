@@ -1,6 +1,5 @@
 module Transform.Canonicalize (module') where
 
-import Control.Applicative ((<$>),(<*>))
 import Control.Monad.Error (runErrorT, throwError)
 import Control.Monad.State (runState)
 import qualified Data.List as List

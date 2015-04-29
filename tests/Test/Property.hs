@@ -1,6 +1,5 @@
 module Test.Property where
 
-import Control.Applicative ((<*))
 import Test.Framework
 import Test.Framework.Providers.HUnit
 import Test.Framework.Providers.QuickCheck2

@@ -1,6 +1,5 @@
 module Parse.Parse (program) where
 
-import Control.Applicative ((<$>))
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Text.Parsec hiding (newline, spaces)

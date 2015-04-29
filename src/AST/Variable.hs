@@ -1,6 +1,5 @@
 module AST.Variable where
 
-import Control.Applicative ((<$>), (<*>))
 import Data.Binary
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe

@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Parse.Declaration where
 
-import Control.Applicative ((<$>))
 import Text.Parsec ( (<|>), (<?>), choice, digit, optionMaybe, string, try )
 
 import qualified AST.Declaration as D

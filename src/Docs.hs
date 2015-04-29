@@ -7,7 +7,6 @@ import System.FilePath
 import System.Exit
 import System.IO
 
-import Control.Applicative ((<$>))
 import Control.Arrow (second)
 import Control.Monad (when)
 import qualified Data.Aeson.Encode.Pretty as Json

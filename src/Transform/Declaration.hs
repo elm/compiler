@@ -1,8 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 module Transform.Declaration (combineAnnotations, toExpr) where
 
-import Control.Applicative ((<$>))
-
 import qualified AST.Annotation as A
 import qualified AST.Declaration as D
 import qualified AST.Expression.General as E

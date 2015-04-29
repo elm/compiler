@@ -1,6 +1,5 @@
 module Type.Hint where
 
-import Control.Applicative ( (<$>) )
 import qualified Data.UnionFind.IO as UF
 import Text.PrettyPrint as P
 

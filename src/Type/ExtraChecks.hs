@@ -7,7 +7,6 @@ successfully. At that point we still need to do occurs checks and ensure that
 module Type.ExtraChecks (effectTypes, occurs) where
 
 import Prelude hiding (maybe)
-import Control.Applicative ((<$>),(<*>))
 import Control.Monad.Error
 import Control.Monad.State
 import qualified Data.Map as Map

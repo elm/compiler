@@ -1,6 +1,5 @@
 module Generate.Cases (toMatch, Match (..), Clause (..), matchSubst, newVar) where
 
-import Control.Applicative ((<$>))
 import Control.Arrow (first)
 import Control.Monad.State (State)
 import qualified Control.Monad.State as State

@@ -1,6 +1,5 @@
 module Parse.Module (header, headerAndImports, getModuleName) where
 
-import Control.Applicative ((<$>), (<*>))
 import Text.Parsec hiding (newline, spaces)
 
 import Parse.Helpers
