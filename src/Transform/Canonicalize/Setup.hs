@@ -7,7 +7,7 @@ module Transform.Canonicalize.Setup
 
 import Control.Arrow (first)
 import Control.Monad (foldM)
-import Control.Monad.Error (throwError)
+import Control.Monad.Error.Class (throwError)
 import qualified Data.Graph as Graph
 import qualified Data.List as List
 import qualified Data.Map as Map

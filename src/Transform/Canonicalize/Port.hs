@@ -1,7 +1,7 @@
 module Transform.Canonicalize.Port (check) where
 
 import Control.Applicative ((<$>))
-import Control.Monad.Error (throwError)
+import Control.Monad.Error.Class (throwError)
 import Text.PrettyPrint as P
 
 import qualified AST.Declaration as D

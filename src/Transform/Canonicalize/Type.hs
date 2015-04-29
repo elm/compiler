@@ -2,7 +2,8 @@
 module Transform.Canonicalize.Type (tipe) where
 
 import Control.Applicative ((<$>),(<*>))
-import Control.Monad.Error
+import Control.Monad.Error.Class (throwError)
+import Control.Monad (when)
 import Data.Traversable (traverse)
 
 import qualified AST.Type as T

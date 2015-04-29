@@ -50,7 +50,7 @@ setupParserWithTable table p source =
   do  localTable <- setupParser parseFixities source
       case Map.intersection table localTable of
         overlap | not (Map.null overlap) -> Left [ msg overlap ]
-                | otherwise -> 
+                | otherwise ->
                     flip setupParser source $
                       do  putState (Map.union table localTable)
                           p

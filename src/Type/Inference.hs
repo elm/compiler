@@ -16,7 +16,9 @@ import qualified Type.State as TS
 import qualified Type.ExtraChecks as Check
 import Control.Arrow (first, second)
 import Control.Monad.State (execStateT, forM)
-import Control.Monad.Error (ErrorT, runErrorT, liftIO, throwError)
+import Control.Monad.Except (ExceptT, runExceptT)
+import Control.Monad.Error.Class (throwError)
+import Control.Monad.Trans (liftIO)
 
 import System.IO.Unsafe  -- Possible to switch over to the ST monad instead of
                          -- the IO monad. I don't think that'd be worthwhile.
@@ -24,7 +26,7 @@ import System.IO.Unsafe  -- Possible to switch over to the ST monad instead of
 
 infer :: Interfaces -> CanonicalModule -> Either [Doc] (Map.Map String CanonicalType)
 infer interfaces modul =
-  unsafePerformIO $ runErrorT $
+  unsafePerformIO $ runExceptT $
     do  (header, constraint) <- genConstraints interfaces modul
 
         state <- liftIO $ execStateT (Solve.solve constraint) TS.initialState
@@ -42,7 +44,7 @@ infer interfaces modul =
 genConstraints
     :: Interfaces
     -> CanonicalModule
-    -> ErrorT [Doc] IO (Env.TypeDict, T.TypeConstraint)
+    -> ExceptT [Doc] IO (Env.TypeDict, T.TypeConstraint)
 genConstraints interfaces modul =
   do  env <- liftIO $ Env.initialEnvironment (canonicalizeAdts interfaces modul)
 
@@ -65,7 +67,7 @@ genConstraints interfaces modul =
 canonicalizeValues
     :: Env.Environment
     -> (Module.Name, Interface)
-    -> ErrorT [Doc] IO [(String, ([T.Variable], T.Type))]
+    -> ExceptT [Doc] IO [(String, ([T.Variable], T.Type))]
 canonicalizeValues env (moduleName, iface) =
     forM (Map.toList (iTypes iface)) $ \(name,tipe) ->
         do  tipe' <- Env.instantiateType env tipe Map.empty
