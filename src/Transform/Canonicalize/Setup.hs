@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -Wall #-}
 module Transform.Canonicalize.Setup
     ( environment

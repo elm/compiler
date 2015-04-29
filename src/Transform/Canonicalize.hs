@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Transform.Canonicalize (module') where
 
 import Control.Monad.Error (runErrorT, throwError)

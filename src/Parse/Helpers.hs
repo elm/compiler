@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Parse.Helpers where
 
 import Prelude hiding (until)
