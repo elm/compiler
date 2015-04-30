@@ -3,7 +3,9 @@ module Type.Constrain.Pattern where
 
 import Control.Arrow (second)
 import qualified Control.Monad as Monad
-import Control.Monad.Error
+import Control.Monad.Trans (liftIO)
+import Control.Monad.Error.Class (throwError)
+import Control.Monad.Except (ExceptT)
 import qualified Data.Map as Map
 import qualified Text.PrettyPrint as PP
 
@@ -18,7 +20,7 @@ import qualified Type.Constrain.Literal as Literal
 
 
 constrain :: Environment -> P.CanonicalPattern -> Type
-          -> ErrorT (A.Region -> PP.Doc) IO Fragment
+          -> ExceptT (A.Region -> PP.Doc) IO Fragment
 constrain env pattern tipe =
     let region = A.None (pretty pattern)
         t1 === t2 = A.A region (CEqual t1 t2)
@@ -72,9 +74,3 @@ constrain env pattern tipe =
               vars           = map snd pairs,
               typeConstraint = c
           }
-
-instance Error (A.Region -> PP.Doc) where
-  noMsg _ = PP.empty
-  strMsg str span =
-      PP.vcat [ PP.text $ "Type error " ++ show span
-              , PP.text str ]

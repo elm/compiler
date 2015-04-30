@@ -72,7 +72,7 @@ joinR _ _ = failure "Ill-formed binary expression. Report a compiler bug."
 getAssoc :: OpTable -> Int -> [(String,Source.Expr)] -> IParser Assoc
 getAssoc table n eops
     | all (==L) assocs = return L
-    | all (==R) assocs = return R 
+    | all (==R) assocs = return R
     | all (==N) assocs = case assocs of [_] -> return N
                                         _   -> failure (msg "precedence")
     | otherwise = failure (msg "associativity")

@@ -1,8 +1,10 @@
 {-# OPTIONS_GHC -Wall #-}
 module Type.Constrain.Expression where
 
-import qualified Control.Monad as Monad
-import Control.Monad.Error
+import Control.Monad
+import Control.Monad.Except (ExceptT, runExceptT)
+import Control.Monad.Error.Class (throwError)
+import Control.Monad.Trans (liftIO)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Prelude hiding (and)
@@ -26,7 +28,7 @@ constrain
     :: Env.Environment
     -> Canonical.Expr
     -> Type
-    -> ErrorT [PP.Doc] IO TypeConstraint
+    -> ExceptT [PP.Doc] IO TypeConstraint
 constrain env (A region expression) tipe =
     let list t = Env.get env Env.types "List" <| t
         and = A region . CAnd
@@ -119,7 +121,7 @@ constrain env (A region expression) tipe =
       Data name exprs ->
           do  vars <- forM exprs $ \_ -> liftIO (variable Flexible)
               let pairs = zip exprs (map varN vars)
-              (ctipe, cs) <- Monad.foldM step (tipe,true) (reverse pairs)
+              (ctipe, cs) <- foldM step (tipe,true) (reverse pairs)
               return $ ex vars (cs /\ name <? ctipe)
           where
             step (t,c) (e,x) =
@@ -167,7 +169,7 @@ constrain env (A region expression) tipe =
           do  c <- constrain env body tipe
 
               (Info schemes rqs fqs headers c2 c1) <-
-                  Monad.foldM
+                  foldM
                       (constrainDef env)
                       (Info [] [] [] Map.empty true true)
                       (concatMap expandPattern defs)
@@ -202,9 +204,9 @@ expandPattern def@(Canonical.Definition pattern lexpr@(A r _) maybeType) =
           toDef y = Canonical.Definition (P.Var y) (A r $ Case (mkVar x) [(pattern, mkVar y)]) Nothing
 
 
-try :: Region -> ErrorT (Region -> PP.Doc) IO a -> ErrorT [PP.Doc] IO a
+try :: Region -> ExceptT (Region -> PP.Doc) IO a -> ExceptT [PP.Doc] IO a
 try region computation =
-  do  result <- liftIO $ runErrorT computation
+  do  result <- liftIO $ runExceptT computation
       case result of
         Left err -> throwError [err region]
         Right value -> return value
@@ -222,7 +224,7 @@ data Info = Info
     }
 
 
-constrainDef :: Env.Environment -> Info -> Canonical.Def -> ErrorT [PP.Doc] IO Info
+constrainDef :: Env.Environment -> Info -> Canonical.Def -> ExceptT [PP.Doc] IO Info
 constrainDef env info (Canonical.Definition pattern expr maybeTipe) =
   let qs = [] -- should come from the def, but I'm not sure what would live there...
   in
@@ -243,7 +245,7 @@ constrainAnnotatedDef
     -> String
     -> Canonical.Expr
     -> ST.CanonicalType
-    -> ErrorT [PP.Doc] IO Info
+    -> ExceptT [PP.Doc] IO Info
 constrainAnnotatedDef env info qs name expr tipe =
   do  -- Some mistake may be happening here. Currently, qs is always [].
       rigidVars <- forM qs (\_ -> liftIO $ variable Rigid)
@@ -278,7 +280,7 @@ constrainUnannotatedDef
     -> [String]
     -> String
     -> Canonical.Expr
-    -> ErrorT [PP.Doc] IO Info
+    -> ExceptT [PP.Doc] IO Info
 constrainUnannotatedDef env info qs name expr =
   do  -- Some mistake may be happening here. Currently, qs is always [].
       rigidVars <- forM qs (\_ -> liftIO $ variable Rigid)

@@ -1,8 +1,9 @@
 module Type.Unify (unify) where
 
 import Control.Applicative ((<|>))
-import Control.Monad.Error (ErrorT, throwError, runErrorT)
 import Control.Monad.State as State
+import Control.Monad.Except (ExceptT, runExceptT)
+import Control.Monad.Error.Class (throwError)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
@@ -20,13 +21,13 @@ import Elm.Utils ((|>))
 
 unify :: A.Region -> Variable -> Variable -> StateT TS.SolverState IO ()
 unify region variable1 variable2 =
-  do  result <- runErrorT (unifyHelp region variable1 variable2)
+  do  result <- runExceptT (unifyHelp region variable1 variable2)
       either TS.addHint return result
 
 
 -- ACTUALLY UNIFY STUFF
 
-type Unify = ErrorT Hint.Hint (StateT TS.SolverState IO)
+type Unify = ExceptT Hint.Hint (StateT TS.SolverState IO)
 
 
 typeError

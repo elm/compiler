@@ -18,9 +18,9 @@ num =
 
 toLiteral :: String -> L.Literal
 toLiteral n
-  | 'x' `elem` n         = L.IntNum (read n)    
+  | 'x' `elem` n         = L.IntNum (read n)
   | any (`elem` ".eE") n = L.FloatNum (read n)
-  | otherwise            = L.IntNum (read n)    
+  | otherwise            = L.IntNum (read n)
 
 
 rawNumber :: IParser String

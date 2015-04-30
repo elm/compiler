@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 module Transform.Canonicalize.Type (tipe) where
 
-import Control.Monad.Error
+import Control.Monad.Error.Class (throwError)
+import Control.Monad (when)
 
 import qualified AST.Type as T
 import qualified AST.Variable as Var

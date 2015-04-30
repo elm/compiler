@@ -1,7 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Transform.Canonicalize (module') where
 
-import Control.Monad.Error (runErrorT, throwError)
+import Control.Monad.Except (runExceptT)
+import Control.Monad.Error.Class (throwError)
 import Control.Monad.State (runState)
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -40,7 +41,7 @@ module' interfaces modul =
     filterImports <$> modul'
   where
     (modul', usedModules) =
-        runState (runErrorT (moduleHelp interfaces modul)) Set.empty
+        runState (runExceptT (moduleHelp interfaces modul)) Set.empty
 
     filterImports m =
         let used (name,_) = Set.member name usedModules

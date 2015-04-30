@@ -2,7 +2,9 @@
 module Transform.Canonicalize.Environment where
 
 import Control.Arrow (second)
-import qualified Control.Monad.Error as Error
+import Control.Monad.Except (ExceptT, runExceptT)
+import Control.Monad.Error.Class (throwError)
+import Control.Monad.Trans (lift)
 import qualified Control.Monad.State as State
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -82,12 +84,12 @@ insert key value =
 -- CANONICALIZATION MANAGER
 
 type Canonicalizer err a =
-    Error.ErrorT err (State.State (Set.Set Module.Name)) a
+    ExceptT err (State.State (Set.Set Module.Name)) a
 
 
-uses :: (Error.Error e) => Module.Name -> Canonicalizer e ()
+uses :: Module.Name -> Canonicalizer e ()
 uses home =
-  Error.lift (State.modify (Set.insert home))
+  lift (State.modify (Set.insert home))
 
 
 using :: Var.Canonical -> Canonicalizer String Var.Canonical
@@ -101,10 +103,10 @@ using var@(Var.Canonical home _) =
 
 onError :: (String -> Doc) -> Canonicalizer String a -> Canonicalizer [Doc] a
 onError handler canonicalizer =
-  do  usedModules <- Error.lift State.get
+  do  usedModules <- lift State.get
       let (result, usedModules') =
-            State.runState (Error.runErrorT canonicalizer) usedModules
-      Error.lift (State.put usedModules')
+            State.runState (runExceptT canonicalizer) usedModules
+      lift (State.put usedModules')
       case result of
-        Left err -> Error.throwError [handler err]
+        Left err -> throwError [handler err]
         Right x  -> return x

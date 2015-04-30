@@ -51,13 +51,13 @@ matchSubst pairs match =
       Break -> Break
 
       Fail -> Fail
-      
+
       Seq ms ->
           Seq (map (matchSubst pairs) ms)
-      
+
       Other (A.A a e) ->
           Other . A.A a $ foldr ($) e $ map (\(x,y) -> subst x (Expr.localVar y)) pairs
-      
+
       Match n cs m ->
           Match (varSubst n) (map clauseSubst cs) (matchSubst pairs m)
         where

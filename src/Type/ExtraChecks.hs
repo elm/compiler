@@ -7,7 +7,8 @@ successfully. At that point we still need to do occurs checks and ensure that
 module Type.ExtraChecks (effectTypes, occurs) where
 
 import Prelude hiding (maybe)
-import Control.Monad.Error
+import Control.Monad.Except (ExceptT)
+import Control.Monad.Error.Class (throwError)
 import Control.Monad.State
 import qualified Data.Map as Map
 import qualified Data.Traversable as Traverse
@@ -25,7 +26,7 @@ import qualified Type.State as TS
 
 -- EFFECT TYPE CHECKS
 
-effectTypes :: TS.Env -> ErrorT [P.Doc] IO (Map.Map String ST.CanonicalType)
+effectTypes :: TS.Env -> ExceptT [P.Doc] IO (Map.Map String ST.CanonicalType)
 effectTypes environment =
   do  environment' <- liftIO $ Traverse.traverse TT.toSrcType environment
       mainCheck environment'
@@ -37,7 +38,7 @@ effectTypes environment =
 mainCheck
     :: (Monad m)
     => Map.Map String ST.CanonicalType
-    -> ErrorT [P.Doc] m ()
+    -> ExceptT [P.Doc] m ()
 mainCheck env =
   case Map.lookup "main" env of
     Nothing ->

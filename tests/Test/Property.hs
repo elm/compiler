@@ -64,4 +64,4 @@ parse_print parser value =
   in
       case iParse (parser <* eof) string of
         Left msg -> Left (show msg)
-        Right x -> Right x 
+        Right x -> Right x

@@ -2,7 +2,9 @@ module Type.Environment where
 
 import Control.Exception (try, SomeException)
 import Control.Monad
-import Control.Monad.Error (ErrorT, throwError, liftIO)
+import Control.Monad.Trans (liftIO)
+import Control.Monad.Except (ExceptT)
+import Control.Monad.Error.Class (throwError)
 import qualified Control.Monad.State as State
 import qualified Data.Traversable as Traverse
 import qualified Data.Map as Map
@@ -134,7 +136,7 @@ instantiateType
     :: Environment
     -> T.CanonicalType
     -> VarDict
-    -> ErrorT [PP.Doc] IO ([Variable], Type)
+    -> ExceptT [PP.Doc] IO ([Variable], Type)
 instantiateType env sourceType dict =
   do  result <- liftIO $ try (State.runStateT (instantiator env sourceType) dict)
       case result :: Either SomeException (Type, VarDict) of
