@@ -2,7 +2,6 @@
 module Transform.SortDefinitions (sortDefs) where
 
 import Control.Monad.State
-import Control.Applicative ((<$>),(<*>))
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe

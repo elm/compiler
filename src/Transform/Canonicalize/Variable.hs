@@ -1,7 +1,8 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -Wall #-}
 module Transform.Canonicalize.Variable where
 
-import Control.Monad.Error
+import Control.Monad.Error.Class (throwError)
 import qualified Data.Either as Either
 import Data.Function (on)
 import qualified Data.List as List

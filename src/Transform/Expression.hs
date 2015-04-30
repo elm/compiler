@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 module Transform.Expression (crawlLet) where
 
-import Control.Applicative ((<$>),(<*>))
 import AST.Annotation ( Annotated(A) )
 import AST.Expression.General
 

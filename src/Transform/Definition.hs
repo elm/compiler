@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 module Transform.Definition where
 
-import Control.Applicative ((<$>))
 import qualified AST.Pattern as P
 import qualified AST.Expression.Source as Source
 import qualified AST.Expression.Valid as Valid

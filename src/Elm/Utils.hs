@@ -2,7 +2,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Elm.Utils ((|>), (<|), getAsset, run, unwrappedRun, CommandError(..)) where
 
-import Control.Monad.Error (MonadError, MonadIO, liftIO, throwError)
+import Control.Monad.Error.Class (MonadError, throwError)
+import Control.Monad.Trans (MonadIO, liftIO)
 import System.Directory (doesFileExist)
 import System.Environment (getEnv)
 import System.Exit (ExitCode(ExitSuccess, ExitFailure))

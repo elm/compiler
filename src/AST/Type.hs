@@ -8,7 +8,6 @@ module AST.Type
     , prettyParens
     ) where
 
-import Control.Applicative ((<$>), (<*>))
 import Control.Arrow (second)
 import Data.Binary
 import qualified Data.Map as Map

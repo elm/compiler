@@ -5,7 +5,7 @@ module Elm.Compiler
     , parseDependencies, compile
     ) where
 
-import Control.Monad.Error (MonadError, throwError)
+import Control.Monad.Error.Class (MonadError, throwError)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Text.PrettyPrint as P

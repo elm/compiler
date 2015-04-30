@@ -13,7 +13,6 @@ module AST.Module
 import Data.Binary
 import qualified Data.List as List
 import qualified Data.Map as Map
-import Control.Applicative ((<$>),(<*>))
 
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Declaration as Decl

@@ -1,6 +1,5 @@
 module Test.Property where
 
-import Control.Applicative ((<*))
 import Test.Framework
 import Test.Framework.Providers.HUnit
 import Test.Framework.Providers.QuickCheck2
@@ -65,4 +64,4 @@ parse_print parser value =
   in
       case iParse (parser <* eof) string of
         Left msg -> Left (show msg)
-        Right x -> Right x 
+        Right x -> Right x

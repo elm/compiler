@@ -4,7 +4,6 @@ module Elm.Compiler.Type
     , toString
     ) where
 
-import Control.Applicative ((<$>), (<*>))
 import Control.Arrow (second)
 import Data.Aeson ((.:), (.=))
 import qualified Data.Aeson as Json

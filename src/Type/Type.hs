@@ -1,9 +1,9 @@
 module Type.Type where
 
-import Control.Applicative ((<$>),(<*>))
 import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
-import Control.Monad.Error (ErrorT, Error, liftIO)
+import Control.Monad.Trans (liftIO)
+import Control.Monad.Except (ExceptT)
 import qualified Data.Char as Char
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -195,13 +195,13 @@ fl rqs constraint@(A ann _) =
     A ann $ CLet [Scheme rqs [] constraint Map.empty] (A ann CTrue)
 
 
-exists :: Error e => (Type -> ErrorT e IO TypeConstraint) -> ErrorT e IO TypeConstraint
+exists :: (Type -> ExceptT e IO TypeConstraint) -> ExceptT e IO TypeConstraint
 exists f =
   do  v <- liftIO $ variable Flexible
       ex [v] <$> f (varN v)
 
 
-existsNumber :: Error e => (Type -> ErrorT e IO TypeConstraint) -> ErrorT e IO TypeConstraint
+existsNumber :: (Type -> ExceptT e IO TypeConstraint) -> ExceptT e IO TypeConstraint
 existsNumber f =
   do  v <- liftIO $ variable (Is Number)
       ex [v] <$> f (varN v)

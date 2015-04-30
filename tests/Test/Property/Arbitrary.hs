@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -W -fno-warn-orphans #-}
 module Test.Property.Arbitrary where
 
-import Control.Applicative       ((<$>), (<*>), pure)
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
 

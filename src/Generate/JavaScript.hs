@@ -1,6 +1,5 @@
 module Generate.JavaScript (generate) where
 
-import Control.Applicative ((<$>),(<*>))
 import Control.Arrow (first,(***))
 import Control.Monad.State
 import qualified Data.List as List

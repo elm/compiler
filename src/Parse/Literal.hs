@@ -1,7 +1,6 @@
 module Parse.Literal (literal) where
 
 import Prelude hiding (exponent)
-import Control.Applicative ((<$>))
 import Text.Parsec ((<|>), (<?>), digit, hexDigit, lookAhead, many1, option, string, try)
 import Parse.Helpers (IParser, chr, str)
 import qualified AST.Literal as L
@@ -19,9 +18,9 @@ num =
 
 toLiteral :: String -> L.Literal
 toLiteral n
-  | 'x' `elem` n         = L.IntNum (read n)    
+  | 'x' `elem` n         = L.IntNum (read n)
   | any (`elem` ".eE") n = L.FloatNum (read n)
-  | otherwise            = L.IntNum (read n)    
+  | otherwise            = L.IntNum (read n)
 
 
 rawNumber :: IParser String
