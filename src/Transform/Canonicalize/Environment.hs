@@ -1,9 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Transform.Canonicalize.Environment where
 
-import Control.Arrow (second)
-import qualified Control.Monad.Error as Error
-import qualified Control.Monad.State as State
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -12,8 +10,6 @@ import qualified AST.Module as Module
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
-
-import Text.PrettyPrint (Doc)
 
 
 -- ENVIRONMENT
@@ -27,51 +23,55 @@ data Environment = Env
     }
 
 
-builtIns :: Module.Name -> Environment
-builtIns home =
-    Env { _home     = home
-        , _values   = builtIn (tuples ++ [saveEnvName])
-        , _adts     = builtIn (tuples ++ ["List","Int","Float","Char","Bool","String"])
-        , _aliases  = dict []
-        , _patterns = builtIn (tuples ++ ["::","[]"])
-        }
-    where
-      builtIn xs =
-          dict $ map (\x -> (x, Var.Canonical Var.BuiltIn x)) xs
-
-      tuples =
-          map (\n -> "_Tuple" ++ show n) [0 .. 9 :: Int]
-
-
-addPattern :: P.Pattern var -> Environment -> Environment
-addPattern ptrn env =
-    env { _values = foldr put (_values env) (P.boundVarList ptrn) }
-  where
-    put x =
-      Map.insert x (Set.singleton (Var.local x))
-
-
-merge :: Environment -> Environment -> Environment
-merge (Env n1 v1 t1 a1 p1) (Env n2 v2 t2 a2 p2)
-  | n1 /= n2 = error "trying to merge incompatable environments"
-  | otherwise =
-      Env { _home     = n1
-          , _values   = Map.unionWith Set.union v1 v2
-          , _adts     = Map.unionWith Set.union t1 t2
-          , _aliases  = Map.unionWith Set.union a1 a2
-          , _patterns = Map.unionWith Set.union p1 p2
-          }
-
-
--- RAW NAMES to CANONICAL NAMES
-
 type Dict a =
     Map.Map String (Set.Set a)
 
 
-dict :: [(String,a)] -> Dict a
-dict pairs =
-  Map.fromList (map (second Set.singleton) pairs)
+fromPatches :: Module.Name -> [Patch] -> Environment
+fromPatches moduleName patches =
+  addPatches
+      patches
+      (Env moduleName Map.empty Map.empty Map.empty Map.empty)
+
+
+addPattern :: P.Pattern var -> Environment -> Environment
+addPattern pattern env =
+  let patches =
+        map (\x -> Value x (Var.local x)) (P.boundVarList pattern)
+  in
+      addPatches patches env
+
+
+-- PATCHES
+
+data Patch
+    = Value String Var.Canonical
+    | Union String Var.Canonical
+    | Alias String (Var.Canonical, [String], Type.CanonicalType)
+    | Pattern String Var.Canonical
+
+
+-- ADD PATCH TO ENVIRONMENT
+
+addPatches :: [Patch] -> Environment -> Environment
+addPatches patches env =
+  List.foldl' (flip addPatch) env patches
+
+
+addPatch :: Patch -> Environment -> Environment
+addPatch patch env =
+  case patch of
+    Value name var ->
+        env { _values = insert name var (_values env) }
+
+    Union name var ->
+        env { _adts = insert name var (_adts env) }
+
+    Alias name var ->
+        env { _aliases = insert name var (_aliases env) }
+
+    Pattern name var ->
+        env { _patterns = insert name var (_patterns env) }
 
 
 insert :: (Ord a) => String -> a -> Dict a -> Dict a
@@ -79,32 +79,18 @@ insert key value =
   Map.insertWith Set.union key (Set.singleton value)
 
 
--- CANONICALIZATION MANAGER
+-- PATCH HELPERS
 
-type Canonicalizer err a =
-    Error.ErrorT err (State.State (Set.Set Module.Name)) a
+builtinPatches :: [Patch]
+builtinPatches =
+  concat
+    [ builtIn Value (tuples ++ [saveEnvName])
+    , builtIn Union (tuples ++ ["List","Int","Float","Char","Bool","String"])
+    , builtIn Pattern (tuples ++ ["::","[]"])
+    ]
+  where
+    builtIn patch xs =
+        map (\x -> patch x (Var.Canonical Var.BuiltIn x)) xs
 
-
-uses :: (Error.Error e) => Module.Name -> Canonicalizer e ()
-uses home =
-  Error.lift (State.modify (Set.insert home))
-
-
-using :: Var.Canonical -> Canonicalizer String Var.Canonical
-using var@(Var.Canonical home _) =
-  do  case home of
-        Var.BuiltIn     -> return ()
-        Var.Module path -> uses path
-        Var.Local       -> return ()
-      return var
-
-
-onError :: (String -> Doc) -> Canonicalizer String a -> Canonicalizer [Doc] a
-onError handler canonicalizer =
-  do  usedModules <- Error.lift State.get
-      let (result, usedModules') =
-            State.runState (Error.runErrorT canonicalizer) usedModules
-      Error.lift (State.put usedModules')
-      case result of
-        Left err -> Error.throwError [handler err]
-        Right x  -> return x
+    tuples =
+        map (\n -> "_Tuple" ++ show n) [0 .. 9 :: Int]

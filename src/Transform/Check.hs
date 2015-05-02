@@ -9,9 +9,7 @@ import qualified AST.Expression.Valid as Valid
 import qualified AST.Declaration as D
 import qualified AST.Pattern as Pattern
 import qualified AST.Type as T
-import qualified AST.Variable as Var
 import qualified Transform.Expression as Expr
-import qualified Transform.Canonicalize.Setup as Setup
 
 import AST.PrettyPrint
 import Elm.Utils ((|>))
@@ -21,8 +19,7 @@ import Text.PrettyPrint as P
 mistakes :: [D.ValidDecl] -> [Doc]
 mistakes decls =
     concat
-      [ infiniteTypeAliases decls
-      , illFormedTypeDecls decls
+      [ illFormedTypeDecls decls
       , map P.text (duplicateTypeDeclarations decls)
       , map P.text (duplicateValues decls)
       ]
@@ -61,8 +58,10 @@ duplicateValues decls =
 
     defsDups :: [Valid.Def] -> Either String [Valid.Def]
     defsDups defs =
-        let varsIn (Valid.Definition pattern _ _) = Pattern.boundVarList pattern in
-        case dups $ concatMap varsIn defs of
+        let varsIn (Valid.Definition pattern _ _) =
+              Pattern.boundVarList pattern
+        in
+        case dups (concatMap varsIn defs) of
           []     -> Right defs
           name:_ -> Left name
 
@@ -159,58 +158,3 @@ illFormedTypeDecls decls =
             | otherwise = zipWith (++) (replicate (length xs - 1) "" ++ ["and "]) xs
 
         quote tvar = "'" ++ tvar ++ "'"
-
-
--- INFINITE TYPE ALIASES
-
-infiniteTypeAliases :: [D.ValidDecl] -> [Doc]
-infiniteTypeAliases decls =
-    [ report name tvars tipe
-        | D.TypeAlias name tvars tipe <- decls
-        , infiniteType name tipe
-    ]
-  where
-    infiniteType :: String -> T.Type Var.Raw -> Bool
-    infiniteType name tipe =
-        let infinite = infiniteType name in
-        case tipe of
-          T.Lambda a b ->
-              infinite a || infinite b
-
-          T.Var _ ->
-              False
-
-          T.Type (Var.Raw name') ->
-              name == name'
-
-          T.App t ts ->
-              any infinite (t:ts)
-
-          T.Record fields _ ->
-              any (infinite . snd) fields
-
-          T.Aliased _ args aliasType ->
-              case aliasType of
-                T.Holey t ->
-                    infinite t || any (infinite . snd) args
-
-                T.Filled t ->
-                    infinite t
-
-    indented :: D.ValidDecl -> Doc
-    indented decl =
-        P.text "\n    " <> pretty decl <> P.text "\n"
-
-    report name args tipe =
-        P.vcat
-          [ P.text $ eightyCharLines 0 msg1
-          , indented $ D.TypeAlias name args tipe
-          , P.text $ eightyCharLines 0 Setup.typeAliasErrorSegue
-          , indented $ D.Datatype name args [(name,[tipe])]
-          , P.text $ eightyCharLines 0 Setup.typeAliasErrorExplanation ++ "\n"
-          ]
-        where
-          msg1 =
-              "Type alias '" ++ name ++ "' is an infinite type. " ++
-              "Notice that it appears in its own definition, so when \
-              \you expand it, it just keeps getting bigger:"
