@@ -58,7 +58,9 @@ andThen (Result uses rawResult) callback =
         Result uses (Err msg)
 
     Ok value ->
-        callback value
+        let (Result uses' rawResult') = callback value
+        in
+            Result (Set.union uses uses') rawResult'
 
 
 instance F.Functor (Result e) where
