@@ -8,7 +8,9 @@ import qualified Data.Map as Map
 import qualified Data.Traversable as Traversable
 import qualified Data.UnionFind.IO as UF
 
-import qualified Type.Hint as Hint
+import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Type as Error
+import qualified Reporting.Region as R
 import Type.Type
 
 
@@ -40,7 +42,7 @@ data SolverState = SS
     , sSavedEnv :: Env
     , sPool :: Pool
     , sMark :: Int
-    , sHint :: [Hint.Hint]
+    , sError :: [A.Located Error.Error]
     }
 
 
@@ -51,7 +53,7 @@ initialState =
     , sSavedEnv = Map.empty
     , sPool = emptyPool
     , sMark = noMark + 1  -- The mark must never be equal to noMark!
-    , sHint = []
+    , sError = []
     }
 
 
@@ -65,9 +67,9 @@ modifyPool f =
     modify $ \state -> state { sPool = f (sPool state) }
 
 
-addHint :: Hint.Hint -> StateT SolverState IO ()
-addHint hint =
-    modify $ \state -> state { sHint = hint : sHint state }
+addError :: R.Region -> Error.Error -> StateT SolverState IO ()
+addError region err =
+    modify $ \state -> state { sError = A.A region err : sError state }
 
 
 switchToPool :: (MonadState SolverState m) => Pool -> m ()

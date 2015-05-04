@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Transform.Canonicalize.Result where
+module Canonicalize.Result where
 
 import Prelude hiding (foldl)
 import qualified Control.Applicative as A
@@ -8,11 +8,15 @@ import qualified Data.Set as Set
 
 import qualified AST.Module as Module
 import qualified AST.Variable as Var
-import qualified Transform.Canonicalize.Error as Error
+import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Canonicalize as Error
 
 
-data Result a =
-    Result (Set.Set Module.Name) (RawResult Error.Error a)
+type ResultErr a = Result (A.Located Error.Error) a
+
+
+data Result err a =
+    Result (Set.Set Module.Name) (RawResult err a)
 
 
 data RawResult err a
@@ -22,22 +26,22 @@ data RawResult err a
 
 -- RESULT HELPERS
 
-ok :: a -> Result a
+ok :: a -> Result e a
 ok value =
   Result Set.empty (Ok value)
 
 
-err :: Error.Error -> Result a
+err :: e -> Result e a
 err msg =
   errors [msg]
 
 
-errors :: [Error.Error] -> Result a
+errors :: [e] -> Result e a
 errors msgs =
   Result Set.empty (Err msgs)
 
 
-foldl :: (a -> b -> Result b) -> b -> [a] -> Result b
+foldl :: (a -> b -> Result e b) -> b -> [a] -> Result e b
 foldl f acc list =
   case list of
     [] ->
@@ -47,17 +51,19 @@ foldl f acc list =
         f x acc `andThen` (\acc' -> foldl f acc' xs)
 
 
-andThen :: Result a -> (a -> Result b) -> Result b
+andThen :: Result e a -> (a -> Result e b) -> Result e b
 andThen (Result uses rawResult) callback =
   case rawResult of
     Err msg ->
         Result uses (Err msg)
 
     Ok value ->
-        callback value
+        let (Result uses' rawResult') = callback value
+        in
+            Result (Set.union uses uses') rawResult'
 
 
-instance F.Functor Result where
+instance F.Functor (Result e) where
   fmap func (Result uses result) =
       case result of
         Ok a ->
@@ -67,7 +73,7 @@ instance F.Functor Result where
             Result uses (Err msgs)
 
 
-instance A.Applicative Result where
+instance A.Applicative (Result e) where
   pure value =
       ok value
 
@@ -89,12 +95,12 @@ instance A.Applicative Result where
 
 -- TRACK USES OF IMPORTS
 
-addModule :: Module.Name -> Result a -> Result a
+addModule :: Module.Name -> Result e a -> Result e a
 addModule home (Result uses result) =
   Result (Set.insert home uses) result
 
 
-var' :: (a -> Var.Canonical) -> a -> Result a
+var' :: (a -> Var.Canonical) -> a -> Result e a
 var' toVar value =
   case toVar value of
     Var.Canonical (Var.Module moduleName) _name ->
@@ -104,7 +110,7 @@ var' toVar value =
         ok value
 
 
-var :: Var.Canonical -> Result Var.Canonical
+var :: Var.Canonical -> Result e Var.Canonical
 var variable =
   var' id variable
 

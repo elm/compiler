@@ -10,7 +10,7 @@ import qualified AST.Variable as Var
 (==>) = (,)
 
 
-defaultImports :: [(Module.Name, Module.ImportMethod)]
+defaultImports :: [Module.DefaultImport]
 defaultImports =
     [ ["Basics"] ==> Module.ImportMethod Nothing Var.openListing
     , ["List"] ==> exposing [Var.Value "::"]
@@ -27,11 +27,14 @@ exposing vars =
 
 -- ADDING DEFAULT IMPORTS TO A MODULE
 
-add :: Bool -> Module.Module exs body -> Module.Module exs body
-add needsDefaults (Module.Module moduleName path exports imports decls) =
-    Module.Module moduleName path exports ammendedImports decls
+add
+    :: Bool
+    -> [Module.UserImport]
+    -> ([Module.DefaultImport], [Module.UserImport])
+add needsDefaults imports =
+    (defaults, imports)
   where
-    ammendedImports =
+    defaults =
       if needsDefaults
-        then defaultImports ++ imports
-        else imports
+        then defaultImports
+        else []

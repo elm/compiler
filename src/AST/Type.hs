@@ -1,57 +1,64 @@
 module AST.Type
-    ( Type(..), AliasType(..)
-    , RawType, CanonicalType
-    , PortType(..), portType
-    , fieldMap, recordOf, listOf, tupleOf
+    ( Raw, Raw'(..)
+    , Canonical(..), Aliased(..)
+    , Port(..), portType
     , deepDealias, dealias
     , collectLambdas
-    , prettyParens
+    , fieldMap
+    , tuple
     ) where
 
 import Control.Applicative ((<$>), (<*>))
 import Control.Arrow (second)
 import Data.Binary
 import qualified Data.Map as Map
+import Text.PrettyPrint as P
 
 import qualified AST.Variable as Var
-import AST.PrettyPrint
 import qualified AST.Helpers as Help
-import Text.PrettyPrint as P
+import qualified Reporting.Annotation as A
+import qualified Reporting.PrettyPrint as P
+import qualified Reporting.Region as R
 
 
 -- DEFINITION
 
-data Type var
-    = Lambda (Type var) (Type var)
-    | Var String
-    | Type var
-    | App (Type var) [Type var]
-    | Record [(String, Type var)] (Maybe (Type var))
-    | Aliased Var.Canonical [(String, Type var)] (AliasType var)
-    deriving (Eq, Ord, Show)
+type Raw =
+    A.Located Raw'
 
 
-data AliasType var
-    = Holey (Type var)
-    | Filled (Type var)
-    deriving (Eq, Ord, Show)
-
-
-type RawType =
-    Type Var.Raw
-
-
-type CanonicalType =
-    Type Var.Canonical
-
-
-data PortType var
-    = Normal (Type var)
-    | Signal { root :: Type var, arg :: Type var }
+data Raw'
+    = RLambda Raw Raw
+    | RVar String
+    | RType Var.Raw
+    | RApp Raw [Raw]
+    | RRecord [(String, Raw)] (Maybe Raw)
     deriving (Show)
 
 
-portType :: PortType var -> Type var
+data Canonical
+    = Lambda Canonical Canonical
+    | Var String
+    | Type Var.Canonical
+    | App Canonical [Canonical]
+    | Record [(String, Canonical)] (Maybe Canonical)
+    | Aliased Var.Canonical [(String, Canonical)] (Aliased Canonical)
+    deriving (Eq, Ord, Show)
+
+
+data Aliased t
+    = Holey t
+    | Filled t
+    deriving (Eq, Ord, Show)
+
+
+data Port t
+    = Normal t
+    | Signal { root :: t, arg :: t }
+    deriving (Show)
+
+
+portType :: Port tipe -> tipe
 portType portType =
   case portType of
     Normal tipe -> tipe
@@ -65,7 +72,7 @@ fieldMap fields =
   in
       foldl add Map.empty fields
 
-
+{--
 recordOf :: [(String, Type var)] -> Type var
 recordOf fields =
   Record fields Nothing
@@ -74,18 +81,18 @@ recordOf fields =
 listOf :: RawType -> RawType
 listOf tipe =
   App (Type (Var.Raw "List")) [tipe]
+--}
 
-
-tupleOf :: [RawType] -> RawType
-tupleOf types =
+tuple :: R.Region -> [Raw] -> Raw
+tuple region types =
   let name = Var.Raw ("_Tuple" ++ show (length types))
   in
-      App (Type name) types
+      A.A region (RApp (A.A region (RType name)) types)
 
 
 -- DEALIASING
 
-deepDealias :: Type v -> Type v
+deepDealias :: Canonical -> Canonical
 deepDealias tipe =
   let go = deepDealias in
   case tipe of
@@ -108,7 +115,7 @@ deepDealias tipe =
         App (go f) (map go args)
 
 
-dealias :: [(String, Type v)] -> AliasType v -> Type v
+dealias :: [(String, Canonical)] -> Aliased Canonical -> Canonical
 dealias args aliasType =
   case aliasType of
     Holey tipe ->
@@ -118,7 +125,7 @@ dealias args aliasType =
         tipe
 
 
-dealiasHelp :: Map.Map String (Type var) -> Type var -> Type var
+dealiasHelp :: Map.Map String Canonical -> Canonical -> Canonical
 dealiasHelp typeTable tipe =
     let go = dealiasHelp typeTable in
     case tipe of
@@ -143,27 +150,37 @@ dealiasHelp typeTable tipe =
 
 -- PRETTY PRINTING
 
-instance (Pretty var, Var.ToString var) => Pretty (PortType var) where
-  pretty portType =
+instance (P.Pretty t) => P.Pretty (Port t) where
+  pretty needsParens portType =
     case portType of
       Normal tipe ->
-          pretty tipe
+          P.pretty needsParens tipe
 
       Signal tipe _ ->
-          pretty tipe
+          P.pretty needsParens tipe
 
 
-instance (Var.ToString var, Pretty var) => Pretty (Type var) where
-  pretty tipe =
+instance P.Pretty Raw' where
+  pretty _ tipe =
+    P.text (show tipe)
+
+
+instance P.Pretty Canonical where
+  pretty needsParens tipe =
     case tipe of
       Lambda _ _ ->
-          P.sep [ t, P.sep (map (P.text "->" <+>) ts) ]
+          P.parensIf needsParens $
+              P.sep [ t, P.sep (map (P.text "->" <+>) ts) ]
         where
-          t:ts = map prettyLambda (collectLambdas tipe)
+          t:ts =
+              map prettyLambda (collectLambdas tipe)
+
           prettyLambda t =
               case t of
-                Lambda _ _ -> P.parens (pretty t)
-                _ -> pretty t
+                Lambda _ _ ->
+                    P.pretty True t
+                _ ->
+                    P.pretty False t
 
       Var x ->
           P.text x
@@ -177,9 +194,18 @@ instance (Var.ToString var, Pretty var) => Pretty (Type var) where
           case (f,args) of
             (Type name, _)
                 | Help.isTuple (Var.toString name) ->
-                    P.parens (P.sep (P.punctuate P.comma (map pretty args)))
+                    P.parens $ P.sep $
+                      P.punctuate P.comma (map (P.pretty False) args)
 
-            _ -> P.hang (pretty f) 2 (P.sep (map prettyParens args))
+            (_, []) ->
+                P.pretty True f
+
+            (_, _) ->
+                P.parensIf needsParens $
+                  P.hang
+                    (P.pretty True f)
+                    2
+                    (P.sep (map (P.pretty True) args))
 
       Record _ _ ->
           case flattenRecord tipe of
@@ -202,13 +228,17 @@ instance (Var.ToString var, Pretty var) => Pretty (Type var) where
                       ])
           where
             prettyField (field, tipe) =
-                P.text field <+> P.text ":" <+> pretty tipe
+                P.text field <+> P.text ":" <+> P.pretty False tipe
 
       Aliased name args _ ->
-          P.hang (pretty name) 2 (P.sep (map (prettyParens . snd) args))
+          P.parensIf (needsParens && not (null args)) $
+            P.hang
+              (P.pretty False name)
+              2
+              (P.sep (map (P.pretty True . snd) args))
 
 
-collectLambdas :: Type var -> [Type var]
+collectLambdas :: Canonical -> [Canonical]
 collectLambdas tipe =
   case tipe of
     Lambda arg body ->
@@ -218,30 +248,7 @@ collectLambdas tipe =
         [tipe]
 
 
-prettyParens :: (Var.ToString var, Pretty var) => Type var -> Doc
-prettyParens tipe =
-    parensIf (needed tipe) (pretty tipe)
-  where
-    needed t =
-      case t of
-        Aliased _ [] _ -> False
-
-        Aliased _ _ _ -> True
-
-        Lambda _ _ -> True
-
-        App (Type name) _
-          | Help.isTuple (Var.toString name) ->
-              False
-
-        App t' [] -> needed t'
-
-        App _ _ -> True
-
-        _ -> False
-
-
-flattenRecord :: Type var -> ( [(String, Type var)], Maybe String )
+flattenRecord :: Canonical -> ( [(String, Canonical)], Maybe String )
 flattenRecord tipe =
   case tipe of
     Var x ->
@@ -264,7 +271,7 @@ flattenRecord tipe =
 
 -- BINARY
 
-instance Binary var => Binary (Type var) where
+instance Binary Canonical where
   put tipe =
       case tipe of
         Lambda t1 t2 ->
@@ -297,7 +304,7 @@ instance Binary var => Binary (Type var) where
         _ -> error "Error reading a valid type from serialized string"
 
 
-instance Binary var => Binary (AliasType var) where
+instance Binary t => Binary (Aliased t) where
   put aliasType =
       case aliasType of
         Holey tipe ->

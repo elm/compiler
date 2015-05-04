@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Transform.Canonicalize.Variable where
+module Canonicalize.Variable where
 
 import qualified Data.Either as Either
 import qualified Data.Map as Map
@@ -9,50 +9,53 @@ import qualified AST.Helpers as Help
 import qualified AST.Module as Module
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
-import Transform.Canonicalize.Environment as Env
-import qualified Transform.Canonicalize.Error as Error
-import qualified Transform.Canonicalize.Result as Result
+import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Canonicalize as Error
+import qualified Reporting.Region as R
+import qualified Canonicalize.Environment as Env
+import qualified Canonicalize.Result as Result
 import Elm.Utils ((|>))
 
 
-variable :: Environment -> String -> Result.Result Var.Canonical
-variable env var =
+variable :: R.Region -> Env.Environment -> String -> Result.ResultErr Var.Canonical
+variable region env var =
   case toVarName var of
     Right (name, varName)
         | Module.nameIsNative name ->
             Result.var (Var.Canonical (Var.Module name) varName)
 
     _ ->
-        case Set.toList `fmap` Map.lookup var (_values env) of
+        case Set.toList `fmap` Map.lookup var (Env._values env) of
           Just [v] ->
               Result.var v
 
           Just vs  ->
-              preferLocals env "variable" vs var
+              preferLocals region env "variable" vs var
 
           Nothing  ->
-              notFound "variable" (Map.keys (_values env)) var
+              notFound region "variable" (Map.keys (Env._values env)) var
 
 
 tvar
-    :: Environment
+    :: R.Region
+    -> Env.Environment
     -> String
-    -> Result.Result
+    -> Result.ResultErr
           (Either
               Var.Canonical
-              (Var.Canonical, [String], Type.CanonicalType)
+              (Var.Canonical, [String], Type.Canonical)
           )
-tvar env var =
+tvar region env var =
   case adts ++ aliases of
-    []  -> notFound "type" (Map.keys (_adts env) ++ Map.keys (_aliases env)) var
+    []  -> notFound region "type" (Map.keys (Env._adts env) ++ Map.keys (Env._aliases env)) var
     [v] -> Result.var' extract v
-    vs  -> preferLocals' env extract "type" vs var
+    vs  -> preferLocals' region env extract "type" vs var
   where
     adts =
-        map Left (maybe [] Set.toList (Map.lookup var (_adts env)))
+        map Left (maybe [] Set.toList (Map.lookup var (Env._adts env)))
 
     aliases =
-        map Right (maybe [] Set.toList (Map.lookup var (_aliases env)))
+        map Right (maybe [] Set.toList (Map.lookup var (Env._aliases env)))
 
     extract value =
         case value of
@@ -60,39 +63,52 @@ tvar env var =
           Right (v,_,_) -> v
 
 
-pvar :: Environment -> String -> Result.Result Var.Canonical
-pvar env var =
-  case Set.toList `fmap` Map.lookup var (_patterns env) of
-    Just [v] ->
-        Result.var v
+pvar
+    :: R.Region
+    -> Env.Environment
+    -> String
+    -> Int
+    -> Result.ResultErr Var.Canonical
+pvar region env var actualArgs =
+  case Set.toList `fmap` Map.lookup var (Env._patterns env) of
+    Just [value] ->
+        foundArgCheck value
 
-    Just vs ->
-        preferLocals env "pattern" vs var
+    Just values ->
+        preferLocals' region env fst "pattern" values var
+          `Result.andThen` foundArgCheck
 
     Nothing ->
-        notFound "pattern" (Map.keys (_patterns env)) var
+        notFound region "pattern" (Map.keys (Env._patterns env)) var
+  where
+    foundArgCheck (name, expectedArgs) =
+        if actualArgs == expectedArgs
+          then Result.var name
+          else Result.err (A.A region (Error.argMismatch name expectedArgs actualArgs))
 
 
 -- FOUND
 
 preferLocals
-    :: Environment
+    :: R.Region
+    -> Env.Environment
     -> String
     -> [Var.Canonical]
     -> String
-    -> Result.Result Var.Canonical
-preferLocals env =
-  preferLocals' env id
+    -> Result.ResultErr Var.Canonical
+preferLocals region env =
+  preferLocals' region env id
 
 
 preferLocals'
-    :: Environment
+    :: R.Region
+    -> Env.Environment
     -> (a -> Var.Canonical)
     -> String
     -> [a]
     -> String
-    -> Result.Result a
-preferLocals' env extract kind possibilities var =
+    -> Result.ResultErr a
+preferLocals' region env extract kind possibilities var =
     case filter (isLocal . extract) possibilities of
       [] ->
           ambiguous possibilities
@@ -112,7 +128,7 @@ preferLocals' env extract kind possibilities var =
                 name == Env._home env
 
       ambiguous possibleVars =
-          Result.err (Error.var kind var (Error.Ambiguous vars))
+          Result.err (A.A region (Error.var kind var (Error.Ambiguous vars)))
         where
           vars = map (Var.toString . extract) possibleVars
 
@@ -149,8 +165,8 @@ isOp name =
 
 -- NOT FOUND
 
-notFound :: String -> [String] -> String -> Result.Result a
-notFound kind possibilities var =
+notFound :: R.Region -> String -> [String] -> String -> Result.ResultErr a
+notFound region kind possibilities var =
   let name =
           toVarName var
 
@@ -165,7 +181,7 @@ notFound kind possibilities var =
             Right (modul, varName) ->
                 qualifiedProblem modul varName (Either.rights possibleNames)
     in
-        Result.err (Error.var kind var problem)
+        Result.err (A.A region (Error.var kind var problem))
 
 
 exposedProblem :: VarName -> [VarName] -> Error.VarProblem

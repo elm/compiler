@@ -1,9 +1,11 @@
 {-# OPTIONS_GHC -Wall #-}
 module AST.Literal where
 
-import AST.PrettyPrint
-import Data.Map (Map)
-import qualified Text.PrettyPrint as PP
+import qualified Data.Map as Map
+import qualified Text.PrettyPrint as P
+
+import qualified Reporting.PrettyPrint as P
+
 
 data Literal
     = IntNum Int
@@ -14,14 +16,14 @@ data Literal
     deriving (Eq, Ord, Show)
 
 
-instance Pretty Literal where
-  pretty literal =
+instance P.Pretty Literal where
+  pretty _ literal =
     case literal of
-      IntNum n -> PP.int n
-      FloatNum n -> PP.double n
-      Chr c -> PP.text . show $ c
-      Str s -> PP.text . show $ s
-      Boolean bool -> PP.text (show bool)
+      IntNum n -> P.int n
+      FloatNum n -> P.double n
+      Chr c -> P.text . show $ c
+      Str s -> P.text . show $ s
+      Boolean bool -> P.text (show bool)
 
 
 data GLTipe
@@ -48,8 +50,8 @@ glTipeName glTipe =
 
 
 data GLShaderTipe = GLShaderTipe
-    { attribute :: Map String GLTipe
-    , uniform :: Map String GLTipe
-    , varying :: Map String GLTipe
+    { attribute :: Map.Map String GLTipe
+    , uniform :: Map.Map String GLTipe
+    , varying :: Map.Map String GLTipe
     }
     deriving (Show)

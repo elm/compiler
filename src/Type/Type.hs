@@ -3,7 +3,6 @@ module Type.Type where
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad.State (StateT)
 import qualified Control.Monad.State as State
-import Control.Monad.Error (ErrorT, Error, liftIO)
 import qualified Data.Char as Char
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -12,10 +11,9 @@ import qualified Data.UnionFind.IO as UF
 import Text.PrettyPrint as P
 import System.IO.Unsafe
 
-import AST.Annotation
-import qualified AST.PrettyPrint as PP
 import qualified AST.Type as T
 import qualified AST.Variable as Var
+import qualified Reporting.Region as R
 import Type.PrettyPrint
 
 
@@ -103,16 +101,13 @@ data SuperType
 
 -- CONSTRAINTS
 
-type Constraint a b =
-    Located (BasicConstraint a b)
-
-data BasicConstraint a b
+data Constraint a b
     = CTrue
     | CSaveEnv
-    | CEqual a a
+    | CEqual R.Region a a
     | CAnd [Constraint a b]
     | CLet [Scheme a b] (Constraint a b)
-    | CInstance SchemeName a
+    | CInstance R.Region SchemeName a
 
 type SchemeName = String
 
@@ -170,40 +165,40 @@ variable flex = UF.fresh $ Descriptor
 
 monoscheme :: Map.Map String a -> Scheme a b
 monoscheme headers =
-  Scheme [] [] (noneNoDocs CTrue) headers
+  Scheme [] [] CTrue headers
 
 
 infixl 8 /\
 
 (/\) :: Constraint a b -> Constraint a b -> Constraint a b
-(/\) a@(A _ c1) b@(A _ c2) =
+(/\) c1 c2 =
     case (c1, c2) of
-      (CTrue, _) -> b
-      (_, CTrue) -> a
-      _ -> mergeOldDocs a b (CAnd [a,b])
+      (CTrue, _) -> c2
+      (_, CTrue) -> c1
+      _ -> CAnd [c1,c2]
 
 
 -- ex qs constraint == exists qs. constraint
 ex :: [Variable] -> TypeConstraint -> TypeConstraint
-ex fqs constraint@(A ann _) =
-    A ann $ CLet [Scheme [] fqs constraint Map.empty] (A ann CTrue)
+ex fqs constraint =
+    CLet [Scheme [] fqs constraint Map.empty] CTrue
 
 
 -- fl qs constraint == forall qs. constraint
 fl :: [Variable] -> TypeConstraint -> TypeConstraint
-fl rqs constraint@(A ann _) =
-    A ann $ CLet [Scheme rqs [] constraint Map.empty] (A ann CTrue)
+fl rqs constraint =
+    CLet [Scheme rqs [] constraint Map.empty] CTrue
 
 
-exists :: Error e => (Type -> ErrorT e IO TypeConstraint) -> ErrorT e IO TypeConstraint
+exists :: (Type -> IO TypeConstraint) -> IO TypeConstraint
 exists f =
-  do  v <- liftIO $ variable Flexible
+  do  v <- variable Flexible
       ex [v] <$> f (varN v)
 
 
-existsNumber :: Error e => (Type -> ErrorT e IO TypeConstraint) -> ErrorT e IO TypeConstraint
+existsNumber :: (Type -> IO TypeConstraint) -> IO TypeConstraint
 existsNumber f =
-  do  v <- liftIO $ variable (Is Number)
+  do  v <- variable (Is Number)
       ex [v] <$> f (varN v)
 
 
@@ -212,11 +207,6 @@ existsNumber f =
 instance PrettyType a => PrettyType (UF.Point a) where
   pretty when point =
       unsafePerformIO $ fmap (pretty when) (UF.descriptor point)
-
-
-instance PrettyType t => PrettyType (Annotated a t) where
-  pretty when (A _ e) =
-      pretty when e
 
 
 instance PrettyType a => PrettyType (Term1 a) where
@@ -280,14 +270,20 @@ instance PrettyType a => PrettyType (TermN a) where
           case maybeAlias of
             Nothing -> doc
             Just (name, args) ->
-                P.hang (PP.pretty name) 2 (P.sep (map (pretty App . snd) args))
+                P.hang
+                    (P.text (Var.toString name))
+                    2
+                    (P.sep (map (pretty App . snd) args))
 
 
 instance PrettyType Descriptor where
   pretty when desc =
     case (alias desc, structure desc, name desc) of
       (Just (name, args), _, _) ->
-          P.hang (PP.pretty name) 4 (P.sep (map (pretty App . snd) args))
+          P.hang
+              (P.text (Var.toString name))
+              4
+              (P.sep (map (pretty App . snd) args))
 
       (_, Just term, _) ->
           pretty when term
@@ -301,72 +297,96 @@ instance PrettyType Descriptor where
       _ -> P.text "?"
 
 
-instance (PrettyType a, PrettyType b) => PrettyType (BasicConstraint a b) where
+instance (PrettyType a, PrettyType b) => PrettyType (Constraint a b) where
   pretty _ constraint =
     let prty = pretty Never in
     case constraint of
-      CTrue -> P.text "True"
-      CSaveEnv -> P.text "SaveTheEnvironment!!!"
-      CEqual a b -> prty a <+> P.text "=" <+> prty b
-      CAnd [] -> P.text "True"
+      CTrue ->
+          P.text "True"
+
+      CSaveEnv ->
+          P.text "SaveTheEnvironment!!!"
+
+      CEqual _region a b ->
+          prty a <+> P.text "=" <+> prty b
+
+      CAnd [] ->
+          P.text "True"
 
       CAnd cs ->
-        P.parens . P.sep $ P.punctuate (P.text " and") (map (pretty Never) cs)
+          P.parens . P.sep $ P.punctuate (P.text " and") (map (pretty Never) cs)
 
-      CLet [Scheme [] fqs constraint header] (A _ CTrue) | Map.null header ->
+      CLet [Scheme [] fqs constraint header] CTrue | Map.null header ->
           P.sep [ binder, pretty Never c ]
         where
-          mergeExists vs (A _ c) =
+          mergeExists vs c =
             case c of
-              CLet [Scheme [] fqs' c' _] (A _ CTrue) -> mergeExists (vs ++ fqs') c'
+              CLet [Scheme [] fqs' c' _] CTrue -> mergeExists (vs ++ fqs') c'
               _ -> (vs, c)
 
           (fqs', c) = mergeExists fqs constraint
 
-          binder = if null fqs' then P.empty else
-                     P.text "\x2203" <+> P.hsep (map (pretty Never) fqs') <> P.text "."
+          binder =
+              if null fqs'
+                then P.empty
+                else
+                  P.text "\x2203" <+> P.hsep (map (pretty Never) fqs') <> P.text "."
 
       CLet schemes constraint ->
-        P.fsep [ P.hang (P.text "let") 4 (P.brackets . commaSep $ map (pretty Never) schemes)
-               , P.text "in", pretty Never constraint ]
+          P.fsep
+            [ P.hang (P.text "let") 4 (P.brackets . commaSep $ map (pretty Never) schemes)
+            , P.text "in", pretty Never constraint
+            ]
 
-      CInstance name tipe ->
-        P.text name <+> P.text "<" <+> prty tipe
+      CInstance _region name tipe ->
+          P.text name <+> P.text "<" <+> prty tipe
 
 
 instance (PrettyType a, PrettyType b) => PrettyType (Scheme a b) where
-  pretty _ (Scheme rqs fqs (A _ constraint) headers) =
+  pretty _ (Scheme rqs fqs constraint headers) =
       P.sep [ forall, cs, headers' ]
     where
       prty = pretty Never
 
-      forall = if null rqs && null fqs then P.empty else
-               P.text "\x2200" <+> frees <+> rigids
+      forall =
+          if null rqs && null fqs
+            then P.empty
+            else P.text "\x2200" <+> frees <+> rigids
 
-      frees = P.hsep $ map prty fqs
-      rigids = if null rqs then P.empty else P.braces . P.hsep $ map prty rqs
+      frees = P.hsep (map prty fqs)
 
-      cs = case constraint of
-             CTrue -> P.empty
-             CAnd [] -> P.empty
-             _ -> P.brackets (pretty Never constraint)
+      rigids =
+          if null rqs
+            then P.empty
+            else P.braces . P.hsep $ map prty rqs
 
-      headers' = if Map.size headers > 0 then dict else P.empty
-      dict = P.parens . commaSep . map prettyPair $ Map.toList headers
-      prettyPair (n,t) = P.text n <+> P.text ":" <+> pretty Never t
+      cs =
+          case constraint of
+            CTrue -> P.empty
+            CAnd [] -> P.empty
+            _ -> P.brackets (pretty Never constraint)
+
+      headers' =
+          if Map.size headers > 0 then dict else P.empty
+
+      dict =
+          P.parens . commaSep . map prettyPair $ Map.toList headers
+
+      prettyPair (n,t) =
+          P.text n <+> P.text ":" <+> pretty Never t
 
 
 -- CONVERT TO SOURCE TYPES
 
 -- TODO: Attach resulting type to the descriptor so that you
 -- never have to do extra work, particularly nice for aliased types
-toSrcType :: Variable -> IO T.CanonicalType
+toSrcType :: Variable -> IO T.Canonical
 toSrcType variable =
   do  addNames variable
       variableToSrcType variable variable
 
 
-variableToSrcType :: Variable -> Variable -> IO T.CanonicalType
+variableToSrcType :: Variable -> Variable -> IO T.Canonical
 variableToSrcType rootVariable variable =
   do  desc <- UF.descriptor variable
       srcType <- maybe (backupSrcType desc) (termToSrcType rootVariable) (structure desc)
@@ -383,7 +403,7 @@ variableToSrcType rootVariable variable =
                   do  args' <- mapM (\(arg,tvar) -> (,) arg <$> variableToSrcType rootVariable tvar) args
                       return (T.Aliased name args' (T.Filled srcType))
   where
-    backupSrcType :: Descriptor -> IO T.CanonicalType
+    backupSrcType :: Descriptor -> IO T.Canonical
     backupSrcType desc =
         case name desc of
           Just v@(Var.Canonical _ x@(c:_))
@@ -401,7 +421,7 @@ variableToSrcType rootVariable variable =
                   ]
 
 
-termToSrcType :: Variable -> Term1 Variable -> IO T.CanonicalType
+termToSrcType :: Variable -> Term1 Variable -> IO T.Canonical
 termToSrcType rootVariable term =
   let go = variableToSrcType rootVariable in
   case term of
@@ -433,7 +453,7 @@ termToSrcType rootVariable term =
                 T.Var _ -> T.Record fields (Just ext')
                 _ -> error "Used toSrcType on a type that is not well-formed"
       where
-        dealias :: T.CanonicalType -> T.CanonicalType
+        dealias :: T.Canonical -> T.Canonical
         dealias tipe =
             case tipe of
               T.Aliased _ args tipe' ->
@@ -473,7 +493,7 @@ data NameState = NameState
 
 varAddNames :: Variable -> StateT NameState IO ()
 varAddNames var =
-  do  desc <- liftIO (UF.descriptor var)
+  do  desc <- State.liftIO (UF.descriptor var)
       case alias desc of
         Nothing ->
             return ()
@@ -490,7 +510,7 @@ varAddNames var =
               Just _ -> return ()
               Nothing ->
                   do  name' <- createName desc
-                      liftIO $ UF.modifyDescriptor var $ \desc ->
+                      State.liftIO $ UF.modifyDescriptor var $ \desc ->
                           desc { name = Just (Var.local name') }
 
 

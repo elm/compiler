@@ -1,62 +1,65 @@
-module Transform.Canonicalize (module') where
+module Canonicalize (module') where
 
 import Control.Applicative ((<$>),(<*>))
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import qualified Data.Traversable as T
 
 import AST.Expression.General (Expr'(..), dummyLet)
+import AST.Module (CanonicalBody(..))
+
+import qualified AST.Declaration as D
 import qualified AST.Expression.General as E
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Expression.Canonical as Canonical
-
-import AST.Module (CanonicalBody(..))
-import qualified AST.Annotation as A
-import qualified AST.Declaration as D
 import qualified AST.Module as Module
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
-
-import qualified Transform.Canonicalize.Environment as Env
-import qualified Transform.Canonicalize.Error as Error
-import qualified Transform.Canonicalize.Port as Port
-import qualified Transform.Canonicalize.Result as Result
-import qualified Transform.Canonicalize.Setup as Setup
-import qualified Transform.Canonicalize.Type as Canonicalize
-import qualified Transform.Canonicalize.Variable as Canonicalize
-import qualified Transform.SortDefinitions as Transform
+import qualified Reporting.Annotation as A
+import qualified Reporting.Error as Error
+import qualified Reporting.Error.Canonicalize as CError
+import qualified Reporting.Result as R
+import qualified Reporting.Warning as Warning
+import qualified Canonicalize.Environment as Env
+import qualified Canonicalize.Port as Port
+import qualified Canonicalize.Result as Result
+import qualified Canonicalize.Setup as Setup
+import qualified Canonicalize.Sort as Sort
+import qualified Canonicalize.Type as Canonicalize
+import qualified Canonicalize.Variable as Canonicalize
 import qualified Transform.Declaration as Transform
 
+
+-- MODULES
 
 module'
     :: Module.Interfaces
     -> Module.ValidModule
-    -> ([Module.Name], Either [Error.Error] Module.CanonicalModule)
-module' interfaces modul@(Module.Module _ _ _ imports _) =
+    -> R.Result Warning.Warning Error.Error Module.CanonicalModule
+module' interfaces modul@(Module.Module _ _ _ (_, imports) _) =
   let (Result.Result uses rawResults) =
           moduleHelp interfaces modul
 
-      unusedImports =
-          filter (\name -> not (Set.member name uses)) (map fst imports)
-
-      either =
+      unusedImportWarnings =
+          Maybe.mapMaybe (warnUnusedImport uses) imports
+  in
+      R.addWarnings unusedImportWarnings $
           case rawResults of
             Result.Ok canonicalModule ->
-                Right canonicalModule
+                return canonicalModule
 
             Result.Err msgs ->
-                Left msgs
-  in
-      (unusedImports, either)
+                R.throwMany (map (A.map Error.Canonicalize) msgs)
 
 
 moduleHelp
     :: Module.Interfaces
     -> Module.ValidModule
-    -> Result.Result Module.CanonicalModule
-moduleHelp interfaces modul@(Module.Module _ _ exports _ decls) =
+    -> Result.ResultErr Module.CanonicalModule
+moduleHelp interfaces modul@(Module.Module _ _ exports (defaults, imports) decls) =
     canonicalModule
       <$> canonicalDeclsResult
       <*> resolveExports locals exports
@@ -64,6 +67,7 @@ moduleHelp interfaces modul@(Module.Module _ _ exports _ decls) =
     canonicalModule canonicalDecls canonicalExports =
         modul
           { Module.exports = canonicalExports
+          , Module.imports = map fst defaults ++ map (fst . A.drop) imports
           , Module.body = body canonicalDecls
           }
 
@@ -77,26 +81,47 @@ moduleHelp interfaces modul@(Module.Module _ _ exports _ decls) =
 
     body :: [D.CanonicalDecl] -> Module.CanonicalBody
     body decls =
+        let nakedDecls = map A.drop decls
+        in
         Module.CanonicalBody
           { program =
-                let expr = Transform.toExpr (Module.names modul) decls
-                in  Transform.sortDefs (dummyLet expr)
-          , types = Map.empty
+              let expr = Transform.toExpr (Module.names modul) decls
+              in
+                  Sort.definitions (dummyLet expr)
+
+          , types =
+              Map.empty
+
           , datatypes =
-              Map.fromList [ (name,(vars,ctors)) | D.Datatype name vars ctors <- decls ]
+              Map.fromList [ (name,(vars,ctors)) | D.Datatype name vars ctors <- nakedDecls ]
+
           , fixities =
-              [ (assoc,level,op) | D.Fixity assoc level op <- decls ]
+              [ (assoc,level,op) | D.Fixity assoc level op <- nakedDecls ]
+
           , aliases =
-              Map.fromList [ (name,(tvs,alias)) | D.TypeAlias name tvs alias <- decls ]
+              Map.fromList [ (name,(tvs,alias)) | D.TypeAlias name tvs alias <- nakedDecls ]
+
           , ports =
-              [ E.portName impl | D.Port (D.CanonicalPort impl) <- decls ]
+              [ E.portName impl | D.Port (D.CanonicalPort impl) <- nakedDecls ]
           }
+
+
+-- IMPORTS / EXPORTS
+
+warnUnusedImport
+    :: Set.Set Module.Name
+    -> Module.UserImport
+    -> Maybe (A.Located Warning.Warning)
+warnUnusedImport uses (A.A region (name, _method)) =
+  if Set.member name uses
+    then Nothing
+    else Just (A.A region (Warning.UnusedImport name))
 
 
 resolveExports
     :: [Var.Value]
     -> Var.Listing Var.Value
-    -> Result.Result [Var.Value]
+    -> Result.ResultErr [Var.Value]
 resolveExports fullList (Var.Listing partialList open) =
   if open
     then Result.ok fullList
@@ -148,12 +173,10 @@ resolveExports fullList (Var.Listing partialList open) =
         Result.errors (map (notFound possibilities) nameList)
 
     notFound possibilities name =
-        Error.Export name (Error.nearbyNames id name possibilities)
+        A.A undefined $ CError.Export name $
+            CError.nearbyNames id name possibilities
 
 
-{-| Split a list of values into categories so we can work with them
-independently.
--}
 splitValues
     :: [Var.Value]
     -> ([String], [String], [(String, Var.Listing String)])
@@ -173,8 +196,10 @@ splitValues mixedValues =
             (values, aliases, (name, listing) : adts)
 
 
+-- DECLARATIONS
+
 declToValue :: D.ValidDecl -> [Var.Value]
-declToValue decl =
+declToValue (A.A _ decl) =
     case decl of
       D.Definition (Valid.Definition pattern _ _) ->
           map Var.Value (P.boundVarList pattern)
@@ -184,7 +209,7 @@ declToValue decl =
 
       D.TypeAlias name _ tipe ->
           case tipe of
-            Type.Record _ _ ->
+            A.A _ (Type.RRecord _ _) ->
                 [ Var.Alias name, Var.Value name ]
             _ -> [ Var.Alias name ]
 
@@ -194,11 +219,12 @@ declToValue decl =
 declaration
     :: Env.Environment
     -> D.ValidDecl
-    -> Result.Result D.CanonicalDecl
-declaration env decl =
+    -> Result.ResultErr D.CanonicalDecl
+declaration env (A.A region decl) =
     let canonicalize kind _context _pattern env v =
             kind env v
     in
+    A.A region <$>
     case decl of
       D.Definition (Valid.Definition p e t) ->
           D.Definition <$> (
@@ -244,14 +270,11 @@ declaration env decl =
 expression
     :: Env.Environment
     -> Valid.Expr
-    -> Result.Result Canonical.Expr
-expression env (A.A ann validExpr) =
+    -> Result.ResultErr Canonical.Expr
+expression env (A.A region validExpr) =
     let go = expression env
-        tipe' environ =
-            format . Canonicalize.tipe environ
-        format = id
     in
-    A.A ann <$>
+    A.A region <$>
     case validExpr of
       Literal lit ->
           Result.ok (Literal lit)
@@ -279,14 +302,14 @@ expression env (A.A ann validExpr) =
 
       Binop (Var.Raw op) leftExpr rightExpr ->
           Binop
-            <$> format (Canonicalize.variable env op)
+            <$> Canonicalize.variable region env op
             <*> go leftExpr
             <*> go rightExpr
 
       Lambda arg body ->
           let env' = Env.addPattern arg env
           in
-              Lambda <$> format (pattern env' arg) <*> expression env' body
+              Lambda <$> pattern env' arg <*> expression env' body
 
       App func arg ->
           App <$> go func <*> go arg
@@ -305,12 +328,12 @@ expression env (A.A ann validExpr) =
 
           rename' (Valid.Definition p body mtipe) =
               Canonical.Definition
-                  <$> format (pattern env' p)
+                  <$> pattern env' p
                   <*> expression env' body
-                  <*> T.traverse (tipe' env') mtipe
+                  <*> T.traverse (Canonicalize.tipe env') mtipe
 
       Var (Var.Raw x) ->
-          Var <$> format (Canonicalize.variable env x)
+          Var <$> Canonicalize.variable region env x
 
       Data name exprs ->
           Data name <$> T.traverse go exprs
@@ -321,18 +344,21 @@ expression env (A.A ann validExpr) =
       Case expr cases ->
           Case <$> go expr <*> T.traverse branch cases
         where
-          branch (p,b) =
-              (,) <$> format (pattern env p)
-                  <*> expression (Env.addPattern p env) b
+          branch (ptrn, brnch) =
+              (,) <$> pattern env ptrn
+                  <*> expression (Env.addPattern ptrn env) brnch
 
       Port impl ->
           let portType pt =
                 case pt of
                   Type.Normal t ->
-                      Type.Normal <$> tipe' env t
+                      Type.Normal
+                          <$> Canonicalize.tipe env t
 
                   Type.Signal root arg ->
-                      Type.Signal <$> tipe' env root <*> tipe' env arg
+                      Type.Signal
+                          <$> Canonicalize.tipe env root
+                          <*> Canonicalize.tipe env arg
           in
               Port <$>
                   case impl of
@@ -352,8 +378,9 @@ expression env (A.A ann validExpr) =
 pattern
     :: Env.Environment
     -> P.RawPattern
-    -> Result.Result P.CanonicalPattern
-pattern env ptrn =
+    -> Result.ResultErr P.CanonicalPattern
+pattern env (A.A region ptrn) =
+  A.A region <$>
     case ptrn of
       P.Var x ->
           Result.ok (P.Var x)
@@ -361,8 +388,8 @@ pattern env ptrn =
       P.Literal lit ->
           Result.ok (P.Literal lit)
 
-      P.Record fs ->
-          Result.ok (P.Record fs)
+      P.Record fields ->
+          Result.ok (P.Record fields)
 
       P.Anything ->
           Result.ok P.Anything
@@ -370,7 +397,7 @@ pattern env ptrn =
       P.Alias x p ->
           P.Alias x <$> pattern env p
 
-      P.Data (Var.Raw name) ps ->
+      P.Data (Var.Raw name) patterns ->
           P.Data
-            <$> Canonicalize.pvar env name
-            <*> T.traverse (pattern env) ps
+            <$> Canonicalize.pvar region env name (length patterns)
+            <*> T.traverse (pattern env) patterns

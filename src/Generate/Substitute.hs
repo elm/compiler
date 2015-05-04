@@ -1,19 +1,19 @@
 {-# OPTIONS_GHC -Wall #-}
-module Transform.Substitute (subst) where
+module Generate.Substitute (subst) where
 
 import Control.Arrow (second, (***))
-import qualified Data.Set as Set
 
-import AST.Annotation
 import AST.Expression.General (Expr'(..), PortImpl(..))
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Pattern as Pattern
 import qualified AST.Variable as V
+import Elm.Utils ((|>))
+import qualified Reporting.Annotation as A
 
 
 subst :: String -> Canonical.Expr' -> Canonical.Expr' -> Canonical.Expr'
 subst old new expression =
-    let f (A a e) = A a (subst old new e) in
+    let f (A.A a e) = A.A a (subst old new e) in
     case expression of
       Range e1 e2 ->
           Range (f e1) (f e2)
@@ -24,9 +24,10 @@ subst old new expression =
       Binop op e1 e2 ->
           Binop op (f e1) (f e2)
 
-      Lambda pattern body
-          | Set.member old (Pattern.boundVars pattern) -> expression
-          | otherwise -> Lambda pattern (f body)
+      Lambda pattern body ->
+          if Pattern.member old pattern
+            then expression
+            else Lambda pattern (f body)
 
       App e1 e2 ->
           App (f e1) (f e2)
@@ -34,28 +35,34 @@ subst old new expression =
       MultiIf branches ->
           MultiIf (map (f *** f) branches)
 
-      Let defs body
-          | anyShadow -> expression
-          | otherwise -> Let (map substDef defs) (f body)
+      Let defs body ->
+          if anyShadow
+            then expression
+            else Let (map substDef defs) (f body)
         where
           substDef (Canonical.Definition p e t) =
               Canonical.Definition p (f e) t
 
           anyShadow =
-              any (Set.member old . Pattern.boundVars)
-                  [ pattern | Canonical.Definition pattern _ _ <- defs ]
+              map (\(Canonical.Definition p _ _) -> p) defs
+                |> any (Pattern.member old)
 
       Var (V.Canonical home x) ->
           case home of
-            V.Module _ -> expression
-            V.BuiltIn -> expression
-            V.Local -> if x == old then new else expression
+            V.Module _ ->
+                expression
+
+            V.BuiltIn ->
+                expression
+
+            V.Local ->
+                if x == old then new else expression
 
       Case e cases ->
           Case (f e) (map substCase cases)
         where
           substCase (pattern, expr) =
-              if Set.member old (Pattern.boundVars pattern)
+              if Pattern.member old pattern
                 then (pattern, expr)
                 else (pattern, f expr)
 

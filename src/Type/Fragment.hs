@@ -5,32 +5,32 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 
 import Type.Type
-import AST.Annotation (noneNoDocs)
+
 
 data Fragment = Fragment
-    { typeEnv        :: Map.Map String Type
-    , vars           :: [Variable]
+    { typeEnv :: Map.Map String Type
+    , vars :: [Variable]
     , typeConstraint :: TypeConstraint
     }
 
 
 emptyFragment :: Fragment
 emptyFragment =
-    Fragment Map.empty [] (noneNoDocs CTrue)
+    Fragment Map.empty [] CTrue
 
 
 joinFragment :: Fragment -> Fragment -> Fragment
 joinFragment f1 f2 =
     Fragment
-    { typeEnv =
-        Map.union (typeEnv f1) (typeEnv f2)
+      { typeEnv =
+          Map.union (typeEnv f1) (typeEnv f2)
 
-    , vars =
-        vars f1 ++ vars f2
+      , vars =
+          vars f1 ++ vars f2
 
-    , typeConstraint =
-        typeConstraint f1 /\ typeConstraint f2
-    }
+      , typeConstraint =
+          typeConstraint f1 /\ typeConstraint f2
+      }
 
 
 joinFragments :: [Fragment] -> Fragment
