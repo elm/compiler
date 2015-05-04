@@ -25,7 +25,15 @@ data Error
     | UnboundTypeVarsInUnion String [String] String [String] [(String, [Type.Raw])]
 
 
--- TO STRING
+-- TO JSON
+
+toJson :: Error -> Json.Value
+toJson err =
+  case err of
+    _ -> error "Syntax.toJson"
+
+
+-- HINTS
 
 toHint :: Error -> String
 toHint err =
@@ -118,11 +126,3 @@ unboundTypeVars typeName tvar tvars revisedDeclaration =
 indent :: String -> String
 indent string =
   List.intercalate "\n" (map ("  " ++ ) (lines string))
-
-
--- TO JSON
-
-toJson :: Error -> Json.Value
-toJson err =
-  case err of
-    _ -> error "Syntax.toJson"
