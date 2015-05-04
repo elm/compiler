@@ -5,19 +5,18 @@ module Elm.Compiler
     , parseDependencies, compile
     ) where
 
-import Control.Monad.Error (MonadError, throwError)
-import qualified Data.List as List
+import Control.Monad.Error.Class (MonadError, throwError)
 import qualified Data.Map as Map
-import qualified Text.PrettyPrint as P
 
-import qualified AST.Module as Module (HeaderAndImports(HeaderAndImports), toInterface)
+import qualified AST.Module as Module
 import qualified Compile
 import qualified Elm.Compiler.Module as PublicModule
 import qualified Elm.Compiler.Version as Version
-import Elm.Utils ((|>))
 import qualified Generate.JavaScript as JS
 import qualified Parse.Helpers as Help
 import qualified Parse.Module as Parse
+import qualified Reporting.Annotation as A
+import qualified Reporting.Task as Task
 
 
 -- VERSION
@@ -39,14 +38,14 @@ parseDependencies
     => String
     -> m (PublicModule.Name, [PublicModule.Name])
 parseDependencies src =
-    case Help.iParse Parse.headerAndImports src of
+    case Help.iParse Parse.header src of
         Left msg ->
             throwError (show msg)
 
-        Right (Module.HeaderAndImports names _exports imports) ->
+        Right (Module.Header names _exports imports) ->
             return
                 ( PublicModule.Name names
-                , map (PublicModule.Name . fst) imports
+                , map (PublicModule.Name . fst . A.drop) imports
                 )
 
 
@@ -62,13 +61,13 @@ compile
 compile user packageName source interfaces =
   let unwrappedInterfaces =
         Map.mapKeysMonotonic (\(PublicModule.Name name) -> name) interfaces
+
+      task =
+        Compile.compile user packageName unwrappedInterfaces source
   in
-      case Compile.compile user packageName unwrappedInterfaces source of
-        Right modul ->
+      case Task.run task of
+        (Right modul, _warnings) ->
             Right (Module.toInterface modul, JS.generate modul)
 
-        Left docs ->
-            map P.render docs
-              |> List.intersperse ""
-              |> unlines
-              |> Left
+        (Left _docs, _warnings) ->
+            Left [error "TODO:compile"]

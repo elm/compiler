@@ -1,20 +1,24 @@
 {-# OPTIONS_GHC -Wall #-}
-module Transform.Canonicalize.Error where
+{-# LANGUAGE OverloadedStrings #-}
+module Reporting.Error.Canonicalize where
 
-import Data.Aeson ((.=))
+--import Data.Aeson ((.=))
 import qualified Data.Aeson as Json
+--import qualified Data.Aeson.Types as Json
 import Data.Function (on)
 import qualified Data.List as List
 import qualified Text.EditDistance as Dist
 
 import qualified AST.Module as Module
-import qualified AST.Type as T
+import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import Elm.Utils ((|>))
+import qualified Reporting.Region as R
 
 
 data Error
     = Var VarError
+    | Pattern PatternError
     | Alias AliasError
     | Import Module.Name ImportError
     | Export String [String]
@@ -42,6 +46,17 @@ var kind name problem =
   Var (VarError kind name problem)
 
 
+-- PATTERN
+
+data PatternError
+    = PatternArgMismatch Var.Canonical Int Int
+
+
+argMismatch :: Var.Canonical -> Int -> Int -> Error
+argMismatch name expected actual =
+  Pattern (PatternArgMismatch name expected actual)
+
+
 -- IMPORTS
 
 data ImportError
@@ -62,18 +77,14 @@ valueNotFound name value possibilities =
 -- ALIASES
 
 data AliasError
-    = ArgMissmatch Var.Canonical Int Int
-    | Recursive [(String, [String], T.RawType)]
+    = ArgMismatch Var.Canonical Int Int
+    | SelfRecursive String [String] Type.Raw
+    | MutuallyRecursive [(R.Region, String, [String], Type.Raw)]
 
 
 alias :: Var.Canonical -> Int -> Int -> Error
 alias name expected actual =
-  Alias (ArgMissmatch name expected actual)
-
-
-recursiveAlias :: [(String, [String], T.RawType)] -> Error
-recursiveAlias aliases =
-  Alias (Recursive aliases)
+  Alias (ArgMismatch name expected actual)
 
 
 -- PORTS
@@ -81,8 +92,8 @@ recursiveAlias aliases =
 data PortError = PortError
     { portName :: String
     , portIsInbound :: Bool
-    , portRootType :: T.CanonicalType
-    , portLocalType :: T.CanonicalType
+    , portRootType :: Type.Canonical
+    , portLocalType :: Type.Canonical
     , portMessage :: String
     }
 
@@ -90,8 +101,8 @@ data PortError = PortError
 port
     :: String
     -> Bool
-    -> T.CanonicalType
-    -> T.CanonicalType
+    -> Type.Canonical
+    -> Type.Canonical
     -> String
     -> Error
 port name isInbound rootType localType message =
@@ -117,13 +128,32 @@ distance x y =
   Dist.restrictedDamerauLevenshteinDistance Dist.defaultEditCosts x y
 
 
--- JSON
+-- TO STRING
 
-errorToJson err =
+toString :: R.Region -> Error -> String
+toString region err =
+  case err of
+    _ -> error "Canonicalize.toString" region
+
+
+-- TO JSON
+
+toJson :: Error -> Json.Value
+toJson err =
+  case err of
+    _ -> error "Canonicalize.toJson"
+
+{--
+(.=.) key value =
+    key .= (value :: String)
+
+
+errorToJson :: LError -> Json.Value
+errorToJson (A.A region err) =
     Json.object (generals ++ specifics)
   where
     generals =
-        [ "category" .= "canonicalization"
+        [ "category" .=. "canonicalization"
         , "region" .= region
         ]
 
@@ -137,25 +167,25 @@ errorToJson err =
 
         Alias aliasError ->
             case aliasError of
-              ArgMissmatch name expected actual ->
-                  [ "tag" .= "alias-args"
-                  , "name" .= name
+              ArgMismatch name expected actual ->
+                  [ "tag" .=. "alias-args"
+                  , "name" .= Var.toString name
                   , "expected-args" .= expected
                   , "actual-args" .= actual
                   ]
 
               Recursive [(name, tvars, tipe)] ->
-                  [ "tag" .= "recursive-alias"
+                  [ "tag" .=. "recursive-alias"
                   ]
 
               Recursive aliases ->
-                  [ "tag" .= "mutually-recursive-aliases"
+                  [ "tag" .=. "mutually-recursive-aliases"
                   ]
 
         Import moduleName importError ->
             case importError of
               ModuleNotFound suggestions ->
-                  [ "tag" .= "unknown-import"
+                  [ "tag" .=. "unknown-import"
                   , "name" .= moduleName
                   , "suggestions" .= suggestions
                   ]
@@ -169,10 +199,10 @@ errorToJson err =
             []
 
 
-varProblemToJson :: VarProblem -> Json.Value
+varProblemToJson :: VarProblem -> [Json.Pair]
 varProblemToJson varProblem =
   let details tag suggestions =
-        [ "tag" .= tag
+        [ "tag" .=. tag
         , "suggestions" .= suggestions
         ]
   in
@@ -181,14 +211,16 @@ varProblemToJson varProblem =
         details "ambiguous" possibilities
 
     UnknownQualifier possibleModules ->
-        details "unknown-qualifier" possibleModules
+        details
+            "unknown-qualifier"
+            (map Module.nameToString possibleModules)
 
     QualifiedUnknown possibilities ->
         details "qualified-unknown" possibilities
 
     ExposedUnknown closeExposed closeQualified ->
         details "exposed-unknown" (closeExposed ++ closeQualified)
-
+--}
 
 {-- TO STRING
 

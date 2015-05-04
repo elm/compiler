@@ -5,28 +5,29 @@ import Data.Binary
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import Text.PrettyPrint as P
+
 import qualified AST.Helpers as Help
-import AST.PrettyPrint
+import qualified Reporting.PrettyPrint as P
 
 
 -- VARIABLES
 
 newtype Raw = Raw String
-    deriving (Eq,Ord,Show)
+    deriving (Eq, Ord, Show)
 
 
 data Home
     = BuiltIn
     | Module [String]
     | Local
-    deriving (Eq,Ord,Show)
+    deriving (Eq, Ord, Show)
 
 
 data Canonical = Canonical
     { home :: !Home
     , name :: !String
     }
-    deriving (Eq,Ord,Show)
+    deriving (Eq, Ord, Show)
 
 
 local :: String -> Canonical
@@ -88,8 +89,10 @@ isTuple v =
 isPrimitive :: Canonical -> Bool
 isPrimitive v =
     case v of
-      Canonical BuiltIn name -> name `elem` ["Int","Float","String","Bool"]
-      _ -> False
+      Canonical BuiltIn name ->
+          name `elem` ["Int","Float","String","Bool"]
+      _ ->
+          False
 
 
 isPrim :: String -> Canonical -> Bool
@@ -117,10 +120,10 @@ instance ToString Raw where
 
 instance ToString Canonical where
   toString (Canonical home name) =
-    case home of
-      BuiltIn -> name
-      Module path -> List.intercalate "." (path ++ [name])
-      Local -> name
+      case home of
+        BuiltIn -> name
+        Module path -> List.intercalate "." (path ++ [name])
+        Local -> name
 
 
 -- LISTINGS
@@ -129,7 +132,8 @@ instance ToString Canonical where
 data Listing a = Listing
     { _explicits :: [a]
     , _open :: Bool
-    } deriving (Eq,Ord,Show)
+    }
+    deriving (Eq, Ord, Show)
 
 
 openListing :: Listing a
@@ -152,7 +156,7 @@ data Value
     = Value !String
     | Alias !String
     | Union !String !(Listing String)
-    deriving (Eq,Ord,Show)
+    deriving (Eq, Ord, Show)
 
 
 -- CATEGORIZING VALUES
@@ -198,30 +202,36 @@ getUnion value =
 
 -- PRETTY VARIABLES
 
-instance Pretty Raw where
-  pretty (Raw name) =
-      variable name
+instance P.Pretty Raw where
+  pretty _ (Raw name) =
+      if Help.isOp name
+        then P.parens (P.text name)
+        else P.text name
 
 
-instance Pretty Canonical where
-  pretty var =
+instance P.Pretty Canonical where
+  pretty _ var =
       P.text (toString var)
 
 
-instance Pretty a => Pretty (Listing a) where
-  pretty (Listing explicits open) =
-      P.parens (commaCat (map pretty explicits ++ dots))
-      where
-        dots = [if open then P.text ".." else P.empty]
+instance P.Pretty a => P.Pretty (Listing a) where
+  pretty _ (Listing explicits open) =
+      let dots = [if open then P.text ".." else P.empty]
+      in
+          P.parens (P.commaCat (map (P.pretty False) explicits ++ dots))
 
 
-instance Pretty Value where
-  pretty portable =
+instance P.Pretty Value where
+  pretty _ portable =
     case portable of
-      Value name -> P.text name
-      Alias name -> P.text name
+      Value name ->
+          P.text name
+
+      Alias name ->
+          P.text name
+
       Union name ctors ->
-          P.text name <> pretty (ctors { _explicits = map P.text (_explicits ctors) })
+          P.text name <> P.pretty False ctors
 
 
 -- BINARY SERIALIZATION
@@ -229,31 +239,43 @@ instance Pretty Value where
 instance Binary Canonical where
     put (Canonical home name) =
         case home of
-          BuiltIn     -> putWord8 0 >> put name
-          Module path -> putWord8 1 >> put path >> put name
-          Local       -> putWord8 2 >> put name
+          BuiltIn ->
+              putWord8 0 >> put name
 
-    get = do tag <- getWord8
-             case tag of
-               0 -> Canonical BuiltIn <$> get
-               1 -> Canonical . Module <$> get <*> get
-               2 -> Canonical Local <$> get
-               _ -> error "Unexpected tag when deserializing canonical variable"
+          Module path ->
+              putWord8 1 >> put path >> put name
+
+          Local ->
+              putWord8 2 >> put name
+
+    get =
+      do  tag <- getWord8
+          case tag of
+            0 -> Canonical BuiltIn <$> get
+            1 -> Canonical . Module <$> get <*> get
+            2 -> Canonical Local <$> get
+            _ -> error "Unexpected tag when deserializing canonical variable"
 
 
 instance Binary Value where
     put portable =
         case portable of
-          Value name     -> putWord8 0 >> put name
-          Alias name     -> putWord8 1 >> put name
-          Union name ctors -> putWord8 2 >> put name >> put ctors
+          Value name ->
+              putWord8 0 >> put name
 
-    get = do tag <- getWord8
-             case tag of
-               0 -> Value <$> get
-               1 -> Alias <$> get
-               2 -> Union <$> get <*> get
-               _ -> error "Error reading valid import/export information from serialized string"
+          Alias name ->
+              putWord8 1 >> put name
+
+          Union name ctors ->
+              putWord8 2 >> put name >> put ctors
+
+    get =
+      do  tag <- getWord8
+          case tag of
+            0 -> Value <$> get
+            1 -> Alias <$> get
+            2 -> Union <$> get <*> get
+            _ -> error "Error reading valid import/export information from serialized string"
 
 
 instance (Binary a) => Binary (Listing a) where

@@ -8,19 +8,19 @@ import Data.Char (isUpper)
 import qualified Data.Map as Map
 import qualified Language.GLSL.Parser as GLP
 import qualified Language.GLSL.Syntax as GLS
-import Text.Parsec hiding (newline,spaces,State)
+import Text.Parsec hiding (newline, spaces, State)
 import Text.Parsec.Indent (indented, runIndent)
 import qualified Text.Parsec.Token as T
 
-import qualified AST.Annotation as Annotation
 import qualified AST.Declaration as Decl
 import qualified AST.Expression.General as E
 import qualified AST.Expression.Source as Source
 import qualified AST.Helpers as Help
 import qualified AST.Literal as L
-import qualified AST.PrettyPrint as P
 import qualified AST.Variable as Variable
 import Elm.Utils ((|>))
+import qualified Reporting.Annotation as A
+import qualified Reporting.Region as R
 
 
 reserveds :: [String]
@@ -148,9 +148,14 @@ spaceySepBy1 sep p =
       (a:) <$> many (commitIf (whitespace >> sep) (padded sep >> p))
 
 
+comma :: IParser Char
+comma =
+  char ',' <?> "comma ','"
+
+
 commaSep1 :: IParser a -> IParser [a]
 commaSep1 =
-  spaceySepBy1 (char ',' <?> "comma ','")
+  spaceySepBy1 comma
 
 
 commaSep :: IParser a -> IParser [a]
@@ -238,25 +243,30 @@ brackets =
 
 -- HELPERS FOR EXPRESSIONS
 
-addLocation :: (P.Pretty a) => IParser a -> IParser (Annotation.Located a)
+getMyPosition :: IParser R.Position
+getMyPosition =
+  R.fromSourcePos <$> getPosition
+
+
+addLocation :: IParser a -> IParser (A.Located a)
 addLocation expr =
   do  (start, e, end) <- located expr
-      return (Annotation.at start end e)
+      return (A.at start end e)
 
 
-located :: IParser a -> IParser (SourcePos, a, SourcePos)
-located p =
-  do  start <- getPosition
-      e <- p
-      end <- getPosition
-      return (start, e, end)
+located :: IParser a -> IParser (R.Position, a, R.Position)
+located parser =
+  do  start <- getMyPosition
+      value <- parser
+      end <- getMyPosition
+      return (start, value, end)
 
 
 accessible :: IParser Source.Expr -> IParser Source.Expr
 accessible exprParser =
-  do  start <- getPosition
+  do  start <- getMyPosition
 
-      annotatedRootExpr@(Annotation.A _ rootExpr) <- exprParser
+      annotatedRootExpr@(A.A _ rootExpr) <- exprParser
 
       access <- optionMaybe (try dot <?> "field access (e.g. List.map)")
 
@@ -267,8 +277,8 @@ accessible exprParser =
         Just _ ->
           accessible $
             do  v <- var <?> "field access (e.g. List.map)"
-                end <- getPosition
-                return . Annotation.at start end $
+                end <- getMyPosition
+                return . A.at start end $
                     case rootExpr of
                       E.Var (Variable.Raw name@(c:_))
                         | isUpper c ->
@@ -427,12 +437,10 @@ withSource p =
 
 anyUntilPos :: SourcePos -> IParser String
 anyUntilPos pos =
-    go
-  where
-    go = do currentPos <- getPosition
-            case currentPos == pos of
-              True -> return []
-              False -> (:) <$> anyChar <*> go
+  do  currentPos <- getPosition
+      if currentPos == pos
+        then return []
+        else (:) <$> anyChar <*> anyUntilPos pos
 
 
 -- BASIC LANGUAGE LITERALS

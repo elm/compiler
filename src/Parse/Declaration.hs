@@ -12,19 +12,19 @@ import qualified Parse.Type as Type
 
 declaration :: IParser D.SourceDecl
 declaration =
-  typeDecl <|> infixDecl <|> port <|> definition
+  addLocation (typeDecl <|> infixDecl <|> port <|> definition)
 
 
 -- TYPE ANNOTATIONS and DEFINITIONS
 
-definition :: IParser D.SourceDecl
+definition :: IParser D.SourceDecl'
 definition =
   D.Definition <$> (Expr.typeAnnotation <|> Expr.definition)
 
 
 -- TYPE ALIAS and UNION TYPES
 
-typeDecl :: IParser D.SourceDecl
+typeDecl :: IParser D.SourceDecl'
 typeDecl =
   do  try (reserved "type") <?> "type declaration"
       forcedWS
@@ -46,7 +46,7 @@ typeDecl =
 
 -- INFIX
 
-infixDecl :: IParser D.SourceDecl
+infixDecl :: IParser D.SourceDecl'
 infixDecl =
   do  assoc <-
           choice
@@ -62,7 +62,7 @@ infixDecl =
 
 -- PORT
 
-port :: IParser D.SourceDecl
+port :: IParser D.SourceDecl'
 port =
   do  try (reserved "port")
       whitespace

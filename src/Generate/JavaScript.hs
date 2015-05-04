@@ -9,12 +9,6 @@ import qualified Data.Set as Set
 import Language.ECMAScript3.PrettyPrint
 import Language.ECMAScript3.Syntax
 
-import Generate.JavaScript.Helpers as Help
-import qualified Generate.Cases as Case
-import qualified Generate.JavaScript.Port as Port
-import qualified Generate.JavaScript.Variable as Var
-
-import AST.Annotation
 import AST.Module
 import AST.Expression.General
 import qualified AST.Expression.Canonical as Canonical
@@ -23,6 +17,13 @@ import AST.Literal
 import qualified AST.Module as Module
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
+import Elm.Utils ((|>))
+import Generate.JavaScript.Helpers as Help
+import qualified Generate.Cases as Case
+import qualified Generate.JavaScript.Port as Port
+import qualified Generate.JavaScript.Variable as Var
+import qualified Reporting.Annotation as A
+import qualified Reporting.Region as R
 
 
 internalImports :: Module.Name -> [VarDecl ()]
@@ -59,7 +60,7 @@ literal lit =
 
 
 expression :: Canonical.Expr -> State Int (Expression ())
-expression (A region expr) =
+expression (A.A region expr) =
     case expr of
       Var var ->
           return $ Var.canonical var
@@ -117,7 +118,7 @@ expression (A region expr) =
       Binop op e1 e2 ->
           binop region op e1 e2
 
-      Lambda p e@(A ann _) ->
+      Lambda pattern rawBody@(A.A ann _) ->
           do  (args, body) <- foldM depattern ([], innerBody) (reverse patterns)
               body' <- expression body
               return $
@@ -127,17 +128,20 @@ expression (A region expr) =
           where
             depattern (args, body) pattern =
                 case pattern of
-                  P.Var x ->
+                  A.A _ (P.Var x) ->
                       return (args ++ [ Var.varName x ], body)
+
                   _ ->
                       do  arg <- Case.newVar
-                          return ( args ++ [arg]
-                                 , A ann (Case (A ann (localVar arg)) [(pattern, body)])
-                                 )
+                          return
+                            ( args ++ [arg]
+                            , A.A ann (Case (A.A ann (localVar arg)) [(pattern, body)])
+                            )
 
-            (patterns, innerBody) = collect [p] e
+            (patterns, innerBody) =
+                collect [pattern] rawBody
 
-            collect patterns lexpr@(A _ expr) =
+            collect patterns lexpr@(A.A _ expr) =
                 case expr of
                   Lambda p e -> collect (p:patterns) e
                   _ -> (patterns, lexpr)
@@ -155,7 +159,7 @@ expression (A region expr) =
             (func, args) = getArgs e1 [e2]
             getArgs func args =
                 case func of
-                  (A _ (App f arg)) -> getArgs f (arg : args)
+                  (A.A _ (App f arg)) -> getArgs f (arg : args)
                   _ -> (func, args)
 
       Let defs e ->
@@ -168,9 +172,9 @@ expression (A region expr) =
           do  branches' <- forM branches $ \(b,e) -> (,) <$> expression b <*> expression e
               return $
                 case last branches of
-                  (A _ (Var (Var.Canonical (Var.Module ["Basics"]) "otherwise")), _) ->
+                  (A.A _ (Var (Var.Canonical (Var.Module ["Basics"]) "otherwise")), _) ->
                       safeIfs branches'
-                  (A _ (Literal (Boolean True)), _) ->
+                  (A.A _ (Literal (Boolean True)), _) ->
                       safeIfs branches'
                   _ ->
                       ifs branches' (throw "badIf" region)
@@ -183,7 +187,7 @@ expression (A region expr) =
           do  (tempVar,initialMatch) <- Case.toMatch cases
               (revisedMatch, stmt) <-
                   case e of
-                    A _ (Var (Var.Canonical Var.Local x)) ->
+                    A.A _ (Var (Var.Canonical Var.Local x)) ->
                         return (Case.matchSubst [(tempVar, Var.varName x)] initialMatch, [])
                     _ ->
                         do  e' <- expression e
@@ -221,9 +225,10 @@ expression (A region expr) =
 
 
 definition :: Canonical.Def -> State Int [Statement ()]
-definition (Canonical.Definition pattern expr@(A region _) _) =
+definition (Canonical.Definition annPattern expr@(A.A region _) _) =
   do  expr' <- expression expr
       let assign x = varDecl x expr'
+      let (A.A patternRegion pattern) = annPattern
       case pattern of
         P.Var x
             | Help.isOp x ->
@@ -243,9 +248,12 @@ definition (Canonical.Definition pattern expr@(A region _) _) =
             vars = getVars patterns
             getVars patterns =
                 case patterns of
-                  P.Var x : rest -> (Var.varName x :) `fmap` getVars rest
-                  [] -> Just []
-                  _ -> Nothing
+                  A.A _ (P.Var x) : rest ->
+                      (Var.varName x :) `fmap` getVars rest
+                  [] ->
+                      Just []
+                  _ ->
+                      Nothing
 
             decl x n = varDecl x (obj ["$","_" ++ show n])
             setup vars
@@ -260,15 +268,16 @@ definition (Canonical.Definition pattern expr@(A region _) _) =
             do  defs' <- concat <$> mapM toDef vars
                 return (VarDeclStmt () [assign "_"] : defs')
             where
-              vars = P.boundVarList pattern
-              mkVar = A region . localVar
+              vars = P.boundVarList annPattern
+              mkVar = A.A region . localVar
               toDef y =
-                let expr =  A region $ Case (mkVar "_") [(pattern, mkVar y)]
+                let expr = A.A region $ Case (mkVar "_") [(annPattern, mkVar y)]
+                    pat = A.A patternRegion (P.Var y)
                 in
-                    definition $ Canonical.Definition (P.Var y) expr Nothing
+                    definition (Canonical.Definition pat expr Nothing)
 
 
-match :: Region -> Case.Match -> State Int [Statement ()]
+match :: R.Region -> Case.Match -> State Int [Statement ()]
 match region mtch =
   case mtch of
     Case.Match name clauses mtch' ->
@@ -309,7 +318,7 @@ match region mtch =
               _ -> dropEnd (acc ++ [m]) ms
 
 
-clause :: Region -> String -> Case.Clause -> State Int (Bool, CaseClause ())
+clause :: R.Region -> String -> Case.Clause -> State Int (Bool, CaseClause ())
 clause region variable (Case.Clause value vars mtch) =
     (,) isChar . CaseClause () pattern <$> match region (Case.matchSubst (zip vars vars') mtch)
   where
@@ -329,7 +338,7 @@ clause region variable (Case.Clause value vars mtch) =
 
 
 flattenLets :: [Canonical.Def] -> Canonical.Expr -> ([Canonical.Def], Canonical.Expr)
-flattenLets defs lexpr@(A _ expr) =
+flattenLets defs lexpr@(A.A _ expr) =
     case expr of
       Let ds body -> flattenLets (defs ++ ds) body
       _ -> (defs, lexpr)
@@ -359,13 +368,17 @@ generate modul =
         ]
 
     localVars :: [VarDecl ()]
-    localVars = varDecl "_op" (ObjectLit () []) :
-                internalImports (Module.names modul) ++
-                explicitImports
+    localVars =
+        varDecl "_op" (ObjectLit () [])
+        : internalImports (Module.names modul)
+        ++ explicitImports
       where
         explicitImports :: [VarDecl ()]
         explicitImports =
-            map jsImport . Set.toList . Set.fromList . map fst $ Module.imports modul
+            Module.imports modul
+              |> Set.fromList
+              |> Set.toList
+              |> map jsImport
 
         jsImport :: Module.Name -> VarDecl ()
         jsImport name =
@@ -373,29 +386,41 @@ generate modul =
                 obj ("Elm" : name ++ ["make"]) <| ref localRuntime
 
     body :: [Statement ()]
-    body = concat $ evalState defs 0
+    body =
+        concat (evalState defs 0)
       where
-        defs = mapM definition . fst . flattenLets [] $ Module.program (Module.body modul)
+        defs =
+            Module.program (Module.body modul)
+              |> flattenLets []
+              |> fst
+              |> mapM definition
 
-    setup namespace path = map create paths
+    setup namespace path =
+        map create paths
       where
-        create name = assign name (InfixExpr () OpLOr (obj name) (ObjectLit () []))
-        paths = drop 2 . init . List.inits $ namespace : path
+        create name =
+            assign name (InfixExpr () OpLOr (obj name) (ObjectLit () []))
+        paths =
+            namespace : path
+              |> List.inits
+              |> init
+              |> drop 2
 
-    jsExports = assign (localRuntime : names ++ ["values"]) (ObjectLit () exs)
-        where
-          exs = map entry $ "_op" : concatMap extract (exports modul)
-          entry x = (prop x, ref x)
-          extract value =
-              case value of
-                Var.Alias _ -> []
+    jsExports =
+        assign (localRuntime : names ++ ["values"]) (ObjectLit () exs)
+      where
+        exs = map entry $ "_op" : concatMap extract (exports modul)
+        entry x = (prop x, ref x)
+        extract value =
+            case value of
+              Var.Alias _ -> []
 
-                Var.Value x
-                  | Help.isOp x -> []
-                  | otherwise   -> [Var.varName x]
+              Var.Value x
+                | Help.isOp x -> []
+                | otherwise   -> [Var.varName x]
 
-                Var.Union _ (Var.Listing ctors _) ->
-                    map Var.varName ctors
+              Var.Union _ (Var.Listing ctors _) ->
+                  map Var.varName ctors
 
     assign path expr =
       case path of
@@ -406,7 +431,7 @@ generate modul =
 
 
 binop
-    :: Region
+    :: R.Region
     -> Var.Canonical
     -> Canonical.Expr
     -> Canonical.Expr
@@ -427,7 +452,7 @@ binop region func@(Var.Canonical home op) e1 e2 =
             return $ foldr (<|) e2' es
 
       (Var.BuiltIn, "::") ->
-        expression (A region (Data "::" [e1,e2]))
+        expression (A.A region (Data "::" [e1,e2]))
 
       (Var.Module ["Basics"], _) ->
         do  e1' <- expression e1
@@ -447,13 +472,13 @@ binop region func@(Var.Canonical home op) e1 e2 =
   where
     collectRightAssoc es e =
         case e of
-          A _ (Binop (Var.Canonical (Var.Module ["Basics"]) "<<") e1 e2) ->
+          A.A _ (Binop (Var.Canonical (Var.Module ["Basics"]) "<<") e1 e2) ->
               collectRightAssoc (es ++ [e1]) e2
           _ -> es ++ [e]
 
     collectLeftAssoc es e =
         case e of
-          A _ (Binop (Var.Canonical (Var.Module ["Basics"]) ">>") e1 e2) ->
+          A.A _ (Binop (Var.Canonical (Var.Module ["Basics"]) ">>") e1 e2) ->
               collectLeftAssoc (e2 : es) e1
           _ -> e : es
 

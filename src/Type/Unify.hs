@@ -1,7 +1,7 @@
 module Type.Unify (unify) where
 
 import Control.Applicative ((<|>))
-import Control.Monad.Error (ErrorT, throwError, runErrorT)
+import Control.Monad.Except (ExceptT, throwError, runExceptT)
 import Control.Monad.State as State
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -9,52 +9,55 @@ import qualified Data.Maybe as Maybe
 import qualified Data.UnionFind.IO as UF
 import Text.PrettyPrint (render)
 
-import qualified AST.Annotation as A
 import qualified AST.Variable as Var
+import qualified Reporting.Region as R
+import qualified Reporting.Error.Type as Error
 import qualified Type.State as TS
 import Type.Type
 import Type.PrettyPrint
-import qualified Type.Hint as Hint
 import Elm.Utils ((|>))
 
 
-unify :: A.Region -> Variable -> Variable -> StateT TS.SolverState IO ()
+unify :: R.Region -> Variable -> Variable -> StateT TS.SolverState IO ()
 unify region variable1 variable2 =
-  do  result <- runErrorT (unifyHelp region variable1 variable2)
-      either TS.addHint return result
+  do  result <- runExceptT (unifyHelp variable1 variable2)
+      case result of
+        Right state ->
+            return state
+
+        Left mismatch ->
+            TS.addError region (Error.Mismatch mismatch)
 
 
 -- ACTUALLY UNIFY STUFF
 
-type Unify = ErrorT Hint.Hint (StateT TS.SolverState IO)
+type Unify = ExceptT Error.Mismatch (StateT TS.SolverState IO)
 
 
 typeError
-    :: A.Region
-    -> Maybe String
+    :: Maybe String
     -> UF.Point Descriptor
     -> UF.Point Descriptor
     -> Unify a
-typeError region hint t1 t2 =
-  do  msg <- liftIO (Hint.create region hint t1 t2)
-      throwError msg
+typeError hint leftType rightType =
+  do  leftSrcType <- liftIO (toSrcType leftType)
+      rightSrcType <- liftIO (toSrcType rightType)
+      throwError (Error.MismatchInfo hint leftSrcType rightSrcType)
 
 
-unifyHelp :: A.Region -> Variable -> Variable -> Unify ()
-unifyHelp region variable1 variable2 = do
-  equivalent <- liftIO $ UF.equivalent variable1 variable2
-  if equivalent
-      then return ()
-      else actuallyUnify region variable1 variable2
+unifyHelp :: Variable -> Variable -> Unify ()
+unifyHelp variable1 variable2 =
+  do  equivalent <- liftIO $ UF.equivalent variable1 variable2
+      if equivalent
+          then return ()
+          else actuallyUnify variable1 variable2
 
 
-actuallyUnify :: A.Region -> Variable -> Variable -> Unify ()
-actuallyUnify region variable1 variable2 = do
+actuallyUnify :: Variable -> Variable -> Unify ()
+actuallyUnify variable1 variable2 = do
   desc1 <- liftIO $ UF.descriptor variable1
   desc2 <- liftIO $ UF.descriptor variable2
-  let unifyHelp' = unifyHelp region
-
-      (name', flex', rank', alias') = combinedDescriptors desc1 desc2
+  let (name', flex', rank', alias') = combinedDescriptors desc1 desc2
 
       merge1 :: Unify ()
       merge1 =
@@ -100,7 +103,7 @@ actuallyUnify region variable1 variable2 = do
 
       flexAndUnify v =
         do  liftIO $ UF.modifyDescriptor v $ \desc -> desc { flex = Flexible }
-            unifyHelp' variable1 variable2
+            unifyHelp variable1 variable2
 
       unifyNumber svar (Var.Canonical home name) =
           case home of
@@ -109,17 +112,17 @@ actuallyUnify region variable1 variable2 = do
             _ ->
               let hint = "Looks like something besides an Int or Float is being used as a number."
               in
-                  typeError region (Just hint) variable1 variable2
+                  typeError (Just hint) variable1 variable2
 
       comparableError maybe =
-          typeError region (Just $ Maybe.fromMaybe msg maybe) variable1 variable2
+          typeError (Just $ Maybe.fromMaybe msg maybe) variable1 variable2
         where
           msg =
             "Looks like you want something comparable, but the only valid comparable\n\
             \types are Int, Float, Char, String, lists, or tuples."
 
       appendableError maybe =
-          typeError region (Just $ Maybe.fromMaybe msg maybe) variable1 variable2
+          typeError (Just $ Maybe.fromMaybe msg maybe) variable1 variable2
         where
           msg =
             "Looks like you want something appendable, but the only Strings, Lists,\n\
@@ -139,7 +142,7 @@ actuallyUnify region variable1 variable2 = do
 
                 List v ->
                     do  flexAndUnify varSuper
-                        unifyHelp' v =<< liftIO (variable $ Is Comparable)
+                        unifyHelp v =<< liftIO (variable $ Is Comparable)
 
                 Tuple vs
                   | length vs > 6 ->
@@ -147,7 +150,7 @@ actuallyUnify region variable1 variable2 = do
                   | otherwise ->
                       do  flexAndUnify varSuper
                           cmpVars <- liftIO $ forM [1..length vs] $ \_ -> variable (Is Comparable)
-                          zipWithM_ unifyHelp' vs cmpVars
+                          zipWithM_ unifyHelp vs cmpVars
 
       unifyAppendable varSuper varFlex =
           do  struct <- liftIO $ collectApps varFlex
@@ -156,7 +159,7 @@ actuallyUnify region variable1 variable2 = do
                 _      -> appendableError Nothing
 
       rigidError var =
-          typeError region (Just hint) variable1 variable2
+          typeError (Just hint) variable1 variable2
         where
           hint =
             "Could not unify rigid type variable '" ++ render (pretty Never var) ++ "'.\n" ++
@@ -187,7 +190,7 @@ actuallyUnify region variable1 variable2 = do
 
             (Rigid, _, _, _) -> rigidError variable1
             (_, Rigid, _, _) -> rigidError variable2
-            _ -> typeError region Nothing variable1 variable2
+            _ -> typeError Nothing variable1 variable2
 
   case (structure desc1, structure desc2) of
     (Nothing, Nothing) | flex desc1 == Flexible && flex desc1 == Flexible ->
@@ -200,10 +203,10 @@ actuallyUnify region variable1 variable2 = do
         merge1
 
     (Just (Var1 v), _) ->
-        unifyHelp' v variable2
+        unifyHelp v variable2
 
     (_, Just (Var1 v)) ->
-        unifyHelp' variable1 v
+        unifyHelp variable1 v
 
     (Nothing, _) ->
         superUnify
@@ -215,38 +218,37 @@ actuallyUnify region variable1 variable2 = do
         case (type1,type2) of
           (App1 term1 term2, App1 term1' term2') ->
               do merge
-                 unifyHelp' term1 term1'
-                 unifyHelp' term2 term2'
+                 unifyHelp term1 term1'
+                 unifyHelp term2 term2'
           (Fun1 term1 term2, Fun1 term1' term2') ->
               do merge
-                 unifyHelp' term1 term1'
-                 unifyHelp' term2 term2'
+                 unifyHelp term1 term1'
+                 unifyHelp term2 term2'
 
           (EmptyRecord1, EmptyRecord1) ->
               return ()
 
-          (Record1 fields ext, EmptyRecord1) | Map.null fields -> unifyHelp' ext variable2
-          (EmptyRecord1, Record1 fields ext) | Map.null fields -> unifyHelp' variable1 ext
+          (Record1 fields ext, EmptyRecord1) | Map.null fields -> unifyHelp ext variable2
+          (EmptyRecord1, Record1 fields ext) | Map.null fields -> unifyHelp variable1 ext
 
           (Record1 _ _, Record1 _ _) ->
-              recordUnify region fresh variable1 variable2
+              recordUnify fresh variable1 variable2
 
-          _ -> typeError region Nothing variable1 variable2
+          _ -> typeError Nothing variable1 variable2
 
 
 -- RECORD UNIFICATION
 
 recordUnify
-    :: A.Region
-    -> (Maybe (Term1 Variable) -> Unify Variable)
+    :: (Maybe (Term1 Variable) -> Unify Variable)
     -> Variable
     -> Variable
     -> Unify ()
-recordUnify region fresh variable1 variable2 =
+recordUnify fresh variable1 variable2 =
   do  (ExpandedRecord fields1 ext1) <- liftIO (gatherFields variable1)
       (ExpandedRecord fields2 ext2) <- liftIO (gatherFields variable2)
 
-      unifyOverlappingFields region fields1 fields2
+      unifyOverlappingFields fields1 fields2
 
       let freshRecord fields ext =
             fresh (Just (Record1 fields ext))
@@ -257,57 +259,56 @@ recordUnify region fresh variable1 variable2 =
       let addFieldMismatchError missingFields =
             let msg = fieldMismatchError missingFields
             in
-                typeError region (Just msg) variable1 variable2
+                typeError (Just msg) variable1 variable2
 
       case (ext1, ext2) of
         (Empty _, Empty _) ->
             case Map.null uniqueFields1 && Map.null uniqueFields2 of
               True -> return ()
-              False -> typeError region Nothing variable1 variable2
+              False -> typeError Nothing variable1 variable2
 
         (Empty var1, Extension var2) ->
             case (Map.null uniqueFields1, Map.null uniqueFields2) of
               (_, False) -> addFieldMismatchError uniqueFields2
-              (True, True) -> unifyHelp region var1 var2
+              (True, True) -> unifyHelp var1 var2
               (False, True) ->
                 do  subRecord <- freshRecord uniqueFields1 var1
-                    unifyHelp region subRecord var2
+                    unifyHelp subRecord var2
 
         (Extension var1, Empty var2) ->
             case (Map.null uniqueFields1, Map.null uniqueFields2) of
               (False, _) -> addFieldMismatchError uniqueFields1
-              (True, True) -> unifyHelp region var1 var2
+              (True, True) -> unifyHelp var1 var2
               (True, False) ->
                 do  subRecord <- freshRecord uniqueFields2 var2
-                    unifyHelp region var1 subRecord
+                    unifyHelp var1 subRecord
 
         (Extension var1, Extension var2) ->
             case (Map.null uniqueFields1, Map.null uniqueFields2) of
               (True, True) ->
-                unifyHelp region var1 var2
+                unifyHelp var1 var2
 
               (True, False) ->
                 do  subRecord <- freshRecord uniqueFields2 var2
-                    unifyHelp region var1 subRecord
+                    unifyHelp var1 subRecord
 
               (False, True) ->
                 do  subRecord <- freshRecord uniqueFields1 var1
-                    unifyHelp region subRecord var2
+                    unifyHelp subRecord var2
 
               (False, False) ->
                 do  record1' <- freshRecord uniqueFields1 =<< fresh Nothing
                     record2' <- freshRecord uniqueFields2 =<< fresh Nothing
-                    unifyHelp region record1' var2
-                    unifyHelp region var1 record2'
+                    unifyHelp record1' var2
+                    unifyHelp var1 record2'
 
 
 unifyOverlappingFields
-    :: A.Region
-    -> Map.Map String [Variable]
+    :: Map.Map String [Variable]
     -> Map.Map String [Variable]
     -> Unify ()
-unifyOverlappingFields region fields1 fields2 =
-    Map.intersectionWith (zipWith (unifyHelp region)) fields1 fields2
+unifyOverlappingFields fields1 fields2 =
+    Map.intersectionWith (zipWith unifyHelp) fields1 fields2
         |> Map.elems
         |> concat
         |> sequence_

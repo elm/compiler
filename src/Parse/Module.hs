@@ -1,4 +1,4 @@
-module Parse.Module (header, headerAndImports, getModuleName) where
+module Parse.Module (moduleDecl, header, getModuleName) where
 
 import Control.Applicative ((<$>), (<*>))
 import Text.Parsec hiding (newline, spaces)
@@ -16,21 +16,21 @@ getModuleName source =
   where
     getModuleName =
       do  optional freshLine
-          (names, _) <- header
+          (names, _) <- moduleDecl
           return (Module.nameToString names)
 
 
-headerAndImports :: IParser Module.HeaderAndImports
-headerAndImports =
+header :: IParser (Module.Header [Module.UserImport])
+header =
   do  optional freshLine
       (names, exports) <-
-          option (["Main"], Var.openListing) (header `followedBy` freshLine)
+          option (["Main"], Var.openListing) (moduleDecl `followedBy` freshLine)
       imports' <- imports
-      return $ Module.HeaderAndImports names exports imports'
+      return (Module.Header names exports imports')
 
 
-header :: IParser ([String], Var.Listing Var.Value)
-header =
+moduleDecl :: IParser ([String], Var.Listing Var.Value)
+moduleDecl =
   do  try (reserved "module")
       whitespace
       names <- dotSep1 capVar <?> "name of module"
@@ -41,13 +41,14 @@ header =
       return (names, exports)
 
 
-imports :: IParser [(Module.Name, Module.ImportMethod)]
+imports :: IParser [Module.UserImport]
 imports =
   many (import' `followedBy` freshLine)
 
 
-import' :: IParser (Module.Name, Module.ImportMethod)
+import' :: IParser Module.UserImport
 import' =
+  addLocation $
   do  try (reserved "import")
       whitespace
       names <- dotSep1 capVar

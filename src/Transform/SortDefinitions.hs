@@ -8,21 +8,31 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 
-import AST.Annotation
 import AST.Expression.General (Expr'(..), PortImpl(..))
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Pattern as P
 import qualified AST.Variable as V
+import qualified Reporting.Annotation as A
 
 
 ctors :: P.CanonicalPattern -> [String]
-ctors pattern =
+ctors (A.A _ pattern) =
     case pattern of
-      P.Var _ -> []
-      P.Alias _ p -> ctors p
-      P.Record _ -> []
-      P.Anything -> []
-      P.Literal _ -> []
+      P.Var _ ->
+          []
+
+      P.Alias _ p ->
+          ctors p
+
+      P.Record _ ->
+          []
+
+      P.Anything ->
+          []
+
+      P.Literal _ ->
+          []
+
       P.Data (V.Canonical home name) ps ->
           case home of
             V.Local -> name : rest
@@ -45,9 +55,11 @@ freeIfLocal (V.Canonical home name) =
     V.Module _ -> return ()
 
 
-bound :: Set.Set String -> State (Set.Set String) ()
-bound boundVars =
-  modify (\freeVars -> Set.difference freeVars boundVars)
+bound :: P.CanonicalPattern -> State (Set.Set String) ()
+bound pattern =
+  let boundVars = P.boundVarSet pattern
+  in
+      modify (\freeVars -> Set.difference freeVars boundVars)
 
 
 sortDefs :: Canonical.Expr -> Canonical.Expr
@@ -56,8 +68,8 @@ sortDefs expression =
 
 
 reorder :: Canonical.Expr -> State (Set.Set String) Canonical.Expr
-reorder (A ann expression) =
-    A ann <$>
+reorder (A.A ann expression) =
+    A.A ann <$>
     case expression of
       -- Be careful adding and restricting freeVars
       Var var ->
@@ -140,11 +152,11 @@ reorder (A ann expression) =
 
               -- remove let-bound variables from the context
               forM_ defs $ \(Canonical.Definition pattern _ _) -> do
-                  bound (P.boundVars pattern)
+                  bound pattern
                   mapM free (ctors pattern)
 
-              let A _ let' =
-                    foldr (\ds bod -> A ann (Let ds bod)) body' defss
+              let (A.A _ let') =
+                    foldr (\ds bod -> A.A ann (Let ds bod)) body' defss
 
               return let'
 
@@ -154,7 +166,7 @@ bindingReorder
     -> State (Set.Set String) (P.CanonicalPattern, Canonical.Expr)
 bindingReorder (pattern,expr) =
   do  expr' <- reorder expr
-      bound (P.boundVars pattern)
+      bound pattern
       mapM_ free (ctors pattern)
       return (pattern, expr')
 
@@ -187,7 +199,7 @@ buildDefDict defs =
 
     variableToKey :: (Canonical.Def, Int, [String]) -> [(String, Int)]
     variableToKey (Canonical.Definition pattern _ _, key, _) =
-        [ (var, key) | var <- Set.toList (P.boundVars pattern) ]
+        [ (var, key) | var <- P.boundVarList pattern ]
 
     variableToKeyMap :: [(Canonical.Def, Int, [String])] -> Map.Map String Int
     variableToKeyMap pdefsDeps =

@@ -8,7 +8,8 @@ import qualified AST.Expression.General as E
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Type as T
 import qualified AST.Variable as Var
-import qualified Transform.Canonicalize.Error as Error
+import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Canonicalize as Error
 import qualified Transform.Canonicalize.Result as Result
 
 
@@ -17,8 +18,8 @@ import qualified Transform.Canonicalize.Result as Result
 check
     :: String
     -> Maybe Canonical.Expr
-    -> T.CanonicalType
-    -> Result.Result D.CanonicalPort
+    -> T.Canonical
+    -> Result.ResultErr D.CanonicalPort
 check name maybeExpr rootType =
   D.CanonicalPort <$> checkHelp name maybeExpr rootType rootType
 
@@ -26,9 +27,9 @@ check name maybeExpr rootType =
 checkHelp
     :: String
     -> Maybe Canonical.Expr
-    -> T.CanonicalType
-    -> T.CanonicalType
-    -> Result.Result (E.PortImpl Canonical.Expr Var.Canonical)
+    -> T.Canonical
+    -> T.Canonical
+    -> Result.ResultErr (E.PortImpl Canonical.Expr T.Canonical)
 checkHelp name maybeExpr rootType tipe =
   case (maybeExpr, tipe) of
     (_, T.Aliased _ args t) ->
@@ -71,15 +72,16 @@ checkHelp name maybeExpr rootType tipe =
 validForeignType
     :: String
     -> Bool
-    -> T.CanonicalType
-    -> T.CanonicalType
-    -> Result.Result ()
+    -> T.Canonical
+    -> T.Canonical
+    -> Result.ResultErr ()
 validForeignType name isInbound rootType tipe =
     let valid localType =
             validForeignType name isInbound rootType localType
 
         err problem =
-            Result.err (Error.port name isInbound rootType tipe problem)
+            Result.err $ A.A undefined $
+                Error.port name isInbound rootType tipe problem
     in
     case tipe of
       T.Aliased _ args t ->

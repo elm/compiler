@@ -1,79 +1,138 @@
+{-# OPTIONS_GHC -Wall #-}
 module Parse.Parse (program) where
 
-import Control.Applicative ((<$>))
-import qualified Data.List as List
+import Control.Applicative ((<$>), (<*>))
 import qualified Data.Map as Map
-import Text.Parsec hiding (newline, spaces)
-import qualified Text.PrettyPrint as P
+import qualified Data.Traversable as T
+import Text.Parsec (char, eof, letter, many, optional, putState, (<|>), (<?>))
+import qualified Text.Parsec.Error as Parsec
 
 import qualified AST.Declaration as D
 import qualified AST.Module as M
 import Parse.Helpers
-import Parse.Declaration (infixDecl)
 import qualified Parse.Module as Module
 import qualified Parse.Declaration as Decl
-import Transform.Declaration (combineAnnotations)
+import qualified Reporting.Region as R
+import qualified Reporting.Error.Syntax as Error
+import qualified Reporting.Task as Task
+import qualified Transform.AddDefaultImports as DefaultImports
+import qualified Validate
 
 
-freshDef =
-    commitIf (freshLine >> (letter <|> char '_')) $
-      do  freshLine
-          Decl.declaration <?> "another datatype or variable definition"
+program
+    :: Bool
+    -> OpTable
+    -> String
+    -> Task.Task wrn Error.Error M.ValidModule
+program needsDefaults table src =
+  do  (M.Module names filePath exports imports sourceDecls) <-
+          parseWithTable table src programParser
+
+      validDecls <- Validate.declarations sourceDecls
+
+      let ammendedImports =
+            DefaultImports.add needsDefaults imports
+
+      return (M.Module names filePath exports ammendedImports validDecls)
 
 
-decls =
-  do  d <- Decl.declaration <?> "at least one datatype or variable definition"
-      (d:) <$> many freshDef
-
-
-program :: OpTable -> String -> Either [P.Doc] M.ValidModule
-program table src =
-  do  (M.Module names filePath exs ims sourceDecls) <-
-          setupParserWithTable table programParser src
-
-      decls <-
-          either (\err -> Left [P.text err]) Right (combineAnnotations sourceDecls)
-
-      return $ M.Module names filePath exs ims decls
-
+-- HEADERS AND DECLARATIONS
 
 programParser :: IParser M.SourceModule
 programParser =
-  do  (M.HeaderAndImports names exports imports) <- Module.headerAndImports
-      declarations <- decls
-      optional freshLine ; optional spaces ; eof
-      return $ M.Module names "" exports imports declarations
+  do  (M.Header names exports imports) <- Module.header
+      decls <- declarations
+      optional freshLine
+      optional spaces
+      eof
+      return $ M.Module names "" exports imports decls
 
 
-setupParserWithTable :: OpTable -> IParser a -> String -> Either [P.Doc] a
-setupParserWithTable table p source =
-  do  localTable <- setupParser parseFixities source
-      case Map.intersection table localTable of
-        overlap | not (Map.null overlap) -> Left [ msg overlap ]
-                | otherwise -> 
-                    flip setupParser source $
-                      do  putState (Map.union table localTable)
-                          p
-  where
-    msg overlap =
-        P.vcat
-          [ P.text "Parse error:"
-          , P.text $
-              "Overlapping definitions for infix operators: "
-              ++ List.intercalate " " (Map.keys overlap)
-          ]
+declarations :: IParser [D.SourceDecl]
+declarations =
+  (:) <$> (Decl.declaration <?> "at least one datatype or variable definition")
+      <*> many freshDef
 
 
+freshDef :: IParser D.SourceDecl
+freshDef =
+    commitIf (freshLine >> (letter <|> char '_')) $
+      do  _ <- freshLine
+          Decl.declaration <?> "another datatype or variable definition"
+
+
+-- RUN PARSERS
+
+parse :: String -> IParser a -> Task.Task wrn Error.Error a
+parse source parser =
+  case iParse parser source of
+    Right result ->
+        return result
+
+    Left err ->
+        let pos = R.fromSourcePos (Parsec.errorPos err)
+            msgs = Parsec.errorMessages err
+        in
+            Task.throw (R.Region pos pos) (Error.Parse msgs)
+
+
+parseWithTable
+    :: OpTable
+    -> String
+    -> IParser a
+    -> Task.Task wrn Error.Error a
+parseWithTable table source parser =
+  do  infixInfoList <- parse source parseFixities
+
+      infixTable <- makeInfixTable table infixInfoList
+
+      parse source $
+          do  putState infixTable
+              parser
+
+
+
+-- INFIX INFO
+
+makeInfixTable
+    :: Map.Map String (Int, D.Assoc)
+    -> [(String, InfixInfo)]
+    -> Task.Task wrn Error.Error (Map.Map String (Int, D.Assoc))
+makeInfixTable table newInfo =
+  let add (op, info) dict =
+        Map.insertWith (++) op [info] dict
+
+      infoTable =
+        foldr add Map.empty newInfo
+
+      check op infoList =
+        case infoList of
+          [] ->
+              error "problem parsing infix declarations, this should never happen"
+
+          [InfixInfo region info] ->
+              if Map.member op table
+                then Task.throw region (Error.InfixDuplicate op)
+                else return info
+
+          InfixInfo region _ : _ ->
+              Task.throw region (Error.InfixDuplicate op)
+  in
+      Map.union table <$> T.sequenceA (Map.mapWithKey check infoTable)
+
+
+parseFixities :: IParser [(String, InfixInfo)]
 parseFixities =
-  do  decls <- onFreshLines (:) [] infixDecl
-      return $ Map.fromList [ (op,(lvl,assoc)) | D.Fixity assoc lvl op <- decls ]
+    onFreshLines (:) [] infics
+  where
+    infics =
+      do  start <- getMyPosition
+          (D.Fixity assoc level op) <- Decl.infixDecl
+          end <- getMyPosition
+          return (op, InfixInfo (R.Region start end) (level, assoc))
 
 
-setupParser :: IParser a -> String -> Either [P.Doc] a
-setupParser p source =
-    case iParse p source of
-      Right result ->
-          Right result
-
-      Left err ->
-          Left [ P.text $ "Parse error at " ++ show err ]
+data InfixInfo = InfixInfo
+    { _region :: R.Region
+    , _info :: (Int, D.Assoc)
+    }

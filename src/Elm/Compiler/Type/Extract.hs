@@ -8,7 +8,7 @@ import qualified Elm.Compiler.Type as T
 
 -- INTERNAL TYPE to PUBLIC TYPE
 
-fromInternalType :: Var.ToString a => Type.Type a -> T.Type
+fromInternalType :: Type.Canonical -> T.Type
 fromInternalType astType =
     case astType of
       Type.Lambda t1 t2 ->

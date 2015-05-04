@@ -7,50 +7,50 @@ import qualified Data.Traversable as Trav
 import qualified AST.Type as T
 import qualified AST.Variable as Var
 
+import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Canonicalize as Error
+import qualified Reporting.Region as R
 import qualified Transform.Canonicalize.Environment as Env
-import qualified Transform.Canonicalize.Error as Error
 import qualified Transform.Canonicalize.Result as Result
 import qualified Transform.Canonicalize.Variable as Canonicalize
 
 
 tipe
     :: Env.Environment
-    -> T.RawType
-    -> Result.Result T.CanonicalType
-tipe env typ =
+    -> T.Raw
+    -> Result.ResultErr T.Canonical
+tipe env typ@(A.A region typ') =
     let go = tipe env
         goSnd (name,t) =
             (,) name <$> go t
     in
-    case typ of
-      T.Var x ->
+    case typ' of
+      T.RVar x ->
           Result.ok (T.Var x)
 
-      T.Type _ ->
-          canonicalizeApp env typ []
+      T.RType _ ->
+          canonicalizeApp region env typ []
 
-      T.App t ts ->
-          canonicalizeApp env t ts
+      T.RApp t ts ->
+          canonicalizeApp region env t ts
 
-      T.Lambda a b ->
+      T.RLambda a b ->
           T.Lambda <$> go a <*> go b
 
-      T.Record fields ext ->
+      T.RRecord fields ext ->
           T.Record <$> Trav.traverse goSnd fields <*> Trav.traverse go ext
-
-      T.Aliased _ _ _ ->
-          error "a RawType should never have an alias in it"
 
 
 canonicalizeApp
-    :: Env.Environment
-    -> T.RawType
-    -> [T.RawType]
-    -> Result.Result T.CanonicalType
-canonicalizeApp env f args =
+    :: R.Region
+    -> Env.Environment
+    -> T.Raw
+    -> [T.Raw]
+    -> Result.ResultErr T.Canonical
+canonicalizeApp region env f args =
   case f of
-    T.Type (Var.Raw rawName) ->
-        Canonicalize.tvar env rawName
+    A.A _ (T.RType (Var.Raw rawName)) ->
+        Canonicalize.tvar region env rawName
           `Result.andThen` canonicalizeWithTvar
 
     _ ->
@@ -60,7 +60,7 @@ canonicalizeApp env f args =
     canonicalizeWithTvar tvar =
         case tvar of
           Right alias ->
-              canonicalizeAlias env alias args
+              canonicalizeAlias region env alias args
 
           Left name ->
               case args of
@@ -71,13 +71,14 @@ canonicalizeApp env f args =
 
 
 canonicalizeAlias
-    :: Env.Environment
-    -> (Var.Canonical, [String], T.CanonicalType)
-    -> [T.RawType]
-    -> Result.Result T.CanonicalType
-canonicalizeAlias env (name, tvars, dealiasedTipe) types =
+    :: R.Region
+    -> Env.Environment
+    -> (Var.Canonical, [String], T.Canonical)
+    -> [T.Raw]
+    -> Result.ResultErr T.Canonical
+canonicalizeAlias region env (name, tvars, dealiasedTipe) types =
   if typesLen /= tvarsLen
-    then Result.err (Error.alias name tvarsLen typesLen)
+    then Result.err (A.A region (Error.alias name tvarsLen typesLen))
     else toAlias <$> Trav.traverse (tipe env) types
   where
     typesLen = length types
