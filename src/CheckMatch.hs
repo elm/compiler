@@ -1,46 +1,32 @@
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE NamedFieldPuns, TupleSections #-}
 module CheckMatch
-    ( MatchResult (..)
-    , ErrorType (..)
-    , checkModule
+    ( checkBody
+    , Pat (..)
+    , CanonicalPat
     ) where
 
-import Control.Applicative ((<$>))
+import Control.Applicative ((<$>), (<*>))
+import Control.Monad.Except (throwError)
+import Control.Monad (liftM)
+import Control.Monad (forM)
+
+import Data.Maybe (mapMaybe, catMaybes)
+import qualified Data.Set as Set
+import qualified Data.Map as Map
+
 import qualified AST.Expression.General as General
 import qualified AST.Expression.Canonical as Canonical
-import AST.Module
+import qualified AST.Module as Module
 import qualified AST.Pattern as Pattern
 import AST.Pattern (CanonicalPattern)
-import qualified AST.Annotation as Annotation
-import qualified Data.Map as Map
+import qualified Reporting.Annotation as Annotation
+import qualified Reporting.Region as Region
 import qualified AST.Variable as Var
-import qualified AST.Literal as Literal
-import Data.Maybe (mapMaybe)
-import Control.Monad (forM)
-import qualified Data.Set as Set
-
-data MatchResult
-    = Redundant CanonicalPattern
-    | Inexhaustive CanonicalPat
-    | TypeNotFound
-    | Ok
-
-data Pat var
-    = Data var [Pat var]
-    | Record [String]
-    | Alias String (Pat var)
-    | Var String
-    | Anything
-    | Literal Literal.Literal
-    -- It's a shame that I had to replicate the entire pattern type, but it's
-    -- essential to have this constructor.
-    | AnythingBut (Set.Set Literal.Literal)
-    deriving (Show, Eq, Ord)
-
-type CanonicalPat = Pat Var.Canonical
+import qualified Reporting.Error.CheckMatch as Error
+import Reporting.Warning.CheckMatch
 
 fromPattern :: CanonicalPattern -> CanonicalPat
-fromPattern p = case p of
+fromPattern (Annotation.A _region p) = case p of
     Pattern.Data ctor ps -> Data ctor (map fromPattern ps)
     Pattern.Record fs    -> Record fs
     Pattern.Alias s p    -> Alias s (fromPattern p)
@@ -48,73 +34,88 @@ fromPattern p = case p of
     Pattern.Anything     -> Anything
     Pattern.Literal l    -> Literal l
 
-data ErrorType = ConstructorNotFound Var.Canonical
+concatMapM :: Monad m => (a -> m [b]) -> [a] -> m [b]
+concatMapM f = liftM concat . mapM f
 
-checkModule :: [CanonicalAdt] -> Module exports CanonicalBody -> [(Either ErrorType MatchResult, Annotation.Region)]
-checkModule adts (Module {body}) = checkBody body where
-    checkBody :: CanonicalBody -> [(Either ErrorType MatchResult, Annotation.Region)]
-    checkBody  (CanonicalBody {program}) = checkExpr program
+mapMaybeM :: Monad m => (a -> m (Maybe b)) -> [a] -> m [b]
+mapMaybeM f = liftM catMaybes . mapM f
 
-    checkExpr :: Canonical.Expr -> [(Either ErrorType MatchResult, Annotation.Region)]
+maybeCons :: Maybe a -> [a] -> [a]
+maybeCons = maybe id (:)
+
+type M = Either (Annotation.Located Error.Error)
+checkBody
+  :: Module.Interfaces
+  -> Module.CanonicalBody
+  -> M [Annotation.Located Warning]
+checkBody interfaces = checkExpr . Module.program where
+    checkExpr :: Canonical.Expr -> M [Annotation.Located Warning]
     checkExpr (Annotation.A r e) = case e of
-        General.ExplicitList es  -> concatMap checkExpr es
-        General.Binop _ e e'     -> checkExpr e ++ checkExpr e'
-        General.Lambda p e       -> (checkMatch [p], r) : checkExpr e
-        General.App e e'         -> checkExpr e ++ checkExpr e'
-        General.MultiIf branches -> concatMap (\(b,e) -> checkExpr b ++ checkExpr e) branches
+        General.ExplicitList es  -> concatMapM checkExpr es
+        General.Binop _ e e'     -> (++) <$> checkExpr e <*> checkExpr e'
+        General.Lambda p e       -> maybeCons <$> checkMatch r [p] <*> checkExpr e
+        General.App e e'         -> (++) <$> checkExpr e <*> checkExpr e'
+        General.MultiIf branches -> concatMapM (\(b,e) -> (++) <$> checkExpr b <*> checkExpr e) branches
 
-        General.Let defs e -> ps ++ rhssResults ++ checkExpr e
+        General.Let defs e -> fmap concat $ sequence [ps, rhssResults, checkExpr e]
             where
-            ps          = map (\(Canonical.Definition p _ _) -> (checkMatch [p], r)) defs
-            rhssResults = concatMap (\(Canonical.Definition _ e _) -> checkExpr e)  defs
+            ps          = mapMaybeM (\(Canonical.Definition p _ _) -> checkMatch r [p]) defs
+            rhssResults = concatMapM (\(Canonical.Definition _ e _) -> checkExpr e) defs
 
-        General.Case e branches ->
-            (checkMatch ps, r) : checkExpr e ++ concatMap (checkExpr . snd) branches
+        General.Case e branches -> do
+            eResults      <- checkExpr e
+            result        <- checkMatch r ps
+            branchResults <- concatMapM (checkExpr . snd) branches
+            return (eResults ++ maybeCons result branchResults)
             where ps = map fst branches
 
-        General.Data _ctor es  -> concatMap checkExpr es
+        General.Data _ctor es  -> concatMapM checkExpr es
         General.Access e _f    -> checkExpr e
         General.Remove e _f    -> checkExpr e
-        General.Insert e _f e' -> checkExpr e ++ checkExpr e'
+        General.Insert e _f e' -> (++) <$> checkExpr e <*> checkExpr e'
         General.Modify e _     -> checkExpr e
-        General.Record fields  -> concatMap (checkExpr . snd) fields
-        General.Port _pi       -> []
-        _                      -> []
+        General.Record fields  -> concatMapM (checkExpr . snd) fields
+        General.Port _pi       -> return []
+        _                      -> return []
 
-    ctorToAdt :: Var.Canonical -> Maybe CanonicalAdt
-    ctorToAdt = \k -> Map.lookup k m where
-        m =
-            Map.fromList $ concatMap (\adt@(_adtName, (_tyVars, ctors)) ->
-                map (\(ctor,_args) -> (ctor, adt)) ctors)
-                adts
+    ctorToAdt :: Var.Canonical -> Maybe (Module.AdtInfo String)
+    ctorToAdt = \(Var.Canonical {Var.home,Var.name}) -> Map.lookup name =<< Map.lookup home m where
+        m :: Map.Map Var.Home (Map.Map String {- ctor name -} (Module.AdtInfo String))
+        m = builtins `Map.union` fromModules where
+          builtins = Map.empty -- TODO
 
-    ctorToAdtExn :: Var.Canonical -> Either ErrorType CanonicalAdt
-    ctorToAdtExn c = case ctorToAdt c of
-        Nothing  -> Left (ConstructorNotFound c)
-        Just adt -> Right adt
+          fromModules = Map.mapKeysMonotonic Var.Module (Map.map Module.iAdts interfaces)
 
-    complement :: CanonicalPat -> Either ErrorType [CanonicalPat]
-    complement p = case p of
+    ctorToAdtErr :: Region.Region -> Var.Canonical -> M (Module.AdtInfo String)
+    ctorToAdtErr region c = case ctorToAdt c of
+        Nothing  -> throwError (Annotation.A region (Error.ConstructorTypeNotFound c))
+        Just adt -> return adt
+
+    complement :: Region.Region -> CanonicalPat -> M [CanonicalPat]
+    complement region p = case p of
         Data ctor ps -> do
-            (_adtName, (_tyVars, ctors)) <- ctorToAdtExn ctor
+            let ctorName = Var.name ctor
+                ctorHome = Var.home ctor
+            (_tyVars, ctors) <- ctorToAdtErr region ctor
             -- A pattern is in the complement of this one if it uses one of the
             -- other constructors of this type...
             let otherCtorPatterns =
                     map (\(ctor',args) ->
-                        Data ctor' (replicate (length args) Anything))
-                        (filter (\(ctor', _) -> ctor' /= ctor) ctors)
+                        Data (Var.Canonical {Var.name = ctor', Var.home = ctorHome})
+                            (replicate (length args) Anything))
+                    $ filter (\(ctor', _) -> ctor' /= ctorName) ctors
             -- or if it uses this constructor and one of its argument patterns is
             -- in the complement of an argument pattern here.
                 numArgs        = length ps
                 sandwich pat i = replicate i Anything ++ pat : replicate (numArgs - i - 1) Anything
 
             argComplement <- fmap concat . forM (zip [0..] ps) $ \(i, argP) ->
-                map (\argP' -> Data ctor (sandwich argP' i)) <$> (complement argP)
+                map (\argP' -> Data ctor (sandwich argP' i)) <$> (complement region argP)
 
             return (otherCtorPatterns ++ argComplement)
 
         Record _fs     -> return []
-        Alias _s p     -> complement p
+        Alias _s p     -> complement region p
         Var _s         -> return []
         Anything       -> return []
         Literal l      -> return [AnythingBut (Set.singleton l)]
@@ -143,16 +144,18 @@ checkModule adts (Module {body}) = checkBody body where
         (AnythingBut ls1, AnythingBut ls2) -> Just (AnythingBut (Set.union ls1 ls2))
         _                                  -> Nothing
 
-    checkMatch :: [CanonicalPattern] -> Either ErrorType MatchResult
-    checkMatch = go [Anything] where
-        go :: [CanonicalPat] -> [CanonicalPattern] -> Either ErrorType MatchResult
-        go [] []            = return Ok
-        go (q:_) []         = return (Inexhaustive q)
+    checkMatch :: Region.Region -> [CanonicalPattern] -> M (Maybe (Annotation.Located Warning))
+    checkMatch region = go [Anything] where
+        go :: [CanonicalPat] -> [CanonicalPattern] -> M (Maybe (Annotation.Located Warning))
+        go []       []      = return Nothing
+        go qs@(_:_) []      = return (Just (Annotation.A region (Inexhaustive qs)))
         go unhandled (p:ps) =
-            let pp = fromPattern p in
+            let pp                    = fromPattern p
+                Annotation.A region _ = p
+            in
             if all (\q -> intersection q pp == Nothing) unhandled
-            then return (Redundant p)
+            then return (Just (Annotation.A region (Redundant p)))
             else do
-                pComp <- complement pp
+                pComp <- complement region pp
                 go (concatMap (\q -> mapMaybe (intersection q) pComp) unhandled) ps
 

@@ -9,6 +9,7 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Canonicalize
 import qualified Reporting.Error.Syntax as Syntax
 import qualified Reporting.Error.Type as Type
+import qualified Reporting.Error.CheckMatch as CheckMatch
 
 
 -- ALL POSSIBLE ERRORS
@@ -17,6 +18,7 @@ data Error
     = Syntax Syntax.Error
     | Canonicalize Canonicalize.Error
     | Type Type.Error
+    | CheckMatch CheckMatch.Error
 
 
 -- TO STRING
@@ -33,6 +35,8 @@ toString (A.A region err) =
     Type typeError ->
         Type.toString region typeError
 
+    CheckMatch matchError ->
+        CheckMatch.toString region matchError
 
 -- JSON
 
@@ -48,6 +52,9 @@ toJson (A.A region err) =
 
           Type typeError ->
               Type.toJson typeError
+
+          CheckMatch matchError ->
+              CheckMatch.toJson matchError
   in
       BS.unpack $ Json.encode $
         Json.object

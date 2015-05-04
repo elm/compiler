@@ -4,11 +4,13 @@ import qualified AST.Module as Module
 
 import qualified Reporting.Annotation as A
 
+import qualified Reporting.Warning.CheckMatch as CheckMatch
+
 
 data Warning
     = UnusedImport Module.Name
     | MissingTypeAnnotation String
-
+    | MatchWarning CheckMatch.Warning
 
 -- TO STRING
 

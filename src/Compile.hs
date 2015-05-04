@@ -9,8 +9,10 @@ import qualified Parse.Parse as Parse
 import qualified Reporting.Error as Error
 import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
+import qualified Reporting.Annotation as A
 import qualified Type.Inference as TI
 import qualified Canonicalize
+import qualified CheckMatch
 
 
 compile
@@ -43,6 +45,10 @@ compile user projectName interfaces source =
 
       -- Add the real list of tyes
       let body = (Module.body canonicalModule) { Module.types = types }
+
+      case CheckMatch.checkBody interfaces body of
+        Left (A.A r matchError) -> Result.throw r (Error.CheckMatch matchError)
+        Right matchWarnings     -> Result.addWarnings (map (A.map Warning.MatchWarning) matchWarnings) (return ())
 
       return $ canonicalModule { Module.body = body }
 
