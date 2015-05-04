@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Transform.Canonicalize.Result where
+module Canonicalize.Result where
 
 import Prelude hiding (foldl)
 import qualified Control.Applicative as A

@@ -1,4 +1,4 @@
-module Transform.Canonicalize.Port (check) where
+module Canonicalize.Port (check) where
 
 import Control.Applicative ((<$>))
 import qualified Data.Foldable as Foldable
@@ -10,7 +10,7 @@ import qualified AST.Type as T
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
-import qualified Transform.Canonicalize.Result as Result
+import qualified Canonicalize.Result as Result
 
 
 -- CHECK FOR PORT

@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Transform.Canonicalize.Type (tipe) where
+module Canonicalize.Type (tipe) where
 
 import Control.Applicative ((<$>),(<*>))
 import qualified Data.Traversable as Trav
@@ -10,9 +10,9 @@ import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
-import qualified Transform.Canonicalize.Environment as Env
-import qualified Transform.Canonicalize.Result as Result
-import qualified Transform.Canonicalize.Variable as Canonicalize
+import qualified Canonicalize.Environment as Env
+import qualified Canonicalize.Result as Result
+import qualified Canonicalize.Variable as Canonicalize
 
 
 tipe

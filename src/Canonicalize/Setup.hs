@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Transform.Canonicalize.Setup (environment) where
+module Canonicalize.Setup (environment) where
 
 import Control.Applicative ((<$>))
 import Control.Arrow (second)
@@ -18,9 +18,9 @@ import Elm.Utils ((|>))
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
-import qualified Transform.Canonicalize.Environment as Env
-import qualified Transform.Canonicalize.Result as Result
-import qualified Transform.Canonicalize.Type as Canonicalize
+import qualified Canonicalize.Environment as Env
+import qualified Canonicalize.Result as Result
+import qualified Canonicalize.Type as Canonicalize
 import qualified Transform.Interface as Interface
 
 

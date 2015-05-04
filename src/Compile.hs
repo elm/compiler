@@ -10,7 +10,7 @@ import qualified Reporting.Error as Error
 import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
 import qualified Type.Inference as TI
-import qualified Transform.Canonicalize as Canonical
+import qualified Canonicalize
 
 
 compile
@@ -34,7 +34,7 @@ compile user projectName interfaces source =
 
       -- Canonicalize all variables, pinning down where they came from.
       canonicalModule <-
-          Canonical.module' interfaces validModule
+          Canonicalize.module' interfaces validModule
 
       -- Run type inference on the program.
       types <-

@@ -1,4 +1,4 @@
-module Transform.Canonicalize (module') where
+module Canonicalize (module') where
 
 import Control.Applicative ((<$>),(<*>))
 import qualified Data.List as List
@@ -23,12 +23,12 @@ import qualified Reporting.Error as Error
 import qualified Reporting.Error.Canonicalize as CError
 import qualified Reporting.Result as R
 import qualified Reporting.Warning as Warning
-import qualified Transform.Canonicalize.Environment as Env
-import qualified Transform.Canonicalize.Port as Port
-import qualified Transform.Canonicalize.Result as Result
-import qualified Transform.Canonicalize.Setup as Setup
-import qualified Transform.Canonicalize.Type as Canonicalize
-import qualified Transform.Canonicalize.Variable as Canonicalize
+import qualified Canonicalize.Environment as Env
+import qualified Canonicalize.Port as Port
+import qualified Canonicalize.Result as Result
+import qualified Canonicalize.Setup as Setup
+import qualified Canonicalize.Type as Canonicalize
+import qualified Canonicalize.Variable as Canonicalize
 import qualified Transform.SortDefinitions as Transform
 import qualified Transform.Declaration as Transform
 

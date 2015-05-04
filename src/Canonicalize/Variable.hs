@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Transform.Canonicalize.Variable where
+module Canonicalize.Variable where
 
 import qualified Data.Either as Either
 import qualified Data.Map as Map
@@ -12,8 +12,8 @@ import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
-import qualified Transform.Canonicalize.Environment as Env
-import qualified Transform.Canonicalize.Result as Result
+import qualified Canonicalize.Environment as Env
+import qualified Canonicalize.Result as Result
 import Elm.Utils ((|>))
 
 

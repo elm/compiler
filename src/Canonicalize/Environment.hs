@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Transform.Canonicalize.Environment where
+module Canonicalize.Environment where
 
 import qualified Data.List as List
 import qualified Data.Map as Map
