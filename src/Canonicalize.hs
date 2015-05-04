@@ -23,6 +23,7 @@ import qualified Reporting.Error as Error
 import qualified Reporting.Error.Canonicalize as CError
 import qualified Reporting.Result as R
 import qualified Reporting.Warning as Warning
+import qualified Canonicalize.Declaration as Decls
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Port as Port
 import qualified Canonicalize.Result as Result
@@ -30,7 +31,6 @@ import qualified Canonicalize.Setup as Setup
 import qualified Canonicalize.Sort as Sort
 import qualified Canonicalize.Type as Canonicalize
 import qualified Canonicalize.Variable as Canonicalize
-import qualified Transform.Declaration as Transform
 
 
 -- MODULES
@@ -85,7 +85,7 @@ moduleHelp interfaces modul@(Module.Module _ _ exports (defaults, imports) decls
         in
         Module.CanonicalBody
           { program =
-              let expr = Transform.toExpr (Module.names modul) decls
+              let expr = Decls.toExpr (Module.names modul) decls
               in
                   Sort.definitions (dummyLet expr)
 
