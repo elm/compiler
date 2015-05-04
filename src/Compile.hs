@@ -47,8 +47,11 @@ compile user projectName interfaces source =
       let body = (Module.body canonicalModule) { Module.types = types }
 
       case CheckMatch.checkBody interfaces body of
-        Left (A.A r matchError) -> Result.throw r (Error.CheckMatch matchError)
-        Right matchWarnings     -> Result.addWarnings (map (A.map Warning.MatchWarning) matchWarnings) (return ())
+        Left (A.A r matchError) ->
+            Result.throw r (Error.CheckMatch matchError)
+
+        Right matchWarnings ->
+            Result.addWarnings (map (A.map Warning.MatchWarning) matchWarnings) (return ())
 
       return $ canonicalModule { Module.body = body }
 
