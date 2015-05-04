@@ -9,13 +9,13 @@ import qualified Text.Parsec.Error as Parsec
 
 import qualified AST.Declaration as D
 import qualified AST.Module as M
+import qualified Elm.Compiler.Imports as Imports
 import Parse.Helpers
 import qualified Parse.Module as Module
 import qualified Parse.Declaration as Decl
 import qualified Reporting.Region as R
 import qualified Reporting.Error.Syntax as Error
 import qualified Reporting.Result as Result
-import qualified Transform.AddDefaultImports as DefaultImports
 import qualified Validate
 
 
@@ -31,7 +31,7 @@ program needsDefaults table src =
       validDecls <- Validate.declarations sourceDecls
 
       let ammendedImports =
-            DefaultImports.add needsDefaults imports
+            (if needsDefaults then Imports.defaults else [], imports)
 
       return (M.Module names filePath exports ammendedImports validDecls)
 

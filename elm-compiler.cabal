@@ -73,7 +73,6 @@ Library
         Generate.JavaScript.Variable,
         Generate.Cases,
         Generate.Substitute,
-        Transform.AddDefaultImports,
         Parse.Binop,
         Parse.Declaration,
         Parse.Expression,
