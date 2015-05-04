@@ -58,7 +58,7 @@ checkBody
   -> M [Annotation.Located Warning]
 checkBody interfaces =
     checkExpr . Module.program
-    where
+  where
     checkExpr :: Canonical.Expr -> M [Annotation.Located Warning]
     checkExpr (Annotation.A r e) =
         case e of
@@ -79,8 +79,9 @@ checkBody interfaces =
 
           General.Let defs e ->
               concat <$> sequence [ps, rhssResults, checkExpr e]
-              where
-              ps          = mapMaybeM (\(Canonical.Definition p _ _) -> checkMatch r [p]) defs
+            where
+              ps = mapMaybeM (\(Canonical.Definition p _ _) -> checkMatch r [p]) defs
+
               rhssResults = concatMapM (\(Canonical.Definition _ e _) -> checkExpr e) defs
 
           General.Case e branches ->
@@ -88,7 +89,7 @@ checkBody interfaces =
                   result        <- checkMatch r ps
                   branchResults <- concatMapM (checkExpr . snd) branches
                   return (eResults ++ maybeCons result branchResults)
-                  where ps = map fst branches
+                where ps = map fst branches
 
           General.Data _ctor es ->
               concatMapM checkExpr es
@@ -115,10 +116,12 @@ checkBody interfaces =
     ctorToAdt :: Var.Canonical -> Maybe (Module.AdtInfo String)
     ctorToAdt =
         \(Var.Canonical {Var.home,Var.name}) -> Map.lookup name =<< Map.lookup home m
-        where
+      where
         -- Maps home to ctor name to the adt to which that ctor belongs
         m :: Map.Map Var.Home (Map.Map String (Module.AdtInfo String))
-        m = builtins `Map.union` fromModules where
+        m =
+          builtins `Map.union` fromModules
+          where
             -- TODO
             builtins = Map.empty
 
@@ -227,7 +230,7 @@ checkBody interfaces =
     checkMatch :: Region.Region -> [CanonicalPattern] -> M (Maybe (Annotation.Located Warning))
     checkMatch region =
         go [Anything]
-        where
+      where
         go :: [CanonicalPat] -> [CanonicalPattern] -> M (Maybe (Annotation.Located Warning))
         go unhandled ps =
             case (unhandled, ps) of
