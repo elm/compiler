@@ -25,7 +25,7 @@ toString :: A.Located Error -> String
 toString (A.A region err) =
   case err of
     Syntax syntaxError ->
-        Syntax.toString region syntaxError
+        error "TODO" syntaxError
 
     Canonicalize canonicalizeError ->
         Canonicalize.toString region canonicalizeError
