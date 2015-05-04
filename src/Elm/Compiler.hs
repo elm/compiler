@@ -3,6 +3,8 @@
 module Elm.Compiler
     ( version, rawVersion
     , parseDependencies, compile
+    , Error, errorToString, errorToJson
+    , Warning, warningToString, warningToJson
     ) where
 
 import Control.Monad.Error.Class (MonadError, throwError)
@@ -16,7 +18,9 @@ import qualified Generate.JavaScript as JS
 import qualified Parse.Helpers as Help
 import qualified Parse.Module as Parse
 import qualified Reporting.Annotation as A
-import qualified Reporting.Task as Task
+import qualified Reporting.Error as Error
+import qualified Reporting.Result as Result
+import qualified Reporting.Warning as Warning
 
 
 -- VERSION
@@ -57,17 +61,50 @@ compile
     -> String
     -> String
     -> Map.Map PublicModule.Name PublicModule.Interface
-    -> Either String (PublicModule.Interface, String)
+    -> ([Warning], Either [Error] (PublicModule.Interface, String))
 compile user packageName source interfaces =
   let unwrappedInterfaces =
-        Map.mapKeysMonotonic (\(PublicModule.Name name) -> name) interfaces
+          Map.mapKeysMonotonic (\(PublicModule.Name name) -> name) interfaces
 
-      task =
-        Compile.compile user packageName unwrappedInterfaces source
+      (Result.Result warnings rawResult) =
+          Compile.compile user packageName unwrappedInterfaces source
   in
-      case Task.run task of
-        (Right modul, _warnings) ->
+      (,) (map Warning warnings) $
+      case rawResult of
+        Result.Ok modul ->
             Right (Module.toInterface modul, JS.generate modul)
 
-        (Left _docs, _warnings) ->
-            Left [error "TODO:compile"]
+        Result.Err errors ->
+            Left (map Error errors)
+
+
+-- ERRORS
+
+newtype Error = Error (A.Located Error.Error)
+
+
+errorToString :: Error -> String
+errorToString (Error err) =
+    Error.toString err
+
+
+errorToJson :: Error -> String
+errorToJson (Error err) =
+    Error.toJson err
+
+
+-- WARNINGS
+
+newtype Warning = Warning (A.Located Warning.Warning)
+
+
+warningToString :: Warning -> String
+warningToString (Warning warning) =
+    Warning.toString warning
+
+
+warningToJson :: Warning -> String
+warningToJson (Warning warning) =
+    Warning.toJson warning
+
+

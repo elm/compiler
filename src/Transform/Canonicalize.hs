@@ -1,7 +1,6 @@
 module Transform.Canonicalize (module') where
 
 import Control.Applicative ((<$>),(<*>))
-import Control.Monad.Except (throwError)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
@@ -22,7 +21,7 @@ import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error as Error
 import qualified Reporting.Error.Canonicalize as CError
-import qualified Reporting.Task as Task
+import qualified Reporting.Result as R
 import qualified Reporting.Warning as Warning
 import qualified Transform.Canonicalize.Environment as Env
 import qualified Transform.Canonicalize.Port as Port
@@ -39,19 +38,21 @@ import qualified Transform.Declaration as Transform
 module'
     :: Module.Interfaces
     -> Module.ValidModule
-    -> Task.Task Warning.Warning Error.Error Module.CanonicalModule
+    -> R.Result Warning.Warning Error.Error Module.CanonicalModule
 module' interfaces modul@(Module.Module _ _ _ (_, imports) _) =
   let (Result.Result uses rawResults) =
           moduleHelp interfaces modul
 
+      unusedImportWarnings =
+          Maybe.mapMaybe (warnUnusedImport uses) imports
   in
-      do  Task.addWarnings (Maybe.mapMaybe (warnUnusedImport uses) imports)
+      R.addWarnings unusedImportWarnings $
           case rawResults of
             Result.Ok canonicalModule ->
                 return canonicalModule
 
             Result.Err msgs ->
-                throwError (map (A.map Error.Canonicalize) msgs)
+                R.throwMany (map (A.map Error.Canonicalize) msgs)
 
 
 moduleHelp

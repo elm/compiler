@@ -7,7 +7,7 @@ import Elm.Utils ((|>))
 import qualified Parse.Helpers as Parse
 import qualified Parse.Parse as Parse
 import qualified Reporting.Error as Error
-import qualified Reporting.Task as Task
+import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
 import qualified Type.Inference as TI
 import qualified Transform.Canonicalize as Canonical
@@ -18,7 +18,7 @@ compile
     -> String
     -> Module.Interfaces
     -> String
-    -> Task.Task Warning.Warning Error.Error Module.CanonicalModule
+    -> Result.Result Warning.Warning Error.Error Module.CanonicalModule
 
 compile user projectName interfaces source =
   do
@@ -29,7 +29,7 @@ compile user projectName interfaces source =
 
       -- Parse the source code
       validModule <-
-          Task.mapError Error.Syntax $
+          Result.mapError Error.Syntax $
             Parse.program needsDefaults (getOpTable interfaces) source
 
       -- Canonicalize all variables, pinning down where they came from.
@@ -38,7 +38,7 @@ compile user projectName interfaces source =
 
       -- Run type inference on the program.
       types <-
-          Task.from Error.Type $
+          Result.from Error.Type $
             TI.infer interfaces canonicalModule
 
       -- Add the real list of tyes

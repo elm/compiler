@@ -17,14 +17,14 @@ import Elm.Utils ((|>))
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as Error
 import qualified Reporting.Region as R
-import qualified Reporting.Task as Task
+import qualified Reporting.Result as Result
 
 
 -- VALIDATE DECLARATIONS
 
 declarations
     :: [D.SourceDecl]
-    -> Task.Task wrn Error.Error [D.ValidDecl]
+    -> Result.Result wrn Error.Error [D.ValidDecl]
 declarations sourceDecls =
   do  validDecls <- validateDecls sourceDecls
       (\_ _ -> validDecls)
@@ -34,7 +34,7 @@ declarations sourceDecls =
 
 validateDecls
     :: [D.SourceDecl]
-    -> Task.Task wrn Error.Error [D.ValidDecl]
+    -> Result.Result wrn Error.Error [D.ValidDecl]
 validateDecls sourceDecls =
   case sourceDecls of
     [] ->
@@ -47,7 +47,7 @@ validateDecls sourceDecls =
 validateDeclsHelp
     :: D.SourceDecl
     -> [D.SourceDecl]
-    -> Task.Task wrn Error.Error [D.ValidDecl]
+    -> Result.Result wrn Error.Error [D.ValidDecl]
 validateDeclsHelp (A.A region decl) decls =
   let addRest validDecl =
         (:) (A.A region validDecl) <$> validateDecls decls
@@ -74,7 +74,7 @@ validateDeclsHelp (A.A region decl) decls =
 defHelp
     :: Source.Def
     -> [D.SourceDecl]
-    -> Task.Task wrn Error.Error [D.ValidDecl]
+    -> Result.Result wrn Error.Error [D.ValidDecl]
 defHelp (A.A region def) decls =
   let addRest def' rest =
         (:) (A.A region (D.Definition def')) <$> validateDecls rest
@@ -94,7 +94,7 @@ defHelp (A.A region def) decls =
                       addRest def' rest
 
           _ ->
-              Task.throw region (Error.TypeWithoutDefinition name)
+              Result.throw region (Error.TypeWithoutDefinition name)
 
 
 -- VALIDATE PORTS IN DECLARATIONS
@@ -103,14 +103,14 @@ portHelp
     :: R.Region
     -> D.SourcePort
     -> [D.SourceDecl]
-    -> Task.Task wrn Error.Error [D.ValidDecl]
+    -> Result.Result wrn Error.Error [D.ValidDecl]
 portHelp region port decls =
   let addRest port' rest =
         (:) (A.A region (D.Port port')) <$> validateDecls rest
   in
   case port of
     D.PortDefinition name _ ->
-        Task.throw region (Error.PortWithoutAnnotation name)
+        Result.throw region (Error.PortWithoutAnnotation name)
 
     D.PortAnnotation name tipe ->
         case decls of
@@ -126,7 +126,7 @@ portHelp region port decls =
 
 -- VALIDATE DEFINITIONS
 
-definitions :: [Source.Def] -> Task.Task wrn Error.Error [Valid.Def]
+definitions :: [Source.Def] -> Result.Result wrn Error.Error [Valid.Def]
 definitions sourceDefs =
   do  validDefs <- definitionsHelp sourceDefs
       let patterns = map (\(Valid.Definition p _ _) -> p) validDefs
@@ -134,7 +134,7 @@ definitions sourceDefs =
       return validDefs
 
 
-definitionsHelp :: [Source.Def] -> Task.Task wrn Error.Error [Valid.Def]
+definitionsHelp :: [Source.Def] -> Result.Result wrn Error.Error [Valid.Def]
 definitionsHelp sourceDefs =
   case sourceDefs of
     [] ->
@@ -154,12 +154,12 @@ definitionsHelp sourceDefs =
                       (:) def <$> definitionsHelp rest'
 
           _ ->
-              Task.throw region (Error.TypeWithoutDefinition name)
+              Result.throw region (Error.TypeWithoutDefinition name)
 
 
 -- VALIDATE EXPRESSIONS
 
-expression :: Source.Expr -> Task.Task wrn Error.Error Valid.Expr
+expression :: Source.Expr -> Result.Result wrn Error.Error Valid.Expr
 expression (A.A ann sourceExpression) =
   A.A ann <$>
   case sourceExpression of
@@ -250,14 +250,14 @@ expression (A.A ann sourceExpression) =
                     return (Task name expr' tipe)
 
 
-second :: (a, Source.Expr) -> Task.Task wrn Error.Error (a, Valid.Expr)
+second :: (a, Source.Expr) -> Result.Result wrn Error.Error (a, Valid.Expr)
 second (value, expr) =
     (,) value <$> expression expr
 
 
 both
     :: (Source.Expr, Source.Expr)
-    -> Task.Task wrn Error.Error (Valid.Expr, Valid.Expr)
+    -> Result.Result wrn Error.Error (Valid.Expr, Valid.Expr)
 both (expr1, expr2) =
     (,) <$> expression expr1 <*> expression expr2
 
@@ -267,7 +267,7 @@ both (expr1, expr2) =
 detectDuplicates
     :: (String -> Error.Error)
     -> [A.Located String]
-    -> Task.Task wrn Error.Error ()
+    -> Result.Result wrn Error.Error ()
 detectDuplicates tag names =
   let add (A.A region name) dict =
           Map.insertWith (++) name [region] dict
@@ -278,7 +278,7 @@ detectDuplicates tag names =
       check (name, regions) =
         case regions of
           _ : region : _ ->
-              Task.throw region (tag name)
+              Result.throw region (tag name)
 
           _ ->
               return ()
@@ -288,13 +288,13 @@ detectDuplicates tag names =
 
 defDuplicates
     :: [Pattern.RawPattern]
-    -> Task.Task wrn Error.Error ()
+    -> Result.Result wrn Error.Error ()
 defDuplicates patterns =
   concatMap Pattern.boundVars patterns
     |> detectDuplicates Error.DuplicateDefinition
 
 
-declDuplicates :: [D.ValidDecl] -> Task.Task wrn Error.Error ()
+declDuplicates :: [D.ValidDecl] -> Result.Result wrn Error.Error ()
 declDuplicates decls =
   let (valueLists, typeLists) = unzip (map extractValues decls)
   in
@@ -339,7 +339,7 @@ extractValues (A.A region decl) =
 
 -- UNBOUND TYPE VARIABLES
 
-checkDecl :: D.ValidDecl -> Task.Task wrn Error.Error ()
+checkDecl :: D.ValidDecl -> Result.Result wrn Error.Error ()
 checkDecl (A.A _ decl) =
   case decl of
     D.Definition _ ->
@@ -358,14 +358,14 @@ checkDecl (A.A _ decl) =
         return ()
 
 
-checkTypeVars :: String -> [String] -> Type.Raw -> Task.Task wrn Error.Error ()
+checkTypeVars :: String -> [String] -> Type.Raw -> Result.Result wrn Error.Error ()
 checkTypeVars name boundVars tipe =
   let bounds = Set.fromList boundVars
 
       check (A.A region free) =
           if Set.member free bounds
             then return ()
-            else Task.throw region (Error.UnboundTypeVar name free)
+            else Result.throw region (Error.UnboundTypeVar name free)
   in
       F.traverse_ check (freeVars tipe)
 

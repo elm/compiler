@@ -14,7 +14,7 @@ import qualified Parse.Module as Module
 import qualified Parse.Declaration as Decl
 import qualified Reporting.Region as R
 import qualified Reporting.Error.Syntax as Error
-import qualified Reporting.Task as Task
+import qualified Reporting.Result as Result
 import qualified Transform.AddDefaultImports as DefaultImports
 import qualified Validate
 
@@ -23,7 +23,7 @@ program
     :: Bool
     -> OpTable
     -> String
-    -> Task.Task wrn Error.Error M.ValidModule
+    -> Result.Result wrn Error.Error M.ValidModule
 program needsDefaults table src =
   do  (M.Module names filePath exports imports sourceDecls) <-
           parseWithTable table src programParser
@@ -63,7 +63,7 @@ freshDef =
 
 -- RUN PARSERS
 
-parse :: String -> IParser a -> Task.Task wrn Error.Error a
+parse :: String -> IParser a -> Result.Result wrn Error.Error a
 parse source parser =
   case iParse parser source of
     Right result ->
@@ -73,14 +73,14 @@ parse source parser =
         let pos = R.fromSourcePos (Parsec.errorPos err)
             msgs = Parsec.errorMessages err
         in
-            Task.throw (R.Region pos pos) (Error.Parse msgs)
+            Result.throw (R.Region pos pos) (Error.Parse msgs)
 
 
 parseWithTable
     :: OpTable
     -> String
     -> IParser a
-    -> Task.Task wrn Error.Error a
+    -> Result.Result wrn Error.Error a
 parseWithTable table source parser =
   do  infixInfoList <- parse source parseFixities
 
@@ -97,7 +97,7 @@ parseWithTable table source parser =
 makeInfixTable
     :: Map.Map String (Int, D.Assoc)
     -> [(String, InfixInfo)]
-    -> Task.Task wrn Error.Error (Map.Map String (Int, D.Assoc))
+    -> Result.Result wrn Error.Error (Map.Map String (Int, D.Assoc))
 makeInfixTable table newInfo =
   let add (op, info) dict =
         Map.insertWith (++) op [info] dict
@@ -112,11 +112,11 @@ makeInfixTable table newInfo =
 
           [InfixInfo region info] ->
               if Map.member op table
-                then Task.throw region (Error.InfixDuplicate op)
+                then Result.throw region (Error.InfixDuplicate op)
                 else return info
 
           InfixInfo region _ : _ ->
-              Task.throw region (Error.InfixDuplicate op)
+              Result.throw region (Error.InfixDuplicate op)
   in
       Map.union table <$> T.sequenceA (Map.mapWithKey check infoTable)
 

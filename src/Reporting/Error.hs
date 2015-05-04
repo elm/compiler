@@ -3,11 +3,12 @@ module Reporting.Error where
 
 import Data.Aeson ((.=))
 import qualified Data.Aeson as Json
+import qualified Data.ByteString.Lazy.Char8 as BS
 
+import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Canonicalize
 import qualified Reporting.Error.Syntax as Syntax
 import qualified Reporting.Error.Type as Type
-import qualified Reporting.Region as R
 
 
 -- ALL POSSIBLE ERRORS
@@ -20,8 +21,8 @@ data Error
 
 -- TO STRING
 
-toString :: R.Region -> Error -> String
-toString region err =
+toString :: A.Located Error -> String
+toString (A.A region err) =
   case err of
     Syntax syntaxError ->
         Syntax.toString region syntaxError
@@ -35,8 +36,8 @@ toString region err =
 
 -- JSON
 
-toJson :: R.Region -> Error -> Json.Value
-toJson region err =
+toJson :: A.Located Error -> String
+toJson (A.A region err) =
   let json =
         case err of
           Syntax syntaxError ->
@@ -48,8 +49,9 @@ toJson region err =
           Type typeError ->
               Type.toJson typeError
   in
-      Json.object
-        [ "tag" .= ("error" :: String)
-        , "region" .= region
-        , "error" .= json
-        ]
+      BS.unpack $ Json.encode $
+        Json.object
+          [ "tag" .= ("error" :: String)
+          , "region" .= region
+          , "error" .= json
+          ]
