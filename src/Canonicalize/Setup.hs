@@ -21,7 +21,6 @@ import qualified Reporting.Region as R
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Result as Result
 import qualified Canonicalize.Type as Canonicalize
-import qualified Transform.Interface as Interface
 
 
 environment
@@ -55,7 +54,7 @@ importPatches
     -> A.Located (Module.Name, Module.ImportMethod)
     -> Result.ResultErr [Env.Patch]
 importPatches allInterfaces (A.A region (importName, method)) =
-  case Interface.filterExports <$> Map.lookup importName allInterfaces of
+  case restrictToPublicApi <$> Map.lookup importName allInterfaces of
     Nothing
         | Module.nameIsNative importName ->
             Result.ok []
@@ -332,3 +331,59 @@ declToPatches moduleName (A.A region decl) =
         ( Nothing
         , []
         )
+
+
+-- RESTRICT VISIBLE API OF INTERFACES
+
+restrictToPublicApi :: Module.Interface -> Module.Interface
+restrictToPublicApi interface =
+    interface
+    { Module.iTypes =
+        Map.fromList $
+          Maybe.mapMaybe
+            (get (Module.iTypes interface))
+            (Var.getValues exports ++ ctors)
+
+    , Module.iAliases =
+        Map.fromList $
+          Maybe.mapMaybe
+            (get (Module.iAliases interface))
+            (Var.getAliases exports)
+
+    , Module.iAdts =
+        Map.fromList
+          (Maybe.mapMaybe (trimUnions interface) unions)
+    }
+  where
+    exports :: [Var.Value]
+    exports =
+        Module.iExports interface
+
+    unions :: [(String, Var.Listing String)]
+    unions =
+        Var.getUnions exports
+
+    ctors :: [String]
+    ctors =
+        concatMap (\(_, Var.Listing ctorList _) -> ctorList) unions
+
+
+get :: Map.Map String a -> String -> Maybe (String, a)
+get dict key =
+  case Map.lookup key dict of
+    Nothing -> Nothing
+    Just value -> Just (key, value)
+
+
+trimUnions
+    :: Module.Interface
+    -> (String, Var.Listing String)
+    -> Maybe (String, Module.AdtInfo String)
+trimUnions interface (name, Var.Listing exportedCtors _) =
+  case Map.lookup name (Module.iAdts interface) of
+    Nothing -> Nothing
+    Just (tvars, ctors) ->
+      let isExported (ctor, _) =
+            ctor `elem` exportedCtors
+      in
+          Just (name, (tvars, filter isExported ctors))
