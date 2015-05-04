@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Transform.Substitute (subst) where
+module Generate.Substitute (subst) where
 
 import Control.Arrow (second, (***))
 

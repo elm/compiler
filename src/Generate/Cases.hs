@@ -12,8 +12,8 @@ import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Literal as Literal
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
+import qualified Generate.Substitute as S
 import qualified Reporting.Annotation as A
-import Transform.Substitute (subst)
 
 
 -- MATCHES
@@ -62,7 +62,7 @@ matchSubst pairs match =
         Seq (map (matchSubst pairs) ms)
 
     Other (A.A a e) ->
-        Other . A.A a $ foldr ($) e $ map (\(x,y) -> subst x (Expr.localVar y)) pairs
+        Other . A.A a $ foldr ($) e $ map (\(x,y) -> S.subst x (Expr.localVar y)) pairs
 
     Match n cs m ->
         Match (varSubst n) (map clauseSubst cs) (matchSubst pairs m)
@@ -103,7 +103,7 @@ dealias var branch@(p:ps, A.A ann e) =
     case p of
       A.A _ (P.Alias alias pattern) ->
           ( pattern:ps
-          , A.A ann (subst alias (Expr.localVar var) e)
+          , A.A ann (S.subst alias (Expr.localVar var) e)
           )
 
       _ ->
@@ -143,12 +143,12 @@ matchVar (var:vars) branches match =
                   expr
 
               P.Var x ->
-                  subst x (Expr.localVar var) expr
+                  S.subst x (Expr.localVar var) expr
 
               P.Record fields ->
                   let access = Expr.Access (A.A ann (Expr.localVar var))
                   in
-                      foldr (\x -> subst x (access x)) expr fields
+                      foldr (\x -> S.subst x (access x)) expr fields
 
               _ ->
                   noMatch "matchVar.subVar"
