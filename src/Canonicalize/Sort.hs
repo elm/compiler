@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Transform.SortDefinitions (sortDefs) where
+module Canonicalize.Sort (definitions) where
 
 import Control.Monad.State
 import Control.Applicative ((<$>),(<*>))
@@ -15,31 +15,11 @@ import qualified AST.Variable as V
 import qualified Reporting.Annotation as A
 
 
-ctors :: P.CanonicalPattern -> [String]
-ctors (A.A _ pattern) =
-    case pattern of
-      P.Var _ ->
-          []
+-- STARTING POINT
 
-      P.Alias _ p ->
-          ctors p
-
-      P.Record _ ->
-          []
-
-      P.Anything ->
-          []
-
-      P.Literal _ ->
-          []
-
-      P.Data (V.Canonical home name) ps ->
-          case home of
-            V.Local -> name : rest
-            V.BuiltIn -> rest
-            V.Module _ -> rest
-          where
-            rest = concatMap ctors ps
+definitions :: Canonical.Expr -> Canonical.Expr
+definitions expression =
+  evalState (reorder expression) Set.empty
 
 
 free :: String -> State (Set.Set String) ()
@@ -55,17 +35,7 @@ freeIfLocal (V.Canonical home name) =
     V.Module _ -> return ()
 
 
-bound :: P.CanonicalPattern -> State (Set.Set String) ()
-bound pattern =
-  let boundVars = P.boundVarSet pattern
-  in
-      modify (\freeVars -> Set.difference freeVars boundVars)
-
-
-sortDefs :: Canonical.Expr -> Canonical.Expr
-sortDefs expression =
-  evalState (reorder expression) Set.empty
-
+-- REORDER EXPRESSIONS
 
 reorder :: Canonical.Expr -> State (Set.Set String) Canonical.Expr
 reorder (A.A ann expression) =
@@ -147,7 +117,7 @@ reorder (A.A ann expression) =
               -- allows the programmer to write definitions in whatever
               -- order they please, we can still define things in order
               -- and generalize polymorphic functions when appropriate.
-              sccs <- Graph.stronglyConnComp <$> buildDefDict defs
+              sccs <- Graph.stronglyConnComp <$> buildDefGraph defs
               let defss = map Graph.flattenSCC sccs
 
               -- remove let-bound variables from the context
@@ -161,35 +131,57 @@ reorder (A.A ann expression) =
               return let'
 
 
+ctors :: P.CanonicalPattern -> [String]
+ctors (A.A _ pattern) =
+    case pattern of
+      P.Var _ ->
+          []
+
+      P.Alias _ p ->
+          ctors p
+
+      P.Record _ ->
+          []
+
+      P.Anything ->
+          []
+
+      P.Literal _ ->
+          []
+
+      P.Data (V.Canonical home name) ps ->
+          case home of
+            V.Local -> name : rest
+            V.BuiltIn -> rest
+            V.Module _ -> rest
+          where
+            rest = concatMap ctors ps
+
+
+bound :: P.CanonicalPattern -> State (Set.Set String) ()
+bound pattern =
+  let boundVars = P.boundVarSet pattern
+  in
+      modify (\freeVars -> Set.difference freeVars boundVars)
+
+
 bindingReorder
     :: (P.CanonicalPattern, Canonical.Expr)
     -> State (Set.Set String) (P.CanonicalPattern, Canonical.Expr)
-bindingReorder (pattern,expr) =
+bindingReorder (pattern, expr) =
   do  expr' <- reorder expr
       bound pattern
       mapM_ free (ctors pattern)
       return (pattern, expr')
 
 
-reorderAndGetDependencies
-    :: Canonical.Def
-    -> State (Set.Set String) (Canonical.Def, [String])
-reorderAndGetDependencies (Canonical.Definition pattern expr mType) =
-  do  globalFrees <- get
-      -- work in a fresh environment
-      put Set.empty
-      expr' <- reorder expr
-      localFrees <- get
-      -- merge with global frees
-      modify (Set.union globalFrees)
-      return (Canonical.Definition pattern expr' mType, Set.toList localFrees)
-
+-- BUILD DEPENDENCY GRAPH BETWEEN DEFINITIONS
 
 -- This also reorders the all of the sub-expressions in the Def list.
-buildDefDict
+buildDefGraph
     :: [Canonical.Def]
     -> State (Set.Set String) [(Canonical.Def, Int, [Int])]
-buildDefDict defs =
+buildDefGraph defs =
   do  pdefsDeps <- mapM reorderAndGetDependencies defs
       return $ realDeps (addKey pdefsDeps)
   where
@@ -212,3 +204,17 @@ buildDefDict defs =
         varDict = variableToKeyMap pdefsDeps
         convert (pdef, key, deps) =
             (pdef, key, Maybe.mapMaybe (flip Map.lookup varDict) deps)
+
+
+reorderAndGetDependencies
+    :: Canonical.Def
+    -> State (Set.Set String) (Canonical.Def, [String])
+reorderAndGetDependencies (Canonical.Definition pattern expr mType) =
+  do  globalFrees <- get
+      -- work in a fresh environment
+      put Set.empty
+      expr' <- reorder expr
+      localFrees <- get
+      -- merge with global frees
+      modify (Set.union globalFrees)
+      return (Canonical.Definition pattern expr' mType, Set.toList localFrees)

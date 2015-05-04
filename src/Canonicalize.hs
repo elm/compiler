@@ -27,9 +27,9 @@ import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Port as Port
 import qualified Canonicalize.Result as Result
 import qualified Canonicalize.Setup as Setup
+import qualified Canonicalize.Sort as Sort
 import qualified Canonicalize.Type as Canonicalize
 import qualified Canonicalize.Variable as Canonicalize
-import qualified Transform.SortDefinitions as Transform
 import qualified Transform.Declaration as Transform
 
 
@@ -87,7 +87,7 @@ moduleHelp interfaces modul@(Module.Module _ _ exports (defaults, imports) decls
           { program =
               let expr = Transform.toExpr (Module.names modul) decls
               in
-                  Transform.sortDefs (dummyLet expr)
+                  Sort.definitions (dummyLet expr)
 
           , types =
               Map.empty
