@@ -119,7 +119,7 @@ actuallyUnify variable1 variable2 = do
         where
           msg =
             "Looks like you want something comparable, but the only valid comparable\n\
-            \types are Int, Float, Char, String, lists, or tuples."
+            \types are Int, Float, Char, String, lists, and tuples."
 
       appendableError maybe =
           typeError (Just $ Maybe.fromMaybe msg maybe) variable1 variable2
@@ -352,10 +352,10 @@ fieldMismatchError missingFields =
     case Map.keys missingFields of
       [] -> ""
       [key] ->
-        "Looks like a record is missing the field '" ++ key ++ "'.\n    " ++
-        "Maybe there is a misspelling in a record access or record update?"
+        "Looks like a record is missing the field '" ++ key ++ "'.\n"
+        ++ "Maybe there is a misspelling?"
       keys ->
-        "Looks like one record is missing fields "
+        "Looks like a record is missing fields "
         ++ List.intercalate ", " (init keys) ++ ", and " ++ last keys
 
 
