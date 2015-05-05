@@ -243,12 +243,13 @@ occurs (_name, variable) =
 
         var : _ ->
           do  desc <- liftIO $ UF.descriptor var
+              let region = error "TODO:occurs"
               case structure desc of
                 Nothing ->
-                  error "occurs check triggered"
+                  TS.addError region (Error.InfiniteType undefined (error "TODO:occurs"))
 
                 Just _ ->
-                  error "occurs check triggered"
+                  TS.addError region (Error.InfiniteType undefined (error "TODO:occurs"))
   where
     infiniteVars :: [Variable] -> Variable -> IO [Variable]
     infiniteVars seen var =
