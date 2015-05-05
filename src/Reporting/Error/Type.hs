@@ -12,7 +12,6 @@ data Error
     = Mismatch Mismatch
     | InfiniteType R.Region
     | BadMain T.Canonical
-    | ProblemWithInferenceAlgorithm String
 
 
 data Mismatch = MismatchInfo
