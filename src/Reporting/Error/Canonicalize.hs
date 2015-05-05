@@ -196,7 +196,15 @@ toHint err =
               ++ "like List which are recursive, but do not get expanded into infinite types."
 
           MutuallyRecursive aliases ->
-              error "TODO" aliases
+              "This type alias is part of a mutually recursive set of type aliases.\n"
+              ++ "The following type aliases all depend on each other in some way:\n"
+              ++ concatMap showName aliases ++ "\n\n"
+              ++ "The problem is that when you try to expand any of these type aliases, they\n"
+              ++ "expand infinitely! To fix, first try to centralize them into one alias."
+            where
+              showName (R.Region start _, name, _, _) =
+                  "\n    " ++ name ++ replicate (65 - length name) ' '
+                  ++ "line " ++ show (R.line start)
 
     Import name importError ->
         case importError of
