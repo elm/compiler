@@ -104,4 +104,9 @@ patternConstructor =
 
 expr :: IParser P.RawPattern
 expr =
-  asPattern (patternConstructor <|> term) <?> "pattern"
+    asPattern subPattern <?> "pattern"
+  where
+    subPattern =
+      do  patterns <- consSep1 (patternConstructor <|> term)
+          end <- getMyPosition
+          return (P.consMany end patterns)
