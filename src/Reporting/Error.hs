@@ -43,16 +43,16 @@ toString location source (A.A region err) =
               )
 
     usedSpace =
-        4 + length tag + length location + 4
+        4 + length tag + 1 + length location
 
     messageBar =
         "-- " ++ tag ++ " "
         ++ replicate (max 1 (80 - usedSpace)) '-'
-        ++ " " ++ location ++ " --"
+        ++ " " ++ location
   in
       messageBar ++ "\n\n"
       ++ R.select region source ++ "\n"
-      ++ hint ++ "\n\n"
+      ++ hint ++ "\n\n\n"
 
 
 -- JSON
