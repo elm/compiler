@@ -55,8 +55,8 @@ select (Region start end) source =
   let
     relevantLines =
         lines source
-          |> drop (line start)
-          |> take (line end - line start)
+          |> drop (line start - 1)
+          |> take (line end - line start + 1)
   in
   case relevantLines of
     [] ->
@@ -64,14 +64,17 @@ select (Region start end) source =
 
     [theLine] ->
         let
-          lineNumber = show (line start) ++ "|"
+          n = line start
+          w = length (show (n + 1))
+          underline =
+              replicate (column start - 1) ' '
+              ++ replicate (max 1 (column end - column start)) '^'
         in
-            lineNumber
-            ++ theLine
-            ++ "\n"
-            ++ replicate (column start + length lineNumber) ' '
-            ++ replicate (column end - column start) '^'
-            ++ "\n"
+            unlines
+              [ addLineNumber w (n-1) ""
+              , addLineNumber w n theLine
+              , addLineNumber w (n+1) underline
+              ]
 
     firstLine : rest ->
         let
@@ -85,13 +88,13 @@ select (Region start end) source =
               filteredFirstLine : init rest ++ [filteredLastLine]
 
           lineNumbersWidth =
-              length (show (line end))
+              length (show (line end + 1))
 
           numberedLines =
               zipWith
                 (addLineNumber lineNumbersWidth)
-                [line start .. line end]
-                focusedRelevantLines
+                [line start - 1 .. line end + 1]
+                ("" : focusedRelevantLines ++ [""])
         in
             unlines numberedLines ++ "\n"
 
@@ -99,9 +102,9 @@ select (Region start end) source =
 addLineNumber :: Int -> Int -> String -> String
 addLineNumber width n line =
   let
-    number = show n
+    number = if n < 0 then " " else show n
   in
-    replicate (width - length number) ' ' ++ number ++ "|" ++ line
+    replicate (width - length number) ' ' ++ number ++ "| " ++ line
 
 
 -- JSON
