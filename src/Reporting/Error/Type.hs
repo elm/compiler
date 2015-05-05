@@ -48,7 +48,7 @@ toHint err =
         maybe "This expression is triggering a type mismatch." id maybeHint
         ++ "\n\n"
         ++ "I am trying to infer the type, but I am getting conflicting information.\n"
-        ++ "Some evidence suggests in has the type:\n\n"
+        ++ "Some evidence suggests it has the type:\n\n"
         ++ P.render (P.nest 4 (P.pretty False leftType))
         ++ "\n\nBut other evidence suggests:\n\n"
         ++ P.render (P.nest 4 (P.pretty False rightType))
