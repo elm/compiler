@@ -12,7 +12,7 @@ import qualified Reporting.Region as R
 
 data Error
     = Mismatch Mismatch
-    | InfiniteType
+    | InfiniteType String T.Canonical
     | BadMain T.Canonical
 
 
@@ -53,8 +53,14 @@ toHint err =
         ++ "\n\nBut other evidence suggests:\n\n"
         ++ P.render (P.nest 4 (P.pretty False rightType))
 
-    InfiniteType ->
-        error "TODO"
+    InfiniteType var tipe ->
+        "This expression is leading me to infer an infinite type. Maybe you are trying\n"
+        ++ "to do some tricky recursion? Try breaking the expression into smaller pieces.\n"
+        ++ "Give each piece a name and try to write down its type.\n\n"
+        ++ "The evidence is suggesting that type '" ++ var ++ "' is equal to:\n\n"
+        ++ P.render (P.nest 4 (P.pretty False tipe))
+        ++ "\n\nNotice that type variable '" ++ var ++ "' appears there too, so if we\n"
+        ++ "expanded this type, it would just keep getting bigger and bigger."
 
     BadMain tipe ->
         "The 'main' value has an unsupported type:\n\n"
