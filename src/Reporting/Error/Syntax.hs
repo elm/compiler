@@ -39,7 +39,7 @@ toHint :: Error -> String
 toHint err =
   case err of
     Parse messages ->
-        error "TODO" messages
+        unlines (map parseErrorHint messages)
 
     InfixDuplicate opName ->
         "The infix declarations for " ++ operator ++ " must be removed.\n\n"
@@ -126,3 +126,19 @@ unboundTypeVars typeName tvar tvars revisedDeclaration =
 indent :: String -> String
 indent string =
   List.intercalate "\n" (map ("  " ++ ) (lines string))
+
+
+parseErrorHint :: Parsec.Message -> String
+parseErrorHint message =
+  case message of
+    Parsec.SysUnExpect msg ->
+        "SysUnExpect: " ++ msg
+
+    Parsec.UnExpect msg ->
+        "UnExpect: " ++ msg
+
+    Parsec.Expect msg ->
+        "UnExpect: " ++ msg
+
+    Parsec.Message msg ->
+        "UnExpect: " ++ msg
