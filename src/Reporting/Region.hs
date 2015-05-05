@@ -38,15 +38,6 @@ merge (Region start _) (Region _ end) =
 
 toString :: Region -> String
 toString (Region start end) =
-  let posToString pos =
-          "(line " ++ show (line pos) ++
-          ", column " ++ show (column pos) ++ ")"
-  in
-      posToString start ++ " to " ++ posToString end
-
-
-toPrettyString :: Region -> String
-toPrettyString (Region start end) =
   case line start == line end of
     False ->
         "between lines " ++ show (line start)
