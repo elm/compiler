@@ -352,8 +352,7 @@ fieldMismatchError missingFields =
     case Map.keys missingFields of
       [] -> ""
       [key] ->
-        "Looks like a record is missing the field '" ++ key ++ "'.\n"
-        ++ "Maybe there is a misspelling?"
+        "Looks like a record is missing the field '" ++ key ++ "'"
       keys ->
         "Looks like a record is missing fields "
         ++ List.intercalate ", " (init keys) ++ ", and " ++ last keys
