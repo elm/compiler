@@ -9,6 +9,7 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Canonicalize
 import qualified Reporting.Error.Syntax as Syntax
 import qualified Reporting.Error.Type as Type
+import qualified Reporting.Region as R
 
 
 -- ALL POSSIBLE ERRORS
@@ -21,17 +22,37 @@ data Error
 
 -- TO STRING
 
-toString :: A.Located Error -> String
-toString (A.A region err) =
-  case err of
-    Syntax syntaxError ->
-        error "TODO" syntaxError
+toString :: String -> String -> A.Located Error -> String
+toString location source (A.A region err) =
+  let
+    (tag, hint) =
+        case err of
+          Syntax syntaxError ->
+              ( "SYNTAX ERROR"
+              , Syntax.toHint syntaxError
+              )
 
-    Canonicalize canonicalizeError ->
-        Canonicalize.toString region canonicalizeError
+          Canonicalize canonicalizeError ->
+              ( "NAMING ERROR"
+              , Canonicalize.toHint canonicalizeError
+              )
 
-    Type typeError ->
-        Type.toString region typeError
+          Type typeError ->
+              ( "TYPE ERROR"
+              , Type.toHint typeError
+              )
+
+    usedSpace =
+        4 + length tag + length location + 4
+
+    messageBar =
+        "-- " ++ tag ++ " "
+        ++ replicate (max 1 (80 - usedSpace)) '-'
+        ++ " " ++ location ++ " --"
+  in
+      messageBar ++ "\n\n"
+      ++ R.select region source ++ "\n"
+      ++ hint ++ "\n\n"
 
 
 -- JSON

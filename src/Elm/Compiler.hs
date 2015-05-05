@@ -83,9 +83,9 @@ compile user packageName source interfaces =
 newtype Error = Error (A.Located Error.Error)
 
 
-errorToString :: Error -> String
-errorToString (Error err) =
-    Error.toString err
+errorToString :: String -> String -> Error -> String
+errorToString location source (Error err) =
+    Error.toString location source err
 
 
 errorToJson :: Error -> String

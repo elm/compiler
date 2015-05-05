@@ -93,7 +93,7 @@ select (Region start end) source =
                 [line start .. line end]
                 focusedRelevantLines
         in
-            unlines numberedLines
+            unlines numberedLines ++ "\n"
 
 
 addLineNumber :: Int -> Int -> String -> String
