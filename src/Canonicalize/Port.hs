@@ -90,7 +90,7 @@ validForeignType name isInbound rootType tipe =
       T.Type v ->
           case any ($ v) [ Var.isJson, Var.isPrimitive, Var.isTuple ] of
             True -> Result.ok ()
-            False -> err "an unsupported type"
+            False -> err Nothing
 
       T.App t [] ->
           valid t
@@ -105,16 +105,16 @@ validForeignType name isInbound rootType tipe =
               Foldable.traverse_ valid ts
 
       T.App _ _ ->
-          err "an unsupported type"
+          err Nothing
 
       T.Var _ ->
-          err "a free type variable"
+          err (Just "a free type variable")
 
       T.Lambda _ _ ->
-          err "functions"
+          err (Just "a function")
 
       T.Record _ (Just _) ->
-          err "extended records with free type variables"
+          err (Just "an extended record")
 
       T.Record fields Nothing ->
           Foldable.traverse_ (\(k,v) -> (,) k <$> valid v) fields
