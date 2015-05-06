@@ -3,8 +3,8 @@
 module Elm.Compiler
     ( version, rawVersion
     , parseDependencies, compile
-    , Error, errorToString, errorToJson
-    , Warning, warningToString, warningToJson
+    , Error, errorToString
+    , Warning
     ) where
 
 import Control.Monad.Error.Class (MonadError, throwError)
@@ -88,23 +88,6 @@ errorToString location source (Error err) =
     Error.toString location source err
 
 
-errorToJson :: Error -> String
-errorToJson (Error err) =
-    Error.toJson err
-
-
 -- WARNINGS
 
 newtype Warning = Warning (A.Located Warning.Warning)
-
-
-warningToString :: Warning -> String
-warningToString (Warning warning) =
-    Warning.toString warning
-
-
-warningToJson :: Warning -> String
-warningToJson (Warning warning) =
-    Warning.toJson warning
-
-
