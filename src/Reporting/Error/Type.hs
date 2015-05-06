@@ -5,20 +5,41 @@ import qualified Text.PrettyPrint as P
 
 import qualified AST.Type as T
 import qualified Reporting.PrettyPrint as P
+import qualified Reporting.Region as Region
 import qualified Reporting.Report as Report
 
 
 data Error
-    = Mismatch Mismatch
+    = Mismatch (Mismatch Hint)
     | InfiniteType String T.Canonical
     | BadMain T.Canonical
 
 
-data Mismatch = MismatchInfo
-    { _hint :: Maybe String
+data Mismatch a = MismatchInfo
+    { _hint :: a
     , _leftType :: T.Canonical
     , _rightType :: T.Canonical
     }
+
+
+data Hint
+    = None
+    | Custom String
+    | CaseBranch Int Region.Region
+    -- | Then Region.Region
+    -- | Else Region.Region
+    -- | IfBranch Int Region.Region
+
+
+mergeHint :: Hint -> Maybe String -> Hint
+mergeHint hint maybeMessage =
+  let
+    promote message =
+      case hint of
+        None -> Custom message
+        _ -> hint
+  in
+    maybe hint promote maybeMessage
 
 
 -- TO REPORT
@@ -26,18 +47,15 @@ data Mismatch = MismatchInfo
 toReport :: Error -> Report.Report
 toReport err =
   case err of
-    Mismatch (MismatchInfo maybeHint leftType rightType) ->
+    Mismatch (MismatchInfo hint leftType rightType) ->
         let
-          preHint =
-            maybe "This expression is triggering a type mismatch." id maybeHint
-
-          postHint =
-            "During type inference, I am seeing a conflict between this type:\n\n"
-            ++ P.render (P.nest 4 (P.pretty False leftType))
-            ++ "\n\nand this type:\n\n"
-            ++ P.render (P.nest 4 (P.pretty False rightType))
+          (subRegion, preHint) = hintToString hint
         in
-          Report.simple preHint postHint
+            Report.Report subRegion preHint $
+              "During type inference, I am seeing a conflict between this type:\n\n"
+              ++ P.render (P.nest 4 (P.pretty False leftType))
+              ++ "\n\nand this type:\n\n"
+              ++ P.render (P.nest 4 (P.pretty False rightType))
 
     InfiniteType var tipe ->
         Report.simple "This expression is leading me to infer an infinite type." $
@@ -53,3 +71,40 @@ toReport err =
           "I need an Element, Html, (Signal Element), or (Signal Html) so I can render it\n"
           ++ "on screen, but you gave me:\n\n"
           ++ P.render (P.nest 4 (P.pretty False tipe))
+
+
+hintToString :: Hint -> (Maybe Region.Region, String)
+hintToString hint =
+  case hint of
+    None ->
+        ( Nothing
+        , "This expression is triggering a type mismatch."
+        )
+
+    Custom message ->
+        ( Nothing
+        , message
+        )
+
+    CaseBranch branchNumber region ->
+        ( Just region
+        , "The branches of this case-expression return different types of values!\n\n"
+          ++ "I noticed the mismatch in branch #" ++ show branchNumber ++ ", but go through and make sure every\n"
+          ++ "branch returns the same type of value."
+        )
+{--
+    Then region ->
+        ( Just region
+        , ""
+        )
+
+    Else region ->
+        ( Just region
+        , ""
+        )
+
+    IfBranch branchNumber region ->
+        ( Just region
+        , ""
+        )
+--}

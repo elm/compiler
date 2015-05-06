@@ -13,6 +13,8 @@ import qualified AST.Pattern as P
 import qualified AST.Type as ST
 import qualified AST.Variable as V
 import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Type as Error
+import qualified Reporting.Region as R
 import qualified Type.Constrain.Literal as Literal
 import qualified Type.Constrain.Pattern as Pattern
 import qualified Type.Environment as Env
@@ -27,7 +29,7 @@ constrain
     -> IO TypeConstraint
 constrain env (A.A region expression) tipe =
     let list t = Env.get env Env.types "List" <| t
-        (===) = CEqual region
+        (===) = CEqual Error.None region
         (<?) = CInstance region
     in
     case expression of
@@ -113,15 +115,7 @@ constrain env (A.A region expression) tipe =
                   return (cb /\ ce)
 
       E.Case expr branches ->
-          exists $ \t ->
-              do  exprConstraint <- constrain env expr t
-                  branchConstraints <- mapM (branch t) branches
-                  return (CAnd (exprConstraint : branchConstraints))
-          where
-            branch t (pattern, branchExpr) =
-                do  fragment <- Pattern.constrain env pattern t
-                    branchConstraint <- constrain env branchExpr tipe
-                    return (CLet [Fragment.toScheme fragment] branchConstraint)
+          constrainCase env region expr branches tipe
 
       E.Data name exprs ->
           do  vars <- Monad.forM exprs $ \_ -> variable Flexible
@@ -199,6 +193,46 @@ constrain env (A.A region expression) tipe =
             E.Task _ expr _ ->
                 constrain env expr tipe
 
+
+-- CONSTRAIN CASE EXPRESSIONS
+
+constrainCase
+    :: Env.Environment
+    -> R.Region
+    -> Canonical.Expr
+    -> [(P.CanonicalPattern, Canonical.Expr)]
+    -> Type
+    -> IO TypeConstraint
+constrainCase env region expr branches tipe =
+  do  exprVar <- variable Flexible
+
+      exprCon <- constrain env expr (varN exprVar)
+
+      (branchVars, regions, branchExprCons) <-
+          unzip3 <$> mapM (branch (varN exprVar)) branches
+
+      let branchCons =
+            zipWith3 branchEqual [1..] branchVars regions
+
+      return $
+        ex  (exprVar:branchVars)
+            (CAnd (exprCon : branchExprCons ++ branchCons))
+  where
+    branch patternType (pattern, branchExpr@(A.A branchRegion _)) =
+        do  branchVar <- variable Flexible
+            fragment <- Pattern.constrain env pattern patternType
+            branchCon <- constrain env branchExpr (varN branchVar)
+            return
+                ( branchVar
+                , branchRegion
+                , CLet [Fragment.toScheme fragment] branchCon
+                )
+
+    branchEqual n var branchRegion =
+        CEqual (Error.CaseBranch n branchRegion) region tipe (varN var)
+
+
+-- EXPAND PATTERNS
 
 expandPattern :: Canonical.Def -> [Canonical.Def]
 expandPattern def@(Canonical.Definition lpattern expr maybeType) =

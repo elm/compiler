@@ -1,6 +1,7 @@
 module Type.Constrain.Literal where
 
 import qualified AST.Literal as L
+import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
 import qualified Type.Type as T
 import qualified Type.Environment as Env
@@ -14,7 +15,7 @@ constrain
     -> IO T.TypeConstraint
 constrain env region literal tipe =
   do  tipe' <- litType
-      return (T.CEqual region tipe tipe')
+      return (T.CEqual Error.None region tipe tipe')
   where
     prim name =
         return (Env.get env Env.types name)

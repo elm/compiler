@@ -9,7 +9,7 @@ import qualified Reporting.Region as R
 
 
 data Report = Report
-    { highlight :: Maybe (Int,Int)
+    { highlight :: Maybe R.Region
     , preHint :: String
     , postHint :: String
     }
@@ -43,7 +43,7 @@ messageBar tag location =
 
 -- REGIONS
 
-grabRegion :: Maybe (Int,Int) -> R.Region -> String -> String
+grabRegion :: Maybe R.Region -> R.Region -> String -> String
 grabRegion maybeSubRegion (R.Region start end) source =
   let
     (R.Position startLine startColumn) = start
@@ -95,16 +95,20 @@ grabRegion maybeSubRegion (R.Region start end) source =
                 [startLine - 1 .. endLine + 1]
                 ("" : focusedRelevantLines ++ [""])
         in
-            unlines numberedLines ++ "\n"
+            unlines numberedLines
 
 
-addLineNumber :: Maybe (Int,Int) -> Int -> Int -> String -> String
+addLineNumber :: Maybe R.Region -> Int -> Int -> String -> String
 addLineNumber maybeSubRegion width n line =
   let
-    number = if n <= 0 then " " else show n
-    spacer =
-      case maybeSubRegion of
-        Just (lo,hi) | lo <= n && n <= hi -> ">"
-        _ -> " "
+    number =
+        if n < 0 then " " else show n
+
+    spacer (R.Region start end) =
+        if R.line start <= n && n <= R.line end
+          then ">"
+          else " "
   in
-    replicate (width - length number) ' ' ++ number ++ "|" ++ spacer ++ line
+    replicate (width - length number) ' ' ++ number
+    ++ "|" ++ maybe " " spacer maybeSubRegion
+    ++ line

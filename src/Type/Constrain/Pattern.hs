@@ -9,6 +9,7 @@ import qualified Data.Map as Map
 import qualified AST.Pattern as P
 import qualified AST.Variable as V
 import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Type as Error
 import qualified Type.Constrain.Literal as Literal
 import qualified Type.Environment as Env
 import Type.Fragment
@@ -21,7 +22,7 @@ constrain
     -> Type
     -> IO Fragment
 constrain env (A.A region pattern) tipe =
-  let (===) = CEqual region
+  let (===) = CEqual Error.None region
   in
   case pattern of
     P.Anything ->

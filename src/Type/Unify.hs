@@ -13,25 +13,35 @@ import qualified AST.Variable as Var
 import qualified Reporting.Region as R
 import qualified Reporting.Error.Type as Error
 import qualified Type.State as TS
-import Type.Type
+import Type.Type as Type
 import Type.PrettyPrint
 import Elm.Utils ((|>))
 
 
-unify :: R.Region -> Variable -> Variable -> StateT TS.SolverState IO ()
-unify region variable1 variable2 =
+unify
+    :: Error.Hint
+    -> R.Region
+    -> Variable
+    -> Variable
+    -> StateT TS.SolverState IO ()
+unify hint region variable1 variable2 =
   do  result <- runExceptT (unifyHelp variable1 variable2)
       case result of
         Right state ->
             return state
 
-        Left mismatch ->
-            TS.addError region (Error.Mismatch mismatch)
+        Left (Error.MismatchInfo maybeMessage leftType rightType) ->
+            let
+              trueHint = Error.mergeHint hint maybeMessage
+            in
+                TS.addError region $ Error.Mismatch $
+                    Error.MismatchInfo trueHint leftType rightType
 
 
 -- ACTUALLY UNIFY STUFF
 
-type Unify = ExceptT Error.Mismatch (StateT TS.SolverState IO)
+type Unify =
+  ExceptT (Error.Mismatch (Maybe String)) (StateT TS.SolverState IO)
 
 
 typeError

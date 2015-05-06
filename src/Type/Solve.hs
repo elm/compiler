@@ -133,10 +133,10 @@ actuallySolve constraint =
     CSaveEnv ->
         TS.saveLocalEnv
 
-    CEqual region term1 term2 ->
+    CEqual hint region term1 term2 ->
         do  t1 <- TS.flatten term1
             t2 <- TS.flatten term2
-            unify region t1 t2
+            unify hint region t1 t2
 
     CAnd cs ->
         mapM_ actuallySolve cs
@@ -167,7 +167,7 @@ actuallySolve constraint =
                         else error ("Could not find '" ++ name ++ "' when solving type constraints.")
 
             t <- TS.flatten term
-            unify region freshCopy t
+            unify Error.None region freshCopy t
 
 
 solveScheme :: TypeScheme -> StateT TS.SolverState IO (Map.Map String Variable)
