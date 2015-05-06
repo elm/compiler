@@ -3,6 +3,7 @@ module Compile (compile) where
 import qualified Data.Map as Map
 
 import qualified AST.Module as Module
+import qualified Canonicalize
 import Elm.Utils ((|>))
 import qualified Parse.Helpers as Parse
 import qualified Parse.Parse as Parse
@@ -10,7 +11,6 @@ import qualified Reporting.Error as Error
 import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
 import qualified Type.Inference as TI
-import qualified Canonicalize
 
 
 compile
