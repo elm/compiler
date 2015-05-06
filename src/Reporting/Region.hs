@@ -79,7 +79,8 @@ select (Region start end) source =
     firstLine : rest ->
         let
           filteredFirstLine =
-              replicate (column start) ' ' ++ drop (column start) firstLine
+              replicate (column start - 1) ' '
+              ++ drop (column start - 1) firstLine
 
           filteredLastLine =
               take (column end) (last rest)
