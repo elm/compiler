@@ -62,40 +62,45 @@ constrain env (A.A region expression) tipe =
           in
               return (if name == E.saveEnvName then CSaveEnv else name <? tipe)
 
-      E.Range lo hi ->
+      E.Range lowExpr highExpr ->
           existsNumber $ \n ->
-              do  clo <- constrain env lo n
-                  chi <- constrain env hi n
-                  return $ CAnd [clo, chi, list n === tipe]
+              do  lowCon <- constrain env lowExpr n
+                  highCon <- constrain env highExpr n
+                  return $ CAnd [lowCon, highCon, list n === tipe]
 
       E.ExplicitList exprs ->
           exists $ \x ->
               do  constraints <- mapM (\e -> constrain env e x) exprs
                   return $ CAnd (list x === tipe : constraints)
 
-      E.Binop op e1 e2 ->
-          exists $ \t1 ->
-          exists $ \t2 ->
-              do  c1 <- constrain env e1 t1
-                  c2 <- constrain env e2 t2
-                  return $ CAnd [ c1, c2, V.toString op <? (t1 ==> t2 ==> tipe) ]
+      E.Binop op leftExpr rightExpr ->
+          exists $ \leftType ->
+          exists $ \rightType ->
+              do  leftCon <- constrain env leftExpr leftType
+                  rightCon <- constrain env rightExpr rightType
+                  return $ CAnd
+                    [ leftCon
+                    , rightCon
+                    , V.toString op <? (leftType ==> rightType ==> tipe)
+                    ]
 
       E.Lambda pattern body ->
-          exists $ \t1 ->
-          exists $ \t2 ->
-              do  fragment <- Pattern.constrain env pattern t1
-                  c2 <- constrain env body t2
-                  let c = ex (Fragment.vars fragment)
-                             (CLet [monoscheme (Fragment.typeEnv fragment)]
-                                   (Fragment.typeConstraint fragment /\ c2)
-                             )
-                  return $ c /\ tipe === (t1 ==> t2)
+          exists $ \argType ->
+          exists $ \resType ->
+              do  fragment <- Pattern.constrain env pattern argType
+                  bodyCon <- constrain env body resType
+                  let con =
+                        ex (Fragment.vars fragment)
+                            (CLet [monoscheme (Fragment.typeEnv fragment)]
+                                  (Fragment.typeConstraint fragment /\ bodyCon)
+                            )
+                  return $ con /\ tipe === (argType ==> resType)
 
-      E.App e1 e2 ->
+      E.App func arg ->
           exists $ \t ->
-              do  c1 <- constrain env e1 (t ==> tipe)
-                  c2 <- constrain env e2 t
-                  return $ c1 /\ c2
+              do  funcCon <- constrain env func (t ==> tipe)
+                  argCon <- constrain env arg t
+                  return (funcCon /\ argCon)
 
       E.MultiIf branches ->
           CAnd <$> mapM constrain' branches
@@ -115,7 +120,8 @@ constrain env (A.A region expression) tipe =
           where
             branch t (pattern, branchExpr) =
                 do  fragment <- Pattern.constrain env pattern t
-                    CLet [Fragment.toScheme fragment] <$> constrain env branchExpr tipe
+                    branchConstraint <- constrain env branchExpr tipe
+                    return (CLet [Fragment.toScheme fragment] branchConstraint)
 
       E.Data name exprs ->
           do  vars <- Monad.forM exprs $ \_ -> variable Flexible
@@ -136,12 +142,13 @@ constrain env (A.A region expression) tipe =
               constrain env expr (record (Map.singleton label [t]) tipe)
 
       E.Insert expr label value ->
-          exists $ \tVal ->
-          exists $ \tRec ->
-              do  cVal <- constrain env value tVal
-                  cRec <- constrain env expr tRec
-                  let c = tipe === record (Map.singleton label [tVal]) tRec
-                  return (CAnd [cVal, cRec, c])
+          exists $ \valueType ->
+          exists $ \recordType ->
+              do  valueCon <- constrain env value valueType
+                  recordCon <- constrain env expr recordType
+                  let newRecordType =
+                        record (Map.singleton label [valueType]) recordType
+                  return (CAnd [valueCon, recordCon, tipe === newRecordType])
 
       E.Modify expr fields ->
           exists $ \t ->
@@ -158,14 +165,18 @@ constrain env (A.A region expression) tipe =
                   return $ cOld /\ ex newVars (CAnd (cNew : cs))
 
       E.Record fields ->
-          do  vars <- Monad.forM fields $ \_ -> variable Flexible
-              cs <- Monad.zipWithM (constrain env) (map snd fields) (map varN vars)
+          do  vars <- Monad.forM fields (\_ -> variable Flexible)
+              fieldCons <-
+                  Monad.zipWithM
+                      (constrain env)
+                      (map snd fields)
+                      (map varN vars)
               let fields' = ST.fieldMap (zip (map fst fields) (map varN vars))
               let recordType = record fields' (termN EmptyRecord1)
-              return . ex vars . CAnd $ tipe === recordType : cs
+              return (ex vars (CAnd (tipe === recordType : fieldCons)))
 
       E.Let defs body ->
-          do  c <- constrain env body tipe
+          do  bodyCon <- constrain env body tipe
 
               (Info schemes rqs fqs headers c2 c1) <-
                   Monad.foldM
@@ -175,7 +186,7 @@ constrain env (A.A region expression) tipe =
 
               let letScheme = [ Scheme rqs fqs (CLet [monoscheme headers] c2) headers ]
 
-              return $ CLet schemes (CLet letScheme (c1 /\ c))
+              return $ CLet schemes (CLet letScheme (c1 /\ bodyCon))
 
       E.Port impl ->
           case impl of
