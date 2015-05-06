@@ -5,7 +5,6 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Canonicalize
 import qualified Reporting.Error.Syntax as Syntax
 import qualified Reporting.Error.Type as Type
-import qualified Reporting.Error.CheckMatch as CheckMatch
 import qualified Reporting.Report as Report
 
 
@@ -15,7 +14,6 @@ data Error
     = Syntax Syntax.Error
     | Canonicalize Canonicalize.Error
     | Type Type.Error
-    | CheckMatch CheckMatch.Error
 
 
 -- TO STRING

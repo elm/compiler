@@ -1,9 +1,10 @@
-module Reporting.Warning.CheckMatch where
+module Reporting.Warning.Nitpick where
 
 import qualified AST.Pattern as Pattern
 import qualified AST.Literal as Literal
 import qualified Data.Set as Set
 import qualified AST.Variable as Var
+
 
 data Pat var
     = Data var [Pat var]
@@ -17,8 +18,10 @@ data Pat var
     | AnythingBut (Set.Set Literal.Literal)
     deriving (Show, Eq)
 
+
 type CanonicalPat =
     Pat Var.Canonical
+
 
 data Warning
     = Redundant Pattern.CanonicalPattern

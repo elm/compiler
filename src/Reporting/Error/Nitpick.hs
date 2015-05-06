@@ -1,9 +1,10 @@
-module Reporting.Error.CheckMatch where
+module Reporting.Error.Nitpick where
 
 import qualified Data.Aeson as Json
 
 import qualified AST.Variable as Var
 import qualified Reporting.Region as R
+
 
 data Error = ConstructorTypeNotFound Var.Canonical
 
@@ -12,7 +13,7 @@ data Error = ConstructorTypeNotFound Var.Canonical
 toString :: R.Region -> Error -> String
 toString region err =
   case err of
-    _ -> error "CheckMatch.toString" region
+    _ -> error "Nitpick.toString" region
 
 
 -- TO JSON
@@ -20,5 +21,5 @@ toString region err =
 toJson :: Error -> Json.Value
 toJson err =
   case err of
-    _ -> error "CheckMatch.toJson"
+    _ -> error "Nitpick.toJson"
 

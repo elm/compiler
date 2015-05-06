@@ -1,30 +1,27 @@
 {-# LANGUAGE NamedFieldPuns, TupleSections #-}
-module CheckMatch
+module Nitpick.PatternMatches
     ( checkBody
     , Pat (..)
     , CanonicalPat
     ) where
 
 import Control.Applicative ((<$>), (<*>))
-import Control.Monad.Except (throwError)
-import Control.Monad (liftM)
-import Control.Monad (forM)
-
+import Control.Monad.Except (forM, liftM, throwError)
 import Data.Maybe (mapMaybe, catMaybes)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 
-import Elm.Utils ((|>))
 import qualified AST.Expression.General as General
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Module as Module
 import qualified AST.Pattern as Pattern
-import AST.Pattern (CanonicalPattern)
-import qualified Reporting.Annotation as Annotation
-import qualified Reporting.Region as Region
 import qualified AST.Variable as Var
-import qualified Reporting.Error.CheckMatch as Error
-import Reporting.Warning.CheckMatch
+import Elm.Utils ((|>))
+import qualified Reporting.Annotation as Annotation
+import qualified Reporting.Error.Nitpick as Error
+import qualified Reporting.Region as Region
+import qualified Reporting.Warning.Nitpick as Warning
+
 
 type M =
     Either (Annotation.Located Error.Error)
@@ -80,7 +77,7 @@ checkBody interfaces =
           General.Let defs e ->
               concat <$> sequence [ps, rhssResults, checkExpr e]
             where
-              ps = mapMaybeM (\(Canonical.Definition p _ _) -> checkMatch r [p]) defs
+              ps = filterMapM (\(Canonical.Definition p _ _) -> checkMatch r [p]) defs
 
               rhssResults = concatMapM (\(Canonical.Definition _ e _) -> checkExpr e) defs
 
@@ -252,17 +249,22 @@ checkBody interfaces =
 
 
 -- Util
+
 concatMapM :: Monad m => (a -> m [b]) -> [a] -> m [b]
-concatMapM f =
-    liftM concat . mapM f
+concatMapM f list =
+    liftM concat (mapM f list)
 
 
-mapMaybeM :: Monad m => (a -> m (Maybe b)) -> [a] -> m [b]
-mapMaybeM f =
-    liftM catMaybes . mapM f
+filterMapM :: Monad m => (a -> m (Maybe b)) -> [a] -> m [b]
+filterMapM f list =
+    liftM catMaybes (mapM f list)
 
 
 maybeCons :: Maybe a -> [a] -> [a]
-maybeCons =
-    maybe id (:)
+maybeCons maybe list =
+    case maybe of
+      Just x ->
+          x : list
 
+      Nothing ->
+          list
