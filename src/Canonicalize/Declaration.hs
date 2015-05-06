@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Transform.Declaration (toExpr) where
+module Canonicalize.Declaration (toExpr) where
 
 import qualified AST.Declaration as D
 import qualified AST.Expression.General as E

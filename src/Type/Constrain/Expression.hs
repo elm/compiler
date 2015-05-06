@@ -13,6 +13,8 @@ import qualified AST.Pattern as P
 import qualified AST.Type as ST
 import qualified AST.Variable as V
 import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Type as Error
+import qualified Reporting.Region as R
 import qualified Type.Constrain.Literal as Literal
 import qualified Type.Constrain.Pattern as Pattern
 import qualified Type.Environment as Env
@@ -27,7 +29,7 @@ constrain
     -> IO TypeConstraint
 constrain env (A.A region expression) tipe =
     let list t = Env.get env Env.types "List" <| t
-        (===) = CEqual region
+        (===) = CEqual Error.None region
         (<?) = CInstance region
     in
     case expression of
@@ -62,60 +64,51 @@ constrain env (A.A region expression) tipe =
           in
               return (if name == E.saveEnvName then CSaveEnv else name <? tipe)
 
-      E.Range lo hi ->
+      E.Range lowExpr highExpr ->
           existsNumber $ \n ->
-              do  clo <- constrain env lo n
-                  chi <- constrain env hi n
-                  return $ CAnd [clo, chi, list n === tipe]
+              do  lowCon <- constrain env lowExpr n
+                  highCon <- constrain env highExpr n
+                  return $ CAnd [lowCon, highCon, list n === tipe]
 
       E.ExplicitList exprs ->
           exists $ \x ->
               do  constraints <- mapM (\e -> constrain env e x) exprs
                   return $ CAnd (list x === tipe : constraints)
 
-      E.Binop op e1 e2 ->
-          exists $ \t1 ->
-          exists $ \t2 ->
-              do  c1 <- constrain env e1 t1
-                  c2 <- constrain env e2 t2
-                  return $ CAnd [ c1, c2, V.toString op <? (t1 ==> t2 ==> tipe) ]
+      E.Binop op leftExpr rightExpr ->
+          exists $ \leftType ->
+          exists $ \rightType ->
+              do  leftCon <- constrain env leftExpr leftType
+                  rightCon <- constrain env rightExpr rightType
+                  return $ CAnd
+                    [ leftCon
+                    , rightCon
+                    , V.toString op <? (leftType ==> rightType ==> tipe)
+                    ]
 
       E.Lambda pattern body ->
-          exists $ \t1 ->
-          exists $ \t2 ->
-              do  fragment <- Pattern.constrain env pattern t1
-                  c2 <- constrain env body t2
-                  let c = ex (Fragment.vars fragment)
-                             (CLet [monoscheme (Fragment.typeEnv fragment)]
-                                   (Fragment.typeConstraint fragment /\ c2)
-                             )
-                  return $ c /\ tipe === (t1 ==> t2)
+          exists $ \argType ->
+          exists $ \resType ->
+              do  fragment <- Pattern.constrain env pattern argType
+                  bodyCon <- constrain env body resType
+                  let con =
+                        ex (Fragment.vars fragment)
+                            (CLet [monoscheme (Fragment.typeEnv fragment)]
+                                  (Fragment.typeConstraint fragment /\ bodyCon)
+                            )
+                  return $ con /\ tipe === (argType ==> resType)
 
-      E.App e1 e2 ->
+      E.App func arg ->
           exists $ \t ->
-              do  c1 <- constrain env e1 (t ==> tipe)
-                  c2 <- constrain env e2 t
-                  return $ c1 /\ c2
+              do  funcCon <- constrain env func (t ==> tipe)
+                  argCon <- constrain env arg t
+                  return (funcCon /\ argCon)
 
       E.MultiIf branches ->
-          CAnd <$> mapM constrain' branches
-        where
-          bool = Env.get env Env.types "Bool"
-
-          constrain' (cond, expr) =
-              do  cb <- constrain env cond bool
-                  ce <- constrain env expr tipe
-                  return (cb /\ ce)
+          constrainIf env region branches tipe
 
       E.Case expr branches ->
-          exists $ \t ->
-              do  exprConstraint <- constrain env expr t
-                  branchConstraints <- mapM (branch t) branches
-                  return (CAnd (exprConstraint : branchConstraints))
-          where
-            branch t (pattern, branchExpr) =
-                do  fragment <- Pattern.constrain env pattern t
-                    CLet [Fragment.toScheme fragment] <$> constrain env branchExpr tipe
+          constrainCase env region expr branches tipe
 
       E.Data name exprs ->
           do  vars <- Monad.forM exprs $ \_ -> variable Flexible
@@ -136,12 +129,13 @@ constrain env (A.A region expression) tipe =
               constrain env expr (record (Map.singleton label [t]) tipe)
 
       E.Insert expr label value ->
-          exists $ \tVal ->
-          exists $ \tRec ->
-              do  cVal <- constrain env value tVal
-                  cRec <- constrain env expr tRec
-                  let c = tipe === record (Map.singleton label [tVal]) tRec
-                  return (CAnd [cVal, cRec, c])
+          exists $ \valueType ->
+          exists $ \recordType ->
+              do  valueCon <- constrain env value valueType
+                  recordCon <- constrain env expr recordType
+                  let newRecordType =
+                        record (Map.singleton label [valueType]) recordType
+                  return (CAnd [valueCon, recordCon, tipe === newRecordType])
 
       E.Modify expr fields ->
           exists $ \t ->
@@ -158,14 +152,18 @@ constrain env (A.A region expression) tipe =
                   return $ cOld /\ ex newVars (CAnd (cNew : cs))
 
       E.Record fields ->
-          do  vars <- Monad.forM fields $ \_ -> variable Flexible
-              cs <- Monad.zipWithM (constrain env) (map snd fields) (map varN vars)
+          do  vars <- Monad.forM fields (\_ -> variable Flexible)
+              fieldCons <-
+                  Monad.zipWithM
+                      (constrain env)
+                      (map snd fields)
+                      (map varN vars)
               let fields' = ST.fieldMap (zip (map fst fields) (map varN vars))
               let recordType = record fields' (termN EmptyRecord1)
-              return . ex vars . CAnd $ tipe === recordType : cs
+              return (ex vars (CAnd (fieldCons ++ [tipe === recordType])))
 
       E.Let defs body ->
-          do  c <- constrain env body tipe
+          do  bodyCon <- constrain env body tipe
 
               (Info schemes rqs fqs headers c2 c1) <-
                   Monad.foldM
@@ -175,7 +173,7 @@ constrain env (A.A region expression) tipe =
 
               let letScheme = [ Scheme rqs fqs (CLet [monoscheme headers] c2) headers ]
 
-              return $ CLet schemes (CLet letScheme (c1 /\ c))
+              return $ CLet schemes (CLet letScheme (c1 /\ bodyCon))
 
       E.Port impl ->
           case impl of
@@ -188,6 +186,107 @@ constrain env (A.A region expression) tipe =
             E.Task _ expr _ ->
                 constrain env expr tipe
 
+
+-- CONSTRAIN IF EXPRESSIONS
+
+constrainIf
+    :: Env.Environment
+    -> R.Region
+    -> [(Canonical.Expr, Canonical.Expr)]
+    -> Type
+    -> IO TypeConstraint
+constrainIf env region branches tipe =
+  do  (branchInfo, branchExprCons) <-
+          unzip <$> mapM constrainBranch branches
+
+      return $
+        ex  (map fst branchInfo)
+            (CAnd (branchExprCons ++ branchCons branchInfo))
+  where
+    bool = Env.get env Env.types "Bool"
+
+    constrainBranch (cond, expr@(A.A branchRegion _)) =
+      do  branchVar <- variable Flexible
+          condCon <- constrain env cond bool
+          exprCon <- constrain env expr (varN branchVar)
+          return
+            ( (branchVar, branchRegion)
+            , condCon /\ exprCon
+            )
+
+    branchCons branchInfo =
+      case branchInfo of
+        [(thenVar, _), (elseVar, _)] ->
+            [ CEqual Error.IfBranches region (varN thenVar) (varN elseVar)
+            , CEqual Error.If region tipe (varN thenVar)
+            ]
+
+        _ ->
+            buildBranchCons 2 branchInfo
+
+    buildBranchCons n branchInfo =
+      case branchInfo of
+        [] ->
+            []
+
+        (var,_) : [] ->
+            [ CEqual Error.If region tipe (varN var) ]
+
+        (var,_) : (var',region') : rest ->
+            let
+              hint = Error.MultiIfBranch n region'
+              con = CEqual hint region (varN var) (varN var')
+            in
+              con : buildBranchCons (n+1) ((var', region') : rest)
+
+
+-- CONSTRAIN CASE EXPRESSIONS
+
+constrainCase
+    :: Env.Environment
+    -> R.Region
+    -> Canonical.Expr
+    -> [(P.CanonicalPattern, Canonical.Expr)]
+    -> Type
+    -> IO TypeConstraint
+constrainCase env region expr branches tipe =
+  do  exprVar <- variable Flexible
+
+      exprCon <- constrain env expr (varN exprVar)
+
+      (branchInfo, branchExprCons) <-
+          unzip <$> mapM (branch (varN exprVar)) branches
+
+      return $
+        ex  (exprVar : map fst branchInfo)
+            (CAnd (exprCon : branchExprCons ++ branchCons 2 branchInfo))
+  where
+    branch patternType (pattern, branchExpr@(A.A branchRegion _)) =
+        do  branchVar <- variable Flexible
+            fragment <- Pattern.constrain env pattern patternType
+            branchCon <- constrain env branchExpr (varN branchVar)
+            return
+                ( (branchVar, branchRegion)
+                , CLet [Fragment.toScheme fragment] branchCon
+                )
+
+    branchCons n branchInfo =
+      case branchInfo of
+        [] ->
+            []
+
+        (var,_) : [] ->
+            [ CEqual Error.Case region tipe (varN var) ]
+
+        (var,_) : (var',region') : rest ->
+            let
+              hint = Error.CaseBranch n region'
+              con = CEqual hint region (varN var) (varN var')
+            in
+              con : branchCons (n+1) ((var', region') : rest)
+
+
+-- EXPAND PATTERNS
 
 expandPattern :: Canonical.Def -> [Canonical.Def]
 expandPattern def@(Canonical.Definition lpattern expr maybeType) =

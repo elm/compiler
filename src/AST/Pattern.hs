@@ -48,6 +48,14 @@ list end patterns =
         A.at start end (Data (Var.Raw "::") [pattern, list end rest])
 
 
+consMany :: R.Position -> [RawPattern] -> RawPattern
+consMany end patterns =
+  let cons hd@(A.A (R.Region start _) _) tl =
+          A.at start end (Data (Var.Raw "::") [hd, tl])
+  in
+      foldr1 cons patterns
+
+
 tuple :: [RawPattern] -> RawPattern'
 tuple patterns =
   Data (Var.Raw ("_Tuple" ++ show (length patterns))) patterns

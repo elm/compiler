@@ -1,17 +1,17 @@
-module Transform.AddDefaultImports (add, defaultImports) where
+module Elm.Compiler.Imports (defaults) where
 
 import qualified AST.Module as Module
 import qualified AST.Variable as Var
 
 
--- DESCRIPTION OF DEFAULT IMPORTS
+-- DEFAULT IMPORTS
 
 (==>) :: a -> b -> (a,b)
 (==>) = (,)
 
 
-defaultImports :: [Module.DefaultImport]
-defaultImports =
+defaults :: [Module.DefaultImport]
+defaults =
     [ ["Basics"] ==> Module.ImportMethod Nothing Var.openListing
     , ["List"] ==> exposing [Var.Value "::"]
     , ["Maybe"] ==> exposing [Var.Union "Maybe" Var.openListing]
@@ -23,18 +23,3 @@ defaultImports =
 exposing :: [Var.Value] -> Module.ImportMethod
 exposing vars =
   Module.ImportMethod Nothing (Var.listing vars)
-
-
--- ADDING DEFAULT IMPORTS TO A MODULE
-
-add
-    :: Bool
-    -> [Module.UserImport]
-    -> ([Module.DefaultImport], [Module.UserImport])
-add needsDefaults imports =
-    (defaults, imports)
-  where
-    defaults =
-      if needsDefaults
-        then defaultImports
-        else []

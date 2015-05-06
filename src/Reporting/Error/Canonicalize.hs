@@ -2,18 +2,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Reporting.Error.Canonicalize where
 
---import Data.Aeson ((.=))
-import qualified Data.Aeson as Json
---import qualified Data.Aeson.Types as Json
 import Data.Function (on)
 import qualified Data.List as List
 import qualified Text.EditDistance as Dist
+import qualified Text.PrettyPrint as P
 
 import qualified AST.Module as Module
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import Elm.Utils ((|>))
-import qualified Reporting.Region as R
+import qualified Reporting.PrettyPrint as P
+import qualified Reporting.Region as Region
+import qualified Reporting.Report as Report
 
 
 data Error
@@ -31,19 +31,20 @@ data VarError = VarError
     { varKind :: String
     , varName :: String
     , varProblem :: VarProblem
+    , varSuggestions :: [String]
     }
 
 
 data VarProblem
-    = Ambiguous [String]
-    | UnknownQualifier [Module.Name]
-    | QualifiedUnknown [String]
-    | ExposedUnknown { closeExposed :: [String], closeQualified :: [String] }
+    = Ambiguous
+    | UnknownQualifier String
+    | QualifiedUnknown String
+    | ExposedUnknown
 
 
-var :: String -> String -> VarProblem -> Error
-var kind name problem =
-  Var (VarError kind name problem)
+variable :: String -> String -> VarProblem -> [String] -> Error
+variable kind name problem suggestions =
+  Var (VarError kind name problem suggestions)
 
 
 -- PATTERN
@@ -79,7 +80,7 @@ valueNotFound name value possibilities =
 data AliasError
     = ArgMismatch Var.Canonical Int Int
     | SelfRecursive String [String] Type.Raw
-    | MutuallyRecursive [(R.Region, String, [String], Type.Raw)]
+    | MutuallyRecursive [(Region.Region, String, [String], Type.Raw)]
 
 
 alias :: Var.Canonical -> Int -> Int -> Error
@@ -94,7 +95,7 @@ data PortError = PortError
     , portIsInbound :: Bool
     , portRootType :: Type.Canonical
     , portLocalType :: Type.Canonical
-    , portMessage :: String
+    , portMessage :: Maybe String
     }
 
 
@@ -103,10 +104,10 @@ port
     -> Bool
     -> Type.Canonical
     -> Type.Canonical
-    -> String
+    -> Maybe String
     -> Error
-port name isInbound rootType localType message =
-  Port (PortError name isInbound rootType localType message)
+port name isInbound rootType localType maybeMessage =
+  Port (PortError name isInbound rootType localType maybeMessage)
 
 
 -- NEARBY NAMES
@@ -128,138 +129,126 @@ distance x y =
   Dist.restrictedDamerauLevenshteinDistance Dist.defaultEditCosts x y
 
 
--- TO STRING
+-- TO REPORT
 
-toString :: R.Region -> Error -> String
-toString region err =
+toReport :: Error -> Report.Report
+toReport err =
   case err of
-    _ -> error "Canonicalize.toString" region
+    Var (VarError kind name problem suggestions) ->
+        let var = kind ++ " '" ++ name ++ "'"
+        in
+        case problem of
+          Ambiguous ->
+              Report.simple
+                ("This usage of " ++ var ++ " is ambiguous.")
+                (maybeYouWant suggestions)
+
+          UnknownQualifier qualifier ->
+              Report.simple
+                ("Cannot find " ++ var ++ ", qualifier '" ++ qualifier ++ "' is not in scope.")
+                (maybeYouWant suggestions)
+
+          QualifiedUnknown qualifier ->
+              Report.simple
+                ("Cannot find " ++ var ++ ", module '" ++ qualifier ++ "' does not expose that value.")
+                (maybeYouWant suggestions)
+
+          ExposedUnknown ->
+              Report.simple
+                ("Cannot find " ++ var)
+                (maybeYouWant suggestions)
+
+    Pattern patternError ->
+        case patternError of
+          PatternArgMismatch var expected actual ->
+              argMismatchReport "Pattern" var expected actual
+
+    Alias aliasError ->
+        case aliasError of
+          ArgMismatch var expected actual ->
+              argMismatchReport "Type" var expected actual
+
+          SelfRecursive name tvars tipe ->
+              Report.simple "This type alias is recursive, forming an infinite type!" $
+                "Type aliases are just names for more fundamental types, so I go through\n"
+                ++ "and expand them all to know the real underlying type. The problem is that\n"
+                ++ "when I expand a recursive type alias, it keeps getting bigger and bigger.\n"
+                ++ "Dealiasing results in an infinitely large type! Try this instead:\n\n"
+                ++ "    type " ++ name ++ concatMap (' ':) tvars ++ " ="
+                ++ P.render (P.nest 8 (P.hang (P.text name) 2 (P.pretty True tipe)))
+                ++ "\n\nThis creates a brand new type that cannot be expanded. It is similar types\n"
+                ++ "like List which are recursive, but do not get expanded into infinite types."
+
+          MutuallyRecursive aliases ->
+              Report.simple "This type alias is part of a mutually recursive set of type aliases." $
+                "The following type aliases all depend on each other in some way:\n"
+                ++ concatMap showName aliases ++ "\n\n"
+                ++ "The problem is that when you try to expand any of these type aliases, they\n"
+                ++ "expand infinitely! To fix, first try to centralize them into one alias."
+            where
+              showName (Region.Region start _, name, _, _) =
+                  "\n    " ++ name ++ replicate (65 - length name) ' '
+                  ++ "line " ++ show (Region.line start)
+
+    Import name importError ->
+        let moduleName = Module.nameToString name
+        in
+        case importError of
+          ModuleNotFound suggestions ->
+              Report.simple
+                ("Could not find a module named '" ++ moduleName ++ "'")
+                (maybeYouWant (map Module.nameToString suggestions))
+
+          ValueNotFound value suggestions ->
+              Report.simple
+                ("Module '" ++ moduleName ++ "' does not expose '" ++ value ++ "'")
+                (maybeYouWant suggestions)
+
+    Export name suggestions ->
+        Report.simple
+          ("Could not export '" ++ name ++ "' which is not defined in this module.")
+          (maybeYouWant suggestions)
+
+    Port (PortError name isInbound _rootType localType maybeMessage) ->
+        let
+          boundPort =
+            if isInbound then "inbound port" else "outbound port"
+
+          preHint =
+            "Trying to send " ++ maybe "an unsupported type" id maybeMessage
+            ++ " through " ++ boundPort ++ " '" ++ name ++ "'"
+
+          postHint =
+            "The specific unsupported type is:\n\n"
+            ++ P.render (P.nest 4 (P.pretty False localType)) ++ "\n\n"
+            ++ "The types of values that can flow through " ++ boundPort ++ "s include:\n"
+            ++ "Ints, Floats, Bools, Strings, Maybes, Lists, Arrays, Tuples,\n"
+            ++ "Json.Values, and concrete records."
+        in
+          Report.simple preHint postHint
 
 
--- TO JSON
+argMismatchReport :: String -> Var.Canonical -> Int -> Int -> Report.Report
+argMismatchReport kind var expected actual =
+  let
+    preHint =
+      kind ++ " " ++ Var.toString var ++ " has too "
+      ++ (if actual < expected then "few" else "many")
+      ++ "arguments."
 
-toJson :: Error -> Json.Value
-toJson err =
-  case err of
-    _ -> error "Canonicalize.toJson"
-
-{--
-(.=.) key value =
-    key .= (value :: String)
-
-
-errorToJson :: LError -> Json.Value
-errorToJson (A.A region err) =
-    Json.object (generals ++ specifics)
-  where
-    generals =
-        [ "category" .=. "canonicalization"
-        , "region" .= region
-        ]
-
-    specifics =
-      case err of
-        Var (VarError kind name varProblem) ->
-            [ "kind" .= kind
-            , "name" .= name
-            ]
-            ++ varProblemToJson varProblem
-
-        Alias aliasError ->
-            case aliasError of
-              ArgMismatch name expected actual ->
-                  [ "tag" .=. "alias-args"
-                  , "name" .= Var.toString name
-                  , "expected-args" .= expected
-                  , "actual-args" .= actual
-                  ]
-
-              Recursive [(name, tvars, tipe)] ->
-                  [ "tag" .=. "recursive-alias"
-                  ]
-
-              Recursive aliases ->
-                  [ "tag" .=. "mutually-recursive-aliases"
-                  ]
-
-        Import moduleName importError ->
-            case importError of
-              ModuleNotFound suggestions ->
-                  [ "tag" .=. "unknown-import"
-                  , "name" .= moduleName
-                  , "suggestions" .= suggestions
-                  ]
-              ValueNotFound name suggestions ->
-                  []
-
-        Export name suggestions ->
-            []
-
-        Port portError ->
-            []
-
-
-varProblemToJson :: VarProblem -> [Json.Pair]
-varProblemToJson varProblem =
-  let details tag suggestions =
-        [ "tag" .=. tag
-        , "suggestions" .= suggestions
-        ]
+    postHint =
+      "Expecting " ++ show expected ++ ", but got " ++ show actual ++ "."
   in
-  case varProblem of
-    Ambiguous possibilities ->
-        details "ambiguous" possibilities
-
-    UnknownQualifier possibleModules ->
-        details
-            "unknown-qualifier"
-            (map Module.nameToString possibleModules)
-
-    QualifiedUnknown possibilities ->
-        details "qualified-unknown" possibilities
-
-    ExposedUnknown closeExposed closeQualified ->
-        details "exposed-unknown" (closeExposed ++ closeQualified)
---}
-
-{-- TO STRING
-
-mutuallyRecursiveMessage :: String
-mutuallyRecursiveMessage =
-  "The following type aliases are mutually recursive, forming an \
-  \infinite type. When you expand them, they just keep getting bigger:"
+      Report.Report Nothing preHint postHint
 
 
-typeAliasErrorSegue :: String
-typeAliasErrorSegue =
-  "Try this instead:"
+maybeYouWant :: [String] -> String
+maybeYouWant suggestions =
+  case suggestions of
+    [] ->
+        ""
 
+    _:_ ->
+        "Maybe you want one of the following?\n"
+        ++ concatMap ("\n    "++) suggestions
 
-typeAliasErrorExplanation :: String
-typeAliasErrorExplanation =
-  "It looks very similar, but the 'type' keyword creates a brand new type, \
-  \not just an alias for an existing one. This lets us avoid infinitely \
-  \expanding it during type inference."
-
-
-typeAlias
-    :: (String, [String], Type.Type var)
-    -> D.Declaration' pk def var expr
-typeAlias (n,ts,t) =
-    D.TypeAlias n ts t
-
-
-datatype
-    :: (String, [String], Type.Type var)
-    -> D.Declaration' pk def var expr
-datatype (n,ts,t) =
-    D.Datatype n ts [(n,[t])]
-
-
-indented :: [D.ValidDecl] -> Doc
-indented decls =
-    P.vcat (map prty decls) <> P.text "\n"
-  where
-    prty decl = P.text "\n    " <> pretty decl
-
---}

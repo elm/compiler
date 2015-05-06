@@ -340,16 +340,30 @@ extractValues (A.A region decl) =
 -- UNBOUND TYPE VARIABLES
 
 checkDecl :: D.ValidDecl -> Result.Result wrn Error.Error ()
-checkDecl (A.A _ decl) =
+checkDecl (A.A region decl) =
   case decl of
     D.Definition _ ->
         return ()
 
     D.Datatype name boundVars ctors ->
-        F.traverse_ (checkTypeVars name boundVars) (concatMap snd ctors)
+        let frees = concatMap freeVars (concatMap snd ctors)
+        in
+        case findUnbound boundVars frees of
+          [] ->
+              return ()
+
+          v:vs ->
+              Result.throw region
+                (Error.UnboundTypeVarsInUnion name boundVars v vs ctors)
 
     D.TypeAlias name boundVars tipe ->
-        checkTypeVars name boundVars tipe
+        case findUnbound boundVars (freeVars tipe) of
+          [] ->
+              return ()
+
+          v:vs ->
+              Result.throw region
+                (Error.UnboundTypeVarsInAlias name boundVars v vs tipe)
 
     D.Port _ ->
         return ()
@@ -358,16 +372,15 @@ checkDecl (A.A _ decl) =
         return ()
 
 
-checkTypeVars :: String -> [String] -> Type.Raw -> Result.Result wrn Error.Error ()
-checkTypeVars name boundVars tipe =
+findUnbound :: [String] -> [A.Located String] -> [String]
+findUnbound boundVars frees =
   let bounds = Set.fromList boundVars
 
-      check (A.A region free) =
-          if Set.member free bounds
-            then return ()
-            else Result.throw region (Error.UnboundTypeVar name free)
+      isUnbound x =
+          Set.notMember x bounds
   in
-      F.traverse_ check (freeVars tipe)
+      filter isUnbound (map A.drop frees)
+
 
 
 freeVars :: Type.Raw -> [A.Located String]

@@ -32,15 +32,3 @@ parensIf bool doc =
 variable :: String -> Doc
 variable x =
   if Help.isOp x then parens (text x) else text x
-
-
-eightyCharLines :: Int -> String -> String
-eightyCharLines indent message = answer
-    where
-      (answer,_,_) = foldl step (spaces, indent-1, "") chunks
-
-      chunks = map (\w -> (w, length w)) (words message)
-      spaces = replicate indent ' '
-      step (sentence, slen, space) (word, wlen)
-          | slen + wlen > 79 = (sentence ++ "\n" ++ spaces ++ word, indent + wlen, " ")
-          | otherwise        = (sentence ++ space ++ word, slen + wlen + length space, " ")

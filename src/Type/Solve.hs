@@ -133,10 +133,10 @@ actuallySolve constraint =
     CSaveEnv ->
         TS.saveLocalEnv
 
-    CEqual region term1 term2 ->
+    CEqual hint region term1 term2 ->
         do  t1 <- TS.flatten term1
             t2 <- TS.flatten term2
-            unify region t1 t2
+            unify hint region t1 t2
 
     CAnd cs ->
         mapM_ actuallySolve cs
@@ -167,7 +167,7 @@ actuallySolve constraint =
                         else error ("Could not find '" ++ name ++ "' when solving type constraints.")
 
             t <- TS.flatten term
-            unify region freshCopy t
+            unify Error.None region freshCopy t
 
 
 solveScheme :: TypeScheme -> StateT TS.SolverState IO (Map.Map String Variable)
@@ -208,12 +208,12 @@ allDistinct vars =
         do  desc <- liftIO $ UF.descriptor var
             case structure desc of
               Just _ ->
-                TS.addError (error "Cannot generalize something that is not a type variable.") undefined
+                crash "Cannot generalize something that is not a type variable."
 
               Nothing ->
-                do  when (mark desc == seen) $
-                      TS.addError (error "Duplicate variable during generalization.") undefined
-                    liftIO $ UF.setDescriptor var (desc { mark = seen })
+                if mark desc == seen
+                  then crash "Duplicate variable during generalization."
+                  else liftIO (UF.setDescriptor var (desc { mark = seen }))
 
 
 -- Check that a variable has rank == noRank, meaning that it can be generalized.
@@ -222,8 +222,16 @@ isGeneric var =
   do  desc <- liftIO $ UF.descriptor var
       if rank desc == noRank
         then return ()
-        else
-          TS.addError (error "Unable to generalize a type variable. It is not unranked.") undefined
+        else crash "Unable to generalize a type variable. It is not unranked."
+
+
+crash :: String -> a
+crash msg =
+  error $
+    "It looks like something went wrong with the type inference algorithm.\n"
+    ++ msg ++ "\n"
+    ++ "Please create a minimal example that triggers this problem and report it to\n"
+    ++ "<https://github.com/elm-lang/elm-compiler/issues>"
 
 
 occurs :: (String, Variable) -> StateT TS.SolverState IO ()
@@ -235,12 +243,13 @@ occurs (_name, variable) =
 
         var : _ ->
           do  desc <- liftIO $ UF.descriptor var
+              let region = error "TODO:occurs"
               case structure desc of
                 Nothing ->
-                  error "occurs check triggered"
+                  TS.addError region (Error.InfiniteType undefined (error "TODO:occurs"))
 
                 Just _ ->
-                  error "occurs check triggered"
+                  TS.addError region (Error.InfiniteType undefined (error "TODO:occurs"))
   where
     infiniteVars :: [Variable] -> Variable -> IO [Variable]
     infiniteVars seen var =

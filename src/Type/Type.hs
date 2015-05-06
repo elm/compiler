@@ -13,6 +13,7 @@ import System.IO.Unsafe
 
 import qualified AST.Type as T
 import qualified AST.Variable as Var
+import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
 import Type.PrettyPrint
 
@@ -104,7 +105,7 @@ data SuperType
 data Constraint a b
     = CTrue
     | CSaveEnv
-    | CEqual R.Region a a
+    | CEqual Error.Hint R.Region a a
     | CAnd [Constraint a b]
     | CLet [Scheme a b] (Constraint a b)
     | CInstance R.Region SchemeName a
@@ -307,7 +308,7 @@ instance (PrettyType a, PrettyType b) => PrettyType (Constraint a b) where
       CSaveEnv ->
           P.text "SaveTheEnvironment!!!"
 
-      CEqual _region a b ->
+      CEqual _ _ a b ->
           prty a <+> P.text "=" <+> prty b
 
       CAnd [] ->

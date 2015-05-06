@@ -128,7 +128,7 @@ preferLocals' region env extract kind possibilities var =
                 name == Env._home env
 
       ambiguous possibleVars =
-          Result.err (A.A region (Error.var kind var (Error.Ambiguous vars)))
+          Result.err (A.A region (Error.variable kind var Error.Ambiguous vars))
         where
           vars = map (Var.toString . extract) possibleVars
 
@@ -173,7 +173,7 @@ notFound region kind possibilities var =
       possibleNames =
           map toVarName possibilities
 
-      problem =
+      (problem, suggestions) =
           case name of
             Left _ ->
                 exposedProblem name possibleNames
@@ -181,10 +181,10 @@ notFound region kind possibilities var =
             Right (modul, varName) ->
                 qualifiedProblem modul varName (Either.rights possibleNames)
     in
-        Result.err (A.A region (Error.var kind var problem))
+        Result.err (A.A region (Error.variable kind var problem suggestions))
 
 
-exposedProblem :: VarName -> [VarName] -> Error.VarProblem
+exposedProblem :: VarName -> [VarName] -> (Error.VarProblem, [String])
 exposedProblem name possibleNames =
   let (exposed, qualified) =
           possibleNames
@@ -192,27 +192,35 @@ exposedProblem name possibleNames =
             |> Error.nearbyNames noQualifier name
             |> Either.partitionEithers
   in
-      Error.ExposedUnknown exposed (map qualifiedToString qualified)
+      ( Error.ExposedUnknown
+      , exposed ++ map qualifiedToString qualified
+      )
 
 
 qualifiedProblem
     :: Module.Name
     -> String
     -> [(Module.Name, String)]
-    -> Error.VarProblem
+    -> (Error.VarProblem, [String])
 qualifiedProblem moduleName name allQualified =
   let availableModules =
         Set.fromList (map fst allQualified)
+
+      moduleNameString =
+        Module.nameToString moduleName
   in
       case Set.member moduleName availableModules of
         True ->
-            allQualified
-              |> filter ((==) moduleName . fst)
-              |> map snd
-              |> Error.nearbyNames id name
-              |> Error.QualifiedUnknown
+            ( Error.QualifiedUnknown moduleNameString
+            , allQualified
+                |> filter ((==) moduleName . fst)
+                |> map snd
+                |> Error.nearbyNames id name
+            )
 
         False ->
-            Set.toList availableModules
-              |> Error.nearbyNames Module.nameToString moduleName
-              |> Error.UnknownQualifier
+            ( Error.UnknownQualifier moduleNameString
+            , Set.toList availableModules
+                |> map Module.nameToString
+                |> Error.nearbyNames id moduleNameString
+            )
