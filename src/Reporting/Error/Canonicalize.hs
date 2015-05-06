@@ -150,7 +150,7 @@ toReport err =
 
           QualifiedUnknown qualifier ->
               Report.simple
-                ("Cannot find " ++ var ++ ", module '" ++ qualifier ++ "'' does not expose that value.")
+                ("Cannot find " ++ var ++ ", module '" ++ qualifier ++ "' does not expose that value.")
                 (maybeYouWant suggestions)
 
           ExposedUnknown ->
