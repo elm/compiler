@@ -26,6 +26,7 @@ data Hint
     = None
     | Custom String
     | CaseBranch Int Region.Region
+    | Case
     | IfBranches
     | MultiIfBranch Int Region.Region
     | If
@@ -93,6 +94,12 @@ hintToString hint =
           ++ "branch returns the same type of value."
         )
 
+    Case ->
+        ( Nothing
+        , "All the branches of this case-expression are consistent, but the overall\n"
+          ++ "type does not match how it is used elsewhere."
+        )
+
     IfBranches ->
         ( Nothing
         , "The branches of this if-expression return different types of values.\n"
@@ -108,6 +115,6 @@ hintToString hint =
 
     If ->
         ( Nothing
-        , "All the branches of this if-expression are consistent, but the overall return\n"
+        , "All the branches of this if-expression are consistent, but the overall\n"
           ++ "type does not match how it is used elsewhere."
         )

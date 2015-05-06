@@ -254,28 +254,36 @@ constrainCase env region expr branches tipe =
 
       exprCon <- constrain env expr (varN exprVar)
 
-      (branchVars, regions, branchExprCons) <-
-          unzip3 <$> mapM (branch (varN exprVar)) branches
-
-      let branchCons =
-            zipWith3 branchEqual [1..] branchVars regions
+      (branchInfo, branchExprCons) <-
+          unzip <$> mapM (branch (varN exprVar)) branches
 
       return $
-        ex  (exprVar:branchVars)
-            (CAnd (exprCon : branchExprCons ++ branchCons))
+        ex  (exprVar : map fst branchInfo)
+            (CAnd (exprCon : branchExprCons ++ branchCons 2 branchInfo))
   where
     branch patternType (pattern, branchExpr@(A.A branchRegion _)) =
         do  branchVar <- variable Flexible
             fragment <- Pattern.constrain env pattern patternType
             branchCon <- constrain env branchExpr (varN branchVar)
             return
-                ( branchVar
-                , branchRegion
+                ( (branchVar, branchRegion)
                 , CLet [Fragment.toScheme fragment] branchCon
                 )
 
-    branchEqual n var branchRegion =
-        CEqual (Error.CaseBranch n branchRegion) region tipe (varN var)
+    branchCons n branchInfo =
+      case branchInfo of
+        [] ->
+            []
+
+        (var,_) : [] ->
+            [ CEqual Error.Case region tipe (varN var) ]
+
+        (var,_) : (var',region') : rest ->
+            let
+              hint = Error.CaseBranch n region'
+              con = CEqual hint region (varN var) (varN var')
+            in
+              con : branchCons (n+1) ((var', region') : rest)
 
 
 -- EXPAND PATTERNS
