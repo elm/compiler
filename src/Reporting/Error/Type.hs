@@ -26,9 +26,9 @@ data Hint
     = None
     | Custom String
     | CaseBranch Int Region.Region
-    -- | Then Region.Region
-    -- | Else Region.Region
-    -- | IfBranch Int Region.Region
+    | IfBranches
+    | MultiIfBranch Int Region.Region
+    | If
 
 
 mergeHint :: Hint -> Maybe String -> Hint
@@ -88,23 +88,26 @@ hintToString hint =
 
     CaseBranch branchNumber region ->
         ( Just region
-        , "The branches of this case-expression return different types of values!\n\n"
+        , "The branches of this case-expression return different types of values.\n\n"
           ++ "I noticed the mismatch in branch #" ++ show branchNumber ++ ", but go through and make sure every\n"
           ++ "branch returns the same type of value."
         )
-{--
-    Then region ->
-        ( Just region
-        , ""
+
+    IfBranches ->
+        ( Nothing
+        , "The branches of this if-expression return different types of values.\n"
+          ++ "All branches must have the same return type!"
         )
 
-    Else region ->
+    MultiIfBranch branchNumber region ->
         ( Just region
-        , ""
+        , "The branches of this if-expression return different types of values.\n\n"
+          ++ "I noticed the mismatch in branch #" ++ show branchNumber ++ ", but go through and make sure every\n"
+          ++ "branch returns the same type of value."
         )
 
-    IfBranch branchNumber region ->
-        ( Just region
-        , ""
+    If ->
+        ( Nothing
+        , "All the branches of this if-expression are consistent, but the overall return\n"
+          ++ "type does not match how it is used elsewhere."
         )
---}

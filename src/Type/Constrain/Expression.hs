@@ -105,14 +105,7 @@ constrain env (A.A region expression) tipe =
                   return (funcCon /\ argCon)
 
       E.MultiIf branches ->
-          CAnd <$> mapM constrain' branches
-        where
-          bool = Env.get env Env.types "Bool"
-
-          constrain' (cond, expr) =
-              do  cb <- constrain env cond bool
-                  ce <- constrain env expr tipe
-                  return (cb /\ ce)
+          constrainIf env region branches tipe
 
       E.Case expr branches ->
           constrainCase env region expr branches tipe
@@ -192,6 +185,59 @@ constrain env (A.A region expression) tipe =
 
             E.Task _ expr _ ->
                 constrain env expr tipe
+
+
+-- CONSTRAIN IF EXPRESSIONS
+
+constrainIf
+    :: Env.Environment
+    -> R.Region
+    -> [(Canonical.Expr, Canonical.Expr)]
+    -> Type
+    -> IO TypeConstraint
+constrainIf env region branches tipe =
+  do  (branchInfo, branchExprCons) <-
+          unzip <$> mapM constrainBranch branches
+
+      return $
+        ex  (map fst branchInfo)
+            (CAnd (branchExprCons ++ branchCons branchInfo))
+  where
+    bool = Env.get env Env.types "Bool"
+
+    constrainBranch (cond, expr@(A.A branchRegion _)) =
+      do  branchVar <- variable Flexible
+          condCon <- constrain env cond bool
+          exprCon <- constrain env expr (varN branchVar)
+          return
+            ( (branchVar, branchRegion)
+            , condCon /\ exprCon
+            )
+
+    branchCons branchInfo =
+      case branchInfo of
+        [(thenVar, _), (elseVar, _)] ->
+            [ CEqual Error.IfBranches region (varN thenVar) (varN elseVar)
+            , CEqual Error.If region tipe (varN thenVar)
+            ]
+
+        _ ->
+            buildBranchCons 2 branchInfo
+
+    buildBranchCons n branchInfo =
+      case branchInfo of
+        [] ->
+            []
+
+        (var,_) : [] ->
+            [ CEqual Error.If region tipe (varN var) ]
+
+        (var,_) : (var',region') : rest ->
+            let
+              hint = Error.MultiIfBranch n region'
+              con = CEqual hint region (varN var) (varN var')
+            in
+              con : buildBranchCons (n+1) ((var', region') : rest)
 
 
 -- CONSTRAIN CASE EXPRESSIONS
