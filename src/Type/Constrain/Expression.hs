@@ -160,7 +160,7 @@ constrain env (A.A region expression) tipe =
                       (map varN vars)
               let fields' = ST.fieldMap (zip (map fst fields) (map varN vars))
               let recordType = record fields' (termN EmptyRecord1)
-              return (ex vars (CAnd (tipe === recordType : fieldCons)))
+              return (ex vars (CAnd (fieldCons ++ [tipe === recordType])))
 
       E.Let defs body ->
           do  bodyCon <- constrain env body tipe
