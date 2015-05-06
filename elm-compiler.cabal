@@ -92,6 +92,7 @@ Library
         Reporting.Error.Type,
         Reporting.PrettyPrint,
         Reporting.Region,
+        Reporting.Report,
         Reporting.Result,
         Reporting.Warning,
         Type.Constrain.Expression,
