@@ -10,21 +10,21 @@ import qualified Reporting.Report as Report
 
 
 data Error
-    = Mismatch (Mismatch Hint)
+    = Mismatch Mismatch
     | InfiniteType String T.Canonical
     | BadMain T.Canonical
 
 
-data Mismatch a = MismatchInfo
-    { _hint :: a
+data Mismatch = MismatchInfo
+    { _hint :: Hint
     , _leftType :: T.Canonical
     , _rightType :: T.Canonical
+    , _note :: Note
     }
 
 
 data Hint
     = None
-    | Custom String
     | CaseBranch Int Region.Region
     | Case
     | IfBranches
@@ -32,15 +32,10 @@ data Hint
     | If
 
 
-mergeHint :: Hint -> Maybe String -> Hint
-mergeHint hint maybeMessage =
-  let
-    promote message =
-      case hint of
-        None -> Custom message
-        _ -> hint
-  in
-    maybe hint promote maybeMessage
+data Note
+    = PreNote String
+    | NoNote
+    | PostNote String
 
 
 -- TO REPORT
@@ -48,15 +43,27 @@ mergeHint hint maybeMessage =
 toReport :: Error -> Report.Report
 toReport err =
   case err of
-    Mismatch (MismatchInfo hint leftType rightType) ->
+    Mismatch (MismatchInfo hint leftType rightType note) ->
         let
           (subRegion, preHint) = hintToString hint
+
+          postHint =
+            "During type inference, I am seeing a conflict between this type:\n\n"
+            ++ P.render (P.nest 4 (P.pretty False leftType))
+            ++ "\n\nand this type:\n\n"
+            ++ P.render (P.nest 4 (P.pretty False rightType))
         in
-            Report.Report subRegion preHint $
-              "During type inference, I am seeing a conflict between this type:\n\n"
-              ++ P.render (P.nest 4 (P.pretty False leftType))
-              ++ "\n\nand this type:\n\n"
-              ++ P.render (P.nest 4 (P.pretty False rightType))
+          case note of
+            PreNote msg ->
+              Report.Report subRegion (preHint ++ "\n\n" ++ msg) postHint
+
+            NoNote ->
+              Report.Report subRegion preHint postHint
+
+            PostNote msg ->
+              Report.Report subRegion preHint (postHint ++ "\n\n" ++ msg)
+
+
 
     InfiniteType var tipe ->
         Report.simple "This expression is leading me to infer an infinite type." $
@@ -80,11 +87,6 @@ hintToString hint =
     None ->
         ( Nothing
         , "This expression is triggering a type mismatch."
-        )
-
-    Custom message ->
-        ( Nothing
-        , message
         )
 
     CaseBranch branchNumber region ->
