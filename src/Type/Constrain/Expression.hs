@@ -71,9 +71,7 @@ constrain env (A.A region expression) tipe =
                   return $ CAnd [lowCon, highCon, list n === tipe]
 
       E.ExplicitList exprs ->
-          exists $ \x ->
-              do  constraints <- mapM (\e -> constrain env e x) exprs
-                  return $ CAnd (list x === tipe : constraints)
+          constrainList env region exprs tipe
 
       E.Binop op leftExpr rightExpr ->
           exists $ \leftType ->
@@ -188,6 +186,48 @@ constrain env (A.A region expression) tipe =
 
             E.Task _ expr _ ->
                 constrain env expr tipe
+
+
+-- CONSTRAIN LISTS
+
+constrainList
+    :: Env.Environment
+    -> R.Region
+    -> [Canonical.Expr]
+    -> Type
+    -> IO TypeConstraint
+constrainList env region exprs tipe =
+  do  (exprInfo, exprCons) <-
+          unzip <$> mapM elementConstraint exprs
+
+      let pairwiseCons = pairwiseConstraints 2 exprInfo
+
+      return $
+        ex  (map fst exprInfo)
+            (CAnd (exprCons ++ pairwiseCons))
+  where
+    list t =
+      Env.get env Env.types "List" <| t
+
+    elementConstraint expr@(A.A region' _) =
+      do  var <- variable Flexible
+          con <- constrain env expr (varN var)
+          return ( (var, region'), con )
+
+    pairwiseConstraints n exprInfo =
+      case exprInfo of
+        [] ->
+            []
+
+        (var,_) : [] ->
+            [ CEqual Error.List region tipe (list (varN var)) ]
+
+        (var,_) : (var',region') : rest ->
+            let
+              hint = Error.ListElement n region'
+              con = CEqual hint region (varN var) (varN var')
+            in
+              con : pairwiseConstraints (n+1) ((var', region') : rest)
 
 
 -- CONSTRAIN IF EXPRESSIONS

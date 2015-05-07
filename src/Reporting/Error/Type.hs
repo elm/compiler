@@ -30,6 +30,8 @@ data Hint
     | IfBranches
     | MultiIfBranch Int Region.Region
     | If
+    | List
+    | ListElement Int Region.Region
 
 
 data Note
@@ -121,3 +123,17 @@ hintToString hint =
         , "All the branches of this if-expression are consistent, but the overall\n"
           ++ "type does not match how it is used elsewhere."
         )
+
+    ListElement elementNumber region ->
+        ( Just region
+        , "Not all elements of this list are the same type of value.\n\n"
+          ++ "I noticed the mismatch in element #" ++ show elementNumber ++ ", but go through and make sure every\n"
+          ++ "element is the same type of value."
+        )
+
+    List ->
+        ( Nothing
+        , "All the elements in this list are the same type, but the overall\n"
+          ++ "type does not match how it is used elsewhere."
+        )
+
