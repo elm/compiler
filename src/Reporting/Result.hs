@@ -56,6 +56,11 @@ mapError f (Result warnings rawResult) =
           Err (map (A.map f) msgs)
 
 
+warn :: R.Region -> w -> Result w e ()
+warn region warning =
+  Result [A.A region warning] (Ok ())
+
+
 addWarnings :: [A.Located w] -> Result w e a -> Result w e a
 addWarnings newWarnings (Result warnings rawResult) =
     Result (newWarnings ++ warnings) rawResult
