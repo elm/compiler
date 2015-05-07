@@ -58,21 +58,14 @@ grabRegion maybeSubRegion (R.Region start end) source =
     [] ->
         error "something has gone badly wrong with reporting source locations"
 
-    [theLine] ->
-        let
-          n = startLine
-          w = length (show (n + 1))
-          underline =
-              replicate (startColumn - 1) ' '
-              ++ replicate (max 1 (endColumn - startColumn)) '^'
-          number =
-              addLineNumber Nothing w
-        in
-            unlines
-              [ number (n-1) ""
-              , number n theLine
-              , number (n+1) underline
-              ]
+    [sourceLine] ->
+        singleLineRegion startLine sourceLine $
+          case maybeSubRegion of
+            Nothing ->
+                (0, startColumn, endColumn, length sourceLine)
+
+            Just (R.Region s e) ->
+                (startColumn, R.column s, R.column e, endColumn)
 
     firstLine : rest ->
         let
@@ -112,3 +105,28 @@ addLineNumber maybeSubRegion width n line =
     replicate (width - length number) ' ' ++ number
     ++ "|" ++ maybe " " spacer maybeSubRegion
     ++ line
+
+
+singleLineRegion :: Int -> String -> (Int, Int, Int, Int) -> String
+singleLineRegion lineNum sourceLine (start, innerStart, innerEnd, end) =
+  let
+    w = length (show (lineNum + 1))
+
+    number =
+        addLineNumber Nothing w
+
+    underline =
+        replicate (innerStart - 1) ' '
+        ++ replicate (max 1 (innerEnd - innerStart)) '^'
+
+    trimmedSourceLine =
+        sourceLine
+          |> drop (start - 1)
+          |> take (end - start + 1)
+          |> (++) (replicate (start - 1) ' ')
+  in
+      unlines
+        [ number (lineNum-1) ""
+        , number lineNum trimmedSourceLine
+        , number (lineNum+1) underline
+        ]
