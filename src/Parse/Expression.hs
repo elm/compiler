@@ -132,8 +132,11 @@ parensTerm =
 recordTerm :: IParser Source.Expr
 recordTerm =
   addLocation $
-    brackets $ choice [ misc, record ]
+    brackets (choice [ misc, record ])
   where
+    record =
+      E.Record <$> commaSep field
+
     field =
       do  label <- rLabel
           patterns <- spacePrefix Pattern.term
@@ -141,38 +144,53 @@ recordTerm =
           body <- expr
           return (label, makeFunction patterns body)
 
-    record =
-      E.Record <$> commaSep field
+    misc =
+      do  nextParser <- try miscStarter
+          whitespace
+          nextParser
 
-    change =
+    miscStarter =
+      do  start <- getMyPosition
+          record <- addLocation (E.rawVar <$> rLabel)
+          whitespace
+          choice
+            [ string "-" >> return (afterMinus start record)
+            , string "|" >> return (afterBar record)
+            ]
+
+    afterMinus start record =
+      do  field <- rLabel
+          end <- getMyPosition
+          let subRecord' = E.Remove record field
+          maybe <- optionMaybe (try (whitespace >> string "|"))
+          case maybe of
+            Nothing ->
+                return subRecord'
+            Just _ ->
+                do  whitespace
+                    field <- rLabel
+                    padded equals
+                    E.Insert (A.at start end subRecord') field <$> expr
+
+    afterBar record =
+      do  field <- rLabel
+          whitespace
+          choice
+            [ do  equals
+                  whitespace
+                  E.Insert record field <$> expr
+            , do  string "<-"
+                  whitespace
+                  value <- expr
+                  updates <- spaceyPrefixBy comma update
+                  return (E.Modify record ((field,value) : updates))
+            ]
+
+    update =
       do  lbl <- rLabel
           padded (string "<-")
           (,) lbl <$> expr
 
-    remove r =
-      do  string "-"
-          whitespace
-          E.Remove r <$> rLabel
-
-    insert r =
-      do  string "|"
-          whitespace
-          E.Insert r <$> rLabel <*> (padded equals >> expr)
-
-    modify r =
-      do  string "|"
-          whitespace
-          E.Modify r <$> commaSep1 change
-
-    misc =
-      try $ do
-        record <- addLocation (E.rawVar <$> rLabel)
-        opt <- padded (optionMaybe (addLocation (remove record)))
-        case opt of
-          Just e@(A.A _ e') ->
-              try (insert e) <|> return e'
-          Nothing ->
-              try (insert record) <|> try (modify record)
 
 
 term :: IParser Source.Expr

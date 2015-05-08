@@ -143,9 +143,14 @@ commitIf check p =
 -- SEPARATORS
 
 spaceySepBy1 :: IParser b -> IParser a -> IParser [a]
-spaceySepBy1 sep p =
-  do  a <- p
-      (a:) <$> many (commitIf (whitespace >> sep) (padded sep >> p))
+spaceySepBy1 sep parser =
+  do  value <- parser
+      (value:) <$> spaceyPrefixBy sep parser
+
+
+spaceyPrefixBy :: IParser sep -> IParser a -> IParser [a]
+spaceyPrefixBy sep parser =
+  many (commitIf (whitespace >> sep) (padded sep >> parser))
 
 
 comma :: IParser Char
