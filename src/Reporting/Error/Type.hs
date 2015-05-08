@@ -3,7 +3,7 @@ module Reporting.Error.Type where
 
 import qualified Text.PrettyPrint as P
 
-import qualified AST.Type as T
+import qualified AST.Type as Type
 import qualified Reporting.PrettyPrint as P
 import qualified Reporting.Region as Region
 import qualified Reporting.Report as Report
@@ -11,14 +11,14 @@ import qualified Reporting.Report as Report
 
 data Error
     = Mismatch Mismatch
-    | InfiniteType String T.Canonical
-    | BadMain T.Canonical
+    | InfiniteType String Type.Canonical
+    | BadMain Type.Canonical
 
 
 data Mismatch = MismatchInfo
     { _hint :: Hint
-    , _leftType :: T.Canonical
-    , _rightType :: T.Canonical
+    , _leftType :: Type.Canonical
+    , _rightType :: Type.Canonical
     , _note :: Note
     }
 
