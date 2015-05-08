@@ -5,6 +5,7 @@ import qualified Data.Map as Map
 import qualified AST.Module as Module
 import qualified Canonicalize
 import Elm.Utils ((|>))
+import qualified Nitpick.TopLevelTypes as Nitpick
 import qualified Parse.Helpers as Parse
 import qualified Parse.Parse as Parse
 import qualified Reporting.Error as Error
@@ -41,7 +42,11 @@ compile user projectName interfaces source =
           Result.from Error.Type $
             TI.infer interfaces canonicalModule
 
-      -- Add the real list of tyes
+      -- One last round of checks
+      Result.mapError Error.Type $
+        Nitpick.topLevelTypes types (Module.body validModule)
+
+      -- Add the real list of types
       let body = (Module.body canonicalModule) { Module.types = types }
 
       return $ canonicalModule { Module.body = body }

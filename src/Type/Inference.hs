@@ -1,7 +1,7 @@
 module Type.Inference where
 
 import Control.Arrow (first, second)
-import Control.Monad.Except (Except, forM, liftIO, runExceptT, throwError, withExceptT)
+import Control.Monad.Except (Except, forM, liftIO, runExceptT, throwError)
 import qualified Data.Map as Map
 import qualified Data.Traversable as Traverse
 
@@ -12,7 +12,6 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Type.Constrain.Expression as TcExpr
 import qualified Type.Environment as Env
-import qualified Type.ExtraChecks as Check
 import qualified Type.Solve as Solve
 import qualified Type.State as TS
 import qualified Type.Type as T
@@ -36,14 +35,7 @@ infer interfaces modul =
         let header' = Map.delete "::" header
         let types = Map.difference (TS.sSavedEnv state) header'
 
-        srcTypes <-
-            liftIO (Traverse.traverse T.toSrcType types)
-
-        withExceptT
-            (\tipe -> [A.A (error "TODO:infer") (Error.BadMain tipe)])
-            (Check.mainType srcTypes)
-
-        return srcTypes
+        liftIO (Traverse.traverse T.toSrcType types)
 
 
 genConstraints
