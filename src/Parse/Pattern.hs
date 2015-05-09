@@ -89,7 +89,7 @@ list =
 term :: IParser P.RawPattern
 term =
   choice [ record, tuple, list, basic ]
-    <?> "pattern"
+    <?> "a pattern"
 
 
 patternConstructor :: IParser P.RawPattern
@@ -104,7 +104,7 @@ patternConstructor =
 
 expr :: IParser P.RawPattern
 expr =
-    asPattern subPattern <?> "pattern"
+    asPattern subPattern <?> "a pattern"
   where
     subPattern =
       do  patterns <- consSep1 (patternConstructor <|> term)

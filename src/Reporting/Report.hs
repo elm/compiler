@@ -57,7 +57,7 @@ grabRegion maybeSubRegion (R.Region start end) source =
   in
   case relevantLines of
     [] ->
-        error "something has gone badly wrong with reporting source locations"
+        ""
 
     [sourceLine] ->
         singleLineRegion startLine sourceLine $

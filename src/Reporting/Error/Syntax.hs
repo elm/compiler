@@ -2,6 +2,7 @@
 module Reporting.Error.Syntax where
 
 import qualified Data.List as List
+import qualified Data.Set as Set
 import qualified Text.Parsec.Error as Parsec
 import qualified Text.PrettyPrint as P
 import Text.PrettyPrint ((<+>))
@@ -31,10 +32,7 @@ toReport :: Error -> Report.Report
 toReport err =
   case err of
     Parse messages ->
-        Report.simple
-          "SYNTAX PROBLEM"
-          "Problem when parsing your code!"
-          (unlines (map parseErrorHint messages))
+        parseErrorReport messages
 
     InfixDuplicate opName ->
         Report.simple
@@ -138,17 +136,85 @@ unboundTypeVars typeName tvar tvars revisedDeclaration =
     )
 
 
-parseErrorHint :: Parsec.Message -> String
-parseErrorHint message =
-  case message of
-    Parsec.SysUnExpect msg ->
-        "SysUnExpect: " ++ msg
+-- TAGGING PARSE ERRORS
 
-    Parsec.UnExpect msg ->
-        "UnExpect: " ++ msg
+newline :: String
+newline = "NEWLINE"
 
-    Parsec.Expect msg ->
-        "UnExpect: " ++ msg
+freshLine :: String
+freshLine = "FRESH_LINE"
 
-    Parsec.Message msg ->
-        "UnExpect: " ++ msg
+whitespace :: String
+whitespace = "WHITESPACE"
+
+keyword :: String -> String
+keyword kwd =
+  "KEYWORD=" ++ kwd
+
+unkeyword :: String -> Maybe String
+unkeyword message =
+  if List.isPrefixOf "KEYWORD=" message
+    then Just (drop (length "KEYWORD=") message)
+    else Nothing
+
+
+-- REPORTING PARSE ERRORS
+
+parseErrorReport :: [Parsec.Message] -> Report.Report
+parseErrorReport messages =
+  let
+    addMsg message hint =
+      case message of
+        Parsec.SysUnExpect _msg ->
+            hint
+
+        Parsec.UnExpect _msg ->
+            hint
+
+        Parsec.Expect msg ->
+          let
+            msg' =
+              if msg `elem` [whitespace, newline, freshLine]
+                then "whitespace"
+                else msg
+          in
+            hint { _expected = Set.insert msg' (_expected hint) }
+
+        Parsec.Message msg ->
+            hint { _messages = msg : _messages hint }
+
+    (ParseHint msgs expects) =
+      foldr addMsg emptyHint messages
+
+    preHint =
+      case msgs of
+        [msg] ->
+            case unkeyword msg of
+              Just kwd ->
+                  "It looks like the keyword '" ++ kwd ++ "' is being used as a variable.\n"
+                  ++ "Try renaming it to something else."
+              Nothing ->
+                  msg
+
+        _ -> "I ran into something unexpected when parsing your code!"
+
+    postHint =
+      if Set.null expects
+        then ""
+        else
+          "I am looking for one of the following things:\n"
+          ++ concatMap ("\n    "++) (Set.toList expects)
+  in
+    Report.simple "SYNTAX PROBLEM" preHint postHint
+
+
+data ParseHint = ParseHint
+    { _messages :: [String]
+    , _expected :: Set.Set String
+    }
+    deriving (Show)
+
+
+emptyHint :: ParseHint
+emptyHint =
+  ParseHint [] Set.empty

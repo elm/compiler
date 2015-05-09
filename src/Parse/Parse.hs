@@ -4,7 +4,7 @@ module Parse.Parse (program) where
 import Control.Applicative ((<$>), (<*>))
 import qualified Data.Map as Map
 import qualified Data.Traversable as T
-import Text.Parsec (char, eof, letter, many, optional, putState, (<|>), (<?>))
+import Text.Parsec (char, eof, letter, many, optional, putState, (<|>))
 import qualified Text.Parsec.Error as Parsec
 
 import qualified AST.Declaration as D
@@ -50,7 +50,7 @@ programParser =
 
 declarations :: IParser [D.SourceDecl]
 declarations =
-  (:) <$> (Decl.declaration <?> "at least one datatype or variable definition")
+  (:) <$> Decl.declaration
       <*> many freshDef
 
 
@@ -58,7 +58,7 @@ freshDef :: IParser D.SourceDecl
 freshDef =
     commitIf (freshLine >> (letter <|> char '_')) $
       do  _ <- freshLine
-          Decl.declaration <?> "another datatype or variable definition"
+          Decl.declaration
 
 
 -- RUN PARSERS
