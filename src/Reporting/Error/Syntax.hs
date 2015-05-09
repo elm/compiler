@@ -117,20 +117,17 @@ toReport err =
 
 unboundTypeVars :: String -> String -> [String] -> String -> Report.Report
 unboundTypeVars typeName tvar tvars revisedDeclaration =
-  let
-    s = if null tvars then "" else "s"
-  in
-    Report.simple
-      ("Type '" ++ typeName ++ "' uses unbound type variable" ++ s ++ ": "
-        ++ List.intercalate ", " (tvar:tvars)
-      )
-      ("All type variables must be listed to avoid sneaky type errors.\n"
-        ++ "Imagine one '" ++ typeName ++ "' where '" ++ tvar ++ "' is an Int and\n"
-        ++ "another where it is a Bool. They both look like a '" ++ typeName ++ "'\n"
-        ++ "to the type checker, but they are actually different types!\n\n"
-        ++ "Maybe you want a definition like this?\n"
-        ++ concatMap ("\n    "++) (lines revisedDeclaration)
-      )
+  Report.simple
+    ( "Not all type variables in '" ++ typeName ++ "' are listed, making sneaky\n"
+      ++ "type errors possible. Unbound type variables include: "
+      ++ List.intercalate ", " (tvar:tvars)
+    )
+    ( "Here's the problem. Imagine one '" ++ typeName ++ "' where '" ++ tvar ++ "' is an Int and\n"
+      ++ "another where it is a Bool. They both look like a '" ++ typeName ++ "' to the type\n"
+      ++ "checker, but they are actually different types!\n\n"
+      ++ "Maybe you want a definition like this?\n"
+      ++ concatMap ("\n    "++) (lines revisedDeclaration)
+    )
 
 
 parseErrorHint :: Parsec.Message -> String

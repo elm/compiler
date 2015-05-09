@@ -352,18 +352,24 @@ checkDecl (A.A region decl) =
           [] ->
               return ()
 
-          v:vs ->
-              Result.throw region
-                (Error.UnboundTypeVarsInUnion name boundVars v vs ctors)
+          unbound ->
+              let
+                (v:vs) = Set.toList (Set.fromList unbound)
+              in
+                Result.throw region
+                  (Error.UnboundTypeVarsInUnion name boundVars v vs ctors)
 
     D.TypeAlias name boundVars tipe ->
         case findUnbound boundVars (freeVars tipe) of
           [] ->
               return ()
 
-          v:vs ->
-              Result.throw region
-                (Error.UnboundTypeVarsInAlias name boundVars v vs tipe)
+          unbound ->
+              let
+                (v:vs) = Set.toList (Set.fromList unbound)
+              in
+                Result.throw region
+                  (Error.UnboundTypeVarsInAlias name boundVars v vs tipe)
 
     D.Port _ ->
         return ()
