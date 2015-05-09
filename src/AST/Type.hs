@@ -12,6 +12,7 @@ import Control.Applicative ((<$>), (<*>))
 import Control.Arrow (second)
 import Data.Binary
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
 import Text.PrettyPrint as P
 
 import qualified AST.Variable as Var
@@ -161,74 +162,49 @@ instance (P.Pretty t) => P.Pretty (Port t) where
 
 
 instance P.Pretty Raw' where
-  pretty _ tipe =
-    P.text (show tipe)
+  pretty needsParens tipe =
+    case tipe of
+      RLambda arg body ->
+          P.parensIf needsParens (prettyLambda getRawLambda arg body)
+
+      RVar x ->
+          P.text x
+
+      RType var ->
+          prettyType var
+
+      RApp func args ->
+          let
+            isTuple (A.A _ (RType name)) = Help.isTuple (Var.toString name)
+            isTuple _ = False
+          in
+            prettyApp needsParens isTuple func args
+
+      RRecord fields ext ->
+          prettyRecord (flattenRawRecord fields ext)
 
 
 instance P.Pretty Canonical where
   pretty needsParens tipe =
     case tipe of
-      Lambda _ _ ->
-          P.parensIf needsParens $
-              P.sep [ t, P.sep (map (P.text "->" <+>) ts) ]
-        where
-          t:ts =
-              map prettyLambda (collectLambdas tipe)
-
-          prettyLambda t =
-              case t of
-                Lambda _ _ ->
-                    P.pretty True t
-                _ ->
-                    P.pretty False t
+      Lambda arg body ->
+          P.parensIf needsParens (prettyLambda getCanLambda arg body)
 
       Var x ->
           P.text x
 
       Type var ->
-          let v = Var.toString var
+          prettyType var
+
+      App func args ->
+          let
+            isTuple (Type name) = Help.isTuple (Var.toString name)
+            isTuple _ = False
           in
-              P.text (if v == "_Tuple0" then "()" else v)
+            prettyApp needsParens isTuple func args
 
-      App f args ->
-          case (f,args) of
-            (Type name, _)
-                | Help.isTuple (Var.toString name) ->
-                    P.parens $ P.sep $
-                      P.punctuate P.comma (map (P.pretty False) args)
-
-            (_, []) ->
-                P.pretty True f
-
-            (_, _) ->
-                P.parensIf needsParens $
-                  P.hang
-                    (P.pretty True f)
-                    2
-                    (P.sep (map (P.pretty True) args))
-
-      Record _ _ ->
-          case flattenRecord tipe of
-            ([], Nothing) ->
-                P.text "{}"
-
-            (fields, Nothing) ->
-                P.sep
-                  [ P.cat (zipWith (<+>) (P.lbrace : repeat P.comma) (map prettyField fields))
-                  , P.rbrace
-                  ]
-
-            (fields, Just x) ->
-                P.hang
-                    (P.lbrace <+> P.text x <+> P.text "|")
-                    4
-                    (P.sep
-                      [ P.cat (zipWith (<+>) (P.space : repeat P.comma) (map prettyField fields))
-                      , P.rbrace
-                      ])
-          where
-            prettyField (field, tipe) =
-                P.text field <+> P.text ":" <+> P.pretty False tipe
+      Record fields ext ->
+          prettyRecord (flattenCanRecord fields ext)
 
       Aliased name args _ ->
           P.parensIf (needsParens && not (null args)) $
@@ -238,32 +214,149 @@ instance P.Pretty Canonical where
               (P.sep (map (P.pretty True . snd) args))
 
 
-collectLambdas :: Canonical -> [Canonical]
-collectLambdas tipe =
-  case tipe of
-    Lambda arg body ->
-        arg : collectLambdas body
+-- PRETTY HELPERS
 
-    _ ->
+prettyType :: (Var.ToString var) => var -> P.Doc
+prettyType var =
+  let
+    v = Var.toString var
+  in
+    P.text (if v == "_Tuple0" then "()" else v)
+
+
+-- PRETTY LAMBDAS
+
+prettyLambda :: (P.Pretty t) => (t -> Maybe (t,t)) -> t -> t -> P.Doc
+prettyLambda getLambda arg body =
+  let
+    rest =
+      gatherLambda getLambda body
+
+    prettyArg t =
+      P.pretty (Maybe.isJust (getLambda t)) t
+  in
+    P.sep
+      [ prettyArg arg
+      , P.sep (map (\t -> P.text "->" <+> prettyArg t) rest)
+      ]
+
+
+getRawLambda :: Raw -> Maybe (Raw, Raw)
+getRawLambda (A.A _ tipe) =
+  case tipe of
+    RLambda arg body -> Just (arg, body)
+    _ -> Nothing
+
+
+getCanLambda :: Canonical -> Maybe (Canonical, Canonical)
+getCanLambda tipe =
+  case tipe of
+    Lambda arg body -> Just (arg, body)
+    _ -> Nothing
+
+
+gatherLambda :: (t -> Maybe (t,t)) -> t -> [t]
+gatherLambda get tipe =
+  case get tipe of
+    Just (arg, body) ->
+        arg : gatherLambda get body
+
+    Nothing ->
         [tipe]
 
 
-flattenRecord :: Canonical -> ( [(String, Canonical)], Maybe String )
-flattenRecord tipe =
-  case tipe of
-    Var x ->
-        ([], Just x)
+collectLambdas :: Canonical -> [Canonical]
+collectLambdas tipe =
+  gatherLambda getCanLambda tipe
 
-    Record fields Nothing ->
+
+-- PRETTY APP
+
+prettyApp :: (P.Pretty t) => Bool -> (t -> Bool) -> t -> [t] -> P.Doc
+prettyApp needsParens isTuple func args
+  | isTuple func =
+        P.parens $ P.sep $
+            P.punctuate P.comma (map (P.pretty False) args)
+
+  | null args =
+      P.pretty needsParens func
+
+  | otherwise =
+      P.parensIf needsParens $
+        P.hang
+          (P.pretty True func)
+          2
+          (P.sep (map (P.pretty True) args))
+
+
+-- PRETTY RECORD
+
+prettyRecord :: (P.Pretty t) => ([(String, t)], Maybe String) -> P.Doc
+prettyRecord recordInfo =
+  let
+    prettyField (field, tipe) =
+      P.hang
+          (P.text field <+> P.text ":")
+          4
+          (P.pretty False tipe)
+  in
+  case recordInfo of
+    ([], Nothing) ->
+        P.text "{}"
+
+    (fields, Nothing) ->
+        P.sep
+          [ P.cat (zipWith (<+>) (P.lbrace : repeat P.comma) (map prettyField fields))
+          , P.rbrace
+          ]
+
+    (fields, Just x) ->
+        P.hang
+            (P.lbrace <+> P.text x <+> P.text "|")
+            4
+            (P.sep
+              [ P.cat (zipWith (<+>) (P.space : repeat P.comma) (map prettyField fields))
+              , P.rbrace
+              ]
+            )
+
+
+flattenRawRecord
+    :: [(String, Raw)]
+    -> Maybe Raw
+    -> ( [(String, Raw)], Maybe String )
+flattenRawRecord fields ext =
+  case ext of
+    Nothing ->
         (fields, Nothing)
 
-    Record fields (Just ext) ->
-        let (fields',ext') = flattenRecord ext
-        in
-            (fields' ++ fields, ext')
+    Just (A.A _ (RVar x)) ->
+        (fields, Just x)
 
-    Aliased _ args tipe' ->
-        flattenRecord (dealias args tipe')
+    Just (A.A _ (RRecord fields' ext')) ->
+        flattenRawRecord (fields' ++ fields) ext'
+
+    _ ->
+        error "Trying to flatten ill-formed record."
+
+
+flattenCanRecord
+    :: [(String, Canonical)]
+    -> Maybe Canonical
+    -> ( [(String, Canonical)], Maybe String )
+flattenCanRecord fields ext =
+  case ext of
+    Nothing ->
+        (fields, Nothing)
+
+    Just (Var x) ->
+        (fields, Just x)
+
+    Just (Record fields' ext') ->
+        flattenCanRecord (fields' ++ fields) ext'
+
+    Just (Aliased _ args tipe) ->
+        flattenCanRecord fields (Just (dealias args tipe))
 
     _ ->
         error "Trying to flatten ill-formed record."
