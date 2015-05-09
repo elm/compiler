@@ -21,21 +21,15 @@ data Error
 toString :: String -> String -> A.Located Error -> String
 toString location source (A.A region err) =
   let
-    (tag, report) =
+    report =
         case err of
           Syntax syntaxError ->
-              ( "SYNTAX ERROR"
-              , Syntax.toReport syntaxError
-              )
+              Syntax.toReport syntaxError
 
           Canonicalize canonicalizeError ->
-              ( "NAMING ERROR"
-              , Canonicalize.toReport canonicalizeError
-              )
+              Canonicalize.toReport canonicalizeError
 
           Type typeError ->
-              ( "TYPE ERROR"
-              , Type.toReport typeError
-              )
+              Type.toReport typeError
   in
-      Report.toString tag location region report source
+      Report.toString location region report source

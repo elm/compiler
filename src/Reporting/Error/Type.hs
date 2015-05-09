@@ -58,18 +58,16 @@ toReport err =
         in
           case note of
             PreNote msg ->
-              Report.Report subRegion (preHint ++ "\n\n" ++ msg) postHint
+              Report.Report "TYPE MISMATCH" subRegion (preHint ++ "\n\n" ++ msg) postHint
 
             NoNote ->
-              Report.Report subRegion preHint postHint
+              Report.Report "TYPE MISMATCH" subRegion preHint postHint
 
             PostNote msg ->
-              Report.Report subRegion preHint (postHint ++ "\n\n" ++ msg)
-
-
+              Report.Report "TYPE MISMATCH" subRegion preHint (postHint ++ "\n\n" ++ msg)
 
     InfiniteType var tipe ->
-        Report.simple "This expression is leading me to infer an infinite type." $
+        Report.simple "INFINITE TYPE" "This expression is leading me to infer an infinite type." $
           "Maybe you are trying to do some tricky recursion? Try breaking the expression\n"
           ++ "into smaller pieces. Give each piece a name and try to write down its type.\n\n"
           ++ "Type inference got stuck when type '" ++ var ++ "' needed equal to:\n\n"
@@ -78,7 +76,7 @@ toReport err =
           ++ "expanded this type, it would just keep getting bigger and bigger."
 
     BadMain tipe ->
-        Report.simple "The 'main' value has an unsupported type." $
+        Report.simple "BAD MAIN TYPE" "The 'main' value has an unsupported type." $
           "I need an Element, Html, (Signal Element), or (Signal Html) so I can render it\n"
           ++ "on screen, but you gave me:\n\n"
           ++ P.render (P.nest 4 (P.pretty False tipe))

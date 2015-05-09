@@ -131,6 +131,11 @@ distance x y =
 
 -- TO REPORT
 
+namingError :: String -> String -> Report.Report
+namingError pre post =
+  Report.simple "NAMING ERROR" pre post
+
+
 toReport :: Error -> Report.Report
 toReport err =
   case err of
@@ -139,22 +144,22 @@ toReport err =
         in
         case problem of
           Ambiguous ->
-              Report.simple
+              namingError
                 ("This usage of " ++ var ++ " is ambiguous.")
                 (maybeYouWant suggestions)
 
           UnknownQualifier qualifier ->
-              Report.simple
+              namingError
                 ("Cannot find " ++ var ++ ", qualifier '" ++ qualifier ++ "' is not in scope.")
                 (maybeYouWant suggestions)
 
           QualifiedUnknown qualifier ->
-              Report.simple
+              namingError
                 ("Cannot find " ++ var ++ ", module '" ++ qualifier ++ "' does not expose that value.")
                 (maybeYouWant suggestions)
 
           ExposedUnknown ->
-              Report.simple
+              namingError
                 ("Cannot find " ++ var)
                 (maybeYouWant suggestions)
 
@@ -169,7 +174,7 @@ toReport err =
               argMismatchReport "Type" var expected actual
 
           SelfRecursive name tvars tipe ->
-              Report.simple "This type alias is recursive, forming an infinite type!" $
+              Report.simple "ALIAS PROBLEM" "This type alias is recursive, forming an infinite type!" $
                 "Type aliases are just names for more fundamental types, so I go through\n"
                 ++ "and expand them all to know the real underlying type. The problem is that\n"
                 ++ "when I expand a recursive type alias, it keeps getting bigger and bigger.\n"
@@ -180,7 +185,7 @@ toReport err =
                 ++ "like List which are recursive, but do not get expanded into infinite types."
 
           MutuallyRecursive aliases ->
-              Report.simple "This type alias is part of a mutually recursive set of type aliases." $
+              Report.simple "ALIAS PROBLEM" "This type alias is part of a mutually recursive set of type aliases." $
                 "The following type aliases all depend on each other in some way:\n"
                 ++ concatMap showName aliases ++ "\n\n"
                 ++ "The problem is that when you try to expand any of these type aliases, they\n"
@@ -195,17 +200,17 @@ toReport err =
         in
         case importError of
           ModuleNotFound suggestions ->
-              Report.simple
+              namingError
                 ("Could not find a module named '" ++ moduleName ++ "'")
                 (maybeYouWant (map Module.nameToString suggestions))
 
           ValueNotFound value suggestions ->
-              Report.simple
+              namingError
                 ("Module '" ++ moduleName ++ "' does not expose '" ++ value ++ "'")
                 (maybeYouWant suggestions)
 
     Export name suggestions ->
-        Report.simple
+        namingError
           ("Could not export '" ++ name ++ "' which is not defined in this module.")
           (maybeYouWant suggestions)
 
@@ -225,7 +230,7 @@ toReport err =
             ++ "Ints, Floats, Bools, Strings, Maybes, Lists, Arrays, Tuples,\n"
             ++ "Json.Values, and concrete records."
         in
-          Report.simple preHint postHint
+          Report.simple "PORT ERROR" preHint postHint
 
 
 argMismatchReport :: String -> Var.Canonical -> Int -> Int -> Report.Report
@@ -239,7 +244,7 @@ argMismatchReport kind var expected actual =
     postHint =
       "Expecting " ++ show expected ++ ", but got " ++ show actual ++ "."
   in
-      Report.Report Nothing preHint postHint
+      Report.simple "ARGUMENT" preHint postHint
 
 
 maybeYouWant :: [String] -> String

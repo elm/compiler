@@ -32,11 +32,13 @@ toReport err =
   case err of
     Parse messages ->
         Report.simple
+          "SYNTAX PROBLEM"
           "Problem when parsing your code!"
           (unlines (map parseErrorHint messages))
 
     InfixDuplicate opName ->
         Report.simple
+          "INFIX OVERLAP"
           ("The infix declarations for " ++ operator ++ " must be removed.")
           ("The precedence and associativity can only be set in one place, and\n"
            ++ "this information has already been set somewhere else."
@@ -49,6 +51,7 @@ toReport err =
 
     TypeWithoutDefinition valueName ->
         Report.simple
+          "MISSING DEFINITION"
           ("There is a type annotation for '" ++ valueName ++ "' but there"
             ++ "is no corresponding definition!"
           )
@@ -58,6 +61,7 @@ toReport err =
 
     PortWithoutAnnotation portName ->
         Report.simple
+          "PORT ERROR"
           ("Port '" ++ portName ++ "' does not have a type annotation!")
           ("Directly above the port definition, I need something like this:\n\n"
             ++ "    port " ++ portName ++ " : Signal Int"
@@ -65,6 +69,7 @@ toReport err =
 
     DuplicateValueDeclaration name ->
         Report.simple
+          "DUPLICATE DEFINITION"
           ("Naming multiple top-level values '" ++ name ++ "' makes things\n"
             ++ "ambiguous. When you say '" ++ name ++ "' which one do you want?!"
           )
@@ -74,6 +79,7 @@ toReport err =
 
     DuplicateTypeDeclaration name ->
         Report.simple
+          "DUPLICATE DEFINITION"
           ("Naming multiple types '" ++ name ++ "' makes things ambiguous\n"
             ++ "When you say '" ++ name ++ "' which one do you want?!"
           )
@@ -83,6 +89,7 @@ toReport err =
 
     DuplicateDefinition name ->
         Report.simple
+          "DUPLICATE DEFINITION"
           ("Naming multiple values '" ++ name ++ "' in a single let-expression makes\n"
             ++ "things ambiguous. When you say '" ++ name ++ "' which one do you want?!"
           )
@@ -118,6 +125,7 @@ toReport err =
 unboundTypeVars :: String -> String -> [String] -> String -> Report.Report
 unboundTypeVars typeName tvar tvars revisedDeclaration =
   Report.simple
+    "UNBOUND TYPE VARS"
     ( "Not all type variables in '" ++ typeName ++ "' are listed, making sneaky\n"
       ++ "type errors possible. Unbound type variables include: "
       ++ List.intercalate ", " (tvar:tvars)

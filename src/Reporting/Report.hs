@@ -9,21 +9,22 @@ import qualified Reporting.Region as R
 
 
 data Report = Report
-    { highlight :: Maybe R.Region
+    { title :: String
+    , highlight :: Maybe R.Region
     , preHint :: String
     , postHint :: String
     }
 
 
-simple :: String -> String -> Report
-simple pre post =
-  Report Nothing pre post
+simple :: String -> String -> String -> Report
+simple title pre post =
+  Report title Nothing pre post
 
 
-toString :: String -> String -> R.Region -> Report -> String -> String
-toString tag location region report source =
+toString :: String -> R.Region -> Report -> String -> String
+toString location region report source =
   concat
-    [ messageBar tag location
+    [ messageBar (title report) location
     , preHint report ++ "\n\n"
     , grabRegion (highlight report) region source ++ "\n"
     , postHint report ++ "\n\n\n"
