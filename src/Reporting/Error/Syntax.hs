@@ -122,11 +122,11 @@ unboundTypeVars typeName tvar tvars revisedDeclaration =
       ++ "type errors possible. Unbound type variables include: "
       ++ List.intercalate ", " (tvar:tvars)
     )
-    ( "Here's the problem. Imagine one '" ++ typeName ++ "' where '" ++ tvar ++ "' is an Int and\n"
-      ++ "another where it is a Bool. They both look like a '" ++ typeName ++ "' to the type\n"
-      ++ "checker, but they are actually different types!\n\n"
-      ++ "Maybe you want a definition like this?\n"
-      ++ concatMap ("\n    "++) (lines revisedDeclaration)
+    ( "You probably want this definition instead:\n"
+      ++ concatMap ("\n    "++) (lines revisedDeclaration) ++ "\n\n"
+      ++ "Here's why. Imagine one '" ++ typeName ++ "' where '" ++ tvar ++ "' is an Int and\n"
+      ++ "another where it is a Bool. When we explicitly list the type variables, type\n"
+      ++ "checker can see that they are actually different types."
     )
 
 
