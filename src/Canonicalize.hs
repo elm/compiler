@@ -277,7 +277,7 @@ declaration env (A.A region decl) =
                 D.In name tipe ->
                     canonicalize Canonicalize.tipe "port" name env tipe
                       `Result.andThen` \canonicalType ->
-                          D.Port <$> Port.check name Nothing canonicalType
+                          D.Port <$> Port.check region name Nothing canonicalType
 
                 D.Out name expr tipe ->
                     let exprTypeResult =
@@ -287,7 +287,7 @@ declaration env (A.A region decl) =
                     in
                         exprTypeResult
                           `Result.andThen` \(expr', tipe') ->
-                              D.Port <$> Port.check name (Just expr') tipe'
+                              D.Port <$> Port.check region name (Just expr') tipe'
 
       D.Fixity assoc prec op ->
           Result.ok (D.Fixity assoc prec op)
