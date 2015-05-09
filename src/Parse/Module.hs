@@ -6,6 +6,7 @@ import Text.Parsec hiding (newline, spaces)
 import Parse.Helpers
 import qualified AST.Module as Module
 import qualified AST.Variable as Var
+import Reporting.Annotation as A
 
 
 getModuleName :: String -> Maybe String
@@ -29,13 +30,13 @@ header =
       return (Module.Header names exports imports')
 
 
-moduleDecl :: IParser ([String], Var.Listing Var.Value)
+moduleDecl :: IParser ([String], Var.Listing (A.Located Var.Value))
 moduleDecl =
   do  try (reserved "module")
       whitespace
       names <- dotSep1 capVar <?> "name of module"
       whitespace
-      exports <- option Var.openListing (listing value)
+      exports <- option Var.openListing (listing (addLocation value))
       whitespace <?> "reserved word 'where'"
       reserved "where"
       return (names, exports)

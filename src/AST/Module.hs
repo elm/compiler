@@ -38,13 +38,18 @@ type CanonicalAdt = (Var.Canonical, AdtInfo Var.Canonical)
 -- MODULES
 
 type SourceModule =
-    Module [UserImport] (Var.Listing Var.Value) [Decl.SourceDecl]
+    Module
+      [UserImport]
+      (Var.Listing (A.Located Var.Value))
+      [Decl.SourceDecl]
+
 
 type ValidModule =
     Module
       ([DefaultImport], [UserImport])
-      (Var.Listing Var.Value)
+      (Var.Listing (A.Located Var.Value))
       [Decl.ValidDecl]
+
 
 type CanonicalModule =
     Module [Name] [Var.Value] CanonicalBody
@@ -73,7 +78,7 @@ data CanonicalBody = CanonicalBody
 {-| Basic info needed to identify modules and determine dependencies. -}
 data Header imports = Header
     { _names :: Name
-    , _exports :: Var.Listing Var.Value
+    , _exports :: Var.Listing (A.Located Var.Value)
     , _imports :: imports
     }
 

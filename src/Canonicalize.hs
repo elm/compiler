@@ -120,80 +120,106 @@ warnUnusedImport uses (A.A region (name, _method)) =
 
 resolveExports
     :: [Var.Value]
-    -> Var.Listing Var.Value
+    -> Var.Listing (A.Located Var.Value)
     -> Result.ResultErr [Var.Value]
 resolveExports fullList (Var.Listing partialList open) =
   if open
     then Result.ok fullList
     else
       (\xs ys zs -> xs ++ ys ++ zs)
-        <$> getValueExports
+        <$> T.traverse getValueExport values
         <*> (concat <$> T.traverse getAliasExport aliases)
         <*> T.traverse getAdtExport adts
   where
     (allValues, allAliases, allAdts) =
-        splitValues fullList
+        maybeUnzip3 (map splitValue fullList)
 
     (values, aliases, adts) =
-        splitValues partialList
+        maybeUnzip3 (map splitLocatedValue partialList)
 
-    getValueExports =
-      case Set.toList (Set.difference values' allValues') of
-        [] -> Result.ok (map Var.Value values)
-        xs -> manyNotFound xs allValues
-      where
-        allValues' = Set.fromList allValues
-        values' = Set.fromList values
+    allValuesSet = Set.fromList allValues
+    adtTypes = map fst allAdts
 
-    getAliasExport alias
+    getValueExport (A.A region name) =
+      if Set.member name allValuesSet
+        then Result.ok (Var.Value name)
+        else manyNotFound region [name] allValues
+
+    getAliasExport (A.A region alias)
         | alias `elem` allAliases =
-            let recordConstructor =
-                    if alias `elem` allValues then [Var.Value alias] else []
-            in
-                Result.ok (Var.Alias alias : recordConstructor)
+            Result.ok $ (:) (Var.Alias alias) $
+                if alias `elem` allValues then [Var.Value alias] else []
+
+        | List.elem alias adtTypes =
+              Result.ok [Var.Union alias (Var.Listing [] False)]
 
         | otherwise =
-            case List.find (\(name, _ctors) -> name == alias) allAdts of
-              Nothing -> manyNotFound [alias] allAliases
-              Just (name, _ctor) ->
-                  Result.ok [Var.Union name (Var.Listing [] False)]
+              manyNotFound region [alias] (allAliases ++ adtTypes)
 
-    getAdtExport (name, Var.Listing ctors open) =
-      case lookup name allAdts of
-        Nothing -> manyNotFound [name] (map fst allAdts)
+    getAdtExport (A.A region (name, Var.Listing ctors open)) =
+      case List.lookup name allAdts of
+        Nothing ->
+            manyNotFound region [name] adtTypes
+
         Just (Var.Listing allCtors _)
           | open ->
               Result.ok (Var.Union name (Var.Listing allCtors False))
           | otherwise ->
               case filter (`notElem` allCtors) ctors of
-                [] -> Result.ok (Var.Union name (Var.Listing ctors False))
-                unfoundCtors -> manyNotFound unfoundCtors allCtors
+                [] ->
+                    Result.ok (Var.Union name (Var.Listing ctors False))
+                unfoundCtors ->
+                    manyNotFound region unfoundCtors allCtors
 
-    manyNotFound nameList possibilities =
-        Result.errors (map (notFound possibilities) nameList)
+    manyNotFound region nameList possibilities =
+        Result.errors (map (notFound region possibilities) nameList)
 
-    notFound possibilities name =
-        A.A undefined $ CError.Export name $
+    notFound region possibilities name =
+        A.A region $ CError.Export name $
             CError.nearbyNames id name possibilities
 
 
-splitValues
-    :: [Var.Value]
-    -> ([String], [String], [(String, Var.Listing String)])
-splitValues mixedValues =
-  case mixedValues of
-    [] -> ([], [], [])
-    x:xs ->
-      let (values, aliases, adts) = splitValues xs in
-      case x of
-        Var.Value name ->
-            (name : values, aliases, adts)
+-- GROUPING VALUES
 
-        Var.Alias name ->
-            (values, name : aliases, adts)
+maybeUnzip3 :: [(Maybe a, Maybe b, Maybe c)] -> ([a],[b],[c])
+maybeUnzip3 tuples =
+  let (as, bs, cs) = unzip3 tuples
+  in
+    (Maybe.catMaybes as, Maybe.catMaybes bs, Maybe.catMaybes cs)
 
-        Var.Union name listing ->
-            (values, aliases, (name, listing) : adts)
+
+splitValue
+    :: Var.Value
+    -> ( Maybe String, Maybe String, Maybe (String, Var.Listing String) )
+splitValue value =
+  case value of
+    Var.Value name ->
+        (Just name, Nothing, Nothing)
+
+    Var.Alias name ->
+        (Nothing, Just name, Nothing)
+
+    Var.Union name listing ->
+        (Nothing, Nothing, Just (name, listing))
+
+
+splitLocatedValue
+    :: A.Located Var.Value
+    ->
+      ( Maybe (A.Located String)
+      , Maybe (A.Located String)
+      , Maybe (A.Located (String, Var.Listing String))
+      )
+splitLocatedValue (A.A region value) =
+  case value of
+    Var.Value name ->
+        (Just (A.A region name), Nothing, Nothing)
+
+    Var.Alias name ->
+        (Nothing, Just (A.A region name), Nothing)
+
+    Var.Union name listing ->
+        (Nothing, Nothing, Just (A.A region (name, listing)))
 
 
 -- DECLARATIONS
