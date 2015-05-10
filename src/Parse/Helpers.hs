@@ -8,19 +8,20 @@ import Data.Char (isUpper)
 import qualified Data.Map as Map
 import qualified Language.GLSL.Parser as GLP
 import qualified Language.GLSL.Syntax as GLS
-import Text.Parsec hiding (newline,spaces,State)
+import Text.Parsec hiding (newline, spaces, State)
 import Text.Parsec.Indent (indented, runIndent)
 import qualified Text.Parsec.Token as T
 
-import qualified AST.Annotation as Annotation
 import qualified AST.Declaration as Decl
 import qualified AST.Expression.General as E
 import qualified AST.Expression.Source as Source
 import qualified AST.Helpers as Help
 import qualified AST.Literal as L
-import qualified AST.PrettyPrint as P
 import qualified AST.Variable as Variable
 import Elm.Utils ((|>))
+import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Syntax as Syntax
+import qualified Reporting.Region as R
 
 
 reserveds :: [String]
@@ -37,8 +38,12 @@ reserveds =
     ]
 
 
+-- ERROR HELP
+
 expecting = flip (<?>)
 
+
+-- SETUP
 
 type OpTable = Map.Map String (Int, Decl.Assoc)
 type SourceM = State SourcePos
@@ -59,17 +64,17 @@ iParseWithTable sourceName table aParser input =
 
 var :: IParser String
 var =
-  makeVar (letter <|> char '_' <?> "variable")
+  makeVar (letter <|> char '_') <?> "a variable"
 
 
 lowVar :: IParser String
 lowVar =
-  makeVar (lower <?> "lower case variable")
+  makeVar lower <?> "a lower case variable"
 
 
 capVar :: IParser String
 capVar =
-  makeVar (upper <?> "upper case variable")
+  makeVar upper <?> "an upper case variable"
 
 
 qualifiedVar :: IParser String
@@ -84,15 +89,15 @@ rLabel = lowVar
 
 innerVarChar :: IParser Char
 innerVarChar =
-  alphaNum <|> char '_' <|> char '\'' <?> ""
+  alphaNum <|> char '_' <|> char '\'' <?> "more letters in this variable"
 
 
 makeVar :: IParser Char -> IParser String
-makeVar p =
-  do  v <- (:) <$> p <*> many innerVarChar
-      if v `elem` reserveds
-        then fail $ "unexpected keyword '" ++ v ++ "', variables cannot be keywords"
-        else return v
+makeVar firstChar =
+  do  variable <- (:) <$> firstChar <*> many innerVarChar
+      if variable `elem` reserveds
+        then fail (Syntax.keyword variable)
+        else return variable
 
 
 reserved :: String -> IParser String
@@ -109,7 +114,7 @@ anyOp :: IParser String
 anyOp =
   betwixt '`' '`' qualifiedVar
   <|> symOp
-  <?> "infix operator"
+  <?> "an infix operator like (+)"
 
 
 symOp :: IParser String
@@ -124,13 +129,23 @@ symOp =
 -- COMMON SYMBOLS
 
 equals :: IParser String
-equals = string "="
+equals =
+  string "=" <?> "="
 
-arrow :: IParser String
-arrow = string "->" <|> string "\8594" <?> "arrow (->)"
+
+rightArrow :: IParser String
+rightArrow =
+  string "->" <|> string "\8594" <?> "->"
+
+
+leftArrow :: IParser String
+leftArrow =
+  string "<-" <?> "<- for a record update"
+
 
 hasType :: IParser String
-hasType = string ":" <?> "':' (a type annotation)'"
+hasType =
+  string ":" <?> "the \"has type\" symbol ':'"
 
 
 commitIf check p =
@@ -143,14 +158,24 @@ commitIf check p =
 -- SEPARATORS
 
 spaceySepBy1 :: IParser b -> IParser a -> IParser [a]
-spaceySepBy1 sep p =
-  do  a <- p
-      (a:) <$> many (commitIf (whitespace >> sep) (padded sep >> p))
+spaceySepBy1 sep parser =
+  do  value <- parser
+      (value:) <$> spaceyPrefixBy sep parser
+
+
+spaceyPrefixBy :: IParser sep -> IParser a -> IParser [a]
+spaceyPrefixBy sep parser =
+  many (commitIf (whitespace >> sep) (padded sep >> parser))
+
+
+comma :: IParser Char
+comma =
+  char ',' <?> "a comma ','"
 
 
 commaSep1 :: IParser a -> IParser [a]
 commaSep1 =
-  spaceySepBy1 (char ',' <?> "comma ','")
+  spaceySepBy1 comma
 
 
 commaSep :: IParser a -> IParser [a]
@@ -160,17 +185,17 @@ commaSep =
 
 semiSep1 :: IParser a -> IParser [a]
 semiSep1 =
-  spaceySepBy1 (char ';' <?> "semicolon ';'")
+  spaceySepBy1 (char ';' <?> "a semicolon ';'")
 
 
 pipeSep1 :: IParser a -> IParser [a]
 pipeSep1 =
-  spaceySepBy1 (char '|' <?> "type divider '|'")
+  spaceySepBy1 (char '|' <?> "a vertical bar '|'")
 
 
 consSep1 :: IParser a -> IParser [a]
 consSep1 =
-  spaceySepBy1 (string "::" <?> "cons operator '::'")
+  spaceySepBy1 (string "::" <?> "a cons operator '::'")
 
 
 dotSep1 :: IParser a -> IParser [a]
@@ -187,15 +212,15 @@ spacePrefix p =
   constrainedSpacePrefix p (\_ -> return ())
 
 
-constrainedSpacePrefix p constraint =
+constrainedSpacePrefix parser constraint =
     many $ choice
-      [ try (spacing >> lookAhead (oneOf "[({")) >> p
-      , try (spacing >> p)
+      [ try (spacing >> lookAhead (oneOf "[({")) >> parser
+      , try (spacing >> parser)
       ]
     where
       spacing = do
         n <- whitespace
-        constraint n
+        constraint n <?> Syntax.whitespace
         indented
 
 
@@ -210,14 +235,14 @@ followedBy a b =
 betwixt a b c =
   do  char a
       out <- c
-      char b <?> "closing '" ++ [b] ++ "'"
+      char b <?> "a closing '" ++ [b] ++ "'"
       return out
 
 
 surround a z name p = do
   char a
   v <- padded p
-  char z <?> unwords ["closing", name, show z]
+  char z <?> unwords ["a closing", name, show z]
   return v
 
 
@@ -238,27 +263,32 @@ brackets =
 
 -- HELPERS FOR EXPRESSIONS
 
-addLocation :: (P.Pretty a) => IParser a -> IParser (Annotation.Located a)
+getMyPosition :: IParser R.Position
+getMyPosition =
+  R.fromSourcePos <$> getPosition
+
+
+addLocation :: IParser a -> IParser (A.Located a)
 addLocation expr =
   do  (start, e, end) <- located expr
-      return (Annotation.at start end e)
+      return (A.at start end e)
 
 
-located :: IParser a -> IParser (SourcePos, a, SourcePos)
-located p =
-  do  start <- getPosition
-      e <- p
-      end <- getPosition
-      return (start, e, end)
+located :: IParser a -> IParser (R.Position, a, R.Position)
+located parser =
+  do  start <- getMyPosition
+      value <- parser
+      end <- getMyPosition
+      return (start, value, end)
 
 
 accessible :: IParser Source.Expr -> IParser Source.Expr
 accessible exprParser =
-  do  start <- getPosition
+  do  start <- getMyPosition
 
-      annotatedRootExpr@(Annotation.A _ rootExpr) <- exprParser
+      annotatedRootExpr@(A.A _ rootExpr) <- exprParser
 
-      access <- optionMaybe (try dot <?> "field access (e.g. List.map)")
+      access <- optionMaybe (try dot <?> "a field access like .name")
 
       case access of
         Nothing ->
@@ -266,9 +296,9 @@ accessible exprParser =
 
         Just _ ->
           accessible $
-            do  v <- var <?> "field access (e.g. List.map)"
-                end <- getPosition
-                return . Annotation.at start end $
+            do  v <- var
+                end <- getMyPosition
+                return . A.at start end $
                     case rootExpr of
                       E.Var (Variable.Raw name@(c:_))
                         | isUpper c ->
@@ -279,7 +309,8 @@ accessible exprParser =
 
 dot :: IParser ()
 dot =
-  char '.' >> notFollowedBy (char '.')
+  do  char '.'
+      notFollowedBy (char '.')
 
 
 -- WHITESPACE
@@ -294,7 +325,7 @@ padded p =
 
 spaces :: IParser String
 spaces =
-  let space = string " " <|> multiComment <?> "whitespace"
+  let space = string " " <|> multiComment <?> Syntax.whitespace
   in
       concat <$> many1 space
 
@@ -323,14 +354,14 @@ whitespace =
 
 freshLine :: IParser [[String]]
 freshLine =
-    try (many1 newline >> many space_nl) <|> try (many1 space_nl) <?> ""
+    try (many1 newline >> many space_nl) <|> try (many1 space_nl) <?> Syntax.freshLine
   where
     space_nl = try $ spaces >> many1 newline
 
 
 newline :: IParser String
 newline =
-  simpleNewline <|> lineComment <?> "a newline"
+  simpleNewline <|> lineComment <?> Syntax.newline
 
 
 simpleNewline :: IParser String
@@ -354,7 +385,7 @@ closeComment :: IParser String
 closeComment =
     anyUntil $
       choice $
-        [ try (string "-}") <?> "close comment"
+        [ try (string "-}") <?> "the end of a comment -}"
         , concat <$> sequence [ try (string "{-"), closeComment, closeComment ]
         ]
 
@@ -427,12 +458,10 @@ withSource p =
 
 anyUntilPos :: SourcePos -> IParser String
 anyUntilPos pos =
-    go
-  where
-    go = do currentPos <- getPosition
-            case currentPos == pos of
-              True -> return []
-              False -> (:) <$> anyChar <*> go
+  do  currentPos <- getPosition
+      if currentPos == pos
+        then return []
+        else (:) <$> anyChar <*> anyUntilPos pos
 
 
 -- BASIC LANGUAGE LITERALS
@@ -505,9 +534,10 @@ glSource src =
 
 
 str :: IParser String
-str = expecting "String" $ do
-        s <- choice [ multiStr, singleStr ]
-        processAs T.stringLiteral . sandwich '\"' $ concat s
+str =
+  expecting "a string" $
+  do  s <- choice [ multiStr, singleStr ]
+      processAs T.stringLiteral . sandwich '\"' $ concat s
   where
     rawString quote insides =
         quote >> manyTill insides quote
@@ -547,7 +577,7 @@ escaped delim =
 
 chr :: IParser Char
 chr =
-    betwixt '\'' '\'' character <?> "character"
+    betwixt '\'' '\'' character <?> "a character"
   where
     nonQuote = satisfy (/='\'')
 

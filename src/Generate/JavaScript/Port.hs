@@ -3,15 +3,15 @@ module Generate.JavaScript.Port (inbound, outbound, task) where
 import qualified Data.List as List
 import Language.ECMAScript3.Syntax
 
-import AST.PrettyPrint (pretty)
-import AST.Type as T
+import qualified AST.Type as T
 import qualified AST.Variable as Var
 import Generate.JavaScript.Helpers
+import qualified Reporting.PrettyPrint as P
 
 
 -- TASK
 
-task :: String -> Expression () -> T.PortType var -> Expression ()
+task :: String -> Expression () -> T.Port t -> Expression ()
 task name expr portType =
   case portType of
     T.Normal _ ->
@@ -90,42 +90,42 @@ check x jsType continue =
 
 -- INBOUND
 
-inbound :: String -> T.PortType Var.Canonical -> Expression ()
+inbound :: String -> T.Port T.Canonical -> Expression ()
 inbound name portType =
   case portType of
     T.Normal tipe ->
         _Port "inbound" `call`
             [ string name
-            , string (show (pretty tipe))
+            , string (show (P.pretty False tipe))
             , toTypeFunction tipe
             ]
 
     T.Signal _root arg ->
         _Port "inboundSignal" `call`
             [ string name
-            , string (show (pretty arg))
+            , string (show (P.pretty False arg))
             , toTypeFunction arg
             ]
 
 
-toTypeFunction :: CanonicalType -> Expression ()
+toTypeFunction :: T.Canonical -> Expression ()
 toTypeFunction tipe =
     ["v"] ==> toType tipe (ref "v")
 
 
-toType :: CanonicalType -> Expression () -> Expression ()
+toType :: T.Canonical -> Expression () -> Expression ()
 toType tipe x =
     case tipe of
-      Lambda _ _ ->
+      T.Lambda _ _ ->
           error "functions should not be allowed through input ports"
 
-      Var _ ->
+      T.Var _ ->
           error "type variables should not be allowed through input ports"
 
-      Aliased _ args t ->
-          toType (dealias args t) x
+      T.Aliased _ args t ->
+          toType (T.dealias args t) x
 
-      Type (Var.Canonical Var.BuiltIn name)
+      T.Type (Var.Canonical Var.BuiltIn name)
           | name == "Int"    -> from JSNumber
           | name == "Float"  -> from JSNumber
           | name == "Bool"   -> from JSBoolean
@@ -133,7 +133,7 @@ toType tipe x =
           where
             from checks = check x checks x
 
-      Type name
+      T.Type name
           | Var.isJson name ->
               x
 
@@ -143,9 +143,9 @@ toType tipe x =
           | otherwise ->
               error "bad type got to foreign input conversion"
 
-      App f args ->
+      T.App f args ->
           case f : args of
-            Type name : [t]
+            T.Type name : [t]
                 | Var.isMaybe name ->
                     CondExpr ()
                         (equal x (NullLit ()))
@@ -160,16 +160,16 @@ toType tipe x =
                 where
                   array = DotRef () x (var "map") <| toTypeFunction t
 
-            Type name : ts
+            T.Type name : ts
                 | Var.isTuple name ->
                     toTuple ts x
 
             _ -> error "bad ADT got to foreign input conversion"
 
-      Record _ (Just _) ->
+      T.Record _ (Just _) ->
           error "bad record got to foreign input conversion"
 
-      Record fields Nothing ->
+      T.Record fields Nothing ->
           check x (JSObject (map fst fields)) object
         where
           object = ObjectLit () $ (prop "_", ObjectLit () []) : keys
@@ -177,7 +177,7 @@ toType tipe x =
           convert (f,t) = (prop f, toType t (DotRef () x (var f)))
 
 
-toTuple :: [CanonicalType] -> Expression () -> Expression ()
+toTuple :: [T.Canonical] -> Expression () -> Expression ()
 toTuple types x =
     check x JSArray (ObjectLit () fields)
   where
@@ -195,7 +195,7 @@ toTuple types x =
 
 -- OUTBOUND
 
-outbound :: String -> Expression () -> T.PortType Var.Canonical -> Expression ()
+outbound :: String -> Expression () -> T.Port T.Canonical -> Expression ()
 outbound name expr portType =
   case portType of
     T.Normal tipe ->
@@ -205,18 +205,18 @@ outbound name expr portType =
         _Port "outboundSignal" `call` [ string name, fromTypeFunction arg, expr ]
 
 
-fromTypeFunction :: CanonicalType -> Expression ()
+fromTypeFunction :: T.Canonical -> Expression ()
 fromTypeFunction tipe =
     ["v"] ==> fromType tipe (ref "v")
 
 
-fromType :: CanonicalType -> Expression () -> Expression ()
+fromType :: T.Canonical -> Expression () -> Expression ()
 fromType tipe x =
     case tipe of
-      Aliased _ args t ->
-          fromType (dealias args t) x
+      T.Aliased _ args t ->
+          fromType (T.dealias args t) x
 
-      Lambda _ _
+      T.Lambda _ _
           | numArgs > 1 && numArgs < 10 ->
               func (ref ('A':show numArgs) `call` (x:values))
           | otherwise ->
@@ -232,21 +232,21 @@ fromType tipe x =
                     , ret (fromType (last ts) (ref "_r"))
                     ]
 
-      Var _ ->
+      T.Var _ ->
           error "type variables should not be allowed through outputs"
 
-      Type (Var.Canonical Var.BuiltIn name)
+      T.Type (Var.Canonical Var.BuiltIn name)
           | name `elem` ["Int","Float","Bool","String"] ->
               x
 
-      Type name
+      T.Type name
           | Var.isJson name -> x
           | Var.isTuple name -> ArrayLit () []
           | otherwise -> error "bad type got to an output"
 
-      App f args ->
+      T.App f args ->
           case f : args of
-            Type name : [t]
+            T.Type name : [t]
                 | Var.isMaybe name ->
                     CondExpr ()
                         (equal (DotRef () x (var "ctor")) (string "Nothing"))
@@ -259,17 +259,17 @@ fromType tipe x =
                 | Var.isList name ->
                     DotRef () (_List "toArray" <| x) (var "map") <| fromTypeFunction t
 
-            Type name : ts
+            T.Type name : ts
                 | Var.isTuple name ->
                     let convert n t = fromType t $ DotRef () x $ var ('_':show n)
                     in  ArrayLit () $ zipWith convert [0..] ts
 
             _ -> error "bad ADT got to an output"
 
-      Record _ (Just _) ->
+      T.Record _ (Just _) ->
           error "bad record got to an output"
 
-      Record fields Nothing ->
+      T.Record fields Nothing ->
           ObjectLit () keys
         where
           keys = map convert fields

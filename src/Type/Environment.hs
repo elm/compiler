@@ -1,19 +1,16 @@
 module Type.Environment where
 
 import Control.Applicative ((<$>), (<*>))
-import Control.Exception (try, SomeException)
-import Control.Monad
-import Control.Monad.Error (ErrorT, throwError, liftIO)
+import Control.Monad (forM)
 import qualified Control.Monad.State as State
 import qualified Data.Traversable as Traverse
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.List (isPrefixOf)
-import qualified Text.PrettyPrint as PP
 
 import qualified AST.Type as T
 import qualified AST.Variable as V
-import AST.Module (CanonicalAdt, AdtInfo)
+import qualified AST.Module as Module
 import Type.Type
 
 
@@ -28,7 +25,7 @@ data Environment = Environment
     }
 
 
-initialEnvironment :: [CanonicalAdt] -> IO Environment
+initialEnvironment :: [Module.CanonicalAdt] -> IO Environment
 initialEnvironment datatypes =
   do  types <- makeTypes datatypes
       let env =
@@ -40,13 +37,13 @@ initialEnvironment datatypes =
       return $ env { constructor = makeConstructors env datatypes }
 
 
-makeTypes :: [CanonicalAdt] -> IO TypeDict
+makeTypes :: [Module.CanonicalAdt] -> IO TypeDict
 makeTypes datatypes =
   do  adts <- mapM makeImported datatypes
       bs   <- mapM makeBuiltin builtins
       return (Map.fromList (adts ++ bs))
   where
-    makeImported :: (V.Canonical, AdtInfo V.Canonical) -> IO (String, Type)
+    makeImported :: (V.Canonical, Module.AdtInfo V.Canonical) -> IO (String, Type)
     makeImported (var, _) =
       do  tvar <- namedVar Constant var
           return (V.toString var, varN tvar)
@@ -70,7 +67,7 @@ makeTypes datatypes =
 
 makeConstructors
     :: Environment
-    -> [CanonicalAdt]
+    -> [Module.CanonicalAdt]
     -> Map.Map String (IO (Int, [Variable], [Type], Type))
 makeConstructors env datatypes =
     Map.fromList builtins
@@ -98,18 +95,18 @@ makeConstructors env datatypes =
 
 ctorToType
     :: Environment
-    -> (V.Canonical, AdtInfo V.Canonical)
+    -> (V.Canonical, Module.AdtInfo V.Canonical)
     -> [(String, IO (Int, [Variable], [Type], Type))]
 ctorToType env (name, (tvars, ctors)) =
     zip (map (V.toString . fst) ctors) (map inst ctors)
   where
-    inst :: (V.Canonical, [T.CanonicalType]) -> IO (Int, [Variable], [Type], Type)
+    inst :: (V.Canonical, [T.Canonical]) -> IO (Int, [Variable], [Type], Type)
     inst ctor =
       do  ((args, tipe), dict) <- State.runStateT (go ctor) Map.empty
           return (length args, Map.elems dict, args, tipe)
 
 
-    go :: (V.Canonical, [T.CanonicalType]) -> State.StateT VarDict IO ([Type], Type)
+    go :: (V.Canonical, [T.Canonical]) -> State.StateT VarDict IO ([Type], Type)
     go (_, args) =
       do  types <- mapM (instantiator env) args
           returnType <- instantiator env (T.App (T.Type name) (map T.Var tvars))
@@ -133,22 +130,17 @@ freshDataScheme env name =
 
 instantiateType
     :: Environment
-    -> T.CanonicalType
+    -> T.Canonical
     -> VarDict
-    -> ErrorT [PP.Doc] IO ([Variable], Type)
+    -> IO ([Variable], Type)
 instantiateType env sourceType dict =
-  do  result <- liftIO $ try (State.runStateT (instantiator env sourceType) dict)
-      case result :: Either SomeException (Type, VarDict) of
-        Left someError ->
-            throwError [ PP.text $ show someError ]
-
-        Right (tipe, dict') ->
-            return (Map.elems dict', tipe)
+  do  (tipe, dict') <- State.runStateT (instantiator env sourceType) dict
+      return (Map.elems dict', tipe)
 
 
 instantiator
     :: Environment
-    -> T.CanonicalType
+    -> T.Canonical
     -> State.StateT VarDict IO Type
 instantiator env sourceType =
     instantiatorHelp env Set.empty sourceType
@@ -157,7 +149,7 @@ instantiator env sourceType =
 instantiatorHelp
     :: Environment
     -> Set.Set String
-    -> T.CanonicalType
+    -> T.Canonical
     -> State.StateT VarDict IO Type
 instantiatorHelp env aliasVars sourceType =
     let go = instantiatorHelp env aliasVars

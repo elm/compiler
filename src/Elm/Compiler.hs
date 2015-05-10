@@ -1,23 +1,24 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE FlexibleContexts #-}
 module Elm.Compiler
     ( version, rawVersion
     , parseDependencies, compile
+    , Error, errorToString
+    , Warning
     ) where
 
-import Control.Monad.Error (MonadError, throwError)
-import qualified Data.List as List
 import qualified Data.Map as Map
-import qualified Text.PrettyPrint as P
 
-import qualified AST.Module as Module (HeaderAndImports(HeaderAndImports), toInterface)
+import qualified AST.Module as Module
 import qualified Compile
 import qualified Elm.Compiler.Module as PublicModule
 import qualified Elm.Compiler.Version as Version
-import Elm.Utils ((|>))
 import qualified Generate.JavaScript as JS
-import qualified Parse.Helpers as Help
 import qualified Parse.Module as Parse
+import qualified Parse.Parse as Parse
+import qualified Reporting.Annotation as A
+import qualified Reporting.Error as Error
+import qualified Reporting.Result as Result
+import qualified Reporting.Warning as Warning
 
 
 -- VERSION
@@ -35,19 +36,22 @@ rawVersion =
 -- DEPENDENCIES
 
 parseDependencies
-    :: (MonadError String m)
-    => String
-    -> m (PublicModule.Name, [PublicModule.Name])
-parseDependencies src =
-    case Help.iParse Parse.headerAndImports src of
-        Left msg ->
-            throwError (show msg)
+    :: String
+    -> Either [Error] (PublicModule.Name, [PublicModule.Name])
+parseDependencies sourceCode =
+  let
+    (Result.Result _warnings rawResult) =
+      Parse.parse sourceCode Parse.header
+  in
+    case rawResult of
+      Result.Err msgs ->
+          Left $ map (Error . A.map Error.Syntax) msgs
 
-        Right (Module.HeaderAndImports names _exports imports) ->
-            return
-                ( PublicModule.Name names
-                , map (PublicModule.Name . fst) imports
-                )
+      Result.Ok (Module.Header names _exports imports) ->
+          Right
+            ( PublicModule.Name names
+            , map (PublicModule.Name . fst . A.drop) imports
+            )
 
 
 -- COMPILATION
@@ -58,17 +62,33 @@ compile
     -> String
     -> String
     -> Map.Map PublicModule.Name PublicModule.Interface
-    -> Either String (PublicModule.Interface, String)
+    -> ([Warning], Either [Error] (PublicModule.Interface, String))
 compile user packageName source interfaces =
   let unwrappedInterfaces =
-        Map.mapKeysMonotonic (\(PublicModule.Name name) -> name) interfaces
+          Map.mapKeysMonotonic (\(PublicModule.Name name) -> name) interfaces
+
+      (Result.Result warnings rawResult) =
+          Compile.compile user packageName unwrappedInterfaces source
   in
-      case Compile.compile user packageName unwrappedInterfaces source of
-        Right modul ->
+      (,) (map Warning warnings) $
+      case rawResult of
+        Result.Ok modul ->
             Right (Module.toInterface modul, JS.generate modul)
 
-        Left docs ->
-            map P.render docs
-              |> List.intersperse ""
-              |> unlines
-              |> Left
+        Result.Err errors ->
+            Left (map Error errors)
+
+
+-- ERRORS
+
+newtype Error = Error (A.Located Error.Error)
+
+
+errorToString :: String -> String -> Error -> String
+errorToString location source (Error err) =
+    Error.toString location source err
+
+
+-- WARNINGS
+
+newtype Warning = Warning (A.Located Warning.Warning)

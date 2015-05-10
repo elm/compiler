@@ -12,21 +12,23 @@ import qualified Parse.Type as Type
 
 declaration :: IParser D.SourceDecl
 declaration =
-  typeDecl <|> infixDecl <|> port <|> definition
+  addLocation (typeDecl <|> infixDecl <|> port <|> definition)
 
 
 -- TYPE ANNOTATIONS and DEFINITIONS
 
-definition :: IParser D.SourceDecl
+definition :: IParser D.SourceDecl'
 definition =
-  D.Definition <$> (Expr.typeAnnotation <|> Expr.definition)
+  D.Definition
+    <$> (Expr.typeAnnotation <|> Expr.definition)
+    <?> "a value definition"
 
 
 -- TYPE ALIAS and UNION TYPES
 
-typeDecl :: IParser D.SourceDecl
+typeDecl :: IParser D.SourceDecl'
 typeDecl =
-  do  try (reserved "type") <?> "type declaration"
+  do  try (reserved "type") <?> "a type declaration"
       forcedWS
       isAlias <- optionMaybe (string "alias" >> forcedWS)
 
@@ -46,8 +48,9 @@ typeDecl =
 
 -- INFIX
 
-infixDecl :: IParser D.SourceDecl
+infixDecl :: IParser D.SourceDecl'
 infixDecl =
+  expecting "an infix declaration" $
   do  assoc <-
           choice
             [ try (reserved "infixl") >> return D.L
@@ -62,8 +65,9 @@ infixDecl =
 
 -- PORT
 
-port :: IParser D.SourceDecl
+port :: IParser D.SourceDecl'
 port =
+  expecting "a port declaration" $
   do  try (reserved "port")
       whitespace
       name <- lowVar

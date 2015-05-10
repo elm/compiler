@@ -1,4 +1,4 @@
-module Parse.Module (header, headerAndImports, getModuleName) where
+module Parse.Module (moduleDecl, header, getModuleName) where
 
 import Control.Applicative ((<$>), (<*>))
 import Text.Parsec hiding (newline, spaces)
@@ -6,6 +6,7 @@ import Text.Parsec hiding (newline, spaces)
 import Parse.Helpers
 import qualified AST.Module as Module
 import qualified AST.Variable as Var
+import Reporting.Annotation as A
 
 
 getModuleName :: String -> Maybe String
@@ -16,38 +17,41 @@ getModuleName source =
   where
     getModuleName =
       do  optional freshLine
-          (names, _) <- header
+          (names, _) <- moduleDecl
           return (Module.nameToString names)
 
 
-headerAndImports :: IParser Module.HeaderAndImports
-headerAndImports =
+header :: IParser (Module.Header [Module.UserImport])
+header =
   do  optional freshLine
       (names, exports) <-
-          option (["Main"], Var.openListing) (header `followedBy` freshLine)
+          option (["Main"], Var.openListing) (moduleDecl `followedBy` freshLine)
       imports' <- imports
-      return $ Module.HeaderAndImports names exports imports'
+      return (Module.Header names exports imports')
 
 
-header :: IParser ([String], Var.Listing Var.Value)
-header =
+moduleDecl :: IParser ([String], Var.Listing (A.Located Var.Value))
+moduleDecl =
+  expecting "a module declaration" $
   do  try (reserved "module")
       whitespace
-      names <- dotSep1 capVar <?> "name of module"
+      names <- dotSep1 capVar <?> "the name of this module"
       whitespace
-      exports <- option Var.openListing (listing value)
-      whitespace <?> "reserved word 'where'"
+      exports <- option Var.openListing (listing (addLocation value))
+      whitespace
       reserved "where"
       return (names, exports)
 
 
-imports :: IParser [(Module.Name, Module.ImportMethod)]
+imports :: IParser [Module.UserImport]
 imports =
   many (import' `followedBy` freshLine)
 
 
-import' :: IParser (Module.Name, Module.ImportMethod)
+import' :: IParser Module.UserImport
 import' =
+  expecting "an import" $
+  addLocation $
   do  try (reserved "import")
       whitespace
       names <- dotSep1 capVar
@@ -56,14 +60,14 @@ import' =
     method :: String -> IParser Module.ImportMethod
     method defaultAlias =
       Module.ImportMethod
-          <$> option (Just defaultAlias) (Just <$> as')
+          <$> option (Just defaultAlias) (Just <$> as' defaultAlias)
           <*> option Var.closedListing exposing
 
-    as' :: IParser String
-    as' =
+    as' :: String -> IParser String
+    as' moduleName =
       do  try (whitespace >> reserved "as")
           whitespace
-          capVar <?> "alias for module"
+          capVar <?> ("an alias for module '" ++ moduleName ++ "'")
 
     exposing :: IParser (Var.Listing Var.Value)
     exposing =
@@ -74,13 +78,14 @@ import' =
 
 listing :: IParser a -> IParser (Var.Listing a)
 listing item =
+  expecting "a listing of values to expose, like (..)" $
   do  try (whitespace >> char '(')
       whitespace
       listing <-
           choice
             [ const Var.openListing <$> string ".."
             , Var.Listing <$> commaSep1 item <*> return False
-            ] <?> "listing of values (x,y,z)"
+            ]
       whitespace
       char ')'
       return listing
@@ -88,7 +93,7 @@ listing item =
 
 value :: IParser Var.Value
 value =
-    val <|> tipe
+    val <|> tipe <?> "a value to expose"
   where
     val =
       Var.Value <$> (lowVar <|> parens symOp)

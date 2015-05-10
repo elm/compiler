@@ -1,21 +1,29 @@
 module Type.Constrain.Literal where
 
-import AST.Annotation
-import AST.Literal
-import Type.Type
-import Type.Environment as Env
+import qualified AST.Literal as L
+import qualified Reporting.Error.Type as Error
+import qualified Reporting.Region as R
+import qualified Type.Type as T
+import qualified Type.Environment as Env
 
-constrain :: Environment -> Region -> Literal -> Type -> IO TypeConstraint
+
+constrain
+    :: Env.Environment
+    -> R.Region
+    -> L.Literal
+    -> T.Type
+    -> IO T.TypeConstraint
 constrain env region literal tipe =
-    do tipe' <- litType
-       return . A region $ CEqual tipe tipe'
-    where
-      prim name = return (Env.get env Env.types name)
+  do  tipe' <- litType
+      return (T.CEqual Error.None region tipe tipe')
+  where
+    prim name =
+        return (Env.get env Env.types name)
 
-      litType =
-          case literal of
-            IntNum _   -> varN `fmap` variable (Is Number)
-            FloatNum _ -> prim "Float"
-            Chr _      -> prim "Char"
-            Str _      -> prim "String"
-            Boolean _  -> prim "Bool"
+    litType =
+        case literal of
+          L.IntNum _   -> T.varN `fmap` T.variable (T.Is T.Number)
+          L.FloatNum _ -> prim "Float"
+          L.Chr _      -> prim "Char"
+          L.Str _      -> prim "String"
+          L.Boolean _  -> prim "Bool"

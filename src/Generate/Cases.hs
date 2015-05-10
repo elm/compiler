@@ -4,29 +4,19 @@ import Control.Applicative ((<$>))
 import Control.Arrow (first)
 import Control.Monad.State (State)
 import qualified Control.Monad.State as State
-import Data.List (groupBy,sortBy)
+import qualified Data.List as List
 import Data.Maybe (fromMaybe)
 
-import qualified AST.Annotation as A
 import qualified AST.Expression.General as Expr
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Literal as Literal
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
-import Transform.Substitute (subst)
-
-toMatch :: [(P.CanonicalPattern, Canonical.Expr)] -> State Int (String, Match)
-toMatch patterns = do
-  v <- newVar
-  (,) v <$> match [v] (map (first (:[])) patterns) Fail
+import qualified Generate.Substitute as S
+import qualified Reporting.Annotation as A
 
 
-newVar :: State Int String
-newVar =
-  do  n <- State.get
-      State.modify (+1)
-      return $ "_v" ++ show n
-
+-- MATCHES
 
 data Match
     = Match String [Clause] Match
@@ -42,47 +32,51 @@ data Clause =
     deriving Show
 
 
-type Case =
+type Branch =
     ([P.CanonicalPattern], Canonical.Expr)
+
+
+-- PUBLIC FUNCTIONS
+
+toMatch :: [(P.CanonicalPattern, Canonical.Expr)] -> State Int (String, Match)
+toMatch patterns =
+  do  v <- newVar
+      (,) v <$> buildMatch [v] (map (first (:[])) patterns) Fail
+
+
+newVar :: State Int String
+newVar =
+  do  n <- State.get
+      State.modify (+1)
+      return $ "_v" ++ show n
 
 
 matchSubst :: [(String,String)] -> Match -> Match
 matchSubst pairs match =
-    case match of
-      Break -> Break
+  case match of
+    Break -> Break
 
-      Fail -> Fail
-      
-      Seq ms ->
-          Seq (map (matchSubst pairs) ms)
-      
-      Other (A.A a e) ->
-          Other . A.A a $ foldr ($) e $ map (\(x,y) -> subst x (Expr.localVar y)) pairs
-      
-      Match n cs m ->
-          Match (varSubst n) (map clauseSubst cs) (matchSubst pairs m)
-        where
-          varSubst v = fromMaybe v (lookup v pairs)
-          clauseSubst (Clause c vs m) =
-              Clause c (map varSubst vs) (matchSubst pairs m)
+    Fail -> Fail
 
+    Seq ms ->
+        Seq (map (matchSubst pairs) ms)
 
-isCon :: ([P.Pattern var], expr) -> Bool
-isCon ([] , _) = noMatch "isCon"
-isCon (p:_, _) =
-    case p of
-      P.Data _ _  -> True
-      P.Literal _ -> True
-      _           -> False
+    Other (A.A a e) ->
+        Other . A.A a $ foldr ($) e $ map (\(x,y) -> S.subst x (Expr.localVar y)) pairs
+
+    Match n cs m ->
+        Match (varSubst n) (map clauseSubst cs) (matchSubst pairs m)
+      where
+        varSubst v = fromMaybe v (lookup v pairs)
+        clauseSubst (Clause c vs m) =
+            Clause c (map varSubst vs) (matchSubst pairs m)
 
 
-isVar :: ([P.Pattern var], expr) -> Bool
-isVar p = not (isCon p)
+-- BUILD MATCHES
 
-
-match :: [String] -> [Case] -> Match -> State Int Match
-match variables cases match =
-    case (variables, cases, match) of
+buildMatch :: [String] -> [Branch] -> Match -> State Int Match
+buildMatch variables branches match =
+    case (variables, branches, match) of
       ([], [], _) ->
           return match
 
@@ -93,115 +87,173 @@ match variables cases match =
           return $ Other expr
 
       ([], _, _) ->
-          return $ Seq (map (Other . snd) cases ++ [match])
+          return $ Seq (map (Other . snd) branches ++ [match])
 
       (var:_, _, _)
-          | all isVar cases' -> matchVar variables cases' match
-          | all isCon cases' -> matchCon variables cases' match
-          | otherwise        -> matchMix variables cases' match
+          | all isVar branches' -> matchVar variables branches' match
+          | all isCon branches' -> matchCon variables branches' match
+          | otherwise           -> matchMix variables branches' match
           where
-            cases' = map (dealias var) cases
+            branches' = map (dealias var) branches
 
 
-dealias :: String -> Case -> Case
+dealias :: String -> Branch -> Branch
 dealias _ ([], _) = noMatch "dealias"
-dealias v c@(p:ps, A.A a e) =
+dealias var branch@(p:ps, A.A ann e) =
     case p of
-      P.Alias x pattern -> (pattern:ps, A.A a $ subst x (Expr.localVar v) e)
-      _ -> c
+      A.A _ (P.Alias alias pattern) ->
+          ( pattern:ps
+          , A.A ann (S.subst alias (Expr.localVar var) e)
+          )
+
+      _ ->
+          branch
 
 
-matchVar :: [String] -> [Case] -> Match -> State Int Match
+isCon :: ([P.Pattern ann var], expr) -> Bool
+isCon ([], _) = noMatch "isCon"
+isCon (A.A _ pattern : _, _) =
+    case pattern of
+      P.Data _ _ -> True
+      P.Literal _ -> True
+      _ -> False
+
+
+isVar :: ([P.Pattern ann var], expr) -> Bool
+isVar p =
+    not (isCon p)
+
+
+-- VARIABLE MATCHES
+
+matchVar :: [String] -> [Branch] -> Match -> State Int Match
 matchVar [] _ _ = noMatch "matchVar"
-matchVar (v:vs) cs def =
-    match vs (map subVar cs) def
+matchVar (var:vars) branches match =
+    buildMatch vars (map subVar branches) match
   where
     subVar ([], _) = noMatch "matchVar.subVar"
-    subVar (p:ps, (A.A a expr)) =
-        (ps, A.A a $ subOnePattern p expr)
+    subVar (A.A _ pattern : patterns, (A.A ann expr)) =
+        ( patterns
+        , A.A ann (subOnePattern pattern expr)
+        )
       where
         subOnePattern pattern expr =
             case pattern of
-              P.Anything -> expr
+              P.Anything ->
+                  expr
 
               P.Var x ->
-                  subst x (Expr.localVar v) expr
+                  S.subst x (Expr.localVar var) expr
 
-              P.Record fs ->
-                 foldr (\x -> subst x (Expr.Access (A.A a (Expr.localVar v)) x)) expr fs
+              P.Record fields ->
+                  let access = Expr.Access (A.A ann (Expr.localVar var))
+                  in
+                      foldr (\x -> S.subst x (access x)) expr fields
 
-              _ -> noMatch "matchVar.subVar"
+              _ ->
+                  noMatch "matchVar.subVar"
 
 
-matchCon :: [String] -> [Case] -> Match -> State Int Match
-matchCon variables cases match =
+-- CONSTRUCTOR MATCHES
+
+matchCon :: [String] -> [Branch] -> Match -> State Int Match
+matchCon variables branches match =
     case variables of
       [] -> noMatch "matchCon"
 
       var : _vars ->
           flip (Match var) match <$> mapM toClause caseGroups
         where
-          caseGroups :: [[Case]]
+          caseGroups :: [[Branch]]
           caseGroups =
-              groupBy eq (sortBy cmp cases)
+              List.groupBy branchEq (List.sortBy branchCmp branches)
 
-          eq :: Case -> Case -> Bool
-          eq (patterns1, _) (patterns2, _) =
-              case (patterns1, patterns2) of
-                (pattern1:_, pattern2:_) ->
-                    case (pattern1, pattern2) of
-                      (P.Data name1 _, P.Data name2 _) -> name1 == name2
-                      (_, _) -> pattern1 == pattern2
-                (_, _) -> noMatch "matchCon.eq"
+          toClause :: [Branch] -> State Int Clause
+          toClause branches =
+              case head branches of
+                (A.A _ (P.Data name _) : _, _) ->
+                    matchClause (Left name) variables branches Break
 
-          cmp :: Case -> Case -> Ordering
-          cmp (patterns1, _) (patterns2, _) =
-              case (patterns1, patterns2) of
-                (pattern1:_, pattern2:_) ->
-                    case (pattern1, pattern2) of
-                      (P.Data name1 _, P.Data name2 _) -> compare name1 name2
-                      (_, _) -> compare pattern1 pattern2
-                (_, _) -> noMatch "matchCon.cmp"
-
-          toClause :: [Case] -> State Int Clause
-          toClause cases =
-              case head cases of
-                (P.Data name _ : _, _) ->
-                    matchClause (Left name) variables cases Break
-
-                (P.Literal lit : _, _) ->
-                    matchClause (Right lit) variables cases Break
+                (A.A _ (P.Literal lit) : _, _) ->
+                    matchClause (Right lit) variables branches Break
 
                 _ -> noMatch "matchCon"
 
 
-matchClause :: Either Var.Canonical Literal.Literal -> [String] -> [Case] -> Match
-            -> State Int Clause
+matchClause
+    :: Either Var.Canonical Literal.Literal
+    -> [String]
+    -> [Branch]
+    -> Match
+    -> State Int Clause
 matchClause _ [] _ _ = noMatch "matchClause"
-matchClause c (_:vs) cs mtch =
-    do vs' <- getVars
-       Clause c vs' <$> match (vs' ++ vs) (map flatten cs) mtch
-    where
-      flatten ([], _) = noMatch "matchClause.flatten"
-      flatten (p:ps, e) =
-          case p of
-            P.Data _ ps' -> (ps' ++ ps, e)
-            P.Literal _  -> (ps, e)
-            _ -> noMatch "matchClause.flatten"
-
-      getVars :: State Int [String]
-      getVars =
-          case head cs of
-            (P.Data _ ps : _, _) -> State.forM ps (const newVar)
-            (P.Literal _ : _, _) -> return []
-            _ -> noMatch "matchClause.getVars"
-
-
-matchMix :: [String] -> [Case] -> Match -> State Int Match
-matchMix vs cs def =
-    State.foldM (flip $ match vs) def (reverse css)
+matchClause c (_:vs) branches match =
+  do  vs' <- getVars
+      Clause c vs' <$> buildMatch (vs' ++ vs) (map flatten branches) match
   where
-    css = groupBy (\p1 p2 -> isCon p1 == isCon p2) cs
+    flatten ([], _) = noMatch "matchClause.flatten"
+    flatten (A.A _ pattern : patterns, expr) =
+        case pattern of
+          P.Data _ argPatterns ->
+              (argPatterns ++ patterns, expr)
+
+          P.Literal _  ->
+              (patterns, expr)
+
+          _ ->
+              noMatch "matchClause.flatten"
+
+    getVars :: State Int [String]
+    getVars =
+        case head branches of
+          (A.A _ (P.Data _ argPatterns) : _, _) ->
+              State.forM argPatterns (const newVar)
+
+          (A.A _ (P.Literal _) : _, _) ->
+              return []
+
+          _ ->
+              noMatch "matchClause.getVars"
+
+
+branchEq :: Branch -> Branch -> Bool
+branchEq (A.A _ pattern : _, _) (A.A _ pattern' : _, _) =
+  case (pattern, pattern') of
+    (P.Data name _, P.Data name' _) ->
+        name == name'
+
+    (P.Literal lit, P.Literal lit') ->
+        lit == lit'
+
+    (_, _) ->
+        noMatch "matchCon.branchEq"
+
+branchEq _ _ = noMatch "matchCon.branchEq"
+
+
+branchCmp :: Branch -> Branch -> Ordering
+branchCmp (A.A _ pattern : _, _) (A.A _ pattern' : _, _) =
+  case (pattern, pattern') of
+    (P.Data name _, P.Data name' _) ->
+        compare name name'
+
+    (P.Literal lit, P.Literal lit') ->
+        compare lit lit'
+
+    (_, _) ->
+        noMatch "matchCon.branchCmp"
+
+branchCmp _ _ = noMatch "matchCon.branchCmp"
+
+
+-- MIX MATCHES
+
+matchMix :: [String] -> [Branch] -> Match -> State Int Match
+matchMix vs branches def =
+    State.foldM (flip $ buildMatch vs) def (reverse branchGroups)
+  where
+    branchGroups =
+        List.groupBy (\p1 p2 -> isCon p1 == isCon p2) branches
 
 
 noMatch :: String -> a

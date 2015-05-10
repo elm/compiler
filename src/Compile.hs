@@ -1,16 +1,17 @@
 module Compile (compile) where
 
 import qualified Data.Map as Map
-import Text.PrettyPrint (Doc)
 
 import qualified AST.Module as Module
+import qualified Canonicalize
+import Elm.Utils ((|>))
+import qualified Nitpick.TopLevelTypes as Nitpick
 import qualified Parse.Helpers as Parse
 import qualified Parse.Parse as Parse
-import qualified Transform.AddDefaultImports as DefaultImports
-import qualified Transform.Check as Check
+import qualified Reporting.Error as Error
+import qualified Reporting.Result as Result
+import qualified Reporting.Warning as Warning
 import qualified Type.Inference as TI
-import qualified Transform.Canonicalize as Canonical
-import Elm.Utils ((|>))
 
 
 compile
@@ -18,35 +19,34 @@ compile
     -> String
     -> Module.Interfaces
     -> String
-    -> Either [Doc] Module.CanonicalModule
+    -> Result.Result Warning.Warning Error.Error Module.CanonicalModule
 
 compile user projectName interfaces source =
-  do  
-      -- Parse the source code
-      parsedModule <-
-        Parse.program (getOpTable interfaces) source
-
+  do
       -- determine if default imports should be added
       -- only elm-lang/core is exempt
       let needsDefaults =
             not (user == "elm-lang" && projectName == "core")
 
-      -- add default imports if necessary
-      let rawModule =
-            DefaultImports.add needsDefaults parsedModule
-
-      -- validate module (e.g. all variables exist)
-      case Check.mistakes (Module.body rawModule) of
-        [] -> return ()
-        ms -> Left ms
+      -- Parse the source code
+      validModule <-
+          Result.mapError Error.Syntax $
+            Parse.program needsDefaults (getOpTable interfaces) source
 
       -- Canonicalize all variables, pinning down where they came from.
-      canonicalModule <- Canonical.module' interfaces rawModule
+      canonicalModule <-
+          Canonicalize.module' interfaces validModule
 
       -- Run type inference on the program.
-      types <- TI.infer interfaces canonicalModule
+      types <-
+          Result.from Error.Type $
+            TI.infer interfaces canonicalModule
 
-      -- Add the real list of tyes
+      -- One last round of checks
+      Result.mapError Error.Type $
+        Nitpick.topLevelTypes types (Module.body validModule)
+
+      -- Add the real list of types
       let body = (Module.body canonicalModule) { Module.types = types }
 
       return $ canonicalModule { Module.body = body }

@@ -1,18 +1,17 @@
 module Type.Inference where
 
 import Control.Arrow (first, second)
-import Control.Monad.State (execStateT, forM)
-import Control.Monad.Error (ErrorT, runErrorT, liftIO, throwError)
+import Control.Monad.Except (Except, forM, liftIO, runExceptT, throwError)
 import qualified Data.Map as Map
-import Text.PrettyPrint
+import qualified Data.Traversable as Traverse
 
-import qualified AST.Annotation as A
 import AST.Module as Module
-import AST.Type (CanonicalType)
+import qualified AST.Type as Type
 import qualified AST.Variable as Var
+import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Type as Error
 import qualified Type.Constrain.Expression as TcExpr
 import qualified Type.Environment as Env
-import qualified Type.ExtraChecks as Check
 import qualified Type.Solve as Solve
 import qualified Type.State as TS
 import qualified Type.Type as T
@@ -22,50 +21,56 @@ import System.IO.Unsafe
     -- I don't think that'd be worthwhile though.
 
 
-infer :: Interfaces -> CanonicalModule -> Either [Doc] (Map.Map String CanonicalType)
+infer
+    :: Interfaces
+    -> CanonicalModule
+    -> Except [A.Located Error.Error] (Map.Map String Type.Canonical)
 infer interfaces modul =
-  unsafePerformIO $ runErrorT $
-    do  (header, constraint) <- genConstraints interfaces modul
+  either throwError return $ unsafePerformIO $ runExceptT $
+    do  (header, constraint) <-
+            liftIO (genConstraints interfaces modul)
 
-        state <- liftIO $ execStateT (Solve.solve constraint) TS.initialState
-
-        () <- case TS.sHint state of
-                hints@(_:_) -> throwError hints
-                []          -> return ()
+        state <- Solve.solve constraint
 
         let header' = Map.delete "::" header
-            types = Map.difference (TS.sSavedEnv state) header'
+        let types = Map.difference (TS.sSavedEnv state) header'
 
-        Check.effectTypes types
+        liftIO (Traverse.traverse T.toSrcType types)
 
 
 genConstraints
     :: Interfaces
     -> CanonicalModule
-    -> ErrorT [Doc] IO (Env.TypeDict, T.TypeConstraint)
+    -> IO (Env.TypeDict, T.TypeConstraint)
 genConstraints interfaces modul =
-  do  env <- liftIO $ Env.initialEnvironment (canonicalizeAdts interfaces modul)
+  do  env <-
+          Env.initialEnvironment (canonicalizeAdts interfaces modul)
 
-      ctors <- forM (Map.keys (Env.constructor env)) $ \name -> do
-                 (_, vars, args, result) <- liftIO $ Env.freshDataScheme env name
-                 return (name, (vars, foldr (T.==>) result args))
+      ctors <-
+          forM (Map.keys (Env.constructor env)) $ \name ->
+            do  (_, vars, args, result) <- Env.freshDataScheme env name
+                return (name, (vars, foldr (T.==>) result args))
 
-      importedVars <- mapM (canonicalizeValues env) (Map.toList interfaces)
+      importedVars <-
+          mapM (canonicalizeValues env) (Map.toList interfaces)
 
       let allTypes = concat (ctors : importedVars)
-          vars = concatMap (fst . snd) allTypes
-          header = Map.map snd (Map.fromList allTypes)
-          environ = A.noneNoDocs . T.CLet [ T.Scheme vars [] (A.noneNoDocs T.CTrue) header ]
+      let vars = concatMap (fst . snd) allTypes
+      let header = Map.map snd (Map.fromList allTypes)
+      let environ = T.CLet [ T.Scheme vars [] T.CTrue header ]
 
-      fvar <- liftIO $ T.variable T.Flexible
-      c <- TcExpr.constrain env (program (body modul)) (T.varN fvar)
-      return (header, environ c)
+      fvar <- T.variable T.Flexible
+
+      constraint <-
+          TcExpr.constrain env (program (body modul)) (T.varN fvar)
+
+      return (header, environ constraint)
 
 
 canonicalizeValues
     :: Env.Environment
     -> (Module.Name, Interface)
-    -> ErrorT [Doc] IO [(String, ([T.Variable], T.Type))]
+    -> IO [(String, ([T.Variable], T.Type))]
 canonicalizeValues env (moduleName, iface) =
     forM (Map.toList (iTypes iface)) $ \(name,tipe) ->
         do  tipe' <- Env.instantiateType env tipe Map.empty

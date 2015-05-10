@@ -1,0 +1,35 @@
+{-# LANGUAGE OverloadedStrings #-}
+module Reporting.Error where
+
+import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Canonicalize as Canonicalize
+import qualified Reporting.Error.Syntax as Syntax
+import qualified Reporting.Error.Type as Type
+import qualified Reporting.Report as Report
+
+
+-- ALL POSSIBLE ERRORS
+
+data Error
+    = Syntax Syntax.Error
+    | Canonicalize Canonicalize.Error
+    | Type Type.Error
+
+
+-- TO STRING
+
+toString :: String -> String -> A.Located Error -> String
+toString location source (A.A region err) =
+  let
+    report =
+        case err of
+          Syntax syntaxError ->
+              Syntax.toReport syntaxError
+
+          Canonicalize canonicalizeError ->
+              Canonicalize.toReport canonicalizeError
+
+          Type typeError ->
+              Type.toReport typeError
+  in
+      Report.toString location region report source

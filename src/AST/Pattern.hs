@@ -1,109 +1,143 @@
 {-# OPTIONS_GHC -Wall #-}
 module AST.Pattern where
 
-import qualified AST.Helpers as Help
-import AST.PrettyPrint
-import Text.PrettyPrint as PP
 import qualified Data.Set as Set
+import Text.PrettyPrint as P
 
+import qualified AST.Helpers as Help
+import qualified AST.Literal as L
 import qualified AST.Variable as Var
-import AST.Literal as Literal
+import qualified Reporting.Annotation as A
+import qualified Reporting.PrettyPrint as P
+import qualified Reporting.Region as R
 
 
-data Pattern var
-    = Data var [Pattern var]
+type Pattern ann var =
+    A.Annotated ann (Pattern' ann var)
+
+
+data Pattern' ann var
+    = Data var [Pattern ann var]
     | Record [String]
-    | Alias String (Pattern var)
+    | Alias String (Pattern ann var)
     | Var String
     | Anything
-    | Literal Literal.Literal
-    deriving (Eq, Ord, Show)
+    | Literal L.Literal
+    deriving (Show)
 
 
 type RawPattern =
-    Pattern Var.Raw
+    Pattern R.Region Var.Raw
+
+
+type RawPattern' =
+    Pattern' R.Region Var.Raw
 
 
 type CanonicalPattern =
-    Pattern Var.Canonical
+    Pattern R.Region Var.Canonical
 
 
-cons :: RawPattern -> RawPattern -> RawPattern
-cons h t =
-  Data (Var.Raw "::") [h,t]
+list :: R.Position -> [RawPattern] -> RawPattern
+list end patterns =
+  case patterns of
+    [] ->
+        A.at end end (Data (Var.Raw "[]") [])
+
+    pattern@(A.A (R.Region start _) _) : rest ->
+        A.at start end (Data (Var.Raw "::") [pattern, list end rest])
 
 
-nil :: RawPattern
-nil =
-  Data (Var.Raw "[]") []
+consMany :: R.Position -> [RawPattern] -> RawPattern
+consMany end patterns =
+  let cons hd@(A.A (R.Region start _) _) tl =
+          A.at start end (Data (Var.Raw "::") [hd, tl])
+  in
+      foldr1 cons patterns
 
 
-list :: [RawPattern] -> RawPattern
-list patterns =
-  foldr cons nil patterns
-
-
-tuple :: [RawPattern] -> RawPattern
+tuple :: [RawPattern] -> RawPattern'
 tuple patterns =
   Data (Var.Raw ("_Tuple" ++ show (length patterns))) patterns
 
 
-boundVarList :: Pattern var -> [String]
-boundVarList pattern =
-  Set.toList (boundVars pattern)
+-- FIND VARIABLES
 
-
-boundVars :: Pattern var -> Set.Set String
-boundVars pattern =
+boundVars :: Pattern ann var -> [A.Annotated ann String]
+boundVars (A.A ann pattern) =
   case pattern of
-    Var x -> Set.singleton x
-    Alias x p -> Set.insert x (boundVars p)
-    Data _ ps -> Set.unions (map boundVars ps)
-    Record fields -> Set.fromList fields
-    Anything -> Set.empty
-    Literal _ -> Set.empty
+    Var x ->
+        [A.A ann x]
+
+    Alias name realPattern ->
+        A.A ann name : boundVars realPattern
+
+    Data _ patterns ->
+        concatMap boundVars patterns
+
+    Record fields ->
+        map (A.A ann) fields
+
+    Anything ->
+        []
+
+    Literal _ ->
+        []
 
 
-instance Var.ToString var => Pretty (Pattern var) where
-  pretty pattern =
+member :: String -> Pattern ann var -> Bool
+member name pattern =
+  any (name==) (map A.drop (boundVars pattern))
+
+
+boundVarSet :: Pattern ann var -> Set.Set String
+boundVarSet pattern =
+  Set.fromList (map A.drop (boundVars pattern))
+
+
+boundVarList :: Pattern ann var -> [String]
+boundVarList pattern =
+  Set.toList (boundVarSet pattern)
+
+
+-- PRETTY PRINTING
+
+instance Var.ToString var => P.Pretty (Pattern' ann var) where
+  pretty needsParens pattern =
     case pattern of
-      Var x ->
-          variable x
+      Var name ->
+          P.text name
 
       Literal literal ->
-          pretty literal
+          P.pretty needsParens literal
 
       Record fields ->
-          PP.braces (commaCat (map variable fields))
+          P.braces (P.commaCat (map P.text fields))
 
-      Alias x p ->
-          prettyParens p <+> PP.text "as" <+> variable x
+      Alias x ptrn ->
+          P.parensIf needsParens $
+              P.pretty True ptrn <+> P.text "as" <+> P.text x
 
       Anything ->
-          PP.text "_"
+          P.text "_"
 
-      Data name [hd,tl] | Var.toString name == "::" ->
-          parensIf isCons (pretty hd) <+> PP.text "::" <+> pretty tl
-        where
-          isCons =
-            case hd of
-              Data ctor _ -> Var.toString ctor == "::"
-              _ -> False
- 
-      Data name ps ->
-        let name' = Var.toString name
-        in
+      Data name [A.A _ hd, A.A _ tl]
+          | Var.toString name == "::" ->
+              P.parensIf isCons (P.pretty False hd)
+              <+> P.text "::"
+              <+> P.pretty False tl
+          where
+            isCons =
+              case hd of
+                Data ctor _ -> Var.toString ctor == "::"
+                _ -> False
+
+      Data name patterns ->
+          let name' = Var.toString name
+          in
             if Help.isTuple name'
-              then PP.parens (commaCat (map pretty ps))
-              else hsep (PP.text name' : map prettyParens ps)
-          
-
-prettyParens :: Var.ToString var => Pattern var -> Doc
-prettyParens pattern = 
-    parensIf needsThem (pretty pattern)
-  where
-    needsThem =
-      case pattern of
-        Data name (_:_) | not (Help.isTuple (Var.toString name)) -> True
-        Alias _ _ -> True
-        _ -> False
+              then
+                P.parens (P.commaCat (map (P.pretty False) patterns))
+              else
+                P.parensIf needsParens $
+                    P.hsep (P.text name' : map (P.pretty True) patterns)

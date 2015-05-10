@@ -1,8 +1,8 @@
 module Generate.JavaScript.Helpers where
 
-import AST.Annotation (Region)
-import qualified AST.PrettyPrint as PP
 import Language.ECMAScript3.Syntax
+
+import qualified Reporting.Region as R
 
 
 localRuntime :: String
@@ -59,11 +59,11 @@ localModuleName =
     "$moduleName"
 
 
-throw :: String -> Region -> Expression ()
+throw :: String -> R.Region -> Expression ()
 throw kind region =
   let args =
         [ ref localModuleName
-        , string (PP.renderPretty region)
+        , string (R.toString region)
         ]
   in
       obj ["_U",kind] `call` args

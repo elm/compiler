@@ -18,7 +18,7 @@ import qualified Data.Text as Text
 import System.FilePath ((</>))
 
 import qualified AST.Module as Module
-import qualified Transform.AddDefaultImports as Defaults
+import qualified Elm.Compiler.Imports as Imports
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Type.Extract as Extract
 
@@ -34,7 +34,7 @@ newtype Name = Name [String]
 
 defaultImports :: [Name]
 defaultImports =
-    map (Name . fst) Defaults.defaultImports
+    map (Name . fst) Imports.defaults
 
 
 -- POKING AROUND INTERFACES

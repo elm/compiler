@@ -1,37 +1,38 @@
 {-# OPTIONS_GHC -Wall #-}
-
 module AST.Expression.Canonical where
 
-import AST.PrettyPrint
 import Text.PrettyPrint as P
+
 import qualified AST.Expression.General as General
-import AST.Type (CanonicalType)
-import qualified AST.Annotation as Annotation
 import qualified AST.Pattern as Pattern
+import qualified AST.Type as Type
 import qualified AST.Variable as Var
+import qualified Reporting.PrettyPrint as P
+import qualified Reporting.Region as R
 
 
 {-| Canonicalized expressions. All variables are fully resolved to the module
 they came from.
 -}
 type Expr =
-  General.Expr Annotation.Region Def Var.Canonical
+  General.Expr R.Region Def Var.Canonical Type.Canonical
 
 
 type Expr' =
-  General.Expr' Annotation.Region Def Var.Canonical
+  General.Expr' R.Region Def Var.Canonical Type.Canonical
 
 
-data Def = Definition Pattern.CanonicalPattern Expr (Maybe CanonicalType)
+data Def
+    = Definition Pattern.CanonicalPattern Expr (Maybe Type.Canonical)
     deriving (Show)
 
 
-instance Pretty Def where
-  pretty (Definition pattern expr maybeTipe) =
+instance P.Pretty Def where
+  pretty _ (Definition pattern expr maybeTipe) =
       P.vcat [ annotation, definition ]
     where
       definition =
-          pretty pattern <+> P.equals <+> pretty expr
+          P.pretty True pattern <+> P.equals <+> P.pretty False expr
 
       annotation =
           case maybeTipe of
@@ -39,4 +40,4 @@ instance Pretty Def where
                 P.empty
 
             Just tipe ->
-                pretty pattern <+> P.colon <+> pretty tipe
+                P.pretty True pattern <+> P.colon <+> P.pretty False tipe

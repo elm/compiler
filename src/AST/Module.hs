@@ -4,55 +4,62 @@ module AST.Module
     , AdtInfo, CanonicalAdt
     , SourceModule, ValidModule, CanonicalModule
     , Module(..), CanonicalBody(..)
-    , HeaderAndImports(..)
+    , Header(..)
     , Name, nameToString, nameIsNative
     , Interface(..), toInterface
-    , ImportMethod(..)
+    , UserImport, DefaultImport, ImportMethod(..)
     ) where
 
+import Control.Applicative ((<$>),(<*>))
 import Data.Binary
 import qualified Data.List as List
 import qualified Data.Map as Map
-import Control.Applicative ((<$>),(<*>))
 
-import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Declaration as Decl
+import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
-import AST.PrettyPrint
 import qualified Elm.Compiler.Version as Compiler
-import Text.PrettyPrint as P
+import qualified Reporting.Annotation as A
 
 
 -- HELPFUL TYPE ALIASES
 
 type Interfaces = Map.Map Name Interface
 
-type Types   = Map.Map String Type.CanonicalType
-type Aliases = Map.Map String ([String], Type.CanonicalType)
+type Types   = Map.Map String Type.Canonical
+type Aliases = Map.Map String ([String], Type.Canonical)
 type ADTs    = Map.Map String (AdtInfo String)
 
-type AdtInfo v = ( [String], [(v, [Type.CanonicalType])] )
+type AdtInfo v = ( [String], [(v, [Type.Canonical])] )
 type CanonicalAdt = (Var.Canonical, AdtInfo Var.Canonical)
 
 
 -- MODULES
 
 type SourceModule =
-    Module (Var.Listing Var.Value) [Decl.SourceDecl]
+    Module
+      [UserImport]
+      (Var.Listing (A.Located Var.Value))
+      [Decl.SourceDecl]
+
 
 type ValidModule =
-    Module (Var.Listing Var.Value) [Decl.ValidDecl]
+    Module
+      ([DefaultImport], [UserImport])
+      (Var.Listing (A.Located Var.Value))
+      [Decl.ValidDecl]
+
 
 type CanonicalModule =
-    Module [Var.Value] CanonicalBody
+    Module [Name] [Var.Value] CanonicalBody
 
 
-data Module exports body = Module
+data Module imports exports body = Module
     { names   :: Name
     , path    :: FilePath
     , exports :: exports
-    , imports :: [(Name, ImportMethod)]
+    , imports :: imports
     , body    :: body
     }
 
@@ -69,10 +76,10 @@ data CanonicalBody = CanonicalBody
 -- HEADERS
 
 {-| Basic info needed to identify modules and determine dependencies. -}
-data HeaderAndImports = HeaderAndImports
+data Header imports = Header
     { _names :: Name
-    , _exports :: Var.Listing Var.Value
-    , _imports :: [(Name, ImportMethod)]
+    , _exports :: Var.Listing (A.Located Var.Value)
+    , _imports :: imports
     }
 
 
@@ -91,6 +98,19 @@ nameIsNative name =
     _ -> False
 
 
+-- IMPORTs
+
+type UserImport = A.Located (Name, ImportMethod)
+
+
+type DefaultImport = (Name, ImportMethod)
+
+
+data ImportMethod = ImportMethod
+    { alias :: Maybe String
+    , exposedVars :: !(Var.Listing Var.Value)
+    }
+
 
 -- INTERFACES
 
@@ -99,7 +119,7 @@ data Interface = Interface
     { iVersion  :: String
     , iExports  :: [Var.Value]
     , iTypes    :: Types
-    , iImports  :: [(Name, ImportMethod)]
+    , iImports  :: [Name]
     , iAdts     :: ADTs
     , iAliases  :: Aliases
     , iFixities :: [(Decl.Assoc, Int, String)]
@@ -131,55 +151,3 @@ instance Binary Interface where
       put (iAliases modul)
       put (iFixities modul)
       put (iPorts modul)
-
-
--- IMPORT METHOD
-
-data ImportMethod = ImportMethod
-    { alias :: Maybe String
-    , exposedVars :: !(Var.Listing Var.Value)
-    }
-
-
-instance Binary ImportMethod where
-    put (ImportMethod alias exposedVars) =
-      do  put alias
-          put exposedVars
-
-    get =
-      ImportMethod <$> get <*> get
-
-
--- PRETTY PRINTING
-
-instance (Pretty exs, Pretty body) => Pretty (Module exs body) where
-  pretty (Module names _ exs ims body) =
-      P.vcat [modul, P.text "", prettyImports, P.text "", pretty body]
-    where
-      modul =
-        P.text "module" <+> name <+> pretty exs <+> P.text "where"
-
-      name =
-        P.text (nameToString names)
-
-      prettyImports =
-        P.vcat $ map prettyMethod ims
-
-
-prettyMethod :: (Name, ImportMethod) -> Doc
-prettyMethod (name, ImportMethod maybeAlias exposedVars) =
-  let prettyAlias =
-        case maybeAlias of
-          Nothing -> P.empty
-          Just alias ->
-            P.text "as" <+> P.text alias
-
-      prettyExposed =
-        if exposedVars == Var.closedListing
-          then P.empty
-          else P.text "exposing" <+> pretty exposedVars
-  in
-      P.text "import"
-          <+> P.text (nameToString name)
-          <+> prettyAlias
-          <+> prettyExposed
