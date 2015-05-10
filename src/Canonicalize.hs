@@ -39,27 +39,30 @@ module'
     :: Module.Interfaces
     -> Module.ValidModule
     -> R.Result Warning.Warning Error.Error Module.CanonicalModule
-module' interfaces modul@(Module.Module _ _ _ (_, imports) _) =
+module' interfaces modul =
   let (Result.Result uses rawResults) =
           moduleHelp interfaces modul
-
-      unusedImportWarnings =
-          Maybe.mapMaybe (warnUnusedImport uses) imports
   in
-      R.addWarnings unusedImportWarnings $
-          case rawResults of
-            Result.Ok canonicalModule ->
-                return canonicalModule
+      case rawResults of
+        Result.Ok almostCanonicalModule ->
+            filterImports uses almostCanonicalModule
 
-            Result.Err msgs ->
-                R.throwMany (map (A.map Error.Canonicalize) msgs)
+        Result.Err msgs ->
+            R.throwMany (map (A.map Error.Canonicalize) msgs)
+
+
+type AlmostCanonicalModule =
+    Module.Module
+      ([Module.DefaultImport], [Module.UserImport])
+      [Var.Value]
+      Module.CanonicalBody
 
 
 moduleHelp
     :: Module.Interfaces
     -> Module.ValidModule
-    -> Result.ResultErr Module.CanonicalModule
-moduleHelp interfaces modul@(Module.Module _ _ exports (defaults, imports) decls) =
+    -> Result.ResultErr AlmostCanonicalModule
+moduleHelp interfaces modul@(Module.Module _ _ exports _ decls) =
     canonicalModule
       <$> canonicalDeclsResult
       <*> resolveExports locals exports
@@ -67,7 +70,6 @@ moduleHelp interfaces modul@(Module.Module _ _ exports (defaults, imports) decls
     canonicalModule canonicalDecls canonicalExports =
         modul
           { Module.exports = canonicalExports
-          , Module.imports = map fst defaults ++ map (fst . A.drop) imports
           , Module.body = body canonicalDecls
           }
 
@@ -108,14 +110,26 @@ moduleHelp interfaces modul@(Module.Module _ _ exports (defaults, imports) decls
 
 -- IMPORTS / EXPORTS
 
-warnUnusedImport
+filterImports
     :: Set.Set Module.Name
-    -> Module.UserImport
-    -> Maybe (A.Located Warning.Warning)
-warnUnusedImport uses (A.A region (name, _method)) =
-  if Set.member name uses
-    then Nothing
-    else Just (A.A region (Warning.UnusedImport name))
+    -> AlmostCanonicalModule
+    -> R.Result Warning.Warning e Module.CanonicalModule
+filterImports uses modul@(Module.Module _ _ _ (defaults, imports) _) =
+  do  reducedImports <-
+          Maybe.catMaybes <$> T.traverse checkImport imports
+
+      return $ modul
+        { Module.imports =
+              Set.toList (Set.fromList (map fst defaults ++ reducedImports))
+        }
+  where
+    checkImport (A.A region (name, _method)) =
+      if Set.member name uses
+        then
+          return (Just name)
+        else
+          do  R.warn region (Warning.UnusedImport name)
+              return Nothing
 
 
 resolveExports
