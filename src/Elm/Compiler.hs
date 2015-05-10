@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE FlexibleContexts #-}
 module Elm.Compiler
     ( version, rawVersion
     , parseDependencies, compile
@@ -7,7 +6,6 @@ module Elm.Compiler
     , Warning
     ) where
 
-import Control.Monad.Error.Class (MonadError, throwError)
 import qualified Data.Map as Map
 
 import qualified AST.Module as Module
@@ -15,8 +13,8 @@ import qualified Compile
 import qualified Elm.Compiler.Module as PublicModule
 import qualified Elm.Compiler.Version as Version
 import qualified Generate.JavaScript as JS
-import qualified Parse.Helpers as Help
 import qualified Parse.Module as Parse
+import qualified Parse.Parse as Parse
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error as Error
 import qualified Reporting.Result as Result
@@ -38,19 +36,22 @@ rawVersion =
 -- DEPENDENCIES
 
 parseDependencies
-    :: (MonadError String m)
-    => String
-    -> m (PublicModule.Name, [PublicModule.Name])
-parseDependencies src =
-    case Help.iParse Parse.header src of
-        Left msg ->
-            throwError (show msg)
+    :: String
+    -> Either [Error] (PublicModule.Name, [PublicModule.Name])
+parseDependencies sourceCode =
+  let
+    (Result.Result _warnings rawResult) =
+      Parse.parse sourceCode Parse.header
+  in
+    case rawResult of
+      Result.Err msgs ->
+          Left $ map (Error . A.map Error.Syntax) msgs
 
-        Right (Module.Header names _exports imports) ->
-            return
-                ( PublicModule.Name names
-                , map (PublicModule.Name . fst . A.drop) imports
-                )
+      Result.Ok (Module.Header names _exports imports) ->
+          Right
+            ( PublicModule.Name names
+            , map (PublicModule.Name . fst . A.drop) imports
+            )
 
 
 -- COMPILATION

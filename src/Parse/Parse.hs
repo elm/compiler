@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Parse.Parse (program) where
+module Parse.Parse (program, parse) where
 
 import Control.Applicative ((<$>), (<*>))
 import qualified Data.Map as Map
