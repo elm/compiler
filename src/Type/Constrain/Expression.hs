@@ -88,14 +88,20 @@ constrain env (A.A region expression) tipe =
                             )
                   return $ con /\ tipe === (argType ==> resType)
 
-      E.App func arg ->
+      E.App func arg@(A.A argRegion _) ->
           do  argVar <- variable Flexible
-              resultVar <- variable Flexible
               argCon <- constrain env arg (varN argVar)
-              funcCon <- constrain env func (varN argVar ==> varN resultVar)
-              let appCon = tipe === varN resultVar
-              return $
-                ex [argVar,resultVar] (CAnd [ argCon, funcCon, appCon ])
+
+              argVar' <- variable Flexible
+              resultVar <- variable Flexible
+              funcCon <- constrain env func (varN argVar' ==> varN resultVar)
+
+              return $ ex [argVar,argVar',resultVar] $ CAnd $
+                [ argCon
+                , funcCon
+                , CEqual (Error.Argument argRegion) region (varN argVar') (varN argVar)
+                , tipe === varN resultVar
+                ]
 
       E.MultiIf branches ->
           constrainIf env region branches tipe

@@ -37,6 +37,7 @@ data Hint
     | BinopLeft Var.Canonical Region.Region
     | BinopRight Var.Canonical Region.Region
     | Binop Var.Canonical
+    | Argument Region.Region
 
 
 data Note
@@ -154,6 +155,11 @@ hintToString hint =
         ( Nothing
         , "The two arguments to " ++ prettyOperator op ++ " are fine, but the overall type of this expression\n"
           ++ "does not match how it is used elsewhere."
+        )
+
+    Argument region ->
+        ( Just region
+        , "This argument is causing a type mismatch."
         )
 
 
