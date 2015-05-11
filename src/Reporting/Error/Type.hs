@@ -37,7 +37,8 @@ data Hint
     | BinopLeft Var.Canonical Region.Region
     | BinopRight Var.Canonical Region.Region
     | Binop Var.Canonical
-    | Argument Region.Region
+    | BadArgument Region.Region
+    | ExtraArgument Region.Region
 
 
 data Note
@@ -157,9 +158,15 @@ hintToString hint =
           ++ "does not match how it is used elsewhere."
         )
 
-    Argument region ->
+    BadArgument region ->
         ( Just region
         , "This argument is causing a type mismatch."
+        )
+
+    ExtraArgument region ->
+        ( Just region
+        , "This expression is mistakenly being used as a function.\n"
+          ++ "Maybe you provided an extra argument?"
         )
 
 
