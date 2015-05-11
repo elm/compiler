@@ -74,15 +74,7 @@ constrain env (A.A region expression) tipe =
           constrainList env region exprs tipe
 
       E.Binop op leftExpr rightExpr ->
-          exists $ \leftType ->
-          exists $ \rightType ->
-              do  leftCon <- constrain env leftExpr leftType
-                  rightCon <- constrain env rightExpr rightType
-                  return $ CAnd
-                    [ leftCon
-                    , rightCon
-                    , V.toString op <? (leftType ==> rightType ==> tipe)
-                    ]
+          constrainBinop env region op leftExpr rightExpr tipe
 
       E.Lambda pattern body ->
           exists $ \argType ->
@@ -186,6 +178,40 @@ constrain env (A.A region expression) tipe =
 
             E.Task _ expr _ ->
                 constrain env expr tipe
+
+
+-- CONSTRAIN BINOP
+
+constrainBinop
+    :: Env.Environment
+    -> R.Region
+    -> V.Canonical
+    -> Canonical.Expr
+    -> Canonical.Expr
+    -> Type
+    -> IO TypeConstraint
+constrainBinop env region op leftExpr@(A.A leftRegion _) rightExpr@(A.A rightRegion _) tipe =
+  do  leftVar <- variable Flexible
+      rightVar <- variable Flexible
+
+      leftCon <- constrain env leftExpr (varN leftVar)
+      rightCon <- constrain env rightExpr (varN rightVar)
+
+      leftVar' <- variable Flexible
+      rightVar' <- variable Flexible
+      answerVar <- variable Flexible
+
+      let opType = varN leftVar' ==> varN rightVar' ==> varN answerVar
+
+      return $
+        ex [leftVar,rightVar,leftVar',rightVar',answerVar] $ CAnd $
+          [ leftCon
+          , rightCon
+          , CInstance region (V.toString op) opType
+          , CEqual (Error.BinopLeft op leftRegion) region (varN leftVar') (varN leftVar)
+          , CEqual (Error.BinopRight op rightRegion) region (varN rightVar') (varN rightVar)
+          , CEqual (Error.Binop op) region tipe (varN answerVar)
+          ]
 
 
 -- CONSTRAIN LISTS

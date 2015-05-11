@@ -3,7 +3,9 @@ module Reporting.Error.Type where
 
 import qualified Text.PrettyPrint as P
 
+import qualified AST.Helpers as Help
 import qualified AST.Type as Type
+import qualified AST.Variable as Var
 import qualified Reporting.PrettyPrint as P
 import qualified Reporting.Region as Region
 import qualified Reporting.Report as Report
@@ -32,6 +34,9 @@ data Hint
     | If
     | List
     | ListElement Int Region.Region
+    | BinopLeft Var.Canonical Region.Region
+    | BinopRight Var.Canonical Region.Region
+    | Binop Var.Canonical
 
 
 data Note
@@ -135,3 +140,25 @@ hintToString hint =
           ++ "type does not match how it is used elsewhere."
         )
 
+    BinopLeft op region ->
+        ( Just region
+        , "The left argument of " ++ prettyOperator op ++ " is causing a type mismatch."
+        )
+
+    BinopRight op region ->
+        ( Just region
+        , "The right argument of " ++ prettyOperator op ++ " is causing a type mismatch."
+        )
+
+    Binop op ->
+        ( Nothing
+        , "The two arguments to " ++ prettyOperator op ++ " are fine, but the overall type of this expression\n"
+          ++ "does not match how it is used elsewhere."
+        )
+
+
+prettyOperator :: Var.Canonical -> String
+prettyOperator (Var.Canonical _ opName) =
+  if Help.isOp opName
+    then "(" ++ opName ++ ")"
+    else "`" ++ opName ++ "`"
