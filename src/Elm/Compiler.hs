@@ -3,7 +3,7 @@ module Elm.Compiler
     ( version, rawVersion
     , parseDependencies, compile
     , Error, errorToString
-    , Warning
+    , Warning, warningToString
     ) where
 
 import qualified Data.Map as Map
@@ -92,3 +92,10 @@ errorToString location source (Error err) =
 -- WARNINGS
 
 newtype Warning = Warning (A.Located Warning.Warning)
+
+
+warningToString :: String -> String -> Warning -> String
+warningToString location source (Warning err) =
+    Warning.toString location source err
+
+
