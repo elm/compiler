@@ -2,10 +2,11 @@
 module Elm.Compiler
     ( version, rawVersion
     , parseDependencies, compile
-    , Error, errorToString
+    , Error, errorToString, errorToJson
     , Warning, warningToString
     ) where
 
+import qualified Data.Aeson as Json
 import qualified Data.Map as Map
 
 import qualified AST.Module as Module
@@ -87,6 +88,11 @@ newtype Error = Error (A.Located Error.Error)
 errorToString :: String -> String -> Error -> String
 errorToString location source (Error err) =
     Error.toString location source err
+
+
+errorToJson :: String -> Error -> Json.Value
+errorToJson location (Error err) =
+    Error.toJson location err
 
 
 -- WARNINGS

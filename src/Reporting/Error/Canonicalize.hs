@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE OverloadedStrings #-}
 module Reporting.Error.Canonicalize where
 
 import Data.Function (on)
@@ -257,3 +256,29 @@ maybeYouWant suggestions =
         "Maybe you want one of the following?\n"
         ++ concatMap ("\n    "++) suggestions
 
+
+extractSuggestions :: Error -> Maybe [String]
+extractSuggestions err =
+  case err of
+    Var (VarError _ _ _ suggestions) ->
+        Just suggestions
+
+    Pattern _ ->
+        Nothing
+
+    Alias _ ->
+        Nothing
+
+    Import _ importError ->
+        case importError of
+          ModuleNotFound suggestions ->
+              Just (map Module.nameToString suggestions)
+
+          ValueNotFound _ suggestions ->
+              Just suggestions
+
+    Export _ suggestions ->
+        Just suggestions
+
+    Port _ ->
+        Nothing
