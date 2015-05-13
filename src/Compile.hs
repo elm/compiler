@@ -17,11 +17,12 @@ import qualified Type.Inference as TI
 compile
     :: String
     -> String
+    -> Bool
     -> Module.Interfaces
     -> String
     -> Result.Result Warning.Warning Error.Error Module.CanonicalModule
 
-compile user projectName interfaces source =
+compile user projectName isRoot interfaces source =
   do
       -- determine if default imports should be added
       -- only elm-lang/core is exempt
@@ -31,7 +32,7 @@ compile user projectName interfaces source =
       -- Parse the source code
       validModule <-
           Result.mapError Error.Syntax $
-            Parse.program needsDefaults (getOpTable interfaces) source
+            Parse.program needsDefaults isRoot (getOpTable interfaces) source
 
       -- Canonicalize all variables, pinning down where they came from.
       canonicalModule <-

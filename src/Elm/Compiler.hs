@@ -61,15 +61,16 @@ parseDependencies sourceCode =
 compile
     :: String
     -> String
+    -> Bool
     -> String
     -> Map.Map PublicModule.Name PublicModule.Interface
     -> ([Warning], Either [Error] (PublicModule.Interface, String))
-compile user packageName source interfaces =
+compile user packageName isRoot source interfaces =
   let unwrappedInterfaces =
           Map.mapKeysMonotonic (\(PublicModule.Name name) -> name) interfaces
 
       (Result.Result warnings rawResult) =
-          Compile.compile user packageName unwrappedInterfaces source
+          Compile.compile user packageName isRoot unwrappedInterfaces source
   in
       (,) (map Warning warnings) $
       case rawResult of

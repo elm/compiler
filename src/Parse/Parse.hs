@@ -21,14 +21,15 @@ import qualified Validate
 
 program
     :: Bool
+    -> Bool
     -> OpTable
     -> String
     -> Result.Result wrn Error.Error M.ValidModule
-program needsDefaults table src =
+program needsDefaults isRoot table src =
   do  (M.Module names filePath exports imports sourceDecls) <-
           parseWithTable table src programParser
 
-      validDecls <- Validate.declarations sourceDecls
+      validDecls <- Validate.declarations isRoot sourceDecls
 
       let ammendedImports =
             (if needsDefaults then Imports.defaults else [], imports)

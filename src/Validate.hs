@@ -23,13 +23,14 @@ import qualified Reporting.Result as Result
 -- VALIDATE DECLARATIONS
 
 declarations
-    :: [D.SourceDecl]
+    :: Bool
+    -> [D.SourceDecl]
     -> Result.Result wrn Error.Error [D.ValidDecl]
-declarations sourceDecls =
+declarations isRoot sourceDecls =
   do  validDecls <- validateDecls sourceDecls
       (\_ _ -> validDecls)
         <$> declDuplicates validDecls
-        <*> T.traverse checkDecl validDecls
+        <*> T.traverse (checkDecl isRoot) validDecls
 
 
 validateDecls
@@ -339,8 +340,8 @@ extractValues (A.A region decl) =
 
 -- UNBOUND TYPE VARIABLES
 
-checkDecl :: D.ValidDecl -> Result.Result wrn Error.Error ()
-checkDecl (A.A region decl) =
+checkDecl :: Bool -> D.ValidDecl -> Result.Result wrn Error.Error ()
+checkDecl isRoot (A.A region decl) =
   case decl of
     D.Definition _ ->
         return ()
@@ -372,7 +373,9 @@ checkDecl (A.A region decl) =
                   (Error.UnboundTypeVarsInAlias name boundVars v vs tipe)
 
     D.Port _ ->
-        return ()
+        if isRoot
+          then return ()
+          else Result.throw region Error.UnexpectedPort
 
     D.Fixity _ _ _ ->
         return ()

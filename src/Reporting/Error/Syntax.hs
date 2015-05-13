@@ -19,6 +19,7 @@ data Error
     | InfixDuplicate String
     | TypeWithoutDefinition String
     | PortWithoutAnnotation String
+    | UnexpectedPort
     | DuplicateValueDeclaration String
     | DuplicateTypeDeclaration String
     | DuplicateDefinition String
@@ -63,6 +64,16 @@ toReport err =
           ("Port '" ++ portName ++ "' does not have a type annotation!")
           ("Directly above the port definition, I need something like this:\n\n"
             ++ "    port " ++ portName ++ " : Signal Int"
+          )
+
+
+    UnexpectedPort ->
+        Report.simple
+          "PORT ERROR"
+          "This module has ports, but ports can only appear in the main module."
+          ( "Ports in library code would create hidden dependencies where importing a\n"
+            ++ "module could bring in constraints not captured in the public API. Furthermore,\n"
+            ++ "if the module is imported twice, do we send values out the port twice?"
           )
 
     DuplicateValueDeclaration name ->
