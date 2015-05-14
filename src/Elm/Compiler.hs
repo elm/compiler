@@ -3,7 +3,7 @@ module Elm.Compiler
     ( version, rawVersion
     , parseDependencies, compile
     , Error, errorToString, errorToJson
-    , Warning, warningToString
+    , Warning, warningToString, warningToJson
     ) where
 
 import qualified Data.Aeson as Json
@@ -104,5 +104,10 @@ newtype Warning = Warning (A.Located Warning.Warning)
 warningToString :: String -> String -> Warning -> String
 warningToString location source (Warning err) =
     Warning.toString location source err
+
+
+warningToJson :: String -> Warning -> Json.Value
+warningToJson location (Warning err) =
+    Warning.toJson location err
 
 

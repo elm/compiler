@@ -1,18 +1,24 @@
+{-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Reporting.Report
     ( Report(Report)
     , simple
     , toString
+    , toJson
     ) where
+
+import Data.Aeson ((.=))
+import qualified Data.Aeson.Types as Json
 
 import Elm.Utils ((|>))
 import qualified Reporting.Region as R
 
 
 data Report = Report
-    { title :: String
-    , highlight :: Maybe R.Region
-    , preHint :: String
-    , postHint :: String
+    { _title :: String
+    , _highlight :: Maybe R.Region
+    , _preHint :: String
+    , _postHint :: String
     }
 
 
@@ -22,13 +28,25 @@ simple title pre post =
 
 
 toString :: String -> R.Region -> Report -> String -> String
-toString location region report source =
+toString location region (Report title highlight pre post) source =
   concat
-    [ messageBar (title report) location
-    , preHint report ++ "\n\n"
-    , grabRegion (highlight report) region source ++ "\n"
-    , postHint report ++ "\n\n\n"
+    [ messageBar title location
+    , pre ++ "\n\n"
+    , grabRegion highlight region source ++ "\n"
+    , if null post then "\n" else post ++ "\n\n\n"
     ]
+
+
+toJson :: [Json.Pair] -> Report -> (Maybe R.Region, [Json.Pair])
+toJson extraFields (Report title subregion pre post) =
+  let
+    fields =
+      [ "tag" .= title
+      , "overview" .= pre
+      , "details" .= post
+      ]
+  in
+    (subregion, fields ++ extraFields)
 
 
 -- REPORT HEADER
