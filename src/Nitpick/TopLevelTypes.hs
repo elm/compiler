@@ -31,7 +31,7 @@ warnMissingAnnotation
     :: Map.Map String Type.Canonical
     -> Decl.ValidDecl
     -> Result.Result Warning.Warning Error.Error ()
-warnMissingAnnotation typeEnv (A.A region decl) =
+warnMissingAnnotation typeEnv (A.A (region,_) decl) =
   case decl of
     Decl.Definition (Valid.Definition (A.A _ (P.Var name)) _ Nothing) ->
         case Map.lookup name typeEnv of
@@ -51,7 +51,7 @@ checkMainType
     -> Result.Result w Error.Error ()
 checkMainType typeEnv decls =
     case decls of
-      A.A region (Decl.Definition (Valid.Definition (A.A _ (P.Var "main")) _ _)) : _ ->
+      A.A (region,_) (Decl.Definition (Valid.Definition (A.A _ (P.Var "main")) _ _)) : _ ->
           case Map.lookup "main" typeEnv of
             Nothing ->
                 return ()
