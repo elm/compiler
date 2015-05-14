@@ -41,12 +41,13 @@ type SourceDecl' =
   Declaration' SourcePort Source.Def Type.Raw Source.Expr
 
 
-type SourceDecl =
-  A.Located SourceDecl'
+data SourceDecl
+    = Comment String
+    | Decl (A.Located SourceDecl')
 
 
 type ValidDecl =
-  A.Located (Declaration' ValidPort Valid.Def Type.Raw Valid.Expr)
+  A.Commented (Declaration' ValidPort Valid.Def Type.Raw Valid.Expr)
 
 
 type CanonicalDecl =

@@ -288,7 +288,7 @@ declToPatches
     :: Module.Name
     -> D.ValidDecl
     -> (Maybe Node, [Env.Patch])
-declToPatches moduleName (A.A region decl) =
+declToPatches moduleName (A.A (region,_) decl) =
   let local mkPatch x =
           mkPatch x (Var.local x)
 

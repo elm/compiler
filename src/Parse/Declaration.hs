@@ -12,7 +12,10 @@ import qualified Parse.Type as Type
 
 declaration :: IParser D.SourceDecl
 declaration =
-  addLocation (typeDecl <|> infixDecl <|> port <|> definition)
+  choice
+    [ D.Comment <$> docComment
+    , D.Decl <$> addLocation (typeDecl <|> infixDecl <|> port <|> definition)
+    ]
 
 
 -- TYPE ANNOTATIONS and DEFINITIONS

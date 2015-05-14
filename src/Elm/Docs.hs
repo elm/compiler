@@ -5,6 +5,7 @@ import Control.Applicative ((<$>),(<*>))
 import Control.Monad
 import Data.Aeson ((.:), (.:?), (.=))
 import qualified Data.Aeson as Json
+import qualified Data.Aeson.Encode.Pretty as Json
 import qualified Data.ByteString.Lazy.Char8 as BS
 
 import qualified Elm.Compiler.Module as Module
@@ -44,6 +45,26 @@ data Value = Value
     }
 
 
+-- PRETTY JSON
+
+prettyJson :: (Json.ToJSON a) => a -> BS.ByteString
+prettyJson value =
+  Json.encodePretty' config value
+
+
+config :: Json.Config
+config =
+    Json.Config
+    { Json.confIndent = 2
+    , Json.confCompare = Json.keyOrder keys
+    }
+  where
+    keys =
+        [ "tag", "name", "comment", "aliases", "types"
+        , "values", "func", "args", "type", "cases"
+        ]
+
+
 -- JSON for DOCUMENTATION
 
 instance Json.ToJSON Documentation where
@@ -55,6 +76,7 @@ instance Json.ToJSON Documentation where
         , "types" .= types
         , "values" .= values
         ]
+
 
 instance Json.FromJSON Documentation where
     parseJSON (Json.Object obj) =

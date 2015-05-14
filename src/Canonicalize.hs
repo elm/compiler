@@ -260,7 +260,7 @@ declaration
     :: Env.Environment
     -> D.ValidDecl
     -> Result.ResultErr D.CanonicalDecl
-declaration env (A.A region decl) =
+declaration env (A.A (region,_) decl) =
     let canonicalize kind _context _pattern env v =
             kind env v
     in

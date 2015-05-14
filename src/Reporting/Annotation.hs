@@ -16,6 +16,10 @@ type Located a =
     Annotated R.Region a
 
 
+type Commented a =
+    Annotated (R.Region, Maybe String) a
+
+
 -- CREATE
 
 at :: R.Position -> R.Position -> a -> Located a
