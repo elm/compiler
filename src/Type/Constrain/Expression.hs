@@ -237,34 +237,17 @@ constrainList env region exprs tipe =
   do  (exprInfo, exprCons) <-
           unzip <$> mapM elementConstraint exprs
 
-      let pairwiseCons = pairwiseConstraints 2 exprInfo
+      (vars, cons) <- pairCons region Error.ListElement varToCon exprInfo
 
-      return $
-        ex  (map fst exprInfo)
-            (CAnd (exprCons ++ pairwiseCons))
+      return $ ex vars (CAnd (exprCons ++ cons))
   where
-    list t =
-      Env.get env Env.types "List" <| t
-
     elementConstraint expr@(A.A region' _) =
       do  var <- variable Flexible
           con <- constrain env expr (varN var)
           return ( (var, region'), con )
 
-    pairwiseConstraints n exprInfo =
-      case exprInfo of
-        [] ->
-            []
-
-        (var,_) : [] ->
-            [ CEqual Error.List region tipe (list (varN var)) ]
-
-        (var,_) : (var',region') : rest ->
-            let
-              hint = Error.ListElement n region'
-              con = CEqual hint region (varN var) (varN var')
-            in
-              con : pairwiseConstraints (n+1) ((var', region') : rest)
+    varToCon var =
+      CEqual Error.List region tipe (Env.get env Env.types "List" <| varN var)
 
 
 -- CONSTRAIN IF EXPRESSIONS
@@ -279,9 +262,9 @@ constrainIf env region branches tipe =
   do  (branchInfo, branchExprCons) <-
           unzip <$> mapM constrainBranch branches
 
-      return $
-        ex  (map fst branchInfo)
-            (CAnd (branchExprCons ++ branchCons branchInfo))
+      (vars,cons) <- branchCons branchInfo
+
+      return $ ex vars (CAnd (branchExprCons ++ cons))
   where
     bool = Env.get env Env.types "Bool"
 
@@ -297,27 +280,18 @@ constrainIf env region branches tipe =
     branchCons branchInfo =
       case branchInfo of
         [(thenVar, _), (elseVar, _)] ->
-            [ CEqual Error.IfBranches region (varN thenVar) (varN elseVar)
-            , CEqual Error.If region tipe (varN thenVar)
-            ]
+            return
+              ( [thenVar,elseVar]
+              , [ CEqual Error.IfBranches region (varN thenVar) (varN elseVar)
+                , varToCon thenVar
+                ]
+              )
 
         _ ->
-            buildBranchCons 2 branchInfo
+            pairCons region Error.MultiIfBranch varToCon branchInfo
 
-    buildBranchCons n branchInfo =
-      case branchInfo of
-        [] ->
-            []
-
-        (var,_) : [] ->
-            [ CEqual Error.If region tipe (varN var) ]
-
-        (var,_) : (var',region') : rest ->
-            let
-              hint = Error.MultiIfBranch n region'
-              con = CEqual hint region (varN var) (varN var')
-            in
-              con : buildBranchCons (n+1) ((var', region') : rest)
+    varToCon var =
+      CEqual Error.If region tipe (varN var)
 
 
 -- CONSTRAIN CASE EXPRESSIONS
@@ -331,15 +305,14 @@ constrainCase
     -> IO TypeConstraint
 constrainCase env region expr branches tipe =
   do  exprVar <- variable Flexible
-
       exprCon <- constrain env expr (varN exprVar)
 
       (branchInfo, branchExprCons) <-
           unzip <$> mapM (branch (varN exprVar)) branches
 
-      return $
-        ex  (exprVar : map fst branchInfo)
-            (CAnd (exprCon : branchExprCons ++ branchCons 2 branchInfo))
+      (vars, cons) <- pairCons region Error.CaseBranch varToCon branchInfo
+
+      return $ ex (exprVar : vars) (CAnd (exprCon : branchExprCons ++ cons))
   where
     branch patternType (pattern, branchExpr@(A.A branchRegion _)) =
         do  branchVar <- variable Flexible
@@ -350,20 +323,52 @@ constrainCase env region expr branches tipe =
                 , CLet [Fragment.toScheme fragment] branchCon
                 )
 
-    branchCons n branchInfo =
-      case branchInfo of
-        [] ->
-            []
+    varToCon var =
+      CEqual Error.Case region tipe (varN var)
 
-        (var,_) : [] ->
-            [ CEqual Error.Case region tipe (varN var) ]
 
-        (var,_) : (var',region') : rest ->
-            let
-              hint = Error.CaseBranch n region'
-              con = CEqual hint region (varN var) (varN var')
-            in
-              con : branchCons (n+1) ((var', region') : rest)
+-- COLLECT PAIRS
+
+data Pair = Pair
+    { _index :: Int
+    , _var1 :: Variable
+    , _var2 :: Variable
+    , _region :: R.Region
+    }
+
+
+pairCons
+    :: R.Region
+    -> (Int -> R.Region -> Error.Hint)
+    -> (Variable -> TypeConstraint)
+    -> [(Variable, R.Region)]
+    -> IO ([Variable], [TypeConstraint])
+pairCons region pairHint varToCon items =
+  let
+    pairToCon (Pair index var1 var2 subregion) =
+      CEqual (pairHint index subregion) region (varN var1) (varN var2)
+  in
+  case collectPairs 2 items of
+    Nothing ->
+        do  var <- variable Flexible
+            return ([var], [varToCon var])
+
+    Just (pairs, var) ->
+        return (map fst items, map pairToCon pairs ++ [varToCon var])
+
+
+collectPairs :: Int -> [(Variable, R.Region)] -> Maybe ([Pair], Variable)
+collectPairs index items =
+  case items of
+    [] ->
+        Nothing
+
+    (var,_) : [] ->
+        Just ([], var)
+
+    (var,_) : rest@((var',region) : _) ->
+        do  (pairs, summaryVar) <- collectPairs (index+1) rest
+            return (Pair index var var' region : pairs, summaryVar)
 
 
 -- EXPAND PATTERNS
