@@ -10,7 +10,6 @@ module Reporting.Report
 import Data.Aeson ((.=))
 import qualified Data.Aeson.Types as Json
 
-import Elm.Utils ((|>))
 import qualified Reporting.Region as R
 
 
@@ -67,6 +66,8 @@ grabRegion maybeSubRegion (R.Region start end) source =
   let
     (R.Position startLine startColumn) = start
     (R.Position endLine endColumn) = end
+
+    (|>) = flip ($)
 
     relevantLines =
         lines source
@@ -137,6 +138,8 @@ singleLineRegion lineNum sourceLine (start, innerStart, innerEnd, end) =
     underline =
         replicate (innerStart - 1) ' '
         ++ replicate (max 1 (innerEnd - innerStart)) '^'
+
+    (|>) = flip ($)
 
     trimmedSourceLine =
         sourceLine

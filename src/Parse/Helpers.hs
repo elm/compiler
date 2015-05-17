@@ -18,7 +18,6 @@ import qualified AST.Expression.Source as Source
 import qualified AST.Helpers as Help
 import qualified AST.Literal as L
 import qualified AST.Variable as Variable
-import Elm.Utils ((|>))
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as Syntax
 import qualified Reporting.Region as R
@@ -504,6 +503,8 @@ glSource src =
         |> foldr addGLinput emptyDecls
         |> Right
   where
+    (|>) = flip ($)
+
     emptyDecls = L.GLShaderTipe Map.empty Map.empty Map.empty
 
     addGLinput (qual,tipe,name) glDecls =

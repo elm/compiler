@@ -9,7 +9,6 @@ import Text.PrettyPrint ((<+>))
 
 import qualified AST.Helpers as Help
 import qualified AST.Type as Type
-import Elm.Utils ((|>))
 import qualified Reporting.PrettyPrint as P
 import qualified Reporting.Report as Report
 
@@ -126,6 +125,7 @@ toReport err =
                   |> P.nest 4
               ]
       where
+        (|>) = flip ($)
         vars = map P.text (givenVars ++ tvar : tvars)
         toDoc (ctor, args) =
             P.text ctor <+> P.hsep (map (P.pretty True) args)

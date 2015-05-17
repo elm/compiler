@@ -1,8 +1,15 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts #-}
-module Elm.Utils ((|>), (<|), getAsset, run, unwrappedRun, CommandError(..)) where
+module Elm.Utils
+    ( (|>), (<|)
+    , getAsset
+    , run, unwrappedRun
+    , CommandError(..)
+    , isDeclaration
+    ) where
 
 import Control.Monad.Except (MonadError, MonadIO, liftIO, throwError)
+import qualified Data.List as List
 import System.Directory (doesFileExist)
 import System.Environment (getEnv)
 import System.Exit (ExitCode(ExitSuccess, ExitFailure))
@@ -10,7 +17,12 @@ import System.FilePath ((</>))
 import System.IO.Error (tryIOError)
 import System.Process (readProcessWithExitCode)
 
+import qualified AST.Expression.Source as Source
+import qualified AST.Pattern as Pattern
 import qualified Elm.Compiler.Version as Version
+import qualified Parse.Helpers as Parse
+import qualified Parse.Expression as Parse
+import qualified Reporting.Annotation as A
 
 
 {-| Forward function application `x |> f == f x`. This function is useful
@@ -119,3 +131,15 @@ errorNotFound name =
     , "If it seems like a more complex issue, please report it here:"
     , "    <https://github.com/elm-lang/elm-platform/issues>"
     ]
+
+
+-- DECL CHECKER
+
+isDeclaration :: String -> Maybe String
+isDeclaration string =
+  case Parse.iParse Parse.definition string of
+    Right (A.A _ (Source.Definition pattern _)) ->
+        Just (List.intercalate "$" (Pattern.boundVarList pattern))
+
+    _ ->
+        Nothing
