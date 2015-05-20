@@ -186,7 +186,7 @@ Test-Suite compiler-tests
         Test.Property.Arbitrary
         AST.Helpers
         AST.Literal
-        AST.PrettyPrint
+        Reporting.PrettyPrint
 
     build-depends:
         test-framework > 0.8 && < 0.9,

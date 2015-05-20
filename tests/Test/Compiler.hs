@@ -14,7 +14,6 @@ import Test.HUnit (Assertion, assertFailure, assertBool)
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Compiler.Module as Module
 
-
 compilerTests :: Test
 compilerTests =
   buildTest $ do
@@ -45,7 +44,7 @@ testsDir =
 -- RUN COMPILER
 
 testIf
-    :: (Either String (Module.Interface, String) -> Assertion)
+    :: (([Compiler.Warning], Either [Compiler.Error] (Module.Interface, String)) -> Assertion)
     -> [FilePath]
     -> IO [Test]
 testIf handleResult filePaths =
@@ -53,21 +52,21 @@ testIf handleResult filePaths =
   where
     setupTest filePath =
       do  source <- readFile filePath
-          let result = Compiler.compile "elm-lang" "core" source Map.empty
+          let result = Compiler.compile "elm-lang" "core" True source Map.empty
           return (testCase filePath (handleResult result))
 
 
 -- CHECK RESULTS
 
-isSuccess :: Either String a -> Assertion
-isSuccess result =
+isSuccess :: ([Compiler.Warning], Either [Compiler.Error] a) -> Assertion
+isSuccess (_, result) =
     case result of
-      Right _ -> assertBool "" True
-      Left msg -> assertFailure msg
+      Right _     -> assertBool "" True
+      Left errors -> assertFailure $ (unlines $ map (Compiler.errorToString "" "") errors)
 
 
-isFailure :: Either a b -> Assertion
-isFailure result =
+isFailure :: ([Compiler.Warning], Either a b) -> Assertion
+isFailure (_, result) =
     case result of
       Right _ -> assertFailure "Compilation succeeded but should have failed"
-      Left _ -> assertBool "" True
+      Left _  -> assertBool "" True
