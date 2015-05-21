@@ -3,12 +3,12 @@ module Main where
 import Test.Framework
 
 import Test.Compiler
-import Test.Property
+--import Test.Property
 
 
-main :: IO () 
+main :: IO ()
 main =
   defaultMain
     [ compilerTests
-    , propertyTests
+--    , propertyTests
     ]
