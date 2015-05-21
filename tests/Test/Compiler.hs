@@ -1,9 +1,9 @@
 {-# OPTIONS_GHC -W #-}
 module Test.Compiler (compilerTests) where
 
+import Control.Arrow (second)
 import qualified Data.Map as Map
 import Data.Traversable (traverse)
-import Data.Bifunctor (first, second)
 
 import System.FilePath ((</>))
 import System.FilePath.Find (find, (==?), extension)
@@ -15,7 +15,6 @@ import Test.HUnit (Assertion, assertFailure, assertBool)
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Compiler.Module as Module
 
-type ErrorMessage = String
 
 compilerTests :: Test
 compilerTests =
@@ -47,31 +46,43 @@ testsDir =
 -- RUN COMPILER
 
 testIf
-    :: (([Compiler.Warning], Either [ErrorMessage] (Module.Interface, String)) -> Assertion)
+    :: (([Compiler.Warning], Either String (Module.Interface, String)) -> Assertion)
     -> [FilePath]
     -> IO [Test]
 testIf handleResult filePaths =
     traverse setupTest filePaths
   where
-    setupTest filePath = do  
+    setupTest filePath = do
       source <- readFile filePath
-      
-      let result = Compiler.compile "elm-lang" "core" True source Map.empty
-      let errorsToStrings = second (first $ map (Compiler.errorToString filePath source))
 
-      return $ testCase filePath (handleResult .  errorsToStrings $ result)
+      let result =
+            Compiler.compile "elm-lang" "core" True source Map.empty
+      let formatErrors errors =
+            concatMap (Compiler.errorToString filePath source) errors
+      let formattedResult =
+            second (either (Left . formatErrors) Right) result
+
+      return $ testCase filePath (handleResult formattedResult)
+
 
 -- CHECK RESULTS
 
-isSuccess :: ([Compiler.Warning], Either [ErrorMessage] a) -> Assertion
+isSuccess :: ([Compiler.Warning], Either String a) -> Assertion
 isSuccess (_, result) =
     case result of
-      Right _     -> assertBool "" True
-      Left errorMessages -> assertFailure $ concat errorMessages
+      Right _ ->
+          assertBool "" True
+
+      Left errorMessages ->
+          assertFailure errorMessages
 
 
 isFailure :: ([Compiler.Warning], Either a b) -> Assertion
 isFailure (_, result) =
     case result of
-      Right _ -> assertFailure "Compilation succeeded but should have failed"
-      Left _  -> assertBool "" True
+      Right _ ->
+          assertFailure "Compilation succeeded but should have failed"
+
+      Left _ ->
+          assertBool "" True
+
