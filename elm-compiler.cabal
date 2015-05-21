@@ -186,7 +186,7 @@ Test-Suite compiler-tests
         Test.Property.Arbitrary
         AST.Helpers
         AST.Literal
-        AST.PrettyPrint
+        Reporting.PrettyPrint
 
     build-depends:
         test-framework > 0.8 && < 0.9,
@@ -217,6 +217,4 @@ Test-Suite compiler-tests
         process,
         text >= 1 && < 2,
         transformers >= 0.2 && < 0.5,
-        union-find >= 0.2 && < 0.3,
-        unordered-containers >= 0.1 && < 0.3
-
+        union-find >= 0.2 && < 0.3

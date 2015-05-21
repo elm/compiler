@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -W #-}
 module Test.Compiler (compilerTests) where
 
+import Control.Arrow (second)
 import qualified Data.Map as Map
 import Data.Traversable (traverse)
 
@@ -45,29 +46,43 @@ testsDir =
 -- RUN COMPILER
 
 testIf
-    :: (Either String (Module.Interface, String) -> Assertion)
+    :: (([Compiler.Warning], Either String (Module.Interface, String)) -> Assertion)
     -> [FilePath]
     -> IO [Test]
 testIf handleResult filePaths =
     traverse setupTest filePaths
   where
-    setupTest filePath =
-      do  source <- readFile filePath
-          let result = Compiler.compile "elm-lang" "core" source Map.empty
-          return (testCase filePath (handleResult result))
+    setupTest filePath = do
+      source <- readFile filePath
+
+      let result =
+            Compiler.compile "elm-lang" "core" True source Map.empty
+      let formatErrors errors =
+            concatMap (Compiler.errorToString filePath source) errors
+      let formattedResult =
+            second (either (Left . formatErrors) Right) result
+
+      return $ testCase filePath (handleResult formattedResult)
 
 
 -- CHECK RESULTS
 
-isSuccess :: Either String a -> Assertion
-isSuccess result =
+isSuccess :: ([Compiler.Warning], Either String a) -> Assertion
+isSuccess (_, result) =
     case result of
-      Right _ -> assertBool "" True
-      Left msg -> assertFailure msg
+      Right _ ->
+          assertBool "" True
+
+      Left errorMessages ->
+          assertFailure errorMessages
 
 
-isFailure :: Either a b -> Assertion
-isFailure result =
+isFailure :: ([Compiler.Warning], Either a b) -> Assertion
+isFailure (_, result) =
     case result of
-      Right _ -> assertFailure "Compilation succeeded but should have failed"
-      Left _ -> assertBool "" True
+      Right _ ->
+          assertFailure "Compilation succeeded but should have failed"
+
+      Left _ ->
+          assertBool "" True
+

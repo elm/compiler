@@ -1,21 +1,21 @@
 
 -- incoming
-input userID : String
-input number : Int
-input tuple : (Float,Bool)
-input array : List Int
-input record : { x:Float, y:Float }
+port userID : String
+port number : Int
+port tuple : (Float,Bool)
+port array : List Int
+port record : { x:Float, y:Float }
 
 -- outgoing
-output fortyTwo : Int
-output fortyTwo =
+port fortyTwo : Int
+port fortyTwo =
     42
 
 
-output time : Float
-output time =
+port time : Float
+port time =
     3.14
 
-output students : List { name:String, age:Int }
-output students =
+port students : List { name:String, age:Int }
+port students =
     [ { name = "Tom", age = 42 } ]

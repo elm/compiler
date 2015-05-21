@@ -7,7 +7,7 @@ type alias Point x y =
     { x:x, y:y }
 
 
-input points : Point2D
+port points : Point2D
 
 
-input pairs : Point String String
+port pairs : Point String String
