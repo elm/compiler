@@ -4,6 +4,7 @@ module Reporting.Error where
 
 import Data.Aeson ((.=))
 import qualified Data.Aeson as Json
+import Prelude hiding (print)
 
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Canonicalize
@@ -20,23 +21,31 @@ data Error
     | Type Type.Error
 
 
+-- TO REPORT
+
+toReport :: Error -> Report.Report
+toReport err =
+  case err of
+    Syntax syntaxError ->
+        Syntax.toReport syntaxError
+
+    Canonicalize canonicalizeError ->
+        Canonicalize.toReport canonicalizeError
+
+    Type typeError ->
+        Type.toReport typeError
+
+
 -- TO STRING
 
 toString :: String -> String -> A.Located Error -> String
 toString location source (A.A region err) =
-  let
-    report =
-        case err of
-          Syntax syntaxError ->
-              Syntax.toReport syntaxError
+  Report.toString location region (toReport err) source
 
-          Canonicalize canonicalizeError ->
-              Canonicalize.toReport canonicalizeError
 
-          Type typeError ->
-              Type.toReport typeError
-  in
-      Report.toString location region report source
+print :: String -> String -> A.Located Error -> IO ()
+print location source (A.A region err) =
+  Report.printError location region (toReport err) source
 
 
 -- TO JSON

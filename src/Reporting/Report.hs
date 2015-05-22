@@ -5,10 +5,15 @@ module Reporting.Report
     , simple
     , toString
     , toJson
+    , printError, printWarning
     ) where
 
+import Control.Applicative ((<|>))
+import Control.Monad.Writer (Writer, execWriter, tell)
 import Data.Aeson ((.=))
 import qualified Data.Aeson.Types as Json
+import System.Console.ANSI
+import System.IO (hPutStr, stderr)
 
 import qualified Reporting.Region as R
 
@@ -27,13 +32,33 @@ simple title pre post =
 
 
 toString :: String -> R.Region -> Report -> String -> String
-toString location region (Report title highlight pre post) source =
-  concat
-    [ messageBar title location
-    , pre ++ "\n\n"
-    , grabRegion highlight region source ++ "\n"
-    , if null post then "\n" else post ++ "\n\n\n"
-    ]
+toString location region report source =
+  execWriter (render plain location region report source)
+
+
+printError :: String -> R.Region -> Report -> String -> IO ()
+printError location region report source =
+  render (ansi Error) location region report source
+
+
+printWarning :: String -> R.Region -> Report -> String -> IO ()
+printWarning location region report source =
+  render (ansi Warning) location region report source
+
+
+render
+    :: (Monad m)
+    => Renderer m
+    -> String
+    -> R.Region
+    -> Report
+    -> String
+    -> m ()
+render renderer location region (Report title highlight pre post) source =
+  do  messageBar renderer title location
+      normal renderer (pre ++ "\n\n")
+      grabRegion renderer highlight region source
+      normal renderer ("\n" ++ if null post then "\n" else post ++ "\n\n\n")
 
 
 toJson :: [Json.Pair] -> Report -> (Maybe R.Region, [Json.Pair])
@@ -48,12 +73,55 @@ toJson extraFields (Report title subregion pre post) =
     (subregion, fields ++ extraFields)
 
 
+-- RENDERING
+
+data Renderer m = Renderer
+    { normal :: String -> m ()
+    , header :: String -> m ()
+    , accent :: String -> m ()
+    }
+
+
+plain :: Renderer (Writer String)
+plain =
+  Renderer tell tell tell
+
+
+data Type = Error | Warning
+
+
+ansi :: Type -> Renderer IO
+ansi tipe =
+  let
+    put =
+      hPutStr stderr
+
+    put' intensity color string =
+      do  hSetSGR stderr [SetColor Foreground intensity color]
+          put string
+          hSetSGR stderr [Reset]
+
+    accentColor =
+      case tipe of
+        Error -> Red
+        Warning -> Yellow
+  in
+    Renderer
+      put
+      (put' Dull Cyan)
+      (put' Dull accentColor)
+
+
+
+
 -- REPORT HEADER
 
-messageBar :: String -> String -> String
-messageBar tag location =
-  let usedSpace = 4 + length tag + 1 + length location
+messageBar :: Renderer m -> String -> String -> m ()
+messageBar renderer tag location =
+  let
+    usedSpace = 4 + length tag + 1 + length location
   in
+    header renderer $
       "-- " ++ tag ++ " "
       ++ replicate (max 1 (80 - usedSpace)) '-'
       ++ " " ++ location ++ "\n\n"
@@ -61,8 +129,14 @@ messageBar tag location =
 
 -- REGIONS
 
-grabRegion :: Maybe R.Region -> R.Region -> String -> String
-grabRegion maybeSubRegion (R.Region start end) source =
+grabRegion
+    :: (Monad m)
+    => Renderer m
+    -> Maybe R.Region
+    -> R.Region
+    -> String
+    -> m ()
+grabRegion renderer maybeSubRegion region@(R.Region start end) source =
   let
     (R.Position startLine startColumn) = start
     (R.Position endLine endColumn) = end
@@ -76,10 +150,10 @@ grabRegion maybeSubRegion (R.Region start end) source =
   in
   case relevantLines of
     [] ->
-        ""
+        normal renderer ""
 
     [sourceLine] ->
-        singleLineRegion startLine sourceLine $
+        singleLineRegion renderer startLine sourceLine $
           case maybeSubRegion of
             Nothing ->
                 (0, startColumn, endColumn, length sourceLine)
@@ -100,44 +174,61 @@ grabRegion maybeSubRegion (R.Region start end) source =
               filteredFirstLine : init rest ++ [filteredLastLine]
 
           lineNumbersWidth =
-              length (show (endLine + 1))
+              length (show endLine)
+
+          subregion =
+              maybeSubRegion <|> Just region
 
           numberedLines =
               zipWith
-                (addLineNumber maybeSubRegion lineNumbersWidth)
-                [startLine - 1 .. endLine + 1]
-                ("" : focusedRelevantLines ++ [""])
+                (addLineNumber renderer subregion lineNumbersWidth)
+                [startLine .. endLine]
+                focusedRelevantLines
         in
-            unlines numberedLines
+          mapM_ (\line -> line >> normal renderer "\n") numberedLines
 
 
-addLineNumber :: Maybe R.Region -> Int -> Int -> String -> String
-addLineNumber maybeSubRegion width n line =
+addLineNumber
+    :: (Monad m)
+    => Renderer m
+    -> Maybe R.Region
+    -> Int
+    -> Int
+    -> String
+    -> m ()
+addLineNumber renderer maybeSubRegion width n line =
   let
     number =
-        if n < 0 then " " else show n
+      if n < 0 then " " else show n
+
+    lineNumber =
+      replicate (width - length number) ' ' ++ number ++ "|"
 
     spacer (R.Region start end) =
-        if R.line start <= n && n <= R.line end
-          then ">"
-          else " "
+      if R.line start <= n && n <= R.line end
+        then accent renderer ">"
+        else normal renderer " "
   in
-    replicate (width - length number) ' ' ++ number
-    ++ "|" ++ maybe " " spacer maybeSubRegion
-    ++ line
+    do  normal renderer lineNumber
+        maybe (normal renderer " ") spacer maybeSubRegion
+        normal renderer line
 
 
-singleLineRegion :: Int -> String -> (Int, Int, Int, Int) -> String
-singleLineRegion lineNum sourceLine (start, innerStart, innerEnd, end) =
+singleLineRegion
+    :: (Monad m)
+    => Renderer m
+    -> Int
+    -> String
+    -> (Int, Int, Int, Int)
+    -> m ()
+singleLineRegion renderer lineNum sourceLine (start, innerStart, innerEnd, end) =
   let
-    w = length (show (lineNum + 1))
-
-    number =
-        addLineNumber Nothing w
+    width =
+      length (show lineNum)
 
     underline =
-        replicate (innerStart - 1) ' '
-        ++ replicate (max 1 (innerEnd - innerStart)) '^'
+      replicate (innerStart + width + 1) ' '
+      ++ replicate (max 1 (innerEnd - innerStart)) '^'
 
     (|>) = flip ($)
 
@@ -147,8 +238,5 @@ singleLineRegion lineNum sourceLine (start, innerStart, innerEnd, end) =
           |> take (end - start + 1)
           |> (++) (replicate (start - 1) ' ')
   in
-      unlines
-        [ number (lineNum-1) ""
-        , number lineNum trimmedSourceLine
-        , number (lineNum+1) underline
-        ]
+    do  addLineNumber renderer Nothing width lineNum trimmedSourceLine
+        accent renderer $ "\n" ++ underline

@@ -2,8 +2,8 @@
 module Elm.Compiler
     ( version, rawVersion
     , parseDependencies, compile
-    , Error, errorToString, errorToJson
-    , Warning, warningToString, warningToJson
+    , Error, errorToString, errorToJson, printError
+    , Warning, warningToString, warningToJson, printWarning
     ) where
 
 import qualified Data.Aeson as Json
@@ -91,6 +91,11 @@ errorToString location source (Error err) =
     Error.toString location source err
 
 
+printError :: String -> String -> Error -> IO ()
+printError location source (Error err) =
+    Error.print location source err
+
+
 errorToJson :: String -> Error -> Json.Value
 errorToJson location (Error err) =
     Error.toJson location err
@@ -104,6 +109,11 @@ newtype Warning = Warning (A.Located Warning.Warning)
 warningToString :: String -> String -> Warning -> String
 warningToString location source (Warning err) =
     Warning.toString location source err
+
+
+printWarning :: String -> String -> Warning -> IO ()
+printWarning location source (Warning err) =
+    Warning.print location source err
 
 
 warningToJson :: String -> Warning -> Json.Value

@@ -113,6 +113,7 @@ Library
     Build-depends:
         aeson >= 0.7 && < 0.9,
         aeson-pretty >= 0.7 && < 0.8,
+        ansi-terminal >= 0.6.2.1 && < 0.7,
         base >=4.2 && <5,
         binary >= 0.7.0.0 && < 0.8,
         blaze-html >= 0.5 && < 0.8,
@@ -152,6 +153,7 @@ Executable elm
     Build-depends:
         aeson >= 0.7 && < 0.9,
         aeson-pretty >= 0.7 && < 0.8,
+        ansi-terminal >= 0.6.2.1 && < 0.7,
         base >=4.2 && <5,
         binary >= 0.7.0.0 && < 0.8,
         bytestring >= 0.9 && < 0.11,
@@ -196,6 +198,7 @@ Test-Suite compiler-tests
         QuickCheck >= 2 && < 3,
         aeson >= 0.7 && < 0.9,
         aeson-pretty >= 0.7 && < 0.8,
+        ansi-terminal >= 0.6.2.1 && < 0.7,
         base >=4.2 && <5,
         binary >= 0.7.0.0 && < 0.8,
         blaze-html >= 0.5 && < 0.8,

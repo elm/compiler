@@ -57,8 +57,7 @@ toReport err =
           (subRegion, preHint) = hintToString hint
 
           postHint =
-            "To be more specific, as I infer all the types, I am seeing a conflict between\n"
-            ++ "this type:\n\n"
+            "To be more specific, type inference is leading to a conflict between this type:\n\n"
             ++ P.render (P.nest 4 (P.pretty False leftType))
             ++ "\n\nand this type:\n\n"
             ++ P.render (P.nest 4 (P.pretty False rightType))

@@ -28,6 +28,11 @@ toString location source (A.A region warning) =
     Report.toString location region (toReport warning) source
 
 
+print :: String -> String -> A.Located Warning -> IO ()
+print location source (A.A region warning) =
+    Report.printWarning location region (toReport warning) source
+
+
 toReport :: Warning -> Report.Report
 toReport warning =
   case warning of
