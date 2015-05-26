@@ -39,6 +39,7 @@ data Hint
     | Binop Var.Canonical
     | BadArgument Region.Region
     | ExtraArgument Region.Region
+    | BadTypeAnnotation String
 
 
 data Note
@@ -166,6 +167,11 @@ hintToString hint =
         ( Just region
         , "This expression is mistakenly being used as a function.\n"
           ++ "Maybe you provided an extra argument?"
+        )
+
+    BadTypeAnnotation name ->
+        ( Nothing
+        , "The type annotation for '" ++ name ++ "' does not match its definition."
         )
 
 

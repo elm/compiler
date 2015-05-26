@@ -416,12 +416,12 @@ data Info = Info
 
 
 constrainDef :: Env.Environment -> Info -> Canonical.Def -> IO Info
-constrainDef env info (Canonical.Definition (A.A _ pattern) expr maybeTipe) =
+constrainDef env info (Canonical.Definition (A.A region pattern) expr maybeTipe) =
   let qs = [] -- should come from the def, but I'm not sure what would live there...
   in
   case (pattern, maybeTipe) of
     (P.Var name, Just tipe) ->
-        constrainAnnotatedDef env info qs name expr tipe
+        constrainAnnotatedDef env info qs region name expr tipe
 
     (P.Var name, Nothing) ->
         constrainUnannotatedDef env info qs name expr
@@ -433,11 +433,12 @@ constrainAnnotatedDef
     :: Env.Environment
     -> Info
     -> [String]
+    -> R.Region
     -> String
     -> Canonical.Expr
     -> ST.Canonical
     -> IO Info
-constrainAnnotatedDef env info qs name expr tipe =
+constrainAnnotatedDef env info qs region name expr tipe =
   do  -- Some mistake may be happening here. Currently, qs is always [].
       rigidVars <- Monad.forM qs (\_ -> variable Rigid)
 
@@ -457,11 +458,14 @@ constrainAnnotatedDef env info qs name expr tipe =
             , header = Map.singleton name typ
             }
 
-      c <- constrain env' expr typ
+      var <- variable Flexible
+      defCon <- constrain env' expr (varN var)
+      let annCon =
+            CEqual (Error.BadTypeAnnotation name) region typ (varN var)
 
       return $ info
           { iSchemes = scheme : iSchemes info
-          , iC1 = fl rigidVars c /\ iC1 info
+          , iC1 = iC1 info /\ ex [var] (defCon /\ fl rigidVars annCon)
           }
 
 
@@ -484,11 +488,11 @@ constrainUnannotatedDef env info qs name expr =
 
       let env' = env { Env.value = List.foldl' (\x f -> f x) (Env.value env) inserts }
 
-      c <- constrain env' expr tipe
+      con <- constrain env' expr tipe
 
       return $ info
           { iRigid = rigidVars ++ iRigid info
           , iFlex = v : iFlex info
           , iHeaders = Map.insert name tipe (iHeaders info)
-          , iC2 = c /\ iC2 info
+          , iC2 = con /\ iC2 info
           }
