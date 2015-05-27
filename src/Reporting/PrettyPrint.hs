@@ -1,18 +1,30 @@
 {-# LANGUAGE FlexibleInstances #-}
 module Reporting.PrettyPrint where
 
+import qualified Data.Map as Map
 import Text.PrettyPrint as P
+
 import qualified AST.Helpers as Help
 
 
-class Pretty a where
-  pretty :: Bool -> a -> Doc
+-- PRETTY
 
+class Pretty a where
+  pretty :: Dealiaser -> Bool -> a -> Doc
+
+
+type Dealiaser =
+  Map.Map String String
+
+
+-- INSTANCES
 
 instance Pretty String where
-  pretty _ str =
+  pretty _ _ str =
       P.text str
 
+
+-- HELPERS
 
 commaCat :: [Doc] -> Doc
 commaCat docs =

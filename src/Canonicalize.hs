@@ -44,8 +44,9 @@ module' interfaces modul =
           moduleHelp interfaces modul
   in
       case rawResults of
-        Result.Ok almostCanonicalModule ->
-            filterImports uses almostCanonicalModule
+        Result.Ok (env, almostCanonicalModule) ->
+            R.addDealiaser (Env.toDealiaser env) $
+              filterImports uses almostCanonicalModule
 
         Result.Err msgs ->
             R.throwMany (map (A.map Error.Canonicalize) msgs)
@@ -61,13 +62,14 @@ type AlmostCanonicalModule =
 moduleHelp
     :: Module.Interfaces
     -> Module.ValidModule
-    -> Result.ResultErr AlmostCanonicalModule
+    -> Result.ResultErr (Env.Environment, AlmostCanonicalModule)
 moduleHelp interfaces modul@(Module.Module _ _ exports _ decls) =
     canonicalModule
       <$> canonicalDeclsResult
       <*> resolveExports locals exports
   where
-    canonicalModule canonicalDecls canonicalExports =
+    canonicalModule (env, canonicalDecls) canonicalExports =
+        (,) env $
         modul
           { Module.exports = canonicalExports
           , Module.body = body canonicalDecls
@@ -79,7 +81,7 @@ moduleHelp interfaces modul@(Module.Module _ _ exports _ decls) =
 
     canonicalDeclsResult =
         Setup.environment interfaces modul
-          `Result.andThen` \env -> T.traverse (declaration env) decls
+          `Result.andThen` \env -> (,) env <$> T.traverse (declaration env) decls
 
     body :: [D.CanonicalDecl] -> Module.CanonicalBody
     body decls =

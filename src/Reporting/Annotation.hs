@@ -52,5 +52,5 @@ drop (A _ value) =
 -- PRETTY PRINT
 
 instance (P.Pretty a) => P.Pretty (Annotated info a) where
-  pretty parens (A _ value) =
-      P.pretty parens value
+  pretty dealiaser parens (A _ value) =
+      P.pretty dealiaser parens value

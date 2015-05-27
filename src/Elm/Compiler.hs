@@ -2,6 +2,7 @@
 module Elm.Compiler
     ( version, rawVersion
     , parseDependencies, compile
+    , Dealiaser, dummyDealiaser
     , Error, errorToString, errorToJson, printError
     , Warning, warningToString, warningToJson, printWarning
     ) where
@@ -18,6 +19,7 @@ import qualified Parse.Module as Parse
 import qualified Parse.Parse as Parse
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error as Error
+import qualified Reporting.PrettyPrint as P
 import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
 
@@ -64,15 +66,15 @@ compile
     -> Bool
     -> String
     -> Map.Map PublicModule.Name PublicModule.Interface
-    -> ([Warning], Either [Error] (PublicModule.Interface, String))
+    -> (Dealiaser, [Warning], Either [Error] (PublicModule.Interface, String))
 compile user packageName isRoot source interfaces =
   let unwrappedInterfaces =
           Map.mapKeysMonotonic (\(PublicModule.Name name) -> name) interfaces
 
-      (Result.Result warnings rawResult) =
+      (Result.Result (dealiaser, warnings) rawResult) =
           Compile.compile user packageName isRoot unwrappedInterfaces source
   in
-      (,) (map Warning warnings) $
+      (,,) (maybe dummyDealiaser Dealiaser dealiaser) (map Warning warnings) $
       case rawResult of
         Result.Ok modul ->
             Right (Module.toInterface modul, JS.generate modul)
@@ -81,43 +83,56 @@ compile user packageName isRoot source interfaces =
             Left (map Error errors)
 
 
+-- DEALIASER
+
+newtype Dealiaser =
+    Dealiaser P.Dealiaser
+
+
+dummyDealiaser :: Dealiaser
+dummyDealiaser =
+    Dealiaser Map.empty
+
+
 -- ERRORS
 
-newtype Error = Error (A.Located Error.Error)
+newtype Error =
+    Error (A.Located Error.Error)
 
 
-errorToString :: String -> String -> Error -> String
-errorToString location source (Error err) =
-    Error.toString location source err
+errorToString :: Dealiaser -> String -> String -> Error -> String
+errorToString (Dealiaser dealiaser) location source (Error err) =
+    Error.toString dealiaser location source err
 
 
-printError :: String -> String -> Error -> IO ()
-printError location source (Error err) =
-    Error.print location source err
+printError :: Dealiaser -> String -> String -> Error -> IO ()
+printError (Dealiaser dealiaser) location source (Error err) =
+    Error.print dealiaser location source err
 
 
-errorToJson :: String -> Error -> Json.Value
-errorToJson location (Error err) =
-    Error.toJson location err
+errorToJson :: Dealiaser -> String -> Error -> Json.Value
+errorToJson (Dealiaser dealiaser) location (Error err) =
+    Error.toJson dealiaser location err
 
 
 -- WARNINGS
 
-newtype Warning = Warning (A.Located Warning.Warning)
+newtype Warning =
+    Warning (A.Located Warning.Warning)
 
 
-warningToString :: String -> String -> Warning -> String
-warningToString location source (Warning err) =
-    Warning.toString location source err
+warningToString :: Dealiaser -> String -> String -> Warning -> String
+warningToString (Dealiaser dealiaser) location source (Warning err) =
+    Warning.toString dealiaser location source err
 
 
-printWarning :: String -> String -> Warning -> IO ()
-printWarning location source (Warning err) =
-    Warning.print location source err
+printWarning :: Dealiaser -> String -> String -> Warning -> IO ()
+printWarning (Dealiaser dealiaser) location source (Warning err) =
+    Warning.print dealiaser location source err
 
 
-warningToJson :: String -> Warning -> Json.Value
-warningToJson location (Warning err) =
-    Warning.toJson location err
+warningToJson :: Dealiaser -> String -> Warning -> Json.Value
+warningToJson (Dealiaser dealiaser) location (Warning err) =
+    Warning.toJson dealiaser location err
 
 

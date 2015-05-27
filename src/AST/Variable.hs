@@ -3,6 +3,7 @@ module AST.Variable where
 import Control.Applicative ((<$>), (<*>))
 import Data.Binary
 import qualified Data.List as List
+import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import Text.PrettyPrint as P
 
@@ -203,26 +204,29 @@ getUnion value =
 -- PRETTY VARIABLES
 
 instance P.Pretty Raw where
-  pretty _ (Raw name) =
+  pretty _ _ (Raw name) =
       if Help.isOp name
         then P.parens (P.text name)
         else P.text name
 
 
 instance P.Pretty Canonical where
-  pretty _ var =
-      P.text (toString var)
+  pretty dealiaser _ var =
+      let
+        name = toString var
+      in
+        P.text (maybe name id (Map.lookup name dealiaser))
 
 
 instance P.Pretty a => P.Pretty (Listing a) where
-  pretty _ (Listing explicits open) =
+  pretty dealiaser _ (Listing explicits open) =
       let dots = [if open then P.text ".." else P.empty]
       in
-          P.parens (P.commaCat (map (P.pretty False) explicits ++ dots))
+          P.parens (P.commaCat (map (P.pretty dealiaser False) explicits ++ dots))
 
 
 instance P.Pretty Value where
-  pretty _ portable =
+  pretty dealiaser _ portable =
     case portable of
       Value name ->
           P.text name
@@ -231,7 +235,7 @@ instance P.Pretty Value where
           P.text name
 
       Union name ctors ->
-          P.text name <> P.pretty False ctors
+          P.text name <> P.pretty dealiaser False ctors
 
 
 -- BINARY SERIALIZATION

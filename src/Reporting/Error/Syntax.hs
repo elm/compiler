@@ -28,8 +28,8 @@ data Error
 
 -- TO REPORT
 
-toReport :: Error -> Report.Report
-toReport err =
+toReport :: P.Dealiaser -> Error -> Report.Report
+toReport dealiaser err =
   case err of
     Parse messages ->
         parseErrorReport messages
@@ -110,7 +110,7 @@ toReport err =
             P.hang
               (P.text "type alias" <+> P.text typeName <+> P.hsep vars <+> P.equals)
               4
-              (P.pretty False tipe)
+              (P.pretty dealiaser False tipe)
       where
         vars = map P.text (givenVars ++ tvar : tvars)
 
@@ -128,7 +128,7 @@ toReport err =
         (|>) = flip ($)
         vars = map P.text (givenVars ++ tvar : tvars)
         toDoc (ctor, args) =
-            P.text ctor <+> P.hsep (map (P.pretty True) args)
+            P.text ctor <+> P.hsep (map (P.pretty dealiaser True) args)
 
 
 unboundTypeVars :: String -> String -> [String] -> String -> Report.Report

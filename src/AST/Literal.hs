@@ -17,7 +17,7 @@ data Literal
 
 
 instance P.Pretty Literal where
-  pretty _ literal =
+  pretty _ _ literal =
     case literal of
       IntNum n -> P.int n
       FloatNum n -> P.double n

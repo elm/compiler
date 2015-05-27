@@ -3,6 +3,7 @@ module Canonicalize.Environment where
 
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 
 import AST.Expression.General (saveEnvName)
@@ -10,6 +11,7 @@ import qualified AST.Module as Module
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
+import Elm.Utils ((|>))
 
 
 -- ENVIRONMENT
@@ -104,3 +106,35 @@ builtinPatches =
     toTuple :: Int -> (String, Int)
     toTuple n =
         ("_Tuple" ++ show n, n)
+
+
+-- TO TYPE DEALIASER
+
+toDealiaser :: Environment -> Map.Map String String
+toDealiaser (Env _ _ adts aliases _) =
+  let
+    dealiasAdt (localName, canonicalSet) =
+      case Set.toList canonicalSet of
+        [canonicalName] ->
+            Just (Var.toString canonicalName, localName)
+        _ ->
+            Nothing
+
+    dealiasAlias (localName, canonicalSet) =
+      case Set.toList canonicalSet of
+        [(canonicalName,_,_)] ->
+            Just (Var.toString canonicalName, localName)
+        _ ->
+            Nothing
+
+    adtPairs =
+      Maybe.mapMaybe dealiasAdt (Map.toList adts)
+
+    aliasPairs =
+      Maybe.mapMaybe dealiasAlias (Map.toList aliases)
+
+    add (key,value) dict =
+      Map.insertWith (\v v' -> if length v < length v' then v else v') key value dict
+  in
+    adtPairs ++ aliasPairs
+      |> foldr add Map.empty

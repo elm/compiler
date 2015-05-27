@@ -113,53 +113,53 @@ dummyLet defs =
 -- PRETTY PRINTING
 
 instance (P.Pretty def, P.Pretty var, Var.ToString var) => P.Pretty (Expr' ann def var typ) where
-  pretty needsParens expression =
+  pretty dealiaser needsParens expression =
     case expression of
       Literal literal ->
-          P.pretty needsParens literal
+          P.pretty dealiaser needsParens literal
 
       Var x ->
-          P.pretty needsParens x
+          P.pretty dealiaser needsParens x
 
       Range lowExpr highExpr ->
           P.brackets $
-              P.pretty False lowExpr
+              P.pretty dealiaser False lowExpr
               <> P.text ".."
-              <> P.pretty False highExpr
+              <> P.pretty dealiaser False highExpr
 
       ExplicitList elements ->
-          P.brackets (P.commaCat (map (P.pretty False) elements))
+          P.brackets (P.commaCat (map (P.pretty dealiaser False) elements))
 
       Binop op (A.A _ (Literal (Literal.IntNum 0))) expr
           | Var.toString op == "-" ->
-              P.text "-" <> P.pretty True expr
+              P.text "-" <> P.pretty dealiaser True expr
 
       Binop op leftExpr rightExpr ->
           P.parensIf needsParens $
               P.hang
-                  (P.pretty True leftExpr)
+                  (P.pretty dealiaser True leftExpr)
                   2
-                  (P.text op'' <+> P.pretty True rightExpr)
+                  (P.text op'' <+> P.pretty dealiaser True rightExpr)
         where
           op' = Var.toString op
           op'' = if Help.isOp op' then op' else "`" ++ op' ++ "`"
 
       Lambda pattern expr ->
           P.parensIf needsParens $
-              P.text "\\" <> args <+> P.text "->" <+> P.pretty False body
+              P.text "\\" <> args <+> P.text "->" <+> P.pretty dealiaser False body
         where
           (patterns, body) =
               collectLambdas expr
 
           args =
-              P.sep (map (P.pretty True) (pattern : patterns))
+              P.sep (map (P.pretty dealiaser True) (pattern : patterns))
 
       App expr arg ->
           P.parensIf needsParens $
               P.hang func 2 (P.sep args)
         where
           func:args =
-              map (P.pretty True) (collectApps expr ++ [arg])
+              map (P.pretty dealiaser True) (collectApps expr ++ [arg])
 
       MultiIf branches ->
           P.parensIf needsParens $
@@ -168,9 +168,9 @@ instance (P.Pretty def, P.Pretty var, Var.ToString var) => P.Pretty (Expr' ann d
           iff (condition, branch) =
             P.text "|" <+>
               P.hang
-                  (P.pretty False condition <+> P.text "->")
+                  (P.pretty dealiaser False condition <+> P.text "->")
                   2
-                  (P.pretty False branch)
+                  (P.pretty dealiaser False branch)
 
       Let defs body ->
           P.parensIf needsParens $
@@ -178,8 +178,8 @@ instance (P.Pretty def, P.Pretty var, Var.ToString var) => P.Pretty (Expr' ann d
                 [ P.hang
                     (P.text "let")
                     4
-                    (P.vcat (map (P.pretty False) defs))
-                , P.text "in" <+> P.pretty False body
+                    (P.vcat (map (P.pretty dealiaser False) defs))
+                , P.text "in" <+> P.pretty dealiaser False body
                 ]
 
       Case expr branches ->
@@ -187,16 +187,16 @@ instance (P.Pretty def, P.Pretty var, Var.ToString var) => P.Pretty (Expr' ann d
               P.hang pexpr 2 (P.vcat (map pretty' branches))
         where
           pexpr =
-              P.text "case" <+> P.pretty False expr <+> P.text "of"
+              P.text "case" <+> P.pretty dealiaser False expr <+> P.text "of"
 
           pretty' (pattern, branch) =
-              P.pretty False pattern
+              P.pretty dealiaser False pattern
               <+> P.text "->"
-              <+> P.pretty False branch
+              <+> P.pretty dealiaser False branch
 
       Data "::" [hd,tl] ->
           P.parensIf needsParens $
-              P.pretty True hd <+> P.text "::" <+> P.pretty True tl
+              P.pretty dealiaser True hd <+> P.text "::" <+> P.pretty dealiaser True tl
 
       Data "[]" [] ->
           P.text "[]"
@@ -204,49 +204,49 @@ instance (P.Pretty def, P.Pretty var, Var.ToString var) => P.Pretty (Expr' ann d
       Data name exprs ->
           if Help.isTuple name
             then
-              P.parens (P.commaCat (map (P.pretty False) exprs))
+              P.parens (P.commaCat (map (P.pretty dealiaser False) exprs))
             else
               P.parensIf (needsParens && not (null exprs)) $
                   P.hang
                       (P.text name)
                       2
-                      (P.sep (map (P.pretty True) exprs))
+                      (P.sep (map (P.pretty dealiaser True) exprs))
 
       Access record field ->
-          P.pretty True record <> P.text "." <> P.text field
+          P.pretty dealiaser True record <> P.text "." <> P.text field
 
       Remove record field ->
-          P.braces (P.pretty False record <+> P.text "-" <+> P.text field)
+          P.braces (P.pretty dealiaser False record <+> P.text "-" <+> P.text field)
 
       Insert (A.A _ (Remove record oldField)) newField expr ->
           P.braces $
               P.hsep
-                [ P.pretty False record
+                [ P.pretty dealiaser False record
                 , P.text "-"
                 , P.text oldField
                 , P.text "|"
                 , P.text newField
                 , P.equals
-                , P.pretty False expr
+                , P.pretty dealiaser False expr
                 ]
 
       Insert record field expr ->
           P.braces $
-              P.pretty False record
+              P.pretty dealiaser False record
               <+> P.text "|"
               <+> P.text field
               <+> P.equals
-              <+> P.pretty False expr
+              <+> P.pretty dealiaser False expr
 
       Modify record fields ->
           P.braces $
               P.hang
-                  (P.pretty False record <+> P.text "|")
+                  (P.pretty dealiaser False record <+> P.text "|")
                   4
                   (P.commaSep $ map prettyField fields)
         where
           prettyField (field, expr) =
-              P.text field <+> P.text "<-" <+> P.pretty False expr
+              P.text field <+> P.text "<-" <+> P.pretty dealiaser False expr
 
       Record fields ->
           P.sep
@@ -255,17 +255,17 @@ instance (P.Pretty def, P.Pretty var, Var.ToString var) => P.Pretty (Expr' ann d
             ]
         where
           field (name, expr) =
-             P.text name <+> P.equals <+> P.pretty False expr
+             P.text name <+> P.equals <+> P.pretty dealiaser False expr
 
       GLShader _ _ _ ->
           P.text "[glsl| ... |]"
 
       Port portImpl ->
-          P.pretty needsParens portImpl
+          P.pretty dealiaser needsParens portImpl
 
 
 instance P.Pretty (PortImpl expr tipe) where
-  pretty _ impl =
+  pretty _ _ impl =
       P.text ("<port:" ++ portName impl ++ ">")
 
 

@@ -1,7 +1,7 @@
 module AST.Type
     ( Raw, Raw'(..)
     , Canonical(..), Aliased(..)
-    , Port(..), portType
+    , Port(..), getPortType
     , deepDealias, dealias
     , collectLambdas
     , fieldMap
@@ -59,8 +59,8 @@ data Port t
     deriving (Show)
 
 
-portType :: Port tipe -> tipe
-portType portType =
+getPortType :: Port tipe -> tipe
+getPortType portType =
   case portType of
     Normal tipe -> tipe
     Signal tipe _ -> tipe
@@ -152,88 +152,87 @@ dealiasHelp typeTable tipe =
 -- PRETTY PRINTING
 
 instance (P.Pretty t) => P.Pretty (Port t) where
-  pretty needsParens portType =
-    case portType of
-      Normal tipe ->
-          P.pretty needsParens tipe
-
-      Signal tipe _ ->
-          P.pretty needsParens tipe
+  pretty dealiaser needsParens portType =
+    P.pretty dealiaser needsParens (getPortType portType)
 
 
 instance P.Pretty Raw' where
-  pretty needsParens tipe =
+  pretty dealiaser needsParens tipe =
     case tipe of
       RLambda arg body ->
-          P.parensIf needsParens (prettyLambda getRawLambda arg body)
+          P.parensIf needsParens (prettyLambda dealiaser getRawLambda arg body)
 
       RVar x ->
           P.text x
 
       RType var ->
-          prettyType var
+          prettyType dealiaser var
 
       RApp func args ->
           let
             isTuple (A.A _ (RType name)) = Help.isTuple (Var.toString name)
             isTuple _ = False
           in
-            prettyApp needsParens isTuple func args
+            prettyApp dealiaser needsParens isTuple func args
 
       RRecord fields ext ->
-          prettyRecord (flattenRawRecord fields ext)
+          prettyRecord dealiaser (flattenRawRecord fields ext)
 
 
 instance P.Pretty Canonical where
-  pretty needsParens tipe =
+  pretty dealiaser needsParens tipe =
     case tipe of
       Lambda arg body ->
-          P.parensIf needsParens (prettyLambda getCanLambda arg body)
+          P.parensIf needsParens (prettyLambda dealiaser getCanLambda arg body)
 
       Var x ->
           P.text x
 
       Type var ->
-          prettyType var
+          prettyType dealiaser var
 
       App func args ->
           let
             isTuple (Type name) = Help.isTuple (Var.toString name)
             isTuple _ = False
           in
-            prettyApp needsParens isTuple func args
+            prettyApp dealiaser needsParens isTuple func args
 
       Record fields ext ->
-          prettyRecord (flattenCanRecord fields ext)
+          prettyRecord dealiaser (flattenCanRecord fields ext)
 
       Aliased name args _ ->
           P.parensIf (needsParens && not (null args)) $
             P.hang
-              (P.pretty False name)
+              (P.pretty dealiaser False name)
               2
-              (P.sep (map (P.pretty True . snd) args))
+              (P.sep (map (P.pretty dealiaser True . snd) args))
 
 
 -- PRETTY HELPERS
 
-prettyType :: (Var.ToString var) => var -> P.Doc
-prettyType var =
+prettyType :: (Var.ToString var) => P.Dealiaser -> var -> P.Doc
+prettyType dealiaser var =
   let
     v = Var.toString var
   in
-    P.text (if v == "_Tuple0" then "()" else v)
+    P.text $
+      if v == "_Tuple0" then
+        "()"
+      else
+        maybe v id (Map.lookup v dealiaser)
 
 
 -- PRETTY LAMBDAS
 
-prettyLambda :: (P.Pretty t) => (t -> Maybe (t,t)) -> t -> t -> P.Doc
-prettyLambda getLambda arg body =
+prettyLambda :: (P.Pretty t) => P.Dealiaser -> (t -> Maybe (t,t)) -> t -> t -> P.Doc
+prettyLambda dealiaser getLambda arg body =
   let
     rest =
       gatherLambda getLambda body
 
     prettyArg t =
-      P.pretty (Maybe.isJust (getLambda t)) t
+      P.pretty dealiaser (Maybe.isJust (getLambda t)) t
   in
     P.sep
       [ prettyArg arg
@@ -272,33 +271,33 @@ collectLambdas tipe =
 
 -- PRETTY APP
 
-prettyApp :: (P.Pretty t) => Bool -> (t -> Bool) -> t -> [t] -> P.Doc
-prettyApp needsParens isTuple func args
+prettyApp :: (P.Pretty t) => P.Dealiaser -> Bool -> (t -> Bool) -> t -> [t] -> P.Doc
+prettyApp dealiaser needsParens isTuple func args
   | isTuple func =
         P.parens $ P.sep $
-            P.punctuate P.comma (map (P.pretty False) args)
+            P.punctuate P.comma (map (P.pretty dealiaser False) args)
 
   | null args =
-      P.pretty needsParens func
+      P.pretty dealiaser needsParens func
 
   | otherwise =
       P.parensIf needsParens $
         P.hang
-          (P.pretty True func)
+          (P.pretty dealiaser True func)
           2
-          (P.sep (map (P.pretty True) args))
+          (P.sep (map (P.pretty dealiaser True) args))
 
 
 -- PRETTY RECORD
 
-prettyRecord :: (P.Pretty t) => ([(String, t)], Maybe String) -> P.Doc
-prettyRecord recordInfo =
+prettyRecord :: (P.Pretty t) => P.Dealiaser -> ([(String, t)], Maybe String) -> P.Doc
+prettyRecord dealiaser recordInfo =
   let
     prettyField (field, tipe) =
       P.hang
           (P.text field <+> P.text ":")
           4
-          (P.pretty False tipe)
+          (P.pretty dealiaser False tipe)
   in
   case recordInfo of
     ([], Nothing) ->

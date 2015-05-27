@@ -23,18 +23,18 @@ data Warning
 
 -- TO STRING
 
-toString :: String -> String -> A.Located Warning -> String
-toString location source (A.A region warning) =
-    Report.toString location region (toReport warning) source
+toString :: P.Dealiaser -> String -> String -> A.Located Warning -> String
+toString dealiaser location source (A.A region warning) =
+    Report.toString location region (toReport dealiaser warning) source
 
 
-print :: String -> String -> A.Located Warning -> IO ()
-print location source (A.A region warning) =
-    Report.printWarning location region (toReport warning) source
+print :: P.Dealiaser -> String -> String -> A.Located Warning -> IO ()
+print dealiaser location source (A.A region warning) =
+    Report.printWarning location region (toReport dealiaser warning) source
 
 
-toReport :: Warning -> Report.Report
-toReport warning =
+toReport :: P.Dealiaser -> Warning -> Report.Report
+toReport dealiaser warning =
   case warning of
     UnusedImport moduleName ->
         Report.simple
@@ -54,16 +54,16 @@ toReport warning =
           P.hang
             (P.text name <+> P.colon)
             4
-            (P.pretty False inferredType)
+            (P.pretty dealiaser False inferredType)
 
 
 -- TO JSON
 
-toJson :: FilePath -> A.Located Warning -> Json.Value
-toJson filePath (A.A region warning) =
+toJson :: P.Dealiaser -> FilePath -> A.Located Warning -> Json.Value
+toJson dealiaser filePath (A.A region warning) =
   let
     (maybeRegion, additionalFields) =
-        Report.toJson [] (toReport warning)
+        Report.toJson [] (toReport dealiaser warning)
   in
       Json.object $
         [ "file" .= filePath

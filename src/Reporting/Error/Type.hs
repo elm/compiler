@@ -50,8 +50,8 @@ data Note
 
 -- TO REPORT
 
-toReport :: Error -> Report.Report
-toReport err =
+toReport :: P.Dealiaser -> Error -> Report.Report
+toReport dealiaser err =
   case err of
     Mismatch (MismatchInfo hint leftType rightType note) ->
         let
@@ -59,9 +59,9 @@ toReport err =
 
           postHint =
             "To be more specific, type inference is leading to a conflict between this type:\n\n"
-            ++ P.render (P.nest 4 (P.pretty False leftType))
+            ++ P.render (P.nest 4 (P.pretty dealiaser False leftType))
             ++ "\n\nand this type:\n\n"
-            ++ P.render (P.nest 4 (P.pretty False rightType))
+            ++ P.render (P.nest 4 (P.pretty dealiaser False rightType))
         in
           case note of
             PreNote msg ->
@@ -78,7 +78,7 @@ toReport err =
           "Maybe you are trying to do some tricky recursion? Try breaking the expression\n"
           ++ "into smaller pieces. Give each piece a name and try to write down its type.\n\n"
           ++ "Type inference got stuck when type '" ++ var ++ "' needed equal to:\n\n"
-          ++ P.render (P.nest 4 (P.pretty False tipe))
+          ++ P.render (P.nest 4 (P.pretty dealiaser False tipe))
           ++ "\n\nNotice that type variable '" ++ var ++ "' appears there too, so if we\n"
           ++ "expanded this type, it would just keep getting bigger and bigger."
 
@@ -86,7 +86,7 @@ toReport err =
         Report.simple "BAD MAIN TYPE" "The 'main' value has an unsupported type." $
           "I need an Element, Html, (Signal Element), or (Signal Html) so I can render it\n"
           ++ "on screen, but you gave me:\n\n"
-          ++ P.render (P.nest 4 (P.pretty False tipe))
+          ++ P.render (P.nest 4 (P.pretty dealiaser False tipe))
 
 
 hintToString :: Hint -> (Maybe Region.Region, String)

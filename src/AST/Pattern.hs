@@ -103,29 +103,29 @@ boundVarList pattern =
 -- PRETTY PRINTING
 
 instance Var.ToString var => P.Pretty (Pattern' ann var) where
-  pretty needsParens pattern =
+  pretty dealiaser needsParens pattern =
     case pattern of
       Var name ->
           P.text name
 
       Literal literal ->
-          P.pretty needsParens literal
+          P.pretty dealiaser needsParens literal
 
       Record fields ->
           P.braces (P.commaCat (map P.text fields))
 
       Alias x ptrn ->
           P.parensIf needsParens $
-              P.pretty True ptrn <+> P.text "as" <+> P.text x
+              P.pretty dealiaser True ptrn <+> P.text "as" <+> P.text x
 
       Anything ->
           P.text "_"
 
       Data name [A.A _ hd, A.A _ tl]
           | Var.toString name == "::" ->
-              P.parensIf isCons (P.pretty False hd)
+              P.parensIf isCons (P.pretty dealiaser False hd)
               <+> P.text "::"
-              <+> P.pretty False tl
+              <+> P.pretty dealiaser False tl
           where
             isCons =
               case hd of
@@ -137,7 +137,7 @@ instance Var.ToString var => P.Pretty (Pattern' ann var) where
           in
             if Help.isTuple name'
               then
-                P.parens (P.commaCat (map (P.pretty False) patterns))
+                P.parens (P.commaCat (map (P.pretty dealiaser False) patterns))
               else
                 P.parensIf needsParens $
-                    P.hsep (P.text name' : map (P.pretty True) patterns)
+                    P.hsep (P.text name' : map (P.pretty dealiaser True) patterns)

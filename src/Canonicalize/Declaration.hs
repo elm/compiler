@@ -70,13 +70,13 @@ toDefs moduleName (A.A region decl) =
         in
         case impl of
           E.In name tipe ->
-              [ definition name body (T.portType tipe) ]
+              [ definition name body (T.getPortType tipe) ]
 
           E.Out name _expr tipe ->
-              [ definition name body (T.portType tipe) ]
+              [ definition name body (T.getPortType tipe) ]
 
           E.Task name _expr tipe ->
-              [ definition name body (T.portType tipe) ]
+              [ definition name body (T.getPortType tipe) ]
 
     -- no constraints are needed for fixity declarations
     D.Fixity _ _ _ ->

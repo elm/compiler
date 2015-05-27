@@ -28,11 +28,13 @@ data Def
 
 
 instance P.Pretty Def where
-  pretty _ (Definition pattern expr maybeTipe) =
+  pretty dealiaser _ (Definition pattern expr maybeTipe) =
       P.vcat [ annotation, definition ]
     where
       definition =
-          P.pretty True pattern <+> P.equals <+> P.pretty False expr
+          P.pretty dealiaser True pattern
+          <+> P.equals
+          <+> P.pretty dealiaser False expr
 
       annotation =
           case maybeTipe of
@@ -40,4 +42,6 @@ instance P.Pretty Def where
                 P.empty
 
             Just tipe ->
-                P.pretty True pattern <+> P.colon <+> P.pretty False tipe
+                P.pretty dealiaser True pattern
+                <+> P.colon
+                <+> P.pretty dealiaser False tipe

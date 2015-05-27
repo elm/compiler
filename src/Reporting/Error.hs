@@ -10,6 +10,7 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Canonicalize
 import qualified Reporting.Error.Syntax as Syntax
 import qualified Reporting.Error.Type as Type
+import qualified Reporting.PrettyPrint as P
 import qualified Reporting.Report as Report
 
 
@@ -23,40 +24,40 @@ data Error
 
 -- TO REPORT
 
-toReport :: Error -> Report.Report
-toReport err =
+toReport :: P.Dealiaser -> Error -> Report.Report
+toReport dealiaser err =
   case err of
     Syntax syntaxError ->
-        Syntax.toReport syntaxError
+        Syntax.toReport dealiaser syntaxError
 
     Canonicalize canonicalizeError ->
-        Canonicalize.toReport canonicalizeError
+        Canonicalize.toReport dealiaser canonicalizeError
 
     Type typeError ->
-        Type.toReport typeError
+        Type.toReport dealiaser typeError
 
 
 -- TO STRING
 
-toString :: String -> String -> A.Located Error -> String
-toString location source (A.A region err) =
-  Report.toString location region (toReport err) source
+toString :: P.Dealiaser -> String -> String -> A.Located Error -> String
+toString dealiaser location source (A.A region err) =
+  Report.toString location region (toReport dealiaser err) source
 
 
-print :: String -> String -> A.Located Error -> IO ()
-print location source (A.A region err) =
-  Report.printError location region (toReport err) source
+print :: P.Dealiaser -> String -> String -> A.Located Error -> IO ()
+print dealiaser location source (A.A region err) =
+  Report.printError location region (toReport dealiaser err) source
 
 
 -- TO JSON
 
-toJson :: FilePath -> A.Located Error -> Json.Value
-toJson filePath (A.A region err) =
+toJson :: P.Dealiaser -> FilePath -> A.Located Error -> Json.Value
+toJson dealiaser filePath (A.A region err) =
   let
     (maybeRegion, additionalFields) =
         case err of
           Syntax syntaxError ->
-              Report.toJson [] (Syntax.toReport syntaxError)
+              Report.toJson [] (Syntax.toReport dealiaser syntaxError)
 
           Canonicalize canonicalizeError ->
               let
@@ -65,10 +66,10 @@ toJson filePath (A.A region err) =
                       (\s -> ["suggestions" .= s])
                       (Canonicalize.extractSuggestions canonicalizeError)
               in
-                Report.toJson suggestions (Canonicalize.toReport canonicalizeError)
+                Report.toJson suggestions (Canonicalize.toReport dealiaser canonicalizeError)
 
           Type typeError ->
-              Report.toJson [] (Type.toReport typeError)
+              Report.toJson [] (Type.toReport dealiaser typeError)
   in
       Json.object $
         [ "file" .= filePath

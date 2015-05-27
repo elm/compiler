@@ -135,8 +135,8 @@ namingError pre post =
   Report.simple "NAMING ERROR" pre post
 
 
-toReport :: Error -> Report.Report
-toReport err =
+toReport :: P.Dealiaser -> Error -> Report.Report
+toReport dealiaser err =
   case err of
     Var (VarError kind name problem suggestions) ->
         let var = kind ++ " '" ++ name ++ "'"
@@ -179,7 +179,7 @@ toReport err =
                 ++ "when I expand a recursive type alias, it keeps getting bigger and bigger.\n"
                 ++ "Dealiasing results in an infinitely large type! Try this instead:\n\n"
                 ++ "    type " ++ name ++ concatMap (' ':) tvars ++ " ="
-                ++ P.render (P.nest 8 (P.hang (P.text name) 2 (P.pretty True tipe)))
+                ++ P.render (P.nest 8 (P.hang (P.text name) 2 (P.pretty dealiaser True tipe)))
                 ++ "\n\nThis creates a brand new type that cannot be expanded. It is similar types\n"
                 ++ "like List which are recursive, but do not get expanded into infinite types."
 
@@ -224,7 +224,7 @@ toReport err =
 
           postHint =
             "The specific unsupported type is:\n\n"
-            ++ P.render (P.nest 4 (P.pretty False localType)) ++ "\n\n"
+            ++ P.render (P.nest 4 (P.pretty dealiaser False localType)) ++ "\n\n"
             ++ "The types of values that can flow through " ++ boundPort ++ "s include:\n"
             ++ "Ints, Floats, Bools, Strings, Maybes, Lists, Arrays, Tuples,\n"
             ++ "Json.Values, and concrete records."
