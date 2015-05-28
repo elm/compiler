@@ -128,6 +128,9 @@ errorNotFound name =
     , "      C:/Program Files/Elm Platform/" ++ Version.version ++ "/share"
     , "      C:/Program Files (x86)/Elm Platform/" ++ Version.version ++ "/share"
     , ""
+    , "If you installed using npm, you have to set ELM_HOME to a certain directory"
+    , "of the form .../node_modules/elm/share"
+    , ""
     , "If it seems like a more complex issue, please report it here:"
     , "    <https://github.com/elm-lang/elm-platform/issues>"
     ]
