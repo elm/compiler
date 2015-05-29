@@ -263,35 +263,32 @@ declaration
     -> D.ValidDecl
     -> Result.ResultErr D.CanonicalDecl
 declaration env (A.A (region,_) decl) =
-    let canonicalize kind _context _pattern env v =
-            kind env v
-    in
     A.A region <$>
     case decl of
       D.Definition (Valid.Definition p e t) ->
           D.Definition <$> (
               Canonical.Definition
-                <$> canonicalize pattern "definition" p env p
+                <$> pattern env p
                 <*> expression env e
-                <*> T.traverse (canonicalize Canonicalize.tipe "definition" p env) t
+                <*> T.traverse (Canonicalize.tipe env) t
           )
 
       D.Datatype name tvars ctors ->
           D.Datatype name tvars <$> T.traverse canonicalize' ctors
         where
           canonicalize' (ctor,args) =
-              (,) ctor <$> T.traverse (canonicalize Canonicalize.tipe "datatype" name env) args
+              (,) ctor <$> T.traverse (Canonicalize.tipe env) args
 
       D.TypeAlias name tvars expanded ->
           D.TypeAlias name tvars
-            <$> canonicalize Canonicalize.tipe "type alias" name env expanded
+            <$> Canonicalize.tipe env expanded
 
       D.Port validPort ->
           Result.addModule ["Native","Port"] $
           Result.addModule ["Native","Json"] $
               case validPort of
                 D.In name tipe ->
-                    canonicalize Canonicalize.tipe "port" name env tipe
+                    Canonicalize.tipe env tipe
                       `Result.andThen` \canonicalType ->
                           D.Port <$> Port.check region name Nothing canonicalType
 
@@ -299,7 +296,7 @@ declaration env (A.A (region,_) decl) =
                     let exprTypeResult =
                           (,)
                             <$> expression env expr
-                            <*> canonicalize Canonicalize.tipe "port" name env tipe
+                            <*> Canonicalize.tipe env tipe
                     in
                         exprTypeResult
                           `Result.andThen` \(expr', tipe') ->
