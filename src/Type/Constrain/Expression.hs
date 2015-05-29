@@ -416,11 +416,11 @@ data Info = Info
 
 
 constrainDef :: Env.Environment -> Info -> Canonical.Def -> IO Info
-constrainDef env info (Canonical.Definition (A.A region pattern) expr maybeTipe) =
+constrainDef env info (Canonical.Definition (A.A _ pattern) expr maybeTipe) =
   let qs = [] -- should come from the def, but I'm not sure what would live there...
   in
   case (pattern, maybeTipe) of
-    (P.Var name, Just tipe) ->
+    (P.Var name, Just (A.A region tipe)) ->
         constrainAnnotatedDef env info qs region name expr tipe
 
     (P.Var name, Nothing) ->

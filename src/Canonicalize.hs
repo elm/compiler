@@ -265,12 +265,12 @@ declaration
 declaration env (A.A (region,_) decl) =
     A.A region <$>
     case decl of
-      D.Definition (Valid.Definition p e t) ->
+      D.Definition (Valid.Definition pat expr typ) ->
           D.Definition <$> (
               Canonical.Definition
-                <$> pattern env p
-                <*> expression env e
-                <*> T.traverse (Canonicalize.tipe env) t
+                <$> pattern env pat
+                <*> expression env expr
+                <*> T.traverse (regionType env) typ
           )
 
       D.Datatype name tvars ctors ->
@@ -304,6 +304,14 @@ declaration env (A.A (region,_) decl) =
 
       D.Fixity assoc prec op ->
           Result.ok (D.Fixity assoc prec op)
+
+
+regionType
+    :: Env.Environment
+    -> Type.Raw
+    -> Result.ResultErr (A.Located Type.Canonical)
+regionType env typ@(A.A region _) =
+  A.A region <$> Canonicalize.tipe env typ
 
 
 expression
@@ -369,7 +377,7 @@ expression env (A.A region validExpr) =
               Canonical.Definition
                   <$> pattern env' p
                   <*> expression env' body
-                  <*> T.traverse (Canonicalize.tipe env') mtipe
+                  <*> T.traverse (regionType env') mtipe
 
       Var (Var.Raw x) ->
           Var <$> Canonicalize.variable region env x
