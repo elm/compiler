@@ -175,7 +175,8 @@ constrain env (A.A region expression) tipe =
                       (Info [] [] [] Map.empty CTrue CTrue)
                       (concatMap expandPattern defs)
 
-              let letScheme = [ Scheme rqs fqs (CLet [monoscheme headers] c2) headers ]
+              let letScheme =
+                    [ Scheme rqs fqs (CLet [monoscheme headers] c2) headers ]
 
               return $ CLet schemes (CLet letScheme (c1 /\ bodyCon))
 
@@ -409,22 +410,22 @@ data Info = Info
     { iSchemes :: [TypeScheme]
     , iRigid :: [Variable]
     , iFlex :: [Variable]
-    , iHeaders :: Map.Map String Type
+    , iHeaders :: Map.Map String (A.Located Type)
     , iC2 :: TypeConstraint
     , iC1 :: TypeConstraint
     }
 
 
 constrainDef :: Env.Environment -> Info -> Canonical.Def -> IO Info
-constrainDef env info (Canonical.Definition (A.A _ pattern) expr maybeTipe) =
+constrainDef env info (Canonical.Definition (A.A patternRegion pattern) expr maybeTipe) =
   let qs = [] -- should come from the def, but I'm not sure what would live there...
   in
   case (pattern, maybeTipe) of
-    (P.Var name, Just (A.A region tipe)) ->
-        constrainAnnotatedDef env info qs region name expr tipe
+    (P.Var name, Just (A.A typeRegion tipe)) ->
+        constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe
 
     (P.Var name, Nothing) ->
-        constrainUnannotatedDef env info qs name expr
+        constrainUnannotatedDef env info qs patternRegion name expr
 
     _ -> error ("problem in constrainDef with " ++ show pattern)
 
@@ -434,11 +435,12 @@ constrainAnnotatedDef
     -> Info
     -> [String]
     -> R.Region
+    -> R.Region
     -> String
     -> Canonical.Expr
     -> ST.Canonical
     -> IO Info
-constrainAnnotatedDef env info qs region name expr tipe =
+constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe =
   do  -- Some mistake may be happening here. Currently, qs is always [].
       rigidVars <- Monad.forM qs (\_ -> variable Rigid)
 
@@ -455,13 +457,13 @@ constrainAnnotatedDef env info qs region name expr tipe =
             { rigidQuantifiers = []
             , flexibleQuantifiers = flexiVars ++ vars
             , constraint = CTrue
-            , header = Map.singleton name typ
+            , header = Map.singleton name (A.A patternRegion typ)
             }
 
       var <- variable Flexible
       defCon <- constrain env' expr (varN var)
       let annCon =
-            CEqual (Error.BadTypeAnnotation name) region typ (varN var)
+            CEqual (Error.BadTypeAnnotation name) typeRegion typ (varN var)
 
       return $ info
           { iSchemes = scheme : iSchemes info
@@ -473,10 +475,11 @@ constrainUnannotatedDef
     :: Env.Environment
     -> Info
     -> [String]
+    -> R.Region
     -> String
     -> Canonical.Expr
     -> IO Info
-constrainUnannotatedDef env info qs name expr =
+constrainUnannotatedDef env info qs patternRegion name expr =
   do  -- Some mistake may be happening here. Currently, qs is always [].
       rigidVars <- Monad.forM qs (\_ -> variable Rigid)
 
@@ -493,6 +496,6 @@ constrainUnannotatedDef env info qs name expr =
       return $ info
           { iRigid = rigidVars ++ iRigid info
           , iFlex = v : iFlex info
-          , iHeaders = Map.insert name tipe (iHeaders info)
+          , iHeaders = Map.insert name (A.A patternRegion tipe) (iHeaders info)
           , iC2 = con /\ iC2 info
           }

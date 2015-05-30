@@ -4,11 +4,12 @@ module Type.Fragment where
 import qualified Data.List as List
 import qualified Data.Map as Map
 
+import Reporting.Annotation as A
 import Type.Type
 
 
 data Fragment = Fragment
-    { typeEnv :: Map.Map String Type
+    { typeEnv :: Map.Map String (A.Located Type)
     , vars :: [Variable]
     , typeConstraint :: TypeConstraint
     }

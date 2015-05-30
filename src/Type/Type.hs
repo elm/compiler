@@ -13,6 +13,7 @@ import System.IO.Unsafe
 
 import qualified AST.Type as T
 import qualified AST.Variable as Var
+import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
 import Type.PrettyPrint
@@ -118,7 +119,7 @@ data Scheme a b = Scheme
     { rigidQuantifiers :: [b]
     , flexibleQuantifiers :: [b]
     , constraint :: Constraint a b
-    , header :: Map.Map String a
+    , header :: Map.Map String (A.Located a)
     }
 
 
@@ -164,7 +165,7 @@ variable flex = UF.fresh $ Descriptor
 
 -- CONSTRAINT HELPERS
 
-monoscheme :: Map.Map String a -> Scheme a b
+monoscheme :: Map.Map String (A.Located a) -> Scheme a b
 monoscheme headers =
   Scheme [] [] CTrue headers
 
@@ -373,8 +374,8 @@ instance (PrettyType a, PrettyType b) => PrettyType (Scheme a b) where
       dict =
           P.parens . commaSep . map prettyPair $ Map.toList headers
 
-      prettyPair (n,t) =
-          P.text n <+> P.text ":" <+> pretty Never t
+      prettyPair (fieldName, A.A _ tipe) =
+          P.text fieldName <+> P.text ":" <+> pretty Never tipe
 
 
 -- CONVERT TO SOURCE TYPES

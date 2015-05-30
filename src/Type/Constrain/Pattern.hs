@@ -22,7 +22,11 @@ constrain
     -> Type
     -> IO Fragment
 constrain env (A.A region pattern) tipe =
-  let (===) = CEqual Error.None region
+  let
+    (===) = CEqual Error.None region
+
+    rvar v =
+      A.A region (varN v)
   in
   case pattern of
     P.Anything ->
@@ -35,7 +39,7 @@ constrain env (A.A region pattern) tipe =
     P.Var name ->
         do  v <- variable Flexible
             return $ Fragment
-                { typeEnv = Map.singleton name (varN v)
+                { typeEnv = Map.singleton name (rvar v)
                 , vars = [v]
                 , typeConstraint = varN v === tipe
                 }
@@ -44,7 +48,7 @@ constrain env (A.A region pattern) tipe =
         do  v <- variable Flexible
             fragment <- constrain env p tipe
             return $ fragment
-              { typeEnv = Map.insert name (varN v) (typeEnv fragment)
+              { typeEnv = Map.insert name (rvar v) (typeEnv fragment)
               , vars = v : vars fragment
               , typeConstraint = varN v === tipe /\ typeConstraint fragment
               }
@@ -62,8 +66,8 @@ constrain env (A.A region pattern) tipe =
 
     P.Record fields ->
         do  pairs <- mapM (\name -> (,) name <$> variable Flexible) fields
-            let tenv = Map.fromList (map (second varN) pairs)
-            c <- exists $ \t -> return (tipe === record (Map.map (:[]) tenv) t)
+            let tenv = Map.fromList (map (second rvar) pairs)
+            c <- exists $ \t -> return (tipe === record (Map.map (\v -> [A.drop v]) tenv) t)
             return $ Fragment
                 { typeEnv = tenv
                 , vars = map snd pairs

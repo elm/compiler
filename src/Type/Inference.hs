@@ -33,7 +33,7 @@ infer interfaces modul =
         state <- Solve.solve constraint
 
         let header' = Map.delete "::" header
-        let types = Map.difference (TS.sSavedEnv state) header'
+        let types = Map.map A.drop (Map.difference (TS.sSavedEnv state) header')
 
         liftIO (Traverse.traverse T.toSrcType types)
 
@@ -57,7 +57,7 @@ genConstraints interfaces modul =
       let allTypes = concat (ctors : importedVars)
       let vars = concatMap (fst . snd) allTypes
       let header = Map.map snd (Map.fromList allTypes)
-      let environ = T.CLet [ T.Scheme vars [] T.CTrue header ]
+      let environ = T.CLet [ T.Scheme vars [] T.CTrue (Map.map (A.A undefined) header) ]
 
       fvar <- T.variable T.Flexible
 

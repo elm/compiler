@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Reporting.Error.Type where
 
+import Text.PrettyPrint ((<+>))
 import qualified Text.PrettyPrint as P
 
 import qualified AST.Helpers as Help
@@ -13,7 +14,7 @@ import qualified Reporting.Report as Report
 
 data Error
     = Mismatch Mismatch
-    | InfiniteType String Type.Canonical
+    | InfiniteType InfiniteType
     | BadMain Type.Canonical
 
 
@@ -22,6 +23,13 @@ data Mismatch = MismatchInfo
     , _leftType :: Type.Canonical
     , _rightType :: Type.Canonical
     , _note :: Note
+    }
+
+
+data InfiniteType = InfiniteTypeInfo
+    { _name :: String
+    , _var :: Type.Canonical
+    , _type :: Type.Canonical
     }
 
 
@@ -73,14 +81,25 @@ toReport dealiaser err =
             PostNote msg ->
               Report.Report "TYPE MISMATCH" subRegion preHint (postHint ++ "\n\n" ++ msg)
 
-    InfiniteType var tipe ->
-        Report.simple "INFINITE TYPE" "This expression is leading me to infer an infinite type." $
-          "Maybe you are trying to do some tricky recursion? Try breaking the expression\n"
-          ++ "into smaller pieces. Give each piece a name and try to write down its type.\n\n"
-          ++ "Type inference got stuck when type '" ++ var ++ "' needed equal to:\n\n"
-          ++ P.render (P.nest 4 (P.pretty dealiaser False tipe))
-          ++ "\n\nNotice that type variable '" ++ var ++ "' appears there too, so if we\n"
-          ++ "expanded this type, it would just keep getting bigger and bigger."
+    InfiniteType (InfiniteTypeInfo name var tipe) ->
+        let
+          prettyVar =
+            P.pretty dealiaser False var
+
+          prettyType =
+            P.pretty dealiaser False tipe
+        in
+        Report.simple "INFINITE TYPE"
+          ( "I am inferring weird self-referential type for '" ++ name ++ "'"
+          )
+          ( "The bit of the type that is self-referential looks like this:\n\n"
+            ++ P.render (P.nest 4 (prettyVar <+> P.equals <+> prettyType))
+            ++ "\n\nThe cause is often that the usage of '" ++ name ++ "' is flipped around.\n\n"
+            ++ "Maybe you are inserting a data structure into an element? Maybe you are giving\n"
+            ++ "a function to an argument? Either way, something is probably backwards!\n\n"
+            ++ "Try breaking the code related to '" ++ name ++ "' into smaller pieces.\n"
+            ++ "Give each piece a name and try to write down its type."
+          )
 
     BadMain tipe ->
         Report.simple "BAD MAIN TYPE" "The 'main' value has an unsupported type." $
