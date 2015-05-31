@@ -78,7 +78,7 @@ import' =
 
 listing :: IParser a -> IParser (Var.Listing a)
 listing item =
-  expecting "a listing of values to expose, like (..)" $
+  expecting "a listing of values and types to expose, like (..)" $
   do  try (whitespace >> char '(')
       whitespace
       listing <-
@@ -93,7 +93,7 @@ listing item =
 
 value :: IParser Var.Value
 value =
-    val <|> tipe <?> "a value to expose"
+    val <|> tipe <?> "a value or type to expose"
   where
     val =
       Var.Value <$> (lowVar <|> parens symOp)
