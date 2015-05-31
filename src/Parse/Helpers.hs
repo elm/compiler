@@ -63,7 +63,7 @@ iParseWithTable sourceName table aParser input =
 
 var :: IParser String
 var =
-  makeVar (letter <|> char '_') <?> "a variable"
+  makeVar (letter <|> char '_') <?> "a name"
 
 
 lowVar :: IParser String
