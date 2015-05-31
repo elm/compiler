@@ -73,7 +73,8 @@ toJson dealiaser filePath (A.A region err) =
   in
       Json.object $
         [ "file" .= filePath
-        , "region" .= maybe region id maybeRegion
+        , "region" .= region
+        , "subregion" .= maybeRegion
         , "type" .= ("error" :: String)
         ]
         ++ additionalFields
