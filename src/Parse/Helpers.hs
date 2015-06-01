@@ -231,6 +231,7 @@ followedBy a b =
       return x
 
 
+betwixt :: Char -> Char -> IParser a -> IParser a
 betwixt a b c =
   do  char a
       out <- c
@@ -238,6 +239,7 @@ betwixt a b c =
       return out
 
 
+surround :: Char -> Char -> String -> IParser a -> IParser a
 surround a z name p = do
   char a
   v <- padded p
@@ -483,14 +485,16 @@ shader =
       case glSource rawSrc of
         Left err -> parserFail . show $ err
         Right tipe -> return (rawSrc, tipe)
-  where
-    closeShader builder =
-      choice
-      [ do  try (string "|]")
-            return (builder "")
-      , do  c <- anyChar
-            closeShader (builder . (c:))
-      ]
+
+
+closeShader :: (String -> a) -> IParser a
+closeShader builder =
+  choice
+    [ do  try (string "|]")
+          return (builder "")
+    , do  c <- anyChar
+          closeShader (builder . (c:))
+    ]
 
 
 glSource :: String -> Either ParseError L.GLShaderTipe
