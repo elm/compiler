@@ -79,7 +79,7 @@ toReport dealiaser err =
         Report.simple
           "DUPLICATE DEFINITION"
           ("Naming multiple top-level values '" ++ name ++ "' makes things\n"
-            ++ "ambiguous. When you say '" ++ name ++ "' which one do you want?!"
+            ++ "ambiguous. When you say '" ++ name ++ "' which one do you want?"
           )
           ("Find all the top-level values named '" ++ name ++ "' and\n"
             ++ "do some renaming. Make sure the names are distinct!"
@@ -89,7 +89,7 @@ toReport dealiaser err =
         Report.simple
           "DUPLICATE DEFINITION"
           ("Naming multiple types '" ++ name ++ "' makes things ambiguous\n"
-            ++ "When you say '" ++ name ++ "' which one do you want?!"
+            ++ "When you say '" ++ name ++ "' which one do you want?"
           )
           ("Find all the types named '" ++ name ++ "' and\n"
             ++ "do some renaming. Make sure the names are distinct!"
@@ -99,7 +99,7 @@ toReport dealiaser err =
         Report.simple
           "DUPLICATE DEFINITION"
           ("Naming multiple values '" ++ name ++ "' in a single let-expression makes\n"
-            ++ "things ambiguous. When you say '" ++ name ++ "' which one do you want?!"
+            ++ "things ambiguous. When you say '" ++ name ++ "' which one do you want?"
           )
           ("Find all the values named '" ++ name ++ "' in this let-expression and\n"
             ++ "do some renaming. Make sure the names are distinct!"
