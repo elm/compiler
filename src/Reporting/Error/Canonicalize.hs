@@ -238,7 +238,7 @@ argMismatchReport kind var expected actual =
     preHint =
       kind ++ " " ++ Var.toString var ++ " has too "
       ++ (if actual < expected then "few" else "many")
-      ++ "arguments."
+      ++ " arguments."
 
     postHint =
       "Expecting " ++ show expected ++ ", but got " ++ show actual ++ "."
