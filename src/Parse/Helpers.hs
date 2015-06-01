@@ -63,17 +63,17 @@ iParseWithTable sourceName table aParser input =
 
 var :: IParser String
 var =
-  makeVar (letter <|> char '_') <?> "a variable"
+  makeVar (letter <|> char '_') <?> "a name"
 
 
 lowVar :: IParser String
 lowVar =
-  makeVar lower <?> "a lower case variable"
+  makeVar lower <?> "a lower case name"
 
 
 capVar :: IParser String
 capVar =
-  makeVar upper <?> "an upper case variable"
+  makeVar upper <?> "an upper case name"
 
 
 qualifiedVar :: IParser String
@@ -88,7 +88,7 @@ rLabel = lowVar
 
 innerVarChar :: IParser Char
 innerVarChar =
-  alphaNum <|> char '_' <|> char '\'' <?> "more letters in this variable"
+  alphaNum <|> char '_' <|> char '\'' <?> "more letters in this name"
 
 
 makeVar :: IParser Char -> IParser String
