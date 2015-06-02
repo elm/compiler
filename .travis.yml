@@ -1,3 +1,5 @@
+# Based on https://github.com/hvr/multi-ghc-travis and https://github.com/ekmett/lens/blob/master/.travis.yml
+
 # NB: don't set `language: haskell` here
 
 # The following enables several GHC versions to be tested; often it's enough to test only against the last release in a major GHC version. Feel free to omit lines listings versions you don't need/want testing for.
@@ -6,6 +8,7 @@ env:
  - CABALVER=1.18 GHCVER=7.8.3
  - CABALVER=1.22 GHCVER=7.10.1
 
+
 # Note: the distinction between `before_install` and `install` is not important.
 before_install:
  - travis_retry sudo add-apt-repository -y ppa:hvr/ghc
@@ -13,19 +16,19 @@ before_install:
  - travis_retry sudo apt-get install cabal-install-$CABALVER ghc-$GHCVER # see note about happy/alex
  - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$PATH
  - |
-   if [ $GHCVER = "head" ] || [ ${GHCVER%.*} = "7.8" ] || [ ${GHCVER%.*} = "7.10" ]; then
+   if [ ${GHCVER%.*} = "7.8" ] || [ ${GHCVER%.*} = "7.10" ]; then
      travis_retry sudo apt-get install happy-1.19.4 alex-3.1.3
      export PATH=/opt/alex/3.1.3/bin:/opt/happy/1.19.4/bin:$PATH
    else
      travis_retry sudo apt-get install happy alex
    fi
 
+
 install:
- - cabal --version
- - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
- - travis_retry cabal update
  - cabal install --only-dependencies --enable-tests
- - if [ -f configure.ac ]; then autoreconf -i; fi
+
+
+script:
  - cabal configure --enable-tests
  - cabal build
  - cabal test
