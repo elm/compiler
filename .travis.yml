@@ -6,10 +6,6 @@ env:
  - CABALVER=1.18 GHCVER=7.8.3
  - CABALVER=1.22 GHCVER=7.10.1
 
-matrix:
-  allow_failures:
-   - env: CABALVER=1.22 GHCVER=7.10.1
-
 # Note: the distinction between `before_install` and `install` is not important.
 before_install:
  - travis_retry sudo add-apt-repository -y ppa:hvr/ghc
