@@ -25,6 +25,7 @@ before_install:
 
 
 install:
+ - travis_retry cabal update
  - cabal install --only-dependencies --enable-tests
 
 
