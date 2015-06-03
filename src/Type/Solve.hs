@@ -167,7 +167,7 @@ actuallySolve constraint =
                   Nothing ->
                       if List.isPrefixOf "Native." name
                         then liftIO (variable Flexible)
-                        else error ("Could not find '" ++ name ++ "' when solving type constraints.")
+                        else error ("Could not find `" ++ name ++ "` when solving type constraints.")
 
             t <- TS.flatten term
             unify Error.None region freshCopy t

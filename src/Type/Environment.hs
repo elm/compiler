@@ -117,7 +117,7 @@ get :: Environment -> (Environment -> Map.Map String a) -> String -> a
 get env subDict key =
     Map.findWithDefault (error msg) key (subDict env)
   where
-    msg = "Could not find type constructor '" ++ key ++ "' while checking types."
+    msg = "Could not find type constructor `" ++ key ++ "` while checking types."
 
 
 freshDataScheme
@@ -210,8 +210,8 @@ instantiatorHelp env aliasVars sourceType =
             Just t  -> return t
             Nothing ->
                 error $
-                  "Could not find type constructor '" ++
-                  V.toString name ++ "' while checking types."
+                  "Could not find type constructor `" ++
+                  V.toString name ++ "` while checking types."
 
       T.App t ts ->
           do  t'  <- go t

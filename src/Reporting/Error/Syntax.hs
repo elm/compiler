@@ -50,7 +50,7 @@ toReport dealiaser err =
     TypeWithoutDefinition valueName ->
         Report.simple
           "MISSING DEFINITION"
-          ("There is a type annotation for '" ++ valueName ++ "' but there"
+          ("There is a type annotation for `" ++ valueName ++ "` but there"
             ++ "is no corresponding definition!"
           )
           ("Directly below the type annotation, put a definition like:\n\n"
@@ -60,7 +60,7 @@ toReport dealiaser err =
     PortWithoutAnnotation portName ->
         Report.simple
           "PORT ERROR"
-          ("Port '" ++ portName ++ "' does not have a type annotation!")
+          ("Port `" ++ portName ++ "` does not have a type annotation!")
           ("Directly above the port definition, I need something like this:\n\n"
             ++ "    port " ++ portName ++ " : Signal Int"
           )
@@ -78,30 +78,30 @@ toReport dealiaser err =
     DuplicateValueDeclaration name ->
         Report.simple
           "DUPLICATE DEFINITION"
-          ("Naming multiple top-level values '" ++ name ++ "' makes things\n"
-            ++ "ambiguous. When you say '" ++ name ++ "' which one do you want?"
+          ("Naming multiple top-level values `" ++ name ++ "` makes things\n"
+            ++ "ambiguous. When you say `" ++ name ++ "` which one do you want?"
           )
-          ("Find all the top-level values named '" ++ name ++ "' and\n"
+          ("Find all the top-level values named `" ++ name ++ "` and\n"
             ++ "do some renaming. Make sure the names are distinct!"
           )
 
     DuplicateTypeDeclaration name ->
         Report.simple
           "DUPLICATE DEFINITION"
-          ("Naming multiple types '" ++ name ++ "' makes things ambiguous\n"
-            ++ "When you say '" ++ name ++ "' which one do you want?"
+          ("Naming multiple types `" ++ name ++ "` makes things ambiguous\n"
+            ++ "When you say `" ++ name ++ "` which one do you want?"
           )
-          ("Find all the types named '" ++ name ++ "' and\n"
+          ("Find all the types named `" ++ name ++ "` and\n"
             ++ "do some renaming. Make sure the names are distinct!"
           )
 
     DuplicateDefinition name ->
         Report.simple
           "DUPLICATE DEFINITION"
-          ("Naming multiple values '" ++ name ++ "' in a single let-expression makes\n"
-            ++ "things ambiguous. When you say '" ++ name ++ "' which one do you want?"
+          ("Naming multiple values `" ++ name ++ "` in a single let-expression makes\n"
+            ++ "things ambiguous. When you say `" ++ name ++ "` which one do you want?"
           )
-          ("Find all the values named '" ++ name ++ "' in this let-expression and\n"
+          ("Find all the values named `" ++ name ++ "` in this let-expression and\n"
             ++ "do some renaming. Make sure the names are distinct!"
           )
 
@@ -135,13 +135,13 @@ unboundTypeVars :: String -> String -> [String] -> String -> Report.Report
 unboundTypeVars typeName tvar tvars revisedDeclaration =
   Report.simple
     "UNBOUND TYPE VARS"
-    ( "Not all type variables in '" ++ typeName ++ "' are listed, making sneaky\n"
+    ( "Not all type variables in `" ++ typeName ++ "` are listed, making sneaky\n"
       ++ "type errors possible. Unbound type variables include: "
       ++ List.intercalate ", " (tvar:tvars)
     )
     ( "You probably want this definition instead:\n"
       ++ concatMap ("\n    "++) (lines revisedDeclaration) ++ "\n\n"
-      ++ "Here's why. Imagine one '" ++ typeName ++ "' where '" ++ tvar ++ "' is an Int and\n"
+      ++ "Here's why. Imagine one `" ++ typeName ++ "` where `" ++ tvar ++ "` is an Int and\n"
       ++ "another where it is a Bool. When we explicitly list the type variables, type\n"
       ++ "checker can see that they are actually different types."
     )
@@ -202,7 +202,7 @@ parseErrorReport messages =
         [msg] ->
             case unkeyword msg of
               Just kwd ->
-                  "It looks like the keyword '" ++ kwd ++ "' is being used as a variable.\n"
+                  "It looks like the keyword `" ++ kwd ++ "` is being used as a variable.\n"
                   ++ "Try renaming it to something else."
               Nothing ->
                   msg

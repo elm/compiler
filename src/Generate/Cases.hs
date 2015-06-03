@@ -258,5 +258,5 @@ matchMix vs branches def =
 
 noMatch :: String -> a
 noMatch name =
-    error $ "unexpected pattern in '" ++ name ++
-            "' function. Report a compiler issue to <https://github.com/elm-lang/Elm>."
+    error $ "unexpected pattern in `" ++ name ++
+            "` function. Report a compiler issue to <https://github.com/elm-lang/Elm>."

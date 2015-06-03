@@ -101,7 +101,7 @@ makeVar firstChar =
 
 reserved :: String -> IParser String
 reserved word =
-  expecting ("reserved word '" ++ word ++ "'") $
+  expecting ("reserved word `" ++ word ++ "`") $
     do  string word
         notFollowedBy innerVarChar
         return word
