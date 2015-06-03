@@ -67,7 +67,7 @@ import' =
     as' moduleName =
       do  try (whitespace >> reserved "as")
           whitespace
-          capVar <?> ("an alias for module '" ++ moduleName ++ "'")
+          capVar <?> ("an alias for module `" ++ moduleName ++ "`")
 
     exposing :: IParser (Var.Listing Var.Value)
     exposing =

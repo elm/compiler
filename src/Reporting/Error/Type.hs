@@ -90,14 +90,14 @@ toReport dealiaser err =
             P.pretty dealiaser False tipe
         in
         Report.simple "INFINITE TYPE"
-          ( "I am inferring weird self-referential type for '" ++ name ++ "'"
+          ( "I am inferring weird self-referential type for `" ++ name ++ "`"
           )
           ( "The bit of the type that is self-referential looks like this:\n\n"
             ++ P.render (P.nest 4 (prettyVar <+> P.equals <+> prettyType))
-            ++ "\n\nThe cause is often that the usage of '" ++ name ++ "' is flipped around.\n\n"
+            ++ "\n\nThe cause is often that the usage of `" ++ name ++ "` is flipped around.\n\n"
             ++ "Maybe you are inserting a data structure into an element? Maybe you are giving\n"
             ++ "a function to an argument? Either way, something is probably backwards!\n\n"
-            ++ "Try breaking the code related to '" ++ name ++ "' into smaller pieces.\n"
+            ++ "Try breaking the code related to `" ++ name ++ "` into smaller pieces.\n"
             ++ "Give each piece a name and try to write down its type."
           )
 
@@ -190,7 +190,7 @@ hintToString hint =
 
     BadTypeAnnotation name ->
         ( Nothing
-        , "The type annotation for '" ++ name ++ "' does not match its definition."
+        , "The type annotation for `" ++ name ++ "` does not match its definition."
         )
 
 

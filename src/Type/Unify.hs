@@ -167,7 +167,7 @@ actuallyUnify variable1 variable2 = do
           let v = render (pretty Never var)
           in
           typeError variable1 variable2 $ Error.PreNote $
-            "Could not unify rigid type variable '" ++ v ++ "'. The problem probably\n"
+            "Could not unify rigid type variable `" ++ v ++ "`. The problem probably\n"
             ++ "relates to the type variable being shared between two type annotations.\n"
             ++ "Try commenting out some type annotations and see what happens."
 
@@ -356,7 +356,7 @@ fieldMismatchError missingFields =
     case Map.keys missingFields of
       [] -> ""
       [key] ->
-        "Looks like a record is missing the field '" ++ key ++ "'"
+        "Looks like a record is missing the field `" ++ key ++ "`"
       keys ->
         "Looks like a record is missing fields "
         ++ List.intercalate ", " (init keys) ++ ", and " ++ last keys

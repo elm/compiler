@@ -39,13 +39,13 @@ toReport dealiaser warning =
     UnusedImport moduleName ->
         Report.simple
           "unused import"
-          ("Module '" ++ Module.nameToString moduleName ++ "' is unused.")
+          ("Module `" ++ Module.nameToString moduleName ++ "` is unused.")
           ""
 
     MissingTypeAnnotation name inferredType ->
         Report.simple
           "missing type annotation"
-          ("Top-level value '" ++ name ++ "' does not have a type annotation.")
+          ("Top-level value `" ++ name ++ "` does not have a type annotation.")
           ( "The type annotation you want looks something like this:\n\n"
             ++ P.render (P.nest 4 typeDoc)
           )

@@ -26,10 +26,10 @@ attemptToRun command args =
       case found of
         Nothing ->
           hPutStrLn stderr $
-            "Could not find command '" ++ command ++ "'. Maybe there is a typo?\n\n\
+            "Could not find command `" ++ command ++ "`. Maybe there is a typo?\n\n\
             \Default commands include:\n\n"
             ++ availableCommands ++
-            "\nWhen you try to run the command '" ++ command ++ "' we actually search for an\n\
+            "\nWhen you try to run the command `" ++ command ++ "` we actually search for an\n\
             \  executable named elm-" ++ command ++ ". Are you able to run elm-" ++ command ++ "?\n\
             \  Is it on your PATH?"
 

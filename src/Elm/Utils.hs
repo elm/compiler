@@ -87,7 +87,7 @@ unwrappedRun command args =
 missingExe :: String -> CommandError
 missingExe command =
   MissingExe $
-    "Could not find command '" ++ command ++ "'. Do you have it installed?\n\
+    "Could not find command `" ++ command ++ "`. Do you have it installed?\n\
     \    Can it be run from anywhere? Is it on your PATH?"
 
 

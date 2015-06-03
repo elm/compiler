@@ -139,7 +139,7 @@ toReport :: P.Dealiaser -> Error -> Report.Report
 toReport dealiaser err =
   case err of
     Var (VarError kind name problem suggestions) ->
-        let var = kind ++ " '" ++ name ++ "'"
+        let var = kind ++ " `" ++ name ++ "`"
         in
         case problem of
           Ambiguous ->
@@ -149,12 +149,12 @@ toReport dealiaser err =
 
           UnknownQualifier qualifier ->
               namingError
-                ("Cannot find " ++ var ++ ", qualifier '" ++ qualifier ++ "' is not in scope.")
+                ("Cannot find " ++ var ++ ", qualifier `" ++ qualifier ++ "` is not in scope.")
                 (maybeYouWant suggestions)
 
           QualifiedUnknown qualifier ->
               namingError
-                ("Cannot find " ++ var ++ ", module '" ++ qualifier ++ "' does not expose that value.")
+                ("Cannot find " ++ var ++ ", module `" ++ qualifier ++ "` does not expose that value.")
                 (maybeYouWant suggestions)
 
           ExposedUnknown ->
@@ -200,17 +200,17 @@ toReport dealiaser err =
         case importError of
           ModuleNotFound suggestions ->
               namingError
-                ("Could not find a module named '" ++ moduleName ++ "'")
+                ("Could not find a module named `" ++ moduleName ++ "`")
                 (maybeYouWant (map Module.nameToString suggestions))
 
           ValueNotFound value suggestions ->
               namingError
-                ("Module '" ++ moduleName ++ "' does not expose '" ++ value ++ "'")
+                ("Module `" ++ moduleName ++ "` does not expose `" ++ value ++ "`")
                 (maybeYouWant suggestions)
 
     Export name suggestions ->
         namingError
-          ("Could not export '" ++ name ++ "' which is not defined in this module.")
+          ("Could not export `" ++ name ++ "` which is not defined in this module.")
           (maybeYouWant suggestions)
 
     Port (PortError name isInbound _rootType localType maybeMessage) ->
@@ -220,7 +220,7 @@ toReport dealiaser err =
 
           preHint =
             "Trying to send " ++ maybe "an unsupported type" id maybeMessage
-            ++ " through " ++ boundPort ++ " '" ++ name ++ "'"
+            ++ " through " ++ boundPort ++ " `" ++ name ++ "`"
 
           postHint =
             "The specific unsupported type is:\n\n"
