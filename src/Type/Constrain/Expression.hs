@@ -98,7 +98,7 @@ constrain env (A.A region expression) tipe =
               argVar' <- variable Flexible
               resultVar <- variable Flexible
 
-              return $ ex [argVar,argVar',resultVar] $ CAnd $
+              return $ ex [funcVar, argVar, argVar', resultVar] $ CAnd $
                 [ argCon
                 , funcCon
                 , CEqual (Error.ExtraArgument funcRegion) region
