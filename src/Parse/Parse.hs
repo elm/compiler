@@ -26,7 +26,7 @@ program
     -> String
     -> Result.Result wrn Error.Error M.ValidModule
 program needsDefaults isRoot table src =
-  do  (M.Module names filePath exports imports sourceDecls) <-
+  do  (M.Module names filePath docs exports imports sourceDecls) <-
           parseWithTable table src programParser
 
       validDecls <- Validate.declarations isRoot sourceDecls
@@ -34,19 +34,19 @@ program needsDefaults isRoot table src =
       let ammendedImports =
             (if needsDefaults then Imports.defaults else [], imports)
 
-      return (M.Module names filePath exports ammendedImports validDecls)
+      return (M.Module names filePath docs exports ammendedImports validDecls)
 
 
 -- HEADERS AND DECLARATIONS
 
 programParser :: IParser M.SourceModule
 programParser =
-  do  (M.Header names exports imports) <- Module.header
+  do  (M.Header names docs exports imports) <- Module.header
       decls <- declarations
       optional freshLine
       optional spaces
       eof
-      return $ M.Module names "" exports imports decls
+      return $ M.Module names "" docs exports imports decls
 
 
 declarations :: IParser [D.SourceDecl]

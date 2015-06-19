@@ -27,7 +27,7 @@ environment
     :: Module.Interfaces
     -> Module.ValidModule
     -> Result.ResultErr Env.Environment
-environment interfaces modul@(Module.Module _ _ _ (defaults, imports) decls) =
+environment interfaces modul@(Module.Module _ _ _ _ (defaults, imports) decls) =
   let moduleName =
           Module.names modul
 

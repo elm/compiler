@@ -7,9 +7,12 @@ import Data.Aeson ((.:), (.:?), (.=))
 import qualified Data.Aeson as Json
 import qualified Data.Aeson.Encode.Pretty as Json
 import qualified Data.ByteString.Lazy.Char8 as BS
+import qualified Data.Map as Map
 
+import qualified Docs.AST as Docs
 import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Type as Type
+import qualified Reporting.Annotation as A
 
 
 data Documentation = Documentation
@@ -41,8 +44,31 @@ data Value = Value
     { valueName :: String
     , valueComment :: String
     , valueType :: Type.Type
-    , valueAssocPrec :: Maybe (String,Int)
+    , valueFix :: Maybe (String,Int)
     }
+
+
+-- FROM CHECKED DOCS
+
+fromCheckedDocs :: Module.Name -> Docs.Checked -> Documentation
+fromCheckedDocs name (Docs.Docs comment aliases unions values) =
+  let
+    unwrap cmnt =
+      maybe "" id cmnt
+
+    toAlias (name, (A.A _ (Docs.Alias cmnt args tipe))) =
+      Alias name (unwrap cmnt) args tipe
+
+    toUnion (name, (A.A _ (Docs.Union cmnt args cases))) =
+      Union name (unwrap cmnt) args cases
+
+    toValue (name, (A.A _ (Docs.Value cmnt tipe fix))) =
+      Value name (unwrap cmnt) tipe fix
+  in
+  Documentation name comment
+    (map toAlias (Map.toList aliases))
+    (map toUnion (Map.toList unions))
+    (map toValue (Map.toList values))
 
 
 -- PRETTY JSON

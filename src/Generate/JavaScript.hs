@@ -344,7 +344,7 @@ flattenLets defs lexpr@(A.A _ expr) =
       _ -> (defs, lexpr)
 
 
-generate :: CanonicalModule -> String
+generate :: Module.CanonicalModule -> String
 generate modul =
     show . prettyPrint $ setup "Elm" (names ++ ["make"]) ++
              [ assign ("Elm" : names ++ ["make"]) (function [localRuntime] programStmts) ]

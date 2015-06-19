@@ -18,7 +18,7 @@ toExpr moduleName decls =
 
 
 toDefs :: Module.Name -> D.CanonicalDecl -> [Canonical.Def]
-toDefs moduleName (A.A region decl) =
+toDefs moduleName (A.A (region,_) decl) =
   let typeVar = Var.fromModule moduleName
 
       loc expr =
