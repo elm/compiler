@@ -8,6 +8,7 @@ import Prelude hiding (print)
 
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Canonicalize
+import qualified Reporting.Error.Docs as Docs
 import qualified Reporting.Error.Syntax as Syntax
 import qualified Reporting.Error.Type as Type
 import qualified Reporting.PrettyPrint as P
@@ -20,6 +21,7 @@ data Error
     = Syntax Syntax.Error
     | Canonicalize Canonicalize.Error
     | Type Type.Error
+    | Docs Docs.Error
 
 
 -- TO REPORT
@@ -35,6 +37,9 @@ toReport dealiaser err =
 
     Type typeError ->
         Type.toReport dealiaser typeError
+
+    Docs docsError ->
+        Docs.toReport docsError
 
 
 -- TO STRING
@@ -70,6 +75,9 @@ toJson dealiaser filePath (A.A region err) =
 
           Type typeError ->
               Report.toJson [] (Type.toReport dealiaser typeError)
+
+          Docs docsError ->
+              Report.toJson [] (Docs.toReport docsError)
   in
       Json.object $
         [ "file" .= filePath

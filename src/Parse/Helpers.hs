@@ -1,7 +1,7 @@
 module Parse.Helpers where
 
 import Prelude hiding (until)
-import Control.Applicative ((<$>),(<*>))
+import Control.Applicative ((<$>),(<*>),(<*))
 import Control.Monad (guard, join)
 import Control.Monad.State (State)
 import Data.Char (isUpper)
@@ -390,7 +390,7 @@ docComment =
 
 multiComment :: IParser String
 multiComment =
-  (++) <$> try (string "{-") <*> closeComment
+  (++) <$> try (string "{-" <* notFollowedBy (string "|")) <*> closeComment
 
 
 closeComment :: IParser String

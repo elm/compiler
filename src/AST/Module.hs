@@ -19,6 +19,7 @@ import qualified AST.Declaration as Decl
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
+import qualified Docs.AST as Docs
 import qualified Elm.Compiler.Version as Compiler
 import qualified Reporting.Annotation as A
 
@@ -39,6 +40,7 @@ type CanonicalAdt = (Var.Canonical, AdtInfo Var.Canonical)
 
 type SourceModule =
     Module
+      String
       [UserImport]
       (Var.Listing (A.Located Var.Value))
       [Decl.SourceDecl]
@@ -46,22 +48,25 @@ type SourceModule =
 
 type ValidModule =
     Module
+      String
       ([DefaultImport], [UserImport])
       (Var.Listing (A.Located Var.Value))
       [Decl.ValidDecl]
 
 
 type CanonicalModule =
-    Module [Name] [Var.Value] CanonicalBody
+    Module Docs.Centralized [Name] [Var.Value] CanonicalBody
 
 
-data Module imports exports body = Module
+data Module docs imports exports body = Module
     { names   :: Name
     , path    :: FilePath
+    , docs    :: A.Located (Maybe docs)
     , exports :: exports
     , imports :: imports
     , body    :: body
     }
+
 
 data CanonicalBody = CanonicalBody
     { program   :: Canonical.Expr
@@ -78,6 +83,7 @@ data CanonicalBody = CanonicalBody
 {-| Basic info needed to identify modules and determine dependencies. -}
 data Header imports = Header
     { _names :: Name
+    , _docs :: A.Located (Maybe String)
     , _exports :: Var.Listing (A.Located Var.Value)
     , _imports :: imports
     }
@@ -126,6 +132,7 @@ data Interface = Interface
     , iPorts    :: [String]
     }
 
+
 toInterface :: CanonicalModule -> Interface
 toInterface modul =
     let body' = body modul in
@@ -139,6 +146,7 @@ toInterface modul =
     , iFixities = fixities body'
     , iPorts    = ports body'
     }
+
 
 instance Binary Interface where
   get = Interface <$> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get

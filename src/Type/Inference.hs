@@ -23,7 +23,7 @@ import System.IO.Unsafe
 
 infer
     :: Interfaces
-    -> CanonicalModule
+    -> Module.CanonicalModule
     -> Except [A.Located Error.Error] (Map.Map String Type.Canonical)
 infer interfaces modul =
   either throwError return $ unsafePerformIO $ runExceptT $
@@ -40,7 +40,7 @@ infer interfaces modul =
 
 genConstraints
     :: Interfaces
-    -> CanonicalModule
+    -> Module.CanonicalModule
     -> IO (Env.TypeDict, T.TypeConstraint)
 genConstraints interfaces modul =
   do  env <-
@@ -77,7 +77,7 @@ canonicalizeValues env (moduleName, iface) =
             return (Module.nameToString moduleName ++ "." ++ name, tipe')
 
 
-canonicalizeAdts :: Interfaces -> CanonicalModule -> [CanonicalAdt]
+canonicalizeAdts :: Interfaces -> Module.CanonicalModule -> [CanonicalAdt]
 canonicalizeAdts interfaces modul =
     localAdts ++ importedAdts
   where

@@ -75,6 +75,16 @@ addDealiaser dealiaser (Result (_, warnings) rawResult) =
   Result (Just dealiaser, warnings) rawResult
 
 
+destruct :: (e -> b) -> (a -> b) -> RawResult e a -> b
+destruct errFunc okFunc rawResult =
+  case rawResult of
+    Ok answer ->
+        okFunc answer
+
+    Err errors ->
+        errFunc errors
+
+
 -- EXTRA FANCY HELPERS
 
 instance M.Functor (Result w e) where

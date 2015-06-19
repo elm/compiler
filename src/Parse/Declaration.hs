@@ -6,14 +6,14 @@ import Text.Parsec ( (<|>), (<?>), choice, digit, optionMaybe, string, try )
 
 import qualified AST.Declaration as D
 import qualified Parse.Expression as Expr
-import Parse.Helpers
+import Parse.Helpers as Help
 import qualified Parse.Type as Type
 
 
 declaration :: IParser D.SourceDecl
 declaration =
   choice
-    [ D.Comment <$> docComment
+    [ D.Comment <$> Help.docComment
     , D.Decl <$> addLocation (typeDecl <|> infixDecl <|> port <|> definition)
     ]
 

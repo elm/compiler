@@ -51,7 +51,7 @@ type ValidDecl =
 
 
 type CanonicalDecl =
-  A.Located (Declaration' CanonicalPort Canonical.Def Type.Canonical Canonical.Expr)
+  A.Commented (Declaration' CanonicalPort Canonical.Def Type.Canonical Canonical.Expr)
 
 
 -- PORTS

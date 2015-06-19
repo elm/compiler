@@ -18,6 +18,8 @@ import qualified AST.Module as Module
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
+import qualified Docs.AST as Docs
+import qualified Docs.Centralize as Docs
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error as Error
 import qualified Reporting.Error.Canonicalize as CError
@@ -40,8 +42,9 @@ module'
     -> Module.ValidModule
     -> R.Result Warning.Warning Error.Error Module.CanonicalModule
 module' interfaces modul =
-  let (Result.Result uses rawResults) =
-          moduleHelp interfaces modul
+  let
+    (Result.Result uses rawResults) =
+      moduleHelp interfaces modul
   in
       case rawResults of
         Result.Ok (env, almostCanonicalModule) ->
@@ -54,6 +57,7 @@ module' interfaces modul =
 
 type AlmostCanonicalModule =
     Module.Module
+      Docs.Centralized
       ([Module.DefaultImport], [Module.UserImport])
       [Var.Value]
       Module.CanonicalBody
@@ -63,7 +67,7 @@ moduleHelp
     :: Module.Interfaces
     -> Module.ValidModule
     -> Result.ResultErr (Env.Environment, AlmostCanonicalModule)
-moduleHelp interfaces modul@(Module.Module _ _ exports _ decls) =
+moduleHelp interfaces modul@(Module.Module _ _ comment exports _ decls) =
     canonicalModule
       <$> canonicalDeclsResult
       <*> resolveExports locals exports
@@ -71,7 +75,8 @@ moduleHelp interfaces modul@(Module.Module _ _ exports _ decls) =
     canonicalModule (env, canonicalDecls) canonicalExports =
         (,) env $
         modul
-          { Module.exports = canonicalExports
+          { Module.docs = A.map (fmap (Docs.centralize canonicalDecls)) comment
+          , Module.exports = canonicalExports
           , Module.body = body canonicalDecls
           }
 
@@ -116,7 +121,7 @@ filterImports
     :: Set.Set Module.Name
     -> AlmostCanonicalModule
     -> R.Result Warning.Warning e Module.CanonicalModule
-filterImports uses modul@(Module.Module _ _ _ (defaults, imports) _) =
+filterImports uses modul@(Module.Module _ _ _ _ (defaults, imports) _) =
   do  reducedImports <-
           Maybe.catMaybes <$> T.traverse checkImport imports
 
@@ -262,8 +267,8 @@ declaration
     :: Env.Environment
     -> D.ValidDecl
     -> Result.ResultErr D.CanonicalDecl
-declaration env (A.A (region,_) decl) =
-    A.A region <$>
+declaration env (A.A ann@(region,_) decl) =
+    A.A ann <$>
     case decl of
       D.Definition (Valid.Definition pat expr typ) ->
           D.Definition <$> (

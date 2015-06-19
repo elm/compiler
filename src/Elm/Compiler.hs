@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 module Elm.Compiler
     ( version, rawVersion
-    , parseDependencies, compile
+    , parseDependencies
+    , compile, Context(..), Result(..)
     , Dealiaser, dummyDealiaser
     , Error, errorToString, errorToJson, printError
     , Warning, warningToString, warningToJson, printWarning
@@ -12,8 +13,10 @@ import qualified Data.Map as Map
 
 import qualified AST.Module as Module
 import qualified Compile
+import qualified Docs.Check as Docs
 import qualified Elm.Compiler.Module as PublicModule
 import qualified Elm.Compiler.Version as Version
+import qualified Elm.Docs as Docs
 import qualified Generate.JavaScript as JS
 import qualified Parse.Module as Parse
 import qualified Parse.Parse as Parse
@@ -50,7 +53,7 @@ parseDependencies sourceCode =
       Result.Err msgs ->
           Left $ map (Error . A.map Error.Syntax) msgs
 
-      Result.Ok (Module.Header names _exports imports) ->
+      Result.Ok (Module.Header names _docs _exports imports) ->
           Right
             ( PublicModule.Name names
             , map (PublicModule.Name . fst . A.drop) imports
@@ -61,26 +64,61 @@ parseDependencies sourceCode =
 
 {-| Compiles Elm source code to JavaScript. -}
 compile
-    :: String
-    -> String
-    -> Bool
+    :: Context
     -> String
     -> Map.Map PublicModule.Name PublicModule.Interface
-    -> (Dealiaser, [Warning], Either [Error] (PublicModule.Interface, String))
-compile user packageName isRoot source interfaces =
-  let unwrappedInterfaces =
-          Map.mapKeysMonotonic (\(PublicModule.Name name) -> name) interfaces
+    -> (Dealiaser, [Warning], Either [Error] Result)
 
-      (Result.Result (dealiaser, warnings) rawResult) =
-          Compile.compile user packageName isRoot unwrappedInterfaces source
+compile context source interfaces =
+  let
+    (Context user packageName isRoot isExposed) =
+      context
+
+    unwrappedInterfaces =
+      Map.mapKeysMonotonic (\(PublicModule.Name name) -> name) interfaces
+
+    (Result.Result (dealiaser, warnings) rawResult) =
+      do  modul <- Compile.compile user packageName isRoot unwrappedInterfaces source
+          docs <- docsGen isExposed modul
+          return (Result docs (Module.toInterface modul) (JS.generate modul))
   in
-      (,,) (maybe dummyDealiaser Dealiaser dealiaser) (map Warning warnings) $
-      case rawResult of
-        Result.Ok modul ->
-            Right (Module.toInterface modul, JS.generate modul)
+    ( maybe dummyDealiaser Dealiaser dealiaser
+    , map Warning warnings
+    , Result.destruct (Left . map Error) Right rawResult
+    )
 
-        Result.Err errors ->
-            Left (map Error errors)
+
+data Context = Context
+    { _user :: String
+    , _packageName :: String
+    , _isRoot :: Bool
+    , _isExposed :: Bool
+    }
+
+
+data Result = Result
+    { _docs :: Maybe Docs.Documentation
+    , _interface :: PublicModule.Interface
+    , _js :: String
+    }
+
+
+docsGen
+    :: Bool
+    -> Module.CanonicalModule
+    -> Result.Result w Error.Error (Maybe Docs.Documentation)
+docsGen isExposed modul =
+  if not isExposed then
+    Result.ok Nothing
+  else
+    let
+      getChecked =
+        Docs.check (Module.exports modul) (Module.docs modul)
+
+      toDocs checked =
+        Docs.fromCheckedDocs (PublicModule.Name (Module.names modul)) checked
+    in
+      (Just . toDocs) `fmap` Result.mapError Error.Docs getChecked
 
 
 -- DEALIASER
