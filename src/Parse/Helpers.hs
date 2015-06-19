@@ -437,6 +437,7 @@ ignoreUntil end =
       choice
         [ try (ignore chr) <|> ignore str
         , ignore multiComment
+        , ignore docComment
         , ignore anyChar
         ]
 
