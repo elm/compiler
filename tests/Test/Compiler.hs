@@ -12,7 +12,6 @@ import Test.Framework.Providers.HUnit (testCase)
 import Test.HUnit (Assertion, assertFailure, assertBool)
 
 import qualified Elm.Compiler as Compiler
-import qualified Elm.Compiler.Module as Module
 
 
 compilerTests :: Test
@@ -45,7 +44,7 @@ testsDir =
 -- RUN COMPILER
 
 testIf
-    :: (Either String (Module.Interface, String) -> Assertion)
+    :: (Either String Compiler.Result -> Assertion)
     -> [FilePath]
     -> IO [Test]
 testIf handleResult filePaths =
@@ -54,8 +53,10 @@ testIf handleResult filePaths =
     setupTest filePath = do
       source <- readFile filePath
 
+      let context =
+            Compiler.Context "elm-lang" "core" True False
       let (dealiaser, _warnings, result) =
-            Compiler.compile "elm-lang" "core" True source Map.empty
+            Compiler.compile context source Map.empty
       let formatErrors errors =
             concatMap (Compiler.errorToString dealiaser filePath source) errors
       let formattedResult =
