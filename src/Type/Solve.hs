@@ -170,7 +170,7 @@ actuallySolve constraint =
                         else error ("Could not find `" ++ name ++ "` when solving type constraints.")
 
             t <- TS.flatten term
-            unify Error.None region freshCopy t
+            unify (Error.Instance name) region freshCopy t
 
 
 solveScheme

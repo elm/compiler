@@ -23,7 +23,8 @@ constrain
     -> IO Fragment
 constrain env (A.A region pattern) tipe =
   let
-    (===) = CEqual Error.None region
+    equal patternError leftType rightType =
+      CEqual (Error.Pattern patternError) region leftType rightType
 
     rvar v =
       A.A region (varN v)
@@ -41,7 +42,8 @@ constrain env (A.A region pattern) tipe =
             return $ Fragment
                 { typeEnv = Map.singleton name (rvar v)
                 , vars = [v]
-                , typeConstraint = varN v === tipe
+                , typeConstraint =
+                    equal (Error.PVar name) (varN v) tipe
                 }
 
     P.Alias name p ->
@@ -50,26 +52,41 @@ constrain env (A.A region pattern) tipe =
             return $ fragment
               { typeEnv = Map.insert name (rvar v) (typeEnv fragment)
               , vars = v : vars fragment
-              , typeConstraint = varN v === tipe /\ typeConstraint fragment
+              , typeConstraint =
+                  equal (Error.PAlias name) (varN v) tipe
+                  /\ typeConstraint fragment
               }
 
     P.Data name patterns ->
-        do  (_kind, cvars, args, result) <-
-                Env.freshDataScheme env (V.toString name)
+        do  let stringName = V.toString name
+
+            (_kind, cvars, args, result) <-
+                Env.freshDataScheme env stringName
 
             fragList <- Monad.zipWithM (constrain env) patterns args
             let fragment = joinFragments fragList
             return $ fragment
-                { typeConstraint = typeConstraint fragment /\ tipe === result
-                , vars = cvars ++ vars fragment
+                { vars = cvars ++ vars fragment
+                , typeConstraint =
+                    typeConstraint fragment
+                    /\ equal (Error.PData stringName) tipe result
                 }
 
     P.Record fields ->
-        do  pairs <- mapM (\name -> (,) name <$> variable Flexible) fields
-            let tenv = Map.fromList (map (second rvar) pairs)
-            c <- exists $ \t -> return (tipe === record (Map.map (\v -> [A.drop v]) tenv) t)
+        do  pairs <-
+              mapM (\name -> (,) name <$> variable Flexible) fields
+
+            let tenv =
+                  Map.fromList (map (second rvar) pairs)
+
+            let unannotatedTenv =
+                  Map.map (\v -> [A.drop v]) tenv
+
+            con <- exists $ \t ->
+              return (equal Error.PRecord tipe (record unannotatedTenv t))
+
             return $ Fragment
                 { typeEnv = tenv
                 , vars = map snd pairs
-                , typeConstraint = c
+                , typeConstraint = con
                 }

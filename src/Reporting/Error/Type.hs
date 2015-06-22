@@ -22,7 +22,7 @@ data Mismatch = MismatchInfo
     { _hint :: Hint
     , _leftType :: Type.Canonical
     , _rightType :: Type.Canonical
-    , _note :: Note
+    , _note :: Maybe String
     }
 
 
@@ -34,8 +34,7 @@ data InfiniteType = InfiniteTypeInfo
 
 
 data Hint
-    = None
-    | CaseBranch Int Region.Region
+    = CaseBranch Int Region.Region
     | Case
     | IfBranches
     | MultiIfBranch Int Region.Region
@@ -48,12 +47,21 @@ data Hint
     | BadArgument Region.Region
     | ExtraArgument Region.Region
     | BadTypeAnnotation String
+    | Instance String
+    | Literal String
+    | Pattern Pattern
+    | Shader
+    | Range
+    | Lambda
+    | App
+    | Record
 
 
-data Note
-    = PreNote String
-    | NoNote
-    | PostNote String
+data Pattern
+    = PVar String
+    | PAlias String
+    | PData String
+    | PRecord
 
 
 -- TO REPORT
@@ -66,20 +74,14 @@ toReport dealiaser err =
           (subRegion, preHint) = hintToString hint
 
           postHint =
-            "To be more specific, type inference is leading to a conflict between this type:\n\n"
+            maybe "" (++"\n\n") note
+            ++ "As I infer the type of values flowing through your program, I see a conflict\n"
+            ++ "between these two types:\n\n"
             ++ P.render (P.nest 4 (P.pretty dealiaser False leftType))
-            ++ "\n\nand this type:\n\n"
+            ++ "\n\n"
             ++ P.render (P.nest 4 (P.pretty dealiaser False rightType))
         in
-          case note of
-            PreNote msg ->
-              Report.Report "TYPE MISMATCH" subRegion (preHint ++ "\n\n" ++ msg) postHint
-
-            NoNote ->
-              Report.Report "TYPE MISMATCH" subRegion preHint postHint
-
-            PostNote msg ->
-              Report.Report "TYPE MISMATCH" subRegion preHint (postHint ++ "\n\n" ++ msg)
+          Report.Report "TYPE MISMATCH" subRegion preHint postHint
 
     InfiniteType (InfiniteTypeInfo name var tipe) ->
         let
@@ -111,11 +113,6 @@ toReport dealiaser err =
 hintToString :: Hint -> (Maybe Region.Region, String)
 hintToString hint =
   case hint of
-    None ->
-        ( Nothing
-        , "This expression is triggering a type mismatch."
-        )
-
     CaseBranch branchNumber region ->
         ( Just region
         , "The branches of this case-expression return different types of values.\n\n"
@@ -191,6 +188,54 @@ hintToString hint =
     BadTypeAnnotation name ->
         ( Nothing
         , "The type annotation for `" ++ name ++ "` does not match its definition."
+        )
+
+    Instance name ->
+        ( Nothing
+        , "Given how `" ++ name ++ "` is defined, this use will not work out."
+        )
+
+    Literal name ->
+        ( Nothing
+        , "This " ++ name ++ " value is being used as if it is some other type of value."
+        )
+
+    Pattern patErr ->
+        let
+          thing =
+            case patErr of
+              PVar name -> "variable `" ++ name ++ "`"
+              PAlias name -> "alias `" ++ name ++ "`"
+              PData name -> "`" ++ name ++ "`"
+              PRecord -> "a record"
+        in
+          ( Nothing
+          , "Problem with " ++ thing ++ " in this pattern match."
+          )
+
+    Shader ->
+        ( Nothing
+        , "There is some problem with this GLSL shader."
+        )
+
+    Range ->
+        ( Nothing
+        , "The low and high members of this list range do not match."
+        )
+
+    Lambda ->
+        ( Nothing
+        , "This anonymous function is being used in an unexpected way."
+        )
+
+    App ->
+        ( Nothing
+        , "The result of this function application is being used in an unexpected way."
+        )
+
+    Record ->
+        ( Nothing
+        , "This record is being used in an unexpected way."
         )
 
 
