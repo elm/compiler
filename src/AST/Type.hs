@@ -314,7 +314,7 @@ prettyRecord dealiaser recordInfo =
             (P.lbrace <+> P.text x <+> P.text "|")
             4
             (P.sep
-              [ P.cat (zipWith (<+>) (P.space : repeat P.comma) (map prettyField fields))
+              [ P.sep (P.punctuate P.comma (map prettyField fields))
               , P.rbrace
               ]
             )
