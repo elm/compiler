@@ -88,9 +88,10 @@ toDoc context tipe =
                     (P.lbrace <+> P.text x <+> P.text "|")
                     4
                     (P.sep
-                      [ P.cat (zipWith (<+>) (P.space : repeat P.comma) (map prettyField fields))
+                      [ P.sep (P.punctuate P.comma (map prettyField fields))
                       , P.rbrace
-                      ])
+                      ]
+                    )
           where
             prettyField (field, tipe) =
                 P.text field <+> P.text ":" <+> toDoc None tipe
