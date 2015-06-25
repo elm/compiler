@@ -1,4 +1,4 @@
-module Elm.Compiler.Type.Extract where
+module Elm.Compiler.Type.Extract (toFullType, toAliasedType) where
 
 import Control.Arrow (second)
 import qualified AST.Type as Type
@@ -6,13 +6,24 @@ import qualified AST.Variable as Var
 import qualified Elm.Compiler.Type as T
 
 
--- INTERNAL TYPE to PUBLIC TYPE
+toFullType :: Type.Canonical -> T.Type
+toFullType astType =
+  toType False astType
 
-fromInternalType :: Type.Canonical -> T.Type
-fromInternalType astType =
+
+toAliasedType :: Type.Canonical -> T.Type
+toAliasedType astType =
+  toType True astType
+
+
+toType :: Bool -> Type.Canonical -> T.Type
+toType useAliases astType =
+  let
+    go = toType useAliases
+  in
     case astType of
       Type.Lambda t1 t2 ->
-          T.Lambda (fromInternalType t1) (fromInternalType t2)
+          T.Lambda (go t1) (go t2)
 
       Type.Var x ->
           T.Var x
@@ -21,10 +32,13 @@ fromInternalType astType =
           T.Type (Var.toString var)
 
       Type.App t ts ->
-          T.App (fromInternalType t) (map fromInternalType ts)
+          T.App (go t) (map go ts)
 
       Type.Record fields ext ->
-          T.Record (map (second fromInternalType) fields) (fmap fromInternalType ext)
+          T.Record (map (second go) fields) (fmap go ext)
 
-      Type.Aliased _name args t ->
-          fromInternalType (Type.dealias args t)
+      Type.Aliased name args t ->
+        if useAliases then
+          T.App (T.Type (Var.toString name)) (map (go . snd) args)
+        else
+          go (Type.dealias args t)

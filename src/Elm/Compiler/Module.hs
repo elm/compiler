@@ -5,7 +5,7 @@ module Elm.Compiler.Module
     , hyphenate, dehyphenate
     , defaultImports
     , interfacePorts
-    , interfaceTypes
+    , interfaceAliasedTypes
     )
   where
 
@@ -44,9 +44,9 @@ interfacePorts interface =
     Module.iPorts interface
 
 
-interfaceTypes :: Interface -> Map.Map String Type.Type
-interfaceTypes interface =
-    Map.map Extract.fromInternalType (Module.iTypes interface)
+interfaceAliasedTypes :: Interface -> Map.Map String Type.Type
+interfaceAliasedTypes interface =
+    Map.map Extract.toAliasedType (Module.iTypes interface)
 
 
 -- STRING CONVERSIONS for NAMES

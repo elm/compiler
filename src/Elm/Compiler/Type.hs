@@ -129,7 +129,7 @@ flattenRecord tipe =
 
 instance Json.ToJSON Type where
   toJSON tipe =
-    Json.String (Text.pack (toString tipe))
+    Json.String (Text.unwords (Text.words (Text.pack (toString tipe))))
 
 
 instance Json.FromJSON Type where

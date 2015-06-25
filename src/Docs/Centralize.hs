@@ -58,7 +58,7 @@ addDeclToDocs (A.A (region,maybeComment) decl) docs =
         let
           info =
             ( maybeComment
-            , fmap (Extract.fromInternalType . A.drop) maybeType
+            , fmap (Extract.toAliasedType . A.drop) maybeType
             )
 
           newValues =
@@ -72,7 +72,7 @@ addDeclToDocs (A.A (region,maybeComment) decl) docs =
     D.Datatype name args ctors ->
         let
           ctors' =
-            map (second (map Extract.fromInternalType)) ctors
+            map (second (map Extract.toAliasedType)) ctors
 
           union =
             A.A region (Docs.Union maybeComment args ctors')
@@ -82,7 +82,7 @@ addDeclToDocs (A.A (region,maybeComment) decl) docs =
     D.TypeAlias name args tipe ->
         let
           alias =
-            A.A region (Docs.Alias maybeComment args (Extract.fromInternalType tipe))
+            A.A region (Docs.Alias maybeComment args (Extract.toAliasedType tipe))
         in
           docs { rawAliases = Map.insert name alias (rawAliases docs) }
 
