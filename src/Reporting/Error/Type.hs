@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Reporting.Error.Type where
 
+import qualified Data.Char as Char
 import Text.PrettyPrint ((<+>))
 import qualified Text.PrettyPrint as P
 
@@ -44,8 +45,9 @@ data Hint
     | BinopLeft Var.Canonical Region.Region
     | BinopRight Var.Canonical Region.Region
     | Binop Var.Canonical
-    | BadArgument Region.Region
-    | ExtraArgument Region.Region
+    | Function (Maybe Var.Canonical)
+    | UnexpectedArg (Maybe Var.Canonical) Int Region.Region
+    | FunctionArity (Maybe Var.Canonical) Int Region.Region
     | BadTypeAnnotation String
     | Instance String
     | Literal String
@@ -53,7 +55,6 @@ data Hint
     | Shader
     | Range
     | Lambda
-    | App
     | Record
 
 
@@ -116,7 +117,7 @@ hintToString hint =
     CaseBranch branchNumber region ->
         ( Just region
         , "The branches of this case-expression return different types of values.\n\n"
-          ++ "I noticed the mismatch in branch #" ++ show branchNumber ++ ", but go through and make sure every\n"
+          ++ "I noticed the mismatch in the " ++ ordinalize branchNumber ++ " branch, but go through and make sure every\n"
           ++ "branch returns the same type of value."
         )
 
@@ -135,7 +136,7 @@ hintToString hint =
     MultiIfBranch branchNumber region ->
         ( Just region
         , "The branches of this if-expression return different types of values.\n\n"
-          ++ "I noticed the mismatch in branch #" ++ show branchNumber ++ ", but go through and make sure every\n"
+          ++ "I noticed the mismatch in the " ++ ordinalize branchNumber ++ " branch, but go through and make sure every\n"
           ++ "branch returns the same type of value."
         )
 
@@ -148,7 +149,7 @@ hintToString hint =
     ListElement elementNumber region ->
         ( Just region
         , "Not all elements of this list are the same type of value.\n\n"
-          ++ "I noticed the mismatch in element #" ++ show elementNumber ++ ", but go through and make sure every\n"
+          ++ "I noticed the mismatch in the " ++ ordinalize elementNumber ++ " element, but go through and make sure every\n"
           ++ "element is the same type of value."
         )
 
@@ -174,15 +175,21 @@ hintToString hint =
           ++ "does not match how it is used elsewhere."
         )
 
-    BadArgument region ->
-        ( Just region
-        , "This argument is causing a type mismatch."
+    Function maybeName ->
+        ( Nothing
+        , "The return type of " ++ funcName maybeName ++ " is being used in unexpected ways."
         )
 
-    ExtraArgument region ->
+    UnexpectedArg maybeName index region ->
         ( Just region
-        , "This expression is mistakenly being used as a function.\n"
-          ++ "Maybe you provided an extra argument?"
+        , "The " ++ ordinalize index ++ " argument to " ++ funcName maybeName
+          ++ " has an unexpected type."
+        )
+
+    FunctionArity maybeName index region ->
+        ( Just region
+        , capitalize (funcName maybeName) ++ " is not expecting a "
+          ++ ordinalize index ++ " argument."
         )
 
     BadTypeAnnotation name ->
@@ -228,11 +235,6 @@ hintToString hint =
         , "This anonymous function is being used in an unexpected way."
         )
 
-    App ->
-        ( Nothing
-        , "The result of this function application is being used in an unexpected way."
-        )
-
     Record ->
         ( Nothing
         , "This record is being used in an unexpected way."
@@ -244,3 +246,40 @@ prettyOperator (Var.Canonical _ opName) =
   if Help.isOp opName
     then "(" ++ opName ++ ")"
     else "`" ++ opName ++ "`"
+
+
+funcName :: Maybe Var.Canonical -> String
+funcName maybeVar =
+  case maybeVar of
+    Nothing ->
+      "this function"
+
+    Just var ->
+      "function " ++ prettyOperator var
+
+
+capitalize :: String -> String
+capitalize string =
+  case string of
+    [] -> []
+    c : cs ->
+      Char.toUpper c : cs
+
+
+ordinalize :: Int -> String
+ordinalize number =
+  let
+    remainder10 =
+      number `mod` 10
+
+    remainder100 =
+      number `mod` 100
+
+    ending
+      | remainder100 `elem` [11..13] = "th"
+      | remainder10 == 1             = "st"
+      | remainder10 == 2             = "nd"
+      | remainder10 == 3             = "rd"
+      | otherwise                    = "th"
+  in
+    show number ++ ending

@@ -27,7 +27,7 @@ constrain
     -> Canonical.Expr
     -> Type
     -> IO TypeConstraint
-constrain env (A.A region expression) tipe =
+constrain env annotatedExpr@(A.A region expression) tipe =
     let list t = Env.get env Env.types "List" <| t
         (<?) = CInstance region
     in
@@ -91,25 +91,11 @@ constrain env (A.A region expression) tipe =
                             )
                   return $ con /\ CEqual Error.Lambda region tipe (argType ==> resType)
 
-      E.App func@(A.A funcRegion _) arg@(A.A argRegion _) ->
-          do  argVar <- variable Flexible
-              argCon <- constrain env arg (varN argVar)
-
-              funcVar <- variable Flexible
-              funcCon <- constrain env func (varN funcVar)
-
-              argVar' <- variable Flexible
-              resultVar <- variable Flexible
-
-              return $ ex [funcVar, argVar, argVar', resultVar] $ CAnd $
-                [ argCon
-                , funcCon
-                , CEqual (Error.ExtraArgument funcRegion) region
-                    (varN funcVar)
-                    (varN argVar' ==> varN resultVar)
-                , CEqual (Error.BadArgument argRegion) region (varN argVar') (varN argVar)
-                , CEqual Error.App region tipe (varN resultVar)
-                ]
+      E.App _ _ ->
+          let
+            (f:args) = E.collectApps annotatedExpr
+          in
+            constrainApp env region f args tipe
 
       E.MultiIf branches ->
           constrainIf env region branches tipe
@@ -197,6 +183,85 @@ constrain env (A.A region expression) tipe =
 
             E.Task _ expr _ ->
                 constrain env expr tipe
+
+
+-- CONSTRAIN APP
+
+constrainApp
+    :: Env.Environment
+    -> R.Region
+    -> Canonical.Expr
+    -> [Canonical.Expr]
+    -> Type
+    -> IO TypeConstraint
+constrainApp env region f args tipe =
+  do  funcVar <- variable Flexible
+      funcCon <- constrain env f (varN funcVar)
+
+      (vars, numberOfArgsCons, argCons, argMatchCons, returnVar) <-
+          argConstraints env maybeName region funcVar 1 args
+
+      let returnCon =
+            CEqual (Error.Function maybeName) region (varN returnVar) tipe
+
+      return $ ex (funcVar : vars) $
+        CAnd (funcCon : argCons ++ numberOfArgsCons ++ argMatchCons ++ [returnCon])
+  where
+    maybeName =
+      case f of
+        A.A _ (E.Var canonicalName) ->
+            Just canonicalName
+
+        _ ->
+          Nothing
+
+
+argConstraints
+    :: Env.Environment
+    -> Maybe V.Canonical
+    -> R.Region
+    -> Variable
+    -> Int
+    -> [Canonical.Expr]
+    -> IO ([Variable], [TypeConstraint], [TypeConstraint], [TypeConstraint], Variable)
+argConstraints env name region overallVar index args =
+  case args of
+    [] ->
+      return ([], [], [], [], overallVar)
+
+    expr@(A.A subregion _) : rest ->
+      do  argVar <- variable Flexible
+          argCon <- constrain env expr (varN argVar)
+
+          argIndexVar <- variable Flexible
+          localReturnVar <- variable Flexible
+
+          let numberOfArgsCon =
+                CEqual
+                  (Error.FunctionArity name index subregion)
+                  region
+                  (varN argIndexVar ==> varN localReturnVar)
+                  (varN overallVar)
+
+          let argMatchCon =
+                CEqual
+                  (Error.UnexpectedArg name index subregion)
+                  region
+                  (varN argIndexVar)
+                  (varN argVar)
+
+          (vars, numberOfArgsRest, argConRest, argMatchRest, returnVar) <-
+              argConstraints env name region localReturnVar (index + 1) rest
+
+          return
+            ( argVar : argIndexVar : localReturnVar : vars
+            , numberOfArgsCon : numberOfArgsRest
+            , argCon : argConRest
+            , argMatchCon : argMatchRest
+            , returnVar
+            )
+
+
 
 
 -- CONSTRAIN BINOP
