@@ -198,7 +198,7 @@ constrainApp env region f args tipe =
   do  funcVar <- variable Flexible
       funcCon <- constrain env f (varN funcVar)
 
-      (vars, numberOfArgsCons, argCons, argMatchCons, returnVar) <-
+      (vars, argCons, numberOfArgsCons, argMatchCons, returnVar) <-
           argConstraints env maybeName region funcVar 1 args
 
       let returnCon =
@@ -250,13 +250,13 @@ argConstraints env name region overallVar index args =
                   (varN argIndexVar)
                   (varN argVar)
 
-          (vars, numberOfArgsRest, argConRest, argMatchRest, returnVar) <-
+          (vars, argConRest, numberOfArgsRest, argMatchRest, returnVar) <-
               argConstraints env name region localReturnVar (index + 1) rest
 
           return
             ( argVar : argIndexVar : localReturnVar : vars
-            , numberOfArgsCon : numberOfArgsRest
             , argCon : argConRest
+            , numberOfArgsCon : numberOfArgsRest
             , argMatchCon : argMatchRest
             , returnVar
             )
