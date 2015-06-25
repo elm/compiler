@@ -47,7 +47,7 @@ data Hint
     | Binop Var.Canonical
     | Function (Maybe Var.Canonical)
     | UnexpectedArg (Maybe Var.Canonical) Int Region.Region
-    | FunctionArity (Maybe Var.Canonical) Int Region.Region
+    | FunctionArity (Maybe Var.Canonical) Int Int Region.Region
     | BadTypeAnnotation String
     | Instance String
     | Literal String
@@ -186,11 +186,14 @@ hintToString hint =
           ++ " has an unexpected type."
         )
 
-    FunctionArity maybeName index region ->
-        ( Just region
-        , capitalize (funcName maybeName) ++ " is not expecting a "
-          ++ ordinalize index ++ " argument."
-        )
+    FunctionArity maybeName expected actual region ->
+        let
+          s = if expected <= 1 then "" else "s"
+        in
+          ( Just region
+          , capitalize (funcName maybeName) ++ " is expecting " ++ show expected
+            ++ " argument" ++ s ++ ", but was given " ++ show actual ++ "."
+          )
 
     BadTypeAnnotation name ->
         ( Nothing

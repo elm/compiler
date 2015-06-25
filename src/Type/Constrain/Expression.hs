@@ -198,8 +198,8 @@ constrainApp env region f args tipe =
   do  funcVar <- variable Flexible
       funcCon <- constrain env f (varN funcVar)
 
-      (vars, argCons, numberOfArgsCons, argMatchCons, returnVar) <-
-          argConstraints env maybeName region funcVar 1 args
+      (vars, argCons, numberOfArgsCons, argMatchCons, _, returnVar) <-
+          argConstraints env maybeName region (length args) funcVar 1 args
 
       let returnCon =
             CEqual (Error.Function maybeName) region (varN returnVar) tipe
@@ -220,25 +220,31 @@ argConstraints
     :: Env.Environment
     -> Maybe V.Canonical
     -> R.Region
+    -> Int
     -> Variable
     -> Int
     -> [Canonical.Expr]
-    -> IO ([Variable], [TypeConstraint], [TypeConstraint], [TypeConstraint], Variable)
-argConstraints env name region overallVar index args =
+    -> IO ([Variable], [TypeConstraint], [TypeConstraint], [TypeConstraint], Maybe R.Region, Variable)
+argConstraints env name region totalArgs overallVar index args =
   case args of
     [] ->
-      return ([], [], [], [], overallVar)
+      return ([], [], [], [], Nothing, overallVar)
 
     expr@(A.A subregion _) : rest ->
       do  argVar <- variable Flexible
           argCon <- constrain env expr (varN argVar)
-
           argIndexVar <- variable Flexible
           localReturnVar <- variable Flexible
 
+          (vars, argConRest, numberOfArgsRest, argMatchRest, restRegion, returnVar) <-
+              argConstraints env name region totalArgs localReturnVar (index + 1) rest
+
+          let arityRegion =
+                maybe subregion (R.merge subregion) restRegion
+
           let numberOfArgsCon =
                 CEqual
-                  (Error.FunctionArity name index subregion)
+                  (Error.FunctionArity name (index - 1) totalArgs arityRegion)
                   region
                   (varN argIndexVar ==> varN localReturnVar)
                   (varN overallVar)
@@ -250,14 +256,12 @@ argConstraints env name region overallVar index args =
                   (varN argIndexVar)
                   (varN argVar)
 
-          (vars, argConRest, numberOfArgsRest, argMatchRest, returnVar) <-
-              argConstraints env name region localReturnVar (index + 1) rest
-
           return
             ( argVar : argIndexVar : localReturnVar : vars
             , argCon : argConRest
             , numberOfArgsCon : numberOfArgsRest
             , argMatchCon : argMatchRest
+            , Just arityRegion
             , returnVar
             )
 
