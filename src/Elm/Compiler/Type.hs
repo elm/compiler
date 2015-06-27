@@ -6,7 +6,7 @@ module Elm.Compiler.Type
 
 import Control.Applicative ((<$>), (<*>))
 import Control.Arrow (second)
-import Data.Aeson ((.:), (.=))
+import Data.Aeson ((.:))
 import qualified Data.Aeson as Json
 import qualified Data.Aeson.Types as Json
 import qualified Data.ByteString.Lazy.Char8 as BS
