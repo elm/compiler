@@ -45,7 +45,7 @@ toReport err =
             ++ "If you think the docs are clearer without any words, you can use an empty\n"
             ++ "comment {-|-} which should be used sparingly. Maybe you have a section of 20\n"
             ++ "values all with the exact same type. The docs may read better if they are all\n"
-            ++ "described in one place\n\n"
+            ++ "described in one place.\n\n"
             ++ "Learn more at <http://package.elm-lang.org/help/documentation-format>"
           )
 
