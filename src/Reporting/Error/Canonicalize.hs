@@ -36,8 +36,8 @@ data VarError = VarError
 
 data VarProblem
     = Ambiguous
-    | UnknownQualifier String
-    | QualifiedUnknown String
+    | UnknownQualifier String String
+    | QualifiedUnknown String String
     | ExposedUnknown
 
 
@@ -147,15 +147,19 @@ toReport dealiaser err =
                 ("This usage of " ++ var ++ " is ambiguous.")
                 (maybeYouWant suggestions)
 
-          UnknownQualifier qualifier ->
+          UnknownQualifier qualifier localName ->
               namingError
-                ("Cannot find " ++ var ++ ", qualifier `" ++ qualifier ++ "` is not in scope.")
-                (maybeYouWant suggestions)
+                ("Cannot find " ++ var ++ ".")
+                ( "The qualifier `" ++ qualifier ++ "` is not in scope. "
+                  ++ maybeYouWant (map (\modul -> modul ++ "." ++ localName) suggestions)
+                )
 
-          QualifiedUnknown qualifier ->
+          QualifiedUnknown qualifier localName ->
               namingError
-                ("Cannot find " ++ var ++ ", module `" ++ qualifier ++ "` does not expose that value.")
-                (maybeYouWant suggestions)
+                ("Cannot find " ++ var ++ ".")
+                ( "`" ++ qualifier ++ "` does not expose `" ++ localName ++ "`. "
+                  ++ maybeYouWant (map (\v -> qualifier ++ "." ++ v) suggestions)
+                )
 
           ExposedUnknown ->
               namingError
@@ -254,7 +258,7 @@ maybeYouWant suggestions =
 
     _:_ ->
         "Maybe you want one of the following?\n"
-        ++ concatMap ("\n    "++) suggestions
+        ++ concatMap ("\n    "++) (take 4 suggestions)
 
 
 extractSuggestions :: Error -> Maybe [String]

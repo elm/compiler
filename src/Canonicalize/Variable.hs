@@ -211,7 +211,7 @@ qualifiedProblem moduleName name allQualified =
   in
       case Set.member moduleName availableModules of
         True ->
-            ( Error.QualifiedUnknown moduleNameString
+            ( Error.QualifiedUnknown moduleNameString name
             , allQualified
                 |> filter ((==) moduleName . fst)
                 |> map snd
@@ -219,7 +219,7 @@ qualifiedProblem moduleName name allQualified =
             )
 
         False ->
-            ( Error.UnknownQualifier moduleNameString
+            ( Error.UnknownQualifier moduleNameString name
             , Set.toList availableModules
                 |> map Module.nameToString
                 |> Error.nearbyNames id moduleNameString
