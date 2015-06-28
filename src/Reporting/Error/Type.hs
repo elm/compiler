@@ -72,10 +72,11 @@ toReport dealiaser err =
   case err of
     Mismatch (MismatchInfo hint leftType rightType note) ->
         let
-          (subRegion, preHint) = hintToString hint
+          (subRegion, preHint, maybePostHint) = hintToString hint
 
           postHint =
             maybe "" (++"\n\n") note
+            ++ maybe "" (++"\n\n") maybePostHint
             ++ "As I infer the type of values flowing through your program, I see a conflict\n"
             ++ "between these two types:\n\n"
             ++ P.render (P.nest 4 (P.pretty dealiaser False leftType))
@@ -111,79 +112,84 @@ toReport dealiaser err =
           ++ P.render (P.nest 4 (P.pretty dealiaser False tipe))
 
 
-hintToString :: Hint -> (Maybe Region.Region, String)
+hintToString :: Hint -> (Maybe Region.Region, String, Maybe String)
 hintToString hint =
   case hint of
     CaseBranch branchNumber region ->
         ( Just region
-        , "The branches of this case-expression return different types of values.\n\n"
-          ++ "I noticed the mismatch in the " ++ ordinalize branchNumber ++ " branch, but go through and make sure every\n"
-          ++ "branch returns the same type of value."
+        , "The " ++ ordinalize branchNumber ++ " branch of this `case` results in an unexpected type of value."
+        , Just "All branches should match so that no matter which one we take, we always get\nback the same type of value."
         )
 
     Case ->
         ( Nothing
         , "All the branches of this case-expression are consistent, but the overall\n"
           ++ "type does not match how it is used elsewhere."
+        , Nothing
         )
 
     IfBranches ->
         ( Nothing
-        , "The branches of this if-expression return different types of values.\n"
-          ++ "All branches must have the same return type!"
+        , "The branches of this `if` result in different types of values."
+        , Just "All branches should match so that no matter which one we take, we always get\nback the same type of value."
         )
 
     MultiIfBranch branchNumber region ->
         ( Just region
-        , "The branches of this if-expression return different types of values.\n\n"
-          ++ "I noticed the mismatch in the " ++ ordinalize branchNumber ++ " branch, but go through and make sure every\n"
-          ++ "branch returns the same type of value."
+        , "The " ++ ordinalize branchNumber ++ " branch of this `if` results in an unexpected type of value."
+        , Just "All branches should match so that no matter which one we take, we always get\nback the same type of value."
         )
 
     If ->
         ( Nothing
         , "All the branches of this if-expression are consistent, but the overall\n"
           ++ "type does not match how it is used elsewhere."
+        , Nothing
         )
 
     ListElement elementNumber region ->
         ( Just region
-        , "Not all elements of this list are the same type of value.\n\n"
-          ++ "I noticed the mismatch in the " ++ ordinalize elementNumber ++ " element, but go through and make sure every\n"
-          ++ "element is the same type of value."
+        , "The " ++ ordinalize elementNumber ++ " element of this list is an unexpected type of value."
+        , Just "All elements should be the same type of value so that we can iterate over the\nlist without running into unexpected values."
         )
 
     List ->
         ( Nothing
         , "All the elements in this list are the same type, but the overall\n"
           ++ "type does not match how it is used elsewhere."
+        , Nothing
         )
 
     BinopLeft op region ->
         ( Just region
         , "The left argument of " ++ prettyOperator op ++ " is causing a type mismatch."
+        , Nothing
         )
 
     BinopRight op region ->
         ( Just region
         , "The right argument of " ++ prettyOperator op ++ " is causing a type mismatch."
+        , Nothing
         )
 
     Binop op ->
         ( Nothing
         , "The two arguments to " ++ prettyOperator op ++ " are fine, but the overall type of this expression\n"
           ++ "does not match how it is used elsewhere."
+        , Nothing
         )
 
     Function maybeName ->
         ( Nothing
         , "The return type of " ++ funcName maybeName ++ " is being used in unexpected ways."
+        , Nothing
         )
 
     UnexpectedArg maybeName index region ->
         ( Just region
         , "The " ++ ordinalize index ++ " argument to " ++ funcName maybeName
           ++ " has an unexpected type."
+        , Nothing
         )
 
     FunctionArity maybeName expected actual region ->
@@ -193,21 +199,25 @@ hintToString hint =
           ( Just region
           , capitalize (funcName maybeName) ++ " is expecting " ++ show expected
             ++ " argument" ++ s ++ ", but was given " ++ show actual ++ "."
+          , Nothing
           )
 
     BadTypeAnnotation name ->
         ( Nothing
         , "The type annotation for `" ++ name ++ "` does not match its definition."
+        , Nothing
         )
 
     Instance name ->
         ( Nothing
         , "Given how `" ++ name ++ "` is defined, this use will not work out."
+        , Nothing
         )
 
     Literal name ->
         ( Nothing
         , "This " ++ name ++ " value is being used as if it is some other type of value."
+        , Nothing
         )
 
     Pattern patErr ->
@@ -221,26 +231,31 @@ hintToString hint =
         in
           ( Nothing
           , "Problem with " ++ thing ++ " in this pattern match."
+          , Nothing
           )
 
     Shader ->
         ( Nothing
         , "There is some problem with this GLSL shader."
+        , Nothing
         )
 
     Range ->
         ( Nothing
-        , "The low and high members of this list range do not match."
+        , "The low and high members of this list range are not the same type of value."
+        , Nothing
         )
 
     Lambda ->
         ( Nothing
         , "This anonymous function is being used in an unexpected way."
+        , Nothing
         )
 
     Record ->
         ( Nothing
         , "This record is being used in an unexpected way."
+        , Nothing
         )
 
 
