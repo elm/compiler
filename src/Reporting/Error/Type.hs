@@ -77,7 +77,7 @@ toReport dealiaser err =
           postHint =
             maybe "" (++"\n\n") note
             ++ maybe "" (++"\n\n") maybePostHint
-            ++ "As I infer the type of values flowing through your program, I see a conflict\n"
+            ++ "As I infer the types of values flowing through your program, I see a conflict\n"
             ++ "between these two types:\n\n"
             ++ P.render (P.nest 4 (P.pretty dealiaser False leftType))
             ++ "\n\n"
