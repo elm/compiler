@@ -151,7 +151,7 @@ recordTerm =
           return (E.Update (A.A ann (E.rawVar starter)) fields)
 
     literal (A.A _ starter) =
-      do  try (string "<-")
+      do  try equals
           whitespace
           value <- expr
           whitespace
@@ -165,7 +165,7 @@ recordTerm =
 
     field =
       do  key <- rLabel
-          padded (string "<-")
+          padded equals
           value <- expr
           return (key, value)
 
