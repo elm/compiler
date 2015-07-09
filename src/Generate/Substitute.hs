@@ -72,14 +72,8 @@ subst old new expression =
       Access record field ->
           Access (f record) field
 
-      Remove record field ->
-          Remove (f record) field
-
-      Insert record field value ->
-          Insert (f record) field (f value)
-
-      Modify record fields ->
-          Modify (f record) (map (second f) fields)
+      Update record fields ->
+          Update (f record) (map (second f) fields)
 
       Record fields ->
           Record (map (second f) fields)

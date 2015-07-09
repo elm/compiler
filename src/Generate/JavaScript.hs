@@ -77,16 +77,7 @@ expression (A.A region expr) =
           do  e' <- expression e
               return $ DotRef () e' (var (Var.varName field))
 
-      Remove e field ->
-          do  e' <- expression e
-              return $ _Utils "remove" `call` [ string (Var.varName field), e' ]
-
-      Insert e field value ->
-          do  value' <- expression value
-              e' <- expression e
-              return $ _Utils "insert" `call` [ string (Var.varName field), value', e' ]
-
-      Modify e fields ->
+      Update e fields ->
           do  e' <- expression e
               fields' <-
                 forM fields $ \(field, value) ->
