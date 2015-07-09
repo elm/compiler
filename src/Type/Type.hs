@@ -92,6 +92,7 @@ data Flex
     | Flexible
     | Constant
     | Is SuperType
+    | Error
     deriving (Eq)
 
 data SuperType
@@ -152,15 +153,21 @@ namedVar flex name = UF.fresh $ Descriptor
 
 
 variable :: Flex -> IO Variable
-variable flex = UF.fresh $ Descriptor
-  { structure = Nothing
-  , rank = noRank
-  , flex = flex
-  , name = Nothing
-  , copy = Nothing
-  , mark = noMark
-  , alias = Nothing
-  }
+variable flex =
+  UF.fresh (descriptor flex)
+
+
+descriptor :: Flex -> Descriptor
+descriptor flex =
+  Descriptor
+    { structure = Nothing
+    , rank = noRank
+    , flex = flex
+    , name = Nothing
+    , copy = Nothing
+    , mark = noMark
+    , alias = Nothing
+    }
 
 
 -- CONSTRAINT HELPERS

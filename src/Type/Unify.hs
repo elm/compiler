@@ -53,6 +53,9 @@ typeError
 typeError leftType rightType note =
   do  leftSrcType <- liftIO (toSrcType leftType)
       rightSrcType <- liftIO (toSrcType rightType)
+      liftIO $ do
+          UF.setDescriptor leftType (Type.descriptor Error)
+          UF.setDescriptor rightType (Type.descriptor Error)
       throwError (RawMismatch (leftSrcType, rightSrcType, note))
 
 
@@ -118,8 +121,11 @@ actuallyUnify variable1 variable2 = do
 
       unifyNumber svar (Var.Canonical home name) =
           case home of
-            Var.BuiltIn | name `elem` ["Int","Float"]   -> flexAndUnify svar
-            Var.Local   | List.isPrefixOf "number" name -> flexAndUnify svar
+            Var.BuiltIn | name `elem` ["Int","Float"] ->
+                flexAndUnify svar
+
+            Var.Local | List.isPrefixOf "number" name ->
+                flexAndUnify svar
             _ ->
                 typeError variable1 variable2 Nothing
 
@@ -134,9 +140,12 @@ actuallyUnify variable1 variable2 = do
 
       unifyComparable v (Var.Canonical home name) =
           case home of
-            Var.BuiltIn | name `elem` ["Int","Float","Char","String"] -> flexAndUnify v
-            Var.Local   | List.isPrefixOf "comparable" name           -> flexAndUnify v
-            _ -> comparableError Nothing
+            Var.BuiltIn | name `elem` ["Int","Float","Char","String"] ->
+                flexAndUnify v
+            Var.Local | List.isPrefixOf "comparable" name ->
+                flexAndUnify v
+            _ ->
+                comparableError Nothing
 
       unifyComparableStructure varSuper varFlex =
           do  struct <- liftIO $ collectApps varFlex
@@ -148,11 +157,11 @@ actuallyUnify variable1 variable2 = do
                     do  flexAndUnify varSuper
                         unifyHelp v =<< liftIO (variable $ Is Comparable)
 
-                Tuple vs
-                  | length vs > 6 ->
+                Tuple vs ->
+                    if length vs > 6 then
                       comparableError $ Just $
                         "Furthermore, it cannot be a tuple with more than 6 elements."
-                  | otherwise ->
+                    else
                       do  flexAndUnify varSuper
                           cmpVars <- liftIO $ forM [1..length vs] $ \_ -> variable (Is Comparable)
                           zipWithM_ unifyHelp vs cmpVars
@@ -194,14 +203,17 @@ actuallyUnify variable1 variable2 = do
             _ -> typeError variable1 variable2 Nothing
 
   case (structure desc1, structure desc2) of
-    (Nothing, Nothing) | flex desc1 == Flexible && flex desc1 == Flexible ->
-        merge
+    (Nothing, Nothing)
+        | flex desc1 == Flexible && flex desc1 == Flexible ->
+            merge
 
-    (Nothing, _) | flex desc1 == Flexible ->
-        merge2
+    (Nothing, _)
+        | flex desc1 == Flexible -> merge2
+        | flex desc1 == Error -> return ()
 
-    (_, Nothing) | flex desc2 == Flexible ->
-        merge1
+    (_, Nothing)
+        | flex desc2 == Flexible -> merge1
+        | flex desc2 == Error -> return ()
 
     (Just (Var1 v), _) ->
         unifyHelp v variable2
