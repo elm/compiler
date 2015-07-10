@@ -51,7 +51,7 @@ toReport dealiaser err =
         Report.simple
           "MISSING DEFINITION"
           ("There is a type annotation for `" ++ valueName ++ "` but there"
-            ++ "is no corresponding definition!"
+            ++ " is no corresponding definition!"
           )
           ("Directly below the type annotation, put a definition like:\n\n"
             ++ "    " ++ valueName ++ " = 42"
