@@ -18,7 +18,7 @@ data Docs t = Docs
 
 type Centralized = Docs (Maybe Type.Type)
 
-type Checked = Docs (Type.Type)
+type Checked = Docs Type.Type
 
 
 -- VALUE DOCUMENTATION
