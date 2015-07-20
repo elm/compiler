@@ -381,11 +381,7 @@ docComment :: IParser String
 docComment =
   do  try (string "{-|")
       contents <- closeComment
-
-      let reversed =
-              dropWhile (`elem` " \n\r") . drop 2 $ reverse contents
-
-      return $ dropWhile (==' ') (reverse reversed)
+      return (init (init contents))
 
 
 multiComment :: IParser String
