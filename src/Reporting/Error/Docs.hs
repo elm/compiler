@@ -7,7 +7,7 @@ import qualified Reporting.Report as Report
 data Error
     = NoDocs
     | OnlyInDocs String
-    | OnlyInExports String
+    | OnlyInExports [String]
     | NoComment String
     | NoType String
 
@@ -18,26 +18,29 @@ toReport :: Error -> Report.Report
 toReport err =
   case err of
     NoDocs ->
-        Report.simple "NO MODULE DOCUMENTATION"
+        Report.simple "DOCUMENTATION ERROR"
           ( "You must have a documentation comment between the module declaration and the\n"
             ++ "imports."
           )
           "Learn how at <http://package.elm-lang.org/help/documentation-format>"
 
     OnlyInDocs name ->
-        Report.simple "UNDEFINED DOCUMENTATION"
+        Report.simple "DOCUMENTATION ERROR"
           ("Your module documentation includes `" ++ name ++ "` which is not exported.")
           "Is it misspelled? Should it be exported?"
 
-    OnlyInExports name ->
-        Report.simple "MISSING DOCUMENTATION"
-          ("Your module exports `" ++ name ++ "` but it is not in the module documentation.")
-          ( "It needs to be listed in the module documentation.\n"
+    OnlyInExports names ->
+        Report.simple
+          "DOCUMENTATION ERROR"
+          ( "The following exports do not appear in your module documentation:\n"
+            ++ concatMap ("\n    " ++) names
+          )
+          ( "All exports must be listed in the module documentation after a @docs keyword.\n"
             ++ "Learn how at <http://package.elm-lang.org/help/documentation-format>"
           )
 
     NoComment name ->
-        Report.simple "MISSING COMMENT"
+        Report.simple "DOCUMENTATION ERROR"
           ("The value `" ++ name ++ "` does not have a documentation comment.")
           ( "Documentation comments start with {-| and end with -}. They should provide a\n"
             ++ "clear description of how they work, and ideally a small code example. This is\n"

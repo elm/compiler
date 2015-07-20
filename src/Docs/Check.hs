@@ -5,15 +5,16 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Traversable as T
-import Text.Parsec ((<|>), choice, many, string)
+import Text.Parsec ((<|>), choice, many, setPosition, string)
+import Text.Parsec.Pos (newPos)
 
 import qualified AST.Variable as Var
 import qualified Docs.AST as Docs
 import qualified Elm.Compiler.Type as Type
 import Elm.Utils ((|>))
 import Parse.Helpers
-    ( anyUntil, commaSep1, iParse, parens, simpleNewline, symOp, var
-    , whitespace
+    ( addLocation, anyUntil, commaSep1, iParse, parens, simpleNewline, symOp
+    , var, whitespace
     )
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Docs as Error
@@ -40,11 +41,14 @@ checkHelp :: R.Region -> [Var.Value] -> Docs.Centralized -> Result w Docs.Checke
 checkHelp region exports (Docs.Docs comment aliases types values) =
   let
     docNames =
-      Set.fromList (commentedNames comment)
+      commentedNames region comment
+
+    docSet =
+      Set.fromList (map A.drop docNames)
 
     checkCategory checkValue dict =
       dict
-        |> Map.filterWithKey (\key _ -> Set.member key docNames)
+        |> Map.filterWithKey (\key _ -> Set.member key docSet)
         |> Map.mapWithKey checkValue
         |> T.traverse id
 
@@ -77,15 +81,14 @@ checkUnion exportedUnions name value =
 
 filterUnionTags :: [(String, [String])] -> String -> A.Located Docs.Union -> Result w (A.Located Docs.Union)
 filterUnionTags exportedUnions name (A.A region union@(Docs.Union _ _ ctors)) =
-  case List.lookup name exportedUnions of
-    Nothing ->
-      R.throw region (Error.OnlyInExports name)
-
-    Just tags ->
-      R.ok $ A.A region $ union
-        { Docs.unionCases =
-            filter (\(tag, _) -> elem tag tags) ctors
-        }
+  let
+    exportedTags =
+      maybe [] id (List.lookup name exportedUnions)
+  in
+    R.ok $ A.A region $ union
+      { Docs.unionCases =
+          filter (\(tag, _) -> elem tag exportedTags) ctors
+      }
 
 
 
@@ -108,36 +111,53 @@ hasType name (A.A region value) =
 
 -- CHECK MODULE COMMENT
 
-checkModuleComment :: R.Region -> [Var.Value] -> Set.Set String -> Result w ()
-checkModuleComment region exports docNames =
+checkModuleComment :: R.Region -> [Var.Value] -> [A.Located String] -> Result w ()
+checkModuleComment docRegion exports locatedDocNames =
   let
     exportNames =
-      Set.fromList (map valueName exports)
+      Map.fromList (map (\v -> (valueName v, ())) exports)
 
-    onlyInDocs =
-      Set.toList (Set.difference docNames exportNames)
+    docNames =
+      Map.fromList (map (\(A.A region name) -> (name, region)) locatedDocNames)
 
-    onlyInExports =
-      Set.toList (Set.difference exportNames docNames)
+    docErrors =
+      Map.difference docNames exportNames
+        |> Map.toList
+        |> T.traverse (\(name, region) -> R.throw region (Error.OnlyInDocs name))
+
+    namesOnlyInExports =
+      Map.difference exportNames docNames
+        |> Map.toList
+        |> map fst
+
+    exportErrors =
+      if null namesOnlyInExports then
+          R.ok ()
+      else
+          R.throw docRegion (Error.OnlyInExports namesOnlyInExports)
   in
     (\_ _ -> ())
-      <$> T.traverse (R.throw region . Error.OnlyInDocs) onlyInDocs
-      <*> T.traverse (R.throw region . Error.OnlyInExports) onlyInExports
+      <$> docErrors
+      <*> exportErrors
 
 
-commentedNames :: String -> [String]
-commentedNames comment =
+commentedNames :: R.Region -> String -> [A.Located String]
+commentedNames (R.Region start _) comment =
   let
     nameParser =
       choice
         [ do  string "@docs"
               whitespace
-              commaSep1 (var <|> parens symOp)
+              commaSep1 (addLocation (var <|> parens symOp))
         , do  anyUntil simpleNewline
               return []
         ]
+
+    docCommentParser =
+      do  setPosition (newPos "docs" (R.line start) (R.column start + 3))
+          concat <$> many nameParser
   in
-    case iParse (concat <$> many nameParser) comment of
+    case iParse docCommentParser comment of
       Left _ ->
           []
 
