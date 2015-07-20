@@ -11,6 +11,7 @@ import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
+import qualified Reporting.Error.Helpers as Error
 import qualified Reporting.Region as R
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Result as Result

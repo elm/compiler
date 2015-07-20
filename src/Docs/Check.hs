@@ -18,6 +18,7 @@ import Parse.Helpers
     )
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Docs as Error
+import qualified Reporting.Error.Helpers as Error (nearbyNames)
 import qualified Reporting.Region as R
 import qualified Reporting.Result as R
 
@@ -115,18 +116,24 @@ checkModuleComment :: R.Region -> [Var.Value] -> [A.Located String] -> Result w 
 checkModuleComment docRegion exports locatedDocNames =
   let
     exportNames =
-      Map.fromList (map (\v -> (valueName v, ())) exports)
+      map valueName exports
 
-    docNames =
+    exportDict =
+      Map.fromList (map (\name -> (name, ())) exportNames)
+
+    docDict =
       Map.fromList (map (\(A.A region name) -> (name, region)) locatedDocNames)
 
+    extraNameError (name, region) =
+      R.throw region (Error.OnlyInDocs name (Error.nearbyNames id name exportNames))
+
     docErrors =
-      Map.difference docNames exportNames
+      Map.difference docDict exportDict
         |> Map.toList
-        |> T.traverse (\(name, region) -> R.throw region (Error.OnlyInDocs name))
+        |> T.traverse extraNameError
 
     namesOnlyInExports =
-      Map.difference exportNames docNames
+      Map.difference exportDict docDict
         |> Map.toList
         |> map fst
 
@@ -137,8 +144,8 @@ checkModuleComment docRegion exports locatedDocNames =
           R.throw docRegion (Error.OnlyInExports namesOnlyInExports)
   in
     (\_ _ -> ())
-      <$> docErrors
-      <*> exportErrors
+      <$> exportErrors
+      <*> docErrors
 
 
 commentedNames :: R.Region -> String -> [A.Located String]

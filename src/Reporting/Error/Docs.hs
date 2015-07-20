@@ -1,12 +1,13 @@
 {-# OPTIONS_GHC -Wall #-}
 module Reporting.Error.Docs where
 
+import qualified Reporting.Error.Helpers as Help
 import qualified Reporting.Report as Report
 
 
 data Error
     = NoDocs
-    | OnlyInDocs String
+    | OnlyInDocs String [String]
     | OnlyInExports [String]
     | NoComment String
     | NoType String
@@ -24,10 +25,10 @@ toReport err =
           )
           "Learn how at <http://package.elm-lang.org/help/documentation-format>"
 
-    OnlyInDocs name ->
+    OnlyInDocs name suggestions ->
         Report.simple "DOCUMENTATION ERROR"
           ("Your module documentation includes `" ++ name ++ "` which is not exported.")
-          "Is it misspelled? Should it be exported?"
+          ("Is it misspelled? Should it be exported? " ++ Help.maybeYouWant suggestions)
 
     OnlyInExports names ->
         Report.simple

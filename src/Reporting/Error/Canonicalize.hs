@@ -1,15 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
 module Reporting.Error.Canonicalize where
 
-import Data.Function (on)
-import qualified Data.List as List
-import qualified Text.EditDistance as Dist
 import qualified Text.PrettyPrint as P
 
 import qualified AST.Module as Module
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
-import Elm.Utils ((|>))
+import qualified Reporting.Error.Helpers as Help
 import qualified Reporting.PrettyPrint as P
 import qualified Reporting.Region as Region
 import qualified Reporting.Report as Report
@@ -109,25 +106,6 @@ port name isInbound rootType localType maybeMessage =
   Port (PortError name isInbound rootType localType maybeMessage)
 
 
--- NEARBY NAMES
-
-nearbyNames :: (a -> String) -> a -> [a] -> [a]
-nearbyNames format name names =
-  let editDistance =
-        if length (format name) < 3 then 1 else 2
-  in
-      names
-        |> map (\x -> (distance (format name) (format x), x))
-        |> List.sortBy (compare `on` fst)
-        |> filter ( (<= editDistance) . abs . fst )
-        |> map snd
-
-
-distance :: String -> String -> Int
-distance x y =
-  Dist.restrictedDamerauLevenshteinDistance Dist.defaultEditCosts x y
-
-
 -- TO REPORT
 
 namingError :: String -> String -> Report.Report
@@ -145,26 +123,26 @@ toReport dealiaser err =
           Ambiguous ->
               namingError
                 ("This usage of " ++ var ++ " is ambiguous.")
-                (maybeYouWant suggestions)
+                (Help.maybeYouWant suggestions)
 
           UnknownQualifier qualifier localName ->
               namingError
                 ("Cannot find " ++ var ++ ".")
                 ( "The qualifier `" ++ qualifier ++ "` is not in scope. "
-                  ++ maybeYouWant (map (\modul -> modul ++ "." ++ localName) suggestions)
+                  ++ Help.maybeYouWant (map (\modul -> modul ++ "." ++ localName) suggestions)
                 )
 
           QualifiedUnknown qualifier localName ->
               namingError
                 ("Cannot find " ++ var ++ ".")
                 ( "`" ++ qualifier ++ "` does not expose `" ++ localName ++ "`. "
-                  ++ maybeYouWant (map (\v -> qualifier ++ "." ++ v) suggestions)
+                  ++ Help.maybeYouWant (map (\v -> qualifier ++ "." ++ v) suggestions)
                 )
 
           ExposedUnknown ->
               namingError
                 ("Cannot find " ++ var)
-                (maybeYouWant suggestions)
+                (Help.maybeYouWant suggestions)
 
     Pattern patternError ->
         case patternError of
@@ -205,17 +183,17 @@ toReport dealiaser err =
           ModuleNotFound suggestions ->
               namingError
                 ("Could not find a module named `" ++ moduleName ++ "`")
-                (maybeYouWant (map Module.nameToString suggestions))
+                (Help.maybeYouWant (map Module.nameToString suggestions))
 
           ValueNotFound value suggestions ->
               namingError
                 ("Module `" ++ moduleName ++ "` does not expose `" ++ value ++ "`")
-                (maybeYouWant suggestions)
+                (Help.maybeYouWant suggestions)
 
     Export name suggestions ->
         namingError
           ("Could not export `" ++ name ++ "` which is not defined in this module.")
-          (maybeYouWant suggestions)
+          (Help.maybeYouWant suggestions)
 
     Port (PortError name isInbound _rootType localType maybeMessage) ->
         let
@@ -248,17 +226,6 @@ argMismatchReport kind var expected actual =
       "Expecting " ++ show expected ++ ", but got " ++ show actual ++ "."
   in
       Report.simple "ARGUMENT" preHint postHint
-
-
-maybeYouWant :: [String] -> String
-maybeYouWant suggestions =
-  case suggestions of
-    [] ->
-        ""
-
-    _:_ ->
-        "Maybe you want one of the following?\n"
-        ++ concatMap ("\n    "++) (take 4 suggestions)
 
 
 extractSuggestions :: Error -> Maybe [String]

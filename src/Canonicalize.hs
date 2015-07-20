@@ -23,6 +23,7 @@ import qualified Docs.Centralize as Docs
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error as Error
 import qualified Reporting.Error.Canonicalize as CError
+import qualified Reporting.Error.Helpers as ErrorHelp
 import qualified Reporting.Result as R
 import qualified Reporting.Warning as Warning
 import qualified Canonicalize.Declaration as Decls
@@ -197,7 +198,7 @@ resolveExports fullList (Var.Listing partialList open) =
 
     notFound region possibilities name =
         A.A region $ CError.Export name $
-            CError.nearbyNames id name possibilities
+            ErrorHelp.nearbyNames id name possibilities
 
 
 -- GROUPING VALUES
