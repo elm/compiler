@@ -5,12 +5,13 @@ import Control.Arrow (first,(***))
 import Control.Monad.State
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import Language.ECMAScript3.PrettyPrint
 import Language.ECMAScript3.Syntax
 
 import AST.Module
-import AST.Expression.General
+import AST.Expression.General as Expr
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Helpers as Help
 import AST.Literal
@@ -59,8 +60,10 @@ literal lit =
     Boolean  b -> BoolLit () b
 
 
+-- EXPRESSIONS
+
 expression :: Canonical.Expr -> State Int (Expression ())
-expression (A.A region expr) =
+expression annotatedExpr@(A.A region expr) =
     case expr of
       Var var ->
           return $ Var.canonical var
@@ -118,33 +121,8 @@ expression (A.A region expr) =
       Binop op e1 e2 ->
           binop region op e1 e2
 
-      Lambda pattern rawBody@(A.A ann _) ->
-          do  (args, body) <- foldM depattern ([], innerBody) (reverse patterns)
-              body' <- expression body
-              return $
-                case length args < 2 || length args > 9 of
-                  True  -> foldr (==>) body' (map (:[]) args)
-                  False -> ref ("F" ++ show (length args)) <| (args ==> body')
-          where
-            depattern (args, body) pattern =
-                case pattern of
-                  A.A _ (P.Var x) ->
-                      return (args ++ [ Var.varName x ], body)
-
-                  _ ->
-                      do  arg <- Case.newVar
-                          return
-                            ( args ++ [arg]
-                            , A.A ann (Case (A.A ann (localVar arg)) [(pattern, body)])
-                            )
-
-            (patterns, innerBody) =
-                collect [pattern] rawBody
-
-            collect patterns lexpr@(A.A _ expr) =
-                case expr of
-                  Lambda p e -> collect (p:patterns) e
-                  _ -> (patterns, lexpr)
+      Lambda _ _ ->
+          generateFunction (Expr.collectLambdas annotatedExpr)
 
       App e1 e2 ->
           do  func' <- expression func
@@ -162,11 +140,10 @@ expression (A.A region expr) =
                   (A.A _ (App f arg)) -> getArgs f (arg : args)
                   _ -> (func, args)
 
-      Let defs e ->
-          do  let (defs',e') = flattenLets defs e
-              stmts <- concat <$> mapM definition defs'
-              exp <- expression e'
-              return $ function [] (stmts ++ [ ret exp ]) `call` []
+      Let defs body ->
+          do  (stmts, bodyExpr) <- generateLetPieces defs body
+              return $ function [] (stmts ++ [ ret bodyExpr ]) `call` []
+
 
       MultiIf branches ->
           do  branches' <- forM branches $ \(b,e) -> (,) <$> expression b <*> expression e
@@ -223,6 +200,70 @@ expression (A.A region expr) =
                 do  expr' <- expression expr
                     return (Port.task name expr' portType)
 
+
+-- FUNCTIONS
+
+generateFunction
+    :: ([P.CanonicalPattern], Canonical.Expr)
+    -> State Int (Expression ())
+generateFunction (args, initialBody) =
+  do  (argVars, patternDefs) <- destructuredArgs args
+      (stmts, expr) <- generateLetPieces patternDefs initialBody
+      return (generateFunctionWithArity argVars stmts expr)
+
+
+generateFunctionWithArity :: [String] -> [Statement ()] -> Expression () -> Expression ()
+generateFunctionWithArity args stmts expr =
+    let
+        arity = length args
+    in
+      if 2 <= arity && arity <= 9 then
+          let
+              fN = "F" ++ show arity
+          in
+              ref fN <| function args (stmts ++ [ret expr])
+      else
+          let
+              (lastArg:otherArgs) = reverse args
+              innerBody = function [lastArg] (stmts ++ [ret expr])
+          in
+              foldl (\body arg -> function [arg] [ret body]) innerBody otherArgs
+
+
+destructuredArgs :: [P.CanonicalPattern] -> State Int ([String], [Canonical.Def])
+destructuredArgs args =
+  do  (argVars, maybePatternDefs) <- unzip <$> mapM destructPattern args
+      return (argVars, Maybe.catMaybes maybePatternDefs)
+
+
+destructPattern :: P.CanonicalPattern -> State Int (String, Maybe Canonical.Def)
+destructPattern pattern@(A.A ann pat) =
+  case pat of
+    P.Var x ->
+        return (Var.varName x, Nothing)
+
+    _ ->
+        do  arg <- Case.newVar
+            return
+              ( arg
+              , Just $ Canonical.Definition pattern (A.A ann (localVar arg)) Nothing
+              )
+
+
+-- LET EXPRESSIONS
+
+generateLetPieces
+    :: [Canonical.Def]
+    -> Canonical.Expr
+    -> State Int ([Statement ()], Expression ())
+generateLetPieces givenDefs givenBody =
+  do  let (defs, body) = flattenLets givenDefs givenBody
+      stmts <- concat <$> mapM definition defs
+      expr <- expression body
+      return (stmts, expr)
+
+
+-- DEFINITIONS
 
 definition :: Canonical.Def -> State Int [Statement ()]
 definition (Canonical.Definition annPattern expr@(A.A region _) _) =
