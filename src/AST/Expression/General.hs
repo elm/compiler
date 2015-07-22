@@ -282,7 +282,9 @@ collectLambdas
 collectLambdas lexpr@(A.A _ expr) =
   case expr of
     Lambda pattern body ->
-        let (ps, body') = collectLambdas body
-        in  (pattern : ps, body')
+        let
+          (ps, body') = collectLambdas body
+        in
+          (pattern : ps, body')
 
     _ -> ([], lexpr)
