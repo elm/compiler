@@ -309,8 +309,11 @@ generateLet givenDefs givenBody =
 -- GENERATE IFS
 
 generateIf :: [(Canonical.Expr, Canonical.Expr)] -> Canonical.Expr -> State Int Code
-generateIf branches finally =
+generateIf givenBranches givenFinally =
   let
+    (branches, finally) =
+        combineIfs givenBranches givenFinally
+
     convertBranch (condition, expr) =
         (,) <$> exprToJsExpr condition <*> exprToCode expr
 
@@ -328,6 +331,19 @@ generateIf branches finally =
             jsBlock [ foldr ifStatement (toStatement jsFinally) (map (second toStatement) jsBranches) ]
           else
             jsExpr (foldr ifExpression (toExpr jsFinally) (map (second toExpr) jsBranches))
+
+
+combineIfs
+    :: [(Canonical.Expr, Canonical.Expr)]
+    -> Canonical.Expr
+    -> ([(Canonical.Expr, Canonical.Expr)], Canonical.Expr)
+combineIfs branches finally =
+  case finally of
+    A.A _ (MultiIf subBranches subFinally) ->
+        combineIfs (branches ++ subBranches) subFinally
+
+    _ ->
+        (branches, finally)
 
 
 -- DEFINITIONS
