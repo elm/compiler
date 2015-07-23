@@ -37,6 +37,7 @@ data InfiniteType = InfiniteTypeInfo
 data Hint
     = CaseBranch Int Region.Region
     | Case
+    | IfCondition
     | IfBranches
     | MultiIfBranch Int Region.Region
     | If
@@ -126,6 +127,12 @@ hintToString hint =
         , "All the branches of this case-expression are consistent, but the overall\n"
           ++ "type does not match how it is used elsewhere."
         , Nothing
+        )
+
+    IfCondition ->
+        ( Nothing
+        , "This condition does not evaluate to a boolean value, True or False."
+        , Just "Elm does not have \"truthiness\" such that ints and strings and lists are\nautomatically converted to booleans. Do that conversion explicitly."
         )
 
     IfBranches ->

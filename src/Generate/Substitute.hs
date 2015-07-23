@@ -15,25 +15,25 @@ subst :: String -> Canonical.Expr' -> Canonical.Expr' -> Canonical.Expr'
 subst old new expression =
     let f (A.A a e) = A.A a (subst old new e) in
     case expression of
-      Range e1 e2 ->
-          Range (f e1) (f e2)
+      Range lo hi ->
+          Range (f lo) (f hi)
 
       ExplicitList exprs ->
           ExplicitList (map f exprs)
 
-      Binop op e1 e2 ->
-          Binop op (f e1) (f e2)
+      Binop op left right ->
+          Binop op (f left) (f right)
 
       Lambda pattern body ->
           if Pattern.member old pattern
             then expression
             else Lambda pattern (f body)
 
-      App e1 e2 ->
-          App (f e1) (f e2)
+      App func arg ->
+          App (f func) (f arg)
 
-      MultiIf branches ->
-          MultiIf (map (f *** f) branches)
+      MultiIf branches finally ->
+          MultiIf (map (f *** f) branches) (f finally)
 
       Let defs body ->
           if anyShadow
@@ -101,3 +101,6 @@ subst old new expression =
 
               Task name expr tipe ->
                   Task name (f expr) tipe
+
+      Crash _ ->
+          expression

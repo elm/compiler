@@ -213,8 +213,10 @@ expression (A.A ann sourceExpression) =
           <$> expression funcExpr
           <*> expression argExpr
 
-    MultiIf branches ->
-        MultiIf <$> T.traverse both branches
+    MultiIf branches finally ->
+        MultiIf
+          <$> T.traverse both branches
+          <*> expression finally
 
     Access record field ->
         Access
@@ -262,6 +264,9 @@ expression (A.A ann sourceExpression) =
             Task name expr tipe ->
                 do  expr' <- expression expr
                     return (Task name expr' tipe)
+
+    Crash details ->
+        return (Crash details)
 
 
 second :: (a, Source.Expr) -> Result.Result wrn Error.Error (a, Valid.Expr)

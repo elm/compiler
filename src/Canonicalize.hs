@@ -367,8 +367,10 @@ expression env (A.A region validExpr) =
       App func arg ->
           App <$> go func <*> go arg
 
-      MultiIf branches ->
-          MultiIf <$> T.traverse go' branches
+      MultiIf branches finally ->
+          MultiIf
+            <$> T.traverse go' branches
+            <*> go finally
         where
           go' (condition, branch) =
               (,) <$> go condition <*> go branch
@@ -426,6 +428,9 @@ expression env (A.A region validExpr) =
 
       GLShader uid src tipe ->
           Result.ok (GLShader uid src tipe)
+
+      Crash details ->
+          Result.ok (Crash details)
 
 
 pattern
