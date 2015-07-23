@@ -170,9 +170,9 @@ instance (P.Pretty def, P.Pretty var, Var.ToString var) => P.Pretty (Expr' ann d
               , P.nest 4 (P.pretty dealiaser False elseBranch)
               ]
 
-      MultiIf branches _finally ->
+      MultiIf branches finally ->
           P.parensIf needsParens $
-              P.text "if" $$ nest 3 (vcat $ map iff branches)
+              P.text "if" $$ nest 3 (vcat $ map iff branches ++ [final])
         where
           iff (condition, branch) =
             P.text "|" <+>
@@ -180,6 +180,9 @@ instance (P.Pretty def, P.Pretty var, Var.ToString var) => P.Pretty (Expr' ann d
                   (P.pretty dealiaser False condition <+> P.text "->")
                   2
                   (P.pretty dealiaser False branch)
+
+          final =
+            P.hang (P.text "| True -> ") 2 (P.pretty dealiaser False finally)
 
       Let defs body ->
           P.parensIf needsParens $
