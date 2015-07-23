@@ -312,7 +312,7 @@ generateIf :: [(Canonical.Expr, Canonical.Expr)] -> Canonical.Expr -> State Int 
 generateIf givenBranches givenFinally =
   let
     (branches, finally) =
-        combineIfs givenBranches givenFinally
+        crushIfs givenBranches givenFinally
 
     convertBranch (condition, expr) =
         (,) <$> exprToJsExpr condition <*> exprToCode expr
@@ -333,17 +333,38 @@ generateIf givenBranches givenFinally =
             jsExpr (foldr ifExpression (toExpr jsFinally) (map (second toExpr) jsBranches))
 
 
-combineIfs
+crushIfs
     :: [(Canonical.Expr, Canonical.Expr)]
     -> Canonical.Expr
     -> ([(Canonical.Expr, Canonical.Expr)], Canonical.Expr)
-combineIfs branches finally =
-  case finally of
-    A.A _ (MultiIf subBranches subFinally) ->
-        combineIfs (branches ++ subBranches) subFinally
+crushIfs branches finally =
+  crushIfsHelp [] branches finally
 
-    _ ->
-        (branches, finally)
+
+crushIfsHelp
+    :: [(Canonical.Expr, Canonical.Expr)]
+    -> [(Canonical.Expr, Canonical.Expr)]
+    -> Canonical.Expr
+    -> ([(Canonical.Expr, Canonical.Expr)], Canonical.Expr)
+crushIfsHelp visitedBranches unvisitedBranches finally =
+  case unvisitedBranches of
+    [] ->
+        case finally of
+          A.A _ (MultiIf subBranches subFinally) ->
+              crushIfsHelp visitedBranches subBranches subFinally
+
+          _ ->
+              (reverse visitedBranches, finally)
+
+    (A.A _ (Literal (Boolean True)), branch) : _ ->
+        crushIfsHelp visitedBranches [] branch
+
+    (A.A _ (Var (Var.Canonical (Var.Module ["Basics"]) "otherwise")), branch) : _ ->
+        crushIfsHelp visitedBranches [] branch
+
+    visiting : unvisited ->
+        crushIfsHelp (visiting : visitedBranches) unvisited finally
+
 
 
 -- DEFINITIONS
