@@ -1,4 +1,4 @@
-module Generate.Cases (toMatch, Match (..), Clause (..), matchSubst, newVar) where
+module Optimize.Cases (toMatch, Match (..), Clause (..), matchSubst, newVar) where
 
 import Control.Applicative ((<$>))
 import Control.Arrow (first)
@@ -12,7 +12,7 @@ import qualified AST.Expression.Optimized as Optimized
 import qualified AST.Literal as Literal
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
-import qualified Generate.Substitute as S
+import qualified Optimize.Substitute as S
 import qualified Reporting.Annotation as A
 
 

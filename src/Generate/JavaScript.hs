@@ -20,10 +20,10 @@ import qualified AST.Pattern as P
 import qualified AST.Variable as Var
 import Elm.Utils ((|>))
 import Generate.JavaScript.Helpers as Help
-import qualified Generate.Cases as Case
 import qualified Generate.JavaScript.Crash as Crash
 import qualified Generate.JavaScript.Port as Port
 import qualified Generate.JavaScript.Variable as Var
+import qualified Optimize.Cases as Case
 import qualified Reporting.Annotation as A
 import qualified Reporting.Crash as Crash
 
