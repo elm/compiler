@@ -8,7 +8,7 @@ import qualified Data.Set as Set
 import qualified Data.Traversable as T
 
 import AST.Expression.General (Expr'(..), dummyLet)
-import AST.Module (CanonicalBody(..))
+import AST.Module (Body(..))
 
 import qualified AST.Declaration as D
 import qualified AST.Expression.General as E
@@ -61,7 +61,7 @@ type AlmostCanonicalModule =
       Docs.Centralized
       ([Module.DefaultImport], [Module.UserImport])
       [Var.Value]
-      Module.CanonicalBody
+      (Module.Body Canonical.Expr)
 
 
 moduleHelp
@@ -89,11 +89,11 @@ moduleHelp interfaces modul@(Module.Module _ _ comment exports _ decls) =
         Setup.environment interfaces modul
           `Result.andThen` \env -> (,) env <$> T.traverse (declaration env) decls
 
-    body :: [D.CanonicalDecl] -> Module.CanonicalBody
+    body :: [D.CanonicalDecl] -> Module.Body Canonical.Expr
     body decls =
         let nakedDecls = map A.drop decls
         in
-        Module.CanonicalBody
+        Module.Body
           { program =
               let expr = Decls.toExpr (Module.names modul) decls
               in

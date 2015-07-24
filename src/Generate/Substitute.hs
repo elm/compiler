@@ -4,14 +4,14 @@ module Generate.Substitute (subst) where
 import Control.Arrow (second, (***))
 
 import AST.Expression.General (Expr'(..), PortImpl(..))
-import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Expression.Optimized as Optimized
 import qualified AST.Pattern as Pattern
 import qualified AST.Variable as V
 import Elm.Utils ((|>))
 import qualified Reporting.Annotation as A
 
 
-subst :: String -> Canonical.Expr' -> Canonical.Expr' -> Canonical.Expr'
+subst :: String -> Optimized.Expr' -> Optimized.Expr' -> Optimized.Expr'
 subst old new expression =
     let f (A.A a e) = A.A a (subst old new e) in
     case expression of
@@ -40,11 +40,11 @@ subst old new expression =
             then expression
             else Let (map substDef defs) (f body)
         where
-          substDef (Canonical.Definition p e t) =
-              Canonical.Definition p (f e) t
+          substDef (Optimized.Definition facts pattern expr) =
+              Optimized.Definition facts pattern (f expr)
 
           anyShadow =
-              map (\(Canonical.Definition p _ _) -> p) defs
+              map (\(Optimized.Definition _ p _) -> p) defs
                 |> any (Pattern.member old)
 
       Var (V.Canonical home x) ->

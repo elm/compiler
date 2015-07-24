@@ -2,8 +2,8 @@ module AST.Module
     ( Interfaces
     , Types, Aliases, ADTs
     , AdtInfo, CanonicalAdt
-    , SourceModule, ValidModule, CanonicalModule
-    , Module(..), CanonicalBody(..)
+    , SourceModule, ValidModule, CanonicalModule, Optimized
+    , Module(..), Body(..)
     , Header(..)
     , Name, nameToString, nameIsNative
     , Interface(..), toInterface
@@ -17,6 +17,7 @@ import qualified Data.Map as Map
 
 import qualified AST.Declaration as Decl
 import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Expression.Optimized as Optimized
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Docs.AST as Docs
@@ -55,7 +56,11 @@ type ValidModule =
 
 
 type CanonicalModule =
-    Module Docs.Centralized [Name] [Var.Value] CanonicalBody
+    Module Docs.Centralized [Name] [Var.Value] (Body Canonical.Expr)
+
+
+type Optimized =
+    Module Docs.Centralized [Name] [Var.Value] (Body Optimized.Expr)
 
 
 data Module docs imports exports body = Module
@@ -68,8 +73,8 @@ data Module docs imports exports body = Module
     }
 
 
-data CanonicalBody = CanonicalBody
-    { program   :: Canonical.Expr
+data Body expr = Body
+    { program   :: expr
     , types     :: Types
     , fixities  :: [(Decl.Assoc, Int, String)]
     , aliases   :: Aliases

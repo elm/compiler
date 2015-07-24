@@ -12,7 +12,7 @@ import Language.ECMAScript3.Syntax
 
 import AST.Module
 import AST.Expression.General as Expr
-import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Expression.Optimized as Opt
 import qualified AST.Helpers as Help
 import AST.Literal
 import qualified AST.Module as Module
@@ -26,7 +26,6 @@ import qualified Generate.JavaScript.Port as Port
 import qualified Generate.JavaScript.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Crash as Crash
-import qualified Reporting.Region as R
 
 
 internalImports :: Module.Name -> [VarDecl ()]
@@ -117,13 +116,13 @@ toExpr code =
 
 -- EXPRESSIONS
 
-exprToJsExpr :: Canonical.Expr -> State Int (Expression ())
+exprToJsExpr :: Opt.Expr -> State Int (Expression ())
 exprToJsExpr canonicalExpr =
   toExpr <$> exprToCode canonicalExpr
 
 
-exprToCode :: Canonical.Expr -> State Int Code
-exprToCode annotatedExpr@(A.A region expr) =
+exprToCode :: Opt.Expr -> State Int Code
+exprToCode annotatedExpr@(A.A _ expr) =
     case expr of
       Var var ->
           jsExpr $ Var.canonical var
@@ -179,7 +178,7 @@ exprToCode annotatedExpr@(A.A region expr) =
                 map (first prop) (Map.toList (Map.map head fs))
 
       Binop op leftExpr rightExpr ->
-          binop region op leftExpr rightExpr
+          binop op leftExpr rightExpr
 
       Lambda _ _ ->
           generateFunction (Expr.collectLambdas annotatedExpr)
@@ -207,7 +206,7 @@ exprToCode annotatedExpr@(A.A region expr) =
           generateIf branches finally
 
       Case expr branches ->
-          generateCase region expr branches
+          generateCase expr branches
 
       ExplicitList elements ->
           do  jsElements <- mapM exprToJsExpr elements
@@ -238,12 +237,12 @@ exprToCode annotatedExpr@(A.A region expr) =
                     jsExpr (Port.task name expr' portType)
 
       Crash details ->
-          jsExpr $ Crash.crash region details
+          jsExpr $ Crash.crash details
 
 
 -- FUNCTIONS
 
-generateFunction :: ([P.CanonicalPattern], Canonical.Expr) -> State Int Code
+generateFunction :: ([P.Optimized], Opt.Expr) -> State Int Code
 generateFunction (args, initialBody) =
   do  (argVars, patternDefs) <- destructuredArgs args
       code <- generateLet patternDefs initialBody
@@ -268,13 +267,13 @@ generateFunctionWithArity args code =
               foldl (\body arg -> function [arg] [ret body]) innerBody otherArgs
 
 
-destructuredArgs :: [P.CanonicalPattern] -> State Int ([String], [Canonical.Def])
+destructuredArgs :: [P.Optimized] -> State Int ([String], [Opt.Def])
 destructuredArgs args =
   do  (argVars, maybePatternDefs) <- unzip <$> mapM destructPattern args
       return (argVars, Maybe.catMaybes maybePatternDefs)
 
 
-destructPattern :: P.CanonicalPattern -> State Int (String, Maybe Canonical.Def)
+destructPattern :: P.Optimized -> State Int (String, Maybe Opt.Def)
 destructPattern pattern@(A.A ann pat) =
   case pat of
     P.Var x ->
@@ -284,15 +283,15 @@ destructPattern pattern@(A.A ann pat) =
         do  arg <- Case.newVar
             return
               ( arg
-              , Just $ Canonical.Definition pattern (A.A ann (localVar arg)) Nothing
+              , Just $ Opt.Definition Opt.dummyFacts pattern (A.A ann (localVar arg))
               )
 
 
 -- LET EXPRESSIONS
 
 generateLet
-    :: [Canonical.Def]
-    -> Canonical.Expr
+    :: [Opt.Def]
+    -> Opt.Expr
     -> State Int Code
 generateLet givenDefs givenBody =
   do  let (defs, body) = flattenLets givenDefs givenBody
@@ -308,7 +307,7 @@ generateLet givenDefs givenBody =
 
 -- GENERATE IFS
 
-generateIf :: [(Canonical.Expr, Canonical.Expr)] -> Canonical.Expr -> State Int Code
+generateIf :: [(Opt.Expr, Opt.Expr)] -> Opt.Expr -> State Int Code
 generateIf givenBranches givenFinally =
   let
     (branches, finally) =
@@ -334,18 +333,18 @@ generateIf givenBranches givenFinally =
 
 
 crushIfs
-    :: [(Canonical.Expr, Canonical.Expr)]
-    -> Canonical.Expr
-    -> ([(Canonical.Expr, Canonical.Expr)], Canonical.Expr)
+    :: [(Opt.Expr, Opt.Expr)]
+    -> Opt.Expr
+    -> ([(Opt.Expr, Opt.Expr)], Opt.Expr)
 crushIfs branches finally =
   crushIfsHelp [] branches finally
 
 
 crushIfsHelp
-    :: [(Canonical.Expr, Canonical.Expr)]
-    -> [(Canonical.Expr, Canonical.Expr)]
-    -> Canonical.Expr
-    -> ([(Canonical.Expr, Canonical.Expr)], Canonical.Expr)
+    :: [(Opt.Expr, Opt.Expr)]
+    -> [(Opt.Expr, Opt.Expr)]
+    -> Opt.Expr
+    -> ([(Opt.Expr, Opt.Expr)], Opt.Expr)
 crushIfsHelp visitedBranches unvisitedBranches finally =
   case unvisitedBranches of
     [] ->
@@ -369,13 +368,22 @@ crushIfsHelp visitedBranches unvisitedBranches finally =
 
 -- DEFINITIONS
 
-defToStatements :: Canonical.Def -> State Int [Statement ()]
-defToStatements (Canonical.Definition pattern expr _) =
-  defToStatementsHelp pattern =<< exprToJsExpr expr
+defToStatements :: Opt.Def -> State Int [Statement ()]
+defToStatements (Opt.Definition facts pattern expr) =
+    case Opt.tailRecursionDetails facts of
+      Just (name, arity) ->
+          error "TODO" name arity
+
+      Nothing ->
+          defToStatementsHelp facts pattern =<< exprToJsExpr expr
 
 
-defToStatementsHelp :: P.CanonicalPattern -> Expression () -> State Int [Statement ()]
-defToStatementsHelp annPattern@(A.A patternRegion pattern) jsExpr =
+defToStatementsHelp
+    :: Opt.Facts
+    -> P.Optimized
+    -> Expression ()
+    -> State Int [Statement ()]
+defToStatementsHelp facts annPattern@(A.A _ pattern) jsExpr =
   let
     define x =
       varDecl x jsExpr
@@ -417,25 +425,25 @@ defToStatementsHelp annPattern@(A.A patternRegion pattern) jsExpr =
 
         safeAssign = varDecl "$" (CondExpr () if' (ref "_raw") exception)
         if' = InfixExpr () OpStrictEq (obj ["_raw","ctor"]) (string name)
-        exception = Crash.crash patternRegion Crash.IncompletePatternMatch
+        exception = Crash.crash (Crash.IncompletePatternMatch (error "TODO"))
 
     _ ->
         do  defs' <- concat <$> mapM toDef vars
             return (VarDeclStmt () [define "_"] : defs')
         where
           vars = P.boundVarList annPattern
-          mkVar = A.A patternRegion . localVar
+          mkVar = A.A () . localVar
           toDef y =
-            let expr = A.A patternRegion $ Case (mkVar "_") [(annPattern, mkVar y)]
-                pat = A.A patternRegion (P.Var y)
+            let expr = A.A () $ Case (mkVar "_") [(annPattern, mkVar y)]
+                pat = A.A () (P.Var y)
             in
-                defToStatements (Canonical.Definition pat expr Nothing)
+                defToStatements (Opt.Definition facts pat expr)
 
 
 -- CASE EXPRESSIONS
 
-generateCase :: R.Region -> Canonical.Expr -> [(P.CanonicalPattern, Canonical.Expr)] -> State Int Code
-generateCase region expr branches =
+generateCase :: Opt.Expr -> [(P.Optimized, Opt.Expr)] -> State Int Code
+generateCase expr branches =
   do  (tempVar, initialMatch) <-
           Case.toMatch branches
 
@@ -447,17 +455,17 @@ generateCase region expr branches =
                 do  expr' <- exprToJsExpr expr
                     return (initialMatch, [VarDeclStmt () [varDecl tempVar expr']])
 
-      match' <- match region revisedMatch
+      match' <- match revisedMatch
 
       jsBlock (stmt ++ match')
 
 
-match :: R.Region -> Case.Match -> State Int [Statement ()]
-match region mtch =
+match :: Case.Match -> State Int [Statement ()]
+match mtch =
   case mtch of
     Case.Match name clauses mtch' ->
-        do  (isChars, clauses') <- unzip <$> mapM (clause region name) clauses
-            mtch'' <- match region mtch'
+        do  (isChars, clauses') <- unzip <$> mapM (clause name) clauses
+            mtch'' <- match mtch'
             return (SwitchStmt () (format isChars (access name)) clauses' : mtch'')
         where
           isLiteral p =
@@ -480,7 +488,7 @@ match region mtch =
                   expr
 
     Case.Fail ->
-        return [ ExprStmt () (Crash.crash region Crash.IncompletePatternMatch) ]
+        return [ ExprStmt () (Crash.crash (Crash.IncompletePatternMatch (error "TODO"))) ]
 
     Case.Break ->
         return [BreakStmt () Nothing]
@@ -489,7 +497,7 @@ match region mtch =
         toStatementList <$> exprToCode expr
 
     Case.Seq ms ->
-        concat <$> mapM (match region) (dropEnd [] ms)
+        concat <$> mapM match (dropEnd [] ms)
       where
         dropEnd acc [] = acc
         dropEnd acc (m:ms) =
@@ -498,9 +506,9 @@ match region mtch =
               _ -> dropEnd (acc ++ [m]) ms
 
 
-clause :: R.Region -> String -> Case.Clause -> State Int (Bool, CaseClause ())
-clause region variable (Case.Clause value vars mtch) =
-    (,) isChar . CaseClause () pattern <$> match region (Case.matchSubst (zip vars vars') mtch)
+clause :: String -> Case.Clause -> State Int (Bool, CaseClause ())
+clause variable (Case.Clause value vars mtch) =
+    (,) isChar . CaseClause () pattern <$> match (Case.matchSubst (zip vars vars') mtch)
   where
     vars' =
         map (\n -> variable ++ "._" ++ show n) [0..]
@@ -517,14 +525,14 @@ clause region variable (Case.Clause value vars mtch) =
                     string name
 
 
-flattenLets :: [Canonical.Def] -> Canonical.Expr -> ([Canonical.Def], Canonical.Expr)
+flattenLets :: [Opt.Def] -> Opt.Expr -> ([Opt.Def], Opt.Expr)
 flattenLets defs lexpr@(A.A _ expr) =
     case expr of
       Let ds body -> flattenLets (defs ++ ds) body
       _ -> (defs, lexpr)
 
 
-generate :: Module.CanonicalModule -> String
+generate :: Module.Optimized -> String
 generate modul =
     show . prettyPrint $ setup "Elm" (names ++ ["make"]) ++
              [ assign ("Elm" : names ++ ["make"]) (function [localRuntime] programStmts) ]
@@ -613,14 +621,13 @@ generate modul =
 -- BINARY OPERATORS
 
 binop
-    :: R.Region
-    -> Var.Canonical
-    -> Canonical.Expr
-    -> Canonical.Expr
+    :: Var.Canonical
+    -> Opt.Expr
+    -> Opt.Expr
     -> State Int Code
-binop region func left right
+binop func left right
   | func == Var.Canonical Var.BuiltIn "::" =
-      exprToCode (A.A region (Data "::" [left,right]))
+      exprToCode (A.A () (Data "::" [left,right]))
 
   | func == forwardCompose =
       compose (collectLeftAssoc forwardCompose left right)
@@ -647,13 +654,13 @@ apply arg func =
   func <| arg
 
 
-compose :: [Canonical.Expr] -> State Int Code
+compose :: [Opt.Expr] -> State Int Code
 compose functions =
   do  jsFunctions <- mapM exprToJsExpr functions
       jsExpr $ ["$"] ==> List.foldl' apply (ref "$") jsFunctions
 
 
-pipe :: [Canonical.Expr] -> State Int Code
+pipe :: [Opt.Expr] -> State Int Code
 pipe expressions =
   do  (value:functions) <- mapM exprToJsExpr expressions
       jsExpr $ List.foldl' apply value functions
@@ -740,12 +747,12 @@ cmp op n a b =
 -- BINARY OPERATOR COLLECTORS
 
 -- (h << g << f) becomes [f, g, h] which is the order you want for doing stuff
-collectRightAssoc :: Var.Canonical -> Canonical.Expr -> Canonical.Expr -> [Canonical.Expr]
+collectRightAssoc :: Var.Canonical -> Opt.Expr -> Opt.Expr -> [Opt.Expr]
 collectRightAssoc desiredOp left right =
   collectRightAssocHelp desiredOp [left] right
 
 
-collectRightAssocHelp :: Var.Canonical -> [Canonical.Expr] -> Canonical.Expr -> [Canonical.Expr]
+collectRightAssocHelp :: Var.Canonical -> [Opt.Expr] -> Opt.Expr -> [Opt.Expr]
 collectRightAssocHelp desiredOp exprList expr =
     case expr of
       A.A _ (Binop op left right) | op == desiredOp ->
@@ -756,12 +763,12 @@ collectRightAssocHelp desiredOp exprList expr =
 
 
 -- (f >> g >> h) becomes [f, g, h] which is the order you want for doing stuff
-collectLeftAssoc :: Var.Canonical -> Canonical.Expr -> Canonical.Expr -> [Canonical.Expr]
+collectLeftAssoc :: Var.Canonical -> Opt.Expr -> Opt.Expr -> [Opt.Expr]
 collectLeftAssoc desiredOp left right =
   collectLeftAssocHelp desiredOp [right] left
 
 
-collectLeftAssocHelp :: Var.Canonical -> [Canonical.Expr] -> Canonical.Expr -> [Canonical.Expr]
+collectLeftAssocHelp :: Var.Canonical -> [Opt.Expr] -> Opt.Expr -> [Opt.Expr]
 collectLeftAssocHelp desiredOp exprList expr =
     case expr of
       A.A _ (Binop op left right) | op == desiredOp ->

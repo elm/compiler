@@ -8,7 +8,7 @@ import qualified Data.List as List
 import Data.Maybe (fromMaybe)
 
 import qualified AST.Expression.General as Expr
-import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Expression.Optimized as Optimized
 import qualified AST.Literal as Literal
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
@@ -22,23 +22,23 @@ data Match
     = Match String [Clause] Match
     | Break
     | Fail
-    | Other Canonical.Expr
+    | Other Optimized.Expr
     | Seq [Match]
-      deriving Show
+    deriving (Show)
 
 
 data Clause =
     Clause (Either Var.Canonical Literal.Literal) [String] Match
-    deriving Show
+    deriving (Show)
 
 
 type Branch =
-    ([P.CanonicalPattern], Canonical.Expr)
+    ([P.Optimized], Optimized.Expr)
 
 
 -- PUBLIC FUNCTIONS
 
-toMatch :: [(P.CanonicalPattern, Canonical.Expr)] -> State Int (String, Match)
+toMatch :: [(P.Optimized, Optimized.Expr)] -> State Int (String, Match)
 toMatch patterns =
   do  v <- newVar
       (,) v <$> buildMatch [v] (map (first (:[])) patterns) Fail
@@ -61,8 +61,12 @@ matchSubst pairs match =
     Seq ms ->
         Seq (map (matchSubst pairs) ms)
 
-    Other (A.A a e) ->
-        Other . A.A a $ foldr ($) e $ map (\(x,y) -> S.subst x (Expr.localVar y)) pairs
+    Other (A.A ann expr) ->
+        let
+            substitutions =
+                map (\(x,y) -> S.subst x (Expr.localVar y)) pairs
+        in
+            Other $ A.A ann $ foldr ($) expr substitutions
 
     Match n cs m ->
         Match (varSubst n) (map clauseSubst cs) (matchSubst pairs m)

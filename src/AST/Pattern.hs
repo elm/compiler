@@ -38,6 +38,10 @@ type CanonicalPattern =
     Pattern R.Region Var.Canonical
 
 
+type Optimized =
+    Pattern () Var.Canonical
+
+
 list :: R.Position -> [RawPattern] -> RawPattern
 list end patterns =
   case patterns of

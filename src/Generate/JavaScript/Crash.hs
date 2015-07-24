@@ -12,21 +12,21 @@ localModuleName =
     "$moduleName"
 
 
-crash :: R.Region -> Crash.Details -> Expression ()
-crash region details =
+crash :: Crash.Details -> Expression ()
+crash details =
   case details of
-    Crash.IncompleteMultiIf _ ->
+    Crash.IncompleteMultiIf region ->
         obj ["_U","badIf"]
           `call`
             [ ref localModuleName
             , string (R.toString region)
             ]
 
-    Crash.IncompletePatternMatch ->
+    Crash.IncompletePatternMatch _region ->
         obj ["_U","badCase"]
           `call`
             [ ref localModuleName
-            , string (R.toString region)
+            , string "bugs in reporting the exact location right now"  -- TODO
             ]
 
 

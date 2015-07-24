@@ -6,7 +6,7 @@ import qualified Reporting.Region as R
 
 data Details
     = IncompleteMultiIf R.Region
-    | IncompletePatternMatch
+    | IncompletePatternMatch R.Region
     deriving (Show)
 
 
@@ -16,5 +16,5 @@ summary details =
     IncompleteMultiIf _ ->
         "incomplete-multi-if"
 
-    IncompletePatternMatch ->
+    IncompletePatternMatch _ ->
         "incomplete-pattern-match"
