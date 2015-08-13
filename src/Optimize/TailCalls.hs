@@ -68,11 +68,14 @@ detectTailRecursion (Can.Definition pattern expression _) =
 
         (Result isTailCall optExpr) =
             findTailCalls context body
+
+        lambda x e =
+            A.A () (Lambda x e)
     in
         Opt.Definition
-          (Opt.Facts (if isTailCall then context else Nothing))
+          (Opt.Facts (if isTailCall then fmap fst context else Nothing))
           (removeAnnotations pattern)
-          optExpr
+          (foldr lambda optExpr (map removeAnnotations args))
 
 
 -- CONVERT EXPRESSIONS

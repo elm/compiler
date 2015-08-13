@@ -25,7 +25,7 @@ data Def
 
 
 data Facts = Facts
-    { tailRecursionDetails :: Maybe (String, Int)
+    { tailRecursionDetails :: Maybe String
     }
     deriving (Show)
 
