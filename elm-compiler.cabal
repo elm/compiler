@@ -79,6 +79,7 @@ Library
         Generate.JavaScript.Helpers,
         Generate.JavaScript.Port,
         Generate.JavaScript.Variable,
+        Nitpick.PatternMatches,
         Nitpick.TopLevelTypes,
         Optimize,
         Optimize.Cases,

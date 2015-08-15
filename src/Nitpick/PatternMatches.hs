@@ -9,6 +9,7 @@ import qualified Data.Set as Set
 
 import qualified AST.Expression.General as E
 import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Helpers as Help
 import qualified AST.Literal as L
 import qualified AST.Module as Module
 import qualified AST.Pattern as P
@@ -22,10 +23,16 @@ import qualified Reporting.Warning as Warning
 
 patternMatches
     :: Module.Interfaces
-    -> Module.Body Canonical.Expr
+    -> Module.CanonicalModule
     -> Result.Result Warning.Warning e ()
-patternMatches interfaces body =
-  checkExpression (toTagDict interfaces) (Module.program body)
+patternMatches interfaces modul =
+  let
+    name = Module.names modul
+    body = Module.body modul
+  in
+    checkExpression
+      (toTagDict interfaces name (Module.datatypes body))
+      (Module.program body)
 
 
 -- PATTERN MATCH DATA STRUCTURE
@@ -73,8 +80,8 @@ type TagDict =
 type Tag = String
 
 
-toTagDict :: Module.Interfaces -> TagDict
-toTagDict interfaces =
+toTagDict :: Module.Interfaces -> Module.Name -> Module.ADTs -> TagDict
+toTagDict interfaces localName localAdts =
   let
     listTags =
         [ ("::", 2), ("[]", 0) ]
@@ -90,6 +97,7 @@ toTagDict interfaces =
         interfaces
           |> Map.map (toTagMapping . Module.iAdts)
           |> Map.mapKeysMonotonic Var.Module
+          |> Map.insert (Var.Module localName) (toTagMapping localAdts)
   in
     Map.union builtinDict interfaceDict
 
@@ -115,6 +123,9 @@ lookupOtherCtors (Var.Canonical home name) tagDict =
         otherTags
 
     Nothing ->
+      if Help.isTuple name then
+        [(name, read (drop 6 name))]
+      else
         error
           "Since the Nitpick phase happens after canonicalization and type \
           \inference, it is impossible that a pattern in a case cannot be \

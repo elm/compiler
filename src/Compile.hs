@@ -48,7 +48,7 @@ compile user projectName isRoot interfaces source =
       Result.mapError Error.Type $
         Nitpick.topLevelTypes types (Module.body validModule)
 
-      Nitpick.patternMatches interfaces (Module.body canonicalModule)
+      Nitpick.patternMatches interfaces canonicalModule
 
       -- Add the real list of types
       let body = (Module.body canonicalModule) { Module.types = types }
