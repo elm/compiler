@@ -35,4 +35,3 @@ fromPattern (Annotation.A _region pattern) =
 
       P.Literal literal ->
           Literal literal
-

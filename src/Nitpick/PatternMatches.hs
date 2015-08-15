@@ -302,4 +302,3 @@ makeArgComplements adtDict numArgs index argPattern =
       replicate index P.Anything ++ pat : replicate (numArgs - index - 1) P.Anything
   in
     map (P.Data ctor . paddedArgs) complementList
-
