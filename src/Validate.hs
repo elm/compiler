@@ -23,34 +23,43 @@ import qualified Reporting.Result as Result
 -- VALIDATE DECLARATIONS
 
 declarations
-    :: [D.SourceDecl]
+    :: Bool
+    -> [D.SourceDecl]
     -> Result.Result wrn Error.Error [D.ValidDecl]
-declarations sourceDecls =
-  do  validDecls <- validateDecls sourceDecls
+declarations isRoot sourceDecls =
+  do  validDecls <- validateDecls Nothing sourceDecls
       (\_ _ -> validDecls)
         <$> declDuplicates validDecls
-        <*> T.traverse checkDecl validDecls
+        <*> T.traverse (checkDecl isRoot) validDecls
 
 
 validateDecls
-    :: [D.SourceDecl]
+    :: Maybe String
+    -> [D.SourceDecl]
     -> Result.Result wrn Error.Error [D.ValidDecl]
-validateDecls sourceDecls =
+validateDecls maybeComment sourceDecls =
   case sourceDecls of
     [] ->
         return []
 
-    decl : decls ->
-        validateDeclsHelp decl decls
+    sourceDecl : decls ->
+        case sourceDecl of
+          D.Comment comment ->
+              validateDecls (Just comment) decls
+
+          D.Decl decl ->
+              validateDeclsHelp maybeComment decl decls
 
 
 validateDeclsHelp
-    :: D.SourceDecl
+    :: Maybe String
+    -> A.Located D.SourceDecl'
     -> [D.SourceDecl]
     -> Result.Result wrn Error.Error [D.ValidDecl]
-validateDeclsHelp (A.A region decl) decls =
+validateDeclsHelp comment (A.A region decl) decls =
   let addRest validDecl =
-        (:) (A.A region validDecl) <$> validateDecls decls
+        (:) (A.A (region, comment) validDecl)
+          <$> validateDecls Nothing decls
   in
   case decl of
     D.Datatype name tvars ctors ->
@@ -63,21 +72,23 @@ validateDeclsHelp (A.A region decl) decls =
         addRest (D.Fixity assoc prec op)
 
     D.Definition def ->
-        defHelp def decls
+        defHelp comment def decls
 
     D.Port port ->
-        portHelp region port decls
+        portHelp comment region port decls
 
 
 -- VALIDATE DEFINITIONS IN DECLARATIONS
 
 defHelp
-    :: Source.Def
+    :: Maybe String
+    -> Source.Def
     -> [D.SourceDecl]
     -> Result.Result wrn Error.Error [D.ValidDecl]
-defHelp (A.A region def) decls =
+defHelp comment (A.A region def) decls =
   let addRest def' rest =
-        (:) (A.A region (D.Definition def')) <$> validateDecls rest
+        (:) (A.A (region, comment) (D.Definition def'))
+          <$> validateDecls Nothing rest
   in
   case def of
     Source.Definition pat expr ->
@@ -87,7 +98,8 @@ defHelp (A.A region def) decls =
 
     Source.TypeAnnotation name tipe ->
         case decls of
-          A.A _ (D.Definition (A.A _ (Source.Definition pat@(A.A _ (Pattern.Var name')) expr))) : rest
+          D.Decl (A.A _ (D.Definition (A.A _
+            (Source.Definition pat@(A.A _ (Pattern.Var name')) expr)))) : rest
               | name == name' ->
                   do  expr' <- Validate.expression expr
                       let def' = Valid.Definition pat expr' (Just tipe)
@@ -100,13 +112,15 @@ defHelp (A.A region def) decls =
 -- VALIDATE PORTS IN DECLARATIONS
 
 portHelp
-    :: R.Region
+    :: Maybe String
+    -> R.Region
     -> D.SourcePort
     -> [D.SourceDecl]
     -> Result.Result wrn Error.Error [D.ValidDecl]
-portHelp region port decls =
+portHelp comment region port decls =
   let addRest port' rest =
-        (:) (A.A region (D.Port port')) <$> validateDecls rest
+        (:) (A.A (region,comment) (D.Port port'))
+          <$> validateDecls Nothing rest
   in
   case port of
     D.PortDefinition name _ ->
@@ -114,7 +128,7 @@ portHelp region port decls =
 
     D.PortAnnotation name tipe ->
         case decls of
-          A.A _ (D.Port (D.PortDefinition name' expr)) : rest
+          D.Decl (A.A _ (D.Port (D.PortDefinition name' expr))) : rest
               | name == name' ->
                   do  expr' <- Validate.expression expr
                       let port' = D.Out name expr' tipe
@@ -199,8 +213,10 @@ expression (A.A ann sourceExpression) =
           <$> expression funcExpr
           <*> expression argExpr
 
-    MultiIf branches ->
-        MultiIf <$> T.traverse both branches
+    MultiIf branches finally ->
+        MultiIf
+          <$> T.traverse both branches
+          <*> expression finally
 
     Access record field ->
         Access
@@ -248,6 +264,9 @@ expression (A.A ann sourceExpression) =
             Task name expr tipe ->
                 do  expr' <- expression expr
                     return (Task name expr' tipe)
+
+    Crash details ->
+        return (Crash details)
 
 
 second :: (a, Source.Expr) -> Result.Result wrn Error.Error (a, Valid.Expr)
@@ -304,7 +323,7 @@ declDuplicates decls =
 
 
 extractValues :: D.ValidDecl -> ([A.Located String], [A.Located String])
-extractValues (A.A region decl) =
+extractValues (A.A (region, _) decl) =
   case decl of
     D.Definition (Valid.Definition pattern _ _) ->
         ( Pattern.boundVars pattern
@@ -339,8 +358,8 @@ extractValues (A.A region decl) =
 
 -- UNBOUND TYPE VARIABLES
 
-checkDecl :: D.ValidDecl -> Result.Result wrn Error.Error ()
-checkDecl (A.A region decl) =
+checkDecl :: Bool -> D.ValidDecl -> Result.Result wrn Error.Error ()
+checkDecl isRoot (A.A (region,_) decl) =
   case decl of
     D.Definition _ ->
         return ()
@@ -352,21 +371,29 @@ checkDecl (A.A region decl) =
           [] ->
               return ()
 
-          v:vs ->
-              Result.throw region
-                (Error.UnboundTypeVarsInUnion name boundVars v vs ctors)
+          unbound ->
+              let
+                (v:vs) = Set.toList (Set.fromList unbound)
+              in
+                Result.throw region
+                  (Error.UnboundTypeVarsInUnion name boundVars v vs ctors)
 
     D.TypeAlias name boundVars tipe ->
         case findUnbound boundVars (freeVars tipe) of
           [] ->
               return ()
 
-          v:vs ->
-              Result.throw region
-                (Error.UnboundTypeVarsInAlias name boundVars v vs tipe)
+          unbound ->
+              let
+                (v:vs) = Set.toList (Set.fromList unbound)
+              in
+                Result.throw region
+                  (Error.UnboundTypeVarsInAlias name boundVars v vs tipe)
 
     D.Port _ ->
-        return ()
+        if isRoot
+          then return ()
+          else Result.throw region Error.UnexpectedPort
 
     D.Fixity _ _ _ ->
         return ()

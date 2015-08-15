@@ -17,6 +17,7 @@ import qualified AST.Variable as Var
 import Elm.Utils ((|>))
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
+import qualified Reporting.Error.Helpers as Error
 import qualified Reporting.Region as R
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Result as Result
@@ -27,7 +28,7 @@ environment
     :: Module.Interfaces
     -> Module.ValidModule
     -> Result.ResultErr Env.Environment
-environment interfaces modul@(Module.Module _ _ _ (defaults, imports) decls) =
+environment interfaces modul@(Module.Module _ _ _ _ (defaults, imports) decls) =
   let moduleName =
           Module.names modul
 
@@ -288,7 +289,7 @@ declToPatches
     :: Module.Name
     -> D.ValidDecl
     -> (Maybe Node, [Env.Patch])
-declToPatches moduleName (A.A region decl) =
+declToPatches moduleName (A.A (region,_) decl) =
   let local mkPatch x =
           mkPatch x (Var.local x)
 

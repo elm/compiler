@@ -12,7 +12,6 @@ import Test.Framework.Providers.HUnit (testCase)
 import Test.HUnit (Assertion, assertFailure, assertBool)
 
 import qualified Elm.Compiler as Compiler
-import qualified Elm.Compiler.Module as Module
 
 
 compilerTests :: Test
@@ -45,16 +44,25 @@ testsDir =
 -- RUN COMPILER
 
 testIf
-    :: (Either String (Module.Interface, String) -> Assertion)
+    :: (Either String Compiler.Result -> Assertion)
     -> [FilePath]
     -> IO [Test]
 testIf handleResult filePaths =
     traverse setupTest filePaths
   where
-    setupTest filePath =
-      do  source <- readFile filePath
-          let result = Compiler.compile "elm-lang" "core" source Map.empty
-          return (testCase filePath (handleResult result))
+    setupTest filePath = do
+      source <- readFile filePath
+
+      let context =
+            Compiler.Context "elm-lang" "core" True False
+      let (dealiaser, _warnings, result) =
+            Compiler.compile context source Map.empty
+      let formatErrors errors =
+            concatMap (Compiler.errorToString dealiaser filePath source) errors
+      let formattedResult =
+            either (Left . formatErrors) Right result
+
+      return $ testCase filePath (handleResult formattedResult)
 
 
 -- CHECK RESULTS
@@ -62,12 +70,19 @@ testIf handleResult filePaths =
 isSuccess :: Either String a -> Assertion
 isSuccess result =
     case result of
-      Right _ -> assertBool "" True
-      Left msg -> assertFailure msg
+      Right _ ->
+          assertBool "" True
+
+      Left errorMessages ->
+          assertFailure errorMessages
 
 
 isFailure :: Either a b -> Assertion
 isFailure result =
     case result of
-      Right _ -> assertFailure "Compilation succeeded but should have failed"
-      Left _ -> assertBool "" True
+      Right _ ->
+          assertFailure "Compilation succeeded but should have failed"
+
+      Left _ ->
+          assertBool "" True
+

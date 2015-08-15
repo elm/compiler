@@ -2,8 +2,8 @@ module AST.Module
     ( Interfaces
     , Types, Aliases, ADTs
     , AdtInfo, CanonicalAdt
-    , SourceModule, ValidModule, CanonicalModule
-    , Module(..), CanonicalBody(..)
+    , SourceModule, ValidModule, CanonicalModule, Optimized
+    , Module(..), Body(..)
     , Header(..)
     , Name, nameToString, nameIsNative
     , Interface(..), toInterface
@@ -17,8 +17,10 @@ import qualified Data.Map as Map
 
 import qualified AST.Declaration as Decl
 import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Expression.Optimized as Optimized
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
+import qualified Docs.AST as Docs
 import qualified Elm.Compiler.Version as Compiler
 import qualified Reporting.Annotation as A
 
@@ -38,28 +40,41 @@ type CanonicalAdt = (Var.Canonical, AdtInfo Var.Canonical)
 -- MODULES
 
 type SourceModule =
-    Module [UserImport] (Var.Listing Var.Value) [Decl.SourceDecl]
+    Module
+      String
+      [UserImport]
+      (Var.Listing (A.Located Var.Value))
+      [Decl.SourceDecl]
+
 
 type ValidModule =
     Module
+      String
       ([DefaultImport], [UserImport])
-      (Var.Listing Var.Value)
+      (Var.Listing (A.Located Var.Value))
       [Decl.ValidDecl]
 
+
 type CanonicalModule =
-    Module [Name] [Var.Value] CanonicalBody
+    Module Docs.Centralized [Name] [Var.Value] (Body Canonical.Expr)
 
 
-data Module imports exports body = Module
+type Optimized =
+    Module Docs.Centralized [Name] [Var.Value] (Body Optimized.Expr)
+
+
+data Module docs imports exports body = Module
     { names   :: Name
     , path    :: FilePath
+    , docs    :: A.Located (Maybe docs)
     , exports :: exports
     , imports :: imports
     , body    :: body
     }
 
-data CanonicalBody = CanonicalBody
-    { program   :: Canonical.Expr
+
+data Body expr = Body
+    { program   :: expr
     , types     :: Types
     , fixities  :: [(Decl.Assoc, Int, String)]
     , aliases   :: Aliases
@@ -73,7 +88,8 @@ data CanonicalBody = CanonicalBody
 {-| Basic info needed to identify modules and determine dependencies. -}
 data Header imports = Header
     { _names :: Name
-    , _exports :: Var.Listing Var.Value
+    , _docs :: A.Located (Maybe String)
+    , _exports :: Var.Listing (A.Located Var.Value)
     , _imports :: imports
     }
 
@@ -121,6 +137,7 @@ data Interface = Interface
     , iPorts    :: [String]
     }
 
+
 toInterface :: CanonicalModule -> Interface
 toInterface modul =
     let body' = body modul in
@@ -134,6 +151,7 @@ toInterface modul =
     , iFixities = fixities body'
     , iPorts    = ports body'
     }
+
 
 instance Binary Interface where
   get = Interface <$> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get

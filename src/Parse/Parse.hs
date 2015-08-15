@@ -1,10 +1,10 @@
 {-# OPTIONS_GHC -Wall #-}
-module Parse.Parse (program) where
+module Parse.Parse (program, parse) where
 
 import Control.Applicative ((<$>), (<*>))
 import qualified Data.Map as Map
 import qualified Data.Traversable as T
-import Text.Parsec (char, eof, letter, many, optional, putState, (<|>), (<?>))
+import Text.Parsec (char, eof, letter, many, optional, putState, (<|>))
 import qualified Text.Parsec.Error as Parsec
 
 import qualified AST.Declaration as D
@@ -21,36 +21,37 @@ import qualified Validate
 
 program
     :: Bool
+    -> Bool
     -> OpTable
     -> String
     -> Result.Result wrn Error.Error M.ValidModule
-program needsDefaults table src =
-  do  (M.Module names filePath exports imports sourceDecls) <-
+program needsDefaults isRoot table src =
+  do  (M.Module names filePath docs exports imports sourceDecls) <-
           parseWithTable table src programParser
 
-      validDecls <- Validate.declarations sourceDecls
+      validDecls <- Validate.declarations isRoot sourceDecls
 
       let ammendedImports =
             (if needsDefaults then Imports.defaults else [], imports)
 
-      return (M.Module names filePath exports ammendedImports validDecls)
+      return (M.Module names filePath docs exports ammendedImports validDecls)
 
 
 -- HEADERS AND DECLARATIONS
 
 programParser :: IParser M.SourceModule
 programParser =
-  do  (M.Header names exports imports) <- Module.header
+  do  (M.Header names docs exports imports) <- Module.header
       decls <- declarations
       optional freshLine
       optional spaces
       eof
-      return $ M.Module names "" exports imports decls
+      return $ M.Module names "" docs exports imports decls
 
 
 declarations :: IParser [D.SourceDecl]
 declarations =
-  (:) <$> (Decl.declaration <?> "at least one datatype or variable definition")
+  (:) <$> Decl.declaration
       <*> many freshDef
 
 
@@ -58,7 +59,7 @@ freshDef :: IParser D.SourceDecl
 freshDef =
     commitIf (freshLine >> (letter <|> char '_')) $
       do  _ <- freshLine
-          Decl.declaration <?> "another datatype or variable definition"
+          Decl.declaration
 
 
 -- RUN PARSERS

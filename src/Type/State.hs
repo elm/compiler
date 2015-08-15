@@ -33,7 +33,7 @@ emptyPool =
     }
 
 
-type Env = Map.Map String Variable
+type Env = Map.Map String (A.Located Variable)
 
 
 -- Keeps track of the environment, type variable pool, and a list of errors

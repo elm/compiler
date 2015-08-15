@@ -73,17 +73,26 @@ reorder (A.A ann expression) =
       App func arg ->
           App <$> reorder func <*> reorder arg
 
-      MultiIf branches ->
-          MultiIf <$> mapM (\(cond,branch) -> (,) <$> reorder cond <*> reorder branch) branches
+      MultiIf branches finally ->
+          MultiIf
+            <$> mapM (\(cond,branch) -> (,) <$> reorder cond <*> reorder branch) branches
+            <*> reorder finally
 
       Access record field ->
-          Access <$> reorder record <*> return field
+          Access
+            <$> reorder record
+            <*> return field
 
       Remove record field ->
-          Remove <$> reorder record <*> return field
+          Remove
+            <$> reorder record
+            <*> return field
 
       Insert record field expr ->
-          Insert <$> reorder record <*> return field <*> reorder expr
+          Insert
+            <$> reorder record
+            <*> return field
+            <*> reorder expr
 
       Modify record fields ->
           Modify
@@ -108,6 +117,9 @@ reorder (A.A ann expression) =
 
               Task name expr tipe ->
                   (\e -> Task name e tipe) <$> reorder expr
+
+      Crash _ ->
+          return expression
 
       -- Actually do some reordering
       Let defs body ->

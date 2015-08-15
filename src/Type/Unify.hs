@@ -42,17 +42,20 @@ type Unify =
 
 
 newtype RawMismatch =
-  RawMismatch (AstType.Canonical, AstType.Canonical, Error.Note)
+  RawMismatch (AstType.Canonical, AstType.Canonical, Maybe String)
 
 
 typeError
     :: UF.Point Descriptor
     -> UF.Point Descriptor
-    -> Error.Note
+    -> Maybe String
     -> Unify a
 typeError leftType rightType note =
   do  leftSrcType <- liftIO (toSrcType leftType)
       rightSrcType <- liftIO (toSrcType rightType)
+      liftIO $ do
+          UF.setDescriptor leftType (Type.descriptor Error)
+          UF.setDescriptor rightType (Type.descriptor Error)
       throwError (RawMismatch (leftSrcType, rightSrcType, note))
 
 
@@ -118,25 +121,31 @@ actuallyUnify variable1 variable2 = do
 
       unifyNumber svar (Var.Canonical home name) =
           case home of
-            Var.BuiltIn | name `elem` ["Int","Float"]   -> flexAndUnify svar
-            Var.Local   | List.isPrefixOf "number" name -> flexAndUnify svar
+            Var.BuiltIn | name `elem` ["Int","Float"] ->
+                flexAndUnify svar
+
+            Var.Local | List.isPrefixOf "number" name ->
+                flexAndUnify svar
             _ ->
-                typeError variable1 variable2 Error.NoNote
+                typeError variable1 variable2 Nothing
 
       comparableError maybeHint =
-          typeError variable1 variable2 $ Error.PostNote $
+          typeError variable1 variable2 $ Just $
             "Note: comparable types include Int, Float, Char, String, lists, and tuples."
             ++ maybe "" ("\n"++) maybeHint
 
       appendableError =
-          typeError variable1 variable2 $ Error.PostNote $
+          typeError variable1 variable2 $ Just $
             "Note: appendable types include only Strings, Lists, and Text."
 
       unifyComparable v (Var.Canonical home name) =
           case home of
-            Var.BuiltIn | name `elem` ["Int","Float","Char","String"] -> flexAndUnify v
-            Var.Local   | List.isPrefixOf "comparable" name           -> flexAndUnify v
-            _ -> comparableError Nothing
+            Var.BuiltIn | name `elem` ["Int","Float","Char","String"] ->
+                flexAndUnify v
+            Var.Local | List.isPrefixOf "comparable" name ->
+                flexAndUnify v
+            _ ->
+                comparableError Nothing
 
       unifyComparableStructure varSuper varFlex =
           do  struct <- liftIO $ collectApps varFlex
@@ -148,11 +157,11 @@ actuallyUnify variable1 variable2 = do
                     do  flexAndUnify varSuper
                         unifyHelp v =<< liftIO (variable $ Is Comparable)
 
-                Tuple vs
-                  | length vs > 6 ->
+                Tuple vs ->
+                    if length vs > 6 then
                       comparableError $ Just $
                         "Furthermore, it cannot be a tuple with more than 6 elements."
-                  | otherwise ->
+                    else
                       do  flexAndUnify varSuper
                           cmpVars <- liftIO $ forM [1..length vs] $ \_ -> variable (Is Comparable)
                           zipWithM_ unifyHelp vs cmpVars
@@ -164,12 +173,8 @@ actuallyUnify variable1 variable2 = do
                 _      -> appendableError
 
       rigidError var =
-          let v = render (pretty Never var)
-          in
-          typeError variable1 variable2 $ Error.PreNote $
-            "Could not unify rigid type variable '" ++ v ++ "'. The problem probably\n"
-            ++ "relates to the type variable being shared between two type annotations.\n"
-            ++ "Try commenting out some type annotations and see what happens."
+          typeError variable1 variable2 $ Just $
+            rigidErrorMessage (render (pretty Never var))
 
       superUnify =
           case (flex desc1, flex desc2, name desc1, name desc2) of
@@ -195,17 +200,20 @@ actuallyUnify variable1 variable2 = do
 
             (Rigid, _, _, _) -> rigidError variable1
             (_, Rigid, _, _) -> rigidError variable2
-            _ -> typeError variable1 variable2 Error.NoNote
+            _ -> typeError variable1 variable2 Nothing
 
   case (structure desc1, structure desc2) of
-    (Nothing, Nothing) | flex desc1 == Flexible && flex desc1 == Flexible ->
-        merge
+    (Nothing, Nothing)
+        | flex desc1 == Flexible && flex desc1 == Flexible ->
+            merge
 
-    (Nothing, _) | flex desc1 == Flexible ->
-        merge2
+    (Nothing, _)
+        | flex desc1 == Flexible -> merge2
+        | flex desc1 == Error -> return ()
 
-    (_, Nothing) | flex desc2 == Flexible ->
-        merge1
+    (_, Nothing)
+        | flex desc2 == Flexible -> merge1
+        | flex desc2 == Error -> return ()
 
     (Just (Var1 v), _) ->
         unifyHelp v variable2
@@ -239,7 +247,19 @@ actuallyUnify variable1 variable2 = do
           (Record1 _ _, Record1 _ _) ->
               recordUnify fresh variable1 variable2
 
-          _ -> typeError variable1 variable2 Error.NoNote
+          _ -> typeError variable1 variable2 Nothing
+
+
+-- RIGID ERROR
+
+rigidErrorMessage :: String -> String
+rigidErrorMessage var =
+  "Could not unify user provided type variable `" ++ var ++ "`. The most likely cases are:\n\n"
+  ++ "  1. The type you wrote down is too general. It says any type can go through\n"
+  ++ "     but in fact only a certain type can.\n"
+  ++ "  2. A type variable is probably being shared between two type annotations.\n"
+  ++ "     They are treated as different things in the current implementation, so\n"
+  ++ "     Try commenting out some type annotations and see what happens."
 
 
 -- RECORD UNIFICATION
@@ -262,14 +282,14 @@ recordUnify fresh variable1 variable2 =
       let uniqueFields2 = diffFields fields2 fields1
 
       let addFieldMismatchError missingFields =
-              typeError variable1 variable2 $ Error.PreNote $
+              typeError variable1 variable2 $ Just $
                   fieldMismatchError missingFields
 
       case (ext1, ext2) of
         (Empty _, Empty _) ->
             case Map.null uniqueFields1 && Map.null uniqueFields2 of
               True -> return ()
-              False -> typeError variable1 variable2 Error.NoNote
+              False -> typeError variable1 variable2 Nothing
 
         (Empty var1, Extension var2) ->
             case (Map.null uniqueFields1, Map.null uniqueFields2) of
@@ -356,7 +376,7 @@ fieldMismatchError missingFields =
     case Map.keys missingFields of
       [] -> ""
       [key] ->
-        "Looks like a record is missing the field '" ++ key ++ "'"
+        "Looks like a record is missing the field `" ++ key ++ "`"
       keys ->
         "Looks like a record is missing fields "
         ++ List.intercalate ", " (init keys) ++ ", and " ++ last keys

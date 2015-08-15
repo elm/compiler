@@ -15,7 +15,7 @@ import qualified Reporting.Region as R
 tvar :: IParser Type.Raw
 tvar =
   addLocation
-    (Type.RVar <$> lowVar <?> "type variable")
+    (Type.RVar <$> lowVar <?> "a type variable")
 
 
 tuple :: IParser Type.Raw
@@ -71,7 +71,7 @@ term =
 app :: IParser Type.Raw
 app =
   do  start <- getMyPosition
-      f <- constructor0 <|> try tupleCtor <?> "type constructor"
+      f <- constructor0 <|> try tupleCtor <?> "a type constructor"
       args <- spacePrefix term
       end <- getMyPosition
       case args of
@@ -89,7 +89,7 @@ expr :: IParser Type.Raw
 expr =
   do  start <- getMyPosition
       t1 <- app <|> term
-      arr <- optionMaybe $ try (whitespace >> arrow)
+      arr <- optionMaybe $ try (whitespace >> rightArrow)
       case arr of
         Nothing ->
             return t1

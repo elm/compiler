@@ -1,14 +1,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.Docs where
 
-import Control.Applicative ((<$>),(<*>))
+import Control.Applicative ((<$>),(<*>),(<|>))
 import Control.Monad
 import Data.Aeson ((.:), (.:?), (.=))
 import qualified Data.Aeson as Json
+import qualified Data.Aeson.Encode.Pretty as Json
 import qualified Data.ByteString.Lazy.Char8 as BS
+import qualified Data.Map as Map
+import qualified Data.Text as Text
 
+import qualified Docs.AST as Docs
 import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Type as Type
+import qualified Elm.Compiler.Version as Version
+import qualified Reporting.Annotation as A
 
 
 data Documentation = Documentation
@@ -17,6 +23,7 @@ data Documentation = Documentation
     , aliases :: [Alias]
     , types :: [Union]
     , values :: [Value]
+    , version :: Version
     }
 
 
@@ -40,21 +47,70 @@ data Value = Value
     { valueName :: String
     , valueComment :: String
     , valueType :: Type.Type
-    , valueAssocPrec :: Maybe (String,Int)
+    , valueFix :: Maybe (String,Int)
     }
+
+
+data Version = NonCanonicalTypes | Version String
+
+
+-- FROM CHECKED DOCS
+
+fromCheckedDocs :: Module.Name -> Docs.Checked -> Documentation
+fromCheckedDocs name (Docs.Docs comment aliases unions values) =
+  let
+    unwrap cmnt =
+      maybe "" id cmnt
+
+    toAlias (name, (A.A _ (Docs.Alias cmnt args tipe))) =
+      Alias name (unwrap cmnt) args tipe
+
+    toUnion (name, (A.A _ (Docs.Union cmnt args cases))) =
+      Union name (unwrap cmnt) args cases
+
+    toValue (name, (A.A _ (Docs.Value cmnt tipe fix))) =
+      Value name (unwrap cmnt) tipe fix
+  in
+  Documentation name comment
+    (map toAlias (Map.toList aliases))
+    (map toUnion (Map.toList unions))
+    (map toValue (Map.toList values))
+    (Version Version.version)
+
+
+-- PRETTY JSON
+
+prettyJson :: (Json.ToJSON a) => a -> BS.ByteString
+prettyJson value =
+  Json.encodePretty' config value
+
+
+config :: Json.Config
+config =
+    Json.Config
+    { Json.confIndent = 2
+    , Json.confCompare = Json.keyOrder keys
+    }
+  where
+    keys =
+        [ "tag", "name", "comment", "aliases", "types"
+        , "values", "func", "args", "type", "cases"
+        ]
 
 
 -- JSON for DOCUMENTATION
 
 instance Json.ToJSON Documentation where
-    toJSON (Documentation name comment aliases types values) =
+    toJSON (Documentation name comment aliases types values version) =
         Json.object
         [ "name" .= name
         , "comment" .= comment
         , "aliases" .= aliases
         , "types" .= types
         , "values" .= values
+        , "generated-with-elm-version" .= version
         ]
+
 
 instance Json.FromJSON Documentation where
     parseJSON (Json.Object obj) =
@@ -64,9 +120,32 @@ instance Json.FromJSON Documentation where
             <*> obj .: "aliases"
             <*> obj .: "types"
             <*> obj .: "values"
+            <*> ((obj .: "generated-with-elm-version") <|> return NonCanonicalTypes)
 
     parseJSON value =
         fail $ "Cannot decode Documentation from: " ++ BS.unpack (Json.encode value)
+
+
+-- JSON for VERSION
+
+instance Json.ToJSON Version where
+    toJSON version =
+      case version of
+        NonCanonicalTypes ->
+          Json.String "old"
+
+        Version vsn ->
+          Json.String (Text.pack vsn)
+
+
+instance Json.FromJSON Version where
+    parseJSON (Json.String text) =
+        case Text.unpack text of
+          "old" -> return NonCanonicalTypes
+          vrsn -> return (Version vrsn)
+
+    parseJSON value =
+        fail $ "Cannot decode version of documentation from: " ++ BS.unpack (Json.encode value)
 
 
 -- JSON for ALIAS

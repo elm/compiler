@@ -4,27 +4,31 @@
 
 # The following enables several GHC versions to be tested; often it's enough to test only against the last release in a major GHC version. Feel free to omit lines listings versions you don't need/want testing for.
 env:
- - GHCVER=7.6.3
- - GHCVER=7.8.2
+ - CABALVER=1.18 GHCVER=7.6.3
+ - CABALVER=1.18 GHCVER=7.8.3
+ - CABALVER=1.22 GHCVER=7.10.1
+
 
 # Note: the distinction between `before_install` and `install` is not important.
 before_install:
  - travis_retry sudo add-apt-repository -y ppa:hvr/ghc
  - travis_retry sudo apt-get update
- - travis_retry sudo apt-get install cabal-install-1.18 ghc-$GHCVER happy alex # see note about happy/alex
- - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/1.18/bin:$PATH
- - cabal update
-  # Update happy when building with GHC 7.8 or head
+ - travis_retry sudo apt-get install cabal-install-$CABALVER ghc-$GHCVER # see note about happy/alex
+ - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$PATH
  - |
-   if [ $GHCVER = "head" ] || [ $GHCVER = "7.8.2" ]; then
-     cabal install happy alex
-     export PATH=$HOME/.cabal/bin:$PATH
-   fi 
+   if [ ${GHCVER%.*} = "7.8" ] || [ ${GHCVER%.*} = "7.10" ]; then
+     travis_retry sudo apt-get install happy-1.19.4 alex-3.1.3
+     export PATH=/opt/alex/3.1.3/bin:/opt/happy/1.19.4/bin:$PATH
+   else
+     travis_retry sudo apt-get install happy alex
+   fi
+
 
 install:
- - cabal install --only-dependencies --enable-tests --enable-benchmarks
+ - travis_retry cabal update
+ - cabal install --only-dependencies --enable-tests
 
-# Here starts the actual work to be performed for the package under test; any command which exits with a non-zero exit code causes the build to fail.
+
 script:
  - cabal configure --enable-tests
  - cabal build

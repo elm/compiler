@@ -16,6 +16,10 @@ type Located a =
     Annotated R.Region a
 
 
+type Commented a =
+    Annotated (R.Region, Maybe String) a
+
+
 -- CREATE
 
 at :: R.Position -> R.Position -> a -> Located a
@@ -48,5 +52,5 @@ drop (A _ value) =
 -- PRETTY PRINT
 
 instance (P.Pretty a) => P.Pretty (Annotated info a) where
-  pretty parens (A _ value) =
-      P.pretty parens value
+  pretty dealiaser parens (A _ value) =
+      P.pretty dealiaser parens value

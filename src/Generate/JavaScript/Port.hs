@@ -1,6 +1,7 @@
 module Generate.JavaScript.Port (inbound, outbound, task) where
 
 import qualified Data.List as List
+import qualified Data.Map as Map
 import Language.ECMAScript3.Syntax
 
 import qualified AST.Type as T
@@ -40,7 +41,7 @@ typeToString tipe =
     JSString -> "a string"
     JSArray -> "an array"
     JSObject fields ->
-      "an object with fields '" ++ List.intercalate "', '" fields ++ "'"
+      "an object with fields `" ++ List.intercalate "`, `" fields ++ "`"
 
 
 _Array :: String -> Expression ()
@@ -96,14 +97,14 @@ inbound name portType =
     T.Normal tipe ->
         _Port "inbound" `call`
             [ string name
-            , string (show (P.pretty False tipe))
+            , string (show (P.pretty Map.empty False tipe))
             , toTypeFunction tipe
             ]
 
     T.Signal _root arg ->
         _Port "inboundSignal" `call`
             [ string name
-            , string (show (P.pretty False arg))
+            , string (show (P.pretty Map.empty False arg))
             , toTypeFunction arg
             ]
 

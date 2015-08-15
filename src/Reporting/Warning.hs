@@ -1,27 +1,73 @@
+{-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Reporting.Warning where
 
+import Data.Aeson ((.=))
+import qualified Data.Aeson as Json
+import qualified Text.PrettyPrint as P
+import Text.PrettyPrint ((<+>))
+
 import qualified AST.Module as Module
-
+import qualified AST.Type as Type
 import qualified Reporting.Annotation as A
+import qualified Reporting.PrettyPrint as P
+import qualified Reporting.Report as Report
 
+
+-- ALL POSSIBLE WARNINGS
 
 data Warning
     = UnusedImport Module.Name
-    | MissingTypeAnnotation String
+    | MissingTypeAnnotation String Type.Canonical
 
 
 -- TO STRING
 
-toString :: A.Located Warning -> String
-toString (A.A region warning) =
+toString :: P.Dealiaser -> String -> String -> A.Located Warning -> String
+toString dealiaser location source (A.A region warning) =
+    Report.toString location region (toReport dealiaser warning) source
+
+
+print :: P.Dealiaser -> String -> String -> A.Located Warning -> IO ()
+print dealiaser location source (A.A region warning) =
+    Report.printWarning location region (toReport dealiaser warning) source
+
+
+toReport :: P.Dealiaser -> Warning -> Report.Report
+toReport dealiaser warning =
   case warning of
-    _ -> error "Warning.toString" region
+    UnusedImport moduleName ->
+        Report.simple
+          "unused import"
+          ("Module `" ++ Module.nameToString moduleName ++ "` is unused.")
+          ""
+
+    MissingTypeAnnotation name inferredType ->
+        Report.simple
+          "missing type annotation"
+          ("Top-level value `" ++ name ++ "` does not have a type annotation.")
+          ( "The type annotation you want looks something like this:\n\n"
+            ++ P.render (P.nest 4 typeDoc)
+          )
+      where
+        typeDoc =
+          P.hang
+            (P.text name <+> P.colon)
+            4
+            (P.pretty dealiaser False inferredType)
 
 
 -- TO JSON
 
-toJson :: A.Located Warning -> String
-toJson (A.A region warning) =
-  case warning of
-    _ -> error "Warning.toJson" region
-
+toJson :: P.Dealiaser -> FilePath -> A.Located Warning -> Json.Value
+toJson dealiaser filePath (A.A region warning) =
+  let
+    (maybeRegion, additionalFields) =
+        Report.toJson [] (toReport dealiaser warning)
+  in
+      Json.object $
+        [ "file" .= filePath
+        , "region" .= maybe region id maybeRegion
+        , "type" .= ("warning" :: String)
+        ]
+        ++ additionalFields

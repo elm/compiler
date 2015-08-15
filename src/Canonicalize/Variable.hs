@@ -11,6 +11,7 @@ import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
+import qualified Reporting.Error.Helpers as Error
 import qualified Reporting.Region as R
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Result as Result
@@ -211,7 +212,7 @@ qualifiedProblem moduleName name allQualified =
   in
       case Set.member moduleName availableModules of
         True ->
-            ( Error.QualifiedUnknown moduleNameString
+            ( Error.QualifiedUnknown moduleNameString name
             , allQualified
                 |> filter ((==) moduleName . fst)
                 |> map snd
@@ -219,7 +220,7 @@ qualifiedProblem moduleName name allQualified =
             )
 
         False ->
-            ( Error.UnknownQualifier moduleNameString
+            ( Error.UnknownQualifier moduleNameString name
             , Set.toList availableModules
                 |> map Module.nameToString
                 |> Error.nearbyNames id moduleNameString

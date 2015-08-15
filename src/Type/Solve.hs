@@ -1,14 +1,16 @@
 module Type.Solve (solve) where
 
-import Control.Applicative ((<$>), (<*>))
+import Control.Applicative ((<$>), (<*>), (<|>))
 import Control.Monad
 import Control.Monad.State (StateT, execStateT, liftIO)
 import Control.Monad.Except (ExceptT, throwError)
+import qualified Data.Foldable as F
 import qualified Data.List as List
 import qualified Data.Map as Map
-import qualified Data.Traversable as Traversable
+import qualified Data.Traversable as T
 import qualified Data.UnionFind.IO as UF
 
+import qualified AST.Type as Type
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Type.State as TS
@@ -45,7 +47,7 @@ generalize youngPool =
                 if isRedundant then return var else TS.register var
 
       let rankDict' = Map.delete youngRank rankDict
-      Traversable.traverse (mapM registerIfNotRedundant) rankDict'
+      T.traverse (mapM registerIfNotRedundant) rankDict'
 
       -- For variables with rank youngRank
       --   If rank < youngRank: register in oldPool
@@ -159,23 +161,30 @@ actuallySolve constraint =
         do  env <- TS.getEnv
             freshCopy <-
                 case Map.lookup name env of
-                  Just tipe ->
+                  Just (A.A _ tipe) ->
                       TS.makeInstance tipe
+
                   Nothing ->
                       if List.isPrefixOf "Native." name
                         then liftIO (variable Flexible)
-                        else error ("Could not find '" ++ name ++ "' when solving type constraints.")
+                        else error ("Could not find `" ++ name ++ "` when solving type constraints.")
 
             t <- TS.flatten term
-            unify Error.None region freshCopy t
+            unify (Error.Instance name) region freshCopy t
 
 
-solveScheme :: TypeScheme -> StateT TS.SolverState IO (Map.Map String Variable)
+solveScheme
+    :: TypeScheme
+    -> StateT TS.SolverState IO (Map.Map String (A.Located Variable))
 solveScheme scheme =
+  let
+    flatten (A.A region term) =
+      A.A region <$> TS.flatten term
+  in
   case scheme of
     Scheme [] [] constraint header ->
         do  actuallySolve constraint
-            Traversable.traverse TS.flatten header
+            T.traverse flatten header
 
     Scheme rigidQuantifiers flexibleQuantifiers constraint header ->
         do  let quantifiers = rigidQuantifiers ++ flexibleQuantifiers
@@ -185,7 +194,7 @@ solveScheme scheme =
             freshPool <- TS.nextRankPool
             TS.switchToPool freshPool
             mapM TS.introduce quantifiers
-            header' <- Traversable.traverse TS.flatten header
+            header' <- T.traverse flatten header
             actuallySolve constraint
 
             allDistinct rigidQuantifiers
@@ -234,46 +243,53 @@ crash msg =
     ++ "<https://github.com/elm-lang/elm-compiler/issues>"
 
 
-occurs :: (String, Variable) -> StateT TS.SolverState IO ()
-occurs (_name, variable) =
-  do  vars <- liftIO $ infiniteVars [] variable
-      case vars of
-        [] ->
-          return ()
+occurs :: (String, A.Located Variable) -> StateT TS.SolverState IO ()
+occurs (name, A.A region variable) =
+  do  maybePair <- liftIO $ occursHelp [] variable
+      case maybePair of
+        Nothing ->
+            return ()
 
-        var : _ ->
-          do  desc <- liftIO $ UF.descriptor var
-              let region = error "TODO:occurs"
-              case structure desc of
-                Nothing ->
-                  TS.addError region (Error.InfiniteType undefined (error "TODO:occurs"))
+        Just (t1, t2) ->
+            let
+              info = Error.InfiniteTypeInfo name t1 t2
+            in
+              TS.addError region (Error.InfiniteType info)
 
-                Just _ ->
-                  TS.addError region (Error.InfiniteType undefined (error "TODO:occurs"))
-  where
-    infiniteVars :: [Variable] -> Variable -> IO [Variable]
-    infiniteVars seen var =
-      let go = infiniteVars (var:seen)
-      in
-      if var `elem` seen
-        then return [var]
-        else do
-          desc <- UF.descriptor var
+
+occursHelp
+    :: [Variable]
+    -> Variable
+    -> IO (Maybe (Type.Canonical, Type.Canonical))
+occursHelp seen var =
+  if elem var seen then
+      do  desc <- UF.descriptor var
+          UF.setDescriptor var (desc { structure = Nothing })
+          var' <- UF.fresh desc
+          srcVar <- toSrcType var
+          srcVar' <- toSrcType var'
+          return (Just (srcVar, srcVar'))
+  else
+      do  desc <- UF.descriptor var
           case structure desc of
-            Nothing -> return []
+            Nothing ->
+                return Nothing
+
             Just struct ->
+                let go = occursHelp (var:seen)
+                in
                 case struct of
                   App1 a b ->
-                      (++) <$> go a <*> go b
+                      (<|>) <$> go a <*> go b
 
                   Fun1 a b ->
-                      (++) <$> go a <*> go b
+                      (<|>) <$> go a <*> go b
 
                   Var1 a ->
                       go a
 
                   EmptyRecord1 ->
-                      return []
+                      return Nothing
 
                   Record1 fields ext ->
-                      concat <$> mapM go (ext : concat (Map.elems fields))
+                      F.asum <$> mapM go (ext : concat (Map.elems fields))

@@ -1,7 +1,7 @@
 module Type.Inference where
 
 import Control.Arrow (first, second)
-import Control.Monad.Except (Except, forM, liftIO, runExceptT, throwError, withExceptT)
+import Control.Monad.Except (Except, forM, liftIO, runExceptT, throwError)
 import qualified Data.Map as Map
 import qualified Data.Traversable as Traverse
 
@@ -12,7 +12,6 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Type.Constrain.Expression as TcExpr
 import qualified Type.Environment as Env
-import qualified Type.ExtraChecks as Check
 import qualified Type.Solve as Solve
 import qualified Type.State as TS
 import qualified Type.Type as T
@@ -24,7 +23,7 @@ import System.IO.Unsafe
 
 infer
     :: Interfaces
-    -> CanonicalModule
+    -> Module.CanonicalModule
     -> Except [A.Located Error.Error] (Map.Map String Type.Canonical)
 infer interfaces modul =
   either throwError return $ unsafePerformIO $ runExceptT $
@@ -34,21 +33,14 @@ infer interfaces modul =
         state <- Solve.solve constraint
 
         let header' = Map.delete "::" header
-        let types = Map.difference (TS.sSavedEnv state) header'
+        let types = Map.map A.drop (Map.difference (TS.sSavedEnv state) header')
 
-        srcTypes <-
-            liftIO (Traverse.traverse T.toSrcType types)
-
-        withExceptT
-            (\tipe -> [A.A (error "TODO:infer") (Error.BadMain tipe)])
-            (Check.mainType srcTypes)
-
-        return srcTypes
+        liftIO (Traverse.traverse T.toSrcType types)
 
 
 genConstraints
     :: Interfaces
-    -> CanonicalModule
+    -> Module.CanonicalModule
     -> IO (Env.TypeDict, T.TypeConstraint)
 genConstraints interfaces modul =
   do  env <-
@@ -65,7 +57,7 @@ genConstraints interfaces modul =
       let allTypes = concat (ctors : importedVars)
       let vars = concatMap (fst . snd) allTypes
       let header = Map.map snd (Map.fromList allTypes)
-      let environ = T.CLet [ T.Scheme vars [] T.CTrue header ]
+      let environ = T.CLet [ T.Scheme vars [] T.CTrue (Map.map (A.A undefined) header) ]
 
       fvar <- T.variable T.Flexible
 
@@ -85,7 +77,7 @@ canonicalizeValues env (moduleName, iface) =
             return (Module.nameToString moduleName ++ "." ++ name, tipe')
 
 
-canonicalizeAdts :: Interfaces -> CanonicalModule -> [CanonicalAdt]
+canonicalizeAdts :: Interfaces -> Module.CanonicalModule -> [CanonicalAdt]
 canonicalizeAdts interfaces modul =
     localAdts ++ importedAdts
   where

@@ -12,7 +12,7 @@ import Text.PrettyPrint as P
 import AST.Literal as Lit
 import qualified AST.Pattern as P
 import qualified AST.Variable as V
-import AST.PrettyPrint (Pretty, pretty)
+import Reporting.PrettyPrint (Pretty, pretty)
 import Parse.Helpers (IParser, iParse)
 import Parse.Literal (literal)
 import qualified Parse.Pattern as Pat (expr)

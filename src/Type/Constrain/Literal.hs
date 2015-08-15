@@ -15,7 +15,7 @@ constrain
     -> IO T.TypeConstraint
 constrain env region literal tipe =
   do  tipe' <- litType
-      return (T.CEqual Error.None region tipe tipe')
+      return (T.CEqual (Error.Literal name) region tipe tipe')
   where
     prim name =
         return (Env.get env Env.types name)
@@ -27,3 +27,11 @@ constrain env region literal tipe =
           L.Chr _      -> prim "Char"
           L.Str _      -> prim "String"
           L.Boolean _  -> prim "Bool"
+
+    name =
+        case literal of
+          L.IntNum _   -> "number"
+          L.FloatNum _ -> "float"
+          L.Chr _      -> "character"
+          L.Str _      -> "string"
+          L.Boolean _  -> "boolean"

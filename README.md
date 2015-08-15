@@ -1,6 +1,6 @@
 Learn about the Elm programming language at [elm-lang.org](http://elm-lang.org/).
 
-[![Build Status](https://travis-ci.org/elm-lang/elm-compiler.png)](https://travis-ci.org/elm-lang/elm-compiler)
+[![Build Status](https://travis-ci.org/elm-lang/elm-compiler.svg)](https://travis-ci.org/elm-lang/elm-compiler)
 
 ## Install
 
