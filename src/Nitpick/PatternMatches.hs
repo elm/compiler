@@ -1,7 +1,7 @@
 module Nitpick.PatternMatches (patternMatches) where
 
 import Control.Applicative ((<$>), (<*))
-import Control.Monad.Except (forM, liftM)
+import Control.Arrow (second)
 import qualified Data.Foldable as F
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
@@ -9,79 +9,146 @@ import qualified Data.Set as Set
 
 import qualified AST.Expression.General as E
 import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Literal as L
 import qualified AST.Module as Module
-import qualified AST.Pattern as Pattern
+import qualified AST.Pattern as P
 import qualified AST.Variable as Var
 import Elm.Utils ((|>))
-import qualified Nitpick.Pattern as P
 import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Nitpick as Error
 import qualified Reporting.Region as Region
 import qualified Reporting.Result as Result
-import qualified Reporting.Warning.Nitpick as Warning
+import qualified Reporting.Warning as Warning
 
 
 patternMatches
     :: Module.Interfaces
-    -> Module.CanonicalBody
+    -> Module.Body Canonical.Expr
     -> Result.Result Warning.Warning e ()
 patternMatches interfaces body =
-    checkExpression (toAdtDict interfaces) (Module.program body)
+  checkExpression (toTagDict interfaces) (Module.program body)
 
 
--- ADT DICT
+-- PATTERN MATCH DATA STRUCTURE
 
-type AdtDict =
-  Map.Map Var.Home (Map.Map String (Module.AdtInfo String))
+data Pattern
+    = Data Var.Canonical [Pattern]
+    | Record [String]
+    | Alias String Pattern
+    | Var String
+    | Anything
+    | Literal L.Literal
+    | AnythingBut (Set.Set L.Literal)
+    deriving (Show, Eq)
 
 
-toAdtDict :: Module.Interfaces -> AdtDict
-toAdtDict =
+fromCanonicalPattern :: P.CanonicalPattern -> Pattern
+fromCanonicalPattern (A.A _ pattern) =
+  case pattern of
+    P.Data ctor patterns ->
+        Data ctor (map fromCanonicalPattern patterns)
+
+    P.Record fields ->
+        Record fields
+
+    P.Alias name pattern ->
+        Alias name (fromCanonicalPattern pattern)
+
+    P.Var name ->
+        Var name
+
+    P.Anything ->
+        Anything
+
+    P.Literal literal ->
+        Literal literal
+
+
+
+-- TAG DICT
+
+type TagDict =
+  Map.Map Var.Home (Map.Map Tag [(Tag, Int)])
+
+
+type Tag = String
+
+
+toTagDict :: Module.Interfaces -> TagDict
+toTagDict interfaces =
   let
-    -- TODO
+    listTags =
+        [ ("::", 2), ("[]", 0) ]
+
     builtinDict =
-        Map.empty
+        Map.singleton Var.BuiltIn $
+          Map.fromList
+            [ ("::", listTags)
+            , ("[]", listTags)
+            ]
 
     interfaceDict =
         interfaces
-          |> Map.map Module.iAdts
+          |> Map.map (toTagMapping . Module.iAdts)
           |> Map.mapKeysMonotonic Var.Module
   in
     Map.union builtinDict interfaceDict
 
 
--- TODO this is wrong
-lookupOtherCtors
-    :: Var.Canonical
-    -> AdtDict
-    -> [(Var.Canonical, [Type.Canonical])]
-lookupOtherCtors (Var.Canonical home name) adtDict =
-  case Map.lookup name =<< Map.lookup home adtDict of
-    Nothing ->
-        error "TODO"
+toTagMapping :: Module.ADTs -> Map.Map Tag ([(Tag,Int)])
+toTagMapping adts =
+  let
+    toTagAndArity (_tvars, tagInfoList) =
+        let
+          info = map (\(tag, args) -> (tag, length args)) tagInfoList
+        in
+          map (second (const info)) tagInfoList
+  in
+    Map.elems adts
+      |> concatMap toTagAndArity
+      |> Map.fromList
 
-    Just (_tvars, ctors) ->
-        ctors
+
+lookupOtherCtors :: Var.Canonical -> TagDict -> [(Tag, Int)]
+lookupOtherCtors (Var.Canonical home name) tagDict =
+  case Map.lookup name =<< Map.lookup home tagDict of
+    Just otherTags ->
+        otherTags
+
+    Nothing ->
+        error
+          "Since the Nitpick phase happens after canonicalization and type \
+          \inference, it is impossible that a pattern in a case cannot be \
+          \found."
 
 
 -- CHECK EXPRESSIONS
 
 checkExpression
-    :: AdtDict
+    :: TagDict
     -> Canonical.Expr
     -> Result.Result Warning.Warning e ()
-checkExpression adtDict (A.A region expression) =
+checkExpression tagDict (A.A region expression) =
   let
     go =
-      checkExpression adtDict
+      checkExpression tagDict
 
     go2 a b =
       F.traverse_ go [a,b]
 
     goPattern =
-      checkPatterns adtDict region
+      checkPatterns tagDict region
   in
   case expression of
+    E.Literal _ ->
+        Result.ok ()
+
+    E.Var _ ->
+        Result.ok ()
+
+    E.Range low high ->
+        go low
+        <* go high
+
     E.ExplicitList listExprs ->
         F.traverse_ go listExprs
 
@@ -95,15 +162,16 @@ checkExpression adtDict (A.A region expression) =
     E.App func arg ->
         go2 func arg
 
-    E.MultiIf branches ->
+    E.MultiIf branches finally ->
         F.traverse_ (uncurry go2) branches
+        <* go finally
 
     E.Let defs body ->
         go body
           <* F.traverse_ goDef defs
       where
         goDef (Canonical.Definition pattern expr _) =
-            goPattern [p]
+            goPattern [pattern]
             <* go expr
 
     E.Case expr branches ->
@@ -130,109 +198,130 @@ checkExpression adtDict (A.A region expression) =
     E.Record fields ->
         F.traverse_ (go . snd) fields
 
+    E.Port impl ->
+        case impl of
+          E.In _ _ ->
+              Result.ok ()
+
+          E.Out _ expr _ ->
+              go expr
+
+          E.Task _ expr _ ->
+              go expr
+
+    E.GLShader _ _ _ ->
+        Result.ok ()
+
+    E.Crash _ ->
+        Result.ok ()
+
 
 -- CHECK PATTERNS
 
 checkPatterns
-    :: AdtDict
+    :: TagDict
     -> Region.Region
-    -> [Pattern.CanonicalPattern]
+    -> [P.CanonicalPattern]
     -> Result.Result Warning.Warning e ()
-checkPatterns adtDict region patterns =
-  checkPatternsHelp [P.Anything] patterns
+checkPatterns tagDict region patterns =
+  checkPatternsHelp tagDict region [Anything] patterns
 
 
 checkPatternsHelp
-    :: AdtDict
+    :: TagDict
     -> Region.Region
-    -> [P.Pattern]
-    -> [Pattern.CanonicalPattern]
+    -> [Pattern]
+    -> [P.CanonicalPattern]
     -> Result.Result Warning.Warning e ()
-checkPatternsHelp adtDict region unhandled patterns =
+checkPatternsHelp tagDict region unhandled patterns =
   case (unhandled, patterns) of
     ([], []) ->
         return ()
 
     (_:_, []) ->
-        Result.warn region (Inexhaustive unhandled)
+        Result.warn region Warning.InexhaustivePatternMatch
 
-    (_, A.A region pattern : remainingPatterns) ->
-        do  newUnhandled <- filterPatterns adtDict region pattern unhandled
-            checkPatternsHelp adtDict newUnhandled remainingPatterns
+    (_, pattern@(A.A localRegion _) : remainingPatterns) ->
+        do  newUnhandled <- filterPatterns tagDict localRegion pattern unhandled
+            checkPatternsHelp tagDict region newUnhandled remainingPatterns
 
 
 filterPatterns
-    :: AdtDict
+    :: TagDict
     -> Region.Region
-    -> P.Pattern
-    -> [P.Pattern]
-    -> Result.Result Warning.Warning e [P.Pattern]
-filterPatterns adtDict region pattern unhandled =
+    -> P.CanonicalPattern
+    -> [Pattern]
+    -> Result.Result Warning.Warning e [Pattern]
+filterPatterns tagDict region pattern unhandled =
   let
     nitPattern =
-      P.fromPattern pattern
+      fromCanonicalPattern pattern
 
     noIntersection pat =
       intersection pat nitPattern == Nothing
   in
-    if all noIntersection unhandled
-      then
-        do  Result.warn region Redundant
-            return unhandled
-      else
-        do  let complementPatterns = complement adtDict nitPattern
-            return $
-              concatMap (\p -> Maybe.mapMaybe (intersection p) complementPatterns) unhandled
+    if all noIntersection unhandled then
+      do  Result.warn region Warning.RedundantPatternMatch
+          return unhandled
+    else
+      do  let complementPatterns = complement tagDict nitPattern
+          return $
+            concatMap
+              (\p -> Maybe.mapMaybe (intersection p) complementPatterns)
+              unhandled
 
 
 -- PATTERN INTERSECTION
 
-intersection :: P.Pattern -> P.Pattern -> Maybe P.Pattern
+intersection :: Pattern -> Pattern -> Maybe Pattern
 intersection pattern1 pattern2 =
   case (pattern1, pattern2) of
-    (P.Alias _ pattern1', _) ->
+    (Alias _ pattern1', _) ->
         intersection pattern1' pattern2
 
-    (_, P.Alias _ pattern2') ->
+    (_, Alias _ pattern2') ->
         intersection pattern1 pattern2'
 
-    (P.Anything, _) ->
+    (Anything, _) ->
         Just pattern2
 
-    (P.Var _, _) ->
+    (Var _, _) ->
         Just pattern2
 
-    (_, P.Anything) ->
+    (_, Anything) ->
         Just pattern1
 
-    (_, P.Var _) ->
+    (_, Var _) ->
         Just pattern1
 
-    (P.Data ctor1 args1, P.Data ctor2 args2) ->
-        if ctor1 /= ctor2
-          then Nothing
-          else Data ctor1 <$> sequence (zipWith intersection args1 args2)
+    (Data ctor1 args1, Data ctor2 args2) ->
+        if ctor1 /= ctor2 then
+          Nothing
+        else
+          Data ctor1 <$> sequence (zipWith intersection args1 args2)
 
-    -- TODO Assuming the fields are identical.
-    (P.Record _fields, P.Record _) ->
+    (Record _, Record _) ->
         Just pattern1
 
-    (P.Literal lit1, P.Literal lit2) ->
-        if lit1 == lit2
-          then Just pattern1
-          else Nothing
+    (Literal lit1, Literal lit2) ->
+        if lit1 == lit2 then
+          Just pattern1
+        else
+          Nothing
 
-    (P.AnythingBut literals, P.Literal lit) ->
-        if Set.member lit literals
-          then Nothing
-          else Just pattern2
+    (AnythingBut literals, Literal lit) ->
+        if Set.member lit literals then
+          Nothing
+        else
+          Just pattern2
 
-    (P.Literal lit, P.AnythingBut literals) ->
-        if Set.membur lit literals
-          then Nothing
-          else Just pattern1
+    (Literal lit, AnythingBut literals) ->
+        if Set.member lit literals then
+          Nothing
+        else
+          Just pattern1
 
-    (P.AnythingBut literals1, P.AnythingBut literals2) ->
+    (AnythingBut literals1, AnythingBut literals2) ->
         Just (AnythingBut (Set.union literals1 literals2))
 
     _ ->
@@ -241,64 +330,67 @@ intersection pattern1 pattern2 =
 
 -- PATTERN COMPLEMENT
 
-complement :: AdtDict -> P.Pattern -> [P.Pattern]
-complement adtDict nitPattern =
+complement :: TagDict -> Pattern -> [Pattern]
+complement tagDict nitPattern =
   case nitPattern of
-    P.Record _fields ->
+    Record _fields ->
         []
 
-    P.Alias _name pattern ->
-        complement adtDict pattern
+    Alias _name pattern ->
+        complement tagDict pattern
 
-    P.Var _name ->
+    Var _name ->
         []
 
-    P.Anything ->
+    Anything ->
         []
 
-    P.Literal lit ->
+    Literal lit ->
         [AnythingBut (Set.singleton lit)]
 
-    P.AnythingBut literals ->
+    AnythingBut literals ->
         map Literal (Set.toList literals)
 
-    P.Data ctor patterns ->
-        complementData adtDict ctor patterns
+    Data ctor patterns ->
+        complementData tagDict ctor patterns
 
 
-complementData :: AdtDict -> Var.Canonical -> [P.Pattern] -> [P.Pattern]
-complementData adtDict canonicalTag patterns =
+complementData :: TagDict -> Var.Canonical -> [Pattern] -> [Pattern]
+complementData tagDict tag patterns =
   let
-    ctors =
-        lookupOtherCtors ctor adtDict
+    otherTags =
+        lookupOtherCtors tag tagDict
 
-    dataComplements =
-        Maybe.mapMaybe (maybeData canonicalTag) ctors
+    tagComplements =
+        Maybe.mapMaybe (tagToPattern tag) otherTags
 
-    numArgs = length patterns
+    arity =
+        length patterns
 
     argComplements =
-        concat (zipWith (makeArgComplements adtDict numArgs) [0..] patterns)
+        concat (zipWith (makeArgComplements tagDict tag arity) [0..] patterns)
   in
-    dataComplements ++ argComplements
+    tagComplements ++ argComplements
 
 
-maybeData :: Var.Canonical -> (String, Module.AdtInfo) -> Maybe P.Pattern
-maybeData (Var.Canonical home name) (tag, args) =
-  if tag == name
-    then
-      Nothing
-    else
-      Just (P.Data (Var.Canonical home tag) (replicate (length args) P.Anything))
+tagToPattern :: Var.Canonical -> (Tag, Int) -> Maybe Pattern
+tagToPattern (Var.Canonical home rootTag) (tag, arity) =
+  if rootTag == tag then
+    Nothing
+  else
+    Just (Data (Var.Canonical home tag) (replicate arity Anything))
 
 
-makeArgComplements :: AdtDict -> Int -> Int -> P.Pattern -> [P.Pattern]
-makeArgComplements adtDict numArgs index argPattern =
+makeArgComplements :: TagDict -> Var.Canonical -> Int -> Int -> Pattern -> [Pattern]
+makeArgComplements tagDict tag arity index argPattern =
   let
     complementList =
-      complement adtDict argPattern
+        complement tagDict argPattern
 
-    paddedArgs pat =
-      replicate index P.Anything ++ pat : replicate (numArgs - index - 1) P.Anything
+    padArgs pattern =
+        replicate index Anything
+        ++ pattern
+        : replicate (arity - index - 1) Anything
   in
-    map (P.Data ctor . paddedArgs) complementList
+    map (Data tag . padArgs) complementList
+

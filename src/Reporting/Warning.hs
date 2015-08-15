@@ -19,6 +19,8 @@ import qualified Reporting.Report as Report
 data Warning
     = UnusedImport Module.Name
     | MissingTypeAnnotation String Type.Canonical
+    | InexhaustivePatternMatch
+    | RedundantPatternMatch
 
 
 -- TO STRING
@@ -55,6 +57,26 @@ toReport dealiaser warning =
             (P.text name <+> P.colon)
             4
             (P.pretty dealiaser False inferredType)
+
+    InexhaustivePatternMatch ->
+        Report.simple
+          "missing pattern"
+          "The following case expression does not handle all possible inputs."
+          ( "If none of the patterns match the given value, we have no choice but to crash!\n"
+            ++ "\n"
+            ++ "If you somehow know that this pattern can never happen, you want to:\n"
+            ++ "\n"
+            ++ "  1. Rethink the data structures you are using. Is there a way to model the\n"
+            ++ "     values more precisely?\n"
+            ++ "  2. End the pattern match with a wildcard match that leads to an expression\n"
+            ++ "     like: Debug.crash \"This should never happen, but I guess it can!\""
+          )
+
+    RedundantPatternMatch ->
+        Report.simple
+          "redundant pattern"
+          "The following pattern is redundant."
+          "Any value with this shape will be handled by a previous pattern."
 
 
 -- TO JSON
