@@ -66,10 +66,11 @@ parseDependencies sourceCode =
 compile
     :: Context
     -> String
+    -> String
     -> Map.Map PublicModule.Name PublicModule.Interface
     -> (Dealiaser, [Warning], Either [Error] Result)
 
-compile context source interfaces =
+compile context path source interfaces =
   let
     (Context user packageName isRoot isExposed) =
       context
@@ -79,7 +80,7 @@ compile context source interfaces =
 
     (Result.Result (dealiaser, warnings) rawResult) =
       do  modul <- Compile.compile user packageName isRoot unwrappedInterfaces source
-          docs <- docsGen isExposed modul
+          docs <- docsGen path isExposed modul
           return (Result docs (Module.toInterface modul) (JS.generate modul))
   in
     ( maybe dummyDealiaser Dealiaser dealiaser
@@ -104,10 +105,11 @@ data Result = Result
 
 
 docsGen
-    :: Bool
+    :: String
+    -> Bool
     -> Module.CanonicalModule
     -> Result.Result w Error.Error (Maybe Docs.Documentation)
-docsGen isExposed modul =
+docsGen path isExposed modul =
   if not isExposed then
     Result.ok Nothing
   else
@@ -116,7 +118,7 @@ docsGen isExposed modul =
         Docs.check (Module.exports modul) (Module.docs modul)
 
       toDocs checked =
-        Docs.fromCheckedDocs (PublicModule.Name (Module.names modul)) checked
+        Docs.fromCheckedDocs path (PublicModule.Name (Module.names modul)) checked
     in
       (Just . toDocs) `fmap` Result.mapError Error.Docs getChecked
 
