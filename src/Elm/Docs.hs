@@ -15,6 +15,7 @@ import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Version as Version
 import qualified Reporting.Annotation as A
+import qualified Reporting.Region as Region
 
 
 data Documentation = Documentation
@@ -32,6 +33,7 @@ data Alias = Alias
     , aliasComment :: String
     , aliasArgs :: [String]
     , aliasType :: Type.Type
+    , aliasSource :: String
     }
 
 
@@ -40,6 +42,7 @@ data Union = Union
     , unionComment :: String
     , unionArgs :: [String]
     , unionCases :: [(String, [Type.Type])]
+    , unionSource :: String
     }
 
 
@@ -47,6 +50,7 @@ data Value = Value
     { valueName :: String
     , valueComment :: String
     , valueType :: Type.Type
+    , valueSource :: String
     , valueFix :: Maybe (String,Int)
     }
 
@@ -56,20 +60,23 @@ data Version = NonCanonicalTypes | Version String
 
 -- FROM CHECKED DOCS
 
-fromCheckedDocs :: Module.Name -> Docs.Checked -> Documentation
-fromCheckedDocs name (Docs.Docs comment aliases unions values) =
+fromCheckedDocs :: String -> Module.Name -> Docs.Checked -> Documentation
+fromCheckedDocs path name (Docs.Docs comment aliases unions values) =
   let
+    source (Region.Region start _) =
+      path ++ "#L" ++ show (Region.line start)
+
     unwrap cmnt =
       maybe "" id cmnt
 
-    toAlias (name, (A.A _ (Docs.Alias cmnt args tipe))) =
-      Alias name (unwrap cmnt) args tipe
+    toAlias (name, (A.A region (Docs.Alias cmnt args tipe))) =
+      Alias name (unwrap cmnt) args tipe (source region)
 
-    toUnion (name, (A.A _ (Docs.Union cmnt args cases))) =
-      Union name (unwrap cmnt) args cases
+    toUnion (name, (A.A region (Docs.Union cmnt args cases))) =
+      Union name (unwrap cmnt) args cases (source region)
 
-    toValue (name, (A.A _ (Docs.Value cmnt tipe fix))) =
-      Value name (unwrap cmnt) tipe fix
+    toValue (name, (A.A region (Docs.Value cmnt tipe fix))) =
+      Value name (unwrap cmnt) tipe (source region) fix
   in
   Documentation name comment
     (map toAlias (Map.toList aliases))
@@ -151,12 +158,13 @@ instance Json.FromJSON Version where
 -- JSON for ALIAS
 
 instance Json.ToJSON Alias where
-    toJSON (Alias name comment args tipe) =
+    toJSON (Alias name comment args tipe source) =
         Json.object
         [ "name" .= name
         , "comment" .= comment
         , "args" .= args
         , "type" .= tipe
+        , "source" .= source
         ]
 
 instance Json.FromJSON Alias where
@@ -166,6 +174,7 @@ instance Json.FromJSON Alias where
             <*> obj .: "comment"
             <*> obj .: "args"
             <*> obj .: "type"
+            <*> obj .: "source"
 
     parseJSON value =
         fail $ "Cannot decode Alias from: " ++ BS.unpack (Json.encode value)
@@ -174,12 +183,13 @@ instance Json.FromJSON Alias where
 -- JSON for UNION
 
 instance Json.ToJSON Union where
-    toJSON (Union name comment args cases) =
+    toJSON (Union name comment args cases source) =
         Json.object
         [ "name" .= name
         , "comment" .= comment
         , "args" .= args
         , "cases" .= cases
+        , "source" .= source
         ]
 
 instance Json.FromJSON Union where
@@ -189,6 +199,7 @@ instance Json.FromJSON Union where
             <*> obj .: "comment"
             <*> obj .: "args"
             <*> obj .: "cases"
+            <*> obj .: "source"
 
     parseJSON value =
         fail $ "Cannot decode Union from: " ++ BS.unpack (Json.encode value)
@@ -197,13 +208,14 @@ instance Json.FromJSON Union where
 -- JSON for VALUE
 
 instance Json.ToJSON Value where
-    toJSON (Value name comment tipe assocPrec) =
+    toJSON (Value name comment tipe source assocPrec) =
         Json.object (fields ++ possibleFields)
       where
         fields =
             [ "name" .= name
             , "comment" .= comment
             , "type" .= tipe
+            , "source" .= source
             ]
 
         possibleFields =
@@ -221,6 +233,7 @@ instance Json.FromJSON Value where
             <$> obj .: "name"
             <*> obj .: "comment"
             <*> obj .: "type"
+            <*> obj .: "source"
             <*> (liftM2 (,) <$> obj .:? "associativity" <*> obj .:? "precedence")
 
     parseJSON value =
