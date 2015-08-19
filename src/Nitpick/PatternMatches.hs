@@ -10,11 +10,11 @@ import qualified Data.Set as Set
 import qualified AST.Expression.General as E
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Helpers as Help
-import qualified AST.Literal as L
 import qualified AST.Module as Module
-import qualified AST.Pattern as P
+import qualified AST.Pattern as Pattern
 import qualified AST.Variable as Var
 import Elm.Utils ((|>))
+import Nitpick.Pattern (Pattern(..), fromCanonicalPattern)
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as Region
 import qualified Reporting.Result as Result
@@ -33,42 +33,6 @@ patternMatches interfaces modul =
     checkExpression
       (toTagDict interfaces name (Module.datatypes body))
       (Module.program body)
-
-
--- PATTERN MATCH DATA STRUCTURE
-
-data Pattern
-    = Data Var.Canonical [Pattern]
-    | Record [String]
-    | Alias String Pattern
-    | Var String
-    | Anything
-    | Literal L.Literal
-    | AnythingBut (Set.Set L.Literal)
-    deriving (Show, Eq)
-
-
-fromCanonicalPattern :: P.CanonicalPattern -> Pattern
-fromCanonicalPattern (A.A _ pattern) =
-  case pattern of
-    P.Data ctor patterns ->
-        Data ctor (map fromCanonicalPattern patterns)
-
-    P.Record fields ->
-        Record fields
-
-    P.Alias name pattern ->
-        Alias name (fromCanonicalPattern pattern)
-
-    P.Var name ->
-        Var name
-
-    P.Anything ->
-        Anything
-
-    P.Literal literal ->
-        Literal literal
-
 
 
 -- TAG DICT
@@ -116,8 +80,8 @@ toTagMapping adts =
       |> Map.fromList
 
 
-lookupOtherCtors :: Var.Canonical -> TagDict -> [(Tag, Int)]
-lookupOtherCtors (Var.Canonical home name) tagDict =
+lookupOtherTags :: Var.Canonical -> TagDict -> [(Tag, Int)]
+lookupOtherTags (Var.Canonical home name) tagDict =
   case Map.lookup name =<< Map.lookup home tagDict of
     Just otherTags ->
         otherTags
@@ -144,7 +108,7 @@ checkExpression tagDict (A.A region expression) =
       checkExpression tagDict
 
     go2 a b =
-      F.traverse_ go [a,b]
+      go a <* go b
 
     goPattern =
       checkPatterns tagDict region
@@ -157,8 +121,7 @@ checkExpression tagDict (A.A region expression) =
         Result.ok ()
 
     E.Range low high ->
-        go low
-        <* go high
+        go2 low high
 
     E.ExplicitList listExprs ->
         F.traverse_ go listExprs
@@ -232,7 +195,7 @@ checkExpression tagDict (A.A region expression) =
 checkPatterns
     :: TagDict
     -> Region.Region
-    -> [P.CanonicalPattern]
+    -> [Pattern.CanonicalPattern]
     -> Result.Result Warning.Warning e ()
 checkPatterns tagDict region patterns =
   checkPatternsHelp tagDict region [Anything] patterns
@@ -242,7 +205,7 @@ checkPatternsHelp
     :: TagDict
     -> Region.Region
     -> [Pattern]
-    -> [P.CanonicalPattern]
+    -> [Pattern.CanonicalPattern]
     -> Result.Result Warning.Warning e ()
 checkPatternsHelp tagDict region unhandled patterns =
   case (unhandled, patterns) of
@@ -250,7 +213,7 @@ checkPatternsHelp tagDict region unhandled patterns =
         return ()
 
     (_:_, []) ->
-        Result.warn region Warning.InexhaustivePatternMatch
+        Result.warn region (Warning.InexhaustivePatternMatch unhandled)
 
     (_, pattern@(A.A localRegion _) : remainingPatterns) ->
         do  newUnhandled <- filterPatterns tagDict localRegion pattern unhandled
@@ -260,7 +223,7 @@ checkPatternsHelp tagDict region unhandled patterns =
 filterPatterns
     :: TagDict
     -> Region.Region
-    -> P.CanonicalPattern
+    -> Pattern.CanonicalPattern
     -> [Pattern]
     -> Result.Result Warning.Warning e [Pattern]
 filterPatterns tagDict region pattern unhandled =
@@ -370,7 +333,7 @@ complementData :: TagDict -> Var.Canonical -> [Pattern] -> [Pattern]
 complementData tagDict tag patterns =
   let
     otherTags =
-        lookupOtherCtors tag tagDict
+        lookupOtherTags tag tagDict
 
     tagComplements =
         Maybe.mapMaybe (tagToPattern tag) otherTags
