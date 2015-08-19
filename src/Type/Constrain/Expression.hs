@@ -2,6 +2,7 @@
 module Type.Constrain.Expression where
 
 import Control.Applicative ((<$>))
+import Control.Arrow (second)
 import qualified Control.Monad as Monad
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -97,8 +98,8 @@ constrain env annotatedExpr@(A.A region expression) tipe =
           in
             constrainApp env region f args tipe
 
-      E.MultiIf branches ->
-          constrainIf env region branches tipe
+      E.MultiIf branches finally ->
+          constrainIf env region branches finally tipe
 
       E.Case expr branches ->
           constrainCase env region expr branches tipe
@@ -183,6 +184,9 @@ constrain env annotatedExpr@(A.A region expression) tipe =
 
             E.Task _ expr _ ->
                 constrain env expr tipe
+
+      E.Crash _ ->
+          return CTrue
 
 
 -- CONSTRAIN APP
@@ -333,25 +337,38 @@ constrainIf
     :: Env.Environment
     -> R.Region
     -> [(Canonical.Expr, Canonical.Expr)]
+    -> Canonical.Expr
     -> Type
     -> IO TypeConstraint
-constrainIf env region branches tipe =
-  do  (branchInfo, branchExprCons) <-
-          unzip <$> mapM constrainBranch branches
+constrainIf env region branches finally tipe =
+  do  let (conditions, branchExprs) =
+            second (++ [finally]) (unzip branches)
+
+      (condVars, condCons) <-
+          unzip <$> mapM constrainCondition conditions
+
+      (branchInfo, branchExprCons) <-
+          unzip <$> mapM constrainBranch branchExprs
 
       (vars,cons) <- branchCons branchInfo
 
-      return $ ex vars (CAnd (branchExprCons ++ cons))
+      return $ ex (condVars ++ vars) (CAnd (condCons ++ branchExprCons ++ cons))
   where
-    bool = Env.get env Env.types "Bool"
+    bool =
+      Env.get env Env.types "Bool"
 
-    constrainBranch (cond, expr@(A.A branchRegion _)) =
+    constrainCondition condition@(A.A condRegion _) =
+      do  condVar <- variable Flexible
+          condCon <- constrain env condition (varN condVar)
+          let boolCon = CEqual Error.IfCondition condRegion (varN condVar) bool
+          return (condVar, CAnd [ condCon, boolCon ])
+
+    constrainBranch expr@(A.A branchRegion _) =
       do  branchVar <- variable Flexible
-          condCon <- constrain env cond bool
           exprCon <- constrain env expr (varN branchVar)
           return
             ( (branchVar, branchRegion)
-            , condCon /\ exprCon
+            , exprCon
             )
 
     branchCons branchInfo =
@@ -368,7 +385,7 @@ constrainIf env region branches tipe =
             pairCons region Error.MultiIfBranch varToCon branchInfo
 
     varToCon var =
-      CEqual Error.If region tipe (varN var)
+      CEqual Error.If region (varN var) tipe
 
 
 -- CONSTRAIN CASE EXPRESSIONS

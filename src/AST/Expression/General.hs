@@ -16,6 +16,7 @@ import qualified AST.Pattern as Pattern
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
+import qualified Reporting.Crash as Crash
 import qualified Reporting.PrettyPrint as P
 
 
@@ -48,7 +49,7 @@ data Expr' ann def var typ
     | Binop var (Expr ann def var typ) (Expr ann def var typ)
     | Lambda (Pattern.Pattern ann var) (Expr ann def var typ)
     | App (Expr ann def var typ) (Expr ann def var typ)
-    | MultiIf [(Expr ann def var typ,Expr ann def var typ)]
+    | MultiIf [(Expr ann def var typ, Expr ann def var typ)] (Expr ann def var typ)
     | Let [def] (Expr ann def var typ)
     | Case (Expr ann def var typ) [(Pattern.Pattern ann var, Expr ann def var typ)]
     | Data String [Expr ann def var typ]
@@ -60,6 +61,7 @@ data Expr' ann def var typ
     -- for type checking and code gen only
     | Port (PortImpl (Expr ann def var typ) typ)
     | GLShader String String Literal.GLShaderTipe
+    | Crash Crash.Details
     deriving (Show)
 
 
@@ -161,9 +163,17 @@ instance (P.Pretty def, P.Pretty var, Var.ToString var) => P.Pretty (Expr' ann d
           func:args =
               map (P.pretty dealiaser True) (collectApps expr ++ [arg])
 
-      MultiIf branches ->
+      MultiIf [(condition, thenBranch)] elseBranch ->
+          P.parensIf needsParens $ P.sep $
+              [ P.text "if" <+> P.pretty dealiaser False condition <+> P.text "then"
+              , P.nest 4 (P.pretty dealiaser False thenBranch)
+              , P.text "else"
+              , P.nest 4 (P.pretty dealiaser False elseBranch)
+              ]
+
+      MultiIf branches finally ->
           P.parensIf needsParens $
-              P.text "if" $$ nest 3 (vcat $ map iff branches)
+              P.text "if" $$ nest 3 (vcat $ map iff branches ++ [final])
         where
           iff (condition, branch) =
             P.text "|" <+>
@@ -171,6 +181,9 @@ instance (P.Pretty def, P.Pretty var, Var.ToString var) => P.Pretty (Expr' ann d
                   (P.pretty dealiaser False condition <+> P.text "->")
                   2
                   (P.pretty dealiaser False branch)
+
+          final =
+            P.hang (P.text "| True -> ") 2 (P.pretty dealiaser False finally)
 
       Let defs body ->
           P.parensIf needsParens $
@@ -262,6 +275,9 @@ instance (P.Pretty def, P.Pretty var, Var.ToString var) => P.Pretty (Expr' ann d
 
       Port portImpl ->
           P.pretty dealiaser needsParens portImpl
+
+      Crash details ->
+          P.text ("<crash:" ++ Crash.summary details ++ ">")
 
 
 instance P.Pretty (PortImpl expr tipe) where

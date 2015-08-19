@@ -1,17 +1,18 @@
 module Generate.JavaScript (generate) where
 
 import Control.Applicative ((<$>),(<*>))
-import Control.Arrow (first,(***))
+import Control.Arrow (first, second, (***))
 import Control.Monad.State
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import Language.ECMAScript3.PrettyPrint
 import Language.ECMAScript3.Syntax
 
 import AST.Module
-import AST.Expression.General
-import qualified AST.Expression.Canonical as Canonical
+import AST.Expression.General as Expr
+import qualified AST.Expression.Optimized as Opt
 import qualified AST.Helpers as Help
 import AST.Literal
 import qualified AST.Module as Module
@@ -19,19 +20,22 @@ import qualified AST.Pattern as P
 import qualified AST.Variable as Var
 import Elm.Utils ((|>))
 import Generate.JavaScript.Helpers as Help
-import qualified Generate.Cases as Case
+import qualified Generate.JavaScript.Crash as Crash
 import qualified Generate.JavaScript.Port as Port
 import qualified Generate.JavaScript.Variable as Var
+import qualified Optimize.Cases as Case
 import qualified Reporting.Annotation as A
-import qualified Reporting.Region as R
+import qualified Reporting.Crash as Crash
 
+
+-- HELPERS
 
 internalImports :: Module.Name -> [VarDecl ()]
 internalImports name =
     [ varDecl "_N" (obj ["Elm","Native"])
     , include "_U" "Utils"
     , include "_L" "List"
-    , varDecl Help.localModuleName (string (Module.nameToString name))
+    , varDecl Crash.localModuleName (string (Module.nameToString name))
     ]
   where
     include :: String -> String -> VarDecl ()
@@ -59,51 +63,131 @@ literal lit =
     Boolean  b -> BoolLit () b
 
 
-expression :: Canonical.Expr -> State Int (Expression ())
-expression (A.A region expr) =
+-- CODE CHUNKS
+
+data Code
+    = JsExpr (Expression ())
+    | JsBlock [Statement ()]
+
+
+jsExpr :: Expression () -> State Int Code
+jsExpr exp =
+  return (JsExpr exp)
+
+
+jsBlock :: [Statement ()] -> State Int Code
+jsBlock exp =
+  return (JsBlock exp)
+
+
+isBlock :: Code -> Bool
+isBlock code =
+  case code of
+    JsBlock _ -> True
+    JsExpr _ -> False
+
+
+toStatementList :: Code -> [Statement ()]
+toStatementList code =
+  case code of
+    JsExpr expr ->
+        [ ret expr ]
+    JsBlock stmts ->
+        stmts
+
+
+toStatement :: Code -> Statement ()
+toStatement code =
+  case code of
+    JsExpr expr ->
+        ret expr
+    JsBlock [stmt] ->
+        stmt
+    JsBlock stmts ->
+        BlockStmt () stmts
+
+
+toExpr :: Code -> Expression ()
+toExpr code =
+  case code of
+    JsExpr expr ->
+        expr
+    JsBlock stmts ->
+        function [] stmts `call` []
+
+
+-- TAIL CALL CONTEXT
+
+type TailCallContext =
+  Maybe (String, [String], Label)
+
+
+type Label =
+  Id ()
+
+
+-- EXPRESSIONS
+
+toJsExpr :: Opt.Expr -> State Int (Expression ())
+toJsExpr =
+  exprToJsExpr Nothing
+
+
+toCode :: Opt.Expr -> State Int Code
+toCode =
+  exprToCode Nothing
+
+
+exprToJsExpr :: TailCallContext -> Opt.Expr -> State Int (Expression ())
+exprToJsExpr tcc canonicalExpr =
+  toExpr <$> exprToCode tcc canonicalExpr
+
+
+exprToCode :: TailCallContext -> Opt.Expr -> State Int Code
+exprToCode tcc annotatedExpr@(A.A _ expr) =
     case expr of
       Var var ->
-          return $ Var.canonical var
+          jsExpr $ Var.canonical var
 
       Literal lit ->
-          return $ literal lit
+          jsExpr $ literal lit
 
       Range lo hi ->
-          do  lo' <- expression lo
-              hi' <- expression hi
-              return $ _List "range" `call` [lo',hi']
+          do  lo' <- toJsExpr lo
+              hi' <- toJsExpr hi
+              jsExpr $ _List "range" `call` [lo',hi']
 
-      Access e field ->
-          do  e' <- expression e
-              return $ DotRef () e' (var (Var.varName field))
+      Access record field ->
+          do  record' <- toJsExpr record
+              jsExpr $ DotRef () record' (var (Var.varName field))
 
-      Remove e field ->
-          do  e' <- expression e
-              return $ _Utils "remove" `call` [ string (Var.varName field), e' ]
+      Remove record field ->
+          do  record' <- toJsExpr record
+              jsExpr $ _Utils "remove" `call` [ string (Var.varName field), record' ]
 
-      Insert e field value ->
-          do  value' <- expression value
-              e' <- expression e
-              return $ _Utils "insert" `call` [ string (Var.varName field), value', e' ]
+      Insert record field value ->
+          do  value' <- toJsExpr value
+              record' <- toJsExpr record
+              jsExpr $ _Utils "insert" `call` [ string (Var.varName field), value', record' ]
 
-      Modify e fields ->
-          do  e' <- expression e
+      Modify record fields ->
+          do  record' <- toJsExpr record
               fields' <-
                 forM fields $ \(field, value) ->
-                  do  value' <- expression value
+                  do  value' <- toJsExpr value
                       return $ ArrayLit () [ string (Var.varName field), value' ]
 
-              return $ _Utils "replace" `call` [ArrayLit () fields', e']
+              jsExpr $ _Utils "replace" `call` [ArrayLit () fields', record']
 
       Record fields ->
           do  fields' <-
                 forM fields $ \(field, e) ->
-                    (,) (Var.varName field) <$> expression e
+                    (,) (Var.varName field) <$> toJsExpr e
 
               let fieldMap =
                     List.foldl' combine Map.empty fields'
 
-              return $ ObjectLit () $ (prop "_", hidden fieldMap) : visible fieldMap
+              jsExpr $ ObjectLit () $ (prop "_", hidden fieldMap) : visible fieldMap
           where
             combine record (field, value) =
                 Map.insertWith (++) field [value] record
@@ -115,201 +199,370 @@ expression (A.A region expr) =
             visible fs =
                 map (first prop) (Map.toList (Map.map head fs))
 
-      Binop op e1 e2 ->
-          binop region op e1 e2
+      Binop op leftExpr rightExpr ->
+          binop op leftExpr rightExpr
 
-      Lambda pattern rawBody@(A.A ann _) ->
-          do  (args, body) <- foldM depattern ([], innerBody) (reverse patterns)
-              body' <- expression body
-              return $
-                case length args < 2 || length args > 9 of
-                  True  -> foldr (==>) body' (map (:[]) args)
-                  False -> ref ("F" ++ show (length args)) <| (args ==> body')
+      Lambda _ _ ->
+          generateFunction (Expr.collectLambdas annotatedExpr)
+
+      App _ _ ->
+          generateApplication tcc annotatedExpr
+
+      Let defs body ->
+          generateLet tcc defs body
+
+      MultiIf branches finally ->
+          generateIf tcc branches finally
+
+      Case expr branches ->
+          generateCase tcc expr branches
+
+      ExplicitList elements ->
+          do  jsElements <- mapM toJsExpr elements
+              jsExpr $ _List "fromArray" <| ArrayLit () jsElements
+
+      Data tag members ->
+          do  jsMembers <- mapM toJsExpr members
+              jsExpr $ ObjectLit () (ctor : fields jsMembers)
           where
-            depattern (args, body) pattern =
-                case pattern of
-                  A.A _ (P.Var x) ->
-                      return (args ++ [ Var.varName x ], body)
-
-                  _ ->
-                      do  arg <- Case.newVar
-                          return
-                            ( args ++ [arg]
-                            , A.A ann (Case (A.A ann (localVar arg)) [(pattern, body)])
-                            )
-
-            (patterns, innerBody) =
-                collect [pattern] rawBody
-
-            collect patterns lexpr@(A.A _ expr) =
-                case expr of
-                  Lambda p e -> collect (p:patterns) e
-                  _ -> (patterns, lexpr)
-
-      App e1 e2 ->
-          do  func' <- expression func
-              args' <- mapM expression args
-              return $
-                case args' of
-                  [arg] -> func' <| arg
-                  _ | length args' <= 9 -> ref aN `call` (func':args')
-                    | otherwise         -> foldl1 (<|) (func':args')
-          where
-            aN = "A" ++ show (length args)
-            (func, args) = getArgs e1 [e2]
-            getArgs func args =
-                case func of
-                  (A.A _ (App f arg)) -> getArgs f (arg : args)
-                  _ -> (func, args)
-
-      Let defs e ->
-          do  let (defs',e') = flattenLets defs e
-              stmts <- concat <$> mapM definition defs'
-              exp <- expression e'
-              return $ function [] (stmts ++ [ ret exp ]) `call` []
-
-      MultiIf branches ->
-          do  branches' <- forM branches $ \(b,e) -> (,) <$> expression b <*> expression e
-              return $
-                case last branches of
-                  (A.A _ (Var (Var.Canonical (Var.Module ["Basics"]) "otherwise")), _) ->
-                      safeIfs branches'
-                  (A.A _ (Literal (Boolean True)), _) ->
-                      safeIfs branches'
-                  _ ->
-                      ifs branches' (throw "badIf" region)
-          where
-            safeIfs branches = ifs (init branches) (snd (last branches))
-            ifs branches finally = foldr iff finally branches
-            iff (if', then') else' = CondExpr () if' then' else'
-
-      Case e cases ->
-          do  (tempVar,initialMatch) <- Case.toMatch cases
-              (revisedMatch, stmt) <-
-                  case e of
-                    A.A _ (Var (Var.Canonical Var.Local x)) ->
-                        return (Case.matchSubst [(tempVar, Var.varName x)] initialMatch, [])
-                    _ ->
-                        do  e' <- expression e
-                            return (initialMatch, [VarDeclStmt () [varDecl tempVar e']])
-              match' <- match region revisedMatch
-              return (function [] (stmt ++ match') `call` [])
-
-      ExplicitList es ->
-          do  es' <- mapM expression es
-              return $ _List "fromArray" <| ArrayLit () es'
-
-      Data name es ->
-          do  es' <- mapM expression es
-              return $ ObjectLit () (ctor : fields es')
-          where
-            ctor = (prop "ctor", string name)
+            ctor = (prop "ctor", string tag)
             fields =
                 zipWith (\n e -> (prop ("_" ++ show n), e)) [ 0 :: Int .. ]
 
       GLShader _uid src _tipe ->
-          return $ ObjectLit () [(PropString () "src", literal (Str src))]
+          jsExpr $ ObjectLit () [(PropString () "src", literal (Str src))]
 
       Port impl ->
           case impl of
             In name portType ->
-                return (Port.inbound name portType)
+                jsExpr (Port.inbound name portType)
 
             Out name expr portType ->
-                do  expr' <- expression expr
-                    return (Port.outbound name expr' portType)
+                do  expr' <- toJsExpr expr
+                    jsExpr (Port.outbound name expr' portType)
 
             Task name expr portType ->
-                do  expr' <- expression expr
-                    return (Port.task name expr' portType)
+                do  expr' <- toJsExpr expr
+                    jsExpr (Port.task name expr' portType)
+
+      Crash details ->
+          jsExpr $ Crash.crash details
 
 
-definition :: Canonical.Def -> State Int [Statement ()]
-definition (Canonical.Definition annPattern expr@(A.A region _) _) =
-  do  expr' <- expression expr
-      let assign x = varDecl x expr'
-      let (A.A patternRegion pattern) = annPattern
-      case pattern of
-        P.Var x
-            | Help.isOp x ->
-                let op = LBracket () (ref "_op") (string x) in
-                return [ ExprStmt () $ AssignExpr () OpAssign op expr' ]
+-- FUNCTIONS
 
-            | otherwise ->
-                return [ VarDeclStmt () [ assign (Var.varName x) ] ]
-
-        P.Record fields ->
-            let setField f = varDecl f (obj ["$",f]) in
-            return [ VarDeclStmt () (assign "$" : map setField fields) ]
-
-        P.Data (Var.Canonical _ name) patterns | vars /= Nothing ->
-            return [ VarDeclStmt () (setup (zipWith decl (maybe [] id vars) [0..])) ]
-          where
-            vars = getVars patterns
-            getVars patterns =
-                case patterns of
-                  A.A _ (P.Var x) : rest ->
-                      (Var.varName x :) `fmap` getVars rest
-                  [] ->
-                      Just []
-                  _ ->
-                      Nothing
-
-            decl x n = varDecl x (obj ["$","_" ++ show n])
-            setup vars
-                | Help.isTuple name = assign "$" : vars
-                | otherwise = assign "_raw" : safeAssign : vars
-
-            safeAssign = varDecl "$" (CondExpr () if' (ref "_raw") exception)
-            if' = InfixExpr () OpStrictEq (obj ["_raw","ctor"]) (string name)
-            exception = Help.throw "badCase" region
-
-        _ ->
-            do  defs' <- concat <$> mapM toDef vars
-                return (VarDeclStmt () [assign "_"] : defs')
-            where
-              vars = P.boundVarList annPattern
-              mkVar = A.A region . localVar
-              toDef y =
-                let expr = A.A region $ Case (mkVar "_") [(annPattern, mkVar y)]
-                    pat = A.A patternRegion (P.Var y)
-                in
-                    definition (Canonical.Definition pat expr Nothing)
+generateFunction :: ([P.Optimized], Opt.Expr) -> State Int Code
+generateFunction (args, initialBody) =
+  do  (argVars, patternDefs) <- destructuredArgs args
+      code <- generateLet Nothing patternDefs initialBody
+      jsExpr (generateFunctionWithArity argVars code)
 
 
-match :: R.Region -> Case.Match -> State Int [Statement ()]
-match region mtch =
+generateTailFunction :: String -> ([P.Optimized], Opt.Expr) -> State Int (Expression ())
+generateTailFunction name (args, initialBody) =
+  do  (argVars, patternDefs) <- destructuredArgs args
+      label <- Id () <$> Case.newVar
+      code <- generateLet (Just (name, argVars, label)) patternDefs initialBody
+      let whileLoop =
+            JsBlock [ LabelledStmt () label (WhileStmt () (BoolLit () True) (toStatement code)) ]
+      return (generateFunctionWithArity argVars whileLoop)
+
+
+generateFunctionWithArity :: [String] -> Code -> Expression ()
+generateFunctionWithArity args code =
+    let
+        arity = length args
+    in
+      if 2 <= arity && arity <= 9 then
+          let
+              fN = "F" ++ show arity
+          in
+              ref fN <| function args (toStatementList code)
+      else
+          let
+              (lastArg:otherArgs) = reverse args
+              innerBody = function [lastArg] (toStatementList code)
+          in
+              foldl (\body arg -> function [arg] [ret body]) innerBody otherArgs
+
+
+destructuredArgs :: [P.Optimized] -> State Int ([String], [Opt.Def])
+destructuredArgs args =
+  do  (argVars, maybePatternDefs) <- unzip <$> mapM destructPattern args
+      return (argVars, Maybe.catMaybes maybePatternDefs)
+
+
+destructPattern :: P.Optimized -> State Int (String, Maybe Opt.Def)
+destructPattern pattern@(A.A ann pat) =
+  case pat of
+    P.Var x ->
+        return (Var.varName x, Nothing)
+
+    _ ->
+        do  arg <- Case.newVar
+            return
+              ( arg
+              , Just $ Opt.Definition Opt.dummyFacts pattern (A.A ann (localVar arg))
+              )
+
+
+-- APPLICATIONS
+
+generateApplication :: TailCallContext -> Opt.Expr -> State Int Code
+generateApplication tcc expr =
+  let
+    (func:args) =
+      Expr.collectApps expr
+
+    arity =
+      length args
+
+    reassign name tempName =
+      ExprStmt () (AssignExpr () OpAssign (LVar () name) (ref tempName))
+
+    aN =
+      "A" ++ show arity
+  in
+    case isTailCall tcc func arity of
+      Just (argNames, label) ->
+        do  args' <- mapM toJsExpr args
+            tempNames <- mapM (\_ -> Case.newVar) args
+            jsBlock $
+              VarDeclStmt () (zipWith varDecl tempNames args')
+              : zipWith reassign argNames tempNames
+              ++ [ContinueStmt () (Just label)]
+
+      _ ->
+        do  func' <- toJsExpr func
+            args' <- mapM toJsExpr args
+            jsExpr $
+              if 2 <= arity && arity <= 9 then
+                ref aN `call` (func':args')
+              else
+                foldl1 (<|) (func':args')
+
+
+isTailCall :: TailCallContext -> Opt.Expr -> Int -> Maybe ([String], Label)
+isTailCall tcc (A.A _ func) arity =
+  case (func, tcc) of
+    (Var (Var.Canonical Var.Local name), Just (tcName, tcArgs, tcLabel)) ->
+        if name == tcName && length tcArgs == arity then
+          Just (tcArgs, tcLabel)
+        else
+          Nothing
+
+    _ ->
+      Nothing
+
+
+-- LET EXPRESSIONS
+
+generateLet
+    :: TailCallContext
+    -> [Opt.Def]
+    -> Opt.Expr
+    -> State Int Code
+generateLet tcc givenDefs givenBody =
+  do  let (defs, body) = flattenLets givenDefs givenBody
+      stmts <- concat <$> mapM defToStatements defs
+      code <- exprToCode tcc body
+      jsBlock (stmts ++ toStatementList code)
+
+
+-- GENERATE IFS
+
+generateIf :: TailCallContext -> [(Opt.Expr, Opt.Expr)] -> Opt.Expr -> State Int Code
+generateIf tcc givenBranches givenFinally =
+  let
+    (branches, finally) =
+        crushIfs givenBranches givenFinally
+
+    convertBranch (condition, expr) =
+        (,) <$> toJsExpr condition <*> exprToCode tcc expr
+
+    ifExpression (condition, branch) otherwise =
+        CondExpr () condition branch otherwise
+
+    ifStatement (condition, branch) otherwise =
+        IfStmt () condition branch otherwise
+  in
+    do  jsBranches <- mapM convertBranch branches
+        jsFinally <- exprToCode tcc finally
+
+        if any isBlock (jsFinally : map snd jsBranches)
+          then
+            jsBlock [ foldr ifStatement (toStatement jsFinally) (map (second toStatement) jsBranches) ]
+          else
+            jsExpr (foldr ifExpression (toExpr jsFinally) (map (second toExpr) jsBranches))
+
+
+crushIfs
+    :: [(Opt.Expr, Opt.Expr)]
+    -> Opt.Expr
+    -> ([(Opt.Expr, Opt.Expr)], Opt.Expr)
+crushIfs branches finally =
+  crushIfsHelp [] branches finally
+
+
+crushIfsHelp
+    :: [(Opt.Expr, Opt.Expr)]
+    -> [(Opt.Expr, Opt.Expr)]
+    -> Opt.Expr
+    -> ([(Opt.Expr, Opt.Expr)], Opt.Expr)
+crushIfsHelp visitedBranches unvisitedBranches finally =
+  case unvisitedBranches of
+    [] ->
+        case finally of
+          A.A _ (MultiIf subBranches subFinally) ->
+              crushIfsHelp visitedBranches subBranches subFinally
+
+          _ ->
+              (reverse visitedBranches, finally)
+
+    (A.A _ (Literal (Boolean True)), branch) : _ ->
+        crushIfsHelp visitedBranches [] branch
+
+    (A.A _ (Var (Var.Canonical (Var.Module ["Basics"]) "otherwise")), branch) : _ ->
+        crushIfsHelp visitedBranches [] branch
+
+    visiting : unvisited ->
+        crushIfsHelp (visiting : visitedBranches) unvisited finally
+
+
+
+-- DEFINITIONS
+
+defToStatements :: Opt.Def -> State Int [Statement ()]
+defToStatements (Opt.Definition facts pattern expr) =
+    case Opt.tailRecursionDetails facts of
+      Just name ->
+          do  func <- generateTailFunction name (Expr.collectLambdas expr)
+              return [ VarDeclStmt () [ varDecl name func ] ]
+
+      Nothing ->
+          defToStatementsHelp facts pattern =<< toJsExpr expr
+
+
+defToStatementsHelp
+    :: Opt.Facts
+    -> P.Optimized
+    -> Expression ()
+    -> State Int [Statement ()]
+defToStatementsHelp facts annPattern@(A.A _ pattern) jsExpr =
+  let
+    define x =
+      varDecl x jsExpr
+  in
+  case pattern of
+    P.Var x ->
+        if Help.isOp x then
+            let
+                op = LBracket () (ref "_op") (string x)
+            in
+                return [ ExprStmt () $ AssignExpr () OpAssign op jsExpr ]
+        else
+            return [ VarDeclStmt () [ define (Var.varName x) ] ]
+
+    P.Record fields ->
+        let
+            setField name =
+                varDecl name (obj ["$",name])
+        in
+            return [ VarDeclStmt () (define "$" : map setField fields) ]
+
+    P.Data (Var.Canonical _ name) patterns | vars /= Nothing ->
+        return [ VarDeclStmt () (setup (zipWith decl (maybe [] id vars) [0..])) ]
+      where
+        vars = getVars patterns
+        getVars patterns =
+            case patterns of
+              A.A _ (P.Var x) : rest ->
+                  (Var.varName x :) `fmap` getVars rest
+              [] ->
+                  Just []
+              _ ->
+                  Nothing
+
+        decl x n = varDecl x (obj ["$","_" ++ show n])
+        setup vars
+            | Help.isTuple name = define "$" : vars
+            | otherwise = define "_raw" : safeAssign : vars
+
+        safeAssign = varDecl "$" (CondExpr () if' (ref "_raw") exception)
+        if' = InfixExpr () OpStrictEq (obj ["_raw","ctor"]) (string name)
+        exception = Crash.crash (Crash.IncompletePatternMatch (error "TODO"))
+
+    _ ->
+        do  defs' <- concat <$> mapM toDef vars
+            return (VarDeclStmt () [define "_"] : defs')
+        where
+          vars = P.boundVarList annPattern
+          mkVar = A.A () . localVar
+          toDef y =
+            let expr = A.A () $ Case (mkVar "_") [(annPattern, mkVar y)]
+                pat = A.A () (P.Var y)
+            in
+                defToStatements (Opt.Definition facts pat expr)
+
+
+-- CASE EXPRESSIONS
+
+generateCase :: TailCallContext -> Opt.Expr -> [(P.Optimized, Opt.Expr)] -> State Int Code
+generateCase tcc expr branches =
+  do  (tempVar, initialMatch) <-
+          Case.toMatch branches
+
+      (revisedMatch, stmt) <-
+          case expr of
+            A.A _ (Var (Var.Canonical Var.Local x)) ->
+                return (Case.matchSubst [(tempVar, Var.varName x)] initialMatch, [])
+            _ ->
+                do  expr' <- toJsExpr expr
+                    return (initialMatch, [VarDeclStmt () [varDecl tempVar expr']])
+
+      match' <- match tcc revisedMatch
+
+      jsBlock (stmt ++ match')
+
+
+match :: TailCallContext -> Case.Match -> State Int [Statement ()]
+match tcc mtch =
   case mtch of
     Case.Match name clauses mtch' ->
-        do  (isChars, clauses') <- unzip <$> mapM (clause region name) clauses
-            mtch'' <- match region mtch'
+        do  (isChars, clauses') <- unzip <$> mapM (clause tcc name) clauses
+            mtch'' <- match tcc mtch'
             return (SwitchStmt () (format isChars (access name)) clauses' : mtch'')
         where
           isLiteral p =
             case p of
-              Case.Clause (Right _) _ _ -> True
-              _ -> False
+              Case.Clause (Right _) _ _ ->
+                  True
+              _ ->
+                  False
 
-          access name
-              | any isLiteral clauses = obj [name]
-              | otherwise = obj (Help.splitDots name ++ ["ctor"])
+          access name =
+              if any isLiteral clauses then
+                  obj [name]
+              else
+                  obj (Help.splitDots name ++ ["ctor"])
 
-          format isChars e
-              | or isChars = InfixExpr () OpAdd e (string "")
-              | otherwise = e
+          format isChars expr =
+              if or isChars then
+                  InfixExpr () OpAdd expr (string "")
+              else
+                  expr
 
     Case.Fail ->
-        return [ ExprStmt () (Help.throw "badCase" region) ]
+        return [ ExprStmt () (Crash.crash (Crash.IncompletePatternMatch (error "TODO"))) ]
 
     Case.Break ->
         return [BreakStmt () Nothing]
 
-    Case.Other e ->
-        do  e' <- expression e
-            return [ ret e' ]
+    Case.Other expr ->
+        toStatementList <$> exprToCode tcc expr
 
     Case.Seq ms ->
-        concat <$> mapM (match region) (dropEnd [] ms)
+        concat <$> mapM (match tcc) (dropEnd [] ms)
       where
         dropEnd acc [] = acc
         dropEnd acc (m:ms) =
@@ -318,9 +571,10 @@ match region mtch =
               _ -> dropEnd (acc ++ [m]) ms
 
 
-clause :: R.Region -> String -> Case.Clause -> State Int (Bool, CaseClause ())
-clause region variable (Case.Clause value vars mtch) =
-    (,) isChar . CaseClause () pattern <$> match region (Case.matchSubst (zip vars vars') mtch)
+clause :: TailCallContext -> String -> Case.Clause -> State Int (Bool, CaseClause ())
+clause tcc variable (Case.Clause value vars mtch) =
+  do  statemens <- match tcc (Case.matchSubst (zip vars vars') mtch)
+      return ((,) isChar (CaseClause () pattern statemens))
   where
     vars' =
         map (\n -> variable ++ "._" ++ show n) [0..]
@@ -337,14 +591,14 @@ clause region variable (Case.Clause value vars mtch) =
                     string name
 
 
-flattenLets :: [Canonical.Def] -> Canonical.Expr -> ([Canonical.Def], Canonical.Expr)
+flattenLets :: [Opt.Def] -> Opt.Expr -> ([Opt.Def], Opt.Expr)
 flattenLets defs lexpr@(A.A _ expr) =
     case expr of
       Let ds body -> flattenLets (defs ++ ds) body
       _ -> (defs, lexpr)
 
 
-generate :: Module.CanonicalModule -> String
+generate :: Module.Optimized -> String
 generate modul =
     show . prettyPrint $ setup "Elm" (names ++ ["make"]) ++
              [ assign ("Elm" : names ++ ["make"]) (function [localRuntime] programStmts) ]
@@ -393,7 +647,7 @@ generate modul =
             Module.program (Module.body modul)
               |> flattenLets []
               |> fst
-              |> mapM definition
+              |> mapM defToStatements
 
     setup namespace path =
         map create paths
@@ -430,63 +684,104 @@ generate modul =
           AssignExpr () OpAssign (LDot () (obj (init path)) (last path)) expr
 
 
+-- BINARY OPERATORS
+
 binop
-    :: R.Region
-    -> Var.Canonical
-    -> Canonical.Expr
-    -> Canonical.Expr
-    -> State Int (Expression ())
-binop region func@(Var.Canonical home op) e1 e2 =
-    case (home, op) of
-      (Var.Module ["Basics"], ">>") ->
-        do  es <- mapM expression (collectLeftAssoc [e2] e1)
-            return $ ["$"] ==> List.foldl' (\e f -> f <| e) (ref "$") es
+    :: Var.Canonical
+    -> Opt.Expr
+    -> Opt.Expr
+    -> State Int Code
+binop func left right
+  | func == Var.Canonical Var.BuiltIn "::" =
+      toCode (A.A () (Data "::" [left,right]))
 
-      (Var.Module ["Basics"], "<<") ->
-        do  es <- mapM expression (e1 : collectRightAssoc [] e2)
-            return $ ["$"] ==> foldr (<|) (ref "$") es
+  | func == forwardCompose =
+      compose (collectLeftAssoc forwardCompose left right)
 
-      (Var.Module ["Basics"], "<|") ->
-        do  e2' <- expression e2
-            es <- mapM expression (collectRightAssoc [] e1)
-            return $ foldr (<|) e2' es
+  | func == backwardCompose =
+      compose (collectRightAssoc backwardCompose left right)
 
-      (Var.BuiltIn, "::") ->
-        expression (A.A region (Data "::" [e1,e2]))
+  | func == forwardApply =
+      pipe (collectLeftAssoc forwardApply left right)
 
-      (Var.Module ["Basics"], _) ->
-        do  e1' <- expression e1
-            e2' <- expression e2
-            case Map.lookup op basicOps of
-              Just f ->
-                  return (f e1' e2')
+  | func == backwardApply =
+      pipe (collectRightAssoc backwardApply left right)
 
-              Nothing ->
-                  return (ref "A2" `call` [ Var.canonical func, e1', e2' ])
+  | otherwise =
+      do  jsLeft <- toJsExpr left
+          jsRight <- toJsExpr right
+          jsExpr (makeExpr func jsLeft jsRight)
 
-      _ ->
-        do  e1' <- expression e1
-            e2' <- expression e2
-            return (ref "A2" `call` [ Var.canonical func, e1', e2' ])
 
-  where
-    collectRightAssoc es e =
-        case e of
-          A.A _ (Binop (Var.Canonical (Var.Module ["Basics"]) "<<") e1 e2) ->
-              collectRightAssoc (es ++ [e1]) e2
-          _ -> es ++ [e]
+-- CONTROL FLOW OPERATOR HELPERS
 
-    collectLeftAssoc es e =
-        case e of
-          A.A _ (Binop (Var.Canonical (Var.Module ["Basics"]) ">>") e1 e2) ->
-              collectLeftAssoc (e2 : es) e1
-          _ -> e : es
+apply :: Expression () -> Expression () -> Expression ()
+apply arg func =
+  func <| arg
 
-    basicOps =
-        Map.fromList (infixOps ++ specialOps)
 
-    infixOps =
-        let infixOp str op = (str, InfixExpr () op) in
+compose :: [Opt.Expr] -> State Int Code
+compose functions =
+  do  jsFunctions <- mapM toJsExpr functions
+      jsExpr $ ["$"] ==> List.foldl' apply (ref "$") jsFunctions
+
+
+pipe :: [Opt.Expr] -> State Int Code
+pipe expressions =
+  do  (value:functions) <- mapM toJsExpr expressions
+      jsExpr $ List.foldl' apply value functions
+
+
+forwardCompose :: Var.Canonical
+forwardCompose =
+  inBasics ">>"
+
+
+backwardCompose :: Var.Canonical
+backwardCompose =
+  inBasics "<<"
+
+
+forwardApply :: Var.Canonical
+forwardApply =
+  inBasics "|>"
+
+
+backwardApply :: Var.Canonical
+backwardApply =
+  inBasics "<|"
+
+
+inBasics :: String -> Var.Canonical
+inBasics name =
+  Var.Canonical (Var.Module ["Basics"]) name
+
+
+-- BINARY OPERATOR HELPERS
+
+makeExpr :: Var.Canonical -> (Expression () -> Expression () -> Expression ())
+makeExpr qualifiedOp@(Var.Canonical home op) =
+    let
+        simpleMake left right =
+            ref "A2" `call` [ Var.canonical qualifiedOp, left, right ]
+    in
+        if home == Var.Module ["Basics"] then
+            Map.findWithDefault simpleMake op basicOps
+        else
+            simpleMake
+
+
+basicOps :: Map.Map String (Expression () -> Expression () -> Expression ())
+basicOps =
+    Map.fromList (infixOps ++ specialOps)
+
+
+infixOps :: [(String, Expression () -> Expression () -> Expression ())]
+infixOps =
+    let
+        infixOp str op =
+            (str, InfixExpr () op)
+    in
         [ infixOp "+"  OpAdd
         , infixOp "-"  OpSub
         , infixOp "*"  OpMul
@@ -495,17 +790,56 @@ binop region func@(Var.Canonical home op) e1 e2 =
         , infixOp "||" OpLOr
         ]
 
-    specialOps =
-        [ (,) "^"  $ \a b -> obj ["Math","pow"] `call` [a,b]
-        , (,) "|>" $ flip (<|)
-        , (,) "==" $ \a b -> _Utils "eq" `call` [a,b]
-        , (,) "/=" $ \a b -> PrefixExpr () PrefixLNot (_Utils "eq" `call` [a,b])
-        , (,) "<"  $ cmp OpLT 0
-        , (,) ">"  $ cmp OpGT 0
-        , (,) "<=" $ cmp OpLT 1
-        , (,) ">=" $ cmp OpGT (-1)
-        , (,) "//" $ \a b -> InfixExpr () OpBOr (InfixExpr () OpDiv a b) (IntLit () 0)
-        ]
 
-    cmp op n a b =
-        InfixExpr () op (_Utils "cmp" `call` [a,b]) (IntLit () n)
+specialOps :: [(String, Expression () -> Expression () -> Expression ())]
+specialOps =
+    [ (,) "^"  $ \a b -> obj ["Math","pow"] `call` [a,b]
+    , (,) "|>" $ flip (<|)
+    , (,) "==" $ \a b -> _Utils "eq" `call` [a,b]
+    , (,) "/=" $ \a b -> PrefixExpr () PrefixLNot (_Utils "eq" `call` [a,b])
+    , (,) "<"  $ cmp OpLT 0
+    , (,) ">"  $ cmp OpGT 0
+    , (,) "<=" $ cmp OpLT 1
+    , (,) ">=" $ cmp OpGT (-1)
+    , (,) "//" $ \a b -> InfixExpr () OpBOr (InfixExpr () OpDiv a b) (IntLit () 0)
+    ]
+
+
+cmp :: InfixOp -> Int -> Expression () -> Expression () -> Expression ()
+cmp op n a b =
+    InfixExpr () op (_Utils "cmp" `call` [a,b]) (IntLit () n)
+
+
+-- BINARY OPERATOR COLLECTORS
+
+-- (h << g << f) becomes [f, g, h] which is the order you want for doing stuff
+collectRightAssoc :: Var.Canonical -> Opt.Expr -> Opt.Expr -> [Opt.Expr]
+collectRightAssoc desiredOp left right =
+  collectRightAssocHelp desiredOp [left] right
+
+
+collectRightAssocHelp :: Var.Canonical -> [Opt.Expr] -> Opt.Expr -> [Opt.Expr]
+collectRightAssocHelp desiredOp exprList expr =
+    case expr of
+      A.A _ (Binop op left right) | op == desiredOp ->
+          collectRightAssocHelp desiredOp (left : exprList) right
+
+      _ ->
+          expr : exprList
+
+
+-- (f >> g >> h) becomes [f, g, h] which is the order you want for doing stuff
+collectLeftAssoc :: Var.Canonical -> Opt.Expr -> Opt.Expr -> [Opt.Expr]
+collectLeftAssoc desiredOp left right =
+  collectLeftAssocHelp desiredOp [right] left
+
+
+collectLeftAssocHelp :: Var.Canonical -> [Opt.Expr] -> Opt.Expr -> [Opt.Expr]
+collectLeftAssocHelp desiredOp exprList expr =
+    case expr of
+      A.A _ (Binop op left right) | op == desiredOp ->
+          collectLeftAssocHelp desiredOp (right : exprList) left
+
+      _ ->
+          expr : exprList
+

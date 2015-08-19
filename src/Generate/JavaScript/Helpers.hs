@@ -2,8 +2,6 @@ module Generate.JavaScript.Helpers where
 
 import Language.ECMAScript3.Syntax
 
-import qualified Reporting.Region as R
-
 
 localRuntime :: String
 localRuntime =
@@ -50,23 +48,6 @@ obj vars =
     case vars of
       x:xs -> foldl (DotRef ()) (ref x) (map var xs)
       [] -> error "dotSep must be called on a non-empty list of variables"
-
-
--- Specific Utilities
-
-localModuleName :: String
-localModuleName =
-    "$moduleName"
-
-
-throw :: String -> R.Region -> Expression ()
-throw kind region =
-  let args =
-        [ ref localModuleName
-        , string (R.toString region)
-        ]
-  in
-      obj ["_U",kind] `call` args
 
 
 -- Function Calls

@@ -18,12 +18,17 @@ data Literal
 
 instance P.Pretty Literal where
   pretty _ _ literal =
+      P.text (toString literal)
+
+
+toString :: Literal -> String
+toString literal =
     case literal of
-      IntNum n -> P.int n
-      FloatNum n -> P.double n
-      Chr c -> P.text . show $ c
-      Str s -> P.text . show $ s
-      Boolean bool -> P.text (show bool)
+      IntNum n -> show n
+      FloatNum n -> show n
+      Chr c -> show c
+      Str s -> show s
+      Boolean bool -> show bool
 
 
 data GLTipe

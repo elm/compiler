@@ -18,6 +18,7 @@ import qualified Elm.Compiler.Module as PublicModule
 import qualified Elm.Compiler.Version as Version
 import qualified Elm.Docs as Docs
 import qualified Generate.JavaScript as JS
+import qualified Optimize
 import qualified Parse.Module as Parse
 import qualified Parse.Parse as Parse
 import qualified Reporting.Annotation as A
@@ -80,7 +81,12 @@ compile context source interfaces =
     (Result.Result (dealiaser, warnings) rawResult) =
       do  modul <- Compile.compile user packageName isRoot unwrappedInterfaces source
           docs <- docsGen isExposed modul
-          return (Result docs (Module.toInterface modul) (JS.generate modul))
+
+          let interface = Module.toInterface modul
+          let optModule = Optimize.optimize modul
+          let javascript = JS.generate optModule
+
+          return (Result docs interface javascript)
   in
     ( maybe dummyDealiaser Dealiaser dealiaser
     , map Warning warnings
