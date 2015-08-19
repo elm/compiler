@@ -18,6 +18,7 @@ data Error
     | Alias AliasError
     | Import Module.Name ImportError
     | Export String [String]
+    | DuplicateExport String
     | Port PortError
 
 
@@ -195,6 +196,11 @@ toReport dealiaser err =
           ("Could not export `" ++ name ++ "` which is not defined in this module.")
           (Help.maybeYouWant suggestions)
 
+    DuplicateExport name ->
+        namingError
+          ("You are trying to export `" ++ name ++ "` multiple times!")
+          "Remove duplicates until there is only one listed."
+
     Port (PortError name isInbound _rootType localType maybeMessage) ->
         let
           boundPort =
@@ -250,6 +256,9 @@ extractSuggestions err =
 
     Export _ suggestions ->
         Just suggestions
+
+    DuplicateExport _ ->
+        Nothing
 
     Port _ ->
         Nothing

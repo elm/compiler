@@ -6,6 +6,7 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import qualified Data.Traversable as T
+import qualified Data.Foldable as T
 
 import AST.Expression.General (Expr'(..), dummyLet)
 import AST.Module (Body(..))
@@ -24,6 +25,7 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Error as Error
 import qualified Reporting.Error.Canonicalize as CError
 import qualified Reporting.Error.Helpers as ErrorHelp
+import qualified Reporting.Region as Region
 import qualified Reporting.Result as R
 import qualified Reporting.Warning as Warning
 import qualified Canonicalize.Declaration as Decls
@@ -116,7 +118,7 @@ moduleHelp interfaces modul@(Module.Module _ _ comment exports _ decls) =
           }
 
 
--- IMPORTS / EXPORTS
+-- IMPORTS
 
 filterImports
     :: Set.Set Module.Name
@@ -132,73 +134,126 @@ filterImports uses modul@(Module.Module _ _ _ _ (defaults, imports) _) =
         }
   where
     checkImport (A.A region (name, _method)) =
-      if Set.member name uses
-        then
+      if Set.member name uses then
           return (Just name)
-        else
+      else
           do  R.warn region (Warning.UnusedImport name)
               return Nothing
 
+
+-- EXPORTS
 
 resolveExports
     :: [Var.Value]
     -> Var.Listing (A.Located Var.Value)
     -> Result.ResultErr [Var.Value]
 resolveExports fullList (Var.Listing partialList open) =
-  if open
-    then Result.ok fullList
-    else
-      (\xs ys zs -> xs ++ ys ++ zs)
-        <$> T.traverse getValueExport values
-        <*> (concat <$> T.traverse getAliasExport aliases)
-        <*> T.traverse getAdtExport adts
-  where
-    (allValues, allAliases, allAdts) =
-        maybeUnzip3 (map splitValue fullList)
+  if open then
+    Result.ok fullList
+  else
+    let
+      (allValues, allAliases, allAdts) =
+          maybeUnzip3 (map splitValue fullList)
 
-    (values, aliases, adts) =
-        maybeUnzip3 (map splitLocatedValue partialList)
+      (values, aliases, adts) =
+          maybeUnzip3 (map splitLocatedValue partialList)
 
-    allValuesSet = Set.fromList allValues
-    adtTypes = map fst allAdts
+      adtTypes =
+          map fst allAdts
+    in
+      (\xs ys zs _ -> xs ++ ys ++ zs)
+        <$> T.traverse (getValueExport allValues (Set.fromList allValues)) values
+        <*> (concat <$> T.traverse (getAliasExport allValues allAliases adtTypes) aliases)
+        <*> T.traverse (getAdtExport allAdts adtTypes) adts
+        <*> allUnique partialList
 
-    getValueExport (A.A region name) =
-      if Set.member name allValuesSet
-        then Result.ok (Var.Value name)
-        else manyNotFound region [name] allValues
 
-    getAliasExport (A.A region alias)
-        | alias `elem` allAliases =
-            Result.ok $ (:) (Var.Alias alias) $
-                if alias `elem` allValues then [Var.Value alias] else []
+getValueExport
+    :: [String]
+    -> Set.Set String
+    -> A.Located String
+    -> Result.ResultErr Var.Value
+getValueExport allValues allValuesSet (A.A region name) =
+  if Set.member name allValuesSet then
+    Result.ok (Var.Value name)
+  else
+    manyNotFound region [name] allValues
 
-        | List.elem alias adtTypes =
-              Result.ok [Var.Union alias (Var.Listing [] False)]
 
-        | otherwise =
-              manyNotFound region [alias] (allAliases ++ adtTypes)
+getAliasExport
+    :: [String]
+    -> [String]
+    -> [String]
+    -> A.Located String
+    -> Result.ResultErr [Var.Value]
+getAliasExport allValues allAliases adtTypes (A.A region alias) =
+  if alias `elem` allAliases then
 
-    getAdtExport (A.A region (name, Var.Listing ctors open)) =
-      case List.lookup name allAdts of
-        Nothing ->
-            manyNotFound region [name] adtTypes
+      Result.ok $ (:) (Var.Alias alias) $
+          if alias `elem` allValues then [Var.Value alias] else []
 
-        Just (Var.Listing allCtors _)
-          | open ->
-              Result.ok (Var.Union name (Var.Listing allCtors False))
-          | otherwise ->
-              case filter (`notElem` allCtors) ctors of
-                [] ->
-                    Result.ok (Var.Union name (Var.Listing ctors False))
-                unfoundCtors ->
-                    manyNotFound region unfoundCtors allCtors
+  else if List.elem alias adtTypes then
 
-    manyNotFound region nameList possibilities =
-        Result.errors (map (notFound region possibilities) nameList)
+      Result.ok [Var.Union alias (Var.Listing [] False)]
 
-    notFound region possibilities name =
-        A.A region $ CError.Export name $
-            ErrorHelp.nearbyNames id name possibilities
+  else
+
+      manyNotFound region [alias] (allAliases ++ adtTypes)
+
+
+getAdtExport
+    :: [(String, Var.Listing String)]
+    -> [String]
+    -> A.Located (String, Var.Listing String)
+    -> Result.ResultErr Var.Value
+getAdtExport allAdts adtTypes (A.A region (name, Var.Listing ctors open)) =
+  case List.lookup name allAdts of
+    Nothing ->
+        manyNotFound region [name] adtTypes
+
+    Just (Var.Listing allCtors _) ->
+        if open then
+            Result.ok (Var.Union name (Var.Listing allCtors False))
+        else
+          case filter (`notElem` allCtors) ctors of
+            [] ->
+                Result.ok (Var.Union name (Var.Listing ctors False))
+            unfoundCtors ->
+                manyNotFound region unfoundCtors allCtors
+
+
+manyNotFound :: Region.Region -> [String] -> [String] -> Result.ResultErr a
+manyNotFound region nameList possibilities =
+    Result.errors (map (notFound region possibilities) nameList)
+
+
+notFound :: Region.Region -> [String] -> String -> A.Located CError.Error
+notFound region possibilities name =
+    A.A region $ CError.Export name $
+        ErrorHelp.nearbyNames id name possibilities
+
+
+allUnique :: [A.Located Var.Value] -> Result.ResultErr ()
+allUnique statedExports =
+  let
+    valueToString value =
+        case value of
+          Var.Value name -> name
+          Var.Alias name -> name
+          Var.Union name _ -> name
+
+    locations =
+        Map.fromListWith (++) (map (\(A.A region value) -> (value, [region])) statedExports)
+
+    isUnique value allRegions =
+        case allRegions of
+          region : _ : _ ->
+              Result.err (A.A region (CError.DuplicateExport (valueToString value)))
+
+          _ ->
+              Result.ok ()
+  in
+    T.traverse_ id (Map.mapWithKey isUnique locations)
 
 
 -- GROUPING VALUES
