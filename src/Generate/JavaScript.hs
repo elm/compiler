@@ -433,7 +433,7 @@ crushIfsHelp visitedBranches unvisitedBranches finally =
 -- DEFINITIONS
 
 defToStatements :: Opt.Def -> State Int [Statement ()]
-defToStatements def@(Opt.Definition facts pattern expr) =
+defToStatements (Opt.Definition facts pattern expr) =
     case Opt.tailRecursionDetails facts of
       Just name ->
           do  func <- generateTailFunction name (Expr.collectLambdas expr)
