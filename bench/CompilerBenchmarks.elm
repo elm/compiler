@@ -12,6 +12,9 @@ import ArrayBench
 import ListBench
 import AnimateBench
 import RecordBench
+import SmallRecordBench
+import TupleBench
+import SmallTupleBench
 
 
 {-| Compile this with --output=Benchmarks.html to generate
@@ -22,6 +25,9 @@ import RecordBench
 mySuite =
   Benchmark.Suite "My Suite" 
   [ Benchmark.bench1 "Access 20-field record 200 times:   " RecordBench.sumRandomElems indices200
+  , Benchmark.bench1 "Access 9-field record 200 times:   " SmallRecordBench.sumRandomElems indices200
+  , Benchmark.bench1 "Access 9-field tuple 200 times:   " TupleBench.sumRandomElems indices200
+  , Benchmark.bench1 "Access 3-field tuple 200 times:   " SmallTupleBench.sumRandomElems indices200
   
   , Benchmark.bench1 "Make and sum dict, 10000 elems:   " LargeDictionary.addNToDictAndSum 10000
   , Benchmark.bench1 "Make and sum dict, 50 elems:   " LargeDictionary.addNToDictAndSum 50
