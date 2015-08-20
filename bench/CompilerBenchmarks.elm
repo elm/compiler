@@ -5,6 +5,7 @@ import Task exposing (Task, andThen)
 import Text
 import Array
 import Random
+import Dict
 import Time
 
 import LargeDictionary
@@ -19,6 +20,7 @@ import CtorBench
 import SmallCtorBench
 import PatternMatchBench
 import IfBench
+import DictBench
 
 {-| Compile this with --output=Benchmarks.html to generate
     a webpage, which runs the benchmarks and shows the results. 
@@ -53,6 +55,10 @@ mySuite =
   , Benchmark.bench1 "Array custom foldl, 500 elems:   " ArrayBench.customFoldrMeanStddev array500
   , Benchmark.bench3 "Array square nth elem, 500 elems:   " ArrayBench.updateNRandomIndices (\x -> x*x) indices200 array500
 
+  , Benchmark.bench1 "Dict native foldr, 500 elems:   " DictBench.foldrMeanStddev dict500
+  , Benchmark.bench1 "Dict native foldl, 500 elems:   " DictBench.foldlMeanStddev dict500
+  , Benchmark.bench3 "Dict square nth elem, 500 elems:   " DictBench.updateNRandomIndices (\x -> x*x) indices200 dict500  
+  
   , Benchmark.bench1 "List native foldr, 500 elems:   " ListBench.foldrMeanStddev list500
   , Benchmark.bench1 "List native foldl, 500 elems:   " ListBench.foldlMeanStddev list500
   , Benchmark.bench1 "List custom foldr, 500 elems:   " ListBench.customFoldrMeanStddev list500
@@ -61,6 +67,7 @@ mySuite =
 
   , Benchmark.bench2 "200 lookups in array of 500 elems:   " ArrayBench.randomLookups indices200 (Array.fromList [1 .. 500] )
   , Benchmark.bench2 "200 lookups in list of 500 elems:   " ListBench.randomLookups indices200 ([1 .. 500] )
+  , Benchmark.bench2 "200 lookups in dict of 500 elems:   " DictBench.randomLookups indices200 (Dict.fromList (List.map2 (,) [1 .. 500] [1 .. 500]) )
     
   , Benchmark.bench1 "30s simulated animation @ 30fps:   " AnimateBench.runAnimation timeSteps30s        
   ]
@@ -120,6 +127,12 @@ seed =
 --Pseudo-random array of 500 floating point numbers
 array500 = 
   (ArrayBench.randomArray floatGen 500 seed)
+  
+  
+--Pseudo-random dictionary, indexed 0 .. 500, of 500 floating point numbers
+dict500 = 
+  (DictBench.randomDict floatGen 500 seed)
+
 
 
 --Same contents as array500, but in list form
