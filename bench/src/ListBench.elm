@@ -33,11 +33,26 @@ meanAndStddev foldFn ourList =
 
 foldrMeanStddev = meanAndStddev List.foldr
 
+
 foldlMeanStddev = meanAndStddev List.foldl
+
 
 customFoldrMeanStddev = meanAndStddev myFoldr 
 
+
 customFoldlMeanStddev = meanAndStddev myFoldl
+
+
+updateNRandomIndices
+  :  (Float -> Float)
+  -> List Int
+  -> List Float
+  -> List Float
+updateNRandomIndices f indexList startList = 
+  List.foldr 
+  (\ i oldList -> updateN i f oldList)
+  startList indexList
+  
 
 
 randomLookups : List Int -> List Float -> List (Maybe Float)
@@ -63,3 +78,8 @@ myFoldr f init l =
   case l of
     [] -> init
     (x :: xs) -> f x (myFoldr f init xs)
+    
+
+updateN : Int -> (a -> a) -> List a -> List a
+updateN n f list = 
+  List.indexedMap (\index value -> if index == n then f value else value) list    

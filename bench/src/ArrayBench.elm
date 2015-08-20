@@ -2,6 +2,7 @@ module ArrayBench where
 
 import Array
 import Random
+import Debug exposing (crash)
 
 
 
@@ -40,6 +41,16 @@ customFoldrMeanStddev = meanAndStddev myFoldr
 
 customFoldlMeanStddev = meanAndStddev myFoldl
 
+updateNRandomIndices
+  :  (Float -> Float)
+  -> List Int
+  -> Array.Array Float
+  -> Array.Array Float
+updateNRandomIndices f indexList startList = 
+  List.foldr 
+  (\ i oldList -> updateN i f oldList)
+  startList indexList
+
 
 randomLookups : List Int -> Array.Array Float -> List (Maybe Float)
 randomLookups indices arr =
@@ -71,3 +82,9 @@ myFoldr f init arr =
       else
         helper (f (fromJust <| Array.get i arr) init) (i-1)
   in helper init (len-1)
+  
+updateN : Int -> (a -> a) -> Array.Array a -> Array.Array a
+updateN n f arr = 
+  case Array.get n arr of
+    Just x -> Array.set n (f x) arr
+    _ -> crash "Array out of bounds"
