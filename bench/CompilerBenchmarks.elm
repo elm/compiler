@@ -21,7 +21,8 @@ import RecordBench
 
 mySuite =
   Benchmark.Suite "My Suite" 
-  [ Benchmark.bench1 "Access 20-field record 200 times" RecordBench.sumRandomElems indices200
+  [ Benchmark.bench1 "Access 20-field record 200 times:   " RecordBench.sumRandomElems indices200
+  
   , Benchmark.bench1 "Make and sum dict, 10000 elems:   " LargeDictionary.addNToDictAndSum 10000
   , Benchmark.bench1 "Make and sum dict, 50 elems:   " LargeDictionary.addNToDictAndSum 50
 
@@ -40,7 +41,7 @@ mySuite =
   , Benchmark.bench2 "200 lookups in array of 500 elems:   " ArrayBench.randomLookups indices200 (Array.fromList [1 .. 500] )
   , Benchmark.bench2 "200 lookups in list of 500 elems:   " ListBench.randomLookups indices200 ([1 .. 500] )
     
-  , Benchmark.bench1 "30s simulated animation @ 30fps: " AnimateBench.runAnimation timeSteps30s        
+  , Benchmark.bench1 "30s simulated animation @ 30fps:   " AnimateBench.runAnimation timeSteps30s        
   ]
 
 
