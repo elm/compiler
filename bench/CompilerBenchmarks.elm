@@ -16,6 +16,7 @@ import SmallRecordBench
 import TupleBench
 import SmallTupleBench
 import CtorBench
+import SmallCtorBench
 
 {-| Compile this with --output=Benchmarks.html to generate
     a webpage, which runs the benchmarks and shows the results. 
@@ -29,6 +30,7 @@ mySuite =
   , Benchmark.bench1 "Access 9-field tuple 200 times:   " TupleBench.sumRandomElems indices200
   , Benchmark.bench1 "Access 3-field tuple 200 times:   " SmallTupleBench.sumRandomElems indices200
   , Benchmark.bench1 "Access 20-constructor Type 200 times:   " CtorBench.sumFieldsList ctorData200
+  , Benchmark.bench1 "Access 10-constructor Type 200 times:   " SmallCtorBench.sumFieldsList smallCtorData200
   
   , Benchmark.bench1 "Make and sum dict, 10000 elems:   " LargeDictionary.addNToDictAndSum 10000
   , Benchmark.bench1 "Make and sum dict, 50 elems:   " LargeDictionary.addNToDictAndSum 50
@@ -127,3 +129,7 @@ timeSteps30s =
 
 ctorData200 = 
   List.map CtorBench.makeRandomData indices200
+  
+  
+smallCtorData200 = 
+  List.map SmallCtorBench.makeRandomData indices200
