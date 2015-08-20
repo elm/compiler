@@ -4,13 +4,16 @@ import Benchmark
 import Task exposing (Task, andThen)
 import Text
 import Array
+import Random
+import Time
 
 import LargeDictionary
 import ArrayBench
 import ListBench
 import AnimateBench
-import Random
-import Time
+import RecordBench
+
+
 {-| Compile this with --output=Benchmarks.html to generate
     a webpage, which runs the benchmarks and shows the results. 
 -}
@@ -18,25 +21,26 @@ import Time
 
 mySuite =
   Benchmark.Suite "My Suite" 
-  [ Benchmark.bench1 "Make and sum dict, 10000 elems:   " LargeDictionary.addNToDictAndSum 10000
-    , Benchmark.bench1 "Make and sum dict, 50 elems:   " LargeDictionary.addNToDictAndSum 50
+  [ Benchmark.bench1 "Access 20-field record 200 times" RecordBench.sumRandomElems indices200
+  , Benchmark.bench1 "Make and sum dict, 10000 elems:   " LargeDictionary.addNToDictAndSum 10000
+  , Benchmark.bench1 "Make and sum dict, 50 elems:   " LargeDictionary.addNToDictAndSum 50
 
-    , Benchmark.bench1 "Array native foldr, 500 elems:   " ArrayBench.foldrMeanStddev array500
-    , Benchmark.bench1 "Array native foldl, 500 elems:   " ArrayBench.foldlMeanStddev array500
-    , Benchmark.bench1 "Array custom foldr, 500 elems:   " ArrayBench.customFoldrMeanStddev array500
-    , Benchmark.bench1 "Array custom foldl, 500 elems:   " ArrayBench.customFoldrMeanStddev array500
-    , Benchmark.bench3 "Array square nth elem, 500 elems:   " ArrayBench.updateNRandomIndices (\x -> x*x) indices200 array500
+  , Benchmark.bench1 "Array native foldr, 500 elems:   " ArrayBench.foldrMeanStddev array500
+  , Benchmark.bench1 "Array native foldl, 500 elems:   " ArrayBench.foldlMeanStddev array500
+  , Benchmark.bench1 "Array custom foldr, 500 elems:   " ArrayBench.customFoldrMeanStddev array500
+  , Benchmark.bench1 "Array custom foldl, 500 elems:   " ArrayBench.customFoldrMeanStddev array500
+  , Benchmark.bench3 "Array square nth elem, 500 elems:   " ArrayBench.updateNRandomIndices (\x -> x*x) indices200 array500
 
-    , Benchmark.bench1 "List native foldr, 500 elems:   " ListBench.foldrMeanStddev list500
-    , Benchmark.bench1 "List native foldl, 500 elems:   " ListBench.foldlMeanStddev list500
-    , Benchmark.bench1 "List custom foldr, 500 elems:   " ListBench.customFoldrMeanStddev list500
-    , Benchmark.bench1 "List custom foldl, 500 elems:   " ListBench.customFoldrMeanStddev list500
-    , Benchmark.bench3 "List square nth elem, 500 elems:   " ListBench.updateNRandomIndices (\x -> x*x) indices200 list500
+  , Benchmark.bench1 "List native foldr, 500 elems:   " ListBench.foldrMeanStddev list500
+  , Benchmark.bench1 "List native foldl, 500 elems:   " ListBench.foldlMeanStddev list500
+  , Benchmark.bench1 "List custom foldr, 500 elems:   " ListBench.customFoldrMeanStddev list500
+  , Benchmark.bench1 "List custom foldl, 500 elems:   " ListBench.customFoldrMeanStddev list500
+  , Benchmark.bench3 "List square nth elem, 500 elems:   " ListBench.updateNRandomIndices (\x -> x*x) indices200 list500
 
-    , Benchmark.bench2 "200 lookups in array of 500 elems:   " ArrayBench.randomLookups indices200 (Array.fromList [1 .. 500] )
-    , Benchmark.bench2 "200 lookups in list of 500 elems:   " ListBench.randomLookups indices200 ([1 .. 500] )
+  , Benchmark.bench2 "200 lookups in array of 500 elems:   " ArrayBench.randomLookups indices200 (Array.fromList [1 .. 500] )
+  , Benchmark.bench2 "200 lookups in list of 500 elems:   " ListBench.randomLookups indices200 ([1 .. 500] )
     
-    , Benchmark.bench1 "30s simulated animation: " AnimateBench.runAnimation timeSteps30s
+  , Benchmark.bench1 "30s simulated animation @ 30fps: " AnimateBench.runAnimation timeSteps30s        
   ]
 
 
