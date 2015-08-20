@@ -37,7 +37,8 @@ mySuite =
   , Benchmark.bench1 "Access 10-constructor Type 200 times:   " SmallCtorBench.sumFieldsList smallCtorData200
   
   , Benchmark.bench1 "Tail-recursive if function, called 200 times: " IfBench.tailRecSum indices200
-  , Benchmark.bench1 "Tail-recursive if function, called 200 times: " IfBench.manyConditionalSum indices200
+  , Benchmark.bench1 "If expression with 20 branches, called 200 times: " IfBench.manyConditionalSum indices200
+  , Benchmark.bench1 "If expression with 4 branches, called 200 times: " IfBench.fewConditionalSum indices200
   
   , Benchmark.bench1 "Pattern match 18-levels deep, use all values, 200 times " PatternMatchBench.deepMatchSum nestedData200
   , Benchmark.bench1 "Pattern match 18-levels deep, 16 wildcards, 200 times " PatternMatchBench.wildcardMatchSum nestedData200

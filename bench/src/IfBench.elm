@@ -39,6 +39,32 @@ manyConditionFunction i =
       59.0 + (toFloat i)
     | (i == 105) ->
       69.0 + (toFloat i)
+    | (i == 106) ->
+      39.0 + (toFloat i)
+    | (i == 107) ->
+      38.0 + (toFloat i)
+    | (i == 108) ->
+      49.0 + (toFloat i)
+    | (i == 109) ->
+      59.0 + (toFloat i)
+    | (i == 110) ->
+      69.0 + (toFloat i)
+    | (i == 111) ->
+      39.0 + (toFloat i)
+    | (i == 115) ->
+      69.0 + (toFloat i)
+    | otherwise ->
+      toFloat i
+      
+      
+fewConditionFunction i =
+  if
+    | i <= 0 ->
+      30.0 + (toFloat i)
+    | (i == 104) ->
+      59.0 + (toFloat i)
+    | (i == 105) ->
+      69.0 + (toFloat i)
     | otherwise ->
       toFloat i
   
@@ -48,4 +74,8 @@ tailRecSum intList =
       
 manyConditionalSum intList = 
   List.foldr (\i sumSoFar -> sumSoFar + manyConditionFunction i ) 0.0 intList
+    
+    
+fewConditionalSum intList = 
+  List.foldr (\i sumSoFar -> sumSoFar + fewConditionFunction i ) 0.0 intList
     
