@@ -11,7 +11,7 @@ import Time
 import LargeDictionary
 import ArrayBench
 import ListBench
-import AnimateBench
+
 import RecordBench
 import SmallRecordBench
 import TupleBench
@@ -21,6 +21,9 @@ import SmallCtorBench
 import PatternMatchBench
 import IfBench
 import DictBench
+
+import AnimateBench
+import TodoBench
 
 {-| Compile this with --output=Benchmarks.html to generate
     a webpage, which runs the benchmarks and shows the results. 
@@ -69,7 +72,8 @@ mySuite =
   , Benchmark.bench2 "200 lookups in list of 500 elems:   " ListBench.randomLookups indices200 ([1 .. 500] )
   , Benchmark.bench2 "200 lookups in dict of 500 elems:   " DictBench.randomLookups indices200 (Dict.fromList (List.map2 (,) [1 .. 500] [1 .. 500]) )
     
-  , Benchmark.bench1 "30s simulated animation @ 30fps:   " AnimateBench.runAnimation timeSteps30s        
+  , Benchmark.bench1 "30s simulated animation @ 30fps:   " AnimateBench.runAnimation timeSteps30s
+  , Benchmark.bench1 "TodoMVC: approx. 330 simulated actions   " TodoBench.evalActions TodoBench.testActions
   ]
 
 
