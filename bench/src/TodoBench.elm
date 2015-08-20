@@ -121,7 +121,7 @@ testActions =
   , List.concatMap --Add a few more tasks
       (\i -> [UpdateField <| "Second batch task " ++ toString i, Add]) [51 .. 80]
   , List.map --Check off and delete every other task
-      (\i -> Check i True ) <| List.filter List.filter (\x -> x % 2 == 0 ) [1 .. 80]
+      (\i -> Check i True ) <| List.filter (\x -> x % 2 == 0 ) [1 .. 80]
   , [DeleteComplete]
   , [CheckAll True, DeleteComplete] --Check and delete the remaining tasks
   ]
