@@ -75,10 +75,7 @@ main =
 
 
 
-{-
-Random generation and structures
--}
-
+-- Random generation and structures
 
 --Maximum size for  random numbers
 maxSize = 1000000

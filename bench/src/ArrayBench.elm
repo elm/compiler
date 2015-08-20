@@ -35,11 +35,15 @@ meanAndStddev foldFn ourArray =
 
 foldrMeanStddev = meanAndStddev Array.foldr
 
+
 foldlMeanStddev = meanAndStddev Array.foldl
+
 
 customFoldrMeanStddev = meanAndStddev myFoldr 
 
+
 customFoldlMeanStddev = meanAndStddev myFoldl
+
 
 updateNRandomIndices
   :  (Float -> Float)
@@ -55,7 +59,6 @@ updateNRandomIndices f indexList startList =
 randomLookups : List Int -> Array.Array Float -> List (Maybe Float)
 randomLookups indices arr =
   List.map (\i -> Array.get i arr) indices
-
 
 
 myFoldl : (a -> b -> b) -> b -> Array.Array a -> b
@@ -82,6 +85,7 @@ myFoldr f init arr =
       else
         helper (f (fromJust <| Array.get i arr) init) (i-1)
   in helper init (len-1)
+
   
 updateN : Int -> (a -> a) -> Array.Array a -> Array.Array a
 updateN n f arr = 
