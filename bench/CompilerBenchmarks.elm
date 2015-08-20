@@ -8,6 +8,7 @@ import Array
 import LargeDictionary
 import ArrayBench
 import ListBench
+import AnimateBench
 import Random
 import Time
 {-| Compile this with --output=Benchmarks.html to generate
@@ -34,6 +35,8 @@ mySuite =
 
     , Benchmark.bench2 "200 lookups in array of 500 elems:   " ArrayBench.randomLookups indices200 (Array.fromList [1 .. 500] )
     , Benchmark.bench2 "200 lookups in list of 500 elems:   " ListBench.randomLookups indices200 ([1 .. 500] )
+    
+    , Benchmark.bench1 "30s simulated animation: " AnimateBench.runAnimation timeSteps30s
   ]
 
 
@@ -82,21 +85,31 @@ indexGen =
 --across multiple runs of the benchmark
 
 --seed for our index generation
-indexSeed = Random.initialSeed 56
+indexSeed = 
+  Random.initialSeed 56
 
 
 --Seed for our float generation
-seed = Random.initialSeed 23
+seed = 
+  Random.initialSeed 23
 
 
 --Pseudo-random array of 500 floating point numbers
-array500 = (ArrayBench.randomArray floatGen 500 seed)
+array500 = 
+  (ArrayBench.randomArray floatGen 500 seed)
 
 
 --Same contents as array500, but in list form
-list500 = (ListBench.randomList floatGen 500 seed)
+list500 = 
+  (ListBench.randomList floatGen 500 seed)
 
 
 --Pseudo random list of 200 indices between 0 and 499
-indices200 = (ListBench.randomList indexGen 200 indexSeed)
+indices200 = 
+  (ListBench.randomList indexGen 200 indexSeed)
+
+
+--List of timesteps simulating 30 seconds of animation at 30fps
+timeSteps30s = 
+  List.map (\x -> (1.0 / 30.0) * (toFloat x * Time.second) ) [1 .. 900]
 
