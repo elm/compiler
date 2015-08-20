@@ -17,6 +17,7 @@ import TupleBench
 import SmallTupleBench
 import CtorBench
 import SmallCtorBench
+import PatternMatchBench
 
 {-| Compile this with --output=Benchmarks.html to generate
     a webpage, which runs the benchmarks and shows the results. 
@@ -27,10 +28,16 @@ mySuite =
   Benchmark.Suite "My Suite" 
   [ Benchmark.bench1 "Access 20-field record 200 times:   " RecordBench.sumRandomElems indices200
   , Benchmark.bench1 "Access 9-field record 200 times:   " SmallRecordBench.sumRandomElems indices200
+  
   , Benchmark.bench1 "Access 9-field tuple 200 times:   " TupleBench.sumRandomElems indices200
   , Benchmark.bench1 "Access 3-field tuple 200 times:   " SmallTupleBench.sumRandomElems indices200
+  
   , Benchmark.bench1 "Access 20-constructor Type 200 times:   " CtorBench.sumFieldsList ctorData200
   , Benchmark.bench1 "Access 10-constructor Type 200 times:   " SmallCtorBench.sumFieldsList smallCtorData200
+  
+  , Benchmark.bench1 "Pattern match 18-levels deep, use all values, 200 times " PatternMatchBench.deepMatchSum nestedData200
+  , Benchmark.bench1 "Pattern match 18-levels deep, 16 wildcards, 200 times " PatternMatchBench.wildcardMatchSum nestedData200
+  , Benchmark.bench1 "Pattern match 4-levels deep, use all values, 200 times " PatternMatchBench.shallowMatchSum nestedData200
   
   , Benchmark.bench1 "Make and sum dict, 10000 elems:   " LargeDictionary.addNToDictAndSum 10000
   , Benchmark.bench1 "Make and sum dict, 50 elems:   " LargeDictionary.addNToDictAndSum 50
@@ -130,3 +137,7 @@ ctorData200 =
   
 smallCtorData200 = 
   List.map SmallCtorBench.makeRandomData indices200
+  
+  
+nestedData200 = 
+  List.map PatternMatchBench.intToNest indices200
