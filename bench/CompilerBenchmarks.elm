@@ -18,6 +18,7 @@ import SmallTupleBench
 import CtorBench
 import SmallCtorBench
 import PatternMatchBench
+import IfBench
 
 {-| Compile this with --output=Benchmarks.html to generate
     a webpage, which runs the benchmarks and shows the results. 
@@ -34,6 +35,9 @@ mySuite =
   
   , Benchmark.bench1 "Access 20-constructor Type 200 times:   " CtorBench.sumFieldsList ctorData200
   , Benchmark.bench1 "Access 10-constructor Type 200 times:   " SmallCtorBench.sumFieldsList smallCtorData200
+  
+  , Benchmark.bench1 "Tail-recursive if function, called 200 times: " IfBench.tailRecSum indices200
+  , Benchmark.bench1 "Tail-recursive if function, called 200 times: " IfBench.manyConditionalSum indices200
   
   , Benchmark.bench1 "Pattern match 18-levels deep, use all values, 200 times " PatternMatchBench.deepMatchSum nestedData200
   , Benchmark.bench1 "Pattern match 18-levels deep, 16 wildcards, 200 times " PatternMatchBench.wildcardMatchSum nestedData200
