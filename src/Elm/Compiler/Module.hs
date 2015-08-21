@@ -11,6 +11,7 @@ module Elm.Compiler.Module
 
 import Control.Monad (mzero)
 import qualified Data.Aeson as Json
+import Data.Binary
 import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -110,3 +111,13 @@ instance Json.FromJSON Name where
             Just name -> return name
 
     parseJSON _ = mzero
+
+
+-- BINARY for NAME
+
+instance Binary Name where
+  get =
+    fmap Name get
+
+  put (Name names) =
+    put names
