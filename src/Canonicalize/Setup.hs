@@ -56,11 +56,11 @@ importPatches
     -> Result.ResultErr [Env.Patch]
 importPatches allInterfaces (A.A region (importName, method)) =
   case restrictToPublicApi <$> Map.lookup importName allInterfaces of
-    Nothing
-        | Module.nameIsNative importName ->
+    Nothing ->
+        if Module.nameIsNative importName then
             Result.ok []
 
-        | otherwise ->
+        else
             allInterfaces
               |> Map.keys
               |> Error.nearbyNames Module.nameToString importName
