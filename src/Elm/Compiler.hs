@@ -67,12 +67,12 @@ parseDependencies sourceCode =
 compile
     :: Context
     -> String
-    -> Map.Map PublicModule.Name PublicModule.Interface
+    -> Map.Map PublicModule.Name [PublicModule.Interface]
     -> (Dealiaser, [Warning], Either [Error] Result)
 
 compile context source interfaces =
   let
-    (Context user packageName isRoot isExposed) =
+    (Context user packageName isRoot isExposed _imported) =
       context
 
     unwrappedInterfaces =
@@ -100,6 +100,7 @@ data Context = Context
     , _packageName :: String
     , _isRoot :: Bool
     , _isExposed :: Bool
+    , _importedPackages :: [(String, String)]
     }
 
 

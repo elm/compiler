@@ -52,7 +52,9 @@ genConstraints interfaces modul =
                 return (name, (vars, foldr (T.==>) result args))
 
       importedVars <-
-          mapM (canonicalizeValues env) (Map.toList interfaces)
+          --TODO change this when package name in Home
+          mapM (canonicalizeValues env)
+            [ (nm, iface) | (nm, ifaces) <- Map.toList interfaces, iface <- ifaces]
 
       let allTypes = concat (ctors : importedVars)
       let vars = concatMap (fst . snd) allTypes
@@ -85,7 +87,8 @@ canonicalizeAdts interfaces modul =
     localAdts = format (Module.names modul, datatypes (body modul))
 
     importedAdts :: [CanonicalAdt]
-    importedAdts = concatMap (format . second iAdts) (Map.toList interfaces)
+    importedAdts = concatMap (format . second iAdts)
+      [ (nm, iface) | (nm, ifaces) <- Map.toList interfaces, iface <- ifaces]
 
     format :: (Module.Name, Module.ADTs) -> [CanonicalAdt]
     format (home, adts) =

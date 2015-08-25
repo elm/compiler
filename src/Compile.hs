@@ -58,7 +58,7 @@ compile user projectName isRoot interfaces source =
 
 getOpTable :: Module.Interfaces -> Parse.OpTable
 getOpTable interfaces =
-  Map.elems interfaces
+  (concat . Map.elems) interfaces
     |> concatMap Module.iFixities
     |> map (\(assoc,lvl,op) -> (op,(lvl,assoc)))
     |> Map.fromList

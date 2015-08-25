@@ -59,6 +59,7 @@ toTagDict interfaces localName localAdts =
 
     interfaceDict =
         interfaces
+          |> Map.map (\([a]) -> a ) --TODO change this when package name in Home
           |> Map.map (toTagMapping . Module.iAdts)
           |> Map.mapKeysMonotonic Var.Module
           |> Map.insert (Var.Module localName) (toTagMapping localAdts)

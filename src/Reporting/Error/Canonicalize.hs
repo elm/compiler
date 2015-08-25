@@ -60,6 +60,7 @@ argMismatch name expected actual =
 data ImportError
     = ModuleNotFound [Module.Name]
     | ValueNotFound String [String]
+    | AmbiguousImport [Var.PackageInfo]
 
 
 moduleNotFound :: Module.Name -> [Module.Name] -> Error

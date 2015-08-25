@@ -27,7 +27,7 @@ import qualified Reporting.Annotation as A
 
 -- HELPFUL TYPE ALIASES
 
-type Interfaces = Map.Map Name Interface
+type Interfaces = Map.Map Name [Interface]
 
 type Types   = Map.Map String Type.Canonical
 type Aliases = Map.Map String ([String], Type.Canonical)
