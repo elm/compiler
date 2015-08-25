@@ -82,7 +82,8 @@ compile context source interfaces =
       do  modul <- Compile.compile user packageName isRoot unwrappedInterfaces source
           docs <- docsGen isExposed modul
 
-          let interface = Module.toInterface modul
+          let pkgInfo = user ++ "/" ++ packageName
+          let interface = Module.toInterface pkgInfo modul
           let optModule = Optimize.optimize modul
           let javascript = JS.generate optModule
 

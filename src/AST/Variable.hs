@@ -17,6 +17,9 @@ newtype Raw = Raw String
     deriving (Eq, Ord, Show)
 
 
+type PackageInfo = String
+
+
 data Home
     = BuiltIn
     | Module [String]

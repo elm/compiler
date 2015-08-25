@@ -135,11 +135,12 @@ data Interface = Interface
     , iAliases  :: Aliases
     , iFixities :: [(Decl.Assoc, Int, String)]
     , iPorts    :: [String]
+    , iPackage  :: Var.PackageInfo
     }
 
 
-toInterface :: CanonicalModule -> Interface
-toInterface modul =
+toInterface :: Var.PackageInfo -> CanonicalModule -> Interface
+toInterface pkgInfo modul =
     let body' = body modul in
     Interface
     { iVersion  = Compiler.version
@@ -150,11 +151,12 @@ toInterface modul =
     , iAliases  = aliases body'
     , iFixities = fixities body'
     , iPorts    = ports body'
+    , iPackage  = pkgInfo 
     }
 
 
 instance Binary Interface where
-  get = Interface <$> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get
+  get = Interface <$> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get
   put modul = do
       put (iVersion modul)
       put (iExports modul)
@@ -164,3 +166,4 @@ instance Binary Interface where
       put (iAliases modul)
       put (iFixities modul)
       put (iPorts modul)
+      put (iPackage modul)
