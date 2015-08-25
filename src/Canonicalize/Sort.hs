@@ -31,6 +31,7 @@ freeIfLocal :: V.Canonical -> State (Set.Set String) ()
 freeIfLocal (V.Canonical home name) =
   case home of
     V.Local -> free name
+    V.TopLevel _ -> free name
     V.BuiltIn -> return ()
     V.Module _ -> return ()
 
@@ -164,6 +165,7 @@ ctors (A.A _ pattern) =
       P.Data (V.Canonical home name) ps ->
           case home of
             V.Local -> name : rest
+            V.TopLevel _ -> name : rest
             V.BuiltIn -> rest
             V.Module _ -> rest
           where

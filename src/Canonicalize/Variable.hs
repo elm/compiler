@@ -124,6 +124,7 @@ preferLocals' region env extract kind possibilities var =
       isLocal (Var.Canonical home _) =
           case home of
             Var.Local -> True
+            Var.TopLevel _ -> True
             Var.BuiltIn -> False
             Var.Module name ->
                 name == Env._home env

@@ -258,12 +258,16 @@ instance Binary Canonical where
           Local ->
               putWord8 2 >> put name
 
+          TopLevel path ->
+              putWord8 3 >> put path >> put name
+
     get =
       do  tag <- getWord8
           case tag of
             0 -> Canonical BuiltIn <$> get
             1 -> Canonical . Module <$> get <*> get
             2 -> Canonical Local <$> get
+            3 -> Canonical . TopLevel <$> get <*> get
             _ -> error "Unexpected tag when deserializing canonical variable"
 
 
