@@ -282,7 +282,9 @@ declarationsToPatches moduleName decls =
       (Maybe.catMaybes maybeNodes, concat patchLists)
 
 
--- When canonicalizing, all _values should be Local, but all _adts and _patterns
+-- When canonicalizing, all _values should be Local, except for top-level definitions but all
+-- For _adts and _patterns,
+-- we assume constructors are top-evel
 -- should be fully namespaced. With _adts, they may appear in types that can
 -- escape the module.
 declToPatches
@@ -290,8 +292,11 @@ declToPatches
     -> D.ValidDecl
     -> (Maybe Node, [Env.Patch])
 declToPatches moduleName (A.A (region,_) decl) =
-  let local mkPatch x =
-          mkPatch x (Var.local x)
+  let --local mkPatch x =
+      --    mkPatch x (Var.local x)
+
+      topLevel mkPatch x =
+          mkPatch x (Var.topLevel moduleName x )
 
       namespaced mkPatch x =
           mkPatch x (Var.fromModule moduleName x)
@@ -302,7 +307,7 @@ declToPatches moduleName (A.A (region,_) decl) =
   case decl of
     D.Definition (Valid.Definition pattern _ _) ->
         ( Nothing
-        , map (local Env.Value) (P.boundVarList pattern)
+        , map (topLevel Env.Value) (P.boundVarList pattern)
         )
 
     D.Datatype name _ ctors ->
@@ -310,7 +315,7 @@ declToPatches moduleName (A.A (region,_) decl) =
         in
             ( Nothing
             , namespaced Env.Union name
-              : map (local Env.Value) ctorNames
+              : map (topLevel Env.Value) ctorNames
               ++ map patternPatch ctors
             )
 
@@ -318,14 +323,14 @@ declToPatches moduleName (A.A (region,_) decl) =
         ( Just (node region name tvars alias)
         , case alias of
             A.A _ (Type.RRecord _ _) ->
-                [local Env.Value name]
+                [topLevel Env.Value name]
             _ ->
                 []
         )
 
     D.Port port ->
         ( Nothing
-        , [local Env.Value (D.validPortName port)]
+        , [topLevel Env.Value (D.validPortName port)]
         )
 
     D.Fixity _ _ _ ->

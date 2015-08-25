@@ -20,6 +20,7 @@ newtype Raw = Raw String
 data Home
     = BuiltIn
     | Module [String]
+    | TopLevel [String]
     | Local
     deriving (Eq, Ord, Show)
 
@@ -33,6 +34,10 @@ data Canonical = Canonical
 
 local :: String -> Canonical
 local x = Canonical Local x
+
+
+topLevel :: [String] -> String -> Canonical
+topLevel names x = Canonical (TopLevel names) x
 
 
 builtin :: String -> Canonical
@@ -125,6 +130,7 @@ instance ToString Canonical where
         BuiltIn -> name
         Module path -> List.intercalate "." (path ++ [name])
         Local -> name
+        TopLevel _ -> name
 
 
 -- LISTINGS
