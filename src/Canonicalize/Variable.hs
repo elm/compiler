@@ -117,6 +117,13 @@ preferLocals' region env extract kind possibilities var =
       [v] ->
           Result.var' extract v
 
+      --Local vars shadow top-level vars
+      [v1, v2] | isTopLevel (extract v1) ->
+        Result.var' extract v2
+
+      [v1, v2] | isTopLevel (extract v2) ->
+        Result.var' extract v1
+
       locals ->
           ambiguous locals
     where
@@ -129,10 +136,16 @@ preferLocals' region env extract kind possibilities var =
             Var.Module name ->
                 name == Env._home env
 
+      isTopLevel :: Var.Canonical -> Bool
+      isTopLevel (Var.Canonical home _) =
+          case home of
+            Var.TopLevel _ -> True
+            _ -> False
+
       ambiguous possibleVars =
           Result.err (A.A region (Error.variable kind var Error.Ambiguous vars))
         where
-          vars = map (Var.toString . extract) possibleVars
+          vars = map (show {-Var.toString-} . extract) possibleVars
 
 
 -- NOT FOUND HELPERS
