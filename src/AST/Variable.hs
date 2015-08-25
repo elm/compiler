@@ -17,7 +17,10 @@ newtype Raw = Raw String
     deriving (Eq, Ord, Show)
 
 
-type PackageInfo = String
+--The user and project name
+--associated with each package,
+--used when modules have conflicting names
+type PackageInfo = (String, String)
 
 
 data Home
