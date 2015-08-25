@@ -282,20 +282,17 @@ declarationsToPatches moduleName decls =
       (Maybe.catMaybes maybeNodes, concat patchLists)
 
 
--- When canonicalizing, all _values should be Local, except for top-level definitions but all
--- For _adts and _patterns,
--- we assume constructors are top-evel
--- should be fully namespaced. With _adts, they may appear in types that can
+-- When canonicalizing, all _values should be Local, except for top-level definitions
+-- However _adts and _patterns
+-- should be fully namespaced, thought constructors are top_level.
+-- With _adts, they may appear in types that can
 -- escape the module.
 declToPatches
     :: Module.Name
     -> D.ValidDecl
     -> (Maybe Node, [Env.Patch])
 declToPatches moduleName (A.A (region,_) decl) =
-  let --local mkPatch x =
-      --    mkPatch x (Var.local x)
-
-      topLevel mkPatch x =
+  let topLevel mkPatch x =
           mkPatch x (Var.topLevel moduleName x )
 
       namespaced mkPatch x =

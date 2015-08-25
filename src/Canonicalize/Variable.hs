@@ -145,7 +145,7 @@ preferLocals' region env extract kind possibilities var =
       ambiguous possibleVars =
           Result.err (A.A region (Error.variable kind var Error.Ambiguous vars))
         where
-          vars = map (show {-Var.toString-} . extract) possibleVars
+          vars = map (Var.toString . extract) possibleVars
 
 
 -- NOT FOUND HELPERS
