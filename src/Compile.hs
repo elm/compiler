@@ -28,7 +28,7 @@ compile packageName isRoot interfaces source =
       -- determine if default imports should be added
       -- only elm-lang/core is exempt
       let needsDefaults =
-            not (packageName == Package.Name "elm-lang" "core")
+            not (packageName == Package.coreName)
 
       -- Parse the source code
       validModule <-

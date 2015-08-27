@@ -24,6 +24,11 @@ dummyName =
     Name "USER" "PROJECT"
 
 
+coreName :: Name
+coreName =
+  Name "elm-lang" "core"
+
+
 toString :: Name -> String
 toString name =
     user name ++ "/" ++ project name
