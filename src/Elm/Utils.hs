@@ -20,6 +20,7 @@ import System.Process (readProcessWithExitCode)
 import qualified AST.Expression.Source as Source
 import qualified AST.Pattern as Pattern
 import qualified Elm.Compiler.Version as Version
+import qualified Elm.Package as Pkg
 import qualified Parse.Helpers as Parse
 import qualified Parse.Expression as Parse
 import qualified Reporting.Annotation as A
@@ -127,8 +128,8 @@ errorNotFound name =
     , ""
     , "  * On Mac it is /usr/local/share/elm"
     , "  * On Windows it is one of the following:"
-    , "      C:/Program Files/Elm Platform/" ++ Version.version ++ "/share"
-    , "      C:/Program Files (x86)/Elm Platform/" ++ Version.version ++ "/share"
+    , "      C:/Program Files/Elm Platform/" ++ (Pkg.versionToString Version.version) ++ "/share"
+    , "      C:/Program Files (x86)/Elm Platform/" ++ (Pkg.versionToString Version.version) ++ "/share"
     , ""
     , "If you installed using npm, you have to set ELM_HOME to a certain directory"
     , "of the form .../node_modules/elm/share"

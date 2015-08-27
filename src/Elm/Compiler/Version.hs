@@ -1,21 +1,17 @@
 {-# OPTIONS_GHC -Wall #-}
-module Elm.Compiler.Version (version, elm) where
+module Elm.Compiler.Version (version) where
 
 import qualified Data.Version as Version
 import qualified Paths_elm_compiler as This
 import Elm.Package
-
-version :: String
-version =
-    Version.showVersion This.version
 
 
 rawVersion :: [Int]
 rawVersion =
     Version.versionBranch This.version
 
-elm :: Version
-elm =
+version :: Version
+version =
   case rawVersion of
     major : minor : patch : _ ->
         Version major minor patch

@@ -42,7 +42,6 @@ Library
         Elm.Compiler,
         Elm.Compiler.Module,
         Elm.Compiler.Type,
-        Elm.Compiler.Version,
         Elm.Docs,
         Elm.Package,
         Elm.Utils
@@ -75,6 +74,7 @@ Library
         Docs.Check,
         Elm.Compiler.Imports,
         Elm.Compiler.Type.Extract,
+        Elm.Compiler.Version,
         Generate.JavaScript,
         Generate.JavaScript.Crash,
         Generate.JavaScript.Helpers,

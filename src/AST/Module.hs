@@ -21,6 +21,7 @@ import qualified AST.Expression.Optimized as Optimized
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Docs.AST as Docs
+import qualified Elm.Package as Package
 import qualified Elm.Compiler.Version as Compiler
 import qualified Reporting.Annotation as A
 
@@ -142,7 +143,7 @@ toInterface :: CanonicalModule -> Interface
 toInterface modul =
     let body' = body modul in
     Interface
-    { iVersion  = Compiler.version
+    { iVersion  = Package.versionToString Compiler.version
     , iExports  = exports modul
     , iTypes    = types body'
     , iImports  = imports modul

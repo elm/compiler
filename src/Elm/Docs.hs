@@ -14,6 +14,7 @@ import qualified Docs.AST as Docs
 import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Version as Version
+import qualified Elm.Package as Pkg
 import qualified Reporting.Annotation as A
 
 
@@ -75,7 +76,7 @@ fromCheckedDocs name (Docs.Docs comment aliases unions values) =
     (map toAlias (Map.toList aliases))
     (map toUnion (Map.toList unions))
     (map toValue (Map.toList values))
-    (Version Version.version)
+    (Version $ (Pkg.versionToString Version.version))
 
 
 -- PRETTY JSON
