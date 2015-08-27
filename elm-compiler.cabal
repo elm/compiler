@@ -160,11 +160,13 @@ Executable elm
         CommandLineRouter.hs
 
     other-modules:
-        Elm.Compiler.Version
+        Elm.Compiler.Version,
+        Paths_elm_compiler
 
     Build-depends:
         base >=4.2 && <5,
         directory >= 1.0 && < 2.0,
+        elm-compiler,
         process
 
 
@@ -197,8 +199,8 @@ Test-Suite compiler-tests
         ansi-terminal >= 0.6.2.1 && < 0.7,
         base >=4.2 && <5,
         binary >= 0.7.0.0 && < 0.8,
-        blaze-html >= 0.5 && < 0.8,
-        blaze-markup >= 0.5.1 && < 0.7,
+        blaze-html >= 0.5 && < 0.9,
+        blaze-markup >= 0.5.1 && < 0.8,
         bytestring >= 0.9 && < 0.11,
         cmdargs >= 0.7 && < 0.11,
         containers >= 0.3 && < 0.6,
