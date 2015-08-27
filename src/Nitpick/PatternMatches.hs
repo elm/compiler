@@ -56,10 +56,10 @@ toTagDict interfaces localName localAdts =
             [ ("::", listTags)
             , ("[]", listTags)
             ]
-
+    
     interfaceDict =
         interfaces
-          |> Map.map (\([a]) -> a ) --TODO change this when package name in Home
+          |> Map.map (\([a]) -> a ) --This should be safe, Compiler.hs removes duplicates
           |> Map.map (toTagMapping . Module.iAdts)
           |> Map.mapKeysMonotonic Var.Module
           |> Map.insert (Var.Module localName) (toTagMapping localAdts)

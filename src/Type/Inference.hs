@@ -52,7 +52,6 @@ genConstraints interfaces modul =
                 return (name, (vars, foldr (T.==>) result args))
 
       importedVars <-
-          --TODO change this when package name in Home
           mapM (canonicalizeValues env)
             [ (nm, iface) | (nm, ifaces) <- Map.toList interfaces, iface <- ifaces]
 

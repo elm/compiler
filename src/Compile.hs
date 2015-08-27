@@ -56,7 +56,9 @@ compile user projectName isRoot pkgMap interfaces source =
       Result.mapError Error.Type $
         Nitpick.topLevelTypes types (Module.body validModule)
 
-      Nitpick.patternMatches interfaces canonicalModule
+      --We can only pattern match against imported values
+      --So we only give the imported interfaces
+      Nitpick.patternMatches canonicalInterfaces canonicalModule
 
       -- Add the real list of types
       let body = (Module.body canonicalModule) { Module.types = types }
