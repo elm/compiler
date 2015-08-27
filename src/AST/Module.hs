@@ -21,13 +21,14 @@ import qualified AST.Expression.Optimized as Optimized
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Docs.AST as Docs
+import qualified Elm.Compiler.Package as Package
 import qualified Elm.Compiler.Version as Compiler
 import qualified Reporting.Annotation as A
 
 
 -- HELPFUL TYPE ALIASES
 
-type Interfaces = Map.Map Name Interface
+type Interfaces = Map.Map Name [Interface]
 
 type Types   = Map.Map String Type.Canonical
 type Aliases = Map.Map String ([String], Type.Canonical)
@@ -135,11 +136,12 @@ data Interface = Interface
     , iAliases  :: Aliases
     , iFixities :: [(Decl.Assoc, Int, String)]
     , iPorts    :: [String]
+    , iPackage  :: Package.Name
     }
 
 
-toInterface :: CanonicalModule -> Interface
-toInterface modul =
+toInterface :: Package.Name -> CanonicalModule -> Interface
+toInterface pkgInfo modul =
     let body' = body modul in
     Interface
     { iVersion  = Compiler.version
@@ -150,11 +152,12 @@ toInterface modul =
     , iAliases  = aliases body'
     , iFixities = fixities body'
     , iPorts    = ports body'
+    , iPackage  = pkgInfo 
     }
 
 
 instance Binary Interface where
-  get = Interface <$> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get
+  get = Interface <$> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get
   put modul = do
       put (iVersion modul)
       put (iExports modul)
@@ -164,3 +167,4 @@ instance Binary Interface where
       put (iAliases modul)
       put (iFixities modul)
       put (iPorts modul)
+      put (iPackage modul)

@@ -41,6 +41,7 @@ Library
     exposed-modules:
         Elm.Compiler,
         Elm.Compiler.Module,
+        Elm.Compiler.Package,
         Elm.Compiler.Type,
         Elm.Docs,
         Elm.Utils

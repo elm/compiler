@@ -55,7 +55,7 @@ importPatches
     -> A.Located (Module.Name, Module.ImportMethod)
     -> Result.ResultErr [Env.Patch]
 importPatches allInterfaces (A.A region (importName, method)) =
-  case restrictToPublicApi <$> Map.lookup importName allInterfaces of
+  case (map restrictToPublicApi) <$> Map.lookup importName allInterfaces of
     Nothing ->
         if Module.nameIsNative importName then
             Result.ok []
@@ -68,7 +68,7 @@ importPatches allInterfaces (A.A region (importName, method)) =
               |> A.A region
               |> Result.err
 
-    Just interface ->
+    Just [interface] ->
         let (Module.ImportMethod maybeAlias listing) =
                 method
 
@@ -87,7 +87,8 @@ importPatches allInterfaces (A.A region (importName, method)) =
                   else concat <$> Trav.traverse (valueToPatches region importName interface) exposedValues
         in
             (++) qualifiedPatches <$> unqualifiedPatches
-
+    _ ->
+      error "Compiler.hs did not remove ambiguous imports"
 
 interfacePatches :: Module.Name -> String -> Module.Interface -> [Env.Patch]
 interfacePatches moduleName prefix interface =
