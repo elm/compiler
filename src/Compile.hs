@@ -5,6 +5,7 @@ import qualified Data.Map as Map
 import qualified AST.Module as Module
 import qualified Canonicalize
 import Elm.Utils ((|>))
+import qualified Elm.Package as Package
 import qualified Nitpick.PatternMatches as Nitpick
 import qualified Nitpick.TopLevelTypes as Nitpick
 import qualified Parse.Helpers as Parse
@@ -16,19 +17,18 @@ import qualified Type.Inference as TI
 
 
 compile
-    :: String
-    -> String
+    :: Package.Name
     -> Bool
     -> Module.Interfaces
     -> String
     -> Result.Result Warning.Warning Error.Error Module.CanonicalModule
 
-compile user projectName isRoot interfaces source =
+compile packageName isRoot interfaces source =
   do
       -- determine if default imports should be added
       -- only elm-lang/core is exempt
       let needsDefaults =
-            not (user == "elm-lang" && projectName == "core")
+            not (packageName == Package.coreName)
 
       -- Parse the source code
       validModule <-

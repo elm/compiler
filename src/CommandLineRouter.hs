@@ -7,7 +7,7 @@ import System.IO (hPutStrLn, stderr, stdin, stdout)
 import qualified System.Process as Proc
 
 import qualified Elm.Compiler.Version as Compiler
-
+import qualified Elm.Package as Pkg
 
 main :: IO ()
 main =
@@ -47,7 +47,7 @@ attemptToRun command args =
 
 usageMessage :: String
 usageMessage =
-  "Elm Platform " ++ Compiler.version ++ " - a way to run all Elm tools\n\
+  "Elm Platform " ++ (Pkg.versionToString Compiler.version) ++ " - a way to run all Elm tools\n\
   \\n\
   \Usage: elm <command> [<args>]\n\
   \\n\

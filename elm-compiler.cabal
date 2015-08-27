@@ -43,6 +43,7 @@ Library
         Elm.Compiler.Module,
         Elm.Compiler.Type,
         Elm.Docs,
+        Elm.Package,
         Elm.Utils
 
     other-modules:
@@ -165,7 +166,12 @@ Executable elm
 
     Build-depends:
         base >=4.2 && <5,
+        aeson >= 0.7 && < 0.9,
+        binary >= 0.7.0.0 && < 0.8,
         directory >= 1.0 && < 2.0,
+        filepath >= 1 && < 2.0,
+        mtl >= 2.2 && < 3,
+        text >= 1 && < 2,
         elm-compiler,
         process
 

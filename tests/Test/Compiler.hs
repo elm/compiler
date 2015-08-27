@@ -12,7 +12,7 @@ import Test.Framework.Providers.HUnit (testCase)
 import Test.HUnit (Assertion, assertFailure, assertBool)
 
 import qualified Elm.Compiler as Compiler
-
+import qualified Elm.Package as Package
 
 compilerTests :: Test
 compilerTests =
@@ -54,7 +54,7 @@ testIf handleResult filePaths =
       source <- readFile filePath
 
       let context =
-            Compiler.Context "elm-lang" "core" True False
+            Compiler.Context (Package.Name "elm-lang" "core") True False
       let (dealiaser, _warnings, result) =
             Compiler.compile context source Map.empty
       let formatErrors errors =
