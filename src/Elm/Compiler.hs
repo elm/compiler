@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 module Elm.Compiler
-    ( version, rawVersion
-    , parseDependencies
+    ( parseDependencies
     , compile, Context(..), Result(..)
     , Dealiaser, dummyDealiaser
     , Error, errorToString, errorToJson, printError
@@ -15,8 +14,8 @@ import qualified AST.Module as Module
 import qualified Compile
 import qualified Docs.Check as Docs
 import qualified Elm.Compiler.Module as PublicModule
-import qualified Elm.Compiler.Version as Version
 import qualified Elm.Docs as Docs
+import qualified Elm.Package as Package
 import qualified Generate.JavaScript as JS
 import qualified Optimize
 import qualified Parse.Module as Parse
@@ -26,18 +25,6 @@ import qualified Reporting.Error as Error
 import qualified Reporting.PrettyPrint as P
 import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
-
-
--- VERSION
-
-version :: String
-version =
-    Version.version
-
-
-rawVersion :: [Int]
-rawVersion =
-    Version.rawVersion
 
 
 -- DEPENDENCIES
@@ -72,14 +59,14 @@ compile
 
 compile context source interfaces =
   let
-    (Context user packageName isRoot isExposed) =
+    (Context packageName isRoot isExposed) =
       context
 
     unwrappedInterfaces =
       Map.mapKeysMonotonic (\(PublicModule.Name name) -> name) interfaces
 
     (Result.Result (dealiaser, warnings) rawResult) =
-      do  modul <- Compile.compile user packageName isRoot unwrappedInterfaces source
+      do  modul <- Compile.compile packageName isRoot unwrappedInterfaces source
           docs <- docsGen isExposed modul
 
           let interface = Module.toInterface modul
@@ -95,8 +82,7 @@ compile context source interfaces =
 
 
 data Context = Context
-    { _user :: String
-    , _packageName :: String
+    { _packageName :: Package.Name
     , _isRoot :: Bool
     , _isExposed :: Bool
     }
