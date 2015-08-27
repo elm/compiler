@@ -17,11 +17,6 @@ newtype Raw = Raw String
     deriving (Eq, Ord, Show)
 
 
---The user and project name
---associated with each package,
---used when modules have conflicting names
-type PackageInfo = (String, String)
-
 
 data Home
     = BuiltIn

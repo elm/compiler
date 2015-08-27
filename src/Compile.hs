@@ -1,5 +1,6 @@
 module Compile (compile) where
 
+import qualified Data.List as List
 import qualified Data.Map as Map
 
 import qualified AST.Module as Module
@@ -37,9 +38,14 @@ compile user projectName isRoot pkgMap interfaces source =
           Result.mapError Error.Syntax $
             Parse.program needsDefaults isRoot (getOpTable interfaces) source
 
+      --Omit interfaces from modules that we don't explicitly import
+      --We don't need these for canonicalization, but we do need them for type checking
+      let canonicalInterfaces =
+            Map.mapWithKey (\nm -> List.filter (isImported pkgMap nm) ) interfaces
+
       -- Canonicalize all variables, pinning down where they came from.
       canonicalModule <-
-          Canonicalize.module' interfaces validModule
+          Canonicalize.module' canonicalInterfaces validModule
 
       -- Run type inference on the program.
       types <-
@@ -64,3 +70,16 @@ getOpTable interfaces =
     |> concatMap Module.iFixities
     |> map (\(assoc,lvl,op) -> (op,(lvl,assoc)))
     |> Map.fromList
+
+
+isImported
+  :: Map.Map Module.Name Package.Name
+  -> Module.Name
+  -> Module.Interface
+  -> Bool
+isImported pkgMap nm iface =
+  case Map.lookup nm pkgMap of
+    Just x ->
+      Module.iPackage iface == x
+    Nothing ->
+      error "Interface module name not in Package map"

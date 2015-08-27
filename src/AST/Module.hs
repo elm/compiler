@@ -21,6 +21,7 @@ import qualified AST.Expression.Optimized as Optimized
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Docs.AST as Docs
+import qualified Elm.Compiler.Package as Package
 import qualified Elm.Compiler.Version as Compiler
 import qualified Reporting.Annotation as A
 
@@ -135,11 +136,11 @@ data Interface = Interface
     , iAliases  :: Aliases
     , iFixities :: [(Decl.Assoc, Int, String)]
     , iPorts    :: [String]
-    , iPackage  :: Var.PackageInfo
+    , iPackage  :: Package.Name
     }
 
 
-toInterface :: Var.PackageInfo -> CanonicalModule -> Interface
+toInterface :: Package.Name -> CanonicalModule -> Interface
 toInterface pkgInfo modul =
     let body' = body modul in
     Interface

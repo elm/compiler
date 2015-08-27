@@ -87,13 +87,8 @@ importPatches allInterfaces (A.A region (importName, method)) =
                   else concat <$> Trav.traverse (valueToPatches region importName interface) exposedValues
         in
             (++) qualifiedPatches <$> unqualifiedPatches
-    Just interfaces ->
-      Error.AmbiguousImport (map Module.iPackage interfaces)
-      |> Error.Import importName 
-      |> A.A region
-      |> Result.err
-       
-
+    _ ->
+      error "Compiler.hs did not remove ambiguous imports"
 
 interfacePatches :: Module.Name -> String -> Module.Interface -> [Env.Patch]
 interfacePatches moduleName prefix interface =
