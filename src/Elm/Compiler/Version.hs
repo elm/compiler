@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Elm.Compiler.Version (version, rawVersion, elm) where
+module Elm.Compiler.Version (version, elm) where
 
 import qualified Data.Version as Version
 import qualified Paths_elm_compiler as This

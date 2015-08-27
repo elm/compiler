@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 module Elm.Compiler
-    ( version, rawVersion
-    , parseDependencies
+    ( parseDependencies
     , compile, Context(..), Result(..)
     , Dealiaser, dummyDealiaser
     , Error, errorToString, errorToJson, printError
@@ -15,7 +14,6 @@ import qualified AST.Module as Module
 import qualified Compile
 import qualified Docs.Check as Docs
 import qualified Elm.Compiler.Module as PublicModule
-import qualified Elm.Compiler.Version as Version
 import qualified Elm.Docs as Docs
 import qualified Elm.Package as Package
 import qualified Generate.JavaScript as JS
@@ -27,18 +25,6 @@ import qualified Reporting.Error as Error
 import qualified Reporting.PrettyPrint as P
 import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
-
-
--- VERSION
-
-version :: String
-version =
-    Version.version
-
-
-rawVersion :: [Int]
-rawVersion =
-    Version.rawVersion
 
 
 -- DEPENDENCIES
