@@ -13,17 +13,19 @@ import qualified Reporting.Error as Error
 import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
 import qualified Type.Inference as TI
+import qualified Elm.Compiler.Package as Package
 
 
 compile
     :: String
     -> String
     -> Bool
+    -> Map.Map Module.Name Package.Name
     -> Module.Interfaces
     -> String
     -> Result.Result Warning.Warning Error.Error Module.CanonicalModule
 
-compile user projectName isRoot interfaces source =
+compile user projectName isRoot pkgMap interfaces source =
   do
       -- determine if default imports should be added
       -- only elm-lang/core is exempt

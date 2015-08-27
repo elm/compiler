@@ -15,6 +15,7 @@ import qualified AST.Module as Module
 import qualified Compile
 import qualified Docs.Check as Docs
 import qualified Elm.Compiler.Module as PublicModule
+import qualified Elm.Compiler.Package as Package
 import qualified Elm.Compiler.Version as Version
 import qualified Elm.Docs as Docs
 import qualified Generate.JavaScript as JS
@@ -72,14 +73,18 @@ compile
 
 compile context source interfaces =
   let
-    (Context user packageName isRoot isExposed _imported) =
+    (Context user packageName isRoot isExposed pkgMap) =
       context
 
     unwrappedInterfaces =
       Map.mapKeysMonotonic (\(PublicModule.Name name) -> name) interfaces
 
+    unwrappedPackageMap =
+      Map.mapKeysMonotonic (\(PublicModule.Name name) -> name) pkgMap
+
     (Result.Result (dealiaser, warnings) rawResult) =
-      do  modul <- Compile.compile user packageName isRoot unwrappedInterfaces source
+      do  modul <-
+            Compile.compile user packageName isRoot unwrappedPackageMap unwrappedInterfaces source
           docs <- docsGen isExposed modul
 
           let pkgInfo = (user, packageName)
@@ -100,7 +105,7 @@ data Context = Context
     , _packageName :: String
     , _isRoot :: Bool
     , _isExposed :: Bool
-    , _importedPackages :: [(String, String)]
+    ,  _modulePackages :: Map.Map PublicModule.Name Package.Name
     }
 
 
