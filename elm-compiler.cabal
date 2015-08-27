@@ -1,4 +1,3 @@
-
 Name: elm-compiler
 Version: 0.15.1
 
@@ -71,6 +70,7 @@ Library
         Docs.AST,
         Docs.Centralize,
         Docs.Check,
+        Elm.Package,
         Elm.Compiler.Imports,
         Elm.Compiler.Type.Extract,
         Elm.Compiler.Version,
