@@ -123,7 +123,7 @@ reorder (A.A ann expression) =
               let defss = map Graph.flattenSCC sccs
 
               -- remove let-bound variables from the context
-              forM_ defs $ \(Canonical.Definition pattern _ _) -> do
+              forM_ defs $ \(Canonical.Definition _ pattern _ _) -> do
                   bound pattern
                   mapM free (ctors pattern)
 
@@ -193,7 +193,7 @@ buildDefGraph defs =
         zipWith (\n (pdef,deps) -> (pdef,n,deps)) [0..]
 
     variableToKey :: (Canonical.Def, Int, [String]) -> [(String, Int)]
-    variableToKey (Canonical.Definition pattern _ _, key, _) =
+    variableToKey (Canonical.Definition _ pattern _ _, key, _) =
         [ (var, key) | var <- P.boundVarList pattern ]
 
     variableToKeyMap :: [(Canonical.Def, Int, [String])] -> Map.Map String Int
@@ -212,7 +212,7 @@ buildDefGraph defs =
 reorderAndGetDependencies
     :: Canonical.Def
     -> State (Set.Set String) (Canonical.Def, [String])
-reorderAndGetDependencies (Canonical.Definition pattern expr mType) =
+reorderAndGetDependencies (Canonical.Definition facts pattern expr mType) =
   do  globalFrees <- get
       -- work in a fresh environment
       put Set.empty
@@ -220,4 +220,4 @@ reorderAndGetDependencies (Canonical.Definition pattern expr mType) =
       localFrees <- get
       -- merge with global frees
       modify (Set.union globalFrees)
-      return (Canonical.Definition pattern expr' mType, Set.toList localFrees)
+      return (Canonical.Definition facts pattern expr' mType, Set.toList localFrees)

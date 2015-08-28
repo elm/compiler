@@ -24,12 +24,22 @@ type Expr' =
 
 
 data Def
-    = Definition Pattern.CanonicalPattern Expr (Maybe (A.Located Type.Canonical))
+    = Definition Facts Pattern.CanonicalPattern Expr (Maybe (A.Located Type.Canonical))
     deriving (Show)
 
 
+data Facts =
+  Facts
+    { freeVariables :: [Var.Canonical]
+    } deriving (Eq, Ord, Show)
+
+
+dummyFacts :: Facts
+dummyFacts = Facts $ error "This should be set by Canonicalize.Sort" 
+               
+
 instance P.Pretty Def where
-  pretty dealiaser _ (Definition pattern expr maybeTipe) =
+  pretty dealiaser _ (Definition _ pattern expr maybeTipe) =
       P.vcat [ annotation, definition ]
     where
       definition =

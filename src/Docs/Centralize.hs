@@ -54,7 +54,7 @@ toRawDocs decls =
 addDeclToDocs :: D.CanonicalDecl -> Raw -> Raw
 addDeclToDocs (A.A (region,maybeComment) decl) docs =
   case decl of
-    D.Definition (Canonical.Definition (A.A subregion (P.Var name)) _ maybeType) ->
+    D.Definition (Canonical.Definition _ (A.A subregion (P.Var name)) _ maybeType) ->
         let
           info =
             ( maybeComment

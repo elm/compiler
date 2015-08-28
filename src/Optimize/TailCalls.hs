@@ -51,7 +51,7 @@ mapSnd func (x, a) =
 -- CONVERT DEFINITIONS
 
 detectTailRecursion :: Can.Def -> Opt.Def
-detectTailRecursion (Can.Definition pattern expression _) =
+detectTailRecursion (Can.Definition _ pattern expression _) =
     let
         (args, body) =
             Expr.collectLambdas expression
