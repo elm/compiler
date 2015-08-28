@@ -1,13 +1,12 @@
 module Elm.Compiler.Module
-    ( Interface, Name(Name), name
-    , CanonicalName(CanonicalName), canonicalName, canonPkg, canonModul
-    , fromCanonicalName, canonFromPackage
+    ( Interface, Interfaces, Name(Name)
     , nameToPath
     , nameToString, nameFromString
     , hyphenate, dehyphenate
     , defaultImports
     , interfacePorts
     , interfaceAliasedTypes
+    , ModuleName.Canonical(..)
     )
   where
 
@@ -21,10 +20,10 @@ import qualified Data.Text as Text
 import System.FilePath ((</>))
 
 import qualified AST.Module as Module
+import qualified AST.Module.Name as ModuleName
 import qualified Elm.Compiler.Imports as Imports
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Type.Extract as Extract
-import qualified Elm.Package as Package
 
 
 -- EXPOSED TYPES
@@ -32,33 +31,11 @@ import qualified Elm.Package as Package
 type Interface = Module.Interface
 
 
-newtype Name = Name [String]
+type Interfaces = Module.Interfaces
+
+
+newtype Name = Name ModuleName.Raw
     deriving (Eq, Ord)
-
-data CanonicalName =
-  CanonicalName
-  { canonPkg :: Package.Name
-  , canonVersion :: Package.Version
-  , canonModul :: Name
-  } deriving (Eq, Ord)
-
-
-canonFromPackage :: Package.Package -> Name -> CanonicalName
-canonFromPackage (pk, vr) nm =
-  CanonicalName pk vr nm
-
-
-fromCanonicalName :: CanonicalName -> Module.CanonicalName
-fromCanonicalName (CanonicalName p _ (Name n)) =
-  Module.CanonicalName p n
-
-
-canonicalName :: Package.Name -> Package.Version -> Name -> CanonicalName
-canonicalName = CanonicalName
-
-
-name :: [String] -> Name
-name = Name
 
 
 defaultImports :: [Name]

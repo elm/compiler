@@ -7,7 +7,7 @@ import qualified Data.Aeson as Json
 import qualified Text.PrettyPrint as P
 import Text.PrettyPrint ((<+>))
 
-import qualified AST.Module as Module
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
 import qualified Nitpick.Pattern as Pattern
 import qualified Reporting.Annotation as A
@@ -18,7 +18,7 @@ import qualified Reporting.Report as Report
 -- ALL POSSIBLE WARNINGS
 
 data Warning
-    = UnusedImport Module.Name
+    = UnusedImport ModuleName.Raw
     | MissingTypeAnnotation String Type.Canonical
     | InexhaustivePatternMatch [Pattern.Pattern]
     | RedundantPatternMatch
@@ -42,7 +42,7 @@ toReport dealiaser warning =
     UnusedImport moduleName ->
         Report.simple
           "unused import"
-          ("Module `" ++ Module.nameToString moduleName ++ "` is unused.")
+          ("Module `" ++ ModuleName.toString moduleName ++ "` is unused.")
           ""
 
     MissingTypeAnnotation name inferredType ->

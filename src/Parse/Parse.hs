@@ -9,7 +9,9 @@ import qualified Text.Parsec.Error as Parsec
 
 import qualified AST.Declaration as D
 import qualified AST.Module as M
+import qualified AST.Module.Name as ModuleName
 import qualified Elm.Compiler.Imports as Imports
+import qualified Elm.Package as Package
 import Parse.Helpers
 import qualified Parse.Module as Module
 import qualified Parse.Declaration as Decl
@@ -20,33 +22,40 @@ import qualified Validate
 
 
 program
-    :: Bool
+    :: Package.Name
     -> Bool
     -> OpTable
     -> String
     -> Result.Result wrn Error.Error M.ValidModule
-program needsDefaults isRoot table src =
-  do  (M.Module names filePath docs exports imports sourceDecls) <-
-          parseWithTable table src programParser
+program pkgName isRoot table src =
+  do  (M.Module name filePath docs exports imports sourceDecls) <-
+          parseWithTable table src (programParser pkgName)
 
       validDecls <- Validate.declarations isRoot sourceDecls
 
+      -- determine if default imports should be added, only elm-lang/core is exempt
       let ammendedImports =
-            (if needsDefaults then Imports.defaults else [], imports)
+            ( if pkgName == Package.coreName then [] else Imports.defaults
+            , imports
+            )
 
-      return (M.Module names filePath docs exports ammendedImports validDecls)
+      return (M.Module name filePath docs exports ammendedImports validDecls)
 
 
 -- HEADERS AND DECLARATIONS
 
-programParser :: IParser M.SourceModule
-programParser =
-  do  (M.Header names docs exports imports) <- Module.header
+programParser :: Package.Name -> IParser M.SourceModule
+programParser pkgName =
+  do  (M.Header name docs exports imports) <- Module.header
       decls <- declarations
       optional freshLine
       optional spaces
       eof
-      return $ M.Module names "" docs exports imports decls
+
+      let canonicalName =
+            ModuleName.Canonical pkgName name
+
+      return $ M.Module canonicalName "" docs exports imports decls
 
 
 declarations :: IParser [D.SourceDecl]

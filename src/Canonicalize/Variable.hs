@@ -6,7 +6,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import qualified AST.Helpers as Help
-import qualified AST.Module as Module
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
@@ -22,8 +22,8 @@ variable :: R.Region -> Env.Environment -> String -> Result.ResultErr Var.Canoni
 variable region env var =
   case toVarName var of
     Right (name, varName)
-        | Module.nameIsNative name ->
-            Result.var (Var.Canonical (Var.Module name) varName)
+        | ModuleName.isNative name ->
+            error "TODO" "Result.var (Var.Canonical (Var.Module name) varName)"
 
     _ ->
         case Set.toList `fmap` Map.lookup var (Env._values env) of
@@ -134,7 +134,7 @@ preferLocals' region env extract kind possibilities var =
           vars = map (Var.toString . extract) possibleVars
 
 
-isLocal :: [String] -> Var.Canonical -> Bool
+isLocal :: ModuleName.Canonical -> Var.Canonical -> Bool
 isLocal contextName (Var.Canonical home _) =
   case home of
     Var.Local ->
@@ -163,7 +163,7 @@ isTopLevel (Var.Canonical home _) =
 -- NOT FOUND HELPERS
 
 type VarName =
-    Either String (Module.Name, String)
+    Either String (ModuleName.Raw, String)
 
 
 toVarName :: String -> VarName
@@ -180,9 +180,9 @@ noQualifier name =
     Right (_, x) -> x
 
 
-qualifiedToString :: (Module.Name, String) -> String
+qualifiedToString :: (ModuleName.Raw, String) -> String
 qualifiedToString (modul, name) =
-  Module.nameToString (modul ++ [name])
+  ModuleName.toString modul ++ "." ++ name
 
 
 isOp :: VarName -> Bool
@@ -225,16 +225,16 @@ exposedProblem name possibleNames =
 
 
 qualifiedProblem
-    :: Module.Name
+    :: ModuleName.Raw
     -> String
-    -> [(Module.Name, String)]
+    -> [(ModuleName.Raw, String)]
     -> (Error.VarProblem, [String])
 qualifiedProblem moduleName name allQualified =
   let availableModules =
         Set.fromList (map fst allQualified)
 
       moduleNameString =
-        Module.nameToString moduleName
+        ModuleName.toString moduleName
   in
       case Set.member moduleName availableModules of
         True ->
@@ -248,6 +248,6 @@ qualifiedProblem moduleName name allQualified =
         False ->
             ( Error.UnknownQualifier moduleNameString name
             , Set.toList availableModules
-                |> map Module.nameToString
+                |> map ModuleName.toString
                 |> Error.nearbyNames id moduleNameString
             )

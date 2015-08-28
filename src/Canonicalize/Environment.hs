@@ -7,7 +7,7 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 
 import AST.Expression.General (saveEnvName)
-import qualified AST.Module as Module
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
@@ -17,7 +17,7 @@ import Elm.Utils ((|>))
 -- ENVIRONMENT
 
 data Environment = Env
-    { _home     :: Module.Name
+    { _home     :: ModuleName.Canonical
     , _values   :: Dict Var.Canonical
     , _adts     :: Dict Var.Canonical
     , _aliases  :: Dict (Var.Canonical, [String], Type.Canonical)
@@ -29,7 +29,7 @@ type Dict a =
     Map.Map String (Set.Set a)
 
 
-fromPatches :: Module.Name -> [Patch] -> Environment
+fromPatches :: ModuleName.Canonical -> [Patch] -> Environment
 fromPatches moduleName patches =
   addPatches
       patches
