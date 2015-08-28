@@ -63,19 +63,22 @@ parseDependencies sourceCode =
 compile
     :: Context
     -> String
-    -> Map.Map PublicModule.Name PublicModule.Interface
+    -> Map.Map PublicModule.CanonicalName PublicModule.Interface
     -> (Dealiaser, [Warning], Either [Error] Result)
 
 compile context source interfaces =
   let
-    (Context packageName isRoot isExposed) =
+    (Context packageName isRoot isExposed modulePackages) =
       context
 
     unwrappedInterfaces =
-      Map.mapKeysMonotonic (\(PublicModule.Name name) -> name) interfaces
+      Map.mapKeysMonotonic PublicModule.fromCanonicalName interfaces
+
+    unwrappedPackages =
+      Map.mapKeysMonotonic (\(PublicModule.Name strs) -> strs ) modulePackages
 
     (Result.Result (dealiaser, warnings) rawResult) =
-      do  modul <- Compile.compile packageName isRoot unwrappedInterfaces source
+      do  modul <- Compile.compile unwrappedPackages packageName isRoot unwrappedInterfaces source
           docs <- docsGen isExposed modul
 
           let interface = Module.toInterface modul
@@ -94,6 +97,7 @@ data Context = Context
     { _packageName :: Package.Name
     , _isRoot :: Bool
     , _isExposed :: Bool
+    , _modulePackages :: Map.Map PublicModule.Name Package.Name
     }
 
 

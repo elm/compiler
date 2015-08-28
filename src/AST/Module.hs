@@ -1,11 +1,12 @@
 module AST.Module
-    ( Interfaces
+    ( Interfaces, CanonicalInterfaces
     , Types, Aliases, ADTs
     , AdtInfo, CanonicalAdt
     , SourceModule, ValidModule, CanonicalModule, Optimized
     , Module(..), Body(..)
     , Header(..)
     , Name, nameToString, nameIsNative
+    , CanonicalName(..), canonPkg, canonModul
     , Interface(..), toInterface
     , UserImport, DefaultImport, ImportMethod(..)
     ) where
@@ -29,6 +30,7 @@ import qualified Reporting.Annotation as A
 -- HELPFUL TYPE ALIASES
 
 type Interfaces = Map.Map Name Interface
+type CanonicalInterfaces = Map.Map CanonicalName Interface
 
 type Types   = Map.Map String Type.Canonical
 type Aliases = Map.Map String ([String], Type.Canonical)
@@ -96,6 +98,13 @@ data Header imports = Header
 
 
 type Name = [String] -- must be non-empty
+
+
+data CanonicalName =
+  CanonicalName
+  { canonPkg :: Package.Name
+  , canonModul :: Name
+  }
 
 
 nameToString :: Name -> String

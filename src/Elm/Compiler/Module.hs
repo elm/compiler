@@ -1,5 +1,6 @@
 module Elm.Compiler.Module
-    ( Interface, Name(Name)
+    ( Interface, Name(Name), name
+    , CanonicalName(CanonicalName), canonicalName, canonPkg, canonModul, fromCanonicalName
     , nameToPath
     , nameToString, nameFromString
     , hyphenate, dehyphenate
@@ -22,6 +23,7 @@ import qualified AST.Module as Module
 import qualified Elm.Compiler.Imports as Imports
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Type.Extract as Extract
+import qualified Elm.Package as Package
 
 
 -- EXPOSED TYPES
@@ -31,6 +33,25 @@ type Interface = Module.Interface
 
 newtype Name = Name [String]
     deriving (Eq, Ord)
+
+data CanonicalName =
+  CanonicalName
+  { canonPkg :: Package.Name
+  , canonModul :: Name
+  }
+
+
+fromCanonicalName :: CanonicalName -> Module.CanonicalName
+fromCanonicalName (CanonicalName p (Name n)) =
+  Module.CanonicalName p n
+
+
+canonicalName :: Package.Name -> Name -> CanonicalName
+canonicalName = CanonicalName
+
+
+name :: [String] -> Name
+name = Name
 
 
 defaultImports :: [Name]

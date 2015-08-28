@@ -22,7 +22,7 @@ import System.IO.Unsafe
 
 
 infer
-    :: Interfaces
+    :: CanonicalInterfaces
     -> Module.CanonicalModule
     -> Except [A.Located Error.Error] (Map.Map String Type.Canonical)
 infer interfaces modul =
@@ -39,7 +39,7 @@ infer interfaces modul =
 
 
 genConstraints
-    :: Interfaces
+    :: CanonicalInterfaces
     -> Module.CanonicalModule
     -> IO (Env.TypeDict, T.TypeConstraint)
 genConstraints interfaces modul =
@@ -69,15 +69,15 @@ genConstraints interfaces modul =
 
 canonicalizeValues
     :: Env.Environment
-    -> (Module.Name, Interface)
+    -> (Module.CanonicalName, Interface)
     -> IO [(String, ([T.Variable], T.Type))]
 canonicalizeValues env (moduleName, iface) =
     forM (Map.toList (iTypes iface)) $ \(name,tipe) ->
         do  tipe' <- Env.instantiateType env tipe Map.empty
-            return (Module.nameToString moduleName ++ "." ++ name, tipe')
+            return ((Module.nameToString $ Module.canonModul moduleName) ++ "." ++ name, tipe')
 
 
-canonicalizeAdts :: Interfaces -> Module.CanonicalModule -> [CanonicalAdt]
+canonicalizeAdts :: CanonicalInterfaces -> Module.CanonicalModule -> [CanonicalAdt]
 canonicalizeAdts interfaces modul =
     localAdts ++ importedAdts
   where
@@ -85,7 +85,8 @@ canonicalizeAdts interfaces modul =
     localAdts = format (Module.names modul, datatypes (body modul))
 
     importedAdts :: [CanonicalAdt]
-    importedAdts = concatMap (format . second iAdts) (Map.toList interfaces)
+    importedAdts = concatMap (format . second iAdts)
+      (map (\(nm, iface) -> (Module.canonModul nm, iface )) $ Map.toList $ interfaces)
 
     format :: (Module.Name, Module.ADTs) -> [CanonicalAdt]
     format (home, adts) =
