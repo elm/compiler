@@ -32,8 +32,8 @@ subst old new expression =
       App func arg ->
           App (f func) (f arg)
 
-      MultiIf branches finally ->
-          MultiIf (map (f *** f) branches) (f finally)
+      If branches finally ->
+          If (map (f *** f) branches) (f finally)
 
       Let defs body ->
           if anyShadow

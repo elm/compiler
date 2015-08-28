@@ -202,7 +202,7 @@ exprToCode tcc annotatedExpr@(A.A _ expr) =
       Let defs body ->
           generateLet tcc defs body
 
-      MultiIf branches finally ->
+      If branches finally ->
           generateIf tcc branches finally
 
       Case expr branches ->
@@ -410,7 +410,7 @@ crushIfsHelp visitedBranches unvisitedBranches finally =
   case unvisitedBranches of
     [] ->
         case finally of
-          A.A _ (MultiIf subBranches subFinally) ->
+          A.A _ (If subBranches subFinally) ->
               crushIfsHelp visitedBranches subBranches subFinally
 
           _ ->

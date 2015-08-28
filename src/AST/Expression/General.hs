@@ -49,7 +49,7 @@ data Expr' ann def var typ
     | Binop var (Expr ann def var typ) (Expr ann def var typ)
     | Lambda (Pattern.Pattern ann var) (Expr ann def var typ)
     | App (Expr ann def var typ) (Expr ann def var typ)
-    | MultiIf [(Expr ann def var typ, Expr ann def var typ)] (Expr ann def var typ)
+    | If [(Expr ann def var typ, Expr ann def var typ)] (Expr ann def var typ)
     | Let [def] (Expr ann def var typ)
     | Case (Expr ann def var typ) [(Pattern.Pattern ann var, Expr ann def var typ)]
     | Data String [Expr ann def var typ]
@@ -161,27 +161,25 @@ instance (P.Pretty def, P.Pretty var, Var.ToString var) => P.Pretty (Expr' ann d
           func:args =
               map (P.pretty dealiaser True) (collectApps expr ++ [arg])
 
-      MultiIf [(condition, thenBranch)] elseBranch ->
-          P.parensIf needsParens $ P.sep $
-              [ P.text "if" <+> P.pretty dealiaser False condition <+> P.text "then"
-              , P.nest 4 (P.pretty dealiaser False thenBranch)
-              , P.text "else"
-              , P.nest 4 (P.pretty dealiaser False elseBranch)
-              ]
+      If branches finally ->
+          let
+            prettyFinally =
+              P.nest 4 (P.pretty dealiaser False finally)
 
-      MultiIf branches finally ->
-          P.parensIf needsParens $
-              P.text "if" $$ nest 3 (vcat $ map iff branches ++ [final])
-        where
-          iff (condition, branch) =
-            P.text "|" <+>
-              P.hang
-                  (P.pretty dealiaser False condition <+> P.text "->")
-                  2
-                  (P.pretty dealiaser False branch)
-
-          final =
-            P.hang (P.text "| True -> ") 2 (P.pretty dealiaser False finally)
+            prettyBranch (condition, thenBranch) (firstLine, rest) =
+              ( P.text "if" <+> P.pretty dealiaser False condition <+> P.text "then"
+              ,
+                [ P.nest 4 (P.pretty dealiaser False thenBranch)
+                , P.text "else" <+> firstLine
+                ]
+                ++ rest
+              )
+          in
+            P.parensIf needsParens $ P.sep $ uncurry (:) $
+                foldr
+                    prettyBranch
+                    ( P.empty, [prettyFinally] )
+                    branches
 
       Let defs body ->
           P.parensIf needsParens $
