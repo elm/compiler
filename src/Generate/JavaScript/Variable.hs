@@ -23,6 +23,7 @@ canonical (Var.Canonical home name) =
     home' =
       case home of
         Var.Local       -> []
+        Var.TopLevel _  -> []
         Var.BuiltIn     -> []
         Var.Module path -> [ moduleName path ]
 

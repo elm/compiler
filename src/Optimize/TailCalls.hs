@@ -130,6 +130,8 @@ findTailCalls context annExpr@(A.A _ expression) =
                 case (context, func) of
                   ( Just (name, argNum), A.A _ (Var (Var.Canonical Var.Local name')) ) ->
                       name == name' && length args == argNum
+                  ( Just (name, argNum), A.A _ (Var (Var.Canonical (Var.TopLevel _) name')) ) ->
+                      name == name' && length args == argNum
                   _ ->
                       False
 

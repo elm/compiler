@@ -58,6 +58,9 @@ subst old new expression =
             V.Local ->
                 if x == old then new else expression
 
+            V.TopLevel _ ->
+                if x == old then new else expression
+
       Case e cases ->
           Case (f e) (map substCase cases)
         where
