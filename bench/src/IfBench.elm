@@ -3,116 +3,70 @@ module IfBench where
 tailRecursiveIfFn : Int -> Float
 tailRecursiveIfFn i = 
   if 
-    i < 0 ->
-  then
-    10.0
-  else if
-    i == 0 ->
-  then
-    20.0
-  else if
-    i > 0 && i < 10 ->
-  then
-    30.0
-  else
+    | i < 0 ->
+      10.0
+    | i == 0 ->
+      20.0
+    | i > 0 && i < 10 ->
+      30.0
+    | otherwise ->
       tailRecursiveIfFn (i - (1 + (i % 5 ) ) )
     
     
 manyConditionFunction i =
   if
-    i <= 0 
-  then
-    30.0 + (toFloat i)
-  else if
-    i > 100 && (i * i) % 20 == 7 
-  then
-    24.3 + (toFloat i)
-  else if
-    i > 100 && (i % 3 == 1) 
-  then
-    3.33 + (toFloat i)
-  else if
-    (i == 152) 
-  then
-    29.0 + (toFloat i)
-  else if
-    (i + (i*i) > 200 && (i + (i*i) < 300)) -> 
+    | i <= 0 ->
+      30.0 + (toFloat i)
+    | i > 100 && (i * i) % 20 == 7 ->
+      24.3 + (toFloat i)
+    | i > 100 && (i % 3 == 1) ->
+      3.33 + (toFloat i)
+    | (i == 152) ->
+      29.0 + (toFloat i)
+    | (i + (i*i) > 200 && (i + (i*i) < 300)) -> 
       32.9 + (toFloat i)
-  else if
-    i == 99 
-  then
-    93.0 + (toFloat i)
-  else if
-    (i*i % 17 == 13 ) 
-  then
-    9.0 + (toFloat i)
-  else if
-    (i == 101) 
-  then
-    39.0 + (toFloat i)
-  else if
-    (i == 102) 
-  then
-    38.0 + (toFloat i)
-  else if
-    (i == 103) 
-  then
-    49.0 + (toFloat i)
-  else if
-    (i == 104) 
-  then
-    59.0 + (toFloat i)
-  else if
-    (i == 105) 
-  then
-    69.0 + (toFloat i)
-  else if
-    (i == 106) 
-  then
-    39.0 + (toFloat i)
-  else if
-    (i == 107) 
-  then
-    38.0 + (toFloat i)
-  else if
-    (i == 108) 
-  then
-    49.0 + (toFloat i)
-  else if
-    (i == 109) 
-  then
-    59.0 + (toFloat i)
-  else if
-    (i == 110) 
-  then
-    69.0 + (toFloat i)
-  else if
-    (i == 111) 
-  then
-    39.0 + (toFloat i)
-  else if
-    (i == 115) 
-  then
-    69.0 + (toFloat i)
-  else
-    toFloat i
+    | i == 99 ->
+      93.0 + (toFloat i)
+    | (i*i % 17 == 13 ) ->
+      9.0 + (toFloat i)
+    | (i == 101) ->
+      39.0 + (toFloat i)
+    | (i == 102) ->
+      38.0 + (toFloat i)
+    | (i == 103) ->
+      49.0 + (toFloat i)
+    | (i == 104) ->
+      59.0 + (toFloat i)
+    | (i == 105) ->
+      69.0 + (toFloat i)
+    | (i == 106) ->
+      39.0 + (toFloat i)
+    | (i == 107) ->
+      38.0 + (toFloat i)
+    | (i == 108) ->
+      49.0 + (toFloat i)
+    | (i == 109) ->
+      59.0 + (toFloat i)
+    | (i == 110) ->
+      69.0 + (toFloat i)
+    | (i == 111) ->
+      39.0 + (toFloat i)
+    | (i == 115) ->
+      69.0 + (toFloat i)
+    | otherwise ->
+      toFloat i
       
       
 fewConditionFunction i =
   if
-    i <= 0 
-  then
-    30.0 + (toFloat i)
-  else if
-    (i == 104) 
-  then
-    59.0 + (toFloat i)
-  else if
-    (i == 105) 
-  then
-    69.0 + (toFloat i)
-  else
-    toFloat i
+    | i <= 0 ->
+      30.0 + (toFloat i)
+    | (i == 104) ->
+      59.0 + (toFloat i)
+    | (i == 105) ->
+      69.0 + (toFloat i)
+    | otherwise ->
+      toFloat i
   
   
 tailRecSum intList = 
