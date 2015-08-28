@@ -33,15 +33,18 @@ data Canonical = Canonical
 
 
 local :: String -> Canonical
-local x = Canonical Local x
+local x =
+    Canonical Local x
 
 
 topLevel :: [String] -> String -> Canonical
-topLevel names x = Canonical (TopLevel names) x
+topLevel names x =
+    Canonical (TopLevel names) x
 
 
 builtin :: String -> Canonical
-builtin x = Canonical BuiltIn x
+builtin x =
+    Canonical BuiltIn x
 
 
 fromModule :: [String] -> String -> Canonical
@@ -127,10 +130,17 @@ instance ToString Raw where
 instance ToString Canonical where
   toString (Canonical home name) =
       case home of
-        BuiltIn -> name
-        Module path -> List.intercalate "." (path ++ [name])
-        Local -> name
-        TopLevel _ -> name
+        BuiltIn ->
+            name
+
+        Module path ->
+            List.intercalate "." (path ++ [name])
+
+        TopLevel _ ->
+            name
+
+        Local ->
+            name
 
 
 -- LISTINGS
@@ -255,19 +265,19 @@ instance Binary Canonical where
           Module path ->
               putWord8 1 >> put path >> put name
 
-          Local ->
-              putWord8 2 >> put name
-
           TopLevel path ->
-              putWord8 3 >> put path >> put name
+              putWord8 2 >> put path >> put name
+
+          Local ->
+              putWord8 3 >> put name
 
     get =
       do  tag <- getWord8
           case tag of
             0 -> Canonical BuiltIn <$> get
             1 -> Canonical . Module <$> get <*> get
-            2 -> Canonical Local <$> get
-            3 -> Canonical . TopLevel <$> get <*> get
+            2 -> Canonical . TopLevel <$> get <*> get
+            3 -> Canonical Local <$> get
             _ -> error "Unexpected tag when deserializing canonical variable"
 
 
