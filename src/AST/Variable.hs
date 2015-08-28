@@ -17,6 +17,13 @@ newtype Raw = Raw String
     deriving (Eq, Ord, Show)
 
 
+data TopLevelVar =
+  TopLevelVar
+  { topVarModule :: [String]
+  , topVarName :: String
+  } deriving (Eq, Ord, Show)
+
+
 data Home
     = BuiltIn
     | Module [String]

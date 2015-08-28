@@ -27,7 +27,7 @@ data Def
 
 data Facts = Facts
     { tailRecursionDetails :: Maybe String
-    , freeVariables :: [Var.Canonical]
+    , freeVariables :: [Var.TopLevelVar]
     }
     deriving (Show)
 

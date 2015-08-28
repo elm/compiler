@@ -30,7 +30,7 @@ data Def
 
 data Facts =
   Facts
-    { freeVariables :: [Var.Canonical]
+    { freeVariables :: [Var.TopLevelVar]
     } deriving (Eq, Ord, Show)
 
 
