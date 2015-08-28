@@ -76,7 +76,7 @@ unCanonicalizeInterfaces packageInfo ifaces =
   let
     foldFun canonName iface mapSoFar =
       case Map.lookup (Module.canonModul canonName) packageInfo of
-        Just pkg | pkg == (error "TODO iface pkg") ->
+        Just pkg | pkg == Module.iPackage iface ->
           Map.insert (Module.canonModul canonName) iface mapSoFar
 
         _ ->

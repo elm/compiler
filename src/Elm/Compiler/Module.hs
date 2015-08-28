@@ -1,6 +1,7 @@
 module Elm.Compiler.Module
     ( Interface, Name(Name), name
-    , CanonicalName(CanonicalName), canonicalName, canonPkg, canonModul, fromCanonicalName
+    , CanonicalName(CanonicalName), canonicalName, canonPkg, canonModul
+    , fromCanonicalName, canonFromPackage
     , nameToPath
     , nameToString, nameFromString
     , hyphenate, dehyphenate
@@ -37,16 +38,22 @@ newtype Name = Name [String]
 data CanonicalName =
   CanonicalName
   { canonPkg :: Package.Name
+  , canonVersion :: Package.Version
   , canonModul :: Name
-  }
+  } deriving (Eq, Ord)
+
+
+canonFromPackage :: Package.Package -> Name -> CanonicalName
+canonFromPackage (pk, vr) nm =
+  CanonicalName pk vr nm
 
 
 fromCanonicalName :: CanonicalName -> Module.CanonicalName
-fromCanonicalName (CanonicalName p (Name n)) =
+fromCanonicalName (CanonicalName p _ (Name n)) =
   Module.CanonicalName p n
 
 
-canonicalName :: Package.Name -> Name -> CanonicalName
+canonicalName :: Package.Name -> Package.Version -> Name -> CanonicalName
 canonicalName = CanonicalName
 
 

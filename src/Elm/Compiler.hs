@@ -81,7 +81,7 @@ compile context source interfaces =
       do  modul <- Compile.compile unwrappedPackages packageName isRoot unwrappedInterfaces source
           docs <- docsGen isExposed modul
 
-          let interface = Module.toInterface modul
+          let interface = Module.toInterface packageName modul
           let optModule = Optimize.optimize modul
           let javascript = JS.generate optModule
 

@@ -19,6 +19,9 @@ data Name = Name
     deriving (Eq, Ord)
 
 
+type Package = (Name, Version)
+
+
 dummyName :: Name
 dummyName =
     Name "USER" "PROJECT"
