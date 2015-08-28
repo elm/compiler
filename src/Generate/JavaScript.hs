@@ -351,6 +351,12 @@ isTailCall tcc (A.A _ func) arity =
         else
           Nothing
 
+    (Var (Var.Canonical (Var.TopLevel _) name), Just (tcName, tcArgs, tcLabel)) ->
+        if name == tcName && length tcArgs == arity then
+          Just (tcArgs, tcLabel)
+        else
+          Nothing
+
     _ ->
       Nothing
 
@@ -515,6 +521,8 @@ generateCase tcc expr branches =
       (revisedMatch, stmt) <-
           case expr of
             A.A _ (Var (Var.Canonical Var.Local x)) ->
+                return (Case.matchSubst [(tempVar, Var.varName x)] initialMatch, [])
+            A.A _ (Var (Var.Canonical (Var.TopLevel _) x)) ->
                 return (Case.matchSubst [(tempVar, Var.varName x)] initialMatch, [])
             _ ->
                 do  expr' <- toJsExpr expr

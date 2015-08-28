@@ -126,6 +126,10 @@ actuallyUnify variable1 variable2 = do
 
             Var.Local | List.isPrefixOf "number" name ->
                 flexAndUnify svar
+
+            Var.TopLevel _ | List.isPrefixOf "number" name ->
+                flexAndUnify svar
+                
             _ ->
                 typeError variable1 variable2 Nothing
 
