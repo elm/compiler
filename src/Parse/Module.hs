@@ -5,6 +5,7 @@ import Text.Parsec hiding (newline, spaces)
 
 import Parse.Helpers
 import qualified AST.Module as Module
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
 import Reporting.Annotation as A
 
@@ -12,13 +13,16 @@ import Reporting.Annotation as A
 getModuleName :: String -> Maybe String
 getModuleName source =
   case iParse getModuleName source of
-    Right name -> Just name
-    Left _     -> Nothing
+    Right name ->
+        Just name
+
+    Left _ ->
+        Nothing
   where
     getModuleName =
       do  optional freshLine
           (names, _) <- moduleDecl
-          return (Module.nameToString names)
+          return (ModuleName.toString names)
 
 
 header :: IParser (Module.Header [Module.UserImport])
@@ -60,7 +64,7 @@ import' =
   do  try (reserved "import")
       whitespace
       names <- dotSep1 capVar
-      (,) names <$> method (Module.nameToString names)
+      (,) names <$> method (ModuleName.toString names)
   where
     method :: String -> IParser Module.ImportMethod
     method defaultAlias =

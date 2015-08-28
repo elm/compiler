@@ -3,7 +3,7 @@ module Reporting.Error.Canonicalize where
 
 import qualified Text.PrettyPrint as P
 
-import qualified AST.Module as Module
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Reporting.Error.Helpers as Help
@@ -16,7 +16,7 @@ data Error
     = Var VarError
     | Pattern PatternError
     | Alias AliasError
-    | Import Module.Name ImportError
+    | Import ModuleName.Raw ImportError
     | Export String [String]
     | DuplicateExport String
     | Port PortError
@@ -58,16 +58,16 @@ argMismatch name expected actual =
 -- IMPORTS
 
 data ImportError
-    = ModuleNotFound [Module.Name]
+    = ModuleNotFound [ModuleName.Raw]
     | ValueNotFound String [String]
 
 
-moduleNotFound :: Module.Name -> [Module.Name] -> Error
+moduleNotFound :: ModuleName.Raw -> [ModuleName.Raw] -> Error
 moduleNotFound name possibilities =
   Import name (ModuleNotFound possibilities)
 
 
-valueNotFound :: Module.Name -> String -> [String] -> Error
+valueNotFound :: ModuleName.Raw -> String -> [String] -> Error
 valueNotFound name value possibilities =
   Import name (ValueNotFound value possibilities)
 
@@ -178,13 +178,13 @@ toReport dealiaser err =
                   ++ "line " ++ show (Region.line start)
 
     Import name importError ->
-        let moduleName = Module.nameToString name
+        let moduleName = ModuleName.toString name
         in
         case importError of
           ModuleNotFound suggestions ->
               namingError
                 ("Could not find a module named `" ++ moduleName ++ "`")
-                (Help.maybeYouWant (map Module.nameToString suggestions))
+                (Help.maybeYouWant (map ModuleName.toString suggestions))
 
           ValueNotFound value suggestions ->
               namingError
@@ -249,7 +249,7 @@ extractSuggestions err =
     Import _ importError ->
         case importError of
           ModuleNotFound suggestions ->
-              Just (map Module.nameToString suggestions)
+              Just (map ModuleName.toString suggestions)
 
           ValueNotFound _ suggestions ->
               Just suggestions

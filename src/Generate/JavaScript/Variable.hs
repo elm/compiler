@@ -1,12 +1,14 @@
 module Generate.JavaScript.Variable where
 
-import qualified AST.Helpers as Help
-import qualified AST.Module as Module
-import qualified AST.Variable as Var
 import qualified Data.List as List
 import qualified Data.Set as Set
-import qualified Generate.JavaScript.Helpers as JS
 import qualified Language.ECMAScript3.Syntax as JS
+
+import qualified AST.Helpers as Help
+import qualified AST.Module.Name as ModuleName
+import qualified AST.Variable as Var
+import qualified Elm.Package as Pkg
+import qualified Generate.JavaScript.Helpers as JS
 
 
 swap :: Char -> Char -> Char -> Char
@@ -16,21 +18,36 @@ swap from to c =
 
 canonical :: Var.Canonical -> JS.Expression ()
 canonical (Var.Canonical home name) =
-  case Help.isOp name of
-    True  -> JS.BracketRef () (JS.obj (home' ++ ["_op"])) (JS.string name)
-    False -> JS.obj (home' ++ [ varName name ])
-  where
-    home' =
-      case home of
-        Var.Local       -> []
-        Var.TopLevel _  -> []
-        Var.BuiltIn     -> []
-        Var.Module path -> [ moduleName path ]
+  if Help.isOp name then
+    JS.BracketRef () (JS.ref (addRoot home "_op")) (JS.string name)
+
+  else
+    JS.ref (addRoot home (varName name))
 
 
-moduleName :: Module.Name -> String
-moduleName name =
-    '$' : List.intercalate "$" name
+addRoot :: Var.Home -> String -> String
+addRoot home name =
+  case home of
+    Var.Local ->
+        name
+
+    Var.TopLevel moduleName ->
+        canonicalName moduleName name
+
+    Var.BuiltIn ->
+        name
+
+    Var.Module moduleName ->
+        canonicalName moduleName name
+
+
+canonicalName :: ModuleName.Canonical -> String -> String
+canonicalName (ModuleName.Canonical (Pkg.Name user project) moduleName) name =
+    map (swap '-' '_') user
+    ++ '$' : map (swap '-' '_') project
+    ++ '$' : List.intercalate "$" moduleName
+    ++ '$' : name
+
 
 
 varName :: String -> String
@@ -41,9 +58,9 @@ varName name =
         map (swap '\'' '$') saferName
 
 
-value :: Module.Name -> String -> JS.Expression ()
-value home name =
-    canonical (Var.Canonical (Var.Module home) name)
+--value :: Module.Name -> String -> JS.Expression ()
+--value home name =
+--    canonical (Var.Canonical (Var.Module home) name)
 
 
 jsReserveds :: Set.Set String
