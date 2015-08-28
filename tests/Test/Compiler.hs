@@ -54,7 +54,7 @@ testIf handleResult filePaths =
       source <- readFile filePath
 
       let context =
-            Compiler.Context Package.coreName True False Map.empty
+            Compiler.Context Package.coreName True False []
       let (dealiaser, _warnings, result) =
             Compiler.compile context source Map.empty
       let formatErrors errors =
