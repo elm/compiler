@@ -98,7 +98,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
           in
             constrainApp env region f args tipe
 
-      E.MultiIf branches finally ->
+      E.If branches finally ->
           constrainIf env region branches finally tipe
 
       E.Case expr branches ->

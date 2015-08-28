@@ -74,8 +74,8 @@ reorder (A.A ann expression) =
       App func arg ->
           App <$> reorder func <*> reorder arg
 
-      MultiIf branches finally ->
-          MultiIf
+      If branches finally ->
+          If
             <$> mapM (\(cond,branch) -> (,) <$> reorder cond <*> reorder branch) branches
             <*> reorder finally
 

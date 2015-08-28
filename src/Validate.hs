@@ -213,8 +213,8 @@ expression (A.A ann sourceExpression) =
           <$> expression funcExpr
           <*> expression argExpr
 
-    MultiIf branches finally ->
-        MultiIf
+    If branches finally ->
+        If
           <$> T.traverse both branches
           <*> expression finally
 

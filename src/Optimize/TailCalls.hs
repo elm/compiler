@@ -147,12 +147,12 @@ findTailCalls context annExpr@(A.A _ expression) =
             Result isTailCall (List.foldl' apply optFunc optArgs)
 
 
-    MultiIf branches finally ->
+    If branches finally ->
         let
             crawlBranch (cond,branch) =
                 (,) <$> justConvert cond <*> keepLooking branch
         in
-            MultiIf
+            If
               <$> T.traverse crawlBranch branches
               <*> keepLooking finally
 

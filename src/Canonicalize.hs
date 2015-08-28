@@ -416,8 +416,8 @@ expression env (A.A region validExpr) =
       App func arg ->
           App <$> go func <*> go arg
 
-      MultiIf branches finally ->
-          MultiIf
+      If branches finally ->
+          If
             <$> T.traverse go' branches
             <*> go finally
         where

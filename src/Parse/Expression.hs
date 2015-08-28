@@ -18,8 +18,6 @@ import qualified AST.Literal as L
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
-import qualified Reporting.Crash as Crash
-import qualified Reporting.Region as R
 
 
 --------  Basic Terms  --------
@@ -197,8 +195,7 @@ appExpr =
 
 expr :: IParser Source.Expr
 expr =
-  addLocation (choice [ letExpr, caseExpr ])
-    <|> ifExpr
+  addLocation (choice [ letExpr, caseExpr, ifExpr ])
     <|> lambdaExpr
     <|> binaryExpr
     <?> "an expression"
@@ -209,45 +206,23 @@ binaryExpr =
     Binop.binops appExpr lastExpr anyOp
   where
     lastExpr =
-        addLocation (choice [ letExpr, caseExpr ])
-        <|> ifExpr
+        addLocation (choice [ letExpr, caseExpr, ifExpr ])
         <|> lambdaExpr
         <?> "an expression"
 
 
-ifExpr :: IParser Source.Expr
+ifExpr :: IParser Source.Expr'
 ifExpr =
-  do  start <- getMyPosition
-      try (reserved "if")
+  do  try (reserved "if")
       whitespace
-      makeExpr <- normal <|> multiIf
-      end <- getMyPosition
-      return (makeExpr (R.Region start end))
-  where
-    normal =
-      do  condition <- expr
-          padded (reserved "then")
-          thenBranch <- expr
-          whitespace <?> "an 'else' branch"
-          reserved "else" <?> "an 'else' branch"
-          whitespace
-          elseBranch <- expr
-          return $ \region -> A.A region (E.MultiIf [(condition, thenBranch)] elseBranch)
-
-    multiIf =
-      do  branches <- spaceSep1 multiBranch
-          return $ \region -> A.A region (E.MultiIf branches (crash region))
-
-    crash region =
-      A.A region (E.Crash (Crash.IncompleteMultiIf region))
-
-    multiBranch =
-      do  string "|"
-          whitespace
-          condition <- expr
-          padded rightArrow
-          branch <- expr
-          return (condition, branch)
+      condition <- expr
+      padded (reserved "then")
+      thenBranch <- expr
+      whitespace <?> "an 'else' branch"
+      reserved "else" <?> "an 'else' branch"
+      whitespace
+      elseBranch <- expr
+      return (E.If [(condition, thenBranch)] elseBranch)
 
 
 lambdaExpr :: IParser Source.Expr

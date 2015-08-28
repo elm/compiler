@@ -136,7 +136,7 @@ checkExpression tagDict (A.A region expression) =
     E.App func arg ->
         go2 func arg
 
-    E.MultiIf branches finally ->
+    E.If branches finally ->
         F.traverse_ (uncurry go2) branches
         <* go finally
 
