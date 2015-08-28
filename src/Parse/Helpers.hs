@@ -137,11 +137,6 @@ rightArrow =
   string "->" <|> string "\8594" <?> "->"
 
 
-leftArrow :: IParser String
-leftArrow =
-  string "<-" <?> "<- for a record update"
-
-
 hasType :: IParser String
 hasType =
   string ":" <?> "the \"has type\" symbol ':'"
@@ -628,6 +623,6 @@ processAs processor s =
         , T.opStart         = undefined
         , T.opLetter        = undefined
         , T.reservedNames   = reserveds
-        , T.reservedOpNames = [":", "->", "<-", "|"]
+        , T.reservedOpNames = [":", "->", "|"]
         , T.caseSensitive   = True
         }

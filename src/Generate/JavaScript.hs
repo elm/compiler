@@ -161,16 +161,7 @@ exprToCode tcc annotatedExpr@(A.A _ expr) =
           do  record' <- toJsExpr record
               jsExpr $ DotRef () record' (var (Var.varName field))
 
-      Remove record field ->
-          do  record' <- toJsExpr record
-              jsExpr $ _Utils "remove" `call` [ string (Var.varName field), record' ]
-
-      Insert record field value ->
-          do  value' <- toJsExpr value
-              record' <- toJsExpr record
-              jsExpr $ _Utils "insert" `call` [ string (Var.varName field), value', record' ]
-
-      Modify record fields ->
+      Update record fields ->
           do  record' <- toJsExpr record
               fields' <-
                 forM fields $ \(field, value) ->
@@ -211,7 +202,7 @@ exprToCode tcc annotatedExpr@(A.A _ expr) =
       Let defs body ->
           generateLet tcc defs body
 
-      MultiIf branches finally ->
+      If branches finally ->
           generateIf tcc branches finally
 
       Case expr branches ->
@@ -419,7 +410,7 @@ crushIfsHelp visitedBranches unvisitedBranches finally =
   case unvisitedBranches of
     [] ->
         case finally of
-          A.A _ (MultiIf subBranches subFinally) ->
+          A.A _ (If subBranches subFinally) ->
               crushIfsHelp visitedBranches subBranches subFinally
 
           _ ->

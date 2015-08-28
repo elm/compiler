@@ -136,7 +136,7 @@ checkExpression tagDict (A.A region expression) =
     E.App func arg ->
         go2 func arg
 
-    E.MultiIf branches finally ->
+    E.If branches finally ->
         F.traverse_ (uncurry go2) branches
         <* go finally
 
@@ -159,13 +159,7 @@ checkExpression tagDict (A.A region expression) =
     E.Access record _field ->
         go record
 
-    E.Remove record _field ->
-        go record
-
-    E.Insert record _field value ->
-        go2 record value
-
-    E.Modify record fields ->
+    E.Update record fields ->
         go record
         <* F.traverse_ (go . snd) fields
 

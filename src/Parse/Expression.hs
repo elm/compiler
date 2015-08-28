@@ -18,8 +18,6 @@ import qualified AST.Literal as L
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
-import qualified Reporting.Crash as Crash
-import qualified Reporting.Region as R
 
 
 --------  Basic Terms  --------
@@ -136,65 +134,40 @@ parensTerm =
 
 recordTerm :: IParser Source.Expr
 recordTerm =
-  addLocation $
-    brackets (choice [ misc, record ])
+  addLocation $ brackets $ choice $
+    [ do  starter <- try (addLocation rLabel)
+          whitespace
+          choice
+            [ update starter
+            , literal starter
+            ]
+    , return (E.Record [])
+    ]
   where
-    record =
-      E.Record <$> commaSep field
+    update (A.A ann starter) =
+      do  try (string "|")
+          whitespace
+          fields <- commaSep1 field
+          return (E.Update (A.A ann (E.rawVar starter)) fields)
+
+    literal (A.A _ starter) =
+      do  try equals
+          whitespace
+          value <- expr
+          whitespace
+          choice
+            [ do  try comma
+                  whitespace
+                  fields <- commaSep field
+                  return (E.Record ((starter, value) : fields))
+            , return (E.Record [(starter, value)])
+            ]
 
     field =
-      do  label <- rLabel
-          patterns <- spacePrefix Pattern.term
+      do  key <- rLabel
           padded equals
-          body <- expr
-          return (label, makeFunction patterns body)
-
-    misc =
-      do  nextParser <- try miscStarter
-          whitespace
-          nextParser
-
-    miscStarter =
-      do  start <- getMyPosition
-          record <- addLocation (E.rawVar <$> rLabel)
-          whitespace
-          choice
-            [ string "-" >> return (afterMinus start record)
-            , string "|" >> return (afterBar record)
-            ]
-
-    afterMinus start record =
-      do  field <- rLabel
-          end <- getMyPosition
-          let subRecord' = E.Remove record field
-          maybe <- optionMaybe (try (whitespace >> string "|"))
-          case maybe of
-            Nothing ->
-                return subRecord'
-            Just _ ->
-                do  whitespace
-                    field <- rLabel
-                    padded equals
-                    E.Insert (A.at start end subRecord') field <$> expr
-
-    afterBar record =
-      do  field <- rLabel
-          whitespace
-          choice
-            [ do  equals
-                  whitespace
-                  E.Insert record field <$> expr
-            , do  leftArrow
-                  whitespace
-                  value <- expr
-                  updates <- spaceyPrefixBy comma update
-                  return (E.Modify record ((field,value) : updates))
-            ]
-
-    update =
-      do  lbl <- rLabel
-          padded leftArrow
-          (,) lbl <$> expr
+          value <- expr
+          return (key, value)
 
 
 term :: IParser Source.Expr
@@ -222,8 +195,7 @@ appExpr =
 
 expr :: IParser Source.Expr
 expr =
-  addLocation (choice [ letExpr, caseExpr ])
-    <|> ifExpr
+  addLocation (choice [ letExpr, caseExpr, ifExpr ])
     <|> lambdaExpr
     <|> binaryExpr
     <?> "an expression"
@@ -234,45 +206,31 @@ binaryExpr =
     Binop.binops appExpr lastExpr anyOp
   where
     lastExpr =
-        addLocation (choice [ letExpr, caseExpr ])
-        <|> ifExpr
+        addLocation (choice [ letExpr, caseExpr, ifExpr ])
         <|> lambdaExpr
         <?> "an expression"
 
 
-ifExpr :: IParser Source.Expr
+ifExpr :: IParser Source.Expr'
 ifExpr =
-  do  start <- getMyPosition
-      try (reserved "if")
+  ifHelp []
+
+
+ifHelp :: [(Source.Expr, Source.Expr)] -> IParser Source.Expr'
+ifHelp branches =
+  do  try (reserved "if")
       whitespace
-      makeExpr <- normal <|> multiIf
-      end <- getMyPosition
-      return (makeExpr (R.Region start end))
-  where
-    normal =
-      do  condition <- expr
-          padded (reserved "then")
-          thenBranch <- expr
-          whitespace <?> "an 'else' branch"
-          reserved "else" <?> "an 'else' branch"
-          whitespace
-          elseBranch <- expr
-          return $ \region -> A.A region (E.MultiIf [(condition, thenBranch)] elseBranch)
-
-    multiIf =
-      do  branches <- spaceSep1 multiBranch
-          return $ \region -> A.A region (E.MultiIf branches (crash region))
-
-    crash region =
-      A.A region (E.Crash (Crash.IncompleteMultiIf region))
-
-    multiBranch =
-      do  string "|"
-          whitespace
-          condition <- expr
-          padded rightArrow
-          branch <- expr
-          return (condition, branch)
+      condition <- expr
+      padded (reserved "then")
+      thenBranch <- expr
+      whitespace <?> "an 'else' branch"
+      reserved "else" <?> "an 'else' branch"
+      whitespace
+      let newBranches = (condition, thenBranch) : branches
+      choice
+        [ ifHelp newBranches
+        , E.If (reverse newBranches) <$> expr
+        ]
 
 
 lambdaExpr :: IParser Source.Expr

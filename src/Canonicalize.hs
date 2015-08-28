@@ -393,14 +393,8 @@ expression env (A.A region validExpr) =
       Access record field ->
           Access <$> go record <*> Result.ok field
 
-      Remove record field ->
-          flip Remove field <$> go record
-
-      Insert record field expr ->
-          flip Insert field <$> go record <*> go expr
-
-      Modify record fields ->
-          Modify
+      Update record fields ->
+          Update
             <$> go record
             <*> T.traverse (\(field,expr) -> (,) field <$> go expr) fields
 
@@ -422,8 +416,8 @@ expression env (A.A region validExpr) =
       App func arg ->
           App <$> go func <*> go arg
 
-      MultiIf branches finally ->
-          MultiIf
+      If branches finally ->
+          If
             <$> T.traverse go' branches
             <*> go finally
         where

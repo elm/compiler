@@ -32,8 +32,8 @@ subst old new expression =
       App func arg ->
           App (f func) (f arg)
 
-      MultiIf branches finally ->
-          MultiIf (map (f *** f) branches) (f finally)
+      If branches finally ->
+          If (map (f *** f) branches) (f finally)
 
       Let defs body ->
           if anyShadow
@@ -75,14 +75,8 @@ subst old new expression =
       Access record field ->
           Access (f record) field
 
-      Remove record field ->
-          Remove (f record) field
-
-      Insert record field value ->
-          Insert (f record) field (f value)
-
-      Modify record fields ->
-          Modify (f record) (map (second f) fields)
+      Update record fields ->
+          Update (f record) (map (second f) fields)
 
       Record fields ->
           Record (map (second f) fields)
