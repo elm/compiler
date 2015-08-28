@@ -92,6 +92,6 @@ buildFunction body@(A.A ann _) vars =
 definition :: String -> Canonical.Expr -> R.Region -> T.Canonical -> Canonical.Def
 definition name expr@(A.A ann _) region tipe =
   let
-    facts = Canonical.Facts (error "Sort needs to fill in refgraph")
+    facts = Canonical.dummyFacts
   in
     Canonical.Definition facts (A.A ann (P.Var name)) expr (Just (A.A region tipe))
