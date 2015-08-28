@@ -136,65 +136,40 @@ parensTerm =
 
 recordTerm :: IParser Source.Expr
 recordTerm =
-  addLocation $
-    brackets (choice [ misc, record ])
+  addLocation $ brackets $ choice $
+    [ do  starter <- try (addLocation rLabel)
+          whitespace
+          choice
+            [ update starter
+            , literal starter
+            ]
+    , return (E.Record [])
+    ]
   where
-    record =
-      E.Record <$> commaSep field
+    update (A.A ann starter) =
+      do  try (string "|")
+          whitespace
+          fields <- commaSep1 field
+          return (E.Update (A.A ann (E.rawVar starter)) fields)
+
+    literal (A.A _ starter) =
+      do  try equals
+          whitespace
+          value <- expr
+          whitespace
+          choice
+            [ do  try comma
+                  whitespace
+                  fields <- commaSep field
+                  return (E.Record ((starter, value) : fields))
+            , return (E.Record [(starter, value)])
+            ]
 
     field =
-      do  label <- rLabel
-          patterns <- spacePrefix Pattern.term
+      do  key <- rLabel
           padded equals
-          body <- expr
-          return (label, makeFunction patterns body)
-
-    misc =
-      do  nextParser <- try miscStarter
-          whitespace
-          nextParser
-
-    miscStarter =
-      do  start <- getMyPosition
-          record <- addLocation (E.rawVar <$> rLabel)
-          whitespace
-          choice
-            [ string "-" >> return (afterMinus start record)
-            , string "|" >> return (afterBar record)
-            ]
-
-    afterMinus start record =
-      do  field <- rLabel
-          end <- getMyPosition
-          let subRecord' = E.Remove record field
-          maybe <- optionMaybe (try (whitespace >> string "|"))
-          case maybe of
-            Nothing ->
-                return subRecord'
-            Just _ ->
-                do  whitespace
-                    field <- rLabel
-                    padded equals
-                    E.Insert (A.at start end subRecord') field <$> expr
-
-    afterBar record =
-      do  field <- rLabel
-          whitespace
-          choice
-            [ do  equals
-                  whitespace
-                  E.Insert record field <$> expr
-            , do  leftArrow
-                  whitespace
-                  value <- expr
-                  updates <- spaceyPrefixBy comma update
-                  return (E.Modify record ((field,value) : updates))
-            ]
-
-    update =
-      do  lbl <- rLabel
-          padded leftArrow
-          (,) lbl <$> expr
+          value <- expr
+          return (key, value)
 
 
 term :: IParser Source.Expr

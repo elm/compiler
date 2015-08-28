@@ -223,19 +223,8 @@ expression (A.A ann sourceExpression) =
           <$> expression record
           <*> return field
 
-    Remove record field ->
-        Remove
-          <$> expression record
-          <*> return field
-
-    Insert record field expr ->
-        Insert
-          <$> expression record
-          <*> return field
-          <*> expression expr
-
-    Modify record fields ->
-        Modify
+    Update record fields ->
+        Update
           <$> expression record
           <*> T.traverse second fields
 

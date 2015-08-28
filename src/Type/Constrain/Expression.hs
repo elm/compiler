@@ -118,24 +118,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
           exists $ \t ->
               constrain env expr (record (Map.singleton label [tipe]) t)
 
-      E.Remove expr label ->
-          exists $ \t ->
-              constrain env expr (record (Map.singleton label [t]) tipe)
-
-      E.Insert expr label value ->
-          exists $ \valueType ->
-          exists $ \recordType ->
-              do  valueCon <- constrain env value valueType
-                  recordCon <- constrain env expr recordType
-                  let newRecordType =
-                        record (Map.singleton label [valueType]) recordType
-                  return $ CAnd
-                    [ valueCon
-                    , recordCon
-                    , CEqual Error.Record region tipe newRecordType
-                    ]
-
-      E.Modify expr fields ->
+      E.Update expr fields ->
           exists $ \t ->
               do  oldVars <- Monad.forM fields $ \_ -> variable Flexible
                   let oldFields = ST.fieldMap (zip (map fst fields) (map varN oldVars))

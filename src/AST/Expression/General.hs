@@ -54,9 +54,7 @@ data Expr' ann def var typ
     | Case (Expr ann def var typ) [(Pattern.Pattern ann var, Expr ann def var typ)]
     | Data String [Expr ann def var typ]
     | Access (Expr ann def var typ) String
-    | Remove (Expr ann def var typ) String
-    | Insert (Expr ann def var typ) String (Expr ann def var typ)
-    | Modify (Expr ann def var typ) [(String, Expr ann def var typ)]
+    | Update (Expr ann def var typ) [(String, Expr ann def var typ)]
     | Record [(String, Expr ann def var typ)]
     -- for type checking and code gen only
     | Port (PortImpl (Expr ann def var typ) typ)
@@ -228,30 +226,7 @@ instance (P.Pretty def, P.Pretty var, Var.ToString var) => P.Pretty (Expr' ann d
       Access record field ->
           P.pretty dealiaser True record <> P.text "." <> P.text field
 
-      Remove record field ->
-          P.braces (P.pretty dealiaser False record <+> P.text "-" <+> P.text field)
-
-      Insert (A.A _ (Remove record oldField)) newField expr ->
-          P.braces $
-              P.hsep
-                [ P.pretty dealiaser False record
-                , P.text "-"
-                , P.text oldField
-                , P.text "|"
-                , P.text newField
-                , P.equals
-                , P.pretty dealiaser False expr
-                ]
-
-      Insert record field expr ->
-          P.braces $
-              P.pretty dealiaser False record
-              <+> P.text "|"
-              <+> P.text field
-              <+> P.equals
-              <+> P.pretty dealiaser False expr
-
-      Modify record fields ->
+      Update record fields ->
           P.braces $
               P.hang
                   (P.pretty dealiaser False record <+> P.text "|")

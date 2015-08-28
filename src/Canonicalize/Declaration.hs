@@ -38,28 +38,20 @@ toDefs moduleName (A.A (region,_) decl) =
             in
                 [ definition ctor (buildFunction body vars) region (foldr T.Lambda tbody tipes) ]
 
-    D.TypeAlias name tvars tipe@(T.Record fields ext) ->
+    D.TypeAlias name tvars tipe@(T.Record fields Nothing) ->
         [ definition name (buildFunction record vars) region (foldr T.Lambda result args) ]
       where
         result =
           T.Aliased (typeVar name) (zip tvars (map T.Var tvars)) (T.Holey tipe)
 
         args =
-          map snd fields ++ maybe [] (:[]) ext
+          map snd fields
 
-        var = loc . E.localVar
-        vars = take (length args) infiniteArgs
-
-        efields =
-          zip (map fst fields) (map var vars)
+        vars =
+          take (length args) infiniteArgs
 
         record =
-          case ext of
-            Nothing ->
-                loc (E.Record efields)
-
-            Just _ ->
-                foldl (\r (f,v) -> loc (E.Insert r f v)) (var (last vars)) efields
+          loc (E.Record (zip (map fst fields) (map (loc . E.localVar) vars)))
 
     -- Type aliases must be added to an extended equality dictionary,
     -- but they do not require any basic constraints.

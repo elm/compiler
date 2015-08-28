@@ -84,19 +84,8 @@ reorder (A.A ann expression) =
             <$> reorder record
             <*> return field
 
-      Remove record field ->
-          Remove
-            <$> reorder record
-            <*> return field
-
-      Insert record field expr ->
-          Insert
-            <$> reorder record
-            <*> return field
-            <*> reorder expr
-
-      Modify record fields ->
-          Modify
+      Update record fields ->
+          Update
             <$> reorder record
             <*> mapM (\(field,expr) -> (,) field <$> reorder expr) fields
 
