@@ -213,6 +213,11 @@ binaryExpr =
 
 ifExpr :: IParser Source.Expr'
 ifExpr =
+  ifHelp []
+
+
+ifHelp :: [(Source.Expr, Source.Expr)] -> IParser Source.Expr'
+ifHelp branches =
   do  try (reserved "if")
       whitespace
       condition <- expr
@@ -221,8 +226,11 @@ ifExpr =
       whitespace <?> "an 'else' branch"
       reserved "else" <?> "an 'else' branch"
       whitespace
-      elseBranch <- expr
-      return (E.If [(condition, thenBranch)] elseBranch)
+      let newBranches = (condition, thenBranch) : branches
+      choice
+        [ ifHelp newBranches
+        , E.If (reverse newBranches) <$> expr
+        ]
 
 
 lambdaExpr :: IParser Source.Expr
