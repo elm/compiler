@@ -11,6 +11,7 @@ import qualified Data.Traversable as Trav
 import qualified AST.Declaration as D
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Module as Module
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
@@ -25,50 +26,57 @@ import qualified Canonicalize.Type as Canonicalize
 
 
 environment
-    :: Module.Interfaces
+    :: Map.Map ModuleName.Raw ModuleName.Canonical
+    -> Module.Interfaces
     -> Module.ValidModule
     -> Result.ResultErr Env.Environment
-environment interfaces modul@(Module.Module _ _ _ _ (defaults, imports) decls) =
-  let moduleName =
-          Module.names modul
+environment importDict interfaces (Module.Module name _ _ _ (defaults, imports) decls) =
+  let
+    allImports =
+      imports ++ map (A.A (error "default import not found")) defaults
 
-      allImports =
-        imports ++ map (A.A (error "default import not found")) defaults
+    importPatchesResult =
+        concat <$> Trav.traverse (importPatches importDict interfaces) allImports
 
-      importPatchesResult =
-          concat <$> Trav.traverse (importPatches interfaces) allImports
+    (typeAliasNodes, declPatches) =
+        declarationsToPatches name decls
 
-      (typeAliasNodes, declPatches) =
-          declarationsToPatches moduleName decls
-
-      patches =
-          (++) (Env.builtinPatches ++ declPatches) <$> importPatchesResult
+    patches =
+        (++) (Env.builtinPatches ++ declPatches) <$> importPatchesResult
   in
-      (Env.fromPatches moduleName <$> patches)
-          `Result.andThen` addTypeAliases moduleName typeAliasNodes
+      (Env.fromPatches name <$> patches)
+          `Result.andThen` addTypeAliases name typeAliasNodes
 
 
 -- PATCHES FOR IMPORTS
 
 importPatches
-    :: Module.Interfaces
-    -> A.Located (Module.Name, Module.ImportMethod)
+    :: Map.Map ModuleName.Raw ModuleName.Canonical
+    -> Module.Interfaces
+    -> A.Located (ModuleName.Raw, Module.ImportMethod)
     -> Result.ResultErr [Env.Patch]
-importPatches allInterfaces (A.A region (importName, method)) =
-  case restrictToPublicApi <$> Map.lookup importName allInterfaces of
+importPatches importDict allInterfaces (A.A region (rawImportName, method)) =
+  let
+    maybeInterface =
+      do  canonicalName <- Map.lookup rawImportName importDict
+          interface <- Map.lookup canonicalName allInterfaces
+          return (canonicalName, restrictToPublicApi interface)
+  in
+  case maybeInterface of
     Nothing ->
-        if Module.nameIsNative importName then
+        if ModuleName.isNative rawImportName then
             Result.ok []
 
         else
             allInterfaces
               |> Map.keys
-              |> Error.nearbyNames Module.nameToString importName
-              |> Error.moduleNotFound importName
+              |> map ModuleName._module
+              |> Error.nearbyNames ModuleName.toString rawImportName
+              |> Error.moduleNotFound rawImportName
               |> A.A region
               |> Result.err
 
-    Just interface ->
+    Just (importName, interface) ->
         let (Module.ImportMethod maybeAlias listing) =
                 method
 
@@ -76,7 +84,7 @@ importPatches allInterfaces (A.A region (importName, method)) =
                 listing
 
             qualifier =
-                maybe (Module.nameToString importName) id maybeAlias
+                maybe (ModuleName.toString rawImportName) id maybeAlias
 
             qualifiedPatches =
                 interfacePatches importName (qualifier ++ ".") interface
@@ -89,7 +97,7 @@ importPatches allInterfaces (A.A region (importName, method)) =
             (++) qualifiedPatches <$> unqualifiedPatches
 
 
-interfacePatches :: Module.Name -> String -> Module.Interface -> [Env.Patch]
+interfacePatches :: ModuleName.Canonical -> String -> Module.Interface -> [Env.Patch]
 interfacePatches moduleName prefix interface =
     let genericPatch mkPatch name value =
             mkPatch (prefix ++ name) value
@@ -124,7 +132,7 @@ interfacePatches moduleName prefix interface =
 
 valueToPatches
     :: R.Region
-    -> Module.Name
+    -> ModuleName.Canonical
     -> Module.Interface
     -> Var.Value
     -> Result.ResultErr [Env.Patch]
@@ -139,7 +147,7 @@ valueToPatches region moduleName interface value =
           Module.iExports interface
             |> getNames
             |> Error.nearbyNames id x
-            |> Error.valueNotFound moduleName x
+            |> Error.valueNotFound (ModuleName._module moduleName) x
             |> A.A region
             |> Result.err
   in
@@ -232,7 +240,7 @@ node region name tvars alias =
 
 
 addTypeAliases
-    :: Module.Name
+    :: ModuleName.Canonical
     -> [Node]
     -> Env.Environment
     -> Result.ResultErr Env.Environment
@@ -244,7 +252,7 @@ addTypeAliases moduleName typeAliasNodes initialEnv =
 
 
 addTypeAlias
-    :: Module.Name
+    :: ModuleName.Canonical
     -> Graph.SCC (R.Region, String, [String], Type.Raw)
     -> Env.Environment
     -> Result.ResultErr Env.Environment
@@ -272,7 +280,7 @@ addTypeAlias moduleName scc env =
 -- DECLARATIONS TO PATCHES
 
 declarationsToPatches
-    :: Module.Name
+    :: ModuleName.Canonical
     -> [D.ValidDecl]
     -> ([Node], [Env.Patch])
 declarationsToPatches moduleName decls =
@@ -288,7 +296,7 @@ declarationsToPatches moduleName decls =
 --    _values that are defined as top-level declarations are (Var.TopLevel ...)
 --    all other _values are local (Var.Local)
 declToPatches
-    :: Module.Name
+    :: ModuleName.Canonical
     -> D.ValidDecl
     -> (Maybe Node, [Env.Patch])
 declToPatches moduleName (A.A (region,_) decl) =

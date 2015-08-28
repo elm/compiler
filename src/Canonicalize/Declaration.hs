@@ -4,7 +4,7 @@ module Canonicalize.Declaration (toExpr) where
 import qualified AST.Declaration as D
 import qualified AST.Expression.General as E
 import qualified AST.Expression.Canonical as Canonical
-import qualified AST.Module as Module
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Type as T
 import qualified AST.Variable as Var
@@ -12,12 +12,12 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
 
-toExpr :: Module.Name -> [D.CanonicalDecl] -> [Canonical.Def]
+toExpr :: ModuleName.Canonical -> [D.CanonicalDecl] -> [Canonical.Def]
 toExpr moduleName decls =
   concatMap (toDefs moduleName) decls
 
 
-toDefs :: Module.Name -> D.CanonicalDecl -> [Canonical.Def]
+toDefs :: ModuleName.Canonical -> D.CanonicalDecl -> [Canonical.Def]
 toDefs moduleName (A.A (region,_) decl) =
   let typeVar = Var.fromModule moduleName
 

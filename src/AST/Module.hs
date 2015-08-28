@@ -5,19 +5,18 @@ module AST.Module
     , SourceModule, ValidModule, CanonicalModule, Optimized
     , Module(..), Body(..)
     , Header(..)
-    , Name, nameToString, nameIsNative
     , Interface(..), toInterface
     , UserImport, DefaultImport, ImportMethod(..)
     ) where
 
 import Control.Applicative ((<$>),(<*>))
 import Data.Binary
-import qualified Data.List as List
 import qualified Data.Map as Map
 
 import qualified AST.Declaration as Decl
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Expression.Optimized as Optimized
+import qualified AST.Module.Name as Name
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Docs.AST as Docs
@@ -28,7 +27,7 @@ import qualified Reporting.Annotation as A
 
 -- HELPFUL TYPE ALIASES
 
-type Interfaces = Map.Map Name Interface
+type Interfaces = Map.Map Name.Canonical Interface
 
 type Types   = Map.Map String Type.Canonical
 type Aliases = Map.Map String ([String], Type.Canonical)
@@ -57,15 +56,15 @@ type ValidModule =
 
 
 type CanonicalModule =
-    Module Docs.Centralized [Name] [Var.Value] (Body Canonical.Expr)
+    Module Docs.Centralized [Name.Raw] [Var.Value] (Body Canonical.Expr)
 
 
 type Optimized =
-    Module Docs.Centralized [Name] [Var.Value] (Body Optimized.Expr)
+    Module Docs.Centralized [Name.Raw] [Var.Value] (Body Optimized.Expr)
 
 
 data Module docs imports exports body = Module
-    { names   :: Name
+    { name    :: Name.Canonical
     , path    :: FilePath
     , docs    :: A.Located (Maybe docs)
     , exports :: exports
@@ -88,34 +87,19 @@ data Body expr = Body
 
 {-| Basic info needed to identify modules and determine dependencies. -}
 data Header imports = Header
-    { _names :: Name
+    { _name :: Name.Raw
     , _docs :: A.Located (Maybe String)
     , _exports :: Var.Listing (A.Located Var.Value)
     , _imports :: imports
     }
 
 
-type Name = [String] -- must be non-empty
-
-
-nameToString :: Name -> String
-nameToString =
-  List.intercalate "."
-
-
-nameIsNative :: Name -> Bool
-nameIsNative name =
-  case name of
-    "Native" : _ -> True
-    _ -> False
-
-
 -- IMPORTs
 
-type UserImport = A.Located (Name, ImportMethod)
+type UserImport = A.Located (Name.Raw, ImportMethod)
 
 
-type DefaultImport = (Name, ImportMethod)
+type DefaultImport = (Name.Raw, ImportMethod)
 
 
 data ImportMethod = ImportMethod
@@ -128,10 +112,11 @@ data ImportMethod = ImportMethod
 
 {-| Key facts about a module, used when reading info from .elmi files. -}
 data Interface = Interface
-    { iVersion  :: String
+    { iVersion  :: Package.Version
+    , iPackage  :: Package.Name
     , iExports  :: [Var.Value]
     , iTypes    :: Types
-    , iImports  :: [Name]
+    , iImports  :: [Name.Raw]
     , iAdts     :: ADTs
     , iAliases  :: Aliases
     , iFixities :: [(Decl.Assoc, Int, String)]
@@ -139,11 +124,12 @@ data Interface = Interface
     }
 
 
-toInterface :: CanonicalModule -> Interface
-toInterface modul =
+toInterface :: Package.Name -> CanonicalModule -> Interface
+toInterface pkgName modul =
     let body' = body modul in
     Interface
-    { iVersion  = Package.versionToString Compiler.version
+    { iVersion  = Compiler.version
+    , iPackage  = pkgName
     , iExports  = exports modul
     , iTypes    = types body'
     , iImports  = imports modul
@@ -155,9 +141,10 @@ toInterface modul =
 
 
 instance Binary Interface where
-  get = Interface <$> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get
+  get = Interface <$> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get
   put modul = do
       put (iVersion modul)
+      put (iPackage modul)
       put (iExports modul)
       put (iTypes modul)
       put (iImports modul)

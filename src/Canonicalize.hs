@@ -10,12 +10,14 @@ import qualified Data.Foldable as T
 
 import AST.Expression.General (Expr'(..), dummyLet)
 import AST.Module (Body(..))
+import Elm.Utils ((|>))
 
 import qualified AST.Declaration as D
 import qualified AST.Expression.General as E
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Module as Module
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
@@ -41,13 +43,19 @@ import qualified Canonicalize.Variable as Canonicalize
 -- MODULES
 
 module'
-    :: Module.Interfaces
+    :: [ModuleName.Canonical]
+    -> Module.Interfaces
     -> Module.ValidModule
     -> R.Result Warning.Warning Error.Error Module.CanonicalModule
-module' interfaces modul =
+module' canonicalImports interfaces modul =
   let
+    importDict =
+      canonicalImports
+        |> map (\cName -> (ModuleName._module cName, cName))
+        |> Map.fromList
+
     (Result.Result uses rawResults) =
-      moduleHelp interfaces modul
+      moduleHelp importDict interfaces modul
   in
       case rawResults of
         Result.Ok (env, almostCanonicalModule) ->
@@ -67,10 +75,11 @@ type AlmostCanonicalModule =
 
 
 moduleHelp
-    :: Module.Interfaces
+    :: Map.Map ModuleName.Raw ModuleName.Canonical
+    -> Module.Interfaces
     -> Module.ValidModule
     -> Result.ResultErr (Env.Environment, AlmostCanonicalModule)
-moduleHelp interfaces modul@(Module.Module _ _ comment exports _ decls) =
+moduleHelp importDict interfaces modul@(Module.Module _ _ comment exports _ decls) =
     canonicalModule
       <$> canonicalDeclsResult
       <*> resolveExports locals exports
@@ -88,7 +97,7 @@ moduleHelp interfaces modul@(Module.Module _ _ comment exports _ decls) =
         concatMap declToValue decls
 
     canonicalDeclsResult =
-        Setup.environment interfaces modul
+        Setup.environment importDict interfaces modul
           `Result.andThen` \env -> (,) env <$> T.traverse (declaration env) decls
 
     body :: [D.CanonicalDecl] -> Module.Body Canonical.Expr
@@ -97,7 +106,7 @@ moduleHelp interfaces modul@(Module.Module _ _ comment exports _ decls) =
         in
         Module.Body
           { program =
-              let expr = Decls.toExpr (Module.names modul) decls
+              let expr = Decls.toExpr (Module.name modul) decls
               in
                   Sort.definitions (dummyLet expr)
 
@@ -121,7 +130,7 @@ moduleHelp interfaces modul@(Module.Module _ _ comment exports _ decls) =
 -- IMPORTS
 
 filterImports
-    :: Set.Set Module.Name
+    :: Set.Set ModuleName.Raw
     -> AlmostCanonicalModule
     -> R.Result Warning.Warning e Module.CanonicalModule
 filterImports uses modul@(Module.Module _ _ _ _ (defaults, imports) _) =

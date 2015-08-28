@@ -6,19 +6,16 @@ import Control.Monad.State
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
-import qualified Data.Set as Set
-import Language.ECMAScript3.PrettyPrint
 import Language.ECMAScript3.Syntax
 
-import AST.Module
 import AST.Expression.General as Expr
 import qualified AST.Expression.Optimized as Opt
 import qualified AST.Helpers as Help
 import AST.Literal
 import qualified AST.Module as Module
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
-import Elm.Utils ((|>))
 import Generate.JavaScript.Helpers as Help
 import qualified Generate.JavaScript.Crash as Crash
 import qualified Generate.JavaScript.Port as Port
@@ -28,20 +25,12 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Crash as Crash
 
 
+generate :: Module.Optimized -> String
+generate modul =
+    error "TODO" modul exprToCode
+
+
 -- HELPERS
-
-internalImports :: Module.Name -> [VarDecl ()]
-internalImports name =
-    [ varDecl "_N" (obj ["Elm","Native"])
-    , include "_U" "Utils"
-    , include "_L" "List"
-    , varDecl Crash.localModuleName (string (Module.nameToString name))
-    ]
-  where
-    include :: String -> String -> VarDecl ()
-    include alias modul =
-        varDecl alias (Help.make ["_N", modul])
-
 
 _Utils :: String -> Expression ()
 _Utils x =
@@ -419,9 +408,6 @@ crushIfsHelp visitedBranches unvisitedBranches finally =
     (A.A _ (Literal (Boolean True)), branch) : _ ->
         crushIfsHelp visitedBranches [] branch
 
-    (A.A _ (Var (Var.Canonical (Var.Module ["Basics"]) "otherwise")), branch) : _ ->
-        crushIfsHelp visitedBranches [] branch
-
     visiting : unvisited ->
         crushIfsHelp (visiting : visitedBranches) unvisited finally
 
@@ -597,92 +583,6 @@ flattenLets defs lexpr@(A.A _ expr) =
       _ -> (defs, lexpr)
 
 
-generate :: Module.Optimized -> String
-generate modul =
-    show . prettyPrint $ setup "Elm" (names ++ ["make"]) ++
-             [ assign ("Elm" : names ++ ["make"]) (function [localRuntime] programStmts) ]
-  where
-    names :: [String]
-    names = Module.names modul
-
-    thisModule :: Expression ()
-    thisModule = obj (localRuntime : names ++ ["values"])
-
-    programStmts :: [Statement ()]
-    programStmts =
-        concat
-        [ [ ExprStmt () (string "use strict") ]
-        , setup localRuntime (names ++ ["values"])
-        , [ IfSingleStmt () thisModule (ret thisModule) ]
-        , [ VarDeclStmt () localVars ]
-        , body
-        , [ jsExports ]
-        , [ ret thisModule ]
-        ]
-
-    localVars :: [VarDecl ()]
-    localVars =
-        varDecl "_op" (ObjectLit () [])
-        : internalImports (Module.names modul)
-        ++ explicitImports
-      where
-        explicitImports :: [VarDecl ()]
-        explicitImports =
-            Module.imports modul
-              |> Set.fromList
-              |> Set.toList
-              |> map jsImport
-
-        jsImport :: Module.Name -> VarDecl ()
-        jsImport name =
-            varDecl (Var.moduleName name) $
-                obj ("Elm" : name ++ ["make"]) <| ref localRuntime
-
-    body :: [Statement ()]
-    body =
-        concat (evalState defs 0)
-      where
-        defs =
-            Module.program (Module.body modul)
-              |> flattenLets []
-              |> fst
-              |> mapM defToStatements
-
-    setup namespace path =
-        map create paths
-      where
-        create name =
-            assign name (InfixExpr () OpLOr (obj name) (ObjectLit () []))
-        paths =
-            namespace : path
-              |> List.inits
-              |> init
-              |> drop 2
-
-    jsExports =
-        assign (localRuntime : names ++ ["values"]) (ObjectLit () exs)
-      where
-        exs = map entry $ "_op" : concatMap extract (exports modul)
-        entry x = (prop x, ref x)
-        extract value =
-            case value of
-              Var.Alias _ -> []
-
-              Var.Value x
-                | Help.isOp x -> []
-                | otherwise   -> [Var.varName x]
-
-              Var.Union _ (Var.Listing ctors _) ->
-                  map Var.varName ctors
-
-    assign path expr =
-      case path of
-        [x] -> VarDeclStmt () [ varDecl x expr ]
-        _ ->
-          ExprStmt () $
-          AssignExpr () OpAssign (LDot () (obj (init path)) (last path)) expr
-
-
 -- BINARY OPERATORS
 
 binop
@@ -753,7 +653,7 @@ backwardApply =
 
 inBasics :: String -> Var.Canonical
 inBasics name =
-  Var.Canonical (Var.Module ["Basics"]) name
+  Var.inCore ["Basics"] name
 
 
 -- BINARY OPERATOR HELPERS
@@ -764,7 +664,7 @@ makeExpr qualifiedOp@(Var.Canonical home op) =
         simpleMake left right =
             ref "A2" `call` [ Var.canonical qualifiedOp, left, right ]
     in
-        if home == Var.Module ["Basics"] then
+        if home == Var.Module (ModuleName.inCore ["Basics"]) then
             Map.findWithDefault simpleMake op basicOps
         else
             simpleMake

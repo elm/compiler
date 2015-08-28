@@ -2,12 +2,12 @@ module AST.Variable where
 
 import Control.Applicative ((<$>), (<*>))
 import Data.Binary
-import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import Text.PrettyPrint as P
 
 import qualified AST.Helpers as Help
+import qualified AST.Module.Name as ModuleName
 import qualified Reporting.PrettyPrint as P
 
 
@@ -26,8 +26,8 @@ data TopLevelVar =
 
 data Home
     = BuiltIn
-    | Module [String]
-    | TopLevel [String]
+    | Module ModuleName.Canonical
+    | TopLevel ModuleName.Canonical
     | Local
     deriving (Eq, Ord, Show)
 
@@ -44,9 +44,9 @@ local x =
     Canonical Local x
 
 
-topLevel :: [String] -> String -> Canonical
-topLevel names x =
-    Canonical (TopLevel names) x
+topLevel :: ModuleName.Canonical -> String -> Canonical
+topLevel home x =
+    Canonical (TopLevel home) x
 
 
 builtin :: String -> Canonical
@@ -54,16 +54,21 @@ builtin x =
     Canonical BuiltIn x
 
 
-fromModule :: [String] -> String -> Canonical
+fromModule :: ModuleName.Canonical -> String -> Canonical
 fromModule home name =
     Canonical (Module home) name
 
 
+inCore :: ModuleName.Raw -> String -> Canonical
+inCore home name =
+    Canonical (Module (ModuleName.inCore home)) name
+
+
 -- VARIABLE RECOGNIZERS
 
-is :: [String] -> String -> Canonical -> Bool
+is :: ModuleName.Raw -> String -> Canonical -> Bool
 is home name var =
-    var == Canonical (Module home) name
+    var == inCore home name
 
 
 isJson :: Canonical -> Bool
@@ -140,8 +145,8 @@ instance ToString Canonical where
         BuiltIn ->
             name
 
-        Module path ->
-            List.intercalate "." (path ++ [name])
+        Module moduleName ->
+            ModuleName.canonicalToString moduleName ++ "." ++ name
 
         TopLevel _ ->
             name

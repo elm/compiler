@@ -3,6 +3,7 @@ module Compile (compile) where
 import qualified Data.Map as Map
 
 import qualified AST.Module as Module
+import qualified AST.Module.Name as ModuleName
 import qualified Canonicalize
 import Elm.Utils ((|>))
 import qualified Elm.Package as Package
@@ -19,25 +20,21 @@ import qualified Type.Inference as TI
 compile
     :: Package.Name
     -> Bool
+    -> [ModuleName.Canonical]
     -> Module.Interfaces
     -> String
     -> Result.Result Warning.Warning Error.Error Module.CanonicalModule
 
-compile packageName isRoot interfaces source =
+compile packageName isRoot canonicalImports interfaces source =
   do
-      -- determine if default imports should be added
-      -- only elm-lang/core is exempt
-      let needsDefaults =
-            not (packageName == Package.coreName)
-
       -- Parse the source code
       validModule <-
           Result.mapError Error.Syntax $
-            Parse.program needsDefaults isRoot (getOpTable interfaces) source
+            Parse.program packageName isRoot (getOpTable interfaces) source
 
       -- Canonicalize all variables, pinning down where they came from.
       canonicalModule <-
-          Canonicalize.module' interfaces validModule
+          Canonicalize.module' canonicalImports interfaces validModule
 
       -- Run type inference on the program.
       types <-

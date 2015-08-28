@@ -6,7 +6,7 @@ import qualified Control.Applicative as A
 import qualified Data.Functor as F
 import qualified Data.Set as Set
 
-import qualified AST.Module as Module
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
@@ -16,7 +16,7 @@ type ResultErr a = Result (A.Located Error.Error) a
 
 
 data Result err a =
-    Result (Set.Set Module.Name) (RawResult err a)
+    Result (Set.Set ModuleName.Raw) (RawResult err a)
 
 
 data RawResult err a
@@ -95,7 +95,7 @@ instance A.Applicative (Result e) where
 
 -- TRACK USES OF IMPORTS
 
-addModule :: Module.Name -> Result e a -> Result e a
+addModule :: ModuleName.Raw -> Result e a -> Result e a
 addModule home (Result uses result) =
   Result (Set.insert home uses) result
 
@@ -103,7 +103,7 @@ addModule home (Result uses result) =
 var' :: (a -> Var.Canonical) -> a -> Result e a
 var' toVar value =
   case toVar value of
-    Var.Canonical (Var.Module moduleName) _name ->
+    Var.Canonical (Var.Module (ModuleName.Canonical _ moduleName)) _name ->
         Result (Set.singleton moduleName) (Ok value)
 
     Var.Canonical _ _ ->

@@ -11,6 +11,7 @@ import qualified AST.Expression.General as E
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Helpers as Help
 import qualified AST.Module as Module
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as Pattern
 import qualified AST.Variable as Var
 import Elm.Utils ((|>))
@@ -27,7 +28,7 @@ patternMatches
     -> Result.Result Warning.Warning e ()
 patternMatches interfaces modul =
   let
-    name = Module.names modul
+    name = Module.name modul
     body = Module.body modul
   in
     checkExpression
@@ -44,7 +45,7 @@ type TagDict =
 type Tag = String
 
 
-toTagDict :: Module.Interfaces -> Module.Name -> Module.ADTs -> TagDict
+toTagDict :: Module.Interfaces -> ModuleName.Canonical -> Module.ADTs -> TagDict
 toTagDict interfaces localName localAdts =
   let
     listTags =

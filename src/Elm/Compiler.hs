@@ -50,9 +50,9 @@ parseDependencies sourceCode =
       Result.Err msgs ->
           Left $ map (Error . A.map Error.Syntax) msgs
 
-      Result.Ok (Module.Header names _docs _exports imports) ->
+      Result.Ok (Module.Header name _docs _exports imports) ->
           Right
-            ( PublicModule.Name names
+            ( PublicModule.Name name
             , map (PublicModule.Name . fst . A.drop) imports
             )
 
@@ -63,22 +63,19 @@ parseDependencies sourceCode =
 compile
     :: Context
     -> String
-    -> Map.Map PublicModule.Name PublicModule.Interface
+    -> PublicModule.Interfaces
     -> (Dealiaser, [Warning], Either [Error] Result)
 
 compile context source interfaces =
   let
-    (Context packageName isRoot isExposed) =
+    (Context packageName isRoot isExposed dependencies) =
       context
 
-    unwrappedInterfaces =
-      Map.mapKeysMonotonic (\(PublicModule.Name name) -> name) interfaces
-
     (Result.Result (dealiaser, warnings) rawResult) =
-      do  modul <- Compile.compile packageName isRoot unwrappedInterfaces source
+      do  modul <- Compile.compile packageName isRoot dependencies interfaces source
           docs <- docsGen isExposed modul
 
-          let interface = Module.toInterface modul
+          let interface = Module.toInterface packageName modul
           let optModule = Optimize.optimize modul
           let javascript = JS.generate optModule
 
@@ -94,6 +91,7 @@ data Context = Context
     { _packageName :: Package.Name
     , _isRoot :: Bool
     , _isExposed :: Bool
+    , _dependencies :: [PublicModule.Canonical]
     }
 
 
@@ -116,8 +114,11 @@ docsGen isExposed modul =
       getChecked =
         Docs.check (Module.exports modul) (Module.docs modul)
 
+      name =
+        PublicModule.Name (PublicModule._module (Module.name modul))
+
       toDocs checked =
-        Docs.fromCheckedDocs (PublicModule.Name (Module.names modul)) checked
+        Docs.fromCheckedDocs name checked
     in
       (Just . toDocs) `fmap` Result.mapError Error.Docs getChecked
 

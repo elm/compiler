@@ -1,8 +1,6 @@
-{-# LANGUAGE FlexibleContexts #-}
 module Elm.Package where
 
 import Control.Applicative ((<$>), (<*>))
-import Control.Monad.Error.Class (MonadError, throwError)
 import Data.Aeson
 import Data.Binary
 import qualified Data.List as List
@@ -12,11 +10,17 @@ import System.FilePath ((</>))
 import Data.Char (isDigit)
 import Data.Function (on)
 
+
+-- PACKGE NAMES
+
 data Name = Name
     { user :: String
     , project :: String
     }
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Show)
+
+
+type Package = (Name, Version)
 
 
 dummyName :: Name
@@ -52,11 +56,6 @@ fromString string =
       _ -> Nothing
 
 
-fromString' :: (MonadError String m) => String -> m Name
-fromString' string =
-    Maybe.maybe (throwError $ errorMsg string) return (fromString string)
-
-
 instance Binary Name where
     get = Name <$> get <*> get
     put (Name user project) =
@@ -66,10 +65,13 @@ instance Binary Name where
 
 instance FromJSON Name where
     parseJSON (String text) =
-        let string = T.unpack text in
-        Maybe.maybe (fail $ errorMsg string) return (fromString string)
+        let
+          string = T.unpack text
+        in
+          Maybe.maybe (fail (errorMsg string)) return (fromString string)
 
-    parseJSON _ = fail "Project name must be a string."
+    parseJSON _ =
+        fail "Project name must be a string."
 
 
 instance ToJSON Name where
@@ -85,12 +87,12 @@ errorMsg string =
     ]
 
 
-
+-- PACKAGE VERSIONS
 
 data Version = Version
-    { major :: Int
-    , minor :: Int
-    , patch :: Int
+    { _major :: Int
+    , _minor :: Int
+    , _patch :: Int
     }
     deriving (Eq, Ord)
 

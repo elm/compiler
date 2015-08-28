@@ -1,11 +1,12 @@
 module Elm.Compiler.Module
-    ( Interface, Name(Name)
+    ( Interface, Interfaces, Name(Name)
     , nameToPath
     , nameToString, nameFromString
     , hyphenate, dehyphenate
     , defaultImports
     , interfacePorts
     , interfaceAliasedTypes
+    , ModuleName.Canonical(..)
     )
   where
 
@@ -19,6 +20,7 @@ import qualified Data.Text as Text
 import System.FilePath ((</>))
 
 import qualified AST.Module as Module
+import qualified AST.Module.Name as ModuleName
 import qualified Elm.Compiler.Imports as Imports
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Type.Extract as Extract
@@ -29,7 +31,10 @@ import qualified Elm.Compiler.Type.Extract as Extract
 type Interface = Module.Interface
 
 
-newtype Name = Name [String]
+type Interfaces = Module.Interfaces
+
+
+newtype Name = Name ModuleName.Raw
     deriving (Eq, Ord)
 
 
