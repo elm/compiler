@@ -1,11 +1,12 @@
 module AST.Module
-    ( Interfaces
+    ( Interfaces, CanonicalInterfaces
     , Types, Aliases, ADTs
     , AdtInfo, CanonicalAdt
     , SourceModule, ValidModule, CanonicalModule, Optimized
     , Module(..), Body(..)
     , Header(..)
     , Name, nameToString, nameIsNative
+    , CanonicalName(..), canonPkg, canonModul
     , Interface(..), toInterface
     , UserImport, DefaultImport, ImportMethod(..)
     ) where
@@ -29,6 +30,7 @@ import qualified Reporting.Annotation as A
 -- HELPFUL TYPE ALIASES
 
 type Interfaces = Map.Map Name Interface
+type CanonicalInterfaces = Map.Map CanonicalName Interface
 
 type Types   = Map.Map String Type.Canonical
 type Aliases = Map.Map String ([String], Type.Canonical)
@@ -98,6 +100,13 @@ data Header imports = Header
 type Name = [String] -- must be non-empty
 
 
+data CanonicalName =
+  CanonicalName
+  { canonPkg :: Package.Name
+  , canonModul :: Name
+  }
+
+
 nameToString :: Name -> String
 nameToString =
   List.intercalate "."
@@ -136,11 +145,12 @@ data Interface = Interface
     , iAliases  :: Aliases
     , iFixities :: [(Decl.Assoc, Int, String)]
     , iPorts    :: [String]
+    , iPackage  :: Package.Name 
     }
 
 
-toInterface :: CanonicalModule -> Interface
-toInterface modul =
+toInterface :: Package.Name -> CanonicalModule -> Interface
+toInterface pkgName modul =
     let body' = body modul in
     Interface
     { iVersion  = Package.versionToString Compiler.version
@@ -151,11 +161,12 @@ toInterface modul =
     , iAliases  = aliases body'
     , iFixities = fixities body'
     , iPorts    = ports body'
+    , iPackage  = pkgName
     }
 
 
 instance Binary Interface where
-  get = Interface <$> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get
+  get = Interface <$> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get
   put modul = do
       put (iVersion modul)
       put (iExports modul)
@@ -165,3 +176,4 @@ instance Binary Interface where
       put (iAliases modul)
       put (iFixities modul)
       put (iPorts modul)
+      put (iPackage modul)
