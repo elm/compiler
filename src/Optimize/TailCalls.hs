@@ -51,7 +51,7 @@ mapSnd func (x, a) =
 -- CONVERT DEFINITIONS
 
 detectTailRecursion :: Can.Def -> Opt.Def
-detectTailRecursion (Can.Definition _ pattern expression _) =
+detectTailRecursion (Can.Definition canonFacts pattern expression _) =
     let
         (args, body) =
             Expr.collectLambdas expression
@@ -71,9 +71,14 @@ detectTailRecursion (Can.Definition _ pattern expression _) =
 
         lambda x e =
             A.A () (Lambda x e)
+
+        facts =
+          Opt.Facts
+            (if isTailCall then fmap fst context else Nothing)
+            (Can.freeVariables canonFacts)
     in
         Opt.Definition
-          (Opt.Facts (if isTailCall then fmap fst context else Nothing))
+          facts
           (removeAnnotations pattern)
           (foldr lambda optExpr (map removeAnnotations args))
 
