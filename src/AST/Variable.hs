@@ -19,7 +19,7 @@ newtype Raw = Raw String
 
 data TopLevelVar =
   TopLevelVar
-  { topVarModule :: [String]
+  { topVarModule :: ModuleName.Canonical
   , topVarName :: String
   } deriving (Eq, Ord, Show)
 
