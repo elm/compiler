@@ -337,7 +337,7 @@ declaration env (A.A ann@(region,_) decl) =
     case decl of
       D.Definition (Valid.Definition pat expr typ) ->
           D.Definition <$> (
-              Canonical.Definition
+              Canonical.Definition Canonical.dummyFacts
                 <$> pattern env pat
                 <*> expression env expr
                 <*> T.traverse (regionType env) typ
@@ -440,7 +440,7 @@ expression env (A.A region validExpr) =
               foldr Env.addPattern env $ map (\(Valid.Definition p _ _) -> p) defs
 
           rename' (Valid.Definition p body mtipe) =
-              Canonical.Definition
+              Canonical.Definition Canonical.dummyFacts
                   <$> pattern env' p
                   <*> expression env' body
                   <*> T.traverse (regionType env') mtipe

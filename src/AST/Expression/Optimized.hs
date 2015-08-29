@@ -26,10 +26,11 @@ data Def
 
 data Facts = Facts
     { tailRecursionDetails :: Maybe String
+    , dependencies :: [Var.TopLevel]
     }
     deriving (Show)
 
 
 dummyFacts :: Facts
 dummyFacts =
-    Facts Nothing
+    Facts Nothing []
