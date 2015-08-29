@@ -12,6 +12,7 @@ import qualified Data.Aeson as Json
 import qualified Data.Map as Map
 
 import qualified AST.Module as Module
+import qualified AST.Module.Name as ModuleName
 import qualified Compile
 import qualified Docs.Check as Docs
 import qualified Elm.Compiler.Version
@@ -91,7 +92,7 @@ data Context = Context
     { _packageName :: Package.Name
     , _isRoot :: Bool
     , _isExposed :: Bool
-    , _dependencies :: [PublicModule.Canonical]
+    , _dependencies :: [PublicModule.CanonicalName]
     }
 
 
@@ -115,7 +116,7 @@ docsGen isExposed modul =
         Docs.check (Module.exports modul) (Module.docs modul)
 
       name =
-        PublicModule.Name (PublicModule._module (Module.name modul))
+        PublicModule.Name (ModuleName._module (Module.name modul))
 
       toDocs checked =
         Docs.fromCheckedDocs name checked
