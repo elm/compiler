@@ -480,8 +480,10 @@ generateCase tcc expr branches =
           case expr of
             A.A _ (Var (Var.Canonical Var.Local x)) ->
                 return (Case.matchSubst [(tempVar, Var.safe x)] initialMatch, [])
+
             A.A _ (Var (Var.Canonical (Var.TopLevel _) x)) ->
                 return (Case.matchSubst [(tempVar, Var.safe x)] initialMatch, [])
+
             _ ->
                 do  expr' <- toJsExpr expr
                     return (initialMatch, [VarDeclStmt () [varDecl tempVar expr']])
