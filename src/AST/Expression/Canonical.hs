@@ -28,15 +28,16 @@ data Def
     deriving (Show)
 
 
-data Facts =
-  Facts
-    { freeVariables :: [Var.TopLevelVar]
-    } deriving (Eq, Ord, Show)
+data Facts = Facts
+    { dependencies :: [Var.TopLevel]
+    }
+    deriving (Eq, Ord, Show)
 
 
 dummyFacts :: Facts
-dummyFacts = Facts $ error "This should be set by Canonicalize.Sort" 
-               
+dummyFacts =
+  Facts (error "This should be set by Canonicalize.Sort")
+
 
 instance P.Pretty Def where
   pretty dealiaser _ (Definition _ pattern expr maybeTipe) =

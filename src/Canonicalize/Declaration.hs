@@ -19,10 +19,12 @@ toExpr moduleName decls =
 
 toDefs :: ModuleName.Canonical -> D.CanonicalDecl -> [Canonical.Def]
 toDefs moduleName (A.A (region,_) decl) =
-  let typeVar = Var.fromModule moduleName
+  let
+    typeVar =
+      Var.fromModule moduleName
 
-      loc expr =
-        A.A region expr
+    loc expr =
+      A.A region expr
   in
   case decl of
     D.Definition def ->
@@ -91,5 +93,8 @@ buildFunction body@(A.A ann _) vars =
 
 definition :: String -> Canonical.Expr -> R.Region -> T.Canonical -> Canonical.Def
 definition name expr@(A.A ann _) region tipe =
-  Canonical.Definition Canonical.dummyFacts
-    (A.A ann (P.Var name)) expr (Just (A.A region tipe))
+  Canonical.Definition
+    Canonical.dummyFacts
+    (A.A ann (P.Var name))
+    expr
+    (Just (A.A region tipe))

@@ -11,18 +11,23 @@ import qualified AST.Module.Name as ModuleName
 import qualified Reporting.PrettyPrint as P
 
 
--- VARIABLES
+-- RAW NAMES
 
 newtype Raw = Raw String
     deriving (Eq, Ord, Show)
 
 
-data TopLevelVar =
-  TopLevelVar
-  { topVarModule :: ModuleName.Canonical
-  , topVarName :: String
-  } deriving (Eq, Ord, Show)
+-- TOP LEVEL NAMES
 
+data TopLevel = TopLevelVar
+    { topHome :: ModuleName.Canonical
+    , topName :: String
+    }
+    deriving (Eq, Ord, Show)
+
+
+
+-- CANONICAL NAMES
 
 data Home
     = BuiltIn

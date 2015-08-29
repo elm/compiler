@@ -6,7 +6,6 @@ module AST.Expression.Optimized
     ) where
 
 import qualified AST.Expression.General as General
-import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Pattern as Pattern
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
@@ -27,7 +26,7 @@ data Def
 
 data Facts = Facts
     { tailRecursionDetails :: Maybe String
-    , freeVariables :: [Var.TopLevelVar]
+    , dependencies :: [Var.TopLevel]
     }
     deriving (Show)
 

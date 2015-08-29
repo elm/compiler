@@ -73,9 +73,9 @@ detectTailRecursion (Can.Definition canonFacts pattern expression _) =
             A.A () (Lambda x e)
 
         facts =
-          Opt.Facts
-            (if isTailCall then fmap fst context else Nothing)
-            (Can.freeVariables canonFacts)
+            Opt.Facts
+              (if isTailCall then fmap fst context else Nothing)
+              (Can.dependencies canonFacts)
     in
         Opt.Definition
           facts
