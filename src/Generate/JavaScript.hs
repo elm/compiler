@@ -17,7 +17,9 @@ import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
 import Generate.JavaScript.Helpers as Help
+import qualified Generate.JavaScript.BuiltIn as BuiltIn
 import qualified Generate.JavaScript.Crash as Crash
+import qualified Generate.JavaScript.Literal as Literal
 import qualified Generate.JavaScript.Port as Port
 import qualified Generate.JavaScript.Variable as Var
 import qualified Optimize.Cases as Case
@@ -28,28 +30,6 @@ import qualified Reporting.Crash as Crash
 generate :: Module.Optimized -> String
 generate modul =
     error "TODO" modul exprToCode
-
-
--- HELPERS
-
-_Utils :: String -> Expression ()
-_Utils x =
-    obj ["_U", x]
-
-
-_List :: String -> Expression ()
-_List x =
-    obj ["_L", x]
-
-
-literal :: Literal -> Expression ()
-literal lit =
-  case lit of
-    Chr c -> _Utils "chr" <| string [c]
-    Str s -> string s
-    IntNum   n -> IntLit () n
-    FloatNum n -> NumLit () n
-    Boolean  b -> BoolLit () b
 
 
 -- CODE CHUNKS
@@ -139,30 +119,31 @@ exprToCode tcc annotatedExpr@(A.A _ expr) =
           jsExpr $ Var.canonical var
 
       Literal lit ->
-          jsExpr $ literal lit
+          jsExpr (Literal.literal lit)
 
       Range lo hi ->
           do  lo' <- toJsExpr lo
               hi' <- toJsExpr hi
-              jsExpr $ _List "range" `call` [lo',hi']
+              jsExpr $ BuiltIn.range lo' hi'
 
       Access record field ->
           do  record' <- toJsExpr record
-              jsExpr $ DotRef () record' (var (Var.varName field))
+              jsExpr $ DotRef () record' (var (Var.safe field))
 
       Update record fields ->
-          do  record' <- toJsExpr record
-              fields' <-
-                forM fields $ \(field, value) ->
-                  do  value' <- toJsExpr value
-                      return $ ArrayLit () [ string (Var.varName field), value' ]
-
-              jsExpr $ _Utils "replace" `call` [ArrayLit () fields', record']
+          let
+            fieldToJs (field, value) =
+              do  jsValue <- toJsExpr value
+                  return (Var.safe field, jsValue)
+          in
+            do  jsRecord <- toJsExpr record
+                jsFields <- mapM fieldToJs fields
+                jsExpr $ BuiltIn.recordUpdate jsRecord jsFields
 
       Record fields ->
           do  fields' <-
                 forM fields $ \(field, e) ->
-                    (,) (Var.varName field) <$> toJsExpr e
+                    (,) (Var.safe field) <$> toJsExpr e
 
               let fieldMap =
                     List.foldl' combine Map.empty fields'
@@ -199,7 +180,7 @@ exprToCode tcc annotatedExpr@(A.A _ expr) =
 
       ExplicitList elements ->
           do  jsElements <- mapM toJsExpr elements
-              jsExpr $ _List "fromArray" <| ArrayLit () jsElements
+              jsExpr $ BuiltIn.list jsElements
 
       Data tag members ->
           do  jsMembers <- mapM toJsExpr members
@@ -210,7 +191,7 @@ exprToCode tcc annotatedExpr@(A.A _ expr) =
                 zipWith (\n e -> (prop ("_" ++ show n), e)) [ 0 :: Int .. ]
 
       GLShader _uid src _tipe ->
-          jsExpr $ ObjectLit () [(PropString () "src", literal (Str src))]
+          jsExpr $ ObjectLit () [(PropString () "src", Literal.literal (Str src))]
 
       Port impl ->
           case impl of
@@ -276,7 +257,7 @@ destructPattern :: P.Optimized -> State Int (String, Maybe Opt.Def)
 destructPattern pattern@(A.A ann pat) =
   case pat of
     P.Var x ->
-        return (Var.varName x, Nothing)
+        return (Var.safe x, Nothing)
 
     _ ->
         do  arg <- Case.newVar
@@ -444,7 +425,7 @@ defToStatementsHelp facts annPattern@(A.A _ pattern) jsExpr =
             in
                 return [ ExprStmt () $ AssignExpr () OpAssign op jsExpr ]
         else
-            return [ VarDeclStmt () [ define (Var.varName x) ] ]
+            return [ VarDeclStmt () [ define (Var.safe x) ] ]
 
     P.Record fields ->
         let
@@ -460,7 +441,7 @@ defToStatementsHelp facts annPattern@(A.A _ pattern) jsExpr =
         getVars patterns =
             case patterns of
               A.A _ (P.Var x) : rest ->
-                  (Var.varName x :) `fmap` getVars rest
+                  (Var.safe x :) `fmap` getVars rest
               [] ->
                   Just []
               _ ->
@@ -498,9 +479,9 @@ generateCase tcc expr branches =
       (revisedMatch, stmt) <-
           case expr of
             A.A _ (Var (Var.Canonical Var.Local x)) ->
-                return (Case.matchSubst [(tempVar, Var.varName x)] initialMatch, [])
+                return (Case.matchSubst [(tempVar, Var.safe x)] initialMatch, [])
             A.A _ (Var (Var.Canonical (Var.TopLevel _) x)) ->
-                return (Case.matchSubst [(tempVar, Var.varName x)] initialMatch, [])
+                return (Case.matchSubst [(tempVar, Var.safe x)] initialMatch, [])
             _ ->
                 do  expr' <- toJsExpr expr
                     return (initialMatch, [VarDeclStmt () [varDecl tempVar expr']])
@@ -571,7 +552,7 @@ clause tcc variable (Case.Clause value vars mtch) =
             (,) False $
               case value of
                 Right (Boolean b) -> BoolLit () b
-                Right lit -> literal lit
+                Right lit -> Literal.literal lit
                 Left (Var.Canonical _ name) ->
                     string name
 
@@ -694,8 +675,8 @@ specialOps :: [(String, Expression () -> Expression () -> Expression ())]
 specialOps =
     [ (,) "^"  $ \a b -> obj ["Math","pow"] `call` [a,b]
     , (,) "|>" $ flip (<|)
-    , (,) "==" $ \a b -> _Utils "eq" `call` [a,b]
-    , (,) "/=" $ \a b -> PrefixExpr () PrefixLNot (_Utils "eq" `call` [a,b])
+    , (,) "==" $ \a b -> BuiltIn.eq a b
+    , (,) "/=" $ \a b -> PrefixExpr () PrefixLNot (BuiltIn.eq a b)
     , (,) "<"  $ cmp OpLT 0
     , (,) ">"  $ cmp OpGT 0
     , (,) "<=" $ cmp OpLT 1
@@ -706,7 +687,7 @@ specialOps =
 
 cmp :: InfixOp -> Int -> Expression () -> Expression () -> Expression ()
 cmp op n a b =
-    InfixExpr () op (_Utils "cmp" `call` [a,b]) (IntLit () n)
+    InfixExpr () op (BuiltIn.compare a b) (IntLit () n)
 
 
 -- BINARY OPERATOR COLLECTORS

@@ -1,4 +1,4 @@
-module Generate.JavaScript.Variable where
+module Generate.JavaScript.Variable (canonical, safe) where
 
 import qualified Data.List as List
 import qualified Data.Set as Set
@@ -11,10 +11,7 @@ import qualified Elm.Package as Pkg
 import qualified Generate.JavaScript.Helpers as JS
 
 
-swap :: Char -> Char -> Char -> Char
-swap from to c =
-  if c == from then to else c
-
+-- INSTANTIATE VARIABLES
 
 canonical :: Var.Canonical -> JS.Expression ()
 canonical (Var.Canonical home name) =
@@ -22,7 +19,7 @@ canonical (Var.Canonical home name) =
     JS.BracketRef () (JS.ref (addRoot home "_op")) (JS.string name)
 
   else
-    JS.ref (addRoot home (varName name))
+    JS.ref (addRoot home (safe name))
 
 
 addRoot :: Var.Home -> String -> String
@@ -49,22 +46,25 @@ canonicalName (ModuleName.Canonical (Pkg.Name user project) moduleName) name =
     ++ '$' : name
 
 
+swap :: Char -> Char -> Char -> Char
+swap from to c =
+  if c == from then to else c
 
-varName :: String -> String
-varName name =
+
+-- SAFE NAMES
+
+safe :: String -> String
+safe name =
     let saferName =
           if Set.member name jsReserveds then '$' : name else name
     in
         map (swap '\'' '$') saferName
 
 
---value :: Module.Name -> String -> JS.Expression ()
---value home name =
---    canonical (Var.Canonical (Var.Module home) name)
-
-
 jsReserveds :: Set.Set String
-jsReserveds = Set.fromList
+jsReserveds =
+  Set.fromList
+    -- JS reserved words
     [ "null", "undefined", "Nan", "Infinity", "true", "false", "eval"
     , "arguments", "int", "byte", "char", "goto", "long", "final", "float"
     , "short", "double", "native", "throws", "boolean", "abstract", "volatile"
@@ -76,7 +76,6 @@ jsReserveds = Set.fromList
     , "interface", "let", "package", "private", "protected", "public"
     , "static", "yield"
     -- reserved by the Elm runtime system
-    , "Elm"
     , "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9"
     , "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9"
     ]
