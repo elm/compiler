@@ -1,12 +1,13 @@
 module Elm.Compiler.Module
-    ( Interface, Interfaces, Name(Name)
+    ( Interface, Interfaces
+    , Name(Name)
     , nameToPath
     , nameToString, nameFromString
     , hyphenate, dehyphenate
     , defaultImports
     , interfacePorts
     , interfaceAliasedTypes
-    , ModuleName.Canonical(..)
+    , CanonicalName, canonicalName
     )
   where
 
@@ -24,26 +25,16 @@ import qualified AST.Module.Name as ModuleName
 import qualified Elm.Compiler.Imports as Imports
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Type.Extract as Extract
+import qualified Elm.Package as Package
 
 
--- EXPOSED TYPES
+-- INTERFACES
 
 type Interface = Module.Interface
 
 
 type Interfaces = Module.Interfaces
 
-
-newtype Name = Name ModuleName.Raw
-    deriving (Eq, Ord)
-
-
-defaultImports :: [Name]
-defaultImports =
-    map (Name . fst) Imports.defaults
-
-
--- POKING AROUND INTERFACES
 
 interfacePorts :: Interface -> [String]
 interfacePorts interface =
@@ -53,6 +44,25 @@ interfacePorts interface =
 interfaceAliasedTypes :: Interface -> Map.Map String Type.Type
 interfaceAliasedTypes interface =
     Map.map Extract.toAliasedType (Module.iTypes interface)
+
+
+-- NAMES
+
+newtype Name = Name ModuleName.Raw
+    deriving (Eq, Ord)
+
+
+type CanonicalName = ModuleName.Canonical
+
+
+canonicalName :: Package.Name -> Name -> CanonicalName
+canonicalName pkgName (Name name) =
+    ModuleName.Canonical pkgName name
+
+
+defaultImports :: [Name]
+defaultImports =
+    map (Name . fst) Imports.defaults
 
 
 -- STRING CONVERSIONS for NAMES
