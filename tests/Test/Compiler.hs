@@ -156,8 +156,8 @@ matchesExpected expectedJs result =
       Right (Compiler.Result _ _ js) ->
           assertEqual matchFailureMessage expectedJs js
 
-      _ ->
-          assertFailure "Compile failed. There is nothing to match expected output."
+      Left errorMessages ->
+          assertFailure $ "Compile failed:\n" ++ errorMessages
 
 
 matchFailureMessage :: String
