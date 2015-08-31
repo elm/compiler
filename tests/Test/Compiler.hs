@@ -5,9 +5,12 @@ module Test.Compiler (compilerTests) where
 import Control.Exception (try, IOException)
 
 import qualified Data.Map as Map
+import Data.Maybe (isJust)
 import Data.Traversable (traverse)
 
-import System.FilePath ((</>), joinPath, splitDirectories)
+import System.Directory (createDirectoryIfMissing)
+import System.Environment (lookupEnv)
+import System.FilePath ((</>), (<.>), dropFileName, joinPath, splitDirectories)
 import System.FilePath.Find (find, (==?), extension)
 
 import Test.Framework
@@ -16,6 +19,11 @@ import Test.HUnit (Assertion, assertFailure, assertBool, assertEqual)
 
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Package as Package
+
+writeExpectedJsEnvVarName :: String
+writeExpectedJsEnvVarName =
+  "ELM_WRITE_NEW_EXPECTED"
+
 
 compilerTests :: Test
 compilerTests =
@@ -75,9 +83,21 @@ testIf handleResult filePaths =
 
 
 testMatchesExpected :: String -> String -> IO [Test]
-testMatchesExpected elmDir expectedJsDir =
-    traverse doTest =<< getElms elmDir
+testMatchesExpected elmDir expectedJsDir = do
+  elmFiles <- getElms elmDir
+  envVar <- lookupEnv writeExpectedJsEnvVarName
+  if isJust envVar
+    then
+      traverse writeNewExpected elmFiles
+    else
+      traverse doTest elmFiles
   where
+    getExpectedFilePath filePath =
+      testsDir
+      </> expectedJsDir
+      </> joinPath (drop 3 (splitDirectories filePath))
+      <.> ".js"
+
     readFileOrErrorStr filePath = do
       strOrExc <- try $ readFile filePath
       case strOrExc of
@@ -86,14 +106,25 @@ testMatchesExpected elmDir expectedJsDir =
 
     doTest filePath = do
       source <- readFile filePath
-
-      let expectedFilePath =
-            testsDir </> expectedJsDir </> joinPath (drop 3 (splitDirectories filePath)) ++ ".js"
-      expectedJs <- readFileOrErrorStr expectedFilePath
+      expectedJs <- readFileOrErrorStr (getExpectedFilePath filePath)
 
       let formattedResult = compileString filePath source
           assertion = matchesExpected expectedJs formattedResult
 
+      return $ testCase filePath assertion
+
+    writeNewExpected filePath = do
+      source <- readFile filePath
+      let formattedResult = compileString filePath source
+          expectedFilePath = getExpectedFilePath filePath
+          assertion =
+            case formattedResult of
+                Right (Compiler.Result _ _ js) -> do
+                  createDirectoryIfMissing True (dropFileName expectedFilePath)
+                  writeFile expectedFilePath js
+                  assertFailure ("Wrote new expected js: " ++ expectedFilePath)
+                _ ->
+                  assertFailure "Compile failed. Could not write new expected js."
       return $ testCase filePath assertion
 
 
@@ -126,11 +157,11 @@ matchesExpected expectedJs result =
           assertEqual matchFailureMessage expectedJs js
 
       _ ->
-          assertFailure "compile failed; could not match expected output"
+          assertFailure "Compile failed. There is nothing to match expected output."
 
 
 matchFailureMessage :: String
 matchFailureMessage =
   "Compiled JS did not match expected JS." ++
   "\n  If the change is intentional, rerun " ++
-  "the tests with environment variable: ELM_WRITE_NEW_EXPECTED=1"
+  "the tests with environment variable: " ++ writeExpectedJsEnvVarName ++ "=1"
