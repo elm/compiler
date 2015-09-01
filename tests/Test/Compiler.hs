@@ -101,8 +101,11 @@ testMatchesExpected elmDir expectedJsDir = do
     readFileOrErrorStr filePath = do
       strOrExc <- try $ readFile filePath
       case strOrExc of
-        Right s -> return s
-        Left (e :: IOException) -> return (show e)
+        Right s ->
+          return s
+
+        Left (e :: IOException) ->
+          return (show e)
 
     doTest filePath = do
       source <- readFile filePath
@@ -123,6 +126,7 @@ testMatchesExpected elmDir expectedJsDir = do
                   createDirectoryIfMissing True (dropFileName expectedFilePath)
                   writeFile expectedFilePath js
                   assertFailure ("Wrote new expected js: " ++ expectedFilePath)
+
                 _ ->
                   assertFailure "Compile failed. Could not write new expected js."
       return $ testCase filePath assertion
