@@ -27,16 +27,16 @@ writeExpectedJsEnvVarName =
 
 compilerTests :: Test
 compilerTests =
-  buildTest $ do
-    goods <- testIf isSuccess =<< getElms "good"
-    bads  <- testIf isFailure =<< getElms "bad"
-    expectedJsTests <- testMatchesExpected "good" "good-expected-js"
-    return $
-        testGroup "Compile Tests"
-          [ testGroup "Good Tests" goods
-          , testGroup "Bad Tests"  bads
-          , testGroup "Expected JS Tests" expectedJsTests
-          ]
+  buildTest $
+    do  goods <- testIf isSuccess =<< getElms "good"
+        bads  <- testIf isFailure =<< getElms "bad"
+        expectedJsTests <- testMatchesExpected "good" "good-expected-js"
+        return $
+            testGroup "Compile Tests"
+              [ testGroup "Good Tests" goods
+              , testGroup "Bad Tests"  bads
+              , testGroup "Expected JS Tests" expectedJsTests
+              ]
 
 
 -- GATHER ELM FILES
@@ -75,22 +75,22 @@ testIf
 testIf handleResult filePaths =
     traverse setupTest filePaths
   where
-    setupTest filePath = do
-      source <- readFile filePath
-      let formattedResult = compileString filePath source
+    setupTest filePath =
+      do  source <- readFile filePath
+          let formattedResult = compileString filePath source
 
-      return $ testCase filePath (handleResult formattedResult)
+          return $ testCase filePath (handleResult formattedResult)
 
 
 testMatchesExpected :: String -> String -> IO [Test]
-testMatchesExpected elmDir expectedJsDir = do
-  elmFiles <- getElms elmDir
-  envVar <- lookupEnv writeExpectedJsEnvVarName
-  if isJust envVar
-    then
-      traverse writeNewExpected elmFiles
-    else
-      traverse doTest elmFiles
+testMatchesExpected elmDir expectedJsDir =
+  do  elmFiles <- getElms elmDir
+      envVar <- lookupEnv writeExpectedJsEnvVarName
+      if isJust envVar
+        then
+          traverse writeNewExpected elmFiles
+        else
+          traverse doTest elmFiles
   where
     getExpectedFilePath filePath =
       testsDir
@@ -98,38 +98,38 @@ testMatchesExpected elmDir expectedJsDir = do
       </> joinPath (drop 3 (splitDirectories filePath))
       <.> ".js"
 
-    readFileOrErrorStr filePath = do
-      strOrExc <- try $ readFile filePath
-      case strOrExc of
-        Right s ->
-          return s
+    readFileOrErrorStr filePath =
+      do  strOrExc <- try $ readFile filePath
+          case strOrExc of
+            Right s ->
+              return s
 
-        Left (e :: IOException) ->
-          return (show e)
+            Left (e :: IOException) ->
+              return (show e)
 
-    doTest filePath = do
-      source <- readFile filePath
-      expectedJs <- readFileOrErrorStr (getExpectedFilePath filePath)
+    doTest filePath =
+      do  source <- readFile filePath
+          expectedJs <- readFileOrErrorStr (getExpectedFilePath filePath)
 
-      let formattedResult = compileString filePath source
-          assertion = matchesExpected expectedJs formattedResult
+          let formattedResult = compileString filePath source
+          let assertion = matchesExpected expectedJs formattedResult
 
-      return $ testCase filePath assertion
+          return $ testCase filePath assertion
 
-    writeNewExpected filePath = do
-      source <- readFile filePath
-      let formattedResult = compileString filePath source
-          expectedFilePath = getExpectedFilePath filePath
-          assertion =
-            case formattedResult of
-                Right (Compiler.Result _ _ js) -> do
-                  createDirectoryIfMissing True (dropFileName expectedFilePath)
-                  writeFile expectedFilePath js
-                  assertFailure ("Wrote new expected js: " ++ expectedFilePath)
+    writeNewExpected filePath =
+      do  source <- readFile filePath
+          let formattedResult = compileString filePath source
+          let expectedFilePath = getExpectedFilePath filePath
+          let assertion =
+                case formattedResult of
+                    Right (Compiler.Result _ _ js) ->
+                      do  createDirectoryIfMissing True (dropFileName expectedFilePath)
+                          writeFile expectedFilePath js
+                          assertFailure ("Wrote new expected js: " ++ expectedFilePath)
 
-                _ ->
-                  assertFailure "Compile failed. Could not write new expected js."
-      return $ testCase filePath assertion
+                    _ ->
+                      assertFailure "Compile failed. Could not write new expected js."
+          return $ testCase filePath assertion
 
 
 -- CHECK RESULTS
