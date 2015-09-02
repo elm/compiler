@@ -1,266 +1,411 @@
-module Optimize.Cases (toMatch, Match (..), Clause (..), matchSubst, newVar) where
+module Optimize.Cases where
+{- To learn more about how this works, definitely read through:
 
-import Control.Applicative ((<$>))
-import Control.Arrow (first)
-import Control.Monad.State (State)
-import qualified Control.Monad.State as State
+    "When Do Match-Compilation Heuristics Matter?"
+
+by Kevin Scott and Norman Ramsey. The rough idea is that we start with a simple
+list of patterns and expressions, and then turn that into a "decision tree"
+that requires as few tests as possible to make it to a leaf. Read the paper, it
+explains this extraordinarily well! We are currently using the same heuristics
+as SML/NJ to get nice trees.
+
+Users of this module will mainly interact with the 'compile' function which
+takes some normal branches and gives out a decision tree that has "labels" at
+all the leafs and a dictionary that maps these "labels" to the code that
+should run.
+
+If 2 or more leaves point to the same label, we need to do some tricks in JS to
+make that work nicely. When is JS getting goto?! ;)
+-}
+
+
+import Control.Arrow (second)
+import Data.Function (on)
 import qualified Data.List as List
-import Data.Maybe (fromMaybe)
+import qualified Data.Map as Map
+import Data.Map ((!))
+import qualified Data.Maybe as Maybe
 
-import qualified AST.Expression.General as Expr
-import qualified AST.Expression.Optimized as Optimized
-import qualified AST.Literal as Literal
+import qualified AST.Expression.Optimized as Opt
+import qualified AST.Literal as L
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
-import qualified Optimize.Substitute as S
 import qualified Reporting.Annotation as A
 
 
--- MATCHES
+-- COMPILE CASES
 
-data Match
-    = Match String [Clause] Match
-    | Break
-    | Fail
-    | Other Optimized.Expr
-    | Seq [Match]
-    deriving (Show)
-
-
-data Clause =
-    Clause (Either Var.Canonical Literal.Literal) [String] Match
-    deriving (Show)
-
-
-type Branch =
-    ([P.Optimized], Optimized.Expr)
-
-
--- PUBLIC FUNCTIONS
-
-toMatch :: [(P.Optimized, Optimized.Expr)] -> State Int (String, Match)
-toMatch patterns =
-  do  v <- newVar
-      (,) v <$> buildMatch [v] (map (first (:[])) patterns) Fail
-
-
-newVar :: State Int String
-newVar =
-  do  n <- State.get
-      State.modify (+1)
-      return $ "_v" ++ show n
-
-
-matchSubst :: [(String,String)] -> Match -> Match
-matchSubst pairs match =
-  case match of
-    Break -> Break
-
-    Fail -> Fail
-
-    Seq ms ->
-        Seq (map (matchSubst pairs) ms)
-
-    Other (A.A ann expr) ->
-        let
-            substitutions =
-                map (\(x,y) -> S.subst x (Expr.localVar y)) pairs
-        in
-            Other $ A.A ann $ foldr ($) expr substitutions
-
-    Match n cs m ->
-        Match (varSubst n) (map clauseSubst cs) (matchSubst pairs m)
-      where
-        varSubst v = fromMaybe v (lookup v pairs)
-        clauseSubst (Clause c vs m) =
-            Clause c (map varSubst vs) (matchSubst pairs m)
-
-
--- BUILD MATCHES
-
-buildMatch :: [String] -> [Branch] -> Match -> State Int Match
-buildMatch variables branches match =
-    case (variables, branches, match) of
-      ([], [], _) ->
-          return match
-
-      ([], [([], expr)], Fail) ->
-          return $ Other expr
-
-      ([], [([], expr)], Break) ->
-          return $ Other expr
-
-      ([], _, _) ->
-          return $ Seq (map (Other . snd) branches ++ [match])
-
-      (var:_, _, _)
-          | all isVar branches' -> matchVar variables branches' match
-          | all isCon branches' -> matchCon variables branches' match
-          | otherwise           -> matchMix variables branches' match
-          where
-            branches' = map (dealias var) branches
-
-
-dealias :: String -> Branch -> Branch
-dealias _ ([], _) = noMatch "dealias"
-dealias var branch@(p:ps, A.A ann e) =
-    case p of
-      A.A _ (P.Alias alias pattern) ->
-          ( pattern:ps
-          , A.A ann (S.subst alias (Expr.localVar var) e)
-          )
-
-      _ ->
-          branch
-
-
-isCon :: ([P.Pattern ann var], expr) -> Bool
-isCon ([], _) = noMatch "isCon"
-isCon (A.A _ pattern : _, _) =
-    case pattern of
-      P.Data _ _ -> True
-      P.Literal _ -> True
-      _ -> False
-
-
-isVar :: ([P.Pattern ann var], expr) -> Bool
-isVar p =
-    not (isCon p)
-
-
--- VARIABLE MATCHES
-
-matchVar :: [String] -> [Branch] -> Match -> State Int Match
-matchVar [] _ _ = noMatch "matchVar"
-matchVar (var:vars) branches match =
-    buildMatch vars (map subVar branches) match
-  where
-    subVar ([], _) = noMatch "matchVar.subVar"
-    subVar (A.A _ pattern : patterns, (A.A ann expr)) =
-        ( patterns
-        , A.A ann (subOnePattern pattern expr)
+compile
+    :: VariantDict
+    -> [(OPattern, Opt.Expr)]
+    -> (DecisionTree Int, Map.Map Int Opt.Expr)
+compile variantDict rawBranches =
+  let
+    format index (pattern, expr) =
+        ( Branch index [(Empty, pattern)]
+        , (index, expr)
         )
-      where
-        subOnePattern pattern expr =
-            case pattern of
-              P.Anything ->
-                  expr
 
-              P.Var x ->
-                  S.subst x (Expr.localVar var) expr
-
-              P.Record fields ->
-                  let access = Expr.Access (A.A ann (Expr.localVar var))
-                  in
-                      foldr (\x -> S.subst x (access x)) expr fields
-
-              _ ->
-                  noMatch "matchVar.subVar"
+    (branches, resultList) =
+        unzip (zipWith format [0..] rawBranches)
+  in
+    ( toDecisionTree variantDict branches
+    , Map.fromList resultList
+    )
 
 
--- CONSTRUCTOR MATCHES
+-- DECISION TREES
 
-matchCon :: [String] -> [Branch] -> Match -> State Int Match
-matchCon variables branches match =
-    case variables of
-      [] -> noMatch "matchCon"
-
-      var : _vars ->
-          flip (Match var) match <$> mapM toClause caseGroups
-        where
-          caseGroups :: [[Branch]]
-          caseGroups =
-              List.groupBy branchEq (List.sortBy branchCmp branches)
-
-          toClause :: [Branch] -> State Int Clause
-          toClause branches =
-              case head branches of
-                (A.A _ (P.Data name _) : _, _) ->
-                    matchClause (Left name) variables branches Break
-
-                (A.A _ (P.Literal lit) : _, _) ->
-                    matchClause (Right lit) variables branches Break
-
-                _ -> noMatch "matchCon"
+data DecisionTree a
+    = Test
+        { _test :: Path
+        , _edges :: [(Tag, DecisionTree a)]
+        , _default :: Maybe (DecisionTree a)
+        }
+    | Match
+        { result :: a
+        , substitutions :: Map.Map String Path
+        }
 
 
-matchClause
-    :: Either Var.Canonical Literal.Literal
-    -> [String]
-    -> [Branch]
-    -> Match
-    -> State Int Clause
-matchClause _ [] _ _ = noMatch "matchClause"
-matchClause c (_:vs) branches match =
-  do  vs' <- getVars
-      Clause c vs' <$> buildMatch (vs' ++ vs) (map flatten branches) match
-  where
-    flatten ([], _) = noMatch "matchClause.flatten"
-    flatten (A.A _ pattern : patterns, expr) =
+-- EDGE CHECKS
+
+data Tag
+    = Constructor Var.Canonical
+    | Literal L.Literal
+    deriving (Eq, Ord)
+
+
+-- PATHS
+
+data Path
+    = Position Int Path
+    | Field String Path
+    | Empty
+    | Alias
+    deriving (Eq)
+
+
+add :: Path -> Path -> Path
+add path finalLink =
+  case path of
+    Empty ->
+        finalLink
+
+    Alias ->
+        error "nothing should be added to an alias path"
+
+    Position index subpath ->
+        Position index (add subpath finalLink)
+
+    Field name subpath ->
+        Field name (add subpath finalLink)
+
+
+subPositions :: Path -> [OPattern] -> [(Path, OPattern)]
+subPositions path patterns =
+    zipWith
+      (\index pattern -> (add path (Position index Empty), pattern))
+      [0..]
+      patterns
+
+
+-- CREATE DECISION TREES
+
+
+data Branch =
+  Branch
+    { _goal :: Int
+    , _patterns :: [(Path, OPattern)]
+    }
+
+
+type OPattern = P.Optimized
+
+
+type VariantDict = Map.Map Var.Canonical Int
+
+
+-- BUILD A DECISION TREE
+
+toDecisionTree :: VariantDict -> [Branch] -> DecisionTree Int
+toDecisionTree variantDict rawBranches =
+  let
+    branches =
+        map (skipUselessPatterns variantDict) rawBranches
+  in
+  case isAllValiables branches of
+    Just (goal, substitutions) ->
+        Match goal substitutions
+
+    Nothing ->
+        let
+          path =
+              smallDefaults branches
+
+          relevantTags =
+              tagsAtPath path branches
+
+          allRawEdges =
+              map (edgesFor path branches) relevantTags
+
+          (rawEdges, unexplored) =
+              if isComplete variantDict relevantTags then
+                  ( init allRawEdges
+                  , snd (last allRawEdges)
+                  )
+
+              else
+                  ( allRawEdges
+                  , filter (isIrrelevantTo path) branches
+                  )
+
+          edges =
+              map (second (toDecisionTree variantDict)) rawEdges
+        in
+          case (edges, unexplored) of
+            ([(_tag, decisionTree)], []) ->
+                decisionTree
+
+            (_, []) ->
+                Test path edges Nothing
+
+            (_, _) ->
+                Test path edges (Just (toDecisionTree variantDict unexplored))
+
+
+isComplete :: VariantDict -> [Tag] -> Bool
+isComplete variantDict tags =
+  case head tags of
+    Constructor name ->
+        (variantDict ! name) == length tags
+
+    Literal (L.Boolean _) ->
+        length tags == 2
+
+    _ ->
+        False
+
+
+
+-- SKIP USELESS TESTS
+
+skipUselessPatterns :: VariantDict -> Branch -> Branch
+skipUselessPatterns variantDict (Branch goal pathPatterns) =
+  Branch goal (concatMap (skipper variantDict) pathPatterns)
+
+
+skipper :: VariantDict -> (Path, OPattern) -> [(Path, OPattern)]
+skipper variantDict pathPattern@(path, A.A ann pattern) =
+  case pattern of
+    P.Var _ ->
+        [pathPattern]
+
+    P.Anything ->
+        [pathPattern]
+
+    P.Alias alias realPattern ->
+        [ (add path Alias, A.A ann (P.Var alias))
+        , (path, realPattern)
+        ]
+
+    P.Record _ ->
+        [pathPattern]
+
+    P.Data tag patterns ->
+        if variantDict ! tag == 1 then
+            concatMap (skipper variantDict) (subPositions path patterns)
+
+        else
+            [pathPattern]
+
+    P.Literal _ ->
+        [pathPattern]
+
+
+-- VARIABLE SUBSTITUTIONS
+
+isAllValiables :: [Branch] -> Maybe (Int, Map.Map String Path)
+isAllValiables branches =
+  case branches of
+    Branch goal patterns : _ ->
+        do  subs <- concat `fmap` mapM getSubstitution patterns
+            return (goal, Map.fromList subs)
+
+    _ ->
+        Nothing
+
+
+getSubstitution :: (Path, OPattern) -> Maybe [(String, Path)]
+getSubstitution (path, A.A _ pattern) =
+  case pattern of
+    P.Var x ->
+        Just [(x, path)]
+
+    P.Anything ->
+        Just []
+
+    P.Alias _ _ ->
+        error "aliases should never reach 'getSubstitution' function"
+
+    P.Record fields ->
+        Just (map (\name -> (name, add path (Field name Empty))) fields)
+
+    P.Data _ _ ->
+        Nothing
+
+    P.Literal _ ->
+        Nothing
+
+
+-- FIND RELEVANT TAGS
+
+tagsAtPath :: Path -> [Branch] -> [Tag]
+tagsAtPath selectedPath branches =
+  List.nub $ Maybe.mapMaybe (tagAtPath selectedPath) branches
+
+
+tagAtPath :: Path -> Branch -> Maybe Tag
+tagAtPath selectedPath (Branch _ pathPatterns) =
+  case List.lookup selectedPath pathPatterns of
+    Nothing ->
+        Nothing
+
+    Just (A.A _ pattern) ->
         case pattern of
-          P.Data _ argPatterns ->
-              (argPatterns ++ patterns, expr)
+          P.Data name _ ->
+              Just (Constructor name)
 
-          P.Literal _  ->
-              (patterns, expr)
+          P.Literal lit ->
+              Just (Literal lit)
+
+          P.Var _ ->
+              Nothing
+
+          P.Alias _ _ ->
+              error "aliases should never reach 'tagAtPath' function"
+
+          P.Anything ->
+              Nothing
+
+          P.Record _ ->
+              Nothing
+
+
+-- BUILD EDGES
+
+edgesFor :: Path -> [Branch] -> Tag -> (Tag, [Branch])
+edgesFor path branches tag =
+  ( tag
+  , Maybe.mapMaybe (subBranch tag path) branches
+  )
+
+
+subBranch :: Tag -> Path -> Branch -> Maybe Branch
+subBranch tag path branch@(Branch goal pathPatterns) =
+  case extract path pathPatterns of
+    Just (start, A.A _ pattern, end) ->
+        case pattern of
+          P.Data name patterns | tag == Constructor name ->
+              Just (Branch goal (start ++ subPositions path patterns ++ end))
+
+          P.Literal lit | tag == Literal lit ->
+              Just (Branch goal (start ++ end))
 
           _ ->
-              noMatch "matchClause.flatten"
+              Nothing
 
-    getVars :: State Int [String]
-    getVars =
-        case head branches of
-          (A.A _ (P.Data _ argPatterns) : _, _) ->
-              State.forM argPatterns (const newVar)
-
-          (A.A _ (P.Literal _) : _, _) ->
-              return []
-
-          _ ->
-              noMatch "matchClause.getVars"
+    _ ->
+        Just branch
 
 
-branchEq :: Branch -> Branch -> Bool
-branchEq (A.A _ pattern : _, _) (A.A _ pattern' : _, _) =
-  case (pattern, pattern') of
-    (P.Data name _, P.Data name' _) ->
-        name == name'
+extract
+    :: Path
+    -> [(Path, OPattern)]
+    -> Maybe ([(Path, OPattern)], OPattern, [(Path, OPattern)])
+extract selectedPath pathPatterns =
+  case pathPatterns of
+    [] ->
+        Nothing
 
-    (P.Literal lit, P.Literal lit') ->
-        lit == lit'
+    first@(path, pattern) : rest ->
+        if path == selectedPath then
+            Just ([], pattern, rest)
 
-    (_, _) ->
-        noMatch "matchCon.branchEq"
+        else
+            case extract selectedPath rest of
+              Nothing ->
+                  Nothing
 
-branchEq _ _ = noMatch "matchCon.branchEq"
-
-
-branchCmp :: Branch -> Branch -> Ordering
-branchCmp (A.A _ pattern : _, _) (A.A _ pattern' : _, _) =
-  case (pattern, pattern') of
-    (P.Data name _, P.Data name' _) ->
-        compare name name'
-
-    (P.Literal lit, P.Literal lit') ->
-        compare lit lit'
-
-    (_, _) ->
-        noMatch "matchCon.branchCmp"
-
-branchCmp _ _ = noMatch "matchCon.branchCmp"
+              Just (start, foundPattern, end) ->
+                  Just (first : start, foundPattern, end)
 
 
--- MIX MATCHES
+-- FIND IRRELEVANT BRANCHES
 
-matchMix :: [String] -> [Branch] -> Match -> State Int Match
-matchMix vs branches def =
-    State.foldM (flip $ buildMatch vs) def (reverse branchGroups)
-  where
-    branchGroups =
-        List.groupBy (\p1 p2 -> isCon p1 == isCon p2) branches
+isIrrelevantTo :: Path -> Branch -> Bool
+isIrrelevantTo selectedPath (Branch _ pathPatterns) =
+  case List.lookup selectedPath pathPatterns of
+    Nothing ->
+        True
+
+    Just (A.A _ pattern) ->
+        case pattern of
+          P.Var _ ->
+              True
+
+          P.Anything ->
+              True
+
+          P.Alias _ _ ->
+              error "aliases should never reach 'isIrrelevantTo' function"
+
+          P.Record _ ->
+              True
+
+          P.Data _ _ ->
+              False
+
+          P.Literal _ ->
+              False
 
 
-noMatch :: String -> a
-noMatch name =
-    error $ "unexpected pattern in `" ++ name ++
-            "` function. Report a compiler issue to <https://github.com/elm-lang/Elm>."
+-- PATH PICKING HEURISTICS
+
+smallDefaults :: [Branch] -> Path
+smallDefaults branches =
+  let
+    allPaths =
+      Maybe.mapMaybe isChoicePath (concatMap _patterns branches)
+
+    weightedPaths =
+      map (\path -> (path, length (filter (isIrrelevantTo path) branches))) allPaths
+  in
+      fst (List.minimumBy (compare `on` snd) weightedPaths)
+
+
+isChoicePath :: (Path, OPattern) -> Maybe Path
+isChoicePath (path, A.A _ pattern) =
+  case pattern of
+    P.Var _ ->
+        Nothing
+
+    P.Anything ->
+        Nothing
+
+    P.Alias _ _ ->
+        error "aliases should never reach 'isChoicePath' function"
+
+    P.Record _ ->
+        Nothing
+
+    P.Data _ _ ->
+        Just path
+
+    P.Literal _ ->
+        Just path
+
+
+-- smallBranchingFactor :: [Branch] -> Path
+
+
