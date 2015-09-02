@@ -8,14 +8,6 @@ list of patterns and expressions, and then turn that into a "decision tree"
 that requires as few tests as possible to make it to a leaf. Read the paper, it
 explains this extraordinarily well! We are currently using the same heuristics
 as SML/NJ to get nice trees.
-
-Users of this module will mainly interact with the 'compile' function which
-takes some normal branches and gives out a decision tree that has "labels" at
-all the leafs and a dictionary that maps these "labels" to the code that
-should run.
-
-If 2 or more leaves point to the same label, we need to do some tricks in JS to
-make that work nicely. When is JS getting goto?! ;)
 -}
 
 
@@ -35,9 +27,18 @@ import qualified Reporting.Annotation as A
 
 -- COMPILE CASES
 
+{-| Users of this module will mainly interact with this function. It takes
+some normal branches and gives out a decision tree that has "labels" at all
+the leafs and a dictionary that maps these "labels" to the code that should
+run.
+
+If 2 or more leaves point to the same label, we need to do some tricks in JS to
+make that work nicely. When is JS getting goto?! ;) That is outside the scope
+of this module though.
+-}
 compile
     :: VariantDict
-    -> [(OPattern, Opt.Expr)]
+    -> [(P.Optimized, Opt.Expr)]
     -> (DecisionTree Int, Map.Map Int Opt.Expr)
 compile variantDict rawBranches =
   let
@@ -54,12 +55,29 @@ compile variantDict rawBranches =
     )
 
 
+{-| When a certain union type is defined, you specify a certain number of tags.
+This helps us do a few optimizations:
+
+  * If there is only one possible tag, we can always skip checking what it is.
+    Tuples are a common example of this.
+  * If we use all possible tags, we can skip doing the last test. If we have
+    checked N-1 of N tags, there is no need to test the Nth, we know its the
+    one we want
+
+So this dictionary maps tags to the number of variants that exist, so it'll
+contain things like [ ("Just", 2), ("Nothing", 2), ("_Tuple2", 1), ... ] which
+we can use for these optimizations.
+-}
+type VariantDict =
+    Map.Map Var.Canonical Int
+
+
 -- DECISION TREES
 
 data DecisionTree a
-    = Test
+    = Decision
         { _test :: Path
-        , _edges :: [(Tag, DecisionTree a)]
+        , _edges :: [(Test, DecisionTree a)]
         , _default :: Maybe (DecisionTree a)
         }
     | Match
@@ -68,15 +86,11 @@ data DecisionTree a
         }
 
 
--- EDGE CHECKS
-
-data Tag
+data Test
     = Constructor Var.Canonical
     | Literal L.Literal
     deriving (Eq, Ord)
 
-
--- PATHS
 
 data Path
     = Position Int Path
@@ -85,6 +99,8 @@ data Path
     | Alias
     deriving (Eq)
 
+
+-- PATH HELPERS
 
 add :: Path -> Path -> Path
 add path finalLink =
@@ -102,7 +118,7 @@ add path finalLink =
         Field name (add subpath finalLink)
 
 
-subPositions :: Path -> [OPattern] -> [(Path, OPattern)]
+subPositions :: Path -> [P.Optimized] -> [(Path, P.Optimized)]
 subPositions path patterns =
     zipWith
       (\index pattern -> (add path (Position index Empty), pattern))
@@ -110,31 +126,22 @@ subPositions path patterns =
       patterns
 
 
--- CREATE DECISION TREES
-
+-- ACTUALLY BUILD DECISION TREES
 
 data Branch =
   Branch
     { _goal :: Int
-    , _patterns :: [(Path, OPattern)]
+    , _patterns :: [(Path, P.Optimized)]
     }
 
-
-type OPattern = P.Optimized
-
-
-type VariantDict = Map.Map Var.Canonical Int
-
-
--- BUILD A DECISION TREE
 
 toDecisionTree :: VariantDict -> [Branch] -> DecisionTree Int
 toDecisionTree variantDict rawBranches =
   let
     branches =
-        map (skipUselessPatterns variantDict) rawBranches
+        map (flattenPatterns variantDict) rawBranches
   in
-  case isAllValiables branches of
+  case checkForMatch branches of
     Just (goal, substitutions) ->
         Match goal substitutions
 
@@ -143,14 +150,14 @@ toDecisionTree variantDict rawBranches =
           path =
               smallDefaults branches
 
-          relevantTags =
+          relevantTests =
               tagsAtPath path branches
 
           allRawEdges =
-              map (edgesFor path branches) relevantTags
+              map (edgesFor path branches) relevantTests
 
           (rawEdges, unexplored) =
-              if isComplete variantDict relevantTags then
+              if isComplete variantDict relevantTests then
                   ( init allRawEdges
                   , snd (last allRawEdges)
                   )
@@ -168,35 +175,38 @@ toDecisionTree variantDict rawBranches =
                 decisionTree
 
             (_, []) ->
-                Test path edges Nothing
+                Decision path edges Nothing
 
             (_, _) ->
-                Test path edges (Just (toDecisionTree variantDict unexplored))
+                Decision path edges (Just (toDecisionTree variantDict unexplored))
 
 
-isComplete :: VariantDict -> [Tag] -> Bool
-isComplete variantDict tags =
-  case head tags of
+isComplete :: VariantDict -> [Test] -> Bool
+isComplete variantDict tests =
+  case head tests of
     Constructor name ->
-        (variantDict ! name) == length tags
+        (variantDict ! name) == length tests
 
     Literal (L.Boolean _) ->
-        length tags == 2
+        length tests == 2
 
     _ ->
         False
 
 
 
--- SKIP USELESS TESTS
+-- FLATTEN PATTERNS
 
-skipUselessPatterns :: VariantDict -> Branch -> Branch
-skipUselessPatterns variantDict (Branch goal pathPatterns) =
-  Branch goal (concatMap (skipper variantDict) pathPatterns)
+{-| Flatten type aliases and use the VariantDict to figure out when a tag is
+the only variant so we can skip doing any tests on it.
+-}
+flattenPatterns :: VariantDict -> Branch -> Branch
+flattenPatterns variantDict (Branch goal pathPatterns) =
+  Branch goal (concatMap (flatten variantDict) pathPatterns)
 
 
-skipper :: VariantDict -> (Path, OPattern) -> [(Path, OPattern)]
-skipper variantDict pathPattern@(path, A.A ann pattern) =
+flatten :: VariantDict -> (Path, P.Optimized) -> [(Path, P.Optimized)]
+flatten variantDict pathPattern@(path, A.A ann pattern) =
   case pattern of
     P.Var _ ->
         [pathPattern]
@@ -214,7 +224,7 @@ skipper variantDict pathPattern@(path, A.A ann pattern) =
 
     P.Data tag patterns ->
         if variantDict ! tag == 1 then
-            concatMap (skipper variantDict) (subPositions path patterns)
+            concatMap (flatten variantDict) (subPositions path patterns)
 
         else
             [pathPattern]
@@ -223,10 +233,15 @@ skipper variantDict pathPattern@(path, A.A ann pattern) =
         [pathPattern]
 
 
--- VARIABLE SUBSTITUTIONS
+-- SUCCESSFULLY MATCH
 
-isAllValiables :: [Branch] -> Maybe (Int, Map.Map String Path)
-isAllValiables branches =
+{-| If the first branch has no more "decision points" we can finally take that
+path. If that is the case we give the resulting label and a mapping from free
+variables to "how to get their value". So a pattern like (Just (x,_)) will give
+us something like ("x" => value.0.0)
+-}
+checkForMatch :: [Branch] -> Maybe (Int, Map.Map String Path)
+checkForMatch branches =
   case branches of
     Branch goal patterns : _ ->
         do  subs <- concat `fmap` mapM getSubstitution patterns
@@ -236,7 +251,7 @@ isAllValiables branches =
         Nothing
 
 
-getSubstitution :: (Path, OPattern) -> Maybe [(String, Path)]
+getSubstitution :: (Path, P.Optimized) -> Maybe [(String, Path)]
 getSubstitution (path, A.A _ pattern) =
   case pattern of
     P.Var x ->
@@ -258,15 +273,15 @@ getSubstitution (path, A.A _ pattern) =
         Nothing
 
 
--- FIND RELEVANT TAGS
+-- FIND RELEVANT TESTS
 
-tagsAtPath :: Path -> [Branch] -> [Tag]
-tagsAtPath selectedPath branches =
-  List.nub $ Maybe.mapMaybe (tagAtPath selectedPath) branches
+testsAtPath :: Path -> [Branch] -> [Test]
+testsAtPath selectedPath branches =
+  List.nub $ Maybe.mapMaybe (testAtPath selectedPath) branches
 
 
-tagAtPath :: Path -> Branch -> Maybe Tag
-tagAtPath selectedPath (Branch _ pathPatterns) =
+testAtPath :: Path -> Branch -> Maybe Test
+testAtPath selectedPath (Branch _ pathPatterns) =
   case List.lookup selectedPath pathPatterns of
     Nothing ->
         Nothing
@@ -283,7 +298,7 @@ tagAtPath selectedPath (Branch _ pathPatterns) =
               Nothing
 
           P.Alias _ _ ->
-              error "aliases should never reach 'tagAtPath' function"
+              error "aliases should never reach 'testAtPath' function"
 
           P.Anything ->
               Nothing
@@ -294,22 +309,22 @@ tagAtPath selectedPath (Branch _ pathPatterns) =
 
 -- BUILD EDGES
 
-edgesFor :: Path -> [Branch] -> Tag -> (Tag, [Branch])
-edgesFor path branches tag =
-  ( tag
-  , Maybe.mapMaybe (subBranch tag path) branches
+edgesFor :: Path -> [Branch] -> Test -> (Test, [Branch])
+edgesFor path branches test =
+  ( test
+  , Maybe.mapMaybe (toRelevantBranch test path) branches
   )
 
 
-subBranch :: Tag -> Path -> Branch -> Maybe Branch
-subBranch tag path branch@(Branch goal pathPatterns) =
+toRelevantBranch :: Test -> Path -> Branch -> Maybe Branch
+toRelevantBranch test path branch@(Branch goal pathPatterns) =
   case extract path pathPatterns of
     Just (start, A.A _ pattern, end) ->
         case pattern of
-          P.Data name patterns | tag == Constructor name ->
+          P.Data name patterns | test == Constructor name ->
               Just (Branch goal (start ++ subPositions path patterns ++ end))
 
-          P.Literal lit | tag == Literal lit ->
+          P.Literal lit | test == Literal lit ->
               Just (Branch goal (start ++ end))
 
           _ ->
@@ -321,8 +336,8 @@ subBranch tag path branch@(Branch goal pathPatterns) =
 
 extract
     :: Path
-    -> [(Path, OPattern)]
-    -> Maybe ([(Path, OPattern)], OPattern, [(Path, OPattern)])
+    -> [(Path, P.Optimized)]
+    -> Maybe ([(Path, P.Optimized)], P.Optimized, [(Path, P.Optimized)])
 extract selectedPath pathPatterns =
   case pathPatterns of
     [] ->
@@ -349,25 +364,30 @@ isIrrelevantTo selectedPath (Branch _ pathPatterns) =
     Nothing ->
         True
 
-    Just (A.A _ pattern) ->
-        case pattern of
-          P.Var _ ->
-              True
+    Just pattern ->
+        not (needsTests pattern)
 
-          P.Anything ->
-              True
 
-          P.Alias _ _ ->
-              error "aliases should never reach 'isIrrelevantTo' function"
+needsTests :: P.Optimized -> Bool
+needsTests (A.A _ pattern) =
+  case pattern of
+    P.Var _ ->
+        False
 
-          P.Record _ ->
-              True
+    P.Anything ->
+        False
 
-          P.Data _ _ ->
-              False
+    P.Alias _ _ ->
+        error "aliases should never reach 'isIrrelevantTo' function"
 
-          P.Literal _ ->
-              False
+    P.Record _ ->
+        False
+
+    P.Data _ _ ->
+        True
+
+    P.Literal _ ->
+        True
 
 
 -- PATH PICKING HEURISTICS
@@ -384,28 +404,12 @@ smallDefaults branches =
       fst (List.minimumBy (compare `on` snd) weightedPaths)
 
 
-isChoicePath :: (Path, OPattern) -> Maybe Path
-isChoicePath (path, A.A _ pattern) =
-  case pattern of
-    P.Var _ ->
-        Nothing
-
-    P.Anything ->
-        Nothing
-
-    P.Alias _ _ ->
-        error "aliases should never reach 'isChoicePath' function"
-
-    P.Record _ ->
-        Nothing
-
-    P.Data _ _ ->
-        Just path
-
-    P.Literal _ ->
-        Just path
+isChoicePath :: (Path, P.Optimized) -> Maybe Path
+isChoicePath (path, pattern) =
+  if needsTests pattern then
+      Just path
+  else
+      Nothing
 
 
 -- smallBranchingFactor :: [Branch] -> Path
-
-
