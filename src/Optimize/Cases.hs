@@ -151,7 +151,7 @@ toDecisionTree variantDict rawBranches =
               smallDefaults branches
 
           relevantTests =
-              tagsAtPath path branches
+              testsAtPath path branches
 
           allRawEdges =
               map (edgesFor path branches) relevantTests
