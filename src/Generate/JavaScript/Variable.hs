@@ -1,5 +1,6 @@
-module Generate.JavaScript.Variable (canonical, safe) where
+module Generate.JavaScript.Variable (fresh, canonical, safe) where
 
+import qualified Control.Monad.State as State
 import qualified Data.List as List
 import qualified Data.Set as Set
 import qualified Language.ECMAScript3.Syntax as JS
@@ -9,6 +10,15 @@ import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
 import qualified Elm.Package as Pkg
 import qualified Generate.JavaScript.Helpers as JS
+
+
+-- FRESH NAMES
+
+fresh :: State.State Int String
+fresh =
+  do  n <- State.get
+      State.modify (+1)
+      return ("_v" ++ show n)
 
 
 -- INSTANTIATE VARIABLES

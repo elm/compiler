@@ -2,11 +2,13 @@ module Generate.JavaScript (generate) where
 
 import Control.Applicative ((<$>),(<*>))
 import Control.Arrow (first, second, (***))
-import Control.Monad.State
+import Control.Monad.State as State
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
+import Language.ECMAScript3.PrettyPrint as ES
 import Language.ECMAScript3.Syntax
+import qualified Text.PrettyPrint.Leijen as PP
 
 import AST.Expression.General as Expr
 import qualified AST.Expression.Optimized as Opt
@@ -28,8 +30,15 @@ import qualified Reporting.Crash as Crash
 
 
 generate :: Module.Optimized -> String
-generate modul =
-    error "TODO" modul exprToCode
+generate module_ =
+  let
+    (definitions, _) =
+        flattenLets [] (Module.program (Module.body module_))
+
+    stmts =
+        concat (State.evalState (mapM defToStatements definitions) 0)
+  in
+    PP.displayS (PP.renderPretty 0.4 120 (ES.prettyPrint stmts)) ""
 
 
 -- CODE CHUNKS
@@ -222,7 +231,7 @@ generateFunction (args, initialBody) =
 generateTailFunction :: String -> ([P.Optimized], Opt.Expr) -> State Int (Expression ())
 generateTailFunction name (args, initialBody) =
   do  (argVars, patternDefs) <- destructuredArgs args
-      label <- Id () <$> Case.newVar
+      label <- Id () <$> Var.fresh
       code <- generateLet (Just (name, argVars, label)) patternDefs initialBody
       let whileLoop =
             JsBlock [ LabelledStmt () label (WhileStmt () (BoolLit () True) (toStatement code)) ]
@@ -260,7 +269,7 @@ destructPattern pattern@(A.A ann pat) =
         return (Var.safe x, Nothing)
 
     _ ->
-        do  arg <- Case.newVar
+        do  arg <- Var.fresh
             return
               ( arg
               , Just $ Opt.Definition Opt.dummyFacts pattern (A.A ann (localVar arg))
@@ -287,7 +296,7 @@ generateApplication tcc expr =
     case isTailCall tcc func arity of
       Just (argNames, label) ->
         do  args' <- mapM toJsExpr args
-            tempNames <- mapM (\_ -> Case.newVar) args
+            tempNames <- mapM (\_ -> Var.fresh) args
             jsBlock $
               VarDeclStmt () (zipWith varDecl tempNames args')
               : zipWith reassign argNames tempNames
@@ -334,6 +343,13 @@ generateLet tcc givenDefs givenBody =
       stmts <- concat <$> mapM defToStatements defs
       code <- exprToCode tcc body
       jsBlock (stmts ++ toStatementList code)
+
+
+flattenLets :: [Opt.Def] -> Opt.Expr -> ([Opt.Def], Opt.Expr)
+flattenLets defs lexpr@(A.A _ expr) =
+    case expr of
+      Let ds body -> flattenLets (defs ++ ds) body
+      _ -> (defs, lexpr)
 
 
 -- GENERATE IFS
@@ -473,97 +489,7 @@ defToStatementsHelp facts annPattern@(A.A _ pattern) jsExpr =
 
 generateCase :: TailCallContext -> Opt.Expr -> [(P.Optimized, Opt.Expr)] -> State Int Code
 generateCase tcc expr branches =
-  do  (tempVar, initialMatch) <-
-          Case.toMatch branches
-
-      (revisedMatch, stmt) <-
-          case expr of
-            A.A _ (Var (Var.Canonical Var.Local x)) ->
-                return (Case.matchSubst [(tempVar, Var.safe x)] initialMatch, [])
-
-            A.A _ (Var (Var.Canonical (Var.TopLevel _) x)) ->
-                return (Case.matchSubst [(tempVar, Var.safe x)] initialMatch, [])
-
-            _ ->
-                do  expr' <- toJsExpr expr
-                    return (initialMatch, [VarDeclStmt () [varDecl tempVar expr']])
-
-      match' <- match tcc revisedMatch
-
-      jsBlock (stmt ++ match')
-
-
-match :: TailCallContext -> Case.Match -> State Int [Statement ()]
-match tcc mtch =
-  case mtch of
-    Case.Match name clauses mtch' ->
-        do  (isChars, clauses') <- unzip <$> mapM (clause tcc name) clauses
-            mtch'' <- match tcc mtch'
-            return (SwitchStmt () (format isChars (access name)) clauses' : mtch'')
-        where
-          isLiteral p =
-            case p of
-              Case.Clause (Right _) _ _ ->
-                  True
-              _ ->
-                  False
-
-          access name =
-              if any isLiteral clauses then
-                  obj [name]
-              else
-                  obj (Help.splitDots name ++ ["ctor"])
-
-          format isChars expr =
-              if or isChars then
-                  InfixExpr () OpAdd expr (string "")
-              else
-                  expr
-
-    Case.Fail ->
-        return [ ExprStmt () (Crash.crash (Crash.IncompletePatternMatch (error "TODO"))) ]
-
-    Case.Break ->
-        return [BreakStmt () Nothing]
-
-    Case.Other expr ->
-        toStatementList <$> exprToCode tcc expr
-
-    Case.Seq ms ->
-        concat <$> mapM (match tcc) (dropEnd [] ms)
-      where
-        dropEnd acc [] = acc
-        dropEnd acc (m:ms) =
-            case m of
-              Case.Other _ -> acc ++ [m]
-              _ -> dropEnd (acc ++ [m]) ms
-
-
-clause :: TailCallContext -> String -> Case.Clause -> State Int (Bool, CaseClause ())
-clause tcc variable (Case.Clause value vars mtch) =
-  do  statemens <- match tcc (Case.matchSubst (zip vars vars') mtch)
-      return ((,) isChar (CaseClause () pattern statemens))
-  where
-    vars' =
-        map (\n -> variable ++ "._" ++ show n) [0..]
-
-    (isChar, pattern) =
-        case value of
-          Right (Chr c) -> (True, string [c])
-          _ ->
-            (,) False $
-              case value of
-                Right (Boolean b) -> BoolLit () b
-                Right lit -> Literal.literal lit
-                Left (Var.Canonical _ name) ->
-                    string name
-
-
-flattenLets :: [Opt.Def] -> Opt.Expr -> ([Opt.Def], Opt.Expr)
-flattenLets defs lexpr@(A.A _ expr) =
-    case expr of
-      Let ds body -> flattenLets (defs ++ ds) body
-      _ -> (defs, lexpr)
+    error "TODO" tcc expr branches
 
 
 -- BINARY OPERATORS
