@@ -87,7 +87,6 @@ Library
         Nitpick.TopLevelTypes,
         Optimize,
         Optimize.Cases,
-        Optimize.Substitute,
         Parse.Binop,
         Parse.Declaration,
         Parse.Expression,
