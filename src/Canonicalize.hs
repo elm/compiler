@@ -487,9 +487,6 @@ expression env (A.A region validExpr) =
       GLShader uid src tipe ->
           Result.ok (GLShader uid src tipe)
 
-      Crash details ->
-          Result.ok (Crash details)
-
 
 pattern
     :: Env.Environment
