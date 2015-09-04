@@ -344,70 +344,10 @@ binop
     -> Opt.Expr
     -> Opt.Expr
     -> State Int Code
-binop func left right
-  | func == Var.Canonical Var.BuiltIn "::" =
-      generateCode (Data "::" [left,right])
-
-  | func == forwardCompose =
-      compose (collectLeftAssoc forwardCompose left right)
-
-  | func == backwardCompose =
-      compose (collectRightAssoc backwardCompose left right)
-
-  | func == forwardApply =
-      pipe (collectLeftAssoc forwardApply left right)
-
-  | func == backwardApply =
-      pipe (collectRightAssoc backwardApply left right)
-
-  | otherwise =
-      do  jsLeft <- generateJsExpr left
-          jsRight <- generateJsExpr right
-          jsExpr (makeExpr func jsLeft jsRight)
-
-
--- CONTROL FLOW OPERATOR HELPERS
-
-apply :: Expression () -> Expression () -> Expression ()
-apply arg func =
-  func <| arg
-
-
-compose :: [Opt.Expr] -> State Int Code
-compose functions =
-  do  jsFunctions <- mapM generateJsExpr functions
-      jsExpr $ ["$"] ==> List.foldl' apply (ref "$") jsFunctions
-
-
-pipe :: [Opt.Expr] -> State Int Code
-pipe expressions =
-  do  (value:functions) <- mapM generateJsExpr expressions
-      jsExpr $ List.foldl' apply value functions
-
-
-forwardCompose :: Var.Canonical
-forwardCompose =
-  inBasics ">>"
-
-
-backwardCompose :: Var.Canonical
-backwardCompose =
-  inBasics "<<"
-
-
-forwardApply :: Var.Canonical
-forwardApply =
-  inBasics "|>"
-
-
-backwardApply :: Var.Canonical
-backwardApply =
-  inBasics "<|"
-
-
-inBasics :: String -> Var.Canonical
-inBasics name =
-  Var.inCore ["Basics"] name
+binop func left right =
+    do  jsLeft <- generateJsExpr left
+        jsRight <- generateJsExpr right
+        jsExpr (makeExpr func jsLeft jsRight)
 
 
 -- BINARY OPERATOR HELPERS
@@ -447,7 +387,6 @@ infixOps =
 specialOps :: [(String, Expression () -> Expression () -> Expression ())]
 specialOps =
     [ (,) "^"  $ \a b -> obj ["Math","pow"] `call` [a,b]
-    , (,) "|>" $ flip (<|)
     , (,) "==" $ \a b -> BuiltIn.eq a b
     , (,) "/=" $ \a b -> PrefixExpr () PrefixLNot (BuiltIn.eq a b)
     , (,) "<"  $ cmp OpLT 0
@@ -461,38 +400,3 @@ specialOps =
 cmp :: InfixOp -> Int -> Expression () -> Expression () -> Expression ()
 cmp op n a b =
     InfixExpr () op (BuiltIn.compare a b) (IntLit () n)
-
-
--- BINARY OPERATOR COLLECTORS
-
--- (h << g << f) becomes [f, g, h] which is the order you want for doing stuff
-collectRightAssoc :: Var.Canonical -> Opt.Expr -> Opt.Expr -> [Opt.Expr]
-collectRightAssoc desiredOp left right =
-  collectRightAssocHelp desiredOp [left] right
-
-
-collectRightAssocHelp :: Var.Canonical -> [Opt.Expr] -> Opt.Expr -> [Opt.Expr]
-collectRightAssocHelp desiredOp exprList expr =
-    case expr of
-      Binop op left right | op == desiredOp ->
-          collectRightAssocHelp desiredOp (left : exprList) right
-
-      _ ->
-          expr : exprList
-
-
--- (f >> g >> h) becomes [f, g, h] which is the order you want for doing stuff
-collectLeftAssoc :: Var.Canonical -> Opt.Expr -> Opt.Expr -> [Opt.Expr]
-collectLeftAssoc desiredOp left right =
-  collectLeftAssocHelp desiredOp [right] left
-
-
-collectLeftAssocHelp :: Var.Canonical -> [Opt.Expr] -> Opt.Expr -> [Opt.Expr]
-collectLeftAssocHelp desiredOp exprList expr =
-    case expr of
-      Binop op left right | op == desiredOp ->
-          collectLeftAssocHelp desiredOp (right : exprList) left
-
-      _ ->
-          expr : exprList
-

@@ -15,6 +15,7 @@ import qualified AST.Pattern as P
 import qualified AST.Variable as Var
 import qualified Optimize.Cases as Cases
 import qualified Reporting.Annotation as A
+import qualified Reporting.Region as R
 
 
 -- OPTIMIZE FOR TAIL CALLS
@@ -194,7 +195,7 @@ type Context = Maybe (String, Int, [String])
 
 
 findTailCalls :: Context -> Can.Expr -> Optimizer Opt.Expr
-findTailCalls context annExpr@(A.A _ expression) =
+findTailCalls context annExpr@(A.A region expression) =
   let
     keepLooking =
       findTailCalls context
@@ -223,9 +224,7 @@ findTailCalls context annExpr@(A.A _ expression) =
           <$> T.traverse justConvert elements
 
     Expr.Binop op leftExpr rightExpr ->
-        Opt.Binop op
-          <$> justConvert leftExpr
-          <*> justConvert rightExpr
+        optimizeBinop context region op leftExpr rightExpr
 
     Expr.Lambda _ _ ->
         let
@@ -388,3 +387,101 @@ freshName =
   do  (Env htc uid) <- State.get
       State.put (Env htc (uid + 1))
       return ("_p" ++ show uid)
+
+
+-- OPTIMIZE BINOPS
+
+optimizeBinop
+    :: Context
+    -> R.Region
+    -> Var.Canonical
+    -> Can.Expr
+    -> Can.Expr
+    -> Optimizer Opt.Expr
+optimizeBinop context region op leftExpr rightExpr =
+  let
+    ann = A.A region
+    binop = ann (Expr.Binop op leftExpr rightExpr)
+  in
+  if op == forwardApply then
+
+      findTailCalls context (collect id left forwardApply binop)
+
+  else if op == backwardApply then
+
+      findTailCalls context (collect id right backwardApply binop)
+
+  else if op == forwardCompose then
+
+      do  var <- freshName
+          let makeRoot func = ann (Expr.App func (ann (Expr.Var (Var.local var))))
+          let body = collect makeRoot left forwardCompose binop
+          findTailCalls context (ann (Expr.Lambda (ann (P.Var var)) body))
+
+  else if op == backwardCompose then
+
+      do  var <- freshName
+          let makeRoot func = ann (Expr.App func (ann (Expr.Var (Var.local var))))
+          let body = collect makeRoot right backwardCompose binop
+          findTailCalls context (ann (Expr.Lambda (ann (P.Var var)) body))
+
+  else if op == Var.Canonical Var.BuiltIn "::" then
+
+      findTailCalls context (ann (Expr.Data "::" [ leftExpr, rightExpr ]))
+
+  else
+
+      Opt.Binop op
+        <$> findTailCalls Nothing leftExpr
+        <*> findTailCalls Nothing rightExpr
+
+
+-- left-associative ((x |> f) |> g)
+forwardApply :: Var.Canonical
+forwardApply =
+  Var.inCore ["Basics"] "|>"
+
+
+-- right-associative (g <| (f <| x))
+backwardApply :: Var.Canonical
+backwardApply =
+  Var.inCore ["Basics"] "<|"
+
+
+-- left-associative ((f >> g) >> h)
+forwardCompose :: Var.Canonical
+forwardCompose =
+  Var.inCore ["Basics"] ">>"
+
+
+-- right-associative (h << (g << f))
+backwardCompose :: Var.Canonical
+backwardCompose =
+  Var.inCore ["Basics"] "<<"
+
+
+type Assoc =
+  Can.Expr -> Can.Expr -> (Can.Expr, Can.Expr)
+
+
+left :: Assoc
+left =
+    flip (,)
+
+
+right :: Assoc
+right =
+    (,)
+
+
+collect :: (Can.Expr -> Can.Expr) -> Assoc -> Var.Canonical -> Can.Expr -> Can.Expr
+collect makeRoot assoc desiredOp annExpr@(A.A ann expr) =
+  case expr of
+    Expr.Binop op leftExpr rightExpr | op == desiredOp ->
+        let
+          (func, arg) = assoc leftExpr rightExpr
+        in
+          A.A ann (Expr.App func (collect makeRoot assoc desiredOp arg))
+
+    _ ->
+        makeRoot annExpr
