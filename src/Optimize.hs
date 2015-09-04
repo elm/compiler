@@ -18,7 +18,7 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
 
--- OPTIMIZE FOR TAIL CALLS
+-- OPTIMIZE - turn a canonical module into a list of optimized defs
 
 optimize :: Module.CanonicalModule -> Module.Optimized
 optimize module_ =
@@ -30,7 +30,7 @@ optimize module_ =
         flattenLets [] (Module.program (Module.body module_))
   in
     State.evalState
-        (concat <$> mapM (definition (Just home)) defs)
+        (concat <$> mapM (optimizeDef (Just home)) defs)
         (Env False 0)
 
 
@@ -69,8 +69,8 @@ mapSnd func (x, a) =
 
 -- CONVERT DEFINITIONS
 
-definition :: Maybe ModuleName.Canonical -> Can.Def -> Optimizer [Opt.Def]
-definition home (Can.Definition (Can.Facts deps) pattern@(A.A _ ptrn) expression _) =
+optimizeDef :: Maybe ModuleName.Canonical -> Can.Def -> Optimizer [Opt.Def]
+optimizeDef home (Can.Definition (Can.Facts deps) pattern@(A.A _ ptrn) expression _) =
   let
     (args, rawBody) =
       Expr.collectLambdas expression
@@ -100,14 +100,14 @@ definition home (Can.Definition (Can.Facts deps) pattern@(A.A _ ptrn) expression
       (P.Var name, []) ->
 
           do  hasTailCall <- State.gets _hasTailCall
-              body <- findTailCalls Nothing rawBody
+              body <- optimizeExpr Nothing rawBody
               setTailCall hasTailCall
               return [ Opt.Def (Opt.Facts home deps) name body ]
 
       (_, []) ->
 
           do  name <- freshName
-              optBody <- findTailCalls Nothing rawBody
+              optBody <- optimizeExpr Nothing rawBody
               let optDef = Opt.Def (Opt.Facts home deps) name optBody
               return (optDef : patternToDefs home name pattern)
 
@@ -124,7 +124,7 @@ optimizeFunction
     -> Optimizer ([String], Opt.Expr)
 optimizeFunction maybeName patterns givenBody =
   do  (argNames, body) <- M.foldM depatternArgs ([], givenBody) (reverse patterns)
-      optBody <- findTailCalls (makeContext argNames =<< maybeName) body
+      optBody <- optimizeExpr (makeContext argNames =<< maybeName) body
       return (argNames, optBody)
 
 
@@ -189,21 +189,26 @@ substitutions expr (A.A _ pattern) =
         concat (zipWith (substitutions . Opt.DataAccess expr) [0..] patterns)
 
 
--- CONVERT EXPRESSIONS
+-- OPTIMIZE EXPRESSIONS
 
 type Context = Maybe (String, Int, [String])
 
 
-findTailCalls :: Context -> Can.Expr -> Optimizer Opt.Expr
-findTailCalls context annExpr@(A.A region expression) =
+{-| This optimizer detects tail calls. The `Context` holds a function name,
+function arity, and list of argument names. If a tail call is possible, the
+`Context` will be filled in and we check any function we run into. If we go
+down a route that cannot possibly have tail calls, we remove the context.
+-}
+optimizeExpr :: Context -> Can.Expr -> Optimizer Opt.Expr
+optimizeExpr context annExpr@(A.A region expression) =
   let
     keepLooking =
-      findTailCalls context
+      optimizeExpr context
       -- this *might* find a tail call, use this when something is a potential
       -- tail call
 
     justConvert =
-      findTailCalls Nothing
+      optimizeExpr Nothing
       -- this will never find tail calls, use this when you are working with
       -- expressions that cannot be turned into tail calls
   in
@@ -262,7 +267,7 @@ findTailCalls context annExpr@(A.A region expression) =
               <*> keepLooking finally
 
     Expr.Let defs body ->
-        do  optDefs <- concat <$> T.traverse (definition Nothing) defs
+        do  optDefs <- concat <$> T.traverse (optimizeDef Nothing) defs
             Opt.Let optDefs <$> keepLooking body
 
     Expr.Case expr rawBranches ->
@@ -405,35 +410,35 @@ optimizeBinop context region op leftExpr rightExpr =
   in
   if op == forwardApply then
 
-      findTailCalls context (collect id left forwardApply binop)
+      optimizeExpr context (collect id left forwardApply binop)
 
   else if op == backwardApply then
 
-      findTailCalls context (collect id right backwardApply binop)
+      optimizeExpr context (collect id right backwardApply binop)
 
   else if op == forwardCompose then
 
       do  var <- freshName
           let makeRoot func = ann (Expr.App func (ann (Expr.Var (Var.local var))))
           let body = collect makeRoot left forwardCompose binop
-          findTailCalls context (ann (Expr.Lambda (ann (P.Var var)) body))
+          optimizeExpr context (ann (Expr.Lambda (ann (P.Var var)) body))
 
   else if op == backwardCompose then
 
       do  var <- freshName
           let makeRoot func = ann (Expr.App func (ann (Expr.Var (Var.local var))))
           let body = collect makeRoot right backwardCompose binop
-          findTailCalls context (ann (Expr.Lambda (ann (P.Var var)) body))
+          optimizeExpr context (ann (Expr.Lambda (ann (P.Var var)) body))
 
   else if op == Var.Canonical Var.BuiltIn "::" then
 
-      findTailCalls context (ann (Expr.Data "::" [ leftExpr, rightExpr ]))
+      optimizeExpr context (ann (Expr.Data "::" [ leftExpr, rightExpr ]))
 
   else
 
       Opt.Binop op
-        <$> findTailCalls Nothing leftExpr
-        <*> findTailCalls Nothing rightExpr
+        <$> optimizeExpr Nothing leftExpr
+        <*> optimizeExpr Nothing rightExpr
 
 
 -- left-associative ((x |> f) |> g)
