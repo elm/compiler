@@ -1,46 +1,64 @@
-module Optimize.TailCalls where
+module Optimize.TailCalls (optimize) where
 
 import Control.Applicative
-import Control.Arrow (first)
 import qualified Control.Monad as M
-import qualified Data.List as List
+import qualified Control.Monad.State as State
+import qualified Data.Map as Map
 import qualified Data.Traversable as T
 
-import AST.Expression.General as Expr
+import qualified AST.Expression.General as Expr
 import qualified AST.Expression.Canonical as Can
 import qualified AST.Expression.Optimized as Opt
+import qualified AST.Module as Module
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
+import qualified Optimize.Cases as Cases
 import qualified Reporting.Annotation as A
 
 
 -- OPTIMIZE FOR TAIL CALLS
 
-optimize :: Can.Expr -> Opt.Expr
-optimize expression =
-    let
-        (Result _ optExpr) =
-            findTailCalls Nothing expression
-    in
-        optExpr
+optimize :: Module.CanonicalModule -> Module.Optimized
+optimize module_ =
+  let
+    home =
+      Module.name module_
+
+    (defs, _) =
+        flattenLets [] (Module.program (Module.body module_))
+  in
+    State.evalState
+        (concat <$> mapM (definition (Just home)) defs)
+        (Env False 0)
+
+
+flattenLets :: [Can.Def] -> Can.Expr -> ([Can.Def], Can.Expr)
+flattenLets defs annExpr@(A.A _ expr) =
+    case expr of
+      Expr.Let ds body ->
+          flattenLets (defs ++ ds) body
+
+      _ ->
+          (defs, annExpr)
 
 
 -- TRACKER TO THREAD FINDINGS THROUGH TRAVERSAL
 
-data Result a = Result Bool a
+type Optimizer a =
+    State.State Env a
 
 
-instance M.Functor Result where
-    fmap func (Result hasTailCall value) =
-        Result hasTailCall (func value)
+data Env = Env
+    { _hasTailCall :: Bool
+    , _uid :: Int
+    }
 
 
-instance Applicative Result where
-    pure value =
-        Result False value
-
-    (<*>) (Result hasTailCall func) (Result hasTailCall' value) =
-        Result (hasTailCall || hasTailCall') (func value)
+setTailCall :: Bool -> Optimizer ()
+setTailCall bool =
+  do  uid <- State.gets _uid
+      State.put (Env bool uid)
 
 
 mapSnd :: M.Functor box => (a -> box b) -> (x, a) -> box (x, b)
@@ -50,45 +68,132 @@ mapSnd func (x, a) =
 
 -- CONVERT DEFINITIONS
 
-detectTailRecursion :: Can.Def -> Opt.Def
-detectTailRecursion (Can.Definition canonFacts pattern expression _) =
+definition :: Maybe ModuleName.Canonical -> Can.Def -> Optimizer [Opt.Def]
+definition home (Can.Definition (Can.Facts deps) pattern@(A.A _ ptrn) expression _) =
+  let
+    (args, rawBody) =
+      Expr.collectLambdas expression
+  in
+    case (ptrn, args) of
+      (P.Var name, _ : _) ->
+
+          do  (Env htc uid) <- State.get
+              State.put (Env False uid)
+
+              (args, body) <- optimizeFunction (Just name) args rawBody
+
+              (Env isTailCall uid') <- State.get
+              State.put (Env htc uid')
+
+              let facts = Opt.Facts home deps
+
+              return $
+                if isTailCall then
+
+                  [ Opt.TailDef facts name args body ]
+
+                else
+
+                  [ Opt.Def facts name (Opt.Function args body) ]
+
+      (P.Var name, []) ->
+
+          do  hasTailCall <- State.gets _hasTailCall
+              body <- findTailCalls Nothing rawBody
+              setTailCall hasTailCall
+              return [ Opt.Def (Opt.Facts home deps) name body ]
+
+      (_, []) ->
+
+          do  name <- freshName
+              optBody <- findTailCalls Nothing rawBody
+              let optDef = Opt.Def (Opt.Facts home deps) name optBody
+              return (optDef : patternToDefs home name pattern)
+
+      _ ->
+          error "there should never be a function where the name is not a P.Var"
+
+
+-- OPTIMIZE FUNCTION
+
+optimizeFunction
+    :: Maybe String
+    -> [P.CanonicalPattern]
+    -> Can.Expr
+    -> Optimizer ([String], Opt.Expr)
+optimizeFunction maybeName patterns givenBody =
+  do  (argNames, body) <- M.foldM depatternArgs ([], givenBody) (reverse patterns)
+      optBody <- findTailCalls (makeContext argNames =<< maybeName) body
+      return (argNames, optBody)
+
+
+makeContext :: [String] -> String -> Context
+makeContext argNames name =
+    Just (name, length argNames, argNames)
+
+
+depatternArgs
+    :: ([String], Can.Expr)
+    -> P.CanonicalPattern
+    -> Optimizer ([String], Can.Expr)
+depatternArgs (names, rawExpr) ptrn =
+    do  (name, expr) <- depattern ptrn rawExpr
+        return (name : names, expr)
+
+
+patternToDefs
+    :: Maybe ModuleName.Canonical
+    -> String
+    -> P.CanonicalPattern
+    -> [Opt.Def]
+patternToDefs home rootName pattern =
     let
-        (args, body) =
-            Expr.collectLambdas expression
+        (deps, rootExpr) =
+            case home of
+              Nothing ->
+                  ( []
+                  , Opt.Var (Var.local rootName)
+                  )
 
-        context :: Context
-        context =
-            case (pattern, args) of
-              -- detect if it is a function
-              (A.A _ (P.Var name), _ : _) ->
-                  Just (name, length args)
+              Just moduleName ->
+                  ( [ Var.TopLevelVar moduleName rootName ]
+                  , Opt.Var (Var.topLevel moduleName rootName)
+                  )
 
-              _ ->
-                  Nothing
-
-        (Result isTailCall optExpr) =
-            findTailCalls context body
-
-        lambda x e =
-            A.A () (Lambda x e)
-
-        facts =
-            Opt.Facts
-              (if isTailCall then fmap fst context else Nothing)
-              (Can.dependencies canonFacts)
+        toDef (name, accessExpr) =
+            Opt.Def (Opt.Facts home deps) name accessExpr
     in
-        Opt.Definition
-          facts
-          (removeAnnotations pattern)
-          (foldr lambda optExpr (map removeAnnotations args))
+        map toDef (substitutions rootExpr pattern)
+
+
+substitutions :: Opt.Expr -> P.CanonicalPattern -> [(String, Opt.Expr)]
+substitutions expr (A.A _ pattern) =
+  case pattern of
+    P.Var name ->
+        [ (name, expr) ]
+
+    P.Literal _ ->
+        []
+
+    P.Record fields ->
+        map (\name -> (name, Opt.Access expr name)) fields
+
+    P.Anything ->
+        []
+
+    P.Alias alias realPattern ->
+        (alias, expr) : substitutions expr realPattern
+
+    P.Data _ patterns ->
+        concat (zipWith (substitutions . Opt.DataAccess expr) [0..] patterns)
 
 
 -- CONVERT EXPRESSIONS
 
-type Context = Maybe (String, Int)
+type Context = Maybe (String, Int, [String])
 
 
-findTailCalls :: Context -> Can.Expr -> Result Opt.Expr
+findTailCalls :: Context -> Can.Expr -> Optimizer Opt.Expr
 findTailCalls context annExpr@(A.A _ expression) =
   let
     keepLooking =
@@ -101,135 +206,185 @@ findTailCalls context annExpr@(A.A _ expression) =
       -- this will never find tail calls, use this when you are working with
       -- expressions that cannot be turned into tail calls
   in
-  A.A () <$>
   case expression of
-    Literal lit ->
-        pure (Literal lit)
+    Expr.Literal lit ->
+        pure (Opt.Literal lit)
 
-    Var name ->
-        pure (Var name)
+    Expr.Var name ->
+        pure (Opt.Var name)
 
-    Range lowExpr highExpr ->
-        Range
+    Expr.Range lowExpr highExpr ->
+        Opt.Range
           <$> justConvert lowExpr
           <*> justConvert highExpr
 
-    ExplicitList elements ->
-        ExplicitList
+    Expr.ExplicitList elements ->
+        Opt.ExplicitList
           <$> T.traverse justConvert elements
 
-    Binop op leftExpr rightExpr ->
-        Binop op
+    Expr.Binop op leftExpr rightExpr ->
+        Opt.Binop op
           <$> justConvert leftExpr
           <*> justConvert rightExpr
 
-    Lambda pattern body ->
-        Lambda (removeAnnotations pattern) <$> justConvert body
+    Expr.Lambda _ _ ->
+        let
+            (patterns, body) =
+                Expr.collectLambdas annExpr
+        in
+            uncurry Opt.Function <$> optimizeFunction Nothing patterns body
 
-    App _ _ ->
+    Expr.App _ _ ->
         let
             (func:args) =
                 Expr.collectApps annExpr
-
-            isTailCall =
-                case (context, func) of
-                  ( Just (name, argNum), A.A _ (Var (Var.Canonical Var.Local name')) ) ->
-                      name == name' && length args == argNum
-                  ( Just (name, argNum), A.A _ (Var (Var.Canonical (Var.TopLevel _) name')) ) ->
-                      name == name' && length args == argNum
-                  _ ->
-                      False
-
-            (Result _ (A.A _ optFunc)) =
-                justConvert func
-
-            (Result _ optArgs) =
-                T.traverse justConvert args
-
-            apply f arg =
-                App (A.A () f) arg
         in
-            Result isTailCall (List.foldl' apply optFunc optArgs)
+            case isTailCall context func (length args) of
+              Just (name, argNames) ->
+                  do  optArgs <- T.traverse justConvert args
+                      setTailCall True
+                      return (Opt.TailCall name argNames optArgs)
+
+              Nothing ->
+                  do  hasTailCall <- State.gets _hasTailCall
+                      optFunc <- justConvert func
+                      optArgs <- T.traverse justConvert args
+                      setTailCall hasTailCall
+                      return (Opt.Call optFunc optArgs)
 
 
-    If branches finally ->
+    Expr.If branches finally ->
         let
             crawlBranch (cond,branch) =
                 (,) <$> justConvert cond <*> keepLooking branch
         in
-            If
+            Opt.If
               <$> T.traverse crawlBranch branches
               <*> keepLooking finally
 
-    Let defs body ->
-        let
-            optDefs = map detectTailRecursion defs
-        in
-            Let optDefs <$> keepLooking body
+    Expr.Let defs body ->
+        do  optDefs <- concat <$> T.traverse (definition Nothing) defs
+            Opt.Let optDefs <$> keepLooking body
 
-    Case expr cases ->
+    Expr.Case expr rawBranches ->
         let
-            preppedCases =
-                map (first removeAnnotations) cases
+            indexify index (pattern, branch) =
+                ( (pattern, index)
+                , (index, branch)
+                )
+
+            (patterns, indexedBranches) =
+                unzip (zipWith indexify [0..] rawBranches)
+
+            decisionTree =
+                Cases.compile (error "need a VariantDict") patterns
+
+            branches =
+                Map.fromList indexedBranches
         in
-            Case
+            Opt.Case
               <$> justConvert expr
-              <*> T.traverse (mapSnd keepLooking) preppedCases
+              <*> pure decisionTree
+              <*> T.traverse keepLooking branches
 
-    Data name exprs ->
-        Data name <$> T.traverse justConvert exprs
+    Expr.Data name exprs ->
+        Opt.Data name <$> T.traverse justConvert exprs
 
-    Access record field ->
-        Access
+    Expr.Access record field ->
+        Opt.Access
           <$> justConvert record
           <*> pure field
 
-    Update record fields ->
-        Update
+    Expr.Update record fields ->
+        Opt.Update
           <$> justConvert record
           <*> T.traverse (mapSnd justConvert) fields
 
-    Record fields ->
-        Record
+    Expr.Record fields ->
+        Opt.Record
           <$> T.traverse (mapSnd justConvert) fields
 
-    GLShader uid src gltipe ->
-        pure (GLShader uid src gltipe)
+    Expr.GLShader uid src gltipe ->
+        pure (Opt.GLShader uid src gltipe)
 
-    Port impl ->
-        Port <$>
+    Expr.Port impl ->
+        Opt.Port <$>
           case impl of
-            In name tipe ->
-                pure (In name tipe)
+            Expr.In name tipe ->
+                pure (Expr.In name tipe)
 
-            Out name expr tipe ->
-                (\e -> Out name e tipe) <$> justConvert expr
+            Expr.Out name expr tipe ->
+                (\e -> Expr.Out name e tipe) <$> justConvert expr
 
-            Task name expr tipe ->
-                (\e -> Task name e tipe) <$> justConvert expr
-
-    Crash details ->
-        pure (Crash details)
+            Expr.Task name expr tipe ->
+                (\e -> Expr.Task name e tipe) <$> justConvert expr
 
 
-removeAnnotations :: P.CanonicalPattern -> P.Optimized
-removeAnnotations (A.A _ pattern) =
-  A.A () $
-    case pattern of
-      P.Var x ->
-          P.Var x
+-- DETECT TAIL CALL
 
-      P.Literal lit ->
-          P.Literal lit
+isTailCall :: Context -> Can.Expr -> Int -> Maybe (String, [String])
+isTailCall context (A.A _ function) arity =
+    case (context, function) of
+      ( Just (ctxName, ctxArity, argNames), Expr.Var (Var.Canonical home name) ) ->
 
-      P.Record fields ->
-          P.Record fields
+          if name == ctxName && arity == ctxArity && Var.isLocalHome home then
+              Just (name, argNames)
 
-      P.Anything ->
-          P.Anything
+          else
+              Nothing
 
-      P.Alias alias realPattern ->
-          P.Alias alias (removeAnnotations realPattern)
+      _ ->
+          Nothing
 
-      P.Data name patterns ->
-          P.Data name (map removeAnnotations patterns)
+
+
+-- DEPATTERN
+-- given a pattern and an expression, push the actual pattern matching into the
+-- expression as a case-expression if necessary. The pattern compiler will work
+-- it out from there
+
+depattern :: P.CanonicalPattern -> Can.Expr -> Optimizer (String, Can.Expr)
+depattern canPattern@(A.A _ pattern) expr =
+  let
+    ann =
+      A.A (error "the annotation added in 'depattern' should not be observed!")
+
+    caseExpr e branches =
+      ann (Expr.Case e branches)
+
+    var name =
+      ann (Expr.Var (Var.local name))
+
+    caseify =
+      do  name <- freshName
+          return
+            ( name
+            , caseExpr (var name) [ (canPattern, expr) ]
+            )
+  in
+  case pattern of
+    P.Var name ->
+        return (name, expr)
+
+    P.Literal _ ->
+        caseify
+
+    P.Record _ ->
+        caseify
+
+    P.Anything ->
+        do  name <- freshName
+            return (name, expr)
+
+    P.Alias _ _ ->
+        caseify
+
+    P.Data _ _ ->
+        caseify
+
+
+freshName :: Optimizer String
+freshName =
+  do  (Env htc uid) <- State.get
+      State.put (Env htc (uid + 1))
+      return ("_p" ++ show uid)

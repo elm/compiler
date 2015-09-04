@@ -5,38 +5,29 @@ import Control.Arrow (first, second, (***))
 import Control.Monad.State as State
 import qualified Data.List as List
 import qualified Data.Map as Map
-import qualified Data.Maybe as Maybe
 import Language.ECMAScript3.PrettyPrint as ES
 import Language.ECMAScript3.Syntax
 import qualified Text.PrettyPrint.Leijen as PP
 
-import AST.Expression.General as Expr
-import qualified AST.Expression.Optimized as Opt
-import qualified AST.Helpers as Help
+import qualified AST.Expression.General as Expr
+import AST.Expression.Optimized as Opt
 import AST.Literal
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
-import qualified AST.Pattern as P
 import qualified AST.Variable as Var
 import Generate.JavaScript.Helpers as Help
 import qualified Generate.JavaScript.BuiltIn as BuiltIn
-import qualified Generate.JavaScript.Crash as Crash
 import qualified Generate.JavaScript.Literal as Literal
 import qualified Generate.JavaScript.Port as Port
 import qualified Generate.JavaScript.Variable as Var
-import qualified Optimize.Cases as Case
-import qualified Reporting.Annotation as A
-import qualified Reporting.Crash as Crash
+import qualified Optimize.Cases as PM
 
 
 generate :: Module.Optimized -> String
-generate module_ =
+generate definitions =
   let
-    (definitions, _) =
-        flattenLets [] (Module.program (Module.body module_))
-
     stmts =
-        concat (State.evalState (mapM defToStatements definitions) 0)
+        State.evalState (mapM generateDef definitions) 0
   in
     PP.displayS (PP.renderPretty 0.4 120 (ES.prettyPrint stmts)) ""
 
@@ -122,7 +113,7 @@ exprToJsExpr tcc canonicalExpr =
 
 
 exprToCode :: TailCallContext -> Opt.Expr -> State Int Code
-exprToCode tcc annotatedExpr@(A.A _ expr) =
+exprToCode tcc expr =
     case expr of
       Var var ->
           jsExpr $ Var.canonical var
@@ -172,11 +163,33 @@ exprToCode tcc annotatedExpr@(A.A _ expr) =
       Binop op leftExpr rightExpr ->
           binop op leftExpr rightExpr
 
-      Lambda _ _ ->
-          generateFunction (Expr.collectLambdas annotatedExpr)
+      Function args body ->
+          generateFunction args body
 
-      App _ _ ->
-          generateApplication tcc annotatedExpr
+      Call func args ->
+          let
+            arity = length args
+            aN = "A" ++ show arity
+          in
+            do  jsFunc <- toJsExpr func
+                jsArgs <- mapM toJsExpr args
+                jsExpr $
+                  if 2 <= arity && arity <= 9 then
+                    ref aN `call` (jsFunc:jsArgs)
+                  else
+                    foldl1 (<|) (jsFunc:jsArgs)
+
+      TailCall name argNames args ->
+          let
+            reassign name tempName =
+              ExprStmt () (AssignExpr () OpAssign (LVar () name) (ref tempName))
+          in
+            do  args' <- mapM toJsExpr args
+                tempNames <- mapM (\_ -> Var.fresh) args
+                jsBlock $
+                  VarDeclStmt () (zipWith varDecl tempNames args')
+                  : zipWith reassign argNames tempNames
+                  ++ [ContinueStmt () (Just (Id () name))]
 
       Let defs body ->
           generateLet tcc defs body
@@ -184,8 +197,8 @@ exprToCode tcc annotatedExpr@(A.A _ expr) =
       If branches finally ->
           generateIf tcc branches finally
 
-      Case expr branches ->
-          generateCase tcc expr branches
+      Case expr decisionTree branches ->
+          generateCase tcc expr decisionTree branches
 
       ExplicitList elements ->
           do  jsElements <- mapM toJsExpr elements
@@ -199,43 +212,45 @@ exprToCode tcc annotatedExpr@(A.A _ expr) =
             fields =
                 zipWith (\n e -> (prop ("_" ++ show n), e)) [ 0 :: Int .. ]
 
+      DataAccess dataExpr index ->
+          do  jsDataExpr <- toJsExpr dataExpr
+              jsExpr $ DotRef () jsDataExpr (var ("_" ++ show index))
+
       GLShader _uid src _tipe ->
           jsExpr $ ObjectLit () [(PropString () "src", Literal.literal (Str src))]
 
       Port impl ->
           case impl of
-            In name portType ->
+            Expr.In name portType ->
                 jsExpr (Port.inbound name portType)
 
-            Out name expr portType ->
+            Expr.Out name expr portType ->
                 do  expr' <- toJsExpr expr
                     jsExpr (Port.outbound name expr' portType)
 
-            Task name expr portType ->
+            Expr.Task name expr portType ->
                 do  expr' <- toJsExpr expr
                     jsExpr (Port.task name expr' portType)
 
-      Crash details ->
-          jsExpr $ Crash.crash details
+      Crash ->
+          error "TODO"
 
 
 -- FUNCTIONS
 
-generateFunction :: ([P.Optimized], Opt.Expr) -> State Int Code
-generateFunction (args, initialBody) =
-  do  (argVars, patternDefs) <- destructuredArgs args
-      code <- generateLet Nothing patternDefs initialBody
-      jsExpr (generateFunctionWithArity argVars code)
+generateFunction :: [String] -> Opt.Expr -> State Int Code
+generateFunction args body =
+  do  code <- exprToCode Nothing body
+      jsExpr (generateFunctionWithArity args code)
 
 
-generateTailFunction :: String -> ([P.Optimized], Opt.Expr) -> State Int (Expression ())
-generateTailFunction name (args, initialBody) =
-  do  (argVars, patternDefs) <- destructuredArgs args
-      label <- Id () <$> Var.fresh
-      code <- generateLet (Just (name, argVars, label)) patternDefs initialBody
-      let whileLoop =
-            JsBlock [ LabelledStmt () label (WhileStmt () (BoolLit () True) (toStatement code)) ]
-      return (generateFunctionWithArity argVars whileLoop)
+generateTailFunction :: String -> [String] -> Opt.Expr -> State Int (Expression ())
+generateTailFunction name args body =
+  do  code <- exprToCode Nothing body
+      return $ generateFunctionWithArity args $ JsBlock $ (:[]) $
+          LabelledStmt ()
+              (Id () name)
+              (WhileStmt () (BoolLit () True) (toStatement code))
 
 
 generateFunctionWithArity :: [String] -> Code -> Expression ()
@@ -256,81 +271,6 @@ generateFunctionWithArity args code =
               foldl (\body arg -> function [arg] [ret body]) innerBody otherArgs
 
 
-destructuredArgs :: [P.Optimized] -> State Int ([String], [Opt.Def])
-destructuredArgs args =
-  do  (argVars, maybePatternDefs) <- unzip <$> mapM destructPattern args
-      return (argVars, Maybe.catMaybes maybePatternDefs)
-
-
-destructPattern :: P.Optimized -> State Int (String, Maybe Opt.Def)
-destructPattern pattern@(A.A ann pat) =
-  case pat of
-    P.Var x ->
-        return (Var.safe x, Nothing)
-
-    _ ->
-        do  arg <- Var.fresh
-            return
-              ( arg
-              , Just $ Opt.Definition Opt.dummyFacts pattern (A.A ann (localVar arg))
-              )
-
-
--- APPLICATIONS
-
-generateApplication :: TailCallContext -> Opt.Expr -> State Int Code
-generateApplication tcc expr =
-  let
-    (func:args) =
-      Expr.collectApps expr
-
-    arity =
-      length args
-
-    reassign name tempName =
-      ExprStmt () (AssignExpr () OpAssign (LVar () name) (ref tempName))
-
-    aN =
-      "A" ++ show arity
-  in
-    case isTailCall tcc func arity of
-      Just (argNames, label) ->
-        do  args' <- mapM toJsExpr args
-            tempNames <- mapM (\_ -> Var.fresh) args
-            jsBlock $
-              VarDeclStmt () (zipWith varDecl tempNames args')
-              : zipWith reassign argNames tempNames
-              ++ [ContinueStmt () (Just label)]
-
-      _ ->
-        do  func' <- toJsExpr func
-            args' <- mapM toJsExpr args
-            jsExpr $
-              if 2 <= arity && arity <= 9 then
-                ref aN `call` (func':args')
-              else
-                foldl1 (<|) (func':args')
-
-
-isTailCall :: TailCallContext -> Opt.Expr -> Int -> Maybe ([String], Label)
-isTailCall tcc (A.A _ func) arity =
-  case (func, tcc) of
-    (Var (Var.Canonical Var.Local name), Just (tcName, tcArgs, tcLabel)) ->
-        if name == tcName && length tcArgs == arity then
-          Just (tcArgs, tcLabel)
-        else
-          Nothing
-
-    (Var (Var.Canonical (Var.TopLevel _) name), Just (tcName, tcArgs, tcLabel)) ->
-        if name == tcName && length tcArgs == arity then
-          Just (tcArgs, tcLabel)
-        else
-          Nothing
-
-    _ ->
-      Nothing
-
-
 -- LET EXPRESSIONS
 
 generateLet
@@ -338,18 +278,10 @@ generateLet
     -> [Opt.Def]
     -> Opt.Expr
     -> State Int Code
-generateLet tcc givenDefs givenBody =
-  do  let (defs, body) = flattenLets givenDefs givenBody
-      stmts <- concat <$> mapM defToStatements defs
+generateLet tcc defs body =
+  do  stmts <- mapM generateDef defs
       code <- exprToCode tcc body
       jsBlock (stmts ++ toStatementList code)
-
-
-flattenLets :: [Opt.Def] -> Opt.Expr -> ([Opt.Def], Opt.Expr)
-flattenLets defs lexpr@(A.A _ expr) =
-    case expr of
-      Let ds body -> flattenLets (defs ++ ds) body
-      _ -> (defs, lexpr)
 
 
 -- GENERATE IFS
@@ -396,13 +328,13 @@ crushIfsHelp visitedBranches unvisitedBranches finally =
   case unvisitedBranches of
     [] ->
         case finally of
-          A.A _ (If subBranches subFinally) ->
+          If subBranches subFinally ->
               crushIfsHelp visitedBranches subBranches subFinally
 
           _ ->
               (reverse visitedBranches, finally)
 
-    (A.A _ (Literal (Boolean True)), branch) : _ ->
+    (Literal (Boolean True), branch) : _ ->
         crushIfsHelp visitedBranches [] branch
 
     visiting : unvisited ->
@@ -412,84 +344,29 @@ crushIfsHelp visitedBranches unvisitedBranches finally =
 
 -- DEFINITIONS
 
-defToStatements :: Opt.Def -> State Int [Statement ()]
-defToStatements (Opt.Definition facts pattern expr) =
-    case Opt.tailRecursionDetails facts of
-      Just name ->
-          do  func <- generateTailFunction name (Expr.collectLambdas expr)
-              return [ VarDeclStmt () [ varDecl name func ] ]
+generateDef :: Opt.Def -> State Int (Statement ())
+generateDef def =
+  do  (home, name, jsBody) <-
+          case def of
+            Opt.TailDef (Opt.Facts home _) name argNames body ->
+                (,,) home name <$> generateTailFunction name argNames body
 
-      Nothing ->
-          defToStatementsHelp facts pattern =<< toJsExpr expr
+            Opt.Def (Opt.Facts home _) name body ->
+                (,,) home name <$> toJsExpr body
 
-
-defToStatementsHelp
-    :: Opt.Facts
-    -> P.Optimized
-    -> Expression ()
-    -> State Int [Statement ()]
-defToStatementsHelp facts annPattern@(A.A _ pattern) jsExpr =
-  let
-    define x =
-      varDecl x jsExpr
-  in
-  case pattern of
-    P.Var x ->
-        if Help.isOp x then
-            let
-                op = LBracket () (ref "_op") (string x)
-            in
-                return [ ExprStmt () $ AssignExpr () OpAssign op jsExpr ]
-        else
-            return [ VarDeclStmt () [ define (Var.safe x) ] ]
-
-    P.Record fields ->
-        let
-            setField name =
-                varDecl name (obj ["$",name])
-        in
-            return [ VarDeclStmt () (define "$" : map setField fields) ]
-
-    P.Data (Var.Canonical _ name) patterns | vars /= Nothing ->
-        return [ VarDeclStmt () (setup (zipWith decl (maybe [] id vars) [0..])) ]
-      where
-        vars = getVars patterns
-        getVars patterns =
-            case patterns of
-              A.A _ (P.Var x) : rest ->
-                  (Var.safe x :) `fmap` getVars rest
-              [] ->
-                  Just []
-              _ ->
-                  Nothing
-
-        decl x n = varDecl x (obj ["$","_" ++ show n])
-        setup vars
-            | Help.isTuple name = define "$" : vars
-            | otherwise = define "_raw" : safeAssign : vars
-
-        safeAssign = varDecl "$" (CondExpr () if' (ref "_raw") exception)
-        if' = InfixExpr () OpStrictEq (obj ["_raw","ctor"]) (string name)
-        exception = Crash.crash (Crash.IncompletePatternMatch (error "TODO"))
-
-    _ ->
-        do  defs' <- concat <$> mapM toDef vars
-            return (VarDeclStmt () [define "_"] : defs')
-        where
-          vars = P.boundVarList annPattern
-          mkVar = A.A () . localVar
-          toDef y =
-            let expr = A.A () $ Case (mkVar "_") [(annPattern, mkVar y)]
-                pat = A.A () (P.Var y)
-            in
-                defToStatements (Opt.Definition facts pat expr)
+      return (VarDeclStmt () [ varDecl (Var.defName home name) jsBody ])
 
 
 -- CASE EXPRESSIONS
 
-generateCase :: TailCallContext -> Opt.Expr -> [(P.Optimized, Opt.Expr)] -> State Int Code
-generateCase tcc expr branches =
-    error "TODO" tcc expr branches
+generateCase
+    :: TailCallContext
+    -> Opt.Expr
+    -> PM.DecisionTree Int
+    -> Map.Map Int Opt.Expr
+    -> State Int Code
+generateCase tcc expr decisionTree branches =
+    error "TODO" tcc expr decisionTree branches
 
 
 -- BINARY OPERATORS
@@ -501,7 +378,7 @@ binop
     -> State Int Code
 binop func left right
   | func == Var.Canonical Var.BuiltIn "::" =
-      toCode (A.A () (Data "::" [left,right]))
+      toCode (Data "::" [left,right])
 
   | func == forwardCompose =
       compose (collectLeftAssoc forwardCompose left right)
@@ -629,7 +506,7 @@ collectRightAssoc desiredOp left right =
 collectRightAssocHelp :: Var.Canonical -> [Opt.Expr] -> Opt.Expr -> [Opt.Expr]
 collectRightAssocHelp desiredOp exprList expr =
     case expr of
-      A.A _ (Binop op left right) | op == desiredOp ->
+      Binop op left right | op == desiredOp ->
           collectRightAssocHelp desiredOp (left : exprList) right
 
       _ ->
@@ -645,7 +522,7 @@ collectLeftAssoc desiredOp left right =
 collectLeftAssocHelp :: Var.Canonical -> [Opt.Expr] -> Opt.Expr -> [Opt.Expr]
 collectLeftAssocHelp desiredOp exprList expr =
     case expr of
-      A.A _ (Binop op left right) | op == desiredOp ->
+      Binop op left right | op == desiredOp ->
           collectLeftAssocHelp desiredOp (right : exprList) left
 
       _ ->

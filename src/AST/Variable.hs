@@ -71,6 +71,22 @@ inCore home name =
 
 -- VARIABLE RECOGNIZERS
 
+isLocalHome :: Home -> Bool
+isLocalHome home =
+  case home of
+    BuiltIn ->
+        False
+
+    Module _ ->
+        False
+
+    TopLevel _ ->
+        True
+
+    Local ->
+        True
+
+
 is :: ModuleName.Raw -> String -> Canonical -> Bool
 is home name var =
     var == inCore home name

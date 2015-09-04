@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wall #-}
 module Optimize.Cases where
 {- To learn more about how this works, definitely read through:
 
@@ -10,7 +11,6 @@ explains this extraordinarily well! We are currently using the same heuristics
 as SML/NJ to get nice trees.
 -}
 
-
 import Control.Arrow (second)
 import Data.Function (on)
 import qualified Data.List as List
@@ -18,11 +18,13 @@ import qualified Data.Map as Map
 import Data.Map ((!))
 import qualified Data.Maybe as Maybe
 
-import qualified AST.Expression.Optimized as Opt
 import qualified AST.Literal as L
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
+
+
+type CPattern = P.CanonicalPattern
 
 
 -- COMPILE CASES
@@ -36,23 +38,13 @@ If 2 or more leaves point to the same label, we need to do some tricks in JS to
 make that work nicely. When is JS getting goto?! ;) That is outside the scope
 of this module though.
 -}
-compile
-    :: VariantDict
-    -> [(P.Optimized, Opt.Expr)]
-    -> (DecisionTree Int, Map.Map Int Opt.Expr)
+compile :: VariantDict -> [(CPattern, Int)] -> DecisionTree Int
 compile variantDict rawBranches =
   let
-    format index (pattern, expr) =
-        ( Branch index [(Empty, pattern)]
-        , (index, expr)
-        )
-
-    (branches, resultList) =
-        unzip (zipWith format [0..] rawBranches)
+    format (pattern, index) =
+        Branch index [(Empty, pattern)]
   in
-    ( toDecisionTree variantDict branches
-    , Map.fromList resultList
-    )
+    toDecisionTree variantDict (map format rawBranches)
 
 
 {-| When a certain union type is defined, you specify a certain number of tags.
@@ -81,8 +73,8 @@ data DecisionTree a
         , _default :: Maybe (DecisionTree a)
         }
     | Match
-        { result :: a
-        , substitutions :: Map.Map String Path
+        { _result :: a
+        , _substitutions :: Map.Map String Path
         }
 
 
@@ -118,7 +110,7 @@ add path finalLink =
         Field name (add subpath finalLink)
 
 
-subPositions :: Path -> [P.Optimized] -> [(Path, P.Optimized)]
+subPositions :: Path -> [CPattern] -> [(Path, CPattern)]
 subPositions path patterns =
     zipWith
       (\index pattern -> (add path (Position index Empty), pattern))
@@ -131,7 +123,7 @@ subPositions path patterns =
 data Branch =
   Branch
     { _goal :: Int
-    , _patterns :: [(Path, P.Optimized)]
+    , _patterns :: [(Path, CPattern)]
     }
 
 
@@ -205,7 +197,7 @@ flattenPatterns variantDict (Branch goal pathPatterns) =
   Branch goal (concatMap (flatten variantDict) pathPatterns)
 
 
-flatten :: VariantDict -> (Path, P.Optimized) -> [(Path, P.Optimized)]
+flatten :: VariantDict -> (Path, CPattern) -> [(Path, CPattern)]
 flatten variantDict pathPattern@(path, A.A ann pattern) =
   case pattern of
     P.Var _ ->
@@ -251,7 +243,7 @@ checkForMatch branches =
         Nothing
 
 
-getSubstitution :: (Path, P.Optimized) -> Maybe [(String, Path)]
+getSubstitution :: (Path, CPattern) -> Maybe [(String, Path)]
 getSubstitution (path, A.A _ pattern) =
   case pattern of
     P.Var x ->
@@ -336,8 +328,8 @@ toRelevantBranch test path branch@(Branch goal pathPatterns) =
 
 extract
     :: Path
-    -> [(Path, P.Optimized)]
-    -> Maybe ([(Path, P.Optimized)], P.Optimized, [(Path, P.Optimized)])
+    -> [(Path, CPattern)]
+    -> Maybe ([(Path, CPattern)], CPattern, [(Path, CPattern)])
 extract selectedPath pathPatterns =
   case pathPatterns of
     [] ->
@@ -368,7 +360,7 @@ isIrrelevantTo selectedPath (Branch _ pathPatterns) =
         not (needsTests pattern)
 
 
-needsTests :: P.Optimized -> Bool
+needsTests :: CPattern -> Bool
 needsTests (A.A _ pattern) =
   case pattern of
     P.Var _ ->
@@ -404,7 +396,7 @@ smallDefaults branches =
       fst (List.minimumBy (compare `on` snd) weightedPaths)
 
 
-isChoicePath :: (Path, P.Optimized) -> Maybe Path
+isChoicePath :: (Path, CPattern) -> Maybe Path
 isChoicePath (path, pattern) =
   if needsTests pattern then
       Just path
