@@ -230,7 +230,7 @@ generateCode expr =
                 do  expr' <- generateJsExpr expr
                     jsExpr (Port.task name expr' portType)
 
-      Crash ->
+      Crash _ _ ->
           error "TODO"
 
 
@@ -330,11 +330,11 @@ crushIfsHelp visitedBranches unvisitedBranches finally =
 
 generateCase
     :: Opt.Expr
-    -> PM.DecisionTree Int
-    -> Map.Map Int Opt.Expr
+    -> PM.DecisionTree Opt.Jump
+    -> [(Int, Opt.Branch)]
     -> State Int Code
 generateCase expr decisionTree branches =
-    error "TODO" expr decisionTree branches
+    error "TODO"
 
 
 -- BINARY OPERATORS

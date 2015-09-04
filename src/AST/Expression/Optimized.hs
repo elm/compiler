@@ -1,11 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 module AST.Expression.Optimized
-    ( Expr(..)
-    , Def(..)
-    , Facts(..)
+    ( Def(..), Facts(..)
+    , Expr(..), Jump(..), Branch(..)
     ) where
-
-import qualified Data.Map as Map
 
 import qualified AST.Expression.General as General
 import qualified AST.Literal as Literal
@@ -13,7 +10,24 @@ import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Optimize.Cases as PM
+import qualified Reporting.Region as R
 
+
+
+-- DEFINITIONS
+
+data Def
+    = Def Facts String Expr
+    | TailDef Facts String [String] Expr
+
+
+data Facts = Facts
+    { home :: Maybe ModuleName.Canonical
+    , dependencies :: [Var.TopLevel]
+    }
+
+
+-- EXPRESSIONS
 
 data Expr
     = Literal Literal.Literal
@@ -26,7 +40,7 @@ data Expr
     | TailCall String [String] [Expr]
     | If [(Expr, Expr)] Expr
     | Let [Def] Expr
-    | Case Expr (PM.DecisionTree Int) (Map.Map Int Expr)
+    | Case Expr (PM.DecisionTree Jump) [(Int, Branch)]
     | Data String [Expr]
     | DataAccess Expr Int
     | Access Expr String
@@ -34,15 +48,15 @@ data Expr
     | Record [(String, Expr)]
     | Port (General.PortImpl Expr Type.Canonical)
     | GLShader String String Literal.GLShaderTipe
-    | Crash
+    | Crash R.Region (Maybe String)
 
 
-data Def
-    = Def Facts String Expr
-    | TailDef Facts String [String] Expr
+data Jump
+    = Inline Branch
+    | Jump Int
 
 
-data Facts = Facts
-    { home :: Maybe ModuleName.Canonical
-    , dependencies :: [Var.TopLevel]
+data Branch = Branch
+    { _substitutions :: [(String, PM.Path)]
+    , _branch :: Expr
     }

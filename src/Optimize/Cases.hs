@@ -38,7 +38,7 @@ If 2 or more leaves point to the same label, we need to do some tricks in JS to
 make that work nicely. When is JS getting goto?! ;) That is outside the scope
 of this module though.
 -}
-compile :: VariantDict -> [(CPattern, Int)] -> DecisionTree Int
+compile :: VariantDict -> [(CPattern, Int)] -> DecisionTree Jump
 compile variantDict rawBranches =
   let
     format (pattern, index) =
@@ -67,15 +67,18 @@ type VariantDict =
 -- DECISION TREES
 
 data DecisionTree a
-    = Decision
+    = Match a
+    | Decision
         { _test :: Path
         , _edges :: [(Test, DecisionTree a)]
         , _default :: Maybe (DecisionTree a)
         }
-    | Match
-        { _result :: a
-        , _substitutions :: Map.Map String Path
-        }
+
+
+data Jump = Jump
+    { _result :: Int
+    , _substitutions :: [(String, Path)]
+    }
 
 
 data Test
@@ -127,7 +130,7 @@ data Branch =
     }
 
 
-toDecisionTree :: VariantDict -> [Branch] -> DecisionTree Int
+toDecisionTree :: VariantDict -> [Branch] -> DecisionTree Jump
 toDecisionTree variantDict rawBranches =
   let
     branches =
@@ -135,7 +138,7 @@ toDecisionTree variantDict rawBranches =
   in
   case checkForMatch branches of
     Just (goal, substitutions) ->
-        Match goal substitutions
+        Match (Jump goal substitutions)
 
     Nothing ->
         let
@@ -232,12 +235,11 @@ path. If that is the case we give the resulting label and a mapping from free
 variables to "how to get their value". So a pattern like (Just (x,_)) will give
 us something like ("x" => value.0.0)
 -}
-checkForMatch :: [Branch] -> Maybe (Int, Map.Map String Path)
+checkForMatch :: [Branch] -> Maybe (Int, [(String, Path)])
 checkForMatch branches =
   case branches of
     Branch goal patterns : _ ->
-        do  subs <- concat `fmap` mapM getSubstitution patterns
-            return (goal, Map.fromList subs)
+        (,) goal `fmap` concat `fmap` mapM getSubstitution patterns
 
     _ ->
         Nothing

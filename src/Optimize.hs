@@ -1,9 +1,12 @@
 module Optimize (optimize) where
 
 import Control.Applicative
+import Control.Arrow (second)
 import qualified Control.Monad as M
 import qualified Control.Monad.State as State
 import qualified Data.Map as Map
+import Data.Map ((!))
+import qualified Data.Maybe as Maybe
 import qualified Data.Traversable as T
 
 import qualified AST.Expression.General as Expr
@@ -13,6 +16,7 @@ import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
+import Elm.Utils ((|>))
 import qualified Optimize.Cases as Cases
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
@@ -270,26 +274,8 @@ optimizeExpr context annExpr@(A.A region expression) =
         do  optDefs <- concat <$> T.traverse (optimizeDef Nothing) defs
             Opt.Let optDefs <$> keepLooking body
 
-    Expr.Case expr rawBranches ->
-        let
-            indexify index (pattern, branch) =
-                ( (pattern, index)
-                , (index, branch)
-                )
-
-            (patterns, indexedBranches) =
-                unzip (zipWith indexify [0..] rawBranches)
-
-            decisionTree =
-                Cases.compile (error "need a VariantDict") patterns
-
-            branches =
-                Map.fromList indexedBranches
-        in
-            Opt.Case
-              <$> justConvert expr
-              <*> pure decisionTree
-              <*> T.traverse keepLooking branches
+    Expr.Case expr branches ->
+        optimizeCase context region expr branches
 
     Expr.Data name exprs ->
         Opt.Data name <$> T.traverse justConvert exprs
@@ -392,6 +378,115 @@ freshName =
   do  (Env htc uid) <- State.get
       State.put (Env htc (uid + 1))
       return ("_p" ++ show uid)
+
+
+-- OPTIMIZE CASES
+
+optimizeCase
+    :: Context
+    -> R.Region
+    -> Can.Expr
+    -> [(P.CanonicalPattern, Can.Expr)]
+    -> Optimizer Opt.Expr
+optimizeCase context region expr rawBranches =
+    let
+        indexify index (pattern, branch) =
+            ( (pattern, index)
+            , (index, branch)
+            )
+    in
+    do  optBranches <- T.traverse (mapSnd (optimizeExpr context)) rawBranches
+        crashBranches <-
+          case last optBranches of
+            (A.A ann P.Anything, Opt.Call (Opt.Crash _ _) [arg]) ->
+                do  name <- freshName
+                    let newPattern = A.A ann (P.Var name)
+                    let newCall = Opt.Call (Opt.Crash region (Just name)) [arg]
+                    return (init optBranches ++ [(newPattern, newCall)])
+
+            _ ->
+                return optBranches
+
+        let (patterns, indexedBranches) =
+              unzip (zipWith indexify [0..] crashBranches)
+
+        let decisionTree =
+              Cases.compile (error "need a VariantDict") patterns
+
+        optExpr <- optimizeExpr Nothing expr
+
+        return (inlinedCase optExpr decisionTree indexedBranches)
+
+
+inlinedCase
+    :: Opt.Expr
+    -> Cases.DecisionTree Cases.Jump
+    -> [(Int, Opt.Expr)]
+    -> Opt.Expr
+inlinedCase expr decisionTree jumpTargets =
+  let
+    substitutionDict =
+        gatherSubstitutions decisionTree
+
+    (jumps, sharedBranches) =
+        unzip (map (toJumps substitutionDict) jumpTargets)
+  in
+      Opt.Case
+        expr
+        (inlineJumps (Map.fromList jumps) decisionTree)
+        (Maybe.catMaybes sharedBranches)
+
+
+gatherSubstitutions
+    :: Cases.DecisionTree Cases.Jump
+    -> Map.Map Int [[(String, Cases.Path)]]
+gatherSubstitutions decisionTree =
+  case decisionTree of
+    Cases.Decision _ edges fallback ->
+        map snd edges
+          |> maybe id (:) fallback
+          |> map gatherSubstitutions
+          |> Map.unionsWith (++)
+
+    Cases.Match (Cases.Jump target substitutions) ->
+        Map.singleton target [substitutions]
+
+
+toJumps
+    :: Map.Map Int [[(String, Cases.Path)]]
+    -> (Int, Opt.Expr)
+    -> ( (Int, Opt.Jump), Maybe (Int, Opt.Branch) )
+toJumps substitutionDict (target, branch) =
+    case substitutionDict ! target of
+      [substitutions] ->
+          ( (target, Opt.Inline (Opt.Branch substitutions branch))
+          , Nothing
+          )
+
+      substitutions : _ ->
+          ( (target, Opt.Jump target)
+          , Just (target, Opt.Branch substitutions branch)
+          )
+
+      _ ->
+          error "it is not possible for there to be no substitutions"
+
+
+inlineJumps
+    :: Map.Map Int Opt.Jump
+    -> Cases.DecisionTree Cases.Jump
+    -> Cases.DecisionTree Opt.Jump
+inlineJumps jumpDict decisionTree =
+  let
+    go =
+      inlineJumps jumpDict
+  in
+  case decisionTree of
+    Cases.Decision test edges fallback ->
+        Cases.Decision test (map (second go) edges) (fmap go fallback)
+
+    Cases.Match (Cases.Jump target _) ->
+        Cases.Match (jumpDict ! target)
 
 
 -- OPTIMIZE BINOPS
