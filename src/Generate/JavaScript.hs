@@ -81,39 +81,35 @@ toExpr code =
   case code of
     JsExpr expr ->
         expr
+
     JsBlock stmts ->
         function [] stmts `call` []
 
 
--- TAIL CALL CONTEXT
+-- DEFINITIONS
 
-type TailCallContext =
-  Maybe (String, [String], Label)
+generateDef :: Opt.Def -> State Int (Statement ())
+generateDef def =
+  do  (home, name, jsBody) <-
+          case def of
+            Opt.TailDef (Opt.Facts home _) name argNames body ->
+                (,,) home name <$> generateTailFunction name argNames body
 
+            Opt.Def (Opt.Facts home _) name body ->
+                (,,) home name <$> generateJsExpr body
 
-type Label =
-  Id ()
+      return (VarDeclStmt () [ varDecl (Var.defName home name) jsBody ])
 
 
 -- EXPRESSIONS
 
-toJsExpr :: Opt.Expr -> State Int (Expression ())
-toJsExpr =
-  exprToJsExpr Nothing
+generateJsExpr :: Opt.Expr -> State Int (Expression ())
+generateJsExpr optExpr =
+  toExpr <$> generateCode optExpr
 
 
-toCode :: Opt.Expr -> State Int Code
-toCode =
-  exprToCode Nothing
-
-
-exprToJsExpr :: TailCallContext -> Opt.Expr -> State Int (Expression ())
-exprToJsExpr tcc canonicalExpr =
-  toExpr <$> exprToCode tcc canonicalExpr
-
-
-exprToCode :: TailCallContext -> Opt.Expr -> State Int Code
-exprToCode tcc expr =
+generateCode :: Opt.Expr -> State Int Code
+generateCode expr =
     case expr of
       Var var ->
           jsExpr $ Var.canonical var
@@ -122,28 +118,28 @@ exprToCode tcc expr =
           jsExpr (Literal.literal lit)
 
       Range lo hi ->
-          do  lo' <- toJsExpr lo
-              hi' <- toJsExpr hi
+          do  lo' <- generateJsExpr lo
+              hi' <- generateJsExpr hi
               jsExpr $ BuiltIn.range lo' hi'
 
       Access record field ->
-          do  record' <- toJsExpr record
+          do  record' <- generateJsExpr record
               jsExpr $ DotRef () record' (var (Var.safe field))
 
       Update record fields ->
           let
             fieldToJs (field, value) =
-              do  jsValue <- toJsExpr value
+              do  jsValue <- generateJsExpr value
                   return (Var.safe field, jsValue)
           in
-            do  jsRecord <- toJsExpr record
+            do  jsRecord <- generateJsExpr record
                 jsFields <- mapM fieldToJs fields
                 jsExpr $ BuiltIn.recordUpdate jsRecord jsFields
 
       Record fields ->
           do  fields' <-
                 forM fields $ \(field, e) ->
-                    (,) (Var.safe field) <$> toJsExpr e
+                    (,) (Var.safe field) <$> generateJsExpr e
 
               let fieldMap =
                     List.foldl' combine Map.empty fields'
@@ -171,8 +167,8 @@ exprToCode tcc expr =
             arity = length args
             aN = "A" ++ show arity
           in
-            do  jsFunc <- toJsExpr func
-                jsArgs <- mapM toJsExpr args
+            do  jsFunc <- generateJsExpr func
+                jsArgs <- mapM generateJsExpr args
                 jsExpr $
                   if 2 <= arity && arity <= 9 then
                     ref aN `call` (jsFunc:jsArgs)
@@ -184,7 +180,7 @@ exprToCode tcc expr =
             reassign name tempName =
               ExprStmt () (AssignExpr () OpAssign (LVar () name) (ref tempName))
           in
-            do  args' <- mapM toJsExpr args
+            do  args' <- mapM generateJsExpr args
                 tempNames <- mapM (\_ -> Var.fresh) args
                 jsBlock $
                   VarDeclStmt () (zipWith varDecl tempNames args')
@@ -192,20 +188,22 @@ exprToCode tcc expr =
                   ++ [ContinueStmt () (Just (Id () name))]
 
       Let defs body ->
-          generateLet tcc defs body
+          do  stmts <- mapM generateDef defs
+              code <- generateCode body
+              jsBlock (stmts ++ toStatementList code)
 
       If branches finally ->
-          generateIf tcc branches finally
+          generateIf branches finally
 
       Case expr decisionTree branches ->
-          generateCase tcc expr decisionTree branches
+          generateCase expr decisionTree branches
 
       ExplicitList elements ->
-          do  jsElements <- mapM toJsExpr elements
+          do  jsElements <- mapM generateJsExpr elements
               jsExpr $ BuiltIn.list jsElements
 
       Data tag members ->
-          do  jsMembers <- mapM toJsExpr members
+          do  jsMembers <- mapM generateJsExpr members
               jsExpr $ ObjectLit () (ctor : fields jsMembers)
           where
             ctor = (prop "ctor", string tag)
@@ -213,7 +211,7 @@ exprToCode tcc expr =
                 zipWith (\n e -> (prop ("_" ++ show n), e)) [ 0 :: Int .. ]
 
       DataAccess dataExpr index ->
-          do  jsDataExpr <- toJsExpr dataExpr
+          do  jsDataExpr <- generateJsExpr dataExpr
               jsExpr $ DotRef () jsDataExpr (var ("_" ++ show index))
 
       GLShader _uid src _tipe ->
@@ -225,11 +223,11 @@ exprToCode tcc expr =
                 jsExpr (Port.inbound name portType)
 
             Expr.Out name expr portType ->
-                do  expr' <- toJsExpr expr
+                do  expr' <- generateJsExpr expr
                     jsExpr (Port.outbound name expr' portType)
 
             Expr.Task name expr portType ->
-                do  expr' <- toJsExpr expr
+                do  expr' <- generateJsExpr expr
                     jsExpr (Port.task name expr' portType)
 
       Crash ->
@@ -240,13 +238,13 @@ exprToCode tcc expr =
 
 generateFunction :: [String] -> Opt.Expr -> State Int Code
 generateFunction args body =
-  do  code <- exprToCode Nothing body
+  do  code <- generateCode body
       jsExpr (generateFunctionWithArity args code)
 
 
 generateTailFunction :: String -> [String] -> Opt.Expr -> State Int (Expression ())
 generateTailFunction name args body =
-  do  code <- exprToCode Nothing body
+  do  code <- generateCode body
       return $ generateFunctionWithArity args $ JsBlock $ (:[]) $
           LabelledStmt ()
               (Id () name)
@@ -271,29 +269,16 @@ generateFunctionWithArity args code =
               foldl (\body arg -> function [arg] [ret body]) innerBody otherArgs
 
 
--- LET EXPRESSIONS
-
-generateLet
-    :: TailCallContext
-    -> [Opt.Def]
-    -> Opt.Expr
-    -> State Int Code
-generateLet tcc defs body =
-  do  stmts <- mapM generateDef defs
-      code <- exprToCode tcc body
-      jsBlock (stmts ++ toStatementList code)
-
-
 -- GENERATE IFS
 
-generateIf :: TailCallContext -> [(Opt.Expr, Opt.Expr)] -> Opt.Expr -> State Int Code
-generateIf tcc givenBranches givenFinally =
+generateIf :: [(Opt.Expr, Opt.Expr)] -> Opt.Expr -> State Int Code
+generateIf givenBranches givenFinally =
   let
     (branches, finally) =
         crushIfs givenBranches givenFinally
 
     convertBranch (condition, expr) =
-        (,) <$> toJsExpr condition <*> exprToCode tcc expr
+        (,) <$> generateJsExpr condition <*> generateCode expr
 
     ifExpression (condition, branch) otherwise =
         CondExpr () condition branch otherwise
@@ -302,7 +287,7 @@ generateIf tcc givenBranches givenFinally =
         IfStmt () condition branch otherwise
   in
     do  jsBranches <- mapM convertBranch branches
-        jsFinally <- exprToCode tcc finally
+        jsFinally <- generateCode finally
 
         if any isBlock (jsFinally : map snd jsBranches)
           then
@@ -341,32 +326,15 @@ crushIfsHelp visitedBranches unvisitedBranches finally =
         crushIfsHelp (visiting : visitedBranches) unvisited finally
 
 
-
--- DEFINITIONS
-
-generateDef :: Opt.Def -> State Int (Statement ())
-generateDef def =
-  do  (home, name, jsBody) <-
-          case def of
-            Opt.TailDef (Opt.Facts home _) name argNames body ->
-                (,,) home name <$> generateTailFunction name argNames body
-
-            Opt.Def (Opt.Facts home _) name body ->
-                (,,) home name <$> toJsExpr body
-
-      return (VarDeclStmt () [ varDecl (Var.defName home name) jsBody ])
-
-
 -- CASE EXPRESSIONS
 
 generateCase
-    :: TailCallContext
-    -> Opt.Expr
+    :: Opt.Expr
     -> PM.DecisionTree Int
     -> Map.Map Int Opt.Expr
     -> State Int Code
-generateCase tcc expr decisionTree branches =
-    error "TODO" tcc expr decisionTree branches
+generateCase expr decisionTree branches =
+    error "TODO" expr decisionTree branches
 
 
 -- BINARY OPERATORS
@@ -378,7 +346,7 @@ binop
     -> State Int Code
 binop func left right
   | func == Var.Canonical Var.BuiltIn "::" =
-      toCode (Data "::" [left,right])
+      generateCode (Data "::" [left,right])
 
   | func == forwardCompose =
       compose (collectLeftAssoc forwardCompose left right)
@@ -393,8 +361,8 @@ binop func left right
       pipe (collectRightAssoc backwardApply left right)
 
   | otherwise =
-      do  jsLeft <- toJsExpr left
-          jsRight <- toJsExpr right
+      do  jsLeft <- generateJsExpr left
+          jsRight <- generateJsExpr right
           jsExpr (makeExpr func jsLeft jsRight)
 
 
@@ -407,13 +375,13 @@ apply arg func =
 
 compose :: [Opt.Expr] -> State Int Code
 compose functions =
-  do  jsFunctions <- mapM toJsExpr functions
+  do  jsFunctions <- mapM generateJsExpr functions
       jsExpr $ ["$"] ==> List.foldl' apply (ref "$") jsFunctions
 
 
 pipe :: [Opt.Expr] -> State Int Code
 pipe expressions =
-  do  (value:functions) <- mapM toJsExpr expressions
+  do  (value:functions) <- mapM generateJsExpr expressions
       jsExpr $ List.foldl' apply value functions
 
 
