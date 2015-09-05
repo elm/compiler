@@ -169,7 +169,6 @@ Executable elm
         directory >= 1.0 && < 2.0,
         filepath >= 1 && < 2.0,
         text >= 1 && < 2,
-        elm-compiler,
         process
 
 
