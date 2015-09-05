@@ -9,7 +9,7 @@ import qualified AST.Literal as Literal
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
-import qualified Optimize.Cases as PM
+import qualified Optimize.Patterns.DecisionTree as DT
 import qualified Reporting.Region as R
 
 
@@ -40,7 +40,7 @@ data Expr
     | TailCall String [String] [Expr]
     | If [(Expr, Expr)] Expr
     | Let [Def] Expr
-    | Case Expr (PM.DecisionTree Jump) [(Int, Branch)]
+    | Case Expr (DT.DecisionTree Jump) [(Int, Branch)]
     | Data String [Expr]
     | DataAccess Expr Int
     | Access Expr String
@@ -57,6 +57,6 @@ data Jump
 
 
 data Branch = Branch
-    { _substitutions :: [(String, PM.Path)]
+    { _substitutions :: [(String, DT.Path)]
     , _branch :: Expr
     }

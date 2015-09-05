@@ -20,7 +20,7 @@ import qualified Generate.JavaScript.BuiltIn as BuiltIn
 import qualified Generate.JavaScript.Literal as Literal
 import qualified Generate.JavaScript.Port as Port
 import qualified Generate.JavaScript.Variable as Var
-import qualified Optimize.Cases as PM
+import qualified Optimize.Patterns.DecisionTree as DT
 
 
 generate :: Module.Optimized -> String
@@ -330,7 +330,7 @@ crushIfsHelp visitedBranches unvisitedBranches finally =
 
 generateCase
     :: Opt.Expr
-    -> PM.DecisionTree Opt.Jump
+    -> DT.DecisionTree Opt.Jump
     -> [(Int, Opt.Branch)]
     -> State Int Code
 generateCase expr decisionTree branches =

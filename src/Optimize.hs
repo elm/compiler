@@ -1,12 +1,8 @@
 module Optimize (optimize) where
 
 import Control.Applicative
-import Control.Arrow (second)
 import qualified Control.Monad as M
 import qualified Control.Monad.State as State
-import qualified Data.Map as Map
-import Data.Map ((!))
-import qualified Data.Maybe as Maybe
 import qualified Data.Traversable as T
 
 import qualified AST.Expression.General as Expr
@@ -16,8 +12,8 @@ import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
-import Elm.Utils ((|>))
-import qualified Optimize.Cases as Cases
+import qualified Optimize.Environment as Env
+import qualified Optimize.Patterns as Patterns
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
@@ -35,7 +31,7 @@ optimize module_ =
   in
     State.evalState
         (concat <$> mapM (optimizeDef (Just home)) defs)
-        (Env False 0)
+        (Env.Env False 0)
 
 
 flattenLets :: [Can.Def] -> Can.Expr -> ([Can.Def], Can.Expr)
@@ -48,32 +44,9 @@ flattenLets defs annExpr@(A.A _ expr) =
           (defs, annExpr)
 
 
--- TRACKER TO THREAD FINDINGS THROUGH TRAVERSAL
-
-type Optimizer a =
-    State.State Env a
-
-
-data Env = Env
-    { _hasTailCall :: Bool
-    , _uid :: Int
-    }
-
-
-setTailCall :: Bool -> Optimizer ()
-setTailCall bool =
-  do  uid <- State.gets _uid
-      State.put (Env bool uid)
-
-
-mapSnd :: M.Functor box => (a -> box b) -> (x, a) -> box (x, b)
-mapSnd func (x, a) =
-  (,) x <$> func a
-
-
 -- CONVERT DEFINITIONS
 
-optimizeDef :: Maybe ModuleName.Canonical -> Can.Def -> Optimizer [Opt.Def]
+optimizeDef :: Maybe ModuleName.Canonical -> Can.Def -> Env.Optimizer [Opt.Def]
 optimizeDef home (Can.Definition (Can.Facts deps) pattern@(A.A _ ptrn) expression _) =
   let
     (args, rawBody) =
@@ -82,13 +55,13 @@ optimizeDef home (Can.Definition (Can.Facts deps) pattern@(A.A _ ptrn) expressio
     case (ptrn, args) of
       (P.Var name, _ : _) ->
 
-          do  (Env htc uid) <- State.get
-              State.put (Env False uid)
+          do  (Env.Env htc uid) <- State.get
+              State.put (Env.Env False uid)
 
               (args, body) <- optimizeFunction (Just name) args rawBody
 
-              (Env isTailCall uid') <- State.get
-              State.put (Env htc uid')
+              (Env.Env isTailCall uid') <- State.get
+              State.put (Env.Env htc uid')
 
               let facts = Opt.Facts home deps
 
@@ -103,14 +76,14 @@ optimizeDef home (Can.Definition (Can.Facts deps) pattern@(A.A _ ptrn) expressio
 
       (P.Var name, []) ->
 
-          do  hasTailCall <- State.gets _hasTailCall
+          do  hasTailCall <- State.gets Env._hasTailCall
               body <- optimizeExpr Nothing rawBody
-              setTailCall hasTailCall
+              Env.setTailCall hasTailCall
               return [ Opt.Def (Opt.Facts home deps) name body ]
 
       (_, []) ->
 
-          do  name <- freshName
+          do  name <- Env.freshName
               optBody <- optimizeExpr Nothing rawBody
               let optDef = Opt.Def (Opt.Facts home deps) name optBody
               return (optDef : patternToDefs home name pattern)
@@ -125,7 +98,7 @@ optimizeFunction
     :: Maybe String
     -> [P.CanonicalPattern]
     -> Can.Expr
-    -> Optimizer ([String], Opt.Expr)
+    -> Env.Optimizer ([String], Opt.Expr)
 optimizeFunction maybeName patterns givenBody =
   do  (argNames, body) <- M.foldM depatternArgs ([], givenBody) (reverse patterns)
       optBody <- optimizeExpr (makeContext argNames =<< maybeName) body
@@ -140,7 +113,7 @@ makeContext argNames name =
 depatternArgs
     :: ([String], Can.Expr)
     -> P.CanonicalPattern
-    -> Optimizer ([String], Can.Expr)
+    -> Env.Optimizer ([String], Can.Expr)
 depatternArgs (names, rawExpr) ptrn =
     do  (name, expr) <- depattern ptrn rawExpr
         return (name : names, expr)
@@ -203,7 +176,7 @@ function arity, and list of argument names. If a tail call is possible, the
 `Context` will be filled in and we check any function we run into. If we go
 down a route that cannot possibly have tail calls, we remove the context.
 -}
-optimizeExpr :: Context -> Can.Expr -> Optimizer Opt.Expr
+optimizeExpr :: Context -> Can.Expr -> Env.Optimizer Opt.Expr
 optimizeExpr context annExpr@(A.A region expression) =
   let
     keepLooking =
@@ -250,16 +223,15 @@ optimizeExpr context annExpr@(A.A region expression) =
             case isTailCall context func (length args) of
               Just (name, argNames) ->
                   do  optArgs <- T.traverse justConvert args
-                      setTailCall True
+                      Env.setTailCall True
                       return (Opt.TailCall name argNames optArgs)
 
               Nothing ->
-                  do  hasTailCall <- State.gets _hasTailCall
+                  do  hasTailCall <- State.gets Env._hasTailCall
                       optFunc <- justConvert func
                       optArgs <- T.traverse justConvert args
-                      setTailCall hasTailCall
+                      Env.setTailCall hasTailCall
                       return (Opt.Call optFunc optArgs)
-
 
     Expr.If branches finally ->
         let
@@ -275,7 +247,9 @@ optimizeExpr context annExpr@(A.A region expression) =
             Opt.Let optDefs <$> keepLooking body
 
     Expr.Case expr branches ->
-        optimizeCase context region expr branches
+        do  optExpr <- optimizeExpr Nothing expr
+            optBranches <- T.traverse (mapSnd (optimizeExpr context)) branches
+            Patterns.optimize region optExpr optBranches
 
     Expr.Data name exprs ->
         Opt.Data name <$> T.traverse justConvert exprs
@@ -310,6 +284,11 @@ optimizeExpr context annExpr@(A.A region expression) =
                 (\e -> Expr.Task name e tipe) <$> justConvert expr
 
 
+mapSnd :: M.Functor box => (a -> box b) -> (x, a) -> box (x, b)
+mapSnd func (x, a) =
+  (,) x <$> func a
+
+
 -- DETECT TAIL CALL
 
 isTailCall :: Context -> Can.Expr -> Int -> Maybe (String, [String])
@@ -327,13 +306,12 @@ isTailCall context (A.A _ function) arity =
           Nothing
 
 
-
 -- DEPATTERN
 -- given a pattern and an expression, push the actual pattern matching into the
 -- expression as a case-expression if necessary. The pattern compiler will work
 -- it out from there
 
-depattern :: P.CanonicalPattern -> Can.Expr -> Optimizer (String, Can.Expr)
+depattern :: P.CanonicalPattern -> Can.Expr -> Env.Optimizer (String, Can.Expr)
 depattern canPattern@(A.A _ pattern) expr =
   let
     ann =
@@ -346,7 +324,7 @@ depattern canPattern@(A.A _ pattern) expr =
       ann (Expr.Var (Var.local name))
 
     caseify =
-      do  name <- freshName
+      do  name <- Env.freshName
           return
             ( name
             , caseExpr (var name) [ (canPattern, expr) ]
@@ -363,7 +341,7 @@ depattern canPattern@(A.A _ pattern) expr =
         caseify
 
     P.Anything ->
-        do  name <- freshName
+        do  name <- Env.freshName
             return (name, expr)
 
     P.Alias _ _ ->
@@ -371,122 +349,6 @@ depattern canPattern@(A.A _ pattern) expr =
 
     P.Data _ _ ->
         caseify
-
-
-freshName :: Optimizer String
-freshName =
-  do  (Env htc uid) <- State.get
-      State.put (Env htc (uid + 1))
-      return ("_p" ++ show uid)
-
-
--- OPTIMIZE CASES
-
-optimizeCase
-    :: Context
-    -> R.Region
-    -> Can.Expr
-    -> [(P.CanonicalPattern, Can.Expr)]
-    -> Optimizer Opt.Expr
-optimizeCase context region expr rawBranches =
-    let
-        indexify index (pattern, branch) =
-            ( (pattern, index)
-            , (index, branch)
-            )
-    in
-    do  optBranches <- T.traverse (mapSnd (optimizeExpr context)) rawBranches
-        crashBranches <-
-          case last optBranches of
-            (A.A ann P.Anything, Opt.Call (Opt.Crash _ _) [arg]) ->
-                do  name <- freshName
-                    let newPattern = A.A ann (P.Var name)
-                    let newCall = Opt.Call (Opt.Crash region (Just name)) [arg]
-                    return (init optBranches ++ [(newPattern, newCall)])
-
-            _ ->
-                return optBranches
-
-        let (patterns, indexedBranches) =
-              unzip (zipWith indexify [0..] crashBranches)
-
-        let decisionTree =
-              Cases.compile (error "need a VariantDict") patterns
-
-        optExpr <- optimizeExpr Nothing expr
-
-        return (inlinedCase optExpr decisionTree indexedBranches)
-
-
-inlinedCase
-    :: Opt.Expr
-    -> Cases.DecisionTree Cases.Jump
-    -> [(Int, Opt.Expr)]
-    -> Opt.Expr
-inlinedCase expr decisionTree jumpTargets =
-  let
-    substitutionDict =
-        gatherSubstitutions decisionTree
-
-    (jumps, sharedBranches) =
-        unzip (map (toJumps substitutionDict) jumpTargets)
-  in
-      Opt.Case
-        expr
-        (inlineJumps (Map.fromList jumps) decisionTree)
-        (Maybe.catMaybes sharedBranches)
-
-
-gatherSubstitutions
-    :: Cases.DecisionTree Cases.Jump
-    -> Map.Map Int [[(String, Cases.Path)]]
-gatherSubstitutions decisionTree =
-  case decisionTree of
-    Cases.Decision _ edges fallback ->
-        map snd edges
-          |> maybe id (:) fallback
-          |> map gatherSubstitutions
-          |> Map.unionsWith (++)
-
-    Cases.Match (Cases.Jump target substitutions) ->
-        Map.singleton target [substitutions]
-
-
-toJumps
-    :: Map.Map Int [[(String, Cases.Path)]]
-    -> (Int, Opt.Expr)
-    -> ( (Int, Opt.Jump), Maybe (Int, Opt.Branch) )
-toJumps substitutionDict (target, branch) =
-    case substitutionDict ! target of
-      [substitutions] ->
-          ( (target, Opt.Inline (Opt.Branch substitutions branch))
-          , Nothing
-          )
-
-      substitutions : _ ->
-          ( (target, Opt.Jump target)
-          , Just (target, Opt.Branch substitutions branch)
-          )
-
-      _ ->
-          error "it is not possible for there to be no substitutions"
-
-
-inlineJumps
-    :: Map.Map Int Opt.Jump
-    -> Cases.DecisionTree Cases.Jump
-    -> Cases.DecisionTree Opt.Jump
-inlineJumps jumpDict decisionTree =
-  let
-    go =
-      inlineJumps jumpDict
-  in
-  case decisionTree of
-    Cases.Decision test edges fallback ->
-        Cases.Decision test (map (second go) edges) (fmap go fallback)
-
-    Cases.Match (Cases.Jump target _) ->
-        Cases.Match (jumpDict ! target)
 
 
 -- OPTIMIZE BINOPS
@@ -497,7 +359,7 @@ optimizeBinop
     -> Var.Canonical
     -> Can.Expr
     -> Can.Expr
-    -> Optimizer Opt.Expr
+    -> Env.Optimizer Opt.Expr
 optimizeBinop context region op leftExpr rightExpr =
   let
     ann = A.A region
@@ -513,14 +375,14 @@ optimizeBinop context region op leftExpr rightExpr =
 
   else if op == forwardCompose then
 
-      do  var <- freshName
+      do  var <- Env.freshName
           let makeRoot func = ann (Expr.App func (ann (Expr.Var (Var.local var))))
           let body = collect makeRoot left forwardCompose binop
           optimizeExpr context (ann (Expr.Lambda (ann (P.Var var)) body))
 
   else if op == backwardCompose then
 
-      do  var <- freshName
+      do  var <- Env.freshName
           let makeRoot func = ann (Expr.App func (ann (Expr.Var (Var.local var))))
           let body = collect makeRoot right backwardCompose binop
           optimizeExpr context (ann (Expr.Lambda (ann (P.Var var)) body))
