@@ -230,8 +230,8 @@ generateCode expr =
                 do  expr' <- generateJsExpr expr
                     jsExpr (Port.task name expr' portType)
 
-      Crash _ _ ->
-          error "TODO"
+      Crash region maybeCaseCrashValue ->
+          jsExpr $ BuiltIn.crash region maybeCaseCrashValue
 
 
 -- FUNCTIONS
