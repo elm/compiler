@@ -194,7 +194,11 @@ optimizeExpr context annExpr@(A.A region expression) =
         pure (Opt.Literal lit)
 
     Expr.Var name ->
-        pure (Opt.Var name)
+        if name == Var.inCore ["Debug"] "crash" then
+            pure (Opt.Crash region Nothing)
+
+        else
+            pure (Opt.Var name)
 
     Expr.Range lowExpr highExpr ->
         Opt.Range
