@@ -315,14 +315,22 @@ toRelevantBranch test path branch@(Branch goal pathPatterns) =
   case extract path pathPatterns of
     Just (start, A.A _ pattern, end) ->
         case pattern of
-          P.Data name patterns | test == Constructor name ->
-              Just (Branch goal (start ++ subPositions path patterns ++ end))
+          P.Data name patterns ->
+              if test == Constructor name then
+                  Just (Branch goal (start ++ subPositions path patterns ++ end))
 
-          P.Literal lit | test == Literal lit ->
-              Just (Branch goal (start ++ end))
+              else
+                  Nothing
+
+          P.Literal lit ->
+              if test == Literal lit then
+                  Just (Branch goal (start ++ end))
+
+              else
+                  Nothing
 
           _ ->
-              Nothing
+              Just branch
 
     _ ->
         Just branch
