@@ -15,6 +15,7 @@ import Control.Arrow (second)
 import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.Map ((!))
 import qualified Data.Maybe as Maybe
 
@@ -271,7 +272,19 @@ getSubstitution (path, A.A _ pattern) =
 
 testsAtPath :: Path -> [Branch] -> [Test]
 testsAtPath selectedPath branches =
-  List.nub $ Maybe.mapMaybe (testAtPath selectedPath) branches
+  let
+    allTests =
+      Maybe.mapMaybe (testAtPath selectedPath) branches
+
+    skipVisited test curr@(uniqueTests, visitedTests) =
+        if Set.member test visitedTests then
+            curr
+        else
+            ( test : uniqueTests
+            , Set.insert test visitedTests
+            )
+  in
+    fst (foldr skipVisited ([], Set.empty) allTests)
 
 
 testAtPath :: Path -> Branch -> Maybe Test
