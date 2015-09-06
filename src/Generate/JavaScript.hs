@@ -11,7 +11,7 @@ import qualified Text.PrettyPrint.Leijen as PP
 
 import qualified AST.Expression.General as Expr
 import AST.Expression.Optimized as Opt
-import AST.Literal
+import qualified AST.Literal as L
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
@@ -195,8 +195,8 @@ generateCode expr =
       If branches finally ->
           generateIf branches finally
 
-      Case expr decisionTree branches ->
-          generateCase expr decisionTree branches
+      Case root decisionTree branches ->
+          JsBlock <$> generateCase root decisionTree branches
 
       ExplicitList elements ->
           do  jsElements <- mapM generateJsExpr elements
@@ -215,7 +215,7 @@ generateCode expr =
               jsExpr $ DotRef () jsDataExpr (var ("_" ++ show index))
 
       GLShader _uid src _tipe ->
-          jsExpr $ ObjectLit () [(PropString () "src", Literal.literal (Str src))]
+          jsExpr $ ObjectLit () [(PropString () "src", Literal.literal (L.Str src))]
 
       Port impl ->
           case impl of
@@ -319,7 +319,7 @@ crushIfsHelp visitedBranches unvisitedBranches finally =
           _ ->
               (reverse visitedBranches, finally)
 
-    (Literal (Boolean True), branch) : _ ->
+    (Literal (L.Boolean True), branch) : _ ->
         crushIfsHelp visitedBranches [] branch
 
     visiting : unvisited ->
@@ -329,12 +329,117 @@ crushIfsHelp visitedBranches unvisitedBranches finally =
 -- CASE EXPRESSIONS
 
 generateCase
-    :: Opt.Expr
+    :: String
     -> DT.DecisionTree Opt.Jump
     -> [(Int, Opt.Branch)]
-    -> State Int Code
-generateCase expr decisionTree branches =
-    error "TODO"
+    -> State Int [Statement ()]
+generateCase root decisionTree jumpBranches =
+  do  decider <- generateDecisionTree root decisionTree
+      foldM (goto root) decider jumpBranches
+
+
+goto :: String -> [Statement ()] -> (Int, Opt.Branch) -> State Int [Statement ()]
+goto root decider (target, branch) =
+  let
+    deciderStmt =
+      LabelledStmt ()
+        (targetLabel root target)
+        (DoWhileStmt () (BlockStmt () decider) (BoolLit () False))
+  in
+    do  stmts <- generateBranch root branch
+        return (deciderStmt : stmts)
+
+
+targetLabel :: String -> Int -> Id ()
+targetLabel root target =
+  Id () (root ++ "_" ++ show target)
+
+
+generateDecisionTree :: String -> DT.DecisionTree Opt.Jump -> State Int [Statement ()]
+generateDecisionTree root decisionTree =
+  case decisionTree of
+    DT.Match (Opt.Inline branch) ->
+        generateBranch root branch
+
+    DT.Match (Opt.Jump target) ->
+        return [ BreakStmt () (Just (targetLabel root target)) ]
+
+    DT.Decision testPath edges fallback ->
+        do  accessExpr <- generateJsExpr (pathToExpr root testPath)
+
+            let testExpr =
+                  case fst (head edges) of
+                    DT.Constructor _ ->
+                        DotRef () accessExpr (Id () "ctor")
+
+                    DT.Literal _ ->
+                        accessExpr
+
+            caseClauses <- mapM (edgeToCaseClause root) edges
+            caseDefault <- fallbackToDefault root fallback
+
+            return [ SwitchStmt () testExpr (caseClauses ++ caseDefault) ]
+
+
+edgeToCaseClause :: String -> (DT.Test, DT.DecisionTree Opt.Jump) -> State Int (CaseClause ())
+edgeToCaseClause root (test, subTree) =
+  CaseClause () (testToExpr test) <$> generateDecisionTree root subTree
+
+
+testToExpr :: DT.Test -> Expression ()
+testToExpr test =
+  case test of
+    DT.Constructor (Var.Canonical _ tag) ->
+        StringLit () tag
+
+    DT.Literal (L.Chr char) ->
+        StringLit () [char]
+
+    DT.Literal lit ->
+        Literal.literal lit
+
+
+fallbackToDefault :: String -> Maybe (DT.DecisionTree Opt.Jump) -> State Int [CaseClause ()]
+fallbackToDefault root fallback =
+  case fallback of
+    Nothing ->
+        return []
+
+    Just subTree ->
+        do  stmts <- generateDecisionTree root subTree
+            return [ CaseDefault () stmts ]
+
+
+generateBranch :: String -> Opt.Branch -> State Int [Statement ()]
+generateBranch root (Opt.Branch substitutions expr) =
+  do  subts <- mapM (loadPath root) substitutions
+      code <- generateCode expr
+      return (subts ++ toStatementList code)
+
+
+loadPath :: String -> (String, DT.Path) -> State Int (Statement ())
+loadPath root (name, path) =
+  do  jsAccessExpr <- generateJsExpr (pathToExpr root path)
+      return $ VarDeclStmt () [ varDecl name jsAccessExpr ]
+
+
+pathToExpr :: String -> DT.Path -> Opt.Expr
+pathToExpr root fullPath =
+    go (Opt.Var (Var.local root)) fullPath
+  where
+    go expr path =
+        case path of
+          DT.Position index subpath ->
+              go (Opt.DataAccess expr index) subpath
+
+          DT.Field field subpath ->
+              go (Opt.Access expr field) subpath
+
+          DT.Empty ->
+              expr
+
+          DT.Alias ->
+              expr
 
 
 -- BINARY OPERATORS

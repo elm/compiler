@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 module AST.Expression.Optimized
-    ( Def(..), Facts(..)
+    ( Def(..), Facts(..), dummyFacts
     , Expr(..), Jump(..), Branch(..)
     ) where
 
@@ -27,6 +27,11 @@ data Facts = Facts
     }
 
 
+dummyFacts :: Facts
+dummyFacts =
+  Facts Nothing []
+
+
 -- EXPRESSIONS
 
 data Expr
@@ -40,7 +45,7 @@ data Expr
     | TailCall String [String] [Expr]
     | If [(Expr, Expr)] Expr
     | Let [Def] Expr
-    | Case Expr (DT.DecisionTree Jump) [(Int, Branch)]
+    | Case String (DT.DecisionTree Jump) [(Int, Branch)]
     | Data String [Expr]
     | DataAccess Expr Int
     | Access Expr String

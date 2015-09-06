@@ -1,20 +1,13 @@
 {-# OPTIONS_GHC -Wall #-}
 module Optimize.Patterns (optimize) where
 
-import Control.Applicative
 import Control.Arrow (second)
-import qualified Control.Monad as M
-import qualified Control.Monad.State as State
 import qualified Data.Map as Map
 import Data.Map ((!))
 import qualified Data.Maybe as Maybe
-import qualified Data.Traversable as T
 
 import qualified AST.Expression.Optimized as Opt
-import qualified AST.Module as Module
-import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
-import qualified AST.Variable as Var
 import Elm.Utils ((|>))
 import qualified Optimize.Environment as Env
 import qualified Optimize.Patterns.DecisionTree as DT
@@ -23,11 +16,12 @@ import qualified Reporting.Region as R
 
 
 optimize
-    :: R.Region
+    :: DT.VariantDict
+    -> R.Region
     -> Opt.Expr
     -> [(P.CanonicalPattern, Opt.Expr)]
     -> Env.Optimizer Opt.Expr
-optimize region optExpr optBranches =
+optimize variantDict region optExpr optBranches =
     let
         indexify index (pattern, branch) =
             ( (pattern, index)
@@ -49,17 +43,22 @@ optimize region optExpr optBranches =
               unzip (zipWith indexify [0..] crashBranches)
 
         let decisionTree =
-              DT.compile (error "need a VariantDict") patterns
+              DT.compile variantDict patterns
 
-        return (inlinedCase optExpr decisionTree indexedBranches)
+        tempName <- Env.freshName
+
+        return $
+          Opt.Let
+            [ Opt.Def Opt.dummyFacts tempName optExpr ]
+            (inlinedCase tempName decisionTree indexedBranches)
 
 
 inlinedCase
-    :: Opt.Expr
+    :: String
     -> DT.DecisionTree DT.Jump
     -> [(Int, Opt.Expr)]
     -> Opt.Expr
-inlinedCase expr decisionTree jumpTargets =
+inlinedCase name decisionTree jumpTargets =
   let
     substitutionDict =
         gatherSubstitutions decisionTree
@@ -68,7 +67,7 @@ inlinedCase expr decisionTree jumpTargets =
         unzip (map (toJumps substitutionDict) jumpTargets)
   in
       Opt.Case
-        expr
+        name
         (inlineJumps (Map.fromList jumps) decisionTree)
         (Maybe.catMaybes sharedBranches)
 

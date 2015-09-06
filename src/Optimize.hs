@@ -2,7 +2,7 @@ module Optimize (optimize) where
 
 import Control.Applicative
 import qualified Control.Monad as M
-import qualified Control.Monad.State as State
+import qualified Data.Map as Map
 import qualified Data.Traversable as T
 
 import qualified AST.Expression.General as Expr
@@ -12,6 +12,7 @@ import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
+import Elm.Utils ((|>))
 import qualified Optimize.Environment as Env
 import qualified Optimize.Patterns as Patterns
 import qualified Reporting.Annotation as A
@@ -21,17 +22,25 @@ import qualified Reporting.Region as R
 -- OPTIMIZE - turn a canonical module into a list of optimized defs
 
 optimize :: Module.CanonicalModule -> Module.Optimized
-optimize module_ =
+optimize (Module.Module home _ _ _ _ body) =
   let
-    home =
-      Module.name module_
-
     (defs, _) =
-        flattenLets [] (Module.program (Module.body module_))
+        flattenLets [] (Module.program body)
+
+    variantInfo (_, tags) =
+      let
+        variants = length tags
+      in
+        map (\(tag, _) -> (Var.fromModule home tag, variants)) tags
+
+    variantDict =
+        Module.datatypes body
+          |> Map.elems
+          |> concatMap variantInfo
+          |> Map.fromList
+          |> Map.insert (Var.builtin "_Tuple2") 1
   in
-    State.evalState
-        (concat <$> mapM (optimizeDef (Just home)) defs)
-        (Env.Env False 0)
+    Env.run variantDict (concat <$> mapM (optimizeDef (Just home)) defs)
 
 
 flattenLets :: [Can.Def] -> Can.Expr -> ([Can.Def], Can.Expr)
@@ -55,13 +64,13 @@ optimizeDef home (Can.Definition (Can.Facts deps) pattern@(A.A _ ptrn) expressio
     case (ptrn, args) of
       (P.Var name, _ : _) ->
 
-          do  (Env.Env htc uid) <- State.get
-              State.put (Env.Env False uid)
+          do  htc <- Env.getTailCall
+              Env.setTailCall False
 
               (args, body) <- optimizeFunction (Just name) args rawBody
 
-              (Env.Env isTailCall uid') <- State.get
-              State.put (Env.Env htc uid')
+              isTailCall <- Env.getTailCall
+              Env.setTailCall htc
 
               let facts = Opt.Facts home deps
 
@@ -76,7 +85,7 @@ optimizeDef home (Can.Definition (Can.Facts deps) pattern@(A.A _ ptrn) expressio
 
       (P.Var name, []) ->
 
-          do  hasTailCall <- State.gets Env._hasTailCall
+          do  hasTailCall <- Env.getTailCall
               body <- optimizeExpr Nothing rawBody
               Env.setTailCall hasTailCall
               return [ Opt.Def (Opt.Facts home deps) name body ]
@@ -231,7 +240,7 @@ optimizeExpr context annExpr@(A.A region expression) =
                       return (Opt.TailCall name argNames optArgs)
 
               Nothing ->
-                  do  hasTailCall <- State.gets Env._hasTailCall
+                  do  hasTailCall <- Env.getTailCall
                       optFunc <- justConvert func
                       optArgs <- T.traverse justConvert args
                       Env.setTailCall hasTailCall
@@ -253,7 +262,8 @@ optimizeExpr context annExpr@(A.A region expression) =
     Expr.Case expr branches ->
         do  optExpr <- optimizeExpr Nothing expr
             optBranches <- T.traverse (mapSnd (optimizeExpr context)) branches
-            Patterns.optimize region optExpr optBranches
+            variantDict <- Env.getVariantDict
+            Patterns.optimize variantDict region optExpr optBranches
 
     Expr.Data name exprs ->
         Opt.Data name <$> T.traverse justConvert exprs
