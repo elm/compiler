@@ -168,9 +168,6 @@ constrain env annotatedExpr@(A.A region expression) tipe =
             E.Task _ expr _ ->
                 constrain env expr tipe
 
-      E.Crash _ ->
-          return CTrue
-
 
 -- CONSTRAIN APP
 

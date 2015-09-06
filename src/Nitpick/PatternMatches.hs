@@ -181,9 +181,6 @@ checkExpression tagDict (A.A region expression) =
     E.GLShader _ _ _ ->
         Result.ok ()
 
-    E.Crash _ ->
-        Result.ok ()
-
 
 -- CHECK PATTERNS
 

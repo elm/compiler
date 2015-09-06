@@ -16,7 +16,6 @@ import qualified AST.Pattern as Pattern
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
-import qualified Reporting.Crash as Crash
 import qualified Reporting.PrettyPrint as P
 
 
@@ -59,7 +58,6 @@ data Expr' ann def var typ
     -- for type checking and code gen only
     | Port (PortImpl (Expr ann def var typ) typ)
     | GLShader String String Literal.GLShaderTipe
-    | Crash Crash.Details
     deriving (Show)
 
 
@@ -248,9 +246,6 @@ instance (P.Pretty def, P.Pretty var, Var.ToString var) => P.Pretty (Expr' ann d
 
       Port portImpl ->
           P.pretty dealiaser needsParens portImpl
-
-      Crash details ->
-          P.text ("<crash:" ++ Crash.summary details ++ ">")
 
 
 instance P.Pretty (PortImpl expr tipe) where

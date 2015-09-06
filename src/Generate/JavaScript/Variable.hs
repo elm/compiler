@@ -1,5 +1,6 @@
-module Generate.JavaScript.Variable (canonical, safe) where
+module Generate.JavaScript.Variable (fresh, canonical, defName, safe) where
 
+import qualified Control.Monad.State as State
 import qualified Data.List as List
 import qualified Data.Set as Set
 import qualified Language.ECMAScript3.Syntax as JS
@@ -9,6 +10,27 @@ import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
 import qualified Elm.Package as Pkg
 import qualified Generate.JavaScript.Helpers as JS
+
+
+-- FRESH NAMES
+
+fresh :: State.State Int String
+fresh =
+  do  n <- State.get
+      State.modify (+1)
+      return ("_v" ++ show n)
+
+
+-- DEF NAMES
+
+defName :: Maybe ModuleName.Canonical -> String -> String
+defName maybeHome name =
+  case maybeHome of
+    Nothing ->
+        safe name
+
+    Just home ->
+        canonicalPrefix home (safe name)
 
 
 -- INSTANTIATE VARIABLES
@@ -29,21 +51,21 @@ addRoot home name =
         name
 
     Var.TopLevel moduleName ->
-        canonicalName moduleName name
+        canonicalPrefix moduleName name
 
     Var.BuiltIn ->
         name
 
     Var.Module moduleName ->
-        canonicalName moduleName name
+        canonicalPrefix moduleName name
 
 
-canonicalName :: ModuleName.Canonical -> String -> String
-canonicalName (ModuleName.Canonical (Pkg.Name user project) moduleName) name =
+canonicalPrefix :: ModuleName.Canonical -> String -> String
+canonicalPrefix (ModuleName.Canonical (Pkg.Name user project) moduleName) name =
     map (swap '-' '_') user
     ++ '$' : map (swap '-' '_') project
     ++ '$' : List.intercalate "$" moduleName
-    ++ '$' : name
+    ++ '$' : safe name
 
 
 swap :: Char -> Char -> Char -> Char

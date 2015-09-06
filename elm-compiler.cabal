@@ -78,7 +78,6 @@ Library
         Elm.Compiler.Version,
         Generate.JavaScript,
         Generate.JavaScript.BuiltIn,
-        Generate.JavaScript.Crash,
         Generate.JavaScript.Helpers,
         Generate.JavaScript.Literal,
         Generate.JavaScript.Port,
@@ -87,9 +86,9 @@ Library
         Nitpick.PatternMatches,
         Nitpick.TopLevelTypes,
         Optimize,
-        Optimize.Cases,
-        Optimize.Substitute,
-        Optimize.TailCalls,
+        Optimize.Environment,
+        Optimize.Patterns,
+        Optimize.Patterns.DecisionTree,
         Parse.Binop,
         Parse.Declaration,
         Parse.Expression,
@@ -100,7 +99,6 @@ Library
         Parse.Pattern,
         Parse.Type,
         Reporting.Annotation,
-        Reporting.Crash,
         Reporting.Error,
         Reporting.Error.Canonicalize,
         Reporting.Error.Docs,
@@ -150,7 +148,8 @@ Library
         text >= 1 && < 2,
         transformers >= 0.2 && < 0.5,
         union-find >= 0.2 && < 0.3,
-        unordered-containers >= 0.1 && < 0.3
+        unordered-containers >= 0.1 && < 0.3,
+        wl-pprint
 
 
 Executable elm

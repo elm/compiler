@@ -108,9 +108,6 @@ reorder (A.A ann expression) =
               Task name expr tipe ->
                   (\e -> Task name e tipe) <$> reorder expr
 
-      Crash _ ->
-          return expression
-
       -- Actually do some reordering
       Let defs body ->
           do  body' <- reorder body

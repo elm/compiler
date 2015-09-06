@@ -60,7 +60,7 @@ type CanonicalModule =
 
 
 type Optimized =
-    Module Docs.Centralized [Name.Raw] [Var.Value] (Body Optimized.Expr)
+    [Optimized.Def]
 
 
 data Module docs imports exports body = Module

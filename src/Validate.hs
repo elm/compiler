@@ -254,9 +254,6 @@ expression (A.A ann sourceExpression) =
                 do  expr' <- expression expr
                     return (Task name expr' tipe)
 
-    Crash details ->
-        return (Crash details)
-
 
 second :: (a, Source.Expr) -> Result.Result wrn Error.Error (a, Valid.Expr)
 second (value, expr) =
