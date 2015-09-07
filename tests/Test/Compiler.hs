@@ -121,6 +121,9 @@ doWriteNewExpectedTest expectedJsDir filePath =
             case formattedResult of
                 Right (Compiler.Result _ _ js) ->
                   do  createDirectoryIfMissing True (dropFileName expectedFilePath)
+                      -- Force the evaluation of "js" before "writeFile"
+                      --  so that if an error is raised we do not write an empty file.
+                      assertBool "Error: no content generated" (length js > 0)
                       writeFile expectedFilePath js
                       assertFailure ("Wrote new expected js: " ++ expectedFilePath)
 
