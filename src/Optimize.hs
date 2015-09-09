@@ -2,7 +2,6 @@ module Optimize (optimize) where
 
 import Control.Applicative
 import qualified Control.Monad as M
-import qualified Data.Map as Map
 import qualified Data.Traversable as T
 
 import qualified AST.Expression.General as Expr
@@ -12,35 +11,25 @@ import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
-import Elm.Utils ((|>))
 import qualified Optimize.Environment as Env
 import qualified Optimize.Patterns as Patterns
+import qualified Optimize.Patterns.DecisionTree as DT
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
 
--- OPTIMIZE - turn a canonical module into a list of optimized defs
+-- OPTIMIZE
 
-optimize :: Module.CanonicalModule -> Module.Optimized
-optimize (Module.Module home _ _ _ _ body) =
+optimize :: DT.VariantDict -> Module.CanonicalModule -> Module.Optimized
+optimize variantDict module_@(Module.Module home _ _ _ _ body) =
   let
     (defs, _) =
         flattenLets [] (Module.program body)
 
-    variantInfo (_, tags) =
-      let
-        variants = length tags
-      in
-        map (\(tag, _) -> (Var.fromModule home tag, variants)) tags
-
-    variantDict =
-        Module.datatypes body
-          |> Map.elems
-          |> concatMap variantInfo
-          |> Map.fromList
-          |> Map.insert (Var.builtin "_Tuple2") 1
+    optDefs =
+      Env.run variantDict (concat <$> mapM (optimizeDef (Just home)) defs)
   in
-    Env.run variantDict (concat <$> mapM (optimizeDef (Just home)) defs)
+    module_ { Module.body = body { Module.program = optDefs } }
 
 
 flattenLets :: [Can.Def] -> Can.Expr -> ([Can.Def], Can.Expr)

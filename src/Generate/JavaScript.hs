@@ -24,8 +24,11 @@ import qualified Optimize.Patterns.DecisionTree as DT
 
 
 generate :: Module.Optimized -> String
-generate definitions =
+generate module_ =
   let
+    definitions =
+        Module.program (Module.body module_)
+
     stmts =
         State.evalState (mapM generateDef definitions) 0
   in

@@ -20,7 +20,6 @@ import qualified Elm.Compiler.Module as PublicModule
 import qualified Elm.Docs as Docs
 import qualified Elm.Package as Package
 import qualified Generate.JavaScript as JS
-import qualified Optimize
 import qualified Parse.Module as Parse
 import qualified Parse.Parse as Parse
 import qualified Reporting.Annotation as A
@@ -77,8 +76,7 @@ compile context source interfaces =
           docs <- docsGen isExposed modul
 
           let interface = Module.toInterface packageName modul
-          let optModule = Optimize.optimize modul
-          let javascript = JS.generate optModule
+          let javascript = JS.generate modul
 
           return (Result docs interface javascript)
   in
@@ -105,7 +103,7 @@ data Result = Result
 
 docsGen
     :: Bool
-    -> Module.CanonicalModule
+    -> Module.Optimized
     -> Result.Result w Error.Error (Maybe Docs.Documentation)
 docsGen isExposed modul =
   if not isExposed then

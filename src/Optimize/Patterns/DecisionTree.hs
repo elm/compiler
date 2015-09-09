@@ -16,9 +16,9 @@ import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Data.Map ((!))
 import qualified Data.Maybe as Maybe
 
+import qualified AST.Helpers as Help
 import qualified AST.Literal as L
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
@@ -62,7 +62,7 @@ contain things like [ ("Just", 2), ("Nothing", 2), ("_Tuple2", 1), ... ] which
 we can use for these optimizations.
 -}
 type VariantDict =
-    Map.Map Var.Canonical Int
+    Map.Map Var.Home (Map.Map String Int)
 
 
 -- DECISION TREES
@@ -180,8 +180,8 @@ toDecisionTree variantDict rawBranches =
 isComplete :: VariantDict -> [Test] -> Bool
 isComplete variantDict tests =
   case head tests of
-    Constructor name ->
-        (variantDict ! name) == length tests
+    Constructor var ->
+        getArity variantDict var == length tests
 
     Literal (L.Boolean _) ->
         length tests == 2
@@ -189,6 +189,21 @@ isComplete variantDict tests =
     _ ->
         False
 
+
+getArity :: VariantDict -> Var.Canonical -> Int
+getArity variantDict (Var.Canonical home name) =
+  case Map.lookup name =<< Map.lookup home variantDict of
+    Just arity ->
+        arity
+
+    Nothing ->
+        if Help.isTuple name then
+          read (drop 6 name)
+
+        else
+          error
+            "Since the Optimize phase happens after canonicalization and type \
+            \inference, it is impossible that a pattern cannot be found."
 
 
 -- FLATTEN PATTERNS
@@ -219,7 +234,7 @@ flatten variantDict pathPattern@(path, A.A ann pattern) =
         [pathPattern]
 
     P.Data tag patterns ->
-        if variantDict ! tag == 1 then
+        if getArity variantDict tag == 1 then
             concatMap (flatten variantDict) (subPositions path patterns)
 
         else

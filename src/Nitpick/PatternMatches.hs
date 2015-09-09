@@ -16,6 +16,7 @@ import qualified AST.Pattern as Pattern
 import qualified AST.Variable as Var
 import Elm.Utils ((|>))
 import Nitpick.Pattern (Pattern(..), fromCanonicalPattern)
+import qualified Optimize.Patterns.DecisionTree as Opt
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Pattern as Error
 import qualified Reporting.Region as Region
@@ -25,31 +26,40 @@ import qualified Reporting.Result as Result
 patternMatches
     :: Module.Interfaces
     -> Module.CanonicalModule
-    -> Result.Result w Error.Error ()
+    -> Result.Result w Error.Error Opt.VariantDict
 patternMatches interfaces modul =
   let
     name = Module.name modul
     body = Module.body modul
+    tagDict =
+      toTagDict interfaces name (Module.datatypes body)
   in
-    checkExpression
-      (toTagDict interfaces name (Module.datatypes body))
-      (Module.program body)
+    const (Map.map (Map.map length) tagDict)
+      <$> checkExpression tagDict (Module.program body)
 
 
 -- TAG DICT
 
 type TagDict =
-  Map.Map Var.Home (Map.Map Tag [(Tag, Int)])
+  Map.Map Var.Home (Map.Map Tag [TagInfo])
 
 
 type Tag = String
+
+
+data TagInfo = TagInfo
+    { _tag :: Tag
+    , _arity :: Int
+    }
 
 
 toTagDict :: Module.Interfaces -> ModuleName.Canonical -> Module.ADTs -> TagDict
 toTagDict interfaces localName localAdts =
   let
     listTags =
-        [ ("::", 2), ("[]", 0) ]
+        [ TagInfo "::" 2
+        , TagInfo "[]" 0
+        ]
 
     builtinDict =
         Map.singleton Var.BuiltIn $
@@ -67,12 +77,12 @@ toTagDict interfaces localName localAdts =
     Map.union builtinDict interfaceDict
 
 
-toTagMapping :: Module.ADTs -> Map.Map Tag ([(Tag,Int)])
+toTagMapping :: Module.ADTs -> Map.Map Tag [TagInfo]
 toTagMapping adts =
   let
     toTagAndArity (_tvars, tagInfoList) =
         let
-          info = map (\(tag, args) -> (tag, length args)) tagInfoList
+          info = map (\(tag, args) -> TagInfo tag (length args)) tagInfoList
         in
           map (second (const info)) tagInfoList
   in
@@ -81,7 +91,7 @@ toTagMapping adts =
       |> Map.fromList
 
 
-lookupOtherTags :: Var.Canonical -> TagDict -> [(Tag, Int)]
+lookupOtherTags :: Var.Canonical -> TagDict -> [TagInfo]
 lookupOtherTags (Var.Canonical home name) tagDict =
   case Map.lookup name =<< Map.lookup home tagDict of
     Just otherTags ->
@@ -89,7 +99,7 @@ lookupOtherTags (Var.Canonical home name) tagDict =
 
     Nothing ->
       if Help.isTuple name then
-        [(name, read (drop 6 name))]
+        [ TagInfo name (read (drop 6 name)) ]
       else
         error
           "Since the Nitpick phase happens after canonicalization and type \
@@ -339,8 +349,8 @@ complementData tagDict tag patterns =
     tagComplements ++ argComplements
 
 
-tagToPattern :: Var.Canonical -> (Tag, Int) -> Maybe Pattern
-tagToPattern (Var.Canonical home rootTag) (tag, arity) =
+tagToPattern :: Var.Canonical -> TagInfo -> Maybe Pattern
+tagToPattern (Var.Canonical home rootTag) (TagInfo tag arity) =
   if rootTag == tag then
     Nothing
   else

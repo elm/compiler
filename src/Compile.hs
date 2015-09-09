@@ -9,6 +9,7 @@ import Elm.Utils ((|>))
 import qualified Elm.Package as Package
 import qualified Nitpick.PatternMatches as Nitpick
 import qualified Nitpick.TopLevelTypes as Nitpick
+import qualified Optimize
 import qualified Parse.Helpers as Parse
 import qualified Parse.Parse as Parse
 import qualified Reporting.Error as Error
@@ -23,7 +24,7 @@ compile
     -> [ModuleName.Canonical]
     -> Module.Interfaces
     -> String
-    -> Result.Result Warning.Warning Error.Error Module.CanonicalModule
+    -> Result.Result Warning.Warning Error.Error Module.Optimized
 
 compile packageName isRoot canonicalImports interfaces source =
   do
@@ -45,13 +46,19 @@ compile packageName isRoot canonicalImports interfaces source =
       Result.mapError Error.Type $
         Nitpick.topLevelTypes types (Module.body validModule)
 
-      Result.mapError Error.Pattern $
-        Nitpick.patternMatches interfaces canonicalModule
+      tagDict <-
+        Result.mapError Error.Pattern $
+          Nitpick.patternMatches interfaces canonicalModule
 
       -- Add the real list of types
-      let body = (Module.body canonicalModule) { Module.types = types }
+      let body =
+            (Module.body canonicalModule) { Module.types = types }
 
-      return $ canonicalModule { Module.body = body }
+      -- Do some basic optimizations
+      let optModule =
+            Optimize.optimize tagDict (canonicalModule { Module.body = body })
+
+      return optModule
 
 
 getOpTable :: Module.Interfaces -> Parse.OpTable

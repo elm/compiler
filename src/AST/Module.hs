@@ -60,7 +60,7 @@ type CanonicalModule =
 
 
 type Optimized =
-    [Optimized.Def]
+    Module Docs.Centralized [Name.Raw] [Var.Value] (Body [Optimized.Def])
 
 
 data Module docs imports exports body = Module
@@ -124,7 +124,7 @@ data Interface = Interface
     }
 
 
-toInterface :: Package.Name -> CanonicalModule -> Interface
+toInterface :: Package.Name -> Optimized -> Interface
 toInterface pkgName modul =
     let body' = body modul in
     Interface
