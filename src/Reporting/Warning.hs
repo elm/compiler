@@ -9,7 +9,6 @@ import Text.PrettyPrint ((<+>))
 
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
-import qualified Nitpick.Pattern as Pattern
 import qualified Reporting.Annotation as A
 import qualified Reporting.PrettyPrint as P
 import qualified Reporting.Report as Report
@@ -20,8 +19,6 @@ import qualified Reporting.Report as Report
 data Warning
     = UnusedImport ModuleName.Raw
     | MissingTypeAnnotation String Type.Canonical
-    | InexhaustivePatternMatch [Pattern.Pattern]
-    | RedundantPatternMatch
 
 
 -- TO STRING
@@ -59,32 +56,6 @@ toReport dealiaser warning =
             4
             (P.pretty dealiaser False inferredType)
 
-    InexhaustivePatternMatch unhandled ->
-        Report.simple
-          "missing pattern"
-          "The following case expression does not handle all possible inputs."
-          ( "The following patterns are not being handled:\n"
-            ++ viewPatternList unhandled
-            ++ "\n\n"
-            ++ "If we get values like this, we have no choice but to crash! Normally this means\n"
-            ++ "you just added a new tag to a union type, but sometimes it can be because there\n"
-            ++ "is something very odd about the data you are modeling. In those rare cases, you\n"
-            ++ "probably want to either:\n"
-            ++ "\n"
-            ++ "  1. Rethink the model. Maybe some cases are \"impossible\" but it is still\n"
-            ++ "     possible to construct such cases. Is there a way to model the values more\n"
-            ++ "     precisely such that \"impossible\" values truly are impossible?\n"
-            ++ "  2. End the pattern match with a wildcard match that leads to an expression\n"
-            ++ "     like: Debug.crash \"If you are reading this, I have made a mistake!\"\n"
-            ++ "     Generally speaking, you do not want it to have to be this way."
-          )
-
-    RedundantPatternMatch ->
-        Report.simple
-          "redundant pattern"
-          "The following pattern is redundant."
-          "Any value with this shape will be handled by a previous pattern."
-
 
 -- TO JSON
 
@@ -100,16 +71,3 @@ toJson dealiaser filePath (A.A region warning) =
         , "type" .= ("warning" :: String)
         ]
         ++ additionalFields
-
-
--- PATTERN WARNINGS
-
-viewPatternList :: [Pattern.Pattern] -> String
-viewPatternList unhandledPatterns =
-  let
-    (showPatterns, rest) =
-      splitAt 4 unhandledPatterns
-  in
-    concatMap ((++) "\n    ") $
-      map Pattern.toString showPatterns
-      ++ if null rest then [] else ["..."]

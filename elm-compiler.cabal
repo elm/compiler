@@ -103,6 +103,7 @@ Library
         Reporting.Error.Canonicalize,
         Reporting.Error.Docs,
         Reporting.Error.Helpers,
+        Reporting.Error.Pattern,
         Reporting.Error.Syntax,
         Reporting.Error.Type,
         Reporting.PrettyPrint,

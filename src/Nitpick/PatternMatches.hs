@@ -17,15 +17,15 @@ import qualified AST.Variable as Var
 import Elm.Utils ((|>))
 import Nitpick.Pattern (Pattern(..), fromCanonicalPattern)
 import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Pattern as Error
 import qualified Reporting.Region as Region
 import qualified Reporting.Result as Result
-import qualified Reporting.Warning as Warning
 
 
 patternMatches
     :: Module.Interfaces
     -> Module.CanonicalModule
-    -> Result.Result Warning.Warning e ()
+    -> Result.Result w Error.Error ()
 patternMatches interfaces modul =
   let
     name = Module.name modul
@@ -102,7 +102,7 @@ lookupOtherTags (Var.Canonical home name) tagDict =
 checkExpression
     :: TagDict
     -> Canonical.Expr
-    -> Result.Result Warning.Warning e ()
+    -> Result.Result w Error.Error ()
 checkExpression tagDict (A.A region expression) =
   let
     go =
@@ -188,7 +188,7 @@ checkPatterns
     :: TagDict
     -> Region.Region
     -> [Pattern.CanonicalPattern]
-    -> Result.Result Warning.Warning e ()
+    -> Result.Result w Error.Error ()
 checkPatterns tagDict region patterns =
   checkPatternsHelp tagDict region [Anything] patterns
 
@@ -198,14 +198,14 @@ checkPatternsHelp
     -> Region.Region
     -> [Pattern]
     -> [Pattern.CanonicalPattern]
-    -> Result.Result Warning.Warning e ()
+    -> Result.Result w Error.Error ()
 checkPatternsHelp tagDict region unhandled patterns =
   case (unhandled, patterns) of
     ([], []) ->
         return ()
 
     (_:_, []) ->
-        Result.warn region (Warning.InexhaustivePatternMatch unhandled)
+        Result.throw region (Error.Incomplete unhandled)
 
     (_, pattern@(A.A localRegion _) : remainingPatterns) ->
         do  newUnhandled <- filterPatterns tagDict localRegion pattern unhandled
@@ -217,7 +217,7 @@ filterPatterns
     -> Region.Region
     -> Pattern.CanonicalPattern
     -> [Pattern]
-    -> Result.Result Warning.Warning e [Pattern]
+    -> Result.Result w Error.Error [Pattern]
 filterPatterns tagDict region pattern unhandled =
   let
     nitPattern =
@@ -227,8 +227,8 @@ filterPatterns tagDict region pattern unhandled =
       intersection pat nitPattern == Nothing
   in
     if all noIntersection unhandled then
-      do  Result.warn region Warning.RedundantPatternMatch
-          return unhandled
+      Result.throw region Error.Redundant
+
     else
       do  let complementPatterns = complement tagDict nitPattern
           return $
