@@ -44,17 +44,28 @@ fromCanonicalPattern (A.A _ pattern) =
 
 -- TO STRING
 
-toString :: Pattern -> String
-toString pattern =
+toString :: Bool -> Pattern -> String
+toString needsParens pattern =
   case pattern of
+    Data tag [first,rest] | Var.toString tag == "::" ->
+        toString (isCons first) first
+        ++ " :: "
+        ++ toString False rest
+
     Data tag args ->
-        List.intercalate " " (Var.toString tag : map toString args)
+        if Var.isTuple tag then
+            "(" ++ List.intercalate ", " (map (toString False) args) ++ ")"
+
+        else
+          addParensIf (needsParens && not (null args)) $
+            List.intercalate " " (Var.toString tag : map (toString True) args)
 
     Record fields ->
         "{ " ++ List.intercalate ", " fields ++ " }"
 
     Alias alias realPattern ->
-        toString realPattern ++ " as " ++ alias
+        addParensIf needsParens $
+          toString False realPattern ++ " as " ++ alias
 
     Var name ->
         name
@@ -66,6 +77,23 @@ toString pattern =
         L.toString literal
 
     AnythingBut literalSet ->
-        List.intercalate " " ("<values besides:" : map L.toString (Set.toList literalSet))
+        List.intercalate " " ("<values besides:" : map L.toString (Set.toList literalSet) ++ [">"])
 
 
+addParensIf :: Bool -> String -> String
+addParensIf needsParens str =
+  if needsParens then
+      "(" ++ str ++ ")"
+
+  else
+      str
+
+
+isCons :: Pattern -> Bool
+isCons pattern =
+  case pattern of
+    Data tag [_,_] ->
+        Var.toString tag == "::"
+
+    _ ->
+        False

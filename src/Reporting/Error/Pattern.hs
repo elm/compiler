@@ -48,7 +48,7 @@ viewPatternList unhandledPatterns =
       splitAt 4 unhandledPatterns
   in
     concatMap ((++) "\n    ") $
-      map Pattern.toString showPatterns
+      map (Pattern.toString False) showPatterns
       ++ if null rest then [] else ["..."]
 
 
