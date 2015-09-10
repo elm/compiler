@@ -1,16 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 module Reporting.Error.Pattern where
 
-import qualified Data.Char as Char
-import Text.PrettyPrint ((<+>))
-import qualified Text.PrettyPrint as P
-
-import qualified AST.Helpers as Help
-import qualified AST.Type as Type
-import qualified AST.Variable as Var
 import qualified Nitpick.Pattern as Pattern
 import qualified Reporting.PrettyPrint as P
-import qualified Reporting.Region as Region
 import qualified Reporting.Report as Report
 
 
