@@ -15,15 +15,19 @@ import qualified Reporting.Error.Helpers as Error
 import qualified Reporting.Region as R
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Result as Result
+import qualified Elm.Package as Pkg
 import Elm.Utils ((|>))
 
 
 variable :: R.Region -> Env.Environment -> String -> Result.ResultErr Var.Canonical
 variable region env var =
   case toVarName var of
-    Right (name, varName)
-        | ModuleName.isNative name ->
-            error "TODO" "Result.var (Var.Canonical (Var.Module name) varName)"
+    Right (name, varName) | ModuleName.isNative name ->
+        let
+            moduleName =
+                ModuleName.Canonical Pkg.dummyName name
+        in
+            Result.var (Var.Canonical (Var.Module moduleName) varName)
 
     _ ->
         case Set.toList `fmap` Map.lookup var (Env._values env) of
