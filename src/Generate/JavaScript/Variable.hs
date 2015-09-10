@@ -1,4 +1,4 @@
-module Generate.JavaScript.Variable (fresh, canonical, defName, safe) where
+module Generate.JavaScript.Variable (fresh, canonical, define, safe) where
 
 import qualified Control.Monad.State as State
 import qualified Data.List as List
@@ -23,14 +23,29 @@ fresh =
 
 -- DEF NAMES
 
-defName :: Maybe ModuleName.Canonical -> String -> String
-defName maybeHome name =
+define :: Maybe ModuleName.Canonical -> String -> JS.Expression () -> JS.Statement ()
+define maybeHome name body =
+  let
+    varDecl safeName =
+      JS.VarDeclStmt () [ JS.VarDecl () (JS.Id () safeName) (Just body) ]
+  in
   case maybeHome of
     Nothing ->
-        safe name
+        varDecl (safe name)
 
     Just home ->
-        canonicalPrefix home (safe name)
+        if Help.isOp name then
+          let
+            root =
+              JS.VarRef () (JS.Id () (canonicalPrefix home "_op"))
+
+            lvalue =
+              JS.LBracket () root (JS.StringLit () name)
+          in
+            JS.ExprStmt () (JS.AssignExpr () JS.OpAssign lvalue body)
+
+        else
+          varDecl (canonicalPrefix home (safe name))
 
 
 -- INSTANTIATE VARIABLES

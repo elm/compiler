@@ -29,10 +29,13 @@ generate module_ =
     definitions =
         Module.program (Module.body module_)
 
+    setup =
+        Var.define (Just (Module.name module_)) "_op" (ObjectLit () [])
+
     stmts =
         State.evalState (mapM generateDef definitions) 0
   in
-    PP.displayS (PP.renderPretty 0.4 120 (ES.prettyPrint stmts)) ""
+    PP.displayS (PP.renderPretty 0.4 120 (ES.prettyPrint (setup:stmts))) ""
 
 
 -- CODE CHUNKS
@@ -101,7 +104,7 @@ generateDef def =
             Opt.Def (Opt.Facts home _) name body ->
                 (,,) home name <$> generateJsExpr body
 
-      return (VarDeclStmt () [ varDecl (Var.defName home name) jsBody ])
+      return (Var.define home name jsBody)
 
 
 -- EXPRESSIONS
@@ -255,8 +258,9 @@ generateTailFunction name args body =
 
 
 generateFunctionWithArity :: [String] -> Code -> Expression ()
-generateFunctionWithArity args code =
+generateFunctionWithArity rawArgs code =
     let
+        args = map Var.safe rawArgs
         arity = length args
     in
       if 2 <= arity && arity <= 9 then
