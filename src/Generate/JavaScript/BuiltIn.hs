@@ -8,7 +8,7 @@ import qualified Reporting.Region as R
 
 utils :: String -> [JS.Expression ()] -> JS.Expression ()
 utils func args =
-  error "TODO"
+  obj ["_utils", func] `call` args
 
 
 -- LITERALS
