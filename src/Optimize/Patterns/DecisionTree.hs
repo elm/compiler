@@ -12,7 +12,6 @@ as SML/NJ to get nice trees.
 -}
 
 import Control.Arrow (second)
-import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -144,37 +143,23 @@ toDecisionTree variantDict rawBranches =
     Nothing ->
         let
           path =
-              smallDefaults branches
+              pickPath variantDict branches
 
-          relevantTests =
-              testsAtPath path branches
+          (edges, fallback) =
+              gatherEdges variantDict branches path
 
-          allRawEdges =
-              map (edgesFor path branches) relevantTests
-
-          (rawEdges, unexplored) =
-              if isComplete variantDict relevantTests then
-                  ( init allRawEdges
-                  , snd (last allRawEdges)
-                  )
-
-              else
-                  ( allRawEdges
-                  , filter (isIrrelevantTo path) branches
-                  )
-
-          edges =
-              map (second (toDecisionTree variantDict)) rawEdges
+          decisionEdges =
+              map (second (toDecisionTree variantDict)) edges
         in
-          case (edges, unexplored) of
+          case (decisionEdges, fallback) of
             ([(_tag, decisionTree)], []) ->
                 decisionTree
 
             (_, []) ->
-                Decision path edges Nothing
+                Decision path decisionEdges Nothing
 
             (_, _) ->
-                Decision path edges (Just (toDecisionTree variantDict unexplored))
+                Decision path decisionEdges (Just (toDecisionTree variantDict fallback))
 
 
 isComplete :: VariantDict -> [Test] -> Bool
@@ -281,6 +266,28 @@ getSubstitution (path, A.A _ pattern) =
 
     P.Literal _ ->
         Nothing
+
+
+-- GATHER OUTGOING EDGES
+
+gatherEdges :: VariantDict -> [Branch] -> Path -> ([(Test, [Branch])], [Branch])
+gatherEdges variantDict branches path =
+  let
+    relevantTests =
+        testsAtPath path branches
+
+    allRawEdges =
+        map (edgesFor path branches) relevantTests
+  in
+    if isComplete variantDict relevantTests then
+        ( init allRawEdges
+        , snd (last allRawEdges)
+        )
+
+    else
+        ( allRawEdges
+        , filter (isIrrelevantTo path) branches
+        )
 
 
 -- FIND RELEVANT TESTS
@@ -420,18 +427,20 @@ needsTests (A.A _ pattern) =
         True
 
 
--- PATH PICKING HEURISTICS
+-- PICK A PATH
 
-smallDefaults :: [Branch] -> Path
-smallDefaults branches =
+pickPath :: VariantDict -> [Branch] -> Path
+pickPath variantDict branches =
   let
     allPaths =
       Maybe.mapMaybe isChoicePath (concatMap _patterns branches)
-
-    weightedPaths =
-      map (\path -> (path, length (filter (isIrrelevantTo path) branches))) allPaths
   in
-      fst (List.minimumBy (compare `on` snd) weightedPaths)
+    case bests (addWeights (smallDefaults branches) allPaths) of
+      [path] ->
+          path
+
+      tiedPaths ->
+          head (bests (addWeights (smallBranchingFactor variantDict branches) tiedPaths))
 
 
 isChoicePath :: (Path, CPattern) -> Maybe Path
@@ -442,4 +451,38 @@ isChoicePath (path, pattern) =
       Nothing
 
 
--- smallBranchingFactor :: [Branch] -> Path
+addWeights :: (Path -> Int) -> [Path] -> [(Path, Int)]
+addWeights toWeight paths =
+  map (\path -> (path, toWeight path)) paths
+
+
+bests :: [(Path, Int)] -> [Path]
+bests ((path,weight):weightedPaths) =
+  let
+    gatherMinimum acc@(minWeight, paths) (path, weight) =
+      if weight == minWeight then
+        (minWeight, path : paths)
+
+      else if weight < minWeight then
+        (weight, [path])
+
+      else
+        acc
+  in
+    snd (List.foldl' gatherMinimum (weight, [path]) weightedPaths)
+
+
+-- PATH PICKING HEURISTICS
+
+smallDefaults :: [Branch] -> Path -> Int
+smallDefaults branches path =
+  length (filter (isIrrelevantTo path) branches)
+
+
+smallBranchingFactor :: VariantDict -> [Branch] -> Path -> Int
+smallBranchingFactor variantDict branches path =
+  let
+    (edges, fallback) =
+      gatherEdges variantDict branches path
+  in
+    length edges + (if null fallback then 0 else 1)
