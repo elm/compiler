@@ -39,7 +39,7 @@ data GLTipe
     | V4
     | M4
     | Texture
-    deriving (Show)
+    deriving (Eq, Show)
 
 
 glTipeName :: GLTipe -> String
@@ -59,4 +59,4 @@ data GLShaderTipe = GLShaderTipe
     , uniform :: Map.Map String GLTipe
     , varying :: Map.Map String GLTipe
     }
-    deriving (Show)
+    deriving (Eq, Show)

@@ -73,6 +73,7 @@ data DecisionTree a
         , _edges :: [(Test, DecisionTree a)]
         , _default :: Maybe (DecisionTree a)
         }
+    deriving (Eq)
 
 
 data Jump = Jump

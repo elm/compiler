@@ -371,26 +371,57 @@ generateDecisionTree root decisionTree =
     DT.Match (Opt.Jump target) ->
         return [ BreakStmt () (Just (targetLabel root target)) ]
 
+    DT.Decision testPath [(test, subTree)] (Just fallback) ->
+        let
+          (tests, deepestSubTree) =
+            collapseTests [(testPath, test)] fallback subTree
+
+          makeTest (path, test) =
+            do  testExpr <- pathToTestableExpr root path test
+                return (InfixExpr () OpStrictEq testExpr (testToExpr test))
+        in
+          do  testExprs <- mapM makeTest tests
+              let cond = List.foldl1' (InfixExpr () OpLAnd) testExprs
+              thenBranch <- generateDecisionTree root deepestSubTree
+              elseBranch <- generateDecisionTree root fallback
+              return [ IfStmt () cond (BlockStmt () thenBranch) (BlockStmt () elseBranch) ]
+
     DT.Decision testPath edges fallback ->
-        do  accessExpr <- generateJsExpr (pathToExpr root testPath)
-
-            let testExpr =
-                  case fst (head edges) of
-                    DT.Constructor _ ->
-                        DotRef () accessExpr (Id () "ctor")
-
-                    DT.Literal _ ->
-                        accessExpr
-
+        do  testExpr <- pathToTestableExpr root testPath (fst (head edges))
             caseClauses <- mapM (edgeToCaseClause root) edges
             caseDefault <- fallbackToDefault root fallback
-
             return [ SwitchStmt () testExpr (caseClauses ++ caseDefault) ]
+
+
+collapseTests
+    :: [(DT.Path, DT.Test)]
+    -> DT.DecisionTree Opt.Jump
+    -> DT.DecisionTree Opt.Jump
+    -> ([(DT.Path, DT.Test)], DT.DecisionTree Opt.Jump)
+collapseTests tests outerFallback decisionTree =
+  case decisionTree of
+    DT.Decision testPath [(test, subTree)] (Just fallback)
+        | fallback == outerFallback ->
+            collapseTests ((testPath, test) : tests) outerFallback subTree
+
+    _ ->
+        (tests, decisionTree)
 
 
 edgeToCaseClause :: String -> (DT.Test, DT.DecisionTree Opt.Jump) -> State Int (CaseClause ())
 edgeToCaseClause root (test, subTree) =
   CaseClause () (testToExpr test) <$> generateDecisionTree root subTree
+
+
+pathToTestableExpr :: String -> DT.Path -> DT.Test -> State Int (Expression ())
+pathToTestableExpr root path exampleTest =
+  do  accessExpr <- generateJsExpr (pathToExpr root path)
+      case exampleTest of
+        DT.Constructor _ ->
+            return (DotRef () accessExpr (Id () "ctor"))
+
+        DT.Literal _ ->
+            return accessExpr
 
 
 testToExpr :: DT.Test -> Expression ()
