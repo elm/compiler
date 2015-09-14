@@ -56,7 +56,7 @@ data Aliased t
 data Port t
     = Normal t
     | Signal { root :: t, arg :: t }
-    deriving (Show)
+    deriving (Eq, Show)
 
 
 getPortType :: Port tipe -> tipe

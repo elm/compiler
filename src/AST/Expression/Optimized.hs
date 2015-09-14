@@ -19,12 +19,14 @@ import qualified Reporting.Region as R
 data Def
     = Def Facts String Expr
     | TailDef Facts String [String] Expr
+    deriving (Eq)
 
 
 data Facts = Facts
     { home :: Maybe ModuleName.Canonical
     , dependencies :: [Var.TopLevel]
     }
+    deriving (Eq)
 
 
 dummyFacts :: Facts
@@ -54,14 +56,17 @@ data Expr
     | Port (General.PortImpl Expr Type.Canonical)
     | GLShader String String Literal.GLShaderTipe
     | Crash R.Region (Maybe String)
+    deriving (Eq)
 
 
 data Jump
     = Inline Branch
     | Jump Int
+    deriving (Eq)
 
 
 data Branch = Branch
     { _substitutions :: [(String, DT.Path)]
     , _branch :: Expr
     }
+    deriving (Eq)
