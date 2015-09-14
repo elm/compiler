@@ -460,7 +460,7 @@ generateBranch root (Opt.Branch substitutions expr) =
 loadPath :: String -> (String, DT.Path) -> State Int (VarDecl ())
 loadPath root (name, path) =
   do  jsAccessExpr <- generateJsExpr (pathToExpr root path)
-      return $ varDecl name jsAccessExpr
+      return $ varDecl (Var.safe name) jsAccessExpr
 
 
 pathToExpr :: String -> DT.Path -> Opt.Expr
