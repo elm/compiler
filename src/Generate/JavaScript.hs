@@ -450,15 +450,17 @@ fallbackToDefault root fallback =
 
 generateBranch :: String -> Opt.Branch -> State Int [Statement ()]
 generateBranch root (Opt.Branch substitutions expr) =
-  do  subts <- mapM (loadPath root) substitutions
+  do  substs <- mapM (loadPath root) substitutions
+      let substStmts =
+            if null substs then [] else [ VarDeclStmt () substs ]
       code <- generateCode expr
-      return (subts ++ toStatementList code)
+      return (substStmts ++ toStatementList code)
 
 
-loadPath :: String -> (String, DT.Path) -> State Int (Statement ())
+loadPath :: String -> (String, DT.Path) -> State Int (VarDecl ())
 loadPath root (name, path) =
   do  jsAccessExpr <- generateJsExpr (pathToExpr root path)
-      return $ VarDeclStmt () [ varDecl name jsAccessExpr ]
+      return $ varDecl name jsAccessExpr
 
 
 pathToExpr :: String -> DT.Path -> Opt.Expr
