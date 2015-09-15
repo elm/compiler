@@ -67,7 +67,7 @@ data PortImpl expr tipe
     = In String (Type.Port tipe)
     | Out String expr (Type.Port tipe)
     | Task String expr (Type.Port tipe)
-    deriving (Show)
+    deriving (Eq, Show)
 
 
 portName :: PortImpl expr tipe -> String
