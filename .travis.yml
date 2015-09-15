@@ -1,5 +1,9 @@
 sudo: false
 
+cache:
+  directories:
+  - $HOME/.cabal
+
 addons:
   apt:
     sources:
