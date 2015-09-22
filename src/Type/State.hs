@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Type.State where
 
 import Control.Applicative ( Applicative, (<$>), (<*>), (<|>) )
