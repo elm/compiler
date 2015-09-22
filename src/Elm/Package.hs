@@ -3,12 +3,11 @@ module Elm.Package where
 import Control.Applicative ((<$>), (<*>))
 import Data.Aeson
 import Data.Binary
+import qualified Data.Char as Char
+import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Text as T
-import qualified Data.Maybe as Maybe
 import System.FilePath ((</>))
-import Data.Char (isDigit)
-import Data.Function (on)
 
 
 -- PACKGE NAMES
@@ -48,12 +47,42 @@ toFilePath name =
     user name </> project name
 
 
-fromString :: String -> Maybe Name
+fromString :: String -> Either String Name
 fromString string =
     case break (=='/') string of
-      ( user@(_:_), '/' : project@(_:_) )
-          | all (/='/') project -> Just (Name user project)
-      _ -> Nothing
+      ( user, '/' : project ) ->
+          if null user then
+              Left "You did not provide a user name (USER/PROJECT)"
+
+          else if null project then
+              Left "You did not provide a project name (USER/PROJECT)"
+
+          else if all (/='/') project then
+              Name user <$> validate project
+
+          else
+              Left "Expecting only one slash, separating the user and project name (USER/PROJECT)"
+
+      _ ->
+          Left "There should be a slash separating the user and project name (USER/PROJECT)"
+
+
+validate :: String -> Either String String
+validate str =
+  if elem ('-','-') (zip str (tail str)) then
+      Left "There is a double dash -- in your package name. It must be a single dash."
+
+  else if elem '_' str then
+      Left "Underscores are not allowed in package names."
+
+  else if any Char.isUpper str then
+      Left "Upper case characters are not allowed in package names."
+
+  else if not (Char.isLetter (head str)) then
+      Left "Package names must start with a letter."
+
+  else
+      Right str
 
 
 instance Binary Name where
@@ -68,7 +97,12 @@ instance FromJSON Name where
         let
           string = T.unpack text
         in
-          Maybe.maybe (fail (errorMsg string)) return (fromString string)
+          case fromString string of
+            Left msg ->
+                fail ("Ran into an invalid package name: " ++ string ++ "\n\n" ++ msg)
+
+            Right name ->
+                return name
 
     parseJSON _ =
         fail "Project name must be a string."
@@ -77,14 +111,6 @@ instance FromJSON Name where
 instance ToJSON Name where
     toJSON name =
         toJSON (toString name)
-
-
-errorMsg :: String -> String
-errorMsg string =
-    unlines
-    [ "Dependency file has an invalid name: " ++ string
-    , "Must have format USER/PROJECT and match a public github project."
-    ]
 
 
 -- PACKAGE VERSIONS
@@ -147,7 +173,7 @@ versionFromString string =
     where
       splitNumbers :: String -> Maybe [Int]
       splitNumbers ns =
-          case span isDigit ns of
+          case span Char.isDigit ns of
             ("", _) ->
                 Nothing
 
