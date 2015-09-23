@@ -249,15 +249,12 @@ caseExpr =
       e <- padded expr
       reserved "of"
       whitespace
-      E.Case e <$> (with <|> without)
+      E.Case e <$> without
   where
     case_ =
       do  p <- Pattern.expr
           padded rightArrow
           (,) p <$> expr
-
-    with =
-      brackets (semiSep1 (case_ <?> "cases { x -> ... }"))
 
     without =
       block (do c <- case_ ; whitespace ; return c)
