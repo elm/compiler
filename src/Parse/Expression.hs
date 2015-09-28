@@ -103,7 +103,7 @@ parensTerm =
         A.at start end (E.rawVar x)
 
     opFn =
-      do  (start, op, end) <- located symOp
+      do  (start, op, end) <- located symOpa
           return $
             lambda start end "x" $
               lambda start end "y" $
@@ -249,18 +249,12 @@ caseExpr =
       e <- padded expr
       reserved "of"
       whitespace
-      E.Case e <$> (with <|> without)
+      E.Case e <$> block (do c <- case_ ; whitespace ; return c)
   where
     case_ =
       do  p <- Pattern.expr
           padded rightArrow
           (,) p <$> expr
-
-    with =
-      brackets (semiSep1 (case_ <?> "cases { x -> ... }"))
-
-    without =
-      block (do c <- case_ ; whitespace ; return c)
 
 
 -- LET
