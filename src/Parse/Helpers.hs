@@ -119,7 +119,7 @@ anyOp =
 symOp :: IParser String
 symOp =
   do  op <- many1 (satisfy Help.isSymbol)
-      guard (op `notElem` [ "=", "..", "->", "--", "|", "\8594", ":" ])
+      guard (op `notElem` [ "=", "..", "->", "--", "|", ":" ])
       case op of
         "." -> notFollowedBy lower >> return op
         _   -> return op
@@ -129,12 +129,12 @@ symOp =
 
 equals :: IParser String
 equals =
-  string "=" <?> "="
+  string "=" <?> "an equals sign '='"
 
 
 rightArrow :: IParser String
 rightArrow =
-  string "->" <|> string "\8594" <?> "->"
+  string "->" <?> "an arrow '->'"
 
 
 hasType :: IParser String
