@@ -15,6 +15,8 @@ import qualified Reporting.Report as Report
 
 data Error
     = Parse [Parsec.Message]
+    | BadFunctionName Int
+    | BadPattern String
     | InfixDuplicate String
     | TypeWithoutDefinition String
     | PortWithoutAnnotation String
@@ -33,6 +35,26 @@ toReport dealiaser err =
   case err of
     Parse messages ->
         parseErrorReport messages
+
+    BadFunctionName arity ->
+        Report.simple
+          "BAD FUNCTION DEFINITION"
+          "Complex patterns cannot be used as function names."
+          ( "This function definition has " ++ show arity ++ " arguments, but instead of a normal name like\n"
+            ++ "`add` or `reverse` it has a pattern. There is no way to \"deconstruct\" a\n"
+            ++ "function with pattern matching, so this needs to be changed to a normal name."
+          )
+
+    BadPattern name ->
+        Report.simple
+          "BAD PATTERN"
+          ("The free variable `" ++ name ++ "` appears more than once in this pattern.")
+          ( "Rename the variables so there are no duplicates.\n\n"
+            ++ "In Elm, pattern matching works by binding these free variables to subsections\n"
+            ++ "of the matching value. It does not make sense to have the same name for two\n"
+            ++ "different subsections though! When you say `" ++ name ++ "` in some code, there\n"
+            ++ "is no way for me to know which subsection you mean!"
+          )
 
     InfixDuplicate opName ->
         Report.simple

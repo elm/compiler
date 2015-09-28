@@ -164,26 +164,28 @@ versionToString (Version major minor patch) =
     show major ++ "." ++ show minor ++ "." ++ show patch
 
 
-versionFromString :: String -> Maybe Version
+versionFromString :: String -> Either String Version
 versionFromString string =
-      case splitNumbers string of
-        Just [major, minor, patch] ->
-            Just (Version major minor patch)
-        _ -> Nothing
-    where
-      splitNumbers :: String -> Maybe [Int]
-      splitNumbers ns =
-          case span Char.isDigit ns of
-            ("", _) ->
-                Nothing
+    case splitNumbers string of
+      Just [major, minor, patch] ->
+          Right (Version major minor patch)
+      _ ->
+          Left "Must have format MAJOR.MINOR.PATCH (e.g. 1.0.2)"
+  where
+    splitNumbers :: String -> Maybe [Int]
+    splitNumbers ns =
+        case span Char.isDigit ns of
+          ("", _) ->
+              Nothing
 
-            (numbers, []) ->
-                Just [ read numbers ]
+          (numbers, []) ->
+              Just [ read numbers ]
 
-            (numbers, '.':rest) ->
-                (read numbers :) <$> splitNumbers rest
+          (numbers, '.':rest) ->
+              (read numbers :) <$> splitNumbers rest
 
-            _ -> Nothing
+          _ ->
+              Nothing
 
 
 instance Binary Version where
@@ -198,11 +200,13 @@ instance FromJSON Version where
     parseJSON (String text) =
         let string = T.unpack text in
         case versionFromString string of
-          Just v -> return v
-          Nothing ->
+          Right v ->
+              return v
+
+          Left problem ->
               fail $ unlines
-                 [ "Dependency file has an invalid version number: " ++ string
-                 , "Must have format MAJOR.MINOR.PATCH (e.g. 0.1.2)"
+                 [ "Ran into an invalid version number: " ++ string
+                 , problem
                  ]
 
     parseJSON _ =
