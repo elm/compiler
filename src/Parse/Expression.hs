@@ -103,7 +103,7 @@ parensTerm =
         A.at start end (E.rawVar x)
 
     opFn =
-      do  (start, op, end) <- located anyOp
+      do  (start, op, end) <- located symOp
           return $
             lambda start end "x" $
               lambda start end "y" $
