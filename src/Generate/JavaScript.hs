@@ -30,7 +30,7 @@ generate module_ =
         Module.program (Module.body module_)
 
     setup =
-        Var.define (Just (Module.name module_)) "_op" (ObjectLit () [])
+        Var.define "_op" (ObjectLit () [])
 
     stmts =
         State.evalState (mapM generateDef definitions) 0
@@ -104,7 +104,7 @@ generateDef def =
             Opt.Def (Opt.Facts home _) name body ->
                 (,,) home name <$> generateJsExpr body
 
-      return (Var.define home name jsBody)
+      return (Var.define name jsBody)
 
 
 -- EXPRESSIONS

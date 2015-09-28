@@ -23,29 +23,20 @@ fresh =
 
 -- DEF NAMES
 
-define :: Maybe ModuleName.Canonical -> String -> JS.Expression () -> JS.Statement ()
-define maybeHome name body =
-  let
-    varDecl safeName =
-      JS.VarDeclStmt () [ JS.VarDecl () (JS.Id () safeName) (Just body) ]
-  in
-  case maybeHome of
-    Nothing ->
-        varDecl (safe name)
+define :: String -> JS.Expression () -> JS.Statement ()
+define name body =
+  if Help.isOp name then
+    let
+      root =
+        JS.VarRef () (JS.Id () "_op")
 
-    Just home ->
-        if Help.isOp name then
-          let
-            root =
-              JS.VarRef () (JS.Id () (canonicalPrefix home "_op"))
+      lvalue =
+        JS.LBracket () root (JS.StringLit () name)
+    in
+      JS.ExprStmt () (JS.AssignExpr () JS.OpAssign lvalue body)
 
-            lvalue =
-              JS.LBracket () root (JS.StringLit () name)
-          in
-            JS.ExprStmt () (JS.AssignExpr () JS.OpAssign lvalue body)
-
-        else
-          varDecl (canonicalPrefix home (safe name))
+  else
+    JS.VarDeclStmt () [ JS.VarDecl () (JS.Id () (safe name)) (Just body) ]
 
 
 -- INSTANTIATE VARIABLES
@@ -53,34 +44,31 @@ define maybeHome name body =
 canonical :: Var.Canonical -> JS.Expression ()
 canonical (Var.Canonical home name) =
   if Help.isOp name then
-    JS.BracketRef () (JS.ref (addRoot home "_op")) (JS.string name)
+    JS.BracketRef () (addRoot home "_op") (JS.string name)
 
   else
-    JS.ref (addRoot home (safe name))
+    addRoot home (safe name)
 
 
-addRoot :: Var.Home -> String -> String
+addRoot :: Var.Home -> String -> JS.Expression ()
 addRoot home name =
   case home of
     Var.Local ->
-        name
+        JS.ref name
 
-    Var.TopLevel moduleName ->
-        canonicalPrefix moduleName name
+    Var.TopLevel _moduleName ->
+        JS.ref name
 
     Var.BuiltIn ->
-        name
+        JS.ref name
 
     Var.Module moduleName ->
-        canonicalPrefix moduleName name
+        JS.DotRef () (JS.ref (canonicalModuleName moduleName)) (JS.Id () name)
 
 
-canonicalPrefix :: ModuleName.Canonical -> String -> String
-canonicalPrefix (ModuleName.Canonical (Pkg.Name user project) moduleName) name =
-    map (swap '-' '_') user
-    ++ '$' : map (swap '-' '_') project
-    ++ '$' : List.intercalate "$" moduleName
-    ++ '$' : safe name
+canonicalModuleName :: ModuleName.Canonical -> String
+canonicalModuleName (ModuleName.Canonical (Pkg.Name _user _project) moduleName) =
+  '$' : List.intercalate "$" moduleName
 
 
 swap :: Char -> Char -> Char -> Char
