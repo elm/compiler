@@ -7,7 +7,7 @@ import qualified Data.Set as Set
 import qualified Data.Foldable as F
 import qualified Data.Traversable as T
 
-import AST.Expression.General
+import AST.Expression.General as Expr
 import qualified AST.Expression.Source as Source
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Declaration as D
@@ -92,8 +92,9 @@ defHelp comment (A.A region def) decls =
   in
   case def of
     Source.Definition pat expr ->
-        do  expr' <- Validate.expression expr
+        do  expr' <- expression expr
             let def' = Valid.Definition pat expr' Nothing
+            checkDefinition def'
             addRest def' decls
 
     Source.TypeAnnotation name tipe ->
@@ -101,8 +102,9 @@ defHelp comment (A.A region def) decls =
           D.Decl (A.A _ (D.Definition (A.A _
             (Source.Definition pat@(A.A _ (Pattern.Var name')) expr)))) : rest
               | name == name' ->
-                  do  expr' <- Validate.expression expr
+                  do  expr' <- expression expr
                       let def' = Valid.Definition pat expr' (Just tipe)
+                      checkDefinition def'
                       addRest def' rest
 
           _ ->
@@ -130,7 +132,7 @@ portHelp comment region port decls =
         case decls of
           D.Decl (A.A _ (D.Port (D.PortDefinition name' expr))) : rest
               | name == name' ->
-                  do  expr' <- Validate.expression expr
+                  do  expr' <- expression expr
                       let port' = D.Out name expr' tipe
                       addRest port' rest
 
@@ -157,6 +159,7 @@ definitionsHelp sourceDefs =
     A.A _ (Source.Definition pat expr) : rest ->
         do  expr' <- expression expr
             let def = Valid.Definition pat expr' Nothing
+            checkDefinition def
             (:) def <$> definitionsHelp rest
 
     A.A region (Source.TypeAnnotation name tipe) : rest ->
@@ -165,10 +168,30 @@ definitionsHelp sourceDefs =
               | name == name' ->
                   do  expr' <- expression expr
                       let def = Valid.Definition pat expr' (Just tipe)
+                      checkDefinition def
                       (:) def <$> definitionsHelp rest'
 
           _ ->
               Result.throw region (Error.TypeWithoutDefinition name)
+
+
+checkDefinition :: Valid.Def -> Result.Result wrn Error.Error ()
+checkDefinition (Valid.Definition pattern body _) =
+  case fst (Expr.collectLambdas body) of
+    [] ->
+        return ()
+
+    args ->
+        case pattern of
+          A.A _ (Pattern.Var _) ->
+              return ()
+
+          _ ->
+              let
+                (A.A start _) = pattern
+                (A.A end _) = last args
+              in
+                Result.throw (R.merge start end) (Error.BadFunctionName (length args))
 
 
 -- VALIDATE EXPRESSIONS
@@ -181,7 +204,9 @@ expression (A.A ann sourceExpression) =
         return (Var x)
 
     Lambda pattern body ->
-        Lambda pattern <$> expression body
+        Lambda
+            <$> validatePattern pattern
+            <*> expression body
 
     Binop op leftExpr rightExpr ->
         Binop op
@@ -191,7 +216,7 @@ expression (A.A ann sourceExpression) =
     Case e branches ->
         Case
           <$> expression e
-          <*> T.traverse second branches
+          <*> T.traverse (\(p,b) -> (,) <$> validatePattern p <*> expression b) branches
 
     Data name args ->
         Data name <$> T.traverse expression args
@@ -265,6 +290,14 @@ both
     -> Result.Result wrn Error.Error (Valid.Expr, Valid.Expr)
 both (expr1, expr2) =
     (,) <$> expression expr1 <*> expression expr2
+
+
+-- VALIDATE PATTERNS
+
+validatePattern :: Pattern.RawPattern -> Result.Result wrn Error.Error Pattern.RawPattern
+validatePattern pattern =
+  do  detectDuplicates Error.BadPattern (Pattern.boundVars pattern)
+      return pattern
 
 
 -- DETECT DUPLICATES

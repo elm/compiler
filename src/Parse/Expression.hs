@@ -296,7 +296,7 @@ definition :: IParser Source.Def
 definition =
   addLocation $
   withPos $
-    do  (name:args) <- defStart
+    do  (name, args) <- defStart
         padded equals
         body <- expr
         return . Source.Definition name $ makeFunction args body
@@ -307,27 +307,9 @@ makeFunction args body@(A.A ann _) =
     foldr (\arg body' -> A.A ann $ E.Lambda arg body') body args
 
 
-defStart :: IParser [P.RawPattern]
+defStart :: IParser (P.RawPattern, [P.RawPattern])
 defStart =
-    choice
-      [ do  pattern <- try Pattern.term
-            infics pattern <|> func pattern
-      , do  opPattern <- addLocation (P.Var <$> parens symOp)
-            func opPattern
-      ]
-      <?> "the definition of a variable (x = ...)"
-  where
-    func pattern =
-        case pattern of
-          A.A _ (P.Var _) ->
-              (pattern:) <$> spacePrefix Pattern.term
-
-          _ ->
-              return [pattern]
-
-    infics p1 =
-      do  (start, o:p, end) <- try (whitespace >> located anyOp)
-          p2 <- (whitespace >> Pattern.term)
-          let opName =
-                if o == '`' then takeWhile (/='`') p else o:p
-          return [ A.at start end (P.Var opName), p1, p2 ]
+  expecting "the definition of a value (x = ...)" $
+    do  starter <- try Pattern.term <|> addLocation (P.Var <$> parens symOp)
+        args <- spacePrefix Pattern.term
+        return (starter, args)
