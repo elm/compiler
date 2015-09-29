@@ -118,7 +118,7 @@ anyOp =
 
 symOp :: IParser String
 symOp =
-  do  op <- many1 (satisfy Help.isSymbol)
+  do  op <- many1 (satisfy (\c -> Help.isSymbol c && c /= '`'))
       guard (op `notElem` [ "=", "..", "->", "--", "|", ":" ])
       case op of
         "." -> notFollowedBy lower >> return op
