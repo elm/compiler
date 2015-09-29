@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 module Validate (declarations) where
 
-import Control.Applicative ((<$>),(<*>))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Foldable as F

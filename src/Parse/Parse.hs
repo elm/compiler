@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 module Parse.Parse (program, parse) where
 
-import Control.Applicative ((<$>), (<*>))
 import qualified Data.Map as Map
 import qualified Data.Traversable as T
 import Text.Parsec (char, eof, letter, many, optional, putState, (<|>))

@@ -1,6 +1,5 @@
 module Canonicalize (module') where
 
-import Control.Applicative ((<$>),(<*>))
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe

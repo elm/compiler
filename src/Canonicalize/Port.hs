@@ -1,6 +1,5 @@
 module Canonicalize.Port (check) where
 
-import Control.Applicative ((<$>))
 import qualified Data.Foldable as Foldable
 
 import qualified AST.Declaration as D

@@ -1,6 +1,5 @@
 module AST.Module.Name where
 
-import Control.Applicative ((<$>),(<*>))
 import Data.Binary
 import qualified Data.List as List
 

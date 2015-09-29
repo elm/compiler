@@ -1,6 +1,6 @@
 module Type.Solve (solve) where
 
-import Control.Applicative ((<$>), (<*>), (<|>))
+import Control.Applicative ((<|>))
 import Control.Monad
 import Control.Monad.State (StateT, execStateT, liftIO)
 import Control.Monad.Except (ExceptT, throwError)
