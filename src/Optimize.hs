@@ -1,6 +1,5 @@
 module Optimize (optimize) where
 
-import Control.Applicative
 import qualified Control.Monad as M
 import qualified Data.Traversable as T
 

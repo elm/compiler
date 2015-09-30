@@ -19,7 +19,7 @@ task name expr portType =
         _Task "perform" `call` [ expr ]
 
     T.Signal _ _ ->
-        _Task "performSignal" `call` [ string name, expr ]
+        _Task "performSignal" `call` [ StringLit () name, expr ]
 
 
 
@@ -77,7 +77,7 @@ check x jsType continue =
         foldl1 (InfixExpr () op) (map ($ value) checks)
 
     throw =
-        obj ["_U","badPort"] `call` [ string (typeToString jsType), x ]
+        obj ["_U","badPort"] `call` [ StringLit () (typeToString jsType), x ]
 
     checks =
         case jsType of
@@ -96,22 +96,22 @@ inbound name portType =
   case portType of
     T.Normal tipe ->
         _Port "inbound" `call`
-            [ string name
-            , string (show (P.pretty Map.empty False tipe))
+            [ StringLit () name
+            , StringLit () (show (P.pretty Map.empty False tipe))
             , toTypeFunction tipe
             ]
 
     T.Signal _root arg ->
         _Port "inboundSignal" `call`
-            [ string name
-            , string (show (P.pretty Map.empty False arg))
+            [ StringLit () name
+            , StringLit () (show (P.pretty Map.empty False arg))
             , toTypeFunction arg
             ]
 
 
 toTypeFunction :: T.Canonical -> Expression ()
 toTypeFunction tipe =
-    ["v"] ==> toType tipe (ref "v")
+    function ["v"] [ ReturnStmt () (Just (toType tipe (ref "v"))) ]
 
 
 toType :: T.Canonical -> Expression () -> Expression ()
@@ -186,7 +186,7 @@ toTuple types x =
         (prop "ctor", ctor) : zipWith convert [0..] types
 
     ctor =
-        string ("_Tuple" ++ show (length types))
+        StringLit () ("_Tuple" ++ show (length types))
 
     convert n t =
         ( prop ('_':show n)
@@ -200,15 +200,15 @@ outbound :: String -> Expression () -> T.Port T.Canonical -> Expression ()
 outbound name expr portType =
   case portType of
     T.Normal tipe ->
-        _Port "outbound" `call` [ string name, fromTypeFunction tipe, expr ]
+        _Port "outbound" `call` [ StringLit () name, fromTypeFunction tipe, expr ]
 
     T.Signal _ arg ->
-        _Port "outboundSignal" `call` [ string name, fromTypeFunction arg, expr ]
+        _Port "outboundSignal" `call` [ StringLit () name, fromTypeFunction arg, expr ]
 
 
 fromTypeFunction :: T.Canonical -> Expression ()
 fromTypeFunction tipe =
-    ["v"] ==> fromType tipe (ref "v")
+    function ["v"] [ ReturnStmt () (Just (fromType tipe (ref "v"))) ]
 
 
 fromType :: T.Canonical -> Expression () -> Expression ()
@@ -230,7 +230,7 @@ fromType tipe x =
             func body =
                 function (take numArgs args)
                     [ VarDeclStmt () [VarDecl () (var "_r") (Just body)]
-                    , ret (fromType (last ts) (ref "_r"))
+                    , ReturnStmt () (Just (fromType (last ts) (ref "_r")))
                     ]
 
       T.Var _ ->
@@ -250,7 +250,7 @@ fromType tipe x =
             T.Type name : [t]
                 | Var.isMaybe name ->
                     CondExpr ()
-                        (equal (DotRef () x (var "ctor")) (string "Nothing"))
+                        (equal (DotRef () x (var "ctor")) (StringLit () "Nothing"))
                         (NullLit ())
                         (fromType t (DotRef () x (var "_0")))
 

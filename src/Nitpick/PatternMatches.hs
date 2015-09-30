@@ -1,6 +1,5 @@
 module Nitpick.PatternMatches (patternMatches) where
 
-import Control.Applicative ((<$>), (<*))
 import Control.Arrow (second)
 import qualified Data.Foldable as F
 import qualified Data.Map as Map

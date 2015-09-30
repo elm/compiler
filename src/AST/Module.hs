@@ -9,7 +9,6 @@ module AST.Module
     , UserImport, DefaultImport, ImportMethod(..)
     ) where
 
-import Control.Applicative ((<$>),(<*>))
 import Data.Binary
 import qualified Data.Map as Map
 

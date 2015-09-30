@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 module Canonicalize.Type (tipe) where
 
-import Control.Applicative ((<$>),(<*>))
 import qualified Data.Traversable as Trav
 
 import qualified AST.Type as T

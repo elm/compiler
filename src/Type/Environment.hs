@@ -1,6 +1,5 @@
 module Type.Environment where
 
-import Control.Applicative ((<$>), (<*>))
 import Control.Monad (forM)
 import qualified Control.Monad.State as State
 import qualified Data.Traversable as Traverse

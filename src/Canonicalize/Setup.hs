@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 module Canonicalize.Setup (environment) where
 
-import Control.Applicative ((<$>))
 import Control.Arrow (second)
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map

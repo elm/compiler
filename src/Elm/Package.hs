@@ -1,6 +1,5 @@
 module Elm.Package where
 
-import Control.Applicative ((<$>), (<*>))
 import Data.Aeson
 import Data.Binary
 import qualified Data.Char as Char

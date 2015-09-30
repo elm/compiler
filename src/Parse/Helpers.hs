@@ -1,7 +1,6 @@
 module Parse.Helpers where
 
 import Prelude hiding (until)
-import Control.Applicative ((<$>),(<*>),(<*))
 import Control.Monad (guard, join)
 import Control.Monad.State (State)
 import Data.Char (isUpper)
@@ -118,7 +117,7 @@ anyOp =
 
 symOp :: IParser String
 symOp =
-  do  op <- many1 (satisfy Help.isSymbol)
+  do  op <- many1 (satisfy (\c -> Help.isSymbol c && c /= '`'))
       guard (op `notElem` [ "=", "..", "->", "--", "|", ":" ])
       case op of
         "." -> notFollowedBy lower >> return op

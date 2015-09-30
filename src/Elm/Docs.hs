@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.Docs where
 
-import Control.Applicative ((<$>),(<*>),(<|>))
+import Control.Applicative ((<|>))
 import Control.Monad
 import Data.Aeson ((.:), (.:?), (.=))
 import qualified Data.Aeson as Json

@@ -1,6 +1,5 @@
 module Parse.Expression (term, typeAnnotation, definition, expr) where
 
-import Control.Applicative ((<$>), (<*>))
 import qualified Data.List as List
 import Text.Parsec hiding (newline, spaces)
 import Text.Parsec.Indent (block, withPos)
