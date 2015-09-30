@@ -1,10 +1,10 @@
-var elm_lang$core$Main$_op = {};
-var elm_lang$core$Main$f = function (t) {
-   var y = t.y;
-   var x = t.x;
-   return t;
+Elm.Main = Elm.Main || {};
+Elm.Main.make = function (_elm) {
+   "use strict";
+   _elm.Main = _elm.Main || {};
+   if (_elm.Main.values) return _elm.Main.values;
+   var _op = {};
+   var f = function (t) {    var y = t.y;var x = t.x;return t;};
+   var Thing = F2(function (a,b) {    return {_: {},x: a,y: b};});
+   return _elm.Main.values = {_op: _op,Thing: Thing,f: f};
 };
-var elm_lang$core$Main$Thing = F2(function (a,
-b) {
-   return {_: {},x: a,y: b};
-});
