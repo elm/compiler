@@ -1,4 +1,11 @@
-module Generate.JavaScript.Variable (fresh, canonical, define, safe) where
+module Generate.JavaScript.Variable
+    ( fresh
+    , canonical
+    , modulePrefix
+    , define
+    , safe
+    )
+    where
 
 import qualified Control.Monad.State as State
 import qualified Data.List as List
@@ -8,7 +15,6 @@ import qualified Language.ECMAScript3.Syntax as JS
 import qualified AST.Helpers as Help
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
-import qualified Elm.Package as Pkg
 import qualified Generate.JavaScript.Helpers as JS
 
 
@@ -44,7 +50,7 @@ define name body =
 canonical :: Var.Canonical -> JS.Expression ()
 canonical (Var.Canonical home name) =
   if Help.isOp name then
-    JS.BracketRef () (addRoot home "_op") (JS.string name)
+    JS.BracketRef () (addRoot home "_op") (JS.StringLit () name)
 
   else
     addRoot home (safe name)
@@ -62,12 +68,12 @@ addRoot home name =
     Var.BuiltIn ->
         JS.ref name
 
-    Var.Module moduleName ->
-        JS.DotRef () (JS.ref (canonicalModuleName moduleName)) (JS.Id () name)
+    Var.Module (ModuleName.Canonical _ moduleName) ->
+        JS.DotRef () (JS.ref (modulePrefix moduleName)) (JS.Id () name)
 
 
-canonicalModuleName :: ModuleName.Canonical -> String
-canonicalModuleName (ModuleName.Canonical (Pkg.Name _user _project) moduleName) =
+modulePrefix :: ModuleName.Raw -> String
+modulePrefix moduleName =
   '$' : List.intercalate "$" moduleName
 
 
@@ -103,4 +109,5 @@ jsReserveds =
     -- reserved by the Elm runtime system
     , "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9"
     , "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9"
+    , JS.localRuntime
     ]

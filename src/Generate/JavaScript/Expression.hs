@@ -47,7 +47,8 @@ toStatementList :: Code -> [Statement ()]
 toStatementList code =
   case code of
     JsExpr expr ->
-        [ ret expr ]
+        [ ReturnStmt () (Just expr) ]
+
     JsBlock stmts ->
         stmts
 
@@ -56,9 +57,11 @@ toStatement :: Code -> Statement ()
 toStatement code =
   case code of
     JsExpr expr ->
-        ret expr
+        ReturnStmt () (Just expr)
+
     JsBlock [stmt] ->
         stmt
+
     JsBlock stmts ->
         BlockStmt () stmts
 
@@ -193,7 +196,7 @@ generateCode expr =
           do  jsMembers <- mapM generateJsExpr members
               jsExpr $ ObjectLit () (ctor : fields jsMembers)
           where
-            ctor = (prop "ctor", string tag)
+            ctor = (prop "ctor", StringLit () tag)
             fields =
                 zipWith (\n e -> (prop ("_" ++ show n), e)) [ 0 :: Int .. ]
 
@@ -254,7 +257,7 @@ generateFunctionWithArity rawArgs code =
               (lastArg:otherArgs) = reverse args
               innerBody = function [lastArg] (toStatementList code)
           in
-              foldl (\body arg -> function [arg] [ret body]) innerBody otherArgs
+              foldl (\body arg -> function [arg] [ReturnStmt () (Just body)]) innerBody otherArgs
 
 
 -- GENERATE IFS
