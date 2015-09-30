@@ -320,9 +320,11 @@ declToValue (A.A _ decl) =
 
       D.TypeAlias name _ tipe ->
           case tipe of
-            A.A _ (Type.RRecord _ _) ->
+            A.A _ (Type.RRecord _ Nothing) ->
                 [ Var.Alias name, Var.Value name ]
-            _ -> [ Var.Alias name ]
+
+            _ ->
+                [ Var.Alias name ]
 
       _ -> []
 
