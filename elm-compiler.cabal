@@ -78,6 +78,7 @@ Library
         Elm.Compiler.Version,
         Generate.JavaScript,
         Generate.JavaScript.BuiltIn,
+        Generate.JavaScript.Expression,
         Generate.JavaScript.Helpers,
         Generate.JavaScript.Literal,
         Generate.JavaScript.Port,
