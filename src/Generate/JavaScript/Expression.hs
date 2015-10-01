@@ -127,24 +127,13 @@ generateCode expr =
                 jsExpr $ BuiltIn.recordUpdate jsRecord jsFields
 
       Record fields ->
-          do  fields' <-
-                forM fields $ \(field, e) ->
-                    (,) (Var.safe field) <$> generateJsExpr e
-
-              let fieldMap =
-                    List.foldl' combine Map.empty fields'
-
-              jsExpr $ ObjectLit () $ (prop "_", hidden fieldMap) : visible fieldMap
-          where
-            combine record (field, value) =
-                Map.insertWith (++) field [value] record
-
-            hidden fs =
-                ObjectLit () . map (prop *** ArrayLit ()) $
-                  Map.toList (Map.filter (not . null) (Map.map tail fs))
-
-            visible fs =
-                map (first prop) (Map.toList (Map.map head fs))
+          let
+            toField (field, value) =
+              do  jsValue <- generateJsExpr value
+                  return (prop (Var.safe field), jsValue)
+          in
+            do  jsFields <- mapM toField fields
+                jsExpr $ ObjectLit () jsFields
 
       Binop op leftExpr rightExpr ->
           binop op leftExpr rightExpr

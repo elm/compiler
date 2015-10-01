@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Validate (declarations) where
 
+import Control.Monad (foldM)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Foldable as F
@@ -253,8 +254,16 @@ expression (A.A ann sourceExpression) =
           <*> T.traverse second fields
 
     Record fields ->
-        Record
-          <$> T.traverse second fields
+        let
+          checkDups seenFields (field,_) =
+              if Set.member field seenFields then
+                  Result.throw ann (Error.DuplicateFieldName field)
+
+              else
+                  return (Set.insert field seenFields)
+        in
+          do  _ <- foldM checkDups Set.empty fields
+              Record <$> T.traverse second fields
 
     Let defs body ->
         Let
