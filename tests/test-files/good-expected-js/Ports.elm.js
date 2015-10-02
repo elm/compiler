@@ -10,7 +10,7 @@ Elm.Main.make = function (_elm) {
          return {name: v.name,age: v.age};
       });
    },
-   _utils.list([{_: {},age: 42,name: "Tom"}]));
+   _utils.list([{name: "Tom",age: 42}]));
    var time = Elm.Native.Port.make(_elm).outbound("time",
    function (v) {
       return v;
