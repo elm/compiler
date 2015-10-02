@@ -159,6 +159,9 @@ toDecisionTree variantDict rawBranches =
             (_, []) ->
                 Decision path decisionEdges Nothing
 
+            ([], _ : _) ->
+                toDecisionTree variantDict fallback
+
             (_, _) ->
                 Decision path decisionEdges (Just (toDecisionTree variantDict fallback))
 

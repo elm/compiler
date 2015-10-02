@@ -21,6 +21,6 @@ Elm.Main.make = function (_elm) {
                                                              ,y: typeof v.y === "number" ? v.y : _U.badPort("a number",
                                                              v.y)} : _U.badPort("an object with fields `x`, `y`",v);
    });
-   var Point = F2(function (a,b) {    return {_: {},x: a,y: b};});
+   var Point = F2(function (a,b) {    return {x: a,y: b};});
    return _elm.Main.values = {_op: _op,Point: Point};
 };

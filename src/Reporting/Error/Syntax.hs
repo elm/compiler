@@ -21,6 +21,7 @@ data Error
     | TypeWithoutDefinition String
     | PortWithoutAnnotation String
     | UnexpectedPort
+    | DuplicateFieldName String
     | DuplicateValueDeclaration String
     | DuplicateTypeDeclaration String
     | DuplicateDefinition String
@@ -96,6 +97,12 @@ toReport dealiaser err =
             ++ "module could bring in constraints not captured in the public API. Furthermore,\n"
             ++ "if the module is imported twice, do we send values out the port twice?"
           )
+
+    DuplicateFieldName name ->
+        Report.simple
+          "DUPLICATE FIELD"
+          ("This record has more than one field named `" ++ name ++ "`.")
+          "There can only be one. Do some renaming to make sure the names are distinct!"
 
     DuplicateValueDeclaration name ->
         Report.simple
