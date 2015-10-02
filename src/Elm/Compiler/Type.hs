@@ -59,6 +59,9 @@ toDoc context tipe =
         P.text (if name == "_Tuple0" then "()" else name)
 
     App (Type name) args
+        | name == "_Tuple0" ->
+            P.text "()"
+
         | Help.isTuple name ->
             P.sep
               [ P.cat (zipWith (<+>) (P.lparen : repeat P.comma) (map (toDoc None) args))
