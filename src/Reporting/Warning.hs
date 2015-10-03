@@ -7,6 +7,7 @@ import qualified Data.Aeson as Json
 import qualified Text.PrettyPrint as P
 import Text.PrettyPrint ((<+>))
 
+import qualified AST.Helpers as Help
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
 import qualified Reporting.Annotation as A
@@ -50,9 +51,15 @@ toReport dealiaser warning =
             ++ P.render (P.nest 4 typeDoc)
           )
       where
+        nameDoc =
+          if Help.isOp name then
+              P.parens (P.text name)
+          else
+              P.text name
+
         typeDoc =
           P.hang
-            (P.text name <+> P.colon)
+            (nameDoc <+> P.colon)
             4
             (P.pretty dealiaser False inferredType)
 
