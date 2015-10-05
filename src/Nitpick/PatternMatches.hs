@@ -119,9 +119,6 @@ checkExpression tagDict (A.A region expression) =
 
     go2 a b =
       go a <* go b
-
-    goPattern =
-      checkPatterns tagDict region
   in
   case expression of
     E.Literal _ ->
@@ -139,8 +136,8 @@ checkExpression tagDict (A.A region expression) =
     E.Binop _ leftExpr rightExpr ->
         go2 leftExpr rightExpr
 
-    E.Lambda pattern body ->
-        goPattern [pattern]
+    E.Lambda pattern@(A.A patRegion _) body ->
+        checkPatterns tagDict patRegion Error.Arg [pattern]
         <* go body
 
     E.App func arg ->
@@ -154,13 +151,13 @@ checkExpression tagDict (A.A region expression) =
         go body
           <* F.traverse_ goDef defs
       where
-        goDef (Canonical.Definition _ pattern expr _) =
-            goPattern [pattern]
+        goDef (Canonical.Definition _ pattern@(A.A patRegion _) expr _) =
+            checkPatterns tagDict patRegion Error.LetBound [pattern]
             <* go expr
 
     E.Case expr branches ->
         go expr
-        <* goPattern (map fst branches)
+        <* checkPatterns tagDict region Error.Case (map fst branches)
         <* F.traverse_ (go . snd) branches
 
     E.Data _ctor exprs ->
@@ -196,29 +193,31 @@ checkExpression tagDict (A.A region expression) =
 checkPatterns
     :: TagDict
     -> Region.Region
+    -> Error.Origin
     -> [Pattern.CanonicalPattern]
     -> Result.Result w Error.Error ()
-checkPatterns tagDict region patterns =
-  checkPatternsHelp tagDict region [Anything] patterns
+checkPatterns tagDict region origin patterns =
+  checkPatternsHelp tagDict region origin [Anything] patterns
 
 
 checkPatternsHelp
     :: TagDict
     -> Region.Region
+    -> Error.Origin
     -> [Pattern]
     -> [Pattern.CanonicalPattern]
     -> Result.Result w Error.Error ()
-checkPatternsHelp tagDict region unhandled patterns =
+checkPatternsHelp tagDict region origin unhandled patterns =
   case (unhandled, patterns) of
     ([], []) ->
         return ()
 
     (_:_, []) ->
-        Result.throw region (Error.Incomplete unhandled)
+        Result.throw region (Error.Incomplete origin unhandled)
 
     (_, pattern@(A.A localRegion _) : remainingPatterns) ->
         do  newUnhandled <- filterPatterns tagDict localRegion pattern unhandled
-            checkPatternsHelp tagDict region newUnhandled remainingPatterns
+            checkPatternsHelp tagDict region origin newUnhandled remainingPatterns
 
 
 filterPatterns
