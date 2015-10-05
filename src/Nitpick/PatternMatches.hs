@@ -60,11 +60,18 @@ toTagDict interfaces localName localAdts =
         , TagInfo "[]" 0
         ]
 
+    boolTags =
+        [ TagInfo "True" 0
+        , TagInfo "False" 0
+        ]
+
     builtinDict =
         Map.singleton Var.BuiltIn $
           Map.fromList
             [ ("::", listTags)
             , ("[]", listTags)
+            , ("True", boolTags)
+            , ("False", boolTags)
             ]
 
     interfaceDict =

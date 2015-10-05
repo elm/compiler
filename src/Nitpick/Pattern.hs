@@ -38,6 +38,12 @@ fromCanonicalPattern (A.A _ pattern) =
     P.Anything ->
         Anything
 
+    P.Literal (L.Boolean True) ->
+        Data (Var.builtin "True") []
+
+    P.Literal (L.Boolean False) ->
+        Data (Var.builtin "False") []
+
     P.Literal literal ->
         Literal literal
 
