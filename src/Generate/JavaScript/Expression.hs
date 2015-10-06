@@ -1,7 +1,7 @@
 module Generate.JavaScript.Expression (generateDef) where
 
-import Control.Arrow (first, second, (***))
-import Control.Monad.State (State, forM, foldM)
+import Control.Arrow (second)
+import Control.Monad.State (State, foldM)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Language.ECMAScript3.Syntax
@@ -517,4 +517,4 @@ specialOps =
 
 cmp :: InfixOp -> Int -> Expression () -> Expression () -> Expression ()
 cmp op n a b =
-    InfixExpr () op (BuiltIn.compare a b) (IntLit () n)
+    InfixExpr () op (BuiltIn.cmp a b) (IntLit () n)

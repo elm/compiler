@@ -97,13 +97,11 @@ assign path expr =
 
 imports :: [ModuleName.Raw] -> [Statement ()]
 imports rawImports =
-  case rawImports of
-    [] ->
-        []
-
-    _ ->
-        [ VarDeclStmt () (map jsImport rawImports)
-        ]
+  let
+    utils =
+      varDecl "_U" (call (obj ["Elm", "Native", "Utils", "make"]) [ref localRuntime])
+  in
+    [ VarDeclStmt () (utils : map jsImport rawImports) ]
 
 
 jsImport :: ModuleName.Raw -> VarDecl ()
