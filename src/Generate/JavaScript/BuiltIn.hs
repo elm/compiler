@@ -1,5 +1,6 @@
 module Generate.JavaScript.BuiltIn where
 
+import Control.Arrow (first)
 import qualified Language.ECMAScript3.Syntax as JS
 
 import Generate.JavaScript.Helpers
@@ -8,7 +9,7 @@ import qualified Reporting.Region as R
 
 utils :: String -> [JS.Expression ()] -> JS.Expression ()
 utils func args =
-  obj ["_utils", func] `call` args
+  obj ["_U", func] `call` args
 
 
 -- LITERALS
@@ -39,12 +40,10 @@ range low high =
 
 recordUpdate :: JS.Expression () -> [(String, JS.Expression ())] -> JS.Expression ()
 recordUpdate record fields =
-  utils "update" [ record, JS.ArrayLit () (map toKeyValue fields) ]
-
-
-toKeyValue :: (String, JS.Expression ()) -> JS.Expression ()
-toKeyValue (key, value) =
-  JS.ArrayLit () [ JS.StringLit () key, value ]
+  utils "update"
+    [ record
+    , JS.ObjectLit () (map (first prop) fields)
+    ]
 
 
 -- COMPARISIONS
@@ -54,9 +53,9 @@ eq left right =
   utils "eq" [ left, right ]
 
 
-compare :: JS.Expression () -> JS.Expression () -> JS.Expression ()
-compare left right =
-  utils "compare" [ left, right ]
+cmp :: JS.Expression () -> JS.Expression () -> JS.Expression ()
+cmp left right =
+  utils "cmp" [ left, right ]
 
 
 -- CRASH

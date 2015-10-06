@@ -3,6 +3,7 @@ Elm.Main.make = function (_elm) {
    "use strict";
    _elm.Main = _elm.Main || {};
    if (_elm.Main.values) return _elm.Main.values;
+   var _U = Elm.Native.Utils.make(_elm);
    var _op = {};
    var Cons = F2(function (a,b) {
       return {ctor: "Cons",_0: a,_1: b};

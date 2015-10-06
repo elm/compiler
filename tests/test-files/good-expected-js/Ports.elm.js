@@ -3,6 +3,7 @@ Elm.Main.make = function (_elm) {
    "use strict";
    _elm.Main = _elm.Main || {};
    if (_elm.Main.values) return _elm.Main.values;
+   var _U = Elm.Native.Utils.make(_elm);
    var _op = {};
    var students = Elm.Native.Port.make(_elm).outbound("students",
    function (v) {
@@ -10,7 +11,7 @@ Elm.Main.make = function (_elm) {
          return {name: v.name,age: v.age};
       });
    },
-   _utils.list([{name: "Tom",age: 42}]));
+   _U.list([{name: "Tom",age: 42}]));
    var time = Elm.Native.Port.make(_elm).outbound("time",
    function (v) {
       return v;
