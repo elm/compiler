@@ -51,8 +51,8 @@ typeError
     -> Maybe String
     -> Unify a
 typeError leftType rightType note =
-  do  leftSrcType <- liftIO (toSrcType leftType)
-      rightSrcType <- liftIO (toSrcType rightType)
+  do  leftSrcType <- liftIO (Type.toSrcType leftType)
+      rightSrcType <- liftIO (Type.toSrcType rightType)
       liftIO $ do
           UF.setDescriptor leftType (Type.descriptor Error)
           UF.setDescriptor rightType (Type.descriptor Error)
@@ -129,7 +129,7 @@ actuallyUnify variable1 variable2 = do
 
             Var.TopLevel _ | List.isPrefixOf "number" name ->
                 flexAndUnify svar
-                
+
             _ ->
                 typeError variable1 variable2 Nothing
 
