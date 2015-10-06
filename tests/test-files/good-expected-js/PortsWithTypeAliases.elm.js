@@ -3,6 +3,7 @@ Elm.Main.make = function (_elm) {
    "use strict";
    _elm.Main = _elm.Main || {};
    if (_elm.Main.values) return _elm.Main.values;
+   var _U = Elm.Native.Utils.make(_elm);
    var _op = {};
    var pairs = Elm.Native.Port.make(_elm).inbound("pairs",
    "Main.Point String String",
