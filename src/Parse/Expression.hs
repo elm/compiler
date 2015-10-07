@@ -2,7 +2,7 @@ module Parse.Expression (term, typeAnnotation, definition, expr) where
 
 import qualified Data.List as List
 import Text.Parsec hiding (newline, spaces)
-import Text.Parsec.Indent (block, withPos)
+import qualified Text.Parsec.Indent as Indent
 
 import qualified Parse.Binop as Binop
 import Parse.Helpers
@@ -245,12 +245,18 @@ lambdaExpr =
 caseExpr :: IParser Source.Expr'
 caseExpr =
   do  try (reserved "case")
-      e <- padded expr
+      exp <- padded expr
       reserved "of"
       whitespace
-      E.Case e <$> block (do c <- case_ ; whitespace ; return c)
+      Indent.withPos $
+        do  firstBranch <- branch
+            branches <-
+                many $ do
+                  try (whitespace >> Indent.checkIndent)
+                  branch
+            return $ E.Case exp (firstBranch : branches)
   where
-    case_ =
+    branch =
       do  p <- Pattern.expr
           padded rightArrow
           (,) p <$> expr
@@ -263,7 +269,7 @@ letExpr =
   do  try (reserved "let")
       whitespace
       defs <-
-        block $
+        Indent.block $
           do  def <- typeAnnotation <|> definition
               whitespace
               return def
@@ -288,7 +294,7 @@ typeAnnotation =
 definition :: IParser Source.Def
 definition =
   addLocation $
-  withPos $
+  Indent.withPos $
     do  (name, args) <- defStart
         padded equals
         body <- expr
