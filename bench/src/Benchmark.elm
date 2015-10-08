@@ -87,7 +87,7 @@ viewHelp : Statistics -> Html
 viewHelp statistics =
   case statistics of
     Result name {hz} ->
-        text (name ++ " - " ++ toString hz ++ " ops/sec")
+        text (name ++ " - " ++ prettyFloat hz ++ " ops/sec")
 
     StatSuite name subStats ->
         let
@@ -98,3 +98,24 @@ viewHelp statistics =
               [ text name
               , ul [] (List.map (\html -> li [] [html]) subResults)
               ]
+
+
+prettyFloat : Float -> String
+prettyFloat float =
+  String.join "," (numberChunker (round float) [])
+
+
+numberChunker : Int -> List String -> List String
+numberChunker n chunks =
+  let
+    next =
+      n // 1000
+
+    chunk =
+      n % 1000
+  in
+    if next == 0 then
+      toString chunk :: chunks
+
+    else
+      numberChunker next (String.padLeft 3 '0' (toString chunk) :: chunks)
