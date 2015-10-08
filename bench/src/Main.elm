@@ -5,6 +5,8 @@ import Signal
 import Task
 
 import Benchmark
+import Syntax.Case as Case
+import Syntax.Let as Let
 import Syntax.Records as Records
 import Realistic.Todo as Todo
 
@@ -14,7 +16,9 @@ import Realistic.Todo as Todo
 compilerBenchmark : Benchmark.Benchmark
 compilerBenchmark =
   Benchmark.suite "generated code"
-    [ Records.benchmark
+    [ Case.benchmark
+    , Let.benchmark
+    , Records.benchmark
     , Todo.benchmark
     ]
 
