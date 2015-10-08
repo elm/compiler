@@ -1,4 +1,6 @@
 module Realistic.Todo (benchmark) where
+{-| Source: https://github.com/evancz/elm-todomvc
+-}
 
 import Benchmark
 import String

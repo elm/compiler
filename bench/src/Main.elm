@@ -8,6 +8,7 @@ import Benchmark
 import Syntax.Case as Case
 import Syntax.Let as Let
 import Syntax.Records as Records
+import Realistic.Check as Check
 import Realistic.Todo as Todo
 
 
@@ -16,10 +17,15 @@ import Realistic.Todo as Todo
 compilerBenchmark : Benchmark.Benchmark
 compilerBenchmark =
   Benchmark.suite "generated code"
-    [ Case.benchmark
-    , Let.benchmark
-    , Records.benchmark
-    , Todo.benchmark
+    [ Benchmark.suite "business logic from the wild"
+        [ Check.benchmark
+        , Todo.benchmark
+        ]
+    , Benchmark.suite "syntax"
+        [ Case.benchmark
+        , Let.benchmark
+        , Records.benchmark
+        ]
     ]
 
 
