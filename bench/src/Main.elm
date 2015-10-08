@@ -1,9 +1,8 @@
 module Main where
 
-import Graphics.Element exposing (leftAligned)
+import Html exposing (Html, text)
 import Signal
 import Task
-import Text
 
 import Benchmark
 import Realistic.Todo as Todo
@@ -11,24 +10,25 @@ import Realistic.Todo as Todo
 
 -- COMPILER BENCHMARK
 
-compilerBenchmark : List Benchmark.Benchmark
+compilerBenchmark : Benchmark.Benchmark
 compilerBenchmark =
-  [ Todo.benchmark
-  ]
+  Benchmark.suite "generated code"
+    [ Todo.benchmark
+    ]
 
 
 -- DISPLAY THINGS
 
 main =
-  Signal.map (leftAligned << Text.fromString) results.signal
+  results.signal
 
 
-results : Signal.Mailbox String
+results : Signal.Mailbox Html
 results =
-  Signal.mailbox "Working..."
+  Signal.mailbox (text "Working...")
 
 
 port benchResults : Task.Task x ()
 port benchResults =
   Benchmark.run compilerBenchmark
-    `Task.andThen` (Benchmark.statisticsToString >> Signal.send results.address)
+    `Task.andThen` (Benchmark.view >> Signal.send results.address)

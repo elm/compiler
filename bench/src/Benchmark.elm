@@ -1,15 +1,15 @@
 module Benchmark
-    ( Suite
-    , bench
+    ( Benchmark
+    , test
     , suite
     , run
     , Statistics
-    , statisticsToString
+    , view
     )where
 {-| A wrapper around benchmark.js that allows benchmarking of pure functions.
 
 # Creating Benchmarks
-@docs Benchmark, bench, suite
+@docs Benchmark, test, suite
 
 # Run benchmarks
 @docs run, Statistics
@@ -20,6 +20,8 @@ import Native.Benchmark
 import Native.BenchmarkJS
 import String
 import Task
+import Html exposing (Html, div, ul, li, p, text)
+import Html.Attributes exposing (style)
 
 
 
@@ -38,8 +40,8 @@ type Thunk = Thunk
 {-| An individual benchmark with a name. It measures how long it takes to
 evaluate the given function when it is passed a `()` value.
 -}
-bench : String -> (() -> result) -> Benchmark
-bench name thunk =
+test : String -> (() -> result) -> Benchmark
+test name thunk =
   Test name (Native.Benchmark.makeThunk thunk)
 
 
@@ -59,6 +61,7 @@ type Statistics
     = StatSuite String (List Statistics)
     | Result String
         { mean : Float
+        , hz : Float
         }
 
 
@@ -70,31 +73,28 @@ run =
 
 
 
--- TO STRING
+-- TO HTML
 
 
-statisticsToString : Statistics -> String
-statisticsToString statistics =
-  List.join "\n" (statisticsToStringHelp statistics)
+view : Statistics -> Html
+view statistics =
+  div [ style [] ]
+      [ viewHelp statistics
+      ]
 
 
-statisticsToStringHelp : Statistics -> (List String, Float)
-statisticsToStringHelp statistics =
+viewHelp : Statistics -> Html
+viewHelp statistics =
   case statistics of
-    Result name {mean} ->
-        ( [ name ++ " - " ++ toString mean ]
-        , mean
-        )
+    Result name {hz} ->
+        text (name ++ " - " ++ toString hz ++ " ops/sec")
 
     StatSuite name subStats ->
         let
-            (strings, subMeans) =
-                List.unzip (List.map statisticsToStringHelp subStats)
-
-            total =
-                List.sum means
+            subResults =
+                List.map viewHelp subStats
         in
-            ( name ++ " - " ++ toString total
-              :: List.map (String.padLeft 4 ' ') (List.concat strings)
-            , total
-            )
+            p []
+              [ text name
+              , ul [] (List.map (\html -> li [] [html]) subResults)
+              ]

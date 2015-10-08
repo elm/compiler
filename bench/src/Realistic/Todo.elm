@@ -1,10 +1,72 @@
-module TodoBench where
+module Realistic.Todo (benchmark) where
 
+import Benchmark
 import String
 
----- MODEL ----
 
--- The full application state of our todo app.
+benchmark : Benchmark.Benchmark
+benchmark =
+  Benchmark.suite "todomvc business logic"
+    [ run "type in 5 todos, each 15 characters long" typingActions
+    , run "do everything" batchActions
+    ]
+
+
+run : String -> List Action -> Benchmark.Benchmark
+run description actions =
+  Benchmark.test
+    (description ++ " - " ++ toString (List.length actions) ++ " actions")
+    (\_ -> List.foldl update emptyModel actions)
+
+
+typingActions =
+  let
+    enter i =
+      List.map (\n -> UpdateField (String.repeat n "X")) [1..15]
+      ++ [ Add ]
+  in
+    List.concatMap enter [1..5]
+
+
+batchActions =
+  let
+    addTask i =
+      [ UpdateField ("My task " ++ toString i)
+      , Add
+      ]
+
+    editTask i =
+      [ EditingTask i True
+      , UpdateTask i "New Task text"
+      , EditingTask i False
+      ]
+
+    check i =
+      Check i True
+
+    uncheck i =
+      Check i False
+
+    isEven i =
+      i % 2 == 0
+  in
+    List.concat
+      [ List.concatMap addTask [1..50]
+      , [CheckAll True, CheckAll False]
+      , List.concatMap editTask (List.filter isEven [1 .. 50])
+      , List.map check [5, 7, 9, 13, 17, 23, 37]
+      , List.map uncheck [7, 13, 23, 37]
+      , [DeleteComplete, Delete 7, Delete 23]
+      , List.concatMap addTask [51..80]
+      , List.map check (List.filter isEven [51..80])
+      , [DeleteComplete, CheckAll True, DeleteComplete]
+      ]
+
+
+
+-- MODEL
+
+
 type alias Model =
     { tasks : List Task
     , field : String
@@ -39,11 +101,10 @@ emptyModel =
     }
 
 
----- UPDATE ----
 
--- A description of the kinds of actions that can be performed on the model of
--- our application. See the following post for more info on this pattern and
--- some alternatives: http://elm-lang.org/learn/Architecture.elm
+-- UPDATE
+
+
 type Action
     = NoOp
     | UpdateField String
@@ -57,7 +118,6 @@ type Action
     | ChangeVisibility String
 
 
--- How we update our Model on a given Action?
 update : Action -> Model -> Model
 update action model =
     case action of
@@ -65,68 +125,43 @@ update action model =
 
       Add ->
           { model |
-              uid <- model.uid + 1,
-              field <- "",
-              tasks <-
+              uid = model.uid + 1,
+              field = "",
+              tasks =
                   if String.isEmpty model.field
                     then model.tasks
                     else model.tasks ++ [newTask model.field model.uid]
           }
 
       UpdateField str ->
-          { model | field <- str }
+          { model | field = str }
 
       EditingTask id isEditing ->
-          let updateTask t = if t.id == id then { t | editing <- isEditing } else t
+          let updateTask t = if t.id == id then { t | editing = isEditing } else t
           in
-              { model | tasks <- List.map updateTask model.tasks }
+              { model | tasks = List.map updateTask model.tasks }
 
       UpdateTask id task ->
-          let updateTask t = if t.id == id then { t | description <- task } else t
+          let updateTask t = if t.id == id then { t | description = task } else t
           in
-              { model | tasks <- List.map updateTask model.tasks }
+              { model | tasks = List.map updateTask model.tasks }
 
       Delete id ->
-          { model | tasks <- List.filter (\t -> t.id /= id) model.tasks }
+          { model | tasks = List.filter (\t -> t.id /= id) model.tasks }
 
       DeleteComplete ->
-          { model | tasks <- List.filter (not << .completed) model.tasks }
+          { model | tasks = List.filter (not << .completed) model.tasks }
 
       Check id isCompleted ->
-          let updateTask t = if t.id == id then { t | completed <- isCompleted } else t
+          let updateTask t = if t.id == id then { t | completed = isCompleted } else t
           in
-              { model | tasks <- List.map updateTask model.tasks }
+              { model | tasks = List.map updateTask model.tasks }
 
       CheckAll isCompleted ->
-          let updateTask t = { t | completed <- isCompleted }
+          let updateTask t = { t | completed = isCompleted }
           in
-              { model | tasks <- List.map updateTask model.tasks }
+              { model | tasks = List.map updateTask model.tasks }
 
       ChangeVisibility visibility ->
-          { model | visibility <- visibility }
-          
-testActions = 
-  List.concat
-  [ List.concatMap --Add 50 tasks 
-      (\i -> [UpdateField <| "My task " ++ toString i, Add]) [1 .. 50]
-  , [CheckAll True] --Check them all
-  , [CheckAll False] --Uncheck them all
-  , List.concatMap --Alter the text of even numbered tasks
-      (\i -> [EditingTask i True, UpdateTask i "New Task text", Add] ) <| List.filter (\x -> x % 2 == 0 ) [1 .. 50]
-  --Check and uncheck some more tasks
-  , [Check 5 True, Check 7 True, Check 9 True, Check 13 True, Check 17 True, Check 23 True, Check 37 True]
-  , [Check 7 False, Check 13 False, Check 23 False, Check 37 False]
-  , [DeleteComplete] --Delete our checked tasks
-  , [Delete 7, Delete 23] --Delete a few more tasks
-  , List.concatMap --Add a few more tasks
-      (\i -> [UpdateField <| "Second batch task " ++ toString i, Add]) [51 .. 80]
-  , List.map --Check off and delete every other task
-      (\i -> Check i True ) <| List.filter (\x -> x % 2 == 0 ) [1 .. 80]
-  , [DeleteComplete]
-  , [CheckAll True, DeleteComplete] --Check and delete the remaining tasks
-  ]
+          { model | visibility = visibility }
 
-  
-evalActions : List Action -> Model
-evalActions actions = 
-  List.foldr update emptyModel actions
