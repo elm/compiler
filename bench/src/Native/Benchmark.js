@@ -47,19 +47,22 @@ Elm.Native.Benchmark.make = function(localRuntime) {
 
 		var statistics = {
 			ctor: 'Result',
-			_0: name
+			_0: name,
 			_1: null
 		};
 
-		var jsBenchmark = new Benchmark(name, thunk, {
-			onComplete: function() {
-				var info = {
-					mean: jsBenchmark.stats.mean
+		overallSuite.add(name, thunk, {
+			onStart: function() {
+				console.log('running: ' + name);
+			},
+			onComplete: function(event) {
+				var jsBenchmark = event.target;
+				statistics._1 = {
+					mean: jsBenchmark.stats.mean,
+					hz: jsBenchmark.hz
 				};
-				statistics._1 = info;
 			}
 		});
-		overallSuite.add(jsBenchmark);
 
 		return statistics;
 	}
