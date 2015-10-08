@@ -326,7 +326,7 @@ declToPatches moduleName (A.A (region,_) decl) =
     D.TypeAlias name tvars alias ->
         ( Just (node region name tvars alias)
         , case alias of
-            A.A _ (Type.RRecord _ _) ->
+            A.A _ (Type.RRecord _ Nothing) ->
                 [topLevel Env.Value name]
             _ ->
                 []
