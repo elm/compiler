@@ -310,15 +310,15 @@ crushIfsHelp visitedBranches unvisitedBranches finally =
 
 generateCase
     :: String
-    -> DT.DecisionTree Opt.Jump
-    -> [(Int, Opt.Branch)]
+    -> DT.DecisionTree Opt.Decision
+    -> [(Int, Opt.Expr)]
     -> State Int [Statement ()]
 generateCase root decisionTree jumpBranches =
   do  decider <- generateDecisionTree root decisionTree
       foldM (goto root) decider jumpBranches
 
 
-goto :: String -> [Statement ()] -> (Int, Opt.Branch) -> State Int [Statement ()]
+goto :: String -> [Statement ()] -> (Int, Opt.Expr) -> State Int [Statement ()]
 goto root decider (target, branch) =
   let
     deciderStmt =
@@ -326,8 +326,8 @@ goto root decider (target, branch) =
         (targetLabel root target)
         (DoWhileStmt () (BlockStmt () decider) (BoolLit () False))
   in
-    do  stmts <- generateBranch root branch
-        return (deciderStmt : stmts)
+    do  code <- generateCode branch
+        return (deciderStmt : toStatementList code)
 
 
 targetLabel :: String -> Int -> Id ()
@@ -335,11 +335,11 @@ targetLabel root target =
   Id () (root ++ "_" ++ show target)
 
 
-generateDecisionTree :: String -> DT.DecisionTree Opt.Jump -> State Int [Statement ()]
+generateDecisionTree :: String -> DT.DecisionTree Opt.Decision -> State Int [Statement ()]
 generateDecisionTree root decisionTree =
   case decisionTree of
     DT.Match (Opt.Inline branch) ->
-        generateBranch root branch
+        toStatementList <$> generateCode branch
 
     DT.Match (Opt.Jump target) ->
         return [ BreakStmt () (Just (targetLabel root target)) ]
@@ -368,9 +368,9 @@ generateDecisionTree root decisionTree =
 
 collapseTests
     :: [(DT.Path, DT.Test)]
-    -> DT.DecisionTree Opt.Jump
-    -> DT.DecisionTree Opt.Jump
-    -> ([(DT.Path, DT.Test)], DT.DecisionTree Opt.Jump)
+    -> DT.DecisionTree Opt.Decision
+    -> DT.DecisionTree Opt.Decision
+    -> ([(DT.Path, DT.Test)], DT.DecisionTree Opt.Decision)
 collapseTests tests outerFallback decisionTree =
   case decisionTree of
     DT.Decision testPath [(test, subTree)] (Just fallback)
@@ -381,7 +381,7 @@ collapseTests tests outerFallback decisionTree =
         (tests, decisionTree)
 
 
-edgeToCaseClause :: String -> (DT.Test, DT.DecisionTree Opt.Jump) -> State Int (CaseClause ())
+edgeToCaseClause :: String -> (DT.Test, DT.DecisionTree Opt.Decision) -> State Int (CaseClause ())
 edgeToCaseClause root (test, subTree) =
   CaseClause () (testToExpr test) <$> generateDecisionTree root subTree
 
@@ -410,7 +410,7 @@ testToExpr test =
         Literal.literal lit
 
 
-fallbackToDefault :: String -> Maybe (DT.DecisionTree Opt.Jump) -> State Int [CaseClause ()]
+fallbackToDefault :: String -> Maybe (DT.DecisionTree Opt.Decision) -> State Int [CaseClause ()]
 fallbackToDefault root fallback =
   case fallback of
     Nothing ->
@@ -419,21 +419,6 @@ fallbackToDefault root fallback =
     Just subTree ->
         do  stmts <- generateDecisionTree root subTree
             return [ CaseDefault () stmts ]
-
-
-generateBranch :: String -> Opt.Branch -> State Int [Statement ()]
-generateBranch root (Opt.Branch substitutions expr) =
-  do  substs <- mapM (loadPath root) substitutions
-      let substStmts =
-            if null substs then [] else [ VarDeclStmt () substs ]
-      code <- generateCode expr
-      return (substStmts ++ toStatementList code)
-
-
-loadPath :: String -> (String, DT.Path) -> State Int (VarDecl ())
-loadPath root (name, path) =
-  do  jsAccessExpr <- generateJsExpr (pathToExpr root path)
-      return $ varDecl (Var.safe name) jsAccessExpr
 
 
 pathToExpr :: String -> DT.Path -> Opt.Expr

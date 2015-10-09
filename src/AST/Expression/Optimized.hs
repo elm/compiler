@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module AST.Expression.Optimized
     ( Def(..), Facts(..), dummyFacts
-    , Expr(..), Jump(..), Branch(..)
+    , Expr(..), Decision(..)
     ) where
 
 import qualified AST.Expression.General as General
@@ -47,7 +47,7 @@ data Expr
     | TailCall String [String] [Expr]
     | If [(Expr, Expr)] Expr
     | Let [Def] Expr
-    | Case String (DT.DecisionTree Jump) [(Int, Branch)]
+    | Case String (DT.DecisionTree Decision) [(Int, Expr)]
     | Data String [Expr]
     | DataAccess Expr Int
     | Access Expr String
@@ -59,14 +59,7 @@ data Expr
     deriving (Eq)
 
 
-data Jump
-    = Inline Branch
+data Decision
+    = Inline Expr
     | Jump Int
-    deriving (Eq)
-
-
-data Branch = Branch
-    { _substitutions :: [(String, DT.Path)]
-    , _branch :: Expr
-    }
     deriving (Eq)

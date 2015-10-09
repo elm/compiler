@@ -38,7 +38,7 @@ If 2 or more leaves point to the same label, we need to do some tricks in JS to
 make that work nicely. When is JS getting goto?! ;) That is outside the scope
 of this module though.
 -}
-compile :: VariantDict -> [(CPattern, Int)] -> DecisionTree Jump
+compile :: VariantDict -> [(CPattern, Int)] -> DecisionTree Int
 compile variantDict rawBranches =
   let
     format (pattern, index) =
@@ -74,12 +74,6 @@ data DecisionTree a
         , _default :: Maybe (DecisionTree a)
         }
     deriving (Eq)
-
-
-data Jump = Jump
-    { _result :: Int
-    , _substitutions :: [(String, Path)]
-    }
 
 
 data Test
@@ -131,15 +125,15 @@ data Branch =
     }
 
 
-toDecisionTree :: VariantDict -> [Branch] -> DecisionTree Jump
+toDecisionTree :: VariantDict -> [Branch] -> DecisionTree Int
 toDecisionTree variantDict rawBranches =
   let
     branches =
         map (flattenPatterns variantDict) rawBranches
   in
   case checkForMatch branches of
-    Just (goal, substitutions) ->
-        Match (Jump goal substitutions)
+    Just goal ->
+        Match goal
 
     Nothing ->
         let
@@ -240,35 +234,13 @@ path. If that is the case we give the resulting label and a mapping from free
 variables to "how to get their value". So a pattern like (Just (x,_)) will give
 us something like ("x" => value.0.0)
 -}
-checkForMatch :: [Branch] -> Maybe (Int, [(String, Path)])
+checkForMatch :: [Branch] -> Maybe Int
 checkForMatch branches =
   case branches of
-    Branch goal patterns : _ ->
-        (,) goal `fmap` concat `fmap` mapM getSubstitution patterns
+    Branch goal patterns : _ | all (not . needsTests . snd) patterns ->
+        Just goal
 
     _ ->
-        Nothing
-
-
-getSubstitution :: (Path, CPattern) -> Maybe [(String, Path)]
-getSubstitution (path, A.A _ pattern) =
-  case pattern of
-    P.Var x ->
-        Just [(x, path)]
-
-    P.Anything ->
-        Just []
-
-    P.Alias _ _ ->
-        error "aliases should never reach 'getSubstitution' function"
-
-    P.Record fields ->
-        Just (map (\name -> (name, add path (Field name Empty))) fields)
-
-    P.Data _ _ ->
-        Nothing
-
-    P.Literal _ ->
         Nothing
 
 

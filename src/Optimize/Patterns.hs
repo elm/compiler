@@ -55,70 +55,64 @@ optimize variantDict region optExpr optBranches =
 
 inlinedCase
     :: String
-    -> DT.DecisionTree DT.Jump
+    -> DT.DecisionTree Int
     -> [(Int, Opt.Expr)]
     -> Opt.Expr
 inlinedCase name decisionTree jumpTargets =
   let
-    substitutionDict =
-        gatherSubstitutions decisionTree
+    targetCounts =
+        countTargets decisionTree
 
-    (jumps, sharedBranches) =
-        unzip (map (toJumps substitutionDict) jumpTargets)
+    (decisions, sharedBranches) =
+        unzip (map (toDecisions targetCounts) jumpTargets)
   in
       Opt.Case
         name
-        (inlineJumps (Map.fromList jumps) decisionTree)
+        (inlineDecisions (Map.fromList decisions) decisionTree)
         (Maybe.catMaybes sharedBranches)
 
 
-gatherSubstitutions
-    :: DT.DecisionTree DT.Jump
-    -> Map.Map Int [[(String, DT.Path)]]
-gatherSubstitutions decisionTree =
+countTargets :: DT.DecisionTree Int -> Map.Map Int Int
+countTargets decisionTree =
   case decisionTree of
     DT.Decision _ edges fallback ->
         map snd edges
           |> maybe id (:) fallback
-          |> map gatherSubstitutions
-          |> Map.unionsWith (++)
+          |> map countTargets
+          |> Map.unionsWith (+)
 
-    DT.Match (DT.Jump target substitutions) ->
-        Map.singleton target [substitutions]
+    DT.Match target ->
+        Map.singleton target 1
 
 
-toJumps
-    :: Map.Map Int [[(String, DT.Path)]]
+toDecisions
+    :: Map.Map Int Int
     -> (Int, Opt.Expr)
-    -> ( (Int, Opt.Jump), Maybe (Int, Opt.Branch) )
-toJumps substitutionDict (target, branch) =
-    case substitutionDict ! target of
-      [substitutions] ->
-          ( (target, Opt.Inline (Opt.Branch substitutions branch))
-          , Nothing
-          )
+    -> ( (Int, Opt.Decision), Maybe (Int, Opt.Expr) )
+toDecisions targetCounts (target, branch) =
+    if targetCounts ! target == 1 then
+        ( (target, Opt.Inline branch)
+        , Nothing
+        )
 
-      substitutions : _ ->
-          ( (target, Opt.Jump target)
-          , Just (target, Opt.Branch substitutions branch)
-          )
-
-      _ ->
-          error "it is not possible for there to be no substitutions"
+    else
+        ( (target, Opt.Jump target)
+        , Just (target, branch)
+        )
 
 
-inlineJumps
-    :: Map.Map Int Opt.Jump
-    -> DT.DecisionTree DT.Jump
-    -> DT.DecisionTree Opt.Jump
-inlineJumps jumpDict decisionTree =
+inlineDecisions
+    :: Map.Map Int Opt.Decision
+    -> DT.DecisionTree Int
+    -> DT.DecisionTree Opt.Decision
+inlineDecisions jumpDict decisionTree =
   let
     go =
-      inlineJumps jumpDict
+      inlineDecisions jumpDict
   in
   case decisionTree of
     DT.Decision test edges fallback ->
         DT.Decision test (map (second go) edges) (fmap go fallback)
 
-    DT.Match (DT.Jump target _) ->
+    DT.Match target ->
         DT.Match (jumpDict ! target)
