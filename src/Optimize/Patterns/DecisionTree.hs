@@ -38,7 +38,7 @@ If 2 or more leaves point to the same label, we need to do some tricks in JS to
 make that work nicely. When is JS getting goto?! ;) That is outside the scope
 of this module though.
 -}
-compile :: VariantDict -> [(CPattern, Int)] -> DecisionTree Int
+compile :: VariantDict -> [(CPattern, Int)] -> DecisionTree
 compile variantDict rawBranches =
   let
     format (pattern, index) =
@@ -66,12 +66,12 @@ type VariantDict =
 
 -- DECISION TREES
 
-data DecisionTree a
-    = Match a
+data DecisionTree
+    = Match Int
     | Decision
         { _test :: Path
-        , _edges :: [(Test, DecisionTree a)]
-        , _default :: Maybe (DecisionTree a)
+        , _edges :: [(Test, DecisionTree)]
+        , _default :: Maybe DecisionTree
         }
     deriving (Eq)
 
@@ -125,7 +125,7 @@ data Branch =
     }
 
 
-toDecisionTree :: VariantDict -> [Branch] -> DecisionTree Int
+toDecisionTree :: VariantDict -> [Branch] -> DecisionTree
 toDecisionTree variantDict rawBranches =
   let
     branches =
