@@ -17,11 +17,9 @@ Elm.Main.make = function (_elm) {
             if (_p0._1.ctor === "Nil") {
                   return Nil;
                } else {
-                  var x = _p0._0._0,
-                  xs = _p0._0._1,
-                  y = _p0._1._0,
-                  ys = _p0._1._1;
-                  return A2(Cons,{ctor: "_Tuple2",_0: x,_1: y},A2(zip,xs,ys));
+                  return A2(Cons,
+                  {ctor: "_Tuple2",_0: _p0._0._0,_1: _p0._1._0},
+                  A2(zip,_p0._0._1,_p0._1._1));
                }
          }
    });
