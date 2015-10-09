@@ -5,7 +5,13 @@ Elm.Main.make = function (_elm) {
    if (_elm.Main.values) return _elm.Main.values;
    var _U = Elm.Native.Utils.make(_elm);
    var _op = {};
-   var f = function (t) {    var y = t.y;var x = t.x;return t;};
+   var bindFields = function (thing) {
+      var y = thing.y;
+      var x = thing.x;
+      return thing;
+   };
    var Thing = F2(function (a,b) {    return {x: a,y: b};});
-   return _elm.Main.values = {_op: _op,Thing: Thing,f: f};
+   return _elm.Main.values = {_op: _op
+                             ,Thing: Thing
+                             ,bindFields: bindFields};
 };

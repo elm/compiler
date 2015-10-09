@@ -5,14 +5,14 @@ Elm.Main.make = function (_elm) {
    if (_elm.Main.values) return _elm.Main.values;
    var _U = Elm.Native.Utils.make(_elm);
    var _op = {};
-   var any = F2(function (f,l) {
+   var any = F2(function (isOk,list) {
       any: while (true) {
-         var _p0 = l;
+         var _p0 = list;
          if (_p0.ctor === "::") {
-               if (f(_p0._0)) return true; else {
-                     var _v1 = f,_v2 = _p0._1;
-                     f = _v1;
-                     l = _v2;
+               if (isOk(_p0._0)) return true; else {
+                     var _v1 = isOk,_v2 = _p0._1;
+                     isOk = _v1;
+                     list = _v2;
                      continue any;
                   }
             } else {
