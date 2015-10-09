@@ -174,8 +174,8 @@ generateCode expr =
       If branches finally ->
           generateIf branches finally
 
-      Case root decisionTree branches ->
-          JsBlock <$> generateCase root decisionTree branches
+      Case exprName decider jumps ->
+          JsBlock <$> generateCase exprName decider jumps
 
       ExplicitList elements ->
           do  jsElements <- mapM generateJsExpr elements
@@ -310,91 +310,75 @@ crushIfsHelp visitedBranches unvisitedBranches finally =
 
 generateCase
     :: String
-    -> DT.DecisionTree Opt.Decision
+    -> Opt.Decider Opt.Choice
     -> [(Int, Opt.Expr)]
     -> State Int [Statement ()]
-generateCase root decisionTree jumpBranches =
-  do  decider <- generateDecisionTree root decisionTree
-      foldM (goto root) decider jumpBranches
+generateCase exprName decider jumps =
+  do  labelRoot <- Var.fresh
+      decider <- generateDecider exprName labelRoot decider
+      foldM (goto labelRoot) decider jumps
 
+
+-- handle any jumps
 
 goto :: String -> [Statement ()] -> (Int, Opt.Expr) -> State Int [Statement ()]
-goto root decider (target, branch) =
+goto labelRoot deciderStmts (target, branch) =
   let
-    deciderStmt =
+    labeledDeciderStmt =
       LabelledStmt ()
-        (targetLabel root target)
-        (DoWhileStmt () (BlockStmt () decider) (BoolLit () False))
+        (toLabel labelRoot target)
+        (DoWhileStmt () (BlockStmt () deciderStmts) (BoolLit () False))
   in
     do  code <- generateCode branch
-        return (deciderStmt : toStatementList code)
+        return (labeledDeciderStmt : toStatementList code)
 
 
-targetLabel :: String -> Int -> Id ()
-targetLabel root target =
+toLabel :: String -> Int -> Id ()
+toLabel root target =
   Id () (root ++ "_" ++ show target)
 
 
-generateDecisionTree :: String -> DT.DecisionTree Opt.Decision -> State Int [Statement ()]
-generateDecisionTree root decisionTree =
+-- turn deciders into ifs and switches
+
+generateDecider
+    :: String
+    -> String
+    -> Opt.Decider Opt.Choice
+    -> State Int [Statement ()]
+generateDecider exprName labelRoot decisionTree =
   case decisionTree of
-    DT.Match (Opt.Inline branch) ->
+    Opt.Leaf (Opt.Inline branch) ->
         toStatementList <$> generateCode branch
 
-    DT.Match (Opt.Jump target) ->
-        return [ BreakStmt () (Just (targetLabel root target)) ]
+    Opt.Leaf (Opt.Jump target) ->
+        return [ BreakStmt () (Just (toLabel labelRoot target)) ]
 
-    DT.Decision testPath [(test, subTree)] (Just fallback) ->
+    Opt.Chain testChain success failure ->
         let
-          (tests, deepestSubTree) =
-            collapseTests [(testPath, test)] fallback subTree
-
           makeTest (path, test) =
-            do  testExpr <- pathToTestableExpr root path test
+            do  testExpr <- pathToTestableExpr exprName path test
                 return (InfixExpr () OpStrictEq testExpr (testToExpr test))
         in
-          do  testExprs <- mapM makeTest tests
+          do  testExprs <- mapM makeTest testChain
               let cond = List.foldl1' (InfixExpr () OpLAnd) testExprs
-              thenBranch <- generateDecisionTree root deepestSubTree
-              elseBranch <- generateDecisionTree root fallback
+              thenBranch <- generateDecider exprName labelRoot success
+              elseBranch <- generateDecider exprName labelRoot failure
               return [ IfStmt () cond (BlockStmt () thenBranch) (BlockStmt () elseBranch) ]
 
-    DT.Decision testPath edges fallback ->
-        do  testExpr <- pathToTestableExpr root testPath (fst (head edges))
-            caseClauses <- mapM (edgeToCaseClause root) edges
-            caseDefault <- fallbackToDefault root fallback
-            return [ SwitchStmt () testExpr (caseClauses ++ caseDefault) ]
+    Opt.FanOut path edges fallback ->
+        do  testExpr <- pathToTestableExpr exprName path (fst (head edges))
+            caseClauses <- mapM (edgeToCaseClause exprName labelRoot) edges
+            caseDefault <- CaseDefault () <$> generateDecider exprName labelRoot fallback
+            return [ SwitchStmt () testExpr (caseClauses ++ [caseDefault]) ]
 
 
-collapseTests
-    :: [(DT.Path, DT.Test)]
-    -> DT.DecisionTree Opt.Decision
-    -> DT.DecisionTree Opt.Decision
-    -> ([(DT.Path, DT.Test)], DT.DecisionTree Opt.Decision)
-collapseTests tests outerFallback decisionTree =
-  case decisionTree of
-    DT.Decision testPath [(test, subTree)] (Just fallback)
-        | fallback == outerFallback ->
-            collapseTests ((testPath, test) : tests) outerFallback subTree
-
-    _ ->
-        (tests, decisionTree)
-
-
-edgeToCaseClause :: String -> (DT.Test, DT.DecisionTree Opt.Decision) -> State Int (CaseClause ())
-edgeToCaseClause root (test, subTree) =
-  CaseClause () (testToExpr test) <$> generateDecisionTree root subTree
-
-
-pathToTestableExpr :: String -> DT.Path -> DT.Test -> State Int (Expression ())
-pathToTestableExpr root path exampleTest =
-  do  accessExpr <- generateJsExpr (pathToExpr root path)
-      case exampleTest of
-        DT.Constructor _ ->
-            return (DotRef () accessExpr (Id () "ctor"))
-
-        DT.Literal _ ->
-            return accessExpr
+edgeToCaseClause
+    :: String
+    -> String
+    -> (DT.Test, Opt.Decider Opt.Choice)
+    -> State Int (CaseClause ())
+edgeToCaseClause exprName labelRoot (test, subTree) =
+  CaseClause () (testToExpr test) <$> generateDecider exprName labelRoot subTree
 
 
 testToExpr :: DT.Test -> Expression ()
@@ -410,15 +394,17 @@ testToExpr test =
         Literal.literal lit
 
 
-fallbackToDefault :: String -> Maybe (DT.DecisionTree Opt.Decision) -> State Int [CaseClause ()]
-fallbackToDefault root fallback =
-  case fallback of
-    Nothing ->
-        return []
+-- work with paths
 
-    Just subTree ->
-        do  stmts <- generateDecisionTree root subTree
-            return [ CaseDefault () stmts ]
+pathToTestableExpr :: String -> DT.Path -> DT.Test -> State Int (Expression ())
+pathToTestableExpr root path exampleTest =
+  do  accessExpr <- generateJsExpr (pathToExpr root path)
+      case exampleTest of
+        DT.Constructor _ ->
+            return (DotRef () accessExpr (Id () "ctor"))
+
+        DT.Literal _ ->
+            return accessExpr
 
 
 pathToExpr :: String -> DT.Path -> Opt.Expr

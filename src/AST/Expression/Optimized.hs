@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 module AST.Expression.Optimized
     ( Def(..), Facts(..), dummyFacts
-    , Expr(..), Decision(..)
+    , Expr(..)
+    , Decider(..), Choice(..)
     ) where
 
 import qualified AST.Expression.General as General
@@ -19,14 +20,12 @@ import qualified Reporting.Region as R
 data Def
     = Def Facts String Expr
     | TailDef Facts String [String] Expr
-    deriving (Eq)
 
 
 data Facts = Facts
     { home :: Maybe ModuleName.Canonical
     , dependencies :: [Var.TopLevel]
     }
-    deriving (Eq)
 
 
 dummyFacts :: Facts
@@ -47,7 +46,7 @@ data Expr
     | TailCall String [String] [Expr]
     | If [(Expr, Expr)] Expr
     | Let [Def] Expr
-    | Case String (DT.DecisionTree Decision) [(Int, Expr)]
+    | Case String (Decider Choice) [(Int, Expr)]
     | Data String [Expr]
     | DataAccess Expr Int
     | Access Expr String
@@ -56,10 +55,23 @@ data Expr
     | Port (General.PortImpl Expr Type.Canonical)
     | GLShader String String Literal.GLShaderTipe
     | Crash R.Region (Maybe String)
+
+
+data Decider a
+    = Leaf a
+    | Chain
+        { _testChain :: [(DT.Path, DT.Test)]
+        , _success :: Decider a
+        , _failure :: Decider a
+        }
+    | FanOut
+        { _path :: DT.Path
+        , _tests :: [(DT.Test, Decider a)]
+        , _fallback :: Decider a
+        }
     deriving (Eq)
 
 
-data Decision
+data Choice
     = Inline Expr
     | Jump Int
-    deriving (Eq)

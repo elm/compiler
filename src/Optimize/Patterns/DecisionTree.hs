@@ -38,7 +38,7 @@ If 2 or more leaves point to the same label, we need to do some tricks in JS to
 make that work nicely. When is JS getting goto?! ;) That is outside the scope
 of this module though.
 -}
-compile :: VariantDict -> [(CPattern, Int)] -> DecisionTree Int
+compile :: VariantDict -> [(CPattern, Int)] -> DecisionTree
 compile variantDict rawBranches =
   let
     format (pattern, index) =
@@ -66,12 +66,12 @@ type VariantDict =
 
 -- DECISION TREES
 
-data DecisionTree a
-    = Match a
+data DecisionTree
+    = Match Int
     | Decision
         { _test :: Path
-        , _edges :: [(Test, DecisionTree a)]
-        , _default :: Maybe (DecisionTree a)
+        , _edges :: [(Test, DecisionTree)]
+        , _default :: Maybe (DecisionTree)
         }
     deriving (Eq)
 
@@ -125,7 +125,7 @@ data Branch =
     }
 
 
-toDecisionTree :: VariantDict -> [Branch] -> DecisionTree Int
+toDecisionTree :: VariantDict -> [Branch] -> DecisionTree
 toDecisionTree variantDict rawBranches =
   let
     branches =
@@ -138,10 +138,10 @@ toDecisionTree variantDict rawBranches =
     Nothing ->
         let
           path =
-              pickPath variantDict branches
+              pickPath branches
 
           (edges, fallback) =
-              gatherEdges variantDict branches path
+              gatherEdges branches path
 
           decisionEdges =
               map (second (toDecisionTree variantDict)) edges
@@ -246,8 +246,8 @@ checkForMatch branches =
 
 -- GATHER OUTGOING EDGES
 
-gatherEdges :: VariantDict -> [Branch] -> Path -> ([(Test, [Branch])], [Branch])
-gatherEdges variantDict branches path =
+gatherEdges :: [Branch] -> Path -> ([(Test, [Branch])], [Branch])
+gatherEdges branches path =
   let
     relevantTests =
         testsAtPath path branches
@@ -255,15 +255,9 @@ gatherEdges variantDict branches path =
     allRawEdges =
         map (edgesFor path branches) relevantTests
   in
-    if isComplete variantDict relevantTests then
-        ( init allRawEdges
-        , snd (last allRawEdges)
-        )
-
-    else
-        ( allRawEdges
-        , filter (isIrrelevantTo path) branches
-        )
+    ( allRawEdges
+    , filter (isIrrelevantTo path) branches
+    )
 
 
 -- FIND RELEVANT TESTS
@@ -405,8 +399,8 @@ needsTests (A.A _ pattern) =
 
 -- PICK A PATH
 
-pickPath :: VariantDict -> [Branch] -> Path
-pickPath variantDict branches =
+pickPath :: [Branch] -> Path
+pickPath branches =
   let
     allPaths =
       Maybe.mapMaybe isChoicePath (concatMap _patterns branches)
@@ -416,7 +410,7 @@ pickPath variantDict branches =
           path
 
       tiedPaths ->
-          head (bests (addWeights (smallBranchingFactor variantDict branches) tiedPaths))
+          head (bests (addWeights (smallBranchingFactor branches) tiedPaths))
 
 
 isChoicePath :: (Path, CPattern) -> Maybe Path
@@ -455,10 +449,10 @@ smallDefaults branches path =
   length (filter (isIrrelevantTo path) branches)
 
 
-smallBranchingFactor :: VariantDict -> [Branch] -> Path -> Int
-smallBranchingFactor variantDict branches path =
+smallBranchingFactor :: [Branch] -> Path -> Int
+smallBranchingFactor branches path =
   let
     (edges, fallback) =
-      gatherEdges variantDict branches path
+      gatherEdges branches path
   in
     length edges + (if null fallback then 0 else 1)
