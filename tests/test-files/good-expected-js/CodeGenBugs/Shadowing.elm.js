@@ -11,8 +11,7 @@ Elm.Main.make = function (_elm) {
          if (_p0.ctor === "First") {
                return "True";
             } else {
-               var a = _p0._0,b = _p0._1;
-               return a;
+               return _p0._0;
             }
       }();
       return name;
