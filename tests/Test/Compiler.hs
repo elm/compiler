@@ -6,7 +6,6 @@ import Control.Exception (try, IOException)
 
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
-import Data.Traversable (traverse)
 
 import System.Directory (createDirectoryIfMissing)
 import System.Environment (lookupEnv)
