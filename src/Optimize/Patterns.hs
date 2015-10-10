@@ -8,117 +8,196 @@ import qualified Data.Maybe as Maybe
 
 import qualified AST.Expression.Optimized as Opt
 import qualified AST.Pattern as P
-import Elm.Utils ((|>))
 import qualified Optimize.Environment as Env
 import qualified Optimize.Patterns.DecisionTree as DT
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
 
+
+-- OPTIMIZE A CASE EXPRESSION
+
+
 optimize
     :: DT.VariantDict
     -> R.Region
-    -> Opt.Expr
+    -> String
     -> [(P.CanonicalPattern, Opt.Expr)]
     -> Env.Optimizer Opt.Expr
-optimize variantDict region optExpr optBranches =
-    let
-        indexify index (pattern, branch) =
-            ( (pattern, index)
-            , (index, branch)
-            )
-    in
-    do  crashBranches <-
-          case last optBranches of
-            (A.A ann P.Anything, Opt.Call (Opt.Crash _ _) [arg]) ->
-                do  name <- Env.freshName
-                    let newPattern = A.A ann (P.Var name)
-                    let newCall = Opt.Call (Opt.Crash region (Just name)) [arg]
-                    return (init optBranches ++ [(newPattern, newCall)])
+optimize variantDict region exprName optBranches =
+  do  crashBranches <-
+          mapM (tagCrashBranches region) optBranches
 
-            _ ->
-                return optBranches
+      let (patterns, indexedBranches) =
+            unzip (zipWith indexify [0..] crashBranches)
 
-        let (patterns, indexedBranches) =
-              unzip (zipWith indexify [0..] crashBranches)
+      let decisionTree =
+            DT.compile variantDict patterns
 
-        let decisionTree =
-              DT.compile variantDict patterns
-
-        tempName <- Env.freshName
-
-        return $
-          Opt.Let
-            [ Opt.Def Opt.dummyFacts tempName optExpr ]
-            (inlinedCase tempName decisionTree indexedBranches)
+      return (treeToExpr exprName decisionTree indexedBranches)
 
 
-inlinedCase
-    :: String
-    -> DT.DecisionTree DT.Jump
-    -> [(Int, Opt.Expr)]
-    -> Opt.Expr
-inlinedCase name decisionTree jumpTargets =
+tagCrashBranches
+    :: R.Region
+    -> (P.CanonicalPattern, Opt.Expr)
+    -> Env.Optimizer (P.CanonicalPattern, Opt.Expr)
+tagCrashBranches region branch@(pattern@(A.A pr _), expr) =
+  case expr of
+    Opt.Call (Opt.Crash _ _) [arg] ->
+        do  name <- Env.freshName
+            return
+              ( A.A pr (P.Alias name pattern)
+              , Opt.Call (Opt.Crash region (Just name)) [arg]
+              )
+
+    _ ->
+        return branch
+
+
+indexify :: Int -> (a,b) -> ((a,Int), (Int,b))
+indexify index (pattern, branch) =
+    ( (pattern, index)
+    , (index, branch)
+    )
+
+
+
+-- CONVERT A TREE TO AN EXPRESSION
+
+
+treeToExpr :: String -> DT.DecisionTree -> [(Int, Opt.Expr)] -> Opt.Expr
+treeToExpr name decisionTree allJumps =
   let
-    substitutionDict =
-        gatherSubstitutions decisionTree
+    decider =
+        treeToDecider decisionTree
 
-    (jumps, sharedBranches) =
-        unzip (map (toJumps substitutionDict) jumpTargets)
+    targetCounts =
+        countTargets decider
+
+    (choices, maybeJumps) =
+        unzip (map (createChoices targetCounts) allJumps)
   in
       Opt.Case
         name
-        (inlineJumps (Map.fromList jumps) decisionTree)
-        (Maybe.catMaybes sharedBranches)
+        (insertChoices (Map.fromList choices) decider)
+        (Maybe.catMaybes maybeJumps)
 
 
-gatherSubstitutions
-    :: DT.DecisionTree DT.Jump
-    -> Map.Map Int [[(String, DT.Path)]]
-gatherSubstitutions decisionTree =
+
+-- TREE TO DECIDER
+--
+-- Decision trees may have some redundancies, so we convert them to a Decider
+-- which has special constructs to avoid code duplication when possible.
+
+
+treeToDecider :: DT.DecisionTree -> Opt.Decider Int
+treeToDecider tree =
+  case tree of
+    DT.Match target ->
+        Opt.Leaf target
+
+    -- zero options
+    DT.Decision _ [] Nothing ->
+        error "compiler bug, somehow created an empty decision tree"
+
+    -- one option
+    DT.Decision _ [(_, subTree)] Nothing ->
+        treeToDecider subTree
+
+    DT.Decision _ [] (Just subTree) ->
+        treeToDecider subTree
+
+    -- two options
+    DT.Decision path [(test, successTree)] (Just failureTree) ->
+        toChain path test successTree failureTree
+
+    DT.Decision path [(test, successTree), (_, failureTree)] Nothing ->
+        toChain path test successTree failureTree
+
+    -- many options
+    DT.Decision path edges Nothing ->
+        let
+          (necessaryTests, fallback) =
+              (init edges, snd (last edges))
+        in
+          Opt.FanOut
+            path
+            (map (second treeToDecider) necessaryTests)
+            (treeToDecider fallback)
+
+    DT.Decision path edges (Just fallback) ->
+        Opt.FanOut path (map (second treeToDecider) edges) (treeToDecider fallback)
+
+
+toChain :: DT.Path -> DT.Test -> DT.DecisionTree -> DT.DecisionTree -> Opt.Decider Int
+toChain path test successTree failureTree =
+  let
+    failure =
+      treeToDecider failureTree
+  in
+    case treeToDecider successTree of
+      Opt.Chain testChain success subFailure | failure == subFailure ->
+          Opt.Chain ((path, test) : testChain) success failure
+
+      success ->
+          Opt.Chain [(path, test)] success failure
+
+
+
+-- INSERT CHOICES
+--
+-- If a target appears exactly once in a Decider, the corresponding expression
+-- can be inlined. Whether things are inlined or jumps is called a "choice".
+
+
+countTargets :: Opt.Decider Int -> Map.Map Int Int
+countTargets decisionTree =
   case decisionTree of
-    DT.Decision _ edges fallback ->
-        map snd edges
-          |> maybe id (:) fallback
-          |> map gatherSubstitutions
-          |> Map.unionsWith (++)
+    Opt.Leaf target ->
+        Map.singleton target 1
 
-    DT.Match (DT.Jump target substitutions) ->
-        Map.singleton target [substitutions]
+    Opt.Chain _ success failure ->
+        Map.unionWith (+) (countTargets success) (countTargets failure)
+
+    Opt.FanOut _ tests fallback ->
+        Map.unionsWith (+) (map countTargets (fallback : map snd tests))
 
 
-toJumps
-    :: Map.Map Int [[(String, DT.Path)]]
+createChoices
+    :: Map.Map Int Int
     -> (Int, Opt.Expr)
-    -> ( (Int, Opt.Jump), Maybe (Int, Opt.Branch) )
-toJumps substitutionDict (target, branch) =
-    case substitutionDict ! target of
-      [substitutions] ->
-          ( (target, Opt.Inline (Opt.Branch substitutions branch))
-          , Nothing
-          )
+    -> ( (Int, Opt.Choice), Maybe (Int, Opt.Expr) )
+createChoices targetCounts (target, branch) =
+    if targetCounts ! target == 1 then
+        ( (target, Opt.Inline branch)
+        , Nothing
+        )
 
-      substitutions : _ ->
-          ( (target, Opt.Jump target)
-          , Just (target, Opt.Branch substitutions branch)
-          )
-
-      _ ->
-          error "it is not possible for there to be no substitutions"
+    else
+        ( (target, Opt.Jump target)
+        , Just (target, branch)
+        )
 
 
-inlineJumps
-    :: Map.Map Int Opt.Jump
-    -> DT.DecisionTree DT.Jump
-    -> DT.DecisionTree Opt.Jump
-inlineJumps jumpDict decisionTree =
+insertChoices
+    :: Map.Map Int Opt.Choice
+    -> Opt.Decider Int
+    -> Opt.Decider Opt.Choice
+insertChoices choiceDict decider =
   let
     go =
-      inlineJumps jumpDict
+      insertChoices choiceDict
   in
-  case decisionTree of
-    DT.Decision test edges fallback ->
-        DT.Decision test (map (second go) edges) (fmap go fallback)
+    case decider of
+      Opt.Leaf target ->
+          Opt.Leaf (choiceDict ! target)
 
-    DT.Match (DT.Jump target _) ->
-        DT.Match (jumpDict ! target)
+      Opt.Chain testChain success failure ->
+          Opt.Chain testChain (go success) (go failure)
+
+      Opt.FanOut path tests fallback ->
+          Opt.FanOut path (map (second go) tests) (go fallback)
+
+
+
+

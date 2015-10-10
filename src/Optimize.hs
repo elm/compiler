@@ -1,6 +1,7 @@
 module Optimize (optimize) where
 
 import qualified Control.Monad as M
+import qualified Data.Map as Map
 import qualified Data.Traversable as T
 
 import qualified AST.Expression.General as Expr
@@ -11,6 +12,7 @@ import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
 import qualified Optimize.Environment as Env
+import qualified Optimize.Inline as Inline
 import qualified Optimize.Patterns as Patterns
 import qualified Optimize.Patterns.DecisionTree as DT
 import qualified Reporting.Annotation as A
@@ -138,11 +140,13 @@ patternToDefs home rootName pattern =
         toDef (name, accessExpr) =
             Opt.Def (Opt.Facts home deps) name accessExpr
     in
-        map toDef (substitutions rootExpr pattern)
+        map toDef (patternToSubstitutions rootExpr pattern)
 
 
-substitutions :: Opt.Expr -> P.CanonicalPattern -> [(String, Opt.Expr)]
-substitutions expr (A.A _ pattern) =
+-- TURN A PATTERN INTO A BUNCH OF SUBSTITUTIONS
+
+patternToSubstitutions :: Opt.Expr -> P.CanonicalPattern -> [(String, Opt.Expr)]
+patternToSubstitutions expr (A.A _ pattern) =
   case pattern of
     P.Var name ->
         [ (name, expr) ]
@@ -157,10 +161,10 @@ substitutions expr (A.A _ pattern) =
         []
 
     P.Alias alias realPattern ->
-        (alias, expr) : substitutions expr realPattern
+        (alias, expr) : patternToSubstitutions expr realPattern
 
     P.Data _ patterns ->
-        concat (zipWith (substitutions . Opt.DataAccess expr) [0..] patterns)
+        concat (zipWith (patternToSubstitutions . Opt.DataAccess expr) [0..] patterns)
 
 
 -- OPTIMIZE EXPRESSIONS
@@ -249,9 +253,12 @@ optimizeExpr context annExpr@(A.A region expression) =
 
     Expr.Case expr branches ->
         do  optExpr <- optimizeExpr Nothing expr
-            optBranches <- T.traverse (mapSnd (optimizeExpr context)) branches
             variantDict <- Env.getVariantDict
-            Patterns.optimize variantDict region optExpr optBranches
+
+            name <- Env.freshName
+            optBranches <- T.traverse (optimizeBranch context name) branches
+            optCase <- Patterns.optimize variantDict region name optBranches
+            return $ Opt.Let [ Opt.Def Opt.dummyFacts name optExpr ] optCase
 
     Expr.Data name exprs ->
         Opt.Data name <$> T.traverse justConvert exprs
@@ -289,6 +296,25 @@ optimizeExpr context annExpr@(A.A region expression) =
 mapSnd :: M.Functor box => (a -> box b) -> (x, a) -> box (x, b)
 mapSnd func (x, a) =
   (,) x <$> func a
+
+
+-- OPTIMIZE CASE BRANCHES
+
+optimizeBranch
+    :: Context
+    -> String
+    -> (P.CanonicalPattern, Can.Expr)
+    -> Env.Optimizer (P.CanonicalPattern, Opt.Expr)
+optimizeBranch context exprName (pattern, canonicalExpr) =
+  let
+    root =
+      Opt.Var (Var.Canonical Var.Local exprName)
+
+    substitutions =
+      Map.fromList (patternToSubstitutions root pattern)
+  in
+    do  optExpr <- optimizeExpr context canonicalExpr
+        (,) pattern <$> Inline.inline substitutions optExpr
 
 
 -- DETECT TAIL CALL
