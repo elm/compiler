@@ -10,7 +10,7 @@ import qualified AST.Literal as Literal
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
-import qualified Optimize.Patterns.DecisionTree as DT
+import qualified Optimize.DecisionTree as DT
 import qualified Reporting.Region as R
 
 

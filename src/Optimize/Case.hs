@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Optimize.Patterns (optimize) where
+module Optimize.Case (optimize) where
 
 import Control.Arrow (second)
 import qualified Data.Map as Map
@@ -8,8 +8,8 @@ import qualified Data.Maybe as Maybe
 
 import qualified AST.Expression.Optimized as Opt
 import qualified AST.Pattern as P
+import qualified Optimize.DecisionTree as DT
 import qualified Optimize.Environment as Env
-import qualified Optimize.Patterns.DecisionTree as DT
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 

@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Optimize.Patterns.DecisionTree where
+module Optimize.DecisionTree where
 {- To learn more about how this works, definitely read through:
 
     "When Do Match-Compilation Heuristics Matter?"
