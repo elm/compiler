@@ -8,7 +8,7 @@ module Optimize.Environment
 
 import qualified Control.Monad.State as State
 
-import qualified Optimize.Patterns.DecisionTree as DT
+import qualified Optimize.DecisionTree as DT
 
 
 type Optimizer a =

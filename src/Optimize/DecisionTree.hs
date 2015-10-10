@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Optimize.Patterns.DecisionTree where
+module Optimize.DecisionTree where
 {- To learn more about how this works, definitely read through:
 
     "When Do Match-Compilation Heuristics Matter?"
@@ -252,18 +252,16 @@ gatherEdges variantDict branches path =
     relevantTests =
         testsAtPath path branches
 
-    allRawEdges =
+    allEdges =
         map (edgesFor path branches) relevantTests
-  in
-    if isComplete variantDict relevantTests then
-        ( init allRawEdges
-        , snd (last allRawEdges)
-        )
 
-    else
-        ( allRawEdges
-        , filter (isIrrelevantTo path) branches
-        )
+    fallbacks =
+        if isComplete variantDict relevantTests then
+          []
+        else
+          filter (isIrrelevantTo path) branches
+  in
+    ( allEdges, fallbacks )
 
 
 -- FIND RELEVANT TESTS

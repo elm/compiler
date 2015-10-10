@@ -16,7 +16,7 @@ import qualified Generate.JavaScript.BuiltIn as BuiltIn
 import qualified Generate.JavaScript.Literal as Literal
 import qualified Generate.JavaScript.Port as Port
 import qualified Generate.JavaScript.Variable as Var
-import qualified Optimize.Patterns.DecisionTree as DT
+import qualified Optimize.DecisionTree as DT
 
 
 -- CODE CHUNKS

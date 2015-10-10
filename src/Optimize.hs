@@ -11,10 +11,10 @@ import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
+import qualified Optimize.Case as Case
+import qualified Optimize.DecisionTree as DT
 import qualified Optimize.Environment as Env
 import qualified Optimize.Inline as Inline
-import qualified Optimize.Patterns as Patterns
-import qualified Optimize.Patterns.DecisionTree as DT
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
@@ -257,7 +257,7 @@ optimizeExpr context annExpr@(A.A region expression) =
 
             name <- Env.freshName
             optBranches <- T.traverse (optimizeBranch context name) branches
-            optCase <- Patterns.optimize variantDict region name optBranches
+            optCase <- Case.optimize variantDict region name optBranches
             return $ Opt.Let [ Opt.Def Opt.dummyFacts name optExpr ] optCase
 
     Expr.Data name exprs ->

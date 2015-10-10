@@ -15,7 +15,7 @@ import qualified AST.Pattern as Pattern
 import qualified AST.Variable as Var
 import Elm.Utils ((|>))
 import Nitpick.Pattern (Pattern(..), fromCanonicalPattern)
-import qualified Optimize.Patterns.DecisionTree as Opt
+import qualified Optimize.DecisionTree as DT
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Pattern as Error
 import qualified Reporting.Region as Region
@@ -25,7 +25,7 @@ import qualified Reporting.Result as Result
 patternMatches
     :: Module.Interfaces
     -> Module.CanonicalModule
-    -> Result.Result w Error.Error Opt.VariantDict
+    -> Result.Result w Error.Error DT.VariantDict
 patternMatches interfaces modul =
   let
     name = Module.name modul
