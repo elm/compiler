@@ -353,11 +353,21 @@ whitespace =
   option "" forcedWS
 
 
-freshLine :: IParser [[String]]
+freshLine :: IParser String
 freshLine =
-    try (many1 newline >> many space_nl) <|> try (many1 space_nl) <?> Syntax.freshLine
-  where
-    space_nl = try $ spaces >> many1 newline
+    try (
+      do  ws <- many1 (spaces <|> newline)
+          column <- sourceColumn <$> getPosition
+          if column == 1
+            then return (concat ws)
+            else fail badFreshLineMessage
+    ) <?> Syntax.freshLine
+
+
+badFreshLineMessage :: String
+badFreshLineMessage =
+  "I need a fresh line to start a new declaration. This means a new line that\n"
+  ++ "starts with stuff, not with spaces or comments."
 
 
 newline :: IParser String
