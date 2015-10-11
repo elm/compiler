@@ -23,7 +23,7 @@ type Package = (Name, Version)
 
 dummyName :: Name
 dummyName =
-    Name "USER" "PROJECT"
+    Name "user" "project"
 
 
 coreName :: Name
@@ -51,19 +51,19 @@ fromString string =
     case break (=='/') string of
       ( user, '/' : project ) ->
           if null user then
-              Left "You did not provide a user name (USER/PROJECT)"
+              Left "You did not provide a user name (user/project)"
 
           else if null project then
-              Left "You did not provide a project name (USER/PROJECT)"
+              Left "You did not provide a project name (user/project)"
 
           else if all (/='/') project then
               Name user <$> validate project
 
           else
-              Left "Expecting only one slash, separating the user and project name (USER/PROJECT)"
+              Left "Expecting only one slash, separating the user and project name (user/project)"
 
       _ ->
-          Left "There should be a slash separating the user and project name (USER/PROJECT)"
+          Left "There should be a slash separating the user and project name (user/project)"
 
 
 validate :: String -> Either String String
