@@ -47,8 +47,7 @@ programParser :: Package.Name -> IParser M.SourceModule
 programParser pkgName =
   do  (M.Header name docs exports imports) <- Module.header
       decls <- declarations
-      optional freshLine
-      optional spaces
+      many (spaces <|> newline)
       eof
 
       let canonicalName =
