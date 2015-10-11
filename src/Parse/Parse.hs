@@ -3,7 +3,7 @@ module Parse.Parse (program, parse) where
 
 import qualified Data.Map as Map
 import qualified Data.Traversable as T
-import Text.Parsec (char, eof, letter, many, optional, putState, (<|>))
+import Text.Parsec (char, eof, letter, many, putState, (<|>))
 import qualified Text.Parsec.Error as Parsec
 
 import qualified AST.Declaration as D
@@ -47,7 +47,7 @@ programParser :: Package.Name -> IParser M.SourceModule
 programParser pkgName =
   do  (M.Header name docs exports imports) <- Module.header
       decls <- declarations
-      many (spaces <|> newline)
+      _ <- many (spaces <|> newline)
       eof
 
       let canonicalName =
