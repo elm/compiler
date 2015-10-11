@@ -327,13 +327,19 @@ spaces =
 
 forcedWS :: IParser String
 forcedWS =
-  choice
-    [ (++) <$> spaces <*> (concat <$> many nl_space)
-    , concat <$> many1 nl_space
-    ]
-  where
-    nl_space =
-      try ((++) <$> (concat <$> many1 newline) <*> spaces)
+  do  ws <- many1 (spaces <|> newline)
+      column <- sourceColumn <$> getPosition
+      if column == 1
+        then fail badWhiteSpaceMessage
+        else return (concat ws)
+
+
+badWhiteSpaceMessage :: String
+badWhiteSpaceMessage =
+  "I need whitespace, but got stuck on what looks like a new declaration.\n"
+  ++ "\n"
+  ++ "You are either missing some stuff in the declaration above or just need to add\n"
+  ++ "some spaces here:"
 
 
 -- Just eats whitespace until the next meaningful character.
