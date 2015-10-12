@@ -164,7 +164,7 @@ generateCode expr =
                 jsBlock $
                   VarDeclStmt () (zipWith varDecl tempNames args')
                   : zipWith reassign argNames tempNames
-                  ++ [ContinueStmt () (Just (Id () name))]
+                  ++ [ContinueStmt () (Just (Id () (Var.safe name)))]
 
       Let defs body ->
           do  stmts <- mapM generateDef defs
@@ -226,7 +226,7 @@ generateTailFunction name args body =
   do  code <- generateCode body
       return $ generateFunctionWithArity args $ JsBlock $ (:[]) $
           LabelledStmt ()
-              (Id () name)
+              (Id () (Var.safe name))
               (WhileStmt () (BoolLit () True) (toStatement code))
 
 
