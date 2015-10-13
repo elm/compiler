@@ -115,6 +115,11 @@ isSignal =
     is ["Signal"] "Signal"
 
 
+isText :: Canonical -> Bool
+isText =
+    is ["Text"] "Text"
+
+
 isList :: Canonical -> Bool
 isList v =
     v == Canonical BuiltIn "List"
@@ -137,18 +142,28 @@ isPrimitive v =
 
 
 isPrim :: String -> Canonical -> Bool
-isPrim prim v =
-    case v of
-      Canonical BuiltIn name -> name == prim
-      _ -> False
+isPrim prim (Canonical home name) =
+    case home of
+      BuiltIn ->
+          name == prim
+
+      _ ->
+          False
 
 
-isText :: Canonical -> Bool
-isText =
-    is ["Text"] "Text"
+isLocal :: (String -> Bool) -> Canonical -> Bool
+isLocal check (Canonical home name) =
+  case home of
+    Local ->
+        check name
+
+    _ ->
+        False
+
 
 
 -- VARIABLE TO STRING
+
 
 class ToString a where
   toString :: a -> String

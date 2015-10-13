@@ -170,7 +170,20 @@ actuallyUnify variable1 variable2 = do
                           cmpVars <- liftIO $ forM [1..length vs] $ \_ -> variable (Is Comparable)
                           zipWithM_ unifyHelp vs cmpVars
 
-      unifyAppendable varSuper varFlex =
+      unifyAppendable v cvar@(Var.Canonical home name) =
+          let
+            canUnify =
+                Var.isPrim "String" cvar
+                || Var.isText cvar
+                || Var.isLocal (List.isPrefixOf "comparable") cvar
+                || Var.isLocal (List.isPrefixOf "appendable") cvar
+          in
+            if canUnify then
+                flexAndUnify v
+            else
+                appendableError
+
+      unifyAppendableStructure varSuper varFlex =
           do  struct <- liftIO $ collectApps varFlex
               case struct of
                 List _ -> flexAndUnify varSuper
@@ -190,17 +203,15 @@ actuallyUnify variable1 variable2 = do
             (Is Number, _, _, Just name) -> unifyNumber variable1 name
             (_, Is Number, Just name, _) -> unifyNumber variable2 name
 
+            (Is Appendable, _, _, Just name) -> unifyAppendable variable1 name
+            (_, Is Appendable, Just name, _) -> unifyAppendable variable2 name
+            (Is Appendable, _, _, _) -> unifyAppendableStructure variable1 variable2
+            (_, Is Appendable, _, _) -> unifyAppendableStructure variable2 variable1
+
             (Is Comparable, _, _, Just name) -> unifyComparable variable1 name
             (_, Is Comparable, Just name, _) -> unifyComparable variable2 name
             (Is Comparable, _, _, _) -> unifyComparableStructure variable1 variable2
             (_, Is Comparable, _, _) -> unifyComparableStructure variable2 variable1
-
-            (Is Appendable, _, _, Just name)
-                | Var.isText name || Var.isPrim "String" name -> flexAndUnify variable1
-            (_, Is Appendable, Just name, _)
-                | Var.isText name || Var.isPrim "String" name -> flexAndUnify variable2
-            (Is Appendable, _, _, _) -> unifyAppendable variable1 variable2
-            (_, Is Appendable, _, _) -> unifyAppendable variable2 variable1
 
             (Rigid, _, _, _) -> rigidError variable1
             (_, Rigid, _, _) -> rigidError variable2
