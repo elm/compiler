@@ -71,7 +71,10 @@ actuallyUnify :: Variable -> Variable -> Unify ()
 actuallyUnify variable1 variable2 = do
   desc1 <- liftIO $ UF.descriptor variable1
   desc2 <- liftIO $ UF.descriptor variable2
-  let (name', flex', rank', alias') = combinedDescriptors desc1 desc2
+  let name' = pickName desc1 desc2
+      flex' = pickFlex desc1 desc2
+      rank' = pickRank desc1 desc2
+      alias' = pickAlias desc1 desc2
 
       merge1 :: Unify ()
       merge1 =
@@ -170,7 +173,7 @@ actuallyUnify variable1 variable2 = do
                           cmpVars <- liftIO $ forM [1..length vs] $ \_ -> variable (Is Comparable)
                           zipWithM_ unifyHelp vs cmpVars
 
-      unifyAppendable v cvar@(Var.Canonical home name) =
+      unifyAppendable v cvar =
           let
             canUnify =
                 Var.isPrim "String" cvar
@@ -389,50 +392,57 @@ gatherFields var =
 fieldMismatchError :: Map.Map String a -> String
 fieldMismatchError missingFields =
     case Map.keys missingFields of
-      [] -> ""
+      [] ->
+          ""
+
       [key] ->
-        "Looks like a record is missing the field `" ++ key ++ "`"
+          "Looks like a record is missing the field `" ++ key ++ "`"
+
       keys ->
-        "Looks like a record is missing fields "
-        ++ List.intercalate ", " (init keys) ++ ", and " ++ last keys
+          "Looks like a record is missing fields "
+          ++ List.intercalate ", " (init keys) ++ ", and " ++ last keys
 
 
-combinedDescriptors
-    :: Descriptor
-    -> Descriptor
-    -> (Maybe Var.Canonical, Flex, Int, Alias Variable)
-combinedDescriptors desc1 desc2 =
-    (name', flex', rank', alias')
-  where
-    rank' :: Int
-    rank' =
-      min (rank desc1) (rank desc2)
 
-    alias' :: Alias Variable
-    alias' =
-      alias desc1 <|> alias desc2
+pickAlias :: Descriptor -> Descriptor -> Alias Variable
+pickAlias desc1 desc2 =
+  alias desc1 <|> alias desc2
 
-    name' :: Maybe Var.Canonical
-    name' =
-      case (name desc1, name desc2) of
-        (Just name1, Just name2) ->
-            case (flex desc1, flex desc2) of
-              (_, Flexible)     -> Just name1
-              (Flexible, _)     -> Just name2
-              (Is Number, Is _) -> Just name1
-              (Is _, Is Number) -> Just name2
-              (Is _, Is _)      -> Just name1
-              (_, _)            -> Nothing
-        (Just name1, _) -> Just name1
-        (_, Just name2) -> Just name2
-        _ -> Nothing
 
-    flex' :: Flex
-    flex' =
-      case (flex desc1, flex desc2) of
-        (f, Flexible)     -> f
-        (Flexible, f)     -> f
-        (Is Number, Is _) -> Is Number
-        (Is _, Is Number) -> Is Number
-        (Is super, Is _)  -> Is super
-        (_, _)            -> Flexible
+pickRank :: Descriptor -> Descriptor -> Int
+pickRank desc1 desc2 =
+  min (rank desc1) (rank desc2)
+
+
+pickFlex :: Descriptor -> Descriptor -> Flex
+pickFlex desc1 desc2 =
+  case (flex desc1, flex desc2) of
+    ( f            , Flexible      ) -> f
+    ( Flexible     , f             ) -> f
+    ( Is Number    , Is _          ) -> Is Number
+    ( Is _         , Is Number     ) -> Is Number
+    ( Is super     , Is _          ) -> Is super
+    ( _            , _             ) -> Flexible
+
+
+pickName :: Descriptor -> Descriptor -> Maybe Var.Canonical
+pickName desc1 desc2 =
+  case (name desc1, name desc2) of
+    (Nothing, Nothing) ->
+        Nothing
+
+    (Just name1, Nothing) ->
+        Just name1
+
+    (Nothing, Just name2) ->
+        Just name2
+
+    (Just name1, Just name2) ->
+        case (flex desc1, flex desc2) of
+          ( _            , Flexible      ) -> Just name1
+          ( Flexible     , _             ) -> Just name2
+          ( Is Number    , Is _          ) -> Just name1
+          ( Is _         , Is Number     ) -> Just name2
+          ( Is _         , Is _          ) -> Just name1
+          ( _            , _             ) -> Nothing
+
