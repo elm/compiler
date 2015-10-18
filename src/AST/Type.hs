@@ -2,7 +2,7 @@ module AST.Type
     ( Raw, Raw'(..)
     , Canonical(..), Aliased(..)
     , Port(..), getPortType
-    , deepDealias, dealias
+    , deepDealias, iteratedDealias, dealias
     , collectLambdas
     , fieldMap
     , tuple
@@ -112,6 +112,16 @@ deepDealias tipe =
 
     App f args ->
         App (deepDealias f) (map deepDealias args)
+
+
+iteratedDealias :: Canonical -> Canonical
+iteratedDealias tipe =
+  case tipe of
+    Aliased _ args realType ->
+        iteratedDealias (dealias args realType)
+
+    _ ->
+        tipe
 
 
 dealias :: [(String, Canonical)] -> Aliased Canonical -> Canonical
