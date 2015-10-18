@@ -94,16 +94,15 @@ tuple region types =
 
 deepDealias :: Canonical -> Canonical
 deepDealias tipe =
-  let go = deepDealias in
   case tipe of
     Lambda a b ->
-          Lambda (go a) (go b)
+          Lambda (deepDealias a) (deepDealias b)
 
     Var _ ->
         tipe
 
     Record fields ext ->
-        Record (map (second go) fields) (fmap go ext)
+        Record (map (second deepDealias) fields) (fmap deepDealias ext)
 
     Aliased _name args tipe' ->
         deepDealias (dealias args tipe')
@@ -112,7 +111,7 @@ deepDealias tipe =
         tipe
 
     App f args ->
-        App (go f) (map go args)
+        App (deepDealias f) (map deepDealias args)
 
 
 dealias :: [(String, Canonical)] -> Aliased Canonical -> Canonical
