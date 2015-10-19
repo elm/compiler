@@ -2,7 +2,7 @@ module Type.Solve (solve) where
 
 import Control.Applicative ((<|>))
 import Control.Monad
-import Control.Monad.State (StateT, execStateT, liftIO)
+import Control.Monad.State (execStateT, liftIO)
 import Control.Monad.Except (ExceptT, throwError)
 import qualified Data.Foldable as F
 import qualified Data.List as List
@@ -14,21 +14,22 @@ import qualified AST.Type as Type
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Type.State as TS
-import Type.Type
+import Type.Type as Type
 import Type.Unify
+
 
 
 {-| Every variable has rank less than or equal to the maxRank of the pool.
 This sorts variables into the young and old pools accordingly.
 -}
-generalize :: TS.Pool -> StateT TS.SolverState IO ()
+generalize :: TS.Pool -> TS.Solver ()
 generalize youngPool =
   do  youngMark <- TS.uniqueMark
       let youngRank = TS.maxRank youngPool
       let insert dict var =
             do  descriptor <- liftIO $ UF.descriptor var
-                liftIO $ UF.modifyDescriptor var (\desc -> desc { mark = youngMark })
-                return $ Map.insertWith (++) (rank descriptor) [var] dict
+                liftIO $ UF.modifyDescriptor var (\desc -> desc { _mark = youngMark })
+                return $ Map.insertWith (++) (_rank descriptor) [var] dict
 
       -- Sort the youngPool variables by rank.
       rankDict <- foldM insert Map.empty (TS.inhabitants youngPool)
@@ -58,62 +59,97 @@ generalize youngPool =
               True -> return ()
               False -> do
                 desc <- liftIO $ UF.descriptor var
-                case rank desc < youngRank of
-                  True -> TS.register var >> return ()
-                  False -> do
-                    let flex' = case flex desc of { Flexible -> Rigid ; other -> other }
-                    liftIO $ UF.setDescriptor var (desc { rank = noRank, flex = flex' })
+                case _rank desc < youngRank of
+                  True ->
+                      TS.register var >> return ()
+                  False ->
+                      liftIO $ UF.setDescriptor var $ desc
+                        { _rank = noRank
+                        , _content = rigidify (_content desc)
+                        }
 
       mapM_ registerIfLowerRank (Map.findWithDefault [] youngRank rankDict)
 
 
+rigidify :: Content -> Content
+rigidify content =
+  case content of
+    Var Flex maybeSuper _ ->
+        Var Rigid maybeSuper Nothing
+
+    _ ->
+        content
+
+
 -- adjust the ranks of variables such that ranks never increase as you
 -- move deeper into a variable.
-adjustRank :: Int -> Int -> Int -> Variable -> StateT TS.SolverState IO Int
+adjustRank :: Int -> Int -> Int -> Variable -> TS.Solver Int
 adjustRank youngMark visitedMark groupRank var =
   do  descriptor <- liftIO $ UF.descriptor var
-      case () of
-        ()  | mark descriptor == youngMark ->
-                do  -- Set the variable as marked first because it may be cyclic.
-                    liftIO $ UF.modifyDescriptor var $ \desc ->
-                        desc { mark = visitedMark }
-                    rank' <- maybe (return groupRank) adjustTerm (structure descriptor)
-                    liftIO $ UF.modifyDescriptor var $ \desc ->
-                        desc { rank = rank' }
-                    return rank'
+      adjustRankHelp youngMark visitedMark groupRank var descriptor
 
-            | mark descriptor /= visitedMark ->
-                do  let rank' = min groupRank (rank descriptor)
-                    liftIO $ UF.setDescriptor var (descriptor { mark = visitedMark, rank = rank' })
-                    return rank'
 
-            | otherwise ->
-                return (rank descriptor)
-  where
-    adjust =
-        adjustRank youngMark visitedMark groupRank
+adjustRankHelp :: Int -> Int -> Int -> Variable -> Descriptor -> TS.Solver Int
+adjustRankHelp youngMark visitedMark groupRank var descriptor =
+  if _mark descriptor == youngMark then
 
-    adjustTerm term =
-        case term of
-          App1 a b ->
-              max `liftM` adjust a `ap` adjust b
+      do  -- Set the variable as marked first because it may be cyclic.
+          liftIO $ UF.modifyDescriptor var $ \desc ->
+              desc { _mark = visitedMark }
 
-          Fun1 a b ->
-              max `liftM` adjust a `ap` adjust b
+          maxRank <-
+              adjustRankContent youngMark visitedMark groupRank (_content descriptor)
 
-          Var1 x ->
-              adjust x
+          liftIO $ UF.modifyDescriptor var $ \desc ->
+              desc { _rank = maxRank }
 
-          EmptyRecord1 ->
-              return outermostRank
+          return maxRank
 
-          Record1 fields extension ->
-              do  ranks <- mapM adjust (concat (Map.elems fields))
-                  rnk <- adjust extension
-                  return . maximum $ rnk : ranks
+  else if _mark descriptor /= visitedMark then
+
+      do  let minRank = min groupRank (_rank descriptor)
+          liftIO $ UF.setDescriptor var (descriptor { _mark = visitedMark, _rank = minRank })
+          return minRank
+
+  else
+
+      return (_rank descriptor)
+
+
+adjustRankContent :: Int -> Int -> Int -> Content -> TS.Solver Int
+adjustRankContent youngMark visitedMark groupRank content =
+  let
+    go = adjustRank youngMark visitedMark groupRank
+  in
+    case content of
+      Error ->
+          return groupRank
+
+      Atom _ ->
+          return groupRank
+
+      Var _ _ _ ->
+          return groupRank
+
+      Alias _ args realVar ->
+          maximum <$> mapM go (realVar : map snd args)
+
+      Structure (App1 func arg) ->
+          max <$> go func <*> go arg
+
+      Structure (Fun1 arg result) ->
+          max <$> go arg <*> go result
+
+      Structure EmptyRecord1 ->
+          return outermostRank
+
+      Structure (Record1 fields extension) ->
+          maximum <$> mapM go (extension : Map.elems fields)
+
 
 
 -- SOLVER
+
 
 solve :: TypeConstraint -> ExceptT [A.Located Error.Error] IO TS.SolverState
 solve constraint =
@@ -126,7 +162,7 @@ solve constraint =
             throwError errors
 
 
-actuallySolve :: TypeConstraint -> StateT TS.SolverState IO ()
+actuallySolve :: TypeConstraint -> TS.Solver ()
 actuallySolve constraint =
   case constraint of
     CTrue ->
@@ -151,7 +187,7 @@ actuallySolve constraint =
 
     CLet schemes constraint' ->
         do  oldEnv <- TS.getEnv
-            headers <- Map.unions `fmap` mapM solveScheme schemes
+            headers <- Map.unions <$> mapM solveScheme schemes
             TS.modifyEnv $ \env -> Map.union headers env
             actuallySolve constraint'
             mapM occurs $ Map.toList headers
@@ -165,17 +201,17 @@ actuallySolve constraint =
                       TS.makeInstance tipe
 
                   Nothing ->
-                      if List.isPrefixOf "Native." name
-                        then liftIO (variable Flexible)
-                        else error ("Could not find `" ++ name ++ "` when solving type constraints.")
+                      if List.isPrefixOf "Native." name then
+                          liftIO (mkVar Nothing)
+
+                      else
+                          error ("Could not find `" ++ name ++ "` when solving type constraints.")
 
             t <- TS.flatten term
             unify (Error.Instance name) region freshCopy t
 
 
-solveScheme
-    :: TypeScheme
-    -> StateT TS.SolverState IO (Map.Map String (A.Located Variable))
+solveScheme :: TypeScheme -> TS.Solver (Map.Map String (A.Located Variable))
 solveScheme scheme =
   let
     flatten (A.A region term) =
@@ -210,26 +246,37 @@ solveScheme scheme =
 -- Checks that all of the given variables belong to distinct equivalence classes.
 -- Also checks that their structure is Nothing, so they represent a variable, not
 -- a more complex term.
-allDistinct :: [Variable] -> StateT TS.SolverState IO ()
+allDistinct :: [Variable] -> TS.Solver ()
 allDistinct vars =
-  do  seen <- TS.uniqueMark
+  do  seenMark <- TS.uniqueMark
       forM_ vars $ \var ->
         do  desc <- liftIO $ UF.descriptor var
-            case structure desc of
-              Just _ ->
-                crash "Cannot generalize something that is not a type variable."
+            case _content desc of
+              Structure _ ->
+                  crash "Can only generalize type variables, not structures."
 
-              Nothing ->
-                if mark desc == seen
-                  then crash "Duplicate variable during generalization."
-                  else liftIO (UF.setDescriptor var (desc { mark = seen }))
+              Atom _ ->
+                  crash "Can only generalize type variables, not structures."
+
+              Alias _ _ _ ->
+                  crash "Can only generalize type variables, not aliases."
+
+              Error ->
+                  crash "Can only generalize type variables, not error types."
+
+              Var _ _ _ ->
+                  if _mark desc == seenMark then
+                      crash "Duplicate variable during generalization."
+
+                  else
+                      liftIO (UF.setDescriptor var (desc { _mark = seenMark }))
 
 
 -- Check that a variable has rank == noRank, meaning that it can be generalized.
-isGeneric :: Variable -> StateT TS.SolverState IO ()
+isGeneric :: Variable -> TS.Solver ()
 isGeneric var =
   do  desc <- liftIO $ UF.descriptor var
-      if rank desc == noRank
+      if _rank desc == noRank
         then return ()
         else crash "Unable to generalize a type variable. It is not unranked."
 
@@ -237,59 +284,66 @@ isGeneric var =
 crash :: String -> a
 crash msg =
   error $
-    "It looks like something went wrong with the type inference algorithm.\n"
-    ++ msg ++ "\n"
+    "It looks like something went wrong with the type inference algorithm.\n\n"
+    ++ msg ++ "\n\n"
     ++ "Please create a minimal example that triggers this problem and report it to\n"
     ++ "<https://github.com/elm-lang/elm-compiler/issues>"
 
 
-occurs :: (String, A.Located Variable) -> StateT TS.SolverState IO ()
+
+-- OCCURS CHECK
+
+
+occurs :: (String, A.Located Variable) -> TS.Solver ()
 occurs (name, A.A region variable) =
-  do  maybePair <- liftIO $ occursHelp [] variable
-      case maybePair of
+  do  maybeInfinite <- liftIO $ occursHelp [] variable
+      case maybeInfinite of
         Nothing ->
             return ()
 
-        Just (t1, t2) ->
-            let
-              info = Error.InfiniteTypeInfo name t1 t2
-            in
-              TS.addError region (Error.InfiniteType info)
+        Just infiniteType ->
+            do  overallType <- liftIO (Type.toSrcType variable)
+                TS.addError region (Error.InfiniteType name overallType infiniteType)
 
 
-occursHelp
-    :: [Variable]
-    -> Variable
-    -> IO (Maybe (Type.Canonical, Type.Canonical))
+occursHelp :: [Variable] -> Variable -> IO (Maybe Type.Canonical)
 occursHelp seen var =
   if elem var seen then
-      do  desc <- UF.descriptor var
-          UF.setDescriptor var (desc { structure = Nothing })
-          var' <- UF.fresh desc
-          srcVar <- toSrcType var
-          srcVar' <- toSrcType var'
-          return (Just (srcVar, srcVar'))
+      do  infiniteDescriptor <- UF.descriptor var
+          structureVar <- UF.fresh infiniteDescriptor
+          UF.setDescriptor var (infiniteDescriptor { _content = Error })
+          srcVar <- Type.toSrcType structureVar
+          return (Just srcVar)
+
   else
       do  desc <- UF.descriptor var
-          case structure desc of
-            Nothing ->
+          case _content desc of
+            Atom _ ->
                 return Nothing
 
-            Just struct ->
-                let go = occursHelp (var:seen)
+            Var _ _ _ ->
+                return Nothing
+
+            Error ->
+                return Nothing
+
+            Alias _ args _ ->
+                -- TODO is it okay to only check args?
+                F.asum <$> mapM (occursHelp (var:seen) . snd) args
+
+            Structure term ->
+                let
+                  go = occursHelp (var:seen)
                 in
-                case struct of
+                case term of
                   App1 a b ->
                       (<|>) <$> go a <*> go b
 
                   Fun1 a b ->
                       (<|>) <$> go a <*> go b
 
-                  Var1 a ->
-                      go a
-
                   EmptyRecord1 ->
                       return Nothing
 
                   Record1 fields ext ->
-                      F.asum <$> mapM go (ext : concat (Map.elems fields))
+                      F.asum <$> mapM go (ext : Map.elems fields)

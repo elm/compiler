@@ -15,23 +15,31 @@ import qualified Reporting.Report as Report
 
 data Error
     = Mismatch Mismatch
-    | InfiniteType InfiniteType
     | BadMain Type.Canonical
+    | InfiniteType
+        { _name :: String
+        , _overallType :: Type.Canonical
+        , _infiniteType :: Type.Canonical
+        }
 
 
 data Mismatch = MismatchInfo
     { _hint :: Hint
+    , _rootType :: Type.Canonical
     , _leftType :: Type.Canonical
     , _rightType :: Type.Canonical
-    , _note :: Maybe String
+    , _reason :: Maybe Reason
     }
 
 
-data InfiniteType = InfiniteTypeInfo
-    { _name :: String
-    , _var :: Type.Canonical
-    , _type :: Type.Canonical
-    }
+data Reason
+    = MessyFields [String] [String]
+    | ExpectedFields [String]
+    | ActualFields [String]
+    | NotRecord
+    | TooLongComparableTuple Int
+    | Rigid (Maybe String)
+    deriving (Show)
 
 
 data Hint
@@ -66,18 +74,21 @@ data Pattern
     | PRecord
 
 
+
 -- TO REPORT
+
 
 toReport :: P.Dealiaser -> Error -> Report.Report
 toReport dealiaser err =
   case err of
-    Mismatch (MismatchInfo hint leftType rightType note) ->
+    Mismatch (MismatchInfo hint rootType leftType rightType maybeReason) ->
         let
           (subRegion, preHint, maybePostHint) = hintToString hint
 
           postHint =
-            maybe "" (++"\n\n") note
+            "TODO explain what went wrong!\n\n" ++ show maybeReason ++ "\n\n"
             ++ maybe "" (++"\n\n") maybePostHint
+            ++ P.render (P.nest 4 (P.pretty dealiaser False rootType)) ++ "\n\n"
             ++ "As I infer the types of values flowing through your program, I see a conflict\n"
             ++ "between these two types:\n\n"
             ++ P.render (P.nest 4 (P.pretty dealiaser False leftType))
@@ -86,7 +97,7 @@ toReport dealiaser err =
         in
           Report.Report "TYPE MISMATCH" subRegion preHint postHint
 
-    InfiniteType (InfiniteTypeInfo name var tipe) ->
+    InfiniteType name var tipe ->
         let
           prettyVar =
             P.pretty dealiaser False var
@@ -97,7 +108,8 @@ toReport dealiaser err =
         Report.simple "INFINITE TYPE"
           ( "I am inferring weird self-referential type for `" ++ name ++ "`"
           )
-          ( "The bit of the type that is self-referential looks like this:\n\n"
+          ( "TODO - do a better job\n\n"
+            ++ "The bit of the type that is self-referential looks like this:\n\n"
             ++ P.render (P.nest 4 (prettyVar <+> P.equals <+> prettyType))
             ++ "\n\nThe cause is often that the usage of `" ++ name ++ "` is flipped around.\n\n"
             ++ "Maybe you are inserting a data structure into an element? Maybe you are giving\n"
@@ -308,3 +320,5 @@ ordinalize number =
       | otherwise                    = "th"
   in
     show number ++ ending
+
+

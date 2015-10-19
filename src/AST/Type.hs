@@ -4,7 +4,6 @@ module AST.Type
     , Port(..), getPortType
     , deepDealias, iteratedDealias, dealias
     , collectLambdas
-    , fieldMap
     , tuple
     ) where
 
@@ -64,24 +63,6 @@ getPortType portType =
     Normal tipe -> tipe
     Signal tipe _ -> tipe
 
-
-fieldMap :: [(String,a)] -> Map.Map String [a]
-fieldMap fields =
-  let add r (field,tipe) =
-        Map.insertWith (++) field [tipe] r
-  in
-      foldl add Map.empty fields
-
-{--
-recordOf :: [(String, Type var)] -> Type var
-recordOf fields =
-  Record fields Nothing
-
-
-listOf :: RawType -> RawType
-listOf tipe =
-  App (Type (Var.Raw "List")) [tipe]
---}
 
 tuple :: R.Region -> [Raw] -> Raw
 tuple region types =

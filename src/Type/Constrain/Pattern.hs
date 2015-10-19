@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
 module Type.Constrain.Pattern where
 
 import Control.Arrow (second)
@@ -26,7 +25,7 @@ constrain env (A.A region pattern) tipe =
       CEqual (Error.Pattern patternError) region leftType rightType
 
     rvar v =
-      A.A region (varN v)
+      A.A region (VarN v)
   in
   case pattern of
     P.Anything ->
@@ -37,22 +36,22 @@ constrain env (A.A region pattern) tipe =
             return $ emptyFragment { typeConstraint = c }
 
     P.Var name ->
-        do  v <- variable Flexible
+        do  variable <- mkVar Nothing
             return $ Fragment
-                { typeEnv = Map.singleton name (rvar v)
-                , vars = [v]
+                { typeEnv = Map.singleton name (rvar variable)
+                , vars = [variable]
                 , typeConstraint =
-                    equal (Error.PVar name) (varN v) tipe
+                    equal (Error.PVar name) (VarN variable) tipe
                 }
 
     P.Alias name p ->
-        do  v <- variable Flexible
+        do  variable <- mkVar Nothing
             fragment <- constrain env p tipe
             return $ fragment
-              { typeEnv = Map.insert name (rvar v) (typeEnv fragment)
-              , vars = v : vars fragment
+              { typeEnv = Map.insert name (rvar variable) (typeEnv fragment)
+              , vars = variable : vars fragment
               , typeConstraint =
-                  equal (Error.PAlias name) (varN v) tipe
+                  equal (Error.PAlias name) (VarN variable) tipe
                   /\ typeConstraint fragment
               }
 
@@ -73,13 +72,13 @@ constrain env (A.A region pattern) tipe =
 
     P.Record fields ->
         do  pairs <-
-              mapM (\name -> (,) name <$> variable Flexible) fields
+                mapM (\name -> (,) name <$> mkVar Nothing) fields
 
             let tenv =
                   Map.fromList (map (second rvar) pairs)
 
             let unannotatedTenv =
-                  Map.map (\v -> [A.drop v]) tenv
+                  Map.map A.drop tenv
 
             con <- exists $ \t ->
               return (equal Error.PRecord tipe (record unannotatedTenv t))

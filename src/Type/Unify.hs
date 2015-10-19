@@ -1,12 +1,10 @@
+{-# OPTIONS_GHC -Wall #-}
 module Type.Unify (unify) where
 
-import Control.Applicative ((<|>))
-import Control.Monad.Except (ExceptT, throwError, runExceptT)
-import Control.Monad.State as State
-import qualified Data.List as List
+import Control.Monad (zipWithM_)
+import Control.Monad.Except (ExceptT, lift, liftIO, throwError, runExceptT)
 import qualified Data.Map as Map
 import qualified Data.UnionFind.IO as UF
-import Text.PrettyPrint (render)
 
 import qualified AST.Type as AstType
 import qualified AST.Variable as Var
@@ -14,435 +12,654 @@ import qualified Reporting.Region as R
 import qualified Reporting.Error.Type as Error
 import qualified Type.State as TS
 import Type.Type as Type
-import Type.PrettyPrint
-import Elm.Utils ((|>))
 
 
-unify
-    :: Error.Hint
-    -> R.Region
-    -> Variable
-    -> Variable
-    -> StateT TS.SolverState IO ()
-unify hint region variable1 variable2 =
-  do  result <- runExceptT (unifyHelp variable1 variable2)
+
+-- KICK OFF UNIFICATION
+
+
+unify :: Error.Hint -> R.Region -> Variable -> Variable -> TS.Solver ()
+unify hint region expected actual =
+  do  result <- runExceptT (guardedUnify ExpectedActual expected actual)
       case result of
         Right state ->
             return state
 
-        Left (RawMismatch (leftType, rightType, note)) ->
-            TS.addError region $ Error.Mismatch $
-                Error.MismatchInfo hint leftType rightType note
+        Left (Mismatch leftType rightType maybeReason) ->
+            do  rootType <- liftIO (Type.toSrcType expected)
+                TS.addError region $ Error.Mismatch $
+                    Error.MismatchInfo hint rootType leftType rightType maybeReason
 
 
--- ACTUALLY UNIFY STUFF
+
+-- UNIFICATION HELPERS
+
 
 type Unify =
-  ExceptT RawMismatch (StateT TS.SolverState IO)
-
-
-newtype RawMismatch =
-  RawMismatch (AstType.Canonical, AstType.Canonical, Maybe String)
-
-
-typeError
-    :: UF.Point Descriptor
-    -> UF.Point Descriptor
-    -> Maybe String
-    -> Unify a
-typeError leftType rightType note =
-  do  leftSrcType <- liftIO (Type.toSrcType leftType)
-      rightSrcType <- liftIO (Type.toSrcType rightType)
-      liftIO $ do
-          UF.setDescriptor leftType (Type.descriptor Error)
-          UF.setDescriptor rightType (Type.descriptor Error)
-      throwError (RawMismatch (leftSrcType, rightSrcType, note))
-
-
-unifyHelp :: Variable -> Variable -> Unify ()
-unifyHelp variable1 variable2 =
-  do  equivalent <- liftIO $ UF.equivalent variable1 variable2
-      if equivalent
-          then return ()
-          else actuallyUnify variable1 variable2
-
-
-actuallyUnify :: Variable -> Variable -> Unify ()
-actuallyUnify variable1 variable2 = do
-  desc1 <- liftIO $ UF.descriptor variable1
-  desc2 <- liftIO $ UF.descriptor variable2
-  let name' = pickName desc1 desc2
-      flex' = pickFlex desc1 desc2
-      rank' = pickRank desc1 desc2
-      alias' = pickAlias desc1 desc2
-
-      merge1 :: Unify ()
-      merge1 =
-        liftIO $ do
-            if rank desc1 < rank desc2
-                then UF.union variable2 variable1
-                else UF.union variable1 variable2
-            UF.modifyDescriptor variable1 $ \desc ->
-                desc { structure = structure desc1
-                     , flex = flex'
-                     , name = name'
-                     , alias = alias'
-                     }
-
-      merge2 :: Unify ()
-      merge2 =
-        liftIO $ do
-            if rank desc1 < rank desc2
-                then UF.union variable2 variable1
-                else UF.union variable1 variable2
-            UF.modifyDescriptor variable2 $ \desc ->
-                desc { structure = structure desc2
-                     , flex = flex'
-                     , name = name'
-                     , alias = alias'
-                     }
-
-      merge =
-        if rank desc1 < rank desc2 then merge1 else merge2
-
-      fresh :: Maybe (Term1 Variable) -> Unify Variable
-      fresh structure =
-        do  v <- liftIO . UF.fresh $ Descriptor
-                 { structure = structure
-                 , rank = rank'
-                 , flex = flex'
-                 , name = name'
-                 , copy = Nothing
-                 , mark = noMark
-                 , alias = alias'
-                 }
-            lift (TS.register v)
-
-      flexAndUnify v =
-        do  liftIO $ UF.modifyDescriptor v $ \desc -> desc { flex = Flexible }
-            unifyHelp variable1 variable2
-
-      unifyNumber svar (Var.Canonical home name) =
-          case home of
-            Var.BuiltIn | name `elem` ["Int","Float"] ->
-                flexAndUnify svar
-
-            Var.Local | List.isPrefixOf "number" name ->
-                flexAndUnify svar
-
-            Var.TopLevel _ | List.isPrefixOf "number" name ->
-                flexAndUnify svar
-
-            _ ->
-                typeError variable1 variable2 Nothing
-
-      comparableError maybeHint =
-          typeError variable1 variable2 $ Just $
-            "Note: comparable types include Int, Float, Char, String, lists, and tuples."
-            ++ maybe "" ("\n"++) maybeHint
-
-      appendableError =
-          typeError variable1 variable2 $ Just $
-            "Note: appendable types include only Strings, Lists, and Text."
-
-      unifyComparable v (Var.Canonical home name) =
-          case home of
-            Var.BuiltIn | name `elem` ["Int","Float","Char","String"] ->
-                flexAndUnify v
-            Var.Local | List.isPrefixOf "comparable" name ->
-                flexAndUnify v
-            _ ->
-                comparableError Nothing
-
-      unifyComparableStructure varSuper varFlex =
-          do  struct <- liftIO $ collectApps varFlex
-              case struct of
-                Other ->
-                    comparableError Nothing
-
-                List v ->
-                    do  flexAndUnify varSuper
-                        unifyHelp v =<< liftIO (variable $ Is Comparable)
-
-                Tuple vs ->
-                    if length vs > 6 then
-                      comparableError $ Just $
-                        "Furthermore, it cannot be a tuple with more than 6 elements."
-                    else
-                      do  flexAndUnify varSuper
-                          cmpVars <- liftIO $ forM [1..length vs] $ \_ -> variable (Is Comparable)
-                          zipWithM_ unifyHelp vs cmpVars
-
-      unifyAppendable v cvar =
-          let
-            canUnify =
-                Var.isPrim "String" cvar
-                || Var.isText cvar
-                || Var.isLocal (List.isPrefixOf "comparable") cvar
-                || Var.isLocal (List.isPrefixOf "appendable") cvar
-          in
-            if canUnify then
-                flexAndUnify v
-            else
-                appendableError
-
-      unifyAppendableStructure varSuper varFlex =
-          do  struct <- liftIO $ collectApps varFlex
-              case struct of
-                List _ -> flexAndUnify varSuper
-                _      -> appendableError
-
-      rigidError var =
-          typeError variable1 variable2 $ Just $
-            rigidErrorMessage (render (pretty Never var))
-
-      superUnify =
-          case (flex desc1, flex desc2, name desc1, name desc2) of
-            (Is super1, Is super2, _, _)
-                | super1 == super2 -> merge
-            (Is Number, Is Comparable, _, _) -> merge1
-            (Is Comparable, Is Number, _, _) -> merge2
-
-            (Is Number, _, _, Just name) -> unifyNumber variable1 name
-            (_, Is Number, Just name, _) -> unifyNumber variable2 name
-
-            (Is Appendable, _, _, Just name) -> unifyAppendable variable1 name
-            (_, Is Appendable, Just name, _) -> unifyAppendable variable2 name
-            (Is Appendable, _, _, _) -> unifyAppendableStructure variable1 variable2
-            (_, Is Appendable, _, _) -> unifyAppendableStructure variable2 variable1
-
-            (Is Comparable, _, _, Just name) -> unifyComparable variable1 name
-            (_, Is Comparable, Just name, _) -> unifyComparable variable2 name
-            (Is Comparable, _, _, _) -> unifyComparableStructure variable1 variable2
-            (_, Is Comparable, _, _) -> unifyComparableStructure variable2 variable1
-
-            (Rigid, _, _, _) -> rigidError variable1
-            (_, Rigid, _, _) -> rigidError variable2
-            _ -> typeError variable1 variable2 Nothing
-
-  case (structure desc1, structure desc2) of
-    (Nothing, Nothing)
-        | flex desc1 == Flexible && flex desc1 == Flexible ->
-            merge
-
-    (Nothing, _)
-        | flex desc1 == Flexible -> merge2
-        | flex desc1 == Error -> return ()
-
-    (_, Nothing)
-        | flex desc2 == Flexible -> merge1
-        | flex desc2 == Error -> return ()
-
-    (Just (Var1 v), _) ->
-        unifyHelp v variable2
-
-    (_, Just (Var1 v)) ->
-        unifyHelp variable1 v
-
-    (Nothing, _) ->
-        superUnify
-
-    (_, Nothing) ->
-        superUnify
-
-    (Just type1, Just type2) ->
-        case (type1,type2) of
-          (App1 term1 term2, App1 term1' term2') ->
-              do merge
-                 unifyHelp term1 term1'
-                 unifyHelp term2 term2'
-          (Fun1 term1 term2, Fun1 term1' term2') ->
-              do merge
-                 unifyHelp term1 term1'
-                 unifyHelp term2 term2'
-
-          (EmptyRecord1, EmptyRecord1) ->
-              return ()
-
-          (Record1 fields ext, EmptyRecord1) | Map.null fields -> unifyHelp ext variable2
-          (EmptyRecord1, Record1 fields ext) | Map.null fields -> unifyHelp variable1 ext
-
-          (Record1 _ _, Record1 _ _) ->
-              recordUnify fresh variable1 variable2
-
-          _ -> typeError variable1 variable2 Nothing
-
-
--- RIGID ERROR
-
-rigidErrorMessage :: String -> String
-rigidErrorMessage var =
-  "Could not unify user provided type variable `" ++ var ++ "`. The most likely cases are:\n\n"
-  ++ "  1. The type you wrote down is too general. It says any type can go through\n"
-  ++ "     but in fact only a certain type can.\n"
-  ++ "  2. A type variable is probably being shared between two type annotations.\n"
-  ++ "     They are treated as different things in the current implementation, so\n"
-  ++ "     Try commenting out some type annotations and see what happens."
-
-
--- RECORD UNIFICATION
-
-recordUnify
-    :: (Maybe (Term1 Variable) -> Unify Variable)
-    -> Variable
-    -> Variable
-    -> Unify ()
-recordUnify fresh variable1 variable2 =
-  do  (ExpandedRecord fields1 ext1) <- liftIO (gatherFields variable1)
-      (ExpandedRecord fields2 ext2) <- liftIO (gatherFields variable2)
-
-      unifyOverlappingFields fields1 fields2
-
-      let freshRecord fields ext =
-            fresh (Just (Record1 fields ext))
-
-      let uniqueFields1 = diffFields fields1 fields2
-      let uniqueFields2 = diffFields fields2 fields1
-
-      let addFieldMismatchError missingFields =
-              typeError variable1 variable2 $ Just $
-                  fieldMismatchError missingFields
-
-      case (ext1, ext2) of
-        (Empty _, Empty _) ->
-            case Map.null uniqueFields1 && Map.null uniqueFields2 of
-              True -> return ()
-              False -> typeError variable1 variable2 Nothing
-
-        (Empty var1, Extension var2) ->
-            case (Map.null uniqueFields1, Map.null uniqueFields2) of
-              (_, False) -> addFieldMismatchError uniqueFields2
-              (True, True) -> unifyHelp var1 var2
-              (False, True) ->
-                do  subRecord <- freshRecord uniqueFields1 var1
-                    unifyHelp subRecord var2
-
-        (Extension var1, Empty var2) ->
-            case (Map.null uniqueFields1, Map.null uniqueFields2) of
-              (False, _) -> addFieldMismatchError uniqueFields1
-              (True, True) -> unifyHelp var1 var2
-              (True, False) ->
-                do  subRecord <- freshRecord uniqueFields2 var2
-                    unifyHelp var1 subRecord
-
-        (Extension var1, Extension var2) ->
-            case (Map.null uniqueFields1, Map.null uniqueFields2) of
-              (True, True) ->
-                unifyHelp var1 var2
-
-              (True, False) ->
-                do  subRecord <- freshRecord uniqueFields2 var2
-                    unifyHelp var1 subRecord
-
-              (False, True) ->
-                do  subRecord <- freshRecord uniqueFields1 var1
-                    unifyHelp subRecord var2
-
-              (False, False) ->
-                do  record1' <- freshRecord uniqueFields1 =<< fresh Nothing
-                    record2' <- freshRecord uniqueFields2 =<< fresh Nothing
-                    unifyHelp record1' var2
-                    unifyHelp var1 record2'
-
-
-unifyOverlappingFields
-    :: Map.Map String [Variable]
-    -> Map.Map String [Variable]
-    -> Unify ()
-unifyOverlappingFields fields1 fields2 =
-    Map.intersectionWith (zipWith unifyHelp) fields1 fields2
-        |> Map.elems
-        |> concat
-        |> sequence_
-
-
-diffFields :: Map.Map String [a] -> Map.Map String [a] -> Map.Map String [a]
-diffFields fields1 fields2 =
-  let eat (_:xs) (_:ys) = eat xs ys
-      eat xs _ = xs
-  in
-      Map.union (Map.intersectionWith eat fields1 fields2) fields1
-        |> Map.filter (not . null)
-
-
-data ExpandedRecord = ExpandedRecord
-    { _fields :: Map.Map String [Variable]
-    , _extension :: Extension
+  ExceptT Mismatch TS.Solver
+
+
+data Context = Context
+    { _orientation :: Orientation
+    , _first :: Variable
+    , _firstDesc :: Descriptor
+    , _second :: Variable
+    , _secondDesc :: Descriptor
     }
 
-data Extension = Empty Variable | Extension Variable
+
+data Orientation = ExpectedActual | ActualExpected
 
 
-gatherFields :: Variable -> IO ExpandedRecord
-gatherFields var =
-  do  desc <- UF.descriptor var
-      case structure desc of
-        (Just (Record1 fields ext)) ->
-          do  (ExpandedRecord deeperFields rootExt) <- gatherFields ext
-              return (ExpandedRecord (Map.unionWith (++) fields deeperFields) rootExt)
-
-        (Just EmptyRecord1) ->
-          return (ExpandedRecord Map.empty (Empty var))
-
-        _ ->
-          return (ExpandedRecord Map.empty (Extension var))
-
-
--- assumes that one of the dicts has stuff in it
-fieldMismatchError :: Map.Map String a -> String
-fieldMismatchError missingFields =
-    case Map.keys missingFields of
-      [] ->
-          ""
-
-      [key] ->
-          "Looks like a record is missing the field `" ++ key ++ "`"
-
-      keys ->
-          "Looks like a record is missing fields "
-          ++ List.intercalate ", " (init keys) ++ ", and " ++ last keys
+reorient :: Context -> Context
+reorient (Context orientation var1 desc1 var2 desc2) =
+  let
+    otherOrientation =
+      case orientation of
+        ExpectedActual -> ActualExpected
+        ActualExpected -> ExpectedActual
+  in
+    Context otherOrientation var2 desc2 var1 desc1
 
 
 
-pickAlias :: Descriptor -> Descriptor -> Alias Variable
-pickAlias desc1 desc2 =
-  alias desc1 <|> alias desc2
+-- ERROR MESSAGES
 
 
-pickRank :: Descriptor -> Descriptor -> Int
-pickRank desc1 desc2 =
-  min (rank desc1) (rank desc2)
+data Mismatch
+    = Mismatch AstType.Canonical AstType.Canonical (Maybe Error.Reason)
 
 
-pickFlex :: Descriptor -> Descriptor -> Flex
-pickFlex desc1 desc2 =
-  case (flex desc1, flex desc2) of
-    ( f            , Flexible      ) -> f
-    ( Flexible     , f             ) -> f
-    ( Is Number    , Is _          ) -> Is Number
-    ( Is _         , Is Number     ) -> Is Number
-    ( Is super     , Is _          ) -> Is super
-    ( _            , _             ) -> Flexible
+mismatch :: Context -> Maybe Error.Reason -> Unify a
+mismatch (Context orientation first _ second _) maybeReason =
+  let
+    (expected, actual) =
+        case orientation of
+          ExpectedActual ->
+              (first, second)
+
+          ActualExpected ->
+              (second, first)
+  in
+    do  errorMsg <- liftIO $
+          do  expectedSrcType <- Type.toSrcType expected
+              actualSrcType <- Type.toSrcType actual
+              return (Mismatch expectedSrcType actualSrcType maybeReason)
+        mergeHelp expected actual Error
+        throwError errorMsg
 
 
-pickName :: Descriptor -> Descriptor -> Maybe Var.Canonical
-pickName desc1 desc2 =
-  case (name desc1, name desc2) of
-    (Nothing, Nothing) ->
-        Nothing
+rigidityError :: Context -> Maybe String -> Unify ()
+rigidityError context maybeName =
+  mismatch context (Just (Error.Rigid maybeName))
 
-    (Just name1, Nothing) ->
-        Just name1
 
-    (Nothing, Just name2) ->
-        Just name2
 
-    (Just name1, Just name2) ->
-        case (flex desc1, flex desc2) of
-          ( _            , Flexible      ) -> Just name1
-          ( Flexible     , _             ) -> Just name2
-          ( Is Number    , Is _          ) -> Just name1
-          ( Is _         , Is Number     ) -> Just name2
-          ( Is _         , Is _          ) -> Just name1
-          ( _            , _             ) -> Nothing
+-- MERGE
+
+
+merge :: Context -> Content -> Unify ()
+merge (Context _ first _ second _) content =
+  mergeHelp first second content
+
+
+mergeHelp :: Variable -> Variable -> Content -> Unify ()
+mergeHelp first second content =
+  liftIO $ UF.union' first second $ \desc1 desc2 ->
+      return $
+        Descriptor
+          { _content = content
+          , _rank = min (_rank desc1) (_rank desc2)
+          , _mark = noMark
+          , _copy = Nothing
+          }
+
+
+fresh :: Context -> Content -> Unify Variable
+fresh (Context _ _ desc1 _ desc2) content =
+  do  freshVariable <-
+          liftIO $ UF.fresh $
+            Descriptor
+              { _content = content
+              , _rank = min (_rank desc1) (_rank desc2)
+              , _mark = noMark
+              , _copy = Nothing
+              }
+      lift (TS.register freshVariable)
+
+
+
+-- ACTUALLY UNIFY THINGS
+
+
+guardedUnify :: Orientation -> Variable -> Variable -> Unify ()
+guardedUnify orientation left right =
+  do  equivalent <- liftIO $ UF.equivalent left right
+      if equivalent
+        then return ()
+        else
+          do  leftDesc <- liftIO $ UF.descriptor left
+              rightDesc <- liftIO $ UF.descriptor right
+              actuallyUnify (Context orientation left leftDesc right rightDesc)
+
+
+subUnify :: Context -> Variable -> Variable -> Unify ()
+subUnify context var1 var2 =
+  guardedUnify (_orientation context) var1 var2
+
+
+actuallyUnify :: Context -> Unify ()
+actuallyUnify context@(Context _ _ firstDesc _ secondDesc) =
+  let
+    secondContent = _content secondDesc
+  in
+  case _content firstDesc of
+    Error ->
+        -- If there was an error, just pretend it is okay. This lets us avoid
+        -- "cascading" errors where one problem manifests as multiple message.
+        return ()
+
+    Var Flex Nothing _ ->
+        unifyFlex context secondContent
+
+    Var Flex (Just super) _ ->
+        unifySuper context super secondContent
+
+    Var Rigid maybeSuper maybeName ->
+        unifyRigid context maybeSuper maybeName secondContent
+
+    Atom name ->
+        unifyAtom context name secondContent
+
+    Alias name args realVar ->
+        unifyAlias context name args realVar secondContent
+
+    Structure term ->
+        unifyStructure context term secondContent
+
+
+
+-- UNIFY FLEXIBLE VARIABLES
+
+
+unifyFlex :: Context -> Content -> Unify ()
+unifyFlex context otherContent =
+  case otherContent of
+    Error ->
+        return ()
+
+    Var Flex _ _ ->
+        merge context otherContent
+
+    Var Rigid _ _ ->
+        merge context otherContent
+
+    Atom _ ->
+        merge context otherContent
+
+    Alias _ _ _ ->
+        merge context otherContent
+
+    Structure _ ->
+        merge context otherContent
+
+
+
+-- UNIFY RIGID VARIABLES
+
+
+unifyRigid :: Context -> Maybe Super -> Maybe String -> Content -> Unify ()
+unifyRigid context maybeSuper maybeName otherContent =
+  case otherContent of
+    Error ->
+        return ()
+
+    Var Flex otherMaybeSuper _ ->
+        if maybeSuper == otherMaybeSuper then
+            merge context (Var Rigid maybeSuper maybeName)
+        else
+            rigidityError context maybeName
+
+    Var Rigid _ _ ->
+        rigidityError context maybeName
+
+    Atom _ ->
+        rigidityError context maybeName
+
+    Alias _ _ _ ->
+        rigidityError context maybeName
+
+    Structure _ ->
+        rigidityError context maybeName
+
+
+-- UNIFY SUPER VARIABLES
+
+
+unifySuper :: Context -> Super -> Content -> Unify ()
+unifySuper context super otherContent =
+  case otherContent of
+    Structure term ->
+        unifySuperStructure context super term
+
+    Atom name ->
+        if atomMatchesSuper super name then
+            merge context otherContent
+        else
+            mismatch context Nothing
+
+    Var Rigid Nothing maybeName ->
+        rigidityError context maybeName
+
+    Var Rigid (Just otherSuper) maybeName ->
+        if super == otherSuper then
+            merge context otherContent
+        else
+            rigidityError context maybeName
+
+    Var Flex Nothing _ ->
+        merge context (Var Flex (Just super) Nothing)
+
+    Var Flex (Just otherSuper) _ ->
+        case combineSupers super otherSuper of
+          Nothing ->
+              mismatch context Nothing
+
+          Just newSuper ->
+              merge context (Var Flex (Just newSuper) Nothing)
+
+    Alias _ _ realVar ->
+        subUnify context (_first context) realVar
+
+    Error ->
+        return ()
+
+
+combineSupers :: Super -> Super -> Maybe Super
+combineSupers firstSuper secondSuper =
+  case (firstSuper, secondSuper) of
+    (Number    , Number    ) -> Just Number
+    (Comparable, Number    ) -> Just Number
+    (Number    , Comparable) -> Just Number
+
+    (Comparable, Comparable) -> Just Comparable
+    (Appendable, Appendable) -> Just Appendable
+
+    (Appendable, Comparable) -> Just CompAppend
+    (Comparable, Appendable) -> Just CompAppend
+
+    (CompAppend, CompAppend) -> Just CompAppend
+    (CompAppend, Comparable) -> Just CompAppend
+    (Comparable, CompAppend) -> Just CompAppend
+    (CompAppend, Appendable) -> Just CompAppend
+    (Appendable, CompAppend) -> Just CompAppend
+
+    (_         , _         ) -> Nothing
+
+
+isPrimitiveFrom :: [String] -> Var.Canonical -> Bool
+isPrimitiveFrom prims var =
+  any (\p -> Var.isPrim p var) prims
+
+
+atomMatchesSuper :: Super -> Var.Canonical -> Bool
+atomMatchesSuper super name =
+  case super of
+    Number ->
+        isPrimitiveFrom ["Int", "Float"] name
+
+    Comparable ->
+        isPrimitiveFrom ["Int", "Float", "Char", "String"] name
+
+    Appendable ->
+        Var.isPrim "String" name || Var.isText name
+
+    CompAppend ->
+        Var.isPrim "String" name
+
+
+unifySuperStructure :: Context -> Super -> Term1 Variable -> Unify ()
+unifySuperStructure context super term =
+  do  appStructure <- liftIO (collectApps (Structure term))
+      case appStructure of
+        Other ->
+            mismatch context Nothing
+
+        List variable ->
+            case super of
+              Number ->
+                  mismatch context Nothing
+
+              Appendable ->
+                  merge context (Structure term)
+
+              Comparable ->
+                  do  merge context (Structure term)
+                      unifyComparableRecursive (_orientation context) variable
+
+              CompAppend ->
+                  do  merge context (Structure term)
+                      unifyComparableRecursive (_orientation context) variable
+
+        Tuple entries ->
+            case super of
+              Number ->
+                  mismatch context Nothing
+
+              Appendable ->
+                  mismatch context Nothing
+
+              Comparable ->
+                  if length entries > 6 then
+                      mismatch context (Just (Error.TooLongComparableTuple (length entries)))
+
+                  else
+                      do  merge context (Structure term)
+                          mapM_ (unifyComparableRecursive (_orientation context)) entries
+
+              CompAppend ->
+                  mismatch context Nothing
+
+
+unifyComparableRecursive :: Orientation -> Variable -> Unify ()
+unifyComparableRecursive orientation var =
+  do  compVar <-
+          liftIO $
+            do  desc <- UF.descriptor var
+                UF.fresh $
+                  Descriptor
+                    { _content = Var Flex (Just Comparable) Nothing
+                    , _rank = _rank desc
+                    , _mark = noMark
+                    , _copy = Nothing
+                    }
+
+      guardedUnify orientation compVar var
+
+
+data AppStructure
+    = List Variable
+    | Tuple [Variable]
+    | Other
+
+
+collectApps :: Content -> IO AppStructure
+collectApps content =
+    collectAppsHelp [] content
+
+
+collectAppsHelp :: [Variable] -> Content -> IO AppStructure
+collectAppsHelp args content =
+  case (content, args) of
+    (Structure (App1 func arg), _) ->
+        collectAppsHelp (args ++ [arg]) =<< getContent func
+
+    (Atom name, [arg]) | Var.isList name ->
+        return (List arg)
+
+    (Atom name, _) | Var.isTuple name ->
+        return (Tuple args)
+
+    _ ->
+        return Other
+
+
+getContent :: Variable -> IO Content
+getContent variable =
+  _content <$> UF.descriptor variable
+
+
+
+-- UNIFY ATOMS
+
+
+unifyAtom :: Context -> Var.Canonical -> Content -> Unify ()
+unifyAtom context name otherContent =
+  case otherContent of
+    Error ->
+        return ()
+
+    Var Flex Nothing _ ->
+        merge context (Atom name)
+
+    Var Flex (Just super) _ ->
+        if atomMatchesSuper super name then
+            merge context (Atom name)
+
+        else
+            mismatch context Nothing
+
+    Var Rigid _ maybeName ->
+        rigidityError context maybeName
+
+    Atom otherName ->
+        if name == otherName then
+            merge context otherContent
+
+        else
+            mismatch context Nothing
+
+    Alias _ _ realVar ->
+        subUnify context (_first context) realVar
+
+    Structure _ ->
+        mismatch context Nothing
+
+
+
+-- UNIFY ALIASES
+
+unifyAlias :: Context -> Var.Canonical -> [(String, Variable)] -> Variable -> Content -> Unify ()
+unifyAlias context name args realVar otherContent =
+  case otherContent of
+    Error ->
+        return ()
+
+    Var Flex Nothing _ ->
+        merge context (Alias name args realVar)
+
+    Var _ _ _ ->
+        subUnify context realVar (_second context)
+
+    Atom _ ->
+        subUnify context realVar (_second context)
+
+
+    Alias otherName otherArgs otherRealVar ->
+        if name == otherName then
+            do  merge context otherContent
+                zipWithM_ (subUnify context) (map snd args) (map snd otherArgs)
+
+        else
+            subUnify context realVar otherRealVar
+
+    Structure _ ->
+        subUnify context realVar (_second context)
+
+
+
+-- UNIFY STRUCTURES
+
+
+unifyStructure :: Context -> Term1 Variable -> Content -> Unify ()
+unifyStructure context term otherContent =
+  case otherContent of
+    Error ->
+        return ()
+
+    Var Flex Nothing _ ->
+        merge context (Structure term)
+
+    Var Flex (Just super) _ ->
+        unifySuper (reorient context) super (Structure term)
+
+    Var Rigid _ maybeName ->
+        rigidityError context maybeName
+
+    Atom _ ->
+        mismatch context Nothing
+
+    Alias _ _ realVar ->
+        subUnify context (_first context) realVar
+
+    Structure otherTerm ->
+        case (term, otherTerm) of
+          (App1 func arg, App1 otherFunc otherArg) ->
+              do  merge context otherContent
+                  subUnify context func otherFunc
+                  subUnify context arg otherArg
+
+          (Fun1 arg result, Fun1 otherArg otherResult) ->
+              do  merge context otherContent
+                  subUnify context arg otherArg
+                  subUnify context result otherResult
+
+          (EmptyRecord1, EmptyRecord1) ->
+              merge context otherContent
+
+          (Record1 fields ext, EmptyRecord1) | Map.null fields ->
+              subUnify context ext (_second context)
+
+          (EmptyRecord1, Record1 fields ext) | Map.null fields ->
+              subUnify context (_first context) ext
+
+          (Record1 fields extension, Record1 otherFields otherExtension) ->
+              do  firstStructure <- gatherFields context fields extension
+                  secondStructure <- gatherFields context otherFields otherExtension
+                  unifyRecord context firstStructure secondStructure
+
+          _ ->
+              mismatch context Nothing
+
+
+
+-- UNIFY RECORDS
+
+
+unifyRecord :: Context -> RecordStructure -> RecordStructure -> Unify ()
+unifyRecord context firstStructure secondStructure =
+  do  let (RecordStructure expFields expVar expStruct) = firstStructure
+      let (RecordStructure actFields actVar actStruct) = secondStructure
+
+      -- call after unifying extension, make sure record shape matches before
+      -- looking into whether the particular field types match.
+      let unifySharedFields otherFields ext =
+            do  let sharedFields = Map.intersectionWith (,) expFields actFields
+                _ <- traverse (uncurry (subUnify context)) sharedFields
+                let allFields = Map.union (Map.map fst sharedFields) otherFields
+                merge context (Structure (Record1 allFields ext))
+
+      let uniqueExpFields = Map.difference expFields actFields
+      let uniqueActFields = Map.difference actFields expFields
+
+      case (expStruct, actStruct) of
+        (Empty, Empty) ->
+            if Map.null uniqueExpFields && Map.null uniqueActFields then
+                do  mergeHelp expVar actVar (Structure EmptyRecord1)
+                    unifySharedFields Map.empty expVar
+
+            else
+                mismatch context (Just (Error.MessyFields (Map.keys uniqueExpFields) (Map.keys uniqueActFields)))
+
+        (Empty, Extension) ->
+            case (Map.null uniqueExpFields, Map.null uniqueActFields) of
+              (_, False) ->
+                  mismatch context (Just (Error.ActualFields (Map.keys uniqueActFields)))
+
+              (True, True) ->
+                  do  subUnify context expVar actVar
+                      unifySharedFields Map.empty expVar
+
+              (False, True) ->
+                  do  subRecord <- fresh context (Structure (Record1 uniqueExpFields expVar))
+                      subUnify context subRecord actVar
+                      unifySharedFields Map.empty subRecord
+
+        (Extension, Empty) ->
+            case (Map.null uniqueExpFields, Map.null uniqueActFields) of
+              (False, _) ->
+                  mismatch context (Just (Error.ExpectedFields (Map.keys uniqueExpFields)))
+
+              (True, True) ->
+                  do  subUnify context expVar actVar
+                      unifySharedFields Map.empty expVar
+
+              (True, False) ->
+                  do  subRecord <- fresh context (Structure (Record1 uniqueActFields actVar))
+                      subUnify context expVar subRecord
+                      unifySharedFields Map.empty subRecord
+
+        (Extension, Extension) ->
+            case (Map.null uniqueExpFields, Map.null uniqueActFields) of
+              (True, True) ->
+                  do  subUnify context expVar actVar
+                      unifySharedFields Map.empty expVar
+
+              (True, False) ->
+                  do  subRecord <- fresh context (Structure (Record1 uniqueActFields actVar))
+                      subUnify context expVar subRecord
+                      unifySharedFields Map.empty subRecord
+
+              (False, True) ->
+                  do  subRecord <- fresh context (Structure (Record1 uniqueExpFields expVar))
+                      subUnify context subRecord actVar
+                      unifySharedFields Map.empty subRecord
+
+              (False, False) ->
+                  do  let subFields = Map.union uniqueExpFields uniqueActFields
+                      subExt <- fresh context (Var Flex Nothing Nothing)
+                      expRecord <- fresh context (Structure (Record1 uniqueActFields subExt))
+                      actRecord <- fresh context (Structure (Record1 uniqueExpFields subExt))
+                      subUnify context expVar expRecord
+                      subUnify context actRecord actVar
+                      unifySharedFields subFields subExt
+
+
+
+-- GATHER RECORD STRUCTURE
+
+
+data RecordStructure = RecordStructure
+    { _fields :: Map.Map String Variable
+    , _extVar :: Variable
+    , _extStruct :: ExtensionStructure
+    }
+
+
+data ExtensionStructure
+    = Empty
+    | Extension
+
+
+gatherFields :: Context -> Map.Map String Variable -> Variable -> Unify RecordStructure
+gatherFields context fields variable =
+  do  desc <- liftIO (UF.descriptor variable)
+      case _content desc of
+        Structure (Record1 subFields subExt) ->
+            gatherFields context (Map.union fields subFields) subExt
+
+        Structure (EmptyRecord1) ->
+            return (RecordStructure fields variable Empty)
+
+        Structure (App1 _ _) ->
+            mismatch context (Just Error.NotRecord)
+
+        Structure (Fun1 _ _) ->
+            mismatch context (Just Error.NotRecord)
+
+        Atom _ ->
+            mismatch context (Just Error.NotRecord)
+
+        Var _ Nothing _ ->
+            return (RecordStructure fields variable Extension)
+
+        Var _ (Just _) _ ->
+            mismatch context (Just Error.NotRecord)
+
+        -- TODO may be dropping useful alias info here
+        Alias _ _ var ->
+            gatherFields context fields var
+
+        Error ->
+            return (RecordStructure fields variable Extension)
 

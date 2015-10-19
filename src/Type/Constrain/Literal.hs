@@ -18,20 +18,31 @@ constrain env region literal tipe =
       return (T.CEqual (Error.Literal name) region tipe tipe')
   where
     prim name =
-        return (Env.get env Env.types name)
+        return (Env.getType env name)
 
-    litType =
+    (name, litType) =
         case literal of
-          L.IntNum _   -> T.varN `fmap` T.variable (T.Is T.Number)
-          L.FloatNum _ -> prim "Float"
-          L.Chr _      -> prim "Char"
-          L.Str _      -> prim "String"
-          L.Boolean _  -> prim "Bool"
+          L.IntNum _ ->
+              ( "number"
+              , T.VarN <$> T.mkVar (Just T.Number)
+              )
 
-    name =
-        case literal of
-          L.IntNum _   -> "number"
-          L.FloatNum _ -> "float"
-          L.Chr _      -> "character"
-          L.Str _      -> "string"
-          L.Boolean _  -> "boolean"
+          L.FloatNum _ ->
+              ( "float"
+              , prim "Float"
+              )
+
+          L.Chr _ ->
+              ( "character"
+              , prim "Char"
+              )
+
+          L.Str _ ->
+              ( "string"
+              , prim "String"
+              )
+
+          L.Boolean _ ->
+              ( "boolean"
+              , prim "Bool"
+              )

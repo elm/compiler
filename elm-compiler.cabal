@@ -119,7 +119,6 @@ Library
         Type.Environment,
         Type.Fragment,
         Type.Inference,
-        Type.PrettyPrint,
         Type.Solve,
         Type.State,
         Type.Type,
