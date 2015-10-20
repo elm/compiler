@@ -143,31 +143,12 @@ dealiasHelp typeTable tipe =
 
 collectLambdas :: Canonical -> [Canonical]
 collectLambdas tipe =
-  gatherLambda getCanLambda tipe
-
-
-gatherLambda :: (t -> Maybe (t,t)) -> t -> [t]
-gatherLambda get tipe =
-  case get tipe of
-    Just (arg, body) ->
-        arg : gatherLambda get body
-
-    Nothing ->
-        [tipe]
-
-
-getRawLambda :: Raw -> Maybe (Raw, Raw)
-getRawLambda (A.A _ tipe) =
   case tipe of
-    RLambda arg body -> Just (arg, body)
-    _ -> Nothing
+    Lambda arg result ->
+        arg : collectLambdas result
 
-
-getCanLambda :: Canonical -> Maybe (Canonical, Canonical)
-getCanLambda tipe =
-  case tipe of
-    Lambda arg body -> Just (arg, body)
-    _ -> Nothing
+    _ ->
+        []
 
 
 
