@@ -1,7 +1,6 @@
 module AST.Variable where
 
 import Data.Binary
-import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 
 import qualified AST.Helpers as Help

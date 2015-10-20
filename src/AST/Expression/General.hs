@@ -8,7 +8,6 @@ enrich the AST with more information.
 -}
 module AST.Expression.General where
 
-import qualified AST.Helpers as Help
 import qualified AST.Literal as Literal
 import qualified AST.Pattern as Pattern
 import qualified AST.Type as Type
