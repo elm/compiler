@@ -3,6 +3,8 @@ module AST.Helpers where
 
 import qualified Data.Char as Char
 
+
+
 splitDots :: String -> [String]
 splitDots variable =
     go [] variable
@@ -16,7 +18,8 @@ splitDots variable =
 
 isTuple :: String -> Bool
 isTuple name =
-  take 6 name == "_Tuple" && all Char.isDigit (drop 6 name)
+  take 6 name == "_Tuple"
+  && all Char.isDigit (drop 6 name)
 
 
 isOp :: String -> Bool
