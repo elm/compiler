@@ -6,7 +6,6 @@ import Control.Monad.Except (ExceptT, lift, liftIO, throwError, runExceptT)
 import qualified Data.Map as Map
 import qualified Data.UnionFind.IO as UF
 
-import qualified AST.Type as AstType
 import qualified AST.Variable as Var
 import qualified Reporting.Region as R
 import qualified Reporting.Error.Type as Error
@@ -25,10 +24,16 @@ unify hint region expected actual =
         Right state ->
             return state
 
-        Left (Mismatch leftType rightType maybeReason) ->
-            do  rootType <- liftIO (Type.toSrcType expected)
-                TS.addError region $ Error.Mismatch $
-                    Error.MismatchInfo hint rootType leftType rightType maybeReason
+        Left (Mismatch subExpected subActual maybeReason) ->
+            let
+              mkError =
+                do  expectedSrcType <- Type.toSrcType expected
+                    actualSrcType <- Type.toSrcType actual
+                    mergeHelp subExpected subActual Error
+                    let info = Error.MismatchInfo hint expectedSrcType actualSrcType maybeReason
+                    return (Error.Mismatch info)
+            in
+              TS.addError region =<< liftIO mkError
 
 
 
@@ -67,7 +72,7 @@ reorient (Context orientation var1 desc1 var2 desc2) =
 
 
 data Mismatch
-    = Mismatch AstType.Canonical AstType.Canonical (Maybe Error.Reason)
+    = Mismatch Variable Variable (Maybe Error.Reason)
 
 
 mismatch :: Context -> Maybe Error.Reason -> Unify a
@@ -81,12 +86,7 @@ mismatch (Context orientation first _ second _) maybeReason =
           ActualExpected ->
               (second, first)
   in
-    do  errorMsg <- liftIO $
-          do  expectedSrcType <- Type.toSrcType expected
-              actualSrcType <- Type.toSrcType actual
-              return (Mismatch expectedSrcType actualSrcType maybeReason)
-        mergeHelp expected actual Error
-        throwError errorMsg
+    throwError (Mismatch expected actual maybeReason)
 
 
 rigidityError :: Context -> Maybe String -> Unify ()
@@ -100,12 +100,12 @@ rigidityError context maybeName =
 
 merge :: Context -> Content -> Unify ()
 merge (Context _ first _ second _) content =
-  mergeHelp first second content
+  liftIO $ mergeHelp first second content
 
 
-mergeHelp :: Variable -> Variable -> Content -> Unify ()
+mergeHelp :: Variable -> Variable -> Content -> IO ()
 mergeHelp first second content =
-  liftIO $ UF.union' first second $ \desc1 desc2 ->
+  UF.union' first second $ \desc1 desc2 ->
       return $
         Descriptor
           { _content = content
@@ -552,67 +552,35 @@ unifyRecord context firstStructure secondStructure =
       let uniqueExpFields = Map.difference expFields actFields
       let uniqueActFields = Map.difference actFields expFields
 
-      case (expStruct, actStruct) of
-        (Empty, Empty) ->
-            if Map.null uniqueExpFields && Map.null uniqueActFields then
-                do  mergeHelp expVar actVar (Structure EmptyRecord1)
-                    unifySharedFields Map.empty expVar
+      case (expStruct, Map.null uniqueExpFields, actStruct, Map.null uniqueActFields) of
+        (_, True, _, True) ->
+            do  subUnify context expVar actVar
+                unifySharedFields Map.empty expVar
 
-            else
-                mismatch context (Just (Error.MessyFields (Map.keys uniqueExpFields) (Map.keys uniqueActFields)))
+        (Empty, _, _, False) ->
+            mismatch context (Just (Error.MessyFields (Map.keys uniqueExpFields) (Map.keys uniqueActFields)))
 
-        (Empty, Extension) ->
-            case (Map.null uniqueExpFields, Map.null uniqueActFields) of
-              (_, False) ->
-                  mismatch context (Just (Error.ActualFields (Map.keys uniqueActFields)))
+        (_, False, Empty, _) ->
+            mismatch context (Just (Error.MessyFields (Map.keys uniqueExpFields) (Map.keys uniqueActFields)))
 
-              (True, True) ->
-                  do  subUnify context expVar actVar
-                      unifySharedFields Map.empty expVar
+        (_, False, _, True) ->
+            do  subRecord <- fresh context (Structure (Record1 uniqueExpFields expVar))
+                subUnify context subRecord actVar
+                unifySharedFields Map.empty subRecord
 
-              (False, True) ->
-                  do  subRecord <- fresh context (Structure (Record1 uniqueExpFields expVar))
-                      subUnify context subRecord actVar
-                      unifySharedFields Map.empty subRecord
+        (_, True, _, False) ->
+            do  subRecord <- fresh context (Structure (Record1 uniqueActFields actVar))
+                subUnify context expVar subRecord
+                unifySharedFields Map.empty subRecord
 
-        (Extension, Empty) ->
-            case (Map.null uniqueExpFields, Map.null uniqueActFields) of
-              (False, _) ->
-                  mismatch context (Just (Error.ExpectedFields (Map.keys uniqueExpFields)))
-
-              (True, True) ->
-                  do  subUnify context expVar actVar
-                      unifySharedFields Map.empty expVar
-
-              (True, False) ->
-                  do  subRecord <- fresh context (Structure (Record1 uniqueActFields actVar))
-                      subUnify context expVar subRecord
-                      unifySharedFields Map.empty subRecord
-
-        (Extension, Extension) ->
-            case (Map.null uniqueExpFields, Map.null uniqueActFields) of
-              (True, True) ->
-                  do  subUnify context expVar actVar
-                      unifySharedFields Map.empty expVar
-
-              (True, False) ->
-                  do  subRecord <- fresh context (Structure (Record1 uniqueActFields actVar))
-                      subUnify context expVar subRecord
-                      unifySharedFields Map.empty subRecord
-
-              (False, True) ->
-                  do  subRecord <- fresh context (Structure (Record1 uniqueExpFields expVar))
-                      subUnify context subRecord actVar
-                      unifySharedFields Map.empty subRecord
-
-              (False, False) ->
-                  do  let subFields = Map.union uniqueExpFields uniqueActFields
-                      subExt <- fresh context (Var Flex Nothing Nothing)
-                      expRecord <- fresh context (Structure (Record1 uniqueActFields subExt))
-                      actRecord <- fresh context (Structure (Record1 uniqueExpFields subExt))
-                      subUnify context expVar expRecord
-                      subUnify context actRecord actVar
-                      unifySharedFields subFields subExt
+        (Extension, False, Extension, False) ->
+            do  let subFields = Map.union uniqueExpFields uniqueActFields
+                subExt <- fresh context (Var Flex Nothing Nothing)
+                expRecord <- fresh context (Structure (Record1 uniqueActFields subExt))
+                actRecord <- fresh context (Structure (Record1 uniqueExpFields subExt))
+                subUnify context expVar expRecord
+                subUnify context actRecord actVar
+                unifySharedFields subFields subExt
 
 
 

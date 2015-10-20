@@ -2,15 +2,21 @@
 module Reporting.Error.Type where
 
 import qualified Data.Char as Char
+import qualified Data.List as List
 import Text.PrettyPrint ((<+>))
 import qualified Text.PrettyPrint as P
 
-import qualified AST.Helpers as Help
+import qualified AST.Helpers as AstHelp
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
+import qualified Reporting.Error.Helpers as Help
 import qualified Reporting.PrettyPrint as P
 import qualified Reporting.Region as Region
 import qualified Reporting.Report as Report
+
+
+
+-- ERRORS
 
 
 data Error
@@ -25,7 +31,6 @@ data Error
 
 data Mismatch = MismatchInfo
     { _hint :: Hint
-    , _rootType :: Type.Canonical
     , _leftType :: Type.Canonical
     , _rightType :: Type.Canonical
     , _reason :: Maybe Reason
@@ -34,8 +39,6 @@ data Mismatch = MismatchInfo
 
 data Reason
     = MessyFields [String] [String]
-    | ExpectedFields [String]
-    | ActualFields [String]
     | NotRecord
     | TooLongComparableTuple Int
     | Rigid (Maybe String)
@@ -81,21 +84,8 @@ data Pattern
 toReport :: P.Dealiaser -> Error -> Report.Report
 toReport dealiaser err =
   case err of
-    Mismatch (MismatchInfo hint rootType leftType rightType maybeReason) ->
-        let
-          (subRegion, preHint, maybePostHint) = hintToString hint
-
-          postHint =
-            "TODO explain what went wrong!\n\n" ++ show maybeReason ++ "\n\n"
-            ++ maybe "" (++"\n\n") maybePostHint
-            ++ P.render (P.nest 4 (P.pretty dealiaser False rootType)) ++ "\n\n"
-            ++ "As I infer the types of values flowing through your program, I see a conflict\n"
-            ++ "between these two types:\n\n"
-            ++ P.render (P.nest 4 (P.pretty dealiaser False leftType))
-            ++ "\n\n"
-            ++ P.render (P.nest 4 (P.pretty dealiaser False rightType))
-        in
-          Report.Report "TYPE MISMATCH" subRegion preHint postHint
+    Mismatch info ->
+        mismatchToReport dealiaser info
 
     InfiniteType name var tipe ->
         let
@@ -125,119 +115,250 @@ toReport dealiaser err =
           ++ P.render (P.nest 4 (P.pretty dealiaser False tipe))
 
 
-hintToString :: Hint -> (Maybe Region.Region, String, Maybe String)
-hintToString hint =
+mismatchToReport :: P.Dealiaser -> Mismatch -> Report.Report
+mismatchToReport dealiaser (MismatchInfo hint leftType rightType maybeReason) =
+  let
+    report =
+      Report.Report "TYPE MISMATCH"
+
+    pretty tipe =
+      "\n\n"
+      ++ P.render (P.nest 4 (P.pretty dealiaser False tipe))
+      ++ "\n\n"
+  in
   case hint of
     CaseBranch branchNumber region ->
-        ( Just region
-        , "The " ++ ordinalize branchNumber ++ " branch of this `case` results in an unexpected type of value."
-        , Just "All branches should match so that no matter which one we take, we always get\nback the same type of value."
-        )
+        report
+          (Just region)
+          ( "The " ++ ordinalize (branchNumber -1) ++ " and " ++ ordinalize branchNumber
+            ++ " branches of this `case` result in different types of values."
+          )
+          ( "The " ++ ordinalize (branchNumber -1) ++ " branch results in this type of value:\n"
+
+            ++ pretty leftType
+
+            ++ "And the " ++ ordinalize branchNumber ++ " branch results in this type:\n"
+
+            ++ pretty rightType
+
+            ++ "These branches should match so that no matter which one we take, we always get\n"
+            ++ "back the same type of value."
+          )
 
     Case ->
-        ( Nothing
-        , "All the branches of this case-expression are consistent, but the overall\n"
-          ++ "type does not match how it is used elsewhere."
-        , Nothing
-        )
+        report
+          Nothing
+          ( "All the branches of this case-expression are consistent, but the overall\n"
+            ++ "type does not match how it is used elsewhere."
+          )
+          ( error "TODO generic error"
+          )
 
     IfCondition ->
-        ( Nothing
-        , "This condition does not evaluate to a boolean value, True or False."
-        , Just "Elm does not have \"truthiness\" such that ints and strings and lists are\nautomatically converted to booleans. Do that conversion explicitly."
-        )
+        report
+          Nothing
+          ( "This condition does not evaluate to a boolean value, True or False."
+          )
+          ( "Instead of Bool, it is resulting in:\n"
+
+            ++ pretty rightType
+
+            ++ "Note: Elm does not have \"truthiness\" such that ints and strings and lists\n"
+            ++ "are automatically converted to booleans. Do that conversion explicitly."
+          )
 
     IfBranches ->
-        ( Nothing
-        , "The branches of this `if` result in different types of values."
-        , Just "All branches should match so that no matter which one we take, we always get\nback the same type of value."
-        )
+        report
+          Nothing
+          ( "The branches of this `if` result in different types of values."
+          )
+          ( "The `then` branch results in:\n"
+
+            ++ pretty leftType
+
+            ++ "And the `else` branch results in:\n"
+
+            ++ pretty rightType
+
+            ++ "These need to match so that no matter which one we take, we always get\n"
+            ++ "back the same type of value."
+          )
 
     MultiIfBranch branchNumber region ->
-        ( Just region
-        , "The " ++ ordinalize branchNumber ++ " branch of this `if` results in an unexpected type of value."
-        , Just "All branches should match so that no matter which one we take, we always get\nback the same type of value."
-        )
+        report
+          (Just region)
+          ( "The " ++ ordinalize branchNumber ++ " branch of this `if` results in an unexpected type of value."
+          )
+          ( "The " ++ ordinalize (branchNumber - 1) ++ " branch results in:\n"
+
+            ++ pretty leftType
+
+            ++ "And the "++ ordinalize branchNumber ++ " branch results in:\n"
+
+            ++ pretty rightType
+
+            ++ "All branches should match so that no matter which one we take, we always get\n"
+            ++ "back the same type of value."
+          )
 
     If ->
-        ( Nothing
-        , "All the branches of this if-expression are consistent, but the overall\n"
-          ++ "type does not match how it is used elsewhere."
-        , Nothing
-        )
+        report
+          Nothing
+          ( "All the branches of this if-expression are consistent, but the overall\n"
+            ++ "type does not match how it is used elsewhere."
+          )
+          ( "The `if` evaluates to something of type:\n"
+
+            ++ pretty leftType
+
+            ++ "Which is fine, but the surrounding context wants it to be:\n"
+
+            ++ pretty rightType
+
+          )
 
     ListElement elementNumber region ->
-        ( Just region
-        , "The " ++ ordinalize elementNumber ++ " element of this list is an unexpected type of value."
-        , Just "All elements should be the same type of value so that we can iterate over the\nlist without running into unexpected values."
-        )
+        report
+          (Just region)
+          ( "The " ++ ordinalize elementNumber ++ " element of this list is an unexpected type of value."
+          )
+          ( "All elements should be the same type of value so that we can iterate over the\nlist without running into unexpected values."
+          )
 
     List ->
-        ( Nothing
-        , "All the elements in this list are the same type, but the overall\n"
-          ++ "type does not match how it is used elsewhere."
-        , Nothing
-        )
+        report
+          Nothing
+          ( "All the elements in this list are the same type, but the overall\n"
+            ++ "type does not match how it is used elsewhere."
+          )
+          ( "The list has type:\n"
+
+            ++ pretty leftType
+
+            ++ "Which is fine, but the surrounding context wants it to be:\n"
+
+            ++ pretty rightType
+          )
 
     BinopLeft op region ->
-        ( Just region
-        , "The left argument of " ++ prettyOperator op ++ " is causing a type mismatch."
-        , Nothing
-        )
+        report
+          (Just region)
+          ("The left argument of " ++ prettyOperator op ++ " is causing a type mismatch.")
+          ( prettyOperator op ++ " is expecting:"
+
+            ++ pretty leftType
+
+            ++ "But the value on the left has this type:"
+
+            ++ pretty rightType
+          )
 
     BinopRight op region ->
-        ( Just region
-        , "The right argument of " ++ prettyOperator op ++ " is causing a type mismatch."
-        , Nothing
-        )
+        report
+          (Just region)
+          ( "The right argument of " ++ prettyOperator op ++ " is causing a type mismatch."
+          )
+          ( prettyOperator op ++ " is expecting:"
+
+            ++ pretty leftType
+
+            ++ "But the value on the right has this type:"
+
+            ++ pretty rightType
+          )
 
     Binop op ->
-        ( Nothing
-        , "The two arguments to " ++ prettyOperator op ++ " are fine, but the overall type of this expression\n"
-          ++ "does not match how it is used elsewhere."
-        , Nothing
-        )
+        report
+          Nothing
+          ( "The two arguments to " ++ prettyOperator op ++ " are fine, but the overall type of this expression\n"
+            ++ "does not match how it is used elsewhere."
+          )
+          ( "The result of this binary operation is:\n"
+
+            ++ pretty leftType
+
+            ++ "Which is fine, but the surrounding context wants it to be:\n"
+
+            ++ pretty rightType
+
+          )
 
     Function maybeName ->
-        ( Nothing
-        , "The return type of " ++ funcName maybeName ++ " is being used in unexpected ways."
-        , Nothing
-        )
+        report
+          Nothing
+          ( "The return type of " ++ funcName maybeName ++ " is being used in unexpected ways."
+          )
+          ( "The function results in a value with type:\n"
+
+            ++ pretty leftType
+
+            ++ "Which is fine, but the surrounding context wants it to be:\n"
+
+            ++ pretty rightType
+          )
 
     UnexpectedArg maybeName index region ->
-        ( Just region
-        , "The " ++ ordinalize index ++ " argument to " ++ funcName maybeName
-          ++ " has an unexpected type."
-        , Nothing
-        )
+        report
+          (Just region)
+          ( "The " ++ ordinalize index ++ " argument to " ++ funcName maybeName
+            ++ " is causing a mismatch."
+          )
+          ( "The " ++ ordinalize index ++ " to " ++ funcName maybeName ++ " should be:"
+
+            ++ pretty leftType
+
+            ++ "But it is:"
+
+            ++ pretty rightType
+
+            ++ maybe "" reasonToString maybeReason
+          )
 
     FunctionArity maybeName expected actual region ->
         let
           s = if expected <= 1 then "" else "s"
         in
-          ( Just region
-          , capitalize (funcName maybeName) ++ " is expecting " ++ show expected
-            ++ " argument" ++ s ++ ", but was given " ++ show actual ++ "."
-          , Nothing
-          )
+          report
+            (Just region)
+            ( capitalize (funcName maybeName) ++ " is expecting " ++ show expected
+              ++ " argument" ++ s ++ ", but was given " ++ show actual ++ "."
+            )
+            ( error "TODO are the types interesting here?"
+            )
 
     BadTypeAnnotation name ->
-        ( Nothing
-        , "The type annotation for `" ++ name ++ "` does not match its definition."
-        , Nothing
-        )
+        report
+          Nothing
+          ( "The type annotation for `" ++ name ++ "` does not match its definition."
+          )
+          ( "Based on the actual definition, the type should be:\n"
+
+            ++ pretty rightType
+          )
 
     Instance name ->
-        ( Nothing
-        , "Given how `" ++ name ++ "` is defined, this use will not work out."
-        , Nothing
-        )
+        report
+          Nothing
+          ( "This usage of `" ++ name ++ "` is causing a type mismatch."
+          )
+          ( "Based on its definition, `" ++ name ++ "` has this type:"
+
+            ++ pretty leftType
+
+            ++ "But you are trying to use it as:"
+
+            ++ pretty rightType
+          )
 
     Literal name ->
-        ( Nothing
-        , "This " ++ name ++ " value is being used as if it is some other type of value."
-        , Nothing
-        )
+        report
+          Nothing
+          ( "This " ++ name ++ " value is being used as if it is some other type of value."
+          )
+          ( "You are trying to use this " ++ name ++ " as this type:"
+
+            ++ pretty rightType
+          )
 
     Pattern patErr ->
         let
@@ -248,41 +369,129 @@ hintToString hint =
               PData name -> "`" ++ name ++ "`"
               PRecord -> "a record"
         in
-          ( Nothing
-          , "Problem with " ++ thing ++ " in this pattern match."
-          , Nothing
-          )
+          report
+            Nothing
+            ( "Problem with " ++ thing ++ " in this pattern match."
+            )
+            ( "This pattern matches things of type:"
+
+              ++ pretty leftType
+
+              ++ "But the values it will actually be trying to match are:"
+
+              ++ pretty rightType
+            )
 
     Shader ->
-        ( Nothing
-        , "There is some problem with this GLSL shader."
-        , Nothing
-        )
+        report
+          Nothing
+          ( "There is some problem with this GLSL shader."
+          )
+          ( error "TODO generic error"
+          )
 
     Range ->
-        ( Nothing
-        , "The low and high members of this list range are not the same type of value."
-        , Nothing
-        )
+        report
+          Nothing
+          ( "The low and high members of this list range are not the same type of value."
+          )
+          ( "The low end of the range has type:"
+
+            ++ pretty leftType
+
+            ++ "But the high end is:"
+
+            ++ pretty rightType
+          )
 
     Lambda ->
-        ( Nothing
-        , "This anonymous function is being used in an unexpected way."
-        , Nothing
-        )
+        report
+          Nothing
+          ( "This anonymous function is being used in an unexpected way."
+          )
+          ( "The anonymous function has type:"
+
+            ++ pretty leftType
+
+            ++ "But you are trying to use it as:"
+
+            ++ pretty rightType
+          )
 
     Record ->
-        ( Nothing
-        , "This record is being used in an unexpected way."
-        , Nothing
-        )
+        report
+          Nothing
+          ( "This record is being used in an unexpected way."
+          )
+          ( "The record has type:"
+
+            ++ pretty leftType
+
+            ++ "But you are trying to use it as:"
+
+            ++ pretty rightType
+          )
+
+
+reasonToString :: Reason -> String
+reasonToString reason =
+  case reason of
+    MessyFields expecteds [] ->
+        genericMissingFieldsMessage "former" expecteds
+
+    MessyFields [] actuals ->
+        genericMissingFieldsMessage "latter" actuals
+
+    MessyFields expecteds actuals ->
+        case concatMap (similarNames actuals) expecteds of
+          [] ->
+              "These records look pretty different."
+
+          [(exp,act)] ->
+              "Looks like a misspelling between field " ++ exp ++ " and " ++ act ++ "."
+
+          potentialTypos ->
+              "There are some potential typos in the record field names.\n"
+              ++ concatMap (\(exp,act) -> "\n    " ++ exp ++ " <=> " ++ act) potentialTypos
+
+    NotRecord ->
+        "A record cannot be merged with other types of values."
+
+    TooLongComparableTuple len ->
+        error "TODO"
+
+    Rigid maybeName ->
+        error "TODO"
+
+
+similarNames :: [String] -> String -> [(String,String)]
+similarNames otherKeys key =
+  map ((,) key) (filter (\key' -> Help.distance key key' == 1) otherKeys)
+
+
+
+genericMissingFieldsMessage :: String -> [String] -> String
+genericMissingFieldsMessage latterOrFormer fields =
+  "A record in the " ++ latterOrFormer ++ " type is missing "
+  ++
+  case fields of
+    [key] ->
+      "field `" ++ key ++ "`"
+
+    [key1,key2] ->
+      "fields " ++ key1 ++ " and " ++ key2
+
+    keys ->
+      "fields " ++ List.intercalate ", " (init keys) ++ ", and " ++ last keys
 
 
 prettyOperator :: Var.Canonical -> String
 prettyOperator (Var.Canonical _ opName) =
-  if Help.isOp opName
-    then "(" ++ opName ++ ")"
-    else "`" ++ opName ++ "`"
+  if AstHelp.isOp opName then
+      "(" ++ opName ++ ")"
+
+  else
+      "`" ++ opName ++ "`"
 
 
 funcName :: Maybe Var.Canonical -> String
