@@ -4,12 +4,10 @@ module Reporting.Error.Syntax where
 import qualified Data.List as List
 import qualified Data.Set as Set
 import qualified Text.Parsec.Error as Parsec
-import qualified Text.PrettyPrint as P
-import Text.PrettyPrint ((<+>))
 
 import qualified AST.Helpers as Help
 import qualified AST.Type as Type
-import qualified Reporting.PrettyPrint as P
+import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
 
 
@@ -31,8 +29,8 @@ data Error
 
 -- TO REPORT
 
-toReport :: P.Dealiaser -> Error -> Report.Report
-toReport dealiaser err =
+toReport :: RenderType.Localizer -> Error -> Report.Report
+toReport localizer err =
   case err of
     Parse messages ->
         parseErrorReport messages
@@ -135,29 +133,12 @@ toReport dealiaser err =
           )
 
     UnboundTypeVarsInAlias typeName givenVars tvar tvars tipe ->
-        unboundTypeVars typeName tvar tvars $ P.render $
-            P.hang
-              (P.text "type alias" <+> P.text typeName <+> P.hsep vars <+> P.equals)
-              4
-              (P.pretty dealiaser False tipe)
-      where
-        vars = map P.text (givenVars ++ tvar : tvars)
-
+        unboundTypeVars typeName tvar tvars $
+            RenderType.aliasDecl localizer typeName (givenVars ++ tvar : tvars) tipe
 
     UnboundTypeVarsInUnion typeName givenVars tvar tvars ctors ->
-        unboundTypeVars typeName tvar tvars $ P.render $
-            P.vcat
-              [ P.text "type" <+> P.text typeName <+> P.hsep vars
-              , map toDoc ctors
-                  |> zipWith (<+>) (P.text "=" : repeat (P.text "|"))
-                  |> P.vcat
-                  |> P.nest 4
-              ]
-      where
-        (|>) = flip ($)
-        vars = map P.text (givenVars ++ tvar : tvars)
-        toDoc (ctor, args) =
-            P.text ctor <+> P.hsep (map (P.pretty dealiaser True) args)
+        unboundTypeVars typeName tvar tvars $
+            RenderType.typeDecl localizer typeName (givenVars ++ tvar : tvars) ctors
 
 
 unboundTypeVars :: String -> String -> [String] -> String -> Report.Report

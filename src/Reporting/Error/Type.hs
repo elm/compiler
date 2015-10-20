@@ -3,15 +3,13 @@ module Reporting.Error.Type where
 
 import qualified Data.Char as Char
 import qualified Data.List as List
-import Text.PrettyPrint ((<+>))
-import qualified Text.PrettyPrint as P
 
 import qualified AST.Helpers as AstHelp
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Reporting.Error.Helpers as Help
-import qualified Reporting.PrettyPrint as P
 import qualified Reporting.Region as Region
+import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
 
 
@@ -81,26 +79,26 @@ data Pattern
 -- TO REPORT
 
 
-toReport :: P.Dealiaser -> Error -> Report.Report
-toReport dealiaser err =
+toReport :: RenderType.Localizer -> Error -> Report.Report
+toReport localizer err =
   case err of
     Mismatch info ->
-        mismatchToReport dealiaser info
+        mismatchToReport localizer info
 
     InfiniteType name var tipe ->
         let
           prettyVar =
-            P.pretty dealiaser False var
+            error "TODO P.pretty localizer False var"
 
           prettyType =
-            P.pretty dealiaser False tipe
+            error "TODO P.pretty localizer False tipe"
         in
         Report.simple "INFINITE TYPE"
           ( "I am inferring weird self-referential type for `" ++ name ++ "`"
           )
           ( "TODO - do a better job\n\n"
             ++ "The bit of the type that is self-referential looks like this:\n\n"
-            ++ P.render (P.nest 4 (prettyVar <+> P.equals <+> prettyType))
+            ++ error "TODO P.render (P.nest 4 (prettyVar <+> P.equals <+> prettyType))"
             ++ "\n\nThe cause is often that the usage of `" ++ name ++ "` is flipped around.\n\n"
             ++ "Maybe you are inserting a data structure into an element? Maybe you are giving\n"
             ++ "a function to an argument? Either way, something is probably backwards!\n\n"
@@ -112,18 +110,18 @@ toReport dealiaser err =
         Report.simple "BAD MAIN TYPE" "The 'main' value has an unsupported type." $
           "I need an Element, Html, (Signal Element), or (Signal Html) so I can render it\n"
           ++ "on screen, but you gave me:\n\n"
-          ++ P.render (P.nest 4 (P.pretty dealiaser False tipe))
+          ++ RenderType.tipe localizer tipe
 
 
-mismatchToReport :: P.Dealiaser -> Mismatch -> Report.Report
-mismatchToReport dealiaser (MismatchInfo hint leftType rightType maybeReason) =
+mismatchToReport :: RenderType.Localizer -> Mismatch -> Report.Report
+mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
   let
     report =
       Report.Report "TYPE MISMATCH"
 
     pretty tipe =
       "\n\n"
-      ++ P.render (P.nest 4 (P.pretty dealiaser False tipe))
+      ++ RenderType.tipe localizer tipe
       ++ "\n\n"
   in
   case hint of

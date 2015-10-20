@@ -4,7 +4,7 @@ module Reporting.Error.Pattern where
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
 import qualified Nitpick.Pattern as Pattern
-import qualified Reporting.PrettyPrint as P
+import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
 
 
@@ -21,8 +21,8 @@ data Origin
 
 -- TO REPORT
 
-toReport :: P.Dealiaser -> Error -> Report.Report
-toReport dealiaser err =
+toReport :: RenderType.Localizer -> Error -> Report.Report
+toReport _localizer err =
   case err of
     Incomplete Arg unhandled ->
         Report.simple

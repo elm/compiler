@@ -3,44 +3,47 @@ module AST.Variable where
 import Data.Binary
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
-import Text.PrettyPrint as P
 
 import qualified AST.Helpers as Help
 import qualified AST.Module.Name as ModuleName
-import qualified Reporting.PrettyPrint as P
+
 
 
 -- RAW NAMES
 
+
 newtype Raw = Raw String
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord)
+
 
 
 -- TOP LEVEL NAMES
+
 
 data TopLevel = TopLevelVar
     { topHome :: ModuleName.Canonical
     , topName :: String
     }
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord)
 
 
 
 -- CANONICAL NAMES
+
 
 data Home
     = BuiltIn
     | Module ModuleName.Canonical
     | TopLevel ModuleName.Canonical
     | Local
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord)
 
 
 data Canonical = Canonical
     { home :: !Home
     , name :: !String
     }
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord)
 
 
 local :: String -> Canonical
@@ -68,7 +71,9 @@ inCore home name =
     Canonical (Module (ModuleName.inCore home)) name
 
 
+
 -- VARIABLE RECOGNIZERS
+
 
 isLocalHome :: Home -> Bool
 isLocalHome home =
@@ -190,14 +195,16 @@ instance ToString Canonical where
             name
 
 
+
 -- LISTINGS
+
 
 -- | A listing of values. Something like (a,b,c) or (..) or (a,b,..)
 data Listing a = Listing
     { _explicits :: [a]
     , _open :: Bool
     }
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord)
 
 
 openListing :: Listing a
@@ -220,10 +227,12 @@ data Value
     = Value !String
     | Alias !String
     | Union !String !(Listing String)
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord)
+
 
 
 -- CATEGORIZING VALUES
+
 
 getValues :: [Value] -> [String]
 getValues values =
@@ -264,44 +273,9 @@ getUnion value =
     Union name ctors -> Just (name, ctors)
 
 
--- PRETTY VARIABLES
-
-instance P.Pretty Raw where
-  pretty _ _ (Raw name) =
-      if Help.isOp name
-        then P.parens (P.text name)
-        else P.text name
-
-
-instance P.Pretty Canonical where
-  pretty dealiaser _ var =
-      let
-        name = toString var
-      in
-        P.text (maybe name id (Map.lookup name dealiaser))
-
-
-instance P.Pretty a => P.Pretty (Listing a) where
-  pretty dealiaser _ (Listing explicits open) =
-      let dots = [if open then P.text ".." else P.empty]
-      in
-          P.parens (P.commaCat (map (P.pretty dealiaser False) explicits ++ dots))
-
-
-instance P.Pretty Value where
-  pretty dealiaser _ portable =
-    case portable of
-      Value name ->
-          P.text name
-
-      Alias name ->
-          P.text name
-
-      Union name ctors ->
-          P.text name <> P.pretty dealiaser False ctors
-
 
 -- BINARY SERIALIZATION
+
 
 instance Binary Canonical where
     put (Canonical home name) =

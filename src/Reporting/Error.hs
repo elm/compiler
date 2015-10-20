@@ -12,7 +12,7 @@ import qualified Reporting.Error.Docs as Docs
 import qualified Reporting.Error.Pattern as Pattern
 import qualified Reporting.Error.Syntax as Syntax
 import qualified Reporting.Error.Type as Type
-import qualified Reporting.PrettyPrint as P
+import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
 
 
@@ -28,20 +28,20 @@ data Error
 
 -- TO REPORT
 
-toReport :: P.Dealiaser -> Error -> Report.Report
-toReport dealiaser err =
+toReport :: RenderType.Localizer -> Error -> Report.Report
+toReport localizer err =
   case err of
     Syntax syntaxError ->
-        Syntax.toReport dealiaser syntaxError
+        Syntax.toReport localizer syntaxError
 
     Canonicalize canonicalizeError ->
-        Canonicalize.toReport dealiaser canonicalizeError
+        Canonicalize.toReport localizer canonicalizeError
 
     Type typeError ->
-        Type.toReport dealiaser typeError
+        Type.toReport localizer typeError
 
     Pattern patternError ->
-        Pattern.toReport dealiaser patternError
+        Pattern.toReport localizer patternError
 
     Docs docsError ->
         Docs.toReport docsError
@@ -49,25 +49,25 @@ toReport dealiaser err =
 
 -- TO STRING
 
-toString :: P.Dealiaser -> String -> String -> A.Located Error -> String
-toString dealiaser location source (A.A region err) =
-  Report.toString location region (toReport dealiaser err) source
+toString :: RenderType.Localizer -> String -> String -> A.Located Error -> String
+toString localizer location source (A.A region err) =
+  Report.toString location region (toReport localizer err) source
 
 
-print :: P.Dealiaser -> String -> String -> A.Located Error -> IO ()
-print dealiaser location source (A.A region err) =
-  Report.printError location region (toReport dealiaser err) source
+print :: RenderType.Localizer -> String -> String -> A.Located Error -> IO ()
+print localizer location source (A.A region err) =
+  Report.printError location region (toReport localizer err) source
 
 
 -- TO JSON
 
-toJson :: P.Dealiaser -> FilePath -> A.Located Error -> Json.Value
-toJson dealiaser filePath (A.A region err) =
+toJson :: RenderType.Localizer -> FilePath -> A.Located Error -> Json.Value
+toJson localizer filePath (A.A region err) =
   let
     (maybeRegion, additionalFields) =
         case err of
           Syntax syntaxError ->
-              Report.toJson [] (Syntax.toReport dealiaser syntaxError)
+              Report.toJson [] (Syntax.toReport localizer syntaxError)
 
           Canonicalize canonicalizeError ->
               let
@@ -76,13 +76,13 @@ toJson dealiaser filePath (A.A region err) =
                       (\s -> ["suggestions" .= s])
                       (Canonicalize.extractSuggestions canonicalizeError)
               in
-                Report.toJson suggestions (Canonicalize.toReport dealiaser canonicalizeError)
+                Report.toJson suggestions (Canonicalize.toReport localizer canonicalizeError)
 
           Type typeError ->
-              Report.toJson [] (Type.toReport dealiaser typeError)
+              Report.toJson [] (Type.toReport localizer typeError)
 
           Pattern patternError ->
-              Report.toJson [] (Pattern.toReport dealiaser patternError)
+              Report.toJson [] (Pattern.toReport localizer patternError)
 
           Docs docsError ->
               Report.toJson [] (Docs.toReport docsError)

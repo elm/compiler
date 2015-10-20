@@ -499,7 +499,8 @@ constrainDef env info (Canonical.Definition _ (A.A patternRegion pattern) expr m
     (P.Var name, Nothing) ->
         constrainUnannotatedDef env info qs patternRegion name expr
 
-    _ -> error ("problem in constrainDef with " ++ show pattern)
+    _ ->
+        error "canonical definitions must not have complex patterns as names in the contstraint generation phase"
 
 
 constrainAnnotatedDef

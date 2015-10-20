@@ -1,7 +1,6 @@
 module Reporting.Annotation where
 
 import Prelude hiding (map)
-import qualified Reporting.PrettyPrint as P
 import qualified Reporting.Region as R
 
 
@@ -9,7 +8,6 @@ import qualified Reporting.Region as R
 
 data Annotated annotation a
     = A annotation a
-    deriving (Show)
 
 
 type Located a =
@@ -48,9 +46,3 @@ drop :: Annotated info a -> a
 drop (A _ value) =
     value
 
-
--- PRETTY PRINT
-
-instance (P.Pretty a) => P.Pretty (Annotated info a) where
-  pretty dealiaser parens (A _ value) =
-      P.pretty dealiaser parens value

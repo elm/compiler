@@ -22,4 +22,4 @@ type Expr' =
 
 data Def
     = Definition Pattern.RawPattern Expr (Maybe Type.Raw)
-    deriving (Show)
+

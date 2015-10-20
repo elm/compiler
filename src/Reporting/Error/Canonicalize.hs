@@ -1,14 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
 module Reporting.Error.Canonicalize where
 
-import qualified Text.PrettyPrint as P
-
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Reporting.Error.Helpers as Help
-import qualified Reporting.PrettyPrint as P
 import qualified Reporting.Region as Region
+import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
 
 
@@ -114,8 +112,8 @@ namingError pre post =
   Report.simple "NAMING ERROR" pre post
 
 
-toReport :: P.Dealiaser -> Error -> Report.Report
-toReport dealiaser err =
+toReport :: RenderType.Localizer -> Error -> Report.Report
+toReport localizer err =
   case err of
     Var (VarError kind name problem suggestions) ->
         let var = kind ++ " `" ++ name ++ "`"
@@ -161,8 +159,7 @@ toReport dealiaser err =
                 ++ "and expand them all to know the real underlying type. The problem is that\n"
                 ++ "when I expand a recursive type alias, it keeps getting bigger and bigger.\n"
                 ++ "Dealiasing results in an infinitely large type! Try this instead:\n\n"
-                ++ "    type " ++ name ++ concatMap (' ':) tvars ++ " ="
-                ++ P.render (P.nest 8 (P.hang (P.text name) 2 (P.pretty dealiaser True tipe)))
+                ++ error "TODO RenderType.typeDecl localizer name tvars tipe"
                 ++ "\n\nThis creates a brand new type that cannot be expanded. It is similar types\n"
                 ++ "like List which are recursive, but do not get expanded into infinite types."
 
@@ -211,8 +208,10 @@ toReport dealiaser err =
             ++ " through " ++ boundPort ++ " `" ++ name ++ "`"
 
           postHint =
-            "The specific unsupported type is:\n\n"
-            ++ P.render (P.nest 4 (P.pretty dealiaser False localType)) ++ "\n\n"
+            "The specific unsupported type is:\n"
+            ++ "\n"
+            ++ error "TODO P.render (P.nest 4 (RenderType.doc localizer localType))" ++ "\n"
+            ++ "\n"
             ++ "The types of values that can flow through " ++ boundPort ++ "s include:\n"
             ++ "Ints, Floats, Bools, Strings, Maybes, Lists, Arrays, Tuples,\n"
             ++ "Json.Values, and concrete records."

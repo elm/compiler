@@ -28,4 +28,4 @@ type Def =
 data Def'
     = Definition Pattern.RawPattern Expr
     | TypeAnnotation String Type.Raw
-    deriving (Show)
+
