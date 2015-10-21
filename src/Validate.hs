@@ -403,7 +403,7 @@ checkDecl isRoot (A.A (region,_) decl) =
                 (v:vs) = Set.toList (Set.fromList unbound)
               in
                 Result.throw region
-                  (Error.UnboundTypeVarsInUnion name boundVars v vs ctors)
+                  (Error.UnboundTypeVarsInUnion name boundVars v vs)
 
     D.TypeAlias name boundVars tipe ->
         case findUnbound boundVars (freeVars tipe) of
@@ -415,7 +415,7 @@ checkDecl isRoot (A.A (region,_) decl) =
                 (v:vs) = Set.toList (Set.fromList unbound)
               in
                 Result.throw region
-                  (Error.UnboundTypeVarsInAlias name boundVars v vs tipe)
+                  (Error.UnboundTypeVarsInAlias name boundVars v vs)
 
     D.Port _ ->
         if isRoot

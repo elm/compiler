@@ -109,6 +109,8 @@ Library
         Reporting.Error.Syntax,
         Reporting.Error.Type,
         Reporting.Region,
+        Reporting.Render.Code,
+        Reporting.Render.Type,
         Reporting.Report,
         Reporting.Result,
         Reporting.Warning,

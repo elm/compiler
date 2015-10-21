@@ -14,8 +14,8 @@ constrain
     -> T.Type
     -> IO T.TypeConstraint
 constrain env region literal tipe =
-  do  tipe' <- litType
-      return (T.CEqual (Error.Literal name) region tipe tipe')
+  do  definiteType <- litType
+      return (T.CEqual (Error.Literal name) region definiteType tipe)
   where
     prim name =
         return (Env.getType env name)

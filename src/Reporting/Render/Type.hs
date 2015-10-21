@@ -1,7 +1,6 @@
 module Reporting.Render.Type
   ( Localizer
   , decl
-  , aliasDecl
   , annotation
   , toDoc
   , diffToDocs
@@ -13,10 +12,11 @@ import Control.Arrow ((***), first)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Text.PrettyPrint.ANSI.Leijen
-  ( Doc, (<+>), cat, colon, comma, dullyellow, equals, hang, hsep, indent
-  , lbrace, lparen, rbrace, rparen, sep, text, vcat
+  ( Doc, (<>), (<+>), cat, colon, comma, dullyellow, equals, hang, hsep
+  , indent, lbrace, lparen, parens, rbrace, rparen, sep, space, text, vcat
   )
 
+import qualified AST.Helpers as Help
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import Reporting.Error.Helpers as Help
@@ -24,6 +24,21 @@ import Reporting.Error.Helpers as Help
 
 
 -- PUBLIC API FOR CREATING DOCS
+
+
+toDoc :: Localizer -> Type.Canonical -> Doc
+toDoc localizer tipe =
+  docType localizer tipe
+
+
+diffToDocs :: Localizer -> Style -> Type.Canonical -> Type.Canonical -> (Doc,Doc)
+diffToDocs localizer style leftType rightType =
+  case diff localizer style leftType rightType of
+    Same doc ->
+        (doc, doc)
+
+    Diff leftDoc rightDoc ->
+        (leftDoc, rightDoc)
 
 
 decl :: Localizer -> String -> [String] -> [(String, [Type.Canonical])] -> Doc
@@ -40,31 +55,25 @@ decl localizer name vars tags =
         (map docTag tags)
 
 
-aliasDecl :: Localizer -> String -> [String] -> Type.Canonical -> Doc
-aliasDecl localizer name vars tipe =
-  hang 4 $ vcat $
-    [ hsep (map text ("type" : name : vars) ++ [equals])
-    , docType localizer tipe
-    ]
+annotation :: Localizer -> String -> Type.Canonical -> Doc
+annotation localizer name tipe =
+  let
+    docName =
+      if Help.isOp name then parens (text name) else text name
+  in
+    case Type.collectLambdas tipe of
+      parts@(_ : _ : _) ->
+          hang 4 $ sep $
+            docName
+            : zipWith (<+>)
+                ((colon <> space) : repeat (text "->"))
+                (map (docType localizer) parts)
 
-
-annotation =
-  error "TODO"
-
-
-toDoc :: Localizer -> Type.Canonical -> Doc
-toDoc localizer tipe =
-  docType localizer tipe
-
-
-diffToDocs :: Localizer -> Style -> Type.Canonical -> Type.Canonical -> (Doc,Doc)
-diffToDocs localizer style leftType rightType =
-  case diff localizer style leftType rightType of
-    Same doc ->
-        (doc, doc)
-
-    Diff leftDoc rightDoc ->
-        (leftDoc, rightDoc)
+      _ ->
+          hang 4 $ sep $
+            [ docName <+> colon
+            , docType localizer tipe
+            ]
 
 
 
@@ -430,8 +439,13 @@ docType localizer tipe =
 
 
 docLambda :: [Doc] -> Doc
-docLambda (arg:rest) =
-  sep (arg : map (text "->" <+>) rest)
+docLambda docs =
+  case docs of
+    [] ->
+        error "cannot call docLambda with an empty list"
+
+    arg:rest ->
+        sep (arg : map (text "->" <+>) rest)
 
 
 
@@ -480,8 +494,10 @@ docRecord style fields maybeExt =
 
     (_, Just ext) ->
         sep
-          [ lbrace <+> ext
-          , indent 4 (cat (zipWith (<+>) (text "|" : repeat comma) fieldDocs))
+          [ hang 4 $ sep $
+              [ lbrace <+> ext
+              , cat (zipWith (<+>) (text "|" : repeat comma) fieldDocs)
+              ]
           , rbrace
           ]
 

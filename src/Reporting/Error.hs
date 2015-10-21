@@ -4,7 +4,6 @@ module Reporting.Error where
 
 import Data.Aeson ((.=))
 import qualified Data.Aeson as Json
-import Prelude hiding (print)
 
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Canonicalize
@@ -16,7 +15,9 @@ import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
 
 
+
 -- ALL POSSIBLE ERRORS
+
 
 data Error
     = Syntax Syntax.Error
@@ -26,7 +27,9 @@ data Error
     | Docs Docs.Error
 
 
+
 -- TO REPORT
+
 
 toReport :: RenderType.Localizer -> Error -> Report.Report
 toReport localizer err =
@@ -47,19 +50,9 @@ toReport localizer err =
         Docs.toReport docsError
 
 
--- TO STRING
-
-toString :: RenderType.Localizer -> String -> String -> A.Located Error -> String
-toString localizer location source (A.A region err) =
-  Report.toString location region (toReport localizer err) source
-
-
-print :: RenderType.Localizer -> String -> String -> A.Located Error -> IO ()
-print localizer location source (A.A region err) =
-  Report.printError location region (toReport localizer err) source
-
 
 -- TO JSON
+
 
 toJson :: RenderType.Localizer -> FilePath -> A.Located Error -> Json.Value
 toJson localizer filePath (A.A region err) =

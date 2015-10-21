@@ -1,10 +1,9 @@
 {-# OPTIONS_GHC -Wall #-}
 module Reporting.Error.Type where
 
-import qualified Data.Char as Char
-import qualified Data.List as List
+import qualified Data.Maybe as Maybe
+import Text.PrettyPrint.ANSI.Leijen (Doc, (<+>), equals, indent, text)
 
-import qualified AST.Helpers as AstHelp
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Reporting.Error.Helpers as Help
@@ -85,62 +84,52 @@ toReport localizer err =
     Mismatch info ->
         mismatchToReport localizer info
 
-    InfiniteType name var tipe ->
-        let
-          prettyVar =
-            error "TODO P.pretty localizer False var"
-
-          prettyType =
-            error "TODO P.pretty localizer False tipe"
-        in
-        Report.simple "INFINITE TYPE"
-          ( "I am inferring weird self-referential type for `" ++ name ++ "`"
-          )
-          ( "TODO - do a better job\n\n"
-            ++ "The bit of the type that is self-referential looks like this:\n\n"
-            ++ error "TODO P.render (P.nest 4 (prettyVar <+> P.equals <+> prettyType))"
-            ++ "\n\nThe cause is often that the usage of `" ++ name ++ "` is flipped around.\n\n"
-            ++ "Maybe you are inserting a data structure into an element? Maybe you are giving\n"
-            ++ "a function to an argument? Either way, something is probably backwards!\n\n"
-            ++ "Try breaking the code related to `" ++ name ++ "` into smaller pieces.\n"
-            ++ "Give each piece a name and try to write down its type."
-          )
+    InfiniteType name overallType infiniteType ->
+        infiniteTypeToReport localizer name overallType infiniteType
 
     BadMain tipe ->
-        Report.simple "BAD MAIN TYPE" "The 'main' value has an unsupported type." $
-          "I need an Element, Html, (Signal Element), or (Signal Html) so I can render it\n"
-          ++ "on screen, but you gave me:\n\n"
-          ++ RenderType.tipe localizer tipe
+        Report.report
+          "BAD MAIN TYPE"
+          Nothing
+          "The 'main' value has an unsupported type."
+          ( Help.stack
+              [ Help.reflowParagraph $
+                "I need an Element, Html, (Signal Element), or (Signal Html) so I can render it\
+                \ on screen, but you gave me:"
+              , indent 4 (RenderType.toDoc localizer tipe)
+              ]
+          )
+
+
+
+-- TYPE MISMATCHES
 
 
 mismatchToReport :: RenderType.Localizer -> Mismatch -> Report.Report
 mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
   let
     report =
-      Report.Report "TYPE MISMATCH"
+      Report.report "TYPE MISMATCH"
 
-    pretty tipe =
-      "\n\n"
-      ++ RenderType.tipe localizer tipe
-      ++ "\n\n"
+    reasonHints =
+      Maybe.maybeToList (fmap reasonToString maybeReason)
+
+    cmpHint leftWords rightWords extraHints =
+      comparisonHint localizer leftType rightType leftWords rightWords (extraHints ++ reasonHints)
   in
   case hint of
     CaseBranch branchNumber region ->
         report
           (Just region)
-          ( "The " ++ ordinalize (branchNumber -1) ++ " and " ++ ordinalize branchNumber
-            ++ " branches of this `case` result in different types of values."
+          ( "The " ++ ordinalPair branchNumber
+            ++ " branches of this `case` produce different types of values."
           )
-          ( "The " ++ ordinalize (branchNumber -1) ++ " branch results in this type of value:\n"
-
-            ++ pretty leftType
-
-            ++ "And the " ++ ordinalize branchNumber ++ " branch results in this type:\n"
-
-            ++ pretty rightType
-
-            ++ "These branches should match so that no matter which one we take, we always get\n"
-            ++ "back the same type of value."
+          ( cmpHint
+              ("The " ++ Help.ordinalize (branchNumber -1) ++ " branch has this type:")
+              ("But the " ++ Help.ordinalize branchNumber ++ " is:")
+              [ "All branches in a `case` must have the same type. So no matter\
+                \ which one we take, we always get back the same type of value."
+              ]
           )
 
     Case ->
@@ -155,72 +144,62 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
     IfCondition ->
         report
           Nothing
-          ( "This condition does not evaluate to a boolean value, True or False."
-          )
-          ( "Instead of Bool, it is resulting in:\n"
-
-            ++ pretty rightType
-
-            ++ "Note: Elm does not have \"truthiness\" such that ints and strings and lists\n"
-            ++ "are automatically converted to booleans. Do that conversion explicitly."
+          "This condition does not evaluate to a boolean value, True or False."
+          ( cmpHint
+              "You have given me an condition with this type:"
+              "But I need it to be:"
+              [ "Elm does not have \"truthiness\" such that ints and strings and lists\
+                \ are automatically converted to booleans. Do that conversion explicitly."
+              ]
           )
 
     IfBranches ->
         report
           Nothing
-          ( "The branches of this `if` result in different types of values."
-          )
-          ( "The `then` branch results in:\n"
-
-            ++ pretty leftType
-
-            ++ "And the `else` branch results in:\n"
-
-            ++ pretty rightType
-
-            ++ "These need to match so that no matter which one we take, we always get\n"
-            ++ "back the same type of value."
+          "The branches of this `if` produce different types of values."
+          ( cmpHint
+              "The `then` branch has type:"
+              "But the `else` branch is:"
+              [ "These need to match so that no matter which branch we take, we\
+                \ always get back the same type of value."
+              ]
           )
 
     MultiIfBranch branchNumber region ->
         report
           (Just region)
-          ( "The " ++ ordinalize branchNumber ++ " branch of this `if` results in an unexpected type of value."
+          ( "The " ++ ordinalPair branchNumber
+            ++ " branches of this `if` produce different types of values."
           )
-          ( "The " ++ ordinalize (branchNumber - 1) ++ " branch results in:\n"
-
-            ++ pretty leftType
-
-            ++ "And the "++ ordinalize branchNumber ++ " branch results in:\n"
-
-            ++ pretty rightType
-
-            ++ "All branches should match so that no matter which one we take, we always get\n"
-            ++ "back the same type of value."
+          ( cmpHint
+              ("The " ++ Help.ordinalize (branchNumber - 1) ++ " branch has this type:")
+              ("But the "++ Help.ordinalize branchNumber ++ " is:")
+              [ "All the branches of an `if` need to match so that no matter which\
+                \ one we take, we get back the same type of value overall."
+              ]
           )
 
     If ->
         report
           Nothing
-          ( "All the branches of this if-expression are consistent, but the overall\n"
-            ++ "type does not match how it is used elsewhere."
-          )
-          ( "The `if` evaluates to something of type:\n"
-
-            ++ pretty leftType
-
-            ++ "Which is fine, but the surrounding context wants it to be:\n"
-
-            ++ pretty rightType
-
+          "All the branches of this `if` are consistent, but the overall\
+          \ type does not match how it is used elsewhere."
+          ( cmpHint
+              "The `if` evaluates to something of type:"
+              "Which is fine, but the surrounding context wants it to be:"
+              []
           )
 
     ListElement elementNumber region ->
         report
           (Just region)
-          ( "The " ++ ordinalize elementNumber ++ " element of this list is an unexpected type of value."
-          )
-          ( "All elements should be the same type of value so that we can iterate over the\nlist without running into unexpected values."
+          ("The " ++ ordinalPair elementNumber ++ " elements are different types of values.")
+          ( cmpHint
+              ("The " ++ Help.ordinalize (elementNumber - 1) ++ " element has this type:")
+              ("But the "++ Help.ordinalize elementNumber ++ " is:")
+              [ "All elements should be the same type of value so that we can\
+                \ iterate through the list without running into unexpected values."
+              ]
           )
 
     List ->
@@ -229,56 +208,43 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
           ( "All the elements in this list are the same type, but the overall\n"
             ++ "type does not match how it is used elsewhere."
           )
-          ( "The list has type:\n"
-
-            ++ pretty leftType
-
-            ++ "Which is fine, but the surrounding context wants it to be:\n"
-
-            ++ pretty rightType
+          ( cmpHint
+              "The list has type:"
+              "Which is fine, but the surrounding context wants it to be:"
+              []
           )
 
     BinopLeft op region ->
         report
           (Just region)
-          ("The left argument of " ++ prettyOperator op ++ " is causing a type mismatch.")
-          ( prettyOperator op ++ " is expecting:"
-
-            ++ pretty leftType
-
-            ++ "But the value on the left has this type:"
-
-            ++ pretty rightType
+          ("The left argument of " ++ prettyName op ++ " is causing a type mismatch.")
+          ( cmpHint
+              (prettyName op ++ " is expecting the left argument to be a:")
+              "But the left argument is:"
+              []
           )
 
     BinopRight op region ->
         report
           (Just region)
-          ( "The right argument of " ++ prettyOperator op ++ " is causing a type mismatch."
-          )
-          ( prettyOperator op ++ " is expecting:"
-
-            ++ pretty leftType
-
-            ++ "But the value on the right has this type:"
-
-            ++ pretty rightType
+          ("The right argument of " ++ prettyName op ++ " is causing a type mismatch.")
+          ( cmpHint
+              (prettyName op ++ " is expecting the right argument to be a:")
+              "But the right argument is:"
+              []
           )
 
     Binop op ->
         report
           Nothing
-          ( "The two arguments to " ++ prettyOperator op ++ " are fine, but the overall type of this expression\n"
-            ++ "does not match how it is used elsewhere."
+          ( "The two arguments to " ++ prettyName op ++
+            " are fine, but the overall type of this expression\
+            \ does not match how it is used elsewhere."
           )
-          ( "The result of this binary operation is:\n"
-
-            ++ pretty leftType
-
-            ++ "Which is fine, but the surrounding context wants it to be:\n"
-
-            ++ pretty rightType
-
+          ( cmpHint
+              "The result of this binary operation is:"
+              "Which is fine, but the surrounding context wants it to be:"
+              []
           )
 
     Function maybeName ->
@@ -286,30 +252,24 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
           Nothing
           ( "The return type of " ++ funcName maybeName ++ " is being used in unexpected ways."
           )
-          ( "The function results in a value with type:\n"
-
-            ++ pretty leftType
-
-            ++ "Which is fine, but the surrounding context wants it to be:\n"
-
-            ++ pretty rightType
+          ( cmpHint
+              "The function results in this type of value:"
+              "Which is fine, but the surrounding context wants it to be:"
+              []
           )
 
     UnexpectedArg maybeName index region ->
         report
           (Just region)
-          ( "The " ++ ordinalize index ++ " argument to " ++ funcName maybeName
+          ( "The " ++ Help.ordinalize index ++ " argument to " ++ funcName maybeName
             ++ " is causing a mismatch."
           )
-          ( "The " ++ ordinalize index ++ " to " ++ funcName maybeName ++ " should be:"
-
-            ++ pretty leftType
-
-            ++ "But it is:"
-
-            ++ pretty rightType
-
-            ++ maybe "" reasonToString maybeReason
+          ( cmpHint
+              ( Help.capitalize (funcName maybeName) ++ " is expecting the "
+                ++ Help.ordinalize index ++ " argument to be:"
+              )
+              "But it is:"
+              []
           )
 
     FunctionArity maybeName expected actual region ->
@@ -318,34 +278,29 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
         in
           report
             (Just region)
-            ( capitalize (funcName maybeName) ++ " is expecting " ++ show expected
+            ( Help.capitalize (funcName maybeName) ++ " is expecting " ++ show expected
               ++ " argument" ++ s ++ ", but was given " ++ show actual ++ "."
             )
-            ( error "TODO are the types interesting here?"
-            )
+            (text "Maybe you forgot some parentheses somewhere?")
 
     BadTypeAnnotation name ->
         report
           Nothing
-          ( "The type annotation for `" ++ name ++ "` does not match its definition."
-          )
-          ( "Based on the actual definition, the type should be:\n"
-
-            ++ pretty rightType
+          ("The type annotation for " ++ Help.functionName name ++ " does not match its definition.")
+          ( cmpHint
+              "The type annotation is saying:"
+              "But I am inferring that the definition has this type:"
+              []
           )
 
     Instance name ->
         report
           Nothing
-          ( "This usage of `" ++ name ++ "` is causing a type mismatch."
-          )
-          ( "Based on its definition, `" ++ name ++ "` has this type:"
-
-            ++ pretty leftType
-
-            ++ "But you are trying to use it as:"
-
-            ++ pretty rightType
+          (Help.functionName name ++ " is being used in an unexpected way.")
+          ( cmpHint
+              ("Based on its definition, " ++ Help.functionName name ++ " has this type:")
+              "But you are trying to use it as:"
+              []
           )
 
     Literal name ->
@@ -353,9 +308,10 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
           Nothing
           ( "This " ++ name ++ " value is being used as if it is some other type of value."
           )
-          ( "You are trying to use this " ++ name ++ " as this type:"
-
-            ++ pretty rightType
+          ( cmpHint
+              ("The " ++ name ++ " definitely has this type:")
+              ("But it is being used as:")
+              []
           )
 
     Pattern patErr ->
@@ -364,71 +320,87 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
             case patErr of
               PVar name -> "variable `" ++ name ++ "`"
               PAlias name -> "alias `" ++ name ++ "`"
-              PData name -> "`" ++ name ++ "`"
+              PData name -> "tag `" ++ name ++ "`"
               PRecord -> "a record"
         in
           report
             Nothing
-            ( "Problem with " ++ thing ++ " in this pattern match."
+            ( Help.capitalize thing ++ " is causing problems in this pattern match."
             )
-            ( "This pattern matches things of type:"
-
-              ++ pretty leftType
-
-              ++ "But the values it will actually be trying to match are:"
-
-              ++ pretty rightType
+            ( cmpHint
+                "This pattern matches things of type:"
+                "But the values it will actually be trying to match are:"
+                []
             )
 
     Shader ->
         report
           Nothing
-          ( "There is some problem with this GLSL shader."
-          )
+          "There is some problem with this GLSL shader."
           ( error "TODO generic error"
           )
 
     Range ->
         report
           Nothing
-          ( "The low and high members of this list range are not the same type of value."
-          )
-          ( "The low end of the range has type:"
-
-            ++ pretty leftType
-
-            ++ "But the high end is:"
-
-            ++ pretty rightType
+          "The low and high members of this list range are not the same type of value."
+          ( cmpHint
+              "The low end of the range has type:"
+              "But the high end is:"
+              []
           )
 
     Lambda ->
         report
           Nothing
-          ( "This anonymous function is being used in an unexpected way."
-          )
-          ( "The anonymous function has type:"
-
-            ++ pretty leftType
-
-            ++ "But you are trying to use it as:"
-
-            ++ pretty rightType
+          "This anonymous function is being used in an unexpected way."
+          ( cmpHint
+              "The anonymous function has type:"
+              "But you are trying to use it as:"
+              []
           )
 
     Record ->
         report
           Nothing
-          ( "This record is being used in an unexpected way."
+          "This record is being used in an unexpected way."
+          ( cmpHint
+              "The record has type:"
+              "But you are trying to use it as:"
+              []
           )
-          ( "The record has type:"
 
-            ++ pretty leftType
 
-            ++ "But you are trying to use it as:"
+comparisonHint
+    :: RenderType.Localizer
+    -> Type.Canonical
+    -> Type.Canonical
+    -> String
+    -> String
+    -> [String]
+    -> Doc
+comparisonHint localizer leftType rightType leftWords rightWords finalHints =
+  let
+    (leftDoc, rightDoc) =
+      RenderType.diffToDocs localizer RenderType.Elide leftType rightType
+  in
+    Help.stack $
+      [ Help.reflowParagraph leftWords
+      , indent 4 leftDoc
+      , Help.reflowParagraph rightWords
+      , indent 4 rightDoc
+      ]
+      ++
+      map Help.reflowParagraph finalHints
 
-            ++ pretty rightType
-          )
+
+ordinalPair :: Int -> String
+ordinalPair number =
+  Help.ordinalize (number -1 ) ++ " and " ++ Help.ordinalize number
+
+
+
+-- MISMTACH REASONS
 
 
 reasonToString :: Reason -> String
@@ -445,12 +417,12 @@ reasonToString reason =
           [] ->
               "These records look pretty different."
 
-          [(exp,act)] ->
-              "Looks like a misspelling between field " ++ exp ++ " and " ++ act ++ "."
+          [(ex,ac)] ->
+              "Looks like a misspelling between field " ++ ex ++ " and " ++ ac ++ "."
 
           potentialTypos ->
               "There are some potential typos in the record field names.\n"
-              ++ concatMap (\(exp,act) -> "\n    " ++ exp ++ " <=> " ++ act) potentialTypos
+              ++ concatMap (\(ex,ac) -> "\n    " ++ ex ++ " <=> " ++ ac) potentialTypos
 
     NotRecord ->
         "A record cannot be merged with other types of values."
@@ -467,29 +439,15 @@ similarNames otherKeys key =
   map ((,) key) (filter (\key' -> Help.distance key key' == 1) otherKeys)
 
 
-
 genericMissingFieldsMessage :: String -> [String] -> String
 genericMissingFieldsMessage latterOrFormer fields =
-  "A record in the " ++ latterOrFormer ++ " type is missing "
-  ++
-  case fields of
-    [key] ->
-      "field `" ++ key ++ "`"
-
-    [key1,key2] ->
-      "fields " ++ key1 ++ " and " ++ key2
-
-    keys ->
-      "fields " ++ List.intercalate ", " (init keys) ++ ", and " ++ last keys
+  "A record in the " ++ latterOrFormer ++ " type is missing field"
+  ++ Help.commaSep fields
 
 
-prettyOperator :: Var.Canonical -> String
-prettyOperator (Var.Canonical _ opName) =
-  if AstHelp.isOp opName then
-      "(" ++ opName ++ ")"
-
-  else
-      "`" ++ opName ++ "`"
+prettyName :: Var.Canonical -> String
+prettyName (Var.Canonical _ opName) =
+  Help.functionName opName
 
 
 funcName :: Maybe Var.Canonical -> String
@@ -499,33 +457,62 @@ funcName maybeVar =
       "this function"
 
     Just var ->
-      "function " ++ prettyOperator var
+      "function " ++ prettyName var
 
 
-capitalize :: String -> String
-capitalize string =
-  case string of
-    [] -> []
-    c : cs ->
-      Char.toUpper c : cs
+
+-- INFINITE TYPES
 
 
-ordinalize :: Int -> String
-ordinalize number =
+infiniteTypeToReport
+    :: RenderType.Localizer
+    -> String
+    -> Type.Canonical
+    -> Type.Canonical
+    -> Report.Report
+infiniteTypeToReport localizer name overallType infiniteType =
+  Report.report
+    "INFINITE TYPE"
+    Nothing
+    ( "I am inferring a weird self-referential type for " ++ Help.functionName name
+    )
+    ( Help.stack $
+        explainInfiniteType localizer name overallType infiniteType
+        ++
+        [ text $
+            "This can be very tricky to figure out, so definitely read the debugging hints:\n"
+            ++ Help.hintLink "infinite-type"
+        ]
+    )
+
+
+explainInfiniteType
+    :: RenderType.Localizer
+    -> String
+    -> Type.Canonical
+    -> Type.Canonical
+    -> [Doc]
+explainInfiniteType localizer name overallType infiniteType =
   let
-    remainder10 =
-      number `mod` 10
-
-    remainder100 =
-      number `mod` 100
-
-    ending
-      | remainder100 `elem` [11..13] = "th"
-      | remainder10 == 1             = "st"
-      | remainder10 == 2             = "nd"
-      | remainder10 == 3             = "rd"
-      | otherwise                    = "th"
+    selfReference =
+      text "?" <+> equals <+> RenderType.toDoc localizer infiniteType
   in
-    show number ++ ending
+    case overallType of
+      Type.Var "?" ->
+          [ Help.reflowParagraph $
+              "I cannot write down the actual type of " ++ Help.functionName name ++
+              " because it is infinitely large (that's the problem!) so here it\
+              \ is as an equation where `?` represents the type:"
+          , indent 4 selfReference
+          ]
 
-
+      _ ->
+          [ Help.reflowParagraph $
+              "I am inferring that " ++ Help.functionName name ++ " has this type:"
+          , indent 4 (RenderType.toDoc localizer overallType)
+          , Help.reflowParagraph $
+              "The problem is in the `?` which seems to contain itself. I cannot show\
+              \ you that type directly (because it is infinitely large!) so here it is\
+              \ as an equation:"
+          , indent 4 selfReference
+          ]

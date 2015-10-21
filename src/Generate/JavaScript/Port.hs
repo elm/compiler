@@ -97,14 +97,14 @@ inbound name portType =
     T.Normal tipe ->
         _Port "inbound" `call`
             [ StringLit () name
-            , StringLit () (RenderType.tipe Map.empty tipe)
+            , StringLit () (show (RenderType.toDoc Map.empty tipe))
             , toTypeFunction tipe
             ]
 
     T.Signal _root arg ->
         _Port "inboundSignal" `call`
             [ StringLit () name
-            , StringLit () (RenderType.tipe Map.empty arg)
+            , StringLit () (show (RenderType.toDoc Map.empty arg))
             , toTypeFunction arg
             ]
 
