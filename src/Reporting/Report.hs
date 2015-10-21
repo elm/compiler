@@ -62,11 +62,11 @@ toDoc location region (Report title highlight preHint postHint) source =
     messageBar title location
     <> hardline <> hardline <>
     preHint
-    <> hardline <>
+    <> hardline <> hardline <>
     Code.render highlight region source
     <> hardline <>
     postHint
-    <> hardline
+    <> hardline <> hardline
 
 
 messageBar :: String -> String -> Doc
