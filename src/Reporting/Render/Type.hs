@@ -5,6 +5,8 @@ module Reporting.Render.Type
   , toDoc
   , diffToDocs
   , Style(..)
+  , findPotentialTypos
+  , vetTypos
   )
   where
 
@@ -13,7 +15,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Text.PrettyPrint.ANSI.Leijen
   ( Doc, (<>), (<+>), cat, colon, comma, dullyellow, equals, hang, hsep
-  , indent, lbrace, lparen, parens, rbrace, rparen, sep, space, text, vcat
+  , lbrace, lparen, parens, rbrace, rparen, sep, space, text, vcat
   )
 
 import qualified AST.Helpers as Help

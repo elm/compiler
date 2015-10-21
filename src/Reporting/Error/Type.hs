@@ -2,7 +2,10 @@
 module Reporting.Error.Type where
 
 import qualified Data.Maybe as Maybe
-import Text.PrettyPrint.ANSI.Leijen (Doc, (<+>), equals, indent, text)
+import Text.PrettyPrint.ANSI.Leijen
+  ( Doc, (<>), (<+>), colon, dullyellow, equals
+  , fillSep, hang, indent, text, underline, vcat
+  )
 
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
@@ -111,11 +114,11 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
     report =
       Report.report "TYPE MISMATCH"
 
-    reasonHints =
-      Maybe.maybeToList (fmap reasonToString maybeReason)
-
     cmpHint leftWords rightWords extraHints =
-      comparisonHint localizer leftType rightType leftWords rightWords (extraHints ++ reasonHints)
+      comparisonHint localizer leftType rightType leftWords rightWords
+        ( map toHint extraHints
+          ++ Maybe.maybeToList (fmap reasonToString maybeReason)
+        )
   in
   case hint of
     CaseBranch branchNumber region ->
@@ -377,7 +380,7 @@ comparisonHint
     -> Type.Canonical
     -> String
     -> String
-    -> [String]
+    -> [Doc]
     -> Doc
 comparisonHint localizer leftType rightType leftWords rightWords finalHints =
   let
@@ -391,58 +394,16 @@ comparisonHint localizer leftType rightType leftWords rightWords finalHints =
       , indent 4 rightDoc
       ]
       ++
-      map Help.reflowParagraph finalHints
+      finalHints
+
+
+
+-- MISMATCH HELPERS
 
 
 ordinalPair :: Int -> String
 ordinalPair number =
   Help.ordinalize (number -1 ) ++ " and " ++ Help.ordinalize number
-
-
-
--- MISMTACH REASONS
-
-
-reasonToString :: Reason -> String
-reasonToString reason =
-  case reason of
-    MessyFields expecteds [] ->
-        genericMissingFieldsMessage "former" expecteds
-
-    MessyFields [] actuals ->
-        genericMissingFieldsMessage "latter" actuals
-
-    MessyFields expecteds actuals ->
-        case concatMap (similarNames actuals) expecteds of
-          [] ->
-              "These records look pretty different."
-
-          [(ex,ac)] ->
-              "Looks like a misspelling between field " ++ ex ++ " and " ++ ac ++ "."
-
-          potentialTypos ->
-              "There are some potential typos in the record field names.\n"
-              ++ concatMap (\(ex,ac) -> "\n    " ++ ex ++ " <=> " ++ ac) potentialTypos
-
-    NotRecord ->
-        "A record cannot be merged with other types of values."
-
-    TooLongComparableTuple len ->
-        error "TODO"
-
-    Rigid maybeName ->
-        error "TODO"
-
-
-similarNames :: [String] -> String -> [(String,String)]
-similarNames otherKeys key =
-  map ((,) key) (filter (\key' -> Help.distance key key' == 1) otherKeys)
-
-
-genericMissingFieldsMessage :: String -> [String] -> String
-genericMissingFieldsMessage latterOrFormer fields =
-  "A record in the " ++ latterOrFormer ++ " type is missing field"
-  ++ Help.commaSep fields
 
 
 prettyName :: Var.Canonical -> String
@@ -458,6 +419,71 @@ funcName maybeVar =
 
     Just var ->
       "function " ++ prettyName var
+
+
+
+-- MISMTACH REASONS
+
+
+reasonToString :: Reason -> Doc
+reasonToString reason =
+  case reason of
+    MessyFields leftOnly rightOnly ->
+        let
+          maybeMessage =
+            do  let typos = RenderType.findPotentialTypos leftOnly rightOnly
+                RenderType.vetTypos typos
+                misspellingMessage typos
+        in
+          case maybeMessage of
+            Just doc ->
+                doc
+
+            Nothing ->
+                error "TODO"
+
+    NotRecord ->
+        toHint "A record cannot be merged with other types of values."
+
+    TooLongComparableTuple len ->
+        error "TODO"
+
+    Rigid maybeName ->
+        error "TODO"
+
+
+hintDoc :: Doc
+hintDoc =
+  underline (text "Hint") <> colon
+
+
+toHint :: String -> Doc
+toHint str =
+  fillSep (hintDoc : map text (words str))
+
+
+misspellingMessage :: [(String,String)] -> Maybe Doc
+misspellingMessage typos =
+  if null typos then
+      Nothing
+
+  else
+      let
+        maxLen =
+          maximum (map (length . fst) typos)
+      in
+        Just $ hang 4 $ vcat $
+          toHint "I compared the record fields and found some potential typos."
+          : text ""
+          : map (pad maxLen) typos
+
+
+pad :: Int -> (String, String) -> Doc
+pad maxLen (leftField, rightField) =
+  text (replicate (maxLen - length leftField) ' ')
+  <> dullyellow (text leftField)
+  <+> text "<->"
+  <+> dullyellow (text rightField)
 
 
 
