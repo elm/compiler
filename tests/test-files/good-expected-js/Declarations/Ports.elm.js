@@ -38,7 +38,7 @@ Elm.Main.make = function (_elm) {
       })) : _U.badPort("an array",v);
    });
    var tuple = Elm.Native.Port.make(_elm).inbound("tuple",
-   "(Float, Bool)",
+   "( Float, Bool )",
    function (v) {
       return typeof v === "object" && v instanceof Array ? {ctor: "_Tuple2"
                                                            ,_0: typeof v[0] === "number" ? v[0] : _U.badPort("a number",
