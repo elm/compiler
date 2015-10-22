@@ -152,11 +152,13 @@ vetTypos potentialTypos =
     (leftCounts, rightCounts) =
       foldr tallyNames (Map.empty, Map.empty) potentialTypos
 
-    allUnique :: Map.Map String Int -> Bool
-    allUnique counts =
+    acceptable :: Map.Map String Int -> Bool
+    acceptable counts =
+      not (Map.null counts)
+      &&
       Map.foldr (\n unique -> n < 2 && unique) True counts
   in
-    if allUnique leftCounts && allUnique rightCounts then
+    if acceptable leftCounts && acceptable rightCounts then
         Just (Map.keysSet leftCounts, Map.keysSet rightCounts)
 
     else
