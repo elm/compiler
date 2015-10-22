@@ -244,7 +244,10 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
           ( cmpHint
               (prettyName op ++ " is expecting the right argument to be a:")
               "But the right argument is:"
-              []
+              [ "I always figure out the type of the left argument first and if it is\
+                \ acceptable on its own, I assume it is \"correct\" in subsequent checks.\
+                \ So the problem may actually be in how the left and right arguments interact."
+              ]
           )
 
     Binop op ->
