@@ -234,7 +234,7 @@ argConstraints env name region totalArgs overallVar index args =
 
           let argMatchCon =
                 CEqual
-                  (Error.UnexpectedArg name index subregion)
+                  (Error.UnexpectedArg name index totalArgs subregion)
                   region
                   (VarN argIndexVar)
                   (VarN argVar)

@@ -62,7 +62,7 @@ data Hint
     | BinopRight Var.Canonical Region.Region
     | Binop Var.Canonical
     | Function (Maybe Var.Canonical)
-    | UnexpectedArg (Maybe Var.Canonical) Int Region.Region
+    | UnexpectedArg (Maybe Var.Canonical) Int Int Region.Region
     | FunctionArity (Maybe Var.Canonical) Int Int Region.Region
     | BadTypeAnnotation String
     | Instance String
@@ -268,7 +268,17 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
               []
           )
 
-    UnexpectedArg maybeName index region ->
+    UnexpectedArg maybeName 1 1 region ->
+        report
+          (Just region)
+          ("The  argument to " ++ funcName maybeName ++ " is causing a mismatch.")
+          ( cmpHint
+              (Help.capitalize (funcName maybeName) ++ " is expecting the argument to be:")
+              "But it is:"
+              []
+          )
+
+    UnexpectedArg maybeName index _totalArgs region ->
         report
           (Just region)
           ( "The " ++ Help.ordinalize index ++ " argument to " ++ funcName maybeName
