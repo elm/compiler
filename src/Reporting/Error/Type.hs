@@ -453,8 +453,8 @@ reasonToString reason =
   in
   case reason of
     MessyFields leftOnly rightOnly ->
-        do  let typos = RenderType.findPotentialTypos leftOnly rightOnly
-            _ <- RenderType.vetTypos typos
+        do  let typos = Help.findPotentialTypos leftOnly rightOnly
+            _ <- Help.vetTypos typos
             misspellingMessage typos
 
     NotNumber ->

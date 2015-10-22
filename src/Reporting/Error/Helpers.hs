@@ -3,6 +3,7 @@ module Reporting.Error.Helpers
   ( (|>)
   , functionName, hintLink, stack, reflowParagraph
   , commaSep, capitalize, ordinalize, drawCycle
+  , findPotentialTypos, vetTypos
   , nearbyNames, distance, maybeYouWant
   )
   where
@@ -10,6 +11,8 @@ module Reporting.Error.Helpers
 import Data.Function (on)
 import qualified Data.Char as Char
 import qualified Data.List as List
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Text.EditDistance as Dist
 import Text.PrettyPrint.ANSI.Leijen
   ( Doc, (<>), dullyellow, fillSep, hardline, text, vcat )
@@ -123,6 +126,41 @@ drawCycle strings =
         text "└─────┘"
   in
     vcat (topLine : List.intersperse midLine (map line strings) ++ [ bottomLine ])
+
+
+
+-- FIND TYPOS
+
+
+findPotentialTypos :: [String] -> [String] -> [(String, String)]
+findPotentialTypos leftOnly rightOnly =
+  let
+    veryNear leftName =
+      map ((,) leftName) (filter ((==1) . distance leftName) rightOnly)
+  in
+    concatMap veryNear leftOnly
+
+
+vetTypos :: [(String, String)] -> Maybe (Set.Set String, Set.Set String)
+vetTypos potentialTypos =
+  let
+    tallyNames (ln, rn) (lc, rc) =
+      ( Map.insertWith (+) ln 1 lc
+      , Map.insertWith (+) rn 1 rc
+      )
+
+    (leftCounts, rightCounts) =
+      foldr tallyNames (Map.empty, Map.empty) potentialTypos
+
+    allUnique :: Map.Map String Int -> Bool
+    allUnique counts =
+      Map.foldr (\n unique -> n < 2 && unique) True counts
+  in
+    if allUnique leftCounts && allUnique rightCounts then
+        Just (Map.keysSet leftCounts, Map.keysSet rightCounts)
+
+    else
+        Nothing
 
 
 

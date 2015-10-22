@@ -5,8 +5,6 @@ module Reporting.Render.Type
   , toDoc
   , diffToDocs
   , Style(..)
-  , findPotentialTypos
-  , vetTypos
   )
   where
 
@@ -14,14 +12,14 @@ import Control.Arrow ((***), first)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Text.PrettyPrint.ANSI.Leijen
-  ( Doc, (<>), (<+>), cat, colon, comma, dullyellow, equals, hang, hsep
-  , lbrace, lparen, parens, rbrace, rparen, sep, space, text, vcat
+  ( Doc, (<+>), cat, colon, comma, dullyellow, equals, hang, hsep
+  , lbrace, lparen, parens, rbrace, rparen, sep, text, vcat
   )
 
 import qualified AST.Helpers as Help
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
-import Reporting.Error.Helpers as Help
+import qualified Reporting.Error.Helpers as Help
 
 
 
@@ -30,12 +28,12 @@ import Reporting.Error.Helpers as Help
 
 toDoc :: Localizer -> Type.Canonical -> Doc
 toDoc localizer tipe =
-  docType localizer tipe
+  docType localizer None tipe
 
 
 diffToDocs :: Localizer -> Type.Canonical -> Type.Canonical -> (Doc,Doc)
 diffToDocs localizer leftType rightType =
-  case diff localizer leftType rightType of
+  case diff localizer None leftType rightType of
     Same doc ->
         (doc, doc)
 
@@ -47,7 +45,7 @@ decl :: Localizer -> String -> [String] -> [(String, [Type.Canonical])] -> Doc
 decl localizer name vars tags =
   let
     docTag (tag, args) =
-      hang 2 (sep (text tag : map (docType localizer) args))
+      hang 2 (sep (text tag : map (docType localizer App) args))
   in
     hang 4 $ vcat $
       (hsep (map text ("type" : name : vars)))
@@ -68,13 +66,13 @@ annotation localizer name tipe =
           hang 4 $ sep $
             docName
             : zipWith (<+>)
-                ((colon <> space) : repeat (text "->"))
-                (map (docType localizer) parts)
+                (colon : repeat (text "->"))
+                (map (docType localizer Func) parts)
 
       _ ->
           hang 4 $ sep $
             [ docName <+> colon
-            , docType localizer tipe
+            , docType localizer None tipe
             ]
 
 
@@ -158,8 +156,14 @@ partitionDiffs dict =
 -- DOC DIFF
 
 
-diff :: Localizer -> Type.Canonical -> Type.Canonical -> Diff Doc
-diff localizer leftType rightType =
+data Context
+    = None
+    | Func
+    | App
+
+
+diff :: Localizer -> Context -> Type.Canonical -> Type.Canonical -> Diff Doc
+diff localizer context leftType rightType =
   let
     go = diff localizer
   in
@@ -169,13 +173,14 @@ diff localizer leftType rightType =
           leftParts = Type.collectLambdas leftType
           rightParts = Type.collectLambdas rightType
         in
+
           if length leftParts /= length rightParts then
               difference
-                (docLambda (map (docType localizer) leftParts))
-                (docLambda (map (docType localizer) rightParts))
+                (docLambda context (map (docType localizer Func) leftParts))
+                (docLambda context (map (docType localizer Func) rightParts))
 
           else
-              docLambda <$> sequenceA (zipWith go leftParts rightParts)
+              docLambda context <$> sequenceA (zipWith (go Func) leftParts rightParts)
 
     (Type.Var x, Type.Var y) | x == y ->
         pure (text x)
@@ -186,12 +191,12 @@ diff localizer leftType rightType =
     (Type.App (Type.Type leftName) leftArgs, Type.App (Type.Type rightName) rightArgs) ->
         if leftName /= rightName || length leftArgs /= length rightArgs then
             difference
-              (docApp localizer leftName (map (docType localizer) leftArgs))
-              (docApp localizer rightName (map (docType localizer) rightArgs))
+              (docApp localizer context leftName (map (docType localizer App) leftArgs))
+              (docApp localizer context rightName (map (docType localizer App) rightArgs))
 
         else
-            docApp localizer leftName
-              <$> sequenceA (zipWith go leftArgs rightArgs)
+            docApp localizer context leftName
+              <$> sequenceA (zipWith (go App) leftArgs rightArgs)
 
     (Type.App _ _, Type.App _ _) ->
         error "Type applications without concrete names should not get here."
@@ -207,19 +212,19 @@ diff localizer leftType rightType =
           diffRecord localizer leftFields leftExt rightFields rightExt
 
     (Type.Aliased leftName leftArgs _, Type.Aliased rightName rightArgs _) | leftName == rightName ->
-        docApp localizer leftName
-          <$> sequenceA (zipWith go (map snd leftArgs) (map snd rightArgs))
+        docApp localizer context leftName
+          <$> sequenceA (zipWith (go App) (map snd leftArgs) (map snd rightArgs))
 
     (Type.Aliased _ args real, _) ->
-        go (Type.dealias args real) rightType
+        go context (Type.dealias args real) rightType
 
     (_, Type.Aliased _ args real) ->
-        go leftType (Type.dealias args real)
+        go context leftType (Type.dealias args real)
 
     (_, _) ->
         difference
-          (docType localizer leftType)
-          (docType localizer rightType)
+          (docType localizer context leftType)
+          (docType localizer context rightType)
 
 
 difference :: Doc -> Doc -> Diff Doc
@@ -240,7 +245,7 @@ diffRecord localizer leftFields leftExt rightFields rightExt =
     if Map.null leftOnly && Map.null rightOnly then
         let
           fieldDiffs =
-            Map.map (uncurry (diff localizer)) both
+            Map.map (uncurry (diff localizer None)) both
         in
           case partitionDiffs fieldDiffs of
             ([], sames) ->
@@ -288,14 +293,14 @@ unzipDiffs diffPairs =
 
 
 
--- ANALYZE FIELD NAMES FOR SIMILAR NAMES
+-- RECORD DIFFS HELPERS
 
 
 analyzeFields :: [String] -> [String] -> ( [(Doc, Doc)], [(Doc, Doc)] )
 analyzeFields leftOnly rightOnly =
   let
     potentialTypos =
-      findPotentialTypos leftOnly rightOnly
+      Help.findPotentialTypos leftOnly rightOnly
 
     mkField func name =
       ( func (text name), text "…" )
@@ -303,7 +308,7 @@ analyzeFields leftOnly rightOnly =
     mkFieldWith counts name =
       mkField (if Set.member name counts then dullyellow else id) name
   in
-    case vetTypos potentialTypos of
+    case Help.vetTypos potentialTypos of
       Just (leftTypos, rightTypos) ->
         ( map (mkFieldWith leftTypos) leftOnly
         , map (mkFieldWith rightTypos) rightOnly
@@ -313,39 +318,6 @@ analyzeFields leftOnly rightOnly =
         ( map (mkField dullyellow) leftOnly
         , map (mkField dullyellow) rightOnly
         )
-
-
-findPotentialTypos :: [String] -> [String] -> [(String, String)]
-findPotentialTypos leftOnly rightOnly =
-  let
-    veryNear leftName =
-      map ((,) leftName) (filter ((==1) . Help.distance leftName) rightOnly)
-  in
-    concatMap veryNear leftOnly
-
-
-vetTypos :: [(String, String)] -> Maybe (Set.Set String, Set.Set String)
-vetTypos potentialTypos =
-  let
-    tallyNames (ln, rn) (lc, rc) =
-      ( Map.insertWith (+) ln 1 lc
-      , Map.insertWith (+) rn 1 rc
-      )
-
-    (leftCounts, rightCounts) =
-      foldr tallyNames (Map.empty, Map.empty) potentialTypos
-
-    allUnique counts =
-      Map.foldr (\n unique -> n < 2 && unique) True counts
-  in
-    if allUnique leftCounts && allUnique rightCounts then
-        Just (Map.keysSet leftCounts, Map.keysSet rightCounts)
-
-    else
-        Nothing
-
-
--- RECORD DIFFS HELPERS
 
 
 type Fields =
@@ -398,11 +370,11 @@ flattenRecordHelp fields ext =
 -- TYPES TO DOCS
 
 
-docType :: Localizer -> Type.Canonical -> Doc
-docType localizer tipe =
+docType :: Localizer -> Context -> Type.Canonical -> Doc
+docType localizer context tipe =
   case tipe of
     Type.Lambda _ _ ->
-        docLambda (map (docType localizer) (Type.collectLambdas tipe))
+        docLambda context (map (docType localizer Func) (Type.collectLambdas tipe))
 
     Type.Var x ->
         text x
@@ -411,7 +383,7 @@ docType localizer tipe =
         varToDoc localizer name
 
     Type.App (Type.Type name) args ->
-        docApp localizer name (map (docType localizer) args)
+        docApp localizer context name (map (docType localizer App) args)
 
     Type.App _ _ ->
         error "type applications should start with a type atom"
@@ -422,27 +394,36 @@ docType localizer tipe =
             flattenRecordHelp outerFields outerExt
         in
           docRecord Full
-            (map (text *** docType localizer) fields)
+            (map (text *** docType localizer None) fields)
             (fmap text ext)
 
     Type.Aliased name args _ ->
-        docApp localizer name (map (docType localizer . snd) args)
+        docApp localizer context name (map (docType localizer App . snd) args)
 
 
 
-docLambda :: [Doc] -> Doc
-docLambda docs =
+docLambda :: Context -> [Doc] -> Doc
+docLambda context docs =
   case docs of
     [] ->
         error "cannot call docLambda with an empty list"
 
     arg:rest ->
-        sep (arg : map (text "->" <+>) rest)
+        case context of
+          None ->
+              sep (arg : map (text "->" <+>) rest)
+
+          _ ->
+              cat
+                [ lparen
+                , sep (arg : map (text "->" <+>) rest)
+                , rparen
+                ]
 
 
 
-docApp :: Localizer -> Var.Canonical -> [Doc] -> Doc
-docApp localizer name args =
+docApp :: Localizer -> Context -> Var.Canonical -> [Doc] -> Doc
+docApp localizer context name args =
   if Var.isTuple name then
       sep
         [ cat (zipWith (<+>) (lparen : repeat comma) args)
@@ -453,7 +434,16 @@ docApp localizer name args =
       varToDoc localizer name
 
   else
-      hang 4 (sep (varToDoc localizer name : args))
+      case context of
+        App ->
+            cat
+              [ lparen
+              , hang 4 (sep (varToDoc localizer name : args))
+              , rparen
+              ]
+
+        _ ->
+            hang 4 (sep (varToDoc localizer name : args))
 
 
 
