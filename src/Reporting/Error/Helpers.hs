@@ -2,7 +2,7 @@
 module Reporting.Error.Helpers
   ( (|>)
   , functionName, hintLink, stack, reflowParagraph
-  , commaSep, capitalize, ordinalize
+  , commaSep, capitalize, ordinalize, drawCycle
   , nearbyNames, distance, maybeYouWant
   )
   where
@@ -11,7 +11,8 @@ import Data.Function (on)
 import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Text.EditDistance as Dist
-import Text.PrettyPrint.ANSI.Leijen (Doc, (<>), fillSep, hardline, text)
+import Text.PrettyPrint.ANSI.Leijen
+  ( Doc, (<>), dullyellow, fillSep, hardline, text, vcat )
 
 import qualified AST.Helpers as Help
 import qualified Elm.Compiler.Version as Compiler
@@ -103,6 +104,25 @@ ordinalize number =
       | otherwise                    = "th"
   in
     show number ++ ending
+
+
+
+drawCycle :: [String] -> Doc
+drawCycle strings =
+  let
+    topLine =
+        text "┌─────┐"
+
+    line str =
+        text "│    " <> dullyellow (text str)
+
+    midLine =
+        text "│     ↓"
+
+    bottomLine =
+        text "└─────┘"
+  in
+    vcat (topLine : List.intersperse midLine (map line strings) ++ [ bottomLine ])
 
 
 

@@ -176,9 +176,9 @@ toReport localizer err =
                 "This type alias is recursive, forming an infinite type!"
                 (
                   Help.stack
-                    [ text $
-                        "When I expand a recursive type alias, it just keeps getting bigger and bigger.\n"
-                        ++ "So dealiasing results in an infinitely large type! Try this instead:"
+                    [ Help.reflowParagraph $
+                        "When I expand a recursive type alias, it just keeps getting bigger and bigger.\
+                        \ So dealiasing results in an infinitely large type! Try this instead:"
                     , indent 4 $
                         RenderType.decl localizer name tvars [(name, [unsafePromote tipe])]
                     , text $
@@ -194,10 +194,10 @@ toReport localizer err =
                 "This type alias is part of a mutually recursive set of type aliases."
                 ( Help.stack
                     [ text "The following type aliases are mutually recursive:"
-                    , error "TODO visual loop" aliases
-                    , text $
-                        "You need to convert at least one `type alias` into a `type`. This is a kind of\n"
-                        ++ "subtle distinction, so definitely read more about it here:\n"
+                    , Help.drawCycle (map (\(_, name, _, _) -> name) aliases)
+                    , Help.reflowParagraph $
+                        "You need to convert at least one `type alias` into a `type`. This is a kind of\
+                        \ subtle distinction, so definitely read how to fix it and have great code:"
                         ++ Help.hintLink "infinite-alias"
                     ]
                 )
