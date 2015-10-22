@@ -395,7 +395,7 @@ comparisonHint
 comparisonHint localizer leftType rightType leftWords rightWords finalHints =
   let
     (leftDoc, rightDoc) =
-      RenderType.diffToDocs localizer RenderType.Elide leftType rightType
+      RenderType.diffToDocs localizer leftType rightType
   in
     Help.stack $
       [ Help.reflowParagraph leftWords

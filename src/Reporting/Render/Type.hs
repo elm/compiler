@@ -33,9 +33,9 @@ toDoc localizer tipe =
   docType localizer tipe
 
 
-diffToDocs :: Localizer -> Style -> Type.Canonical -> Type.Canonical -> (Doc,Doc)
-diffToDocs localizer style leftType rightType =
-  case diff localizer style leftType rightType of
+diffToDocs :: Localizer -> Type.Canonical -> Type.Canonical -> (Doc,Doc)
+diffToDocs localizer leftType rightType =
+  case diff localizer leftType rightType of
     Same doc ->
         (doc, doc)
 
@@ -158,15 +158,10 @@ partitionDiffs dict =
 -- DOC DIFF
 
 
-data Style
-    = Elide
-    | Full
-
-
-diff :: Localizer -> Style -> Type.Canonical -> Type.Canonical -> Diff Doc
-diff localizer style leftType rightType =
+diff :: Localizer -> Type.Canonical -> Type.Canonical -> Diff Doc
+diff localizer leftType rightType =
   let
-    go = diff localizer style
+    go = diff localizer
   in
   case (leftType, rightType) of
     (Type.Lambda _ _, Type.Lambda _ _) ->
@@ -209,12 +204,7 @@ diff localizer style leftType rightType =
           (rightFields, rightExt) =
             flattenRecord outerRightFields outerRightExt
         in
-          case style of
-            Elide ->
-                diffRecordElide localizer leftFields leftExt rightFields rightExt
-
-            Full ->
-                error "TODO"
+          diffRecord localizer leftFields leftExt rightFields rightExt
 
     (Type.Aliased leftName leftArgs _, Type.Aliased rightName rightArgs _) | leftName == rightName ->
         docApp localizer leftName
@@ -241,8 +231,8 @@ difference leftDoc rightDoc =
 -- RECORD DIFFS
 
 
-diffRecordElide :: Localizer -> Fields -> Maybe String -> Fields -> Maybe String -> Diff Doc
-diffRecordElide localizer leftFields leftExt rightFields rightExt =
+diffRecord :: Localizer -> Fields -> Maybe String -> Fields -> Maybe String -> Diff Doc
+diffRecord localizer leftFields leftExt rightFields rightExt =
   let
     (leftOnly, both, rightOnly) =
       vennDiagram leftFields rightFields
@@ -250,7 +240,7 @@ diffRecordElide localizer leftFields leftExt rightFields rightExt =
     if Map.null leftOnly && Map.null rightOnly then
         let
           fieldDiffs =
-            Map.map (uncurry (diff localizer Elide)) both
+            Map.map (uncurry (diff localizer)) both
         in
           case partitionDiffs fieldDiffs of
             ([], sames) ->
@@ -465,6 +455,11 @@ docApp localizer name args =
   else
       hang 4 (sep (varToDoc localizer name : args))
 
+
+
+data Style
+    = Elide
+    | Full
 
 
 docRecord :: Style -> [(Doc,Doc)] -> Maybe Doc -> Doc
