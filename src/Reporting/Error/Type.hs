@@ -39,14 +39,17 @@ data Mismatch = MismatchInfo
 
 data Reason
     = MessyFields [String] [String]
-    | NotNumber
-    | NotComparable
-    | NotAppendable
-    | NotCompAppend
     | IntFloat
     | TooLongComparableTuple Int
+    | BadVar (Maybe VarType) (Maybe VarType)
+
+
+data VarType
+    = Number
+    | Comparable
+    | Appendable
+    | CompAppend
     | Rigid (Maybe String)
-    | DoubleRigid
 
 
 data Hint
@@ -445,6 +448,22 @@ funcName maybeVar =
 -- MISMTACH REASONS
 
 
+flipReason :: Reason -> Reason
+flipReason reason =
+  case reason of
+    MessyFields leftOnly rightOnly ->
+        MessyFields rightOnly leftOnly
+
+    IntFloat ->
+        IntFloat
+
+    TooLongComparableTuple len ->
+        TooLongComparableTuple len
+
+    BadVar left right ->
+        BadVar right left
+
+
 reasonToString :: Reason -> Maybe Doc
 reasonToString reason =
   let
@@ -457,18 +476,6 @@ reasonToString reason =
             _ <- Help.vetTypos typos
             misspellingMessage typos
 
-    NotNumber ->
-        go "Valid number types include Int and Float."
-
-    NotComparable ->
-        go "Valid comparable types include Int, Float, Char, String, lists, and tuples."
-
-    NotAppendable ->
-        go "Valid appendable types include String, Text, and List."
-
-    NotCompAppend ->
-        go "Valid `number` types include Int and Float."
-
     IntFloat ->
         go
           "Elm does not automatically convert between Ints and Floats. Use\
@@ -480,20 +487,16 @@ reasonToString reason =
           "Although tuples are comparable, this is currently only supported\
           \ for tuples with 6 or fewer entries, not " ++ show len ++ "."
 
-    Rigid (Just name) ->
-        go $
-          "It is very likely that a type annotation is too generic. Type variable\
-          \ `" ++ name ++ "` is saying *many* kinds of value can be given, but the\
-          \ actual definition needs a more specific type. I am not sure whether the\
-          \ type annotation or the definition is \"right\" though, you may have to\
-          \ make the annotation more specific or make the definition more generic."
+    BadVar (Just Comparable) _ ->
+        go "Only ints, floats, chars, strings, lists, and tuples are comparable."
 
-    Rigid Nothing ->
-        go $
-          "It is very likely that a type annotation is too generic. One type is saying\
-          \ *many* kinds of value can be given, but the other needs a more specific type."
+    BadVar (Just Appendable) _ ->
+        go "Only strings, text, and lists are appendable."
 
-    DoubleRigid ->
+    BadVar (Just CompAppend) _ ->
+        go "Only strings and lists are both comparable and appendable."
+
+    BadVar (Just (Rigid _)) (Just (Rigid _)) ->
         Just $ Help.stack $
           [ hintDoc <> text "This usually happens when a few factors come together."
           , indent 4 $ vcat $
@@ -506,6 +509,29 @@ reasonToString reason =
               \ commenting out the inner type annotations."
           ]
 
+    BadVar (Just (Rigid (Just name))) _ ->
+        go $
+          "Looks like the type annotation is too generic. Type variable\
+          \ `" ++ name ++ "` is saying *many* kinds of value can be given, but the\
+          \ actual definition needs a more specific type. I am not sure whether the\
+          \ type annotation or the definition is \"right\" though, you may have to\
+          \ make the annotation more specific or make the definition more generic."
+
+    BadVar (Just (Rigid _)) _  ->
+        go genericRigidError
+
+    BadVar _ (Just (Rigid _))  ->
+        go genericRigidError
+
+    BadVar _ _ ->
+        Nothing
+
+
+genericRigidError :: String
+genericRigidError =
+  "There is some problem with a rigid type variable. It is very likely that a\
+  \ type annotation is too generic. One type is saying *many* kinds of value\
+  \ can be given, but the other needs a more specific type."
 
 
 hintDoc :: Doc

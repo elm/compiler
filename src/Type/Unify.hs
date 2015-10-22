@@ -78,20 +78,46 @@ data Mismatch
 mismatch :: Context -> Maybe Error.Reason -> Unify a
 mismatch (Context orientation first _ second _) maybeReason =
   let
-    (expected, actual) =
+    (expected, actual, orientedReason) =
         case orientation of
           ExpectedActual ->
-              (first, second)
+              (first, second, maybeReason)
 
           ActualExpected ->
-              (second, first)
+              (second, first, Error.flipReason <$> maybeReason)
   in
-    throwError (Mismatch expected actual maybeReason)
+    throwError (Mismatch expected actual orientedReason)
 
 
-rigidityError :: Context -> Maybe String -> Unify ()
-rigidityError context maybeName =
-  mismatch context (Just (Error.Rigid maybeName))
+badRigid :: Maybe String -> Error.Reason
+badRigid maybeName =
+  Error.BadVar (Just (Error.Rigid maybeName)) Nothing
+
+
+badSuper :: Super -> Error.Reason
+badSuper super =
+  Error.BadVar (Just (errorSuper super)) Nothing
+
+
+doubleBad :: Error.VarType -> Error.VarType -> Error.Reason
+doubleBad vt1 vt2 =
+  Error.BadVar (Just vt1) (Just vt2)
+
+
+errorSuper :: Super -> Error.VarType
+errorSuper super =
+  case super of
+    Number ->
+        Error.Number
+
+    Comparable ->
+        Error.Comparable
+
+    Appendable ->
+        Error.Appendable
+
+    CompAppend ->
+        Error.CompAppend
 
 
 
@@ -218,19 +244,20 @@ unifyRigid context maybeSuper maybeName otherContent =
         if maybeSuper == otherMaybeSuper then
             merge context (Var Rigid maybeSuper maybeName)
         else
-            rigidityError context maybeName
+            mismatch context (Just (badRigid maybeName))
 
-    Var Rigid _ _ ->
-        mismatch context (Just Error.DoubleRigid)
+    Var Rigid _ otherMaybeName ->
+        mismatch context $ Just $
+          doubleBad (Error.Rigid maybeName) (Error.Rigid otherMaybeName)
 
     Atom _ ->
-        rigidityError context maybeName
+        mismatch context (Just (badRigid maybeName))
 
     Alias _ _ _ ->
-        rigidityError context maybeName
+        mismatch context (Just (badRigid maybeName))
 
     Structure _ ->
-        rigidityError context maybeName
+        mismatch context (Just (badRigid maybeName))
 
 
 -- UNIFY SUPER VARIABLES
@@ -246,26 +273,26 @@ unifySuper context super otherContent =
         if atomMatchesSuper super name then
             merge context otherContent
         else
-            mismatch context (Just (superReason super))
+            mismatch context (Just (badSuper super))
 
     Var Rigid Nothing maybeName ->
-        rigidityError context maybeName
+        mismatch context (Just (doubleBad (errorSuper super) (Error.Rigid maybeName)))
 
     Var Rigid (Just otherSuper) maybeName ->
         if super == otherSuper then
             merge context otherContent
         else
-            rigidityError context maybeName
+            mismatch context (Just (doubleBad (errorSuper super) (Error.Rigid maybeName)))
 
     Var Flex Nothing _ ->
         merge context (Var Flex (Just super) Nothing)
 
     Var Flex (Just otherSuper) _ ->
         case combineSupers super otherSuper of
-          Nothing ->
-              mismatch context Nothing
+          Left reason ->
+              mismatch context (Just reason)
 
-          Just newSuper ->
+          Right newSuper ->
               merge context (Var Flex (Just newSuper) Nothing)
 
     Alias _ _ realVar ->
@@ -275,42 +302,27 @@ unifySuper context super otherContent =
         return ()
 
 
-combineSupers :: Super -> Super -> Maybe Super
+combineSupers :: Super -> Super -> Either Error.Reason Super
 combineSupers firstSuper secondSuper =
   case (firstSuper, secondSuper) of
-    (Number    , Number    ) -> Just Number
-    (Comparable, Number    ) -> Just Number
-    (Number    , Comparable) -> Just Number
+    (Number    , Number    ) -> Right Number
+    (Comparable, Number    ) -> Right Number
+    (Number    , Comparable) -> Right Number
 
-    (Comparable, Comparable) -> Just Comparable
-    (Appendable, Appendable) -> Just Appendable
+    (Comparable, Comparable) -> Right Comparable
+    (Appendable, Appendable) -> Right Appendable
 
-    (Appendable, Comparable) -> Just CompAppend
-    (Comparable, Appendable) -> Just CompAppend
+    (Appendable, Comparable) -> Right CompAppend
+    (Comparable, Appendable) -> Right CompAppend
 
-    (CompAppend, CompAppend) -> Just CompAppend
-    (CompAppend, Comparable) -> Just CompAppend
-    (Comparable, CompAppend) -> Just CompAppend
-    (CompAppend, Appendable) -> Just CompAppend
-    (Appendable, CompAppend) -> Just CompAppend
+    (CompAppend, CompAppend) -> Right CompAppend
+    (CompAppend, Comparable) -> Right CompAppend
+    (Comparable, CompAppend) -> Right CompAppend
+    (CompAppend, Appendable) -> Right CompAppend
+    (Appendable, CompAppend) -> Right CompAppend
 
-    (_         , _         ) -> Nothing
-
-
-superReason :: Super -> Error.Reason
-superReason super =
-  case super of
-    Number ->
-        Error.NotNumber
-
-    Comparable ->
-        Error.NotComparable
-
-    Appendable ->
-        Error.NotAppendable
-
-    CompAppend ->
-        Error.NotCompAppend
+    (_         , _         ) ->
+        Left $ doubleBad (errorSuper firstSuper) (errorSuper secondSuper)
 
 
 isPrimitiveFrom :: [String] -> Var.Canonical -> Bool
@@ -339,12 +351,12 @@ unifySuperStructure context super term =
   do  appStructure <- liftIO (collectApps (Structure term))
       case appStructure of
         Other ->
-            mismatch context (Just (superReason super))
+            mismatch context (Just (badSuper super))
 
         List variable ->
             case super of
               Number ->
-                  mismatch context (Just Error.NotNumber)
+                  mismatch context (Just (badSuper super))
 
               Appendable ->
                   merge context (Structure term)
@@ -360,10 +372,10 @@ unifySuperStructure context super term =
         Tuple entries ->
             case super of
               Number ->
-                  mismatch context (Just Error.NotNumber)
+                  mismatch context (Just (badSuper super))
 
               Appendable ->
-                  mismatch context (Just Error.NotAppendable)
+                  mismatch context (Just (badSuper super))
 
               Comparable ->
                   if length entries > 6 then
@@ -374,7 +386,7 @@ unifySuperStructure context super term =
                           mapM_ (unifyComparableRecursive (_orientation context)) entries
 
               CompAppend ->
-                  mismatch context (Just Error.NotCompAppend)
+                  mismatch context (Just (badSuper super))
 
 
 unifyComparableRecursive :: Orientation -> Variable -> Unify ()
@@ -443,10 +455,10 @@ unifyAtom context name otherContent =
             merge context (Atom name)
 
         else
-            mismatch context (Just (superReason super))
+            mismatch context (Just ((Error.flipReason (badSuper super))))
 
     Var Rigid _ maybeName ->
-        rigidityError context maybeName
+        mismatch context (Just (Error.flipReason (badRigid maybeName)))
 
     Atom otherName ->
         if name == otherName then
@@ -519,7 +531,7 @@ unifyStructure context term otherContent =
         unifySuper (reorient context) super (Structure term)
 
     Var Rigid _ maybeName ->
-        rigidityError context maybeName
+        mismatch context (Just (Error.flipReason (badRigid maybeName)))
 
     Atom _ ->
         mismatch context Nothing
