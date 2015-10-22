@@ -148,7 +148,7 @@ collectLambdas tipe =
         arg : collectLambdas result
 
     _ ->
-        []
+        [tipe]
 
 
 
