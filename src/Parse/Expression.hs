@@ -91,7 +91,7 @@ listTerm =
 parensTerm :: IParser Source.Expr
 parensTerm =
   choice
-    [ try (parens opFn)
+    [ try opFn
     , parens (tupleFn <|> parened)
     ]
   where
@@ -102,7 +102,7 @@ parensTerm =
         A.at start end (E.rawVar x)
 
     opFn =
-      do  (start, op, end) <- located symOp
+      do  (start, op, end) <- located (parens symOp)
           return $
             lambda start end "x" $
               lambda start end "y" $
