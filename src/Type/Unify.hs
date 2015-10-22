@@ -453,7 +453,11 @@ unifyAtom context name otherContent =
             merge context otherContent
 
         else
-            mismatch context Nothing
+            mismatch context $
+              if isIntFloat name otherName || isIntFloat otherName name then
+                  Just Error.IntFloat
+              else
+                  Nothing
 
     Alias _ _ realVar ->
         subUnify context (_first context) realVar
@@ -462,8 +466,13 @@ unifyAtom context name otherContent =
         mismatch context Nothing
 
 
+isIntFloat :: Var.Canonical -> Var.Canonical -> Bool
+isIntFloat name otherName =
+  Var.isPrim "Int" name && Var.isPrim "Float" otherName
+
 
 -- UNIFY ALIASES
+
 
 unifyAlias :: Context -> Var.Canonical -> [(String, Variable)] -> Variable -> Content -> Unify ()
 unifyAlias context name args realVar otherContent =
