@@ -56,7 +56,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
                 uniform = makeRec Lit.uniform unif
                 varying = makeRec Lit.varying (TermN EmptyRecord1)
             in
-                return (CEqual Error.Shader region tipe (shaderTipe attribute uniform varying))
+                return (CEqual Error.Shader region (shaderTipe attribute uniform varying) tipe)
 
       E.Var var ->
           let name = V.toString var

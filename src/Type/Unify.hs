@@ -221,7 +221,7 @@ unifyRigid context maybeSuper maybeName otherContent =
             rigidityError context maybeName
 
     Var Rigid _ _ ->
-        rigidityError context maybeName
+        mismatch context (Just Error.DoubleRigid)
 
     Atom _ ->
         rigidityError context maybeName
@@ -246,7 +246,7 @@ unifySuper context super otherContent =
         if atomMatchesSuper super name then
             merge context otherContent
         else
-            mismatch context Nothing
+            mismatch context (Just (superReason super))
 
     Var Rigid Nothing maybeName ->
         rigidityError context maybeName
@@ -297,6 +297,22 @@ combineSupers firstSuper secondSuper =
     (_         , _         ) -> Nothing
 
 
+superReason :: Super -> Error.Reason
+superReason super =
+  case super of
+    Number ->
+        Error.NotNumber
+
+    Comparable ->
+        Error.NotComparable
+
+    Appendable ->
+        Error.NotAppendable
+
+    CompAppend ->
+        Error.NotCompAppend
+
+
 isPrimitiveFrom :: [String] -> Var.Canonical -> Bool
 isPrimitiveFrom prims var =
   any (\p -> Var.isPrim p var) prims
@@ -323,12 +339,12 @@ unifySuperStructure context super term =
   do  appStructure <- liftIO (collectApps (Structure term))
       case appStructure of
         Other ->
-            mismatch context Nothing
+            mismatch context (Just (superReason super))
 
         List variable ->
             case super of
               Number ->
-                  mismatch context Nothing
+                  mismatch context (Just Error.NotNumber)
 
               Appendable ->
                   merge context (Structure term)
@@ -344,10 +360,10 @@ unifySuperStructure context super term =
         Tuple entries ->
             case super of
               Number ->
-                  mismatch context Nothing
+                  mismatch context (Just Error.NotNumber)
 
               Appendable ->
-                  mismatch context Nothing
+                  mismatch context (Just Error.NotAppendable)
 
               Comparable ->
                   if length entries > 6 then
@@ -358,7 +374,7 @@ unifySuperStructure context super term =
                           mapM_ (unifyComparableRecursive (_orientation context)) entries
 
               CompAppend ->
-                  mismatch context Nothing
+                  mismatch context (Just Error.NotCompAppend)
 
 
 unifyComparableRecursive :: Orientation -> Variable -> Unify ()
@@ -427,7 +443,7 @@ unifyAtom context name otherContent =
             merge context (Atom name)
 
         else
-            mismatch context Nothing
+            mismatch context (Just (superReason super))
 
     Var Rigid _ maybeName ->
         rigidityError context maybeName
@@ -606,28 +622,13 @@ gatherFields context fields variable =
         Structure (Record1 subFields subExt) ->
             gatherFields context (Map.union fields subFields) subExt
 
-        Structure (EmptyRecord1) ->
+        Structure EmptyRecord1 ->
             return (RecordStructure fields variable Empty)
 
-        Structure (App1 _ _) ->
-            mismatch context (Just Error.NotRecord)
-
-        Structure (Fun1 _ _) ->
-            mismatch context (Just Error.NotRecord)
-
-        Atom _ ->
-            mismatch context (Just Error.NotRecord)
-
-        Var _ Nothing _ ->
-            return (RecordStructure fields variable Extension)
-
-        Var _ (Just _) _ ->
-            mismatch context (Just Error.NotRecord)
-
-        -- TODO may be dropping useful alias info here
         Alias _ _ var ->
+            -- TODO may be dropping useful alias info here
             gatherFields context fields var
 
-        Error ->
+        _ ->
             return (RecordStructure fields variable Extension)
 

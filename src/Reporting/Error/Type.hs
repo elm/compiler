@@ -39,10 +39,14 @@ data Mismatch = MismatchInfo
 
 data Reason
     = MessyFields [String] [String]
-    | NotRecord
+    | NotNumber
+    | NotComparable
+    | NotAppendable
+    | NotCompAppend
+    | IntFloat
     | TooLongComparableTuple Int
     | Rigid (Maybe String)
-    deriving (Show)
+    | DoubleRigid
 
 
 data Hint
@@ -117,7 +121,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
     cmpHint leftWords rightWords extraHints =
       comparisonHint localizer leftType rightType leftWords rightWords
         ( map toHint extraHints
-          ++ Maybe.maybeToList (fmap reasonToString maybeReason)
+          ++ Maybe.maybeToList (reasonToString =<< maybeReason)
         )
   in
   case hint of
@@ -141,7 +145,10 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
           ( "All the branches of this case-expression are consistent, but the overall\n"
             ++ "type does not match how it is used elsewhere."
           )
-          ( error "TODO generic error"
+          ( cmpHint
+              "The `case` evaluates to something of type:"
+              "Which is fine, but the surrounding context wants it to be:"
+              []
           )
 
     IfCondition ->
@@ -340,7 +347,10 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
         report
           Nothing
           "There is some problem with this GLSL shader."
-          ( error "TODO generic error"
+          ( cmpHint
+              "The shader block has this type:"
+              "Which is fine, but the surrounding context wants it to be:"
+              []
           )
 
     Range ->
@@ -425,31 +435,67 @@ funcName maybeVar =
 -- MISMTACH REASONS
 
 
-reasonToString :: Reason -> Doc
+reasonToString :: Reason -> Maybe Doc
 reasonToString reason =
+  let
+    go msg =
+      Just (toHint msg)
+  in
   case reason of
     MessyFields leftOnly rightOnly ->
-        let
-          maybeMessage =
-            do  let typos = RenderType.findPotentialTypos leftOnly rightOnly
-                RenderType.vetTypos typos
-                misspellingMessage typos
-        in
-          case maybeMessage of
-            Just doc ->
-                doc
+        do  let typos = RenderType.findPotentialTypos leftOnly rightOnly
+            _ <- RenderType.vetTypos typos
+            misspellingMessage typos
 
-            Nothing ->
-                error "TODO"
+    NotNumber ->
+        go "Valid number types include Int and Float."
 
-    NotRecord ->
-        toHint "A record cannot be merged with other types of values."
+    NotComparable ->
+        go "Valid comparable types include Int, Float, Char, String, lists, and tuples."
+
+    NotAppendable ->
+        go "Valid appendable types include String, Text, and List."
+
+    NotCompAppend ->
+        go "Valid `number` types include Int and Float."
+
+    IntFloat ->
+        go
+          "Elm does not automatically convert between Ints and Floats. Use\
+          \ `toFloat` and `round` to do specific conversions.\
+          \ <http://package.elm-lang.org/packages/elm-lang/core/latest/Basics#toFloat>"
 
     TooLongComparableTuple len ->
-        error "TODO"
+        go $
+          "Although tuples are comparable, this is currently only supported\
+          \ for tuples with 6 or fewer entries, not " ++ show len ++ "."
 
-    Rigid maybeName ->
-        error "TODO"
+    Rigid (Just name) ->
+        go $
+          "It is very likely that a type annotation is too generic. Type variable\
+          \ `" ++ name ++ "` is saying *many* kinds of value can be given, but the\
+          \ actual definition needs a more specific type. I am not sure whether the\
+          \ type annotation or the definition is \"right\" though, you may have to\
+          \ make the annotation more specific or make the definition more generic."
+
+    Rigid Nothing ->
+        go $
+          "It is very likely that a type annotation is too generic. One type is saying\
+          \ *many* kinds of value can be given, but the other needs a more specific type."
+
+    DoubleRigid ->
+        Just $ Help.stack $
+          [ hintDoc <> text "This usually happens when a few factors come together."
+          , indent 4 $ vcat $
+              [ text "1. You have a generic function with a type annotation."
+              , text "2. In its definition, there is a `let` with generic type annotations."
+              ]
+          , Help.reflowParagraph
+              "The issue is that these type variables are not actually shared between\
+              \ outer and inner type annotations right now. You can usually fix this by\
+              \ commenting out the inner type annotations."
+          ]
+
 
 
 hintDoc :: Doc
