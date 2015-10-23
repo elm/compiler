@@ -19,7 +19,9 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
 
+
 -- OPTIMIZE
+
 
 optimize :: DT.VariantDict -> Module.CanonicalModule -> Module.Optimized
 optimize variantDict module_@(Module.Module home _ _ _ _ body) =
@@ -28,7 +30,7 @@ optimize variantDict module_@(Module.Module home _ _ _ _ body) =
         flattenLets [] (Module.program body)
 
     optDefs =
-      Env.run variantDict (concat <$> mapM (optimizeDef (Just home)) defs)
+      Env.run variantDict home (concat <$> mapM (optimizeDef True) defs)
   in
     module_ { Module.body = body { Module.program = optDefs } }
 
@@ -43,55 +45,76 @@ flattenLets defs annExpr@(A.A _ expr) =
           (defs, annExpr)
 
 
+
 -- CONVERT DEFINITIONS
 
-optimizeDef :: Maybe ModuleName.Canonical -> Can.Def -> Env.Optimizer [Opt.Def]
-optimizeDef home (Can.Definition (Can.Facts deps) pattern@(A.A _ ptrn) expression _) =
+
+optimizeDef :: Bool -> Can.Def -> Env.Optimizer [Opt.Def]
+optimizeDef isRoot (Can.Definition (Can.Facts deps) pattern expression _) =
   let
-    (args, rawBody) =
+    (args, canBody) =
       Expr.collectLambdas expression
   in
-    case (ptrn, args) of
-      (P.Var name, _ : _) ->
+    do  home <-
+            if isRoot then
+                Just <$> Env.getHome
+            else
+                return Nothing
 
-          do  htc <- Env.getTailCall
-              Env.setTailCall False
+        optimizeDefHelp home deps pattern args canBody
 
-              (args, body) <- optimizeFunction (Just name) args rawBody
 
-              isTailCall <- Env.getTailCall
-              Env.setTailCall htc
+optimizeDefHelp
+    :: Maybe ModuleName.Canonical
+    -> [Var.TopLevel]
+    -> P.CanonicalPattern
+    -> [P.CanonicalPattern]
+    -> Can.Expr
+    -> Env.Optimizer [Opt.Def]
+optimizeDefHelp home deps pattern@(A.A _ ptrn) args rawBody =
+  let
+    facts =
+      Opt.Facts home deps
+  in
+  case (ptrn, args) of
+    (P.Var name, _ : _) ->
 
-              let facts = Opt.Facts home deps
+        do  htc <- Env.getTailCall
+            Env.setTailCall False
 
-              return $
-                if isTailCall then
+            (args, body) <- optimizeFunction (Just name) args rawBody
 
+            isTailCall <- Env.getTailCall
+            Env.setTailCall htc
+
+            return $
+              if isTailCall then
                   [ Opt.TailDef facts name args body ]
 
-                else
-
+              else
                   [ Opt.Def facts name (Opt.Function args body) ]
 
-      (P.Var name, []) ->
+    (P.Var name, []) ->
 
-          do  hasTailCall <- Env.getTailCall
-              body <- optimizeExpr Nothing rawBody
-              Env.setTailCall hasTailCall
-              return [ Opt.Def (Opt.Facts home deps) name body ]
+        do  hasTailCall <- Env.getTailCall
+            body <- optimizeExpr Nothing rawBody
+            Env.setTailCall hasTailCall
+            return [ Opt.Def facts name body ]
 
-      (_, []) ->
+    (_, []) ->
 
-          do  name <- Env.freshName
-              optBody <- optimizeExpr Nothing rawBody
-              let optDef = Opt.Def (Opt.Facts home deps) name optBody
-              return (optDef : patternToDefs home name pattern)
+        do  name <- Env.freshName
+            optBody <- optimizeExpr Nothing rawBody
+            let optDef = Opt.Def facts name optBody
+            return (optDef : patternToDefs home name pattern)
 
-      _ ->
-          error "there should never be a function where the name is not a P.Var"
+    _ ->
+        error "there should never be a function where the name is not a P.Var"
+
 
 
 -- OPTIMIZE FUNCTION
+
 
 optimizeFunction
     :: Maybe String
@@ -196,7 +219,8 @@ optimizeExpr context annExpr@(A.A region expression) =
 
     Expr.Var name ->
         if name == Var.inCore ["Debug"] "crash" then
-            pure (Opt.Crash region Nothing)
+            do  home <- Env.getHome
+                pure (Opt.Crash home region Nothing)
 
         else
             pure (Opt.Var name)
@@ -248,7 +272,7 @@ optimizeExpr context annExpr@(A.A region expression) =
               <*> keepLooking finally
 
     Expr.Let defs body ->
-        do  optDefs <- concat <$> T.traverse (optimizeDef Nothing) defs
+        do  optDefs <- concat <$> T.traverse (optimizeDef False) defs
             Opt.Let optDefs <$> keepLooking body
 
     Expr.Case expr branches ->

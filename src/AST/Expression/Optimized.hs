@@ -54,7 +54,7 @@ data Expr
     | Record [(String, Expr)]
     | Port (General.PortImpl Expr Type.Canonical)
     | GLShader String String Literal.GLShaderTipe
-    | Crash R.Region (Maybe String)
+    | Crash ModuleName.Canonical R.Region (Maybe String)
 
 
 data Decider a

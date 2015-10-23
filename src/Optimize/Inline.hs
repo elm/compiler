@@ -178,7 +178,7 @@ count expression =
     GLShader _ _ _ ->
         Map.empty
 
-    Crash _ _ ->
+    Crash _ _ _ ->
         Map.empty
 
 
@@ -287,5 +287,5 @@ replace substitutions expression =
     GLShader _ _ _ ->
         expression
 
-    Crash _ _ ->
+    Crash _ _ _ ->
         expression

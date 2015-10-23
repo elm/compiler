@@ -43,11 +43,11 @@ tagCrashBranches
     -> Env.Optimizer (P.CanonicalPattern, Opt.Expr)
 tagCrashBranches region branch@(pattern@(A.A pr _), expr) =
   case expr of
-    Opt.Call (Opt.Crash _ _) [arg] ->
+    Opt.Call (Opt.Crash home _ _) [arg] ->
         do  name <- Env.freshName
             return
               ( A.A pr (P.Alias name pattern)
-              , Opt.Call (Opt.Crash region (Just name)) [arg]
+              , Opt.Call (Opt.Crash home region (Just name)) [arg]
               )
 
     _ ->
