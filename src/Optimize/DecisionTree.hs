@@ -209,9 +209,9 @@ flatten variantDict pathPattern@(path, A.A ann pattern) =
         [pathPattern]
 
     P.Alias alias realPattern ->
-        [ (add path Alias, A.A ann (P.Var alias))
-        , (path, realPattern)
-        ]
+        (add path Alias, A.A ann (P.Var alias))
+        :
+        flatten variantDict (path, realPattern)
 
     P.Record _ ->
         [pathPattern]
