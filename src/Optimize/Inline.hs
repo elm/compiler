@@ -13,6 +13,7 @@ import qualified AST.Variable as Var
 import qualified Optimize.Environment as Env
 
 
+
 inline :: Map.Map String Opt.Expr -> Opt.Expr -> Env.Optimizer Opt.Expr
 inline rawSubs expression =
   let
@@ -178,11 +179,13 @@ count expression =
     GLShader _ _ _ ->
         Map.empty
 
-    Crash _ _ ->
-        Map.empty
+    Crash _ _ maybeBranchProblem ->
+        maybe Map.empty count maybeBranchProblem
+
 
 
 -- REPLACE
+
 
 replace :: Map.Map String Opt.Expr -> Opt.Expr -> Opt.Expr
 replace substitutions expression =
@@ -287,5 +290,5 @@ replace substitutions expression =
     GLShader _ _ _ ->
         expression
 
-    Crash _ _ ->
-        expression
+    Crash home region maybeBranchProblem ->
+        Crash home region (fmap go maybeBranchProblem)

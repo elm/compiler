@@ -9,49 +9,22 @@ import qualified Data.Maybe as Maybe
 import qualified AST.Expression.Optimized as Opt
 import qualified AST.Pattern as P
 import qualified Optimize.DecisionTree as DT
-import qualified Optimize.Environment as Env
-import qualified Reporting.Annotation as A
-import qualified Reporting.Region as R
 
 
 
 -- OPTIMIZE A CASE EXPRESSION
 
 
-optimize
-    :: DT.VariantDict
-    -> R.Region
-    -> String
-    -> [(P.CanonicalPattern, Opt.Expr)]
-    -> Env.Optimizer Opt.Expr
-optimize variantDict region exprName optBranches =
-  do  crashBranches <-
-          mapM (tagCrashBranches region) optBranches
+optimize :: DT.VariantDict -> String -> [(P.CanonicalPattern, Opt.Expr)] -> Opt.Expr
+optimize variantDict exprName optBranches =
+  let
+    (patterns, indexedBranches) =
+      unzip (zipWith indexify [0..] optBranches)
 
-      let (patterns, indexedBranches) =
-            unzip (zipWith indexify [0..] crashBranches)
-
-      let decisionTree =
-            DT.compile variantDict patterns
-
-      return (treeToExpr exprName decisionTree indexedBranches)
-
-
-tagCrashBranches
-    :: R.Region
-    -> (P.CanonicalPattern, Opt.Expr)
-    -> Env.Optimizer (P.CanonicalPattern, Opt.Expr)
-tagCrashBranches region branch@(pattern@(A.A pr _), expr) =
-  case expr of
-    Opt.Call (Opt.Crash _ _) [arg] ->
-        do  name <- Env.freshName
-            return
-              ( A.A pr (P.Alias name pattern)
-              , Opt.Call (Opt.Crash region (Just name)) [arg]
-              )
-
-    _ ->
-        return branch
+    decisionTree =
+      DT.compile variantDict patterns
+  in
+    treeToExpr exprName decisionTree indexedBranches
 
 
 indexify :: Int -> (a,b) -> ((a,Int), (Int,b))
@@ -197,7 +170,4 @@ insertChoices choiceDict decider =
 
       Opt.FanOut path tests fallback ->
           Opt.FanOut path (map (second go) tests) (go fallback)
-
-
-
 

@@ -13,6 +13,7 @@ import qualified AST.Variable as Var
 defaults :: [Module.DefaultImport]
 defaults =
     [ ["Basics"] ==> Module.ImportMethod Nothing Var.openListing
+    , ["Debug"] ==> Module.ImportMethod Nothing Var.closedListing
     , ["List"] ==> exposing [Var.Value "::"]
     , ["Maybe"] ==> exposing [Var.Union "Maybe" Var.openListing]
     , ["Result"] ==> exposing [Var.Union "Result" Var.openListing]

@@ -209,8 +209,9 @@ generateCode expr =
                 do  expr' <- generateJsExpr expr
                     jsExpr (Port.task name expr' portType)
 
-      Crash region maybeCaseCrashValue ->
-          jsExpr $ BuiltIn.crash region maybeCaseCrashValue
+      Crash home region maybeBranchProblem ->
+          do  maybeOptBranchProblem <- traverse generateJsExpr maybeBranchProblem
+              jsExpr $ BuiltIn.crash home region maybeOptBranchProblem
 
 
 -- FUNCTIONS
