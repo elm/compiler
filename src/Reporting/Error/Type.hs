@@ -123,8 +123,8 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
 
     cmpHint leftWords rightWords extraHints =
       comparisonHint localizer leftType rightType leftWords rightWords
-        ( map toHint extraHints
-          ++ Maybe.maybeToList (reasonToString =<< maybeReason)
+        ( Maybe.maybeToList (reasonToString =<< maybeReason)
+          ++ map toHint extraHints
         )
   in
   case hint of
@@ -295,7 +295,15 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
                 ++ Help.ordinalize index ++ " argument to be:"
               )
               "But it is:"
-              []
+              ( if index == 1 then
+                  []
+                else
+                  [ "I always figure out the type of arguments from left to right. If an argument\
+                    \ is acceptable when I check it, I assume it is \"correct\" in subsequent checks.\
+                    \ So the problem may actually be in how previous arguments interact with the "
+                    ++ Help.ordinalize index ++ "."
+                  ]
+              )
           )
 
     FunctionArity maybeName expected actual region ->
