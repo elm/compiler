@@ -542,14 +542,14 @@ unifyStructure context term otherContent =
     Structure otherTerm ->
         case (term, otherTerm) of
           (App1 func arg, App1 otherFunc otherArg) ->
-              do  merge context otherContent
-                  subUnify context func otherFunc
+              do  subUnify context func otherFunc
                   subUnify context arg otherArg
+                  merge context otherContent
 
           (Fun1 arg result, Fun1 otherArg otherResult) ->
-              do  merge context otherContent
-                  subUnify context arg otherArg
+              do  subUnify context arg otherArg
                   subUnify context result otherResult
+                  merge context otherContent
 
           (EmptyRecord1, EmptyRecord1) ->
               merge context otherContent
