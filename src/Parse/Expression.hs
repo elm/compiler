@@ -90,45 +90,37 @@ listTerm =
 
 parensTerm :: IParser Source.Expr
 parensTerm =
-  choice
-    [ try opFn
-    , parens (tupleFn <|> parened)
-    ]
-  where
-    lambda start end x body =
-        A.at start end (E.Lambda (A.at start end (P.Var x)) body)
+  let
+    mkFunc args realBody start end =
+      foldr
+        (\arg body -> A.at start end (E.Lambda (A.at start end (P.Var arg)) body))
+        (A.at start end (realBody (A.at start end . E.rawVar)))
+        args
 
-    var start end x =
-        A.at start end (E.rawVar x)
-
-    opFn =
-      do  (start, op, end) <- located (parens symOp)
-          return $
-            lambda start end "x" $
-              lambda start end "y" $
-                A.at start end $
-                  E.Binop (Var.Raw op) (var start end "x") (var start end "y")
+    mkBinop op =
+      mkFunc ["x","y"] (\var -> E.Binop (Var.Raw op) (var "x") (var "y"))
 
     tupleFn =
-      do  (start, commas, end) <-
-              located (comma >> many (whitespace >> comma))
+      do  commas <- many1 comma
+          let args = map (('v':) . show) [ 0 .. length commas ]
+          return $ mkFunc args (\var -> E.tuple (map var args))
 
-          let vars = map (('v':) . show) [ 0 .. length commas + 1 ]
+    parenedExpr =
+      do  expressions <- padded (commaSep expr)
+          return $ \start end ->
+              case expressions of
+                [expression] ->
+                    expression
+                _ ->
+                    A.at start end (E.tuple expressions)
+  in
+    do  (start, mkExpr, end) <-
+          located $ choice $
+            [ mkBinop <$> try (parens symOp)
+            , parens (tupleFn <|> parenedExpr)
+            ]
+        return (mkExpr start end)
 
-          return $
-            foldr
-              (lambda start end)
-              (A.at start end (E.tuple (map (var start end) vars)))
-              vars
-
-    parened =
-      do  (start, expressions, end) <- located (commaSep expr)
-          return $
-            case expressions of
-              [expression] ->
-                  expression
-              _ ->
-                  A.at start end (E.tuple expressions)
 
 
 recordTerm :: IParser Source.Expr
