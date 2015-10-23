@@ -29,7 +29,7 @@ unify hint region expected actual =
               mkError =
                 do  expectedSrcType <- Type.toSrcType expected
                     actualSrcType <- Type.toSrcType actual
-                    mergeHelp subExpected subActual Error
+                    mergeHelp expected actual Error
                     let info = Error.MismatchInfo hint expectedSrcType actualSrcType maybeReason
                     return (Error.Mismatch info)
             in
