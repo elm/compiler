@@ -226,12 +226,14 @@ ifHelp branches =
 
 lambdaExpr :: IParser Source.Expr
 lambdaExpr =
-  do  char '\\' <|> char '\x03BB' <?> "an anonymous function"
+  do  start <- getMyPosition
+      char '\\' <|> char '\x03BB' <?> "an anonymous function"
       whitespace
       args <- spaceSep1 Pattern.term
       padded rightArrow
       body <- expr
-      return (makeFunction args body)
+      end <- getMyPosition
+      return (foldr (\a b -> A.at start end $ E.Lambda a b) body args)
 
 
 caseExpr :: IParser Source.Expr'
