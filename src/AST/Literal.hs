@@ -2,9 +2,6 @@
 module AST.Literal where
 
 import qualified Data.Map as Map
-import qualified Text.PrettyPrint as P
-
-import qualified Reporting.PrettyPrint as P
 
 
 data Literal
@@ -13,12 +10,7 @@ data Literal
     | Chr Char
     | Str String
     | Boolean Bool
-    deriving (Eq, Ord, Show)
-
-
-instance P.Pretty Literal where
-  pretty _ _ literal =
-      P.text (toString literal)
+    deriving (Eq, Ord)
 
 
 toString :: Literal -> String
@@ -39,7 +31,7 @@ data GLTipe
     | V4
     | M4
     | Texture
-    deriving (Eq, Show)
+    deriving (Eq)
 
 
 glTipeName :: GLTipe -> String
@@ -59,4 +51,4 @@ data GLShaderTipe = GLShaderTipe
     , uniform :: Map.Map String GLTipe
     , varying :: Map.Map String GLTipe
     }
-    deriving (Eq, Show)
+    deriving (Eq)

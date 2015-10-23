@@ -1,11 +1,13 @@
 {-# OPTIONS_GHC -Wall #-}
 module Reporting.Error.Pattern where
 
-import qualified AST.Module.Name as ModuleName
-import qualified AST.Variable as Var
+import Text.PrettyPrint.ANSI.Leijen (text)
+
 import qualified Nitpick.Pattern as Pattern
-import qualified Reporting.PrettyPrint as P
+import qualified Reporting.Error.Helpers as Help
+import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
+
 
 
 data Error
@@ -19,113 +21,68 @@ data Origin
     | Case
 
 
+
 -- TO REPORT
 
-toReport :: P.Dealiaser -> Error -> Report.Report
-toReport dealiaser err =
+
+toReport :: RenderType.Localizer -> Error -> Report.Report
+toReport _localizer err =
   case err of
     Incomplete Arg unhandled ->
-        Report.simple
+        Report.report
           "PARTIAL PATTERN"
-          "This argument does not cover all possible inputs."
-          ( "Any of these patterns can cause a crash:\n"
-            ++ viewPatternList unhandled
-            ++ "\n\n"
-            ++ partialExplanation unhandled
-          )
+          Nothing
+          "This pattern does not cover all possible inputs."
+          (text (unhandledError unhandled toCaseMessage))
 
     Incomplete LetBound unhandled ->
-        Report.simple
+        Report.report
           "PARTIAL PATTERN"
+          Nothing
           "The pattern used here does not cover all possible values."
-          ( "Any of these patterns can cause a crash:\n"
-            ++ viewPatternList unhandled
-            ++ "\n\n"
-            ++ partialExplanation unhandled
-          )
+          (text (unhandledError unhandled toCaseMessage))
 
     Incomplete Case unhandled ->
-        Report.simple
-          "INCOMPLETE PATTERN MATCH"
+        Report.report
+          "MISSING PATTERNS"
+          Nothing
           "This `case` does not have branches for all possibilities."
-          ( "Any of these patterns can cause a crash:\n"
-            ++ viewPatternList unhandled
-            ++ "\n\n"
-            ++ incompleteExplanation
-          )
+          (text (unhandledError unhandled newTagsMessage))
 
     Redundant ->
-        Report.simple
+        Report.report
           "REDUNDANT PATTERN"
-          "The following pattern is redundant."
-          "Any value with this shape will be handled by a previous pattern."
+          Nothing
+          "The following pattern is redundant. Remove it."
+          (text "Any value with this shape will be handled by a previous pattern.")
 
 
-viewPatternList :: [Pattern.Pattern] -> String
-viewPatternList unhandledPatterns =
+unhandledError :: [Pattern.Pattern] -> String -> String
+unhandledError unhandledPatterns relevantMessage =
   let
-    (showPatterns, rest) =
+    (visiblePatterns, rest) =
       splitAt 4 unhandledPatterns
+
+    patternList =
+        map (Pattern.toString False) visiblePatterns
+        ++ if null rest then [] else ["..."]
   in
-    concatMap ((++) "\n    ") $
-      map (Pattern.toString False) showPatterns
-      ++ if null rest then [] else ["..."]
+    "You need to account for the following values:\n"
+    ++ concatMap ("\n    " ++) patternList ++ "\n"
+    ++ "\n"
+    ++ relevantMessage ++ "\n"
+    ++ "\n"
+    ++ "If you are seeing this error for the first time, check out these hints:\n"
+    ++ Help.hintLink "missing-patterns" ++ "\n"
+    ++ "The recommendations about `Debug.crash` and wildcard patterns are important!"
 
 
-partialExplanation :: [Pattern.Pattern] -> String
-partialExplanation unhandledPatterns =
-
-  "You probably want to switch to a `case` expression to handle all possible\n"
-  ++ "patterns in a simple way. If you think some cases are impossible, you can use\n"
-  ++ "`Debug.crash` to make that thinking explicit in your code.\n"
-  ++ "<http://package.elm-lang.org/packages/elm-lang/core/latest/Debug#crash>"
-  ++
-
-  if isNothing unhandledPatterns then
-
-      "\n\nSometimes you *know* a value will never be Nothing, though such cases are very\n"
-      ++ "rare. If you are certain you are in that case and that there is no better way\n"
-      ++ "to do things, I'd recommend creating a function `unsafe` that makes the danger\n"
-      ++ "explicit in the code. <https://github.com/elm-lang/core/issues/215>"
-
-  else if isEmptyList unhandledPatterns then
-
-      "\n\nSometimes you *know* a list cannot be empty, though such cases are relatively\n"
-      ++ "rare. If you are certain you are in that case and that there is no better\n"
-      ++ "way to do things, I'd recommend creating a function like `unsafe` that makes\n"
-      ++ "the danger explicit in the code. <https://github.com/elm-lang/core/issues/215>"
-
-  else
-
-      ""
+toCaseMessage :: String
+toCaseMessage =
+  "Switch to a `case` expression to handle all possible patterns."
 
 
-isNothing :: [Pattern.Pattern] -> Bool
-isNothing unhandledPatterns =
-  case unhandledPatterns of
-    [Pattern.Data (Var.Canonical (Var.Module moduleName) "Nothing") []] ->
-        moduleName == ModuleName.inCore ["Maybe"]
-
-    _ ->
-        False
-
-
-isEmptyList :: [Pattern.Pattern] -> Bool
-isEmptyList unhandledPatterns =
-  case unhandledPatterns of
-    [Pattern.Data (Var.Canonical Var.BuiltIn "[]") []] ->
-        True
-
-    _ ->
-        False
-
-
-incompleteExplanation :: String
-incompleteExplanation =
-  "Did you add a new tag to a union type? Add how it should be handled here and\n"
-  ++ "you will be all set!\n"
-  ++ "\n"
-  ++ "If you want to go quick and implement this later, you may want to look into\n"
-  ++ "using `Debug.crash` which has some cool error reporting abilities.\n"
-  ++ "<http://package.elm-lang.org/packages/elm-lang/core/latest/Debug#crash>"
+newTagsMessage :: String
+newTagsMessage =
+  "Did you add a new tag to a union type? Add a branch for it here!"
 

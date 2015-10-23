@@ -7,7 +7,7 @@ import Language.ECMAScript3.Syntax
 import qualified AST.Type as T
 import qualified AST.Variable as Var
 import Generate.JavaScript.Helpers
-import qualified Reporting.PrettyPrint as P
+import qualified Reporting.Render.Type as RenderType
 
 
 -- TASK
@@ -97,14 +97,14 @@ inbound name portType =
     T.Normal tipe ->
         _Port "inbound" `call`
             [ StringLit () name
-            , StringLit () (show (P.pretty Map.empty False tipe))
+            , StringLit () (show (RenderType.toDoc Map.empty tipe))
             , toTypeFunction tipe
             ]
 
     T.Signal _root arg ->
         _Port "inboundSignal" `call`
             [ StringLit () name
-            , StringLit () (show (P.pretty Map.empty False arg))
+            , StringLit () (show (RenderType.toDoc Map.empty arg))
             , toTypeFunction arg
             ]
 

@@ -19,6 +19,8 @@ import Test.HUnit (Assertion, assertFailure, assertBool, assertEqual)
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Package as Package
 
+
+
 writeExpectedJsEnvVarName :: String
 writeExpectedJsEnvVarName =
   "ELM_WRITE_NEW_EXPECTED"
@@ -38,7 +40,9 @@ compilerTests =
               ]
 
 
+
 -- GATHER FILES
+
 
 getElms :: FilePath -> IO [FilePath]
 getElms filePath =
@@ -54,13 +58,15 @@ testsDir =
 
 convertToExpectedJsFilePath :: String -> FilePath -> FilePath
 convertToExpectedJsFilePath expectedJsDir filePath =
-      testsDir
+    testsDir
       </> expectedJsDir
       </> joinPath (drop 3 (splitDirectories filePath))
       <.> ".js"
 
 
+
 -- TEST HELPERS
+
 
 compileString :: FilePath -> String -> Either String Compiler.Result
 compileString filePath source =
@@ -85,7 +91,9 @@ readFileOrErrorStr filePath =
           return (show e)
 
 
+
 -- RUN TESTS
+
 
 testIf
     :: (Either String Compiler.Result -> Assertion)
@@ -143,7 +151,9 @@ testMatchesExpected elmDir expectedJsDir =
           traverse (doMatchesExpectedTest expectedJsDir) elmFiles
 
 
+
 -- CHECK RESULTS
+
 
 isSuccess :: Either String a -> Assertion
 isSuccess result =

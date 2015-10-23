@@ -17,7 +17,7 @@ data Pattern
     | Anything
     | Literal L.Literal
     | AnythingBut (Set.Set L.Literal)
-    deriving (Show, Eq)
+    deriving (Eq)
 
 
 fromCanonicalPattern :: P.CanonicalPattern -> Pattern
@@ -83,7 +83,20 @@ toString needsParens pattern =
         L.toString literal
 
     AnythingBut literalSet ->
-        List.intercalate " " ("<values besides:" : map L.toString (Set.toList literalSet) ++ [">"])
+        case map L.toString (Set.toList literalSet) of
+          [] ->
+              error "should not have an AnythingBut with no literals"
+
+          [x] ->
+              "<values besides " ++ x ++ ">"
+
+          [x,y] ->
+              "<values besides " ++ x ++ " and " ++ y ++ ">"
+
+          literals ->
+              "<values besides "
+              ++ List.intercalate ", " (init literals)
+              ++ ", and " ++ last literals ++ ">"
 
 
 addParensIf :: Bool -> String -> String

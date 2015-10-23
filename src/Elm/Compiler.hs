@@ -3,13 +3,15 @@ module Elm.Compiler
     ( version
     , parseDependencies
     , compile, Context(..), Result(..)
-    , Dealiaser, dummyDealiaser
+    , Localizer, dummyLocalizer
     , Error, errorToString, errorToJson, printError
     , Warning, warningToString, warningToJson, printWarning
-    ) where
+    )
+    where
 
 import qualified Data.Aeson as Json
 import qualified Data.Map as Map
+import System.IO (Handle)
 
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
@@ -24,7 +26,8 @@ import qualified Parse.Module as Parse
 import qualified Parse.Parse as Parse
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error as Error
-import qualified Reporting.PrettyPrint as P
+import qualified Reporting.Render.Type as RenderType
+import qualified Reporting.Report as Report
 import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
 
@@ -64,14 +67,14 @@ compile
     :: Context
     -> String
     -> PublicModule.Interfaces
-    -> (Dealiaser, [Warning], Either [Error] Result)
+    -> (Localizer, [Warning], Either [Error] Result)
 
 compile context source interfaces =
   let
     (Context packageName isRoot isExposed dependencies) =
       context
 
-    (Result.Result (dealiaser, warnings) rawResult) =
+    (Result.Result (localizer, warnings) rawResult) =
       do  modul <- Compile.compile packageName isRoot dependencies interfaces source
           docs <- docsGen isExposed modul
 
@@ -80,7 +83,7 @@ compile context source interfaces =
 
           return (Result docs interface javascript)
   in
-    ( maybe dummyDealiaser Dealiaser dealiaser
+    ( maybe dummyLocalizer Localizer localizer
     , map Warning warnings
     , Result.destruct (Left . map Error) Right rawResult
     )
@@ -124,13 +127,13 @@ docsGen isExposed modul =
 
 -- DEALIASER
 
-newtype Dealiaser =
-    Dealiaser P.Dealiaser
+newtype Localizer =
+    Localizer RenderType.Localizer
 
 
-dummyDealiaser :: Dealiaser
-dummyDealiaser =
-    Dealiaser Map.empty
+dummyLocalizer :: Localizer
+dummyLocalizer =
+    Localizer Map.empty
 
 
 -- ERRORS
@@ -139,19 +142,19 @@ newtype Error =
     Error (A.Located Error.Error)
 
 
-errorToString :: Dealiaser -> String -> String -> Error -> String
-errorToString (Dealiaser dealiaser) location source (Error err) =
-    Error.toString dealiaser location source err
+errorToString :: Localizer -> String -> String -> Error -> String
+errorToString (Localizer localizer) location source (Error (A.A region err)) =
+    Report.toString location region (Error.toReport localizer err) source
 
 
-printError :: Dealiaser -> String -> String -> Error -> IO ()
-printError (Dealiaser dealiaser) location source (Error err) =
-    Error.print dealiaser location source err
+printError :: Handle -> Localizer -> String -> String -> Error -> IO ()
+printError handle (Localizer localizer) location source (Error (A.A region err)) =
+    Report.toHandle handle location region (Error.toReport localizer err) source
 
 
-errorToJson :: Dealiaser -> String -> Error -> Json.Value
-errorToJson (Dealiaser dealiaser) location (Error err) =
-    Error.toJson dealiaser location err
+errorToJson :: Localizer -> String -> Error -> Json.Value
+errorToJson (Localizer localizer) location (Error err) =
+    Error.toJson localizer location err
 
 
 -- WARNINGS
@@ -160,18 +163,18 @@ newtype Warning =
     Warning (A.Located Warning.Warning)
 
 
-warningToString :: Dealiaser -> String -> String -> Warning -> String
-warningToString (Dealiaser dealiaser) location source (Warning err) =
-    Warning.toString dealiaser location source err
+warningToString :: Localizer -> String -> String -> Warning -> String
+warningToString (Localizer localizer) location source (Warning (A.A region wrn)) =
+    Report.toString location region (Warning.toReport localizer wrn) source
 
 
-printWarning :: Dealiaser -> String -> String -> Warning -> IO ()
-printWarning (Dealiaser dealiaser) location source (Warning err) =
-    Warning.print dealiaser location source err
+printWarning :: Handle -> Localizer -> String -> String -> Warning -> IO ()
+printWarning handle (Localizer localizer) location source (Warning (A.A region wrn)) =
+    Report.toHandle handle location region (Warning.toReport localizer wrn) source
 
 
-warningToJson :: Dealiaser -> String -> Warning -> Json.Value
-warningToJson (Dealiaser dealiaser) location (Warning err) =
-    Warning.toJson dealiaser location err
+warningToJson :: Localizer -> String -> Warning -> Json.Value
+warningToJson (Localizer localizer) location (Warning wrn) =
+    Warning.toJson localizer location wrn
 
 

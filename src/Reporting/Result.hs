@@ -6,14 +6,14 @@ import Control.Monad.Except (Except, runExcept)
 
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
-import qualified Reporting.PrettyPrint as P
+import qualified Reporting.Render.Type as RenderType
 
 
 -- TASK
 
 data Result warning error result =
     Result
-      (Maybe P.Dealiaser, [A.Located warning])
+      (Maybe RenderType.Localizer, [A.Located warning])
       (RawResult [A.Located error] result)
 
 
@@ -70,7 +70,7 @@ addWarnings newWarnings (Result (dealiaser, warnings) rawResult) =
   Result (dealiaser, newWarnings ++ warnings) rawResult
 
 
-addDealiaser :: P.Dealiaser -> Result w e a -> Result w e a
+addDealiaser :: RenderType.Localizer -> Result w e a -> Result w e a
 addDealiaser dealiaser (Result (_, warnings) rawResult) =
   Result (Just dealiaser, warnings) rawResult
 

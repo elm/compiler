@@ -108,8 +108,9 @@ Library
         Reporting.Error.Pattern,
         Reporting.Error.Syntax,
         Reporting.Error.Type,
-        Reporting.PrettyPrint,
         Reporting.Region,
+        Reporting.Render.Code,
+        Reporting.Render.Type,
         Reporting.Report,
         Reporting.Result,
         Reporting.Warning,
@@ -119,7 +120,6 @@ Library
         Type.Environment,
         Type.Fragment,
         Type.Inference,
-        Type.PrettyPrint,
         Type.Solve,
         Type.State,
         Type.Type,
@@ -131,6 +131,7 @@ Library
         aeson >= 0.7 && < 0.9,
         aeson-pretty >= 0.7 && < 0.8,
         ansi-terminal >= 0.6.2.1 && < 0.7,
+        ansi-wl-pprint >= 0.6.7 && < 0.7,
         base >=4.2 && <5,
         binary >= 0.7.0.0 && < 0.8,
         bytestring >= 0.9 && < 0.11,
@@ -190,7 +191,6 @@ Test-Suite compiler-tests
         Test.Property.Arbitrary
         AST.Helpers
         AST.Literal
-        Reporting.PrettyPrint
 
     build-depends:
         test-framework > 0.8 && < 0.9,
@@ -201,6 +201,7 @@ Test-Suite compiler-tests
         aeson >= 0.7 && < 0.9,
         aeson-pretty >= 0.7 && < 0.8,
         ansi-terminal >= 0.6.2.1 && < 0.7,
+        ansi-wl-pprint >= 0.6.7 && < 0.7,
         base >=4.2 && <5,
         binary >= 0.7.0.0 && < 0.8,
         bytestring >= 0.9 && < 0.11,

@@ -1,14 +1,16 @@
 {-# OPTIONS_GHC -Wall #-}
 module Reporting.Error.Canonicalize where
 
-import qualified Text.PrettyPrint as P
+import Control.Arrow (second)
+import Text.PrettyPrint.ANSI.Leijen (indent, text)
 
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
+import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Helpers as Help
-import qualified Reporting.PrettyPrint as P
 import qualified Reporting.Region as Region
+import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
 
 
@@ -22,7 +24,9 @@ data Error
     | Port PortError
 
 
+
 -- VARIABLES
+
 
 data VarError = VarError
     { varKind :: String
@@ -44,7 +48,9 @@ variable kind name problem suggestions =
   Var (VarError kind name problem suggestions)
 
 
+
 -- PATTERN
+
 
 data PatternError
     = PatternArgMismatch Var.Canonical Int Int
@@ -55,7 +61,9 @@ argMismatch name expected actual =
   Pattern (PatternArgMismatch name expected actual)
 
 
+
 -- IMPORTS
+
 
 data ImportError
     = ModuleNotFound [ModuleName.Raw]
@@ -72,7 +80,9 @@ valueNotFound name value possibilities =
   Import name (ValueNotFound value possibilities)
 
 
+
 -- ALIASES
+
 
 data AliasError
     = ArgMismatch Var.Canonical Int Int
@@ -85,7 +95,9 @@ alias name expected actual =
   Alias (ArgMismatch name expected actual)
 
 
+
 -- PORTS
+
 
 data PortError = PortError
     { portName :: String
@@ -107,15 +119,17 @@ port name isInbound rootType localType maybeMessage =
   Port (PortError name isInbound rootType localType maybeMessage)
 
 
+
 -- TO REPORT
+
 
 namingError :: String -> String -> Report.Report
 namingError pre post =
-  Report.simple "NAMING ERROR" pre post
+  Report.report "NAMING ERROR" Nothing pre (text post)
 
 
-toReport :: P.Dealiaser -> Error -> Report.Report
-toReport dealiaser err =
+toReport :: RenderType.Localizer -> Error -> Report.Report
+toReport localizer err =
   case err of
     Var (VarError kind name problem suggestions) ->
         let var = kind ++ " `" ++ name ++ "`"
@@ -156,26 +170,37 @@ toReport dealiaser err =
               argMismatchReport "Type" var expected actual
 
           SelfRecursive name tvars tipe ->
-              Report.simple "ALIAS PROBLEM" "This type alias is recursive, forming an infinite type!" $
-                "Type aliases are just names for more fundamental types, so I go through\n"
-                ++ "and expand them all to know the real underlying type. The problem is that\n"
-                ++ "when I expand a recursive type alias, it keeps getting bigger and bigger.\n"
-                ++ "Dealiasing results in an infinitely large type! Try this instead:\n\n"
-                ++ "    type " ++ name ++ concatMap (' ':) tvars ++ " ="
-                ++ P.render (P.nest 8 (P.hang (P.text name) 2 (P.pretty dealiaser True tipe)))
-                ++ "\n\nThis creates a brand new type that cannot be expanded. It is similar types\n"
-                ++ "like List which are recursive, but do not get expanded into infinite types."
+              Report.report
+                "ALIAS PROBLEM"
+                Nothing
+                "This type alias is recursive, forming an infinite type!"
+                (
+                  Help.stack
+                    [ Help.reflowParagraph $
+                        "When I expand a recursive type alias, it just keeps getting bigger and bigger.\
+                        \ So dealiasing results in an infinitely large type! Try this instead:"
+                    , indent 4 $
+                        RenderType.decl localizer name tvars [(name, [unsafePromote tipe])]
+                    , text $
+                        "This creates a brand new type that cannot be expanded. Read more about this at:\n"
+                        ++ Help.hintLink "infinite-alias"
+                    ]
+                )
 
           MutuallyRecursive aliases ->
-              Report.simple "ALIAS PROBLEM" "This type alias is part of a mutually recursive set of type aliases." $
-                "The following type aliases all depend on each other in some way:\n"
-                ++ concatMap showName aliases ++ "\n\n"
-                ++ "The problem is that when you try to expand any of these type aliases, they\n"
-                ++ "expand infinitely! To fix, first try to centralize them into one alias."
-            where
-              showName (Region.Region start _, name, _, _) =
-                  "\n    " ++ name ++ replicate (65 - length name) ' '
-                  ++ "line " ++ show (Region.line start)
+              Report.report
+                "ALIAS PROBLEM"
+                Nothing
+                "This type alias is part of a mutually recursive set of type aliases."
+                ( Help.stack
+                    [ text "The following type aliases are mutually recursive:"
+                    , Help.drawCycle (map (\(_, name, _, _) -> name) aliases)
+                    , Help.reflowParagraph $
+                        "You need to convert at least one `type alias` into a `type`. This is a kind of\
+                        \ subtle distinction, so definitely read how to fix it and have great code:"
+                        ++ Help.hintLink "infinite-alias"
+                    ]
+                )
 
     Import name importError ->
         let moduleName = ModuleName.toString name
@@ -205,33 +230,34 @@ toReport dealiaser err =
         let
           boundPort =
             if isInbound then "inbound port" else "outbound port"
-
-          preHint =
-            "Trying to send " ++ maybe "an unsupported type" id maybeMessage
-            ++ " through " ++ boundPort ++ " `" ++ name ++ "`"
-
-          postHint =
-            "The specific unsupported type is:\n\n"
-            ++ P.render (P.nest 4 (P.pretty dealiaser False localType)) ++ "\n\n"
-            ++ "The types of values that can flow through " ++ boundPort ++ "s include:\n"
-            ++ "Ints, Floats, Bools, Strings, Maybes, Lists, Arrays, Tuples,\n"
-            ++ "Json.Values, and concrete records."
         in
-          Report.simple "PORT ERROR" preHint postHint
+          Report.report
+            "PORT ERROR"
+            Nothing
+            ("Trying to send " ++ maybe "an unsupported type" id maybeMessage
+              ++ " through " ++ boundPort ++ " `" ++ name ++ "`"
+            )
+            ( Help.stack
+                [ text "The specific unsupported type is:"
+                , indent 4 (RenderType.toDoc localizer localType)
+                , text ("The types of values that can flow through " ++ boundPort ++ "s include:")
+                , indent 4 $ Help.reflowParagraph $
+                    "Ints, Floats, Bools, Strings, Maybes, Lists, Arrays,\
+                    \ Tuples, Json.Values, and concrete records."
+                ]
+            )
 
 
 argMismatchReport :: String -> Var.Canonical -> Int -> Int -> Report.Report
 argMismatchReport kind var expected actual =
-  let
-    preHint =
-      kind ++ " " ++ Var.toString var ++ " has too "
+  Report.report
+    "ARGUMENT"
+    Nothing
+    ( kind ++ " " ++ Var.toString var ++ " has too "
       ++ (if actual < expected then "few" else "many")
       ++ " arguments."
-
-    postHint =
-      "Expecting " ++ show expected ++ ", but got " ++ show actual ++ "."
-  in
-      Report.simple "ARGUMENT" preHint postHint
+    )
+    (text ("Expecting " ++ show expected ++ ", but got " ++ show actual ++ "."))
 
 
 extractSuggestions :: Error -> Maybe [String]
@@ -262,3 +288,23 @@ extractSuggestions err =
 
     Port _ ->
         Nothing
+
+
+unsafePromote :: Type.Raw -> Type.Canonical
+unsafePromote (A.A _ rawType) =
+  case rawType of
+    Type.RLambda arg result ->
+        Type.Lambda (unsafePromote arg) (unsafePromote result)
+
+    Type.RVar x ->
+        Type.Var x
+
+    Type.RType (Var.Raw name) ->
+        Type.Type (Var.local name)
+
+    Type.RApp func args ->
+        Type.App (unsafePromote func) (map unsafePromote args)
+
+    Type.RRecord fields ext ->
+        Type.Record (map (second unsafePromote) fields) (fmap unsafePromote ext)
+

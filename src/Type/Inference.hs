@@ -42,13 +42,12 @@ infer interfaces modul =
 genConstraints
     :: Module.Interfaces
     -> Module.CanonicalModule
-    -> IO (Env.TypeDict, T.TypeConstraint)
+    -> IO (Map.Map String T.Type, T.TypeConstraint)
 genConstraints interfaces modul =
-  do  env <-
-          Env.initialEnvironment (canonicalizeAdts interfaces modul)
+  do  env <- Env.initialize (canonicalizeAdts interfaces modul)
 
       ctors <-
-          forM (Map.keys (Env.constructor env)) $ \name ->
+          forM (Env.ctorNames env) $ \name ->
             do  (_, vars, args, result) <- Env.freshDataScheme env name
                 return (name, (vars, foldr (T.==>) result args))
 
@@ -60,10 +59,10 @@ genConstraints interfaces modul =
       let header = Map.map snd (Map.fromList allTypes)
       let environ = T.CLet [ T.Scheme vars [] T.CTrue (Map.map (A.A undefined) header) ]
 
-      fvar <- T.variable T.Flexible
+      fvar <- T.mkVar Nothing
 
       constraint <-
-          TcExpr.constrain env (program (body modul)) (T.varN fvar)
+          TcExpr.constrain env (program (body modul)) (T.VarN fvar)
 
       return (header, environ constraint)
 
