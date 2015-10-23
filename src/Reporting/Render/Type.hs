@@ -195,8 +195,12 @@ diff localizer context leftType rightType =
               (docApp localizer context rightName (map (docType localizer App) rightArgs))
 
         else
-            docApp localizer context leftName
-              <$> sequenceA (zipWith (go App) leftArgs rightArgs)
+            let
+              subContext =
+                if Var.isTuple leftName then None else App
+            in
+              docApp localizer context leftName
+                <$> sequenceA (zipWith (go subContext) leftArgs rightArgs)
 
     (Type.App _ _, Type.App _ _) ->
         error "Type applications without concrete names should not get here."
