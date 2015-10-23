@@ -72,7 +72,7 @@ cmp left right =
 -- CRASH
 
 
-crash :: ModuleName.Canonical -> R.Region -> Maybe String -> JS.Expression ()
+crash :: ModuleName.Canonical -> R.Region -> Maybe (JS.Expression ()) -> JS.Expression ()
 crash home region maybeCaseCrashValue =
   let
     homeString =
@@ -83,7 +83,7 @@ crash home region maybeCaseCrashValue =
         utils "crash" [ homeString, regionToJs region ]
 
     Just crashValue ->
-        utils "caseCrash" [ homeString, regionToJs region, ref crashValue ]
+        utils "crashCase" [ homeString, regionToJs region, crashValue ]
 
 
 regionToJs :: R.Region -> JS.Expression ()

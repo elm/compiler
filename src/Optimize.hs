@@ -280,8 +280,8 @@ optimizeExpr context annExpr@(A.A region expression) =
             variantDict <- Env.getVariantDict
 
             name <- Env.freshName
-            optBranches <- T.traverse (optimizeBranch context name) branches
-            optCase <- Case.optimize variantDict region name optBranches
+            optBranches <- T.traverse (optimizeBranch context region name) branches
+            let optCase = Case.optimize variantDict name optBranches
             return $ Opt.Let [ Opt.Def Opt.dummyFacts name optExpr ] optCase
 
     Expr.Data name exprs ->
@@ -326,19 +326,40 @@ mapSnd func (x, a) =
 
 optimizeBranch
     :: Context
+    -> R.Region
     -> String
     -> (P.CanonicalPattern, Can.Expr)
     -> Env.Optimizer (P.CanonicalPattern, Opt.Expr)
-optimizeBranch context exprName (pattern, canonicalExpr) =
+optimizeBranch context region exprName (rawPattern, canBranch) =
   let
     root =
       Opt.Var (Var.Canonical Var.Local exprName)
-
-    substitutions =
-      Map.fromList (patternToSubstitutions root pattern)
   in
-    do  optExpr <- optimizeExpr context canonicalExpr
-        (,) pattern <$> Inline.inline substitutions optExpr
+    do  optBranch <- optimizeExpr context canBranch
+        (pattern, branch) <- tagCrashBranch region rawPattern optBranch
+
+        let substitutions =
+              Map.fromList (patternToSubstitutions root pattern)
+
+        (,) pattern <$> Inline.inline substitutions branch
+
+
+tagCrashBranch
+    :: R.Region
+    -> P.CanonicalPattern
+    -> Opt.Expr
+    -> Env.Optimizer (P.CanonicalPattern, Opt.Expr)
+tagCrashBranch region pattern@(A.A pr _) expr =
+  case expr of
+    Opt.Call (Opt.Crash home _ _) [arg] ->
+        do  name <- Env.freshName
+            return
+              ( A.A pr (P.Alias name pattern)
+              , Opt.Call (Opt.Crash home region (Just (Opt.Var (Var.local name)))) [arg]
+              )
+
+    _ ->
+        return (pattern, expr)
 
 
 -- DETECT TAIL CALL
