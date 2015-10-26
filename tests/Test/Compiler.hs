@@ -18,7 +18,10 @@ import Test.HUnit (Assertion, assertFailure, assertBool, assertEqual)
 
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Package as Package
-
+import qualified AST.Module as Module
+import qualified AST.Module.Name as ModuleName
+import qualified AST.Variable as Variable
+import qualified AST.Type as Type
 
 
 writeExpectedJsEnvVarName :: String
@@ -68,12 +71,40 @@ convertToExpectedJsFilePath expectedJsDir filePath =
 -- TEST HELPERS
 
 
+essentialInterfaces :: Module.Interfaces
+essentialInterfaces =
+  Map.fromList
+    [
+      (ModuleName.inCore ["Debug"],
+        buildCoreInterface
+          [
+            ("crash", Type.Lambda (Type.Var "String") (Type.Var "a"))
+          ]
+      )
+    ]
+
+
+buildCoreInterface :: [(String, Type.Canonical)] -> Module.Interface
+buildCoreInterface members =
+  let exports = map (Variable.Value . fst) members
+      imports = []
+      types = Map.fromList members
+      adts = Map.empty
+      aliases = Map.empty
+      fixities = []
+      ports = []
+  in
+      Module.Interface Compiler.version Package.coreName exports types imports adts aliases fixities ports
+
+
 compileString :: FilePath -> String -> Either String Compiler.Result
 compileString filePath source =
-  let context =
-        Compiler.Context Package.coreName True False []
+  let dependentModuleNames =
+        Map.keys essentialInterfaces
+      context =
+        Compiler.Context Package.coreName True False dependentModuleNames
       (dealiaser, _warnings, result) =
-        Compiler.compile context source Map.empty
+        Compiler.compile context source essentialInterfaces
       formatErrors errors =
         concatMap (Compiler.errorToString dealiaser filePath source) errors
   in
