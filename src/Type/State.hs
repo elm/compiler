@@ -185,7 +185,7 @@ makeCopyHelp descriptor alreadyCopiedMark variable =
         Nothing ->
             error $
               "Error copying type variable. This should be impossible." ++
-              " Please report an error to the github repo!"
+              " Please report an error to <https://github.com/elm-lang/elm-compiler/issues>!"
 
   else if _rank descriptor /= noRank || not (needsCopy (_content descriptor)) then
       return variable
