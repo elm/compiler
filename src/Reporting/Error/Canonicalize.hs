@@ -182,8 +182,9 @@ toReport localizer err =
                     , indent 4 $
                         RenderType.decl localizer name tvars [(name, [unsafePromote tipe])]
                     , text $
-                        "This creates a brand new type that cannot be expanded. Read more about this at:\n"
-                        ++ Help.hintLink "infinite-alias"
+                        "This is kind of a subtle distinction. I suggested the naive fix, but you can\n"
+                        ++ "often do something a bit nicer. So I would recommend reading more at:\n"
+                        ++ Help.hintLink "recursive-alias"
                     ]
                 )
 
@@ -194,11 +195,11 @@ toReport localizer err =
                 "This type alias is part of a mutually recursive set of type aliases."
                 ( Help.stack
                     [ text "The following type aliases are mutually recursive:"
-                    , Help.drawCycle (map (\(_, name, _, _) -> name) aliases)
+                    , indent 4 (Help.drawCycle (map (\(_, name, _, _) -> name) aliases))
                     , Help.reflowParagraph $
                         "You need to convert at least one `type alias` into a `type`. This is a kind of\
-                        \ subtle distinction, so definitely read how to fix it and have great code:"
-                        ++ Help.hintLink "infinite-alias"
+                        \ subtle distinction, so definitely read up on this before you make a fix: "
+                        ++ Help.hintLink "recursive-alias"
                     ]
                 )
 

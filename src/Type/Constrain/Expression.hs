@@ -89,7 +89,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
                             (CLet [monoscheme (Fragment.typeEnv fragment)]
                                   (Fragment.typeConstraint fragment /\ bodyCon)
                             )
-                  return $ con /\ CEqual Error.Lambda region tipe (argType ==> resType)
+                  return $ con /\ CEqual Error.Lambda region (argType ==> resType) tipe
 
       E.App _ _ ->
           let
@@ -125,7 +125,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
 
                   newVars <- mapM (\_ -> mkVar Nothing) fields
                   let newFields = Map.fromList (zip (map fst fields) (map VarN newVars))
-                  let cNew = CEqual Error.Record region tipe (record newFields t)
+                  let cNew = CEqual Error.Record region (record newFields t) tipe
 
                   cs <- Monad.zipWithM (constrain env) (map snd fields) (map VarN newVars)
 
@@ -140,7 +140,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
                       (map VarN vars)
               let fields' = Map.fromList (zip (map fst fields) (map VarN vars))
               let recordType = record fields' (TermN EmptyRecord1)
-              return (ex vars (CAnd (fieldCons ++ [CEqual Error.Record region tipe recordType])))
+              return (ex vars (CAnd (fieldCons ++ [CEqual Error.Record region recordType tipe])))
 
       E.Let defs body ->
           do  bodyCon <- constrain env body tipe
@@ -281,7 +281,7 @@ constrainBinop env region op leftExpr@(A.A leftRegion _) rightExpr@(A.A rightReg
           , CInstance region (V.toString op) opType
           , CEqual (Error.BinopLeft op leftRegion) region (VarN leftVar') (VarN leftVar)
           , CEqual (Error.BinopRight op rightRegion) region (VarN rightVar') (VarN rightVar)
-          , CEqual (Error.Binop op) region tipe (VarN answerVar)
+          , CEqual (Error.Binop op) region (VarN answerVar) tipe
           ]
 
 
@@ -307,7 +307,7 @@ constrainList env region exprs tipe =
           return ( (var, region'), con )
 
     varToCon var =
-      CEqual Error.List region tipe (Env.getType env "List" <| VarN var)
+      CEqual Error.List region (Env.getType env "List" <| VarN var) tipe
 
 
 -- CONSTRAIN IF EXPRESSIONS
