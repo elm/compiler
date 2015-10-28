@@ -302,16 +302,34 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
               )
           )
 
+    FunctionArity maybeName 0 actual region ->
+        let
+          arg =
+            if actual == 1 then "an argument" else show actual ++ " arguments"
+
+          preHint =
+            case maybeName of
+              Nothing ->
+                  "You are giving " ++ arg ++ " to something that is not a function!"
+
+              Just name ->
+                  prettyName name ++ " is not a function, but you are giving it " ++ arg ++ "!"
+        in
+          report
+            (Just region)
+            preHint
+            (text "Maybe you forgot some parentheses? Or a comma?")
+
     FunctionArity maybeName expected actual region ->
         let
-          s = if expected <= 1 then "" else "s"
+          s = if expected == 1 then "" else "s"
         in
           report
             (Just region)
             ( Help.capitalize (funcName maybeName) ++ " is expecting " ++ show expected
               ++ " argument" ++ s ++ ", but was given " ++ show actual ++ "."
             )
-            (text "Maybe you forgot some parentheses somewhere?")
+            (text "Maybe you forgot some parentheses? Or a comma?")
 
     BadTypeAnnotation name ->
         report
