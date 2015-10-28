@@ -47,7 +47,7 @@ toReport _localizer err =
           "MISSING PATTERNS"
           Nothing
           "This `case` does not have branches for all possibilities."
-          (text (unhandledError unhandled newTagsMessage))
+          (text (unhandledError unhandled (missingBranchesMessage (length unhandled))))
 
     Redundant ->
         Report.report
@@ -74,7 +74,7 @@ unhandledError unhandledPatterns relevantMessage =
     ++ "\n"
     ++ "If you are seeing this error for the first time, check out these hints:\n"
     ++ Help.hintLink "missing-patterns" ++ "\n"
-    ++ "The recommendations about `Debug.crash` and wildcard patterns are important!"
+    ++ "The recommendations about wildcard patterns and `Debug.crash` are important!"
 
 
 toCaseMessage :: String
@@ -82,7 +82,11 @@ toCaseMessage =
   "Switch to a `case` expression to handle all possible patterns."
 
 
-newTagsMessage :: String
-newTagsMessage =
-  "Did you add a new tag to a union type? Add a branch for it here!"
+missingBranchesMessage :: Int -> String
+missingBranchesMessage numUnhandled =
+  if numUnhandled == 1 then
+    "Add a branch to cover this pattern!"
+
+  else
+    "Add branches to cover each of these patterns!"
 

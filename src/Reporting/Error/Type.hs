@@ -22,11 +22,7 @@ import qualified Reporting.Report as Report
 data Error
     = Mismatch Mismatch
     | BadMain Type.Canonical
-    | InfiniteType
-        { _name :: String
-        , _overallType :: Type.Canonical
-        , _infiniteType :: Type.Canonical
-        }
+    | InfiniteType String Type.Canonical
 
 
 data Mismatch = MismatchInfo
@@ -94,8 +90,8 @@ toReport localizer err =
     Mismatch info ->
         mismatchToReport localizer info
 
-    InfiniteType name overallType infiniteType ->
-        infiniteTypeToReport localizer name overallType infiniteType
+    InfiniteType name overallType ->
+        infiniteTypeToReport localizer name overallType
 
     BadMain tipe ->
         Report.report
@@ -576,51 +572,22 @@ infiniteTypeToReport
     :: RenderType.Localizer
     -> String
     -> Type.Canonical
-    -> Type.Canonical
     -> Report.Report
-infiniteTypeToReport localizer name overallType infiniteType =
+infiniteTypeToReport localizer name overallType =
   Report.report
     "INFINITE TYPE"
     Nothing
     ( "I am inferring a weird self-referential type for " ++ Help.functionName name
     )
-    ( Help.stack $
-        explainInfiniteType localizer name overallType infiniteType
-        ++
-        [ text $
-            "This can be very tricky to figure out, so definitely read the debugging hints:\n"
+    ( Help.stack
+        [ Help.reflowParagraph $
+            "Here is my best effort at writing down the type. You will see ? and ∞ for\
+            \ parts of the type that repeat something already printed out infinitely."
+        , indent 4 (RenderType.toDoc localizer overallType)
+        , Help.reflowParagraph $
+            "Usually staring at the type is not so helpful in these cases, so definitely\
+            \ read the debugging hints for ideas on how to figure this out: "
             ++ Help.hintLink "infinite-type"
         ]
     )
 
-
-explainInfiniteType
-    :: RenderType.Localizer
-    -> String
-    -> Type.Canonical
-    -> Type.Canonical
-    -> [Doc]
-explainInfiniteType localizer name overallType infiniteType =
-  let
-    selfReference =
-      text "?" <+> equals <+> RenderType.toDoc localizer infiniteType
-  in
-    case overallType of
-      Type.Var "?" ->
-          [ Help.reflowParagraph $
-              "I cannot write down the actual type of " ++ Help.functionName name ++
-              " because it is infinitely large (that's the problem!) so here it\
-              \ is as an equation where `?` represents the type:"
-          , indent 4 selfReference
-          ]
-
-      _ ->
-          [ Help.reflowParagraph $
-              "I am inferring that " ++ Help.functionName name ++ " has this type:"
-          , indent 4 (RenderType.toDoc localizer overallType)
-          , Help.reflowParagraph $
-              "The problem is in the `?` which seems to contain itself. I cannot show\
-              \ you that type directly (because it is infinitely large!) so here it is\
-              \ as an equation:"
-          , indent 4 selfReference
-          ]

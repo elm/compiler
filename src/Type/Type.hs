@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Type.Type where
 
-import Control.Monad.State (StateT)
+import Control.Monad.State (StateT, liftIO)
 import qualified Control.Monad.State as State
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -106,6 +106,16 @@ noMark = 0
 
 initialMark :: Int
 initialMark = 1
+
+
+occursMark :: Int
+occursMark =
+  -1
+
+
+getVarNamesMark :: Int
+getVarNamesMark =
+  -2
 
 
 
@@ -255,30 +265,43 @@ toSrcType variable =
 
 variableToSrcType :: Variable -> StateT NameState IO T.Canonical
 variableToSrcType variable =
-  do  descriptor <- State.liftIO (UF.descriptor variable)
-      case _content descriptor of
-        Structure term ->
-            termToSrcType term
+  do  descriptor <- liftIO $ UF.descriptor variable
+      if _mark descriptor == occursMark
+        then
+          return (T.Var "∞")
 
-        Atom name ->
-            return (T.Type name)
+        else
+          do  liftIO $ UF.setDescriptor variable (descriptor { _mark = occursMark })
+              srcType <- contentToSrcType variable (_content descriptor)
+              liftIO $ UF.setDescriptor variable descriptor
+              return srcType
 
-        Var _ _ (Just name) ->
-            return (T.Var name)
 
-        Var flex maybeSuper Nothing ->
-            do  freshName <- getFreshName maybeSuper
-                State.liftIO $ UF.modifyDescriptor variable $ \desc ->
-                    desc { _content = Var flex maybeSuper (Just freshName) }
-                return (T.Var freshName)
+contentToSrcType :: Variable -> Content -> StateT NameState IO T.Canonical
+contentToSrcType variable content =
+  case content of
+    Structure term ->
+        termToSrcType term
 
-        Alias name args realVariable ->
-            do  srcArgs <- mapM (\(arg,tvar) -> (,) arg <$> variableToSrcType tvar) args
-                srcType <- variableToSrcType realVariable
-                return (T.Aliased name srcArgs (T.Filled srcType))
+    Atom name ->
+        return (T.Type name)
 
-        Error ->
-            return (T.Var "?")
+    Var _ _ (Just name) ->
+        return (T.Var name)
+
+    Var flex maybeSuper Nothing ->
+        do  freshName <- getFreshName maybeSuper
+            liftIO $ UF.modifyDescriptor variable $ \desc ->
+                desc { _content = Var flex maybeSuper (Just freshName) }
+            return (T.Var freshName)
+
+    Alias name args realVariable ->
+        do  srcArgs <- mapM (\(arg,tvar) -> (,) arg <$> variableToSrcType tvar) args
+            srcType <- variableToSrcType realVariable
+            return (T.Aliased name srcArgs (T.Filled srcType))
+
+    Error ->
+        return (T.Var "?")
 
 
 termToSrcType :: Term1 Variable -> StateT NameState IO T.Canonical
@@ -381,28 +404,38 @@ getFreshName maybeSuper =
 getVarNames :: Variable -> IO (Set.Set String)
 getVarNames var =
   do  desc <- UF.descriptor var
+      if _mark desc == getVarNamesMark
+        then
+          return Set.empty
 
-      case _content desc of
-        Var _ _ (Just name) ->
-            return (Set.singleton name)
+        else
+          do  UF.setDescriptor var (desc { _mark = getVarNamesMark })
+              getVarNamesHelp (_content desc)
 
-        Var _ _ Nothing ->
-            return Set.empty
 
-        Structure term ->
-            getVarNamesTerm term
+getVarNamesHelp :: Content -> IO (Set.Set String)
+getVarNamesHelp content =
+  case content of
+    Var _ _ (Just name) ->
+        return (Set.singleton name)
 
-        Alias _name args realVar ->
-            do  let argSet = Set.fromList (map fst args)
-                realSet <- getVarNames realVar
-                sets <- mapM (getVarNames . snd) args
-                return (Set.unions (realSet : argSet : sets))
+    Var _ _ Nothing ->
+        return Set.empty
 
-        Atom _ ->
-            return Set.empty
+    Structure term ->
+        getVarNamesTerm term
 
-        Error ->
-            return Set.empty
+    Alias _name args realVar ->
+        do  let argSet = Set.fromList (map fst args)
+            realSet <- getVarNames realVar
+            sets <- mapM (getVarNames . snd) args
+            return (Set.unions (realSet : argSet : sets))
+
+    Atom _ ->
+        return Set.empty
+
+    Error ->
+        return Set.empty
 
 
 getVarNamesTerm :: Term1 Variable -> IO (Set.Set String)
