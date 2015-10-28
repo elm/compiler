@@ -183,9 +183,11 @@ makeCopyHelp descriptor alreadyCopiedMark variable =
             return copiedVariable
 
         Nothing ->
-            error $
-              "Error copying type variable. This should be impossible." ++
-              " Please report an error to the github repo!"
+            error
+              "Error copying type variable. This should be impossible.\
+              \ Please report this at <https://github.com/elm-lang/elm-compiler/issues>\
+              \ with a <http://sscce.org> and information on your OS, how you installed,\
+              \ and any other configuration information that might be helpful."
 
   else if _rank descriptor /= noRank || not (needsCopy (_content descriptor)) then
       return variable
