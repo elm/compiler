@@ -1,6 +1,5 @@
 module Type.Solve (solve) where
 
-import Control.Applicative ((<|>))
 import Control.Monad
 import Control.Monad.State (execStateT, liftIO)
 import Control.Monad.Except (ExceptT, throwError)
@@ -296,40 +295,38 @@ crash msg =
 
 occurs :: (String, A.Located Variable) -> TS.Solver ()
 occurs (name, A.A region variable) =
-  do  maybeInfinite <- liftIO $ occursHelp [] variable
-      case maybeInfinite of
-        Nothing ->
+  do  isInfinite <- liftIO $ occursHelp [] variable
+      case isInfinite of
+        False ->
             return ()
 
-        Just infiniteType ->
+        True ->
             do  overallType <- liftIO (Type.toSrcType variable)
-                TS.addError region (Error.InfiniteType name overallType infiniteType)
+                TS.addError region (Error.InfiniteType name overallType)
 
 
-occursHelp :: [Variable] -> Variable -> IO (Maybe Type.Canonical)
+occursHelp :: [Variable] -> Variable -> IO Bool
 occursHelp seen var =
   if elem var seen then
       do  infiniteDescriptor <- UF.descriptor var
-          structureVar <- UF.fresh infiniteDescriptor
           UF.setDescriptor var (infiniteDescriptor { _content = Error })
-          srcVar <- Type.toSrcType structureVar
-          return (Just srcVar)
+          return True
 
   else
       do  desc <- UF.descriptor var
           case _content desc of
             Atom _ ->
-                return Nothing
+                return False
 
             Var _ _ _ ->
-                return Nothing
+                return False
 
             Error ->
-                return Nothing
+                return False
 
             Alias _ args _ ->
                 -- TODO is it okay to only check args?
-                F.asum <$> mapM (occursHelp (var:seen) . snd) args
+                or <$> mapM (occursHelp (var:seen) . snd) args
 
             Structure term ->
                 let
@@ -337,13 +334,13 @@ occursHelp seen var =
                 in
                 case term of
                   App1 a b ->
-                      (<|>) <$> go a <*> go b
+                      (||) <$> go a <*> go b
 
                   Fun1 a b ->
-                      (<|>) <$> go a <*> go b
+                      (||) <$> go a <*> go b
 
                   EmptyRecord1 ->
-                      return Nothing
+                      return False
 
                   Record1 fields ext ->
-                      F.asum <$> mapM go (ext : Map.elems fields)
+                      or <$> mapM go (ext : Map.elems fields)
