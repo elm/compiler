@@ -508,41 +508,30 @@ reasonToString reason =
         go "Only strings and lists are both comparable and appendable."
 
     BadVar (Just (Rigid _)) (Just (Rigid _)) ->
-        Just $ Help.stack $
-          [ hintDoc <> text "This usually happens when a few factors come together."
-          , indent 4 $ vcat $
-              [ text "1. You have a generic function with a type annotation."
-              , text "2. In its definition, there is a `let` with generic type annotations."
-              ]
-          , Help.reflowParagraph
-              "The issue is that these type variables are not actually shared between\
-              \ outer and inner type annotations right now. You can usually fix this by\
-              \ commenting out the inner type annotations."
-          ]
-
-    BadVar (Just (Rigid (Just name))) _ ->
-        go $
-          "Looks like the type annotation is too generic. Type variable\
-          \ `" ++ name ++ "` is saying *many* kinds of value can be given, but the\
-          \ actual definition needs a more specific type. I am not sure whether the\
-          \ type annotation or the definition is \"right\" though, you may have to\
-          \ make the annotation more specific or make the definition more generic."
+        go doubleRigidError
 
     BadVar (Just (Rigid _)) _  ->
-        go genericRigidError
+        go singleRigidError
 
     BadVar _ (Just (Rigid _))  ->
-        go genericRigidError
+        go singleRigidError
 
     BadVar _ _ ->
         Nothing
 
 
-genericRigidError :: String
-genericRigidError =
-  "There is some problem with a rigid type variable. It is very likely that a\
-  \ type annotation is too generic. One type is saying *many* kinds of value\
-  \ can be given, but the other needs a more specific type."
+singleRigidError :: String
+singleRigidError =
+  "A type annotation is too generic. You can probably just switch to the\
+  \ type I inferred. These issues can be subtle though, so read more about it. "
+  ++ Help.hintLink "type-annotations"
+
+
+doubleRigidError :: String
+doubleRigidError =
+  "A type annotation is clashing with itself or with a sub-annotation.\
+  \ This can be particularly tricky, so read more about it. "
+  ++ Help.hintLink "type-annotations"
 
 
 hintDoc :: Doc
