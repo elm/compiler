@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Reporting.Error.Type where
 
+import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import Text.PrettyPrint.ANSI.Leijen
   ( Doc, (<>), (<+>), colon, dullyellow, equals
@@ -230,7 +231,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
           ( cmpHint
               (prettyName op ++ " is expecting the left argument to be a:")
               "But the left argument is:"
-              []
+              (binopHint op leftType rightType)
           )
 
     BinopRight op region ->
@@ -240,10 +241,13 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
           ( cmpHint
               (prettyName op ++ " is expecting the right argument to be a:")
               "But the right argument is:"
-              [ "I always figure out the type of the left argument first and if it is\
-                \ acceptable on its own, I assume it is \"correct\" in subsequent checks.\
-                \ So the problem may actually be in how the left and right arguments interact."
-              ]
+              ( binopHint op leftType rightType
+                ++
+                [ "I always figure out the type of the left argument first and if it is\
+                  \ acceptable on its own, I assume it is \"correct\" in subsequent checks.\
+                  \ So the problem may actually be in how the left and right arguments interact."
+                ]
+              )
           )
 
     Binop op ->
@@ -443,6 +447,33 @@ comparisonHint localizer leftType rightType leftWords rightWords finalHints =
       ]
       ++
       finalHints
+
+
+
+-- BINOP HINTS
+
+binopHint :: Var.Canonical -> Type.Canonical -> Type.Canonical -> [String]
+binopHint op leftType rightType =
+  let
+    leftString =
+      show (RenderType.toDoc Map.empty leftType)
+
+    rightString =
+      show (RenderType.toDoc Map.empty rightType)
+  in
+    if Var.is ["Basics"] "+" op && elem "String" [leftString, rightString] then
+        [ "To append strings in Elm, you need to use the (++) operator, not (+). "
+          ++ "<http://package.elm-lang.org/packages/elm-lang/core/latest/Basics#++>"
+        ]
+
+    else if Var.is ["Basics"] "/" op && elem "Int" [leftString, rightString] then
+        [ "The (/) operator is specifically for floating point division, and (//) is\
+          \ for integer division. You may need to do some conversions between ints and\
+          \ floats to get both arguments matching the division operator you want."
+        ]
+
+    else
+        []
 
 
 
