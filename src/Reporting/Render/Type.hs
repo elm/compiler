@@ -191,15 +191,15 @@ diff localizer context leftType rightType =
     (Type.App (Type.Type leftName) leftArgs, Type.App (Type.Type rightName) rightArgs) ->
         if leftName /= rightName || length leftArgs /= length rightArgs then
             difference
-              (docApp localizer context leftName (map (docType localizer App) leftArgs))
-              (docApp localizer context rightName (map (docType localizer App) rightArgs))
+              (docApp localizer context leftName leftArgs)
+              (docApp localizer context rightName rightArgs)
 
         else
             let
               subContext =
                 if Var.isTuple leftName then None else App
             in
-              docApp localizer context leftName
+              docAppHelp localizer context leftName
                 <$> sequenceA (zipWith (go subContext) leftArgs rightArgs)
 
     (Type.App _ _, Type.App _ _) ->
@@ -216,7 +216,7 @@ diff localizer context leftType rightType =
           diffRecord localizer leftFields leftExt rightFields rightExt
 
     (Type.Aliased leftName leftArgs _, Type.Aliased rightName rightArgs _) | leftName == rightName ->
-        docApp localizer context leftName
+        docAppHelp localizer context leftName
           <$> sequenceA (zipWith (go App) (map snd leftArgs) (map snd rightArgs))
 
     (Type.Aliased _ args real, _) ->
@@ -387,7 +387,7 @@ docType localizer context tipe =
         varToDoc localizer name
 
     Type.App (Type.Type name) args ->
-        docApp localizer context name (map (docType localizer App) args)
+        docApp localizer context name args
 
     Type.App _ _ ->
         error "type applications should start with a type atom"
@@ -402,7 +402,7 @@ docType localizer context tipe =
             (fmap text ext)
 
     Type.Aliased name args _ ->
-        docApp localizer context name (map (docType localizer App . snd) args)
+        docApp localizer context name (map snd args)
 
 
 
@@ -426,8 +426,17 @@ docLambda context docs =
 
 
 
-docApp :: Localizer -> Context -> Var.Canonical -> [Doc] -> Doc
+docApp :: Localizer -> Context -> Var.Canonical -> [Type.Canonical] -> Doc
 docApp localizer context name args =
+  let
+    argContext =
+      if Var.isTuple name then None else App
+  in
+    docAppHelp localizer context name (map (docType localizer argContext) args)
+
+
+docAppHelp :: Localizer -> Context -> Var.Canonical -> [Doc] -> Doc
+docAppHelp localizer context name args =
   if Var.isTuple name then
       sep
         [ cat (zipWith (<+>) (lparen : repeat comma) args)
