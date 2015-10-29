@@ -266,14 +266,15 @@ toSrcType variable =
 variableToSrcType :: Variable -> StateT NameState IO T.Canonical
 variableToSrcType variable =
   do  descriptor <- liftIO $ UF.descriptor variable
-      if _mark descriptor == occursMark
+      let mark = _mark descriptor
+      if mark == occursMark
         then
           return (T.Var "∞")
 
         else
-          do  liftIO $ UF.setDescriptor variable (descriptor { _mark = occursMark })
+          do  liftIO $ UF.modifyDescriptor variable (\desc -> desc { _mark = occursMark })
               srcType <- contentToSrcType variable (_content descriptor)
-              liftIO $ UF.setDescriptor variable descriptor
+              liftIO $ UF.modifyDescriptor variable (\desc -> desc { _mark = mark })
               return srcType
 
 
