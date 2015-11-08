@@ -4,7 +4,7 @@ module Reporting.Error.Type where
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import Text.PrettyPrint.ANSI.Leijen
-  ( Doc, (<>), (<+>), colon, dullyellow, equals
+  ( Doc, (<>), (<+>), colon, dullyellow
   , fillSep, hang, indent, text, underline, vcat
   )
 

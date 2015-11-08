@@ -24,7 +24,7 @@ unify hint region expected actual =
         Right state ->
             return state
 
-        Left (Mismatch subExpected subActual maybeReason) ->
+        Left (Mismatch _subExpected _subActual maybeReason) ->
             let
               mkError =
                 do  expectedSrcType <- Type.toSrcType expected
