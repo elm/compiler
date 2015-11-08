@@ -3,13 +3,11 @@ module Type.Solve (solve) where
 import Control.Monad
 import Control.Monad.State (execStateT, liftIO)
 import Control.Monad.Except (ExceptT, throwError)
-import qualified Data.Foldable as F
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Traversable as T
 import qualified Data.UnionFind.IO as UF
 
-import qualified AST.Type as Type
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Type.State as TS
