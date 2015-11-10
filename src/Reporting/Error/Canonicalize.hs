@@ -244,7 +244,7 @@ toReport localizer err =
                 , indent 4 (RenderType.toDoc localizer localType)
                 , text ("The types of values that can flow through " ++ boundPort ++ "s include:")
                 , indent 4 $ Help.reflowParagraph $
-                    "Ints, Floats, Bools, Strings, Maybes, Lists, Arrays,\
+                    "Ints, Floats, Bools, Strings, Chars, Maybes, Lists, Arrays,\
                     \ Tuples, Json.Values, and concrete records."
                 ]
             )

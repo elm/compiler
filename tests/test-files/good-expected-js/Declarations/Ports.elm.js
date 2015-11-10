@@ -12,6 +12,11 @@ Elm.Main.make = function (_elm) {
       });
    },
    _U.list([{name: "Tom",age: 42}]));
+   var letter = Elm.Native.Port.make(_elm).outbound("letter",
+   function (v) {
+      return v;
+   },
+   _U.chr("E"));
    var time = Elm.Native.Port.make(_elm).outbound("time",
    function (v) {
       return v;
@@ -50,6 +55,12 @@ Elm.Main.make = function (_elm) {
    "Int",
    function (v) {
       return typeof v === "number" ? v : _U.badPort("a number",v);
+   });
+   var character = Elm.Native.Port.make(_elm).inbound("character",
+   "Char",
+   function (v) {
+      return typeof v === "string" || typeof v === "object" && v instanceof String ? _U.chr(v) : _U.badPort("a string",
+      v);
    });
    var userID = Elm.Native.Port.make(_elm).inbound("userID",
    "String",

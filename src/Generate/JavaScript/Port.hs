@@ -134,6 +134,9 @@ toType tipe x =
           where
             from checks = check x checks x
 
+      T.Type (Var.Canonical Var.BuiltIn "Char") ->
+            check x JSString (obj ["_U","chr"] `call` [x])
+
       T.Type name
           | Var.isJson name ->
               x
@@ -237,7 +240,7 @@ fromType tipe x =
           error "type variables should not be allowed through outputs"
 
       T.Type (Var.Canonical Var.BuiltIn name)
-          | name `elem` ["Int","Float","Bool","String"] ->
+          | name `elem` ["Int","Float","Bool","String","Char"] ->
               x
 
       T.Type name
