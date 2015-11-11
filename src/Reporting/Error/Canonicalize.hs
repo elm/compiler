@@ -2,6 +2,7 @@
 module Reporting.Error.Canonicalize where
 
 import Control.Arrow (second)
+import qualified Data.Char as Char
 import Text.PrettyPrint.ANSI.Leijen (indent, text)
 
 import qualified AST.Module.Name as ModuleName
@@ -251,14 +252,18 @@ toReport localizer err =
 
 argMismatchReport :: String -> Var.Canonical -> Int -> Int -> Report.Report
 argMismatchReport kind var expected actual =
-  Report.report
-    "ARGUMENT"
-    Nothing
-    ( kind ++ " " ++ Var.toString var ++ " has too "
+  let
+    numArgs =
+      "too "
       ++ (if actual < expected then "few" else "many")
-      ++ " arguments."
-    )
-    (text ("Expecting " ++ show expected ++ ", but got " ++ show actual ++ "."))
+      ++ " arguments"
+  in
+    Report.report
+      (map Char.toUpper numArgs)
+      Nothing
+      ( kind ++ " " ++ Var.toString var ++ " has " ++ numArgs ++ "."
+      )
+      (text ("Expecting " ++ show expected ++ ", but got " ++ show actual ++ "."))
 
 
 extractSuggestions :: Error -> Maybe [String]
