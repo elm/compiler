@@ -151,11 +151,11 @@ valueToPatches region moduleName interface value =
             |> Result.err
   in
   case value of
-    Var.Value x
-        | Map.notMember x (Module.iTypes interface) ->
+    Var.Value x ->
+        if Map.notMember x (Module.iTypes interface) then
             notFound Var.getValues x
 
-        | otherwise ->
+        else
             Result.ok [patch Env.Value x]
 
     Var.Alias x ->
