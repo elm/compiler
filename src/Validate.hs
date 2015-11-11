@@ -392,48 +392,54 @@ checkDecl isRoot (A.A (region,_) decl) =
         return ()
 
     D.Datatype name boundVars ctors ->
-        let frees = concatMap freeVars (concatMap snd ctors)
-        in
-        case findUnbound boundVars frees of
-          [] ->
+        case diff boundVars (concatMap freeVars (concatMap snd ctors)) of
+          (_, []) ->
               return ()
 
-          unbound ->
-              let
-                (v:vs) = Set.toList (Set.fromList unbound)
-              in
-                Result.throw region
-                  (Error.UnboundTypeVarsInUnion name boundVars v vs)
+          (_, unbound) ->
+              Result.throw region
+                (Error.UnboundTypeVarsInUnion name boundVars unbound)
 
     D.TypeAlias name boundVars tipe ->
-        case findUnbound boundVars (freeVars tipe) of
-          [] ->
+        case diff boundVars (freeVars tipe) of
+          ([], []) ->
               return ()
 
-          unbound ->
-              let
-                (v:vs) = Set.toList (Set.fromList unbound)
-              in
-                Result.throw region
-                  (Error.UnboundTypeVarsInAlias name boundVars v vs)
+          ([], unbound) ->
+              Result.throw region
+                (Error.UnboundTypeVarsInAlias name boundVars unbound)
+
+          (unused, []) ->
+              Result.throw region
+                (Error.UnusedTypeVarsInAlias name boundVars unused)
+
+          (unused, unbound) ->
+              Result.throw region
+                (Error.MessyTypeVarsInAlias name boundVars unused unbound)
 
     D.Port _ ->
-        if isRoot
-          then return ()
-          else Result.throw region Error.UnexpectedPort
+        if isRoot then
+            return ()
+
+        else
+            Result.throw region Error.UnexpectedPort
 
     D.Fixity _ _ _ ->
         return ()
 
 
-findUnbound :: [String] -> [A.Located String] -> [String]
-findUnbound boundVars frees =
-  let bounds = Set.fromList boundVars
+diff :: [String] -> [A.Located String] -> ([String], [String])
+diff left right =
+  let
+    leftSet =
+      Set.fromList left
 
-      isUnbound x =
-          Set.notMember x bounds
+    rightSet =
+      Set.fromList (map A.drop right)
   in
-      filter isUnbound (map A.drop frees)
+    ( Set.toList (Set.difference leftSet rightSet)
+    , Set.toList (Set.difference rightSet leftSet)
+    )
 
 
 
