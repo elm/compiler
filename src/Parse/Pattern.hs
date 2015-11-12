@@ -98,7 +98,8 @@ patternConstructor =
         case v of
           "True"  -> return $ P.Literal (L.Boolean True)
           "False" -> return $ P.Literal (L.Boolean False)
-          _       -> P.Data (Var.Raw v) <$> spacePrefix term
+          _       -> P.Data (Var.Raw v) <$>
+                       spacePrefix (patternConstructor <|> term)
 
 
 expr :: IParser P.RawPattern
