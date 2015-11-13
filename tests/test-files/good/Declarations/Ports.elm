@@ -3,7 +3,7 @@
 port userID : String
 port number : Int
 port tuple : (Float,Bool)
-port array : List Int
+port array : List Float
 port record : { x:Float, y:Float }
 
 -- outgoing
