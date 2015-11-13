@@ -31,7 +31,7 @@ Elm.Main.make = function (_elm) {
                                                              v.y)} : _U.badPort("an object with fields `x`, `y`",v);
    });
    var array = Elm.Native.Port.make(_elm).inbound("array",
-   "List Int",
+   "List Float",
    function (v) {
       return typeof v === "object" && v instanceof Array ? Elm.Native.List.make(_elm).fromArray(v.map(function (v) {
          return typeof v === "number" ? v : _U.badPort("a number",v);
@@ -49,7 +49,8 @@ Elm.Main.make = function (_elm) {
    var number = Elm.Native.Port.make(_elm).inbound("number",
    "Int",
    function (v) {
-      return typeof v === "number" ? v : _U.badPort("a number",v);
+      return typeof v === "number" && isFinite(v) && Math.floor(v) === v ? v : _U.badPort("an integer",
+      v);
    });
    var userID = Elm.Native.Port.make(_elm).inbound("userID",
    "String",

@@ -27,6 +27,7 @@ task name expr portType =
 
 data JSType
     = JSNumber
+    | JSIntNumber
     | JSBoolean
     | JSString
     | JSArray
@@ -37,6 +38,7 @@ typeToString :: JSType -> String
 typeToString tipe =
   case tipe of
     JSNumber -> "a number"
+    JSIntNumber -> "an integer"
     JSBoolean -> "a boolean (true or false)"
     JSString -> "a string"
     JSArray -> "an array"
@@ -82,11 +84,18 @@ check x jsType continue =
     checks =
         case jsType of
           JSNumber  -> [typeof "number"]
+          JSIntNumber ->
+              [jsFold OpLAnd (typeof "number" : intChecks)]
           JSBoolean -> [typeof "boolean"]
           JSString  -> [typeof "string", instanceof "String"]
           JSArray   -> [instanceof "Array"]
           JSObject fields ->
               [jsFold OpLAnd (typeof "object" : map member fields)]
+
+    intChecks =
+      [ \x -> (ref "isFinite") `call` [x]
+      , \x -> equal (obj ["Math","floor"] `call` [x]) x
+      ]
 
 
 -- INBOUND
@@ -127,8 +136,8 @@ toType tipe x =
           toType (T.dealias args t) x
 
       T.Type (Var.Canonical Var.BuiltIn name)
-          | name == "Int"    -> from JSNumber
           | name == "Float"  -> from JSNumber
+          | name == "Int"    -> from JSIntNumber
           | name == "Bool"   -> from JSBoolean
           | name == "String" -> from JSString
           where
