@@ -307,7 +307,7 @@ analyzeFields leftOnly rightOnly =
       Help.findPotentialTypos leftOnly rightOnly
 
     mkField func name =
-      ( func (text name), text "…" )
+      ( func (text name), text "..." )
 
     mkFieldWith counts name =
       mkField (if Set.member name counts then dullyellow else id) name
@@ -477,7 +477,7 @@ docRecord style fields maybeExt =
             []
 
         Elide ->
-            [ text "…" ]
+            [ text "..." ]
 
     fieldDocs =
       elision ++ map docField fields
