@@ -241,10 +241,20 @@ unifyRigid context maybeSuper maybeName otherContent =
         return ()
 
     Var Flex otherMaybeSuper _ ->
-        if maybeSuper == otherMaybeSuper then
-            merge context (Var Rigid maybeSuper maybeName)
-        else
-            mismatch context (Just (badRigid maybeName))
+        case (maybeSuper, otherMaybeSuper) of
+          (_, Nothing) ->
+              merge context (Var Rigid maybeSuper maybeName)
+
+          (Nothing, Just _) ->
+              mismatch context (Just (badRigid maybeName))
+
+          (Just super, Just otherSuper) ->
+              case combineSupers super otherSuper of
+                Right newSuper | newSuper == otherSuper ->
+                    merge context otherContent
+
+                _ ->
+                    mismatch context (Just (badRigid maybeName))
 
     Var Rigid _ otherMaybeName ->
         mismatch context $ Just $
@@ -279,10 +289,13 @@ unifySuper context super otherContent =
         mismatch context (Just (doubleBad (errorSuper super) (Error.Rigid maybeName)))
 
     Var Rigid (Just otherSuper) maybeName ->
-        if super == otherSuper then
-            merge context otherContent
-        else
-            mismatch context (Just (doubleBad (errorSuper super) (Error.Rigid maybeName)))
+        case combineSupers super otherSuper of
+          Right newSuper | newSuper == super ->
+              merge context otherContent
+
+          _ ->
+              mismatch context $ Just $
+                doubleBad (errorSuper super) (Error.Rigid maybeName)
 
     Var Flex Nothing _ ->
         merge context (Var Flex (Just super) Nothing)
