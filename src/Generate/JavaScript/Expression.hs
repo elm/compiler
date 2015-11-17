@@ -404,6 +404,9 @@ pathToTestableExpr root path exampleTest =
         DT.Constructor _ ->
             return (DotRef () accessExpr (Id () "ctor"))
 
+        DT.Literal (L.Chr _) ->
+            return (DotRef () accessExpr (Id () "valueOf") `call` [])
+
         DT.Literal _ ->
             return accessExpr
 
