@@ -83,19 +83,31 @@ check x jsType continue =
 
     checks =
         case jsType of
-          JSNumber  -> [typeof "number"]
-          JSInt ->
-              [jsFold OpLAnd (typeof "number" : intChecks)]
-          JSBoolean -> [typeof "boolean"]
-          JSString  -> [typeof "string", instanceof "String"]
-          JSArray   -> [instanceof "Array"]
-          JSObject fields ->
-              [jsFold OpLAnd (typeof "object" : map member fields)]
+          JSNumber ->
+            [typeof "number"]
 
-    intChecks =
-      [ \x -> ref "isFinite" <| x
-      , \x -> equal (obj ["Math","floor"] <| x) x
-      ]
+          JSInt ->
+            [jsFold OpLAnd intChecks]
+
+          JSBoolean ->
+            [typeof "boolean"]
+
+          JSString ->
+            [typeof "string", instanceof "String"]
+
+          JSArray ->
+            [instanceof "Array"]
+
+          JSObject fields ->
+            [jsFold OpLAnd (typeof "object" : map member fields)]
+
+
+intChecks :: [Expression () -> Expression ()]
+intChecks =
+  [ typeof "number"
+  , \x -> ref "isFinite" <| x
+  , \x -> equal (obj ["Math","floor"] <| x) x
+  ]
 
 
 -- INBOUND
