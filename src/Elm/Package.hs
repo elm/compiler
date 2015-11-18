@@ -66,6 +66,65 @@ fromString string =
           Left "There should be a slash separating the user and project name (user/project)"
 
 
+whitelistedUppercaseName :: String -> Bool
+whitelistedUppercaseName name =
+  -- These packages were uploaded to package.elm-lang.org before version 0.16,
+  -- when uppercase letters were disallowed in package names.
+  -- They should be considered deprecated and removed from this list once users
+  -- migrate to using the lowercase versions of the names.
+  let whitelist =
+          [ "Apanatshka/elm-list-ndet"
+          , "Apanatshka/elm-signal-extra"
+          , "Bogdanp/elm-combine"
+          , "Dandandan/Easing"
+          , "Dandandan/parser"
+          , "JoeyEremondi/LoadAssets"
+          , "JoeyEremondi/elm-MultiDimArray"
+          , "JoeyEremondi/elm-SafeLists"
+          , "JoeyEremondi/elm-typenats"
+          , "JustusAdam/elm-path"
+          , "NoRedInk/elm-check"
+          , "NoRedInk/elm-lazy-list"
+          , "NoRedInk/elm-rails"
+          , "NoRedInk/elm-random-extra"
+          , "NoRedInk/elm-shrink"
+          , "NoRedInk/elm-string-extra"
+          , "NoRedInk/elm-task-extra"
+          , "TheSeamau5/GraphicsEngine"
+          , "TheSeamau5/elm-check"
+          , "TheSeamau5/elm-history"
+          , "TheSeamau5/elm-html-decoder"
+          , "TheSeamau5/elm-lazy-list"
+          , "TheSeamau5/elm-material-icons"
+          , "TheSeamau5/elm-quadtree"
+          , "TheSeamau5/elm-random-extra"
+          , "TheSeamau5/elm-rosetree"
+          , "TheSeamau5/elm-router"
+          , "TheSeamau5/elm-shrink"
+          , "TheSeamau5/elm-spring"
+          , "TheSeamau5/elm-task-extra"
+          , "TheSeamau5/elm-undo-redo"
+          , "TheSeamau5/flex-html"
+          , "TheSeamau5/selection-list"
+          , "TheSeamau5/typographic-scale"
+          , "ThomasWeiser/elmfire"
+          , "ThomasWeiser/elmfire-extra"
+          , "adam-r-kowalski/Elm-Css"
+          , "deadfoxygrandpa/Elm-Test"
+          , "heyLu/elm-format-date"
+          , "jterbraak/DateOp"
+          , "maxsnew/IO"
+          , "mgold/Elm-Align-Distribute"
+          , "mgold/Elm-Format-String"
+          , "mgold/Elm-Multiset"
+          , "mgold/Elm-Random-Sampling"
+          , "thSoft/ElmCache"
+          , "thSoft/ExternalStorage"
+          , "uehaj/IntRange"
+          ]
+  in
+      List.any (\x -> x == name) whitelist
+
 validate :: String -> Either String String
 validate str =
   if elem ('-','-') (zip str (tail str)) then
@@ -73,6 +132,9 @@ validate str =
 
   else if elem '_' str then
       Left "Underscores are not allowed in package names."
+
+  else if any Char.isUpper str && not (whitelistedUppercaseName str) then
+      Left "Upper case characters are not allowed in package names."
 
   else if not (Char.isLetter (head str)) then
       Left "Package names must start with a letter."
