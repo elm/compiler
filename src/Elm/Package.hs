@@ -74,9 +74,6 @@ validate str =
   else if elem '_' str then
       Left "Underscores are not allowed in package names."
 
-  else if any Char.isUpper str then
-      Left "Upper case characters are not allowed in package names."
-
   else if not (Char.isLetter (head str)) then
       Left "Package names must start with a letter."
 
