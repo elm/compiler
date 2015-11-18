@@ -113,7 +113,6 @@ whitelistedUppercaseName name =
           , "deadfoxygrandpa/Elm-Test"
           , "heyLu/elm-format-date"
           , "jterbraak/DateOp"
-          , "maxsnew/IO"
           , "mgold/Elm-Align-Distribute"
           , "mgold/Elm-Format-String"
           , "mgold/Elm-Multiset"
