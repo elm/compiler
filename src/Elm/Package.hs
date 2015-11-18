@@ -57,7 +57,7 @@ fromString string =
               Left "You did not provide a project name (user/project)"
 
           else if all (/='/') project then
-              Name user <$> validate project
+              Name user <$> validateProjectName project
 
           else
               Left "Expecting only one slash, separating the user and project name (user/project)"
@@ -72,61 +72,28 @@ whitelistedUppercaseName name =
   -- when uppercase letters were disallowed in package names.
   -- They should be considered deprecated and removed from this list once users
   -- migrate to using the lowercase versions of the names.
-  let whitelist =
-          [ "Apanatshka/elm-list-ndet"
-          , "Apanatshka/elm-signal-extra"
-          , "Bogdanp/elm-combine"
-          , "Dandandan/Easing"
-          , "Dandandan/parser"
-          , "JoeyEremondi/LoadAssets"
-          , "JoeyEremondi/elm-MultiDimArray"
-          , "JoeyEremondi/elm-SafeLists"
-          , "JoeyEremondi/elm-typenats"
-          , "JustusAdam/elm-path"
-          , "NoRedInk/elm-check"
-          , "NoRedInk/elm-lazy-list"
-          , "NoRedInk/elm-rails"
-          , "NoRedInk/elm-random-extra"
-          , "NoRedInk/elm-shrink"
-          , "NoRedInk/elm-string-extra"
-          , "NoRedInk/elm-task-extra"
-          , "TheSeamau5/GraphicsEngine"
-          , "TheSeamau5/elm-check"
-          , "TheSeamau5/elm-history"
-          , "TheSeamau5/elm-html-decoder"
-          , "TheSeamau5/elm-lazy-list"
-          , "TheSeamau5/elm-material-icons"
-          , "TheSeamau5/elm-quadtree"
-          , "TheSeamau5/elm-random-extra"
-          , "TheSeamau5/elm-rosetree"
-          , "TheSeamau5/elm-router"
-          , "TheSeamau5/elm-shrink"
-          , "TheSeamau5/elm-spring"
-          , "TheSeamau5/elm-task-extra"
-          , "TheSeamau5/elm-undo-redo"
-          , "TheSeamau5/flex-html"
-          , "TheSeamau5/selection-list"
-          , "TheSeamau5/typographic-scale"
-          , "ThomasWeiser/elmfire"
-          , "ThomasWeiser/elmfire-extra"
-          , "adam-r-kowalski/Elm-Css"
-          , "deadfoxygrandpa/Elm-Test"
-          , "heyLu/elm-format-date"
-          , "jterbraak/DateOp"
-          , "maxsnew/IO"
-          , "mgold/Elm-Align-Distribute"
-          , "mgold/Elm-Format-String"
-          , "mgold/Elm-Multiset"
-          , "mgold/Elm-Random-Sampling"
-          , "thSoft/ElmCache"
-          , "thSoft/ExternalStorage"
-          , "uehaj/IntRange"
-          ]
-  in
-      List.any (\x -> x == name) whitelist
+  List.elem name
+    [ "Easing"
+    , "LoadAssets"
+    , "elm-MultiDimArray"
+    , "elm-SafeLists"
+    , "GraphicsEngine"
+    , "Elm-Css"
+    , "Elm-Test"
+    , "DateOp"
+    , "IO"
+    , "Elm-Align-Distribute"
+    , "Elm-Format-String"
+    , "Elm-Multiset"
+    , "Elm-Random-Sampling"
+    , "ElmCache"
+    , "ExternalStorage"
+    , "IntRange"
+    ]
 
-validate :: String -> Either String String
-validate str =
+
+validateProjectName :: String -> Either String String
+validateProjectName str =
   if elem ('-','-') (zip str (tail str)) then
       Left "There is a double dash -- in your package name. It must be a single dash."
 
