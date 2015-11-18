@@ -57,7 +57,7 @@ fromString string =
               Left "You did not provide a project name (user/project)"
 
           else if all (/='/') project then
-              Name user <$> validate project
+              Name user <$> validateProjectName project
 
           else
               Left "Expecting only one slash, separating the user and project name (user/project)"
@@ -66,13 +66,42 @@ fromString string =
           Left "There should be a slash separating the user and project name (user/project)"
 
 
-validate :: String -> Either String String
-validate str =
+whitelistedUppercaseName :: String -> Bool
+whitelistedUppercaseName name =
+  -- These packages were uploaded to package.elm-lang.org before version 0.16,
+  -- when uppercase letters were disallowed in package names.
+  -- They should be considered deprecated and removed from this list once users
+  -- migrate to using the lowercase versions of the names.
+  List.elem name
+    [ "Easing"
+    , "LoadAssets"
+    , "elm-MultiDimArray"
+    , "elm-SafeLists"
+    , "GraphicsEngine"
+    , "Elm-Css"
+    , "Elm-Test"
+    , "DateOp"
+    , "IO"
+    , "Elm-Align-Distribute"
+    , "Elm-Format-String"
+    , "Elm-Multiset"
+    , "Elm-Random-Sampling"
+    , "ElmCache"
+    , "ExternalStorage"
+    , "IntRange"
+    ]
+
+
+validateProjectName :: String -> Either String String
+validateProjectName str =
   if elem ('-','-') (zip str (tail str)) then
       Left "There is a double dash -- in your package name. It must be a single dash."
 
   else if elem '_' str then
       Left "Underscores are not allowed in package names."
+
+  else if any Char.isUpper str && not (whitelistedUppercaseName str) then
+      Left "Upper case characters are not allowed in package names."
 
   else if not (Char.isLetter (head str)) then
       Left "Package names must start with a letter."
