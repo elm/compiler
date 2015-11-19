@@ -140,7 +140,7 @@ isPrimitive :: Canonical -> Bool
 isPrimitive v =
     case v of
       Canonical BuiltIn name ->
-          name `elem` ["Int","Float","String","Bool"]
+          name `elem` ["Int","Float","String","Char","Bool"]
       _ ->
           False
 
