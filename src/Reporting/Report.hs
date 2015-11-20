@@ -13,7 +13,8 @@ import Data.Aeson ((.=))
 import qualified Data.Aeson.Types as Json
 import System.IO (Handle)
 import Text.PrettyPrint.ANSI.Leijen
-    ( Doc, (<>), displayS, displayIO, dullcyan, fillSep, hardline, renderPretty, text
+    ( Doc, SimpleDoc(..), (<>), displayS, displayIO, dullcyan, fillSep
+    , hardline, renderPretty, text
     )
 
 import qualified Reporting.Region as R
@@ -83,15 +84,38 @@ messageBar tag location =
 -- RENDER DOCS
 
 
-toString :: String -> R.Region -> Report -> String -> String
-toString location region rprt source =
-  displayS
-    (renderPretty 1 80 (toDoc location region rprt source))
-    ""
-
-
 toHandle :: Handle -> String -> R.Region -> Report -> String -> IO ()
 toHandle handle location region rprt source =
   displayIO
     handle
     (renderPretty 1 80 (toDoc location region rprt source))
+
+
+toString :: String -> R.Region -> Report -> String -> String
+toString location region rprt source =
+  displayS
+    (stripAnsi (renderPretty 1 80 (toDoc location region rprt source)))
+    ""
+
+
+stripAnsi :: SimpleDoc -> SimpleDoc
+stripAnsi simpleDoc =
+  case simpleDoc of
+    SFail ->
+      SFail
+
+    SEmpty ->
+      SEmpty
+
+    SChar chr subDoc ->
+      SChar chr (stripAnsi subDoc)
+
+    SText n str subDoc ->
+      SText n str (stripAnsi subDoc)
+
+    SLine n subDoc ->
+      SLine n (stripAnsi subDoc)
+
+    SSGR _ subDoc ->
+      stripAnsi subDoc
+
