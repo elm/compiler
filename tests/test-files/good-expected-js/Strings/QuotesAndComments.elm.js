@@ -8,13 +8,6 @@ Elm.Main.make = function (_elm) {
    var commentStart = "{-";
    var singleQuote = _U.chr("\'");
    var doubleQuote = _U.chr("\"");
-   var variablesWithPrimes = function (x) {
-      var x$ = x;
-      return x$;
-   };
-   return _elm.Main.values = {_op: _op
-                             ,variablesWithPrimes: variablesWithPrimes
-                             ,doubleQuote: doubleQuote
-                             ,singleQuote: singleQuote
-                             ,commentStart: commentStart};
+   var variablesWithPrimes = function (x) {    var x$ = x;return x$;};
+   return _elm.Main.values = {_op: _op,variablesWithPrimes: variablesWithPrimes,doubleQuote: doubleQuote,singleQuote: singleQuote,commentStart: commentStart};
 };

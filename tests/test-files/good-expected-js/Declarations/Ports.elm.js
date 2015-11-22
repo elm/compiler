@@ -7,21 +7,11 @@ Elm.Main.make = function (_elm) {
    var _op = {};
    var students = Elm.Native.Port.make(_elm).outbound("students",
    function (v) {
-      return Elm.Native.List.make(_elm).toArray(v).map(function (v) {
-         return {name: v.name,age: v.age};
-      });
+      return Elm.Native.List.make(_elm).toArray(v).map(function (v) {    return {name: v.name,age: v.age};});
    },
    _U.list([{name: "Tom",age: 42}]));
-   var time = Elm.Native.Port.make(_elm).outbound("time",
-   function (v) {
-      return v;
-   },
-   3.14);
-   var fortyTwo = Elm.Native.Port.make(_elm).outbound("fortyTwo",
-   function (v) {
-      return v;
-   },
-   42);
+   var time = Elm.Native.Port.make(_elm).outbound("time",function (v) {    return v;},3.14);
+   var fortyTwo = Elm.Native.Port.make(_elm).outbound("fortyTwo",function (v) {    return v;},42);
    var record = Elm.Native.Port.make(_elm).inbound("record",
    "{ x : Float, y : Float }",
    function (v) {
@@ -41,22 +31,19 @@ Elm.Main.make = function (_elm) {
    "( Float, Bool )",
    function (v) {
       return typeof v === "object" && v instanceof Array ? {ctor: "_Tuple2"
-                                                           ,_0: typeof v[0] === "number" ? v[0] : _U.badPort("a number",
-                                                           v[0])
+                                                           ,_0: typeof v[0] === "number" ? v[0] : _U.badPort("a number",v[0])
                                                            ,_1: typeof v[1] === "boolean" ? v[1] : _U.badPort("a boolean (true or false)",
                                                            v[1])} : _U.badPort("an array",v);
    });
    var number = Elm.Native.Port.make(_elm).inbound("number",
    "Int",
    function (v) {
-      return typeof v === "number" && isFinite(v) && Math.floor(v) === v ? v : _U.badPort("an integer",
-      v);
+      return typeof v === "number" && isFinite(v) && Math.floor(v) === v ? v : _U.badPort("an integer",v);
    });
    var userID = Elm.Native.Port.make(_elm).inbound("userID",
    "String",
    function (v) {
-      return typeof v === "string" || typeof v === "object" && v instanceof String ? v : _U.badPort("a string",
-      v);
+      return typeof v === "string" || typeof v === "object" && v instanceof String ? v : _U.badPort("a string",v);
    });
    return _elm.Main.values = {_op: _op};
 };
