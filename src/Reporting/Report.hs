@@ -47,8 +47,8 @@ toJson extraFields (Report title subregion pre post) =
   let
     fields =
       [ "tag" .= title
-      , "overview" .= displayS (renderPretty 1 80 pre) ""
-      , "details" .= displayS (renderPretty 1 80 post) ""
+      , "overview" .= nonAnsiRender pre
+      , "details" .= nonAnsiRender post
       ]
   in
     (subregion, fields ++ extraFields)
@@ -93,9 +93,16 @@ toHandle handle location region rprt source =
 
 toString :: String -> R.Region -> Report -> String -> String
 toString location region rprt source =
-  displayS
-    (stripAnsi (renderPretty 1 80 (toDoc location region rprt source)))
-    ""
+  nonAnsiRender (toDoc location region rprt source)
+
+
+
+-- DOC TO STRING WITH NO ANSI CODES
+
+
+nonAnsiRender :: Doc -> String
+nonAnsiRender doc =
+  displayS (stripAnsi (renderPretty 1 80 doc)) ""
 
 
 stripAnsi :: SimpleDoc -> SimpleDoc

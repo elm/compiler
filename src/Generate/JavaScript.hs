@@ -40,7 +40,7 @@ generate module_ =
       [ assign make (function [localRuntime] body)
       ]
   in
-    PP.displayS (PP.renderPretty 0.4 160 (ES.prettyPrint javascript)) ""
+    PP.displayS (PP.renderPretty 1 160 (ES.prettyPrint javascript)) ""
 
 
 
