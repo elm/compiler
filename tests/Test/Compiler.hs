@@ -81,6 +81,12 @@ essentialInterfaces =
             ("crash", Type.Lambda (Type.Var "String") (Type.Var "a"))
           ]
       )
+    , (ModuleName.inCore ["Graphics", "Collage"],
+        buildCoreInterface
+          [
+            ("defaultLine", Type.Record [("color", (Type.Var "String"))] Nothing)
+          ]
+      )
     ]
 
 
