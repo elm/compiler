@@ -81,6 +81,9 @@ essentialInterfaces =
             ("crash", Type.Lambda (Type.Var "String") (Type.Var "a"))
           ]
       )
+    , (ModuleName.inCore ["Foobar"],
+        compileStringToInterface "module Foobar where\ntype Foobar = Foo | Bar"
+      )
     ]
 
 
@@ -109,6 +112,19 @@ compileString filePath source =
         concatMap (Compiler.errorToString dealiaser filePath source) errors
   in
       either (Left . formatErrors) Right result
+
+
+compileStringToInterface :: String -> Module.Interface
+compileStringToInterface source =
+  let dependentModuleNames =
+        []
+      context =
+        Compiler.Context Package.coreName True False dependentModuleNames
+      (_dealiaser, _warnings, result) =
+        Compiler.compile context source Map.empty
+      (Right (Compiler.Result _ interface _)) = result
+  in
+      interface
 
 
 readFileOrErrorStr :: FilePath -> IO String
