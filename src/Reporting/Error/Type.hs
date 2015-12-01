@@ -156,7 +156,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
           Nothing
           "This condition does not evaluate to a boolean value, True or False."
           ( cmpHint
-              "You have given me an condition with this type:"
+              "You have given me a condition with this type:"
               "But I need it to be:"
               [ "Elm does not have \"truthiness\" such that ints and strings and lists\
                 \ are automatically converted to booleans. Do that conversion explicitly."

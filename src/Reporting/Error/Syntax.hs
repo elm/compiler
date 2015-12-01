@@ -166,7 +166,7 @@ toReport _localizer err =
           ( Help.stack
               [ text "You probably need to change the declaration like this:"
               , dullyellow $ hsep $
-                  map text ("type" : "alias" : typeName : filter (`notElem` unused) givenVars ++ ["=", "…"])
+                  map text ("type" : "alias" : typeName : filter (`notElem` unused) givenVars ++ ["=", "..."])
               ]
           )
 
@@ -185,7 +185,7 @@ toReport _localizer err =
                   ++ ") that do not appear in the declaration."
               , text "You probably need to change the declaration like this:"
               , dullyellow $ hsep $
-                  map text ("type" : "alias" : typeName : filter (`notElem` unused) givenVars ++ unbound ++ ["=", "…"])
+                  map text ("type" : "alias" : typeName : filter (`notElem` unused) givenVars ++ unbound ++ ["=", "..."])
               ]
           )
 
@@ -203,7 +203,7 @@ unboundTypeVars declKind typeName givenVars unboundVars@(tvar:_) =
         , hsep $
             map text (declKind : typeName : givenVars)
             ++ map (dullyellow . text) unboundVars
-            ++ map text ["=", "…"]
+            ++ map text ["=", "..."]
         , Help.reflowParagraph $
             "Here's why. Imagine one `" ++ typeName ++ "` where `" ++ tvar ++ "` is an Int and\
             \ another where it is a Bool. When we explicitly list the type variables, type\

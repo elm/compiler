@@ -19,12 +19,7 @@ Elm.Main.make = function (_elm) {
             }
       }
    });
-   var Cons = F2(function (a,b) {
-      return {ctor: "Cons",_0: a,_1: b};
-   });
+   var Cons = F2(function (a,b) {    return {ctor: "Cons",_0: a,_1: b};});
    var Nil = {ctor: "Nil"};
-   return _elm.Main.values = {_op: _op
-                             ,Nil: Nil
-                             ,Cons: Cons
-                             ,foldl$: foldl$};
+   return _elm.Main.values = {_op: _op,Nil: Nil,Cons: Cons,foldl$: foldl$};
 };

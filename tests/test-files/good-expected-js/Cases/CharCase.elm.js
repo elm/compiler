@@ -5,6 +5,6 @@ Elm.Main.make = function (_elm) {
    if (_elm.Main.values) return _elm.Main.values;
    var _U = Elm.Native.Utils.make(_elm);
    var _op = {};
-   var myId = function () {    var id = function (x) {    return x;};return id;}();
-   return _elm.Main.values = {_op: _op,myId: myId};
+   var foo = function (x) {    var _p0 = x;if (_p0.valueOf() === "A") {    return "hello";} else {    return "letter A was not seen";}};
+   return _elm.Main.values = {_op: _op,foo: foo};
 };

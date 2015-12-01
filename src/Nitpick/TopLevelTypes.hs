@@ -93,29 +93,7 @@ virtualDom =
 
 element :: Type.Canonical
 element =
-  Type.Record
-    [ ("element", core ["Graphics","Element"] "ElementPrim")
-    , ("props",
-        Type.Record
-          [ ("click"  , builtin "_Tuple0")
-          , ("color"  , maybe (core ["Color"] "Color"))
-          , ("height" , builtin "Int")
-          , ("hover"  , builtin "_Tuple0")
-          , ("href"   , builtin "String")
-          , ("id"     , builtin "Int")
-          , ("opacity", builtin "Float")
-          , ("tag"    , builtin "String")
-          , ("width"  , builtin "Int")
-          ]
-          Nothing
-      )
-    ]
-    Nothing
-
-
-core :: [String] -> String -> Type.Canonical
-core home name =
-  Type.Type (Var.inCore home name)
+  core ["Graphics","Element"] "Element"
 
 
 signal :: Type.Canonical -> Type.Canonical
@@ -123,13 +101,8 @@ signal tipe =
   Type.App (core ["Signal"] "Signal") [ tipe ]
 
 
-maybe :: Type.Canonical -> Type.Canonical
-maybe tipe =
-  Type.App (core ["Maybe"] "Maybe") [ tipe ]
-
-
-builtin :: String -> Type.Canonical
-builtin name =
-    Type.Type (Var.builtin name)
+core :: [String] -> String -> Type.Canonical
+core home name =
+  Type.Type (Var.inCore home name)
 
 
