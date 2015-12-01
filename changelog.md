@@ -1,3 +1,12 @@
+
+# 0.16
+
+Read all about it at these links:
+
+  * http://elm-lang.org/blog/compilers-as-assistants
+  * https://github.com/elm-lang/elm-platform/blob/master/upgrade-docs/0.16.md
+
+
 # 0.15
 
 ### Improve Import Syntax
