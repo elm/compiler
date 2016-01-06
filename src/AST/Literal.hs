@@ -10,7 +10,7 @@ data Literal
     | Chr Char
     | Str String
     | Boolean Bool
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Show)
 
 
 toString :: Literal -> String
