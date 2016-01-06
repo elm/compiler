@@ -4,5 +4,5 @@
 -- the loop variable. Its name must be properly normalized, for example,
 -- to avoid primes.
 
-go n' = if n' > 0 then go (n'-1) else 1
+go n' = if n' then go n' else False
 
