@@ -6,6 +6,7 @@ import Test.Compiler
 --import Test.Property
 
 import Parse.LiteralTest
+import Parse.TypeTest
 
 
 main :: IO ()
@@ -15,4 +16,5 @@ main =
 --    , propertyTests
 
     , Parse.LiteralTest.tests
+    , Parse.TypeTest.tests
     ]

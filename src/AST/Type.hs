@@ -30,6 +30,7 @@ data Raw'
     | RType Var.Raw
     | RApp Raw [Raw]
     | RRecord [(String, Raw)] (Maybe Raw)
+    deriving (Eq, Show)
 
 
 data Canonical
