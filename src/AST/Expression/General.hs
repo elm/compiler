@@ -54,6 +54,7 @@ data Expr' ann def var typ
     -- for type checking and code gen only
     | Port (PortImpl (Expr ann def var typ) typ)
     | GLShader String String Literal.GLShaderTipe
+    deriving (Eq, Show)
 
 
 -- PORTS
@@ -62,7 +63,7 @@ data PortImpl expr tipe
     = In String (Type.Port tipe)
     | Out String expr (Type.Port tipe)
     | Task String expr (Type.Port tipe)
-    deriving (Eq)
+    deriving (Eq, Show)
 
 
 portName :: PortImpl expr tipe -> String

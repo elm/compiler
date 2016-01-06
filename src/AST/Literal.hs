@@ -52,3 +52,7 @@ data GLShaderTipe = GLShaderTipe
     , varying :: Map.Map String GLTipe
     }
     deriving (Eq)
+
+
+instance Show GLShaderTipe where
+    show _ = "<GLShaderTipe>"
