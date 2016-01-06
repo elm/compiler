@@ -5,8 +5,8 @@
 -- to avoid primes.
 
 
-import Html
+import Graphics.Element exposing (show)
 
 go n' = if n' > 0 then go (n'-1) else 1
 
-main = Html.text (toString (go 5))
+main = show (go 5)
