@@ -4,9 +4,5 @@
 -- the loop variable. Its name must be properly normalized, for example,
 -- to avoid primes.
 
-
-import Graphics.Element exposing (show)
-
 go n' = if n' > 0 then go (n'-1) else 1
 
-main = show (go 5)

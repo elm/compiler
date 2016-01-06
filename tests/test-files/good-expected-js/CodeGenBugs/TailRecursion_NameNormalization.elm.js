@@ -6,7 +6,6 @@ Elm.Main.make = function (_elm) {
    var _U = Elm.Native.Utils.make(_elm),
    $Basics = Elm.Basics.make(_elm),
    $Debug = Elm.Debug.make(_elm),
-   $Graphics$Element = Elm.Graphics.Element.make(_elm),
    $List = Elm.List.make(_elm),
    $Maybe = Elm.Maybe.make(_elm),
    $Result = Elm.Result.make(_elm),
@@ -19,6 +18,5 @@ Elm.Main.make = function (_elm) {
             continue go;
          } else return 1;
    };
-   var main = $Graphics$Element.show(go(5));
-   return _elm.Main.values = {_op: _op,go: go,main: main};
+   return _elm.Main.values = {_op: _op,go: go};
 };
