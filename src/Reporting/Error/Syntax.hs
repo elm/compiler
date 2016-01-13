@@ -228,6 +228,10 @@ whitespace :: String
 whitespace = "WHITESPACE"
 
 
+tab :: String
+tab = "TAB"
+
+
 keyword :: String -> String
 keyword kwd =
   "KEYWORD=" ++ kwd
@@ -263,7 +267,12 @@ parseErrorReport messages =
               else
                   msg
           in
-            hint { _expected = Set.insert msg' (_expected hint) }
+            if msg == tab then
+              -- Our parser looks for tab so it can throw a custom tab error message.
+              -- Exclude tabs from the list of expected tokens so that no one thinks they are supported.
+              hint
+            else
+              hint { _expected = Set.insert msg' (_expected hint) }
 
         Parsec.Message msg ->
             hint { _messages = msg : _messages hint }

@@ -346,7 +346,7 @@ badWhiteSpaceMessage =
 
 failIfTabFound :: IParser ()
 failIfTabFound =
-  do  foundTab <- option False (lookAhead (char '\t') >> return True)
+  do  foundTab <- option False (lookAhead (char '\t') >> return True) <?> Syntax.tab
       if foundTab
         then fail tabsErrorMessage
         else return ()
