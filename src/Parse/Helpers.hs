@@ -348,13 +348,8 @@ failIfTabFound :: IParser ()
 failIfTabFound =
   do  foundTab <- option False (lookAhead (char '\t') >> return True) <?> Syntax.tab
       if foundTab
-        then fail tabsErrorMessage
+        then fail Syntax.tab
         else return ()
-
-
-tabsErrorMessage :: String
-tabsErrorMessage =
-  "A tab character was found, but all whitespace (including indentation) must be spaces not tabs."
 
 
 -- Just eats whitespace until the next meaningful character.
