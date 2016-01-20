@@ -11,6 +11,7 @@ module Reporting.Error.Helpers
 import Data.Function (on)
 import qualified Data.Char as Char
 import qualified Data.List as List
+import qualified Data.List.NonEmpty as NEL
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Text.EditDistance as Dist
@@ -69,17 +70,17 @@ reflowParagraph paragraph =
   fillSep (map text (words paragraph))
 
 
-commaSep :: [String] -> String
+commaSep :: NEL.NonEmpty String -> String
 commaSep tokens =
   case tokens of
-    [token] ->
+    token NEL.:| [] ->
       " " ++ token
 
-    [token1,token2] ->
+    token1 NEL.:| [token2] ->
       " " ++ token1 ++ " and " ++ token2
 
     _ ->
-      " " ++ List.intercalate ", " (init tokens) ++ ", and " ++ last tokens
+      " " ++ List.intercalate ", " (NEL.init tokens) ++ ", and " ++ NEL.last tokens
 
 
 capitalize :: String -> String
