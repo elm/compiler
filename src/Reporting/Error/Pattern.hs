@@ -2,6 +2,7 @@
 module Reporting.Error.Pattern where
 
 import Text.PrettyPrint.ANSI.Leijen (text)
+import Data.List (nub)
 
 import qualified Nitpick.Pattern as Pattern
 import qualified Reporting.Error.Helpers as Help
@@ -61,7 +62,7 @@ unhandledError :: [Pattern.Pattern] -> String -> String
 unhandledError unhandledPatterns relevantMessage =
   let
     (visiblePatterns, rest) =
-      splitAt 4 unhandledPatterns
+      splitAt 4 (nub unhandledPatterns)
 
     patternList =
         map (Pattern.toString False) visiblePatterns
