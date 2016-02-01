@@ -24,6 +24,7 @@ import qualified Canonicalize.Result as Result
 import qualified Canonicalize.Type as Canonicalize
 
 
+
 environment
     :: Map.Map ModuleName.Raw ModuleName.Canonical
     -> Module.Interfaces
@@ -43,11 +44,13 @@ environment importDict interfaces (Module.Module name _ _ _ (defaults, imports) 
     patches =
         (++) (Env.builtinPatches ++ declPatches) <$> importPatchesResult
   in
-      (Env.fromPatches name <$> patches)
-          `Result.andThen` addTypeAliases name typeAliasNodes
+    (Env.fromPatches name <$> patches)
+        `Result.andThen` addTypeAliases name typeAliasNodes
+
 
 
 -- PATCHES FOR IMPORTS
+
 
 importPatches
     :: Map.Map ModuleName.Raw ModuleName.Canonical
@@ -63,68 +66,76 @@ importPatches importDict allInterfaces (A.A region (rawImportName, method)) =
   in
   case maybeInterface of
     Nothing ->
-        if ModuleName.isNative rawImportName then
-            Result.ok []
+      if ModuleName.isNative rawImportName then
+        Result.ok []
 
-        else
-            allInterfaces
-              |> Map.keys
-              |> map ModuleName._module
-              |> Error.nearbyNames ModuleName.toString rawImportName
-              |> Error.moduleNotFound rawImportName
-              |> A.A region
-              |> Result.err
+      else
+        allInterfaces
+          |> Map.keys
+          |> map ModuleName._module
+          |> Error.nearbyNames ModuleName.toString rawImportName
+          |> Error.moduleNotFound rawImportName
+          |> A.A region
+          |> Result.err
 
     Just (importName, interface) ->
-        let (Module.ImportMethod maybeAlias listing) =
-                method
+      let
+        (Module.ImportMethod maybeAlias listing) =
+          method
 
-            (Var.Listing exposedValues open) =
-                listing
+        (Var.Listing exposedValues open) =
+          listing
 
-            qualifier =
-                maybe (ModuleName.toString rawImportName) id maybeAlias
+        qualifier =
+          maybe (ModuleName.toString rawImportName) id maybeAlias
 
-            qualifiedPatches =
-                interfacePatches importName (qualifier ++ ".") interface
+        qualifiedPatches =
+          interfacePatches importName (qualifier ++ ".") interface
 
-            unqualifiedPatches =
-                if open
-                  then Result.ok (interfacePatches importName "" interface)
-                  else concat <$> Trav.traverse (valueToPatches region importName interface) exposedValues
-        in
-            (++) qualifiedPatches <$> unqualifiedPatches
+        unqualifiedPatches =
+          if open then
+            Result.ok (interfacePatches importName "" interface)
+
+          else
+            concat <$> Trav.traverse (valueToPatches region importName interface) exposedValues
+      in
+        (++) qualifiedPatches <$> unqualifiedPatches
 
 
 interfacePatches :: ModuleName.Canonical -> String -> Module.Interface -> [Env.Patch]
 interfacePatches moduleName prefix interface =
-    let genericPatch mkPatch name value =
-            mkPatch (prefix ++ name) value
+  let
+    genericPatch mkPatch name value =
+      mkPatch (prefix ++ name) value
 
-        patch mkPatch name =
-            genericPatch mkPatch name (Var.fromModule moduleName name)
+    patch mkPatch name =
+      genericPatch mkPatch name (Var.fromModule moduleName name)
 
-        aliasPatch (name, (tvars, tipe)) =
-            genericPatch Env.Alias name
-                (Var.fromModule moduleName name, tvars, tipe)
+    aliasPatch (name, (tvars, tipe)) =
+      genericPatch
+        Env.Alias
+        name
+        (Var.fromModule moduleName name, tvars, tipe)
 
-        patternPatch (name, args) =
-            genericPatch Env.Pattern name
-                (Var.fromModule moduleName name, length args)
+    patternPatch (name, args) =
+      genericPatch
+        Env.Pattern
+        name
+        (Var.fromModule moduleName name, length args)
 
-        ctors =
-            concatMap snd (Map.elems (Module.iAdts interface))
+    ctors =
+      concatMap snd (Map.elems (Module.iAdts interface))
 
-        ctorNames =
-            map fst ctors
-    in
-        concat
-          [ map (patch Env.Value) (Map.keys (Module.iTypes interface))
-          , map (patch Env.Value) ctorNames
-          , map (patch Env.Union) (Map.keys (Module.iAdts interface))
-          , map aliasPatch (Map.toList (Module.iAliases interface))
-          , map patternPatch ctors
-          ]
+    ctorNames =
+      map fst ctors
+  in
+    concat
+      [ map (patch Env.Value) (Map.keys (Module.iTypes interface))
+      , map (patch Env.Value) ctorNames
+      , map (patch Env.Union) (Map.keys (Module.iAdts interface))
+      , map aliasPatch (Map.toList (Module.iAliases interface))
+      , map patternPatch ctors
+      ]
 
 
 -- PATCHES FOR INDIVIDUAL VALUES
@@ -136,84 +147,88 @@ valueToPatches
     -> Var.Value
     -> Result.ResultErr [Env.Patch]
 valueToPatches region moduleName interface value =
-  let patch mkPatch x =
-          mkPatch x (Var.fromModule moduleName x)
+  let
+    patch mkPatch x =
+      mkPatch x (Var.fromModule moduleName x)
 
-      patternPatch (x, numArgs) =
-          Env.Pattern x (Var.fromModule moduleName x, numArgs)
+    patternPatch (x, numArgs) =
+      Env.Pattern x (Var.fromModule moduleName x, numArgs)
 
-      notFound getNames x =
-          Module.iExports interface
-            |> getNames
-            |> Error.nearbyNames id x
-            |> Error.valueNotFound (ModuleName._module moduleName) x
-            |> A.A region
-            |> Result.err
+    notFound getNames x =
+      Module.iExports interface
+        |> getNames
+        |> Error.nearbyNames id x
+        |> Error.valueNotFound (ModuleName._module moduleName) x
+        |> A.A region
+        |> Result.err
   in
   case value of
     Var.Value x ->
-        if Map.notMember x (Module.iTypes interface) then
-            notFound Var.getValues x
+      if Map.notMember x (Module.iTypes interface) then
+          notFound Var.getValues x
 
-        else
-            Result.ok [patch Env.Value x]
+      else
+          Result.ok [patch Env.Value x]
 
     Var.Alias x ->
-        case Map.lookup x (Module.iAliases interface) of
-          Just (tvars, t) ->
-              let alias =
-                    Env.Alias x (Var.fromModule moduleName x, tvars, t)
-              in
-                  Result.ok $
-                      if Map.member x (Module.iTypes interface)
-                          then [alias, patch Env.Value x]
-                          else [alias]
+      case Map.lookup x (Module.iAliases interface) of
+        Just (tvars, t) ->
+            let alias =
+                  Env.Alias x (Var.fromModule moduleName x, tvars, t)
+            in
+                Result.ok $
+                    if Map.member x (Module.iTypes interface)
+                        then [alias, patch Env.Value x]
+                        else [alias]
 
-          Nothing ->
-              case Map.lookup x (Module.iAdts interface) of
-                Just (_,_) ->
-                    Result.ok [patch Env.Union x]
+        Nothing ->
+            case Map.lookup x (Module.iAdts interface) of
+              Just (_,_) ->
+                  Result.ok [patch Env.Union x]
 
-                Nothing ->
-                    let getNames values =
-                            Var.getAliases values
-                            ++ map fst (Var.getUnions values)
-                    in
-                        notFound getNames x
+              Nothing ->
+                  let getNames values =
+                          Var.getAliases values
+                          ++ map fst (Var.getUnions values)
+                  in
+                      notFound getNames x
 
     Var.Union givenName (Var.Listing givenCtorNames open) ->
-        case Map.lookup givenName (Module.iAdts interface) of
-          Nothing ->
-              notFound (map fst . Var.getUnions) givenName
+      case Map.lookup givenName (Module.iAdts interface) of
+        Nothing ->
+            notFound (map fst . Var.getUnions) givenName
 
-          Just (_tvars, realCtors) ->
-              patches <$>
-                  if open
-                    then Result.ok realCtorList
-                    else Trav.traverse ctorExists givenCtorNames
-            where
-              realCtorList =
-                  map (second length) realCtors
+        Just (_tvars, realCtors) ->
+            patches <$>
+                if open
+                  then Result.ok realCtorList
+                  else Trav.traverse ctorExists givenCtorNames
+          where
+            realCtorList =
+                map (second length) realCtors
 
-              realCtorDict =
-                  Map.fromList realCtorList
+            realCtorDict =
+                Map.fromList realCtorList
 
-              ctorExists givenCtorName =
-                  case Map.lookup givenCtorName realCtorDict of
-                    Just numArgs ->
-                        Result.ok (givenCtorName, numArgs)
-                    Nothing ->
-                        notFound (const (map fst realCtors)) givenCtorName
+            ctorExists givenCtorName =
+                case Map.lookup givenCtorName realCtorDict of
+                  Just numArgs ->
+                      Result.ok (givenCtorName, numArgs)
+                  Nothing ->
+                      notFound (const (map fst realCtors)) givenCtorName
 
-              patches ctors =
-                  patch Env.Union givenName
-                  : map (patch Env.Value . fst) ctors
-                  ++ map patternPatch ctors
+            patches ctors =
+                patch Env.Union givenName
+                : map (patch Env.Value . fst) ctors
+                ++ map patternPatch ctors
+
 
 
 -- PATCHES FOR TYPE ALIASES
 
-type Node = ((R.Region, String, [String], Type.Raw), String, [String])
+
+type Node =
+  ( (R.Region, String, [String], Type.Raw), String, [String] )
 
 
 node :: R.Region -> String -> [String] -> Type.Raw -> Node
@@ -221,21 +236,21 @@ node region name tvars alias =
     ((region, name, tvars, alias), name, edges alias)
   where
     edges (A.A _ tipe) =
-        case tipe of
-          Type.RLambda t1 t2 ->
-              edges t1 ++ edges t2
+      case tipe of
+        Type.RLambda t1 t2 ->
+          edges t1 ++ edges t2
 
-          Type.RVar _ ->
-              []
+        Type.RVar _ ->
+          []
 
-          Type.RType (Var.Raw x) ->
-              [x]
+        Type.RType (Var.Raw x) ->
+          [x]
 
-          Type.RApp t ts ->
-              edges t ++ concatMap edges ts
+        Type.RApp t ts ->
+          edges t ++ concatMap edges ts
 
-          Type.RRecord fs ext ->
-              maybe [] edges ext ++ concatMap (edges . snd) fs
+        Type.RRecord fs ext ->
+          maybe [] edges ext ++ concatMap (edges . snd) fs
 
 
 addTypeAliases
@@ -244,10 +259,10 @@ addTypeAliases
     -> Env.Environment
     -> Result.ResultErr Env.Environment
 addTypeAliases moduleName typeAliasNodes initialEnv =
-    Result.foldl
-        (addTypeAlias moduleName)
-        initialEnv
-        (Graph.stronglyConnComp typeAliasNodes)
+  Result.foldl
+    (addTypeAlias moduleName)
+    initialEnv
+    (Graph.stronglyConnComp typeAliasNodes)
 
 
 addTypeAlias
@@ -267,26 +282,29 @@ addTypeAlias moduleName scc env =
                 env { Env._aliases = Env.insert name value (Env._aliases env) }
 
     Graph.CyclicSCC [] ->
-        Result.ok env
+      Result.ok env
 
     Graph.CyclicSCC [(region, name, tvars, alias)] ->
-        Result.err (A.A region (Error.Alias (Error.SelfRecursive name tvars alias)))
+      Result.err (A.A region (Error.Alias (Error.SelfRecursive name tvars alias)))
 
     Graph.CyclicSCC aliases@((region, _, _, _) : _) ->
-        Result.err (A.A region (Error.Alias (Error.MutuallyRecursive aliases)))
+      Result.err (A.A region (Error.Alias (Error.MutuallyRecursive aliases)))
+
 
 
 -- DECLARATIONS TO PATCHES
+
 
 declarationsToPatches
     :: ModuleName.Canonical
     -> [D.ValidDecl]
     -> ([Node], [Env.Patch])
 declarationsToPatches moduleName decls =
-  let (maybeNodes, patchLists) =
-          unzip (map (declToPatches moduleName) decls)
+  let
+    (maybeNodes, patchLists) =
+      unzip (map (declToPatches moduleName) decls)
   in
-      (Maybe.catMaybes maybeNodes, concat patchLists)
+    (Maybe.catMaybes maybeNodes, concat patchLists)
 
 
 -- When canonicalizing, it is important that:
@@ -299,14 +317,15 @@ declToPatches
     -> D.ValidDecl
     -> (Maybe Node, [Env.Patch])
 declToPatches moduleName (A.A (region,_) decl) =
-  let topLevel mkPatch x =
-          mkPatch x (Var.topLevel moduleName x )
+  let
+    topLevel mkPatch x =
+      mkPatch x (Var.topLevel moduleName x )
 
-      namespaced mkPatch x =
-          mkPatch x (Var.fromModule moduleName x)
+    namespaced mkPatch x =
+      mkPatch x (Var.fromModule moduleName x)
 
-      patternPatch (name, args) =
-          Env.Pattern name (Var.fromModule moduleName name, length args)
+    patternPatch (name, args) =
+      Env.Pattern name (Var.fromModule moduleName name, length args)
   in
   case decl of
     D.Definition (Valid.Definition pattern _ _) ->
@@ -381,8 +400,11 @@ restrictToPublicApi interface =
 get :: Map.Map String a -> String -> Maybe (String, a)
 get dict key =
   case Map.lookup key dict of
-    Nothing -> Nothing
-    Just value -> Just (key, value)
+    Nothing ->
+      Nothing
+
+    Just value ->
+      Just (key, value)
 
 
 trimUnions
@@ -391,9 +413,12 @@ trimUnions
     -> Maybe (String, Module.AdtInfo String)
 trimUnions interface (name, Var.Listing exportedCtors _) =
   case Map.lookup name (Module.iAdts interface) of
-    Nothing -> Nothing
+    Nothing ->
+      Nothing
+
     Just (tvars, ctors) ->
-      let isExported (ctor, _) =
-            ctor `elem` exportedCtors
+      let
+        isExported (ctor, _) =
+          ctor `elem` exportedCtors
       in
-          Just (name, (tvars, filter isExported ctors))
+        Just (name, (tvars, filter isExported ctors))

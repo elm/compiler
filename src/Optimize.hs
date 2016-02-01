@@ -166,7 +166,9 @@ patternToDefs home rootName pattern =
         map toDef (patternToSubstitutions rootExpr pattern)
 
 
+
 -- TURN A PATTERN INTO A BUNCH OF SUBSTITUTIONS
+
 
 patternToSubstitutions :: Opt.Expr -> P.CanonicalPattern -> [(String, Opt.Expr)]
 patternToSubstitutions expr (A.A _ pattern) =
@@ -190,7 +192,9 @@ patternToSubstitutions expr (A.A _ pattern) =
         concat (zipWith (patternToSubstitutions . Opt.DataAccess expr) [0..] patterns)
 
 
+
 -- OPTIMIZE EXPRESSIONS
+
 
 type Context = Maybe (String, Int, [String])
 
@@ -322,7 +326,9 @@ mapSnd func (x, a) =
   (,) x <$> func a
 
 
+
 -- OPTIMIZE CASE BRANCHES
+
 
 optimizeBranch
     :: Context
@@ -362,7 +368,9 @@ tagCrashBranch region pattern@(A.A pr _) expr =
         return (pattern, expr)
 
 
+
 -- DETECT TAIL CALL
+
 
 isTailCall :: Context -> Can.Expr -> Int -> Maybe (String, [String])
 isTailCall context (A.A _ function) arity =
@@ -379,10 +387,12 @@ isTailCall context (A.A _ function) arity =
           Nothing
 
 
+
 -- DEPATTERN
 -- given a pattern and an expression, push the actual pattern matching into the
 -- expression as a case-expression if necessary. The pattern compiler will work
 -- it out from there
+
 
 depattern :: P.CanonicalPattern -> Can.Expr -> Env.Optimizer (String, Can.Expr)
 depattern canPattern@(A.A _ pattern) expr =
@@ -424,7 +434,9 @@ depattern canPattern@(A.A _ pattern) expr =
         caseify
 
 
+
 -- OPTIMIZE BINOPS
+
 
 optimizeBinop
     :: Context
