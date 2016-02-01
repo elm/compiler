@@ -28,7 +28,9 @@ import qualified Elm.Compiler.Type.Extract as Extract
 import qualified Elm.Package as Package
 
 
+
 -- INTERFACES
+
 
 type Interface = Module.Interface
 
@@ -46,7 +48,9 @@ interfaceAliasedTypes interface =
     Map.map Extract.toAliasedType (Module.iTypes interface)
 
 
+
 -- NAMES
+
 
 newtype Name = Name ModuleName.Raw
     deriving (Eq, Ord)
@@ -65,7 +69,9 @@ defaultImports =
     map (Name . fst) Imports.defaults
 
 
+
 -- STRING CONVERSIONS for NAMES
+
 
 nameToPath :: Name -> FilePath
 nameToPath (Name names) =
@@ -111,7 +117,9 @@ fromString sep raw =
         Char.isAlphaNum char || char `elem` "_'"
 
 
+
 -- JSON for NAME
+
 
 instance Json.ToJSON Name where
     toJSON name =
@@ -128,7 +136,9 @@ instance Json.FromJSON Name where
     parseJSON _ = mzero
 
 
+
 -- BINARY for NAME
+
 
 instance Binary Name where
   get =
