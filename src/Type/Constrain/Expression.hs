@@ -21,154 +21,163 @@ import qualified Type.Fragment as Fragment
 import Type.Type hiding (Descriptor(..))
 
 
+
 constrain
     :: Env.Environment
     -> Canonical.Expr
     -> Type
     -> IO TypeConstraint
 constrain env annotatedExpr@(A.A region expression) tipe =
-    let list t = Env.getType env "List" <| t
-        (<?) = CInstance region
-    in
-    case expression of
-      E.Literal lit ->
-          Literal.constrain env region lit tipe
+  let
+    list t =
+      Env.getType env "List" <| t
 
-      E.GLShader _uid _src gltipe ->
-          exists $ \attr ->
-          exists $ \unif ->
-            let
-                shaderTipe a u v =
-                    Env.getType env "WebGL.Shader" <| a <| u <| v
+    (<?) =
+      CInstance region
+  in
+  case expression of
+    E.Literal lit ->
+      Literal.constrain env region lit tipe
 
-                glToType glTipe =
-                    Env.getType env (Lit.glTipeName glTipe)
+    E.GLShader _uid _src gltipe ->
+      exists $ \attr ->
+      exists $ \unif ->
+        let
+          shaderTipe a u v =
+            Env.getType env "WebGL.Shader" <| a <| u <| v
 
-                makeRec accessor baseRec =
-                    let decls = accessor gltipe
-                    in
-                      if Map.size decls == 0 then
-                          baseRec
-                      else
-                          record (Map.map glToType decls) baseRec
+          glToType glTipe =
+            Env.getType env (Lit.glTipeName glTipe)
 
-                attribute = makeRec Lit.attribute attr
-                uniform = makeRec Lit.uniform unif
-                varying = makeRec Lit.varying (TermN EmptyRecord1)
+          makeRec accessor baseRec =
+            let decls = accessor gltipe
             in
-                return (CEqual Error.Shader region (shaderTipe attribute uniform varying) tipe)
+              if Map.size decls == 0 then
+                  baseRec
+              else
+                  record (Map.map glToType decls) baseRec
 
-      E.Var var ->
-          let name = V.toString var
-          in
-              return (if name == E.saveEnvName then CSaveEnv else name <? tipe)
+          attribute = makeRec Lit.attribute attr
+          uniform = makeRec Lit.uniform unif
+          varying = makeRec Lit.varying (TermN EmptyRecord1)
+        in
+          return (CEqual Error.Shader region (shaderTipe attribute uniform varying) tipe)
 
-      E.Range lowExpr highExpr ->
-          existsNumber $ \n ->
-              do  lowCon <- constrain env lowExpr n
-                  highCon <- constrain env highExpr n
-                  return $ CAnd
-                    [ lowCon
-                    , highCon
-                    , CEqual Error.Range region (list n) tipe
-                    ]
+    E.Var var ->
+      let
+        name =
+          V.toString var
+      in
+        return (if name == E.saveEnvName then CSaveEnv else name <? tipe)
 
-      E.ExplicitList exprs ->
-          constrainList env region exprs tipe
+    E.Range lowExpr highExpr ->
+      existsNumber $ \n ->
+        do  lowCon <- constrain env lowExpr n
+            highCon <- constrain env highExpr n
+            return $ CAnd
+              [ lowCon
+              , highCon
+              , CEqual Error.Range region (list n) tipe
+              ]
 
-      E.Binop op leftExpr rightExpr ->
-          constrainBinop env region op leftExpr rightExpr tipe
+    E.ExplicitList exprs ->
+      constrainList env region exprs tipe
 
-      E.Lambda pattern body ->
-          exists $ \argType ->
-          exists $ \resType ->
-              do  fragment <- Pattern.constrain env pattern argType
-                  bodyCon <- constrain env body resType
-                  let con =
-                        ex (Fragment.vars fragment)
-                            (CLet [monoscheme (Fragment.typeEnv fragment)]
-                                  (Fragment.typeConstraint fragment /\ bodyCon)
-                            )
-                  return $ con /\ CEqual Error.Lambda region (argType ==> resType) tipe
+    E.Binop op leftExpr rightExpr ->
+      constrainBinop env region op leftExpr rightExpr tipe
 
-      E.App _ _ ->
-          let
-            (f:args) = E.collectApps annotatedExpr
-          in
-            constrainApp env region f args tipe
+    E.Lambda pattern body ->
+      exists $ \argType ->
+      exists $ \resType ->
+        do  fragment <- Pattern.constrain env pattern argType
+            bodyCon <- constrain env body resType
+            let con =
+                  ex (Fragment.vars fragment)
+                      (CLet [monoscheme (Fragment.typeEnv fragment)]
+                            (Fragment.typeConstraint fragment /\ bodyCon)
+                      )
+            return $ con /\ CEqual Error.Lambda region (argType ==> resType) tipe
 
-      E.If branches finally ->
-          constrainIf env region branches finally tipe
+    E.App _ _ ->
+      let
+        (f:args) = E.collectApps annotatedExpr
+      in
+        constrainApp env region f args tipe
 
-      E.Case expr branches ->
-          constrainCase env region expr branches tipe
+    E.If branches finally ->
+      constrainIf env region branches finally tipe
 
-      E.Data name exprs ->
-          do  vars <- Monad.forM exprs $ \_ -> mkVar Nothing
-              let pairs = zip exprs (map VarN vars)
-              (ctipe, cs) <- Monad.foldM step (tipe, CTrue) (reverse pairs)
-              return $ ex vars (cs /\ name <? ctipe)
-          where
-            step (t,c) (e,x) =
-                do  c' <- constrain env e x
-                    return (x ==> t, c /\ c')
+    E.Case expr branches ->
+      constrainCase env region expr branches tipe
 
-      E.Access expr label ->
-          exists $ \t ->
-              constrain env expr (record (Map.singleton label tipe) t)
+    E.Data name exprs ->
+      do  vars <- Monad.forM exprs $ \_ -> mkVar Nothing
+          let pairs = zip exprs (map VarN vars)
+          (ctipe, cs) <- Monad.foldM step (tipe, CTrue) (reverse pairs)
+          return $ ex vars (cs /\ name <? ctipe)
+      where
+        step (t,c) (e,x) =
+            do  c' <- constrain env e x
+                return (x ==> t, c /\ c')
 
-      E.Update expr fields ->
-          exists $ \t ->
-              do  oldVars <- mapM (\_ -> mkVar Nothing) fields
-                  let oldFields = Map.fromList (zip (map fst fields) (map VarN oldVars))
-                  cOld <- ex oldVars <$> constrain env expr (record oldFields t)
+    E.Access expr label ->
+      exists $ \t ->
+        constrain env expr (record (Map.singleton label tipe) t)
 
-                  newVars <- mapM (\_ -> mkVar Nothing) fields
-                  let newFields = Map.fromList (zip (map fst fields) (map VarN newVars))
-                  let cNew = CEqual Error.Record region (record newFields t) tipe
+    E.Update expr fields ->
+      exists $ \t ->
+        do  oldVars <- mapM (\_ -> mkVar Nothing) fields
+            let oldFields = Map.fromList (zip (map fst fields) (map VarN oldVars))
+            cOld <- ex oldVars <$> constrain env expr (record oldFields t)
 
-                  cs <- Monad.zipWithM (constrain env) (map snd fields) (map VarN newVars)
+            newVars <- mapM (\_ -> mkVar Nothing) fields
+            let newFields = Map.fromList (zip (map fst fields) (map VarN newVars))
+            let cNew = CEqual Error.Record region (record newFields t) tipe
 
-                  return $ cOld /\ ex newVars (CAnd (cNew : cs))
+            cs <- Monad.zipWithM (constrain env) (map snd fields) (map VarN newVars)
 
-      E.Record fields ->
-          do  vars <- Monad.forM fields (\_ -> mkVar Nothing)
-              fieldCons <-
-                  Monad.zipWithM
-                      (constrain env)
-                      (map snd fields)
-                      (map VarN vars)
-              let fields' = Map.fromList (zip (map fst fields) (map VarN vars))
-              let recordType = record fields' (TermN EmptyRecord1)
-              return (ex vars (CAnd (fieldCons ++ [CEqual Error.Record region recordType tipe])))
+            return $ cOld /\ ex newVars (CAnd (cNew : cs))
 
-      E.Let defs body ->
-          do  bodyCon <- constrain env body tipe
+    E.Record fields ->
+      do  vars <- Monad.forM fields (\_ -> mkVar Nothing)
+          fieldCons <-
+              Monad.zipWithM
+                  (constrain env)
+                  (map snd fields)
+                  (map VarN vars)
+          let fields' = Map.fromList (zip (map fst fields) (map VarN vars))
+          let recordType = record fields' (TermN EmptyRecord1)
+          return (ex vars (CAnd (fieldCons ++ [CEqual Error.Record region recordType tipe])))
 
-              (Info schemes rqs fqs headers c2 c1) <-
-                  Monad.foldM
-                      (constrainDef env)
-                      (Info [] [] [] Map.empty CTrue CTrue)
-                      (concatMap expandPattern defs)
+    E.Let defs body ->
+      do  bodyCon <- constrain env body tipe
 
-              let letScheme =
-                    [ Scheme rqs fqs (CLet [monoscheme headers] c2) headers ]
+          (Info schemes rqs fqs headers c2 c1) <-
+              Monad.foldM
+                  (constrainDef env)
+                  (Info [] [] [] Map.empty CTrue CTrue)
+                  (concatMap expandPattern defs)
 
-              return $ CLet schemes (CLet letScheme (c1 /\ bodyCon))
+          let letScheme =
+                [ Scheme rqs fqs (CLet [monoscheme headers] c2) headers ]
 
-      E.Port impl ->
-          case impl of
-            E.In _ _ ->
-                return CTrue
+          return $ CLet schemes (CLet letScheme (c1 /\ bodyCon))
 
-            E.Out _ expr _ ->
-                constrain env expr tipe
+    E.Port impl ->
+      case impl of
+        E.In _ _ ->
+            return CTrue
 
-            E.Task _ expr _ ->
-                constrain env expr tipe
+        E.Out _ expr _ ->
+            constrain env expr tipe
+
+        E.Task _ expr _ ->
+            constrain env expr tipe
+
 
 
 -- CONSTRAIN APP
+
 
 constrainApp
     :: Env.Environment
@@ -250,8 +259,8 @@ argConstraints env name region totalArgs overallVar index args =
 
 
 
-
 -- CONSTRAIN BINOP
+
 
 constrainBinop
     :: Env.Environment
@@ -285,7 +294,9 @@ constrainBinop env region op leftExpr@(A.A leftRegion _) rightExpr@(A.A rightReg
           ]
 
 
+
 -- CONSTRAIN LISTS
+
 
 constrainList
     :: Env.Environment
@@ -310,7 +321,9 @@ constrainList env region exprs tipe =
       CEqual Error.List region (Env.getType env "List" <| VarN var) tipe
 
 
+
 -- CONSTRAIN IF EXPRESSIONS
+
 
 constrainIf
     :: Env.Environment
@@ -367,7 +380,9 @@ constrainIf env region branches finally tipe =
       CEqual Error.If region (VarN var) tipe
 
 
+
 -- CONSTRAIN CASE EXPRESSIONS
+
 
 constrainCase
     :: Env.Environment
@@ -400,7 +415,9 @@ constrainCase env region expr branches tipe =
       CEqual Error.Case region tipe (VarN var)
 
 
+
 -- COLLECT PAIRS
+
 
 data Pair = Pair
     { _index :: Int
@@ -423,11 +440,11 @@ pairCons region pairHint varToCon items =
   in
   case collectPairs 2 items of
     Nothing ->
-        do  var <- mkVar Nothing
-            return ([var], [varToCon var])
+      do  var <- mkVar Nothing
+          return ([var], [varToCon var])
 
     Just (pairs, var) ->
-        return (map fst items, map pairToCon pairs ++ [varToCon var])
+      return (map fst items, map pairToCon pairs ++ [varToCon var])
 
 
 collectPairs :: Int -> [(Variable, R.Region)] -> Maybe ([Pair], Variable)
@@ -444,11 +461,15 @@ collectPairs index items =
             return (Pair index var var' region : pairs, summaryVar)
 
 
+
 -- EXPAND PATTERNS
+
 
 expandPattern :: Canonical.Def -> [Canonical.Def]
 expandPattern def@(Canonical.Definition facts lpattern expr maybeType) =
-  let (A.A patternRegion pattern) = lpattern
+  let
+    (A.A patternRegion pattern) =
+      lpattern
   in
   case pattern of
     P.Var _ ->
@@ -476,7 +497,9 @@ expandPattern def@(Canonical.Definition facts lpattern expr maybeType) =
                 Canonical.Definition facts (pvar name) (A.A patternRegion extract) Nothing
 
 
+
 -- CONSTRAIN DEFINITIONS
+
 
 data Info = Info
     { iSchemes :: [TypeScheme]
