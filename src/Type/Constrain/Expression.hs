@@ -31,9 +31,6 @@ constrain env annotatedExpr@(A.A region expression) tipe =
   let
     list t =
       Env.getType env "List" <| t
-
-    (<?) =
-      CInstance region
   in
   case expression of
     E.Literal lit ->
@@ -68,7 +65,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
         name =
           V.toString var
       in
-        return (if name == E.saveEnvName then CSaveEnv else name <? tipe)
+        return (if name == E.saveEnvName then CSaveEnv else CInstance region name tipe)
 
     E.Range lowExpr highExpr ->
       existsNumber $ \n ->
@@ -114,7 +111,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
       do  vars <- Monad.forM exprs $ \_ -> mkVar Nothing
           let pairs = zip exprs (map VarN vars)
           (ctipe, cs) <- Monad.foldM step (tipe, CTrue) (reverse pairs)
-          return $ ex vars (cs /\ name <? ctipe)
+          return $ ex vars (cs /\ CInstance region name ctipe)
       where
         step (t,c) (e,x) =
             do  c' <- constrain env e x
