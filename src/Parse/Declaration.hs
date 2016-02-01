@@ -9,6 +9,7 @@ import Parse.Helpers as Help
 import qualified Parse.Type as Type
 
 
+
 declaration :: IParser D.SourceDecl
 declaration =
   choice
@@ -17,7 +18,9 @@ declaration =
     ]
 
 
+
 -- TYPE ANNOTATIONS and DEFINITIONS
+
 
 definition :: IParser D.SourceDecl'
 definition =
@@ -26,7 +29,9 @@ definition =
     <?> "a value definition"
 
 
+
 -- TYPE ALIAS and UNION TYPES
+
 
 typeDecl :: IParser D.SourceDecl'
 typeDecl =
@@ -48,7 +53,9 @@ typeDecl =
                 return $ D.Datatype name args tcs
 
 
+
 -- INFIX
+
 
 infixDecl :: IParser D.SourceDecl'
 infixDecl =
@@ -65,7 +72,9 @@ infixDecl =
       D.Fixity assoc (read [n]) <$> anyOp
 
 
+
 -- PORT
+
 
 port :: IParser D.SourceDecl'
 port =
