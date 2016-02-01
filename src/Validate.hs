@@ -20,7 +20,9 @@ import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
 
 
+
 -- VALIDATE DECLARATIONS
+
 
 declarations
     :: Bool
@@ -78,7 +80,9 @@ validateDeclsHelp comment (A.A region decl) decls =
         portHelp comment region port decls
 
 
+
 -- VALIDATE DEFINITIONS IN DECLARATIONS
+
 
 defHelp
     :: Maybe String
@@ -111,7 +115,9 @@ defHelp comment (A.A region def) decls =
               Result.throw region (Error.TypeWithoutDefinition name)
 
 
+
 -- VALIDATE PORTS IN DECLARATIONS
+
 
 portHelp
     :: Maybe String
@@ -140,7 +146,9 @@ portHelp comment region port decls =
               addRest (D.In name tipe) decls
 
 
+
 -- VALIDATE DEFINITIONS
+
 
 definitions :: [Source.Def] -> Result.Result wrn Error.Error [Valid.Def]
 definitions sourceDefs =
@@ -194,7 +202,9 @@ checkDefinition (Valid.Definition pattern body _) =
                 Result.throw (R.merge start end) (Error.BadFunctionName (length args))
 
 
+
 -- VALIDATE EXPRESSIONS
+
 
 expression :: Source.Expr -> Result.Result wrn Error.Error Valid.Expr
 expression (A.A ann sourceExpression) =
@@ -300,7 +310,9 @@ both (expr1, expr2) =
     (,) <$> expression expr1 <*> expression expr2
 
 
+
 -- VALIDATE PATTERNS
+
 
 validatePattern :: Pattern.RawPattern -> Result.Result wrn Error.Error Pattern.RawPattern
 validatePattern pattern =
@@ -308,7 +320,9 @@ validatePattern pattern =
       return pattern
 
 
+
 -- DETECT DUPLICATES
+
 
 detectDuplicates
     :: (String -> Error.Error)
@@ -383,7 +397,9 @@ extractValues (A.A (region, _) decl) =
         )
 
 
+
 -- UNBOUND TYPE VARIABLES
+
 
 checkDecl :: Bool -> D.ValidDecl -> Result.Result wrn Error.Error ()
 checkDecl isRoot (A.A (region,_) decl) =
