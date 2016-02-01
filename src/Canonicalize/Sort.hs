@@ -14,7 +14,9 @@ import qualified AST.Variable as V
 import qualified Reporting.Annotation as A
 
 
+
 -- STARTING POINT
+
 
 definitions :: Canonical.Expr -> Canonical.Expr
 definitions expression =
@@ -35,133 +37,137 @@ freeIfLocal (V.Canonical home name) =
     V.Module _ -> return ()
 
 
+
 -- REORDER EXPRESSIONS
+
 
 reorder :: Canonical.Expr -> State (Set.Set String) Canonical.Expr
 reorder (A.A ann expression) =
-    A.A ann <$>
-    case expression of
-      -- Be careful adding and restricting freeVars
-      Var var ->
-          do  freeIfLocal var
-              return expression
-
-      Lambda pattern body ->
-          uncurry Lambda <$> bindingReorder (pattern,body)
-
-      Binop op leftExpr rightExpr ->
-          do  freeIfLocal op
-              Binop op <$> reorder leftExpr <*> reorder rightExpr
-
-      Case expr cases ->
-          Case <$> reorder expr <*> mapM bindingReorder cases
-
-      Data name exprs ->
-          do  free name
-              Data name <$> mapM reorder exprs
-
-      -- Just pipe the reorder though
-      Literal _ ->
+  A.A ann <$>
+  case expression of
+    -- Be careful adding and restricting freeVars
+    Var var ->
+      do  freeIfLocal var
           return expression
 
-      Range lowExpr highExpr ->
-          Range <$> reorder lowExpr <*> reorder highExpr
+    Lambda pattern body ->
+      uncurry Lambda <$> bindingReorder (pattern,body)
 
-      ExplicitList es ->
-          ExplicitList <$> mapM reorder es
+    Binop op leftExpr rightExpr ->
+      do  freeIfLocal op
+          Binop op <$> reorder leftExpr <*> reorder rightExpr
 
-      App func arg ->
-          App <$> reorder func <*> reorder arg
+    Case expr cases ->
+      Case <$> reorder expr <*> mapM bindingReorder cases
 
-      If branches finally ->
-          If
-            <$> mapM (\(cond,branch) -> (,) <$> reorder cond <*> reorder branch) branches
-            <*> reorder finally
+    Data name exprs ->
+      do  free name
+          Data name <$> mapM reorder exprs
 
-      Access record field ->
-          Access
-            <$> reorder record
-            <*> return field
+    -- Just pipe the reorder though
+    Literal _ ->
+      return expression
 
-      Update record fields ->
-          Update
-            <$> reorder record
-            <*> mapM (\(field,expr) -> (,) field <$> reorder expr) fields
+    Range lowExpr highExpr ->
+      Range <$> reorder lowExpr <*> reorder highExpr
 
-      Record fields ->
-          Record
-            <$> mapM (\(field,expr) -> (,) field <$> reorder expr) fields
+    ExplicitList es ->
+      ExplicitList <$> mapM reorder es
 
-      GLShader _ _ _ ->
-          return expression
+    App func arg ->
+      App <$> reorder func <*> reorder arg
 
-      Port impl ->
-          Port <$>
-            case impl of
-              In _ _ ->
-                  return impl
+    If branches finally ->
+      If
+        <$> mapM (\(cond,branch) -> (,) <$> reorder cond <*> reorder branch) branches
+        <*> reorder finally
 
-              Out name expr tipe ->
-                  (\e -> Out name e tipe) <$> reorder expr
+    Access record field ->
+      Access
+        <$> reorder record
+        <*> return field
 
-              Task name expr tipe ->
-                  (\e -> Task name e tipe) <$> reorder expr
+    Update record fields ->
+      Update
+        <$> reorder record
+        <*> mapM (\(field,expr) -> (,) field <$> reorder expr) fields
 
-      -- Actually do some reordering
-      Let defs body ->
-          do  body' <- reorder body
+    Record fields ->
+      Record
+        <$> mapM (\(field,expr) -> (,) field <$> reorder expr) fields
 
-              -- Sort defs into strongly connected components.This
-              -- allows the programmer to write definitions in whatever
-              -- order they please, we can still define things in order
-              -- and generalize polymorphic functions when appropriate.
-              sccs <- Graph.stronglyConnComp <$> buildDefGraph defs
-              let defss = map Graph.flattenSCC sccs
+    GLShader _ _ _ ->
+      return expression
 
-              -- remove let-bound variables from the context
-              forM_ defs $ \(Canonical.Definition _ pattern _ _) -> do
-                  bound pattern
-                  mapM free (ctors pattern)
+    Port impl ->
+      Port <$>
+        case impl of
+          In _ _ ->
+              return impl
 
-              let (A.A _ let') =
-                    foldr (\ds bod -> A.A ann (Let ds bod)) body' defss
+          Out name expr tipe ->
+              (\e -> Out name e tipe) <$> reorder expr
 
-              return let'
+          Task name expr tipe ->
+              (\e -> Task name e tipe) <$> reorder expr
+
+    -- Actually do some reordering
+    Let defs body ->
+      do  body' <- reorder body
+
+          -- Sort defs into strongly connected components.This
+          -- allows the programmer to write definitions in whatever
+          -- order they please, we can still define things in order
+          -- and generalize polymorphic functions when appropriate.
+          sccs <- Graph.stronglyConnComp <$> buildDefGraph defs
+          let defss = map Graph.flattenSCC sccs
+
+          -- remove let-bound variables from the context
+          forM_ defs $ \(Canonical.Definition _ pattern _ _) -> do
+              bound pattern
+              mapM free (ctors pattern)
+
+          let (A.A _ let') =
+                foldr (\ds bod -> A.A ann (Let ds bod)) body' defss
+
+          return let'
 
 
 ctors :: P.CanonicalPattern -> [String]
 ctors (A.A _ pattern) =
-    case pattern of
-      P.Var _ ->
-          []
+  case pattern of
+    P.Var _ ->
+        []
 
-      P.Alias _ p ->
-          ctors p
+    P.Alias _ p ->
+        ctors p
 
-      P.Record _ ->
-          []
+    P.Record _ ->
+        []
 
-      P.Anything ->
-          []
+    P.Anything ->
+        []
 
-      P.Literal _ ->
-          []
+    P.Literal _ ->
+        []
 
-      P.Data (V.Canonical home name) ps ->
-          case home of
-            V.Local -> name : rest
-            V.TopLevel _ -> name : rest
-            V.BuiltIn -> rest
-            V.Module _ -> rest
-          where
-            rest = concatMap ctors ps
+    P.Data (V.Canonical home name) ps ->
+        case home of
+          V.Local -> name : rest
+          V.TopLevel _ -> name : rest
+          V.BuiltIn -> rest
+          V.Module _ -> rest
+        where
+          rest = concatMap ctors ps
 
 
 bound :: P.CanonicalPattern -> State (Set.Set String) ()
 bound pattern =
-  let boundVars = P.boundVarSet pattern
+  let
+    boundVars =
+      P.boundVarSet pattern
   in
-      modify (\freeVars -> Set.difference freeVars boundVars)
+    modify (\freeVars -> Set.difference freeVars boundVars)
 
 
 bindingReorder
@@ -174,7 +180,9 @@ bindingReorder (pattern, expr) =
       return (pattern, expr')
 
 
+
 -- BUILD DEPENDENCY GRAPH BETWEEN DEFINITIONS
+
 
 -- This also reorders the all of the sub-expressions in the Def list.
 buildDefGraph
@@ -186,21 +194,23 @@ buildDefGraph defs =
   where
     addKey :: [(Canonical.Def, [String])] -> [(Canonical.Def, Int, [String])]
     addKey =
-        zipWith (\n (pdef,deps) -> (pdef,n,deps)) [0..]
+      zipWith (\n (pdef,deps) -> (pdef,n,deps)) [0..]
 
     variableToKey :: (Canonical.Def, Int, [String]) -> [(String, Int)]
     variableToKey (Canonical.Definition _ pattern _ _, key, _) =
-        [ (var, key) | var <- P.boundVarList pattern ]
+      [ (var, key) | var <- P.boundVarList pattern ]
 
     variableToKeyMap :: [(Canonical.Def, Int, [String])] -> Map.Map String Int
     variableToKeyMap pdefsDeps =
-        Map.fromList (concatMap variableToKey pdefsDeps)
+      Map.fromList (concatMap variableToKey pdefsDeps)
 
     realDeps :: [(Canonical.Def, Int, [String])] -> [(Canonical.Def, Int, [Int])]
     realDeps pdefsDeps =
         map convert pdefsDeps
       where
-        varDict = variableToKeyMap pdefsDeps
+        varDict =
+          variableToKeyMap pdefsDeps
+
         convert (pdef, key, deps) =
             (pdef, key, Maybe.mapMaybe (flip Map.lookup varDict) deps)
 
