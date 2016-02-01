@@ -3,7 +3,7 @@ module AST.Module
     , Types, Aliases, Unions
     , UnionInfo, CanonicalUnion
     , SourceModule, ValidModule, CanonicalModule, Optimized
-    , Module(..), Body(..)
+    , Module(..), Kind(..), Body(..)
     , Header(..)
     , Interface(..), toInterface
     , UserImport, DefaultImport, ImportMethod(..)
@@ -82,13 +82,20 @@ type Optimized =
 
 data Module docs imports exports body =
   Module
-    { name    :: Name.Canonical
-    , path    :: FilePath
-    , docs    :: A.Located (Maybe docs)
+    { kind :: Kind
+    , name :: Name.Canonical
+    , path :: FilePath
+    , docs :: A.Located (Maybe docs)
     , exports :: exports
     , imports :: imports
-    , body    :: body
+    , body :: body
     }
+
+
+data Kind
+  = Normal
+  | Effect
+  | Foreign
 
 
 data Body expr =
@@ -108,7 +115,8 @@ data Body expr =
 {-| Basic info needed to identify modules and determine dependencies. -}
 data Header imports =
   Header
-    { _name :: Name.Raw
+    { _kind :: Kind
+    , _name :: Name.Raw
     , _docs :: A.Located (Maybe String)
     , _exports :: Var.Listing (A.Located Var.Value)
     , _imports :: imports

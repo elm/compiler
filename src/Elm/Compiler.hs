@@ -53,7 +53,7 @@ parseDependencies sourceCode =
       Result.Err msgs ->
           Left $ map (Error . A.map Error.Syntax) msgs
 
-      Result.Ok (Module.Header name _docs _exports imports) ->
+      Result.Ok (Module.Header _kind name _docs _exports imports) ->
           Right
             ( PublicModule.Name name
             , map (PublicModule.Name . fst . A.drop) imports

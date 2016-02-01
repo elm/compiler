@@ -76,7 +76,7 @@ moduleHelp
     -> Module.Interfaces
     -> Module.ValidModule
     -> Result.ResultErr (Env.Environment, AlmostCanonicalModule)
-moduleHelp importDict interfaces modul@(Module.Module _ _ comment exports _ decls) =
+moduleHelp importDict interfaces modul@(Module.Module _ _ _ comment exports _ decls) =
     canonicalModule
       <$> canonicalDeclsResult
       <*> resolveExports locals exports
@@ -127,7 +127,7 @@ filterImports
     :: Set.Set ModuleName.Raw
     -> AlmostCanonicalModule
     -> R.Result Warning.Warning e Module.CanonicalModule
-filterImports uses modul@(Module.Module _ _ _ _ (defaults, imports) _) =
+filterImports uses modul@(Module.Module _ _ _ _ _ (defaults, imports) _) =
   do  reducedImports <-
           Maybe.catMaybes <$> T.traverse checkImport imports
 

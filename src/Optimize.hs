@@ -24,7 +24,7 @@ import qualified Reporting.Region as R
 
 
 optimize :: DT.VariantDict -> Module.CanonicalModule -> Module.Optimized
-optimize variantDict module_@(Module.Module home _ _ _ _ body) =
+optimize variantDict module_@(Module.Module _ home _ _ _ _ body) =
   let
     (defs, _) =
         flattenLets [] (Module.program body)

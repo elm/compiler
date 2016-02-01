@@ -30,7 +30,7 @@ environment
     -> Module.Interfaces
     -> Module.ValidModule
     -> Result.ResultErr Env.Environment
-environment importDict interfaces (Module.Module name _ _ _ (defaults, imports) decls) =
+environment importDict interfaces (Module.Module _ name _ _ _ (defaults, imports) decls) =
   let
     allImports =
       imports ++ map (A.A (error "default import not found")) defaults

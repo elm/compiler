@@ -11,44 +11,69 @@ import Reporting.Annotation as A
 
 getModuleName :: String -> Maybe String
 getModuleName source =
-  case iParse getModuleName source of
-    Right name ->
-        Just name
-
-    Left _ ->
-        Nothing
-  where
+  let
     getModuleName =
       do  optional freshLine
-          (names, _) <- moduleDecl
+          (_, names, _) <- moduleDecl
           return (ModuleName.toString names)
+  in
+    case iParse getModuleName source of
+      Right name ->
+        Just name
+
+      Left _ ->
+        Nothing
 
 
 header :: IParser (Module.Header [Module.UserImport])
 header =
   do  optional freshLine
-      (names, exports) <-
-          option (["Main"], Var.openListing) (moduleDecl `followedBy` freshLine)
+      (kind, names, exports) <-
+        option
+          (Module.Normal, ["Main"], Var.openListing)
+          (moduleDecl `followedBy` freshLine)
+
       docs <-
         choice
           [ addLocation (Just <$> docComment) `followedBy` freshLine
           , addLocation (return Nothing)
           ]
+
       imports' <- imports
-      return (Module.Header names docs exports imports')
+
+      return (Module.Header kind names docs exports imports')
 
 
-moduleDecl :: IParser ([String], Var.Listing (A.Located Var.Value))
+moduleDecl :: IParser (Module.Kind, [String], Var.Listing (A.Located Var.Value))
 moduleDecl =
   expecting "a module declaration" $
-  do  try (reserved "module")
+  do
+      kind <-
+        choice
+          [ do  try (reserved "module")
+                return Module.Normal
+          , do  try (reserved "effect")
+                whitespace
+                reserved "module"
+                return Module.Effect
+          , do  reserved "foreign"
+                whitespace
+                reserved "effect"
+                whitespace
+                reserved "module"
+                return Module.Foreign
+          ]
+
       whitespace
       names <- dotSep1 capVar <?> "the name of this module"
+
       whitespace
       exports <- option Var.openListing (listing (addLocation value))
+
       whitespace
       reserved "where"
-      return (names, exports)
+
+      return (kind, names, exports)
 
 
 imports :: IParser [Module.UserImport]

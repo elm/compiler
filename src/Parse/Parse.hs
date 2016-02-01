@@ -20,13 +20,14 @@ import qualified Reporting.Result as Result
 import qualified Validate
 
 
+
 program
     :: Package.Name
     -> OpTable
     -> String
     -> Result.Result wrn Error.Error M.ValidModule
 program pkgName table src =
-  do  (M.Module name filePath docs exports imports sourceDecls) <-
+  do  (M.Module kind name filePath docs exports imports sourceDecls) <-
           parseWithTable table src (programParser pkgName)
 
       validDecls <- Validate.declarations sourceDecls
@@ -37,14 +38,16 @@ program pkgName table src =
             , imports
             )
 
-      return (M.Module name filePath docs exports ammendedImports validDecls)
+      return (M.Module kind name filePath docs exports ammendedImports validDecls)
+
 
 
 -- HEADERS AND DECLARATIONS
 
+
 programParser :: Package.Name -> IParser M.SourceModule
 programParser pkgName =
-  do  (M.Header name docs exports imports) <- Module.header
+  do  (M.Header kind name docs exports imports) <- Module.header
       decls <- declarations
       _ <- many (spaces <|> newline)
       eof
@@ -52,7 +55,7 @@ programParser pkgName =
       let canonicalName =
             ModuleName.Canonical pkgName name
 
-      return $ M.Module canonicalName "" docs exports imports decls
+      return $ M.Module kind canonicalName "" docs exports imports decls
 
 
 declarations :: IParser [D.SourceDecl]
@@ -68,7 +71,9 @@ freshDef =
           Decl.declaration
 
 
+
 -- RUN PARSERS
+
 
 parse :: String -> IParser a -> Result.Result wrn Error.Error a
 parse source parser =
@@ -100,6 +105,7 @@ parseWithTable table source parser =
 
 
 -- INFIX INFO
+
 
 makeInfixTable
     :: Map.Map String (Int, D.Assoc)
