@@ -11,7 +11,9 @@ import qualified AST.Type as Type
 import qualified Reporting.Annotation as A
 
 
+
 -- DECLARATIONS
+
 
 data Declaration' port def tipe expr
     = Definition def
@@ -21,7 +23,9 @@ data Declaration' port def tipe expr
     | Fixity Assoc Int String
 
 
+
 -- INFIX STUFF
+
 
 data Assoc = L | N | R
     deriving (Eq)
@@ -29,13 +33,15 @@ data Assoc = L | N | R
 
 assocToString :: Assoc -> String
 assocToString assoc =
-    case assoc of
-      L -> "left"
-      N -> "non"
-      R -> "right"
+  case assoc of
+    L -> "left"
+    N -> "non"
+    R -> "right"
+
 
 
 -- DECLARATION PHASES
+
 
 type SourceDecl' =
   Declaration' SourcePort Source.Def Type.Raw Source.Expr
@@ -54,7 +60,9 @@ type CanonicalDecl =
   A.Commented (Declaration' CanonicalPort Canonical.Def Type.Canonical Canonical.Expr)
 
 
+
 -- PORTS
+
 
 data SourcePort
     = PortAnnotation String Type.Raw
@@ -77,7 +85,9 @@ validPortName port =
     Out name _ _ -> name
 
 
+
 -- BINARY CONVERSION
+
 
 instance Binary Assoc where
     get =
