@@ -15,7 +15,9 @@ import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 
 
+
 ---- GENERAL AST ----
+
 
 {-| This is a fully general Abstract Syntax Tree (AST) for expressions. It has
 "type holes" that allow us to enrich the AST with additional information as we
@@ -56,7 +58,9 @@ data Expr' ann def var typ
     | GLShader String String Literal.GLShaderTipe
 
 
+
 -- PORTS
+
 
 data PortImpl expr tipe
     = In String (Type.Port tipe)
@@ -73,7 +77,9 @@ portName impl =
     Task name _ _ -> name
 
 
+
 ---- UTILITIES ----
+
 
 rawVar :: String -> Expr' ann def Var.Raw typ
 rawVar x =
@@ -97,28 +103,31 @@ saveEnvName =
 
 dummyLet :: [def] -> Expr ann def Var.Canonical typ
 dummyLet defs =
-  let body =
-        A.A undefined (Var (Var.builtin saveEnvName))
+  let
+    body =
+      A.A undefined (Var (Var.builtin saveEnvName))
   in
-      A.A undefined (Let defs body)
+    A.A undefined (Let defs body)
 
 
 collectApps :: Expr ann def var typ -> [Expr ann def var typ]
 collectApps annExpr@(A.A _ expr) =
   case expr of
-    App a b -> collectApps a ++ [b]
-    _ -> [annExpr]
+    App a b ->
+      collectApps a ++ [b]
+
+    _ ->
+      [annExpr]
 
 
-collectLambdas
-    :: Expr ann def var typ
-    -> ([Pattern.Pattern ann var], Expr ann def var typ)
+collectLambdas :: Expr ann def var typ -> ([Pattern.Pattern ann var], Expr ann def var typ)
 collectLambdas lexpr@(A.A _ expr) =
   case expr of
     Lambda pattern body ->
-        let
-          (ps, body') = collectLambdas body
-        in
-          (pattern : ps, body')
+      let
+        (ps, body') = collectLambdas body
+      in
+        (pattern : ps, body')
 
-    _ -> ([], lexpr)
+    _ ->
+      ([], lexpr)
