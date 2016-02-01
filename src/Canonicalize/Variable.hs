@@ -51,13 +51,13 @@ tvar
               (Var.Canonical, [String], Type.Canonical)
           )
 tvar region env var =
-  case adts ++ aliases of
-    []  -> notFound region "type" (Map.keys (Env._adts env) ++ Map.keys (Env._aliases env)) var
+  case unions ++ aliases of
+    []  -> notFound region "type" (Map.keys (Env._unions env) ++ Map.keys (Env._aliases env)) var
     [v] -> Result.var' extract v
     vs  -> preferLocals' region env extract "type" vs var
   where
-    adts =
-        map Left (maybe [] Set.toList (Map.lookup var (Env._adts env)))
+    unions =
+        map Left (maybe [] Set.toList (Map.lookup var (Env._unions env)))
 
     aliases =
         map Right (maybe [] Set.toList (Map.lookup var (Env._aliases env)))

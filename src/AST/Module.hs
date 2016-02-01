@@ -1,7 +1,7 @@
 module AST.Module
     ( Interfaces
-    , Types, Aliases, ADTs
-    , AdtInfo, CanonicalAdt
+    , Types, Aliases, Unions
+    , UnionInfo, CanonicalUnion
     , SourceModule, ValidModule, CanonicalModule, Optimized
     , Module(..), Body(..)
     , Header(..)
@@ -40,16 +40,16 @@ type Aliases =
   Map.Map String ([String], Type.Canonical)
 
 
-type ADTs =
-  Map.Map String (AdtInfo String)
+type Unions =
+  Map.Map String (UnionInfo String)
 
 
-type AdtInfo v =
+type UnionInfo v =
   ( [String], [(v, [Type.Canonical])] )
 
 
-type CanonicalAdt =
-  ( Var.Canonical, AdtInfo Var.Canonical )
+type CanonicalUnion =
+  ( Var.Canonical, UnionInfo Var.Canonical )
 
 
 
@@ -93,11 +93,11 @@ data Module docs imports exports body =
 
 data Body expr =
   Body
-    { program   :: expr
-    , types     :: Types
-    , fixities  :: [(Decl.Assoc, Int, String)]
-    , aliases   :: Aliases
-    , datatypes :: ADTs
+    { program :: expr
+    , types :: Types
+    , fixities :: [(Decl.Assoc, Int, String)]
+    , aliases :: Aliases
+    , unions :: Unions
     }
 
 
@@ -144,7 +144,7 @@ data Interface =
     , iExports  :: [Var.Value]
     , iTypes    :: Types
     , iImports  :: [Name.Raw]
-    , iAdts     :: ADTs
+    , iUnions   :: Unions
     , iAliases  :: Aliases
     , iFixities :: [(Decl.Assoc, Int, String)]
     }
@@ -162,7 +162,7 @@ toInterface pkgName modul =
       , iExports  = exports modul
       , iTypes    = types body'
       , iImports  = imports modul
-      , iAdts     = datatypes body'
+      , iUnions   = unions body'
       , iAliases  = aliases body'
       , iFixities = fixities body'
       }
@@ -178,6 +178,6 @@ instance Binary Interface where
         put (iExports modul)
         put (iTypes modul)
         put (iImports modul)
-        put (iAdts modul)
+        put (iUnions modul)
         put (iAliases modul)
         put (iFixities modul)

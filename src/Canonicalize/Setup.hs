@@ -124,7 +124,7 @@ interfacePatches moduleName prefix interface =
         (Var.fromModule moduleName name, length args)
 
     ctors =
-      concatMap snd (Map.elems (Module.iAdts interface))
+      concatMap snd (Map.elems (Module.iUnions interface))
 
     ctorNames =
       map fst ctors
@@ -132,7 +132,7 @@ interfacePatches moduleName prefix interface =
     concat
       [ map (patch Env.Value) (Map.keys (Module.iTypes interface))
       , map (patch Env.Value) ctorNames
-      , map (patch Env.Union) (Map.keys (Module.iAdts interface))
+      , map (patch Env.Union) (Map.keys (Module.iUnions interface))
       , map aliasPatch (Map.toList (Module.iAliases interface))
       , map patternPatch ctors
       ]
@@ -182,7 +182,7 @@ valueToPatches region moduleName interface value =
                         else [alias]
 
         Nothing ->
-            case Map.lookup x (Module.iAdts interface) of
+            case Map.lookup x (Module.iUnions interface) of
               Just (_,_) ->
                   Result.ok [patch Env.Union x]
 
@@ -194,7 +194,7 @@ valueToPatches region moduleName interface value =
                       notFound getNames x
 
     Var.Union givenName (Var.Listing givenCtorNames open) ->
-      case Map.lookup givenName (Module.iAdts interface) of
+      case Map.lookup givenName (Module.iUnions interface) of
         Nothing ->
             notFound (map fst . Var.getUnions) givenName
 
@@ -374,7 +374,7 @@ restrictToPublicApi interface =
             (get (Module.iAliases interface))
             (Var.getAliases exports)
 
-    , Module.iAdts =
+    , Module.iUnions =
         Map.fromList
           (Maybe.mapMaybe (trimUnions interface) unions)
     }
@@ -405,9 +405,9 @@ get dict key =
 trimUnions
     :: Module.Interface
     -> (String, Var.Listing String)
-    -> Maybe (String, Module.AdtInfo String)
+    -> Maybe (String, Module.UnionInfo String)
 trimUnions interface (name, Var.Listing exportedCtors _) =
-  case Map.lookup name (Module.iAdts interface) of
+  case Map.lookup name (Module.iUnions interface) of
     Nothing ->
       Nothing
 

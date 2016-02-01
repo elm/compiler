@@ -31,7 +31,7 @@ patternMatches interfaces modul =
     name = Module.name modul
     body = Module.body modul
     tagDict =
-      toTagDict interfaces name (Module.datatypes body)
+      toTagDict interfaces name (Module.unions body)
   in
     const (Map.map (Map.map length) tagDict)
       <$> checkExpression tagDict (Module.program body)
@@ -52,8 +52,8 @@ data TagInfo = TagInfo
     }
 
 
-toTagDict :: Module.Interfaces -> ModuleName.Canonical -> Module.ADTs -> TagDict
-toTagDict interfaces localName localAdts =
+toTagDict :: Module.Interfaces -> ModuleName.Canonical -> Module.Unions -> TagDict
+toTagDict interfaces localName localUnions =
   let
     listTags =
         [ TagInfo "::" 2
@@ -76,14 +76,14 @@ toTagDict interfaces localName localAdts =
 
     interfaceDict =
         interfaces
-          |> Map.map (toTagMapping . Module.iAdts)
+          |> Map.map (toTagMapping . Module.iUnions)
           |> Map.mapKeysMonotonic Var.Module
-          |> Map.insert (Var.Module localName) (toTagMapping localAdts)
+          |> Map.insert (Var.Module localName) (toTagMapping localUnions)
   in
     Map.union builtinDict interfaceDict
 
 
-toTagMapping :: Module.ADTs -> Map.Map Tag [TagInfo]
+toTagMapping :: Module.Unions -> Map.Map Tag [TagInfo]
 toTagMapping adts =
   let
     toTagAndArity (_tvars, tagInfoList) =

@@ -19,7 +19,7 @@ import Elm.Utils ((|>))
 data Environment = Env
     { _home     :: ModuleName.Canonical
     , _values   :: Dict Var.Canonical
-    , _adts     :: Dict Var.Canonical
+    , _unions   :: Dict Var.Canonical
     , _aliases  :: Dict (Var.Canonical, [String], Type.Canonical)
     , _patterns :: Dict (Var.Canonical, Int)
     }
@@ -67,7 +67,7 @@ addPatch patch env =
         env { _values = insert name var (_values env) }
 
     Union name var ->
-        env { _adts = insert name var (_adts env) }
+        env { _unions = insert name var (_unions env) }
 
     Alias name var ->
         env { _aliases = insert name var (_aliases env) }
@@ -111,9 +111,9 @@ builtinPatches =
 -- TO TYPE DEALIASER
 
 toDealiaser :: Environment -> Map.Map String String
-toDealiaser (Env _ _ adts aliases _) =
+toDealiaser (Env _ _ unions aliases _) =
   let
-    dealiasAdt (localName, canonicalSet) =
+    dealiasUnion (localName, canonicalSet) =
       case Set.toList canonicalSet of
         [canonicalName] ->
             Just (Var.toString canonicalName, localName)
@@ -127,8 +127,8 @@ toDealiaser (Env _ _ adts aliases _) =
         _ ->
             Nothing
 
-    adtPairs =
-      Maybe.mapMaybe dealiasAdt (Map.toList adts)
+    unionPairs =
+      Maybe.mapMaybe dealiasUnion (Map.toList unions)
 
     aliasPairs =
       Maybe.mapMaybe dealiasAlias (Map.toList aliases)
@@ -136,5 +136,5 @@ toDealiaser (Env _ _ adts aliases _) =
     add (key,value) dict =
       Map.insertWith (\v v' -> if length v < length v' then v else v') key value dict
   in
-    adtPairs ++ aliasPairs
+    unionPairs ++ aliasPairs
       |> foldr add Map.empty

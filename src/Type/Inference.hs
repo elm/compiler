@@ -44,7 +44,7 @@ genConstraints
     -> Module.CanonicalModule
     -> IO (Map.Map String T.Type, T.TypeConstraint)
 genConstraints interfaces modul =
-  do  env <- Env.initialize (canonicalizeAdts interfaces modul)
+  do  env <- Env.initialize (canonicalizeUnions interfaces modul)
 
       ctors <-
           forM (Env.ctorNames env) $ \name ->
@@ -80,24 +80,24 @@ canonicalizeValues env (moduleName, iface) =
               )
 
 
-canonicalizeAdts :: Module.Interfaces -> Module.CanonicalModule -> [CanonicalAdt]
-canonicalizeAdts interfaces modul =
-    localAdts ++ importedAdts
+canonicalizeUnions :: Module.Interfaces -> Module.CanonicalModule -> [CanonicalUnion]
+canonicalizeUnions interfaces modul =
+    localUnions ++ importedUnions
   where
-    localAdts :: [CanonicalAdt]
-    localAdts =
-      format (Module.name modul, datatypes (body modul))
+    localUnions :: [CanonicalUnion]
+    localUnions =
+      format (Module.name modul, unions (body modul))
 
-    importedAdts :: [CanonicalAdt]
-    importedAdts =
-      concatMap (format . second iAdts) (Map.toList interfaces)
+    importedUnions :: [CanonicalUnion]
+    importedUnions =
+      concatMap (format . second iUnions) (Map.toList interfaces)
 
 
-format :: (ModuleName.Canonical, Module.ADTs) -> [CanonicalAdt]
+format :: (ModuleName.Canonical, Module.Unions) -> [CanonicalUnion]
 format (home, adts) =
     map canonical (Map.toList adts)
   where
-    canonical :: (String, AdtInfo String) -> CanonicalAdt
+    canonical :: (String, UnionInfo String) -> CanonicalUnion
     canonical (name, (tvars, ctors)) =
         ( toVar name
         , (tvars, map (first toVar) ctors)

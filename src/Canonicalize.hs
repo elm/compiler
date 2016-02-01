@@ -12,7 +12,6 @@ import AST.Module (Body(..))
 import Elm.Utils ((|>))
 
 import qualified AST.Declaration as D
-import qualified AST.Expression.General as E
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Module as Module
@@ -111,7 +110,7 @@ moduleHelp importDict interfaces modul@(Module.Module _ _ comment exports _ decl
           , types =
               Map.empty
 
-          , datatypes =
+          , unions =
               Map.fromList [ (name,(vars,ctors)) | D.Datatype name vars ctors <- nakedDecls ]
 
           , fixities =
