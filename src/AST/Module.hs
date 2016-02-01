@@ -24,19 +24,37 @@ import qualified Elm.Compiler.Version as Compiler
 import qualified Reporting.Annotation as A
 
 
+
 -- HELPFUL TYPE ALIASES
 
-type Interfaces = Map.Map Name.Canonical Interface
 
-type Types   = Map.Map String Type.Canonical
-type Aliases = Map.Map String ([String], Type.Canonical)
-type ADTs    = Map.Map String (AdtInfo String)
+type Interfaces =
+  Map.Map Name.Canonical Interface
 
-type AdtInfo v = ( [String], [(v, [Type.Canonical])] )
-type CanonicalAdt = (Var.Canonical, AdtInfo Var.Canonical)
+
+type Types =
+  Map.Map String Type.Canonical
+
+
+type Aliases =
+  Map.Map String ([String], Type.Canonical)
+
+
+type ADTs =
+  Map.Map String (AdtInfo String)
+
+
+type AdtInfo v =
+  ( [String], [(v, [Type.Canonical])] )
+
+
+type CanonicalAdt =
+  ( Var.Canonical, AdtInfo Var.Canonical )
+
 
 
 -- MODULES
+
 
 type SourceModule =
     Module
@@ -62,7 +80,8 @@ type Optimized =
     Module Docs.Centralized [Name.Raw] [Var.Value] (Body [Optimized.Def])
 
 
-data Module docs imports exports body = Module
+data Module docs imports exports body =
+  Module
     { name    :: Name.Canonical
     , path    :: FilePath
     , docs    :: A.Located (Maybe docs)
@@ -72,7 +91,8 @@ data Module docs imports exports body = Module
     }
 
 
-data Body expr = Body
+data Body expr =
+  Body
     { program   :: expr
     , types     :: Types
     , fixities  :: [(Decl.Assoc, Int, String)]
@@ -82,10 +102,13 @@ data Body expr = Body
     }
 
 
+
 -- HEADERS
 
+
 {-| Basic info needed to identify modules and determine dependencies. -}
-data Header imports = Header
+data Header imports =
+  Header
     { _name :: Name.Raw
     , _docs :: A.Located (Maybe String)
     , _exports :: Var.Listing (A.Located Var.Value)
@@ -93,7 +116,9 @@ data Header imports = Header
     }
 
 
+
 -- IMPORTs
+
 
 type UserImport = A.Located (Name.Raw, ImportMethod)
 
@@ -101,16 +126,20 @@ type UserImport = A.Located (Name.Raw, ImportMethod)
 type DefaultImport = (Name.Raw, ImportMethod)
 
 
-data ImportMethod = ImportMethod
+data ImportMethod =
+  ImportMethod
     { alias :: Maybe String
     , exposedVars :: !(Var.Listing Var.Value)
     }
 
 
+
 -- INTERFACES
 
+
 {-| Key facts about a module, used when reading info from .elmi files. -}
-data Interface = Interface
+data Interface =
+  Interface
     { iVersion  :: Package.Version
     , iPackage  :: Package.Name
     , iExports  :: [Var.Value]
@@ -125,29 +154,34 @@ data Interface = Interface
 
 toInterface :: Package.Name -> Optimized -> Interface
 toInterface pkgName modul =
-    let body' = body modul in
+  let
+    body' =
+      body modul
+  in
     Interface
-    { iVersion  = Compiler.version
-    , iPackage  = pkgName
-    , iExports  = exports modul
-    , iTypes    = types body'
-    , iImports  = imports modul
-    , iAdts     = datatypes body'
-    , iAliases  = aliases body'
-    , iFixities = fixities body'
-    , iPorts    = ports body'
-    }
+      { iVersion  = Compiler.version
+      , iPackage  = pkgName
+      , iExports  = exports modul
+      , iTypes    = types body'
+      , iImports  = imports modul
+      , iAdts     = datatypes body'
+      , iAliases  = aliases body'
+      , iFixities = fixities body'
+      , iPorts    = ports body'
+      }
 
 
 instance Binary Interface where
-  get = Interface <$> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get
-  put modul = do
-      put (iVersion modul)
-      put (iPackage modul)
-      put (iExports modul)
-      put (iTypes modul)
-      put (iImports modul)
-      put (iAdts modul)
-      put (iAliases modul)
-      put (iFixities modul)
-      put (iPorts modul)
+  get =
+    Interface <$> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get
+
+  put modul =
+    do  put (iVersion modul)
+        put (iPackage modul)
+        put (iExports modul)
+        put (iTypes modul)
+        put (iImports modul)
+        put (iAdts modul)
+        put (iAliases modul)
+        put (iFixities modul)
+        put (iPorts modul)
