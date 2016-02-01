@@ -31,7 +31,6 @@ import qualified Reporting.Result as R
 import qualified Reporting.Warning as Warning
 import qualified Canonicalize.Declaration as Decls
 import qualified Canonicalize.Environment as Env
-import qualified Canonicalize.Port as Port
 import qualified Canonicalize.Result as Result
 import qualified Canonicalize.Setup as Setup
 import qualified Canonicalize.Sort as Sort
@@ -120,9 +119,6 @@ moduleHelp importDict interfaces modul@(Module.Module _ _ comment exports _ decl
 
           , aliases =
               Map.fromList [ (name,(tvs,alias)) | D.TypeAlias name tvs alias <- nakedDecls ]
-
-          , ports =
-              [ E.portName impl | D.Port (D.CanonicalPort impl) <- nakedDecls ]
           }
 
 
@@ -354,25 +350,6 @@ declaration env (A.A ann@(region,_) decl) =
           D.TypeAlias name tvars
             <$> Canonicalize.tipe env expanded
 
-      D.Port validPort ->
-          Result.addModule ["Native","Port"] $
-          Result.addModule ["Native","Json"] $
-              case validPort of
-                D.In name tipe ->
-                    Canonicalize.tipe env tipe
-                      `Result.andThen` \canonicalType ->
-                          D.Port <$> Port.check region name Nothing canonicalType
-
-                D.Out name expr tipe ->
-                    let exprTypeResult =
-                          (,)
-                            <$> expression env expr
-                            <*> Canonicalize.tipe env tipe
-                    in
-                        exprTypeResult
-                          `Result.andThen` \(expr', tipe') ->
-                              D.Port <$> Port.check region name (Just expr') tipe'
-
       D.Fixity assoc prec op ->
           Result.ok (D.Fixity assoc prec op)
 
@@ -461,29 +438,6 @@ expression env (A.A region validExpr) =
           branch (ptrn, brnch) =
               (,) <$> pattern env ptrn
                   <*> expression (Env.addPattern ptrn env) brnch
-
-      Port impl ->
-          let portType pt =
-                case pt of
-                  Type.Normal t ->
-                      Type.Normal
-                          <$> Canonicalize.tipe env t
-
-                  Type.Signal root arg ->
-                      Type.Signal
-                          <$> Canonicalize.tipe env root
-                          <*> Canonicalize.tipe env arg
-          in
-              Port <$>
-                  case impl of
-                    E.In name tipe ->
-                        E.In name <$> portType tipe
-
-                    E.Out name expr tipe ->
-                        E.Out name <$> go expr <*> portType tipe
-
-                    E.Task name expr tipe ->
-                        E.Task name <$> go expr <*> portType tipe
 
       GLShader uid src tipe ->
           Result.ok (GLShader uid src tipe)

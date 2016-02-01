@@ -71,11 +71,11 @@ compile
 
 compile context source interfaces =
   let
-    (Context packageName isRoot isExposed dependencies) =
+    (Context packageName isExposed dependencies) =
       context
 
     (Result.Result (localizer, warnings) rawResult) =
-      do  modul <- Compile.compile packageName isRoot dependencies interfaces source
+      do  modul <- Compile.compile packageName dependencies interfaces source
           docs <- docsGen isExposed modul
 
           let interface = Module.toInterface packageName modul
@@ -91,7 +91,6 @@ compile context source interfaces =
 
 data Context = Context
     { _packageName :: Package.Name
-    , _isRoot :: Bool
     , _isExposed :: Bool
     , _dependencies :: [PublicModule.CanonicalName]
     }

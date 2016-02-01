@@ -86,9 +86,6 @@ addDeclToDocs (A.A (region,maybeComment) decl) docs =
         in
           docs { rawAliases = Map.insert name alias (rawAliases docs) }
 
-    D.Port _ ->
-        docs
-
     D.Fixity assoc precedence name ->
         let
           fixity =

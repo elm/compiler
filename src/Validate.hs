@@ -25,14 +25,13 @@ import qualified Reporting.Result as Result
 
 
 declarations
-    :: Bool
-    -> [D.SourceDecl]
+    :: [D.SourceDecl]
     -> Result.Result wrn Error.Error [D.ValidDecl]
-declarations isRoot sourceDecls =
+declarations sourceDecls =
   do  validDecls <- validateDecls Nothing sourceDecls
       (\_ _ -> validDecls)
         <$> declDuplicates validDecls
-        <*> T.traverse (checkDecl isRoot) validDecls
+        <*> T.traverse checkDecl validDecls
 
 
 validateDecls
@@ -76,9 +75,6 @@ validateDeclsHelp comment (A.A region decl) decls =
     D.Definition def ->
         defHelp comment def decls
 
-    D.Port port ->
-        portHelp comment region port decls
-
 
 
 -- VALIDATE DEFINITIONS IN DECLARATIONS
@@ -113,37 +109,6 @@ defHelp comment (A.A region def) decls =
 
           _ ->
               Result.throw region (Error.TypeWithoutDefinition name)
-
-
-
--- VALIDATE PORTS IN DECLARATIONS
-
-
-portHelp
-    :: Maybe String
-    -> R.Region
-    -> D.SourcePort
-    -> [D.SourceDecl]
-    -> Result.Result wrn Error.Error [D.ValidDecl]
-portHelp comment region port decls =
-  let addRest port' rest =
-        (:) (A.A (region,comment) (D.Port port'))
-          <$> validateDecls Nothing rest
-  in
-  case port of
-    D.PortDefinition name _ ->
-        Result.throw region (Error.PortWithoutAnnotation name)
-
-    D.PortAnnotation name tipe ->
-        case decls of
-          D.Decl (A.A _ (D.Port (D.PortDefinition name' expr))) : rest
-              | name == name' ->
-                  do  expr' <- expression expr
-                      let port' = D.Out name expr' tipe
-                      addRest port' rest
-
-          _ ->
-              addRest (D.In name tipe) decls
 
 
 
@@ -283,20 +248,6 @@ expression (A.A ann sourceExpression) =
     GLShader uid src gltipe ->
         return (GLShader uid src gltipe)
 
-    Port impl ->
-        Port <$>
-          case impl of
-            In name tipe ->
-                return (In name tipe)
-
-            Out name expr tipe ->
-                do  expr' <- expression expr
-                    return (Out name expr' tipe)
-
-            Task name expr tipe ->
-                do  expr' <- expression expr
-                    return (Task name expr' tipe)
-
 
 second :: (a, Source.Expr) -> Result.Result wrn Error.Error (a, Valid.Expr)
 second (value, expr) =
@@ -386,11 +337,6 @@ extractValues (A.A (region, _) decl) =
         , [A.A region name]
         )
 
-    D.Port port ->
-        ( [A.A region (D.validPortName port)]
-        , []
-        )
-
     D.Fixity _ _ _ ->
         ( []
         , []
@@ -401,8 +347,8 @@ extractValues (A.A (region, _) decl) =
 -- UNBOUND TYPE VARIABLES
 
 
-checkDecl :: Bool -> D.ValidDecl -> Result.Result wrn Error.Error ()
-checkDecl isRoot (A.A (region,_) decl) =
+checkDecl :: D.ValidDecl -> Result.Result wrn Error.Error ()
+checkDecl (A.A (region,_) decl) =
   case decl of
     D.Definition _ ->
         return ()
@@ -432,13 +378,6 @@ checkDecl isRoot (A.A (region,_) decl) =
           (unused, unbound) ->
               Result.throw region
                 (Error.MessyTypeVarsInAlias name boundVars unused unbound)
-
-    D.Port _ ->
-        if isRoot then
-            return ()
-
-        else
-            Result.throw region Error.UnexpectedPort
 
     D.Fixity _ _ _ ->
         return ()

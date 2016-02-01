@@ -10,7 +10,6 @@ module AST.Expression.General where
 
 import qualified AST.Literal as Literal
 import qualified AST.Pattern as Pattern
-import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 
@@ -54,27 +53,7 @@ data Expr' ann def var typ
     | Update (Expr ann def var typ) [(String, Expr ann def var typ)]
     | Record [(String, Expr ann def var typ)]
     -- for type checking and code gen only
-    | Port (PortImpl (Expr ann def var typ) typ)
     | GLShader String String Literal.GLShaderTipe
-
-
-
--- PORTS
-
-
-data PortImpl expr tipe
-    = In String (Type.Port tipe)
-    | Out String expr (Type.Port tipe)
-    | Task String expr (Type.Port tipe)
-    deriving (Eq)
-
-
-portName :: PortImpl expr tipe -> String
-portName impl =
-  case impl of
-    In name _ -> name
-    Out name _ _ -> name
-    Task name _ _ -> name
 
 
 

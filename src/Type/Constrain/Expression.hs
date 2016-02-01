@@ -160,17 +160,6 @@ constrain env annotatedExpr@(A.A region expression) tipe =
 
           return $ CLet schemes (CLet letScheme (c1 /\ bodyCon))
 
-    E.Port impl ->
-      case impl of
-        E.In _ _ ->
-            return CTrue
-
-        E.Out _ expr _ ->
-            constrain env expr tipe
-
-        E.Task _ expr _ ->
-            constrain env expr tipe
-
 
 
 -- CONSTRAIN APP

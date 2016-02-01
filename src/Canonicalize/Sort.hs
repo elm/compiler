@@ -7,7 +7,7 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 
-import AST.Expression.General (Expr'(..), PortImpl(..))
+import AST.Expression.General (Expr'(..))
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Pattern as P
 import qualified AST.Variable as V
@@ -98,18 +98,6 @@ reorder (A.A ann expression) =
 
     GLShader _ _ _ ->
       return expression
-
-    Port impl ->
-      Port <$>
-        case impl of
-          In _ _ ->
-              return impl
-
-          Out name expr tipe ->
-              (\e -> Out name e tipe) <$> reorder expr
-
-          Task name expr tipe ->
-              (\e -> Task name e tipe) <$> reorder expr
 
     -- Actually do some reordering
     Let defs body ->

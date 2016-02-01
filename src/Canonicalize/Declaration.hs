@@ -60,19 +60,6 @@ toDefs moduleName (A.A (region,_) decl) =
     D.TypeAlias _ _ _ ->
         []
 
-    D.Port (D.CanonicalPort impl) ->
-        let body = loc (E.Port impl)
-        in
-        case impl of
-          E.In name tipe ->
-              [ definition name body region (T.getPortType tipe) ]
-
-          E.Out name _expr tipe ->
-              [ definition name body region (T.getPortType tipe) ]
-
-          E.Task name _expr tipe ->
-              [ definition name body region (T.getPortType tipe) ]
-
     -- no constraints are needed for fixity declarations
     D.Fixity _ _ _ ->
         []

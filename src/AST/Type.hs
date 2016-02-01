@@ -1,7 +1,6 @@
 module AST.Type
     ( Raw, Raw'(..)
     , Canonical(..), Aliased(..)
-    , Port(..), getPortType
     , deepDealias, iteratedDealias, dealias
     , collectLambdas
     , tuple
@@ -46,19 +45,6 @@ data Aliased t
     = Holey t
     | Filled t
     deriving (Eq, Ord)
-
-
-data Port t
-    = Normal t
-    | Signal { root :: t, arg :: t }
-    deriving (Eq)
-
-
-getPortType :: Port tipe -> tipe
-getPortType portType =
-  case portType of
-    Normal tipe -> tipe
-    Signal tipe _ -> tipe
 
 
 tuple :: R.Region -> [Raw] -> Raw

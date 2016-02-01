@@ -86,15 +86,15 @@ essentialInterfaces =
 
 buildCoreInterface :: [(String, Type.Canonical)] -> Module.Interface
 buildCoreInterface members =
-  let exports = map (Variable.Value . fst) members
-      imports = []
-      types = Map.fromList members
-      adts = Map.empty
-      aliases = Map.empty
-      fixities = []
-      ports = []
+  let
+    exports = map (Variable.Value . fst) members
+    imports = []
+    types = Map.fromList members
+    adts = Map.empty
+    aliases = Map.empty
+    fixities = []
   in
-      Module.Interface Compiler.version Package.coreName exports types imports adts aliases fixities ports
+    Module.Interface Compiler.version Package.coreName exports types imports adts aliases fixities
 
 
 compileString :: FilePath -> String -> Either String Compiler.Result
@@ -102,7 +102,7 @@ compileString filePath source =
   let dependentModuleNames =
         Map.keys essentialInterfaces
       context =
-        Compiler.Context Package.coreName True False dependentModuleNames
+        Compiler.Context Package.coreName False dependentModuleNames
       (dealiaser, _warnings, result) =
         Compiler.compile context source essentialInterfaces
       formatErrors errors =

@@ -22,15 +22,14 @@ import qualified Validate
 
 program
     :: Package.Name
-    -> Bool
     -> OpTable
     -> String
     -> Result.Result wrn Error.Error M.ValidModule
-program pkgName isRoot table src =
+program pkgName table src =
   do  (M.Module name filePath docs exports imports sourceDecls) <-
           parseWithTable table src (programParser pkgName)
 
-      validDecls <- Validate.declarations isRoot sourceDecls
+      validDecls <- Validate.declarations sourceDecls
 
       -- determine if default imports should be added, only elm-lang/core is exempt
       let ammendedImports =

@@ -3,7 +3,6 @@ module AST.Declaration where
 
 import Data.Binary
 
-import qualified AST.Expression.General as General
 import qualified AST.Expression.Source as Source
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Expression.Canonical as Canonical
@@ -15,11 +14,10 @@ import qualified Reporting.Annotation as A
 -- DECLARATIONS
 
 
-data Declaration' port def tipe expr
+data Declaration' def tipe expr
     = Definition def
     | Datatype String [String] [(String, [tipe])]
     | TypeAlias String [String] tipe
-    | Port port
     | Fixity Assoc Int String
 
 
@@ -44,7 +42,7 @@ assocToString assoc =
 
 
 type SourceDecl' =
-  Declaration' SourcePort Source.Def Type.Raw Source.Expr
+  Declaration' Source.Def Type.Raw Source.Expr
 
 
 data SourceDecl
@@ -53,36 +51,11 @@ data SourceDecl
 
 
 type ValidDecl =
-  A.Commented (Declaration' ValidPort Valid.Def Type.Raw Valid.Expr)
+  A.Commented (Declaration' Valid.Def Type.Raw Valid.Expr)
 
 
 type CanonicalDecl =
-  A.Commented (Declaration' CanonicalPort Canonical.Def Type.Canonical Canonical.Expr)
-
-
-
--- PORTS
-
-
-data SourcePort
-    = PortAnnotation String Type.Raw
-    | PortDefinition String Source.Expr
-
-
-data ValidPort
-    = In String Type.Raw
-    | Out String Valid.Expr Type.Raw
-
-
-newtype CanonicalPort
-    = CanonicalPort (General.PortImpl Canonical.Expr Type.Canonical)
-
-
-validPortName :: ValidPort -> String
-validPortName port =
-  case port of
-    In name _ -> name
-    Out name _ _ -> name
+  A.Commented (Declaration' Canonical.Def Type.Canonical Canonical.Expr)
 
 
 

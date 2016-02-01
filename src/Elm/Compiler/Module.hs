@@ -5,7 +5,6 @@ module Elm.Compiler.Module
     , nameToString, nameFromString
     , hyphenate, dehyphenate
     , defaultImports
-    , interfacePorts
     , interfaceAliasedTypes
     , CanonicalName, canonicalName
     )
@@ -36,11 +35,6 @@ type Interface = Module.Interface
 
 
 type Interfaces = Module.Interfaces
-
-
-interfacePorts :: Interface -> [String]
-interfacePorts interface =
-    Module.iPorts interface
 
 
 interfaceAliasedTypes :: Interface -> Map.Map String Type.Type

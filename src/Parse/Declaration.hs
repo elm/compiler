@@ -14,7 +14,7 @@ declaration :: IParser D.SourceDecl
 declaration =
   choice
     [ D.Comment <$> Help.docComment
-    , D.Decl <$> addLocation (typeDecl <|> infixDecl <|> port <|> definition)
+    , D.Decl <$> addLocation (typeDecl <|> infixDecl <|> definition)
     ]
 
 
@@ -70,30 +70,4 @@ infixDecl =
       n <- digit
       forcedWS
       D.Fixity assoc (read [n]) <$> anyOp
-
-
-
--- PORT
-
-
-port :: IParser D.SourceDecl'
-port =
-  expecting "a port declaration" $
-  do  try (reserved "port")
-      whitespace
-      name <- lowVar
-      whitespace
-      choice [ portAnnotation name, portDefinition name ]
-  where
-    portAnnotation name =
-      do  try hasType
-          whitespace
-          tipe <- Type.expr <?> "a type"
-          return (D.Port (D.PortAnnotation name tipe))
-
-    portDefinition name =
-      do  try equals
-          whitespace
-          expr <- Expr.expr
-          return (D.Port (D.PortDefinition name expr))
 

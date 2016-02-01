@@ -308,18 +308,6 @@ optimizeExpr context annExpr@(A.A region expression) =
     Expr.GLShader uid src gltipe ->
         pure (Opt.GLShader uid src gltipe)
 
-    Expr.Port impl ->
-        Opt.Port <$>
-          case impl of
-            Expr.In name tipe ->
-                pure (Expr.In name tipe)
-
-            Expr.Out name expr tipe ->
-                (\e -> Expr.Out name e tipe) <$> justConvert expr
-
-            Expr.Task name expr tipe ->
-                (\e -> Expr.Task name e tipe) <$> justConvert expr
-
 
 mapSnd :: M.Functor box => (a -> box b) -> (x, a) -> box (x, b)
 mapSnd func (x, a) =

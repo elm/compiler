@@ -20,18 +20,17 @@ import qualified Type.Inference as TI
 
 compile
     :: Package.Name
-    -> Bool
     -> [ModuleName.Canonical]
     -> Module.Interfaces
     -> String
     -> Result.Result Warning.Warning Error.Error Module.Optimized
 
-compile packageName isRoot canonicalImports interfaces source =
+compile packageName canonicalImports interfaces source =
   do
       -- Parse the source code
       validModule <-
           Result.mapError Error.Syntax $
-            Parse.program packageName isRoot (getOpTable interfaces) source
+            Parse.program packageName (getOpTable interfaces) source
 
       -- Canonicalize all variables, pinning down where they came from.
       canonicalModule <-

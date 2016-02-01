@@ -98,7 +98,6 @@ data Body expr =
     , fixities  :: [(Decl.Assoc, Int, String)]
     , aliases   :: Aliases
     , datatypes :: ADTs
-    , ports     :: [String]
     }
 
 
@@ -148,7 +147,6 @@ data Interface =
     , iAdts     :: ADTs
     , iAliases  :: Aliases
     , iFixities :: [(Decl.Assoc, Int, String)]
-    , iPorts    :: [String]
     }
 
 
@@ -167,13 +165,12 @@ toInterface pkgName modul =
       , iAdts     = datatypes body'
       , iAliases  = aliases body'
       , iFixities = fixities body'
-      , iPorts    = ports body'
       }
 
 
 instance Binary Interface where
   get =
-    Interface <$> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get
+    Interface <$> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get
 
   put modul =
     do  put (iVersion modul)
@@ -184,4 +181,3 @@ instance Binary Interface where
         put (iAdts modul)
         put (iAliases modul)
         put (iFixities modul)
-        put (iPorts modul)

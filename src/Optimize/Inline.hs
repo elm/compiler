@@ -6,7 +6,6 @@ import Control.Monad (foldM)
 import qualified Data.List as List
 import qualified Data.Map as Map
 
-import AST.Expression.General (PortImpl(..))
 import AST.Expression.Optimized (Expr(..), Decider(..), Choice(..))
 import qualified AST.Expression.Optimized as Opt
 import qualified AST.Variable as Var
@@ -165,17 +164,6 @@ count expression =
     Record fields ->
         countMany (map snd fields)
 
-    Port impl ->
-        case impl of
-          In _ _ ->
-              Map.empty
-
-          Out _name expr _tipe ->
-              count expr
-
-          Task _name expr _tipe ->
-              count expr
-
     GLShader _ _ _ ->
         Map.empty
 
@@ -274,18 +262,6 @@ replace substitutions expression =
 
     Record fields ->
         Record (map (second go) fields)
-
-    Port impl ->
-        Port $
-          case impl of
-            In _ _ ->
-                impl
-
-            Out name expr tipe ->
-                Out name (go expr) tipe
-
-            Task name expr tipe ->
-                Task name (go expr) tipe
 
     GLShader _ _ _ ->
         expression

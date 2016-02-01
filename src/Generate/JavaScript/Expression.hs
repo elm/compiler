@@ -6,7 +6,6 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import Language.ECMAScript3.Syntax
 
-import qualified AST.Expression.General as Expr
 import AST.Expression.Optimized as Opt
 import qualified AST.Literal as L
 import qualified AST.Module.Name as ModuleName
@@ -14,7 +13,6 @@ import qualified AST.Variable as Var
 import Generate.JavaScript.Helpers as Help
 import qualified Generate.JavaScript.BuiltIn as BuiltIn
 import qualified Generate.JavaScript.Literal as Literal
-import qualified Generate.JavaScript.Port as Port
 import qualified Generate.JavaScript.Variable as Var
 import qualified Optimize.DecisionTree as DT
 
@@ -195,19 +193,6 @@ generateCode expr =
 
       GLShader _uid src _tipe ->
           jsExpr $ ObjectLit () [(PropString () "src", Literal.literal (L.Str src))]
-
-      Port impl ->
-          case impl of
-            Expr.In name portType ->
-                jsExpr (Port.inbound name portType)
-
-            Expr.Out name expr portType ->
-                do  expr' <- generateJsExpr expr
-                    jsExpr (Port.outbound name expr' portType)
-
-            Expr.Task name expr portType ->
-                do  expr' <- generateJsExpr expr
-                    jsExpr (Port.task name expr' portType)
 
       Crash home region maybeBranchProblem ->
           do  maybeOptBranchProblem <- traverse generateJsExpr maybeBranchProblem

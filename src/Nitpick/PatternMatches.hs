@@ -180,17 +180,6 @@ checkExpression tagDict (A.A region expression) =
     E.Record fields ->
         F.traverse_ (go . snd) fields
 
-    E.Port impl ->
-        case impl of
-          E.In _ _ ->
-              Result.ok ()
-
-          E.Out _ expr _ ->
-              go expr
-
-          E.Task _ expr _ ->
-              go expr
-
     E.GLShader _ _ _ ->
         Result.ok ()
 
