@@ -1,27 +1,36 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Parse.Declaration where
 
-import Control.Applicative ((<$>))
-import Text.Parsec ((<|>), (<?>), choice, digit, optionMaybe, string, try)
+import Text.Parsec ( (<|>), (<?>), choice, digit, optionMaybe, string, try )
 
 import qualified AST.Declaration as D
 import qualified Parse.Expression as Expr
-import Parse.Helpers
+import Parse.Helpers as Help
 import qualified Parse.Type as Type
 
 
 declaration :: IParser D.SourceDecl
 declaration =
-    typeDecl <|> infixDecl <|> port <|> definition
+  choice
+    [ D.Comment <$> Help.docComment
+    , D.Decl <$> addLocation (typeDecl <|> infixDecl <|> port <|> definition)
+    ]
 
 
-definition :: IParser D.SourceDecl
-definition = D.Definition <$> Expr.def
+-- TYPE ANNOTATIONS and DEFINITIONS
+
+definition :: IParser D.SourceDecl'
+definition =
+  D.Definition
+    <$> (Expr.typeAnnotation <|> Expr.definition)
+    <?> "a value definition"
 
 
-typeDecl :: IParser D.SourceDecl
+-- TYPE ALIAS and UNION TYPES
+
+typeDecl :: IParser D.SourceDecl'
 typeDecl =
-  do  try (reserved "type") <?> "type declaration"
+  do  try (reserved "type") <?> "a type declaration"
       forcedWS
       isAlias <- optionMaybe (string "alias" >> forcedWS)
 
@@ -39,33 +48,43 @@ typeDecl =
                 return $ D.Datatype name args tcs
 
 
-infixDecl :: IParser D.SourceDecl
-infixDecl = do
-  assoc <-
-      choice
-        [ try (reserved "infixl") >> return D.L
-        , try (reserved "infixr") >> return D.R
-        , try (reserved "infix")  >> return D.N
-        ]
-  forcedWS
-  n <- digit
-  forcedWS
-  D.Fixity assoc (read [n]) <$> anyOp
+-- INFIX
+
+infixDecl :: IParser D.SourceDecl'
+infixDecl =
+  expecting "an infix declaration" $
+  do  assoc <-
+          choice
+            [ try (reserved "infixl") >> return D.L
+            , try (reserved "infixr") >> return D.R
+            , try (reserved "infix")  >> return D.N
+            ]
+      forcedWS
+      n <- digit
+      forcedWS
+      D.Fixity assoc (read [n]) <$> anyOp
 
 
-port :: IParser D.SourceDecl
+-- PORT
+
+port :: IParser D.SourceDecl'
 port =
+  expecting "a port declaration" $
   do  try (reserved "port")
       whitespace
       name <- lowVar
       whitespace
-      let port' op ctor expr =
-            do  try op
-                whitespace
-                ctor name <$> expr
+      choice [ portAnnotation name, portDefinition name ]
+  where
+    portAnnotation name =
+      do  try hasType
+          whitespace
+          tipe <- Type.expr <?> "a type"
+          return (D.Port (D.PortAnnotation name tipe))
 
-      D.Port <$>
-          choice
-            [ port' hasType D.PPAnnotation Type.expr
-            , port' equals  D.PPDef Expr.expr
-            ]
+    portDefinition name =
+      do  try equals
+          whitespace
+          expr <- Expr.expr
+          return (D.Port (D.PortDefinition name expr))
+

@@ -1,79 +1,99 @@
 {-# OPTIONS_GHC -Wall #-}
 module AST.Pattern where
 
-import qualified AST.Helpers as Help
-import AST.PrettyPrint
-import Text.PrettyPrint as PP
 import qualified Data.Set as Set
 
+import qualified AST.Literal as L
 import qualified AST.Variable as Var
-import AST.Literal as Literal
+import qualified Reporting.Annotation as A
+import qualified Reporting.Region as R
 
-data Pattern var
-    = Data var [Pattern var]
+
+type Pattern ann var =
+    A.Annotated ann (Pattern' ann var)
+
+
+data Pattern' ann var
+    = Data var [Pattern ann var]
     | Record [String]
-    | Alias String (Pattern var)
+    | Alias String (Pattern ann var)
     | Var String
     | Anything
-    | Literal Literal.Literal
-    deriving (Eq, Ord, Show)
-
-type RawPattern = Pattern Var.Raw
-type CanonicalPattern = Pattern Var.Canonical
-
-cons :: RawPattern -> RawPattern -> RawPattern
-cons h t = Data (Var.Raw "::") [h,t]
-
-nil :: RawPattern
-nil = Data (Var.Raw "[]") []
-
-list :: [RawPattern] -> RawPattern
-list = foldr cons nil
-
-tuple :: [RawPattern] -> RawPattern
-tuple es = Data (Var.Raw ("_Tuple" ++ show (length es))) es
-
-boundVarList :: Pattern var -> [String]
-boundVarList = Set.toList . boundVars
-
-boundVars :: Pattern var -> Set.Set String
-boundVars pattern =
-    case pattern of
-      Var x -> Set.singleton x
-      Alias x p -> Set.insert x (boundVars p)
-      Data _ ps -> Set.unions (map boundVars ps)
-      Record fields -> Set.fromList fields
-      Anything -> Set.empty
-      Literal _ -> Set.empty
+    | Literal L.Literal
 
 
-instance Var.ToString var => Pretty (Pattern var) where
-  pretty pattern =
-   case pattern of
-     Var x -> variable x
-     Literal lit -> pretty lit
-     Record fs -> PP.braces (commaCat $ map variable fs)
-     Alias x p -> prettyParens p <+> PP.text "as" <+> variable x
-     Anything -> PP.text "_"
-     Data name [hd,tl] | Var.toString name == "::" ->
-         parensIf isCons (pretty hd) <+> PP.text "::" <+> pretty tl
-       where
-         isCons = case hd of
-                    Data ctor _ -> Var.toString ctor == "::"
-                    _ -> False
+type RawPattern =
+    Pattern R.Region Var.Raw
 
-     Data name ps
-         | Help.isTuple name' -> PP.parens . commaCat $ map pretty ps
-         | otherwise          -> hsep (PP.text name' : map prettyParens ps)
-         where
-           name' = Var.toString name
 
-prettyParens :: Var.ToString var => Pattern var -> Doc
-prettyParens pattern = 
-    parensIf needsThem (pretty pattern)
-  where
-    needsThem =
-      case pattern of
-        Data name (_:_) | not (Help.isTuple (Var.toString name)) -> True
-        Alias _ _ -> True
-        _ -> False
+type RawPattern' =
+    Pattern' R.Region Var.Raw
+
+
+type CanonicalPattern =
+    Pattern R.Region Var.Canonical
+
+
+list :: R.Position -> [RawPattern] -> RawPattern
+list end patterns =
+  case patterns of
+    [] ->
+        A.at end end (Data (Var.Raw "[]") [])
+
+    pattern@(A.A (R.Region start _) _) : rest ->
+        A.at start end (Data (Var.Raw "::") [pattern, list end rest])
+
+
+consMany :: R.Position -> [RawPattern] -> RawPattern
+consMany end patterns =
+  let cons hd@(A.A (R.Region start _) _) tl =
+          A.at start end (Data (Var.Raw "::") [hd, tl])
+  in
+      foldr1 cons patterns
+
+
+tuple :: [RawPattern] -> RawPattern'
+tuple patterns =
+  Data (Var.Raw ("_Tuple" ++ show (length patterns))) patterns
+
+
+
+-- FIND VARIABLES
+
+
+boundVars :: Pattern ann var -> [A.Annotated ann String]
+boundVars (A.A ann pattern) =
+  case pattern of
+    Var x ->
+        [A.A ann x]
+
+    Alias name realPattern ->
+        A.A ann name : boundVars realPattern
+
+    Data _ patterns ->
+        concatMap boundVars patterns
+
+    Record fields ->
+        map (A.A ann) fields
+
+    Anything ->
+        []
+
+    Literal _ ->
+        []
+
+
+member :: String -> Pattern ann var -> Bool
+member name pattern =
+  any (name==) (map A.drop (boundVars pattern))
+
+
+boundVarSet :: Pattern ann var -> Set.Set String
+boundVarSet pattern =
+  Set.fromList (map A.drop (boundVars pattern))
+
+
+boundVarList :: Pattern ann var -> [String]
+boundVarList pattern =
+  Set.toList (boundVarSet pattern)
+

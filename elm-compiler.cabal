@@ -1,6 +1,6 @@
 
 Name: elm-compiler
-Version: 0.14.1
+Version: 0.16
 
 Synopsis:
     Values to help with elm-package, elm-make, and elm-lang.org.
@@ -33,7 +33,7 @@ source-repository head
 
 Library
     ghc-options:
-        -threaded -O2 -W
+        -O2 -W
 
     Hs-Source-Dirs:
         src
@@ -43,43 +43,54 @@ Library
         Elm.Compiler.Module,
         Elm.Compiler.Type,
         Elm.Docs,
+        Elm.Package,
         Elm.Utils
 
     other-modules:
-        AST.Annotation,
         AST.Declaration,
+        AST.Expression.Canonical,
         AST.Expression.General,
+        AST.Expression.Optimized,
         AST.Expression.Source,
         AST.Expression.Valid,
-        AST.Expression.Canonical,
         AST.Helpers,
         AST.Literal,
         AST.Module,
+        AST.Module.Name,
         AST.Pattern,
-        AST.PrettyPrint,
         AST.Type,
         AST.Variable,
+        Canonicalize,
+        Canonicalize.Declaration,
+        Canonicalize.Environment,
+        Canonicalize.Port,
+        Canonicalize.Result,
+        Canonicalize.Setup,
+        Canonicalize.Sort,
+        Canonicalize.Type,
+        Canonicalize.Variable,
         Compile,
+        Docs.AST,
+        Docs.Centralize,
+        Docs.Check,
+        Elm.Compiler.Imports,
         Elm.Compiler.Type.Extract,
         Elm.Compiler.Version,
         Generate.JavaScript,
+        Generate.JavaScript.BuiltIn,
+        Generate.JavaScript.Expression,
         Generate.JavaScript.Helpers,
-        Generate.JavaScript.Ports,
+        Generate.JavaScript.Literal,
+        Generate.JavaScript.Port,
         Generate.JavaScript.Variable,
-        Generate.Cases,
-        Transform.AddDefaultImports,
-        Transform.Canonicalize,
-        Transform.Canonicalize.Environment,
-        Transform.Canonicalize.Setup,
-        Transform.Canonicalize.Type,
-        Transform.Canonicalize.Variable,
-        Transform.Check,
-        Transform.Expression,
-        Transform.Declaration,
-        Transform.Definition,
-        Transform.Interface,
-        Transform.SortDefinitions,
-        Transform.Substitute,
+        Nitpick.Pattern,
+        Nitpick.PatternMatches,
+        Nitpick.TopLevelTypes,
+        Optimize,
+        Optimize.Case,
+        Optimize.DecisionTree,
+        Optimize.Environment,
+        Optimize.Inline,
         Parse.Binop,
         Parse.Declaration,
         Parse.Expression,
@@ -89,47 +100,58 @@ Library
         Parse.Parse,
         Parse.Pattern,
         Parse.Type,
+        Reporting.Annotation,
+        Reporting.Error,
+        Reporting.Error.Canonicalize,
+        Reporting.Error.Docs,
+        Reporting.Error.Helpers,
+        Reporting.Error.Pattern,
+        Reporting.Error.Syntax,
+        Reporting.Error.Type,
+        Reporting.Region,
+        Reporting.Render.Code,
+        Reporting.Render.Type,
+        Reporting.Report,
+        Reporting.Result,
+        Reporting.Warning,
         Type.Constrain.Expression,
         Type.Constrain.Literal,
         Type.Constrain.Pattern,
         Type.Environment,
-        Type.ExtraChecks,
         Type.Fragment,
-        Type.Hint,
         Type.Inference,
-        Type.PrettyPrint,
         Type.Solve,
         Type.State,
         Type.Type,
         Type.Unify,
+        Validate,
         Paths_elm_compiler
 
     Build-depends:
         aeson >= 0.7 && < 0.9,
         aeson-pretty >= 0.7 && < 0.8,
+        ansi-terminal >= 0.6.2.1 && < 0.7,
+        ansi-wl-pprint >= 0.6.7 && < 0.7,
         base >=4.2 && <5,
         binary >= 0.7.0.0 && < 0.8,
-        blaze-html >= 0.5 && < 0.8,
-        blaze-markup >= 0.5.1 && < 0.7,
         bytestring >= 0.9 && < 0.11,
-        cmdargs >= 0.7 && < 0.11,
         containers >= 0.3 && < 0.6,
         directory >= 1.0 && < 2.0,
+        edit-distance >= 0.2 && < 0.3,
         filepath >= 1 && < 2.0,
         indents >= 0.3 && < 0.4,
-        language-ecmascript >=0.15 && < 0.17,
-        language-glsl >= 0.0.2 && < 0.2,
-        mtl >= 2 && < 3,
+        language-ecmascript >= 0.15 && < 0.18,
+        language-glsl >= 0.0.2 && < 0.3,
+        mtl >= 2.2 && < 3,
         parsec >= 3.1.1 && < 3.5,
         pretty >= 1.0 && < 2.0,
         process,
         text >= 1 && < 2,
-        transformers >= 0.2 && < 0.5,
         union-find >= 0.2 && < 0.3,
-        unordered-containers >= 0.1 && < 0.3
+        wl-pprint
 
 
-Executable elm-doc
+Executable elm
     ghc-options:
         -threaded -O2 -W
 
@@ -137,48 +159,20 @@ Executable elm-doc
         src
 
     Main-is:
-        Docs.hs
+        CommandLineRouter.hs
 
     other-modules:
         Elm.Compiler.Version,
-        AST.Annotation,
-        AST.Declaration,
-        AST.Expression.General,
-        AST.Helpers,
-        AST.Literal,
-        AST.Module,
-        AST.Pattern,
-        AST.PrettyPrint,
-        AST.Type,
-        AST.Variable,
-        Parse.Binop,
-        Parse.Declaration,
-        Parse.Expression,
-        Parse.Helpers,
-        Parse.Literal,
-        Parse.Module,
-        Parse.Pattern,
-        Parse.Type
+        Paths_elm_compiler
 
     Build-depends:
-        aeson >= 0.7 && < 0.9,
-        aeson-pretty >= 0.7 && < 0.8,
         base >=4.2 && <5,
+        aeson >= 0.7 && < 0.9,
         binary >= 0.7.0.0 && < 0.8,
-        bytestring >= 0.9 && < 0.11,
-        cmdargs >= 0.7 && < 0.11,
-        containers >= 0.3 && < 0.6,
         directory >= 1.0 && < 2.0,
         filepath >= 1 && < 2.0,
-        indents >= 0.3 && < 0.4,
-        language-glsl >= 0.0.2 && < 0.2,
-        mtl >= 2 && < 3,
-        parsec >= 3.1.1 && < 3.5,
-        pretty >= 1.0 && < 2.0,
-        process,
         text >= 1 && < 2,
-        transformers >= 0.2 && < 0.5,
-        union-find >= 0.2 && < 0.3
+        process
 
 
 Test-Suite compiler-tests
@@ -197,7 +191,6 @@ Test-Suite compiler-tests
         Test.Property.Arbitrary
         AST.Helpers
         AST.Literal
-        AST.PrettyPrint
 
     build-depends:
         test-framework > 0.8 && < 0.9,
@@ -207,26 +200,24 @@ Test-Suite compiler-tests
         QuickCheck >= 2 && < 3,
         aeson >= 0.7 && < 0.9,
         aeson-pretty >= 0.7 && < 0.8,
+        ansi-terminal >= 0.6.2.1 && < 0.7,
+        ansi-wl-pprint >= 0.6.7 && < 0.7,
         base >=4.2 && <5,
         binary >= 0.7.0.0 && < 0.8,
-        blaze-html >= 0.5 && < 0.8,
-        blaze-markup >= 0.5.1 && < 0.7,
         bytestring >= 0.9 && < 0.11,
-        cmdargs >= 0.7 && < 0.11,
         containers >= 0.3 && < 0.6,
         directory >= 1.0 && < 2.0,
+        edit-distance >= 0.2 && < 0.3,
         elm-compiler,
         filemanip >= 0.3.5 && < 0.4,
         filepath >= 1 && < 2.0,
         indents >= 0.3 && < 0.4,
-        language-ecmascript >=0.15 && < 0.17,
-        language-glsl >= 0.0.2 && < 0.2,
-        mtl >= 2 && < 3,
+        language-ecmascript >= 0.15 && < 0.18,
+        language-glsl >= 0.0.2 && < 0.3,
+        mtl >= 2.2 && < 3,
         parsec >= 3.1.1 && < 3.5,
         pretty >= 1.0 && < 2.0,
         process,
         text >= 1 && < 2,
-        transformers >= 0.2 && < 0.5,
         union-find >= 0.2 && < 0.3,
-        unordered-containers >= 0.1 && < 0.3
-
+        wl-pprint

@@ -2,50 +2,29 @@
 module AST.Declaration where
 
 import Data.Binary
+
+import qualified AST.Expression.General as General
 import qualified AST.Expression.Source as Source
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Expression.Canonical as Canonical
-import qualified AST.Type as T
-import qualified AST.Variable as Var
-import AST.PrettyPrint
-import Text.PrettyPrint as P
+import qualified AST.Type as Type
+import qualified Reporting.Annotation as A
 
 
+-- DECLARATIONS
 
-data Declaration' port def var
+data Declaration' port def tipe expr
     = Definition def
-    | Datatype String [String] [(String, [T.Type var])]
-    | TypeAlias String [String] (T.Type var)
+    | Datatype String [String] [(String, [tipe])]
+    | TypeAlias String [String] tipe
     | Port port
     | Fixity Assoc Int String
 
 
+-- INFIX STUFF
+
 data Assoc = L | N | R
     deriving (Eq)
-
-
-data RawPort
-    = PPAnnotation String T.RawType
-    | PPDef String Source.Expr
-
-
-data Port expr var
-    = Out String expr (T.Type var)
-    | In String (T.Type var)
-
-
-type SourceDecl    = Declaration' RawPort Source.Def Var.Raw
-type ValidDecl     = Declaration' (Port Valid.Expr Var.Raw) Valid.Def Var.Raw
-type CanonicalDecl = Declaration' (Port Canonical.Expr Var.Canonical)
-                                  Canonical.Def
-                                  Var.Canonical
-
-
-portName :: Port expr var -> String
-portName port =
-    case port of
-      Out name _ _ -> name
-      In name _ -> name
 
 
 assocToString :: Assoc -> String
@@ -54,6 +33,48 @@ assocToString assoc =
       L -> "left"
       N -> "non"
       R -> "right"
+
+
+-- DECLARATION PHASES
+
+type SourceDecl' =
+  Declaration' SourcePort Source.Def Type.Raw Source.Expr
+
+
+data SourceDecl
+    = Comment String
+    | Decl (A.Located SourceDecl')
+
+
+type ValidDecl =
+  A.Commented (Declaration' ValidPort Valid.Def Type.Raw Valid.Expr)
+
+
+type CanonicalDecl =
+  A.Commented (Declaration' CanonicalPort Canonical.Def Type.Canonical Canonical.Expr)
+
+
+-- PORTS
+
+data SourcePort
+    = PortAnnotation String Type.Raw
+    | PortDefinition String Source.Expr
+
+
+data ValidPort
+    = In String Type.Raw
+    | Out String Valid.Expr Type.Raw
+
+
+newtype CanonicalPort
+    = CanonicalPort (General.PortImpl Canonical.Expr Type.Canonical)
+
+
+validPortName :: ValidPort -> String
+validPortName port =
+  case port of
+    In name _ -> name
+    Out name _ _ -> name
 
 
 -- BINARY CONVERSION
@@ -73,72 +94,3 @@ instance Binary Assoc where
           L -> 0
           N -> 1
           R -> 2
-
-
--- PRETTY STRINGS
-
-instance (Pretty port, Pretty def, Pretty var, Var.ToString var) =>
-    Pretty (Declaration' port def var) where
-  pretty decl =
-    case decl of
-      Definition def -> pretty def
-
-      Datatype tipe tvars ctors ->
-          P.hang
-              (P.text "type" <+> P.text tipe <+> P.hsep (map P.text tvars))
-              4
-              (P.sep $ zipWith (<+>) seperators (map prettyCtor ctors))
-        where
-          seperators =
-              map P.text ("=" : repeat "|")
-
-          prettyCtor (name, tipes) =
-              P.hang (P.text name) 2 (P.sep (map T.prettyParens tipes))
-
-      TypeAlias name tvars tipe ->
-          P.hang
-              (P.text "type" <+> P.text "alias" <+> name' <+> P.equals)
-              4
-              (pretty tipe)
-        where
-          name' =
-              P.text name <+> P.hsep (map P.text tvars)
-
-      Port port -> pretty port
-
-      Fixity assoc prec op ->
-          P.text "infix" <> assoc' <+> P.int prec <+> P.text op
-        where
-          assoc' =
-              case assoc of
-                L -> P.text "l"
-                N -> P.empty
-                R -> P.text "r"
-
-
-instance Pretty RawPort where
-  pretty port =
-    case port of
-      PPAnnotation name tipe ->
-          prettyPort name ":" tipe
-
-      PPDef name expr ->
-          prettyPort name "=" expr
-
-
-instance (Pretty expr, Pretty var, Var.ToString var) => Pretty (Port expr var) where
-  pretty port =
-    case port of
-      In name tipe ->
-          prettyPort name ":" tipe
-
-      Out name expr tipe ->
-          P.vcat
-            [ prettyPort name ":" tipe
-            , prettyPort name "=" expr
-            ]
-          
-
-prettyPort :: (Pretty a) => String -> String -> a -> Doc
-prettyPort name op e =
-    P.text "port" <+> P.text name <+> P.text op <+> pretty e

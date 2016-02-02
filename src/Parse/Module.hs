@@ -1,81 +1,99 @@
-module Parse.Module (header, headerAndImports, getModuleName) where
+module Parse.Module (moduleDecl, header, getModuleName) where
 
-import Control.Applicative ((<$>), (<*>))
-import Data.List (intercalate)
 import Text.Parsec hiding (newline, spaces)
 
 import Parse.Helpers
 import qualified AST.Module as Module
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
+import Reporting.Annotation as A
 
 
 getModuleName :: String -> Maybe String
 getModuleName source =
   case iParse getModuleName source of
-    Right name -> Just name
-    Left _     -> Nothing
+    Right name ->
+        Just name
+
+    Left _ ->
+        Nothing
   where
     getModuleName =
       do  optional freshLine
-          (names, _) <- header
-          return (intercalate "." names)
+          (names, _) <- moduleDecl
+          return (ModuleName.toString names)
 
 
-headerAndImports :: IParser Module.HeaderAndImports
-headerAndImports =
+header :: IParser (Module.Header [Module.UserImport])
+header =
   do  optional freshLine
       (names, exports) <-
-          option (["Main"], Var.openListing) (header `followedBy` freshLine)
+          option (["Main"], Var.openListing) (moduleDecl `followedBy` freshLine)
+      docs <-
+        choice
+          [ addLocation (Just <$> docComment) `followedBy` freshLine
+          , addLocation (return Nothing)
+          ]
       imports' <- imports
-      return $ Module.HeaderAndImports names exports imports'
+      return (Module.Header names docs exports imports')
 
 
-header :: IParser ([String], Var.Listing Var.Value)
-header =
+moduleDecl :: IParser ([String], Var.Listing (A.Located Var.Value))
+moduleDecl =
+  expecting "a module declaration" $
   do  try (reserved "module")
       whitespace
-      names <- dotSep1 capVar <?> "name of module"
+      names <- dotSep1 capVar <?> "the name of this module"
       whitespace
-      exports <- option Var.openListing (listing value)
-      whitespace <?> "reserved word 'where'"
+      exports <- option Var.openListing (listing (addLocation value))
+      whitespace
       reserved "where"
       return (names, exports)
 
 
-imports :: IParser [(Module.Name, Module.ImportMethod)]
+imports :: IParser [Module.UserImport]
 imports =
   many (import' `followedBy` freshLine)
 
 
-import' :: IParser (Module.Name, Module.ImportMethod)
+import' :: IParser Module.UserImport
 import' =
+  expecting "an import" $
+  addLocation $
   do  try (reserved "import")
       whitespace
       names <- dotSep1 capVar
-      (,) names <$> option (Module.As (intercalate "." names)) method
+      (,) names <$> method (ModuleName.toString names)
   where
-    method :: IParser Module.ImportMethod
-    method = as' <|> importing'
+    method :: String -> IParser Module.ImportMethod
+    method defaultAlias =
+      Module.ImportMethod
+          <$> option (Just defaultAlias) (Just <$> as' defaultAlias)
+          <*> option Var.closedListing exposing
 
-    as' :: IParser Module.ImportMethod
-    as' = do
-      try (whitespace >> reserved "as")
-      whitespace
-      Module.As <$> capVar <?> "alias for module"
+    as' :: String -> IParser String
+    as' moduleName =
+      do  try (whitespace >> reserved "as")
+          whitespace
+          capVar <?> ("an alias for module `" ++ moduleName ++ "`")
 
-    importing' :: IParser Module.ImportMethod
-    importing' = Module.Open <$> listing value
+    exposing :: IParser (Var.Listing Var.Value)
+    exposing =
+      do  try (whitespace >> reserved "exposing")
+          whitespace
+          listing value
 
 
 listing :: IParser a -> IParser (Var.Listing a)
 listing item =
+  expecting "a listing of values and types to expose, like (..)" $
   do  try (whitespace >> char '(')
       whitespace
       listing <-
           choice
             [ const Var.openListing <$> string ".."
             , Var.Listing <$> commaSep1 item <*> return False
-            ] <?> "listing of values (x,y,z)"
+            ]
       whitespace
       char ')'
       return listing
@@ -83,7 +101,7 @@ listing item =
 
 value :: IParser Var.Value
 value =
-    val <|> tipe
+    val <|> tipe <?> "a value or type to expose"
   where
     val =
       Var.Value <$> (lowVar <|> parens symOp)

@@ -1,81 +1,90 @@
-{-# LANGUAGE FlexibleInstances #-}
 module Type.Constrain.Pattern where
 
 import Control.Arrow (second)
-import Control.Applicative ((<$>))
 import qualified Control.Monad as Monad
-import Control.Monad.Error
 import qualified Data.Map as Map
-import qualified Text.PrettyPrint as PP
 
-import qualified AST.Annotation as A
 import qualified AST.Pattern as P
 import qualified AST.Variable as V
-import AST.PrettyPrint (pretty)
-import Type.Type
-import Type.Fragment
-import Type.Environment as Env
+import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Type as Error
 import qualified Type.Constrain.Literal as Literal
+import qualified Type.Environment as Env
+import Type.Fragment
+import Type.Type
 
 
-constrain :: Environment -> P.CanonicalPattern -> Type
-          -> ErrorT (A.Region -> PP.Doc) IO Fragment
-constrain env pattern tipe =
-    let region = A.None (pretty pattern)
-        t1 === t2 = A.A region (CEqual t1 t2)
-    in
-    case pattern of
-      P.Anything -> return emptyFragment
+constrain
+    :: Env.Environment
+    -> P.CanonicalPattern
+    -> Type
+    -> IO Fragment
+constrain env (A.A region pattern) tipe =
+  let
+    equal patternError leftType rightType =
+      CEqual (Error.Pattern patternError) region leftType rightType
 
-      P.Literal lit -> do
-          c <- liftIO $ Literal.constrain env region lit tipe
-          return $ emptyFragment { typeConstraint = c }
+    rvar v =
+      A.A region (VarN v)
+  in
+  case pattern of
+    P.Anything ->
+        return emptyFragment
 
-      P.Var name -> do
-          v <- liftIO $ variable Flexible
-          return $ Fragment {
-              typeEnv    = Map.singleton name (varN v),
-              vars       = [v],
-              typeConstraint = varN v === tipe
-          }
+    P.Literal lit ->
+        do  c <- Literal.constrain env region lit tipe
+            return $ emptyFragment { typeConstraint = c }
 
-      P.Alias name p -> do
-          v <- liftIO $ variable Flexible
-          fragment <- constrain env p tipe
-          return $ fragment
-            { typeEnv = Map.insert name (varN v) (typeEnv fragment)
-            , vars    = v : vars fragment
-            , typeConstraint = varN v === tipe /\ typeConstraint fragment
-            }
+    P.Var name ->
+        do  variable <- mkVar Nothing
+            return $ Fragment
+                { typeEnv = Map.singleton name (rvar variable)
+                , vars = [variable]
+                , typeConstraint =
+                    equal (Error.PVar name) (VarN variable) tipe
+                }
 
-      P.Data name patterns -> do
-          (kind, cvars, args, result) <- liftIO $ freshDataScheme env (V.toString name)
-          let msg = concat [ "Constructor '", V.toString name, "' expects ", show kind
-                           , " argument", if kind == 1 then "" else "s"
-                           , " but was given ", show (length patterns), "." ]
-              err span = PP.vcat [ PP.text $ "Type error " ++ show span
-                                 , PP.text msg ]
-          case length patterns == kind of
-            False -> throwError err
-            True -> do
-              fragment <- Monad.liftM joinFragments (Monad.zipWithM (constrain env) patterns args)
-              return $ fragment {
-                typeConstraint = typeConstraint fragment /\ tipe === result,
-                vars = cvars ++ vars fragment
+    P.Alias name p ->
+        do  variable <- mkVar Nothing
+            fragment <- constrain env p tipe
+            return $ fragment
+              { typeEnv = Map.insert name (rvar variable) (typeEnv fragment)
+              , vars = variable : vars fragment
+              , typeConstraint =
+                  equal (Error.PAlias name) (VarN variable) tipe
+                  /\ typeConstraint fragment
               }
 
-      P.Record fields -> do
-          pairs <- liftIO $ mapM (\name -> (,) name <$> variable Flexible) fields
-          let tenv = Map.fromList (map (second varN) pairs)
-          c <- exists $ \t -> return (tipe === record (Map.map (:[]) tenv) t)
-          return $ Fragment {
-              typeEnv        = tenv,
-              vars           = map snd pairs,
-              typeConstraint = c
-          }
+    P.Data name patterns ->
+        do  let stringName = V.toString name
 
-instance Error (A.Region -> PP.Doc) where
-  noMsg _ = PP.empty
-  strMsg str span =
-      PP.vcat [ PP.text $ "Type error " ++ show span
-              , PP.text str ]
+            (_kind, cvars, args, result) <-
+                Env.freshDataScheme env stringName
+
+            fragList <- Monad.zipWithM (constrain env) patterns args
+            let fragment = joinFragments fragList
+            return $ fragment
+                { vars = cvars ++ vars fragment
+                , typeConstraint =
+                    typeConstraint fragment
+                    /\ equal (Error.PData stringName) tipe result
+                }
+
+    P.Record fields ->
+        do  pairs <-
+                mapM (\name -> (,) name <$> mkVar Nothing) fields
+
+            let tenv =
+                  Map.fromList (map (second rvar) pairs)
+
+            let unannotatedTenv =
+                  Map.map A.drop tenv
+
+            con <- exists $ \t ->
+              return (equal Error.PRecord tipe (record unannotatedTenv t))
+
+            return $ Fragment
+                { typeEnv = tenv
+                , vars = map snd pairs
+                , typeConstraint = con
+                }

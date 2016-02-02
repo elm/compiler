@@ -1,7 +1,5 @@
 module Generate.JavaScript.Helpers where
 
-import AST.Annotation (Region)
-import qualified AST.PrettyPrint as PP
 import Language.ECMAScript3.Syntax
 
 
@@ -42,31 +40,14 @@ prop name =
     PropId () (var name)
 
 
-string = StringLit ()
-
-
 obj :: [String] -> Expression ()
 obj vars =
     case vars of
-      x:xs -> foldl (DotRef ()) (ref x) (map var xs)
-      [] -> error "dotSep must be called on a non-empty list of variables"
+      x:xs ->
+          foldl (DotRef ()) (ref x) (map var xs)
 
-
--- Specific Utilities
-
-localModuleName :: String
-localModuleName =
-    "$moduleName"
-
-
-throw :: String -> Region -> Expression ()
-throw kind region =
-  let args =
-        [ ref localModuleName
-        , string (PP.renderPretty region)
-        ]
-  in
-      obj ["_U",kind] `call` args
+      [] ->
+          error "dotSep must be called on a non-empty list of variables"
 
 
 -- Function Calls
@@ -74,16 +55,6 @@ throw kind region =
 (<|) :: Expression () -> Expression () -> Expression ()
 (<|) f x =
     CallExpr () f [x]
-
-
-ret :: Expression () -> Statement ()
-ret e =
-    ReturnStmt () (Just e)
-
-
-(==>) :: [String] -> Expression () -> Expression ()
-(==>) args e =
-    FuncExpr () Nothing (map var args) [ ret e ]
 
 
 function :: [String] -> [Statement ()] -> Expression ()
@@ -110,9 +81,9 @@ instanceof tipe x =
 
 typeof :: String -> Expression () -> Expression ()
 typeof tipe x =
-    equal (PrefixExpr () PrefixTypeof x) (string tipe)
+    equal (PrefixExpr () PrefixTypeof x) (StringLit () tipe)
 
 
 member :: String -> Expression () -> Expression ()
 member field x =
-    InfixExpr () OpIn (string field) x
+    InfixExpr () OpIn (StringLit () field) x

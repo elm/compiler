@@ -1,14 +1,111 @@
 
-## 0.14
+# 0.16
 
-#### Breaking Changes
+Read all about it at these links:
+
+  * http://elm-lang.org/blog/compilers-as-assistants
+  * https://github.com/elm-lang/elm-platform/blob/master/upgrade-docs/0.16.md
+
+
+# 0.15
+
+### Improve Import Syntax
+
+The changes in 0.14 meant that people were seeing pretty long import sections,
+sometimes with two lines for a single module to bring it in qualified and to
+expose some unqualified values. The new syntax is like this:
+
+```elm
+import List
+  -- Just bring `List` into scope, allowing you to say `List.map`,
+  -- `List.filter`, etc.
+
+import List exposing (map, filter)
+  -- Bring `List` into scope, but also bring in `map` and `filter`
+  -- without any prefix.
+
+import List exposing (..)
+  -- Bring `List` into scope, and bring in all the values in the
+  -- module without a prefix.
+
+import List as L
+  -- Bring `L` into scope, but not `List`. This lets you say `L.map`,
+  -- `L.filter`, etc.
+
+import List as L exposing (map, filter)
+  -- Bring `L` into scope along with unqualified versions of `map`
+  -- and `filter`.
+
+import List as L exposing (..)
+  -- Bring in all the values unqualified and qualified with `L`.
+```
+
+This means you are doing more with each import, writing less overall. It also
+makes the default imports more comprehensive because you now can refer to
+`List` and `Result` without importing them explicitly as they are in the
+defaults.
+
+### Revise Port Syntax
+
+One common confusion with the `port` syntax is that the only difference
+between incoming ports and outgoing ports is whether the type annotation comes
+with a definition. To make things a bit clearer, we are using the keywords
+`foreign input` and `foreign output`.
+
+```elm
+foreign input dbResults : Stream String
+
+foreign output dbRequests : Stream String
+foreign output dbRequests =
+    Stream.map toRequest userNames
+```
+
+### Input / Output
+
+The biggest change in 0.15 is the addition of tasks, allowing us to represent
+arbitrary effects in Elm in a safe way. This parallels how ports work, so we
+are trying to draw attention to that in syntax. First addition is a way to
+create new inputs to an Elm program.
+
+```elm
+input actions : Input Action
+```
+
+This creates a `Input` that is made up of an `Address` you can send messages to
+and a `Stream` of those messages. This is similar to a `foreign input` except
+there we use the name as the address. The second addition is a way to run
+tasks.
+
+```elm
+output Stream.map toRequest userNames
+```
+
+This lets us turn tasks into effects in the world. Sometimes it is useful to
+pipe the results of these tasks back into Elm. For that, we have the third and
+final addition.
+
+```elm
+input results : Stream (Result Http.Error String)
+input results from
+    Stream.map toRequest userNames
+```
+
+# 0.14.1
+
+Modify default import of `List` to expose `(::)` as well.
+
+
+# 0.14
+
+### Breaking Changes
 
   * Keyword `data` renamed to `type`
   * Keyword `type` renamed to `type alias`
 
-## 0.13
 
-#### Improvements:
+# 0.13
+
+### Improvements:
 
   * Type aliases in port types 
   * Add Keyboard.alt and Keyboard.meta
@@ -24,7 +121,7 @@
     safer, setting things up for giving programmatic access to the AST to
     improve editor and IDE support.
 
-#### Breaking Changes:
+### Breaking Changes:
 
   * Rename (.) to (<<) as in F#
   * Rename Basics.id to Basics.identity
@@ -36,30 +133,30 @@
   * Unambiguous syntax for importing ADTs and type aliases
   * sqrt and logBase both only work on Floats now
 
-## 0.12.3
+# 0.12.3
 
   * Minor changes to support webgl as a separate library
   * Switch from HSV to HSL
   * Programmatic access to colors with toHsl and toRgb
 
-## 0.12.1
+# 0.12.1
 
-#### Improvements:
+### Improvements:
 
   * New Array library (thanks entirely to @Xashili)
   * Json.Value can flow through ports
   * Improve speed and stack usage in List library (thanks to @maxsnew)
   * Add Dict.filter and Dict.partition (thanks to @hdgarrood)
 
-#### Breaking Changes:
+### Breaking Changes:
 
   * Revamp Json library, simpler with better names
   * Revamp JavaScript.Experimental library to have slightly better names
   * Remove JavaScript library which was made redundant by ports
 
-## 0.12
+# 0.12
 
-#### Breaking Changes:
+### Breaking Changes:
 
   * Overhaul Graphics.Input library (inspired by Spiros Eliopoulos and Jeff Smitts)
   * Overhaul Text library to accomodate new Graphics.Input.Field
@@ -71,7 +168,7 @@
   * Revise the semantics of keepWhen and dropWhen to only update when
     the filtered signal changes (thanks Max New and Janis Voigtländer)
 
-#### Improvements:
+### Improvements:
 
   * Add Graphics.Input.Field for customizable text fields
   * Add Trampoline library (thanks to @maxsnew and @timthelion) 
@@ -82,12 +179,12 @@
   * Fix bugs in Bitwise library
   * Fix bug when exporting Maybe values through ports
 
-## 0.11
+# 0.11
 
   * Ports, a new FFI that is more general and much nicer to use
   * Basic compiler tests (thanks to Max New)
 
-## 0.10.1
+# 0.10.1
 
   * sort, sortBy, sortWith (thanks to Max Goldstein)
   * elm-repl
@@ -95,7 +192,7 @@
   * Regex library
   * Improve Transform2D library (thanks to Michael Søndergaard)
 
-## 0.10
+# 0.10
 
   * Native strings
   * Tango colors
@@ -109,7 +206,7 @@
   * Make compatable with cabal-1.18 (thank you Justin Leitgeb)
   * All functions with 10+ arguments (thanks to Max New)
 
-## 0.9.1
+# 0.9.1
 
   * Allow custom precedence and associativity for user-defined infix ops
   * Realias types before printing
@@ -119,7 +216,7 @@
   * Fix miscellaneous bugs in type checker
   * Switch name of Matrix2D to Transform2D
 
-## 0.9
+# 0.9
 
 Build Improvements:
   * Major speed improvements to type-checker
@@ -170,7 +267,7 @@ Website:
 forgot to fill this in again...
 
 
-## 0.7.2
+# 0.7.2
 
 * Add a WebSockets library.
 * Add support for the mathematical looking operator for function composition (U+2218).
@@ -179,7 +276,7 @@ forgot to fill this in again...
 forgot to fill this in for a while...
 
 
-## 0.5.0
+# 0.5.0
 
 * Add Dict, Set, and Automaton libraries!
 
@@ -207,7 +304,7 @@ forgot to fill this in for a while...
 
 
 
-## 0.4.0
+# 0.4.0
 
 This version is all about graphics: nicer API with more features and major
 efficiency improvements. I am really excited about this release!
@@ -237,7 +334,7 @@ efficiency improvements. I am really excited about this release!
 
 
 
-## 0.3.6
+# 0.3.6
 
 * Add JSON library.
 
@@ -269,7 +366,7 @@ efficiency improvements. I am really excited about this release!
 
 
 
-## 0.3.5
+# 0.3.5
 
 * Add JavaScript event interface. Allows Elm to import and export JS values
   and events. This makes it possible to import and export Elements, so users
@@ -316,10 +413,9 @@ efficiency improvements. I am really excited about this release!
 
 
 
-## 0.3.0
+# 0.3.0
 
-Major Changes (Read this part!)
--------------------------------
+### Major Changes (Read this part!)
 
 * Add a basic module system.
 * Elm's JavaScript runtime is now distributed with the elm package.
@@ -333,8 +429,7 @@ Major Changes (Read this part!)
 * Improve error messages for parse errors and runtime errors.
 
 
-New Functions and Other Additions
----------------------------------
+### New Functions and Other Additions
 
 * Add support for keyboard events: Keyboard.Raw
 * Add buttons in Signal.Input:

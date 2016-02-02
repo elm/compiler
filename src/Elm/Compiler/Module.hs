@@ -1,16 +1,19 @@
 module Elm.Compiler.Module
-    ( Interface, Name(Name)
+    ( Interface, Interfaces
+    , Name(Name)
     , nameToPath
     , nameToString, nameFromString
     , hyphenate, dehyphenate
     , defaultImports
     , interfacePorts
-    , interfaceTypes
+    , interfaceAliasedTypes
+    , CanonicalName, canonicalName
     )
   where
 
 import Control.Monad (mzero)
 import qualified Data.Aeson as Json
+import Data.Binary
 import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -18,35 +21,48 @@ import qualified Data.Text as Text
 import System.FilePath ((</>))
 
 import qualified AST.Module as Module
-import qualified Transform.AddDefaultImports as Defaults
+import qualified AST.Module.Name as ModuleName
+import qualified Elm.Compiler.Imports as Imports
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Type.Extract as Extract
+import qualified Elm.Package as Package
 
 
--- EXPOSED TYPES
+-- INTERFACES
 
 type Interface = Module.Interface
 
 
-newtype Name = Name [String]
-    deriving (Eq, Ord)
+type Interfaces = Module.Interfaces
 
-
-defaultImports :: [Name]
-defaultImports =
-    map Name (Map.keys Defaults.defaultImports)
-
-
--- POKING AROUND INTERFACES
 
 interfacePorts :: Interface -> [String]
 interfacePorts interface =
     Module.iPorts interface
 
 
-interfaceTypes :: Interface -> Map.Map String Type.Type
-interfaceTypes interface =
-    Map.map Extract.fromInternalType (Module.iTypes interface)
+interfaceAliasedTypes :: Interface -> Map.Map String Type.Type
+interfaceAliasedTypes interface =
+    Map.map Extract.toAliasedType (Module.iTypes interface)
+
+
+-- NAMES
+
+newtype Name = Name ModuleName.Raw
+    deriving (Eq, Ord)
+
+
+type CanonicalName = ModuleName.Canonical
+
+
+canonicalName :: Package.Name -> Name -> CanonicalName
+canonicalName pkgName (Name name) =
+    ModuleName.Canonical pkgName name
+
+
+defaultImports :: [Name]
+defaultImports =
+    map (Name . fst) Imports.defaults
 
 
 -- STRING CONVERSIONS for NAMES
@@ -110,3 +126,13 @@ instance Json.FromJSON Name where
             Just name -> return name
 
     parseJSON _ = mzero
+
+
+-- BINARY for NAME
+
+instance Binary Name where
+  get =
+    fmap Name get
+
+  put (Name names) =
+    put names
