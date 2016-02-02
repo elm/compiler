@@ -327,7 +327,9 @@ spaces =
 
 forcedWS :: IParser String
 forcedWS =
-  do  ws <- many1 (spaces <|> newline)
+  do  failIfTabFound
+      ws <- many1 (spaces <|> newline)
+      failIfTabFound
       column <- sourceColumn <$> getPosition
       if column == 1
         then fail badWhiteSpaceMessage
@@ -340,6 +342,14 @@ badWhiteSpaceMessage =
   ++ "\n"
   ++ "You are either missing some stuff in the declaration above or just need to add\n"
   ++ "some spaces here:"
+
+
+failIfTabFound :: IParser ()
+failIfTabFound =
+  do  foundTab <- option False (lookAhead (char '\t') >> return True) <?> Syntax.tab
+      if foundTab
+        then fail Syntax.tab
+        else return ()
 
 
 -- Just eats whitespace until the next meaningful character.
