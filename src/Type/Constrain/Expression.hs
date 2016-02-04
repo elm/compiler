@@ -374,7 +374,7 @@ constrainCase
     :: Env.Environment
     -> R.Region
     -> Canonical.Expr
-    -> [(P.CanonicalPattern, Canonical.Expr)]
+    -> [(P.Canonical, Canonical.Expr)]
     -> Type
     -> IO TypeConstraint
 constrainCase env region expr branches tipe =

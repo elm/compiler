@@ -37,7 +37,9 @@ patternMatches interfaces modul =
       <$> checkExpression tagDict (Module.program body)
 
 
+
 -- TAG DICT
+
 
 type TagDict =
   Map.Map Var.Home (Map.Map Tag [TagInfo])
@@ -113,7 +115,9 @@ lookupOtherTags (Var.Canonical home name) tagDict =
           \found."
 
 
+
 -- CHECK EXPRESSIONS
+
 
 checkExpression
     :: TagDict
@@ -184,13 +188,15 @@ checkExpression tagDict (A.A region expression) =
         Result.ok ()
 
 
+
 -- CHECK PATTERNS
+
 
 checkPatterns
     :: TagDict
     -> Region.Region
     -> Error.Origin
-    -> [Pattern.CanonicalPattern]
+    -> [Pattern.Canonical]
     -> Result.Result w Error.Error ()
 checkPatterns tagDict region origin patterns =
   checkPatternsHelp tagDict region origin [Anything] patterns
@@ -201,7 +207,7 @@ checkPatternsHelp
     -> Region.Region
     -> Error.Origin
     -> [Pattern]
-    -> [Pattern.CanonicalPattern]
+    -> [Pattern.Canonical]
     -> Result.Result w Error.Error ()
 checkPatternsHelp tagDict region origin unhandled patterns =
   case (unhandled, patterns) of
@@ -219,7 +225,7 @@ checkPatternsHelp tagDict region origin unhandled patterns =
 filterPatterns
     :: TagDict
     -> Region.Region
-    -> Pattern.CanonicalPattern
+    -> Pattern.Canonical
     -> [Pattern]
     -> Result.Result w Error.Error [Pattern]
 filterPatterns tagDict region pattern unhandled =
@@ -241,7 +247,9 @@ filterPatterns tagDict region pattern unhandled =
               unhandled
 
 
+
 -- PATTERN INTERSECTION
+
 
 intersection :: Pattern -> Pattern -> Maybe Pattern
 intersection pattern1 pattern2 =
@@ -298,7 +306,9 @@ intersection pattern1 pattern2 =
         Nothing
 
 
+
 -- PATTERN COMPLEMENT
+
 
 complement :: TagDict -> Pattern -> [Pattern]
 complement tagDict nitPattern =

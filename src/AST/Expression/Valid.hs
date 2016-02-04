@@ -21,5 +21,5 @@ type Expr' =
 
 
 data Def
-    = Definition Pattern.RawPattern Expr (Maybe Type.Raw)
+    = Definition Pattern.Raw Expr (Maybe Type.Raw)
 

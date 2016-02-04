@@ -14,11 +14,7 @@ import Type.Fragment
 import Type.Type
 
 
-constrain
-    :: Env.Environment
-    -> P.CanonicalPattern
-    -> Type
-    -> IO Fragment
+constrain :: Env.Environment -> P.Canonical -> Type -> IO Fragment
 constrain env (A.A region pattern) tipe =
   let
     equal patternError leftType rightType =

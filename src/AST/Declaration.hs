@@ -14,10 +14,10 @@ import qualified Reporting.Annotation as A
 -- DECLARATIONS
 
 
-data Declaration' def tipe expr
-    = Definition def
-    | Datatype String [String] [(String, [tipe])]
-    | TypeAlias String [String] tipe
+data Decl def tipe expr
+    = Def def
+    | Union String [String] [(String, [tipe])]
+    | Alias String [String] tipe
     | Fixity Assoc Int String
 
 
@@ -32,30 +32,52 @@ data Assoc = L | N | R
 assocToString :: Assoc -> String
 assocToString assoc =
   case assoc of
-    L -> "left"
-    N -> "non"
-    R -> "right"
+    L ->
+      "left"
+
+    N ->
+      "non"
+
+    R ->
+      "right"
+
+
+
+-- COMMENTS
+
+
+data CommentOr a
+  = Comment (A.Located String)
+  | Whatever a
 
 
 
 -- DECLARATION PHASES
 
 
-type SourceDecl' =
-  Declaration' Source.Def Type.Raw Source.Expr
+type Source =
+  CommentOr (A.Located SourceOrDefine)
 
 
-data SourceDecl
-    = Comment String
-    | Decl (A.Located SourceDecl')
+data SourceOrDefine
+  = Source Source'
+  | Define String [CommentOr (A.Located Source.Effect)]
 
 
-type ValidDecl =
-  A.Commented (Declaration' Valid.Def Type.Raw Valid.Expr)
+type Source' =
+  Decl Source.Def Type.Raw Source.Expr
 
 
-type CanonicalDecl =
-  A.Commented (Declaration' Canonical.Def Type.Canonical Canonical.Expr)
+type Valid =
+  A.Commented Valid'
+
+
+type Valid' =
+  Decl Valid.Def Type.Raw Valid.Expr
+
+
+type Canonical =
+  A.Commented (Decl Canonical.Def Type.Canonical Canonical.Expr)
 
 
 

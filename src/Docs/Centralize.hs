@@ -14,7 +14,7 @@ import qualified Reporting.Annotation as A
 
 -- CENTRALIZE DOCUMENTATION
 
-centralize :: [D.CanonicalDecl] -> String -> Docs.Centralized
+centralize :: [D.Canonical] -> String -> Docs.Centralized
 centralize decls comment =
   let
     (Raw aliases types valueInfo fixities) =
@@ -46,15 +46,15 @@ data Raw = Raw
     }
 
 
-toRawDocs :: [D.CanonicalDecl] -> Raw
+toRawDocs :: [D.Canonical] -> Raw
 toRawDocs decls =
   foldr addDeclToDocs (Raw Map.empty Map.empty Map.empty Map.empty) decls
 
 
-addDeclToDocs :: D.CanonicalDecl -> Raw -> Raw
+addDeclToDocs :: D.Canonical -> Raw -> Raw
 addDeclToDocs (A.A (region,maybeComment) decl) docs =
   case decl of
-    D.Definition (Canonical.Definition _ (A.A subregion (P.Var name)) _ maybeType) ->
+    D.Def (Canonical.Definition _ (A.A subregion (P.Var name)) _ maybeType) ->
         let
           info =
             ( maybeComment
@@ -66,10 +66,10 @@ addDeclToDocs (A.A (region,maybeComment) decl) docs =
         in
           docs { rawValues = newValues }
 
-    D.Definition _ ->
+    D.Def _ ->
         docs
 
-    D.Datatype name args ctors ->
+    D.Union name args ctors ->
         let
           ctors' =
             map (second (map Extract.toAliasedType)) ctors
@@ -79,7 +79,7 @@ addDeclToDocs (A.A (region,maybeComment) decl) docs =
         in
           docs { rawTypes = Map.insert name union (rawTypes docs) }
 
-    D.TypeAlias name args tipe ->
+    D.Alias name args tipe ->
         let
           alias =
             A.A region (Docs.Alias maybeComment args (Extract.toAliasedType tipe))

@@ -20,7 +20,7 @@ import qualified Reporting.Warning as Warning
 
 topLevelTypes
     :: Map.Map String Type.Canonical
-    -> [Decl.ValidDecl]
+    -> [Decl.Valid]
     -> Result.Result Warning.Warning Error.Error ()
 topLevelTypes typeEnv validDecls =
   do  F.traverse_ (warnMissingAnnotation typeEnv) validDecls
@@ -31,11 +31,11 @@ topLevelTypes typeEnv validDecls =
 
 warnMissingAnnotation
     :: Map.Map String Type.Canonical
-    -> Decl.ValidDecl
+    -> Decl.Valid
     -> Result.Result Warning.Warning Error.Error ()
 warnMissingAnnotation typeEnv (A.A (region,_) decl) =
   case decl of
-    Decl.Definition (Valid.Definition (A.A _ (P.Var name)) _ Nothing) ->
+    Decl.Def (Valid.Definition (A.A _ (P.Var name)) _ Nothing) ->
         case Map.lookup name typeEnv of
           Nothing ->
               return ()
@@ -49,11 +49,11 @@ warnMissingAnnotation typeEnv (A.A (region,_) decl) =
 
 checkMainType
     :: Map.Map String Type.Canonical
-    -> [Decl.ValidDecl]
+    -> [Decl.Valid]
     -> Result.Result w Error.Error ()
 checkMainType typeEnv decls =
     case decls of
-      A.A (region,_) (Decl.Definition (Valid.Definition (A.A _ (P.Var "main")) _ _)) : _ ->
+      A.A (region,_) (Decl.Def (Valid.Definition (A.A _ (P.Var "main")) _ _)) : _ ->
           case Map.lookup "main" typeEnv of
             Nothing ->
                 return ()

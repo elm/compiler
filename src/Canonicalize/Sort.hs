@@ -121,7 +121,7 @@ reorder (A.A ann expression) =
           return let'
 
 
-ctors :: P.CanonicalPattern -> [String]
+ctors :: P.Canonical -> [String]
 ctors (A.A _ pattern) =
   case pattern of
     P.Var _ ->
@@ -149,7 +149,7 @@ ctors (A.A _ pattern) =
           rest = concatMap ctors ps
 
 
-bound :: P.CanonicalPattern -> State (Set.Set String) ()
+bound :: P.Canonical -> State (Set.Set String) ()
 bound pattern =
   let
     boundVars =
@@ -159,8 +159,8 @@ bound pattern =
 
 
 bindingReorder
-    :: (P.CanonicalPattern, Canonical.Expr)
-    -> State (Set.Set String) (P.CanonicalPattern, Canonical.Expr)
+    :: (P.Canonical, Canonical.Expr)
+    -> State (Set.Set String) (P.Canonical, Canonical.Expr)
 bindingReorder (pattern, expr) =
   do  expr' <- reorder expr
       bound pattern

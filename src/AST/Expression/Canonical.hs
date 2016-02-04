@@ -21,7 +21,7 @@ type Expr' =
 
 
 data Def
-    = Definition Facts Pattern.CanonicalPattern Expr (Maybe (A.Located Type.Canonical))
+    = Definition Facts Pattern.Canonical Expr (Maybe (A.Located Type.Canonical))
 
 
 data Facts = Facts

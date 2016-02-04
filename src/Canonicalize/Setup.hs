@@ -28,10 +28,13 @@ import qualified Canonicalize.Type as Canonicalize
 environment
     :: Map.Map ModuleName.Raw ModuleName.Canonical
     -> Module.Interfaces
-    -> Module.ValidModule
+    -> Module.Valid
     -> Result.ResultErr Env.Environment
-environment importDict interfaces (Module.Module _ name _ _ _ (defaults, imports) decls) =
+environment importDict interfaces (Module.Module _ name _ info) =
   let
+    (Module.Valid _ _ (defaults, imports) decls _ _) =
+      info
+
     allImports =
       imports ++ map (A.A (error "default import not found")) defaults
 
@@ -297,7 +300,7 @@ addTypeAlias moduleName scc env =
 
 declarationsToPatches
     :: ModuleName.Canonical
-    -> [D.ValidDecl]
+    -> [D.Valid]
     -> ([Node], [Env.Patch])
 declarationsToPatches moduleName decls =
   let
@@ -314,7 +317,7 @@ declarationsToPatches moduleName decls =
 --    all other _values are local (Var.Local)
 declToPatches
     :: ModuleName.Canonical
-    -> D.ValidDecl
+    -> D.Valid
     -> (Maybe Node, [Env.Patch])
 declToPatches moduleName (A.A (region,_) decl) =
   let
@@ -328,12 +331,12 @@ declToPatches moduleName (A.A (region,_) decl) =
       Env.Pattern name (Var.fromModule moduleName name, length args)
   in
   case decl of
-    D.Definition (Valid.Definition pattern _ _) ->
+    D.Def (Valid.Definition pattern _ _) ->
         ( Nothing
         , map (topLevel Env.Value) (P.boundVarList pattern)
         )
 
-    D.Datatype name _ ctors ->
+    D.Union name _ ctors ->
         let ctorNames = map fst ctors
         in
             ( Nothing
@@ -342,7 +345,7 @@ declToPatches moduleName (A.A (region,_) decl) =
               ++ map patternPatch ctors
             )
 
-    D.TypeAlias name tvars alias ->
+    D.Alias name tvars alias ->
         ( Just (node region name tvars alias)
         , case alias of
             A.A _ (Type.RRecord _ Nothing) ->

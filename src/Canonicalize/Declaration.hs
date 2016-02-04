@@ -12,12 +12,12 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
 
-toExpr :: ModuleName.Canonical -> [D.CanonicalDecl] -> [Canonical.Def]
+toExpr :: ModuleName.Canonical -> [D.Canonical] -> [Canonical.Def]
 toExpr moduleName decls =
   concatMap (toDefs moduleName) decls
 
 
-toDefs :: ModuleName.Canonical -> D.CanonicalDecl -> [Canonical.Def]
+toDefs :: ModuleName.Canonical -> D.Canonical -> [Canonical.Def]
 toDefs moduleName (A.A (region,_) decl) =
   let
     typeVar =
@@ -27,10 +27,10 @@ toDefs moduleName (A.A (region,_) decl) =
       A.A region expr
   in
   case decl of
-    D.Definition def ->
+    D.Def def ->
         [def]
 
-    D.Datatype name tvars constructors ->
+    D.Union name tvars constructors ->
         concatMap toDefs' constructors
       where
         toDefs' (ctor, tipes) =
@@ -40,7 +40,7 @@ toDefs moduleName (A.A (region,_) decl) =
             in
                 [ definition ctor (buildFunction body vars) region (foldr T.Lambda tbody tipes) ]
 
-    D.TypeAlias name tvars tipe@(T.Record fields Nothing) ->
+    D.Alias name tvars tipe@(T.Record fields Nothing) ->
         [ definition name (buildFunction record vars) region (foldr T.Lambda result args) ]
       where
         result =
@@ -57,7 +57,7 @@ toDefs moduleName (A.A (region,_) decl) =
 
     -- Type aliases must be added to an extended equality dictionary,
     -- but they do not require any basic constraints.
-    D.TypeAlias _ _ _ ->
+    D.Alias _ _ _ ->
         []
 
     -- no constraints are needed for fixity declarations
