@@ -1,13 +1,20 @@
 module AST.Module
-    ( Interfaces
-    , Types, Aliases, Unions
-    , UnionInfo, CanonicalUnion
-    , SourceModule, ValidModule, CanonicalModule, Optimized
-    , Module(..), Kind(..), Body(..)
-    , Header(..)
-    , Interface(..), toInterface
+    ( Header(..), Module(..), Tag(..)
+
+    , Source, SourceInfo(..)
+    , Valid, ValidInfo(..)
+    , Canonical, Optimized, Info(..)
+
     , UserImport, DefaultImport, ImportMethod(..)
-    ) where
+
+    , Effects(..)
+    , Types
+    , Aliases
+    , Unions, UnionInfo, CanonicalUnion
+
+    , Interfaces, Interface(..), toInterface
+    )
+    where
 
 import Data.Binary
 import qualified Data.Map as Map
@@ -15,6 +22,7 @@ import qualified Data.Map as Map
 import qualified AST.Declaration as Decl
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Expression.Optimized as Optimized
+import qualified AST.Expression.Valid as Valid
 import qualified AST.Module.Name as Name
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
@@ -25,11 +33,108 @@ import qualified Reporting.Annotation as A
 
 
 
--- HELPFUL TYPE ALIASES
+-- HEADERS FOR PARSING
 
 
-type Interfaces =
-  Map.Map Name.Canonical Interface
+{-| Basic info needed to identify modules and determine dependencies. -}
+data Header imports =
+  Header
+    { _tag :: Tag
+    , _name :: Name.Raw
+    , _docs :: A.Located (Maybe String)
+    , _exports :: Var.Listing (A.Located Var.Value)
+    , _imports :: imports
+    }
+
+
+
+-- MODULES
+
+
+data Module phase =
+  Module
+    { tag :: Tag
+    , name :: Name.Canonical
+    , path :: FilePath
+    , info :: phase
+    }
+
+
+data Tag
+  = None
+  | Effect
+  | Foreign
+
+
+type Source =
+  Module SourceInfo
+
+
+data SourceInfo =
+  Source
+    { srcDocs :: A.Located (Maybe String)
+    , srcExports :: Var.Listing (A.Located Var.Value)
+    , srcImports :: [UserImport]
+    , srcDecls :: [Decl.Source]
+    }
+
+
+type Valid =
+  Module ValidInfo
+
+
+data ValidInfo =
+  Valid
+    { validDocs :: A.Located (Maybe String)
+    , validExports :: Var.Listing (A.Located Var.Value)
+    , validImports :: ([DefaultImport], [UserImport])
+    , validDecls :: [Decl.Valid]
+    , validCmds :: [A.Commented Valid.Effect]
+    , validSubs :: [A.Commented Valid.Effect]
+    }
+
+
+type Canonical =
+  Module (Info Canonical.Expr)
+
+
+type Optimized =
+  Module (Info [Optimized.Def])
+
+
+
+-- IMPORTS
+
+
+type UserImport = A.Located (Name.Raw, ImportMethod)
+
+
+type DefaultImport = (Name.Raw, ImportMethod)
+
+
+data ImportMethod =
+  ImportMethod
+    { alias :: Maybe String
+    , exposedVars :: !(Var.Listing Var.Value)
+    }
+
+
+
+-- LATE PHASE MODULE INFORMATION
+
+
+data Info expr =
+  Info
+    { docs :: Docs.Centralized
+    , exports :: [Var.Value]
+    , imports :: [Name.Raw]
+    , program :: expr
+    , types :: Types
+    , fixities :: [(Decl.Assoc, Int, String)]
+    , aliases :: Aliases
+    , unions :: Unions
+    , effects :: Effects
+    }
 
 
 type Types =
@@ -52,96 +157,19 @@ type CanonicalUnion =
   ( Var.Canonical, UnionInfo Var.Canonical )
 
 
-
--- MODULES
-
-
-type SourceModule =
-    Module
-      String
-      [UserImport]
-      (Var.Listing (A.Located Var.Value))
-      [Decl.SourceDecl]
-
-
-type ValidModule =
-    Module
-      String
-      ([DefaultImport], [UserImport])
-      (Var.Listing (A.Located Var.Value))
-      [Decl.ValidDecl]
-
-
-type CanonicalModule =
-    Module Docs.Centralized [Name.Raw] [Var.Value] (Body Canonical.Expr)
-
-
-type Optimized =
-    Module Docs.Centralized [Name.Raw] [Var.Value] (Body [Optimized.Def])
-
-
-data Module docs imports exports body =
-  Module
-    { kind :: Kind
-    , name :: Name.Canonical
-    , path :: FilePath
-    , docs :: A.Located (Maybe docs)
-    , exports :: exports
-    , imports :: imports
-    , body :: body
-    }
-
-
-data Kind
-  = Normal
-  | Effect
-  | Foreign
-
-
-data Body expr =
-  Body
-    { program :: expr
-    , types :: Types
-    , fixities :: [(Decl.Assoc, Int, String)]
-    , aliases :: Aliases
-    , unions :: Unions
-    }
-
-
-
--- HEADERS
-
-
-{-| Basic info needed to identify modules and determine dependencies. -}
-data Header imports =
-  Header
-    { _kind :: Kind
-    , _name :: Name.Raw
-    , _docs :: A.Located (Maybe String)
-    , _exports :: Var.Listing (A.Located Var.Value)
-    , _imports :: imports
-    }
-
-
-
--- IMPORTs
-
-
-type UserImport = A.Located (Name.Raw, ImportMethod)
-
-
-type DefaultImport = (Name.Raw, ImportMethod)
-
-
-data ImportMethod =
-  ImportMethod
-    { alias :: Maybe String
-    , exposedVars :: !(Var.Listing Var.Value)
+data Effects =
+  Effects
+    { cmds :: [String]
+    , subs :: [String]
     }
 
 
 
 -- INTERFACES
+
+
+type Interfaces =
+  Map.Map Name.Canonical Interface
 
 
 {-| Key facts about a module, used when reading info from .elmi files. -}
@@ -150,8 +178,8 @@ data Interface =
     { iVersion  :: Package.Version
     , iPackage  :: Package.Name
     , iExports  :: [Var.Value]
-    , iTypes    :: Types
     , iImports  :: [Name.Raw]
+    , iTypes    :: Types
     , iUnions   :: Unions
     , iAliases  :: Aliases
     , iFixities :: [(Decl.Assoc, Int, String)]
@@ -161,18 +189,18 @@ data Interface =
 toInterface :: Package.Name -> Optimized -> Interface
 toInterface pkgName modul =
   let
-    body' =
-      body modul
+    myInfo =
+      info modul
   in
     Interface
       { iVersion  = Compiler.version
       , iPackage  = pkgName
-      , iExports  = exports modul
-      , iTypes    = types body'
-      , iImports  = imports modul
-      , iUnions   = unions body'
-      , iAliases  = aliases body'
-      , iFixities = fixities body'
+      , iExports  = exports myInfo
+      , iImports  = imports myInfo
+      , iTypes    = types myInfo
+      , iUnions   = unions myInfo
+      , iAliases  = aliases myInfo
+      , iFixities = fixities myInfo
       }
 
 
@@ -184,8 +212,8 @@ instance Binary Interface where
     do  put (iVersion modul)
         put (iPackage modul)
         put (iExports modul)
-        put (iTypes modul)
         put (iImports modul)
+        put (iTypes modul)
         put (iUnions modul)
         put (iAliases modul)
         put (iFixities modul)

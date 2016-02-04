@@ -2,19 +2,33 @@
 module Parse.Declaration where
 
 import Text.Parsec ( (<|>), (<?>), choice, digit, optionMaybe, string, try )
+import qualified Text.Parsec.Indent as Indent
 
-import qualified AST.Declaration as D
+import qualified AST.Declaration as Decl
+import qualified AST.Expression.Source as Source
 import qualified Parse.Expression as Expr
 import Parse.Helpers as Help
 import qualified Parse.Type as Type
+import qualified Reporting.Annotation as A
 
 
 
-declaration :: IParser D.SourceDecl
+declaration :: IParser Decl.Source
 declaration =
+  commentOr $ addLocation $
+    choice
+      [ Decl.Source <$> typeDecl
+      , Decl.Source <$> infixDecl
+      , defineDecl
+      , Decl.Source <$> definition
+      ]
+
+
+commentOr :: IParser a -> IParser (Decl.CommentOr a)
+commentOr parser =
   choice
-    [ D.Comment <$> Help.docComment
-    , D.Decl <$> addLocation (typeDecl <|> infixDecl <|> definition)
+    [ Decl.Comment <$> addLocation Help.docComment
+    , Decl.Whatever <$> parser
     ]
 
 
@@ -22,18 +36,17 @@ declaration =
 -- TYPE ANNOTATIONS and DEFINITIONS
 
 
-definition :: IParser D.SourceDecl'
+definition :: IParser Decl.Source'
 definition =
-  D.Definition
-    <$> (Expr.typeAnnotation <|> Expr.definition)
-    <?> "a value definition"
+  do  def <- Expr.def <?> "a value definition"
+      return $ Decl.Def def
 
 
 
 -- TYPE ALIAS and UNION TYPES
 
 
-typeDecl :: IParser D.SourceDecl'
+typeDecl :: IParser Decl.Source'
 typeDecl =
   do  try (reserved "type") <?> "a type declaration"
       forcedWS
@@ -46,28 +59,61 @@ typeDecl =
       case isAlias of
         Just _ ->
             do  tipe <- Type.expr <?> "a type"
-                return (D.TypeAlias name args tipe)
+                return $ Decl.Alias name args tipe
 
         Nothing ->
             do  tcs <- pipeSep1 Type.constructor <?> "a constructor for a union type"
-                return $ D.Datatype name args tcs
+                return $ Decl.Union name args tcs
 
 
 
 -- INFIX
 
 
-infixDecl :: IParser D.SourceDecl'
+infixDecl :: IParser Decl.Source'
 infixDecl =
   expecting "an infix declaration" $
   do  assoc <-
           choice
-            [ try (reserved "infixl") >> return D.L
-            , try (reserved "infixr") >> return D.R
-            , try (reserved "infix")  >> return D.N
+            [ try (reserved "infixl") >> return Decl.L
+            , try (reserved "infixr") >> return Decl.R
+            , try (reserved "infix")  >> return Decl.N
             ]
       forcedWS
       n <- digit
       forcedWS
-      D.Fixity assoc (read [n]) <$> anyOp
+      op <- anyOp
+      return $ Decl.Fixity assoc (read [n]) op
 
+
+
+-- DEFINE
+
+
+defineDecl :: IParser Decl.SourceOrDefine
+defineDecl =
+  do  try (reserved "define")
+      forcedWS
+
+      name <-
+        string "commands" <|> string "subscriptions"
+
+      padded (reserved "as")
+
+      effects <-
+        Indent.block (commentOr effectDef <* whitespace)
+
+      return (Decl.Define name effects)
+
+
+effectDef :: IParser (A.Located Source.Effect)
+effectDef =
+  choice
+    [ Expr.annotation Source.Type
+    , Expr.definition Source.Def
+    , addLocation $
+      do  name <- lowVar
+          padded (reserved "with")
+          expr <- Expr.expr
+          return (Source.With name expr)
+    ]

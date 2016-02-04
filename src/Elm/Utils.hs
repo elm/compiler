@@ -18,7 +18,6 @@ import System.FilePath ((</>))
 import System.IO.Error (tryIOError)
 import System.Process (readProcessWithExitCode)
 
-import qualified AST.Expression.Source as Source
 import qualified AST.Pattern as Pattern
 import qualified Elm.Compiler.Version as Version
 import qualified Elm.Package as Pkg
@@ -154,8 +153,8 @@ errorNotFound name =
 
 isDeclaration :: String -> Maybe String
 isDeclaration string =
-  case Parse.iParse Parse.definition string of
-    Right (A.A _ (Source.Definition pattern _)) ->
+  case Parse.iParse (Parse.definition (,)) string of
+    Right (A.A _ (pattern, _)) ->
         Just (List.intercalate "$" (Pattern.boundVarList pattern))
 
     _ ->

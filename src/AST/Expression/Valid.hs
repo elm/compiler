@@ -23,3 +23,12 @@ type Expr' =
 data Def
     = Definition Pattern.Raw Expr (Maybe Type.Raw)
 
+
+data Effect
+    = Def Pattern.Raw Expr (Maybe Type.Raw)
+
+
+data Foreign
+    = Type String Type.Raw
+    | With String Expr
+

@@ -23,16 +23,25 @@ import qualified Reporting.Region as R
 -- OPTIMIZE
 
 
-optimize :: DT.VariantDict -> Module.CanonicalModule -> Module.Optimized
-optimize variantDict module_@(Module.Module _ home _ _ _ _ body) =
+optimize :: DT.VariantDict -> Module.Canonical -> Module.Optimized
+optimize variantDict module_@(Module.Module _ home _ info) =
   let
+    (Module.Canonical docs exports imports body) =
+      info
+
     (defs, _) =
-        flattenLets [] (Module.program body)
+      flattenLets [] (Module.program body)
 
     optDefs =
       Env.run variantDict home (concat <$> mapM (optimizeDef True) defs)
+
+    optBody =
+      body { Module.program = optDefs }
   in
-    module_ { Module.body = body { Module.program = optDefs } }
+    module_
+      { Module.info =
+          Module.Optimized docs exports imports optBody
+      }
 
 
 flattenLets :: [Can.Def] -> Can.Expr -> ([Can.Def], Can.Expr)
@@ -67,8 +76,8 @@ optimizeDef isRoot (Can.Definition (Can.Facts deps) pattern expression _) =
 optimizeDefHelp
     :: Maybe ModuleName.Canonical
     -> [Var.TopLevel]
-    -> P.CanonicalPattern
-    -> [P.CanonicalPattern]
+    -> P.Canonical
+    -> [P.Canonical]
     -> Can.Expr
     -> Env.Optimizer [Opt.Def]
 optimizeDefHelp home deps pattern@(A.A _ ptrn) args rawBody =
@@ -118,7 +127,7 @@ optimizeDefHelp home deps pattern@(A.A _ ptrn) args rawBody =
 
 optimizeFunction
     :: Maybe String
-    -> [P.CanonicalPattern]
+    -> [P.Canonical]
     -> Can.Expr
     -> Env.Optimizer ([String], Opt.Expr)
 optimizeFunction maybeName patterns givenBody =
@@ -132,20 +141,13 @@ makeContext argNames name =
     Just (name, length argNames, argNames)
 
 
-depatternArgs
-    :: ([String], Can.Expr)
-    -> P.CanonicalPattern
-    -> Env.Optimizer ([String], Can.Expr)
+depatternArgs :: ([String], Can.Expr) -> P.Canonical -> Env.Optimizer ([String], Can.Expr)
 depatternArgs (names, rawExpr) ptrn =
     do  (name, expr) <- depattern ptrn rawExpr
         return (name : names, expr)
 
 
-patternToDefs
-    :: Maybe ModuleName.Canonical
-    -> String
-    -> P.CanonicalPattern
-    -> [Opt.Def]
+patternToDefs :: Maybe ModuleName.Canonical -> String -> P.Canonical -> [Opt.Def]
 patternToDefs home rootName pattern =
     let
         (deps, rootExpr) =
@@ -170,7 +172,7 @@ patternToDefs home rootName pattern =
 -- TURN A PATTERN INTO A BUNCH OF SUBSTITUTIONS
 
 
-patternToSubstitutions :: Opt.Expr -> P.CanonicalPattern -> [(String, Opt.Expr)]
+patternToSubstitutions :: Opt.Expr -> P.Canonical -> [(String, Opt.Expr)]
 patternToSubstitutions expr (A.A _ pattern) =
   case pattern of
     P.Var name ->
@@ -322,8 +324,8 @@ optimizeBranch
     :: Context
     -> R.Region
     -> String
-    -> (P.CanonicalPattern, Can.Expr)
-    -> Env.Optimizer (P.CanonicalPattern, Opt.Expr)
+    -> (P.Canonical, Can.Expr)
+    -> Env.Optimizer (P.Canonical, Opt.Expr)
 optimizeBranch context region exprName (rawPattern, canBranch) =
   let
     root =
@@ -340,9 +342,9 @@ optimizeBranch context region exprName (rawPattern, canBranch) =
 
 tagCrashBranch
     :: R.Region
-    -> P.CanonicalPattern
+    -> P.Canonical
     -> Opt.Expr
-    -> Env.Optimizer (P.CanonicalPattern, Opt.Expr)
+    -> Env.Optimizer (P.Canonical, Opt.Expr)
 tagCrashBranch region pattern@(A.A pr _) expr =
   case expr of
     Opt.Call (Opt.Crash home _ _) [arg] ->
@@ -382,7 +384,7 @@ isTailCall context (A.A _ function) arity =
 -- it out from there
 
 
-depattern :: P.CanonicalPattern -> Can.Expr -> Env.Optimizer (String, Can.Expr)
+depattern :: P.Canonical -> Can.Expr -> Env.Optimizer (String, Can.Expr)
 depattern canPattern@(A.A _ pattern) expr =
   let
     ann =

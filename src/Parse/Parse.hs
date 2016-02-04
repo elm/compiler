@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Parse.Parse (program, parse) where
 
 import qualified Data.Map as Map
@@ -6,14 +6,14 @@ import qualified Data.Traversable as T
 import Text.Parsec (char, eof, letter, many, putState, (<|>))
 import qualified Text.Parsec.Error as Parsec
 
-import qualified AST.Declaration as D
-import qualified AST.Module as M
+import qualified AST.Declaration as Decl
+import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified Elm.Compiler.Imports as Imports
 import qualified Elm.Package as Package
 import Parse.Helpers
-import qualified Parse.Module as Module
-import qualified Parse.Declaration as Decl
+import qualified Parse.Module as Parse (header)
+import qualified Parse.Declaration as Parse (declaration, infixDecl)
 import qualified Reporting.Region as R
 import qualified Reporting.Error.Syntax as Error
 import qualified Reporting.Result as Result
@@ -25,50 +25,80 @@ program
     :: Package.Name
     -> OpTable
     -> String
-    -> Result.Result wrn Error.Error M.ValidModule
+    -> Result.Result wrn Error.Error Module.Valid
 program pkgName table src =
-  do  (M.Module kind name filePath docs exports imports sourceDecls) <-
-          parseWithTable table src (programParser pkgName)
+  do  modul <-
+        parseWithTable table src (programParser pkgName)
 
-      validDecls <- Validate.declarations sourceDecls
+      let
+        (Module.Source docs exports imports sourceDecls) =
+          Module.info modul
 
-      -- determine if default imports should be added, only elm-lang/core is exempt
-      let ammendedImports =
-            ( if pkgName == Package.coreName then [] else Imports.defaults
-            , imports
-            )
+      validDecls <-
+        Validate.declarations sourceDecls
 
-      return (M.Module kind name filePath docs exports ammendedImports validDecls)
+      return $
+        modul
+          { Module.info =
+              Module.Valid
+                docs
+                exports
+                (addDefaults pkgName imports)
+                validDecls
+                (error "TODO")
+                (error "TODO")
+          }
+
+
+-- determine if default imports should be added, only elm-lang/core is exempt
+addDefaults
+  :: Package.Name
+  -> [Module.UserImport]
+  -> ([Module.DefaultImport], [Module.UserImport])
+addDefaults pkgName imports =
+  flip (,) imports $
+    if pkgName == Package.coreName then
+      []
+
+    else
+      Imports.defaults
 
 
 
 -- HEADERS AND DECLARATIONS
 
 
-programParser :: Package.Name -> IParser M.SourceModule
+programParser :: Package.Name -> IParser Module.Source
 programParser pkgName =
-  do  (M.Header kind name docs exports imports) <- Module.header
-      decls <- declarations
-      _ <- many (spaces <|> newline)
+  do  (Module.Header tag name docs exports imports) <-
+        Parse.header
+
+      decls <-
+        declarations
+
+      many (spaces <|> newline)
+
       eof
 
-      let canonicalName =
-            ModuleName.Canonical pkgName name
+      return $
+        Module.Module
+          tag
+          (ModuleName.Canonical pkgName name)
+          ""
+          (Module.Source docs exports imports decls)
 
-      return $ M.Module kind canonicalName "" docs exports imports decls
 
-
-declarations :: IParser [D.SourceDecl]
+declarations :: IParser [Decl.Source]
 declarations =
-  (:) <$> Decl.declaration
+  (:) <$> Parse.declaration
       <*> many freshDef
 
 
-freshDef :: IParser D.SourceDecl
+freshDef :: IParser Decl.Source
 freshDef =
     commitIf (freshLine >> (letter <|> char '_')) $
-      do  _ <- freshLine
-          Decl.declaration
+      do  freshLine
+          Parse.declaration
 
 
 
@@ -108,9 +138,9 @@ parseWithTable table source parser =
 
 
 makeInfixTable
-    :: Map.Map String (Int, D.Assoc)
+    :: Map.Map String (Int, Decl.Assoc)
     -> [(String, InfixInfo)]
-    -> Result.Result wrn Error.Error (Map.Map String (Int, D.Assoc))
+    -> Result.Result wrn Error.Error (Map.Map String (Int, Decl.Assoc))
 makeInfixTable table newInfo =
   let add (op, info) dict =
         Map.insertWith (++) op [info] dict
@@ -140,12 +170,12 @@ parseFixities =
   where
     infics =
       do  start <- getMyPosition
-          (D.Fixity assoc level op) <- Decl.infixDecl
+          (Decl.Fixity assoc level op) <- Parse.infixDecl
           end <- getMyPosition
           return (op, InfixInfo (R.Region start end) (level, assoc))
 
 
 data InfixInfo = InfixInfo
     { _region :: R.Region
-    , _info :: (Int, D.Assoc)
+    , _info :: (Int, Decl.Assoc)
     }

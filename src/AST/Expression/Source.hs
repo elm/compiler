@@ -29,3 +29,9 @@ data Def'
     = Definition Pattern.Raw Expr
     | Annotation String Type.Raw
 
+
+data Effect
+    = Def Pattern.Raw Expr
+    | Type String Type.Raw
+    | With String Expr
+

@@ -3,6 +3,7 @@ module Validate (declarations) where
 
 import Control.Monad (foldM)
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import qualified Data.Foldable as F
 import qualified Data.Traversable as T
@@ -21,94 +22,225 @@ import qualified Reporting.Result as Result
 
 
 
--- VALIDATE DECLARATIONS
+-- COLLAPSE COMMENTS
 
 
-declarations
-    :: [D.SourceDecl]
-    -> Result.Result wrn Error.Error [D.ValidDecl]
+type Commented a =
+  A.Annotated (R.Region, Maybe (A.Located String)) a
+
+
+collapseComments
+  :: [D.CommentOr (A.Located a)]
+  -> Result.Result wrn Error.Error [Commented a]
+collapseComments listWithComments =
+  case listWithComments of
+    [] ->
+      Result.ok []
+
+    D.Comment msg : D.Whatever (A.A region a) : rest ->
+      let
+        entry =
+          A.A (region, Just msg) a
+      in
+        fmap (entry:) (collapseComments rest)
+
+    D.Comment (A.A region _) : D.Comment _ : _ ->
+      Result.throw region Error.CommentOnComment
+
+    [D.Comment (A.A region _)] ->
+      Result.throw region Error.CommentOnNothing
+
+    D.Whatever (A.A region a) : rest ->
+      let
+        entry =
+          A.A (region, Nothing) a
+      in
+        fmap (entry:) (collapseComments rest)
+
+
+
+-- EXTRACT DEFINES
+
+
+data StructuredSource =
+  Src
+    { _decls :: [Commented D.Source']
+    , _cmds :: Maybe [Commented Source.Effect]
+    , _subs :: Maybe [Commented Source.Effect]
+    }
+
+
+extractEffects :: [Commented D.SourceOrDefine] -> Result.Result wrn Error.Error StructuredSource
+extractEffects commentedDecls =
+  case commentedDecls of
+    [] ->
+      Result.ok (Src [] Nothing Nothing)
+
+    A.A ann (D.Source decl) : rest ->
+      do  restSrc <- extractEffects rest
+          return $ restSrc { _decls = A.A ann decl : _decls restSrc }
+
+    A.A (region, _) (D.Define name commentOrEffects) : rest ->
+      do  restSrc <- extractEffects rest
+          case name of
+            "commands" ->
+              case _cmds restSrc of
+                Nothing ->
+                  do  effects <- collapseComments commentOrEffects
+                      Result.ok $ restSrc { _cmds = Just effects }
+
+                Just _ ->
+                  Result.throw region (Error.DefineDuplicate name)
+
+            "subscriptions" ->
+              case _subs restSrc of
+                Nothing ->
+                  do  effects <- collapseComments commentOrEffects
+                      Result.ok $ restSrc { _subs = Just effects }
+
+                Just _ ->
+                  Result.throw region (Error.DefineDuplicate name)
+
+            _ ->
+              Result.throw region (Error.DefineUnknown name)
+
+
+
+-- VALIDATE STRUCTURED SOURCE
+
+
+declarations :: [D.Source] -> Result.Result wrn Error.Error [D.Valid]
 declarations sourceDecls =
-  do  validDecls <- validateDecls Nothing sourceDecls
+  do  (Src decls cmds subs) <-
+        extractEffects =<< collapseComments sourceDecls
+
+      validDecls <-
+        validateDecls decls
+
+      validCmds <-
+        validateEffects (Maybe.fromMaybe [] cmds)
+
+      validSubs <-
+        validateEffects (Maybe.fromMaybe [] subs)
+
       (\_ _ -> validDecls)
         <$> declDuplicates validDecls
         <*> T.traverse checkDecl validDecls
 
 
+
+-- VALIDATE DECLARATIONS
+
+
 validateDecls
-    :: Maybe String
-    -> [D.SourceDecl]
-    -> Result.Result wrn Error.Error [D.ValidDecl]
-validateDecls maybeComment sourceDecls =
-  case sourceDecls of
+  :: [Commented D.Source']
+  -> Result.Result wrn Error.Error [D.Valid]
+validateDecls commentedDecls =
+  case commentedDecls of
     [] ->
-        return []
+      Result.ok []
 
-    sourceDecl : decls ->
-        case sourceDecl of
-          D.Comment comment ->
-              validateDecls (Just comment) decls
+    A.A (region, maybeComment) decl : rest ->
+      let
+        addRest validDecl =
+          let
+            entry =
+              A.A (region, fmap A.drop maybeComment) validDecl
+          in
+            fmap (entry:) (validateDecls rest)
+      in
+        case decl of
+          D.Union name tvars ctors ->
+            addRest (D.Union name tvars ctors)
 
-          D.Decl decl ->
-              validateDeclsHelp maybeComment decl decls
+          D.Alias name tvars alias ->
+            addRest (D.Alias name tvars alias)
+
+          D.Fixity assoc prec op ->
+            addRest (D.Fixity assoc prec op)
+
+          D.Def def ->
+            validateDeclsHelp maybeComment def rest
 
 
 validateDeclsHelp
-    :: Maybe String
-    -> A.Located D.SourceDecl'
-    -> [D.SourceDecl]
-    -> Result.Result wrn Error.Error [D.ValidDecl]
-validateDeclsHelp comment (A.A region decl) decls =
-  let addRest validDecl =
-        (:) (A.A (region, comment) validDecl)
-          <$> validateDecls Nothing decls
+  :: Maybe (A.Located String)
+  -> Source.Def
+  -> [Commented D.Source']
+  -> Result.Result wrn Error.Error [D.Valid]
+validateDeclsHelp maybeComment (A.A region def) decls =
+  let
+    makeDef pat expr maybeType =
+      D.Def (Valid.Definition pat expr maybeType)
+
+    ann =
+      (region, fmap A.drop maybeComment)
   in
-  case decl of
-    D.Datatype name tvars ctors ->
-        addRest (D.Datatype name tvars ctors)
+    case def of
+      Source.Definition pat expr ->
+        (:)
+          <$> validateDef makeDef ann pat expr Nothing
+          <*> validateDecls decls
 
-    D.TypeAlias name tvars alias ->
-        addRest (D.TypeAlias name tvars alias)
-
-    D.Fixity assoc prec op ->
-        addRest (D.Fixity assoc prec op)
-
-    D.Definition def ->
-        defHelp comment def decls
-
-
-
--- VALIDATE DEFINITIONS IN DECLARATIONS
-
-
-defHelp
-    :: Maybe String
-    -> Source.Def
-    -> [D.SourceDecl]
-    -> Result.Result wrn Error.Error [D.ValidDecl]
-defHelp comment (A.A region def) decls =
-  let addRest def' rest =
-        (:) (A.A (region, comment) (D.Definition def'))
-          <$> validateDecls Nothing rest
-  in
-  case def of
-    Source.Definition pat expr ->
-        do  expr' <- expression expr
-            let def' = Valid.Definition pat expr' Nothing
-            checkDefinition def'
-            addRest def' decls
-
-    Source.TypeAnnotation name tipe ->
+      Source.Annotation name tipe ->
         case decls of
-          D.Decl (A.A _ (D.Definition (A.A _
-            (Source.Definition pat@(A.A _ (Pattern.Var name')) expr)))) : rest
-              | name == name' ->
-                  do  expr' <- expression expr
-                      let def' = Valid.Definition pat expr' (Just tipe)
-                      checkDefinition def'
-                      addRest def' rest
+          A.A (_, Just (A.A commentRegion _)) _ : _ ->
+            Result.throw commentRegion (Error.CommentAfterAnnotation name)
+
+          A.A _ (D.Def (A.A _ (Source.Definition pat expr))) : rest
+           | Pattern.isVar name pat ->
+              (:)
+                <$> validateDef makeDef ann pat expr (Just tipe)
+                <*> validateDecls rest
 
           _ ->
-              Result.throw region (Error.TypeWithoutDefinition name)
+            Result.throw region (Error.TypeWithoutDefinition name)
+
+
+
+-- VALIDATE EFFECTS
+
+
+validateEffects
+  :: [Commented Source.Effect]
+  -> Result.Result wrn Error.Error [A.Commented Valid.Effect]
+validateEffects effects =
+    case effects of
+      [] ->
+        Result.ok []
+
+      A.A (region, maybeComment) effect : rest ->
+        validateEffectsHelp (region, fmap A.drop maybeComment) effect rest
+
+
+validateEffectsHelp
+  :: (R.Region, Maybe String)
+  -> Source.Effect
+  -> [Commented Source.Effect]
+  -> Result.Result wrn Error.Error [A.Commented Valid.Effect]
+validateEffectsHelp ann effect remainingEffects =
+  case effect of
+    Source.With _ _ ->
+      Result.throw (fst ann) (error "TODO")
+
+    Source.Def pat expr ->
+      (:)
+        <$> validateDef Valid.Def ann pat expr Nothing
+        <*> validateEffects remainingEffects
+
+    Source.Type name tipe ->
+      case remainingEffects of
+        A.A (_, Just (A.A commentRegion _)) _ : _ ->
+          Result.throw commentRegion (Error.CommentAfterAnnotation name)
+
+        A.A _ (Source.Def pat expr) : rest
+         | Pattern.isVar name pat ->
+            (:)
+              <$> validateDef Valid.Def ann pat expr (Just tipe)
+              <*> validateEffects rest
+
+        _ ->
+          Result.throw (fst ann) (Error.TypeWithoutDefinition name)
 
 
 
@@ -127,29 +259,40 @@ definitionsHelp :: [Source.Def] -> Result.Result wrn Error.Error [Valid.Def]
 definitionsHelp sourceDefs =
   case sourceDefs of
     [] ->
-        return []
+      return []
 
-    A.A _ (Source.Definition pat expr) : rest ->
-        do  expr' <- expression expr
-            let def = Valid.Definition pat expr' Nothing
-            checkDefinition def
-            (:) def <$> definitionsHelp rest
+    A.A region (Source.Definition pat expr) : rest ->
+      (:)
+        <$> fmap A.drop (validateDef Valid.Definition region pat expr Nothing)
+        <*> definitionsHelp rest
 
-    A.A region (Source.TypeAnnotation name tipe) : rest ->
-        case rest of
-          A.A _ (Source.Definition pat@(A.A _ (Pattern.Var name')) expr) : rest'
-              | name == name' ->
-                  do  expr' <- expression expr
-                      let def = Valid.Definition pat expr' (Just tipe)
-                      checkDefinition def
-                      (:) def <$> definitionsHelp rest'
+    A.A r1 (Source.Annotation name tipe) : rest ->
+      case rest of
+        A.A r2 (Source.Definition pat expr) : rest'
+          | Pattern.isVar name pat ->
+              (:)
+                <$> fmap A.drop (validateDef Valid.Definition (R.merge r1 r2) pat expr (Just tipe))
+                <*> definitionsHelp rest'
 
-          _ ->
-              Result.throw region (Error.TypeWithoutDefinition name)
+        _ ->
+          Result.throw r1 (Error.TypeWithoutDefinition name)
 
 
-checkDefinition :: Valid.Def -> Result.Result wrn Error.Error ()
-checkDefinition (Valid.Definition pattern body _) =
+validateDef
+  :: (Pattern.Raw -> Valid.Expr -> Maybe Type.Raw -> def)
+  -> annotation
+  -> Pattern.Raw
+  -> Source.Expr
+  -> Maybe Type.Raw
+  -> Result.Result wrn Error.Error (A.Annotated annotation def)
+validateDef makeDef annotation pat expr maybeType =
+  do  validExpr <- expression expr
+      validateDefPattern pat validExpr
+      return $ A.A annotation (makeDef pat validExpr maybeType)
+
+
+validateDefPattern :: Pattern.Raw -> Valid.Expr -> Result.Result wrn Error.Error ()
+validateDefPattern pattern body =
   case fst (Expr.collectLambdas body) of
     [] ->
         return ()
@@ -265,7 +408,7 @@ both (expr1, expr2) =
 -- VALIDATE PATTERNS
 
 
-validatePattern :: Pattern.RawPattern -> Result.Result wrn Error.Error Pattern.RawPattern
+validatePattern :: Pattern.Raw -> Result.Result wrn Error.Error Pattern.Raw
 validatePattern pattern =
   do  detectDuplicates Error.BadPattern (Pattern.boundVars pattern)
       return pattern
@@ -297,15 +440,13 @@ detectDuplicates tag names =
       F.traverse_ check (makeGroups names)
 
 
-defDuplicates
-    :: [Pattern.RawPattern]
-    -> Result.Result wrn Error.Error ()
+defDuplicates :: [Pattern.Raw] -> Result.Result wrn Error.Error ()
 defDuplicates patterns =
   concatMap Pattern.boundVars patterns
     |> detectDuplicates Error.DuplicateDefinition
 
 
-declDuplicates :: [D.ValidDecl] -> Result.Result wrn Error.Error ()
+declDuplicates :: [D.Valid] -> Result.Result wrn Error.Error ()
 declDuplicates decls =
   let (valueLists, typeLists) = unzip (map extractValues decls)
   in
@@ -314,25 +455,25 @@ declDuplicates decls =
         <*> detectDuplicates Error.DuplicateTypeDeclaration (concat typeLists)
 
 
-extractValues :: D.ValidDecl -> ([A.Located String], [A.Located String])
+extractValues :: D.Valid -> ([A.Located String], [A.Located String])
 extractValues (A.A (region, _) decl) =
   case decl of
-    D.Definition (Valid.Definition pattern _ _) ->
+    D.Def (Valid.Definition pattern _ _) ->
         ( Pattern.boundVars pattern
         , []
         )
 
-    D.Datatype name _ ctors ->
+    D.Union name _ ctors ->
         ( map (A.A region . fst) ctors
         , [A.A region name]
         )
 
-    D.TypeAlias name _ (A.A _ (Type.RRecord _ _)) ->
+    D.Alias name _ (A.A _ (Type.RRecord _ _)) ->
         ( [A.A region name]
         , [A.A region name]
         )
 
-    D.TypeAlias name _ _ ->
+    D.Alias name _ _ ->
         ( []
         , [A.A region name]
         )
@@ -347,13 +488,13 @@ extractValues (A.A (region, _) decl) =
 -- UNBOUND TYPE VARIABLES
 
 
-checkDecl :: D.ValidDecl -> Result.Result wrn Error.Error ()
+checkDecl :: D.Valid -> Result.Result wrn Error.Error ()
 checkDecl (A.A (region,_) decl) =
   case decl of
-    D.Definition _ ->
+    D.Def _ ->
         return ()
 
-    D.Datatype name boundVars ctors ->
+    D.Union name boundVars ctors ->
         case diff boundVars (concatMap freeVars (concatMap snd ctors)) of
           (_, []) ->
               return ()
@@ -362,7 +503,7 @@ checkDecl (A.A (region,_) decl) =
               Result.throw region
                 (Error.UnboundTypeVarsInUnion name boundVars unbound)
 
-    D.TypeAlias name boundVars tipe ->
+    D.Alias name boundVars tipe ->
         case diff boundVars (freeVars tipe) of
           ([], []) ->
               return ()
@@ -400,20 +541,20 @@ diff left right =
 
 freeVars :: Type.Raw -> [A.Located String]
 freeVars (A.A region tipe) =
-    case tipe of
-      Type.RLambda t1 t2 ->
-          freeVars t1 ++ freeVars t2
+  case tipe of
+    Type.RLambda t1 t2 ->
+      freeVars t1 ++ freeVars t2
 
-      Type.RVar x ->
-          [A.A region x]
+    Type.RVar x ->
+      [A.A region x]
 
-      Type.RType _ ->
-          []
+    Type.RType _ ->
+      []
 
-      Type.RApp t ts ->
-          concatMap freeVars (t:ts)
+    Type.RApp t ts ->
+      concatMap freeVars (t:ts)
 
-      Type.RRecord fields ext ->
-          maybe [] freeVars ext
-          ++ concatMap (freeVars . snd) fields
+    Type.RRecord fields ext ->
+      maybe [] freeVars ext
+      ++ concatMap (freeVars . snd) fields
 

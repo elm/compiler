@@ -15,10 +15,13 @@ data Error
     = Parse [Parsec.Message]
     | BadFunctionName Int
     | BadPattern String
+    | CommentAfterAnnotation String
+    | CommentOnComment
+    | CommentOnNothing
+    | DefineDuplicate String
+    | DefineUnknown String
     | InfixDuplicate String
     | TypeWithoutDefinition String
-    | PortWithoutAnnotation String
-    | UnexpectedPort
     | DuplicateFieldName String
     | DuplicateValueDeclaration String
     | DuplicateTypeDeclaration String
@@ -64,6 +67,52 @@ toReport _localizer err =
               ]
           )
 
+    CommentAfterAnnotation name ->
+        Report.report
+          "STRAY COMMENT"
+          Nothing
+          ("The type annotation for `" ++ name ++ "` is followed by a documentation comment.")
+          ( Help.reflowParagraph $
+              "Documentation comments need to be *before* type annotations. Furthermore,\
+              \ type annotations need to be right above the corresponding definition, no\
+              \ comments in between."
+          )
+
+    CommentOnComment ->
+        Report.report
+          "STRAY COMMENT"
+          Nothing
+          ("This comment is followed by another documentation comment.")
+          ( Help.reflowParagraph $
+              "All documentation comments need to be right above the declaration they\
+              \ describe. Maybe some code got deleted or commented out by accident?"
+          )
+
+    CommentOnNothing ->
+        Report.report
+          "STRAY COMMENT"
+          Nothing
+          ("This documentation comment is not followed by anything.")
+          ( text "What is it documenting? Maybe it should just be removed?" )
+
+    DefineDuplicate name ->
+        Report.report
+          "DUPLICATE DEFINE"
+          Nothing
+          ("A module can have only one `define " ++ name ++ "` declaration.")
+          ( text "This module has two though. You should combine them or remove one." )
+
+    DefineUnknown name ->
+        Report.report
+          "UNKNOWN DEFINE"
+          Nothing
+          ("You are trying to `define " ++ name ++ "`, but that is not recognized.")
+          ( Help.reflowParagraph $
+              "You can only define `commands` and `subscriptions` with this syntax.\
+              \ Furthermore, you must be in an `effect module` or `foreign effect module` to\
+              \ even have access to this syntax."
+          )
+
     InfixDuplicate opName ->
         Report.report
           "INFIX OVERLAP"
@@ -85,28 +134,6 @@ toReport _localizer err =
           ( text $
               "Directly below the type annotation, put a definition like:\n\n"
               ++ "    " ++ valueName ++ " = 42"
-          )
-
-    PortWithoutAnnotation portName ->
-        Report.report
-          "PORT ERROR"
-          Nothing
-          ("Port `" ++ portName ++ "` does not have a type annotation!")
-          ( text $
-              "Directly above the port definition, I need something like this:\n\n"
-              ++ "    port " ++ portName ++ " : Signal Int"
-          )
-
-
-    UnexpectedPort ->
-        Report.report
-          "PORT ERROR"
-          Nothing
-          "This module has ports, but ports can only appear in the main module."
-          ( Help.reflowParagraph $
-              "Ports in library code would create hidden dependencies where importing a\
-              \ module could bring in constraints not captured in the public API. Furthermore,\
-              \ if the module is imported twice, do we send values out the port twice?"
           )
 
     DuplicateFieldName name ->
@@ -191,7 +218,7 @@ toReport _localizer err =
 
 
 unboundTypeVars :: String -> String -> [String] -> [String] -> Report.Report
-unboundTypeVars declKind typeName givenVars unboundVars@(tvar:_) =
+unboundTypeVars declKind typeName givenVars unboundVars =
   Report.report
     "UNBOUND TYPE VARIABLES"
     Nothing
@@ -205,9 +232,9 @@ unboundTypeVars declKind typeName givenVars unboundVars@(tvar:_) =
             ++ map (dullyellow . text) unboundVars
             ++ map text ["=", "..."]
         , Help.reflowParagraph $
-            "Here's why. Imagine one `" ++ typeName ++ "` where `" ++ tvar ++ "` is an Int and\
-            \ another where it is a Bool. When we explicitly list the type variables, type\
-            \ checker can see that they are actually different types."
+            "Here's why. Imagine one `" ++ typeName ++ "` where `" ++ head unboundVars ++
+            "` is an Int and another where it is a Bool. When we explicitly list the type\
+            \ variables, type checker can see that they are actually different types."
         ]
     )
 

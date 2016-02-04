@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Parse.Module (moduleDecl, header, getModuleName) where
 
 import Text.Parsec hiding (newline, spaces)
@@ -12,12 +13,12 @@ import Reporting.Annotation as A
 getModuleName :: String -> Maybe String
 getModuleName source =
   let
-    getModuleName =
+    minimalParser =
       do  optional freshLine
           (_, names, _) <- moduleDecl
           return (ModuleName.toString names)
   in
-    case iParse getModuleName source of
+    case iParse minimalParser source of
       Right name ->
         Just name
 
@@ -28,9 +29,9 @@ getModuleName source =
 header :: IParser (Module.Header [Module.UserImport])
 header =
   do  optional freshLine
-      (kind, names, exports) <-
+      (tag, names, exports) <-
         option
-          (Module.Normal, ["Main"], Var.openListing)
+          (Module.None, ["Main"], Var.openListing)
           (moduleDecl `followedBy` freshLine)
 
       docs <-
@@ -41,17 +42,17 @@ header =
 
       imports' <- imports
 
-      return (Module.Header kind names docs exports imports')
+      return (Module.Header tag names docs exports imports')
 
 
-moduleDecl :: IParser (Module.Kind, [String], Var.Listing (A.Located Var.Value))
+moduleDecl :: IParser (Module.Tag, [String], Var.Listing (A.Located Var.Value))
 moduleDecl =
   expecting "a module declaration" $
   do
       kind <-
         choice
           [ do  try (reserved "module")
-                return Module.Normal
+                return Module.None
           , do  try (reserved "effect")
                 whitespace
                 reserved "module"
@@ -114,14 +115,14 @@ listing item =
   expecting "a listing of values and types to expose, like (..)" $
   do  try (whitespace >> char '(')
       whitespace
-      listing <-
+      actualListing <-
           choice
             [ const Var.openListing <$> string ".."
             , Var.Listing <$> commaSep1 item <*> return False
             ]
       whitespace
       char ')'
-      return listing
+      return actualListing
 
 
 value :: IParser Var.Value
