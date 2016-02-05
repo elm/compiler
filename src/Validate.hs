@@ -1,9 +1,9 @@
 {-# OPTIONS_GHC -Wall #-}
 module Validate (declarations) where
 
+import qualified Control.Arrow as Arrow
 import Control.Monad (foldM)
 import qualified Data.Map as Map
-import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import qualified Data.Foldable as F
 import qualified Data.Traversable as T
@@ -12,6 +12,7 @@ import AST.Expression.General as Expr
 import qualified AST.Expression.Source as Source
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Declaration as D
+import qualified AST.Module as Module
 import qualified AST.Pattern as Pattern
 import qualified AST.Type as Type
 import Elm.Utils ((|>))
@@ -59,73 +60,148 @@ collapseComments listWithComments =
 
 
 
--- EXTRACT DEFINES
+-- PARTITION AND VALIDATE DEFINES
 
 
-data StructuredSource =
-  Src
-    { _decls :: [Commented D.Source']
-    , _cmds :: Maybe [Commented Source.Effect]
-    , _subs :: Maybe [Commented Source.Effect]
-    }
+type Defines =
+  Map.Map D.EffectType [A.Located [D.CommentOr (A.Located Source.Effect)]]
 
 
-extractEffects :: [Commented D.SourceOrDefine] -> Result.Result wrn Error.Error StructuredSource
-extractEffects commentedDecls =
+partitionEffects :: [Commented D.SourceOrDefine] -> ([Commented D.Source'], Defines)
+partitionEffects commentedDecls =
   case commentedDecls of
     [] ->
-      Result.ok (Src [] Nothing Nothing)
+      ([], Map.empty)
 
     A.A ann (D.Source decl) : rest ->
-      do  restSrc <- extractEffects rest
-          return $ restSrc { _decls = A.A ann decl : _decls restSrc }
+      Arrow.first
+        ((:) (A.A ann decl))
+        (partitionEffects rest)
 
-    A.A (region, _) (D.Define name commentOrEffects) : rest ->
-      do  restSrc <- extractEffects rest
-          case name of
-            "commands" ->
-              case _cmds restSrc of
-                Nothing ->
-                  do  effects <- collapseComments commentOrEffects
-                      Result.ok $ restSrc { _cmds = Just effects }
+    A.A (region, _) (D.Define effectType commentOrEffects) : rest ->
+      Arrow.second
+        (Map.insertWith (++) effectType [A.A region commentOrEffects])
+        (partitionEffects rest)
 
-                Just _ ->
-                  Result.throw region (Error.DefineDuplicate name)
 
-            "subscriptions" ->
-              case _subs restSrc of
-                Nothing ->
-                  do  effects <- collapseComments commentOrEffects
-                      Result.ok $ restSrc { _subs = Just effects }
+validateDefines
+  :: Module.Tag
+  -> Defines
+  -> Result.Result wrn Error.Error Valid.Effects
+validateDefines tag defines =
+  case tag of
+    Module.None ->
+      do  disallowLeftoverDefines Error.BadDefineInNormalModule defines
+          return Valid.None
 
-                Just _ ->
-                  Result.throw region (Error.DefineDuplicate name)
+    Module.Effect region ->
+      let
+        (maybeCmds, smallerDefines) =
+          extractKey D.Cmd defines
 
-            _ ->
-              Result.throw region (Error.DefineUnknown name)
+        (maybeSubs, leftovers) =
+          extractKey D.Sub smallerDefines
+      in
+        do  disallowLeftoverDefines Error.BadDefineInEffectModule leftovers
+            case (maybeCmds, maybeSubs) of
+              (Nothing, Nothing) ->
+                Result.throw region Error.NoDefineInEffectModule
+
+              _ ->
+
+                Valid.Effects
+                  <$> validateDefineDefs D.Cmd maybeCmds validateEffects
+                  <*> validateDefineDefs D.Sub maybeSubs validateEffects
+
+    Module.Foreign region ->
+      let
+        (maybeCmds, smallerDefines) =
+          extractKey D.ForeignCmd defines
+
+        (maybeSubs, leftovers) =
+          extractKey D.ForeignSub smallerDefines
+      in
+        do  disallowLeftoverDefines Error.BadDefineInForeignModule leftovers
+            case (maybeCmds, maybeSubs) of
+              (Nothing, Nothing) ->
+                Result.throw region Error.NoDefineInForeignModule
+
+              (_, _) ->
+                Valid.ForeignEffects
+                  <$> validateDefineDefs D.ForeignCmd maybeCmds (T.traverse validateForeignCmd)
+                  <*> validateDefineDefs D.ForeignSub maybeSubs (T.traverse validateForeignSub)
+
+
+extractKey :: (Ord k) => k -> Map.Map k v -> (Maybe v, Map.Map k v)
+extractKey key dict =
+  ( Map.lookup key dict
+  , Map.delete key dict
+  )
+
+
+validateDefineDefs
+  :: D.EffectType
+  -> Maybe [A.Located [D.CommentOr (A.Located Source.Effect)]]
+  -> ([Commented Source.Effect] -> Result.Result wrn Error.Error a)
+  -> Result.Result wrn Error.Error a
+validateDefineDefs effectType maybeAllRawDefines validate =
+  case maybeAllRawDefines of
+    Nothing ->
+      validate []
+
+    Just [A.A _ sourceDefs] ->
+      validate =<< collapseComments sourceDefs
+
+    Just allRawDefines ->
+      let
+        (A.A region _) =
+          last allRawDefines
+
+        errorMsg =
+          Error.DuplicateDefines effectType (length allRawDefines)
+      in
+        Result.throw region errorMsg
+
+
+disallowLeftoverDefines
+  :: (D.EffectType -> Error.Error)
+  -> Defines
+  -> Result.Result wrn Error.Error ()
+disallowLeftoverDefines errorTagger leftoverDefines =
+  case Map.toList leftoverDefines of
+    [] ->
+      Result.ok ()
+
+    pairs ->
+      let
+        toErrors (key, allDefines) =
+          map (A.map (\_ -> errorTagger key)) allDefines
+      in
+        Result.throwMany (concatMap toErrors pairs)
 
 
 
 -- VALIDATE STRUCTURED SOURCE
 
 
-declarations :: [D.Source] -> Result.Result wrn Error.Error [D.Valid]
-declarations sourceDecls =
-  do  (Src decls cmds subs) <-
-        extractEffects =<< collapseComments sourceDecls
+declarations
+  :: Module.Tag
+  -> [D.Source]
+  -> Result.Result wrn Error.Error ([D.Valid], Valid.Effects)
+declarations tag sourceDecls =
+  do  (decls, defines) <-
+        partitionEffects <$> collapseComments sourceDecls
 
       validDecls <-
         validateDecls decls
 
-      validCmds <-
-        validateEffects (Maybe.fromMaybe [] cmds)
+      validEffects <-
+        validateDefines tag defines
 
-      validSubs <-
-        validateEffects (Maybe.fromMaybe [] subs)
+      F.traverse_ id
+        (declDuplicates validDecls validEffects : map findBadTypeVars validDecls)
 
-      (\_ _ -> validDecls)
-        <$> declDuplicates validDecls
-        <*> T.traverse checkDecl validDecls
+      return (validDecls, validEffects)
 
 
 
@@ -170,11 +246,11 @@ validateDeclsHelp
   -> Result.Result wrn Error.Error [D.Valid]
 validateDeclsHelp maybeComment (A.A region def) decls =
   let
-    makeDef pat expr maybeType =
-      D.Def (Valid.Definition pat expr maybeType)
-
     ann =
       (region, fmap A.drop maybeComment)
+
+    makeDef pat expr maybeType =
+      D.Def (Valid.Definition pat expr maybeType)
   in
     case def of
       Source.Definition pat expr ->
@@ -203,21 +279,21 @@ validateDeclsHelp maybeComment (A.A region def) decls =
 
 validateEffects
   :: [Commented Source.Effect]
-  -> Result.Result wrn Error.Error [A.Commented Valid.Effect]
+  -> Result.Result wrn Error.Error [A.Commented Valid.Def]
 validateEffects effects =
-    case effects of
-      [] ->
-        Result.ok []
+  case effects of
+    [] ->
+      Result.ok []
 
-      A.A (region, maybeComment) effect : rest ->
-        validateEffectsHelp (region, fmap A.drop maybeComment) effect rest
+    A.A (region, maybeComment) effect : rest ->
+      validateEffectsHelp (region, fmap A.drop maybeComment) effect rest
 
 
 validateEffectsHelp
   :: (R.Region, Maybe String)
   -> Source.Effect
   -> [Commented Source.Effect]
-  -> Result.Result wrn Error.Error [A.Commented Valid.Effect]
+  -> Result.Result wrn Error.Error [A.Commented Valid.Def]
 validateEffectsHelp ann effect remainingEffects =
   case effect of
     Source.With _ _ ->
@@ -225,7 +301,7 @@ validateEffectsHelp ann effect remainingEffects =
 
     Source.Def pat expr ->
       (:)
-        <$> validateDef Valid.Def ann pat expr Nothing
+        <$> validateDef Valid.Definition ann pat expr Nothing
         <*> validateEffects remainingEffects
 
     Source.Type name tipe ->
@@ -236,11 +312,45 @@ validateEffectsHelp ann effect remainingEffects =
         A.A _ (Source.Def pat expr) : rest
          | Pattern.isVar name pat ->
             (:)
-              <$> validateDef Valid.Def ann pat expr (Just tipe)
+              <$> validateDef Valid.Definition ann pat expr (Just tipe)
               <*> validateEffects rest
 
         _ ->
           Result.throw (fst ann) (Error.TypeWithoutDefinition name)
+
+
+validateForeignCmd
+  :: Commented Source.Effect
+  -> Result.Result wrn Error.Error (A.Commented Valid.ForeignCmd)
+validateForeignCmd (A.A (region, maybeComment) effect) =
+  case effect of
+    Source.With _ _ ->
+      Result.throw region (error "TODO")
+
+    Source.Def _ _ ->
+      Result.throw region (error "TODO")
+
+    Source.Type name tipe ->
+      Result.ok $
+        A.A (region, fmap A.drop maybeComment) (Valid.Cmd name tipe)
+
+
+validateForeignSub
+  :: Commented Source.Effect
+  -> Result.Result wrn Error.Error (A.Commented Valid.ForeignSub)
+validateForeignSub (A.A (region, maybeComment) effect) =
+  case effect of
+    Source.With name expr ->
+      do  validExpr <- expression expr
+          Result.ok $
+            A.A (region, fmap A.drop maybeComment) (Valid.SubWith name validExpr)
+
+    Source.Def _ _ ->
+      Result.throw region (error "TODO")
+
+    Source.Type name tipe ->
+      Result.ok $
+        A.A (region, fmap A.drop maybeComment) (Valid.Sub name tipe)
 
 
 
@@ -398,8 +508,8 @@ second (value, expr) =
 
 
 both
-    :: (Source.Expr, Source.Expr)
-    -> Result.Result wrn Error.Error (Valid.Expr, Valid.Expr)
+  :: (Source.Expr, Source.Expr)
+  -> Result.Result wrn Error.Error (Valid.Expr, Valid.Expr)
 both (expr1, expr2) =
     (,) <$> expression expr1 <*> expression expr2
 
@@ -446,13 +556,18 @@ defDuplicates patterns =
     |> detectDuplicates Error.DuplicateDefinition
 
 
-declDuplicates :: [D.Valid] -> Result.Result wrn Error.Error ()
-declDuplicates decls =
-  let (valueLists, typeLists) = unzip (map extractValues decls)
+declDuplicates :: [D.Valid] -> Valid.Effects -> Result.Result wrn Error.Error ()
+declDuplicates decls effects =
+  let
+    (valueLists, typeLists) =
+      unzip (map extractValues decls)
+
+    effectValues =
+      extractEffectValues effects
   in
-      (\_ _ -> ())
-        <$> detectDuplicates Error.DuplicateValueDeclaration (concat valueLists)
-        <*> detectDuplicates Error.DuplicateTypeDeclaration (concat typeLists)
+    (\_ _ -> ())
+      <$> detectDuplicates Error.DuplicateValueDeclaration (effectValues ++ concat valueLists)
+      <*> detectDuplicates Error.DuplicateTypeDeclaration (concat typeLists)
 
 
 extractValues :: D.Valid -> ([A.Located String], [A.Located String])
@@ -484,12 +599,42 @@ extractValues (A.A (region, _) decl) =
         )
 
 
+extractEffectValues :: Valid.Effects -> [A.Located String]
+extractEffectValues effects =
+  case effects of
+    Valid.None ->
+      []
+
+    Valid.Effects cmds subs ->
+      let
+        extractNames (Valid.Definition pat _ _) =
+          Pattern.boundVars pat
+      in
+        concatMap (extractNames . A.drop) (cmds ++ subs)
+
+    Valid.ForeignEffects cmds subs ->
+      let
+        extractCmdNames (A.A (region, _) (Valid.Cmd name _)) =
+          A.A region name
+
+        extractSubNames (A.A (region, _) sub) =
+          A.A region $
+            case sub of
+              Valid.Sub name _ ->
+                name
+
+              Valid.SubWith name _ ->
+                name
+      in
+        map extractCmdNames cmds ++ map extractSubNames subs
+
+
 
 -- UNBOUND TYPE VARIABLES
 
 
-checkDecl :: D.Valid -> Result.Result wrn Error.Error ()
-checkDecl (A.A (region,_) decl) =
+findBadTypeVars :: D.Valid -> Result.Result wrn Error.Error ()
+findBadTypeVars (A.A (region,_) decl) =
   case decl of
     D.Def _ ->
         return ()

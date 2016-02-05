@@ -6,6 +6,7 @@ import qualified Data.Set as Set
 import qualified Text.Parsec.Error as Parsec
 import Text.PrettyPrint.ANSI.Leijen (dullyellow, hsep, text)
 
+import qualified AST.Declaration as Decl
 import qualified Reporting.Error.Helpers as Help
 import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
@@ -15,11 +16,19 @@ data Error
     = Parse [Parsec.Message]
     | BadFunctionName Int
     | BadPattern String
+
     | CommentAfterAnnotation String
     | CommentOnComment
     | CommentOnNothing
-    | DefineDuplicate String
-    | DefineUnknown String
+
+    | BadDefineInNormalModule Decl.EffectType
+    | BadDefineInEffectModule Decl.EffectType
+    | BadDefineInForeignModule Decl.EffectType
+    | WithInEffectDefine Decl.EffectType String
+    | NoDefineInEffectModule
+    | NoDefineInForeignModule
+    | DuplicateDefines Decl.EffectType Int
+
     | InfixDuplicate String
     | TypeWithoutDefinition String
     | DuplicateFieldName String
@@ -95,22 +104,20 @@ toReport _localizer err =
           ("This documentation comment is not followed by anything.")
           ( text "What is it documenting? Maybe it should just be removed?" )
 
-    DefineDuplicate name ->
+    DuplicateDefines effectType n ->
+      let
+        name =
+          Decl.effectTypeToString effectType
+      in
         Report.report
           "DUPLICATE DEFINE"
           Nothing
-          ("A module can have only one `define " ++ name ++ "` declaration.")
-          ( text "This module has two though. You should combine them or remove one." )
-
-    DefineUnknown name ->
-        Report.report
-          "UNKNOWN DEFINE"
-          Nothing
-          ("You are trying to `define " ++ name ++ "`, but that is not recognized.")
+          ("There can only be one `define " ++ name ++ "` per module.")
           ( Help.reflowParagraph $
-              "You can only define `commands` and `subscriptions` with this syntax.\
-              \ Furthermore, you must be in an `effect module` or `foreign effect module` to\
-              \ even have access to this syntax."
+              "The `define` shown above is the last of " ++ show n ++ " in this module.\
+              \ They all say `define "++ name ++ "`, but maybe some are supposed to define\
+              \ something else? Could be a copy paste error. If they really are supposed\
+              \ to define the same kind of thing, just combine them and you should be all set!"
           )
 
     InfixDuplicate opName ->

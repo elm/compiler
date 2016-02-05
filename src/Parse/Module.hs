@@ -7,7 +7,8 @@ import Parse.Helpers
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
-import Reporting.Annotation as A
+import qualified Reporting.Annotation as A
+import qualified Reporting.Region as R
 
 
 getModuleName :: String -> Maybe String
@@ -53,16 +54,20 @@ moduleDecl =
         choice
           [ do  try (reserved "module")
                 return Module.None
-          , do  try (reserved "effect")
+          , do  start <- getMyPosition
+                try (reserved "effect")
                 whitespace
                 reserved "module"
-                return Module.Effect
-          , do  reserved "foreign"
+                end <- getMyPosition
+                return $ Module.Effect (R.Region start end)
+          , do  start <- getMyPosition
+                reserved "foreign"
                 whitespace
                 reserved "effect"
                 whitespace
                 reserved "module"
-                return Module.Foreign
+                end <- getMyPosition
+                return $ Module.Foreign (R.Region start end)
           ]
 
       whitespace

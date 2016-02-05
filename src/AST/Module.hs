@@ -30,6 +30,7 @@ import qualified Docs.AST as Docs
 import qualified Elm.Package as Package
 import qualified Elm.Compiler.Version as Compiler
 import qualified Reporting.Annotation as A
+import qualified Reporting.Region as R
 
 
 
@@ -62,8 +63,8 @@ data Module phase =
 
 data Tag
   = None
-  | Effect
-  | Foreign
+  | Effect R.Region
+  | Foreign R.Region
 
 
 type Source =
@@ -89,8 +90,7 @@ data ValidInfo =
     , validExports :: Var.Listing (A.Located Var.Value)
     , validImports :: ([DefaultImport], [UserImport])
     , validDecls :: [Decl.Valid]
-    , validCmds :: [A.Commented Valid.Effect]
-    , validSubs :: [A.Commented Valid.Effect]
+    , validEffects :: Valid.Effects
     }
 
 

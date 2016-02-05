@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Parse.Declaration where
 
-import Text.Parsec ( (<|>), (<?>), choice, digit, optionMaybe, string, try )
+import Text.Parsec ( (<?>), choice, digit, optionMaybe, string, try )
 import qualified Text.Parsec.Indent as Indent
 
 import qualified AST.Declaration as Decl
@@ -95,15 +95,24 @@ defineDecl =
   do  try (reserved "define")
       forcedWS
 
-      name <-
-        string "commands" <|> string "subscriptions"
+      effectType <-
+        choice
+          [ string "commands" >> return Decl.Cmd
+          , string "subscriptions" >> return Decl.Sub
+          , do  string "foreign"
+                whitespace
+                choice
+                  [ string "commands" >> return Decl.ForeignCmd
+                  , string "subscriptions" >> return Decl.ForeignSub
+                  ]
+          ]
 
       padded (reserved "as")
 
       effects <-
         Indent.block (commentOr effectDef <* whitespace)
 
-      return (Decl.Define name effects)
+      return (Decl.Define effectType effects)
 
 
 effectDef :: IParser (A.Located Source.Effect)
