@@ -32,7 +32,7 @@ environment
     -> Result.ResultErr Env.Environment
 environment importDict interfaces (Module.Module _ name _ info) =
   let
-    (Module.Valid _ _ (defaults, imports) decls _ _) =
+    (Module.Valid _ _ (defaults, imports) decls _) =
       info
 
     allImports =

@@ -125,7 +125,7 @@ data ImportMethod =
 
 data Info expr =
   Info
-    { docs :: Docs.Centralized
+    { docs :: A.Located (Maybe Docs.Centralized)
     , exports :: [Var.Value]
     , imports :: [Name.Raw]
     , program :: expr
