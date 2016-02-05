@@ -4,7 +4,9 @@ import Prelude hiding (map)
 import qualified Reporting.Region as R
 
 
+
 -- ANNOTATION
+
 
 data Annotated annotation a
     = A annotation a
@@ -18,7 +20,9 @@ type Commented a =
     Annotated (R.Region, Maybe String) a
 
 
+
 -- CREATE
+
 
 at :: R.Position -> R.Position -> a -> Located a
 at start end value =
@@ -35,7 +39,9 @@ sameAs (A annotation _) value =
     A annotation value
 
 
+
 -- MANIPULATE
+
 
 map :: (a -> b) -> Annotated info a -> Annotated info b
 map f (A annotation value) =
