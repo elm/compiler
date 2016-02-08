@@ -32,7 +32,7 @@ header =
   do  optional freshLine
       (tag, names, exports) <-
         option
-          (Module.None, ["Main"], Var.openListing)
+          (Module.Normal, ["Main"], Var.openListing)
           (moduleDecl `followedBy` freshLine)
 
       docs <-
@@ -50,36 +50,63 @@ moduleDecl :: IParser (Module.Tag, [String], Var.Listing (A.Located Var.Value))
 moduleDecl =
   expecting "a module declaration" $
   do
-      kind <-
+      endParser <-
         choice
-          [ do  try (reserved "module")
-                return Module.None
-          , do  start <- getMyPosition
-                try (reserved "effect")
+          [
+            do  try (reserved "module")
+                return (return Module.Normal)
+          ,
+            do  try (reserved "effect")
                 whitespace
                 reserved "module"
-                end <- getMyPosition
-                return $ Module.Effect (R.Region start end)
-          , do  start <- getMyPosition
+                return parseEffects
+          ,
+            do  start <- getMyPosition
                 reserved "foreign"
                 whitespace
                 reserved "effect"
                 whitespace
                 reserved "module"
                 end <- getMyPosition
-                return $ Module.Foreign (R.Region start end)
+                return (return (Module.Foreign (R.Region start end)))
           ]
 
       whitespace
       names <- dotSep1 capVar <?> "the name of this module"
 
-      whitespace
-      exports <- option Var.openListing (listing (addLocation value))
+      padded (reserved "exposing")
 
-      whitespace
-      reserved "where"
+      exports <- listing (addLocation value)
 
-      return (kind, names, exports)
+      tag <- endParser
+
+      return (tag, names, exports)
+
+
+parseEffects :: IParser Module.Tag
+parseEffects =
+  do  padded (reserved "where")
+      brackets $ choice $
+        [ do  cmd <- entry "command"
+              whitespace
+              sub <- option Nothing (secondEntry "subscription")
+              return (Module.Effect cmd sub)
+        , do  sub <- entry "subscription"
+              whitespace
+              cmd <- option Nothing (secondEntry "command")
+              return (Module.Effect cmd sub)
+        ]
+  where
+    entry name =
+      do  try (string name)
+          padded equals
+          typeName <- addLocation capVar
+          return (Just typeName)
+
+    secondEntry name =
+      do  try comma
+          whitespace
+          entry name
 
 
 imports :: IParser [Module.UserImport]

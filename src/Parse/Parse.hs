@@ -34,8 +34,8 @@ program pkgName table src =
         (Module.Source docs exports imports sourceDecls) =
           Module.info modul
 
-      (validDecls, validEffects) <-
-        Validate.declarations (Module.tag modul) sourceDecls
+      validDecls <-
+        Validate.declarations sourceDecls
 
       return $
         modul
@@ -45,7 +45,6 @@ program pkgName table src =
                 exports
                 (addDefaults pkgName imports)
                 validDecls
-                validEffects
           }
 
 

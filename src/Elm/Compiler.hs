@@ -107,19 +107,20 @@ docsGen
     :: Bool
     -> Module.Optimized
     -> Result.Result w Error.Error (Maybe Docs.Documentation)
-docsGen isExposed modul =
+docsGen isExposed (Module.Module _ name _ info) =
   if not isExposed then
     Result.ok Nothing
+
   else
     let
       getChecked =
-        Docs.check (Module.exports modul) (Module.docs modul)
+        Docs.check (Module.exports info) (Module.docs info)
 
-      name =
-        PublicModule.Name (ModuleName._module (Module.name modul))
+      publicName =
+        PublicModule.Name (ModuleName._module name)
 
       toDocs checked =
-        Docs.fromCheckedDocs name checked
+        Docs.fromCheckedDocs publicName checked
     in
       (Just . toDocs) `fmap` Result.mapError Error.Docs getChecked
 

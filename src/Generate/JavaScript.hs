@@ -17,18 +17,15 @@ import qualified Generate.JavaScript.Variable as Var
 
 
 generate :: Module.Optimized -> String
-generate module_ =
+generate (Module.Module _ (ModuleName.Canonical _ name) _ info) =
   let
-    (ModuleName.Canonical _ name) =
-      Module.name module_
-
     body =
       concat
         [ useStrict
         , checkForCachedVersion name
-        , imports (Module.imports module_)
-        , definitions (Module.program (Module.body module_))
-        , exports name (Module.exports module_)
+        , imports (Module.imports info)
+        , definitions (Module.program info)
+        , exports name (Module.exports info)
         ]
 
     make =

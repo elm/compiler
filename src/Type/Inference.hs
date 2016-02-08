@@ -5,7 +5,7 @@ import Control.Monad.Except (Except, forM, liftIO, runExceptT, throwError)
 import qualified Data.Map as Map
 import qualified Data.Traversable as Traverse
 
-import AST.Module as Module
+import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
@@ -24,7 +24,7 @@ import System.IO.Unsafe
 
 infer
     :: Module.Interfaces
-    -> Module.CanonicalModule
+    -> Module.Canonical
     -> Except [A.Located Error.Error] (Map.Map String Type.Canonical)
 infer interfaces modul =
   either throwError return $ unsafePerformIO $ runExceptT $
@@ -41,7 +41,7 @@ infer interfaces modul =
 
 genConstraints
     :: Module.Interfaces
-    -> Module.CanonicalModule
+    -> Module.Canonical
     -> IO (Map.Map String T.Type, T.TypeConstraint)
 genConstraints interfaces modul =
   do  env <- Env.initialize (canonicalizeUnions interfaces modul)
@@ -62,17 +62,17 @@ genConstraints interfaces modul =
       fvar <- T.mkVar Nothing
 
       constraint <-
-          TcExpr.constrain env (program (body modul)) (T.VarN fvar)
+          TcExpr.constrain env (Module.program (Module.info modul)) (T.VarN fvar)
 
       return (header, environ constraint)
 
 
 canonicalizeValues
     :: Env.Environment
-    -> (ModuleName.Canonical, Interface)
+    -> (ModuleName.Canonical, Module.Interface)
     -> IO [(String, ([T.Variable], T.Type))]
 canonicalizeValues env (moduleName, iface) =
-    forM (Map.toList (iTypes iface)) $ \(name,tipe) ->
+    forM (Map.toList (Module.iTypes iface)) $ \(name,tipe) ->
         do  tipe' <- Env.instantiateType env tipe Map.empty
             return
               ( ModuleName.canonicalToString moduleName ++ "." ++ name
@@ -80,24 +80,24 @@ canonicalizeValues env (moduleName, iface) =
               )
 
 
-canonicalizeUnions :: Module.Interfaces -> Module.CanonicalModule -> [CanonicalUnion]
-canonicalizeUnions interfaces modul =
+canonicalizeUnions :: Module.Interfaces -> Module.Canonical -> [Module.CanonicalUnion]
+canonicalizeUnions interfaces (Module.Module _ name _ info) =
     localUnions ++ importedUnions
   where
-    localUnions :: [CanonicalUnion]
+    localUnions :: [Module.CanonicalUnion]
     localUnions =
-      format (Module.name modul, unions (body modul))
+      format (name, Module.unions info)
 
-    importedUnions :: [CanonicalUnion]
+    importedUnions :: [Module.CanonicalUnion]
     importedUnions =
-      concatMap (format . second iUnions) (Map.toList interfaces)
+      concatMap (format . second Module.iUnions) (Map.toList interfaces)
 
 
-format :: (ModuleName.Canonical, Module.Unions) -> [CanonicalUnion]
+format :: (ModuleName.Canonical, Module.Unions) -> [Module.CanonicalUnion]
 format (home, adts) =
     map canonical (Map.toList adts)
   where
-    canonical :: (String, UnionInfo String) -> CanonicalUnion
+    canonical :: (String, Module.UnionInfo String) -> Module.CanonicalUnion
     canonical (name, (tvars, ctors)) =
         ( toVar name
         , (tvars, map (first toVar) ctors)

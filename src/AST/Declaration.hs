@@ -26,12 +26,7 @@ data Decl def tipe expr
 
 
 type Source =
-  CommentOr (A.Located SourceOrDefine)
-
-
-data SourceOrDefine
-  = Source Source'
-  | Define EffectType [CommentOr (A.Located Source.Effect)]
+  CommentOr (A.Located Source')
 
 
 type Source' =
@@ -57,34 +52,6 @@ type Canonical =
 data CommentOr a
   = Comment (A.Located String)
   | Whatever a
-
-
-
--- EFFECTS
-
-
-data EffectType
-  = Cmd
-  | Sub
-  | ForeignCmd
-  | ForeignSub
-  deriving (Eq, Ord)
-
-
-effectTypeToString :: EffectType -> String
-effectTypeToString tipe =
-  case tipe of
-    Cmd ->
-      "commands"
-
-    Sub ->
-      "subscriptions"
-
-    ForeignCmd ->
-      "foreign commands"
-
-    ForeignSub ->
-      "foreign subscriptions"
 
 
 

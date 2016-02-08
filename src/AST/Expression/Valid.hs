@@ -5,7 +5,6 @@ import qualified AST.Expression.General as General
 import qualified AST.Pattern as Pattern
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
-import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
 
@@ -25,17 +24,7 @@ data Def
   = Definition Pattern.Raw Expr (Maybe Type.Raw)
 
 
-data Effects
-  = None
-  | Effects [A.Commented Def] [A.Commented Def]
-  | ForeignEffects [A.Commented ForeignCmd] [A.Commented ForeignSub]
-
-
-data ForeignCmd
-  = Cmd String Type.Raw
-
-
-data ForeignSub
-  = Sub String Type.Raw
-  | SubWith String Expr
+getPattern :: Def -> Pattern.Raw
+getPattern (Definition pattern _ _) =
+  pattern
 

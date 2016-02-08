@@ -43,19 +43,19 @@ compile packageName canonicalImports interfaces source =
 
       -- One last round of checks
       Result.mapError Error.Type $
-        Nitpick.topLevelTypes types (Module.body validModule)
+        Nitpick.topLevelTypes types (Module.validDecls (Module.info validModule))
 
       tagDict <-
         Result.mapError Error.Pattern $
           Nitpick.patternMatches interfaces canonicalModule
 
       -- Add the real list of types
-      let body =
-            (Module.body canonicalModule) { Module.types = types }
+      let canonicalInfo =
+            (Module.info canonicalModule) { Module.types = types }
 
       -- Do some basic optimizations
       let optModule =
-            Optimize.optimize tagDict (canonicalModule { Module.body = body })
+            Optimize.optimize tagDict (canonicalModule { Module.info = canonicalInfo })
 
       return optModule
 

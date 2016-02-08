@@ -32,7 +32,7 @@ environment
     -> Result.ResultErr Env.Environment
 environment importDict interfaces (Module.Module _ name _ info) =
   let
-    (Module.Valid _ _ (defaults, imports) decls _) =
+    (Module.Valid _ _ (defaults, imports) decls) =
       info
 
     allImports =
@@ -331,9 +331,9 @@ declToPatches moduleName (A.A (region,_) decl) =
       Env.Pattern name (Var.fromModule moduleName name, length args)
   in
   case decl of
-    D.Def (Valid.Definition pattern _ _) ->
+    D.Def def ->
         ( Nothing
-        , map (topLevel Env.Value) (P.boundVarList pattern)
+        , map (topLevel Env.Value) (P.boundVarList (Valid.getPattern def))
         )
 
     D.Union name _ ctors ->

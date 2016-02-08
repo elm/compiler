@@ -6,7 +6,6 @@ import qualified Data.Set as Set
 import qualified Text.Parsec.Error as Parsec
 import Text.PrettyPrint.ANSI.Leijen (dullyellow, hsep, text)
 
-import qualified AST.Declaration as Decl
 import qualified Reporting.Error.Helpers as Help
 import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
@@ -20,14 +19,6 @@ data Error
     | CommentAfterAnnotation String
     | CommentOnComment
     | CommentOnNothing
-
-    | BadDefineInNormalModule Decl.EffectType
-    | BadDefineInEffectModule Decl.EffectType
-    | BadDefineInForeignModule Decl.EffectType
-    | WithInEffectDefine Decl.EffectType String
-    | NoDefineInEffectModule
-    | NoDefineInForeignModule
-    | DuplicateDefines Decl.EffectType Int
 
     | InfixDuplicate String
     | TypeWithoutDefinition String
@@ -103,22 +94,6 @@ toReport _localizer err =
           Nothing
           ("This documentation comment is not followed by anything.")
           ( text "What is it documenting? Maybe it should just be removed?" )
-
-    DuplicateDefines effectType n ->
-      let
-        name =
-          Decl.effectTypeToString effectType
-      in
-        Report.report
-          "DUPLICATE DEFINE"
-          Nothing
-          ("There can only be one `define " ++ name ++ "` per module.")
-          ( Help.reflowParagraph $
-              "The `define` shown above is the last of " ++ show n ++ " in this module.\
-              \ They all say `define "++ name ++ "`, but maybe some are supposed to define\
-              \ something else? Could be a copy paste error. If they really are supposed\
-              \ to define the same kind of thing, just combine them and you should be all set!"
-          )
 
     InfixDuplicate opName ->
         Report.report

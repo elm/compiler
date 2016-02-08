@@ -2,14 +2,11 @@
 module Parse.Declaration where
 
 import Text.Parsec ( (<?>), choice, digit, optionMaybe, string, try )
-import qualified Text.Parsec.Indent as Indent
 
 import qualified AST.Declaration as Decl
-import qualified AST.Expression.Source as Source
 import qualified Parse.Expression as Expr
 import Parse.Helpers as Help
 import qualified Parse.Type as Type
-import qualified Reporting.Annotation as A
 
 
 
@@ -17,10 +14,9 @@ declaration :: IParser Decl.Source
 declaration =
   commentOr $ addLocation $
     choice
-      [ Decl.Source <$> typeDecl
-      , Decl.Source <$> infixDecl
-      , defineDecl
-      , Decl.Source <$> definition
+      [ typeDecl
+      , infixDecl
+      , definition
       ]
 
 
@@ -85,44 +81,3 @@ infixDecl =
       op <- anyOp
       return $ Decl.Fixity assoc (read [n]) op
 
-
-
--- DEFINE
-
-
-defineDecl :: IParser Decl.SourceOrDefine
-defineDecl =
-  do  try (reserved "define")
-      forcedWS
-
-      effectType <-
-        choice
-          [ string "commands" >> return Decl.Cmd
-          , string "subscriptions" >> return Decl.Sub
-          , do  string "foreign"
-                whitespace
-                choice
-                  [ string "commands" >> return Decl.ForeignCmd
-                  , string "subscriptions" >> return Decl.ForeignSub
-                  ]
-          ]
-
-      padded (reserved "as")
-
-      effects <-
-        Indent.block (commentOr effectDef <* whitespace)
-
-      return (Decl.Define effectType effects)
-
-
-effectDef :: IParser (A.Located Source.Effect)
-effectDef =
-  choice
-    [ Expr.annotation Source.Type
-    , Expr.definition Source.Def
-    , addLocation $
-      do  name <- lowVar
-          padded (reserved "with")
-          expr <- Expr.expr
-          return (Source.With name expr)
-    ]

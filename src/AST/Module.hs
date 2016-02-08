@@ -7,7 +7,6 @@ module AST.Module
 
     , UserImport, DefaultImport, ImportMethod(..)
 
-    , Effects(..)
     , Types
     , Aliases
     , Unions, UnionInfo, CanonicalUnion
@@ -22,7 +21,6 @@ import qualified Data.Map as Map
 import qualified AST.Declaration as Decl
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Expression.Optimized as Optimized
-import qualified AST.Expression.Valid as Valid
 import qualified AST.Module.Name as Name
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
@@ -62,8 +60,8 @@ data Module phase =
 
 
 data Tag
-  = None
-  | Effect R.Region
+  = Normal
+  | Effect (Maybe (A.Located String)) (Maybe (A.Located String))
   | Foreign R.Region
 
 
@@ -90,7 +88,6 @@ data ValidInfo =
     , validExports :: Var.Listing (A.Located Var.Value)
     , validImports :: ([DefaultImport], [UserImport])
     , validDecls :: [Decl.Valid]
-    , validEffects :: Valid.Effects
     }
 
 
@@ -133,7 +130,6 @@ data Info expr =
     , fixities :: [(Decl.Assoc, Int, String)]
     , aliases :: Aliases
     , unions :: Unions
-    , effects :: Effects
     }
 
 
@@ -155,13 +151,6 @@ type UnionInfo v =
 
 type CanonicalUnion =
   ( Var.Canonical, UnionInfo Var.Canonical )
-
-
-data Effects =
-  Effects
-    { cmds :: [String]
-    , subs :: [String]
-    }
 
 
 

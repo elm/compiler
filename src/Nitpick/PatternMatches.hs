@@ -22,19 +22,18 @@ import qualified Reporting.Region as Region
 import qualified Reporting.Result as Result
 
 
+
 patternMatches
     :: Module.Interfaces
-    -> Module.CanonicalModule
+    -> Module.Canonical
     -> Result.Result w Error.Error DT.VariantDict
-patternMatches interfaces modul =
+patternMatches interfaces (Module.Module _ name _ info) =
   let
-    name = Module.name modul
-    body = Module.body modul
     tagDict =
-      toTagDict interfaces name (Module.unions body)
+      toTagDict interfaces name (Module.unions info)
   in
     const (Map.map (Map.map length) tagDict)
-      <$> checkExpression tagDict (Module.program body)
+      <$> checkExpression tagDict (Module.program info)
 
 
 

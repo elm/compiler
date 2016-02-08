@@ -46,7 +46,7 @@ module'
     -> R.Result Warning.Warning Error.Error Module.Canonical
 module' canonicalImports interfaces modul =
   let
-    (Module.Valid docs exports imports decls effects) =
+    (Module.Valid docs exports imports decls) =
       Module.info modul
 
     importDict =
@@ -61,7 +61,7 @@ module' canonicalImports interfaces modul =
     (Result.Result uses rawResults) =
       (,)
         <$> canonicalDeclsResult
-        <*> resolveExports (concatMap declToValue decls) exports
+        <*> resolveExports (concatMap declToValues decls) exports
   in
     case rawResults of
       Result.Err msgs ->
@@ -100,7 +100,6 @@ module' canonicalImports interfaces modul =
                       , Module.fixities = fixities
                       , Module.aliases = aliases
                       , Module.unions = unions
-                      , Module.effects = error "TODO"
                       }
                   }
 
@@ -249,6 +248,31 @@ allUnique statedExports =
 
 
 
+-- CONVERSIONS
+
+
+declToValues :: D.Valid -> [Var.Value]
+declToValues (A.A _ decl) =
+  case decl of
+    D.Def def ->
+      map Var.Value (P.boundVarList (Valid.getPattern def))
+
+    D.Union name _tvs ctors ->
+      [ Var.Union name (Var.Listing (map fst ctors) False) ]
+
+    D.Alias name _ tipe ->
+      case tipe of
+        A.A _ (Type.RRecord _ Nothing) ->
+          [ Var.Alias name, Var.Value name ]
+
+        _ ->
+          [ Var.Alias name ]
+
+    _ ->
+      []
+
+
+
 -- GROUPING VALUES
 
 
@@ -293,26 +317,8 @@ splitLocatedValue (A.A region value) =
         (Nothing, Nothing, Just (A.A region (name, listing)))
 
 
+
 -- DECLARATIONS
-
-declToValue :: D.Valid -> [Var.Value]
-declToValue (A.A _ decl) =
-    case decl of
-      D.Def (Valid.Definition pattern _ _) ->
-          map Var.Value (P.boundVarList pattern)
-
-      D.Union name _tvs ctors ->
-          [ Var.Union name (Var.Listing (map fst ctors) False) ]
-
-      D.Alias name _ tipe ->
-          case tipe of
-            A.A _ (Type.RRecord _ Nothing) ->
-                [ Var.Alias name, Var.Value name ]
-
-            _ ->
-                [ Var.Alias name ]
-
-      _ -> []
 
 
 declaration :: Env.Environment -> D.Valid -> Result.ResultErr D.Canonical

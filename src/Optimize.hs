@@ -26,22 +26,16 @@ import qualified Reporting.Region as R
 optimize :: DT.VariantDict -> Module.Canonical -> Module.Optimized
 optimize variantDict module_@(Module.Module _ home _ info) =
   let
-    (Module.Canonical docs exports imports body) =
-      info
-
     (defs, _) =
-      flattenLets [] (Module.program body)
+      flattenLets [] (Module.program info)
 
     optDefs =
       Env.run variantDict home (concat <$> mapM (optimizeDef True) defs)
 
-    optBody =
-      body { Module.program = optDefs }
+    optInfo =
+      info { Module.program = optDefs }
   in
-    module_
-      { Module.info =
-          Module.Optimized docs exports imports optBody
-      }
+    module_ { Module.info = optInfo }
 
 
 flattenLets :: [Can.Def] -> Can.Expr -> ([Can.Def], Can.Expr)
