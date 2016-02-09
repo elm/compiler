@@ -81,7 +81,7 @@ canonicalizeValues env (moduleName, iface) =
 
 
 canonicalizeUnions :: Module.Interfaces -> Module.Canonical -> [Module.CanonicalUnion]
-canonicalizeUnions interfaces (Module.Module _ name _ info) =
+canonicalizeUnions interfaces (Module.Module name _ info) =
     localUnions ++ importedUnions
   where
     localUnions :: [Module.CanonicalUnion]

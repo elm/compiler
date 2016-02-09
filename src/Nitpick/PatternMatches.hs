@@ -27,7 +27,7 @@ patternMatches
     :: Module.Interfaces
     -> Module.Canonical
     -> Result.Result w Error.Error DT.VariantDict
-patternMatches interfaces (Module.Module _ name _ info) =
+patternMatches interfaces (Module.Module name _ info) =
   let
     tagDict =
       toTagDict interfaces name (Module.unions info)

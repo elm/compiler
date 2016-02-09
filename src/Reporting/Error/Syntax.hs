@@ -20,6 +20,11 @@ data Error
     | CommentOnComment
     | CommentOnNothing
 
+    | SettingsOnNormalModule
+    | SettingsOnForeignModule
+    | DuplicateSettingOnEffectModule String
+    | BadSettingOnEffectModule String
+
     | InfixDuplicate String
     | TypeWithoutDefinition String
     | DuplicateFieldName String

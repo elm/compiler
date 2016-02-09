@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Validate (declarations) where
+module Validate (module') where
 
 import Control.Monad (foldM)
 import qualified Data.Map as Map
@@ -11,13 +11,125 @@ import AST.Expression.General as Expr
 import qualified AST.Expression.Source as Source
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Declaration as D
+import qualified AST.Module as Module
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as Pattern
 import qualified AST.Type as Type
+import qualified Elm.Compiler.Imports as Imports
+import qualified Elm.Package as Package
 import Elm.Utils ((|>))
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as Error
 import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
+
+
+
+-- MODULES
+
+
+module' :: Module.Source -> Result.Result wrn Error.Error Module.Valid
+module' (Module.Module name path info) =
+  let
+    (ModuleName.Canonical pkgName _) =
+      name
+
+    (Module.Source tag settings docs exports imports decls) =
+      info
+  in
+    do  validEffects <- validateModuleDecl tag settings
+        validDecls <- declarations decls
+
+        return $ Module.Module name path $
+          Module.Valid docs exports (addDefaults pkgName imports) validDecls validEffects
+
+
+-- determine if default imports should be added, only elm-lang/core is exempt
+addDefaults
+  :: Package.Name
+  -> [Module.UserImport]
+  -> ([Module.DefaultImport], [Module.UserImport])
+addDefaults pkgName imports =
+  flip (,) imports $
+    if pkgName == Package.coreName then
+      []
+
+    else
+      Imports.defaults
+
+
+validateModuleDecl
+  :: Module.SourceTag
+  -> Module.SourceSettings
+  -> Result.Result wrn Error.Error Module.ValidEffects
+validateModuleDecl tag settings =
+  case tag of
+    Module.SrcNormal ->
+      do  noSettings Error.SettingsOnNormalModule settings
+          return Module.ValidNormal
+
+    Module.SrcForeign ->
+      do  noSettings Error.SettingsOnForeignModule settings
+          return Module.ValidForeign
+
+    Module.SrcEffect ->
+      gatherEffectSettings settings
+
+
+noSettings
+  :: Error.Error
+  -> Module.SourceSettings
+  -> Result.Result wrn Error.Error ()
+noSettings errorMsg (A.A region settings) =
+  case settings of
+    [] ->
+      Result.ok ()
+
+    _ : _ ->
+      Result.throw region errorMsg
+
+
+gatherEffectSettings
+  :: Module.SourceSettings
+  -> Result.Result wrn Error.Error Module.ValidEffects
+gatherEffectSettings (A.A _ pairs) =
+  uncurry Module.ValidEffect <$>
+    gatherEffectSettingsHelp (Nothing, Nothing) pairs
+
+
+type Effects =
+  (Maybe (A.Located String), Maybe (A.Located String))
+
+
+gatherEffectSettingsHelp
+  :: Effects
+  -> [(A.Located String, A.Located String)]
+  -> Result.Result wrn Error.Error Effects
+gatherEffectSettingsHelp effects@(maybeCmd, maybeSub) pairs =
+  case pairs of
+    [] ->
+      Result.ok effects
+
+    (A.A region name, effect) : rest ->
+      case name of
+        "command" ->
+          case maybeCmd of
+            Nothing ->
+              gatherEffectSettingsHelp (Just effect, maybeSub) rest
+
+            Just _ ->
+              Result.throw region (Error.DuplicateSettingOnEffectModule name)
+
+        "subscription" ->
+          case maybeSub of
+            Nothing ->
+              gatherEffectSettingsHelp (maybeCmd, Just effect) rest
+
+            Just _ ->
+              Result.throw region (Error.DuplicateSettingOnEffectModule name)
+
+        _ ->
+          Result.throw region (Error.BadSettingOnEffectModule name)
 
 
 

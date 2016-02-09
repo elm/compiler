@@ -24,7 +24,7 @@ import qualified Reporting.Region as R
 
 
 optimize :: DT.VariantDict -> Module.Canonical -> Module.Optimized
-optimize variantDict module_@(Module.Module _ home _ info) =
+optimize variantDict modul@(Module.Module home _ info) =
   let
     (defs, _) =
       flattenLets [] (Module.program info)
@@ -35,7 +35,7 @@ optimize variantDict module_@(Module.Module _ home _ info) =
     optInfo =
       info { Module.program = optDefs }
   in
-    module_ { Module.info = optInfo }
+    modul { Module.info = optInfo }
 
 
 flattenLets :: [Can.Def] -> Can.Expr -> ([Can.Def], Can.Expr)

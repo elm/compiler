@@ -8,7 +8,6 @@ import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
-import qualified Reporting.Region as R
 
 
 getModuleName :: String -> Maybe String
@@ -16,7 +15,7 @@ getModuleName source =
   let
     minimalParser =
       do  optional freshLine
-          (_, names, _) <- moduleDecl
+          (ModuleDecl _ names _ _) <- moduleDecl
           return (ModuleName.toString names)
   in
     case iParse minimalParser source of
@@ -30,9 +29,9 @@ getModuleName source =
 header :: IParser (Module.Header [Module.UserImport])
 header =
   do  optional freshLine
-      (tag, names, exports) <-
+      (ModuleDecl tag names exports settings) <-
         option
-          (Module.Normal, ["Main"], Var.openListing)
+          (ModuleDecl Module.SrcNormal ["Main"] Var.openListing Module.emptySettings)
           (moduleDecl `followedBy` freshLine)
 
       docs <-
@@ -43,70 +42,63 @@ header =
 
       imports' <- imports
 
-      return (Module.Header tag names docs exports imports')
+      return (Module.Header tag names exports settings docs imports')
 
 
-moduleDecl :: IParser (Module.Tag, [String], Var.Listing (A.Located Var.Value))
+data ModuleDecl =
+  ModuleDecl
+    { _tag :: Module.SourceTag
+    , _name :: [String]
+    , _exports :: Var.Listing (A.Located Var.Value)
+    , _settings :: Module.SourceSettings
+    }
+
+
+moduleDecl :: IParser ModuleDecl
 moduleDecl =
   expecting "a module declaration" $
   do
-      endParser <-
-        choice
-          [
-            do  try (reserved "module")
-                return (return Module.Normal)
-          ,
-            do  try (reserved "effect")
-                whitespace
-                reserved "module"
-                return parseEffects
-          ,
-            do  start <- getMyPosition
-                reserved "foreign"
-                whitespace
-                reserved "effect"
-                whitespace
-                reserved "module"
-                end <- getMyPosition
-                return (return (Module.Foreign (R.Region start end)))
-          ]
+      tag <- parseTag
 
-      whitespace
-      names <- dotSep1 capVar <?> "the name of this module"
+      names <- padded (dotSep1 capVar) <?> "the name of this module"
 
-      padded (reserved "exposing")
+      settings <- option Module.emptySettings parseSetting
 
-      exports <- listing (addLocation value)
+      exports <- padded (listing (addLocation value))
 
-      tag <- endParser
+      reserved "where"
 
-      return (tag, names, exports)
+      return (ModuleDecl tag names exports settings)
 
 
-parseEffects :: IParser Module.Tag
-parseEffects =
-  do  padded (reserved "where")
-      brackets $ choice $
-        [ do  cmd <- entry "command"
-              whitespace
-              sub <- option Nothing (secondEntry "subscription")
-              return (Module.Effect cmd sub)
-        , do  sub <- entry "subscription"
-              whitespace
-              cmd <- option Nothing (secondEntry "command")
-              return (Module.Effect cmd sub)
-        ]
-  where
-    entry name =
-      do  try (string name)
-          padded equals
-          typeName <- addLocation capVar
-          return (Just typeName)
-
-    secondEntry name =
-      do  try comma
+parseTag :: IParser Module.SourceTag
+parseTag =
+  choice
+    [
+      do  try (reserved "module")
+          return Module.SrcNormal
+    ,
+      do  try (reserved "effect")
           whitespace
-          entry name
+          reserved "module"
+          return Module.SrcEffect
+    ,
+      do  reserved "foreign"
+          whitespace
+          reserved "effect"
+          whitespace
+          reserved "module"
+          return Module.SrcForeign
+    ]
+
+
+parseSetting :: IParser Module.SourceSettings
+parseSetting =
+  addLocation $ brackets $ commaSep $
+    do  name <- addLocation lowVar
+        padded equals
+        typeName <- addLocation capVar
+        return (name, typeName)
 
 
 imports :: IParser [Module.UserImport]

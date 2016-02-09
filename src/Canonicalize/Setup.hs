@@ -30,9 +30,9 @@ environment
     -> Module.Interfaces
     -> Module.Valid
     -> Result.ResultErr Env.Environment
-environment importDict interfaces (Module.Module _ name _ info) =
+environment importDict interfaces (Module.Module name _ info) =
   let
-    (Module.Valid _ _ (defaults, imports) decls) =
+    (Module.Valid _ _ (defaults, imports) decls effects) =
       info
 
     allImports =

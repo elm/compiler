@@ -17,7 +17,7 @@ import qualified Generate.JavaScript.Variable as Var
 
 
 generate :: Module.Optimized -> String
-generate (Module.Module _ (ModuleName.Canonical _ name) _ info) =
+generate (Module.Module (ModuleName.Canonical _ name) _ info) =
   let
     body =
       concat

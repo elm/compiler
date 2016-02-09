@@ -9,7 +9,6 @@ import qualified Text.Parsec.Error as Parsec
 import qualified AST.Declaration as Decl
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
-import qualified Elm.Compiler.Imports as Imports
 import qualified Elm.Package as Package
 import Parse.Helpers
 import qualified Parse.Module as Parse (header)
@@ -30,36 +29,7 @@ program pkgName table src =
   do  modul <-
         parseWithTable table src (programParser pkgName)
 
-      let
-        (Module.Source docs exports imports sourceDecls) =
-          Module.info modul
-
-      validDecls <-
-        Validate.declarations sourceDecls
-
-      return $
-        modul
-          { Module.info =
-              Module.Valid
-                docs
-                exports
-                (addDefaults pkgName imports)
-                validDecls
-          }
-
-
--- determine if default imports should be added, only elm-lang/core is exempt
-addDefaults
-  :: Package.Name
-  -> [Module.UserImport]
-  -> ([Module.DefaultImport], [Module.UserImport])
-addDefaults pkgName imports =
-  flip (,) imports $
-    if pkgName == Package.coreName then
-      []
-
-    else
-      Imports.defaults
+      Validate.module' modul
 
 
 
@@ -68,7 +38,7 @@ addDefaults pkgName imports =
 
 programParser :: Package.Name -> IParser Module.Source
 programParser pkgName =
-  do  (Module.Header tag name docs exports imports) <-
+  do  (Module.Header tag name exports settings docs imports) <-
         Parse.header
 
       decls <-
@@ -80,10 +50,9 @@ programParser pkgName =
 
       return $
         Module.Module
-          tag
           (ModuleName.Canonical pkgName name)
           ""
-          (Module.Source docs exports imports decls)
+          (Module.Source tag settings docs exports imports decls)
 
 
 declarations :: IParser [Decl.Source]

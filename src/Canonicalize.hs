@@ -46,7 +46,7 @@ module'
     -> R.Result Warning.Warning Error.Error Module.Canonical
 module' canonicalImports interfaces modul =
   let
-    (Module.Valid docs exports imports decls) =
+    (Module.Valid docs exports imports decls effects) =
       Module.info modul
 
     importDict =

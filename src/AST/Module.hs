@@ -1,8 +1,8 @@
 module AST.Module
-    ( Header(..), Module(..), Tag(..)
+    ( Header(..), Module(..)
 
-    , Source, SourceInfo(..)
-    , Valid, ValidInfo(..)
+    , Source, SourceInfo(..), SourceTag(..), SourceSettings, emptySettings
+    , Valid, ValidInfo(..), ValidEffects(..)
     , Canonical, Optimized, Info(..)
 
     , UserImport, DefaultImport, ImportMethod(..)
@@ -38,10 +38,11 @@ import qualified Reporting.Region as R
 {-| Basic info needed to identify modules and determine dependencies. -}
 data Header imports =
   Header
-    { _tag :: Tag
+    { _tag :: SourceTag
     , _name :: Name.Raw
-    , _docs :: A.Located (Maybe String)
     , _exports :: Var.Listing (A.Located Var.Value)
+    , _settings :: SourceSettings
+    , _docs :: A.Located (Maybe String)
     , _imports :: imports
     }
 
@@ -52,17 +53,10 @@ data Header imports =
 
 data Module phase =
   Module
-    { tag :: Tag
-    , name :: Name.Canonical
+    { name :: Name.Canonical
     , path :: FilePath
     , info :: phase
     }
-
-
-data Tag
-  = Normal
-  | Effect (Maybe (A.Located String)) (Maybe (A.Located String))
-  | Foreign R.Region
 
 
 type Source =
@@ -71,11 +65,28 @@ type Source =
 
 data SourceInfo =
   Source
-    { srcDocs :: A.Located (Maybe String)
+    { srcTag :: SourceTag
+    , srcSettings :: SourceSettings
+    , srcDocs :: A.Located (Maybe String)
     , srcExports :: Var.Listing (A.Located Var.Value)
     , srcImports :: [UserImport]
     , srcDecls :: [Decl.Source]
     }
+
+
+data SourceTag
+  = SrcNormal
+  | SrcEffect
+  | SrcForeign
+
+
+type SourceSettings =
+  A.Located [(A.Located String, A.Located String)]
+
+
+emptySettings :: SourceSettings
+emptySettings =
+  A.A (error "region of empty settings should not be needed") []
 
 
 type Valid =
@@ -88,7 +99,14 @@ data ValidInfo =
     , validExports :: Var.Listing (A.Located Var.Value)
     , validImports :: ([DefaultImport], [UserImport])
     , validDecls :: [Decl.Valid]
+    , validEffects :: ValidEffects
     }
+
+
+data ValidEffects
+  = ValidNormal
+  | ValidEffect (Maybe (A.Located String)) (Maybe (A.Located String))
+  | ValidForeign
 
 
 type Canonical =

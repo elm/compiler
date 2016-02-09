@@ -53,7 +53,7 @@ parseDependencies sourceCode =
       Result.Err msgs ->
           Left $ map (Error . A.map Error.Syntax) msgs
 
-      Result.Ok (Module.Header _kind name _docs _exports imports) ->
+      Result.Ok (Module.Header _ name _ _ _ imports) ->
           Right
             ( PublicModule.Name name
             , map (PublicModule.Name . fst . A.drop) imports
@@ -107,7 +107,7 @@ docsGen
     :: Bool
     -> Module.Optimized
     -> Result.Result w Error.Error (Maybe Docs.Documentation)
-docsGen isExposed (Module.Module _ name _ info) =
+docsGen isExposed (Module.Module name _ info) =
   if not isExposed then
     Result.ok Nothing
 
