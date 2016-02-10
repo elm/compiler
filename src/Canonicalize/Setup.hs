@@ -145,7 +145,9 @@ interfacePatches moduleName prefix interface =
       ]
 
 
+
 -- PATCHES FOR INDIVIDUAL VALUES
+
 
 valueToPatches
     :: R.Region
@@ -329,7 +331,7 @@ declToPatches
 declToPatches moduleName (A.A (region,_) decl) =
   let
     topLevel mkPatch x =
-      mkPatch x (Var.topLevel moduleName x )
+      mkPatch x (Var.topLevel moduleName x)
 
     namespaced mkPatch x =
       mkPatch x (Var.fromModule moduleName x)
@@ -367,7 +369,9 @@ declToPatches moduleName (A.A (region,_) decl) =
         )
 
 
+
 -- RESTRICT VISIBLE API OF INTERFACES
+
 
 restrictToPublicApi :: Module.Interface -> Module.Interface
 restrictToPublicApi interface =
