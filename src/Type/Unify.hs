@@ -4,6 +4,7 @@ module Type.Unify (unify) where
 import Control.Monad (zipWithM_)
 import Control.Monad.Except (ExceptT, lift, liftIO, throwError, runExceptT)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.UnionFind.IO as UF
 
 import qualified AST.Variable as Var
@@ -563,6 +564,9 @@ unifyStructure context term otherContent =
               do  subUnify context arg otherArg
                   subUnify context result otherResult
                   merge context otherContent
+
+          (Effects1 names, Effects1 otherNames) ->
+              merge context (Structure (Effects1 (Set.union names otherNames)))
 
           (EmptyRecord1, EmptyRecord1) ->
               merge context otherContent

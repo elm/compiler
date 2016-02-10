@@ -12,11 +12,12 @@ import Control.Arrow ((***), first)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Text.PrettyPrint.ANSI.Leijen
-  ( Doc, (<+>), cat, colon, comma, dullyellow, equals, hang, hsep
-  , lbrace, lparen, parens, rbrace, rparen, sep, text, vcat
+  ( Doc, (<+>), brackets, cat, colon, comma, dullyellow, equals, hang, hsep
+  , lbrace, lparen, parens, punctuate, rbrace, rparen, sep, text, vcat
   )
 
 import qualified AST.Helpers as Help
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Reporting.Error.Helpers as Help
@@ -87,13 +88,24 @@ type Localizer =
 varToDoc :: Localizer -> Var.Canonical -> Doc
 varToDoc localizer var =
   let
-    name = Var.toString var
+    name =
+      Var.toString var
   in
     if name == "_Tuple0" then
-        text "()"
+      text "()"
 
     else
-        text (maybe name id (Map.lookup name localizer))
+      text (maybe name id (Map.lookup name localizer))
+
+
+-- TODO make sure that localizer contains qualifiers without variables
+moduleNameToDoc :: Localizer -> ModuleName.Canonical -> Doc
+moduleNameToDoc localizer var =
+  let
+    name =
+      ModuleName.canonicalToString var
+  in
+    text (maybe name id (Map.lookup name localizer))
 
 
 
@@ -400,6 +412,10 @@ docType localizer context tipe =
           docRecord Full
             (map (text *** docType localizer None) fields)
             (fmap text ext)
+
+    Type.Effects names ->
+        brackets $ cat $ punctuate comma $
+          map (moduleNameToDoc localizer) (Set.toList names)
 
     Type.Aliased name args _ ->
         docApp localizer context name (map snd args)

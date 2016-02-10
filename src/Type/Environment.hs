@@ -176,8 +176,10 @@ instantiator env sourceType =
 
 instantiatorHelp :: Environment -> Set.Set String -> T.Canonical -> State.StateT VarDict IO Type
 instantiatorHelp env aliasVars sourceType =
-    let go = instantiatorHelp env aliasVars
-    in
+  let
+    go =
+      instantiatorHelp env aliasVars
+  in
     case sourceType of
       T.Lambda t1 t2 ->
           (==>) <$> go t1 <*> go t2
@@ -235,3 +237,6 @@ instantiatorHelp env aliasVars sourceType =
                         go extType
 
               return $ TermN (Record1 tfields text)
+
+      T.Effects names ->
+          return $ TermN (Effects1 names)

@@ -100,6 +100,26 @@ toReport _localizer err =
           ("This documentation comment is not followed by anything.")
           ( text "What is it documenting? Maybe it should just be removed?" )
 
+    SettingsOnNormalModule ->
+        Report.report
+          "BAD MODULE DECLARATION"
+          Nothing
+          "A normal module can expose values, but not register commands and subscriptions."
+          ( Help.reflowParagraph $
+              "If you want a normal module, just remove this stuff. If you want to create\
+              \ an `effect module` you just forgot to use the `effect` keyword. In that\
+              \ case, just change `module` to `effect module` and you should be all set!"
+          )
+
+    SettingsOnForeignModule ->
+        error "TODO - SettingsOnForeignModule"
+
+    DuplicateSettingOnEffectModule name ->
+        error "TODO - DuplicateSettingOnEffectModule" name
+
+    BadSettingOnEffectModule name ->
+        error "TODO - BadSettingOnEffectModule" name
+
     InfixDuplicate opName ->
         Report.report
           "INFIX OVERLAP"

@@ -1,5 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
-module Canonicalize.Environment where
+module Canonicalize.Environment
+  ( Environment(..)
+  , insert
+  , Patch(..), fromPatches, addPattern
+  , builtinPatches
+  , toDealiaser
+  )
+  where
 
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -14,7 +21,9 @@ import qualified AST.Variable as Var
 import Elm.Utils ((|>))
 
 
+
 -- ENVIRONMENT
+
 
 data Environment = Env
     { _home     :: ModuleName.Canonical
@@ -22,6 +31,7 @@ data Environment = Env
     , _unions   :: Dict Var.Canonical
     , _aliases  :: Dict (Var.Canonical, [String], Type.Canonical)
     , _patterns :: Dict (Var.Canonical, Int)
+    , _effects  :: Map.Map String ModuleName.Canonical
     }
 
 
@@ -29,22 +39,29 @@ type Dict a =
     Map.Map String (Set.Set a)
 
 
-fromPatches :: ModuleName.Canonical -> [Patch] -> Environment
-fromPatches moduleName patches =
+fromPatches
+  :: ModuleName.Canonical
+  -> Map.Map String ModuleName.Canonical
+  -> [Patch]
+  -> Environment
+fromPatches moduleName moduleNames patches =
   addPatches
-      patches
-      (Env moduleName Map.empty Map.empty Map.empty Map.empty)
+    patches
+    (Env moduleName Map.empty Map.empty Map.empty Map.empty moduleNames)
 
 
 addPattern :: P.Pattern ann var -> Environment -> Environment
 addPattern pattern env =
-  let patches =
-        map (\x -> Value x (Var.local x)) (P.boundVarList pattern)
+  let
+    patches =
+      map (\x -> Value x (Var.local x)) (P.boundVarList pattern)
   in
-      addPatches patches env
+    addPatches patches env
+
 
 
 -- PATCHES
+
 
 data Patch
     = Value String Var.Canonical
@@ -53,7 +70,9 @@ data Patch
     | Pattern String (Var.Canonical, Int)
 
 
+
 -- ADD PATCH TO ENVIRONMENT
+
 
 addPatches :: [Patch] -> Environment -> Environment
 addPatches patches env =
@@ -81,7 +100,9 @@ insert key value =
   Map.insertWith Set.union key (Set.singleton value)
 
 
+
 -- PATCH HELPERS
+
 
 builtinPatches :: [Patch]
 builtinPatches =
@@ -108,10 +129,12 @@ builtinPatches =
         ("_Tuple" ++ show n, n)
 
 
+
 -- TO TYPE DEALIASER
 
+
 toDealiaser :: Environment -> Map.Map String String
-toDealiaser (Env _ _ unions aliases _) =
+toDealiaser (Env _ _ unions aliases _ _) =
   let
     dealiasUnion (localName, canonicalSet) =
       case Set.toList canonicalSet of

@@ -40,5 +40,9 @@ toType useAliases astType =
       Type.Aliased name args t ->
         if useAliases then
           T.App (T.Type (Var.toString name)) (map (go . snd) args)
+
         else
           go (Type.dealias args t)
+
+      Type.Effects _ ->
+          error "TODO - toType Effects"

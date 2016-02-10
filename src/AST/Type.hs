@@ -9,7 +9,9 @@ module AST.Type
 import Control.Arrow (second)
 import Data.Binary
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
@@ -29,6 +31,7 @@ data Raw'
     | RType Var.Raw
     | RApp Raw [Raw]
     | RRecord [(String, Raw)] (Maybe Raw)
+    | REffects [A.Located ModuleName.Raw]
 
 
 data Canonical
@@ -37,6 +40,7 @@ data Canonical
     | Type Var.Canonical
     | App Canonical [Canonical]
     | Record [(String, Canonical)] (Maybe Canonical)
+    | Effects (Set.Set ModuleName.Canonical)
     | Aliased Var.Canonical [(String, Canonical)] (Aliased Canonical)
     deriving (Eq, Ord)
 
@@ -80,6 +84,9 @@ deepDealias tipe =
 
     App f args ->
       App (deepDealias f) (map deepDealias args)
+
+    Effects _ ->
+      tipe
 
 
 iteratedDealias :: Canonical -> Canonical
@@ -127,6 +134,9 @@ dealiasHelp typeTable tipe =
     App f args ->
       App (go f) (map go args)
 
+    Effects _ ->
+      tipe
+
 
 
 -- COLLECT LAMBDAS
@@ -164,8 +174,11 @@ instance Binary Canonical where
       Record fs ext ->
         putWord8 4 >> put fs >> put ext
 
+      Effects names ->
+        putWord8 5 >> put names
+
       Aliased var args t ->
-        putWord8 5 >> put var >> put args >> put t
+        putWord8 6 >> put var >> put args >> put t
 
   get =
     do  n <- getWord8
@@ -175,7 +188,8 @@ instance Binary Canonical where
           2 -> Type <$> get
           3 -> App <$> get <*> get
           4 -> Record <$> get <*> get
-          5 -> Aliased <$> get <*> get <*> get
+          5 -> Effects <$> get
+          6 -> Aliased <$> get <*> get <*> get
           _ -> error "Error reading a valid type from serialized string"
 
 

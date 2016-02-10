@@ -195,3 +195,6 @@ fromRawType (A.A _ astType) =
       Type.RRecord fields ext ->
           Record (map (second fromRawType) fields) (fmap fromRawType ext)
 
+      Type.REffects _ ->
+          error "TODO - fromRawType REffects"
+

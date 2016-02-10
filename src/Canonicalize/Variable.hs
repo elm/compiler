@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Canonicalize.Variable where
+module Canonicalize.Variable (variable, tvar, pvar, effect) where
 
 import qualified Data.Either as Either
 import qualified Data.Map as Map
@@ -17,6 +17,10 @@ import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Result as Result
 import qualified Elm.Package as Pkg
 import Elm.Utils ((|>))
+
+
+
+-- FINDERS
 
 
 variable :: R.Region -> Env.Environment -> String -> Result.ResultErr Var.Canonical
@@ -92,7 +96,26 @@ pvar region env var actualArgs =
           else Result.err (A.A region (Error.argMismatch name expectedArgs actualArgs))
 
 
+effect
+    :: Env.Environment
+    -> A.Located ModuleName.Raw
+    -> Result.ResultErr (A.Located ModuleName.Canonical)
+effect env (A.A region rawName) =
+  let
+    rawString =
+      ModuleName.toString rawName
+  in
+    case Map.lookup rawString (Env._effects env) of
+      Just name ->
+        Result.addModule (ModuleName._module name) (Result.ok (A.A region name))
+
+      Nothing ->
+        notFound region "effect type" (Map.keys (Env._effects env)) rawString
+
+
+
 -- FOUND
+
 
 preferLocals
     :: R.Region
@@ -164,7 +187,9 @@ isTopLevel (Var.Canonical home _) =
         False
 
 
+
 -- NOT FOUND HELPERS
+
 
 type VarName =
     Either String (ModuleName.Raw, String)
@@ -194,7 +219,9 @@ isOp name =
   Help.isOp (noQualifier name)
 
 
+
 -- NOT FOUND
+
 
 notFound :: R.Region -> String -> [String] -> String -> Result.ResultErr a
 notFound region kind possibilities var =

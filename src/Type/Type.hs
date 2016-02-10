@@ -9,6 +9,7 @@ import qualified Data.Set as Set
 import qualified Data.Traversable as Traverse (traverse)
 import qualified Data.UnionFind.IO as UF
 
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as T
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
@@ -45,6 +46,7 @@ data Term1 a
     | Fun1 a a
     | EmptyRecord1
     | Record1 (Map.Map String a) a
+    | Effects1 (Set.Set ModuleName.Canonical)
 
 
 data TermN a
@@ -309,22 +311,22 @@ termToSrcType :: Term1 Variable -> StateT NameState IO T.Canonical
 termToSrcType term =
   case term of
     App1 func arg ->
-        do  srcFunc <- variableToSrcType func
-            srcArg <- variableToSrcType arg
-            case srcFunc of
-              T.App f args ->
-                  return (T.App f (args ++ [srcArg]))
+      do  srcFunc <- variableToSrcType func
+          srcArg <- variableToSrcType arg
+          case srcFunc of
+            T.App f args ->
+              return (T.App f (args ++ [srcArg]))
 
-              _ ->
-                  return (T.App srcFunc [srcArg])
+            _ ->
+              return (T.App srcFunc [srcArg])
 
     Fun1 a b ->
-        T.Lambda
-            <$> variableToSrcType a
-            <*> variableToSrcType b
+      T.Lambda
+        <$> variableToSrcType a
+        <*> variableToSrcType b
 
     EmptyRecord1 ->
-        return $ T.Record [] Nothing
+      return $ T.Record [] Nothing
 
     Record1 fields extension ->
       do  srcFields <- Map.toList <$> Traverse.traverse variableToSrcType fields
@@ -339,6 +341,9 @@ termToSrcType term =
 
                 _ ->
                     error "Used toSrcType on a type that is not well-formed"
+
+    Effects1 names ->
+      return $ T.Effects names
 
 
 
@@ -455,4 +460,7 @@ getVarNamesTerm term =
     Record1 fields extension ->
         do  fieldVars <- Set.unions <$> mapM go (Map.elems fields)
             Set.union fieldVars <$> go extension
+
+    Effects1 _ ->
+        return Set.empty
 

@@ -143,6 +143,9 @@ adjustRankContent youngMark visitedMark groupRank content =
       Structure (Record1 fields extension) ->
           maximum <$> mapM go (extension : Map.elems fields)
 
+      Structure (Effects1 _) ->
+          return outermostRank
+
 
 
 -- SOLVER
@@ -342,3 +345,6 @@ occursHelp seen var =
 
                   Record1 fields ext ->
                       or <$> mapM go (ext : Map.elems fields)
+
+                  Effects1 _ ->
+                      return False

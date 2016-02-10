@@ -573,3 +573,6 @@ freeVars (A.A region tipe) =
       maybe [] freeVars ext
       ++ concatMap (freeVars . snd) fields
 
+    Type.REffects _ ->
+      []
+

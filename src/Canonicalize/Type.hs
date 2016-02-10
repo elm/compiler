@@ -1,8 +1,10 @@
 {-# OPTIONS_GHC -Wall #-}
 module Canonicalize.Type (tipe) where
 
+import qualified Data.Set as Set
 import qualified Data.Traversable as Trav
 
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as T
 import qualified AST.Variable as Var
 
@@ -19,10 +21,13 @@ tipe
     -> T.Raw
     -> Result.ResultErr T.Canonical
 tipe env typ@(A.A region typ') =
-    let go = tipe env
-        goSnd (name,t) =
-            (,) name <$> go t
-    in
+  let
+    go =
+      tipe env
+
+    goSnd (name,t) =
+      (,) name <$> go t
+  in
     case typ' of
       T.RVar x ->
           Result.ok (T.Var x)
@@ -39,6 +44,9 @@ tipe env typ@(A.A region typ') =
       T.RRecord fields ext ->
           T.Record <$> Trav.traverse goSnd fields <*> Trav.traverse go ext
 
+      T.REffects rawNames ->
+          T.Effects <$> canonicalizeEffects env rawNames
+
 
 canonicalizeApp
     :: R.Region
@@ -49,11 +57,13 @@ canonicalizeApp
 canonicalizeApp region env f args =
   case f of
     A.A _ (T.RType (Var.Raw rawName)) ->
-        Canonicalize.tvar region env rawName
-          `Result.andThen` canonicalizeWithTvar
+      Canonicalize.tvar region env rawName
+        `Result.andThen` canonicalizeWithTvar
 
     _ ->
-        T.App <$> tipe env f <*> Trav.traverse (tipe env) args
+      T.App
+        <$> tipe env f
+        <*> Trav.traverse (tipe env) args
 
   where
     canonicalizeWithTvar tvar =
@@ -76,12 +86,34 @@ canonicalizeAlias
     -> [T.Raw]
     -> Result.ResultErr T.Canonical
 canonicalizeAlias region env (name, tvars, dealiasedTipe) types =
-  if typesLen /= tvarsLen
-    then Result.err (A.A region (Error.alias name tvarsLen typesLen))
-    else toAlias <$> Trav.traverse (tipe env) types
-  where
+  let
     typesLen = length types
     tvarsLen = length tvars
 
     toAlias canonicalTypes =
-        T.Aliased name (zip tvars canonicalTypes) (T.Holey dealiasedTipe)
+      T.Aliased name (zip tvars canonicalTypes) (T.Holey dealiasedTipe)
+  in
+    if typesLen /= tvarsLen then
+      Result.err (A.A region (Error.alias name tvarsLen typesLen))
+
+    else
+      toAlias <$> Trav.traverse (tipe env) types
+
+
+canonicalizeEffects
+    :: Env.Environment
+    -> [A.Located ModuleName.Raw]
+    -> Result.ResultErr (Set.Set ModuleName.Canonical)
+canonicalizeEffects env rawNames =
+  let
+    addToSet (A.A region name) set =
+      if Set.member name set then
+        Result.err (A.A region (Error.DuplicateEffect name))
+
+      else
+        Result.ok (Set.insert name set)
+  in
+    Trav.traverse (Canonicalize.effect env) rawNames
+      `Result.andThen`
+        Result.foldl addToSet Set.empty
+

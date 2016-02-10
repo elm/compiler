@@ -32,23 +32,26 @@ environment
     -> Result.ResultErr Env.Environment
 environment importDict interfaces (Module.Module name _ info) =
   let
-    (Module.Valid _ _ (defaults, imports) decls effects) =
+    (Module.Valid _ _ (defaults, imports) decls _) =  -- TODO add foreign effects as patches?
       info
 
     allImports =
       imports ++ map (A.A (error "default import not found")) defaults
 
-    importPatchesResult =
-        concat <$> Trav.traverse (importPatches importDict interfaces) allImports
+    importIngredients =
+      unzip <$> Trav.traverse (importPatches importDict interfaces) allImports
 
     (typeAliasNodes, declPatches) =
-        declarationsToPatches name decls
+      declarationsToPatches name decls
 
-    patches =
-        (++) (Env.builtinPatches ++ declPatches) <$> importPatchesResult
+    createEnv (moduleNamePairs, patchLists) =
+      Env.fromPatches
+        name
+        (Map.fromList (Maybe.catMaybes moduleNamePairs))
+        (concat (Env.builtinPatches : declPatches : patchLists))
   in
-    (Env.fromPatches name <$> patches)
-        `Result.andThen` addTypeAliases name typeAliasNodes
+    (createEnv <$> importIngredients)
+      `Result.andThen` addTypeAliases name typeAliasNodes
 
 
 
@@ -59,7 +62,7 @@ importPatches
     :: Map.Map ModuleName.Raw ModuleName.Canonical
     -> Module.Interfaces
     -> A.Located (ModuleName.Raw, Module.ImportMethod)
-    -> Result.ResultErr [Env.Patch]
+    -> Result.ResultErr (Maybe (String, ModuleName.Canonical), [Env.Patch])
 importPatches importDict allInterfaces (A.A region (rawImportName, method)) =
   let
     maybeInterface =
@@ -70,7 +73,7 @@ importPatches importDict allInterfaces (A.A region (rawImportName, method)) =
   case maybeInterface of
     Nothing ->
       if ModuleName.isNative rawImportName then
-        Result.ok []
+        Result.ok (Nothing, [])
 
       else
         allInterfaces
@@ -102,7 +105,8 @@ importPatches importDict allInterfaces (A.A region (rawImportName, method)) =
           else
             concat <$> Trav.traverse (valueToPatches region importName interface) exposedValues
       in
-        (++) qualifiedPatches <$> unqualifiedPatches
+        (,) (Just (qualifier, importName)) <$>
+          ((++) qualifiedPatches <$> unqualifiedPatches)
 
 
 interfacePatches :: ModuleName.Canonical -> String -> Module.Interface -> [Env.Patch]
@@ -254,6 +258,9 @@ node region name tvars alias =
 
         Type.RRecord fs ext ->
           maybe [] edges ext ++ concatMap (edges . snd) fs
+
+        Type.REffects _ ->
+          []
 
 
 addTypeAliases
