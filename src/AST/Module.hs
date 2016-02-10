@@ -28,7 +28,6 @@ import qualified Docs.AST as Docs
 import qualified Elm.Package as Package
 import qualified Elm.Compiler.Version as Compiler
 import qualified Reporting.Annotation as A
-import qualified Reporting.Region as R
 
 
 
