@@ -17,7 +17,9 @@ import qualified Generate.JavaScript.Variable as Var
 import qualified Optimize.DecisionTree as DT
 
 
+
 -- CODE CHUNKS
+
 
 data Code
     = JsExpr (Expression ())
@@ -74,11 +76,13 @@ toExpr code =
         function [] stmts `call` []
 
 
+
 -- DEFINITIONS
+
 
 generateDef :: Opt.Def -> State Int (Statement ())
 generateDef def =
-  do  (home, name, jsBody) <-
+  do  (_home, name, jsBody) <-
           case def of
             Opt.TailDef (Opt.Facts home _) name argNames body ->
                 (,,) home name <$> generateTailFunction name argNames body
@@ -89,7 +93,9 @@ generateDef def =
       return (Var.define name jsBody)
 
 
+
 -- EXPRESSIONS
+
 
 generateJsExpr :: Opt.Expr -> State Int (Expression ())
 generateJsExpr optExpr =
@@ -199,7 +205,9 @@ generateCode expr =
               jsExpr $ BuiltIn.crash home region maybeOptBranchProblem
 
 
+
 -- FUNCTIONS
+
 
 generateFunction :: [String] -> Opt.Expr -> State Int Code
 generateFunction args body =
@@ -235,7 +243,9 @@ generateFunctionWithArity rawArgs code =
               foldl (\body arg -> function [arg] [ReturnStmt () (Just body)]) innerBody otherArgs
 
 
+
 -- GENERATE IFS
+
 
 generateIf :: [(Opt.Expr, Opt.Expr)] -> Opt.Expr -> State Int Code
 generateIf givenBranches givenFinally =
@@ -292,7 +302,9 @@ crushIfsHelp visitedBranches unvisitedBranches finally =
         crushIfsHelp (visiting : visitedBranches) unvisited finally
 
 
+
 -- CASE EXPRESSIONS
+
 
 generateCase
     :: String
@@ -305,7 +317,9 @@ generateCase exprName decider jumps =
       foldM (goto labelRoot) decider jumps
 
 
+
 -- handle any jumps
+
 
 goto :: String -> [Statement ()] -> (Int, Opt.Expr) -> State Int [Statement ()]
 goto labelRoot deciderStmts (target, branch) =
@@ -324,7 +338,9 @@ toLabel root target =
   Id () (root ++ "_" ++ show target)
 
 
+
 -- turn deciders into ifs and switches
+
 
 generateDecider
     :: String
@@ -380,7 +396,9 @@ testToExpr test =
         Literal.literal lit
 
 
+
 -- work with paths
+
 
 pathToTestableExpr :: String -> DT.Path -> DT.Test -> State Int (Expression ())
 pathToTestableExpr root path exampleTest =
@@ -415,7 +433,9 @@ pathToExpr root fullPath =
               expr
 
 
+
 -- BINARY OPERATORS
+
 
 binop
     :: Var.Canonical
@@ -428,7 +448,9 @@ binop func left right =
         jsExpr (makeExpr func jsLeft jsRight)
 
 
+
 -- BINARY OPERATOR HELPERS
+
 
 makeExpr :: Var.Canonical -> (Expression () -> Expression () -> Expression ())
 makeExpr qualifiedOp@(Var.Canonical home op) =
