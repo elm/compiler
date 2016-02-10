@@ -46,7 +46,7 @@ module'
     -> R.Result Warning.Warning Error.Error Module.Canonical
 module' canonicalImports interfaces modul =
   let
-    (Module.Valid docs exports imports decls effects) =
+    (Module.Valid docs exports imports decls _) =  -- TODO do something with `effects`
       Module.info modul
 
     importDict =
@@ -389,9 +389,11 @@ expression env (A.A region validExpr) =
             <*> go rightExpr
 
       Lambda arg body ->
-          let env' = Env.addPattern arg env
+          let
+            env' =
+              Env.addPattern arg env
           in
-              Lambda <$> pattern env' arg <*> expression env' body
+            Lambda <$> pattern env' arg <*> expression env' body
 
       App func arg ->
           App <$> go func <*> go arg
@@ -408,13 +410,13 @@ expression env (A.A region validExpr) =
           Let <$> T.traverse rename' defs <*> expression env' body
         where
           env' =
-              foldr Env.addPattern env $ map (\(Valid.Definition p _ _) -> p) defs
+            foldr Env.addPattern env $ map (\(Valid.Definition p _ _) -> p) defs
 
           rename' (Valid.Definition p body mtipe) =
-              Canonical.Definition Canonical.dummyFacts
-                  <$> pattern env' p
-                  <*> expression env' body
-                  <*> T.traverse (regionType env') mtipe
+            Canonical.Definition Canonical.dummyFacts
+              <$> pattern env' p
+              <*> expression env' body
+              <*> T.traverse (regionType env') mtipe
 
       Var (Var.Raw x) ->
           Var <$> Canonicalize.variable region env x
@@ -429,8 +431,9 @@ expression env (A.A region validExpr) =
           Case <$> go expr <*> T.traverse branch cases
         where
           branch (ptrn, brnch) =
-              (,) <$> pattern env ptrn
-                  <*> expression (Env.addPattern ptrn env) brnch
+            (,)
+              <$> pattern env ptrn
+              <*> expression (Env.addPattern ptrn env) brnch
 
       GLShader uid src tipe ->
           Result.ok (GLShader uid src tipe)
