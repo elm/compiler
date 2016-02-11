@@ -20,7 +20,7 @@ tipe
     :: Env.Environment
     -> T.Raw
     -> Result.ResultErr T.Canonical
-tipe env typ@(A.A region typ') =
+tipe env annType@(A.A _ typ) =
   let
     go =
       tipe env
@@ -28,15 +28,15 @@ tipe env typ@(A.A region typ') =
     goSnd (name,t) =
       (,) name <$> go t
   in
-    case typ' of
+    case typ of
       T.RVar x ->
           Result.ok (T.Var x)
 
       T.RType _ ->
-          canonicalizeApp region env typ []
+          canonicalizeApp env annType []
 
       T.RApp t ts ->
-          canonicalizeApp region env t ts
+          canonicalizeApp env t ts
 
       T.RLambda a b ->
           T.Lambda <$> go a <*> go b
@@ -49,20 +49,19 @@ tipe env typ@(A.A region typ') =
 
 
 canonicalizeApp
-    :: R.Region
-    -> Env.Environment
+    :: Env.Environment
     -> T.Raw
     -> [T.Raw]
     -> Result.ResultErr T.Canonical
-canonicalizeApp region env f args =
-  case f of
-    A.A _ (T.RType (Var.Raw rawName)) ->
+canonicalizeApp env annFunc@(A.A region func) args =
+  case func of
+    T.RType (Var.Raw rawName) ->
       Canonicalize.tvar region env rawName
         `Result.andThen` canonicalizeWithTvar
 
     _ ->
       T.App
-        <$> tipe env f
+        <$> tipe env annFunc
         <*> Trav.traverse (tipe env) args
 
   where
