@@ -45,9 +45,14 @@ fromPatches
   -> [Patch]
   -> Environment
 fromPatches moduleName moduleNames patches =
-  addPatches
-    patches
-    (Env moduleName Map.empty Map.empty Map.empty Map.empty moduleNames)
+  let
+    effects =
+      Map.insert (ModuleName.canonicalToString moduleName) moduleName moduleNames
+      -- TODO filter this so it is *only* effect modules, no normal modules!
+  in
+    addPatches
+      patches
+      (Env moduleName Map.empty Map.empty Map.empty Map.empty effects)
 
 
 addPattern :: P.Pattern ann var -> Environment -> Environment
