@@ -183,6 +183,12 @@ checkExpression tagDict (A.A region expression) =
     E.Record fields ->
         F.traverse_ (go . snd) fields
 
+    E.Cmd _ _ ->
+        Result.ok ()
+
+    E.Sub _ _ ->
+        Result.ok ()
+
     E.GLShader _ _ _ ->
         Result.ok ()
 

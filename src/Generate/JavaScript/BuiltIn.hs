@@ -69,6 +69,19 @@ cmp left right =
 
 
 
+-- EFFECTS
+
+
+cmd :: ModuleName.Canonical -> JS.Expression ()
+cmd effectName =
+  utils "cmd" [ JS.StringLit () (ModuleName.canonicalToString effectName) ]
+
+
+sub :: ModuleName.Canonical -> JS.Expression ()
+sub effectName =
+  utils "sub" [ JS.StringLit () (ModuleName.canonicalToString effectName) ]
+
+
 -- CRASH
 
 

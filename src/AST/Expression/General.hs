@@ -9,6 +9,7 @@ enrich the AST with more information.
 module AST.Expression.General where
 
 import qualified AST.Literal as Literal
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as Pattern
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
@@ -53,6 +54,8 @@ data Expr' ann def var typ
     | Update (Expr ann def var typ) [(String, Expr ann def var typ)]
     | Record [(String, Expr ann def var typ)]
     -- for type checking and code gen only
+    | Cmd ModuleName.Canonical String
+    | Sub ModuleName.Canonical String
     | GLShader String String Literal.GLShaderTipe
 
 

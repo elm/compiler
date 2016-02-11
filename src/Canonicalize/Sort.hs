@@ -96,6 +96,12 @@ reorder (A.A ann expression) =
       Record
         <$> mapM (\(field,expr) -> (,) field <$> reorder expr) fields
 
+    Cmd _ _ ->
+      return expression
+
+    Sub _ _ ->
+      return expression
+
     GLShader _ _ _ ->
       return expression
 

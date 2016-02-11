@@ -197,6 +197,12 @@ generateCode expr =
           do  jsDataExpr <- generateJsExpr dataExpr
               jsExpr $ DotRef () jsDataExpr (var ("_" ++ show index))
 
+      Cmd moduleName ->
+          jsExpr $ BuiltIn.cmd moduleName
+
+      Sub moduleName ->
+          jsExpr $ BuiltIn.sub moduleName
+
       GLShader _uid src _tipe ->
           jsExpr $ ObjectLit () [(PropString () "src", Literal.literal (L.Str src))]
 

@@ -301,6 +301,12 @@ optimizeExpr context annExpr@(A.A region expression) =
         Opt.Record
           <$> T.traverse (mapSnd justConvert) fields
 
+    Expr.Cmd moduleName _ ->
+        pure (Opt.Cmd moduleName)
+
+    Expr.Sub moduleName _ ->
+        pure (Opt.Sub moduleName)
+
     Expr.GLShader uid src gltipe ->
         pure (Opt.GLShader uid src gltipe)
 

@@ -61,7 +61,7 @@ Library
         AST.Type,
         AST.Variable,
         Canonicalize,
-        Canonicalize.Declaration,
+        Canonicalize.Body,
         Canonicalize.Environment,
         Canonicalize.Result,
         Canonicalize.Setup,

@@ -49,7 +49,10 @@ processSubs (Subs subs defs) (name, (n, expr)) =
               (Map.insert name (Opt.Var (Var.local uniqueName)) subs)
               ((uniqueName, expr) : defs)
 
+
+
 -- HELPERS
+
 
 deleteBatch :: [String] -> Map.Map String a -> Map.Map String a
 deleteBatch names dict =
@@ -66,7 +69,9 @@ getDefName def =
         name
 
 
+
 -- COUNT VARIABLE APPEARANCES
+
 
 count :: Opt.Expr -> Map.Map String Int
 count expression =
@@ -163,6 +168,12 @@ count expression =
 
     Record fields ->
         countMany (map snd fields)
+
+    Cmd _ ->
+        Map.empty
+
+    Sub _ ->
+        Map.empty
 
     GLShader _ _ _ ->
         Map.empty
@@ -262,6 +273,12 @@ replace substitutions expression =
 
     Record fields ->
         Record (map (second go) fields)
+
+    Cmd _ ->
+        expression
+
+    Sub _ ->
+        expression
 
     GLShader _ _ _ ->
         expression

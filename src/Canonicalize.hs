@@ -7,7 +7,7 @@ import qualified Data.Set as Set
 import qualified Data.Traversable as T
 import qualified Data.Foldable as T
 
-import AST.Expression.General (Expr'(..), dummyLet)
+import AST.Expression.General (Expr'(..))
 import Elm.Utils ((|>))
 
 import qualified AST.Declaration as D
@@ -26,11 +26,10 @@ import qualified Reporting.Error.Helpers as ErrorHelp
 import qualified Reporting.Region as Region
 import qualified Reporting.Result as R
 import qualified Reporting.Warning as Warning
-import qualified Canonicalize.Declaration as Decls
+import qualified Canonicalize.Body as Body
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Result as Result
 import qualified Canonicalize.Setup as Setup
-import qualified Canonicalize.Sort as Sort
 import qualified Canonicalize.Type as Canonicalize
 import qualified Canonicalize.Variable as Canonicalize
 
@@ -46,7 +45,7 @@ module'
     -> R.Result Warning.Warning Error.Error Module.Canonical
 module' canonicalImports interfaces modul =
   let
-    (Module.Valid docs exports imports decls _) =  -- TODO do something with `effects`
+    (Module.Valid docs exports imports decls effects) =
       Module.info modul
 
     importDict =
@@ -76,7 +75,7 @@ module' canonicalImports interfaces modul =
             A.map (fmap (Docs.centralize canonicalDecls)) docs
 
           program =
-            Sort.definitions (dummyLet (Decls.toExpr (Module.name modul) canonicalDecls))
+            Body.flatten (Module.name modul) canonicalDecls effects
 
           fixities =
             [ (assoc,level,op) | D.Fixity assoc level op <- nakedDecls ]
@@ -434,6 +433,12 @@ expression env (A.A region validExpr) =
             (,)
               <$> pattern env ptrn
               <*> expression (Env.addPattern ptrn env) brnch
+
+      Cmd moduleName string ->
+          Result.ok (Cmd moduleName string)
+
+      Sub moduleName string ->
+          Result.ok (Sub moduleName string)
 
       GLShader uid src tipe ->
           Result.ok (GLShader uid src tipe)

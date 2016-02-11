@@ -50,6 +50,8 @@ data Expr
     | Access Expr String
     | Update Expr [(String, Expr)]
     | Record [(String, Expr)]
+    | Cmd ModuleName.Canonical
+    | Sub ModuleName.Canonical
     | GLShader String String Literal.GLShaderTipe
     | Crash ModuleName.Canonical R.Region (Maybe Expr)
 

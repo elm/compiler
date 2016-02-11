@@ -70,6 +70,16 @@ inCore home name =
     Canonical (Module (ModuleName.inCore home)) name
 
 
+cmd :: Canonical
+cmd =
+  inCore ["Platform"] "Cmd"
+
+
+sub :: Canonical
+sub =
+  inCore ["Platform"] "Sub"
+
+
 
 -- VARIABLE RECOGNIZERS
 

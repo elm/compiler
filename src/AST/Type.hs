@@ -3,8 +3,9 @@ module AST.Type
     , Canonical(..), Aliased(..)
     , deepDealias, iteratedDealias, dealias
     , collectLambdas
-    , tuple
-    ) where
+    , tuple, cmd, sub
+    )
+    where
 
 import Control.Arrow (second)
 import Data.Binary
@@ -51,6 +52,10 @@ data Aliased t
     deriving (Eq, Ord)
 
 
+
+-- CONSTRUCT USEFUL TYPES
+
+
 tuple :: R.Region -> [Raw] -> Raw
 tuple region types =
   let
@@ -58,6 +63,23 @@ tuple region types =
       Var.Raw ("_Tuple" ++ show (length types))
   in
     A.A region (RApp (A.A region (RType name)) types)
+
+
+cmd :: ModuleName.Canonical -> String -> Canonical
+cmd =
+  effect Var.cmd
+
+
+sub :: ModuleName.Canonical -> String -> Canonical
+sub =
+  effect Var.sub
+
+
+effect :: Var.Canonical -> ModuleName.Canonical -> String -> Canonical
+effect effectName moduleName tipe =
+  Lambda
+    (App (Type (Var.fromModule moduleName tipe)) [Var "msg"])
+    (App (Type effectName) [Effects (Set.singleton moduleName), Var "msg"])
 
 
 

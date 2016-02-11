@@ -32,7 +32,7 @@ environment
     -> Result.ResultErr Env.Environment
 environment importDict interfaces (Module.Module name _ info) =
   let
-    (Module.Valid _ _ (defaults, imports) decls _) =  -- TODO add foreign effects as patches?
+    (Module.Valid _ _ (defaults, imports) decls effects) =
       info
 
     allImports =
@@ -44,11 +44,14 @@ environment importDict interfaces (Module.Module name _ info) =
     (typeAliasNodes, declPatches) =
       declarationsToPatches name decls
 
+    effectPatches =
+      effectsToPatches name effects
+
     createEnv (moduleNamePairs, patchLists) =
       Env.fromPatches
         name
         (Map.fromList (Maybe.catMaybes moduleNamePairs))
-        (concat (Env.builtinPatches : declPatches : patchLists))
+        (concat (Env.builtinPatches : declPatches : effectPatches : patchLists))
   in
     (createEnv <$> importIngredients)
       `Result.andThen` addTypeAliases name typeAliasNodes
@@ -307,10 +310,7 @@ addTypeAlias moduleName scc env =
 -- DECLARATIONS TO PATCHES
 
 
-declarationsToPatches
-    :: ModuleName.Canonical
-    -> [D.Valid]
-    -> ([Node], [Env.Patch])
+declarationsToPatches :: ModuleName.Canonical -> [D.Valid] -> ([Node], [Env.Patch])
 declarationsToPatches moduleName decls =
   let
     (maybeNodes, patchLists) =
@@ -324,10 +324,7 @@ declarationsToPatches moduleName decls =
 --    _patterns are fully namespaced (Var.Module ...)
 --    _values that are defined as top-level declarations are (Var.TopLevel ...)
 --    all other _values are local (Var.Local)
-declToPatches
-    :: ModuleName.Canonical
-    -> D.Valid
-    -> (Maybe Node, [Env.Patch])
+declToPatches :: ModuleName.Canonical -> D.Valid -> (Maybe Node, [Env.Patch])
 declToPatches moduleName (A.A (region,_) decl) =
   let
     topLevel mkPatch x =
@@ -367,6 +364,27 @@ declToPatches moduleName (A.A (region,_) decl) =
         ( Nothing
         , []
         )
+
+
+
+-- EFFECTS TO PATCHES
+
+
+effectsToPatches :: ModuleName.Canonical -> Module.ValidEffects -> [Env.Patch]
+effectsToPatches moduleName effects =
+  case effects of
+    Module.ValidNormal ->
+      []
+
+    Module.ValidEffect maybeCmd maybeSub ->
+      map (\name -> Env.Value name (Var.topLevel moduleName name)) $
+        Maybe.catMaybes
+          [ fmap (const "command") maybeCmd
+          , fmap (const "subscription") maybeSub
+          ]
+
+    Module.ValidForeign ->
+      []
 
 
 

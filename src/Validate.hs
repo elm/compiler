@@ -401,6 +401,12 @@ expression (A.A ann sourceExpression) =
           <$> definitions defs
           <*> expression body
 
+    Cmd moduleName typeName ->
+        return (Cmd moduleName typeName)
+
+    Sub moduleName typeName ->
+        return (Sub moduleName typeName)
+
     GLShader uid src gltipe ->
         return (GLShader uid src gltipe)
 

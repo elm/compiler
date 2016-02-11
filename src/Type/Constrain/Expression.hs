@@ -36,6 +36,16 @@ constrain env annotatedExpr@(A.A region expression) tipe =
     E.Literal lit ->
       Literal.constrain env region lit tipe
 
+    E.Cmd moduleName typeName ->
+      do  (vars, cmd) <-
+              Env.instantiateType env (ST.cmd moduleName typeName) Map.empty
+          return $ ex vars (CEqual (error "TODO - Cmd") region cmd tipe)
+
+    E.Sub moduleName typeName ->
+      do  (vars, sub) <-
+              Env.instantiateType env (ST.sub moduleName typeName) Map.empty
+          return $ ex vars (CEqual (error "TODO - Sub") region sub tipe)
+
     E.GLShader _uid _src gltipe ->
       exists $ \attr ->
       exists $ \unif ->
