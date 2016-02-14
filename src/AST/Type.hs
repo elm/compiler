@@ -30,6 +30,7 @@ data Raw'
     | RType Var.Raw
     | RApp Raw [Raw]
     | RRecord [(String, Raw)] (Maybe Raw)
+    deriving (Eq, Show)
 
 
 data Canonical
@@ -51,7 +52,7 @@ data Aliased t
 data Port t
     = Normal t
     | Signal { root :: t, arg :: t }
-    deriving (Eq)
+    deriving (Eq, Show)
 
 
 getPortType :: Port tipe -> tipe

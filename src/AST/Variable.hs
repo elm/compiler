@@ -12,7 +12,7 @@ import qualified AST.Module.Name as ModuleName
 
 
 newtype Raw = Raw String
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Show)
 
 
 

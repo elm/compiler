@@ -20,6 +20,7 @@ data Pattern' ann var
     | Var String
     | Anything
     | Literal L.Literal
+    deriving (Eq, Show)
 
 
 type RawPattern =
@@ -96,4 +97,3 @@ boundVarSet pattern =
 boundVarList :: Pattern ann var -> [String]
 boundVarList pattern =
   Set.toList (boundVarSet pattern)
-

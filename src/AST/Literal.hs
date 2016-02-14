@@ -10,7 +10,7 @@ data Literal
     | Chr Char
     | Str String
     | Boolean Bool
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Show)
 
 
 toString :: Literal -> String
@@ -52,3 +52,7 @@ data GLShaderTipe = GLShaderTipe
     , varying :: Map.Map String GLTipe
     }
     deriving (Eq)
+
+
+instance Show GLShaderTipe where
+    show _ = "<GLShaderTipe>"
