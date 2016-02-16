@@ -27,6 +27,7 @@ data Error
     | UnboundTypeVarsInAlias String [String] [String]
     | UnusedTypeVarsInAlias String [String] [String]
     | MessyTypeVarsInAlias String [String] [String] [String]
+    | RepeatedArgument String
 
 
 -- TO REPORT
@@ -187,6 +188,17 @@ toReport _localizer err =
               , dullyellow $ hsep $
                   map text ("type" : "alias" : typeName : filter (`notElem` unused) givenVars ++ unbound ++ ["=", "..."])
               ]
+          )
+
+    RepeatedArgument name ->
+        Report.report
+          "FUNCTION ARGUMENT REPEATED"
+          Nothing
+          ( "The argument `" ++ name ++ "` is defined multiple times."
+          )
+          ( Help.reflowParagraph $
+              "You should rename one of the occurrences of `" ++ name
+              ++ "` so that each argument is defined only once."
           )
 
 
