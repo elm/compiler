@@ -184,7 +184,7 @@ checkDefinition (Valid.Definition pattern body _) =
     args ->
         case pattern of
           A.A _ (Pattern.Var _) ->
-              return ()
+              checkArguments args
 
           _ ->
               let
@@ -192,6 +192,38 @@ checkDefinition (Valid.Definition pattern body _) =
                 (A.A end _) = last args
               in
                 Result.throw (R.merge start end) (Error.BadFunctionName (length args))
+
+
+
+checkArguments :: [Pattern.Pattern R.Region var] -> Result.Result wrn Error.Error ()
+checkArguments args =
+  let
+    vars = concatMap (Pattern.boundVarList) args
+  in
+    case firstDuplicate vars of
+      Nothing ->
+          return ()
+
+      Just var ->
+          let
+            (A.A start _) = head args
+            (A.A end _) = last args
+          in
+            Result.throw (R.merge start end) (Error.RepeatedArgument var)
+
+
+firstDuplicate :: [String] -> Maybe String
+firstDuplicate vars =
+  case vars of
+    [] ->
+        Nothing
+
+    var : rest ->
+        if var `elem` rest then
+            Just var
+
+        else
+            firstDuplicate rest
 
 
 -- VALIDATE EXPRESSIONS
