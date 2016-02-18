@@ -4,8 +4,8 @@
 
 
 type Maybe a
-    = Just a
-    | Nothing
+  = Just a
+  | Nothing
 
 
 bad arg =
@@ -16,7 +16,11 @@ bad arg =
 
       Nothing ->
         let
-          arg = True
+          arg =
+            True
         in
-          if arg then False else arg)
-
+          if arg then
+            False
+          else
+            arg
+    )
