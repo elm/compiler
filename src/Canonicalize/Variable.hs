@@ -27,22 +27,22 @@ variable :: R.Region -> Env.Environment -> String -> Result.ResultErr Var.Canoni
 variable region env var =
   case toVarName var of
     Right (name, varName) | ModuleName.isNative name ->
-        let
-            moduleName =
-                ModuleName.Canonical Pkg.dummyName name
-        in
-            Result.var (Var.Canonical (Var.Module moduleName) varName)
+      let
+        moduleName =
+          ModuleName.Canonical Pkg.dummyName name
+      in
+        Result.var (Var.Canonical (Var.Module moduleName) varName)
 
     _ ->
-        case Set.toList `fmap` Map.lookup var (Env._values env) of
-          Just [v] ->
-              Result.var v
+      case Set.toList `fmap` Map.lookup var (Env._values env) of
+        Just [v] ->
+          Result.var v
 
-          Just vs ->
-              preferLocals region env "variable" vs var
+        Just vs ->
+          preferLocals region env "variable" vs var
 
-          Nothing ->
-              notFound region "variable" (Map.keys (Env._values env)) var
+        Nothing ->
+          notFound region "variable" (Map.keys (Env._values env)) var
 
 
 tvar
