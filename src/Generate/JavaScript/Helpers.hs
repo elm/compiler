@@ -3,6 +3,7 @@ module Generate.JavaScript.Helpers where
 import Language.ECMAScript3.Syntax
 
 
+
 localRuntime :: String
 localRuntime =
     "_elm"
@@ -13,17 +14,14 @@ varDecl x expr =
     VarDecl () (var x) (Just expr)
 
 
-make :: [String] -> Expression ()
-make moduleName =
-    obj (moduleName ++ ["make"]) <| ref localRuntime
+refOrObject :: String -> Expression ()
+refOrObject name =
+  InfixExpr () OpLOr (ref name) (ObjectLit () [])
 
-
-useLazy :: [String] -> String -> Expression ()
-useLazy moduleName functionName =
-    DotRef () (make moduleName) (var functionName)
 
 
 -- Creating Variables
+
 
 var :: String -> Id ()
 var name =
@@ -50,7 +48,9 @@ obj vars =
           error "dotSep must be called on a non-empty list of variables"
 
 
+
 -- Function Calls
+
 
 (<|) :: Expression () -> Expression () -> Expression ()
 (<|) f x =
@@ -67,7 +67,9 @@ call =
     CallExpr ()
 
 
+
 -- Checks
+
 
 equal :: Expression () -> Expression () -> Expression ()
 equal a b =

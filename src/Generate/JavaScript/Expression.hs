@@ -80,9 +80,9 @@ toExpr code =
 -- DEFINITIONS
 
 
-generateDef :: Opt.Def -> State Int (Statement ())
+generateDef :: Opt.Def -> State Int [Statement ()]
 generateDef def =
-  do  (_home, name, jsBody) <-
+  do  (home, name, jsBody) <-
           case def of
             Opt.TailDef (Opt.Facts home _) name argNames body ->
                 (,,) home name <$> generateTailFunction name argNames body
@@ -90,7 +90,7 @@ generateDef def =
             Opt.Def (Opt.Facts home _) name body ->
                 (,,) home name <$> generateJsExpr body
 
-      return (Var.define name jsBody)
+      return (Var.define home name jsBody)
 
 
 
@@ -173,7 +173,7 @@ generateCode expr =
       Let defs body ->
           do  stmts <- mapM generateDef defs
               code <- generateCode body
-              jsBlock (stmts ++ toStatementList code)
+              jsBlock (concat stmts ++ toStatementList code)
 
       If branches finally ->
           generateIf branches finally
