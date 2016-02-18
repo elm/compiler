@@ -32,18 +32,20 @@ import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
 
 
+
 -- VERSION
+
 
 version :: Package.Version
 version =
   Elm.Compiler.Version.version
 
 
+
 -- DEPENDENCIES
 
-parseDependencies
-    :: String
-    -> Either [Error] (PublicModule.Name, [PublicModule.Name])
+
+parseDependencies :: String -> Either [Error] (PublicModule.Name, [PublicModule.Name])
 parseDependencies sourceCode =
   let
     (Result.Result _warnings rawResult) =
@@ -60,7 +62,9 @@ parseDependencies sourceCode =
             )
 
 
+
 -- COMPILATION
+
 
 {-| Compiles Elm source code to JavaScript. -}
 compile
@@ -125,7 +129,9 @@ docsGen isExposed (Module.Module name _ info) =
       (Just . toDocs) `fmap` Result.mapError Error.Docs getChecked
 
 
+
 -- DEALIASER
+
 
 newtype Localizer =
     Localizer RenderType.Localizer
@@ -136,7 +142,9 @@ dummyLocalizer =
     Localizer Map.empty
 
 
+
 -- ERRORS
+
 
 newtype Error =
     Error (A.Located Error.Error)
@@ -157,7 +165,9 @@ errorToJson (Localizer localizer) location (Error err) =
     Error.toJson localizer location err
 
 
+
 -- WARNINGS
+
 
 newtype Warning =
     Warning (A.Located Warning.Warning)
