@@ -28,8 +28,11 @@ variable region env var =
   case toVarName var of
     Right (name, varName) | ModuleName.isNative name ->
       let
+        localPkg =
+          ModuleName._package (Env._home env)
+
         moduleName =
-          ModuleName.Canonical Pkg.dummyName name
+          ModuleName.Canonical localPkg name
       in
         Result.var (Var.Canonical (Var.Module moduleName) varName)
 
