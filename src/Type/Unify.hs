@@ -353,7 +353,7 @@ atomMatchesSuper super name =
         isPrimitiveFrom ["Int", "Float", "Char", "String"] name
 
     Appendable ->
-        Var.isPrim "String" name || Var.isText name
+        Var.isPrim "String" name
 
     CompAppend ->
         Var.isPrim "String" name

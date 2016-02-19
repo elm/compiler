@@ -124,16 +124,6 @@ isTask =
     is ["Task"] "Task"
 
 
-isSignal :: Canonical -> Bool
-isSignal =
-    is ["Signal"] "Signal"
-
-
-isText :: Canonical -> Bool
-isText =
-    is ["Text"] "Text"
-
-
 isList :: Canonical -> Bool
 isList v =
     v == Canonical BuiltIn "List"
