@@ -1,4 +1,12 @@
-module Generate.JavaScript.BuiltIn where
+module Generate.JavaScript.BuiltIn
+  ( character, string
+  , list, range
+  , recordUpdate
+  , eq, cmp
+  , cmd, sub
+  , crash
+  )
+  where
 
 import Control.Arrow (first)
 import qualified Language.ECMAScript3.Syntax as JS
@@ -11,7 +19,12 @@ import qualified Reporting.Region as R
 
 utils :: String -> [JS.Expression ()] -> JS.Expression ()
 utils func args =
-  obj ["_U", func] `call` args
+  obj ["_elm_lang$core$Native_Utils", func] `call` args
+
+
+nativeList :: String -> [JS.Expression ()] -> JS.Expression ()
+nativeList func args =
+  obj ["_elm_lang$core$Native_List", func] `call` args
 
 
 
@@ -34,12 +47,12 @@ string str =
 
 list :: [JS.Expression ()] -> JS.Expression ()
 list elements =
-  utils "list" [ JS.ArrayLit () elements ]
+  nativeList "fromArray" [ JS.ArrayLit () elements ]
 
 
 range :: JS.Expression () -> JS.Expression () -> JS.Expression ()
 range low high =
-  utils "range" [ low, high ]
+  nativeList "range" [ low, high ]
 
 
 
