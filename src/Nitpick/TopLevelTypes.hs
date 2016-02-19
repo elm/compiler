@@ -56,14 +56,15 @@ checkMainType typeEnv decls =
       A.A (region,_) (Decl.Def (Valid.Definition (A.A _ (P.Var "main")) _ _)) : _ ->
           case Map.lookup "main" typeEnv of
             Nothing ->
-                return ()
+              return ()
 
-            Just typeOfMain ->
-                let tipe = Type.deepDealias typeOfMain
-                in
-                    if tipe `elem` validMainTypes
-                      then return ()
-                      else Result.throw region (Error.BadMain typeOfMain)
+            Just tipe ->
+              case Type.deepDealias tipe of
+                Type.App (Type.Type name) [_] | name == virtualDomNode ->
+                  return ()
+
+                _ ->
+                  Result.throw region (Error.BadMain tipe)
 
       _ : remainingDecls ->
           checkMainType typeEnv remainingDecls
@@ -72,37 +73,9 @@ checkMainType typeEnv decls =
           return ()
 
 
-validMainTypes :: [Type.Canonical]
-validMainTypes =
-    [ element
-    , html
-    , signal element
-    , signal html
-    ]
-
-
-html :: Type.Canonical
-html =
-    Type.Type (Var.fromModule virtualDom "Node")
-
-
-virtualDom :: ModuleName.Canonical
-virtualDom =
-    ModuleName.Canonical (Pkg.Name "evancz" "virtual-dom") ["VirtualDom"]
-
-
-element :: Type.Canonical
-element =
-  core ["Graphics","Element"] "Element"
-
-
-signal :: Type.Canonical -> Type.Canonical
-signal tipe =
-  Type.App (core ["Signal"] "Signal") [ tipe ]
-
-
-core :: [String] -> String -> Type.Canonical
-core home name =
-  Type.Type (Var.inCore home name)
-
+virtualDomNode :: Var.Canonical
+virtualDomNode =
+  Var.fromModule
+    (ModuleName.Canonical (Pkg.Name "evancz" "virtual-dom") ["VirtualDom"])
+    "Node"
 
