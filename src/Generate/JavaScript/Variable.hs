@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wall #-}
 module Generate.JavaScript.Variable
     ( fresh
     , canonical
@@ -14,6 +15,7 @@ import qualified Language.ECMAScript3.Syntax as JS
 import qualified AST.Helpers as Help
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
+import qualified Elm.Package as Pkg
 import qualified Generate.JavaScript.Helpers as JS
 
 
@@ -116,8 +118,18 @@ getOpsDictName home =
 
 
 moduleToString :: ModuleName.Canonical -> String
-moduleToString (ModuleName.Canonical _ moduleName) =
-  '_' : List.intercalate "_" moduleName
+moduleToString (ModuleName.Canonical (Pkg.Name user project) moduleName) =
+  let
+    safeUser =
+      map (swap '-' '_') user
+
+    safeProject =
+      map (swap '-' '_') project
+
+    safeModuleName =
+      List.intercalate "_" moduleName
+  in
+    '_' : safeUser ++ "$" ++ safeProject ++ "$" ++ safeModuleName
 
 
 swap :: Char -> Char -> Char -> Char
