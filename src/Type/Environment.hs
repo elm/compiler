@@ -237,6 +237,3 @@ instantiatorHelp env aliasVars sourceType =
                         go extType
 
               return $ TermN (Record1 tfields text)
-
-      T.Effects names ->
-          return $ TermN (Effects1 names)

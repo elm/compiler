@@ -50,13 +50,6 @@ record =
           (,) lbl <$> expr
 
 
-effects :: IParser Type.Raw
-effects =
-  addLocation $ braces $
-    do  names <- commaSep1 (addLocation (dotSep1 capVar))
-        return (Type.REffects names)
-
-
 capTypeVar :: IParser String
 capTypeVar =
   intercalate "." <$> dotSep1 capVar
@@ -71,7 +64,7 @@ constructor0 =
 
 term :: IParser Type.Raw
 term =
-  choice [ tuple, record, effects, tvar, constructor0 ]
+  choice [ tuple, record, tvar, constructor0 ]
 
 
 app :: IParser Type.Raw

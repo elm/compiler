@@ -46,7 +46,6 @@ data Term1 a
     | Fun1 a a
     | EmptyRecord1
     | Record1 (Map.Map String a) a
-    | Effects1 (Set.Set ModuleName.Canonical)
 
 
 data TermN a
@@ -342,9 +341,6 @@ termToSrcType term =
                 _ ->
                     error "Used toSrcType on a type that is not well-formed"
 
-    Effects1 names ->
-      return $ T.Effects names
-
 
 
 -- MANAGE FRESH VARIABLE NAMES
@@ -460,7 +456,3 @@ getVarNamesTerm term =
     Record1 fields extension ->
         do  fieldVars <- Set.unions <$> mapM go (Map.elems fields)
             Set.union fieldVars <$> go extension
-
-    Effects1 _ ->
-        return Set.empty
-

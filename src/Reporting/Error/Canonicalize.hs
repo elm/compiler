@@ -326,10 +326,6 @@ unsafePromote (A.A _ rawType) =
     Type.RApp func args ->
         Type.App (unsafePromote func) (map unsafePromote args)
 
-    Type.REffects names ->
-        Type.Effects $ Set.fromList $
-          map (ModuleName.Canonical Package.dummyName . A.drop) names
-
     Type.RRecord fields ext ->
         Type.Record (map (second unsafePromote) fields) (fmap unsafePromote ext)
 

@@ -264,9 +264,6 @@ node region name tvars alias =
         Type.RRecord fs ext ->
           maybe [] edges ext ++ concatMap (edges . snd) fs
 
-        Type.REffects _ ->
-          []
-
 
 addTypeAliases
     :: ModuleName.Canonical

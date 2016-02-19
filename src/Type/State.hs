@@ -325,7 +325,3 @@ traverseTerm f term =
 
     Record1 fields ext ->
         Record1 <$> traverse f fields <*> f ext
-
-    Effects1 names ->
-        return (Effects1 names)
-

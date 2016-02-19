@@ -43,6 +43,3 @@ toType useAliases astType =
 
         else
           go (Type.dealias args t)
-
-      Type.Effects _ ->
-          error "TODO - toType Effects"

@@ -578,7 +578,3 @@ freeVars (A.A region tipe) =
     Type.RRecord fields ext ->
       maybe [] freeVars ext
       ++ concatMap (freeVars . snd) fields
-
-    Type.REffects _ ->
-      []
-

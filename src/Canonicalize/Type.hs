@@ -1,10 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 module Canonicalize.Type (tipe) where
 
-import qualified Data.Set as Set
 import qualified Data.Traversable as Trav
 
-import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as T
 import qualified AST.Variable as Var
 
@@ -43,9 +41,6 @@ tipe env annType@(A.A _ typ) =
 
       T.RRecord fields ext ->
           T.Record <$> Trav.traverse goSnd fields <*> Trav.traverse go ext
-
-      T.REffects rawNames ->
-          T.Effects <$> canonicalizeEffects env rawNames
 
 
 canonicalizeApp
@@ -97,22 +92,4 @@ canonicalizeAlias region env (name, tvars, dealiasedTipe) types =
 
     else
       toAlias <$> Trav.traverse (tipe env) types
-
-
-canonicalizeEffects
-    :: Env.Environment
-    -> [A.Located ModuleName.Raw]
-    -> Result.ResultErr (Set.Set ModuleName.Canonical)
-canonicalizeEffects env rawNames =
-  let
-    addToSet (A.A region name) set =
-      if Set.member name set then
-        Result.err (A.A region (Error.DuplicateEffect name))
-
-      else
-        Result.ok (Set.insert name set)
-  in
-    Trav.traverse (Canonicalize.effect env) rawNames
-      `Result.andThen`
-        Result.foldl addToSet Set.empty
 

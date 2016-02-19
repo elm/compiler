@@ -12,8 +12,8 @@ import Control.Arrow ((***), first)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Text.PrettyPrint.ANSI.Leijen
-  ( Doc, (<+>), brackets, cat, colon, comma, dullyellow, equals, hang, hsep
-  , lbrace, lparen, parens, punctuate, rbrace, rparen, sep, text, vcat
+  ( Doc, (<+>), cat, colon, comma, dullyellow, equals, hang, hsep
+  , lbrace, lparen, parens, rbrace, rparen, sep, text, vcat
   )
 
 import qualified AST.Helpers as Help
@@ -96,16 +96,6 @@ varToDoc localizer var =
 
     else
       text (maybe name id (Map.lookup name localizer))
-
-
--- TODO make sure that localizer contains qualifiers without variables
-moduleNameToDoc :: Localizer -> ModuleName.Canonical -> Doc
-moduleNameToDoc localizer var =
-  let
-    name =
-      ModuleName.canonicalToString var
-  in
-    text (maybe name id (Map.lookup name localizer))
 
 
 
@@ -412,10 +402,6 @@ docType localizer context tipe =
           docRecord Full
             (map (text *** docType localizer None) fields)
             (fmap text ext)
-
-    Type.Effects names ->
-        brackets $ cat $ punctuate comma $
-          map (moduleNameToDoc localizer) (Set.toList names)
 
     Type.Aliased name args _ ->
         docApp localizer context name (map snd args)
