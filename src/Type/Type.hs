@@ -9,7 +9,6 @@ import qualified Data.Set as Set
 import qualified Data.Traversable as Traverse (traverse)
 import qualified Data.UnionFind.IO as UF
 
-import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as T
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
