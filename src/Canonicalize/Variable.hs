@@ -15,7 +15,6 @@ import qualified Reporting.Error.Helpers as Error
 import qualified Reporting.Region as R
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Result as Result
-import qualified Elm.Package as Pkg
 import Elm.Utils ((|>))
 
 
