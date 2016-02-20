@@ -3,13 +3,11 @@ module Reporting.Error.Canonicalize where
 
 import Control.Arrow (second)
 import qualified Data.Char as Char
-import qualified Data.Set as Set
 import Text.PrettyPrint.ANSI.Leijen (indent, text)
 
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
-import qualified Elm.Package as Package
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Helpers as Help
 import qualified Reporting.Region as Region
@@ -24,7 +22,6 @@ data Error
     | Import ModuleName.Raw ImportError
     | Export String [String]
     | DuplicateExport String
-    | DuplicateEffect ModuleName.Canonical
     | Port PortError
 
 
@@ -231,15 +228,6 @@ toReport localizer err =
           ("You are trying to export `" ++ name ++ "` multiple times!")
           "Remove duplicates until there is only one listed."
 
-    DuplicateEffect rawName ->
-        let
-          name =
-            ModuleName.canonicalToString rawName
-        in
-          namingError
-            ("This type lists the `" ++ name ++ "` effect multiple times.")
-            "Remove duplicates until each effect is listed only once."
-
     Port (PortError name isInbound _rootType localType maybeMessage) ->
         let
           boundPort =
@@ -302,9 +290,6 @@ extractSuggestions err =
         Just suggestions
 
     DuplicateExport _ ->
-        Nothing
-
-    DuplicateEffect _ ->
         Nothing
 
     Port _ ->
