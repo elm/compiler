@@ -23,7 +23,7 @@ import qualified Reporting.Annotation as A
 
 
 data Documentation = Documentation
-    { moduleName :: Module.Name
+    { moduleName :: Module.Raw
     , comment :: String
     , aliases :: [Alias]
     , types :: [Union]
@@ -63,7 +63,7 @@ data Version = NonCanonicalTypes | Version String
 -- FROM CHECKED DOCS
 
 
-fromCheckedDocs :: Module.Name -> Docs.Checked -> Documentation
+fromCheckedDocs :: Module.Raw -> Docs.Checked -> Documentation
 fromCheckedDocs name (Docs.Docs comment aliases unions values) =
   let
     unwrap cmnt =
@@ -78,11 +78,13 @@ fromCheckedDocs name (Docs.Docs comment aliases unions values) =
     toValue (name, (A.A _ (Docs.Value cmnt tipe fix))) =
       Value name (unwrap cmnt) tipe fix
   in
-  Documentation name comment
-    (map toAlias (Map.toList aliases))
-    (map toUnion (Map.toList unions))
-    (map toValue (Map.toList values))
-    (Version $ (Pkg.versionToString Version.version))
+    Documentation
+      name
+      comment
+      (map toAlias (Map.toList aliases))
+      (map toUnion (Map.toList unions))
+      (map toValue (Map.toList values))
+      (Version $ (Pkg.versionToString Version.version))
 
 
 
@@ -114,7 +116,7 @@ config =
 instance Json.ToJSON Documentation where
     toJSON (Documentation name comment aliases types values version) =
         Json.object
-        [ "name" .= name
+        [ "name" .= Module.RawForJson name
         , "comment" .= comment
         , "aliases" .= aliases
         , "types" .= types
@@ -126,7 +128,7 @@ instance Json.ToJSON Documentation where
 instance Json.FromJSON Documentation where
     parseJSON (Json.Object obj) =
         Documentation
-            <$> obj .: "name"
+            <$> fmap Module.fromJson (obj .: "name")
             <*> obj .: "comment"
             <*> obj .: "aliases"
             <*> obj .: "types"
@@ -135,6 +137,7 @@ instance Json.FromJSON Documentation where
 
     parseJSON value =
         fail $ "Cannot decode Documentation from: " ++ BS.unpack (Json.encode value)
+
 
 
 

@@ -4,6 +4,7 @@ module Generate.JavaScript.Variable
     , canonical
     , define
     , safe
+    , moduleToString
     )
     where
 

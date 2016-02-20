@@ -1,18 +1,17 @@
 module Elm.Compiler.Module
     ( Interface, Interfaces
-    , Name(Name)
+    , ModuleName.Raw
     , nameToPath
     , nameToString, nameFromString
     , hyphenate, dehyphenate
+    , RawForJson(RawForJson), fromJson
     , defaultImports
     , interfaceAliasedTypes
-    , CanonicalName, canonicalName
+    , ModuleName.Canonical(..), canonicalNameToJS
     )
   where
 
-import Control.Monad (mzero)
 import qualified Data.Aeson as Json
-import Data.Binary
 import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -24,7 +23,7 @@ import qualified AST.Module.Name as ModuleName
 import qualified Elm.Compiler.Imports as Imports
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Type.Extract as Extract
-import qualified Elm.Package as Package
+import qualified Generate.JavaScript.Variable as Gen
 
 
 
@@ -46,55 +45,56 @@ interfaceAliasedTypes interface =
 -- NAMES
 
 
-newtype Name = Name ModuleName.Raw
-    deriving (Eq, Ord)
+newtype RawForJson = RawForJson ModuleName.Raw
 
 
-type CanonicalName = ModuleName.Canonical
+fromJson :: RawForJson -> ModuleName.Raw
+fromJson (RawForJson raw) =
+  raw
 
 
-canonicalName :: Package.Name -> Name -> CanonicalName
-canonicalName pkgName (Name name) =
-    ModuleName.Canonical pkgName name
+canonicalNameToJS :: ModuleName.Canonical -> String
+canonicalNameToJS =
+  Gen.moduleToString
 
 
-defaultImports :: [Name]
+defaultImports :: [ModuleName.Raw]
 defaultImports =
-    map (Name . fst) Imports.defaults
+    map fst Imports.defaults
 
 
 
--- STRING CONVERSIONS for NAMES
+-- STRING CONVERSIONS for RAW NAMES
 
 
-nameToPath :: Name -> FilePath
-nameToPath (Name names) =
-    List.foldl1 (</>) names
+nameToPath :: ModuleName.Raw -> FilePath
+nameToPath names =
+  List.foldl1 (</>) names
 
 
-nameToString :: Name -> String
-nameToString (Name names) =
-    List.intercalate "." names
+nameToString :: ModuleName.Raw -> String
+nameToString names =
+  List.intercalate "." names
 
 
-nameFromString :: String -> Maybe Name
+nameFromString :: String -> Maybe ModuleName.Raw
 nameFromString =
-    fromString '.'
+  fromString '.'
 
 
-hyphenate :: Name -> String
-hyphenate (Name names) =
-    List.intercalate "-" names
+hyphenate :: ModuleName.Raw -> String
+hyphenate names =
+  List.intercalate "-" names
 
 
-dehyphenate :: String -> Maybe Name
+dehyphenate :: String -> Maybe ModuleName.Raw
 dehyphenate =
-    fromString '-'
+  fromString '-'
 
 
-fromString :: Char -> String -> Maybe Name
+fromString :: Char -> String -> Maybe ModuleName.Raw
 fromString sep raw =
-    Name `fmap` mapM isLegit names
+    mapM isLegit names
   where
     names =
         filter (/= [sep]) (List.groupBy (\a b -> a /= sep && b /= sep) raw)
@@ -115,28 +115,24 @@ fromString sep raw =
 -- JSON for NAME
 
 
-instance Json.ToJSON Name where
-    toJSON name =
-        Json.toJSON (nameToString name)
+instance Json.ToJSON RawForJson where
+  toJSON (RawForJson name) =
+    Json.toJSON (nameToString name)
 
 
-instance Json.FromJSON Name where
-    parseJSON (Json.String text) =
-        let rawName = Text.unpack text in
-        case nameFromString rawName of
-            Nothing -> fail (rawName ++ " is not a valid module name")
-            Just name -> return name
+instance Json.FromJSON RawForJson where
+  parseJSON (Json.String text) =
+    let
+      rawString =
+        Text.unpack text
+    in
+      case nameFromString rawString of
+        Nothing ->
+          fail (rawString ++ " is not a valid module name")
 
-    parseJSON _ = mzero
+        Just name ->
+          return (RawForJson name)
 
+  parseJSON _ =
+    fail "expecting the module name to be a string"
 
-
--- BINARY for NAME
-
-
-instance Binary Name where
-  get =
-    fmap Name get
-
-  put (Name names) =
-    put names

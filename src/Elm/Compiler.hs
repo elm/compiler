@@ -45,7 +45,7 @@ version =
 -- DEPENDENCIES
 
 
-parseDependencies :: String -> Either [Error] (PublicModule.Name, [PublicModule.Name])
+parseDependencies :: String -> Either [Error] (PublicModule.Raw, [PublicModule.Raw])
 parseDependencies sourceCode =
   let
     (Result.Result _warnings rawResult) =
@@ -57,8 +57,8 @@ parseDependencies sourceCode =
 
       Result.Ok (Module.Header _ name _ _ _ imports) ->
           Right
-            ( PublicModule.Name name
-            , map (PublicModule.Name . fst . A.drop) imports
+            ( name
+            , map (fst . A.drop) imports
             )
 
 
@@ -96,7 +96,7 @@ compile context source interfaces =
 data Context = Context
     { _packageName :: Package.Name
     , _isExposed :: Bool
-    , _dependencies :: [PublicModule.CanonicalName]
+    , _dependencies :: [PublicModule.Canonical]
     }
 
 
@@ -120,11 +120,8 @@ docsGen isExposed (Module.Module name _ info) =
       getChecked =
         Docs.check (Module.exports info) (Module.docs info)
 
-      publicName =
-        PublicModule.Name (ModuleName._module name)
-
       toDocs checked =
-        Docs.fromCheckedDocs publicName checked
+        Docs.fromCheckedDocs (ModuleName._module name) checked
     in
       (Just . toDocs) `fmap` Result.mapError Error.Docs getChecked
 
