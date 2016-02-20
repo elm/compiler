@@ -17,7 +17,6 @@ import Text.PrettyPrint.ANSI.Leijen
   )
 
 import qualified AST.Helpers as Help
-import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Reporting.Error.Helpers as Help
