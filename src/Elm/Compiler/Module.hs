@@ -7,7 +7,7 @@ module Elm.Compiler.Module
     , RawForJson(RawForJson), fromJson
     , defaultImports
     , interfaceAliasedTypes
-    , ModuleName.Canonical(..), canonicalNameToJS
+    , ModuleName.Canonical(..), qualifiedVar
     )
   where
 
@@ -53,9 +53,9 @@ fromJson (RawForJson raw) =
   raw
 
 
-canonicalNameToJS :: ModuleName.Canonical -> String
-canonicalNameToJS =
-  Gen.moduleToString
+qualifiedVar :: ModuleName.Canonical -> String -> String
+qualifiedVar =
+  Gen.qualified
 
 
 defaultImports :: [ModuleName.Raw]

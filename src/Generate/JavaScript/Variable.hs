@@ -2,9 +2,9 @@
 module Generate.JavaScript.Variable
     ( fresh
     , canonical
+    , qualified
     , define
     , safe
-    , moduleToString
     )
     where
 
