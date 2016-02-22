@@ -17,7 +17,9 @@ defaults =
     , ["List"] ==> exposing [Var.Value "::"]
     , ["Maybe"] ==> exposing [Var.Union "Maybe" Var.openListing]
     , ["Result"] ==> exposing [Var.Union "Result" Var.openListing]
-    , ["Platform"] ==> exposing (map closedType ["Cmd", "Sub", "Program"])
+    , ["Platform"] ==> exposing [closedType "Program"]
+    , ["Platform","Cmd"] ==> named "Cmd" [closedType "Cmd", Var.Value "!"]
+    , ["Platform","Sub"] ==> named "Sub" [closedType "Sub"]
     ]
 
 
@@ -29,3 +31,9 @@ exposing vars =
 closedType :: String -> Var.Value
 closedType name =
   Var.Union name Var.closedListing
+
+
+named :: String -> [Var.Value] -> Module.ImportMethod
+named name vars =
+  Module.ImportMethod (Just name) (Var.listing vars)
+

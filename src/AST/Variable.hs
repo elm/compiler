@@ -72,12 +72,12 @@ inCore home name =
 
 cmd :: Canonical
 cmd =
-  inCore ["Platform"] "Cmd"
+  inCore ["Platform","Cmd"] "Cmd"
 
 
 sub :: Canonical
 sub =
-  inCore ["Platform"] "Sub"
+  inCore ["Platform","Sub"] "Sub"
 
 
 
