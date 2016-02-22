@@ -42,6 +42,7 @@ warnMissingAnnotation typeEnv (A.A (region,_) decl) =
         case Map.lookup name typeEnv of
           Nothing ->
               return ()
+
           Just tipe ->
               Result.warn region (Warning.MissingTypeAnnotation name tipe)
     _ ->
@@ -68,6 +69,9 @@ checkMainType typeEnv decls =
                 Type.App (Type.Type name) [_] | name == virtualDomNode ->
                   return ()
 
+                Type.App (Type.Type name) [_] | name == program ->
+                  return ()
+
                 _ ->
                   Result.throw region (Error.BadMain tipe)
 
@@ -83,4 +87,9 @@ virtualDomNode =
   Var.fromModule
     (ModuleName.Canonical (Pkg.Name "evancz" "virtual-dom") ["VirtualDom"])
     "Node"
+
+
+program :: Var.Canonical
+program =
+  Var.fromModule (ModuleName.inCore ["Platform"]) "Program"
 
