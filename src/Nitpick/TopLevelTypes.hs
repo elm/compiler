@@ -18,6 +18,7 @@ import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
 
 
+
 topLevelTypes
     :: Map.Map String Type.Canonical
     -> [Decl.Valid]
@@ -27,7 +28,9 @@ topLevelTypes typeEnv validDecls =
       checkMainType typeEnv validDecls
 
 
+
 -- MISSING ANNOTATIONS
+
 
 warnMissingAnnotation
     :: Map.Map String Type.Canonical
@@ -45,7 +48,9 @@ warnMissingAnnotation typeEnv (A.A (region,_) decl) =
         return ()
 
 
+
 -- MAIN TYPE
+
 
 checkMainType
     :: Map.Map String Type.Canonical
