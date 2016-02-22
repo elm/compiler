@@ -228,15 +228,27 @@ whitespace :: String
 whitespace = "WHITESPACE"
 
 
+tab :: String
+tab = "TAB"
+
+
 keyword :: String -> String
 keyword kwd =
   "KEYWORD=" ++ kwd
 
 
-unkeyword :: String -> Maybe String
-unkeyword message =
+data SpecialMessage
+  = MsgKeyword String
+  | MsgTab
+
+
+extractSpecialMessage :: String -> Maybe SpecialMessage
+extractSpecialMessage message =
   if List.isPrefixOf "KEYWORD=" message then
-      Just (drop (length "KEYWORD=") message)
+      Just $ MsgKeyword (drop (length "KEYWORD=") message)
+
+  else if tab == message then
+      Just MsgTab
 
   else
       Nothing
@@ -263,7 +275,12 @@ parseErrorReport messages =
               else
                   msg
           in
-            hint { _expected = Set.insert msg' (_expected hint) }
+            if msg == tab then
+              -- Our parser looks for tab so it can throw a custom tab error message.
+              -- Exclude tabs from the list of expected tokens so that no one thinks they are supported.
+              hint
+            else
+              hint { _expected = Set.insert msg' (_expected hint) }
 
         Parsec.Message msg ->
             hint { _messages = msg : _messages hint }
@@ -274,10 +291,15 @@ parseErrorReport messages =
     (preHint, maybePost) =
       case msgs of
         [msg] ->
-            case unkeyword msg of
-              Just kwd ->
+            case extractSpecialMessage msg of
+              Just (MsgKeyword kwd) ->
                   ( "It looks like the keyword `" ++ kwd ++ "` is being used as a variable."
                   , Just "Rename it to something else."
+                  )
+
+              Just MsgTab ->
+                  ( "A tab character was found, but all whitespace (including indentation) must be spaces not tabs."
+                  , Just "I am looking for spaces, not tabs."
                   )
 
               Nothing ->
