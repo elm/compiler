@@ -3,7 +3,7 @@ module Generate.JavaScript.BuiltIn
   , list, range
   , recordUpdate
   , eq, cmp
-  , cmd, sub
+  , effect
   , crash
   )
   where
@@ -85,14 +85,11 @@ cmp left right =
 -- EFFECTS
 
 
-cmd :: ModuleName.Canonical -> JS.Expression ()
-cmd effectName =
-  utils "cmd" [ JS.StringLit () (ModuleName.canonicalToString effectName) ]
+effect :: ModuleName.Canonical -> JS.Expression ()
+effect effectName =
+  obj ["_elm_lang$core$Native_Platform", "leaf"] <|
+    JS.StringLit () (ModuleName.canonicalToString effectName)
 
-
-sub :: ModuleName.Canonical -> JS.Expression ()
-sub effectName =
-  utils "sub" [ JS.StringLit () (ModuleName.canonicalToString effectName) ]
 
 
 -- CRASH
