@@ -8,7 +8,5 @@ Elm.Main.make = function (_elm) {
    var always = F2(function (x,s) {    return x;});
    _op["|>"] = F2(function (a,f) {    return f(a);});
    var value = A2(_op["|>"],"Hi",always("Hello"));
-   return _elm.Main.values = {_op: _op
-                             ,always: always
-                             ,value: value};
+   return _elm.Main.values = {_op: _op,always: always,value: value};
 };

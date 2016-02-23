@@ -157,7 +157,7 @@ generateCode expr =
       TailCall name argNames args ->
           let
             reassign name tempName =
-              ExprStmt () (AssignExpr () OpAssign (LVar () name) (ref tempName))
+              ExprStmt () (AssignExpr () OpAssign (LVar () (Var.safe name)) (ref tempName))
           in
             do  args' <- mapM generateJsExpr args
                 tempNames <- mapM (\_ -> Var.fresh) args
@@ -403,6 +403,9 @@ pathToTestableExpr root path exampleTest =
       case exampleTest of
         DT.Constructor _ ->
             return (DotRef () accessExpr (Id () "ctor"))
+
+        DT.Literal (L.Chr _) ->
+            return (DotRef () accessExpr (Id () "valueOf") `call` [])
 
         DT.Literal _ ->
             return accessExpr

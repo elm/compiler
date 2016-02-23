@@ -114,18 +114,23 @@ drawCycle :: [String] -> Doc
 drawCycle strings =
   let
     topLine =
-        text "┌─────┐"
+        [ text "┌─────┐"
+        , text "│     V"
+        ]
 
     line str =
-        text "│    " <> dullyellow (text str)
+        [ text "│    " <> dullyellow (text str)
+        ]
 
     midLine =
-        text "│     ↓"
+        [ text "│     │"
+        , text "│     V"
+        ]
 
     bottomLine =
         text "└─────┘"
   in
-    vcat (topLine : List.intersperse midLine (map line strings) ++ [ bottomLine ])
+    vcat (topLine ++ List.intercalate midLine (map line strings) ++ [ bottomLine ])
 
 
 

@@ -59,7 +59,9 @@ run :: (MonadError String m, MonadIO m) => String -> [String] -> m String
 run command args =
   do  result <- liftIO (unwrappedRun command args)
       case result of
-        Right out -> return out
+        Right out ->
+          return out
+
         Left err ->
           throwError (context (message err))
   where
@@ -70,6 +72,7 @@ run command args =
       case err of
         CommandFailed stderr stdout ->
           stdout ++ stderr
+
         MissingExe msg ->
           msg
 
@@ -79,11 +82,18 @@ unwrappedRun command args =
   do  (exitCode, stdout, stderr) <- readProcessWithExitCode command args ""
       return $
           case exitCode of
-            ExitSuccess -> Right stdout
-            ExitFailure code
-                | code == 127  -> Left (missingExe command)  -- UNIX
-                | code == 9009 -> Left (missingExe command)  -- Windows
-                | otherwise    -> Left (CommandFailed stdout stderr)
+            ExitSuccess ->
+              Right stdout
+
+            ExitFailure code ->
+              if code == 127 then
+                Left (missingExe command)  -- UNIX
+
+              else if code == 9009 then
+                Left (missingExe command)  -- Windows
+
+              else
+                Left (CommandFailed stdout stderr)
 
 
 missingExe :: String -> CommandError

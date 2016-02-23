@@ -16,8 +16,5 @@ Elm.Main.make = function (_elm) {
             return 0;
          }
    };
-   return _elm.Main.values = {_op: _op
-                             ,Just: Just
-                             ,Nothing: Nothing
-                             ,withDefault0: withDefault0};
+   return _elm.Main.values = {_op: _op,Just: Just,Nothing: Nothing,withDefault0: withDefault0};
 };

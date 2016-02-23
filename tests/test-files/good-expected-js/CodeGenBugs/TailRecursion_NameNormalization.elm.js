@@ -5,6 +5,6 @@ Elm.Main.make = function (_elm) {
    if (_elm.Main.values) return _elm.Main.values;
    var _U = Elm.Native.Utils.make(_elm);
    var _op = {};
-   var myId = function () {    var id = function (x) {    return x;};return id;}();
-   return _elm.Main.values = {_op: _op,myId: myId};
+   var go = function (n$) {    go: while (true) if (n$) {    var _v0 = n$;n$ = _v0;continue go;} else return false;};
+   return _elm.Main.values = {_op: _op,go: go};
 };
