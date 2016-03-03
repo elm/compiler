@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Nitpick.TopLevelTypes (topLevelTypes) where
 
+import Data.Map ((!))
 import Prelude hiding (maybe)
 import qualified Data.Foldable as F
 import qualified Data.Map as Map
@@ -39,14 +40,10 @@ warnMissingAnnotation
 warnMissingAnnotation typeEnv (A.A (region,_) decl) =
   case decl of
     Decl.Def (Valid.Definition (A.A _ (P.Var name)) _ Nothing) ->
-        case Map.lookup name typeEnv of
-          Nothing ->
-              return ()
+      Result.warn region (Warning.MissingTypeAnnotation name (typeEnv ! name))
 
-          Just tipe ->
-              Result.warn region (Warning.MissingTypeAnnotation name tipe)
     _ ->
-        return ()
+      return ()
 
 
 
