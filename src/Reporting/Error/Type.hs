@@ -72,6 +72,10 @@ data Hint
     | Range
     | Lambda
     | Record
+    -- effect manager problems
+    | Manager String
+    | State String
+    | SelfMsg
 
 
 data Pattern
@@ -424,6 +428,42 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
               "But you are trying to use it as:"
               []
           )
+
+    Manager name ->
+        report
+          Nothing
+          ("The `" ++ name ++ "` in your effect manager has a weird type.")
+          ( cmpHint
+              ("Your `" ++ name ++ "` function has this type:")
+              "But it needs to have a type like this:"
+              []
+          )
+
+    State name ->
+        report
+          Nothing
+          ( "Your effect manager creates a certain type of state with `init`, but your `"
+            ++ name ++ "` function expects a different kind of state."
+          )
+          ( cmpHint
+              "The state created by `init` has this type:"
+              ("But the state updated by `" ++ name ++ "` has this type:")
+              [ "Just get the state to be the same type in both functions and you should be all set!"
+              ]
+          )
+
+    SelfMsg ->
+        report
+          Nothing
+          "Effect managers can send messages to themselves, but `onEffects` and `onSelfMsg` are defined for different types of self messages."
+          ( cmpHint
+              "The `onEffects` function can send this type of message:"
+              "But the `onSelfMsg` function receives this type:"
+              [ "Just get the message type to be the same in both functions and you should be all set!"
+              ]
+          )
+
+
 
 
 comparisonHint

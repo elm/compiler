@@ -6,6 +6,7 @@ import qualified Data.Map as Map
 import qualified AST.Effects as Fx
 import qualified AST.Module.Name as ModuleName
 import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Type as Error
 import qualified Type.Environment as Env
 import Type.Type
   ( Variable, Type, TypeConstraint, Constraint(..), Scheme(Scheme)
@@ -73,12 +74,12 @@ constrainHelp env moduleName (Fx.Info tagRegion r0 r1 r2 managerType) =
             [ CInstance tagRegion "init" (VarN v0)
             , CInstance tagRegion "onEffects" (VarN v1)
             , CInstance tagRegion "onSelfMsg" (VarN v2)
-            , CEqual (error "TODO 1") r0 (VarN v0) (task state0)
-            , CEqual (error "TODO 2") r1 (VarN v1) onEffectsType
-            , CEqual (error "TODO 3") r2 (VarN v2) onSelfMsgType
-            , CEqual (error "TODO 4") r1 (VarN state0) (VarN state1)
-            , CEqual (error "TODO 5") r2 (VarN state0) (VarN state2)
-            , CEqual (error "TODO 6") r2 (VarN selfMsg1) (VarN selfMsg2)
+            , CEqual (Error.Manager "init") r0 (VarN v0) (task state0)
+            , CEqual (Error.Manager "onEffects") r1 (VarN v1) onEffectsType
+            , CEqual (Error.Manager "onSelfMsg") r2 (VarN v2) onSelfMsgType
+            , CEqual (Error.State "onEffects") r1 (VarN state0) (VarN state1)
+            , CEqual (Error.State "onSelfMsg") r2 (VarN state0) (VarN state2)
+            , CEqual Error.SelfMsg r2 (VarN selfMsg1) (VarN selfMsg2)
             ]
 
         return $
