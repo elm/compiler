@@ -206,7 +206,7 @@ unboundTypeVars declKind typeName givenVars unboundVars@(tvar:_) =
             ++ map text ["=", "..."]
         , Help.reflowParagraph $
             "Here's why. Imagine one `" ++ typeName ++ "` where `" ++ tvar ++ "` is an Int and\
-            \ another where it is a Bool. When we explicitly list the type variables, type\
+            \ another where it is a Bool. When we explicitly list the type variables, the type\
             \ checker can see that they are actually different types."
         ]
     )
