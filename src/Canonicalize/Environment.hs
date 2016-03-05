@@ -17,7 +17,6 @@ import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
-import Elm.Utils ((|>))
 
 
 
@@ -30,7 +29,6 @@ data Environment = Env
     , _unions   :: Dict Var.Canonical
     , _aliases  :: Dict (Var.Canonical, [String], Type.Canonical)
     , _patterns :: Dict (Var.Canonical, Int)
-    , _effects  :: Map.Map String ModuleName.Canonical
     }
 
 
@@ -38,20 +36,9 @@ type Dict a =
     Map.Map String (Set.Set a)
 
 
-fromPatches
-  :: ModuleName.Canonical
-  -> Map.Map String ModuleName.Canonical
-  -> [Patch]
-  -> Environment
-fromPatches moduleName moduleNames patches =
-  let
-    effects =
-      Map.insert (ModuleName.canonicalToString moduleName) moduleName moduleNames
-      -- TODO filter this so it is *only* effect modules, no normal modules!
-  in
-    addPatches
-      patches
-      (Env moduleName Map.empty Map.empty Map.empty Map.empty effects)
+fromPatches :: ModuleName.Canonical -> [Patch] -> Environment
+fromPatches moduleName patches =
+  addPatches patches (Env moduleName Map.empty Map.empty Map.empty Map.empty)
 
 
 addPattern :: P.Pattern ann var -> Environment -> Environment
@@ -138,7 +125,7 @@ builtinPatches =
 
 
 toDealiaser :: Environment -> Map.Map String String
-toDealiaser (Env _ _ unions aliases _ _) =
+toDealiaser (Env _ _ unions aliases _) =
   let
     dealiasUnion (localName, canonicalSet) =
       case Set.toList canonicalSet of
@@ -163,5 +150,4 @@ toDealiaser (Env _ _ unions aliases _ _) =
     add (key,value) dict =
       Map.insertWith (\v v' -> if length v < length v' then v else v') key value dict
   in
-    unionPairs ++ aliasPairs
-      |> foldr add Map.empty
+    foldr add Map.empty (unionPairs ++ aliasPairs)

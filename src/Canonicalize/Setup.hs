@@ -39,8 +39,8 @@ environment importDict interfaces (Module.Module name _ info) =
     allImports =
       imports ++ map (A.A (error "default import not found")) defaults
 
-    importIngredients =
-      unzip <$> Trav.traverse (importPatches importDict interfaces) allImports
+    getImportPatches =
+      Trav.traverse (importToPatches importDict interfaces) allImports
 
     (typeAliasNodes, declPatches) =
       declarationsToPatches name decls
@@ -48,13 +48,12 @@ environment importDict interfaces (Module.Module name _ info) =
     effectPatches =
       effectsToPatches name effects
 
-    createEnv (moduleNamePairs, patchLists) =
+    createEnv importPatches =
       Env.fromPatches
         name
-        (Map.fromList (Maybe.catMaybes moduleNamePairs))
-        (concat (Env.builtinPatches : declPatches : effectPatches : patchLists))
+        (concat (Env.builtinPatches : declPatches : effectPatches : importPatches))
   in
-    (createEnv <$> importIngredients)
+    (createEnv <$> getImportPatches)
       `Result.andThen` addTypeAliases name typeAliasNodes
 
 
@@ -62,12 +61,12 @@ environment importDict interfaces (Module.Module name _ info) =
 -- PATCHES FOR IMPORTS
 
 
-importPatches
+importToPatches
     :: Map.Map ModuleName.Raw ModuleName.Canonical
     -> Module.Interfaces
     -> A.Located (ModuleName.Raw, Module.ImportMethod)
-    -> Result.ResultErr (Maybe (String, ModuleName.Canonical), [Env.Patch])
-importPatches importDict allInterfaces (A.A region (rawImportName, method)) =
+    -> Result.ResultErr [Env.Patch]
+importToPatches importDict allInterfaces (A.A region (rawImportName, method)) =
   let
     maybeInterface =
       do  canonicalName <- Map.lookup rawImportName importDict
@@ -77,7 +76,7 @@ importPatches importDict allInterfaces (A.A region (rawImportName, method)) =
   case maybeInterface of
     Nothing ->
       if ModuleName.isNative rawImportName then
-        Result.ok (Nothing, [])
+        Result.ok []
 
       else
         allInterfaces
@@ -100,21 +99,20 @@ importPatches importDict allInterfaces (A.A region (rawImportName, method)) =
           maybe (ModuleName.toString rawImportName) id maybeAlias
 
         qualifiedPatches =
-          interfacePatches importName (qualifier ++ ".") interface
+          interfaceToPatches importName (qualifier ++ ".") interface
 
         unqualifiedPatches =
           if open then
-            Result.ok (interfacePatches importName "" interface)
+            Result.ok (interfaceToPatches importName "" interface)
 
           else
             concat <$> Trav.traverse (valueToPatches region importName interface) exposedValues
       in
-        (,) (Just (qualifier, importName)) <$>
-          ((++) qualifiedPatches <$> unqualifiedPatches)
+        (++) qualifiedPatches <$> unqualifiedPatches
 
 
-interfacePatches :: ModuleName.Canonical -> String -> Module.Interface -> [Env.Patch]
-interfacePatches moduleName prefix interface =
+interfaceToPatches :: ModuleName.Canonical -> String -> Module.Interface -> [Env.Patch]
+interfaceToPatches moduleName prefix interface =
   let
     genericPatch mkPatch name value =
       mkPatch (prefix ++ name) value

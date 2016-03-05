@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Canonicalize.Variable (variable, tvar, pvar, effect) where
+module Canonicalize.Variable (variable, tvar, pvar) where
 
 import qualified Data.Either as Either
 import qualified Data.Map as Map
@@ -96,23 +96,6 @@ pvar region env var actualArgs =
         if actualArgs == expectedArgs
           then Result.var name
           else Result.err (A.A region (Error.argMismatch name expectedArgs actualArgs))
-
-
-effect
-    :: Env.Environment
-    -> A.Located ModuleName.Raw
-    -> Result.ResultErr (A.Located ModuleName.Canonical)
-effect env (A.A region rawName) =
-  let
-    rawString =
-      ModuleName.toString rawName
-  in
-    case Map.lookup rawString (Env._effects env) of
-      Just name ->
-        Result.addModule (ModuleName._module name) (Result.ok (A.A region name))
-
-      Nothing ->
-        notFound region "effect type" (Map.keys (Env._effects env)) rawString
 
 
 
