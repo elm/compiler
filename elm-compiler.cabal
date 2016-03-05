@@ -48,6 +48,7 @@ Library
 
     other-modules:
         AST.Declaration,
+        AST.Effects,
         AST.Expression.Canonical,
         AST.Expression.General,
         AST.Expression.Optimized,
@@ -112,6 +113,7 @@ Library
         Reporting.Report,
         Reporting.Result,
         Reporting.Warning,
+        Type.Constrain.Effects,
         Type.Constrain.Expression,
         Type.Constrain.Literal,
         Type.Constrain.Pattern,

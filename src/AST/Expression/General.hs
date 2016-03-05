@@ -8,6 +8,7 @@ enrich the AST with more information.
 -}
 module AST.Expression.General where
 
+import qualified AST.Effects as Fx
 import qualified AST.Literal as Literal
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as Pattern
@@ -56,6 +57,7 @@ data Expr' ann def var typ
     -- for type checking and code gen only
     | Cmd ModuleName.Canonical String
     | Sub ModuleName.Canonical String
+    | SaveEnv ModuleName.Canonical Fx.Effects
     | GLShader String String Literal.GLShaderTipe
 
 
@@ -76,20 +78,6 @@ localVar x =
 tuple :: [Expr ann def var typ] -> Expr' ann def var typ
 tuple expressions =
   Data ("_Tuple" ++ show (length expressions)) expressions
-
-
-saveEnvName :: String
-saveEnvName =
-  "_save_the_environment!!!"
-
-
-dummyLet :: [def] -> Expr ann def Var.Canonical typ
-dummyLet defs =
-  let
-    body =
-      A.A undefined (Var (Var.builtin saveEnvName))
-  in
-    A.A undefined (Let defs body)
 
 
 collectApps :: Expr ann def var typ -> [Expr ann def var typ]

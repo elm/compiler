@@ -1,13 +1,14 @@
 {-# OPTIONS_GHC -Wall #-}
 module Validate (module') where
 
-import Control.Monad (foldM)
+import Control.Monad (foldM, when)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Foldable as F
 import qualified Data.Traversable as T
 
 import AST.Expression.General as Expr
+import qualified AST.Effects as Fx
 import qualified AST.Expression.Source as Source
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Declaration as D
@@ -61,19 +62,28 @@ addDefaults pkgName imports =
 validateModuleDecl
   :: Module.SourceTag
   -> Module.SourceSettings
-  -> Result.Result wrn Error.Error Module.ValidEffects
-validateModuleDecl tag settings =
+  -> Result.Result wrn Error.Error Fx.Effects
+validateModuleDecl tag settings@(A.A _ pairs) =
   case tag of
-    Module.SrcNormal ->
+    Module.Normal ->
       do  noSettings Error.SettingsOnNormalModule settings
-          return Module.ValidNormal
+          return Fx.None
 
-    Module.SrcForeign ->
+    Module.Foreign _ ->
       do  noSettings Error.SettingsOnForeignModule settings
-          return Module.ValidForeign
+          return Fx.Foreign
 
-    Module.SrcEffect ->
-      gatherEffectSettings settings
+    Module.Effect tagRegion ->
+      let
+        collectSettings (A.A region setting, userValue) dict =
+          Map.insertWith (++) setting [(region, userValue)] dict
+
+        settingsDict =
+          foldr collectSettings Map.empty pairs
+      in
+        do  managerType <- toManagerType tagRegion settingsDict
+            return $ Fx.Effect $
+              Fx.Info tagRegion (error "TODO") (error "TODO") (error "TODO") managerType
 
 
 noSettings
@@ -89,47 +99,59 @@ noSettings errorMsg (A.A region settings) =
       Result.throw region errorMsg
 
 
-gatherEffectSettings
-  :: Module.SourceSettings
-  -> Result.Result wrn Error.Error Module.ValidEffects
-gatherEffectSettings (A.A _ pairs) =
-  uncurry Module.ValidEffect <$>
-    gatherEffectSettingsHelp (Nothing, Nothing) pairs
+toManagerType
+  :: R.Region
+  -> Map.Map String [(R.Region, A.Located String)]
+  -> Result.Result wrn Error.Error Fx.ManagerType
+toManagerType tagRegion settingsDict =
+  let
+    toErrors name entries =
+      map (\entry -> A.A (fst entry) (Error.BadSettingOnEffectModule name)) entries
+
+    errors =
+      settingsDict
+        |> Map.delete "command"
+        |> Map.delete "subscription"
+        |> Map.mapWithKey toErrors
+        |> Map.elems
+        |> concat
+  in
+    do  when (not (null errors)) (Result.throwMany errors)
+        maybeEffects <-
+          (,) <$> extractOne "command" settingsDict
+              <*> extractOne "subscription" settingsDict
+
+        case maybeEffects of
+          (Nothing, Nothing) ->
+            Result.throw tagRegion Error.NoSettingsOnEffectModule
+
+          (Just cmd, Nothing) ->
+            return (Fx.CmdManager cmd)
+
+          (Nothing, Just sub) ->
+            return (Fx.SubManager sub)
+
+          (Just cmd, Just sub) ->
+            return (Fx.FxManager cmd sub)
 
 
-type Effects =
-  (Maybe (A.Located String), Maybe (A.Located String))
+extractOne
+  :: String
+  -> Map.Map String [(R.Region, A.Located String)]
+  -> Result.Result w Error.Error (Maybe (A.Located String))
+extractOne name settingsDict =
+  case Map.lookup name settingsDict of
+    Nothing ->
+      return Nothing
 
+    Just [] ->
+      error "Empty lists should never be added to the dictionary of effect module settings."
 
-gatherEffectSettingsHelp
-  :: Effects
-  -> [(A.Located String, A.Located String)]
-  -> Result.Result wrn Error.Error Effects
-gatherEffectSettingsHelp effects@(maybeCmd, maybeSub) pairs =
-  case pairs of
-    [] ->
-      Result.ok effects
+    Just [(_, userType)] ->
+      return (Just userType)
 
-    (A.A region name, effect) : rest ->
-      case name of
-        "command" ->
-          case maybeCmd of
-            Nothing ->
-              gatherEffectSettingsHelp (Just effect, maybeSub) rest
-
-            Just _ ->
-              Result.throw region (Error.DuplicateSettingOnEffectModule name)
-
-        "subscription" ->
-          case maybeSub of
-            Nothing ->
-              gatherEffectSettingsHelp (maybeCmd, Just effect) rest
-
-            Just _ ->
-              Result.throw region (Error.DuplicateSettingOnEffectModule name)
-
-        _ ->
-          Result.throw region (Error.BadSettingOnEffectModule name)
+    Just ((region, _) : _) ->
+      Result.throw region (Error.DuplicateSettingOnEffectModule name)
 
 
 
@@ -406,6 +428,9 @@ expression (A.A ann sourceExpression) =
 
     Sub moduleName typeName ->
         return (Sub moduleName typeName)
+
+    SaveEnv moduleName effects ->
+        return (SaveEnv moduleName effects)
 
     GLShader uid src gltipe ->
         return (GLShader uid src gltipe)

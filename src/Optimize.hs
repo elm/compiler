@@ -307,6 +307,9 @@ optimizeExpr context annExpr@(A.A region expression) =
     Expr.Sub moduleName _ ->
         pure (Opt.Sub moduleName)
 
+    Expr.SaveEnv _ _ ->
+        error "save_the_environment should never make it to optimization phase"
+
     Expr.GLShader uid src gltipe ->
         pure (Opt.GLShader uid src gltipe)
 

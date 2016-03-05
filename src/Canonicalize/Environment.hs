@@ -13,7 +13,6 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 
-import AST.Expression.General (saveEnvName)
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
@@ -112,7 +111,7 @@ insert key value =
 builtinPatches :: [Patch]
 builtinPatches =
   concat
-    [ map (patch Value) (tupleNames ++ [saveEnvName])
+    [ map (patch Value) tupleNames
     , map (patch Union) (tupleNames ++ ["List","Int","Float","Char","Bool","String"])
     , map (patternPatch) (tuples ++ [ ("::", 2), ("[]", 0) ])
     ]

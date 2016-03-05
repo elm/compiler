@@ -24,6 +24,7 @@ data Error
     | SettingsOnForeignModule
     | DuplicateSettingOnEffectModule String
     | BadSettingOnEffectModule String
+    | NoSettingsOnEffectModule
 
     | InfixDuplicate String
     | TypeWithoutDefinition String
@@ -119,6 +120,9 @@ toReport _localizer err =
 
     BadSettingOnEffectModule name ->
         error "TODO - BadSettingOnEffectModule" name
+
+    NoSettingsOnEffectModule ->
+        error "TODO - NoSettingsOnEffectModule"
 
     InfixDuplicate opName ->
         Report.report

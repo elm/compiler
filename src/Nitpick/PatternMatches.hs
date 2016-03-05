@@ -189,6 +189,9 @@ checkExpression tagDict (A.A region expression) =
     E.Sub _ _ ->
         Result.ok ()
 
+    E.SaveEnv _ _ ->
+        Result.ok ()
+
     E.GLShader _ _ _ ->
         Result.ok ()
 

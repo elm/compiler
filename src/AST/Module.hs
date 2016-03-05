@@ -2,7 +2,7 @@ module AST.Module
     ( Header(..), Module(..)
 
     , Source, SourceInfo(..), SourceTag(..), SourceSettings, emptySettings
-    , Valid, ValidInfo(..), ValidEffects(..)
+    , Valid, ValidInfo(..)
     , Canonical, Optimized, Info(..)
 
     , UserImport, DefaultImport, ImportMethod(..)
@@ -19,6 +19,7 @@ import Data.Binary
 import qualified Data.Map as Map
 
 import qualified AST.Declaration as Decl
+import qualified AST.Effects as Fx
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Expression.Optimized as Optimized
 import qualified AST.Module.Name as Name
@@ -28,6 +29,7 @@ import qualified Docs.AST as Docs
 import qualified Elm.Package as Package
 import qualified Elm.Compiler.Version as Compiler
 import qualified Reporting.Annotation as A
+import qualified Reporting.Region as R
 
 
 
@@ -74,9 +76,9 @@ data SourceInfo =
 
 
 data SourceTag
-  = SrcNormal
-  | SrcEffect
-  | SrcForeign
+  = Normal
+  | Effect R.Region
+  | Foreign R.Region
 
 
 type SourceSettings =
@@ -98,14 +100,8 @@ data ValidInfo =
     , validExports :: Var.Listing (A.Located Var.Value)
     , validImports :: ([DefaultImport], [UserImport])
     , validDecls :: [Decl.Valid]
-    , validEffects :: ValidEffects
+    , validEffects :: Fx.Effects
     }
-
-
-data ValidEffects
-  = ValidNormal
-  | ValidEffect (Maybe (A.Located String)) (Maybe (A.Located String))
-  | ValidForeign
 
 
 type Canonical =
@@ -137,16 +133,17 @@ data ImportMethod =
 -- LATE PHASE MODULE INFORMATION
 
 
-data Info expr =
+data Info program =
   Info
     { docs :: A.Located (Maybe Docs.Centralized)
     , exports :: [Var.Value]
     , imports :: [Name.Raw]
-    , program :: expr
+    , program :: program
     , types :: Types
     , fixities :: [(Decl.Assoc, Int, String)]
     , aliases :: Aliases
     , unions :: Unions
+    , effects :: Fx.Effects
     }
 
 

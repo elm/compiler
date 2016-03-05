@@ -102,6 +102,9 @@ reorder (A.A ann expression) =
     Sub _ _ ->
       return expression
 
+    SaveEnv _ _ ->
+      return expression
+
     GLShader _ _ _ ->
       return expression
 

@@ -99,6 +99,7 @@ module' canonicalImports interfaces modul =
                       , Module.fixities = fixities
                       , Module.aliases = aliases
                       , Module.unions = unions
+                      , Module.effects = effects
                       }
                   }
 
@@ -439,6 +440,9 @@ expression env (A.A region validExpr) =
 
       Sub moduleName string ->
           Result.ok (Sub moduleName string)
+
+      SaveEnv moduleName effects ->
+          Result.ok (SaveEnv moduleName effects)
 
       GLShader uid src tipe ->
           Result.ok (GLShader uid src tipe)

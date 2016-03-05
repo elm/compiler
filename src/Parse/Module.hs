@@ -8,6 +8,7 @@ import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
+import qualified Reporting.Region as R
 
 
 getModuleName :: String -> Maybe String
@@ -31,7 +32,7 @@ header =
   do  optional freshLine
       (ModuleDecl tag names exports settings) <-
         option
-          (ModuleDecl Module.SrcNormal ["Main"] Var.openListing Module.emptySettings)
+          (ModuleDecl Module.Normal ["Main"] Var.openListing Module.emptySettings)
           (moduleDecl `followedBy` freshLine)
 
       docs <-
@@ -76,19 +77,23 @@ parseTag =
   choice
     [
       do  try (reserved "module")
-          return Module.SrcNormal
+          return Module.Normal
     ,
-      do  try (reserved "effect")
+      do  start <- getMyPosition
+          try (reserved "effect")
           whitespace
           reserved "module"
-          return Module.SrcEffect
+          end <- getMyPosition
+          return (Module.Effect (R.Region start end))
     ,
-      do  reserved "foreign"
+      do  start <- getMyPosition
+          reserved "foreign"
           whitespace
           reserved "effect"
           whitespace
           reserved "module"
-          return Module.SrcForeign
+          end <- getMyPosition
+          return (Module.Foreign (R.Region start end))
     ]
 
 

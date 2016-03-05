@@ -2,9 +2,9 @@
 module Canonicalize.Body (flatten) where
 
 import qualified AST.Declaration as D
+import qualified AST.Effects as Fx
 import qualified AST.Expression.General as E
 import qualified AST.Expression.Canonical as Canonical
-import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Type as T
@@ -15,7 +15,7 @@ import qualified Reporting.Region as R
 
 
 
-flatten :: ModuleName.Canonical -> [D.Canonical] -> Module.ValidEffects -> Canonical.Expr
+flatten :: ModuleName.Canonical -> [D.Canonical] -> Fx.Effects -> Canonical.Expr
 flatten moduleName decls effects =
   let
     declDefs =
@@ -23,8 +23,14 @@ flatten moduleName decls effects =
 
     effectDefs =
       effectsToDefs moduleName effects
+
+    loc =
+      A.A (error "this annotation should never be needed")
   in
-    Sort.definitions (E.dummyLet (declDefs ++ effectDefs))
+    Sort.definitions $ loc $
+      E.Let
+        (declDefs ++ effectDefs)
+        (loc $ E.SaveEnv moduleName effects)
 
 
 
@@ -112,35 +118,37 @@ definition name expr@(A.A ann _) region tipe =
 -- EFFECTS
 
 
-effectsToDefs :: ModuleName.Canonical -> Module.ValidEffects -> [Canonical.Def]
+effectsToDefs :: ModuleName.Canonical -> Fx.Effects -> [Canonical.Def]
 effectsToDefs moduleName effects =
   case effects of
-    Module.ValidNormal ->
+    Fx.None ->
       []
 
-    Module.ValidEffect maybeCmd maybeSub ->
-      effectsToDefsHelp "command" (E.Cmd moduleName) maybeCmd
-      ++ effectsToDefsHelp "subscription" (E.Sub moduleName) maybeSub
-
-    Module.ValidForeign ->
+    Fx.Foreign ->
       []
+
+    Fx.Effect info ->
+      case Fx._type info of
+        Fx.CmdManager cmd ->
+          [ effectsToDefsHelp "command" (E.Cmd moduleName) cmd ]
+
+        Fx.SubManager sub ->
+          [ effectsToDefsHelp "subscription" (E.Sub moduleName) sub ]
+
+        Fx.FxManager cmd sub ->
+          [ effectsToDefsHelp "command" (E.Cmd moduleName) cmd
+          , effectsToDefsHelp "subscription" (E.Sub moduleName) sub
+          ]
 
 
 effectsToDefsHelp
   :: String
   -> (String -> Canonical.Expr')
-  -> Maybe (A.Located String)
-  -> [Canonical.Def]
-effectsToDefsHelp name toExpr' maybeEffect =
-  case maybeEffect of
-    Nothing ->
-      []
-
-    Just (A.A region typeName) ->
-      [ Canonical.Definition
-          Canonical.dummyFacts
-          (A.A region (P.Var name))
-          (A.A region (toExpr' typeName))
-          Nothing
-      ]
-
+  -> A.Located String
+  -> Canonical.Def
+effectsToDefsHelp name toExpr' (A.A region typeName) =
+  Canonical.Definition
+    Canonical.dummyFacts
+    (A.A region (P.Var name))
+    (A.A region (toExpr' typeName))
+    Nothing

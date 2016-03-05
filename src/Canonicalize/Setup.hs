@@ -8,6 +8,7 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Traversable as Trav
 
 import qualified AST.Declaration as D
+import qualified AST.Effects as Fx
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
@@ -367,21 +368,26 @@ declToPatches moduleName (A.A (region,_) decl) =
 -- EFFECTS TO PATCHES
 
 
-effectsToPatches :: ModuleName.Canonical -> Module.ValidEffects -> [Env.Patch]
+effectsToPatches :: ModuleName.Canonical -> Fx.Effects -> [Env.Patch]
 effectsToPatches moduleName effects =
   case effects of
-    Module.ValidNormal ->
+    Fx.None ->
       []
 
-    Module.ValidEffect maybeCmd maybeSub ->
+    Fx.Foreign ->
+      []
+
+    Fx.Effect info ->
       map (\name -> Env.Value name (Var.topLevel moduleName name)) $
-        Maybe.catMaybes
-          [ fmap (const "command") maybeCmd
-          , fmap (const "subscription") maybeSub
-          ]
+        case Fx._type info of
+          Fx.CmdManager _ ->
+            [ "command" ]
 
-    Module.ValidForeign ->
-      []
+          Fx.SubManager _ ->
+            [ "subscription" ]
+
+          Fx.FxManager _ _ ->
+            [ "command", "subscription" ]
 
 
 

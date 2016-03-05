@@ -14,6 +14,7 @@ import qualified AST.Variable as V
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
+import qualified Type.Constrain.Effects as Effects
 import qualified Type.Constrain.Literal as Literal
 import qualified Type.Constrain.Pattern as Pattern
 import qualified Type.Environment as Env
@@ -46,6 +47,9 @@ constrain env annotatedExpr@(A.A region expression) tipe =
               Env.instantiateType env (ST.sub moduleName typeName) Map.empty
           return $ ex vars (CEqual (error "TODO - Sub") region sub tipe)
 
+    E.SaveEnv moduleName effects ->
+      Effects.constrain env moduleName effects
+
     E.GLShader _uid _src gltipe ->
       exists $ \attr ->
       exists $ \unif ->
@@ -71,11 +75,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
           return (CEqual Error.Shader region (shaderTipe attribute uniform varying) tipe)
 
     E.Var var ->
-      let
-        name =
-          V.toString var
-      in
-        return (if name == E.saveEnvName then CSaveEnv else CInstance region name tipe)
+      return (CInstance region (V.toString var) tipe)
 
     E.Range lowExpr highExpr ->
       existsNumber $ \n ->
