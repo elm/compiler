@@ -38,14 +38,17 @@ module' (Module.Module name path info) =
     (Module.Source tag settings docs exports imports decls) =
       info
   in
-    do  validEffects <- validateModuleDecl tag settings
-        validDecls <- declarations decls
+    do  validDecls <- declarations decls
+        validEffects <- validateEffects tag settings validDecls
 
         return $ Module.Module name path $
           Module.Valid docs exports (addDefaults pkgName imports) validDecls validEffects
 
 
--- determine if default imports should be added, only elm-lang/core is exempt
+
+-- IMPORTS
+
+
 addDefaults
   :: Package.Name
   -> [Module.UserImport]
@@ -59,11 +62,16 @@ addDefaults pkgName imports =
       Imports.defaults
 
 
-validateModuleDecl
+
+-- EFFECTS
+
+
+validateEffects
   :: Module.SourceTag
   -> Module.SourceSettings
+  -> [D.Valid]
   -> Result.Result wrn Error.Error Fx.Effects
-validateModuleDecl tag settings@(A.A _ pairs) =
+validateEffects tag settings@(A.A _ pairs) decls =
   case tag of
     Module.Normal ->
       do  noSettings Error.SettingsOnNormalModule settings
@@ -82,8 +90,8 @@ validateModuleDecl tag settings@(A.A _ pairs) =
           foldr collectSettings Map.empty pairs
       in
         do  managerType <- toManagerType tagRegion settingsDict
-            return $ Fx.Effect $
-              Fx.Info tagRegion (error "TODO") (error "TODO") (error "TODO") managerType
+            (r0, r1, r2) <- getManagerRegions tagRegion Nothing Nothing Nothing decls
+            return (Fx.Effect (Fx.Info tagRegion r0 r1 r2 managerType))
 
 
 noSettings
@@ -152,6 +160,60 @@ extractOne name settingsDict =
 
     Just ((region, _) : _) ->
       Result.throw region (Error.DuplicateSettingOnEffectModule name)
+
+
+
+-- EFFECT REGIONS
+
+
+getManagerRegions
+  :: R.Region
+  -> Maybe R.Region
+  -> Maybe R.Region
+  -> Maybe R.Region
+  -> [D.Valid]
+  -> Result.Result w Error.Error (R.Region, R.Region, R.Region)
+getManagerRegions tagRegion r0 r1 r2 decls =
+  case decls of
+    [] ->
+      (,,)
+        <$> requireRegion tagRegion "init" r0
+        <*> requireRegion tagRegion "onEffects" r1
+        <*> requireRegion tagRegion "onSelfMsg" r2
+
+    decl : rest ->
+      case getDefInfo decl of
+        Just ("init", region) ->
+          getManagerRegions tagRegion (Just region) r1 r2 rest
+
+        Just ("onEffects", region) ->
+          getManagerRegions tagRegion r0 (Just region) r2 rest
+
+        Just ("onSelfMsg", region) ->
+          getManagerRegions tagRegion r0 r1 (Just region) rest
+
+        _ ->
+          getManagerRegions tagRegion r0 r1 r2 rest
+
+
+getDefInfo :: D.Valid -> Maybe (String, R.Region)
+getDefInfo decl =
+  case decl of
+    A.A region (D.Def (Valid.Definition (A.A _ (Pattern.Var name)) _ _)) ->
+      Just (name, fst region)
+
+    _ ->
+      Nothing
+
+
+requireRegion :: R.Region -> String -> Maybe R.Region -> Result.Result w Error.Error R.Region
+requireRegion tagRegion name maybeRegion =
+  case maybeRegion of
+    Just region ->
+      return region
+
+    Nothing ->
+      Result.throw tagRegion (error $ "TODO - " ++ name)
 
 
 
