@@ -25,6 +25,7 @@ data Error
     | DuplicateSettingOnEffectModule String
     | BadSettingOnEffectModule String
     | NoSettingsOnEffectModule
+    | MissingManagerOnEffectModule String
 
     | InfixDuplicate String
     | TypeWithoutDefinition String
@@ -105,15 +106,24 @@ toReport _localizer err =
         Report.report
           "BAD MODULE DECLARATION"
           Nothing
-          "A normal module can expose values, but not register commands and subscriptions."
+          "A normal module can expose values, but not settings like this."
           ( Help.reflowParagraph $
               "If you want a normal module, just remove this stuff. If you want to create\
               \ an `effect module` you just forgot to use the `effect` keyword. In that\
-              \ case, just change `module` to `effect module` and you should be all set!"
+              \ case, just change `module` to `effect module` and you should be headed in\
+              \ the right direction!"
           )
 
     SettingsOnForeignModule ->
-        error "TODO - SettingsOnForeignModule"
+        Report.report
+          "BAD MODULE DECLARATION"
+          Nothing
+          "A foreign effect module can expose values, but not have settings like this."
+          ( Help.reflowParagraph $
+              "If you want a foreign effect module, just remove this stuff. If you want\
+              \ to create an `effect module` instead, just change `foreign effect module`\
+              \ to `effect module` and you should be headed in the right direction!"
+          )
 
     DuplicateSettingOnEffectModule name ->
         error "TODO - DuplicateSettingOnEffectModule" name
@@ -123,6 +133,9 @@ toReport _localizer err =
 
     NoSettingsOnEffectModule ->
         error "TODO - NoSettingsOnEffectModule"
+
+    MissingManagerOnEffectModule name ->
+        error "TODO - NoSettingsOnEffectModule" name
 
     InfixDuplicate opName ->
         Report.report

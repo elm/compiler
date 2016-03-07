@@ -436,7 +436,8 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
           ( cmpHint
               ("Your `" ++ name ++ "` function has this type:")
               "But it needs to have a type like this:"
-              []
+              [ "TODO - link to overview of effect managers"
+              ]
           )
 
     State name ->
@@ -447,8 +448,9 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
           )
           ( cmpHint
               "The state created by `init` has this type:"
-              ("But the state updated by `" ++ name ++ "` has this type:")
-              [ "Just get the state to be the same type in both functions and you should be all set!"
+              ("But `" ++ name ++ "` expects state of this type:")
+              [ "Make the two state types match and you should be all set!"
+              , "TODO - link to overview of effect managers"
               ]
           )
 
@@ -459,7 +461,8 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
           ( cmpHint
               "The `onEffects` function can send this type of message:"
               "But the `onSelfMsg` function receives this type:"
-              [ "Just get the message type to be the same in both functions and you should be all set!"
+              [ "Make the two message types match and you should be all set!"
+              , "TODO - link to overview of effect managers"
               ]
           )
 

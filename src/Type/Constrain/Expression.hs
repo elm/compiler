@@ -40,12 +40,12 @@ constrain env annotatedExpr@(A.A region expression) tipe =
     E.Cmd moduleName typeName ->
       do  (vars, cmd) <-
               Env.instantiateType env (ST.cmd moduleName typeName) Map.empty
-          return $ ex vars (CEqual (error "TODO - Cmd") region cmd tipe)
+          return $ ex vars (CEqual (Error.Instance "command") region cmd tipe)
 
     E.Sub moduleName typeName ->
       do  (vars, sub) <-
               Env.instantiateType env (ST.sub moduleName typeName) Map.empty
-          return $ ex vars (CEqual (error "TODO - Sub") region sub tipe)
+          return $ ex vars (CEqual (Error.Instance "subscription") region sub tipe)
 
     E.SaveEnv moduleName effects ->
       Effects.constrain env moduleName effects

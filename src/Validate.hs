@@ -213,7 +213,7 @@ requireRegion tagRegion name maybeRegion =
       return region
 
     Nothing ->
-      Result.throw tagRegion (error $ "TODO - " ++ name)
+      Result.throw tagRegion (Error.MissingManagerOnEffectModule name)
 
 
 
