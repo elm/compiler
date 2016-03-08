@@ -3,6 +3,7 @@ module Generate.JavaScript.Variable
     ( fresh
     , canonical
     , qualified
+    , native
     , define
     , safe
     )

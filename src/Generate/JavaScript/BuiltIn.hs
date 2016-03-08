@@ -13,18 +13,19 @@ import qualified Language.ECMAScript3.Syntax as JS
 
 import qualified AST.Module.Name as ModuleName
 import Generate.JavaScript.Helpers
+import qualified Generate.JavaScript.Variable as Var
 import qualified Reporting.Region as R
 
 
 
 utils :: String -> [JS.Expression ()] -> JS.Expression ()
 utils func args =
-  obj ["_elm_lang$core$Native_Utils", func] `call` args
+  Var.native (ModuleName.inCore ["Native","Utils"]) func `call` args
 
 
 nativeList :: String -> [JS.Expression ()] -> JS.Expression ()
 nativeList func args =
-  obj ["_elm_lang$core$Native_List", func] `call` args
+  Var.native (ModuleName.inCore ["Native","List"]) func `call` args
 
 
 
@@ -87,7 +88,7 @@ cmp left right =
 
 effect :: ModuleName.Canonical -> JS.Expression ()
 effect effectName =
-  obj ["_elm_lang$core$Native_Platform", "leaf"] <|
+  Var.native (ModuleName.inCore ["Native","Platform"]) "leaf" <|
     JS.StringLit () (ModuleName.canonicalToString effectName)
 
 
