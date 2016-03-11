@@ -90,7 +90,7 @@ validateEffects tag settings@(A.A _ pairs) decls =
           foldr collectSettings Map.empty pairs
       in
         do  managerType <- toManagerType tagRegion settingsDict
-            (r0, r1, r2) <- getManagerRegions tagRegion Nothing Nothing Nothing decls
+            (r0, r1, r2) <- checkManagerImpl tagRegion managerType noInfo decls
             return (Fx.Effect (Fx.Info tagRegion r0 r1 r2 managerType))
 
 
@@ -166,34 +166,58 @@ extractOne name settingsDict =
 -- EFFECT REGIONS
 
 
-getManagerRegions
+data ManagerInfo =
+  ManagerInfo
+    { _cmdMap :: Bool
+    , _subMap :: Bool
+    , _init :: Maybe R.Region
+    , _onEffects :: Maybe R.Region
+    , _onSelfMsg :: Maybe R.Region
+    }
+
+
+noInfo :: ManagerInfo
+noInfo =
+  ManagerInfo False False Nothing Nothing Nothing
+
+
+checkManagerImpl
   :: R.Region
-  -> Maybe R.Region
-  -> Maybe R.Region
-  -> Maybe R.Region
+  -> Fx.ManagerType
+  -> ManagerInfo
   -> [D.Valid]
   -> Result.Result w Error.Error (R.Region, R.Region, R.Region)
-getManagerRegions tagRegion r0 r1 r2 decls =
+checkManagerImpl tagRegion managerType info decls =
   case decls of
     [] ->
-      (,,)
-        <$> requireRegion tagRegion "init" r0
-        <*> requireRegion tagRegion "onEffects" r1
-        <*> requireRegion tagRegion "onSelfMsg" r2
+      let
+        (ManagerInfo cmdMap subMap init onEffects onSelfMsg) = info
+      in
+        const (,,)
+          <$> requireMaps tagRegion managerType cmdMap subMap
+          <*> requireRegion tagRegion "init" init
+          <*> requireRegion tagRegion "onEffects" onEffects
+          <*> requireRegion tagRegion "onSelfMsg" onSelfMsg
 
     decl : rest ->
       case getDefInfo decl of
         Just ("init", region) ->
-          getManagerRegions tagRegion (Just region) r1 r2 rest
+          checkManagerImpl tagRegion managerType (info { _init = Just region }) rest
 
         Just ("onEffects", region) ->
-          getManagerRegions tagRegion r0 (Just region) r2 rest
+          checkManagerImpl tagRegion managerType (info { _onEffects = Just region }) rest
 
         Just ("onSelfMsg", region) ->
-          getManagerRegions tagRegion r0 r1 (Just region) rest
+          checkManagerImpl tagRegion managerType (info { _onSelfMsg = Just region }) rest
+
+        Just ("cmdMap", _) ->
+          checkManagerImpl tagRegion managerType (info { _cmdMap = True }) rest
+
+        Just ("subMap", _) ->
+          checkManagerImpl tagRegion managerType (info { _subMap = True }) rest
 
         _ ->
-          getManagerRegions tagRegion r0 r1 r2 rest
+          checkManagerImpl tagRegion managerType info rest
 
 
 getDefInfo :: D.Valid -> Maybe (String, R.Region)
@@ -204,6 +228,25 @@ getDefInfo decl =
 
     _ ->
       Nothing
+
+
+requireMaps :: R.Region -> Fx.ManagerType -> Bool -> Bool -> Result.Result w Error.Error ()
+requireMaps tagRegion managerType hasCmdMap hasSubMap =
+  let
+    check hasIt name =
+      when (not hasIt) (Result.throw tagRegion (Error.MissingManagerOnEffectModule name))
+  in
+  case managerType of
+    Fx.CmdManager _ ->
+      check hasCmdMap "cmdMap"
+
+    Fx.SubManager _ ->
+      check hasSubMap "subMap"
+
+    Fx.FxManager _ _ ->
+      (\_ _ -> ())
+        <$> check hasCmdMap "cmdMap"
+        <*> check hasSubMap "subMap"
 
 
 requireRegion :: R.Region -> String -> Maybe R.Region -> Result.Result w Error.Error R.Region
