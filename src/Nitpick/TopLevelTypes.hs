@@ -81,7 +81,7 @@ vdomNode :: Type.Canonical
 vdomNode =
   let
     vdom =
-      ModuleName.Canonical (Pkg.Name "evancz" "virtual-dom") ["VirtualDom"]
+      ModuleName.Canonical (Pkg.Name "elm-lang" "virtual-dom") ["VirtualDom"]
   in
     Type.Type (Var.fromModule vdom "Node")
 
