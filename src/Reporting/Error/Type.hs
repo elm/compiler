@@ -105,8 +105,8 @@ toReport localizer err =
           "The 'main' value has an unsupported type."
           ( Help.stack
               [ Help.reflowParagraph $
-                "I need an Element, Html, (Signal Element), or (Signal Html) so I can render it\
-                \ on screen, but you gave me:"
+                "I need Html, Svg, or a Program so I have something to render on\
+                \ screen, but you gave me:"
               , indent 4 (RenderType.toDoc localizer tipe)
               ]
           )
