@@ -126,16 +126,47 @@ toReport _localizer err =
           )
 
     DuplicateSettingOnEffectModule name ->
-        error "TODO - DuplicateSettingOnEffectModule" name
+        Report.report
+          "EFFECT MODULE PROBLEM"
+          Nothing
+          ("You have defined " ++ Help.functionName name ++ " multiple times.")
+          ( Help.reflowParagraph $
+              "There can only be one " ++ Help.functionName name
+              ++ " though! Remove until there is one left."
+          )
 
     BadSettingOnEffectModule name ->
-        error "TODO - BadSettingOnEffectModule" name
+        Report.report
+          "EFFECT MODULE PROBLEM"
+          Nothing
+          ("Setting " ++ Help.functionName name ++ " is not recognized.")
+          ( Help.reflowParagraph $
+              "Remove this entry and you should be all set!"
+          )
 
     NoSettingsOnEffectModule ->
-        error "TODO - NoSettingsOnEffectModule"
+        Report.report
+          "EFFECT MODULE PROBLEM"
+          Nothing
+          ("You are defining an effect module, but it has no settings.")
+          ( Help.reflowParagraph $
+              "If you just wanted a normal module, change the keywords `effect module`\
+              \ to `module` and you should be all set. If you want a proper effect module,\
+              \ you need to specify your commands and/or subscriptions. Read more about this\
+              \ here: <TODO> (please forgive me if I forgot to fill this in!)"
+          )
 
     MissingManagerOnEffectModule name ->
-        error "TODO - MissingManagerOnEffectModule" name
+        Report.report
+          "EFFECT MODULE PROBLEM"
+          Nothing
+          ("You are defining an effect module, but there is no " ++ Help.functionName name ++ " defined.")
+          ( Help.reflowParagraph $
+              "There is a small set of top-level functions and values that must be defined\
+              \ in any complete effect module. The best thing is probably to just read more\
+              \ about effect modules here:\
+              \ <TODO> (please forgive me if I forgot to fill this in!)"
+          )
 
     InfixDuplicate opName ->
         Report.report
