@@ -135,7 +135,7 @@ toReport _localizer err =
         error "TODO - NoSettingsOnEffectModule"
 
     MissingManagerOnEffectModule name ->
-        error "TODO - NoSettingsOnEffectModule" name
+        error "TODO - MissingManagerOnEffectModule" name
 
     InfixDuplicate opName ->
         Report.report
