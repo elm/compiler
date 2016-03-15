@@ -60,14 +60,18 @@ moduleDecl =
   expecting "a module declaration" $
   do
       tag <- parseTag
+      whitespace
 
-      names <- padded (dotSep1 capVar) <?> "the name of this module"
+      names <- dotSep1 capVar <?> "the name of this module"
+      whitespace
 
       settings <- option Module.emptySettings parseSetting
+      whitespace
 
-      exports <- padded (listing (addLocation value))
+      reserved "exposing"
+      whitespace
 
-      reserved "where"
+      exports <- listing (addLocation value)
 
       return (ModuleDecl tag names exports settings)
 
@@ -99,11 +103,13 @@ parseTag =
 
 parseSetting :: IParser Module.SourceSettings
 parseSetting =
-  addLocation $ brackets $ commaSep $
-    do  name <- addLocation lowVar
-        padded equals
-        typeName <- addLocation capVar
-        return (name, typeName)
+  do  try (reserved "where")
+      whitespace
+      addLocation $ brackets $ commaSep $
+        do  name <- addLocation lowVar
+            padded equals
+            typeName <- addLocation capVar
+            return (name, typeName)
 
 
 imports :: IParser [Module.UserImport]
