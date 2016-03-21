@@ -175,6 +175,12 @@ count expression =
     Sub _ ->
         Map.empty
 
+    ForeignCmd _ _ ->
+        Map.empty
+
+    ForeignSub _ _ ->
+        Map.empty
+
     GLShader _ _ _ ->
         Map.empty
 
@@ -278,6 +284,12 @@ replace substitutions expression =
         expression
 
     Sub _ ->
+        expression
+
+    ForeignCmd _ _ ->
+        expression
+
+    ForeignSub _ _ ->
         expression
 
     GLShader _ _ _ ->

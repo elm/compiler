@@ -12,6 +12,7 @@ import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
 import Generate.JavaScript.Helpers as Help
 import qualified Generate.JavaScript.BuiltIn as BuiltIn
+import qualified Generate.JavaScript.Foreign as Foreign
 import qualified Generate.JavaScript.Literal as Literal
 import qualified Generate.JavaScript.Variable as Var
 import qualified Optimize.DecisionTree as DT
@@ -134,7 +135,7 @@ generateCode expr =
           let
             toField (field, value) =
               do  jsValue <- generateJsExpr value
-                  return (prop (Var.safe field), jsValue)
+                  return (Var.safe field ==> jsValue)
           in
             do  jsFields <- mapM toField fields
                 jsExpr $ ObjectLit () jsFields
@@ -186,12 +187,15 @@ generateCode expr =
               jsExpr $ BuiltIn.list jsElements
 
       Data tag members ->
+        let
+          ctor =
+            "ctor" ==> StringLit () tag
+
+          toEntry entry n =
+            ("_" ++ show n) ==> entry
+        in
           do  jsMembers <- mapM generateJsExpr members
-              jsExpr $ ObjectLit () (ctor : fields jsMembers)
-          where
-            ctor = (prop "ctor", StringLit () tag)
-            fields =
-                zipWith (\n e -> (prop ("_" ++ show n), e)) [ 0 :: Int .. ]
+              jsExpr $ ObjectLit () (ctor : zipWith toEntry jsMembers [ 0 :: Int .. ])
 
       DataAccess dataExpr index ->
           do  jsDataExpr <- generateJsExpr dataExpr
@@ -202,6 +206,13 @@ generateCode expr =
 
       Sub moduleName ->
           jsExpr $ BuiltIn.effect moduleName
+
+      ForeignCmd name tipe ->
+          jsExpr $ BuiltIn.foreignCmd name (Foreign.encode tipe)
+
+      ForeignSub name tipe ->
+          do  jsDecoder <- generateJsExpr (Foreign.decode tipe)
+              jsExpr $ BuiltIn.foreignSub name jsDecoder
 
       GLShader _uid src _tipe ->
           jsExpr $ ObjectLit () [(PropString () "src", Literal.literal (L.Str src))]

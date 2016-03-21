@@ -19,7 +19,7 @@ import Data.Binary
 import qualified Data.Map as Map
 
 import qualified AST.Declaration as Decl
-import qualified AST.Effects as Fx
+import qualified AST.Effects as Effects
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Expression.Optimized as Optimized
 import qualified AST.Module.Name as Name
@@ -99,8 +99,8 @@ data ValidInfo =
     { validDocs :: A.Located (Maybe String)
     , validExports :: Var.Listing (A.Located Var.Value)
     , validImports :: ([DefaultImport], [UserImport])
-    , validDecls :: [Decl.Valid]
-    , validEffects :: Fx.Effects
+    , validDecls :: Decl.Valid
+    , validEffects :: Effects.Raw
     }
 
 
@@ -140,10 +140,10 @@ data Info program =
     , imports :: [Name.Raw]
     , program :: program
     , types :: Types
-    , fixities :: [(Decl.Assoc, Int, String)]
+    , fixities :: [Decl.Infix]
     , aliases :: Aliases
     , unions :: Unions
-    , effects :: Fx.Effects
+    , effects :: Effects.Canonical
     }
 
 
@@ -185,7 +185,7 @@ data Interface =
     , iTypes    :: Types
     , iUnions   :: Unions
     , iAliases  :: Aliases
-    , iFixities :: [(Decl.Assoc, Int, String)]
+    , iFixities :: [Decl.Infix]
     }
 
 

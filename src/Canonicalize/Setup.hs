@@ -8,7 +8,7 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Traversable as Trav
 
 import qualified AST.Declaration as D
-import qualified AST.Effects as Fx
+import qualified AST.Effects as Effects
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
@@ -43,7 +43,7 @@ environment importDict interfaces (Module.Module name _ info) =
       Trav.traverse (importToPatches importDict interfaces) allImports
 
     (typeAliasNodes, declPatches) =
-      declarationsToPatches name decls
+      declsToPatches name decls
 
     effectPatches =
       effectsToPatches name effects
@@ -306,85 +306,86 @@ addTypeAlias moduleName scc env =
 -- DECLARATIONS TO PATCHES
 
 
-declarationsToPatches :: ModuleName.Canonical -> [D.Valid] -> ([Node], [Env.Patch])
-declarationsToPatches moduleName decls =
+{- When canonicalizing, it is important that:
+
+    _adts are fully namespaced (Var.Module ...)
+    _patterns are fully namespaced (Var.Module ...)
+    _values that are defined as top-level declarations are (Var.TopLevel ...)
+    all other _values are local (Var.Local)
+
+-}
+declsToPatches :: ModuleName.Canonical -> D.Valid -> ([Node], [Env.Patch])
+declsToPatches moduleName (D.Decls defs unions aliases _) =
   let
-    (maybeNodes, patchLists) =
-      unzip (map (declToPatches moduleName) decls)
-  in
-    (Maybe.catMaybes maybeNodes, concat patchLists)
 
+    -- HELPERS
 
--- When canonicalizing, it is important that:
---    _adts are fully namespaced (Var.Module ...)
---    _patterns are fully namespaced (Var.Module ...)
---    _values that are defined as top-level declarations are (Var.TopLevel ...)
---    all other _values are local (Var.Local)
-declToPatches :: ModuleName.Canonical -> D.Valid -> (Maybe Node, [Env.Patch])
-declToPatches moduleName (A.A (region,_) decl) =
-  let
-    topLevel mkPatch x =
-      mkPatch x (Var.topLevel moduleName x)
-
-    namespaced mkPatch x =
-      mkPatch x (Var.fromModule moduleName x)
+    topLevelValue x =
+      Env.Value x (Var.topLevel moduleName x)
 
     patternPatch (name, args) =
       Env.Pattern name (Var.fromModule moduleName name, length args)
+
+    -- TO PATCHES
+
+    defToPatches (A.A _ (Valid.Def pattern _ _)) =
+      map topLevelValue (P.boundVarList pattern)
+
+    unionToPatches (A.A _ (D.Type name _ ctors)) =
+      Env.Union name (Var.fromModule moduleName name)
+      :  map topLevelValue (map fst ctors)
+      ++ map patternPatch ctors
+
+    aliasToPatches (A.A _ (D.Type name _ alias)) =
+      case A.drop alias of
+        Type.RRecord _ Nothing ->
+            Just (topLevelValue name)
+
+        _ ->
+            Nothing
+
+    -- TO NODES
+
+    aliasToNode (A.A (region, _) (D.Type name tvars alias)) =
+      node region name tvars alias
   in
-  case decl of
-    D.Def def ->
-        ( Nothing
-        , map (topLevel Env.Value) (P.boundVarList (Valid.getPattern def))
-        )
-
-    D.Union name _ ctors ->
-        let ctorNames = map fst ctors
-        in
-            ( Nothing
-            , namespaced Env.Union name
-              : map (topLevel Env.Value) ctorNames
-              ++ map patternPatch ctors
-            )
-
-    D.Alias name tvars alias ->
-        ( Just (node region name tvars alias)
-        , case alias of
-            A.A _ (Type.RRecord _ Nothing) ->
-                [topLevel Env.Value name]
-            _ ->
-                []
-        )
-
-    D.Fixity _ _ _ ->
-        ( Nothing
-        , []
-        )
-
+    (
+      map aliasToNode aliases
+    ,
+      concat
+        [ Maybe.mapMaybe aliasToPatches aliases
+        , concatMap unionToPatches unions
+        , concatMap defToPatches defs
+        ]
+    )
 
 
 -- EFFECTS TO PATCHES
 
 
-effectsToPatches :: ModuleName.Canonical -> Fx.Effects -> [Env.Patch]
+effectsToPatches :: ModuleName.Canonical -> Effects.Raw -> [Env.Patch]
 effectsToPatches moduleName effects =
   case effects of
-    Fx.None ->
+    Effects.None ->
       []
 
-    Fx.Foreign ->
-      []
+    Effects.Foreign foreigns ->
+      let
+        toPatch (A.A _ (Effects.ForeignRaw name _)) =
+          Env.Value name (Var.topLevel moduleName name)
+      in
+        map toPatch foreigns
 
-    Fx.Effect info ->
+    Effects.Manager info ->
       map (\name -> Env.Value name (Var.topLevel moduleName name)) $
-        case Fx._type info of
-          Fx.CmdManager _ ->
+        case Effects._managerType info of
+          Effects.CmdManager _ ->
             [ "command" ]
 
-          Fx.SubManager _ ->
+          Effects.SubManager _ ->
             [ "subscription" ]
 
-          Fx.FxManager _ _ ->
+          Effects.FxManager _ _ ->
             [ "command", "subscription" ]
 
 

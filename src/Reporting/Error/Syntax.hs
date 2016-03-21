@@ -16,8 +16,6 @@ data Error
     | BadFunctionName Int
     | BadPattern String
 
-    | CommentAfterAnnotation String
-    | CommentOnComment
     | CommentOnNothing
 
     | SettingsOnNormalModule
@@ -26,6 +24,7 @@ data Error
     | BadSettingOnEffectModule String
     | NoSettingsOnEffectModule
     | MissingManagerOnEffectModule String
+    | UnexpectedForeign String
 
     | InfixDuplicate String
     | TypeWithoutDefinition String
@@ -74,33 +73,16 @@ toReport _localizer err =
               ]
           )
 
-    CommentAfterAnnotation name ->
-        Report.report
-          "STRAY COMMENT"
-          Nothing
-          ("The type annotation for `" ++ name ++ "` is followed by a documentation comment.")
-          ( Help.reflowParagraph $
-              "Documentation comments need to be *before* type annotations. Furthermore,\
-              \ type annotations need to be right above the corresponding definition, no\
-              \ comments in between."
-          )
-
-    CommentOnComment ->
-        Report.report
-          "STRAY COMMENT"
-          Nothing
-          ("This comment is followed by another documentation comment.")
-          ( Help.reflowParagraph $
-              "All documentation comments need to be right above the declaration they\
-              \ describe. Maybe some code got deleted or commented out by accident?"
-          )
-
     CommentOnNothing ->
         Report.report
           "STRAY COMMENT"
           Nothing
           ("This documentation comment is not followed by anything.")
-          ( text "What is it documenting? Maybe it should just be removed?" )
+          ( Help.reflowParagraph $
+              "All documentation comments need to be right above the declaration they\
+              \ describe. Maybe some code got deleted or commented out by accident? Or\
+              \ maybe this comment is here by accident?"
+          )
 
     SettingsOnNormalModule ->
         Report.report
@@ -166,6 +148,17 @@ toReport _localizer err =
               \ in any complete effect module. The best thing is probably to just read more\
               \ about effect modules here:\
               \ <TODO> (please forgive me if I forgot to fill this in!)"
+          )
+
+    UnexpectedForeign name ->
+        Report.report
+          "BAD FOREIGN"
+          Nothing
+          ("You are declaring foreign effect " ++ Help.functionName name ++ " in a normal module.")
+          ( Help.reflowParagraph $
+              "All foreign effects must be defined in a `foreign effect module`. You should\
+              \ probably have just one of these for your project. This way all of your foreign\
+              \ interactions stay relatively organized."
           )
 
     InfixDuplicate opName ->

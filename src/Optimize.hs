@@ -53,7 +53,7 @@ flattenLets defs annExpr@(A.A _ expr) =
 
 
 optimizeDef :: Bool -> Can.Def -> Env.Optimizer [Opt.Def]
-optimizeDef isRoot (Can.Definition (Can.Facts deps) pattern expression _) =
+optimizeDef isRoot (Can.Def (Can.Facts deps) pattern expression _) =
   let
     (args, canBody) =
       Expr.collectLambdas expression
@@ -301,11 +301,17 @@ optimizeExpr context annExpr@(A.A region expression) =
         Opt.Record
           <$> T.traverse (mapSnd justConvert) fields
 
-    Expr.Cmd moduleName _ ->
+    Expr.Cmd moduleName ->
         pure (Opt.Cmd moduleName)
 
-    Expr.Sub moduleName _ ->
+    Expr.Sub moduleName ->
         pure (Opt.Sub moduleName)
+
+    Expr.ForeignCmd name tipe ->
+        pure (Opt.ForeignCmd name tipe)
+
+    Expr.ForeignSub name tipe ->
+        pure (Opt.ForeignSub name tipe)
 
     Expr.SaveEnv _ _ ->
         error "save_the_environment should never make it to optimization phase"

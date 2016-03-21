@@ -5,7 +5,7 @@ import qualified Language.ECMAScript3.PrettyPrint as ES
 import qualified Language.ECMAScript3.Syntax as JS
 import qualified Text.PrettyPrint.Leijen as PP
 
-import qualified AST.Effects as Fx
+import qualified AST.Effects as Effects
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified Generate.JavaScript.Expression as JS
@@ -35,16 +35,16 @@ generate (Module.Module moduleName _ info) =
 -- GENERATE EFFECT MANAGER
 
 
-generateEffectManager :: ModuleName.Canonical -> Fx.Effects -> [JS.Statement ()]
+generateEffectManager :: ModuleName.Canonical -> Effects.Canonical -> [JS.Statement ()]
 generateEffectManager moduleName effects =
   case effects of
-    Fx.None ->
+    Effects.None ->
       []
 
-    Fx.Foreign ->
+    Effects.Foreign _ ->
       []
 
-    Fx.Effect (Fx.Info _ _ _ _ managerType) ->
+    Effects.Manager (Effects.Info _ _ _ _ managerType) ->
       let
         managers =
           Var.native (ModuleName.inCore ["Native","Platform"]) "globalManagerInfo"
@@ -65,13 +65,13 @@ generateEffectManager moduleName effects =
 
         otherEntries =
           case managerType of
-            Fx.CmdManager _ ->
+            Effects.CmdManager _ ->
               [ tagEntry "cmd", entry "cmdMap" ]
 
-            Fx.SubManager _ ->
+            Effects.SubManager _ ->
               [ tagEntry "sub", entry "subMap" ]
 
-            Fx.FxManager _ _ ->
+            Effects.FxManager _ _ ->
               [ tagEntry "fx", entry "cmdMap", entry "subMap" ]
 
         addManager =

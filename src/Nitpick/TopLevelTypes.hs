@@ -26,10 +26,10 @@ import qualified Reporting.Warning as Warning
 
 topLevelTypes
   :: Map.Map String Type.Canonical
-  -> [Decl.Valid]
+  -> Decl.Valid
   -> Result.Result Warning.Warning Error.Error ()
-topLevelTypes typeEnv validDecls =
-  do  maybeMainRegion <- foldM (warnMissingAnnotation typeEnv) Nothing validDecls
+topLevelTypes typeEnv (Decl.Decls defs _ _ _) =
+  do  maybeMainRegion <- foldM (warnMissingAnnotation typeEnv) Nothing defs
       maybe (return ()) (checkMainType typeEnv) maybeMainRegion
 
 
@@ -40,11 +40,11 @@ topLevelTypes typeEnv validDecls =
 warnMissingAnnotation
   :: Map.Map String Type.Canonical
   -> Maybe R.Region
-  -> Decl.Valid
+  -> A.Commented Valid.Def
   -> Result.Result Warning.Warning Error.Error (Maybe R.Region)
-warnMissingAnnotation typeEnv maybeMainRegion (A.A (region,_) decl) =
-  case decl of
-    Decl.Def (Valid.Definition (A.A _ (P.Var name)) _ maybeType) ->
+warnMissingAnnotation typeEnv maybeMainRegion (A.A (region,_) def) =
+  case def of
+    Valid.Def (A.A _ (P.Var name)) _ maybeType ->
       do  when (Maybe.isNothing maybeType) $
             Result.warn region (Warning.MissingTypeAnnotation name (typeEnv ! name))
 

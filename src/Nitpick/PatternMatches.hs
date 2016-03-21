@@ -161,7 +161,7 @@ checkExpression tagDict (A.A region expression) =
         go body
           <* F.traverse_ goDef defs
       where
-        goDef (Canonical.Definition _ pattern@(A.A patRegion _) expr _) =
+        goDef (Canonical.Def _ pattern@(A.A patRegion _) expr _) =
             checkPatterns tagDict patRegion Error.LetBound [pattern]
             <* go expr
 
@@ -183,10 +183,16 @@ checkExpression tagDict (A.A region expression) =
     E.Record fields ->
         F.traverse_ (go . snd) fields
 
-    E.Cmd _ _ ->
+    E.Cmd _ ->
         Result.ok ()
 
-    E.Sub _ _ ->
+    E.Sub _ ->
+        Result.ok ()
+
+    E.ForeignCmd _ _ ->
+        Result.ok ()
+
+    E.ForeignSub _ _ ->
         Result.ok ()
 
     E.SaveEnv _ _ ->

@@ -16,6 +16,7 @@ declaration =
     choice
       [ typeDecl
       , infixDecl
+      , foreignDecl
       , definition
       ]
 
@@ -32,7 +33,7 @@ commentOr parser =
 -- TYPE ANNOTATIONS and DEFINITIONS
 
 
-definition :: IParser Decl.Source'
+definition :: IParser Decl.Raw
 definition =
   do  def <- Expr.def <?> "a value definition"
       return $ Decl.Def def
@@ -42,7 +43,7 @@ definition =
 -- TYPE ALIAS and UNION TYPES
 
 
-typeDecl :: IParser Decl.Source'
+typeDecl :: IParser Decl.Raw
 typeDecl =
   do  try (reserved "type") <?> "a type declaration"
       forcedWS
@@ -55,18 +56,18 @@ typeDecl =
       case isAlias of
         Just _ ->
             do  tipe <- Type.expr <?> "a type"
-                return $ Decl.Alias name args tipe
+                return $ Decl.Alias (Decl.Type name args tipe)
 
         Nothing ->
             do  tcs <- pipeSep1 Type.constructor <?> "a constructor for a union type"
-                return $ Decl.Union name args tcs
+                return $ Decl.Union (Decl.Type name args tcs)
 
 
 
 -- INFIX
 
 
-infixDecl :: IParser Decl.Source'
+infixDecl :: IParser Decl.Raw
 infixDecl =
   expecting "an infix declaration" $
   do  assoc <-
@@ -79,5 +80,20 @@ infixDecl =
       n <- digit
       forcedWS
       op <- anyOp
-      return $ Decl.Fixity assoc (read [n]) op
+      return $ Decl.Fixity (Decl.Infix op assoc (read [n]))
+
+
+
+-- FOREIGN
+
+
+foreignDecl :: IParser Decl.Raw
+foreignDecl =
+  expecting "a foreign declaration" $
+  do  try (reserved "foreign")
+      forcedWS
+      name <- Help.lowVar
+      padded hasType
+      tipe <- Type.expr
+      return $ Decl.Foreign name tipe
 

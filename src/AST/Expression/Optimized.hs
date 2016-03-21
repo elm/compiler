@@ -7,6 +7,7 @@ module AST.Expression.Optimized
 
 import qualified AST.Literal as Literal
 import qualified AST.Module.Name as ModuleName
+import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Optimize.DecisionTree as DT
 import qualified Reporting.Region as R
@@ -52,6 +53,8 @@ data Expr
     | Record [(String, Expr)]
     | Cmd ModuleName.Canonical
     | Sub ModuleName.Canonical
+    | ForeignCmd String Type.Canonical
+    | ForeignSub String Type.Canonical
     | GLShader String String Literal.GLShaderTipe
     | Crash ModuleName.Canonical R.Region (Maybe Expr)
 

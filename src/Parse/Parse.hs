@@ -137,7 +137,7 @@ parseFixities =
   where
     infics =
       do  start <- getMyPosition
-          (Decl.Fixity assoc level op) <- Parse.infixDecl
+          (Decl.Fixity (Decl.Infix op assoc level)) <- Parse.infixDecl
           end <- getMyPosition
           return (op, InfixInfo (R.Region start end) (level, assoc))
 

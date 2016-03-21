@@ -33,9 +33,9 @@ ref name =
     VarRef () (var name)
 
 
-prop :: String -> Prop ()
-prop name =
-    PropId () (var name)
+(==>) :: String -> Expression () -> (Prop (), Expression ())
+(==>) name expr =
+  ( PropId () (var name), expr )
 
 
 obj :: [String] -> Expression ()
@@ -66,26 +66,3 @@ call :: Expression () -> [Expression ()] -> Expression ()
 call =
     CallExpr ()
 
-
-
--- Checks
-
-
-equal :: Expression () -> Expression () -> Expression ()
-equal a b =
-    InfixExpr () OpStrictEq a b
-
-
-instanceof :: String -> Expression () -> Expression ()
-instanceof tipe x =
-    InfixExpr () OpLAnd (typeof "object" x) (InfixExpr () OpInstanceof x (ref tipe))
-
-
-typeof :: String -> Expression () -> Expression ()
-typeof tipe x =
-    equal (PrefixExpr () PrefixTypeof x) (StringLit () tipe)
-
-
-member :: String -> Expression () -> Expression ()
-member field x =
-    InfixExpr () OpIn (StringLit () field) x

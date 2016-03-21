@@ -1,13 +1,15 @@
 {-# OPTIONS_GHC -Wall #-}
 module Canonicalize.Body (flatten) where
 
-import qualified AST.Declaration as D
-import qualified AST.Effects as Fx
+import qualified Data.Maybe as Maybe
+
+import qualified AST.Declaration as Decl
+import qualified AST.Effects as Effects
 import qualified AST.Expression.General as E
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
-import qualified AST.Type as T
+import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Canonicalize.Sort as Sort
 import qualified Reporting.Annotation as A
@@ -15,63 +17,60 @@ import qualified Reporting.Region as R
 
 
 
-flatten :: ModuleName.Canonical -> [D.Canonical] -> Fx.Effects -> Canonical.Expr
-flatten moduleName decls effects =
+flatten :: ModuleName.Canonical -> Decl.Canonical -> Effects.Canonical -> Canonical.Expr
+flatten moduleName (Decl.Decls defs unions aliases _) effects =
   let
-    declDefs =
-      concatMap (declToDefs moduleName) decls
-
-    effectDefs =
-      effectsToDefs moduleName effects
+    allDefs =
+      concat
+        [ concatMap (unionToDefs moduleName) unions
+        , Maybe.mapMaybe (aliasToDefs moduleName) aliases
+        , effectsToDefs moduleName effects
+        , map A.drop defs
+        ]
 
     loc =
       A.A (error "this annotation should never be needed")
   in
     Sort.definitions $ loc $
-      E.Let
-        (declDefs ++ effectDefs)
-        (loc $ E.SaveEnv moduleName effects)
+      E.Let allDefs (loc $ E.SaveEnv moduleName effects)
 
 
 
--- DECLARATIONS
+-- TYPES TO DEFS
 
 
-declToDefs :: ModuleName.Canonical -> D.Canonical -> [Canonical.Def]
-declToDefs moduleName (A.A (region,_) decl) =
+unionToDefs :: ModuleName.Canonical -> A.Commented (Decl.Union Type.Canonical) -> [Canonical.Def]
+unionToDefs moduleName (A.A (region,_) (Decl.Type name tvars constructors)) =
   let
-    typeVar =
-      Var.fromModule moduleName
-
-    loc expr =
-      A.A region expr
-  in
-  case decl of
-    D.Def def ->
-      [def]
-
-    D.Union name tvars constructors ->
+    tagToDef (tag, tipes) =
       let
-        tagToDef (ctor, tipes) =
-          let
-            vars =
-              take (length tipes) infiniteArgs
+        vars =
+          take (length tipes) infiniteArgs
 
-            tbody =
-              T.App (T.Type (typeVar name)) (map T.Var tvars)
+        tbody =
+          Type.App
+            (Type.Type (Var.fromModule moduleName name))
+            (map Type.Var tvars)
 
-            body =
-              loc . E.Data ctor $ map (loc . E.localVar) vars
-          in
-            definition ctor (buildFunction body vars) region (foldr T.Lambda tbody tipes)
+        body =
+          A.A region $
+            E.Data tag (map (A.A region . E.localVar) vars)
       in
-        map tagToDef constructors
+        definition tag (buildFunction vars body) region (foldr Type.Lambda tbody tipes)
+  in
+    map tagToDef constructors
 
-    D.Alias name tvars tipe@(T.Record fields Nothing) ->
-        [ definition name (buildFunction record vars) region (foldr T.Lambda result args) ]
-      where
-        result =
-          T.Aliased (typeVar name) (zip tvars (map T.Var tvars)) (T.Holey tipe)
+
+aliasToDefs :: ModuleName.Canonical -> A.Commented (Decl.Alias Type.Canonical) -> Maybe Canonical.Def
+aliasToDefs moduleName (A.A (region,_) (Decl.Type name tvars tipe)) =
+  case tipe of
+    Type.Record fields Nothing ->
+      let
+        resultType =
+          Type.Aliased
+            (Var.fromModule moduleName name)
+            (zip tvars (map Type.Var tvars))
+            (Type.Holey tipe)
 
         args =
           map snd fields
@@ -80,16 +79,13 @@ declToDefs moduleName (A.A (region,_) decl) =
           take (length args) infiniteArgs
 
         record =
-          loc (E.Record (zip (map fst fields) (map (loc . E.localVar) vars)))
+          A.A region $
+            E.Record (zip (map fst fields) (map (A.A region . E.localVar) vars))
+      in
+        Just $ definition name (buildFunction vars record) region (foldr Type.Lambda resultType args)
 
-    -- Type aliases must be added to an extended equality dictionary,
-    -- but they do not require any basic constraints.
-    D.Alias _ _ _ ->
-      []
-
-    -- no constraints are needed for fixity declarations
-    D.Fixity _ _ _ ->
-      []
+    _ ->
+      Nothing
 
 
 infiniteArgs :: [String]
@@ -97,17 +93,17 @@ infiniteArgs =
   map (:[]) ['a'..'z'] ++ map (\n -> "_" ++ show (n :: Int)) [1..]
 
 
-buildFunction :: Canonical.Expr -> [String] -> Canonical.Expr
-buildFunction body@(A.A ann _) vars =
+buildFunction :: [String] -> Canonical.Expr -> Canonical.Expr
+buildFunction vars body@(A.A ann _) =
   foldr
-      (\pattern expr -> A.A ann (E.Lambda pattern expr))
-      body
-      (map (A.A ann . P.Var) vars)
+    (\pattern expr -> A.A ann (E.Lambda pattern expr))
+    body
+    (map (A.A ann . P.Var) vars)
 
 
-definition :: String -> Canonical.Expr -> R.Region -> T.Canonical -> Canonical.Def
+definition :: String -> Canonical.Expr -> R.Region -> Type.Canonical -> Canonical.Def
 definition name expr@(A.A ann _) region tipe =
-  Canonical.Definition
+  Canonical.Def
     Canonical.dummyFacts
     (A.A ann (P.Var name))
     expr
@@ -118,37 +114,57 @@ definition name expr@(A.A ann _) region tipe =
 -- EFFECTS
 
 
-effectsToDefs :: ModuleName.Canonical -> Fx.Effects -> [Canonical.Def]
+effectsToDefs :: ModuleName.Canonical -> Effects.Canonical -> [Canonical.Def]
 effectsToDefs moduleName effects =
   case effects of
-    Fx.None ->
+    Effects.None ->
       []
 
-    Fx.Foreign ->
-      []
+    Effects.Foreign foreigns ->
+      map foreignToDef foreigns
 
-    Fx.Effect info ->
-      case Fx._type info of
-        Fx.CmdManager cmd ->
-          [ effectsToDefsHelp "command" (E.Cmd moduleName) cmd ]
+    Effects.Manager info ->
+      let
+        cmdToDef (A.A region name) =
+          definition
+            "command"
+            (A.A region (E.Cmd moduleName))
+            region
+            (Type.cmd moduleName name)
 
-        Fx.SubManager sub ->
-          [ effectsToDefsHelp "subscription" (E.Sub moduleName) sub ]
+        subToDef (A.A region name) =
+          definition
+            "subscription"
+            (A.A region (E.Sub moduleName))
+            region
+            (Type.sub moduleName name)
+      in
+        case Effects._managerType info of
+          Effects.CmdManager cmd ->
+            [ cmdToDef cmd
+            ]
 
-        Fx.FxManager cmd sub ->
-          [ effectsToDefsHelp "command" (E.Cmd moduleName) cmd
-          , effectsToDefsHelp "subscription" (E.Sub moduleName) sub
-          ]
+          Effects.SubManager sub ->
+            [ subToDef sub
+            ]
+
+          Effects.FxManager cmd sub ->
+            [ cmdToDef cmd
+            , subToDef sub
+            ]
 
 
-effectsToDefsHelp
-  :: String
-  -> (String -> Canonical.Expr')
-  -> A.Located String
-  -> Canonical.Def
-effectsToDefsHelp name toExpr' (A.A region typeName) =
-  Canonical.Definition
-    Canonical.dummyFacts
-    (A.A region (P.Var name))
-    (A.A region (toExpr' typeName))
-    Nothing
+foreignToDef :: A.Commented Effects.ForeignCanonical -> Canonical.Def
+foreignToDef (A.A (region, _) (Effects.ForeignCanonical name kind tipe)) =
+  definition name (A.A region (toForeignExpr name kind)) region tipe
+
+
+toForeignExpr :: String -> Effects.Kind -> Canonical.Expr'
+toForeignExpr name kind =
+  case kind of
+    Effects.Cmd tipe ->
+      E.ForeignCmd name tipe
+
+    Effects.Sub tipe ->
+      E.ForeignSub name tipe
+

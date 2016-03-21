@@ -1,14 +1,30 @@
 module AST.Effects where
 
+import qualified AST.Type as Type
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
 
 
-data Effects
+-- EFFECTS
+
+
+data Effects foreigns
   = None
-  | Effect Info
-  | Foreign
+  | Manager Info
+  | Foreign foreigns
+
+
+type Raw =
+  Effects [A.Commented ForeignRaw]
+
+
+type Canonical =
+  Effects [A.Commented ForeignCanonical]
+
+
+
+-- EFFECT MANAGERS
 
 
 data Info =
@@ -17,7 +33,7 @@ data Info =
     , _init :: R.Region
     , _onEffects :: R.Region
     , _onSelfMsg :: R.Region
-    , _type :: ManagerType
+    , _managerType :: ManagerType
     }
 
 
@@ -25,3 +41,27 @@ data ManagerType
   = CmdManager (A.Located String)
   | SubManager (A.Located String)
   | FxManager (A.Located String) (A.Located String)
+
+
+
+-- FOREIGN EFFECTS
+
+
+data ForeignRaw =
+  ForeignRaw
+    { _rawName :: String
+    , _rawType :: Type.Raw
+    }
+
+
+data ForeignCanonical =
+  ForeignCanonical
+    { _name :: String
+    , _kind :: Kind
+    , _type :: Type.Canonical
+    }
+
+
+data Kind
+  = Cmd Type.Canonical
+  | Sub Type.Canonical

@@ -3,7 +3,7 @@ module Type.Constrain.Effects (constrain) where
 
 import qualified Data.Map as Map
 
-import qualified AST.Effects as Fx
+import qualified AST.Effects as Effects
 import qualified AST.Module.Name as ModuleName
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
@@ -17,26 +17,26 @@ import Type.Type
 constrain
   :: Env.Environment
   -> ModuleName.Canonical
-  -> Fx.Effects
+  -> Effects.Canonical
   -> IO TypeConstraint
 constrain env moduleName effects =
   case effects of
-    Fx.None ->
+    Effects.None ->
       return CSaveEnv
 
-    Fx.Foreign ->
+    Effects.Foreign _ ->
       return CSaveEnv
 
-    Fx.Effect info ->
+    Effects.Manager info ->
       constrainHelp env moduleName info
 
 
 constrainHelp
   :: Env.Environment
   -> ModuleName.Canonical
-  -> Fx.Info
+  -> Effects.Info
   -> IO TypeConstraint
-constrainHelp env moduleName (Fx.Info tagRegion r0 r1 r2 managerType) =
+constrainHelp env moduleName (Effects.Info tagRegion r0 r1 r2 managerType) =
   let
     task t =
       Env.getType env "Platform.Task" <| Env.getType env "Basics.Never" <| VarN t
@@ -89,7 +89,7 @@ constrainHelp env moduleName (Fx.Info tagRegion r0 r1 r2 managerType) =
 addEffectArgs
   :: Env.Environment
   -> ModuleName.Canonical
-  -> Fx.ManagerType
+  -> Effects.ManagerType
   -> Variable
   -> Type
   -> Type
@@ -103,12 +103,12 @@ addEffectArgs env moduleName managerType msg result =
         (Env.getType env (toTypeName fxName) <| VarN msg)
   in
     case managerType of
-      Fx.CmdManager cmd ->
+      Effects.CmdManager cmd ->
         effectList cmd ==> result
 
-      Fx.SubManager sub ->
+      Effects.SubManager sub ->
         effectList sub ==> result
 
-      Fx.FxManager cmd sub ->
+      Effects.FxManager cmd sub ->
         effectList cmd ==> effectList sub ==> result
 

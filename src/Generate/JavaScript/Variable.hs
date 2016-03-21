@@ -4,6 +4,7 @@ module Generate.JavaScript.Variable
     , canonical
     , qualified
     , native
+    , coreNative
     , define
     , safe
     )
@@ -104,6 +105,11 @@ qualified moduleName name =
 native :: ModuleName.Canonical -> String -> JS.Expression ()
 native moduleName name =
   JS.obj [ moduleToString moduleName, name ]
+
+
+coreNative :: String -> String -> JS.Expression ()
+coreNative moduleName name =
+  native (ModuleName.inCore ["Native",moduleName]) name
 
 
 getOpsDictName :: Var.Home -> String

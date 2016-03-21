@@ -3,16 +3,15 @@ module Generate.JavaScript.BuiltIn
   , list, range
   , recordUpdate
   , eq, cmp
-  , effect
+  , effect, foreignCmd, foreignSub
   , crash
   )
   where
 
-import Control.Arrow (first)
 import qualified Language.ECMAScript3.Syntax as JS
 
 import qualified AST.Module.Name as ModuleName
-import Generate.JavaScript.Helpers
+import Generate.JavaScript.Helpers ((<|), (==>), call)
 import qualified Generate.JavaScript.Variable as Var
 import qualified Reporting.Region as R
 
@@ -20,12 +19,12 @@ import qualified Reporting.Region as R
 
 utils :: String -> [JS.Expression ()] -> JS.Expression ()
 utils func args =
-  Var.native (ModuleName.inCore ["Native","Utils"]) func `call` args
+  Var.coreNative "Utils" func `call` args
 
 
 nativeList :: String -> [JS.Expression ()] -> JS.Expression ()
 nativeList func args =
-  Var.native (ModuleName.inCore ["Native","List"]) func `call` args
+  Var.coreNative "List" func `call` args
 
 
 
@@ -64,7 +63,7 @@ recordUpdate :: JS.Expression () -> [(String, JS.Expression ())] -> JS.Expressio
 recordUpdate record fields =
   utils "update"
     [ record
-    , JS.ObjectLit () (map (first prop) fields)
+    , JS.ObjectLit () (map (uncurry (==>)) fields)
     ]
 
 
@@ -92,6 +91,16 @@ effect effectName =
     JS.StringLit () (ModuleName.canonicalToString effectName)
 
 
+foreignCmd :: String -> JS.Expression () -> JS.Expression ()
+foreignCmd name converter =
+  Var.coreNative "Platform" "foreignCmd" `call` [ JS.StringLit () name, converter ]
+
+
+foreignSub :: String -> JS.Expression () -> JS.Expression ()
+foreignSub name converter =
+  Var.coreNative "Platform" "foreignSub" `call` [ JS.StringLit () name, converter ]
+
+
 
 -- CRASH
 
@@ -113,14 +122,14 @@ crash home region maybeCaseCrashValue =
 regionToJs :: R.Region -> JS.Expression ()
 regionToJs (R.Region start end) =
     JS.ObjectLit ()
-      [ ( prop "start", positionToJs start )
-      , ( prop "end", positionToJs end )
+      [ "start" ==> positionToJs start
+      , "end"   ==> positionToJs end
       ]
 
 
 positionToJs :: R.Position -> JS.Expression ()
 positionToJs (R.Position line column) =
     JS.ObjectLit ()
-      [ ( prop "line", JS.IntLit () line )
-      , ( prop "column", JS.IntLit () column )
+      [ "line"   ==> JS.IntLit () line
+      , "column" ==> JS.IntLit () column
       ]

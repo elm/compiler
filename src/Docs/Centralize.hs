@@ -2,96 +2,79 @@ module Docs.Centralize (centralize) where
 
 import Control.Arrow (second)
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
 
 import qualified AST.Declaration as D
 import qualified AST.Expression.Canonical as Canonical
-import qualified AST.Pattern as P
+import qualified AST.Pattern as Pattern
+import qualified AST.Type as Type
 import qualified Docs.AST as Docs
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Type.Extract as Extract
 import qualified Reporting.Annotation as A
 
 
+
 -- CENTRALIZE DOCUMENTATION
 
-centralize :: [D.Canonical] -> String -> Docs.Centralized
-centralize decls comment =
+
+centralize :: D.Canonical -> String -> Docs.Centralized
+centralize (D.Decls defs unions aliases infixes) comment =
   let
-    (Raw aliases types valueInfo fixities) =
-      toRawDocs decls
-
-    values =
-      Map.fromList (map (toValue fixities) (Map.toList valueInfo))
+    infixDict =
+      Map.fromList (map infixToEntry infixes)
   in
-    Docs.Docs comment aliases types values
+    Docs.Docs
+      comment
+      (Map.fromList (map aliasToEntry aliases))
+      (Map.fromList (map unionToEntry unions))
+      (Map.fromList (Maybe.mapMaybe (defToEntry infixDict) defs))
 
 
-toValue
-    :: Map.Map String (String, Int)
-    -> ( String, A.Located (Maybe String, Maybe Type.Type) )
-    -> ( String, A.Located (Docs.Value (Maybe Type.Type)) )
-toValue fixities (name, A.A region (maybeComment, maybeType)) =
+
+-- CONVERSION TO DOC ENTRIES
+
+
+defToEntry
+  :: Map.Map String (String, Int)
+  -> A.Commented Canonical.Def
+  -> Maybe (String, A.Located (Docs.Value (Maybe Type.Type)))
+defToEntry infixDict (A.A (_, maybeComment) (Canonical.Def _ pattern _ maybeType)) =
+  case pattern of
+    A.A subregion (Pattern.Var name) ->
+      let
+        value =
+          Docs.Value
+            maybeComment
+            (fmap (Extract.toAliasedType . A.drop) maybeType)
+            (Map.lookup name infixDict)
+      in
+        Just (name, A.A subregion value)
+
+    _ ->
+      Nothing
+
+
+unionToEntry :: A.Commented (D.Union Type.Canonical) -> (String, A.Located Docs.Union)
+unionToEntry (A.A (region, maybeComment) (D.Type name args ctors)) =
+  let
+    ctors' =
+      map (second (map Extract.toAliasedType)) ctors
+  in
+    (name, A.A region (Docs.Union maybeComment args ctors'))
+
+
+aliasToEntry :: A.Commented (D.Alias Type.Canonical) -> (String, A.Located Docs.Alias)
+aliasToEntry (A.A (region, maybeComment) (D.Type name args tipe)) =
   ( name
-  , A.A region (Docs.Value maybeComment maybeType (Map.lookup name fixities))
+  , A.A region (Docs.Alias maybeComment args (Extract.toAliasedType tipe))
   )
 
 
--- GATHER INFORMATION
-
-data Raw = Raw
-    { rawAliases :: Map.Map String (A.Located Docs.Alias)
-    , rawTypes :: Map.Map String (A.Located Docs.Union)
-    , rawValues :: Map.Map String (A.Located (Maybe String, Maybe Type.Type))
-    , rawFixities :: Map.Map String (String, Int)
-    }
-
-
-toRawDocs :: [D.Canonical] -> Raw
-toRawDocs decls =
-  foldr addDeclToDocs (Raw Map.empty Map.empty Map.empty Map.empty) decls
-
-
-addDeclToDocs :: D.Canonical -> Raw -> Raw
-addDeclToDocs (A.A (region,maybeComment) decl) docs =
-  case decl of
-    D.Def (Canonical.Definition _ (A.A subregion (P.Var name)) _ maybeType) ->
-        let
-          info =
-            ( maybeComment
-            , fmap (Extract.toAliasedType . A.drop) maybeType
-            )
-
-          newValues =
-            Map.insert name (A.A subregion info) (rawValues docs)
-        in
-          docs { rawValues = newValues }
-
-    D.Def _ ->
-        docs
-
-    D.Union name args ctors ->
-        let
-          ctors' =
-            map (second (map Extract.toAliasedType)) ctors
-
-          union =
-            A.A region (Docs.Union maybeComment args ctors')
-        in
-          docs { rawTypes = Map.insert name union (rawTypes docs) }
-
-    D.Alias name args tipe ->
-        let
-          alias =
-            A.A region (Docs.Alias maybeComment args (Extract.toAliasedType tipe))
-        in
-          docs { rawAliases = Map.insert name alias (rawAliases docs) }
-
-    D.Fixity assoc precedence name ->
-        let
-          fixity =
-            (D.assocToString assoc, precedence)
-        in
-          docs
-          { rawFixities =
-              Map.insert name fixity (rawFixities docs)
-          }
+infixToEntry :: D.Infix -> (String, (String, Int))
+infixToEntry (D.Infix name assoc precedence) =
+  let
+    fixity =
+      (D.assocToString assoc, precedence)
+  in
+    ( name, fixity )

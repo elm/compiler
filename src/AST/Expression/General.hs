@@ -8,7 +8,7 @@ enrich the AST with more information.
 -}
 module AST.Expression.General where
 
-import qualified AST.Effects as Fx
+import qualified AST.Effects as Effects
 import qualified AST.Literal as Literal
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as Pattern
@@ -55,9 +55,11 @@ data Expr' ann def var typ
     | Update (Expr ann def var typ) [(String, Expr ann def var typ)]
     | Record [(String, Expr ann def var typ)]
     -- for type checking and code gen only
-    | Cmd ModuleName.Canonical String
-    | Sub ModuleName.Canonical String
-    | SaveEnv ModuleName.Canonical Fx.Effects
+    | Cmd ModuleName.Canonical
+    | Sub ModuleName.Canonical
+    | ForeignCmd String typ
+    | ForeignSub String typ
+    | SaveEnv ModuleName.Canonical Effects.Canonical
     | GLShader String String Literal.GLShaderTipe
 
 

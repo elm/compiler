@@ -37,15 +37,17 @@ constrain env annotatedExpr@(A.A region expression) tipe =
     E.Literal lit ->
       Literal.constrain env region lit tipe
 
-    E.Cmd moduleName typeName ->
-      do  (vars, cmd) <-
-              Env.instantiateType env (ST.cmd moduleName typeName) Map.empty
-          return $ ex vars (CEqual (Error.Instance "command") region cmd tipe)
+    E.Cmd _ ->
+      return CTrue
 
-    E.Sub moduleName typeName ->
-      do  (vars, sub) <-
-              Env.instantiateType env (ST.sub moduleName typeName) Map.empty
-          return $ ex vars (CEqual (Error.Instance "subscription") region sub tipe)
+    E.Sub _ ->
+      return CTrue
+
+    E.ForeignCmd _ _ ->
+      return CTrue
+
+    E.ForeignSub _ _ ->
+      return CTrue
 
     E.SaveEnv moduleName effects ->
       Effects.constrain env moduleName effects
@@ -462,7 +464,7 @@ collectPairs index items =
 
 
 expandPattern :: Canonical.Def -> [Canonical.Def]
-expandPattern def@(Canonical.Definition facts lpattern expr maybeType) =
+expandPattern def@(Canonical.Def facts lpattern expr maybeType) =
   let
     (A.A patternRegion pattern) =
       lpattern
@@ -474,23 +476,27 @@ expandPattern def@(Canonical.Definition facts lpattern expr maybeType) =
     _ ->
         mainDef : map toDef vars
       where
-        vars = P.boundVarList lpattern
+        vars =
+          P.boundVarList lpattern
 
-        combinedName = "$" ++ concat vars
+        combinedName =
+          "$" ++ concat vars
 
         pvar name =
-            A.A patternRegion (P.Var name)
+          A.A patternRegion (P.Var name)
 
         localVar name =
-            A.A patternRegion (E.localVar name)
+          A.A patternRegion (E.localVar name)
 
-        mainDef = Canonical.Definition facts (pvar combinedName) expr maybeType
+        mainDef =
+          Canonical.Def facts (pvar combinedName) expr maybeType
 
         toDef name =
-            let extract =
-                  E.Case (localVar combinedName) [(lpattern, localVar name)]
-            in
-                Canonical.Definition facts (pvar name) (A.A patternRegion extract) Nothing
+          let
+            extract =
+              E.Case (localVar combinedName) [(lpattern, localVar name)]
+          in
+            Canonical.Def facts (pvar name) (A.A patternRegion extract) Nothing
 
 
 
@@ -508,7 +514,7 @@ data Info = Info
 
 
 constrainDef :: Env.Environment -> Info -> Canonical.Def -> IO Info
-constrainDef env info (Canonical.Definition _ (A.A patternRegion pattern) expr maybeTipe) =
+constrainDef env info (Canonical.Def _ (A.A patternRegion pattern) expr maybeTipe) =
   let qs = [] -- should come from the def, but I'm not sure what would live there...
   in
   case (pattern, maybeTipe) of

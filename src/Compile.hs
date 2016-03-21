@@ -2,6 +2,7 @@ module Compile (compile) where
 
 import qualified Data.Map as Map
 
+import qualified AST.Declaration as D
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified Canonicalize
@@ -64,5 +65,5 @@ getOpTable :: Module.Interfaces -> Parse.OpTable
 getOpTable interfaces =
   Map.elems interfaces
     |> concatMap Module.iFixities
-    |> map (\(assoc,lvl,op) -> (op,(lvl,assoc)))
+    |> map (\(D.Infix op assoc lvl) -> ( op, (lvl,assoc) ))
     |> Map.fromList
