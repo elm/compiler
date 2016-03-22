@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Parse.Type where
 
-import Data.List (intercalate)
+import Data.List (intercalate, group, sort)
 import Text.Parsec ((<|>), (<?>), char, many, optionMaybe, string, try)
 
 import qualified AST.Type as Type
@@ -35,19 +35,25 @@ record =
       char '}'
       return rcrd
   where
-    normal = flip Type.RRecord Nothing <$> commaSep field
+    normal = flip Type.RRecord Nothing <$> (verifyUniqueFields =<< commaSep field)
 
     -- extended record types require at least one field
     extended =
       do  ext <- try (addLocation lowVar <* (whitespace >> string "|"))
           whitespace
-          fields <- commaSep1 field
+          fields <- verifyUniqueFields =<< commaSep1 field
           return (Type.RRecord fields (Just (A.map Type.RVar ext)))
 
     field =
       do  lbl <- rLabel
           whitespace >> hasType >> whitespace
           (,) lbl <$> expr
+
+    verifyUniqueFields fields =
+      if any (\ns -> length ns > 1) (group $ sort $ map fst fields) then
+        fail "This record has duplicate fields. Make sure every field name is unique."
+      else
+        return fields
 
 
 capTypeVar :: IParser String
