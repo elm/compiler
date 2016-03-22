@@ -28,7 +28,8 @@ data Error
 
     | InfixDuplicate String
     | TypeWithoutDefinition String
-    | DuplicateFieldName String
+    | DuplicateFieldNameInRecord String
+    | DuplicateFieldNameInRecordType String
     | DuplicateValueDeclaration String
     | DuplicateTypeDeclaration String
     | DuplicateDefinition String
@@ -184,11 +185,18 @@ toReport _localizer err =
               ++ "    " ++ valueName ++ " = 42"
           )
 
-    DuplicateFieldName name ->
+    DuplicateFieldNameInRecord name ->
         Report.report
           "DUPLICATE FIELD"
           Nothing
           ("This record has more than one field named `" ++ name ++ "`.")
+          (text "There can only be one. Do some renaming to make sure the names are distinct!")
+
+    DuplicateFieldNameInRecordType name ->
+        Report.report
+          "DUPLICATE FIELD"
+          Nothing
+          ("This record type has more than one field named `" ++ name ++ "`.")
           (text "There can only be one. Do some renaming to make sure the names are distinct!")
 
     DuplicateValueDeclaration name ->
