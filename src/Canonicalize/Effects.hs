@@ -1,4 +1,4 @@
-module Canonicalize.Effects (canonicalize, toValues) where
+module Canonicalize.Effects (canonicalize, toValues, checkForeignType) where
 
 import qualified Data.Foldable as F
 import qualified Data.Traversable as T
@@ -64,45 +64,50 @@ figureOutKind region name rootType =
   case T.deepDealias rootType of
     T.Lambda outgoingType (T.App (T.Type effect) [T.Var _])
       | effect == Var.cmd ->
-          const (Effects.Cmd outgoingType)
-            <$> checkForeignType region name "command" outgoingType
+          pure (Effects.Cmd outgoingType)
+            <* checkForeignType (makeError region name "command") outgoingType
 
     T.Lambda (T.Lambda incomingType (T.Var msg1)) (T.App (T.Type effect) [T.Var msg2])
       | effect == Var.sub && msg1 == msg2 ->
-          const (Effects.Sub incomingType)
-            <$> checkForeignType region name "subscription" incomingType
+          pure (Effects.Sub incomingType)
+            <* checkForeignType (makeError region name "subscription") incomingType
 
     _ ->
       Result.throw region (error "TODO - bad overall type")
+
+
+makeError :: R.Region -> String -> String -> T.Canonical -> Maybe String -> A.Located Error.Error
+makeError region name kind tipe maybeMessage =
+  A.A region (Error.foreign name kind tipe maybeMessage)
 
 
 
 -- CHECK INCOMING AND OUTGOING TYPES
 
 
---
--- Note: assumes that deepDealias has been called on the incoming type.
---
-checkForeignType :: R.Region -> String -> String -> T.Canonical -> Result ()
-checkForeignType region name kind tipe =
+checkForeignType
+  :: (Monoid i)
+  => (T.Canonical -> Maybe String -> A.Located e)
+  -> T.Canonical
+  -> Result.Result i w e ()
+checkForeignType makeError tipe =
   let
-    throwError maybeMessage =
-      Result.throw region $
-        Error.foreign name kind tipe maybeMessage
+    check =
+      checkForeignType makeError
 
-    check subType =
-      checkForeignType region name kind subType
+    throw maybeMsg =
+      Result.throwMany [makeError tipe maybeMsg]
   in
     case tipe of
-      T.Aliased _ _ _ ->
-        error "there should be no aliases, they are stripped by `figureOutKind`"
+      T.Aliased _ args aliasedType ->
+        check (T.dealias args aliasedType)
 
       T.Type name ->
         if Var.isJson name || Var.isPrimitive name || Var.isTuple name then
-          Result.ok ()
+          return ()
 
         else
-          throwError Nothing
+          throw Nothing
 
       T.App name [] ->
           check name
@@ -117,16 +122,16 @@ checkForeignType region name kind tipe =
               F.traverse_ check args
 
       T.App _ _ ->
-          throwError Nothing
+          throw Nothing
 
       T.Var _ ->
-          throwError (Just "free type variable")
+          throw (Just "free type variable")
 
       T.Lambda _ _ ->
-          throwError (Just "function")
+          throw (Just "function")
 
       T.Record _ (Just _) ->
-          throwError (Just "extended record")
+          throw (Just "extended record")
 
       T.Record fields Nothing ->
           F.traverse_ (\(k,v) -> (,) k <$> check v) fields
