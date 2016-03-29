@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Validate (module') where
+module Validate (Result, module') where
 
 import Prelude hiding (init)
 import Control.Monad (foldM, when)
@@ -28,10 +28,15 @@ import qualified Reporting.Result as Result
 
 
 
+type Result warning a =
+  Result.Result () warning Error.Error a
+
+
+
 -- MODULES
 
 
-module' :: Module.Source -> Result.Result wrn Error.Error Module.Valid
+module' :: Module.Source -> Result wrn Module.Valid
 module' (Module.Module name path info) =
   let
     (ModuleName.Canonical pkgName _) =
@@ -74,7 +79,7 @@ validateEffects
   -> Module.SourceSettings
   -> [A.Commented Effects.ForeignRaw]
   -> [A.Commented Valid.Def]
-  -> Result.Result wrn Error.Error Effects.Raw
+  -> Result wrn Effects.Raw
 validateEffects tag settings@(A.A _ pairs) foreigns validDefs =
   case tag of
     Module.Normal ->
@@ -100,10 +105,7 @@ validateEffects tag settings@(A.A _ pairs) foreigns validDefs =
             return (Effects.Manager (Effects.Info tagRegion r0 r1 r2 managerType))
 
 
-noSettings
-  :: Error.Error
-  -> Module.SourceSettings
-  -> Result.Result wrn Error.Error ()
+noSettings :: Error.Error -> Module.SourceSettings -> Result wrn ()
 noSettings errorMsg (A.A region settings) =
   case settings of
     [] ->
@@ -113,7 +115,7 @@ noSettings errorMsg (A.A region settings) =
       Result.throw region errorMsg
 
 
-noForeigns :: [A.Commented Effects.ForeignRaw] -> Result.Result wrn Error.Error ()
+noForeigns :: [A.Commented Effects.ForeignRaw] -> Result wrn ()
 noForeigns foreigns =
   case foreigns of
     [] ->
@@ -130,7 +132,7 @@ noForeigns foreigns =
 toManagerType
   :: R.Region
   -> Map.Map String [(R.Region, A.Located String)]
-  -> Result.Result wrn Error.Error Effects.ManagerType
+  -> Result wrn Effects.ManagerType
 toManagerType tagRegion settingsDict =
   let
     toErrors name entries =
@@ -167,7 +169,7 @@ toManagerType tagRegion settingsDict =
 extractOne
   :: String
   -> Map.Map String [(R.Region, A.Located String)]
-  -> Result.Result w Error.Error (Maybe (A.Located String))
+  -> Result wrn (Maybe (A.Located String))
 extractOne name settingsDict =
   case Map.lookup name settingsDict of
     Nothing ->
@@ -191,7 +193,7 @@ checkManager
   :: R.Region
   -> Effects.ManagerType
   -> [A.Commented Valid.Def]
-  -> Result.Result w Error.Error (R.Region, R.Region, R.Region)
+  -> Result wrn (R.Region, R.Region, R.Region)
 checkManager tagRegion managerType validDefs =
   let
     regionDict =
@@ -218,7 +220,7 @@ requireMaps
   :: R.Region
   -> Map.Map String R.Region
   -> Effects.ManagerType
-  -> Result.Result w Error.Error ()
+  -> Result wrn ()
 requireMaps tagRegion regionDict managerType =
   let
     check name =
@@ -236,11 +238,7 @@ requireMaps tagRegion regionDict managerType =
       check "cmdMap" <* check "subMap"
 
 
-requireRegion
-  :: R.Region
-  -> Map.Map String R.Region
-  -> String
-  -> Result.Result w Error.Error R.Region
+requireRegion :: R.Region -> Map.Map String R.Region -> String -> Result wrn R.Region
 requireRegion tagRegion regionDict name =
   case Map.lookup name regionDict of
     Just region ->
@@ -254,7 +252,7 @@ requireRegion tagRegion regionDict name =
 -- COLLAPSE COMMENTS
 
 
-collapseComments :: [D.CommentOr (A.Located a)] -> Result.Result wrn Error.Error [A.Commented a]
+collapseComments :: [D.CommentOr (A.Located a)] -> Result wrn [A.Commented a]
 collapseComments listWithComments =
   case listWithComments of
     [] ->
@@ -284,7 +282,7 @@ collapseComments listWithComments =
 -- VALIDATE STRUCTURED SOURCE
 
 
-validateDecls :: [D.Source] -> Result.Result wrn Error.Error ValidStuff
+validateDecls :: [D.Source] -> Result wrn ValidStuff
 validateDecls sourceDecls =
   do  rawDecls <- collapseComments sourceDecls
 
@@ -309,7 +307,7 @@ data ValidStuff =
     }
 
 
-validateRawDecls :: [A.Commented D.Raw] -> Result.Result wrn Error.Error ValidStuff
+validateRawDecls :: [A.Commented D.Raw] -> Result wrn ValidStuff
 validateRawDecls commentedDecls =
   vrdHelp commentedDecls [] (D.Decls [] [] [] [])
 
@@ -318,7 +316,7 @@ vrdHelp
   :: [A.Commented D.Raw]
   -> [A.Commented Effects.ForeignRaw]
   -> D.Valid
-  -> Result.Result wrn Error.Error ValidStuff
+  -> Result wrn ValidStuff
 vrdHelp commentedDecls foreigns structure =
   case commentedDecls of
     [] ->
@@ -347,7 +345,7 @@ vrdDefHelp
   -> A.Commented Source.Def'
   -> [A.Commented Effects.ForeignRaw]
   -> D.Valid
-  -> Result.Result wrn Error.Error ValidStuff
+  -> Result wrn ValidStuff
 vrdDefHelp remainingDecls (A.A ann def) foreigns structure =
   let
     addDef validDef (ValidStuff finalForeigns struct) =
@@ -376,7 +374,7 @@ vrdDefHelp remainingDecls (A.A ann def) foreigns structure =
 -- VALIDATE DEFINITIONS
 
 
-definitions :: [Source.Def] -> Result.Result wrn Error.Error [Valid.Def]
+definitions :: [Source.Def] -> Result wrn [Valid.Def]
 definitions sourceDefs =
   do  validDefs <- definitionsHelp sourceDefs
 
@@ -388,7 +386,7 @@ definitions sourceDefs =
       return validDefs
 
 
-definitionsHelp :: [Source.Def] -> Result.Result wrn Error.Error [Valid.Def]
+definitionsHelp :: [Source.Def] -> Result wrn [Valid.Def]
 definitionsHelp sourceDefs =
   case sourceDefs of
     [] ->
@@ -415,14 +413,14 @@ validateDef
   :: Pattern.Raw
   -> Source.Expr
   -> Maybe Type.Raw
-  -> Result.Result wrn Error.Error Valid.Def
+  -> Result wrn Valid.Def
 validateDef pat expr maybeType =
   do  validExpr <- expression expr
       validateDefPattern pat validExpr
       return $ Valid.Def pat validExpr maybeType
 
 
-validateDefPattern :: Pattern.Raw -> Valid.Expr -> Result.Result wrn Error.Error ()
+validateDefPattern :: Pattern.Raw -> Valid.Expr -> Result wrn ()
 validateDefPattern pattern body =
   case fst (Expr.collectLambdas body) of
     [] ->
@@ -445,7 +443,7 @@ validateDefPattern pattern body =
 -- VALIDATE EXPRESSIONS
 
 
-expression :: Source.Expr -> Result.Result wrn Error.Error Valid.Expr
+expression :: Source.Expr -> Result wrn Valid.Expr
 expression (A.A ann sourceExpression) =
   A.A ann <$>
   case sourceExpression of
@@ -538,14 +536,12 @@ expression (A.A ann sourceExpression) =
         return (GLShader uid src gltipe)
 
 
-second :: (a, Source.Expr) -> Result.Result wrn Error.Error (a, Valid.Expr)
+second :: (a, Source.Expr) -> Result wrn (a, Valid.Expr)
 second (value, expr) =
     (,) value <$> expression expr
 
 
-both
-  :: (Source.Expr, Source.Expr)
-  -> Result.Result wrn Error.Error (Valid.Expr, Valid.Expr)
+both :: (Source.Expr, Source.Expr) -> Result wrn (Valid.Expr, Valid.Expr)
 both (expr1, expr2) =
     (,) <$> expression expr1 <*> expression expr2
 
@@ -554,7 +550,7 @@ both (expr1, expr2) =
 -- VALIDATE PATTERNS
 
 
-validatePattern :: Pattern.Raw -> Result.Result wrn Error.Error Pattern.Raw
+validatePattern :: Pattern.Raw -> Result wrn Pattern.Raw
 validatePattern pattern =
   do  detectDuplicates Error.BadPattern (Pattern.boundVars pattern)
       return pattern
@@ -564,7 +560,7 @@ validatePattern pattern =
 -- DETECT DUPLICATES
 
 
-checkDuplicates :: ValidStuff -> Result.Result wrn Error.Error ()
+checkDuplicates :: ValidStuff -> Result wrn ()
 checkDuplicates (ValidStuff foreigns (D.Decls defs unions aliases _)) =
   let
     -- SIMPLE NAMES
@@ -604,10 +600,7 @@ checkDuplicates (ValidStuff foreigns (D.Decls defs unions aliases _)) =
       ]
 
 
-detectDuplicates
-    :: (String -> Error.Error)
-    -> [A.Located String]
-    -> Result.Result wrn Error.Error ()
+detectDuplicates :: (String -> Error.Error) -> [A.Located String] -> Result wrn ()
 detectDuplicates tag names =
   let
     add (A.A region name) dict =
@@ -631,9 +624,7 @@ detectDuplicates tag names =
 -- UNBOUND TYPE VARIABLES
 
 
-checkTypeVarsInUnion
-  :: A.Commented (D.Union Type.Raw)
-  -> Result.Result wrn Error.Error ()
+checkTypeVarsInUnion :: A.Commented (D.Union Type.Raw) -> Result wrn ()
 checkTypeVarsInUnion (A.A (region,_) (D.Type name boundVars ctors)) =
   case diff boundVars (concatMap freeVars (concatMap snd ctors)) of
     (_, []) ->
@@ -644,9 +635,7 @@ checkTypeVarsInUnion (A.A (region,_) (D.Type name boundVars ctors)) =
           (Error.UnboundTypeVarsInUnion name boundVars unbound)
 
 
-checkTypeVarsInAlias
-  :: A.Commented (D.Alias Type.Raw)
-  -> Result.Result wrn Error.Error ()
+checkTypeVarsInAlias :: A.Commented (D.Alias Type.Raw) -> Result wrn ()
 checkTypeVarsInAlias (A.A (region,_) (D.Type name boundVars tipe)) =
   case diff boundVars (freeVars tipe) of
     ([], []) ->

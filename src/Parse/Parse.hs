@@ -20,11 +20,7 @@ import qualified Validate
 
 
 
-program
-    :: Package.Name
-    -> OpTable
-    -> String
-    -> Result.Result wrn Error.Error Module.Valid
+program :: Package.Name -> OpTable -> String -> Validate.Result wrn Module.Valid
 program pkgName table src =
   do  modul <-
         parseWithTable table src (programParser pkgName)
@@ -72,7 +68,7 @@ freshDef =
 -- RUN PARSERS
 
 
-parse :: String -> IParser a -> Result.Result wrn Error.Error a
+parse :: String -> IParser a -> Validate.Result wrn a
 parse source parser =
   case iParse parser source of
     Right result ->
@@ -85,11 +81,7 @@ parse source parser =
             Result.throw (R.Region pos pos) (Error.Parse msgs)
 
 
-parseWithTable
-    :: OpTable
-    -> String
-    -> IParser a
-    -> Result.Result wrn Error.Error a
+parseWithTable :: OpTable -> String -> IParser a -> Validate.Result wrn a
 parseWithTable table source parser =
   do  infixInfoList <- parse source parseFixities
 
@@ -107,7 +99,7 @@ parseWithTable table source parser =
 makeInfixTable
     :: Map.Map String (Int, Decl.Assoc)
     -> [(String, InfixInfo)]
-    -> Result.Result wrn Error.Error (Map.Map String (Int, Decl.Assoc))
+    -> Validate.Result wrn (Map.Map String (Int, Decl.Assoc))
 makeInfixTable table newInfo =
   let add (op, info) dict =
         Map.insertWith (++) op [info] dict

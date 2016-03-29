@@ -25,6 +25,7 @@ import qualified Generate.JavaScript as JS
 import qualified Parse.Module as Parse
 import qualified Parse.Parse as Parse
 import qualified Reporting.Annotation as A
+import qualified Reporting.Bag as Bag
 import qualified Reporting.Error as Error
 import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
@@ -48,18 +49,13 @@ version =
 parseDependencies :: String -> Either [Error] (PublicModule.Raw, [PublicModule.Raw])
 parseDependencies sourceCode =
   let
-    (Result.Result _warnings rawResult) =
+    (Result.Result _ _ answer) =
       Parse.parse sourceCode Parse.header
-  in
-    case rawResult of
-      Result.Err msgs ->
-          Left $ map (Error . A.map Error.Syntax) msgs
 
-      Result.Ok (Module.Header _ name _ _ _ imports) ->
-          Right
-            ( name
-            , map (fst . A.drop) imports
-            )
+    getDeps (Module.Header _ name _ _ _ imports) =
+      ( name, map (fst . A.drop) imports )
+  in
+    Result.answerToEither (Error . A.map Error.Syntax) getDeps answer
 
 
 
@@ -78,18 +74,18 @@ compile context source interfaces =
     (Context packageName isExposed dependencies) =
       context
 
-    (Result.Result (localizer, warnings) rawResult) =
+    (Result.Result oneLocalizer warnings answer) =
       do  modul <- Compile.compile packageName dependencies interfaces source
-          docs <- docsGen isExposed modul
+          docs <- Result.format Error.Docs (docsGen isExposed modul)
 
           let interface = Module.toInterface packageName modul
           let javascript = JS.generate modul
 
           return (Result docs interface javascript)
   in
-    ( maybe dummyLocalizer Localizer localizer
-    , map Warning warnings
-    , Result.destruct (Left . map Error) Right rawResult
+    ( Result.oneToValue dummyLocalizer Localizer oneLocalizer
+    , Bag.toList Warning warnings
+    , Result.answerToEither Error id answer
     )
 
 
@@ -107,23 +103,17 @@ data Result = Result
     }
 
 
-docsGen
-    :: Bool
-    -> Module.Optimized
-    -> Result.Result w Error.Error (Maybe Docs.Documentation)
+docsGen :: Bool -> Module.Optimized -> Docs.Result w (Maybe Docs.Documentation)
 docsGen isExposed (Module.Module name _ info) =
   if not isExposed then
     Result.ok Nothing
 
   else
     let
-      getChecked =
-        Docs.check (Module.exports info) (Module.docs info)
-
       toDocs checked =
-        Docs.fromCheckedDocs (ModuleName._module name) checked
+        Just (Docs.fromCheckedDocs (ModuleName._module name) checked)
     in
-      (Just . toDocs) `fmap` Result.mapError Error.Docs getChecked
+      toDocs <$> Docs.check (Module.exports info) (Module.docs info)
 
 
 

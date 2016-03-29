@@ -14,9 +14,15 @@ import qualified Optimize
 import qualified Parse.Helpers as Parse
 import qualified Parse.Parse as Parse
 import qualified Reporting.Error as Error
+import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
 import qualified Type.Inference as TI
+
+
+
+type Result =
+  Result.Result (Result.One RenderType.Localizer) Warning.Warning Error.Error
 
 
 compile
@@ -24,13 +30,12 @@ compile
     -> [ModuleName.Canonical]
     -> Module.Interfaces
     -> String
-    -> Result.Result Warning.Warning Error.Error Module.Optimized
-
+    -> Result Module.Optimized
 compile packageName canonicalImports interfaces source =
   do
       -- Parse the source code
       validModule <-
-          Result.mapError Error.Syntax $
+          Result.format Error.Syntax $
             Parse.program packageName (getOpTable interfaces) source
 
       -- Canonicalize all variables, pinning down where they came from.
@@ -43,11 +48,11 @@ compile packageName canonicalImports interfaces source =
             TI.infer interfaces canonicalModule
 
       -- One last round of checks
-      Result.mapError Error.Type $
+      Result.format Error.Type $
         Nitpick.topLevelTypes types (Module.validDecls (Module.info validModule))
 
       tagDict <-
-        Result.mapError Error.Pattern $
+        Result.format Error.Pattern $
           Nitpick.patternMatches interfaces canonicalModule
 
       -- Add the real list of types

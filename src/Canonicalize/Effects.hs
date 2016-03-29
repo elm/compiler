@@ -9,9 +9,10 @@ import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
+import qualified Reporting.Result as Result
 import qualified Canonicalize.Environment as Env
-import qualified Canonicalize.Result as Result
 import qualified Canonicalize.Type as Canonicalize
+import Canonicalize.Variable (Result)
 
 
 
@@ -35,7 +36,7 @@ toValues effects =
 -- CANONICALIZE
 
 
-canonicalize :: Env.Environment -> Effects.Raw -> Result.ResultErr Effects.Canonical
+canonicalize :: Env.Environment -> Effects.Raw -> Result Effects.Canonical
 canonicalize env effects =
   case effects of
     Effects.None ->
@@ -51,18 +52,14 @@ canonicalize env effects =
 canonicalizeRawForeign
   :: Env.Environment
   -> A.Commented Effects.ForeignRaw
-  -> Result.ResultErr (A.Commented Effects.ForeignCanonical)
+  -> Result (A.Commented Effects.ForeignCanonical)
 canonicalizeRawForeign env (A.A ann (Effects.ForeignRaw name rawType)) =
-  Canonicalize.tipe env rawType
-    `Result.andThen` \tipe ->
-
-  figureOutKind (fst ann) name tipe
-    `Result.andThen` \kind ->
-
-  Result.ok (A.A ann (Effects.ForeignCanonical name kind tipe))
+  do  tipe <- Canonicalize.tipe env rawType
+      kind <- figureOutKind (fst ann) name tipe
+      Result.ok (A.A ann (Effects.ForeignCanonical name kind tipe))
 
 
-figureOutKind :: R.Region -> String -> T.Canonical -> Result.ResultErr Effects.Kind
+figureOutKind :: R.Region -> String -> T.Canonical -> Result Effects.Kind
 figureOutKind region name rootType =
   case T.deepDealias rootType of
     T.Lambda outgoingType (T.App (T.Type effect) [T.Var _])
@@ -76,7 +73,7 @@ figureOutKind region name rootType =
             <$> checkForeignType region name "subscription" incomingType
 
     _ ->
-      Result.err (A.A region (error "TODO - bad overall type"))
+      Result.throw region (error "TODO - bad overall type")
 
 
 
@@ -86,11 +83,11 @@ figureOutKind region name rootType =
 --
 -- Note: assumes that deepDealias has been called on the incoming type.
 --
-checkForeignType :: R.Region -> String -> String -> T.Canonical -> Result.ResultErr ()
+checkForeignType :: R.Region -> String -> String -> T.Canonical -> Result ()
 checkForeignType region name kind tipe =
   let
     throwError maybeMessage =
-      Result.err $ A.A region $
+      Result.throw region $
         Error.foreign name kind tipe maybeMessage
 
     check subType =

@@ -21,13 +21,14 @@ import qualified Reporting.Warning as Warning
 
 
 
+type Result =
+  Result.Result () Warning.Warning Error.Error
+
+
 -- CHECK TOP LEVEL TYPES
 
 
-topLevelTypes
-  :: Map.Map String Type.Canonical
-  -> Decl.Valid
-  -> Result.Result Warning.Warning Error.Error ()
+topLevelTypes :: Map.Map String Type.Canonical -> Decl.Valid -> Result ()
 topLevelTypes typeEnv (Decl.Decls defs _ _ _) =
   do  maybeMainRegion <- foldM (warnMissingAnnotation typeEnv) Nothing defs
       maybe (return ()) (checkMainType typeEnv) maybeMainRegion
@@ -41,12 +42,12 @@ warnMissingAnnotation
   :: Map.Map String Type.Canonical
   -> Maybe R.Region
   -> A.Commented Valid.Def
-  -> Result.Result Warning.Warning Error.Error (Maybe R.Region)
+  -> Result (Maybe R.Region)
 warnMissingAnnotation typeEnv maybeMainRegion (A.A (region,_) def) =
   case def of
     Valid.Def (A.A _ (P.Var name)) _ maybeType ->
       do  when (Maybe.isNothing maybeType) $
-            Result.warn region (Warning.MissingTypeAnnotation name (typeEnv ! name))
+            Result.warn region (Warning.MissingTypeAnnotation name (typeEnv ! name)) ()
 
           return (if name == "main" then Just region else maybeMainRegion)
 
@@ -58,7 +59,7 @@ warnMissingAnnotation typeEnv maybeMainRegion (A.A (region,_) def) =
 -- CHECK MAIN TYPE
 
 
-checkMainType :: Map.Map String Type.Canonical -> R.Region -> Result.Result w Error.Error ()
+checkMainType :: Map.Map String Type.Canonical -> R.Region -> Result ()
 checkMainType typeEnv region =
   let
     tipe =

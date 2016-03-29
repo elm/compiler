@@ -2,6 +2,7 @@
 module Canonicalize.Setup (environment) where
 
 import Control.Arrow (second)
+import Control.Monad (foldM)
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
@@ -20,9 +21,10 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Error.Helpers as Error
 import qualified Reporting.Region as R
+import qualified Reporting.Result as Result
 import qualified Canonicalize.Environment as Env
-import qualified Canonicalize.Result as Result
 import qualified Canonicalize.Type as Canonicalize
+import Canonicalize.Variable (Result)
 
 
 
@@ -30,7 +32,7 @@ environment
     :: Map.Map ModuleName.Raw ModuleName.Canonical
     -> Module.Interfaces
     -> Module.Valid
-    -> Result.ResultErr Env.Environment
+    -> Result Env.Environment
 environment importDict interfaces (Module.Module name _ info) =
   let
     (Module.Valid _ _ (defaults, imports) decls effects) =
@@ -53,8 +55,8 @@ environment importDict interfaces (Module.Module name _ info) =
         name
         (concat (Env.builtinPatches : declPatches : effectPatches : importPatches))
   in
-    (createEnv <$> getImportPatches)
-      `Result.andThen` addTypeAliases name typeAliasNodes
+    do  env <- createEnv <$> getImportPatches
+        addTypeAliases name typeAliasNodes env
 
 
 
@@ -65,7 +67,7 @@ importToPatches
     :: Map.Map ModuleName.Raw ModuleName.Canonical
     -> Module.Interfaces
     -> A.Located (ModuleName.Raw, Module.ImportMethod)
-    -> Result.ResultErr [Env.Patch]
+    -> Result [Env.Patch]
 importToPatches importDict allInterfaces (A.A region (rawImportName, method)) =
   let
     maybeInterface =
@@ -84,8 +86,7 @@ importToPatches importDict allInterfaces (A.A region (rawImportName, method)) =
           |> map ModuleName._module
           |> Error.nearbyNames ModuleName.toString rawImportName
           |> Error.moduleNotFound rawImportName
-          |> A.A region
-          |> Result.err
+          |> Result.throw region
 
     Just (importName, interface) ->
       let
@@ -156,7 +157,7 @@ valueToPatches
     -> ModuleName.Canonical
     -> Module.Interface
     -> Var.Value
-    -> Result.ResultErr [Env.Patch]
+    -> Result [Env.Patch]
 valueToPatches region moduleName interface value =
   let
     patch mkPatch x =
@@ -170,8 +171,7 @@ valueToPatches region moduleName interface value =
         |> getNames
         |> Error.nearbyNames id x
         |> Error.valueNotFound (ModuleName._module moduleName) x
-        |> A.A region
-        |> Result.err
+        |> Result.throw region
   in
   case value of
     Var.Value x ->
@@ -184,13 +184,16 @@ valueToPatches region moduleName interface value =
     Var.Alias x ->
       case Map.lookup x (Module.iAliases interface) of
         Just (tvars, t) ->
-            let alias =
-                  Env.Alias x (Var.fromModule moduleName x, tvars, t)
+            let
+              alias =
+                Env.Alias x (Var.fromModule moduleName x, tvars, t)
             in
-                Result.ok $
-                    if Map.member x (Module.iTypes interface)
-                        then [alias, patch Env.Value x]
-                        else [alias]
+              Result.ok $
+                if Map.member x (Module.iTypes interface) then
+                  [alias, patch Env.Value x]
+
+                else
+                  [alias]
 
         Nothing ->
             case Map.lookup x (Module.iUnions interface) of
@@ -211,9 +214,11 @@ valueToPatches region moduleName interface value =
 
         Just (_tvars, realCtors) ->
             patches <$>
-                if open
-                  then Result.ok realCtorList
-                  else Trav.traverse ctorExists givenCtorNames
+                if open then
+                  Result.ok realCtorList
+
+                else
+                  Trav.traverse ctorExists givenCtorNames
           where
             realCtorList =
                 map (second length) realCtors
@@ -225,6 +230,7 @@ valueToPatches region moduleName interface value =
                 case Map.lookup givenCtorName realCtorDict of
                   Just numArgs ->
                       Result.ok (givenCtorName, numArgs)
+
                   Nothing ->
                       notFound (const (map fst realCtors)) givenCtorName
 
@@ -264,24 +270,17 @@ node region name tvars alias =
           maybe [] edges ext ++ concatMap (edges . snd) fs
 
 
-addTypeAliases
-    :: ModuleName.Canonical
-    -> [Node]
-    -> Env.Environment
-    -> Result.ResultErr Env.Environment
+addTypeAliases :: ModuleName.Canonical -> [Node] -> Env.Environment -> Result Env.Environment
 addTypeAliases moduleName typeAliasNodes initialEnv =
-  Result.foldl
-    (addTypeAlias moduleName)
-    initialEnv
-    (Graph.stronglyConnComp typeAliasNodes)
+  foldM (addTypeAlias moduleName) initialEnv (Graph.stronglyConnComp typeAliasNodes)
 
 
 addTypeAlias
     :: ModuleName.Canonical
-    -> Graph.SCC (R.Region, String, [String], Type.Raw)
     -> Env.Environment
-    -> Result.ResultErr Env.Environment
-addTypeAlias moduleName scc env =
+    -> Graph.SCC (R.Region, String, [String], Type.Raw)
+    -> Result Env.Environment
+addTypeAlias moduleName env scc =
   case scc of
     Graph.AcyclicSCC (_, name, tvars, alias) ->
         addToEnv <$> Canonicalize.tipe env alias
@@ -296,10 +295,10 @@ addTypeAlias moduleName scc env =
       Result.ok env
 
     Graph.CyclicSCC [(region, name, tvars, alias)] ->
-      Result.err (A.A region (Error.Alias (Error.SelfRecursive name tvars alias)))
+      Result.throw region (Error.Alias (Error.SelfRecursive name tvars alias))
 
     Graph.CyclicSCC aliases@((region, _, _, _) : _) ->
-      Result.err (A.A region (Error.Alias (Error.MutuallyRecursive aliases)))
+      Result.throw region (Error.Alias (Error.MutuallyRecursive aliases))
 
 
 

@@ -1,10 +1,10 @@
+{-# OPTIONS_GHC -Wall #-}
 module Canonicalize (module') where
 
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
-import qualified Data.Traversable as T
 import qualified Data.Foldable as T
 
 import AST.Expression.General (Expr'(..))
@@ -18,22 +18,26 @@ import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
+import qualified Canonicalize.Body as Body
+import qualified Canonicalize.Effects as Effects
+import qualified Canonicalize.Environment as Env
+import qualified Canonicalize.Setup as Setup
+import qualified Canonicalize.Type as Canon
+import qualified Canonicalize.Variable as Canon
 import qualified Docs.Centralize as Docs
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error as Error
 import qualified Reporting.Error.Canonicalize as CError
 import qualified Reporting.Error.Helpers as ErrorHelp
 import qualified Reporting.Region as Region
-import qualified Reporting.Result as R
+import qualified Reporting.Render.Type as RenderType
+import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
-import qualified Canonicalize.Body as Body
-import qualified Canonicalize.Effects as Effects
-import qualified Canonicalize.Environment as Env
-import qualified Canonicalize.Result as Result
-import qualified Canonicalize.Setup as Setup
-import qualified Canonicalize.Type as Canonicalize
-import qualified Canonicalize.Variable as Canonicalize
 
+
+
+type Result a =
+  Result.Result (Result.One RenderType.Localizer) Warning.Warning Error.Error a
 
 
 -- MODULES
@@ -43,29 +47,29 @@ module'
     :: [ModuleName.Canonical]
     -> Module.Interfaces
     -> Module.Valid
-    -> R.Result Warning.Warning Error.Error Module.Canonical
-module' canonicalImports interfaces modul =
+    -> Result Module.Canonical
+module' allCanonicalImports interfaces modul =
   let
     (Module.Valid docs exports imports decls effects) =
       Module.info modul
 
     importDict =
-      canonicalImports
+      allCanonicalImports
         |> map (\cName -> (ModuleName._module cName, cName))
         |> Map.fromList
 
-    (Result.Result uses rawResults) =
-      Setup.environment importDict interfaces modul
-        `Result.andThen` \env ->
+    (Result.Result uses warnings rawResults) =
+      do  env <- Setup.environment importDict interfaces modul
 
-      (,,,) env
-        <$> resolveExports (Effects.toValues effects ++ declsToValues decls) exports
-        <*> canonicalizeDecls env decls
-        <*> Effects.canonicalize env effects
+          (,,,) env
+            <$> resolveExports (Effects.toValues effects ++ declsToValues decls) exports
+            <*> canonicalizeDecls env decls
+            <*> Effects.canonicalize env effects
   in
     case rawResults of
-      Result.Err msgs ->
-        R.throwMany (map (A.map Error.Canonicalize) msgs)
+      Result.Err errors ->
+        Result.mapError Error.Canonicalize $
+          Result.Result Result.None warnings (Result.Err errors)
 
       Result.Ok (env, canonicalExports, canonicalDecls, canonicalEffects) ->
         let
@@ -81,9 +85,9 @@ module' canonicalImports interfaces modul =
           program =
             Body.flatten (Module.name modul) canonicalDecls canonicalEffects
         in
-          R.addDealiaser (Env.toDealiaser env) $
-            do  canonicalImports <- filterImports uses imports
-                return $ modul {
+          do  canonicalImports <- filterImports uses imports
+              Result.accumulate (Result.One (Env.toDealiaser env)) $
+                modul {
                   Module.info =
                     Module.Info
                       { Module.docs = centralizedDocs
@@ -96,7 +100,7 @@ module' canonicalImports interfaces modul =
                       , Module.unions = Map.fromList (map typeToPair unions)
                       , Module.effects = canonicalEffects
                       }
-                  }
+                }
 
 
 
@@ -106,7 +110,7 @@ module' canonicalImports interfaces modul =
 filterImports
     :: Set.Set ModuleName.Raw
     -> ([Module.DefaultImport], [Module.UserImport])
-    -> R.Result Warning.Warning e [ModuleName.Raw]
+    -> Result [ModuleName.Raw]
 filterImports uses (defaults, imports) =
   let
     checkImport (A.A region (name, _method)) =
@@ -114,24 +118,28 @@ filterImports uses (defaults, imports) =
         return (Just name)
 
       else
-        do  R.warn region (Warning.UnusedImport name)
-            return Nothing
+        Result.warn region (Warning.UnusedImport name) Nothing
   in
     do  reducedImports <-
-          Maybe.catMaybes <$> T.traverse checkImport imports
+          Maybe.catMaybes <$> traverse checkImport imports
 
         return $
           Set.toList (Set.fromList (map fst defaults ++ reducedImports))
 
 
 
+--------  CANONICALIZATION  --------
+
+
+type CResult a =
+  Canon.Result a
+
+
+
 -- EXPORTS
 
 
-resolveExports
-    :: [Var.Value]
-    -> Var.Listing (A.Located Var.Value)
-    -> Result.ResultErr [Var.Value]
+resolveExports :: [Var.Value] -> Var.Listing (A.Located Var.Value) -> CResult [Var.Value]
 resolveExports fullList (Var.Listing partialList open) =
   if open then
     Result.ok fullList
@@ -148,17 +156,13 @@ resolveExports fullList (Var.Listing partialList open) =
           map fst allAdts
     in
       (\xs ys zs _ -> xs ++ ys ++ zs)
-        <$> T.traverse (getValueExport allValues (Set.fromList allValues)) values
-        <*> (concat <$> T.traverse (getAliasExport allValues allAliases adtTypes) aliases)
-        <*> T.traverse (getAdtExport allAdts adtTypes) adts
+        <$> traverse (getValueExport allValues (Set.fromList allValues)) values
+        <*> (concat <$> traverse (getAliasExport allValues allAliases adtTypes) aliases)
+        <*> traverse (getAdtExport allAdts adtTypes) adts
         <*> allUnique partialList
 
 
-getValueExport
-    :: [String]
-    -> Set.Set String
-    -> A.Located String
-    -> Result.ResultErr Var.Value
+getValueExport :: [String] -> Set.Set String -> A.Located String -> CResult Var.Value
 getValueExport allValues allValuesSet (A.A region name) =
   if Set.member name allValuesSet then
     Result.ok (Var.Value name)
@@ -166,12 +170,7 @@ getValueExport allValues allValuesSet (A.A region name) =
     manyNotFound region [name] allValues
 
 
-getAliasExport
-    :: [String]
-    -> [String]
-    -> [String]
-    -> A.Located String
-    -> Result.ResultErr [Var.Value]
+getAliasExport :: [String] -> [String] -> [String] -> A.Located String -> CResult [Var.Value]
 getAliasExport allValues allAliases adtTypes (A.A region alias) =
   if alias `elem` allAliases then
 
@@ -191,7 +190,7 @@ getAdtExport
     :: [(String, Var.Listing String)]
     -> [String]
     -> A.Located (String, Var.Listing String)
-    -> Result.ResultErr Var.Value
+    -> CResult Var.Value
 getAdtExport allAdts adtTypes (A.A region (name, Var.Listing ctors open)) =
   case List.lookup name allAdts of
     Nothing ->
@@ -208,9 +207,9 @@ getAdtExport allAdts adtTypes (A.A region (name, Var.Listing ctors open)) =
                 manyNotFound region unfoundCtors allCtors
 
 
-manyNotFound :: Region.Region -> [String] -> [String] -> Result.ResultErr a
+manyNotFound :: Region.Region -> [String] -> [String] -> CResult a
 manyNotFound region nameList possibilities =
-    Result.errors (map (notFound region possibilities) nameList)
+    Result.throwMany (map (notFound region possibilities) nameList)
 
 
 notFound :: Region.Region -> [String] -> String -> A.Located CError.Error
@@ -219,7 +218,7 @@ notFound region possibilities name =
         ErrorHelp.nearbyNames id name possibilities
 
 
-allUnique :: [A.Located Var.Value] -> Result.ResultErr ()
+allUnique :: [A.Located Var.Value] -> CResult ()
 allUnique statedExports =
   let
     valueToString value =
@@ -234,12 +233,12 @@ allUnique statedExports =
     isUnique value allRegions =
         case allRegions of
           region : _ : _ ->
-              Result.err (A.A region (CError.DuplicateExport (valueToString value)))
+              Result.throw region (CError.DuplicateExport (valueToString value))
 
           _ ->
               Result.ok ()
   in
-    T.traverse_ id (Map.mapWithKey isUnique locations)
+    T.sequenceA_ (Map.mapWithKey isUnique locations)
 
 
 
@@ -319,46 +318,46 @@ splitLocatedValue (A.A region value) =
 -- DECLARATIONS
 
 
-canonicalizeDecls :: Env.Environment -> D.Valid -> Result.ResultErr D.Canonical
+canonicalizeDecls :: Env.Environment -> D.Valid -> CResult D.Canonical
 canonicalizeDecls env (D.Decls defs unions aliases infixes) =
   let
-    traverse canEntry entries =
-      T.traverse (\(A.A ann entry) -> A.A ann <$> canEntry entry) entries
+    annTraverse canEntry entries =
+      traverse (\(A.A ann entry) -> A.A ann <$> canEntry entry) entries
 
     canonicalizeDef (Valid.Def pat expr typ) =
       Canonical.Def Canonical.dummyFacts
         <$> canonicalizePattern env pat
         <*> canonicalizeExpr env expr
-        <*> T.traverse (canonicalizeRegionType env) typ
+        <*> traverse (canonicalizeRegionType env) typ
 
     canonicalizeArgs (ctor, args) =
-      (,) ctor <$> T.traverse (Canonicalize.tipe env) args
+      (,) ctor <$> traverse (Canon.tipe env) args
 
     canonicalizeUnion (D.Type name tvars ctors) =
-      D.Type name tvars <$> T.traverse canonicalizeArgs ctors
+      D.Type name tvars <$> traverse canonicalizeArgs ctors
 
     canonicalizeAlias (D.Type name tvars alias) =
-      D.Type name tvars <$> Canonicalize.tipe env alias
+      D.Type name tvars <$> Canon.tipe env alias
   in
     D.Decls
-      <$> traverse canonicalizeDef defs
-      <*> traverse canonicalizeUnion unions
-      <*> traverse canonicalizeAlias aliases
+      <$> annTraverse canonicalizeDef defs
+      <*> annTraverse canonicalizeUnion unions
+      <*> annTraverse canonicalizeAlias aliases
       <*> pure infixes
 
 
 canonicalizeRegionType
     :: Env.Environment
     -> Type.Raw
-    -> Result.ResultErr (A.Located Type.Canonical)
+    -> CResult (A.Located Type.Canonical)
 canonicalizeRegionType env typ@(A.A region _) =
-  A.A region <$> Canonicalize.tipe env typ
+  A.A region <$> Canon.tipe env typ
 
 
 canonicalizeExpr
     :: Env.Environment
     -> Valid.Expr
-    -> Result.ResultErr Canonical.Expr
+    -> CResult Canonical.Expr
 canonicalizeExpr env (A.A region validExpr) =
     let go = canonicalizeExpr env
     in
@@ -376,15 +375,15 @@ canonicalizeExpr env (A.A region validExpr) =
       Update record fields ->
           Update
             <$> go record
-            <*> T.traverse (\(field,expr) -> (,) field <$> go expr) fields
+            <*> traverse (\(field,expr) -> (,) field <$> go expr) fields
 
       Record fields ->
           Record
-            <$> T.traverse (\(field,expr) -> (,) field <$> go expr) fields
+            <$> traverse (\(field,expr) -> (,) field <$> go expr) fields
 
       Binop (Var.Raw op) leftExpr rightExpr ->
           Binop
-            <$> Canonicalize.variable region env op
+            <$> Canon.variable region env op
             <*> go leftExpr
             <*> go rightExpr
 
@@ -400,14 +399,14 @@ canonicalizeExpr env (A.A region validExpr) =
 
       If branches finally ->
           If
-            <$> T.traverse go' branches
+            <$> traverse go' branches
             <*> go finally
         where
           go' (condition, branch) =
               (,) <$> go condition <*> go branch
 
-      Let defs body ->
-          Let <$> T.traverse rename' defs <*> canonicalizeExpr env' body
+      Let defs expr ->
+          Let <$> traverse rename' defs <*> canonicalizeExpr env' expr
         where
           env' =
             foldr Env.addPattern env (map Valid.getPattern defs)
@@ -416,19 +415,19 @@ canonicalizeExpr env (A.A region validExpr) =
             Canonical.Def Canonical.dummyFacts
               <$> canonicalizePattern env' p
               <*> canonicalizeExpr env' body
-              <*> T.traverse (canonicalizeRegionType env') mtipe
+              <*> traverse (canonicalizeRegionType env') mtipe
 
       Var (Var.Raw x) ->
-          Var <$> Canonicalize.variable region env x
+          Var <$> Canon.variable region env x
 
       Data name exprs ->
-          Data name <$> T.traverse go exprs
+          Data name <$> traverse go exprs
 
       ExplicitList exprs ->
-          ExplicitList <$> T.traverse go exprs
+          ExplicitList <$> traverse go exprs
 
       Case expr cases ->
-          Case <$> go expr <*> T.traverse branch cases
+          Case <$> go expr <*> traverse branch cases
         where
           branch (ptrn, brnch) =
             (,)
@@ -442,10 +441,10 @@ canonicalizeExpr env (A.A region validExpr) =
           Result.ok (Sub moduleName)
 
       ForeignCmd name tipe ->
-          ForeignCmd name <$> Canonicalize.tipe env tipe
+          ForeignCmd name <$> Canon.tipe env tipe
 
       ForeignSub name tipe ->
-          ForeignSub name <$> Canonicalize.tipe env tipe
+          ForeignSub name <$> Canon.tipe env tipe
 
       SaveEnv moduleName effects ->
           Result.ok (SaveEnv moduleName effects)
@@ -454,7 +453,7 @@ canonicalizeExpr env (A.A region validExpr) =
           Result.ok (GLShader uid src tipe)
 
 
-canonicalizePattern :: Env.Environment -> P.Raw -> Result.ResultErr P.Canonical
+canonicalizePattern :: Env.Environment -> P.Raw -> CResult P.Canonical
 canonicalizePattern env (A.A region ptrn) =
   A.A region <$>
     case ptrn of
@@ -475,5 +474,5 @@ canonicalizePattern env (A.A region ptrn) =
 
       P.Data (Var.Raw name) patterns ->
           P.Data
-            <$> Canonicalize.pvar region env name (length patterns)
-            <*> T.traverse (canonicalizePattern env) patterns
+            <$> Canon.pvar region env name (length patterns)
+            <*> traverse (canonicalizePattern env) patterns

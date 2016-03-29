@@ -23,10 +23,11 @@ import qualified Reporting.Result as Result
 
 
 
-patternMatches
-    :: Module.Interfaces
-    -> Module.Canonical
-    -> Result.Result w Error.Error DT.VariantDict
+type Result warning a =
+  Result.Result () warning Error.Error a
+
+
+patternMatches :: Module.Interfaces -> Module.Canonical -> Result wrn DT.VariantDict
 patternMatches interfaces (Module.Module name _ info) =
   let
     tagDict =
@@ -118,10 +119,7 @@ lookupOtherTags (Var.Canonical home name) tagDict =
 -- CHECK EXPRESSIONS
 
 
-checkExpression
-    :: TagDict
-    -> Canonical.Expr
-    -> Result.Result w Error.Error ()
+checkExpression :: TagDict -> Canonical.Expr -> Result wrn ()
 checkExpression tagDict (A.A region expression) =
   let
     go =
@@ -206,12 +204,7 @@ checkExpression tagDict (A.A region expression) =
 -- CHECK PATTERNS
 
 
-checkPatterns
-    :: TagDict
-    -> Region.Region
-    -> Error.Origin
-    -> [Pattern.Canonical]
-    -> Result.Result w Error.Error ()
+checkPatterns :: TagDict -> Region.Region -> Error.Origin -> [Pattern.Canonical] -> Result wrn ()
 checkPatterns tagDict region origin patterns =
   checkPatternsHelp tagDict region origin [Anything] patterns
 
@@ -222,7 +215,7 @@ checkPatternsHelp
     -> Error.Origin
     -> [Pattern]
     -> [Pattern.Canonical]
-    -> Result.Result w Error.Error ()
+    -> Result wrn ()
 checkPatternsHelp tagDict region origin unhandled patterns =
   case (unhandled, patterns) of
     ([], []) ->
@@ -241,7 +234,7 @@ filterPatterns
     -> Region.Region
     -> Pattern.Canonical
     -> [Pattern]
-    -> Result.Result w Error.Error [Pattern]
+    -> Result wrn [Pattern]
 filterPatterns tagDict region pattern unhandled =
   let
     nitPattern =
