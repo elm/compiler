@@ -59,8 +59,15 @@ data Expr' ann def var typ
     | Sub ModuleName.Canonical
     | ForeignCmd String typ
     | ForeignSub String typ
+    | Program (Main typ) (Expr ann def var typ)
     | SaveEnv ModuleName.Canonical Effects.Canonical
     | GLShader String String Literal.GLShaderTipe
+
+
+data Main typ
+  = VDom
+  | NoFlags
+  | Flags typ
 
 
 

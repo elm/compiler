@@ -1,5 +1,11 @@
 {-# OPTIONS_GHC -Wall #-}
-module AST.Expression.Canonical where
+module AST.Expression.Canonical
+  ( Expr, Expr'
+  , Def(..)
+  , Facts(..), dummyFacts
+  , SortedDefs(..), toSortedDefs
+  )
+  where
 
 import qualified AST.Expression.General as General
 import qualified AST.Pattern as Pattern
@@ -33,3 +39,34 @@ dummyFacts :: Facts
 dummyFacts =
   Facts (error "This should be set by Canonicalize.Sort")
 
+
+
+-- SORTED DEFS
+
+
+data SortedDefs
+  = NoMain [Def]
+  | YesMain [Def] Def [Def]
+
+
+toSortedDefs :: Expr -> SortedDefs
+toSortedDefs (A.A _ expr) =
+  case expr of
+    General.Let defs body ->
+      foldr defCons (toSortedDefs body) defs
+
+    _ ->
+      NoMain []
+
+
+defCons :: Def -> SortedDefs -> SortedDefs
+defCons def@(Def _ (A.A _ pattern) _ _) sortedDefs =
+  case (pattern, sortedDefs) of
+    (Pattern.Var "main", NoMain defs) ->
+      YesMain [] def defs
+
+    (_, NoMain defs) ->
+      NoMain (def : defs)
+
+    (_, YesMain defs main rest) ->
+      YesMain (def : defs) main rest

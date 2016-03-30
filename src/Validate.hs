@@ -529,6 +529,9 @@ expression (A.A ann sourceExpression) =
     ForeignSub name tipe ->
         return (ForeignSub name tipe)
 
+    Program _ _ ->
+        error "DANGER - Program AST nodes should not be in validation phase."
+
     SaveEnv moduleName effects ->
         return (SaveEnv moduleName effects)
 

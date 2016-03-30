@@ -193,6 +193,9 @@ checkExpression tagDict (A.A region expression) =
     E.ForeignSub _ _ ->
         Result.ok ()
 
+    E.Program _ _ ->
+        error "DANGER - Program AST nodes should not be in Nitpick.PatternMatches."
+
     E.SaveEnv _ _ ->
         Result.ok ()
 

@@ -446,6 +446,9 @@ canonicalizeExpr env (A.A region validExpr) =
       ForeignSub name tipe ->
           ForeignSub name <$> Canon.tipe env tipe
 
+      Program _ _ ->
+          error "DANGER - Program AST nodes should not be in canonicalization."
+
       SaveEnv moduleName effects ->
           Result.ok (SaveEnv moduleName effects)
 

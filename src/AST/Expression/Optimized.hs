@@ -5,6 +5,7 @@ module AST.Expression.Optimized
     , Decider(..), Choice(..)
     ) where
 
+import qualified AST.Expression.General as Expr
 import qualified AST.Literal as Literal
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
@@ -55,6 +56,7 @@ data Expr
     | Sub ModuleName.Canonical
     | ForeignCmd String Type.Canonical
     | ForeignSub String Type.Canonical
+    | Program (Expr.Main Type.Canonical) Expr
     | GLShader String String Literal.GLShaderTipe
     | Crash ModuleName.Canonical R.Region (Maybe Expr)
 

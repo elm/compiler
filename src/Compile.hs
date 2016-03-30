@@ -3,6 +3,7 @@ module Compile (compile) where
 import qualified Data.Map as Map
 
 import qualified AST.Declaration as D
+import qualified AST.Expression.Canonical as Can
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified Canonicalize
@@ -48,22 +49,27 @@ compile packageName canonicalImports interfaces source =
             TI.infer interfaces canonicalModule
 
       -- One last round of checks
-      Result.format Error.Type $
-        Nitpick.topLevelTypes types (Module.validDecls (Module.info validModule))
+      canonicalDefs <-
+          Result.format Error.Type $
+            Nitpick.topLevelTypes types $
+              Can.toSortedDefs (Module.program (Module.info canonicalModule))
 
       tagDict <-
         Result.format Error.Pattern $
           Nitpick.patternMatches interfaces canonicalModule
 
-      -- Add the real list of types
-      let canonicalInfo =
-            (Module.info canonicalModule) { Module.types = types }
-
       -- Do some basic optimizations
-      let optModule =
-            Optimize.optimize tagDict (canonicalModule { Module.info = canonicalInfo })
+      let optimisedDefs =
+            Optimize.optimize tagDict (Module.name canonicalModule) canonicalDefs
 
-      return optModule
+      -- Add the real list of types
+      let info =
+            (Module.info canonicalModule)
+              { Module.types = types
+              , Module.program = optimisedDefs
+              }
+
+      return $ canonicalModule { Module.info = info }
 
 
 getOpTable :: Module.Interfaces -> Parse.OpTable

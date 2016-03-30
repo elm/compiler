@@ -49,6 +49,9 @@ constrain env annotatedExpr@(A.A region expression) tipe =
     E.ForeignSub _ _ ->
       return CTrue
 
+    E.Program _ _ ->
+      error "DANGER - Program AST nodes should not be in type inference."
+
     E.SaveEnv moduleName effects ->
       Effects.constrain env moduleName effects
 

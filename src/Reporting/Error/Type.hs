@@ -23,6 +23,7 @@ import qualified Reporting.Report as Report
 data Error
     = Mismatch Mismatch
     | BadMain Type.Canonical
+    | BadFlags Type.Canonical (Maybe String)
     | InfiniteType String Type.Canonical
 
 
@@ -102,7 +103,7 @@ toReport localizer err =
         Report.report
           "BAD MAIN TYPE"
           Nothing
-          "The 'main' value has an unsupported type."
+          "The `main` value has an unsupported type."
           ( Help.stack
               [ Help.reflowParagraph $
                 "I need Html, Svg, or a Program so I have something to render on\
@@ -111,6 +112,25 @@ toReport localizer err =
               ]
           )
 
+    BadFlags tipe maybeMessage ->
+      let
+        context =
+          maybe "" (" the following " ++ ) maybeMessage
+      in
+        Report.report
+          "BAD FLAGS"
+          Nothing
+          ("Your `main` is demanding an unsupported type as a flag."
+          )
+          ( Help.stack
+              [ text ("The specific unsupported type is" ++ context ++ ":")
+              , indent 4 (RenderType.toDoc localizer tipe)
+              , text "The types of values that can flow through in and out of Elm include:"
+              , indent 4 $ Help.reflowParagraph $
+                  "Ints, Floats, Bools, Strings, Maybes, Lists, Arrays,\
+                  \ Tuples, Json.Values, and concrete records."
+              ]
+          )
 
 
 -- TYPE MISMATCHES

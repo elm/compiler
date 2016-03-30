@@ -6,6 +6,7 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import Language.ECMAScript3.Syntax
 
+import AST.Expression.General as Expr (Main(..))
 import AST.Expression.Optimized as Opt
 import qualified AST.Literal as L
 import qualified AST.Module.Name as ModuleName
@@ -213,6 +214,17 @@ generateCode expr =
       ForeignSub name tipe ->
           do  jsDecoder <- generateJsExpr (Foreign.decode tipe)
               jsExpr $ BuiltIn.foreignSub name jsDecoder
+
+      Program kind body ->
+          case kind of
+            Expr.VDom ->
+              generateCode (Data "vdom" [body])
+
+            Expr.NoFlags ->
+              generateCode (Data "no-flags" [body])
+
+            Expr.Flags tipe ->
+              generateCode (Data "flags" [Foreign.decode tipe, body])
 
       GLShader _uid src _tipe ->
           jsExpr $ ObjectLit () [(PropString () "src", Literal.literal (L.Str src))]

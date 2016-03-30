@@ -181,6 +181,9 @@ count expression =
     ForeignSub _ _ ->
         Map.empty
 
+    Program _ expr ->
+        count expr
+
     GLShader _ _ _ ->
         Map.empty
 
@@ -291,6 +294,9 @@ replace substitutions expression =
 
     ForeignSub _ _ ->
         expression
+
+    Program kind expr ->
+        Program kind (go expr)
 
     GLShader _ _ _ ->
         expression

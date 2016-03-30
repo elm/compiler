@@ -108,6 +108,9 @@ reorder (A.A ann expression) =
     ForeignSub _ _ ->
       return expression
 
+    Program _ _ ->
+      error "DANGER - Program AST nodes should not be in def sorting."
+
     SaveEnv _ _ ->
       return expression
 

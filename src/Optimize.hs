@@ -7,7 +7,6 @@ import qualified Data.Traversable as T
 import qualified AST.Expression.General as Expr
 import qualified AST.Expression.Canonical as Can
 import qualified AST.Expression.Optimized as Opt
-import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
@@ -23,29 +22,9 @@ import qualified Reporting.Region as R
 -- OPTIMIZE
 
 
-optimize :: DT.VariantDict -> Module.Canonical -> Module.Optimized
-optimize variantDict modul@(Module.Module home _ info) =
-  let
-    (defs, _) =
-      flattenLets [] (Module.program info)
-
-    optDefs =
-      Env.run variantDict home (concat <$> mapM (optimizeDef True) defs)
-
-    optInfo =
-      info { Module.program = optDefs }
-  in
-    modul { Module.info = optInfo }
-
-
-flattenLets :: [Can.Def] -> Can.Expr -> ([Can.Def], Can.Expr)
-flattenLets defs annExpr@(A.A _ expr) =
-    case expr of
-      Expr.Let ds body ->
-          flattenLets (defs ++ ds) body
-
-      _ ->
-          (defs, annExpr)
+optimize :: DT.VariantDict -> ModuleName.Canonical -> [Can.Def] -> [Opt.Def]
+optimize variantDict home defs =
+  Env.run variantDict home (concat <$> mapM (optimizeDef True) defs)
 
 
 
@@ -57,13 +36,15 @@ optimizeDef isRoot (Can.Def (Can.Facts deps) pattern expression _) =
   let
     (args, canBody) =
       Expr.collectLambdas expression
-  in
-    do  home <-
-            if isRoot then
-                Just <$> Env.getHome
-            else
-                return Nothing
 
+    maybeGetHome =
+      if isRoot then
+        Just <$> Env.getHome
+
+      else
+        return Nothing
+  in
+    do  home <- maybeGetHome
         optimizeDefHelp home deps pattern args canBody
 
 
@@ -312,6 +293,9 @@ optimizeExpr context annExpr@(A.A region expression) =
 
     Expr.ForeignSub name tipe ->
         pure (Opt.ForeignSub name tipe)
+
+    Expr.Program kind expr ->
+        Opt.Program kind <$> justConvert expr
 
     Expr.SaveEnv _ _ ->
         error "save_the_environment should never make it to optimization phase"
