@@ -177,8 +177,10 @@ toMaybe tipe =
       Opt.Var (Var.inCore ["Maybe"] tag)
   in
     to "oneOf" <==
-      [ to "null" <== [ maybe "Nothing" ]
-      , to "map" <== [ maybe "Just", decode tipe ]
+      [ Opt.ExplicitList
+          [ to "null" <== [ maybe "Nothing" ]
+          , to "map" <== [ maybe "Just", decode tipe ]
+          ]
       ]
 
 
@@ -199,16 +201,13 @@ toTuple types =
 toRecord :: [(String, T.Canonical)] -> Opt.Expr
 toRecord fields =
   let
-    keys =
-      map fst fields
-
-    toField key =
+    toFieldExpr (key, _) =
       (key, Opt.Var (Var.local key))
 
-    rootExpr =
-      to "succeed" <== [ Opt.Function keys (Opt.Record (map toField keys)) ]
+    finalDecoder =
+      to "succeed" <== [ Opt.Record (map toFieldExpr fields) ]
 
-    andMap root (key, tipe) =
-      to "andMap" <== [ root, key =: decode tipe ]
+    andThen (key, tipe) decoder =
+      to "andThen" <== [ key =: decode tipe, Opt.Function [key] decoder ]
   in
-    List.foldl' andMap rootExpr fields
+    List.foldr andThen finalDecoder fields
