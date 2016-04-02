@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Reporting.Error.Syntax where
 
+import qualified Data.List.NonEmpty as NEL
 import qualified Data.List as List
 import qualified Data.Set as Set
 import qualified Text.Parsec.Error as Parsec
@@ -23,10 +24,10 @@ data Error
     | DuplicateValueDeclaration String
     | DuplicateTypeDeclaration String
     | DuplicateDefinition String
-    | UnboundTypeVarsInUnion String [String] [String]
-    | UnboundTypeVarsInAlias String [String] [String]
-    | UnusedTypeVarsInAlias String [String] [String]
-    | MessyTypeVarsInAlias String [String] [String] [String]
+    | UnboundTypeVarsInUnion String [String] (NEL.NonEmpty String)
+    | UnboundTypeVarsInAlias String [String] (NEL.NonEmpty String)
+    | UnusedTypeVarsInAlias String [String] (NEL.NonEmpty String)
+    | MessyTypeVarsInAlias String [String] (NEL.NonEmpty String) (NEL.NonEmpty String)
 
 
 -- TO REPORT
@@ -185,13 +186,13 @@ toReport _localizer err =
                   ++ ") that do not appear in the declaration."
               , text "You probably need to change the declaration like this:"
               , dullyellow $ hsep $
-                  map text ("type" : "alias" : typeName : filter (`notElem` unused) givenVars ++ unbound ++ ["=", "..."])
+                  map text ("type" : "alias" : typeName : filter (`notElem` unused) givenVars ++ NEL.toList unbound ++ ["=", "..."])
               ]
           )
 
 
-unboundTypeVars :: String -> String -> [String] -> [String] -> Report.Report
-unboundTypeVars declKind typeName givenVars unboundVars@(tvar:_) =
+unboundTypeVars :: String -> String -> [String] -> NEL.NonEmpty String -> Report.Report
+unboundTypeVars declKind typeName givenVars unboundVars@(tvar NEL.:| _) =
   Report.report
     "UNBOUND TYPE VARIABLES"
     Nothing
@@ -202,7 +203,7 @@ unboundTypeVars declKind typeName givenVars unboundVars@(tvar:_) =
         [ text "You probably need to change the declaration like this:"
         , hsep $
             map text (declKind : typeName : givenVars)
-            ++ map (dullyellow . text) unboundVars
+            ++ map (dullyellow . text) (NEL.toList unboundVars)
             ++ map text ["=", "..."]
         , Help.reflowParagraph $
             "Here's why. Imagine one `" ++ typeName ++ "` where `" ++ tvar ++ "` is an Int and\

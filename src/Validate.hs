@@ -6,6 +6,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Foldable as F
 import qualified Data.Traversable as T
+import qualified Data.List.NonEmpty as NEL
 
 import AST.Expression.General as Expr
 import qualified AST.Expression.Source as Source
@@ -396,26 +397,28 @@ checkDecl isRoot (A.A (region,_) decl) =
           (_, []) ->
               return ()
 
-          (_, unbound) ->
+          (_, headUnbound : tailUnbound) ->
               Result.throw region
-                (Error.UnboundTypeVarsInUnion name boundVars unbound)
+                (Error.UnboundTypeVarsInUnion name boundVars (headUnbound NEL.:| tailUnbound))
 
     D.TypeAlias name boundVars tipe ->
         case diff boundVars (freeVars tipe) of
           ([], []) ->
               return ()
 
-          ([], unbound) ->
+          ([], headUnbound : tailUnbound) ->
               Result.throw region
-                (Error.UnboundTypeVarsInAlias name boundVars unbound)
+                (Error.UnboundTypeVarsInAlias name boundVars (headUnbound NEL.:| tailUnbound))
 
-          (unused, []) ->
+          (headUnused : tailUnused, []) ->
               Result.throw region
-                (Error.UnusedTypeVarsInAlias name boundVars unused)
+                (Error.UnusedTypeVarsInAlias name boundVars (headUnused NEL.:| tailUnused))
 
-          (unused, unbound) ->
+          ((headUnused : tailUnused), (headUnbound : tailUnbound)) ->
               Result.throw region
-                (Error.MessyTypeVarsInAlias name boundVars unused unbound)
+                (Error.MessyTypeVarsInAlias name boundVars
+                  (headUnused NEL.:| tailUnused)
+                  (headUnbound NEL.:| tailUnbound))
 
     D.Port _ ->
         if isRoot then
@@ -461,4 +464,3 @@ freeVars (A.A region tipe) =
       Type.RRecord fields ext ->
           maybe [] freeVars ext
           ++ concatMap (freeVars . snd) fields
-
