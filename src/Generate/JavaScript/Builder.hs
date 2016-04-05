@@ -197,14 +197,6 @@ fromVarDecl indent (VarDecl _ (Id _ name) maybeExpr) =
 data Lines = One | Many deriving (Eq)
 
 
-{-# INLINE (!) #-}
-(!) :: a -> b -> (a, b)
-(!) a b =
-  (a, b)
-
-infix 0 !
-
-
 merge :: Lines -> Lines -> Lines
 merge a b =
   if a == Many || b == Many then Many else One
@@ -238,28 +230,28 @@ fromExpr :: Builder -> Grouping -> Expression a -> (Lines, Builder)
 fromExpr indent grouping expression =
   case expression of
     StringLit _ string ->
-      One ! fromString (show string)
+      (One, quoted string)
 
     RegexpLit _ _ _ _ ->
       error "TODO"
 
     NumLit _ n ->
-      One ! realFloat n
+      (One, realFloat n)
 
     IntLit _ n ->
-      One ! decimal n
+      (One, decimal n)
 
     BoolLit _ True ->
-      One ! "true"
+      (One, "true")
 
     BoolLit _ False ->
-      One ! "false"
+      (One, "false")
 
     NullLit _ ->
-      One ! "null"
+      (One, "null")
 
     ArrayLit _ exprs ->
-      Many !
+      (,) Many $
         let
           (anyMany, builders) =
             linesMap (fromExpr indent Whatever) exprs
@@ -274,7 +266,7 @@ fromExpr indent grouping expression =
             "[" <> commaSep builders <> "]"
 
     ObjectLit _ fields ->
-      Many !
+      (,) Many $
         let
           deeperIndent =
             deeper indent
@@ -292,10 +284,10 @@ fromExpr indent grouping expression =
             "{" <> commaSep builders <> "}"
 
     ThisRef _ ->
-      One ! "this"
+      (One, "this")
 
     VarRef _ name ->
-      One ! fromId name
+      (One, fromId name)
 
     DotRef _ expr (Id _ name) ->
       makeDot indent expr name
@@ -311,7 +303,9 @@ fromExpr indent grouping expression =
         (lines, builder) =
           fromExpr indent Atomic expr
       in
-        lines ! parensFor grouping (fromPrefix op <> builder)
+        ( lines
+        , parensFor grouping (fromPrefix op <> builder)
+        )
 
     UnaryAssignExpr _ _ _ ->
       error "TODO"
@@ -324,8 +318,9 @@ fromExpr indent grouping expression =
         (rightLines, right) =
           fromExpr indent Atomic rightExpr
       in
-        merge leftLines rightLines !
-          parensFor grouping (left <> fromInfix op <> right)
+        ( merge leftLines rightLines
+        , parensFor grouping (left <> fromInfix op <> right)
+        )
 
     CondExpr _ condExpr thenExpr elseExpr ->
       let
@@ -333,8 +328,9 @@ fromExpr indent grouping expression =
         thenB = snd (fromExpr indent Atomic thenExpr)
         elseB = snd (fromExpr indent Atomic elseExpr)
       in
-        Many !
-          parensFor grouping (condB <> " ? " <> thenB <> " : " <> elseB)
+        ( Many
+        , parensFor grouping (condB <> " ? " <> thenB <> " : " <> elseB)
+        )
 
     AssignExpr _ op lValue expr ->
       let
@@ -344,14 +340,15 @@ fromExpr indent grouping expression =
         (rightLines, right) =
           fromExpr indent Whatever expr
       in
-        merge leftLines rightLines !
-          parensFor grouping (left <> fromAssign op <> right)
+        ( merge leftLines rightLines
+        , parensFor grouping (left <> fromAssign op <> right)
+        )
 
     ListExpr _ _ ->
       error "TODO"
 
     CallExpr _ function args ->
-      Many !
+      (,) Many $
         let
           deeperIndent =
             deeper indent
@@ -369,7 +366,7 @@ fromExpr indent grouping expression =
             funcB <> "(" <> commaSep argsB <> ")"
 
     FuncExpr _ maybeName args stmts ->
-      Many !
+      (,) Many $
         "function " <> maybe mempty fromId maybeName <> "(" <> commaSep (map fromId args) <> ") {\n"
         <>
             fromStmtBlock (deeper indent) stmts
@@ -387,8 +384,9 @@ fromField indent (prop, expr) =
     (lines, builder) =
       fromExpr indent Whatever expr
   in
-    lines !
-      fromProp prop <> ": " <> builder
+    ( lines
+    , fromProp prop <> ": " <> builder
+    )
 
 
 fromProp :: Prop a -> Builder
@@ -398,10 +396,35 @@ fromProp prop =
       fromId name
 
     PropString _ string ->
-      fromString (show string)
+      quoted string
 
     PropNum _ n ->
       decimal n
+
+
+
+-- STRINGS
+
+
+quoted :: String -> Builder
+quoted string =
+  fromString ('\'' : foldr escapeCons "'" string)
+
+
+-- https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Grammar_and_types#String_literals
+escapeCons :: Char -> String -> String
+escapeCons char rest =
+  case char of
+    '\b' -> '\\' : 'b' : rest
+    '\f' -> '\\' : 'f' : rest
+    '\n' -> '\\' : 'n' : rest
+    '\r' -> '\\' : 'r' : rest
+    '\t' -> '\\' : 't' : rest
+    '\v' -> '\\' : 'v' : rest
+    '\"' -> '\\' : '"' : rest
+    '\'' -> '\\' : '\'' : rest
+    '\\' -> '\\' : '\\' : rest
+    _    -> char : rest
 
 
 
@@ -412,7 +435,7 @@ fromLValue :: Builder -> LValue a -> (Lines, Builder)
 fromLValue indent lValue =
   case lValue of
     LVar _ name ->
-      One ! fromString name
+      (One, fromString name)
 
     LDot _ expr field ->
       makeDot indent expr field
@@ -427,7 +450,7 @@ makeDot indent expr field =
     (lines, builder) =
       fromExpr indent Atomic expr
   in
-    lines ! builder <> "." <> fromString field
+    (lines, builder <> "." <> fromString field)
 
 
 makeBracketed :: Builder -> Expression a -> Expression a -> (Lines, Builder)
@@ -439,8 +462,9 @@ makeBracketed indent expr bracketedExpr =
     (bracketedLines, bracketedBuilder) =
       fromExpr indent Whatever bracketedExpr
   in
-    merge lines bracketedLines !
-      builder <> "[" <> bracketedBuilder <> "]"
+    ( merge lines bracketedLines
+    , builder <> "[" <> bracketedBuilder <> "]"
+    )
 
 
 
