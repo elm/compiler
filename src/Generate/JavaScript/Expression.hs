@@ -224,7 +224,7 @@ generateCode expr =
               generateCode (Data "no-flags" [body])
 
             Expr.Flags tipe ->
-              generateCode (Data "flags" [Foreign.decode tipe, body])
+              generateCode (Data "flags" [body, Foreign.decode tipe])
 
       GLShader _uid src _tipe ->
           jsExpr $ ObjectLit () [(PropString () "src", Literal.literal (L.Str src))]
