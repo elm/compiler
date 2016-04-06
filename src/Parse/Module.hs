@@ -65,10 +65,15 @@ moduleDecl =
       names <- dotSep1 capVar <?> "the name of this module"
       whitespace
 
-      settings <- option Module.emptySettings parseSetting
-      whitespace
+      settings <-
+        case tag of
+          Module.Effect _ ->
+            parseSetting <* whitespace
 
-      reserved "exposing"
+          _ ->
+            return Module.emptySettings
+
+      reserved "exposing" <?> "something like `exposing (..)` which replaced `where` in 0.17"
       whitespace
 
       exports <- listing (addLocation value)
