@@ -194,8 +194,14 @@ toTuple types =
   let
     size =
       length types
+
+    args =
+      map (\n -> 'x' : show n) [ 1 .. size ]
+
+    makeTuple =
+      Opt.Function args (Opt.Data ("_Tuple" ++ show size) (map (Opt.Var . Var.local) args))
   in
-    to ("tuple" ++ show size) <== map decode types
+    to ("tuple" ++ show size) <== (makeTuple : map decode types)
 
 
 toRecord :: [(String, T.Canonical)] -> Opt.Expr
