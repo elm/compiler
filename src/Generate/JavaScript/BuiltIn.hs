@@ -87,7 +87,7 @@ cmp left right =
 
 effect :: ModuleName.Canonical -> JS.Expression ()
 effect effectName =
-  Var.native (ModuleName.inCore ["Native","Platform"]) "leaf" <|
+  Var.coreNative "Platform" "leaf" <|
     JS.StringLit () (ModuleName.canonicalToString effectName)
 
 
