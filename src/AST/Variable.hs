@@ -70,6 +70,11 @@ inCore home name =
     Canonical (Module (ModuleName.inCore home)) name
 
 
+inHtml :: ModuleName.Raw -> String -> Canonical
+inHtml home name =
+    Canonical (Module (ModuleName.inHtml home)) name
+
+
 cmd :: Canonical
 cmd =
   inCore ["Platform","Cmd"] "Cmd"

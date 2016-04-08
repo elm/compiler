@@ -305,7 +305,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
           ( cmpHint
               (Help.capitalize (funcName maybeName) ++ " is expecting the argument to be:")
               "But it is:"
-              []
+              (functionHint maybeName)
           )
 
     UnexpectedArg maybeName index _totalArgs region ->
@@ -319,7 +319,9 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
                 ++ Help.ordinalize index ++ " argument to be:"
               )
               "But it is:"
-              ( if index == 1 then
+              ( functionHint maybeName
+                ++
+                if index == 1 then
                   []
                 else
                   [ "I always figure out the type of arguments from left to right. If an argument\
@@ -515,6 +517,7 @@ comparisonHint localizer leftType rightType leftWords rightWords finalHints =
 
 -- BINOP HINTS
 
+
 binopHint :: Var.Canonical -> Type.Canonical -> Type.Canonical -> [String]
 binopHint op leftType rightType =
   let
@@ -536,6 +539,25 @@ binopHint op leftType rightType =
         ]
 
     else
+        []
+
+
+
+-- FUNCTION HINTS
+
+
+functionHint :: Maybe Var.Canonical -> [String]
+functionHint maybeName =
+  case maybeName of
+    Nothing ->
+      []
+
+    Just name ->
+      if Var.inHtml ["Html","App"] "program" == name then
+        [ "Does your program have flags? Maybe you want `programWithFlags` instead."
+        ]
+
+      else
         []
 
 

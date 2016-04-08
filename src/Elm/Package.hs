@@ -26,9 +26,19 @@ dummyName =
     Name "user" "project"
 
 
-coreName :: Name
-coreName =
+core :: Name
+core =
   Name "elm-lang" "core"
+
+
+virtualDom :: Name
+virtualDom =
+  Name "elm-lang" "virtual-dom"
+
+
+html :: Name
+html =
+  Name "elm-lang" "html"
 
 
 toString :: Name -> String

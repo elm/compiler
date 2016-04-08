@@ -63,7 +63,7 @@ addDefaults
   -> ([Module.DefaultImport], [Module.UserImport])
 addDefaults pkgName imports =
   flip (,) imports $
-    if pkgName == Package.coreName then
+    if pkgName == Package.core then
       []
 
     else
