@@ -10,6 +10,7 @@ import AST.Expression.General as Expr (Main(..))
 import AST.Expression.Optimized as Opt
 import qualified AST.Literal as L
 import qualified AST.Module.Name as ModuleName
+import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import Generate.JavaScript.Helpers as Help
 import qualified Generate.JavaScript.BuiltIn as BuiltIn
@@ -216,15 +217,7 @@ generateCode expr =
               jsExpr $ BuiltIn.foreignSub name jsDecoder
 
       Program kind body ->
-          case kind of
-            Expr.VDom ->
-              generateCode (Data "vdom" [body])
-
-            Expr.NoFlags ->
-              generateCode (Data "no-flags" [body])
-
-            Expr.Flags tipe ->
-              generateCode (Data "flags" [body, Foreign.decode tipe])
+          generateProgram kind body
 
       GLShader _uid src _tipe ->
           jsExpr $ ObjectLit () [(PropString () "src", Literal.literal (L.Str src))]
@@ -232,6 +225,27 @@ generateCode expr =
       Crash home region maybeBranchProblem ->
           do  maybeOptBranchProblem <- traverse generateJsExpr maybeBranchProblem
               jsExpr $ BuiltIn.crash home region maybeOptBranchProblem
+
+
+
+-- PROGRAMS
+
+
+generateProgram :: Expr.Main Type.Canonical -> Opt.Expr -> State Int Code
+generateProgram kind body =
+  let
+    gen fields =
+      generateCode $ Record (("main", body) : fields)
+  in
+    case kind of
+      Expr.VDom ->
+        gen []
+
+      Expr.NoFlags ->
+        gen []
+
+      Expr.Flags tipe ->
+        gen [ ("flags", Foreign.decode tipe) ]
 
 
 
