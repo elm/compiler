@@ -1,6 +1,7 @@
 module AST.Effects where
 
 import qualified AST.Type as Type
+import qualified Elm.Package as Pkg
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
@@ -9,18 +10,18 @@ import qualified Reporting.Region as R
 -- EFFECTS
 
 
-data Effects foreigns
+data Effects pkg foreigns
   = None
-  | Manager Info
+  | Manager pkg Info
   | Foreign foreigns
 
 
 type Raw =
-  Effects [A.Commented ForeignRaw]
+  Effects () [A.Commented ForeignRaw]
 
 
 type Canonical =
-  Effects [A.Commented ForeignCanonical]
+  Effects Pkg.Name [A.Commented ForeignCanonical]
 
 
 

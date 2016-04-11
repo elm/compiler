@@ -375,7 +375,7 @@ effectsToPatches moduleName effects =
       in
         map toPatch foreigns
 
-    Effects.Manager info ->
+    Effects.Manager _ info ->
       map (\name -> Env.Value name (Var.topLevel moduleName name)) $
         case Effects._managerType info of
           Effects.CmdManager _ ->

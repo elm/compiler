@@ -25,7 +25,7 @@ toValues effects =
     Effects.None ->
       []
 
-    Effects.Manager _ ->
+    Effects.Manager _ _ ->
       []
 
     Effects.Foreign foreigns ->
@@ -42,8 +42,8 @@ canonicalize env effects =
     Effects.None ->
       Result.ok Effects.None
 
-    Effects.Manager info ->
-      Result.ok (Effects.Manager info)
+    Effects.Manager _ info ->
+      Result.ok (Effects.Manager (Env.getPackage env) info)
 
     Effects.Foreign rawForeigns ->
       Effects.Foreign <$> T.traverse (canonicalizeRawForeign env) rawForeigns

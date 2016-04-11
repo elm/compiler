@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Canonicalize.Environment
   ( Environment(..)
+  , getPackage
   , insert
   , Patch(..), fromPatches, addPattern
   , builtinPatches
@@ -17,6 +18,7 @@ import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
+import qualified Elm.Package as Pkg
 
 
 
@@ -48,6 +50,11 @@ addPattern pattern env =
       map (\x -> Value x (Var.local x)) (P.boundVarList pattern)
   in
     addPatches patches env
+
+
+getPackage :: Environment -> Pkg.Name
+getPackage env =
+  ModuleName._package (_home env)
 
 
 

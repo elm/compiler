@@ -7,6 +7,7 @@ import qualified Language.ECMAScript3.Syntax as JS
 import qualified AST.Effects as Effects
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
+import qualified Elm.Package as Pkg
 import qualified Generate.JavaScript.Builder as Builder
 import qualified Generate.JavaScript.Expression as JS
 import qualified Generate.JavaScript.Helpers as JS
@@ -44,7 +45,7 @@ generateEffectManager moduleName effects =
     Effects.Foreign _ ->
       []
 
-    Effects.Manager (Effects.Info _ _ _ _ managerType) ->
+    Effects.Manager pkgName (Effects.Info _ _ _ _ managerType) ->
       let
         managers =
           Var.native (ModuleName.inCore ["Native","Platform"]) "globalManagerInfo"
@@ -58,7 +59,8 @@ generateEffectManager moduleName effects =
           )
 
         managerEntries =
-          [ entry "init"
+          [ "pkg" ==> Pkg.toString pkgName
+          , entry "init"
           , entry "onEffects"
           , entry "onSelfMsg"
           ]
@@ -66,13 +68,13 @@ generateEffectManager moduleName effects =
         otherEntries =
           case managerType of
             Effects.CmdManager _ ->
-              [ tagEntry "cmd", entry "cmdMap" ]
+              [ "tag" ==> "cmd", entry "cmdMap" ]
 
             Effects.SubManager _ ->
-              [ tagEntry "sub", entry "subMap" ]
+              [ "tag" ==> "sub", entry "subMap" ]
 
             Effects.FxManager _ _ ->
-              [ tagEntry "fx", entry "cmdMap", entry "subMap" ]
+              [ "tag" ==> "fx", entry "cmdMap", entry "subMap" ]
 
         addManager =
           JS.AssignExpr () JS.OpAssign
@@ -82,8 +84,8 @@ generateEffectManager moduleName effects =
         [ JS.ExprStmt () addManager ]
 
 
-tagEntry :: String -> ( JS.Prop (), JS.Expression () )
-tagEntry tag =
-  ( JS.PropId () (JS.Id () "tag")
-  , JS.StringLit () tag
+(==>) :: String -> String -> ( JS.Prop (), JS.Expression () )
+(==>) key value =
+  ( JS.PropId () (JS.Id () key)
+  , JS.StringLit () value
   )

@@ -123,7 +123,7 @@ effectsToDefs moduleName effects =
     Effects.Foreign foreigns ->
       map foreignToDef foreigns
 
-    Effects.Manager info ->
+    Effects.Manager _ info ->
       let
         cmdToDef (A.A region name) =
           definition

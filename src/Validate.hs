@@ -102,7 +102,7 @@ validateEffects tag settings@(A.A _ pairs) foreigns validDefs =
         do  noForeigns foreigns
             managerType <- toManagerType tagRegion settingsDict
             (r0, r1, r2) <- checkManager tagRegion managerType validDefs
-            return (Effects.Manager (Effects.Info tagRegion r0 r1 r2 managerType))
+            return (Effects.Manager () (Effects.Info tagRegion r0 r1 r2 managerType))
 
 
 noSettings :: Error.Error -> Module.SourceSettings -> Result wrn ()
