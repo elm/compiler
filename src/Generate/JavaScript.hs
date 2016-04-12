@@ -42,7 +42,7 @@ generateEffectManager moduleName effects =
     Effects.None ->
       []
 
-    Effects.Foreign _ ->
+    Effects.Port _ ->
       []
 
     Effects.Manager pkgName (Effects.Info _ _ _ _ managerType) ->

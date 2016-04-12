@@ -368,12 +368,12 @@ effectsToPatches moduleName effects =
     Effects.None ->
       []
 
-    Effects.Foreign foreigns ->
+    Effects.Port ports ->
       let
-        toPatch (A.A _ (Effects.ForeignRaw name _)) =
+        toPatch (A.A _ (Effects.PortRaw name _)) =
           Env.Value name (Var.topLevel moduleName name)
       in
-        map toPatch foreigns
+        map toPatch ports
 
     Effects.Manager _ info ->
       map (\name -> Env.Value name (Var.topLevel moduleName name)) $

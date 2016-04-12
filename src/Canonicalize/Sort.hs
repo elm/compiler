@@ -102,10 +102,10 @@ reorder (A.A ann expression) =
     Sub _ ->
       return expression
 
-    ForeignCmd _ _ ->
+    OutgoingPort _ _ ->
       return expression
 
-    ForeignSub _ _ ->
+    IncomingPort _ _ ->
       return expression
 
     Program _ _ ->

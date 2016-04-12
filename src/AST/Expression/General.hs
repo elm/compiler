@@ -57,8 +57,8 @@ data Expr' ann def var typ
     -- for type checking and code gen only
     | Cmd ModuleName.Canonical
     | Sub ModuleName.Canonical
-    | ForeignCmd String typ
-    | ForeignSub String typ
+    | OutgoingPort String typ
+    | IncomingPort String typ
     | Program (Main typ) (Expr ann def var typ)
     | SaveEnv ModuleName.Canonical Effects.Canonical
     | GLShader String String Literal.GLShaderTipe

@@ -95,7 +95,7 @@ checkMain typeEnv (Can.Def facts pattern@(A.A region _) body maybeType) =
 
           | name == program ->
               return (Expr.Flags arg)
-                <* Effects.checkForeignType makeError arg
+                <* Effects.checkPortType makeError arg
 
         _ ->
           Result.throw region (Error.BadMain mainType)

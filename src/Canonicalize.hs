@@ -440,11 +440,11 @@ canonicalizeExpr env (A.A region validExpr) =
       Sub moduleName ->
           Result.ok (Sub moduleName)
 
-      ForeignCmd name tipe ->
-          ForeignCmd name <$> Canon.tipe env tipe
+      OutgoingPort name tipe ->
+          OutgoingPort name <$> Canon.tipe env tipe
 
-      ForeignSub name tipe ->
-          ForeignSub name <$> Canon.tipe env tipe
+      IncomingPort name tipe ->
+          IncomingPort name <$> Canon.tipe env tipe
 
       Program _ _ ->
           error "DANGER - Program AST nodes should not be in canonicalization."

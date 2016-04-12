@@ -10,18 +10,18 @@ import qualified Reporting.Region as R
 -- EFFECTS
 
 
-data Effects pkg foreigns
+data Effects pkg ports
   = None
   | Manager pkg Info
-  | Foreign foreigns
+  | Port ports
 
 
 type Raw =
-  Effects () [A.Commented ForeignRaw]
+  Effects () [A.Commented PortRaw]
 
 
 type Canonical =
-  Effects Pkg.Name [A.Commented ForeignCanonical]
+  Effects Pkg.Name [A.Commented PortCanonical]
 
 
 
@@ -48,15 +48,15 @@ data ManagerType
 -- FOREIGN EFFECTS
 
 
-data ForeignRaw =
-  ForeignRaw
+data PortRaw =
+  PortRaw
     { _rawName :: String
     , _rawType :: Type.Raw
     }
 
 
-data ForeignCanonical =
-  ForeignCanonical
+data PortCanonical =
+  PortCanonical
     { _name :: String
     , _kind :: Kind
     , _type :: Type.Canonical
@@ -64,5 +64,5 @@ data ForeignCanonical =
 
 
 data Kind
-  = Cmd Type.Canonical
-  | Sub Type.Canonical
+  = Outgoing Type.Canonical
+  | Incoming Type.Canonical

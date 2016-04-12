@@ -288,11 +288,11 @@ optimizeExpr context annExpr@(A.A region expression) =
     Expr.Sub moduleName ->
         pure (Opt.Sub moduleName)
 
-    Expr.ForeignCmd name tipe ->
-        pure (Opt.ForeignCmd name tipe)
+    Expr.OutgoingPort name tipe ->
+        pure (Opt.OutgoingPort name tipe)
 
-    Expr.ForeignSub name tipe ->
-        pure (Opt.ForeignSub name tipe)
+    Expr.IncomingPort name tipe ->
+        pure (Opt.IncomingPort name tipe)
 
     Expr.Program kind expr ->
         Opt.Program kind <$> justConvert expr

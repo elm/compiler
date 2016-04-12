@@ -28,7 +28,7 @@ data Raw
   | Union (Union Type.Raw)
   | Alias (Alias Type.Raw)
   | Fixity Infix
-  | Foreign String Type.Raw
+  | Port String Type.Raw
 
 
 

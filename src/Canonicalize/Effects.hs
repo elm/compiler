@@ -1,4 +1,4 @@
-module Canonicalize.Effects (canonicalize, toValues, checkForeignType) where
+module Canonicalize.Effects (canonicalize, toValues, checkPortType) where
 
 import qualified Data.Foldable as F
 import qualified Data.Traversable as T
@@ -28,8 +28,8 @@ toValues effects =
     Effects.Manager _ _ ->
       []
 
-    Effects.Foreign foreigns ->
-      map (Var.Value . Effects._rawName . A.drop) foreigns
+    Effects.Port ports ->
+      map (Var.Value . Effects._rawName . A.drop) ports
 
 
 
@@ -45,18 +45,18 @@ canonicalize env effects =
     Effects.Manager _ info ->
       Result.ok (Effects.Manager (Env.getPackage env) info)
 
-    Effects.Foreign rawForeigns ->
-      Effects.Foreign <$> T.traverse (canonicalizeRawForeign env) rawForeigns
+    Effects.Port rawPorts ->
+      Effects.Port <$> T.traverse (canonicalizeRawPort env) rawPorts
 
 
-canonicalizeRawForeign
+canonicalizeRawPort
   :: Env.Environment
-  -> A.Commented Effects.ForeignRaw
-  -> Result (A.Commented Effects.ForeignCanonical)
-canonicalizeRawForeign env (A.A ann (Effects.ForeignRaw name rawType)) =
+  -> A.Commented Effects.PortRaw
+  -> Result (A.Commented Effects.PortCanonical)
+canonicalizeRawPort env (A.A ann (Effects.PortRaw name rawType)) =
   do  tipe <- Canonicalize.tipe env rawType
       kind <- figureOutKind (fst ann) name tipe
-      Result.ok (A.A ann (Effects.ForeignCanonical name kind tipe))
+      Result.ok (A.A ann (Effects.PortCanonical name kind tipe))
 
 
 figureOutKind :: R.Region -> String -> T.Canonical -> Result Effects.Kind
@@ -64,36 +64,36 @@ figureOutKind region name rootType =
   case T.deepDealias rootType of
     T.Lambda outgoingType (T.App (T.Type effect) [T.Var _])
       | effect == Var.cmd ->
-          pure (Effects.Cmd outgoingType)
-            <* checkForeignType (makeError region name "command") outgoingType
+          pure (Effects.Outgoing outgoingType)
+            <* checkPortType (makeError region name) outgoingType
 
     T.Lambda (T.Lambda incomingType (T.Var msg1)) (T.App (T.Type effect) [T.Var msg2])
       | effect == Var.sub && msg1 == msg2 ->
-          pure (Effects.Sub incomingType)
-            <* checkForeignType (makeError region name "subscription") incomingType
+          pure (Effects.Incoming incomingType)
+            <* checkPortType (makeError region name) incomingType
 
     _ ->
       Result.throw region (error "TODO - bad overall type")
 
 
-makeError :: R.Region -> String -> String -> T.Canonical -> Maybe String -> A.Located Error.Error
-makeError region name kind tipe maybeMessage =
-  A.A region (Error.foreign name kind tipe maybeMessage)
+makeError :: R.Region -> String -> T.Canonical -> Maybe String -> A.Located Error.Error
+makeError region name tipe maybeMessage =
+  A.A region (Error.port name tipe maybeMessage)
 
 
 
 -- CHECK INCOMING AND OUTGOING TYPES
 
 
-checkForeignType
+checkPortType
   :: (Monoid i)
   => (T.Canonical -> Maybe String -> A.Located e)
   -> T.Canonical
   -> Result.Result i w e ()
-checkForeignType makeError tipe =
+checkPortType makeError tipe =
   let
     check =
-      checkForeignType makeError
+      checkPortType makeError
 
     throw maybeMsg =
       Result.throwMany [makeError tipe maybeMsg]

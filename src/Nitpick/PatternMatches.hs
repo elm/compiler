@@ -187,10 +187,10 @@ checkExpression tagDict (A.A region expression) =
     E.Sub _ ->
         Result.ok ()
 
-    E.ForeignCmd _ _ ->
+    E.OutgoingPort _ _ ->
         Result.ok ()
 
-    E.ForeignSub _ _ ->
+    E.IncomingPort _ _ ->
         Result.ok ()
 
     E.Program _ _ ->

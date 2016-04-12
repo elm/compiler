@@ -22,7 +22,7 @@ data Error
     | Import ModuleName.Raw ImportError
     | Export String [String]
     | DuplicateExport String
-    | Foreign ForeignError
+    | Port PortError
 
 
 
@@ -100,18 +100,17 @@ alias name expected actual =
 -- PORTS
 
 
-data ForeignError =
-  ForeignError
-    { foreignName :: String
-    , foreignKind :: String
-    , foreignType :: Type.Canonical
-    , foreignMessage :: Maybe String
+data PortError =
+  PortError
+    { portName :: String
+    , portType :: Type.Canonical
+    , portMessage :: Maybe String
     }
 
 
-foreign :: String -> String -> Type.Canonical -> Maybe String -> Error
-foreign name kind tipe maybeMessage =
-  Foreign (ForeignError name kind tipe maybeMessage)
+port :: String -> Type.Canonical -> Maybe String -> Error
+port name tipe maybeMessage =
+  Port (PortError name tipe maybeMessage)
 
 
 
@@ -222,16 +221,15 @@ toReport localizer err =
           ("You are trying to export `" ++ name ++ "` multiple times!")
           "Remove duplicates until there is only one listed."
 
-    Foreign (ForeignError name kind tipe maybeMessage) ->
+    Port (PortError name tipe maybeMessage) ->
       let
         context =
           maybe "" (" the following " ++ ) maybeMessage
       in
         Report.report
-          "FOREIGN ERROR"
+          "PORT ERROR"
           Nothing
-          ("Only certain types can flow in and out of Elm. The `"
-            ++ name ++ "` " ++ kind ++ " is trying to communicate an unsupported type."
+          ("Port `" ++ name ++ "` is trying to communicate an unsupported type."
           )
           ( Help.stack
               [ text ("The specific unsupported type is" ++ context ++ ":")
@@ -287,7 +285,7 @@ extractSuggestions err =
     DuplicateExport _ ->
         Nothing
 
-    Foreign _ ->
+    Port _ ->
         Nothing
 
 

@@ -19,12 +19,12 @@ data Error
     | CommentOnNothing
 
     | SettingsOnNormalModule
-    | SettingsOnForeignModule
+    | SettingsOnPortModule
     | DuplicateSettingOnEffectModule String
     | BadSettingOnEffectModule String
     | NoSettingsOnEffectModule
     | MissingManagerOnEffectModule String
-    | UnexpectedForeign String
+    | UnexpectedPort String
 
     | InfixDuplicate String
     | TypeWithoutDefinition String
@@ -96,14 +96,14 @@ toReport _localizer err =
               \ the right direction!"
           )
 
-    SettingsOnForeignModule ->
+    SettingsOnPortModule ->
         Report.report
           "BAD MODULE DECLARATION"
           Nothing
-          "A foreign effect module can expose values, but not have settings like this."
+          "A port module can expose values, but not have settings like this."
           ( Help.reflowParagraph $
-              "If you want a foreign effect module, just remove this stuff. If you want\
-              \ to create an `effect module` instead, just change `foreign effect module`\
+              "If you want a port module, just remove this stuff. If you want to create\
+              \ a custom effect module instead (which is rare) just change `port module`\
               \ to `effect module` and you should be headed in the right direction!"
           )
 
@@ -150,15 +150,15 @@ toReport _localizer err =
               \ <TODO> (please forgive me if I forgot to fill this in!)"
           )
 
-    UnexpectedForeign name ->
+    UnexpectedPort name ->
         Report.report
-          "BAD FOREIGN"
+          "BAD PORT"
           Nothing
-          ("You are declaring foreign effect " ++ Help.functionName name ++ " in a normal module.")
+          ("You are declaring port " ++ Help.functionName name ++ " in a normal module.")
           ( Help.reflowParagraph $
-              "All foreign effects must be defined in a `foreign effect module`. You should\
-              \ probably have just one of these for your project. This way all of your foreign\
-              \ interactions stay relatively organized."
+              "All ports must be defined in a `port module`. You should probably have just\
+              \ one of these for your project. This way all of your foreign interactions\
+              \ stay relatively organized."
           )
 
     InfixDuplicate opName ->

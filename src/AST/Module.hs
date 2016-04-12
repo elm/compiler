@@ -78,7 +78,7 @@ data SourceInfo =
 data SourceTag
   = Normal
   | Effect R.Region
-  | Foreign R.Region
+  | Port R.Region
 
 
 type SourceSettings =

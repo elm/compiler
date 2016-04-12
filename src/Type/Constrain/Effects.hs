@@ -24,7 +24,7 @@ constrain env moduleName effects =
     Effects.None ->
       return CSaveEnv
 
-    Effects.Foreign _ ->
+    Effects.Port _ ->
       return CSaveEnv
 
     Effects.Manager _ info ->

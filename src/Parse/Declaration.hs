@@ -95,5 +95,5 @@ portDecl =
       name <- Help.lowVar
       padded hasType
       tipe <- Type.expr
-      return $ Decl.Foreign name tipe
+      return $ Decl.Port name tipe
 

@@ -175,10 +175,10 @@ count expression =
     Sub _ ->
         Map.empty
 
-    ForeignCmd _ _ ->
+    OutgoingPort _ _ ->
         Map.empty
 
-    ForeignSub _ _ ->
+    IncomingPort _ _ ->
         Map.empty
 
     Program _ expr ->
@@ -289,10 +289,10 @@ replace substitutions expression =
     Sub _ ->
         expression
 
-    ForeignCmd _ _ ->
+    OutgoingPort _ _ ->
         expression
 
-    ForeignSub _ _ ->
+    IncomingPort _ _ ->
         expression
 
     Program kind expr ->

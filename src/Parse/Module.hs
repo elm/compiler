@@ -100,7 +100,7 @@ parseTag =
           whitespace
           reserved "module"
           end <- getMyPosition
-          return (Module.Foreign (R.Region start end))
+          return (Module.Port (R.Region start end))
     ]
 
 

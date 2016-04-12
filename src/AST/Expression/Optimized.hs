@@ -54,8 +54,8 @@ data Expr
     | Record [(String, Expr)]
     | Cmd ModuleName.Canonical
     | Sub ModuleName.Canonical
-    | ForeignCmd String Type.Canonical
-    | ForeignSub String Type.Canonical
+    | OutgoingPort String Type.Canonical
+    | IncomingPort String Type.Canonical
     | Program (Expr.Main Type.Canonical) Expr
     | GLShader String String Literal.GLShaderTipe
     | Crash ModuleName.Canonical R.Region (Maybe Expr)

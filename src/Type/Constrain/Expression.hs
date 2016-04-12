@@ -43,10 +43,10 @@ constrain env annotatedExpr@(A.A region expression) tipe =
     E.Sub _ ->
       return CTrue
 
-    E.ForeignCmd _ _ ->
+    E.OutgoingPort _ _ ->
       return CTrue
 
-    E.ForeignSub _ _ ->
+    E.IncomingPort _ _ ->
       return CTrue
 
     E.Program _ _ ->

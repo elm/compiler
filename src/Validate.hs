@@ -45,9 +45,9 @@ module' (Module.Module name path info) =
     (Module.Source tag settings docs exports imports decls) =
       info
   in
-    do  (ValidStuff foreigns structure) <- validateDecls decls
+    do  (ValidStuff ports structure) <- validateDecls decls
 
-        validEffects <- validateEffects tag settings foreigns (D._defs structure)
+        validEffects <- validateEffects tag settings ports (D._defs structure)
 
         return $ Module.Module name path $
           Module.Valid docs exports (addDefaults pkgName imports) structure validEffects
@@ -77,19 +77,19 @@ addDefaults pkgName imports =
 validateEffects
   :: Module.SourceTag
   -> Module.SourceSettings
-  -> [A.Commented Effects.ForeignRaw]
+  -> [A.Commented Effects.PortRaw]
   -> [A.Commented Valid.Def]
   -> Result wrn Effects.Raw
-validateEffects tag settings@(A.A _ pairs) foreigns validDefs =
+validateEffects tag settings@(A.A _ pairs) ports validDefs =
   case tag of
     Module.Normal ->
       do  noSettings Error.SettingsOnNormalModule settings
-          noForeigns foreigns
+          noPorts ports
           return Effects.None
 
-    Module.Foreign _ ->
-      do  noSettings Error.SettingsOnForeignModule settings
-          return (Effects.Foreign foreigns)
+    Module.Port _ ->
+      do  noSettings Error.SettingsOnPortModule settings
+          return (Effects.Port ports)
 
     Module.Effect tagRegion ->
       let
@@ -99,7 +99,7 @@ validateEffects tag settings@(A.A _ pairs) foreigns validDefs =
         settingsDict =
           foldr collectSettings Map.empty pairs
       in
-        do  noForeigns foreigns
+        do  noPorts ports
             managerType <- toManagerType tagRegion settingsDict
             (r0, r1, r2) <- checkManager tagRegion managerType validDefs
             return (Effects.Manager () (Effects.Info tagRegion r0 r1 r2 managerType))
@@ -115,18 +115,18 @@ noSettings errorMsg (A.A region settings) =
       Result.throw region errorMsg
 
 
-noForeigns :: [A.Commented Effects.ForeignRaw] -> Result wrn ()
-noForeigns foreigns =
-  case foreigns of
+noPorts :: [A.Commented Effects.PortRaw] -> Result wrn ()
+noPorts ports =
+  case ports of
     [] ->
       Result.ok ()
 
     _ : _ ->
       let
-        toError (A.A (region, _) (Effects.ForeignRaw name _)) =
-          A.A region (Error.UnexpectedForeign name)
+        toError (A.A (region, _) (Effects.PortRaw name _)) =
+          A.A region (Error.UnexpectedPort name)
       in
-        Result.throwMany (map toError foreigns)
+        Result.throwMany (map toError ports)
 
 
 toManagerType
@@ -302,7 +302,7 @@ validateDecls sourceDecls =
 
 data ValidStuff =
   ValidStuff
-    { _foreigns :: [A.Commented Effects.ForeignRaw]
+    { _ports :: [A.Commented Effects.PortRaw]
     , _structure :: D.Valid
     }
 
@@ -314,48 +314,48 @@ validateRawDecls commentedDecls =
 
 vrdHelp
   :: [A.Commented D.Raw]
-  -> [A.Commented Effects.ForeignRaw]
+  -> [A.Commented Effects.PortRaw]
   -> D.Valid
   -> Result wrn ValidStuff
-vrdHelp commentedDecls foreigns structure =
+vrdHelp commentedDecls ports structure =
   case commentedDecls of
     [] ->
-      Result.ok (ValidStuff foreigns structure)
+      Result.ok (ValidStuff ports structure)
 
     A.A ann decl : rest ->
       case decl of
         D.Union (D.Type name tvars ctors) ->
-          vrdHelp rest foreigns (D.addUnion (A.A ann (D.Type name tvars ctors)) structure)
+          vrdHelp rest ports (D.addUnion (A.A ann (D.Type name tvars ctors)) structure)
 
         D.Alias (D.Type name tvars alias) ->
-          vrdHelp rest foreigns (D.addAlias (A.A ann (D.Type name tvars alias)) structure)
+          vrdHelp rest ports (D.addAlias (A.A ann (D.Type name tvars alias)) structure)
 
         D.Fixity fixity ->
-          vrdHelp rest foreigns (D.addInfix fixity structure)
+          vrdHelp rest ports (D.addInfix fixity structure)
 
         D.Def (A.A region def) ->
-          vrdDefHelp rest (A.A (region, snd ann) def) foreigns structure
+          vrdDefHelp rest (A.A (region, snd ann) def) ports structure
 
-        D.Foreign name tipe ->
-          vrdHelp rest (A.A ann (Effects.ForeignRaw name tipe) : foreigns) structure
+        D.Port name tipe ->
+          vrdHelp rest (A.A ann (Effects.PortRaw name tipe) : ports) structure
 
 
 vrdDefHelp
   :: [A.Commented D.Raw]
   -> A.Commented Source.Def'
-  -> [A.Commented Effects.ForeignRaw]
+  -> [A.Commented Effects.PortRaw]
   -> D.Valid
   -> Result wrn ValidStuff
-vrdDefHelp remainingDecls (A.A ann def) foreigns structure =
+vrdDefHelp remainingDecls (A.A ann def) ports structure =
   let
-    addDef validDef (ValidStuff finalForeigns struct) =
-      ValidStuff finalForeigns (D.addDef (A.A ann validDef) struct)
+    addDef validDef (ValidStuff finalPorts struct) =
+      ValidStuff finalPorts (D.addDef (A.A ann validDef) struct)
   in
     case def of
       Source.Definition pat expr ->
         addDef
           <$> validateDef pat expr Nothing
-          <*> vrdHelp remainingDecls foreigns structure
+          <*> vrdHelp remainingDecls ports structure
 
       Source.Annotation name tipe ->
         case remainingDecls of
@@ -363,10 +363,10 @@ vrdDefHelp remainingDecls (A.A ann def) foreigns structure =
            | Pattern.isVar name pat ->
               addDef
                 <$> validateDef pat expr (Just tipe)
-                <*> vrdHelp rest foreigns structure
+                <*> vrdHelp rest ports structure
 
           _ ->
-            vrdHelp remainingDecls foreigns structure
+            vrdHelp remainingDecls ports structure
               <* Result.throw (fst ann) (Error.TypeWithoutDefinition name)
 
 
@@ -523,11 +523,11 @@ expression (A.A ann sourceExpression) =
     Sub moduleName ->
         return (Sub moduleName)
 
-    ForeignCmd name tipe ->
-        return (ForeignCmd name tipe)
+    OutgoingPort name tipe ->
+        return (OutgoingPort name tipe)
 
-    ForeignSub name tipe ->
-        return (ForeignSub name tipe)
+    IncomingPort name tipe ->
+        return (IncomingPort name tipe)
 
     Program _ _ ->
         error "DANGER - Program AST nodes should not be in validation phase."
@@ -564,17 +564,17 @@ validatePattern pattern =
 
 
 checkDuplicates :: ValidStuff -> Result wrn ()
-checkDuplicates (ValidStuff foreigns (D.Decls defs unions aliases _)) =
+checkDuplicates (ValidStuff ports (D.Decls defs unions aliases _)) =
   let
     -- SIMPLE NAMES
 
     defValues =
       concatMap (Pattern.boundVars . Valid.getPattern . A.drop) defs
 
-    foreignValues =
-      map fromForeign foreigns
+    portValues =
+      map fromPort ports
 
-    fromForeign (A.A (region, _) (Effects.ForeignRaw name _)) =
+    fromPort (A.A (region, _) (Effects.PortRaw name _)) =
       A.A region name
 
     -- TYPE NAMES
@@ -597,7 +597,7 @@ checkDuplicates (ValidStuff foreigns (D.Decls defs unions aliases _)) =
             []
   in
     F.sequenceA_
-      [ detectDuplicates Error.DuplicateValueDeclaration (foreignValues ++ defValues)
+      [ detectDuplicates Error.DuplicateValueDeclaration (portValues ++ defValues)
       , detectDuplicates Error.DuplicateValueDeclaration (concat typeValues)
       , detectDuplicates Error.DuplicateTypeDeclaration types
       ]

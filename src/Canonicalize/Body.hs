@@ -120,8 +120,8 @@ effectsToDefs moduleName effects =
     Effects.None ->
       []
 
-    Effects.Foreign foreigns ->
-      map foreignToDef foreigns
+    Effects.Port ports ->
+      map portToDef ports
 
     Effects.Manager _ info ->
       let
@@ -154,17 +154,17 @@ effectsToDefs moduleName effects =
             ]
 
 
-foreignToDef :: A.Commented Effects.ForeignCanonical -> Canonical.Def
-foreignToDef (A.A (region, _) (Effects.ForeignCanonical name kind tipe)) =
-  definition name (A.A region (toForeignExpr name kind)) region tipe
+portToDef :: A.Commented Effects.PortCanonical -> Canonical.Def
+portToDef (A.A (region, _) (Effects.PortCanonical name kind tipe)) =
+  definition name (A.A region (toPortExpr name kind)) region tipe
 
 
-toForeignExpr :: String -> Effects.Kind -> Canonical.Expr'
-toForeignExpr name kind =
+toPortExpr :: String -> Effects.Kind -> Canonical.Expr'
+toPortExpr name kind =
   case kind of
-    Effects.Cmd tipe ->
-      E.ForeignCmd name tipe
+    Effects.Outgoing tipe ->
+      E.OutgoingPort name tipe
 
-    Effects.Sub tipe ->
-      E.ForeignSub name tipe
+    Effects.Incoming tipe ->
+      E.IncomingPort name tipe
 
