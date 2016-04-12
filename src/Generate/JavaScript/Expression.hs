@@ -210,11 +210,11 @@ generateCode expr =
           jsExpr $ BuiltIn.effect moduleName
 
       ForeignCmd name tipe ->
-          jsExpr $ BuiltIn.foreignCmd name (Foreign.encode tipe)
+          jsExpr $ BuiltIn.outgoingPort name (Foreign.encode tipe)
 
       ForeignSub name tipe ->
           do  jsDecoder <- generateJsExpr (Foreign.decode tipe)
-              jsExpr $ BuiltIn.foreignSub name jsDecoder
+              jsExpr $ BuiltIn.incomingPort name jsDecoder
 
       Program kind body ->
           generateProgram kind body

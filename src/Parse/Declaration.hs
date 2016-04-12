@@ -16,7 +16,7 @@ declaration =
     choice
       [ typeDecl
       , infixDecl
-      , foreignDecl
+      , portDecl
       , definition
       ]
 
@@ -87,10 +87,10 @@ infixDecl =
 -- FOREIGN
 
 
-foreignDecl :: IParser Decl.Raw
-foreignDecl =
-  expecting "a foreign declaration" $
-  do  try (reserved "foreign")
+portDecl :: IParser Decl.Raw
+portDecl =
+  expecting "a port declaration" $
+  do  try (reserved "port")
       forcedWS
       name <- Help.lowVar
       padded hasType

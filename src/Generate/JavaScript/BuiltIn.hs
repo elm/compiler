@@ -3,7 +3,7 @@ module Generate.JavaScript.BuiltIn
   , list, range
   , recordUpdate
   , eq, cmp
-  , effect, foreignCmd, foreignSub
+  , effect, outgoingPort, incomingPort
   , crash
   )
   where
@@ -91,14 +91,14 @@ effect effectName =
     JS.StringLit () (ModuleName.canonicalToString effectName)
 
 
-foreignCmd :: String -> JS.Expression () -> JS.Expression ()
-foreignCmd name converter =
-  Var.coreNative "Platform" "foreignCmd" `call` [ JS.StringLit () name, converter ]
+outgoingPort :: String -> JS.Expression () -> JS.Expression ()
+outgoingPort name converter =
+  Var.coreNative "Platform" "outgoingPort" `call` [ JS.StringLit () name, converter ]
 
 
-foreignSub :: String -> JS.Expression () -> JS.Expression ()
-foreignSub name converter =
-  Var.coreNative "Platform" "foreignSub" `call` [ JS.StringLit () name, converter ]
+incomingPort :: String -> JS.Expression () -> JS.Expression ()
+incomingPort name converter =
+  Var.coreNative "Platform" "incomingPort" `call` [ JS.StringLit () name, converter ]
 
 
 
