@@ -96,7 +96,7 @@ parseTag =
           return (Module.Effect (R.Region start end))
     ,
       do  start <- getMyPosition
-          reserved "port"
+          try (reserved "port")
           whitespace
           reserved "module"
           end <- getMyPosition
