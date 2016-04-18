@@ -4,6 +4,8 @@ module Test.Compiler (compilerTests) where
 
 import Control.Exception (try, IOException)
 
+import qualified Data.Text.Lazy as Text
+import qualified Data.Text.Lazy.IO as Text
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
 
@@ -94,7 +96,7 @@ buildCoreInterface members =
     aliases = Map.empty
     fixities = []
   in
-    Module.Interface Compiler.version Package.coreName exports types imports adts aliases fixities
+    Module.Interface Compiler.version Package.core exports imports types adts aliases fixities
 
 
 compileString :: FilePath -> String -> Either String Compiler.Result
@@ -102,7 +104,7 @@ compileString filePath source =
   let dependentModuleNames =
         Map.keys essentialInterfaces
       context =
-        Compiler.Context Package.coreName False dependentModuleNames
+        Compiler.Context Package.core False dependentModuleNames
       (dealiaser, _warnings, result) =
         Compiler.compile context source essentialInterfaces
       formatErrors errors =
@@ -162,8 +164,8 @@ doWriteNewExpectedTest expectedJsDir filePath =
                       -- Force the evaluation of `js` before `writeFile`
                       --  so that if an error is raised we do not unintentionally write an empty file.
                       --  NB: `js` can be an empty string in the case of NoExpressions.elm
-                      assertBool "" (length js >= 0)
-                      writeFile expectedFilePath js
+                      assertBool "" (Text.length js >= 0)
+                      Text.writeFile expectedFilePath js
                       assertFailure ("Wrote new expected js: " ++ expectedFilePath)
 
                 _ ->
@@ -210,7 +212,7 @@ matchesExpected :: String -> Either String Compiler.Result -> Assertion
 matchesExpected expectedJs result =
     case result of
       Right (Compiler.Result _ _ js) ->
-          assertEqual matchFailureMessage expectedJs js
+          assertEqual matchFailureMessage (Text.pack expectedJs) js
 
       Left errorMessages ->
           assertFailure $ "Compile failed:\n" ++ errorMessages
