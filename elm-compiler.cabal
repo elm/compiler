@@ -33,14 +33,14 @@ source-repository head
 
 
 Flag dev {
-  Description: Turn off optimization to make builds quicker
+  Description: Turn off optimization and make warnings errors
   Default: False
 }
 
 
 Library
     if flag(dev)
-        ghc-options: -O0 -W
+        ghc-options: -O0 -W -Werror
     else
         ghc-options: -O2
 
