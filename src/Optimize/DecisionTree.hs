@@ -24,7 +24,7 @@ import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 
 
-type CPattern = P.CanonicalPattern
+type CPattern = P.Canonical
 
 
 -- COMPILE CASES
@@ -431,19 +431,24 @@ addWeights toWeight paths =
 
 
 bests :: [(Path, Int)] -> [Path]
-bests ((path,weight):weightedPaths) =
-  let
-    gatherMinimum acc@(minWeight, paths) (path, weight) =
-      if weight == minWeight then
-        (minWeight, path : paths)
+bests allPaths =
+  case allPaths of
+    [] ->
+      error "Cannot choose the best of zero paths. This should never happen."
 
-      else if weight < minWeight then
-        (weight, [path])
+    (headPath, headWeight) : weightedPaths ->
+      let
+        gatherMinimum acc@(minWeight, paths) (path, weight) =
+          if weight == minWeight then
+            (minWeight, path : paths)
 
-      else
-        acc
-  in
-    snd (List.foldl' gatherMinimum (weight, [path]) weightedPaths)
+          else if weight < minWeight then
+            (weight, [path])
+
+          else
+            acc
+      in
+        snd (List.foldl' gatherMinimum (headWeight, [headPath]) weightedPaths)
 
 
 -- PATH PICKING HEURISTICS

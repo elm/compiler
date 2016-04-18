@@ -1,4 +1,4 @@
-module Docs.Check (check) where
+module Docs.Check (Result, check) where
 
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -22,7 +22,9 @@ import qualified Reporting.Region as R
 import qualified Reporting.Result as R
 
 
-type Result w a = R.Result w Error.Error a
+
+type Result w a =
+  R.Result () w Error.Error a
 
 
 -- CHECK DOCUMENTATION

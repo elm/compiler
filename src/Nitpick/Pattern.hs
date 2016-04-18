@@ -20,7 +20,7 @@ data Pattern
     deriving (Eq)
 
 
-fromCanonicalPattern :: P.CanonicalPattern -> Pattern
+fromCanonicalPattern :: P.Canonical -> Pattern
 fromCanonicalPattern (A.A _ pattern) =
   case pattern of
     P.Data tag patterns ->

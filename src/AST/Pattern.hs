@@ -22,19 +22,29 @@ data Pattern' ann var
     | Literal L.Literal
 
 
-type RawPattern =
+type Raw =
     Pattern R.Region Var.Raw
 
 
-type RawPattern' =
+type Raw' =
     Pattern' R.Region Var.Raw
 
 
-type CanonicalPattern =
+type Canonical =
     Pattern R.Region Var.Canonical
 
 
-list :: R.Position -> [RawPattern] -> RawPattern
+isVar :: String -> Pattern ann var -> Bool
+isVar name (A.A _ pattern) =
+  case pattern of
+    Var pName ->
+      name == pName
+
+    _ ->
+      False
+
+
+list :: R.Position -> [Raw] -> Raw
 list end patterns =
   case patterns of
     [] ->
@@ -44,7 +54,7 @@ list end patterns =
         A.at start end (Data (Var.Raw "::") [pattern, list end rest])
 
 
-consMany :: R.Position -> [RawPattern] -> RawPattern
+consMany :: R.Position -> [Raw] -> Raw
 consMany end patterns =
   let cons hd@(A.A (R.Region start _) _) tl =
           A.at start end (Data (Var.Raw "::") [hd, tl])
@@ -52,7 +62,7 @@ consMany end patterns =
       foldr1 cons patterns
 
 
-tuple :: [RawPattern] -> RawPattern'
+tuple :: [Raw] -> Raw'
 tuple patterns =
   Data (Var.Raw ("_Tuple" ++ show (length patterns))) patterns
 

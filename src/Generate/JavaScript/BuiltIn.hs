@@ -1,17 +1,30 @@
-module Generate.JavaScript.BuiltIn where
+module Generate.JavaScript.BuiltIn
+  ( character, string
+  , list, range
+  , recordUpdate
+  , eq, cmp
+  , effect, outgoingPort, incomingPort
+  , crash
+  )
+  where
 
-import Control.Arrow (first)
 import qualified Language.ECMAScript3.Syntax as JS
 
 import qualified AST.Module.Name as ModuleName
-import Generate.JavaScript.Helpers
+import Generate.JavaScript.Helpers ((<|), (==>), call)
+import qualified Generate.JavaScript.Variable as Var
 import qualified Reporting.Region as R
 
 
 
 utils :: String -> [JS.Expression ()] -> JS.Expression ()
 utils func args =
-  obj ["_U", func] `call` args
+  Var.coreNative "Utils" func `call` args
+
+
+nativeList :: String -> [JS.Expression ()] -> JS.Expression ()
+nativeList func args =
+  Var.coreNative "List" func `call` args
 
 
 
@@ -34,12 +47,12 @@ string str =
 
 list :: [JS.Expression ()] -> JS.Expression ()
 list elements =
-  utils "list" [ JS.ArrayLit () elements ]
+  nativeList "fromArray" [ JS.ArrayLit () elements ]
 
 
 range :: JS.Expression () -> JS.Expression () -> JS.Expression ()
 range low high =
-  utils "range" [ low, high ]
+  nativeList "range" [ low, high ]
 
 
 
@@ -50,7 +63,7 @@ recordUpdate :: JS.Expression () -> [(String, JS.Expression ())] -> JS.Expressio
 recordUpdate record fields =
   utils "update"
     [ record
-    , JS.ObjectLit () (map (first prop) fields)
+    , JS.ObjectLit () (map (uncurry (==>)) fields)
     ]
 
 
@@ -66,6 +79,26 @@ eq left right =
 cmp :: JS.Expression () -> JS.Expression () -> JS.Expression ()
 cmp left right =
   utils "cmp" [ left, right ]
+
+
+
+-- EFFECTS
+
+
+effect :: ModuleName.Canonical -> JS.Expression ()
+effect effectName =
+  Var.coreNative "Platform" "leaf" <|
+    JS.StringLit () (ModuleName.canonicalToString effectName)
+
+
+outgoingPort :: String -> JS.Expression () -> JS.Expression ()
+outgoingPort name converter =
+  Var.coreNative "Platform" "outgoingPort" `call` [ JS.StringLit () name, converter ]
+
+
+incomingPort :: String -> JS.Expression () -> JS.Expression ()
+incomingPort name converter =
+  Var.coreNative "Platform" "incomingPort" `call` [ JS.StringLit () name, converter ]
 
 
 
@@ -89,14 +122,14 @@ crash home region maybeCaseCrashValue =
 regionToJs :: R.Region -> JS.Expression ()
 regionToJs (R.Region start end) =
     JS.ObjectLit ()
-      [ ( prop "start", positionToJs start )
-      , ( prop "end", positionToJs end )
+      [ "start" ==> positionToJs start
+      , "end"   ==> positionToJs end
       ]
 
 
 positionToJs :: R.Position -> JS.Expression ()
 positionToJs (R.Position line column) =
     JS.ObjectLit ()
-      [ ( prop "line", JS.IntLit () line )
-      , ( prop "column", JS.IntLit () column )
+      [ "line"   ==> JS.IntLit () line
+      , "column" ==> JS.IntLit () column
       ]

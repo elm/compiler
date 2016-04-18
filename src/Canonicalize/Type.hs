@@ -9,29 +9,30 @@ import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
+import qualified Reporting.Result as Result
 import qualified Canonicalize.Environment as Env
-import qualified Canonicalize.Result as Result
 import qualified Canonicalize.Variable as Canonicalize
+import Canonicalize.Variable (Result)
 
 
-tipe
-    :: Env.Environment
-    -> T.Raw
-    -> Result.ResultErr T.Canonical
-tipe env typ@(A.A region typ') =
-    let go = tipe env
-        goSnd (name,t) =
-            (,) name <$> go t
-    in
-    case typ' of
+tipe :: Env.Environment -> T.Raw -> Result T.Canonical
+tipe env annType@(A.A _ typ) =
+  let
+    go =
+      tipe env
+
+    goSnd (name,t) =
+      (,) name <$> go t
+  in
+    case typ of
       T.RVar x ->
           Result.ok (T.Var x)
 
       T.RType _ ->
-          canonicalizeApp region env typ []
+          canonicalizeApp env annType []
 
       T.RApp t ts ->
-          canonicalizeApp region env t ts
+          canonicalizeApp env t ts
 
       T.RLambda a b ->
           T.Lambda <$> go a <*> go b
@@ -40,20 +41,16 @@ tipe env typ@(A.A region typ') =
           T.Record <$> Trav.traverse goSnd fields <*> Trav.traverse go ext
 
 
-canonicalizeApp
-    :: R.Region
-    -> Env.Environment
-    -> T.Raw
-    -> [T.Raw]
-    -> Result.ResultErr T.Canonical
-canonicalizeApp region env f args =
-  case f of
-    A.A _ (T.RType (Var.Raw rawName)) ->
-        Canonicalize.tvar region env rawName
-          `Result.andThen` canonicalizeWithTvar
+canonicalizeApp :: Env.Environment -> T.Raw -> [T.Raw] -> Result T.Canonical
+canonicalizeApp env annFunc@(A.A region func) args =
+  case func of
+    T.RType (Var.Raw rawName) ->
+      canonicalizeWithTvar =<< Canonicalize.tvar region env rawName
 
     _ ->
-        T.App <$> tipe env f <*> Trav.traverse (tipe env) args
+      T.App
+        <$> tipe env annFunc
+        <*> Trav.traverse (tipe env) args
 
   where
     canonicalizeWithTvar tvar =
@@ -65,6 +62,7 @@ canonicalizeApp region env f args =
               case args of
                 [] ->
                     Result.ok (T.Type name)
+
                 _ ->
                     T.App (T.Type name) <$> Trav.traverse (tipe env) args
 
@@ -74,14 +72,21 @@ canonicalizeAlias
     -> Env.Environment
     -> (Var.Canonical, [String], T.Canonical)
     -> [T.Raw]
-    -> Result.ResultErr T.Canonical
+    -> Result T.Canonical
 canonicalizeAlias region env (name, tvars, dealiasedTipe) types =
-  if typesLen /= tvarsLen
-    then Result.err (A.A region (Error.alias name tvarsLen typesLen))
-    else toAlias <$> Trav.traverse (tipe env) types
-  where
-    typesLen = length types
-    tvarsLen = length tvars
+  let
+    typesLen =
+      length types
+
+    tvarsLen =
+      length tvars
 
     toAlias canonicalTypes =
-        T.Aliased name (zip tvars canonicalTypes) (T.Holey dealiasedTipe)
+      T.Aliased name (zip tvars canonicalTypes) (T.Holey dealiasedTipe)
+  in
+    if typesLen /= tvarsLen then
+      Result.throw region (Error.alias name tvarsLen typesLen)
+
+    else
+      toAlias <$> Trav.traverse (tipe env) types
+

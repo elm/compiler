@@ -20,6 +20,11 @@ type Expr' =
   General.Expr' R.Region Def Var.Raw Type.Raw
 
 
-data Def
-    = Definition Pattern.RawPattern Expr (Maybe Type.Raw)
+data Def =
+  Def Pattern.Raw Expr (Maybe Type.Raw)
+
+
+getPattern :: Def -> Pattern.Raw
+getPattern (Def pattern _ _) =
+  pattern
 

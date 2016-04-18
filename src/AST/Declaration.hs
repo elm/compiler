@@ -3,7 +3,6 @@ module AST.Declaration where
 
 import Data.Binary
 
-import qualified AST.Expression.General as General
 import qualified AST.Expression.Source as Source
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Expression.Canonical as Canonical
@@ -11,17 +10,99 @@ import qualified AST.Type as Type
 import qualified Reporting.Annotation as A
 
 
--- DECLARATIONS
 
-data Declaration' port def tipe expr
-    = Definition def
-    | Datatype String [String] [(String, [tipe])]
-    | TypeAlias String [String] tipe
-    | Port port
-    | Fixity Assoc Int String
+-- SOURCE DECLARATIONS
+
+
+type Source =
+  CommentOr (A.Located Raw)
+
+
+data CommentOr a
+  = Comment (A.Located String)
+  | Whatever a
+
+
+data Raw
+  = Def Source.Def
+  | Union (Union Type.Raw)
+  | Alias (Alias Type.Raw)
+  | Fixity Infix
+  | Port String Type.Raw
+
+
+
+-- STRUCTURED DECLARATIONS
+
+
+data Decls def tipe =
+  Decls
+    { _defs :: [A.Commented def]
+    , _unions :: [A.Commented (Union tipe)]
+    , _aliases :: [A.Commented (Alias tipe)]
+    , _infixes :: [Infix]
+    }
+
+
+type Valid =
+  Decls Valid.Def Type.Raw
+
+
+type Canonical =
+  Decls Canonical.Def Type.Canonical
+
+
+addDef :: A.Commented d -> Decls d t -> Decls d t
+addDef def decls =
+  decls { _defs = def : _defs decls }
+
+
+addUnion :: A.Commented (Union t) -> Decls d t -> Decls d t
+addUnion union decls =
+  decls { _unions = union : _unions decls }
+
+
+addAlias :: A.Commented (Alias t) -> Decls d t -> Decls d t
+addAlias alias decls =
+  decls { _aliases = alias : _aliases decls }
+
+
+addInfix :: Infix -> Decls d t -> Decls d t
+addInfix fixity decls =
+  decls { _infixes = fixity : _infixes decls }
+
+
+
+-- TYPE DECLARATIONS
+
+
+data Type body =
+  Type
+    { _name :: String
+    , _args :: [String]
+    , _body :: body
+    }
+
+
+type Union tipe =
+  Type [(String, [tipe])]
+
+
+type Alias tipe =
+  Type tipe
+
 
 
 -- INFIX STUFF
+
+
+data Infix =
+  Infix
+    { _op :: String
+    , _associativity :: Assoc
+    , _precedence :: Int
+    }
+
 
 data Assoc = L | N | R
     deriving (Eq)
@@ -29,68 +110,43 @@ data Assoc = L | N | R
 
 assocToString :: Assoc -> String
 assocToString assoc =
-    case assoc of
-      L -> "left"
-      N -> "non"
-      R -> "right"
+  case assoc of
+    L ->
+      "left"
 
+    N ->
+      "non"
 
--- DECLARATION PHASES
+    R ->
+      "right"
 
-type SourceDecl' =
-  Declaration' SourcePort Source.Def Type.Raw Source.Expr
-
-
-data SourceDecl
-    = Comment String
-    | Decl (A.Located SourceDecl')
-
-
-type ValidDecl =
-  A.Commented (Declaration' ValidPort Valid.Def Type.Raw Valid.Expr)
-
-
-type CanonicalDecl =
-  A.Commented (Declaration' CanonicalPort Canonical.Def Type.Canonical Canonical.Expr)
-
-
--- PORTS
-
-data SourcePort
-    = PortAnnotation String Type.Raw
-    | PortDefinition String Source.Expr
-
-
-data ValidPort
-    = In String Type.Raw
-    | Out String Valid.Expr Type.Raw
-
-
-newtype CanonicalPort
-    = CanonicalPort (General.PortImpl Canonical.Expr Type.Canonical)
-
-
-validPortName :: ValidPort -> String
-validPortName port =
-  case port of
-    In name _ -> name
-    Out name _ _ -> name
 
 
 -- BINARY CONVERSION
 
-instance Binary Assoc where
-    get =
-      do  n <- getWord8
-          return $ case n of
-            0 -> L
-            1 -> N
-            2 -> R
-            _ -> error "Error reading valid associativity from serialized string"
 
-    put assoc =
-      putWord8 $
-        case assoc of
-          L -> 0
-          N -> 1
-          R -> 2
+instance Binary Infix where
+  get =
+    Infix <$> get <*> get <*> get
+
+  put (Infix op assoc prec) =
+    do  put op
+        put assoc
+        put prec
+
+
+instance Binary Assoc where
+  get =
+    do  n <- getWord8
+        return $ case n of
+          0 -> L
+          1 -> N
+          2 -> R
+          _ -> error "Error reading valid associativity from serialized string"
+
+  put assoc =
+    putWord8 $
+      case assoc of
+        L -> 0
+        N -> 1
+        R -> 2

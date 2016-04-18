@@ -6,7 +6,6 @@ import Control.Monad (foldM)
 import qualified Data.List as List
 import qualified Data.Map as Map
 
-import AST.Expression.General (PortImpl(..))
 import AST.Expression.Optimized (Expr(..), Decider(..), Choice(..))
 import qualified AST.Expression.Optimized as Opt
 import qualified AST.Variable as Var
@@ -50,7 +49,10 @@ processSubs (Subs subs defs) (name, (n, expr)) =
               (Map.insert name (Opt.Var (Var.local uniqueName)) subs)
               ((uniqueName, expr) : defs)
 
+
+
 -- HELPERS
+
 
 deleteBatch :: [String] -> Map.Map String a -> Map.Map String a
 deleteBatch names dict =
@@ -67,7 +69,9 @@ getDefName def =
         name
 
 
+
 -- COUNT VARIABLE APPEARANCES
+
 
 count :: Opt.Expr -> Map.Map String Int
 count expression =
@@ -165,16 +169,20 @@ count expression =
     Record fields ->
         countMany (map snd fields)
 
-    Port impl ->
-        case impl of
-          In _ _ ->
-              Map.empty
+    Cmd _ ->
+        Map.empty
 
-          Out _name expr _tipe ->
-              count expr
+    Sub _ ->
+        Map.empty
 
-          Task _name expr _tipe ->
-              count expr
+    OutgoingPort _ _ ->
+        Map.empty
+
+    IncomingPort _ _ ->
+        Map.empty
+
+    Program _ expr ->
+        count expr
 
     GLShader _ _ _ ->
         Map.empty
@@ -275,17 +283,20 @@ replace substitutions expression =
     Record fields ->
         Record (map (second go) fields)
 
-    Port impl ->
-        Port $
-          case impl of
-            In _ _ ->
-                impl
+    Cmd _ ->
+        expression
 
-            Out name expr tipe ->
-                Out name (go expr) tipe
+    Sub _ ->
+        expression
 
-            Task name expr tipe ->
-                Task name (go expr) tipe
+    OutgoingPort _ _ ->
+        expression
+
+    IncomingPort _ _ ->
+        expression
+
+    Program kind expr ->
+        Program kind (go expr)
 
     GLShader _ _ _ ->
         expression

@@ -6,20 +6,23 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import Language.ECMAScript3.Syntax
 
-import qualified AST.Expression.General as Expr
+import AST.Expression.General as Expr (Main(..))
 import AST.Expression.Optimized as Opt
 import qualified AST.Literal as L
 import qualified AST.Module.Name as ModuleName
+import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import Generate.JavaScript.Helpers as Help
 import qualified Generate.JavaScript.BuiltIn as BuiltIn
+import qualified Generate.JavaScript.Foreign as Foreign
 import qualified Generate.JavaScript.Literal as Literal
-import qualified Generate.JavaScript.Port as Port
 import qualified Generate.JavaScript.Variable as Var
 import qualified Optimize.DecisionTree as DT
 
 
+
 -- CODE CHUNKS
+
 
 data Code
     = JsExpr (Expression ())
@@ -76,9 +79,11 @@ toExpr code =
         function [] stmts `call` []
 
 
+
 -- DEFINITIONS
 
-generateDef :: Opt.Def -> State Int (Statement ())
+
+generateDef :: Opt.Def -> State Int [Statement ()]
 generateDef def =
   do  (home, name, jsBody) <-
           case def of
@@ -88,10 +93,12 @@ generateDef def =
             Opt.Def (Opt.Facts home _) name body ->
                 (,,) home name <$> generateJsExpr body
 
-      return (Var.define name jsBody)
+      return (Var.define home name jsBody)
+
 
 
 -- EXPRESSIONS
+
 
 generateJsExpr :: Opt.Expr -> State Int (Expression ())
 generateJsExpr optExpr =
@@ -130,7 +137,7 @@ generateCode expr =
           let
             toField (field, value) =
               do  jsValue <- generateJsExpr value
-                  return (prop (Var.safe field), jsValue)
+                  return (Var.safe field ==> jsValue)
           in
             do  jsFields <- mapM toField fields
                 jsExpr $ ObjectLit () jsFields
@@ -169,7 +176,7 @@ generateCode expr =
       Let defs body ->
           do  stmts <- mapM generateDef defs
               code <- generateCode body
-              jsBlock (stmts ++ toStatementList code)
+              jsBlock (concat stmts ++ toStatementList code)
 
       If branches finally ->
           generateIf branches finally
@@ -182,39 +189,68 @@ generateCode expr =
               jsExpr $ BuiltIn.list jsElements
 
       Data tag members ->
+        let
+          ctor =
+            "ctor" ==> StringLit () tag
+
+          toEntry entry n =
+            ("_" ++ show n) ==> entry
+        in
           do  jsMembers <- mapM generateJsExpr members
-              jsExpr $ ObjectLit () (ctor : fields jsMembers)
-          where
-            ctor = (prop "ctor", StringLit () tag)
-            fields =
-                zipWith (\n e -> (prop ("_" ++ show n), e)) [ 0 :: Int .. ]
+              jsExpr $ ObjectLit () (ctor : zipWith toEntry jsMembers [ 0 :: Int .. ])
 
       DataAccess dataExpr index ->
           do  jsDataExpr <- generateJsExpr dataExpr
               jsExpr $ DotRef () jsDataExpr (var ("_" ++ show index))
 
+      Cmd moduleName ->
+          jsExpr $ BuiltIn.effect moduleName
+
+      Sub moduleName ->
+          jsExpr $ BuiltIn.effect moduleName
+
+      OutgoingPort name tipe ->
+          jsExpr $ BuiltIn.outgoingPort name (Foreign.encode tipe)
+
+      IncomingPort name tipe ->
+          do  jsDecoder <- generateJsExpr (Foreign.decode tipe)
+              jsExpr $ BuiltIn.incomingPort name jsDecoder
+
+      Program kind body ->
+          generateProgram kind body
+
       GLShader _uid src _tipe ->
           jsExpr $ ObjectLit () [(PropString () "src", Literal.literal (L.Str src))]
-
-      Port impl ->
-          case impl of
-            Expr.In name portType ->
-                jsExpr (Port.inbound name portType)
-
-            Expr.Out name expr portType ->
-                do  expr' <- generateJsExpr expr
-                    jsExpr (Port.outbound name expr' portType)
-
-            Expr.Task name expr portType ->
-                do  expr' <- generateJsExpr expr
-                    jsExpr (Port.task name expr' portType)
 
       Crash home region maybeBranchProblem ->
           do  maybeOptBranchProblem <- traverse generateJsExpr maybeBranchProblem
               jsExpr $ BuiltIn.crash home region maybeOptBranchProblem
 
 
+
+-- PROGRAMS
+
+
+generateProgram :: Expr.Main Type.Canonical -> Opt.Expr -> State Int Code
+generateProgram kind body =
+  let
+    gen fields =
+      generateCode $ Record (("main", body) : fields)
+  in
+    case kind of
+      Expr.VDom ->
+        gen []
+
+      Expr.NoFlags ->
+        gen []
+
+      Expr.Flags tipe ->
+        gen [ ("flags", Foreign.decode tipe) ]
+
+
+
 -- FUNCTIONS
+
 
 generateFunction :: [String] -> Opt.Expr -> State Int Code
 generateFunction args body =
@@ -250,7 +286,9 @@ generateFunctionWithArity rawArgs code =
               foldl (\body arg -> function [arg] [ReturnStmt () (Just body)]) innerBody otherArgs
 
 
+
 -- GENERATE IFS
+
 
 generateIf :: [(Opt.Expr, Opt.Expr)] -> Opt.Expr -> State Int Code
 generateIf givenBranches givenFinally =
@@ -307,7 +345,9 @@ crushIfsHelp visitedBranches unvisitedBranches finally =
         crushIfsHelp (visiting : visitedBranches) unvisited finally
 
 
+
 -- CASE EXPRESSIONS
+
 
 generateCase
     :: String
@@ -320,7 +360,9 @@ generateCase exprName decider jumps =
       foldM (goto labelRoot) decider jumps
 
 
+
 -- handle any jumps
+
 
 goto :: String -> [Statement ()] -> (Int, Opt.Expr) -> State Int [Statement ()]
 goto labelRoot deciderStmts (target, branch) =
@@ -339,7 +381,9 @@ toLabel root target =
   Id () (root ++ "_" ++ show target)
 
 
+
 -- turn deciders into ifs and switches
+
 
 generateDecider
     :: String
@@ -395,7 +439,9 @@ testToExpr test =
         Literal.literal lit
 
 
+
 -- work with paths
+
 
 pathToTestableExpr :: String -> DT.Path -> DT.Test -> State Int (Expression ())
 pathToTestableExpr root path exampleTest =
@@ -430,7 +476,9 @@ pathToExpr root fullPath =
               expr
 
 
+
 -- BINARY OPERATORS
+
 
 binop
     :: Var.Canonical
@@ -443,7 +491,9 @@ binop func left right =
         jsExpr (makeExpr func jsLeft jsRight)
 
 
+
 -- BINARY OPERATOR HELPERS
+
 
 makeExpr :: Var.Canonical -> (Expression () -> Expression () -> Expression ())
 makeExpr qualifiedOp@(Var.Canonical home op) =

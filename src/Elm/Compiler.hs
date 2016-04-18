@@ -11,6 +11,7 @@ module Elm.Compiler
 
 import qualified Data.Aeson as Json
 import qualified Data.Map as Map
+import qualified Data.Text.Lazy as LazyText
 import System.IO (Handle)
 
 import qualified AST.Module as Module
@@ -25,6 +26,7 @@ import qualified Generate.JavaScript as JS
 import qualified Parse.Module as Parse
 import qualified Parse.Parse as Parse
 import qualified Reporting.Annotation as A
+import qualified Reporting.Bag as Bag
 import qualified Reporting.Error as Error
 import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
@@ -32,35 +34,34 @@ import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
 
 
+
 -- VERSION
+
 
 version :: Package.Version
 version =
   Elm.Compiler.Version.version
 
 
+
 -- DEPENDENCIES
 
-parseDependencies
-    :: String
-    -> Either [Error] (PublicModule.Name, [PublicModule.Name])
+
+parseDependencies :: String -> Either [Error] (PublicModule.Raw, [PublicModule.Raw])
 parseDependencies sourceCode =
   let
-    (Result.Result _warnings rawResult) =
+    (Result.Result _ _ answer) =
       Parse.parse sourceCode Parse.header
-  in
-    case rawResult of
-      Result.Err msgs ->
-          Left $ map (Error . A.map Error.Syntax) msgs
 
-      Result.Ok (Module.Header name _docs _exports imports) ->
-          Right
-            ( PublicModule.Name name
-            , map (PublicModule.Name . fst . A.drop) imports
-            )
+    getDeps (Module.Header _ name _ _ _ imports) =
+      ( name, map (fst . A.drop) imports )
+  in
+    Result.answerToEither (Error . A.map Error.Syntax) getDeps answer
+
 
 
 -- COMPILATION
+
 
 {-| Compiles Elm source code to JavaScript. -}
 compile
@@ -71,61 +72,54 @@ compile
 
 compile context source interfaces =
   let
-    (Context packageName isRoot isExposed dependencies) =
+    (Context packageName isExposed dependencies) =
       context
 
-    (Result.Result (localizer, warnings) rawResult) =
-      do  modul <- Compile.compile packageName isRoot dependencies interfaces source
-          docs <- docsGen isExposed modul
+    (Result.Result oneLocalizer warnings answer) =
+      do  modul <- Compile.compile packageName dependencies interfaces source
+          docs <- Result.format Error.Docs (docsGen isExposed modul)
 
           let interface = Module.toInterface packageName modul
           let javascript = JS.generate modul
 
           return (Result docs interface javascript)
   in
-    ( maybe dummyLocalizer Localizer localizer
-    , map Warning warnings
-    , Result.destruct (Left . map Error) Right rawResult
+    ( Result.oneToValue dummyLocalizer Localizer oneLocalizer
+    , Bag.toList Warning warnings
+    , Result.answerToEither Error id answer
     )
 
 
 data Context = Context
     { _packageName :: Package.Name
-    , _isRoot :: Bool
     , _isExposed :: Bool
-    , _dependencies :: [PublicModule.CanonicalName]
+    , _dependencies :: [PublicModule.Canonical]
     }
 
 
 data Result = Result
     { _docs :: Maybe Docs.Documentation
     , _interface :: PublicModule.Interface
-    , _js :: String
+    , _js :: LazyText.Text
     }
 
 
-docsGen
-    :: Bool
-    -> Module.Optimized
-    -> Result.Result w Error.Error (Maybe Docs.Documentation)
-docsGen isExposed modul =
+docsGen :: Bool -> Module.Optimized -> Docs.Result w (Maybe Docs.Documentation)
+docsGen isExposed (Module.Module name _ info) =
   if not isExposed then
     Result.ok Nothing
+
   else
     let
-      getChecked =
-        Docs.check (Module.exports modul) (Module.docs modul)
-
-      name =
-        PublicModule.Name (ModuleName._module (Module.name modul))
-
       toDocs checked =
-        Docs.fromCheckedDocs name checked
+        Just (Docs.fromCheckedDocs (ModuleName._module name) checked)
     in
-      (Just . toDocs) `fmap` Result.mapError Error.Docs getChecked
+      toDocs <$> Docs.check (Module.exports info) (Module.docs info)
+
 
 
 -- DEALIASER
+
 
 newtype Localizer =
     Localizer RenderType.Localizer
@@ -136,7 +130,9 @@ dummyLocalizer =
     Localizer Map.empty
 
 
+
 -- ERRORS
+
 
 newtype Error =
     Error (A.Located Error.Error)
@@ -157,7 +153,9 @@ errorToJson (Localizer localizer) location (Error err) =
     Error.toJson localizer location err
 
 
+
 -- WARNINGS
+
 
 newtype Warning =
     Warning (A.Located Warning.Warning)

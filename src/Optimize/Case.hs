@@ -15,7 +15,7 @@ import qualified Optimize.DecisionTree as DT
 -- OPTIMIZE A CASE EXPRESSION
 
 
-optimize :: DT.VariantDict -> String -> [(P.CanonicalPattern, Opt.Expr)] -> Opt.Expr
+optimize :: DT.VariantDict -> String -> [(P.Canonical, Opt.Expr)] -> Opt.Expr
 optimize variantDict exprName optBranches =
   let
     (patterns, indexedBranches) =
