@@ -21,6 +21,6 @@ install:
 
 
 script:
- - cabal configure --enable-tests
+ - cabal configure --enable-tests -fdev
  - cabal build
  - cabal test

@@ -31,9 +31,18 @@ source-repository head
     type:     git
     location: git://github.com/elm-lang/elm-compiler.git
 
+
+Flag dev {
+  Description: Turn off optimization to make builds quicker
+  Default: False
+}
+
+
 Library
-    ghc-options:
-        -O2 -W
+    if flag(dev)
+        ghc-options: -O0 -W
+    else
+        ghc-options: -O2
 
     Hs-Source-Dirs:
         src
@@ -210,7 +219,6 @@ Test-Suite compiler-tests
         containers >= 0.3 && < 0.6,
         directory >= 1.0 && < 2.0,
         edit-distance >= 0.2 && < 0.3,
-        elm-compiler,
         filemanip >= 0.3.5 && < 0.4,
         filepath >= 1 && < 2.0,
         indents >= 0.3 && < 0.4,
