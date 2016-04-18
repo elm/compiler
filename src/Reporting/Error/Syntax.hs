@@ -251,7 +251,7 @@ unboundTypeVars declKind typeName givenVars unboundVars =
   Report.report
     "UNBOUND TYPE VARIABLES"
     Nothing
-    ( Help.capitalize declKind ++ " `" ++ typeName ++ "` must declare its use of type variable"
+    ( Help.capitalize declKind ++ " `" ++ typeName ++ "` must declare its use of type variables: "
       ++ Help.commaSep unboundVars
     )
     ( Help.stack
