@@ -1,6 +1,6 @@
 # Hints for Missing Patterns
 
-Elm checks to make sure that all possible inputs to a function or `case` are handled. This gives us the guarantee that no Elm code is every going to crash because data had an unexpected shape.
+Elm checks to make sure that all possible inputs to a function or `case` are handled. This gives us the guarantee that no Elm code is ever going to crash because data had an unexpected shape.
 
 There are a couple techniques for making this work for you in every scenario.
 
