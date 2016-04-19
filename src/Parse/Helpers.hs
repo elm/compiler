@@ -29,10 +29,9 @@ reserveds =
     , "let", "in"
     , "type"
     , "module", "where"
-    , "import", "as", "hiding", "exposing"
-    , "port", "export", "foreign"
-    , "perform"
-    , "deriving"
+    , "import", "exposing"
+    , "as"
+    , "port"
     ]
 
 

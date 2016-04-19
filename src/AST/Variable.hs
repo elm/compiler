@@ -70,6 +70,21 @@ inCore home name =
     Canonical (Module (ModuleName.inCore home)) name
 
 
+inHtml :: ModuleName.Raw -> String -> Canonical
+inHtml home name =
+    Canonical (Module (ModuleName.inHtml home)) name
+
+
+cmd :: Canonical
+cmd =
+  inCore ["Platform","Cmd"] "Cmd"
+
+
+sub :: Canonical
+sub =
+  inCore ["Platform","Sub"] "Sub"
+
+
 
 -- VARIABLE RECOGNIZERS
 
@@ -112,16 +127,6 @@ isArray =
 isTask :: Canonical -> Bool
 isTask =
     is ["Task"] "Task"
-
-
-isSignal :: Canonical -> Bool
-isSignal =
-    is ["Signal"] "Signal"
-
-
-isText :: Canonical -> Bool
-isText =
-    is ["Text"] "Text"
 
 
 isList :: Canonical -> Bool

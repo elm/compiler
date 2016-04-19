@@ -1,45 +1,69 @@
+{-# OPTIONS_GHC -Wall #-}
 module Reporting.Result where
 
-import Control.Applicative ((<|>))
-import qualified Control.Monad as M
 import Control.Monad.Except (Except, runExcept)
 
 import qualified Reporting.Annotation as A
+import qualified Reporting.Bag as Bag
 import qualified Reporting.Region as R
-import qualified Reporting.Render.Type as RenderType
 
 
--- TASK
 
-data Result warning error result =
-    Result
-      (Maybe RenderType.Localizer, [A.Located warning])
-      (RawResult [A.Located error] result)
+-- RESULTS
 
 
-data RawResult e a
-    = Ok a
-    | Err e
+data Result info warning error result =
+  Result
+    { _info :: info
+    , _warnings :: LBag warning
+    , _answer :: Answer (LBag error) result
+    }
 
 
--- HELPERS
+data Answer e a = Ok a | Err e
 
-ok :: a -> Result w e a
+
+type LBag a =
+  Bag.Bag (A.Located a)
+
+
+data One a = None | One a
+
+
+
+-- RESULT HELPERS
+
+
+ok :: (Monoid i) => a -> Result i w e a
 ok value =
-  Result (Nothing, []) (Ok value)
+  Result mempty Bag.empty (Ok value)
 
 
-throw :: R.Region -> e -> Result w e a
+throw :: (Monoid i) => R.Region -> e -> Result i w e a
 throw region err =
-  Result (Nothing, []) (Err [A.A region err])
+  Result mempty Bag.empty (Err (Bag.singleton (A.A region err)))
 
 
-throwMany :: [A.Located e] -> Result w e a
+throwMany :: (Monoid i) => [A.Located e] -> Result i w e a
 throwMany errors =
-  Result (Nothing, []) (Err errors)
+  Result mempty Bag.empty (Err (Bag.fromList errors))
 
 
-from :: (e -> e') -> Except [A.Located e] a -> Result w e' a
+accumulate :: (Monoid i) => i -> a -> Result i w e a
+accumulate info value =
+  Result info Bag.empty (Ok value)
+
+
+warn :: (Monoid i) => R.Region -> w -> a -> Result i w e a
+warn region warning a =
+  Result mempty (Bag.singleton (A.A region warning)) (Ok a)
+
+
+
+-- EXTRACTION HELPERS
+
+
+from :: (Monoid i) => (e -> e') -> Except [A.Located e] a -> Result i w e' a
 from f except =
   case runExcept except of
     Right answer ->
@@ -49,66 +73,68 @@ from f except =
         throwMany (map (A.map f) errors)
 
 
-mapError :: (e -> e') -> Result w e a -> Result w e' a
-mapError f (Result warnings rawResult) =
-  Result warnings $
+mapError :: (e -> e') -> Result i w e a -> Result i w e' a
+mapError f (Result info warnings rawResult) =
+  Result info warnings $
     case rawResult of
       Ok v ->
           Ok v
 
       Err msgs ->
-          Err (map (A.map f) msgs)
+          Err (Bag.map (A.map f) msgs)
 
 
-warn :: R.Region -> w -> Result w e ()
-warn region warning =
-  Result (Nothing, [A.A region warning]) (Ok ())
+format :: (Monoid i) => (e -> e') -> Result () w e a -> Result i w e' a
+format func (Result _ warnings answer) =
+  mapError func (Result mempty warnings answer)
 
 
-addWarnings :: [A.Located w] -> Result w e a -> Result w e a
-addWarnings newWarnings (Result (dealiaser, warnings) rawResult) =
-  Result (dealiaser, newWarnings ++ warnings) rawResult
-
-
-addDealiaser :: RenderType.Localizer -> Result w e a -> Result w e a
-addDealiaser dealiaser (Result (_, warnings) rawResult) =
-  Result (Just dealiaser, warnings) rawResult
-
-
-destruct :: (e -> b) -> (a -> b) -> RawResult e a -> b
-destruct errFunc okFunc rawResult =
-  case rawResult of
-    Ok answer ->
-        okFunc answer
+answerToEither :: (A.Located e -> e') -> (a -> a') -> Answer (LBag e) a -> Either [e'] a'
+answerToEither onErr onOk answer =
+  case answer of
+    Ok value ->
+      Right (onOk value)
 
     Err errors ->
-        errFunc errors
+      Left (Bag.toList onErr errors)
+
+
+oneToValue :: b -> (a -> b) -> One a -> b
+oneToValue fallback onOne one =
+  case one of
+    None ->
+      fallback
+
+    One value ->
+      onOne value
+
 
 
 -- EXTRA FANCY HELPERS
 
-instance M.Functor (Result w e) where
-  fmap func (Result warnings rawResult) =
+
+instance Functor (Result i w e) where
+  fmap func (Result info warnings rawResult) =
       case rawResult of
         Ok a ->
-            Result warnings (Ok (func a))
+            Result info warnings (Ok (func a))
 
         Err msgs ->
-            Result warnings (Err msgs)
+            Result info warnings (Err msgs)
 
 
-instance Applicative (Result w e) where
+instance (Monoid i) => Applicative (Result i w e) where
   pure value =
       ok value
 
-  (<*>) (Result context resultFunc) (Result context' resultVal) =
-      Result (merge context context') $
+  (<*>) (Result info warnings resultFunc) (Result info' warnings' resultVal) =
+      Result (mappend info info') (Bag.append warnings warnings') $
           case (resultFunc, resultVal) of
             (Ok func, Ok val) ->
                 Ok (func val)
 
             (Err msgs, Err msgs') ->
-                Err (msgs ++ msgs')
+                Err (Bag.append msgs msgs')
 
             (Err msgs, _) ->
                 Err msgs
@@ -117,23 +143,37 @@ instance Applicative (Result w e) where
                 Err msgs
 
 
-instance M.Monad (Result w e) where
+instance (Monoid i) => Monad (Result i w e) where
   return value =
       ok value
 
-  (>>=) (Result context rawResult) callback =
+  (>>=) (Result info warnings rawResult) callback =
       case rawResult of
           Err msg ->
-              Result context (Err msg)
+              Result info warnings (Err msg)
 
           Ok value ->
-              let (Result context' rawResult') = callback value
+              let
+                (Result info' warnings' rawResult') =
+                  callback value
               in
-                  Result (merge context context') rawResult'
+                Result
+                  (mappend info info')
+                  (Bag.append warnings warnings')
+                  rawResult'
 
 
-merge :: (Maybe a, [b]) -> (Maybe a, [b]) -> (Maybe a, [b])
-merge (dealiaser, warnings) (dealiaser', warnings') =
-  ( dealiaser <|> dealiaser'
-  , warnings ++ warnings'
-  )
+instance Monoid (One a) where
+  mempty =
+    None
+
+  mappend left right =
+    case (left, right) of
+      (other, None) ->
+        other
+
+      (None, other) ->
+        other
+
+      (One _, One _) ->
+        error "There should only be one!"

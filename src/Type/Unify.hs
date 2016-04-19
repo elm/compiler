@@ -270,6 +270,7 @@ unifyRigid context maybeSuper maybeName otherContent =
         mismatch context (Just (badRigid maybeName))
 
 
+
 -- UNIFY SUPER VARIABLES
 
 
@@ -353,7 +354,7 @@ atomMatchesSuper super name =
         isPrimitiveFrom ["Int", "Float", "Char", "String"] name
 
     Appendable ->
-        Var.isPrim "String" name || Var.isText name
+        Var.isPrim "String" name
 
     CompAppend ->
         Var.isPrim "String" name
@@ -494,6 +495,7 @@ unifyAtom context name otherContent =
 isIntFloat :: Var.Canonical -> Var.Canonical -> Bool
 isIntFloat name otherName =
   Var.isPrim "Int" name && Var.isPrim "Float" otherName
+
 
 
 -- UNIFY ALIASES

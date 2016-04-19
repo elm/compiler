@@ -1,18 +1,25 @@
 {-# OPTIONS_GHC -Wall #-}
-module Validate (declarations) where
+module Validate (Result, module') where
 
-import Control.Monad (foldM)
+import Prelude hiding (init)
+import Control.Monad (foldM, when)
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import qualified Data.Foldable as F
 import qualified Data.Traversable as T
 
 import AST.Expression.General as Expr
+import qualified AST.Effects as Effects
 import qualified AST.Expression.Source as Source
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Declaration as D
+import qualified AST.Module as Module
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as Pattern
 import qualified AST.Type as Type
+import qualified Elm.Compiler.Imports as Imports
+import qualified Elm.Package as Package
 import Elm.Utils ((|>))
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as Error
@@ -20,163 +27,401 @@ import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
 
 
+
+type Result warning a =
+  Result.Result () warning Error.Error a
+
+
+
+-- MODULES
+
+
+module' :: Module.Source -> Result wrn Module.Valid
+module' (Module.Module name path info) =
+  let
+    (ModuleName.Canonical pkgName _) =
+      name
+
+    (Module.Source tag settings docs exports imports decls) =
+      info
+  in
+    do  (ValidStuff ports structure) <- validateDecls decls
+
+        validEffects <- validateEffects tag settings ports (D._defs structure)
+
+        return $ Module.Module name path $
+          Module.Valid docs exports (addDefaults pkgName imports) structure validEffects
+
+
+
+-- IMPORTS
+
+
+addDefaults
+  :: Package.Name
+  -> [Module.UserImport]
+  -> ([Module.DefaultImport], [Module.UserImport])
+addDefaults pkgName imports =
+  flip (,) imports $
+    if pkgName == Package.core then
+      []
+
+    else
+      Imports.defaults
+
+
+
+-- EFFECTS
+
+
+validateEffects
+  :: Module.SourceTag
+  -> Module.SourceSettings
+  -> [A.Commented Effects.PortRaw]
+  -> [A.Commented Valid.Def]
+  -> Result wrn Effects.Raw
+validateEffects tag settings@(A.A _ pairs) ports validDefs =
+  case tag of
+    Module.Normal ->
+      do  noSettings Error.SettingsOnNormalModule settings
+          noPorts ports
+          return Effects.None
+
+    Module.Port _ ->
+      do  noSettings Error.SettingsOnPortModule settings
+          return (Effects.Port ports)
+
+    Module.Effect tagRegion ->
+      let
+        collectSettings (A.A region setting, userValue) dict =
+          Map.insertWith (++) setting [(region, userValue)] dict
+
+        settingsDict =
+          foldr collectSettings Map.empty pairs
+      in
+        do  noPorts ports
+            managerType <- toManagerType tagRegion settingsDict
+            (r0, r1, r2) <- checkManager tagRegion managerType validDefs
+            return (Effects.Manager () (Effects.Info tagRegion r0 r1 r2 managerType))
+
+
+noSettings :: Error.Error -> Module.SourceSettings -> Result wrn ()
+noSettings errorMsg (A.A region settings) =
+  case settings of
+    [] ->
+      Result.ok ()
+
+    _ : _ ->
+      Result.throw region errorMsg
+
+
+noPorts :: [A.Commented Effects.PortRaw] -> Result wrn ()
+noPorts ports =
+  case ports of
+    [] ->
+      Result.ok ()
+
+    _ : _ ->
+      let
+        toError (A.A (region, _) (Effects.PortRaw name _)) =
+          A.A region (Error.UnexpectedPort name)
+      in
+        Result.throwMany (map toError ports)
+
+
+toManagerType
+  :: R.Region
+  -> Map.Map String [(R.Region, A.Located String)]
+  -> Result wrn Effects.ManagerType
+toManagerType tagRegion settingsDict =
+  let
+    toErrors name entries =
+      map (\entry -> A.A (fst entry) (Error.BadSettingOnEffectModule name)) entries
+
+    errors =
+      settingsDict
+        |> Map.delete "command"
+        |> Map.delete "subscription"
+        |> Map.mapWithKey toErrors
+        |> Map.elems
+        |> concat
+  in
+    do  when (not (null errors)) (Result.throwMany errors)
+        maybeEffects <-
+          (,) <$> extractOne "command" settingsDict
+              <*> extractOne "subscription" settingsDict
+
+        -- TODO check that cmd and sub types exist?
+        case maybeEffects of
+          (Nothing, Nothing) ->
+            Result.throw tagRegion Error.NoSettingsOnEffectModule
+
+          (Just cmd, Nothing) ->
+            return (Effects.CmdManager cmd)
+
+          (Nothing, Just sub) ->
+            return (Effects.SubManager sub)
+
+          (Just cmd, Just sub) ->
+            return (Effects.FxManager cmd sub)
+
+
+extractOne
+  :: String
+  -> Map.Map String [(R.Region, A.Located String)]
+  -> Result wrn (Maybe (A.Located String))
+extractOne name settingsDict =
+  case Map.lookup name settingsDict of
+    Nothing ->
+      return Nothing
+
+    Just [] ->
+      error "Empty lists should never be added to the dictionary of effect module settings."
+
+    Just [(_, userType)] ->
+      return (Just userType)
+
+    Just ((region, _) : _) ->
+      Result.throw region (Error.DuplicateSettingOnEffectModule name)
+
+
+
+-- CHECK EFFECT MANAGER
+
+
+checkManager
+  :: R.Region
+  -> Effects.ManagerType
+  -> [A.Commented Valid.Def]
+  -> Result wrn (R.Region, R.Region, R.Region)
+checkManager tagRegion managerType validDefs =
+  let
+    regionDict =
+      Map.fromList (Maybe.mapMaybe getSimpleDefRegion validDefs)
+  in
+  const (,,)
+    <$> requireMaps tagRegion regionDict managerType
+    <*> requireRegion tagRegion regionDict "init"
+    <*> requireRegion tagRegion regionDict "onEffects"
+    <*> requireRegion tagRegion regionDict "onSelfMsg"
+
+
+getSimpleDefRegion :: A.Commented Valid.Def -> Maybe (String, R.Region)
+getSimpleDefRegion decl =
+  case decl of
+    A.A (region, _) (Valid.Def (A.A _ (Pattern.Var name)) _ _) ->
+      Just (name, region)
+
+    _ ->
+      Nothing
+
+
+requireMaps
+  :: R.Region
+  -> Map.Map String R.Region
+  -> Effects.ManagerType
+  -> Result wrn ()
+requireMaps tagRegion regionDict managerType =
+  let
+    check name =
+      when (Map.notMember name regionDict) $
+        Result.throw tagRegion (Error.MissingManagerOnEffectModule name)
+  in
+  case managerType of
+    Effects.CmdManager _ ->
+      check "cmdMap"
+
+    Effects.SubManager _ ->
+      check "subMap"
+
+    Effects.FxManager _ _ ->
+      check "cmdMap" <* check "subMap"
+
+
+requireRegion :: R.Region -> Map.Map String R.Region -> String -> Result wrn R.Region
+requireRegion tagRegion regionDict name =
+  case Map.lookup name regionDict of
+    Just region ->
+      return region
+
+    Nothing ->
+      Result.throw tagRegion (Error.MissingManagerOnEffectModule name)
+
+
+
+-- COLLAPSE COMMENTS
+
+
+collapseComments :: [D.CommentOr (A.Located a)] -> Result wrn [A.Commented a]
+collapseComments listWithComments =
+  case listWithComments of
+    [] ->
+      Result.ok []
+
+    D.Comment (A.A _ msg) : D.Whatever (A.A region a) : rest ->
+      let
+        entry =
+          A.A (region, Just msg) a
+      in
+        fmap (entry:) (collapseComments rest)
+
+    D.Comment (A.A region _) : rest ->
+      collapseComments rest
+        <* Result.throw region Error.CommentOnNothing
+
+
+    D.Whatever (A.A region a) : rest ->
+      let
+        entry =
+          A.A (region, Nothing) a
+      in
+        fmap (entry:) (collapseComments rest)
+
+
+
+-- VALIDATE STRUCTURED SOURCE
+
+
+validateDecls :: [D.Source] -> Result wrn ValidStuff
+validateDecls sourceDecls =
+  do  rawDecls <- collapseComments sourceDecls
+
+      validStuff <- validateRawDecls rawDecls
+
+      let (D.Decls _ unions aliases _) = _structure validStuff
+
+      return validStuff
+        <* F.traverse_ checkTypeVarsInUnion unions
+        <* F.traverse_ checkTypeVarsInAlias aliases
+        <* checkDuplicates validStuff
+
+
+
 -- VALIDATE DECLARATIONS
 
-declarations
-    :: Bool
-    -> [D.SourceDecl]
-    -> Result.Result wrn Error.Error [D.ValidDecl]
-declarations isRoot sourceDecls =
-  do  validDecls <- validateDecls Nothing sourceDecls
-      (\_ _ -> validDecls)
-        <$> declDuplicates validDecls
-        <*> T.traverse (checkDecl isRoot) validDecls
+
+data ValidStuff =
+  ValidStuff
+    { _ports :: [A.Commented Effects.PortRaw]
+    , _structure :: D.Valid
+    }
 
 
-validateDecls
-    :: Maybe String
-    -> [D.SourceDecl]
-    -> Result.Result wrn Error.Error [D.ValidDecl]
-validateDecls maybeComment sourceDecls =
-  case sourceDecls of
+validateRawDecls :: [A.Commented D.Raw] -> Result wrn ValidStuff
+validateRawDecls commentedDecls =
+  vrdHelp commentedDecls [] (D.Decls [] [] [] [])
+
+
+vrdHelp
+  :: [A.Commented D.Raw]
+  -> [A.Commented Effects.PortRaw]
+  -> D.Valid
+  -> Result wrn ValidStuff
+vrdHelp commentedDecls ports structure =
+  case commentedDecls of
     [] ->
-        return []
+      Result.ok (ValidStuff ports structure)
 
-    sourceDecl : decls ->
-        case sourceDecl of
-          D.Comment comment ->
-              validateDecls (Just comment) decls
+    A.A ann decl : rest ->
+      case decl of
+        D.Union (D.Type name tvars ctors) ->
+          vrdHelp rest ports (D.addUnion (A.A ann (D.Type name tvars ctors)) structure)
 
-          D.Decl decl ->
-              validateDeclsHelp maybeComment decl decls
+        D.Alias (D.Type name tvars alias) ->
+          vrdHelp rest ports (D.addAlias (A.A ann (D.Type name tvars alias)) structure)
+
+        D.Fixity fixity ->
+          vrdHelp rest ports (D.addInfix fixity structure)
+
+        D.Def (A.A region def) ->
+          vrdDefHelp rest (A.A (region, snd ann) def) ports structure
+
+        D.Port name tipe ->
+          vrdHelp rest (A.A ann (Effects.PortRaw name tipe) : ports) structure
 
 
-validateDeclsHelp
-    :: Maybe String
-    -> A.Located D.SourceDecl'
-    -> [D.SourceDecl]
-    -> Result.Result wrn Error.Error [D.ValidDecl]
-validateDeclsHelp comment (A.A region decl) decls =
-  let addRest validDecl =
-        (:) (A.A (region, comment) validDecl)
-          <$> validateDecls Nothing decls
+vrdDefHelp
+  :: [A.Commented D.Raw]
+  -> A.Commented Source.Def'
+  -> [A.Commented Effects.PortRaw]
+  -> D.Valid
+  -> Result wrn ValidStuff
+vrdDefHelp remainingDecls (A.A ann def) ports structure =
+  let
+    addDef validDef (ValidStuff finalPorts struct) =
+      ValidStuff finalPorts (D.addDef (A.A ann validDef) struct)
   in
-  case decl of
-    D.Datatype name tvars ctors ->
-        addRest (D.Datatype name tvars ctors)
+    case def of
+      Source.Definition pat expr ->
+        addDef
+          <$> validateDef pat expr Nothing
+          <*> vrdHelp remainingDecls ports structure
 
-    D.TypeAlias name tvars alias ->
-        addRest (D.TypeAlias name tvars alias)
-
-    D.Fixity assoc prec op ->
-        addRest (D.Fixity assoc prec op)
-
-    D.Definition def ->
-        defHelp comment def decls
-
-    D.Port port ->
-        portHelp comment region port decls
-
-
--- VALIDATE DEFINITIONS IN DECLARATIONS
-
-defHelp
-    :: Maybe String
-    -> Source.Def
-    -> [D.SourceDecl]
-    -> Result.Result wrn Error.Error [D.ValidDecl]
-defHelp comment (A.A region def) decls =
-  let addRest def' rest =
-        (:) (A.A (region, comment) (D.Definition def'))
-          <$> validateDecls Nothing rest
-  in
-  case def of
-    Source.Definition pat expr ->
-        do  expr' <- expression expr
-            let def' = Valid.Definition pat expr' Nothing
-            checkDefinition def'
-            addRest def' decls
-
-    Source.TypeAnnotation name tipe ->
-        case decls of
-          D.Decl (A.A _ (D.Definition (A.A _
-            (Source.Definition pat@(A.A _ (Pattern.Var name')) expr)))) : rest
-              | name == name' ->
-                  do  expr' <- expression expr
-                      let def' = Valid.Definition pat expr' (Just tipe)
-                      checkDefinition def'
-                      addRest def' rest
+      Source.Annotation name tipe ->
+        case remainingDecls of
+          A.A _ (D.Def (A.A _ (Source.Definition pat expr))) : rest
+           | Pattern.isVar name pat ->
+              addDef
+                <$> validateDef pat expr (Just tipe)
+                <*> vrdHelp rest ports structure
 
           _ ->
-              Result.throw region (Error.TypeWithoutDefinition name)
+            vrdHelp remainingDecls ports structure
+              <* Result.throw (fst ann) (Error.TypeWithoutDefinition name)
 
-
--- VALIDATE PORTS IN DECLARATIONS
-
-portHelp
-    :: Maybe String
-    -> R.Region
-    -> D.SourcePort
-    -> [D.SourceDecl]
-    -> Result.Result wrn Error.Error [D.ValidDecl]
-portHelp comment region port decls =
-  let addRest port' rest =
-        (:) (A.A (region,comment) (D.Port port'))
-          <$> validateDecls Nothing rest
-  in
-  case port of
-    D.PortDefinition name _ ->
-        Result.throw region (Error.PortWithoutAnnotation name)
-
-    D.PortAnnotation name tipe ->
-        case decls of
-          D.Decl (A.A _ (D.Port (D.PortDefinition name' expr))) : rest
-              | name == name' ->
-                  do  expr' <- expression expr
-                      let port' = D.Out name expr' tipe
-                      addRest port' rest
-
-          _ ->
-              addRest (D.In name tipe) decls
 
 
 -- VALIDATE DEFINITIONS
 
-definitions :: [Source.Def] -> Result.Result wrn Error.Error [Valid.Def]
+
+definitions :: [Source.Def] -> Result wrn [Valid.Def]
 definitions sourceDefs =
   do  validDefs <- definitionsHelp sourceDefs
-      let patterns = map (\(Valid.Definition p _ _) -> p) validDefs
-      defDuplicates patterns
+
+      validDefs
+        |> map Valid.getPattern
+        |> concatMap Pattern.boundVars
+        |> detectDuplicates Error.DuplicateDefinition
+
       return validDefs
 
 
-definitionsHelp :: [Source.Def] -> Result.Result wrn Error.Error [Valid.Def]
+definitionsHelp :: [Source.Def] -> Result wrn [Valid.Def]
 definitionsHelp sourceDefs =
   case sourceDefs of
     [] ->
-        return []
+      return []
 
     A.A _ (Source.Definition pat expr) : rest ->
-        do  expr' <- expression expr
-            let def = Valid.Definition pat expr' Nothing
-            checkDefinition def
-            (:) def <$> definitionsHelp rest
+      (:)
+        <$> validateDef pat expr Nothing
+        <*> definitionsHelp rest
 
-    A.A region (Source.TypeAnnotation name tipe) : rest ->
-        case rest of
-          A.A _ (Source.Definition pat@(A.A _ (Pattern.Var name')) expr) : rest'
-              | name == name' ->
-                  do  expr' <- expression expr
-                      let def = Valid.Definition pat expr' (Just tipe)
-                      checkDefinition def
-                      (:) def <$> definitionsHelp rest'
+    A.A region (Source.Annotation name tipe) : rest ->
+      case rest of
+        A.A _ (Source.Definition pat expr) : rest'
+          | Pattern.isVar name pat ->
+              (:)
+                <$> validateDef pat expr (Just tipe)
+                <*> definitionsHelp rest'
 
-          _ ->
-              Result.throw region (Error.TypeWithoutDefinition name)
+        _ ->
+          Result.throw region (Error.TypeWithoutDefinition name)
 
 
-checkDefinition :: Valid.Def -> Result.Result wrn Error.Error ()
-checkDefinition (Valid.Definition pattern body _) =
+validateDef
+  :: Pattern.Raw
+  -> Source.Expr
+  -> Maybe Type.Raw
+  -> Result wrn Valid.Def
+validateDef pat expr maybeType =
+  do  validExpr <- expression expr
+      validateDefPattern pat validExpr
+      return $ Valid.Def pat validExpr maybeType
+
+
+validateDefPattern :: Pattern.Raw -> Valid.Expr -> Result wrn ()
+validateDefPattern pattern body =
   case fst (Expr.collectLambdas body) of
     [] ->
         return ()
@@ -194,9 +439,11 @@ checkDefinition (Valid.Definition pattern body _) =
                 Result.throw (R.merge start end) (Error.BadFunctionName (length args))
 
 
+
 -- VALIDATE EXPRESSIONS
 
-expression :: Source.Expr -> Result.Result wrn Error.Error Valid.Expr
+
+expression :: Source.Expr -> Result wrn Valid.Expr
 expression (A.A ann sourceExpression) =
   A.A ann <$>
   case sourceExpression of
@@ -270,162 +517,144 @@ expression (A.A ann sourceExpression) =
           <$> definitions defs
           <*> expression body
 
+    Cmd moduleName ->
+        return (Cmd moduleName)
+
+    Sub moduleName ->
+        return (Sub moduleName)
+
+    OutgoingPort name tipe ->
+        return (OutgoingPort name tipe)
+
+    IncomingPort name tipe ->
+        return (IncomingPort name tipe)
+
+    Program _ _ ->
+        error "DANGER - Program AST nodes should not be in validation phase."
+
+    SaveEnv moduleName effects ->
+        return (SaveEnv moduleName effects)
+
     GLShader uid src gltipe ->
         return (GLShader uid src gltipe)
 
-    Port impl ->
-        Port <$>
-          case impl of
-            In name tipe ->
-                return (In name tipe)
 
-            Out name expr tipe ->
-                do  expr' <- expression expr
-                    return (Out name expr' tipe)
-
-            Task name expr tipe ->
-                do  expr' <- expression expr
-                    return (Task name expr' tipe)
-
-
-second :: (a, Source.Expr) -> Result.Result wrn Error.Error (a, Valid.Expr)
+second :: (a, Source.Expr) -> Result wrn (a, Valid.Expr)
 second (value, expr) =
     (,) value <$> expression expr
 
 
-both
-    :: (Source.Expr, Source.Expr)
-    -> Result.Result wrn Error.Error (Valid.Expr, Valid.Expr)
+both :: (Source.Expr, Source.Expr) -> Result wrn (Valid.Expr, Valid.Expr)
 both (expr1, expr2) =
     (,) <$> expression expr1 <*> expression expr2
 
 
+
 -- VALIDATE PATTERNS
 
-validatePattern :: Pattern.RawPattern -> Result.Result wrn Error.Error Pattern.RawPattern
+
+validatePattern :: Pattern.Raw -> Result wrn Pattern.Raw
 validatePattern pattern =
   do  detectDuplicates Error.BadPattern (Pattern.boundVars pattern)
       return pattern
 
 
+
 -- DETECT DUPLICATES
 
-detectDuplicates
-    :: (String -> Error.Error)
-    -> [A.Located String]
-    -> Result.Result wrn Error.Error ()
-detectDuplicates tag names =
-  let add (A.A region name) dict =
-          Map.insertWith (++) name [region] dict
 
-      makeGroups pairs =
-          Map.toList (foldr add Map.empty pairs)
+checkDuplicates :: ValidStuff -> Result wrn ()
+checkDuplicates (ValidStuff ports (D.Decls defs unions aliases _)) =
+  let
+    -- SIMPLE NAMES
 
-      check (name, regions) =
-        case regions of
-          _ : region : _ ->
-              Result.throw region (tag name)
+    defValues =
+      concatMap (Pattern.boundVars . Valid.getPattern . A.drop) defs
+
+    portValues =
+      map fromPort ports
+
+    fromPort (A.A (region, _) (Effects.PortRaw name _)) =
+      A.A region name
+
+    -- TYPE NAMES
+
+    (types, typeValues) =
+      unzip (map fromUnion unions ++ map fromAlias aliases)
+
+    fromUnion (A.A (region, _) (D.Type name _ ctors)) =
+      ( A.A region name
+      , map (A.A region . fst) ctors
+      )
+
+    fromAlias (A.A (region, _) (D.Type name _ (A.A _ tipe))) =
+      (,) (A.A region name) $
+        case tipe of
+          Type.RRecord _ _ ->
+            [A.A region name]
 
           _ ->
-              return ()
+            []
   in
-      F.traverse_ check (makeGroups names)
+    F.sequenceA_
+      [ detectDuplicates Error.DuplicateValueDeclaration (portValues ++ defValues)
+      , detectDuplicates Error.DuplicateValueDeclaration (concat typeValues)
+      , detectDuplicates Error.DuplicateTypeDeclaration types
+      ]
 
 
-defDuplicates
-    :: [Pattern.RawPattern]
-    -> Result.Result wrn Error.Error ()
-defDuplicates patterns =
-  concatMap Pattern.boundVars patterns
-    |> detectDuplicates Error.DuplicateDefinition
+detectDuplicates :: (String -> Error.Error) -> [A.Located String] -> Result wrn ()
+detectDuplicates tag names =
+  let
+    add (A.A region name) dict =
+      Map.insertWith (++) name [region] dict
 
+    makeGroups pairs =
+      Map.toList (foldr add Map.empty pairs)
 
-declDuplicates :: [D.ValidDecl] -> Result.Result wrn Error.Error ()
-declDuplicates decls =
-  let (valueLists, typeLists) = unzip (map extractValues decls)
+    check (name, regions) =
+      case regions of
+        _ : region : _ ->
+            Result.throw region (tag name)
+
+        _ ->
+            return ()
   in
-      (\_ _ -> ())
-        <$> detectDuplicates Error.DuplicateValueDeclaration (concat valueLists)
-        <*> detectDuplicates Error.DuplicateTypeDeclaration (concat typeLists)
+    F.traverse_ check (makeGroups names)
 
-
-extractValues :: D.ValidDecl -> ([A.Located String], [A.Located String])
-extractValues (A.A (region, _) decl) =
-  case decl of
-    D.Definition (Valid.Definition pattern _ _) ->
-        ( Pattern.boundVars pattern
-        , []
-        )
-
-    D.Datatype name _ ctors ->
-        ( map (A.A region . fst) ctors
-        , [A.A region name]
-        )
-
-    D.TypeAlias name _ (A.A _ (Type.RRecord _ _)) ->
-        ( [A.A region name]
-        , [A.A region name]
-        )
-
-    D.TypeAlias name _ _ ->
-        ( []
-        , [A.A region name]
-        )
-
-    D.Port port ->
-        ( [A.A region (D.validPortName port)]
-        , []
-        )
-
-    D.Fixity _ _ _ ->
-        ( []
-        , []
-        )
 
 
 -- UNBOUND TYPE VARIABLES
 
-checkDecl :: Bool -> D.ValidDecl -> Result.Result wrn Error.Error ()
-checkDecl isRoot (A.A (region,_) decl) =
-  case decl of
-    D.Definition _ ->
+
+checkTypeVarsInUnion :: A.Commented (D.Union Type.Raw) -> Result wrn ()
+checkTypeVarsInUnion (A.A (region,_) (D.Type name boundVars ctors)) =
+  case diff boundVars (concatMap freeVars (concatMap snd ctors)) of
+    (_, []) ->
         return ()
 
-    D.Datatype name boundVars ctors ->
-        case diff boundVars (concatMap freeVars (concatMap snd ctors)) of
-          (_, []) ->
-              return ()
+    (_, unbound) ->
+        Result.throw region
+          (Error.UnboundTypeVarsInUnion name boundVars unbound)
 
-          (_, unbound) ->
-              Result.throw region
-                (Error.UnboundTypeVarsInUnion name boundVars unbound)
 
-    D.TypeAlias name boundVars tipe ->
-        case diff boundVars (freeVars tipe) of
-          ([], []) ->
-              return ()
-
-          ([], unbound) ->
-              Result.throw region
-                (Error.UnboundTypeVarsInAlias name boundVars unbound)
-
-          (unused, []) ->
-              Result.throw region
-                (Error.UnusedTypeVarsInAlias name boundVars unused)
-
-          (unused, unbound) ->
-              Result.throw region
-                (Error.MessyTypeVarsInAlias name boundVars unused unbound)
-
-    D.Port _ ->
-        if isRoot then
-            return ()
-
-        else
-            Result.throw region Error.UnexpectedPort
-
-    D.Fixity _ _ _ ->
+checkTypeVarsInAlias :: A.Commented (D.Alias Type.Raw) -> Result wrn ()
+checkTypeVarsInAlias (A.A (region,_) (D.Type name boundVars tipe)) =
+  case diff boundVars (freeVars tipe) of
+    ([], []) ->
         return ()
+
+    ([], unbound) ->
+        Result.throw region
+          (Error.UnboundTypeVarsInAlias name boundVars unbound)
+
+    (unused, []) ->
+        Result.throw region
+          (Error.UnusedTypeVarsInAlias name boundVars unused)
+
+    (unused, unbound) ->
+        Result.throw region
+          (Error.MessyTypeVarsInAlias name boundVars unused unbound)
 
 
 diff :: [String] -> [A.Located String] -> ([String], [String])
@@ -442,23 +671,21 @@ diff left right =
     )
 
 
-
 freeVars :: Type.Raw -> [A.Located String]
 freeVars (A.A region tipe) =
-    case tipe of
-      Type.RLambda t1 t2 ->
-          freeVars t1 ++ freeVars t2
+  case tipe of
+    Type.RLambda t1 t2 ->
+      freeVars t1 ++ freeVars t2
 
-      Type.RVar x ->
-          [A.A region x]
+    Type.RVar x ->
+      [A.A region x]
 
-      Type.RType _ ->
-          []
+    Type.RType _ ->
+      []
 
-      Type.RApp t ts ->
-          concatMap freeVars (t:ts)
+    Type.RApp t ts ->
+      concatMap freeVars (t:ts)
 
-      Type.RRecord fields ext ->
-          maybe [] freeVars ext
-          ++ concatMap (freeVars . snd) fields
-
+    Type.RRecord fields ext ->
+      maybe [] freeVars ext
+      ++ concatMap (freeVars . snd) fields

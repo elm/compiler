@@ -1,6 +1,6 @@
 
 Name: elm-compiler
-Version: 0.16
+Version: 0.17
 
 Synopsis:
     Values to help with elm-package, elm-make, and elm-lang.org.
@@ -18,7 +18,7 @@ License-file: LICENSE
 
 Author:     Evan Czaplicki
 Maintainer: info@elm-lang.org
-Copyright:  Copyright (c) 2011-2014 Evan Czaplicki
+Copyright:  Copyright (c) 2011-2016 Evan Czaplicki
 
 Category: Compiler, Language
 
@@ -31,9 +31,18 @@ source-repository head
     type:     git
     location: git://github.com/elm-lang/elm-compiler.git
 
+
+Flag dev {
+  Description: Turn off optimization and make warnings errors
+  Default: False
+}
+
+
 Library
-    ghc-options:
-        -O2 -W
+    if flag(dev)
+        ghc-options: -O0 -W -Werror
+    else
+        ghc-options: -O2
 
     Hs-Source-Dirs:
         src
@@ -48,6 +57,7 @@ Library
 
     other-modules:
         AST.Declaration,
+        AST.Effects,
         AST.Expression.Canonical,
         AST.Expression.General,
         AST.Expression.Optimized,
@@ -61,10 +71,9 @@ Library
         AST.Type,
         AST.Variable,
         Canonicalize,
-        Canonicalize.Declaration,
+        Canonicalize.Body,
+        Canonicalize.Effects,
         Canonicalize.Environment,
-        Canonicalize.Port,
-        Canonicalize.Result,
         Canonicalize.Setup,
         Canonicalize.Sort,
         Canonicalize.Type,
@@ -77,11 +86,12 @@ Library
         Elm.Compiler.Type.Extract,
         Elm.Compiler.Version,
         Generate.JavaScript,
+        Generate.JavaScript.Builder,
         Generate.JavaScript.BuiltIn,
         Generate.JavaScript.Expression,
+        Generate.JavaScript.Foreign,
         Generate.JavaScript.Helpers,
         Generate.JavaScript.Literal,
-        Generate.JavaScript.Port,
         Generate.JavaScript.Variable,
         Nitpick.Pattern,
         Nitpick.PatternMatches,
@@ -101,6 +111,7 @@ Library
         Parse.Pattern,
         Parse.Type,
         Reporting.Annotation,
+        Reporting.Bag,
         Reporting.Error,
         Reporting.Error.Canonicalize,
         Reporting.Error.Docs,
@@ -114,6 +125,7 @@ Library
         Reporting.Report,
         Reporting.Result,
         Reporting.Warning,
+        Type.Constrain.Effects,
         Type.Constrain.Expression,
         Type.Constrain.Literal,
         Type.Constrain.Pattern,
@@ -147,8 +159,7 @@ Library
         pretty >= 1.0 && < 2.0,
         process,
         text >= 1 && < 2,
-        union-find >= 0.2 && < 0.3,
-        wl-pprint
+        union-find >= 0.2 && < 0.3
 
 
 Executable elm
@@ -176,6 +187,9 @@ Executable elm
 
 
 Test-Suite compiler-tests
+    ghc-options:
+        -O0
+
     Type:
         exitcode-stdio-1.0
 
@@ -208,7 +222,6 @@ Test-Suite compiler-tests
         containers >= 0.3 && < 0.6,
         directory >= 1.0 && < 2.0,
         edit-distance >= 0.2 && < 0.3,
-        elm-compiler,
         filemanip >= 0.3.5 && < 0.4,
         filepath >= 1 && < 2.0,
         indents >= 0.3 && < 0.4,
@@ -219,5 +232,4 @@ Test-Suite compiler-tests
         pretty >= 1.0 && < 2.0,
         process,
         text >= 1 && < 2,
-        union-find >= 0.2 && < 0.3,
-        wl-pprint
+        union-find >= 0.2 && < 0.3

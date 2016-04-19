@@ -100,24 +100,17 @@ alias name expected actual =
 -- PORTS
 
 
-data PortError = PortError
+data PortError =
+  PortError
     { portName :: String
-    , portIsInbound :: Bool
-    , portRootType :: Type.Canonical
-    , portLocalType :: Type.Canonical
+    , portType :: Type.Canonical
     , portMessage :: Maybe String
     }
 
 
-port
-    :: String
-    -> Bool
-    -> Type.Canonical
-    -> Type.Canonical
-    -> Maybe String
-    -> Error
-port name isInbound rootType localType maybeMessage =
-  Port (PortError name isInbound rootType localType maybeMessage)
+port :: String -> Type.Canonical -> Maybe String -> Error
+port name tipe maybeMessage =
+  Port (PortError name tipe maybeMessage)
 
 
 
@@ -228,26 +221,26 @@ toReport localizer err =
           ("You are trying to export `" ++ name ++ "` multiple times!")
           "Remove duplicates until there is only one listed."
 
-    Port (PortError name isInbound _rootType localType maybeMessage) ->
-        let
-          boundPort =
-            if isInbound then "inbound port" else "outbound port"
-        in
-          Report.report
-            "PORT ERROR"
-            Nothing
-            ("Trying to send " ++ maybe "an unsupported type" id maybeMessage
-              ++ " through " ++ boundPort ++ " `" ++ name ++ "`"
-            )
-            ( Help.stack
-                [ text "The specific unsupported type is:"
-                , indent 4 (RenderType.toDoc localizer localType)
-                , text ("The types of values that can flow through " ++ boundPort ++ "s include:")
-                , indent 4 $ Help.reflowParagraph $
-                    "Ints, Floats, Bools, Strings, Maybes, Lists, Arrays,\
-                    \ Tuples, Json.Values, and concrete records."
-                ]
-            )
+    Port (PortError name tipe maybeMessage) ->
+      let
+        context =
+          maybe "" (" the following " ++ ) maybeMessage
+      in
+        Report.report
+          "PORT ERROR"
+          Nothing
+          ("Port `" ++ name ++ "` is trying to communicate an unsupported type."
+          )
+          ( Help.stack
+              [ text ("The specific unsupported type is" ++ context ++ ":")
+              , indent 4 (RenderType.toDoc localizer tipe)
+              , text "The types of values that can flow through in and out of Elm include:"
+              , indent 4 $ Help.reflowParagraph $
+                  "Ints, Floats, Bools, Strings, Maybes, Lists, Arrays,\
+                  \ Tuples, Json.Values, and concrete records."
+              -- TODO add a note about custom decoders and encoders when they exist!
+              ]
+          )
 
 
 argMismatchReport :: String -> Var.Canonical -> Int -> Int -> Report.Report

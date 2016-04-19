@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Parse.Module (moduleDecl, header, getModuleName) where
 
 import Text.Parsec hiding (newline, spaces)
@@ -6,49 +7,112 @@ import Parse.Helpers
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
-import Reporting.Annotation as A
+import qualified Reporting.Annotation as A
+import qualified Reporting.Region as R
 
 
 getModuleName :: String -> Maybe String
 getModuleName source =
-  case iParse getModuleName source of
-    Right name ->
+  let
+    minimalParser =
+      do  optional freshLine
+          (ModuleDecl _ names _ _) <- moduleDecl
+          return (ModuleName.toString names)
+  in
+    case iParse minimalParser source of
+      Right name ->
         Just name
 
-    Left _ ->
+      Left _ ->
         Nothing
-  where
-    getModuleName =
-      do  optional freshLine
-          (names, _) <- moduleDecl
-          return (ModuleName.toString names)
 
 
 header :: IParser (Module.Header [Module.UserImport])
 header =
   do  optional freshLine
-      (names, exports) <-
-          option (["Main"], Var.openListing) (moduleDecl `followedBy` freshLine)
+      (ModuleDecl tag names exports settings) <-
+        option
+          (ModuleDecl Module.Normal ["Main"] Var.openListing Module.emptySettings)
+          (moduleDecl `followedBy` freshLine)
+
       docs <-
         choice
           [ addLocation (Just <$> docComment) `followedBy` freshLine
           , addLocation (return Nothing)
           ]
+
       imports' <- imports
-      return (Module.Header names docs exports imports')
+
+      return (Module.Header tag names exports settings docs imports')
 
 
-moduleDecl :: IParser ([String], Var.Listing (A.Located Var.Value))
+data ModuleDecl =
+  ModuleDecl
+    { _tag :: Module.SourceTag
+    , _name :: [String]
+    , _exports :: Var.Listing (A.Located Var.Value)
+    , _settings :: Module.SourceSettings
+    }
+
+
+moduleDecl :: IParser ModuleDecl
 moduleDecl =
   expecting "a module declaration" $
-  do  try (reserved "module")
+  do
+      tag <- parseTag
       whitespace
+
       names <- dotSep1 capVar <?> "the name of this module"
       whitespace
-      exports <- option Var.openListing (listing (addLocation value))
+
+      settings <-
+        case tag of
+          Module.Effect _ ->
+            parseSetting <* whitespace
+
+          _ ->
+            return Module.emptySettings
+
+      reserved "exposing" <?> "something like `exposing (..)` which replaced `where` in 0.17"
       whitespace
-      reserved "where"
-      return (names, exports)
+
+      exports <- listing (addLocation value)
+
+      return (ModuleDecl tag names exports settings)
+
+
+parseTag :: IParser Module.SourceTag
+parseTag =
+  choice
+    [
+      do  try (reserved "module")
+          return Module.Normal
+    ,
+      do  start <- getMyPosition
+          try (reserved "effect")
+          whitespace
+          reserved "module"
+          end <- getMyPosition
+          return (Module.Effect (R.Region start end))
+    ,
+      do  start <- getMyPosition
+          try (reserved "port")
+          whitespace
+          reserved "module"
+          end <- getMyPosition
+          return (Module.Port (R.Region start end))
+    ]
+
+
+parseSetting :: IParser Module.SourceSettings
+parseSetting =
+  do  try (reserved "where")
+      whitespace
+      addLocation $ brackets $ commaSep $
+        do  name <- addLocation lowVar
+            padded equals
+            typeName <- addLocation capVar
+            return (name, typeName)
 
 
 imports :: IParser [Module.UserImport]
@@ -89,14 +153,14 @@ listing item =
   expecting "a listing of values and types to expose, like (..)" $
   do  try (whitespace >> char '(')
       whitespace
-      listing <-
+      actualListing <-
           choice
             [ const Var.openListing <$> string ".."
             , Var.Listing <$> commaSep1 item <*> return False
             ]
       whitespace
       char ')'
-      return listing
+      return actualListing
 
 
 value :: IParser Var.Value

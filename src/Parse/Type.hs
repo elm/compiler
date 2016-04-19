@@ -2,7 +2,7 @@
 module Parse.Type where
 
 import Data.List (intercalate)
-import Text.Parsec ((<|>), (<?>), char, many, optionMaybe, string, try)
+import Text.Parsec ((<|>), (<?>), char, choice, many, optionMaybe, string, try)
 
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
@@ -64,7 +64,7 @@ constructor0 =
 
 term :: IParser Type.Raw
 term =
-  tuple <|> record <|> tvar <|> constructor0
+  choice [ tuple, record, tvar, constructor0 ]
 
 
 app :: IParser Type.Raw

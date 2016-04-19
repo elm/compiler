@@ -3,6 +3,7 @@ module Generate.JavaScript.Helpers where
 import Language.ECMAScript3.Syntax
 
 
+
 localRuntime :: String
 localRuntime =
     "_elm"
@@ -13,17 +14,14 @@ varDecl x expr =
     VarDecl () (var x) (Just expr)
 
 
-make :: [String] -> Expression ()
-make moduleName =
-    obj (moduleName ++ ["make"]) <| ref localRuntime
+refOrObject :: String -> Expression ()
+refOrObject name =
+  InfixExpr () OpLOr (ref name) (ObjectLit () [])
 
-
-useLazy :: [String] -> String -> Expression ()
-useLazy moduleName functionName =
-    DotRef () (make moduleName) (var functionName)
 
 
 -- Creating Variables
+
 
 var :: String -> Id ()
 var name =
@@ -35,9 +33,9 @@ ref name =
     VarRef () (var name)
 
 
-prop :: String -> Prop ()
-prop name =
-    PropId () (var name)
+(==>) :: String -> Expression () -> (Prop (), Expression ())
+(==>) name expr =
+  ( PropId () (var name), expr )
 
 
 obj :: [String] -> Expression ()
@@ -50,7 +48,9 @@ obj vars =
           error "dotSep must be called on a non-empty list of variables"
 
 
+
 -- Function Calls
+
 
 (<|) :: Expression () -> Expression () -> Expression ()
 (<|) f x =
@@ -66,24 +66,3 @@ call :: Expression () -> [Expression ()] -> Expression ()
 call =
     CallExpr ()
 
-
--- Checks
-
-equal :: Expression () -> Expression () -> Expression ()
-equal a b =
-    InfixExpr () OpStrictEq a b
-
-
-instanceof :: String -> Expression () -> Expression ()
-instanceof tipe x =
-    InfixExpr () OpLAnd (typeof "object" x) (InfixExpr () OpInstanceof x (ref tipe))
-
-
-typeof :: String -> Expression () -> Expression ()
-typeof tipe x =
-    equal (PrefixExpr () PrefixTypeof x) (StringLit () tipe)
-
-
-member :: String -> Expression () -> Expression ()
-member field x =
-    InfixExpr () OpIn (StringLit () field) x

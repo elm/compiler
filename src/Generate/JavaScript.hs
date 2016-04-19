@@ -1,162 +1,91 @@
 module Generate.JavaScript (generate) where
 
-import Control.Monad.State as State
-import qualified Data.List as List
-import Language.ECMAScript3.PrettyPrint as ES
-import Language.ECMAScript3.Syntax
-import qualified Text.PrettyPrint.Leijen as PP
+import qualified Control.Monad.State as State
+import qualified Data.Text.Lazy as LazyText
+import qualified Language.ECMAScript3.Syntax as JS
 
-import qualified AST.Expression.Optimized as Optimized
-import qualified AST.Helpers as Help
+import qualified AST.Effects as Effects
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
-import qualified AST.Variable as Variable
+import qualified Elm.Package as Pkg
+import qualified Generate.JavaScript.Builder as Builder
 import qualified Generate.JavaScript.Expression as JS
-import Generate.JavaScript.Helpers (call, function, localRuntime, obj, prop, ref, varDecl)
+import qualified Generate.JavaScript.Helpers as JS
 import qualified Generate.JavaScript.Variable as Var
 
 
-generate :: Module.Optimized -> String
-generate module_ =
+
+-- GENERATE JAVASCRIPT
+
+
+generate :: Module.Optimized -> LazyText.Text
+generate (Module.Module moduleName _ info) =
   let
-    (ModuleName.Canonical _ name) =
-      Module.name module_
+    genBody =
+      do  defsList <- mapM JS.generateDef (Module.program info)
+          let managerStmts = generateEffectManager moduleName (Module.effects info)
+          return (concat (defsList ++ [managerStmts]))
 
     body =
-      concat
-        [ useStrict
-        , checkForCachedVersion name
-        , imports (Module.imports module_)
-        , definitions (Module.program (Module.body module_))
-        , exports name (Module.exports module_)
-        ]
-
-    make =
-      "Elm" : name ++ ["make"]
-
-    javascript =
-      buildIntermediateObjects make
-      ++
-      [ assign make (function [localRuntime] body)
-      ]
+      State.evalState genBody 0
   in
-    PP.displayS (PP.renderPretty 1 160 (ES.prettyPrint javascript)) ""
+    Builder.stmtsToText body
 
 
 
--- INTRO
+-- GENERATE EFFECT MANAGER
 
 
-useStrict :: [Statement ()]
-useStrict =
-  [ ExprStmt () (StringLit () "use strict")
-  ]
+generateEffectManager :: ModuleName.Canonical -> Effects.Canonical -> [JS.Statement ()]
+generateEffectManager moduleName effects =
+  case effects of
+    Effects.None ->
+      []
+
+    Effects.Port _ ->
+      []
+
+    Effects.Manager pkgName (Effects.Info _ _ _ _ managerType) ->
+      let
+        managers =
+          Var.native (ModuleName.inCore ["Native","Platform"]) "effectManagers"
+
+        managerName =
+          JS.StringLit () (ModuleName.canonicalToString moduleName)
+
+        entry name =
+          ( JS.PropId () (JS.Id () name)
+          , JS.ref (Var.qualified moduleName name)
+          )
+
+        managerEntries =
+          [ "pkg" ==> Pkg.toString pkgName
+          , entry "init"
+          , entry "onEffects"
+          , entry "onSelfMsg"
+          ]
+
+        otherEntries =
+          case managerType of
+            Effects.CmdManager _ ->
+              [ "tag" ==> "cmd", entry "cmdMap" ]
+
+            Effects.SubManager _ ->
+              [ "tag" ==> "sub", entry "subMap" ]
+
+            Effects.FxManager _ _ ->
+              [ "tag" ==> "fx", entry "cmdMap", entry "subMap" ]
+
+        addManager =
+          JS.AssignExpr () JS.OpAssign
+            (JS.LBracket () managers managerName)
+            (JS.ObjectLit () (managerEntries ++ otherEntries))
+      in
+        [ JS.ExprStmt () addManager ]
 
 
-checkForCachedVersion :: ModuleName.Raw -> [Statement ()]
-checkForCachedVersion name =
-  let
-    values =
-      localRuntime : name ++ ["values"]
-
-    valuesObject =
-      obj values
-  in
-    buildIntermediateObjects values
-    ++
-    [ IfSingleStmt () valuesObject (ReturnStmt () (Just valuesObject))
-    ]
-
-
-buildIntermediateObjects :: [String] -> [Statement ()]
-buildIntermediateObjects path =
-  let
-    create name =
-      assign name (InfixExpr () OpLOr (obj name) (ObjectLit () []))
-
-    paths =
-      drop 2 (init (List.inits path))
-  in
-    map create paths
-
-
-assign :: [String] -> Expression () -> Statement ()
-assign path expr =
-  case path of
-    [x] ->
-        VarDeclStmt () [ varDecl x expr ]
-
-    _ ->
-        ExprStmt () $
-            AssignExpr () OpAssign (LDot () (obj (init path)) (last path)) expr
-
-
-
--- IMPORTS
-
-
-imports :: [ModuleName.Raw] -> [Statement ()]
-imports rawImports =
-  let
-    utils =
-      varDecl "_U" (call (obj ["Elm", "Native", "Utils", "make"]) [ref localRuntime])
-  in
-    [ VarDeclStmt () (utils : map jsImport rawImports) ]
-
-
-jsImport :: ModuleName.Raw -> VarDecl ()
-jsImport name =
-  let
-    make =
-      obj ("Elm" : name ++ ["make"])
-  in
-    varDecl (Var.modulePrefix name) (call make [ref localRuntime])
-
-
-
--- DEFINITIONS
-
-
-definitions :: [Optimized.Def] -> [Statement ()]
-definitions defs =
-  let
-    setup =
-      Var.define "_op" (ObjectLit () [])
-  in
-    setup : State.evalState (mapM JS.generateDef defs) 0
-
-
-
--- EXPORTS
-
-
-exports :: ModuleName.Raw -> [Variable.Value] -> [Statement ()]
-exports name exportedValues =
-  let
-    exportedFields =
-      map toField ("_op" : concatMap extract exportedValues)
-
-    toField x =
-      (prop x, ref x)
-
-    extract value =
-        case value of
-          Variable.Alias _ ->
-              []
-
-          Variable.Value x ->
-              if Help.isOp x then
-                  []
-
-              else
-                  [Var.safe x]
-
-          Variable.Union _ (Variable.Listing ctors _) ->
-              map Var.safe ctors
-
-    values =
-      LDot () (obj (localRuntime : name)) "values"
-  in
-    [ ReturnStmt () $ Just $
-        AssignExpr () OpAssign values (ObjectLit () exportedFields)
-    ]
+(==>) :: String -> String -> ( JS.Prop (), JS.Expression () )
+(==>) key value =
+  ( JS.PropId () (JS.Id () key)
+  , JS.StringLit () value
+  )
