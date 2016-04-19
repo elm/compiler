@@ -5,7 +5,7 @@ module AST.Expression.Optimized
     , Decider(..), Choice(..)
     ) where
 
-import qualified AST.Expression.General as General
+import qualified AST.Expression.General as Expr
 import qualified AST.Literal as Literal
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
@@ -52,7 +52,11 @@ data Expr
     | Access Expr String
     | Update Expr [(String, Expr)]
     | Record [(String, Expr)]
-    | Port (General.PortImpl Expr Type.Canonical)
+    | Cmd ModuleName.Canonical
+    | Sub ModuleName.Canonical
+    | OutgoingPort String Type.Canonical
+    | IncomingPort String Type.Canonical
+    | Program (Expr.Main Type.Canonical) Expr
     | GLShader String String Literal.GLShaderTipe
     | Crash ModuleName.Canonical R.Region (Maybe Expr)
 

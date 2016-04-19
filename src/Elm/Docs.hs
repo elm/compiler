@@ -18,8 +18,12 @@ import qualified Elm.Package as Pkg
 import qualified Reporting.Annotation as A
 
 
+
+-- DATA STRUCTURES
+
+
 data Documentation = Documentation
-    { moduleName :: Module.Name
+    { moduleName :: Module.Raw
     , comment :: String
     , aliases :: [Alias]
     , types :: [Union]
@@ -55,9 +59,11 @@ data Value = Value
 data Version = NonCanonicalTypes | Version String
 
 
+
 -- FROM CHECKED DOCS
 
-fromCheckedDocs :: Module.Name -> Docs.Checked -> Documentation
+
+fromCheckedDocs :: Module.Raw -> Docs.Checked -> Documentation
 fromCheckedDocs name (Docs.Docs comment aliases unions values) =
   let
     unwrap cmnt =
@@ -72,14 +78,18 @@ fromCheckedDocs name (Docs.Docs comment aliases unions values) =
     toValue (name, (A.A _ (Docs.Value cmnt tipe fix))) =
       Value name (unwrap cmnt) tipe fix
   in
-  Documentation name comment
-    (map toAlias (Map.toList aliases))
-    (map toUnion (Map.toList unions))
-    (map toValue (Map.toList values))
-    (Version $ (Pkg.versionToString Version.version))
+    Documentation
+      name
+      comment
+      (map toAlias (Map.toList aliases))
+      (map toUnion (Map.toList unions))
+      (map toValue (Map.toList values))
+      (Version $ (Pkg.versionToString Version.version))
+
 
 
 -- PRETTY JSON
+
 
 prettyJson :: (Json.ToJSON a) => a -> BS.ByteString
 prettyJson value =
@@ -99,12 +109,14 @@ config =
         ]
 
 
+
 -- JSON for DOCUMENTATION
+
 
 instance Json.ToJSON Documentation where
     toJSON (Documentation name comment aliases types values version) =
         Json.object
-        [ "name" .= name
+        [ "name" .= Module.RawForJson name
         , "comment" .= comment
         , "aliases" .= aliases
         , "types" .= types
@@ -116,7 +128,7 @@ instance Json.ToJSON Documentation where
 instance Json.FromJSON Documentation where
     parseJSON (Json.Object obj) =
         Documentation
-            <$> obj .: "name"
+            <$> fmap Module.fromJson (obj .: "name")
             <*> obj .: "comment"
             <*> obj .: "aliases"
             <*> obj .: "types"
@@ -127,7 +139,10 @@ instance Json.FromJSON Documentation where
         fail $ "Cannot decode Documentation from: " ++ BS.unpack (Json.encode value)
 
 
+
+
 -- JSON for VERSION
+
 
 instance Json.ToJSON Version where
     toJSON version =
@@ -149,7 +164,9 @@ instance Json.FromJSON Version where
         fail $ "Cannot decode version of documentation from: " ++ BS.unpack (Json.encode value)
 
 
+
 -- JSON for ALIAS
+
 
 instance Json.ToJSON Alias where
     toJSON (Alias name comment args tipe) =
@@ -172,7 +189,9 @@ instance Json.FromJSON Alias where
         fail $ "Cannot decode Alias from: " ++ BS.unpack (Json.encode value)
 
 
+
 -- JSON for UNION
+
 
 instance Json.ToJSON Union where
     toJSON (Union name comment args cases) =
@@ -195,7 +214,9 @@ instance Json.FromJSON Union where
         fail $ "Cannot decode Union from: " ++ BS.unpack (Json.encode value)
 
 
+
 -- JSON for VALUE
+
 
 instance Json.ToJSON Value where
     toJSON (Value name comment tipe assocPrec) =

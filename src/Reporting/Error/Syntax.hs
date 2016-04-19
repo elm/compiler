@@ -15,10 +15,19 @@ data Error
     = Parse [Parsec.Message]
     | BadFunctionName Int
     | BadPattern String
+
+    | CommentOnNothing
+
+    | SettingsOnNormalModule
+    | SettingsOnPortModule
+    | DuplicateSettingOnEffectModule String
+    | BadSettingOnEffectModule String
+    | NoSettingsOnEffectModule
+    | MissingManagerOnEffectModule String
+    | UnexpectedPort String
+
     | InfixDuplicate String
     | TypeWithoutDefinition String
-    | PortWithoutAnnotation String
-    | UnexpectedPort
     | DuplicateFieldName String
     | DuplicateValueDeclaration String
     | DuplicateTypeDeclaration String
@@ -64,6 +73,94 @@ toReport _localizer err =
               ]
           )
 
+    CommentOnNothing ->
+        Report.report
+          "STRAY COMMENT"
+          Nothing
+          ("This documentation comment is not followed by anything.")
+          ( Help.reflowParagraph $
+              "All documentation comments need to be right above the declaration they\
+              \ describe. Maybe some code got deleted or commented out by accident? Or\
+              \ maybe this comment is here by accident?"
+          )
+
+    SettingsOnNormalModule ->
+        Report.report
+          "BAD MODULE DECLARATION"
+          Nothing
+          "A normal module can expose values, but not settings like this."
+          ( Help.reflowParagraph $
+              "If you want a normal module, just remove this stuff. If you want to create\
+              \ an `effect module` you just forgot to use the `effect` keyword. In that\
+              \ case, just change `module` to `effect module` and you should be headed in\
+              \ the right direction!"
+          )
+
+    SettingsOnPortModule ->
+        Report.report
+          "BAD MODULE DECLARATION"
+          Nothing
+          "A port module can expose values, but not have settings like this."
+          ( Help.reflowParagraph $
+              "If you want a port module, just remove this stuff. If you want to create\
+              \ a custom effect module instead (which is rare) just change `port module`\
+              \ to `effect module` and you should be headed in the right direction!"
+          )
+
+    DuplicateSettingOnEffectModule name ->
+        Report.report
+          "EFFECT MODULE PROBLEM"
+          Nothing
+          ("You have defined " ++ Help.functionName name ++ " multiple times.")
+          ( Help.reflowParagraph $
+              "There can only be one " ++ Help.functionName name
+              ++ " though! Remove until there is one left."
+          )
+
+    BadSettingOnEffectModule name ->
+        Report.report
+          "EFFECT MODULE PROBLEM"
+          Nothing
+          ("Setting " ++ Help.functionName name ++ " is not recognized.")
+          ( Help.reflowParagraph $
+              "Remove this entry and you should be all set!"
+          )
+
+    NoSettingsOnEffectModule ->
+        Report.report
+          "EFFECT MODULE PROBLEM"
+          Nothing
+          ("You are defining an effect module, but it has no settings.")
+          ( Help.reflowParagraph $
+              "If you just wanted a normal module, change the keywords `effect module`\
+              \ to `module` and you should be all set. If you want a proper effect module,\
+              \ you need to specify your commands and/or subscriptions. Read more about this\
+              \ here: <TODO> (please forgive me if I forgot to fill this in!)"
+          )
+
+    MissingManagerOnEffectModule name ->
+        Report.report
+          "EFFECT MODULE PROBLEM"
+          Nothing
+          ("You are defining an effect module, but there is no " ++ Help.functionName name ++ " defined.")
+          ( Help.reflowParagraph $
+              "There is a small set of top-level functions and values that must be defined\
+              \ in any complete effect module. The best thing is probably to just read more\
+              \ about effect modules here:\
+              \ <TODO> (please forgive me if I forgot to fill this in!)"
+          )
+
+    UnexpectedPort name ->
+        Report.report
+          "BAD PORT"
+          Nothing
+          ("You are declaring port " ++ Help.functionName name ++ " in a normal module.")
+          ( Help.reflowParagraph $
+              "All ports must be defined in a `port module`. You should probably have just\
+              \ one of these for your project. This way all of your foreign interactions\
+              \ stay relatively organized."
+          )
+
     InfixDuplicate opName ->
         Report.report
           "INFIX OVERLAP"
@@ -85,28 +182,6 @@ toReport _localizer err =
           ( text $
               "Directly below the type annotation, put a definition like:\n\n"
               ++ "    " ++ valueName ++ " = 42"
-          )
-
-    PortWithoutAnnotation portName ->
-        Report.report
-          "PORT ERROR"
-          Nothing
-          ("Port `" ++ portName ++ "` does not have a type annotation!")
-          ( text $
-              "Directly above the port definition, I need something like this:\n\n"
-              ++ "    port " ++ portName ++ " : Signal Int"
-          )
-
-
-    UnexpectedPort ->
-        Report.report
-          "PORT ERROR"
-          Nothing
-          "This module has ports, but ports can only appear in the main module."
-          ( Help.reflowParagraph $
-              "Ports in library code would create hidden dependencies where importing a\
-              \ module could bring in constraints not captured in the public API. Furthermore,\
-              \ if the module is imported twice, do we send values out the port twice?"
           )
 
     DuplicateFieldName name ->
@@ -191,7 +266,7 @@ toReport _localizer err =
 
 
 unboundTypeVars :: String -> String -> [String] -> [String] -> Report.Report
-unboundTypeVars declKind typeName givenVars unboundVars@(tvar:_) =
+unboundTypeVars declKind typeName givenVars unboundVars =
   Report.report
     "UNBOUND TYPE VARIABLES"
     Nothing
@@ -205,9 +280,9 @@ unboundTypeVars declKind typeName givenVars unboundVars@(tvar:_) =
             ++ map (dullyellow . text) unboundVars
             ++ map text ["=", "..."]
         , Help.reflowParagraph $
-            "Here's why. Imagine one `" ++ typeName ++ "` where `" ++ tvar ++ "` is an Int and\
-            \ another where it is a Bool. When we explicitly list the type variables, type\
-            \ checker can see that they are actually different types."
+            "Here's why. Imagine one `" ++ typeName ++ "` where `" ++ head unboundVars ++
+            "` is an Int and another where it is a Bool. When we explicitly list the type\
+            \ variables, type checker can see that they are actually different types."
         ]
     )
 

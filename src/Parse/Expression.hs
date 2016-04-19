@@ -1,4 +1,4 @@
-module Parse.Expression (term, typeAnnotation, definition, expr) where
+module Parse.Expression (term, annotation, definition, expr, def) where
 
 import qualified Data.List as List
 import Text.Parsec hiding (newline, spaces)
@@ -15,11 +15,14 @@ import qualified AST.Expression.General as E
 import qualified AST.Expression.Source as Source
 import qualified AST.Literal as L
 import qualified AST.Pattern as P
+import qualified AST.Type as T
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 
 
+
 --------  Basic Terms  --------
+
 
 varTerm :: IParser Source.Expr'
 varTerm =
@@ -70,7 +73,9 @@ negative =
           nTerm
 
 
+
 --------  Complex Terms  --------
+
 
 listTerm :: IParser Source.Expr'
 listTerm =
@@ -122,7 +127,6 @@ parensTerm =
         return (mkExpr start end)
 
 
-
 recordTerm :: IParser Source.Expr
 recordTerm =
   addLocation $ brackets $ choice $
@@ -168,7 +172,9 @@ term =
     <?> "an expression"
 
 
+
 --------  Applications  --------
+
 
 appExpr :: IParser Source.Expr
 appExpr =
@@ -182,7 +188,9 @@ appExpr =
             _  -> List.foldl' (\f x -> A.merge f x $ E.App f x) t ts
 
 
+
 --------  Normal Expressions  --------
+
 
 expr :: IParser Source.Expr
 expr =
@@ -256,51 +264,65 @@ caseExpr =
           (,) p <$> expr
 
 
+
 -- LET
+
 
 letExpr :: IParser Source.Expr'
 letExpr =
   do  try (reserved "let")
       whitespace
       defs <-
-        Indent.block $
-          do  def <- typeAnnotation <|> definition
-              whitespace
-              return def
-      padded (reserved "in")
+        Indent.block (def <* whitespace)
+      whitespace
+      reserved "in"
+      whitespace
       E.Let defs <$> expr
+
+
+def :: IParser Source.Def
+def =
+  choice
+    [ annotation Source.Annotation
+    , definition Source.Definition
+    ]
+
 
 
 -- TYPE ANNOTATION
 
-typeAnnotation :: IParser Source.Def
-typeAnnotation =
-    addLocation (Source.TypeAnnotation <$> try start <*> Type.expr)
-  where
+
+annotation :: (String -> T.Raw -> a) -> IParser (A.Located a)
+annotation creator =
+  let
     start =
       do  v <- lowVar <|> parens symOp
           padded hasType
           return v
+  in
+    addLocation (creator <$> try start <*> Type.expr)
+
 
 
 -- DEFINITION
 
-definition :: IParser Source.Def
-definition =
+
+definition :: (P.Raw -> Source.Expr -> a) -> IParser (A.Located a)
+definition creator =
   addLocation $
   Indent.withPos $
     do  (name, args) <- defStart
         padded equals
         body <- expr
-        return . Source.Definition name $ makeFunction args body
+        return . creator name $ makeFunction args body
 
 
-makeFunction :: [P.RawPattern] -> Source.Expr -> Source.Expr
+makeFunction :: [P.Raw] -> Source.Expr -> Source.Expr
 makeFunction args body@(A.A ann _) =
-    foldr (\arg body' -> A.A ann $ E.Lambda arg body') body args
+  foldr (\arg body' -> A.A ann $ E.Lambda arg body') body args
 
 
-defStart :: IParser (P.RawPattern, [P.RawPattern])
+defStart :: IParser (P.Raw, [P.Raw])
 defStart =
   expecting "the definition of a value (x = ...)" $
     do  starter <- try Pattern.term <|> addLocation (P.Var <$> parens symOp)

@@ -23,6 +23,7 @@ import qualified Reporting.Report as Report
 data Error
     = Mismatch Mismatch
     | BadMain Type.Canonical
+    | BadFlags Type.Canonical (Maybe String)
     | InfiniteType String Type.Canonical
 
 
@@ -72,6 +73,10 @@ data Hint
     | Range
     | Lambda
     | Record
+    -- effect manager problems
+    | Manager String
+    | State String
+    | SelfMsg
 
 
 data Pattern
@@ -98,15 +103,34 @@ toReport localizer err =
         Report.report
           "BAD MAIN TYPE"
           Nothing
-          "The 'main' value has an unsupported type."
+          "The `main` value has an unsupported type."
           ( Help.stack
               [ Help.reflowParagraph $
-                "I need an Element, Html, (Signal Element), or (Signal Html) so I can render it\
-                \ on screen, but you gave me:"
+                "I need Html, Svg, or a Program so I have something to render on\
+                \ screen, but you gave me:"
               , indent 4 (RenderType.toDoc localizer tipe)
               ]
           )
 
+    BadFlags tipe maybeMessage ->
+      let
+        context =
+          maybe "" (" the following " ++ ) maybeMessage
+      in
+        Report.report
+          "BAD FLAGS"
+          Nothing
+          ("Your `main` is demanding an unsupported type as a flag."
+          )
+          ( Help.stack
+              [ text ("The specific unsupported type is" ++ context ++ ":")
+              , indent 4 (RenderType.toDoc localizer tipe)
+              , text "The types of values that can flow through in and out of Elm include:"
+              , indent 4 $ Help.reflowParagraph $
+                  "Ints, Floats, Bools, Strings, Maybes, Lists, Arrays,\
+                  \ Tuples, Json.Values, and concrete records."
+              ]
+          )
 
 
 -- TYPE MISMATCHES
@@ -281,7 +305,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
           ( cmpHint
               (Help.capitalize (funcName maybeName) ++ " is expecting the argument to be:")
               "But it is:"
-              []
+              (functionHint maybeName)
           )
 
     UnexpectedArg maybeName index _totalArgs region ->
@@ -295,7 +319,9 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
                 ++ Help.ordinalize index ++ " argument to be:"
               )
               "But it is:"
-              ( if index == 1 then
+              ( functionHint maybeName
+                ++
+                if index == 1 then
                   []
                 else
                   [ "I always figure out the type of arguments from left to right. If an argument\
@@ -425,6 +451,45 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
               []
           )
 
+    Manager name ->
+        report
+          Nothing
+          ("The `" ++ name ++ "` in your effect manager has a weird type.")
+          ( cmpHint
+              ("Your `" ++ name ++ "` function has this type:")
+              "But it needs to have a type like this:"
+              [ "TODO - link to overview of effect managers"
+              ]
+          )
+
+    State name ->
+        report
+          Nothing
+          ( "Your effect manager creates a certain type of state with `init`, but your `"
+            ++ name ++ "` function expects a different kind of state."
+          )
+          ( cmpHint
+              "The state created by `init` has this type:"
+              ("But `" ++ name ++ "` expects state of this type:")
+              [ "Make the two state types match and you should be all set!"
+              , "TODO - link to overview of effect managers"
+              ]
+          )
+
+    SelfMsg ->
+        report
+          Nothing
+          "Effect managers can send messages to themselves, but `onEffects` and `onSelfMsg` are defined for different types of self messages."
+          ( cmpHint
+              "The `onEffects` function can send this type of message:"
+              "But the `onSelfMsg` function receives this type:"
+              [ "Make the two message types match and you should be all set!"
+              , "TODO - link to overview of effect managers"
+              ]
+          )
+
+
+
 
 comparisonHint
     :: RenderType.Localizer
@@ -452,6 +517,7 @@ comparisonHint localizer leftType rightType leftWords rightWords finalHints =
 
 -- BINOP HINTS
 
+
 binopHint :: Var.Canonical -> Type.Canonical -> Type.Canonical -> [String]
 binopHint op leftType rightType =
   let
@@ -473,6 +539,25 @@ binopHint op leftType rightType =
         ]
 
     else
+        []
+
+
+
+-- FUNCTION HINTS
+
+
+functionHint :: Maybe Var.Canonical -> [String]
+functionHint maybeName =
+  case maybeName of
+    Nothing ->
+      []
+
+    Just name ->
+      if Var.inHtml ["Html","App"] "program" == name then
+        [ "Does your program have flags? Maybe you want `programWithFlags` instead."
+        ]
+
+      else
         []
 
 

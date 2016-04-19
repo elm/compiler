@@ -309,22 +309,22 @@ termToSrcType :: Term1 Variable -> StateT NameState IO T.Canonical
 termToSrcType term =
   case term of
     App1 func arg ->
-        do  srcFunc <- variableToSrcType func
-            srcArg <- variableToSrcType arg
-            case srcFunc of
-              T.App f args ->
-                  return (T.App f (args ++ [srcArg]))
+      do  srcFunc <- variableToSrcType func
+          srcArg <- variableToSrcType arg
+          case srcFunc of
+            T.App f args ->
+              return (T.App f (args ++ [srcArg]))
 
-              _ ->
-                  return (T.App srcFunc [srcArg])
+            _ ->
+              return (T.App srcFunc [srcArg])
 
     Fun1 a b ->
-        T.Lambda
-            <$> variableToSrcType a
-            <*> variableToSrcType b
+      T.Lambda
+        <$> variableToSrcType a
+        <*> variableToSrcType b
 
     EmptyRecord1 ->
-        return $ T.Record [] Nothing
+      return $ T.Record [] Nothing
 
     Record1 fields extension ->
       do  srcFields <- Map.toList <$> Traverse.traverse variableToSrcType fields
@@ -455,4 +455,3 @@ getVarNamesTerm term =
     Record1 fields extension ->
         do  fieldVars <- Set.unions <$> mapM go (Map.elems fields)
             Set.union fieldVars <$> go extension
-

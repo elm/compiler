@@ -22,22 +22,24 @@ import qualified Reporting.Region as Region
 import qualified Reporting.Result as Result
 
 
-patternMatches
-    :: Module.Interfaces
-    -> Module.CanonicalModule
-    -> Result.Result w Error.Error DT.VariantDict
-patternMatches interfaces modul =
+
+type Result warning a =
+  Result.Result () warning Error.Error a
+
+
+patternMatches :: Module.Interfaces -> Module.Canonical -> Result wrn DT.VariantDict
+patternMatches interfaces (Module.Module name _ info) =
   let
-    name = Module.name modul
-    body = Module.body modul
     tagDict =
-      toTagDict interfaces name (Module.datatypes body)
+      toTagDict interfaces name (Module.unions info)
   in
     const (Map.map (Map.map length) tagDict)
-      <$> checkExpression tagDict (Module.program body)
+      <$> checkExpression tagDict (Module.program info)
+
 
 
 -- TAG DICT
+
 
 type TagDict =
   Map.Map Var.Home (Map.Map Tag [TagInfo])
@@ -52,8 +54,8 @@ data TagInfo = TagInfo
     }
 
 
-toTagDict :: Module.Interfaces -> ModuleName.Canonical -> Module.ADTs -> TagDict
-toTagDict interfaces localName localAdts =
+toTagDict :: Module.Interfaces -> ModuleName.Canonical -> Module.Unions -> TagDict
+toTagDict interfaces localName localUnions =
   let
     listTags =
         [ TagInfo "::" 2
@@ -76,14 +78,14 @@ toTagDict interfaces localName localAdts =
 
     interfaceDict =
         interfaces
-          |> Map.map (toTagMapping . Module.iAdts)
+          |> Map.map (toTagMapping . Module.iUnions)
           |> Map.mapKeysMonotonic Var.Module
-          |> Map.insert (Var.Module localName) (toTagMapping localAdts)
+          |> Map.insert (Var.Module localName) (toTagMapping localUnions)
   in
     Map.union builtinDict interfaceDict
 
 
-toTagMapping :: Module.ADTs -> Map.Map Tag [TagInfo]
+toTagMapping :: Module.Unions -> Map.Map Tag [TagInfo]
 toTagMapping adts =
   let
     toTagAndArity (_tvars, tagInfoList) =
@@ -113,12 +115,11 @@ lookupOtherTags (Var.Canonical home name) tagDict =
           \found."
 
 
+
 -- CHECK EXPRESSIONS
 
-checkExpression
-    :: TagDict
-    -> Canonical.Expr
-    -> Result.Result w Error.Error ()
+
+checkExpression :: TagDict -> Canonical.Expr -> Result wrn ()
 checkExpression tagDict (A.A region expression) =
   let
     go =
@@ -158,7 +159,7 @@ checkExpression tagDict (A.A region expression) =
         go body
           <* F.traverse_ goDef defs
       where
-        goDef (Canonical.Definition _ pattern@(A.A patRegion _) expr _) =
+        goDef (Canonical.Def _ pattern@(A.A patRegion _) expr _) =
             checkPatterns tagDict patRegion Error.LetBound [pattern]
             <* go expr
 
@@ -180,29 +181,33 @@ checkExpression tagDict (A.A region expression) =
     E.Record fields ->
         F.traverse_ (go . snd) fields
 
-    E.Port impl ->
-        case impl of
-          E.In _ _ ->
-              Result.ok ()
+    E.Cmd _ ->
+        Result.ok ()
 
-          E.Out _ expr _ ->
-              go expr
+    E.Sub _ ->
+        Result.ok ()
 
-          E.Task _ expr _ ->
-              go expr
+    E.OutgoingPort _ _ ->
+        Result.ok ()
+
+    E.IncomingPort _ _ ->
+        Result.ok ()
+
+    E.Program _ _ ->
+        error "DANGER - Program AST nodes should not be in Nitpick.PatternMatches."
+
+    E.SaveEnv _ _ ->
+        Result.ok ()
 
     E.GLShader _ _ _ ->
         Result.ok ()
 
 
+
 -- CHECK PATTERNS
 
-checkPatterns
-    :: TagDict
-    -> Region.Region
-    -> Error.Origin
-    -> [Pattern.CanonicalPattern]
-    -> Result.Result w Error.Error ()
+
+checkPatterns :: TagDict -> Region.Region -> Error.Origin -> [Pattern.Canonical] -> Result wrn ()
 checkPatterns tagDict region origin patterns =
   checkPatternsHelp tagDict region origin [Anything] patterns
 
@@ -212,8 +217,8 @@ checkPatternsHelp
     -> Region.Region
     -> Error.Origin
     -> [Pattern]
-    -> [Pattern.CanonicalPattern]
-    -> Result.Result w Error.Error ()
+    -> [Pattern.Canonical]
+    -> Result wrn ()
 checkPatternsHelp tagDict region origin unhandled patterns =
   case (unhandled, patterns) of
     ([], []) ->
@@ -230,9 +235,9 @@ checkPatternsHelp tagDict region origin unhandled patterns =
 filterPatterns
     :: TagDict
     -> Region.Region
-    -> Pattern.CanonicalPattern
+    -> Pattern.Canonical
     -> [Pattern]
-    -> Result.Result w Error.Error [Pattern]
+    -> Result wrn [Pattern]
 filterPatterns tagDict region pattern unhandled =
   let
     nitPattern =
@@ -252,7 +257,9 @@ filterPatterns tagDict region pattern unhandled =
               unhandled
 
 
+
 -- PATTERN INTERSECTION
+
 
 intersection :: Pattern -> Pattern -> Maybe Pattern
 intersection pattern1 pattern2 =
@@ -309,7 +316,9 @@ intersection pattern1 pattern2 =
         Nothing
 
 
+
 -- PATTERN COMPLEMENT
+
 
 complement :: TagDict -> Pattern -> [Pattern]
 complement tagDict nitPattern =

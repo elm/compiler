@@ -31,7 +31,7 @@ data Environment = Environment
     }
 
 
-initialize :: [Module.CanonicalAdt] -> IO Environment
+initialize :: [Module.CanonicalUnion] -> IO Environment
 initialize datatypes =
   do  types <- makeTypes datatypes
       let env =
@@ -43,13 +43,13 @@ initialize datatypes =
       return $ env { _constructor = makeConstructors env datatypes }
 
 
-makeTypes :: [Module.CanonicalAdt] -> IO TypeDict
+makeTypes :: [Module.CanonicalUnion] -> IO TypeDict
 makeTypes datatypes =
-  do  adts <- mapM makeImported datatypes
-      bs   <- mapM makeBuiltin builtins
-      return (Map.fromList (adts ++ bs))
+  do  unions <- mapM makeImported datatypes
+      bs <- mapM makeBuiltin builtins
+      return (Map.fromList (unions ++ bs))
   where
-    makeImported :: (V.Canonical, Module.AdtInfo V.Canonical) -> IO (String, Type)
+    makeImported :: (V.Canonical, Module.UnionInfo V.Canonical) -> IO (String, Type)
     makeImported (name, _) =
       do  tvar <- mkAtom name
           return (V.toString name, VarN tvar)
@@ -73,7 +73,7 @@ makeTypes datatypes =
 
 makeConstructors
     :: Environment
-    -> [Module.CanonicalAdt]
+    -> [Module.CanonicalUnion]
     -> Map.Map String (IO (Int, [Variable], [Type], Type))
 makeConstructors env datatypes =
     Map.fromList builtins
@@ -101,7 +101,7 @@ makeConstructors env datatypes =
 
 ctorToType
     :: Environment
-    -> (V.Canonical, Module.AdtInfo V.Canonical)
+    -> (V.Canonical, Module.UnionInfo V.Canonical)
     -> [(String, IO (Int, [Variable], [Type], Type))]
 ctorToType env (name, (tvars, ctors)) =
     zip (map (V.toString . fst) ctors) (map inst ctors)
@@ -176,8 +176,10 @@ instantiator env sourceType =
 
 instantiatorHelp :: Environment -> Set.Set String -> T.Canonical -> State.StateT VarDict IO Type
 instantiatorHelp env aliasVars sourceType =
-    let go = instantiatorHelp env aliasVars
-    in
+  let
+    go =
+      instantiatorHelp env aliasVars
+  in
     case sourceType of
       T.Lambda t1 t2 ->
           (==>) <$> go t1 <*> go t2

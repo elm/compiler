@@ -1,18 +1,16 @@
+{-# OPTIONS_GHC -Wall #-}
 module Canonicalize (module') where
 
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
-import qualified Data.Traversable as T
 import qualified Data.Foldable as T
 
-import AST.Expression.General (Expr'(..), dummyLet)
-import AST.Module (Body(..))
+import AST.Expression.General (Expr'(..))
 import Elm.Utils ((|>))
 
 import qualified AST.Declaration as D
-import qualified AST.Expression.General as E
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Module as Module
@@ -20,144 +18,132 @@ import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
-import qualified Docs.AST as Docs
+import qualified Canonicalize.Body as Body
+import qualified Canonicalize.Effects as Effects
+import qualified Canonicalize.Environment as Env
+import qualified Canonicalize.Setup as Setup
+import qualified Canonicalize.Type as Canon
+import qualified Canonicalize.Variable as Canon
 import qualified Docs.Centralize as Docs
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error as Error
 import qualified Reporting.Error.Canonicalize as CError
 import qualified Reporting.Error.Helpers as ErrorHelp
 import qualified Reporting.Region as Region
-import qualified Reporting.Result as R
+import qualified Reporting.Render.Type as RenderType
+import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
-import qualified Canonicalize.Declaration as Decls
-import qualified Canonicalize.Environment as Env
-import qualified Canonicalize.Port as Port
-import qualified Canonicalize.Result as Result
-import qualified Canonicalize.Setup as Setup
-import qualified Canonicalize.Sort as Sort
-import qualified Canonicalize.Type as Canonicalize
-import qualified Canonicalize.Variable as Canonicalize
+
+
+
+type Result a =
+  Result.Result (Result.One RenderType.Localizer) Warning.Warning Error.Error a
 
 
 -- MODULES
 
+
 module'
     :: [ModuleName.Canonical]
     -> Module.Interfaces
-    -> Module.ValidModule
-    -> R.Result Warning.Warning Error.Error Module.CanonicalModule
-module' canonicalImports interfaces modul =
+    -> Module.Valid
+    -> Result Module.Canonical
+module' allCanonicalImports interfaces modul =
   let
+    (Module.Valid docs exports imports decls effects) =
+      Module.info modul
+
     importDict =
-      canonicalImports
+      allCanonicalImports
         |> map (\cName -> (ModuleName._module cName, cName))
         |> Map.fromList
 
-    (Result.Result uses rawResults) =
-      moduleHelp importDict interfaces modul
+    (Result.Result uses warnings rawResults) =
+      do  env <- Setup.environment importDict interfaces modul
+
+          (,,,) env
+            <$> resolveExports (Effects.toValues effects ++ declsToValues decls) exports
+            <*> canonicalizeDecls env decls
+            <*> Effects.canonicalize env effects
   in
-      case rawResults of
-        Result.Ok (env, almostCanonicalModule) ->
-            R.addDealiaser (Env.toDealiaser env) $
-              filterImports uses almostCanonicalModule
+    case rawResults of
+      Result.Err errors ->
+        Result.mapError Error.Canonicalize $
+          Result.Result Result.None warnings (Result.Err errors)
 
-        Result.Err msgs ->
-            R.throwMany (map (A.map Error.Canonicalize) msgs)
+      Result.Ok (env, canonicalExports, canonicalDecls, canonicalEffects) ->
+        let
+          (D.Decls _ unions aliases infixes) =
+            canonicalDecls
 
+          centralizedDocs =
+            A.map (fmap (Docs.centralize canonicalDecls)) docs
 
-type AlmostCanonicalModule =
-    Module.Module
-      Docs.Centralized
-      ([Module.DefaultImport], [Module.UserImport])
-      [Var.Value]
-      (Module.Body Canonical.Expr)
+          typeToPair (A.A _ (D.Type name args body)) =
+            ( name, (args, body) )
 
-
-moduleHelp
-    :: Map.Map ModuleName.Raw ModuleName.Canonical
-    -> Module.Interfaces
-    -> Module.ValidModule
-    -> Result.ResultErr (Env.Environment, AlmostCanonicalModule)
-moduleHelp importDict interfaces modul@(Module.Module _ _ comment exports _ decls) =
-    canonicalModule
-      <$> canonicalDeclsResult
-      <*> resolveExports locals exports
-  where
-    canonicalModule (env, canonicalDecls) canonicalExports =
-        (,) env $
-        modul
-          { Module.docs = A.map (fmap (Docs.centralize canonicalDecls)) comment
-          , Module.exports = canonicalExports
-          , Module.body = body canonicalDecls
-          }
-
-    locals :: [Var.Value]
-    locals =
-        concatMap declToValue decls
-
-    canonicalDeclsResult =
-        Setup.environment importDict interfaces modul
-          `Result.andThen` \env -> (,) env <$> T.traverse (declaration env) decls
-
-    body :: [D.CanonicalDecl] -> Module.Body Canonical.Expr
-    body decls =
-        let nakedDecls = map A.drop decls
+          program =
+            Body.flatten (Module.name modul) canonicalDecls canonicalEffects
         in
-        Module.Body
-          { program =
-              let expr = Decls.toExpr (Module.name modul) decls
-              in
-                  Sort.definitions (dummyLet expr)
+          do  canonicalImports <- filterImports uses imports
+              Result.accumulate (Result.One (Env.toDealiaser env)) $
+                modul {
+                  Module.info =
+                    Module.Info
+                      { Module.docs = centralizedDocs
+                      , Module.exports = canonicalExports
+                      , Module.imports = canonicalImports
+                      , Module.program = program
+                      , Module.types = Map.empty
+                      , Module.fixities = infixes
+                      , Module.aliases = Map.fromList (map typeToPair aliases)
+                      , Module.unions = Map.fromList (map typeToPair unions)
+                      , Module.effects = canonicalEffects
+                      }
+                }
 
-          , types =
-              Map.empty
-
-          , datatypes =
-              Map.fromList [ (name,(vars,ctors)) | D.Datatype name vars ctors <- nakedDecls ]
-
-          , fixities =
-              [ (assoc,level,op) | D.Fixity assoc level op <- nakedDecls ]
-
-          , aliases =
-              Map.fromList [ (name,(tvs,alias)) | D.TypeAlias name tvs alias <- nakedDecls ]
-
-          , ports =
-              [ E.portName impl | D.Port (D.CanonicalPort impl) <- nakedDecls ]
-          }
 
 
 -- IMPORTS
 
+
 filterImports
     :: Set.Set ModuleName.Raw
-    -> AlmostCanonicalModule
-    -> R.Result Warning.Warning e Module.CanonicalModule
-filterImports uses modul@(Module.Module _ _ _ _ (defaults, imports) _) =
-  do  reducedImports <-
-          Maybe.catMaybes <$> T.traverse checkImport imports
-
-      return $ modul
-        { Module.imports =
-              Set.toList (Set.fromList (map fst defaults ++ reducedImports))
-        }
-  where
+    -> ([Module.DefaultImport], [Module.UserImport])
+    -> Result [ModuleName.Raw]
+filterImports uses (defaults, imports) =
+  let
     checkImport (A.A region (name, _method)) =
       if Set.member name uses then
-          return (Just name)
+        return (Just name)
+
       else
-          do  R.warn region (Warning.UnusedImport name)
-              return Nothing
+        Result.warn region (Warning.UnusedImport name) Nothing
+  in
+    do  reducedImports <-
+          Maybe.catMaybes <$> traverse checkImport imports
+
+        return $
+          Set.toList (Set.fromList (map fst defaults ++ reducedImports))
+
+
+
+--------  CANONICALIZATION  --------
+
+
+type CResult a =
+  Canon.Result a
+
 
 
 -- EXPORTS
 
-resolveExports
-    :: [Var.Value]
-    -> Var.Listing (A.Located Var.Value)
-    -> Result.ResultErr [Var.Value]
+
+resolveExports :: [Var.Value] -> Var.Listing (A.Located Var.Value) -> CResult [Var.Value]
 resolveExports fullList (Var.Listing partialList open) =
   if open then
     Result.ok fullList
+
   else
     let
       (allValues, allAliases, allAdts) =
@@ -170,17 +156,13 @@ resolveExports fullList (Var.Listing partialList open) =
           map fst allAdts
     in
       (\xs ys zs _ -> xs ++ ys ++ zs)
-        <$> T.traverse (getValueExport allValues (Set.fromList allValues)) values
-        <*> (concat <$> T.traverse (getAliasExport allValues allAliases adtTypes) aliases)
-        <*> T.traverse (getAdtExport allAdts adtTypes) adts
+        <$> traverse (getValueExport allValues (Set.fromList allValues)) values
+        <*> (concat <$> traverse (getAliasExport allValues allAliases adtTypes) aliases)
+        <*> traverse (getAdtExport allAdts adtTypes) adts
         <*> allUnique partialList
 
 
-getValueExport
-    :: [String]
-    -> Set.Set String
-    -> A.Located String
-    -> Result.ResultErr Var.Value
+getValueExport :: [String] -> Set.Set String -> A.Located String -> CResult Var.Value
 getValueExport allValues allValuesSet (A.A region name) =
   if Set.member name allValuesSet then
     Result.ok (Var.Value name)
@@ -188,12 +170,7 @@ getValueExport allValues allValuesSet (A.A region name) =
     manyNotFound region [name] allValues
 
 
-getAliasExport
-    :: [String]
-    -> [String]
-    -> [String]
-    -> A.Located String
-    -> Result.ResultErr [Var.Value]
+getAliasExport :: [String] -> [String] -> [String] -> A.Located String -> CResult [Var.Value]
 getAliasExport allValues allAliases adtTypes (A.A region alias) =
   if alias `elem` allAliases then
 
@@ -213,7 +190,7 @@ getAdtExport
     :: [(String, Var.Listing String)]
     -> [String]
     -> A.Located (String, Var.Listing String)
-    -> Result.ResultErr Var.Value
+    -> CResult Var.Value
 getAdtExport allAdts adtTypes (A.A region (name, Var.Listing ctors open)) =
   case List.lookup name allAdts of
     Nothing ->
@@ -230,9 +207,9 @@ getAdtExport allAdts adtTypes (A.A region (name, Var.Listing ctors open)) =
                 manyNotFound region unfoundCtors allCtors
 
 
-manyNotFound :: Region.Region -> [String] -> [String] -> Result.ResultErr a
+manyNotFound :: Region.Region -> [String] -> [String] -> CResult a
 manyNotFound region nameList possibilities =
-    Result.errors (map (notFound region possibilities) nameList)
+    Result.throwMany (map (notFound region possibilities) nameList)
 
 
 notFound :: Region.Region -> [String] -> String -> A.Located CError.Error
@@ -241,7 +218,7 @@ notFound region possibilities name =
         ErrorHelp.nearbyNames id name possibilities
 
 
-allUnique :: [A.Located Var.Value] -> Result.ResultErr ()
+allUnique :: [A.Located Var.Value] -> CResult ()
 allUnique statedExports =
   let
     valueToString value =
@@ -256,15 +233,45 @@ allUnique statedExports =
     isUnique value allRegions =
         case allRegions of
           region : _ : _ ->
-              Result.err (A.A region (CError.DuplicateExport (valueToString value)))
+              Result.throw region (CError.DuplicateExport (valueToString value))
 
           _ ->
               Result.ok ()
   in
-    T.traverse_ id (Map.mapWithKey isUnique locations)
+    T.sequenceA_ (Map.mapWithKey isUnique locations)
+
+
+
+-- CONVERSIONS
+
+
+declsToValues :: D.Valid -> [Var.Value]
+declsToValues (D.Decls defs unions aliases _) =
+  let
+    fromDef (A.A _ def) =
+      map Var.Value (P.boundVarList (Valid.getPattern def))
+
+    fromUnion (A.A _ (D.Type name _ ctors)) =
+      Var.Union name (Var.Listing (map fst ctors) False)
+
+    fromAlias (A.A _ (D.Type name _ tipe)) =
+      case tipe of
+        A.A _ (Type.RRecord _ Nothing) ->
+          [ Var.Alias name, Var.Value name ]
+
+        _ ->
+          [ Var.Alias name ]
+  in
+    concat
+      [ map fromUnion unions
+      , concatMap fromAlias aliases
+      , concatMap fromDef defs
+      ]
+
 
 
 -- GROUPING VALUES
+
 
 maybeUnzip3 :: [(Maybe a, Maybe b, Maybe c)] -> ([a],[b],[c])
 maybeUnzip3 tuples =
@@ -307,90 +314,52 @@ splitLocatedValue (A.A region value) =
         (Nothing, Nothing, Just (A.A region (name, listing)))
 
 
+
 -- DECLARATIONS
 
-declToValue :: D.ValidDecl -> [Var.Value]
-declToValue (A.A _ decl) =
-    case decl of
-      D.Definition (Valid.Definition pattern _ _) ->
-          map Var.Value (P.boundVarList pattern)
 
-      D.Datatype name _tvs ctors ->
-          [ Var.Union name (Var.Listing (map fst ctors) False) ]
+canonicalizeDecls :: Env.Environment -> D.Valid -> CResult D.Canonical
+canonicalizeDecls env (D.Decls defs unions aliases infixes) =
+  let
+    annTraverse canEntry entries =
+      traverse (\(A.A ann entry) -> A.A ann <$> canEntry entry) entries
 
-      D.TypeAlias name _ tipe ->
-          case tipe of
-            A.A _ (Type.RRecord _ Nothing) ->
-                [ Var.Alias name, Var.Value name ]
+    canonicalizeDef (Valid.Def pat expr typ) =
+      Canonical.Def Canonical.dummyFacts
+        <$> canonicalizePattern env pat
+        <*> canonicalizeExpr env expr
+        <*> traverse (canonicalizeRegionType env) typ
 
-            _ ->
-                [ Var.Alias name ]
+    canonicalizeArgs (ctor, args) =
+      (,) ctor <$> traverse (Canon.tipe env) args
 
-      _ -> []
+    canonicalizeUnion (D.Type name tvars ctors) =
+      D.Type name tvars <$> traverse canonicalizeArgs ctors
 
-
-declaration
-    :: Env.Environment
-    -> D.ValidDecl
-    -> Result.ResultErr D.CanonicalDecl
-declaration env (A.A ann@(region,_) decl) =
-    A.A ann <$>
-    case decl of
-      D.Definition (Valid.Definition pat expr typ) ->
-          D.Definition <$> (
-              Canonical.Definition Canonical.dummyFacts
-                <$> pattern env pat
-                <*> expression env expr
-                <*> T.traverse (regionType env) typ
-          )
-
-      D.Datatype name tvars ctors ->
-          D.Datatype name tvars <$> T.traverse canonicalize' ctors
-        where
-          canonicalize' (ctor,args) =
-              (,) ctor <$> T.traverse (Canonicalize.tipe env) args
-
-      D.TypeAlias name tvars expanded ->
-          D.TypeAlias name tvars
-            <$> Canonicalize.tipe env expanded
-
-      D.Port validPort ->
-          Result.addModule ["Native","Port"] $
-          Result.addModule ["Native","Json"] $
-              case validPort of
-                D.In name tipe ->
-                    Canonicalize.tipe env tipe
-                      `Result.andThen` \canonicalType ->
-                          D.Port <$> Port.check region name Nothing canonicalType
-
-                D.Out name expr tipe ->
-                    let exprTypeResult =
-                          (,)
-                            <$> expression env expr
-                            <*> Canonicalize.tipe env tipe
-                    in
-                        exprTypeResult
-                          `Result.andThen` \(expr', tipe') ->
-                              D.Port <$> Port.check region name (Just expr') tipe'
-
-      D.Fixity assoc prec op ->
-          Result.ok (D.Fixity assoc prec op)
+    canonicalizeAlias (D.Type name tvars alias) =
+      D.Type name tvars <$> Canon.tipe env alias
+  in
+    D.Decls
+      <$> annTraverse canonicalizeDef defs
+      <*> annTraverse canonicalizeUnion unions
+      <*> annTraverse canonicalizeAlias aliases
+      <*> pure infixes
 
 
-regionType
+canonicalizeRegionType
     :: Env.Environment
     -> Type.Raw
-    -> Result.ResultErr (A.Located Type.Canonical)
-regionType env typ@(A.A region _) =
-  A.A region <$> Canonicalize.tipe env typ
+    -> CResult (A.Located Type.Canonical)
+canonicalizeRegionType env typ@(A.A region _) =
+  A.A region <$> Canon.tipe env typ
 
 
-expression
+canonicalizeExpr
     :: Env.Environment
     -> Valid.Expr
-    -> Result.ResultErr Canonical.Expr
-expression env (A.A region validExpr) =
-    let go = expression env
+    -> CResult Canonical.Expr
+canonicalizeExpr env (A.A region validExpr) =
+    let go = canonicalizeExpr env
     in
     A.A region <$>
     case validExpr of
@@ -406,94 +375,89 @@ expression env (A.A region validExpr) =
       Update record fields ->
           Update
             <$> go record
-            <*> T.traverse (\(field,expr) -> (,) field <$> go expr) fields
+            <*> traverse (\(field,expr) -> (,) field <$> go expr) fields
 
       Record fields ->
           Record
-            <$> T.traverse (\(field,expr) -> (,) field <$> go expr) fields
+            <$> traverse (\(field,expr) -> (,) field <$> go expr) fields
 
       Binop (Var.Raw op) leftExpr rightExpr ->
           Binop
-            <$> Canonicalize.variable region env op
+            <$> Canon.variable region env op
             <*> go leftExpr
             <*> go rightExpr
 
       Lambda arg body ->
-          let env' = Env.addPattern arg env
+          let
+            env' =
+              Env.addPattern arg env
           in
-              Lambda <$> pattern env' arg <*> expression env' body
+            Lambda <$> canonicalizePattern env' arg <*> canonicalizeExpr env' body
 
       App func arg ->
           App <$> go func <*> go arg
 
       If branches finally ->
           If
-            <$> T.traverse go' branches
+            <$> traverse go' branches
             <*> go finally
         where
           go' (condition, branch) =
               (,) <$> go condition <*> go branch
 
-      Let defs body ->
-          Let <$> T.traverse rename' defs <*> expression env' body
+      Let defs expr ->
+          Let <$> traverse rename' defs <*> canonicalizeExpr env' expr
         where
           env' =
-              foldr Env.addPattern env $ map (\(Valid.Definition p _ _) -> p) defs
+            foldr Env.addPattern env (map Valid.getPattern defs)
 
-          rename' (Valid.Definition p body mtipe) =
-              Canonical.Definition Canonical.dummyFacts
-                  <$> pattern env' p
-                  <*> expression env' body
-                  <*> T.traverse (regionType env') mtipe
+          rename' (Valid.Def p body mtipe) =
+            Canonical.Def Canonical.dummyFacts
+              <$> canonicalizePattern env' p
+              <*> canonicalizeExpr env' body
+              <*> traverse (canonicalizeRegionType env') mtipe
 
       Var (Var.Raw x) ->
-          Var <$> Canonicalize.variable region env x
+          Var <$> Canon.variable region env x
 
       Data name exprs ->
-          Data name <$> T.traverse go exprs
+          Data name <$> traverse go exprs
 
       ExplicitList exprs ->
-          ExplicitList <$> T.traverse go exprs
+          ExplicitList <$> traverse go exprs
 
       Case expr cases ->
-          Case <$> go expr <*> T.traverse branch cases
+          Case <$> go expr <*> traverse branch cases
         where
           branch (ptrn, brnch) =
-              (,) <$> pattern env ptrn
-                  <*> expression (Env.addPattern ptrn env) brnch
+            (,)
+              <$> canonicalizePattern env ptrn
+              <*> canonicalizeExpr (Env.addPattern ptrn env) brnch
 
-      Port impl ->
-          let portType pt =
-                case pt of
-                  Type.Normal t ->
-                      Type.Normal
-                          <$> Canonicalize.tipe env t
+      Cmd moduleName ->
+          Result.ok (Cmd moduleName)
 
-                  Type.Signal root arg ->
-                      Type.Signal
-                          <$> Canonicalize.tipe env root
-                          <*> Canonicalize.tipe env arg
-          in
-              Port <$>
-                  case impl of
-                    E.In name tipe ->
-                        E.In name <$> portType tipe
+      Sub moduleName ->
+          Result.ok (Sub moduleName)
 
-                    E.Out name expr tipe ->
-                        E.Out name <$> go expr <*> portType tipe
+      OutgoingPort name tipe ->
+          OutgoingPort name <$> Canon.tipe env tipe
 
-                    E.Task name expr tipe ->
-                        E.Task name <$> go expr <*> portType tipe
+      IncomingPort name tipe ->
+          IncomingPort name <$> Canon.tipe env tipe
+
+      Program _ _ ->
+          error "DANGER - Program AST nodes should not be in canonicalization."
+
+      SaveEnv moduleName effects ->
+          Result.ok (SaveEnv moduleName effects)
 
       GLShader uid src tipe ->
           Result.ok (GLShader uid src tipe)
 
 
-pattern
-    :: Env.Environment
-    -> P.RawPattern
-    -> Result.ResultErr P.CanonicalPattern
-pattern env (A.A region ptrn) =
+canonicalizePattern :: Env.Environment -> P.Raw -> CResult P.Canonical
+canonicalizePattern env (A.A region ptrn) =
   A.A region <$>
     case ptrn of
       P.Var x ->
@@ -509,9 +473,9 @@ pattern env (A.A region ptrn) =
           Result.ok P.Anything
 
       P.Alias x p ->
-          P.Alias x <$> pattern env p
+          P.Alias x <$> canonicalizePattern env p
 
       P.Data (Var.Raw name) patterns ->
           P.Data
-            <$> Canonicalize.pvar region env name (length patterns)
-            <*> T.traverse (pattern env) patterns
+            <$> Canon.pvar region env name (length patterns)
+            <*> traverse (canonicalizePattern env) patterns

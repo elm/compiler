@@ -87,13 +87,14 @@ type Localizer =
 varToDoc :: Localizer -> Var.Canonical -> Doc
 varToDoc localizer var =
   let
-    name = Var.toString var
+    name =
+      Var.toString var
   in
     if name == "_Tuple0" then
-        text "()"
+      text "()"
 
     else
-        text (maybe name id (Map.lookup name localizer))
+      text (maybe name id (Map.lookup name localizer))
 
 
 

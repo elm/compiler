@@ -18,7 +18,12 @@ data Canonical = Canonical
 
 inCore :: Raw -> Canonical
 inCore raw =
-  Canonical Package.coreName raw
+  Canonical Package.core raw
+
+
+inHtml :: Raw -> Canonical
+inHtml raw =
+  Canonical Package.html raw
 
 
 toString :: Raw -> String

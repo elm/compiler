@@ -1,34 +1,49 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Parse.Declaration where
 
-import Text.Parsec ( (<|>), (<?>), choice, digit, optionMaybe, string, try )
+import Text.Parsec ( (<?>), choice, digit, optionMaybe, string, try )
 
-import qualified AST.Declaration as D
+import qualified AST.Declaration as Decl
 import qualified Parse.Expression as Expr
 import Parse.Helpers as Help
 import qualified Parse.Type as Type
 
 
-declaration :: IParser D.SourceDecl
+
+declaration :: IParser Decl.Source
 declaration =
+  commentOr $ addLocation $
+    choice
+      [ typeDecl
+      , infixDecl
+      , portDecl
+      , definition
+      ]
+
+
+commentOr :: IParser a -> IParser (Decl.CommentOr a)
+commentOr parser =
   choice
-    [ D.Comment <$> Help.docComment
-    , D.Decl <$> addLocation (typeDecl <|> infixDecl <|> port <|> definition)
+    [ Decl.Comment <$> addLocation Help.docComment
+    , Decl.Whatever <$> parser
     ]
+
 
 
 -- TYPE ANNOTATIONS and DEFINITIONS
 
-definition :: IParser D.SourceDecl'
+
+definition :: IParser Decl.Raw
 definition =
-  D.Definition
-    <$> (Expr.typeAnnotation <|> Expr.definition)
-    <?> "a value definition"
+  do  def <- Expr.def <?> "a value definition"
+      return $ Decl.Def def
+
 
 
 -- TYPE ALIAS and UNION TYPES
 
-typeDecl :: IParser D.SourceDecl'
+
+typeDecl :: IParser Decl.Raw
 typeDecl =
   do  try (reserved "type") <?> "a type declaration"
       forcedWS
@@ -41,50 +56,44 @@ typeDecl =
       case isAlias of
         Just _ ->
             do  tipe <- Type.expr <?> "a type"
-                return (D.TypeAlias name args tipe)
+                return $ Decl.Alias (Decl.Type name args tipe)
 
         Nothing ->
             do  tcs <- pipeSep1 Type.constructor <?> "a constructor for a union type"
-                return $ D.Datatype name args tcs
+                return $ Decl.Union (Decl.Type name args tcs)
+
 
 
 -- INFIX
 
-infixDecl :: IParser D.SourceDecl'
+
+infixDecl :: IParser Decl.Raw
 infixDecl =
   expecting "an infix declaration" $
   do  assoc <-
           choice
-            [ try (reserved "infixl") >> return D.L
-            , try (reserved "infixr") >> return D.R
-            , try (reserved "infix")  >> return D.N
+            [ try (reserved "infixl") >> return Decl.L
+            , try (reserved "infixr") >> return Decl.R
+            , try (reserved "infix")  >> return Decl.N
             ]
       forcedWS
       n <- digit
       forcedWS
-      D.Fixity assoc (read [n]) <$> anyOp
+      op <- anyOp
+      return $ Decl.Fixity (Decl.Infix op assoc (read [n]))
 
 
--- PORT
 
-port :: IParser D.SourceDecl'
-port =
+-- FOREIGN
+
+
+portDecl :: IParser Decl.Raw
+portDecl =
   expecting "a port declaration" $
   do  try (reserved "port")
-      whitespace
-      name <- lowVar
-      whitespace
-      choice [ portAnnotation name, portDefinition name ]
-  where
-    portAnnotation name =
-      do  try hasType
-          whitespace
-          tipe <- Type.expr <?> "a type"
-          return (D.Port (D.PortAnnotation name tipe))
-
-    portDefinition name =
-      do  try equals
-          whitespace
-          expr <- Expr.expr
-          return (D.Port (D.PortDefinition name expr))
+      forcedWS
+      name <- Help.lowVar
+      padded hasType
+      tipe <- Type.expr
+      return $ Decl.Port name tipe
 
