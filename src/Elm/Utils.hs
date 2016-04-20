@@ -69,7 +69,7 @@ run command args =
 
     message err =
       case err of
-        CommandFailed stderr stdout ->
+        CommandFailed stdout stderr ->
           stdout ++ stderr
 
         MissingExe msg ->

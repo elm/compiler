@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Elm.Compiler
     ( version
-    , parseDependencies
+    , parseDependencies, Tag(..)
     , compile, Context(..), Result(..)
     , Localizer, dummyLocalizer
     , Error, errorToString, errorToJson, printError
@@ -47,14 +47,30 @@ version =
 -- DEPENDENCIES
 
 
-parseDependencies :: String -> Either [Error] (PublicModule.Raw, [PublicModule.Raw])
+data Tag
+  = Normal
+  | Effect
+  | Port
+
+
+parseDependencies :: String -> Either [Error] (Tag, PublicModule.Raw, [PublicModule.Raw])
 parseDependencies sourceCode =
   let
     (Result.Result _ _ answer) =
       Parse.parse sourceCode Parse.header
 
-    getDeps (Module.Header _ name _ _ _ imports) =
-      ( name, map (fst . A.drop) imports )
+    getDeps (Module.Header sourceTag name _ _ _ imports) =
+      let
+        tag =
+          case sourceTag of
+            Module.Normal -> Normal
+            Module.Port _ -> Port
+            Module.Effect _ -> Effect
+      in
+        ( tag
+        , name
+        , map (fst . A.drop) imports
+        )
   in
     Result.answerToEither (Error . A.map Error.Syntax) getDeps answer
 
