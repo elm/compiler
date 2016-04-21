@@ -7,6 +7,7 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import qualified Data.Foldable as F
+import Data.List (group, sort)
 import qualified Data.Traversable as T
 
 import AST.Expression.General as Expr
@@ -504,7 +505,7 @@ expression (A.A ann sourceExpression) =
         let
           checkDups seenFields (field,_) =
               if Set.member field seenFields then
-                  Result.throw ann (Error.DuplicateFieldName field)
+                  Result.throw ann (Error.DuplicateFieldNameInRecord field)
 
               else
                   return (Set.insert field seenFields)
@@ -595,11 +596,15 @@ checkDuplicates (ValidStuff ports (D.Decls defs unions aliases _)) =
 
           _ ->
             []
+
+    annotations =
+      Maybe.mapMaybe (Valid.getAnnotation . A.drop) defs
   in
     F.sequenceA_
       [ detectDuplicates Error.DuplicateValueDeclaration (portValues ++ defValues)
       , detectDuplicates Error.DuplicateValueDeclaration (concat typeValues)
       , detectDuplicates Error.DuplicateTypeDeclaration types
+      , () <$ T.forM annotations checkUniqueFieldsRecursive
       ]
 
 
@@ -642,7 +647,7 @@ checkTypeVarsInAlias :: A.Commented (D.Alias Type.Raw) -> Result wrn ()
 checkTypeVarsInAlias (A.A (region,_) (D.Type name boundVars tipe)) =
   case diff boundVars (freeVars tipe) of
     ([], []) ->
-        return ()
+        checkUniqueFieldsRecursive tipe
 
     ([], unbound) ->
         Result.throw region
@@ -689,3 +694,29 @@ freeVars (A.A region tipe) =
     Type.RRecord fields ext ->
       maybe [] freeVars ext
       ++ concatMap (freeVars . snd) fields
+
+
+checkUniqueFieldsRecursive :: Type.Raw -> Result wrn ()
+checkUniqueFieldsRecursive (A.A region rawType) =
+    case rawType of
+      Type.RRecord fields ext ->
+        checkUniqueFields region (map fst fields) >> maybe (return ()) checkUniqueFieldsRecursive ext
+
+      Type.RLambda t1 t2 ->
+        checkUniqueFieldsRecursive t1 >> checkUniqueFieldsRecursive t2
+
+      Type.RApp t ts ->
+        () <$ T.forM (t:ts) checkUniqueFieldsRecursive
+
+      _ ->
+        return ()
+
+
+checkUniqueFields :: R.Region -> [String] -> Result wrn ()
+checkUniqueFields region names =
+  case filter (\ns -> length ns > 1) (group (sort names)) of
+    [n:_] ->
+      Result.throw region (Error.DuplicateFieldNameInRecordType n)
+
+    _ ->
+      return ()

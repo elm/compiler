@@ -28,3 +28,7 @@ getPattern :: Def -> Pattern.Raw
 getPattern (Def pattern _ _) =
   pattern
 
+
+getAnnotation :: Def -> Maybe Type.Raw
+getAnnotation (Def _ _ annotation) =
+  annotation
