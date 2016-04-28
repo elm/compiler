@@ -5,13 +5,16 @@ import qualified System.Environment as Env
 import System.Exit (exitWith)
 import System.IO (hPutStrLn, stderr, stdin, stdout)
 import qualified System.Process as Proc
+import GHC.IO.Encoding (setLocaleEncoding, utf8)
 
 import qualified Elm.Compiler.Version as Compiler
 import qualified Elm.Package as Pkg
 
 main :: IO ()
 main =
-  do  allArgs <- Env.getArgs
+  do  setLocaleEncoding utf8
+
+      allArgs <- Env.getArgs
       case allArgs of
         [] ->
           putStrLn usageMessage

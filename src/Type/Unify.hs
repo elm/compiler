@@ -519,8 +519,8 @@ unifyAlias context name args realVar otherContent =
 
     Alias otherName otherArgs otherRealVar ->
         if name == otherName then
-            do  merge context otherContent
-                zipWithM_ (subUnify context) (map snd args) (map snd otherArgs)
+            do  zipWithM_ (subUnify context) (map snd args) (map snd otherArgs)
+                merge context otherContent
 
         else
             subUnify context realVar otherRealVar

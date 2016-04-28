@@ -23,6 +23,7 @@ data Error
     | Export String [String]
     | DuplicateExport String
     | Port PortError
+    | BadPort String Type.Canonical
 
 
 
@@ -242,6 +243,21 @@ toReport localizer err =
               ]
           )
 
+    BadPort name tipe ->
+      Report.report
+        "PORT ERROR"
+        Nothing
+        ("Port `" ++ name ++ "` has an invalid type."
+        )
+        ( Help.stack
+            [ text ("You are saying it should be:")
+            , indent 4 (RenderType.toDoc localizer tipe)
+            , Help.reflowParagraph $
+                "But you need to use the particular format described here:\
+                \ <http://guide.elm-lang.org/effect_managers/>"
+            ]
+        )
+
 
 argMismatchReport :: String -> Var.Canonical -> Int -> Int -> Report.Report
 argMismatchReport kind var expected actual =
@@ -286,6 +302,9 @@ extractSuggestions err =
         Nothing
 
     Port _ ->
+        Nothing
+
+    BadPort _ _ ->
         Nothing
 
 
