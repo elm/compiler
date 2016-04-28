@@ -73,7 +73,7 @@ figureOutKind region name rootType =
             <* checkPortType (makeError region name) incomingType
 
     _ ->
-      Result.throw region (error "TODO - bad overall type")
+      Result.throw region (Error.BadPort name rootType)
 
 
 makeError :: R.Region -> String -> T.Canonical -> Maybe String -> A.Located Error.Error

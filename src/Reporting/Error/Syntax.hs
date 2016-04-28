@@ -28,6 +28,8 @@ data Error
 
     | InfixDuplicate String
     | TypeWithoutDefinition String
+
+    | DuplicateArgument String String
     | DuplicateFieldName String
     | DuplicateValueDeclaration String
     | DuplicateTypeDeclaration String
@@ -135,7 +137,7 @@ toReport _localizer err =
               "If you just wanted a normal module, change the keywords `effect module`\
               \ to `module` and you should be all set. If you want a proper effect module,\
               \ you need to specify your commands and/or subscriptions. Read more about this\
-              \ here: <TODO> (please forgive me if I forgot to fill this in!)"
+              \ here: <http://guide.elm-lang.org/effect_managers/>"
           )
 
     MissingManagerOnEffectModule name ->
@@ -147,7 +149,7 @@ toReport _localizer err =
               "There is a small set of top-level functions and values that must be defined\
               \ in any complete effect module. The best thing is probably to just read more\
               \ about effect modules here:\
-              \ <TODO> (please forgive me if I forgot to fill this in!)"
+              \ <http://guide.elm-lang.org/effect_managers/>"
           )
 
     UnexpectedPort name ->
@@ -182,6 +184,20 @@ toReport _localizer err =
           ( text $
               "Directly below the type annotation, put a definition like:\n\n"
               ++ "    " ++ valueName ++ " = 42"
+          )
+
+    DuplicateArgument funcName argName ->
+        Report.report
+          "DUPLICATE ARGUMENT"
+          Nothing
+          ( "The name `" ++ argName
+            ++ "` is used more than once in the arguments of `"
+            ++ funcName ++ "`."
+          )
+          ( Help.reflowParagraph $
+              "Rename things until `" ++ argName ++ "` is used only once.\
+              \ Otherwise how can we tell which one you want when you\
+              \ say `" ++ argName ++ "` it in the body of your function?"
           )
 
     DuplicateFieldName name ->
@@ -282,7 +298,7 @@ unboundTypeVars declKind typeName givenVars unboundVars =
         , Help.reflowParagraph $
             "Here's why. Imagine one `" ++ typeName ++ "` where `" ++ head unboundVars ++
             "` is an Int and another where it is a Bool. When we explicitly list the type\
-            \ variables, type checker can see that they are actually different types."
+            \ variables, the type checker can see that they are actually different types."
         ]
     )
 
