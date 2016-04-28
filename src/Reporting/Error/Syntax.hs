@@ -28,6 +28,8 @@ data Error
 
     | InfixDuplicate String
     | TypeWithoutDefinition String
+
+    | DuplicateArgument String String
     | DuplicateFieldName String
     | DuplicateValueDeclaration String
     | DuplicateTypeDeclaration String
@@ -182,6 +184,20 @@ toReport _localizer err =
           ( text $
               "Directly below the type annotation, put a definition like:\n\n"
               ++ "    " ++ valueName ++ " = 42"
+          )
+
+    DuplicateArgument funcName argName ->
+        Report.report
+          "DUPLICATE ARGUMENT"
+          Nothing
+          ( "The name `" ++ argName
+            ++ "` is used more than once in the arguments of `"
+            ++ funcName ++ "`."
+          )
+          ( Help.reflowParagraph $
+              "Rename things until `" ++ argName ++ "` is used only once.\
+              \ Otherwise how can we tell which one you want when you\
+              \ say `" ++ argName ++ "` it in the body of your function?"
           )
 
     DuplicateFieldName name ->

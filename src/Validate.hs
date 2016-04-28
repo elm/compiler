@@ -1,8 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Validate (Result, module') where
 
-import Prelude hiding (init)
-import Control.Monad (foldM, when)
+import Control.Monad (foldM_, when)
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
@@ -428,8 +427,8 @@ validateDefPattern pattern body =
 
     args ->
         case pattern of
-          A.A _ (Pattern.Var _) ->
-              return ()
+          A.A _ (Pattern.Var funcName) ->
+              checkArguments funcName args
 
           _ ->
               let
@@ -437,6 +436,22 @@ validateDefPattern pattern body =
                 (A.A end _) = last args
               in
                 Result.throw (R.merge start end) (Error.BadFunctionName (length args))
+
+
+checkArguments :: String -> [Pattern.Raw] -> Result wrn ()
+checkArguments funcName args =
+  let
+    vars =
+      concatMap Pattern.boundVars args
+
+    checkDups seenArgs (A.A region arg) =
+      if Set.member arg seenArgs then
+        Result.throw region (Error.DuplicateArgument funcName arg)
+
+      else
+        return (Set.insert arg seenArgs)
+  in
+    foldM_ checkDups Set.empty vars
 
 
 
@@ -509,7 +524,7 @@ expression (A.A ann sourceExpression) =
               else
                   return (Set.insert field seenFields)
         in
-          do  _ <- foldM checkDups Set.empty fields
+          do  foldM_ checkDups Set.empty fields
               Record <$> T.traverse second fields
 
     Let defs body ->
