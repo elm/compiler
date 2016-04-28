@@ -282,7 +282,7 @@ unboundTypeVars declKind typeName givenVars unboundVars =
         , Help.reflowParagraph $
             "Here's why. Imagine one `" ++ typeName ++ "` where `" ++ head unboundVars ++
             "` is an Int and another where it is a Bool. When we explicitly list the type\
-            \ variables, type checker can see that they are actually different types."
+            \ variables, the type checker can see that they are actually different types."
         ]
     )
 
