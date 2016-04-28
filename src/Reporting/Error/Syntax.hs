@@ -19,6 +19,7 @@ data Error
     | TypeWithoutDefinition String
     | PortWithoutAnnotation String
     | UnexpectedPort
+    | DuplicateArgument String String
     | DuplicateFieldName String
     | DuplicateValueDeclaration String
     | DuplicateTypeDeclaration String
@@ -27,7 +28,6 @@ data Error
     | UnboundTypeVarsInAlias String [String] [String]
     | UnusedTypeVarsInAlias String [String] [String]
     | MessyTypeVarsInAlias String [String] [String] [String]
-    | RepeatedArgument String
 
 
 -- TO REPORT
@@ -110,6 +110,20 @@ toReport _localizer err =
               \ if the module is imported twice, do we send values out the port twice?"
           )
 
+    DuplicateArgument funcName argName ->
+        Report.report
+          "DUPLICATE ARGUMENT"
+          Nothing
+          ( "The name `" ++ argName
+            ++ "` is used more than once in the arguments of `"
+            ++ funcName ++ "`."
+          )
+          ( Help.reflowParagraph $
+              "Rename things until `" ++ argName ++ "` is used only once.\
+              \ Otherwise how can we tell which one you want when you\
+              \ say `" ++ argName ++ "` it in the body of your function?"
+          )
+
     DuplicateFieldName name ->
         Report.report
           "DUPLICATE FIELD"
@@ -188,17 +202,6 @@ toReport _localizer err =
               , dullyellow $ hsep $
                   map text ("type" : "alias" : typeName : filter (`notElem` unused) givenVars ++ unbound ++ ["=", "..."])
               ]
-          )
-
-    RepeatedArgument name ->
-        Report.report
-          "FUNCTION ARGUMENT REPEATED"
-          Nothing
-          ( "The argument `" ++ name ++ "` is defined multiple times."
-          )
-          ( Help.reflowParagraph $
-              "You should rename one of the occurrences of `" ++ name
-              ++ "` so that each argument is defined only once."
           )
 
 
