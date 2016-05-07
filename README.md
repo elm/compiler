@@ -9,7 +9,7 @@ the platform specific installers if you are on Mac or Windows. It's way easier!
 
  [installer]: https://github.com/elm-lang/elm-platform/blob/master/README.md#elm-platform
  
- [Chinese version](https://github.com/EasonWang01/elm-lang-chinese-manual/blob/master/README.md#%E9%96%8B%E5%A7%8B%E5%AD%B8%E7%BF%92elm)
+ [Chinese version](https://github.com/EasonWang01/elm-lang-chinese-manual/blob/master/README.md#elm-lang-的中文手冊)
 
 ## Build from source / Contribute
 
