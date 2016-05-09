@@ -155,6 +155,19 @@ spaceySepBy1 sep parser =
       (value:) <$> spaceyPrefixBy sep parser
 
 
+spaceySepByTrailing1 :: IParser b -> IParser a -> IParser [a]
+spaceySepByTrailing1 sep parser =
+  do  value <- parser
+      choice
+        [ do  try (padded sep)
+              choice
+                [ (value:) <$> spaceySepByTrailing1 sep parser
+                , return [value]
+                ]
+        , return [value]
+        ]
+
+
 spaceyPrefixBy :: IParser sep -> IParser a -> IParser [a]
 spaceyPrefixBy sep parser =
   many (commitIf (whitespace >> sep) (padded sep >> parser))
@@ -173,6 +186,16 @@ commaSep1 =
 commaSep :: IParser a -> IParser [a]
 commaSep =
   option [] . commaSep1
+
+
+commaSepTrailing1 :: IParser a -> IParser [a]
+commaSepTrailing1 =
+  spaceySepByTrailing1 comma
+
+
+commaSepTrailing :: IParser a -> IParser [a]
+commaSepTrailing =
+  option [] . commaSepTrailing1
 
 
 semiSep1 :: IParser a -> IParser [a]

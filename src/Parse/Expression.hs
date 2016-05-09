@@ -79,7 +79,7 @@ negative =
 
 listTerm :: IParser Source.Expr'
 listTerm =
-    shader' <|> braces (try range <|> E.ExplicitList <$> commaSep expr)
+    shader' <|> braces (try range <|> E.ExplicitList <$> commaSepTrailing expr)
   where
     range =
       do  lo <- expr
@@ -142,7 +142,7 @@ recordTerm =
     update (A.A ann starter) =
       do  try (string "|")
           whitespace
-          fields <- commaSep1 field
+          fields <- commaSepTrailing1 field
           return (E.Update (A.A ann (E.rawVar starter)) fields)
 
     literal (A.A _ starter) =
@@ -153,7 +153,7 @@ recordTerm =
           choice
             [ do  try comma
                   whitespace
-                  fields <- commaSep field
+                  fields <- commaSepTrailing field
                   return (E.Record ((starter, value) : fields))
             , return (E.Record [(starter, value)])
             ]
