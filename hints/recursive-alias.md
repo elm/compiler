@@ -89,7 +89,7 @@ No matter what, the type of `Node n xs` is going to be `List`. There is no expan
 So let's return to wanting to represent a `Comment` that may have responses. There are a couple ways to do this:
 
 
-### Obvious, but kind of annoying 
+### Obvious, but kind of annoying
 
 ```elm
 type Comment =
@@ -133,7 +133,7 @@ upvote comment =
   { comment | upvotes = 1 + comment.upvotes }
 ```
 
-So rather than having to unwrap a `Comment` to do *anything* to it, you only have to do some unwrapping in the cases where you are doing something recusive. In practice, this means you will do less unwrapping which is nice.
+So rather than having to unwrap a `Comment` to do *anything* to it, you only have to do some unwrapping in the cases where you are doing something recursive. In practice, this means you will do less unwrapping which is nice.
 
 
 ## Mutually recursive type aliases
@@ -158,4 +158,4 @@ type SortBy = Time | Score | MostResponses
 
 When you try to expand `Comment` you have to expand `Responses` which needs to expand `Comment` which needs to expand `Responses`, etc.
 
-So this is just a fancy case of a self-recusive type alias. The solution is the same. Somewhere in that cycle, you need to define an actual `type` to end the infinite expansion.
+So this is just a fancy case of a self-recursive type alias. The solution is the same. Somewhere in that cycle, you need to define an actual `type` to end the infinite expansion.
