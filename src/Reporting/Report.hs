@@ -13,8 +13,8 @@ import Data.Aeson ((.=))
 import qualified Data.Aeson.Types as Json
 import System.IO (Handle)
 import Text.PrettyPrint.ANSI.Leijen
-    ( Doc, SimpleDoc(..), (<>), displayS, displayIO, dullcyan, fillSep
-    , hardline, renderPretty, text
+    ( Doc, (<>), displayS, displayIO, dullcyan, fillSep
+    , hardline, plain, renderPretty, text
     )
 
 import qualified Reporting.Region as R
@@ -102,27 +102,5 @@ toString location region rprt source =
 
 nonAnsiRender :: Doc -> String
 nonAnsiRender doc =
-  displayS (stripAnsi (renderPretty 1 80 doc)) ""
-
-
-stripAnsi :: SimpleDoc -> SimpleDoc
-stripAnsi simpleDoc =
-  case simpleDoc of
-    SFail ->
-      SFail
-
-    SEmpty ->
-      SEmpty
-
-    SChar chr subDoc ->
-      SChar chr (stripAnsi subDoc)
-
-    SText n str subDoc ->
-      SText n str (stripAnsi subDoc)
-
-    SLine n subDoc ->
-      SLine n (stripAnsi subDoc)
-
-    SSGR _ subDoc ->
-      stripAnsi subDoc
+  displayS (renderPretty 1 80 (plain doc)) ""
 
