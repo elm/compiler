@@ -59,7 +59,10 @@ encodeHelp tipe expr =
     T.Record fields Nothing ->
       let
         convert (name, tipe) =
-          name ==> encodeHelp tipe (DotRef () expr (var name))
+          let
+            safeName = Var.safe name
+          in
+            safeName ==> encodeHelp tipe (DotRef () expr (var safeName))
       in
         ObjectLit () (map convert fields)
 
