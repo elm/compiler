@@ -186,7 +186,7 @@ toMaybe tipe =
 
 toTuple0 :: Opt.Expr
 toTuple0 =
-  to "null" <== [Opt.Var (Var.builtin "_Tuple0")]
+  to "null" <== [ Opt.Data "_Tuple0" [] ]
 
 
 toTuple :: [T.Canonical] -> Opt.Expr
