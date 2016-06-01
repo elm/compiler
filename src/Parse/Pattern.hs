@@ -1,6 +1,5 @@
 module Parse.Pattern (term, expr) where
 
-import Data.Char (isUpper)
 import qualified Data.List as List
 import Text.Parsec ((<|>), (<?>), char, choice, optionMaybe, try)
 
