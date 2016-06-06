@@ -140,8 +140,8 @@ Library
         Paths_elm_compiler
 
     Build-depends:
-        aeson >= 0.7 && < 0.9,
-        aeson-pretty >= 0.7 && < 0.8,
+        aeson >= 0.11,
+        aeson-pretty,
         ansi-terminal >= 0.6.2.1 && < 0.7,
         ansi-wl-pprint >= 0.6.7 && < 0.7,
         base >=4.2 && <5,
@@ -178,7 +178,7 @@ Executable elm
 
     Build-depends:
         base >=4.2 && <5,
-        aeson >= 0.7 && < 0.9,
+        aeson >= 0.11,
         binary >= 0.7.0.0 && < 0.8,
         directory >= 1.0 && < 2.0,
         filepath >= 1 && < 2.0,
@@ -212,8 +212,8 @@ Test-Suite compiler-tests
         test-framework-quickcheck2 >= 0.3 && < 0.4,
         HUnit >= 1.1 && < 2,
         QuickCheck >= 2 && < 3,
-        aeson >= 0.7 && < 0.9,
-        aeson-pretty >= 0.7 && < 0.8,
+        aeson >= 0.11,
+        aeson-pretty,
         ansi-terminal >= 0.6.2.1 && < 0.7,
         ansi-wl-pprint >= 0.6.7 && < 0.7,
         base >=4.2 && <5,
