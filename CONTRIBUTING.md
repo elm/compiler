@@ -15,7 +15,7 @@ and send it to <info@elm-lang.org> before opening your pull request.
   * JavaScript &mdash; use [Google's JS style guide][js]
 
 [haskell]: https://gist.github.com/evancz/0a1f3717c92fe71702be
-[js]: https://google-styleguide.googlecode.com/svn/trunk/javascriptguide.xml
+[js]: https://google.github.io/styleguide/javascriptguide.xml
 
 ## Branches
 
