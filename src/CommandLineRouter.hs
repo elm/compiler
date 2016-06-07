@@ -21,10 +21,10 @@ main =
         [] ->
           putStrLn usageMessage
 
-        "--version" ->
+        ["--version"] ->
           putStrLn $ Pkg.versionToString Compiler.version
 
-        "-v" ->
+        ["-v"] ->
           putStrLn $ Pkg.versionToString Compiler.version
 
         command : args ->
