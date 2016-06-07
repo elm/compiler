@@ -1,6 +1,6 @@
 
 Name: elm-compiler
-Version: 0.17
+Version: 0.17.1
 
 Synopsis:
     Values to help with elm-package, elm-make, and elm-lang.org.
