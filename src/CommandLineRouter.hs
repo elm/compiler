@@ -10,6 +10,8 @@ import GHC.IO.Encoding (setLocaleEncoding, utf8)
 import qualified Elm.Compiler.Version as Compiler
 import qualified Elm.Package as Pkg
 
+
+
 main :: IO ()
 main =
   do  setLocaleEncoding utf8
@@ -18,6 +20,12 @@ main =
       case allArgs of
         [] ->
           putStrLn usageMessage
+
+        ["--version"] ->
+          putStrLn $ Pkg.versionToString Compiler.version
+
+        ["-v"] ->
+          putStrLn $ Pkg.versionToString Compiler.version
 
         command : args ->
           attemptToRun command args
@@ -50,7 +58,7 @@ attemptToRun command args =
 
 usageMessage :: String
 usageMessage =
-  "Elm Platform " ++ (Pkg.versionToString Compiler.version) ++ " - a way to run all Elm tools\n\
+  "Elm Platform " ++ Pkg.versionToString Compiler.version ++ " - a way to run all Elm tools\n\
   \\n\
   \Usage: elm <command> [<args>]\n\
   \\n\
