@@ -185,6 +185,22 @@ Executable elm
         text >= 1 && < 2,
         process
 
+Executable compiler-benchmark
+    ghc-options:
+        -threaded -O2 -W
+
+    Hs-Source-Dirs:
+        compiler-benchmark
+
+    Main-is:
+        Benchmark.hs
+
+    Build-depends:
+        base >=4.2 && <5,
+        directory >= 1.0 && < 2.0,
+        filepath >= 1 && < 2.0,
+        process
+
 
 Test-Suite compiler-tests
     ghc-options:
