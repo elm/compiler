@@ -233,19 +233,19 @@ generateCode expr =
 
 generateProgram :: Expr.Main Type.Canonical -> Opt.Expr -> State Int Code
 generateProgram kind body =
-  let
-    gen fields =
-      generateCode $ Record (("main", body) : fields)
-  in
-    case kind of
-      Expr.VDom ->
-        gen []
+  case kind of
+    Expr.VDom ->
+      do  html <- generateJsExpr body
+          jsExpr (Var.coreNative "Platform" "htmlToProgram" <| html)
 
-      Expr.NoFlags ->
-        gen []
+    Expr.NoFlags ->
+      do  almostProgram <- generateJsExpr body
+          jsExpr (almostProgram `call` [])
 
-      Expr.Flags tipe ->
-        gen [ ("flags", Foreign.decode tipe) ]
+    Expr.Flags tipe ->
+      do  almostProgram <- generateJsExpr body
+          flagDecoder <- generateJsExpr (Foreign.decode tipe)
+          jsExpr (almostProgram <| flagDecoder)
 
 
 
