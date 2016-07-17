@@ -1,12 +1,12 @@
 Thank you for reporting an issue with Elm! Before submitting, please make sure it's not a commonly reported issue:
 
-* If you're getting a runtime error, make sure you don't have any recursively defined values (see #873).
-* If you're having trouble with type annotations in a let-expression, see #1214.
-* Please also read through the open issues in this repo that are marked with a deep blue label named "meta", that is, the issues in this list: https://github.com/elm-lang/elm-compiler/labels/meta.
-* If the issue relates to the core libraries and not the language, please open an issue in that repo [https://github.com/elm-lang/core/issues/new].
-* If you've encountered an unhelpful error message, report it to the error message catalog [https://github.com/elm-lang/error-message-catalog/issues/new]
+- If you're getting a runtime error, make sure you don't have any recursively defined values (see #873).
+- If you're having trouble with type annotations in a let-expression, see #1214.
+- If the issue relates to the core libraries (not the compiler) open an issue at https://github.com/elm-lang/core/issues
+- If you found an unhelpful error message, report it at https://github.com/elm-lang/error-message-catalog/issues
 
-If you still don't see your bug or concern, delete this message and write up a report that satisfies [this checklist](https://github.com/process-bot/contribution-checklist/blob/master/participation.md).
+Okay, now look through the "meta" issues to see if they cover your problem: https://github.com/elm-lang/elm-compiler/labels/meta
 
-Here is [what to expect next](https://github.com/process-bot/contribution-checklist/blob/master/expectations.md), and if anyone wants to comment, please keep [these things](https://github.com/process-bot/contribution-checklist/blob/master/participation.md) in mind.
+If you still don't see your bug or concern, delete this message and write up a report that satisfies the issue checklist!
 
+  https://github.com/process-bot/contribution-checklist/blob/master/issues.md
