@@ -364,7 +364,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
     BadTypeAnnotation name ->
         report
           Nothing
-          ("The type annotation for " ++ Help.functionName name ++ " does not match its definition.")
+          ("The implementation of " ++ Help.functionName name ++ " does not match its type annotation.")
           ( cmpHint
               "The type annotation is saying:"
               "But I am inferring that the definition has this type:"
