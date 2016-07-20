@@ -3,11 +3,17 @@ module Main where
 import Control.Monad (unless, forM_, void, when)
 import Data.Attoparsec.Text (parseOnly, maybeResult)
 import Data.IntMap ()
+import Data.List (zipWith, partition)
 import qualified Data.Text.IO as Text
-import Data.Text as Text (Text, pack)
+import Data.Text as Text (Text, pack, unpack)
 import Data.Foldable (find)
+import Data.Map (Map)
+import Data.Maybe (isJust)
+import Text.Tabular (Table(Table), Header(Header, Group), Properties(NoLine, SingleLine, DoubleLine))
+import qualified Text.Tabular.AsciiArt as Table
+import qualified Data.Map as Map
 import GHC.RTS.TimeAllocProfile (timeAllocProfile, profileHotCostCentres) 
-import GHC.RTS.TimeAllocProfile.Types (CostCentre, TimeAllocProfile, costCentreNodes, profileCostCentreTree, costCentreName)
+import GHC.RTS.TimeAllocProfile.Types (CostCentre, TimeAllocProfile, costCentreNodes, profileCostCentreTree, costCentreName, costCentreIndTime)
 import System.Directory (doesDirectoryExist, copyFile, setCurrentDirectory, getCurrentDirectory, createDirectoryIfMissing, getDirectoryContents, removeDirectoryRecursive)
 import System.Exit (ExitCode(ExitSuccess))
 import System.FilePath ((</>))
@@ -43,7 +49,7 @@ golden =
         , branch = "master"
         }
     ]   
-
+{-
 dev :: [Repo]
 dev =
     [ Repo
@@ -52,6 +58,7 @@ dev =
         , branch = "master"
         }
     ] 
+-}
 
 -- Names of annotated cost centres in elm-compiler and elm-make. Must be kept
 -- in sync with the SCC annotations in elm-compiler and elm-make (which must
@@ -136,21 +143,64 @@ compile version project = do
 
 reportResults :: IO ()
 reportResults = do
-    let resultFilename = "benchmark-results" </> ("elm-todomvc" ++ "." ++ show Gold ++ ".prof")
-    testResults <- Text.readFile resultFilename
+    let goldFilename = "benchmark-results" </> ("elm-todomvc" ++ "." ++ show Gold ++ ".prof")
+    goldResults <- Text.readFile goldFilename
 
-    case parseOnly timeAllocProfile testResults of
-        Right profile -> putStrLn . show . extractCostCentres $ profile
-        Left error -> putStrLn $ "Error parsing profiling results from " ++ resultFilename ++ ": " ++ error
+    let devFilename = "benchmark-results" </> ("elm-todomvc" ++ "." ++ show Test ++ ".prof") 
+    devResults <- Text.readFile devFilename
 
-extractCostCentres :: TimeAllocProfile -> [(Text, Maybe CostCentre)]
+    case parseOnly timeAllocProfile goldResults of
+        Right goldProfile -> do 
+            goldResults <- reportMissingCostCentres . extractCostCentres $ goldProfile 
+
+            case parseOnly timeAllocProfile devResults of
+                Right devProfile -> do
+                    devResults <- reportMissingCostCentres . extractCostCentres $ devProfile
+                    putStrLn . Table.render unpack id show . reportDiffs $ Map.intersectionWith CostCentreDiff goldResults devResults
+                Left error -> putStrLn $ "Error parsing profiling results from " ++ devFilename ++ ": " ++ error
+
+        Left error -> putStrLn $ "Error parsing profiling results from " ++ goldFilename ++ ": " ++ error
+
+data CostCentreDiff = CostCentreDiff
+    { gold :: CostCentre
+    -- ^ Profiling results for the gold version of the compiler
+    , dev :: CostCentre
+    -- ^ Profiling results for the dev version of the compiler
+    }
+
+-- Adds a header
+--reportDiffs :: Map Text CostCentreDiff -> Table (Header 
+reportDiffs results = Table
+        (Group SingleLine [ Group NoLine $ map Header (Map.keys results) ])
+        (Group DoubleLine [ Group NoLine 
+            [ Header "%time in gold"
+            , Header "%time in dev"
+            ]])
+        (map reportDiff $ Map.elems results)
+    where
+        reportDiff :: CostCentreDiff -> [Double]
+        reportDiff costCentre = 
+            [ costCentreIndTime . gold $ costCentre
+            , costCentreIndTime . dev $ costCentre
+            ]
+
+reportMissingCostCentres :: Map Text (Maybe CostCentre) -> IO (Map Text CostCentre)
+reportMissingCostCentres results = do
+    let (present, missing) = partition (isJust . snd) $ Map.toList results
+    mapM_ reportMissingCostCentre missing    
+    return $ (Map.mapMaybe id . Map.fromList) present
+    where
+        reportMissingCostCentre :: (Text, Maybe CostCentre) -> IO ()
+        reportMissingCostCentre (name, _) = putStrLn $ "Missing cost centre " ++ unpack name
+    
+
+extractCostCentres :: TimeAllocProfile -> Map Text (Maybe CostCentre)
 extractCostCentres tree = 
-        map (\name -> (name, findCostCentre name)) costCentreNames
+        Map.fromList $ map (\name -> (name, findCostCentre name)) costCentreNames
     where 
         findCostCentre :: Text -> Maybe CostCentre
         findCostCentre name = find ((== name) . costCentreName)
             $ costCentreNodes (profileCostCentreTree tree)
-    
 
 -- Fetch and prepare a repository containing some component of the Elm Platform.
 makeSrcRepo :: String -> IO ()
