@@ -5,3 +5,7 @@ cabal-dev
 cabal.sandbox.config
 .DS_Store
 *~
+
+compiler-benchmark/benchmark-projects
+compiler-benchmark/benchmark-results
+compiler-benchmark/benchmark-src
