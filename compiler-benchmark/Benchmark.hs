@@ -1,25 +1,36 @@
 module Main where
 
-import Control.Monad (unless, forM_, void, when)
-import Data.Attoparsec.Text (parseOnly, maybeResult)
-import Data.IntMap ()
-import Data.List (zipWith, partition)
-import qualified Data.Text.IO as Text
-import Data.Text as Text (Text, pack, unpack)
-import Data.Foldable (find)
-import Data.Map (Map)
-import Data.Maybe (isJust, maybe)
-import Text.Tabular (Table(Table), Header(Header, Group), Properties(NoLine, SingleLine, DoubleLine))
-import qualified Text.Tabular.AsciiArt as Table
 import qualified Data.Map as Map
-import GHC.RTS.TimeAllocProfile (timeAllocProfile, profileHotCostCentres) 
-import GHC.RTS.TimeAllocProfile.Types (CostCentre, TimeAllocProfile, costCentreNodes, profileCostCentreTree, costCentreName, costCentreIndTime)
-import System.Directory (doesDirectoryExist, copyFile, setCurrentDirectory, getCurrentDirectory, createDirectoryIfMissing, getDirectoryContents, removeDirectoryRecursive)
+import qualified Data.Text.IO as Text
+import qualified Text.Tabular.AsciiArt as Table
+
+import Control.Monad (unless, void, when)
+import Data.Attoparsec.Text (parseOnly)
+import Data.Foldable (find)
+import Data.IntMap ()
+import Data.Map (Map)
+import Data.Text as Text (Text, pack, unpack)
+import GHC.RTS.TimeAllocProfile (timeAllocProfile) 
+import GHC.RTS.TimeAllocProfile.Types
+    ( TimeAllocProfile, profileCostCentreTree
+    , CostCentre, costCentreNodes, costCentreName, costCentreIndTime
+    )
+import System.Directory 
+    ( copyFile, doesFileExist
+    , getCurrentDirectory, createDirectoryIfMissing, doesDirectoryExist
+    , getDirectoryContents, removeDirectoryRecursive, setCurrentDirectory
+    )
 import System.Exit (ExitCode(ExitSuccess))
 import System.FilePath ((</>))
 import System.Process (rawSystem)
+import Text.Tabular 
+    ( Table(Table), Header(Header, Group)
+    , Properties(NoLine, SingleLine, DoubleLine)
+    )
 
-data Repo = Repo 
+-- Represents a git repo that can be cloned, such as a publicly accessible
+-- project written in Elm, or a component of the compiler.
+data Repo = Repo
     { projectName :: String
     , path :: FilePath
     , branch :: String
@@ -27,12 +38,18 @@ data Repo = Repo
 
 -- Version of the Elm compiler that is being used.
 data Version
-    = Gold
-    | Test
+    = Gold 
+    | Dev
     deriving Show
 
-golden :: [Repo]
-golden = 
+-- CONFIGURATION
+
+-- The components of the Elm Platform to be benchmarked, along with the
+-- branches to use as the baseline for each component. The branches
+-- indicated here are compared to the current state of the enclosing
+-- elm-compiler repository.
+sources :: [Repo]
+sources = 
     [ Repo 
         { projectName = "elm-make"
         , path = "https://github.com/elm-lang/elm-make.git"
@@ -46,19 +63,22 @@ golden =
     , Repo
         { projectName = "elm-compiler"
         , path = "https://github.com/elm-lang/elm-compiler.git"
-        , branch = "master"
+        , branch = "master" 
         }
     ]   
-{-
-dev :: [Repo]
-dev =
+
+-- Projects (written in Elm) to be compiled for benchmarking.
+-- These projects should either be (a) representative of typical real-world Elm
+-- programs (b) pathological programs known to test performance edge-cases in
+-- the compiler.
+projects :: [Repo]
+projects = 
     [ Repo
-        { projectName = "elm-make"
-        , path = ""
+        { projectName = "elm-todomvc"
+        , path = "https://github.com/evancz/elm-todomvc.git"
         , branch = "master"
         }
-    ] 
--}
+    ]
 
 -- Names of annotated cost centres in elm-compiler and elm-make. Must be kept
 -- in sync with the SCC annotations in elm-compiler and elm-make (which must
@@ -72,75 +92,72 @@ costCentreNames = map Text.pack
 
 main :: IO ()
 main = do
-    root <- (</> "compiler-benchmark") <$> getCurrentDirectory
-    inDirectory root $ do
+    root <- getCurrentDirectory
+    let benchmarkRoot = root </> "compiler-benchmark"
+    inDirectory benchmarkRoot $ do
         -- Elm projects
         createDirectoryIfMissing True "benchmark-projects"
-        inDirectory "benchmark-projects" $ do
-            todoMvcExists <- doesDirectoryExist "elm-todomvc"
-            unless todoMvcExists . void $ git
-                [ "clone"
-                , "https://github.com/evancz/elm-todomvc"
-                , "elm-todomvc"
-                ]
+        inDirectory "benchmark-projects" $ mapM_ makeRepo projects
             
         -- Source 
         createDirectoryIfMissing True "benchmark-src"
+        inDirectory "benchmark-src" $ do
+            mapM_ (makeSrcRepo benchmarkRoot) sources
 
-        -- elm-compiler
-        makeSrcRepo "elm-compiler" 
-        -- inDirectory "benchmark-src/elm-compiler" $ do
-        --     git [ "checkout", "0.17", "--quiet" ]
+            -- Need to do additional setup with elm-make to ensure that we're
+            -- building it with the local versions of elm-compiler and
+            -- elm-package.
+            let srcRoot = benchmarkRoot </> "benchmark-src"
+            inDirectory "elm-make" $ do
+                addSources
+                    srcRoot
+                    (filter (\repo -> projectName repo /= "elm-make") sources)
 
-        -- elm-package
-        makeSrcRepo "elm-package" 
-        -- inDirectory "benchmark-src/elm-package" $ do
-        --     git [ "checkout", "0.17", "--quiet" ]
-
-        -- elm-make
-        makeSrcRepo "elm-make" 
-        inDirectory "benchmark-src/elm-make" $ do
-            -- git [ "checkout", "0.17", "--quiet" ]
-            cabal ["sandbox", "init"]
-            cabal ["sandbox", "add-source",
-                root </> "benchmark-src" </> "elm-compiler"]
-            cabal ["sandbox", "add-source",
-                root </> "benchmark-src" </> "elm-package"]
-            cabal ["install"]
-
+        -- Results
         createDirectoryIfMissing True "benchmark-results"
 
         -- Compile each project with the golden versions of elm-compiler, elm-make, etc.
         projects <- listDirectory "benchmark-projects"
-        forM_ projects (compile Gold)
 
-        -- Use the development version of elm-compiler. By default, use the "master"
-        -- branch of the repo in which benchmarking is being run.
-        inDirectory (root </> "benchmark-src/elm-compiler") $ do
-            hasDevBranch <- successful <$> git ["remote", "show", "dev"]
-            unless hasDevBranch (void $ git ["remote", "add", "dev",
-                root </> ".."])
-            git ["pull", "dev", "master"]
+        hasGoldResults <- doesFileExist 
+            ("benchmark-results" </> "elm-make.Gold.prof")
+        unless hasGoldResults $ mapM_ (compile Gold) projects
 
-        forM_ projects (compile Test)
+        -- Set the parent elm-compiler repo to be compiled into elm-make for
+        -- development.
+        inDirectory ("benchmark-src" </> "elm-make") $ do
+            void . cabal $ ["sandbox", "add-source", root]
+        
+        -- Compile each project with the development version of the elm compiler.
+        mapM_ (compile Dev) projects
 
         reportResults
 
 -- SETUP
 
--- Fetch and prepare a repository containing some component of the Elm Platform.
-makeSrcRepo :: String -> IO ()
-makeSrcRepo projectName = do
-    root <- getCurrentDirectory
+makeRepo :: Repo -> IO () 
+makeRepo repo = do
+    let name = projectName repo
+    projectExists <- doesDirectoryExist name 
+    unless projectExists $ 
+        void . git $ ["clone", path repo, name]
 
-    projectExists <- doesDirectoryExist $ "benchmark-src" </> projectName
-    unless projectExists $ do
-        git [ "clone"
-            , "https://github.com/elm-lang/" ++ projectName ++ ".git"
-            , "benchmark-src" </> projectName
-            ]
-        inDirectory ("benchmark-src" </> projectName) $ do
-            copyFile (root </> "cabal.config.example") "cabal.config"
+-- Fetch and prepare a repository containing some component of the Elm Platform.
+makeSrcRepo :: FilePath -> Repo -> IO ()
+makeSrcRepo root repo = do
+    let name = projectName repo
+    makeRepo repo
+    inDirectory name $ do
+        git ["checkout", branch repo, "--quiet"]
+    copyFile (root </> "cabal.config.example") (name</> "cabal.config")
+       
+addSources :: FilePath -> [Repo] -> IO ()
+addSources root repos = do
+    cabal ["sandbox", "init"]
+    mapM_
+        (\repo -> cabal ["sandbox", "add-source", root </> projectName repo])
+        repos
+    void . cabal $ ["install"]
 
 
 -- COMPILATION
@@ -186,7 +203,7 @@ reportResults = do
     let goldFilename = "benchmark-results" </> ("elm-todomvc" ++ "." ++ show Gold ++ ".prof")
     goldResults <- Text.readFile goldFilename
 
-    let devFilename = "benchmark-results" </> ("elm-todomvc" ++ "." ++ show Test ++ ".prof") 
+    let devFilename = "benchmark-results" </> ("elm-todomvc" ++ "." ++ show Dev ++ ".prof") 
     devResults <- Text.readFile devFilename
 
     case parseOnly timeAllocProfile goldResults of
