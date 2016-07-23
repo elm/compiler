@@ -53,24 +53,24 @@ sources =
     [ Repo 
         { projectName = "elm-make"
         , path = "https://github.com/elm-lang/elm-make.git"
-        , branch = "master"
+        , branch = "0.17"
         }
     , Repo
         { projectName = "elm-package"
         , path = "https://github.com/elm-lang/elm-package.git"
-        , branch = "master"
+        , branch = "0.17"
         }
     , Repo
         { projectName = "elm-compiler"
         , path = "https://github.com/elm-lang/elm-compiler.git"
-        , branch = "master" 
+        , branch = "0.17" 
         }
     ]   
 
 -- Projects (written in Elm) to be compiled for benchmarking.
 -- These projects should either be (a) representative of typical real-world Elm
--- programs (b) pathological programs known to test performance edge-cases in
--- the compiler.
+-- programs, or (b) pathological programs known to test performance edge-cases
+-- in the compiler.
 projects :: [Repo]
 projects = 
     [ Repo
@@ -87,7 +87,9 @@ projects =
 costCentreNames :: [Text]
 costCentreNames = map Text.pack
     [ "parsing"
-    , "completeness"
+    , "type_inference"
+    , "exhaustiveness"
+    , "optimization"
     ]
 
 main :: IO ()
@@ -101,37 +103,36 @@ main = do
             
         -- Source 
         createDirectoryIfMissing True "benchmark-src"
+        let srcRoot = benchmarkRoot </> "benchmark-src"
         inDirectory "benchmark-src" $ do
             mapM_ (makeSrcRepo benchmarkRoot) sources
 
             -- Need to do additional setup with elm-make to ensure that we're
             -- building it with the local versions of elm-compiler and
             -- elm-package.
-            let srcRoot = benchmarkRoot </> "benchmark-src"
             inDirectory "elm-make" $ do
+                cabal ["sandbox", "init"]
                 addSources
                     srcRoot
                     (filter (\repo -> projectName repo /= "elm-make") sources)
+                cabal ["install"]
 
         -- Results
         createDirectoryIfMissing True "benchmark-results"
 
-        -- Compile each project with the golden versions of elm-compiler, elm-make, etc.
-        projects <- listDirectory "benchmark-projects"
-
-        hasGoldResults <- doesFileExist 
-            ("benchmark-results" </> "elm-make.Gold.prof")
-        unless hasGoldResults $ mapM_ (compile Gold) projects
+        mapM_ (compile Gold) projects
 
         -- Set the parent elm-compiler repo to be compiled into elm-make for
         -- development.
         inDirectory ("benchmark-src" </> "elm-make") $ do
-            void . cabal $ ["sandbox", "add-source", root]
+            cabal ["sandbox", "delete-source", srcRoot </> "elm-compiler"]
+            cabal ["sandbox", "add-source", root]
+            cabal ["install"]
         
         -- Compile each project with the development version of the elm compiler.
         mapM_ (compile Dev) projects
 
-        reportResults
+        mapM_ reportResults projects
 
 -- SETUP
 
@@ -153,20 +154,18 @@ makeSrcRepo root repo = do
        
 addSources :: FilePath -> [Repo] -> IO ()
 addSources root repos = do
-    cabal ["sandbox", "init"]
     mapM_
         (\repo -> cabal ["sandbox", "add-source", root </> projectName repo])
         repos
-    void . cabal $ ["install"]
 
 
 -- COMPILATION
 
 -- Compile an Elm project using the Elm compiler.
-compile :: Version -> FilePath -> IO ()
+compile :: Version -> Repo -> IO ()
 compile version project = do
     root <- getCurrentDirectory
-    setCurrentDirectory ("benchmark-projects" </> project) 
+    setCurrentDirectory ("benchmark-projects" </> projectName project) 
     
     -- Remove the build artifacts so that the full project is built each
     -- time we run benchmarking. This ensures that the results of subsequent
@@ -181,7 +180,7 @@ compile version project = do
     -- Profiling should produce a file called elm-make.prof.
     copyFile "elm-make.prof" (root 
         </> "benchmark-results" 
-        </> (project ++ "." ++ show version ++ ".prof"))
+        </> (projectName project ++ "." ++ show version ++ ".prof"))
 
     -- reset
     setCurrentDirectory root
@@ -189,21 +188,19 @@ compile version project = do
 
 -- REPORTING
 
--- CostCentreDiff is used to group the cost centre results from runs of
--- different compilers.
-data CostCentreDiff = CostCentreDiff
-    { gold :: Maybe CostCentre
+data Versioned a = Versioned
+    { gold :: Maybe a
     -- ^ Profiling results for the gold version of the compiler
-    , dev :: Maybe CostCentre
+    , dev :: Maybe a
     -- ^ Profiling results for the dev version of the compiler
     }
 
-reportResults :: IO ()
-reportResults = do
-    let goldFilename = "benchmark-results" </> ("elm-todomvc" ++ "." ++ show Gold ++ ".prof")
+reportResults :: Repo -> IO ()
+reportResults repo = do
+    let goldFilename = resultsFile repo Gold
     goldResults <- Text.readFile goldFilename
 
-    let devFilename = "benchmark-results" </> ("elm-todomvc" ++ "." ++ show Dev ++ ".prof") 
+    let devFilename = resultsFile repo Dev
     devResults <- Text.readFile devFilename
 
     case parseOnly timeAllocProfile goldResults of
@@ -216,7 +213,7 @@ reportResults = do
                     
                     -- Intersection should have no effect here, since the gold
                     -- and dev maps are both constructed using costCentreNames.
-                    reportDiffs $ Map.intersectionWith CostCentreDiff
+                    reportDiffs $ Map.intersectionWith Versioned
                         goldResults
                         devResults
                 Left error -> reportParseError devFilename error 
@@ -231,8 +228,12 @@ reportResults = do
             ++ ": "
             ++ errorMsg
 
+        resultsFile :: Repo -> Version -> FilePath
+        resultsFile project version = "benchmark-results"
+            </> (projectName project ++ "." ++ show version ++ ".prof")
+
 -- Report the results of profiling in a nice table.
-reportDiffs :: Map Text CostCentreDiff -> IO ()
+reportDiffs :: Map Text (Versioned CostCentre) -> IO ()
 reportDiffs results =
         putStrLn . Table.render unpack id renderMaybe $ resultsTable
     where
@@ -248,7 +249,7 @@ reportDiffs results =
         renderMaybe :: Show a => Maybe a -> String
         renderMaybe = maybe "-" show
 
-        reportDiff :: CostCentreDiff -> [Maybe Double]
+        reportDiff :: Versioned CostCentre -> [Maybe Double]
         reportDiff costCentre = 
             [ costCentreIndTime <$> gold costCentre
             , costCentreIndTime <$> dev costCentre
