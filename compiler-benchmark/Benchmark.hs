@@ -38,7 +38,7 @@ data Repo = Repo
 
 -- Version of the Elm compiler that is being used.
 data Version
-    = Gold 
+    = Stable 
     | Dev
     deriving Show
 
@@ -120,7 +120,7 @@ main = do
         -- Results
         createDirectoryIfMissing True "benchmark-results"
 
-        mapM_ (compile Gold) projects
+        mapM_ (compile Stable) projects
 
         -- Set the parent elm-compiler repo to be compiled into elm-make for
         -- development.
@@ -189,36 +189,36 @@ compile version project = do
 -- REPORTING
 
 data Versioned a = Versioned
-    { gold :: Maybe a
-    -- ^ Profiling results for the gold version of the compiler
+    { stable :: Maybe a
+    -- ^ Profiling results for the stable version of the compiler
     , dev :: Maybe a
     -- ^ Profiling results for the dev version of the compiler
     }
 
 reportResults :: Repo -> IO ()
 reportResults repo = do
-    let goldFilename = resultsFile repo Gold
-    goldResults <- Text.readFile goldFilename
+    let stableFilename = resultsFile repo Stable
+    stableResults <- Text.readFile stableFilename
 
     let devFilename = resultsFile repo Dev
     devResults <- Text.readFile devFilename
 
-    case parseOnly timeAllocProfile goldResults of
-        Right goldProfile -> do 
-            let goldResults = extractCostCentres goldProfile 
+    case parseOnly timeAllocProfile stableResults of
+        Right stableProfile -> do 
+            let stableResults = extractCostCentres stableProfile 
 
             case parseOnly timeAllocProfile devResults of
                 Right devProfile -> do
                     let devResults = extractCostCentres devProfile
                     
-                    -- Intersection should have no effect here, since the gold
+                    -- Intersection should have no effect here, since the stable
                     -- and dev maps are both constructed using costCentreNames.
                     reportDiffs $ Map.intersectionWith Versioned
-                        goldResults
+                        stableResults
                         devResults
                 Left error -> reportParseError devFilename error 
 
-        Left error -> reportParseError goldFilename error 
+        Left error -> reportParseError stableFilename error 
 
     where
         reportParseError :: FilePath -> String -> IO ()
@@ -241,7 +241,7 @@ reportDiffs results =
         resultsTable = Table
             (Group SingleLine [ Group NoLine $ map Header (Map.keys results) ])
             (Group DoubleLine [ Group NoLine 
-                [ Header "%time in gold"
+                [ Header "%time in stable"
                 , Header "%time in dev"
                 ]])
             (map reportDiff $ Map.elems results)
@@ -251,7 +251,7 @@ reportDiffs results =
 
         reportDiff :: Versioned CostCentre -> [Maybe Double]
         reportDiff costCentre = 
-            [ costCentreIndTime <$> gold costCentre
+            [ costCentreIndTime <$> stable costCentre
             , costCentreIndTime <$> dev costCentre
             ]
 
