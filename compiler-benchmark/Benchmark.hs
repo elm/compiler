@@ -124,6 +124,9 @@ main = do
 
         -- Set the parent elm-compiler repo to be compiled into elm-make for
         -- development.
+        -- TODO(justinmanley): Fail with an error if elm-make cannot be
+        -- installed with the dev version of the compiler to prevent it from
+        -- compiling using the stable version twice.
         inDirectory ("benchmark-src" </> "elm-make") $ do
             cabal ["sandbox", "delete-source", srcRoot </> "elm-compiler"]
             cabal ["sandbox", "add-source", root]
@@ -162,6 +165,8 @@ addSources root repos = do
 -- COMPILATION
 
 -- Compile an Elm project using the Elm compiler.
+-- TODO(justinmanley): Compile each project multiple times in order to report
+-- when differences in compilation time are actually statistically significant.
 compile :: Version -> Repo -> IO ()
 compile version project = do
     root <- getCurrentDirectory
