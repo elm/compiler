@@ -138,5 +138,3 @@ last list =
 ```
 
 This is nice because it lets users know that there might be a failure, so they can recover from it however they want.
-
-**Note:** You can define helpers like [`(?)`](https://github.com/elm-lang/core/issues/216) or [`unsafe`](https://github.com/elm-lang/core/issues/215) to make it easier to work with `Maybe` values a bunch. These helpers are being considered for inclusion in core, but it's not hard to put them in your own code and see if they make things nicer for you.
