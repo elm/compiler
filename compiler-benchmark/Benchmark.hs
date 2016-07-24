@@ -53,17 +53,17 @@ sources =
     [ Repo 
         { projectName = "elm-make"
         , path = "https://github.com/elm-lang/elm-make.git"
-        , branch = "0.17"
+        , branch = "0.17.1"
         }
     , Repo
         { projectName = "elm-package"
         , path = "https://github.com/elm-lang/elm-package.git"
-        , branch = "0.17"
+        , branch = "0.17.1"
         }
     , Repo
         { projectName = "elm-compiler"
         , path = "https://github.com/elm-lang/elm-compiler.git"
-        , branch = "0.17" 
+        , branch = "0.17.1"
         }
     ]   
 
