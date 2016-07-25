@@ -1,4 +1,6 @@
-Thank you for reporting an issue with Elm! Before submitting, please make sure it's not a commonly reported issue:
+PLEASE READ ALL THIS BEFORE OVERWRITING IT:
+
+Thank you for reporting an issue with Elm! Before submitting, please make sure it's not a commonly reported issue or an issue that belongs elsewhere:
 
 - If you're getting a runtime error, make sure you don't have any recursively defined values (see #873).
 - If you're having trouble with type annotations in a let-expression, see #1214.
