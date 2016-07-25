@@ -1,12 +1,16 @@
-Thank you for reporting an issue with Elm! Before submitting, please make sure it's not a commonly reported issue:
+BEFORE DELETING THIS:
 
-- If you're getting a runtime error, make sure you don't have any recursively defined values (see #873).
-- If you're having trouble with type annotations in a let-expression, see #1214.
-- If the issue relates to the core libraries (not the compiler) open an issue at https://github.com/elm-lang/core/issues
-- If you found an unhelpful error message, report it at https://github.com/elm-lang/error-message-catalog/issues
+- Runtime error? https://github.com/elm-lang/elm-compiler/issues/873
 
-Okay, now look through the "meta" issues to see if they cover your problem: https://github.com/elm-lang/elm-compiler/labels/meta
+- Type annotations? https://github.com/elm-lang/elm-compiler/issues/1214
 
-If you still don't see your bug or concern, delete this message and write up a report that satisfies the issue checklist!
+- Core libraries? https://github.com/elm-lang/core/issues
+
+- Bad error message? https://github.com/elm-lang/error-message-catalog/issues
+
+- Parser / code gen problem? https://github.com/elm-lang/elm-compiler/labels/meta
+
+
+If none of that applies, write up a report that satisfies this checklist:
 
   https://github.com/process-bot/contribution-checklist/blob/master/issues.md
