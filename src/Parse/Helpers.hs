@@ -22,6 +22,7 @@ import qualified Reporting.Error.Syntax as Syntax
 import qualified Reporting.Region as R
 
 
+
 reserveds :: [String]
 reserveds =
     [ "if", "then", "else"
@@ -35,12 +36,16 @@ reserveds =
     ]
 
 
+
 -- ERROR HELP
+
 
 expecting = flip (<?>)
 
 
+
 -- SETUP
+
 
 type OpTable = Map.Map String (Int, Decl.Assoc)
 type SourceM = State SourcePos
@@ -105,7 +110,9 @@ reserved word =
         return word
 
 
+
 -- INFIX OPERATORS
+
 
 anyOp :: IParser String
 anyOp =
@@ -123,7 +130,9 @@ symOp =
         _   -> return op
 
 
+
 -- COMMON SYMBOLS
+
 
 equals :: IParser String
 equals =
@@ -147,7 +156,9 @@ commitIf check p =
       try (lookAhead check) >> p
 
 
+
 -- SEPARATORS
+
 
 spaceySepBy1 :: IParser b -> IParser a -> IParser [a]
 spaceySepBy1 sep parser =
@@ -216,7 +227,9 @@ constrainedSpacePrefix parser constraint =
         indented
 
 
+
 -- SURROUNDED BY
+
 
 followedBy a b =
   do  x <- a
@@ -255,7 +268,9 @@ brackets =
   surround '{' '}' "bracket"
 
 
+
 -- HELPERS FOR EXPRESSIONS
+
 
 getMyPosition :: IParser R.Position
 getMyPosition =
@@ -307,7 +322,9 @@ dot =
       notFollowedBy (char '.')
 
 
+
 -- WHITESPACE
+
 
 padded :: IParser a -> IParser a
 padded p =
@@ -417,7 +434,9 @@ closeComment =
         ]
 
 
+
 -- ODD COMBINATORS
+
 
 failure msg = do
   inp <- getInput
@@ -492,7 +511,9 @@ anyUntilPos pos =
         else (:) <$> anyChar <*> anyUntilPos pos
 
 
+
 -- BASIC LANGUAGE LITERALS
+
 
 shader :: IParser (String, L.GLShaderTipe)
 shader =
