@@ -59,7 +59,7 @@ variable region env var =
         logVar (Var.Canonical (Var.Module moduleName) varName)
 
     _ ->
-      case Set.toList `fmap` Map.lookup var (Env._values env) of
+      case Set.toList <$> Map.lookup var (Env._values env) of
         Just [v] ->
           logVar v
 
@@ -104,7 +104,7 @@ pvar
     -> Int
     -> Result Var.Canonical
 pvar region env var actualArgs =
-  case Set.toList `fmap` Map.lookup var (Env._patterns env) of
+  case Set.toList <$> Map.lookup var (Env._patterns env) of
     Just [value] ->
         foundArgCheck value
 
