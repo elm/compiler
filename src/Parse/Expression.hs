@@ -79,13 +79,13 @@ negative =
 
 listTerm :: IParser Source.Expr'
 listTerm =
-    shader' <|> braces (E.ExplicitList <$> commaSep expr)
-  where
-    shader' =
-      do  pos <- getPosition
+  choice
+    [ do  pos <- getPosition
           let uid = show (sourceLine pos) ++ ":" ++ show (sourceColumn pos)
           (rawSrc, tipe) <- Help.shader
           return $ E.GLShader uid (filter (/='\r') rawSrc) tipe
+    , braces (E.ExplicitList <$> commaSep expr)
+    ]
 
 
 parensTerm :: IParser Source.Expr
