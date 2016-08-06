@@ -79,7 +79,7 @@ infixDecl =
       forcedWS
       n <- digit
       forcedWS
-      op <- anyOp
+      op <- infixOp
       return $ Decl.Fixity (Decl.Infix op assoc (read [n]))
 
 

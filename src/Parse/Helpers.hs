@@ -114,20 +114,14 @@ reserved word =
 -- INFIX OPERATORS
 
 
-anyOp :: IParser String
-anyOp =
-  betwixt '`' '`' qualifiedVar
-  <|> symOp
-  <?> "an infix operator like (+)"
-
-
-symOp :: IParser String
-symOp =
-  do  op <- many1 (satisfy (\c -> Help.isSymbol c && c /= '`'))
-      guard (op `notElem` [ "=", "..", "->", "--", "|", ":" ])
-      case op of
-        "." -> notFollowedBy lower >> return op
-        _   -> return op
+infixOp :: IParser String
+infixOp =
+  expecting "an infix operator like (+)" $
+    do  op <- many1 (satisfy (\c -> Help.isSymbol c && c /= '`'))
+        guard (op `notElem` [ "=", "..", "->", "--", "|", ":" ])
+        case op of
+          "." -> notFollowedBy lower >> return op
+          _   -> return op
 
 
 
