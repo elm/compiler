@@ -114,11 +114,6 @@ generateCode expr =
       Literal lit ->
           jsExpr (Literal.literal lit)
 
-      Range lo hi ->
-          do  lo' <- generateJsExpr lo
-              hi' <- generateJsExpr hi
-              jsExpr $ BuiltIn.range lo' hi'
-
       Access record field ->
           do  record' <- generateJsExpr record
               jsExpr $ DotRef () record' (var (Var.safe field))

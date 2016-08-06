@@ -100,9 +100,6 @@ count expression =
           Var.TopLevel _ ->
               Map.empty
 
-    Range lo hi ->
-        count2 lo hi
-
     ExplicitList exprs ->
         countMany exprs
 
@@ -209,9 +206,6 @@ replace substitutions expression =
 
     Var _ ->
         expression
-
-    Range lo hi ->
-        Range (go lo) (go hi)
 
     ExplicitList exprs ->
         ExplicitList (map go exprs)

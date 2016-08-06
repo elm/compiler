@@ -42,7 +42,6 @@ type Expr annotation definition variable tipe =
 data Expr' ann def var typ
     = Literal Literal.Literal
     | Var var
-    | Range (Expr ann def var typ) (Expr ann def var typ)
     | ExplicitList [Expr ann def var typ]
     | Binop var (Expr ann def var typ) (Expr ann def var typ)
     | Lambda (Pattern.Pattern ann var) (Expr ann def var typ)

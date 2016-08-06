@@ -1,6 +1,6 @@
 module Generate.JavaScript.BuiltIn
   ( character, string
-  , list, range
+  , list
   , recordUpdate
   , eq, cmp
   , effect, outgoingPort, incomingPort
@@ -48,11 +48,6 @@ string str =
 list :: [JS.Expression ()] -> JS.Expression ()
 list elements =
   nativeList "fromArray" [ JS.ArrayLit () elements ]
-
-
-range :: JS.Expression () -> JS.Expression () -> JS.Expression ()
-range low high =
-  nativeList "range" [ low, high ]
 
 
 

@@ -38,7 +38,6 @@ dummyFacts =
 data Expr
     = Literal Literal.Literal
     | Var Var.Canonical
-    | Range Expr Expr
     | ExplicitList [Expr]
     | Binop Var.Canonical Expr Expr
     | Function [String] Expr

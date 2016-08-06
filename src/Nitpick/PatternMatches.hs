@@ -135,9 +135,6 @@ checkExpression tagDict (A.A region expression) =
     E.Var _ ->
         Result.ok ()
 
-    E.Range low high ->
-        go2 low high
-
     E.ExplicitList listExprs ->
         F.traverse_ go listExprs
 

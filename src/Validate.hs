@@ -486,11 +486,6 @@ expression (A.A ann sourceExpression) =
     Literal lit ->
         return (Literal lit)
 
-    Range lowExpr highExpr ->
-        Range
-          <$> expression lowExpr
-          <*> expression highExpr
-
     ExplicitList expressions ->
         ExplicitList
           <$> T.traverse expression expressions

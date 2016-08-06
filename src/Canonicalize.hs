@@ -366,9 +366,6 @@ canonicalizeExpr env (A.A region validExpr) =
       Literal lit ->
           Result.ok (Literal lit)
 
-      Range lowExpr highExpr ->
-          Range <$> go lowExpr <*> go highExpr
-
       Access record field ->
           Access <$> go record <*> Result.ok field
 

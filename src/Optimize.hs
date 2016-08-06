@@ -206,11 +206,6 @@ optimizeExpr context annExpr@(A.A region expression) =
         else
             pure (Opt.Var name)
 
-    Expr.Range lowExpr highExpr ->
-        Opt.Range
-          <$> justConvert lowExpr
-          <*> justConvert highExpr
-
     Expr.ExplicitList elements ->
         Opt.ExplicitList
           <$> T.traverse justConvert elements

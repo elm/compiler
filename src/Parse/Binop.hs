@@ -22,7 +22,7 @@ infixOp :: IParser String
 infixOp =
   expecting "an infix operator like (+)" $
     do  op <- many1 (satisfy (\c -> Help.isSymbol c && c /= '`'))
-        guard (op `notElem` [ "=", "..", "->", "--", "|", ":" ])
+        guard (op `notElem` [ "=", "->", "--", "|", ":" ])
         case op of
           "." -> notFollowedBy lower >> return op
           _   -> return op

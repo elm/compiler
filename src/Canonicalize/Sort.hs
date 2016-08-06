@@ -68,9 +68,6 @@ reorder (A.A ann expression) =
     Literal _ ->
       return expression
 
-    Range lowExpr highExpr ->
-      Range <$> reorder lowExpr <*> reorder highExpr
-
     ExplicitList es ->
       ExplicitList <$> mapM reorder es
 

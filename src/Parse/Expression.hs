@@ -79,13 +79,8 @@ negative =
 
 listTerm :: IParser Source.Expr'
 listTerm =
-    shader' <|> braces (try range <|> E.ExplicitList <$> commaSep expr)
+    shader' <|> braces (E.ExplicitList <$> commaSep expr)
   where
-    range =
-      do  lo <- expr
-          padded (string "..")
-          E.Range lo <$> expr
-
     shader' =
       do  pos <- getPosition
           let uid = show (sourceLine pos) ++ ":" ++ show (sourceColumn pos)

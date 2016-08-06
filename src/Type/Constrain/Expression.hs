@@ -29,10 +29,6 @@ constrain
     -> Type
     -> IO TypeConstraint
 constrain env annotatedExpr@(A.A region expression) tipe =
-  let
-    list t =
-      Env.getType env "List" <| t
-  in
   case expression of
     E.Literal lit ->
       Literal.constrain env region lit tipe
@@ -81,16 +77,6 @@ constrain env annotatedExpr@(A.A region expression) tipe =
 
     E.Var var ->
       return (CInstance region (V.toString var) tipe)
-
-    E.Range lowExpr highExpr ->
-      existsNumber $ \n ->
-        do  lowCon <- constrain env lowExpr n
-            highCon <- constrain env highExpr n
-            return $ CAnd
-              [ lowCon
-              , highCon
-              , CEqual Error.Range region (list n) tipe
-              ]
 
     E.ExplicitList exprs ->
       constrainList env region exprs tipe

@@ -70,7 +70,6 @@ data Hint
     | Literal String
     | Pattern Pattern
     | Shader
-    | Range
     | Lambda
     | Record
     -- effect manager problems
@@ -418,16 +417,6 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
           ( cmpHint
               "The shader block has this type:"
               "Which is fine, but the surrounding context wants it to be:"
-              []
-          )
-
-    Range ->
-        report
-          Nothing
-          "The low and high members of this list range are not the same type of value."
-          ( cmpHint
-              "The low end of the range has type:"
-              "But the high end is:"
               []
           )
 
