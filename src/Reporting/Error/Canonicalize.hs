@@ -138,7 +138,7 @@ toReport localizer err =
           UnknownQualifier qualifier localName ->
               namingError
                 ("Cannot find " ++ var ++ ".")
-                ( "The qualifier `" ++ qualifier ++ "` is not in scope. "
+                ( "No module called `" ++ qualifier ++ "` has been imported. "
                   ++ Help.maybeYouWant (map (\modul -> modul ++ "." ++ localName) suggestions)
                 )
 
