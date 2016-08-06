@@ -1,9 +1,11 @@
 module Parse.Binop (infixOp, binops, OpTable) where
 
-import Control.Monad (guard)
 import qualified Data.List as List
 import qualified Data.Map as Map
-import Text.Parsec ((<|>), choice, getState, lower, many1, notFollowedBy, satisfy, try)
+import Text.Parsec
+  ( (<|>), choice, getState, lookAhead, lower, many1
+  , notFollowedBy, satisfy, string, try
+  )
 
 import AST.Declaration (Assoc(L, N, R))
 import AST.Expression.General (Expr'(Binop))
@@ -20,12 +22,34 @@ import qualified Reporting.Annotation as A
 
 infixOp :: IParser String
 infixOp =
+  infixOpWith notReserved
+
+
+infixOpWith :: IParser String -> IParser String
+infixOpWith checker =
   expecting "an infix operator like (+)" $
-    do  op <- many1 (satisfy (\c -> Help.isSymbol c))
-        guard (op `notElem` [ "=", "->", "--", "|", ":" ])
+    do  op <- checker <|> many1 (satisfy Help.isSymbol)
         case op of
           "." -> notFollowedBy lower >> return op
-          _   -> return op
+          _ -> return op
+
+
+failOn :: String -> String -> IParser a
+failOn op msg =
+  do  try $ lookAhead $ do
+        string op
+        notFollowedBy (satisfy Help.isSymbol)
+      failure msg
+
+
+notReserved :: IParser a
+notReserved =
+  choice
+    [ failOn "=" "The = operator is reserved for defining variables. Maybe you want == instead?"
+    , failOn "->" "Arrows are reserved for cases and anonymous functions. Maybe you want > or >= instead?"
+    , failOn "|" "Vertical bars are reserved for use in union type declarations. Maybe you want || instead?"
+    , failOn ":" "A singe colon is for type annotations. Maybe you want :: instead?"
+    ]
 
 
 
@@ -58,7 +82,7 @@ binops term last =
   where
     nextOps =
       choice
-        [ commitIf (whitespace >> infixOp) $
+        [ commitIf (whitespace >> infixOpWith (fail "")) $
             do  whitespace
                 op <- infixOp
                 whitespace
