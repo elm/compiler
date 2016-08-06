@@ -21,7 +21,7 @@ import qualified Reporting.Annotation as A
 infixOp :: IParser String
 infixOp =
   expecting "an infix operator like (+)" $
-    do  op <- many1 (satisfy (\c -> Help.isSymbol c && c /= '`'))
+    do  op <- many1 (satisfy (\c -> Help.isSymbol c))
         guard (op `notElem` [ "=", "->", "--", "|", ":" ])
         case op of
           "." -> notFollowedBy lower >> return op
