@@ -1,15 +1,35 @@
-module Parse.Binop (binops, OpTable) where
+module Parse.Binop (infixOp, binops, OpTable) where
 
+import Control.Monad (guard)
 import qualified Data.List as List
 import qualified Data.Map as Map
-import Text.Parsec ((<|>), choice, getState, try)
+import Text.Parsec ((<|>), choice, getState, lower, many1, notFollowedBy, satisfy, try)
 
 import AST.Declaration (Assoc(L, N, R))
 import AST.Expression.General (Expr'(Binop))
 import qualified AST.Expression.Source as Source
+import qualified AST.Helpers as Help
 import qualified AST.Variable as Var
-import Parse.Helpers (IParser, OpTable, commitIf, failure, whitespace)
+import Parse.Helpers (IParser, OpTable, commitIf, expecting, failure, whitespace)
 import qualified Reporting.Annotation as A
+
+
+
+-- INFIX OPERATORS
+
+
+infixOp :: IParser String
+infixOp =
+  expecting "an infix operator like (+)" $
+    do  op <- many1 (satisfy (\c -> Help.isSymbol c && c /= '`'))
+        guard (op `notElem` [ "=", "..", "->", "--", "|", ":" ])
+        case op of
+          "." -> notFollowedBy lower >> return op
+          _   -> return op
+
+
+
+-- BINARY EXPRESSIONS
 
 
 opLevel :: OpTable -> String -> Int
@@ -30,18 +50,17 @@ hasLevel table n (op,_) =
 binops
     :: IParser Source.Expr
     -> IParser Source.Expr
-    -> IParser String
     -> IParser Source.Expr
-binops term last anyOp =
+binops term last =
   do  e <- term
       table <- getState
       split table 0 e =<< nextOps
   where
     nextOps =
       choice
-        [ commitIf (whitespace >> anyOp) $
+        [ commitIf (whitespace >> infixOp) $
             do  whitespace
-                op <- anyOp
+                op <- infixOp
                 whitespace
                 expr <- Left <$> try term <|> Right <$> last
                 case expr of

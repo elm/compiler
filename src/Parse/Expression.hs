@@ -121,7 +121,7 @@ parensTerm =
   in
     do  (start, mkExpr, end) <-
           located $ choice $
-            [ mkBinop <$> try (parens infixOp)
+            [ mkBinop <$> try (parens Binop.infixOp)
             , parens (tupleFn <|> parenedExpr)
             ]
         return (mkExpr start end)
@@ -202,7 +202,7 @@ expr =
 
 binaryExpr :: IParser Source.Expr
 binaryExpr =
-    Binop.binops appExpr lastExpr infixOp
+    Binop.binops appExpr lastExpr
   where
     lastExpr =
         addLocation (choice [ letExpr, caseExpr, ifExpr ])
@@ -296,7 +296,7 @@ annotation :: (String -> T.Raw -> a) -> IParser (A.Located a)
 annotation creator =
   let
     start =
-      do  v <- lowVar <|> parens infixOp
+      do  v <- lowVar <|> parens Binop.infixOp
           padded hasType
           return v
   in
@@ -325,6 +325,6 @@ makeFunction args body@(A.A ann _) =
 defStart :: IParser (P.Raw, [P.Raw])
 defStart =
   expecting "the definition of a value (x = ...)" $
-    do  starter <- try Pattern.term <|> addLocation (P.Var <$> parens infixOp)
+    do  starter <- try Pattern.term <|> addLocation (P.Var <$> parens Binop.infixOp)
         args <- spacePrefix Pattern.term
         return (starter, args)

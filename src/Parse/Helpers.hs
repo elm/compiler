@@ -1,7 +1,7 @@
 module Parse.Helpers where
 
 import Prelude hiding (until)
-import Control.Monad (guard, join)
+import Control.Monad (join)
 import Control.Monad.State (State)
 import Data.Char (isUpper)
 import qualified Data.Map as Map
@@ -14,7 +14,6 @@ import qualified Text.Parsec.Token as T
 import qualified AST.Declaration as Decl
 import qualified AST.Expression.General as E
 import qualified AST.Expression.Source as Source
-import qualified AST.Helpers as Help
 import qualified AST.Literal as L
 import qualified AST.Variable as Variable
 import qualified Reporting.Annotation as A
@@ -108,20 +107,6 @@ reserved word =
     do  string word
         notFollowedBy innerVarChar
         return word
-
-
-
--- INFIX OPERATORS
-
-
-infixOp :: IParser String
-infixOp =
-  expecting "an infix operator like (+)" $
-    do  op <- many1 (satisfy (\c -> Help.isSymbol c && c /= '`'))
-        guard (op `notElem` [ "=", "..", "->", "--", "|", ":" ])
-        case op of
-          "." -> notFollowedBy lower >> return op
-          _   -> return op
 
 
 

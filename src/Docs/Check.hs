@@ -11,8 +11,9 @@ import qualified AST.Variable as Var
 import qualified Docs.AST as Docs
 import qualified Elm.Compiler.Type as Type
 import Elm.Utils ((|>))
+import Parse.Binop (infixOp)
 import Parse.Helpers
-    ( addLocation, anyUntil, commaSep1, iParse, parens, simpleNewline, infixOp
+    ( addLocation, anyUntil, commaSep1, iParse, parens, simpleNewline
     , var, whitespace
     )
 import qualified Reporting.Annotation as A

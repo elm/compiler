@@ -4,6 +4,7 @@ module Parse.Declaration where
 import Text.Parsec ( (<?>), choice, digit, optionMaybe, string, try )
 
 import qualified AST.Declaration as Decl
+import qualified Parse.Binop as Binop
 import qualified Parse.Expression as Expr
 import Parse.Helpers as Help
 import qualified Parse.Type as Type
@@ -79,7 +80,7 @@ infixDecl =
       forcedWS
       n <- digit
       forcedWS
-      op <- infixOp
+      op <- Binop.infixOp
       return $ Decl.Fixity (Decl.Infix op assoc (read [n]))
 
 
