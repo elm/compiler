@@ -45,10 +45,10 @@ failOn op msg =
 notReserved :: IParser a
 notReserved =
   choice
-    [ failOn "=" "The = operator is reserved for defining variables. Maybe you want == instead?"
+    [ failOn "=" "The = operator is reserved for defining variables. Maybe you want == instead? Or maybe you are defining a variable, but there is whitespace before it?"
     , failOn "->" "Arrows are reserved for cases and anonymous functions. Maybe you want > or >= instead?"
     , failOn "|" "Vertical bars are reserved for use in union type declarations. Maybe you want || instead?"
-    , failOn ":" "A singe colon is for type annotations. Maybe you want :: instead?"
+    , failOn ":" "A singe colon is for type annotations. Maybe you want :: instead? Or maybe you are defining a type annotation, but there is whitespace before it?"
     ]
 
 
