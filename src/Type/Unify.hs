@@ -76,7 +76,18 @@ newtype Mismatch =
 
 
 mismatch :: Context -> Maybe Error.Reason -> Unify a
-mismatch (Context orientation _ _ _ _) maybeReason =
+mismatch (Context orientation var1 _ var2 _) maybeReason =
+  do  numArgs1 <- liftIO $ countArgs var1
+      numArgs2 <- liftIO $ countArgs var2
+      mismatchHelp orientation $
+        if numArgs1 == numArgs2 then
+          maybeReason
+        else
+          Just (Error.MissingArgs (abs (numArgs2 - numArgs1)))
+
+
+mismatchHelp :: Orientation -> Maybe Error.Reason -> Unify a
+mismatchHelp orientation maybeReason =
   throwError $ Mismatch $
     case orientation of
       ExpectedActual ->
@@ -441,6 +452,17 @@ collectAppsHelp args content =
 
     _ ->
         return Other
+
+
+countArgs :: Variable -> IO Int
+countArgs variable =
+  do  content <- getContent variable
+      case content of
+        Structure (Fun1 _ returnType) ->
+          (+1) <$> countArgs returnType
+
+        _ ->
+          return 0
 
 
 getContent :: Variable -> IO Content

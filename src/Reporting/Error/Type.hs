@@ -39,6 +39,7 @@ data Reason
     = MessyFields [String] [String]
     | IntFloat
     | TooLongComparableTuple Int
+    | MissingArgs Int
     | BadVar (Maybe VarType) (Maybe VarType)
 
 
@@ -591,6 +592,9 @@ flipReason reason =
     TooLongComparableTuple len ->
         TooLongComparableTuple len
 
+    MissingArgs num ->
+        MissingArgs num
+
     BadVar left right ->
         BadVar right left
 
@@ -617,6 +621,11 @@ reasonToString reason =
         go $
           "Although tuples are comparable, this is currently only supported\
           \ for tuples with 6 or fewer entries, not " ++ show len ++ "."
+
+    MissingArgs num ->
+        go $
+          "It looks like a function needs " ++ show num ++ " more "
+          ++ (if num == 1 then "argument" else "arguments") ++ "."
 
     BadVar (Just Comparable) _ ->
         go "Only ints, floats, chars, strings, lists, and tuples are comparable."
