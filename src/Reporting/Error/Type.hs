@@ -261,14 +261,14 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
     BinopRight op region ->
         report
           (Just region)
-          ("The right argument of " ++ prettyName op ++ " is causing a type mismatch.")
+          ("The right side of " ++ prettyName op ++ " is causing a type mismatch.")
           ( cmpHint
-              (prettyName op ++ " is expecting the right argument to be a:")
-              "But the right argument is:"
+              (prettyName op ++ " is expecting the right side to be a:")
+              "But the right side is:"
               ( binopHint op leftType rightType
                 ++
-                [ "I always figure out the type of the left argument first and if it is\
-                  \ acceptable on its own, I assume it is \"correct\" in subsequent checks.\
+                [ "With binary operations, I always figure out the left side first. If it\
+                  \ seems fine, I assume it is \"correct\" in subsequent checks.\
                   \ So the problem may actually be in how the left and right arguments interact."
                 ]
               )
