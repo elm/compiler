@@ -21,8 +21,8 @@ unify :: Error.Hint -> R.Region -> Variable -> Variable -> TS.Solver ()
 unify hint region expected actual =
   do  result <- runExceptT (guardedUnify ExpectedActual expected actual)
       case result of
-        Right state ->
-            return state
+        Right () ->
+            return ()
 
         Left (Mismatch maybeReason) ->
             let
