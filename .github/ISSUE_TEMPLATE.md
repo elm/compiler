@@ -8,6 +8,8 @@ BEFORE DELETING THIS:
 
 - Bad error message? https://github.com/elm-lang/error-message-catalog/issues
 
+- Compiler hangs? https://github.com/elm-lang/elm-compiler/issues/1240
+
 - Parser / code gen problem? https://github.com/elm-lang/elm-compiler/labels/meta
 
 
