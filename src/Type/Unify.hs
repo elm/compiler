@@ -24,7 +24,7 @@ unify hint region expected actual =
         Right state ->
             return state
 
-        Left (Mismatch _subExpected _subActual maybeReason) ->
+        Left (Mismatch maybeReason) ->
             let
               mkError =
                 do  expectedSrcType <- Type.toSrcType expected
@@ -71,22 +71,19 @@ reorient (Context orientation var1 desc1 var2 desc2) =
 -- ERROR MESSAGES
 
 
-data Mismatch
-    = Mismatch Variable Variable (Maybe Error.Reason)
+newtype Mismatch =
+  Mismatch (Maybe Error.Reason)
 
 
 mismatch :: Context -> Maybe Error.Reason -> Unify a
-mismatch (Context orientation first _ second _) maybeReason =
-  let
-    (expected, actual, orientedReason) =
-        case orientation of
-          ExpectedActual ->
-              (first, second, maybeReason)
+mismatch (Context orientation _ _ _ _) maybeReason =
+  throwError $ Mismatch $
+    case orientation of
+      ExpectedActual ->
+        maybeReason
 
-          ActualExpected ->
-              (second, first, Error.flipReason <$> maybeReason)
-  in
-    throwError (Mismatch expected actual orientedReason)
+      ActualExpected ->
+        Error.flipReason <$> maybeReason
 
 
 badRigid :: Maybe String -> Error.Reason
