@@ -169,19 +169,21 @@ diff localizer context leftType rightType =
     go = diff localizer
   in
   case (leftType, rightType) of
-    (Type.Lambda _ _, Type.Lambda _ _) ->
-        let
-          leftParts = Type.collectLambdas leftType
-          rightParts = Type.collectLambdas rightType
-        in
+    (Type.Aliased leftName leftArgs _, Type.Aliased rightName rightArgs _) | leftName == rightName ->
+        docAppHelp localizer context leftName
+          <$> sequenceA (zipWith (go App) (map snd leftArgs) (map snd rightArgs))
 
-          if length leftParts /= length rightParts then
-              difference
-                (docLambda context (map (docType localizer Func) leftParts))
-                (docLambda context (map (docType localizer Func) rightParts))
+    (Type.Aliased _ args real, _) ->
+        go context (Type.dealias args real) rightType
 
-          else
-              docLambda context <$> sequenceA (zipWith (go Func) leftParts rightParts)
+    (_, Type.Aliased _ args real) ->
+        go context leftType (Type.dealias args real)
+
+    (Type.Lambda _ _, _) ->
+        diffLambda localizer context leftType rightType
+
+    (_, Type.Lambda _ _) ->
+        diffLambda localizer context leftType rightType
 
     (Type.Var x, Type.Var y) | x == y ->
         pure (text x)
@@ -216,16 +218,6 @@ diff localizer context leftType rightType =
         in
           diffRecord localizer leftFields leftExt rightFields rightExt
 
-    (Type.Aliased leftName leftArgs _, Type.Aliased rightName rightArgs _) | leftName == rightName ->
-        docAppHelp localizer context leftName
-          <$> sequenceA (zipWith (go App) (map snd leftArgs) (map snd rightArgs))
-
-    (Type.Aliased _ args real, _) ->
-        go context (Type.dealias args real) rightType
-
-    (_, Type.Aliased _ args real) ->
-        go context leftType (Type.dealias args real)
-
     (_, _) ->
         difference
           (docType localizer context leftType)
@@ -235,6 +227,37 @@ diff localizer context leftType rightType =
 difference :: Doc -> Doc -> Diff Doc
 difference leftDoc rightDoc =
   Diff (dullyellow leftDoc) (dullyellow rightDoc)
+
+
+
+-- FUNCTION DIFFS
+
+
+diffLambda :: Localizer -> Context -> Type.Canonical -> Type.Canonical -> Diff Doc
+diffLambda localizer context leftType rightType =
+  let
+    leftArgs = reverse $ Type.collectLambdas leftType
+    rightArgs = reverse $ Type.collectLambdas rightType
+
+    extraToDoc types =
+      map (dullyellow . docType localizer Func) types
+
+    extraLefts = reverse $ extraToDoc $ drop (length rightArgs) leftArgs
+    extraRights = reverse $ extraToDoc $ drop (length leftArgs) rightArgs
+
+    alignedArgDiff =
+      reverse <$> sequenceA (zipWith (diff localizer Func) leftArgs rightArgs)
+  in
+    docLambda context <$>
+      case (extraLefts, extraRights, alignedArgDiff) of
+        ([], [], _) ->
+          alignedArgDiff
+
+        (_, _, Same docs) ->
+          Diff (extraLefts ++ docs) (extraRights ++ docs)
+
+        (_, _, Diff lefts rights) ->
+          Diff (extraLefts ++ lefts) (extraRights ++ rights)
 
 
 
