@@ -667,15 +667,15 @@ unifySharedFieldsHelp context sharedFields =
           mismatch context (Just (Error.BadFields (reverse badFields)))
 
 
-unifyField :: Context -> (String, (Variable, Variable)) -> Unify (Maybe String)
+unifyField :: Context -> (String, (Variable, Variable)) -> Unify (Maybe (String, Maybe Error.Reason))
 unifyField context (field, (expected, actual)) =
   do  result <- lift $ runExceptT $ subUnify context expected actual
       case result of
         Right () ->
           return $ Nothing
 
-        Left _ ->
-          return $ Just field
+        Left (Mismatch maybeReason) ->
+          return $ Just (field, maybeReason)
 
 
 

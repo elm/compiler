@@ -1,11 +1,13 @@
 {-# OPTIONS_GHC -Wall #-}
 module Reporting.Error.Type where
 
+import Control.Arrow (first, second)
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import Text.PrettyPrint.ANSI.Leijen
   ( Doc, (<>), (<+>), colon, dullyellow
-  , fillSep, hang, indent, text, underline, vcat
+  , fillSep, indent, text, underline, vcat
   )
 
 import qualified AST.Type as Type
@@ -36,7 +38,7 @@ data Mismatch = MismatchInfo
 
 
 data Reason
-    = BadFields [String]
+    = BadFields [(String, Maybe Reason)]
     | MessyFields [String] [String]
     | IntFloat
     | TooLongComparableTuple Int
@@ -585,7 +587,7 @@ flipReason :: Reason -> Reason
 flipReason reason =
   case reason of
     BadFields fields ->
-        BadFields fields
+        BadFields (map (second (fmap flipReason)) fields)
 
     MessyFields leftOnly rightOnly ->
         MessyFields rightOnly leftOnly
@@ -606,15 +608,62 @@ flipReason reason =
 reasonToString :: Reason -> Maybe Doc
 reasonToString reason =
   let
+    (fields, maybeDeepReason) =
+      collectFields reason
+
+    mabyeDocs =
+      reasonToStringHelp =<< maybeDeepReason
+
+    starter =
+      case fields of
+        [] ->
+          Nothing
+
+        [field] ->
+          Just $ "Problem in the `" ++ field ++ "` field. "
+
+        _ ->
+          Just $ "Problem at `" ++ List.intercalate "." fields ++ "`. "
+  in
+    case (starter, mabyeDocs) of
+      (Nothing, Nothing) ->
+        Nothing
+
+      (Just msg, Nothing) ->
+        Just $ toHint (msg ++ badFieldElaboration)
+
+      (_, Just (firstLine, docs)) ->
+        Just $ vcat $
+          toHint (maybe firstLine (++firstLine) starter)
+          : map (indent 4) docs
+
+
+
+collectFields :: Reason -> ([String], Maybe Reason)
+collectFields reason =
+  case reason of
+    BadFields [(field, Nothing)] ->
+      ([field], Nothing)
+
+    BadFields [(field, Just subReason)] ->
+      first (field:) (collectFields subReason)
+
+    _ ->
+      ([], Just reason)
+
+
+reasonToStringHelp :: Reason -> Maybe (String, [Doc])
+reasonToStringHelp reason =
+  let
     go msg =
-      Just (toHint msg)
+      Just (msg, [])
   in
   case reason of
-    BadFields [field] ->
-        go $ "It looks like a problem with the `" ++ field ++ "` field."
-
     BadFields fields ->
-        go $ "I found problems in these fields: " ++ Help.commaSep fields
+      go $
+        "I am seeing issues with the "
+        ++ Help.commaSep (map fst fields) ++ " fields. "
+        ++ badFieldElaboration
 
     MessyFields leftOnly rightOnly ->
         do  let typos = Help.findPotentialTypos leftOnly rightOnly
@@ -622,7 +671,7 @@ reasonToString reason =
             misspellingMessage typos
 
     IntFloat ->
-        go
+        go $
           "Elm does not automatically convert between Ints and Floats. Use\
           \ `toFloat` and `round` to do specific conversions.\
           \ <http://package.elm-lang.org/packages/elm-lang/core/latest/Basics#toFloat>"
@@ -659,6 +708,13 @@ reasonToString reason =
         Nothing
 
 
+badFieldElaboration :: String
+badFieldElaboration =
+  "I always figure out field types in alphabetical order. If a field\
+  \ seems fine, I assume it is \"correct\" in subsequent checks.\
+  \ So the problem may actually be a weird interaction with previous fields."
+
+
 singleRigidError :: String
 singleRigidError =
   "A type annotation is too generic. You can probably just switch to the\
@@ -683,20 +739,20 @@ toHint str =
   fillSep (hintDoc : map text (words str))
 
 
-misspellingMessage :: [(String,String)] -> Maybe Doc
+misspellingMessage :: [(String,String)] -> Maybe (String, [Doc])
 misspellingMessage typos =
   if null typos then
-      Nothing
+    Nothing
 
   else
-      let
-        maxLen =
-          maximum (map (length . fst) typos)
-      in
-        Just $ hang 4 $ vcat $
-          toHint "I compared the record fields and found some potential typos."
-          : text ""
-          : map (pad maxLen) typos
+    let
+      maxLen =
+        maximum (map (length . fst) typos)
+    in
+      Just
+        ( "I compared the record fields and found some potential typos."
+        , text "" : map (pad maxLen) typos
+        )
 
 
 pad :: Int -> (String, String) -> Doc
