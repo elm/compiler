@@ -36,7 +36,8 @@ data Mismatch = MismatchInfo
 
 
 data Reason
-    = MessyFields [String] [String]
+    = BadFields [String]
+    | MessyFields [String] [String]
     | IntFloat
     | TooLongComparableTuple Int
     | MissingArgs Int
@@ -583,6 +584,9 @@ funcName maybeVar =
 flipReason :: Reason -> Reason
 flipReason reason =
   case reason of
+    BadFields fields ->
+        BadFields fields
+
     MessyFields leftOnly rightOnly ->
         MessyFields rightOnly leftOnly
 
@@ -606,6 +610,12 @@ reasonToString reason =
       Just (toHint msg)
   in
   case reason of
+    BadFields [field] ->
+        go $ "It looks like a problem with the `" ++ field ++ "` field."
+
+    BadFields fields ->
+        go $ "I found problems in these fields: " ++ Help.commaSep fields
+
     MessyFields leftOnly rightOnly ->
         do  let typos = Help.findPotentialTypos leftOnly rightOnly
             _ <- Help.vetTypos typos

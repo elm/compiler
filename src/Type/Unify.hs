@@ -4,6 +4,7 @@ module Type.Unify (unify) where
 import Control.Monad (zipWithM_)
 import Control.Monad.Except (ExceptT, lift, liftIO, throwError, runExceptT)
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
 import qualified Data.UnionFind.IO as UF
 
 import qualified AST.Variable as Var
@@ -616,7 +617,7 @@ unifyRecord context firstStructure secondStructure =
       -- looking into whether the particular field types match.
       let unifySharedFields otherFields ext =
             do  let sharedFields = Map.intersectionWith (,) expFields actFields
-                _ <- traverse (uncurry (subUnify context)) sharedFields
+                unifySharedFieldsHelp context sharedFields
                 let allFields = Map.union (Map.map fst sharedFields) otherFields
                 merge context (Structure (Record1 allFields ext))
 
@@ -652,6 +653,29 @@ unifyRecord context firstStructure secondStructure =
                 subUnify context expVar expRecord
                 subUnify context actRecord actVar
                 unifySharedFields subFields subExt
+
+
+
+unifySharedFieldsHelp :: Context -> Map.Map String (Variable, Variable) -> Unify ()
+unifySharedFieldsHelp context sharedFields =
+  do  maybeBadFields <- traverse (unifyField context) (Map.toList sharedFields)
+      case Maybe.catMaybes maybeBadFields of
+        [] ->
+          return ()
+
+        badFields ->
+          mismatch context (Just (Error.BadFields (reverse badFields)))
+
+
+unifyField :: Context -> (String, (Variable, Variable)) -> Unify (Maybe String)
+unifyField context (field, (expected, actual)) =
+  do  result <- lift $ runExceptT $ subUnify context expected actual
+      case result of
+        Right () ->
+          return $ Nothing
+
+        Left _ ->
+          return $ Just field
 
 
 
