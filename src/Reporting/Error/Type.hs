@@ -39,7 +39,7 @@ data Mismatch = MismatchInfo
 
 data Reason
     = BadFields [(String, Maybe Reason)]
-    | MessyFields [String] [String]
+    | MessyFields [String] [String] [String]
     | IntFloat
     | TooLongComparableTuple Int
     | MissingArgs Int
@@ -591,8 +591,8 @@ flipReason reason =
     BadFields fields ->
         BadFields (map (second (fmap flipReason)) fields)
 
-    MessyFields leftOnly rightOnly ->
-        MessyFields rightOnly leftOnly
+    MessyFields both left right ->
+        MessyFields both right left
 
     IntFloat ->
         IntFloat
@@ -667,10 +667,8 @@ reasonToStringHelp reason =
         ++ Help.commaSep (map fst fields) ++ " fields. "
         ++ badFieldElaboration
 
-    MessyFields leftOnly rightOnly ->
-        do  let typos = Help.findPotentialTypos leftOnly rightOnly
-            _ <- Help.vetTypos typos
-            misspellingMessage typos
+    MessyFields both leftOnly rightOnly ->
+        messyFieldsHelp both leftOnly rightOnly
 
     IntFloat ->
         go $
@@ -741,28 +739,104 @@ toHint str =
   fillSep (hintDoc : map text (words str))
 
 
-misspellingMessage :: [(String,String)] -> Maybe (String, [Doc])
-misspellingMessage typos =
-  if null typos then
-    Nothing
+messyFieldsHelp :: [String] -> [String] -> [String] -> Maybe (String, [Doc])
+messyFieldsHelp both leftOnly rightOnly =
+  case (leftOnly, rightOnly) of
+    ([], [missingField]) ->
+      oneMissingField both missingField
 
-  else
-    let
-      maxLen =
-        maximum (map (length . fst) typos)
-    in
+    ([missingField], []) ->
+      oneMissingField both missingField
+
+    ([], missingFields) ->
+      manyMissingFields both missingFields
+
+    (missingFields, []) ->
+      manyMissingFields both missingFields
+
+    _ ->
+      let
+        typoPairs =
+          case Help.findTypoPairs leftOnly rightOnly of
+            [] ->
+              Help.findTypoPairs (both ++ leftOnly) (both ++ rightOnly)
+
+            pairs ->
+              pairs
+      in
+        if null typoPairs then
+          Just
+            ( "The record fields do not match up. One has "
+              ++ Help.commaSep leftOnly ++ ". The other has "
+              ++ Help.commaSep rightOnly ++ "."
+            , []
+            )
+
+        else
+          Just
+            ( "The record fields do not match up. Maybe you made one of these typos?"
+            , typoDocs "<->" typoPairs
+            )
+
+
+oneMissingField :: [String] -> String -> Maybe (String, [Doc])
+oneMissingField knownFields missingField =
+  case Help.findPotentialTypos knownFields missingField of
+    [] ->
       Just
-        ( "I compared the record fields and found some potential typos."
-        , text "" : map (pad maxLen) typos
+        ( "Looks like a record is missing the `" ++ missingField ++ "` field."
+        , []
+        )
+
+    [typo] ->
+      Just
+        ( "Looks like a record is missing the `" ++ missingField
+          ++ "` field. Maybe it is a typo?"
+        , typoDocs "->" [(missingField, typo)]
+        )
+
+    typos ->
+      Just
+        ( "Looks like a record is missing the `" ++ missingField
+          ++ "` field. It is close to names like "
+          ++ Help.commaSep typos ++ " so maybe it is a typo?"
+        , []
         )
 
 
-pad :: Int -> (String, String) -> Doc
-pad maxLen (leftField, rightField) =
-  text (replicate (maxLen - length leftField) ' ')
-  <> dullyellow (text leftField)
-  <+> text "<->"
-  <+> dullyellow (text rightField)
+manyMissingFields :: [String] -> [String] -> Maybe (String, [Doc])
+manyMissingFields knownFields missingFields =
+  case Help.findTypoPairs missingFields knownFields of
+    [] ->
+      Just
+        ( "Looks like a record is missing these fields: "
+          ++ Help.commaSep missingFields
+        , []
+        )
+
+    typoPairs ->
+      Just
+        ( "Looks like a record is missing these fields: " ++ Help.commaSep missingFields
+          ++ ". Potential typos include:"
+        , typoDocs "->" typoPairs
+        )
+
+
+typoDocs :: String -> [(String, String)] -> [Doc]
+typoDocs arrow typoPairs =
+  let
+    maxLen =
+      maximum (map (length . fst) typoPairs)
+  in
+    text "" : map (padTypo arrow maxLen) typoPairs
+
+
+padTypo :: String -> Int -> (String, String) -> Doc
+padTypo arrow maxLen (missingField, knownField) =
+  text (replicate (maxLen - length missingField) ' ')
+  <> dullyellow (text missingField)
+  <+> text arrow
+  <+> dullyellow (text knownField)
 
 
 

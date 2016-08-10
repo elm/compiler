@@ -623,11 +623,12 @@ unifyRecord context firstStructure secondStructure =
   do  let (RecordStructure expFields expVar expStruct) = firstStructure
       let (RecordStructure actFields actVar actStruct) = secondStructure
 
+      let sharedFields = Map.intersectionWith (,) expFields actFields
+
       -- call after unifying extension, make sure record shape matches before
       -- looking into whether the particular field types match.
       let unifySharedFields otherFields ext =
-            do  let sharedFields = Map.intersectionWith (,) expFields actFields
-                unifySharedFieldsHelp context sharedFields
+            do  unifySharedFieldsHelp context sharedFields
                 let allFields = Map.union (Map.map fst sharedFields) otherFields
                 merge context (Structure (Record1 allFields ext))
 
@@ -640,10 +641,12 @@ unifyRecord context firstStructure secondStructure =
                 unifySharedFields Map.empty expVar
 
         (Empty, _, _, False) ->
-            mismatch context (Just (Error.MessyFields (Map.keys uniqueExpFields) (Map.keys uniqueActFields)))
+            mismatch context $ Just $
+              Error.MessyFields (Map.keys sharedFields) (Map.keys uniqueExpFields) (Map.keys uniqueActFields)
 
         (_, False, Empty, _) ->
-            mismatch context (Just (Error.MessyFields (Map.keys uniqueExpFields) (Map.keys uniqueActFields)))
+            mismatch context $ Just $
+              Error.MessyFields (Map.keys sharedFields) (Map.keys uniqueExpFields) (Map.keys uniqueActFields)
 
         (_, False, _, True) ->
             do  subRecord <- fresh context (Structure (Record1 uniqueExpFields expVar))

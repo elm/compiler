@@ -327,8 +327,8 @@ unzipDiffs diffPairs =
 analyzeFields :: [String] -> [String] -> ( [(Doc, Doc)], [(Doc, Doc)] )
 analyzeFields leftOnly rightOnly =
   let
-    potentialTypos =
-      Help.findPotentialTypos leftOnly rightOnly
+    typoPairs =
+      Help.findTypoPairs leftOnly rightOnly
 
     mkField func name =
       ( func (text name), text "..." )
@@ -336,7 +336,7 @@ analyzeFields leftOnly rightOnly =
     mkFieldWith counts name =
       mkField (if Set.member name counts then dullyellow else id) name
   in
-    case Help.vetTypos potentialTypos of
+    case Help.vetTypos typoPairs of
       Just (leftTypos, rightTypos) ->
         ( map (mkFieldWith leftTypos) leftOnly
         , map (mkFieldWith rightTypos) rightOnly
