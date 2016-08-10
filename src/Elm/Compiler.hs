@@ -154,14 +154,14 @@ newtype Error =
     Error (A.Located Error.Error)
 
 
-errorToString :: Localizer -> String -> String -> Error -> String
-errorToString (Localizer localizer) location source (Error (A.A region err)) =
-    Report.toString location region (Error.toReport localizer err) source
+errorToString :: Bool -> Localizer -> String -> String -> Error -> String
+errorToString isEmacsStyle (Localizer localizer) location source (Error (A.A region err)) =
+    Report.toString location isEmacsStyle region (Error.toReport localizer err) source
 
 
-printError :: Handle -> Localizer -> String -> String -> Error -> IO ()
-printError handle (Localizer localizer) location source (Error (A.A region err)) =
-    Report.toHandle handle location region (Error.toReport localizer err) source
+printError :: Handle -> Bool -> Localizer -> String -> String -> Error -> IO ()
+printError handle isEmacsStyle (Localizer localizer) location source (Error (A.A region err)) =
+    Report.toHandle handle isEmacsStyle location region (Error.toReport localizer err) source
 
 
 errorToJson :: Localizer -> String -> Error -> Json.Value
@@ -177,14 +177,14 @@ newtype Warning =
     Warning (A.Located Warning.Warning)
 
 
-warningToString :: Localizer -> String -> String -> Warning -> String
-warningToString (Localizer localizer) location source (Warning (A.A region wrn)) =
-    Report.toString location region (Warning.toReport localizer wrn) source
+warningToString :: Bool -> Localizer -> String -> String -> Warning -> String
+warningToString isEmacsStyle (Localizer localizer) location source (Warning (A.A region wrn)) =
+    Report.toString location isEmacsStyle region (Warning.toReport localizer wrn) source
 
 
-printWarning :: Handle -> Localizer -> String -> String -> Warning -> IO ()
-printWarning handle (Localizer localizer) location source (Warning (A.A region wrn)) =
-    Report.toHandle handle location region (Warning.toReport localizer wrn) source
+printWarning :: Handle -> Bool -> Localizer -> String -> String -> Warning -> IO ()
+printWarning handle isEmacsStyle (Localizer localizer) location source (Warning (A.A region wrn)) =
+    Report.toHandle handle isEmacsStyle location region (Warning.toReport localizer wrn) source
 
 
 warningToJson :: Localizer -> String -> Warning -> Json.Value

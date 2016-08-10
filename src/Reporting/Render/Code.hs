@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Reporting.Render.Code
     ( render
+    , errorStartingPosition
     )
     where
 
@@ -111,3 +112,31 @@ singleLineRegion lineNum sourceLine (start, innerStart, innerEnd, end) =
     addLineNumber Nothing width lineNum trimmedSourceLine
     <==>
     underline
+
+
+errorStartingPosition :: Maybe R.Region -> R.Region -> String -> (Int, Int)
+errorStartingPosition maybeSubRegion region@(R.Region start end) source =
+  let
+    (R.Position startLine startColumn) = start
+    (R.Position endLine _) = end
+
+    relevantLines =
+        lines source
+          |> drop (startLine - 1)
+          |> take (endLine - startLine + 1)
+  in
+    case relevantLines of
+      [] -> (1,1) -- Seek to line 1 of the file if no information available.
+              
+      _ : _ ->
+          let
+            subRegion =
+                maybeSubRegion <|> Just region
+          in
+            case subRegion of
+              Just (R.Region subStart subEnd) ->
+                let
+                  (R.Position subStartLine subStartColumn) = subStart
+                in
+                  (subStartLine, subStartColumn)
+              Nothing -> (1,1) -- Should never happen

@@ -58,9 +58,17 @@ toJson extraFields (Report title subregion pre post) =
 -- REPORT TO DOC
 
 
-toDoc :: String -> R.Region -> Report -> String -> Doc
-toDoc location region (Report title highlight preHint postHint) source =
-    messageBar title location
+toDoc :: Bool -> String -> R.Region -> Report -> String -> Doc
+toDoc isEmacsStyle location region (Report title highlight preHint postHint) source =
+  (if isEmacsStyle
+   then
+     let
+       (lineNumber, column) =
+         Code.errorStartingPosition highlight region source
+     in
+       emacsMessageBar title location lineNumber column
+   else
+     messageBar title location)
     <> hardline <> hardline <>
     preHint
     <> hardline <> hardline <>
@@ -80,20 +88,32 @@ messageBar tag location =
       "-- " ++ tag ++ " " ++ replicate (max 1 (80 - usedSpace)) '-' ++ " " ++ location
 
 
+emacsMessageBar :: String -> String -> Int -> Int -> Doc
+emacsMessageBar tag location lineNumber column =
+  let
+    lineLoc =
+      location ++ ":" ++ (show lineNumber) ++ ":" ++ (show column) ++ ":"
+    usedSpace =
+      4 + length tag + 1 + length location
+    mainHeader =
+      "-- " ++ tag ++ " " ++ replicate (max 1 (80 - usedSpace)) '-'
+  in
+    dullcyan $ text $ mainHeader ++ "\n" ++ lineLoc
+
 
 -- RENDER DOCS
 
 
-toHandle :: Handle -> String -> R.Region -> Report -> String -> IO ()
-toHandle handle location region rprt source =
+toHandle :: Handle -> Bool -> String -> R.Region -> Report -> String -> IO ()
+toHandle handle isEmacsStyle location region rprt source =
   displayIO
     handle
-    (renderPretty 1 80 (toDoc location region rprt source))
+    (renderPretty 1 80 (toDoc isEmacsStyle location region rprt source))
 
 
-toString :: String -> R.Region -> Report -> String -> String
-toString location region rprt source =
-  nonAnsiRender (toDoc location region rprt source)
+toString :: String -> Bool -> R.Region -> Report -> String -> String
+toString location isEmacsStyle region rprt source =
+  nonAnsiRender (toDoc isEmacsStyle location region rprt source)
 
 
 
