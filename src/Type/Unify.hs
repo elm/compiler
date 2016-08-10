@@ -77,14 +77,19 @@ newtype Mismatch =
 
 
 mismatch :: Context -> Maybe Error.Reason -> Unify a
-mismatch (Context orientation var1 _ var2 _) maybeReason =
-  do  numArgs1 <- liftIO $ countArgs var1
-      numArgs2 <- liftIO $ countArgs var2
-      mismatchHelp orientation $
-        if numArgs1 == numArgs2 then
-          maybeReason
+mismatch context@(Context orientation var1 _ var2 _) maybeReason =
+  do  args1 <- liftIO $ collectArgs var1
+      args2 <- liftIO $ collectArgs var2
+
+      let numArgs1 = length args1
+      let numArgs2 = length args2
+
+      if numArgs1 == numArgs2
+        then
+          mismatchHelp orientation maybeReason
         else
-          Just (Error.MissingArgs (abs (numArgs2 - numArgs1)))
+          do  zipWithM_ (\arg1 arg2 -> lift $ runExceptT $ subUnify context arg1 arg2) args1 args2
+              mismatchHelp orientation $ Just $ Error.MissingArgs $ abs (numArgs2 - numArgs1)
 
 
 mismatchHelp :: Orientation -> Maybe Error.Reason -> Unify a
@@ -455,15 +460,20 @@ collectAppsHelp args content =
         return Other
 
 
-countArgs :: Variable -> IO Int
-countArgs variable =
+collectArgs :: Variable -> IO [Variable]
+collectArgs variable =
+  collectArgsHelp [] variable
+
+
+collectArgsHelp :: [Variable] -> Variable -> IO [Variable]
+collectArgsHelp revArgs variable =
   do  content <- getContent variable
       case content of
-        Structure (Fun1 _ returnType) ->
-          (+1) <$> countArgs returnType
+        Structure (Fun1 arg returnType) ->
+          collectArgsHelp (arg : revArgs) returnType
 
         _ ->
-          return 0
+          return $ variable : revArgs
 
 
 getContent :: Variable -> IO Content
