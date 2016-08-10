@@ -230,12 +230,14 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
     ListElement elementNumber region ->
         report
           (Just region)
-          ("The " ++ ordinalPair elementNumber ++ " elements are different types of values.")
+          ("The " ++ ordinalPair elementNumber ++ " entries in this list are different types of values.")
           ( cmpHint
-              ("The " ++ Help.ordinalize (elementNumber - 1) ++ " element has this type:")
+              ("The " ++ Help.ordinalize (elementNumber - 1) ++ " entry has this type:")
               ("But the "++ Help.ordinalize elementNumber ++ " is:")
-              [ "All elements should be the same type of value so that we can\
-                \ iterate through the list without running into unexpected values."
+              [ "Every entry in a list needs to be the same type of value.\
+                \ This way you never run into unexpected values partway through.\
+                \ To mix different types in a single list, create a \"union type\" as\
+                \ described in: <http://guide.elm-lang.org/types/union_types.html>"
               ]
           )
 
