@@ -7,6 +7,7 @@ module Elm.Compiler.Type.Extract
 
 import qualified Control.Monad.Writer as Writer
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
@@ -110,10 +111,10 @@ extractTransitive interfaces oldDeps currentDeps =
     else
       let
         (result, newDeps) =
-          Writer.runWriter $
-            (,)
-              <$> mapM (extractAlias interfaces) (Set.toList aliases)
-              <*> mapM (extractUnion interfaces) (Set.toList unions)
+          Writer.runWriter $ do
+            publicAliases <- mapM (extractAlias interfaces) (Set.toList aliases)
+            publicUnions <- mapM (extractUnion interfaces) (Set.toList unions)
+            return ( Maybe.catMaybes publicAliases, Maybe.catMaybes publicUnions )
 
         remainingResult =
           extractTransitive interfaces (mappend oldDeps currentDeps) newDeps
@@ -121,26 +122,23 @@ extractTransitive interfaces oldDeps currentDeps =
         mappend result remainingResult
 
 
-extractAlias :: Module.Interfaces -> Var.Canonical -> Writer.Writer Deps Alias
+extractAlias :: Module.Interfaces -> Var.Canonical -> Writer.Writer Deps (Maybe Alias)
 extractAlias interfaces var =
-  case get Module.iAliases interfaces var of
-    Nothing ->
-      return ( Var.toString var, [], Type "_Tuple0" )
-
-    Just (args, tipe) ->
-      (,,) (Var.toString var) args
-        <$> extractHelp tipe
+  let
+    toAlias (args, tipe) =
+      (,,) (Var.toString var) args <$> extractHelp tipe
+  in
+    traverse toAlias (get Module.iAliases interfaces var)
 
 
-extractUnion :: Module.Interfaces -> Var.Canonical -> Writer.Writer Deps Union
+extractUnion :: Module.Interfaces -> Var.Canonical -> Writer.Writer Deps (Maybe Union)
 extractUnion interfaces var =
-  case get Module.iUnions interfaces var of
-    Nothing ->
-      return ( Var.toString var, [], [] )
-
-    Just (args, constructors) ->
+  let
+    toUnion (args, constructors) =
       (,,) (Var.toString var) args
         <$> traverse (traverse (traverse extractHelp)) constructors
+  in
+    traverse toUnion (get Module.iUnions interfaces var)
 
 
 get :: (Module.Interface -> Map.Map String a) -> Module.Interfaces -> Var.Canonical -> Maybe a
