@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wall #-}
 module Elm.Compiler.Module
     ( Interface, Interfaces
     , ModuleName.Raw
@@ -6,7 +7,7 @@ module Elm.Compiler.Module
     , hyphenate, dehyphenate
     , RawForJson(RawForJson), fromJson
     , defaultImports
-    , interfaceAliasedTypes
+    , interfaceAliasedTypes, programTypes
     , ModuleName.Canonical(..), qualifiedVar
     )
   where
@@ -21,7 +22,7 @@ import System.FilePath ((</>))
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified Elm.Compiler.Imports as Imports
-import qualified Elm.Compiler.Type as Type
+import qualified Elm.Compiler.Type as PublicType
 import qualified Elm.Compiler.Type.Extract as Extract
 import qualified Generate.JavaScript.Variable as Gen
 
@@ -36,9 +37,14 @@ type Interface = Module.Interface
 type Interfaces = Module.Interfaces
 
 
-interfaceAliasedTypes :: Interface -> Map.Map String Type.Type
+interfaceAliasedTypes :: Interface -> Map.Map String PublicType.Type
 interfaceAliasedTypes interface =
-    Map.map Extract.toAliasedType (Module.iTypes interface)
+    Map.map Extract.extract (Module.iTypes interface)
+
+
+programTypes :: Interfaces -> ModuleName.Canonical -> Maybe PublicType.Program
+programTypes =
+  Extract.extractProgram
 
 
 

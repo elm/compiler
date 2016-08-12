@@ -1,11 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.Compiler.Type
-    ( Type(..)
-    , toString
-    ) where
+  ( Type(..), toString
+  , Program(..)
+  )
+  where
 
 import Control.Arrow (second)
-import Data.Aeson ((.:))
+import Data.Aeson ((.:), (.=))
 import qualified Data.Aeson as Json
 import qualified Data.Aeson.Types as Json
 import qualified Data.ByteString.Lazy.Char8 as BS
@@ -20,6 +21,7 @@ import qualified Parse.Type as Type
 import qualified Reporting.Annotation as A
 
 
+
 data Type
     = Lambda Type Type
     | Var String
@@ -28,7 +30,18 @@ data Type
     | Record [(String, Type)] (Maybe Type)
 
 
+data Program =
+  Program
+    { _model :: Type
+    , _msg :: Type
+    , _aliases :: [( String, [String], Type )]
+    , _unions :: [( String, [String], [(String, [Type])] )]
+    }
+
+
+
 -- TO STRING
+
 
 data Context = None | ADT | Function
 
@@ -127,7 +140,9 @@ flattenRecord tipe =
       _ -> error "Trying to flatten ill-formed record."
 
 
+
 -- JSON for TYPE
+
 
 instance Json.ToJSON Type where
   toJSON tipe =
@@ -195,3 +210,37 @@ fromRawType (A.A _ astType) =
       Type.RRecord fields ext ->
           Record (map (second fromRawType) fields) (fmap fromRawType ext)
 
+
+
+-- JSON for PROGRAM
+
+
+instance Json.ToJSON Program where
+  toJSON (Program model msg aliases unions) =
+    Json.object
+      [ "model" .= model
+      , "message" .= msg
+      , "aliases" .= Json.object (map toAliasField aliases)
+      , "unions" .= Json.object (map toUnionField unions)
+      ]
+
+
+toAliasField :: ( String, [String], Type ) -> Json.Pair
+toAliasField ( name, args, tipe ) =
+  Text.pack name .= Json.object
+    [ "args" .= args
+    , "type" .= tipe
+    ]
+
+
+toUnionField :: ( String, [String], [(String, [Type])] ) -> Json.Pair
+toUnionField ( name, args, constructors ) =
+  Text.pack name .= Json.object
+    [ "args" .= args
+    , "type" .= Json.object (map toCtorObject constructors)
+    ]
+
+
+toCtorObject :: (String, [Type]) -> Json.Pair
+toCtorObject (name, args) =
+  Text.pack name .= args
