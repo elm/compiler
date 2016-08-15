@@ -60,15 +60,7 @@ toJson extraFields (Report title subregion pre post) =
 
 toDoc :: Bool -> String -> R.Region -> Report -> String -> Doc
 toDoc isEmacsStyle location region (Report title highlight preHint postHint) source =
-  (if isEmacsStyle
-   then
-     let
-       (lineNumber, column) =
-         Code.errorStartingPosition highlight region source
-     in
-       emacsMessageBar title location lineNumber column
-   else
-     messageBar title location)
+  messageBar title location isEmacsStyle highlight region source
     <> hardline <> hardline <>
     preHint
     <> hardline <> hardline <>
@@ -78,27 +70,24 @@ toDoc isEmacsStyle location region (Report title highlight preHint postHint) sou
     <> hardline <> hardline
 
 
-messageBar :: String -> String -> Doc
-messageBar tag location =
+messageBar :: String -> String -> Bool -> Maybe R.Region -> R.Region -> String -> Doc
+messageBar tag location isEmacsStyle highlight region source =
   let
     usedSpace =
       4 + length tag + 1 + length location
+    normalHeader =
+      "-- " ++ tag ++ " " ++ replicate (max 1 (80 - usedSpace)) '-' ++
+      " " ++ location
+    optionalLineAndColumnNumber =
+      if isEmacsStyle then
+        let
+          (lineNumber, column) =
+            Code.errorStartingPosition highlight region source
+        in
+          ":" ++ (show lineNumber) ++ ":" ++ (show column)
+      else ""
   in
-    dullcyan $ text $
-      "-- " ++ tag ++ " " ++ replicate (max 1 (80 - usedSpace)) '-' ++ " " ++ location
-
-
-emacsMessageBar :: String -> String -> Int -> Int -> Doc
-emacsMessageBar tag location lineNumber column =
-  let
-    lineLoc =
-      location ++ ":" ++ (show lineNumber) ++ ":" ++ (show column) ++ ":"
-    usedSpace =
-      4 + length tag + 1 + length location
-    mainHeader =
-      "-- " ++ tag ++ " " ++ replicate (max 1 (80 - usedSpace)) '-'
-  in
-    dullcyan $ text $ mainHeader ++ "\n" ++ lineLoc
+    dullcyan $ text $ normalHeader ++ optionalLineAndColumnNumber
 
 
 -- RENDER DOCS
