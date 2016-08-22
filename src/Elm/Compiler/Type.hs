@@ -32,8 +32,7 @@ data Type
 
 data Program =
   Program
-    { _model :: Type
-    , _msg :: Type
+    { _message :: Type
     , _aliases :: [( String, [String], Type )]
     , _unions :: [( String, [String], [(String, [Type])] )]
     }
@@ -216,10 +215,9 @@ fromRawType (A.A _ astType) =
 
 
 instance Json.ToJSON Program where
-  toJSON (Program model msg aliases unions) =
+  toJSON (Program msg aliases unions) =
     Json.object
-      [ "model" .= model
-      , "message" .= msg
+      [ "message" .= msg
       , "aliases" .= Json.object (map toAliasField aliases)
       , "unions" .= Json.object (map toUnionField unions)
       ]
@@ -237,7 +235,7 @@ toUnionField :: ( String, [String], [(String, [Type])] ) -> Json.Pair
 toUnionField ( name, args, constructors ) =
   Text.pack name .= Json.object
     [ "args" .= args
-    , "type" .= Json.object (map toCtorObject constructors)
+    , "tags" .= Json.object (map toCtorObject constructors)
     ]
 
 

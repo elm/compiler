@@ -74,18 +74,15 @@ extractProgram interfaces name =
   do  iface <- Map.lookup name interfaces
       mainType <- Map.lookup "main" (Module.iTypes iface)
       case mainType of
-        T.App _program [_flags, model, msg] ->
+        T.App _program [_flags, _model, msg] ->
           let
-            (modelType, modelDeps) =
-              Writer.runWriter (extractHelp model)
-
             (msgType, msgDeps) =
               Writer.runWriter (extractHelp msg)
 
             (aliases, unions) =
-              extractTransitive interfaces mempty (mappend modelDeps msgDeps)
+              extractTransitive interfaces mempty msgDeps
           in
-            Just $ Program modelType msgType aliases unions
+            Just $ Program msgType aliases unions
 
         _ ->
           Nothing
