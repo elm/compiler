@@ -17,7 +17,7 @@ data Pattern
     | Anything
     | Literal L.Literal
     | AnythingBut (Set.Set L.Literal)
-    deriving (Eq)
+    deriving (Eq, Ord)
 
 
 fromCanonicalPattern :: P.Canonical -> Pattern

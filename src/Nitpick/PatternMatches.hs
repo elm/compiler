@@ -209,25 +209,25 @@ checkExpression tagDict (A.A region expression) =
 
 checkPatterns :: TagDict -> Region.Region -> Error.Origin -> [Pattern.Canonical] -> Result wrn ()
 checkPatterns tagDict region origin patterns =
-  checkPatternsHelp tagDict region origin [Anything] patterns
+  checkPatternsHelp tagDict region origin (Set.singleton Anything) patterns
 
 
 checkPatternsHelp
     :: TagDict
     -> Region.Region
     -> Error.Origin
-    -> [Pattern]
+    -> Set.Set Pattern
     -> [Pattern.Canonical]
     -> Result wrn ()
 checkPatternsHelp tagDict region origin unhandled patterns =
-  case (unhandled, patterns) of
-    ([], []) ->
-        return ()
+  case patterns of
+    [] ->
+        if Set.size unhandled == 0 then
+          return ()
+        else
+          Result.throw region (Error.Incomplete origin unhandled)
 
-    (_:_, []) ->
-        Result.throw region (Error.Incomplete origin unhandled)
-
-    (_, pattern@(A.A localRegion _) : remainingPatterns) ->
+    pattern@(A.A localRegion _) : remainingPatterns ->
         do  newUnhandled <- filterPatterns tagDict localRegion pattern unhandled
             checkPatternsHelp tagDict region origin newUnhandled remainingPatterns
 
@@ -236,8 +236,8 @@ filterPatterns
     :: TagDict
     -> Region.Region
     -> Pattern.Canonical
-    -> [Pattern]
-    -> Result wrn [Pattern]
+    -> Set.Set Pattern
+    -> Result wrn (Set.Set Pattern)
 filterPatterns tagDict region pattern unhandled =
   let
     nitPattern =
@@ -252,6 +252,7 @@ filterPatterns tagDict region pattern unhandled =
     else
       do  let complementPatterns = complement tagDict nitPattern
           return $
+            Set.fromList $
             concatMap
               (\p -> Maybe.mapMaybe (intersection p) complementPatterns)
               unhandled
