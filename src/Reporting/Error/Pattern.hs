@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 module Reporting.Error.Pattern where
 
-import qualified Data.Set as Set
 import Text.PrettyPrint.ANSI.Leijen (text)
 
 import qualified Nitpick.Pattern as Pattern
@@ -12,7 +11,7 @@ import qualified Reporting.Report as Report
 
 
 data Error
-    = Incomplete Origin (Set.Set Pattern.Pattern)
+    = Incomplete Origin [Pattern.Pattern]
     | Redundant
 
 
@@ -58,11 +57,11 @@ toReport _localizer err =
           (text "Any value with this shape will be handled by a previous pattern.")
 
 
-unhandledError :: Set.Set Pattern.Pattern -> String -> String
+unhandledError :: [Pattern.Pattern] -> String -> String
 unhandledError unhandledPatterns relevantMessage =
   let
     (visiblePatterns, rest) =
-        splitAt 4 (Set.toList unhandledPatterns)
+      splitAt 4 unhandledPatterns
 
     patternList =
         map (Pattern.toString False) visiblePatterns
