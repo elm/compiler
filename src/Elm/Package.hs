@@ -8,8 +8,7 @@ import qualified Data.List as List
 import qualified Data.Text as T
 import System.FilePath ((</>))
 
-
--- PACKGE NAMES
+-- PACKAGE NAMES
 
 data Name = Name
     { user :: String
@@ -115,6 +114,9 @@ validateProjectName str =
 
   else if not (Char.isLetter (head str)) then
       Left "Package names must start with a letter."
+
+  else if elem '.' str then
+      Left "Package names must not contain a dot."
 
   else
       Right str
