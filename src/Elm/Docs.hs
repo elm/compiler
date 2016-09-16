@@ -98,7 +98,7 @@ prettyJson value =
 
 config :: Json.Config
 config =
-    Json.Config
+    Json.defConfig
     { Json.confIndent = Json.Spaces 2
     , Json.confCompare = Json.keyOrder keys
     }
