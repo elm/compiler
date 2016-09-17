@@ -507,14 +507,42 @@ constrainDef env info (Canonical.Def _ (A.A patternRegion pattern) expr maybeTip
   let qs = [] -- should come from the def, but I'm not sure what would live there...
   in
   case (pattern, maybeTipe) of
-    (P.Var name, Just (A.A typeRegion tipe)) ->
-        constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe
-
     (P.Var name, Nothing) ->
         constrainUnannotatedDef env info qs patternRegion name expr
 
+    (P.Var name, Just (A.A typeRegion tipe)) ->
+        constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe
+
     _ ->
         error "canonical definitions must not have complex patterns as names in the contstraint generation phase"
+
+
+constrainUnannotatedDef
+    :: Env.Environment
+    -> Info
+    -> [String]
+    -> R.Region
+    -> String
+    -> Canonical.Expr
+    -> IO Info
+constrainUnannotatedDef env info qs patternRegion name expr =
+  do  -- Some mistake may be happening here. Currently, qs is always [].
+      rigidVars <- mapM mkRigid qs
+
+      v <- mkVar Nothing
+
+      let tipe = VarN v
+
+      let env' = Env.addValues env (zip qs rigidVars)
+
+      con <- constrain env' expr tipe
+
+      return $ info
+          { iRigid = rigidVars ++ iRigid info
+          , iFlex = v : iFlex info
+          , iHeaders = Map.insert name (A.A patternRegion tipe) (iHeaders info)
+          , iC2 = con /\ iC2 info
+          }
 
 
 constrainAnnotatedDef
@@ -553,32 +581,4 @@ constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe =
       return $ info
           { iSchemes = scheme : iSchemes info
           , iC1 = iC1 info /\ ex [var] (defCon /\ fl rigidVars annCon)
-          }
-
-
-constrainUnannotatedDef
-    :: Env.Environment
-    -> Info
-    -> [String]
-    -> R.Region
-    -> String
-    -> Canonical.Expr
-    -> IO Info
-constrainUnannotatedDef env info qs patternRegion name expr =
-  do  -- Some mistake may be happening here. Currently, qs is always [].
-      rigidVars <- mapM mkRigid qs
-
-      v <- mkVar Nothing
-
-      let tipe = VarN v
-
-      let env' = Env.addValues env (zip qs rigidVars)
-
-      con <- constrain env' expr tipe
-
-      return $ info
-          { iRigid = rigidVars ++ iRigid info
-          , iFlex = v : iFlex info
-          , iHeaders = Map.insert name (A.A patternRegion tipe) (iHeaders info)
-          , iC2 = con /\ iC2 info
           }
