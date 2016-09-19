@@ -18,7 +18,6 @@ import qualified Type.Constrain.Effects as Effects
 import qualified Type.Constrain.Literal as Literal
 import qualified Type.Constrain.Pattern as Pattern
 import qualified Type.Environment as Env
-import qualified Type.Fragment as Fragment
 import Type.Type hiding (Descriptor(..))
 
 
@@ -87,14 +86,11 @@ constrain env annotatedExpr@(A.A region expression) tipe =
     E.Lambda pattern body ->
       exists $ \argType ->
       exists $ \resType ->
-        do  fragment <- Pattern.constrain env pattern argType
+        do  (Pattern.Info headers vars cons) <- Pattern.constrain env pattern argType
             bodyCon <- constrain env body resType
-            let con =
-                  ex (Fragment.vars fragment)
-                      (CLet [monoscheme (Fragment.typeEnv fragment)]
-                            (Fragment.typeConstraint fragment /\ bodyCon)
-                      )
-            return $ con /\ CEqual Error.Lambda region (argType ==> resType) tipe
+            return $
+              ex vars (CLet [monoscheme headers] (cons /\ bodyCon))
+              /\ CEqual Error.Lambda region (argType ==> resType) tipe
 
     E.App _ _ ->
       let
@@ -391,11 +387,11 @@ constrainCase env region expr branches tipe =
   where
     branch patternType (pattern, branchExpr@(A.A branchRegion _)) =
         do  branchVar <- mkVar Nothing
-            fragment <- Pattern.constrain env pattern patternType
+            scheme <- Pattern.infoToScheme <$> Pattern.constrain env pattern patternType
             branchCon <- constrain env branchExpr (VarN branchVar)
             return
                 ( (branchVar, branchRegion)
-                , CLet [Fragment.toScheme fragment] branchCon
+                , CLet [scheme] branchCon
                 )
 
     varToCon var =
