@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Type.Constrain.Pattern (Info(..), infoToScheme, constrain) where
+module Type.Constrain.Pattern (Info(..), joinInfos, infoToScheme, constrain) where
 
 import Control.Arrow (second)
 import qualified Control.Monad as Monad

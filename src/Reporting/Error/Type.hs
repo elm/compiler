@@ -69,7 +69,7 @@ data Hint
     | Function (Maybe Var.Canonical)
     | UnexpectedArg (Maybe Var.Canonical) Int Int Region.Region
     | FunctionArity (Maybe Var.Canonical) Int Int Region.Region
-    | BadTypeAnnotation String
+    | ReturnType String Int
     | Instance String
     | Literal String
     | Pattern Pattern
@@ -366,13 +366,26 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
             )
             (text "Maybe you forgot some parentheses? Or a comma?")
 
-    BadTypeAnnotation name ->
-        report
+    ReturnType name 0 ->
+      report
           Nothing
           ("The type annotation for " ++ Help.functionName name ++ " does not match its definition.")
           ( cmpHint
-              "The type annotation is saying:"
-              "But I am inferring that the definition has this type:"
+              ( "The type annotation says " ++ Help.functionName name
+                ++ " should be a:"
+              )
+              "But the value you defined has this type:"
+              []
+          )
+
+    ReturnType name arity ->
+      report
+          Nothing
+          ("The " ++ Help.functionName name ++ " function does not match the type annotation.")
+          ( cmpHint
+              "The definition produces values of this type:"
+              ( "But type annotation says " ++ Help.functionName name ++ " should return:"
+              )
               []
           )
 

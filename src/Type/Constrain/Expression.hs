@@ -491,14 +491,12 @@ data Info = Info
 
 constrainDef :: Env.Env -> Info -> Canonical.Def -> IO Info
 constrainDef env info (Canonical.Def _ (A.A patternRegion pattern) expr maybeTipe) =
-  let qs = [] -- should come from the def, but I'm not sure what would live there...
-  in
   case (pattern, maybeTipe) of
     (P.Var name, Nothing) ->
-        constrainUnannotatedDef env info qs patternRegion name expr
+        constrainUnannotatedDef env patternRegion name expr info
 
-    (P.Var name, Just (A.A typeRegion tipe)) ->
-        constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe
+    (P.Var name, Just (A.A _ tipe)) ->
+        constrainAnnotatedDef env patternRegion name expr tipe info
 
     _ ->
         error "canonical definitions must not have complex patterns as names in the contstraint generation phase"
@@ -506,66 +504,79 @@ constrainDef env info (Canonical.Def _ (A.A patternRegion pattern) expr maybeTip
 
 constrainUnannotatedDef
     :: Env.Env
-    -> Info
-    -> [String]
     -> R.Region
     -> String
     -> Canonical.Expr
+    -> Info
     -> IO Info
-constrainUnannotatedDef env info qs patternRegion name expr =
-  do  -- Some mistake may be happening here. Currently, qs is always [].
-      rigidVars <- mapM mkRigid qs
-
-      v <- mkVar Nothing
-
+constrainUnannotatedDef env patternRegion name expr info =
+  do  v <- mkVar Nothing
       let tipe = VarN v
-
-      let env' = Env.addValues env (zip qs rigidVars)
-
-      con <- constrain env' expr tipe
-
+      defCon <- constrain env expr tipe
       return $ info
-          { iRigid = rigidVars ++ iRigid info
-          , iFlex = v : iFlex info
+          { iFlex = v : iFlex info
           , iHeaders = Map.insert name (A.A patternRegion tipe) (iHeaders info)
-          , iC2 = con /\ iC2 info
+          , iC2 = defCon /\ iC2 info
           }
 
 
-constrainAnnotatedDef
-    :: Env.Env
-    -> Info
-    -> [String]
-    -> R.Region
-    -> R.Region
-    -> String
-    -> Canonical.Expr
-    -> ST.Canonical
-    -> IO Info
-constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe =
-  do  -- Some mistake may be happening here. Currently, qs is always [].
-      rigidVars <- mapM mkRigid qs
-
-      flexiVars <- mapM mkNamedVar qs
-
-      let env' = Env.addValues env (zip qs flexiVars)
-
-      (vars, typ) <- Env.instantiateType env tipe Map.empty
+constrainAnnotatedDef :: Env.Env -> R.Region -> String -> Canonical.Expr -> ST.Canonical -> Info -> IO Info
+constrainAnnotatedDef env region name expr tipe info =
+  do  (flexType, flexVars) <- Env.instantiateType Flex env tipe
 
       let scheme =
             Scheme
               { _rigidQuantifiers = []
-              , _flexibleQuantifiers = flexiVars ++ vars
+              , _flexibleQuantifiers = Map.elems flexVars
               , _constraint = CTrue
-              , _header = Map.singleton name (A.A patternRegion typ)
+              , _header = Map.singleton name (A.A region flexType)
               }
 
-      var <- mkVar Nothing
-      defCon <- constrain env' expr (VarN var)
-      let annCon =
-            CEqual (Error.BadTypeAnnotation name) typeRegion typ (VarN var)
+      defCon <- constrainAnnDefHelp name expr tipe (ArgInfo env [] [])
 
       return $ info
           { iSchemes = scheme : iSchemes info
-          , iC1 = iC1 info /\ ex [var] (defCon /\ fl rigidVars annCon)
+          , iC1 = iC1 info /\ defCon
           }
+
+
+
+data ArgInfo =
+  ArgInfo
+    { _env :: Env.Env
+    , _args :: [(P.Canonical, Type)]
+    , _vars :: [Variable]
+    }
+
+
+constrainAnnDefHelp :: String -> Canonical.Expr -> ST.Canonical -> ArgInfo -> IO TypeConstraint
+constrainAnnDefHelp name expr tipe (ArgInfo env args vars) =
+  case (expr, tipe) of
+    (A.A _ (E.Lambda arg result), ST.Lambda argType resultType) ->
+      do  (rigidArgType, newVars) <- Env.instantiateType Rigid env argType
+
+          constrainAnnDefHelp name result resultType $
+            ArgInfo
+              { _env = Env.addValues newVars env
+              , _args = (arg, rigidArgType) : args
+              , _vars = Map.elems newVars ++ vars
+              }
+
+    (A.A region _, _) ->
+      do  (rigidType, newVars) <- Env.instantiateType Rigid env tipe
+
+          let finalEnv = Env.addValues newVars env
+          let finalArgs = reverse args
+          let rigidVars = Map.elems newVars ++ vars
+
+          (Pattern.Info headers argVars argCons) <-
+            Pattern.joinInfos <$> mapM (uncurry (Pattern.constrain finalEnv)) finalArgs
+
+          resultVar <- mkVar Nothing
+          let resultType = VarN resultVar
+          defCon <- constrain finalEnv expr resultType
+          let resultCon =
+                CEqual (Error.ReturnType name (length args)) region resultType rigidType
+
+          return $ forall rigidVars $ ex (resultVar : argVars) $ CLet [monoscheme headers] $
+            CAnd [ argCons, defCon, resultCon ]

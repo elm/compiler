@@ -183,14 +183,15 @@ mkVar maybeSuper =
   UF.fresh $ mkDescriptor (Var Flex maybeSuper Nothing)
 
 
-mkNamedVar :: String -> IO Variable
-mkNamedVar name =
-    UF.fresh $ mkDescriptor (Var Flex (toSuper name) Nothing)
+mkNamedVar :: Flex -> String -> IO Variable
+mkNamedVar flex name =
+    UF.fresh $ mkDescriptor $ Var flex (toSuper name) $
+      case flex of
+        Flex ->
+          Nothing
 
-
-mkRigid :: String -> IO Variable
-mkRigid name =
-    UF.fresh $ mkDescriptor (Var Rigid (toSuper name) (Just name))
+        Rigid ->
+          Just name
 
 
 toSuper :: String -> Maybe Super
@@ -233,9 +234,8 @@ ex fqs constraint =
     CLet [Scheme [] fqs constraint Map.empty] CTrue
 
 
--- fl qs constraint == forall qs. constraint
-fl :: [Variable] -> TypeConstraint -> TypeConstraint
-fl rqs constraint =
+forall :: [Variable] -> TypeConstraint -> TypeConstraint
+forall rqs constraint =
     CLet [Scheme rqs [] constraint Map.empty] CTrue
 
 

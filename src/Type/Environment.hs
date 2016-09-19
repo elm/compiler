@@ -9,7 +9,6 @@ module Type.Environment
     where
 
 import qualified Control.Monad.State as State
-import qualified Data.List as List
 import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -114,8 +113,8 @@ ctorToType env (name, (tvars, ctors)) =
 
     go :: (V.Canonical, [T.Canonical]) -> State.StateT VarDict IO ([Type], Type)
     go (_, args) =
-      do  types <- mapM (instantiator env) args
-          returnType <- instantiator env (T.App (T.Type name) (map T.Var tvars))
+      do  types <- mapM (instantiator Flex env) args
+          returnType <- instantiator Flex env (T.App (T.Type name) (map T.Var tvars))
           return (types, returnType)
 
 
@@ -145,40 +144,34 @@ ctorNames env =
   Map.keys (_constructor env)
 
 
+
 -- UPDATE ENVIRONMENT
 
 
-addValues :: Env -> [(String, Variable)] -> Env
-addValues env newValues =
-  env
-    { _value =
-        List.foldl'
-          (\dict (name, var) -> Map.insert name (VarN var) dict)
-          (_value env)
-          newValues
-    }
+addValues :: VarDict -> Env -> Env
+addValues newValues env =
+  env { _value = Map.union (_value env) (Map.map VarN newValues) }
 
 
 
 -- INSTANTIATE TYPES
 
 
-instantiateType :: Env -> T.Canonical -> VarDict -> IO ([Variable], Type)
-instantiateType env sourceType dict =
-  do  (tipe, dict') <- State.runStateT (instantiator env sourceType) dict
-      return (Map.elems dict', tipe)
+instantiateType :: Flex -> Env -> T.Canonical -> IO (Type, VarDict)
+instantiateType flex env sourceType =
+  State.runStateT (instantiator flex env sourceType) Map.empty
 
 
-instantiator :: Env -> T.Canonical -> State.StateT VarDict IO Type
-instantiator env sourceType =
-    instantiatorHelp env Set.empty sourceType
+instantiator :: Flex -> Env -> T.Canonical -> State.StateT VarDict IO Type
+instantiator flex env sourceType =
+    instantiatorHelp flex env Set.empty sourceType
 
 
-instantiatorHelp :: Env -> Set.Set String -> T.Canonical -> State.StateT VarDict IO Type
-instantiatorHelp env aliasVars sourceType =
+instantiatorHelp :: Flex -> Env -> Set.Set String -> T.Canonical -> State.StateT VarDict IO Type
+instantiatorHelp flex env aliasVars sourceType =
   let
     go =
-      instantiatorHelp env aliasVars
+      instantiatorHelp flex env aliasVars
   in
     case sourceType of
       T.Lambda t1 t2 ->
@@ -190,24 +183,29 @@ instantiatorHelp env aliasVars sourceType =
 
           else
               do  dict <- State.get
-                  case Map.lookup name dict of
-                    Just variable ->
-                        return (VarN variable)
+                  case Map.lookup name (_value env) of
+                    Just tipe ->
+                      return tipe
 
                     Nothing ->
-                        do  variable <- State.liftIO (mkNamedVar name)
-                            State.put (Map.insert name variable dict)
-                            return (VarN variable)
+                      case Map.lookup name dict of
+                        Just variable ->
+                          return (VarN variable)
+
+                        Nothing ->
+                          do  variable <- State.liftIO (mkNamedVar flex name)
+                              State.put (Map.insert name variable dict)
+                              return (VarN variable)
 
       T.Aliased name args aliasType ->
           do  targs <- mapM (\(arg,tipe) -> (,) arg <$> go tipe) args
               realType <-
                   case aliasType of
                     T.Filled tipe ->
-                        instantiatorHelp env Set.empty tipe
+                        instantiatorHelp flex env Set.empty tipe
 
                     T.Holey tipe ->
-                        instantiatorHelp env (Set.fromList (map fst args)) tipe
+                        instantiatorHelp flex env (Set.fromList (map fst args)) tipe
 
               return (AliasN name targs realType)
 
