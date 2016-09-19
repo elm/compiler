@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 module Type.Environment
-    ( Environment
+    ( Env
     , initialize
     , getType, freshDataScheme, ctorNames
     , addValues
@@ -24,18 +24,18 @@ type TypeDict = Map.Map String Type
 type VarDict = Map.Map String Variable
 
 
-data Environment = Environment
+data Env = Env
     { _constructor :: Map.Map String (IO (Int, [Variable], [Type], Type))
     , _types :: TypeDict
     , _value :: TypeDict
     }
 
 
-initialize :: [Module.CanonicalUnion] -> IO Environment
+initialize :: [Module.CanonicalUnion] -> IO Env
 initialize datatypes =
   do  types <- makeTypes datatypes
       let env =
-            Environment
+            Env
               { _constructor = Map.empty
               , _value = Map.empty
               , _types = types
@@ -72,7 +72,7 @@ makeTypes datatypes =
 
 
 makeConstructors
-    :: Environment
+    :: Env
     -> [Module.CanonicalUnion]
     -> Map.Map String (IO (Int, [Variable], [Type], Type))
 makeConstructors env datatypes =
@@ -100,7 +100,7 @@ makeConstructors env datatypes =
 
 
 ctorToType
-    :: Environment
+    :: Env
     -> (V.Canonical, Module.UnionInfo V.Canonical)
     -> [(String, IO (Int, [Variable], [Type], Type))]
 ctorToType env (name, (tvars, ctors)) =
@@ -123,24 +123,24 @@ ctorToType env (name, (tvars, ctors)) =
 -- ACCESS TYPES
 
 
-get :: (Environment -> Map.Map String a) -> Environment -> String -> a
+get :: (Env -> Map.Map String a) -> Env -> String -> a
 get subDict env key =
     Map.findWithDefault (error msg) key (subDict env)
   where
     msg = "Could not find type constructor `" ++ key ++ "` while checking types."
 
 
-getType :: Environment -> String -> Type
+getType :: Env -> String -> Type
 getType =
   get _types
 
 
-freshDataScheme :: Environment -> String -> IO (Int, [Variable], [Type], Type)
+freshDataScheme :: Env -> String -> IO (Int, [Variable], [Type], Type)
 freshDataScheme =
   get _constructor
 
 
-ctorNames :: Environment -> [String]
+ctorNames :: Env -> [String]
 ctorNames env =
   Map.keys (_constructor env)
 
@@ -148,7 +148,7 @@ ctorNames env =
 -- UPDATE ENVIRONMENT
 
 
-addValues :: Environment -> [(String, Variable)] -> Environment
+addValues :: Env -> [(String, Variable)] -> Env
 addValues env newValues =
   env
     { _value =
@@ -163,18 +163,18 @@ addValues env newValues =
 -- INSTANTIATE TYPES
 
 
-instantiateType :: Environment -> T.Canonical -> VarDict -> IO ([Variable], Type)
+instantiateType :: Env -> T.Canonical -> VarDict -> IO ([Variable], Type)
 instantiateType env sourceType dict =
   do  (tipe, dict') <- State.runStateT (instantiator env sourceType) dict
       return (Map.elems dict', tipe)
 
 
-instantiator :: Environment -> T.Canonical -> State.StateT VarDict IO Type
+instantiator :: Env -> T.Canonical -> State.StateT VarDict IO Type
 instantiator env sourceType =
     instantiatorHelp env Set.empty sourceType
 
 
-instantiatorHelp :: Environment -> Set.Set String -> T.Canonical -> State.StateT VarDict IO Type
+instantiatorHelp :: Env -> Set.Set String -> T.Canonical -> State.StateT VarDict IO Type
 instantiatorHelp env aliasVars sourceType =
   let
     go =

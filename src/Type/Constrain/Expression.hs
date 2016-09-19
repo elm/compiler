@@ -22,11 +22,7 @@ import Type.Type hiding (Descriptor(..))
 
 
 
-constrain
-    :: Env.Environment
-    -> Canonical.Expr
-    -> Type
-    -> IO TypeConstraint
+constrain :: Env.Env -> Canonical.Expr -> Type -> IO TypeConstraint
 constrain env annotatedExpr@(A.A region expression) tipe =
   case expression of
     E.Literal lit ->
@@ -163,7 +159,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
 
 
 constrainApp
-    :: Env.Environment
+    :: Env.Env
     -> R.Region
     -> Canonical.Expr
     -> [Canonical.Expr]
@@ -192,7 +188,7 @@ constrainApp env region f args tipe =
 
 
 argConstraints
-    :: Env.Environment
+    :: Env.Env
     -> Maybe V.Canonical
     -> R.Region
     -> Int
@@ -246,7 +242,7 @@ argConstraints env name region totalArgs overallVar index args =
 
 
 constrainBinop
-    :: Env.Environment
+    :: Env.Env
     -> R.Region
     -> V.Canonical
     -> Canonical.Expr
@@ -281,12 +277,7 @@ constrainBinop env region op leftExpr@(A.A leftRegion _) rightExpr@(A.A rightReg
 -- CONSTRAIN LISTS
 
 
-constrainList
-    :: Env.Environment
-    -> R.Region
-    -> [Canonical.Expr]
-    -> Type
-    -> IO TypeConstraint
+constrainList :: Env.Env -> R.Region -> [Canonical.Expr] -> Type -> IO TypeConstraint
 constrainList env region exprs tipe =
   do  (exprInfo, exprCons) <-
           unzip <$> mapM elementConstraint exprs
@@ -309,7 +300,7 @@ constrainList env region exprs tipe =
 
 
 constrainIf
-    :: Env.Environment
+    :: Env.Env
     -> R.Region
     -> [(Canonical.Expr, Canonical.Expr)]
     -> Canonical.Expr
@@ -368,7 +359,7 @@ constrainIf env region branches finally tipe =
 
 
 constrainCase
-    :: Env.Environment
+    :: Env.Env
     -> R.Region
     -> Canonical.Expr
     -> [(P.Canonical, Canonical.Expr)]
@@ -498,7 +489,7 @@ data Info = Info
     }
 
 
-constrainDef :: Env.Environment -> Info -> Canonical.Def -> IO Info
+constrainDef :: Env.Env -> Info -> Canonical.Def -> IO Info
 constrainDef env info (Canonical.Def _ (A.A patternRegion pattern) expr maybeTipe) =
   let qs = [] -- should come from the def, but I'm not sure what would live there...
   in
@@ -514,7 +505,7 @@ constrainDef env info (Canonical.Def _ (A.A patternRegion pattern) expr maybeTip
 
 
 constrainUnannotatedDef
-    :: Env.Environment
+    :: Env.Env
     -> Info
     -> [String]
     -> R.Region
@@ -542,7 +533,7 @@ constrainUnannotatedDef env info qs patternRegion name expr =
 
 
 constrainAnnotatedDef
-    :: Env.Environment
+    :: Env.Env
     -> Info
     -> [String]
     -> R.Region

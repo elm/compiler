@@ -55,7 +55,7 @@ infoToScheme (Info headers vars cons) =
 -- CONSTRAIN PATTERN
 
 
-constrain :: Env.Environment -> P.Canonical -> Type -> IO Info
+constrain :: Env.Env -> P.Canonical -> Type -> IO Info
 constrain env (A.A region pattern) tipe =
   let
     equal patternError leftType rightType =

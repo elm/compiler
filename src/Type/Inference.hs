@@ -68,7 +68,7 @@ genConstraints interfaces modul =
 
 
 canonicalizeValues
-    :: Env.Environment
+    :: Env.Env
     -> (ModuleName.Canonical, Module.Interface)
     -> IO [(String, ([T.Variable], T.Type))]
 canonicalizeValues env (moduleName, iface) =
