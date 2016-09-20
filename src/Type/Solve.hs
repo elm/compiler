@@ -230,7 +230,6 @@ solveScheme scheme =
             header' <- T.traverse flatten header
             actuallySolve constraint
 
-            allDistinct rigidQuantifiers
             youngPool <- TS.getPool
             TS.switchToPool oldPool
             generalize youngPool
@@ -239,34 +238,6 @@ solveScheme scheme =
 
 
 -- ADDITIONAL CHECKS
-
--- Checks that all of the given variables belong to distinct equivalence classes.
--- Also checks that their structure is Nothing, so they represent a variable, not
--- a more complex term.
-allDistinct :: [Variable] -> TS.Solver ()
-allDistinct vars =
-  do  seenMark <- TS.uniqueMark
-      forM_ vars $ \var ->
-        do  desc <- liftIO $ UF.descriptor var
-            case _content desc of
-              Structure _ ->
-                  crash "Can only generalize type variables, not structures."
-
-              Atom _ ->
-                  crash "Can only generalize type variables, not structures."
-
-              Alias _ _ _ ->
-                  crash "Can only generalize type variables, not aliases."
-
-              Error ->
-                  crash "Can only generalize type variables, not error types."
-
-              Var _ _ _ ->
-                  if _mark desc == seenMark then
-                      crash "Duplicate variable during generalization."
-
-                  else
-                      liftIO (UF.setDescriptor var (desc { _mark = seenMark }))
 
 
 -- Check that a variable has rank == noRank, meaning that it can be generalized.
