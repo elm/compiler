@@ -540,7 +540,6 @@ constrainAnnotatedDef env region name expr tipe info =
           }
 
 
-
 data ArgInfo =
   ArgInfo
     { _env :: Env.Env
