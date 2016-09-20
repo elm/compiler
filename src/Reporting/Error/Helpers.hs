@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 module Reporting.Error.Helpers
   ( (|>)
-  , functionName, hintLink, stack, reflowParagraph
+  , functionName, args
+  , hintLink, stack, reflowParagraph
   , commaSep, capitalize, ordinalize, drawCycle
   , findPotentialTypos, findTypoPairs, vetTypos
   , nearbyNames, distance, maybeYouWant
@@ -45,6 +46,11 @@ functionName opName =
 
   else
       "`" ++ opName ++ "`"
+
+
+args :: Int -> String
+args n =
+  show n ++ if n == 1 then " argument" else " arguments"
 
 
 hintLink :: String -> String

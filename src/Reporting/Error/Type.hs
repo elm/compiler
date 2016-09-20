@@ -69,7 +69,7 @@ data Hint
     | Function (Maybe Var.Canonical)
     | UnexpectedArg (Maybe Var.Canonical) Int Int Region.Region
     | FunctionArity (Maybe Var.Canonical) Int Int Region.Region
-    | ReturnType String Int
+    | ReturnType String Int Int Region.Region
     | Instance String
     | Literal String
     | Pattern Pattern
@@ -306,7 +306,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
     UnexpectedArg maybeName 1 1 region ->
         report
           (Just region)
-          ("The  argument to " ++ funcName maybeName ++ " is causing a mismatch.")
+          ("The argument to " ++ funcName maybeName ++ " is causing a mismatch.")
           ( cmpHint
               (Help.capitalize (funcName maybeName) ++ " is expecting the argument to be:")
               "But it is:"
@@ -356,37 +356,34 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
             (text "Maybe you forgot some parentheses? Or a comma?")
 
     FunctionArity maybeName expected actual region ->
-        let
-          s = if expected == 1 then "" else "s"
-        in
-          report
-            (Just region)
-            ( Help.capitalize (funcName maybeName) ++ " is expecting " ++ show expected
-              ++ " argument" ++ s ++ ", but was given " ++ show actual ++ "."
-            )
-            (text "Maybe you forgot some parentheses? Or a comma?")
-
-    ReturnType name 0 ->
       report
-          Nothing
-          ("The type annotation for " ++ Help.functionName name ++ " does not match its definition.")
+          (Just region)
+          ( Help.capitalize (funcName maybeName) ++ " is expecting "
+            ++ Help.args expected ++ ", but was given " ++ show actual ++ "."
+          )
+          (text "Maybe you forgot some parentheses? Or a comma?")
+
+    ReturnType name typeArity argArity region ->
+      if typeArity == 0 || argArity == 0 then
+        report
+          (Just region)
+          ("The definition of " ++ Help.functionName name ++ " does not match its type annotation.")
           ( cmpHint
-              ( "The type annotation says " ++ Help.functionName name
-                ++ " should be a:"
+              ( "The type annotation for " ++ Help.functionName name ++ " says it is a:"
               )
-              "But the value you defined has this type:"
-              []
+              "But the definition (shown above) is a:"
+              (arityHint typeArity argArity)
           )
 
-    ReturnType name arity ->
-      report
-          Nothing
-          ("The " ++ Help.functionName name ++ " function does not match the type annotation.")
+      else
+        report
+          (Just region)
+          ("The definition of " ++ Help.functionName name ++ " does not match its type annotation.")
           ( cmpHint
-              "The definition produces values of this type:"
-              ( "But type annotation says " ++ Help.functionName name ++ " should return:"
+              ( "The type annotation for " ++ Help.functionName name ++ " says it always returns:"
               )
-              []
+              "But the returned value (shown above) is a:"
+              (arityHint typeArity argArity)
           )
 
     Instance name ->
@@ -568,6 +565,36 @@ functionHint maybeName =
 
       else
         []
+
+
+
+-- ARITY HINTS
+
+
+arityHint :: Int -> Int -> [String]
+arityHint typeArity argArity =
+  if typeArity == argArity then
+    []
+
+  else
+    [ "The type annotation says there " ++ sayArgs typeArity
+      ++ ", but there " ++ sayArgs argArity ++ " named in the definition."
+      ++ " It is best practice for each argument in the type to correspond"
+      ++ " to a named argument in the definition, so try that first!"
+    ]
+
+
+sayArgs :: Int -> String
+sayArgs n =
+  case n of
+    0 ->
+      "are NO arguments"
+
+    1 ->
+      "is 1 argument"
+
+    _ ->
+      "are " ++ show n ++ " arguments"
 
 
 
