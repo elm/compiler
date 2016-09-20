@@ -173,12 +173,6 @@ diff localizer context leftType rightType =
         docAppHelp localizer context leftName
           <$> sequenceA (zipWith (go App) (map snd leftArgs) (map snd rightArgs))
 
-    (Type.Aliased _ args real, _) ->
-        go context (Type.dealias args real) rightType
-
-    (_, Type.Aliased _ args real) ->
-        go context leftType (Type.dealias args real)
-
     (Type.Lambda _ _, _) ->
         diffLambda localizer context leftType rightType
 
