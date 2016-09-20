@@ -75,6 +75,7 @@ data Hint
     | Pattern Pattern
     | Shader
     | Lambda
+    | Access (Maybe String) String
     | Record
     -- effect manager problems
     | Manager String
@@ -145,11 +146,12 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
     report =
       Report.report "TYPE MISMATCH"
 
+    typicalHints =
+      Maybe.maybeToList (reasonToString =<< maybeReason)
+
     cmpHint leftWords rightWords extraHints =
       comparisonHint localizer leftType rightType leftWords rightWords
-        ( Maybe.maybeToList (reasonToString =<< maybeReason)
-          ++ map toHint extraHints
-        )
+        (typicalHints ++ map toHint extraHints)
   in
   case hint of
     CaseBranch branchNumber region ->
@@ -446,6 +448,30 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
               []
           )
 
+    Access (Just body) field ->
+      let
+        header =
+          "`" ++ body ++ "` does not have a field named `" ++ field ++ "`."
+      in
+        report Nothing header $ Help.stack $
+          [ Help.reflowParagraph $ "The type of `" ++ body ++ "` is:"
+          , indent 4 $ dullyellow $ RenderType.toDoc localizer leftType
+          , Help.reflowParagraph $ "Which does not contain a field named `" ++ field ++ "`."
+          ]
+          ++ typicalHints
+
+    Access Nothing field ->
+      let
+        header =
+          "Cannot access a field named `" ++ field ++ "`."
+      in
+        report Nothing header $ Help.stack $
+          [ Help.reflowParagraph $ "You are trying to get `" ++ field ++ "` from a value with this type:"
+          , indent 4 $ dullyellow $ RenderType.toDoc localizer leftType
+          , Help.reflowParagraph $ "It is not in there!"
+          ]
+          ++ typicalHints
+
     Record ->
         report
           Nothing
@@ -653,7 +679,7 @@ reasonToString reason =
     (fields, maybeDeepReason) =
       collectFields reason
 
-    mabyeDocs =
+    maybeDocs =
       reasonToStringHelp =<< maybeDeepReason
 
     starter =
@@ -667,7 +693,7 @@ reasonToString reason =
         _ ->
           Just $ "Problem at `" ++ List.intercalate "." fields ++ "`. "
   in
-    case (starter, mabyeDocs) of
+    case (starter, maybeDocs) of
       (Nothing, Nothing) ->
         Nothing
 

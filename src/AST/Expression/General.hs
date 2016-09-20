@@ -8,6 +8,8 @@ enrich the AST with more information.
 -}
 module AST.Expression.General where
 
+import qualified Data.List as List
+
 import qualified AST.Effects as Effects
 import qualified AST.Literal as Literal
 import qualified AST.Module.Name as ModuleName
@@ -86,6 +88,24 @@ localVar x =
 tuple :: [Expr ann def var typ] -> Expr' ann def var typ
 tuple expressions =
   Data ("_Tuple" ++ show (length expressions)) expressions
+
+
+collectFields :: (Var.ToString var) => Expr ann def var typ -> Maybe String
+collectFields expr =
+  collectFieldsHelp expr []
+
+
+collectFieldsHelp :: (Var.ToString var) => Expr ann def var typ -> [String] -> Maybe String
+collectFieldsHelp (A.A _ expr) fields =
+  case expr of
+    Var var ->
+      Just (List.intercalate "." (Var.toString var : fields))
+
+    Access record field ->
+      collectFieldsHelp record (field : fields)
+
+    _ ->
+      Nothing
 
 
 collectApps :: Expr ann def var typ -> [Expr ann def var typ]

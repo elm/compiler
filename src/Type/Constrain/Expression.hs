@@ -110,9 +110,14 @@ constrain env annotatedExpr@(A.A region expression) tipe =
             do  c' <- constrain env e x
                 return (x ==> t, c /\ c')
 
-    E.Access expr label ->
-      exists $ \t ->
-        constrain env expr (record (Map.singleton label tipe) t)
+    E.Access expr field ->
+      exists $ \recordType ->
+      exists $ \ext ->
+        do  recordCon <- constrain env expr recordType
+            let maybeBody = E.collectFields expr
+            let desiredType = record (Map.singleton field tipe) ext
+            let fieldCon = CEqual (Error.Access maybeBody field) region recordType desiredType
+            return $ recordCon /\ fieldCon
 
     E.Update expr fields ->
       exists $ \t ->
