@@ -16,17 +16,6 @@ newtype Raw = Raw String
 
 
 
--- TOP LEVEL NAMES
-
-
-data TopLevel = TopLevelVar
-    { topHome :: ModuleName.Canonical
-    , topName :: String
-    }
-    deriving (Eq, Ord)
-
-
-
 -- CANONICAL NAMES
 
 

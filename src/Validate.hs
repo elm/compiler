@@ -208,7 +208,7 @@ checkManager tagRegion managerType validDefs =
 getSimpleDefRegion :: A.Commented Valid.Def -> Maybe (String, R.Region)
 getSimpleDefRegion decl =
   case decl of
-    A.A (region, _) (Valid.Def (A.A _ (Pattern.Var name)) _ _) ->
+    A.A _ (Valid.Def region (A.A _ (Pattern.Var name)) _ _) ->
       Just (name, region)
 
     _ ->
@@ -353,15 +353,15 @@ vrdDefHelp remainingDecls (A.A ann def) ports structure =
     case def of
       Source.Definition pat expr ->
         addDef
-          <$> validateDef pat expr Nothing
+          <$> validateDef (fst ann) pat expr Nothing
           <*> vrdHelp remainingDecls ports structure
 
       Source.Annotation name tipe ->
         case remainingDecls of
-          A.A _ (D.Def (A.A _ (Source.Definition pat expr))) : rest
+          A.A _ (D.Def (A.A defRegion (Source.Definition pat expr))) : rest
            | Pattern.isVar name pat ->
               addDef
-                <$> validateDef pat expr (Just tipe)
+                <$> validateDef (R.merge (fst ann) defRegion) pat expr (Just tipe)
                 <*> vrdHelp rest ports structure
 
           _ ->
@@ -391,32 +391,33 @@ definitionsHelp sourceDefs =
     [] ->
       return []
 
-    A.A _ (Source.Definition pat expr) : rest ->
+    A.A defRegion (Source.Definition pat expr) : rest ->
       (:)
-        <$> validateDef pat expr Nothing
+        <$> validateDef defRegion pat expr Nothing
         <*> definitionsHelp rest
 
-    A.A region (Source.Annotation name tipe) : rest ->
+    A.A annRegion (Source.Annotation name tipe) : rest ->
       case rest of
-        A.A _ (Source.Definition pat expr) : rest'
+        A.A defRegion (Source.Definition pat expr) : rest'
           | Pattern.isVar name pat ->
               (:)
-                <$> validateDef pat expr (Just tipe)
+                <$> validateDef (R.merge annRegion defRegion) pat expr (Just tipe)
                 <*> definitionsHelp rest'
 
         _ ->
-          Result.throw region (Error.TypeWithoutDefinition name)
+          Result.throw annRegion (Error.TypeWithoutDefinition name)
 
 
 validateDef
-  :: Pattern.Raw
+  :: R.Region
+  -> Pattern.Raw
   -> Source.Expr
   -> Maybe Type.Raw
   -> Result wrn Valid.Def
-validateDef pat expr maybeType =
+validateDef region pat expr maybeType =
   do  validExpr <- expression expr
       validateDefPattern pat validExpr
-      return $ Valid.Def pat validExpr maybeType
+      return $ Valid.Def region pat validExpr maybeType
 
 
 validateDefPattern :: Pattern.Raw -> Valid.Expr -> Result wrn ()

@@ -2,7 +2,6 @@
 module AST.Expression.Canonical
   ( Expr, Expr'
   , Def(..)
-  , Facts(..), dummyFacts
   , SortedDefs(..), toSortedDefs
   )
   where
@@ -27,17 +26,7 @@ type Expr' =
 
 
 data Def
-    = Def Facts Pattern.Canonical Expr (Maybe (A.Located Type.Canonical))
-
-
-data Facts = Facts
-    { dependencies :: [Var.TopLevel]
-    }
-
-
-dummyFacts :: Facts
-dummyFacts =
-  Facts (error "This should be set by Canonicalize.Sort")
+    = Def R.Region Pattern.Canonical Expr (Maybe (A.Located Type.Canonical))
 
 
 

@@ -24,13 +24,12 @@ data Def
 
 data Facts = Facts
     { home :: Maybe ModuleName.Canonical
-    , dependencies :: [Var.TopLevel]
     }
 
 
 dummyFacts :: Facts
 dummyFacts =
-  Facts Nothing []
+  Facts Nothing
 
 
 -- EXPRESSIONS

@@ -21,10 +21,10 @@ type Expr' =
 
 
 data Def =
-  Def Pattern.Raw Expr (Maybe Type.Raw)
+  Def R.Region Pattern.Raw Expr (Maybe Type.Raw)
 
 
 getPattern :: Def -> Pattern.Raw
-getPattern (Def pattern _ _) =
+getPattern (Def _ pattern _ _) =
   pattern
 

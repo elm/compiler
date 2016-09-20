@@ -104,7 +104,7 @@ buildFunction vars body@(A.A ann _) =
 definition :: String -> Canonical.Expr -> R.Region -> Type.Canonical -> Canonical.Def
 definition name expr@(A.A ann _) region tipe =
   Canonical.Def
-    Canonical.dummyFacts
+    region
     (A.A ann (P.Var name))
     expr
     (Just (A.A region tipe))

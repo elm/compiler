@@ -324,8 +324,8 @@ canonicalizeDecls env (D.Decls defs unions aliases infixes) =
     annTraverse canEntry entries =
       traverse (\(A.A ann entry) -> A.A ann <$> canEntry entry) entries
 
-    canonicalizeDef (Valid.Def pat expr typ) =
-      Canonical.Def Canonical.dummyFacts
+    canonicalizeDef (Valid.Def region pat expr typ) =
+      Canonical.Def region
         <$> canonicalizePattern env pat
         <*> canonicalizeExpr env expr
         <*> traverse (canonicalizeRegionType env) typ
@@ -408,8 +408,8 @@ canonicalizeExpr env (A.A region validExpr) =
           env' =
             foldr Env.addPattern env (map Valid.getPattern defs)
 
-          rename' (Valid.Def p body mtipe) =
-            Canonical.Def Canonical.dummyFacts
+          rename' (Valid.Def defRegion p body mtipe) =
+            Canonical.Def defRegion
               <$> canonicalizePattern env' p
               <*> canonicalizeExpr env' body
               <*> traverse (canonicalizeRegionType env') mtipe

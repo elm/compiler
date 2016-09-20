@@ -87,10 +87,10 @@ generateDef :: Opt.Def -> State Int [Statement ()]
 generateDef def =
   do  (home, name, jsBody) <-
           case def of
-            Opt.TailDef (Opt.Facts home _) name argNames body ->
+            Opt.TailDef (Opt.Facts home) name argNames body ->
                 (,,) home name <$> generateTailFunction name argNames body
 
-            Opt.Def (Opt.Facts home _) name body ->
+            Opt.Def (Opt.Facts home) name body ->
                 (,,) home name <$> generateJsExpr body
 
       return (Var.define home name jsBody)

@@ -490,13 +490,13 @@ data Info = Info
 
 
 constrainDef :: Env.Env -> Info -> Canonical.Def -> IO Info
-constrainDef env info (Canonical.Def _ (A.A patternRegion pattern) expr maybeTipe) =
+constrainDef env info (Canonical.Def defRegion (A.A patternRegion pattern) expr maybeTipe) =
   case (pattern, maybeTipe) of
     (P.Var name, Nothing) ->
         constrainUnannotatedDef env patternRegion name expr info
 
     (P.Var name, Just (A.A _ tipe)) ->
-        constrainAnnotatedDef env patternRegion name expr tipe info
+        constrainAnnotatedDef env defRegion patternRegion name expr tipe info
 
     _ ->
         error "canonical definitions must not have complex patterns as names in the contstraint generation phase"
@@ -520,8 +520,16 @@ constrainUnannotatedDef env patternRegion name expr info =
           }
 
 
-constrainAnnotatedDef :: Env.Env -> R.Region -> String -> Canonical.Expr -> ST.Canonical -> Info -> IO Info
-constrainAnnotatedDef env region name expr tipe info =
+constrainAnnotatedDef
+    :: Env.Env
+    -> R.Region
+    -> R.Region
+    -> String
+    -> Canonical.Expr
+    -> ST.Canonical
+    -> Info
+    -> IO Info
+constrainAnnotatedDef env defRegion region name expr tipe info =
   do  (flexType, flexVars) <- Env.instantiateType Flex env tipe
 
       let scheme =
@@ -532,7 +540,7 @@ constrainAnnotatedDef env region name expr tipe info =
               , _header = Map.singleton name (A.A region flexType)
               }
 
-      defCon <- constrainAnnDefHelp name expr tipe (ArgInfo env [] [])
+      defCon <- constrainAnnDefHelp expr tipe (ArgInfo name defRegion env [] [])
 
       return $ info
           { iSchemes = scheme : iSchemes info
@@ -542,21 +550,25 @@ constrainAnnotatedDef env region name expr tipe info =
 
 data ArgInfo =
   ArgInfo
-    { _env :: Env.Env
+    { _name :: String
+    , _def :: R.Region
+    , _env :: Env.Env
     , _args :: [(P.Canonical, Type)]
     , _vars :: [Variable]
     }
 
 
-constrainAnnDefHelp :: String -> Canonical.Expr -> ST.Canonical -> ArgInfo -> IO TypeConstraint
-constrainAnnDefHelp name expr tipe (ArgInfo env args vars) =
+constrainAnnDefHelp :: Canonical.Expr -> ST.Canonical -> ArgInfo -> IO TypeConstraint
+constrainAnnDefHelp expr tipe (ArgInfo name defRegion env args vars) =
   case (expr, tipe) of
     (A.A _ (E.Lambda arg result), ST.Lambda argType resultType) ->
       do  (rigidArgType, newVars) <- Env.instantiateType Rigid env argType
 
-          constrainAnnDefHelp name result resultType $
+          constrainAnnDefHelp result resultType $
             ArgInfo
-              { _env = Env.addValues newVars env
+              { _name = name
+              , _def = defRegion
+              , _env = Env.addValues newVars env
               , _args = (arg, rigidArgType) : args
               , _vars = Map.elems newVars ++ vars
               }
@@ -574,8 +586,13 @@ constrainAnnDefHelp name expr tipe (ArgInfo env args vars) =
           resultVar <- mkVar Nothing
           let resultType = VarN resultVar
           defCon <- constrain finalEnv expr resultType
+
+          let sharedArity = length args
+          let typeArity = sharedArity + length (ST.collectLambdas tipe) - 1
+          let argsArity = sharedArity + length (fst (E.collectLambdas expr))
+          let hint = Error.ReturnType name typeArity argsArity region
           let resultCon =
-                CEqual (Error.ReturnType name (length args)) region resultType rigidType
+                CEqual hint defRegion rigidType resultType
 
           return $ forall rigidVars $ ex (resultVar : argVars) $ CLet [monoscheme headers] $
             CAnd [ argCons, defCon, resultCon ]

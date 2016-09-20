@@ -327,7 +327,7 @@ declsToPatches moduleName (D.Decls defs unions aliases _) =
 
     -- TO PATCHES
 
-    defToPatches (A.A _ (Valid.Def pattern _ _)) =
+    defToPatches (A.A _ (Valid.Def _ pattern _ _)) =
       map topLevelValue (P.boundVarList pattern)
 
     unionToPatches (A.A _ (D.Type name _ ctors)) =
