@@ -71,8 +71,8 @@ generalize youngPool =
 rigidify :: Content -> Content
 rigidify content =
   case content of
-    Var Flex maybeSuper _ ->
-        Var Rigid maybeSuper Nothing
+    Var Flex maybeSuper maybeName ->
+        Var Rigid maybeSuper maybeName
 
     _ ->
         content
