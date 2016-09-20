@@ -546,7 +546,6 @@ unifyAlias context name args realVar otherContent =
     Atom _ ->
         subUnify context realVar (_second context)
 
-
     Alias otherName otherArgs otherRealVar ->
         if name == otherName then
             do  zipWithM_ (subUnify context) (map snd args) (map snd otherArgs)
