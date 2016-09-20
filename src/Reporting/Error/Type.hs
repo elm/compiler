@@ -708,14 +708,14 @@ reasonToStringHelp reason =
     BadVar (Just CompAppend) _ ->
         go "Only strings and lists are both comparable and appendable."
 
-    BadVar (Just (Rigid _)) (Just (Rigid _)) ->
-        go doubleRigidError
+    BadVar (Just (Rigid maybeLeftName)) (Just (Rigid maybeRightName)) ->
+        go $ doubleRigidError maybeLeftName maybeRightName
 
-    BadVar (Just (Rigid _)) _  ->
-        go singleRigidError
+    BadVar (Just (Rigid maybeName)) _  ->
+        go $ singleRigidError maybeName
 
-    BadVar _ (Just (Rigid _))  ->
-        go singleRigidError
+    BadVar _ (Just (Rigid maybeName))  ->
+        go $ singleRigidError maybeName
 
     BadVar _ _ ->
         Nothing
@@ -728,18 +728,44 @@ badFieldElaboration =
   \ So the problem may actually be a weird interaction with previous fields."
 
 
-singleRigidError :: String
-singleRigidError =
-  "A type annotation is too generic. You can probably just switch to the\
-  \ type I inferred. These issues can be subtle though, so read more about it. "
-  ++ Help.hintLink "type-annotations"
+weirdRigidError :: String
+weirdRigidError =
+  "You are having a problem with \"rigid\" type variables. That usually\
+  \ means you have a type annotation that says it accepts anything, but\
+  \ in fact, it accepts a much more specific type. More info at: "
+  ++ Help.hintLink "type-annotations" ++
+  ". This case is weird though, so please turn it into an <http://sscce.org>\
+  \ and report it to <https://github.com/elm-lang/error-message-catalog>."
 
 
-doubleRigidError :: String
-doubleRigidError =
-  "A type annotation is clashing with itself or with a sub-annotation.\
-  \ This can be particularly tricky, so read more about it. "
-  ++ Help.hintLink "type-annotations"
+singleRigidError :: Maybe String -> String
+singleRigidError maybeName =
+  case maybeName of
+    Just name ->
+      "Your type annotation uses type variable `" ++ name ++
+      "` which means any type of value can flow through. Your code is saying\
+      \ it CANNOT be anything though! Maybe change your type annotation to\
+      \ be more specific? Maybe the code has a problem? More at: "
+      ++ Help.hintLink "type-annotations"
+
+    Nothing ->
+      weirdRigidError
+
+
+doubleRigidError :: Maybe String -> Maybe String -> String
+doubleRigidError maybeLeftName maybeRightName =
+  case (maybeLeftName, maybeRightName) of
+    (Just leftName, Just rightName) ->
+      "Your type annotation uses `" ++ leftName ++ "` and `" ++ rightName ++
+      "` as separate type variables. Each one can be any type of value,\
+      \ but because they have separate names, there is no guarantee that they\
+      \ are equal to each other. Your code seems to be saying they ARE the\
+      \ same though! Maybe they should be the same in your type annotation?\
+      \ Maybe your code uses them in a weird way? More at: "
+      ++ Help.hintLink "type-annotations"
+
+    _ ->
+      weirdRigidError
 
 
 hintDoc :: Doc
