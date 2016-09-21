@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wall #-}
 module Type.Solve (solve) where
 
 import Control.Monad
@@ -178,7 +179,7 @@ actuallySolve constraint =
 
     CLet [Scheme [] fqs constraint' _] CTrue ->
         do  oldEnv <- TS.getEnv
-            mapM TS.introduce fqs
+            mapM_ TS.introduce fqs
             actuallySolve constraint'
             TS.modifyEnv (\_ -> oldEnv)
 
@@ -187,7 +188,7 @@ actuallySolve constraint =
             headers <- Map.unions <$> mapM solveScheme schemes
             TS.modifyEnv $ \env -> Map.union headers env
             actuallySolve constraint'
-            mapM occurs $ Map.toList headers
+            mapM_ occurs $ Map.toList headers
             TS.modifyEnv (\_ -> oldEnv)
 
     CInstance region name term ->
@@ -226,14 +227,14 @@ solveScheme scheme =
             -- fill in a new pool when working on this scheme's constraints
             freshPool <- TS.nextRankPool
             TS.switchToPool freshPool
-            mapM TS.introduce quantifiers
+            mapM_ TS.introduce quantifiers
             header' <- T.traverse flatten header
             actuallySolve constraint
 
             youngPool <- TS.getPool
             TS.switchToPool oldPool
             generalize youngPool
-            mapM isGeneric rigidQuantifiers
+            mapM_ isGeneric rigidQuantifiers
             return header'
 
 
