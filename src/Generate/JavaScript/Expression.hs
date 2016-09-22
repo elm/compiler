@@ -144,17 +144,7 @@ generateCode expr =
           generateFunction args body
 
       Call func args ->
-          let
-            arity = length args
-            aN = "A" ++ show arity
-          in
-            do  jsFunc <- generateJsExpr func
-                jsArgs <- mapM generateJsExpr args
-                jsExpr $
-                  if 2 <= arity && arity <= 9 then
-                    ref aN `call` (jsFunc:jsArgs)
-                  else
-                    foldl1 (<|) (jsFunc:jsArgs)
+          generateCall func args
 
       TailCall name argNames args ->
           let
@@ -279,6 +269,94 @@ generateFunctionWithArity rawArgs code =
               innerBody = function [lastArg] (toStatementList code)
           in
               foldl (\body arg -> function [arg] [ReturnStmt () (Just body)]) innerBody otherArgs
+
+
+
+-- GENERATE CALL
+
+
+generateCall :: Opt.Expr -> [Opt.Expr] -> State Int Code
+generateCall func args =
+  case (func, args) of
+    (Opt.Var var, [arg]) ->
+      case getUnaryOp var of
+        Just op ->
+          do  jsArg <- generateJsExpr arg
+              jsExpr $ PrefixExpr () op jsArg
+
+        Nothing ->
+          generateCallHelp func args
+
+    (Opt.Var var, [left, right]) ->
+      case getBinaryOp var of
+        Just op ->
+          do  jsLeft <- generateJsExpr left
+              jsRight <- generateJsExpr right
+              jsExpr $ InfixExpr () op jsLeft jsRight
+
+        Nothing ->
+          generateCallHelp func args
+
+    _ ->
+      generateCallHelp func args
+
+
+generateCallHelp :: Opt.Expr -> [Opt.Expr] -> State Int Code
+generateCallHelp func args =
+  let
+    arity = length args
+    aN = "A" ++ show arity
+  in
+    do  jsFunc <- generateJsExpr func
+        jsArgs <- mapM generateJsExpr args
+        jsExpr $
+          if 2 <= arity && arity <= 9 then
+            ref aN `call` (jsFunc:jsArgs)
+          else
+            foldl1 (<|) (jsFunc:jsArgs)
+
+
+getUnaryOp :: Var.Canonical -> Maybe PrefixOp
+getUnaryOp var =
+  if var == bitwiseComplement then
+    Just PrefixBNot
+
+  else if var == basicsNot then
+    Just PrefixLNot
+
+  else
+    Nothing
+
+
+getBinaryOp :: Var.Canonical -> Maybe InfixOp
+getBinaryOp (Var.Canonical home name) =
+  if home /= bitwise then
+    Nothing
+
+  else
+    case name of
+      "and" -> Just OpBAnd
+      "or" -> Just OpBOr
+      "xor" -> Just OpBXor
+      "shiftLeft" -> Just  OpLShift
+      "shiftRight" -> Just OpSpRShift
+      "shiftRightLogical" -> Just OpZfRShift
+      _ -> Nothing
+
+
+bitwiseComplement :: Var.Canonical
+bitwiseComplement =
+  Var.inCore ["Bitwise"] "complement"
+
+
+basicsNot :: Var.Canonical
+basicsNot =
+  Var.inCore ["Basics"] "not"
+
+
+bitwise :: Var.Home
+bitwise =
+  Var.Module (ModuleName.inCore ["Bitwise"])
 
 
 
