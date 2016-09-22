@@ -6,7 +6,7 @@ import Control.Monad.State (execStateT, liftIO)
 import Control.Monad.Except (ExceptT, throwError)
 import qualified Data.List as List
 import qualified Data.Map as Map
-import qualified Data.Traversable as T
+import qualified Data.Foldable as F
 import qualified Data.UnionFind.IO as UF
 
 import qualified Reporting.Annotation as A
@@ -36,7 +36,7 @@ generalize youngPool =
       -- start at low ranks so that we only have to pass
       -- over the information once.
       visitedMark <- TS.uniqueMark
-      forM (Map.toList rankDict) $ \(poolRank, vars) ->
+      forM_ (Map.toList rankDict) $ \(poolRank, vars) ->
           mapM (adjustRank youngMark visitedMark poolRank) vars
 
       -- For variables that have rank lowerer than youngRank, register them in
@@ -46,7 +46,7 @@ generalize youngPool =
                 if isRedundant then return var else TS.register var
 
       let rankDict' = Map.delete youngRank rankDict
-      T.traverse (mapM registerIfNotRedundant) rankDict'
+      F.traverse_ (mapM registerIfNotRedundant) rankDict'
 
       -- For variables with rank youngRank
       --   If rank < youngRank: register in oldPool
@@ -218,7 +218,7 @@ solveScheme scheme =
   case scheme of
     Scheme [] [] constraint header ->
         do  actuallySolve constraint
-            T.traverse flatten header
+            traverse flatten header
 
     Scheme rigidQuantifiers flexibleQuantifiers constraint header ->
         do  let quantifiers = rigidQuantifiers ++ flexibleQuantifiers
@@ -228,7 +228,7 @@ solveScheme scheme =
             freshPool <- TS.nextRankPool
             TS.switchToPool freshPool
             mapM_ TS.introduce quantifiers
-            header' <- T.traverse flatten header
+            header' <- traverse flatten header
             actuallySolve constraint
 
             youngPool <- TS.getPool
@@ -265,8 +265,8 @@ crash msg =
 
 occurs :: (String, A.Located Variable) -> TS.Solver ()
 occurs (name, A.A region variable) =
-  do  isInfinite <- liftIO $ occursHelp [] variable
-      case isInfinite of
+  do  hasOccurred <- liftIO $ occursHelp [] variable
+      case hasOccurred of
         False ->
             return ()
 
