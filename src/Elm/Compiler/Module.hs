@@ -6,7 +6,6 @@ module Elm.Compiler.Module
     , nameToString, nameFromString
     , hyphenate, dehyphenate
     , RawForJson(RawForJson), fromJson
-    , defaultImports
     , interfaceAliasedTypes, programTypes
     , ModuleName.Canonical(..), qualifiedVar
     )
@@ -21,7 +20,6 @@ import System.FilePath ((</>))
 
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
-import qualified Elm.Compiler.Imports as Imports
 import qualified Elm.Compiler.Type as PublicType
 import qualified Elm.Compiler.Type.Extract as Extract
 import qualified Generate.JavaScript.Variable as Gen
@@ -62,11 +60,6 @@ fromJson (RawForJson raw) =
 qualifiedVar :: ModuleName.Canonical -> String -> String
 qualifiedVar =
   Gen.qualified
-
-
-defaultImports :: [ModuleName.Raw]
-defaultImports =
-    map fst Imports.defaults
 
 
 

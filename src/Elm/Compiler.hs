@@ -18,8 +18,9 @@ import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified Compile
 import qualified Docs.Check as Docs
-import qualified Elm.Compiler.Version
+import qualified Elm.Compiler.Imports as Imports
 import qualified Elm.Compiler.Module as PublicModule
+import qualified Elm.Compiler.Version
 import qualified Elm.Docs as Docs
 import qualified Elm.Package as Package
 import qualified Generate.JavaScript as JS
@@ -53,26 +54,37 @@ data Tag
   | Port
 
 
-parseDependencies :: String -> Either [Error] (Tag, PublicModule.Raw, [PublicModule.Raw])
-parseDependencies sourceCode =
+parseDependencies
+  :: Package.Name
+  -> String
+  -> Either [Error] (Tag, PublicModule.Raw, [PublicModule.Raw])
+parseDependencies pkgName sourceCode =
   let
     (Result.Result _ _ answer) =
       Parse.parse sourceCode Parse.header
-
-    getDeps (Module.Header sourceTag name _ _ _ imports) =
-      let
-        tag =
-          case sourceTag of
-            Module.Normal -> Normal
-            Module.Port _ -> Port
-            Module.Effect _ -> Effect
-      in
-        ( tag
-        , name
-        , map (fst . A.drop) imports
-        )
   in
-    Result.answerToEither (Error . A.map Error.Syntax) getDeps answer
+    Result.answerToEither (Error . A.map Error.Syntax) (getDeps pkgName) answer
+
+
+getDeps
+  :: Package.Name
+  -> Module.Header [Module.UserImport]
+  -> (Tag, PublicModule.Raw, [PublicModule.Raw])
+getDeps pkgName (Module.Header sourceTag name _ _ _ imports) =
+  let
+    tag =
+      case sourceTag of
+        Module.Normal -> Normal
+        Module.Port _ -> Port
+        Module.Effect _ -> Effect
+
+    deps =
+      if pkgName == Package.core then
+        map (fst . A.drop) imports
+      else
+        map (fst . A.drop) imports ++ map fst Imports.defaults
+  in
+    ( tag, name, deps )
 
 
 
