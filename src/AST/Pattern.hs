@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module AST.Pattern where
 
+import qualified Data.List as List
 import qualified Data.Set as Set
 
 import qualified AST.Literal as L
@@ -107,3 +108,44 @@ boundVarList :: Pattern ann var -> [String]
 boundVarList pattern =
   Set.toList (boundVarSet pattern)
 
+
+
+-- TO STRING
+
+
+toString :: Bool -> Canonical -> String
+toString needsParens (A.A _ pattern) =
+  case pattern of
+    Var name ->
+      name
+
+    Data name [] ->
+      if Var.isTuple name then
+        "()"
+      else
+        Var.toString name
+
+    Data name args ->
+      if Var.isTuple name then
+        "( " ++ List.intercalate ", " (map (toString False) args) ++ " )"
+      else
+        parensIf needsParens $
+          Var.toString name ++ concatMap ((" "++) . toString True) args
+
+    Record fields ->
+      "{" ++ List.intercalate "," fields ++ "}"
+
+    Alias alias subPattern ->
+      parensIf needsParens $
+        toString False subPattern ++ " as " ++ alias
+
+    Anything ->
+      "_"
+
+    Literal literal ->
+      L.toString literal
+
+
+parensIf :: Bool -> String -> String
+parensIf needsParens str =
+  if needsParens then "(" ++ str ++ ")" else str

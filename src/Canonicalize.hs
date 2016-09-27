@@ -82,10 +82,11 @@ module' allCanonicalImports interfaces modul =
           typeToPair (A.A _ (D.Type name args body)) =
             ( name, (args, body) )
 
-          program =
+          getProgram =
             Body.flatten (Module.name modul) canonicalDecls canonicalEffects
         in
-          do  canonicalImports <- filterImports uses imports
+          do  program <- Result.mapError Error.Canonicalize getProgram
+              canonicalImports <- filterImports uses imports
               Result.accumulate (Result.One (Env.toDealiaser env)) $
                 modul {
                   Module.info =
