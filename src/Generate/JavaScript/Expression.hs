@@ -338,9 +338,9 @@ getBinaryOp (Var.Canonical home name) =
       "and" -> Just OpBAnd
       "or" -> Just OpBOr
       "xor" -> Just OpBXor
-      "leftShift" -> Just  OpLShift
-      "rightShift" -> Just OpSpRShift
-      "logicalRightShift" -> Just OpZfRShift
+      "shiftLeftBy" -> Just OpLShift
+      "shiftRightBy" -> Just OpSpRShift
+      "shiftRightZfBy" -> Just OpZfRShift
       _ -> Nothing
 
 
