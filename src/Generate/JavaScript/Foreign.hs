@@ -214,6 +214,6 @@ toRecord fields =
       to "succeed" <== [ Opt.Record (map toFieldExpr fields) ]
 
     andThen (key, tipe) decoder =
-      to "andThen" <== [ field key (decode tipe), Opt.Function [key] decoder ]
+      to "andThen" <== [ Opt.Function [key] decoder, field key (decode tipe) ]
   in
     List.foldr andThen finalDecoder fields
