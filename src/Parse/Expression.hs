@@ -277,26 +277,19 @@ def :: IParser Source.Def
 def =
   addLocation $ Indent.withPos $
     do  start <- defStart
+        whitespace
         case start of
           A.A _ (P.Var name) ->
-            do  whitespace
-                choice
-                  [ do  hasType
-                        whitespace
-                        tipe <- Type.expr
-                        return $ Source.Annotation name tipe
-                  , do  args <- spacePrefix Pattern.term
-                        padded equals
-                        body <- expr
-                        return $ Source.Definition start (makeFunction args body)
-                  ]
+            choice
+              [ do  hasType
+                    whitespace
+                    tipe <- Type.expr
+                    return $ Source.Annotation name tipe
+              , defEnd start []
+              ]
 
           _ ->
-            do  args <- spacePrefix Pattern.term
-                padded equals
-                body <- expr
-                return $ Source.Definition start (makeFunction args body)
-
+            defEnd start []
 
 
 defStart :: IParser P.Raw
@@ -307,6 +300,19 @@ defStart =
     ]
 
 
+defEnd :: P.Raw -> [P.Raw] -> IParser Source.Def'
+defEnd start revArgs =
+  choice
+    [ do  arg <- Pattern.term
+          whitespace
+          defEnd start (arg : revArgs)
+    , do  equals
+          whitespace
+          body <- expr
+          return $ Source.Definition start (makeFunction revArgs body)
+    ]
+
+
 makeFunction :: [P.Raw] -> Source.Expr -> Source.Expr
-makeFunction args body@(A.A ann _) =
-  foldr (\arg body' -> A.A ann $ E.Lambda arg body') body args
+makeFunction revArgs body@(A.A ann _) =
+  List.foldl' (\expr arg -> A.A ann $ E.Lambda arg expr) body revArgs
