@@ -399,7 +399,9 @@ parseErrorReport messages =
 
               Just (MsgPrime var) ->
                   ( "Ran into a single quote in a variable name. This was removed in 0.18!"
-                  , Just $ "Change it to a number or an underscore, like " ++ var ++ "_ or " ++ var ++ "1"
+                  , Just $
+                      "Change it to a number or an underscore, like " ++ var ++ "_ or " ++ var
+                      ++ "1\n\nOr better yet, choose a more descriptive name!"
                   )
 
               Just MsgTab ->
