@@ -14,11 +14,7 @@ import Type.Type
   )
 
 
-constrain
-  :: Env.Environment
-  -> ModuleName.Canonical
-  -> Effects.Canonical
-  -> IO TypeConstraint
+constrain :: Env.Env -> ModuleName.Canonical -> Effects.Canonical -> IO TypeConstraint
 constrain env moduleName effects =
   case effects of
     Effects.None ->
@@ -31,11 +27,7 @@ constrain env moduleName effects =
       constrainHelp env moduleName info
 
 
-constrainHelp
-  :: Env.Environment
-  -> ModuleName.Canonical
-  -> Effects.Info
-  -> IO TypeConstraint
+constrainHelp :: Env.Env -> ModuleName.Canonical -> Effects.Info -> IO TypeConstraint
 constrainHelp env moduleName (Effects.Info tagRegion r0 r1 r2 managerType) =
   let
     task t =
@@ -87,7 +79,7 @@ constrainHelp env moduleName (Effects.Info tagRegion r0 r1 r2 managerType) =
 
 
 addEffectArgs
-  :: Env.Environment
+  :: Env.Env
   -> ModuleName.Canonical
   -> Effects.ManagerType
   -> Variable

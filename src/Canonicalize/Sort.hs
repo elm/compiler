@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Canonicalize.Sort (definitions) where
 
-import Control.Monad.State
+import qualified Data.Foldable as F
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
@@ -12,74 +12,117 @@ import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Pattern as P
 import qualified AST.Variable as V
 import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Canonicalize as E
+import qualified Reporting.Result as R
 
 
 
--- STARTING POINT
+-- SORT DEFINITIONS
 
 
-definitions :: Canonical.Expr -> Canonical.Expr
+definitions :: (Monoid i) => Canonical.Expr -> R.Result i w E.Error Canonical.Expr
 definitions expression =
-  evalState (reorder expression) Set.empty
+  let
+    (R.Result _ warnings answer) =
+      reorder expression
+  in
+    R.Result mempty warnings answer
 
 
-free :: String -> State (Set.Set String) ()
-free x =
-  modify (Set.insert x)
+data LocalVars =
+  LocalVars
+    { _immediate :: Set.Set String
+    , _delayed :: Set.Set String
+    , _tags :: Set.Set String
+    }
 
 
-freeIfLocal :: V.Canonical -> State (Set.Set String) ()
-freeIfLocal (V.Canonical home name) =
+instance Monoid LocalVars where
+  mempty =
+    LocalVars Set.empty Set.empty Set.empty
+
+  mappend (LocalVars i1 d1 t1) (LocalVars i2 d2 t2) =
+    LocalVars (Set.union i1 i2) (Set.union d1 d2) (Set.union t1 t2)
+
+
+addTag :: String -> a -> R.Result LocalVars w e a
+addTag name value =
+  R.accumulate (LocalVars Set.empty Set.empty (Set.singleton name)) value
+
+
+addImmediate :: V.Canonical -> a -> R.Result LocalVars w e a
+addImmediate (V.Canonical home name) value =
   case home of
-    V.Local -> free name
-    V.TopLevel _ -> free name
-    V.BuiltIn -> return ()
-    V.Module _ -> return ()
+    V.Local ->
+      R.accumulate (LocalVars (Set.singleton name) Set.empty Set.empty) value
+
+    V.TopLevel _ ->
+      R.accumulate (LocalVars (Set.singleton name) Set.empty Set.empty) value
+
+    V.BuiltIn ->
+      return value
+
+    V.Module _ ->
+      return value
+
+
+capture :: P.Canonical -> R.Result LocalVars w e a -> R.Result LocalVars w e a
+capture pattern result =
+  captureVars (P.boundVarSet pattern) result
+
+
+captureVars :: Set.Set String -> R.Result LocalVars w e a -> R.Result LocalVars w e a
+captureVars bound (R.Result (LocalVars immediate delayed tags) warnings result) =
+  let
+    localVars =
+      LocalVars (Set.difference immediate bound) (Set.difference delayed bound) tags
+  in
+    R.Result localVars warnings result
+
+
+delay :: R.Result LocalVars w e a -> R.Result LocalVars w e a
+delay (R.Result (LocalVars immediate delayed tags) warnings result) =
+  R.Result (LocalVars Set.empty (Set.union immediate delayed) tags) warnings result
 
 
 
 -- REORDER EXPRESSIONS
 
 
-reorder :: Canonical.Expr -> State (Set.Set String) Canonical.Expr
-reorder (A.A ann expression) =
-  A.A ann <$>
+reorder :: Canonical.Expr -> R.Result LocalVars w E.Error Canonical.Expr
+reorder (A.A region expression) =
+  A.A region <$>
   case expression of
-    -- Be careful adding and restricting freeVars
     Var var ->
-      do  freeIfLocal var
-          return expression
+      addImmediate var expression
 
     Lambda pattern body ->
-      uncurry Lambda <$> bindingReorder (pattern,body)
+      delay $
+        bindingReorder Lambda (pattern, body)
 
     Binop op leftExpr rightExpr ->
-      do  freeIfLocal op
-          Binop op <$> reorder leftExpr <*> reorder rightExpr
+      do  binop <- Binop op <$> reorder leftExpr <*> reorder rightExpr
+          addImmediate op binop
 
     Case expr cases ->
-      Case <$> reorder expr <*> mapM bindingReorder cases
+      Case <$> reorder expr <*> traverse (bindingReorder (,)) cases
 
     Data name exprs ->
-      do  free name
-          Data name <$> mapM reorder exprs
+      addTag name =<< (Data name <$> traverse reorder exprs)
 
     -- Just pipe the reorder though
     Literal _ ->
       return expression
 
-    Range lowExpr highExpr ->
-      Range <$> reorder lowExpr <*> reorder highExpr
-
     ExplicitList es ->
-      ExplicitList <$> mapM reorder es
+      ExplicitList <$> traverse reorder es
 
     App func arg ->
       App <$> reorder func <*> reorder arg
 
     If branches finally ->
       If
-        <$> mapM (\(cond,branch) -> (,) <$> reorder cond <*> reorder branch) branches
+        <$> traverse (\(cond,branch) -> (,) <$> reorder cond <*> reorder branch) branches
         <*> reorder finally
 
     Access record field ->
@@ -90,11 +133,11 @@ reorder (A.A ann expression) =
     Update record fields ->
       Update
         <$> reorder record
-        <*> mapM (\(field,expr) -> (,) field <$> reorder expr) fields
+        <*> traverse (traverse reorder) fields
 
     Record fields ->
       Record
-        <$> mapM (\(field,expr) -> (,) field <$> reorder expr) fields
+        <$> traverse (traverse reorder) fields
 
     Cmd _ ->
       return expression
@@ -119,117 +162,185 @@ reorder (A.A ann expression) =
 
     -- Actually do some reordering
     Let defs body ->
-      do  body' <- reorder body
+      case reorderDefs defs of
+        R.Result () warnings (R.Err errors) ->
+          R.Result mempty warnings (R.Err errors)
 
-          -- Sort defs into strongly connected components.This
-          -- allows the programmer to write definitions in whatever
-          -- order they please, we can still define things in order
-          -- and generalize polymorphic functions when appropriate.
-          sccs <- Graph.stronglyConnComp <$> buildDefGraph defs
-          let defss = map Graph.flattenSCC sccs
-
-          -- remove let-bound variables from the context
-          forM_ defs $ \(Canonical.Def _ pattern _ _) -> do
-              bound pattern
-              mapM free (ctors pattern)
-
-          let (A.A _ let') =
-                foldr (\ds bod -> A.A ann (Let ds bod)) body' defss
-
-          return let'
+        R.Result () warnings (R.Ok (boundVars, defGroups, defLocals)) ->
+          captureVars boundVars $
+            do  _ <- R.Result mempty warnings (R.Ok ())
+                newBody <- reorder body
+                R.accumulate defLocals $ A.drop $
+                  foldr (\defGroup expr -> A.A region (Let defGroup expr)) newBody defGroups
 
 
-ctors :: P.Canonical -> [String]
-ctors (A.A _ pattern) =
-  case pattern of
-    P.Var _ ->
-        []
 
-    P.Alias _ p ->
-        ctors p
-
-    P.Record _ ->
-        []
-
-    P.Anything ->
-        []
-
-    P.Literal _ ->
-        []
-
-    P.Data (V.Canonical home name) ps ->
-        case home of
-          V.Local -> name : rest
-          V.TopLevel _ -> name : rest
-          V.BuiltIn -> rest
-          V.Module _ -> rest
-        where
-          rest = concatMap ctors ps
-
-
-bound :: P.Canonical -> State (Set.Set String) ()
-bound pattern =
-  let
-    boundVars =
-      P.boundVarSet pattern
-  in
-    modify (\freeVars -> Set.difference freeVars boundVars)
+-- BINDINGS
 
 
 bindingReorder
-    :: (P.Canonical, Canonical.Expr)
-    -> State (Set.Set String) (P.Canonical, Canonical.Expr)
-bindingReorder (pattern, expr) =
-  do  expr' <- reorder expr
-      bound pattern
-      mapM_ free (ctors pattern)
-      return (pattern, expr')
+    :: (P.Canonical -> Canonical.Expr -> a)
+    -> (P.Canonical, Canonical.Expr)
+    -> R.Result LocalVars w E.Error a
+bindingReorder func (pattern, expr) =
+  do  answer <- func pattern <$> capture pattern (reorder expr)
+      addPatternTags pattern answer
 
 
 
--- BUILD DEPENDENCY GRAPH BETWEEN DEFINITIONS
+-- FREE CONSTRUCTORS
 
 
--- This also reorders the all of the sub-expressions in the Def list.
-buildDefGraph
-    :: [Canonical.Def]
-    -> State (Set.Set String) [(Canonical.Def, Int, [Int])]
-buildDefGraph defs =
-  do  pdefsDeps <- mapM reorderAndGetDependencies defs
-      return $ realDeps (addKey pdefsDeps)
-  where
-    addKey :: [(Canonical.Def, [String])] -> [(Canonical.Def, Int, [String])]
-    addKey =
-      zipWith (\n (pdef,deps) -> (pdef,n,deps)) [0..]
-
-    variableToKey :: (Canonical.Def, Int, [String]) -> [(String, Int)]
-    variableToKey (Canonical.Def _ pattern _ _, key, _) =
-      [ (var, key) | var <- P.boundVarList pattern ]
-
-    variableToKeyMap :: [(Canonical.Def, Int, [String])] -> Map.Map String Int
-    variableToKeyMap pdefsDeps =
-      Map.fromList (concatMap variableToKey pdefsDeps)
-
-    realDeps :: [(Canonical.Def, Int, [String])] -> [(Canonical.Def, Int, [Int])]
-    realDeps pdefsDeps =
-        map convert pdefsDeps
-      where
-        varDict =
-          variableToKeyMap pdefsDeps
-
-        convert (pdef, key, deps) =
-            (pdef, key, Maybe.mapMaybe (flip Map.lookup varDict) deps)
+addPatternTags :: P.Canonical -> a -> R.Result LocalVars w e a
+addPatternTags pattern value =
+  R.accumulate (LocalVars Set.empty Set.empty (getPatternTags pattern)) value
 
 
-reorderAndGetDependencies
-    :: Canonical.Def
-    -> State (Set.Set String) (Canonical.Def, [String])
-reorderAndGetDependencies (Canonical.Def facts pattern expr mType) =
-  do  globalFrees <- get
-      -- work in a fresh environment
-      put Set.empty
-      expr' <- reorder expr
-      localFrees <- get
-      -- merge with global frees
-      modify (Set.union globalFrees)
-      return (Canonical.Def facts pattern expr' mType, Set.toList localFrees)
+getPatternTags :: P.Canonical -> Set.Set String
+getPatternTags (A.A _ pattern) =
+  case pattern of
+    P.Var _ ->
+      Set.empty
+
+    P.Alias _ subPattern ->
+      getPatternTags subPattern
+
+    P.Record _ ->
+      Set.empty
+
+    P.Anything ->
+      Set.empty
+
+    P.Literal _ ->
+      Set.empty
+
+    P.Data (V.Canonical home name) patterns ->
+      let
+        freeCtors =
+          Set.unions (map getPatternTags patterns)
+      in
+        case home of
+          V.Local ->
+            Set.insert name freeCtors
+
+          V.TopLevel _ ->
+            Set.insert name freeCtors
+
+          V.BuiltIn ->
+            freeCtors
+
+          V.Module _ ->
+            freeCtors
+
+
+
+-- REORDER DEFINITIONS
+
+
+reorderDefs
+  :: [Canonical.Def]
+  -> R.Result () w E.Error (Set.Set String, [[Canonical.Def]], LocalVars)
+reorderDefs defs =
+  do  rawNodes <- sequenceA $ zipWith toRawNode [0..] defs
+      let boundVarDict = toBoundVarDict rawNodes
+      _ <- detectLoops boundVarDict rawNodes
+      return $ groupDefs boundVarDict rawNodes
+
+
+toRawNode :: Int -> Canonical.Def -> R.Result () w E.Error (Canonical.Def, Int, LocalVars)
+toRawNode index (Canonical.Def region pattern body maybeType) =
+  let
+    (R.Result localVars warnings answer) =
+      addPatternTags pattern =<< reorder body
+
+    toRawNodeHelp newBody =
+      ( Canonical.Def region pattern newBody maybeType, index, localVars )
+  in
+    toRawNodeHelp <$> R.Result () warnings answer
+
+
+toBoundVarDict :: [(Canonical.Def, Int, a)] -> Map.Map String Int
+toBoundVarDict defAndDeps =
+  Map.fromList (concatMap toBoundVarDictHelp defAndDeps)
+
+
+toBoundVarDictHelp :: (Canonical.Def, Int, a) -> [(String, Int)]
+toBoundVarDictHelp (Canonical.Def _ pattern _ _, key, _) =
+  map (\(A.A _ name) -> (name, key)) (P.boundVars pattern)
+
+
+
+-- BUILD GRAPHS
+
+
+toNode
+  :: (deps -> [String])
+  -> Map.Map String Int
+  -> (Canonical.Def, Int, deps)
+  -> (Canonical.Def, Int, [Int])
+toNode toVars boundVarDict (def, index, deps) =
+  let
+    localDeps =
+      Maybe.mapMaybe (\var -> Map.lookup var boundVarDict) (toVars deps)
+  in
+    ( def, index, localDeps )
+
+
+immediateOnly :: LocalVars -> [String]
+immediateOnly (LocalVars immediate _ _) =
+  Set.toList immediate
+
+
+allVars :: LocalVars -> [String]
+allVars (LocalVars immediate delayed tags) =
+  Set.toList immediate ++ Set.toList delayed ++ Set.toList tags
+
+
+
+-- DETECT LOOPS
+
+
+detectLoops
+  :: Map.Map String Int
+  -> [(Canonical.Def, Int, LocalVars)]
+  -> R.Result () w E.Error ()
+detectLoops boundVarDict rawNodes =
+  F.traverse_ detectLoopsHelp $
+    Graph.stronglyConnComp $
+      map (toNode immediateOnly boundVarDict) rawNodes
+
+
+detectLoopsHelp :: Graph.SCC Canonical.Def -> R.Result () w E.Error ()
+detectLoopsHelp scc =
+  case scc of
+    Graph.AcyclicSCC _ ->
+      R.ok ()
+
+    Graph.CyclicSCC defs ->
+      case defs of
+        [] ->
+          R.ok ()
+
+        def@(Canonical.Def region (A.A nameRegion _) _ _) : rest ->
+          R.throw region $ E.BadRecursion nameRegion def rest
+
+
+
+-- GROUP DEFINITIONS
+
+
+groupDefs
+  :: Map.Map String Int
+  -> [(Canonical.Def, Int, LocalVars)]
+  -> ( Set.Set String, [[Canonical.Def]], LocalVars )
+groupDefs boundVarDict rawNodes =
+  let
+    allLocalVars =
+      mconcat (map (\(_, _, localVars) -> localVars) rawNodes)
+
+    defGroups =
+      map Graph.flattenSCC $
+        Graph.stronglyConnComp $
+          map (toNode allVars boundVarDict) rawNodes
+  in
+    ( Map.keysSet boundVarDict, defGroups, allLocalVars )

@@ -1,6 +1,6 @@
 
 Name: elm-compiler
-Version: 0.17.1
+Version: 0.18
 
 Synopsis:
     Values to help with elm-package, elm-make, and elm-lang.org.
@@ -130,7 +130,6 @@ Library
         Type.Constrain.Literal,
         Type.Constrain.Pattern,
         Type.Environment,
-        Type.Fragment,
         Type.Inference,
         Type.Solve,
         Type.State,

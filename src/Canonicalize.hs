@@ -82,10 +82,11 @@ module' allCanonicalImports interfaces modul =
           typeToPair (A.A _ (D.Type name args body)) =
             ( name, (args, body) )
 
-          program =
+          getProgram =
             Body.flatten (Module.name modul) canonicalDecls canonicalEffects
         in
-          do  canonicalImports <- filterImports uses imports
+          do  program <- Result.mapError Error.Canonicalize getProgram
+              canonicalImports <- filterImports uses imports
               Result.accumulate (Result.One (Env.toDealiaser env)) $
                 modul {
                   Module.info =
@@ -324,8 +325,8 @@ canonicalizeDecls env (D.Decls defs unions aliases infixes) =
     annTraverse canEntry entries =
       traverse (\(A.A ann entry) -> A.A ann <$> canEntry entry) entries
 
-    canonicalizeDef (Valid.Def pat expr typ) =
-      Canonical.Def Canonical.dummyFacts
+    canonicalizeDef (Valid.Def region pat expr typ) =
+      Canonical.Def region
         <$> canonicalizePattern env pat
         <*> canonicalizeExpr env expr
         <*> traverse (canonicalizeRegionType env) typ
@@ -365,9 +366,6 @@ canonicalizeExpr env (A.A region validExpr) =
     case validExpr of
       Literal lit ->
           Result.ok (Literal lit)
-
-      Range lowExpr highExpr ->
-          Range <$> go lowExpr <*> go highExpr
 
       Access record field ->
           Access <$> go record <*> Result.ok field
@@ -411,8 +409,8 @@ canonicalizeExpr env (A.A region validExpr) =
           env' =
             foldr Env.addPattern env (map Valid.getPattern defs)
 
-          rename' (Valid.Def p body mtipe) =
-            Canonical.Def Canonical.dummyFacts
+          rename' (Valid.Def defRegion p body mtipe) =
+            Canonical.Def defRegion
               <$> canonicalizePattern env' p
               <*> canonicalizeExpr env' body
               <*> traverse (canonicalizeRegionType env') mtipe

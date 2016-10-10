@@ -13,11 +13,18 @@ import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Canonicalize.Sort as Sort
 import qualified Reporting.Annotation as A
-import qualified Reporting.Region as R
+import Reporting.Error.Canonicalize (Error)
+import Reporting.Region (Region)
+import Reporting.Result (Result)
 
 
 
-flatten :: ModuleName.Canonical -> Decl.Canonical -> Effects.Canonical -> Canonical.Expr
+flatten
+  :: (Monoid i)
+  => ModuleName.Canonical
+  -> Decl.Canonical
+  -> Effects.Canonical
+  -> Result i w Error Canonical.Expr
 flatten moduleName (Decl.Decls defs unions aliases _) effects =
   let
     allDefs =
@@ -101,10 +108,10 @@ buildFunction vars body@(A.A ann _) =
     (map (A.A ann . P.Var) vars)
 
 
-definition :: String -> Canonical.Expr -> R.Region -> Type.Canonical -> Canonical.Def
+definition :: String -> Canonical.Expr -> Region -> Type.Canonical -> Canonical.Def
 definition name expr@(A.A ann _) region tipe =
   Canonical.Def
-    Canonical.dummyFacts
+    region
     (A.A ann (P.Var name))
     expr
     (Just (A.A region tipe))

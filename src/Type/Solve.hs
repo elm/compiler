@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wall #-}
 module Type.Solve (solve) where
 
 import Control.Monad
@@ -5,7 +6,7 @@ import Control.Monad.State (execStateT, liftIO)
 import Control.Monad.Except (ExceptT, throwError)
 import qualified Data.List as List
 import qualified Data.Map as Map
-import qualified Data.Traversable as T
+import qualified Data.Foldable as F
 import qualified Data.UnionFind.IO as UF
 
 import qualified Reporting.Annotation as A
@@ -35,7 +36,7 @@ generalize youngPool =
       -- start at low ranks so that we only have to pass
       -- over the information once.
       visitedMark <- TS.uniqueMark
-      forM (Map.toList rankDict) $ \(poolRank, vars) ->
+      forM_ (Map.toList rankDict) $ \(poolRank, vars) ->
           mapM (adjustRank youngMark visitedMark poolRank) vars
 
       -- For variables that have rank lowerer than youngRank, register them in
@@ -45,7 +46,7 @@ generalize youngPool =
                 if isRedundant then return var else TS.register var
 
       let rankDict' = Map.delete youngRank rankDict
-      T.traverse (mapM registerIfNotRedundant) rankDict'
+      F.traverse_ (mapM registerIfNotRedundant) rankDict'
 
       -- For variables with rank youngRank
       --   If rank < youngRank: register in oldPool
@@ -71,8 +72,8 @@ generalize youngPool =
 rigidify :: Content -> Content
 rigidify content =
   case content of
-    Var Flex maybeSuper _ ->
-        Var Rigid maybeSuper Nothing
+    Var Flex maybeSuper maybeName ->
+        Var Rigid maybeSuper maybeName
 
     _ ->
         content
@@ -178,7 +179,7 @@ actuallySolve constraint =
 
     CLet [Scheme [] fqs constraint' _] CTrue ->
         do  oldEnv <- TS.getEnv
-            mapM TS.introduce fqs
+            mapM_ TS.introduce fqs
             actuallySolve constraint'
             TS.modifyEnv (\_ -> oldEnv)
 
@@ -187,7 +188,7 @@ actuallySolve constraint =
             headers <- Map.unions <$> mapM solveScheme schemes
             TS.modifyEnv $ \env -> Map.union headers env
             actuallySolve constraint'
-            mapM occurs $ Map.toList headers
+            mapM_ occurs $ Map.toList headers
             TS.modifyEnv (\_ -> oldEnv)
 
     CInstance region name term ->
@@ -217,7 +218,7 @@ solveScheme scheme =
   case scheme of
     Scheme [] [] constraint header ->
         do  actuallySolve constraint
-            T.traverse flatten header
+            traverse flatten header
 
     Scheme rigidQuantifiers flexibleQuantifiers constraint header ->
         do  let quantifiers = rigidQuantifiers ++ flexibleQuantifiers
@@ -226,47 +227,18 @@ solveScheme scheme =
             -- fill in a new pool when working on this scheme's constraints
             freshPool <- TS.nextRankPool
             TS.switchToPool freshPool
-            mapM TS.introduce quantifiers
-            header' <- T.traverse flatten header
+            mapM_ TS.introduce quantifiers
+            header' <- traverse flatten header
             actuallySolve constraint
 
-            allDistinct rigidQuantifiers
             youngPool <- TS.getPool
             TS.switchToPool oldPool
             generalize youngPool
-            mapM isGeneric rigidQuantifiers
+            mapM_ isGeneric rigidQuantifiers
             return header'
 
 
 -- ADDITIONAL CHECKS
-
--- Checks that all of the given variables belong to distinct equivalence classes.
--- Also checks that their structure is Nothing, so they represent a variable, not
--- a more complex term.
-allDistinct :: [Variable] -> TS.Solver ()
-allDistinct vars =
-  do  seenMark <- TS.uniqueMark
-      forM_ vars $ \var ->
-        do  desc <- liftIO $ UF.descriptor var
-            case _content desc of
-              Structure _ ->
-                  crash "Can only generalize type variables, not structures."
-
-              Atom _ ->
-                  crash "Can only generalize type variables, not structures."
-
-              Alias _ _ _ ->
-                  crash "Can only generalize type variables, not aliases."
-
-              Error ->
-                  crash "Can only generalize type variables, not error types."
-
-              Var _ _ _ ->
-                  if _mark desc == seenMark then
-                      crash "Duplicate variable during generalization."
-
-                  else
-                      liftIO (UF.setDescriptor var (desc { _mark = seenMark }))
 
 
 -- Check that a variable has rank == noRank, meaning that it can be generalized.
@@ -293,8 +265,8 @@ crash msg =
 
 occurs :: (String, A.Located Variable) -> TS.Solver ()
 occurs (name, A.A region variable) =
-  do  isInfinite <- liftIO $ occursHelp [] variable
-      case isInfinite of
+  do  hasOccurred <- liftIO $ occursHelp [] variable
+      case hasOccurred of
         False ->
             return ()
 

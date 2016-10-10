@@ -86,16 +86,17 @@ checkMain typeEnv (Can.Def facts pattern@(A.A region _) body maybeType) =
 
     getMainKind =
       case Type.deepDealias mainType of
-        Type.App name [arg]
+        Type.App name [_]
           | name == vdomNode ->
               return Expr.VDom
 
-          | name == program && arg == never ->
+        Type.App name [flags, _, _]
+          | name == program && flags == never ->
               return Expr.NoFlags
 
           | name == program ->
-              return (Expr.Flags arg)
-                <* Effects.checkPortType makeError arg
+              return (Expr.Flags flags)
+                <* Effects.checkPortType makeError flags
 
         _ ->
           Result.throw region (Error.BadMain mainType)

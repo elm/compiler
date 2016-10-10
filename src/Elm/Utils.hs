@@ -12,6 +12,7 @@ import qualified Data.List as List
 import System.Exit (ExitCode(ExitSuccess, ExitFailure))
 import System.Process (readProcessWithExitCode)
 
+import qualified AST.Expression.Source as Source
 import qualified AST.Pattern as Pattern
 import qualified Parse.Helpers as Parse
 import qualified Parse.Expression as Parse
@@ -99,8 +100,8 @@ missingExe command =
 
 isDeclaration :: String -> Maybe String
 isDeclaration string =
-  case Parse.iParse (Parse.definition (,)) string of
-    Right (A.A _ (pattern, _)) ->
+  case Parse.iParse Parse.def string of
+    Right (A.A _ (Source.Definition pattern _)) ->
         Just (List.intercalate "$" (Pattern.boundVarList pattern))
 
     _ ->

@@ -24,13 +24,12 @@ data Def
 
 data Facts = Facts
     { home :: Maybe ModuleName.Canonical
-    , dependencies :: [Var.TopLevel]
     }
 
 
 dummyFacts :: Facts
 dummyFacts =
-  Facts Nothing []
+  Facts Nothing
 
 
 -- EXPRESSIONS
@@ -38,7 +37,6 @@ dummyFacts =
 data Expr
     = Literal Literal.Literal
     | Var Var.Canonical
-    | Range Expr Expr
     | ExplicitList [Expr]
     | Binop Var.Canonical Expr Expr
     | Function [String] Expr

@@ -1,15 +1,59 @@
-module Parse.Binop (binops, OpTable) where
+module Parse.Binop (infixOp, binops, OpTable) where
 
 import qualified Data.List as List
 import qualified Data.Map as Map
-import Text.Parsec ((<|>), choice, getState, try)
+import Text.Parsec
+  ( (<|>), choice, getState, lookAhead, lower, many1
+  , notFollowedBy, satisfy, string, try
+  )
 
 import AST.Declaration (Assoc(L, N, R))
 import AST.Expression.General (Expr'(Binop))
 import qualified AST.Expression.Source as Source
+import qualified AST.Helpers as Help
 import qualified AST.Variable as Var
-import Parse.Helpers (IParser, OpTable, commitIf, failure, whitespace)
+import Parse.Helpers (IParser, OpTable, commitIf, expecting, failure, whitespace)
 import qualified Reporting.Annotation as A
+
+
+
+-- INFIX OPERATORS
+
+
+infixOp :: IParser String
+infixOp =
+  infixOpWith notReserved
+
+
+infixOpWith :: IParser String -> IParser String
+infixOpWith checker =
+  expecting "an infix operator like (+)" $
+    do  op <- checker <|> many1 (satisfy Help.isSymbol)
+        case op of
+          "." -> notFollowedBy lower >> return op
+          _ -> return op
+
+
+failOn :: String -> String -> IParser a
+failOn op msg =
+  do  try $ lookAhead $ do
+        string op
+        notFollowedBy (satisfy Help.isSymbol)
+      failure msg
+
+
+notReserved :: IParser a
+notReserved =
+  choice
+    [ failOn "=" "The = operator is reserved for defining variables. Maybe you want == instead? Or maybe you are defining a variable, but there is whitespace before it?"
+    , failOn "->" "Arrows are reserved for cases and anonymous functions. Maybe you want > or >= instead?"
+    , failOn "|" "Vertical bars are reserved for use in union type declarations. Maybe you want || instead?"
+    , failOn ":" "A singe colon is for type annotations. Maybe you want :: instead? Or maybe you are defining a type annotation, but there is whitespace before it?"
+    ]
+
+
+
+-- BINARY EXPRESSIONS
 
 
 opLevel :: OpTable -> String -> Int
@@ -30,18 +74,17 @@ hasLevel table n (op,_) =
 binops
     :: IParser Source.Expr
     -> IParser Source.Expr
-    -> IParser String
     -> IParser Source.Expr
-binops term last anyOp =
+binops term last =
   do  e <- term
       table <- getState
       split table 0 e =<< nextOps
   where
     nextOps =
       choice
-        [ commitIf (whitespace >> anyOp) $
+        [ commitIf (whitespace >> infixOpWith (fail "")) $
             do  whitespace
-                op <- anyOp
+                op <- infixOp
                 whitespace
                 expr <- Left <$> try term <|> Right <$> last
                 case expr of

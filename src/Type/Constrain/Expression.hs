@@ -18,21 +18,12 @@ import qualified Type.Constrain.Effects as Effects
 import qualified Type.Constrain.Literal as Literal
 import qualified Type.Constrain.Pattern as Pattern
 import qualified Type.Environment as Env
-import qualified Type.Fragment as Fragment
 import Type.Type hiding (Descriptor(..))
 
 
 
-constrain
-    :: Env.Environment
-    -> Canonical.Expr
-    -> Type
-    -> IO TypeConstraint
+constrain :: Env.Env -> Canonical.Expr -> Type -> IO TypeConstraint
 constrain env annotatedExpr@(A.A region expression) tipe =
-  let
-    list t =
-      Env.getType env "List" <| t
-  in
   case expression of
     E.Literal lit ->
       Literal.constrain env region lit tipe
@@ -82,16 +73,6 @@ constrain env annotatedExpr@(A.A region expression) tipe =
     E.Var var ->
       return (CInstance region (V.toString var) tipe)
 
-    E.Range lowExpr highExpr ->
-      existsNumber $ \n ->
-        do  lowCon <- constrain env lowExpr n
-            highCon <- constrain env highExpr n
-            return $ CAnd
-              [ lowCon
-              , highCon
-              , CEqual Error.Range region (list n) tipe
-              ]
-
     E.ExplicitList exprs ->
       constrainList env region exprs tipe
 
@@ -101,14 +82,11 @@ constrain env annotatedExpr@(A.A region expression) tipe =
     E.Lambda pattern body ->
       exists $ \argType ->
       exists $ \resType ->
-        do  fragment <- Pattern.constrain env pattern argType
+        do  (Pattern.Info headers vars cons) <- Pattern.constrain env pattern argType
             bodyCon <- constrain env body resType
-            let con =
-                  ex (Fragment.vars fragment)
-                      (CLet [monoscheme (Fragment.typeEnv fragment)]
-                            (Fragment.typeConstraint fragment /\ bodyCon)
-                      )
-            return $ con /\ CEqual Error.Lambda region (argType ==> resType) tipe
+            return $
+              ex vars (CLet [monoscheme headers] (cons /\ bodyCon))
+              /\ CEqual Error.Lambda region (argType ==> resType) tipe
 
     E.App _ _ ->
       let
@@ -132,9 +110,14 @@ constrain env annotatedExpr@(A.A region expression) tipe =
             do  c' <- constrain env e x
                 return (x ==> t, c /\ c')
 
-    E.Access expr label ->
-      exists $ \t ->
-        constrain env expr (record (Map.singleton label tipe) t)
+    E.Access expr field ->
+      exists $ \recordType ->
+      exists $ \ext ->
+        do  recordCon <- constrain env expr recordType
+            let maybeBody = E.collectFields expr
+            let desiredType = record (Map.singleton field tipe) ext
+            let fieldCon = CEqual (Error.Access maybeBody field) region recordType desiredType
+            return $ recordCon /\ fieldCon
 
     E.Update expr fields ->
       exists $ \t ->
@@ -181,7 +164,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
 
 
 constrainApp
-    :: Env.Environment
+    :: Env.Env
     -> R.Region
     -> Canonical.Expr
     -> [Canonical.Expr]
@@ -210,7 +193,7 @@ constrainApp env region f args tipe =
 
 
 argConstraints
-    :: Env.Environment
+    :: Env.Env
     -> Maybe V.Canonical
     -> R.Region
     -> Int
@@ -264,7 +247,7 @@ argConstraints env name region totalArgs overallVar index args =
 
 
 constrainBinop
-    :: Env.Environment
+    :: Env.Env
     -> R.Region
     -> V.Canonical
     -> Canonical.Expr
@@ -299,12 +282,7 @@ constrainBinop env region op leftExpr@(A.A leftRegion _) rightExpr@(A.A rightReg
 -- CONSTRAIN LISTS
 
 
-constrainList
-    :: Env.Environment
-    -> R.Region
-    -> [Canonical.Expr]
-    -> Type
-    -> IO TypeConstraint
+constrainList :: Env.Env -> R.Region -> [Canonical.Expr] -> Type -> IO TypeConstraint
 constrainList env region exprs tipe =
   do  (exprInfo, exprCons) <-
           unzip <$> mapM elementConstraint exprs
@@ -327,7 +305,7 @@ constrainList env region exprs tipe =
 
 
 constrainIf
-    :: Env.Environment
+    :: Env.Env
     -> R.Region
     -> [(Canonical.Expr, Canonical.Expr)]
     -> Canonical.Expr
@@ -386,7 +364,7 @@ constrainIf env region branches finally tipe =
 
 
 constrainCase
-    :: Env.Environment
+    :: Env.Env
     -> R.Region
     -> Canonical.Expr
     -> [(P.Canonical, Canonical.Expr)]
@@ -405,11 +383,11 @@ constrainCase env region expr branches tipe =
   where
     branch patternType (pattern, branchExpr@(A.A branchRegion _)) =
         do  branchVar <- mkVar Nothing
-            fragment <- Pattern.constrain env pattern patternType
+            scheme <- Pattern.infoToScheme <$> Pattern.constrain env pattern patternType
             branchCon <- constrain env branchExpr (VarN branchVar)
             return
                 ( (branchVar, branchRegion)
-                , CLet [Fragment.toScheme fragment] branchCon
+                , CLet [scheme] branchCon
                 )
 
     varToCon var =
@@ -516,83 +494,110 @@ data Info = Info
     }
 
 
-constrainDef :: Env.Environment -> Info -> Canonical.Def -> IO Info
-constrainDef env info (Canonical.Def _ (A.A patternRegion pattern) expr maybeTipe) =
-  let qs = [] -- should come from the def, but I'm not sure what would live there...
-  in
+constrainDef :: Env.Env -> Info -> Canonical.Def -> IO Info
+constrainDef env info (Canonical.Def defRegion (A.A patternRegion pattern) expr maybeTipe) =
   case (pattern, maybeTipe) of
-    (P.Var name, Just (A.A typeRegion tipe)) ->
-        constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe
-
     (P.Var name, Nothing) ->
-        constrainUnannotatedDef env info qs patternRegion name expr
+        constrainUnannotatedDef env patternRegion name expr info
+
+    (P.Var name, Just (A.A _ tipe)) ->
+        constrainAnnotatedDef env defRegion patternRegion name expr tipe info
 
     _ ->
         error "canonical definitions must not have complex patterns as names in the contstraint generation phase"
 
 
-constrainAnnotatedDef
-    :: Env.Environment
+constrainUnannotatedDef
+    :: Env.Env
+    -> R.Region
+    -> String
+    -> Canonical.Expr
     -> Info
-    -> [String]
+    -> IO Info
+constrainUnannotatedDef env patternRegion name expr info =
+  do  v <- mkVar Nothing
+      let tipe = VarN v
+      defCon <- constrain env expr tipe
+      return $ info
+          { iFlex = v : iFlex info
+          , iHeaders = Map.insert name (A.A patternRegion tipe) (iHeaders info)
+          , iC2 = defCon /\ iC2 info
+          }
+
+
+constrainAnnotatedDef
+    :: Env.Env
     -> R.Region
     -> R.Region
     -> String
     -> Canonical.Expr
     -> ST.Canonical
+    -> Info
     -> IO Info
-constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe =
-  do  -- Some mistake may be happening here. Currently, qs is always [].
-      rigidVars <- mapM mkRigid qs
-
-      flexiVars <- mapM mkNamedVar qs
-
-      let env' = Env.addValues env (zip qs flexiVars)
-
-      (vars, typ) <- Env.instantiateType env tipe Map.empty
+constrainAnnotatedDef env defRegion region name expr tipe info =
+  do  (flexType, flexVars) <- Env.instantiateType Flex env tipe
 
       let scheme =
             Scheme
               { _rigidQuantifiers = []
-              , _flexibleQuantifiers = flexiVars ++ vars
+              , _flexibleQuantifiers = Map.elems flexVars
               , _constraint = CTrue
-              , _header = Map.singleton name (A.A patternRegion typ)
+              , _header = Map.singleton name (A.A region flexType)
               }
 
-      var <- mkVar Nothing
-      defCon <- constrain env' expr (VarN var)
-      let annCon =
-            CEqual (Error.BadTypeAnnotation name) typeRegion typ (VarN var)
+      defCon <- constrainAnnDefHelp expr tipe (ArgInfo name defRegion env [] [])
 
       return $ info
           { iSchemes = scheme : iSchemes info
-          , iC1 = iC1 info /\ ex [var] (defCon /\ fl rigidVars annCon)
+          , iC1 = iC1 info /\ defCon
           }
 
 
-constrainUnannotatedDef
-    :: Env.Environment
-    -> Info
-    -> [String]
-    -> R.Region
-    -> String
-    -> Canonical.Expr
-    -> IO Info
-constrainUnannotatedDef env info qs patternRegion name expr =
-  do  -- Some mistake may be happening here. Currently, qs is always [].
-      rigidVars <- mapM mkRigid qs
+data ArgInfo =
+  ArgInfo
+    { _name :: String
+    , _def :: R.Region
+    , _env :: Env.Env
+    , _args :: [(P.Canonical, Type)]
+    , _vars :: [Variable]
+    }
 
-      v <- mkVar Nothing
 
-      let tipe = VarN v
+constrainAnnDefHelp :: Canonical.Expr -> ST.Canonical -> ArgInfo -> IO TypeConstraint
+constrainAnnDefHelp expr tipe (ArgInfo name defRegion env args vars) =
+  case (expr, tipe) of
+    (A.A _ (E.Lambda arg result), ST.Lambda argType resultType) ->
+      do  (rigidArgType, newVars) <- Env.instantiateType Rigid env argType
 
-      let env' = Env.addValues env (zip qs rigidVars)
+          constrainAnnDefHelp result resultType $
+            ArgInfo
+              { _name = name
+              , _def = defRegion
+              , _env = Env.addValues newVars env
+              , _args = (arg, rigidArgType) : args
+              , _vars = Map.elems newVars ++ vars
+              }
 
-      con <- constrain env' expr tipe
+    (A.A region _, _) ->
+      do  (rigidType, newVars) <- Env.instantiateType Rigid env tipe
 
-      return $ info
-          { iRigid = rigidVars ++ iRigid info
-          , iFlex = v : iFlex info
-          , iHeaders = Map.insert name (A.A patternRegion tipe) (iHeaders info)
-          , iC2 = con /\ iC2 info
-          }
+          let finalEnv = Env.addValues newVars env
+          let finalArgs = reverse args
+          let rigidVars = Map.elems newVars ++ vars
+
+          (Pattern.Info headers argVars argCons) <-
+            Pattern.joinInfos <$> mapM (uncurry (Pattern.constrain finalEnv)) finalArgs
+
+          resultVar <- mkVar Nothing
+          let resultType = VarN resultVar
+          defCon <- constrain finalEnv expr resultType
+
+          let sharedArity = length args
+          let typeArity = sharedArity + length (ST.collectLambdas tipe) - 1
+          let argsArity = sharedArity + length (fst (E.collectLambdas expr))
+          let hint = Error.ReturnType name typeArity argsArity region
+          let resultCon =
+                CEqual hint defRegion rigidType resultType
+
+          return $ forall rigidVars $ ex (resultVar : argVars) $ CLet [monoscheme headers] $
+            CAnd [ argCons, defCon, resultCon ]

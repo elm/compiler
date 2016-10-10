@@ -5,7 +5,9 @@ import Control.Arrow (second)
 import qualified Data.Char as Char
 import Text.PrettyPrint.ANSI.Leijen (indent, text)
 
+import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Module.Name as ModuleName
+import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
@@ -17,6 +19,7 @@ import qualified Reporting.Report as Report
 
 data Error
     = Var VarError
+    | BadRecursion Region.Region Canonical.Def [Canonical.Def]
     | Pattern PatternError
     | Alias AliasError
     | Import ModuleName.Raw ImportError
@@ -154,6 +157,15 @@ toReport localizer err =
                 ("Cannot find " ++ var)
                 (Help.maybeYouWant suggestions)
 
+    BadRecursion region def defs ->
+      case defs of
+        [] ->
+          badSelfRecursion region (defToString def)
+
+        _ ->
+          badMutualRecursion region (defToString def) (map (defToString) defs)
+
+
     Pattern patternError ->
         case patternError of
           PatternArgMismatch var expected actual ->
@@ -281,6 +293,9 @@ extractSuggestions err =
     Var (VarError _ _ _ suggestions) ->
         Just suggestions
 
+    BadRecursion _ _ _ ->
+        Nothing
+
     Pattern _ ->
         Nothing
 
@@ -326,3 +341,61 @@ unsafePromote (A.A _ rawType) =
     Type.RRecord fields ext ->
         Type.Record (map (second unsafePromote) fields) (fmap unsafePromote ext)
 
+
+
+-- BAD RECURSION
+
+
+badSelfRecursion :: Region.Region -> String -> Report.Report
+badSelfRecursion region name =
+  let
+    header =
+      Help.functionName name ++ " is defined diretly in terms of itself, causing an infinite loop."
+  in
+    Report.report "BAD RECURSION" (Just region) header $
+      Help.stack
+        [ Help.reflowParagraph $
+            "To define " ++ Help.functionName name ++ " we need to know what "
+            ++ Help.functionName name ++ " is, so let’s just expand that!\
+            \ Wait, but now we need to know what " ++ Help.functionName name
+            ++ " is, so let’s expand that..."
+        , Help.reflowParagraph $
+            "Check out the following links for more info on this situation and how to fix it: "
+            ++ Help.hintLink "bad-recursion"
+            ++ " <http://package.elm-lang.org/packages/elm-lang/core/latest/Json-Decode#lazy>"
+        ]
+
+
+badMutualRecursion :: Region.Region -> String -> [String] -> Report.Report
+badMutualRecursion region name names =
+  let
+    header =
+      Help.functionName name ++ " is defined in terms of itself in a sneaky way, causing an infinite loop."
+
+    otherDefs =
+      if length names == 1 then
+        "one other definition"
+      else
+        show (length names) ++ " other definitions"
+  in
+    Report.report "BAD RECURSION" (Just region) header $
+      Help.stack
+        [ Help.reflowParagraph $
+            "The following definitions depend directly on each other:"
+        , indent 4 $ Help.drawCycle (name : names)
+        , Help.reflowParagraph $
+            "So to define " ++ Help.functionName name
+            ++ " we go through " ++ otherDefs ++ " before needing to know what "
+            ++ Help.functionName name
+            ++ " is. We can expand it again, but then we need to know what "
+            ++ Help.functionName name ++ " is... This will keep going infinitely!"
+        , Help.reflowParagraph $
+            "Check out the following links for more info on this situation and how to fix it: "
+            ++ Help.hintLink "bad-recursion"
+            ++ " <http://package.elm-lang.org/packages/elm-lang/core/latest/Json-Decode#lazy>"
+        ]
+
+
+defToString :: Canonical.Def -> String
+defToString (Canonical.Def _ pattern _ _) =
+  P.toString False pattern

@@ -328,8 +328,14 @@ keyword kwd =
   "KEYWORD=" ++ kwd
 
 
+prime :: String -> String
+prime var =
+  "PRIME=" ++ var
+
+
 data SpecialMessage
   = MsgKeyword String
+  | MsgPrime String
   | MsgTab
 
 
@@ -337,6 +343,9 @@ extractSpecialMessage :: String -> Maybe SpecialMessage
 extractSpecialMessage message =
   if List.isPrefixOf "KEYWORD=" message then
       Just $ MsgKeyword (drop (length "KEYWORD=") message)
+
+  else if List.isPrefixOf "PRIME=" message then
+      Just $ MsgPrime (drop (length "PRIME=") message)
 
   else if tab == message then
       Just MsgTab
@@ -386,6 +395,13 @@ parseErrorReport messages =
               Just (MsgKeyword kwd) ->
                   ( "It looks like the keyword `" ++ kwd ++ "` is being used as a variable."
                   , Just "Rename it to something else."
+                  )
+
+              Just (MsgPrime var) ->
+                  ( "Ran into a single quote in a variable name. This was removed in 0.18!"
+                  , Just $
+                      "Change it to a number or an underscore, like " ++ var ++ "_ or " ++ var
+                      ++ "1\n\nOr better yet, choose a more descriptive name!"
                   )
 
               Just MsgTab ->

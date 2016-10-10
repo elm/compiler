@@ -1,4 +1,4 @@
-module Parse.Expression (term, annotation, definition, expr, def) where
+module Parse.Expression (term, expr, def) where
 
 import qualified Data.List as List
 import Text.Parsec hiding (newline, spaces)
@@ -15,7 +15,6 @@ import qualified AST.Expression.General as E
 import qualified AST.Expression.Source as Source
 import qualified AST.Literal as L
 import qualified AST.Pattern as P
-import qualified AST.Type as T
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 
@@ -79,18 +78,13 @@ negative =
 
 listTerm :: IParser Source.Expr'
 listTerm =
-    shader' <|> braces (try range <|> E.ExplicitList <$> commaSep expr)
-  where
-    range =
-      do  lo <- expr
-          padded (string "..")
-          E.Range lo <$> expr
-
-    shader' =
-      do  pos <- getPosition
+  choice
+    [ do  pos <- getPosition
           let uid = show (sourceLine pos) ++ ":" ++ show (sourceColumn pos)
           (rawSrc, tipe) <- Help.shader
           return $ E.GLShader uid (filter (/='\r') rawSrc) tipe
+    , braces (E.ExplicitList <$> commaSep expr)
+    ]
 
 
 parensTerm :: IParser Source.Expr
@@ -121,7 +115,7 @@ parensTerm =
   in
     do  (start, mkExpr, end) <-
           located $ choice $
-            [ mkBinop <$> try (parens symOp)
+            [ mkBinop <$> try (parens Binop.infixOp)
             , parens (tupleFn <|> parenedExpr)
             ]
         return (mkExpr start end)
@@ -202,7 +196,7 @@ expr =
 
 binaryExpr :: IParser Source.Expr
 binaryExpr =
-    Binop.binops appExpr lastExpr anyOp
+    Binop.binops appExpr lastExpr
   where
     lastExpr =
         addLocation (choice [ letExpr, caseExpr, ifExpr ])
@@ -272,8 +266,7 @@ letExpr :: IParser Source.Expr'
 letExpr =
   do  try (reserved "let")
       whitespace
-      defs <-
-        Indent.block (def <* whitespace)
+      defs <- Indent.block (def <* whitespace)
       whitespace
       reserved "in"
       whitespace
@@ -282,49 +275,44 @@ letExpr =
 
 def :: IParser Source.Def
 def =
+  addLocation $ Indent.withPos $
+    do  start <- defStart
+        whitespace
+        case start of
+          A.A _ (P.Var name) ->
+            choice
+              [ do  hasType
+                    whitespace
+                    tipe <- Type.expr
+                    return $ Source.Annotation name tipe
+              , defEnd start []
+              ]
+
+          _ ->
+            defEnd start []
+
+
+defStart :: IParser P.Raw
+defStart =
   choice
-    [ annotation Source.Annotation
-    , definition Source.Definition
+    [ addLocation (try (P.Var <$> parens Binop.infixOp))
+    , Pattern.term
     ]
 
 
-
--- TYPE ANNOTATION
-
-
-annotation :: (String -> T.Raw -> a) -> IParser (A.Located a)
-annotation creator =
-  let
-    start =
-      do  v <- lowVar <|> parens symOp
-          padded hasType
-          return v
-  in
-    addLocation (creator <$> try start <*> Type.expr)
-
-
-
--- DEFINITION
-
-
-definition :: (P.Raw -> Source.Expr -> a) -> IParser (A.Located a)
-definition creator =
-  addLocation $
-  Indent.withPos $
-    do  (name, args) <- defStart
-        padded equals
-        body <- expr
-        return . creator name $ makeFunction args body
+defEnd :: P.Raw -> [P.Raw] -> IParser Source.Def'
+defEnd start revArgs =
+  choice
+    [ do  arg <- Pattern.term
+          whitespace
+          defEnd start (arg : revArgs)
+    , do  equals
+          whitespace
+          body <- expr
+          return $ Source.Definition start (makeFunction revArgs body)
+    ]
 
 
 makeFunction :: [P.Raw] -> Source.Expr -> Source.Expr
-makeFunction args body@(A.A ann _) =
-  foldr (\arg body' -> A.A ann $ E.Lambda arg body') body args
-
-
-defStart :: IParser (P.Raw, [P.Raw])
-defStart =
-  expecting "the definition of a value (x = ...)" $
-    do  starter <- try Pattern.term <|> addLocation (P.Var <$> parens symOp)
-        args <- spacePrefix Pattern.term
-        return (starter, args)
+makeFunction revArgs body@(A.A ann _) =
+  List.foldl' (\expr arg -> A.A ann $ E.Lambda arg expr) body revArgs

@@ -11,8 +11,9 @@ import qualified AST.Variable as Var
 import qualified Docs.AST as Docs
 import qualified Elm.Compiler.Type as Type
 import Elm.Utils ((|>))
+import Parse.Binop (infixOp)
 import Parse.Helpers
-    ( addLocation, anyUntil, commaSep1, iParse, parens, simpleNewline, symOp
+    ( addLocation, anyUntil, commaSep1, iParse, parens, simpleNewline
     , var, whitespace
     )
 import qualified Reporting.Annotation as A
@@ -156,7 +157,7 @@ commentedNames (R.Region start _) comment =
       choice
         [ do  string "@docs"
               whitespace
-              commaSep1 (addLocation (var <|> parens symOp))
+              commaSep1 (addLocation (var <|> parens infixOp))
         , do  anyUntil simpleNewline
               return []
         ]

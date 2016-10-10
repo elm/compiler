@@ -7,12 +7,7 @@ import qualified Type.Type as T
 import qualified Type.Environment as Env
 
 
-constrain
-    :: Env.Environment
-    -> R.Region
-    -> L.Literal
-    -> T.Type
-    -> IO T.TypeConstraint
+constrain :: Env.Env -> R.Region -> L.Literal -> T.Type -> IO T.TypeConstraint
 constrain env region literal tipe =
   do  definiteType <- litType
       return (T.CEqual (Error.Literal name) region definiteType tipe)

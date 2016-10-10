@@ -156,9 +156,9 @@ to name =
   Opt.Var (inJsonDecode name)
 
 
-(=:) :: String -> Opt.Expr -> Opt.Expr
-(=:) name decoder =
-  Opt.Binop (inJsonDecode ":=") (Opt.Literal (Literal.Str name)) decoder
+field :: String -> Opt.Expr -> Opt.Expr
+field name decoder =
+  to "field" <== [ Opt.Literal (Literal.Str name), decoder ]
 
 
 (<==) :: Opt.Expr -> [Opt.Expr] -> Opt.Expr
@@ -214,6 +214,6 @@ toRecord fields =
       to "succeed" <== [ Opt.Record (map toFieldExpr fields) ]
 
     andThen (key, tipe) decoder =
-      to "andThen" <== [ key =: decode tipe, Opt.Function [key] decoder ]
+      to "andThen" <== [ Opt.Function [key] decoder, field key (decode tipe) ]
   in
     List.foldr andThen finalDecoder fields

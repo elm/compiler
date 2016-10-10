@@ -1,9 +1,10 @@
 {-# OPTIONS_GHC -Wall #-}
 module Reporting.Error.Helpers
   ( (|>)
-  , functionName, hintLink, stack, reflowParagraph
+  , functionName, args
+  , hintLink, stack, reflowParagraph
   , commaSep, capitalize, ordinalize, drawCycle
-  , findPotentialTypos, vetTypos
+  , findPotentialTypos, findTypoPairs, vetTypos
   , nearbyNames, distance, maybeYouWant
   )
   where
@@ -45,6 +46,11 @@ functionName opName =
 
   else
       "`" ++ opName ++ "`"
+
+
+args :: Int -> String
+args n =
+  show n ++ if n == 1 then " argument" else " arguments"
 
 
 hintLink :: String -> String
@@ -132,11 +138,16 @@ drawCycle strings =
 -- FIND TYPOS
 
 
-findPotentialTypos :: [String] -> [String] -> [(String, String)]
-findPotentialTypos leftOnly rightOnly =
+findPotentialTypos :: [String] -> String -> [String]
+findPotentialTypos knownNames badName =
+  filter ((==1) . distance badName) knownNames
+
+
+findTypoPairs :: [String] -> [String] -> [(String, String)]
+findTypoPairs leftOnly rightOnly =
   let
     veryNear leftName =
-      map ((,) leftName) (filter ((==1) . distance leftName) rightOnly)
+      map ((,) leftName) (findPotentialTypos rightOnly leftName)
   in
     concatMap veryNear leftOnly
 

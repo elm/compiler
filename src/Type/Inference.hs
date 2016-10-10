@@ -68,15 +68,17 @@ genConstraints interfaces modul =
 
 
 canonicalizeValues
-    :: Env.Environment
+    :: Env.Env
     -> (ModuleName.Canonical, Module.Interface)
     -> IO [(String, ([T.Variable], T.Type))]
 canonicalizeValues env (moduleName, iface) =
-    forM (Map.toList (Module.iTypes iface)) $ \(name,tipe) ->
-        do  tipe' <- Env.instantiateType env tipe Map.empty
+    forM (Map.toList (Module.iTypes iface)) $ \(name, tipe) ->
+        do  (flexType, flexVars) <- Env.instantiateType T.Flex env tipe
             return
               ( ModuleName.canonicalToString moduleName ++ "." ++ name
-              , tipe'
+              , ( Map.elems flexVars
+                , flexType
+                )
               )
 
 

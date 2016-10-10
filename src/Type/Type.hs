@@ -1,12 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
 module Type.Type where
 
+import Control.Monad (when)
 import Control.Monad.State (StateT, liftIO)
 import qualified Control.Monad.State as State
+import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Traversable as Traverse (traverse)
 import qualified Data.UnionFind.IO as UF
 
 import qualified AST.Type as T
@@ -183,14 +183,9 @@ mkVar maybeSuper =
   UF.fresh $ mkDescriptor (Var Flex maybeSuper Nothing)
 
 
-mkNamedVar :: String -> IO Variable
-mkNamedVar name =
-    UF.fresh $ mkDescriptor (Var Flex (toSuper name) Nothing)
-
-
-mkRigid :: String -> IO Variable
-mkRigid name =
-    UF.fresh $ mkDescriptor (Var Rigid (toSuper name) (Just name))
+mkNamedVar :: Flex -> String -> IO Variable
+mkNamedVar flex name =
+    UF.fresh $ mkDescriptor $ Var flex (toSuper name) (Just name)
 
 
 toSuper :: String -> Maybe Super
@@ -233,9 +228,8 @@ ex fqs constraint =
     CLet [Scheme [] fqs constraint Map.empty] CTrue
 
 
--- fl qs constraint == forall qs. constraint
-fl :: [Variable] -> TypeConstraint -> TypeConstraint
-fl rqs constraint =
+forall :: [Variable] -> TypeConstraint -> TypeConstraint
+forall rqs constraint =
     CLet [Scheme rqs [] constraint Map.empty] CTrue
 
 
@@ -259,8 +253,8 @@ existsNumber f =
 -- never have to do extra work, particularly nice for aliased types
 toSrcType :: Variable -> IO T.Canonical
 toSrcType variable =
-  do  usedNames <- getVarNames variable
-      State.evalStateT (variableToSrcType variable) (makeNameState usedNames)
+  do  takenNames <- State.execStateT (getVarNames variable) Map.empty
+      State.evalStateT (variableToSrcType variable) (makeNameState takenNames)
 
 
 variableToSrcType :: Variable -> StateT NameState IO T.Canonical
@@ -297,7 +291,7 @@ contentToSrcType variable content =
             return (T.Var freshName)
 
     Alias name args realVariable ->
-        do  srcArgs <- mapM (\(arg,tvar) -> (,) arg <$> variableToSrcType tvar) args
+        do  srcArgs <- traverse (traverse variableToSrcType) args
             srcType <- variableToSrcType realVariable
             return (T.Aliased name srcArgs (T.Filled srcType))
 
@@ -327,7 +321,7 @@ termToSrcType term =
       return $ T.Record [] Nothing
 
     Record1 fields extension ->
-      do  srcFields <- Map.toList <$> Traverse.traverse variableToSrcType fields
+      do  srcFields <- Map.toList <$> traverse variableToSrcType fields
           srcExt <- T.iteratedDealias <$> variableToSrcType extension
           return $
               case srcExt of
@@ -346,112 +340,163 @@ termToSrcType term =
 
 
 data NameState = NameState
-    { _freeNames :: [String]
-    , _numberPrimes :: Int
-    , _comparablePrimes :: Int
-    , _appendablePrimes :: Int
-    , _compAppendPrimes :: Int
+    { _taken :: TakenNames
+    , _normals :: Int
+    , _numbers :: Int
+    , _comparables :: Int
+    , _appendables :: Int
+    , _compAppends :: Int
     }
 
 
-makeNameState :: Set.Set String -> NameState
-makeNameState usedNames =
-  let
-    makeName suffix =
-      map (:suffix) ['a'..'z']
+type TakenNames = Map.Map String Variable
 
-    allNames =
-      concatMap makeName ("" : map show [ (1 :: Int) .. ])
 
-    freeNames =
-      filter (\name -> Set.notMember name usedNames) allNames
-  in
-    NameState freeNames 0 0 0 0
+makeNameState :: TakenNames -> NameState
+makeNameState taken =
+  NameState taken 0 0 0 0 0
 
 
 getFreshName :: (Monad m) => Maybe Super -> StateT NameState m String
 getFreshName maybeSuper =
   case maybeSuper of
     Nothing ->
-        do  names <- State.gets _freeNames
-            State.modify (\state -> state { _freeNames = tail names })
-            return (head names)
+      do  index <- State.gets _normals
+          taken <- State.gets _taken
+          let (uniqueName, newIndex) = getFreshNormal index taken
+          State.modify (\state -> state { _normals = newIndex })
+          return uniqueName
 
     Just Number ->
-        do  primes <- State.gets _numberPrimes
-            State.modify (\state -> state { _numberPrimes = primes + 1 })
-            return ("number" ++ replicate primes '\'')
+        getFreshSuper "number" _numbers (\index state -> state { _numbers = index })
 
     Just Comparable ->
-        do  primes <- State.gets _comparablePrimes
-            State.modify (\state -> state { _comparablePrimes = primes + 1 })
-            return ("comparable" ++ replicate primes '\'')
+        getFreshSuper "comparable" _comparables (\index state -> state { _comparables = index })
 
     Just Appendable ->
-        do  primes <- State.gets _appendablePrimes
-            State.modify (\state -> state { _appendablePrimes = primes + 1 })
-            return ("appendable" ++ replicate primes '\'')
+        getFreshSuper "appendable" _appendables (\index state -> state { _appendables = index })
 
     Just CompAppend ->
-        do  primes <- State.gets _compAppendPrimes
-            State.modify (\state -> state { _compAppendPrimes = primes + 1 })
-            return ("compappend" ++ replicate primes '\'')
+        getFreshSuper "compappend" _compAppends (\index state -> state { _compAppends = index })
+
+
+getFreshNormal :: Int -> TakenNames -> (String, Int)
+getFreshNormal index taken =
+  let
+    (postfix, letter) =
+      quotRem index 26
+
+    name =
+      Char.chr (97 + letter) : if postfix <= 0 then "" else show postfix
+  in
+    if Map.member name taken then
+      getFreshNormal (index + 1) taken
+
+    else
+      (name, index + 1)
+
+
+getFreshSuper
+    :: (Monad m)
+    => String
+    -> (NameState -> Int)
+    -> (Int -> NameState -> NameState)
+    -> StateT NameState m String
+getFreshSuper name getter setter =
+  do  index <- State.gets getter
+      taken <- State.gets _taken
+      let (uniqueName, newIndex) = getFreshSuperHelp name index taken
+      State.modify (setter newIndex)
+      return uniqueName
+
+
+getFreshSuperHelp :: String -> Int -> TakenNames -> (String, Int)
+getFreshSuperHelp name index taken =
+  let
+    newName =
+      if index <= 0 then name else name ++ show index
+  in
+    if Map.member newName taken then
+      getFreshSuperHelp name (index + 1) taken
+
+    else
+      (newName, index + 1)
 
 
 
 -- GET ALL VARIABLE NAMES
 
 
-getVarNames :: Variable -> IO (Set.Set String)
+getVarNames :: Variable -> StateT TakenNames IO ()
 getVarNames var =
-  do  desc <- UF.descriptor var
-      if _mark desc == getVarNamesMark
-        then
-          return Set.empty
+  do  desc <- liftIO $ UF.descriptor var
+      case _mark desc == getVarNamesMark of
+        True ->
+          return ()
 
-        else
-          do  UF.setDescriptor var (desc { _mark = getVarNamesMark })
-              getVarNamesHelp (_content desc)
+        False ->
+          do  liftIO $ UF.setDescriptor var (desc { _mark = getVarNamesMark })
+              case _content desc of
+                Atom _ ->
+                  return ()
+
+                Error ->
+                  return ()
+
+                Var _ _ Nothing ->
+                  return ()
+
+                Var flex maybeSuper (Just name) ->
+                  do  oldTaken <- State.get
+                      newTaken <- liftIO $ addVarName 0 name var flex maybeSuper oldTaken
+                      State.put newTaken
+
+                Alias _ args realVar ->
+                  do  mapM_ (getVarNames . snd) args
+                      getVarNames realVar
+
+                Structure (App1 func arg) ->
+                  do  getVarNames func
+                      getVarNames arg
+
+                Structure (Fun1 arg body) ->
+                  do  getVarNames arg
+                      getVarNames body
+
+                Structure EmptyRecord1 ->
+                  return ()
+
+                Structure (Record1 fields extension) ->
+                  do  mapM_ getVarNames fields
+                      getVarNames extension
 
 
-getVarNamesHelp :: Content -> IO (Set.Set String)
-getVarNamesHelp content =
-  case content of
-    Var _ _ (Just name) ->
-        return (Set.singleton name)
+addVarName :: Int -> String -> Variable -> Flex -> Maybe Super -> TakenNames -> IO TakenNames
+addVarName index givenName var flex maybeSuper taken =
+  let
+    name =
+      makeIndexedName givenName index
+  in
+    case Map.lookup name taken of
+      Nothing ->
+        do  when (name /= givenName) $ UF.modifyDescriptor var $ \desc ->
+              desc { _content = Var flex maybeSuper (Just name) }
+            return $ Map.insert name var taken
 
-    Var _ _ Nothing ->
-        return Set.empty
-
-    Structure term ->
-        getVarNamesTerm term
-
-    Alias _name args realVar ->
-        do  let argSet = Set.fromList (map fst args)
-            realSet <- getVarNames realVar
-            sets <- mapM (getVarNames . snd) args
-            return (Set.unions (realSet : argSet : sets))
-
-    Atom _ ->
-        return Set.empty
-
-    Error ->
-        return Set.empty
+      Just otherVar ->
+        do  same <- UF.equivalent var otherVar
+            if same
+              then return taken
+              else addVarName (index + 1) givenName var flex maybeSuper taken
 
 
-getVarNamesTerm :: Term1 Variable -> IO (Set.Set String)
-getVarNamesTerm term =
-  let go = getVarNames in
-  case term of
-    App1 a b ->
-        Set.union <$> go a <*> go b
+makeIndexedName :: String -> Int -> String
+makeIndexedName name index =
+  if index <= 0 then
+    name
 
-    Fun1 a b ->
-        Set.union <$> go a <*> go b
+  else if Char.isDigit (last name) then
+    name ++ '_' : show index
 
-    EmptyRecord1 ->
-        return Set.empty
-
-    Record1 fields extension ->
-        do  fieldVars <- Set.unions <$> mapM go (Map.elems fields)
-            Set.union fieldVars <$> go extension
+  else
+    name ++ show index

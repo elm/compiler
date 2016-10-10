@@ -1,7 +1,7 @@
 module Parse.Helpers where
 
 import Prelude hiding (until)
-import Control.Monad (guard, join)
+import Control.Monad (join)
 import Control.Monad.State (State)
 import Data.Char (isUpper)
 import qualified Data.Map as Map
@@ -14,12 +14,12 @@ import qualified Text.Parsec.Token as T
 import qualified AST.Declaration as Decl
 import qualified AST.Expression.General as E
 import qualified AST.Expression.Source as Source
-import qualified AST.Helpers as Help
 import qualified AST.Literal as L
 import qualified AST.Variable as Variable
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as Syntax
 import qualified Reporting.Region as R
+
 
 
 reserveds :: [String]
@@ -35,12 +35,16 @@ reserveds =
     ]
 
 
+
 -- ERROR HELP
+
 
 expecting = flip (<?>)
 
 
+
 -- SETUP
+
 
 type OpTable = Map.Map String (Int, Decl.Assoc)
 type SourceM = State SourcePos
@@ -86,44 +90,37 @@ rLabel = lowVar
 
 innerVarChar :: IParser Char
 innerVarChar =
-  alphaNum <|> char '_' <|> char '\'' <?> "more letters in this name"
+  alphaNum <|> char '_' <?> "more letters in this name"
 
 
 makeVar :: IParser Char -> IParser String
 makeVar firstChar =
   do  variable <- (:) <$> firstChar <*> many innerVarChar
-      if variable `elem` reserveds
-        then fail (Syntax.keyword variable)
-        else return variable
+      choice
+        [ do  lookAhead (char '\'')
+              failure (Syntax.prime variable)
+        , if variable `elem` reserveds then
+            failure (Syntax.keyword variable)
+          else
+            return variable
+        ]
 
 
 reserved :: String -> IParser String
 reserved word =
   expecting ("reserved word `" ++ word ++ "`") $
     do  string word
-        notFollowedBy innerVarChar
-        return word
+        choice
+          [ do  lookAhead (char '\'')
+                failure (Syntax.prime word)
+          , do  notFollowedBy innerVarChar
+                return word
+          ]
 
-
--- INFIX OPERATORS
-
-anyOp :: IParser String
-anyOp =
-  betwixt '`' '`' qualifiedVar
-  <|> symOp
-  <?> "an infix operator like (+)"
-
-
-symOp :: IParser String
-symOp =
-  do  op <- many1 (satisfy (\c -> Help.isSymbol c && c /= '`'))
-      guard (op `notElem` [ "=", "..", "->", "--", "|", ":" ])
-      case op of
-        "." -> notFollowedBy lower >> return op
-        _   -> return op
 
 
 -- COMMON SYMBOLS
+
 
 equals :: IParser String
 equals =
@@ -147,7 +144,9 @@ commitIf check p =
       try (lookAhead check) >> p
 
 
+
 -- SEPARATORS
+
 
 spaceySepBy1 :: IParser b -> IParser a -> IParser [a]
 spaceySepBy1 sep parser =
@@ -216,7 +215,9 @@ constrainedSpacePrefix parser constraint =
         indented
 
 
+
 -- SURROUNDED BY
+
 
 followedBy a b =
   do  x <- a
@@ -255,7 +256,9 @@ brackets =
   surround '{' '}' "bracket"
 
 
+
 -- HELPERS FOR EXPRESSIONS
+
 
 getMyPosition :: IParser R.Position
 getMyPosition =
@@ -307,7 +310,9 @@ dot =
       notFollowedBy (char '.')
 
 
+
 -- WHITESPACE
+
 
 padded :: IParser a -> IParser a
 padded p =
@@ -417,7 +422,9 @@ closeComment =
         ]
 
 
+
 -- ODD COMBINATORS
+
 
 failure msg = do
   inp <- getInput
@@ -492,7 +499,9 @@ anyUntilPos pos =
         else (:) <$> anyChar <*> anyUntilPos pos
 
 
--- BASIC LANGUAGE LITERALS
+
+-- SHADERS
+
 
 shader :: IParser (String, L.GLShaderTipe)
 shader =
@@ -565,38 +574,84 @@ glSource src =
         _ -> []
 
 
+
+-- STRINGS AND CHARACTERS
+
+
 str :: IParser String
 str =
-  expecting "a string" $
-  do  s <- choice [ multiStr, singleStr ]
-      processAs T.stringLiteral . sandwich '\"' $ concat s
-  where
-    rawString quote insides =
-        quote >> manyTill insides quote
-
-    multiStr  = rawString (try (string "\"\"\"")) multilineStringChar
-    singleStr = rawString (char '"') stringChar
-
-    stringChar :: IParser String
-    stringChar = choice [ newlineChar, escaped '\"', (:[]) <$> satisfy (/= '\"') ]
-
-    multilineStringChar :: IParser String
-    multilineStringChar =
-        do noEnd
-           choice [ newlineChar, escaped '\"', expandQuote <$> anyChar ]
-        where
-          noEnd = notFollowedBy (string "\"\"\"")
-          expandQuote c = if c == '\"' then "\\\"" else [c]
-
-    newlineChar :: IParser String
-    newlineChar =
-        choice [ char '\n' >> return "\\n"
-               , char '\r' >> return "\\r" ]
+  expecting "a string like \"hello\"" $
+  do  charSeq <- choice [ multiStr, singleStr ]
+      either (fail . show) return $
+        processAs T.stringLiteral ('"' : charSeq ++ "\"")
 
 
-sandwich :: Char -> String -> String
-sandwich delim s =
-  delim : s ++ [delim]
+delimitedSequence :: IParser a -> IParser String -> IParser String
+delimitedSequence quote insides =
+  do  quote
+      concat <$> manyTill insides quote
+
+
+multiStr :: IParser String
+multiStr =
+  delimitedSequence (try (string "\"\"\"")) multilineStringChar
+
+
+singleStr :: IParser String
+singleStr =
+  delimitedSequence (char '"') (charWithin '"')
+
+
+chr :: IParser Char
+chr =
+  expecting "a character like 'x'" $
+  do  char '\''
+      charSeq <- concat <$> many1 (charWithin '\'') <?> "a character"
+      case processAs T.charLiteral ("'" ++ charSeq ++ "'") of
+        Right character ->
+          do  char '\''
+              return character
+
+        Left _ ->
+          failure $
+            "Elm uses double quotes for strings. Switch\
+            \ the ' to \" on both ends of the string and\
+            \ you should be all set!"
+
+
+
+-- CHARACTER HELPERS
+
+
+charWithin :: Char -> IParser String
+charWithin delim =
+  choice
+    [ escaped delim
+    , (:[]) <$> satisfy (/= delim)
+    ]
+
+
+multilineStringChar :: IParser String
+multilineStringChar =
+  do  notFollowedBy (string "\"\"\"")
+      choice
+        [ newlineChar
+        , escaped '\"'
+        , escapeQuotes <$> anyChar
+        ]
+
+
+escapeQuotes :: Char -> String
+escapeQuotes c =
+  if c == '\"' then "\\\"" else [c]
+
+
+newlineChar :: IParser String
+newlineChar =
+  choice
+    [ char '\n' >> return "\\n"
+    , char '\r' >> return "\\r"
+    ]
 
 
 escaped :: Char -> IParser String
@@ -607,32 +662,16 @@ escaped delim =
     return ['\\', c]
 
 
-chr :: IParser Char
-chr =
-    betwixt '\'' '\'' character <?> "a character"
+processAs
+  :: (T.GenTokenParser String u SourceM -> IParser a)
+  -> String
+  -> Either ParseError a
+processAs processor string =
+    iParse (processor lexer) string
   where
-    nonQuote = satisfy (/='\'')
-
-    character =
-      do  c <- choice
-                [ escaped '\''
-                , (:) <$> char '\\' <*> many1 nonQuote
-                , (:[]) <$> nonQuote
-                ]
-
-          processAs T.charLiteral $ sandwich '\'' c
-
-
-processAs :: (T.GenTokenParser String u SourceM -> IParser a) -> String -> IParser a
-processAs processor s =
-    calloutParser s (processor lexer)
-  where
-    calloutParser :: String -> IParser a -> IParser a
-    calloutParser inp p =
-      either (fail . show) return (iParse p inp)
-
     lexer :: T.GenTokenParser String u SourceM
-    lexer = T.makeTokenParser elmDef
+    lexer =
+      T.makeTokenParser elmDef
 
     -- I don't know how many of these are necessary for charLiteral/stringLiteral
     elmDef :: T.GenLanguageDef String u SourceM

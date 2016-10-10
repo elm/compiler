@@ -32,7 +32,7 @@ optimize variantDict home defs =
 
 
 optimizeDef :: Bool -> Can.Def -> Env.Optimizer [Opt.Def]
-optimizeDef isRoot (Can.Def (Can.Facts deps) pattern expression _) =
+optimizeDef isRoot (Can.Def _ pattern expression _) =
   let
     (args, canBody) =
       Expr.collectLambdas expression
@@ -45,20 +45,19 @@ optimizeDef isRoot (Can.Def (Can.Facts deps) pattern expression _) =
         return Nothing
   in
     do  home <- maybeGetHome
-        optimizeDefHelp home deps pattern args canBody
+        optimizeDefHelp home pattern args canBody
 
 
 optimizeDefHelp
     :: Maybe ModuleName.Canonical
-    -> [Var.TopLevel]
     -> P.Canonical
     -> [P.Canonical]
     -> Can.Expr
     -> Env.Optimizer [Opt.Def]
-optimizeDefHelp home deps pattern@(A.A _ ptrn) args rawBody =
+optimizeDefHelp home pattern@(A.A _ ptrn) args rawBody =
   let
     facts =
-      Opt.Facts home deps
+      Opt.Facts home
   in
   case (ptrn, args) of
     (P.Var name, _ : _) ->
@@ -125,20 +124,16 @@ depatternArgs (names, rawExpr) ptrn =
 patternToDefs :: Maybe ModuleName.Canonical -> String -> P.Canonical -> [Opt.Def]
 patternToDefs home rootName pattern =
     let
-        (deps, rootExpr) =
+        rootExpr =
             case home of
               Nothing ->
-                  ( []
-                  , Opt.Var (Var.local rootName)
-                  )
+                  Opt.Var (Var.local rootName)
 
               Just moduleName ->
-                  ( [ Var.TopLevelVar moduleName rootName ]
-                  , Opt.Var (Var.topLevel moduleName rootName)
-                  )
+                  Opt.Var (Var.topLevel moduleName rootName)
 
         toDef (name, accessExpr) =
-            Opt.Def (Opt.Facts home deps) name accessExpr
+            Opt.Def (Opt.Facts home) name accessExpr
     in
         map toDef (patternToSubstitutions rootExpr pattern)
 
@@ -205,11 +200,6 @@ optimizeExpr context annExpr@(A.A region expression) =
 
         else
             pure (Opt.Var name)
-
-    Expr.Range lowExpr highExpr ->
-        Opt.Range
-          <$> justConvert lowExpr
-          <*> justConvert highExpr
 
     Expr.ExplicitList elements ->
         Opt.ExplicitList

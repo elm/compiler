@@ -1,11 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.Compiler.Type
-    ( Type(..)
-    , toString
-    ) where
+  ( Type(..), toString
+  , Program(..)
+  )
+  where
 
 import Control.Arrow (second)
-import Data.Aeson ((.:))
+import Data.Aeson ((.:), (.=))
 import qualified Data.Aeson as Json
 import qualified Data.Aeson.Types as Json
 import qualified Data.ByteString.Lazy.Char8 as BS
@@ -20,6 +21,7 @@ import qualified Parse.Type as Type
 import qualified Reporting.Annotation as A
 
 
+
 data Type
     = Lambda Type Type
     | Var String
@@ -28,7 +30,17 @@ data Type
     | Record [(String, Type)] (Maybe Type)
 
 
+data Program =
+  Program
+    { _message :: Type
+    , _aliases :: [( String, [String], Type )]
+    , _unions :: [( String, [String], [(String, [Type])] )]
+    }
+
+
+
 -- TO STRING
+
 
 data Context = None | ADT | Function
 
@@ -127,7 +139,9 @@ flattenRecord tipe =
       _ -> error "Trying to flatten ill-formed record."
 
 
+
 -- JSON for TYPE
+
 
 instance Json.ToJSON Type where
   toJSON tipe =
@@ -145,13 +159,18 @@ instance Json.FromJSON Type where
       case value of
         Json.String text ->
           either failure (return . fromRawType)
-            (Parse.iParse Type.expr (Text.unpack text))
+            (Parse.iParse Type.expr (replacePrimes (Text.unpack text)))
 
         Json.Object obj ->
           fromObject obj
 
         _ ->
           failure ()
+
+
+replacePrimes :: String -> String
+replacePrimes string =
+  map (\c -> if c == '\'' then '_' else c) string
 
 
 fromObject :: Json.Object -> Json.Parser Type
@@ -195,3 +214,36 @@ fromRawType (A.A _ astType) =
       Type.RRecord fields ext ->
           Record (map (second fromRawType) fields) (fmap fromRawType ext)
 
+
+
+-- JSON for PROGRAM
+
+
+instance Json.ToJSON Program where
+  toJSON (Program msg aliases unions) =
+    Json.object
+      [ "message" .= msg
+      , "aliases" .= Json.object (map toAliasField aliases)
+      , "unions" .= Json.object (map toUnionField unions)
+      ]
+
+
+toAliasField :: ( String, [String], Type ) -> Json.Pair
+toAliasField ( name, args, tipe ) =
+  Text.pack name .= Json.object
+    [ "args" .= args
+    , "type" .= tipe
+    ]
+
+
+toUnionField :: ( String, [String], [(String, [Type])] ) -> Json.Pair
+toUnionField ( name, args, constructors ) =
+  Text.pack name .= Json.object
+    [ "args" .= args
+    , "tags" .= Json.object (map toCtorObject constructors)
+    ]
+
+
+toCtorObject :: (String, [Type]) -> Json.Pair
+toCtorObject (name, args) =
+  Text.pack name .= args

@@ -3,6 +3,7 @@ module Parse.Module (moduleDecl, header, getModuleName) where
 
 import Text.Parsec hiding (newline, spaces)
 
+import Parse.Binop (infixOp)
 import Parse.Helpers
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
@@ -168,7 +169,7 @@ value =
     val <|> tipe <?> "a value or type to expose"
   where
     val =
-      Var.Value <$> (lowVar <|> parens symOp)
+      Var.Value <$> (lowVar <|> parens infixOp)
 
     tipe =
       do  name <- capVar

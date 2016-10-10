@@ -46,7 +46,7 @@ defToEntry infixDict (A.A (_, maybeComment) (Canonical.Def _ pattern _ maybeType
         value =
           Docs.Value
             maybeComment
-            (fmap (Extract.toAliasedType . A.drop) maybeType)
+            (fmap (Extract.extract . A.drop) maybeType)
             (Map.lookup name infixDict)
       in
         Just (name, A.A subregion value)
@@ -59,7 +59,7 @@ unionToEntry :: A.Commented (D.Union Type.Canonical) -> (String, A.Located Docs.
 unionToEntry (A.A (region, maybeComment) (D.Type name args ctors)) =
   let
     ctors' =
-      map (second (map Extract.toAliasedType)) ctors
+      map (second (map Extract.extract)) ctors
   in
     (name, A.A region (Docs.Union maybeComment args ctors'))
 
@@ -67,7 +67,7 @@ unionToEntry (A.A (region, maybeComment) (D.Type name args ctors)) =
 aliasToEntry :: A.Commented (D.Alias Type.Canonical) -> (String, A.Located Docs.Alias)
 aliasToEntry (A.A (region, maybeComment) (D.Type name args tipe)) =
   ( name
-  , A.A region (Docs.Alias maybeComment args (Extract.toAliasedType tipe))
+  , A.A region (Docs.Alias maybeComment args (Extract.extract tipe))
   )
 
 

@@ -48,7 +48,7 @@ generateEffectManager moduleName effects =
     Effects.Manager pkgName (Effects.Info _ _ _ _ managerType) ->
       let
         managers =
-          Var.native (ModuleName.inCore ["Native","Platform"]) "effectManagers"
+          Var.coreNative "Platform" "effectManagers"
 
         managerName =
           JS.StringLit () (ModuleName.canonicalToString moduleName)

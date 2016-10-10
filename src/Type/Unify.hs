@@ -4,6 +4,7 @@ module Type.Unify (unify) where
 import Control.Monad (zipWithM_)
 import Control.Monad.Except (ExceptT, lift, liftIO, throwError, runExceptT)
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
 import qualified Data.UnionFind.IO as UF
 
 import qualified AST.Variable as Var
@@ -21,10 +22,10 @@ unify :: Error.Hint -> R.Region -> Variable -> Variable -> TS.Solver ()
 unify hint region expected actual =
   do  result <- runExceptT (guardedUnify ExpectedActual expected actual)
       case result of
-        Right state ->
-            return state
+        Right () ->
+            return ()
 
-        Left (Mismatch _subExpected _subActual maybeReason) ->
+        Left (Mismatch maybeReason) ->
             let
               mkError =
                 do  expectedSrcType <- Type.toSrcType expected
@@ -71,22 +72,35 @@ reorient (Context orientation var1 desc1 var2 desc2) =
 -- ERROR MESSAGES
 
 
-data Mismatch
-    = Mismatch Variable Variable (Maybe Error.Reason)
+newtype Mismatch =
+  Mismatch (Maybe Error.Reason)
 
 
 mismatch :: Context -> Maybe Error.Reason -> Unify a
-mismatch (Context orientation first _ second _) maybeReason =
-  let
-    (expected, actual, orientedReason) =
-        case orientation of
-          ExpectedActual ->
-              (first, second, maybeReason)
+mismatch context@(Context orientation var1 _ var2 _) maybeReason =
+  do  args1 <- liftIO $ collectArgs var1
+      args2 <- liftIO $ collectArgs var2
 
-          ActualExpected ->
-              (second, first, Error.flipReason <$> maybeReason)
-  in
-    throwError (Mismatch expected actual orientedReason)
+      let numArgs1 = length args1
+      let numArgs2 = length args2
+
+      if numArgs1 == numArgs2
+        then
+          mismatchHelp orientation maybeReason
+        else
+          do  zipWithM_ (\arg1 arg2 -> lift $ runExceptT $ subUnify context arg1 arg2) args1 args2
+              mismatchHelp orientation $ Just $ Error.MissingArgs $ abs (numArgs2 - numArgs1)
+
+
+mismatchHelp :: Orientation -> Maybe Error.Reason -> Unify a
+mismatchHelp orientation maybeReason =
+  throwError $ Mismatch $
+    case orientation of
+      ExpectedActual ->
+        maybeReason
+
+      ActualExpected ->
+        Error.flipReason <$> maybeReason
 
 
 badRigid :: Maybe String -> Error.Reason
@@ -446,6 +460,22 @@ collectAppsHelp args content =
         return Other
 
 
+collectArgs :: Variable -> IO [Variable]
+collectArgs variable =
+  collectArgsHelp [] variable
+
+
+collectArgsHelp :: [Variable] -> Variable -> IO [Variable]
+collectArgsHelp revArgs variable =
+  do  content <- getContent variable
+      case content of
+        Structure (Fun1 arg returnType) ->
+          collectArgsHelp (arg : revArgs) returnType
+
+        _ ->
+          return $ variable : revArgs
+
+
 getContent :: Variable -> IO Content
 getContent variable =
   _content <$> UF.descriptor variable
@@ -515,7 +545,6 @@ unifyAlias context name args realVar otherContent =
 
     Atom _ ->
         subUnify context realVar (_second context)
-
 
     Alias otherName otherArgs otherRealVar ->
         if name == otherName then
@@ -593,11 +622,12 @@ unifyRecord context firstStructure secondStructure =
   do  let (RecordStructure expFields expVar expStruct) = firstStructure
       let (RecordStructure actFields actVar actStruct) = secondStructure
 
+      let sharedFields = Map.intersectionWith (,) expFields actFields
+
       -- call after unifying extension, make sure record shape matches before
       -- looking into whether the particular field types match.
       let unifySharedFields otherFields ext =
-            do  let sharedFields = Map.intersectionWith (,) expFields actFields
-                _ <- traverse (uncurry (subUnify context)) sharedFields
+            do  unifySharedFieldsHelp context sharedFields
                 let allFields = Map.union (Map.map fst sharedFields) otherFields
                 merge context (Structure (Record1 allFields ext))
 
@@ -610,10 +640,12 @@ unifyRecord context firstStructure secondStructure =
                 unifySharedFields Map.empty expVar
 
         (Empty, _, _, False) ->
-            mismatch context (Just (Error.MessyFields (Map.keys uniqueExpFields) (Map.keys uniqueActFields)))
+            mismatch context $ Just $
+              Error.MessyFields (Map.keys sharedFields) (Map.keys uniqueExpFields) (Map.keys uniqueActFields)
 
         (_, False, Empty, _) ->
-            mismatch context (Just (Error.MessyFields (Map.keys uniqueExpFields) (Map.keys uniqueActFields)))
+            mismatch context $ Just $
+              Error.MessyFields (Map.keys sharedFields) (Map.keys uniqueExpFields) (Map.keys uniqueActFields)
 
         (_, False, _, True) ->
             do  subRecord <- fresh context (Structure (Record1 uniqueExpFields expVar))
@@ -633,6 +665,29 @@ unifyRecord context firstStructure secondStructure =
                 subUnify context expVar expRecord
                 subUnify context actRecord actVar
                 unifySharedFields subFields subExt
+
+
+
+unifySharedFieldsHelp :: Context -> Map.Map String (Variable, Variable) -> Unify ()
+unifySharedFieldsHelp context sharedFields =
+  do  maybeBadFields <- traverse (unifyField context) (Map.toList sharedFields)
+      case Maybe.catMaybes maybeBadFields of
+        [] ->
+          return ()
+
+        badFields ->
+          mismatch context (Just (Error.BadFields (reverse badFields)))
+
+
+unifyField :: Context -> (String, (Variable, Variable)) -> Unify (Maybe (String, Maybe Error.Reason))
+unifyField context (field, (expected, actual)) =
+  do  result <- lift $ runExceptT $ subUnify context expected actual
+      case result of
+        Right () ->
+          return $ Nothing
+
+        Left (Mismatch maybeReason) ->
+          return $ Just (field, maybeReason)
 
 
 

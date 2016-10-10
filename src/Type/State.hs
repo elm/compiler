@@ -223,8 +223,8 @@ makeCopyHelp descriptor alreadyCopiedMark variable =
                 Atom _ ->
                     return oldContent
 
-                Var Rigid maybeSuper _ ->
-                    return (Var Flex maybeSuper Nothing)
+                Var Rigid maybeSuper maybeName ->
+                    return (Var Flex maybeSuper maybeName)
 
                 Var Flex _ _ ->
                     return oldContent

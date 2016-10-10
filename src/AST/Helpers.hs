@@ -29,4 +29,4 @@ isOp name =
 
 isSymbol :: Char -> Bool
 isSymbol c =
-  Char.isSymbol c || elem c "+-/*=.$<>:&|^?%#@~!"
+  c /= '`' && (Char.isSymbol c || elem c "+-/*=.$<>:&|^?%#@~!")

@@ -1,11 +1,13 @@
 {-# OPTIONS_GHC -Wall #-}
 module Reporting.Error.Type where
 
+import Control.Arrow (first, second)
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import Text.PrettyPrint.ANSI.Leijen
   ( Doc, (<>), (<+>), colon, dullyellow
-  , fillSep, hang, indent, text, underline, vcat
+  , fillSep, indent, text, underline, vcat
   )
 
 import qualified AST.Type as Type
@@ -36,9 +38,11 @@ data Mismatch = MismatchInfo
 
 
 data Reason
-    = MessyFields [String] [String]
+    = BadFields [(String, Maybe Reason)]
+    | MessyFields [String] [String] [String]
     | IntFloat
     | TooLongComparableTuple Int
+    | MissingArgs Int
     | BadVar (Maybe VarType) (Maybe VarType)
 
 
@@ -65,13 +69,13 @@ data Hint
     | Function (Maybe Var.Canonical)
     | UnexpectedArg (Maybe Var.Canonical) Int Int Region.Region
     | FunctionArity (Maybe Var.Canonical) Int Int Region.Region
-    | BadTypeAnnotation String
+    | ReturnType String Int Int Region.Region
     | Instance String
     | Literal String
     | Pattern Pattern
     | Shader
-    | Range
     | Lambda
+    | Access (Maybe String) String
     | Record
     -- effect manager problems
     | Manager String
@@ -142,11 +146,12 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
     report =
       Report.report "TYPE MISMATCH"
 
+    typicalHints =
+      Maybe.maybeToList (reasonToString =<< maybeReason)
+
     cmpHint leftWords rightWords extraHints =
       comparisonHint localizer leftType rightType leftWords rightWords
-        ( Maybe.maybeToList (reasonToString =<< maybeReason)
-          ++ map toHint extraHints
-        )
+        (typicalHints ++ map toHint extraHints)
   in
   case hint of
     CaseBranch branchNumber region ->
@@ -227,12 +232,14 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
     ListElement elementNumber region ->
         report
           (Just region)
-          ("The " ++ ordinalPair elementNumber ++ " elements are different types of values.")
+          ("The " ++ ordinalPair elementNumber ++ " entries in this list are different types of values.")
           ( cmpHint
-              ("The " ++ Help.ordinalize (elementNumber - 1) ++ " element has this type:")
+              ("The " ++ Help.ordinalize (elementNumber - 1) ++ " entry has this type:")
               ("But the "++ Help.ordinalize elementNumber ++ " is:")
-              [ "All elements should be the same type of value so that we can\
-                \ iterate through the list without running into unexpected values."
+              [ "Every entry in a list needs to be the same type of value.\
+                \ This way you never run into unexpected values partway through.\
+                \ To mix different types in a single list, create a \"union type\" as\
+                \ described in: <http://guide.elm-lang.org/types/union_types.html>"
               ]
           )
 
@@ -261,14 +268,14 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
     BinopRight op region ->
         report
           (Just region)
-          ("The right argument of " ++ prettyName op ++ " is causing a type mismatch.")
+          ("The right side of " ++ prettyName op ++ " is causing a type mismatch.")
           ( cmpHint
-              (prettyName op ++ " is expecting the right argument to be a:")
-              "But the right argument is:"
+              (prettyName op ++ " is expecting the right side to be a:")
+              "But the right side is:"
               ( binopHint op leftType rightType
                 ++
-                [ "I always figure out the type of the left argument first and if it is\
-                  \ acceptable on its own, I assume it is \"correct\" in subsequent checks.\
+                [ "With binary operations, I always figure out the left side first. If it\
+                  \ seems fine, I assume it is \"correct\" in subsequent checks.\
                   \ So the problem may actually be in how the left and right arguments interact."
                 ]
               )
@@ -301,7 +308,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
     UnexpectedArg maybeName 1 1 region ->
         report
           (Just region)
-          ("The  argument to " ++ funcName maybeName ++ " is causing a mismatch.")
+          ("The argument to " ++ funcName maybeName ++ " is causing a mismatch.")
           ( cmpHint
               (Help.capitalize (funcName maybeName) ++ " is expecting the argument to be:")
               "But it is:"
@@ -351,24 +358,34 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
             (text "Maybe you forgot some parentheses? Or a comma?")
 
     FunctionArity maybeName expected actual region ->
-        let
-          s = if expected == 1 then "" else "s"
-        in
-          report
-            (Just region)
-            ( Help.capitalize (funcName maybeName) ++ " is expecting " ++ show expected
-              ++ " argument" ++ s ++ ", but was given " ++ show actual ++ "."
-            )
-            (text "Maybe you forgot some parentheses? Or a comma?")
+      report
+          (Just region)
+          ( Help.capitalize (funcName maybeName) ++ " is expecting "
+            ++ Help.args expected ++ ", but was given " ++ show actual ++ "."
+          )
+          (text "Maybe you forgot some parentheses? Or a comma?")
 
-    BadTypeAnnotation name ->
+    ReturnType name typeArity argArity region ->
+      if typeArity == 0 || argArity == 0 then
         report
-          Nothing
-          ("The implementation of " ++ Help.functionName name ++ " does not match its type annotation.")
+          (Just region)
+          ("The definition of " ++ Help.functionName name ++ " does not match its type annotation.")
           ( cmpHint
-              "The type annotation is saying:"
-              "But I am inferring that the definition has this type:"
-              []
+              ( "The type annotation for " ++ Help.functionName name ++ " says it is a:"
+              )
+              "But the definition (shown above) is a:"
+              (arityHint typeArity argArity)
+          )
+
+      else
+        report
+          (Just region)
+          ("The definition of " ++ Help.functionName name ++ " does not match its type annotation.")
+          ( cmpHint
+              ( "The type annotation for " ++ Help.functionName name ++ " says it always returns:"
+              )
+              "But the returned value (shown above) is a:"
+              (arityHint typeArity argArity)
           )
 
     Instance name ->
@@ -421,16 +438,6 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
               []
           )
 
-    Range ->
-        report
-          Nothing
-          "The low and high members of this list range are not the same type of value."
-          ( cmpHint
-              "The low end of the range has type:"
-              "But the high end is:"
-              []
-          )
-
     Lambda ->
         report
           Nothing
@@ -440,6 +447,30 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
               "But you are trying to use it as:"
               []
           )
+
+    Access (Just body) field ->
+      let
+        header =
+          "`" ++ body ++ "` does not have a field named `" ++ field ++ "`."
+      in
+        report Nothing header $ Help.stack $
+          [ Help.reflowParagraph $ "The type of `" ++ body ++ "` is:"
+          , indent 4 $ dullyellow $ RenderType.toDoc localizer leftType
+          , Help.reflowParagraph $ "Which does not contain a field named `" ++ field ++ "`."
+          ]
+          ++ typicalHints
+
+    Access Nothing field ->
+      let
+        header =
+          "Cannot access a field named `" ++ field ++ "`."
+      in
+        report Nothing header $ Help.stack $
+          [ Help.reflowParagraph $ "You are trying to get `" ++ field ++ "` from a value with this type:"
+          , indent 4 $ dullyellow $ RenderType.toDoc localizer leftType
+          , Help.reflowParagraph $ "It is not in there!"
+          ]
+          ++ typicalHints
 
     Record ->
         report
@@ -563,6 +594,36 @@ functionHint maybeName =
 
 
 
+-- ARITY HINTS
+
+
+arityHint :: Int -> Int -> [String]
+arityHint typeArity argArity =
+  if typeArity == argArity then
+    []
+
+  else
+    [ "The type annotation says there " ++ sayArgs typeArity
+      ++ ", but there " ++ sayArgs argArity ++ " named in the definition."
+      ++ " It is best practice for each argument in the type to correspond"
+      ++ " to a named argument in the definition, so try that first!"
+    ]
+
+
+sayArgs :: Int -> String
+sayArgs n =
+  case n of
+    0 ->
+      "are NO arguments"
+
+    1 ->
+      "is 1 argument"
+
+    _ ->
+      "are " ++ show n ++ " arguments"
+
+
+
 -- MISMATCH HELPERS
 
 
@@ -593,14 +654,20 @@ funcName maybeVar =
 flipReason :: Reason -> Reason
 flipReason reason =
   case reason of
-    MessyFields leftOnly rightOnly ->
-        MessyFields rightOnly leftOnly
+    BadFields fields ->
+        BadFields (map (second (fmap flipReason)) fields)
+
+    MessyFields both left right ->
+        MessyFields both right left
 
     IntFloat ->
         IntFloat
 
     TooLongComparableTuple len ->
         TooLongComparableTuple len
+
+    MissingArgs num ->
+        MissingArgs num
 
     BadVar left right ->
         BadVar right left
@@ -609,17 +676,68 @@ flipReason reason =
 reasonToString :: Reason -> Maybe Doc
 reasonToString reason =
   let
+    (fields, maybeDeepReason) =
+      collectFields reason
+
+    maybeDocs =
+      reasonToStringHelp =<< maybeDeepReason
+
+    starter =
+      case fields of
+        [] ->
+          Nothing
+
+        [field] ->
+          Just $ "Problem in the `" ++ field ++ "` field. "
+
+        _ ->
+          Just $ "Problem at `" ++ List.intercalate "." fields ++ "`. "
+  in
+    case (starter, maybeDocs) of
+      (Nothing, Nothing) ->
+        Nothing
+
+      (Just msg, Nothing) ->
+        Just $ toHint (msg ++ badFieldElaboration)
+
+      (_, Just (firstLine, docs)) ->
+        Just $ vcat $
+          toHint (maybe firstLine (++firstLine) starter)
+          : map (indent 4) docs
+
+
+
+collectFields :: Reason -> ([String], Maybe Reason)
+collectFields reason =
+  case reason of
+    BadFields [(field, Nothing)] ->
+      ([field], Nothing)
+
+    BadFields [(field, Just subReason)] ->
+      first (field:) (collectFields subReason)
+
+    _ ->
+      ([], Just reason)
+
+
+reasonToStringHelp :: Reason -> Maybe (String, [Doc])
+reasonToStringHelp reason =
+  let
     go msg =
-      Just (toHint msg)
+      Just (msg, [])
   in
   case reason of
-    MessyFields leftOnly rightOnly ->
-        do  let typos = Help.findPotentialTypos leftOnly rightOnly
-            _ <- Help.vetTypos typos
-            misspellingMessage typos
+    BadFields fields ->
+      go $
+        "I am seeing issues with the "
+        ++ Help.commaSep (map fst fields) ++ " fields. "
+        ++ badFieldElaboration
+
+    MessyFields both leftOnly rightOnly ->
+        messyFieldsHelp both leftOnly rightOnly
 
     IntFloat ->
-        go
+        go $
           "Elm does not automatically convert between Ints and Floats. Use\
           \ `toFloat` and `round` to do specific conversions.\
           \ <http://package.elm-lang.org/packages/elm-lang/core/latest/Basics#toFloat>"
@@ -628,6 +746,11 @@ reasonToString reason =
         go $
           "Although tuples are comparable, this is currently only supported\
           \ for tuples with 6 or fewer entries, not " ++ show len ++ "."
+
+    MissingArgs num ->
+        go $
+          "It looks like a function needs " ++ show num ++ " more "
+          ++ (if num == 1 then "argument" else "arguments") ++ "."
 
     BadVar (Just Comparable) _ ->
         go "Only ints, floats, chars, strings, lists, and tuples are comparable."
@@ -638,31 +761,64 @@ reasonToString reason =
     BadVar (Just CompAppend) _ ->
         go "Only strings and lists are both comparable and appendable."
 
-    BadVar (Just (Rigid _)) (Just (Rigid _)) ->
-        go doubleRigidError
+    BadVar (Just (Rigid maybeLeftName)) (Just (Rigid maybeRightName)) ->
+        go $ doubleRigidError maybeLeftName maybeRightName
 
-    BadVar (Just (Rigid _)) _  ->
-        go singleRigidError
+    BadVar (Just (Rigid maybeName)) _  ->
+        go $ singleRigidError maybeName
 
-    BadVar _ (Just (Rigid _))  ->
-        go singleRigidError
+    BadVar _ (Just (Rigid maybeName))  ->
+        go $ singleRigidError maybeName
 
     BadVar _ _ ->
         Nothing
 
 
-singleRigidError :: String
-singleRigidError =
-  "A type annotation is too generic. You can probably just switch to the\
-  \ type I inferred. These issues can be subtle though, so read more about it. "
-  ++ Help.hintLink "type-annotations"
+badFieldElaboration :: String
+badFieldElaboration =
+  "I always figure out field types in alphabetical order. If a field\
+  \ seems fine, I assume it is \"correct\" in subsequent checks.\
+  \ So the problem may actually be a weird interaction with previous fields."
 
 
-doubleRigidError :: String
-doubleRigidError =
-  "A type annotation is clashing with itself or with a sub-annotation.\
-  \ This can be particularly tricky, so read more about it. "
-  ++ Help.hintLink "type-annotations"
+weirdRigidError :: String
+weirdRigidError =
+  "You are having a problem with \"rigid\" type variables. That usually\
+  \ means you have a type annotation that says it accepts anything, but\
+  \ in fact, it accepts a much more specific type. More info at: "
+  ++ Help.hintLink "type-annotations" ++
+  ". This case is weird though, so please turn it into an <http://sscce.org>\
+  \ and report it to <https://github.com/elm-lang/error-message-catalog>."
+
+
+singleRigidError :: Maybe String -> String
+singleRigidError maybeName =
+  case maybeName of
+    Just name ->
+      "Your type annotation uses type variable `" ++ name ++
+      "` which means any type of value can flow through. Your code is saying\
+      \ it CANNOT be anything though! Maybe change your type annotation to\
+      \ be more specific? Maybe the code has a problem? More at: "
+      ++ Help.hintLink "type-annotations"
+
+    Nothing ->
+      weirdRigidError
+
+
+doubleRigidError :: Maybe String -> Maybe String -> String
+doubleRigidError maybeLeftName maybeRightName =
+  case (maybeLeftName, maybeRightName) of
+    (Just leftName, Just rightName) ->
+      "Your type annotation uses `" ++ leftName ++ "` and `" ++ rightName ++
+      "` as separate type variables. Each one can be any type of value,\
+      \ but because they have separate names, there is no guarantee that they\
+      \ are equal to each other. Your code seems to be saying they ARE the\
+      \ same though! Maybe they should be the same in your type annotation?\
+      \ Maybe your code uses them in a weird way? More at: "
+      ++ Help.hintLink "type-annotations"
+
+    _ ->
+      weirdRigidError
 
 
 hintDoc :: Doc
@@ -675,28 +831,104 @@ toHint str =
   fillSep (hintDoc : map text (words str))
 
 
-misspellingMessage :: [(String,String)] -> Maybe Doc
-misspellingMessage typos =
-  if null typos then
-      Nothing
+messyFieldsHelp :: [String] -> [String] -> [String] -> Maybe (String, [Doc])
+messyFieldsHelp both leftOnly rightOnly =
+  case (leftOnly, rightOnly) of
+    ([], [missingField]) ->
+      oneMissingField both missingField
 
-  else
+    ([missingField], []) ->
+      oneMissingField both missingField
+
+    ([], missingFields) ->
+      manyMissingFields both missingFields
+
+    (missingFields, []) ->
+      manyMissingFields both missingFields
+
+    _ ->
       let
-        maxLen =
-          maximum (map (length . fst) typos)
+        typoPairs =
+          case Help.findTypoPairs leftOnly rightOnly of
+            [] ->
+              Help.findTypoPairs (both ++ leftOnly) (both ++ rightOnly)
+
+            pairs ->
+              pairs
       in
-        Just $ hang 4 $ vcat $
-          toHint "I compared the record fields and found some potential typos."
-          : text ""
-          : map (pad maxLen) typos
+        if null typoPairs then
+          Just
+            ( "The record fields do not match up. One has "
+              ++ Help.commaSep leftOnly ++ ". The other has "
+              ++ Help.commaSep rightOnly ++ "."
+            , []
+            )
+
+        else
+          Just
+            ( "The record fields do not match up. Maybe you made one of these typos?"
+            , typoDocs "<->" typoPairs
+            )
 
 
-pad :: Int -> (String, String) -> Doc
-pad maxLen (leftField, rightField) =
-  text (replicate (maxLen - length leftField) ' ')
-  <> dullyellow (text leftField)
-  <+> text "<->"
-  <+> dullyellow (text rightField)
+oneMissingField :: [String] -> String -> Maybe (String, [Doc])
+oneMissingField knownFields missingField =
+  case Help.findPotentialTypos knownFields missingField of
+    [] ->
+      Just
+        ( "Looks like a record is missing the `" ++ missingField ++ "` field."
+        , []
+        )
+
+    [typo] ->
+      Just
+        ( "Looks like a record is missing the `" ++ missingField
+          ++ "` field. Maybe it is a typo?"
+        , typoDocs "->" [(missingField, typo)]
+        )
+
+    typos ->
+      Just
+        ( "Looks like a record is missing the `" ++ missingField
+          ++ "` field. It is close to names like "
+          ++ Help.commaSep typos ++ " so maybe it is a typo?"
+        , []
+        )
+
+
+manyMissingFields :: [String] -> [String] -> Maybe (String, [Doc])
+manyMissingFields knownFields missingFields =
+  case Help.findTypoPairs missingFields knownFields of
+    [] ->
+      Just
+        ( "Looks like a record is missing these fields: "
+          ++ Help.commaSep missingFields
+        , []
+        )
+
+    typoPairs ->
+      Just
+        ( "Looks like a record is missing these fields: " ++ Help.commaSep missingFields
+          ++ ". Potential typos include:"
+        , typoDocs "->" typoPairs
+        )
+
+
+typoDocs :: String -> [(String, String)] -> [Doc]
+typoDocs arrow typoPairs =
+  let
+    maxLen =
+      maximum (map (length . fst) typoPairs)
+  in
+    text "" : map (padTypo arrow maxLen) typoPairs
+
+
+padTypo :: String -> Int -> (String, String) -> Doc
+padTypo arrow maxLen (missingField, knownField) =
+  text (replicate (maxLen - length missingField) ' ')
+  <> dullyellow (text missingField)
+  <+> text arrow
+  <+> dullyellow (text knownField)
 
 
 
