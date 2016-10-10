@@ -159,13 +159,18 @@ instance Json.FromJSON Type where
       case value of
         Json.String text ->
           either failure (return . fromRawType)
-            (Parse.iParse Type.expr (Text.unpack text))
+            (Parse.iParse Type.expr (replacePrimes (Text.unpack text)))
 
         Json.Object obj ->
           fromObject obj
 
         _ ->
           failure ()
+
+
+replacePrimes :: String -> String
+replacePrimes string =
+  map (\c -> if c == '\'' then '_' else c) string
 
 
 fromObject :: Json.Object -> Json.Parser Type
