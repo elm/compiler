@@ -90,28 +90,32 @@ rLabel = lowVar
 
 innerVarChar :: IParser Char
 innerVarChar =
-  choice
-    [ alphaNum
-    , char '_'
-    , char '\'' >> fail Syntax.prime
-    ]
-    <?> "more letters in this name"
+  alphaNum <|> char '_' <?> "more letters in this name"
 
 
 makeVar :: IParser Char -> IParser String
 makeVar firstChar =
   do  variable <- (:) <$> firstChar <*> many innerVarChar
-      if variable `elem` reserveds
-        then fail (Syntax.keyword variable)
-        else return variable
+      choice
+        [ do  lookAhead (char '\'')
+              failure (Syntax.prime variable)
+        , if variable `elem` reserveds then
+            failure (Syntax.keyword variable)
+          else
+            return variable
+        ]
 
 
 reserved :: String -> IParser String
 reserved word =
   expecting ("reserved word `" ++ word ++ "`") $
     do  string word
-        notFollowedBy innerVarChar
-        return word
+        choice
+          [ do  lookAhead (char '\'')
+                failure (Syntax.prime word)
+          , do  notFollowedBy innerVarChar
+                return word
+          ]
 
 
 

@@ -328,15 +328,15 @@ keyword kwd =
   "KEYWORD=" ++ kwd
 
 
-prime :: String
-prime =
-  "PRIME"
+prime :: String -> String
+prime var =
+  "PRIME=" ++ var
 
 
 data SpecialMessage
   = MsgKeyword String
+  | MsgPrime String
   | MsgTab
-  | MsgPrime
 
 
 extractSpecialMessage :: String -> Maybe SpecialMessage
@@ -344,11 +344,11 @@ extractSpecialMessage message =
   if List.isPrefixOf "KEYWORD=" message then
       Just $ MsgKeyword (drop (length "KEYWORD=") message)
 
+  else if List.isPrefixOf "PRIME=" message then
+      Just $ MsgPrime (drop (length "PRIME=") message)
+
   else if tab == message then
       Just MsgTab
-
-  else if prime == message then
-      Just MsgPrime
 
   else
       Nothing
@@ -397,14 +397,14 @@ parseErrorReport messages =
                   , Just "Rename it to something else."
                   )
 
+              Just (MsgPrime var) ->
+                  ( "Ran into a single quote in a variable name. This was removed in 0.18!"
+                  , Just $ "Change it to a number or an underscore, like " ++ var ++ "_ or " ++ var ++ "1"
+                  )
+
               Just MsgTab ->
                   ( "A tab character was found, but all whitespace (including indentation) must be spaces not tabs."
                   , Just "I am looking for spaces, not tabs."
-                  )
-
-              Just MsgPrime ->
-                  ( "Ran into a single quote in a variable name. This was removed in 0.18!"
-                  , Just "Change it to a number or an underscore: x' => x1"
                   )
 
               Nothing ->
