@@ -36,7 +36,7 @@ commentOr parser =
 
 definition :: IParser Decl.Raw
 definition =
-  do  def <- Expr.def <?> "a value definition"
+  do  def <- Expr.def <?> "a definition or type annotation"
       return $ Decl.Def def
 
 

@@ -1,4 +1,4 @@
-module Parse.Expression (term, annotation, definition, expr, def) where
+module Parse.Expression (term, expr, def) where
 
 import qualified Data.List as List
 import Text.Parsec hiding (newline, spaces)
@@ -15,7 +15,6 @@ import qualified AST.Expression.General as E
 import qualified AST.Expression.Source as Source
 import qualified AST.Literal as L
 import qualified AST.Pattern as P
-import qualified AST.Type as T
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 
@@ -267,8 +266,7 @@ letExpr :: IParser Source.Expr'
 letExpr =
   do  try (reserved "let")
       whitespace
-      defs <-
-        Indent.block (def <* whitespace)
+      defs <- Indent.block (def <* whitespace)
       whitespace
       reserved "in"
       whitespace
@@ -277,49 +275,38 @@ letExpr =
 
 def :: IParser Source.Def
 def =
+  addLocation $ Indent.withPos $
+    do  start <- defStart
+        case start of
+          A.A _ (P.Var name) ->
+            do  whitespace
+                choice
+                  [ do  hasType
+                        whitespace
+                        tipe <- Type.expr
+                        return $ Source.Annotation name tipe
+                  , do  args <- spacePrefix Pattern.term
+                        padded equals
+                        body <- expr
+                        return $ Source.Definition start (makeFunction args body)
+                  ]
+
+          _ ->
+            do  args <- spacePrefix Pattern.term
+                padded equals
+                body <- expr
+                return $ Source.Definition start (makeFunction args body)
+
+
+
+defStart :: IParser P.Raw
+defStart =
   choice
-    [ annotation Source.Annotation
-    , definition Source.Definition
+    [ addLocation (try (P.Var <$> parens Binop.infixOp))
+    , Pattern.term
     ]
-
-
-
--- TYPE ANNOTATION
-
-
-annotation :: (String -> T.Raw -> a) -> IParser (A.Located a)
-annotation creator =
-  let
-    start =
-      do  v <- lowVar <|> parens Binop.infixOp
-          padded hasType
-          return v
-  in
-    addLocation (creator <$> try start <*> Type.expr)
-
-
-
--- DEFINITION
-
-
-definition :: (P.Raw -> Source.Expr -> a) -> IParser (A.Located a)
-definition creator =
-  addLocation $
-  Indent.withPos $
-    do  (name, args) <- defStart
-        padded equals
-        body <- expr
-        return . creator name $ makeFunction args body
 
 
 makeFunction :: [P.Raw] -> Source.Expr -> Source.Expr
 makeFunction args body@(A.A ann _) =
   foldr (\arg body' -> A.A ann $ E.Lambda arg body') body args
-
-
-defStart :: IParser (P.Raw, [P.Raw])
-defStart =
-  expecting "the definition of a value (x = ...)" $
-    do  starter <- try Pattern.term <|> addLocation (P.Var <$> parens Binop.infixOp)
-        args <- spacePrefix Pattern.term
-        return (starter, args)
