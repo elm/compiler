@@ -90,7 +90,12 @@ rLabel = lowVar
 
 innerVarChar :: IParser Char
 innerVarChar =
-  alphaNum <|> char '_' <|> char '\'' <?> "more letters in this name"
+  choice
+    [ alphaNum
+    , char '_'
+    , char '\'' >> fail Syntax.prime
+    ]
+    <?> "more letters in this name"
 
 
 makeVar :: IParser Char -> IParser String

@@ -328,9 +328,15 @@ keyword kwd =
   "KEYWORD=" ++ kwd
 
 
+prime :: String
+prime =
+  "PRIME"
+
+
 data SpecialMessage
   = MsgKeyword String
   | MsgTab
+  | MsgPrime
 
 
 extractSpecialMessage :: String -> Maybe SpecialMessage
@@ -340,6 +346,9 @@ extractSpecialMessage message =
 
   else if tab == message then
       Just MsgTab
+
+  else if prime == message then
+      Just MsgPrime
 
   else
       Nothing
@@ -391,6 +400,11 @@ parseErrorReport messages =
               Just MsgTab ->
                   ( "A tab character was found, but all whitespace (including indentation) must be spaces not tabs."
                   , Just "I am looking for spaces, not tabs."
+                  )
+
+              Just MsgPrime ->
+                  ( "Ran into a single quote in a variable name. This was removed in 0.18!"
+                  , Just "Change it to a number or an underscore: x' => x1"
                   )
 
               Nothing ->
