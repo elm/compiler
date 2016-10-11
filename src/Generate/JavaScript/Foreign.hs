@@ -161,6 +161,11 @@ field name decoder =
   to "field" <== [ Opt.Literal (Literal.Str name), decoder ]
 
 
+index :: Int -> Opt.Expr -> Opt.Expr
+index index decoder =
+  to "index" <== [ Opt.Literal (Literal.IntNum index), decoder ]
+
+
 (<==) :: Opt.Expr -> [Opt.Expr] -> Opt.Expr
 (<==) func args =
   Opt.Call func args
@@ -195,13 +200,23 @@ toTuple types =
     size =
       length types
 
-    args =
-      map (\n -> 'x' : show n) [ 1 .. size ]
+    pairs =
+      zipWith (,) [ 0 .. size - 1] types
+
+    toVar i =
+      'x' : show i
 
     makeTuple =
-      Opt.Function args (Opt.Data ("_Tuple" ++ show size) (map (Opt.Var . Var.local) args))
+      to "succeed" <==
+        [ Opt.Data
+            ("_Tuple" ++ show size)
+            (map (Opt.Var . Var.local . toVar . fst) pairs)
+        ]
+
+    andThen (i, tipe) decoder =
+      to "andThen" <== [ Opt.Function [toVar i] decoder, index i (decode tipe) ]
   in
-    to ("tuple" ++ show size) <== (makeTuple : map decode types)
+    List.foldr andThen makeTuple pairs
 
 
 toRecord :: [(String, T.Canonical)] -> Opt.Expr
