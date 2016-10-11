@@ -16,6 +16,11 @@ data Canonical = Canonical
     deriving (Eq, Ord, Show)
 
 
+inVirtualDom :: Raw -> Canonical
+inVirtualDom raw =
+  Canonical Package.virtualDom raw
+
+
 inCore :: Raw -> Canonical
 inCore raw =
   Canonical Package.core raw

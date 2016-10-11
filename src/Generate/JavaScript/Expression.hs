@@ -221,7 +221,7 @@ generateProgram kind body =
   case kind of
     Expr.VDom ->
       do  html <- generateJsExpr body
-          jsExpr (Var.coreNative "Platform" "htmlToProgram" <| html)
+          jsExpr (Var.staticProgram <| html)
 
     Expr.NoFlags ->
       do  almostProgram <- generateJsExpr body

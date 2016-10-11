@@ -5,6 +5,7 @@ module Generate.JavaScript.Variable
     , qualified
     , native
     , coreNative
+    , staticProgram
     , define
     , safe
     )
@@ -110,6 +111,11 @@ native moduleName name =
 coreNative :: String -> String -> JS.Expression ()
 coreNative moduleName name =
   native (ModuleName.inCore ["Native",moduleName]) name
+
+
+staticProgram :: JS.Expression ()
+staticProgram =
+  native (ModuleName.inVirtualDom ["Native","VirtualDom"]) "staticProgram"
 
 
 getOpsDictName :: Var.Home -> String
