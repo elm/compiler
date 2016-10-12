@@ -561,23 +561,42 @@ binop
 binop func left right =
     do  jsLeft <- generateJsExpr left
         jsRight <- generateJsExpr right
-        jsExpr (makeExpr func jsLeft jsRight)
+        jsExpr (binopHelp func jsLeft jsRight)
 
 
 
 -- BINARY OPERATOR HELPERS
 
 
-makeExpr :: Var.Canonical -> (Expression () -> Expression () -> Expression ())
-makeExpr qualifiedOp@(Var.Canonical home op) =
+binopHelp :: Var.Canonical -> Expression () -> Expression () -> Expression ()
+binopHelp qualifiedOp@(Var.Canonical home op) leftExpr rightExpr =
     let
         simpleMake left right =
             ref "A2" `call` [ Var.canonical qualifiedOp, left, right ]
     in
-        if home == Var.Module (ModuleName.inCore ["Basics"]) then
-            Map.findWithDefault simpleMake op basicOps
+        if home == basicsModule then
+            (Map.findWithDefault simpleMake op basicOps) leftExpr rightExpr
+
+        else if op == "::" && (home == listModule || home == listModuleInternals) then
+            BuiltIn.cons leftExpr rightExpr
+
         else
-            simpleMake
+            simpleMake leftExpr rightExpr
+
+
+listModule :: Var.Home
+listModule =
+  Var.Module (ModuleName.inCore ["List"])
+
+
+listModuleInternals :: Var.Home
+listModuleInternals =
+  Var.TopLevel (ModuleName.inCore ["List"])
+
+
+basicsModule :: Var.Home
+basicsModule =
+  Var.Module (ModuleName.inCore ["Basics"])
 
 
 basicOps :: Map.Map String (Expression () -> Expression () -> Expression ())
