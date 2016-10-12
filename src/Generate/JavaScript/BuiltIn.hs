@@ -22,11 +22,6 @@ utils func args =
   Var.coreNative "Utils" func `call` args
 
 
-nativeList :: String -> [JS.Expression ()] -> JS.Expression ()
-nativeList func args =
-  Var.coreNative "List" func `call` args
-
-
 
 -- LITERALS
 
