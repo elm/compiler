@@ -1,6 +1,6 @@
 module Generate.JavaScript.BuiltIn
   ( character, string
-  , list
+  , list, cons
   , recordUpdate
   , eq, cmp
   , effect, outgoingPort, incomingPort
@@ -47,7 +47,21 @@ string str =
 
 list :: [JS.Expression ()] -> JS.Expression ()
 list elements =
-  nativeList "fromArray" [ JS.ArrayLit () elements ]
+  case elements of
+    [] ->
+      JS.ObjectLit () [ "ctor" ==> JS.StringLit () "[]" ]
+
+    front : back ->
+      cons front (list back)
+
+
+cons :: JS.Expression () -> JS.Expression () -> JS.Expression ()
+cons front back =
+  JS.ObjectLit ()
+    [ "ctor" ==> JS.StringLit () "::"
+    , "_0" ==> front
+    , "_1" ==> back
+    ]
 
 
 
