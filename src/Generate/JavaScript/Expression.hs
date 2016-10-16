@@ -287,9 +287,9 @@ generateCall func args =
         Nothing ->
           generateCallHelp func args
 
-    (Opt.Var var, [left, right]) ->
-      case getBinaryOp var of
-        Just op ->
+    (Opt.Var var, [ arg1, arg2 ]) ->
+      case getBinaryOp var arg1 arg2 of
+        Just (op, left, right) ->
           do  jsLeft <- generateJsExpr left
               jsRight <- generateJsExpr right
               jsExpr $ InfixExpr () op jsLeft jsRight
@@ -328,19 +328,19 @@ getUnaryOp var =
     Nothing
 
 
-getBinaryOp :: Var.Canonical -> Maybe InfixOp
-getBinaryOp (Var.Canonical home name) =
+getBinaryOp :: Var.Canonical -> Opt.Expr -> Opt.Expr -> Maybe (InfixOp, Opt.Expr, Opt.Expr)
+getBinaryOp (Var.Canonical home name) left right =
   if home /= bitwise then
     Nothing
 
   else
     case name of
-      "and" -> Just OpBAnd
-      "or" -> Just OpBOr
-      "xor" -> Just OpBXor
-      "shiftLeftBy" -> Just OpLShift
-      "shiftRightBy" -> Just OpSpRShift
-      "shiftRightZfBy" -> Just OpZfRShift
+      "and" -> Just ( OpBAnd, left, right )
+      "or" -> Just ( OpBOr, left, right )
+      "xor" -> Just ( OpBXor, left, right )
+      "shiftLeftBy" -> Just ( OpLShift, right, left )
+      "shiftRightBy" -> Just ( OpSpRShift, right, left )
+      "shiftRightZfBy" -> Just ( OpZfRShift, right, left )
       _ -> Nothing
 
 
