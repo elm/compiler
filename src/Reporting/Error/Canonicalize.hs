@@ -266,7 +266,7 @@ toReport localizer err =
             , indent 4 (RenderType.toDoc localizer tipe)
             , Help.reflowParagraph $
                 "But you need to use the particular format described here:\
-                \ <http://guide.elm-lang.org/interop/javascript.html>"
+                \ <http://guide.elm-lang.org/interop/javascript.html#ports>"
             ]
         )
 
