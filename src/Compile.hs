@@ -36,7 +36,7 @@ compile packageName canonicalImports interfaces source =
   do
       -- Parse the source code
       validModule <-
-          Result.format Error.Syntax $
+          Result.format Error.Syntax $ {-# SCC parsing #-}
             Parse.program packageName (getOpTable interfaces) source
 
       -- Canonicalize all variables, pinning down where they came from.
@@ -45,7 +45,7 @@ compile packageName canonicalImports interfaces source =
 
       -- Run type inference on the program.
       types <-
-          Result.from Error.Type $
+          Result.from Error.Type $ {-# SCC type_inference #-}
             TI.infer interfaces canonicalModule
 
       -- One last round of checks
@@ -55,11 +55,11 @@ compile packageName canonicalImports interfaces source =
               Can.toSortedDefs (Module.program (Module.info canonicalModule))
 
       tagDict <-
-        Result.format Error.Pattern $
+        Result.format Error.Pattern $ {-# SCC exhaustiveness #-}
           Nitpick.patternMatches interfaces canonicalModule
 
       -- Do some basic optimizations
-      let optimisedDefs =
+      let optimisedDefs = {-# SCC optimization #-}
             Optimize.optimize tagDict (Module.name canonicalModule) canonicalDefs
 
       -- Add the real list of types

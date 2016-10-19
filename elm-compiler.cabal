@@ -184,6 +184,27 @@ Executable elm
         text >= 1 && < 2,
         process
 
+Executable compiler-benchmark
+    ghc-options:
+        -threaded -O2 -W
+
+    Hs-Source-Dirs:
+        compiler-benchmark
+
+    Main-is:
+        Benchmark.hs
+
+    Build-depends:
+        attoparsec >= 0.13.0.2 && < 0.14,
+        base >= 4.2 && <5,
+        containers >= 0.5.6.2 && < 0.6, 
+        directory >= 1.0 && < 2.0,
+        filepath >= 1 && < 2.0,
+        ghc-time-alloc-prof >= 0.0.0.1 && < 0.0.1,
+        process,
+        tabular >= 0.2.2.7 && < 0.3,
+        text >= 1.2.1.3 && < 1.2.2
+
 
 Test-Suite compiler-tests
     ghc-options:
