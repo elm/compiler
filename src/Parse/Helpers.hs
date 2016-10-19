@@ -297,8 +297,8 @@ accessible exprParser =
                 end <- getMyPosition
                 return . A.at start end $
                     case rootExpr of
-                      E.Var (Variable.Raw name@(c:_))
-                        | isUpper c ->
+                      E.Var (Variable.Raw name)
+                        | isUpper . head . last . Help.splitDots $ name ->
                             E.rawVar (name ++ '.' : v)
                       _ ->
                         E.Access annotatedRootExpr v
