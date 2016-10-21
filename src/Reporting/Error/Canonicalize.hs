@@ -350,7 +350,7 @@ badSelfRecursion :: Region.Region -> String -> Report.Report
 badSelfRecursion region name =
   let
     header =
-      Help.functionName name ++ " is defined diretly in terms of itself, causing an infinite loop."
+      Help.functionName name ++ " is defined directly in terms of itself, causing an infinite loop."
   in
     Report.report "BAD RECURSION" (Just region) header $
       Help.stack
