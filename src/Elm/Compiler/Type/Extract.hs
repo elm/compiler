@@ -73,19 +73,16 @@ extractProgram :: Module.Interfaces -> ModuleName.Canonical -> Maybe Program
 extractProgram interfaces name =
   do  iface <- Map.lookup name interfaces
       mainType <- Map.lookup "main" (Module.iTypes iface)
-      case mainType of
-        T.App _program [_flags, _model, msg] ->
-          let
-            (msgType, msgDeps) =
-              Writer.runWriter (extractHelp msg)
 
-            (aliases, unions) =
-              extractTransitive interfaces mempty msgDeps
-          in
-            Just $ Program msgType aliases unions
+      message <-
+        case T.deepDealias mainType of
+          T.App _program [_flags, _model, msg] -> Just msg
+          T.App _node [msg] -> Just msg
+          _ -> Nothing
 
-        _ ->
-          Nothing
+      let (msgType, msgDeps) = Writer.runWriter (extractHelp message)
+      let (aliases, unions) = extractTransitive interfaces mempty msgDeps
+      Just $ Program msgType aliases unions
 
 
 type Alias =
