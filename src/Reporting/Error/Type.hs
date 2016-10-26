@@ -415,15 +415,16 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
             case patErr of
               PVar name -> "variable `" ++ name ++ "`"
               PAlias name -> "alias `" ++ name ++ "`"
-              PData name -> "tag `" ++ name ++ "`"
-              PRecord -> "a record"
+              PRecord -> "this record"
+              PData name ->
+                if Help.isTuple name then "this tuple" else "tag `" ++ name ++ "`"
         in
           report
             Nothing
             ( Help.capitalize thing ++ " is causing problems in this pattern match."
             )
             ( cmpHint
-                "This pattern matches things of type:"
+                "The pattern matches things of type:"
                 "But the values it will actually be trying to match are:"
                 []
             )
