@@ -10,6 +10,7 @@ import Text.PrettyPrint.ANSI.Leijen
   , fillSep, indent, text, underline, vcat
   )
 
+import qualified AST.Helpers as Help
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Reporting.Error.Helpers as Help
@@ -274,9 +275,9 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
               "But the right side is:"
               ( binopHint op leftType rightType
                 ++
-                [ "With binary operations, I always figure out the left side first. If it\
-                  \ seems fine, I assume it is \"correct\" in subsequent checks.\
-                  \ So the problem may actually be in how the left and right arguments interact."
+                [ "With operators like " ++ prettyName op ++ " I always check the left\
+                  \ side first. If it seems fine, I assume it is correct and check the right\
+                  \ side. So the problem may be in how the left and right arguments interact."
                 ]
               )
           )
