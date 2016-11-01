@@ -3,7 +3,7 @@ module Reporting.Error.Canonicalize where
 
 import Control.Arrow (second)
 import qualified Data.Char as Char
-import Text.PrettyPrint.ANSI.Leijen (indent, text)
+import Text.PrettyPrint.ANSI.Leijen (Doc, dullyellow, fillSep, indent, text, vcat)
 
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Module.Name as ModuleName
@@ -354,16 +354,22 @@ badSelfRecursion region name =
   in
     Report.report "BAD RECURSION" (Just region) header $
       Help.stack
-        [ Help.reflowParagraph $
-            "To define " ++ Help.functionName name ++ " we need to know what "
-            ++ Help.functionName name ++ " is, so let’s just expand that!\
-            \ Wait, but now we need to know what " ++ Help.functionName name
-            ++ " is, so let’s expand that..."
-        , Help.reflowParagraph $
-            "Check out the following links for more info on this situation and how to fix it: "
-            ++ Help.hintLink "bad-recursion"
-            ++ " <http://package.elm-lang.org/packages/elm-lang/core/latest/Json-Decode#lazy>"
+        [ badSelfRecursionHelp "Maybe you are trying to mutate a variable?" $
+            "Elm does not have mutation, so when I see " ++ Help.functionName name
+            ++ " defined in terms of " ++ Help.functionName name
+            ++ ", I treat it as a recursive definition. Try giving the new value a new name!"
+        , badSelfRecursionHelp "Maybe you DO want a recursive value?" $
+            "To define " ++ Help.functionName name ++ " we need to know what " ++ Help.functionName name
+            ++ " is, so let’s expand it. Wait, but now we need to know what " ++ Help.functionName name
+            ++ " is, so let’s expand it... This will keep going infinitely!"
+        , badSelfRecursionHelp "To really learn what is going on and how to fix it, check out:" $
+            Help.hintLink "bad-recursion"
         ]
+
+
+badSelfRecursionHelp :: String -> String -> Doc
+badSelfRecursionHelp intro body =
+  fillSep $ map (dullyellow . text) (words intro) ++ map text (words body)
 
 
 badMutualRecursion :: Region.Region -> String -> [String] -> Report.Report
@@ -384,15 +390,9 @@ badMutualRecursion region name names =
             "The following definitions depend directly on each other:"
         , indent 4 $ Help.drawCycle (name : names)
         , Help.reflowParagraph $
-            "So to define " ++ Help.functionName name
-            ++ " we go through " ++ otherDefs ++ " before needing to know what "
-            ++ Help.functionName name
-            ++ " is. We can expand it again, but then we need to know what "
-            ++ Help.functionName name ++ " is... This will keep going infinitely!"
-        , Help.reflowParagraph $
-            "Check out the following links for more info on this situation and how to fix it: "
+            "You seem to have a fairly tricky case, so I very highly recommend reading this: "
             ++ Help.hintLink "bad-recursion"
-            ++ " <http://package.elm-lang.org/packages/elm-lang/core/latest/Json-Decode#lazy>"
+            ++ " It will help you really understand the problem and how to fix it. Read it!"
         ]
 
 
