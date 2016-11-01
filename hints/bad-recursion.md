@@ -21,7 +21,7 @@ factorial n =
 
 One cool thing about Elm is that whenever you see `factorial 3`, you can always replace that expression with `if 3 <= 0 then 1 else 3 * factorial (3 - 1)` and it will work exactly the same. So when Elm code gets evaluated, we will keep expanding `factorial` until the `if` produces a 1. At that point, we are done expanding and move on.
 
-The thing that surprises newcomers is that recursion works the same way values too. So take the following definition:
+The thing that surprises newcomers is that recursion works the same way with values too. So take the following definition:
 
 ```elm
 x = x + 1
@@ -132,6 +132,6 @@ factorial =
 
 There is technically a lambda between the definition and the use! The same is true with the good version of `decodeComment`. As long as there is a lambda before you get back to yourself, the compiler will let it through.
 
-This rule is nice, but it does not catch *everything*. Pathological cases like `x = (\_ -> x) () + 1` can make it through. Why not rule these out as well though?! Well, because it is impossible! And not the normal kind of impossible where your cable bill is messed up and you the fifth time you call it turns out it *can* be corrected. This is the &ldquo;we proved it with math, it’s called [the halting problem](https://en.wikipedia.org/wiki/Halting_problem)&rdquo; kind of impossible. Impossible [like this](https://www.youtube.com/watch?v=nlD9JYP8u5E).
+This rule is nice, but it does not catch *everything*. Pathological cases like `x = (\_ -> x) () + 1` can make it through. Why not rule these out as well though?! Well, because it is impossible! And not the normal kind of impossible where your cable bill is messed up and the fifth time you call it turns out it *can* be corrected. This is the &ldquo;we proved it with math, it’s called [the halting problem](https://en.wikipedia.org/wiki/Halting_problem)&rdquo; kind of impossible. Impossible [like this](https://www.youtube.com/watch?v=nlD9JYP8u5E).
 
 Anyway, I just thought it was cool that we cannot solve the halting problem *in general*, but a simple rule about lambdas can detect the majority of bad cases *in practice*.
