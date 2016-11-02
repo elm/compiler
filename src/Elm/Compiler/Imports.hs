@@ -17,6 +17,8 @@ defaults =
     , ["List"] ==> exposing [Var.Value "::"]
     , ["Maybe"] ==> exposing [Var.Union "Maybe" Var.openListing]
     , ["Result"] ==> exposing [Var.Union "Result" Var.openListing]
+    , ["String"] ==> Module.ImportMethod Nothing Var.closedListing
+    , ["Tuple"] ==> Module.ImportMethod Nothing Var.closedListing
     , ["Platform"] ==> exposing [closedType "Program"]
     , ["Platform","Cmd"] ==> named "Cmd" [closedType "Cmd", Var.Value "!"]
     , ["Platform","Sub"] ==> named "Sub" [closedType "Sub"]
