@@ -100,7 +100,7 @@ unqualified =
 
 qualified :: ModuleName.Canonical -> String -> String
 qualified moduleName name =
-  moduleToString moduleName ++ "$" ++ removePrimes name
+  moduleToString moduleName ++ "$" ++ name
 
 
 native :: ModuleName.Canonical -> String -> JS.Expression ()
@@ -157,13 +157,7 @@ swap from to c =
 
 safe :: String -> String
 safe name =
-  removePrimes $
-    if Set.member name jsReserveds then '$' : name else name
-
-
-removePrimes :: String -> String
-removePrimes name =
-  map (swap '\'' '$') name
+  if Set.member name jsReserveds then '$' : name else name
 
 
 jsReserveds :: Set.Set String
