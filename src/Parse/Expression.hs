@@ -25,7 +25,7 @@ import qualified Reporting.Annotation as A
 
 varTerm :: IParser Source.Expr'
 varTerm =
-  toVar <$> var
+  toVar <$> Help.var
 
 
 toVar :: String -> Source.Expr'
@@ -81,7 +81,7 @@ listTerm =
   choice
     [ do  pos <- getPosition
           let uid = show (sourceLine pos) ++ ":" ++ show (sourceColumn pos)
-          (rawSrc, tipe) <- Help.shader
+          (rawSrc, tipe) <- Literal.shader
           return $ E.GLShader uid (filter (/='\r') rawSrc) tipe
     , braces (E.ExplicitList <$> commaSep expr)
     ]
@@ -161,8 +161,19 @@ recordTerm =
 
 term :: IParser Source.Expr
 term =
-  addLocation (choice [ E.Literal <$> Literal.literal, listTerm, accessor, negative ])
-    <|> accessible (addLocation varTerm <|> parensTerm <|> recordTerm)
+  choice
+    [ addLocation $ choice $
+        [ E.Literal <$> Literal.literal
+        , listTerm
+        , accessor
+        , negative
+        ]
+    , accessible $ choice $
+        [ addLocation varTerm
+        , parensTerm
+        , recordTerm
+        ]
+    ]
     <?> "an expression"
 
 
