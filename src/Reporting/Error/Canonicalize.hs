@@ -3,7 +3,7 @@ module Reporting.Error.Canonicalize where
 
 import Control.Arrow (second)
 import qualified Data.Char as Char
-import Text.PrettyPrint.ANSI.Leijen (Doc, dullyellow, fillSep, indent, text, vcat)
+import Text.PrettyPrint.ANSI.Leijen (Doc, dullyellow, fillSep, indent, text)
 
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Module.Name as ModuleName
@@ -377,12 +377,6 @@ badMutualRecursion region name names =
   let
     header =
       Help.functionName name ++ " is defined in terms of itself in a sneaky way, causing an infinite loop."
-
-    otherDefs =
-      if length names == 1 then
-        "one other definition"
-      else
-        show (length names) ++ " other definitions"
   in
     Report.report "BAD RECURSION" (Just region) header $
       Help.stack
