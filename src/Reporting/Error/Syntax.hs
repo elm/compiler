@@ -311,6 +311,10 @@ tab :: String
 tab = "TAB"
 
 
+singleQuotes :: String
+singleQuotes = "SINGLE_QUOTES"
+
+
 keyword :: String -> String
 keyword kwd =
   "KEYWORD=" ++ kwd
@@ -324,6 +328,7 @@ prime var =
 data SpecialMessage
   = MsgKeyword String
   | MsgPrime String
+  | MsgSingleQuotes
   | MsgTab
 
 
@@ -337,6 +342,9 @@ extractSpecialMessage message =
 
   else if tab == message then
       Just MsgTab
+
+  else if singleQuotes == message then
+      Just MsgSingleQuotes
 
   else
       Nothing
@@ -395,6 +403,11 @@ parseErrorReport messages =
               Just MsgTab ->
                   ( "A tab character was found, but all whitespace (including indentation) must be spaces not tabs."
                   , Just "I am looking for spaces, not tabs."
+                  )
+
+              Just MsgSingleQuotes ->
+                  ( "It likes you are trying to create a string with single quotes."
+                  , Just "Switch from ' to \" and you should be all set!"
                   )
 
               Nothing ->

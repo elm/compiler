@@ -197,7 +197,7 @@ spacePrefix p =
 constrainedSpacePrefix :: IParser a -> (String -> IParser ()) -> IParser [a]
 constrainedSpacePrefix parser constraint =
     many $ choice
-      [ try (spacing >> lookAhead (oneOf "[({")) >> parser
+      [ try (spacing >> lookAhead (oneOf "[({\"'")) >> parser
       , try (spacing >> parser)
       ]
     where

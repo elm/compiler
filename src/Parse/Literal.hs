@@ -3,17 +3,20 @@ module Parse.Literal (literal, shader) where
 
 import Prelude hiding (exponent)
 import Control.Monad (join)
+import qualified Data.Char as Char
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Language.GLSL.Parser as GLP
 import qualified Language.GLSL.Syntax as GLS
 import Text.Parsec
-  ( ParseError, (<|>), (<?>), anyChar, char, choice, digit, hexDigit
-  , lookAhead, many1, manyTill, notFollowedBy, option, parserFail
-  , string, try
+  ( ParseError, (<|>), anyChar, char, choice, digit, getPosition
+  , hexDigit, lookAhead, many1, option, parserFail, satisfy
+  , setPosition, string, try, upper
   )
 
-import Parse.Helpers (IParser, expecting)
 import qualified AST.Literal as L
+import Parse.Helpers (IParser, expecting, failure)
+import qualified Reporting.Error.Syntax as Error
 
 
 
@@ -24,8 +27,8 @@ literal :: IParser L.Literal
 literal =
   choice
     [ toLiteral <$> rawNumber
-    , L.Str <$> str
-    , L.Chr <$> chr
+    , stringLiteral
+    , charLiteral
     ]
 
 
@@ -89,74 +92,169 @@ exponent =
 
 
 
--- STRINGS
-
-
-str :: IParser String
-str =
-  expecting "a string like \"hello\"" $
-  choice [ multiStr, singleStr ]
-
-
-delimitedSequence :: IParser a -> IParser String -> IParser String
-delimitedSequence quote insides =
-  do  quote
-      concat <$> manyTill insides quote
-
-
-multiStr :: IParser String
-multiStr =
-  delimitedSequence (try (string "\"\"\"")) multilineStringChar
-
-
-singleStr :: IParser String
-singleStr =
-  delimitedSequence (char '"') ((:[]) <$> anyChar)
-
-
-
 -- CHARACTERS
 
 
-chr :: IParser Char
-chr =
-  expecting "a character like 'x'" $
-  do  char '\''
-      myChar <- anyChar <?> "a character"
-      char '\''
-      return myChar
-
-{-
-          failure $
-            "Elm uses double quotes for strings. Switch\
-            \ the ' to \" on both ends of the string and\
-            \ you should be all set!"
--}
-
-
--- CHARACTER HELPERS
-
-
-multilineStringChar :: IParser String
-multilineStringChar =
-  do  notFollowedBy (string "\"\"\"")
-      choice
-        [ newlineChar
-        , escapeQuotes <$> anyChar
-        ]
+charLiteral :: IParser L.Literal
+charLiteral =
+  expecting "a character like 'c'" $
+    do  start <- getPosition
+        char '\''
+        firstChar <-
+          choice
+            [ char '\\' >> escapeCode
+            , satisfy (\c -> c /= '\'' && c > '\026')
+            ]
+        choice
+          [ do  char '\''
+                return (L.Chr firstChar)
+          , do  setPosition start
+                failure Error.singleQuotes
+          ]
 
 
-escapeQuotes :: Char -> String
-escapeQuotes c =
-  if c == '\"' then "\\\"" else [c]
+
+-- STRINGS
 
 
-newlineChar :: IParser String
-newlineChar =
+stringLiteral :: IParser L.Literal
+stringLiteral =
+  expecting "a string like \"hello\"" $
+    do  char '"'
+        choice
+          [ do  try (string "\"\"")
+                multiStringClose mempty
+          , do  singleStringClose mempty
+          ]
+
+
+singleStringClose :: (String -> String) -> IParser L.Literal
+singleStringClose builder =
   choice
-    [ char '\n' >> return "\\n"
-    , char '\r' >> return "\\r"
+    [ do  char '"'
+          return (L.Str (builder ""))
+    , do  char '\\'
+          choice
+            [ do  char '&'
+                  singleStringClose builder
+            , do  c <- escapeCode
+                  singleStringClose (\end -> builder (c : end))
+            ]
+    , do  c <- satisfy (\c -> c > '\026')
+          singleStringClose (\end -> builder (c : end))
+    , failure "Not expecting a character like this in a string."
     ]
+
+
+multiStringClose :: (String -> String) -> IParser L.Literal
+multiStringClose builder =
+  choice
+    [ do  try (string "\"\"\"")
+          return (L.Str (builder ""))
+    , do  char '\n'
+          multiStringClose (\end -> builder ('\n' : end))
+    , do  char '\\'
+          choice
+            [ do  char '&'
+                  multiStringClose builder
+            , do  c <- escapeCode
+                  multiStringClose (\end -> builder (c : end))
+            ]
+    , do  c <- satisfy (\c -> c > '\026')
+          multiStringClose (\end -> builder (c : end))
+    , failure "Not expecting a character like this in a multi-line string."
+    ]
+
+
+escapeCode :: IParser Char
+escapeCode =
+  choice
+    [ do  char '^'
+          code <- upper
+          return (toEnum (fromEnum code - fromEnum 'A' + 1))
+    -- NUMBERS
+    , do  parseCode 10 digit
+    , do  char 'x'
+          parseCode 16 hexDigit
+    -- ESCAPES
+    , c2c 'a' '\a'
+    , c2c 'b' '\b'
+    , c2c 'f' '\f'
+    , c2c 'n' '\n'
+    , c2c 'r' '\r'
+    , c2c 't' '\t'
+    , c2c 'v' '\v'
+    , c2c '"' '"'
+    , c2c '\\' '\\'
+    , c2c '\'' '\''
+    -- ASCII CODES
+    , s2c "BS" '\BS'
+    , s2c "HT" '\HT'
+    , s2c "LF" '\LF'
+    , s2c "VT" '\VT'
+    , s2c "FF" '\FF'
+    , s2c "CR" '\CR'
+    , s2c "SO" '\SO'
+    , s2c "SI" '\SI'
+    , s2c "EM" '\EM'
+    , s2c "FS" '\FS'
+    , s2c "GS" '\GS'
+    , s2c "RS" '\RS'
+    , s2c "US" '\US'
+    , s2c "SP" '\SP'
+    , s2c "NUL" '\NUL'
+    , s2c "SOH" '\SOH'
+    , s2c "STX" '\STX'
+    , s2c "ETX" '\ETX'
+    , s2c "EOT" '\EOT'
+    , s2c "ENQ" '\ENQ'
+    , s2c "ACK" '\ACK'
+    , s2c "BEL" '\BEL'
+    , s2c "DLE" '\DLE'
+    , s2c "DC1" '\DC1'
+    , s2c "DC2" '\DC2'
+    , s2c "DC3" '\DC3'
+    , s2c "DC4" '\DC4'
+    , s2c "NAK" '\NAK'
+    , s2c "SYN" '\SYN'
+    , s2c "ETB" '\ETB'
+    , s2c "CAN" '\CAN'
+    , s2c "SUB" '\SUB'
+    , s2c "ESC" '\ESC'
+    , s2c "DEL" '\DEL'
+    ]
+
+
+c2c :: Char -> Char -> IParser Char
+c2c escapedChar resultingChar =
+  do  char escapedChar
+      return resultingChar
+
+
+s2c :: String -> Char -> IParser Char
+s2c escapedString resultingChar =
+  do  string escapedString
+      return resultingChar
+
+
+parseCode :: Integer -> IParser Char -> IParser Char
+parseCode base baseDigit =
+  do  start <- getPosition
+      code <- parseNumber base baseDigit
+      if code <= 0x10FFFF
+        then
+          return (toEnum (fromInteger code))
+
+        else
+          do  setPosition start
+              fail "This code is too big! UTF-8 only goes to 10FFFF."
+
+
+parseNumber :: Integer -> IParser Char -> IParser Integer
+parseNumber base baseDigit =
+  do  digits <- many1 baseDigit
+      let n = List.foldl' (\x d -> base * x + toInteger (Char.digitToInt d)) 0 digits
+      seq n (return n)
 
 
 
