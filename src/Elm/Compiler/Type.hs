@@ -158,8 +158,8 @@ instance Json.FromJSON Type where
     in
       case value of
         Json.String text ->
-          either failure (return . fromRawType)
-            (Parse.iParse Type.expr (replacePrimes (Text.unpack text)))
+          either failure (return . fromRawType) $
+            Parse.parse Type.expr (replacePrimes (Text.unpack text))
 
         Json.Object obj ->
           fromObject obj

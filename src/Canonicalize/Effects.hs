@@ -36,7 +36,7 @@ toValues effects =
 -- CANONICALIZE
 
 
-canonicalize :: Env.Environment -> Effects.Raw -> Result Effects.Canonical
+canonicalize :: Env.Env -> Effects.Raw -> Result Effects.Canonical
 canonicalize env effects =
   case effects of
     Effects.None ->
@@ -50,7 +50,7 @@ canonicalize env effects =
 
 
 canonicalizeRawPort
-  :: Env.Environment
+  :: Env.Env
   -> A.Commented Effects.PortRaw
   -> Result (A.Commented Effects.PortCanonical)
 canonicalizeRawPort env (A.A ann (Effects.PortRaw name rawType)) =

@@ -45,7 +45,7 @@ logVar var =
 -- FINDERS
 
 
-variable :: R.Region -> Env.Environment -> String -> Result Var.Canonical
+variable :: R.Region -> Env.Env -> String -> Result Var.Canonical
 variable region env var =
   case toVarName var of
     Right (name, varName) | ModuleName.isNative name ->
@@ -72,7 +72,7 @@ variable region env var =
 
 tvar
     :: R.Region
-    -> Env.Environment
+    -> Env.Env
     -> String
     -> Result
           (Either
@@ -97,12 +97,7 @@ tvar region env var =
           Right (v,_,_) -> v
 
 
-pvar
-    :: R.Region
-    -> Env.Environment
-    -> String
-    -> Int
-    -> Result Var.Canonical
+pvar :: R.Region -> Env.Env -> String -> Int -> Result Var.Canonical
 pvar region env var actualArgs =
   case Set.toList <$> Map.lookup var (Env._patterns env) of
     Just [value] ->
@@ -126,20 +121,14 @@ pvar region env var actualArgs =
 -- FOUND
 
 
-preferLocals
-    :: R.Region
-    -> Env.Environment
-    -> String
-    -> [Var.Canonical]
-    -> String
-    -> Result Var.Canonical
+preferLocals :: R.Region -> Env.Env -> String -> [Var.Canonical] -> String -> Result Var.Canonical
 preferLocals region env =
   preferLocals' region env id
 
 
 preferLocals'
     :: R.Region
-    -> Env.Environment
+    -> Env.Env
     -> (a -> Var.Canonical)
     -> String
     -> [a]

@@ -182,7 +182,7 @@ toMaybe tipe =
       Opt.Var (Var.inCore ["Maybe"] tag)
   in
     to "oneOf" <==
-      [ Opt.ExplicitList
+      [ Opt.List
           [ to "null" <== [ maybe "Nothing" ]
           , to "map" <== [ maybe "Just", decode tipe ]
           ]
@@ -191,7 +191,7 @@ toMaybe tipe =
 
 toTuple0 :: Opt.Expr
 toTuple0 =
-  to "null" <== [ Opt.Data "_Tuple0" [] ]
+  to "null" <== [ Opt.Ctor "_Tuple0" [] ]
 
 
 toTuple :: [T.Canonical] -> Opt.Expr
@@ -208,7 +208,7 @@ toTuple types =
 
     makeTuple =
       to "succeed" <==
-        [ Opt.Data
+        [ Opt.Ctor
             ("_Tuple" ++ show size)
             (map (Opt.Var . Var.local . toVar . fst) pairs)
         ]

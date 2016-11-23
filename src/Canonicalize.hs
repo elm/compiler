@@ -1,23 +1,24 @@
 {-# OPTIONS_GHC -Wall #-}
 module Canonicalize (module') where
 
+import Prelude hiding (last)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import qualified Data.Foldable as T
 
-import AST.Expression.General (Expr'(..))
 import Elm.Utils ((|>))
 
 import qualified AST.Declaration as D
-import qualified AST.Expression.Valid as Valid
-import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Expression.Source as Src
+import qualified AST.Expression.Canonical as C
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
+import qualified Canonicalize.Binops as Binops
 import qualified Canonicalize.Body as Body
 import qualified Canonicalize.Effects as Effects
 import qualified Canonicalize.Environment as Env
@@ -250,7 +251,7 @@ declsToValues :: D.Valid -> [Var.Value]
 declsToValues (D.Decls defs unions aliases _) =
   let
     fromDef (A.A _ def) =
-      map Var.Value (P.boundVarList (Valid.getPattern def))
+      map Var.Value (P.boundVarList (Src.getPattern def))
 
     fromUnion (A.A _ (D.Type name _ ctors)) =
       Var.Union name (Var.Listing (map fst ctors) False)
@@ -319,14 +320,14 @@ splitLocatedValue (A.A region value) =
 -- DECLARATIONS
 
 
-canonicalizeDecls :: Env.Environment -> D.Valid -> CResult D.Canonical
+canonicalizeDecls :: Env.Env -> D.Valid -> CResult D.Canonical
 canonicalizeDecls env (D.Decls defs unions aliases infixes) =
   let
     annTraverse canEntry entries =
       traverse (\(A.A ann entry) -> A.A ann <$> canEntry entry) entries
 
-    canonicalizeDef (Valid.Def region pat expr typ) =
-      Canonical.Def region
+    canonicalizeDef (Src.Def region pat expr typ) =
+      C.Def region
         <$> canonicalizePattern env pat
         <*> canonicalizeExpr env expr
         <*> traverse (canonicalizeRegionType env) typ
@@ -347,114 +348,97 @@ canonicalizeDecls env (D.Decls defs unions aliases infixes) =
       <*> pure infixes
 
 
-canonicalizeRegionType
-    :: Env.Environment
-    -> Type.Raw
-    -> CResult (A.Located Type.Canonical)
+canonicalizeRegionType :: Env.Env -> Type.Raw -> CResult (A.Located Type.Canonical)
 canonicalizeRegionType env typ@(A.A region _) =
   A.A region <$> Canon.tipe env typ
 
 
-canonicalizeExpr
-    :: Env.Environment
-    -> Valid.Expr
-    -> CResult Canonical.Expr
+
+-- EXPRESSIONS
+
+
+canonicalizeExpr :: Env.Env -> Src.ValidExpr -> CResult C.Expr
 canonicalizeExpr env (A.A region validExpr) =
     let go = canonicalizeExpr env
     in
     A.A region <$>
     case validExpr of
-      Literal lit ->
-          Result.ok (Literal lit)
+      Src.Literal lit ->
+          Result.ok (C.Literal lit)
 
-      Access record field ->
-          Access <$> go record <*> Result.ok field
+      Src.Access record field ->
+          C.Access <$> go record <*> Result.ok field
 
-      Update record fields ->
-          Update
+      Src.Update record fields ->
+          C.Update
             <$> go record
             <*> traverse (\(field,expr) -> (,) field <$> go expr) fields
 
-      Record fields ->
-          Record
+      Src.Record fields ->
+          C.Record
             <$> traverse (\(field,expr) -> (,) field <$> go expr) fields
 
-      Binop (Var.Raw op) leftExpr rightExpr ->
-          Binop
-            <$> Canon.variable region env op
-            <*> go leftExpr
-            <*> go rightExpr
+      Src.Binop ops last ->
+          canonicalizeBinop region env ops last
 
-      Lambda arg body ->
+      Src.Lambda arg body ->
           let
             env' =
               Env.addPattern arg env
           in
-            Lambda <$> canonicalizePattern env' arg <*> canonicalizeExpr env' body
+            C.Lambda
+              <$> canonicalizePattern env' arg
+              <*> canonicalizeExpr env' body
 
-      App func arg ->
-          App <$> go func <*> go arg
+      Src.App func arg ->
+          C.App <$> go func <*> go arg
 
-      If branches finally ->
-          If
+      Src.If branches finally ->
+          C.If
             <$> traverse go' branches
             <*> go finally
         where
           go' (condition, branch) =
               (,) <$> go condition <*> go branch
 
-      Let defs expr ->
-          Let <$> traverse rename' defs <*> canonicalizeExpr env' expr
+      Src.Let defs expr ->
+          C.Let <$> traverse rename' defs <*> canonicalizeExpr env' expr
         where
           env' =
-            foldr Env.addPattern env (map Valid.getPattern defs)
+            foldr Env.addPattern env (map Src.getPattern defs)
 
-          rename' (Valid.Def defRegion p body mtipe) =
-            Canonical.Def defRegion
+          rename' (Src.Def defRegion p body mtipe) =
+            C.Def defRegion
               <$> canonicalizePattern env' p
               <*> canonicalizeExpr env' body
               <*> traverse (canonicalizeRegionType env') mtipe
 
-      Var (Var.Raw x) ->
-          Var <$> Canon.variable region env x
+      Src.Var (Var.Raw x) ->
+          C.Var <$> Canon.variable region env x
 
-      Data name exprs ->
-          Data name <$> traverse go exprs
+      Src.Ctor name exprs ->
+          C.Ctor name <$> traverse go exprs
 
-      ExplicitList exprs ->
-          ExplicitList <$> traverse go exprs
+      Src.List exprs ->
+          C.List <$> traverse go exprs
 
-      Case expr cases ->
-          Case <$> go expr <*> traverse branch cases
+      Src.Case expr cases ->
+          C.Case <$> go expr <*> traverse branch cases
         where
           branch (ptrn, brnch) =
             (,)
               <$> canonicalizePattern env ptrn
               <*> canonicalizeExpr (Env.addPattern ptrn env) brnch
 
-      Cmd moduleName ->
-          Result.ok (Cmd moduleName)
-
-      Sub moduleName ->
-          Result.ok (Sub moduleName)
-
-      OutgoingPort name tipe ->
-          OutgoingPort name <$> Canon.tipe env tipe
-
-      IncomingPort name tipe ->
-          IncomingPort name <$> Canon.tipe env tipe
-
-      Program _ _ ->
-          error "DANGER - Program AST nodes should not be in canonicalization."
-
-      SaveEnv moduleName effects ->
-          Result.ok (SaveEnv moduleName effects)
-
-      GLShader uid src tipe ->
-          Result.ok (GLShader uid src tipe)
+      Src.GLShader uid src tipe ->
+          Result.ok (C.GLShader uid src tipe)
 
 
-canonicalizePattern :: Env.Environment -> P.Raw -> CResult P.Canonical
+
+-- PATTERNS
+
+
+canonicalizePattern :: Env.Env -> P.Raw -> CResult P.Canonical
 canonicalizePattern env (A.A region ptrn) =
   A.A region <$>
     case ptrn of
@@ -477,3 +461,32 @@ canonicalizePattern env (A.A region ptrn) =
           P.Data
             <$> Canon.pvar region env name (length patterns)
             <*> traverse (canonicalizePattern env) patterns
+
+
+
+-- BINOPS
+
+
+canonicalizeBinop
+    :: Region.Region
+    -> Env.Env
+    -> [(Src.ValidExpr, A.Located String)]
+    -> Src.ValidExpr
+    -> CResult C.Expr'
+canonicalizeBinop region env srcOps srcLast =
+  let
+    opsResult =
+      traverse (binopHelp env) srcOps
+
+    lastResult =
+      canonicalizeExpr env srcLast
+  in
+    do  (expr, ops) <- (,) <$> opsResult <*> lastResult
+        A.drop <$> Binops.flatten region expr ops
+
+
+binopHelp :: Env.Env -> (Src.ValidExpr, A.Located String) -> CResult (C.Expr, Binops.Op)
+binopHelp env (expr, op) =
+  (,)
+    <$> canonicalizeExpr env expr
+    <*> Binops.canonicalize env op

@@ -1,18 +1,16 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
-module Parse.Parse (program, parse) where
+module Parse.Parse (program) where
 
-import qualified Data.Map as Map
-import qualified Data.Traversable as T
-import Text.Parsec (char, eof, letter, many, putState, (<|>))
+import Text.Parsec (char, eof, letter, many, (<|>))
 import qualified Text.Parsec.Error as Parsec
 
 import qualified AST.Declaration as Decl
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified Elm.Package as Package
-import Parse.Helpers
+import Parse.Helpers (IParser, commitIf, freshLine, newline, parse, spaces)
 import qualified Parse.Module as Parse (header)
-import qualified Parse.Declaration as Parse (declaration, infixDecl)
+import qualified Parse.Declaration as Parse (declaration)
 import qualified Reporting.Region as R
 import qualified Reporting.Error.Syntax as Error
 import qualified Reporting.Result as Result
@@ -20,13 +18,10 @@ import qualified Validate
 
 
 
-program :: Package.Name -> OpTable -> String -> Validate.Result wrn Module.Valid
-program pkgName table src =
-  do  modul <-
-        parseWithTable table src (programParser pkgName)
-
+program :: Package.Name -> String -> Validate.Result wrn Module.Valid
+program pkgName src =
+  do  modul <- toResult (parse (programParser pkgName) src)
       Validate.module' modul
-
 
 
 -- HEADERS AND DECLARATIONS
@@ -34,14 +29,9 @@ program pkgName table src =
 
 programParser :: Package.Name -> IParser Module.Source
 programParser pkgName =
-  do  (Module.Header tag name exports settings docs imports) <-
-        Parse.header
-
-      decls <-
-        declarations
-
+  do  (Module.Header tag name exports settings docs imports) <- Parse.header
+      decls <- declarations
       many (spaces <|> newline)
-
       eof
 
       return $
@@ -65,12 +55,12 @@ freshDef =
 
 
 
--- RUN PARSERS
+-- PARSER OUTPUT TO RESULT
 
 
-parse :: String -> IParser a -> Validate.Result wrn a
-parse source parser =
-  case iParse parser source of
+toResult :: Either Parsec.ParseError a -> Validate.Result wrn a
+toResult parserOutput =
+  case parserOutput of
     Right result ->
         return result
 
@@ -79,62 +69,3 @@ parse source parser =
             msgs = Parsec.errorMessages err
         in
             Result.throw (R.Region pos pos) (Error.Parse msgs)
-
-
-parseWithTable :: OpTable -> String -> IParser a -> Validate.Result wrn a
-parseWithTable table source parser =
-  do  infixInfoList <- parse source parseFixities
-
-      infixTable <- makeInfixTable table infixInfoList
-
-      parse source $
-          do  putState infixTable
-              parser
-
-
-
--- INFIX INFO
-
-
-makeInfixTable
-    :: Map.Map String (Int, Decl.Assoc)
-    -> [(String, InfixInfo)]
-    -> Validate.Result wrn (Map.Map String (Int, Decl.Assoc))
-makeInfixTable table newInfo =
-  let add (op, info) dict =
-        Map.insertWith (++) op [info] dict
-
-      infoTable =
-        foldr add Map.empty newInfo
-
-      check op infoList =
-        case infoList of
-          [] ->
-              error "problem parsing infix declarations, this should never happen"
-
-          [InfixInfo region info] ->
-              if Map.member op table
-                then Result.throw region (Error.InfixDuplicate op)
-                else return info
-
-          InfixInfo region _ : _ ->
-              Result.throw region (Error.InfixDuplicate op)
-  in
-      Map.union table <$> T.sequenceA (Map.mapWithKey check infoTable)
-
-
-parseFixities :: IParser [(String, InfixInfo)]
-parseFixities =
-    onFreshLines (:) [] infics
-  where
-    infics =
-      do  start <- getMyPosition
-          (Decl.Fixity (Decl.Infix op assoc level)) <- Parse.infixDecl
-          end <- getMyPosition
-          return (op, InfixInfo (R.Region start end) (level, assoc))
-
-
-data InfixInfo = InfixInfo
-    { _region :: R.Region
-    , _info :: (Int, Decl.Assoc)
-    }

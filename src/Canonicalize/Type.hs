@@ -15,7 +15,7 @@ import qualified Canonicalize.Variable as Canonicalize
 import Canonicalize.Variable (Result)
 
 
-tipe :: Env.Environment -> T.Raw -> Result T.Canonical
+tipe :: Env.Env -> T.Raw -> Result T.Canonical
 tipe env annType@(A.A _ typ) =
   let
     go =
@@ -41,7 +41,7 @@ tipe env annType@(A.A _ typ) =
           T.Record <$> Trav.traverse goSnd fields <*> Trav.traverse go ext
 
 
-canonicalizeApp :: Env.Environment -> T.Raw -> [T.Raw] -> Result T.Canonical
+canonicalizeApp :: Env.Env -> T.Raw -> [T.Raw] -> Result T.Canonical
 canonicalizeApp env annFunc@(A.A region func) args =
   case func of
     T.RType (Var.Raw rawName) ->
@@ -69,7 +69,7 @@ canonicalizeApp env annFunc@(A.A region func) args =
 
 canonicalizeAlias
     :: R.Region
-    -> Env.Environment
+    -> Env.Env
     -> (Var.Canonical, [String], T.Canonical)
     -> [T.Raw]
     -> Result T.Canonical

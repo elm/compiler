@@ -5,7 +5,7 @@ module AST.Expression.Optimized
     , Decider(..), Choice(..)
     ) where
 
-import qualified AST.Expression.General as Expr
+import qualified AST.Expression.Canonical as Can
 import qualified AST.Literal as Literal
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
@@ -37,7 +37,7 @@ dummyFacts =
 data Expr
     = Literal Literal.Literal
     | Var Var.Canonical
-    | ExplicitList [Expr]
+    | List [Expr]
     | Binop Var.Canonical Expr Expr
     | Function [String] Expr
     | Call Expr [Expr]
@@ -45,8 +45,8 @@ data Expr
     | If [(Expr, Expr)] Expr
     | Let [Def] Expr
     | Case String (Decider Choice) [(Int, Expr)]
-    | Data String [Expr]
-    | DataAccess Expr Int
+    | Ctor String [Expr]
+    | CtorAccess Expr Int
     | Access Expr String
     | Update Expr [(String, Expr)]
     | Record [(String, Expr)]
@@ -54,7 +54,7 @@ data Expr
     | Sub ModuleName.Canonical
     | OutgoingPort String Type.Canonical
     | IncomingPort String Type.Canonical
-    | Program (Expr.Main Type.Canonical) Expr
+    | Program Can.Main Expr
     | GLShader String String Literal.GLShaderTipe
     | Crash ModuleName.Canonical R.Region (Maybe Expr)
 

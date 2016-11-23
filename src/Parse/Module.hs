@@ -1,10 +1,14 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Parse.Module (moduleDecl, header, getModuleName) where
 
-import Text.Parsec hiding (newline, spaces)
+import Text.Parsec hiding (newline, parse, spaces)
 
 import Parse.Binop (infixOp)
 import Parse.Helpers
+  ( IParser, addLocation, brackets, capVar, commaSep, commaSep1
+  , docComment, dotSep1, equals, expecting, followedBy, freshLine
+  , getMyPosition, lowVar, padded, parens, parse, reserved, whitespace
+  )
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
@@ -20,7 +24,7 @@ getModuleName source =
           (ModuleDecl _ names _ _) <- moduleDecl
           return (ModuleName.toString names)
   in
-    case iParse minimalParser source of
+    case parse minimalParser source of
       Right name ->
         Just name
 

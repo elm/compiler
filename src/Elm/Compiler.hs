@@ -13,6 +13,7 @@ import qualified Data.Aeson as Json
 import qualified Data.Map as Map
 import qualified Data.Text.Lazy as LazyText
 import System.IO (Handle)
+import qualified Text.Parsec.Error as Parsec
 
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
@@ -24,11 +25,13 @@ import qualified Elm.Compiler.Version
 import qualified Elm.Docs as Docs
 import qualified Elm.Package as Package
 import qualified Generate.JavaScript as JS
-import qualified Parse.Module as Parse
-import qualified Parse.Parse as Parse
+import qualified Parse.Helpers as Parse (parse)
+import qualified Parse.Module as Parse (header)
 import qualified Reporting.Annotation as A
 import qualified Reporting.Bag as Bag
 import qualified Reporting.Error as Error
+import qualified Reporting.Error.Syntax as SyntaxError
+import qualified Reporting.Region as Region
 import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
 import qualified Reporting.Result as Result
@@ -57,13 +60,19 @@ data Tag
 parseDependencies
   :: Package.Name
   -> String
-  -> Either [Error] (Tag, PublicModule.Raw, [PublicModule.Raw])
+  -> Either Error (Tag, PublicModule.Raw, [PublicModule.Raw])
 parseDependencies pkgName sourceCode =
-  let
-    (Result.Result _ _ answer) =
-      Parse.parse sourceCode Parse.header
-  in
-    Result.answerToEither (Error . A.map Error.Syntax) (getDeps pkgName) answer
+  case Parse.parse Parse.header sourceCode of
+    Right header ->
+      Right $ getDeps pkgName header
+
+    Left parseError ->
+      let
+        pos = Region.fromSourcePos (Parsec.errorPos parseError)
+        msgs = Parsec.errorMessages parseError
+        err = Error.Syntax (SyntaxError.Parse msgs)
+      in
+        Left (Error (A.at pos pos err))
 
 
 getDeps
@@ -202,5 +211,3 @@ printWarning handle (Localizer localizer) location source (Warning (A.A region w
 warningToJson :: Localizer -> String -> Warning -> Json.Value
 warningToJson (Localizer localizer) location (Warning wrn) =
     Warning.toJson localizer location wrn
-
-

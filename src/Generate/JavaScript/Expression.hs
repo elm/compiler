@@ -6,11 +6,10 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import Language.ECMAScript3.Syntax
 
-import AST.Expression.General as Expr (Main(..))
+import qualified AST.Expression.Canonical as Can
 import AST.Expression.Optimized as Opt
 import qualified AST.Literal as L
 import qualified AST.Module.Name as ModuleName
-import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import Generate.JavaScript.Helpers as Help
 import qualified Generate.JavaScript.BuiltIn as BuiltIn
@@ -169,11 +168,11 @@ generateCode expr =
       Case exprName decider jumps ->
           JsBlock <$> generateCase exprName decider jumps
 
-      ExplicitList elements ->
+      List elements ->
           do  jsElements <- mapM generateJsExpr elements
               jsExpr $ BuiltIn.list jsElements
 
-      Data tag members ->
+      Ctor tag members ->
         let
           ctor =
             "ctor" ==> StringLit () tag
@@ -184,7 +183,7 @@ generateCode expr =
           do  jsMembers <- mapM generateJsExpr members
               jsExpr $ ObjectLit () (ctor : zipWith toEntry jsMembers [ 0 :: Int .. ])
 
-      DataAccess dataExpr index ->
+      CtorAccess dataExpr index ->
           do  jsDataExpr <- generateJsExpr dataExpr
               jsExpr $ DotRef () jsDataExpr (var ("_" ++ show index))
 
@@ -216,18 +215,18 @@ generateCode expr =
 -- PROGRAMS
 
 
-generateProgram :: Expr.Main Type.Canonical -> Opt.Expr -> State Int Code
+generateProgram :: Can.Main -> Opt.Expr -> State Int Code
 generateProgram kind body =
   case kind of
-    Expr.VDom ->
+    Can.VDom ->
       do  html <- generateJsExpr body
           jsExpr (Var.staticProgram <| html)
 
-    Expr.NoFlags ->
+    Can.NoFlags ->
       do  almostProgram <- generateJsExpr body
           jsExpr (almostProgram `call` [])
 
-    Expr.Flags tipe ->
+    Can.Flags tipe ->
       do  almostProgram <- generateJsExpr body
           flagDecoder <- generateJsExpr (Foreign.decode tipe)
           jsExpr (almostProgram <| flagDecoder)
@@ -537,7 +536,7 @@ pathToExpr root fullPath =
     go expr path =
         case path of
           DT.Position index subpath ->
-              go (Opt.DataAccess expr index) subpath
+              go (Opt.CtorAccess expr index) subpath
 
           DT.Field field subpath ->
               go (Opt.Access expr field) subpath

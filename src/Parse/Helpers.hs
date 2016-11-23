@@ -1,12 +1,10 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Parse.Helpers
-  ( expecting, failure, anyUntil
-  , OpTable
-  , IParser, SourceM, iParse
+  ( module Parse.Primitives
   , var, lowVar, capVar, rLabel, reserved, reserveds
   , equals, rightArrow, hasType
-  , commitIf
-  , followedBy, comma, commaSep1, commaSep
+  , commitIf, followedBy, anyUntil
+  , comma, commaSep1, commaSep
   , pipeSep1, consSep1, dotSep1, spaceSep1, spacePrefix, constrainedSpacePrefix
   , braces, parens, brackets
   , accessible
@@ -16,65 +14,15 @@ module Parse.Helpers
   )
   where
 
-import Control.Monad.State (State)
 import Data.Char (isUpper)
-import qualified Data.Map as Map
-import Text.Parsec hiding (State, newline, space, spaces)
-import Text.Parsec.Indent (indented, runIndent)
+import Text.Parsec hiding (newline, space, spaces)
 
-import qualified AST.Declaration as Decl
-import qualified AST.Expression.General as E
-import qualified AST.Expression.Source as Source
+import qualified AST.Expression.Source as Src
 import qualified AST.Variable as Variable
+import Parse.Primitives
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as Syntax
 import qualified Reporting.Region as R
-
-
-
--- ERROR HELP
-
-
-expecting :: String -> IParser a -> IParser a
-expecting =
-  flip (<?>)
-
-
-failure :: String -> IParser a
-failure msg = do
-  inp <- getInput
-  setInput ('x':inp)
-  anyToken
-  fail msg
-
-
-anyUntil :: IParser String -> IParser String
-anyUntil end =
-    go
-  where
-    go =
-      end <|> (:) <$> anyChar <*> go
-
-
-
--- SETUP
-
-
-type IParser a = ParsecT String OpTable SourceM a
-
-type OpTable = Map.Map String (Int, Decl.Assoc)
-
-type SourceM = State SourcePos
-
-
-iParse :: IParser a -> String -> Either ParseError a
-iParse parser source =
-  iParseWithTable "" Map.empty parser source
-
-
-iParseWithTable :: SourceName -> OpTable -> IParser a -> String -> Either ParseError a
-iParseWithTable sourceName table aParser input =
-  runIndent sourceName $ runParserT aParser table sourceName input
 
 
 
@@ -83,7 +31,7 @@ iParseWithTable sourceName table aParser input =
 
 var :: IParser String
 var =
-  makeVar (letter <|> char '_') <?> "a name"
+  makeVar letter <?> "a name"
 
 
 lowVar :: IParser String
@@ -164,7 +112,7 @@ hasType =
 
 
 
--- SEPARATORS
+-- WEIRD COMBINATORS
 
 
 commitIf :: IParser a -> IParser b -> IParser b
@@ -173,6 +121,26 @@ commitIf check p =
   where
     commit =
       try (lookAhead check) >> p
+
+
+anyUntil :: IParser String -> IParser String
+anyUntil end =
+    go
+  where
+    go =
+      end <|> (:) <$> anyChar <*> go
+
+
+
+followedBy :: IParser a -> IParser b -> IParser a
+followedBy a b =
+  do  x <- a
+      b
+      return x
+
+
+
+-- SEPARATORS
 
 
 spaceySepBy1 :: IParser b -> IParser a -> IParser [a]
@@ -243,13 +211,6 @@ constrainedSpacePrefix parser constraint =
 -- SURROUNDED BY
 
 
-followedBy :: IParser a -> IParser b -> IParser a
-followedBy a b =
-  do  x <- a
-      b
-      return x
-
-
 surround :: Char -> Char -> String -> IParser a -> IParser a
 surround a z name p = do
   char a
@@ -296,7 +257,7 @@ located parser =
       return (start, value, end)
 
 
-accessible :: IParser Source.Expr -> IParser Source.Expr
+accessible :: IParser Src.RawExpr -> IParser Src.RawExpr
 accessible exprParser =
   do  start <- getMyPosition
 
@@ -314,11 +275,11 @@ accessible exprParser =
                 end <- getMyPosition
                 return . A.at start end $
                     case rootExpr of
-                      E.Var (Variable.Raw name@(c:_))
+                      Src.Var (Variable.Raw name@(c:_))
                         | isUpper c ->
-                            E.rawVar (name ++ '.' : v)
+                            Src.var (name ++ '.' : v)
                       _ ->
-                        E.Access annotatedRootExpr v
+                        Src.Access annotatedRootExpr v
 
 
 dot :: IParser ()

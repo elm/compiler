@@ -6,8 +6,7 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 
-import qualified AST.Expression.General as E
-import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Expression.Canonical as C
 import qualified AST.Helpers as Help
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
@@ -119,7 +118,7 @@ lookupOtherTags (Var.Canonical home name) tagDict =
 -- CHECK EXPRESSIONS
 
 
-checkExpression :: TagDict -> Canonical.Expr -> Result wrn ()
+checkExpression :: TagDict -> C.Expr -> Result wrn ()
 checkExpression tagDict (A.A region expression) =
   let
     go =
@@ -129,74 +128,74 @@ checkExpression tagDict (A.A region expression) =
       go a <* go b
   in
   case expression of
-    E.Literal _ ->
+    C.Literal _ ->
         Result.ok ()
 
-    E.Var _ ->
+    C.Var _ ->
         Result.ok ()
 
-    E.ExplicitList listExprs ->
+    C.List listExprs ->
         F.traverse_ go listExprs
 
-    E.Binop _ leftExpr rightExpr ->
+    C.Binop _ leftExpr rightExpr ->
         go2 leftExpr rightExpr
 
-    E.Lambda pattern@(A.A patRegion _) body ->
+    C.Lambda pattern@(A.A patRegion _) body ->
         checkPatterns tagDict patRegion Error.Arg [pattern]
         <* go body
 
-    E.App func arg ->
+    C.App func arg ->
         go2 func arg
 
-    E.If branches finally ->
+    C.If branches finally ->
         F.traverse_ (uncurry go2) branches
         <* go finally
 
-    E.Let defs body ->
+    C.Let defs body ->
         go body
           <* F.traverse_ goDef defs
       where
-        goDef (Canonical.Def _ pattern@(A.A patRegion _) expr _) =
+        goDef (C.Def _ pattern@(A.A patRegion _) expr _) =
             checkPatterns tagDict patRegion Error.LetBound [pattern]
             <* go expr
 
-    E.Case expr branches ->
+    C.Case expr branches ->
         go expr
         <* checkPatterns tagDict region Error.Case (map fst branches)
         <* F.traverse_ (go . snd) branches
 
-    E.Data _ctor exprs ->
+    C.Ctor _ctor exprs ->
         F.traverse_ go exprs
 
-    E.Access record _field ->
+    C.Access record _field ->
         go record
 
-    E.Update record fields ->
+    C.Update record fields ->
         go record
         <* F.traverse_ (go . snd) fields
 
-    E.Record fields ->
+    C.Record fields ->
         F.traverse_ (go . snd) fields
 
-    E.Cmd _ ->
+    C.Cmd _ ->
         Result.ok ()
 
-    E.Sub _ ->
+    C.Sub _ ->
         Result.ok ()
 
-    E.OutgoingPort _ _ ->
+    C.OutgoingPort _ _ ->
         Result.ok ()
 
-    E.IncomingPort _ _ ->
+    C.IncomingPort _ _ ->
         Result.ok ()
 
-    E.Program _ _ ->
+    C.Program _ _ ->
         error "DANGER - Program AST nodes should not be in Nitpick.PatternMatches."
 
-    E.SaveEnv _ _ ->
+    C.SaveEnv _ _ ->
         Result.ok ()
 
-    E.GLShader _ _ _ ->
+    C.GLShader _ _ _ ->
         Result.ok ()
 
 

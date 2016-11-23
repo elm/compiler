@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 module Canonicalize.Environment
-  ( Environment(..)
+  ( Env(..)
   , getPackage
   , insert
   , Patch(..), fromPatches, addPattern
@@ -14,6 +14,7 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 
+import qualified AST.Declaration as Decl
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
@@ -25,12 +26,13 @@ import qualified Elm.Package as Pkg
 -- ENVIRONMENT
 
 
-data Environment = Env
+data Env = Env
     { _home     :: ModuleName.Canonical
     , _values   :: Dict Var.Canonical
     , _unions   :: Dict Var.Canonical
     , _aliases  :: Dict (Var.Canonical, [String], Type.Canonical)
     , _patterns :: Dict (Var.Canonical, Int)
+    , _infixes  :: Map.Map Var.Canonical (Decl.Assoc, Int)
     }
 
 
@@ -38,12 +40,12 @@ type Dict a =
     Map.Map String (Set.Set a)
 
 
-fromPatches :: ModuleName.Canonical -> [Patch] -> Environment
+fromPatches :: ModuleName.Canonical -> [Patch] -> Env
 fromPatches moduleName patches =
-  addPatches patches (Env moduleName Map.empty Map.empty Map.empty Map.empty)
+    addPatches patches (Env moduleName Map.empty Map.empty Map.empty Map.empty Map.empty)
 
 
-addPattern :: P.Pattern ann var -> Environment -> Environment
+addPattern :: P.Pattern ann var -> Env -> Env
 addPattern pattern env =
   let
     patches =
@@ -52,7 +54,7 @@ addPattern pattern env =
     addPatches patches env
 
 
-getPackage :: Environment -> Pkg.Name
+getPackage :: Env -> Pkg.Name
 getPackage env =
   ModuleName._package (_home env)
 
@@ -66,18 +68,19 @@ data Patch
     | Union String Var.Canonical
     | Alias String (Var.Canonical, [String], Type.Canonical)
     | Pattern String (Var.Canonical, Int)
+    | Infix Var.Canonical Decl.Assoc Int
 
 
 
 -- ADD PATCH TO ENVIRONMENT
 
 
-addPatches :: [Patch] -> Environment -> Environment
+addPatches :: [Patch] -> Env -> Env
 addPatches patches env =
   List.foldl' (flip addPatch) env patches
 
 
-addPatch :: Patch -> Environment -> Environment
+addPatch :: Patch -> Env -> Env
 addPatch patch env =
   case patch of
     Value name var ->
@@ -91,6 +94,9 @@ addPatch patch env =
 
     Pattern name var ->
         env { _patterns = insert name var (_patterns env) }
+
+    Infix name assoc prec ->
+        env { _infixes = Map.insert name (assoc, prec) (_infixes env) }
 
 
 insert :: (Ord a) => String -> a -> Dict a -> Dict a
@@ -131,8 +137,8 @@ builtinPatches =
 -- TO TYPE DEALIASER
 
 
-toDealiaser :: Environment -> Map.Map String String
-toDealiaser (Env _ _ unions aliases _) =
+toDealiaser :: Env -> Map.Map String String
+toDealiaser (Env _ _ unions aliases _ _) =
   let
     dealiasUnion (localName, canonicalSet) =
       case Set.toList canonicalSet of

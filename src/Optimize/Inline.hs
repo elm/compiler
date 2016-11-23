@@ -100,7 +100,7 @@ count expression =
           Var.TopLevel _ ->
               Map.empty
 
-    ExplicitList exprs ->
+    List exprs ->
         countMany exprs
 
     Binop _op left right ->
@@ -151,10 +151,10 @@ count expression =
         in
           Map.unionsWith (+) (countDecider decider : map (count . snd) jumps)
 
-    Data _tag values ->
+    Ctor _tag values ->
         countMany values
 
-    DataAccess root _index ->
+    CtorAccess root _index ->
         count root
 
     Access record _field ->
@@ -207,8 +207,8 @@ replace substitutions expression =
     Var _ ->
         expression
 
-    ExplicitList exprs ->
-        ExplicitList (map go exprs)
+    List exprs ->
+        List (map go exprs)
 
     Binop op left right ->
         Binop op (go left) (go right)
@@ -262,11 +262,11 @@ replace substitutions expression =
         in
           Case exprName (goDecider decider) (map (second go) jumps)
 
-    Data tag values ->
-        Data tag (map go values)
+    Ctor tag values ->
+        Ctor tag (map go values)
 
-    DataAccess root index ->
-        DataAccess (go root) index
+    CtorAccess root index ->
+        CtorAccess (go root) index
 
     Access record field ->
         Access (go record) field

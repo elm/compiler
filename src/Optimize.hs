@@ -4,7 +4,6 @@ import qualified Control.Monad as M
 import qualified Data.Map as Map
 import qualified Data.Traversable as T
 
-import qualified AST.Expression.General as Expr
 import qualified AST.Expression.Canonical as Can
 import qualified AST.Expression.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
@@ -35,7 +34,7 @@ optimizeDef :: Bool -> Can.Def -> Env.Optimizer [Opt.Def]
 optimizeDef isRoot (Can.Def _ pattern expression _) =
   let
     (args, canBody) =
-      Expr.collectLambdas expression
+      Can.collectLambdas expression
 
     maybeGetHome =
       if isRoot then
@@ -161,7 +160,7 @@ patternToSubstitutions expr (A.A _ pattern) =
         (alias, expr) : patternToSubstitutions expr realPattern
 
     P.Data _ patterns ->
-        concat (zipWith (patternToSubstitutions . Opt.DataAccess expr) [0..] patterns)
+        concat (zipWith (patternToSubstitutions . Opt.CtorAccess expr) [0..] patterns)
 
 
 
@@ -190,10 +189,10 @@ optimizeExpr context annExpr@(A.A region expression) =
       -- expressions that cannot be turned into tail calls
   in
   case expression of
-    Expr.Literal lit ->
+    Can.Literal lit ->
         pure (Opt.Literal lit)
 
-    Expr.Var name ->
+    Can.Var name ->
         if name == Var.inCore ["Debug"] "crash" then
             do  home <- Env.getHome
                 pure (Opt.Crash home region Nothing)
@@ -201,24 +200,24 @@ optimizeExpr context annExpr@(A.A region expression) =
         else
             pure (Opt.Var name)
 
-    Expr.ExplicitList elements ->
-        Opt.ExplicitList
+    Can.List elements ->
+        Opt.List
           <$> T.traverse justConvert elements
 
-    Expr.Binop op leftExpr rightExpr ->
+    Can.Binop op leftExpr rightExpr ->
         optimizeBinop context region op leftExpr rightExpr
 
-    Expr.Lambda _ _ ->
+    Can.Lambda _ _ ->
         let
             (patterns, body) =
-                Expr.collectLambdas annExpr
+                Can.collectLambdas annExpr
         in
             uncurry Opt.Function <$> optimizeFunction Nothing patterns body
 
-    Expr.App _ _ ->
+    Can.App _ _ ->
         let
             (func:args) =
-                Expr.collectApps annExpr
+                Can.collectApps annExpr
         in
             case isTailCall context func (length args) of
               Just (name, argNames) ->
@@ -233,7 +232,7 @@ optimizeExpr context annExpr@(A.A region expression) =
                       Env.setTailCall hasTailCall
                       return (Opt.Call optFunc optArgs)
 
-    Expr.If branches finally ->
+    Can.If branches finally ->
         let
             crawlBranch (cond,branch) =
                 (,) <$> justConvert cond <*> keepLooking branch
@@ -242,11 +241,11 @@ optimizeExpr context annExpr@(A.A region expression) =
               <$> T.traverse crawlBranch branches
               <*> keepLooking finally
 
-    Expr.Let defs body ->
+    Can.Let defs body ->
         do  optDefs <- concat <$> T.traverse (optimizeDef False) defs
             Opt.Let optDefs <$> keepLooking body
 
-    Expr.Case expr branches ->
+    Can.Case expr branches ->
         do  optExpr <- optimizeExpr Nothing expr
             variantDict <- Env.getVariantDict
 
@@ -255,42 +254,42 @@ optimizeExpr context annExpr@(A.A region expression) =
             let optCase = Case.optimize variantDict name optBranches
             return $ Opt.Let [ Opt.Def Opt.dummyFacts name optExpr ] optCase
 
-    Expr.Data name exprs ->
-        Opt.Data name <$> T.traverse justConvert exprs
+    Can.Ctor name exprs ->
+        Opt.Ctor name <$> T.traverse justConvert exprs
 
-    Expr.Access record field ->
+    Can.Access record field ->
         Opt.Access
           <$> justConvert record
           <*> pure field
 
-    Expr.Update record fields ->
+    Can.Update record fields ->
         Opt.Update
           <$> justConvert record
           <*> T.traverse (mapSnd justConvert) fields
 
-    Expr.Record fields ->
+    Can.Record fields ->
         Opt.Record
           <$> T.traverse (mapSnd justConvert) fields
 
-    Expr.Cmd moduleName ->
+    Can.Cmd moduleName ->
         pure (Opt.Cmd moduleName)
 
-    Expr.Sub moduleName ->
+    Can.Sub moduleName ->
         pure (Opt.Sub moduleName)
 
-    Expr.OutgoingPort name tipe ->
+    Can.OutgoingPort name tipe ->
         pure (Opt.OutgoingPort name tipe)
 
-    Expr.IncomingPort name tipe ->
+    Can.IncomingPort name tipe ->
         pure (Opt.IncomingPort name tipe)
 
-    Expr.Program kind expr ->
+    Can.Program kind expr ->
         Opt.Program kind <$> justConvert expr
 
-    Expr.SaveEnv _ _ ->
+    Can.SaveEnv _ _ ->
         error "save_the_environment should never make it to optimization phase"
 
-    Expr.GLShader uid src gltipe ->
+    Can.GLShader uid src gltipe ->
         pure (Opt.GLShader uid src gltipe)
 
 
@@ -348,7 +347,7 @@ tagCrashBranch region pattern@(A.A pr _) expr =
 isTailCall :: Context -> Can.Expr -> Int -> Maybe (String, [String])
 isTailCall context (A.A _ function) arity =
     case (context, function) of
-      ( Just (ctxName, ctxArity, argNames), Expr.Var (Var.Canonical home name) ) ->
+      ( Just (ctxName, ctxArity, argNames), Can.Var (Var.Canonical home name) ) ->
 
           if name == ctxName && arity == ctxArity && Var.isLocalHome home then
               Just (name, argNames)
@@ -374,10 +373,10 @@ depattern canPattern@(A.A _ pattern) expr =
       A.A (error "the annotation added in 'depattern' should not be observed!")
 
     caseExpr e branches =
-      ann (Expr.Case e branches)
+      ann (Can.Case e branches)
 
     var name =
-      ann (Expr.Var (Var.local name))
+      ann (Can.Var (Var.local name))
 
     caseify =
       do  name <- Env.freshName
@@ -421,7 +420,7 @@ optimizeBinop
 optimizeBinop context region op leftExpr rightExpr =
   let
     ann = A.A region
-    binop = ann (Expr.Binop op leftExpr rightExpr)
+    binop = ann (Can.Binop op leftExpr rightExpr)
   in
   if op == forwardApply then
 
@@ -434,20 +433,20 @@ optimizeBinop context region op leftExpr rightExpr =
   else if op == forwardCompose then
 
       do  var <- Env.freshName
-          let makeRoot func = ann (Expr.App func (ann (Expr.Var (Var.local var))))
+          let makeRoot func = ann (Can.App func (ann (Can.Var (Var.local var))))
           let body = collect makeRoot left forwardCompose binop
-          optimizeExpr context (ann (Expr.Lambda (ann (P.Var var)) body))
+          optimizeExpr context (ann (Can.Lambda (ann (P.Var var)) body))
 
   else if op == backwardCompose then
 
       do  var <- Env.freshName
-          let makeRoot func = ann (Expr.App func (ann (Expr.Var (Var.local var))))
+          let makeRoot func = ann (Can.App func (ann (Can.Var (Var.local var))))
           let body = collect makeRoot right backwardCompose binop
-          optimizeExpr context (ann (Expr.Lambda (ann (P.Var var)) body))
+          optimizeExpr context (ann (Can.Lambda (ann (P.Var var)) body))
 
   else if op == Var.Canonical Var.BuiltIn "::" then
 
-      optimizeExpr context (ann (Expr.Data "::" [ leftExpr, rightExpr ]))
+      optimizeExpr context (ann (Can.Ctor "::" [ leftExpr, rightExpr ]))
 
   else
 
@@ -497,11 +496,11 @@ right =
 collect :: (Can.Expr -> Can.Expr) -> Assoc -> Var.Canonical -> Can.Expr -> Can.Expr
 collect makeRoot assoc desiredOp annExpr@(A.A ann expr) =
   case expr of
-    Expr.Binop op leftExpr rightExpr | op == desiredOp ->
+    Can.Binop op leftExpr rightExpr | op == desiredOp ->
         let
           (func, arg) = assoc leftExpr rightExpr
         in
-          A.A ann (Expr.App func (collect makeRoot assoc desiredOp arg))
+          A.A ann (Can.App func (collect makeRoot assoc desiredOp arg))
 
     _ ->
         makeRoot annExpr

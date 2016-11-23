@@ -5,8 +5,7 @@ import qualified Data.Maybe as Maybe
 
 import qualified AST.Declaration as Decl
 import qualified AST.Effects as Effects
-import qualified AST.Expression.General as E
-import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Expression.Canonical as C
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
@@ -24,7 +23,7 @@ flatten
   => ModuleName.Canonical
   -> Decl.Canonical
   -> Effects.Canonical
-  -> Result i w Error Canonical.Expr
+  -> Result i w Error C.Expr
 flatten moduleName (Decl.Decls defs unions aliases _) effects =
   let
     allDefs =
@@ -39,14 +38,14 @@ flatten moduleName (Decl.Decls defs unions aliases _) effects =
       A.A (error "this annotation should never be needed")
   in
     Sort.definitions $ loc $
-      E.Let allDefs (loc $ E.SaveEnv moduleName effects)
+      C.Let allDefs (loc $ C.SaveEnv moduleName effects)
 
 
 
 -- TYPES TO DEFS
 
 
-unionToDefs :: ModuleName.Canonical -> A.Commented (Decl.Union Type.Canonical) -> [Canonical.Def]
+unionToDefs :: ModuleName.Canonical -> A.Commented (Decl.Union Type.Canonical) -> [C.Def]
 unionToDefs moduleName (A.A (region,_) (Decl.Type name tvars constructors)) =
   let
     tagToDef (tag, tipes) =
@@ -61,14 +60,14 @@ unionToDefs moduleName (A.A (region,_) (Decl.Type name tvars constructors)) =
 
         body =
           A.A region $
-            E.Data tag (map (A.A region . E.localVar) vars)
+            C.Ctor tag (map (A.A region . C.localVar) vars)
       in
         definition tag (buildFunction vars body) region (foldr Type.Lambda tbody tipes)
   in
     map tagToDef constructors
 
 
-aliasToDefs :: ModuleName.Canonical -> A.Commented (Decl.Alias Type.Canonical) -> Maybe Canonical.Def
+aliasToDefs :: ModuleName.Canonical -> A.Commented (Decl.Alias Type.Canonical) -> Maybe C.Def
 aliasToDefs moduleName (A.A (region,_) (Decl.Type name tvars tipe)) =
   case tipe of
     Type.Record fields Nothing ->
@@ -87,7 +86,7 @@ aliasToDefs moduleName (A.A (region,_) (Decl.Type name tvars tipe)) =
 
         record =
           A.A region $
-            E.Record (zip (map fst fields) (map (A.A region . E.localVar) vars))
+            C.Record (zip (map fst fields) (map (A.A region . C.localVar) vars))
       in
         Just $ definition name (buildFunction vars record) region (foldr Type.Lambda resultType args)
 
@@ -100,17 +99,17 @@ infiniteArgs =
   map (:[]) ['a'..'z'] ++ map (\n -> "_" ++ show (n :: Int)) [1..]
 
 
-buildFunction :: [String] -> Canonical.Expr -> Canonical.Expr
+buildFunction :: [String] -> C.Expr -> C.Expr
 buildFunction vars body@(A.A ann _) =
   foldr
-    (\pattern expr -> A.A ann (E.Lambda pattern expr))
+    (\pattern expr -> A.A ann (C.Lambda pattern expr))
     body
     (map (A.A ann . P.Var) vars)
 
 
-definition :: String -> Canonical.Expr -> Region -> Type.Canonical -> Canonical.Def
+definition :: String -> C.Expr -> Region -> Type.Canonical -> C.Def
 definition name expr@(A.A ann _) region tipe =
-  Canonical.Def
+  C.Def
     region
     (A.A ann (P.Var name))
     expr
@@ -121,7 +120,7 @@ definition name expr@(A.A ann _) region tipe =
 -- EFFECTS
 
 
-effectsToDefs :: ModuleName.Canonical -> Effects.Canonical -> [Canonical.Def]
+effectsToDefs :: ModuleName.Canonical -> Effects.Canonical -> [C.Def]
 effectsToDefs moduleName effects =
   case effects of
     Effects.None ->
@@ -135,14 +134,14 @@ effectsToDefs moduleName effects =
         cmdToDef (A.A region name) =
           definition
             "command"
-            (A.A region (E.Cmd moduleName))
+            (A.A region (C.Cmd moduleName))
             region
             (Type.cmd moduleName name)
 
         subToDef (A.A region name) =
           definition
             "subscription"
-            (A.A region (E.Sub moduleName))
+            (A.A region (C.Sub moduleName))
             region
             (Type.sub moduleName name)
       in
@@ -161,17 +160,17 @@ effectsToDefs moduleName effects =
             ]
 
 
-portToDef :: A.Commented Effects.PortCanonical -> Canonical.Def
+portToDef :: A.Commented Effects.PortCanonical -> C.Def
 portToDef (A.A (region, _) (Effects.PortCanonical name kind tipe)) =
   definition name (A.A region (toPortExpr name kind)) region tipe
 
 
-toPortExpr :: String -> Effects.Kind -> Canonical.Expr'
+toPortExpr :: String -> Effects.Kind -> C.Expr'
 toPortExpr name kind =
   case kind of
     Effects.Outgoing tipe ->
-      E.OutgoingPort name tipe
+      C.OutgoingPort name tipe
 
     Effects.Incoming tipe ->
-      E.IncomingPort name tipe
+      C.IncomingPort name tipe
 

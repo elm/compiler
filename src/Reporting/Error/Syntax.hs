@@ -26,7 +26,6 @@ data Error
     | MissingManagerOnEffectModule String
     | UnexpectedPort String
 
-    | InfixDuplicate String
     | TypeWithoutDefinition String
 
     | DuplicateArgument String String
@@ -161,17 +160,6 @@ toReport _localizer err =
               "All ports must be defined in a `port module`. You should probably have just\
               \ one of these for your project. This way all of your foreign interactions\
               \ stay relatively organized."
-          )
-
-    InfixDuplicate opName ->
-        Report.report
-          "INFIX OVERLAP"
-          Nothing
-          ("The infix declarations for " ++ Help.functionName opName ++ " must be removed.")
-          ( Help.reflowParagraph $
-              "The precedence and associativity of a particular operator can only be set in\
-              \ one place in a code base, and " ++ Help.functionName opName
-              ++ " has already been set somewhere else."
           )
 
     TypeWithoutDefinition valueName ->

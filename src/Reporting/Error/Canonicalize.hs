@@ -5,6 +5,7 @@ import Control.Arrow (second)
 import qualified Data.Char as Char
 import Text.PrettyPrint.ANSI.Leijen (Doc, dullyellow, fillSep, indent, text)
 
+import qualified AST.Declaration as Decl
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
@@ -20,6 +21,7 @@ import qualified Reporting.Report as Report
 data Error
     = Var VarError
     | BadRecursion Region.Region Canonical.Def [Canonical.Def]
+    | BadInfix Region.Region Int Var.Canonical Decl.Assoc Var.Canonical Decl.Assoc
     | Pattern PatternError
     | Alias AliasError
     | Import ModuleName.Raw ImportError
@@ -165,6 +167,17 @@ toReport localizer err =
         _ ->
           badMutualRecursion region (defToString def) (map (defToString) defs)
 
+    BadInfix region _prec (Var.Canonical _ name1) _assoc1 (Var.Canonical _ name2) _assoc2 ->
+        Report.report
+          "INFIX PROBLEM"
+          (Just region)
+          ("You cannot mix (" ++ name1 ++ ") and (" ++ name2 ++ ") without parentheses.")
+          (
+            Help.stack
+              [ Help.reflowParagraph $
+                  "I do not know how to group these expressions. Add parentheses for me!"
+              ]
+          )
 
     Pattern patternError ->
         case patternError of
@@ -294,6 +307,9 @@ extractSuggestions err =
         Just suggestions
 
     BadRecursion _ _ _ ->
+        Nothing
+
+    BadInfix _ _ _ _ _ _ ->
         Nothing
 
     Pattern _ ->

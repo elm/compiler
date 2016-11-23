@@ -6,11 +6,10 @@ import Control.Monad (foldM)
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
-import qualified Data.Traversable as Trav
 
 import qualified AST.Declaration as D
 import qualified AST.Effects as Effects
-import qualified AST.Expression.Valid as Valid
+import qualified AST.Expression.Source as Src
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
@@ -32,7 +31,7 @@ environment
     :: Map.Map ModuleName.Raw ModuleName.Canonical
     -> Module.Interfaces
     -> Module.Valid
-    -> Result Env.Environment
+    -> Result Env.Env
 environment importDict interfaces (Module.Module name _ info) =
   let
     (Module.Valid _ _ (defaults, imports) decls effects) =
@@ -42,7 +41,7 @@ environment importDict interfaces (Module.Module name _ info) =
       imports ++ map (A.A (error "default import not found")) defaults
 
     getImportPatches =
-      Trav.traverse (importToPatches importDict interfaces) allImports
+      traverse (importToPatches importDict interfaces) allImports
 
     (typeAliasNodes, declPatches) =
       declsToPatches name decls
@@ -99,6 +98,9 @@ importToPatches importDict allInterfaces (A.A region (rawImportName, method)) =
         qualifier =
           maybe (ModuleName.toString rawImportName) id maybeAlias
 
+        infixPatches =
+          map (infixToPatch (Var.fromModule importName)) (Module.iFixities interface)
+
         qualifiedPatches =
           interfaceToPatches importName (qualifier ++ ".") interface
 
@@ -107,9 +109,9 @@ importToPatches importDict allInterfaces (A.A region (rawImportName, method)) =
             Result.ok (interfaceToPatches importName "" interface)
 
           else
-            concat <$> Trav.traverse (valueToPatches region importName interface) exposedValues
+            concat <$> traverse (valueToPatches region importName interface) exposedValues
       in
-        (++) qualifiedPatches <$> unqualifiedPatches
+        (++) (infixPatches ++ qualifiedPatches) <$> unqualifiedPatches
 
 
 interfaceToPatches :: ModuleName.Canonical -> String -> Module.Interface -> [Env.Patch]
@@ -218,7 +220,7 @@ valueToPatches region moduleName interface value =
                   Result.ok realCtorList
 
                 else
-                  Trav.traverse ctorExists givenCtorNames
+                  traverse ctorExists givenCtorNames
           where
             realCtorList =
                 map (second length) realCtors
@@ -270,16 +272,16 @@ node region name tvars alias =
           maybe [] edges ext ++ concatMap (edges . snd) fs
 
 
-addTypeAliases :: ModuleName.Canonical -> [Node] -> Env.Environment -> Result Env.Environment
+addTypeAliases :: ModuleName.Canonical -> [Node] -> Env.Env -> Result Env.Env
 addTypeAliases moduleName typeAliasNodes initialEnv =
   foldM (addTypeAlias moduleName) initialEnv (Graph.stronglyConnComp typeAliasNodes)
 
 
 addTypeAlias
     :: ModuleName.Canonical
-    -> Env.Environment
+    -> Env.Env
     -> Graph.SCC (R.Region, String, [String], Type.Raw)
-    -> Result Env.Environment
+    -> Result Env.Env
 addTypeAlias moduleName env scc =
   case scc of
     Graph.AcyclicSCC (_, name, tvars, alias) ->
@@ -314,7 +316,7 @@ addTypeAlias moduleName env scc =
 
 -}
 declsToPatches :: ModuleName.Canonical -> D.Valid -> ([Node], [Env.Patch])
-declsToPatches moduleName (D.Decls defs unions aliases _) =
+declsToPatches moduleName (D.Decls defs unions aliases infixes) =
   let
 
     -- HELPERS
@@ -327,7 +329,7 @@ declsToPatches moduleName (D.Decls defs unions aliases _) =
 
     -- TO PATCHES
 
-    defToPatches (A.A _ (Valid.Def _ pattern _ _)) =
+    defToPatches (A.A _ (Src.Def _ pattern _ _)) =
       map topLevelValue (P.boundVarList pattern)
 
     unionToPatches (A.A _ (D.Type name _ ctors)) =
@@ -352,11 +354,18 @@ declsToPatches moduleName (D.Decls defs unions aliases _) =
       map aliasToNode aliases
     ,
       concat
-        [ Maybe.mapMaybe aliasToPatches aliases
+        [ map (infixToPatch (Var.topLevel moduleName)) infixes
+        , Maybe.mapMaybe aliasToPatches aliases
         , concatMap unionToPatches unions
         , concatMap defToPatches defs
         ]
     )
+
+
+infixToPatch :: (String -> Var.Canonical) -> D.Infix -> Env.Patch
+infixToPatch toVar (D.Infix name assoc prec) =
+  Env.Infix (toVar name) assoc prec
+
 
 
 -- EFFECTS TO PATCHES

@@ -5,8 +5,7 @@ import Control.Arrow (second)
 import qualified Control.Monad as Monad
 import qualified Data.Map as Map
 
-import qualified AST.Expression.General as E
-import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Expression.Canonical as C
 import qualified AST.Literal as Lit
 import qualified AST.Pattern as P
 import qualified AST.Type as ST
@@ -22,31 +21,31 @@ import Type.Type hiding (Descriptor(..))
 
 
 
-constrain :: Env.Env -> Canonical.Expr -> Type -> IO TypeConstraint
+constrain :: Env.Env -> C.Expr -> Type -> IO TypeConstraint
 constrain env annotatedExpr@(A.A region expression) tipe =
   case expression of
-    E.Literal lit ->
+    C.Literal lit ->
       Literal.constrain env region lit tipe
 
-    E.Cmd _ ->
+    C.Cmd _ ->
       return CTrue
 
-    E.Sub _ ->
+    C.Sub _ ->
       return CTrue
 
-    E.OutgoingPort _ _ ->
+    C.OutgoingPort _ _ ->
       return CTrue
 
-    E.IncomingPort _ _ ->
+    C.IncomingPort _ _ ->
       return CTrue
 
-    E.Program _ _ ->
+    C.Program _ _ ->
       error "DANGER - Program AST nodes should not be in type inference."
 
-    E.SaveEnv moduleName effects ->
+    C.SaveEnv moduleName effects ->
       Effects.constrain env moduleName effects
 
-    E.GLShader _uid _src gltipe ->
+    C.GLShader _uid _src gltipe ->
       exists $ \attr ->
       exists $ \unif ->
         let
@@ -70,16 +69,16 @@ constrain env annotatedExpr@(A.A region expression) tipe =
         in
           return (CEqual Error.Shader region (shaderTipe attribute uniform varying) tipe)
 
-    E.Var var ->
+    C.Var var ->
       return (CInstance region (V.toString var) tipe)
 
-    E.ExplicitList exprs ->
+    C.List exprs ->
       constrainList env region exprs tipe
 
-    E.Binop op leftExpr rightExpr ->
+    C.Binop op leftExpr rightExpr ->
       constrainBinop env region op leftExpr rightExpr tipe
 
-    E.Lambda pattern body ->
+    C.Lambda pattern body ->
       exists $ \argType ->
       exists $ \resType ->
         do  (Pattern.Info headers vars cons) <- Pattern.constrain env pattern argType
@@ -88,19 +87,19 @@ constrain env annotatedExpr@(A.A region expression) tipe =
               ex vars (CLet [monoscheme headers] (cons /\ bodyCon))
               /\ CEqual Error.Lambda region (argType ==> resType) tipe
 
-    E.App _ _ ->
+    C.App _ _ ->
       let
-        (f:args) = E.collectApps annotatedExpr
+        (f:args) = C.collectApps annotatedExpr
       in
         constrainApp env region f args tipe
 
-    E.If branches finally ->
+    C.If branches finally ->
       constrainIf env region branches finally tipe
 
-    E.Case expr branches ->
+    C.Case expr branches ->
       constrainCase env region expr branches tipe
 
-    E.Data name exprs ->
+    C.Ctor name exprs ->
       do  vars <- Monad.forM exprs $ \_ -> mkVar Nothing
           let pairs = zip exprs (map VarN vars)
           (ctipe, cs) <- Monad.foldM step (tipe, CTrue) (reverse pairs)
@@ -110,16 +109,16 @@ constrain env annotatedExpr@(A.A region expression) tipe =
             do  c' <- constrain env e x
                 return (x ==> t, c /\ c')
 
-    E.Access expr field ->
+    C.Access expr field ->
       exists $ \recordType ->
       exists $ \ext ->
         do  recordCon <- constrain env expr recordType
-            let maybeBody = E.collectFields expr
+            let maybeBody = C.collectFields expr
             let desiredType = record (Map.singleton field tipe) ext
             let fieldCon = CEqual (Error.Access maybeBody field) region recordType desiredType
             return $ recordCon /\ fieldCon
 
-    E.Update expr fields ->
+    C.Update expr fields ->
       exists $ \t ->
         do  oldVars <- mapM (\_ -> mkVar Nothing) fields
             let oldFields = Map.fromList (zip (map fst fields) (map VarN oldVars))
@@ -133,7 +132,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
 
             return $ cOld /\ ex newVars (CAnd (cNew : cs))
 
-    E.Record fields ->
+    C.Record fields ->
       do  vars <- Monad.forM fields (\_ -> mkVar Nothing)
           fieldCons <-
               Monad.zipWithM
@@ -144,7 +143,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
           let recordType = record fields' (TermN EmptyRecord1)
           return (ex vars (CAnd (fieldCons ++ [CEqual Error.Record region recordType tipe])))
 
-    E.Let defs body ->
+    C.Let defs body ->
       do  bodyCon <- constrain env body tipe
 
           (Info schemes rqs fqs headers c2 c1) <-
@@ -166,8 +165,8 @@ constrain env annotatedExpr@(A.A region expression) tipe =
 constrainApp
     :: Env.Env
     -> R.Region
-    -> Canonical.Expr
-    -> [Canonical.Expr]
+    -> C.Expr
+    -> [C.Expr]
     -> Type
     -> IO TypeConstraint
 constrainApp env region f args tipe =
@@ -185,7 +184,7 @@ constrainApp env region f args tipe =
   where
     maybeName =
       case f of
-        A.A _ (E.Var canonicalName) ->
+        A.A _ (C.Var canonicalName) ->
             Just canonicalName
 
         _ ->
@@ -199,7 +198,7 @@ argConstraints
     -> Int
     -> Variable
     -> Int
-    -> [Canonical.Expr]
+    -> [C.Expr]
     -> IO ([Variable], [TypeConstraint], [TypeConstraint], [TypeConstraint], Maybe R.Region, Variable)
 argConstraints env name region totalArgs overallVar index args =
   case args of
@@ -250,8 +249,8 @@ constrainBinop
     :: Env.Env
     -> R.Region
     -> V.Canonical
-    -> Canonical.Expr
-    -> Canonical.Expr
+    -> C.Expr
+    -> C.Expr
     -> Type
     -> IO TypeConstraint
 constrainBinop env region op leftExpr@(A.A leftRegion _) rightExpr@(A.A rightRegion _) tipe =
@@ -282,7 +281,7 @@ constrainBinop env region op leftExpr@(A.A leftRegion _) rightExpr@(A.A rightReg
 -- CONSTRAIN LISTS
 
 
-constrainList :: Env.Env -> R.Region -> [Canonical.Expr] -> Type -> IO TypeConstraint
+constrainList :: Env.Env -> R.Region -> [C.Expr] -> Type -> IO TypeConstraint
 constrainList env region exprs tipe =
   do  (exprInfo, exprCons) <-
           unzip <$> mapM elementConstraint exprs
@@ -307,8 +306,8 @@ constrainList env region exprs tipe =
 constrainIf
     :: Env.Env
     -> R.Region
-    -> [(Canonical.Expr, Canonical.Expr)]
-    -> Canonical.Expr
+    -> [(C.Expr, C.Expr)]
+    -> C.Expr
     -> Type
     -> IO TypeConstraint
 constrainIf env region branches finally tipe =
@@ -366,8 +365,8 @@ constrainIf env region branches finally tipe =
 constrainCase
     :: Env.Env
     -> R.Region
-    -> Canonical.Expr
-    -> [(P.Canonical, Canonical.Expr)]
+    -> C.Expr
+    -> [(P.Canonical, C.Expr)]
     -> Type
     -> IO TypeConstraint
 constrainCase env region expr branches tipe =
@@ -444,8 +443,8 @@ collectPairs index items =
 -- EXPAND PATTERNS
 
 
-expandPattern :: Canonical.Def -> [Canonical.Def]
-expandPattern def@(Canonical.Def facts lpattern expr maybeType) =
+expandPattern :: C.Def -> [C.Def]
+expandPattern def@(C.Def facts lpattern expr maybeType) =
   let
     (A.A patternRegion pattern) =
       lpattern
@@ -467,17 +466,17 @@ expandPattern def@(Canonical.Def facts lpattern expr maybeType) =
           A.A patternRegion (P.Var name)
 
         localVar name =
-          A.A patternRegion (E.localVar name)
+          A.A patternRegion (C.localVar name)
 
         mainDef =
-          Canonical.Def facts (pvar combinedName) expr maybeType
+          C.Def facts (pvar combinedName) expr maybeType
 
         toDef name =
           let
             extract =
-              E.Case (localVar combinedName) [(lpattern, localVar name)]
+              C.Case (localVar combinedName) [(lpattern, localVar name)]
           in
-            Canonical.Def facts (pvar name) (A.A patternRegion extract) Nothing
+            C.Def facts (pvar name) (A.A patternRegion extract) Nothing
 
 
 
@@ -494,8 +493,8 @@ data Info = Info
     }
 
 
-constrainDef :: Env.Env -> Info -> Canonical.Def -> IO Info
-constrainDef env info (Canonical.Def defRegion (A.A patternRegion pattern) expr maybeTipe) =
+constrainDef :: Env.Env -> Info -> C.Def -> IO Info
+constrainDef env info (C.Def defRegion (A.A patternRegion pattern) expr maybeTipe) =
   case (pattern, maybeTipe) of
     (P.Var name, Nothing) ->
         constrainUnannotatedDef env patternRegion name expr info
@@ -511,7 +510,7 @@ constrainUnannotatedDef
     :: Env.Env
     -> R.Region
     -> String
-    -> Canonical.Expr
+    -> C.Expr
     -> Info
     -> IO Info
 constrainUnannotatedDef env patternRegion name expr info =
@@ -530,7 +529,7 @@ constrainAnnotatedDef
     -> R.Region
     -> R.Region
     -> String
-    -> Canonical.Expr
+    -> C.Expr
     -> ST.Canonical
     -> Info
     -> IO Info
@@ -563,10 +562,10 @@ data ArgInfo =
     }
 
 
-constrainAnnDefHelp :: Canonical.Expr -> ST.Canonical -> ArgInfo -> IO TypeConstraint
+constrainAnnDefHelp :: C.Expr -> ST.Canonical -> ArgInfo -> IO TypeConstraint
 constrainAnnDefHelp expr tipe (ArgInfo name defRegion env args vars) =
   case (expr, tipe) of
-    (A.A _ (E.Lambda arg result), ST.Lambda argType resultType) ->
+    (A.A _ (C.Lambda arg result), ST.Lambda argType resultType) ->
       do  (rigidArgType, newVars) <- Env.instantiateType Rigid env argType
 
           constrainAnnDefHelp result resultType $
@@ -594,7 +593,7 @@ constrainAnnDefHelp expr tipe (ArgInfo name defRegion env args vars) =
 
           let sharedArity = length args
           let typeArity = sharedArity + length (ST.collectLambdas tipe) - 1
-          let argsArity = sharedArity + length (fst (E.collectLambdas expr))
+          let argsArity = sharedArity + length (fst (C.collectLambdas expr))
           let hint = Error.ReturnType name typeArity argsArity region
           let resultCon =
                 CEqual hint defRegion rigidType resultType

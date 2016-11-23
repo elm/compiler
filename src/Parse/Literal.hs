@@ -6,14 +6,13 @@ import Control.Monad (join)
 import qualified Data.Map as Map
 import qualified Language.GLSL.Parser as GLP
 import qualified Language.GLSL.Syntax as GLS
-import qualified Text.Parsec.Token as T
 import Text.Parsec
   ( ParseError, (<|>), (<?>), anyChar, char, choice, digit, hexDigit
   , lookAhead, many1, manyTill, notFollowedBy, option, parserFail
-  , satisfy, string, try
+  , string, try
   )
 
-import Parse.Helpers (IParser, SourceM, expecting, failure, iParse, reserveds)
+import Parse.Helpers (IParser, expecting)
 import qualified AST.Literal as L
 
 
@@ -25,7 +24,7 @@ literal :: IParser L.Literal
 literal =
   choice
     [ toLiteral <$> rawNumber
-    , {-# SCC elm_compiler_parse_str #-} L.Str <$> str
+    , L.Str <$> str
     , L.Chr <$> chr
     ]
 
@@ -96,9 +95,7 @@ exponent =
 str :: IParser String
 str =
   expecting "a string like \"hello\"" $
-  do  charSeq <- choice [ multiStr, singleStr ]
-      either (fail . show) return $
-        processAs T.stringLiteral ('"' : charSeq ++ "\"")
+  choice [ multiStr, singleStr ]
 
 
 delimitedSequence :: IParser a -> IParser String -> IParser String
@@ -114,7 +111,7 @@ multiStr =
 
 singleStr :: IParser String
 singleStr =
-  delimitedSequence (char '"') (charWithin '"')
+  delimitedSequence (char '"') ((:[]) <$> anyChar)
 
 
 
@@ -125,29 +122,19 @@ chr :: IParser Char
 chr =
   expecting "a character like 'x'" $
   do  char '\''
-      charSeq <- concat <$> many1 (charWithin '\'') <?> "a character"
-      case processAs T.charLiteral ("'" ++ charSeq ++ "'") of
-        Right character ->
-          do  char '\''
-              return character
+      myChar <- anyChar <?> "a character"
+      char '\''
+      return myChar
 
-        Left _ ->
+{-
           failure $
             "Elm uses double quotes for strings. Switch\
             \ the ' to \" on both ends of the string and\
             \ you should be all set!"
-
+-}
 
 
 -- CHARACTER HELPERS
-
-
-charWithin :: Char -> IParser String
-charWithin delim =
-  choice
-    [ escaped delim
-    , (:[]) <$> satisfy (/= delim)
-    ]
 
 
 multilineStringChar :: IParser String
@@ -155,7 +142,6 @@ multilineStringChar =
   do  notFollowedBy (string "\"\"\"")
       choice
         [ newlineChar
-        , escaped '\"'
         , escapeQuotes <$> anyChar
         ]
 
@@ -171,43 +157,6 @@ newlineChar =
     [ char '\n' >> return "\\n"
     , char '\r' >> return "\\r"
     ]
-
-
-escaped :: Char -> IParser String
-escaped delim =
-  try $ do
-    char '\\'
-    c <- char '\\' <|> char delim
-    return ['\\', c]
-
-
-processAs
-  :: (T.GenTokenParser String u SourceM -> IParser a)
-  -> String
-  -> Either ParseError a
-processAs processor rawString =
-    iParse (processor lexer) rawString
-  where
-    lexer :: T.GenTokenParser String u SourceM
-    lexer =
-      T.makeTokenParser elmDef
-
-    -- I don't know how many of these are necessary for charLiteral/stringLiteral
-    elmDef :: T.GenLanguageDef String u SourceM
-    elmDef =
-      T.LanguageDef
-        { T.commentStart    = "{-"
-        , T.commentEnd      = "-}"
-        , T.commentLine     = "--"
-        , T.nestedComments  = True
-        , T.identStart      = undefined
-        , T.identLetter     = undefined
-        , T.opStart         = undefined
-        , T.opLetter        = undefined
-        , T.reservedNames   = reserveds
-        , T.reservedOpNames = [":", "->", "|"]
-        , T.caseSensitive   = True
-        }
 
 
 

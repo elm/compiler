@@ -2,7 +2,6 @@ module Parse.Expression (term, expr, def) where
 
 import qualified Data.List as List
 import Text.Parsec hiding (newline, spaces)
-import qualified Text.Parsec.Indent as Indent
 
 import qualified Parse.Binop as Binop
 import Parse.Helpers
@@ -11,11 +10,9 @@ import qualified Parse.Literal as Literal
 import qualified Parse.Pattern as Pattern
 import qualified Parse.Type as Type
 
-import qualified AST.Expression.General as E
-import qualified AST.Expression.Source as Source
+import qualified AST.Expression.Source as Src
 import qualified AST.Literal as L
 import qualified AST.Pattern as P
-import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 
 
@@ -23,25 +20,25 @@ import qualified Reporting.Annotation as A
 --------  Basic Terms  --------
 
 
-varTerm :: IParser Source.Expr'
+varTerm :: IParser Src.RawExpr'
 varTerm =
   toVar <$> Help.var
 
 
-toVar :: String -> Source.Expr'
+toVar :: String -> Src.RawExpr'
 toVar v =
   case v of
     "True" ->
-        E.Literal (L.Boolean True)
+        Src.Literal (L.Boolean True)
 
     "False" ->
-        E.Literal (L.Boolean False)
+        Src.Literal (L.Boolean False)
 
     _ ->
-        E.rawVar v
+        Src.var v
 
 
-accessor :: IParser Source.Expr'
+accessor :: IParser Src.RawExpr'
 accessor =
   do  (start, lbl, end) <- located (try (string "." >> rLabel))
 
@@ -49,60 +46,56 @@ accessor =
             A.at start end value
 
       return $
-        E.Lambda
+        Src.Lambda
             (ann (P.Var "_"))
-            (ann (E.Access (ann (E.rawVar "_")) lbl))
+            (ann (Src.Access (ann (Src.var "_")) lbl))
 
 
-negative :: IParser Source.Expr'
+negative :: IParser Src.RawExpr'
 negative =
-  do  (start, nTerm, end) <-
-          located $ try $
-            do  char '-'
-                notFollowedBy (char '.' <|> char '-')
-                term
+  try $
+    do  (A.A region _) <- addLocation (char '-')
+        notFollowedBy (char '.' <|> char '-')
+        negativeTerm <- term
 
-      let ann e =
-            A.at start end e
+        let zero = A.A region (Src.Literal (L.IntNum 0))
+        let minus = A.A region "-"
 
-      return $
-        E.Binop
-          (Var.Raw "-")
-          (ann (E.Literal (L.IntNum 0)))
-          nTerm
+        return $ Src.Binop [(zero, minus)] negativeTerm
+
 
 
 
 --------  Complex Terms  --------
 
 
-listTerm :: IParser Source.Expr'
+listTerm :: IParser Src.RawExpr'
 listTerm =
   choice
     [ do  pos <- getPosition
           let uid = show (sourceLine pos) ++ ":" ++ show (sourceColumn pos)
           (rawSrc, tipe) <- Literal.shader
-          return $ E.GLShader uid (filter (/='\r') rawSrc) tipe
-    , braces (E.ExplicitList <$> commaSep expr)
+          return $ Src.GLShader uid (filter (/='\r') rawSrc) tipe
+    , braces (Src.List <$> commaSep expr)
     ]
 
 
-parensTerm :: IParser Source.Expr
+parensTerm :: IParser Src.RawExpr
 parensTerm =
   let
     mkFunc args realBody start end =
       foldr
-        (\arg body -> A.at start end (E.Lambda (A.at start end (P.Var arg)) body))
-        (A.at start end (realBody (A.at start end . E.rawVar)))
+        (\arg body -> A.at start end (Src.Lambda (A.at start end (P.Var arg)) body))
+        (A.at start end (realBody (A.at start end . Src.var)))
         args
 
     mkBinop op =
-      mkFunc ["x","y"] (\var -> E.Binop (Var.Raw op) (var "x") (var "y"))
+      mkFunc ["x","y"] $ \var -> Src.Binop [(var "x", op)] (var "y")
 
     tupleFn =
       do  commas <- many1 comma
           let args = map (('v':) . show) [ 0 .. length commas ]
-          return $ mkFunc args (\var -> E.tuple (map var args))
+          return $ mkFunc args (\var -> Src.tuple (map var args))
 
     parenedExpr =
       do  expressions <- padded (commaSep expr)
@@ -111,17 +104,17 @@ parensTerm =
                 [expression] ->
                     expression
                 _ ->
-                    A.at start end (E.tuple expressions)
+                    A.at start end (Src.tuple expressions)
   in
     do  (start, mkExpr, end) <-
           located $ choice $
-            [ mkBinop <$> try (parens Binop.infixOp)
+            [ mkBinop <$> try (parens (addLocation Binop.infixOp))
             , parens (tupleFn <|> parenedExpr)
             ]
         return (mkExpr start end)
 
 
-recordTerm :: IParser Source.Expr
+recordTerm :: IParser Src.RawExpr
 recordTerm =
   addLocation $ brackets $ choice $
     [ do  starter <- try (addLocation rLabel)
@@ -130,14 +123,14 @@ recordTerm =
             [ update starter
             , literal starter
             ]
-    , return (E.Record [])
+    , return (Src.Record [])
     ]
   where
     update (A.A ann starter) =
       do  try (string "|")
           whitespace
           fields <- commaSep1 field
-          return (E.Update (A.A ann (E.rawVar starter)) fields)
+          return (Src.Update (A.A ann (Src.var starter)) fields)
 
     literal (A.A _ starter) =
       do  try equals
@@ -148,8 +141,8 @@ recordTerm =
             [ do  try comma
                   whitespace
                   fields <- commaSep field
-                  return (E.Record ((starter, value) : fields))
-            , return (E.Record [(starter, value)])
+                  return (Src.Record ((starter, value) : fields))
+            , return (Src.Record [(starter, value)])
             ]
 
     field =
@@ -159,11 +152,11 @@ recordTerm =
           return (key, value)
 
 
-term :: IParser Source.Expr
+term :: IParser Src.RawExpr
 term =
   choice
     [ addLocation $ choice $
-        [ E.Literal <$> Literal.literal
+        [ Src.Literal <$> Literal.literal
         , listTerm
         , accessor
         , negative
@@ -181,7 +174,7 @@ term =
 --------  Applications  --------
 
 
-appExpr :: IParser Source.Expr
+appExpr :: IParser Src.RawExpr
 appExpr =
   expecting "an expression" $
   do  t <- term
@@ -190,14 +183,14 @@ appExpr =
       return $
           case ts of
             [] -> t
-            _  -> List.foldl' (\f x -> A.merge f x $ E.App f x) t ts
+            _  -> List.foldl' (\f x -> A.merge f x $ Src.App f x) t ts
 
 
 
 --------  Normal Expressions  --------
 
 
-expr :: IParser Source.Expr
+expr :: IParser Src.RawExpr
 expr =
   addLocation (choice [ letExpr, caseExpr, ifExpr ])
     <|> lambdaExpr
@@ -205,7 +198,7 @@ expr =
     <?> "an expression"
 
 
-binaryExpr :: IParser Source.Expr
+binaryExpr :: IParser Src.RawExpr
 binaryExpr =
     Binop.binops appExpr lastExpr
   where
@@ -215,12 +208,12 @@ binaryExpr =
         <?> "an expression"
 
 
-ifExpr :: IParser Source.Expr'
+ifExpr :: IParser Src.RawExpr'
 ifExpr =
   ifHelp []
 
 
-ifHelp :: [(Source.Expr, Source.Expr)] -> IParser Source.Expr'
+ifHelp :: [(Src.RawExpr, Src.RawExpr)] -> IParser Src.RawExpr'
 ifHelp branches =
   do  try (reserved "if")
       whitespace
@@ -233,11 +226,11 @@ ifHelp branches =
       let newBranches = (condition, thenBranch) : branches
       choice
         [ ifHelp newBranches
-        , E.If (reverse newBranches) <$> expr
+        , Src.If (reverse newBranches) <$> expr
         ]
 
 
-lambdaExpr :: IParser Source.Expr
+lambdaExpr :: IParser Src.RawExpr
 lambdaExpr =
   do  start <- getMyPosition
       char '\\' <|> char '\x03BB' <?> "an anonymous function"
@@ -246,22 +239,22 @@ lambdaExpr =
       padded rightArrow
       body <- expr
       end <- getMyPosition
-      return (foldr (\a b -> A.at start end $ E.Lambda a b) body args)
+      return (foldr (\a b -> A.at start end $ Src.Lambda a b) body args)
 
 
-caseExpr :: IParser Source.Expr'
+caseExpr :: IParser Src.RawExpr'
 caseExpr =
   do  try (reserved "case")
       exp <- padded expr
       reserved "of"
       whitespace
-      Indent.withPos $
+      Help.withPos $
         do  firstBranch <- branch
             branches <-
                 many $ do
-                  try (whitespace >> Indent.checkIndent)
+                  try (whitespace >> Help.checkIndent)
                   branch
-            return $ E.Case exp (firstBranch : branches)
+            return $ Src.Case exp (firstBranch : branches)
   where
     branch =
       do  p <- Pattern.expr
@@ -273,20 +266,20 @@ caseExpr =
 -- LET
 
 
-letExpr :: IParser Source.Expr'
+letExpr :: IParser Src.RawExpr'
 letExpr =
   do  try (reserved "let")
       whitespace
-      defs <- Indent.block (def <* whitespace)
+      defs <- Help.block (def <* whitespace)
       whitespace
       reserved "in"
       whitespace
-      E.Let defs <$> expr
+      Src.Let defs <$> expr
 
 
-def :: IParser Source.Def
+def :: IParser Src.RawDef
 def =
-  addLocation $ Indent.withPos $
+  addLocation $ Help.withPos $
     do  start <- defStart
         whitespace
         case start of
@@ -295,7 +288,7 @@ def =
               [ do  hasType
                     whitespace
                     tipe <- Type.expr
-                    return $ Source.Annotation name tipe
+                    return $ Src.Annotation name tipe
               , defEnd start []
               ]
 
@@ -311,7 +304,7 @@ defStart =
     ]
 
 
-defEnd :: P.Raw -> [P.Raw] -> IParser Source.Def'
+defEnd :: P.Raw -> [P.Raw] -> IParser Src.RawDef'
 defEnd start revArgs =
   choice
     [ do  arg <- Pattern.term
@@ -320,10 +313,10 @@ defEnd start revArgs =
     , do  equals
           whitespace
           body <- expr
-          return $ Source.Definition start (makeFunction revArgs body)
+          return $ Src.Definition start (makeFunction revArgs body)
     ]
 
 
-makeFunction :: [P.Raw] -> Source.Expr -> Source.Expr
+makeFunction :: [P.Raw] -> Src.RawExpr -> Src.RawExpr
 makeFunction revArgs body@(A.A ann _) =
-  List.foldl' (\expr arg -> A.A ann $ E.Lambda arg expr) body revArgs
+  List.foldl' (\expr arg -> A.A ann $ Src.Lambda arg expr) body revArgs

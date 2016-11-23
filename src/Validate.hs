@@ -6,12 +6,9 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import qualified Data.Foldable as F
-import qualified Data.Traversable as T
 
-import AST.Expression.General as Expr
 import qualified AST.Effects as Effects
-import qualified AST.Expression.Source as Source
-import qualified AST.Expression.Valid as Valid
+import qualified AST.Expression.Source as Src
 import qualified AST.Declaration as D
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
@@ -77,7 +74,7 @@ validateEffects
   :: Module.SourceTag
   -> Module.SourceSettings
   -> [A.Commented Effects.PortRaw]
-  -> [A.Commented Valid.Def]
+  -> [A.Commented Src.ValidDef]
   -> Result wrn Effects.Raw
 validateEffects tag settings@(A.A _ pairs) ports validDefs =
   case tag of
@@ -191,7 +188,7 @@ extractOne name settingsDict =
 checkManager
   :: R.Region
   -> Effects.ManagerType
-  -> [A.Commented Valid.Def]
+  -> [A.Commented Src.ValidDef]
   -> Result wrn (R.Region, R.Region, R.Region)
 checkManager tagRegion managerType validDefs =
   let
@@ -205,10 +202,10 @@ checkManager tagRegion managerType validDefs =
     <*> requireRegion tagRegion regionDict "onSelfMsg"
 
 
-getSimpleDefRegion :: A.Commented Valid.Def -> Maybe (String, R.Region)
+getSimpleDefRegion :: A.Commented Src.ValidDef -> Maybe (String, R.Region)
 getSimpleDefRegion decl =
   case decl of
-    A.A _ (Valid.Def region (A.A _ (Pattern.Var name)) _ _) ->
+    A.A _ (Src.Def region (A.A _ (Pattern.Var name)) _ _) ->
       Just (name, region)
 
     _ ->
@@ -341,7 +338,7 @@ vrdHelp commentedDecls ports structure =
 
 vrdDefHelp
   :: [A.Commented D.Raw]
-  -> A.Commented Source.Def'
+  -> A.Commented Src.RawDef'
   -> [A.Commented Effects.PortRaw]
   -> D.Valid
   -> Result wrn ValidStuff
@@ -351,14 +348,14 @@ vrdDefHelp remainingDecls (A.A ann def) ports structure =
       ValidStuff finalPorts (D.addDef (A.A ann validDef) struct)
   in
     case def of
-      Source.Definition pat expr ->
+      Src.Definition pat expr ->
         addDef
           <$> validateDef (fst ann) pat expr Nothing
           <*> vrdHelp remainingDecls ports structure
 
-      Source.Annotation name tipe ->
+      Src.Annotation name tipe ->
         case remainingDecls of
-          A.A _ (D.Def (A.A defRegion (Source.Definition pat expr))) : rest
+          A.A _ (D.Def (A.A defRegion (Src.Definition pat expr))) : rest
            | Pattern.isVar name pat ->
               addDef
                 <$> validateDef (R.merge (fst ann) defRegion) pat expr (Just tipe)
@@ -373,32 +370,32 @@ vrdDefHelp remainingDecls (A.A ann def) ports structure =
 -- VALIDATE DEFINITIONS
 
 
-definitions :: [Source.Def] -> Result wrn [Valid.Def]
+definitions :: [Src.RawDef] -> Result wrn [Src.ValidDef]
 definitions sourceDefs =
   do  validDefs <- definitionsHelp sourceDefs
 
       validDefs
-        |> map Valid.getPattern
+        |> map Src.getPattern
         |> concatMap Pattern.boundVars
         |> detectDuplicates Error.DuplicateDefinition
 
       return validDefs
 
 
-definitionsHelp :: [Source.Def] -> Result wrn [Valid.Def]
+definitionsHelp :: [Src.RawDef] -> Result wrn [Src.ValidDef]
 definitionsHelp sourceDefs =
   case sourceDefs of
     [] ->
       return []
 
-    A.A defRegion (Source.Definition pat expr) : rest ->
+    A.A defRegion (Src.Definition pat expr) : rest ->
       (:)
         <$> validateDef defRegion pat expr Nothing
         <*> definitionsHelp rest
 
-    A.A annRegion (Source.Annotation name tipe) : rest ->
+    A.A annRegion (Src.Annotation name tipe) : rest ->
       case rest of
-        A.A defRegion (Source.Definition pat expr) : rest'
+        A.A defRegion (Src.Definition pat expr) : rest'
           | Pattern.isVar name pat ->
               (:)
                 <$> validateDef (R.merge annRegion defRegion) pat expr (Just tipe)
@@ -411,18 +408,18 @@ definitionsHelp sourceDefs =
 validateDef
   :: R.Region
   -> Pattern.Raw
-  -> Source.Expr
+  -> Src.RawExpr
   -> Maybe Type.Raw
-  -> Result wrn Valid.Def
+  -> Result wrn Src.ValidDef
 validateDef region pat expr maybeType =
   do  validExpr <- expression expr
       validateDefPattern pat validExpr
-      return $ Valid.Def region pat validExpr maybeType
+      return $ Src.Def region pat validExpr maybeType
 
 
-validateDefPattern :: Pattern.Raw -> Valid.Expr -> Result wrn ()
+validateDefPattern :: Pattern.Raw -> Src.ValidExpr -> Result wrn ()
 validateDefPattern pattern body =
-  case fst (Expr.collectLambdas body) of
+  case fst (Src.collectLambdas body) of
     [] ->
         return ()
 
@@ -459,59 +456,59 @@ checkArguments funcName args =
 -- VALIDATE EXPRESSIONS
 
 
-expression :: Source.Expr -> Result wrn Valid.Expr
+expression :: Src.RawExpr -> Result wrn Src.ValidExpr
 expression (A.A ann sourceExpression) =
   A.A ann <$>
   case sourceExpression of
-    Var x ->
-        return (Var x)
+    Src.Var x ->
+        return (Src.Var x)
 
-    Lambda pattern body ->
-        Lambda
-            <$> validatePattern pattern
-            <*> expression body
+    Src.Lambda pattern body ->
+        Src.Lambda
+          <$> validatePattern pattern
+          <*> expression body
 
-    Binop op leftExpr rightExpr ->
-        Binop op
-          <$> expression leftExpr
-          <*> expression rightExpr
+    Src.Binop ops lastExpr ->
+        Src.Binop
+          <$> traverse (\(expr,op) -> (,) <$> expression expr <*> pure op) ops
+          <*> expression lastExpr
 
-    Case e branches ->
-        Case
+    Src.Case e branches ->
+        Src.Case
           <$> expression e
-          <*> T.traverse (\(p,b) -> (,) <$> validatePattern p <*> expression b) branches
+          <*> traverse (\(p,b) -> (,) <$> validatePattern p <*> expression b) branches
 
-    Data name args ->
-        Data name <$> T.traverse expression args
+    Src.Ctor name args ->
+        Src.Ctor name <$> traverse expression args
 
-    Literal lit ->
-        return (Literal lit)
+    Src.Literal lit ->
+        return (Src.Literal lit)
 
-    ExplicitList expressions ->
-        ExplicitList
-          <$> T.traverse expression expressions
+    Src.List expressions ->
+        Src.List
+          <$> traverse expression expressions
 
-    App funcExpr argExpr ->
-        App
+    Src.App funcExpr argExpr ->
+        Src.App
           <$> expression funcExpr
           <*> expression argExpr
 
-    If branches finally ->
-        If
-          <$> T.traverse both branches
+    Src.If branches finally ->
+        Src.If
+          <$> traverse both branches
           <*> expression finally
 
-    Access record field ->
-        Access
+    Src.Access record field ->
+        Src.Access
           <$> expression record
           <*> return field
 
-    Update record fields ->
-        Update
+    Src.Update record fields ->
+        Src.Update
           <$> expression record
-          <*> T.traverse second fields
+          <*> traverse second fields
 
-    Record fields ->
+    Src.Record fields ->
         let
           checkDups seenFields (field,_) =
               if Set.member field seenFields then
@@ -521,41 +518,23 @@ expression (A.A ann sourceExpression) =
                   return (Set.insert field seenFields)
         in
           do  foldM_ checkDups Set.empty fields
-              Record <$> T.traverse second fields
+              Src.Record <$> traverse second fields
 
-    Let defs body ->
-        Let
+    Src.Let defs body ->
+        Src.Let
           <$> definitions defs
           <*> expression body
 
-    Cmd moduleName ->
-        return (Cmd moduleName)
-
-    Sub moduleName ->
-        return (Sub moduleName)
-
-    OutgoingPort name tipe ->
-        return (OutgoingPort name tipe)
-
-    IncomingPort name tipe ->
-        return (IncomingPort name tipe)
-
-    Program _ _ ->
-        error "DANGER - Program AST nodes should not be in validation phase."
-
-    SaveEnv moduleName effects ->
-        return (SaveEnv moduleName effects)
-
-    GLShader uid src gltipe ->
-        return (GLShader uid src gltipe)
+    Src.GLShader uid src gltipe ->
+        return (Src.GLShader uid src gltipe)
 
 
-second :: (a, Source.Expr) -> Result wrn (a, Valid.Expr)
+second :: (a, Src.RawExpr) -> Result wrn (a, Src.ValidExpr)
 second (value, expr) =
     (,) value <$> expression expr
 
 
-both :: (Source.Expr, Source.Expr) -> Result wrn (Valid.Expr, Valid.Expr)
+both :: (Src.RawExpr, Src.RawExpr) -> Result wrn (Src.ValidExpr, Src.ValidExpr)
 both (expr1, expr2) =
     (,) <$> expression expr1 <*> expression expr2
 
@@ -580,7 +559,7 @@ checkDuplicates (ValidStuff ports (D.Decls defs unions aliases _)) =
     -- SIMPLE NAMES
 
     defValues =
-      concatMap (Pattern.boundVars . Valid.getPattern . A.drop) defs
+      concatMap (Pattern.boundVars . Src.getPattern . A.drop) defs
 
     portValues =
       map fromPort ports

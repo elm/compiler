@@ -3,9 +3,8 @@ module AST.Declaration where
 
 import Data.Binary
 
-import qualified AST.Expression.Source as Source
-import qualified AST.Expression.Valid as Valid
 import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Expression.Source as Src
 import qualified AST.Type as Type
 import qualified Reporting.Annotation as A
 
@@ -24,7 +23,7 @@ data CommentOr a
 
 
 data Raw
-  = Def Source.Def
+  = Def Src.RawDef
   | Union (Union Type.Raw)
   | Alias (Alias Type.Raw)
   | Fixity Infix
@@ -45,7 +44,7 @@ data Decls def tipe =
 
 
 type Valid =
-  Decls Valid.Def Type.Raw
+  Decls Src.ValidDef Type.Raw
 
 
 type Canonical =

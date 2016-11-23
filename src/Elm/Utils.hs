@@ -99,8 +99,8 @@ missingExe command =
 -- DECL CHECKER
 
 isDeclaration :: String -> Maybe String
-isDeclaration string =
-  case Parse.iParse Parse.def string of
+isDeclaration str =
+  case Parse.parse Parse.def str of
     Right (A.A _ (Source.Definition pattern _)) ->
         Just (List.intercalate "$" (Pattern.boundVarList pattern))
 

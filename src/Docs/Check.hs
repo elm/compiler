@@ -13,7 +13,7 @@ import qualified Elm.Compiler.Type as Type
 import Elm.Utils ((|>))
 import Parse.Binop (infixOp)
 import Parse.Helpers
-    ( addLocation, anyUntil, commaSep1, iParse, parens, simpleNewline
+    ( addLocation, anyUntil, commaSep1, parens, parse, simpleNewline
     , var, whitespace
     )
 import qualified Reporting.Annotation as A
@@ -166,7 +166,7 @@ commentedNames (R.Region start _) comment =
       do  setPosition (newPos "docs" (R.line start) (R.column start + 3))
           concat <$> many nameParser
   in
-    case iParse docCommentParser comment of
+    case parse docCommentParser comment of
       Left _ ->
           []
 

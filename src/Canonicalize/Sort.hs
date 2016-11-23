@@ -7,8 +7,7 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 
-import AST.Expression.General (Expr'(..))
-import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Expression.Canonical as C
 import qualified AST.Pattern as P
 import qualified AST.Variable as V
 import qualified Reporting.Annotation as A
@@ -20,7 +19,7 @@ import qualified Reporting.Result as R
 -- SORT DEFINITIONS
 
 
-definitions :: (Monoid i) => Canonical.Expr -> R.Result i w E.Error Canonical.Expr
+definitions :: (Monoid i) => C.Expr -> R.Result i w E.Error C.Expr
 definitions expression =
   let
     (R.Result _ warnings answer) =
@@ -89,79 +88,79 @@ delay (R.Result (LocalVars immediate delayed tags) warnings result) =
 -- REORDER EXPRESSIONS
 
 
-reorder :: Canonical.Expr -> R.Result LocalVars w E.Error Canonical.Expr
+reorder :: C.Expr -> R.Result LocalVars w E.Error C.Expr
 reorder (A.A region expression) =
   A.A region <$>
   case expression of
-    Var var ->
+    C.Var var ->
       addImmediate var expression
 
-    Lambda pattern body ->
+    C.Lambda pattern body ->
       delay $
-        bindingReorder Lambda (pattern, body)
+        bindingReorder C.Lambda (pattern, body)
 
-    Binop op leftExpr rightExpr ->
-      do  binop <- Binop op <$> reorder leftExpr <*> reorder rightExpr
+    C.Binop op leftExpr rightExpr ->
+      do  binop <- C.Binop op <$> reorder leftExpr <*> reorder rightExpr
           addImmediate op binop
 
-    Case expr cases ->
-      Case <$> reorder expr <*> traverse (bindingReorder (,)) cases
+    C.Case expr cases ->
+      C.Case <$> reorder expr <*> traverse (bindingReorder (,)) cases
 
-    Data name exprs ->
-      addTag name =<< (Data name <$> traverse reorder exprs)
+    C.Ctor name exprs ->
+      addTag name =<< (C.Ctor name <$> traverse reorder exprs)
 
     -- Just pipe the reorder though
-    Literal _ ->
+    C.Literal _ ->
       return expression
 
-    ExplicitList es ->
-      ExplicitList <$> traverse reorder es
+    C.List es ->
+      C.List <$> traverse reorder es
 
-    App func arg ->
-      App <$> reorder func <*> reorder arg
+    C.App func arg ->
+      C.App <$> reorder func <*> reorder arg
 
-    If branches finally ->
-      If
+    C.If branches finally ->
+      C.If
         <$> traverse (\(cond,branch) -> (,) <$> reorder cond <*> reorder branch) branches
         <*> reorder finally
 
-    Access record field ->
-      Access
+    C.Access record field ->
+      C.Access
         <$> reorder record
         <*> return field
 
-    Update record fields ->
-      Update
+    C.Update record fields ->
+      C.Update
         <$> reorder record
         <*> traverse (traverse reorder) fields
 
-    Record fields ->
-      Record
+    C.Record fields ->
+      C.Record
         <$> traverse (traverse reorder) fields
 
-    Cmd _ ->
+    C.Cmd _ ->
       return expression
 
-    Sub _ ->
+    C.Sub _ ->
       return expression
 
-    OutgoingPort _ _ ->
+    C.OutgoingPort _ _ ->
       return expression
 
-    IncomingPort _ _ ->
+    C.IncomingPort _ _ ->
       return expression
 
-    Program _ _ ->
+    C.Program _ _ ->
       error "DANGER - Program AST nodes should not be in def sorting."
 
-    SaveEnv _ _ ->
+    C.SaveEnv _ _ ->
       return expression
 
-    GLShader _ _ _ ->
+    C.GLShader _ _ _ ->
       return expression
 
     -- Actually do some reordering
-    Let defs body ->
+    C.Let defs body ->
       case reorderDefs defs of
         R.Result () warnings (R.Err errors) ->
           R.Result mempty warnings (R.Err errors)
@@ -171,7 +170,7 @@ reorder (A.A region expression) =
             do  _ <- R.Result mempty warnings (R.Ok ())
                 newBody <- reorder body
                 R.accumulate defLocals $ A.drop $
-                  foldr (\defGroup expr -> A.A region (Let defGroup expr)) newBody defGroups
+                  foldr (\defGroup expr -> A.A region (C.Let defGroup expr)) newBody defGroups
 
 
 
@@ -179,8 +178,8 @@ reorder (A.A region expression) =
 
 
 bindingReorder
-    :: (P.Canonical -> Canonical.Expr -> a)
-    -> (P.Canonical, Canonical.Expr)
+    :: (P.Canonical -> C.Expr -> a)
+    -> (P.Canonical, C.Expr)
     -> R.Result LocalVars w E.Error a
 bindingReorder func (pattern, expr) =
   do  answer <- func pattern <$> capture pattern (reorder expr)
@@ -238,8 +237,8 @@ getPatternTags (A.A _ pattern) =
 
 
 reorderDefs
-  :: [Canonical.Def]
-  -> R.Result () w E.Error (Set.Set String, [[Canonical.Def]], LocalVars)
+  :: [C.Def]
+  -> R.Result () w E.Error (Set.Set String, [[C.Def]], LocalVars)
 reorderDefs defs =
   do  rawNodes <- sequenceA $ zipWith toRawNode [0..] defs
       let boundVarDict = toBoundVarDict rawNodes
@@ -247,25 +246,25 @@ reorderDefs defs =
       return $ groupDefs boundVarDict rawNodes
 
 
-toRawNode :: Int -> Canonical.Def -> R.Result () w E.Error (Canonical.Def, Int, LocalVars)
-toRawNode index (Canonical.Def region pattern body maybeType) =
+toRawNode :: Int -> C.Def -> R.Result () w E.Error (C.Def, Int, LocalVars)
+toRawNode index (C.Def region pattern body maybeType) =
   let
     (R.Result localVars warnings answer) =
       addPatternTags pattern =<< reorder body
 
     toRawNodeHelp newBody =
-      ( Canonical.Def region pattern newBody maybeType, index, localVars )
+      ( C.Def region pattern newBody maybeType, index, localVars )
   in
     toRawNodeHelp <$> R.Result () warnings answer
 
 
-toBoundVarDict :: [(Canonical.Def, Int, a)] -> Map.Map String Int
+toBoundVarDict :: [(C.Def, Int, a)] -> Map.Map String Int
 toBoundVarDict defAndDeps =
   Map.fromList (concatMap toBoundVarDictHelp defAndDeps)
 
 
-toBoundVarDictHelp :: (Canonical.Def, Int, a) -> [(String, Int)]
-toBoundVarDictHelp (Canonical.Def _ pattern _ _, key, _) =
+toBoundVarDictHelp :: (C.Def, Int, a) -> [(String, Int)]
+toBoundVarDictHelp (C.Def _ pattern _ _, key, _) =
   map (\(A.A _ name) -> (name, key)) (P.boundVars pattern)
 
 
@@ -276,8 +275,8 @@ toBoundVarDictHelp (Canonical.Def _ pattern _ _, key, _) =
 toNode
   :: (deps -> [String])
   -> Map.Map String Int
-  -> (Canonical.Def, Int, deps)
-  -> (Canonical.Def, Int, [Int])
+  -> (C.Def, Int, deps)
+  -> (C.Def, Int, [Int])
 toNode toVars boundVarDict (def, index, deps) =
   let
     localDeps =
@@ -302,7 +301,7 @@ allVars (LocalVars immediate delayed tags) =
 
 detectLoops
   :: Map.Map String Int
-  -> [(Canonical.Def, Int, LocalVars)]
+  -> [(C.Def, Int, LocalVars)]
   -> R.Result () w E.Error ()
 detectLoops boundVarDict rawNodes =
   F.traverse_ detectLoopsHelp $
@@ -310,7 +309,7 @@ detectLoops boundVarDict rawNodes =
       map (toNode immediateOnly boundVarDict) rawNodes
 
 
-detectLoopsHelp :: Graph.SCC Canonical.Def -> R.Result () w E.Error ()
+detectLoopsHelp :: Graph.SCC C.Def -> R.Result () w E.Error ()
 detectLoopsHelp scc =
   case scc of
     Graph.AcyclicSCC _ ->
@@ -321,7 +320,7 @@ detectLoopsHelp scc =
         [] ->
           R.ok ()
 
-        def@(Canonical.Def region (A.A nameRegion _) _ _) : rest ->
+        def@(C.Def region (A.A nameRegion _) _ _) : rest ->
           R.throw region $ E.BadRecursion nameRegion def rest
 
 
@@ -331,8 +330,8 @@ detectLoopsHelp scc =
 
 groupDefs
   :: Map.Map String Int
-  -> [(Canonical.Def, Int, LocalVars)]
-  -> ( Set.Set String, [[Canonical.Def]], LocalVars )
+  -> [(C.Def, Int, LocalVars)]
+  -> ( Set.Set String, [[C.Def]], LocalVars )
 groupDefs boundVarDict rawNodes =
   let
     allLocalVars =

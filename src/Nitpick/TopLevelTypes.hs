@@ -6,7 +6,6 @@ import Data.Map ((!))
 import qualified Data.Map as Map
 
 import qualified AST.Expression.Canonical as Can
-import qualified AST.Expression.General as Expr
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
@@ -88,21 +87,21 @@ checkMain typeEnv (Can.Def facts pattern@(A.A region _) body maybeType) =
       case Type.deepDealias mainType of
         Type.App name [_]
           | name == vdomNode ->
-              return Expr.VDom
+              return Can.VDom
 
         Type.App name [flags, _, _]
           | name == program && flags == never ->
-              return Expr.NoFlags
+              return Can.NoFlags
 
           | name == program ->
-              return (Expr.Flags flags)
+              return (Can.Flags flags)
                 <* Effects.checkPortType makeError flags
 
         _ ->
           Result.throw region (Error.BadMain mainType)
   in
     do  kind <- getMainKind
-        let newBody = A.A undefined (Expr.Program kind body)
+        let newBody = A.A undefined (Can.Program kind body)
         return (Can.Def facts pattern newBody maybeType)
 
 

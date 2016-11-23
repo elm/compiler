@@ -1,32 +1,76 @@
 {-# OPTIONS_GHC -Wall #-}
 module AST.Expression.Canonical
-  ( Expr, Expr'
+  ( Expr, Expr'(..)
+  , Main(..)
   , Def(..)
   , SortedDefs(..), toSortedDefs
+  , localVar
+  , collectApps, collectFields, collectLambdas
   )
   where
 
-import qualified AST.Expression.General as General
-import qualified AST.Pattern as Pattern
+
+import qualified Data.List as List
+
+import qualified AST.Effects as Effects
+import qualified AST.Literal as Literal
+import qualified AST.Module.Name as ModuleName
+import qualified AST.Pattern as Ptrn
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
 
-{-| Canonicalized expressions. All variables are fully resolved to the module
-they came from.
--}
+
+-- EXPRESSIONS
+
+
 type Expr =
-  General.Expr R.Region Def Var.Canonical Type.Canonical
+    A.Annotated R.Region Expr'
 
 
-type Expr' =
-  General.Expr' R.Region Def Var.Canonical Type.Canonical
+data Expr'
+    = Literal Literal.Literal
+    | Var Var.Canonical
+    | List [Expr]
+    | Binop Var.Canonical Expr Expr
+    | Lambda Ptrn.Canonical Expr
+    | App Expr Expr
+    | If [(Expr, Expr)] Expr
+    | Let [Def] Expr
+    | Case Expr [(Ptrn.Canonical, Expr)]
+    | Ctor String [Expr]
+    | Access Expr String
+    | Update Expr [(String, Expr)]
+    | Record [(String, Expr)]
+    -- for type checking and code gen only
+    | Cmd ModuleName.Canonical
+    | Sub ModuleName.Canonical
+    | OutgoingPort String Type.Canonical
+    | IncomingPort String Type.Canonical
+    | Program Main Expr
+    | SaveEnv ModuleName.Canonical Effects.Canonical
+    | GLShader String String Literal.GLShaderTipe
 
 
-data Def
-    = Def R.Region Pattern.Canonical Expr (Maybe (A.Located Type.Canonical))
+data Main
+  = VDom
+  | NoFlags
+  | Flags Type.Canonical
+
+
+
+-- DEFS
+
+
+data Def =
+  Def
+    { _region :: R.Region
+    , _pattern :: Ptrn.Canonical
+    , _body :: Expr
+    , _type :: Maybe (A.Located Type.Canonical)
+    }
 
 
 
@@ -41,7 +85,7 @@ data SortedDefs
 toSortedDefs :: Expr -> SortedDefs
 toSortedDefs (A.A _ expr) =
   case expr of
-    General.Let defs body ->
+    Let defs body ->
       foldr defCons (toSortedDefs body) defs
 
     _ ->
@@ -51,7 +95,7 @@ toSortedDefs (A.A _ expr) =
 defCons :: Def -> SortedDefs -> SortedDefs
 defCons def@(Def _ (A.A _ pattern) _ _) sortedDefs =
   case (pattern, sortedDefs) of
-    (Pattern.Var "main", NoMain defs) ->
+    (Ptrn.Var "main", NoMain defs) ->
       YesMain [] def defs
 
     (_, NoMain defs) ->
@@ -59,3 +103,57 @@ defCons def@(Def _ (A.A _ pattern) _ _) sortedDefs =
 
     (_, YesMain defs main rest) ->
       YesMain (def : defs) main rest
+
+
+
+-- HELPERS
+
+
+localVar :: String -> Expr'
+localVar x =
+  Var (Var.Canonical Var.Local x)
+
+
+-- COLLECTORS
+
+
+collectApps :: Expr -> [Expr]
+collectApps annExpr@(A.A _ expr) =
+  case expr of
+    App a b ->
+      collectApps a ++ [b]
+
+    _ ->
+      [annExpr]
+
+
+
+collectFields :: Expr -> Maybe String
+collectFields expr =
+  collectFieldsHelp expr []
+
+
+collectFieldsHelp :: Expr -> [String] -> Maybe String
+collectFieldsHelp (A.A _ expr) fields =
+  case expr of
+    Var var ->
+      Just (List.intercalate "." (Var.toString var : fields))
+
+    Access record field ->
+      collectFieldsHelp record (field : fields)
+
+    _ ->
+      Nothing
+
+
+collectLambdas :: Expr -> ([Ptrn.Canonical], Expr)
+collectLambdas lexpr@(A.A _ expr) =
+  case expr of
+    Lambda pattern body ->
+      let
+        (ps, body') = collectLambdas body
+      in
+        (pattern : ps, body')
+
+    _ ->
+      ([], lexpr)
