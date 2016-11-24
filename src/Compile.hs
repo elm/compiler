@@ -38,6 +38,7 @@ compile packageName canonicalImports interfaces source =
 
       -- Canonicalize all variables, pinning down where they came from.
       canonicalModule <-
+          {-# SCC elm_compiler_canonicalize #-}
           Canonicalize.module' canonicalImports interfaces validModule
 
       -- Run type inference on the program.
@@ -49,6 +50,7 @@ compile packageName canonicalImports interfaces source =
       -- One last round of checks
       canonicalDefs <-
           Result.format Error.Type $
+            {-# SCC elm_compiler_nitpick #-}
             Nitpick.topLevelTypes types $
               Can.toSortedDefs (Module.program (Module.info canonicalModule))
 
