@@ -67,7 +67,8 @@ toString needsParens pattern =
 
     Ctor tag args ->
         if Var.isTuple tag then
-            "(" ++ List.intercalate ", " (map (toString False) args) ++ ")"
+            if null args then "()" else
+              "( " ++ List.intercalate ", " (map (toString False) args) ++ " )"
 
         else
           addParensIf (needsParens && not (null args)) $

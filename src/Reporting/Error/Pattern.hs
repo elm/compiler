@@ -67,8 +67,11 @@ unhandledError unhandledPatterns relevantMessage =
     patternList =
         map (Pattern.toString False) visiblePatterns
         ++ if null rest then [] else ["..."]
+
+    noun =
+      if length unhandledPatterns == 1 then "pattern" else "patterns"
   in
-    "You need to account for the following values:\n"
+    "You need to account for the following " ++ noun ++ ":\n"
     ++ concatMap ("\n    " ++) patternList ++ "\n"
     ++ "\n"
     ++ relevantMessage ++ "\n"
