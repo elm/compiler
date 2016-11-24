@@ -70,18 +70,12 @@ term =
 app :: IParser Type.Raw
 app =
   do  start <- getMyPosition
-      f <- constructor0 <|> try tupleCtor <?> "a type constructor"
+      f <- constructor0 <?> "a type constructor"
       args <- spacePrefix term
       end <- getMyPosition
       case args of
         [] -> return f
         _  -> return (A.A (R.Region start end) (Type.RApp f args))
-  where
-    tupleCtor =
-      addLocation $
-      do  n <- length <$> parens (many (char ','))
-          let ctor = "_Tuple" ++ show (if n == 0 then 0 else n+1)
-          return (Type.RType (Var.Raw ctor))
 
 
 expr :: IParser Type.Raw
