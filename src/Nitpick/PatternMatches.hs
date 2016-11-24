@@ -140,9 +140,81 @@ checkExpression arityDict (A.A region expression) =
 checkPatterns :: ArityDict -> Region.Region -> Error.Origin -> [Pattern.Canonical] -> Result wrn ()
 checkPatterns arityDict region origin patterns =
   do  matrix <- checkRedundant arityDict region [] patterns
-      if isUseful arityDict matrix [Anything]
-        then Result.throw region (Error.Incomplete origin (error "TODO"))
-        else Result.ok ()
+      case isExhaustive arityDict matrix 1 of
+        [] ->
+          Result.ok ()
+
+        badPatterns ->
+          Result.throw region (Error.Incomplete origin (map head badPatterns))
+
+
+
+-- EXHAUSTIVE PATTERNS
+
+
+isExhaustive :: ArityDict -> [[Pattern]] -> Int -> [[Pattern]]
+isExhaustive arityDict matrix n =
+  case (matrix, n) of
+    ([], _) ->
+      [replicate n Anything]
+
+    (_, 0) ->
+      []
+
+    (_, _) ->
+      let
+        ctorSet =
+          List.foldl' isCompleteHelp Set.empty matrix
+
+        actual =
+          Set.size ctorSet
+      in
+        if actual == 0 then
+          (:) Anything
+            <$> isExhaustive arityDict (Maybe.mapMaybe toDefault matrix) (n - 1)
+
+        else
+          let
+            (ArityInfo expected info) =
+              getArityInfo (Set.findMin ctorSet) arityDict
+          in
+            if actual < expected then
+              (:)
+                <$> Maybe.mapMaybe (isMissing ctorSet) info
+                <*> isExhaustive arityDict (Maybe.mapMaybe toDefault matrix) (n - 1)
+
+            else
+              let
+                isExhaustiveHelp (name, arity) =
+                  recoverCtor name arity <$>
+                  isExhaustive
+                    arityDict
+                    (Maybe.mapMaybe (specialize name arity) matrix)
+                    (arity + n - 1)
+              in
+                concatMap isExhaustiveHelp info
+
+
+isMissing :: Set.Set Var.Canonical -> (Var.Canonical, Int) -> Maybe Pattern
+isMissing ctorSet (name, arity) =
+  if Set.member name ctorSet then
+    Nothing
+
+  else
+    Just (Ctor name (replicate arity Anything))
+
+
+recoverCtor :: Var.Canonical -> Int -> [Pattern] -> [Pattern]
+recoverCtor name arity patterns =
+  let
+    (args, rest) =
+      splitAt arity patterns
+  in
+    Ctor name args : rest
+
+
+
+-- REDUNDANT PATTERNS
 
 
 checkRedundant
@@ -165,21 +237,6 @@ checkRedundant arityDict region checked unchecked =
           checkRedundant arityDict region (next : checked) rest
         else
           Result.throw region (Error.Redundant patRegion (length checked + 1))
-
-
-
--- MISSING PATTERNS
-
-
---missingPatterns :: [[Pattern]] -> Int -> [Pattern]
---missingPatterns matrix n =
---  case matrix of
---    [] ->
-
-
-
-
--- DETECT USEFUL PATTERNS
 
 
 isUseful :: ArityDict -> [[Pattern]] -> [Pattern] -> Bool
