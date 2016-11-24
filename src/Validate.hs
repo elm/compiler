@@ -333,7 +333,8 @@ vrdHelp commentedDecls ports structure =
           vrdDefHelp rest (A.A (region, snd ann) def) ports structure
 
         D.Port name tipe ->
-          vrdHelp rest (A.A ann (Effects.PortRaw name tipe) : ports) structure
+          do  checkDuplicateFieldsInType tipe
+              vrdHelp rest (A.A ann (Effects.PortRaw name tipe) : ports) structure
 
 
 vrdDefHelp
@@ -414,6 +415,7 @@ validateDef
 validateDef region pat expr maybeType =
   do  validExpr <- expression expr
       validateDefPattern pat validExpr
+      F.traverse_ checkDuplicateFieldsInType maybeType
       return $ Src.Def region pat validExpr maybeType
 
 
@@ -685,3 +687,25 @@ freeVars (A.A region tipe) =
       do  checkDuplicateFields region fields
           let types = Maybe.maybeToList ext ++ map snd fields
           concat <$> traverse freeVars types
+
+
+checkDuplicateFieldsInType :: Type.Raw -> Result wrn ()
+checkDuplicateFieldsInType (A.A region tipe) =
+  case tipe of
+    Type.RLambda t1 t2 ->
+      checkDuplicateFieldsInType t1
+      <* checkDuplicateFieldsInType t2
+
+    Type.RVar _ ->
+      Result.ok ()
+
+    Type.RType _ ->
+      Result.ok ()
+
+    Type.RApp t ts ->
+      F.traverse_ checkDuplicateFieldsInType (t:ts)
+
+    Type.RRecord fields ext ->
+      do  checkDuplicateFields region fields
+          let types = Maybe.maybeToList ext ++ map snd fields
+          F.traverse_ checkDuplicateFieldsInType types
