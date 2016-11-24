@@ -40,7 +40,9 @@ toVar v =
 
 accessor :: IParser Src.RawExpr'
 accessor =
-  do  (start, lbl, end) <- located (try (string "." >> rLabel))
+  do  start <- getMyPosition
+      label <- try (char '.' >> rLabel)
+      end <- getMyPosition
 
       let ann value =
             A.at start end value
@@ -48,7 +50,7 @@ accessor =
       return $
         Src.Lambda
             (ann (P.Var "_"))
-            (ann (Src.Access (ann (Src.var "_")) lbl))
+            (ann (Src.Access (ann (Src.var "_")) label))
 
 
 negative :: IParser Src.RawExpr'
