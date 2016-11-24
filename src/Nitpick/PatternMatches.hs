@@ -32,6 +32,9 @@ import qualified Reporting.Result as Result
 
 
 
+-- NITPICK PATTERN MATCHES
+
+
 type Result warning a =
   Result.Result () warning Error.Error a
 
@@ -47,10 +50,6 @@ patternMatches interfaces (Module.Module name _ info) =
   in
     pure variantDict
       <* checkExpression arityDict (Module.program info)
-
-
-
--- CHECK EXPRESSIONS
 
 
 checkExpression :: ArityDict -> C.Expr -> Result wrn ()
@@ -140,15 +139,32 @@ checkExpression arityDict (A.A region expression) =
 
 checkPatterns :: ArityDict -> Region.Region -> Error.Origin -> [Pattern.Canonical] -> Result wrn ()
 checkPatterns arityDict region origin patterns =
-  let
-    matrix =
-      map (\p -> [fromCanonicalPattern p]) patterns
-  in
-    if isUseful arityDict matrix [Anything] then
-      Result.throw region (Error.Incomplete origin (error "TODO"))
+  do  matrix <- checkRedundant arityDict region [] patterns
+      if isUseful arityDict matrix [Anything]
+        then Result.throw region (Error.Incomplete origin (error "TODO"))
+        else Result.ok ()
 
-    else
-      return ()
+
+checkRedundant
+  :: ArityDict
+  -> Region.Region
+  -> [[Pattern]]
+  -> [Pattern.Canonical]
+  -> Result wrn [[Pattern]]
+checkRedundant arityDict region checked unchecked =
+  case unchecked of
+    [] ->
+      Result.ok checked
+
+    nextPattern@(A.A patRegion _) : rest ->
+      let
+        next =
+          [fromCanonicalPattern nextPattern]
+      in
+        if isUseful arityDict checked next then
+          checkRedundant arityDict region (next : checked) rest
+        else
+          Result.throw region (Error.Redundant patRegion (length checked + 1))
 
 
 
@@ -163,7 +179,7 @@ checkPatterns arityDict region origin patterns =
 
 
 
--- REDUNDANT PATTERNS
+-- DETECT USEFUL PATTERNS
 
 
 isUseful :: ArityDict -> [[Pattern]] -> [Pattern] -> Bool

@@ -6,13 +6,14 @@ import Text.PrettyPrint.ANSI.Leijen (text)
 import qualified Nitpick.Pattern as Pattern
 import qualified Reporting.Error.Helpers as Help
 import qualified Reporting.Render.Type as RenderType
+import qualified Reporting.Region as Region
 import qualified Reporting.Report as Report
 
 
 
 data Error
     = Incomplete Origin [Pattern.Pattern]
-    | Redundant
+    | Redundant Region.Region Int
 
 
 data Origin
@@ -49,11 +50,11 @@ toReport _localizer err =
           "This `case` does not have branches for all possibilities."
           (text (unhandledError unhandled (missingBranchesMessage (length unhandled))))
 
-    Redundant ->
+    Redundant region index ->
         Report.report
           "REDUNDANT PATTERN"
-          Nothing
-          "The following pattern is redundant. Remove it."
+          (Just region)
+          ("The " ++ Help.ordinalize index ++ " pattern is redundant. Remove it.")
           (text "Any value with this shape will be handled by a previous pattern.")
 
 
