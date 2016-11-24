@@ -123,13 +123,13 @@ commitIf check p =
       try (lookAhead check) >> p
 
 
-anyUntil :: IParser String -> IParser String
+anyUntil :: IParser () -> IParser ()
 anyUntil end =
-    go
-  where
+  let
     go =
-      end <|> (:) <$> anyChar <*> go
-
+      end <|> (anyChar >> go)
+  in
+    go
 
 
 followedBy :: IParser a -> IParser b -> IParser a
@@ -194,7 +194,7 @@ spacePrefix p =
   constrainedSpacePrefix p (\_ -> return ())
 
 
-constrainedSpacePrefix :: IParser a -> (String -> IParser ()) -> IParser [a]
+constrainedSpacePrefix :: IParser a -> (Bool -> IParser ()) -> IParser [a]
 constrainedSpacePrefix parser constraint =
     many $ choice
       [ try (spacing >> lookAhead (oneOf "[({\"'")) >> parser
@@ -202,8 +202,8 @@ constrainedSpacePrefix parser constraint =
       ]
     where
       spacing = do
-        n <- whitespace
-        constraint n <?> Syntax.whitespace
+        bool <- whitespace
+        constraint bool
         indented
 
 
@@ -212,26 +212,28 @@ constrainedSpacePrefix parser constraint =
 
 
 surround :: Char -> Char -> String -> IParser a -> IParser a
-surround a z name p = do
-  char a
-  v <- padded p
-  char z <?> unwords ["a closing", name, show z]
-  return v
+surround start end name parser =
+  do  char start
+      whitespace
+      value <- parser
+      whitespace
+      char end <?> unwords ["a closing", name, show end]
+      return value
 
 
 braces :: IParser a -> IParser a
-braces =
-  surround '[' ']' "brace"
+braces parser =
+  surround '[' ']' "brace" parser
 
 
 parens :: IParser a -> IParser a
-parens =
-  surround '(' ')' "paren"
+parens parser =
+  surround '(' ')' "paren" parser
 
 
 brackets :: IParser a -> IParser a
-brackets =
-  surround '{' '}' "bracket"
+brackets parser =
+  surround '{' '}' "bracket" parser
 
 
 
@@ -300,22 +302,37 @@ padded p =
       return out
 
 
-spaces :: IParser String
+plus :: IParser a -> IParser ()
+plus parser =
+  parser >> star parser
+
+
+star :: IParser a -> IParser ()
+star parser =
+  choice
+    [ parser >> star parser
+    , return ()
+    ]
+
+
+spaces :: IParser ()
 spaces =
-  let space = string " " <|> multiComment <?> Syntax.whitespace
-  in
-      concat <$> many1 space
+  plus $ expecting Syntax.whitespace $
+    choice
+      [ string " " >> return ()
+      , multiComment
+      ]
 
 
-forcedWS :: IParser String
+forcedWS :: IParser ()
 forcedWS =
   do  failIfTabFound
-      ws <- many1 (spaces <|> newline)
+      plus (spaces <|> newline)
       failIfTabFound
       column <- sourceColumn <$> getPosition
       if column == 1
         then fail badWhiteSpaceMessage
-        else return (concat ws)
+        else return ()
 
 
 badWhiteSpaceMessage :: String
@@ -335,25 +352,27 @@ failIfTabFound =
 
 
 -- Just eats whitespace until the next meaningful character.
-dumbWhitespace :: IParser String
+dumbWhitespace :: IParser ()
 dumbWhitespace =
-  concat <$> many (spaces <|> newline)
+  star (spaces <|> newline)
 
 
-whitespace :: IParser String
+whitespace :: IParser Bool
 whitespace =
-  option "" forcedWS
+  choice
+    [ forcedWS >> return True
+    , return False
+    ]
 
 
-freshLine :: IParser String
+freshLine :: IParser ()
 freshLine =
-    try (
-      do  ws <- many1 (spaces <|> newline)
-          column <- sourceColumn <$> getPosition
-          if column == 1
-            then return (concat ws)
-            else fail badFreshLineMessage
-    ) <?> Syntax.freshLine
+  expecting Syntax.freshLine $ try $
+    do  plus (spaces <|> newline)
+        column <- sourceColumn <$> getPosition
+        if column == 1
+          then return ()
+          else fail badFreshLineMessage
 
 
 badFreshLineMessage :: String
@@ -362,39 +381,59 @@ badFreshLineMessage =
   ++ "starts with stuff, not with spaces or comments."
 
 
-newline :: IParser String
+newline :: IParser ()
 newline =
   simpleNewline <|> lineComment <?> Syntax.newline
 
 
-simpleNewline :: IParser String
+simpleNewline :: IParser ()
 simpleNewline =
-  try (string "\r\n") <|> string "\n"
+  do  try (string "\r\n") <|> string "\n"
+      return ()
 
 
-lineComment :: IParser String
+lineComment :: IParser ()
 lineComment =
   do  try (string "--")
-      comment <- anyUntil $ simpleNewline <|> (eof >> return "\n")
-      return ("--" ++ comment)
+      anyUntil (simpleNewline <|> eof)
+
+
+multiComment :: IParser ()
+multiComment =
+  do  try (string "{-" >> notFollowedBy (string "|"))
+      closeComment
+
+
+closeComment :: IParser ()
+closeComment =
+  choice
+    [ expecting "the end of a comment -}" $
+      do  try (string "-}")
+          return ()
+    , do  try (string "{-")
+          closeComment
+          closeComment
+    , do  anyChar
+          closeComment
+    ]
 
 
 docComment :: IParser String
 docComment =
   do  try (string "{-|")
-      contents <- closeComment
-      return (init (init contents))
+      builder <- closeDocComment id
+      return (builder "")
 
 
-multiComment :: IParser String
-multiComment =
-  (++) <$> try (string "{-" <* notFollowedBy (string "|")) <*> closeComment
-
-
-closeComment :: IParser String
-closeComment =
-    anyUntil $
-      choice $
-        [ try (string "-}") <?> "the end of a comment -}"
-        , concat <$> sequence [ try (string "{-"), closeComment, closeComment ]
-        ]
+closeDocComment :: (String -> String) -> IParser (String -> String)
+closeDocComment builder =
+  choice
+    [ expecting "the end of a comment -}" $
+      do  try (string "-}")
+          return builder
+    , do  try (string "{-")
+          addComment <- closeDocComment (\end -> "{-" ++ end)
+          closeDocComment (\end -> builder (addComment ("-}" ++ end)))
+    , do  c <- anyChar
+          closeDocComment (\end -> builder (c:end))
+    ]
