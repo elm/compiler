@@ -45,7 +45,7 @@ record =
           return (Type.RRecord fields (Just (A.map Type.RVar ext)))
 
     field =
-      do  lbl <- rLabel
+      do  lbl <- addLocation rLabel
           whitespace >> hasType >> whitespace
           (,) lbl <$> expr
 

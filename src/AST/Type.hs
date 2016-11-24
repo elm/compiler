@@ -30,7 +30,7 @@ data Raw'
     | RVar String
     | RType Var.Raw
     | RApp Raw [Raw]
-    | RRecord [(String, Raw)] (Maybe Raw)
+    | RRecord [(A.Located String, Raw)] (Maybe Raw)
 
 
 data Canonical

@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Reporting.Error.Canonicalize where
 
-import Control.Arrow (second)
+import Control.Arrow ((***))
 import qualified Data.Char as Char
 import Text.PrettyPrint.ANSI.Leijen (Doc, dullyellow, fillSep, indent, text)
 
@@ -355,7 +355,7 @@ unsafePromote (A.A _ rawType) =
         Type.App (unsafePromote func) (map unsafePromote args)
 
     Type.RRecord fields ext ->
-        Type.Record (map (second unsafePromote) fields) (fmap unsafePromote ext)
+        Type.Record (map (A.drop *** unsafePromote) fields) (fmap unsafePromote ext)
 
 
 

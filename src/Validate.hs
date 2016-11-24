@@ -622,32 +622,34 @@ detectDuplicates tag names =
 
 checkTypeVarsInUnion :: A.Commented (D.Union Type.Raw) -> Result wrn ()
 checkTypeVarsInUnion (A.A (region,_) (D.Type name boundVars ctors)) =
-  case diff boundVars (concatMap freeVars (concatMap snd ctors)) of
-    (_, []) ->
-        return ()
+  do  allFreeVars <- concat <$> traverse freeVars (concatMap snd ctors)
+      case diff boundVars allFreeVars of
+        (_, []) ->
+            return ()
 
-    (_, unbound) ->
-        Result.throw region
-          (Error.UnboundTypeVarsInUnion name boundVars unbound)
+        (_, unbound) ->
+            Result.throw region
+              (Error.UnboundTypeVarsInUnion name boundVars unbound)
 
 
 checkTypeVarsInAlias :: A.Commented (D.Alias Type.Raw) -> Result wrn ()
 checkTypeVarsInAlias (A.A (region,_) (D.Type name boundVars tipe)) =
-  case diff boundVars (freeVars tipe) of
-    ([], []) ->
-        return ()
+  do  allFreeVars <- freeVars tipe
+      case diff boundVars allFreeVars of
+        ([], []) ->
+            return ()
 
-    ([], unbound) ->
-        Result.throw region
-          (Error.UnboundTypeVarsInAlias name boundVars unbound)
+        ([], unbound) ->
+            Result.throw region
+              (Error.UnboundTypeVarsInAlias name boundVars unbound)
 
-    (unused, []) ->
-        Result.throw region
-          (Error.UnusedTypeVarsInAlias name boundVars unused)
+        (unused, []) ->
+            Result.throw region
+              (Error.UnusedTypeVarsInAlias name boundVars unused)
 
-    (unused, unbound) ->
-        Result.throw region
-          (Error.MessyTypeVarsInAlias name boundVars unused unbound)
+        (unused, unbound) ->
+            Result.throw region
+              (Error.MessyTypeVarsInAlias name boundVars unused unbound)
 
 
 diff :: [String] -> [A.Located String] -> ([String], [String])
@@ -664,21 +666,22 @@ diff left right =
     )
 
 
-freeVars :: Type.Raw -> [A.Located String]
+freeVars :: Type.Raw -> Result wrn [A.Located String]
 freeVars (A.A region tipe) =
   case tipe of
     Type.RLambda t1 t2 ->
-      freeVars t1 ++ freeVars t2
+      (++) <$> freeVars t1 <*> freeVars t2
 
     Type.RVar x ->
-      [A.A region x]
+      Result.ok [A.A region x]
 
     Type.RType _ ->
-      []
+      Result.ok []
 
     Type.RApp t ts ->
-      concatMap freeVars (t:ts)
+      concat <$> traverse freeVars (t:ts)
 
     Type.RRecord fields ext ->
-      maybe [] freeVars ext
-      ++ concatMap (freeVars . snd) fields
+      do  checkDuplicateFields region fields
+          let types = Maybe.maybeToList ext ++ map snd fields
+          concat <$> traverse freeVars types

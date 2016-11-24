@@ -5,7 +5,7 @@ module Elm.Compiler.Type
   )
   where
 
-import Control.Arrow (second)
+import Control.Arrow ((***))
 import Data.Aeson ((.:), (.=))
 import qualified Data.Aeson as Json
 import qualified Data.Aeson.Types as Json
@@ -212,7 +212,7 @@ fromRawType (A.A _ astType) =
           App (fromRawType t) (map fromRawType ts)
 
       Type.RRecord fields ext ->
-          Record (map (second fromRawType) fields) (fmap fromRawType ext)
+          Record (map (A.drop *** fromRawType) fields) (fmap fromRawType ext)
 
 
 

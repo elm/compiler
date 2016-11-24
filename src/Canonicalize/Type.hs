@@ -21,7 +21,7 @@ tipe env annType@(A.A _ typ) =
     go =
       tipe env
 
-    goSnd (name,t) =
+    goField (A.A _ name, t) =
       (,) name <$> go t
   in
     case typ of
@@ -38,7 +38,7 @@ tipe env annType@(A.A _ typ) =
           T.Lambda <$> go a <*> go b
 
       T.RRecord fields ext ->
-          T.Record <$> Trav.traverse goSnd fields <*> Trav.traverse go ext
+          T.Record <$> Trav.traverse goField fields <*> Trav.traverse go ext
 
 
 canonicalizeApp :: Env.Env -> T.Raw -> [T.Raw] -> Result T.Canonical
