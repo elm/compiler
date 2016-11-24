@@ -370,13 +370,10 @@ canonicalizeExpr env (A.A region validExpr) =
           C.Access <$> go record <*> Result.ok field
 
       Src.Update record fields ->
-          C.Update
-            <$> go record
-            <*> traverse (\(field,expr) -> (,) field <$> go expr) fields
+          C.Update <$> go record <*> traverse (canonicalizeFields env) fields
 
       Src.Record fields ->
-          C.Record
-            <$> traverse (\(field,expr) -> (,) field <$> go expr) fields
+          C.Record <$> traverse (canonicalizeFields env) fields
 
       Src.Binop ops last ->
           canonicalizeBinop region env ops last
@@ -432,6 +429,14 @@ canonicalizeExpr env (A.A region validExpr) =
 
       Src.GLShader uid src tipe ->
           Result.ok (C.GLShader uid src tipe)
+
+
+canonicalizeFields
+  :: Env.Env
+  -> (A.Located String, Src.ValidExpr)
+  -> CResult (String, C.Expr)
+canonicalizeFields env (A.A _ key, expr) =
+  (\value -> (key, value)) <$> canonicalizeExpr env expr
 
 
 

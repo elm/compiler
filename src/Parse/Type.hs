@@ -2,7 +2,7 @@
 module Parse.Type where
 
 import Data.List (intercalate)
-import Text.Parsec ((<|>), (<?>), char, choice, many, optionMaybe, string, try)
+import Text.Parsec ((<|>), (<?>), char, choice, optionMaybe, string, try)
 
 import qualified AST.Type as Type
 import qualified AST.Variable as Var

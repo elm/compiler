@@ -504,21 +504,12 @@ expression (A.A ann sourceExpression) =
           <*> return field
 
     Src.Update record fields ->
-        Src.Update
-          <$> expression record
-          <*> traverse second fields
+        do  checkDuplicateFields ann fields
+            Src.Update <$> expression record <*> traverse second fields
 
     Src.Record fields ->
-        let
-          checkDups seenFields (field,_) =
-              if Set.member field seenFields then
-                  Result.throw ann (Error.DuplicateFieldName field)
-
-              else
-                  return (Set.insert field seenFields)
-        in
-          do  foldM_ checkDups Set.empty fields
-              Src.Record <$> traverse second fields
+        do  checkDuplicateFields ann fields
+            Src.Record <$> traverse second fields
 
     Src.Let defs body ->
         Src.Let
@@ -537,6 +528,18 @@ second (value, expr) =
 both :: (Src.RawExpr, Src.RawExpr) -> Result wrn (Src.ValidExpr, Src.ValidExpr)
 both (expr1, expr2) =
     (,) <$> expression expr1 <*> expression expr2
+
+
+checkDuplicateFields :: R.Region -> [(A.Located String, a)] -> Result wrn ()
+checkDuplicateFields recordRegion fields =
+  let
+    checkDups seenFields ( A.A region field, _ ) =
+      if Set.member field seenFields then
+        Result.throw recordRegion (Error.DuplicateFieldName region field)
+      else
+        Result.ok (Set.insert field seenFields)
+  in
+    foldM_ checkDups Set.empty fields
 
 
 

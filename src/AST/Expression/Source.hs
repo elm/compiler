@@ -36,8 +36,8 @@ data Expr' def
     | Case (Expr def) [(Ptrn.Raw, Expr def)]
     | Ctor String [Expr def]
     | Access (Expr def) String
-    | Update (Expr def) [(String, Expr def)]
-    | Record [(String, Expr def)]
+    | Update (Expr def) [(A.Located String, Expr def)]
+    | Record [(A.Located String, Expr def)]
     | GLShader String String Literal.GLShaderTipe
 
 

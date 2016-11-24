@@ -8,6 +8,7 @@ import Text.PrettyPrint.ANSI.Leijen (dullyellow, hsep, text)
 
 import qualified Reporting.Error.Helpers as Help
 import qualified Reporting.Render.Type as RenderType
+import qualified Reporting.Region as Region
 import qualified Reporting.Report as Report
 
 
@@ -29,7 +30,7 @@ data Error
     | TypeWithoutDefinition String
 
     | DuplicateArgument String String
-    | DuplicateFieldName String
+    | DuplicateFieldName Region.Region String
     | DuplicateValueDeclaration String
     | DuplicateTypeDeclaration String
     | DuplicateDefinition String
@@ -188,10 +189,10 @@ toReport _localizer err =
               \ say `" ++ argName ++ "` it in the body of your function?"
           )
 
-    DuplicateFieldName name ->
+    DuplicateFieldName region name ->
         Report.report
           "DUPLICATE FIELD"
-          Nothing
+          (Just region)
           ("This record has more than one field named `" ++ name ++ "`.")
           (text "There can only be one. Do some renaming to make sure the names are distinct!")
 

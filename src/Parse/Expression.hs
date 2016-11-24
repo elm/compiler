@@ -139,21 +139,21 @@ recordTerm =
           fields <- commaSep1 field
           return (Src.Update (A.A ann (Src.var starter)) fields)
 
-    literal (A.A _ starter) =
+    literal key =
       do  try equals
           whitespace
           value <- expr
           whitespace
           choice
-            [ do  try comma
+            [ do  comma
                   whitespace
                   fields <- commaSep field
-                  return (Src.Record ((starter, value) : fields))
-            , return (Src.Record [(starter, value)])
+                  return (Src.Record ((key, value) : fields))
+            , return (Src.Record [(key, value)])
             ]
 
     field =
-      do  key <- rLabel
+      do  key <- addLocation rLabel
           padded equals
           value <- expr
           return (key, value)
