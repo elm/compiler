@@ -1,7 +1,12 @@
-module Nitpick.Pattern where
+{-# OPTIONS_GHC -Wall #-}
+module Nitpick.Pattern
+  ( Pattern(..)
+  , fromCanonicalPattern
+  , toString
+  )
+  where
 
 import qualified Data.List as List
-import qualified Data.Set as Set
 
 import qualified AST.Literal as L
 import qualified AST.Pattern as P
@@ -9,56 +14,58 @@ import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 
 
+
+-- PATTERN
+
+
 data Pattern
-    = Data Var.Canonical [Pattern]
-    | Record [String]
-    | Alias String Pattern
-    | Var String
+    = Ctor Var.Canonical [Pattern]
     | Anything
     | Literal L.Literal
-    | AnythingBut (Set.Set L.Literal)
     deriving (Eq)
 
 
 fromCanonicalPattern :: P.Canonical -> Pattern
 fromCanonicalPattern (A.A _ pattern) =
   case pattern of
-    P.Data tag patterns ->
-        Data tag (map fromCanonicalPattern patterns)
+    P.Data name patterns ->
+        Ctor name (map fromCanonicalPattern patterns)
 
-    P.Record fields ->
-        Record fields
+    P.Record _ ->
+        Anything
 
-    P.Alias name pattern ->
-        Alias name (fromCanonicalPattern pattern)
+    P.Alias _ subPattern ->
+        fromCanonicalPattern subPattern
 
-    P.Var name ->
-        Var name
+    P.Var _ ->
+        Anything
 
     P.Anything ->
         Anything
 
     P.Literal (L.Boolean True) ->
-        Data (Var.builtin "True") []
+        Ctor (Var.builtin "True") []
 
     P.Literal (L.Boolean False) ->
-        Data (Var.builtin "False") []
+        Ctor (Var.builtin "False") []
 
     P.Literal literal ->
         Literal literal
 
 
+
 -- TO STRING
+
 
 toString :: Bool -> Pattern -> String
 toString needsParens pattern =
   case pattern of
-    Data tag [first,rest] | Var.toString tag == "::" ->
+    Ctor tag [first,rest] | Var.toString tag == "::" ->
         toString (isCons first) first
         ++ " :: "
         ++ toString False rest
 
-    Data tag args ->
+    Ctor tag args ->
         if Var.isTuple tag then
             "(" ++ List.intercalate ", " (map (toString False) args) ++ ")"
 
@@ -66,37 +73,11 @@ toString needsParens pattern =
           addParensIf (needsParens && not (null args)) $
             List.intercalate " " (Var.toString tag : map (toString True) args)
 
-    Record fields ->
-        "{ " ++ List.intercalate ", " fields ++ " }"
-
-    Alias alias realPattern ->
-        addParensIf needsParens $
-          toString False realPattern ++ " as " ++ alias
-
-    Var name ->
-        name
-
     Anything ->
         "_"
 
     Literal literal ->
         L.toString literal
-
-    AnythingBut literalSet ->
-        case map L.toString (Set.toList literalSet) of
-          [] ->
-              error "should not have an AnythingBut with no literals"
-
-          [x] ->
-              "<values besides " ++ x ++ ">"
-
-          [x,y] ->
-              "<values besides " ++ x ++ " and " ++ y ++ ">"
-
-          literals ->
-              "<values besides "
-              ++ List.intercalate ", " (init literals)
-              ++ ", and " ++ last literals ++ ">"
 
 
 addParensIf :: Bool -> String -> String
@@ -111,7 +92,7 @@ addParensIf needsParens str =
 isCons :: Pattern -> Bool
 isCons pattern =
   case pattern of
-    Data tag [_,_] ->
+    Ctor tag [_,_] ->
         Var.toString tag == "::"
 
     _ ->

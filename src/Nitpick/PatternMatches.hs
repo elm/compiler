@@ -1,13 +1,23 @@
+{-# OPTIONS_GHC -Wall #-}
 module Nitpick.PatternMatches (patternMatches) where
 
-import Control.Arrow (second)
+{- The algorithm used here comes from "Warnings for Pattern Matching"
+by Luc Maranget. Check it out for more information!
+
+http://moscova.inria.fr/~maranget/papers/warn/warn.pdf
+
+-}
+
+import Control.Arrow ((***), second)
 import qualified Data.Foldable as F
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 
 import qualified AST.Expression.Canonical as C
 import qualified AST.Helpers as Help
+import qualified AST.Literal as L
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as Pattern
@@ -29,100 +39,25 @@ type Result warning a =
 patternMatches :: Module.Interfaces -> Module.Canonical -> Result wrn DT.VariantDict
 patternMatches interfaces (Module.Module name _ info) =
   let
-    tagDict =
-      toTagDict interfaces name (Module.unions info)
+    arityDict =
+      toArityDict interfaces name (Module.unions info)
+
+    variantDict =
+      Map.map (Map.map _size) arityDict
   in
-    const (Map.map (Map.map length) tagDict)
-      <$> checkExpression tagDict (Module.program info)
-
-
-
--- TAG DICT
-
-
-type TagDict =
-  Map.Map Var.Home (Map.Map Tag [TagInfo])
-
-
-type Tag = String
-
-
-data TagInfo = TagInfo
-    { _tag :: Tag
-    , _arity :: Int
-    }
-
-
-toTagDict :: Module.Interfaces -> ModuleName.Canonical -> Module.Unions -> TagDict
-toTagDict interfaces localName localUnions =
-  let
-    listTags =
-        [ TagInfo "::" 2
-        , TagInfo "[]" 0
-        ]
-
-    boolTags =
-        [ TagInfo "True" 0
-        , TagInfo "False" 0
-        ]
-
-    builtinDict =
-        Map.singleton Var.BuiltIn $
-          Map.fromList
-            [ ("::", listTags)
-            , ("[]", listTags)
-            , ("True", boolTags)
-            , ("False", boolTags)
-            ]
-
-    interfaceDict =
-        interfaces
-          |> Map.map (toTagMapping . Module.iUnions)
-          |> Map.mapKeysMonotonic Var.Module
-          |> Map.insert (Var.Module localName) (toTagMapping localUnions)
-  in
-    Map.union builtinDict interfaceDict
-
-
-toTagMapping :: Module.Unions -> Map.Map Tag [TagInfo]
-toTagMapping adts =
-  let
-    toTagAndArity (_tvars, tagInfoList) =
-        let
-          info = map (\(tag, args) -> TagInfo tag (length args)) tagInfoList
-        in
-          map (second (const info)) tagInfoList
-  in
-    Map.elems adts
-      |> concatMap toTagAndArity
-      |> Map.fromList
-
-
-lookupOtherTags :: Var.Canonical -> TagDict -> [TagInfo]
-lookupOtherTags (Var.Canonical home name) tagDict =
-  case Map.lookup name =<< Map.lookup home tagDict of
-    Just otherTags ->
-        otherTags
-
-    Nothing ->
-      if Help.isTuple name then
-        [ TagInfo name (read (drop 6 name)) ]
-      else
-        error
-          "Since the Nitpick phase happens after canonicalization and type \
-          \inference, it is impossible that a pattern in a case cannot be \
-          \found."
+    pure variantDict
+      <* checkExpression arityDict (Module.program info)
 
 
 
 -- CHECK EXPRESSIONS
 
 
-checkExpression :: TagDict -> C.Expr -> Result wrn ()
-checkExpression tagDict (A.A region expression) =
+checkExpression :: ArityDict -> C.Expr -> Result wrn ()
+checkExpression arityDict (A.A region expression) =
   let
     go =
-      checkExpression tagDict
+      checkExpression arityDict
 
     go2 a b =
       go a <* go b
@@ -141,7 +76,7 @@ checkExpression tagDict (A.A region expression) =
         go2 leftExpr rightExpr
 
     C.Lambda pattern@(A.A patRegion _) body ->
-        checkPatterns tagDict patRegion Error.Arg [pattern]
+        checkPatterns arityDict patRegion Error.Arg [pattern]
         <* go body
 
     C.App func arg ->
@@ -156,12 +91,12 @@ checkExpression tagDict (A.A region expression) =
           <* F.traverse_ goDef defs
       where
         goDef (C.Def _ pattern@(A.A patRegion _) expr _) =
-            checkPatterns tagDict patRegion Error.LetBound [pattern]
+            checkPatterns arityDict patRegion Error.LetBound [pattern]
             <* go expr
 
     C.Case expr branches ->
         go expr
-        <* checkPatterns tagDict region Error.Case (map fst branches)
+        <* checkPatterns arityDict region Error.Case (map fst branches)
         <* F.traverse_ (go . snd) branches
 
     C.Ctor _ctor exprs ->
@@ -203,180 +138,245 @@ checkExpression tagDict (A.A region expression) =
 -- CHECK PATTERNS
 
 
-checkPatterns :: TagDict -> Region.Region -> Error.Origin -> [Pattern.Canonical] -> Result wrn ()
-checkPatterns tagDict region origin patterns =
-  checkPatternsHelp tagDict region origin [Anything] patterns
-
-
-checkPatternsHelp
-    :: TagDict
-    -> Region.Region
-    -> Error.Origin
-    -> [Pattern]
-    -> [Pattern.Canonical]
-    -> Result wrn ()
-checkPatternsHelp tagDict region origin unhandled patterns =
-  case (unhandled, patterns) of
-    ([], []) ->
-        return ()
-
-    (_:_, []) ->
-        Result.throw region (Error.Incomplete origin unhandled)
-
-    (_, pattern@(A.A localRegion _) : remainingPatterns) ->
-        do  newUnhandled <- filterPatterns tagDict localRegion pattern unhandled
-            checkPatternsHelp tagDict region origin newUnhandled remainingPatterns
-
-
-filterPatterns
-    :: TagDict
-    -> Region.Region
-    -> Pattern.Canonical
-    -> [Pattern]
-    -> Result wrn [Pattern]
-filterPatterns tagDict region pattern unhandled =
+checkPatterns :: ArityDict -> Region.Region -> Error.Origin -> [Pattern.Canonical] -> Result wrn ()
+checkPatterns arityDict region origin patterns =
   let
-    nitPattern =
-      fromCanonicalPattern pattern
-
-    noIntersection pat =
-      intersection pat nitPattern == Nothing
+    matrix =
+      map (\p -> [fromCanonicalPattern p]) patterns
   in
-    if all noIntersection unhandled then
-      Result.throw region Error.Redundant
+    if isUseful arityDict matrix [Anything] then
+      Result.throw region (Error.Incomplete origin (error "TODO"))
 
     else
-      do  let complementPatterns = complement tagDict nitPattern
-          return $
-            concatMap
-              (\p -> Maybe.mapMaybe (intersection p) complementPatterns)
-              unhandled
+      return ()
 
 
 
--- PATTERN INTERSECTION
+-- MISSING PATTERNS
 
 
-intersection :: Pattern -> Pattern -> Maybe Pattern
-intersection pattern1 pattern2 =
-  case (pattern1, pattern2) of
-    (Alias _ pattern1', _) ->
-        intersection pattern1' pattern2
+--missingPatterns :: [[Pattern]] -> Int -> [Pattern]
+--missingPatterns matrix n =
+--  case matrix of
+--    [] ->
 
-    (_, Alias _ pattern2') ->
-        intersection pattern1 pattern2'
 
-    (Anything, _) ->
-        Just pattern2
 
-    (Var _, _) ->
-        Just pattern2
 
-    (_, Anything) ->
-        Just pattern1
+-- REDUNDANT PATTERNS
 
-    (_, Var _) ->
-        Just pattern1
 
-    (Data ctor1 args1, Data ctor2 args2) ->
-        if ctor1 /= ctor2 then
-          Nothing
-        else
-          Data ctor1 <$> sequence (zipWith intersection args1 args2)
+isUseful :: ArityDict -> [[Pattern]] -> [Pattern] -> Bool
+isUseful arityDict matrix vector =
+  case (matrix, vector) of
+    ([], _) ->
+      True
 
-    (Record _, Record _) ->
-        Just pattern1
+    (_, []) ->
+      False
 
-    (Literal lit1, Literal lit2) ->
-        if lit1 == lit2 then
-          Just pattern1
-        else
-          Nothing
+    (_, firstPattern : patterns) ->
+      case firstPattern of
+        Ctor name args ->
+          let
+            newMatrix =
+              Maybe.mapMaybe (specialize name (length args)) matrix
+          in
+            isUseful arityDict newMatrix (args ++ patterns)
 
-    (AnythingBut literals, Literal lit) ->
-        if Set.member lit literals then
-          Nothing
-        else
-          Just pattern2
+        Anything ->
+          case isComplete arityDict matrix of
+            Nothing ->
+              isUseful arityDict (Maybe.mapMaybe toDefault matrix) patterns
 
-    (Literal lit, AnythingBut literals) ->
-        if Set.member lit literals then
-          Nothing
-        else
-          Just pattern1
+            Just arityInfo ->
+              let
+                isUsefulHelp (ctor, arity) =
+                  isUseful
+                    arityDict
+                    (Maybe.mapMaybe (specialize ctor arity) matrix)
+                    (replicate arity Anything ++ patterns)
+              in
+                any isUsefulHelp arityInfo
 
-    (AnythingBut literals1, AnythingBut literals2) ->
-        Just (AnythingBut (Set.union literals1 literals2))
+        Literal literal ->
+          let
+            newMatrix =
+              Maybe.mapMaybe (specializeLiteral literal) matrix
+          in
+            isUseful arityDict newMatrix patterns
+
+
+
+-- SPECIALIZE MATRICES
+
+
+specialize :: Var.Canonical -> Int -> [Pattern] -> Maybe [Pattern]
+specialize ctorName arity row =
+  case row of
+    [] ->
+      error "Compiler error! Empty matrices should not get specialized."
+
+    firstPattern : patterns ->
+      case firstPattern of
+        Ctor name args ->
+          if name == ctorName then Just (args ++ patterns) else Nothing
+
+        Anything ->
+          Just (replicate arity Anything ++ patterns)
+
+        Literal _ ->
+          error $
+            "Compiler bug! After type checking, constructors and literals\
+            \ should never align in pattern match exhaustiveness checks."
+
+
+specializeLiteral :: L.Literal -> [Pattern] -> Maybe [Pattern]
+specializeLiteral literal row =
+  case row of
+    [] ->
+      error "Compiler error! Empty matrices should not get specialized."
+
+    firstPattern : patterns ->
+      case firstPattern of
+        Literal lit ->
+          if lit == literal then Just patterns else Nothing
+
+        Anything ->
+          Just patterns
+
+        Ctor _ _ ->
+          error $
+            "Compiler bug! After type checking, constructors and literals\
+            \ should never align in pattern match exhaustiveness checks."
+
+
+toDefault :: [Pattern] -> Maybe [Pattern]
+toDefault row =
+  case row of
+    [] ->
+      Nothing
+
+    Ctor _ _ : _ ->
+      Nothing
+
+    Anything : patterns ->
+      Just patterns
+
+    Literal _ : _ ->
+      Nothing
+
+
+
+-- ALL CONSTRUCTORS ARE PRESENT?
+
+
+isComplete :: ArityDict -> [[Pattern]] -> Maybe [(Var.Canonical, Int)]
+isComplete arityDict matrix =
+  let
+    ctorSet =
+      List.foldl' isCompleteHelp Set.empty matrix
+
+    actual =
+      Set.size ctorSet
+  in
+    if actual == 0 then
+      Nothing
+
+    else
+      let
+        (ArityInfo expected info) =
+          getArityInfo (Set.findMin ctorSet) arityDict
+      in
+        if expected == actual then Just info else Nothing
+
+
+isCompleteHelp :: Set.Set Var.Canonical -> [Pattern] -> Set.Set Var.Canonical
+isCompleteHelp ctors row =
+  case row of
+    Ctor name _ : _ ->
+      Set.insert name ctors
 
     _ ->
-        Nothing
+      ctors
 
 
 
--- PATTERN COMPLEMENT
+-- ARITY DICT
 
 
-complement :: TagDict -> Pattern -> [Pattern]
-complement tagDict nitPattern =
-  case nitPattern of
-    Record _fields ->
-        []
-
-    Alias _name pattern ->
-        complement tagDict pattern
-
-    Var _name ->
-        []
-
-    Anything ->
-        []
-
-    Literal lit ->
-        [AnythingBut (Set.singleton lit)]
-
-    AnythingBut literals ->
-        map Literal (Set.toList literals)
-
-    Data ctor patterns ->
-        complementData tagDict ctor patterns
+type ArityDict =
+  Map.Map Var.Home (Map.Map String ArityInfo)
 
 
-complementData :: TagDict -> Var.Canonical -> [Pattern] -> [Pattern]
-complementData tagDict tag patterns =
+data ArityInfo =
+  ArityInfo
+    { _size :: !Int
+    , _info :: [(Var.Canonical, Int)]
+    }
+
+
+toArityDict :: Module.Interfaces -> ModuleName.Canonical -> Module.Unions -> ArityDict
+toArityDict interfaces localName localUnions =
+  interfaces
+    |> Map.mapWithKey (\name iface -> toArityEntry name (Module.iUnions iface))
+    |> Map.mapKeysMonotonic Var.Module
+    |> Map.insert (Var.Module localName) (toArityEntry localName localUnions)
+    |> Map.union builtinDict
+
+
+builtinDict :: ArityDict
+builtinDict =
   let
-    otherTags =
-        lookupOtherTags tag tagDict
+    listInfo =
+      ArityInfo 2 [ (Var.builtin "::", 2), (Var.builtin "[]", 0) ]
 
-    tagComplements =
-        Maybe.mapMaybe (tagToPattern tag) otherTags
-
-    arity =
-        length patterns
-
-    argComplements =
-        concat (zipWith (makeArgComplements tagDict tag arity) [0..] patterns)
+    boolInfo =
+      ArityInfo 2 [ (Var.builtin "True", 0), (Var.builtin "False", 0) ]
   in
-    tagComplements ++ argComplements
+    Map.singleton Var.BuiltIn $ Map.fromList $
+      [ ("::", listInfo)
+      , ("[]", listInfo)
+      , ("True", boolInfo)
+      , ("False", boolInfo)
+      ]
+      ++ map makeTupleInfo [0..8]
 
 
-tagToPattern :: Var.Canonical -> TagInfo -> Maybe Pattern
-tagToPattern (Var.Canonical home rootTag) (TagInfo tag arity) =
-  if rootTag == tag then
-    Nothing
-  else
-    Just (Data (Var.Canonical home tag) (replicate arity Anything))
-
-
-makeArgComplements :: TagDict -> Var.Canonical -> Int -> Int -> Pattern -> [Pattern]
-makeArgComplements tagDict tag arity index argPattern =
+makeTupleInfo :: Int -> ( String, ArityInfo )
+makeTupleInfo n =
   let
-    complementList =
-        complement tagDict argPattern
-
-    padArgs pattern =
-        replicate index Anything
-        ++ pattern
-        : replicate (arity - index - 1) Anything
+    name =
+      "_Tuple" ++ show n
   in
-    map (Data tag . padArgs) complementList
+    ( name, ArityInfo 1 [ (Var.builtin name, n) ] )
 
+
+toArityEntry :: ModuleName.Canonical -> Module.Unions -> Map.Map String ArityInfo
+toArityEntry name unions =
+  Map.fromList (concatMap (toArityEntryHelp name) (Map.elems unions))
+
+
+toArityEntryHelp :: ModuleName.Canonical -> Module.UnionInfo String -> [(String, ArityInfo)]
+toArityEntryHelp name (_tvars, ctors) =
+  let
+    arityInfo =
+      ArityInfo (length ctors) (map (Var.fromModule name *** length) ctors)
+  in
+    map (second (\_ -> arityInfo)) ctors
+
+
+getArityInfo :: Var.Canonical -> ArityDict -> ArityInfo
+getArityInfo var@(Var.Canonical home name) arityDict =
+  case Map.lookup name =<< Map.lookup home arityDict of
+    Just arityInfo ->
+      arityInfo
+
+    Nothing ->
+      if Help.isTuple name then
+        ArityInfo 1 [ (var, read (drop 6 name)) ]
+      else
+        error
+          "Since the Nitpick phase happens after canonicalization and type\
+          \ inference, it is impossible that a pattern in a case cannot be\
+          \ found."
