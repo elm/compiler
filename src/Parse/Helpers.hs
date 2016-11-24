@@ -246,9 +246,11 @@ getMyPosition =
 
 
 addLocation :: IParser a -> IParser (A.Located a)
-addLocation expr =
-  do  (start, e, end) <- located expr
-      return (A.at start end e)
+addLocation parser =
+  do  start <- getMyPosition
+      value <- parser
+      end <- getMyPosition
+      return (A.at start end value)
 
 
 located :: IParser a -> IParser (R.Position, a, R.Position)

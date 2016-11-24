@@ -106,11 +106,16 @@ parensTerm =
                 _ ->
                     A.at start end (Src.tuple expressions)
   in
-    do  (start, mkExpr, end) <-
-          located $ choice $
-            [ mkBinop <$> try (parens (addLocation Binop.infixOp))
-            , parens (tupleFn <|> parenedExpr)
+    do  char '('
+        start <- getMyPosition
+        mkExpr <-
+          choice
+            [ mkBinop <$> try (addLocation Binop.infixOp)
+            , tupleFn
+            , parenedExpr
             ]
+        end <- getMyPosition
+        char ')'
         return (mkExpr start end)
 
 
@@ -299,7 +304,11 @@ def =
 defStart :: IParser P.Raw
 defStart =
   choice
-    [ addLocation (try (P.Var <$> parens Binop.infixOp))
+    [ addLocation $ try $
+        do  char '('
+            op <- Binop.infixOp
+            char ')'
+            return (P.Var op)
     , Pattern.term
     ]
 
