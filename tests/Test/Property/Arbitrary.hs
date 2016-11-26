@@ -184,9 +184,10 @@ notReserved string =
     string `exceptFor` Parse.Helpers.reserveds
 
 
-exceptFor :: (Ord a) => Gen a -> [a] -> Gen a
-exceptFor generator list =
+exceptFor :: Gen a -> Set.Set a -> Gen a
+exceptFor generator set =
+  let
+    notInList x =
+      Set.notMember x set
+  in
     generator `suchThat` notInList
-  where
-    set = Set.fromList list
-    notInList x = Set.notMember x set

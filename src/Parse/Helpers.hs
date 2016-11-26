@@ -15,6 +15,7 @@ module Parse.Helpers
   where
 
 import Data.Char (isUpper)
+import qualified Data.Set as Set
 import Text.Parsec hiding (newline, space, spaces)
 
 import qualified AST.Expression.Source as Src
@@ -60,7 +61,7 @@ makeVar firstChar =
       choice
         [ do  lookAhead (char '\'')
               failure (Syntax.prime variable)
-        , if variable `elem` reserveds then
+        , if Set.member variable reserveds then
             failure (Syntax.keyword variable)
           else
             return variable
@@ -79,8 +80,9 @@ reserved word =
           ]
 
 
-reserveds :: [String]
+reserveds :: Set.Set String
 reserveds =
+  Set.fromList
     [ "if", "then", "else"
     , "case", "of"
     , "let", "in"
