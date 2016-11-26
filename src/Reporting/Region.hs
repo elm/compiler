@@ -6,16 +6,18 @@ import qualified Data.Aeson as Json
 import qualified Text.Parsec.Pos as Parsec
 
 
-data Region = Region
-    { start :: Position
-    , end :: Position
+data Region =
+  Region
+    { start :: !Position
+    , end :: !Position
     }
     deriving (Eq, Show)
 
 
-data Position = Position
-    { line :: Int
-    , column :: Int
+data Position =
+  Position
+    { line :: {-# UNPACK #-} !Int
+    , column :: {-# UNPACK #-} !Int
     }
     deriving (Eq, Show)
 
@@ -32,21 +34,25 @@ merge (Region start _) (Region _ end) =
     Region start end
 
 
+
 -- TO STRING
 
+
 toString :: Region -> String
-toString (Region start end) =
-  case line start == line end of
+toString (Region (Position startLine startColumn) (Position endLine endColumn)) =
+  case startLine == endLine of
     False ->
-        "between lines " ++ show (line start)
-        ++ " and " ++ show (line end)
+        "between lines " ++ show startLine
+        ++ " and " ++ show endLine
 
     True ->
-        "on line " ++ show (line end) ++ ", column "
-        ++ show (column start) ++ " to " ++ show (column end)
+        "on line " ++ show endLine ++ ", column "
+        ++ show startColumn ++ " to " ++ show endColumn
+
 
 
 -- JSON
+
 
 instance Json.ToJSON Region where
   toJSON (Region start end) =

@@ -151,7 +151,7 @@ checkModuleComment docRegion exports locatedDocNames =
 
 
 commentedNames :: R.Region -> String -> [A.Located String]
-commentedNames (R.Region start _) comment =
+commentedNames (R.Region (R.Position line column) _) comment =
   let
     nameParser =
       choice
@@ -163,7 +163,7 @@ commentedNames (R.Region start _) comment =
         ]
 
     docCommentParser =
-      do  setPosition (newPos "docs" (R.line start) (R.column start + 3))
+      do  setPosition (newPos "docs" line (column + 3))
           concat <$> many nameParser
   in
     case parse docCommentParser comment of
