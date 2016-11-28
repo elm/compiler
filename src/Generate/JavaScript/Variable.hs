@@ -134,16 +134,22 @@ getOpsDictName home =
 moduleToString :: ModuleName.Canonical -> String
 moduleToString (ModuleName.Canonical (Pkg.Name user project) moduleName) =
   let
+    unsafeChar = "-."
+
     safeUser =
-      map (swap '-' '_') user
+      map (swapUnsafes unsafeChar '_') user
 
     safeProject =
-      map (swap '-' '_') project
+      map (swapUnsafes unsafeChar '_') project
 
     safeModuleName =
       List.intercalate "_" moduleName
   in
     '_' : safeUser ++ "$" ++ safeProject ++ "$" ++ safeModuleName
+
+swapUnsafes :: [Char] -> Char -> Char -> Char
+swapUnsafes froms to c =
+  if c `List.elem` froms then to else c
 
 
 swap :: Char -> Char -> Char -> Char
