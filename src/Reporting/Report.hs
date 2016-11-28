@@ -58,9 +58,9 @@ toJson extraFields (Report title subregion pre post) =
 -- REPORT TO DOC
 
 
-toDoc :: String -> R.Region -> Report -> String -> Doc
-toDoc location region (Report title highlight preHint postHint) source =
-    messageBar title location
+toDoc :: Bool -> String -> R.Region -> Report -> String -> Doc
+toDoc isEmacsStyle location region (Report title highlight preHint postHint) source =
+  messageBar title location isEmacsStyle highlight region source
     <> hardline <> hardline <>
     preHint
     <> hardline <> hardline <>
@@ -70,30 +70,39 @@ toDoc location region (Report title highlight preHint postHint) source =
     <> hardline <> hardline
 
 
-messageBar :: String -> String -> Doc
-messageBar tag location =
+messageBar :: String -> String -> Bool -> Maybe R.Region -> R.Region -> String -> Doc
+messageBar tag location isEmacsStyle highlight region source =
   let
     usedSpace =
       4 + length tag + 1 + length location
+    normalHeader =
+      "-- " ++ tag ++ " " ++ replicate (max 1 (80 - usedSpace)) '-' ++
+      " " ++ location
+    optionalLineAndColumnNumber =
+      if isEmacsStyle then
+        let
+          (lineNumber, column) =
+            Code.errorStartingPosition highlight region source
+        in
+          ":" ++ (show lineNumber) ++ ":" ++ (show column)
+      else ""
   in
-    dullcyan $ text $
-      "-- " ++ tag ++ " " ++ replicate (max 1 (80 - usedSpace)) '-' ++ " " ++ location
-
+    dullcyan $ text $ normalHeader ++ optionalLineAndColumnNumber
 
 
 -- RENDER DOCS
 
 
-toHandle :: Handle -> String -> R.Region -> Report -> String -> IO ()
-toHandle handle location region rprt source =
+toHandle :: Handle -> Bool -> String -> R.Region -> Report -> String -> IO ()
+toHandle handle isEmacsStyle location region rprt source =
   displayIO
     handle
-    (renderPretty 1 80 (toDoc location region rprt source))
+    (renderPretty 1 80 (toDoc isEmacsStyle location region rprt source))
 
 
-toString :: String -> R.Region -> Report -> String -> String
-toString location region rprt source =
-  nonAnsiRender (toDoc location region rprt source)
+toString :: String -> Bool -> R.Region -> Report -> String -> String
+toString location isEmacsStyle region rprt source =
+  nonAnsiRender (toDoc isEmacsStyle location region rprt source)
 
 
 
