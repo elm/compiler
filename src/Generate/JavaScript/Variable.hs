@@ -135,10 +135,10 @@ moduleToString :: ModuleName.Canonical -> String
 moduleToString (ModuleName.Canonical (Pkg.Name user project) moduleName) =
   let
     safeUser =
-      map (swap '-' '_') user
+      map (swapAny "-.*" '_') user
 
     safeProject =
-      map (swap '-' '_') project
+      map (swapAny "-.*" '_') project
 
     safeModuleName =
       List.intercalate "_" moduleName
@@ -150,6 +150,9 @@ swap :: Char -> Char -> Char -> Char
 swap from to c =
   if c == from then to else c
 
+swapAny :: [Char] -> Char -> Char -> Char
+swapAny badChars goodChar c =
+  if (c `elem` badChars) then goodChar else c
 
 
 -- SAFE NAMES
