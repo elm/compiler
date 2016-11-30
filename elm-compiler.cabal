@@ -100,7 +100,6 @@ Library
         Optimize.DecisionTree,
         Optimize.Environment,
         Optimize.Inline,
-        Parse.Binop,
         Parse.Declaration,
         Parse.Expression,
         Parse.Helpers,
