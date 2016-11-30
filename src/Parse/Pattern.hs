@@ -1,9 +1,9 @@
-module Parse.Pattern (term, expr) where
+{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
+{-# LANGUAGE OverloadedStrings #-}
+module Parse.Pattern (term, expression) where
 
-import qualified Data.List as List
-import Text.Parsec ((<|>), (<?>), char, choice, optionMaybe, try)
+import Data.Text (Text)
 
-import qualified AST.Literal as L
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
 import Parse.Helpers
@@ -12,102 +12,195 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
 
-basic :: IParser P.Raw
-basic =
+
+-- PATTERN TERMS
+
+
+term :: Parser P.Raw
+term =
+  oneOf [ record, tuple, list, termHelp ]
+
+
+termHelp :: Parser P.Raw
+termHelp =
   addLocation $
-    choice
-      [ char '_' >> return P.Anything
+    oneOf
+      [ do  underscore
+            return P.Anything
       , P.Var <$> lowVar
-      , chunksToPatterns <$> dotSep1 capVar
+      , mkCtor <$> qualifiedCapVar
       , P.Literal <$> Literal.literal
       ]
-  where
-    chunksToPatterns chunks =
-      case List.intercalate "." chunks of
-        "True" ->
-          P.Literal (L.Boolean True)
-
-        "False" ->
-          P.Literal (L.Boolean False)
-
-        name ->
-          P.Data (Var.Raw name) []
 
 
-asPattern :: IParser P.Raw -> IParser P.Raw
-asPattern patternParser =
-  do  pattern <- patternParser
-
-      let (A.A (R.Region start _) _) = pattern
-
-      maybeAlias <- optionMaybe asAlias
-
-      case maybeAlias of
-        Just alias ->
-            do  end <- getMyPosition
-                return (A.at start end (P.Alias alias pattern))
-
-        Nothing ->
-            return pattern
-  where
-    asAlias =
-      do  try (whitespace >> reserved "as")
-          whitespace
-          lowVar
+mkCtor :: Text -> P.Raw'
+mkCtor ctor =
+  P.Ctor (Var.Raw ctor) []
 
 
-record :: IParser P.Raw
+
+-- RECORDS
+
+
+record :: Parser P.Raw
 record =
-  addLocation
-    (P.Record <$> brackets (commaSep1 lowVar))
-
-
-tuple :: IParser P.Raw
-tuple =
-  do  (start, patterns, end) <-
-          located (parens (commaSep expr))
-
-      case patterns of
-        [pattern] ->
-            return pattern
-
-        _ ->
-            return (A.at start end (P.tuple patterns))
-
-
-list :: IParser P.Raw
-list =
-  braces $
-    do  (_, patterns, end) <- located (commaSep expr)
-        return (P.list end patterns)
-
-
-term :: IParser P.Raw
-term =
-  choice [ record, tuple, list, basic ]
-    <?> "a pattern"
-
-
-patternConstructor :: IParser P.Raw
-patternConstructor =
   addLocation $
-    do  name <- List.intercalate "." <$> dotSep1 capVar
-        case name of
-          "True" ->
-            return $ P.Literal (L.Boolean True)
+    do  leftCurly
+        spaces
+        oneOf
+          [ do  var <- lowVar
+                spaces
+                recordHelp [var]
+          , do  rightCurly
+                return (P.Record [])
+          ]
 
-          "False" ->
-            return $ P.Literal (L.Boolean False)
 
-          _ ->
-            P.Data (Var.Raw name) <$> spacePrefix term
+recordHelp :: [Text] -> Parser P.Raw'
+recordHelp vars =
+  oneOf
+    [ do  comma
+          spaces
+          var <- lowVar
+          spaces
+          recordHelp (var:vars)
+    , do  rightCurly
+          return (P.Record vars)
+    ]
 
 
-expr :: IParser P.Raw
-expr =
-    asPattern subPattern <?> "a pattern"
-  where
-    subPattern =
-      do  patterns <- consSep1 (patternConstructor <|> term)
-          end <- getMyPosition
-          return (P.consMany end patterns)
+
+-- TUPLES
+
+
+tuple :: Parser P.Raw
+tuple =
+  do  start <- getPosition
+      leftParen
+      spaces
+      oneOf
+        [ do  (pattern, space) <- expression
+              checkSpaces space
+              tupleHelp start [pattern]
+        , do  rightParen
+              end <- getPosition
+              return (A.at start end (P.tuple []))
+        ]
+
+
+tupleHelp :: R.Position -> [P.Raw] -> Parser P.Raw
+tupleHelp start patterns =
+  oneOf
+    [ do  comma
+          spaces
+          (pattern, space) <- expression
+          checkSpaces space
+          tupleHelp start (pattern:patterns)
+    , do  rightParen
+          case patterns of
+            [pattern] ->
+              return pattern
+
+            _ ->
+              do  end <- getPosition
+                  return (A.at start end (P.tuple (reverse patterns)))
+    ]
+
+
+
+-- LIST
+
+
+list :: Parser P.Raw
+list =
+  do  leftSquare
+      spaces
+      oneOf
+        [ do  (pattern, space) <- expression
+              checkSpaces space
+              listHelp [pattern]
+        , do  rightSquare
+              end <- getPosition
+              return (P.list end [])
+        ]
+
+
+listHelp :: [P.Raw] -> Parser P.Raw
+listHelp patterns =
+  oneOf
+    [ do  comma
+          spaces
+          (pattern, space) <- expression
+          checkSpaces space
+          listHelp (pattern:patterns)
+    , do  end <- getPosition
+          rightSquare
+          return (P.list end (reverse patterns))
+    ]
+
+
+
+-- PATTERN EXPRESSION
+
+
+expression :: Parser (P.Raw, Space)
+expression =
+  do  start <- getPosition
+      cTerm <- consTerm
+      exprHelp start [] cTerm
+
+
+consTerm :: Parser (P.Raw, R.Position, Space)
+consTerm =
+  oneOf
+    [ do  start <- getPosition
+          ctor <- qualifiedCapVar
+          constructorHelp start ctor []
+    , (,,) <$> term <*> getPosition <*> whitespace
+    ]
+
+
+exprHelp :: R.Position -> [P.Raw] -> (P.Raw, R.Position, Space) -> Parser (P.Raw, Space)
+exprHelp start patterns (pattern, end, space) =
+  oneOf
+    [ do  checkSpaces space
+          cons
+          spaces
+          cTerm <- consTerm
+          exprHelp start (pattern:patterns) cTerm
+    , do  checkSpaces space
+          keyword "as"
+          spaces
+          alias <- lowVar
+          newEnd <- getPosition
+          newSpace <- whitespace
+          return
+            ( A.at start newEnd (P.Alias alias (foldl (consHelp end) pattern patterns))
+            , newSpace
+            )
+    , return
+        ( foldl (consHelp end) pattern patterns
+        , space
+        )
+    ]
+
+
+consHelp :: R.Position -> P.Raw -> P.Raw -> P.Raw
+consHelp end tl hd@(A.A (R.Region start _) _) =
+  A.at start end (P.Ctor (Var.Raw "::") [hd, tl])
+
+
+constructorHelp :: R.Position -> Text -> [P.Raw] -> Parser (P.Raw, R.Position, Space)
+constructorHelp start ctor args =
+  do  end <- getPosition
+      space <- whitespace
+      oneOf
+        [ do  checkSpaces space
+              arg <- term
+              constructorHelp start ctor (arg:args)
+        , return
+            ( A.at start end (P.Ctor (Var.Raw ctor) (reverse args))
+            , end
+            , space
+            )
+        ]

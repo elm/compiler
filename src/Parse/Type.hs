@@ -1,8 +1,8 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
-module Parse.Type where
+{-# LANGUAGE OverloadedStrings #-}
+module Parse.Type (expression) where
 
-import Data.List (intercalate)
-import Text.Parsec ((<|>), (<?>), char, choice, optionMaybe, string, try)
+import Data.Text (Text)
 
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
@@ -11,89 +11,172 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
 
-tvar :: IParser Type.Raw
-tvar =
-  addLocation
-    (Type.RVar <$> lowVar <?> "a type variable")
+
+-- TYPE TERMS
 
 
-tuple :: IParser Type.Raw
+term :: Parser Type.Raw
+term =
+  oneOf
+    [ constructor
+    , variable
+    , tuple
+    , record
+    ]
+
+
+
+-- TYPE VARIABLES
+
+
+variable :: Parser Type.Raw
+variable =
+  expecting "a type variable" $ addLocation $
+    Type.RVar <$> lowVar
+
+
+
+-- TYPE EXPRESSIONS
+
+
+expression :: SParser Type.Raw
+expression =
+  do  start <- getPosition
+      (tipe1, end1, space1) <-
+        oneOf
+          [ app start
+          , (,,) <$> term <*> getPosition <*> whitespace
+          ]
+      oneOf
+        [ do  checkSpaces space1
+              rightArrow
+              spaces
+              (tipe2, end2, space2) <- expression
+              let tipe = A.at start end2 (Type.RLambda tipe1 tipe2)
+              return ( tipe, end2, space2 )
+        , return ( tipe1, end1, space1 )
+        ]
+
+
+
+-- TYPE APPLICATION
+
+
+app :: R.Position -> SParser Type.Raw
+app start =
+  do  ctor <- constructor
+      end <- getPosition
+      space <- whitespace
+      appHelp ctor [] start end space
+
+
+constructor :: Parser Type.Raw
+constructor =
+  expecting "a type constructor, like Maybe or List" $ addLocation $
+    fmap (Type.RType . Var.Raw) qualifiedCapVar
+
+
+appHelp :: Type.Raw -> [Type.Raw] -> R.Position -> R.Position -> Space -> SParser Type.Raw
+appHelp ctor args start end space =
+  oneOf
+    [ do  checkSpaces space
+          arg <- term
+          newEnd <- getPosition
+          newSpace <- whitespace
+          appHelp ctor (arg:args) start newEnd newSpace
+    , let
+        tipe =
+          if null args then
+            ctor
+          else
+            A.at start end (Type.RApp ctor (reverse args))
+      in
+        return ( tipe, end, space )
+    ]
+
+
+
+-- TUPLES
+
+
+tuple :: Parser Type.Raw
 tuple =
-  do  (start, types, end) <- located (parens (commaSep expr))
-      case types of
-        [t] -> return t
-        _   -> return (Type.tuple (R.Region start end) types)
+  do  start <- getPosition
+      leftParen
+      spaces
+      tupleEnding start []
 
 
-record :: IParser Type.Raw
+tupleEnding :: R.Position -> [Type.Raw] -> Parser Type.Raw
+tupleEnding start tipes =
+  oneOf
+    [ do  comma
+          spaces
+          (tipe, _, space) <- expression
+          checkSpaces space
+          tupleEnding start (tipe : tipes)
+    , do  rightParen
+          end <- getPosition
+          case reverse tipes of
+            [tipe] ->
+              return tipe
+
+            tupleTypes ->
+              return (Type.tuple (R.Region start end) tupleTypes)
+    ]
+
+
+
+-- RECORD
+
+
+record :: Parser Type.Raw
 record =
   addLocation $
-  do  char '{'
-      whitespace
-      rcrd <- extended <|> normal
-      dumbWhitespace
-      char '}'
-      return rcrd
-  where
-    normal = flip Type.RRecord Nothing <$> commaSep field
-
-    -- extended record types require at least one field
-    extended =
-      do  ext <- try (addLocation lowVar <* (whitespace >> string "|"))
-          whitespace
-          fields <- commaSep1 field
-          return (Type.RRecord fields (Just (A.map Type.RVar ext)))
-
-    field =
-      do  lbl <- addLocation rLabel
-          whitespace >> hasType >> whitespace
-          (,) lbl <$> expr
-
-
-capTypeVar :: IParser String
-capTypeVar =
-  intercalate "." <$> dotSep1 capVar
+  do  leftCurly
+      spaces
+      oneOf
+        [ do  rightCurly
+              return (Type.RRecord [] Nothing)
+        , do  var <- addLocation lowVar
+              spaces
+              oneOf
+                [ do  pipe
+                      spaces
+                      firstField <- field
+                      fields <- chompFields [firstField]
+                      return (Type.RRecord fields (Just (A.map Type.RVar var)))
+                , do  hasType
+                      spaces
+                      (tipe, _, nextSpace) <- expression
+                      checkSpaces nextSpace
+                      fields <- chompFields [(var, tipe)]
+                      return (Type.RRecord fields Nothing)
+                ]
+        ]
 
 
-constructor0 :: IParser Type.Raw
-constructor0 =
-  addLocation $
-  do  name <- capTypeVar
-      return (Type.RType (Var.Raw name))
+type Field = ( A.Located Text, Type.Raw )
 
 
-term :: IParser Type.Raw
-term =
-  choice [ tuple, record, tvar, constructor0 ]
+chompFields :: [Field] -> Parser [Field]
+chompFields fields =
+  oneOf
+    [ do  comma
+          spaces
+          f <- field
+          chompFields (f : fields)
+    , do  rightCurly
+          return fields
+    ]
 
 
-app :: IParser Type.Raw
-app =
-  do  start <- getMyPosition
-      f <- constructor0 <?> "a type constructor"
-      args <- spacePrefix term
-      end <- getMyPosition
-      case args of
-        [] -> return f
-        _  -> return (A.A (R.Region start end) (Type.RApp f args))
-
-
-expr :: IParser Type.Raw
-expr =
-  do  start <- getMyPosition
-      t1 <- app <|> term
-      arr <- optionMaybe $ try (whitespace >> rightArrow)
-      case arr of
-        Nothing ->
-            return t1
-        Just _ ->
-            do  whitespace
-                t2 <- expr
-                end <- getMyPosition
-                return (A.A (R.Region start end) (Type.RLambda t1 t2))
-
-
-constructor :: IParser (String, [Type.Raw])
-constructor =
-  (,) <$> (capTypeVar <?> "another type constructor")
-      <*> spacePrefix term
+field :: Parser Field
+field =
+  do  name <- addLocation lowVar
+      spaces
+      hasType
+      spaces
+      (tipe, _, endSpace) <- expression
+      checkSpaces endSpace
+      return (name, tipe)

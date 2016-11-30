@@ -1,96 +1,66 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Parse.Helpers
   ( module Parse.Primitives
-  , var, lowVar, capVar, rLabel, reserved, reserveds
-  , equals, rightArrow, hasType
-  , commitIf, followedBy, anyUntil
-  , comma, commaSep1, commaSep
-  , pipeSep1, consSep1, dotSep1, spaceSep1, spacePrefix, constrainedSpacePrefix
-  , braces, parens, brackets
-  , accessible
-  , getMyPosition, addLocation, located
-  , whitespace, freshLine, simpleNewline, newline, spaces
-  , forcedWS, padded, dumbWhitespace, docComment
+  , SParser
+  , qualifiedVar, qualifiedCapVar
+  , equals, rightArrow, hasType, comma, pipe, cons, dot, underscore, lambda
+  , leftParen, rightParen, leftSquare, rightSquare, leftCurly, rightCurly
+  , addLocation
+  , spaces, checkSpaces
   )
   where
 
-import Data.Char (isUpper)
-import qualified Data.Set as Set
-import Text.Parsec hiding (newline, space, spaces)
+import qualified Data.Text as Text
+import Data.Text (Text)
 
-import qualified AST.Expression.Source as Src
-import qualified AST.Variable as Variable
-import Parse.Primitives
+import Parse.Primitives hiding (text)
+import qualified Parse.Primitives as Prim
 import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Syntax as Syntax
 import qualified Reporting.Region as R
+
+
+
+-- SPACE PARSER
+
+
+type SParser a =
+  Parser (a, R.Position, Space)
 
 
 
 -- VARIABLES
 
 
-var :: IParser String
-var =
-  makeVar letter <?> "a name"
+qualifiedCapVar :: Parser Text
+qualifiedCapVar =
+  do  var <- capVar
+      qualifiedVarHelp True [var]
 
 
-lowVar :: IParser String
-lowVar =
-  makeVar lower <?> "a lower case name"
+qualifiedVar :: Parser Text
+qualifiedVar =
+  oneOf
+    [ lowVar
+    , do  var <- capVar
+          qualifiedVarHelp False [var]
+    ]
 
 
-capVar :: IParser String
-capVar =
-  makeVar upper <?> "an upper case name"
-
-
-rLabel :: IParser String
-rLabel =
-  lowVar
-
-
-innerVarChar :: IParser Char
-innerVarChar =
-  alphaNum <|> char '_' <?> "more letters in this name"
-
-
-makeVar :: IParser Char -> IParser String
-makeVar firstChar =
-  do  variable <- (:) <$> firstChar <*> many innerVarChar
-      choice
-        [ do  lookAhead (char '\'')
-              failure (Syntax.prime variable)
-        , if Set.member variable reserveds then
-            failure (Syntax.keyword variable)
-          else
-            return variable
-        ]
-
-
-reserved :: String -> IParser String
-reserved word =
-  expecting ("reserved word `" ++ word ++ "`") $
-    do  string word
-        choice
-          [ do  lookAhead (char '\'')
-                failure (Syntax.prime word)
-          , do  notFollowedBy innerVarChar
-                return word
-          ]
-
-
-reserveds :: Set.Set String
-reserveds =
-  Set.fromList
-    [ "if", "then", "else"
-    , "case", "of"
-    , "let", "in"
-    , "type"
-    , "module", "where"
-    , "import", "exposing"
-    , "as"
-    , "port"
+qualifiedVarHelp :: Bool -> [Text] -> Parser Text
+qualifiedVarHelp allCaps vars =
+  oneOf
+    [ do  dot
+          oneOf
+            [ do  var <- capVar
+                  qualifiedVarHelp allCaps (var:vars)
+            , if allCaps then
+                failure (error "TODO")
+              else
+                do  var <- lowVar
+                    return (Text.intercalate "." (reverse (var:vars)))
+            ]
+    , return (Text.intercalate "." (reverse vars))
     ]
 
 
@@ -98,346 +68,143 @@ reserveds =
 -- COMMON SYMBOLS
 
 
-equals :: IParser String
+{-# INLINE equals #-}
+equals :: Parser ()
 equals =
-  string "=" <?> "an equals sign '='"
+  expecting "an equals sign '='" $
+    Prim.text "="
 
 
-rightArrow :: IParser String
+{-# INLINE rightArrow #-}
+rightArrow :: Parser ()
 rightArrow =
-  string "->" <?> "an arrow '->'"
+  expecting "an arrow '->'" $
+    Prim.text "->"
 
 
-hasType :: IParser String
+{-# INLINE hasType #-}
+hasType :: Parser ()
 hasType =
-  string ":" <?> "the \"has type\" symbol ':'"
+  expecting "the \"has type\" symbol ':'" $
+    Prim.text ":"
 
 
-
--- WEIRD COMBINATORS
-
-
-commitIf :: IParser a -> IParser b -> IParser b
-commitIf check p =
-    commit <|> try p
-  where
-    commit =
-      try (lookAhead check) >> p
-
-
-anyUntil :: IParser () -> IParser ()
-anyUntil end =
-  let
-    go =
-      end <|> (anyChar >> go)
-  in
-    go
-
-
-followedBy :: IParser a -> IParser b -> IParser a
-followedBy a b =
-  do  x <- a
-      b
-      return x
-
-
-
--- SEPARATORS
-
-
-spaceySepBy1 :: IParser b -> IParser a -> IParser [a]
-spaceySepBy1 sep parser =
-  do  value <- parser
-      (value:) <$> spaceyPrefixBy sep parser
-
-
-spaceyPrefixBy :: IParser sep -> IParser a -> IParser [a]
-spaceyPrefixBy sep parser =
-  many (commitIf (whitespace >> sep) (padded sep >> parser))
-
-
-comma :: IParser Char
+{-# INLINE comma #-}
+comma :: Parser ()
 comma =
-  char ',' <?> "a comma ','"
+  expecting "a comma ','" $
+    Prim.text ","
 
 
-commaSep1 :: IParser a -> IParser [a]
-commaSep1 =
-  spaceySepBy1 comma
+{-# INLINE pipe #-}
+pipe :: Parser ()
+pipe =
+  expecting "a vertical bar '|'" $
+    Prim.text "|"
 
 
-commaSep :: IParser a -> IParser [a]
-commaSep =
-  option [] . commaSep1
+{-# INLINE cons #-}
+cons :: Parser ()
+cons =
+  expecting "a cons operator '::'" $
+    Prim.text "::"
 
 
-pipeSep1 :: IParser a -> IParser [a]
-pipeSep1 =
-  spaceySepBy1 (char '|' <?> "a vertical bar '|'")
+{-# INLINE dot #-}
+dot :: Parser ()
+dot =
+  expecting "a dot '.'" $
+    Prim.text "."
 
 
-consSep1 :: IParser a -> IParser [a]
-consSep1 =
-  spaceySepBy1 (string "::" <?> "a cons operator '::'")
+{-# INLINE underscore #-}
+underscore :: Parser ()
+underscore =
+  expecting "a wildcard '_'" $
+    Prim.text "_"
 
 
-dotSep1 :: IParser a -> IParser [a]
-dotSep1 p =
-  (:) <$> p <*> many (try (char '.') >> p)
-
-
-spaceSep1 :: IParser a -> IParser [a]
-spaceSep1 p =
-  (:) <$> p <*> spacePrefix p
-
-
-spacePrefix :: IParser a -> IParser [a]
-spacePrefix p =
-  constrainedSpacePrefix p (\_ -> return ())
-
-
-constrainedSpacePrefix :: IParser a -> (Bool -> IParser ()) -> IParser [a]
-constrainedSpacePrefix parser constraint =
-    many $ choice
-      [ try (spacing >> lookAhead (oneOf "[({\"'")) >> parser
-      , try (spacing >> parser)
-      ]
-    where
-      spacing = do
-        bool <- whitespace
-        constraint bool
-        indented
+{-# INLINE lambda #-}
+lambda :: Parser ()
+lambda =
+  oneOf [ Prim.text "\\", Prim.text "\x03BB" ]
 
 
 
--- SURROUNDED BY
+-- ENCLOSURES
 
 
-surround :: Char -> Char -> String -> IParser a -> IParser a
-surround start end name parser =
-  do  char start
-      whitespace
-      value <- parser
-      whitespace
-      char end <?> unwords ["a closing", name, show end]
-      return value
+{-# INLINE leftParen #-}
+leftParen :: Parser ()
+leftParen =
+  Prim.text "("
 
 
-braces :: IParser a -> IParser a
-braces parser =
-  surround '[' ']' "brace" parser
+{-# INLINE rightParen #-}
+rightParen :: Parser ()
+rightParen =
+  Prim.text ")"
 
 
-parens :: IParser a -> IParser a
-parens parser =
-  surround '(' ')' "paren" parser
+{-# INLINE leftSquare #-}
+leftSquare :: Parser ()
+leftSquare =
+  Prim.text "["
 
 
-brackets :: IParser a -> IParser a
-brackets parser =
-  surround '{' '}' "bracket" parser
+{-# INLINE rightSquare #-}
+rightSquare :: Parser ()
+rightSquare =
+  Prim.text "]"
+
+
+{-# INLINE leftCurly #-}
+leftCurly :: Parser ()
+leftCurly =
+  Prim.text "{"
+
+
+{-# INLINE rightCurly #-}
+rightCurly :: Parser ()
+rightCurly =
+  Prim.text "}"
 
 
 
--- HELPERS FOR EXPRESSIONS
 
 
-getMyPosition :: IParser R.Position
-getMyPosition =
-  R.fromSourcePos <$> getPosition
+-- LOCATION
 
 
-addLocation :: IParser a -> IParser (A.Located a)
+addLocation :: Parser a -> Parser (A.Located a)
 addLocation parser =
-  do  start <- getMyPosition
+  do  start <- getPosition
       value <- parser
-      end <- getMyPosition
+      end <- getPosition
       return (A.at start end value)
 
 
-located :: IParser a -> IParser (R.Position, a, R.Position)
-located parser =
-  do  start <- getMyPosition
-      value <- parser
-      end <- getMyPosition
-      return (start, value, end)
+
+-- WHITESPACE VARIATIONS
 
 
-accessible :: IParser Src.RawExpr -> IParser Src.RawExpr
-accessible exprParser =
-  do  start <- getMyPosition
-
-      annotatedRootExpr@(A.A _ rootExpr) <- exprParser
-
-      access <- optionMaybe (try dot <?> "a field access like .name")
-
-      case access of
-        Nothing ->
-          return annotatedRootExpr
-
-        Just _ ->
-          accessible $
-            do  v <- var
-                end <- getMyPosition
-                return . A.at start end $
-                    case rootExpr of
-                      Src.Var (Variable.Raw name@(c:_))
-                        | isUpper c ->
-                            Src.var (name ++ '.' : v)
-                      _ ->
-                        Src.Access annotatedRootExpr v
-
-
-dot :: IParser ()
-dot =
-  do  char '.'
-      notFollowedBy (char '.')
-
-
-
--- WHITESPACE
-
-
-padded :: IParser a -> IParser a
-padded p =
-  do  whitespace
-      out <- p
-      whitespace
-      return out
-
-
-plus :: IParser a -> IParser ()
-plus parser =
-  parser >> star parser
-
-
-star :: IParser a -> IParser ()
-star parser =
-  choice
-    [ parser >> star parser
-    , return ()
-    ]
-
-
-spaces :: IParser ()
+spaces :: Parser ()
 spaces =
-  plus $ expecting Syntax.whitespace $
-    choice
-      [ string " " >> return ()
-      , multiComment
-      ]
+  do  space <- whitespace
+      case space of
+        None         -> return ()
+        AfterIndent  -> return ()
+        BeforeIndent -> failure (error "TODO")
+        Aligned      -> failure (error "TODO")
+        Freshline    -> failure (error "TODO")
 
 
-forcedWS :: IParser ()
-forcedWS =
-  do  failIfTabFound
-      plus (spaces <|> newline)
-      failIfTabFound
-      column <- sourceColumn <$> getPosition
-      if column == 1
-        then fail badWhiteSpaceMessage
-        else return ()
+checkSpaces :: Space -> Parser ()
+checkSpaces space =
+  case space of
+    None         -> return ()
+    AfterIndent  -> return ()
+    BeforeIndent -> deadend (error "TODO")
+    Aligned      -> deadend (error "TODO")
+    Freshline    -> deadend (error "TODO")
 
-
-badWhiteSpaceMessage :: String
-badWhiteSpaceMessage =
-  "I need whitespace, but got stuck on what looks like a new declaration.\n"
-  ++ "\n"
-  ++ "You are either missing some stuff in the declaration above or just need to add\n"
-  ++ "some spaces here:"
-
-
-failIfTabFound :: IParser ()
-failIfTabFound =
-  do  foundTab <- option False (lookAhead (char '\t') >> return True) <?> Syntax.tab
-      if foundTab
-        then fail Syntax.tab
-        else return ()
-
-
--- Just eats whitespace until the next meaningful character.
-dumbWhitespace :: IParser ()
-dumbWhitespace =
-  star (spaces <|> newline)
-
-
-whitespace :: IParser Bool
-whitespace =
-  choice
-    [ forcedWS >> return True
-    , return False
-    ]
-
-
-freshLine :: IParser ()
-freshLine =
-  expecting Syntax.freshLine $ try $
-    do  plus (spaces <|> newline)
-        column <- sourceColumn <$> getPosition
-        if column == 1
-          then return ()
-          else fail badFreshLineMessage
-
-
-badFreshLineMessage :: String
-badFreshLineMessage =
-  "I need a fresh line to start a new declaration. This means a new line that\n"
-  ++ "starts with stuff, not with spaces or comments."
-
-
-newline :: IParser ()
-newline =
-  simpleNewline <|> lineComment <?> Syntax.newline
-
-
-simpleNewline :: IParser ()
-simpleNewline =
-  do  try (string "\r\n") <|> string "\n"
-      return ()
-
-
-lineComment :: IParser ()
-lineComment =
-  do  try (string "--")
-      anyUntil (simpleNewline <|> eof)
-
-
-multiComment :: IParser ()
-multiComment =
-  do  try (string "{-" >> notFollowedBy (string "|"))
-      closeComment
-
-
-closeComment :: IParser ()
-closeComment =
-  choice
-    [ expecting "the end of a comment -}" $
-      do  try (string "-}")
-          return ()
-    , do  try (string "{-")
-          closeComment
-          closeComment
-    , do  anyChar
-          closeComment
-    ]
-
-
-docComment :: IParser String
-docComment =
-  do  try (string "{-|")
-      builder <- closeDocComment id
-      return (builder "")
-
-
-closeDocComment :: (String -> String) -> IParser (String -> String)
-closeDocComment builder =
-  choice
-    [ expecting "the end of a comment -}" $
-      do  try (string "-}")
-          return builder
-    , do  try (string "{-")
-          addComment <- closeDocComment (\end -> "{-" ++ end)
-          closeDocComment (\end -> builder (addComment ("-}" ++ end)))
-    , do  c <- anyChar
-          closeDocComment (\end -> builder (c:end))
-    ]

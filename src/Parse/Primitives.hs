@@ -1,12 +1,14 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
-{-# LANGUAGE BangPatterns, Rank2Types, UnboxedTuples #-}
+{-# LANGUAGE BangPatterns, Rank2Types, UnboxedTuples, OverloadedStrings #-}
 module Parse.Primitives
   ( Parser
   , run
-  , try, lookAhead, failure, deadend, expecting, endOfFile
+  , try, failure, deadend, expecting, endOfFile
   , oneOf
-  , text, lowVar, capVar
-  , getPosition, setIndent
+  , text, keyword, keywords
+  , lowVar, capVar, infixOp
+  , getPosition, getCol
+  , getIndent, setIndent
   , Space(..), whitespace
   , string, character
   )
@@ -14,6 +16,8 @@ module Parse.Primitives
 
 import Prelude hiding (length)
 import qualified Data.Char as Char
+import qualified Data.Set as Set
+import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Array as Text
 import qualified Data.Text.Internal as Text
@@ -25,6 +29,7 @@ import Data.Text.Internal.Unsafe.Char (unsafeChr)
 import qualified Control.Applicative as Applicative ( Applicative(..), Alternative(..) )
 import Control.Monad
 
+import qualified AST.Helpers as Help (isSymbol)
 import qualified Reporting.Region as Region
 
 
@@ -70,7 +75,7 @@ data Error
 -- RUN PARSER
 
 
-run :: Parser a -> Text.Text -> Either Error a
+run :: Parser a -> Text -> Either Error a
 run parser (Text.Text array offset length) =
   case _run parser (State array offset length 0 1 1) Ok Err Ok Err of
     Ok value _ ->
@@ -88,13 +93,6 @@ try :: Parser a -> Parser a
 try parser =
   Parser $ \state cok _ eok eerr ->
     _run parser state cok eerr eok eerr
-
-
-lookAhead :: Parser a -> Parser a
-lookAhead parser =
-  Parser $ \state _ cerr eok eerr ->
-    _run parser state eok cerr eok eerr
-    -- TODO used to mess with error info in ok. Why?
 
 
 failure :: error -> Parser a
@@ -215,7 +213,7 @@ instance Monad Parser where
 -- TEXT
 
 
-text :: Text.Text -> Parser ()
+text :: Text -> Parser ()
 text (Text.Text tArray tOffset tLen) =
   Parser $ \(State array offset length indent row col) cok _ _ eerr ->
     if tLen <= length && Text.equal tArray tOffset array offset tLen then
@@ -236,16 +234,52 @@ moveCursor array offset length row col =
 
   else
     let
-      !word1 = Text.unsafeIndex array offset
+      !word = Text.unsafeIndex array offset
     in
-      if word1 == 0x000A then
+      if word == 0x000A then
         moveCursor array (offset + 1) (length - 1) (row + 1) 1
 
-      else if word1 < 0xD800 || word1 > 0xDBFF then
+      else if word < 0xD800 || word > 0xDBFF then
         moveCursor array (offset + 1) (length - 1) row (col + 1)
 
       else
         moveCursor array (offset + 2) (length - 2) row (col + 1)
+
+
+
+-- KEYWORDS
+
+
+keyword :: Text -> Parser ()
+keyword (Text.Text tArray tOffset tLen) =
+  Parser $ \(State array offset length indent row col) cok _ _ eerr ->
+    if tLen <= length && Text.equal tArray tOffset array offset tLen then
+
+      if Char.isAlphaNum (peekChar array (offset + tLen)) then
+        eerr (error "TODO keyword 1")
+      else
+        let
+          (# newRow, newCol #) =
+            moveCursor tArray tOffset tLen row col
+        in
+          cok () (State array (offset + tLen) (length - tLen) indent newRow newCol)
+
+    else
+      eerr (error "TODO keyword 2")
+
+
+keywords :: Set.Set Text
+keywords =
+  Set.fromList
+    [ "if", "then", "else"
+    , "case", "of"
+    , "let", "in"
+    , "type"
+    , "module", "where"
+    , "import", "exposing"
+    , "as"
+    , "port"
+    ]
 
 
 
@@ -289,7 +323,10 @@ varPrim isGoodFirstChar =
             copiedText =
               Text.Text (Text.run makeArray) 0 newSize
           in
-            cok copiedText (State array newOffset newLength indent row newCol)
+            if Set.member copiedText keywords then
+              eerr (Error row newCol)
+            else
+              cok copiedText (State array newOffset newLength indent row newCol)
 
         else
           eerr (error "TODO varPrim 2")
@@ -299,12 +336,24 @@ varPrim isGoodFirstChar =
 peek :: Text.Array -> Int -> Text.Iter
 peek array offset =
   let
-    !word1 = Text.unsafeIndex array offset
+    !word = Text.unsafeIndex array offset
   in
-    if word1 < 0xD800 || word1 > 0xDBFF then
-      Text.Iter (unsafeChr word1) 1
+    if word < 0xD800 || word > 0xDBFF then
+      Text.Iter (unsafeChr word) 1
     else
-      Text.Iter (chr2 word1 (Text.unsafeIndex array (offset + 1))) 2
+      Text.Iter (chr2 word (Text.unsafeIndex array (offset + 1))) 2
+
+
+{-# INLINE peekChar #-}
+peekChar :: Text.Array -> Int -> Char
+peekChar array offset =
+  let
+    !word = Text.unsafeIndex array offset
+  in
+    if word < 0xD800 || word > 0xDBFF then
+      unsafeChr word
+    else
+      chr2 word (Text.unsafeIndex array (offset + 1))
 
 
 varPrimHelp :: Text.Array -> Int -> Int -> Int -> (# Int, Int, Int #)
@@ -324,6 +373,54 @@ varPrimHelp array offset length col =
 
 
 
+-- INFIX OPS
+
+
+infixOp :: Parser Text
+infixOp =
+  Parser $ \(State array offset length indent row col) cok cerr _ eerr ->
+    if length == 0 then
+      eerr (Error row col)
+    else
+      case infixOpHelp array offset length row col of
+        Left err ->
+          cerr err
+
+        Right ( newOffset, newLength, newCol ) ->
+          let
+            !newSize =
+              newOffset - offset
+
+            makeArray =
+              do  mutableArray <- Text.new newSize
+                  Text.copyI mutableArray 0 array offset newSize
+                  return mutableArray
+          in
+            case Text.Text (Text.run makeArray) 0 newSize of
+              "=" -> cerr (Error row col) -- "The = operator is reserved for defining variables. Maybe you want == instead? Or maybe you are defining a variable, but there is whitespace before it?"
+              "->" -> cerr (Error row col) -- "Arrows are reserved for cases and anonymous functions. Maybe you want > or >= instead?"
+              "|" -> cerr (Error row col) -- "Vertical bars are reserved for use in union type declarations. Maybe you want || instead?"
+              ":" -> cerr (Error row col) -- "A single colon is for type annotations. Maybe you want :: instead? Or maybe you are defining a type annotation, but there is whitespace before it?"
+              "." -> cerr (Error row col) -- "Dots are for record access. They cannot float around on their own!"
+              op -> cok op (State array newOffset newLength indent row newCol)
+
+
+infixOpHelp :: Text.Array -> Int -> Int -> Int -> Int -> Either Error (Int, Int, Int)
+infixOpHelp array offset length row col =
+  if length == 0 then
+    Left (Error row col)
+
+  else
+    let
+      (Text.Iter char size) = peek array offset
+    in
+      if Help.isSymbol char then
+        infixOpHelp array (offset + size) (length - size) row (col + 1)
+      else
+        Right ( offset, length, col )
+
+
+
 -- STATE
 
 
@@ -331,6 +428,18 @@ getPosition :: Parser Region.Position
 getPosition =
   Parser $ \state@(State _ _ _ _ row col) _ _ eok _ ->
     eok (Region.Position row col) state
+
+
+getIndent :: Parser Int
+getIndent =
+  Parser $ \state@(State _ _ _ indent _ _) _ _ eok _ ->
+    eok indent state
+
+
+getCol :: Parser Int
+getCol =
+  Parser $ \state@(State _ _ _ _ _ col) _ _ eok _ ->
+    eok col state
 
 
 setIndent :: Int -> Parser ()
@@ -349,7 +458,7 @@ data Space
   | BeforeIndent
   | Aligned
   | AfterIndent
-  deriving (Show)
+  deriving (Eq)
 
 
 whitespace :: Parser Space
