@@ -1,7 +1,11 @@
+{-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module AST.Variable where
 
 import Data.Binary
 import qualified Data.Maybe as Maybe
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Helpers as Help
 import qualified AST.Module.Name as ModuleName
@@ -11,7 +15,7 @@ import qualified AST.Module.Name as ModuleName
 -- RAW NAMES
 
 
-newtype Raw = Raw String
+newtype Raw = Raw Text
     deriving (Eq, Ord)
 
 
@@ -28,38 +32,38 @@ data Home
 
 
 data Canonical = Canonical
-    { home :: !Home
-    , name :: !String
+    { _home :: !Home
+    , _name :: !Text
     }
     deriving (Eq, Ord)
 
 
-local :: String -> Canonical
+local :: Text -> Canonical
 local x =
     Canonical Local x
 
 
-topLevel :: ModuleName.Canonical -> String -> Canonical
+topLevel :: ModuleName.Canonical -> Text -> Canonical
 topLevel home x =
     Canonical (TopLevel home) x
 
 
-builtin :: String -> Canonical
+builtin :: Text -> Canonical
 builtin x =
     Canonical BuiltIn x
 
 
-fromModule :: ModuleName.Canonical -> String -> Canonical
+fromModule :: ModuleName.Canonical -> Text -> Canonical
 fromModule home name =
     Canonical (Module home) name
 
 
-inCore :: ModuleName.Raw -> String -> Canonical
+inCore :: ModuleName.Raw -> Text -> Canonical
 inCore home name =
     Canonical (Module (ModuleName.inCore home)) name
 
 
-inHtml :: ModuleName.Raw -> String -> Canonical
+inHtml :: ModuleName.Raw -> Text -> Canonical
 inHtml home name =
     Canonical (Module (ModuleName.inHtml home)) name
 
@@ -94,7 +98,7 @@ isLocalHome home =
         True
 
 
-is :: ModuleName.Raw -> String -> Canonical -> Bool
+is :: ModuleName.Raw -> Text -> Canonical -> Bool
 is home name var =
     var == inCore home name
 
@@ -126,8 +130,11 @@ isList v =
 isTuple :: Canonical -> Bool
 isTuple v =
     case v of
-      Canonical BuiltIn name -> Help.isTuple name
-      _ -> False
+      Canonical BuiltIn name ->
+        Help.isTuple name
+
+      _ ->
+        False
 
 
 isPrimitive :: Canonical -> Bool
@@ -139,7 +146,7 @@ isPrimitive v =
           False
 
 
-isPrim :: String -> Canonical -> Bool
+isPrim :: Text -> Canonical -> Bool
 isPrim prim (Canonical home name) =
     case home of
       BuiltIn ->
@@ -149,7 +156,7 @@ isPrim prim (Canonical home name) =
           False
 
 
-isLocal :: (String -> Bool) -> Canonical -> Bool
+isLocal :: (Text -> Bool) -> Canonical -> Bool
 isLocal check (Canonical home name) =
   case home of
     Local ->
@@ -169,23 +176,23 @@ class ToString a where
 
 instance ToString Raw where
   toString (Raw name) =
-      name
+      Text.unpack name
 
 
 instance ToString Canonical where
   toString (Canonical home name) =
       case home of
         BuiltIn ->
-            name
+            Text.unpack name
 
         Module moduleName ->
-            ModuleName.canonicalToString moduleName ++ "." ++ name
+            ModuleName.canonicalToString moduleName ++ "." ++ Text.unpack name
 
         TopLevel _ ->
-            name
+            Text.unpack name
 
         Local ->
-            name
+            Text.unpack name
 
 
 

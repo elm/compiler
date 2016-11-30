@@ -1,8 +1,11 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module AST.Pattern where
 
 import qualified Data.List as List
 import qualified Data.Set as Set
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Literal as L
 import qualified AST.Variable as Var
@@ -15,10 +18,10 @@ type Pattern ann var =
 
 
 data Pattern' ann var
-    = Data var [Pattern ann var]
-    | Record [String]
-    | Alias String (Pattern ann var)
-    | Var String
+    = Ctor var [Pattern ann var]
+    | Record [Text]
+    | Alias Text (Pattern ann var)
+    | Var Text
     | Anything
     | Literal L.Literal
 
@@ -35,7 +38,7 @@ type Canonical =
     Pattern R.Region Var.Canonical
 
 
-isVar :: String -> Pattern ann var -> Bool
+isVar :: Text -> Pattern ann var -> Bool
 isVar name (A.A _ pattern) =
   case pattern of
     Var pName ->
@@ -49,30 +52,26 @@ list :: R.Position -> [Raw] -> Raw
 list end patterns =
   case patterns of
     [] ->
-        A.at end end (Data (Var.Raw "[]") [])
+        A.at end end (Ctor (Var.Raw "[]") [])
 
     pattern@(A.A (R.Region start _) _) : rest ->
-        A.at start end (Data (Var.Raw "::") [pattern, list end rest])
-
-
-consMany :: R.Position -> [Raw] -> Raw
-consMany end patterns =
-  let cons hd@(A.A (R.Region start _) _) tl =
-          A.at start end (Data (Var.Raw "::") [hd, tl])
-  in
-      foldr1 cons patterns
+        A.at start end (Ctor (Var.Raw "::") [pattern, list end rest])
 
 
 tuple :: [Raw] -> Raw'
 tuple patterns =
-  Data (Var.Raw ("_Tuple" ++ show (length patterns))) patterns
+  let
+    name =
+      Text.append "_Tuple" (Text.pack (show (length patterns)))
+  in
+    Ctor (Var.Raw name) patterns
 
 
 
 -- FIND VARIABLES
 
 
-boundVars :: Pattern ann var -> [A.Annotated ann String]
+boundVars :: Pattern ann var -> [A.Annotated ann Text]
 boundVars (A.A ann pattern) =
   case pattern of
     Var x ->
@@ -81,7 +80,7 @@ boundVars (A.A ann pattern) =
     Alias name realPattern ->
         A.A ann name : boundVars realPattern
 
-    Data _ patterns ->
+    Ctor _ patterns ->
         concatMap boundVars patterns
 
     Record fields ->
@@ -94,17 +93,17 @@ boundVars (A.A ann pattern) =
         []
 
 
-member :: String -> Pattern ann var -> Bool
+member :: Text -> Pattern ann var -> Bool
 member name pattern =
-  any (name==) (map A.drop (boundVars pattern))
+  elem name (map A.drop (boundVars pattern))
 
 
-boundVarSet :: Pattern ann var -> Set.Set String
+boundVarSet :: Pattern ann var -> Set.Set Text
 boundVarSet pattern =
   Set.fromList (map A.drop (boundVars pattern))
 
 
-boundVarList :: Pattern ann var -> [String]
+boundVarList :: Pattern ann var -> [Text]
 boundVarList pattern =
   Set.toList (boundVarSet pattern)
 
@@ -117,15 +116,15 @@ toString :: Bool -> Canonical -> String
 toString needsParens (A.A _ pattern) =
   case pattern of
     Var name ->
-      name
+      Text.unpack name
 
-    Data name [] ->
+    Ctor name [] ->
       if Var.isTuple name then
         "()"
       else
         Var.toString name
 
-    Data name args ->
+    Ctor name args ->
       if Var.isTuple name then
         "( " ++ List.intercalate ", " (map (toString False) args) ++ " )"
       else
@@ -133,11 +132,11 @@ toString needsParens (A.A _ pattern) =
           Var.toString name ++ concatMap ((" "++) . toString True) args
 
     Record fields ->
-      "{" ++ List.intercalate "," fields ++ "}"
+      "{" ++ List.intercalate "," (map Text.unpack fields) ++ "}"
 
     Alias alias subPattern ->
       parensIf needsParens $
-        toString False subPattern ++ " as " ++ alias
+        toString False subPattern ++ " as " ++ Text.unpack alias
 
     Anything ->
       "_"

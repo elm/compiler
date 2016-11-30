@@ -5,6 +5,8 @@ module AST.Expression.Optimized
     , Decider(..), Choice(..)
     ) where
 
+import Data.Text (Text)
+
 import qualified AST.Expression.Canonical as Can
 import qualified AST.Literal as Literal
 import qualified AST.Module.Name as ModuleName
@@ -18,8 +20,8 @@ import qualified Reporting.Region as R
 -- DEFINITIONS
 
 data Def
-    = Def Facts String Expr
-    | TailDef Facts String [String] Expr
+    = Def Facts Text Expr
+    | TailDef Facts Text [Text] Expr
 
 
 data Facts = Facts
@@ -39,23 +41,23 @@ data Expr
     | Var Var.Canonical
     | List [Expr]
     | Binop Var.Canonical Expr Expr
-    | Function [String] Expr
+    | Function [Text] Expr
     | Call Expr [Expr]
-    | TailCall String [String] [Expr]
+    | TailCall Text [Text] [Expr]
     | If [(Expr, Expr)] Expr
     | Let [Def] Expr
-    | Case String (Decider Choice) [(Int, Expr)]
-    | Ctor String [Expr]
+    | Case Text (Decider Choice) [(Int, Expr)]
+    | Ctor Text [Expr]
     | CtorAccess Expr Int
-    | Access Expr String
-    | Update Expr [(String, Expr)]
-    | Record [(String, Expr)]
+    | Access Expr Text
+    | Update Expr [(Text, Expr)]
+    | Record [(Text, Expr)]
     | Cmd ModuleName.Canonical
     | Sub ModuleName.Canonical
-    | OutgoingPort String Type.Canonical
-    | IncomingPort String Type.Canonical
+    | OutgoingPort Text Type.Canonical
+    | IncomingPort Text Type.Canonical
     | Program Can.Main Expr
-    | GLShader String String Literal.GLShaderTipe
+    | GLShader Text Text Literal.GLShaderTipe
     | Crash ModuleName.Canonical R.Region (Maybe Expr)
 
 

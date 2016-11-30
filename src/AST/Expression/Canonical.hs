@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module AST.Expression.Canonical
   ( Expr, Expr'(..)
   , Main(..)
@@ -10,7 +11,8 @@ module AST.Expression.Canonical
   where
 
 
-import qualified Data.List as List
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Effects as Effects
 import qualified AST.Literal as Literal
@@ -40,18 +42,18 @@ data Expr'
     | If [(Expr, Expr)] Expr
     | Let [Def] Expr
     | Case Expr [(Ptrn.Canonical, Expr)]
-    | Ctor String [Expr]
-    | Access Expr String
-    | Update Expr [(String, Expr)]
-    | Record [(String, Expr)]
+    | Ctor Text [Expr]
+    | Access Expr Text
+    | Update Expr [(Text, Expr)]
+    | Record [(Text, Expr)]
     -- for type checking and code gen only
     | Cmd ModuleName.Canonical
     | Sub ModuleName.Canonical
-    | OutgoingPort String Type.Canonical
-    | IncomingPort String Type.Canonical
+    | OutgoingPort Text Type.Canonical
+    | IncomingPort Text Type.Canonical
     | Program Main Expr
     | SaveEnv ModuleName.Canonical Effects.Canonical
-    | GLShader String String Literal.GLShaderTipe
+    | GLShader Text Text Literal.GLShaderTipe
 
 
 data Main
@@ -109,7 +111,7 @@ defCons def@(Def _ (A.A _ pattern) _ _) sortedDefs =
 -- HELPERS
 
 
-localVar :: String -> Expr'
+localVar :: Text -> Expr'
 localVar x =
   Var (Var.Canonical Var.Local x)
 
@@ -128,16 +130,16 @@ collectApps annExpr@(A.A _ expr) =
 
 
 
-collectFields :: Expr -> Maybe String
+collectFields :: Expr -> Maybe Text
 collectFields expr =
   collectFieldsHelp expr []
 
 
-collectFieldsHelp :: Expr -> [String] -> Maybe String
+collectFieldsHelp :: Expr -> [Text] -> Maybe Text
 collectFieldsHelp (A.A _ expr) fields =
   case expr of
     Var var ->
-      Just (List.intercalate "." (Var.toString var : fields))
+      Just (Text.intercalate "." (Text.pack (Var.toString var) : fields))
 
     Access record field ->
       collectFieldsHelp record (field : fields)

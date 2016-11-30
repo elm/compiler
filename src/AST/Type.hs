@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module AST.Type
     ( Raw, Raw'(..)
     , Canonical(..), Aliased(..)
@@ -10,6 +12,8 @@ module AST.Type
 import Control.Arrow (second)
 import Data.Binary
 import qualified Data.Map as Map
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
@@ -27,19 +31,19 @@ type Raw =
 
 data Raw'
     = RLambda Raw Raw
-    | RVar String
+    | RVar Text
     | RType Var.Raw
     | RApp Raw [Raw]
-    | RRecord [(A.Located String, Raw)] (Maybe Raw)
+    | RRecord [(A.Located Text, Raw)] (Maybe Raw)
 
 
 data Canonical
     = Lambda Canonical Canonical
-    | Var String
+    | Var Text
     | Type Var.Canonical
     | App Canonical [Canonical]
-    | Record [(String, Canonical)] (Maybe Canonical)
-    | Aliased Var.Canonical [(String, Canonical)] (Aliased Canonical)
+    | Record [(Text, Canonical)] (Maybe Canonical)
+    | Aliased Var.Canonical [(Text, Canonical)] (Aliased Canonical)
     deriving (Eq, Ord)
 
 
@@ -57,22 +61,22 @@ tuple :: R.Region -> [Raw] -> Raw
 tuple region types =
   let
     name =
-      Var.Raw ("_Tuple" ++ show (length types))
+      Var.Raw (Text.append "_Tuple" (Text.pack (show (length types))))
   in
     A.A region (RApp (A.A region (RType name)) types)
 
 
-cmd :: ModuleName.Canonical -> String -> Canonical
+cmd :: ModuleName.Canonical -> Text -> Canonical
 cmd =
   effect Var.cmd
 
 
-sub :: ModuleName.Canonical -> String -> Canonical
+sub :: ModuleName.Canonical -> Text -> Canonical
 sub =
   effect Var.sub
 
 
-effect :: Var.Canonical -> ModuleName.Canonical -> String -> Canonical
+effect :: Var.Canonical -> ModuleName.Canonical -> Text -> Canonical
 effect effectName moduleName tipe =
   Lambda
     (App (Type (Var.fromModule moduleName tipe)) [Var "msg"])
@@ -115,7 +119,7 @@ iteratedDealias tipe =
       tipe
 
 
-dealias :: [(String, Canonical)] -> Aliased Canonical -> Canonical
+dealias :: [(Text, Canonical)] -> Aliased Canonical -> Canonical
 dealias args aliasType =
   case aliasType of
     Holey tipe ->
@@ -125,7 +129,7 @@ dealias args aliasType =
       tipe
 
 
-dealiasHelp :: Map.Map String Canonical -> Canonical -> Canonical
+dealiasHelp :: Map.Map Text Canonical -> Canonical -> Canonical
 dealiasHelp typeTable tipe =
   let
     go =

@@ -3,10 +3,12 @@ module AST.Expression.Source
   ( RawExpr, RawExpr', RawDef, RawDef'(..)
   , ValidExpr, ValidExpr', ValidDef(..)
   , Expr, Expr'(..)
-  , var, tuple, getPattern, collectLambdas
+  , var, tuple, zero, getPattern, collectLambdas
   )
   where
 
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Literal as Literal
 import qualified AST.Pattern as Ptrn
@@ -28,17 +30,17 @@ data Expr' def
     = Literal Literal.Literal
     | Var Var.Raw
     | List [Expr def]
-    | Binop [(Expr def, A.Located String)] (Expr def)
+    | Binop [(Expr def, A.Located Text)] (Expr def)
     | Lambda Ptrn.Raw (Expr def)
     | App (Expr def) (Expr def)
     | If [(Expr def, Expr def)] (Expr def)
     | Let [def] (Expr def)
     | Case (Expr def) [(Ptrn.Raw, Expr def)]
-    | Ctor String [Expr def]
-    | Access (Expr def) String
-    | Update (Expr def) [(A.Located String, Expr def)]
-    | Record [(A.Located String, Expr def)]
-    | GLShader String String Literal.GLShaderTipe
+    | Ctor Text [Expr def]
+    | Access (Expr def) Text
+    | Update (Expr def) [(A.Located Text, Expr def)]
+    | Record [(A.Located Text, Expr def)]
+    | GLShader Text Text Literal.GLShaderTipe
 
 
 type RawExpr = Expr RawDef
@@ -60,7 +62,7 @@ type RawDef =
 
 data RawDef'
     = Definition Ptrn.Raw RawExpr
-    | Annotation String Type.Raw
+    | Annotation Text Type.Raw
 
 
 data ValidDef =
@@ -71,14 +73,19 @@ data ValidDef =
 -- HELPERS
 
 
-var :: String -> Expr' def
+var :: Text -> Expr' def
 var x =
   Var (Var.Raw x)
 
 
 tuple :: [Expr def] -> Expr' def
 tuple expressions =
-  Ctor ("_Tuple" ++ show (length expressions)) expressions
+  Ctor (Text.pack ("_Tuple" ++ show (length expressions))) expressions
+
+
+zero :: Expr' def
+zero =
+  Literal (Literal.IntNum 0)
 
 
 getPattern :: ValidDef -> Ptrn.Raw

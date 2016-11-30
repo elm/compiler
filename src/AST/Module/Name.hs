@@ -1,12 +1,16 @@
+{-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module AST.Module.Name where
 
 import Data.Binary
 import qualified Data.List as List
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified Elm.Package as Package
 
 
-type Raw = [String] -- must be non-empty
+type Raw = [Text] -- must be non-empty
 
 
 data Canonical = Canonical
@@ -33,7 +37,7 @@ inHtml raw =
 
 toString :: Raw -> String
 toString rawName =
-  List.intercalate "." rawName
+  List.intercalate "." (map Text.unpack rawName)
 
 
 canonicalToString :: Canonical -> String

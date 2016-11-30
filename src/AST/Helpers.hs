@@ -1,32 +1,32 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module AST.Helpers where
 
 import qualified Data.Char as Char
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 
 
-splitDots :: String -> [String]
-splitDots variable =
-    go [] variable
-  where
-    go vars str =
-        case break (=='.') str of
-          (x,_:rest) | isOp x -> vars ++ [x ++ '.' : rest]
-                     | otherwise -> go (vars ++ [x]) rest
-          (x,[]) -> vars ++ [x]
+-- TUPLES
 
 
-isTuple :: String -> Bool
+isTuple :: Text -> Bool
 isTuple name =
-  take 6 name == "_Tuple"
-  && all Char.isDigit (drop 6 name)
+  Text.isPrefixOf "_Tuple" name
+  &&
+  Text.all Char.isDigit (Text.drop 6 name)
 
 
-isOp :: String -> Bool
+
+-- INFIX OPERATORS
+
+
+isOp :: Text -> Bool
 isOp name =
-  all isSymbol name
+  Text.all isSymbol name
 
 
 isSymbol :: Char -> Bool
 isSymbol c =
-  c /= '`' && (Char.isSymbol c || elem c "+-/*=.$<>:&|^?%#@~!")
+  elem c ("+-/*=.<>:&|^?%#@~!" :: String)

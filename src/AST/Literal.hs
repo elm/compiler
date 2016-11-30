@@ -2,13 +2,14 @@
 module AST.Literal where
 
 import qualified Data.Map as Map
+import Data.Text (Text)
 
 
 data Literal
     = IntNum Int
     | FloatNum Double
     | Chr Char
-    | Str String
+    | Str Text
     | Boolean Bool
     deriving (Eq, Ord)
 
