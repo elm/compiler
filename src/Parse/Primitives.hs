@@ -10,7 +10,9 @@ module Parse.Primitives
   , getPosition, getCol
   , getIndent, setIndent
   , Space(..), whitespace
+  , docComment
   , string, character
+  , digit
   )
   where
 
@@ -557,15 +559,20 @@ eatLineCommentHelp array offset length row col =
 
 eatMultiComment :: Text.Array -> Int -> Int -> Int -> Int -> Either Error ( Int, Int, Int, Int )
 eatMultiComment array offset length row col =
-  if length == 1 then
+  if length <= 2 then
     Right ( offset, length, row, col )
 
   else
-    case Text.unsafeIndex array (offset + 1) of
-      0x002D {- - -} ->
-        eatMultiCommentHelp array (offset + 2) (length - 2) row (col + 2) 1
+    let
+      !yesDash = Text.unsafeIndex array (offset + 1) == 0x002D {- - -}
+      !noBar   = Text.unsafeIndex array (offset + 2) /= 0x007C {- | -}
+    in
+      if yesDash && noBar then
+        do  (newOffset, newLength, newRow, newCol) <-
+              eatMultiCommentHelp array (offset + 2) (length - 2) row (col + 2) 1
+            eatSpaces array newOffset newLength newRow newCol
 
-      _ ->
+      else
         Right ( offset, length, row, col )
 
 
@@ -585,7 +592,7 @@ eatMultiCommentHelp array offset length row col openComments =
       else if word == 0x002D {- - -} && length > 1 && Text.unsafeIndex array (offset + 1) == 0x007D {- } -} then
 
         if openComments == 1 then
-          eatSpaces array (offset + 2) (length - 2) row (col + 2)
+          Right ( offset + 2, length - 2, row, col + 2 )
         else
           eatMultiCommentHelp array (offset + 2) (length - 2) row (col + 2) (openComments - 1)
 
@@ -600,6 +607,34 @@ eatMultiCommentHelp array offset length row col openComments =
       else
 
         eatMultiCommentHelp array (offset + 2) (length - 2) row (col + 1) openComments
+
+
+
+-- DOCUMENTATION COMMENT
+
+
+docComment :: Parser Text
+docComment =
+  do  text "{-|"
+      Parser $ \(State array offset length indent row col) cok cerr _ _ ->
+        case eatMultiCommentHelp array offset length row col 1 of
+          Left err ->
+            cerr err
+
+          Right (newOffset, newLength, newRow, newCol) ->
+            let
+              !newSize =
+                newOffset - offset
+
+              makeArray =
+                do  mutableArray <- Text.new newSize
+                    Text.copyI mutableArray 0 array offset newSize
+                    return mutableArray
+
+              comment =
+                Text.Text (Text.run makeArray) 0 newSize
+            in
+              cok comment (State array newOffset newLength indent newRow newCol)
 
 
 
@@ -788,3 +823,26 @@ characterHelp array offset length row col =
 
     else
       Left (Error row col)
+
+
+
+-- NUMBERS
+
+
+digit :: Parser Int
+digit =
+  Parser $ \(State array offset length indent row col) cok _ _ eerr ->
+    if length == 0 then
+      eerr (Error row col)
+
+    else
+      let
+        !word = Text.unsafeIndex array offset
+        !isDigit = word <= 0x0039 {- 9 -} && word >= 0x0030 {- 0 -}
+      in
+        if isDigit then
+          cok
+            (fromIntegral (word - 0x0030))
+            (State array (offset + 1) (length - 1) indent row (col + 1))
+        else
+          eerr (Error row col)

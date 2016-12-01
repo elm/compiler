@@ -2,6 +2,7 @@
 module AST.Declaration where
 
 import Data.Binary
+import Data.Text (Text)
 
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Expression.Source as Src
@@ -18,7 +19,7 @@ type Source =
 
 
 data CommentOr a
-  = Comment (A.Located String)
+  = Comment (A.Located Text)
   | Whatever a
 
 
@@ -27,7 +28,7 @@ data Raw
   | Union (Union Type.Raw)
   | Alias (Alias Type.Raw)
   | Fixity Infix
-  | Port String Type.Raw
+  | Port Text Type.Raw
 
 
 
@@ -77,14 +78,14 @@ addInfix fixity decls =
 
 data Type body =
   Type
-    { _name :: String
-    , _args :: [String]
+    { _name :: Text
+    , _args :: [Text]
     , _body :: body
     }
 
 
 type Union tipe =
-  Type [(String, [tipe])]
+  Type [(Text, [tipe])]
 
 
 type Alias tipe =
@@ -97,7 +98,7 @@ type Alias tipe =
 
 data Infix =
   Infix
-    { _op :: String
+    { _op :: Text
     , _associativity :: Assoc
     , _precedence :: Int
     }

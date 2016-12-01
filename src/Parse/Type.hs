@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Parse.Type (expression) where
+module Parse.Type (expression, unionConstructor) where
 
 import Data.Text (Text)
 
@@ -59,15 +59,7 @@ expression =
 
 
 
--- TYPE APPLICATION
-
-
-app :: R.Position -> SParser Type.Raw
-app start =
-  do  ctor <- constructor
-      end <- getPosition
-      space <- whitespace
-      appHelp ctor [] start end space
+-- TYPE CONSTRUCTORS
 
 
 constructor :: Parser Type.Raw
@@ -76,22 +68,42 @@ constructor =
     fmap (Type.RType . Var.Raw) qualifiedCapVar
 
 
-appHelp :: Type.Raw -> [Type.Raw] -> R.Position -> R.Position -> Space -> SParser Type.Raw
-appHelp ctor args start end space =
+app :: R.Position -> SParser Type.Raw
+app start =
+  do  ctor <- constructor
+      ctorEnd <- getPosition
+      ctorSpace <- whitespace
+      (args, end, space) <- eatArgs [] ctorEnd ctorSpace
+      case args of
+        [] ->
+          return ( ctor, end, space )
+
+        _ ->
+          let
+            tipe =
+              A.at start end (Type.RApp ctor (reverse args))
+          in
+            return ( tipe, end, space )
+
+
+unionConstructor :: SParser (Text, [Type.Raw])
+unionConstructor =
+  do  ctor <- capVar
+      ctorEnd <- getPosition
+      ctorSpace <- whitespace
+      (args, end, space) <- eatArgs [] ctorEnd ctorSpace
+      return ( (ctor, args), end, space )
+
+
+eatArgs :: [Type.Raw] -> R.Position -> Space -> SParser [Type.Raw]
+eatArgs args end space =
   oneOf
     [ do  checkSpaces space
           arg <- term
           newEnd <- getPosition
           newSpace <- whitespace
-          appHelp ctor (arg:args) start newEnd newSpace
-    , let
-        tipe =
-          if null args then
-            ctor
-          else
-            A.at start end (Type.RApp ctor (reverse args))
-      in
-        return ( tipe, end, space )
+          eatArgs (arg:args) newEnd newSpace
+    , return ( reverse args, end, space )
     ]
 
 
