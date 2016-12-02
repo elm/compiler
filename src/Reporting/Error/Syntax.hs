@@ -36,7 +36,9 @@ data Error
     | DuplicateDefinition String
     | UnboundTypeVarsInUnion String [String] [String]
     | UnboundTypeVarsInAlias String [String] [String]
+    | UnusedTypeVarsInUnion String [String] [String]
     | UnusedTypeVarsInAlias String [String] [String]
+    | MessyTypeVarsInUnion String [String] [String] [String]
     | MessyTypeVarsInAlias String [String] [String] [String]
 
 
@@ -247,38 +249,17 @@ toReport _localizer err =
     UnboundTypeVarsInAlias typeName givenVars unbound ->
         unboundTypeVars "type alias" typeName givenVars unbound
 
+    UnusedTypeVarsInUnion typeName givenVars unused ->
+        unusedTypeVars "type" typeName givenVars unused
+
     UnusedTypeVarsInAlias typeName givenVars unused ->
-        Report.report
-          "UNUSED TYPE VARIABLES"
-          Nothing
-          ( "Type alias `" ++ typeName ++ "` cannot have unused type variables: "
-            ++ Help.commaSep unused
-          )
-          ( Help.stack
-              [ text "You probably need to change the declaration like this:"
-              , dullyellow $ hsep $
-                  map text ("type" : "alias" : typeName : filter (`notElem` unused) givenVars ++ ["=", "..."])
-              ]
-          )
+        unusedTypeVars "type alias" typeName givenVars unused
+
+    MessyTypeVarsInUnion typeName givenVars unused unbound ->
+        messyTypeVars "type" typeName givenVars unused unbound
 
     MessyTypeVarsInAlias typeName givenVars unused unbound ->
-        Report.report
-          "TYPE VARIABLE PROBLEMS"
-          Nothing
-          ( "Type alias `" ++ typeName ++ "` has some problems with type variables."
-          )
-          ( Help.stack
-              [ Help.reflowParagraph $
-                  "The declaration says it uses certain type variables ("
-                  ++ Help.commaSep unused ++ ") but they do not appear in the aliased type. "
-                  ++ "Furthermore, the aliased type says it uses type variables ("
-                  ++ Help.commaSep unbound
-                  ++ ") that do not appear in the declaration."
-              , text "You probably need to change the declaration like this:"
-              , dullyellow $ hsep $
-                  map text ("type" : "alias" : typeName : filter (`notElem` unused) givenVars ++ unbound ++ ["=", "..."])
-              ]
-          )
+        messyTypeVars "type alias" typeName givenVars unused unbound
 
 
 unboundTypeVars :: String -> String -> [String] -> [String] -> Report.Report
@@ -286,7 +267,7 @@ unboundTypeVars declKind typeName givenVars unboundVars =
   Report.report
     "UNBOUND TYPE VARIABLES"
     Nothing
-    ( Help.capitalize declKind ++ " `" ++ typeName ++ "` must declare its use of type variable"
+    ( Help.capitalize declKind ++ " `" ++ typeName ++ "` must declare its use of type variables: "
       ++ Help.commaSep unboundVars
     )
     ( Help.stack
@@ -302,6 +283,46 @@ unboundTypeVars declKind typeName givenVars unboundVars =
         ]
     )
 
+
+unusedTypeVars :: String -> String -> [String] -> [String] -> Report.Report
+unusedTypeVars declKind typeName givenVars unused =
+  Report.report
+    "UNUSED TYPE VARIABLES"
+    Nothing
+    ( Help.capitalize declKind ++ " `" ++ typeName ++ "` cannot have unused type variables: "
+      ++ Help.commaSep unused
+    )
+    ( Help.stack
+        [ text "You probably need to change the declaration like this:"
+        , dullyellow $ hsep $
+            map text $ words declKind ++ typeName : filter (`notElem` unused) givenVars ++ ["=", "..."]
+        ]
+    )
+
+messyTypeVars :: String -> String -> [String] -> [String] -> [String] -> Report.Report
+messyTypeVars declKind typeName givenVars unused unbound =
+  Report.report
+    "TYPE VARIABLE PROBLEMS"
+    Nothing
+    ( Help.capitalize declKind ++ " `" ++ typeName ++ "` has some problems with type variables."
+    )
+    ( Help.stack
+        [ Help.reflowParagraph $
+            "The declaration says it uses certain type variables ("
+            ++ Help.commaSep unused ++ ") but they do not appear in the" ++ typeDescr ++ "type. "
+            ++ "Furthermore, the" ++ typeDescr ++ "type says it uses type variables ("
+            ++ Help.commaSep unbound ++ ") that do not appear in the declaration."
+        , text "You probably need to change the declaration like this:"
+        , dullyellow $ hsep $
+            map text $ words declKind ++ typeName : filter (`notElem` unused) givenVars ++ unbound ++ ["=", "..."]
+        ]
+    )
+  where
+    typeDescr =
+      if declKind == "type alias" then
+        " aliased "
+      else
+        " defined "
 
 
 -- TAGGING PARSE ERRORS

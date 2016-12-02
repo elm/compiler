@@ -641,12 +641,20 @@ detectDuplicates tag names =
 checkTypeVarsInUnion :: A.Commented (D.Union Type.Raw) -> Result wrn ()
 checkTypeVarsInUnion (A.A (region,_) (D.Type name boundVars ctors)) =
   case diff boundVars (concatMap freeVars (concatMap snd ctors)) of
-    (_, []) ->
+    ([], []) ->
         return ()
 
-    (_, unbound) ->
+    ([], unbound) ->
         Result.throw region
           (Error.UnboundTypeVarsInUnion name boundVars unbound)
+
+    (unused, []) ->
+        Result.throw region
+          (Error.UnusedTypeVarsInUnion name boundVars unused)
+
+    (unused, unbound) ->
+        Result.throw region
+          (Error.MessyTypeVarsInUnion name boundVars unused unbound)
 
 
 checkTypeVarsInAlias :: A.Commented (D.Alias Type.Raw) -> Result wrn ()

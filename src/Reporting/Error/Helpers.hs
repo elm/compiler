@@ -78,14 +78,17 @@ reflowParagraph paragraph =
 commaSep :: [String] -> String
 commaSep tokens =
   case tokens of
-    [token] ->
-      " " ++ token
+    [] ->
+      ""
 
-    [token1,token2] ->
-      " " ++ token1 ++ " and " ++ token2
+    [token] ->
+      token
+
+    [token1, token2] ->
+     token1 ++ " and " ++ token2
 
     _ ->
-      " " ++ List.intercalate ", " (init tokens) ++ ", and " ++ last tokens
+      List.intercalate ", " (init tokens) ++ ", and " ++ last tokens
 
 
 capitalize :: String -> String
