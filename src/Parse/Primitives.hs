@@ -12,11 +12,13 @@ module Parse.Primitives
   , Space(..), whitespace
   , docComment
   , string, character
-  , digit
+  , digit, number
   )
   where
 
 import Prelude hiding (length)
+import qualified Control.Applicative as Applicative ( Applicative(..), Alternative(..) )
+import Control.Monad
 import qualified Data.Char as Char
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -28,10 +30,10 @@ import qualified Data.Text.Lazy as LT
 import qualified Data.Text.Lazy.Builder as LB
 import Data.Text.Internal.Encoding.Utf16 (chr2)
 import Data.Text.Internal.Unsafe.Char (unsafeChr)
-import qualified Control.Applicative as Applicative ( Applicative(..), Alternative(..) )
-import Control.Monad
+import GHC.Word (Word16(..))
 
 import qualified AST.Helpers as Help (isSymbol)
+import qualified AST.Literal as L
 import qualified Reporting.Region as Region
 
 
@@ -774,12 +776,15 @@ eatHex array offset length n =
 character :: Parser Char
 character =
   Parser $ \(State array offset length indent row col) cok cerr _ eerr ->
-    if length <= 3 then
+    if length == 0 then
       eerr (Error row col)
 
     else
       if Text.unsafeIndex array offset /= 0x0027 {- ' -} then
         eerr (Error row col)
+
+      else if length < 3 then
+        cerr (Error row col)
 
       else
         case characterHelp array (offset + 1) (length - 1) row (col + 1) of
@@ -826,7 +831,7 @@ characterHelp array offset length row col =
 
 
 
--- NUMBERS
+-- DIGITS
 
 
 digit :: Parser Int
@@ -838,11 +843,228 @@ digit =
     else
       let
         !word = Text.unsafeIndex array offset
-        !isDigit = word <= 0x0039 {- 9 -} && word >= 0x0030 {- 0 -}
       in
-        if isDigit then
+        if isDigit word then
           cok
             (fromIntegral (word - 0x0030))
             (State array (offset + 1) (length - 1) indent row (col + 1))
         else
           eerr (Error row col)
+
+
+
+-- NUMBERS
+
+
+number :: Parser L.Literal
+number =
+  Parser $ \(State array offset length indent row col) cok cerr _ eerr ->
+    if length == 0 then
+      eerr (Error row col)
+
+    else
+      let
+        !word = Text.unsafeIndex array offset
+      in
+        if not (isDigit word) then
+          eerr (Error row col)
+
+        else
+          let
+            chompResults =
+              if word == 0x0030 {- 0 -} then
+                chompZero array offset (offset + 1) (length - 1)
+              else
+                chompInt array offset (offset + 1) (length - 1)
+          in
+            case chompResults of
+              Left err ->
+                cerr err
+
+              Right (newOffset, newLength, literal) ->
+                if isDirtyEnd array newOffset newLength then
+                  cerr (Error row col)
+
+                else
+                  cok literal (State array newOffset newLength indent row (col + (newOffset - offset)))
+
+
+isDirtyEnd :: Text.Array -> Int -> Int -> Bool
+isDirtyEnd array offset length =
+  if length == 0 then
+    False
+
+  else
+    let
+      !char = peekChar array offset
+    in
+      Char.isAlpha char || char == '_'
+
+
+chompInt :: Text.Array -> Int -> Int -> Int -> Either Error (Int, Int, L.Literal)
+chompInt array startOffset offset length =
+  if length == 0 then
+
+    Right ( offset, length, readInt array startOffset offset )
+
+  else
+
+    let
+      !word = Text.unsafeIndex array offset
+    in
+      if isDigit word then
+        chompInt array startOffset (offset + 1) (length - 1)
+
+      else if word == 0x002E {- . -} then
+        chompFraction array startOffset (offset + 1) (length - 1)
+
+      else
+        Right ( offset, length, readInt array startOffset offset )
+
+
+chompFraction :: Text.Array -> Int -> Int -> Int -> Either Error (Int, Int, L.Literal)
+chompFraction array startOffset offset length =
+  if length == 0 then
+    Left (error "TODO chompFraction")
+
+  else if isDigit (Text.unsafeIndex array offset) then
+    chompFractionHelp array startOffset (offset + 1) (length - 1)
+
+  else
+    Left (error "TODO must be a number after a decimal point")
+
+
+chompFractionHelp :: Text.Array -> Int -> Int -> Int -> Either Error (Int, Int, L.Literal)
+chompFractionHelp array startOffset offset length =
+  if length == 0 then
+    Right (offset, length, readFloat array startOffset offset)
+
+  else
+    let
+      !word = Text.unsafeIndex array offset
+    in
+      if isDigit word then
+        chompFractionHelp array startOffset (offset + 1) (length - 1)
+
+      else if word == 0x0065 {- e -} || word == 0x0045 {- E -} then
+        chompExponent array startOffset (offset + 1) (length - 1)
+
+      else
+        Right (offset, length, readFloat array startOffset offset)
+
+
+chompExponent :: Text.Array -> Int -> Int -> Int -> Either Error (Int, Int, L.Literal)
+chompExponent array startOffset offset length =
+  if length == 0 then
+    Right (offset, length, readFloat array startOffset offset)
+
+  else
+    let
+      !word = Text.unsafeIndex array offset
+    in
+      if isDigit word then
+        chompExponentHelp array startOffset (offset + 1) (length - 1)
+
+      else if word == 0x002B {- + -} || word == 0x002D {- - -} then
+
+        if length > 1 && isDigit (Text.unsafeIndex array (offset + 1)) then
+          chompExponentHelp array startOffset (offset + 2) (length - 2)
+        else
+          Left (error "TODO digits after +/-")
+
+      else
+        Left (error "TODO exponent is messed up")
+
+
+chompExponentHelp :: Text.Array -> Int -> Int -> Int -> Either Error (Int, Int, L.Literal)
+chompExponentHelp array startOffset offset length =
+  if length == 0 then
+    Right (offset, length, readFloat array startOffset offset)
+
+  else if isDigit (Text.unsafeIndex array offset) then
+    chompExponentHelp array startOffset (offset + 1) (length - 1)
+
+  else
+    Right (offset, length, readFloat array startOffset offset)
+
+
+chompZero :: Text.Array -> Int -> Int -> Int -> Either Error (Int, Int, L.Literal)
+chompZero array startOffset offset length =
+  if length == 0 then
+    Right ( offset, length, L.IntNum 0 )
+
+  else
+    let
+      !word = Text.unsafeIndex array offset
+    in
+      if word == 0x0078 {- x -} then
+        chompHex array startOffset (offset + 1) (length - 1)
+
+      else if word == 0x002E {- . -} then
+        chompFraction array startOffset (offset + 1) (length - 1)
+
+      else if isDigit word then
+        Left (error "TODO zero followed by more numbers")
+
+      else
+        Right ( offset, length, L.IntNum 0 )
+
+
+chompHex :: Text.Array -> Int -> Int -> Int -> Either Error (Int, Int, L.Literal)
+chompHex array startOffset offset length =
+  if length == 0 then
+    Left (error "TODO need hex digits after 0x")
+
+  else if isHex (Text.unsafeIndex array offset) then
+    chompHexHelp array startOffset (offset + 1) (length - 1)
+
+  else
+    Left (error "TODO need hex digits!")
+
+
+chompHexHelp :: Text.Array -> Int -> Int -> Int -> Either Error (Int, Int, L.Literal)
+chompHexHelp array startOffset offset length =
+  if length == 0 then
+    Right ( offset, length, readInt array startOffset offset )
+
+  else if isHex (Text.unsafeIndex array offset) then
+    chompHexHelp array startOffset (offset + 1) (length - 1)
+
+  else
+    Right ( offset, length, readInt array startOffset offset )
+
+
+
+-- NUMBER HELPERS
+
+
+{-# INLINE isDigit #-}
+isDigit :: Word16 -> Bool
+isDigit word =
+  word <= 0x0039 {- 9 -} && word >= 0x0030 {- 0 -}
+
+
+{-# INLINE isHex #-}
+isHex :: Word16 -> Bool
+isHex word =
+  word <= 0x0066 {- f -} && (word >= 0x0061 {- a -} || isDigit word || isCapHex word)
+
+
+{-# INLINE isCapHex #-}
+isCapHex :: Word16 -> Bool
+isCapHex word =
+  word <= 0x0046 {- F -} && word <= 0x0041 {- A -}
+
+
+{-# INLINE readInt #-}
+readInt :: Text.Array -> Int -> Int -> L.Literal
+readInt array startOffset endOffset =
+  L.IntNum $ read $ Text.unpack $
+    Text.Text array startOffset (endOffset - startOffset)
+
+
+{-# INLINE readFloat #-}
+readFloat :: Text.Array -> Int -> Int -> L.Literal
+readFloat array startOffset endOffset =
+  L.FloatNum $ read $ Text.unpack $
+    Text.Text array startOffset (endOffset - startOffset)
