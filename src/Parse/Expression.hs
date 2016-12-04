@@ -91,7 +91,9 @@ tuple start =
                 rightParen
                 end <- getPosition
                 let args = map (\n -> Text.pack ("v" ++ show n)) [ 1 .. arity ]
-                return (A.at start end (error "TODO" args))
+                let ann x = A.at start end x
+                let result = ann (Src.tuple (map (ann . Src.var) args))
+                return (foldr (mkLambda start end) result args)
 
           , do  spaces
                 (entry, _, space) <- expression
