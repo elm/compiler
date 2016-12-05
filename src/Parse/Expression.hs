@@ -26,16 +26,49 @@ term :: Parser Src.RawExpr
 term =
   do  start <- getPosition
       oneOf
-        [ do  literal <- Literal.literal
-              end <- getPosition
-              return (A.at start end (Src.Literal literal))
+        [ variable start >>= accessible start
+        , literal start
         , list start
+        , record start >>= accessible start
         , tuple start
-        , record start
-        , do  var <- qualifiedVar
-              end <- getPosition
-              return (A.at start end (Src.var var))
+        , accessor start
         ]
+
+
+literal :: R.Position -> Parser Src.RawExpr
+literal start =
+  do  value <- Literal.literal
+      end <- getPosition
+      return (A.at start end (Src.Literal value))
+
+
+accessor :: R.Position -> Parser Src.RawExpr
+accessor start =
+  do  dot
+      field <- lowVar
+      end <- getPosition
+      let ann x = A.at start end x
+      let body = ann (Src.Access (ann (Src.var "r")) field)
+      return (mkLambda start end "r" body)
+
+
+variable :: R.Position -> Parser Src.RawExpr
+variable start =
+  do  var <- qualifiedVar
+      end <- getPosition
+      return (A.at start end (Src.var var))
+
+
+accessible :: R.Position -> Src.RawExpr -> Parser Src.RawExpr
+accessible start expr =
+  oneOf
+    [ do  dot
+          field <- lowVar
+          end <- getPosition
+          let newExpr = A.at start end (Src.Access expr field)
+          accessible start newExpr
+    , return expr
+    ]
 
 
 
@@ -47,8 +80,8 @@ list start =
   do  leftSquare
       spaces
       oneOf
-        [ do  (entry, _, space) <- expression
-              checkSpaces space
+        [ do  (entry, _, pos) <- expression
+              checkSpace pos
               listHelp start [entry]
         , do  rightSquare
               end <- getPosition
@@ -61,8 +94,8 @@ listHelp start entries =
   oneOf
     [ do  comma
           spaces
-          (entry, _, space) <- expression
-          checkSpaces space
+          (entry, _, pos) <- expression
+          checkSpace pos
           listHelp start (entry:entries)
     , do  rightSquare
           end <- getPosition
@@ -100,8 +133,8 @@ tuple start =
                 return (foldr (mkLambda start end) result args)
 
           , do  spaces
-                (entry, _, space) <- expression
-                checkSpaces space
+                (entry, _, pos) <- expression
+                checkSpace pos
                 tupleHelp start [entry]
           ]
 
@@ -124,8 +157,8 @@ tupleHelp start entries =
   oneOf
     [ do  comma
           spaces
-          (entry, _, space) <- expression
-          checkSpaces space
+          (entry, _, pos) <- expression
+          checkSpace pos
           tupleHelp start (entry:entries)
     , do  rightParen
           end <- getPosition
@@ -161,8 +194,8 @@ record start =
                       return (A.at start end (Src.Update (A.map Src.var starter) fields))
                 , do  equals
                       spaces
-                      (value, _, nextSpace) <- expression
-                      checkSpaces nextSpace
+                      (value, _, nextPos) <- expression
+                      checkSpace nextPos
                       fields <- chompFields [(starter, value)]
                       end <- getPosition
                       return (A.at start end (Src.Record fields))
@@ -191,8 +224,8 @@ chompField =
       spaces
       equals
       spaces
-      (value, _, endSpace) <- expression
-      checkSpaces endSpace
+      (value, _, pos) <- expression
+      checkSpace pos
       return (key, value)
 
 
@@ -212,7 +245,7 @@ expression =
         , if_ start
         , case_ start
         , function start
-        , do  starter <- term
+        , do  starter <- possiblyNegativeTerm start
               end <- getPosition
               space <- whitespace
               exprHelp start (State [] starter end space)
@@ -221,68 +254,46 @@ expression =
 
 data State =
   State
-    { _ops   :: ![(Src.RawExpr, A.Located Text)]
-    , _last  :: !Src.RawExpr
-    , _end   :: !R.Position
-    , _space :: !Space
+    { _ops  :: ![(Src.RawExpr, A.Located Text)]
+    , _last :: !Src.RawExpr
+    , _end  :: !R.Position
+    , _pos  :: !SPos
     }
 
 
 exprHelp :: R.Position -> State -> ExprParser
-exprHelp start (State ops lastExpr end space) =
+exprHelp start (State ops lastExpr end pos) =
   oneOf
     [ -- infix operator
-      do  checkSpaces space
-          op <- addLocation infixOp
-          opSpace <- whitespace
+      do  checkSpace pos
+          opStart <- getPosition
+          opName <- infixOp
+          opEnd <- getPosition
+          let op = A.at opStart opEnd opName
+          spaces
+          newStart <- getPosition
           oneOf
             [ -- negative terms
-              do  guard (space /= None && opSpace == None && A.drop op == "-")
+              do  guard ("-" == opName && end /= opStart && opEnd == newStart)
                   rawTerm <- term
                   newEnd <- getPosition
-                  newSpace <- whitespace
+                  newPos <- whitespace
 
                   let ann x = A.merge op rawTerm x
                   let negatedTerm = ann (Src.Binop [(ann Src.zero, op)] rawTerm)
                   let newLast = A.merge lastExpr rawTerm (Src.App lastExpr negatedTerm)
 
-                  exprHelp start (State ops newLast newEnd newSpace)
-
-            , -- accessor
-              do  guard (space /= None && opSpace == None && A.drop op == ".")
-                  field <- lowVar
-                  newEnd <- getPosition
-                  newSpace <- whitespace
-
-                  let (A.A (R.Region opStart _) _) = op
-                  let ann x = A.at opStart newEnd x
-                  let body = ann (Src.Access (ann (Src.var "r")) field)
-                  let accessor = mkLambda opStart newEnd "r" body
-                  let newLast = A.merge lastExpr accessor (Src.App lastExpr accessor)
-
-                  exprHelp start (State ops newLast newEnd newSpace)
-
-            , -- access
-              do  guard (space == None && opSpace == None && A.drop op == ".")
-                  field <- lowVar
-                  newEnd <- getPosition
-                  newSpace <- whitespace
-                  let (A.A (R.Region lastStart _) _) = lastExpr
-                  let newLast = A.at lastStart newEnd (Src.Access lastExpr field)
-                  exprHelp start (State ops newLast newEnd newSpace)
+                  exprHelp start (State ops newLast newEnd newPos)
 
             , -- term
-              do  checkSpaces opSpace
-                  newLast <- term
+              do  newLast <- possiblyNegativeTerm newStart
                   newEnd <- getPosition
-                  newSpace <- whitespace
+                  newPos <- whitespace
                   let newOps = (lastExpr, op) : ops
-                  exprHelp start (State newOps newLast newEnd newSpace)
+                  exprHelp start (State newOps newLast newEnd newPos)
 
             , -- final term
-              do  checkSpaces opSpace
-                  newStart <- getPosition
-                  (newLast, newEnd, newSpace) <-
+              do  (newLast, newEnd, newPos) <-
                     oneOf
                       [ let_ newStart
                       , case_ newStart
@@ -291,28 +302,40 @@ exprHelp start (State ops lastExpr end space) =
                       ]
                   let newOps = (lastExpr, op) : ops
                   let finalExpr = A.at start newEnd (Src.Binop (reverse newOps) newLast)
-                  return ( finalExpr, newEnd, newSpace )
+                  return ( finalExpr, newEnd, newPos )
             ]
 
     , -- argument
-      do  checkSpaces space
+      do  checkSpace pos
           arg <- term
           newEnd <- getPosition
-          newSpace <- whitespace
+          newPos <- whitespace
           let newLast = A.merge lastExpr arg (Src.App lastExpr arg)
-          exprHelp start (State ops newLast newEnd newSpace)
+          exprHelp start (State ops newLast newEnd newPos)
 
     , -- done
       case ops of
         [] ->
-          return ( lastExpr, end, space )
+          return ( lastExpr, end, pos )
 
         _ ->
           let
             finalExpr =
               A.at start end (Src.Binop (reverse ops) lastExpr)
           in
-            return ( finalExpr, end, space )
+            return ( finalExpr, end, pos )
+    ]
+
+
+possiblyNegativeTerm :: R.Position -> Parser Src.RawExpr
+possiblyNegativeTerm start =
+  oneOf
+    [ do  minus
+          expr <- term
+          end <- getPosition
+          let ann x = A.at start end x
+          return (ann (Src.Binop [(ann Src.zero, ann "-")] expr))
+    , term
     ]
 
 
@@ -329,12 +352,12 @@ ifHelp :: R.Position -> [(Src.RawExpr, Src.RawExpr)] -> ExprParser
 ifHelp start branches =
   do  keyword "if"
       spaces
-      (condition, _, condSpace) <- expression
-      checkSpaces condSpace
+      (condition, _, condPos) <- expression
+      checkSpace condPos
       keyword "then"
       spaces
-      (thenBranch, _, thenSpace) <- expression
-      checkSpaces thenSpace
+      (thenBranch, _, thenPos) <- expression
+      checkSpace thenPos
       keyword "else"
       spaces
       let newBranches = (condition, thenBranch) : branches
@@ -382,42 +405,41 @@ case_ :: R.Position -> ExprParser
 case_ start =
   do  keyword "case"
       spaces
-      (switcher, _, switcherSpace) <- expression
-      checkSpaces switcherSpace
+      (switcher, _, switcherPos) <- expression
+      checkSpace switcherPos
       keyword "of"
       spaces
       oldIndent <- getIndent
       newIndent <- getCol
       setIndent newIndent
-      (firstBranch, firstEnd, firstSpace) <- branchHelp
-      (branches, end, space) <- caseHelp [firstBranch] firstEnd firstSpace
+      (firstBranch, firstEnd, firstPos) <- branchHelp
+      (branches, end, pos) <- caseHelp [firstBranch] firstEnd firstPos
       setIndent oldIndent
       return
         ( A.at start end (Src.Case switcher branches)
         , end
-        , space
+        , pos
         )
 
 
 branchHelp :: SParser (P.Raw, Src.RawExpr)
 branchHelp =
-  do  (pattern, patternSpace) <- Pattern.expression
-      checkSpaces patternSpace
+  do  (pattern, patternPos) <- Pattern.expression
+      checkSpace patternPos
       rightArrow
       spaces
-      (branchExpr, end, space) <- expression
-      return ( (pattern, branchExpr), end, space )
+      (branchExpr, end, pos) <- expression
+      return ( (pattern, branchExpr), end, pos )
 
 
-caseHelp :: [(P.Raw, Src.RawExpr)] -> R.Position -> Space -> SParser [(P.Raw, Src.RawExpr)]
-caseHelp branches end space =
-  case space of
-    Aligned ->
-      do  (branch, newEnd, newSpace) <- branchHelp
-          caseHelp (branch:branches) newEnd newSpace
-
-    _ ->
-      return ( reverse branches, end, space )
+caseHelp :: [(P.Raw, Src.RawExpr)] -> R.Position -> SPos -> SParser [(P.Raw, Src.RawExpr)]
+caseHelp branches end pos =
+  oneOf
+    [ do  checkAligned pos
+          (branch, newEnd, newPos) <- branchHelp
+          caseHelp (branch:branches) newEnd newPos
+    , return ( reverse branches, end, pos )
+    ]
 
 
 
@@ -437,23 +459,24 @@ let_ start =
       letHelp start oldIndent [def] end space
 
 
-letHelp :: R.Position -> Int -> [Src.RawDef] -> R.Position -> Space -> ExprParser
-letHelp start oldIndent defs end space =
-  case space of
-    Aligned ->
-      do  (def, newEnd, newSpace) <- definition
-          letHelp start oldIndent (def:defs) newEnd newSpace
+letHelp :: R.Position -> Int -> [Src.RawDef] -> R.Position -> SPos -> ExprParser
+letHelp start oldIndent defs end pos =
+  oneOf
+    [ do  checkAligned pos
+          (def, newEnd, newPos) <- definition
+          letHelp start oldIndent (def:defs) newEnd newPos
 
-    Freshline ->
-      failure (error "TODO missing `in`")
+    , do  checkFreshline pos
+          failure (error "TODO missing `in`")
 
-    _ ->
-      do  keyword "in"
-          setIndent oldIndent
+    , do  setIndent oldIndent
+          keyword "in"
+          checkSpace pos
           spaces
-          (body, newEnd, newSpace) <- expression
+          (body, newEnd, newPos) <- expression
           let letExpr = A.at start end (Src.Let defs body)
-          return ( letExpr, newEnd, newSpace )
+          return ( letExpr, newEnd, newPos )
+    ]
 
 
 
