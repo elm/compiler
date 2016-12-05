@@ -1,183 +1,257 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
-module Parse.Module (moduleDecl, header, getModuleName) where
+{-# LANGUAGE OverloadedStrings #-}
+module Parse.Module where
 
-import Text.Parsec hiding (newline, parse, spaces)
+import Control.Monad (guard)
+import Data.Text (Text)
 
-import Parse.Binop (infixOp)
-import Parse.Helpers
-  ( IParser, addLocation, brackets, capVar, commaSep, commaSep1
-  , docComment, dotSep1, equals, expecting, followedBy, freshLine
-  , getMyPosition, lowVar, padded, parens, parse, reserved, whitespace
-  )
 import qualified AST.Module as Module
-import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
+import Parse.Helpers
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
 
-getModuleName :: String -> Maybe String
-getModuleName source =
-  let
-    minimalParser =
-      do  optional freshLine
-          (ModuleDecl _ names _ _) <- moduleDecl
-          return (ModuleName.toString names)
-  in
-    case parse minimalParser source of
-      Right name ->
-        Just name
 
-      Left _ ->
-        Nothing
+-- MODULE HEADER
 
 
-header :: IParser (Module.Header [Module.UserImport])
+header :: Parser (Module.Header [Module.UserImport])
 header =
-  do  optional freshLine
-      (ModuleDecl tag names exports settings) <-
-        option
-          (ModuleDecl Module.Normal ["Main"] Var.openListing Module.emptySettings)
-          (moduleDecl `followedBy` freshLine)
-
-      docs <-
-        choice
-          [ addLocation (Just <$> docComment) `followedBy` freshLine
-          , addLocation (return Nothing)
-          ]
-
-      imports' <- imports
-
-      return (Module.Header tag names exports settings docs imports')
+  do  space <- whitespace
+      guard (space == Freshline || space == None)
+      oneOf
+        [ fullHeader
+        , Module.defaultHeader <$> chompImports []
+        ]
 
 
-data ModuleDecl =
-  ModuleDecl
-    { _tag :: Module.SourceTag
-    , _name :: [String]
-    , _exports :: Var.Listing (A.Located Var.Value)
-    , _settings :: Module.SourceSettings
-    }
+
+-- FULL HEADER
 
 
-moduleDecl :: IParser ModuleDecl
-moduleDecl =
-  expecting "a module declaration" $
-  do
-      tag <- parseTag
-      whitespace
-
-      names <- dotSep1 capVar <?> "the name of this module"
-      whitespace
-
-      settings <-
-        case tag of
-          Module.Effect _ ->
-            parseSetting <* whitespace
-
-          _ ->
-            return Module.emptySettings
-
-      reserved "exposing" <?> "something like `exposing (..)` which replaced `where` in 0.17"
-      whitespace
-
-      exports <- listing (addLocation value)
-
-      return (ModuleDecl tag names exports settings)
+fullHeader :: Parser (Module.Header [Module.UserImport])
+fullHeader =
+  do  tag <- sourceTag
+      spaces
+      name <- qualifiedCapVar -- TODO <?> "the name of this module"
+      spaces
+      settings <- effectSettings
+      keyword "exposing" -- TODO <?> "something like `exposing (..)` which replaced `where` in 0.17"
+      spaces
+      exports <- listing (addLocation listingValue)
+      freshLine
+      docs <- maybeDocComment
+      imports <- chompImports []
+      return (Module.Header tag name exports settings docs imports)
 
 
-parseTag :: IParser Module.SourceTag
-parseTag =
-  choice
+
+-- MODULE TAGS - module, effect module, port module
+
+
+sourceTag :: Parser Module.SourceTag
+sourceTag =
+  oneOf
     [
-      do  try (reserved "module")
+      do  keyword "module"
           return Module.Normal
     ,
-      do  start <- getMyPosition
-          try (reserved "effect")
-          whitespace
-          reserved "module"
-          end <- getMyPosition
-          return (Module.Effect (R.Region start end))
-    ,
-      do  start <- getMyPosition
-          try (reserved "port")
-          whitespace
-          reserved "module"
-          end <- getMyPosition
+      do  start <- getPosition
+          keyword "port"
+          spaces
+          keyword "module"
+          end <- getPosition
           return (Module.Port (R.Region start end))
+    ,
+      do  start <- getPosition
+          keyword "effect"
+          spaces
+          keyword "module"
+          end <- getPosition
+          return (Module.Effect (R.Region start end))
     ]
 
 
-parseSetting :: IParser Module.SourceSettings
-parseSetting =
-  do  try (reserved "where")
-      whitespace
-      addLocation $ brackets $ commaSep $
-        do  name <- addLocation lowVar
-            padded equals
-            typeName <- addLocation capVar
-            return (name, typeName)
+
+-- EFFECTS - where { command = MyCmd }
 
 
-imports :: IParser [Module.UserImport]
-imports =
-  many (import' `followedBy` freshLine)
+effectSettings :: Parser Module.SourceSettings
+effectSettings =
+  oneOf
+    [ do  keyword "where"
+          spaces
+          start <- getPosition
+          leftCurly
+          spaces
+          entry <- setting
+          spaces
+          effectSettingsHelp start [entry]
+    , return Module.emptySettings
+    ]
 
 
-import' :: IParser Module.UserImport
-import' =
-  expecting "an import" $
-  addLocation $
-  do  try (reserved "import")
-      whitespace
-      names <- dotSep1 capVar
-      (,) names <$> method (ModuleName.toString names)
-  where
-    method :: String -> IParser Module.ImportMethod
-    method defaultAlias =
-      Module.ImportMethod
-          <$> option (Just defaultAlias) (Just <$> as' defaultAlias)
-          <*> option Var.closedListing exposing
-
-    as' :: String -> IParser String
-    as' moduleName =
-      do  try (whitespace >> reserved "as")
-          whitespace
-          capVar <?> ("an alias for module `" ++ moduleName ++ "`")
-
-    exposing :: IParser (Var.Listing Var.Value)
-    exposing =
-      do  try (whitespace >> reserved "exposing")
-          whitespace
-          listing value
+effectSettingsHelp :: R.Position -> [(A.Located Text, A.Located Text)] -> Parser Module.SourceSettings
+effectSettingsHelp start entries =
+  oneOf
+    [ do  comma
+          spaces
+          entry <- setting
+          spaces
+          effectSettingsHelp start (entry:entries)
+    , do  rightCurly
+          end <- getPosition
+          spaces
+          return (A.at start end entries)
+    ]
 
 
-listing :: IParser a -> IParser (Var.Listing a)
-listing item =
-  expecting "a listing of values and types to expose, like (..)" $
-  do  try (whitespace >> char '(')
-      whitespace
-      actualListing <-
-          choice
-            [ const Var.openListing <$> string ".."
-            , Var.Listing <$> commaSep1 item <*> return False
+setting :: Parser (A.Located Text, A.Located Text)
+setting =
+  do  name <- addLocation lowVar
+      spaces
+      equals
+      spaces
+      tipe <- addLocation capVar
+      return (name, tipe)
+
+
+
+-- DOC COMMENTS
+
+
+maybeDocComment :: Parser (Maybe (A.Located Text))
+maybeDocComment =
+  oneOf
+    [ do  doc <- addLocation docComment
+          freshLine
+          return (Just doc)
+    , return Nothing
+    ]
+
+
+
+-- IMPORTS
+
+
+chompImports :: [Module.UserImport] -> Parser [Module.UserImport]
+chompImports imports =
+  oneOf
+    [ do  start <- getPosition
+          keyword "import"
+          spaces
+          name <- qualifiedCapVar
+          end <- getPosition
+          space <- whitespace
+          oneOf
+            [ do  guard (space == Freshline)
+                  let userImport = method start end name Nothing Var.closedListing
+                  chompImports (userImport:imports)
+            , do  checkSpaces space
+                  oneOf
+                    [ chompAs start name imports
+                    , chompExposing start name Nothing imports
+                    ]
             ]
-      whitespace
-      char ')'
-      return actualListing
+    , return (reverse imports)
+    ]
 
 
-value :: IParser Var.Value
-value =
-    val <|> tipe <?> "a value or type to expose"
-  where
-    val =
-      Var.Value <$> (lowVar <|> parens infixOp)
+chompAs :: R.Position -> Text -> [Module.UserImport] -> Parser [Module.UserImport]
+chompAs start name imports =
+  do  keyword "as"
+      spaces
+      alias <- capVar
+      end <- getPosition
+      space <- whitespace
+      oneOf
+        [ do  guard (space == Freshline)
+              let userImport = method start end name (Just alias) Var.closedListing
+              chompImports (userImport:imports)
+        , do  checkSpaces space
+              chompExposing start name (Just alias) imports
+        ]
 
-    tipe =
-      do  name <- capVar
-          maybeCtors <- optionMaybe (listing capVar)
-          case maybeCtors of
-            Nothing -> return (Var.Alias name)
-            Just ctors -> return (Var.Union name ctors)
+
+chompExposing :: R.Position -> Text -> Maybe Text -> [Module.UserImport] -> Parser [Module.UserImport]
+chompExposing start name maybeAlias imports =
+  do  keyword "exposing"
+      spaces
+      exposed <- listing listingValue
+      end <- getPosition
+      freshLine
+      let userImport = method start end name maybeAlias exposed
+      chompImports (userImport:imports)
+
+
+method :: R.Position -> R.Position -> Text -> Maybe Text -> Var.Listing Var.Value -> Module.UserImport
+method start end name maybeAlias exposed =
+  A.at start end ( name, Module.ImportMethod maybeAlias exposed )
+
+
+
+-- LISTING
+
+
+listing :: Parser a -> Parser (Var.Listing a)
+listing parser =
+  expecting "a listing of values and types to expose, like (..)" $
+  do  leftParen
+      spaces
+      oneOf
+        [ do  dot
+              dot
+              spaces
+              rightParen
+              return (Var.Listing [] True)
+        , do  value <- parser
+              spaces
+              listingHelp parser [value]
+        ]
+
+
+listingHelp :: Parser a -> [a] -> Parser (Var.Listing a)
+listingHelp parser values =
+  oneOf
+    [ do  comma
+          spaces
+          value <- parser
+          spaces
+          listingHelp parser (value:values)
+    , do  rightParen
+          return (Var.Listing (reverse values) False)
+    ]
+
+
+listingValue :: Parser Var.Value
+listingValue =
+  oneOf
+    [ Var.Value <$> lowVar
+    , do  leftParen
+          spaces
+          op <- infixOp
+          spaces
+          rightParen
+          return (Var.Value op)
+    , do  name <- capVar
+          spaces
+          oneOf
+            [ Var.Union name <$> listing capVar
+            , return (Var.Alias name)
+            ]
+    ]
+
+
+
+-- FRESH LINES
+
+
+freshLine :: Parser ()
+freshLine =
+  do  space <- whitespace
+      if space == Freshline
+        then return ()
+        else failure (error "TODO freshLine")
+
+
