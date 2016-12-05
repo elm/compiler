@@ -1,5 +1,7 @@
 module AST.Effects where
 
+import Data.Text (Text)
+
 import qualified AST.Type as Type
 import qualified Elm.Package as Pkg
 import qualified Reporting.Annotation as A
@@ -39,9 +41,9 @@ data Info =
 
 
 data ManagerType
-  = CmdManager (A.Located String)
-  | SubManager (A.Located String)
-  | FxManager (A.Located String) (A.Located String)
+  = CmdManager (A.Located Text)
+  | SubManager (A.Located Text)
+  | FxManager (A.Located Text) (A.Located Text)
 
 
 
@@ -50,14 +52,14 @@ data ManagerType
 
 data PortRaw =
   PortRaw
-    { _rawName :: String
+    { _rawName :: Text
     , _rawType :: Type.Raw
     }
 
 
 data PortCanonical =
   PortCanonical
-    { _name :: String
+    { _name :: Text
     , _kind :: Kind
     , _type :: Type.Canonical
     }

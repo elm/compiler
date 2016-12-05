@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Elm.Package where
 
 import Data.Aeson
@@ -5,15 +7,18 @@ import Data.Binary
 import qualified Data.Char as Char
 import Data.Function (on)
 import qualified Data.List as List
-import qualified Data.Text as T
+import qualified Data.Text as Text
+import Data.Text (Text)
 import System.FilePath ((</>))
+
 
 
 -- PACKGE NAMES
 
+
 data Name = Name
-    { user :: String
-    , project :: String
+    { _user :: Text
+    , _project :: Text
     }
     deriving (Eq, Ord, Show)
 
@@ -41,19 +46,29 @@ html =
   Name "elm-lang" "html"
 
 
+webgl :: Name
+webgl =
+  Name "elm-community" "webgl"
+
+
+linearAlgebra :: Name
+linearAlgebra =
+  Name "elm-community" "linear-algebra"
+
+
 toString :: Name -> String
-toString name =
-    user name ++ "/" ++ project name
+toString (Name user project) =
+    Text.unpack user ++ "/" ++ Text.unpack project
 
 
 toUrl :: Name -> String
-toUrl name =
-    user name ++ "/" ++ project name
+toUrl (Name user project) =
+    Text.unpack user ++ "/" ++ Text.unpack project
 
 
 toFilePath :: Name -> FilePath
-toFilePath name =
-    user name </> project name
+toFilePath (Name user project) =
+    Text.unpack user </> Text.unpack project
 
 
 fromString :: String -> Either String Name
@@ -67,7 +82,7 @@ fromString string =
               Left "You did not provide a project name (user/project)"
 
           else if all (/='/') project then
-              Name user <$> validateProjectName project
+              Name (Text.pack user) <$> validateProjectName project
 
           else
               Left "Expecting only one slash, separating the user and project name (user/project)"
@@ -102,7 +117,7 @@ whitelistedUppercaseName name =
     ]
 
 
-validateProjectName :: String -> Either String String
+validateProjectName :: String -> Either String Text
 validateProjectName str =
   if elem ('-','-') (zip str (tail str)) then
       Left "There is a double dash -- in your package name. It must be a single dash."
@@ -117,7 +132,7 @@ validateProjectName str =
       Left "Package names must start with a letter."
 
   else
-      Right str
+      Right (Text.pack str)
 
 
 instance Binary Name where
@@ -130,7 +145,7 @@ instance Binary Name where
 instance FromJSON Name where
     parseJSON (String text) =
         let
-          string = T.unpack text
+          string = Text.unpack text
         in
           case fromString string of
             Left msg ->
@@ -233,7 +248,7 @@ instance Binary Version where
 
 instance FromJSON Version where
     parseJSON (String text) =
-        let string = T.unpack text in
+        let string = Text.unpack text in
         case versionFromString string of
           Right v ->
               return v

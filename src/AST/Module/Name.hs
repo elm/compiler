@@ -3,14 +3,13 @@
 module AST.Module.Name where
 
 import Data.Binary
-import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Text (Text)
 
 import qualified Elm.Package as Package
 
 
-type Raw = [Text] -- must be non-empty
+type Raw = Text -- must be non-empty
 
 
 data Canonical = Canonical
@@ -35,24 +34,34 @@ inHtml raw =
   Canonical Package.html raw
 
 
+inWebGL :: Raw -> Canonical
+inWebGL raw =
+  Canonical Package.webgl raw
+
+
+inLinearAlgebra :: Raw -> Canonical
+inLinearAlgebra raw =
+  Canonical Package.linearAlgebra raw
+
+
 toString :: Raw -> String
-toString rawName =
-  List.intercalate "." (map Text.unpack rawName)
+toString name =
+  Text.unpack name
 
 
 canonicalToString :: Canonical -> String
-canonicalToString (Canonical _ rawName) =
-  toString rawName
+canonicalToString (Canonical _ name) =
+  toString name
 
 
 isNative :: Raw -> Bool
 isNative name =
-  case name of
-    "Native" : _ ->
-        True
+  Text.isPrefixOf "Native." name
 
-    _ ->
-        False
+
+canonicalIsNative :: Canonical -> Bool
+canonicalIsNative (Canonical _ name) =
+  isNative name
 
 
 instance Binary Canonical where

@@ -68,14 +68,24 @@ inHtml home name =
     Canonical (Module (ModuleName.inHtml home)) name
 
 
+inWebGL :: ModuleName.Raw -> Text -> Canonical
+inWebGL home name =
+    Canonical (Module (ModuleName.inWebGL home)) name
+
+
+inLinearAlgebra :: ModuleName.Raw -> Text -> Canonical
+inLinearAlgebra home name =
+    Canonical (Module (ModuleName.inLinearAlgebra home)) name
+
+
 cmd :: Canonical
 cmd =
-  inCore ["Platform","Cmd"] "Cmd"
+  inCore "Platform.Cmd" "Cmd"
 
 
 sub :: Canonical
 sub =
-  inCore ["Platform","Sub"] "Sub"
+  inCore "Platform.Sub" "Sub"
 
 
 
@@ -105,26 +115,36 @@ is home name var =
 
 isJson :: Canonical -> Bool
 isJson =
-    is ["Json", "Encode"] "Value"
+    is "Json.Encode" "Value"
 
 
 isMaybe :: Canonical -> Bool
 isMaybe =
-    is ["Maybe"] "Maybe"
+    is "Maybe" "Maybe"
 
 isArray :: Canonical -> Bool
 isArray =
-    is ["Array"] "Array"
+    is "Array" "Array"
 
 
 isTask :: Canonical -> Bool
 isTask =
-    is ["Task"] "Task"
+    is "Task" "Task"
 
 
 isList :: Canonical -> Bool
 isList v =
     v == Canonical BuiltIn "List"
+
+
+isNative :: Canonical -> Bool
+isNative v =
+    case v of
+      Canonical (Module name) _ ->
+        ModuleName.canonicalIsNative name
+
+      _ ->
+        False
 
 
 isTuple :: Canonical -> Bool
@@ -141,7 +161,8 @@ isPrimitive :: Canonical -> Bool
 isPrimitive v =
     case v of
       Canonical BuiltIn name ->
-          name `elem` ["Int","Float","String","Bool"]
+          elem name ["Int","Float","String","Bool"]
+
       _ ->
           False
 
@@ -200,7 +221,8 @@ instance ToString Canonical where
 
 
 -- | A listing of values. Something like (a,b,c) or (..) or (a,b,..)
-data Listing a = Listing
+data Listing a =
+  Listing
     { _explicits :: [a]
     , _open :: Bool
     }
@@ -224,9 +246,9 @@ listing xs =
 
 -- | A value that can be imported or exported
 data Value
-    = Value !String
-    | Alias !String
-    | Union !String !(Listing String)
+    = Value !Text
+    | Alias !Text
+    | Union !Text !(Listing Text)
     deriving (Eq, Ord)
 
 
@@ -234,12 +256,12 @@ data Value
 -- CATEGORIZING VALUES
 
 
-getValues :: [Value] -> [String]
+getValues :: [Value] -> [Text]
 getValues values =
   Maybe.mapMaybe getValue values
 
 
-getValue :: Value -> Maybe String
+getValue :: Value -> Maybe Text
 getValue value =
   case value of
     Value name -> Just name
@@ -247,12 +269,12 @@ getValue value =
     Union _ _ -> Nothing
 
 
-getAliases :: [Value] -> [String]
+getAliases :: [Value] -> [Text]
 getAliases values =
   Maybe.mapMaybe getAlias values
 
 
-getAlias :: Value -> Maybe String
+getAlias :: Value -> Maybe Text
 getAlias value =
   case value of
     Value _-> Nothing
@@ -260,12 +282,12 @@ getAlias value =
     Union _ _ -> Nothing
 
 
-getUnions :: [Value] -> [(String, Listing String)]
+getUnions :: [Value] -> [(Text, Listing Text)]
 getUnions values =
   Maybe.mapMaybe getUnion values
 
 
-getUnion :: Value -> Maybe (String, Listing String)
+getUnion :: Value -> Maybe (Text, Listing Text)
 getUnion value =
   case value of
     Value _ -> Nothing

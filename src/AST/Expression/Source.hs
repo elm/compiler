@@ -40,7 +40,7 @@ data Expr' def
     | Access (Expr def) Text
     | Update (Expr def) [(A.Located Text, Expr def)]
     | Record [(A.Located Text, Expr def)]
-    | GLShader Text Text Literal.GLShaderTipe
+    | GLShader Text Text Literal.Shader
 
 
 type RawExpr = Expr RawDef

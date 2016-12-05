@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module AST.Declaration where
 
 import Data.Binary
@@ -108,8 +109,8 @@ data Assoc = L | N | R
     deriving (Eq)
 
 
-assocToString :: Assoc -> String
-assocToString assoc =
+assocToText :: Assoc -> Text
+assocToText assoc =
   case assoc of
     L ->
       "left"

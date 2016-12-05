@@ -1,5 +1,7 @@
+{-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module AST.Module
-    ( Header(..), Module(..)
+    ( Header(..), defaultHeader, Module(..)
 
     , Source, SourceInfo(..), SourceTag(..), SourceSettings, emptySettings
     , Valid, ValidInfo(..)
@@ -17,6 +19,7 @@ module AST.Module
 
 import Data.Binary
 import qualified Data.Map as Map
+import Data.Text (Text)
 
 import qualified AST.Declaration as Decl
 import qualified AST.Effects as Effects
@@ -43,9 +46,19 @@ data Header imports =
     , _name :: Name.Raw
     , _exports :: Var.Listing (A.Located Var.Value)
     , _settings :: SourceSettings
-    , _docs :: A.Located (Maybe String)
+    , _docs :: Maybe (A.Located Text)
     , _imports :: imports
     }
+
+
+instance Show (Header a) where
+  show header =
+    show (_name header)
+
+
+defaultHeader :: imports -> Header imports
+defaultHeader imports_ =
+  Header Normal "Main" Var.openListing emptySettings Nothing imports_
 
 
 
@@ -68,7 +81,7 @@ data SourceInfo =
   Source
     { srcTag :: SourceTag
     , srcSettings :: SourceSettings
-    , srcDocs :: A.Located (Maybe String)
+    , srcDocs :: Maybe (A.Located Text)
     , srcExports :: Var.Listing (A.Located Var.Value)
     , srcImports :: [UserImport]
     , srcDecls :: [Decl.Source]
@@ -82,7 +95,7 @@ data SourceTag
 
 
 type SourceSettings =
-  A.Located [(A.Located String, A.Located String)]
+  A.Located [(A.Located Text, A.Located Text)]
 
 
 emptySettings :: SourceSettings
@@ -96,7 +109,7 @@ type Valid =
 
 data ValidInfo =
   Valid
-    { validDocs :: A.Located (Maybe String)
+    { validDocs :: Maybe (A.Located Text)
     , validExports :: Var.Listing (A.Located Var.Value)
     , validImports :: ([DefaultImport], [UserImport])
     , validDecls :: Decl.Valid
@@ -124,7 +137,7 @@ type DefaultImport = (Name.Raw, ImportMethod)
 
 data ImportMethod =
   ImportMethod
-    { alias :: Maybe String
+    { alias :: Maybe Text
     , exposedVars :: !(Var.Listing Var.Value)
     }
 
@@ -135,7 +148,7 @@ data ImportMethod =
 
 data Info program =
   Info
-    { docs :: A.Located (Maybe Docs.Centralized)
+    { docs :: Maybe (A.Located Docs.Centralized)
     , exports :: [Var.Value]
     , imports :: [Name.Raw]
     , program :: program
@@ -148,19 +161,19 @@ data Info program =
 
 
 type Types =
-  Map.Map String Type.Canonical
+  Map.Map Text Type.Canonical
 
 
 type Aliases =
-  Map.Map String ([String], Type.Canonical)
+  Map.Map Text ([Text], Type.Canonical)
 
 
 type Unions =
-  Map.Map String (UnionInfo String)
+  Map.Map Text (UnionInfo Text)
 
 
 type UnionInfo v =
-  ( [String], [(v, [Type.Canonical])] )
+  ( [Text], [(v, [Type.Canonical])] )
 
 
 type CanonicalUnion =

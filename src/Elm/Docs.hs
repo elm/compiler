@@ -9,6 +9,7 @@ import qualified Data.Aeson.Encode.Pretty as Json
 import qualified Data.ByteString.Lazy.Char8 as BS
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified Docs.AST as Docs
 import qualified Elm.Compiler.Module as Module
@@ -24,7 +25,7 @@ import qualified Reporting.Annotation as A
 
 data Documentation = Documentation
     { moduleName :: Module.Raw
-    , comment :: String
+    , comment :: Text
     , aliases :: [Alias]
     , types :: [Union]
     , values :: [Value]
@@ -33,30 +34,30 @@ data Documentation = Documentation
 
 
 data Alias = Alias
-    { aliasName :: String
-    , aliasComment :: String
-    , aliasArgs :: [String]
+    { aliasName :: Text
+    , aliasComment :: Text
+    , aliasArgs :: [Text]
     , aliasType :: Type.Type
     }
 
 
 data Union = Union
-    { unionName :: String
-    , unionComment :: String
-    , unionArgs :: [String]
-    , unionCases :: [(String, [Type.Type])]
+    { unionName :: Text
+    , unionComment :: Text
+    , unionArgs :: [Text]
+    , unionCases :: [(Text, [Type.Type])]
     }
 
 
 data Value = Value
-    { valueName :: String
-    , valueComment :: String
+    { valueName :: Text
+    , valueComment :: Text
     , valueType :: Type.Type
-    , valueFix :: Maybe (String,Int)
+    , valueFix :: Maybe (Text,Int)
     }
 
 
-data Version = NonCanonicalTypes | Version String
+data Version = NonCanonicalTypes | Version Text
 
 
 
@@ -84,7 +85,7 @@ fromCheckedDocs name (Docs.Docs comment aliases unions values) =
       (map toAlias (Map.toList aliases))
       (map toUnion (Map.toList unions))
       (map toValue (Map.toList values))
-      (Version $ (Pkg.versionToString Version.version))
+      (Version (Text.pack (Pkg.versionToString Version.version)))
 
 
 
@@ -151,12 +152,12 @@ instance Json.ToJSON Version where
           Json.String "old"
 
         Version vsn ->
-          Json.String (Text.pack vsn)
+          Json.String vsn
 
 
 instance Json.FromJSON Version where
     parseJSON (Json.String text) =
-        case Text.unpack text of
+        case text of
           "old" -> return NonCanonicalTypes
           vrsn -> return (Version vrsn)
 

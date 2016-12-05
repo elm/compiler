@@ -42,7 +42,7 @@ data Expr'
     | If [(Expr, Expr)] Expr
     | Let [Def] Expr
     | Case Expr [(Ptrn.Canonical, Expr)]
-    | Ctor Text [Expr]
+    | Ctor Var.Canonical [Expr]
     | Access Expr Text
     | Update Expr [(Text, Expr)]
     | Record [(Text, Expr)]
@@ -53,7 +53,7 @@ data Expr'
     | IncomingPort Text Type.Canonical
     | Program Main Expr
     | SaveEnv ModuleName.Canonical Effects.Canonical
-    | GLShader Text Text Literal.GLShaderTipe
+    | GLShader Text Text Literal.Shader
 
 
 data Main

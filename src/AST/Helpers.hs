@@ -22,9 +22,9 @@ isTuple name =
 -- INFIX OPERATORS
 
 
-isOp :: Text -> Bool
+isOp :: String -> Bool
 isOp name =
-  Text.all isSymbol name
+  all isSymbol name
 
 
 isSymbol :: Char -> Bool
