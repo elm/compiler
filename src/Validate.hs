@@ -1,11 +1,13 @@
 {-# OPTIONS_GHC -Wall #-}
-module Validate (Result, module') where
+{-# LANGUAGE OverloadedStrings #-}
+module Validate (Result, validate) where
 
 import Control.Monad (foldM_, when)
+import qualified Data.Foldable as F
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
-import qualified Data.Foldable as F
+import Data.Text (Text)
 
 import qualified AST.Effects as Effects
 import qualified AST.Expression.Source as Src
@@ -32,8 +34,8 @@ type Result warning a =
 -- MODULES
 
 
-module' :: Module.Source -> Result wrn Module.Valid
-module' (Module.Module name path info) =
+validate :: Module.Source -> Result wrn Module.Valid
+validate (Module.Module name path info) =
   let
     (ModuleName.Canonical pkgName _) =
       name
@@ -127,7 +129,7 @@ noPorts ports =
 
 toManagerType
   :: R.Region
-  -> Map.Map String [(R.Region, A.Located String)]
+  -> Map.Map Text [(R.Region, A.Located Text)]
   -> Result wrn Effects.ManagerType
 toManagerType tagRegion settingsDict =
   let
@@ -163,9 +165,9 @@ toManagerType tagRegion settingsDict =
 
 
 extractOne
-  :: String
-  -> Map.Map String [(R.Region, A.Located String)]
-  -> Result wrn (Maybe (A.Located String))
+  :: Text
+  -> Map.Map Text [(R.Region, A.Located Text)]
+  -> Result wrn (Maybe (A.Located Text))
 extractOne name settingsDict =
   case Map.lookup name settingsDict of
     Nothing ->
@@ -202,7 +204,7 @@ checkManager tagRegion managerType validDefs =
     <*> requireRegion tagRegion regionDict "onSelfMsg"
 
 
-getSimpleDefRegion :: A.Commented Src.ValidDef -> Maybe (String, R.Region)
+getSimpleDefRegion :: A.Commented Src.ValidDef -> Maybe (Text, R.Region)
 getSimpleDefRegion decl =
   case decl of
     A.A _ (Src.Def region (A.A _ (Pattern.Var name)) _ _) ->
@@ -214,7 +216,7 @@ getSimpleDefRegion decl =
 
 requireMaps
   :: R.Region
-  -> Map.Map String R.Region
+  -> Map.Map Text R.Region
   -> Effects.ManagerType
   -> Result wrn ()
 requireMaps tagRegion regionDict managerType =
@@ -234,7 +236,7 @@ requireMaps tagRegion regionDict managerType =
       check "cmdMap" <* check "subMap"
 
 
-requireRegion :: R.Region -> Map.Map String R.Region -> String -> Result wrn R.Region
+requireRegion :: R.Region -> Map.Map Text R.Region -> Text -> Result wrn R.Region
 requireRegion tagRegion regionDict name =
   case Map.lookup name regionDict of
     Just region ->
@@ -438,7 +440,7 @@ validateDefPattern pattern body =
                 Result.throw (R.merge start end) (Error.BadFunctionName (length args))
 
 
-checkArguments :: String -> [Pattern.Raw] -> Result wrn ()
+checkArguments :: Text -> [Pattern.Raw] -> Result wrn ()
 checkArguments funcName args =
   let
     vars =
@@ -532,7 +534,7 @@ both (expr1, expr2) =
     (,) <$> expression expr1 <*> expression expr2
 
 
-checkDuplicateFields :: R.Region -> [(A.Located String, a)] -> Result wrn ()
+checkDuplicateFields :: R.Region -> [(A.Located Text, a)] -> Result wrn ()
 checkDuplicateFields recordRegion fields =
   let
     checkDups seenFields ( A.A region field, _ ) =
@@ -598,7 +600,7 @@ checkDuplicates (ValidStuff ports (D.Decls defs unions aliases _)) =
       ]
 
 
-detectDuplicates :: (String -> Error.Error) -> [A.Located String] -> Result wrn ()
+detectDuplicates :: (Text -> Error.Error) -> [A.Located Text] -> Result wrn ()
 detectDuplicates tag names =
   let
     add (A.A region name) dict =
@@ -654,7 +656,7 @@ checkTypeVarsInAlias (A.A (region,_) (D.Type name boundVars tipe)) =
               (Error.MessyTypeVarsInAlias name boundVars unused unbound)
 
 
-diff :: [String] -> [A.Located String] -> ([String], [String])
+diff :: [Text] -> [A.Located Text] -> ([Text], [Text])
 diff left right =
   let
     leftSet =
@@ -668,7 +670,7 @@ diff left right =
     )
 
 
-freeVars :: Type.Raw -> Result wrn [A.Located String]
+freeVars :: Type.Raw -> Result wrn [A.Located Text]
 freeVars (A.A region tipe) =
   case tipe of
     Type.RLambda t1 t2 ->
