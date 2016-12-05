@@ -115,8 +115,15 @@ tuple :: Parser Type.Raw
 tuple =
   do  start <- getPosition
       leftParen
-      spaces
-      tupleEnding start []
+      oneOf
+        [ do  rightParen
+              end <- getPosition
+              return (Type.tuple (R.Region start end) [])
+        , do  spaces
+              (tipe, _, space) <- expression
+              checkSpaces space
+              tupleEnding start [tipe]
+        ]
 
 
 tupleEnding :: R.Position -> [Type.Raw] -> Parser Type.Raw
