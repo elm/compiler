@@ -86,6 +86,10 @@ tuple start =
                 return $ mkLambda start end "x" $ mkLambda start end "y" $
                   A.at start end (Src.Binop [(x, A.at start end op)] y)
 
+          , do  rightParen
+                end <- getPosition
+                return (A.at start end (Src.tuple []))
+
           , do  comma
                 arity <- chompCommas 2
                 rightParen
