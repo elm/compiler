@@ -42,19 +42,19 @@ variable =
 expression :: SParser Type.Raw
 expression =
   do  start <- getPosition
-      (tipe1, end1, space1) <-
+      (tipe1, end1, pos1) <-
         oneOf
           [ app start
           , (,,) <$> term <*> getPosition <*> whitespace
           ]
       oneOf
-        [ do  checkSpaces space1
+        [ do  checkSpace pos1
               rightArrow
               spaces
-              (tipe2, end2, space2) <- expression
+              (tipe2, end2, pos2) <- expression
               let tipe = A.at start end2 (Type.RLambda tipe1 tipe2)
-              return ( tipe, end2, space2 )
-        , return ( tipe1, end1, space1 )
+              return ( tipe, end2, pos2 )
+        , return ( tipe1, end1, pos1 )
         ]
 
 
@@ -72,18 +72,18 @@ app :: R.Position -> SParser Type.Raw
 app start =
   do  ctor <- constructor
       ctorEnd <- getPosition
-      ctorSpace <- whitespace
-      (args, end, space) <- eatArgs [] ctorEnd ctorSpace
+      ctorPos <- whitespace
+      (args, end, pos) <- eatArgs [] ctorEnd ctorPos
       case args of
         [] ->
-          return ( ctor, end, space )
+          return ( ctor, end, pos )
 
         _ ->
           let
             tipe =
               A.at start end (Type.RApp ctor args)
           in
-            return ( tipe, end, space )
+            return ( tipe, end, pos )
 
 
 unionConstructor :: SParser (Text, [Type.Raw])
@@ -95,15 +95,15 @@ unionConstructor =
       return ( (ctor, args), end, space )
 
 
-eatArgs :: [Type.Raw] -> R.Position -> Space -> SParser [Type.Raw]
-eatArgs args end space =
+eatArgs :: [Type.Raw] -> R.Position -> SPos -> SParser [Type.Raw]
+eatArgs args end pos =
   oneOf
-    [ do  checkSpaces space
+    [ do  checkSpace pos
           arg <- term
           newEnd <- getPosition
           newSpace <- whitespace
           eatArgs (arg:args) newEnd newSpace
-    , return ( reverse args, end, space )
+    , return ( reverse args, end, pos )
     ]
 
 
@@ -120,8 +120,8 @@ tuple =
               end <- getPosition
               return (Type.tuple (R.Region start end) [])
         , do  spaces
-              (tipe, _, space) <- expression
-              checkSpaces space
+              (tipe, _, pos) <- expression
+              checkSpace pos
               tupleEnding start [tipe]
         ]
 
@@ -131,8 +131,8 @@ tupleEnding start tipes =
   oneOf
     [ do  comma
           spaces
-          (tipe, _, space) <- expression
-          checkSpaces space
+          (tipe, _, pos) <- expression
+          checkSpace pos
           tupleEnding start (tipe : tipes)
     , do  rightParen
           end <- getPosition
@@ -167,8 +167,8 @@ record =
                       return (Type.RRecord fields (Just (A.map Type.RVar var)))
                 , do  hasType
                       spaces
-                      (tipe, _, nextSpace) <- expression
-                      checkSpaces nextSpace
+                      (tipe, _, nextPos) <- expression
+                      checkSpace nextPos
                       fields <- chompFields [(var, tipe)]
                       return (Type.RRecord fields Nothing)
                 ]
@@ -186,7 +186,7 @@ chompFields fields =
           f <- field
           chompFields (f : fields)
     , do  rightCurly
-          return fields
+          return (reverse fields)
     ]
 
 
@@ -196,6 +196,6 @@ field =
       spaces
       hasType
       spaces
-      (tipe, _, endSpace) <- expression
-      checkSpaces endSpace
+      (tipe, _, endPos) <- expression
+      checkSpace endPos
       return (name, tipe)
