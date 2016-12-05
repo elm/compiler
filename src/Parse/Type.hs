@@ -81,7 +81,7 @@ app start =
         _ ->
           let
             tipe =
-              A.at start end (Type.RApp ctor (reverse args))
+              A.at start end (Type.RApp ctor args)
           in
             return ( tipe, end, space )
 

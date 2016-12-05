@@ -12,10 +12,12 @@ import Data.Text (Text)
 import qualified AST.Effects as Effects
 import qualified AST.Expression.Source as Src
 import qualified AST.Declaration as D
+import qualified AST.Literal as L
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as Pattern
 import qualified AST.Type as Type
+import qualified AST.Variable as Var
 import qualified Elm.Compiler.Imports as Imports
 import qualified Elm.Package as Package
 import Elm.Utils ((|>))
@@ -464,6 +466,12 @@ expression :: Src.RawExpr -> Result wrn Src.ValidExpr
 expression (A.A ann sourceExpression) =
   A.A ann <$>
   case sourceExpression of
+    Src.Var (Var.Raw "True") ->
+        return (Src.Literal (L.Boolean True))
+
+    Src.Var (Var.Raw "False") ->
+        return (Src.Literal (L.Boolean False))
+
     Src.Var x ->
         return (Src.Var x)
 

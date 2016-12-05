@@ -58,6 +58,16 @@ fromModule home name =
     Canonical (Module home) name
 
 
+localize :: Canonical -> Canonical
+localize var@(Canonical home name) =
+  case home of
+    TopLevel _ ->
+      Canonical Local name
+
+    _ ->
+      var
+
+
 inCore :: ModuleName.Raw -> Text -> Canonical
 inCore home name =
     Canonical (Module (ModuleName.inCore home)) name
