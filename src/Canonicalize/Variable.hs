@@ -1,9 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Canonicalize.Variable (Result, variable, tvar, pvar) where
 
 import qualified Data.Either as Either
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Helpers as Help
 import qualified AST.Module.Name as ModuleName
@@ -45,7 +48,7 @@ logVar var =
 -- FINDERS
 
 
-variable :: R.Region -> Env.Env -> String -> Result Var.Canonical
+variable :: R.Region -> Env.Env -> Text -> Result Var.Canonical
 variable region env var =
   case toVarName var of
     Right (name, varName) | ModuleName.isNative name ->
@@ -70,15 +73,7 @@ variable region env var =
           notFound region "variable" (Map.keys (Env._values env)) var
 
 
-tvar
-    :: R.Region
-    -> Env.Env
-    -> String
-    -> Result
-          (Either
-              Var.Canonical
-              (Var.Canonical, [String], Type.Canonical)
-          )
+tvar :: R.Region -> Env.Env -> Text -> Result (Either Var.Canonical (Var.Canonical, [Text], Type.Canonical))
 tvar region env var =
   case unions ++ aliases of
     []  -> notFound region "type" (Map.keys (Env._unions env) ++ Map.keys (Env._aliases env)) var
@@ -97,7 +92,7 @@ tvar region env var =
           Right (v,_,_) -> v
 
 
-pvar :: R.Region -> Env.Env -> String -> Int -> Result Var.Canonical
+pvar :: R.Region -> Env.Env -> Text -> Int -> Result Var.Canonical
 pvar region env var actualArgs =
   case Set.toList <$> Map.lookup var (Env._patterns env) of
     Just [value] ->
@@ -121,7 +116,7 @@ pvar region env var actualArgs =
 -- FOUND
 
 
-preferLocals :: R.Region -> Env.Env -> String -> [Var.Canonical] -> String -> Result Var.Canonical
+preferLocals :: R.Region -> Env.Env -> Text -> [Var.Canonical] -> Text -> Result Var.Canonical
 preferLocals region env =
   preferLocals' region env id
 
@@ -130,9 +125,9 @@ preferLocals'
     :: R.Region
     -> Env.Env
     -> (a -> Var.Canonical)
-    -> String
+    -> Text
     -> [a]
-    -> String
+    -> Text
     -> Result a
 preferLocals' region env extract kind possibilities var =
     case filter (isLocal (Env._home env) . extract) possibilities of
@@ -156,7 +151,7 @@ preferLocals' region env extract kind possibilities var =
       ambiguous possibleVars =
           Result.throw region (Error.variable kind var Error.Ambiguous vars)
         where
-          vars = map (Var.toString . extract) possibleVars
+          vars = map (Text.pack . Var.toString . extract) possibleVars
 
 
 isLocal :: ModuleName.Canonical -> Var.Canonical -> Bool
@@ -190,26 +185,26 @@ isTopLevel (Var.Canonical home _) =
 
 
 type VarName =
-    Either String (ModuleName.Raw, String)
+    Either Text (ModuleName.Raw, Text)
 
 
-toVarName :: String -> VarName
+toVarName :: Text -> VarName
 toVarName var =
-  case Help.splitDots var of
+  case Text.splitOn "." var of
     [x] -> Left x
-    xs -> Right (init xs, last xs)
+    xs -> Right (Text.intercalate "." (init xs), last xs)
 
 
 noQualifier :: VarName -> String
 noQualifier name =
   case name of
-    Left x -> x
-    Right (_, x) -> x
+    Right (_, x) -> Text.unpack x
+    Left x       -> Text.unpack x
 
 
-qualifiedToString :: (ModuleName.Raw, String) -> String
+qualifiedToString :: (ModuleName.Raw, Text) -> Text
 qualifiedToString (modul, name) =
-  ModuleName.toString modul ++ "." ++ name
+  Text.pack (ModuleName.toString modul ++ "." ++ Text.unpack name)
 
 
 isOp :: VarName -> Bool
@@ -221,7 +216,7 @@ isOp name =
 -- NOT FOUND
 
 
-notFound :: R.Region -> String -> [String] -> String -> Result a
+notFound :: R.Region -> Text -> [Text] -> Text -> Result a
 notFound region kind possibilities var =
   let name =
           toVarName var
@@ -240,7 +235,7 @@ notFound region kind possibilities var =
         Result.throw region (Error.variable kind var problem suggestions)
 
 
-exposedProblem :: VarName -> [VarName] -> (Error.VarProblem, [String])
+exposedProblem :: VarName -> [VarName] -> (Error.VarProblem, [Text])
 exposedProblem name possibleNames =
   let (exposed, qualified) =
           possibleNames
@@ -253,30 +248,22 @@ exposedProblem name possibleNames =
       )
 
 
-qualifiedProblem
-    :: ModuleName.Raw
-    -> String
-    -> [(ModuleName.Raw, String)]
-    -> (Error.VarProblem, [String])
+qualifiedProblem :: ModuleName.Raw -> Text -> [(ModuleName.Raw, Text)] -> (Error.VarProblem, [Text])
 qualifiedProblem moduleName name allQualified =
   let availableModules =
         Set.fromList (map fst allQualified)
-
-      moduleNameString =
-        ModuleName.toString moduleName
   in
       case Set.member moduleName availableModules of
         True ->
-            ( Error.QualifiedUnknown moduleNameString name
+            ( Error.QualifiedUnknown moduleName name
             , allQualified
                 |> filter ((==) moduleName . fst)
                 |> map snd
-                |> Error.nearbyNames id name
+                |> Error.nearbyNames Text.unpack name
             )
 
         False ->
-            ( Error.UnknownQualifier moduleNameString name
+            ( Error.UnknownQualifier moduleName name
             , Set.toList availableModules
-                |> map ModuleName.toString
-                |> Error.nearbyNames id moduleNameString
+                |> Error.nearbyNames Text.unpack moduleName
             )

@@ -1,7 +1,10 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Canonicalize.Body (flatten) where
 
 import qualified Data.Maybe as Maybe
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Declaration as Decl
 import qualified AST.Effects as Effects
@@ -51,7 +54,7 @@ unionToDefs moduleName (A.A (region,_) (Decl.Type name tvars constructors)) =
     tagToDef (tag, tipes) =
       let
         vars =
-          take (length tipes) infiniteArgs
+          generateArgs (length tipes) []
 
         tbody =
           Type.App
@@ -60,7 +63,7 @@ unionToDefs moduleName (A.A (region,_) (Decl.Type name tvars constructors)) =
 
         body =
           A.A region $
-            C.Ctor tag (map (A.A region . C.localVar) vars)
+            C.Ctor (Var.fromModule moduleName tag) (map (A.A region . C.localVar) vars)
       in
         definition tag (buildFunction vars body) region (foldr Type.Lambda tbody tipes)
   in
@@ -82,7 +85,7 @@ aliasToDefs moduleName (A.A (region,_) (Decl.Type name tvars tipe)) =
           map snd fields
 
         vars =
-          take (length args) infiniteArgs
+          generateArgs (length args) []
 
         record =
           A.A region $
@@ -94,12 +97,15 @@ aliasToDefs moduleName (A.A (region,_) (Decl.Type name tvars tipe)) =
       Nothing
 
 
-infiniteArgs :: [String]
-infiniteArgs =
-  map (:[]) ['a'..'z'] ++ map (\n -> "_" ++ show (n :: Int)) [1..]
+generateArgs :: Int -> [Text] -> [Text]
+generateArgs n args =
+  if n == 0 then
+    args
+  else
+    generateArgs (n - 1) (Text.pack ('v' : show n) : args)
 
 
-buildFunction :: [String] -> C.Expr -> C.Expr
+buildFunction :: [Text] -> C.Expr -> C.Expr
 buildFunction vars body@(A.A ann _) =
   foldr
     (\pattern expr -> A.A ann (C.Lambda pattern expr))
@@ -107,7 +113,7 @@ buildFunction vars body@(A.A ann _) =
     (map (A.A ann . P.Var) vars)
 
 
-definition :: String -> C.Expr -> Region -> Type.Canonical -> C.Def
+definition :: Text -> C.Expr -> Region -> Type.Canonical -> C.Def
 definition name expr@(A.A ann _) region tipe =
   C.Def
     region
@@ -165,7 +171,7 @@ portToDef (A.A (region, _) (Effects.PortCanonical name kind tipe)) =
   definition name (A.A region (toPortExpr name kind)) region tipe
 
 
-toPortExpr :: String -> Effects.Kind -> C.Expr'
+toPortExpr :: Text -> Effects.Kind -> C.Expr'
 toPortExpr name kind =
   case kind of
     Effects.Outgoing tipe ->

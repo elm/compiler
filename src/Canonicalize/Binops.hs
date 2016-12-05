@@ -3,6 +3,7 @@ module Canonicalize.Binops ( Op(..), canonicalize, flatten ) where
 
 import Prelude hiding (last)
 import qualified Data.Map as Map
+import Data.Text (Text)
 
 import AST.Declaration (Assoc(..))
 import qualified AST.Expression.Canonical as C
@@ -28,7 +29,7 @@ data Op =
     }
 
 
-canonicalize :: Env.Env -> A.Located String -> Var.Result Op
+canonicalize :: Env.Env -> A.Located Text -> Var.Result Op
 canonicalize env (A.A region op) =
   do  name <- Var.variable region env op
       let (assoc, prec) = Map.findWithDefault (L, 9) name (Env._infixes env)

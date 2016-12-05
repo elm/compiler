@@ -6,6 +6,7 @@ import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
+import Data.Text (Text)
 
 import qualified AST.Expression.Canonical as C
 import qualified AST.Pattern as P
@@ -30,9 +31,9 @@ definitions expression =
 
 data LocalVars =
   LocalVars
-    { _immediate :: Set.Set String
-    , _delayed :: Set.Set String
-    , _tags :: Set.Set String
+    { _immediate :: Set.Set Text
+    , _delayed :: Set.Set Text
+    , _tags :: Set.Set Text
     }
 
 
@@ -44,7 +45,7 @@ instance Monoid LocalVars where
     LocalVars (Set.union i1 i2) (Set.union d1 d2) (Set.union t1 t2)
 
 
-addTag :: String -> a -> R.Result LocalVars w e a
+addTag :: Text -> a -> R.Result LocalVars w e a
 addTag name value =
   R.accumulate (LocalVars Set.empty Set.empty (Set.singleton name)) value
 
@@ -70,7 +71,7 @@ capture pattern result =
   captureVars (P.boundVarSet pattern) result
 
 
-captureVars :: Set.Set String -> R.Result LocalVars w e a -> R.Result LocalVars w e a
+captureVars :: Set.Set Text -> R.Result LocalVars w e a -> R.Result LocalVars w e a
 captureVars bound (R.Result (LocalVars immediate delayed tags) warnings result) =
   let
     localVars =
@@ -106,8 +107,8 @@ reorder (A.A region expression) =
     C.Case expr cases ->
       C.Case <$> reorder expr <*> traverse (bindingReorder (,)) cases
 
-    C.Ctor name exprs ->
-      addTag name =<< (C.Ctor name <$> traverse reorder exprs)
+    C.Ctor ctor@(V.Canonical _ name) exprs ->
+      addTag name =<< (C.Ctor ctor <$> traverse reorder exprs)
 
     -- Just pipe the reorder though
     C.Literal _ ->
@@ -195,7 +196,7 @@ addPatternTags pattern value =
   R.accumulate (LocalVars Set.empty Set.empty (getPatternTags pattern)) value
 
 
-getPatternTags :: P.Canonical -> Set.Set String
+getPatternTags :: P.Canonical -> Set.Set Text
 getPatternTags (A.A _ pattern) =
   case pattern of
     P.Var _ ->
@@ -213,7 +214,7 @@ getPatternTags (A.A _ pattern) =
     P.Literal _ ->
       Set.empty
 
-    P.Data (V.Canonical home name) patterns ->
+    P.Ctor (V.Canonical home name) patterns ->
       let
         freeCtors =
           Set.unions (map getPatternTags patterns)
@@ -238,7 +239,7 @@ getPatternTags (A.A _ pattern) =
 
 reorderDefs
   :: [C.Def]
-  -> R.Result () w E.Error (Set.Set String, [[C.Def]], LocalVars)
+  -> R.Result () w E.Error (Set.Set Text, [[C.Def]], LocalVars)
 reorderDefs defs =
   do  rawNodes <- sequenceA $ zipWith toRawNode [0..] defs
       let boundVarDict = toBoundVarDict rawNodes
@@ -258,12 +259,12 @@ toRawNode index (C.Def region pattern body maybeType) =
     toRawNodeHelp <$> R.Result () warnings answer
 
 
-toBoundVarDict :: [(C.Def, Int, a)] -> Map.Map String Int
+toBoundVarDict :: [(C.Def, Int, a)] -> Map.Map Text Int
 toBoundVarDict defAndDeps =
   Map.fromList (concatMap toBoundVarDictHelp defAndDeps)
 
 
-toBoundVarDictHelp :: (C.Def, Int, a) -> [(String, Int)]
+toBoundVarDictHelp :: (C.Def, Int, a) -> [(Text, Int)]
 toBoundVarDictHelp (C.Def _ pattern _ _, key, _) =
   map (\(A.A _ name) -> (name, key)) (P.boundVars pattern)
 
@@ -273,8 +274,8 @@ toBoundVarDictHelp (C.Def _ pattern _ _, key, _) =
 
 
 toNode
-  :: (deps -> [String])
-  -> Map.Map String Int
+  :: (deps -> [Text])
+  -> Map.Map Text Int
   -> (C.Def, Int, deps)
   -> (C.Def, Int, [Int])
 toNode toVars boundVarDict (def, index, deps) =
@@ -285,12 +286,12 @@ toNode toVars boundVarDict (def, index, deps) =
     ( def, index, localDeps )
 
 
-immediateOnly :: LocalVars -> [String]
+immediateOnly :: LocalVars -> [Text]
 immediateOnly (LocalVars immediate _ _) =
   Set.toList immediate
 
 
-allVars :: LocalVars -> [String]
+allVars :: LocalVars -> [Text]
 allVars (LocalVars immediate delayed tags) =
   Set.toList immediate ++ Set.toList delayed ++ Set.toList tags
 
@@ -300,7 +301,7 @@ allVars (LocalVars immediate delayed tags) =
 
 
 detectLoops
-  :: Map.Map String Int
+  :: Map.Map Text Int
   -> [(C.Def, Int, LocalVars)]
   -> R.Result () w E.Error ()
 detectLoops boundVarDict rawNodes =
@@ -329,9 +330,9 @@ detectLoopsHelp scc =
 
 
 groupDefs
-  :: Map.Map String Int
+  :: Map.Map Text Int
   -> [(C.Def, Int, LocalVars)]
-  -> ( Set.Set String, [[C.Def]], LocalVars )
+  -> ( Set.Set Text, [[C.Def]], LocalVars )
 groupDefs boundVarDict rawNodes =
   let
     allLocalVars =

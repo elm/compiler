@@ -1,11 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Canonicalize.Environment
   ( Env(..)
   , getPackage
   , insert
   , Patch(..), fromPatches, addPattern
   , builtinPatches
-  , toDealiaser
+  , toLocalizer
   )
   where
 
@@ -13,6 +14,8 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Declaration as Decl
 import qualified AST.Module.Name as ModuleName
@@ -20,6 +23,7 @@ import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Elm.Package as Pkg
+import qualified Reporting.Render.Type as RT
 
 
 
@@ -30,14 +34,14 @@ data Env = Env
     { _home     :: ModuleName.Canonical
     , _values   :: Dict Var.Canonical
     , _unions   :: Dict Var.Canonical
-    , _aliases  :: Dict (Var.Canonical, [String], Type.Canonical)
+    , _aliases  :: Dict (Var.Canonical, [Text], Type.Canonical)
     , _patterns :: Dict (Var.Canonical, Int)
     , _infixes  :: Map.Map Var.Canonical (Decl.Assoc, Int)
     }
 
 
 type Dict a =
-    Map.Map String (Set.Set a)
+    Map.Map Text (Set.Set a)
 
 
 fromPatches :: ModuleName.Canonical -> [Patch] -> Env
@@ -64,10 +68,10 @@ getPackage env =
 
 
 data Patch
-    = Value String Var.Canonical
-    | Union String Var.Canonical
-    | Alias String (Var.Canonical, [String], Type.Canonical)
-    | Pattern String (Var.Canonical, Int)
+    = Value Text Var.Canonical
+    | Union Text Var.Canonical
+    | Alias Text (Var.Canonical, [Text], Type.Canonical)
+    | Pattern Text (Var.Canonical, Int)
     | Infix Var.Canonical Decl.Assoc Int
 
 
@@ -99,7 +103,7 @@ addPatch patch env =
         env { _infixes = Map.insert name (assoc, prec) (_infixes env) }
 
 
-insert :: (Ord a) => String -> a -> Dict a -> Dict a
+insert :: (Ord a) => Text -> a -> Dict a -> Dict a
 insert key value =
   Map.insertWith Set.union key (Set.singleton value)
 
@@ -128,29 +132,29 @@ builtinPatches =
     tuples =
         map toTuple [0..9]
 
-    toTuple :: Int -> (String, Int)
+    toTuple :: Int -> (Text, Int)
     toTuple n =
-        ("_Tuple" ++ show n, n)
+        ( Text.pack ("_Tuple" ++ show n), n )
 
 
 
 -- TO TYPE DEALIASER
 
 
-toDealiaser :: Env -> Map.Map String String
-toDealiaser (Env _ _ unions aliases _ _) =
+toLocalizer :: Env -> RT.Localizer
+toLocalizer (Env _ _ unions aliases _ _) =
   let
     dealiasUnion (localName, canonicalSet) =
       case Set.toList canonicalSet of
         [canonicalName] ->
-            Just (Var.toString canonicalName, localName)
+            Just (canonicalName, localName)
         _ ->
             Nothing
 
     dealiasAlias (localName, canonicalSet) =
       case Set.toList canonicalSet of
         [(canonicalName,_,_)] ->
-            Just (Var.toString canonicalName, localName)
+            Just (canonicalName, localName)
         _ ->
             Nothing
 
@@ -161,6 +165,7 @@ toDealiaser (Env _ _ unions aliases _ _) =
       Maybe.mapMaybe dealiasAlias (Map.toList aliases)
 
     add (key,value) dict =
-      Map.insertWith (\v v' -> if length v < length v' then v else v') key value dict
+      Map.insertWith (\v v' -> if Text.length v < Text.length v' then v else v') key value dict
   in
-    foldr add Map.empty (unionPairs ++ aliasPairs)
+    Map.map Text.unpack $
+      foldr add Map.empty (unionPairs ++ aliasPairs)

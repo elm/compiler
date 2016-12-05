@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Canonicalize.Setup (environment) where
 
 import Control.Arrow (second)
@@ -6,6 +7,9 @@ import Control.Monad (foldM)
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
+import Data.Monoid ((<>))
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Declaration as D
 import qualified AST.Effects as Effects
@@ -96,13 +100,13 @@ importToPatches importDict allInterfaces (A.A region (rawImportName, method)) =
           listing
 
         qualifier =
-          maybe (ModuleName.toString rawImportName) id maybeAlias
+          maybe (Text.pack (ModuleName.toString rawImportName)) id maybeAlias
 
         infixPatches =
           map (infixToPatch (Var.fromModule importName)) (Module.iFixities interface)
 
         qualifiedPatches =
-          interfaceToPatches importName (qualifier ++ ".") interface
+          interfaceToPatches importName (qualifier <> ".") interface
 
         unqualifiedPatches =
           if open then
@@ -114,11 +118,11 @@ importToPatches importDict allInterfaces (A.A region (rawImportName, method)) =
         (++) (infixPatches ++ qualifiedPatches) <$> unqualifiedPatches
 
 
-interfaceToPatches :: ModuleName.Canonical -> String -> Module.Interface -> [Env.Patch]
+interfaceToPatches :: ModuleName.Canonical -> Text -> Module.Interface -> [Env.Patch]
 interfaceToPatches moduleName prefix interface =
   let
     genericPatch mkPatch name value =
-      mkPatch (prefix ++ name) value
+      mkPatch (prefix <> name) value
 
     patch mkPatch name =
       genericPatch mkPatch name (Var.fromModule moduleName name)
@@ -171,7 +175,7 @@ valueToPatches region moduleName interface value =
     notFound getNames x =
       Module.iExports interface
         |> getNames
-        |> Error.nearbyNames id x
+        |> Error.nearbyNames Text.unpack x
         |> Error.valueNotFound (ModuleName._module moduleName) x
         |> Result.throw region
   in
@@ -247,10 +251,10 @@ valueToPatches region moduleName interface value =
 
 
 type Node =
-  ( (R.Region, String, [String], Type.Raw), String, [String] )
+  ( (R.Region, Text, [Text], Type.Raw), Text, [Text] )
 
 
-node :: R.Region -> String -> [String] -> Type.Raw -> Node
+node :: R.Region -> Text -> [Text] -> Type.Raw -> Node
 node region name tvars alias =
     ((region, name, tvars, alias), name, edges alias)
   where
@@ -280,7 +284,7 @@ addTypeAliases moduleName typeAliasNodes initialEnv =
 addTypeAlias
     :: ModuleName.Canonical
     -> Env.Env
-    -> Graph.SCC (R.Region, String, [String], Type.Raw)
+    -> Graph.SCC (R.Region, Text, [Text], Type.Raw)
     -> Result Env.Env
 addTypeAlias moduleName env scc =
   case scc of
@@ -362,7 +366,7 @@ declsToPatches moduleName (D.Decls defs unions aliases infixes) =
     )
 
 
-infixToPatch :: (String -> Var.Canonical) -> D.Infix -> Env.Patch
+infixToPatch :: (Text -> Var.Canonical) -> D.Infix -> Env.Patch
 infixToPatch toVar (D.Infix name assoc prec) =
   Env.Infix (toVar name) assoc prec
 
@@ -425,16 +429,16 @@ restrictToPublicApi interface =
     exports =
         Module.iExports interface
 
-    unions :: [(String, Var.Listing String)]
+    unions :: [(Text, Var.Listing Text)]
     unions =
         Var.getUnions exports
 
-    ctors :: [String]
+    ctors :: [Text]
     ctors =
         concatMap (\(_, Var.Listing ctorList _) -> ctorList) unions
 
 
-get :: Map.Map String a -> String -> Maybe (String, a)
+get :: Map.Map Text a -> Text -> Maybe (Text, a)
 get dict key =
   case Map.lookup key dict of
     Nothing ->
@@ -446,8 +450,8 @@ get dict key =
 
 trimUnions
     :: Module.Interface
-    -> (String, Var.Listing String)
-    -> Maybe (String, Module.UnionInfo String)
+    -> (Text, Var.Listing Text)
+    -> Maybe (Text, Module.UnionInfo Text)
 trimUnions interface (name, Var.Listing exportedCtors _) =
   case Map.lookup name (Module.iUnions interface) of
     Nothing ->

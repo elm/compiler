@@ -1,7 +1,8 @@
 module Canonicalize.Effects (canonicalize, toValues, checkPortType) where
 
 import qualified Data.Foldable as F
-import qualified Data.Traversable as T
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Effects as Effects
 import qualified AST.Type as T
@@ -46,7 +47,7 @@ canonicalize env effects =
       Result.ok (Effects.Manager (Env.getPackage env) info)
 
     Effects.Port rawPorts ->
-      Effects.Port <$> T.traverse (canonicalizeRawPort env) rawPorts
+      Effects.Port <$> traverse (canonicalizeRawPort env) rawPorts
 
 
 canonicalizeRawPort
@@ -59,7 +60,7 @@ canonicalizeRawPort env (A.A ann (Effects.PortRaw name rawType)) =
       Result.ok (A.A ann (Effects.PortCanonical name kind tipe))
 
 
-figureOutKind :: R.Region -> String -> T.Canonical -> Result Effects.Kind
+figureOutKind :: R.Region -> Text -> T.Canonical -> Result Effects.Kind
 figureOutKind region name rootType =
   case T.deepDealias rootType of
     T.Lambda outgoingType (T.App (T.Type effect) [T.Var _])
@@ -76,9 +77,9 @@ figureOutKind region name rootType =
       Result.throw region (Error.BadPort name rootType)
 
 
-makeError :: R.Region -> String -> T.Canonical -> Maybe String -> A.Located Error.Error
+makeError :: R.Region -> Text -> T.Canonical -> Maybe String -> A.Located Error.Error
 makeError region name tipe maybeMessage =
-  A.A region (Error.port name tipe maybeMessage)
+  A.A region (Error.port (Text.unpack name) tipe maybeMessage)
 
 
 

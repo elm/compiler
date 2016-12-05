@@ -7,6 +7,8 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import qualified Data.Foldable as T
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import Elm.Utils ((|>))
 
@@ -78,7 +80,7 @@ module' allCanonicalImports interfaces modul =
             canonicalDecls
 
           centralizedDocs =
-            A.map (fmap (Docs.centralize canonicalDecls)) docs
+            fmap (A.map (Docs.centralize canonicalDecls)) docs
 
           typeToPair (A.A _ (D.Type name args body)) =
             ( name, (args, body) )
@@ -88,7 +90,7 @@ module' allCanonicalImports interfaces modul =
         in
           do  program <- Result.mapError Error.Canonicalize getProgram
               canonicalImports <- filterImports uses imports
-              Result.accumulate (Result.One (Env.toDealiaser env)) $
+              Result.accumulate (Result.One (Env.toLocalizer env)) $
                 modul {
                   Module.info =
                     Module.Info
@@ -164,7 +166,7 @@ resolveExports fullList (Var.Listing partialList open) =
         <*> allUnique partialList
 
 
-getValueExport :: [String] -> Set.Set String -> A.Located String -> CResult Var.Value
+getValueExport :: [Text] -> Set.Set Text -> A.Located Text -> CResult Var.Value
 getValueExport allValues allValuesSet (A.A region name) =
   if Set.member name allValuesSet then
     Result.ok (Var.Value name)
@@ -172,7 +174,7 @@ getValueExport allValues allValuesSet (A.A region name) =
     manyNotFound region [name] allValues
 
 
-getAliasExport :: [String] -> [String] -> [String] -> A.Located String -> CResult [Var.Value]
+getAliasExport :: [Text] -> [Text] -> [Text] -> A.Located Text -> CResult [Var.Value]
 getAliasExport allValues allAliases adtTypes (A.A region alias) =
   if alias `elem` allAliases then
 
@@ -189,9 +191,9 @@ getAliasExport allValues allAliases adtTypes (A.A region alias) =
 
 
 getAdtExport
-    :: [(String, Var.Listing String)]
-    -> [String]
-    -> A.Located (String, Var.Listing String)
+    :: [(Text, Var.Listing Text)]
+    -> [Text]
+    -> A.Located (Text, Var.Listing Text)
     -> CResult Var.Value
 getAdtExport allAdts adtTypes (A.A region (name, Var.Listing ctors open)) =
   case List.lookup name allAdts of
@@ -209,21 +211,25 @@ getAdtExport allAdts adtTypes (A.A region (name, Var.Listing ctors open)) =
                 manyNotFound region unfoundCtors allCtors
 
 
-manyNotFound :: Region.Region -> [String] -> [String] -> CResult a
+manyNotFound :: Region.Region -> [Text] -> [Text] -> CResult a
 manyNotFound region nameList possibilities =
     Result.throwMany (map (notFound region possibilities) nameList)
 
 
-notFound :: Region.Region -> [String] -> String -> A.Located CError.Error
-notFound region possibilities name =
-    A.A region $ CError.Export name $
-        ErrorHelp.nearbyNames id name possibilities
+notFound :: Region.Region -> [Text] -> Text -> A.Located CError.Error
+notFound region possibilities badName =
+  let
+    badNameString =
+      Text.unpack badName
+  in
+    A.A region $ CError.Export badNameString $
+        ErrorHelp.nearbyNames id badNameString (map Text.unpack possibilities)
 
 
 allUnique :: [A.Located Var.Value] -> CResult ()
 allUnique statedExports =
   let
-    valueToString value =
+    valueToText value =
         case value of
           Var.Value name -> name
           Var.Alias name -> name
@@ -235,7 +241,7 @@ allUnique statedExports =
     isUnique value allRegions =
         case allRegions of
           region : _ : _ ->
-              Result.throw region (CError.DuplicateExport (valueToString value))
+              Result.throw region (CError.DuplicateExport (valueToText value))
 
           _ ->
               Result.ok ()
@@ -284,7 +290,7 @@ maybeUnzip3 tuples =
 
 splitValue
     :: Var.Value
-    -> ( Maybe String, Maybe String, Maybe (String, Var.Listing String) )
+    -> ( Maybe Text, Maybe Text, Maybe (Text, Var.Listing Text) )
 splitValue value =
   case value of
     Var.Value name ->
@@ -300,9 +306,9 @@ splitValue value =
 splitLocatedValue
     :: A.Located Var.Value
     ->
-      ( Maybe (A.Located String)
-      , Maybe (A.Located String)
-      , Maybe (A.Located (String, Var.Listing String))
+      ( Maybe (A.Located Text)
+      , Maybe (A.Located Text)
+      , Maybe (A.Located (Text, Var.Listing Text))
       )
 splitLocatedValue (A.A region value) =
   case value of
@@ -414,7 +420,9 @@ canonicalizeExpr env (A.A region validExpr) =
           C.Var <$> Canon.variable region env x
 
       Src.Ctor name exprs ->
-          C.Ctor name <$> traverse go exprs
+          C.Ctor
+            <$> Canon.variable region env name
+            <*> traverse go exprs
 
       Src.List exprs ->
           C.List <$> traverse go exprs
@@ -433,8 +441,8 @@ canonicalizeExpr env (A.A region validExpr) =
 
 canonicalizeFields
   :: Env.Env
-  -> (A.Located String, Src.ValidExpr)
-  -> CResult (String, C.Expr)
+  -> (A.Located Text, Src.ValidExpr)
+  -> CResult (Text, C.Expr)
 canonicalizeFields env (A.A _ key, expr) =
   (\value -> (key, value)) <$> canonicalizeExpr env expr
 
@@ -462,8 +470,8 @@ canonicalizePattern env (A.A region ptrn) =
       P.Alias x p ->
           P.Alias x <$> canonicalizePattern env p
 
-      P.Data (Var.Raw name) patterns ->
-          P.Data
+      P.Ctor (Var.Raw name) patterns ->
+          P.Ctor
             <$> Canon.pvar region env name (length patterns)
             <*> traverse (canonicalizePattern env) patterns
 
@@ -475,7 +483,7 @@ canonicalizePattern env (A.A region ptrn) =
 canonicalizeBinop
     :: Region.Region
     -> Env.Env
-    -> [(Src.ValidExpr, A.Located String)]
+    -> [(Src.ValidExpr, A.Located Text)]
     -> Src.ValidExpr
     -> CResult C.Expr'
 canonicalizeBinop region env srcOps srcLast =
@@ -490,7 +498,7 @@ canonicalizeBinop region env srcOps srcLast =
         A.drop <$> Binops.flatten region expr ops
 
 
-binopHelp :: Env.Env -> (Src.ValidExpr, A.Located String) -> CResult (C.Expr, Binops.Op)
+binopHelp :: Env.Env -> (Src.ValidExpr, A.Located Text) -> CResult (C.Expr, Binops.Op)
 binopHelp env (expr, op) =
   (,)
     <$> canonicalizeExpr env expr

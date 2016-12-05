@@ -1,18 +1,21 @@
 {-# OPTIONS_GHC -Wall #-}
 module Canonicalize.Type (tipe) where
 
-import qualified Data.Traversable as Trav
+import Data.Text (Text)
 
 import qualified AST.Type as T
 import qualified AST.Variable as Var
-
+import qualified Canonicalize.Environment as Env
+import qualified Canonicalize.Variable as Canonicalize
+import Canonicalize.Variable (Result)
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
-import qualified Canonicalize.Environment as Env
-import qualified Canonicalize.Variable as Canonicalize
-import Canonicalize.Variable (Result)
+
+
+
+-- CANONICALIZE TYPES
 
 
 tipe :: Env.Env -> T.Raw -> Result T.Canonical
@@ -38,7 +41,7 @@ tipe env annType@(A.A _ typ) =
           T.Lambda <$> go a <*> go b
 
       T.RRecord fields ext ->
-          T.Record <$> Trav.traverse goField fields <*> Trav.traverse go ext
+          T.Record <$> traverse goField fields <*> traverse go ext
 
 
 canonicalizeApp :: Env.Env -> T.Raw -> [T.Raw] -> Result T.Canonical
@@ -50,7 +53,7 @@ canonicalizeApp env annFunc@(A.A region func) args =
     _ ->
       T.App
         <$> tipe env annFunc
-        <*> Trav.traverse (tipe env) args
+        <*> traverse (tipe env) args
 
   where
     canonicalizeWithTvar tvar =
@@ -64,13 +67,13 @@ canonicalizeApp env annFunc@(A.A region func) args =
                     Result.ok (T.Type name)
 
                 _ ->
-                    T.App (T.Type name) <$> Trav.traverse (tipe env) args
+                    T.App (T.Type name) <$> traverse (tipe env) args
 
 
 canonicalizeAlias
     :: R.Region
     -> Env.Env
-    -> (Var.Canonical, [String], T.Canonical)
+    -> (Var.Canonical, [Text], T.Canonical)
     -> [T.Raw]
     -> Result T.Canonical
 canonicalizeAlias region env (name, tvars, dealiasedTipe) types =
@@ -88,5 +91,5 @@ canonicalizeAlias region env (name, tvars, dealiasedTipe) types =
       Result.throw region (Error.alias name tvarsLen typesLen)
 
     else
-      toAlias <$> Trav.traverse (tipe env) types
+      toAlias <$> traverse (tipe env) types
 
