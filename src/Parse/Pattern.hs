@@ -4,6 +4,7 @@ module Parse.Pattern (term, expression) where
 
 import Data.Text (Text)
 
+import qualified AST.Literal as L
 import qualified AST.Pattern as P
 import qualified AST.Variable as Var
 import Parse.Helpers
@@ -35,7 +36,15 @@ termHelp =
 
 mkCtor :: Text -> P.Raw'
 mkCtor ctor =
-  P.Ctor (Var.Raw ctor) []
+  case ctor of
+    "True" ->
+      P.Literal (L.Boolean True)
+
+    "False" ->
+      P.Literal (L.Boolean False)
+
+    _ ->
+      P.Ctor (Var.Raw ctor) []
 
 
 
@@ -79,8 +88,8 @@ tuple =
       leftParen
       spaces
       oneOf
-        [ do  (pattern, space) <- expression
-              checkSpaces space
+        [ do  (pattern, sPos) <- expression
+              checkSpace sPos
               tupleHelp start [pattern]
         , do  rightParen
               end <- getPosition
@@ -93,8 +102,8 @@ tupleHelp start patterns =
   oneOf
     [ do  comma
           spaces
-          (pattern, space) <- expression
-          checkSpaces space
+          (pattern, sPos) <- expression
+          checkSpace sPos
           tupleHelp start (pattern:patterns)
     , do  rightParen
           case patterns of
@@ -116,8 +125,8 @@ list =
   do  leftSquare
       spaces
       oneOf
-        [ do  (pattern, space) <- expression
-              checkSpaces space
+        [ do  (pattern, sPos) <- expression
+              checkSpace sPos
               listHelp [pattern]
         , do  rightSquare
               end <- getPosition
@@ -130,8 +139,8 @@ listHelp patterns =
   oneOf
     [ do  comma
           spaces
-          (pattern, space) <- expression
-          checkSpaces space
+          (pattern, sPos) <- expression
+          checkSpace sPos
           listHelp (pattern:patterns)
     , do  end <- getPosition
           rightSquare
@@ -143,14 +152,14 @@ listHelp patterns =
 -- PATTERN EXPRESSION
 
 
-expression :: Parser (P.Raw, Space)
+expression :: Parser (P.Raw, SPos)
 expression =
   do  start <- getPosition
       cTerm <- consTerm
       exprHelp start [] cTerm
 
 
-consTerm :: Parser (P.Raw, R.Position, Space)
+consTerm :: SParser P.Raw
 consTerm =
   oneOf
     [ do  start <- getPosition
@@ -160,15 +169,15 @@ consTerm =
     ]
 
 
-exprHelp :: R.Position -> [P.Raw] -> (P.Raw, R.Position, Space) -> Parser (P.Raw, Space)
-exprHelp start patterns (pattern, end, space) =
+exprHelp :: R.Position -> [P.Raw] -> (P.Raw, R.Position, SPos) -> Parser (P.Raw, SPos)
+exprHelp start patterns (pattern, end, sPos) =
   oneOf
-    [ do  checkSpaces space
+    [ do  checkSpace sPos
           cons
           spaces
           cTerm <- consTerm
           exprHelp start (pattern:patterns) cTerm
-    , do  checkSpaces space
+    , do  checkSpace sPos
           keyword "as"
           spaces
           alias <- lowVar
@@ -180,7 +189,7 @@ exprHelp start patterns (pattern, end, space) =
             )
     , return
         ( foldl (consHelp end) pattern patterns
-        , space
+        , sPos
         )
     ]
 
@@ -190,17 +199,17 @@ consHelp end tl hd@(A.A (R.Region start _) _) =
   A.at start end (P.Ctor (Var.Raw "::") [hd, tl])
 
 
-constructorHelp :: R.Position -> Text -> [P.Raw] -> Parser (P.Raw, R.Position, Space)
+constructorHelp :: R.Position -> Text -> [P.Raw] -> SParser P.Raw
 constructorHelp start ctor args =
   do  end <- getPosition
-      space <- whitespace
+      sPos <- whitespace
       oneOf
-        [ do  checkSpaces space
+        [ do  checkSpace sPos
               arg <- term
               constructorHelp start ctor (arg:args)
         , return
             ( A.at start end (P.Ctor (Var.Raw ctor) (reverse args))
             , end
-            , space
+            , sPos
             )
         ]
