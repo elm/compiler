@@ -37,8 +37,8 @@ docDecl :: R.Position -> SParser Decl.Source
 docDecl start =
   do  comment <- docComment
       end <- getPosition
-      space <- whitespace
-      return ( Decl.Comment (A.at start end comment), end, space )
+      pos <- whitespace
+      return ( Decl.Comment (A.at start end comment), end, pos )
 
 
 -- TYPE ANNOTATIONS and DEFINITIONS
@@ -46,9 +46,9 @@ docDecl start =
 
 defDecl :: R.Position -> SParser Decl.Source
 defDecl start =
-  do  (def, end, space) <- Expr.definition
+  do  (def, end, pos) <- Expr.definition
       let decl = A.at start end (Decl.Def def)
-      return ( Decl.Whatever decl, end, space )
+      return ( Decl.Whatever decl, end, pos )
 
 
 
@@ -63,14 +63,14 @@ typeDecl start =
         [ do  keyword "alias"
               spaces
               (name, args) <- nameArgsEquals
-              (tipe, end, space) <- Type.expression
+              (tipe, end, pos) <- Type.expression
               let decl = A.at start end (Decl.Alias (Decl.Type name args tipe))
-              return ( Decl.Whatever decl, end, space )
+              return ( Decl.Whatever decl, end, pos )
         , do  (name, args) <- nameArgsEquals
               (firstCtor, firstEnd, firstSpace) <- Type.unionConstructor
-              (ctors, end, space) <- chompConstructors [firstCtor] firstEnd firstSpace
+              (ctors, end, pos) <- chompConstructors [firstCtor] firstEnd firstSpace
               let decl = A.at start end (Decl.Union (Decl.Type name args ctors))
-              return ( Decl.Whatever decl, end, space )
+              return ( Decl.Whatever decl, end, pos )
         ]
 
 
@@ -93,15 +93,15 @@ nameArgsEqualsHelp name args =
     ]
 
 
-chompConstructors :: [(Text, [Type.Raw])] -> R.Position -> Space -> SParser [(Text, [Type.Raw])]
-chompConstructors ctors end space =
+chompConstructors :: [(Text, [Type.Raw])] -> R.Position -> SPos -> SParser [(Text, [Type.Raw])]
+chompConstructors ctors end pos =
   oneOf
-    [ do  checkSpaces space
+    [ do  checkSpace pos
           pipe
           spaces
           (ctor, newEnd, newSpace) <- Type.unionConstructor
           chompConstructors (ctor:ctors) newEnd newSpace
-    , return ( reverse ctors, end, space )
+    , return ( reverse ctors, end, pos )
     ]
 
 
@@ -128,9 +128,9 @@ infixDeclHelp start assoc =
       spaces
       op <- infixOp
       end <- getPosition
-      space <- whitespace
+      pos <- whitespace
       let decl = A.at start end (Decl.Fixity (Decl.Infix op assoc n))
-      return ( Decl.Whatever decl, end, space )
+      return ( Decl.Whatever decl, end, pos )
 
 
 
@@ -145,7 +145,7 @@ portDecl start =
       spaces
       hasType
       spaces
-      (tipe, end, space) <- Type.expression
+      (tipe, end, pos) <- Type.expression
       let decl = A.at start end (Decl.Port name tipe)
-      return ( Decl.Whatever decl, end, space )
+      return ( Decl.Whatever decl, end, pos )
 

@@ -2,7 +2,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Parse.Module where
 
-import Control.Monad (guard)
 import Data.Text (Text)
 
 import qualified AST.Module as Module
@@ -18,8 +17,7 @@ import qualified Reporting.Region as R
 
 header :: Parser (Module.Header [Module.UserImport])
 header =
-  do  space <- whitespace
-      guard (space == Freshline || space == None)
+  do  freshLine
       oneOf
         [ fullHeader
         , Module.defaultHeader <$> chompImports []
@@ -143,12 +141,12 @@ chompImports imports =
           spaces
           name <- qualifiedCapVar
           end <- getPosition
-          space <- whitespace
+          pos <- whitespace
           oneOf
-            [ do  guard (space == Freshline)
+            [ do  checkFreshline pos
                   let userImport = method start end name Nothing Var.closedListing
                   chompImports (userImport:imports)
-            , do  checkSpaces space
+            , do  checkSpace pos
                   oneOf
                     [ chompAs start name imports
                     , chompExposing start name Nothing imports
@@ -164,12 +162,12 @@ chompAs start name imports =
       spaces
       alias <- capVar
       end <- getPosition
-      space <- whitespace
+      pos <- whitespace
       oneOf
-        [ do  guard (space == Freshline)
+        [ do  checkFreshline pos
               let userImport = method start end name (Just alias) Var.closedListing
               chompImports (userImport:imports)
-        , do  checkSpaces space
+        , do  checkSpace pos
               chompExposing start name (Just alias) imports
         ]
 
@@ -249,9 +247,6 @@ listingValue =
 
 freshLine :: Parser ()
 freshLine =
-  do  space <- whitespace
-      if space == Freshline
-        then return ()
-        else failure (error "TODO freshLine")
-
+  do  pos <- whitespace
+      checkFreshline pos
 

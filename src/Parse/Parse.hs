@@ -1,8 +1,8 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Parse.Parse (program) where
 
-import Control.Monad (guard)
-import Data.Text (Text, unpack)
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Declaration as Decl
 import qualified AST.Module as Module
@@ -25,7 +25,7 @@ program pkgName src =
         Validate.validate modul
 
     Left err ->
-        error (unlines $ take 10 $ "TODO program parse error" : lines (unpack src)) err
+        error ("TODO program parse error\n" ++ show err ++ "\n" ++ Text.unpack (Text.take 100 src))
 
 
 chompProgram :: Package.Name -> Parser Module.Source
@@ -40,9 +40,9 @@ chompProgram pkgName =
 
 chompDeclarations :: [Decl.Source] -> Parser [Decl.Source]
 chompDeclarations decls =
-  do  (decl, _, space) <- Parse.declaration
+  do  (decl, _, pos) <- Parse.declaration
       oneOf
-        [ do  guard (space == Freshline)
+        [ do  checkFreshline pos
               chompDeclarations (decl:decls)
         , return (reverse (decl:decls))
         ]
