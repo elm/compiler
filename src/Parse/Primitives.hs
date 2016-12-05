@@ -9,7 +9,7 @@ module Parse.Primitives
   , lowVar, capVar, infixOp
   , getPosition, getCol
   , getIndent, setIndent
-  , Space(..), whitespace
+  , SPos(..), whitespace
   , docComment
   , string, character
   , digit, number
@@ -166,8 +166,8 @@ oneOf parsers =
 
 allTheOptionsFailed :: Parser a
 allTheOptionsFailed =
-  Parser $ \_ _ _ _ eerr ->
-    eerr $ error "TODO allTheOptionsFailed"
+  Parser $ \(State _ _ _ _ row col) _ _ _ eerr ->
+    eerr (Error row col)
 
 
 oneOfHelp :: Parser a -> Parser a -> Parser a
@@ -177,7 +177,7 @@ oneOfHelp parser1 parser2 =
       meerr err =
         let
           neok y state' = eok y state'
-          neerr err' = eerr (error "TODO oneOfHelp" err err')
+          neerr _err' = eerr err -- TODO merge things properly
         in
           _run parser2 state cok cerr neok neerr
     in
@@ -199,14 +199,14 @@ instance Monad Parser where
           cok' x state1 =
             let
               peok y state2 = cok y state2
-              peerr err = cerr (error "TODO >>= cok" err)
+              peerr err = cerr err -- TODO is this correct?
             in
               _run (callback x) state1 cok cerr peok peerr
 
           eok' x state1 =
             let
               peok y state2 = eok y state2
-              peerr err = eerr (error "TODO >>= eok" err)
+              peerr err = eerr err -- TODO is this correct?
             in
               _run (callback x) state1 cok cerr peok peerr
         in
@@ -228,7 +228,7 @@ text (Text.Text tArray tOffset tLen) =
         cok () (State array (offset + tLen) (length - tLen) indent newRow newCol)
 
     else
-      eerr (error "TODO text")
+      eerr (Error row col)
 
 
 moveCursor :: Text.Array -> Int -> Int -> Int -> Int -> (# Int, Int #)
@@ -259,7 +259,7 @@ keyword (Text.Text tArray tOffset tLen) =
   Parser $ \(State array offset length indent row col) cok _ _ eerr ->
     if tLen <= length && Text.equal tArray tOffset array offset tLen then
 
-      if Char.isAlphaNum (peekChar array (offset + tLen)) then
+      if isInnerVarChar (peekChar array (offset + tLen)) then
         eerr (error "TODO keyword 1")
       else
         let
@@ -269,7 +269,7 @@ keyword (Text.Text tArray tOffset tLen) =
           cok () (State array (offset + tLen) (length - tLen) indent newRow newCol)
 
     else
-      eerr (error "TODO keyword 2")
+      eerr (Error row col)
 
 
 keywords :: Set.Set Text
@@ -369,11 +369,17 @@ varPrimHelp array offset length col =
     let
       (Text.Iter char size) = peek array offset -- TODO look for latin chars directly?
     in
-      if Char.isAlphaNum char || char == '_' then
+      if isInnerVarChar char then
         varPrimHelp array (offset + size) (length - size) (col + 1)
 
       else
         (# offset, length, col #)
+
+
+{-# INLINE isInnerVarChar #-}
+isInnerVarChar :: Char -> Bool
+isInnerVarChar char =
+  Char.isAlphaNum char || char == '_'
 
 
 
@@ -461,16 +467,11 @@ setIndent indent =
 -- WHITESPACE
 
 
-data Space
-  = None
-  | Freshline
-  | BeforeIndent
-  | Aligned
-  | AfterIndent
-  deriving (Eq)
+newtype SPos =
+  SPos Region.Position
 
 
-whitespace :: Parser Space
+whitespace :: Parser SPos
 whitespace =
   Parser $ \(State array offset length indent row col) cok cerr _ _ ->
     case eatSpaces array offset length row col of
@@ -478,20 +479,9 @@ whitespace =
         cerr err
 
       Right (newOffset, newLength, newRow, newCol) ->
-        let
-          !space =
-            if newOffset == offset then
-              None -- TODO empty success?
-            else if newCol == 1 then
-              Freshline
-            else if newCol > indent then
-              AfterIndent
-            else if newCol == indent then
-              Aligned
-            else
-              BeforeIndent
-        in
-          cok space (State array newOffset newLength indent newRow newCol)
+        cok
+          (SPos (Region.Position newRow newCol))
+          (State array newOffset newLength indent newRow newCol)
 
 
 eatSpaces :: Text.Array -> Int -> Int -> Int -> Int -> Either Error ( Int, Int, Int, Int )
@@ -661,16 +651,26 @@ string =
         if word /= 0x0022 {- " -} then
           eerr (Error row col)
 
-        else if Text.unsafeIndex array (offset + 1) == 0x0022 {- " -} && Text.unsafeIndex array (offset + 2) == 0x0022 {- " -} then
-          error "TODO multiString"
-
         else
-          case singleString array (offset + 1) (length - 1) row (col + 1) (offset + 1) mempty of
-            Left msg ->
-              cerr msg
+          let
+            stringResult =
+              if length >= 3 && isQuote array (offset + 1) && isQuote array (offset + 2) then
+                multiString array (offset + 3) (length - 3) row (col + 3) (offset + 3) mempty
+              else
+                singleString array (offset + 1) (length - 1) row (col + 1) (offset + 1) mempty
+          in
+            case stringResult of
+              Left msg ->
+                cerr msg
 
-            Right ( newOffset, newLength, newCol, str ) ->
-              cok str (State array newOffset newLength indent row newCol)
+              Right ( newOffset, newLength, newCol, str ) ->
+                cok str (State array newOffset newLength indent row newCol)
+
+
+{-# INLINE isQuote #-}
+isQuote :: Text.Array -> Int -> Bool
+isQuote array offset =
+  Text.unsafeIndex array offset == 0x0022 {- " -}
 
 
 
@@ -744,7 +744,7 @@ eatEscape array offset length row col =
 
           Just (newOffset, code) ->
             if code <= 0x10FFFF then
-              Right ( newOffset - offset + 1, toEnum (fromInteger code) )
+              Right ( 1 + (newOffset - offset), toEnum (fromInteger code) )
             else
               Left (Error row col)
 
@@ -754,7 +754,7 @@ eatEscape array offset length row col =
 
 eatHex :: Text.Array -> Int -> Int -> Integer -> Maybe ( Int, Integer )
 eatHex array offset length n =
-  if length == 0 then
+  if length < 3 then
     Nothing
 
   else
@@ -772,6 +772,50 @@ eatHex array offset length n =
 
       else
         Just (offset, n)
+
+
+
+-- MULTI STRINGS
+
+
+multiString :: Text.Array -> Int -> Int -> Int -> Int -> Int -> LB.Builder -> Either Error ( Int, Int, Int, Text.Text )
+multiString array offset length row col initialOffset builder =
+  if length == 0 then
+    Left (Error row col)
+
+  else
+    let
+      !word = Text.unsafeIndex array offset
+    in
+      if word == 0x0022 {- " -} && isQuote array (offset + 1) && isQuote array (offset + 2) then
+        let
+          finalBuilder =
+            mappend builder $ LB.fromText $
+              Text.Text array initialOffset (offset - initialOffset)
+
+          str =
+            LT.toStrict (LB.toLazyTextWith (offset - initialOffset) finalBuilder)
+        in
+          Right ( offset + 3, length - 3, col + 3, str )
+
+      else if word == 0x005C {- \ -} then
+        case eatEscape array (offset + 1) (length - 1) row (col + 1) of
+          Left err ->
+            Left err
+
+          Right ( size, char ) ->
+            let
+              !newOffset = offset + size
+              chunk = Text.Text array initialOffset (offset - initialOffset)
+              newBuilder = mappend builder (mappend (LB.fromText chunk) (LB.singleton char))
+            in
+              multiString array newOffset (length - size) row (col + size) newOffset newBuilder
+
+      else if word < 0xD800 || word > 0xDBFF then
+        multiString array (offset + 1) (length - 1) row (col + 1) initialOffset builder
+
+      else
+        multiString array (offset + 2) (length - 2) row (col + 1) initialOffset builder
 
 
 
@@ -798,14 +842,14 @@ character =
 
           Right ( size, char ) ->
             let
-              !newOffset = offset + size
-              !newLength = length + size
+              !newOffset = offset + size + 1
+              !newLength = length - size - 1
             in
               if newLength == 0 then
                 cerr (Error row col)
 
               else if Text.unsafeIndex array newOffset == 0x0027 {- ' -} then
-                cok char (State array newOffset newLength indent row (col + size + 2))
+                cok char (State array (newOffset + 1) (newLength - 1) indent row (col + size + 2))
 
               else
                 cerr (Error row col)
@@ -828,7 +872,7 @@ characterHelp array offset length row col =
     else if word < 0xD800 || word > 0xDBFF then
       Right (1, unsafeChr word)
 
-    else if length > 0 then
+    else if length > 2 then
       Right (2, chr2 word (Text.unsafeIndex array offset))
 
     else

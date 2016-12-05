@@ -4,10 +4,10 @@ module Parse.Helpers
   ( module Parse.Primitives
   , SParser
   , qualifiedVar, qualifiedCapVar
-  , equals, rightArrow, hasType, comma, pipe, cons, dot, underscore, lambda
+  , equals, rightArrow, hasType, comma, pipe, cons, dot, minus, underscore, lambda
   , leftParen, rightParen, leftSquare, rightSquare, leftCurly, rightCurly
   , addLocation
-  , spaces, checkSpaces
+  , spaces, checkSpace, checkAligned, checkFreshline
   )
   where
 
@@ -25,7 +25,7 @@ import qualified Reporting.Region as R
 
 
 type SParser a =
-  Parser (a, R.Position, Space)
+  Parser (a, R.Position, SPos)
 
 
 
@@ -55,7 +55,7 @@ qualifiedVarHelp allCaps vars =
             [ do  var <- capVar
                   qualifiedVarHelp allCaps (var:vars)
             , if allCaps then
-                failure (error "TODO")
+                failure False -- TODO
               else
                 do  var <- lowVar
                     return (Text.intercalate "." (reverse (var:vars)))
@@ -115,6 +115,12 @@ dot :: Parser ()
 dot =
   expecting "a dot '.'" $
     Prim.text "."
+
+
+{-# INLINE minus #-}
+minus :: Parser ()
+minus =
+  Prim.text "-"
 
 
 {-# INLINE underscore #-}
@@ -190,21 +196,31 @@ addLocation parser =
 
 spaces :: Parser ()
 spaces =
-  do  space <- whitespace
-      case space of
-        None         -> return ()
-        AfterIndent  -> return ()
-        BeforeIndent -> failure (error "TODO")
-        Aligned      -> failure (error "TODO")
-        Freshline    -> failure (error "TODO")
+  do  (SPos (R.Position _ col)) <- whitespace
+      indent <- getIndent
+      if col > indent && col > 1
+        then return ()
+        else failure False -- TODO
 
 
-checkSpaces :: Space -> Parser ()
-checkSpaces space =
-  case space of
-    None         -> return ()
-    AfterIndent  -> return ()
-    BeforeIndent -> deadend (error "TODO")
-    Aligned      -> deadend (error "TODO")
-    Freshline    -> deadend (error "TODO")
+checkSpace :: SPos -> Parser ()
+checkSpace (SPos (R.Position _ col)) =
+  do  indent <- getIndent
+      if col > indent && col > 1
+        then return ()
+        else deadend False -- TODO
 
+
+checkAligned :: SPos -> Parser ()
+checkAligned (SPos (R.Position _ col)) =
+  do  indent <- getIndent
+      if col == indent
+        then return ()
+        else deadend False -- TODO
+
+
+checkFreshline :: SPos -> Parser ()
+checkFreshline (SPos (R.Position _ col)) =
+  if col == 1
+    then return ()
+    else deadend False -- TODO
