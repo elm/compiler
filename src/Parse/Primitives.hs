@@ -385,6 +385,7 @@ infixOp =
   Parser $ \(State array offset length indent row col) cok cerr _ eerr ->
     if length == 0 then
       eerr (Error row col)
+
     else
       case infixOpHelp array offset length row col of
         Left err ->
@@ -392,21 +393,25 @@ infixOp =
 
         Right ( newOffset, newLength, newCol ) ->
           let
-            !newSize =
+            !size =
               newOffset - offset
 
             makeArray =
-              do  mutableArray <- Text.new newSize
-                  Text.copyI mutableArray 0 array offset newSize
+              do  mutableArray <- Text.new size
+                  Text.copyI mutableArray 0 array offset size
                   return mutableArray
           in
-            case Text.Text (Text.run makeArray) 0 newSize of
-              "=" -> cerr (Error row col) -- "The = operator is reserved for defining variables. Maybe you want == instead? Or maybe you are defining a variable, but there is whitespace before it?"
-              "->" -> cerr (Error row col) -- "Arrows are reserved for cases and anonymous functions. Maybe you want > or >= instead?"
-              "|" -> cerr (Error row col) -- "Vertical bars are reserved for use in union type declarations. Maybe you want || instead?"
-              ":" -> cerr (Error row col) -- "A single colon is for type annotations. Maybe you want :: instead? Or maybe you are defining a type annotation, but there is whitespace before it?"
-              "." -> cerr (Error row col) -- "Dots are for record access. They cannot float around on their own!"
-              op -> cok op (State array newOffset newLength indent row newCol)
+            if size == 0 then
+              eerr (Error row col)
+
+            else
+              case Text.Text (Text.run makeArray) 0 size of
+                "=" -> cerr (Error row col) -- "The = operator is reserved for defining variables. Maybe you want == instead? Or maybe you are defining a variable, but there is whitespace before it?"
+                "->" -> cerr (Error row col) -- "Arrows are reserved for cases and anonymous functions. Maybe you want > or >= instead?"
+                "|" -> cerr (Error row col) -- "Vertical bars are reserved for use in union type declarations. Maybe you want || instead?"
+                ":" -> cerr (Error row col) -- "A single colon is for type annotations. Maybe you want :: instead? Or maybe you are defining a type annotation, but there is whitespace before it?"
+                "." -> cerr (Error row col) -- "Dots are for record access. They cannot float around on their own!"
+                op -> cok op (State array newOffset newLength indent row newCol)
 
 
 infixOpHelp :: Text.Array -> Int -> Int -> Int -> Int -> Either Error (Int, Int, Int)
