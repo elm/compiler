@@ -1,8 +1,11 @@
+{-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Optimize (optimize) where
 
 import qualified Control.Monad as M
 import qualified Data.Map as Map
 import qualified Data.Traversable as T
+import Data.Text (Text)
 
 import qualified AST.Expression.Canonical as Can
 import qualified AST.Expression.Optimized as Opt
@@ -53,18 +56,18 @@ optimizeDefHelp
     -> [P.Canonical]
     -> Can.Expr
     -> Env.Optimizer [Opt.Def]
-optimizeDefHelp home pattern@(A.A _ ptrn) args rawBody =
+optimizeDefHelp home pattern@(A.A _ ptrn) rawArgs rawBody =
   let
     facts =
       Opt.Facts home
   in
-  case (ptrn, args) of
+  case (ptrn, rawArgs) of
     (P.Var name, _ : _) ->
 
         do  htc <- Env.getTailCall
             Env.setTailCall False
 
-            (args, body) <- optimizeFunction (Just name) args rawBody
+            (args, body) <- optimizeFunction (Just name) rawArgs rawBody
 
             isTailCall <- Env.getTailCall
             Env.setTailCall htc
@@ -99,28 +102,28 @@ optimizeDefHelp home pattern@(A.A _ ptrn) args rawBody =
 
 
 optimizeFunction
-    :: Maybe String
+    :: Maybe Text
     -> [P.Canonical]
     -> Can.Expr
-    -> Env.Optimizer ([String], Opt.Expr)
+    -> Env.Optimizer ([Text], Opt.Expr)
 optimizeFunction maybeName patterns givenBody =
   do  (argNames, body) <- M.foldM depatternArgs ([], givenBody) (reverse patterns)
       optBody <- optimizeExpr (makeContext argNames =<< maybeName) body
       return (argNames, optBody)
 
 
-makeContext :: [String] -> String -> Context
+makeContext :: [Text] -> Text -> Context
 makeContext argNames name =
     Just (name, length argNames, argNames)
 
 
-depatternArgs :: ([String], Can.Expr) -> P.Canonical -> Env.Optimizer ([String], Can.Expr)
+depatternArgs :: ([Text], Can.Expr) -> P.Canonical -> Env.Optimizer ([Text], Can.Expr)
 depatternArgs (names, rawExpr) ptrn =
     do  (name, expr) <- depattern ptrn rawExpr
         return (name : names, expr)
 
 
-patternToDefs :: Maybe ModuleName.Canonical -> String -> P.Canonical -> [Opt.Def]
+patternToDefs :: Maybe ModuleName.Canonical -> Text -> P.Canonical -> [Opt.Def]
 patternToDefs home rootName pattern =
     let
         rootExpr =
@@ -141,7 +144,7 @@ patternToDefs home rootName pattern =
 -- TURN A PATTERN INTO A BUNCH OF SUBSTITUTIONS
 
 
-patternToSubstitutions :: Opt.Expr -> P.Canonical -> [(String, Opt.Expr)]
+patternToSubstitutions :: Opt.Expr -> P.Canonical -> [(Text, Opt.Expr)]
 patternToSubstitutions expr (A.A _ pattern) =
   case pattern of
     P.Var name ->
@@ -159,7 +162,7 @@ patternToSubstitutions expr (A.A _ pattern) =
     P.Alias alias realPattern ->
         (alias, expr) : patternToSubstitutions expr realPattern
 
-    P.Data _ patterns ->
+    P.Ctor _ patterns ->
         concat (zipWith (patternToSubstitutions . Opt.CtorAccess expr) [0..] patterns)
 
 
@@ -167,7 +170,7 @@ patternToSubstitutions expr (A.A _ pattern) =
 -- OPTIMIZE EXPRESSIONS
 
 
-type Context = Maybe (String, Int, [String])
+type Context = Maybe (Text, Int, [Text])
 
 
 {-| This optimizer detects tail calls. The `Context` holds a function name,
@@ -193,7 +196,7 @@ optimizeExpr context annExpr@(A.A region expression) =
         pure (Opt.Literal lit)
 
     Can.Var name ->
-        if name == Var.inCore ["Debug"] "crash" then
+        if name == Var.inCore "Debug" "crash" then
             do  home <- Env.getHome
                 pure (Opt.Crash home region Nothing)
 
@@ -219,7 +222,7 @@ optimizeExpr context annExpr@(A.A region expression) =
             (func:args) =
                 Can.collectApps annExpr
         in
-            case isTailCall context func (length args) of
+            case getTailCallInfo context func (length args) of
               Just (name, argNames) ->
                   do  optArgs <- T.traverse justConvert args
                       Env.setTailCall True
@@ -254,7 +257,7 @@ optimizeExpr context annExpr@(A.A region expression) =
             let optCase = Case.optimize variantDict name optBranches
             return $ Opt.Let [ Opt.Def Opt.dummyFacts name optExpr ] optCase
 
-    Can.Ctor name exprs ->
+    Can.Ctor (Var.Canonical _ name) exprs ->
         Opt.Ctor name <$> T.traverse justConvert exprs
 
     Can.Access record field ->
@@ -305,7 +308,7 @@ mapSnd func (x, a) =
 optimizeBranch
     :: Context
     -> R.Region
-    -> String
+    -> Text
     -> (P.Canonical, Can.Expr)
     -> Env.Optimizer (P.Canonical, Opt.Expr)
 optimizeBranch context region exprName (rawPattern, canBranch) =
@@ -344,8 +347,8 @@ tagCrashBranch region pattern@(A.A pr _) expr =
 -- DETECT TAIL CALL
 
 
-isTailCall :: Context -> Can.Expr -> Int -> Maybe (String, [String])
-isTailCall context (A.A _ function) arity =
+getTailCallInfo :: Context -> Can.Expr -> Int -> Maybe (Text, [Text])
+getTailCallInfo context (A.A _ function) arity =
     case (context, function) of
       ( Just (ctxName, ctxArity, argNames), Can.Var (Var.Canonical home name) ) ->
 
@@ -366,7 +369,7 @@ isTailCall context (A.A _ function) arity =
 -- it out from there
 
 
-depattern :: P.Canonical -> Can.Expr -> Env.Optimizer (String, Can.Expr)
+depattern :: P.Canonical -> Can.Expr -> Env.Optimizer (Text, Can.Expr)
 depattern canPattern@(A.A _ pattern) expr =
   let
     ann =
@@ -402,7 +405,7 @@ depattern canPattern@(A.A _ pattern) expr =
     P.Alias _ _ ->
         caseify
 
-    P.Data _ _ ->
+    P.Ctor _ _ ->
         caseify
 
 
@@ -444,9 +447,9 @@ optimizeBinop context region op leftExpr rightExpr =
           let body = collect makeRoot right backwardCompose binop
           optimizeExpr context (ann (Can.Lambda (ann (P.Var var)) body))
 
-  else if op == Var.Canonical Var.BuiltIn "::" then
+  else if op == cons then
 
-      optimizeExpr context (ann (Can.Ctor "::" [ leftExpr, rightExpr ]))
+      optimizeExpr context (ann (Can.Ctor cons [ leftExpr, rightExpr ]))
 
   else
 
@@ -458,25 +461,30 @@ optimizeBinop context region op leftExpr rightExpr =
 -- left-associative ((x |> f) |> g)
 forwardApply :: Var.Canonical
 forwardApply =
-  Var.inCore ["Basics"] "|>"
+  Var.inCore "Basics" "|>"
 
 
 -- right-associative (g <| (f <| x))
 backwardApply :: Var.Canonical
 backwardApply =
-  Var.inCore ["Basics"] "<|"
+  Var.inCore "Basics" "<|"
 
 
 -- left-associative ((f >> g) >> h)
 forwardCompose :: Var.Canonical
 forwardCompose =
-  Var.inCore ["Basics"] ">>"
+  Var.inCore "Basics" ">>"
 
 
 -- right-associative (h << (g << f))
 backwardCompose :: Var.Canonical
 backwardCompose =
-  Var.inCore ["Basics"] "<<"
+  Var.inCore "Basics" "<<"
+
+
+cons :: Var.Canonical
+cons =
+  Var.Canonical Var.BuiltIn "::"
 
 
 type Assoc =

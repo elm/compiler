@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Optimize.Environment
     ( Optimizer, run
     , Env
@@ -8,6 +10,8 @@ module Optimize.Environment
     ) where
 
 import qualified Control.Monad.State as State
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Module.Name as ModuleName
 import qualified Optimize.DecisionTree as DT
@@ -51,9 +55,9 @@ setTailCall bool =
       State.put (env { _hasTailCall = bool })
 
 
-freshName :: Optimizer String
+freshName :: Optimizer Text
 freshName =
   do  (Env htc uid vd home) <- State.get
       State.put (Env htc (uid + 1) vd home)
-      return ("_p" ++ show uid)
+      return (Text.append "_p" (Text.pack (show uid)))
 

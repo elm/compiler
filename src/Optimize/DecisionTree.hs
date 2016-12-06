@@ -16,6 +16,8 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Maybe as Maybe
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Helpers as Help
 import qualified AST.Literal as L
@@ -61,7 +63,7 @@ contain things like [ ("Just", 2), ("Nothing", 2), ("_Tuple2", 1), ... ] which
 we can use for these optimizations.
 -}
 type VariantDict =
-    Map.Map Var.Home (Map.Map String Int)
+    Map.Map Var.Home (Map.Map Text Int)
 
 
 -- DECISION TREES
@@ -84,7 +86,7 @@ data Test
 
 data Path
     = Position Int Path
-    | Field String Path
+    | Field Text Path
     | Empty
     | Alias
     deriving (Eq)
@@ -181,7 +183,7 @@ getArity variantDict (Var.Canonical home name) =
 
     Nothing ->
         if Help.isTuple name then
-          read (drop 6 name)
+          read (drop 6 (Text.unpack name))
 
         else
           error
@@ -216,7 +218,7 @@ flatten variantDict pathPattern@(path, A.A ann pattern) =
     P.Record _ ->
         [pathPattern]
 
-    P.Data tag patterns ->
+    P.Ctor tag patterns ->
         if getArity variantDict tag == 1 then
             concatMap (flatten variantDict) (subPositions path patterns)
 
@@ -291,7 +293,7 @@ testAtPath selectedPath (Branch _ pathPatterns) =
 
     Just (A.A _ pattern) ->
         case pattern of
-          P.Data name _ ->
+          P.Ctor name _ ->
               Just (Constructor name)
 
           P.Literal lit ->
@@ -324,7 +326,7 @@ toRelevantBranch test path branch@(Branch goal pathPatterns) =
   case extract path pathPatterns of
     Just (start, A.A _ pattern, end) ->
         case pattern of
-          P.Data name patterns ->
+          P.Ctor name patterns ->
               if test == Constructor name then
                   Just (Branch goal (start ++ subPositions path patterns ++ end))
 
@@ -394,7 +396,7 @@ needsTests (A.A _ pattern) =
     P.Record _ ->
         False
 
-    P.Data _ _ ->
+    P.Ctor _ _ ->
         True
 
     P.Literal _ ->

@@ -5,6 +5,7 @@ import Control.Arrow (second)
 import qualified Data.Map as Map
 import Data.Map ((!))
 import qualified Data.Maybe as Maybe
+import Data.Text (Text)
 
 import qualified AST.Expression.Optimized as Opt
 import qualified AST.Pattern as P
@@ -15,7 +16,7 @@ import qualified Optimize.DecisionTree as DT
 -- OPTIMIZE A CASE EXPRESSION
 
 
-optimize :: DT.VariantDict -> String -> [(P.Canonical, Opt.Expr)] -> Opt.Expr
+optimize :: DT.VariantDict -> Text -> [(P.Canonical, Opt.Expr)] -> Opt.Expr
 optimize variantDict exprName optBranches =
   let
     (patterns, indexedBranches) =
@@ -38,7 +39,7 @@ indexify index (pattern, branch) =
 -- CONVERT A TREE TO AN EXPRESSION
 
 
-treeToExpr :: String -> DT.DecisionTree -> [(Int, Opt.Expr)] -> Opt.Expr
+treeToExpr :: Text -> DT.DecisionTree -> [(Int, Opt.Expr)] -> Opt.Expr
 treeToExpr name decisionTree allJumps =
   let
     decider =

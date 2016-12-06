@@ -1,10 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Optimize.Inline (inline) where
 
 import Control.Arrow (second, (***))
 import Control.Monad (foldM)
 import qualified Data.List as List
 import qualified Data.Map as Map
+import Data.Text (Text)
 
 import AST.Expression.Optimized (Expr(..), Decider(..), Choice(..))
 import qualified AST.Expression.Optimized as Opt
@@ -13,7 +15,7 @@ import qualified Optimize.Environment as Env
 
 
 
-inline :: Map.Map String Opt.Expr -> Opt.Expr -> Env.Optimizer Opt.Expr
+inline :: Map.Map Text Opt.Expr -> Opt.Expr -> Env.Optimizer Opt.Expr
 inline rawSubs expression =
   let
     counts =
@@ -33,12 +35,12 @@ inline rawSubs expression =
 
 
 data Subs = Subs
-    { _substitutions :: Map.Map String Opt.Expr
-    , _definitions :: [(String, Opt.Expr)]
+    { _substitutions :: Map.Map Text Opt.Expr
+    , _definitions :: [(Text, Opt.Expr)]
     }
 
 
-processSubs :: Subs -> (String, (Int, Opt.Expr)) -> Env.Optimizer Subs
+processSubs :: Subs -> (Text, (Int, Opt.Expr)) -> Env.Optimizer Subs
 processSubs (Subs subs defs) (name, (n, expr)) =
   if n == 1 then
       return $ Subs (Map.insert name expr subs) defs
@@ -54,12 +56,12 @@ processSubs (Subs subs defs) (name, (n, expr)) =
 -- HELPERS
 
 
-deleteBatch :: [String] -> Map.Map String a -> Map.Map String a
+deleteBatch :: [Text] -> Map.Map Text a -> Map.Map Text a
 deleteBatch names dict =
   List.foldl' (flip Map.delete) dict names
 
 
-getDefName :: Opt.Def -> String
+getDefName :: Opt.Def -> Text
 getDefName def =
   case def of
     Opt.Def _ name _ ->
@@ -73,7 +75,7 @@ getDefName def =
 -- COUNT VARIABLE APPEARANCES
 
 
-count :: Opt.Expr -> Map.Map String Int
+count :: Opt.Expr -> Map.Map Text Int
 count expression =
   let
     count2 a b =
@@ -192,7 +194,7 @@ count expression =
 -- REPLACE
 
 
-replace :: Map.Map String Opt.Expr -> Opt.Expr -> Opt.Expr
+replace :: Map.Map Text Opt.Expr -> Opt.Expr -> Opt.Expr
 replace substitutions expression =
   let
     go = replace substitutions
