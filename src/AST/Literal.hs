@@ -4,6 +4,9 @@ module AST.Literal where
 
 import qualified Data.Map as Map
 import Data.Text (Text)
+import Data.Text.Lazy.Builder (Builder, fromString)
+import Data.Text.Lazy.Builder.Int (decimal)
+import Data.Text.Lazy.Builder.RealFloat (realFloat)
 
 import qualified AST.Variable as Var
 
@@ -13,22 +16,22 @@ import qualified AST.Variable as Var
 
 
 data Literal
-    = IntNum Int
-    | FloatNum Double
-    | Chr Char
-    | Str Text
-    | Boolean Bool
-    deriving (Eq, Ord)
+  = Chr Char
+  | Str Text
+  | IntNum Int
+  | FloatNum Double
+  | Boolean Bool
+  deriving (Eq, Ord)
 
 
-toString :: Literal -> String
-toString literal =
-    case literal of
-      IntNum n -> show n
-      FloatNum n -> show n
-      Chr c -> show c
-      Str s -> show s
-      Boolean bool -> show bool
+toBuilder :: Literal -> Builder
+toBuilder literal =
+  case literal of
+    Chr c -> fromString (show c)
+    Str s -> fromString (show s)
+    IntNum n -> decimal n
+    FloatNum n -> realFloat n
+    Boolean bool -> if bool then "True" else "False"
 
 
 

@@ -4,6 +4,8 @@ module AST.Variable where
 
 import Data.Binary
 import qualified Data.Maybe as Maybe
+import Data.Monoid ((<>))
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Text (Text)
 
@@ -169,12 +171,17 @@ isTuple v =
 
 isPrimitive :: Canonical -> Bool
 isPrimitive v =
-    case v of
-      Canonical BuiltIn name ->
-          elem name ["Int","Float","String","Bool"]
+  case v of
+    Canonical BuiltIn name ->
+      Set.member name primitiveSet
 
-      _ ->
-          False
+    _ ->
+      False
+
+
+primitiveSet :: Set.Set Text
+primitiveSet =
+  Set.fromList ["Int","Float","String","Bool"]
 
 
 isPrim :: Text -> Canonical -> Bool
@@ -201,29 +208,34 @@ isLocal check (Canonical home name) =
 -- VARIABLE TO STRING
 
 
-class ToString a where
-  toString :: a -> String
+toString :: (ToText a) => a -> String
+toString var =
+  Text.unpack (toText var)
 
 
-instance ToString Raw where
-  toString (Raw name) =
-      Text.unpack name
+class ToText a where
+  toText :: a -> Text
 
 
-instance ToString Canonical where
-  toString (Canonical home name) =
-      case home of
-        BuiltIn ->
-            Text.unpack name
+instance ToText Raw where
+  toText (Raw name) =
+    name
 
-        Module moduleName ->
-            ModuleName.canonicalToString moduleName ++ "." ++ Text.unpack name
 
-        TopLevel _ ->
-            Text.unpack name
+instance ToText Canonical where
+  toText (Canonical home name) =
+    case home of
+      BuiltIn ->
+        name
 
-        Local ->
-            Text.unpack name
+      Module moduleName ->
+        ModuleName.canonicalToText moduleName <> "." <> name
+
+      TopLevel _ ->
+        name
+
+      Local ->
+        name
 
 
 

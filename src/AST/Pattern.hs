@@ -3,9 +3,12 @@
 module AST.Pattern where
 
 import qualified Data.List as List
+import Data.Monoid ((<>))
 import qualified Data.Set as Set
-import qualified Data.Text as Text
 import Data.Text (Text)
+import qualified Data.Text as Text
+import qualified Data.Text.Lazy as LazyText
+import Data.Text.Lazy.Builder (Builder, fromText, toLazyText)
 
 import qualified AST.Literal as L
 import qualified AST.Variable as Var
@@ -109,42 +112,44 @@ boundVarList pattern =
 
 
 
--- TO STRING
+-- TO BUILDER
 
 
-toString :: Bool -> Canonical -> String
-toString needsParens (A.A _ pattern) =
+toString :: Canonical -> String
+toString var =
+  LazyText.unpack (toLazyText (toBuilder False var))
+
+
+toBuilder :: Bool -> Canonical -> Builder
+toBuilder needsParens (A.A _ pattern) =
   case pattern of
     Var name ->
-      Text.unpack name
+      fromText name
 
     Ctor name [] ->
-      if Var.isTuple name then
-        "()"
-      else
-        Var.toString name
+      if Var.isTuple name then "()" else fromText (Var.toText name)
 
     Ctor name args ->
       if Var.isTuple name then
-        "( " ++ List.intercalate ", " (map (toString False) args) ++ " )"
+        "( " <> mconcat (List.intersperse ", " (map (toBuilder False) args)) <> " )"
       else
         parensIf needsParens $
-          Var.toString name ++ concatMap ((" "++) . toString True) args
+          fromText (Var.toText name) <> mconcat (map (\arg -> " " <> toBuilder True arg) args)
 
     Record fields ->
-      "{" ++ List.intercalate "," (map Text.unpack fields) ++ "}"
+      "{" <> mconcat (List.intersperse "," (map fromText fields)) <> "}"
 
     Alias alias subPattern ->
       parensIf needsParens $
-        toString False subPattern ++ " as " ++ Text.unpack alias
+        toBuilder False subPattern <> " as " <> fromText alias
 
     Anything ->
       "_"
 
     Literal literal ->
-      L.toString literal
+      L.toBuilder literal
 
 
-parensIf :: Bool -> String -> String
-parensIf needsParens str =
-  if needsParens then "(" ++ str ++ ")" else str
+parensIf :: Bool -> Builder -> Builder
+parensIf needsParens builder =
+  if needsParens then "(" <> builder <> ")" else builder

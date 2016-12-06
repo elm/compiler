@@ -11,8 +11,10 @@ module AST.Expression.Canonical
   where
 
 
-import qualified Data.Text as Text
+import Data.Monoid ((<>))
 import Data.Text (Text)
+import qualified Data.Text.Lazy as LText
+import qualified Data.Text.Lazy.Builder as B
 
 import qualified AST.Effects as Effects
 import qualified AST.Literal as Literal
@@ -129,20 +131,19 @@ collectApps annExpr@(A.A _ expr) =
       [annExpr]
 
 
-
 collectFields :: Expr -> Maybe Text
 collectFields expr =
-  collectFieldsHelp expr []
+  fmap (LText.toStrict . B.toLazyText) (collectFieldsHelp expr mempty)
 
 
-collectFieldsHelp :: Expr -> [Text] -> Maybe Text
-collectFieldsHelp (A.A _ expr) fields =
+collectFieldsHelp :: Expr -> B.Builder -> Maybe B.Builder
+collectFieldsHelp (A.A _ expr) builder =
   case expr of
     Var var ->
-      Just (Text.intercalate "." (Text.pack (Var.toString var) : fields))
+      Just (B.fromText (Var.toText var) <> builder)
 
     Access record field ->
-      collectFieldsHelp record (field : fields)
+      collectFieldsHelp record ("." <> B.fromText field <> builder)
 
     _ ->
       Nothing

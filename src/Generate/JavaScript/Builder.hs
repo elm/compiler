@@ -1,22 +1,155 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Generate.JavaScript.Builder (stmtsToText) where
+module Generate.JavaScript.Builder
+  ( Expr(..), Id(..), Prop(..), LValue(..)
+  , Stmt(..), Case(..), VarDecl(..)
+  , InfixOp(..), AssignOp(..), PrefixOp(..)
+  , stmtsToText
+  )
+  where
 
+-- Based on the language-ecmascript package.
+-- https://hackage.haskell.org/package/language-ecmascript
+-- They did the hard work of reading the spec to figure out
+-- how all the types should fit together.
+
+import Prelude hiding (lines)
 import qualified Data.List as List
 import Data.Monoid ((<>))
-import qualified Data.Text.Lazy as LazyText
+import Data.Text (Text)
 import Data.Text.Lazy.Builder
 import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lazy.Builder.RealFloat (realFloat)
-import Language.ECMAScript3.Syntax
-import Prelude hiding (lines)
+import qualified Data.Text.Lazy as LazyText
+
+
+
+-- EXPRESSIONS
+
+
+data Expr
+  = String Text
+  | Float Double
+  | Int Int
+  | Bool Bool
+  | Null
+  | Array [Expr]
+  | Object [(Prop, Expr)]
+  | VarRef Id
+  | DotRef Expr Id -- ^ @foo.bar@, spec 11.2.1
+  | BracketRef Expr Expr -- ^ @foo[bar]@, spec 11.2.1
+  | Prefix PrefixOp Expr
+  | Infix InfixOp Expr Expr
+  | If Expr Expr Expr
+  | Assign AssignOp LValue Expr
+  | Call Expr [Expr] -- ^ @f(x,y,z)@, spec 11.2.3
+  | Function (Maybe Id) [Id] [Stmt]
+
+
+newtype Id = Id Text
+
+
+data Prop
+  = StringProp Text
+  | IntProp Int
+  | IdProp Id
+
+
+data LValue
+  = LVar Text
+  | LDot Expr Text
+  | LBracket Expr Expr
+
+
+
+-- STATEMENTS
+
+
+data Stmt
+  = Block [Stmt] -- {stmts}
+  | EmptyStmt -- ;
+  | ExprStmt Expr -- expr;
+  | IfStmt Expr Stmt Stmt -- if (e) stmt1 else stmt2
+  | IfSingleStmt Expr Stmt -- if (e) stmt
+  | Switch Expr [Case] -- switch (e) clauses
+  | While Expr Stmt -- while (e) do stmt
+  | DoWhile Stmt Expr -- do stmt while (e);
+  | Break (Maybe Id) -- break lab;
+  | Continue (Maybe Id) -- continue lab;
+  | Labelled Id Stmt -- lab: stmt
+  | Return (Maybe Expr) -- return expr;
+  | VarDeclStmt [VarDecl] -- var x, y=42;
+  | FunctionStmt Id [Id] [Stmt] -- function f(x, y, z) {...}
+
+
+data Case
+  = Case Expr [Stmt]
+  | Default [Stmt]
+
+
+data VarDecl = VarDecl Id (Maybe Expr)
+
+
+
+-- OPERATORS
+
+
+data InfixOp
+  = OpLT -- <
+  | OpLEq -- <=
+  | OpGT -- >
+  | OpGEq -- >=
+  | OpIn -- in
+  | OpInstanceof -- instanceof
+  | OpEq -- ==
+  | OpNEq -- !=
+  | OpStrictEq -- ===
+  | OpStrictNEq -- !===
+  | OpLAnd -- &&
+  | OpLOr -- ||
+  | OpMul -- *
+  | OpDiv -- /
+  | OpMod -- %
+  | OpSub -- -
+  | OpLShift -- <<
+  | OpSpRShift -- >>
+  | OpZfRShift -- >>>
+  | OpBAnd -- &
+  | OpBXor -- ^
+  | OpBOr -- |
+  | OpAdd -- +
+
+
+data AssignOp
+  = OpAssign -- =
+  | OpAssignAdd -- +=
+  | OpAssignSub -- -=
+  | OpAssignMul -- *=
+  | OpAssignDiv -- /=
+  | OpAssignMod -- %=
+  | OpAssignLShift -- <<=
+  | OpAssignSpRShift -- >>=
+  | OpAssignZfRShift -- >>>=
+  | OpAssignBAnd -- &=
+  | OpAssignBXor -- ^=
+  | OpAssignBOr -- |=
+
+
+data PrefixOp
+  = PrefixLNot -- !
+  | PrefixBNot -- ~
+  | PrefixPlus -- +
+  | PrefixMinus -- -
+  | PrefixTypeof -- typeof
+  | PrefixVoid -- void
+  | PrefixDelete -- delete
 
 
 
 -- CONVERT TO LAZY TEXT
 
 
-stmtsToText :: [Statement a] -> LazyText.Text
+stmtsToText :: [Stmt] -> LazyText.Text
 stmtsToText stmts =
   toLazyText (fromStmtBlock "" stmts)
 
@@ -44,24 +177,24 @@ commaNewlineSep indent builders =
 -- STATEMENTS
 
 
-fromStmtBlock :: Builder -> [Statement a] -> Builder
+fromStmtBlock :: Builder -> [Stmt] -> Builder
 fromStmtBlock indent stmts =
   mconcat (map (fromStmt indent) stmts)
 
 
-fromStmt :: Builder -> Statement a -> Builder
+fromStmt :: Builder -> Stmt -> Builder
 fromStmt indent statement =
   case statement of
-    BlockStmt _ stmts ->
+    Block stmts ->
       fromStmtBlock indent stmts
 
-    EmptyStmt _ ->
+    EmptyStmt ->
       mempty
 
-    ExprStmt _ expr ->
+    ExprStmt expr ->
       indent <> snd (fromExpr indent Whatever expr) <> ";\n"
 
-    IfStmt _ condition thenStmt elseStmt ->
+    IfStmt condition thenStmt elseStmt ->
       mconcat
         [ indent, "if (", snd (fromExpr indent Whatever condition), ") {\n"
         , fromStmt (deeper indent) thenStmt
@@ -70,80 +203,65 @@ fromStmt indent statement =
         , indent, "}\n"
         ]
 
-    IfSingleStmt _ condition thenStmt ->
+    IfSingleStmt condition thenStmt ->
       mconcat
         [ indent, "if (", snd (fromExpr indent Whatever condition), ") {\n"
         , fromStmt (deeper indent) thenStmt
         , indent, "}\n"
         ]
 
-    SwitchStmt _ expr clauses ->
+    Switch expr clauses ->
       mconcat
         [ indent, "switch (", snd (fromExpr indent Whatever expr), ") {\n"
         , mconcat (map (fromClause (deeper indent)) clauses)
         , indent, "}\n"
         ]
 
-    WhileStmt _ expr stmt ->
+    While expr stmt ->
       mconcat
         [ indent, "while (", snd (fromExpr indent Whatever expr), ") {\n"
         , fromStmt (deeper indent) stmt
         , indent, "}\n"
         ]
 
-    DoWhileStmt _ stmt expr ->
+    DoWhile stmt expr ->
       mconcat
         [ indent, "do {\n"
         , fromStmt (deeper indent) stmt
         , indent, "} while(", snd (fromExpr indent Whatever expr), ");\n"
         ]
 
-    BreakStmt _ Nothing ->
+    Break Nothing ->
       indent <> "break;\n"
 
-    BreakStmt _ (Just label) ->
+    Break (Just label) ->
       indent <> "break " <> fromId label <> ";\n"
 
-    ContinueStmt _ Nothing ->
+    Continue Nothing ->
       indent <> "continue;\n"
 
-    ContinueStmt _ (Just label) ->
+    Continue (Just label) ->
       indent <> "continue " <> fromId label <> ";\n"
 
-    LabelledStmt _ label stmt ->
+    Labelled label stmt ->
       mconcat
         [ indent, fromId label, ":\n"
         , fromStmt indent stmt
         ]
 
-    ForInStmt _ _ _ _ ->
-      error "TODO"
-
-    ForStmt _ _ _ _ _ ->
-      error "TODO"
-
-    TryStmt _ _ _ _ ->
-      error "TODO"
-
-    ThrowStmt _ expr ->
-      indent <> "throw " <> snd (fromExpr indent Whatever expr) <> ";\n"
-
-    ReturnStmt _ Nothing ->
+    Return Nothing ->
       indent <> "return;\n"
 
-    ReturnStmt _ (Just expr) ->
+    Return (Just expr) ->
       indent <> "return " <> snd (fromExpr indent Whatever expr) <> ";\n"
 
-    WithStmt _ _ _ ->
-      error "TODO"
-
-    VarDeclStmt _ [] ->
+    VarDeclStmt [] ->
       mempty
 
-    VarDeclStmt _ decls ->
+    VarDeclStmt decls ->
       indent <> "var " <> commaNewlineSep indent (map (fromVarDecl indent) decls) <> ";\n"
 
-    FunctionStmt _ name args stmts ->
+    FunctionStmt name args stmts ->
       indent <> "function " <> fromId name <> "(" <> commaSep (map fromId args) <> ") {\n"
       <>
           fromStmtBlock (deeper indent) stmts
@@ -155,14 +273,14 @@ fromStmt indent statement =
 -- SWITCH CLAUSES
 
 
-fromClause :: Builder -> CaseClause a -> Builder
+fromClause :: Builder -> Case -> Builder
 fromClause indent clause =
   case clause of
-    CaseClause _ expr stmts ->
+    Case expr stmts ->
       indent <> "case " <> snd (fromExpr indent Whatever expr) <> ":\n"
       <> fromStmtBlock (deeper indent) stmts
 
-    CaseDefault _ stmts ->
+    Default stmts ->
       indent <> "default:\n"
       <> fromStmtBlock (deeper indent) stmts
 
@@ -171,23 +289,23 @@ fromClause indent clause =
 -- ID
 
 
-fromId :: Id a -> Builder
-fromId (Id _ name) =
-  fromString name
+fromId :: Id -> Builder
+fromId (Id name) =
+  fromText name
 
 
 
 -- VAR DECLS
 
 
-fromVarDecl :: Builder -> VarDecl a -> Builder
-fromVarDecl indent (VarDecl _ (Id _ name) maybeExpr) =
+fromVarDecl :: Builder -> VarDecl -> Builder
+fromVarDecl indent (VarDecl (Id name) maybeExpr) =
   case maybeExpr of
     Nothing ->
-      fromString name
+      fromText name
 
     Just expr ->
-      fromString name <> " = " <> snd (fromExpr indent Whatever expr)
+      fromText name <> " = " <> snd (fromExpr indent Whatever expr)
 
 
 
@@ -226,31 +344,25 @@ parensFor grouping builder =
       builder
 
 
-fromExpr :: Builder -> Grouping -> Expression a -> (Lines, Builder)
+fromExpr :: Builder -> Grouping -> Expr -> (Lines, Builder)
 fromExpr indent grouping expression =
   case expression of
-    StringLit _ string ->
+    String string ->
       (One, quoted string)
 
-    RegexpLit _ _ _ _ ->
-      error "TODO"
-
-    NumLit _ n ->
+    Float n ->
       (One, realFloat n)
 
-    IntLit _ n ->
+    Int n ->
       (One, decimal n)
 
-    BoolLit _ True ->
-      (One, "true")
+    Bool bool ->
+      (One, if bool then "true" else "false")
 
-    BoolLit _ False ->
-      (One, "false")
-
-    NullLit _ ->
+    Null ->
       (One, "null")
 
-    ArrayLit _ exprs ->
+    Array exprs ->
       (,) Many $
         let
           (anyMany, builders) =
@@ -265,7 +377,7 @@ fromExpr indent grouping expression =
           else
             "[" <> commaSep builders <> "]"
 
-    ObjectLit _ fields ->
+    Object fields ->
       (,) Many $
         let
           deeperIndent =
@@ -283,22 +395,16 @@ fromExpr indent grouping expression =
           else
             "{" <> commaSep builders <> "}"
 
-    ThisRef _ ->
-      (One, "this")
-
-    VarRef _ name ->
+    VarRef name ->
       (One, fromId name)
 
-    DotRef _ expr (Id _ name) ->
+    DotRef expr (Id name) ->
       makeDot indent expr name
 
-    BracketRef _ expr bracketedExpr ->
+    BracketRef expr bracketedExpr ->
       makeBracketed indent expr bracketedExpr
 
-    NewExpr _ _ _ ->
-      error "TODO"
-
-    PrefixExpr _ op expr ->
+    Prefix op expr ->
       let
         (lines, builder) =
           fromExpr indent Atomic expr
@@ -307,10 +413,7 @@ fromExpr indent grouping expression =
         , parensFor grouping (fromPrefix op <> builder)
         )
 
-    UnaryAssignExpr _ _ _ ->
-      error "TODO"
-
-    InfixExpr _ op leftExpr rightExpr ->
+    Infix op leftExpr rightExpr ->
       let
         (leftLines, left) =
           fromExpr indent Atomic leftExpr
@@ -322,7 +425,7 @@ fromExpr indent grouping expression =
         , parensFor grouping (left <> fromInfix op <> right)
         )
 
-    CondExpr _ condExpr thenExpr elseExpr ->
+    If condExpr thenExpr elseExpr ->
       let
         condB = snd (fromExpr indent Atomic condExpr)
         thenB = snd (fromExpr indent Atomic thenExpr)
@@ -332,7 +435,7 @@ fromExpr indent grouping expression =
         , parensFor grouping (condB <> " ? " <> thenB <> " : " <> elseB)
         )
 
-    AssignExpr _ op lValue expr ->
+    Assign op lValue expr ->
       let
         (leftLines, left) =
           fromLValue indent lValue
@@ -344,10 +447,7 @@ fromExpr indent grouping expression =
         , parensFor grouping (left <> fromAssign op <> right)
         )
 
-    ListExpr _ _ ->
-      error "TODO"
-
-    CallExpr _ function args ->
+    Call function args ->
       (,) Many $
         let
           deeperIndent =
@@ -365,7 +465,7 @@ fromExpr indent grouping expression =
           else
             funcB <> "(" <> commaSep argsB <> ")"
 
-    FuncExpr _ maybeName args stmts ->
+    Function maybeName args stmts ->
       (,) Many $
         "function " <> maybe mempty fromId maybeName <> "(" <> commaSep (map fromId args) <> ") {\n"
         <>
@@ -378,7 +478,7 @@ fromExpr indent grouping expression =
 -- FIELDS
 
 
-fromField :: Builder -> (Prop a, Expression a) -> (Lines, Builder)
+fromField :: Builder -> (Prop, Expr) -> (Lines, Builder)
 fromField indent (prop, expr) =
   let
     (lines, builder) =
@@ -389,16 +489,16 @@ fromField indent (prop, expr) =
     )
 
 
-fromProp :: Prop a -> Builder
+fromProp :: Prop -> Builder
 fromProp prop =
   case prop of
-    PropId _ name ->
+    IdProp name ->
       fromId name
 
-    PropString _ string ->
+    StringProp string ->
       quoted string
 
-    PropNum _ n ->
+    IntProp n ->
       decimal n
 
 
@@ -406,54 +506,38 @@ fromProp prop =
 -- STRINGS
 
 
-quoted :: String -> Builder
-quoted string =
-  fromString ('\'' : foldr escapeCons "'" string)
-
-
--- https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Grammar_and_types#String_literals
-escapeCons :: Char -> String -> String
-escapeCons char rest =
-  case char of
-    '\b' -> '\\' : 'b' : rest
-    '\f' -> '\\' : 'f' : rest
-    '\n' -> '\\' : 'n' : rest
-    '\r' -> '\\' : 'r' : rest
-    '\t' -> '\\' : 't' : rest
-    '\v' -> '\\' : 'v' : rest
-    '\"' -> '\\' : '"' : rest
-    '\'' -> '\\' : '\'' : rest
-    '\\' -> '\\' : '\\' : rest
-    _    -> char : rest
+quoted :: Text -> Builder
+quoted str =
+  "'" <> fromText str <> "'"
 
 
 
 -- VALUES
 
 
-fromLValue :: Builder -> LValue a -> (Lines, Builder)
+fromLValue :: Builder -> LValue -> (Lines, Builder)
 fromLValue indent lValue =
   case lValue of
-    LVar _ name ->
-      (One, fromString name)
+    LVar name ->
+      (One, fromText name)
 
-    LDot _ expr field ->
+    LDot expr field ->
       makeDot indent expr field
 
-    LBracket _ expr bracketedExpr ->
+    LBracket expr bracketedExpr ->
       makeBracketed indent expr bracketedExpr
 
 
-makeDot :: Builder -> Expression a -> String -> (Lines, Builder)
+makeDot :: Builder -> Expr -> Text -> (Lines, Builder)
 makeDot indent expr field =
   let
     (lines, builder) =
       fromExpr indent Atomic expr
   in
-    (lines, builder <> "." <> fromString field)
+    (lines, builder <> "." <> fromText field)
 
 
-makeBracketed :: Builder -> Expression a -> Expression a -> (Lines, Builder)
+makeBracketed :: Builder -> Expr -> Expr -> (Lines, Builder)
 makeBracketed indent expr bracketedExpr =
   let
     (lines, builder) =

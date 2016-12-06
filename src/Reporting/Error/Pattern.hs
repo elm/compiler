@@ -65,7 +65,7 @@ unhandledError unhandledPatterns relevantMessage =
       splitAt 4 unhandledPatterns
 
     patternList =
-        map (Pattern.toString False) visiblePatterns
+        map Pattern.toString visiblePatterns
         ++ if null rest then [] else ["..."]
 
     noun =

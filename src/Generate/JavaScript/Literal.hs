@@ -1,25 +1,24 @@
 module Generate.JavaScript.Literal (literal) where
 
-import qualified Language.ECMAScript3.Syntax as JS
-
 import qualified AST.Literal as Lit
+import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.BuiltIn as BuiltIn
 
 
-literal :: Lit.Literal -> JS.Expression ()
+literal :: Lit.Literal -> JS.Expr
 literal lit =
   case lit of
     Lit.Chr char ->
         BuiltIn.character char
 
     Lit.Str string ->
-        BuiltIn.string string
+        JS.String string
 
     Lit.IntNum number ->
-        JS.IntLit () number
+        JS.Int number
 
     Lit.FloatNum number ->
-        JS.NumLit () number
+        JS.Float number
 
     Lit.Boolean boolean ->
-        JS.BoolLit () boolean
+        JS.Bool boolean

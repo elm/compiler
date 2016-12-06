@@ -4,6 +4,7 @@ module Reporting.Warning where
 
 import Data.Aeson ((.=))
 import qualified Data.Aeson as Json
+import qualified Data.Text as Text
 import Text.PrettyPrint.ANSI.Leijen (text)
 
 import qualified AST.Module.Name as ModuleName
@@ -34,7 +35,7 @@ toReport localizer warning =
         Report.report
           "unused import"
           Nothing
-          ("Module `" ++ ModuleName.toString moduleName ++ "` is unused.")
+          ("Module `" ++ Text.unpack (ModuleName.toText moduleName) ++ "` is unused.")
           (text "Best to remove it. Don't save code quality for later!")
 
     MissingTypeAnnotation name inferredType ->

@@ -7,6 +7,7 @@ import Data.Binary
 import qualified Data.Char as Char
 import Data.Function (on)
 import qualified Data.List as List
+import Data.Monoid ((<>))
 import qualified Data.Text as Text
 import Data.Text (Text)
 import System.FilePath ((</>))
@@ -57,8 +58,13 @@ linearAlgebra =
 
 
 toString :: Name -> String
-toString (Name user project) =
-    Text.unpack user ++ "/" ++ Text.unpack project
+toString name =
+    Text.unpack (toText name)
+
+
+toText :: Name -> Text
+toText (Name user project) =
+    user <> "/" <> project
 
 
 toUrl :: Name -> String

@@ -45,13 +45,19 @@ inLinearAlgebra raw =
 
 
 toString :: Raw -> String
-toString name =
-  Text.unpack name
+toString =
+  Text.unpack
 
 
-canonicalToString :: Canonical -> String
-canonicalToString (Canonical _ name) =
-  toString name
+{-# INLINE toText #-}
+toText :: Raw -> Text
+toText name =
+  name
+
+
+canonicalToText :: Canonical -> Text
+canonicalToText (Canonical _ name) =
+  toText name
 
 
 isNative :: Raw -> Bool
