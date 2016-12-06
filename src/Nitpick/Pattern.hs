@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Nitpick.Pattern
   ( Pattern(..)
   , fromCanonicalPattern
@@ -7,6 +8,9 @@ module Nitpick.Pattern
   where
 
 import qualified Data.List as List
+import Data.Monoid ((<>))
+import qualified Data.Text.Lazy as LazyText
+import Data.Text.Lazy.Builder (Builder, fromText, toLazyText)
 
 import qualified AST.Literal as L
 import qualified AST.Pattern as P
@@ -28,7 +32,7 @@ data Pattern
 fromCanonicalPattern :: P.Canonical -> Pattern
 fromCanonicalPattern (A.A _ pattern) =
   case pattern of
-    P.Data name patterns ->
+    P.Ctor name patterns ->
         Ctor name (map fromCanonicalPattern patterns)
 
     P.Record _ ->
@@ -57,34 +61,39 @@ fromCanonicalPattern (A.A _ pattern) =
 -- TO STRING
 
 
-toString :: Bool -> Pattern -> String
-toString needsParens pattern =
+toString :: Pattern -> String
+toString pattern =
+  LazyText.unpack (toLazyText (toBuilder False pattern))
+
+
+toBuilder :: Bool -> Pattern -> Builder
+toBuilder needsParens pattern =
   case pattern of
-    Ctor tag [first,rest] | Var.toString tag == "::" ->
-        toString (isCons first) first
-        ++ " :: "
-        ++ toString False rest
+    Ctor tag [first,rest] | Var.toText tag == "::" ->
+        toBuilder (isCons first) first <> " :: " <> toBuilder False rest
 
     Ctor tag args ->
         if Var.isTuple tag then
             if null args then "()" else
-              "( " ++ List.intercalate ", " (map (toString False) args) ++ " )"
+              "( "
+              <> mconcat (List.intersperse ", " (map (toBuilder False) args))
+              <> " )"
 
         else
           addParensIf (needsParens && not (null args)) $
-            List.intercalate " " (Var.toString tag : map (toString True) args)
+            mconcat (List.intersperse " " (fromText (Var.toText tag) : map (toBuilder True) args))
 
     Anything ->
         "_"
 
     Literal literal ->
-        L.toString literal
+        L.toBuilder literal
 
 
-addParensIf :: Bool -> String -> String
+addParensIf :: Bool -> Builder -> Builder
 addParensIf needsParens str =
   if needsParens then
-      "(" ++ str ++ ")"
+      "(" <> str <> ")"
 
   else
       str
@@ -94,7 +103,7 @@ isCons :: Pattern -> Bool
 isCons pattern =
   case pattern of
     Ctor tag [_,_] ->
-        Var.toString tag == "::"
+        Var.toText tag == "::"
 
     _ ->
         False

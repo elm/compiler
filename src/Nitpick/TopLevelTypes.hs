@@ -1,9 +1,11 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Nitpick.TopLevelTypes (topLevelTypes) where
 
 import qualified Data.Foldable as F
 import Data.Map ((!))
 import qualified Data.Map as Map
+import qualified Data.Text as Text
 
 import qualified AST.Expression.Canonical as Can
 import qualified AST.Module.Name as ModuleName
@@ -24,7 +26,7 @@ type Result =
 
 
 type TypeDict =
-  Map.Map String Type.Canonical
+  Map.Map Var.Canonical Type.Canonical
 
 
 
@@ -62,7 +64,7 @@ checkAnnotation typeEnv (Can.Def _ (A.A region pattern) _ maybeType) =
     (P.Var name, Nothing) ->
       let
         warning =
-          Warning.MissingTypeAnnotation name (typeEnv ! name)
+          Warning.MissingTypeAnnotation (Text.unpack name) (typeEnv ! Var.local name)
       in
         Result.warn region warning ()
 
@@ -78,7 +80,7 @@ checkMain :: TypeDict -> Can.Def -> Result Can.Def
 checkMain typeEnv (Can.Def facts pattern@(A.A region _) body maybeType) =
   let
     mainType =
-      typeEnv ! "main"
+      typeEnv ! Var.local "main"
 
     makeError tipe maybeMsg =
       A.A region (Error.BadFlags tipe maybeMsg)
@@ -107,19 +109,19 @@ checkMain typeEnv (Can.Def facts pattern@(A.A region _) body maybeType) =
 
 program :: Type.Canonical
 program =
-  Type.Type (Var.inCore ["Platform"] "Program")
+  Type.Type (Var.inCore "Platform" "Program")
 
 
 never :: Type.Canonical
 never =
-  Type.Type (Var.inCore ["Basics"] "Never")
+  Type.Type (Var.inCore "Basics" "Never")
 
 
 vdomNode :: Type.Canonical
 vdomNode =
   let
     vdom =
-      ModuleName.Canonical Pkg.virtualDom ["VirtualDom"]
+      ModuleName.Canonical Pkg.virtualDom "VirtualDom"
   in
     Type.Type (Var.fromModule vdom "Node")
 

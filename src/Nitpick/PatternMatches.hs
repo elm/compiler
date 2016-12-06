@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Nitpick.PatternMatches (patternMatches) where
 
 {- The algorithm used here comes from "Warnings for Pattern Matching"
@@ -14,6 +15,8 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Expression.Canonical as C
 import qualified AST.Helpers as Help
@@ -379,7 +382,7 @@ isCompleteHelp ctors row =
 
 
 type ArityDict =
-  Map.Map Var.Home (Map.Map String ArityInfo)
+  Map.Map Var.Home (Map.Map Text ArityInfo)
 
 
 data ArityInfo =
@@ -416,21 +419,21 @@ builtinDict =
       ++ map makeTupleInfo [0..8]
 
 
-makeTupleInfo :: Int -> ( String, ArityInfo )
+makeTupleInfo :: Int -> ( Text, ArityInfo )
 makeTupleInfo n =
   let
     name =
-      "_Tuple" ++ show n
+      Text.pack ("_Tuple" ++ show n)
   in
     ( name, ArityInfo 1 [ (Var.builtin name, n) ] )
 
 
-toArityEntry :: ModuleName.Canonical -> Module.Unions -> Map.Map String ArityInfo
+toArityEntry :: ModuleName.Canonical -> Module.Unions -> Map.Map Text ArityInfo
 toArityEntry name unions =
   Map.fromList (concatMap (toArityEntryHelp name) (Map.elems unions))
 
 
-toArityEntryHelp :: ModuleName.Canonical -> Module.UnionInfo String -> [(String, ArityInfo)]
+toArityEntryHelp :: ModuleName.Canonical -> Module.UnionInfo Text -> [(Text, ArityInfo)]
 toArityEntryHelp name (_tvars, ctors) =
   let
     arityInfo =
@@ -447,7 +450,7 @@ getArityInfo var@(Var.Canonical home name) arityDict =
 
     Nothing ->
       if Help.isTuple name then
-        ArityInfo 1 [ (var, read (drop 6 name)) ]
+        ArityInfo 1 [ (var, read (drop 6 (Text.unpack name))) ]
       else
         error
           "Since the Nitpick phase happens after canonicalization and type\
