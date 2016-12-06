@@ -1,7 +1,9 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Type.Constrain.Effects (constrain) where
 
 import qualified Data.Map as Map
+import Data.Monoid ((<>))
 
 import qualified AST.Effects as Effects
 import qualified AST.Module.Name as ModuleName
@@ -12,6 +14,10 @@ import Type.Type
   ( Variable, Type, TypeConstraint, Constraint(..), Scheme(Scheme)
   , TermN(VarN), (==>), (<|), mkVar
   )
+
+
+
+-- CONSTRAIN EFFECTS
 
 
 constrain :: Env.Env -> ModuleName.Canonical -> Effects.Canonical -> IO TypeConstraint
@@ -88,7 +94,7 @@ addEffectArgs
 addEffectArgs env moduleName managerType msg result =
   let
     toTypeName (A.A _ name) =
-      ModuleName.canonicalToString moduleName ++ "." ++ name
+      ModuleName.canonicalToText moduleName <> "." <> name
 
     effectList fxName =
       Env.getType env "List" <|

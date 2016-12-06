@@ -1,147 +1,180 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Type.Environment
     ( Env
+    , Dict
     , initialize
-    , getType, freshDataScheme, ctorNames
+    , get, getType, freshDataScheme, ctorNames
     , addValues
     , instantiateType
     )
     where
 
+import Control.Monad (foldM)
 import qualified Control.Monad.State as State
-import Data.Map ((!))
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Type as T
-import qualified AST.Variable as V
+import qualified AST.Variable as Var
 import qualified AST.Module as Module
 import Type.Type
 
 
-type TypeDict = Map.Map String Type
-type VarDict = Map.Map String Variable
+
+-- ENVIRONMENT
 
 
-data Env = Env
-    { _constructor :: Map.Map String (IO (Int, [Variable], [Type], Type))
-    , _types :: TypeDict
-    , _value :: TypeDict
+data Env =
+  Env
+    { _ctor  :: Dict Instantiator
+    , _types :: Dict Type
+    , _value :: Dict Type
     }
 
 
+type Instantiator =
+  IO (Int, [Variable], [Type], Type)
+
+
+type Dict a =
+  Map.Map Text a
+
+
 initialize :: [Module.CanonicalUnion] -> IO Env
-initialize datatypes =
-  do  types <- makeTypes datatypes
+initialize unions =
+  do  types <- makeTypes unions
       let env =
             Env
-              { _constructor = Map.empty
+              { _ctor = Map.empty
               , _value = Map.empty
               , _types = types
               }
-      return $ env { _constructor = makeConstructors env datatypes }
+      return $ env { _ctor = makeCtors env unions }
 
 
-makeTypes :: [Module.CanonicalUnion] -> IO TypeDict
-makeTypes datatypes =
-  do  unions <- mapM makeImported datatypes
-      bs <- mapM makeBuiltin builtins
-      return (Map.fromList (unions ++ bs))
+
+-- TYPES
+
+
+makeTypes :: [Module.CanonicalUnion] -> IO (Dict Type)
+makeTypes unions =
+  do  builtinDict <- Map.fromList <$> mapM makeBuiltin builtinTypes
+      foldM addImported builtinDict unions
+
+
+addImported :: Dict Type -> (Var.Canonical, unionInfo) -> IO (Dict Type)
+addImported dict ( var, _ ) =
+  do  atom <- mkAtom var
+      return (Map.insert (Var.toText var) (VarN atom) dict)
+
+
+makeBuiltin :: (Text, Int) -> IO (Text, Type)
+makeBuiltin (name, _) =
+  do  atom <- mkAtom (Var.builtin name)
+      return (name, VarN atom)
+
+
+builtinTypes :: [(Text, Int)]
+builtinTypes =
+    concat
+      [ map tuple [0..9]
+      , kind 1 ["List"]
+      , kind 0 ["Int","Float","Char","String","Bool"]
+      ]
   where
-    makeImported :: (V.Canonical, Module.UnionInfo V.Canonical) -> IO (String, Type)
-    makeImported (name, _) =
-      do  tvar <- mkAtom name
-          return (V.toString name, VarN tvar)
-
-    makeBuiltin :: (String, Int) -> IO (String, Type)
-    makeBuiltin (name, _) =
-      do  name' <- mkAtom (V.builtin name)
-          return (name, VarN name')
-
-    builtins :: [(String, Int)]
-    builtins =
-        concat
-          [ map tuple [0..9]
-          , kind 1 ["List"]
-          , kind 0 ["Int","Float","Char","String","Bool"]
-          ]
-      where
-        tuple n = ("_Tuple" ++ show n, n)
-        kind n names = map (\name -> (name, n)) names
+    tuple n = ( Text.pack ("_Tuple" ++ show n), n )
+    kind n names = map (\name -> (name, n)) names
 
 
-makeConstructors
-    :: Env
-    -> [Module.CanonicalUnion]
-    -> Map.Map String (IO (Int, [Variable], [Type], Type))
-makeConstructors env datatypes =
-    Map.fromList builtins
-  where
+
+-- CONSTRUCTORS
+
+
+makeCtors :: Env -> [Module.CanonicalUnion] -> Dict Instantiator
+makeCtors env unions =
+  let
     list t =
-      (_types env ! "List") <| t
+      getType env "List" <| t
 
-    inst :: Int -> ([Type] -> ([Type], Type)) -> IO (Int, [Variable], [Type], Type)
+    inst :: Int -> ([Type] -> ([Type], Type)) -> Instantiator
     inst numTVars tipe =
       do  vars <- mapM (\_ -> mkVar Nothing) [1..numTVars]
           let (args, result) = tipe (map (VarN) vars)
           return (length args, vars, args, result)
 
     tupleCtor n =
-        let name = "_Tuple" ++ show n
-        in  (name, inst n $ \vs -> (vs, foldl (<|) (_types env ! name) vs))
+      let
+        name =
+          Text.pack ("_Tuple" ++ show n)
+      in
+        (name, inst n $ \vs -> (vs, foldl (<|) (getType env name) vs))
 
-    builtins :: [ (String, IO (Int, [Variable], [Type], Type)) ]
+    builtins :: Dict Instantiator
     builtins =
+      Map.fromList $
         [ ("[]", inst 1 $ \ [t] -> ([], list t))
         , ("::", inst 1 $ \ [t] -> ([t, list t], list t))
-        ] ++ map tupleCtor [0..9]
-          ++ concatMap (ctorToType env) datatypes
+        ]
+        ++ map tupleCtor [0..9]
+  in
+    List.foldl' (makeCtorsHelp env) builtins unions
 
 
-ctorToType
-    :: Env
-    -> (V.Canonical, Module.UnionInfo V.Canonical)
-    -> [(String, IO (Int, [Variable], [Type], Type))]
-ctorToType env (name, (tvars, ctors)) =
-    zip (map (V.toString . fst) ctors) (map inst ctors)
-  where
-    inst :: (V.Canonical, [T.Canonical]) -> IO (Int, [Variable], [Type], Type)
-    inst ctor =
-      do  ((args, tipe), dict) <- State.runStateT (go ctor) Map.empty
-          return (length args, Map.elems dict, args, tipe)
+type VarDict =
+  Map.Map Text Variable
 
 
-    go :: (V.Canonical, [T.Canonical]) -> State.StateT VarDict IO ([Type], Type)
-    go (_, args) =
+makeCtorsHelp :: Env -> Dict Instantiator -> Module.CanonicalUnion -> Dict Instantiator
+makeCtorsHelp env constructorDict ( var, (rawTypeVars, ctors) ) =
+  let
+    inst :: Dict Instantiator -> (Var.Canonical, [T.Canonical]) -> Dict Instantiator
+    inst ctorDict (name, rawArgs) =
+      Map.insert
+        (Var.toText name)
+        ( do  ((args, tipe), dict) <- State.runStateT (go rawArgs) Map.empty
+              return ( length args, Map.elems dict, args, tipe )
+        )
+        ctorDict
+
+    tvars =
+      map T.Var rawTypeVars
+
+    go :: [T.Canonical] -> State.StateT VarDict IO ([Type], Type)
+    go args =
       do  types <- mapM (instantiator Flex env) args
-          returnType <- instantiator Flex env (T.App (T.Type name) (map T.Var tvars))
+          returnType <- instantiator Flex env (T.App (T.Type var) tvars)
           return (types, returnType)
+  in
+    List.foldl' inst constructorDict ctors
 
 
 
 -- ACCESS TYPES
 
 
-get :: (Env -> Map.Map String a) -> Env -> String -> a
-get subDict env key =
-    Map.findWithDefault (error msg) key (subDict env)
-  where
-    msg = "Could not find type constructor `" ++ key ++ "` while checking types."
+{-# INLINE get #-}
+get :: Dict a -> Text -> a
+get dict var =
+  dict Map.! var
 
 
-getType :: Env -> String -> Type
-getType =
-  get _types
+getType :: Env -> Text -> Type
+getType env var =
+  get (_types env) var
 
 
-freshDataScheme :: Env -> String -> IO (Int, [Variable], [Type], Type)
-freshDataScheme =
-  get _constructor
+freshDataScheme :: Env -> Text -> Instantiator
+freshDataScheme env var =
+  get (_ctor env) var
 
 
-ctorNames :: Env -> [String]
+ctorNames :: Env -> [Text]
 ctorNames env =
-  Map.keys (_constructor env)
+  Map.keys (_ctor env)
 
 
 
@@ -167,7 +200,7 @@ instantiator flex env sourceType =
     instantiatorHelp flex env Set.empty sourceType
 
 
-instantiatorHelp :: Flex -> Env -> Set.Set String -> T.Canonical -> State.StateT VarDict IO Type
+instantiatorHelp :: Flex -> Env -> Set.Set Text -> T.Canonical -> State.StateT VarDict IO Type
 instantiatorHelp flex env aliasVars sourceType =
   let
     go =
@@ -198,7 +231,7 @@ instantiatorHelp flex env aliasVars sourceType =
                               return (VarN variable)
 
       T.Aliased name args aliasType ->
-          do  targs <- mapM (\(arg,tipe) -> (,) arg <$> go tipe) args
+          do  targs <- traverse (traverse go) args
               realType <-
                   case aliasType of
                     T.Filled tipe ->
@@ -210,18 +243,11 @@ instantiatorHelp flex env aliasVars sourceType =
               return (AliasN name targs realType)
 
       T.Type name ->
-          case Map.lookup (V.toString name) (_types env) of
-            Just tipe ->
-                return tipe
-
-            Nothing ->
-                error $
-                  "Could not find type constructor `" ++
-                  V.toString name ++ "` while checking types."
+          return (getType env (Var.toText name))
 
       T.App func args ->
           do  tfunc <- go func
-              targs <- mapM go args
+              targs <- traverse go args
               return $ foldl (<|) tfunc targs
 
       T.Record fields ext ->

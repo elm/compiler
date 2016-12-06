@@ -2,8 +2,9 @@
 module Type.State where
 
 import qualified Control.Monad.State as State
-import Data.Map ((!))
 import qualified Data.Map as Map
+import Data.Map ((!))
+import Data.Text (Text)
 import qualified Data.UnionFind.IO as UF
 
 import qualified Reporting.Annotation as A
@@ -17,7 +18,8 @@ import Type.Type
 -- The rank of each variable is less than or equal to the pool's "maxRank"
 -- The young pool exists to make it possible to identify these vars in constant time.
 
-data Pool = Pool
+data Pool =
+  Pool
     { maxRank :: Int
     , inhabitants :: [Variable]
     }
@@ -25,20 +27,21 @@ data Pool = Pool
 
 emptyPool :: Pool
 emptyPool =
-    Pool
+  Pool
     { maxRank = outermostRank
     , inhabitants = []
     }
 
 
-type Env = Map.Map String (A.Located Variable)
+type Env = Map.Map Text (A.Located Variable)
 
 
 type Solver = State.StateT SolverState IO
 
 
 -- Keeps track of the environment, type variable pool, and a list of errors
-data SolverState = SS
+data SolverState =
+  SS
     { sEnv :: Env
     , sSavedEnv :: Env
     , sPool :: Pool
@@ -126,7 +129,7 @@ flatten term =
   flattenHelp Map.empty term
 
 
-flattenHelp :: Map.Map String Variable -> Type -> Solver Variable
+flattenHelp :: Map.Map Text Variable -> Type -> Solver Variable
 flattenHelp aliasDict termN =
   case termN of
     PlaceHolder name ->

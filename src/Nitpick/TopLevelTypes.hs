@@ -6,6 +6,7 @@ import qualified Data.Foldable as F
 import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Expression.Canonical as Can
 import qualified AST.Module.Name as ModuleName
@@ -26,7 +27,7 @@ type Result =
 
 
 type TypeDict =
-  Map.Map Var.Canonical Type.Canonical
+  Map.Map Text Type.Canonical
 
 
 
@@ -64,7 +65,7 @@ checkAnnotation typeEnv (Can.Def _ (A.A region pattern) _ maybeType) =
     (P.Var name, Nothing) ->
       let
         warning =
-          Warning.MissingTypeAnnotation (Text.unpack name) (typeEnv ! Var.local name)
+          Warning.MissingTypeAnnotation (Text.unpack name) (typeEnv ! name)
       in
         Result.warn region warning ()
 
@@ -80,7 +81,7 @@ checkMain :: TypeDict -> Can.Def -> Result Can.Def
 checkMain typeEnv (Can.Def facts pattern@(A.A region _) body maybeType) =
   let
     mainType =
-      typeEnv ! Var.local "main"
+      typeEnv ! "main"
 
     makeError tipe maybeMsg =
       A.A region (Error.BadFlags tipe maybeMsg)

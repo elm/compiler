@@ -1,13 +1,16 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Type.Type where
 
 import Control.Monad (when)
 import Control.Monad.State (StateT, liftIO)
 import qualified Control.Monad.State as State
 import qualified Data.Char as Char
-import qualified Data.List as List
 import qualified Data.Map as Map
+import Data.Monoid ((<>))
+import qualified Data.Text as Text
 import qualified Data.UnionFind.IO as UF
+import Data.Text (Text)
 
 import qualified AST.Type as T
 import qualified AST.Variable as Var
@@ -44,17 +47,17 @@ data Term1 a
     = App1 a a
     | Fun1 a a
     | EmptyRecord1
-    | Record1 (Map.Map String a) a
+    | Record1 (Map.Map Text a) a
 
 
 data TermN a
-    = PlaceHolder String
-    | AliasN Var.Canonical [(String, TermN a)] (TermN a)
+    = PlaceHolder Text
+    | AliasN Var.Canonical [(Text, TermN a)] (TermN a)
     | VarN a
     | TermN (Term1 (TermN a))
 
 
-record :: Map.Map String (TermN a) -> TermN a -> TermN a
+record :: Map.Map Text (TermN a) -> TermN a -> TermN a
 record fs rec =
   TermN (Record1 fs rec)
 
@@ -63,7 +66,8 @@ record fs rec =
 -- DESCRIPTORS
 
 
-data Descriptor = Descriptor
+data Descriptor =
+  Descriptor
     { _content :: Content
     , _rank :: Int
     , _mark :: Int
@@ -74,8 +78,8 @@ data Descriptor = Descriptor
 data Content
     = Structure (Term1 Variable)
     | Atom Var.Canonical
-    | Var Flex (Maybe Super) (Maybe String)
-    | Alias Var.Canonical [(String,Variable)] Variable
+    | Var Flex (Maybe Super) (Maybe Text)
+    | Alias Var.Canonical [(Text,Variable)] Variable
     | Error
 
 
@@ -131,14 +135,14 @@ data Constraint a b
     | CInstance R.Region SchemeName a
 
 
-type SchemeName = String
+type SchemeName = Text
 
 
 data Scheme a b = Scheme
     { _rigidQuantifiers :: [b]
     , _flexibleQuantifiers :: [b]
     , _constraint :: Constraint a b
-    , _header :: Map.Map String (A.Located a)
+    , _header :: Map.Map Text (A.Located a)
     }
 
 
@@ -183,20 +187,20 @@ mkVar maybeSuper =
   UF.fresh $ mkDescriptor (Var Flex maybeSuper Nothing)
 
 
-mkNamedVar :: Flex -> String -> IO Variable
+mkNamedVar :: Flex -> Text -> IO Variable
 mkNamedVar flex name =
     UF.fresh $ mkDescriptor $ Var flex (toSuper name) (Just name)
 
 
-toSuper :: String -> Maybe Super
+toSuper :: Text -> Maybe Super
 toSuper name =
-  if List.isPrefixOf "number" name then
+  if Text.isPrefixOf "number" name then
       Just Number
 
-  else if List.isPrefixOf "comparable" name then
+  else if Text.isPrefixOf "comparable" name then
       Just Comparable
 
-  else if List.isPrefixOf "appendable" name then
+  else if Text.isPrefixOf "appendable" name then
       Just Appendable
 
   else
@@ -207,12 +211,13 @@ toSuper name =
 -- CONSTRAINT HELPERS
 
 
-monoscheme :: Map.Map String (A.Located a) -> Scheme a b
+monoscheme :: Map.Map Text (A.Located a) -> Scheme a b
 monoscheme headers =
   Scheme [] [] CTrue headers
 
 
 infixl 8 /\
+
 
 (/\) :: Constraint a b -> Constraint a b -> Constraint a b
 (/\) c1 c2 =
@@ -349,7 +354,7 @@ data NameState = NameState
     }
 
 
-type TakenNames = Map.Map String Variable
+type TakenNames = Map.Map Text Variable
 
 
 makeNameState :: TakenNames -> NameState
@@ -357,7 +362,7 @@ makeNameState taken =
   NameState taken 0 0 0 0 0
 
 
-getFreshName :: (Monad m) => Maybe Super -> StateT NameState m String
+getFreshName :: (Monad m) => Maybe Super -> StateT NameState m Text
 getFreshName maybeSuper =
   case maybeSuper of
     Nothing ->
@@ -380,14 +385,17 @@ getFreshName maybeSuper =
         getFreshSuper "compappend" _compAppends (\index state -> state { _compAppends = index })
 
 
-getFreshNormal :: Int -> TakenNames -> (String, Int)
+getFreshNormal :: Int -> TakenNames -> (Text, Int)
 getFreshNormal index taken =
   let
     (postfix, letter) =
       quotRem index 26
 
+    char =
+      Char.chr (97 + letter)
+
     name =
-      Char.chr (97 + letter) : if postfix <= 0 then "" else show postfix
+      Text.pack (if postfix <= 0 then [char] else char : show postfix)
   in
     if Map.member name taken then
       getFreshNormal (index + 1) taken
@@ -398,10 +406,10 @@ getFreshNormal index taken =
 
 getFreshSuper
     :: (Monad m)
-    => String
+    => Text
     -> (NameState -> Int)
     -> (Int -> NameState -> NameState)
-    -> StateT NameState m String
+    -> StateT NameState m Text
 getFreshSuper name getter setter =
   do  index <- State.gets getter
       taken <- State.gets _taken
@@ -410,11 +418,11 @@ getFreshSuper name getter setter =
       return uniqueName
 
 
-getFreshSuperHelp :: String -> Int -> TakenNames -> (String, Int)
+getFreshSuperHelp :: Text -> Int -> TakenNames -> (Text, Int)
 getFreshSuperHelp name index taken =
   let
     newName =
-      if index <= 0 then name else name ++ show index
+      if index <= 0 then name else name <> Text.pack (show index)
   in
     if Map.member newName taken then
       getFreshSuperHelp name (index + 1) taken
@@ -471,7 +479,7 @@ getVarNames var =
                       getVarNames extension
 
 
-addVarName :: Int -> String -> Variable -> Flex -> Maybe Super -> TakenNames -> IO TakenNames
+addVarName :: Int -> Text -> Variable -> Flex -> Maybe Super -> TakenNames -> IO TakenNames
 addVarName index givenName var flex maybeSuper taken =
   let
     name =
@@ -490,13 +498,13 @@ addVarName index givenName var flex maybeSuper taken =
               else addVarName (index + 1) givenName var flex maybeSuper taken
 
 
-makeIndexedName :: String -> Int -> String
+makeIndexedName :: Text -> Int -> Text
 makeIndexedName name index =
   if index <= 0 then
     name
 
-  else if Char.isDigit (last name) then
-    name ++ '_' : show index
+  else if Char.isDigit (Text.last name) then
+    name <> Text.pack ('_' : show index)
 
   else
-    name ++ show index
+    name <> Text.pack (show index)

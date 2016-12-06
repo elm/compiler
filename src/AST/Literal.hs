@@ -8,8 +8,6 @@ import Data.Text.Lazy.Builder (Builder, fromString)
 import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lazy.Builder.RealFloat (realFloat)
 
-import qualified AST.Variable as Var
-
 
 
 -- LITERALS
@@ -49,16 +47,16 @@ data GLType
   deriving (Eq)
 
 
-glTypeToVar :: GLType -> Var.Canonical
-glTypeToVar glTipe =
+glTypeToText :: GLType -> Text
+glTypeToText glTipe =
   case glTipe of
-    V2 -> Var.inLinearAlgebra "Math.Vector2" "Vec2"
-    V3 -> Var.inLinearAlgebra "Math.Vector3" "Vec3"
-    V4 -> Var.inLinearAlgebra "Math.Vector4" "Vec4"
-    M4 -> Var.inLinearAlgebra "Math.Matrix4" "Mat4"
-    Int -> Var.builtin "Int"
-    Float -> Var.builtin "Float"
-    Texture -> Var.inWebGL "WebGL" "Texture"
+    V2 -> "Math.Vector2.Vec2"
+    V3 -> "Math.Vector3.Vec3"
+    V4 -> "Math.Vector4.Vec4"
+    M4 -> "Math.Matrix4.Mat4"
+    Int -> "Int"
+    Float -> "Float"
+    Texture -> "WebGL.Texture"
 
 
 data Shader =

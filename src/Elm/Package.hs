@@ -47,16 +47,6 @@ html =
   Name "elm-lang" "html"
 
 
-webgl :: Name
-webgl =
-  Name "elm-community" "webgl"
-
-
-linearAlgebra :: Name
-linearAlgebra =
-  Name "elm-community" "linear-algebra"
-
-
 toString :: Name -> String
 toString name =
     Text.unpack (toText name)

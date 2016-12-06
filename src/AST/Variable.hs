@@ -80,16 +80,6 @@ inHtml home name =
     Canonical (Module (ModuleName.inHtml home)) name
 
 
-inWebGL :: ModuleName.Raw -> Text -> Canonical
-inWebGL home name =
-    Canonical (Module (ModuleName.inWebGL home)) name
-
-
-inLinearAlgebra :: ModuleName.Raw -> Text -> Canonical
-inLinearAlgebra home name =
-    Canonical (Module (ModuleName.inLinearAlgebra home)) name
-
-
 cmd :: Canonical
 cmd =
   inCore "Platform.Cmd" "Cmd"

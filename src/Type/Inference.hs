@@ -1,9 +1,11 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Type.Inference where
 
 import Control.Arrow (first, second)
 import Control.Monad.Except (Except, forM, liftIO, runExceptT, throwError)
 import qualified Data.Map as Map
-import qualified Data.Traversable as Traverse
+import Data.Monoid ((<>))
+import Data.Text (Text)
 
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
@@ -25,7 +27,7 @@ import System.IO.Unsafe
 infer
     :: Module.Interfaces
     -> Module.Canonical
-    -> Except [A.Located Error.Error] (Map.Map String Type.Canonical)
+    -> Except [A.Located Error.Error] (Map.Map Text Type.Canonical)
 infer interfaces modul =
   either throwError return $ unsafePerformIO $ runExceptT $
     do  (header, constraint) <-
@@ -36,15 +38,16 @@ infer interfaces modul =
         let header' = Map.delete "::" header
         let types = Map.map A.drop (Map.difference (TS.sSavedEnv state) header')
 
-        liftIO (Traverse.traverse T.toSrcType types)
+        liftIO (traverse T.toSrcType types)
 
 
 genConstraints
     :: Module.Interfaces
     -> Module.Canonical
-    -> IO (Map.Map String T.Type, T.TypeConstraint)
+    -> IO (Map.Map Text T.Type, T.TypeConstraint)
 genConstraints interfaces modul =
-  do  env <- Env.initialize (canonicalizeUnions interfaces modul)
+  do  env <-
+        Env.initialize (canonicalizeUnions interfaces modul)
 
       ctors <-
           forM (Env.ctorNames env) $ \name ->
@@ -70,12 +73,12 @@ genConstraints interfaces modul =
 canonicalizeValues
     :: Env.Env
     -> (ModuleName.Canonical, Module.Interface)
-    -> IO [(String, ([T.Variable], T.Type))]
+    -> IO [(Text, ([T.Variable], T.Type))]
 canonicalizeValues env (moduleName, iface) =
     forM (Map.toList (Module.iTypes iface)) $ \(name, tipe) ->
         do  (flexType, flexVars) <- Env.instantiateType T.Flex env tipe
             return
-              ( ModuleName.canonicalToString moduleName ++ "." ++ name
+              ( ModuleName.canonicalToText moduleName <> "." <> name
               , ( Map.elems flexVars
                 , flexType
                 )
@@ -96,15 +99,15 @@ canonicalizeUnions interfaces (Module.Module name _ info) =
 
 
 format :: (ModuleName.Canonical, Module.Unions) -> [Module.CanonicalUnion]
-format (home, adts) =
-    map canonical (Map.toList adts)
+format (home, unions) =
+    map canonical (Map.toList unions)
   where
-    canonical :: (String, Module.UnionInfo String) -> Module.CanonicalUnion
+    canonical :: (Text, Module.UnionInfo Text) -> Module.CanonicalUnion
     canonical (name, (tvars, ctors)) =
         ( toVar name
         , (tvars, map (first toVar) ctors)
         )
 
-    toVar :: String -> Var.Canonical
+    toVar :: Text -> Var.Canonical
     toVar name =
         Var.fromModule home name

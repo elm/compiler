@@ -1,10 +1,13 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Type.Unify (unify) where
 
 import Control.Monad (zipWithM_)
 import Control.Monad.Except (ExceptT, lift, liftIO, throwError, runExceptT)
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
+import qualified Data.Text as Text
+import Data.Text (Text)
 import qualified Data.UnionFind.IO as UF
 
 import qualified AST.Variable as Var
@@ -103,7 +106,7 @@ mismatchHelp orientation maybeReason =
         Error.flipReason <$> maybeReason
 
 
-badRigid :: Maybe String -> Error.Reason
+badRigid :: Maybe Text -> Error.Reason
 badRigid maybeName =
   Error.BadVar (Just (Error.Rigid maybeName)) Nothing
 
@@ -248,7 +251,7 @@ unifyFlex context otherContent =
 -- UNIFY RIGID VARIABLES
 
 
-unifyRigid :: Context -> Maybe Super -> Maybe String -> Content -> Unify ()
+unifyRigid :: Context -> Maybe Super -> Maybe Text -> Content -> Unify ()
 unifyRigid context maybeSuper maybeName otherContent =
   case otherContent of
     Error ->
@@ -353,7 +356,7 @@ combineSupers firstSuper secondSuper =
         Left $ doubleBad (errorSuper firstSuper) (errorSuper secondSuper)
 
 
-isPrimitiveFrom :: [String] -> Var.Canonical -> Bool
+isPrimitiveFrom :: [Text] -> Var.Canonical -> Bool
 isPrimitiveFrom prims var =
   any (\p -> Var.isPrim p var) prims
 
@@ -531,7 +534,7 @@ isIntFloat name otherName =
 -- UNIFY ALIASES
 
 
-unifyAlias :: Context -> Var.Canonical -> [(String, Variable)] -> Variable -> Content -> Unify ()
+unifyAlias :: Context -> Var.Canonical -> [(Text, Variable)] -> Variable -> Content -> Unify ()
 unifyAlias context name args realVar otherContent =
   case otherContent of
     Error ->
@@ -668,7 +671,7 @@ unifyRecord context firstStructure secondStructure =
 
 
 
-unifySharedFieldsHelp :: Context -> Map.Map String (Variable, Variable) -> Unify ()
+unifySharedFieldsHelp :: Context -> Map.Map Text (Variable, Variable) -> Unify ()
 unifySharedFieldsHelp context sharedFields =
   do  maybeBadFields <- traverse (unifyField context) (Map.toList sharedFields)
       case Maybe.catMaybes maybeBadFields of
@@ -679,7 +682,7 @@ unifySharedFieldsHelp context sharedFields =
           mismatch context (Just (Error.BadFields (reverse badFields)))
 
 
-unifyField :: Context -> (String, (Variable, Variable)) -> Unify (Maybe (String, Maybe Error.Reason))
+unifyField :: Context -> (Text, (Variable, Variable)) -> Unify (Maybe (String, Maybe Error.Reason))
 unifyField context (field, (expected, actual)) =
   do  result <- lift $ runExceptT $ subUnify context expected actual
       case result of
@@ -687,7 +690,7 @@ unifyField context (field, (expected, actual)) =
           return $ Nothing
 
         Left (Mismatch maybeReason) ->
-          return $ Just (field, maybeReason)
+          return $ Just (Text.unpack field, maybeReason)
 
 
 
@@ -695,7 +698,7 @@ unifyField context (field, (expected, actual)) =
 
 
 data RecordStructure = RecordStructure
-    { _fields :: Map.Map String Variable
+    { _fields :: Map.Map Text Variable
     , _extVar :: Variable
     , _extStruct :: ExtensionStructure
     }
@@ -706,7 +709,7 @@ data ExtensionStructure
     | Extension
 
 
-gatherFields :: Context -> Map.Map String Variable -> Variable -> Unify RecordStructure
+gatherFields :: Context -> Map.Map Text Variable -> Variable -> Unify RecordStructure
 gatherFields context fields variable =
   do  desc <- liftIO (UF.descriptor variable)
       case _content desc of

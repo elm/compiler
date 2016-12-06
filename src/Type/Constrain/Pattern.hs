@@ -3,11 +3,12 @@ module Type.Constrain.Pattern (Info(..), joinInfos, infoToScheme, constrain) whe
 
 import Control.Arrow (second)
 import qualified Control.Monad as Monad
-import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.List as List
+import Data.Text (Text)
 
 import qualified AST.Pattern as P
-import qualified AST.Variable as V
+import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Type.Constrain.Literal as Literal
@@ -21,7 +22,7 @@ import Type.Type
 
 data Info =
   Info
-    { _headers :: Map.Map String (A.Located Type)
+    { _headers :: Map.Map Text (A.Located Type)
     , _vars :: [Variable]
     , _cons :: TypeConstraint
     }
@@ -91,18 +92,16 @@ constrain env (A.A region pattern) tipe =
                   /\ _cons info
               }
 
-      P.Data name patterns ->
-        do  let stringName = V.toString name
-
-            (_kind, cvars, args, result) <-
-                Env.freshDataScheme env stringName
+      P.Ctor name patterns ->
+        do  (_kind, cvars, args, result) <-
+                Env.freshDataScheme env (Var.toText name)
 
             fragList <- Monad.zipWithM (constrain env) patterns args
             let info = joinInfos fragList
             return $ info
                 { _vars = cvars ++ _vars info
                 , _cons =
-                    equal (Error.PData stringName) result tipe
+                    equal (Error.PCtor name) result tipe
                     /\ _cons info
                 }
 

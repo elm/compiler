@@ -1,9 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Type.Constrain.Expression where
 
 import Control.Arrow (second)
 import qualified Control.Monad as Monad
 import qualified Data.Map as Map
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Expression.Canonical as C
 import qualified AST.Literal as Lit
@@ -45,20 +48,20 @@ constrain env annotatedExpr@(A.A region expression) tipe =
     C.SaveEnv moduleName effects ->
       Effects.constrain env moduleName effects
 
-    C.GLShader _uid _src gltipe ->
+    C.GLShader _uid _src glType ->
       exists $ \attr ->
       exists $ \unif ->
         let
           shaderTipe a u v =
             Env.getType env "WebGL.Shader" <| a <| u <| v
 
-          glToType glTipe =
-            Env.getType env (Lit.glTipeName glTipe)
+          glToType gl =
+            Env.getType env (Lit.glTypeToText gl)
 
           makeRec accessor baseRec =
-            let decls = accessor gltipe
+            let decls = accessor glType
             in
-              if Map.size decls == 0 then
+              if Map.null decls then
                   baseRec
               else
                   record (Map.map glToType decls) baseRec
@@ -70,7 +73,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
           return (CEqual Error.Shader region (shaderTipe attribute uniform varying) tipe)
 
     C.Var var ->
-      return (CInstance region (V.toString var) tipe)
+      return (CInstance region (V.toText var) tipe)
 
     C.List exprs ->
       constrainList env region exprs tipe
@@ -103,7 +106,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
       do  vars <- Monad.forM exprs $ \_ -> mkVar Nothing
           let pairs = zip exprs (map VarN vars)
           (ctipe, cs) <- Monad.foldM step (tipe, CTrue) (reverse pairs)
-          return $ ex vars (cs /\ CInstance region name ctipe)
+          return $ ex vars (cs /\ CInstance region (V.toText name) ctipe)
       where
         step (t,c) (e,x) =
             do  c' <- constrain env e x
@@ -270,7 +273,7 @@ constrainBinop env region op leftExpr@(A.A leftRegion _) rightExpr@(A.A rightReg
         ex [leftVar,rightVar,leftVar',rightVar',answerVar] $ CAnd $
           [ leftCon
           , rightCon
-          , CInstance region (V.toString op) opType
+          , CInstance region (V.toText op) opType
           , CEqual (Error.BinopLeft op leftRegion) region (VarN leftVar') (VarN leftVar)
           , CEqual (Error.BinopRight op rightRegion) region (VarN rightVar') (VarN rightVar)
           , CEqual (Error.Binop op) region (VarN answerVar) tipe
@@ -460,7 +463,7 @@ expandPattern def@(C.Def facts lpattern expr maybeType) =
           P.boundVarList lpattern
 
         combinedName =
-          "$" ++ concat vars
+          Text.intercalate "$" ("" : vars)
 
         pvar name =
           A.A patternRegion (P.Var name)
@@ -483,11 +486,12 @@ expandPattern def@(C.Def facts lpattern expr maybeType) =
 -- CONSTRAIN DEFINITIONS
 
 
-data Info = Info
+data Info =
+  Info
     { iSchemes :: [TypeScheme]
     , iRigid :: [Variable]
     , iFlex :: [Variable]
-    , iHeaders :: Map.Map String (A.Located Type)
+    , iHeaders :: Map.Map Text (A.Located Type)
     , iC2 :: TypeConstraint
     , iC1 :: TypeConstraint
     }
@@ -509,7 +513,7 @@ constrainDef env info (C.Def defRegion (A.A patternRegion pattern) expr maybeTip
 constrainUnannotatedDef
     :: Env.Env
     -> R.Region
-    -> String
+    -> Text
     -> C.Expr
     -> Info
     -> IO Info
@@ -528,7 +532,7 @@ constrainAnnotatedDef
     :: Env.Env
     -> R.Region
     -> R.Region
-    -> String
+    -> Text
     -> C.Expr
     -> ST.Canonical
     -> Info
@@ -554,7 +558,7 @@ constrainAnnotatedDef env defRegion region name expr tipe info =
 
 data ArgInfo =
   ArgInfo
-    { _name :: String
+    { _name :: Text
     , _def :: R.Region
     , _env :: Env.Env
     , _args :: [(P.Canonical, Type)]
@@ -594,7 +598,7 @@ constrainAnnDefHelp expr tipe (ArgInfo name defRegion env args vars) =
           let sharedArity = length args
           let typeArity = sharedArity + length (ST.collectLambdas tipe) - 1
           let argsArity = sharedArity + length (fst (C.collectLambdas expr))
-          let hint = Error.ReturnType name typeArity argsArity region
+          let hint = Error.ReturnType (Text.unpack name) typeArity argsArity region
           let resultCon =
                 CEqual hint defRegion rigidType resultType
 

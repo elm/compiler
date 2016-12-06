@@ -1,12 +1,13 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Type.Solve (solve) where
 
 import Control.Monad
 import Control.Monad.State (execStateT, liftIO)
 import Control.Monad.Except (ExceptT, throwError)
-import qualified Data.List as List
-import qualified Data.Map as Map
 import qualified Data.Foldable as F
+import qualified Data.Map as Map
+import qualified Data.Text as Text
 import qualified Data.UnionFind.IO as UF
 
 import qualified Reporting.Annotation as A
@@ -199,17 +200,17 @@ actuallySolve constraint =
                       TS.makeInstance tipe
 
                   Nothing ->
-                      if List.isPrefixOf "Native." name then
+                      if Text.isPrefixOf "Native." name then
                           liftIO (mkVar Nothing)
 
                       else
-                          error ("Could not find `" ++ name ++ "` when solving type constraints.")
+                          error ("Could not find `" ++ Text.unpack name ++ "` when solving type constraints.")
 
             t <- TS.flatten term
             unify (Error.Instance name) region freshCopy t
 
 
-solveScheme :: TypeScheme -> TS.Solver (Map.Map String (A.Located Variable))
+solveScheme :: TypeScheme -> TS.Solver TS.Env
 solveScheme scheme =
   let
     flatten (A.A region term) =
@@ -238,6 +239,7 @@ solveScheme scheme =
             return header'
 
 
+
 -- ADDITIONAL CHECKS
 
 
@@ -263,7 +265,7 @@ crash msg =
 -- OCCURS CHECK
 
 
-occurs :: (String, A.Located Variable) -> TS.Solver ()
+occurs :: (Text.Text, A.Located Variable) -> TS.Solver ()
 occurs (name, A.A region variable) =
   do  hasOccurred <- liftIO $ occursHelp [] variable
       case hasOccurred of

@@ -34,16 +34,6 @@ inHtml raw =
   Canonical Package.html raw
 
 
-inWebGL :: Raw -> Canonical
-inWebGL raw =
-  Canonical Package.webgl raw
-
-
-inLinearAlgebra :: Raw -> Canonical
-inLinearAlgebra raw =
-  Canonical Package.linearAlgebra raw
-
-
 toString :: Raw -> String
 toString =
   Text.unpack
